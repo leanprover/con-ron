@@ -165,14 +165,13 @@ pub const M_REC_LPS: [u32; 70] = [
     114, 97, 116, 101, 100, 32, 111, 110, 101, 115,
 ];
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `target rec: a recursor is named for a pinned basis constant, a literal guard's slot or a certified Nat operation`, as code points.
-pub const M_REC_RESERVED: [u32; 112] = [
+/// `target rec: a recursor is named for a literal guard's slot or a certified Nat operation`, as code points.
+pub const M_REC_RESERVED: [u32; 87] = [
     116, 97, 114, 103, 101, 116, 32, 114, 101, 99, 58, 32, 97, 32, 114, 101, 99, 117, 114, 115,
-    111, 114, 32, 105, 115, 32, 110, 97, 109, 101, 100, 32, 102, 111, 114, 32, 97, 32, 112, 105,
-    110, 110, 101, 100, 32, 98, 97, 115, 105, 115, 32, 99, 111, 110, 115, 116, 97, 110, 116, 44,
-    32, 97, 32, 108, 105, 116, 101, 114, 97, 108, 32, 103, 117, 97, 114, 100, 39, 115, 32, 115,
-    108, 111, 116, 32, 111, 114, 32, 97, 32, 99, 101, 114, 116, 105, 102, 105, 101, 100, 32, 78,
-    97, 116, 32, 111, 112, 101, 114, 97, 116, 105, 111, 110,
+    111, 114, 32, 105, 115, 32, 110, 97, 109, 101, 100, 32, 102, 111, 114, 32, 97, 32, 108, 105,
+    116, 101, 114, 97, 108, 32, 103, 117, 97, 114, 100, 39, 115, 32, 115, 108, 111, 116, 32, 111,
+    114, 32, 97, 32, 99, 101, 114, 116, 105, 102, 105, 101, 100, 32, 78, 97, 116, 32, 111, 112,
+    101, 114, 97, 116, 105, 111, 110,
 ];
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `target rec: the block's recursor names are not the generated ones (one T.rec per member)`, as code points.
@@ -1043,7 +1042,6 @@ pub fn target_major_pins(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:488-526 targetRecPins
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove rec_check::recs_by_target_refines, then delete this line
 /// Lean twin: `p.recs.filter fun rc => rc.tgt < p.k` (`own = true`) or its
 /// negation — the member recursors, resp. the auxiliary ones, in order.
 pub fn recs_by_target(rs: &Vec<RecShape>, k: u64, own: bool, i: usize, out: Vec<RecShape>) -> Vec<RecShape> {
@@ -1063,7 +1061,6 @@ pub fn recs_by_target(rs: &Vec<RecShape>, k: u64, own: bool, i: usize, out: Vec<
 pub const REC_AUX_PREFIX: [u32; 4] = [114, 101, 99, 95];
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:488-526 targetRecPins
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove rec_check::want_aux_names_refines, then delete this line
 /// Lean twin: `(List.range n).map fun i => n0.str s!"rec_{i + 1}"` — official's
 /// auxiliary recursor names `T_0.rec_1 … T_0.rec_n`, interned.
 pub fn want_aux_names(
@@ -1128,7 +1125,6 @@ pub fn ctor3_names(cs: &Vec<(IConstantVal, u64, u64)>, i: usize, out: Vec<NIdx>)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:488-526 targetRecPins
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove rec_check::target_rec_pins_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:360-395 targetRecPins` — **the
 /// recursor records' pins**: the level parameters, the reserved names, the
 /// member recursors' names as the set `{T_m.rec}`, the auxiliary ones as
@@ -1160,7 +1156,6 @@ pub fn target_rec_pins(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:488-526 targetRecPins
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove rec_check::target_rec_pins_aux_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:360-395 targetRecPins` — the
 /// auxiliary names, distinctness and the grouping.
 pub fn target_rec_pins_aux(
@@ -1181,7 +1176,6 @@ pub fn target_rec_pins_aux(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:488-526 targetRecPins
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove rec_check::target_rec_pins_names_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:360-395 targetRecPins` — the
 /// auxiliary names at member 0's name `n0` (`.anonymous` at no member).
 pub fn target_rec_pins_names(

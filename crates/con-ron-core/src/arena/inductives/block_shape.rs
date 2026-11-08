@@ -1,12 +1,15 @@
 //! `arena::inductives::block_shape` — the k-ary block: the record and the
-//! recogniser.
+//! reader.
 //!
 //! The Rust twin of `proof/ConRon/Arena/Inductives/BlockShape.lean`, which is
 //! `ConLeche/Kernel/Inductives/BlockShape.lean` over handles: the record a
 //! block is read into (`MemberShape`, `RecShape`, `BlockShape`), its
-//! projections, and the recogniser (`blockSplit`, `recTargetOf`,
-//! `blockCounts?`, `blockGroups`, `blockShape?`) with the recursor records'
-//! name and level pins the recursor stage throws on.
+//! projections, and the reader (`blockSplit`, `recTargetOf`, `blockCounts`,
+//! `blockGroups`, `readBlock`) with the recursor records' name and level pins
+//! the recursor stage throws on.  A block the reader cannot read is an
+//! invalid input: the reader's value is the cited `Except`, the inner
+//! `Result` of `Result<Result<BlockShape, CheckError>, CheckError>` (the outer
+//! one is the arena's own failure, a dangling handle or exhausted fuel).
 //!
 //! ## The twin's deviations
 //!
@@ -17,7 +20,10 @@
 //! * **`BlockShape.recTgtAt` is not ported**: nothing the executed checker
 //!   runs reads it (the model does); the skip list says so.
 //! * **The `…all`/`…any`/`find?`/`filter`/`map` closures are index
-//!   recursions** (§3.4).
+//!   recursions** (§3.4); a `find?` whose hit only names the error is an
+//!   `all` scan.
+//! * **The error messages drop con-leche's interpolated names and counts**
+//!   (§3.1), and with them the recursor name `blockCounts`' `r` carries.
 
 use super::field_tele::pi_binders;
 use super::positivity::{member_idx_at, names_contain, names_find_idx};
@@ -487,12 +493,41 @@ pub fn rec_target_of(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:263-289 blockCounts?
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove block_shape::block_counts_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:241-260 blockCounts?` — **one
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `inductive type declares more parameters than its type has binders`, as code points.
+pub const M_PARAMS_EXCEED: [u32; 65] = [
+    105, 110, 100, 117, 99, 116, 105, 118, 101, 32, 116, 121, 112, 101, 32, 100, 101, 99, 108, 97,
+    114, 101, 115, 32, 109, 111, 114, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 115, 32,
+    116, 104, 97, 110, 32, 105, 116, 115, 32, 116, 121, 112, 101, 32, 104, 97, 115, 32, 98, 105,
+    110, 100, 101, 114, 115,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `no recursor of the block eliminates the inductive type`, as code points.
+pub const M_NO_REC_ELIM: [u32; 54] = [
+    110, 111, 32, 114, 101, 99, 117, 114, 115, 111, 114, 32, 111, 102, 32, 116, 104, 101, 32, 98,
+    108, 111, 99, 107, 32, 101, 108, 105, 109, 105, 110, 97, 116, 101, 115, 32, 116, 104, 101, 32,
+    105, 110, 100, 117, 99, 116, 105, 118, 101, 32, 116, 121, 112, 101,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `the argument counts of a recursor do not fit the block`, as code points.
+pub const M_REC_COUNTS: [u32; 54] = [
+    116, 104, 101, 32, 97, 114, 103, 117, 109, 101, 110, 116, 32, 99, 111, 117, 110, 116, 115, 32,
+    111, 102, 32, 97, 32, 114, 101, 99, 117, 114, 115, 111, 114, 32, 100, 111, 32, 110, 111, 116,
+    32, 102, 105, 116, 32, 116, 104, 101, 32, 98, 108, 111, 99, 107,
+];
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:263-298 blockCounts
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 blockCounts` — **one
 /// member's parameter and index counts**, read as official reads them: off
 /// the member's own telescope when it is a syntactic one ending in a sort,
-/// else off the argument sums of a recursor whose major names the member.
+/// else off the argument sums of a recursor whose major names the member.  A
+/// member that cannot be counted is an invalid input, with the reason (the
+/// inner `Result`, the cited `Except`).
+///
+/// Deviation: the cited `r` carries the recursor's name for the error text;
+/// the port drops the interpolation (§3.1), so `r` is the two counts.
 #[allow(clippy::too_many_arguments)]
 pub fn block_counts(
     pers: &PersTier,
@@ -503,7 +538,7 @@ pub fn block_counts(
     n_r: u64,
     cv_t: &IConstantVal,
     r: Option<(u64, u64)>,
-) -> Result<Option<(u64, u64)>, CheckError> {
+) -> Result<Result<(u64, u64), CheckError>, CheckError> {
     match pi_binders(pers, st, CORE_WALK_FUEL, &cv_t.ty, Vec::new()) {
         Err(e) => Err(e),
         Ok((bs, res)) => match view(pers, st, &res) {
@@ -511,9 +546,9 @@ pub fn block_counts(
             Ok(ENodeView::Sort(_)) => {
                 let n: u64 = bs.len() as u64;
                 if n_pd <= n {
-                    Ok(Some((n_pd, n - n_pd)))
+                    Ok(Ok((n_pd, n - n_pd)))
                 } else {
-                    Ok(None)
+                    Ok(Err(CheckError::Invalid(code_points(&M_PARAMS_EXCEED))))
                 }
             }
             Ok(_) => Ok(block_counts_rec(n_pd, k, n_c, n_r, r)),
@@ -521,25 +556,32 @@ pub fn block_counts(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:263-289 blockCounts?
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove block_shape::block_counts_rec_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:241-260 blockCounts?` — the
-/// def-headed former's arm: the counts off the recursor's sums.
-pub fn block_counts_rec(n_pd: u64, k: u64, n_c: u64, n_r: u64, r: Option<(u64, u64)>) -> Option<(u64, u64)> {
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:263-298 blockCounts
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 blockCounts` — the
+/// def-headed former's arm: the counts off the recursor's sums, or the reason
+/// they cannot be read.
+pub fn block_counts_rec(n_pd: u64, k: u64, n_c: u64, n_r: u64, r: Option<(u64, u64)>) -> Result<(u64, u64), CheckError> {
     match r {
-        None => None,
+        None => Err(CheckError::Invalid(code_points(&M_NO_REC_ELIM))),
         Some((m_i, r_p)) => {
             if r_p < n_c + k || m_i < r_p {
-                None
+                Err(rec_counts_error())
             } else if sub_nat(r_p, n_c + k) == n_pd {
-                Some((n_pd, sub_nat(m_i, r_p)))
+                Ok((n_pd, sub_nat(m_i, r_p)))
             } else if k < n_r && n_pd + n_r + n_c <= r_p {
-                Some((n_pd, sub_nat(m_i, r_p)))
+                Ok((n_pd, sub_nat(m_i, r_p)))
             } else {
-                None
+                Err(rec_counts_error())
             }
         }
     }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:263-298 blockCounts.recCountsError
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 recCountsError` — a recursor whose argument counts do
+/// not fit the block (the cited names and counts dropped, §3.1).
+pub fn rec_counts_error() -> CheckError {
+    CheckError::Invalid(code_points(&M_REC_COUNTS))
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:300-307 ctorMember?
@@ -788,8 +830,7 @@ pub fn block_rec_names_unreserved(st: &mut AState, rs: &Vec<RecShape>, i: usize)
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:360-373 blockMemberCounts?
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove block_shape::rec_for_member_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:369-383 blockMemberCounts
 /// Lean twin: `rs.find? fun q => recTargetOf names q.2.1 q.1.type == m` — the
 /// first recursor whose major names member `m`, its `(mI, rP)`.
 pub fn rec_for_member(
@@ -816,11 +857,11 @@ pub fn rec_for_member(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:360-373 blockMemberCounts?
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove block_shape::block_member_counts_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:319-337 blockMemberCounts?` —
-/// **the members' index counts**, one `blockCounts?` per member (from member
-/// `m`, the former `cv_ts[m]`), in order.
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:369-383 blockMemberCounts
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 blockMemberCounts` —
+/// **the members' index counts**, one `blockCounts` per member (from member
+/// `m`, the former `cv_ts[m]`), in order; the first member that cannot be
+/// counted gives the error.
 #[allow(clippy::too_many_arguments)]
 pub fn block_member_counts(
     pers: &PersTier,
@@ -833,16 +874,16 @@ pub fn block_member_counts(
     m: u64,
     cv_ts: &Vec<IConstantVal>,
     out: Vec<u64>,
-) -> Result<Option<Vec<u64>>, CheckError> {
+) -> Result<Result<Vec<u64>, CheckError>, CheckError> {
     if m >= cv_ts.len() as u64 {
-        Ok(Some(out))
+        Ok(Ok(out))
     } else {
         match rec_for_member(pers, st, names, rs, m, 0) {
             Err(e) => Err(e),
             Ok(r) => match block_counts(pers, st, n_pd, k, n_c, rs.len() as u64, &cv_ts[m as usize], r) {
                 Err(e) => Err(e),
-                Ok(None) => Ok(None),
-                Ok(Some(c)) => {
+                Ok(Err(e)) => Ok(Err(e)),
+                Ok(Ok(c)) => {
                     let mut o: Vec<u64> = out;
                     o.push(c.1);
                     block_member_counts(pers, st, n_pd, k, n_c, names, rs, m + 1, cv_ts, o)
@@ -864,54 +905,45 @@ pub fn former_names(cvs: &Vec<IConstantVal>, i: usize, out: Vec<NIdx>) -> Vec<NI
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:375-432 blockShape?
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove block_shape::formers_pinned_refines, then delete this line
-/// Lean twin: the reserved-name and level-parameter pins on the formers:
-/// `cvTs.all fun c => reservedBasisNames.contains c.name == false` and
-/// `cvTs.all fun c => c.levelParams == lps`, in one pass.
-pub fn formers_pinned(reserved: &Vec<NIdx>, cvs: &Vec<IConstantVal>, lps: &Vec<NIdx>, i: usize) -> bool {
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
+/// Lean twin: `cvTs.all fun c => c.levelParams == lps` — no type former
+/// declares other universe parameters than member 0 (the cited
+/// `cvTs.find? (fun c => c.levelParams != lps)` misses).
+pub fn formers_lps_ok(cvs: &Vec<IConstantVal>, lps: &Vec<NIdx>, i: usize) -> bool {
     if i >= cvs.len() {
         true
-    } else if names_contain(reserved, &cvs[i].name, 0) || !core::nidx_vec_beq(&cvs[i].level_params, lps) {
+    } else if !core::nidx_vec_beq(&cvs[i].level_params, lps) {
         false
     } else {
-        formers_pinned(reserved, cvs, lps, i + 1)
+        formers_lps_ok(cvs, lps, i + 1)
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:375-432 blockShape?
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove block_shape::recs_unreserved_refines, then delete this line
-/// Lean twin: `rs.all fun r => reservedBasisNames.contains r.1.name == false`.
-pub fn recs_unreserved(reserved: &Vec<NIdx>, rs: &Vec<(IConstantVal, u64, u64, bool, Vec<IRecRule>)>, i: usize) -> bool {
-    if i >= rs.len() {
-        true
-    } else if names_contain(reserved, &rs[i].0.name, 0) {
-        false
-    } else {
-        recs_unreserved(reserved, rs, i + 1)
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:375-432 blockShape?
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove block_shape::ctors_pinned_refines, then delete this line
-/// Lean twin: `cs.all fun c => c.2.1 == nP && c.1.levelParams == lps &&
-/// reservedBasisNames.contains c.1.name == false`.
-pub fn ctors_pinned(
-    reserved: &Vec<NIdx>,
-    cs: &Vec<(IConstantVal, u64, u64)>,
-    n_p: u64,
-    lps: &Vec<NIdx>,
-    i: usize,
-) -> bool {
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
+/// Lean twin: `cs.all fun c => c.2.1 == nP` — every constructor declares the
+/// block's parameter count (the cited `cs.find? (fun c => c.2.1 != nP)`
+/// misses).
+pub fn ctors_params_ok(cs: &Vec<(IConstantVal, u64, u64)>, n_p: u64, i: usize) -> bool {
     if i >= cs.len() {
         true
-    } else if cs[i].1 == n_p
-        && core::nidx_vec_beq(&cs[i].0.level_params, lps)
-        && !names_contain(reserved, &cs[i].0.name, 0)
-    {
-        ctors_pinned(reserved, cs, n_p, lps, i + 1)
-    } else {
+    } else if cs[i].1 != n_p {
         false
+    } else {
+        ctors_params_ok(cs, n_p, i + 1)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
+/// Lean twin: `cs.all fun c => c.1.levelParams == lps` — every constructor
+/// declares the block's universe parameters (the cited
+/// `cs.find? (fun c => c.1.levelParams != lps)` misses).
+pub fn ctors_lps_ok(cs: &Vec<(IConstantVal, u64, u64)>, lps: &Vec<NIdx>, i: usize) -> bool {
+    if i >= cs.len() {
+        true
+    } else if !core::nidx_vec_beq(&cs[i].0.level_params, lps) {
+        false
+    } else {
+        ctors_lps_ok(cs, lps, i + 1)
     }
 }
 
@@ -927,8 +959,7 @@ pub fn ctors_nf(cs: &Vec<(IConstantVal, u64, u64)>, i: usize, out: Vec<(IConstan
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:375-432 blockShape?
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove block_shape::zip_members_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
 /// Lean twin: `((cvTs.zip nIdxs).zip groups).map …` — the members, zipped to the
 /// shortest of the three lists.
 pub fn zip_members(
@@ -952,8 +983,7 @@ pub fn zip_members(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:375-432 blockShape?
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove block_shape::rec_shapes_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
 /// Lean twin: `rs.map fun r => ⟨r.1, rP, mI, recTargetOf names mI r.1.type,
 /// rules⟩` — **the recursors, in the stream's own order**, each
 /// with the member its MAJOR names.
@@ -986,44 +1016,111 @@ pub fn rec_shapes(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:375-432 blockShape?
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove block_shape::block_shape_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:339-396 blockShape?` — **the
-/// block's shape**: split into formers, constructors and recursors (at least
-/// one of each of the first and the last), the members' counts, the
-/// reserved-name and level pins, and then the record.
-pub fn block_shape(
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `inductive block: its records are not the inductive types, then the constructors, then the recursors`, as code points.
+pub const M_ORDER: [u32; 99] = [
+    105, 110, 100, 117, 99, 116, 105, 118, 101, 32, 98, 108, 111, 99, 107, 58, 32, 105, 116, 115,
+    32, 114, 101, 99, 111, 114, 100, 115, 32, 97, 114, 101, 32, 110, 111, 116, 32, 116, 104, 101,
+    32, 105, 110, 100, 117, 99, 116, 105, 118, 101, 32, 116, 121, 112, 101, 115, 44, 32, 116, 104,
+    101, 110, 32, 116, 104, 101, 32, 99, 111, 110, 115, 116, 114, 117, 99, 116, 111, 114, 115, 44,
+    32, 116, 104, 101, 110, 32, 116, 104, 101, 32, 114, 101, 99, 117, 114, 115, 111, 114, 115,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `inductive block declares no inductive type`, as code points.
+pub const M_NO_TYPE: [u32; 42] = [
+    105, 110, 100, 117, 99, 116, 105, 118, 101, 32, 98, 108, 111, 99, 107, 32, 100, 101, 99, 108,
+    97, 114, 101, 115, 32, 110, 111, 32, 105, 110, 100, 117, 99, 116, 105, 118, 101, 32, 116, 121,
+    112, 101,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `inductive block carries no recursor records; the input must carry the recursors of every inductive block`, as code points.
+pub const M_NO_RECS: [u32; 104] = [
+    105, 110, 100, 117, 99, 116, 105, 118, 101, 32, 98, 108, 111, 99, 107, 32, 99, 97, 114, 114,
+    105, 101, 115, 32, 110, 111, 32, 114, 101, 99, 117, 114, 115, 111, 114, 32, 114, 101, 99, 111,
+    114, 100, 115, 59, 32, 116, 104, 101, 32, 105, 110, 112, 117, 116, 32, 109, 117, 115, 116, 32,
+    99, 97, 114, 114, 121, 32, 116, 104, 101, 32, 114, 101, 99, 117, 114, 115, 111, 114, 115, 32,
+    111, 102, 32, 101, 118, 101, 114, 121, 32, 105, 110, 100, 117, 99, 116, 105, 118, 101, 32, 98,
+    108, 111, 99, 107,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `inductive type declares other universe parameters than the block's first type`, as code points.
+pub const M_TYPE_LEVELS: [u32; 77] = [
+    105, 110, 100, 117, 99, 116, 105, 118, 101, 32, 116, 121, 112, 101, 32, 100, 101, 99, 108, 97,
+    114, 101, 115, 32, 111, 116, 104, 101, 114, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112,
+    97, 114, 97, 109, 101, 116, 101, 114, 115, 32, 116, 104, 97, 110, 32, 116, 104, 101, 32, 98,
+    108, 111, 99, 107, 39, 115, 32, 102, 105, 114, 115, 116, 32, 116, 121, 112, 101,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `constructor declares another parameter count than the block`, as code points.
+pub const M_CTOR_PARAMS: [u32; 59] = [
+    99, 111, 110, 115, 116, 114, 117, 99, 116, 111, 114, 32, 100, 101, 99, 108, 97, 114, 101, 115,
+    32, 97, 110, 111, 116, 104, 101, 114, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 99,
+    111, 117, 110, 116, 32, 116, 104, 97, 110, 32, 116, 104, 101, 32, 98, 108, 111, 99, 107,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `constructor declares other universe parameters than its type`, as code points.
+pub const M_CTOR_LEVELS_ONE: [u32; 60] = [
+    99, 111, 110, 115, 116, 114, 117, 99, 116, 111, 114, 32, 100, 101, 99, 108, 97, 114, 101, 115,
+    32, 111, 116, 104, 101, 114, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97,
+    109, 101, 116, 101, 114, 115, 32, 116, 104, 97, 110, 32, 105, 116, 115, 32, 116, 121, 112, 101,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `constructor declares other universe parameters than the block's inductive types`, as code points.
+pub const M_CTOR_LEVELS: [u32; 79] = [
+    99, 111, 110, 115, 116, 114, 117, 99, 116, 111, 114, 32, 100, 101, 99, 108, 97, 114, 101, 115,
+    32, 111, 116, 104, 101, 114, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97,
+    109, 101, 116, 101, 114, 115, 32, 116, 104, 97, 110, 32, 116, 104, 101, 32, 98, 108, 111, 99,
+    107, 39, 115, 32, 105, 110, 100, 117, 99, 116, 105, 118, 101, 32, 116, 121, 112, 101, 115,
+];
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 readBlock` — **read a
+/// declared inductive block**: split into formers, constructors and recursors
+/// (at least one of each of the first and the last), the members' counts, the
+/// universe and parameter declarations, and then the record.  A block that
+/// cannot be read is an invalid input, and the inner `Result` (the cited
+/// `Except`) says why; the outer one is the arena's own failure.  The messages
+/// drop con-leche's interpolated names and counts (§3.1).
+pub fn read_block(
     pers: &PersTier,
     st: &mut AState,
     n_pd: u64,
     block: &Vec<IConstantInfo>,
-) -> Result<Option<BlockShape>, CheckError> {
+) -> Result<Result<BlockShape, CheckError>, CheckError> {
     match block_split(block, 0, Vec::new()) {
-        None => Ok(None),
+        None => Ok(Err(CheckError::Invalid(code_points(&M_ORDER)))),
         Some((cv_ts, cs, rs)) => {
-            if cv_ts.len() == 0 || rs.len() == 0 {
-                Ok(None)
+            if cv_ts.len() == 0 {
+                Ok(Err(CheckError::Invalid(code_points(&M_NO_TYPE))))
+            } else if rs.len() == 0 {
+                Ok(Err(CheckError::Invalid(code_points(&M_NO_RECS))))
             } else {
                 let names: Vec<NIdx> = former_names(&cv_ts, 0, Vec::new());
                 let k: u64 = cv_ts.len() as u64;
                 match block_member_counts(pers, st, n_pd, k, cs.len() as u64, &names, &rs, 0, &cv_ts, Vec::new()) {
                     Err(e) => Err(e),
-                    Ok(None) => Ok(None),
-                    Ok(Some(n_idxs)) => block_shape_at(pers, st, n_pd, &cv_ts, &cs, &rs, names, n_idxs),
+                    Ok(Err(e)) => Ok(Err(e)),
+                    Ok(Ok(n_idxs)) => read_block_at(pers, st, n_pd, &cv_ts, &cs, &rs, names, n_idxs),
                 }
             }
         }
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:375-432 blockShape?
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove block_shape::block_shape_at_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:339-396 blockShape?` — the
-/// pins, the result sort (member 0's, or the placeholder `0` the check's
-/// whnf loop replaces), the groups, the recursors and which eliminator they
-/// are.
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 readBlock` — the
+/// universe and parameter declarations' three tests (formers' universe
+/// parameters, constructors' parameter counts, constructors' universe
+/// parameters, each the first failure's reason), then the result sort
+/// (member 0's, or the placeholder `0` the check's whnf loop replaces).
 #[allow(clippy::too_many_arguments)]
-pub fn block_shape_at(
+pub fn read_block_at(
     pers: &PersTier,
     st: &mut AState,
     n_pd: u64,
@@ -1032,49 +1129,46 @@ pub fn block_shape_at(
     rs: &Vec<(IConstantVal, u64, u64, bool, Vec<IRecRule>)>,
     names: Vec<NIdx>,
     n_idxs: Vec<u64>,
-) -> Result<Option<BlockShape>, CheckError> {
+) -> Result<Result<BlockShape, CheckError>, CheckError> {
     let lps: Vec<NIdx> = env::nidx_vec_dup(&cv_ts[0].level_params);
     let n_p: u64 = n_pd;
-    match core::reserved_basis_names(st) {
-        Err(e) => Err(e),
-        Ok(reserved) => {
-            if formers_pinned(&reserved, cv_ts, &lps, 0)
-                && recs_unreserved(&reserved, rs, 0)
-                && ctors_pinned(&reserved, cs, n_p, &lps, 0)
-            {
-                let n0: u64 = if n_idxs.len() == 0 { 0 } else { n_idxs[0] };
-                match expr_ops::strip_pis(pers, st, n_p + n0, &cv_ts[0].ty) {
+    if !formers_lps_ok(cv_ts, &lps, 0) {
+        Ok(Err(CheckError::Invalid(code_points(&M_TYPE_LEVELS))))
+    } else if !ctors_params_ok(cs, n_p, 0) {
+        Ok(Err(CheckError::Invalid(code_points(&M_CTOR_PARAMS))))
+    } else if !ctors_lps_ok(cs, &lps, 0) {
+        if cv_ts.len() == 1 {
+            Ok(Err(CheckError::Invalid(code_points(&M_CTOR_LEVELS_ONE))))
+        } else {
+            Ok(Err(CheckError::Invalid(code_points(&M_CTOR_LEVELS))))
+        }
+    } else {
+        let n0: u64 = if n_idxs.len() == 0 { 0 } else { n_idxs[0] };
+        match expr_ops::strip_pis(pers, st, n_p + n0, &cv_ts[0].ty) {
+            Err(e) => Err(e),
+            Ok(Some(q)) => match view(pers, st, &q.1) {
+                Err(e) => Err(e),
+                Ok(ENodeView::Sort(s)) => read_block_sort(pers, st, cv_ts, cs, rs, names, n_idxs, lps, n_p, s),
+                Ok(_) => match core::zero_level(st) {
                     Err(e) => Err(e),
-                    Ok(Some(q)) => match view(pers, st, &q.1) {
-                        Err(e) => Err(e),
-                        Ok(ENodeView::Sort(s)) => {
-                            block_shape_sort(pers, st, cv_ts, cs, rs, names, n_idxs, lps, n_p, s)
-                        }
-                        Ok(_) => match core::zero_level(st) {
-                            Err(e) => Err(e),
-                            Ok(z) => block_shape_sort(pers, st, cv_ts, cs, rs, names, n_idxs, lps, n_p, z),
-                        },
-                    },
-                    Ok(None) => match core::zero_level(st) {
-                        Err(e) => Err(e),
-                        Ok(z) => block_shape_sort(pers, st, cv_ts, cs, rs, names, n_idxs, lps, n_p, z),
-                    },
-                }
-            } else {
-                Ok(None)
-            }
+                    Ok(z) => read_block_sort(pers, st, cv_ts, cs, rs, names, n_idxs, lps, n_p, z),
+                },
+            },
+            Ok(None) => match core::zero_level(st) {
+                Err(e) => Err(e),
+                Ok(z) => read_block_sort(pers, st, cv_ts, cs, rs, names, n_idxs, lps, n_p, z),
+            },
         }
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:375-432 blockShape?
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove block_shape::block_shape_sort_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:339-396 blockShape?` — at the
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 readBlock` — at the
 /// result sort `s`: `isProp`, the groups, the members, the recursors, and the
 /// eliminator read off recursor 0's level parameters (a fresh one in front of
 /// the block's is the LARGE eliminator).
 #[allow(clippy::too_many_arguments)]
-pub fn block_shape_sort(
+pub fn read_block_sort(
     pers: &PersTier,
     st: &mut AState,
     cv_ts: &Vec<IConstantVal>,
@@ -1085,7 +1179,7 @@ pub fn block_shape_sort(
     lps: Vec<NIdx>,
     n_p: u64,
     s: LIdx,
-) -> Result<Option<BlockShape>, CheckError> {
+) -> Result<Result<BlockShape, CheckError>, CheckError> {
     match core::zero_level(st) {
         Err(e) => Err(e),
         Ok(z) => match core::lvl_eq(pers, st, &s, &z) {
@@ -1109,7 +1203,7 @@ pub fn block_shape_sort(
                                     Err(e) => Err(e),
                                     Ok(recs_l) => {
                                         let rl0: Vec<NIdx> = env::nidx_vec_dup(&rs[0].0.level_params);
-                                        block_shape_elim(pers, st, members, recs_l, n_p, s, is_prop, &lps, &rl0)
+                                        read_block_elim(pers, st, members, recs_l, n_p, s, is_prop, &lps, &rl0)
                                     }
                                 }
                             }
@@ -1121,14 +1215,13 @@ pub fn block_shape_sort(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:375-432 blockShape?
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove block_shape::block_shape_elim_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:339-396 blockShape?` —
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 readBlock` —
 /// WHICH ELIMINATOR the recursors are: `elim :: relps` with `relps == lps` and
 /// `elim` fresh is the large one; anything else is the small one, at
 /// `.anonymous` (interned).
 #[allow(clippy::too_many_arguments)]
-pub fn block_shape_elim(
+pub fn read_block_elim(
     pers: &PersTier,
     st: &mut AState,
     members: Vec<MemberShape>,
@@ -1138,7 +1231,7 @@ pub fn block_shape_elim(
     is_prop: bool,
     lps: &Vec<NIdx>,
     rl0: &Vec<NIdx>,
-) -> Result<Option<BlockShape>, CheckError> {
+) -> Result<Result<BlockShape, CheckError>, CheckError> {
     let large: bool = if rl0.len() == 0 {
         false
     } else if nidx_vec_beq_off(rl0, 1, lps, 0) && !names_contain(lps, &rl0[0], 0) {
@@ -1147,7 +1240,7 @@ pub fn block_shape_elim(
         false
     };
     if large {
-        Ok(Some(BlockShape {
+        Ok(Ok(BlockShape {
             members,
             recs,
             n_p,
@@ -1159,7 +1252,7 @@ pub fn block_shape_elim(
     } else {
         match intern_n_node(pers, st, NNodeView::Anonymous) {
             Err(e) => Err(e),
-            Ok(anon) => Ok(Some(BlockShape {
+            Ok(anon) => Ok(Ok(BlockShape {
                 members,
                 recs,
                 n_p,

@@ -5,8 +5,9 @@
 //! `Empty`, `False`, `Quot`), a pin at a stream's level-parameter names
 //! (`constant_info_at_lps`), the block's comparison with its pin
 //! (`pin_list_ok`), the name test that says a record is a pinned block's
-//! (`basis_name_hit`), what such a block and a quotient record store
-//! (`basis_kind_at_block`, `quot_at`), and the fold's `And` pin (`and_pin_ok`):
+//! (`basis_name_hit`), the reserved names' check run after a declaration's own
+//! checks (`basis_names_ok`, `basis_names_error`), what a quotient record
+//! stores (`quot_at`), and the fold's `And` pin (`and_pin_ok`):
 //! a record that declares `And`, `And.intro` or `And.rec` and is not the
 //! toolchain's block is rejected.
 //!
@@ -21,11 +22,11 @@
 
 use crate::arena::canon::{i_constant_info_beq, i_constant_val_beq, nidx_vec_beq};
 use crate::arena::checker_base::name_nodup;
-use crate::arena::core::{subst_levels_at, CORE_WALK_FUEL};
+use crate::arena::core::{reserved_basis_names, subst_levels_at, CORE_WALK_FUEL};
 use crate::arena::env::{
     i_constant_info_dummy, i_constant_info_dup, i_constant_info_name,
     i_constant_info_to_constant_val, i_ind_caps_dup, i_rec_rule_fire_dup, ifenv_find,
-    nidx_vec_dup, IConstantInfo, IConstantVal, IDeclaration, IFEnv, IRecRule,
+    nidx_vec_contains, nidx_vec_dup, IConstantInfo, IConstantVal, IDeclaration, IFEnv, IRecRule,
     IRecRuleFire,
 };
 use crate::arena::expr_ops::inst_lp_fast;
@@ -33,10 +34,10 @@ use crate::arena::inductives::struct_parts::param_levels;
 use crate::arena::handle::{LsIdx, NIdx};
 use crate::arena::intern::{intern_ci, intern_ci_list};
 use crate::arena::monad::{read_names_m, AState};
-use crate::arena::pins::{pin_eq, pin_quot, pin_quot_mk};
+use crate::arena::pins::{pin_eq, pin_quot, pin_quot_mk, pin_quot_sound};
 use crate::arena::store::PersTier;
 use crate::kernel::basis_raw;
-use crate::kernel::core_types::CheckError;
+use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env as cenv;
 use crate::kernel::env::{BasisKind, QuotKind};
 use crate::kernel::level;
@@ -56,10 +57,8 @@ pub fn basis_kind_decls(
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:24-26 natA
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove basis::nat_a_refines, then delete this line
-/// The pinned `Nat` type former, interned: the comparand of
-/// `reduceElemOk`'s exact `env.find? natName = some natA`.  `Nat` has no level
-/// parameter, so the environment holds the pin itself.
+/// The pinned `Nat` type former, interned: its `ConstantVal` is the comparand
+/// of `reduceElemOk`'s `ConstantVal.matchesPin`.
 pub fn nat_a(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
     intern_ci(pers, st, &basis_raw::nat_a())
 }
@@ -569,47 +568,102 @@ pub fn basis_name_hit(
     basis_name_hit_go(pers, st, block, &ks, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:138-141 BasisKind.atBlock
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove basis::basis_kind_at_block_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Basis.lean:217-221 BasisKind.atBlock` — **what a
-/// pinned block's check installs**: each pin at the names its record declares
-/// (the cited `List.zipWith`, bounded by the shorter list).
-pub fn basis_kind_at_block(
-    pers: &PersTier,
-    st: &mut AState,
-    kind: &BasisKind,
-    block: &Vec<IConstantInfo>,
-) -> Result<Vec<IConstantInfo>, CheckError> {
-    match basis_kind_decls(pers, st, kind) {
-        Err(e) => Err(e),
-        Ok(pins) => basis_kind_at_block_go(pers, st, &pins, block, 0, Vec::new()),
+/// con-leche: none — `block.all fun c => !reservedBasisNames.contains c.name`, as a cursor
+/// Lean twin: the `.indDecl` arm of `proof/ConRon/Arena/Basis.lean:1-1 basisNamesOk` at a
+/// block that hits no pinned block: no member takes a reserved name.
+pub fn block_unreserved(rs: &Vec<NIdx>, block: &Vec<IConstantInfo>, i: usize) -> bool {
+    if i >= block.len() {
+        true
+    } else if nidx_vec_contains(rs, &i_constant_info_name(&block[i])) {
+        false
+    } else {
+        block_unreserved(rs, block, i + 1)
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:138-141 BasisKind.atBlock
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove basis::basis_kind_at_block_go_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Basis.lean:217-221 BasisKind.atBlock` — the pairs from
-/// position `i` on.
-pub fn basis_kind_at_block_go(
-    pers: &PersTier,
-    st: &mut AState,
-    pins: &Vec<IConstantInfo>,
-    block: &Vec<IConstantInfo>,
-    i: usize,
-    out: Vec<IConstantInfo>,
-) -> Result<Vec<IConstantInfo>, CheckError> {
-    if i >= pins.len() || i >= block.len() {
-        Ok(out)
-    } else {
-        let ps: Vec<NIdx> = i_constant_info_to_constant_val(&block[i]).level_params;
-        match constant_info_at_lps(pers, st, &pins[i], &ps) {
+/// con-leche: ConLeche/Kernel/Basis.lean:138-151 basisNamesOk
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:1-1 basisNamesOk` — **the reserved
+/// names' check**, the one place the checker sets the basis names apart.  It
+/// runs after a declaration's own checks, which treat a basis block as any
+/// other block: a block under one of the pinned blocks' names must be that
+/// block, up to its level-parameter names (`pin_list_ok`), and no other
+/// declaration may take a reserved name.  `Quot.sound` and the quotient
+/// records are compared with their own pins, so they pass here.
+pub fn basis_names_ok(pers: &PersTier, st: &mut AState, d: &IDeclaration) -> Result<bool, CheckError> {
+    match d {
+        IDeclaration::IndDecl(block, _) => match basis_name_hit(pers, st, block) {
             Err(e) => Err(e),
-            Ok(c) => {
-                let mut out2 = out;
-                out2.push(c);
-                basis_kind_at_block_go(pers, st, pins, block, i + 1, out2)
+            Ok(Some(kind)) => match basis_kind_decls(pers, st, &kind) {
+                Err(e) => Err(e),
+                Ok(pins) => pin_list_ok(pers, st, block, &pins),
+            },
+            Ok(None) => match reserved_basis_names(st) {
+                Err(e) => Err(e),
+                Ok(rs) => Ok(block_unreserved(&rs, block, 0)),
+            },
+        },
+        IDeclaration::AxiomDecl(cv) => match pin_quot_sound(st) {
+            Err(e) => Err(e),
+            Ok(qs) => {
+                if cv.name.eq2(&qs) {
+                    Ok(true)
+                } else {
+                    basis_name_unreserved(st, &cv.name)
+                }
             }
-        }
+        },
+        IDeclaration::QuotDecl(_, _) => Ok(true),
+        IDeclaration::DefnDecl(cv, _, _) => basis_name_unreserved(st, &cv.name),
+        IDeclaration::ThmDecl(cv, _) => basis_name_unreserved(st, &cv.name),
+        IDeclaration::OpaqueDecl(cv, _) => basis_name_unreserved(st, &cv.name),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Basis.lean:138-151 basisNamesOk
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:1-1 basisNamesOk` — the
+/// one-constant arms' test, `!reservedBasisNames.contains cv.name`.
+pub fn basis_name_unreserved(st: &AState, n: &NIdx) -> Result<bool, CheckError> {
+    match reserved_basis_names(st) {
+        Err(e) => Err(e),
+        Ok(rs) => Ok(!nidx_vec_contains(&rs, n)),
+    }
+}
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `reserved basis name: the block is not the pinned one`, as code points.
+pub const M_BASIS_NOT_PIN: [u32; 52] = [
+    114, 101, 115, 101, 114, 118, 101, 100, 32, 98, 97, 115, 105, 115, 32, 110, 97, 109, 101, 58,
+    32, 116, 104, 101, 32, 98, 108, 111, 99, 107, 32, 105, 115, 32, 110, 111, 116, 32, 116, 104,
+    101, 32, 112, 105, 110, 110, 101, 100, 32, 111, 110, 101,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `reserved basis name in the block of`, as code points.
+pub const M_BASIS_IN_BLOCK: [u32; 35] = [
+    114, 101, 115, 101, 114, 118, 101, 100, 32, 98, 97, 115, 105, 115, 32, 110, 97, 109, 101, 32,
+    105, 110, 32, 116, 104, 101, 32, 98, 108, 111, 99, 107, 32, 111, 102,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `reserved basis name`, as code points.
+pub const M_BASIS_NAME: [u32; 19] = [
+    114, 101, 115, 101, 114, 118, 101, 100, 32, 98, 97, 115, 105, 115, 32, 110, 97, 109, 101,
+];
+
+/// con-leche: ConLeche/Kernel/Basis.lean:153-161 basisNamesError
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:1-1 basisNamesError` — **what a
+/// failed `basis_names_ok` reports**: a block under a pinned block's names that
+/// is not the pin, a reserved name in another block, or a one-constant
+/// declaration at a reserved name; all invalid input.  The messages drop
+/// con-leche's interpolated names (§3.1).
+pub fn basis_names_error(pers: &PersTier, st: &mut AState, d: &IDeclaration) -> Result<CheckError, CheckError> {
+    match d {
+        IDeclaration::IndDecl(block, _) => match basis_name_hit(pers, st, block) {
+            Err(e) => Err(e),
+            Ok(Some(_)) => Ok(CheckError::Invalid(code_points(&M_BASIS_NOT_PIN))),
+            Ok(None) => Ok(CheckError::Invalid(code_points(&M_BASIS_IN_BLOCK))),
+        },
+        _ => Ok(CheckError::Invalid(code_points(&M_BASIS_NAME))),
     }
 }
 

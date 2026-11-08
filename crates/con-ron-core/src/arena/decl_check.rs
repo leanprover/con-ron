@@ -28,9 +28,8 @@
 //! theirs, because they call into those modules and nothing here does.
 
 use crate::arena::basis::{
-    basis_kind_at_block, basis_kind_decls, nat_a, pin_list_ok, quot_at, quot_pin_hit, quot_preds_ok,
+    nat_a, quot_at, quot_pin_hit, quot_preds_ok,
 };
-use crate::arena::canon::i_constant_info_beq;
 use crate::arena::checker_base::{
     all_level_params_defined, consts_resolve_f_fast, unresolved_consts_fail,
 };
@@ -67,7 +66,7 @@ use crate::arena::trust_axioms::{
 };
 use crate::arena::pins::{pin_eq, pin_nat, pin_nat_succ, pin_nat_zero};
 use crate::kernel::core_types::{code_points, CheckError};
-use crate::kernel::env::{BasisKind, CheckMode, QuotKind, ReducibilityHint};
+use crate::kernel::env::{CheckMode, QuotKind, ReducibilityHint};
 use crate::ron::hashmap::{Dup, Eq2};
 use crate::arena::store::PersTier;
 
@@ -600,12 +599,10 @@ pub fn reduce_stored_ok(
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:162-172 reduceElemOk
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove decl_check::reduce_elem_ok_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:281-290 reduceElemOkF
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove decl_check::reduce_elem_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:125-137 reduceElemOk` — the
-/// element-inductive shape an `ofReduce*` axiom needs: the pinned `Nat` basis
-/// resp. a standardly-shaped stored `Bool`.
+/// element-inductive shape an `ofReduce*` axiom needs: a stored `Nat` inductive
+/// at the pin's `ConstantVal` resp. a standardly-shaped stored `Bool`.
 pub fn reduce_elem_ok(
     pers: &PersTier,
     st: &mut AState,
@@ -618,12 +615,15 @@ pub fn reduce_elem_ok(
             if c.eq2(&rn) {
                 match pin_nat(st) {
                     Err(e) => Err(e),
-                    Ok(nn) => match nat_a(pers, st) {
-                        Err(e) => Err(e),
-                        Ok(na) => match ifenv_find(pers, fe, &nn) {
-                            Some(ci) => Ok(i_constant_info_beq(ci, &na)),
-                            None => Ok(false),
-                        },
+                    Ok(nn) => match ifenv_find(pers, fe, &nn) {
+                        Some(IConstantInfo::IndInfo(cv_n, _)) => {
+                            let cv = crate::arena::env::i_constant_val_dup(cv_n);
+                            match nat_a(pers, st) {
+                                Err(e) => Err(e),
+                                Ok(na) => Ok(i_constant_val_matches_pin(&cv, &i_constant_info_to_constant_val(&na))),
+                            }
+                        }
+                        _ => Ok(false),
                     },
                 }
             } else {
@@ -634,7 +634,6 @@ pub fn reduce_elem_ok(
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:162-172 reduceElemOk
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove decl_check::reduce_elem_ok_bool_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:125-137 reduceElemOk` — the
 /// `Bool` branch: a standardly-shaped stored `Bool` inductive.
 pub fn reduce_elem_ok_bool(
@@ -2940,12 +2939,6 @@ pub const M_TYPE_MISMATCH_OPAQUE: [u32; 23] = [
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"reserved basis name: the block is not the pinned one"`, as code points.
-pub const M_BASIS_NOT_PIN: [u32; 52] = [
-    114, 101, 115, 101, 114, 118, 101, 100, 32, 98, 97, 115, 105, 115, 32, 110, 97, 109, 101, 58, 32, 116, 104, 101, 32, 98, 108, 111, 99, 107, 32, 105, 115, 32, 110, 111, 116, 32, 116, 104, 101, 32, 112, 105, 110, 110, 101, 100, 32, 111, 110, 101,
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"quotient soundness axiom mismatch"`, as code points.
 pub const M_QUOT_SOUND_MISMATCH: [u32; 33] = [
     113, 117, 111, 116, 105, 101, 110, 116, 32, 115, 111, 117, 110, 100, 110, 101, 115, 115, 32, 97, 120, 105, 111, 109, 32, 109, 105, 115, 109, 97, 116, 99, 104,
@@ -3192,55 +3185,6 @@ pub fn install_basis_decl(
         fail(CheckError::Invalid(code_points(&M_DUP_DECL)))
     } else {
         Ok(ifenv_push(fe, ci))
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Checker.lean:463-470 checkBasisBlock
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove decl_check::install_basis_decls_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:900-905 installBasisDecls` — the cited
-/// `(kind.atBlock block).foldlM installBasisDecl env`, as an explicit list
-/// recursion (§3.4), threading the index by value.
-pub fn install_basis_decls(
-    pers: &PersTier,
-    fe: IFEnv,
-    decls: &Vec<IConstantInfo>,
-    i: usize,
-) -> Result<IFEnv, CheckError> {
-    if i >= decls.len() {
-        Ok(fe)
-    } else {
-        match install_basis_decl(pers, fe, i_constant_info_dup(&decls[i])) {
-            Err(e) => Err(e),
-            Ok(fe2) => install_basis_decls(pers, fe2, decls, i + 1),
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Checker.lean:463-470 checkBasisBlock
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove decl_check::check_basis_block_refines, then delete this line
-/// con-leche: ConLeche/Cached/ParsedC.lean:137-142 checkBasisBlockC
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove decl_check::check_basis_block_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:907-918 checkBasisBlock` — **a pinned
-/// block's check and install**: the records compared with the pin, and each pin
-/// installed at the names its record declares.  A block with a pinned block's
-/// names that is not the pin is invalid input (a basis redefinition).
-pub fn check_basis_block(
-    pers: &PersTier,
-    st: &mut AState,
-    fe: IFEnv,
-    kind: &BasisKind,
-    block: &Vec<IConstantInfo>,
-) -> Result<IFEnv, CheckError> {
-    match basis_kind_decls(pers, st, kind) {
-        Err(e) => Err(e),
-        Ok(pins) => match pin_list_ok(pers, st, block, &pins) {
-            Err(e) => Err(e),
-            Ok(false) => fail(CheckError::Invalid(code_points(&M_BASIS_NOT_PIN))),
-            Ok(true) => match basis_kind_at_block(pers, st, kind, block) {
-                Err(e) => Err(e),
-                Ok(cs) => install_basis_decls(pers, fe, &cs, 0),
-            },
-        },
     }
 }
 

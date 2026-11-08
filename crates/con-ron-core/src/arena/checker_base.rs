@@ -34,7 +34,7 @@
 
 use crate::arena::core::{
     consts_resolve, ensure_sort_core, infer_type_core, lit_shape_ok, nat_op_name,
-    reserved_basis_names, str_lit_stored, CHECK_FUEL, CORE_WALK_FUEL, M_SORRY, M_STR,
+    str_lit_stored, CHECK_FUEL, CORE_WALK_FUEL, M_SORRY, M_STR,
     M_UNKNOWN_CONST,
 };
 use crate::arena::core_state::take_walk_memo;
@@ -621,7 +621,6 @@ pub fn unresolved_consts_error_l(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:92-98 unresolvedConstsErrorL
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:364-384 checkConstantValF
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove checker_base::unresolved_consts_fail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:226-238 unresolvedConstsErrorL`
 /// — the failing arm every front door spells: `throw (unresolvedConstsErrorL
 /// (strLitStoredF fe) where_ e)`, the presence test read first, as Lean
@@ -646,13 +645,10 @@ pub fn unresolved_consts_fail<T>(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:102-124 checkConstantVal
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:364-384 checkConstantValF
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
 /// con-leche: ConLeche/Cached/ParsedC.lean:42-64 checkConstantValC
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-275 checkConstantVal` — checks
-/// common to all declarations: fresh name, no reserved name, a certified
+/// common to all declarations: fresh name, a certified
 /// operation's name only at a definition (`allow_op`, the cited default
 /// `false`, which Rust spells at every call), a literal's name only at its
 /// shape, well-formed universe parameters, and a type that is a type and
@@ -686,12 +682,10 @@ pub fn check_constant_val(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:102-124 checkConstantVal
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove checker_base::check_constant_val_guards_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:364-384 checkConstantValF
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove checker_base::check_constant_val_guards_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-275 checkConstantVal` — the
 /// guards on the declaration's NAME, in the twin's order: fresh, not a
-/// reserved basis name, not a certified operation's name unless `allow_op`.
+/// certified operation's name unless `allow_op`.
 pub fn check_constant_val_guards(
     pers: &PersTier,
     st: &mut AState,
@@ -702,33 +696,24 @@ pub fn check_constant_val_guards(
     if ifenv_find(pers, fe, &cv.name).is_some() {
         fail(CheckError::Invalid(code_points(&M_DUP_DECL)))
     } else {
-        match reserved_basis_names(st) {
+        match nat_op_name(st, &cv.name) {
             Err(e) => Err(e),
-            Ok(rs) => {
-                if nidx_contains_from(&rs, 0, &cv.name) {
-                    fail(CheckError::Invalid(code_points(&M_RESERVED_BASIS)))
-                } else {
-                    match nat_op_name(st, &cv.name) {
+            Ok(op) => {
+                if op && !allow_op {
+                    match crate::arena::monad::read_name(pers, st, &cv.name) {
                         Err(e) => Err(e),
-                        Ok(op) => {
-                            if op && !allow_op {
-                                match crate::arena::monad::read_name(pers, st, &cv.name) {
-                                    Err(e) => Err(e),
-                                    Ok(n) => {
-                                        let mut m: Vec<u32> = code_points(&M_NAT_OP_NAME);
-                                        m.push(58);
-                                        m.push(32);
-                                        fail(CheckError::Invalid(crate::frontend::text::cat(
-                                            m,
-                                            &crate::kernel::name::render(&n),
-                                        )))
-                                    }
-                                }
-                            } else {
-                                check_constant_val_guards_rest(pers, st, cv)
-                            }
+                        Ok(n) => {
+                            let mut m: Vec<u32> = code_points(&M_NAT_OP_NAME);
+                            m.push(58);
+                            m.push(32);
+                            fail(CheckError::Invalid(crate::frontend::text::cat(
+                                m,
+                                &crate::kernel::name::render(&n),
+                            )))
                         }
                     }
+                } else {
+                    check_constant_val_guards_rest(pers, st, cv)
                 }
             }
         }
@@ -736,9 +721,7 @@ pub fn check_constant_val_guards(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:102-124 checkConstantVal
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove checker_base::check_constant_val_guards_rest_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:364-384 checkConstantValF
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove checker_base::check_constant_val_guards_rest_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-275 checkConstantVal` — the
 /// four guards past the name tests: a literal's name only at its shape
 /// (`litShapeOk (.axiomInfo cv)`), distinct universe parameters, no loose bound
@@ -780,9 +763,7 @@ pub fn check_constant_val_guards_rest(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:102-124 checkConstantVal
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove checker_base::check_constant_val_tail_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:364-384 checkConstantValF
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove checker_base::check_constant_val_tail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-275 checkConstantVal` — the two
 /// guards on the declared type: its universe parameters are declared, and its
 /// constants resolve (else `unresolvedConstsErrorL`'s verdict).

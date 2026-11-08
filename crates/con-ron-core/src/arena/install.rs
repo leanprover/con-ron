@@ -17,7 +17,7 @@
 //! * **`Env.pushDelta` and `FEnv.pushDelta` are one function** over the one
 //!   environment type, `IFEnv` (task #97c's deviation 1).
 //! * **Every reader takes the store**: a term is read through `view`, and the
-//!   pins' renamings (`quot_at`, `basis_kind_at_block`) and `Expr.dropVars`'s
+//!   pins' renamings (`quot_at`) and `Expr.dropVars`'s
 //!   instantiation intern, so the functions return `Result` where con-leche's
 //!   are total.  Run on the driver's store before the freeze, what they intern
 //!   is persistent.
@@ -39,7 +39,7 @@ use crate::arena::pins;
 use crate::arena::store::PersTier;
 use crate::arena::stream_index;
 use crate::kernel::core_types::CheckError;
-use crate::kernel::env::{basis_kind_dup, reducibility_hint_dup, BasisKind, QuotKind};
+use crate::kernel::env::{reducibility_hint_dup, QuotKind};
 use crate::kernel::expr_ops::sub_nat;
 use crate::ron::hashmap::{Dup, Eq2};
 
@@ -320,11 +320,9 @@ pub fn block_constants(pers: &PersTier, st: &mut AState, p: &BlockShape) -> Resu
 }
 
 /// con-leche: ConLeche/Kernel/Install.lean:80-94 declConstants
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove install::decl_constants_refines, then delete this line
-/// **The constants a declaration installs**, in push order.  A block with a
-/// pinned block's names installs the pin at the names the record declares, a
-/// block the recogniser does not read nothing (it declines), and `sorryAx`
-/// nothing (any use of it declines).
+/// **The constants a declaration installs**, in push order.  A block
+/// `readBlock` cannot read installs nothing (its check rejects it), and
+/// `sorryAx` nothing (any use of it declines).
 pub fn decl_constants(pers: &PersTier, st: &mut AState, pd: &IDeclaration) -> Result<Vec<IConstantInfo>, CheckError> {
     match pd {
         IDeclaration::DefnDecl(cv, value, hint) => {
@@ -351,23 +349,15 @@ pub fn decl_constants(pers: &PersTier, st: &mut AState, pd: &IDeclaration) -> Re
                 Ok(o)
             }
         },
-        IDeclaration::IndDecl(block, n_p) => match basis::basis_name_hit(pers, st, block) {
+        IDeclaration::IndDecl(block, n_p) => match block_shape::read_block(pers, st, *n_p, block) {
             Err(e) => Err(e),
-            Ok(Some(kind)) => {
-                let k: BasisKind = basis_kind_dup(&kind);
-                basis::basis_kind_at_block(pers, st, &k, block)
-            }
-            Ok(None) => match block_shape::block_shape(pers, st, *n_p, block) {
-                Err(e) => Err(e),
-                Ok(Some(p)) => block_constants(pers, st, &p),
-                Ok(None) => Ok(Vec::new()),
-            },
+            Ok(Ok(p)) => block_constants(pers, st, &p),
+            Ok(Err(_)) => Ok(Vec::new()),
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Install.lean:80-94 declConstants
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove install::decl_constants_axiom_refines, then delete this line
 /// The `.axiomDecl` arm: `Quot.sound` installs its pin at the record's names,
 /// `sorryAx` nothing, any other axiom itself.
 pub fn decl_constants_axiom(pers: &PersTier, st: &mut AState, cv: &IConstantVal) -> Result<Vec<IConstantInfo>, CheckError> {
@@ -402,19 +392,14 @@ pub fn decl_constants_axiom(pers: &PersTier, st: &mut AState, cv: &IConstantVal)
 }
 
 /// con-leche: ConLeche/Kernel/Install.lean:96-102 declTables
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove install::decl_tables_refines, then delete this line
-/// **The projection tables a declaration installs**: those of a recognised
-/// inductive block (a pinned block's names install none).
+/// **The projection tables a declaration installs**: those of an inductive
+/// block `readBlock` reads.
 pub fn decl_tables(pers: &PersTier, st: &mut AState, pd: &IDeclaration) -> Result<Vec<IProjTable>, CheckError> {
     match pd {
-        IDeclaration::IndDecl(block, n_p) => match basis::basis_name_hit(pers, st, block) {
+        IDeclaration::IndDecl(block, n_p) => match block_shape::read_block(pers, st, *n_p, block) {
             Err(e) => Err(e),
-            Ok(Some(_)) => Ok(Vec::new()),
-            Ok(None) => match block_shape::block_shape(pers, st, *n_p, block) {
-                Err(e) => Err(e),
-                Ok(Some(p)) => block_tables(pers, st, &p, &p.members, 0, Vec::new()),
-                Ok(None) => Ok(Vec::new()),
-            },
+            Ok(Ok(p)) => block_tables(pers, st, &p, &p.members, 0, Vec::new()),
+            Ok(Err(_)) => Ok(Vec::new()),
         },
         _ => Ok(Vec::new()),
     }

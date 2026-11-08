@@ -160,11 +160,6 @@ pub const M_DUP_DECL: [u32; 21] = [
     110,
 ];
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `reserved basis name`, as code points.
-pub const M_RESERVED: [u32; 19] = [
-    114, 101, 115, 101, 114, 118, 101, 100, 32, 98, 97, 115, 105, 115, 32, 110, 97, 109, 101,
-];
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `duplicate universe parameters in`, as code points.
 pub const M_DUP_UNIV: [u32; 32] = [
     100, 117, 112, 108, 105, 99, 97, 116, 101, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112,
@@ -1612,7 +1607,6 @@ pub fn class_former_tys(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:361-380 classConstOk
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove gen_rec::class_const_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:514-538 classConstOk` — **a
 /// generated constant, checked**: `checkConstantValF` — the generated type is
 /// stored as the generator built it; inference validates it like any other
@@ -1628,25 +1622,15 @@ pub fn class_const_ok(
     if env::ifenv_find(pers, fe, &cv.name).is_some() {
         fail(core_types::invalid(code_points(&M_DUP_DECL)))
     } else {
-        match core::reserved_basis_names(st) {
+        match core::lit_shape_ok(pers, st, &IConstantInfo::AxiomInfo(env::i_constant_val_dup(cv))) {
             Err(e) => Err(e),
-            Ok(rs) => {
-                if positivity::names_contain(&rs, &cv.name, 0) {
-                    fail(core_types::invalid(code_points(&M_RESERVED)))
-                } else {
-                    match core::lit_shape_ok(pers, st, &IConstantInfo::AxiomInfo(env::i_constant_val_dup(cv))) {
-                        Err(e) => Err(e),
-                        Ok(false) => fail(core_types::not_implemented(code_points(&M_LIT_SHAPE))),
-                        Ok(true) => class_const_ok_type(pers, st, mode, fe, cv),
-                    }
-                }
-            }
+            Ok(false) => fail(core_types::not_implemented(code_points(&M_LIT_SHAPE))),
+            Ok(true) => class_const_ok_type(pers, st, mode, fe, cv),
         }
     }
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:361-380 classConstOk
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove gen_rec::class_const_ok_type_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:514-538 classConstOk` — the
 /// type's guards and its inference.
 pub fn class_const_ok_type(

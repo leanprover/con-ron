@@ -108,23 +108,15 @@ pub fn rule_at(ctor: Name, nfields: u64, lvls: Vec<Level>, rhs: Expr) -> RecRule
 // --- Eq --------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:21-26 eqA
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove basis_raw::eq_a_refines, then delete this line
 /// `Eq.{u} {α : Sort u} : α → α → Prop`.
 pub fn eq_a() -> ConstantInfo {
-    let caps = IndCaps {
-        all: vec1(bnm::eq_name()),
-        nparams: 2,
-        n_idx: 1,
-        ctors: vec1(bnm::eq_refl_name()),
-        ..env::ind_caps_default()
-    };
     ConstantInfo::IndInfo(
         cv(
             bnm::eq_name(),
             vec1(u_n()),
             pi(srt(u()), pi(bv(0), pi(bv(1), prop()))),
         ),
-        caps,
+        env::ind_caps_default(),
     )
 }
 
@@ -231,16 +223,11 @@ pub fn nat_t() -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:24-26 natA
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove basis_raw::nat_a_refines, then delete this line
 /// `Nat : Type`.
 pub fn nat_a() -> ConstantInfo {
     ConstantInfo::IndInfo(
         cv(bnm::nat_name(), Vec::new(), type1()),
-        IndCaps {
-            all: vec1(bnm::nat_name()),
-            ctors: vec2(bnm::nat_zero_name(), bnm::nat_succ_name()),
-            ..env::ind_caps_default()
-        },
+        env::ind_caps_default(),
     )
 }
 
@@ -359,15 +346,11 @@ pub fn nat_basis() -> Vec<ConstantInfo> {
 // --- Empty -----------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Basis/Empty.lean:21-23 emptyA
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove basis_raw::empty_a_refines, then delete this line
 /// `Empty : Type`.
 pub fn empty_a() -> ConstantInfo {
     ConstantInfo::IndInfo(
         cv(bnm::empty_name(), Vec::new(), type1()),
-        IndCaps {
-            all: vec1(bnm::empty_name()),
-            ..env::ind_caps_default()
-        },
+        env::ind_caps_default(),
     )
 }
 
@@ -404,15 +387,11 @@ pub fn empty_basis() -> Vec<ConstantInfo> {
 // --- False -----------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Basis/False.lean:37-39 falseA
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove basis_raw::false_a_refines, then delete this line
 /// `False : Prop`.
 pub fn false_a() -> ConstantInfo {
     ConstantInfo::IndInfo(
         cv(bnm::false_name(), Vec::new(), prop()),
-        IndCaps {
-            all: vec1(bnm::false_name()),
-            ..env::ind_caps_default()
-        },
+        env::ind_caps_default(),
     )
 }
 

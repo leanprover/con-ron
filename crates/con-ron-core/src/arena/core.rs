@@ -89,7 +89,7 @@ use crate::arena::env::{
     IConstantInfo, IConstantVal, IFEnv, IIndCaps, IProjEntry, IRecRule, IRecRuleFire,
 };
 use crate::arena::expr_ops::{
-    abstract1_fast, abstract_range_fast, cons_eidx, fvar_type_d, get_app_args, get_app_fn,
+    abstract1_fast, abstract_range_fast, cons_eidx, get_app_args, get_app_fn,
     has_fvar_fast, instantiate1_fast, instantiate_list_fast, inst_lp_fast, inst_spine, lam_pair,
     leaf_guard, loose_bvars_bounded_fast, mk_app_n, mk_app_n_from, pi_result,
     snoc_eidx_of,
@@ -2051,11 +2051,12 @@ pub fn str_lit_stored(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:373-389 litShapeOk
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove core::lit_shape_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:822-838 litShapeOk` — **the shape a
-/// declaration at a literal's name must have**, checked at the declaration;
-/// any other name passes.  The cited `if`-chain, each name interned only when
-/// the chain reaches it.
+/// declaration at a literal's name must have**, its level parameters and type,
+/// checked at the declaration; any other name passes.  A declaration check
+/// cannot show a kind, so the three `Nat` names are read at the kinds their
+/// guards ask for (an inductive at no capabilities, two constructors).  The
+/// cited `if`-chain, each name interned only when the chain reaches it.
 pub fn lit_shape_ok(
     pers: &PersTier,
     st: &mut AState,
@@ -2065,17 +2066,22 @@ pub fn lit_shape_ok(
     match pin_nat(st) {
         Err(e) => Err(e),
         Ok(a0) => if n.eq2(&a0) {
-            nat_ind_ok(st, Some(c))
+            let ci: IConstantInfo =
+                IConstantInfo::IndInfo(env::i_constant_info_to_constant_val(c), env::i_ind_caps_default());
+            nat_ind_ok(st, Some(&ci))
         } else {
             match pin_nat_zero(st) {
                 Err(e) => Err(e),
                 Ok(a1) => if n.eq2(&a1) {
-                    nat_zero_ok(pers, st, Some(c))
+                    let ci: IConstantInfo = IConstantInfo::CtorInfo(env::i_constant_info_to_constant_val(c), 0, 0);
+                    nat_zero_ok(pers, st, Some(&ci))
                 } else {
                     match pin_nat_succ(st) {
                         Err(e) => Err(e),
                         Ok(a2) => if n.eq2(&a2) {
-                            nat_succ_ok(pers, st, Some(c))
+                            let ci: IConstantInfo =
+                                IConstantInfo::CtorInfo(env::i_constant_info_to_constant_val(c), 0, 1);
+                            nat_succ_ok(pers, st, Some(&ci))
                         } else {
                             lit_shape_ok_str(pers, st, &n, c)
                         },
@@ -2087,7 +2093,6 @@ pub fn lit_shape_ok(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:373-389 litShapeOk
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove core::lit_shape_ok_str_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:822-838 litShapeOk` — the chain's
 /// `String`, `String.ofList` and `List` rungs, split off so the nesting stays
 /// readable.
@@ -2122,7 +2127,6 @@ pub fn lit_shape_ok_str(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:373-389 litShapeOk
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove core::lit_shape_ok_rest_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:822-838 litShapeOk` — the chain's last
 /// four rungs (`List.nil`, `List.cons`, `Char`, `Char.ofNat`) and its `true`.
 pub fn lit_shape_ok_rest(
@@ -2395,7 +2399,6 @@ pub fn nat_op_names(st: &mut AState) -> Result<Vec<NIdx>, CheckError> {
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:466-479 natDivModNames
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:510-524 reservedRecName
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove core::reserved_rec_bool_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1522-1532 reservedRecBool` — the last three
 /// disjuncts: `n == boolName || n == boolTrueName || n == boolFalseName`.
 pub fn reserved_rec_bool(st: &AState, n: &NIdx) -> Result<bool, CheckError> {
@@ -2536,42 +2539,32 @@ pub fn lit_guard_names(st: &AState) -> Result<Vec<NIdx>, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:510-524 reservedRecName
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove core::reserved_rec_name_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1534-1551 reservedRecName` — **a name no
-/// block RECURSOR may take**: one the pinned basis blocks reserve, one a
-/// literal guard looks up, one of the certified `Nat` operations, or `Bool` and
-/// its two constructors, whose stored entries the certified operations' guards
-/// read.  The cited `||` chain, each list read off the pin table (handle
-/// equality).
+/// block RECURSOR may take**: one a literal guard looks up, one of the
+/// certified `Nat` operations, or `Bool` and its two constructors, whose stored
+/// entries the certified operations' guards read.  The basis names are
+/// `basisNamesOk`'s (a pinned block's own recursor carries one).  The cited
+/// `||` chain, each list read off the pin table (handle equality).
 pub fn reserved_rec_name(st: &mut AState, n: &NIdx) -> Result<bool, CheckError> {
-    match reserved_basis_names(st) {
+    match lit_guard_names(st) {
         Err(e) => Err(e),
-        Ok(rs) => {
-            if env::nidx_vec_contains(&rs, n) {
+        Ok(ls) => {
+            if env::nidx_vec_contains(&ls, n) {
                 Ok(true)
             } else {
-                match lit_guard_names(st) {
+                match nat_op_names(st) {
                     Err(e) => Err(e),
-                    Ok(ls) => {
-                        if env::nidx_vec_contains(&ls, n) {
+                    Ok(os) => {
+                        if env::nidx_vec_contains(&os, n) {
                             Ok(true)
                         } else {
-                            match nat_op_names(st) {
+                            match nat_div_mod_names(st) {
                                 Err(e) => Err(e),
-                                Ok(os) => {
-                                    if env::nidx_vec_contains(&os, n) {
+                                Ok(ds) => {
+                                    if env::nidx_vec_contains(&ds, n) {
                                         Ok(true)
                                     } else {
-                                        match nat_div_mod_names(st) {
-                                            Err(e) => Err(e),
-                                            Ok(ds) => {
-                                                if env::nidx_vec_contains(&ds, n) {
-                                                    Ok(true)
-                                                } else {
-                                                    reserved_rec_bool(st, n)
-                                                }
-                                            }
-                                        }
+                                        reserved_rec_bool(st, n)
                                     }
                                 }
                             }
@@ -7474,64 +7467,66 @@ pub fn struct_used_later(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:1078-1084 projGuardRowsAt
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove core::proj_guard_rows_at_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2695-2712 projGuardRowsAt` — the rows read
-/// off an opened constructor telescope `fvs`: field `idx`, and every earlier
-/// field a later one uses (`structUsedLater`), each as the depth `nP + j` and
-/// that variable's type.  The cited `(List.range (idx + 1)).filterMap` is an
-/// index recursion from `j` with an accumulator.
-pub fn proj_guard_rows_at(
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:1080-1098 projGuardRowsGo
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1-1 projGuardRowsGo` — **the rows of
+/// a projection's guard: the field loop of the official `infer_proj`.**  `h`
+/// is the constructor telescope with its parameters and every field before
+/// the current one opened, the current field's variable at depth `d`; `k`
+/// fields remain before the projected one.  A field the rest of the telescope
+/// uses is a row (its domain at depth `d`) and is opened at its variable; one
+/// it does not use is stepped over.  The projected field's domain is the last
+/// row.  `None` where the telescope binds too few fields.  The cited list is
+/// built front to back, here as an accumulator in push order.
+pub fn proj_guard_rows_go(
     pers: &PersTier,
     st: &mut AState,
-    cty: &EIdx,
-    n_p: u64,
-    idx: u64,
-    fvs: &Vec<EIdx>,
-    j: u64,
+    k: u64,
+    d: u64,
+    h: &EIdx,
     out: Vec<(u64, EIdx)>,
-) -> Result<Vec<(u64, EIdx)>, CheckError> {
-    if j > idx {
-        Ok(out)
-    } else {
-        let used: Result<bool, CheckError> = if j == idx {
-            Ok(true)
-        } else {
-            struct_used_later(pers, st, cty, n_p, j)
-        };
-        match used {
-            Err(e) => Err(e),
-            Ok(false) => proj_guard_rows_at(pers, st, cty, n_p, idx, fvs, j + 1, out),
-            Ok(true) => {
-                if n_p + j < fvs.len() as u64 {
-                    let x: EIdx = fvs[(n_p + j) as usize].dup2();
-                    match fvar_type_d(pers, st, &x) {
-                        Err(e) => Err(e),
-                        Ok(ty) => {
-                            let mut out2 = out;
-                            out2.push((n_p + j, ty));
-                            proj_guard_rows_at(pers, st, cty, n_p, idx, fvs, j + 1, out2)
-                        }
-                    }
+) -> Result<Option<Vec<(u64, EIdx)>>, CheckError> {
+    if h.tag() == ETAG_FORALL_E {
+        match view_bind(pers, st, h) {
+            None => fail_dangling_e(),
+            Some((dom, body)) => {
+                if k == 0 {
+                    let mut out2: Vec<(u64, EIdx)> = out;
+                    out2.push((d, dom));
+                    Ok(Some(out2))
                 } else {
-                    proj_guard_rows_at(pers, st, cty, n_p, idx, fvs, j + 1, out)
+                    match has_loose_bvar_b_fast(pers, st, 0, &body) {
+                        Err(e) => Err(e),
+                        Ok(false) => proj_guard_rows_go(pers, st, k - 1, d + 1, &body, out),
+                        Ok(true) => match intern_e_fvar(pers, st, d, dom.dup2()) {
+                            Err(e) => Err(e),
+                            Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
+                                Err(e) => Err(e),
+                                Ok(b2) => {
+                                    let mut out2: Vec<(u64, EIdx)> = out;
+                                    out2.push((d, dom));
+                                    proj_guard_rows_go(pers, st, k - 1, d + 1, &b2, out2)
+                                }
+                            },
+                        },
+                    }
                 }
             }
         }
+    } else {
+        Ok(None)
     }
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:1100-1118 projGuardRows
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove core::proj_guard_rows_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:978-993 checkProjRowsI
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove core::proj_guard_rows_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2714-2733 projGuardRows` — **what a `.proj`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1-1 projGuardRows` — **what a `.proj`
 /// use on a structure that may be a proposition must show**: the domains, at
 /// the use's level instantiation and at the constructor telescope's own
-/// variables, that must be propositions.  `none` where the stored constructor
+/// variables, that must be propositions.  The parameters are opened, then the
+/// fields stepped (`proj_guard_rows_go`).  `None` where the stored constructor
 /// does not bind what the entry says.  The executed shape is the cached
 /// twin's: the constructor's type at the use's levels through the
-/// per-declaration memo (`const_ty_at`), opened in one pass
+/// per-declaration memo (`const_ty_at`), its parameters opened in one pass
 /// (`open_pis_at_fvars_f`).
 pub fn proj_guard_rows(
     pers: &PersTier,
@@ -7545,18 +7540,11 @@ pub fn proj_guard_rows(
             let cv: IConstantVal = env::i_constant_info_to_constant_val(ci);
             match const_ty_at(pers, st, &cv, us) {
                 Err(e) => Err(e),
-                Ok(cty) => {
-                    match open_pis_at_fvars_f(pers, st, entry.num_params + entry.idx + 1, &cty, 0) {
-                        Err(e) => Err(e),
-                        Ok(Some((fvs, _))) => {
-                            match proj_guard_rows_at(pers, st, &cv.ty, entry.num_params, entry.idx, &fvs, 0, Vec::new()) {
-                                Err(e) => Err(e),
-                                Ok(rows) => Ok(Some(rows)),
-                            }
-                        }
-                        Ok(None) => Ok(None),
-                    }
-                }
+                Ok(cty) => match open_pis_at_fvars_f(pers, st, entry.num_params, &cty, 0) {
+                    Err(e) => Err(e),
+                    Ok(Some((_, r))) => proj_guard_rows_go(pers, st, entry.idx, entry.num_params, &r, Vec::new()),
+                    Ok(None) => Ok(None),
+                },
             }
         }
         None => Ok(None),
@@ -7566,7 +7554,6 @@ pub fn proj_guard_rows(
 /// con-leche: ConLeche/Kernel/Core.lean:1105-1118 checkProjGuard
 /// con-leche: ConLeche/Cached/CoreC.lean:995-1007 checkProjGuardI
 /// con-leche: ConLeche/Cached/CoreC.lean:978-993 checkProjRowsI
-/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove core::check_proj_guard_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2735-2752 checkProjGuard` — **the official
 /// `infer_proj` restriction** at this use (con-leche task #480), computed
 /// here from the stored structure and constructor types; nothing about it is
