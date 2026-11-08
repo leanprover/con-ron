@@ -38,9 +38,10 @@ this lemma. -/
 private theorem tbl_empty_eq {A I D : Type}
     {hA : ron.hashmap.Hashable A} {e2 : ron.hashmap.Eq2 A} {dA : ron.hashmap.Dup A}
     {dI : ron.hashmap.Dup I} {dD : ron.hashmap.Dup D} {dd : arena.store.DerDefault D}
+    [hCH : arena.cons_map.ConsHandle I]
     {rt : arena.store.Tbl A I D}
-    (h : arena.store.Tbl.empty hA e2 dA dI dD dd = ok rt) :
-    ∃ hm, ron.hashmap2.HashMap2.new A I = ok hm ∧
+    (h : arena.store.Tbl.empty hA e2 dA dI hCH dD dd = ok rt) :
+    ∃ hm, arena.cons_map.ConsMap.new dI hCH = ok hm ∧
       rt = { rows := alloc.vec.Vec.new (A × D), cons := hm } := by
   rw [arena.store.Tbl.empty] at h
   obtain ⟨hm, hhm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -49,24 +50,26 @@ private theorem tbl_empty_eq {A I D : Type}
 theorem tbl_empty_rel {A I D α ι δ ω : Type} [DecidableEq A] {_ : BEq α} {_ : Hashable α}
     {hA : ron.hashmap.Hashable A} {e2 : ron.hashmap.Eq2 A} {dA : ron.hashmap.Dup A}
     {dI : ron.hashmap.Dup I} {dD : ron.hashmap.Dup D} {dd : arena.store.DerDefault D}
+    [hCH : arena.cons_map.ConsHandle I]
     {P : A → Prop} {absA : A → α} {absI : I → ι} {absD : D → δ} {obsD : δ → ω}
     {rt : arena.store.Tbl A I D}
-    (h : arena.store.Tbl.empty hA e2 dA dI dD dd = ok rt) :
+    (h : arena.store.Tbl.empty hA e2 dA dI hCH dD dd = ok rt) :
     TblRel P absA absI absD obsD rt (Tbl.empty : Tbl α ι δ) := by
   obtain ⟨hm, hhm, rfl⟩ := tbl_empty_eq h
-  obtain ⟨-, -, hnone⟩ :=
-    ConRon.Refine.HashMap2.new_refines (HashableInst := hA) hhm
+  obtain ⟨-, -, hnone⟩ := ConRon.Refine.HashMap2.new_refines (HashableInst := hA)
+    (ConRon.Refine.ConsMap.new_sim (alloc.vec.Vec.new (A × D)) hhm).1
   exact ⟨rfl, rfl, ConRon.Refine.HashMap2.RelOn_empty hnone⟩
 
 theorem tbl_empty_inv {A I D : Type} [DecidableEq A]
     {hA : ron.hashmap.Hashable A} {e2 : ron.hashmap.Eq2 A} {dA : ron.hashmap.Dup A}
     {dI : ron.hashmap.Dup I} {dD : ron.hashmap.Dup D} {dd : arena.store.DerDefault D}
+    [hCH : arena.cons_map.ConsHandle I]
     {P : A → Prop} {rt : arena.store.Tbl A I D}
-    (h : arena.store.Tbl.empty hA e2 dA dI dD dd = ok rt) : TblInv hA P rt := by
+    (h : arena.store.Tbl.empty hA e2 dA dI hCH dD dd = ok rt) : TblInv hA P rt := by
   obtain ⟨hm, hhm, rfl⟩ := tbl_empty_eq h
-  obtain ⟨hinv, hnil, -⟩ :=
-    ConRon.Refine.HashMap2.new_refines (HashableInst := hA) hhm
-  refine ⟨hinv, ConRon.Refine.HashMap2.KeysOk_of_nil hnil, ?_⟩
+  obtain ⟨hnew, hk⟩ := ConRon.Refine.ConsMap.new_sim (alloc.vec.Vec.new (A × D)) hhm
+  obtain ⟨hinv, hnil, -⟩ := ConRon.Refine.HashMap2.new_refines (HashableInst := hA) hnew
+  refine ⟨hinv, ConRon.Refine.HashMap2.KeysOk_of_nil hnil, hk, ?_⟩
   intro p hp
   simp [alloc.vec.Vec.new] at hp
 

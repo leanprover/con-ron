@@ -75,41 +75,41 @@ open ConRon.Refine.HashMap2 (Inv KeysOk RelOn toFun sl_v)
 `arena::store::Tbl::reset` is `rows := Vec::new()` and `cons := reset_map`, so
 a reset table is the twin's `Tbl.empty` at every clause of `TblRel` and
 `TblInv`: two `rfl`s for the node and derived columns,
-`Refine/HashMap2WF.lean`'s `RelOn_empty` / `KeysOk_of_nil` for the cons table,
+`Refine/ConsMap.lean`'s `clear_fit_spec` and `RelOn_empty` / `KeysOk_of_nil`
+for the cons table,
 and a vacuous `nodesP`.  Once here, twenty times below. -/
 
-theorem tbl_reset_inv {A I D : Type} [DecidableEq A]
-    {P : A → Prop}
+theorem tbl_reset_inv {A I D : Type} [DecidableEq A] [hCH : arena.cons_map.ConsHandle I]
+    {P P0 : A → Prop}
     {hA : ron.hashmap.Hashable A} {eq2 : ron.hashmap.Eq2 A}
     {dupA : ron.hashmap.Dup A} {dupI : ron.hashmap.Dup I}
     {dupD : ron.hashmap.Dup D} {derDef : arena.store.DerDefault D}
-    {rt rt' : arena.store.Tbl A I D} (hinv : Inv hA rt.cons)
-    (h : arena.store.Tbl.reset hA eq2 dupA dupI dupD derDef rt = ok rt') :
+    {rt rt' : arena.store.Tbl A I D} (hinv : TblInv hA P0 rt)
+    (h : arena.store.Tbl.reset hA eq2 dupA dupI hCH dupD derDef rt = ok rt') :
     TblInv hA P rt' := by
   rw [arena.store.Tbl.reset] at h
   obtain ⟨hm, hhm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hst : rt' = ⟨alloc.vec.Vec.new (A × D), hm⟩ := (Result.ok_injective h).symm
   subst hst
-  obtain ⟨hinv', hnil, -⟩ :=
-    ConRon.Refine.HashMap2.clear_fit_refines hinv
-      (by rw [arena.core_state.reset_map] at hhm; exact hhm)
-  exact ⟨hinv', ConRon.Refine.HashMap2.KeysOk_of_nil hnil, by simp⟩
+  obtain ⟨hinv', hnil, -, hk⟩ :=
+    ConRon.Refine.ConsMap.clear_fit_spec rt.rows hinv.inv hinv.kinv hhm _
+  exact ⟨hinv', ConRon.Refine.HashMap2.KeysOk_of_nil hnil, hk, by simp⟩
 
 theorem tbl_reset_rel {A I D α ι δ ω : Type} [DecidableEq A] [BEq α] [Hashable α]
-    {P : A → Prop} {absA : A → α} {absI : I → ι} {absD : D → δ} {obsD : δ → ω}
+    [hCH : arena.cons_map.ConsHandle I]
+    {P P0 : A → Prop} {absA : A → α} {absI : I → ι} {absD : D → δ} {obsD : δ → ω}
     {hA : ron.hashmap.Hashable A} {eq2 : ron.hashmap.Eq2 A}
     {dupA : ron.hashmap.Dup A} {dupI : ron.hashmap.Dup I}
     {dupD : ron.hashmap.Dup D} {derDef : arena.store.DerDefault D}
-    {rt rt' : arena.store.Tbl A I D} (hinv : Inv hA rt.cons)
-    (h : arena.store.Tbl.reset hA eq2 dupA dupI dupD derDef rt = ok rt') :
+    {rt rt' : arena.store.Tbl A I D} (hinv : TblInv hA P0 rt)
+    (h : arena.store.Tbl.reset hA eq2 dupA dupI hCH dupD derDef rt = ok rt') :
     TblRel P absA absI absD obsD rt' Tbl.empty := by
   rw [arena.store.Tbl.reset] at h
   obtain ⟨hm, hhm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hst : rt' = ⟨alloc.vec.Vec.new (A × D), hm⟩ := (Result.ok_injective h).symm
   subst hst
-  obtain ⟨-, -, hnone⟩ :=
-    ConRon.Refine.HashMap2.clear_fit_refines hinv
-      (by rw [arena.core_state.reset_map] at hhm; exact hhm)
+  obtain ⟨-, -, hnone, -⟩ :=
+    ConRon.Refine.ConsMap.clear_fit_spec rt.rows hinv.inv hinv.kinv hhm _
   exact ⟨rfl, rfl, ConRon.Refine.HashMap2.RelOn_empty hnone⟩
 
 /-! ## The four tiers reset
@@ -130,12 +130,12 @@ theorem ntables_reset {rt rt' : arena.store.NTables}
     (Result.ok_injective h).symm
   subst hst
   refine ⟨⟨?_, ?_, ?_⟩, ⟨?_, ?_, ?_⟩⟩
-  exacts [tbl_reset_rel hinv.anons.inv e0,
-    tbl_reset_rel hinv.strs.inv e1,
-    tbl_reset_rel hinv.nums.inv e2,
-    tbl_reset_inv hinv.anons.inv e0,
-    tbl_reset_inv hinv.strs.inv e1,
-    tbl_reset_inv hinv.nums.inv e2]
+  exacts [tbl_reset_rel hinv.anons e0,
+    tbl_reset_rel hinv.strs e1,
+    tbl_reset_rel hinv.nums e2,
+    tbl_reset_inv hinv.anons e0,
+    tbl_reset_inv hinv.strs e1,
+    tbl_reset_inv hinv.nums e2]
 
 theorem ltables_reset {rt rt' : arena.store.LTables}
     (hinv : LTablesInv rt) (h : arena.store.LTables.reset rt = ok rt') :
@@ -150,16 +150,16 @@ theorem ltables_reset {rt rt' : arena.store.LTables}
     (Result.ok_injective h).symm
   subst hst
   refine ⟨⟨?_, ?_, ?_, ?_, ?_⟩, ⟨?_, ?_, ?_, ?_, ?_⟩⟩
-  exacts [tbl_reset_rel hinv.zeros.inv e0,
-    tbl_reset_rel hinv.succs.inv e1,
-    tbl_reset_rel hinv.maxs.inv e2,
-    tbl_reset_rel hinv.imaxs.inv e3,
-    tbl_reset_rel hinv.params.inv e4,
-    tbl_reset_inv hinv.zeros.inv e0,
-    tbl_reset_inv hinv.succs.inv e1,
-    tbl_reset_inv hinv.maxs.inv e2,
-    tbl_reset_inv hinv.imaxs.inv e3,
-    tbl_reset_inv hinv.params.inv e4]
+  exacts [tbl_reset_rel hinv.zeros e0,
+    tbl_reset_rel hinv.succs e1,
+    tbl_reset_rel hinv.maxs e2,
+    tbl_reset_rel hinv.imaxs e3,
+    tbl_reset_rel hinv.params e4,
+    tbl_reset_inv hinv.zeros e0,
+    tbl_reset_inv hinv.succs e1,
+    tbl_reset_inv hinv.maxs e2,
+    tbl_reset_inv hinv.imaxs e3,
+    tbl_reset_inv hinv.params e4]
 
 theorem lstables_reset {rt rt' : arena.store.LsTables}
     (hinv : LsTablesInv rt) (h : arena.store.LsTables.reset rt = ok rt') :
@@ -170,8 +170,8 @@ theorem lstables_reset {rt rt' : arena.store.LsTables}
     (Result.ok_injective h).symm
   subst hst
   refine ⟨⟨?_⟩, ⟨?_⟩⟩
-  exacts [tbl_reset_rel hinv.lists.inv e0,
-    tbl_reset_inv hinv.lists.inv e0]
+  exacts [tbl_reset_rel hinv.lists e0,
+    tbl_reset_inv hinv.lists e0]
 
 theorem etables_reset {rt rt' : arena.store.ETables}
     (hinv : ETablesInv rt) (h : arena.store.ETables.reset rt = ok rt') :
@@ -191,26 +191,26 @@ theorem etables_reset {rt rt' : arena.store.ETables}
     (Result.ok_injective h).symm
   subst hst
   refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
-  exacts [tbl_reset_rel hinv.bvars.inv e0,
-    tbl_reset_rel hinv.fvars.inv e1,
-    tbl_reset_rel hinv.sorts.inv e2,
-    tbl_reset_rel hinv.consts.inv e3,
-    tbl_reset_rel hinv.apps.inv e4,
-    tbl_reset_rel hinv.lams.inv e5,
-    tbl_reset_rel hinv.foralls.inv e6,
-    tbl_reset_rel hinv.lets.inv e7,
-    tbl_reset_rel hinv.lits.inv e8,
-    tbl_reset_rel hinv.projs.inv e9,
-    tbl_reset_inv hinv.bvars.inv e0,
-    tbl_reset_inv hinv.fvars.inv e1,
-    tbl_reset_inv hinv.sorts.inv e2,
-    tbl_reset_inv hinv.consts.inv e3,
-    tbl_reset_inv hinv.apps.inv e4,
-    tbl_reset_inv hinv.lams.inv e5,
-    tbl_reset_inv hinv.foralls.inv e6,
-    tbl_reset_inv hinv.lets.inv e7,
-    tbl_reset_inv hinv.lits.inv e8,
-    tbl_reset_inv hinv.projs.inv e9]
+  exacts [tbl_reset_rel hinv.bvars e0,
+    tbl_reset_rel hinv.fvars e1,
+    tbl_reset_rel hinv.sorts e2,
+    tbl_reset_rel hinv.consts e3,
+    tbl_reset_rel hinv.apps e4,
+    tbl_reset_rel hinv.lams e5,
+    tbl_reset_rel hinv.foralls e6,
+    tbl_reset_rel hinv.lets e7,
+    tbl_reset_rel hinv.lits e8,
+    tbl_reset_rel hinv.projs e9,
+    tbl_reset_inv hinv.bvars e0,
+    tbl_reset_inv hinv.fvars e1,
+    tbl_reset_inv hinv.sorts e2,
+    tbl_reset_inv hinv.consts e3,
+    tbl_reset_inv hinv.apps e4,
+    tbl_reset_inv hinv.lams e5,
+    tbl_reset_inv hinv.foralls e6,
+    tbl_reset_inv hinv.lets e7,
+    tbl_reset_inv hinv.lits e8,
+    tbl_reset_inv hinv.projs e9]
 
 
 /-! ## The two store states (task #98-FREEZE)
