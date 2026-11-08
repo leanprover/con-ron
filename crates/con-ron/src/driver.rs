@@ -121,7 +121,7 @@ pub fn message(e: &CheckError) -> String {
         .collect()
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:251-253 msSecs
+/// con-leche: ConLeche/Cached/ParsedC.lean:236-238 msSecs
 /// Milliseconds as seconds.  Also a deliberate skip in the core, for
 /// `declCLabel`'s reason.  Deviation: three decimals rather than con-leche's
 /// one.
@@ -322,7 +322,7 @@ pub fn pins_for_run(
 // Rendering: the labels the arena has to read back
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:255-264 declCLabel
+/// con-leche: ConLeche/Cached/ParsedC.lean:240-249 declCLabel
 /// con-leche: ConLeche/Driver/CheckMain.lean:47-51 declCName
 /// A record's display label, the cited six arms with the names READ BACK out
 /// of the store: a handle is not a name until the store is asked, which is the

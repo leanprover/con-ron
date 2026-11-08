@@ -110,13 +110,13 @@ def reduceBoolDeclPin : AM EIdx := internExpr ConLeche.reduceBoolDeclPin
 `Lean.reduceNat`'s pinned value, `fun (n : Nat) => n`. -/
 def reduceNatDeclPin : AM EIdx := internExpr ConLeche.reduceNatDeclPin
 
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:185-190 reduceDeclPin — the
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:188-193 reduceDeclPin — the
 pinned defining expression of a reduce operation. -/
 def reduceDeclPin (c : NIdx) : AM EIdx := do
   let rn ← reduceNatName
   if c == rn then reduceNatDeclPin else reduceBoolDeclPin
 
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:198-201 reduceCertVar — the
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:201-204 reduceCertVar — the
 identity certificate's variable: `fvar 0` at the element type. -/
 def reduceCertVar (c : NIdx) : AM EIdx := do
   internE (.fvar 0 (← reduceElemTy c))

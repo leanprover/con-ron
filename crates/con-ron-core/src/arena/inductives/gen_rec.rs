@@ -936,7 +936,7 @@ pub fn prefix_vars(pers: &PersTier, st: &mut AState, g: &ClassGen, r_p: u64, i: 
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:537-542 classRecOf
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:535-540 classRecOf
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:265-271 classRecOf` — the
 /// recursor a call at class `t` names: the family's first recursor at that
 /// class.
@@ -1611,7 +1611,8 @@ pub fn class_former_tys(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:361-382 classConstOk
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:361-380 classConstOk
+/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove gen_rec::class_const_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:514-538 classConstOk` — **a
 /// generated constant, checked**: `checkConstantValF` — the generated type is
 /// stored as the generator built it; inference validates it like any other
@@ -1644,7 +1645,8 @@ pub fn class_const_ok(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:361-382 classConstOk
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:361-380 classConstOk
+/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove gen_rec::class_const_ok_type_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:514-538 classConstOk` — the
 /// type's guards and its inference.
 pub fn class_const_ok_type(
@@ -1686,7 +1688,7 @@ pub fn class_const_ok_type(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:384-391 classRecTyCheck
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:382-389 classRecTyCheck
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:540-547 classRecTyCheck` — **the
 /// check of a generated recursor type**: checked as a constant and defeq to the
 /// stream's checked type `cv_ri`.
@@ -1717,7 +1719,7 @@ pub fn class_rec_ty_check(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:393-409 classRecTyOk
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:391-407 classRecTyOk
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:549-567 classRecTyOk` — **one
 /// recursor's generated type, checked and compared**: the record's member,
 /// rule prefix and major index are the generated ones; the generated type is
@@ -1767,7 +1769,7 @@ pub fn class_rec_ty_ok(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:411-420 classRecTysOk
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:409-418 classRecTysOk
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:569-579 classRecTysOk` — every
 /// recursor's generated type, pairwise with the stream's checked types and
 /// the recursors' classes; the lists running out unevenly is internal.
@@ -1801,7 +1803,7 @@ pub fn class_rec_tys_ok(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:422-441 classRuleCheck
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:420-439 classRuleCheck
 /// Lean twin: `rbs.all (fun b => w.resolve feT b.1)` — the rule's λ-domains
 /// resolve at the constructors' environment `feT`.  The port holds only the
 /// rule-less recursors' environment `fe` (`feT` with the generated recursors
@@ -1832,7 +1834,7 @@ pub fn domains_resolve(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:422-441 classRuleCheck
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:420-439 classRuleCheck
 /// con-leche: ConLeche/Cached/CheckerC.lean:90-116 sharedOpsRuleR
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:581-610 classRuleCheck` — **the
 /// check of a generated rule**: closed, its level parameters the recursor's,
@@ -1881,7 +1883,7 @@ pub fn class_rule_check(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:422-441 classRuleCheck
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:420-439 classRuleCheck
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:581-610 classRuleCheck` — the
 /// λ-telescope and its domains' resolution.
 pub fn class_rule_check_tail(
@@ -1906,7 +1908,7 @@ pub fn class_rule_check_tail(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:443-448 classRuleOk
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:441-446 classRuleOk
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:612-617 classRuleOk` — **one
 /// generated rule, installed as generated**, after its check.
 #[allow(clippy::too_many_arguments)]
@@ -1926,7 +1928,7 @@ pub fn class_rule_ok(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:450-461 classRulesOk
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:448-459 classRulesOk
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:619-633 classRulesOk` — a
 /// recursor's generated rules, one per constructor of its class, from `i` on.
 #[allow(clippy::too_many_arguments)]
@@ -1969,7 +1971,7 @@ pub fn class_rules_ok(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:463-472 classRecsRulesOk
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:461-470 classRecsRulesOk
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:635-648 classRecsRulesOk` — every
 /// recursor's generated rules, with its class, from `i` on (the shorter of
 /// the two lists decides, as the cited zip does).
@@ -2021,7 +2023,7 @@ pub fn class_ctors_dup(xs: &Vec<ClassCtor>, i: usize, out: Vec<ClassCtor>) -> Ve
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:474-482 classStreamRecs
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:472-480 classStreamRecs
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:650-657 classStreamRecs` — the
 /// stream's recursor constants, checked (`checkConstantValF`), from `i` on.
 pub fn class_stream_recs(
@@ -2047,7 +2049,7 @@ pub fn class_stream_recs(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:484-487 classKeyCanon
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:482-485 classKeyCanon
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:659-664 classKeyCanon` — a class
 /// key's parameters moved to the block's canonical parameter variables.
 pub fn class_key_canon(
@@ -2077,7 +2079,7 @@ pub fn class_key_canon(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:489-495 classNPcOf
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:487-493 classNPcOf
 /// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:151-160 classNPcOf` — an
 /// inductive's parameter count as the pre-pass reads it: the block's at a
 /// member, the stored `IndCaps`' otherwise (`0` at no inductive).
@@ -2092,7 +2094,7 @@ pub fn class_n_pc_of(pers: &PersTier, p: &BlockShape, fe: &IFEnv, i_name: &NIdx)
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:497-502 classSeeds
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:495-500 classSeeds
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:666-677 classSeeds` — the seeds:
 /// every OUTSIDE class in the positivity check's representation, in order.
 pub fn class_seeds(
@@ -2121,7 +2123,7 @@ pub fn class_seeds(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:504-515 classKeyOf
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:502-513 classKeyOf
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:679-691 classKeyOf` — **a class
 /// key, made checkable**: moved to the canonical parameter variables, its
 /// parameters closed over them.  (Task #119: no longer annotated — the
@@ -2143,7 +2145,7 @@ pub fn class_key_of(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:504-515 classKeyOf
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:502-513 classKeyOf
 /// Lean twin: `rd.classes.mapM (classKeyOf p.nP params)`.
 pub fn class_keys_of(
     pers: &PersTier,
@@ -2168,7 +2170,7 @@ pub fn class_keys_of(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:517-535 checkBlockClasses
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:515-533 checkBlockClasses
 /// Lean twin: `(Ms.filter (·.member == some t)).length` — the classes at member
 /// `t`, counted.
 pub fn classes_at_member(ms: &Vec<TargetMajor>, t: u64, i: usize, acc: u64) -> u64 {
@@ -2187,7 +2189,7 @@ pub fn classes_at_member(ms: &Vec<TargetMajor>, t: u64, i: usize, acc: u64) -> u
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:517-535 checkBlockClasses
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:515-533 checkBlockClasses
 /// Lean twin: `(List.range p.k).all fun t => … == 1` — exactly one class per
 /// member, from member `t` on.
 pub fn one_class_per_member(ms: &Vec<TargetMajor>, k: u64, t: u64) -> bool {
@@ -2200,7 +2202,7 @@ pub fn one_class_per_member(ms: &Vec<TargetMajor>, k: u64, t: u64) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:517-535 checkBlockClasses
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:515-533 checkBlockClasses
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:693-712 checkBlockClasses` — **the
 /// classes, read and checked** at the formers' environment `fe`: the
 /// pre-pass on the stream's raw recursor types, every class key made
@@ -2304,7 +2306,7 @@ pub fn const_val_names(cvs: &Vec<IConstantVal>, i: usize, out: Vec<NIdx>) -> Vec
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:544-586 genRecCheck
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:542-584 genRecCheck
 /// Lean twin: `Ms.any (·.member.isNone)`.
 pub fn some_outside(ms: &Vec<TargetMajor>, i: usize) -> bool {
     if i >= ms.len() {
@@ -2317,7 +2319,7 @@ pub fn some_outside(ms: &Vec<TargetMajor>, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:544-586 genRecCheck
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:542-584 genRecCheck
 /// Lean twin: `(rd.slots.filter ClassSlot.isMinor).length`.
 pub fn minor_count(slots: &Vec<ClassSlot>, i: usize, acc: u64) -> u64 {
     if i >= slots.len() {
@@ -2329,7 +2331,7 @@ pub fn minor_count(slots: &Vec<ClassSlot>, i: usize, acc: u64) -> u64 {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:544-586 genRecCheck
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:542-584 genRecCheck
 /// Lean twin: `(ctors.map List.length).sum`.
 pub fn ctor_count(xss: &Vec<Vec<ClassCtor>>, i: usize, acc: u64) -> u64 {
     if i >= xss.len() {
@@ -2351,7 +2353,7 @@ pub fn former_types(cvs: &Vec<IConstantVal>, i: usize, out: Vec<EIdx>) -> Vec<EI
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:544-586 genRecCheck
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:542-584 genRecCheck
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:733-788 genRecCheck` — **the
 /// generated recursor stage**, at the constructors' environment `fe`, on the
 /// classes and the positivity check's table: the pins, the stream's recursor
@@ -2394,7 +2396,7 @@ pub fn gen_rec_check(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:544-586 genRecCheck
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:542-584 genRecCheck
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:733-788 genRecCheck` — per class
 /// and constructor: the table's entries, the datum, the inductive hypotheses,
 /// node agreement; every minor premise a constructor's.
@@ -2446,7 +2448,7 @@ pub fn gen_rec_classes(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:544-586 genRecCheck
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:542-584 genRecCheck
 /// con-leche: ConLeche/Cached/CheckerC.lean:118-125 shadowOpsC
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:733-788 genRecCheck` —
 /// generation: the prefix, every recursor's type checked and compared, the

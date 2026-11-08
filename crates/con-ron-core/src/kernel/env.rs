@@ -208,7 +208,7 @@ pub fn basis_kind_dup(k: &BasisKind) -> BasisKind {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:184-232 IndCaps
+/// con-leche: ConLeche/Kernel/Env.lean:184-231 IndCaps
 /// Definitional capabilities of a stored inductive type that its block alone
 /// decides, read off the block's records.  The family's result sort is on no
 /// record, so what depends on it is computed where it is read.  Every field of
@@ -231,7 +231,7 @@ pub struct IndCaps {
     pub ctors: Vec<Name>,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:184-232 IndCaps
+/// con-leche: ConLeche/Kernel/Env.lean:184-231 IndCaps
 /// The cited structure's *field defaults*, which Rust has not: `eta :=
 /// false`, `etaCtor := .anonymous`, every count `0`, every list empty.
 pub fn ind_caps_default() -> IndCaps {
@@ -249,7 +249,7 @@ pub fn ind_caps_default() -> IndCaps {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:293-312 ConstantInfo
+/// con-leche: ConLeche/Kernel/Env.lean:292-311 ConstantInfo
 /// Information stored about an accepted constant.  A recursor carries its
 /// record's K flag (official's `recursor_val::is_k`), the `bool` before its
 /// rules.
@@ -286,7 +286,7 @@ pub fn reducibility_hint_beq(a: &ReducibilityHint, b: &ReducibilityHint) -> bool
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:314-325 QuotKind
+/// con-leche: ConLeche/Kernel/Env.lean:313-324 QuotKind
 /// Which of the four quotient constants a `#QUOT` record declares — the
 /// record's `kind` field, decoded — plus `Sound`, which is not a kind the
 /// decoder reads but the slot `Quot.sound`'s own axiom record is compared at
@@ -299,7 +299,7 @@ pub enum QuotKind {
     Sound,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:327-330 QuotKind.slot
+/// con-leche: ConLeche/Kernel/Env.lean:326-329 QuotKind.slot
 /// The quotient constant's position in the pinned block.
 ///
 /// Deviation: the cited `Nat` is a `u64` (§3.3).

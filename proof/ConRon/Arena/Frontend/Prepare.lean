@@ -44,7 +44,7 @@ open ConLeche
 
 /-! ## The prelude -/
 
-/-- con-leche: ConLeche/Frontend/Prepare.lean:83-88 PreludeIx — the built-in
+/-- con-leche: ConLeche/Frontend/Prepare.lean:82-87 PreludeIx — the built-in
 prelude: its records, in the order the committed file declares them.
 Dependency-correct by construction — it is an export of the toolchain's own
 environment — which is what makes it usable as the front of every prepared
@@ -52,7 +52,7 @@ stream. -/
 structure PreludeIx where
   decls : Array IDeclaration := #[]
 
-/-- con-leche: ConLeche/Frontend/Prepare.lean:90-93 preludeKey — the name a
+/-- con-leche: ConLeche/Frontend/Prepare.lean:89-92 preludeKey — the name a
 prelude record is looked up by: the block's type former, the quotient
 constant, the axiom.  con-leche's `.anonymous` fall-through is the interned
 anonymous name. -/
@@ -73,11 +73,11 @@ skips both (`scripts/provenance-skip.txt`) and so does (B) — a specification
 for a proof that is not written yet is best written with it (DESIGN §8.6's
 reordering: code first, proofs later). -/
 
-/-- con-leche: ConLeche/Frontend/Prepare.lean:109-110 declares — the name-test
+/-- con-leche: ConLeche/Frontend/Prepare.lean:108-109 declares — the name-test
 a record is picked by. -/
 def declares (n : NIdx) (d : IDeclaration) : Bool := d.names.contains n
 
-/-- con-leche: ConLeche/Frontend/Prepare.lean:121-124 pick — the first record
+/-- con-leche: ConLeche/Frontend/Prepare.lean:120-123 pick — the first record
 declaring `n`, and the array without it.  `Array.eraseIdxIfInBounds` is
 `List.eraseIdx`'s twin, and the out-of-range case — `findIdx` returns the size
 when no record declares the name — is exactly "the stream does not declare it,
@@ -92,7 +92,7 @@ def pick (n : NIdx) (ds : Array IDeclaration) :
   let i := ds.findIdx (declares n)
   (ds[i]?, ds.eraseIdxIfInBounds i)
 
-/-- con-leche: ConLeche/Frontend/Prepare.lean:126-135 frontOf — the front of
+/-- con-leche: ConLeche/Frontend/Prepare.lean:125-134 frontOf — the front of
 the prepared stream (the prelude's declarations, each one the stream's own copy
 where the stream has one) and the rest of the stream, in the stream's order. -/
 def frontOf (acc : Array IDeclaration) :
@@ -115,7 +115,7 @@ of its own exactly as con-leche's is.  `prepareD` below calls it. -/
 
 /-! ## The prepared stream -/
 
-/-- con-leche: ConLeche/Frontend/Prepare.lean:148-157 Prepared — the prepared
+/-- con-leche: ConLeche/Frontend/Prepare.lean:147-156 Prepared — the prepared
 stream and the driver's receipts. -/
 structure Prepared where
   /-- the prelude's declarations, then the rest of the stream -/
@@ -126,7 +126,7 @@ structure Prepared where
   /-- the records moved ahead of a pinned `Nat` operation they ground -/
   hoisted : Array NIdx := #[]
 
-/-- con-leche: ConLeche/Frontend/Prepare.lean:159-166 prepareD —
+/-- con-leche: ConLeche/Frontend/Prepare.lean:158-165 prepareD —
 `preparePrelude`, with its receipts.  `used` says what a record mentions, where
 the record itself does not say: a theorem's record read from an `.olean` holds a
 reference to its value (`Arena/Frontend/Olean/Lazy.lean`). -/
@@ -136,7 +136,7 @@ def prepareD (pre : PreludeIx) (ds : Array IDeclaration)
   let (decls, hoisted) ← hoistNatOpGround used (front ++ rest)
   pure ⟨decls, decls.size - ds.size, hoisted⟩
 
-/-- con-leche: ConLeche/Frontend/Prepare.lean:168-175 preparePrelude — the
+/-- con-leche: ConLeche/Frontend/Prepare.lean:167-174 preparePrelude — the
 parsed stream, prepared for the fold: the prelude's declarations first (the
 stream's own copies where it has them), the rest of the stream after them,
 every pinned `Nat` operation's stream-certified ground ahead of it.  An array

@@ -396,7 +396,7 @@ The parse, the pin walk and the stream's index (§6.3) write the persistent tier
 directly.  Each record's check then runs inside a **bracket** on a worker's own
 store: `enter_record` empties the scratch tier and the memos, and
 `leave_record` empties the scratch tier again and flushes the caches
-([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L10831-L10850)).
+([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L10840-L10859)).
 Nothing a check builds outlives it: what a declaration adds to the environment
 is read off the record itself when the index is built, so no term ever has to
 move from the scratch tier to the persistent one.  Dropping the tier leaves

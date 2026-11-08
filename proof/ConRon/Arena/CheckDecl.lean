@@ -36,7 +36,9 @@ open ConLeche
 /-! ## A block the recogniser does not read -/
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:26-38 checkShapeless
+-- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckDecl.checkShapelessFormers_bridge, then delete this line
 con-leche: ConLeche/Cached/ParsedC.lean:68-76 checkShapelessS
+-- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckDecl.checkShapelessFormers_bridge, then delete this line
 The cited `block.foldlM`: every type former checked as a constant and
 discarded, every other member skipped (the Rust's
 `check_shapeless_formers`). -/
@@ -51,7 +53,9 @@ def checkShapelessFormers (mode : CheckMode) (fe : IFEnv) :
     | _ => checkShapelessFormers mode fe rest
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:26-38 checkShapeless
+-- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckDecl.checkShapeless_bridge, then delete this line
 con-leche: ConLeche/Cached/ParsedC.lean:68-76 checkShapelessS
+-- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckDecl.checkShapeless_bridge, then delete this line
 **An inductive block the recogniser does not read**: its type formers are
 checked as constants (a reserved name, a duplicate, a malformed type are
 official's rejects and stay rejects), and what survives that is a POSITIVE
@@ -65,8 +69,10 @@ def checkShapeless (mode : CheckMode) (fe : IFEnv) (block : List IConstantInfo) 
 
 /-! ## One declaration -/
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:40-185 checkDecl
-con-leche: ConLeche/Cached/ParsedC.lean:175-247 checkDeclC
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:166-174 checkDecl
+-- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckDecl.checkStructuralNatPinAtFe2_bridge, then delete this line
+con-leche: ConLeche/Cached/ParsedC.lean:226-232 checkDeclC
+-- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckDecl.checkStructuralNatPinAtFe2_bridge, then delete this line
 The `.defnDecl` arm's structural-`Nat` gate, its reads at `fe2` (the
 environment with the definition): `natOpGuard` and the dependencies' storage,
 then the stored value. -/
@@ -80,8 +86,10 @@ def checkStructuralNatPinAtFe2 (fe2 : IFEnv) (n : NIdx) : AM EIdx := do
   | some (.defnInfo _ value' _) => pure value'
   | _ => fail (.internal "structural Nat operation not stored")
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:40-185 checkDecl
-con-leche: ConLeche/Cached/ParsedC.lean:175-247 checkDeclC
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:166-174 checkDecl
+-- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckDecl.checkStructuralNatPin_bridge, then delete this line
+con-leche: ConLeche/Cached/ParsedC.lean:226-232 checkDeclC
+-- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckDecl.checkStructuralNatPin_bridge, then delete this line
 **The structural-`Nat` gate**: the reads at `fe2`, then `certifyNatEqs` at `fe`,
 the environment without the definition, over the equations with the
 operation's self-references substituted.  Certifying with the definition
@@ -99,8 +107,10 @@ def checkStructuralNatPin (mode : CheckMode) (fe : IFEnv) (ci : IConstantInfo)
     fail (.notImplemented "nonstandard structural Nat operation")
   pure fe
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:40-185 checkDecl
-con-leche: ConLeche/Cached/ParsedC.lean:175-247 checkDeclC
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:166-174 checkDecl
+-- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckDecl.checkDecl_bridge, then delete this line
+con-leche: ConLeche/Cached/ParsedC.lean:226-232 checkDeclC
+-- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckDecl.checkDecl_bridge, then delete this line
 **Check a single declaration, extending the environment on success**: every
 kind is checked in its arm.  A value arm checks the value returning the record
 unpushed, runs its pinned gates, and pushes last. -/
@@ -186,7 +196,7 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
 /-! ## The spec fold -/
 
 /-- con-leche: ConLeche/Cached/Decls.lean:38-52 declStep
-con-leche: ConLeche/Kernel/CheckDecl.lean:187-191 checkDeclsPure
+con-leche: ConLeche/Kernel/CheckDecl.lean:176-180 checkDeclsPure
 **One record of the fold**: the `And` pin, then the record's check from a
 fresh memo state (`flushCaches`, an empty `Memos`: the cited `checkDeclStepC`'s
 `{}`).  The scratch tier stays OFF, so what the record pushes is persistent and
@@ -202,7 +212,7 @@ def checkDeclStep (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
   checkDecl mode pins fe d
 
 /-- con-leche: ConLeche/Cached/Decls.lean:77-86 checkDecls
-con-leche: ConLeche/Kernel/CheckDecl.lean:187-191 checkDeclsPure
+con-leche: ConLeche/Kernel/CheckDecl.lean:176-180 checkDeclsPure
 The fold over a list of records, one `checkDeclStep` each.  con-leche's
 `ds.foldlM (declStep mode pins)` takes a closure, which DESIGN §3.4 forbids, so
 the fold is an explicit list recursion. -/
@@ -212,7 +222,7 @@ def checkDeclsPureGo (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv) 
   | d :: ds => do checkDeclsPureGo mode pins (← checkDeclStep mode pins fe d) ds
 
 /-- con-leche: ConLeche/Cached/Decls.lean:77-86 checkDecls
-con-leche: ConLeche/Kernel/CheckDecl.lean:187-191 checkDeclsPure
+con-leche: ConLeche/Kernel/CheckDecl.lean:176-180 checkDeclsPure
 **The spec fold**: from the empty environment. -/
 def checkDeclsPure (mode : CheckMode) (pins : List INatOpPinSet)
     (ds : List IDeclaration) : AM IFEnv :=

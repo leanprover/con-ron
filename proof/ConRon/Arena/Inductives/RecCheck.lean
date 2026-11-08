@@ -358,6 +358,7 @@ def targetMajorPins (mode : CheckMode) (fe : IFEnv) (rP : Nat) (M : TargetMajor)
 /-! ## The recursor records' pins -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:488-526 targetRecPins
+-- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove RecCheck.targetRecPins_bridge, then delete this line
 **The recursor records' pins**: the level parameters, the reserved names, the
 member recursors' names as the set `{T_m.rec}`, the auxiliary ones as
 `T_0.rec_1 … T_0.rec_n` (member 0's name, `.anonymous` at no member,

@@ -250,7 +250,7 @@ pub fn reduce_nat_decl_pin(pers: &PersTier, st: &mut AState) -> Result<EIdx, Che
     intern_expr(pers, st, &trust_pins::reduce_nat_decl_pin())
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:185-190 reduceDeclPin
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:188-193 reduceDeclPin
 /// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:113-117 reduceDeclPin` —
 /// the pinned defining expression of a reduce operation.
 pub fn reduce_decl_pin(pers: &PersTier, st: &mut AState, c: &NIdx) -> Result<EIdx, CheckError> {
@@ -266,7 +266,7 @@ pub fn reduce_decl_pin(pers: &PersTier, st: &mut AState, c: &NIdx) -> Result<EId
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:198-201 reduceCertVar
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:201-204 reduceCertVar
 /// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:119-122 reduceCertVar` —
 /// the identity certificate's variable: `fvar 0` at the element type.
 pub fn reduce_cert_var(pers: &PersTier, st: &mut AState, c: &NIdx) -> Result<EIdx, CheckError> {

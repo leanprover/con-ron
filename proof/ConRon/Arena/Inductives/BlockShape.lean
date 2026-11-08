@@ -239,6 +239,7 @@ def recTargetOf (names : List NIdx) (mI : Nat) (ty : EIdx) : AM Nat := do
     else pure none'
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:263-289 blockCounts?
+-- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove BlockShape.blockCounts?_bridge, then delete this line
 **One member's parameter and index counts**, read as official reads them: off
 the member's own telescope when it is a syntactic one ending in a sort, else
 off the argument sums `r` of a recursor whose major names the member (the
@@ -259,7 +260,7 @@ def blockCounts? (nPd k nC nR : Nat) (cvT : IConstantVal) (r : Option (Nat × Na
       else if k < nR && nPd + nR + nC ≤ rP then pure (some (nPd, mI - rP))
       else pure none
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:291-298 ctorMember?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:300-307 ctorMember?
 The member a constructor belongs to: the one its RESULT names (at the block's
 own levels `lvls`, `lps.map .param` interned). -/
 def ctorMember? (names : List NIdx) (lvls : LsIdx) (nP : Nat) (c : IConstantVal × Nat) :
@@ -270,7 +271,7 @@ def ctorMember? (names : List NIdx) (lvls : LsIdx) (nP : Nat) (c : IConstantVal 
     let hd ← getAppFn coreWalkFuel q.2
     memberIdxAt? names lvls hd
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:300-313 blockGroups
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:309-322 blockGroups
 **The constructors grouped by member**, in block order: at ONE member all of
 them, nothing read; at two or more read off the result head (a constructor
 whose head is no member lands in no group).  The Rust's `block_groups_from`
@@ -286,7 +287,7 @@ def blockGroups (names : List NIdx) (lvls : LsIdx) (nP k : Nat)
         | some t => pure (t == m)
         | none => pure false
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:315-323 blockRecLpsOk
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:324-332 blockRecLpsOk
 **The recursor records' level-parameter pin**: every recursor carries the
 block's level parameters, the elimination parameter in front at the large
 eliminator. -/
@@ -296,7 +297,7 @@ def blockRecLpsOk (p : BlockShape) : Bool :=
     if p.large then rc.cvR.levelParams == p.elim :: lps
     else rc.cvR.levelParams == lps
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:325-347 blockRecNameSetOk
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:334-356 blockRecNameSetOk
 **The recursor names, as a SET**: exactly `T_m.rec` at every member, each once.
 Takes the members and the recursors apart, as the Rust does (module note); the
 generated names are interned in block order. -/
@@ -306,7 +307,7 @@ def blockRecNameSetOk (members : List MemberShape) (recs : List RecShape) : AM B
   pure (got.length == want.length &&
     want.all (fun n => got.contains n) && got.all (fun n => want.contains n))
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:349-358 blockRecNamesUnreserved
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:358-367 blockRecNamesUnreserved
 **No recursor takes a name the environment's own guards look up**
 (`reservedRecName`), read recursor by recursor and stopping at the first hit,
 as the Rust does. -/
@@ -317,6 +318,7 @@ def blockRecNamesUnreserved : List RecShape → AM Bool
     else blockRecNamesUnreserved rest
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:360-373 blockMemberCounts?
+-- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove BlockShape.blockMemberCounts?_bridge, then delete this line
 **The members' index counts**, one `blockCounts?` per member (from member `m`,
 the formers `cvTs`), in order; the recursor handed to it is the first whose
 major names the member (the Rust's `rec_for_member`, a `findM?`). -/
@@ -337,6 +339,7 @@ def blockMemberCounts? (nPd k nC : Nat) (names : List NIdx)
       | some ns => pure (some (c.2 :: ns))
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:375-432 blockShape?
+-- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove BlockShape.blockShape?_bridge, then delete this line
 **The block's shape**: split into formers, constructors and recursors (at least
 one of each of the first and the last), the members' counts, the reserved-name
 and level pins, the result sort (member 0's, or the placeholder `0` the

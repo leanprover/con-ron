@@ -1043,6 +1043,7 @@ pub fn target_major_pins(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:488-526 targetRecPins
+/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove rec_check::recs_by_target_refines, then delete this line
 /// Lean twin: `p.recs.filter fun rc => rc.tgt < p.k` (`own = true`) or its
 /// negation — the member recursors, resp. the auxiliary ones, in order.
 pub fn recs_by_target(rs: &Vec<RecShape>, k: u64, own: bool, i: usize, out: Vec<RecShape>) -> Vec<RecShape> {
@@ -1062,6 +1063,7 @@ pub fn recs_by_target(rs: &Vec<RecShape>, k: u64, own: bool, i: usize, out: Vec<
 pub const REC_AUX_PREFIX: [u32; 4] = [114, 101, 99, 95];
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:488-526 targetRecPins
+/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove rec_check::want_aux_names_refines, then delete this line
 /// Lean twin: `(List.range n).map fun i => n0.str s!"rec_{i + 1}"` — official's
 /// auxiliary recursor names `T_0.rec_1 … T_0.rec_n`, interned.
 pub fn want_aux_names(
@@ -1126,6 +1128,7 @@ pub fn ctor3_names(cs: &Vec<(IConstantVal, u64, u64)>, i: usize, out: Vec<NIdx>)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:488-526 targetRecPins
+/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove rec_check::target_rec_pins_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:360-395 targetRecPins` — **the
 /// recursor records' pins**: the level parameters, the reserved names, the
 /// member recursors' names as the set `{T_m.rec}`, the auxiliary ones as
@@ -1157,6 +1160,7 @@ pub fn target_rec_pins(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:488-526 targetRecPins
+/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove rec_check::target_rec_pins_aux_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:360-395 targetRecPins` — the
 /// auxiliary names, distinctness and the grouping.
 pub fn target_rec_pins_aux(
@@ -1177,6 +1181,7 @@ pub fn target_rec_pins_aux(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:488-526 targetRecPins
+/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove rec_check::target_rec_pins_names_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:360-395 targetRecPins` — the
 /// auxiliary names at member 0's name `n0` (`.anonymous` at no member).
 pub fn target_rec_pins_names(

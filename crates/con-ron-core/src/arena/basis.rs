@@ -44,7 +44,7 @@ use crate::kernel::level::Level;
 use crate::kernel::name::Name;
 use crate::ron::hashmap::{Dup, Eq2};
 
-/// con-leche: ConLeche/Kernel/Basis.lean:38-44 BasisKind.decls
+/// con-leche: ConLeche/Kernel/Basis.lean:39-45 BasisKind.decls
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:37-40 BasisKind.decls` — the constants
 /// of one basis block, in install order, interned.
 pub fn basis_kind_decls(
@@ -55,7 +55,8 @@ pub fn basis_kind_decls(
     intern_ci_list(pers, st, &basis_raw::basis_kind_decls(k))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Nat.lean:24-27 natA
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:24-26 natA
+/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove basis::nat_a_refines, then delete this line
 /// The pinned `Nat` type former, interned: the comparand of
 /// `reduceElemOk`'s exact `env.find? natName = some natA`.  `Nat` has no level
 /// parameter, so the environment holds the pin itself.
@@ -79,7 +80,7 @@ pub fn param_level_values(ps: &Vec<Name>, i: usize, out: Vec<Level>) -> Vec<Leve
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:53-55 ConstantVal.atLps
+/// con-leche: ConLeche/Kernel/Basis.lean:54-56 ConstantVal.atLps
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:51-57 IConstantVal.atLps` — a constant's
 /// common data at other level-parameter names: the type with the old names
 /// replaced positionally.
@@ -102,7 +103,7 @@ pub fn constant_val_at_lps(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:57-60 RecRuleFire.atLps
+/// con-leche: ConLeche/Kernel/Basis.lean:58-61 RecRuleFire.atLps
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:59-65 IRecRuleFire.atLps` — a firing mode
 /// at other level-parameter names: the `.levels` comparands substituted, every
 /// other mode as it is.
@@ -122,7 +123,7 @@ pub fn rec_rule_fire_at_lps(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:62-78 ConstantInfo.atLps
+/// con-leche: ConLeche/Kernel/Basis.lean:63-79 ConstantInfo.atLps
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:67-78 rulesAtLps` — the
 /// `.recInfo` arm's `rules.map`: each rule's right-hand side and firing mode at
 /// the new names.  `lps_h`/`us` are the cited `lps`/`us` as handles (for
@@ -161,7 +162,7 @@ pub fn rules_at_lps(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:62-78 ConstantInfo.atLps
+/// con-leche: ConLeche/Kernel/Basis.lean:63-79 ConstantInfo.atLps
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:80-100 IConstantInfo.atLps` — **a stored
 /// constant at other level-parameter names**: its type, a definition's value,
 /// its rules' right-hand sides and firing modes renamed; nothing else.
@@ -204,7 +205,7 @@ pub fn constant_info_at_lps(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:62-78 ConstantInfo.atLps
+/// con-leche: ConLeche/Kernel/Basis.lean:63-79 ConstantInfo.atLps
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:80-100 IConstantInfo.atLps` — the
 /// `.recInfo` arm.
 pub fn constant_info_at_lps_rec(
@@ -248,7 +249,7 @@ pub fn constant_info_at_lps_rec(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:80-84 pinAgrees
+/// con-leche: ConLeche/Kernel/Basis.lean:81-85 pinAgrees
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:102-107 pinAgrees` — a record against the
 /// pin at the record's own names: what the record writes.  An inductive record
 /// has no capabilities to compare.
@@ -259,7 +260,7 @@ pub fn pin_agrees(c: &IConstantInfo, c2: &IConstantInfo) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:86-91 pinCopyOk
+/// con-leche: ConLeche/Kernel/Basis.lean:87-92 pinCopyOk
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:109-116 pinCopyOk` — **is the record the
 /// pin, up to its level-parameter names?**  Distinct names, as many as the
 /// pin's; the renaming is computed only when both hold (`&&` short-circuits).
@@ -282,7 +283,7 @@ pub fn pin_copy_ok(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:93-98 pinLinkOk
+/// con-leche: ConLeche/Kernel/Basis.lean:94-99 pinLinkOk
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:118-127 pinLinkOk` — **what a recursor's
 /// rule reads off its constructor's parameters**, by name: the constructor's
 /// parameters at the recursor's names.  `C.map Level.param == Cp.map fun p =>
@@ -316,7 +317,7 @@ pub fn pin_link_ok(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:93-98 pinLinkOk
+/// con-leche: ConLeche/Kernel/Basis.lean:94-99 pinLinkOk
 /// The cited `Cp.map fun p => Level.subst Rp (R.map Level.param) (.param p)`,
 /// as a cursor recursion.
 pub fn pin_link_rhs(
@@ -349,7 +350,7 @@ pub fn level_list_beq(a: &Vec<Level>, b: &Vec<Level>, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:100-102 constNamed?
+/// con-leche: ConLeche/Kernel/Basis.lean:101-103 constNamed?
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:129-132 constNamed?` — the constant of a
 /// list by name, the first from position `i` on.  Deviation: the constant is
 /// returned copied, not borrowed (a borrow handed out of the recursion is what
@@ -364,7 +365,7 @@ pub fn const_named(cs: &Vec<IConstantInfo>, n: &NIdx, i: usize) -> Option<IConst
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:104-118 blockLinksOk
+/// con-leche: ConLeche/Kernel/Basis.lean:105-119 blockLinksOk
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:166-171 blockLinksOk` — the stream's
 /// recursor links its rules' constructors as the pin's does (`pin_link_ok`),
 /// and a constructor carries its former's names.  The cited `(List.zip block
@@ -383,7 +384,7 @@ pub fn block_links_ok(
     block_links_ok_go(pers, st, block, pins, &former, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:104-118 blockLinksOk
+/// con-leche: ConLeche/Kernel/Basis.lean:105-119 blockLinksOk
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:166-171 blockLinksOk` — the pairs from
 /// position `i` on.
 pub fn block_links_ok_go(
@@ -405,7 +406,7 @@ pub fn block_links_ok_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:104-118 blockLinksOk
+/// con-leche: ConLeche/Kernel/Basis.lean:105-119 blockLinksOk
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:166-171 blockLinksOk` — the cited `match
 /// c, p with`, one pair.
 pub fn block_link_ok_at(
@@ -429,7 +430,7 @@ pub fn block_link_ok_at(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:104-118 blockLinksOk
+/// con-leche: ConLeche/Kernel/Basis.lean:105-119 blockLinksOk
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:166-171 blockLinksOk` — the cited
 /// `rules.all`: each of the pin's rules' constructors, found in both lists,
 /// linked as the pin links it.
@@ -468,7 +469,7 @@ pub fn rules_link_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:291-295 listBeqBy
-/// con-leche: ConLeche/Kernel/Basis.lean:120-122 pinListOk
+/// con-leche: ConLeche/Kernel/Basis.lean:121-123 pinListOk
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:182-185 pinListOk` — the cited
 /// `listBeqBy pinCopyOk block pins`, at the one function it is applied to
 /// (§3.4 forbids the function argument).
@@ -492,7 +493,7 @@ pub fn pin_copies_ok(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:120-122 pinListOk
+/// con-leche: ConLeche/Kernel/Basis.lean:121-123 pinListOk
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:182-185 pinListOk` — **the block's
 /// comparison with its pin** (the check phase's).
 pub fn pin_list_ok(
@@ -569,6 +570,7 @@ pub fn basis_name_hit(
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:138-141 BasisKind.atBlock
+/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove basis::basis_kind_at_block_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:217-221 BasisKind.atBlock` — **what a
 /// pinned block's check installs**: each pin at the names its record declares
 /// (the cited `List.zipWith`, bounded by the shorter list).
@@ -585,6 +587,7 @@ pub fn basis_kind_at_block(
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:138-141 BasisKind.atBlock
+/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove basis::basis_kind_at_block_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:217-221 BasisKind.atBlock` — the pairs from
 /// position `i` on.
 pub fn basis_kind_at_block_go(
@@ -610,7 +613,7 @@ pub fn basis_kind_at_block_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:143-145 quotPin
+/// con-leche: ConLeche/Kernel/Basis.lean:163-165 quotPin
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:223-227 quotPin` — the pinned quotient
 /// package's constant at a slot (`getD`'s default the inhabitant
 /// `i_constant_info_dummy`, unreachable: the package has the five slots
@@ -629,7 +632,7 @@ pub fn quot_pin(pers: &PersTier, st: &mut AState, k: &QuotKind) -> Result<IConst
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:147-150 quotAt
+/// con-leche: ConLeche/Kernel/Basis.lean:167-170 quotAt
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:229-232 quotAt` — **what a quotient record
 /// stores**: its slot's pin at the names it declares.
 pub fn quot_at(
@@ -644,7 +647,7 @@ pub fn quot_at(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:152-158 quotPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:172-178 quotPinHit
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:234-242 quotPinHit` — **the quotient-pin
 /// match**: the record is the pinned package's constant at the slot it
 /// declares itself at, up to its level-parameter names: distinct, as many as
@@ -671,7 +674,7 @@ pub fn quot_pin_hit(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:160-172 quotPredsOk
+/// con-leche: ConLeche/Kernel/Basis.lean:180-192 quotPredsOk
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:244-256 quotPredsOk` — **what a quotient
 /// record's slot needs stored before it**: the constants its type mentions.  A
 /// reserved name is stored only as a copy of its pin, at whatever names, and
@@ -741,7 +744,7 @@ pub fn and_pin_name_hs(st: &AState) -> Result<Vec<NIdx>, CheckError> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:186-194 andPinOk
+/// con-leche: ConLeche/Kernel/Basis.lean:206-214 andPinOk
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:275-280 blockAndNamed` — the `.indDecl`
 /// arm's `block.any fun c => andPinNames.contains c.name`, as a cursor
 /// recursion (§3.4 forbids the closure).
@@ -755,7 +758,7 @@ pub fn block_and_named(block: &Vec<IConstantInfo>, hs: &Vec<NIdx>, i: usize) -> 
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:186-194 andPinOk
+/// con-leche: ConLeche/Kernel/Basis.lean:206-214 andPinOk
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:282-287 andPinNameFree` — the arm of every
 /// one-constant record: it may not declare one of the pinned `And` block's
 /// names.
@@ -766,7 +769,7 @@ pub fn and_pin_name_free(st: &AState, n: &NIdx) -> Result<bool, CheckError> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:186-194 andPinOk
+/// con-leche: ConLeche/Kernel/Basis.lean:206-214 andPinOk
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:289-307 andPinOk` — **the `And` pin's
 /// test**: the record declares none of the pinned `And` block's names, or it
 /// IS that block — two parameters, and equal to `andPin` up to

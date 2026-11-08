@@ -158,7 +158,7 @@ pub fn run_job(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
-/// con-leche: ConLeche/Kernel/Basis.lean:38-44 BasisKind.decls
+/// con-leche: ConLeche/Kernel/Basis.lean:39-45 BasisKind.decls
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:124-153 internAllPins` — **the
 /// one-time tree walk of DESIGN.md §8.6 P2d**: every datum the checker compares
 /// a stream record against, interned into the tier that is live at the call —
@@ -185,7 +185,7 @@ pub fn intern_all_pins(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:38-44 BasisKind.decls
+/// con-leche: ConLeche/Kernel/Basis.lean:39-45 BasisKind.decls
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:124-153 internAllPins` — the five
 /// basis blocks in both forms, as a cursor over
 /// `con_ron_core::kernel::basis_raw::block_pin_kinds` plus `quotK` (the twin
@@ -202,7 +202,7 @@ pub fn intern_all_basis(pers: &PersTier, st: &mut AState, i: usize) -> Result<()
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:38-44 BasisKind.decls
+/// con-leche: ConLeche/Kernel/Basis.lean:39-45 BasisKind.decls
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:124-153 internAllPins` — the five
 /// kinds the startup walk interns, in the twin's order.
 pub fn all_basis_kinds() -> Vec<BasisKind> {

@@ -319,7 +319,8 @@ pub fn block_constants(pers: &PersTier, st: &mut AState, p: &BlockShape) -> Resu
     }
 }
 
-/// con-leche: ConLeche/Kernel/Install.lean:80-98 declConstants
+/// con-leche: ConLeche/Kernel/Install.lean:80-94 declConstants
+/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove install::decl_constants_refines, then delete this line
 /// **The constants a declaration installs**, in push order.  A block with a
 /// pinned block's names installs the pin at the names the record declares, a
 /// block the recogniser does not read nothing (it declines), and `sorryAx`
@@ -365,7 +366,8 @@ pub fn decl_constants(pers: &PersTier, st: &mut AState, pd: &IDeclaration) -> Re
     }
 }
 
-/// con-leche: ConLeche/Kernel/Install.lean:80-98 declConstants
+/// con-leche: ConLeche/Kernel/Install.lean:80-94 declConstants
+/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove install::decl_constants_axiom_refines, then delete this line
 /// The `.axiomDecl` arm: `Quot.sound` installs its pin at the record's names,
 /// `sorryAx` nothing, any other axiom itself.
 pub fn decl_constants_axiom(pers: &PersTier, st: &mut AState, cv: &IConstantVal) -> Result<Vec<IConstantInfo>, CheckError> {
@@ -399,7 +401,8 @@ pub fn decl_constants_axiom(pers: &PersTier, st: &mut AState, cv: &IConstantVal)
     }
 }
 
-/// con-leche: ConLeche/Kernel/Install.lean:100-109 declTables
+/// con-leche: ConLeche/Kernel/Install.lean:96-102 declTables
+/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove install::decl_tables_refines, then delete this line
 /// **The projection tables a declaration installs**: those of a recognised
 /// inductive block (a pinned block's names install none).
 pub fn decl_tables(pers: &PersTier, st: &mut AState, pd: &IDeclaration) -> Result<Vec<IProjTable>, CheckError> {

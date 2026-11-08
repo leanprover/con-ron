@@ -331,7 +331,7 @@ pub const M_NONSTD_END: [u32; 55] = [
     115, 32, 97, 116, 32, 116, 104, 101, 32, 109, 111, 109, 101, 110, 116,
 ];
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:203-215 nativeAxiomTactic?
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:206-218 nativeAxiomTactic?
 /// **The tactic that apparently added an axiom, read off its name.**
 /// `Lean.Meta.nativeEqTrue` (the basis of `native_decide`, `decide +native`
 /// and `bv_decide`) asserts the result of a compiled computation as an axiom
@@ -363,7 +363,7 @@ pub fn native_axiom_tactic(n: &Name) -> Option<Vec<u32>> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:217-225 nonStdAxiomMsg
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:220-228 nonStdAxiomMsg
 /// **The decline message for an axiom that is none of the standard axioms,
 /// the compiler-trust family and `sorryAx`**: the axiom's name, and the
 /// tactic that apparently added it when `native_axiom_tactic` recognises one.

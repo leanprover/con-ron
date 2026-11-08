@@ -239,9 +239,12 @@ def unresolvedConstsErrorL (strOk : Bool) (where_ : String) (e : EIdx) :
 
 /-! ## The per-declaration constant check -/
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:102-126 checkConstantVal
-con-leche: ConLeche/Kernel/DeclCheck.lean:361-383 checkConstantValF
-con-leche: ConLeche/Cached/ParsedC.lean:42-66 checkConstantValC
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:102-124 checkConstantVal
+-- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckerBase.checkConstantVal_bridge, then delete this line
+con-leche: ConLeche/Kernel/DeclCheck.lean:364-384 checkConstantValF
+-- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckerBase.checkConstantVal_bridge, then delete this line
+con-leche: ConLeche/Cached/ParsedC.lean:42-64 checkConstantValC
+-- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckerBase.checkConstantVal_bridge, then delete this line
 Checks common to all declarations: fresh name, no reserved name, a certified
 operation's name only at a definition (`allowOp`, the cited default `false`,
 spelled at every call as the Rust must), a literal's name only at its shape,
@@ -276,7 +279,7 @@ def checkConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
 
 /-! ## The strategy-independent helpers -/
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:171-177 unwrapOr — unwrap an
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:169-175 unwrapOr — unwrap an
 optional value or fail with the given error. -/
 def unwrapOr {α : Type} (o : Option α) (err : CheckError) : AM α :=
   match o with
@@ -288,7 +291,7 @@ def unwrapOr {α : Type} (o : Option α) (err : CheckError) : AM α :=
 A `ConLeche/Kernel/Env.lean` declaration, placed at its only reader — the
 `.indDecl` arm — exactly as the `Level.lean` declarations above are. -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:390-424 indParamsOk — **the stream's
+/-- con-leche: ConLeche/Kernel/Env.lean:389-423 indParamsOk — **the stream's
 declared parameter count, checked as official checks it** (con-leche's task
 #228).  Both halves are one-sided on purpose: `false` means official rejects. -/
 def indParamsOk (nP : Nat) : List IConstantInfo → AM Bool

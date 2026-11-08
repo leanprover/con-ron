@@ -133,7 +133,8 @@ def blockConstants (p : BlockShape) : AM (List IConstantInfo) := do
   let isRec ← blockIsRec p
   pure (blockFormers p isRec ++ blockCtors p ++ (← blockRecs p p.recs))
 
-/-- con-leche: ConLeche/Kernel/Install.lean:80-98 declConstants
+/-- con-leche: ConLeche/Kernel/Install.lean:80-94 declConstants
+-- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove Install.declConstantsAxiom_bridge, then delete this line
 The `.axiomDecl` arm: `Quot.sound` installs its pin at the record's names,
 `sorryAx` nothing, any other axiom itself. -/
 def declConstantsAxiom (cv : IConstantVal) : AM (List IConstantInfo) := do
@@ -141,7 +142,8 @@ def declConstantsAxiom (cv : IConstantVal) : AM (List IConstantInfo) := do
   else if cv.name == (← pinSorryAx) then pure []
   else pure [.axiomInfo cv]
 
-/-- con-leche: ConLeche/Kernel/Install.lean:80-98 declConstants
+/-- con-leche: ConLeche/Kernel/Install.lean:80-94 declConstants
+-- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove Install.declConstants_bridge, then delete this line
 **The constants a declaration installs**, in push order.  A block with a pinned
 block's names installs the pin at the names the record declares, a block the
 recogniser does not read nothing (it declines), and `sorryAx` nothing (any use
@@ -160,7 +162,8 @@ def declConstants : IDeclaration → AM (List IConstantInfo)
       | some p => blockConstants p
       | none => pure []
 
-/-- con-leche: ConLeche/Kernel/Install.lean:100-109 declTables
+/-- con-leche: ConLeche/Kernel/Install.lean:96-102 declTables
+-- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove Install.declTables_bridge, then delete this line
 **The projection tables a declaration installs**: those of a recognised
 inductive block (a pinned block's names install none). -/
 def declTables : IDeclaration → AM (List IProjTable)

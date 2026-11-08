@@ -107,7 +107,8 @@ pub fn rule_at(ctor: Name, nfields: u64, lvls: Vec<Level>, rhs: Expr) -> RecRule
 
 // --- Eq --------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Basis/Eq.lean:21-27 eqA
+/// con-leche: ConLeche/Kernel/Basis/Eq.lean:21-26 eqA
+/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove basis_raw::eq_a_refines, then delete this line
 /// `Eq.{u} {α : Sort u} : α → α → Prop`.
 pub fn eq_a() -> ConstantInfo {
     let caps = IndCaps {
@@ -127,7 +128,7 @@ pub fn eq_a() -> ConstantInfo {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Eq.lean:29-35 eqReflA
+/// con-leche: ConLeche/Kernel/Basis/Eq.lean:28-34 eqReflA
 /// `Eq.refl.{u} {α : Sort u} (a : α) : Eq α a a`.
 pub fn eq_refl_a() -> ConstantInfo {
     ConstantInfo::CtorInfo(
@@ -147,7 +148,7 @@ pub fn eq_refl_a() -> ConstantInfo {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Eq.lean:37-41 eqRecMotive
+/// con-leche: ConLeche/Kernel/Basis/Eq.lean:36-40 eqRecMotive
 /// The motive of `Eq.rec`: `∀ (b : α) (t : Eq α a b), Sort u_1`, in the
 /// `α`/`a` binder context (`α` is `#1`, `a` is `#0` at its head).
 pub fn eq_rec_motive() -> Expr {
@@ -170,7 +171,7 @@ pub fn eq_rec_refl_dom() -> Expr {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Eq.lean:43-60 eqRecA
+/// con-leche: ConLeche/Kernel/Basis/Eq.lean:42-59 eqRecA
 /// `Eq.rec.{u_1, u} {α : Sort u} {a : α} {motive : ∀ b, Eq α a b → Sort u_1}
 /// (refl : motive a (Eq.refl α a)) {b : α} (t : Eq α a b) : motive b t`.
 pub fn eq_rec_a() -> ConstantInfo {
@@ -215,7 +216,7 @@ pub fn eq_rec_a() -> ConstantInfo {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Eq.lean:62-63 eqBasis
+/// con-leche: ConLeche/Kernel/Basis/Eq.lean:61-62 eqBasis
 /// The pinned `Eq` basis block, in install order.
 pub fn eq_basis() -> Vec<ConstantInfo> {
     vec3(eq_a(), eq_refl_a(), eq_rec_a())
@@ -229,7 +230,8 @@ pub fn nat_t() -> Expr {
     cnst(bnm::nat_name(), Vec::new())
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Nat.lean:24-27 natA
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:24-26 natA
+/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove basis_raw::nat_a_refines, then delete this line
 /// `Nat : Type`.
 pub fn nat_a() -> ConstantInfo {
     ConstantInfo::IndInfo(
@@ -242,13 +244,13 @@ pub fn nat_a() -> ConstantInfo {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Nat.lean:29-31 natZeroA
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:28-30 natZeroA
 /// `Nat.zero : Nat`.
 pub fn nat_zero_a() -> ConstantInfo {
     ConstantInfo::CtorInfo(cv(bnm::nat_zero_name(), Vec::new(), nat_t()), 0, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Nat.lean:33-35 natSuccA
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:32-34 natSuccA
 /// `Nat.succ (n : Nat) : Nat`.
 pub fn nat_succ_a() -> ConstantInfo {
     ConstantInfo::CtorInfo(
@@ -258,13 +260,13 @@ pub fn nat_succ_a() -> ConstantInfo {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Nat.lean:37-38 natRecMotive
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:36-37 natRecMotive
 /// The motive of `Nat.rec`: `∀ (t : Nat), Sort u`.
 pub fn nat_rec_motive() -> Expr {
     pi(nat_t(), srt(u()))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Nat.lean:40-45 natRecSucc
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:39-44 natRecSucc
 /// The successor minor premise of `Nat.rec`, in the `motive`/`zero` binder
 /// context: `∀ (n : Nat), motive n → motive (Nat.succ n)`.
 pub fn nat_rec_succ() -> Expr {
@@ -286,7 +288,7 @@ pub fn nat_rec_zero_dom() -> Expr {
     expr::app(bv(0), cnst(bnm::nat_zero_name(), Vec::new()))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Nat.lean:47-66 natRecA
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:46-65 natRecA
 /// `Nat.rec.{u} {motive : Nat → Sort u} (zero : motive Nat.zero)
 /// (succ : ∀ n, motive n → motive n.succ) (t : Nat) : motive t`.
 pub fn nat_rec_a() -> ConstantInfo {
@@ -348,7 +350,7 @@ pub fn nat_rec_a() -> ConstantInfo {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Nat.lean:68-69 natBasis
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:67-68 natBasis
 /// The pinned `Nat` basis block, in install order.
 pub fn nat_basis() -> Vec<ConstantInfo> {
     vec4(nat_a(), nat_zero_a(), nat_succ_a(), nat_rec_a())
@@ -357,6 +359,7 @@ pub fn nat_basis() -> Vec<ConstantInfo> {
 // --- Empty -----------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Basis/Empty.lean:21-23 emptyA
+/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove basis_raw::empty_a_refines, then delete this line
 /// `Empty : Type`.
 pub fn empty_a() -> ConstantInfo {
     ConstantInfo::IndInfo(
@@ -401,6 +404,7 @@ pub fn empty_basis() -> Vec<ConstantInfo> {
 // --- False -----------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Basis/False.lean:37-39 falseA
+/// con-leche: CHANGED since 210a580e — re-port, re-test, re-prove basis_raw::false_a_refines, then delete this line
 /// `False : Prop`.
 pub fn false_a() -> ConstantInfo {
     ConstantInfo::IndInfo(
@@ -806,7 +810,7 @@ pub fn and_pin() -> Vec<ConstantInfo> {
     vec3(and_raw(), and_intro_raw(), and_rec_raw())
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:38-44 BasisKind.decls
+/// con-leche: ConLeche/Kernel/Basis.lean:39-45 BasisKind.decls
 /// The constants of one basis block, in dependency order.
 pub fn basis_kind_decls(k: &BasisKind) -> Vec<ConstantInfo> {
     match k {
