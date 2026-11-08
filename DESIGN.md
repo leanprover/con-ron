@@ -72144,3 +72144,49 @@ binary against this branch's, alternated, every run accepting 775 321):
 
 **−0.17 GiB (−4.5 %)** peak RSS, instructions unchanged.  (#144's census binary measured −0.21 GiB for
 the same drop; its census pass touched every vector first.)  diff-olean 122/122.
+
+### Task #146 — a full memory profile of Mathlib `--olean` (2026-11-08, Opus; analysis, no code change)
+
+Maintainer: "do a full memory profile, maybe we find something interesting".  Master `d85e4d89`,
+`--verified --jobs=8`; heaptrack 1.5 (the flake's nixpkgs: the system one is built against another glibc
+and the binary aborts under it) on a line-tables build with the system allocator, then a scratch census
+of the frozen tier and the workers (not landed), then the resident set sampled every 0.25 s.
+
+**Tools.**  Heaptrack costs ~50× on `Init` (3:48 at 8 workers, 1.1 GB of trace), so Mathlib was not
+traced; `Mathlib.Order.Basic` (136 756 records, 0.92 GB peak) was, in 4:45 and 1.6 GB.  The collapsed
+peak stacks must be filtered while they are written (67 GB unfiltered for `Init`).
+
+**The allocator is not a lever.**  `Order.Basic`: mimalloc 0.94/0.91 GB, glibc 0.73/0.71 GB peak RSS
+for a 0.49 GB heap peak, glibc +7.8 % instructions; Mathlib: mimalloc 3.61 GiB, glibc 3.70 GiB, glibc
++7.7 % instructions.
+
+**The persistent tier at the freeze** (Mathlib, 34.7 M nodes):
+
+| | MiB |
+|---|---:|
+| intern hash tables (`cons`) | 1 024 |
+| of it `e.apps` (25.0 M nodes in 2^25 slots of 20 B, load 0.74) | 640 |
+| node rows | 792 |
+| of it unused `Vec` capacity (`e.apps`: 512 for 381 of nodes) | ~237 |
+| name strings (`StrNode.s`, 12.3 M characters at 4 B) | 65 |
+
+The resident set is 2.48 GiB there, so the tier is three quarters of it.  A `cons` slot is `(tag,
+epoch, key, handle)`: the key is the node the rows already hold, and the epoch serves the O(1) `clear`,
+which the frozen tier never uses.
+
+**The peak is one theorem.**  Through the check the resident set holds at 2.65–2.94 GiB; it is 3.03 GiB
+at 64 s (record ~567 k, `WeierstrassCurve.Affine.Point.sym2x_add_sub_eq_addSubMap_sym2x._proof_1_8`) and
+**3.56 GiB at 66 s** (record ~584 k, `CategoryTheory.Limits.Multifork.toSections_fac`, record 583 641),
+back to 2.84 GiB two seconds later.  Those two are the only jobs whose worker state passed 64 MiB (329
+and 367 MiB after the job, almost all the scratch `app` cons table, 2^24 slots); the other workers
+peaked at 49–100 MiB.  In the job itself the scratch `app` rows and slots double past that, old and new
+arrays alive together.  `clear_fit` (task #97-P6-7) already decays such a table within ~60 jobs, so
+nothing is retained; the spike is the job's own.
+
+**Leads, by size** (estimates, not measured as changes):
+1. A key-free `cons` (a slot holding the row's index, or index and a hash fragment: 4 or 8 B for 20,
+   the key compared in the rows) would cut the frozen tier's 1.0 GiB to ~0.2–0.4 GiB and the spike's
+   slot arrays by the same factor; the price is a row read per probe on interning's hot path, and
+   `ron::HashMap2`'s proofs.
+2. The rows' unused capacity, ~0.23 GiB, given back at the freeze.
+3. Name strings as bytes: tens of MiB.
