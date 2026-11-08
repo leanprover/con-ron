@@ -3827,10 +3827,6 @@ theorem tier_s_abs : absU32 arena.handle.TIER_S = Idx.tierS := by
 theorem tier_p_abs : absU32 arena.handle.TIER_P = Idx.tierP := by
   rw [arena.handle.TIER_P]; rfl
 
-theorem dupId_bvarnode :
-    DupId arena.store.BVarNode.Insts.Con_ron_coreRonHashmapDup := by
-  intro a b h; exact (Result.ok_injective h).symm
-
 theorem absBVarNode_inj :
     ∀ a b : arena.store.BVarNode, BVarNodeWF a → BVarNodeWF b →
       absBVarNode a = absBVarNode b → a = b := by
@@ -4599,14 +4595,6 @@ theorem der_of_fvar_obs {pers} {rs : arena.store.EStore} {ls : EStore}
       ConRon.Refine.Expr.lp_of_data_val hbl]
     simp
 
-theorem dupId_fvarnode :
-    DupId arena.store.FVarNode.Insts.Con_ron_coreRonHashmapDup := by
-  intro a b h
-  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hty : e = a.ty := dupId_eidx _ _ he
-  subst hty
-  exact (Result.ok_injective h).symm
-
 theorem absFVarNode_inj :
     ∀ a b : arena.store.FVarNode, FVarNodeWF a → FVarNodeWF b →
       absFVarNode a = absFVarNode b → a = b := by
@@ -4852,20 +4840,11 @@ theorem estore_intern_fvar_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
 
 /-! ## The node records: `Dup` is the identity, and `abs` is injective
 
-Two obligations per constructor array, which `tbl_find_slot_abs` and
-`tbl_push_abs` take: the port's `Dup::dup2` gives the value back (it is a
-field-wise copy through the handles' own `dup2`), and the record's
-abstraction is injective on well-formed records — the three that carry a
+One obligation per constructor array, which `tbl_find_slot_abs` and
+`tbl_push_abs` take: the record's abstraction is injective on well-formed
+records — the three that carry a
 CACHED VALUE (`StrNode`'s code points, `ListNode`'s handle vector, `LitNode`'s
 `Literal`) are the reason `TblRel` is `RelOn P`. -/
-
-theorem dupId_sortnode :
-    DupId arena.store.SortNode.Insts.Con_ron_coreRonHashmapDup := by
-  intro a b h
-  obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have e1 : x = a.u := dupId_lidx _ _ hx
-  subst e1
-  exact (Result.ok_injective h).symm
 
 theorem absSortNode_inj :
     ∀ a b : arena.store.SortNode, SortNodeWF a → SortNodeWF b →
@@ -4874,17 +4853,6 @@ theorem absSortNode_inj :
   obtain ⟨x⟩ := a; obtain ⟨y⟩ := b
   have h1 : absLIdx x = absLIdx y := congrArg SortNode.u h
   simp [absLIdx_inj h1]
-
-theorem dupId_constnode :
-    DupId arena.store.ConstNode.Insts.Con_ron_coreRonHashmapDup := by
-  intro a b h
-  obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have e1 : x = a.n := dupId_nidx _ _ hx
-  subst e1
-  obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have e2 : y = a.us := dupId_lsidx _ _ hy
-  subst e2
-  exact (Result.ok_injective h).symm
 
 theorem absConstNode_inj :
     ∀ a b : arena.store.ConstNode, ConstNodeWF a → ConstNodeWF b →
@@ -4895,17 +4863,6 @@ theorem absConstNode_inj :
   have h2 : absLsIdx xs = absLsIdx ys := congrArg ConstNode.us h
   simp [absNIdx_inj h1, absLsIdx_inj h2]
 
-theorem dupId_appnode :
-    DupId arena.store.AppNode.Insts.Con_ron_coreRonHashmapDup := by
-  intro a b h
-  obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have e1 : x = a.f := dupId_eidx _ _ hx
-  subst e1
-  obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have e2 : y = a.a := dupId_eidx _ _ hy
-  subst e2
-  exact (Result.ok_injective h).symm
-
 theorem absAppNode_inj :
     ∀ a b : arena.store.AppNode, AppNodeWF a → AppNodeWF b →
       absAppNode a = absAppNode b → a = b := by
@@ -4914,17 +4871,6 @@ theorem absAppNode_inj :
   have h1 : absEIdx x = absEIdx y := congrArg AppNode.f h
   have h2 : absEIdx xa = absEIdx ya := congrArg AppNode.a h
   simp [absEIdx_inj h1, absEIdx_inj h2]
-
-theorem dupId_projnode :
-    DupId arena.store.ProjNode.Insts.Con_ron_coreRonHashmapDup := by
-  intro a b h
-  obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have e1 : x = a.n := dupId_nidx _ _ hx
-  subst e1
-  obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have e2 : y = a.e := dupId_eidx _ _ hy
-  subst e2
-  exact (Result.ok_injective h).symm
 
 theorem absProjNode_inj :
     ∀ a b : arena.store.ProjNode, ProjNodeWF a → ProjNodeWF b →
@@ -4936,20 +4882,6 @@ theorem absProjNode_inj :
   have h3 : absEIdx e1 = absEIdx e2 := congrArg ProjNode.e h
   simp [absNIdx_inj h1, UScalar.eq_imp _ _ h2, absEIdx_inj h3]
 
-theorem dupId_letnode :
-    DupId arena.store.LetNode.Insts.Con_ron_coreRonHashmapDup := by
-  intro a b h
-  obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have e1 : x = a.ty := dupId_eidx _ _ hx
-  subst e1
-  obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have e2 : y = a.val := dupId_eidx _ _ hy
-  subst e2
-  obtain ⟨z, hz, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have e3 : z = a.body := dupId_eidx _ _ hz
-  subst e3
-  exact (Result.ok_injective h).symm
-
 theorem absLetNode_inj :
     ∀ a b : arena.store.LetNode, LetNodeWF a → LetNodeWF b →
       absLetNode a = absLetNode b → a = b := by
@@ -4960,17 +4892,6 @@ theorem absLetNode_inj :
   have h3 : absEIdx b1 = absEIdx b2 := congrArg LetNode.body h
   simp [absEIdx_inj h1, absEIdx_inj h2, absEIdx_inj h3]
 
-theorem dupId_bindnode :
-    DupId arena.store.BindNode.Insts.Con_ron_coreRonHashmapDup := by
-  intro a b h
-  obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have e1 : x = a.ty := dupId_eidx _ _ hx
-  subst e1
-  obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have e2 : y = a.body := dupId_eidx _ _ hy
-  subst e2
-  exact (Result.ok_injective h).symm
-
 theorem absBindNode_inj :
     ∀ a b : arena.store.BindNode, BindNodeWF a → BindNodeWF b →
       absBindNode a = absBindNode b → a = b := by
@@ -4979,14 +4900,6 @@ theorem absBindNode_inj :
   have h1 : absEIdx t1 = absEIdx t2 := congrArg BindNode.ty h
   have h2 : absEIdx b1 = absEIdx b2 := congrArg BindNode.body h
   simp [absEIdx_inj h1, absEIdx_inj h2]
-
-theorem dupId_litnode :
-    DupId arena.store.LitNode.Insts.Con_ron_coreRonHashmapDup := by
-  intro a b h
-  obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have e1 : x = a.l := ConRon.Refine.Expr.literal_dup_eq hx
-  subst e1
-  exact (Result.ok_injective h).symm
 
 theorem absLitNode_inj :
     ∀ a b : arena.store.LitNode, LitNodeWF a → LitNodeWF b →
@@ -6720,10 +6633,9 @@ theorem estore_intern_lam_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
 
 /-! ## The node records: `Dup` is the identity, and `abs` is injective
 
-Two obligations per constructor array, which `tbl_find_slot_abs` and
-`tbl_push_abs` take: the port's `Dup::dup2` gives the value back (it is a
-field-wise copy through the handles' own `dup2`), and the record's
-abstraction is injective on well-formed records — the three that carry a
+One obligation per constructor array, which `tbl_find_slot_abs` and
+`tbl_push_abs` take: the record's abstraction is injective on well-formed
+records — the three that carry a
 CACHED VALUE (`StrNode`'s code points, `ListNode`'s handle vector, `LitNode`'s
 `Literal`) are the reason `TblRel` is `RelOn P`. -/
 
@@ -6980,10 +6892,9 @@ theorem estore_intern_forall_e_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
 
 /-! ## The node records: `Dup` is the identity, and `abs` is injective
 
-Two obligations per constructor array, which `tbl_find_slot_abs` and
-`tbl_push_abs` take: the port's `Dup::dup2` gives the value back (it is a
-field-wise copy through the handles' own `dup2`), and the record's
-abstraction is injective on well-formed records — the three that carry a
+One obligation per constructor array, which `tbl_find_slot_abs` and
+`tbl_push_abs` take: the record's abstraction is injective on well-formed
+records — the three that carry a
 CACHED VALUE (`StrNode`'s code points, `ListNode`'s handle vector, `LitNode`'s
 `Literal`) are the reason `TblRel` is `RelOn P`. -/
 
@@ -7424,29 +7335,6 @@ routes it through `intern_str` rather than `intern_other`, to avoid rebuilding
 the cons key (`NTables::find` would `str_copy` it again).  The twin makes no
 such distinction, so the control flow is written out a second time there, at
 the `Tbl` lemmas instead of the `NTables` ones. -/
-
-theorem dupId_anonnode :
-    DupId arena.store.AnonNode.Insts.Con_ron_coreRonHashmapDup := by
-  intro a b h; exact (Result.ok_injective h).symm
-
-theorem dupId_strnode :
-    DupId arena.store.StrNode.Insts.Con_ron_coreRonHashmapDup := by
-  intro a b h
-  obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have e1 : x = a.pre := dupId_nidx _ _ hx
-  subst e1
-  obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have e2 : y = a.s := ConRon.Refine.Expr.str_copy_eq hy
-  subst e2
-  exact (Result.ok_injective h).symm
-
-theorem dupId_numnode :
-    DupId arena.store.NumNode.Insts.Con_ron_coreRonHashmapDup := by
-  intro a b h
-  obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have e1 : x = a.pre := dupId_nidx _ _ hx
-  subst e1
-  exact (Result.ok_injective h).symm
 
 theorem absAnonNode_inj :
     ∀ a b : arena.store.AnonNode, AnonNodeWF a → AnonNodeWF b →
@@ -8156,37 +8044,6 @@ that is NOT the name tier's: the derived record is OBSERVED (`derObsL` is the
 has-a-parameter bit), so `Tbl::push` carries a real obligation here, and
 `lstore_der_of_view_abs` below is what discharges it. -/
 
-theorem dupId_zeronode :
-    DupId arena.store.ZeroNode.Insts.Con_ron_coreRonHashmapDup := by
-  intro a b h; exact (Result.ok_injective h).symm
-
-theorem dupId_succnode :
-    DupId arena.store.SuccNode.Insts.Con_ron_coreRonHashmapDup := by
-  intro a b h
-  obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have e1 : x = a.u := dupId_lidx _ _ hx
-  subst e1
-  exact (Result.ok_injective h).symm
-
-theorem dupId_binlnode :
-    DupId arena.store.BinLNode.Insts.Con_ron_coreRonHashmapDup := by
-  intro a b h
-  obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have e1 : x = a.u := dupId_lidx _ _ hx
-  subst e1
-  obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have e2 : y = a.v := dupId_lidx _ _ hy
-  subst e2
-  exact (Result.ok_injective h).symm
-
-theorem dupId_paramnode :
-    DupId arena.store.ParamNode.Insts.Con_ron_coreRonHashmapDup := by
-  intro a b h
-  obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have e1 : x = a.n := dupId_nidx _ _ hx
-  subst e1
-  exact (Result.ok_injective h).symm
-
 theorem absZeroNode_inj :
     ∀ a b : arena.store.ZeroNode, ZeroNodeWF a → ZeroNodeWF b →
       absZeroNode a = absZeroNode b → a = b := by
@@ -8784,14 +8641,6 @@ dispatch at all; what is new here is that the node record holds a `Vec` —
 `lidx_vec_dup` is its `dup2` and `lidx_vec_dup_eq` says it is the identity —
 and that the derived record is computed by a LOOP over the list, so
 `lsstore_der_of_view_abs` is a fuel induction rather than a case split. -/
-
-theorem dupId_listnode :
-    DupId arena.store.ListNode.Insts.Con_ron_coreRonHashmapDup := by
-  intro a b h
-  obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have e1 : x = a.us := alloc.vec.Vec.ext _ _ (lidx_vec_dup_eq hx)
-  subst e1
-  exact (Result.ok_injective h).symm
 
 theorem absListNode_inj :
     ∀ a b : arena.store.ListNode, ListNodeWF a → ListNodeWF b →
@@ -10941,14 +10790,8 @@ packing's `*`/`/`/`%` spelling is what buys. -/
 /-- info: 'ConRon.Refine2.tbl_node_wf' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms tbl_node_wf
 
-/-- info: 'ConRon.Refine2.dupId_fvarnode' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms dupId_fvarnode
-
 /-- info: 'ConRon.Refine2.absFVarNode_inj' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in #print axioms absFVarNode_inj
-
-/-- info: 'ConRon.Refine2.dupId_litnode' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms dupId_litnode
 
 /-- info: 'ConRon.Refine2.absLitNode_inj' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms absLitNode_inj

@@ -335,9 +335,14 @@ def emptyMap (K V : Type) : ron.hashmap2.HashMap2 K V :=
   { num_entries := 0#usize, max_load := 0#usize, epoch := 1#u32, fit_hw := 0#usize,
     slots := alloc.vec.Vec.new _ }
 
+/-- `ConsMap::new()` (`arena/cons_map.rs`): no entries, no slots, epoch 1. -/
+def emptyCons (I : Type) : arena.cons_map.ConsMap I :=
+  { num_entries := 0#usize, max_load := 0#usize, epoch := 1#u16, fit_hw := 0#usize,
+    slots := alloc.vec.Vec.new _ }
+
 /-- `Tbl::empty()` (`arena/store.rs`): no rows, an empty index. -/
 def emptyTbl (A I D : Type) : arena.store.Tbl A I D :=
-  { rows := alloc.vec.Vec.new _, cons := emptyMap A I }
+  { rows := alloc.vec.Vec.new _, cons := emptyCons I }
 
 /-- `NTables::empty()`: the name tables, every one empty. -/
 def emptyNTables : arena.store.NTables :=
@@ -412,7 +417,7 @@ theorem startState_eq : arena.monad.AState.empty = ok startState := by
   simp only [arena.monad.AState.empty, arena.store.Tbl.empty, arena.store.ETables.empty,
     arena.store.LsTables.empty, arena.store.LTables.empty, arena.store.NTables.empty,
     arena.store.NStore.empty, arena.store.LStore.empty, arena.store.LsStore.empty,
-    arena.store.EStore.empty, ron.hashmap2.HashMap2.new,
+    arena.store.EStore.empty, ron.hashmap2.HashMap2.new, arena.cons_map.ConsMap.new,
     arena.monad.AState.init, arena.monad.Memos.empty, arena.core_state.Caches.empty,
     arena.core_state.ModeMemos.empty, arena.pins.Pins.empty, arena.handle.LsIdx.of_word, arena.handle.LIdx.of_word,
     arena.handle.EIdx.of_word, bind_ok]

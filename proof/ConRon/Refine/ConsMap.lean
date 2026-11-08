@@ -2,25 +2,29 @@
 # `ConRon.Refine.ConsMap` — the key-free cons table as a view of `HashMap2` (task #148)
 
 `arena::cons_map::ConsMap<I>` is `ron::hashmap2::HashMap2<A, I>` with the key
-cut out of the slot: a slot is `(g, h)`, and its key is the node record
+cut out of the slot: a slot is `(g, f, h)` — a 16-bit stamp, a 16-bit hash
+fragment of the key, the handle — and its key is the node record
 `rows[h.row()].0` that the owning `Tbl` holds.  Every function of the module
 is `HashMap2`'s function of the same name with "the slot's key" read as "the
-slot's row's key".
+slot's row's key", and the probe compares fragments before it reads a row.
 
 So this file proves nothing about hashing.  It defines the **view** of a
 `ConsMap` over a row vector — a `HashMap2 A I` whose slot `j` is
-`Live(epoch, key, h)` when slot `j` of the `ConsMap` carries the current
+`Live(e32 epoch, key, h)` when slot `j` of the `ConsMap` carries the current
 epoch and its handle names the row `key` heads, and `Vacant` otherwise — and
 shows, one function at a time, that each `ConsMap` operation that succeeds is
-the `HashMap2` operation of the same name on the view (`*_sim`).
+the `HashMap2` operation of the same name on the view (`*_sim`), run under
+`fragEq2`: the `Eq2` that answers `false` when the two keys' fragments differ,
+which is what the fragment test computes and is still exact (`fragEq2_fwd`).
 `Refine/HashMap2.lean`'s invariant, abstract map and specifications then apply
 to the view as they stand.
 
-The view forgets which slots are *stale*, so two facts of the `ConsMap`
+The view forgets which slots are *stale*, so three facts of the `ConsMap`
 itself are carried beside `HashMap2.Inv` (`KInv`): every stamp is at most the
 epoch (what makes `clear`'s epoch bump empty the table — `HashMap2`'s
-`Inv.stamps`, which the view cannot see), and every slot of the current epoch
-names a row (what makes the view stable when the rows grow, `view_push`).
+`Inv.stamps`, which the view cannot see), every slot of the current epoch
+names a row (what makes the view stable when the rows grow, `view_push`), and
+its fragment is that row's key's (what makes the fragment test `fragEq2`).
 
 `clear`/`clear_fit` are proved directly (`clear_fit_spec`): their output is
 not the `HashMap2` operation's on the view — the view of a stale slot is
@@ -104,11 +108,6 @@ def e32 (e : Std.U16) : Std.U32 := UScalar.cast .U32 e
 
 @[simp] theorem e32_val (e : Std.U16) : (e32 e).val = e.val := by
   simp [e32]
-
-theorem e32_inj {e e' : Std.U16} (h : e32 e = e32 e') : e = e' := by
-  apply UScalar.eq_of_val_eq
-  have := congrArg UScalar.val h
-  simpa using this
 
 /-- **The `Eq2` the view is compared under**: `false` when the fragments of the
 two keys' hashes differ, `hE`'s own answer otherwise.  It is what the
