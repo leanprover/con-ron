@@ -2,16 +2,18 @@
 # `ConRon.Arena.CheckDecl` — the checker's fold step, over handles
 (DESIGN.md §8, task #105)
 
-The twin of con-leche's `Kernel/CheckDecl.lean` — `checkShapeless` and
-`checkDecl` — and of `Cached/Decls.lean`'s spec fold (`declStep`,
+The twin of con-leche's `Kernel/CheckDecl.lean` — `checkDeclKind` (a
+declaration's own checks) and `checkDecl` (those, then the reserved names'
+check `basisNamesOk`) — and of `Cached/Decls.lean`'s spec fold (`declStep`,
 `checkDecls`), and the Rust twin of `arena::check_decl`.  The stages it
 dispatches to are `Arena/DeclCheck.lean`'s (values, the certified `Nat`
-operations, the pinned axioms, the pinned blocks and the quotient records) and
-`Arena/Inductives/BlockTail.lean`'s (the uniform inductive route).
+operations, the pinned axioms and the quotient records) and
+`Arena/Inductives/BlockTail.lean`'s (the uniform inductive route, which takes
+the pinned basis blocks too).
 
 **Deviations:**
 
-* **`checkDecl` is one `match`**, where the Rust splits it into a dispatch and
+* **`checkDeclKind` is one `match`**, where the Rust splits it into a dispatch and
   six arm functions so that every arm stays a tail call (task #97-P4c's split
   rule); each Rust arm cites this function.  The gates' reads at the
   environment WITH the declaration (`fe.overlay [ci]` upstream) are their own
@@ -33,46 +35,10 @@ namespace ConRon.Arena
 
 open ConLeche
 
-/-! ## A block the recogniser does not read -/
-
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:26-38 checkShapeless
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckDecl.checkShapelessFormers_bridge, then delete this line
-con-leche: ConLeche/Cached/ParsedC.lean:68-76 checkShapelessS
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckDecl.checkShapelessFormers_bridge, then delete this line
-The cited `block.foldlM`: every type former checked as a constant and
-discarded, every other member skipped (the Rust's
-`check_shapeless_formers`). -/
-def checkShapelessFormers (mode : CheckMode) (fe : IFEnv) :
-    List IConstantInfo → AM Unit
-  | [] => pure ()
-  | ci :: rest => do
-    match ci with
-    | .indInfo cv _ => do
-      checkConstantVal mode fe cv false
-      checkShapelessFormers mode fe rest
-    | _ => checkShapelessFormers mode fe rest
-
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:26-38 checkShapeless
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckDecl.checkShapeless_bridge, then delete this line
-con-leche: ConLeche/Cached/ParsedC.lean:68-76 checkShapelessS
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckDecl.checkShapeless_bridge, then delete this line
-**An inductive block the recogniser does not read**: its type formers are
-checked as constants (a reserved name, a duplicate, a malformed type are
-official's rejects and stay rejects), and what survives that is a POSITIVE
-decline, since the uniform route takes every block it recognises.  It never
-returns an environment.  The message drops con-leche's interpolated block
-name (§3.1). -/
-def checkShapeless (mode : CheckMode) (fe : IFEnv) (block : List IConstantInfo) :
-    AM IFEnv := do
-  checkShapelessFormers mode fe block
-  fail (.notImplemented "inductive block : shape not recognised")
-
 /-! ## One declaration -/
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:166-174 checkDecl
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckDecl.checkStructuralNatPinAtFe2_bridge, then delete this line
-con-leche: ConLeche/Cached/ParsedC.lean:226-232 checkDeclC
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckDecl.checkStructuralNatPinAtFe2_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
+con-leche: ConLeche/Cached/ParsedC.lean:152-224 checkDeclKindC
 The `.defnDecl` arm's structural-`Nat` gate, its reads at `fe2` (the
 environment with the definition): `natOpGuard` and the dependencies' storage,
 then the stored value. -/
@@ -86,10 +52,8 @@ def checkStructuralNatPinAtFe2 (fe2 : IFEnv) (n : NIdx) : AM EIdx := do
   | some (.defnInfo _ value' _) => pure value'
   | _ => fail (.internal "structural Nat operation not stored")
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:166-174 checkDecl
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckDecl.checkStructuralNatPin_bridge, then delete this line
-con-leche: ConLeche/Cached/ParsedC.lean:226-232 checkDeclC
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckDecl.checkStructuralNatPin_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
+con-leche: ConLeche/Cached/ParsedC.lean:152-224 checkDeclKindC
 **The structural-`Nat` gate**: the reads at `fe2`, then `certifyNatEqs` at `fe`,
 the environment without the definition, over the equations with the
 operation's self-references substituted.  Certifying with the definition
@@ -107,14 +71,13 @@ def checkStructuralNatPin (mode : CheckMode) (fe : IFEnv) (ci : IConstantInfo)
     fail (.notImplemented "nonstandard structural Nat operation")
   pure fe
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:166-174 checkDecl
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckDecl.checkDecl_bridge, then delete this line
-con-leche: ConLeche/Cached/ParsedC.lean:226-232 checkDeclC
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckDecl.checkDecl_bridge, then delete this line
-**Check a single declaration, extending the environment on success**: every
-kind is checked in its arm.  A value arm checks the value returning the record
-unpushed, runs its pinned gates, and pushes last. -/
-def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
+con-leche: ConLeche/Cached/ParsedC.lean:152-224 checkDeclKindC
+**A declaration's own checks**, by its kind, extending the environment on
+success.  A value arm checks the value returning the record unpushed, runs its
+pinned gates, and pushes last.  A block under a pinned basis block's names
+takes the same route as every other block. -/
+def checkDeclKind (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     (d : IDeclaration) : AM IFEnv := do
   match d with
   | .defnDecl cv value hint => do
@@ -175,23 +138,29 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
         -- the name read back from the store).
         fail (.notImplemented (ConLeche.nonStdAxiomMsg (← readNameM cv.name)))
   | .indDecl block nP => do
-    -- **THE PINNED BASIS BLOCKS FIRST**: a stream's `Nat` block arrives as an
-    -- ordinary `indDecl`; its members' names say it is the pinned block's
-    -- record, and its check compares it with the pin.  Then the DECLARED
-    -- parameter count (task #228: official's own check, one-sided), and ONE
-    -- ROUTE: the uniform route takes every block the recogniser reads
-    -- (`blockShape?`), at any number of members, nested ones included; any
-    -- other block declines once its formers are checked (`checkShapeless`).
-    match ← basisNameHit block with
-    | some kind => checkBasisBlock fe kind block
-    | none => do
-      if !(← indParamsOk nP block) then
-        fail (.invalid "number of parameters mismatch")
-      else
-        match ← blockShape? nP block with
-        | some p => checkBlock mode fe block p
-        | none => checkShapeless mode fe block
+    -- The DECLARED parameter count first (task #228: official's own check,
+    -- one-sided), then ONE ROUTE: the uniform route takes every block
+    -- `readBlock` reads, at any number of members, nested ones and the pinned
+    -- basis blocks included; any other block is rejected with the reason
+    -- `readBlock` gives.
+    if !(← indParamsOk nP block) then
+      fail (.invalid "number of parameters mismatch")
+    else
+      match ← readBlock nP block with
+      | .ok p => checkBlock mode fe block p
+      | .error e => fail e
   | .quotDecl k cv => checkQuotRecord fe k cv
+
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:166-174 checkDecl
+con-leche: ConLeche/Cached/ParsedC.lean:226-232 checkDeclC
+**Check a single declaration**: its own checks (`checkDeclKind`), then the
+reserved names' (`basisNamesOk`), which justify the model's fixed meanings of
+the basis names. -/
+def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
+    (d : IDeclaration) : AM IFEnv := do
+  let fe₂ ← checkDeclKind mode pins fe d
+  if ← basisNamesOk d then pure fe₂
+  else fail (← basisNamesError d)
 
 /-! ## The spec fold -/
 

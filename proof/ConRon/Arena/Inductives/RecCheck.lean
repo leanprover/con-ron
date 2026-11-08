@@ -358,7 +358,6 @@ def targetMajorPins (mode : CheckMode) (fe : IFEnv) (rP : Nat) (M : TargetMajor)
 /-! ## The recursor records' pins -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:488-526 targetRecPins
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove RecCheck.targetRecPins_bridge, then delete this line
 **The recursor records' pins**: the level parameters, the reserved names, the
 member recursors' names as the set `{T_m.rec}`, the auxiliary ones as
 `T_0.rec_1 … T_0.rec_n` (member 0's name, `.anonymous` at no member,
@@ -368,8 +367,8 @@ def targetRecPins (p : BlockShape) (block : List IConstantInfo) : AM Unit := do
   unless blockRecLpsOk p do
     fail (.invalid "target rec: the recursor's level parameters are not the generated ones")
   unless ← blockRecNamesUnreserved p.recs do
-    fail (.invalid "target rec: a recursor is named for a pinned basis constant, a literal \
-      guard's slot or a certified Nat operation")
+    fail (.invalid "target rec: a recursor is named for a literal guard's slot or a certified \
+      Nat operation")
   let own := p.recs.filter fun rc => rc.tgt < p.k
   unless ← blockRecNameSetOk p.members own do
     fail (.invalid "target rec: the block's recursor names are not the generated ones \

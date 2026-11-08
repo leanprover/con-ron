@@ -820,15 +820,15 @@ def strLitStored (fe : IFEnv) : AM Bool := do
       (fe.find? co).isSome)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:373-389 litShapeOk — **the shape a
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove Core.litShapeOk_bridge, then delete this line
-declaration at a literal's name must have**, checked at the declaration; any
-other name passes.  The cited `if`-chain, each name pinned only when the
-chain reaches it. -/
+declaration at a literal's name must have**, its level parameters and type,
+checked at the declaration; any other name passes.  A declaration check cannot
+show a kind, so the three `Nat` names are read at the kinds their guards ask
+for.  The cited `if`-chain, each name pinned only when the chain reaches it. -/
 def litShapeOk (c : IConstantInfo) : AM Bool := do
   let n := c.name
-  if n == (← pinNat) then natIndOk (some c)
-  else if n == (← pinNatZero) then natZeroOk (some c)
-  else if n == (← pinNatSucc) then natSuccOk (some c)
+  if n == (← pinNat) then natIndOk (some (.indInfo c.toConstantVal {}))
+  else if n == (← pinNatZero) then natZeroOk (some (.ctorInfo c.toConstantVal 0 0))
+  else if n == (← pinNatSucc) then natSuccOk (some (.ctorInfo c.toConstantVal 0 1))
   else if n == (← pinString) then stringTyOk (some c)
   else if n == (← pinStringOfList) then stringOfListTyOk (some c)
   else if n == (← pinList) then listTyOk (some c)
@@ -1521,7 +1521,6 @@ def litGuardNames : AM (List NIdx) := do
   pure [a, b, c, d, f, g, h, i, j, k]
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:510-524 reservedRecName — the last
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove Core.reservedRecBool_bridge, then delete this line
 three disjuncts: `n == boolName || n == boolTrueName || n == boolFalseName`. -/
 def reservedRecBool (n : NIdx) : AM Bool := do
   let b ← pinBool
@@ -1534,24 +1533,21 @@ def reservedRecBool (n : NIdx) : AM Bool := do
       pure (n == f)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:510-524 reservedRecName — **a
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove Core.reservedRecName_bridge, then delete this line
-name no block RECURSOR may take**: one the pinned basis blocks reserve, one a
-literal guard looks up, one of the certified `Nat` operations, or `Bool` and its
-two constructors, whose stored entries the certified operations' guards read.
-The cited `||` chain, each list read off the pin table (handle equality). -/
+name no block RECURSOR may take**: one a literal guard looks up, one of the
+certified `Nat` operations, or `Bool` and its two constructors, whose stored
+entries the certified operations' guards read.  The basis names are
+`basisNamesOk`'s (a pinned block's own recursor carries one).  The cited `||`
+chain, each list read off the pin table (handle equality). -/
 def reservedRecName (n : NIdx) : AM Bool := do
-  let rs ← reservedBasisNames
-  if rs.contains n then pure true
+  let ls ← litGuardNames
+  if ls.contains n then pure true
   else do
-    let ls ← litGuardNames
-    if ls.contains n then pure true
+    let os ← natOpNames
+    if os.contains n then pure true
     else do
-      let os ← natOpNames
-      if os.contains n then pure true
-      else do
-        let ds ← natDivModNames
-        if ds.contains n then pure true
-        else reservedRecBool n
+      let ds ← natDivModNames
+      if ds.contains n then pure true
+      else reservedRecBool n
 
 /-- con-leche: ConLeche/Kernel/Core.lean:332-371 structEtaCertWith
 con-leche: ConLeche/Cached/CoreC.lean:316-353 structEtaCertWithI — the
@@ -2695,53 +2691,55 @@ def structUsedLater (cty : EIdx) (nP j : Nat) : AM Bool := do
   | none => pure false
 
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:1078-1084 projGuardRowsAt — the
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove Core.projGuardRowsAt_bridge, then delete this line
-rows read off an opened constructor telescope `fvs`: field `idx`, and every
-earlier field a later one uses (`structUsedLater`), each as the depth
-`nP + j` and that variable's type.  The cited `(List.range (idx + 1)).filterMap`
-is a recursion on `j` with an accumulator in push order. -/
-def projGuardRowsAt (cty : EIdx) (nP idx : Nat) (fvs : List EIdx) (j : Nat)
-    (out : Array (Nat × EIdx)) : AM (Array (Nat × EIdx)) := do
-  if j > idx then pure out
-  else do
-    let used ← if j == idx then pure true else structUsedLater cty nP j
-    if !used then projGuardRowsAt cty nP idx fvs (j + 1) out
-    else
-      match fvs[nP + j]? with
-      | some x => do
-        let ty ← fvarTypeD x
-        projGuardRowsAt cty nP idx fvs (j + 1) (out.push (nP + j, ty))
-      | none => projGuardRowsAt cty nP idx fvs (j + 1) out
-termination_by idx + 1 - j
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:1080-1098 projGuardRowsGo — **the
+rows of a projection's guard: the field loop of the official `infer_proj`.**
+`h` is the constructor telescope with its parameters and every field before the
+current one opened, the current field's variable at depth `d`; `k` fields
+remain before the projected one.  A field the rest of the telescope uses is a
+row (its domain at depth `d`) and is opened at its variable; one it does not
+use is stepped over.  The projected field's domain is the last row.  `none`
+where the telescope binds too few fields.  The cited list is built front to
+back, here as an accumulator in push order. -/
+def projGuardRowsGo : Nat → Nat → EIdx → Array (Nat × EIdx) → AM (Option (Array (Nat × EIdx)))
+  | k, d, h, out => do
+    if h.tag == ETag.forallE then
+      match ← viewBind h with
+      | none => failDanglingE
+      | some (dom, body) =>
+        match k with
+        | 0 => pure (some (out.push (d, dom)))
+        | k + 1 =>
+          if ← hasLooseBVarBFast 0 body then do
+            let fv ← internE (.fvar d dom)
+            let b2 ← instantiate1Fast coreWalkFuel body fv 0
+            projGuardRowsGo k (d + 1) b2 (out.push (d, dom))
+          else projGuardRowsGo k (d + 1) body out
+    else pure none
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:1100-1118 projGuardRows
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove Core.projGuardRows_bridge, then delete this line
 con-leche: ConLeche/Cached/CoreC.lean:978-993 checkProjRowsI
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove Core.projGuardRows_bridge, then delete this line
 **What a `.proj` use on a structure that may be a proposition must show**:
 the domains, at the use's level instantiation and at the constructor
-telescope's own variables, that must be propositions.  `none` where the
-stored constructor does not bind what the entry says.  The executed shape is
-the cached twin's: the constructor's type at the use's levels through the
-per-declaration memo (`constTyAt`), opened in one pass (`openPisAtFvarsF`). -/
+telescope's own variables, that must be propositions.  The parameters are
+opened, then the fields stepped (`projGuardRowsGo`).  `none` where the stored
+constructor does not bind what the entry says.  The executed shape is the
+cached twin's: the constructor's type at the use's levels through the
+per-declaration memo (`constTyAt`), its parameters opened in one pass
+(`openPisAtFvarsF`). -/
 def projGuardRows (fe : IFEnv) (entry : IProjEntry) (us : LsIdx) :
     AM (Option (Array (Nat × EIdx))) := do
   match fe.find? entry.ctor with
   | some ci => do
     let cv := ci.toConstantVal
     let cty ← constTyAt cv us
-    match ← openPisAtFvarsF (entry.numParams + entry.idx + 1) cty 0 with
-    | some (fvs, _) => do
-      let rows ← projGuardRowsAt cv.type entry.numParams entry.idx fvs 0 #[]
-      pure (some rows)
+    match ← openPisAtFvarsF entry.numParams cty 0 with
+    | some (_, r) => projGuardRowsGo entry.idx entry.numParams r #[]
     | none => pure none
   | none => pure none
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1105-1118 checkProjGuard
 con-leche: ConLeche/Cached/CoreC.lean:995-1007 checkProjGuardI
 con-leche: ConLeche/Cached/CoreC.lean:978-993 checkProjRowsI
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove Core.checkProjGuard_bridge, then delete this line
 **The official `infer_proj` restriction** at this use (con-leche task #480),
 computed here from the stored structure and constructor types; nothing about
 it is stored.  The rows are inferred at the io grade in every body, as

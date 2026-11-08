@@ -512,7 +512,6 @@ def classFormerTy (mode : CheckMode) (fe : IFEnv) (formers : List IConstantVal)
     | _ => fail (.internal "generated recursor: a class's former vanished")
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:361-380 classConstOk
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove GenRec.classConstOk_bridge, then delete this line
 **A generated constant, checked**: `checkConstantValF` — the generated type is
 stored as the generator built it; inference validates it like any other
 declared type: the guards in the cited order (a literal's name only at its
@@ -521,8 +520,6 @@ shape, `litShapeOk`), then its type inferred and a sort.  The Rust's
 def classConstOk (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) : AM Unit := do
   if (fe.find? cv.name).isSome then
     fail (.invalid "duplicate declaration")
-  if (← reservedBasisNames).contains cv.name then
-    fail (.invalid "reserved basis name")
   unless ← litShapeOk (.axiomInfo cv) do
     fail (.notImplemented "a declaration at a literal's name with another shape ()")
   unless nameNodup cv.levelParams do

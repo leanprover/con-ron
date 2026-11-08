@@ -240,12 +240,9 @@ def unresolvedConstsErrorL (strOk : Bool) (where_ : String) (e : EIdx) :
 /-! ## The per-declaration constant check -/
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:102-124 checkConstantVal
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckerBase.checkConstantVal_bridge, then delete this line
 con-leche: ConLeche/Kernel/DeclCheck.lean:364-384 checkConstantValF
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckerBase.checkConstantVal_bridge, then delete this line
 con-leche: ConLeche/Cached/ParsedC.lean:42-64 checkConstantValC
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove CheckerBase.checkConstantVal_bridge, then delete this line
-Checks common to all declarations: fresh name, no reserved name, a certified
+Checks common to all declarations: fresh name, a certified
 operation's name only at a definition (`allowOp`, the cited default `false`,
 spelled at every call as the Rust must), a literal's name only at its shape,
 well-formed universe parameters, and a type that is a type and mentions only
@@ -257,8 +254,6 @@ def checkConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
     (allowOp : Bool) : AM Unit := do
   if (fe.find? cv.name).isSome then
     fail (.invalid "duplicate declaration")
-  if (← reservedBasisNames).contains cv.name then
-    fail (.invalid "reserved basis name")
   if (← natOpName cv.name) && !allowOp then
     fail (.invalid s!"a certified Nat operation's name, not a definition: {← readName cv.name}")
   unless ← litShapeOk (.axiomInfo cv) do

@@ -19,7 +19,7 @@ environment.
 * **`Env.pushDelta` and `FEnv.pushDelta` are one function** over the one
   environment type, `IFEnv` (task #97c's deviation 1).
 * **Every reader is an `AM` function**: a term is read through `view`, and the
-  pins' renamings (`quotAt`, `BasisKind.atBlock`) and `Expr.dropVars`'s
+  pins' renaming (`quotAt`) and `Expr.dropVars`'s
   instantiation intern.
 -/
 module
@@ -134,7 +134,6 @@ def blockConstants (p : BlockShape) : AM (List IConstantInfo) := do
   pure (blockFormers p isRec ++ blockCtors p ++ (← blockRecs p p.recs))
 
 /-- con-leche: ConLeche/Kernel/Install.lean:80-94 declConstants
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove Install.declConstantsAxiom_bridge, then delete this line
 The `.axiomDecl` arm: `Quot.sound` installs its pin at the record's names,
 `sorryAx` nothing, any other axiom itself. -/
 def declConstantsAxiom (cv : IConstantVal) : AM (List IConstantInfo) := do
@@ -143,11 +142,9 @@ def declConstantsAxiom (cv : IConstantVal) : AM (List IConstantInfo) := do
   else pure [.axiomInfo cv]
 
 /-- con-leche: ConLeche/Kernel/Install.lean:80-94 declConstants
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove Install.declConstants_bridge, then delete this line
-**The constants a declaration installs**, in push order.  A block with a pinned
-block's names installs the pin at the names the record declares, a block the
-recogniser does not read nothing (it declines), and `sorryAx` nothing (any use
-of it declines). -/
+**The constants a declaration installs**, in push order.  A block `readBlock`
+cannot read installs nothing (its check rejects it), and `sorryAx` nothing
+(any use of it declines). -/
 def declConstants : IDeclaration → AM (List IConstantInfo)
   | .defnDecl cv value hint => pure [.defnInfo cv value hint]
   | .thmDecl cv _ => pure [.thmInfo cv]
@@ -155,25 +152,18 @@ def declConstants : IDeclaration → AM (List IConstantInfo)
   | .axiomDecl cv => declConstantsAxiom cv
   | .quotDecl k cv => do pure [← quotAt k cv]
   | .indDecl block nP => do
-    match ← basisNameHit block with
-    | some kind => ConRon.Arena.BasisKind.atBlock kind block
-    | none =>
-      match ← blockShape? nP block with
-      | some p => blockConstants p
-      | none => pure []
+    match ← readBlock nP block with
+    | .ok p => blockConstants p
+    | .error _ => pure []
 
 /-- con-leche: ConLeche/Kernel/Install.lean:96-102 declTables
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove Install.declTables_bridge, then delete this line
-**The projection tables a declaration installs**: those of a recognised
-inductive block (a pinned block's names install none). -/
+**The projection tables a declaration installs**: those of an inductive block
+`readBlock` reads. -/
 def declTables : IDeclaration → AM (List IProjTable)
   | .indDecl block nP => do
-    match ← basisNameHit block with
-    | some _ => pure []
-    | none =>
-      match ← blockShape? nP block with
-      | some p => blockTables p p.members
-      | none => pure []
+    match ← readBlock nP block with
+    | .ok p => blockTables p p.members
+    | .error _ => pure []
   | _ => pure []
 
 end ConRon.Arena

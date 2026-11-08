@@ -29,7 +29,7 @@ Covered: a recursive family (`N`), a structure with its projection table
 `Prop` with rule K (`Tru`), a MUTUAL block (`A`/`B`), a NESTED block (`Tree`
 through the container `L`, two recursors), and the rejects and declines: the
 declared parameter count, a non-positive occurrence, a duplicate constructor,
-a shapeless block, a wrong recursor type.
+a block the reader cannot read, a wrong recursor type.
 
 Nothing here is a proof and nothing here is an `#eval` print: every check is
 kernel-reduced, so a disagreement is a build failure.
@@ -156,9 +156,9 @@ private def withRules (pre : List Declaration) (nP : Nat) (block : List Constant
     List ConstantInfo :=
   let out? : ConLeche.CheckM (List (ConstantVal × ConLeche.TargetMajor × List ConLeche.Expr)) := do
     let env ← ConLeche.checkDeclsPure MU OPS [] pre
-    match ConLeche.blockShape? nP block with
-    | none => throw (.internal "fixture: not a block")
-    | some p₀ =>
+    match ConLeche.readBlock nP block with
+    | .error e => throw e
+    | .ok p₀ =>
       let q ← ConLeche.checkBlockPass OPS env p₀ (ConLeche.blockIsRec p₀)
       let p := q.p
       ConLeche.checkBlockRec OPS (ConLeche.consBlockCtors p.nP p.memberCtors q.env₁) p
@@ -398,8 +398,8 @@ private def dupBlock : List ConstantInfo :=
 #guard !accepts [.indDecl dupBlock 0]
 #guard chk [.indDecl dupBlock 0]
 
-/- A block the recogniser does not read (no recursor): the formers are
-checked, then a positive decline. -/
+/- A block the reader cannot read (no recursor record): rejected with the
+reason `readBlock` gives. -/
 #guard !accepts [.indDecl (nBlock.take 3) 0]
 #guard chk [.indDecl (nBlock.take 3) 0]
 

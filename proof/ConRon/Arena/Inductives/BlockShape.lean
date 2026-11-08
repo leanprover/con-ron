@@ -1,12 +1,14 @@
 /-
-# `ConRon.Arena.Inductives.BlockShape` — the k-ary block: the record and the recogniser
+# `ConRon.Arena.Inductives.BlockShape` — the k-ary block: the record and the reader
 (DESIGN.md §8, task #105)
 
 `ConLeche/Kernel/Inductives/BlockShape.lean` over handles: the record a block
 is read into (`MemberShape`, `RecShape`, `BlockShape`), its projections, and
-the recogniser (`blockSplit`, `recTargetOf`, `blockCounts?`, `blockGroups`,
-`blockShape?`) with the recursor records' name and level pins the recursor
-stage throws on.  The Rust twin is `arena::inductives::block_shape`.
+the reader (`blockSplit`, `recTargetOf`, `blockCounts`, `blockGroups`,
+`readBlock`) with the recursor records' name and level pins the recursor stage
+throws on.  A block the reader cannot read is an invalid input: the reader
+returns the cited `Except` as a value (the Rust's inner `Result`), beside the
+arena's own failure.  The Rust twin is `arena::inductives::block_shape`.
 
 **The deviations** (the Rust's, item for item):
 
@@ -19,10 +21,10 @@ stage throws on.  The Rust twin is `arena::inductives::block_shape`.
 * **`blockRecNameSetOk` takes the members and the recursors apart**, and
   **`blockRecNamesUnreserved` takes the recursors**, as the Rust does (the
   caller's `{ p with recs := own }` is an argument, not a record copy).
-* **`blockShape?`'s pins are read in the Rust's order** — the formers'
-  reserved-name and level pins in one pass, then the recursors', then the
-  constructors' — which is the cited conjunction reassociated (all four are
-  pure).
+* **`readBlock`'s three `find?` tests are `all` scans**: a hit only names the
+  error, and the messages drop con-leche's interpolated names and counts
+  (§3.1), as do `blockCounts`' (whose `r` therefore carries no recursor
+  name).
 -/
 module
 
@@ -238,27 +240,36 @@ def recTargetOf (names : List NIdx) (mI : Nat) (ty : EIdx) : AM Nat := do
         else pure none'
     else pure none'
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:263-289 blockCounts?
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove BlockShape.blockCounts?_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:263-298 blockCounts.recCountsError
+A recursor whose argument counts do not fit the block (the cited names and
+counts dropped, §3.1). -/
+def recCountsError : CheckError :=
+  .invalid "the argument counts of a recursor do not fit the block"
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:263-298 blockCounts
 **One member's parameter and index counts**, read as official reads them: off
 the member's own telescope when it is a syntactic one ending in a sort, else
 off the argument sums `r` of a recursor whose major names the member (the
-Rust's `block_counts_rec`, inlined as the second arm). -/
-def blockCounts? (nPd k nC nR : Nat) (cvT : IConstantVal) (r : Option (Nat × Nat)) :
-    AM (Option (Nat × Nat)) := do
+Rust's `block_counts_rec`, inlined as the second arm).  A member that cannot be
+counted is an invalid input, with the reason.  The cited `r` also carries the
+recursor's name, for the error text; the messages drop it (§3.1), so `r` is the
+two counts. -/
+def blockCounts (nPd k nC nR : Nat) (cvT : IConstantVal) (r : Option (Nat × Nat)) :
+    AM (Except CheckError (Nat × Nat)) := do
   let (bs, res) ← piBinders coreWalkFuel cvT.type
   match ← view res with
   | .sort _ =>
     let n := bs.length
-    if nPd ≤ n then pure (some (nPd, n - nPd)) else pure none
+    if nPd ≤ n then pure (.ok (nPd, n - nPd))
+    else pure (.error (.invalid "inductive type declares more parameters than its type has binders"))
   | _ =>
     match r with
-    | none => pure none
+    | none => pure (.error (.invalid "no recursor of the block eliminates the inductive type"))
     | some (mI, rP) =>
-      if rP < nC + k || mI < rP then pure none
-      else if rP - (nC + k) == nPd then pure (some (nPd, mI - rP))
-      else if k < nR && nPd + nR + nC ≤ rP then pure (some (nPd, mI - rP))
-      else pure none
+      if rP < nC + k || mI < rP then pure (.error recCountsError)
+      else if rP - (nC + k) == nPd then pure (.ok (nPd, mI - rP))
+      else if k < nR && nPd + nR + nC ≤ rP then pure (.ok (nPd, mI - rP))
+      else pure (.error recCountsError)
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:300-307 ctorMember?
 The member a constructor belongs to: the one its RESULT names (at the block's
@@ -317,56 +328,67 @@ def blockRecNamesUnreserved : List RecShape → AM Bool
     if ← reservedRecName rc.cvR.name then pure false
     else blockRecNamesUnreserved rest
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:360-373 blockMemberCounts?
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove BlockShape.blockMemberCounts?_bridge, then delete this line
-**The members' index counts**, one `blockCounts?` per member (from member `m`,
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:369-383 blockMemberCounts
+**The members' index counts**, one `blockCounts` per member (from member `m`,
 the formers `cvTs`), in order; the recursor handed to it is the first whose
-major names the member (the Rust's `rec_for_member`, a `findM?`). -/
-def blockMemberCounts? (nPd k nC : Nat) (names : List NIdx)
+major names the member (the Rust's `rec_for_member`, a `findM?`).  The first
+member that cannot be counted gives the error. -/
+def blockMemberCounts (nPd k nC : Nat) (names : List NIdx)
     (rs : List (IConstantVal × Nat × Nat × Bool × List IRecRule)) :
-    Nat → List IConstantVal → AM (Option (List Nat))
-  | _, [] => pure (some [])
+    Nat → List IConstantVal → AM (Except CheckError (List Nat))
+  | _, [] => pure (.ok [])
   | m, cvT :: ts => do
     let q ← rs.findM? fun q => do pure ((← recTargetOf names q.2.1 q.1.type) == m)
     let r : Option (Nat × Nat) := match q with
       | some q => some (q.2.1, q.2.2.1)
       | none => none
-    match ← blockCounts? nPd k nC rs.length cvT r with
-    | none => pure none
-    | some c =>
-      match ← blockMemberCounts? nPd k nC names rs (m + 1) ts with
-      | none => pure none
-      | some ns => pure (some (c.2 :: ns))
+    match ← blockCounts nPd k nC rs.length cvT r with
+    | .error e => pure (.error e)
+    | .ok c =>
+      match ← blockMemberCounts nPd k nC names rs (m + 1) ts with
+      | .error e => pure (.error e)
+      | .ok ns => pure (.ok (c.2 :: ns))
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:375-432 blockShape?
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove BlockShape.blockShape?_bridge, then delete this line
-**The block's shape**: split into formers, constructors and recursors (at least
-one of each of the first and the last), the members' counts, the reserved-name
-and level pins, the result sort (member 0's, or the placeholder `0` the
-check's whnf loop replaces), the groups, the recursors in the stream's own
-order each with the member its MAJOR names, and which eliminator they are
-(`elim :: relps` with `relps == lps` and `elim` fresh is the large one;
-anything else is the small one, at `.anonymous`, interned).  The Rust's
-`block_shape_at`/`block_shape_sort`/`block_shape_elim` are the three stretches
-of this `do` block. -/
-def blockShape? (nPd : Nat) (block : List IConstantInfo) : AM (Option BlockShape) := do
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
+**Read a declared inductive block**: split into formers, constructors and
+recursors (at least one of each of the first and the last), the members'
+counts, the universe and parameter declarations (formers', then constructors'
+parameter counts, then constructors' universe parameters; each cited `find?`
+an `all`, its hit naming only the error), the result sort (member 0's, or the
+placeholder `0` the check's whnf loop replaces), the groups, the recursors in
+the stream's own order each with the member its MAJOR names, and which
+eliminator they are (`elim :: relps` with `relps == lps` and `elim` fresh is
+the large one; anything else is the small one, at `.anonymous`, interned).  A
+block that cannot be read is an invalid input, and the error says why; the
+messages drop con-leche's interpolated names and counts (§3.1).  The Rust's
+`read_block_at`/`read_block_sort`/`read_block_elim` are the three stretches of
+this `do` block. -/
+def readBlock (nPd : Nat) (block : List IConstantInfo) : AM (Except CheckError BlockShape) := do
   match blockSplit block with
-  | none => pure none
+  | none => pure (.error (.invalid
+      "inductive block: its records are not the inductive types, then the constructors, then the recursors"))
   | some (cvTs, cs, rs) =>
     match cvTs, rs with
     | cvT0 :: _, (cvR0, _, _, _, _) :: _ =>
       let names := cvTs.map (·.name)
       let k := cvTs.length
-      match ← blockMemberCounts? nPd k cs.length names rs 0 cvTs with
-      | none => pure none
-      | some nIdxs =>
+      match ← blockMemberCounts nPd k cs.length names rs 0 cvTs with
+      | .error e => pure (.error e)
+      | .ok nIdxs =>
         let lps := cvT0.levelParams
         let nP := nPd
-        let reserved ← reservedBasisNames
-        if (cvTs.all fun c => !reserved.contains c.name && c.levelParams == lps) &&
-            (rs.all fun r => !reserved.contains r.1.name) &&
-            (cs.all fun c => c.2.1 == nP && c.1.levelParams == lps &&
-              !reserved.contains c.1.name) then
+        if !(cvTs.all fun c => c.levelParams == lps) then
+          pure (.error (.invalid
+            "inductive type declares other universe parameters than the block's first type"))
+        else if !(cs.all fun c => c.2.1 == nP) then
+          pure (.error (.invalid "constructor declares another parameter count than the block"))
+        else if !(cs.all fun c => c.1.levelParams == lps) then
+          if k == 1 then
+            pure (.error (.invalid "constructor declares other universe parameters than its type"))
+          else
+            pure (.error (.invalid
+              "constructor declares other universe parameters than the block's inductive types"))
+        else
           let s ← match ← stripPis (nP + nIdxs.headD 0) cvT0.type with
             | some q => do
               match ← view q.2 with
@@ -391,11 +413,12 @@ def blockShape? (nPd : Nat) (block : List IConstantInfo) : AM (Option BlockShape
             | [] => none
             | elim :: relps => if relps == lps && !lps.contains elim then some elim else none
           match large? with
-          | some elim => pure (some ⟨members, recsL, nP, elim, s, true, isProp⟩)
+          | some elim => pure (.ok ⟨members, recsL, nP, elim, s, true, isProp⟩)
           | none => do
             let anon ← internNNode .anonymous
-            pure (some ⟨members, recsL, nP, anon, s, false, isProp⟩)
-        else pure none
-    | _, _ => pure none
+            pure (.ok ⟨members, recsL, nP, anon, s, false, isProp⟩)
+    | [], _ => pure (.error (.invalid "inductive block declares no inductive type"))
+    | _ :: _, [] => pure (.error (.invalid
+        "inductive block carries no recursor records; the input must carry the recursors of every inductive block"))
 
 end ConRon.Arena

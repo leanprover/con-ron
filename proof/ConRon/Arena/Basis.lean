@@ -5,8 +5,9 @@ The twin of `ConLeche/Kernel/Basis.lean` and the Rust twin of `arena::basis`:
 the constants of the five pinned blocks (`Eq`, `Nat`, `Empty`, `False`,
 `Quot`), a pin at a stream's level-parameter names (`IConstantInfo.atLps`),
 the block's comparison with its pin (`pinListOk`), the name test that says a
-record is a pinned block's (`basisNameHit`), what such a block and a quotient
-record store (`BasisKind.atBlock`, `quotAt`), and the fold's `And` pin
+record is a pinned block's (`basisNameHit`), the reserved names' check run
+after a declaration's own checks (`basisNamesOk`, `basisNamesError`), what a
+quotient record stores (`quotAt`), and the fold's `And` pin
 (`andPinOk`): a record that declares `And`, `And.intro` or `And.rec` and is
 not the toolchain's block is rejected.
 
@@ -40,10 +41,8 @@ def BasisKind.decls (k : BasisKind) : AM (List IConstantInfo) :=
   internCIList (ConLeche.BasisKind.decls k)
 
 /-- con-leche: ConLeche/Kernel/Basis/Nat.lean:24-26 natA — the pinned `Nat`
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove Basis.natA_bridge, then delete this line
-type former, interned: the comparand of `reduceElemOk`'s exact
-`find? natName = some natA`.  `Nat` has no level parameter, so the environment
-holds the pin itself. -/
+type former, interned: its `ConstantVal` is the comparand of `reduceElemOk`'s
+`ConstantVal.matchesPin`. -/
 def natA : AM IConstantInfo :=
   internCI ConLeche.natA
 
@@ -206,22 +205,46 @@ kinds tried (a quotient arrives as five one-constant records). -/
 def basisNameHit (block : List IConstantInfo) : AM (Option BasisKind) :=
   basisNameHitGo block [BasisKind.eqK, .natK, .emptyK, .falseK]
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:138-141 BasisKind.atBlock — the cited
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove Basis.atBlockGo_bridge, then delete this line
-`List.zipWith`. -/
-def atBlockGo : List IConstantInfo → List IConstantInfo → AM (List IConstantInfo)
-  | pin :: pins, c :: cs => do
-    let x ← pin.atLps c.toConstantVal.levelParams
-    let rest ← atBlockGo pins cs
-    pure (x :: rest)
-  | _, _ => pure []
+/-! ## The reserved names -/
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:138-141 BasisKind.atBlock — **what a
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove Basis.BasisKind.atBlock_bridge, then delete this line
-pinned block's check installs**: each pin at the names its record declares. -/
-def BasisKind.atBlock (kind : BasisKind) (block : List IConstantInfo) :
-    AM (List IConstantInfo) := do
-  atBlockGo (← ConRon.Arena.BasisKind.decls kind) block
+/-- con-leche: ConLeche/Kernel/Basis.lean:138-151 basisNamesOk — the
+one-constant arms' test, `!reservedBasisNames.contains cv.name`. -/
+def basisNameUnreserved (n : NIdx) : AM Bool := do
+  let rs ← reservedBasisNames
+  pure !(rs.contains n)
+
+/-- con-leche: ConLeche/Kernel/Basis.lean:138-151 basisNamesOk — **the reserved
+names' check**, the one place the checker sets the basis names apart.  It runs
+after a declaration's own checks, which treat a basis block as any other
+block: a block under one of the pinned blocks' names must be that block, up to
+its level-parameter names (`pinListOk`), and no other declaration may take a
+reserved name.  `Quot.sound` and the quotient records are compared with their
+own pins, so they pass here. -/
+def basisNamesOk : IDeclaration → AM Bool
+  | .indDecl block _ => do
+    match ← basisNameHit block with
+    | some kind => pinListOk block (← ConRon.Arena.BasisKind.decls kind)
+    | none => do
+      let rs ← reservedBasisNames
+      pure (block.all fun c => !rs.contains c.name)
+  | .axiomDecl cv => do
+    if cv.name == (← pinQuotSound) then pure true else basisNameUnreserved cv.name
+  | .quotDecl _ _ => pure true
+  | .defnDecl cv _ _ => basisNameUnreserved cv.name
+  | .thmDecl cv _ => basisNameUnreserved cv.name
+  | .opaqueDecl cv _ => basisNameUnreserved cv.name
+
+/-- con-leche: ConLeche/Kernel/Basis.lean:153-161 basisNamesError — **what a
+failed `basisNamesOk` reports**: a block under a pinned block's names that is
+not the pin, a reserved name in another block, or a one-constant declaration at
+a reserved name; all invalid input.  The messages drop con-leche's interpolated
+names (§3.1). -/
+def basisNamesError : IDeclaration → AM CheckError
+  | .indDecl block _ => do
+    match ← basisNameHit block with
+    | some _ => pure (.invalid "reserved basis name: the block is not the pinned one")
+    | none => pure (.invalid "reserved basis name in the block of")
+  | _ => pure (.invalid "reserved basis name")
 
 /-- con-leche: ConLeche/Kernel/Basis.lean:163-165 quotPin — the pinned quotient
 package's constant at a slot. -/

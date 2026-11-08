@@ -123,16 +123,16 @@ def reduceStoredOk (fe : IFEnv) (c : NIdx) : AM Bool := do
   | _ => pure false
 
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:162-172 reduceElemOk
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove DeclCheck.reduceElemOk_bridge, then delete this line
 con-leche: ConLeche/Kernel/DeclCheck.lean:281-290 reduceElemOkF
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove DeclCheck.reduceElemOk_bridge, then delete this line
-The element-inductive shape an `ofReduce*` axiom needs: the pinned `Nat` basis
-resp. a standardly-shaped stored `Bool`. -/
+The element-inductive shape an `ofReduce*` axiom needs: a stored `Nat`
+inductive at the pin's `ConstantVal` resp. a standardly-shaped stored `Bool`. -/
 def reduceElemOk (fe : IFEnv) (c : NIdx) : AM Bool := do
   let rn ← reduceNatName
   if c == rn then do
     let nn ← pinNat
-    pure (fe.find? nn == some (← natA))
+    match fe.find? nn with
+    | some (.indInfo cvN _) => cvN.matchesPin (← natA).toConstantVal
+    | _ => pure false
   else
     match fe.find? (← boolName) with
     | some (.indInfo cvB _) => cvB.matchesPin (← boolCvA)
@@ -888,7 +888,7 @@ def checkOpaqueVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
     fail (.invalid "type mismatch in opaque")
   pure (.axiomInfo cv)
 
-/-! ## The pinned blocks and the quotient records -/
+/-! ## The quotient records -/
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:24-28 installBasisDecl
 con-leche: ConLeche/Kernel/DeclCheck.lean:386-390 installBasisDeclF
@@ -898,29 +898,6 @@ def installBasisDecl (fe : IFEnv) (ci : IConstantInfo) : AM IFEnv := do
   unless (fe.find? ci.name).isNone do
     fail (.invalid "duplicate declaration")
   pure (fe.push ci)
-
-/-- con-leche: ConLeche/Kernel/Checker.lean:463-470 checkBasisBlock — the cited
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove DeclCheck.installBasisDecls_bridge, then delete this line
-`(kind.atBlock block).foldlM installBasisDecl env`, as an explicit list
-recursion (DESIGN §3.4). -/
-def installBasisDecls (fe : IFEnv) : List IConstantInfo → AM IFEnv
-  | [] => pure fe
-  | ci :: cs => do installBasisDecls (← installBasisDecl fe ci) cs
-
-/-- con-leche: ConLeche/Kernel/Checker.lean:463-470 checkBasisBlock
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove DeclCheck.checkBasisBlock_bridge, then delete this line
-con-leche: ConLeche/Cached/ParsedC.lean:137-142 checkBasisBlockC
--- con-leche: CHANGED since 210a580e — re-port, re-test, re-prove DeclCheck.checkBasisBlock_bridge, then delete this line
-**A pinned block's check and install**: the records compared with the pin,
-and each pin installed at the names its record declares.  A block with a
-pinned block's names that is not the pin is invalid input (a basis
-redefinition). -/
-def checkBasisBlock (fe : IFEnv) (kind : BasisKind) (block : List IConstantInfo) :
-    AM IFEnv := do
-  let pins ← ConRon.Arena.BasisKind.decls kind
-  unless ← pinListOk block pins do
-    fail (.invalid "reserved basis name: the block is not the pinned one")
-  installBasisDecls fe (← ConRon.Arena.BasisKind.atBlock kind block)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:463-474 checkQuotRecord
 con-leche: ConLeche/Cached/ParsedC.lean:125-133 checkQuotRecordC

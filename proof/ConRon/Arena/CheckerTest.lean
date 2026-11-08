@@ -261,7 +261,9 @@ private def dEqOther : Declaration :=
   .indDecl [ConLeche.eqA.atLps [w], ConLeche.eqReflA.atLps [w], ConLeche.eqRecA.atLps [z, w]] 2
 
 /-- con-leche: none — the `Eq` block with the recursor's names swapped, so its rule
-no longer reads the constructor's parameters as the pin's does: invalid. -/
+no longer reads the constructor's parameters as the pin's does: invalid, at the
+block's own recursor check (before the reserved names' comparison with the
+pin). -/
 private def dEqSwapped : Declaration :=
   let w : ConLeche.Name := anon.str "w"
   let z : ConLeche.Name := anon.str "z"
@@ -303,7 +305,8 @@ differential below is evidence of something. -/
   (.notImplemented "quotient declaration before what it needs")
 #guard okSize (ConLeche.checkDeclsPure MU OPS [] [dEqOther]) 3
 #guard failsWith (ConLeche.checkDeclsPure MU OPS [] [dEqSwapped])
-  (.invalid "reserved basis name: the block is not the pinned one")
+  (.invalid "target rec: the recursor's major premise is not the member at its parameters and \
+    its index binders")
 #guard failsWith (ConLeche.checkDeclsPure MU OPS [] dsDup)
   (.invalid "duplicate declaration two")
 
