@@ -23,6 +23,7 @@
 //! con-leche's lesson 27), stated about the Lean twin.
 
 pub mod handle;
+pub mod cons_map;
 pub mod store;
 pub mod core_state;
 pub mod pins;

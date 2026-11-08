@@ -71,14 +71,10 @@ use crate::kernel::expr::Literal;
 use crate::kernel::name;
 use crate::ron::hashmap::Dup;
 use crate::ron::hashmap::Eq2;
-// The arena's tables are the epoch-stamped open-addressed map
-// (DESIGN.md's `Task #97-P6-4b`), aliased so that every use site below
-// reads as it did.  `ron::hashmap::HashMap` is still what `crates/con-ron`
-// uses, and is still the one with proofs.
-use crate::ron::hashmap2::HashMap2 as HashMap;
 use crate::ron::hashmap::Hashable;
 
-use crate::arena::core_state::reset_map;
+use crate::arena::cons_map::ConsHandle;
+use crate::arena::cons_map::ConsMap;
 use crate::arena::stream_index::{stream_index_empty, IStreamIndex};
 use std::vec::Vec;
 
@@ -189,7 +185,7 @@ impl DerDefault for u64 {
 /// `rows.map (·.2)` for `der`.
 pub struct Tbl<A, I, D> {
     pub rows: Vec<(A, D)>,
-    pub cons: HashMap<A, I>,
+    pub cons: ConsMap<I>,
 }
 
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:65-71 Tbl
@@ -199,12 +195,12 @@ pub struct Tbl<A, I, D> {
 impl<A, I, D> Tbl<A, I, D>
 where
     A: Hashable + Eq2 + Dup,
-    I: Dup,
+    I: Dup + ConsHandle,
     D: Dup + DerDefault,
 {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:77-78 Tbl.empty
     pub fn empty() -> Tbl<A, I, D> {
-        Tbl { rows: Vec::new(), cons: HashMap::new() }
+        Tbl { rows: Vec::new(), cons: ConsMap::new() }
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:82-83 Tbl.size
@@ -268,10 +264,7 @@ where
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:94-95 Tbl.find?
     /// The cons-table probe.
     pub fn find(&self, a: &A) -> Option<I> {
-        match self.cons.get(a) {
-            None => None,
-            Some(i) => Some(i.dup2()),
-        }
+        self.cons.get(&self.rows, a)
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-17); Lean twin:
@@ -287,15 +280,15 @@ where
     /// same table for the same record twice, and between the two the caller
     /// only computes the derived word and the handle.
     pub fn find_slot(&mut self, a: &A) -> (usize, Option<I>) {
-        self.cons.find_slot(a)
+        self.cons.find_slot(&self.rows, a)
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-17); Lean twin:
     /// **none owed** — `Tbl.push` with the cons row written at the slot
     /// `find_slot` returned.  Same value as `push`; see `find_slot`.
     pub fn push_at(&mut self, at: usize, a: A, d: D, i: I) {
-        self.cons.insert_at(at, a.dup2(), i);
         self.rows.push((a, d));
+        self.cons.insert_at(&self.rows, at, i);
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:97-102 Tbl.push
@@ -304,8 +297,9 @@ where
     /// array element and once as the cons key — so the caller hands over one
     /// and `push` copies it into the table.
     pub fn push(&mut self, a: A, d: D, i: I) {
-        self.cons.insert(a.dup2(), i);
+        let n = self.rows.len();
         self.rows.push((a, d));
+        let _ = self.cons.insert(&self.rows, &self.rows[n].0, i);
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
@@ -337,7 +331,7 @@ where
     /// zero.  So the lever stays priced and untaken.
     pub fn reset(&mut self) {
         self.rows = Vec::new();
-        reset_map(&mut self.cons)
+        self.cons.clear_fit()
     }
 
 }
