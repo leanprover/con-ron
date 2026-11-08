@@ -72167,26 +72167,43 @@ for a 0.49 GB heap peak, glibc +7.8 % instructions; Mathlib: mimalloc 3.61 GiB, 
 | intern hash tables (`cons`) | 1 024 |
 | of it `e.apps` (25.0 M nodes in 2^25 slots of 20 B, load 0.74) | 640 |
 | node rows | 792 |
-| of it unused `Vec` capacity (`e.apps`: 512 for 381 of nodes) | ~237 |
+| of it unused `Vec` capacity (`e.apps`: 512 for 381 of nodes), **not resident** (below) | ~237 |
 | name strings (`StrNode.s`, 12.3 M characters at 4 B) | 65 |
 
 The resident set is 2.48 GiB there, so the tier is three quarters of it.  A `cons` slot is `(tag,
 epoch, key, handle)`: the key is the node the rows already hold, and the epoch serves the O(1) `clear`,
 which the frozen tier never uses.
 
-**The peak is one theorem.**  Through the check the resident set holds at 2.65–2.94 GiB; it is 3.03 GiB
-at 64 s (record ~567 k, `WeierstrassCurve.Affine.Point.sym2x_add_sub_eq_addSubMap_sym2x._proof_1_8`) and
-**3.56 GiB at 66 s** (record ~584 k, `CategoryTheory.Limits.Multifork.toSections_fac`, record 583 641),
-back to 2.84 GiB two seconds later.  Those two are the only jobs whose worker state passed 64 MiB (329
-and 367 MiB after the job, almost all the scratch `app` cons table, 2^24 slots); the other workers
-peaked at 49–100 MiB.  In the job itself the scratch `app` rows and slots double past that, old and new
-arrays alive together.  `clear_fit` (task #97-P6-7) already decays such a table within ~60 jobs, so
-nothing is retained; the spike is the job's own.
+**The peak is one theorem.**  Through the check the resident set holds at 2.65–2.94 GiB; it rises to
+3.03 GiB at 64 s and **3.56 GiB at 66 s**, back to 2.84 GiB two seconds later.  The job is
+`_private…WeierstrassCurve.Affine.Point.sym2x_add_sub_eq_addSubMap_sym2x._proof_1_8` (record 567 339, a
+`grobner` certificate): **3 368 ms and 6.3 M scratch `app` entries** (2^24 slots), where no other job of
+the run passes 1.2 M entries or 0.6 s (the next are `QuadraticModuleCat`/`QuadraticForm` tensor lemmas,
+`Coalgebra.TensorProduct.assoc`, Szemerédi regularity, 0.3–0.6 s, 0.5–1.2 M; a log of every job whose
+scratch `app` high-water jumped by 2^20 or that took over 300 ms).  The progress lines count claimed
+records, so they read ~584 k while this one ran; a first attribution to the record there,
+`CategoryTheory.Limits.Multifork.toSections_fac`, was wrong (that worker's next job, after the heavy one,
+read 367 MiB only because `clear_fit` had sized its table ahead).  `clear_fit` (task #97-P6-7) decays such
+a table within ~60 jobs, so nothing is retained; the spike is the job's own.
+
+Lean's kernel on the same declarations (each theorem re-added under a fresh name, `Environment.addDeclCore`,
+Lean v4.35.0, after importing its module): the `grobner` proof **3 624 ms, +530 MiB RSS**;
+`Multifork.toSections_fac` 1 ms.  con-ron on the `grobner` proof alone (`--olean --constant=… --jobs=1`,
+root `Mathlib.AlgebraicGeometry.EllipticCurve.Affine.AddSubMap`): check phase 2.35 s for its 2 703
+records, peak 1.59 GB against 1.22 GB for a sibling `--constant` run of the same read, so about +0.37 GB.
+On it con-ron is on a par with Lean's kernel, and it makes a single-declaration memory benchmark (9.6 s
+end to end).
 
 **Leads, by size** (estimates, not measured as changes):
 1. A key-free `cons` (a slot holding the row's index, or index and a hash fragment: 4 or 8 B for 20,
    the key compared in the rows) would cut the frozen tier's 1.0 GiB to ~0.2–0.4 GiB and the spike's
    slot arrays by the same factor; the price is a row read per probe on interning's hot path, and
    `ron::HashMap2`'s proofs.
-2. The rows' unused capacity, ~0.23 GiB, given back at the freeze.
+2. ~~The rows' unused capacity, ~0.23 GiB, given back at the freeze~~: tried as task #147 and dropped.
+   Neither `Vec::shrink_to_fit` at the freeze (mimalloc keeps a block that shrinks to half or more) nor a
+   move into an exact-size vector changed the peak (Mathlib `--olean`, alternated: master 3.58, 3.63, 3.68,
+   3.58, 3.62 GiB; `shrink_to_fit` 3.62, 3.57, 3.63; the move 3.64, 3.63).  The capacity past a large
+   vector's length is never written (it grows by `mremap`), so it was never resident; the census above
+   counts capacity, which overstates exactly this row.  The cons tables' slots are written at allocation
+   (`Vacant`), so lead 1 is resident.
 3. Name strings as bytes: tens of MiB.
