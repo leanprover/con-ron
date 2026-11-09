@@ -72325,3 +72325,106 @@ its fragment) instead of recomputing it at a resize: resizes are amortised and t
 the table's own; not measured.
 
 Differentials: `scripts/diff-e2e.sh` 689/689, `scripts/diff-olean.sh` 122/122.
+
+### Task #149 — con-leche sync 210a580e → 501589f5: the projection guard's field loop, the basis blocks installed like any other, the reader's reasons (2026-11-08, Opus)
+
+Upstream tasks absorbed: #492 (the projection guard in the official `infer_proj`'s shape), #493
+(`Eq`, `Nat`, `Empty`, `False` installed like any other block; one narrow reserved-names check)
+and #494 (a block the reader cannot read is rejected with the reason).  `update --auto`: 139
+findings against 210a580e (104 `CHANGED`, 35 `GONE`), 13 doc-only deleted mechanically, the other
+126 markers reconciled by hand; the five newly uncovered declarations (`basisNamesOk`,
+`basisNamesError`, `blockMemberCounts`, `checkDeclKindC`, `projGuardRowsGo`) are ported, so
+coverage goes 925 → 930 / 1011 with no new skip line.
+
+**#492, ported.**  `core::proj_guard_rows_go` (twin `projGuardRowsGo`) is the field loop: at
+`k = 0` the projected field's domain is the last row; otherwise a field the rest of the telescope
+uses (`has_loose_bvar_b_fast 0 body`) is a row and is opened at a fresh `fvar d dom`
+(`instantiate1_fast`), an unused one is stepped over.  The cited list is built front to back; the
+port pushes into an accumulator.  `proj_guard_rows` opens the constructor's parameters only
+(`open_pis_at_fvars_f num_params`) and hands the rest to the loop; `proj_guard_rows_at` is gone.
+`struct_used_later` stays (positivity's U4 test reads it).
+
+**#493, ported.**  `check_decl` is `check_decl_kind` (the six-arm dispatch, every arm's
+citation now `checkDeclKind`/`checkDeclKindC`) then the reserved names' check
+`basis::basis_names_ok` (failure: `basis_names_error`, `Invalid`); the `.indDecl` arm takes a block
+under a pinned block's names down the uniform route like any other.  Deleted:
+`check_basis_block`, `install_basis_decls`, `basis_kind_at_block(_go)`, the reserved-name guards of
+`check_constant_val_guards` and `class_const_ok`, the basis names in `reserved_rec_name` (and the
+pinned-basis clause of `target_rec_pins`' message), `decl_constants`/`decl_tables`' basis arm.
+`basis_raw::{eq_a,nat_a,empty_a,false_a}` carry default capabilities.  `lit_shape_ok`'s three `Nat`
+arms read the constant at the kinds their guards ask for (`IndInfo cv {}`, `CtorInfo cv 0 0`,
+`CtorInfo cv 0 1`); `reduce_elem_ok` compares a stored `Nat` inductive's `ConstantVal` with the
+pin's (`i_constant_val_matches_pin`).
+
+**#494, ported.**  The reader is `block_shape::read_block :
+Result<Result<BlockShape, CheckError>, CheckError>` (twin `readBlock : AM (Except CheckError
+BlockShape)`): the inner `Result` is upstream's `Except`, the outer the arena's own failure (a
+dangling handle, fuel), so `decl_constants`' `.error _ => []` swallows only the reader's reasons.
+`block_counts`/`block_member_counts` return their reasons the same way (`rec_counts_error` is the
+cited `where` clause); the three universe/parameter tests are `all` scans (`formers_lps_ok`,
+`ctors_params_ok`, `ctors_lps_ok`: the cited `find?` hit only names the error); `check_ind_decl`
+fails with the reader's error; `check_shapeless(_formers)` are gone.  `read_block_at`,
+`read_block_sort`, `read_block_elim` are the reader's stretches (the old `block_shape_*`).
+
+**Deviations.**
+* *Messages*: the reader's and the reserved names' messages drop con-leche's interpolated names and
+  counts (§3.1), and with them the recursor name upstream's `blockCounts` threads through `r`.
+* *A cache flush between the two halves of `check_decl`* (Rust and twin): the per-declaration caches
+  are flushed after `check_decl_kind`, so `basis_names_ok` starts from an empty readback memo.  The
+  next record flushes first anyway and a cache only memoises, so no verdict can move; the reason is
+  Theorem 1: `basisNamesOk_run` needs the readback memo (`ReadOK`) sound, and the inductive tier's
+  frames (`InstStep`) do not carry it out of `checkBlock`.
+
+**Verdicts.**  `scripts/diff-e2e.sh` 696/696 (master's binary at the new pin: 693/696; the three it
+differs on — `ind_ctor_levels_use`, `block_ctor_levels`, `block_no_rec` — are #494's decline → reject
+moves).  The twin's `CheckerTest` pins `dEqSwapped`'s new reject (the block's own recursor check now
+fires before the reserved names' comparison with the pin).
+
+**Theorem 1.**  The headline `Arena.checkDecl_bridge` keeps its statement; it is now the arms'
+`Arena.checkDeclKind_bridge` (new conclusion `DeclKindOut`, `checkDeclKind` instead of `checkDecl`),
+then the flush, then `basisNamesOk_run`.  `IndSpec` — an internal hypothesis, discharged by
+`indSpec_of_bridge` — loses its `basisNameHit b = none` premise and concludes about
+`checkDeclKind`; `checkIndRoute` is the new arm.  The reader's bridges (`blockCounts_spec`,
+`blockMemberCounts_spec`, `readBlock_eq`, `readBlock_run`, `readBlock_spec`, `readBlock_installS`)
+relate the two sides' `Except`s as `Option`s (`Except.toOption`): the same value or both an error,
+the messages being different.  `projGuardRowsGo_run` replaces the `rowAt`/`rowsFrom` machinery;
+the rows' scoping is upstream's `projGuardRows_ws`.  `litShapeOk`'s `Nat` arms run at the built
+records (`natIndOk_cvRun`, …); `Pushes` reads upstream's `DeclRun = basisNamesOk ∧ DeclKindRun`.
+The bridges of the deleted functions are deleted.  Written in the files' own run-form style (these
+are repairs of run-form proofs, not new walks).
+
+**Theorem 2.**  Lockstep throughout; `check_decl_refines` keeps its statement (now `check_decl_kind`,
+the flush, `basis_names_ok`, `basis_names_error`) and the arms are `check_decl_kind_refines`.  The
+reader's value is the cited `Except` as a value: `absExc f` sends the Rust's `Result<T, CheckError>`
+to the twin's `Except`, its error through `absACheckError` (the kind, the message's code points as a
+string), so the relation is a function and `lockstep` substitutes and splits it unaided; an error
+leaf is closed by `msg_leaf` against the message equations `msg_M_*`, each proved once by
+`decide +kernel` (`Refine2/Inductives/Abs.lean`; a `decide` inside the big lockstep proofs blew the
+heartbeat budget).  A reader error thrown by the dispatch is `LS_fail_absACheckError` (same kind).
+New: `proj_guard_rows_go_ls`, `formers_lps_ok`/`ctors_params_ok`/`ctors_lps_ok`,
+`block_counts_ls`, `block_member_counts_ls`, `read_block_ls`, `block_unreserved_twin0`,
+`basis_name_unreserved_ls`, `basis_names_ok_ls`, `basis_names_error_ls`,
+`i_ind_caps_default_ls`; `Refine/BasisRaw.lean`'s pinned formers at default capabilities.  No
+invariant was added; no twin divergence had to be fixed beyond the port.  The capstone's statements
+are unchanged and it builds as is.
+
+**Numbers.**  `Init`, `--verified --jobs=1`, `perf stat -e instructions:u,cycles:u`, one run each
+(`bump-con-leche.sh measure`), 57 919 / 57 919 accepted:
+
+| binary | instructions:u | cycles:u |
+|---|---:|---:|
+| master `01ecb31c` | 191 300 180 516 | 77 723 925 837 |
+| this branch `5713eaaf` | **191 284 068 149** (−0.008 %) | 79 249 079 618 |
+
+Before the cache flush was added the branch measured 190 998 030 084 (−0.159 %): the second reset of
+the per-declaration tables costs ~0.15 % on `Init` (≈ 5 k instructions a declaration).
+
+#492's target, con-leche's new fixture `tests/e2e/prop_struct_proj_wide.ndjson` (a 150-field `Prop`
+structure and its 150 projections), `--verified --jobs=1`, three runs each, verdict 0 on both:
+
+| binary | instructions:u | cycles:u |
+|---|---:|---:|
+| master `01ecb31c` | 5 518 348 284, 5 518 346 576, 5 518 343 412 | 2.27 G, 2.30 G, 2.30 G |
+| this branch `5713eaaf` | **415 085 463, 415 087 732, 415 086 210** (−92.5 %) | 0.156 G, 0.173 G, 0.187 G |
+
+`cargo test` green; `scripts/diff-e2e.sh` 696/696.
