@@ -575,11 +575,11 @@ theorem piDomsOcc_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
 
 /-! ## The input-derived fuel: `depth`, `whnfWalkFuel`
 
-con-leche's `Expr.depth` IS its memoised walk (`(e.depthGo {}).1`, no pure
-twin), so the reference here is a structural `depthS`, and both walks —
-con-leche's on terms, the twin's on handles — are shown to compute it. -/
+con-leche's `Expr.depth` is structural recursion; the reference here is the
+same structural `depthS`, and the twin's handle-keyed memo walk (the
+cached tier's `Expr.depthC`) is shown to compute it. -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:556-592 Expr.depth —
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:305-311 Expr.depth —
 the depth the memoised walk computes, as a structural function: the longest
 root-to-leaf path, `fvar` annotations not descended. -/
 def depthS : Expr → Nat
@@ -590,91 +590,18 @@ def depthS : Expr → Nat
   | .proj _ _ x => depthS x + 1
   | _ => 1
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:556-588 Expr.depthGo —
-the memo invariant on con-leche's own walk. -/
-def DepthMemoInv (memo : Std.HashMap Expr Nat) : Prop :=
-  ∀ (k : Expr) (r : Nat), memo[k]? = some r → r = depthS k
-
-theorem DepthMemoInv.insert {memo : Std.HashMap Expr Nat} (hm : DepthMemoInv memo)
-    {e : Expr} {r : Nat} (heq : r = depthS e) : DepthMemoInv (memo.insert e r) := by
-  intro e' r' hk
-  rw [Std.HashMap.getElem?_insert] at hk
-  split at hk
-  · rename_i hbeq
-    cases hk
-    rw [← eq_of_beq hbeq]
-    exact heq
-  · exact hm e' r' hk
-
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:556-588 Expr.depthGo —
-**con-leche's memoised walk computes `depthS`**. -/
-theorem depthGo_pure_spec :
-    ∀ (e : Expr) (memo : Std.HashMap Expr Nat), DepthMemoInv memo →
-      (Expr.depthGo memo e).1 = depthS e ∧ DepthMemoInv (Expr.depthGo memo e).2 := by
-  intro e
-  induction e with
-  | bvar i => intro memo hm; exact ⟨rfl, hm⟩
-  | sort u => intro memo hm; exact ⟨rfl, hm⟩
-  | const n us => intro memo hm; exact ⟨rfl, hm⟩
-  | lit l => intro memo hm; exact ⟨rfl, hm⟩
-  | fvar i ty _ => intro memo hm; exact ⟨rfl, hm⟩
-  | app a b iha ihb =>
-    intro memo hm
-    rw [Expr.depthGo]
-    split
-    · rename_i r hhit
-      exact ⟨(hm _ _ hhit).symm ▸ rfl, hm⟩
-    · obtain ⟨h1, h2⟩ := iha memo hm
-      obtain ⟨h3, h4⟩ := ihb _ h2
-      refine ⟨by simp [depthS, h1, h3], ?_⟩
-      exact h4.insert (by simp [depthS, h1, h3])
-  | lam ty body iht ihb =>
-    intro memo hm
-    rw [Expr.depthGo]
-    split
-    · rename_i r hhit
-      exact ⟨(hm _ _ hhit).symm ▸ rfl, hm⟩
-    · obtain ⟨h1, h2⟩ := iht memo hm
-      obtain ⟨h3, h4⟩ := ihb _ h2
-      refine ⟨by simp [depthS, h1, h3], ?_⟩
-      exact h4.insert (by simp [depthS, h1, h3])
-  | forallE ty body iht ihb =>
-    intro memo hm
-    rw [Expr.depthGo]
-    split
-    · rename_i r hhit
-      exact ⟨(hm _ _ hhit).symm ▸ rfl, hm⟩
-    · obtain ⟨h1, h2⟩ := iht memo hm
-      obtain ⟨h3, h4⟩ := ihb _ h2
-      refine ⟨by simp [depthS, h1, h3], ?_⟩
-      exact h4.insert (by simp [depthS, h1, h3])
-  | letE ty val body iht ihv ihb =>
-    intro memo hm
-    rw [Expr.depthGo]
-    split
-    · rename_i r hhit
-      exact ⟨(hm _ _ hhit).symm ▸ rfl, hm⟩
-    · obtain ⟨h1, h2⟩ := iht memo hm
-      obtain ⟨h3, h4⟩ := ihv _ h2
-      obtain ⟨h5, h6⟩ := ihb _ h4
-      refine ⟨by simp [depthS, h1, h3, h5], ?_⟩
-      exact h6.insert (by simp [depthS, h1, h3, h5])
-  | proj s i sub ih =>
-    intro memo hm
-    rw [Expr.depthGo]
-    split
-    · rename_i r hhit
-      exact ⟨(hm _ _ hhit).symm ▸ rfl, hm⟩
-    · obtain ⟨h1, h2⟩ := ih memo hm
-      refine ⟨by simp [depthS, h1], ?_⟩
-      exact h2.insert (by simp [depthS, h1])
-
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:590-592 Expr.depth —
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:305-311 Expr.depth —
 con-leche's depth IS the structural one. -/
-theorem depth_eq_depthS (e : Expr) : Expr.depth e = depthS e :=
-  (depthGo_pure_spec e {} (fun k r h => by simp at h)).1
+theorem depth_eq_depthS (e : Expr) : Expr.depth e = depthS e := by
+  induction e with
+  | app a b iha ihb => simp [Expr.depth, depthS, iha, ihb]
+  | lam ty body iht ihb => simp [Expr.depth, depthS, iht, ihb]
+  | forallE ty body iht ihb => simp [Expr.depth, depthS, iht, ihb]
+  | letE ty val body iht ihv ihb => simp [Expr.depth, depthS, iht, ihv, ihb]
+  | proj s i sub ih => simp [Expr.depth, depthS, ih]
+  | _ => rfl
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:556-588 Expr.depthGo —
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1853-1856 depthC —
 the twin's handle-keyed memo. -/
 def DepthMemoOK (tbl : Std.HashMap EIdx Nat) (st : EStore) : Prop :=
   ∀ (k : EIdx) (r : Nat), tbl[k]? = some r → ∃ e, denoteE st k = some e ∧ r = depthS e
@@ -695,7 +622,7 @@ theorem DepthMemoOK.insert {tbl : Std.HashMap EIdx Nat} {st : EStore}
     exact ⟨hP, hd, heq⟩
   · exact hm k r' hk
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:556-588 Expr.depthGo
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1853-1856 depthC
 The twin's memoised walk computes `depthS`. -/
 theorem depthGo_spec (memo : Std.HashMap EIdx Nat) (fuel : Nat) (h : EIdx) (hP : Expr) :
     PSpec (fun st => denoteE st h = some hP ∧ DepthMemoOK memo st)
@@ -838,7 +765,7 @@ theorem depthGo_spec (memo : Std.HashMap EIdx Nat) (fuel : Nat) (h : EIdx) (hP :
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin hsA (by simp only at hrA; simp only [depthS, hrA]) hmA hz
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:590-592 Expr.depth
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:305-311 Expr.depth
 A term's depth: con-leche's memoised `Expr.depth`, exactly. -/
 theorem depth_spec (e : EIdx) (eP : Expr) :
     PSpec (fun st => denoteE st e = some eP) (Arena.depth e) (RV (Expr.depth eP)) := by
