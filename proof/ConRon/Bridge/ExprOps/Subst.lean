@@ -522,8 +522,12 @@ grind_pattern [bridge_grind] liftLooseBVars_of_bvarBound_le' =>
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2169 instantiate1Lift_of_bvarBound_le
 — `instantiate1LiftGo`'s cutoff, con-leche's own, keyed likewise. -/
 theorem instantiate1Lift_of_bvarBound_le' {e ve : Expr} {d : Nat}
-    (h : e.bvarBound ≤ d) : e.instantiate1Lift ve d = e :=
-  Expr.instantiate1Lift_of_bvarBound_le e ve d h
+    (h : e.bvarBound ≤ d) : e.instantiate1Lift ve d = e := by
+  induction e generalizing d with
+  | bvar i =>
+    rw [Expr.bvarBound] at h
+    rw [Expr.instantiate1Lift, ite_eq_right (by omega), ite_eq_right (by omega)]
+  | _ => simp_all [Expr.bvarBound, Expr.instantiate1Lift, Nat.max_le] <;> omega
 grind_pattern [bridge_grind] instantiate1Lift_of_bvarBound_le' =>
   Expr.bvarBound e, Expr.instantiate1Lift e ve d
 
