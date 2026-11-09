@@ -1879,9 +1879,7 @@ grind_pattern [bridge_grind] IndexAt.some => IndexAt env fe st c (some nm)
 /-- con-leche: none — a capability record's denotation, the scalar fields the
 walks compare (shared by the two tiers). -/
 def CapsFields (c : IIndCaps) : Option IndCaps → Prop
-  | some dc => dc.unitlike = c.unitlike ∧ dc.unitParams = c.unitParams ∧ dc.eta = c.eta ∧
-      dc.etaParams = c.etaParams ∧ dc.etaFields = c.etaFields ∧ dc.nparams = c.nparams ∧
-      dc.nIdx = c.nIdx
+  | some dc => dc.eta = c.eta ∧ dc.nparams = c.nparams ∧ dc.nIdx = c.nIdx
   | none => True
 
 /-- con-leche: none — `CapsFields` at the denotation term. -/
@@ -1891,15 +1889,13 @@ theorem capsFields (st : EStore) (c : IIndCaps) : CapsFields c (Frontend.denoteC
   | some dc =>
     simp only [Frontend.denoteCaps] at h
     split at h
-    · cases h; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+    · cases h; exact ⟨rfl, rfl, rfl⟩
     · simp at h
 grind_pattern [bridge_grind] capsFields => Frontend.denoteCaps st c
 
 /-- con-leche: none — `CapsFields` at a denoting record. -/
 theorem CapsFields.some {c : IIndCaps} {dc : IndCaps} (H : CapsFields c (some dc)) :
-    dc.unitlike = c.unitlike ∧ dc.unitParams = c.unitParams ∧ dc.eta = c.eta ∧
-      dc.etaParams = c.etaParams ∧ dc.etaFields = c.etaFields ∧ dc.nparams = c.nparams ∧
-      dc.nIdx = c.nIdx := H
+    dc.eta = c.eta ∧ dc.nparams = c.nparams ∧ dc.nIdx = c.nIdx := H
 grind_pattern [bridge_grind] CapsFields.some => CapsFields c (some dc)
 
 end ConRon.Bridge

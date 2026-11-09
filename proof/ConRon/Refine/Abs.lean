@@ -611,11 +611,6 @@ def absRecRule (r : env.RecRule) : ConLeche.RecRule where
 /-- `ConLeche/Kernel/Env.lean:362` — `IndCaps`. -/
 def absIndCaps (c : env.IndCaps) : ConLeche.IndCaps where
   eta := c.eta
-  etaCtor := absName c.eta_ctor
-  etaParams := c.eta_params.val
-  etaFields := c.eta_fields.val
-  unitlike := c.unitlike
-  unitParams := c.unit_params.val
   all := absNames c.all
   nparams := c.nparams.val
   nIdx := c.n_idx.val

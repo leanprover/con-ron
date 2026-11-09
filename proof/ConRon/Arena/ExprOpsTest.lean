@@ -387,13 +387,13 @@ private def leafSpec (fab base : EIdx) : AM Bool := do
 #guard isForallE fx.piT == Expr.isForallE (E fx.piT)
 #guard isForallE fx.big == Expr.isForallE (E fx.big)
 #guard
-  match (lamPair? fx.lamT2 fx.lamT).run S0, Expr.lamPair? (E fx.lamT2) (E fx.lamT) with
+  match (lamPair? fx.lamT2 fx.lamT).run S0, Expr.binderPair? true (E fx.lamT2) (E fx.lamT) with
   | .ok (some (a, b, c, d), s'), some (a', b', c', d') =>
     denoteE s'.store a == some a' && denoteE s'.store b == some b' &&
       denoteE s'.store c == some c' && denoteE s'.store d == some d'
   | _, _ => false
 #guard
-  match (lamPair? fx.lamT2 fx.piT).run S0, Expr.lamPair? (E fx.lamT2) (E fx.piT) with
+  match (lamPair? fx.lamT2 fx.piT).run S0, Expr.binderPair? true (E fx.lamT2) (E fx.piT) with
   | .ok (none, _), none => true
   | _, _ => false
 #guard chkB (hasFvarFast F fx.big) (Expr.hasFvar (E fx.big))
