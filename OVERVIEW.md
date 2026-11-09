@@ -396,7 +396,7 @@ The parse, the pin walk and the stream's index (§6.3) write the persistent tier
 directly.  Each record's check then runs inside a **bracket** on a worker's own
 store: `enter_record` empties the scratch tier and the memos, and
 `leave_record` empties the scratch tier again and flushes the caches
-([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L10840-L10859)).
+([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L10827-L10846)).
 Nothing a check builds outlives it: what a declaration adds to the environment
 is read off the record itself when the index is built, so no term ever has to
 move from the scratch tier to the persistent one.  Dropping the tier leaves
@@ -489,7 +489,7 @@ as in con-leche: a table grows for the length of its declaration and goes
 whole at the bracket.
 
 The type checker runs in two **lanes**
-([`LANE_*`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L374-L387)),
+([`LANE_*`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L377-L390)),
 one per con-leche knot: the full lane uses the caches above, and the IO lane runs `infer` and `inferIO` unmemoised and uses the
 full lane for everything else.
 
@@ -575,12 +575,12 @@ There is no install phase.  After the parse, the stream's **index** is built
 once, from the records alone
 ([`build_index`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/stream_index.rs#L160-L181)):
 what each record adds to the environment is a function of the record
-([`decl_constants`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/install.rs#L322-L366)
+([`decl_constants`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/install.rs#L322-L358)
 and `decl_tables`, con-leche's `Kernel/Install.lean`: a definition's constant, a
 block's formers, constructors, recursors with the record's K flag and their
 rules' firing mode, and its projection tables, read off its records with no
-inference and no reduction; a pinned basis block or quotient record as the pin at
-the names the record declares).  A name's first entry wins, so a later record
+inference and no reduction — a pinned basis block like any other block, a
+quotient record as the pin at the names it declares).  A name's first entry wins, so a later record
 with a taken name sees it and fails "duplicate declaration" at its own position.
 
 Every record's check is then a **job** at the index's view of its position
@@ -728,7 +728,7 @@ Two definitions connect it to con-leche:
 proves that every twin function computes, on denotations, what the
 corresponding con-leche function computes.  The per-declaration statement
 is
-[`Arena.checkDecl_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Fold.lean#L49-L56),
+[`Arena.checkDecl_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Fold.lean#L114-L121),
 and
 [`Arena.pooledAccepts_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Pool.lean#L96-L116)
 lifts it to the check phase the driver runs: the index built from the records

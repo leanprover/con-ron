@@ -526,6 +526,19 @@ a pure projection on both sides. -/
       (fun cv => TwinEq (absIConstantInfo c).toConstantVal (absIConstantVal cv)) :=
   fun _ h => (i_constant_info_to_constant_val_abs h).symm
 
+/-- `i_ind_caps_default` is the twin's `{}` (the capabilities `litShapeOk`'s
+`Nat` arm reads its former at). -/
+@[lockstep] theorem i_ind_caps_default_ls :
+    LSP arena.env.i_ind_caps_default (fun ic => TwinEq ({} : IIndCaps) (absIIndCaps ic)) := by
+  intro ic h
+  rw [arena.env.i_ind_caps_default] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  rw [arena.handle.NIdx.of_word] at hn
+  cases Result.ok_injective hn
+  simp only [TwinEq, absIIndCaps]
+  rfl
+
 attribute [local lockstep_simp] absLNodeView absLsNodeView ConRon.Refine.absLiteral
 
 -- local: the Checker lane reads `absIConstantVal` folded (its `absValueGroup`)

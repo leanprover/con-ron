@@ -341,63 +341,53 @@ def absRows (v : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) : Array (Nat × E
   (v.val.map fun q => (absU q.1, absEIdx q.2)).toArray
 
 
-theorem proj_guard_rows_at_aux (k : Nat) :
+theorem absRows_push {v w : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)}
+    {x : Std.U64 × arena.handle.EIdx} (h : w.val = v.val ++ [x]) :
+    absRows w = (absRows v).push (absU x.1, absEIdx x.2) := by
+  simp [absRows, h]
+
+theorem proj_guard_rows_go_aux (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (cty : arena.handle.EIdx) (n_p idx : Std.U64) (fvs : alloc.vec.Vec arena.handle.EIdx)
-      (j : Std.U64) (out : alloc.vec.Vec (Std.U64 × arena.handle.EIdx))
-      (lout : Array (Nat × EIdx)),
-      idx.val + 1 - j.val = k → absRows out = lout → AStateRel₀ pers st lst →
+      (k d : Std.U64) (h : arena.handle.EIdx)
+      (out : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) (x : Nat) (lout : Array (Nat × EIdx)),
+      k.val = n → absU d = x → absRows out = lout → AStateRel₀ pers st lst →
       AStateInv pers st →
-      LS pers (fun a b => b = absRows a)
-        (arena.core.proj_guard_rows_at pers st cty n_p idx fvs j out) lst
-        (projGuardRowsAt (absEIdx cty) (absU n_p) (absU idx) (absEIdxList fvs) (absU j)
-          lout) := by
-  induction k with
+      LS pers (fun a b => b = a.map absRows)
+        (arena.core.proj_guard_rows_go pers st k d h out) lst
+        (projGuardRowsGo n x (absEIdx h) lout) := by
+  induction n with
   | zero =>
-    intro pers st lst cty n_p idx fvs j out lout hk hout hrel hinv
-    subst hout
-    rw [arena.core.proj_guard_rows_at, projGuardRowsAt]
-    lockstep
-  | succ m ih =>
-    intro pers st lst cty n_p idx fvs j out lout hk hout hrel hinv
-    subst hout
-    rw [arena.core.proj_guard_rows_at, projGuardRowsAt]
+    intro pers st lst k d h out x lout hk hx hout hrel hinv
+    subst hout hx
+    rw [arena.core.proj_guard_rows_go, projGuardRowsGo]
     lockstep
     all_goals
-      rename_i a1 hP1 a2 hP2 hw v hdisc
-      have hlen : fvs.val.length ≤ Std.Usize.max := fvs.property
-      have haa : a.val = n_p.val + j.val := by
-        rcases hP with h | h
-        · omega
-        · exfalso
-          have := (Std.UScalar.lt_equiv _ _).mp hc
-          rw [alloc.vec.Vec.len_val] at hP2
-          have : fvs.length = fvs.val.length := rfl
-          omega
-      have hv : v = absEIdx (fvs.val[a.val]'hw) := by
-        rw [List.getElem?_map, ← haa, List.getElem?_eq_getElem hw] at hdisc
-        simp only [Option.map_some, Option.some.injEq] at hdisc
-        exact hdisc.symm
-      subst hv
-      lockstep
-      all_goals
-        rename_i ty out1 hout1
-        have hj : (j.val : Nat) + 1 = absU a := by simp [absU, hP]
-        rw [hj]
-        exact ih _ _ _ _ _ _ _ (by simp only [absU] at *; omega)
-          (by simp [absRows, hout1, absU, hP1]) ‹_› ‹_›
+      refine LS.pure ?_ ‹_› ‹_›
+      simp only [Option.map_some, absRows_push ‹_ = _ ++ _›]
+  | succ m ih =>
+    intro pers st lst k d h out x lout hk hx hout hrel hinv
+    subst hout hx
+    rw [arena.core.proj_guard_rows_go, projGuardRowsGo]
+    lockstep
+    all_goals
+      refine ih _ _ _ _ _ _ ?_ ?_ ?_ ‹_› ‹_›
+      all_goals first
+        | (simp only [absU] at *; scalar_tac)
+        | simp [absRows, absU, ‹_ = _ ++ _›]
 
-/-- `proj_guard_rows_at` ⊑ `projGuardRowsAt`: the rows of an opened telescope. -/
-@[lockstep] theorem proj_guard_rows_at_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (cty : arena.handle.EIdx) (n_p idx : Std.U64)
-    (fvs : alloc.vec.Vec arena.handle.EIdx) (j : Std.U64)
+/-- `proj_guard_rows_go` ⊑ `projGuardRowsGo`: the field loop of the official
+`infer_proj`, the rows in push order. -/
+@[lockstep] theorem proj_guard_rows_go_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k d : Std.U64) (h : arena.handle.EIdx)
     (out : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) :
-    LS pers (fun a b => b = absRows a)
-      (arena.core.proj_guard_rows_at pers st cty n_p idx fvs j out) lst
-      (projGuardRowsAt (absEIdx cty) (absU n_p) (absU idx) (absEIdxList fvs) (absU j)
-        (absRows out)) :=
-  proj_guard_rows_at_aux _ cty n_p idx fvs j out _ rfl rfl hrel hinv
+    LS pers (fun a b => b = a.map absRows)
+      (arena.core.proj_guard_rows_go pers st k d h out) lst
+      (projGuardRowsGo k.val (absU d) (absEIdx h) (absRows out)) :=
+  proj_guard_rows_go_aux _ k d h out _ _ rfl rfl rfl hrel hinv
 
+@[lockstep_simp] theorem absRows_new :
+    absRows (alloc.vec.Vec.new (Std.U64 × arena.handle.EIdx)) = #[] := by
+  simp [absRows, alloc.vec.Vec.new]
 
 /-- `proj_guard_rows` ⊑ `projGuardRows`: what a `.proj` use on a structure that
 may be a proposition must show. -/

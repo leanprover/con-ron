@@ -3303,70 +3303,6 @@ theorem install_basis_decl_refines {pers : arena.store.PersTier} {lst} {rf lf} {
     simp [installBasisDecl, ← hf]
     rfl
 
-theorem install_basis_decls_aux {pers : arena.store.PersTier} (k : Nat) :
-    ∀ {lst} {rf lf} (decls : alloc.vec.Vec arena.env.IConstantInfo) (i : Std.Usize) {o},
-      decls.val.length - i.val = k → IFEnvRel pers rf lf → IFEnvInv rf →
-      arena.decl_check.install_basis_decls pers rf decls i = ok o →
-      SimRelR (fun r v => IFEnvRelI pers r v) lst o
-        (installBasisDecls lf (absICILFrom decls i)) := by
-  induction k with
-  | zero =>
-    intro lst rf lf decls i o hn hfe hfinv hrun
-    rw [arena.decl_check.install_basis_decls] at hrun
-    have hl := alloc.vec.Vec.len_val decls
-    rw [ite_eq_left (by scalar_tac)] at hrun
-    obtain rfl := (Result.ok_injective hrun).symm
-    have : absICILFrom decls i = [] := by
-      simp only [absICILFrom]; rw [List.drop_eq_nil_of_le (by omega)]; rfl
-    rw [this]
-    exact ⟨lf, rfl, hfe, hfinv⟩
-  | succ m ih =>
-    intro lst rf lf decls i o hn hfe hfinv hrun
-    rw [arena.decl_check.install_basis_decls] at hrun
-    have hl := alloc.vec.Vec.len_val decls
-    rw [ite_eq_right (by scalar_tac)] at hrun
-    obtain ⟨ii, hii, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨ii1, hii1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have hi : i.val < decls.val.length := by omega
-    have hx : decls.val[i.val] = ii := by
-      have h1 := vec_index_some hii
-      rw [List.getElem?_eq_getElem hi] at h1
-      exact Option.some_inj.mp h1
-    have hcons : absICILFrom decls i =
-        absIConstantInfo ii :: (decls.val.drop (i.val + 1)).map absIConstantInfo := by
-      simp only [absICILFrom]; rw [List.drop_eq_getElem_cons hi, hx]; rfl
-    have hdup := i_constant_info_dup_abs hii1
-    have h1 := install_basis_decl_refines (lst := lst) hfe hfinv hr
-    rw [hdup] at h1
-    rw [hcons, installBasisDecls]
-    cases r with
-    | Ok fe2 =>
-      obtain ⟨v, hv, hrel2, hinv2⟩ := h1
-      obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      have hi2v := ConRon.Refine.Nat.uadd_val hi2
-      have ih' := ih (lst := lst) decls i2 (by simp at hi2v; omega) hrel2 hinv2 hrun
-      have e2 : absICILFrom decls i2 = (decls.val.drop (i.val + 1)).map absIConstantInfo := by
-        simp only [absICILFrom]; congr 2
-      rw [e2] at ih'
-      revert ih'
-      cases o <;> simp only [SimRelR, StateT.run_bind, hv] <;> exact id
-    | Err e =>
-      obtain rfl := (Result.ok_injective hrun).symm
-      intro k hk
-      obtain ⟨le, hle, hk2⟩ := h1 k hk
-      refine ⟨le, ?_, hk2⟩
-      rw [StateT.run_bind, hle]; rfl
-
-/-- `install_basis_decls` ⊑ `installBasisDecls` at the cursor. -/
-theorem install_basis_decls_refines {pers : arena.store.PersTier} {lst} {rf lf}
-    {decls : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize} {o}
-    (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.decl_check.install_basis_decls pers rf decls i = ok o) :
-    SimRelR (fun r v => IFEnvRelI pers r v) lst o
-      (installBasisDecls lf (absICILFrom decls i)) :=
-  install_basis_decls_aux _ decls i rfl hfe hfinv hrun
-
 open Lockstep in
 /-- `install_basis_decl` as the read the `lockstep` zip steps over. -/
 @[lockstep] theorem install_basis_decl_ls {pers st lst} {rf lf} {ci : arena.env.IConstantInfo}
@@ -3375,21 +3311,6 @@ open Lockstep in
       (installBasisDecl lf (absIConstantInfo ci)) := by
   intro o h
   have H := install_basis_decl_refines (lst := lst) hfe.rel hfe.inv h
-  cases o with
-  | Err e => exact H
-  | Ok r => obtain ⟨v, hv, hR⟩ := H; exact ⟨v, lst, hv, hR, hrel, hinv⟩
-
-open Lockstep in
-/-- `install_basis_decls` from the start, as the read the `lockstep` zip steps over. -/
-@[lockstep] theorem install_basis_decls_ls {pers st lst} {rf lf}
-    {decls : alloc.vec.Vec arena.env.IConstantInfo}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf) :
-    LSR pers (IFEnvRelI pers) (arena.decl_check.install_basis_decls pers rf decls 0#usize) st lst
-      (installBasisDecls lf (absICIL decls)) := by
-  intro o h
-  have H := install_basis_decls_refines (lst := lst) hfe.rel hfe.inv h
-  have e0 : absICILFrom decls 0#usize = absICIL decls := by simp [absICILFrom, absICIL]
-  rw [e0] at H
   cases o with
   | Err e => exact H
   | Ok r => obtain ⟨v, hv, hR⟩ := H; exact ⟨v, lst, hv, hR, hrel, hinv⟩

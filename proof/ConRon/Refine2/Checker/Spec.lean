@@ -71,13 +71,11 @@ def checkConstantValGuardsRestSpec (cv : IConstantVal) : AM Unit := do
   if ← hasFvarFast coreWalkFuel cv.type then
     fail (.invalid "unexpected free variable in type")
 
-/-- The SYNTACTIC guards, in the twin's order: `checkConstantVal` clauses 1-7. -/
+/-- The SYNTACTIC guards, in the twin's order: `checkConstantVal` clauses 1-6. -/
 def checkConstantValGuardsSpec (fe : IFEnv) (cv : IConstantVal) (allowOp : Bool) :
     AM Unit := do
   if (fe.find? cv.name).isSome then
     fail (.invalid "duplicate declaration")
-  if (← reservedBasisNames).contains cv.name then
-    fail (.invalid "reserved basis name")
   if (← natOpName cv.name) && !allowOp then
     fail (.invalid s!"a certified Nat operation's name, not a definition: {← readName cv.name}")
   checkConstantValGuardsRestSpec cv
@@ -562,24 +560,21 @@ theorem certCtxFullSpec_eq : certCtxFullSpec = certCtx := by
 
 /-! ## `arena::check_decl`'s splits
 
-`checkDecl`'s arms are the Rust's `check_*_decl` functions and their tails, for
+`checkDeclKind`'s arms are the Rust's `check_*_decl` functions and their tails, for
 extraction rule 5's reason at every one: an arm that runs a pin gate holds the
 environment and a record across a `match`. -/
 
-/-- `checkDecl`'s `.indDecl` arm (`check_ind_decl`): **the pinned basis blocks**
-recognised by name first, then the declared parameter count, then the one
-uniform route (`checkBlock`) or the decline (`checkShapeless`). -/
+/-- `checkDeclKind`'s `.indDecl` arm (`check_ind_decl`): the declared parameter
+count, then the one uniform route (`checkBlock`) at every block `readBlock`
+reads, the pinned basis blocks included, or the reader's reject. -/
 def checkIndDeclArmSpec (mode : CheckMode) (fe : IFEnv)
     (block : List IConstantInfo) (nP : Nat) : AM IFEnv := do
-  match ← basisNameHit block with
-  | some kind => checkBasisBlock fe kind block
-  | none => do
-    if !(← indParamsOk nP block) then
-      fail (.invalid "number of parameters mismatch")
-    else
-      match ← blockShape? nP block with
-      | some p => checkBlock mode fe block p
-      | none => checkShapeless mode fe block
+  if !(← indParamsOk nP block) then
+    fail (.invalid "number of parameters mismatch")
+  else
+    match ← readBlock nP block with
+    | .ok p => checkBlock mode fe block p
+    | .error e => fail e
 
 /-- `checkDecl`'s axiom arm past the `ofReduce*` test: the two standard
 axioms' shape mismatch, `sorryAx` tolerated as a DECLARATION, everything else
@@ -740,7 +735,7 @@ def internAllPinsPortSpec (pins : List NatOpPinSet) : AM (List INatOpPinSet) := 
   internAllNamesSpec
   internPinSets pins
 
-/-! ## `checkDecl`, arm by arm (task #97-P5-Checker round 4)
+/-! ## `checkDeclKind`, arm by arm (task #97-P5-Checker round 4)
 
 Task #97-P5-Checker round 3 §10 item 2 named `checkDecl_unfold` as the one
 thing between `check_decl_refines` and a seven-way `cases`: the twin writes
@@ -749,13 +744,13 @@ transcriptions above.  **Six of the seven are equations and are closed here.
 The seventh was not an equation** while the twin's `.defnDecl` arm read the
 constant's name back (`readName`, which throws `internal` at a dangling
 handle) for its decline messages.  Task #97-T2-LOCKSTEP lane Checker gave the
-twin the Rust's constant messages, and `checkDecl_defnDecl` below closes the
+twin the Rust's constant messages, and `checkDeclKind_defnDecl` below closes the
 seventh too.-/
 
-theorem checkDecl_axiomDecl (mode : CheckMode) (pins : List INatOpPinSet)
+theorem checkDeclKind_axiomDecl (mode : CheckMode) (pins : List INatOpPinSet)
     (fe : IFEnv) (cv : IConstantVal) :
-    checkDecl mode pins fe (.axiomDecl cv) = checkAxiomDeclSpec mode fe cv := by
-  twin_reduce [checkDecl, checkAxiomDeclSpec, checkAxiomDeclStdSpec, checkAxiomDeclTrustSpec,
+    checkDeclKind mode pins fe (.axiomDecl cv) = checkAxiomDeclSpec mode fe cv := by
+  twin_reduce [checkDeclKind, checkAxiomDeclSpec, checkAxiomDeclStdSpec, checkAxiomDeclTrustSpec,
     checkAxiomDeclOfReduceSpec, checkAxiomDeclRestSpec]
 
 /-- The stored definition's value — the twin's `match fe2.find? c with |
@@ -816,32 +811,32 @@ theorem checkStructuralNatPin_split (mode : CheckMode) (fe : IFEnv) (ci : IConst
       pure ((fe.push ci).popTemp n fe.idx[n]?)) := by
   twin_reduce [checkStructuralNatPin, checkStructuralNatPinEqsSpec]
 
-theorem checkDecl_defnDecl (mode : CheckMode) (pins : List INatOpPinSet)
+theorem checkDeclKind_defnDecl (mode : CheckMode) (pins : List INatOpPinSet)
     (fe : IFEnv) (cv : IConstantVal) (value : EIdx) (hint : ReducibilityHint) :
-    checkDecl mode pins fe (.defnDecl cv value hint) =
+    checkDeclKind mode pins fe (.defnDecl cv value hint) =
       checkDefnDeclSpec mode pins fe cv value hint := by
-  twin_reduce [checkDecl, checkDefnDeclSpec, checkDefnPinsSpec, checkDefnDivModPinSpec]
+  twin_reduce [checkDeclKind, checkDefnDeclSpec, checkDefnPinsSpec, checkDefnDivModPinSpec]
 
-theorem checkDecl_thmDecl (mode : CheckMode) (pins : List INatOpPinSet)
+theorem checkDeclKind_thmDecl (mode : CheckMode) (pins : List INatOpPinSet)
     (fe : IFEnv) (cv : IConstantVal) (value : EIdx) :
-    checkDecl mode pins fe (.thmDecl cv value) = checkThmDeclSpec mode fe cv value := by
-  twin_reduce [checkDecl, checkThmDeclSpec]
+    checkDeclKind mode pins fe (.thmDecl cv value) = checkThmDeclSpec mode fe cv value := by
+  twin_reduce [checkDeclKind, checkThmDeclSpec]
 
-theorem checkDecl_opaqueDecl (mode : CheckMode) (pins : List INatOpPinSet)
+theorem checkDeclKind_opaqueDecl (mode : CheckMode) (pins : List INatOpPinSet)
     (fe : IFEnv) (cv : IConstantVal) (value : EIdx) :
-    checkDecl mode pins fe (.opaqueDecl cv value)
+    checkDeclKind mode pins fe (.opaqueDecl cv value)
       = checkOpaqueDeclSpec mode fe cv value := by
-  twin_reduce [checkDecl, checkOpaqueDeclSpec, checkOpaqueReducePinSpec]
+  twin_reduce [checkDeclKind, checkOpaqueDeclSpec, checkOpaqueReducePinSpec]
 
-theorem checkDecl_indDecl (mode : CheckMode) (pins : List INatOpPinSet)
+theorem checkDeclKind_indDecl (mode : CheckMode) (pins : List INatOpPinSet)
     (fe : IFEnv) (block : List IConstantInfo) (nP : Nat) :
-    checkDecl mode pins fe (.indDecl block nP)
+    checkDeclKind mode pins fe (.indDecl block nP)
       = checkIndDeclArmSpec mode fe block nP := rfl
 
-theorem checkDecl_quotDecl (mode : CheckMode) (pins : List INatOpPinSet)
+theorem checkDeclKind_quotDecl (mode : CheckMode) (pins : List INatOpPinSet)
     (fe : IFEnv) (k : QuotKind) (cv : IConstantVal) :
-    checkDecl mode pins fe (.quotDecl k cv) = checkQuotRecord fe k cv := by
-  rw [checkDecl]
+    checkDeclKind mode pins fe (.quotDecl k cv) = checkQuotRecord fe k cv := by
+  rw [checkDeclKind]
 
 /-! ## The axiom census
 
@@ -853,10 +848,10 @@ only obligations of this file about the TWIN rather than the port, and rule
 #guard_msgs in #print axioms checkConstantVal_unfold
 
 
-/-- info: 'ConRon.Arena.checkDecl_axiomDecl' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms checkDecl_axiomDecl
+/-- info: 'ConRon.Arena.checkDeclKind_axiomDecl' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms checkDeclKind_axiomDecl
 
-/-- info: 'ConRon.Arena.checkDecl_quotDecl' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms checkDecl_quotDecl
+/-- info: 'ConRon.Arena.checkDeclKind_quotDecl' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms checkDeclKind_quotDecl
 
 end ConRon.Arena

@@ -1537,8 +1537,8 @@ theorem targetRecPins_split (p : BlockShape) (block : List IConstantInfo) :
       unless blockRecLpsOk p do
         fail (.invalid "target rec: the recursor's level parameters are not the generated ones")
       unless ← blockRecNamesUnreserved p.recs do
-        fail (.invalid "target rec: a recursor is named for a pinned basis constant, a literal \
-          guard's slot or a certified Nat operation")
+        fail (.invalid "target rec: a recursor is named for a literal guard's slot or a certified \
+          Nat operation")
       let own := p.recs.filter fun rc => rc.tgt < p.k
       unless ← blockRecNameSetOk p.members own do
         fail (.invalid "target rec: the block's recursor names are not the generated ones \

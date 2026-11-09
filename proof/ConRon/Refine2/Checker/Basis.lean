@@ -17,6 +17,8 @@ import ConRon.Refine2.Checker.Axioms
 import ConRon.Refine2.Core.LS.Leaves
 import ConRon.Refine2.Checker.Base
 import ConRon.Refine2.Inductives.StructParts
+import ConRon.Refine2.Inductives.Abs
+import ConRon.Refine2.Inductives.Prims
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -980,84 +982,81 @@ open Lockstep in
     simp only [ite_true]
     exact block_links_ok_ls hrel1 hinv1
 
-/-! ## What a pinned block's check installs -/
+/-! ## The reserved names' check -/
+
+/-- `block_unreserved` ⊑ the `.indDecl` arm's `block.all fun c => !rs.contains c.name`
+of `basisNamesOk`, from the cursor on. -/
+theorem block_unreserved_abs {rs : alloc.vec.Vec arena.handle.NIdx}
+    {block : alloc.vec.Vec arena.env.IConstantInfo} :
+    ∀ (i : Std.Usize) (o : Bool), arena.basis.block_unreserved rs block i = ok o →
+      o = (absICILFrom block i).all (fun c => !(absNIdxList rs).contains c.name) := by
+  have := vec_cursor_all block (fun x => !(absNIdxList rs).contains (absIConstantInfo x).name)
+    (arena.basis.block_unreserved rs block) ?_ ?_
+  · intro i o h
+    rw [this i o h, absICILFrom, List.all_map]; rfl
+  · intro i o hn h
+    rw [arena.basis.block_unreserved.eq_def] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len block by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x o hx h
+    have hlt : i.val < block.val.length := (List.getElem?_eq_some_iff.mp hx).1
+    rw [arena.basis.block_unreserved.eq_def] at h
+    rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len block by scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : q = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hnv := i_constant_info_name_abs hn
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hbv := Lockstep.PC1.nidx_vec_contains_ls rs n b hb
+    cases b
+    · rw [ite_eq_right (by simp)] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      refine Or.inl ⟨?_, i2, absSz_add_one hi2, h⟩
+      rw [← hnv, ← hbv]; rfl
+    · rw [ite_eq_left (by simp), Result.ok.injEq] at h
+      refine Or.inr ⟨?_, h.symm⟩
+      rw [← hnv, ← hbv]; rfl
 
 open Lockstep in
-private theorem basis_kind_at_block_go_aux {pins block : alloc.vec.Vec arena.env.IConstantInfo}
-    (k : Nat) :
-    ∀ {pers st lst} (i : Std.Usize) (out : alloc.vec.Vec arena.env.IConstantInfo),
-      pins.val.length - i.val = k → AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = absICIL a)
-        (arena.basis.basis_kind_at_block_go pers st pins block i out) lst
-        (do
-          let rest ← atBlockGo (absICILFrom pins i) (absICILFrom block i)
-          pure (absICIL out ++ rest)) := by
-  induction k with
-  | zero =>
-    intro pers st lst i out hk hrel hinv
-    have hp : pins.val.length ≤ i.val := by omega
-    rw [arena.basis.basis_kind_at_block_go.eq_def]; simp only []
-    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len pins by scalar_tac)]
-    simp only [absICILFrom, List.drop_eq_nil_of_le hp, List.map_nil, atBlockGo, pure_bind,
-      List.append_nil]
-    exact LS.pure rfl hrel hinv
-  | succ k ih =>
-    intro pers st lst i out hk hrel hinv
-    rw [arena.basis.basis_kind_at_block_go.eq_def]; simp only []
-    by_cases hp : pins.val.length ≤ i.val
-    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len pins by scalar_tac)]
-      simp only [absICILFrom, List.drop_eq_nil_of_le hp, List.map_nil, atBlockGo, pure_bind,
-        List.append_nil]
-      exact LS.pure rfl hrel hinv
-    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len pins by scalar_tac)]
-      have hlp : i.val < pins.val.length := Nat.lt_of_not_le hp
-      by_cases hb : block.val.length ≤ i.val
-      · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len block by scalar_tac)]
-        simp only [absICILFrom, List.drop_eq_nil_of_le hb, List.drop_eq_getElem_cons hlp,
-          List.map_nil, List.map_cons, atBlockGo, pure_bind, List.append_nil]
-        exact LS.pure rfl hrel hinv
-      · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len block by scalar_tac)]
-        have hlb : i.val < block.val.length := Nat.lt_of_not_le hb
-        obtain ⟨x, hx, hxv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec block i hlb)
-        subst hxv
-        rw [alloc.vec.Vec.index_slice_index, hx, bind_ok]
-        refine LS.bind_eq fun iv hiv => ?_
-        have eiv := i_constant_info_to_constant_val_abs hiv
-        obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec pins i hlp)
-        subst hyv
-        rw [alloc.vec.Vec.index_slice_index, hy, bind_ok]
-        simp only [absICILFrom, List.drop_eq_getElem_cons hlb, List.drop_eq_getElem_cons hlp,
-          List.map_cons, atBlockGo, bind_assoc]
-        rw [← eiv]
-        refine LS.bind (constant_info_at_lps_ls hrel hinv) (by simp [absIConstantVal])
-          (fun _ _ => errArm_ok) ?_
-        intro c b st1 lst1 hb' hrel1 hinv1
-        subst hb'
-        refine LS.bind_eq fun out1 hout1 => ?_
-        refine LS.bind_eq fun i3 hi3 => ?_
-        have hi3v : i3.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi3
-        have h := ih i3 out1 (by omega) hrel1 hinv1
-        simp only [absICILFrom, hi3v, absICIL, ConRon.Refine.vec_push_val hout1] at h
-        refine LS.tail h ?_ (fun _ _ h => h)
-        simp [absICIL, List.append_assoc]
+@[lockstep] theorem block_unreserved_twin0 (rs : alloc.vec.Vec arena.handle.NIdx)
+    (block : alloc.vec.Vec arena.env.IConstantInfo) :
+    LSP (arena.basis.block_unreserved rs block 0#usize)
+      (fun o => TwinEq ((absICIL block).all fun c => !(absNIdxList rs).contains c.name) o) := by
+  intro o h
+  rw [TwinEq, block_unreserved_abs _ o h]
+  simp [absICILFrom, absICIL]
 
 open Lockstep in
-/-- `basis_kind_at_block` ⊑ `BasisKind.atBlock`: each pin at the names its
-record declares. -/
-@[lockstep] theorem basis_kind_at_block_ls {pers st lst} {kind : kernel.env.BasisKind}
-    {block : alloc.vec.Vec arena.env.IConstantInfo}
+/-- `basis_name_unreserved` ⊑ `basisNameUnreserved`. -/
+@[lockstep] theorem basis_name_unreserved_ls {pers st lst} {n : arena.handle.NIdx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absICIL a) (arena.basis.basis_kind_at_block pers st kind block) lst
-      (ConRon.Arena.BasisKind.atBlock (ConRon.Refine.absBasisKind kind) (absICIL block)) := by
-  rw [arena.basis.basis_kind_at_block]
-  unfold BasisKind.atBlock
-  refine LS.bind (basis_kind_decls_ls hrel hinv) rfl (fun _ _ => errArm_ok) ?_
-  intro pins b st1 lst1 hb hrel1 hinv1
-  subst hb
-  have h := basis_kind_at_block_go_aux (pins := pins) (block := block) _ 0#usize
-    (alloc.vec.Vec.new _) rfl hrel1 hinv1
-  refine LS.tail h ?_ (fun _ _ h => h)
-  simp [absICILFrom, absICIL, alloc.vec.Vec.new]
+    LSR pers (fun a b => b = a) (arena.basis.basis_name_unreserved st n) st lst
+      (basisNameUnreserved (absNIdx n)) := by
+  apply LSR.of_LS
+  rw [arena.basis.basis_name_unreserved, basisNameUnreserved]
+  lockstep
+
+open Lockstep in
+/-- `basis_names_ok` ⊑ `basisNamesOk`: the reserved names' check. -/
+@[lockstep] theorem basis_names_ok_ls {pers st lst} {d : arena.env.IDeclaration}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.basis.basis_names_ok pers st d) lst
+      (basisNamesOk (absIDeclaration d)) := by
+  rw [arena.basis.basis_names_ok.eq_def]
+  cases d <;> simp only [absIDeclaration, basisNamesOk] <;> lockstep
+
+open Lockstep in
+/-- `basis_names_error` ⊑ `basisNamesError`: what a failed check reports. -/
+@[lockstep] theorem basis_names_error_ls {pers st lst} {d : arena.env.IDeclaration}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = ConRon.Refine2.absACheckError a) (arena.basis.basis_names_error pers st d) lst
+      (basisNamesError (absIDeclaration d)) := by
+  rw [arena.basis.basis_names_error.eq_def]
+  cases d <;> simp only [absIDeclaration, basisNamesError] <;> lockstep
+  all_goals refine LS.pure ?_ ‹_› ‹_›
+  all_goals msg_leaf
 
 open Lockstep in
 /-- `quot_pin_hit` ⊑ `quotPinHit`: the record is the slot's pin up to its
