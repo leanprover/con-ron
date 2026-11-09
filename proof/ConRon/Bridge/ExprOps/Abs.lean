@@ -173,8 +173,9 @@ clause: the leaf at the abstracted level becomes `bvar k`. -/
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1765 abstract1_of_fvarRange_le —
 the cutoff of `abstract1Go`. -/
 theorem abs1Fn_cutoff {d k : Nat} {e : Expr} (h : e.fvarRange ≤ d) :
-    abs1Fn d k e = e :=
-  Expr.abstract1_of_fvarRange_le e d k h
+    abs1Fn d k e = e := by
+  induction e generalizing k <;>
+    simp_all [abs1Fn, Expr.abstract1, Expr.fvarRange, Nat.max_le] <;> omega
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:659-671 abstract1 — the
 catch-all: a term whose tag is none of the five the walk dispatches on is a
