@@ -44,7 +44,8 @@ use crate::kernel::expr_ops::sub_nat;
 use crate::ron::hashmap::{Dup, Eq2};
 
 /// con-leche: ConLeche/Kernel/Install.lean:22-24 Env.pushDelta
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:127-132 FEnv.pushDelta
+/// con-leche: ConLeche/Kernel/FEnv.lean:155-160 FEnv.pushDelta
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove install::push_delta_refines, then delete this line
 /// **The environment with a declaration's constants and tables pushed**, each
 /// list oldest first: the constants, then the tables (a constant push and a
 /// table push touch different components, so the order between them is not
@@ -54,7 +55,8 @@ pub fn push_delta(fe: IFEnv, l: Vec<IConstantInfo>, q: Vec<IProjTable>) -> IFEnv
     push_delta_tables(fe1, q, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:122-125 FEnv.pushAll
+/// con-leche: ConLeche/Kernel/FEnv.lean:150-153 FEnv.pushAll
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove install::push_delta_consts_refines, then delete this line
 /// Push a list of records from `i` on, head first.
 pub fn push_delta_consts(fe: IFEnv, l: Vec<IConstantInfo>, i: usize) -> IFEnv {
     if i >= l.len() {
@@ -265,7 +267,8 @@ pub fn block_recs(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Install.lean:63-73 blockTables
+/// con-leche: ConLeche/Kernel/Install.lean:63-74 blockTables
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove install::block_tables_refines, then delete this line
 /// **The projection tables** from member `i` on, in block order: one per
 /// structure-like member whose constructor reads as one.
 pub fn block_tables(
@@ -304,7 +307,7 @@ pub fn block_tables(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Install.lean:75-78 blockConstants
+/// con-leche: ConLeche/Kernel/Install.lean:76-79 blockConstants
 /// **The block's constants**, in push order: the formers (at official's
 /// `is_rec`, `blockIsRec`), the constructors, the recursors.
 pub fn block_constants(pers: &PersTier, st: &mut AState, p: &BlockShape) -> Result<Vec<IConstantInfo>, CheckError> {
@@ -319,7 +322,7 @@ pub fn block_constants(pers: &PersTier, st: &mut AState, p: &BlockShape) -> Resu
     }
 }
 
-/// con-leche: ConLeche/Kernel/Install.lean:80-94 declConstants
+/// con-leche: ConLeche/Kernel/Install.lean:81-95 declConstants
 /// **The constants a declaration installs**, in push order.  A block
 /// `readBlock` cannot read installs nothing (its check rejects it), and
 /// `sorryAx` nothing (any use of it declines).
@@ -357,7 +360,7 @@ pub fn decl_constants(pers: &PersTier, st: &mut AState, pd: &IDeclaration) -> Re
     }
 }
 
-/// con-leche: ConLeche/Kernel/Install.lean:80-94 declConstants
+/// con-leche: ConLeche/Kernel/Install.lean:81-95 declConstants
 /// The `.axiomDecl` arm: `Quot.sound` installs its pin at the record's names,
 /// `sorryAx` nothing, any other axiom itself.
 pub fn decl_constants_axiom(pers: &PersTier, st: &mut AState, cv: &IConstantVal) -> Result<Vec<IConstantInfo>, CheckError> {
@@ -391,7 +394,8 @@ pub fn decl_constants_axiom(pers: &PersTier, st: &mut AState, cv: &IConstantVal)
     }
 }
 
-/// con-leche: ConLeche/Kernel/Install.lean:96-102 declTables
+/// con-leche: ConLeche/Kernel/Install.lean:97-103 declTables
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove install::decl_tables_refines, then delete this line
 /// **The projection tables a declaration installs**: those of an inductive
 /// block `readBlock` reads.
 pub fn decl_tables(pers: &PersTier, st: &mut AState, pd: &IDeclaration) -> Result<Vec<IProjTable>, CheckError> {

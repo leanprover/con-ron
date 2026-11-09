@@ -230,9 +230,11 @@ pub struct OleanRequest {
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:64-67 Input.label
-/// con-leche: ConLeche/Driver/Cli.lean:219-304 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:239-324 runArgs
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove olean_fs::impl OleanRequest_refines, then delete this line
 impl OleanRequest {
-    /// con-leche: ConLeche/Driver/Cli.lean:219-304 runArgs
+    /// con-leche: ConLeche/Driver/Cli.lean:239-324 runArgs
+    /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove olean_fs::new_refines, then delete this line
     /// The names of the command line, or the usage error.
     pub fn new(search_path: &[String], modules: &[String], constants: &[String]) -> Result<OleanRequest, String> {
         let mut roots: Vec<Name> = Vec::new();

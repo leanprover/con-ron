@@ -25,7 +25,9 @@ open ConLeche
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:31-50 checkStructDomsAt
 con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:25-34 checkStructDomsAtF
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StructInstall.checkStructDomsAt_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:36-46 checkStructDomsAtFA
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StructInstall.checkStructDomsAt_bridge, then delete this line
 The reference kernels' binder-domain comparisons, run binder by binder **at
 its own frame**: the `j`-th opened variable's annotation against the `j`-th
 expected domain, at frame `off + j`.  Walks from the last binder to the
@@ -40,8 +42,10 @@ def checkStructDomsAt (mode : CheckMode) (fe : IFEnv) (off : Nat)
       fail (.notImplemented "direct structure: binder domain mismatch")
     checkStructDomsAt mode fe off fvs doms j
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-80 checkStructProjTable
+/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-74 checkStructProjTable
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StructInstall.checkStructProjTable_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-89 checkStructProjTableF
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StructInstall.checkStructProjTable_bridge, then delete this line
 Stage 5: **the projection table's checks** (task #175 S1): the fields'
 result-type bodies read off the stored constructor type by substitution alone,
 validated once; the table follows its structure, declared by the same block

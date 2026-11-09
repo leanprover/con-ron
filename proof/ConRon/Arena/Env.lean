@@ -77,7 +77,8 @@ structure IRecRule where
 
 /-! ## Inductive capabilities -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:184-231 IndCaps — the definitional
+/-- con-leche: ConLeche/Kernel/Env.lean:184-221 IndCaps — the definitional
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Env.IIndCaps_bridge, then delete this line
 capabilities of a stored inductive type that its block alone decides.
 `etaCtor` is a handle. -/
 structure IIndCaps where
@@ -102,7 +103,7 @@ structure IIndCaps where
 
 /-! ## Projection tables -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:233-269 ProjTable — one structure's
+/-- con-leche: ConLeche/Kernel/Env.lean:223-259 ProjTable — one structure's
 projection table, every term field a handle; stored in the environment's
 table component (`IEnv.tables`), keyed on `structName`. -/
 structure IProjTable where
@@ -114,7 +115,7 @@ structure IProjTable where
   bodies : Array EIdx
   deriving DecidableEq, Repr, Inhabited
 
-/-- con-leche: ConLeche/Kernel/Env.lean:271-284 ProjEntry — the per-field view
+/-- con-leche: ConLeche/Kernel/Env.lean:261-274 ProjEntry — the per-field view
 of a projection table. -/
 structure IProjEntry where
   structName : NIdx
@@ -126,7 +127,7 @@ structure IProjEntry where
   body : EIdx
   deriving DecidableEq, Repr, Inhabited
 
-/-- con-leche: ConLeche/Kernel/Env.lean:286-290 ProjTable.entry — the view at
+/-- con-leche: ConLeche/Kernel/Env.lean:276-280 ProjTable.entry — the view at
 field `i`.  con-leche's `default` expression becomes the `Inhabited` handle: a
 table is only read at `i < numFields`, where the default is not reachable. -/
 def IProjTable.entry (tbl : IProjTable) (i : Nat) : IProjEntry :=
@@ -135,7 +136,7 @@ def IProjTable.entry (tbl : IProjTable) (i : Nat) : IProjEntry :=
 
 /-! ## Stored constants -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:292-311 ConstantInfo — the information
+/-- con-leche: ConLeche/Kernel/Env.lean:282-301 ConstantInfo — the information
 stored about an accepted constant, over handles.  A theorem is stored by its
 statement only (con-leche task #329 THMVAL); a recursor carries its record's K
 flag (`isK`). -/
@@ -151,7 +152,7 @@ inductive IConstantInfo where
 
 /-! ## Declaration records -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:331-367 Declaration — a declaration
+/-- con-leche: ConLeche/Kernel/Env.lean:321-357 Declaration — a declaration
 presented to the checker, over handles.  Six constructors, con-leche's own
 order. -/
 inductive IDeclaration where
@@ -165,19 +166,19 @@ inductive IDeclaration where
 
 /-! ## Reading a stored constant -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:426-428 ConstantInfo.toConstantVal —
+/-- con-leche: ConLeche/Kernel/Env.lean:416-418 ConstantInfo.toConstantVal —
 the constant's common data. -/
 def IConstantInfo.toConstantVal : IConstantInfo → IConstantVal
   | .axiomInfo v | .defnInfo v _ _ | .thmInfo v => v
   | .indInfo v _ | .ctorInfo v _ _ | .recInfo v _ _ _ _ => v
 
-/-- con-leche: ConLeche/Kernel/Env.lean:430 name — the constant's
+/-- con-leche: ConLeche/Kernel/Env.lean:420 name — the constant's
 name: the environment index's key. -/
 def IConstantInfo.name : IConstantInfo → NIdx
   | .axiomInfo v | .defnInfo v _ _ | .thmInfo v => v.name
   | .indInfo v _ | .ctorInfo v _ _ | .recInfo v _ _ _ _ => v.name
 
-/-- con-leche: ConLeche/Kernel/Env.lean:436-443 Declaration.names — the names a
+/-- con-leche: ConLeche/Kernel/Env.lean:426-433 Declaration.names — the names a
 declaration record declares; `preparePrelude`'s lookup and the ground hoist's
 name index read it. -/
 def IDeclaration.names : IDeclaration → List NIdx
@@ -187,7 +188,7 @@ def IDeclaration.names : IDeclaration → List NIdx
 
 /-! ## The environment -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:447-459 Env — the global environment:
+/-- con-leche: ConLeche/Kernel/Env.lean:437-449 Env — the global environment:
 the constants accepted so far and the structures' projection tables, each list
 newest first.  Names are unique (the checker rejects duplicates), so the order
 is irrelevant for lookup; so are the tables' structure names.  The tables are
@@ -198,7 +199,7 @@ structure IEnv where
   tables : List IProjTable
   deriving Inhabited
 
-/-- con-leche: ConLeche/Kernel/Env.lean:463-464 Env.empty — the empty
+/-- con-leche: ConLeche/Kernel/Env.lean:453-454 Env.empty — the empty
 environment; the starting point of every checker run. -/
 def IEnv.empty : IEnv := ⟨[], []⟩
 
@@ -297,19 +298,19 @@ def IFEnv.popTemp (fe : IFEnv) (n : NIdx) (prev : Option IConstantInfo) : IFEnv 
     | none => fe.idx.erase n),
    fe.base, fe.tbls⟩
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:156-161 FEnv.rawTable? — the table map's
+/-- con-leche: ConLeche/Kernel/FEnv.lean:168-173 FEnv.rawTable? — the table map's
 lookup, ungated: a miss falls through to the base layer. -/
 def IFEnv.rawTable? (fe : IFEnv) (T : NIdx) : Option IProjTable :=
   match fe.tbls[T]? with
   | some t => some t
   | none => fe.base.findTable? T
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:163-167 FEnv.findTable? — **the table
+/-- con-leche: ConLeche/Kernel/FEnv.lean:175-179 FEnv.findTable? — **the table
 lookup**: `T`'s table, visible exactly where the constant `T` is. -/
 def IFEnv.findTable? (fe : IFEnv) (T : NIdx) : Option IProjTable :=
   if (fe.find? T).isSome then fe.rawTable? T else none
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:169-173 FEnv.findProj? — indexed
+/-- con-leche: ConLeche/Kernel/FEnv.lean:181-185 FEnv.findProj? — indexed
 projection-table lookup: the structure's table, viewed at field `i`. -/
 def IFEnv.findProj? (fe : IFEnv) (T : NIdx) (i : Nat) : Option IProjEntry :=
   match fe.findTable? T with
@@ -318,7 +319,7 @@ def IFEnv.findProj? (fe : IFEnv) (T : NIdx) (i : Nat) : Option IProjEntry :=
 
 /-! ## The syntactic Π-telescope -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:373-387 Expr.piSortTeleLen? — the length
+/-- con-leche: ConLeche/Kernel/Env.lean:363-377 Expr.piSortTeleLen? — the length
 of a syntactic Π-telescope ending in a SORT.  A spine walk, so the fuel is the
 store's node count; con-leche's structural recursion is the same walk with the
 node read through `view`. -/

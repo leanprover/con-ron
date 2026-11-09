@@ -95,8 +95,9 @@ open ConLeche
 
 /-! ## `mentionsAnyConst`: the positivity walk's question at k names -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:42-54 Expr.mentionsAnyConst
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:119-133 Expr.mentionsAnyConst
 con-leche: ConLeche/Kernel/Inductives/Positivity.lean:84-119 Expr.mentionsAnyGo
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Positivity.mentionsAnyGo_bridge, then delete this line
 Does any of the constants `names` occur in `h`?  A syntactic walk (`fvar`
 annotations included; a `.proj` node names its structure), memoised on the
 node.  Both children of a binary node are evaluated (no short circuit), as
@@ -140,12 +141,13 @@ def mentionsAnyGo (names : List NIdx) (memo : Std.HashMap EIdx Bool) :
         pure (r, m.insert h r)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:192-194 Expr.mentionsAnyConstFast
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Positivity.mentionsAnyConst_bridge, then delete this line
 The executed `mentionsAnyConst` (one memoised DAG walk). -/
 def mentionsAnyConst (names : List NIdx) (e : EIdx) : AM Bool := do
   let r ← mentionsAnyGo names ∅ coreWalkFuel e
   pure r.1
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:201-207 memberIdxAt?
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:41-47 memberIdxAt?
 Which member of the block a head expression names, at the block's own level
 parameters `lvls` (an interned list, so `us == lvls` is handle equality);
 `none` at any other head. -/
@@ -159,7 +161,7 @@ def memberIdxAt? (names : List NIdx) (lvls : LsIdx) (e : EIdx) : AM (Option Nat)
 
 /-! ## Closing a telescope -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:211-219 closeTelescope
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:51-59 closeTelescope
 Close a telescope opened at the free variables `i ..< i + bs.length` back into
 a syntactic Π-telescope over `body`, the innermost binder first. -/
 def closeTelescope : List EIdx → Nat → EIdx → AM EIdx
@@ -171,7 +173,7 @@ def closeTelescope : List EIdx → Nat → EIdx → AM EIdx
 
 /-! ## A family's telescope -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:225-248 whnfTelescope
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:65-88 whnfTelescope
 **Official's telescope loop** (`check_inductive_types`): peel `n` Π binders
 off `e`, reducing the residual to weak head normal form before each binder and
 at the end, where it must be a sort.  Binder `i` is opened at the free
@@ -197,7 +199,7 @@ def whnfTelescope (mode : CheckMode) (fe : IFEnv) :
       else fail (.invalid "direct sum: type former does not reduce to a telescope                ")
 termination_by _ n => n
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:250-254 reducedFormer
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:90-94 reducedFormer
 A former at its reduced telescope (official's `whnf` loop, `n` binders),
 closed. -/
 def reducedFormer (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) (n : Nat) :
@@ -207,7 +209,7 @@ def reducedFormer (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) (n : Nat) 
   let ty ← closeTelescope bs 0 srt
   pure { cv with type := ty }
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:256-263 familyTelescope
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:96-103 familyTelescope
 **A stored family's type former, at its telescope**: its stored type where that
 shows one, else its reduct at its parameters and indices (`reducedFormer`). -/
 def familyTelescope (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) (caps : IIndCaps) :
@@ -217,7 +219,7 @@ def familyTelescope (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) (caps : 
     pure cvR.type
   else pure cv.type
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:265-276 checkSpineAt
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:105-116 checkSpineAt
 **The arguments of an application against the telescope `t`**: each
 argument's type definitionally equal to its binder's domain (at depth `d`),
 the domains instantiated along the spine. -/
@@ -235,7 +237,7 @@ def checkSpineAt (mode : CheckMode) (fe : IFEnv) (d : Nat) : EIdx → List EIdx 
         checkSpineAt mode fe d b as
     else fail (.invalid "function expected at a family's parameters")
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:278-289 familyKeyCheck
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:118-129 familyKeyCheck
 **A family at a key, typed** (official checks every replaced nested
 application, `tc.check(nested, …)`): the levels its own count, the arguments
 against its telescope (`familyTelescope`).  `find?` is `fe`; `us` is the
@@ -257,8 +259,9 @@ def familyKeyCheck (mode : CheckMode) (fe : IFEnv) (d : Nat) (c : NIdx) (us : Ls
 
 /-! ## `nestOcc`: official's `has_ind_occ`, with the holes -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:400-417 Expr.nestOcc
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:240-256 Expr.nestOcc
 con-leche: ConLeche/Kernel/Inductives/Positivity.lean:419-449 Expr.nestOccGo
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Positivity.nestOccGo_bridge, then delete this line
 Does a MEMBER or a HOLE (the free variables `lo ..< hi`) occur in `h`?  A
 free variable's annotation is NOT looked into, and a `.proj` node's structure
 name is no occurrence.  Short-circuiting, memoised on the node. -/
@@ -296,12 +299,13 @@ def nestOccGo (names : List NIdx) (lo hi : Nat) (memo : Std.HashMap EIdx Bool) :
         pure (r, m.insert h r)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:578-580 Expr.nestOccFast
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Positivity.nestOcc_bridge, then delete this line
 The executed `nestOcc` (one memoised DAG walk). -/
 def nestOcc (names : List NIdx) (lo hi : Nat) (e : EIdx) : AM Bool := do
   let r ← nestOccGo names lo hi ∅ coreWalkFuel e
   pure r.1
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:586-591 instPisWith
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:258-263 instPisWith
 Instantiate the leading `Π` binders of `e` at `args`, in order; `none` when
 `e` runs out of binders first. -/
 def instPisWith : List EIdx → EIdx → AM (Option EIdx)
@@ -317,7 +321,7 @@ def instPisWith : List EIdx → EIdx → AM (Option EIdx)
 
 /-! ## The records -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:593-600 NestKey
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:265-272 NestKey
 A container INSTANTIATION `C.{lvls} Ds`, the key of the only cache there is.
 `lvls` is the interned level list (a `const` node's own); the cited
 `DecidableEq` is handle equality componentwise. -/
@@ -327,7 +331,7 @@ structure NestKey where
   ds : List EIdx
   deriving BEq, Inhabited
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:602-610 NestHole
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:274-282 NestHole
 A HOLE of the walk: the instantiation it stands for, the first hole index of
 its frame, and the instantiated former's index count (the arguments the hole
 takes). -/
@@ -339,11 +343,12 @@ structure NestHole where
 
 /-! ## The input-derived fuel -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:627-628 fuelSlack
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:299-300 fuelSlack
 The fuel's slack above the term's depth. -/
 def fuelSlack : Nat := 1024
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:630-662 Expr.depthGo
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Positivity.depthGo_bridge, then delete this line
 The longest root-to-leaf path (`fvar` annotations not descended), memoised on
 the node, so a DAG costs its distinct nodes. -/
 def depthGo (memo : Std.HashMap EIdx Nat) : Nat → EIdx → AM (Nat × Std.HashMap EIdx Nat)
@@ -383,19 +388,20 @@ def depthGo (memo : Std.HashMap EIdx Nat) : Nat → EIdx → AM (Nat × Std.Hash
           | _ => pure (1, memo)
         pure (r, m.insert h r)
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:664-666 Expr.depth
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:302-311 Expr.depth
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Positivity.depth_bridge, then delete this line
 A term's depth, memoised. -/
 def depth (e : EIdx) : AM Nat := do
   let r ← depthGo ∅ coreWalkFuel e
   pure r.1
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:668-670 whnfWalkFuel
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:313-315 whnfWalkFuel
 The fuel of a walk through whnf starting at `e`: its depth plus the slack. -/
 def whnfWalkFuel (e : EIdx) : AM Nat := do
   let d ← depth e
   pure (d + fuelSlack)
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:672-682 NestFieldKind
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:317-327 NestFieldKind
 The field's kind as the run found it. -/
 inductive NestFieldKind where
   | ordinary
@@ -405,18 +411,18 @@ inductive NestFieldKind where
   | nested (refl : Bool)
   deriving DecidableEq, Repr, Inhabited
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:684-687 NestFieldKind.flat
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:329-332 NestFieldKind.flat
 A field kind the uniform route installs: no container instantiation. -/
 def NestFieldKind.flat : NestFieldKind → Bool
   | .ordinary | .recursive _ | .reflexive _ => true
   | _ => false
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:689-693 nestKindsFlat
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:334-338 nestKindsFlat
 Every field of every constructor of every member is flat. -/
 def nestKindsFlat (kss : List (List (List NestFieldKind))) : Bool :=
   kss.all (·.all (·.all NestFieldKind.flat))
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:695-715 NestCtorNf
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:340-360 NestCtorNf
 A constructor's walked normal form, recorded (K.53′): the constructor, the
 class's levels and parameters, and its walked field telescope, all read
 back. -/
@@ -427,7 +433,7 @@ structure NestCtorNf where
   ty : EIdx
   deriving Inhabited
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:717-728 NestCtx
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:362-373 NestCtx
 The block, as the function needs it.  `find?` is the `fe` every reader takes
 beside the record (the module note); `formers` are the members' type formers
 at their telescopes; `lvls` is `lps.map .param`, interned once. -/
@@ -442,7 +448,7 @@ structure NestCtx where
   lvls : LsIdx
   deriving Inhabited
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:732-744 NestState
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:377-389 NestState
 The run's state: the accepted instantiations (the cache), the instantiations
 in progress (innermost first), and every derived node's constructors
 normalised and read back, in walk order. -/
@@ -454,7 +460,7 @@ structure NestState where
 
 /-! ## Containers -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:760-771 nestCtorEntry
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:405-416 nestCtorEntry
 A stored constant's entry as a constructor of `C`: a constructor record whose
 result, past its parameters and fields, is headed by `C`. -/
 def nestCtorEntry (C : NIdx) (ci : IConstantInfo) :
@@ -472,7 +478,7 @@ def nestCtorEntry (C : NIdx) (ci : IConstantInfo) :
       else pure none
   | _ => pure none
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:773-788 nestContainer
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:418-433 nestContainer
 The constructors of the inductive `C` and its parameter count, looked up by
 the names its stored record lists (`IndCaps.ctors`); for an inductive without
 constructors its RECORDED parameter count (`IndCaps.nparams`); `none` when `C`
@@ -490,24 +496,24 @@ def nestContainer (fe : IFEnv) (C : NIdx) :
     | c :: _ => pure (some (c.2.1, cs.map fun c => (c.1, c.2.2)))
   | _ => pure none
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:790-792 nestNonValid
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:435-437 nestNonValid
 Official's "non valid occurrence". -/
 def nestNonValid : CheckError :=
   .invalid "nested positivity: non valid occurrence of the datatypes being declared"
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:794-797 NestCtx.hiAt
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:439-442 NestCtx.hiAt
 The first hole-free variable index of a walk under `nf` frames. -/
 def NestCtx.hiAt (ctx : NestCtx) (nf : Nat) : Nat :=
   ctx.nP + ctx.names.length + nf
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:799-803 NestCtx.rootHoles
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:444-448 NestCtx.rootHoles
 The ROOT frame's entries: each member at the block's own levels and canonical
 parameters, base `nP`, its index count the member's (`nIdxs.getD t 0`). -/
 def NestCtx.rootHoles (ctx : NestCtx) : List NestHole :=
   ctx.names.mapIdx fun t n =>
     { key := ⟨n, ctx.lvls, ctx.params⟩, base := ctx.nP, nIdx := ctx.nIdxs.getD t 0 }
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:805-810 nestHoleAt
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:450-455 nestHoleAt
 The hole `i`'s entry under the frames `prog`: the stack read root first — the
 root frame's entries, then `prog` from the outside (`prog` IS that order, the
 module note); `none` off the holes. -/
@@ -516,7 +522,7 @@ def nestHoleAt (ctx : NestCtx) (prog : List NestHole) (i : Nat) : Option NestHol
 
 /-! ## Reading a walked term back: `replaceFVars` and its four maps -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:820-833 Expr.replaceFVars
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:465-478 Expr.replaceFVars
 The function argument of `replaceFVars`, one variant per instantiation
 con-leche writes (the module note): `nestHoleImg ctx prog` (at the stack
 prefix of length `n`), `nestKeyMap ds holes`, `eraseFVarTys`' `fun i => some
@@ -534,7 +540,7 @@ def FvMap.rank : FvMap → Nat
   | .holeImg _ _ n => n + 1
   | _ => 0
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1180-1184 nestKeyMap
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:563-567 nestKeyMap
 The variable replacement of a key: the canonical parameter variable `i` to
 `ds[i]`, the canonical hole `|ds| + m` to `holes[m]`.  Placed ahead of
 `fvMapAt`, which dispatches to it. -/
@@ -543,7 +549,7 @@ def nestKeyMap (ds holes : List EIdx) (i : Nat) : Option EIdx :=
 
 mutual
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:820-833 Expr.replaceFVars
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:465-478 Expr.replaceFVars
 The map `f` applied to the variable `i`, by the variant. -/
 def fvMapAt (f : FvMap) (i : Nat) : AM (Option EIdx) := do
   match f with
@@ -558,8 +564,9 @@ def fvMapAt (f : FvMap) (i : Nat) : AM (Option EIdx) := do
 termination_by (f.rank, 0, 0)
 decreasing_by all_goals (simp_wf; simp only [Prod.lex_def, FvMap.rank] at *; (try split at *) <;> (try simp_all) <;> omega)
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:820-833 Expr.replaceFVars
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:465-478 Expr.replaceFVars
 con-leche: ConLeche/Kernel/Inductives/Positivity.lean:851-886 Expr.replaceFVarsGo
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Positivity.replaceFVarsGo_bridge, then delete this line
 Replace the free variables `f` maps (a mapped variable is replaced whole, its
 annotation not descended into), memoised on the node. -/
 def replaceFVarsGo (f : FvMap) (memo : Std.HashMap EIdx EIdx) (fuel : Nat) (h : EIdx) :
@@ -613,6 +620,7 @@ termination_by (f.rank, 0, fuel)
 decreasing_by all_goals (simp_wf; simp only [Prod.lex_def, FvMap.rank] at *; (try split at *) <;> (try simp_all) <;> omega)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:951-953 Expr.replaceFVarsFast
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Positivity.replaceFVars_bridge, then delete this line
 The executed `replaceFVars` (one memoised DAG walk, a fresh memo per
 call). -/
 def replaceFVars (f : FvMap) (e : EIdx) : AM EIdx := do
@@ -621,7 +629,7 @@ def replaceFVars (f : FvMap) (e : EIdx) : AM EIdx := do
 termination_by (f.rank, 1, 0)
 decreasing_by all_goals (simp_wf; simp only [Prod.lex_def, FvMap.rank] at *; (try split at *) <;> (try simp_all) <;> omega)
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:960-976 nestHoleImg
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:480-496 nestHoleImg
 **The holes read back** under the frames `prog[..n]` (the stack prefix of
 length `n`, its last element the innermost frame): member `m`'s hole `nP + m`
 is `T_m.{lps} p⃗`, a frame's hole its container applied to the frame's
@@ -652,7 +660,7 @@ end
 
 /-! ## The whole-application abstraction (`replaceApps` at `nestCanonSub`) -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:993-999 Expr.phApp?
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:513-519 Expr.phApp?
 `e` is a constant applied to EXACTLY the placeholder variables `fvar b, …,
 fvar (b + n - 1)` (annotations not compared): the constant's name and
 levels. -/
@@ -675,7 +683,7 @@ def phApp? (b : Nat) : EIdx → Nat → AM (Option (NIdx × LsIdx))
         else pure none
     else pure none
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1165-1171 nestCanonSub
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:548-554 nestCanonSub
 **The canonical whole-application substitution** of the group `names` at the
 levels `us` over `n` parameters: member `m` to the canonical hole `fvar (n +
 m)`; `v == us` is interned-list handle equality. -/
@@ -691,7 +699,7 @@ def nestCanonSub (names : List NIdx) (us : LsIdx) (n : Nat) (c : NIdx) (v : LsId
       pure (some r)
   else pure none
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1001-1004 Expr.appHole?
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:521-524 Expr.appHole?
 The hole a whole application is replaced by (`nestCanonSub` at its
 constant). -/
 def appHole? (names : List NIdx) (us : LsIdx) (b n : Nat) (e : EIdx) :
@@ -700,8 +708,9 @@ def appHole? (names : List NIdx) (us : LsIdx) (b n : Nat) (e : EIdx) :
   | none => pure none
   | some (c, v) => nestCanonSub names us n c v
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1006-1023 Expr.replaceApps
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:526-543 Expr.replaceApps
 con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1042-1080 Expr.replaceAppsGo
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Positivity.replaceAppsGo_bridge, then delete this line
 **The whole-application replacement**, pre-order, at `nestCanonSub names us`:
 a subterm that is a whole application is replaced by its hole and not
 descended into; free variables are leaves.  Memoised on the node. -/
@@ -755,13 +764,14 @@ def replaceAppsGo (names : List NIdx) (us : LsIdx) (b n : Nat)
         pure (r, m.insert h r)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1153-1155 Expr.replaceAppsFast
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Positivity.replaceApps_bridge, then delete this line
 The executed `replaceApps` at `nestCanonSub names us n` (one memoised DAG
 walk). -/
 def replaceApps (names : List NIdx) (us : LsIdx) (b n : Nat) (e : EIdx) : AM EIdx := do
   let r ← replaceAppsGo names us b n ∅ coreWalkFuel e
   pure r.1
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1162-1163 nestPhs
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:545-546 nestPhs
 The canonical parameter variables `fvar 0, …, fvar (n - 1)` at `Sort 0`. -/
 def nestPhs (n : Nat) : AM (List EIdx) :=
   (List.range n).mapM fun i => do
@@ -769,7 +779,7 @@ def nestPhs (n : Nat) : AM (List EIdx) :=
     let s ← internSortE z
     internFVarE i s
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1173-1178 nestCanonCrest
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:556-561 nestCanonCrest
 **A stored constructor type, canonically abstracted**: instantiated at the
 canonical parameter variables, every whole application of a member of `names`
 at the levels `us` replaced by its canonical hole. -/
@@ -782,7 +792,7 @@ def nestCanonCrest (names : List NIdx) (us : LsIdx) (n : Nat) (cty : EIdx) :
     let r ← replaceApps names us 0 n t
     pure (some r)
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1186-1192 nestCrest
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:569-575 nestCrest
 **A stored constructor type at a key**: its canonical abstraction, then the
 key's parameters and the frame's holes put in. -/
 def nestCrest (names : List NIdx) (us : LsIdx) (ds holes : List EIdx) (cty : EIdx) :
@@ -795,7 +805,7 @@ def nestCrest (names : List NIdx) (us : LsIdx) (ds holes : List EIdx) (cty : EId
 
 /-! ## The container's former, and a frame's constructors -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1194-1236 nestInstType
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:577-619 nestInstType
 The instantiation's type former, checked as official checks the auxiliary
 type before the block exists: the level count, the parameters bound (at the
 container's telescope, `familyTelescope`), (N2) the index telescope names no
@@ -835,13 +845,13 @@ def nestInstType (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (hi : Nat) (key
               else fail (.invalid "nested positivity: mutually inductive types must live in the same universe")
           | _ => fail (.invalid "nested positivity: invalid nested inductive datatype, its type is not a telescope ending in a sort (official: type expected)")
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1238-1245 nestResHead
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:621-628 nestResHead
 A constructor's result is headed by a variable (its hole). -/
 def nestResHead (e : EIdx) : AM Bool := do
   let hd ← getAppFn coreWalkFuel e
   pure (hd.tag == ETag.fvar)
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1266-1274 nestCtorNf
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:649-657 nestCtorNf
 **A frame constructor's record** (K.53′): the constructor at the frame's key
 `(us, ds)` under the frames `prog`, its walked telescope `closed`
 (con-leche's `closeTelescope nds hi cur`, computed once by the caller), all
@@ -855,7 +865,7 @@ def nestCtorNf (ctx : NestCtx) (prog : List NestHole) (us : LsIdx) (ds : List EI
 
 /-! ## A container frame's helpers -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1342-1354 nestGroupCtors
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:725-737 nestGroupCtors
 The constructors of every container in `cs` (at one parameter count), looked
 up; `ctors ++ rest` with the head's effects first, as an accumulator. -/
 def nestGroupCtors (fe : IFEnv) (nPc : Nat) :
@@ -869,7 +879,7 @@ def nestGroupCtors (fe : IFEnv) (nPc : Nat) :
         fail (.invalid "nested positivity: number of parameters mismatch in inductive datatype declaration (a container's group)")
       else nestGroupCtors fe nPc cs (out ++ ctors)
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1356-1361 nestBlockOf
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:739-744 nestBlockOf
 The recorded block of the inductive `C` (`IndCaps.all`): `[]` when none is
 recorded. -/
 def nestBlockOf (fe : IFEnv) (C : NIdx) : List NIdx :=
@@ -877,7 +887,7 @@ def nestBlockOf (fe : IFEnv) (C : NIdx) : List NIdx :=
   | some (.indInfo _ caps) => caps.all
   | _ => []
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1363-1369 nestFrameMates
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:746-752 nestFrameMates
 **A frame's group-mates** (N2-eager): every OTHER member of the container
 `C`'s recorded block, each once — the cited `eraseDups` then `filter (· !=
 C)` in one pass keeping first occurrences. -/
@@ -888,7 +898,7 @@ def nestFrameMates (fe : IFEnv) (C : NIdx) : List NIdx :=
       if n == C || out.contains n then go ns out else go ns (out ++ [n])
   go (nestBlockOf fe C) []
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1371-1378 nestGrowGroup
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:754-761 nestGrowGroup
 A frame's group grown by the named containers, each at the frame's
 instantiation, its hole typed by its instantiated former. -/
 def nestGrowGroup (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (hi : Nat) (us : LsIdx)
@@ -898,7 +908,7 @@ def nestGrowGroup (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (hi : Nat) (us
     let (_, cty) ← nestInstType mode fe ctx hi ⟨c, us, ds⟩
     nestGrowGroup mode fe ctx hi us ds cs (grp ++ [(c, cty)])
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1380-1387 nestAcceptGroup
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:763-770 nestAcceptGroup
 A frame's group accepted with its instantiation: every member at `(us, ds)`
 cached, those not cached yet. -/
 def nestAcceptGroup (us : LsIdx) (ds : List EIdx) :
@@ -909,7 +919,7 @@ def nestAcceptGroup (us : LsIdx) (ds : List EIdx) :
     if keys.contains k then nestAcceptGroup us ds grp keys
     else nestAcceptGroup us ds grp (keys.push k)
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1412-1416 nestWalkStack
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:795-799 nestWalkStack
 **The frame stack an instantiation is walked under**: the EMPTY one when its
 parameters mention no frame hole (`ds.all (·.fvarB ≤ hiAt 0)`, in order,
 stopping at the first failure), else the frames it was met under. -/
@@ -929,7 +939,7 @@ every fuel. -/
 
 mutual
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1247-1264 nestFields
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:630-647 nestFields
 A constructor's field telescope `cur` (`nF` fields from field `j`), each field
 through the walk at its depth `base + j`, the field opened at the variable
 `base + j` (annotated by its DECLARED domain): the fields' kinds, their walked
@@ -956,7 +966,7 @@ def nestFields (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (fuel : Nat)
 termination_by (0, fuel, 1, nF)
 decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *) <;> (try simp_all) <;> omega)
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1276-1340 nestCtors
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:659-723 nestCtors
 **A frame's constructors**, the root frame's (`root`: each constructor walked
 at the input-derived fuel of its instantiated type) and every container
 frame's (at the enclosing walk's `fuel`) alike: each with the frame's group
@@ -1009,7 +1019,7 @@ def nestCtors (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (root : Bool) (fue
 termination_by (if root then 1 else 0, fuel, 2, cs.length)
 decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *) <;> (try simp_all) <;> omega)
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1389-1410 nestFrame
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:772-793 nestFrame
 **A container frame** at the instantiation `(us, ds)`: the family `hn` at the
 key `(us, ds)` TYPED at the frame's depth (K.52, `familyKeyCheck`), its holes the container's
 WHOLE recorded group `grp`, every one of their constructors walked with all
@@ -1037,7 +1047,7 @@ def nestFrame (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (fuel : Nat)
 termination_by (0, fuel, 3, 0)
 decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *) <;> (try simp_all) <;> omega)
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1418-1441 nestContNew
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:801-824 nestContNew
 An instantiation's frame: the group-mates' former checks, the frame walked
 with the whole group in progress, and the whole group cached when its
 parameters mention no frame hole. -/
@@ -1060,7 +1070,7 @@ def nestContNew (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (fuel : Nat)
 termination_by (0, fuel, 4, 0)
 decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *) <;> (try simp_all) <;> omega)
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1443-1463 nestContKey
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:826-846 nestContKey
 The instantiation `(n, us, ds)` met: IN PROGRESS (met as a constant, which
 only reduction produces: official's "non valid occurrence"); cached — a hit,
 but only when its parameters mention no frame hole; else a new frame. -/
@@ -1079,7 +1089,7 @@ def nestContKey (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (fuel : Nat)
 termination_by (0, fuel, 5, 0)
 decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *) <;> (try simp_all) <;> omega)
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1465-1499 nestCont
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:848-882 nestCont
 **The container case** of `nestPos`: the reduct is the stored inductive
 `n.{us}` applied to `args`; its constructors looked up (`nestContainer`), its
 checks (enough arguments and hole-free indices, not `Quot`, parameters without
@@ -1118,7 +1128,7 @@ def nestCont (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (fuel : Nat)
 termination_by (0, fuel, 6, 0)
 decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *) <;> (try simp_all) <;> omega)
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1501-1554 nestPos
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:884-937 nestPos
 **The positivity function**: the domain `e` at depth `dep`, `kb` `Π` binders
 into the field, `prog` the instantiations in progress.  The reduct (the
 kernel's own whnf) mentions no member and no hole — ordinary, its normal form
@@ -1181,7 +1191,7 @@ end
 
 /-! ## The member holes and the root frame's crest -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1556-1565 nestHoles
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:939-948 nestHoles
 The member holes: member `m` is the free variable `nP + m`, typed by its
 former (`ctx.formers`, at its telescope) instantiated at the canonical
 parameters; `none` when a member has no former or its type does not bind the
@@ -1200,7 +1210,7 @@ def nestHoles (ctx : NestCtx) : AM (Option (List EIdx)) :=
       | none => pure none
   go 0 ctx.names []
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1567-1573 nestRootCanon
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:950-956 nestRootCanon
 **The root frame's canonical crest** of a member constructor: its whole member
 applications abstracted, at the block's levels. -/
 def nestRootCanon (ctx : NestCtx) (cv : IConstantVal) : AM (Option EIdx) := do
@@ -1209,7 +1219,7 @@ def nestRootCanon (ctx : NestCtx) (cv : IConstantVal) : AM (Option EIdx) := do
 
 /-! ## Uniform occurrences: official's `check_uniform_ind_occs` -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1600-1605 Expr.piDomsOcc
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:983-988 Expr.piDomsOcc
 Does a member or a hole occur in one of the first `n` binder domains of
 `e`? -/
 def piDomsOcc (names : List NIdx) (lo hi : Nat) : Nat → EIdx → AM Bool
@@ -1223,7 +1233,7 @@ def piDomsOcc (names : List NIdx) (lo hi : Nat) : Nat → EIdx → AM Bool
         else piDomsOcc names lo hi n b
     else pure false
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1607-1616 nestUniformOk
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:990-999 nestUniformOk
 **Official's `check_uniform_ind_occs` at one constructor**: the parameters'
 domains name no member, and its canonical crest has no member constant
 left. -/
@@ -1236,7 +1246,7 @@ def nestUniformOk (ctx : NestCtx) (cv : IConstantVal) : AM Bool := do
       let occ ← nestOcc ctx.names 0 0 crest
       pure !occ
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1618-1626 nestUniform
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1001-1009 nestUniform
 `nestUniformOk` at every stored constructor of every member, before the walk,
 in order, stopping at the first failure: a REJECT with official's wording (the
 constructor's name dropped, §3.1). -/
@@ -1248,7 +1258,7 @@ def nestUniform (ctx : NestCtx) : List (List (IConstantVal × Nat)) → AM Unit
 
 /-! ## The root frame and the seeds -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1642-1657 nestRoot
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1025-1040 nestRoot
 **The root frame**: every member's constructors through `nestCtors` at the
 root key (the block's levels, the canonical parameters, the holes above
 them), member by member, sharing the walk's state; each constructor at the
@@ -1262,7 +1272,7 @@ def nestRoot (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (holes : List EIdx)
       ctx.names holes cs ns []
     nestRoot mode fe ctx holes ctorss ns2 (outs ++ [o])
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1687-1695 nestSeedOf
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1070-1078 nestSeedOf
 **A resolved class as a seed**: the outside class `I.{us} ds` in the walk's
 representation — each parameter's whole member applications abstracted to
 the canonical holes, then every free variable replaced whole by the canonical
@@ -1274,7 +1284,7 @@ def nestSeedOf (ctx : NestCtx) (holes : List EIdx) (I : NIdx) (us : LsIdx)
     replaceFVars (.keyMap ctx.params holes) y
   pure (⟨I, us, ds2⟩, nPc)
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1697-1711 nestSeeds
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1080-1094 nestSeeds
 **The seeds walked**, in order, at the root: each class a container instance
 met at the empty frame stack (`nestContKey`), at the fuel its parameters'
 depths give (`key.ds.foldl (fun a d => max a (whnfWalkFuel d)) fuelSlack`,

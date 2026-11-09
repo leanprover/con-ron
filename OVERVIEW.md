@@ -236,7 +236,7 @@ is why `#print axioms` does not list any of them.
 | premise | what it says | how it is discharged |
 |---|---|---|
 | `[ConLeche.SetTheory V]` and con-leche's soundness | a set theory to build the model in; con-leche's `checkDeclsPure_sound_of` and `no_proof_of_False_pure` at the pinned revision | con-leche's own proof, on the same three axioms |
-| `h1`…`h5`, `hpins` | the binary ran exactly these extracted functions, in this order, on one state that starts at `AState::empty()` under one `PersTier::empty()` | the driver's calling order, which starts [here](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L329-L347); each call carries a `// ConRon.Capstone: hᵢ` comment: trusted |
+| `h1`…`h5`, `hpins` | the binary ran exactly these extracted functions, in this order, on one state that starts at `AState::empty()` under one `PersTier::empty()` | the driver's calling order, which starts [here](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L334-L352); each call carries a `// ConRon.Capstone: hᵢ` comment: trusted |
 | `h6`, `h7`, `h8` (the index, the freeze, the check phase) | the stream's index was built from the records (`build_index`, from `stream_index_empty()`) as `ix`; `freeze_tier` moved the persistent tables and `ix` into the tier; and the check phase's `parallel_all` accepted: `ParallelAll` says there are lists of record positions, one per worker, that together cover every record, each in increasing order, and for each list the worker's run (one `worker_state`, then `jobStep`, the verified `run_job` on each position, folded over the list) answered `Ok` at every step.  Nothing is assumed about a job being claimed only once | `h6` and `h7` are calls like `h1`…`h5`, inside `driver::check_decls_driver`.  `h8` is the contract of the one generic combinator `pool::parallel_all`, an argument about its control flow (§8.2).  The driver's observer only prints, so `--progress` runs are covered |
 | `hreads : ReadsAs sinst src chunks` ([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Frontend/Source.lean#L34-L38)) | the chunk source hands out `chunks`, each nonempty, then an empty buffer | that the file handle returns the file's bytes in order: trusted.  The read loop itself (`parse_source`) is verified |
 | `hpins : decode pinText = ok (.Ok pins)` | the pin list is what the verified decoder read from some text | the theorems hold at every text, as con-leche's hold at every pin list; the binary decodes the embedded `PINS_TEXT` (`decode_embedded`).  `model_exists_embedded`/`no_False_declaration_embedded` state that call itself, at the cost of one extra axiom Aeneas spends on the constant's definition.  `--pins FILE` and `--no-pins` bypass the decoder and are outside the theorems |
@@ -310,7 +310,7 @@ Aeneas cannot translate.
 ## 4. The expression representation
 
 The checker's state is one value,
-[`AState`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/monad.rs#L295-L317):
+[`AState`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/monad.rs#L300-L322):
 the **arena** (the store of all terms), the per-call memo tables and the
 per-declaration caches (§5), and the reserved-name pins (§6.1).  Checker
 functions take it as `&mut AState`, together with the shared persistent tier
@@ -396,7 +396,7 @@ The parse, the pin walk and the stream's index (§6.3) write the persistent tier
 directly.  Each record's check then runs inside a **bracket** on a worker's own
 store: `enter_record` empties the scratch tier and the memos, and
 `leave_record` empties the scratch tier again and flushes the caches
-([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L10827-L10846)).
+([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L10890-L10909)).
 Nothing a check builds outlives it: what a declaration adds to the environment
 is read off the record itself when the index is built, so no term ever has to
 move from the scratch tier to the persistent one.  Dropping the tier leaves
@@ -424,7 +424,7 @@ shared tier, by construction, not by a guard.  After the check phase,
 `ReaderT PersTier` layer on the checker monad.
 
 The environment has two tiers in the same way
-([`IFEnv`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/env.rs#L583-L612)).
+([`IFEnv`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/env.rs#L586-L615)).
 A job's environment is an empty layer of its own over the frozen index: a
 lookup reads the layer first (skipped while it is empty), then the index below
 the record's position.  No job copies the environment.
@@ -529,7 +529,7 @@ They are the stages of the theorems (§3): `h1`…`h5`, then the index and the j
    record is dropped or changed; moving a record earlier can only turn an
    accept into a reject.
 5. **`intern_all_pins`**
-   ([`intern_all_pins`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/checker.rs#L160-L186)):
+   ([`intern_all_pins`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/checker.rs#L162-L188)):
    every **pin** is interned into the persistent tier.  A pin is data,
    fixed by con-leche, that the checker compares stream records against:
    the five basis blocks, the standard and trusted axiom statements, and the
@@ -545,7 +545,7 @@ They are the stages of the theorems (§3): `h1`…`h5`, then the index and the j
 The parser is in the verified crate
 ([`frontend/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/mod.rs#L19-L30)).
 The driver reads the file forward in 4 MiB chunks through the
-[`HandleSource`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L907-L948)
+[`HandleSource`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L924-L965)
 chunk source and never holds the whole file.  Each line goes through a byte
 recogniser ported from con-leche's `Scan/Fast.lean`, the scanner
 con-leche's binary actually runs.  Records are interned straight into the
@@ -573,9 +573,9 @@ has one writer, and con-leche's parallel load is not ported.
 
 There is no install phase.  After the parse, the stream's **index** is built
 once, from the records alone
-([`build_index`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/stream_index.rs#L160-L181)):
+([`build_index`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/stream_index.rs#L161-L182)):
 what each record adds to the environment is a function of the record
-([`decl_constants`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/install.rs#L322-L358)
+([`decl_constants`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/install.rs#L325-L361)
 and `decl_tables`, con-leche's `Kernel/Install.lean`: a definition's constant, a
 block's formers, constructors, recursors with the record's K flag and their
 rules' firing mode, and its projection tables, read off its records with no
@@ -595,7 +595,7 @@ it is used, from the former's stored type.  The first failing job in fold order 
 the verdict; a failing guard at record 9 no longer overtakes a failing value at
 record 5.  On an `--olean` run a theorem's value stays in its file until its job,
 which reads it into the worker's scratch tier
-([`olean_job`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L589-L639)).
+([`olean_job`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L603-L653)).
 
 The checked install is con-leche's uniform route
 (`arena/inductives/`, `check_decl`'s `.indDecl` arm): the recogniser reads

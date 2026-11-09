@@ -53,8 +53,9 @@ open ConLeche
 
 /-! ## The holes: the block's members abstracted to free variables -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:65-85 targetAbs
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:66-86 targetAbs
 con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:106-146 targetAbsGo
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove RecCheck.targetAbsGo_bridge, then delete this line
 **The member abstraction of one term**: every member at the block's levels
 `lvls` becomes its hole; `fvar` annotations are not entered.  Memoised on the
 node. -/
@@ -110,13 +111,14 @@ def targetAbsGo (names : List NIdx) (lvls : LsIdx) (holes : List EIdx)
         pure (r, memo.insert h r)
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:216-218 targetAbsFast
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove RecCheck.targetAbs_bridge, then delete this line
 The executed member abstraction (one memoised DAG walk, a fresh memo). -/
 def targetAbs (names : List NIdx) (lvls : LsIdx) (holes : List EIdx) (e : EIdx) :
     AM EIdx := do
   let (r, _) ← targetAbsGo names lvls holes {} coreWalkFuel e
   pure r
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:224-227 targetHoles
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:88-91 targetHoles
 The holes of a rule frame of width `base`: member `t` is `.fvar (base + t)` at
 its former's type, interned in member order. -/
 def targetHoles : List EIdx → Nat → AM (List EIdx)
@@ -128,7 +130,7 @@ def targetHoles : List EIdx → Nat → AM (List EIdx)
 
 /-! ## The major -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:231-251 TargetMajor
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:95-115 TargetMajor
 **A recursor's major, resolved**: `ind.{lvls} ds ı⃗`, its parameter and index
 counts at the instantiation, its constructors, the member it is (`none`: an
 outside inductive), the table's entries for its constructors and the recursor
@@ -148,7 +150,7 @@ structure TargetMajor where
   pfvs : List EIdx := []
   deriving Inhabited
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:231-251 TargetMajor
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:95-115 TargetMajor
 The cited `deriving Inhabited` default, `Ms.getD c default`'s fallback: the
 anonymous inductive at no level and no parameter, its name interned and its
 level list the pinned empty one (as the Rust builds it).  Only an out-of-range
@@ -159,26 +161,26 @@ def targetMajorDefault : AM TargetMajor := do
   pure { ind := anon, lvls := ls, ds := [], nPc := 0, nIdx := 0, ctors := [],
          member := none, nfs := [], pfvs := [] }
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:231-251 TargetMajor
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:95-115 TargetMajor
 `Ms.getD c default`: the class at `c`, else `targetMajorDefault`. -/
 def targetMajorAt (ms : List TargetMajor) (c : Nat) : AM TargetMajor :=
   match ms[c]? with
   | some m => pure m
   | none => targetMajorDefault
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:287-291 Expr.eraseFVarTys
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:131-135 Expr.eraseFVarTys
 A term with every free variable's ANNOTATION erased (the variable kept at
 `Sort 0`). -/
 def eraseFVarTys (e : EIdx) : AM EIdx :=
   replaceFVars .erase e
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:315-318 targetCanonParams
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:159-162 targetCanonParams
 A term over the walk's canonical parameter variables, moved to the class's
 openers `pfvs` (variables `0 … |pfvs|-1`, the rest kept). -/
 def targetCanonParams (pfvs : List EIdx) (e : EIdx) : AM EIdx :=
   replaceFVars (.canon pfvs) e
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:320-339 targetParamsDefEq
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:164-183 targetParamsDefEq
 **Per-component parameter defeq** at depth `d`, each side moved to the openers
 and member-abstracted (`absM` is `targetAbs names lvls holes`, its one
 instantiation): both sides closed over the openers (the four reads in order,
@@ -207,7 +209,7 @@ def targetParamsDefEq (mode : CheckMode) (fe : IFEnv) (d : Nat) (names : List NI
         else pure false
   | _, _ => pure false
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:341-350 targetClassMatch
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:185-194 targetClassMatch
 **A class matches a recorded instantiation `(lvls, eds)`**: levels up to
 `Level.isEquivList` (an exhausted comparison is no match), parameters pairwise
 defeq with the members abstracted, over the class's recursor prefix `pfvs`
@@ -223,7 +225,7 @@ def targetClassMatch (mode : CheckMode) (fe : IFEnv) (p : BlockShape)
     targetParamsDefEq mode fe (pfvs.length + formerTys.length) names blvls holes pfvs ds eds
   | _ => pure false
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:352-364 targetMajorNfs
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:196-208 targetMajorNfs
 **The walk's recorded constructor normal forms of a class**: the entries of
 the class's constructors whose instantiation the class matches.  The tail
 first, so the entries are examined from the last to the first (the Rust counts
@@ -240,14 +242,14 @@ def targetMajorNfs (mode : CheckMode) (fe : IFEnv) (p : BlockShape)
       else pure rest
     else pure rest
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:366-370 targetCtorsOf
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:210-214 targetCtorsOf
 The constructors of a stored inductive `I` and its parameter count
 (`nestContainer`'s reading, which reads nothing of its context but the
 lookup). -/
 def targetCtorsOf (fe : IFEnv) (I : NIdx) : AM (Option (Nat × List (IConstantVal × Nat))) :=
   nestContainer fe I
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:372-387 targetOutsideInst
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:216-231 targetOutsideInst
 The instantiated type former of an OUTSIDE major `I.{us} ds` (at its
 telescope, `familyTelescope`): its index count and its result sort.  The
 Rust's `target_outside_inst_at` is the part after the lookup. -/
@@ -270,7 +272,7 @@ def targetOutsideInst (mode : CheckMode) (fe : IFEnv) (I : NIdx) (us : LsIdx)
 
 /-! ## A recursor's class, resolved -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:391-448 targetMajorOf
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:235-292 targetMajorOf
 **A recursor's major, resolved** from its opened type `mty`: a MEMBER of the
 block at the block's levels and parameters, or — a nested block's container —
 any other stored inductive at one of the block's auxiliary types: not `Quot`,
@@ -334,7 +336,7 @@ def targetMajorOf (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (pfvs fvs : L
     fail (.invalid "target rec: the recursor's major premise is not an inductive's \
       application")
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:450-467 targetPinTys
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:294-311 targetPinTys
 **An outside major's parameters, typed at the rule prefix** (depth `d`), in
 order. -/
 def targetPinTys (mode : CheckMode) (fe : IFEnv) (d : Nat) : List EIdx → AM Unit
@@ -343,7 +345,7 @@ def targetPinTys (mode : CheckMode) (fe : IFEnv) (d : Nat) : List EIdx → AM Un
     let _ ← inferTypeCore mode fe checkFuel d x
     targetPinTys mode fe d xs
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:469-484 targetMajorPins
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:313-328 targetMajorPins
 The check at a resolved major: an outside major's parameters typed at the rule
 prefix, and the family at the key `I.{us} D⃗` typed there (`familyKeyCheck`).
 Nothing at a member. -/
@@ -357,7 +359,7 @@ def targetMajorPins (mode : CheckMode) (fe : IFEnv) (rP : Nat) (M : TargetMajor)
 
 /-! ## The recursor records' pins -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:488-526 targetRecPins
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:332-370 targetRecPins
 **The recursor records' pins**: the level parameters, the reserved names, the
 member recursors' names as the set `{T_m.rec}`, the auxiliary ones as
 `T_0.rec_1 … T_0.rec_n` (member 0's name, `.anonymous` at no member,
@@ -396,7 +398,7 @@ def targetRecPins (p : BlockShape) (block : List IConstantInfo) : AM Unit := do
 
 /-! ## A class's constructors, and node agreement (K.53′) -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:530-536 targetCtorAt
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:374-380 targetCtorAt
 A constructor's type at the major's LEVELS: a member's as stored, an outside
 inductive's instantiated at the major's. -/
 def targetCtorAt (M : TargetMajor) (c : IConstantVal) : AM EIdx :=
@@ -404,7 +406,7 @@ def targetCtorAt (M : TargetMajor) (c : IConstantVal) : AM EIdx :=
   | some _ => pure c.type
   | none => instLPFast coreWalkFuel c.levelParams M.lvls c.type
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:538-564 targetK53
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:382-408 targetK53
 **K.53′ at one recorded field** `f`: its telescope is the call's `tele` and its
 leaf the callee's major `majDom`, up to the free variables' annotations, the
 leaf's head and arity the major's, its indices up to annotations, its class
@@ -445,7 +447,7 @@ def targetK53 (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (formerTys : List
                 else pure false
       else pure false
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:566-571 targetPiDomsWith
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:410-415 targetPiDomsWith
 The domains of the first `|xs|` `∀` binders, each instantiated at the earlier
 `xs`. -/
 def targetPiDomsWith : List EIdx → EIdx → AM (Option (List EIdx))
@@ -463,7 +465,7 @@ def targetPiDomsWith : List EIdx → EIdx → AM (Option (List EIdx))
 
 /-! ## The stored family -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:582-589 Expr.abstractPrefix
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:426-433 Expr.abstractPrefix
 **The free variables `0 … k-1` closed at cursor `c`**: `fvar i` becomes
 `bvar (c + k - 1 - i)`, as the fold of `abstract1` passes, innermost first.
 Structural on `k`. -/
@@ -473,7 +475,7 @@ def abstractPrefix : Nat → Nat → EIdx → AM EIdx
     let e' ← abstract1Fast coreWalkFuel e k c
     abstractPrefix k (c + 1) e'
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:591-598 auxRuleFire —
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:435-442 auxRuleFire —
 `M.ds.map (Expr.abstractPrefix rP 0)`, as an explicit list recursion (DESIGN
 §3.4). -/
 def abstractPrefixList (rP : Nat) : List EIdx → AM (List EIdx)
@@ -483,7 +485,7 @@ def abstractPrefixList (rP : Nat) : List EIdx → AM (List EIdx)
     let xs ← abstractPrefixList rP ds
     pure (x :: xs)
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:591-598 auxRuleFire —
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:435-442 auxRuleFire —
 **the firing mode of a rule at an OUTSIDE major** (rule prefix `rP`):
 `.nested` at the class's levels and its parameters closed over the rule
 prefix (con-leche's task #342 S5C: computed, not read off the recursor's
@@ -493,7 +495,7 @@ def auxRuleFire (M : TargetMajor) (rP : Nat) : AM IRecRuleFire := do
   let pins ← abstractPrefixList rP M.ds
   pure (.nested lvls pins)
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:600-611 generatedRules
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:444-455 generatedRules
 **One generated recursor's rules, at its major**: `sumRules` at the major's
 constructors; at an OUTSIDE major every rule fires `auxRuleFire` (computed
 once).  Reads no environment.  The Rust's `refire` is the `map`. -/
@@ -505,7 +507,7 @@ def generatedRules (rP : Nat) (M : TargetMajor) (rhss : List EIdx) : AM (List IR
     let f ← auxRuleFire M rP
     pure (rules.map fun rl => { rl with fire := f })
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:613-622 recKExpected
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:457-466 recKExpected
 **The K flag a recursor of this block has** (official's `is_K_target`): the
 block is a proposition with one member, and the recursor's major is that member,
 with one constructor and no fields.  An outside major's recursor is never K. -/
@@ -514,13 +516,13 @@ def recKExpected (p : BlockShape) (M : TargetMajor) : Bool :=
   | some _, [c] => p.k == 1 && p.isProp && c.2 == 0
   | _, _ => false
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:635-641 blockNestedBit
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:479-485 blockNestedBit
 **The block's container bit**: some field kind is not flat or some recursor's
 major is not a member. -/
 def blockNestedBit (p : BlockShape) (kinds : List (List (List NestFieldKind))) : Bool :=
   if nestKindsFlat kinds then p.recs.any (fun rc => !(rc.tgt < p.k)) else true
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:643-653 blockRecInfosTF
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:487-497 blockRecInfosTF
 **The checked family's records, at their majors**, in push order: each recursor
 at its record's major index and rule prefix, its K flag `recKExpected` and its
 rules at ITS major (`generatedRules`).  Every record is built before the first

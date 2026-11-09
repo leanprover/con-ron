@@ -38,7 +38,8 @@ open ConLeche
 /-! ## One declaration -/
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
-con-leche: ConLeche/Cached/ParsedC.lean:152-224 checkDeclKindC
+con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove CheckDecl.checkStructuralNatPinAtFe2_bridge, then delete this line
 The `.defnDecl` arm's structural-`Nat` gate, its reads at `fe2` (the
 environment with the definition): `natOpGuard` and the dependencies' storage,
 then the stored value. -/
@@ -53,7 +54,8 @@ def checkStructuralNatPinAtFe2 (fe2 : IFEnv) (n : NIdx) : AM EIdx := do
   | _ => fail (.internal "structural Nat operation not stored")
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
-con-leche: ConLeche/Cached/ParsedC.lean:152-224 checkDeclKindC
+con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove CheckDecl.checkStructuralNatPin_bridge, then delete this line
 **The structural-`Nat` gate**: the reads at `fe2`, then `certifyNatEqs` at `fe`,
 the environment without the definition, over the equations with the
 operation's self-references substituted.  Certifying with the definition
@@ -72,7 +74,8 @@ def checkStructuralNatPin (mode : CheckMode) (fe : IFEnv) (ci : IConstantInfo)
   pure fe
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
-con-leche: ConLeche/Cached/ParsedC.lean:152-224 checkDeclKindC
+con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove CheckDecl.checkDeclKind_bridge, then delete this line
 **A declaration's own checks**, by its kind, extending the environment on
 success.  A value arm checks the value returning the record unpushed, runs its
 pinned gates, and pushes last.  A block under a pinned basis block's names
@@ -152,7 +155,7 @@ def checkDeclKind (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
   | .quotDecl k cv => checkQuotRecord fe k cv
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:166-174 checkDecl
-con-leche: ConLeche/Cached/ParsedC.lean:226-232 checkDeclC
+con-leche: ConLeche/Cached/ParsedC.lean:317-323 checkDeclC
 **Check a single declaration**: its own checks (`checkDeclKind`), then the
 reserved names' (`basisNamesOk`), which justify the model's fixed meanings of
 the basis names.  The per-declaration caches are flushed between the two (the
@@ -168,7 +171,8 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
 
 /-! ## The spec fold -/
 
-/-- con-leche: ConLeche/Cached/Decls.lean:38-52 declStep
+/-- con-leche: ConLeche/Cached/Decls.lean:44-58 declStep
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove CheckDecl.checkDeclStep_bridge, then delete this line
 con-leche: ConLeche/Kernel/CheckDecl.lean:176-180 checkDeclsPure
 **One record of the fold**: the `And` pin, then the record's check from a
 fresh memo state (`flushCaches`, an empty `Memos`: the cited `checkDeclStepC`'s
@@ -184,7 +188,8 @@ def checkDeclStep (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
   set { s with memos := Memos.empty }
   checkDecl mode pins fe d
 
-/-- con-leche: ConLeche/Cached/Decls.lean:77-86 checkDecls
+/-- con-leche: ConLeche/Cached/Decls.lean:83-92 checkDecls
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove CheckDecl.checkDeclsPureGo_bridge, then delete this line
 con-leche: ConLeche/Kernel/CheckDecl.lean:176-180 checkDeclsPure
 The fold over a list of records, one `checkDeclStep` each.  con-leche's
 `ds.foldlM (declStep mode pins)` takes a closure, which DESIGN §3.4 forbids, so
@@ -194,7 +199,8 @@ def checkDeclsPureGo (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv) 
   | [] => pure fe
   | d :: ds => do checkDeclsPureGo mode pins (← checkDeclStep mode pins fe d) ds
 
-/-- con-leche: ConLeche/Cached/Decls.lean:77-86 checkDecls
+/-- con-leche: ConLeche/Cached/Decls.lean:83-92 checkDecls
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove CheckDecl.checkDeclsPure_bridge, then delete this line
 con-leche: ConLeche/Kernel/CheckDecl.lean:176-180 checkDeclsPure
 **The spec fold**: from the empty environment. -/
 def checkDeclsPure (mode : CheckMode) (pins : List INatOpPinSet)

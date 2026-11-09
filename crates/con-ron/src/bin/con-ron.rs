@@ -82,7 +82,7 @@ use con_ron_core::arena::store::PersTier;
 // `--help` prints `con_ron_dump::ALLOCATOR` so a measurement can be
 // reproduced.
 
-/// con-leche: ConLeche/Driver/Cli.lean:104-108 synopsis
+/// con-leche: ConLeche/Driver/Cli.lean:116-120 synopsis
 /// The invocation forms, printed on their own when there are no arguments.
 /// `--pins`/`--no-pins` are the port's own testing flags (`driver::pins_for_run`)
 /// and are not in con-leche's synopsis; they are in the help text's options.
@@ -91,11 +91,12 @@ Usage:
   con-ron [OPTIONS] [--] FILE.ndjson
   con-ron [OPTIONS] --olean --search-path=DIRS [--] MODULE...";
 
-/// con-leche: ConLeche/Driver/Cli.lean:110-111 tryHelp
+/// con-leche: ConLeche/Driver/Cli.lean:122-123 tryHelp
 /// The line after a usage error.
 const TRY_HELP: &str = "Try 'con-ron --help' for more information.";
 
-/// con-leche: ConLeche/Driver/Cli.lean:113-141 helpText
+/// con-leche: ConLeche/Driver/Cli.lean:125-155 helpText
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove con-ron::HELP_HEAD_refines, then delete this line
 /// The `--help` text: con-leche's, with this binary's name, the port's two
 /// testing flags, and con-ron's documentation.  DESIGN.md §3.1: message
 /// strings need not match.
@@ -103,7 +104,8 @@ const HELP_HEAD: &str = "\
 Check Lean declarations from a lean4export file or from .olean modules.
 ";
 
-/// con-leche: ConLeche/Driver/Cli.lean:113-141 helpText
+/// con-leche: ConLeche/Driver/Cli.lean:125-155 helpText
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove con-ron::HELP_TAIL_refines, then delete this line
 /// The rest of the `--help` text, after the synopsis.
 const HELP_TAIL: &str = "\
 Options:
@@ -140,7 +142,8 @@ fn usage_error(msg: &str) -> u8 {
     3
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:143-159 Args
+/// con-leche: ConLeche/Driver/Cli.lean:157-175 Args
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove con-ron::Args_refines, then delete this line
 /// What the command line asked for — `con-ron`'s `Args`, field for field, so
 /// that a script written against one binary reads against the other.
 struct Args {
@@ -159,7 +162,8 @@ struct Args {
     bad: Option<String>,
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:175-209 parseArgs
+/// con-leche: ConLeche/Driver/Cli.lean:191-229 parseArgs
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove con-ron::parse_args_refines, then delete this line
 /// The argument parse, clause for clause as `con-ron`'s: the mode flags in
 /// either order with the heartbeat, `=`-carrying spellings after the bare
 /// ones, an unknown `-`-leading word a usage error, everything else a file.
@@ -246,7 +250,7 @@ fn parse_args(argv: &[String]) -> Args {
     a
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:161-164 helpWanted
+/// con-leche: ConLeche/Driver/Cli.lean:177-180 helpWanted
 /// `--help` before any `--`: after a `--` every argument is a file, whatever it
 /// is called.
 fn help_wanted(argv: &[String]) -> bool {
@@ -307,6 +311,7 @@ enum Input {
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove con-ron::check_main_refines, then delete this line
 /// con-leche: ConLeche/Driver/CheckMain.lean:87-98 readInputG
 /// The driver's front matter: the prelude, the streaming parse, the
 /// preparation, the pin walk, the receipts, then the index, the check phase
@@ -569,7 +574,8 @@ fn exit_after_verdict(code: u8) -> ! {
     std::process::exit(code as i32)
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:219-304 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:239-324 runArgs
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove con-ron::main_refines, then delete this line
 /// con-leche: Main.lean:56-103 main
 /// The entry point.  The checker runs IN THIS PROCESS: it spawns no copy of
 /// itself, and the whole run — parse, preparation, pin walk, fold — is on one
@@ -584,7 +590,8 @@ fn main() -> ! {
     exit_after_verdict(run_main())
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:219-304 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:239-324 runArgs
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove con-ron::run_main_refines, then delete this line
 /// The run up to its exit code, for every path but the verdict's.
 fn run_main() -> u8 {
     let argv: Vec<String> = std::env::args().skip(1).collect();

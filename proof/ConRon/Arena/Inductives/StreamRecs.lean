@@ -32,7 +32,7 @@ namespace ConRon.Arena
 
 open ConLeche
 
-/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:41-55 recDomsAt
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:42-56 recDomsAt
 **A record's type's domains against the generated one's**, binder by binder
 from binder `j` on (`k` of them): each stored domain `isDefEq` to the generated
 one at its depth, both telescopes opened at their own locals. -/
@@ -49,7 +49,7 @@ def recDomsAt (mode : CheckMode) (fe : IFEnv) (sfvs gfvs : List EIdx) :
       recDomsAt mode fe sfvs gfvs (j + 1) k
     | _, _ => fail (.internal "stored recursor: domain index")
 
-/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:57-70 recTyOpened
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:58-71 recTyOpened
 The record's and the generated type, opened `n` binders deep: the domains, then
 the residues. -/
 def recTyOpened (mode : CheckMode) (fe : IFEnv) (n : Nat) :
@@ -61,8 +61,10 @@ def recTyOpened (mode : CheckMode) (fe : IFEnv) (n : Nat) :
   | none, _ => fail (.invalid "the type of the recursor  is not the generated one: it has fewer than  binders")
   | some _, none => fail (.internal "the generated type of the recursor  has fewer than  binders")
 
-/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:72-86 recTyCheck
-con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:88-109 ruleAgree
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:73-87 recTyCheck
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StreamRecs.streamClosed_bridge, then delete this line
+con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:89-110 ruleAgree
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StreamRecs.streamClosed_bridge, then delete this line
 The test both open with: `s.looseBVarsBounded 0 && !s.hasFvar && !g.hasFvar`. -/
 def streamClosed (s g : EIdx) : AM Bool := do
   if ← looseBVarsBoundedFast coreWalkFuel 0 s then
@@ -72,7 +74,8 @@ def streamClosed (s g : EIdx) : AM Bool := do
       pure !h
   else pure false
 
-/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:72-86 recTyCheck
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:73-87 recTyCheck
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StreamRecs.recTyCheck_bridge, then delete this line
 **A record's type's check**: closed, at the record's level parameters `lps`,
 resolving, a type (inferred, a sort), and the generated one binder by binder up
 to the major (`n` binders): the domains, then the residues. -/
@@ -90,7 +93,8 @@ def recTyCheck (mode : CheckMode) (fe : IFEnv) (lps : List NIdx) (n : Nat) (s g 
   let go ← openPisAtFvars n g 0
   recTyOpened mode fe n so go
 
-/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:88-109 ruleAgree
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:89-110 ruleAgree
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StreamRecs.ruleAgree_bridge, then delete this line
 **One rule's check**: the record's right-hand side `s` is closed, at the
 record's level parameters `lps`, resolving; it and the generated `g` are
 inferred, their types are definitionally equal, and so are they. -/
@@ -108,7 +112,7 @@ def ruleAgree (mode : CheckMode) (fe : IFEnv) (lps : List NIdx) (s g : EIdx) : A
   unless ← isDefEqCore mode fe checkFuel 0 s g do
     fail (.invalid "the recursor 's rule for  has a right-hand side that is not definitionally equal to the generated one")
 
-/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:111-128 streamNestedOk
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:112-129 streamNestedOk
 The major's domain against the firing data: its head a constant at the firing
 levels, its arguments the pins lifted past the index binders and the index
 variables.  The Rust's `stream_nested_pins` and `stream_nested_bvars` are the two
@@ -128,7 +132,7 @@ def streamNestedDom (dom : EIdx) (n : Nat) (lvls : List LIdx) (pins : List EIdx)
       else pure false
   else pure false
 
-/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:111-128 streamNestedOk
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:112-129 streamNestedOk
 **An auxiliary recursor's type fires where the generated one does**: its major's
 domain (binder `mI`) is the container at the firing data's levels, applied to
 the pins lifted past the index binders and the index variables.  `true` at a
@@ -146,7 +150,7 @@ def streamNestedOk (ty : EIdx) (mI rP : Nat) : IRecRuleFire → AM Bool
         | some (dom, _) => streamNestedDom dom (mI - rP) lvls pins
       else pure false
 
-/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:130-135 generatedFire
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:131-136 generatedFire
 The firing mode the generated recursor's rules carry at its major
 (`generatedRules`): `.nested` at an outside major, `.plain` at a member. -/
 def generatedFire (M : TargetMajor) (rP : Nat) : AM IRecRuleFire :=
@@ -154,7 +158,7 @@ def generatedFire (M : TargetMajor) (rP : Nat) : AM IRecRuleFire :=
   | none => auxRuleFire M rP
   | some _ => pure .plain
 
-/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:137-149 streamRulesShape
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:138-150 streamRulesShape
 The record's rules' shape against the generated recursor's class: one rule per
 constructor of the class, in order, each with its field count. -/
 def streamRulesShape : List IRecRule → List (IConstantVal × Nat) → AM Unit
@@ -165,7 +169,8 @@ def streamRulesShape : List IRecRule → List (IConstantVal × Nat) → AM Unit
     streamRulesShape rs cs
   | _, _ => fail (.invalid "the recursor  carries  more or fewer rules than the generated one ( unmatched)")
 
-/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:151-160 streamRulesCheck
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:152-161 streamRulesCheck
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StreamRecs.streamRulesCheck_bridge, then delete this line
 The record's rules' checks, each against the generated right-hand side at its
 position (a rule equal to the generated one needs none). -/
 def streamRulesCheck (mode : CheckMode) (fe : IFEnv) (lps : List NIdx) :
@@ -177,7 +182,8 @@ def streamRulesCheck (mode : CheckMode) (fe : IFEnv) (lps : List NIdx) :
   | [], [] => pure ()
   | _, _ => fail (.internal "the recursor : the generated rules are not one per stored rule")
 
-/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:162-167 streamRecCompare
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:163-168 streamRecCompare
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StreamRecs.streamRecCompare_bridge, then delete this line
 **The comparison of one recursor**: its type unless it is the generated one, and
 its rules. -/
 def streamRecCompare (mode : CheckMode) (fe : IFEnv) (rc : RecShape)
@@ -186,7 +192,8 @@ def streamRecCompare (mode : CheckMode) (fe : IFEnv) (rc : RecShape)
     recTyCheck mode fe g.1.levelParams (rc.mI + 1) rc.cvR.type g.1.type
   streamRulesCheck mode fe g.1.levelParams rc.rules g.2.2
 
-/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:169-178 streamRecCheck
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:170-179 streamRecCheck
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StreamRecs.streamRecCheck_bridge, then delete this line
 **One recursor, the stream's against the generated one**: the rules' shape and
 the record's major's container, then the comparison. -/
 def streamRecCheck (mode : CheckMode) (fe : IFEnv) (rc : RecShape)
@@ -197,7 +204,8 @@ def streamRecCheck (mode : CheckMode) (fe : IFEnv) (rc : RecShape)
     fail (.invalid "the recursor 's stored type does not apply its major's container at the generated firing data")
   streamRecCompare mode fe rc g
 
-/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:180-188 streamRecsCheck
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:181-189 streamRecsCheck
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StreamRecs.streamRecsCheck_bridge, then delete this line
 **The block's recursors against the generated ones**, record by record (the
 generated family is in the records' order). -/
 def streamRecsCheck (mode : CheckMode) (fe : IFEnv) :
@@ -208,7 +216,7 @@ def streamRecsCheck (mode : CheckMode) (fe : IFEnv) :
   | [], [] => pure ()
   | _, _ => fail (.internal "stored recursors: the generated family is not the records'")
 
-/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:190-201 streamKCheck
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:191-202 streamKCheck
 **The records' K flags against the block**: each record's flag is the one the
 generated recursor has (`recKExpected`); the message drops the interpolation. -/
 def streamKCheck (p : BlockShape) :

@@ -213,7 +213,7 @@ pub fn struct_ctor_resid_ok(
 // The projection bodies (`StructParts.lean:313-335` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:75-81 structProjPs
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:75-79 structProjPs
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:97-100 structProjPs`
 /// — the parameter spine of the generated projection types, spelled at the
 /// frame of the final `∀ p⃗ (t : T p⃗), _` telescope: `p_k = bvar (nP - k)`.
@@ -221,7 +221,7 @@ pub fn struct_proj_ps(pers: &PersTier, st: &mut AState, n_p: u64) -> Result<Vec<
     struct_ps_at(pers, st, 1, n_p)
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:83-89 structProjArgP
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:81-87 structProjArgP
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:102-107 structProjArgP`
 /// — the `j`-th earlier-field substitute in a tower entry's generated type: the
 /// first-class node `t.j` (`.proj T j` of the subject).
@@ -237,7 +237,8 @@ pub fn struct_proj_arg_p(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:99-117 structProjBodiesGo
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:89-110 structProjBodiesGo
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_parts::struct_proj_bodies_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:109-125 structProjBodiesGo`
 /// — **the projection bodies of a recognised block**, one walk of the
 /// constructor telescope: field `i`'s domain is body `i`, and the field is
@@ -276,7 +277,8 @@ pub fn struct_proj_bodies_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:119-122 structProjBodies
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:112-115 structProjBodies
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_parts::struct_proj_bodies_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:127-136 structProjBodies`
 /// — the block's projection bodies, as the table stores them.
 pub fn struct_proj_bodies(
@@ -313,7 +315,9 @@ pub fn mc_probe(memo: &HashMap<EIdx, bool>, k: &EIdx) -> Option<bool> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:124-133 Expr.mentionsConst
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_parts::mentions_const_go_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:165-200 Expr.mentionsConstGo
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_parts::mentions_const_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:140-181 mentionsConstGo`
 /// — does the constant `T` occur in `e`?  A syntactic walk (`fvar`
 /// annotations included; a `.proj` node names its structure), with con-leche's
@@ -351,6 +355,7 @@ pub fn mentions_const_go(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:165-200 Expr.mentionsConstGo
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_parts::mentions_const_node_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:140-181 mentionsConstGo`
 /// — the walk's compound arms, split off so that the `view`'s loans are dead at
 /// the memo's join (extraction rule 5).
@@ -404,6 +409,7 @@ pub fn mentions_const_node(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:273-275 Expr.mentionsConstFast
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_parts::mentions_const_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:183-186 mentionsConst`
 /// — the executed `mentionsConst` (one memoized DAG walk).
 pub fn mentions_const(

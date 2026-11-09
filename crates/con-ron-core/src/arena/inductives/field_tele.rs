@@ -29,7 +29,7 @@ pub const M_FUEL_PI_BINDERS: [u32; 25] = [
     110, 100, 101, 114, 115,
 ];
 
-/// con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:45-52 Expr.piBinders
+/// con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:44-51 Expr.piBinders
 /// Lean twin: `proof/ConRon/Arena/Inductives/FieldTele.lean:23-36 piBinders` — all
 /// leading `∀` binders of an expression (outermost first) and the body.  Lean
 /// conses on the way out; the port pushes on the way in, which is the same

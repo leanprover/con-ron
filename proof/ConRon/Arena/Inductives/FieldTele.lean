@@ -20,7 +20,7 @@ namespace ConRon.Arena
 
 open ConLeche
 
-/-- con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:45-52 Expr.piBinders
+/-- con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:44-51 Expr.piBinders
 All leading `∀` binders of an expression (outermost first) and the body.  The
 fuel is the store walk's (the telescope is a chain of nodes).  The Rust pushes
 on the way in where this conses on the way out, which is the same list. -/

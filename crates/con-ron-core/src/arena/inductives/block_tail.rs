@@ -105,7 +105,8 @@ pub struct BlockPass {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:44-62 checkBlockPass
-/// con-leche: ConLeche/Cached/CheckerC.lean:127-141 checkBlockPassS
+/// con-leche: ConLeche/Cached/CheckerC.lean:183-197 checkBlockPassS
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove block_tail::check_block_pass_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:67-86 checkBlockPass` — **one
 /// pass over the formers, the constructors and the classes** at the block's
 /// `is_rec` verdict: the formers (and the flush entering the environment
@@ -132,7 +133,8 @@ pub fn check_block_pass(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:44-62 checkBlockPass
-/// con-leche: ConLeche/Cached/CheckerC.lean:127-141 checkBlockPassS
+/// con-leche: ConLeche/Cached/CheckerC.lean:183-197 checkBlockPassS
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove block_tail::check_block_pass_classes_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:67-86 checkBlockPass` — the
 /// walk's context, the classes, the root frame and the seeds.
 pub fn check_block_pass_classes(
@@ -171,7 +173,8 @@ pub fn check_block_pass_classes(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:64-78 checkBlockRec
+/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:64-77 checkBlockRec
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove block_tail::check_block_rec_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:88-96 checkBlockRec` — **the
 /// installer's recursor stage**: the GENERATED recursor stage at the
 /// constructors' environment, on the stream's own recursor family (the raw
@@ -194,8 +197,9 @@ pub fn check_block_rec(
     gen_rec::gen_rec_check(pers, st, mode, fe, p, nested, params, tbl, rd, ms, block)
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:80-91 consBlockRecsT
-/// con-leche: ConLeche/Cached/CheckerC.lean:143-163 checkBlockTailS
+/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:79-90 consBlockRecsT
+/// con-leche: ConLeche/Cached/CheckerC.lean:199-219 checkBlockTailS
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove block_tail::cons_block_recs_temp_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:98-110 consBlockRecsTemp` — **the
 /// checked family consed, at its majors, TEMPORARILY**: the records
 /// `rec_check::block_rec_infos_tf` built (each recursor with its rules at ITS
@@ -219,8 +223,10 @@ pub fn cons_block_recs_temp(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:93-101 checkBlockTables
+/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:92-98 checkBlockTables
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove block_tail::check_block_tables_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:152-160 checkBlockTablesF
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove block_tail::check_block_tables_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:112-122 checkBlockTables` — **the
 /// projection table's checks at every structure-like member** from member `i`
 /// on, at the environment holding the formers and the constructors.
@@ -248,8 +254,10 @@ pub fn check_block_tables(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:103-115 checkBlockTail
-/// con-leche: ConLeche/Cached/CheckerC.lean:143-163 checkBlockTailS
+/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:100-112 checkBlockTail
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove block_tail::check_block_tail_stream_refines, then delete this line
+/// con-leche: ConLeche/Cached/CheckerC.lean:199-219 checkBlockTailS
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove block_tail::check_block_tail_stream_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:124-149 checkBlockTail` —
 /// **the stream's recursors against the generated ones**: the K flags, then
 /// the generated family pushed at its majors, a flush entering it, the
@@ -286,8 +294,10 @@ pub fn check_block_tail_stream(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:103-115 checkBlockTail
-/// con-leche: ConLeche/Cached/CheckerC.lean:143-163 checkBlockTailS
+/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:100-112 checkBlockTail
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove block_tail::check_block_tail_refines, then delete this line
+/// con-leche: ConLeche/Cached/CheckerC.lean:199-219 checkBlockTailS
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove block_tail::check_block_tail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:124-149 checkBlockTail` — **the
 /// checks after the pass**: the index binders' sorts, the constructors consed
 /// (and the flush entering that environment), the generated recursors, the
@@ -319,7 +329,7 @@ pub fn check_block_tail(
 // The block's check
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:119-125 declinedAtDefinition
+/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:116-122 declinedAtDefinition
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:153-157 declinedAtDefinition` — **the
 /// families declined at a definition**: the names a literal's constructor
 /// form applies, and `Bool`.
@@ -350,8 +360,9 @@ pub fn declined_at_definition(st: &AState) -> Result<Vec<NIdx>, CheckError> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:127-139 reduceMember
-/// con-leche: ConLeche/Cached/CheckerC.lean:165-176 reduceMemberS
+/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:124-136 reduceMember
+/// con-leche: ConLeche/Cached/CheckerC.lean:221-232 reduceMemberS
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove block_tail::reduce_member_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:159-176 reduceMember` — **a
 /// member's former at its telescope**, official's `whnf` loop where the
 /// declared type does not show it: the declared type checked, reduced, and
@@ -380,8 +391,9 @@ pub fn reduce_member(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:127-139 reduceMember
-/// con-leche: ConLeche/Cached/CheckerC.lean:165-176 reduceMemberS
+/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:124-136 reduceMember
+/// con-leche: ConLeche/Cached/CheckerC.lean:221-232 reduceMemberS
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove block_tail::reduce_member_checked_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:159-176 reduceMember` — the inner
 /// `do` block: the constant check, the reduct (`reducedFormer`) and the
 /// definitional comparison of the two types.
@@ -411,8 +423,8 @@ pub fn reduce_member_checked(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:141-148 reduceMembers
-/// con-leche: ConLeche/Cached/CheckerC.lean:178-185 reduceMembersS
+/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:138-145 reduceMembers
+/// con-leche: ConLeche/Cached/CheckerC.lean:234-241 reduceMembersS
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:178-188 reduceMembers` — the members
 /// from `i` on, each at its telescope, a flush before each (the cached
 /// twin's).
@@ -441,8 +453,10 @@ pub fn reduce_members(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:150-163 checkBlock
-/// con-leche: ConLeche/Cached/CheckerC.lean:187-198 checkBlockKS
+/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:147-163 checkBlock
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove block_tail::check_block_refines, then delete this line
+/// con-leche: ConLeche/Cached/CheckerC.lean:243-255 checkBlockKS
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove block_tail::check_block_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:190-217 checkBlock` — **check
 /// an inductive block and install it**: the distinct names, no member at a
 /// `Bool` constructor's name, each former reduced to its telescope once
@@ -480,8 +494,10 @@ pub fn check_block(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:150-163 checkBlock
-/// con-leche: ConLeche/Cached/CheckerC.lean:187-198 checkBlockKS
+/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:147-163 checkBlock
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove block_tail::check_block_reduced_refines, then delete this line
+/// con-leche: ConLeche/Cached/CheckerC.lean:243-255 checkBlockKS
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove block_tail::check_block_reduced_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:190-217 checkBlock` — after the
 /// name checks: the members reduced, the flush, the pass, the tail, and the
 /// install.

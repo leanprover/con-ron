@@ -193,7 +193,7 @@ pub const M_K_FLAG: [u32; 72] = [
     99, 107, 32, 105, 115, 32, 75, 45, 108, 105, 107, 101,
 ];
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:41-55 recDomsAt
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:42-56 recDomsAt
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:35-50 recDomsAt` — **a
 /// record's type's domains against the generated one's**, binder by binder from
 /// binder `j` on (`k` of them): each stored domain `isDefEq` to the generated
@@ -228,7 +228,7 @@ pub fn rec_doms_at(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:57-70 recTyOpened
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:58-71 recTyOpened
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:52-62 recTyOpened` — the
 /// record's and the generated type, opened `n` binders deep: the domains, then
 /// the residues.
@@ -257,8 +257,10 @@ pub fn rec_ty_opened(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:72-86 recTyCheck
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:88-109 ruleAgree
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:73-87 recTyCheck
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove stream_recs::stream_closed_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:89-110 ruleAgree
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove stream_recs::stream_closed_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:64-73 streamClosed` — the
 /// test both open with: `s.looseBVarsBounded 0 && !s.hasFvar && !g.hasFvar`.
 pub fn stream_closed(pers: &PersTier, st: &mut AState, s: &EIdx, g: &EIdx) -> Result<bool, CheckError> {
@@ -276,7 +278,8 @@ pub fn stream_closed(pers: &PersTier, st: &mut AState, s: &EIdx, g: &EIdx) -> Re
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:72-86 recTyCheck
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:73-87 recTyCheck
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove stream_recs::rec_ty_check_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:75-91 recTyCheck` — **a
 /// record's type's check**: closed, at the record's level parameters `lps`,
 /// resolving, a type (inferred, a sort), and the generated one binder by binder
@@ -322,7 +325,8 @@ pub fn rec_ty_check(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:88-109 ruleAgree
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:89-110 ruleAgree
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove stream_recs::rule_agree_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:93-109 ruleAgree` — **one
 /// rule's check**: the record's right-hand side `s` is closed, at the
 /// record's level parameters `lps`, resolving; it and the generated `g` are
@@ -368,7 +372,7 @@ pub fn rule_agree(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:111-128 streamNestedOk
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:112-129 streamNestedOk
 /// Lean twin: `pins.map (Expr.liftLooseBVars amount 0)` — the firing pins lifted
 /// past the index binders, from `i` on, pushed onto `out`.
 pub fn stream_nested_pins(
@@ -393,7 +397,7 @@ pub fn stream_nested_pins(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:111-128 streamNestedOk
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:112-129 streamNestedOk
 /// Lean twin: `(List.range n).map (fun i => Expr.bvar (n - 1 - i))` — the index
 /// variables, `k` of them still to come, pushed onto `out`.
 pub fn stream_nested_bvars(pers: &PersTier, st: &mut AState, k: u64, out: Vec<EIdx>) -> Result<Vec<EIdx>, CheckError> {
@@ -411,7 +415,7 @@ pub fn stream_nested_bvars(pers: &PersTier, st: &mut AState, k: u64, out: Vec<EI
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:111-128 streamNestedOk
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:112-129 streamNestedOk
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:111-129 streamNestedDom` — the
 /// major's domain against the firing data: its head a constant at the firing
 /// levels, its arguments the pins lifted past the index binders and the index
@@ -457,7 +461,7 @@ pub fn stream_nested_dom(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:111-128 streamNestedOk
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:112-129 streamNestedOk
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:131-147 streamNestedOk` — **an
 /// auxiliary recursor's type fires where the generated one does**: its major's
 /// domain (binder `m_i`) is the container at the firing data's levels, applied
@@ -491,7 +495,7 @@ pub fn stream_nested_ok(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:130-135 generatedFire
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:131-136 generatedFire
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:149-155 generatedFire` — the
 /// firing mode the generated recursor's rules carry at its major
 /// (`rec_check::generated_rules`): `.nested` at an outside major, `.plain` at a
@@ -503,7 +507,7 @@ pub fn generated_fire(pers: &PersTier, st: &mut AState, m: &TargetMajor, r_p: u6
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:137-149 streamRulesShape
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:138-150 streamRulesShape
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:157-166 streamRulesShape` — the
 /// record's rules' shape against the generated recursor's class, from `i` on:
 /// one rule per constructor of the class, in order, each with its field count.
@@ -519,7 +523,8 @@ pub fn stream_rules_shape(rs: &Vec<IRecRule>, cs: &Vec<(IConstantVal, u64)>, i: 
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:151-160 streamRulesCheck
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:152-161 streamRulesCheck
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove stream_recs::stream_rules_check_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:168-178 streamRulesCheck` — the
 /// record's rules' checks from `i` on, each against the generated right-hand
 /// side at its position (a rule equal to the generated one needs none).
@@ -548,7 +553,8 @@ pub fn stream_rules_check(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:162-167 streamRecCompare
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:163-168 streamRecCompare
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove stream_recs::stream_rec_compare_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:180-187 streamRecCompare` — **the
 /// comparison of one recursor**: its type unless it is the generated one, and
 /// its rules.
@@ -570,7 +576,8 @@ pub fn stream_rec_compare(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:169-178 streamRecCheck
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:170-179 streamRecCheck
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove stream_recs::stream_rec_check_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:189-198 streamRecCheck` — **one
 /// recursor, the stream's against the generated one**: the rules' shape and the
 /// record's major's container, then the comparison.
@@ -595,7 +602,8 @@ pub fn stream_rec_check(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:180-188 streamRecsCheck
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:181-189 streamRecsCheck
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove stream_recs::stream_recs_check_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:200-209 streamRecsCheck` — **the
 /// block's recursors against the generated ones**, record by record from `i` on
 /// (the generated family is in the records' order).
@@ -620,7 +628,7 @@ pub fn stream_recs_check(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:190-201 streamKCheck
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:191-202 streamKCheck
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:211-220 streamKCheck` — **the
 /// records' K flags against the block**, from `i` on: each record's flag is the
 /// one the generated recursor has (`rec_check::rec_k_expected`).  The shorter of

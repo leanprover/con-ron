@@ -39,6 +39,7 @@ open ConLeche
 /-! ## The check phase -/
 
 /-- con-leche: ConLeche/Driver/CheckPool.lean:116-123 runAt
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Checker.AState.abandoned_bridge, then delete this line
 **The state a FAILING job hands back**, and the reason it is not the pre-job
 state.
 
@@ -62,6 +63,7 @@ So the arm hands back the EMPTY state — which is what con-leche's arm means
 def AState.abandoned : AState := AState.init EStore.empty
 
 /-- con-leche: ConLeche/Driver/CheckPool.lean:199-227 checkPool — **a worker's
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Checker.AState.worker_bridge, then delete this line
 state**: the driver's state with the scratch tier closed and empty, and fresh memos
 and caches.  The Rust's `worker_state` builds the same thing over the FROZEN tier
 (an empty store whose reads go to the `PersTier`); the twin has one store and reads
@@ -71,6 +73,7 @@ def AState.worker (s : AState) : AState :=
            caches := Caches.empty }
 
 /-- con-leche: ConLeche/Driver/CheckPool.lean:116-123 runAt — **job `t`, run**: the
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Checker.runJob_bridge, then delete this line
 record's job at its position, the error tagged with that position.  A position past
 the records is an internal error, never a verdict. -/
 def runJob (mode : CheckMode) (pins : List INatOpPinSet) (I : IStreamIndex)
@@ -94,7 +97,8 @@ def checkJobList (mode : CheckMode) (pins : List INatOpPinSet) (I : IStreamIndex
     | .ok (.error e, s') => .ok (.error e, s')
     | .error e => .error e
 
-/-- con-leche: ConLeche/Driver/Run.lean:85-101 checkDeclsIO — **the check of a
+/-- con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO — **the check of a
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Checker.checkStream_bridge, then delete this line
 stream, as one worker runs it**: the index of the records, then every record's job in
 fold order, from the worker's state.  The `× Nat` of the error is the failure's
 POSITION in the fold. -/
@@ -105,7 +109,8 @@ def checkStream (mode : CheckMode) (pins : List INatOpPinSet)
   | .ok (.error e, s₁) => .ok (.error e, s₁)
   | .error e => .error e
 
-/-- con-leche: ConLeche/Cached/Decls.lean:77-86 checkDecls — the fold's
+/-- con-leche: ConLeche/Cached/Decls.lean:83-92 checkDecls — the fold's
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Checker.atDecl_bridge, then delete this line
 failure, with its POSITION rendered into the message.  con-leche's driver
 reports the declaration by indexing the record array it already holds
 (`ConLeche/Driver/Run.lean`'s `checkMain`); the seam of (B) has no position channel

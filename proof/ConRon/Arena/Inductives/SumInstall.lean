@@ -45,7 +45,9 @@ def checkSumTele (n : Nat) (cvTa₀ : IConstantVal) : AM (IConstantVal × LIdx) 
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:40-64 checkStructFieldSortsI
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:20-35 checkStructFieldSortsIF
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove SumInstall.checkStructFieldSortsI_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:37-54 checkStructFieldSortsIFA
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove SumInstall.checkStructFieldSortsI_bridge, then delete this line
 Every field's domain has a sort over the opened constructor telescope, under
 the official per-field universe bound unless the family is propositional.
 Walks the fields from the last to the first. -/
@@ -85,6 +87,7 @@ def idxArgsResolve (fe₀ : IFEnv) : List EIdx → AM Bool
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:66-107 checkSumCtor
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:56-84 checkSumCtorF
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove SumInstall.checkSumCtor_bridge, then delete this line
 Stage 2, one constructor's type: the ordinary constant check (the constructor
 is stored AS DECLARED), the result shape, the parameter pins against the type
 former's opened telescope, the pre-block resolution of the field domains, and
@@ -127,6 +130,7 @@ def checkSumCtor (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:109-117 checkSumCtors
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:86-93 checkSumCtorsF
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove SumInstall.checkSumCtors_bridge, then delete this line
 Stage 2, all constructors' types, at the environment holding the type
 former. -/
 def checkSumCtors (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
@@ -138,7 +142,7 @@ def checkSumCtors (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
     checkSumCtors mode fe₀ fe T lps nP nIdx resSort isProp large cvTa cs
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:119-122 consSumCtors
-con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:95-98 consSumCtorsF
+con-leche: ConLeche/Cached/IndBlock.lean:37-40 consSumCtorsF
 The constructors' conses, in order (the first constructor deepest).  Pure: the
 index push touches no term. -/
 def consSumCtors (nP : Nat) : List (IConstantVal × Nat) → IFEnv → IFEnv

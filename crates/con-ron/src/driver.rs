@@ -121,7 +121,7 @@ pub fn message(e: &CheckError) -> String {
         .collect()
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:236-238 msSecs
+/// con-leche: ConLeche/Cached/ParsedC.lean:327-329 msSecs
 /// Milliseconds as seconds.  Also a deliberate skip in the core, for
 /// `declCLabel`'s reason.  Deviation: three decimals rather than con-leche's
 /// one.
@@ -199,7 +199,8 @@ pub fn verdict_word(code: u8) -> &'static str {
 /// (`pool`'s module note), tens of MB.
 pub const JOBS_DEFAULT_CAP: u64 = 16;
 
-/// con-leche: ConLeche/Driver/Cli.lean:219-304 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:239-324 runArgs
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove driver::default_jobs_refines, then delete this line
 /// The `--jobs` default, which con-leche reads in `run` off
 /// `System.Platform.Internal.getHardwareConcurrency` — "one worker per
 /// hardware thread", and one worker on a machine that reports none — capped
@@ -322,7 +323,7 @@ pub fn pins_for_run(
 // Rendering: the labels the arena has to read back
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:240-249 declCLabel
+/// con-leche: ConLeche/Cached/ParsedC.lean:331-340 declCLabel
 /// con-leche: ConLeche/Driver/CheckMain.lean:47-51 declCName
 /// A record's display label, the cited six arms with the names READ BACK out
 /// of the store: a handle is not a name until the store is asked, which is the
@@ -359,6 +360,7 @@ pub fn name_of(pers: &PersTier, ar: &EStore, h: &con_ron_core::arena::handle::NI
 }
 
 /// con-leche: ConLeche/Driver/CheckPool.lean:199-227 checkPool
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove driver::workers_for_refines, then delete this line
 /// The worker count a run reports and the pool spawns: the cited
 /// `max 1 (min jobs m)`.
 pub fn workers_for(jobs: u64, m: usize) -> usize {
@@ -375,6 +377,7 @@ pub fn workers_for(jobs: u64, m: usize) -> usize {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove driver::PhaseObserver_refines, then delete this line
 /// What a caller wants to know between the steps of the run — the heartbeat's
 /// lines, with the store passed to every method because a handle is not a
 /// label until the store is asked.  Every method defaults to nothing, so a
@@ -382,10 +385,12 @@ pub fn workers_for(jobs: u64, m: usize) -> usize {
 /// holds `&` the state, so it cannot change an outcome.
 pub trait PhaseObserver {
     /// con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+    /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove driver::index_starts_refines, then delete this line
     /// The index build is about to start (`tIndex`).
     fn index_starts(&mut self) {}
 
     /// con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+    /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove driver::parse_done_refines, then delete this line
     /// The parse is done, the index built: `con-ron: parse done: …`.
     fn parse_done(&mut self, _pers: &PersTier, _ar: &EStore, _fold_records: usize) {}
 
@@ -413,12 +418,14 @@ pub trait PhaseObserver {
 }
 
 /// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove driver::Silent_refines, then delete this line
 /// The observer a plain run (no `--progress`) hands the driver: it prints
 /// nothing and wants no check lines, so no worker touches the completed-count
 /// or the observer lock at all.  ONE lane serves both runs.
 pub struct Silent;
 
 /// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove driver::impl PhaseObserver for Silent {}_refines, then delete this line
 impl PhaseObserver for Silent {}
 
 /// con-leche: ConLeche/Driver/CheckPool.lean:172-183 jobEnd
@@ -454,6 +461,7 @@ fn check_line<O: PhaseObserver>(
 }
 
 /// con-leche: ConLeche/Driver/CheckPool.lean:143-146 collect
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove driver::pool_verdict_refines, then delete this line
 /// The check phase's answer as a verdict: `parallel_all`'s first failing job,
 /// whose error carries its fold position, and the pool's own failures (a
 /// missing result, a panicked worker) as internal errors — exit 3, never a
@@ -469,8 +477,11 @@ pub fn pool_verdict(r: Result<(), ParallelError<(CheckError, u64)>>) -> Result<(
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove crates/con-ron/src/driver.rs_refines, then delete this line
 /// con-leche: ConLeche/Driver/Run.lean:74-97 checkDeclsIO
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove crates/con-ron/src/driver.rs_refines, then delete this line
 /// con-leche: ConLeche/Driver/CheckPool.lean:199-227 checkPool
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove crates/con-ron/src/driver.rs_refines, then delete this line
 /// **The driver after the parse**: the stream's index, built once from the
 /// records alone, frozen, and every record's job on the pool — a straight line
 /// of calls with the observer's lines between them, at every job count.  Each
@@ -514,7 +525,9 @@ pub fn check_decls_driver<O: PhaseObserver + Send>(
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove driver::check_decls_driver_with_refines, then delete this line
 /// con-leche: ConLeche/Driver/CheckMain.lean:152-169 checkOleansG
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove driver::check_decls_driver_with_refines, then delete this line
 /// `check_decls_driver` with a worker state of the caller's beside each
 /// worker's `AState` (`init_x`, one per worker) and the caller's job: an
 /// `--olean` run's workers keep the module region they read a theorem's value
@@ -576,6 +589,7 @@ where
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:120-133 oleanJobRun
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove driver::olean_job_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/OleanJobs.lean:27-62 oleanJob`; Theorem 2 reads this
 /// function as `Refine2/Checker/OleanPool.lean`'s `oleanJobStep`.
 /// **One job of an `--olean` run**, from the module region the worker kept: a
@@ -685,6 +699,7 @@ pub struct Heartbeat {
 /// The heartbeat's own lines.
 impl Heartbeat {
     /// con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+    /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove driver::new_refines, then delete this line
     /// A heartbeat at `pace`, starting now.
     pub fn new(pace: Pace, t0: Instant) -> Heartbeat {
         Heartbeat {
@@ -742,12 +757,14 @@ impl Heartbeat {
 /// The heartbeat as an observer of the run.
 impl PhaseObserver for Heartbeat {
     /// con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+    /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove driver::index_starts_refines, then delete this line
     /// `tIndex`.
     fn index_starts(&mut self) {
         self.t_index = self.now();
     }
 
     /// con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+    /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove driver::parse_done_refines, then delete this line
     /// `con-ron: parse done: …`: the parse and the index are done.  Records
     /// `t_parse`, so the summary can price the parse whatever happens next.
     fn parse_done(&mut self, pers: &PersTier, ar: &EStore, fold_records: usize) {

@@ -33,7 +33,8 @@ namespace ConRon.Arena
 
 open ConLeche
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:122-125 FEnv.pushAll
+/-- con-leche: ConLeche/Kernel/FEnv.lean:150-153 FEnv.pushAll
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Install.IFEnv.pushAll_bridge, then delete this line
 Push a list of records, head first. -/
 def IFEnv.pushAll : List IConstantInfo → IFEnv → IFEnv
   | [], fe => fe
@@ -46,7 +47,8 @@ def IFEnv.pushTables : List IProjTable → IFEnv → IFEnv
   | t :: rest, fe => IFEnv.pushTables rest (fe.pushTable t)
 
 /-- con-leche: ConLeche/Kernel/Install.lean:22-24 Env.pushDelta
-con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:127-132 FEnv.pushDelta
+con-leche: ConLeche/Kernel/FEnv.lean:155-160 FEnv.pushDelta
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Install.IFEnv.pushDelta_bridge, then delete this line
 **The environment with a declaration's constants and tables pushed**, each list
 oldest first: the constants, then the tables. -/
 def IFEnv.pushDelta (fe : IFEnv) (L : List IConstantInfo) (Q : List IProjTable) : IFEnv :=
@@ -111,7 +113,8 @@ def blockRecs (p : BlockShape) : List RecShape → AM (List IConstantInfo)
       .recInfo rc.cvR rc.mI rc.rP rc.isK (rc.rules.map ({ · with fire := f }))
     pure (r :: (← blockRecs p rest))
 
-/-- con-leche: ConLeche/Kernel/Install.lean:63-73 blockTables
+/-- con-leche: ConLeche/Kernel/Install.lean:63-74 blockTables
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Install.blockTables_bridge, then delete this line
 **The projection tables**, in block order: one per structure-like member whose
 constructor reads as one. -/
 def blockTables (p : BlockShape) : List MemberShape → AM (List IProjTable)
@@ -126,14 +129,14 @@ def blockTables (p : BlockShape) : List MemberShape → AM (List IProjTable)
       | none => blockTables p rest
     | none => blockTables p rest
 
-/-- con-leche: ConLeche/Kernel/Install.lean:75-78 blockConstants
+/-- con-leche: ConLeche/Kernel/Install.lean:76-79 blockConstants
 **The block's constants**, in push order: the formers (at official's `is_rec`,
 `blockIsRec`), the constructors, the recursors. -/
 def blockConstants (p : BlockShape) : AM (List IConstantInfo) := do
   let isRec ← blockIsRec p
   pure (blockFormers p isRec ++ blockCtors p ++ (← blockRecs p p.recs))
 
-/-- con-leche: ConLeche/Kernel/Install.lean:80-94 declConstants
+/-- con-leche: ConLeche/Kernel/Install.lean:81-95 declConstants
 The `.axiomDecl` arm: `Quot.sound` installs its pin at the record's names,
 `sorryAx` nothing, any other axiom itself. -/
 def declConstantsAxiom (cv : IConstantVal) : AM (List IConstantInfo) := do
@@ -141,7 +144,7 @@ def declConstantsAxiom (cv : IConstantVal) : AM (List IConstantInfo) := do
   else if cv.name == (← pinSorryAx) then pure []
   else pure [.axiomInfo cv]
 
-/-- con-leche: ConLeche/Kernel/Install.lean:80-94 declConstants
+/-- con-leche: ConLeche/Kernel/Install.lean:81-95 declConstants
 **The constants a declaration installs**, in push order.  A block `readBlock`
 cannot read installs nothing (its check rejects it), and `sorryAx` nothing
 (any use of it declines). -/
@@ -156,7 +159,8 @@ def declConstants : IDeclaration → AM (List IConstantInfo)
     | .ok p => blockConstants p
     | .error _ => pure []
 
-/-- con-leche: ConLeche/Kernel/Install.lean:96-102 declTables
+/-- con-leche: ConLeche/Kernel/Install.lean:97-103 declTables
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Install.declTables_bridge, then delete this line
 **The projection tables a declaration installs**: those of an inductive block
 `readBlock` reads. -/
 def declTables : IDeclaration → AM (List IProjTable)

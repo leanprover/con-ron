@@ -94,19 +94,20 @@ def structCtorResidOk (T : NIdx) (lps : List NIdx) (nP o nIdx : Nat)
 
 /-! ## The projection bodies -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:75-81 structProjPs
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:75-79 structProjPs
 The parameter spine of the generated projection types, spelled at the frame of
 the final `∀ p⃗ (t : T p⃗), _` telescope: `p_k = bvar (nP - k)`. -/
 def structProjPs (nP : Nat) : AM (List EIdx) := structPsAt 1 nP
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:83-89 structProjArgP
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:81-87 structProjArgP
 The `j`-th earlier-field substitute in a tower entry's generated type: the
 first-class node `t.j` (`.proj T j` of the subject). -/
 def structProjArgP (T : NIdx) (j : Nat) : AM EIdx := do
   let b ← internE (.bvar 0)
   internE (.proj T j b)
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:99-117 structProjBodiesGo
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:89-110 structProjBodiesGo
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StructParts.structProjBodiesGo_bridge, then delete this line
 **The projection bodies of a recognised block**, one walk of the constructor
 telescope: field `i`'s domain is body `i`, and the field is replaced by the
 subject's projection `.proj T i (bvar 0)` before the walk continues. -/
@@ -124,7 +125,8 @@ def structProjBodiesGo (T : NIdx) : Nat → Nat → EIdx → AM (Option (List EI
       | _ => pure none
     else pure none
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:119-122 structProjBodies
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:112-115 structProjBodies
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StructParts.structProjBodies_bridge, then delete this line
 The block's projection bodies, as the table stores them. -/
 def structProjBodies (T : NIdx) (nP nF : Nat) (cty : EIdx) :
     AM (Option (Array EIdx)) := do
@@ -138,7 +140,9 @@ def structProjBodies (T : NIdx) (nP nF : Nat) (cty : EIdx) :
 /-! ## `mentionsConst` — one twin for the pure walk and the memo -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:124-133 Expr.mentionsConst
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StructParts.mentionsConstGo_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/StructParts.lean:165-200 Expr.mentionsConstGo
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StructParts.mentionsConstGo_bridge, then delete this line
 Does the constant `T` occur in `e`?  A syntactic walk (`fvar` annotations
 included; a `.proj` node names its structure), with con-leche's per-call memo
 keyed by the node — `T` is fixed for the whole walk. -/
@@ -181,6 +185,7 @@ def mentionsConstGo (T : NIdx) (memo : Std.HashMap EIdx Bool) :
         pure (r, memo.insert h r)
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:273-275 Expr.mentionsConstFast
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StructParts.mentionsConst_bridge, then delete this line
 The executed `mentionsConst` (one memoized DAG walk). -/
 def mentionsConst (T : NIdx) (e : EIdx) : AM Bool := do
   pure (← mentionsConstGo T ∅ coreWalkFuel e).1

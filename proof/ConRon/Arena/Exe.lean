@@ -28,7 +28,8 @@ def flushStdoutStderr (code : UInt8) : IO UInt8 := do
     pure 3
 
 /-- con-leche: Main.lean:56-103 main
-con-leche: ConLeche/Driver/Cli.lean:219-304 runArgs
+con-leche: ConLeche/Driver/Cli.lean:239-324 runArgs
+-- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Exe.main_bridge, then delete this line
 Lake's entry point.  A `lean_exe`'s root module must declare a TOP-LEVEL
 `main`, and the driver (`ConRon/Arena/Main.lean`) lives in the `ConRon.Arena` namespace with the
 rest of (B), so this forwards to it.  Around it, con-leche's `runArgs`/`main` split: an uncaught IO

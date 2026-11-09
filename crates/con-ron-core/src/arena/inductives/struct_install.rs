@@ -84,7 +84,9 @@ pub const M_TBL_TAKEN: [u32; 22] = [
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:31-50 checkStructDomsAt
 /// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:25-34 checkStructDomsAtF
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_install::check_struct_doms_at_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:36-46 checkStructDomsAtFA
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_install::check_struct_doms_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:26-41 checkStructDomsAt`
 /// — the reference kernels' binder-domain comparisons, run binder by binder
 /// **at its own frame**: the `j`-th opened variable's annotation against the
@@ -146,8 +148,10 @@ pub fn check_struct_doms_at(
 // The projection table (`StructInstall.lean:42-72` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-80 checkStructProjTable
+/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-74 checkStructProjTable
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_install::check_struct_proj_table_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-89 checkStructProjTableF
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_install::check_struct_proj_table_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:43-69 checkStructProjTable`
 /// — stage 5: **the projection table's checks** (con-leche's task #175 S1):
 /// the fields' result-type bodies read off the stored constructor type by
@@ -190,7 +194,8 @@ pub fn check_struct_proj_table(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-80 checkStructProjTable
+/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-74 checkStructProjTable
+/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_install::proj_bodies_scoped_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:43-69 checkStructProjTable`
 /// — the bodies' scoping, validated once at insertion: fvar-free, level
 /// parameters within the structure's, resolving, scoped at the parameters and

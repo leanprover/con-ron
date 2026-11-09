@@ -94,7 +94,7 @@ use crate::arena::store::PersTier;
 // The error channel (`Types.lean`'s note, `ExportC.lean`'s `fail`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/Export.lean:109 M
+/// con-leche: ConLeche/Frontend/Export.lean:108 M
 /// The two ways applying one line can fail: a checker error (the twin's
 /// `fail`, which is `AM`'s `throw`) or a record verdict (the twin's
 /// `StateD ⊕ RecordVerdict`'s right summand).  Merging them into one `Result`
