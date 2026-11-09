@@ -128,16 +128,6 @@ theorem natOpName_run (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
       ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight, pinAt_specE] <;>
       finish (splits := 20) (gen := 16)
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:202-206 natIndOk — at an optional
-record related by `OptCI`. -/
-theorem natIndOk_optRun (s₀ : AState) (oc : Option IConstantInfo)
-    (oc' : Option ConstantInfo) (hok : CheckOK eager env fe s₀)
-    (hrel : OptCI s₀.store oc oc') :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.natIndOk oc
-    ⦃fun b s' => s' = s₀ ∧ b = ConLeche.natIndOk oc'; ⊤⦄ := by
-  sym only [bridge_grind] =>
-    vcgen [ConRon.Arena.natIndOk, ConRon.Arena.sortOne] <;> finish
-
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:208-212 natZeroOk — at an optional
 record related by `OptCI`. -/
 theorem natZeroOk_optRun (s₀ : AState) (oc : Option IConstantInfo)

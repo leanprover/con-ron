@@ -128,21 +128,12 @@ theorem msg_eq_absString {n : Std.Usize} {M : Array Std.U32 n} {v : alloc.vec.Ve
     (h : msgOf M = str) : str = ConRon.Refine.absString v := by
   rw [absString_of_msg hv hs, h]
 
-/-- The same, the code points read straight off the constant. -/
-theorem msg_eq_absString' {n : Std.Usize} {M : Array Std.U32 n} {v : alloc.vec.Vec Std.U32}
-    {str : String} (hv : v.val = M.val) (h : msgOf M = str) :
-    str = ConRon.Refine.absString v := by
-  rw [← h]; simp only [ConRon.Refine.absString, msgOf, hv]
-
 /-- An error leaf of the reader or the reserved names' check: the Rust's
 `Invalid(code_points(&M))`, abstracted, is the twin's `.invalid "…"`. -/
 macro "msg_leaf" : tactic => `(tactic| (
   try simp only [ConRon.Refine2.absExc_err, Except.error.injEq]
-  first
-    | exact congrArg ConRon.Arena.CheckError.invalid
-        (ConRon.Refine2.msg_eq_absString' ‹_› (by simp only [ConRon.Refine2.msg_M_PARAMS_EXCEED, ConRon.Refine2.msg_M_NO_REC_ELIM, ConRon.Refine2.msg_M_REC_COUNTS, ConRon.Refine2.msg_M_ORDER, ConRon.Refine2.msg_M_NO_TYPE, ConRon.Refine2.msg_M_NO_RECS, ConRon.Refine2.msg_M_TYPE_LEVELS, ConRon.Refine2.msg_M_CTOR_PARAMS, ConRon.Refine2.msg_M_CTOR_LEVELS_ONE, ConRon.Refine2.msg_M_CTOR_LEVELS, ConRon.Refine2.msg_M_BASIS_NOT_PIN, ConRon.Refine2.msg_M_BASIS_IN_BLOCK, ConRon.Refine2.msg_M_BASIS_NAME]))
-    | exact congrArg ConRon.Arena.CheckError.invalid
-        (ConRon.Refine2.msg_eq_absString ‹_› ‹_› (by simp only [ConRon.Refine2.msg_M_PARAMS_EXCEED, ConRon.Refine2.msg_M_NO_REC_ELIM, ConRon.Refine2.msg_M_REC_COUNTS, ConRon.Refine2.msg_M_ORDER, ConRon.Refine2.msg_M_NO_TYPE, ConRon.Refine2.msg_M_NO_RECS, ConRon.Refine2.msg_M_TYPE_LEVELS, ConRon.Refine2.msg_M_CTOR_PARAMS, ConRon.Refine2.msg_M_CTOR_LEVELS_ONE, ConRon.Refine2.msg_M_CTOR_LEVELS, ConRon.Refine2.msg_M_BASIS_NOT_PIN, ConRon.Refine2.msg_M_BASIS_IN_BLOCK, ConRon.Refine2.msg_M_BASIS_NAME]))))
+  exact congrArg ConRon.Arena.CheckError.invalid
+    (ConRon.Refine2.msg_eq_absString ‹_› ‹_› (by simp only [ConRon.Refine2.msg_M_PARAMS_EXCEED, ConRon.Refine2.msg_M_NO_REC_ELIM, ConRon.Refine2.msg_M_REC_COUNTS, ConRon.Refine2.msg_M_ORDER, ConRon.Refine2.msg_M_NO_TYPE, ConRon.Refine2.msg_M_NO_RECS, ConRon.Refine2.msg_M_TYPE_LEVELS, ConRon.Refine2.msg_M_CTOR_PARAMS, ConRon.Refine2.msg_M_CTOR_LEVELS_ONE, ConRon.Refine2.msg_M_CTOR_LEVELS, ConRon.Refine2.msg_M_BASIS_NOT_PIN, ConRon.Refine2.msg_M_BASIS_IN_BLOCK, ConRon.Refine2.msg_M_BASIS_NAME]))))
 
 /-! ## `class_read` -/
 

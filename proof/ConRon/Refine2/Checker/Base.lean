@@ -891,12 +891,6 @@ attribute [lockstep_simp] core.option.Option.is_some Option.isSome_map ite_true 
 
 namespace Lockstep
 
-@[lockstep] theorem nidx_contains_from_spec (ns : alloc.vec.Vec arena.handle.NIdx)
-    (i : Std.Usize) (n : arena.handle.NIdx) :
-    LSP (arena.checker_base.nidx_contains_from ns i n)
-      (fun o => o = (absNIdxLFrom ns i).contains (absNIdx n)) :=
-  fun _ h => nidx_contains_from_refines h
-
 /-- `ifenv_push`: the constant pushed onto the layer. -/
 @[lockstep] theorem ifenv_push_spec {pers : arena.store.PersTier} {rf lf} (hfe : IFEnvRelI pers rf lf)
     (ci : arena.env.IConstantInfo) :

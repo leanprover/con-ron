@@ -1926,26 +1926,6 @@ theorem RunsB.pin {i : Nat} {x : ConLeche.Name} {k : NIdx → AM Bool}
   obtain ⟨rfl, d1⟩ := pinAt_run hp hx g1
   exact ⟨Frontend.IStepS.refl hst, hk n d1⟩
 
-/-- con-leche: none — the index's equality test against a pinned inductive
-IS con-leche's `env.find? nm = some P`. -/
-theorem IFEnvOK.find_beq_ind {env : Env} {fe : IFEnv} {s : AState}
-    (hok : StateOK s) (h : IFEnvOK env fe s) {n : NIdx} {nm : ConLeche.Name}
-    (hd : denoteN s.store.ns n = some nm) {a : IConstantInfo}
-    {cv : ConstantVal} {d : IndCaps}
-    (ha : Frontend.denoteCI s.store a = some (.indInfo cv d)) :
-    (fe.find? n == some a) = decide (env.find? nm = some (.indInfo cv d)) := by
-  rcases h.findRel hok hd with ⟨h1, h2⟩ | ⟨ci, c, h1, h2, h3⟩
-  · rw [h1, h2]; simp
-  · rw [h1, h2]
-    by_cases hc : ci = a
-    · subst hc
-      rw [h3] at ha
-      simp [Option.some.inj ha]
-    · have : c ≠ .indInfo cv d := by
-        rintro rfl
-        exact hc (denoteCI_inj hok.wf h3 ha)
-      simp [hc, this]
-
 /-- A stored constant compared against a pin some step computes, as the last
 link of a chain. -/
 theorem RunsB.pinLastOf {m : AM IConstantVal} {P : ConstantVal}

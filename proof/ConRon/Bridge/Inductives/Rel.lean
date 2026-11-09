@@ -486,19 +486,6 @@ peel a rule's right-hand side with `stripLams`, and ask `lvlEq?` for
 `isProp`.  The run forms below put each of those at THIS
 tier's frame. -/
 
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
-**the reserved list at this tier's frame**: `Bridge/Checker/Names.lean`'s
-`reservedBasisNames_run` gives `PinStep` and the list. -/
-theorem reservedBasisNames_pstep {s s' : AState} {hs : List NIdx}
-    (hok : StateOK s) (hp : PinsOK s)
-    (hr : Arena.reservedBasisNames s = .ok (hs, s')) :
-    PStep s s' ∧
-      Frontend.denoteNList s'.store.ns hs = some ConLeche.reservedBasisNames := by
-  obtain ⟨hps, hd⟩ := reservedBasisNames_run hok.wf hp hr
-  refine ⟨PStep.of_caches ⟨hps.wf⟩ hps.ext hps.caches hps.pins, ?_⟩
-  rw [← reservedBasisNameValues_eq]
-  exact denoteNL_toList _ _ hd
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1120-1126 stripLams — the run form
 of `Bridge/ExprOps/Spine.lean`'s closed `stripLams_spec`, `stripPis_pstep`'s
 λ twin. -/

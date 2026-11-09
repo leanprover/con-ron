@@ -67,15 +67,6 @@ def absCertCtx (cx : arena.decl_check.CertCtx) : CertCtxA :=
 /-! ## Rust-only steps this file's zips meet (task #97-T2-LOCKSTEP lane Checker DeclCheck) -/
 
 open Lockstep in
-/-- `arena::canon::i_constant_info_beq` is the twin's `==` (at `some`, the
-shape `reduceElemOk` compares at). -/
-@[lockstep] theorem i_constant_info_beq_spec (a b : arena.env.IConstantInfo) :
-    LSP (arena.canon.i_constant_info_beq a b)
-      (fun o => o = (some (absIConstantInfo a) == some (absIConstantInfo b))) := by
-  intro o h
-  rw [i_constant_info_beq_refines h]
-  cases h' : decide (absIConstantInfo a = absIConstantInfo b) <;> simp_all
-
 /-! ## The standard axioms' gate
 
 `stdAxiomOk` accepts exactly `propext` and `Classical.choice`, each against

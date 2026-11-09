@@ -130,7 +130,6 @@ namespace ConRon.Bridge
 
 -- the pin readers and the nineteen reserved names
 #print axioms pinAt_run
-#print axioms reservedBasisNames_run
 
 -- the sibling pin-table walks, in
 -- `reservedBasisNames_run`'s no-accumulator shape
@@ -203,7 +202,6 @@ namespace ConRon.Bridge
 #print axioms denoteCIList_get
 #print axioms denoteEList_cons
 #print axioms natOpName_run
-#print axioms natIndOk_optRun
 #print axioms natZeroOk_optRun
 #print axioms natSuccOk_optRun
 #print axioms litShapeOk_run
@@ -342,7 +340,6 @@ namespace ConRon.Bridge
 
 -- the pin checks, the reduce-pin gate and the install/check seam's pieces
 #print axioms matchesPin_run
-#print axioms IFEnvOK.find_beq_ind
 #print axioms eqStored_run
 #print axioms reduceElemOk_run
 #print axioms reduceStoredOk_run

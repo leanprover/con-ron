@@ -385,10 +385,6 @@ theorem proj_guard_rows_go_aux (n : Nat) :
       (projGuardRowsGo k.val (absU d) (absEIdx h) (absRows out)) :=
   proj_guard_rows_go_aux _ k d h out _ _ rfl rfl rfl hrel hinv
 
-@[lockstep_simp] theorem absRows_new :
-    absRows (alloc.vec.Vec.new (Std.U64 × arena.handle.EIdx)) = #[] := by
-  simp [absRows, alloc.vec.Vec.new]
-
 /-- `proj_guard_rows` ⊑ `projGuardRows`: what a `.proj` use on a structure that
 may be a proposition must show. -/
 @[lockstep] theorem proj_guard_rows_ls {pers st fe lfe lst} (hx : ExprOpsHyp pers)

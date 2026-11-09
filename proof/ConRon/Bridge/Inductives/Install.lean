@@ -836,9 +836,6 @@ theorem XFree.viewConst (h : EIdx) : XFree (Arena.viewConst h) := by
   unfold Arena.viewConst; xfree_auto
 theorem XFree.zeroLevel : XFree Arena.zeroLevel := by
   unfold Arena.zeroLevel Arena.pinZeroLevel; xfree_auto
-theorem XFree.reservedBasisNames : XFree Arena.reservedBasisNames := by
-  unfold Arena.reservedBasisNames Arena.pinReserved; xfree_auto
-
 theorem XFree.lvlEq? (u v : LIdx) : XFree (Arena.lvlEq? u v) := by
   intro s s' r h; rw [(Core.lvlEq?_frame h).1]
 

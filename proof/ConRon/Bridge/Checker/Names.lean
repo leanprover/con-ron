@@ -20,7 +20,6 @@ here, in the one place both tiers see — `Bridge/Checker/Inv.lean` plus
 | | |
 |---|---|
 | `pinAt_run` | the pin-table reader |
-| `PinStep`, `PinStep.refl` | the frame of a pin read |
 | `denoteNL_toList`, `reservedBasisNameValues_eq` | the two equations a CONSUMER of the answer needs (the third, `denoteNList_contains`, is `Bridge/Grind.lean`'s) |
 
 and the two memoised front-door walks, `allLevelParamsDefined_run` and
@@ -65,41 +64,6 @@ theorem pinAt_run {i : Nat} {s s' : AState} {n : NIdx} {x : ConLeche.Name}
     (Q := fun r t => t = s ∧ ∀ y, pinNames[i]? = some y →
       denoteN s.store.ns r = some y) rfl hr (pinAt_spec s i hp)
   exact ⟨h.1, h.2 x hx⟩
-/-! ## The reserved-name list, interned
-
-`Arena/Core.lean`'s `reservedBasisNames` IS `Arena/Pins.lean`'s
-`pinReserved`, as the port's `reserved_basis_names` is `pin_reserved` (DESIGN
-`### Task #97-T2-LOCKSTEP`, twin fix D5).  So its run lemma is
-`pinReserved_spec` read at `PinsOK`, and the state does not move.
-
-`PinStep` is the lemma's frame (a table read is the reflexive step). -/
-
-/-- con-leche: none — the frame a pin read or a name intern leaves: the store
-only grew, and nothing else moved. -/
-structure PinStep (s s' : AState) : Prop where
-  wf : StoreWF s'.store
-  ext : Ext s.store s'.store
-  memos : s'.memos = s.memos
-  caches : s'.caches = s.caches
-  pins : s'.pins = s.pins
-
-theorem PinStep.refl {s : AState} (h : StoreWF s.store) : PinStep s s :=
-  ⟨h, Ext.refl _, rfl, rfl, rfl⟩
-
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean:91-98 reservedBasisNames —
-**the sixteen reserved names, as handles that denote them**, off the pin
-table (`pinReserved_spec`): the state does not move, so the frame is
-`PinStep.refl`, and the answer is `denoteNL` at con-leche's own list. -/
-theorem reservedBasisNames_run {s s' : AState} {hs : List NIdx}
-    (hwf : StoreWF s.store) (hp : PinsOK s)
-    (hr : reservedBasisNames s = .ok (hs, s')) :
-    PinStep s s' ∧ denoteNL s'.store hs reservedBasisNameValues := by
-  simp only [Arena.reservedBasisNames] at hr
-  have h := AM.of_run (P := fun t => t = s)
-    (Q := fun r t => t = s ∧ denoteNL s.store r reservedBasisNameValues)
-    rfl hr (pinReserved_spec s hp)
-  obtain ⟨rfl, hd⟩ := h
-  exact ⟨PinStep.refl hwf, hd⟩
 
 /-! ## The name-list denotation, as a function -/
 

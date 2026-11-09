@@ -32,8 +32,8 @@ order.
   `checkIndRoute`, the `.indDecl` arm past the pin recogniser).  It imports
   `Bridge/Checker/Hyp.lean` and `Bridge/Checker/Names.lean` and **not**
   `Bridge/Checker/Base.lean` or `Bridge/Checker/Fold.lean`, so that the
-  checker tier can import it back — which is why
-  `reservedBasisNames_run` lives in `Names.lean` and not in `Base.lean`;
+  checker tier can import it back — which is why the pin-table readers
+  (`pinAt_run`) live in `Names.lean` and not in `Base.lean`;
 * `Bridge/Frontend.lean` — **the frontend tier and the BYTE-LEVEL capstone**:
   the parse-state relation, DESIGN §8.2's parser
   statement `denoteDecls (Arena.parse chunks) = parseChunks chunks`, and

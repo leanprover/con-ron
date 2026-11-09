@@ -23,8 +23,7 @@ set_option autoImplicit false
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:475-481 natOpNames — the seven
 structural fast-path operations, off the pin table.
 
-The proof: seven `pinAt_run`s, in
-`reservedBasisNames_run`'s shape and under its rule — the seven facts are
+The proof: seven `pinAt_run`s — the seven facts are
 carried separately and the list is assembled once, at the end, against the
 literal the `do`-block returns.  A pin read leaves the state alone, so there
 is nothing to transport and the frame is an equation. -/

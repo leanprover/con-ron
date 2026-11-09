@@ -102,75 +102,11 @@ theorem internE_run {s s' : AState} {w : ENodeView} {h : EIdx}
 
 
 
-/-- con-leche: none — **`Bridge/ExprOps/Spine.lean`'s `denoteBL` IS
-`Frontend.denoteEList`**: a binder telescope is its list of domains (in con-leche
-a binder carries its type and nothing else), and the two tiers each write
-the readback.  One induction identifies them, and it is what lets
-this tier read the BINDERS off `stripPis` rather than only the residual. -/
-theorem denoteBL_eq_denoteEList {st : EStore} :
-    ∀ (bs : List EIdx), ExprOps.denoteBL st bs = Frontend.denoteEList st bs := by
-  intro bs
-  induction bs with
-  | nil => rfl
-  | cons a as ih =>
-    simp only [ExprOps.denoteBL, Frontend.denoteEList, ih]
-    cases denoteE st a <;> cases Frontend.denoteEList st as <;> rfl
-
 /-! ### `stripPis`, in run form
 
 `Bridge/ExprOps/Spine.lean`'s `stripPis_spec` is closed; here is its run
 form with the two inversions of `denoteBP` its readers need, and the other
 spine readers and interners the generators call, in run form. -/
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1128-1134 stripPis — the run form
-at this tier's frame; `stripPis` is read-only, so the state does not move at
-all. -/
-theorem stripPis_pstep {k : Nat} {s₀ s' : AState} {c : EIdx} {cP : Expr}
-    {r : Option (List EIdx × EIdx)} (hok : StateOK s₀)
-    (hd : denoteE s₀.store c = some cP)
-    (hrun : Arena.stripPis k c s₀ = .ok (r, s')) :
-    s' = s₀ ∧ ExprOps.denoteBP s₀.store r = some (Expr.stripPis k cP) := by
-  obtain ⟨h1, h2⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
-    (ExprOps.stripPis_spec k s₀ c hok (by rw [hd]; rfl))
-  exact ⟨h1, h2 cP hd⟩
-
-/-- con-leche: none — a `none` answer is `none` on the pure side too: the
-two-sidedness `stripPis`' dispatch needs. -/
-theorem stripPis_none {st : EStore} {k : Nat} {cP : Expr}
-    (h : ExprOps.denoteBP st none = some (Expr.stripPis k cP)) :
-    Expr.stripPis k cP = none := (Option.some.inj h).symm
-
-/-- con-leche: none — and a `some` answer of a telescope peel (`stripPis`,
-`stripLams`) names the pure answer: its binders and its residual denote. -/
-theorem denoteBP_some {st : EStore} {v : Option (List Expr × Expr)}
-    {bs : List EIdx} {e : EIdx}
-    (h : ExprOps.denoteBP st (some (bs, e)) = some v) :
-    ∃ xs x, v = some (xs, x) ∧ Frontend.denoteEList st bs = some xs ∧
-      denoteE st e = some x := by
-  simp only [ExprOps.denoteBP] at h
-  cases hb : ExprOps.denoteBL st bs with
-  | none => rw [hb] at h; simp at h
-  | some xs =>
-    cases he : denoteE st e with
-    | none => rw [hb, he] at h; simp at h
-    | some x =>
-      rw [hb, he] at h
-      refine ⟨xs, x, (Option.some.inj h).symm, ?_, rfl⟩
-      rw [← denoteBL_eq_denoteEList]; exact hb
-
-
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1212-1217 fvarTypeD — the run
-form of `Bridge/ExprOps/Spine.lean`'s closed `fvarTypeD_spec`. -/
-theorem fvarTypeD_run {s₀ s' : AState} {h r : EIdx} {hP : Expr}
-    (hok : StateOK s₀) (hd : denoteE s₀.store h = some hP)
-    (hrun : Arena.fvarTypeD h s₀ = .ok (r, s')) :
-    s' = s₀ ∧ denoteE s₀.store r = some hP.fvarTypeD := by
-  obtain ⟨h1, h2⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
-    (ExprOps.fvarTypeD_spec s₀ h hok (by rw [hd]; rfl))
-  exact ⟨h1, h2 hP hd⟩
-
-
 
 @[expose] def denoteOpen (st : EStore) :
     Option (List EIdx × EIdx) → Option (Option (List Expr × Expr))
@@ -675,32 +611,5 @@ theorem hasLooseBVarBFast_spec (i : Nat) (e : EIdx) (eP : Expr) :
   exact ⟨hstep, hr⟩
 
 /-! ## The projection guards -/
-
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:393-396 structUsedLater
-Is field `j` mentioned by a later field's domain?
-
-**Proof:** `hasLooseBVarBFast_spec` under the
-constructor type's telescope, with `stripPis_pstep`'s two inversions for the
-dispatch. -/
-theorem structUsedLater_spec (cty : EIdx) (ctyP : Expr) (nP j : Nat) :
-    PSpec (fun st => denoteE st cty = some ctyP)
-      (Arena.structUsedLater cty nP j)
-      (RV (ConLeche.structUsedLater ctyP nP j)) := by
-  intro s₀ s' r hok hd hrun
-  simp only [Arena.structUsedLater] at hrun
-  obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
-  show PStep s₀ s' ∧ r = ConLeche.structUsedLater ctyP nP j
-  rw [ConLeche.structUsedLater]
-  obtain ⟨rfl, hbp⟩ := stripPis_pstep hok hd h1
-  cases o with
-  | none =>
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
-    rw [stripPis_none hbp]
-    exact ⟨PStep.refl hok, rfl⟩
-  | some p =>
-    obtain ⟨bs, rest⟩ := p
-    obtain ⟨xs, x, hsp, -, hx⟩ := denoteBP_some hbp
-    rw [hsp]
-    exact hasLooseBVarBFast_spec 0 rest x _ _ r hok hx h2
 
 end ConRon.Bridge.Core.Guard

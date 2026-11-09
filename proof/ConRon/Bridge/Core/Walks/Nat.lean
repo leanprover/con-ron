@@ -477,16 +477,6 @@ Each is a twin over the INDEX's lookup at a pinned name and con-leche's over
 the environment's at the name it denotes; `OptCI.at` relates the two through
 the projections, and con-leche's function is one equation over them. -/
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:173-176 natIndOk — the function as
-ONE equation over the projections. -/
-@[bridge_grind =] theorem natIndOk_eq (o : Option ConstantInfo) : ConLeche.natIndOk o =
-    (cInd? o && (cIndVal o).levelParams.isEmpty &&
-      (cIndVal o).type == .sort (.succ .zero)) := by
-  match o with
-  | some (.indInfo _ _) => rfl
-  | none | some (.axiomInfo _) | some (.defnInfo _ _ _) | some (.thmInfo _)
-  | some (.ctorInfo _ _ _) | some (.recInfo _ _ _ _ _) => rfl
-
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:179-182 natZeroOk — the function
 as ONE equation over the projections. -/
 @[bridge_grind =] theorem natZeroOk_eq (o : Option ConstantInfo) : ConLeche.natZeroOk o =

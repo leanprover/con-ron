@@ -1738,19 +1738,6 @@ theorem all_ctors3_eq {st : EStore} {f : IConstantVal × Nat × Nat → Bool}
         obtain rfl := (Option.some.inj hc).symm
         simp only [List.all_cons, h cv a b x h1, ih xs h2]
 
-/-- con-leche: none — an `all` of a conjunction splits. -/
-theorem all_and_split {α : Type} (p q : α → Bool) :
-    ∀ (xs : List α), (xs.all fun a => p a && q a) = (xs.all p && xs.all q) := by
-  intro xs
-  induction xs with
-  | nil => rfl
-  | cons x xs ih =>
-    simp only [List.all_cons, ih]
-    cases p x <;> cases q x <;> cases xs.all p <;> cases xs.all q <;> rfl
-
-theorem not_eq_beq_false {a b : Bool} (h : a = b) : (!a) = (b == false) := by
-  subst h; cases a <;> rfl
-
 /-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
 — **the reader's run, inverted once**: the split (`blockSplit_spec`), the
 counts, the universe and parameter declarations' three tests, the result
