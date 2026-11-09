@@ -31,7 +31,6 @@ set_option autoImplicit false
 open ConLeche ConRon.Arena
 open ConRon.Arena.Frontend.Olean (OleanFs OleanPins ModRef ValueCache readValue)
 
-universe w
 
 /-! ## A reference is a `bvar`
 
@@ -208,7 +207,7 @@ theorem fillRef_of_not_bvar {val : Nat → Expr} {x : Expr} (h : ∀ n, x ≠ .b
 
 /-- con-leche: ConLeche/Driver/CheckMain.lean:120-133 oleanJobRun — **an `--olean` job's accept
 is the fold's step at the filled record**. -/
-theorem oleanJob_spec (V : Type w) [ConLeche.SetTheory V]
+theorem oleanJob_spec
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {F : FS}
     {pk : ConRon.Arena.Frontend.Olean.OleanPins} {sp : ConLeche.Frontend.Olean.SearchPath}
     {values : Array ConRon.Arena.Frontend.Olean.ModRef}
@@ -265,7 +264,7 @@ theorem oleanJob_spec (V : Type w) [ConLeche.SetTheory V]
            · cases hdk; rfl
            · cases hdk)
     obtain ⟨hw', env', Fu, hFu⟩ :=
-      job_spec V hrec hpp hpinsOK hpersPins hpins hpd hI' hpI hw.1 hk hkF
+      job_spec hrec hpp hpinsOK hpersPins hpins hpd hI' hpI hw.1 hk hkF
         (by rw [hFk, hfill]; exact hdk) hP hnd hj
     exact ⟨⟨hw', hc ▸ hw.2⟩, env', Fu, hFu⟩
   · -- the reference read in the job
@@ -301,7 +300,7 @@ theorem oleanJob_spec (V : Type w) [ConLeche.SetTheory V]
       simp only [ConLeche.Cached.fillDecl, fillRef, valueOf_eq hva]
     -- the record checked with the value in place
     have hxr : PExt s₁.store sr.store := hxj.trans (PExt.of_ext hps.ext)
-    have hok := view_foldOK V hpinsOK hpersPins hI' hpI hkF hP hnd hps.ok hxr
+    have hok := view_foldOK hpinsOK hpersPins hI' hpI hkF hP hnd hps.ok hxr
       ((CacheOK.of_empty hcj).monoF hps.ext hps.cframe) (hps.pins.trans hpj)
     have hpinsr := PinsDenote.pmono hxr pins pinsP hpp hpins
     have hdr : Frontend.denoteDecl sr.store (.thmDecl cv e) = some (.thmDecl cv' x') := by
@@ -360,7 +359,7 @@ theorem checkOleanJobList_chain {fs : ConRon.Arena.Frontend.Olean.OleanFs}
 /-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:488 checkDecls_of_jobs — **the pool of an
 `--olean` run**: every `--olean` job passing is an accept of con-leche's fold at the FILLED
 stream, from an index that denotes con-leche's index of the records as read. -/
-theorem pooled_fold_oleans (V : Type w) [ConLeche.SetTheory V]
+theorem pooled_fold_oleans
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {F : FS}
     {pk : ConRon.Arena.Frontend.Olean.OleanPins} {sp : ConLeche.Frontend.Olean.SearchPath}
     {values : Array ConRon.Arena.Frontend.Olean.ModRef}
@@ -388,7 +387,7 @@ theorem pooled_fold_oleans (V : Type w) [ConLeche.SetTheory V]
   refine pooled_fold
     (Inv := fun w => WorkerOK s₁ w.1 ∧ Frontend.Olean.CacheOK sp F valuesP w.2)
     (Run := OleanRun (Frontend.Olean.modelFs F) pk sp values pins I ds)
-    (oleanJob_spec V hrec hpp hpinsOK hpersPins hpins hpd hden hI hpI hwf₀ hoff₀ hx₀ hv₀ hnu₀)
+    (oleanJob_spec hrec hpp hpinsOK hpersPins hpins hpd hden hI hpI hwf₀ hoff₀ hx₀ hv₀ hnu₀)
     ?_ hpush parts (fun t ht => hcov t (by omega)) hinc (fun w hw => ?_)
   · intro t w w' hr
     obtain ⟨hk, -⟩ := hr

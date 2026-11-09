@@ -13,9 +13,9 @@ is an accept of con-leche's pure fold `checkDeclsPure`.  This is con-leche's
 * **Induction in fold order.**  At position `k` the prefix's fold has accepted with the
   environment the records denote (`streamEnv`, con-leche's `checkDecl` pushes what the record says:
   `KernelPushes`), so the names so far are distinct (`KernelPushes`' freshness) and the view of
-  `k` is that environment (`view_ok`).  con-leche's model of the accepted prefix supplies its
-  `EnvWF` (`ConLeche.Model.foldPM`), as upstream's `declsRun_model` does.  Then job `k`'s accept is
-  the fold's step (`RecordSpec`).
+  `k` is that environment (`view_ok`).  The accepted prefix's environment is well formed by
+  con-leche's model-free `foldlM_checkDecl_envWF` (`ConLeche/Semantics/DeclWF.lean`, the fold
+  under `checkDecls_envWF`).  Then job `k`'s accept is the fold's step (`RecordSpec`).
 * **A worker's state.**  A job runs from the state its worker reached through the jobs it ran
   before.  Their specifications need the fold up to THEIR positions, and a worker's jobs increase,
   so those positions are below `k` and the induction already has them (`worker_reaches`).  Each job
@@ -31,7 +31,7 @@ module
 public import ConRon.Bridge.Checker.StreamIndex
 public import ConRon.Bridge.Checker.Decl
 public import ConRon.Arena.Pooled
-public import ConLeche.Model.Fold
+import ConLeche.Semantics.DeclWF
 import ConLeche.Verify.BridgeDecl
 import ConRon.Bridge.Specs
 import ConLeche.Verify.Cached.BridgeCS4
@@ -44,7 +44,6 @@ set_option autoImplicit false
 
 open ConLeche ConRon.Arena
 
-universe w
 
 /-! ## The pin variants across a drop -/
 
@@ -229,7 +228,7 @@ theorem PrefixOK.step {pinsP : List NatOpPinSet} {dsP : List Declaration} {k : N
 view**: at a position whose prefix the fold has accepted with distinct names, any state whose store
 persistently extends the driver's, with caches sound at the prefix's environment and the driver's
 pins, holds `FoldOK` at the view of that position. -/
-theorem view_foldOK (V : Type w) [ConLeche.SetTheory V]
+theorem view_foldOK
     {pinsP : List NatOpPinSet} {dsP : List Declaration} {I : IStreamIndex} {s₁ s : AState}
     {k : Nat} (hpinsOK : PinsOK s₁) (hpersPins : PersPins s₁)
     (hI : IndexDenotes s₁.store I (ConLeche.Cached.buildIndex dsP.toArray))
@@ -247,11 +246,10 @@ theorem view_foldOK (V : Type w) [ConLeche.SetTheory V]
   obtain ⟨hienv, hgate⟩ := view_ok hst hIj hspec hnd
   rw [hlen] at hienv hgate
   obtain ⟨F₀, hF₀⟩ := hP
-  obtain ⟨⟨mp, -, -⟩, -, -⟩ := ConLeche.Model.foldPM (V := V) (pins := pinsP) (dsP.take k)
-    Env.empty ConLeche.Model.EnvModelOk.empty (hF₀ F₀ (Nat.le_refl _))
   exact
     { check := ⟨hst, hc, hpinsOK.pmono hpersPins hx hp, hienv⟩
-      envWF := mp.toEnvFacts.wf
+      envWF := ConLeche.Semantics.foldlM_checkDecl_envWF (pins := pinsP) (dsP.take k)
+        ConLeche.Semantics.EnvWF.empty (hF₀ F₀ (Nat.le_refl _))
       tblShape := fun t ht => by simp [IStreamIndex.view] at ht
       persPins := hpersPins.mono hp
       coh := ⟨fun _ => rfl, fun _ => rfl⟩
@@ -262,7 +260,7 @@ theorem view_foldOK (V : Type w) [ConLeche.SetTheory V]
 state**: at a position whose prefix the fold has accepted with distinct names, record `k`'s job
 accepting leaves a worker's state and con-leche's `checkDecl` accepting the record at the
 prefix's environment. -/
-theorem job_spec (V : Type w) [ConLeche.SetTheory V]
+theorem job_spec
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
     {ds : Array IDeclaration} {dsP : List Declaration} {I : IStreamIndex} {s₁ w w' : AState}
     {k : Nat}
@@ -302,7 +300,7 @@ theorem job_spec (V : Type w) [ConLeche.SetTheory V]
     have hstj : StateOK sj := by rw [← hsj]; exact ⟨EStore.enableScratch_wf hw.state.wf⟩
     have hpj : sj.pins = s₁.pins := by rw [← hsj]; exact hw.pins
     have hcj : sj.caches = Caches.empty := by rw [← hsj]; exact hw.caches
-    have hok := view_foldOK V hpinsOK hpersPins hI hpI hk' hP hnd hstj hxj
+    have hok := view_foldOK hpinsOK hpersPins hI hpI hk' hP hnd hstj hxj
       (CacheOK.of_empty hcj) hpj
     have hpinsj := PinsDenote.pmono hxj pins pinsP hpp hpins
     have hdj := denoteDecl_pext hxj (hpd _ (Array.getElem_mem_toList hk)) hdk
@@ -461,7 +459,7 @@ theorem checkJobList_chain {pins : List INatOpPinSet} {I : IStreamIndex}
 /-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:488 checkDecls_of_jobs — **the stream's
 pool**: every record job passing is an accept of con-leche's fold, from an index that denotes
 con-leche's index of the denoted stream. -/
-theorem pooled_fold_records (V : Type w) [ConLeche.SetTheory V]
+theorem pooled_fold_records
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
     {ds : Array IDeclaration} {dsP : List Declaration} {I : IStreamIndex} {s₁ : AState}
     (hrec : RecordSpec pins pinsP) (hpush : KernelPushes pinsP) (hpp : PersPinSets pins)
@@ -484,7 +482,7 @@ theorem pooled_fold_records (V : Type w) [ConLeche.SetTheory V]
     obtain ⟨hk, hj⟩ := hrun
     obtain ⟨hk', hdk⟩ := hden k hk
     obtain ⟨hw', env', F, hF⟩ :=
-      job_spec V hrec hpp hpinsOK hpersPins hpins hpd hI hpI hw hk hk' hdk hP hnd hj
+      job_spec hrec hpp hpinsOK hpersPins hpins hpd hI hpI hw hk hk' hdk hP hnd hj
     exact ⟨hw', env', F, hF⟩
   · intro t w w' hr
     obtain ⟨hk, -⟩ := hr

@@ -133,7 +133,7 @@ theorem stages_model (V : Type w) [ConLeche.SetTheory V]
   obtain ⟨hoff, hst, hpp, hipins, hpps, hpd, rc, preC, hclR, hden⟩ :=
     stages_frame hA hB hC hD hE
   obtain ⟨F', hpure⟩ :=
-    Arena.pooledAccepts_bridge V hk hind hst hoff hpp hpps hipins hpd hden hF
+    Arena.pooledAccepts_bridge hk hind hst hoff hpp hpps hipins hpd hden hF
   obtain ⟨parts, hidx, -⟩ := hF
   obtain ⟨hst', hx, -⟩ := buildIndex_run constsSpec tablesSpec hst hoff hpd hden hidx
   exact ⟨hst'.state.wf, _, denoteDecls_ext hx _ _ hden,
@@ -159,7 +159,7 @@ theorem stages_no_False (V : Type w) [ConLeche.SetTheory V]
   obtain ⟨hoff, hst, hpp, hipins, hpps, hpd, rc, preC, hclR, hden⟩ :=
     stages_frame hA hB hC hD hE
   obtain ⟨F', hpure⟩ :=
-    Arena.pooledAccepts_bridge V hk hind hst hoff hpp hpps hipins hpd hden hF
+    Arena.pooledAccepts_bridge hk hind hst hoff hpp hpps hipins hpd hden hF
   obtain ⟨cv, vl, hty, hmem⟩ := ConLeche.Frontend.parseChunks_jsonWithTheoremFalse hfalse hclR
   exact no_False_theorem_accepted_pure V
     (by simpa using ConLeche.Frontend.mem_preparePrelude (pre := preC) hmem) hty hpure
@@ -282,7 +282,7 @@ theorem stagesO_no_False (V : Type w) [ConLeche.SetTheory V]
     False := by
   obtain ⟨hoff, hst, hpp, hipins, hpps, hpd, hwfC, hoffC, hxC, hnu, valuesP, dsR, preC, usedC,
     hvals, hden, hthm⟩ := stagesO_frame hA hB hR hC hD hE
-  obtain ⟨Fu, hpure⟩ := Arena.pooledOleanAccepts_bridge V hk hind hst hoff hpp hpps hipins hpd
+  obtain ⟨Fu, hpure⟩ := Arena.pooledOleanAccepts_bridge hk hind hst hoff hpp hpps hipins hpd
     hden hwfC hoffC hxC hvals hnu hF
   obtain ⟨code, hd⟩ := hthm hcl hv hmem hkind
   have hm := List.mem_map_of_mem (f := ConLeche.Cached.fillDecl (fillRef (valueOf sp F valuesP)))
@@ -315,7 +315,7 @@ theorem stagesO_model (V : Type w) [ConLeche.SetTheory V]
         (ConLeche.Cached.streamEnv (dsP.map (ConLeche.Cached.fillDecl (fillRef val))))) := by
   obtain ⟨hoff, hst, hpp, hipins, hpps, hpd, hwfC, hoffC, hxC, hnu, valuesP, dsR, preC, usedC,
     hvals, hden, -⟩ := stagesO_frame hA hB hR hC hD hE
-  obtain ⟨Fu, hpure⟩ := Arena.pooledOleanAccepts_bridge V hk hind hst hoff hpp hpps hipins hpd
+  obtain ⟨Fu, hpure⟩ := Arena.pooledOleanAccepts_bridge hk hind hst hoff hpp hpps hipins hpd
     hden hwfC hoffC hxC hvals hnu hF
   obtain ⟨parts, hidx, -⟩ := hF
   obtain ⟨hst', hx, -⟩ := buildIndex_run constsSpec tablesSpec hst hoff hpd hden hidx

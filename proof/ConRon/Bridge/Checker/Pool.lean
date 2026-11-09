@@ -39,7 +39,6 @@ set_option autoImplicit false
 
 open ConLeche ConRon.Arena
 
-universe w
 
 /-- con-leche: ConLeche/Verify/Cached/DeclPushes.lean:723 checkDeclStepC_pushes — the pure
 kernel's pushes and freshness, as `Pooled.lean` takes them. -/
@@ -95,10 +94,10 @@ theorem denoteDecls_getElem {st : EStore} :
 /-- con-leche: ConLeche/Driver/CheckPool.lean:199-227 checkPool
 con-leche: ConLeche/Verify/Cached/StreamIndex.lean:488 checkDecls_of_jobs — **THEOREM 1 at the
 check phase the driver runs**: from an accepting `Arena.PooledAccepts`, con-leche's pure fold
-`checkDeclsPure` accepts the denoted stream, at the environment its records denote.  The set
-theory supplies the well-formedness of each prefix's environment, as in con-leche's own
-`declsRun_model`. -/
-theorem Arena.pooledAccepts_bridge (V : Type w) [ConLeche.SetTheory V]
+`checkDeclsPure` accepts the denoted stream, at the environment its records denote.  Each
+prefix's environment is well formed by con-leche's model-free `foldlM_checkDecl_envWF`
+(`ConLeche/Semantics/DeclWF.lean`); no set theory is involved. -/
+theorem Arena.pooledAccepts_bridge
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
     {ds : Array IDeclaration} {dsP : List Declaration} {s s' : AState} {I : IStreamIndex}
     (hk : CoreSpec Arena.checkFuel) (hind : IndSpec)
@@ -116,7 +115,7 @@ theorem Arena.pooledAccepts_bridge (V : Type w) [ConLeche.SetTheory V]
       Frontend.denoteDecl s'.store ds[i] = some dsP[i] := fun i hi => by
     obtain ⟨hi', h⟩ := hget i (by simpa using hi)
     exact ⟨hi', Frontend.denoteDecl_ext hx (by simpa using h)⟩
-  exact pooled_fold_records V (recordSpec hk hind) (kernelPushes pinsP) hpp hst'.state
+  exact pooled_fold_records (recordSpec hk hind) (kernelPushes pinsP) hpp hst'.state
     (hst.pins.pmono hpersPins hx' hp') (hpersPins.mono hp') (PinsDenote.mono hx pins pinsP hpins)
     hpd (by simpa using hlen) hden' hI hpI parts hcov hinc hacc
 
@@ -128,7 +127,7 @@ check phase of an `--olean` run**: from an accepting `Arena.PooledOleanAccepts` 
 replaced by the snapshot's value there), at the environment it denotes.  The reader's module
 references and pins are related at an earlier state `s₀` (the read's), which the driver's
 persistently extends. -/
-theorem Arena.pooledOleanAccepts_bridge (V : Type w) [ConLeche.SetTheory V]
+theorem Arena.pooledOleanAccepts_bridge
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
     {ds : Array IDeclaration} {dsP : List Declaration} {s₀ s s' : AState} {I : IStreamIndex}
     {F : FS} {pk : OleanPins} {sp : ConLeche.Frontend.Olean.SearchPath}
@@ -153,7 +152,7 @@ theorem Arena.pooledOleanAccepts_bridge (V : Type w) [ConLeche.SetTheory V]
       Frontend.denoteDecl s'.store ds[i] = some dsP[i] := fun i hi => by
     obtain ⟨hi', h⟩ := hget i (by simpa using hi)
     exact ⟨hi', Frontend.denoteDecl_ext hx (by simpa using h)⟩
-  exact pooled_fold_oleans V (recordSpec hk hind) (kernelPushes pinsP) hpp hst'.state
+  exact pooled_fold_oleans (recordSpec hk hind) (kernelPushes pinsP) hpp hst'.state
     (hst.pins.pmono hpersPins hx' hp') (hpersPins.mono hp') (PinsDenote.mono hx pins pinsP hpins)
     hpd (by simpa using hlen) hden' hI hpI hwf₀ hoff₀ (hx₀.trans hx') hv₀ hnu₀ parts hcov hinc
     hacc
