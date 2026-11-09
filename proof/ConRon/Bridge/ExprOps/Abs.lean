@@ -170,11 +170,14 @@ clause: the leaf at the abstracted level becomes `bvar k`. -/
 @[bridge_grind =] theorem abs1Fn_fvar (d k i : Nat) (t : Expr) :
     abs1Fn d k (.fvar i t) = if i = d then .bvar k else .fvar i t := rfl
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1765 abstract1_of_fvarRange_le —
-the cutoff of `abstract1Go`. -/
+/-- The cutoff of `abstract1Go`: `abstract1` at or above a term's fvar range
+is the identity (con-leche states it privately, as `abstract1_eq_self` in
+`ConLeche/Verify/Cached/OpsC.lean`, for the cached `abstract1C`). -/
 theorem abs1Fn_cutoff {d k : Nat} {e : Expr} (h : e.fvarRange ≤ d) :
-    abs1Fn d k e = e :=
-  Expr.abstract1_of_fvarRange_le e d k h
+    abs1Fn d k e = e := by
+  unfold abs1Fn
+  induction e generalizing d k <;>
+    simp_all [Expr.abstract1, Expr.fvarRange, Nat.max_le] <;> omega
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:659-671 abstract1 — the
 catch-all: a term whose tag is none of the five the walk dispatches on is a
