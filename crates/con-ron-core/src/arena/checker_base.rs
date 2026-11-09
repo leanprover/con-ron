@@ -72,12 +72,6 @@ pub const M_DUP_DECL: [u32; 21] = [
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"reserved basis name"`, as code points.
-pub const M_RESERVED_BASIS: [u32; 19] = [
-    114, 101, 115, 101, 114, 118, 101, 100, 32, 98, 97, 115, 105, 115, 32, 110, 97, 109, 101,
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"duplicate universe parameters in declaration"`, as code points.
 pub const M_DUP_UNIV: [u32; 44] = [
     100, 117, 112, 108, 105, 99, 97, 116, 101, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112,
