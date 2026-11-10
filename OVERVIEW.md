@@ -886,7 +886,7 @@ holds of exactly the names the port's smart constructors can build from valid
 code points, and `LevelWF` and `PropWhenWF` lift it to levels and to the
 zero-ness datum.  The store invariant carries the same fact for every stored
 string.  An example of a lemma with such a premise
-([`Refine2/Core/LS/PrimsA1.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Core/LS/PrimsA1.lean#L1312-L1316)):
+([`Refine2/Core/LS/PrimsA1.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Core/LS/PrimsA1.lean#L1251-L1255)):
 
 ```lean
 @[lockstep] theorem level_param_ls (n : kernel.name.Name) (hn : ConRon.Refine.NameWF n) :

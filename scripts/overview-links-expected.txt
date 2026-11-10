@@ -2347,12 +2347,12 @@
    492    | str {pre s n} : NameWF pre → StrWF s → name.mk_str pre s = ok n → NameWF n
    493    | num {pre m n} : NameWF pre → name.mk_num pre m = ok n → NameWF n
 
-== proof/ConRon/Refine2/Core/LS/PrimsA1.lean#L1312-L1316
-  1312  @[lockstep] theorem level_param_ls (n : kernel.name.Name) (hn : ConRon.Refine.NameWF n) :
-  1313      LSP (kernel.level.param n)
-  1314        (fun u => ConRon.Refine.LevelWF u ∧
-  1315          TwinEq (.param (ConRon.Refine.absName n)) (ConRon.Refine.absLevel u)) :=
-  1316    fun _ h => ⟨ConRon.Refine.Level.param_wf' h hn, (ConRon.Refine.Level.param_refines h).symm⟩
+== proof/ConRon/Refine2/Core/LS/PrimsA1.lean#L1251-L1255
+  1251  @[lockstep] theorem level_param_ls (n : kernel.name.Name) (hn : ConRon.Refine.NameWF n) :
+  1252      LSP (kernel.level.param n)
+  1253        (fun u => ConRon.Refine.LevelWF u ∧
+  1254          TwinEq (.param (ConRon.Refine.absName n)) (ConRon.Refine.absLevel u)) :=
+  1255    fun _ h => ⟨ConRon.Refine.Level.param_wf' h hn, (ConRon.Refine.Level.param_refines h).symm⟩
 
 == proof/ConRon/Refine2/ExprOps/Mut.lean#L290-L319
    290  theorem instantiate1_go_aux (n : Nat) :
