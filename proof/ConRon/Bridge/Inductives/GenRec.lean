@@ -279,7 +279,7 @@ theorem closeLamsGo_spec (i : Nat) (bs : List EIdx) :
     show denoteE _ r = _
     rw [hr, Expr.closeLamsGoC, Expr.abstractRangeC_spec, Expr.mkLam_eq]
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:87-89 closeLams —
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:86-89 closeLams —
 **a telescope of `λ`s closed**: the twin's one-pass closer
 (`closeLamsGo_spec`) is con-leche's `closeLams` through con-leche's own
 `closeLamsC_eq`. -/
@@ -2688,7 +2688,7 @@ theorem classRuleCheck_spec {envR env₂ : Env} (feR : IFEnv) (pushed : List NId
       (fun st => Frontend.denoteCV st cvR = some cvRP ∧ denoteE st gen = some genP ∧
         Frontend.denoteNList st.ns pushed = some pushedP)
       (Arena.classRuleCheck .verified feR pushed cvR n gen) (fun _ _ _ => True)
-      (ConLeche.classRuleCheck (fueledOpsM .verified) .plain (mkFEnv env₂) (mkFEnv envR) cvRP n
+      (ConLeche.classRuleCheck (fueledOpsM .verified) (mkFEnv env₂) (mkFEnv envR) cvRP n
         genP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hcv, hgen, hie₂⟩ := hpre
@@ -2751,7 +2751,7 @@ theorem classRuleCheck_spec {envR env₂ : Env} (feR : IFEnv) (pushed : List NId
     refine ⟨c18, (), trivial, ?_⟩
     have h1P : (genP.looseBVarsBounded 0 && !genP.hasFvar) = true := by
       simp only [hlb, hfvP, Bool.not_false, Bool.and_self]
-    simp only [ConLeche.classRuleCheck, h1P, hlp, StructWalkers.plain, constsResolveF_eq, hcr,
+    simp only [ConLeche.classRuleCheck, h1P, hlp, constsResolveF_eq, hcr,
       mkFEnv_env, hsl, ↓reduceIte]
     refine FOk.bind hF5 (FOk.bind FOk.unwrapOr ?_)
     dsimp only
@@ -2775,7 +2775,7 @@ theorem classRuleOk_spec {envR env₂ : Env} (feR : IFEnv) (pushed : List NIdx)
       (fun st => Frontend.denoteCV st cvR = some cvRP ∧ denoteE st gen = some genP ∧
         Frontend.denoteNList st.ns pushed = some pushedP)
       (Arena.classRuleOk .verified feR pushed cvR n gen) (fun st r v => denoteE st r = some v)
-      (ConLeche.classRuleOk (fueledOpsM .verified) .plain (mkFEnv env₂) (mkFEnv envR) cvRP n
+      (ConLeche.classRuleOk (fueledOpsM .verified) (mkFEnv env₂) (mkFEnv envR) cvRP n
         genP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hcv, hgen, hie₂⟩ := hpre
@@ -2804,7 +2804,7 @@ theorem classRulesOk_spec {envR env₂ : Env} (feR : IFEnv) (pushed : List NIdx)
         Frontend.denoteNList st.ns pushed = some pushedP)
       (Arena.classRulesOk .verified feR pushed g recCls cvGs cvR c xs)
       (fun st r v => Frontend.denoteEList st r = some v)
-      (ConLeche.classRulesOk (fueledOpsM .verified) .plain (mkFEnv env₂) (mkFEnv envR) gP
+      (ConLeche.classRulesOk (fueledOpsM .verified) (mkFEnv env₂) (mkFEnv envR) gP
         (ConLeche.classRecOf recCls cvGsP) cvRP c xsP) := by
   intro xs
   induction xs with
@@ -2871,7 +2871,7 @@ theorem classRecsRulesOk_spec {envR env₂ : Env} (feR : IFEnv) (pushed : List N
         Frontend.denoteNList st.ns pushed = some pushedP)
       (Arena.classRecsRulesOk .verified feR pushed g recCls cvGs cvs cs)
       (fun st r v => r.mapM (dRecOut st) = some v)
-      (ConLeche.classRecsRulesOk (fueledOpsM .verified) .plain (mkFEnv env₂) (mkFEnv envR) gP
+      (ConLeche.classRecsRulesOk (fueledOpsM .verified) (mkFEnv env₂) (mkFEnv envR) gP
         (ConLeche.classRecOf recCls cvGsP) cvsP cs) := by
   intro cvs
   induction cvs with
@@ -3265,7 +3265,7 @@ theorem genRecCheck_spec {env₂ : Env} (fe₂ : IFEnv)
       (Arena.genRecCheck .verified fe₂ p nestedBit params tbl rd ms block)
       (fun st r v => r.2.mapM (dRecOut st) = some v ∧ (∀ t ∈ v, env₂.find? t.1.name = none) ∧
         GR.FEq r.1 fe₂)
-      (ConLeche.genRecCheck (ShadowOps.ofOps (fueledOpsM .verified)) (mkFEnv env₂) pP nestedBit paramsP
+      (ConLeche.genRecCheck (fueledOpsM .verified) (mkFEnv env₂) pP nestedBit paramsP
         tblP rdP MsP blockP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hsh, hpar, htbl, hrd, hms, hblk⟩ := hpre
@@ -3453,9 +3453,9 @@ theorem genRecCheck_spec {env₂ : Env} (fe₂ : IFEnv)
     rw [← hs15] at hok13 hi13 hst13
     have hframe : CoreStep env₂ fe₂ s₀ s' :=
       ⟨hok13, by rw [hst13]; exact hext12, by rw [hi13.pins, hpins12]⟩
-    have hFOk : FOk (ConLeche.genRecCheck (ShadowOps.ofOps (fueledOpsM .verified)) (mkFEnv env₂) pP
+    have hFOk : FOk (ConLeche.genRecCheck (fueledOpsM .verified) (mkFEnv env₂) pP
         nestedBit paramsP tblP rdP MsP blockP) outP := by
-      simp only [ConLeche.genRecCheck, ShadowOps.ofOps, mkFEnv_env]
+      simp only [ConLeche.genRecCheck, mkFEnv_env]
       refine FOk.bind hF1 (FOk.bind hF2 ?_)
       rw [ite_eq_left hkP, hcond]
       simp only [Bool.false_eq_true, ↓reduceIte]
@@ -3464,14 +3464,14 @@ theorem genRecCheck_spec {env₂ : Env} (fe₂ : IFEnv)
       refine FOk.bind hF6 ?_
       rw [hpreP]
       rw [hrc] at hF10
-      refine FOk.bind FOk.unwrapOr (FOk.bind hF10 (FOk.seq (FOk.pure ()) ?_))
+      refine FOk.bind FOk.unwrapOr (FOk.bind hF10 ?_)
       have hfeReq : ConLeche.classFeR pP Ms2P cvGsP rdP.recCls (mkFEnv env₂) =
           mkFEnv (consBlockRecsBare pP 0
             ((cvGsP.zip rdP.recCls).map fun x => (x.1, (Ms2P.getD x.2 default).nIdx)) env₂) := by
         simp only [ConLeche.classFeR, consBlockRecsBareF_mkFEnv]
       rw [hfeReq]
       rw [hrc] at hF12
-      exact FOk.bind hF12 (FOk.seq (FOk.pure ()) (FOk.pure _))
+      exact hF12
     refine ⟨hframe, outP, ⟨by rw [hst13]; exact hout, ?_, GR.classFeR_pop p cvGs rd.recCls fe₂⟩,
       hFOk⟩
     obtain ⟨F, hF⟩ := hFOk

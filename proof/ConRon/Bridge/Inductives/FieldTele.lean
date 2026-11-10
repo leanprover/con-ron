@@ -134,7 +134,7 @@ theorem closeTelescopeGo_spec (i : Nat) (bs : List EIdx) :
     show denoteE _ r = _
     rw [hr, Expr.closeTelescopeGoC, Expr.abstractRangeC_spec, Expr.mkForallE_eq]
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:55-58 closeTelescope
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:51-59 closeTelescope
 Close a body under a telescope: the twin's one-pass closer
 (`closeTelescopeGo_spec`) is con-leche's `closeTelescope` through con-leche's
 own `closeTelescopeC_eq`. -/

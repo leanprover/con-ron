@@ -196,20 +196,10 @@ ConLeche/Kernel/Inductives/FieldTele.lean MentionsFvarMemoInv A `Prop`-valued me
 ConLeche/Kernel/Inductives/FieldTele.lean Expr.mentionsFvarIns The memo insert of that unexecuted walk.
 ConLeche/Kernel/Inductives/FieldTele.lean Expr.mentionsFvarGo The memoised walk of that unexecuted test.
 ConLeche/Kernel/Inductives/FieldTele.lean Expr.mentionsFvarFast The entry of that unexecuted walk.
-ConLeche/Kernel/Inductives/Positivity.lean MentionsAnyMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
-ConLeche/Kernel/Inductives/Positivity.lean NestOccMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
-ConLeche/Kernel/Inductives/Positivity.lean ReplaceFVarsMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
-ConLeche/Kernel/Inductives/Positivity.lean ReplaceAppsMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
 ConLeche/Kernel/Inductives/Positivity.lean NestedPositivity The `Prop`-valued specification of nested positivity that `nestPos` decides; no run-time content.
 ConLeche/Kernel/Inductives/Positivity.lean nestedBlockPositivity The specification's block-level reading of `NestedPositivity`; the executed test is `checkBlockPositivity` (`block_install.rs`), which is ported.
 ConLeche/Kernel/Inductives/BlockInstall.lean consBlockRecs The pure-knot spelling of the recursors' cons; the port has one fold, the cached one, whose recursors are `blockRecInfosTF`'s (`rec_check::block_rec_infos_tf`), pushed and popped in place.
-ConLeche/Kernel/Inductives/RecCheck.lean ShadowOps The operations record the recursor check is parameterised by; the port has one instance, the cached one (`shadowOpsC`), and calls the core entry points and `flush_caches` directly (`gen_rec.rs`'s module note).
-ConLeche/Kernel/Inductives/RecCheck.lean ShadowOps.ofOps The pure-knot instance of `ShadowOps`; as `ShadowOps`.
-ConLeche/Kernel/Inductives/RecCheck.lean ShadowOps.fueled The fueled pure instance of `ShadowOps`; as `ShadowOps`.
-ConLeche/Kernel/Inductives/RecCheck.lean TargetAbsMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
 ConLeche/Kernel/Inductives/RecCheck.lean tgtRs The recursor-list format of the targets for `consBlockRecs`; the port's `block_rec_infos_tf` reads the targets directly.
-ConLeche/Kernel/Inductives/StructInstallF.lean StructWalkers The walkers record `classRuleOk` is parameterised by; the port has its one instance (`structWalkersC`: `consts_resolve_f`, `struct_proj_bodies_c`) and calls it directly.
-ConLeche/Kernel/Inductives/StructInstallF.lean StructWalkers.plain The pure instance of `StructWalkers`; as `StructWalkers`.
 ConLeche/Kernel/Inductives/SumParts.lean InductiveShape A block member read as one inductive, for the proofs' statement of the recursor's shape; no executed caller.
 
 # ---------------------------------------------------------------------------
@@ -293,8 +283,29 @@ ConLeche/Kernel/ExprOps.lean fvarLeaves Was `arena::expr_ops::fvar_leaves`, the 
 
 ConLeche/Kernel/FEnv.lean overlay The read-only overlay view sharing an index (task #329 BLOCKCOPY, #331), which avoids a copy of the Lean bucket array; the port's block install pushes and pops in place (`ifenv_push_temp`/`ifenv_pop_temp`) and its pinned arms read the pushed index, which on the install's environments is the same `find?`.
 ConLeche/Kernel/FEnv.lean pushTables The parallel commit's install of a record's tables (`FEnv.pushDelta`, task #362); the port has no parallel install, and its block install installs one table at a time (`env::ifenv_push_table`), as con-leche's `checkBlockTablesF` does.
-ConLeche/Kernel/Inductives/GenRec.lean blockRecInfosBare The records `classFeROvl` lays over the index; as `overlay` (the port pushes them, `gen_rec_generate`).
-ConLeche/Kernel/Inductives/GenRec.lean classFeROvl The cached driver's `ShadowOps.ruleEnv`, `classFeR` as an overlay (task #332); the pure install's `classFeR` is what the port computes, with its own push and pop (`gen_rec_generate`).
+ConLeche/Cached/IndRec.lean blockRecInfosBare The records `classFeROvl` lays over the index; as `overlay` (the port pushes them, `gen_rec_generate`).
+ConLeche/Cached/IndRec.lean classFeROvl `genRecCheckC`'s rule-stage environment, the specification's `classFeR` as an overlay (task #332); the port computes `classFeR` with its own temporary push and pop (`gen_rec_generate`).
+ConLeche/Cached/ExprOpsC.lean replaceFVarsP The plain descent `replaceFVarsXP` carries its proof against; proof apparatus of the pointer-keyed walk (the port's walk is `positivity::replace_fvars_go`, handle-keyed).
+ConLeche/Cached/ExprOpsC.lean enterRFV The child step of `replaceFVarsXP` (compound test, exclusivity read, address memo); the port's `replace_fvars_go` probes its handle-keyed memo.
+ConLeche/Cached/ExprOpsC.lean targetAbsConst The `const` leaf of `targetAbsP`/`targetAbsXP`; the port's `rec_check::target_abs_go` decides the leaf inline.
+ConLeche/Cached/ExprOpsC.lean targetAbsP The plain descent of `targetAbsXP`; as `replaceFVarsP`.
+ConLeche/Cached/ExprOpsC.lean enterTA The child step of `targetAbsXP`; as `enterRFV`.
+ConLeche/Cached/ExprOpsC.lean nestOccP The plain descent of `nestOccXP`; as `replaceFVarsP`.
+ConLeche/Cached/ExprOpsC.lean enterNO The child step of `nestOccXP`; as `enterRFV`.
+ConLeche/Cached/ExprOpsC.lean mentionsAnyConstP The plain descent of `mentionsAnyConstXP`; as `replaceFVarsP`.
+ConLeche/Cached/ExprOpsC.lean enterMAC The child step of `mentionsAnyConstXP`; as `enterRFV`.
+ConLeche/Cached/ExprOpsC.lean NEnt The `Nat`-valued memo entry of `depthXP` (node, value, proof); the port's `depth_go` memo is a `HashMap<EIdx, u64>`.
+ConLeche/Cached/ExprOpsC.lean NEnt.hit Validates such an entry by pointer identity; as `PEnt.hit`.
+ConLeche/Cached/ExprOpsC.lean NTab The table behind `MemoN`; as `HTab`.
+ConLeche/Cached/ExprOpsC.lean MemoN `depthXP`'s memo; as `NEnt`.
+ConLeche/Cached/ExprOpsC.lean ResN `depthXP`'s result with its proof; as `ResXP`.
+ConLeche/Cached/ExprOpsC.lean MemoN.insert As `MemoXP.insert`.
+ConLeche/Cached/ExprOpsC.lean MemoN.shared The exclusivity-guarded read of `MemoN`; no counterpart over handles.
+ConLeche/Cached/ExprOpsC.lean resNat Packs a `depthXP` result; as `ResN`.
+ConLeche/Cached/ExprOpsC.lean depthP The plain descent of `depthXP`; as `replaceFVarsP`.
+ConLeche/Cached/ExprOpsC.lean enterDepth The child step of `depthXP`; as `enterRFV`.
+ConLeche/Cached/IndPositivity.lean replaceAppsP The plain descent of `replaceAppsXP`; as `replaceFVarsP` (the port's walk is `positivity::replace_apps_go`).
+ConLeche/Cached/IndPositivity.lean enterRA The child step of `replaceAppsXP`; as `enterRFV`.
 
 # ---------------------------------------------------------------------------
 # Task #139, con-leche sync to 7cb7a45c

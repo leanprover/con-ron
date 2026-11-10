@@ -87,7 +87,7 @@ pub const M_TBL_TAKEN: [u32; 22] = [
 /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_install::check_struct_doms_at_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:36-46 checkStructDomsAtFA
 /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_install::check_struct_doms_at_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:26-41 checkStructDomsAt`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:26-43 checkStructDomsAt`
 /// — the reference kernels' binder-domain comparisons, run binder by binder
 /// **at its own frame**: the `j`-th opened variable's annotation against the
 /// `j`-th expected domain, at frame `off + j`.  Walks from the last binder to
@@ -152,7 +152,7 @@ pub fn check_struct_doms_at(
 /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_install::check_struct_proj_table_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-89 checkStructProjTableF
 /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_install::check_struct_proj_table_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:43-69 checkStructProjTable`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:45-73 checkStructProjTable`
 /// — stage 5: **the projection table's checks** (con-leche's task #175 S1):
 /// the fields' result-type bodies read off the stored constructor type by
 /// substitution alone, validated once (`proj_bodies_scoped`); the table
@@ -196,7 +196,7 @@ pub fn check_struct_proj_table(
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-74 checkStructProjTable
 /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_install::proj_bodies_scoped_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:43-69 checkStructProjTable`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:45-73 checkStructProjTable`
 /// — the bodies' scoping, validated once at insertion: fvar-free, level
 /// parameters within the structure's, resolving, scoped at the parameters and
 /// the subject.  **All four conjuncts run for every body**, as the twin's `do`
