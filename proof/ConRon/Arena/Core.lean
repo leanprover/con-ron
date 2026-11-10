@@ -2607,38 +2607,40 @@ def openPisAtFvars : Nat → EIdx → Nat → AM (Option (List EIdx × EIdx))
       | _ => pure none
     else pure none
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:770-784 openPisAtFvarsFGo —
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.openPisAtFvarsFGo_bridge, then delete this line
-core of `openPisAtFvarsF`: `acc` holds the already-created fvars, innermost
-binder first.  One `instantiateList` pass per domain instead of one
-whole-telescope `instantiate1` pass per binder. -/
-def openPisAtFvarsFGo (acc : Array EIdx) :
-    Nat → EIdx → Nat → AM (Option (List EIdx × EIdx))
-  | 0, e, _ => do pure (some ([], ← instantiateListFast coreWalkFuel e acc 0))
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2068-2083 openPisRawGoC — the
+one-pass opening loop, the residual left raw: `acc` holds the already-created
+fvars, innermost binder LAST (the push order `instantiateListFast` reads), and
+each domain is instantiated by them in one `instantiateList` pass, where
+`openPisAtFvars` re-instantiates the whole remaining body at every binder.
+Returns the fvars, the substitution they make and the raw residual. -/
+def openPisRawGo (acc : Array EIdx) :
+    Nat → EIdx → Nat → AM (Option (List EIdx × Array EIdx × EIdx))
+  | 0, e, _ => pure (some ([], acc, e))
   | n + 1, h, i => do
     if h.tag == ETag.forallE then
       match ← view h with
       | .forallE dom body => do
         let d ← instantiateListFast coreWalkFuel dom acc 0
         let fv ← internE (.fvar i d)
-        match ← openPisAtFvarsFGo (acc.push fv) n body (i + 1) with
-        | some (fvs, e) => pure (some (fv :: fvs, e))
+        match ← openPisRawGo (acc.push fv) n body (i + 1) with
+        | some (fvs, acc', e) => pure (some (fv :: fvs, acc', e))
         | none => pure none
       | _ => pure none
     else pure none
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:786-793 openPisAtFvarsF —
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.openPisAtFvarsF_bridge, then delete this line
-one-pass `openPisAtFvars` (the fallback covers telescopes whose binders only
-appear after substitution). -/
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2085-2092 openPisAtFvarsGoC
+con-leche: ConLeche/Cached/ExprOpsC.lean:2094-2102 openPisAtFvarsC
+The one-pass `openPisAtFvars`: the raw opening, then the residual in one
+`instantiateList` pass.  No fallback: instantiating at free variables never
+makes a binder appear, so where the one pass finds no `∀` the sequential
+opening finds none either. -/
 def openPisAtFvarsF (n : Nat) (e : EIdx) (i : Nat) :
     AM (Option (List EIdx × EIdx)) := do
-  match ← openPisAtFvarsFGo #[] n e i with
-  | some r => pure (some r)
-  | none => openPisAtFvars n e i
+  match ← openPisRawGo #[] n e i with
+  | some (fvs, acc, r) => pure (some (fvs, ← instantiateListFast coreWalkFuel r acc 0))
+  | none => pure none
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:873-878 Expr.hasLooseBVarBIns
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.hasLooseBVarBIns_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1419-1486 hasLooseBVarBXP
 Record one answer for `(e, i)` in the memo the walk hands back. -/
 @[inline] def hasLooseBVarBIns (e : EIdx) (i : Nat)
     (r : Bool × Std.HashMap (EIdx × Nat) Bool) :
@@ -2647,11 +2649,10 @@ Record one answer for `(e, i)` in the memo the walk hands back. -/
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:824-837 Expr.hasLooseBVar
 con-leche: ConLeche/Kernel/CoreDefs.lean:839-857 Expr.hasLooseBVarB
-con-leche: ConLeche/Kernel/CoreDefs.lean:880-916 Expr.hasLooseBVarBGo
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.hasLooseBVarBGo_bridge, then delete this line
-Does `bvar i` occur loose in `e`?  con-leche's packed-bound cutoff
-(`bvarB ≤ i`) and con-leche's per-call memo, both kept: the cutoff stops the
-walk where the variable CANNOT occur, the memo shares a shared node's answer
+con-leche: ConLeche/Cached/ExprOpsC.lean:1419-1486 hasLooseBVarBXP
+Does `bvar i` occur loose in `e`?  The packed-bound cutoff (`bvarB ≤ i`) and a
+per-call memo, as the cached walk has them: the cutoff stops the walk where
+the variable CANNOT occur, the memo shares a shared node's answer
 across the paths that reach it.  The memo is keyed by the node and the index,
 because the index shifts under binders. -/
 def hasLooseBVarBGo (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat) :
@@ -2694,11 +2695,63 @@ def hasLooseBVarBGo (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat) :
           | _ => pure (false, memo)
         pure (hasLooseBVarBIns h i r)
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:1062-1064 Expr.hasLooseBVarBFast
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.hasLooseBVarBFast_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1488-1492 hasLooseBVarBC
 The executed `hasLooseBVarB` (one memoized DAG walk). -/
 def hasLooseBVarBFast (i : Nat) (e : EIdx) : AM Bool := do
   pure (← hasLooseBVarBGo ∅ i coreWalkFuel e).1
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1503-1516 hasLooseBVarInP
+con-leche: ConLeche/Cached/ExprOpsC.lean:1532-1585 hasLooseBVarInXP
+Does a loose bound variable of index `d ..< d + w` occur in `e`?  Read only:
+no node is built.  The packed-bound cutoff (`bvarB ≤ d`: no loose variable at
+or above `d`) at every node; under a binder the window moves up by one.  The
+memo is `hasLooseBVarBGo`'s, keyed by the node and the window's base (`w` is
+fixed for the walk). -/
+def hasLooseBVarInGo (memo : Std.HashMap (EIdx × Nat) Bool) (w d : Nat) :
+    Nat → EIdx → AM (Bool × Std.HashMap (EIdx × Nat) Bool)
+  | 0, _ => fail (.internal "fuel exhausted: hasLooseBVarIn")
+  | fuel + 1, h => do
+    let bb ← bvarB fuel h
+    if bb ≤ d then pure (false, memo) else
+    match ← view h with
+    | .bvar j => pure (decide (d ≤ j) && decide (j - d < w), memo)
+    | .fvar _ _ => pure (false, memo)
+    | .sort _ => pure (false, memo)
+    | .const _ _ => pure (false, memo)
+    | .lit _ => pure (false, memo)
+    | v =>
+      match memo[(h, d)]? with
+      | some r => pure (r, memo)
+      | none => do
+        let r ← match v with
+          | .app f a => do
+            match ← hasLooseBVarInGo memo w d fuel f with
+            | (true, memo) => pure (true, memo)
+            | (false, memo) => hasLooseBVarInGo memo w d fuel a
+          | .lam ty b => do
+            match ← hasLooseBVarInGo memo w d fuel ty with
+            | (true, memo) => pure (true, memo)
+            | (false, memo) => hasLooseBVarInGo memo w (d + 1) fuel b
+          | .forallE ty b => do
+            match ← hasLooseBVarInGo memo w d fuel ty with
+            | (true, memo) => pure (true, memo)
+            | (false, memo) => hasLooseBVarInGo memo w (d + 1) fuel b
+          | .letE t v b => do
+            match ← hasLooseBVarInGo memo w d fuel t with
+            | (true, memo) => pure (true, memo)
+            | (false, memo) => do
+              match ← hasLooseBVarInGo memo w d fuel v with
+              | (true, memo) => pure (true, memo)
+              | (false, memo) => hasLooseBVarInGo memo w (d + 1) fuel b
+          | .proj _ _ sub => hasLooseBVarInGo memo w d fuel sub
+          | _ => pure (false, memo)
+        pure (hasLooseBVarBIns h d r)
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1587-1591 hasLooseBVarInC
+The window query (one memoized DAG walk); an empty window asks nothing. -/
+def hasLooseBVarIn (d w : Nat) (e : EIdx) : AM Bool := do
+  if w == 0 then pure false
+  else pure (← hasLooseBVarInGo ∅ w d coreWalkFuel e).1
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:859-866 structUsedLater
 **Field `j` is used by a later field** — the official `infer_proj`'s
@@ -2709,7 +2762,8 @@ def structUsedLater (cty : EIdx) (nP j : Nat) : AM Bool := do
   | none => pure false
 
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:868-886 projGuardRowsGo — **the
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:868-886 projGuardRowsGo
+con-leche: ConLeche/Cached/ExprOpsC.lean:2153-2164 projGuardRowsGoC — **the
 rows of a projection's guard: the field loop of the official `infer_proj`.**
 `h` is the constructor telescope with its parameters and every field before the
 current one opened, the current field's variable at depth `d`; `k` fields
@@ -2734,32 +2788,68 @@ def projGuardRowsGo : Nat → Nat → EIdx → Array (Nat × EIdx) → AM (Optio
       | _ => pure none
     else pure none
 
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2166-2178 projGuardFastC —
+**the projection guard's fast case**, on the RAW field telescope (the
+parameters not substituted): `some` the projected field's raw domain where no
+field's type up to the projected one, and nothing after it, mentions a field
+before it — then no earlier field is used and the projected field's domain is
+the one row.  `none` otherwise, and where the telescope binds too few fields.
+`j` counts the fields passed; every query is the read-only window query
+`hasLooseBVarIn` over the fields, the parameters above it. -/
+def projGuardFast : Nat → Nat → EIdx → AM (Option EIdx)
+  | k, j, h => do
+    if h.tag == ETag.forallE then
+      match ← view h with
+      | .forallE dom body =>
+        match k with
+        | 0 => if ← hasLooseBVarIn 0 j h then pure none else pure (some dom)
+        | k + 1 =>
+          if ← hasLooseBVarIn 0 j dom then pure none
+          else projGuardFast k (j + 1) body
+      | _ => pure none
+    else pure none
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2180-2195 projGuardRowsC — the
+rows past the parameters' raw opening: the fast case, its one domain
+substituted, else the substituted residual stepped. -/
+def projGuardRowsAt (entry : IProjEntry) (acc : Array EIdx) (r : EIdx) :
+    AM (Option (Array (Nat × EIdx))) := do
+  match ← projGuardFast entry.idx 0 r with
+  | some dom => do
+    let d ← instantiateListFast coreWalkFuel dom acc entry.idx
+    pure (some (#[] |>.push (entry.numParams + entry.idx, d)))
+  | none => do
+    let r2 ← instantiateListFast coreWalkFuel r acc 0
+    projGuardRowsGo entry.idx entry.numParams r2 #[]
+
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:888-906 projGuardRows
+con-leche: ConLeche/Cached/ExprOpsC.lean:2180-2195 projGuardRowsC
 con-leche: ConLeche/Cached/CoreC.lean:1063-1074 checkProjRowsI
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.projGuardRows_bridge, then delete this line
 **What a `.proj` use on a structure that may be a proposition must show**:
 the domains, at the use's level instantiation and at the constructor
-telescope's own variables, that must be propositions.  The parameters are
-opened, then the fields stepped (`projGuardRowsGo`).  `none` where the stored
-constructor does not bind what the entry says.  The executed shape is the
-cached twin's: the constructor's type at the use's levels through the
-per-declaration memo (`constTyAt`), its parameters opened in one pass
-(`openPisAtFvarsF`). -/
+telescope's own variables, that must be propositions.  `none` where the
+stored constructor does not bind what the entry says.  The executed shape is
+the cached twin's: the constructor's type at the use's levels through the
+per-declaration memo (`constTyAt`), its parameters opened with the residual
+left raw (`openPisRawGo`).  Where no field before the projected one is
+mentioned after it (`projGuardFast`), the one row is the projected field's
+domain, its parameters substituted — the rest of the telescope is read, not
+rebuilt.  Otherwise the residual is substituted and its fields stepped
+(`projGuardRowsGo`). -/
 def projGuardRows (fe : IFEnv) (entry : IProjEntry) (us : LsIdx) :
     AM (Option (Array (Nat × EIdx))) := do
   match fe.find? entry.ctor with
   | some ci => do
     let cv := ci.toConstantVal
     let cty ← constTyAt cv us
-    match ← openPisAtFvarsF entry.numParams cty 0 with
-    | some (_, r) => projGuardRowsGo entry.idx entry.numParams r #[]
+    match ← openPisRawGo #[] entry.numParams cty 0 with
+    | some (_, acc, r) => projGuardRowsAt entry acc r
     | none => pure none
   | none => pure none
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1183-1196 checkProjGuard
 con-leche: ConLeche/Cached/CoreC.lean:1076-1088 checkProjGuardI
 con-leche: ConLeche/Cached/CoreC.lean:1063-1074 checkProjRowsI
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.checkProjGuard_bridge, then delete this line
 **The official `infer_proj` restriction** at this use (con-leche task #480),
 computed here from the stored structure and constructor types; nothing about
 it is stored.  The rows are inferred at the io grade in every body, as
@@ -2904,7 +2994,6 @@ def inferPis (r : CoreFnsA) (fe : IFEnv) (d : Nat) :
         else fail (.invalid "expected a sort")
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI — the `.lam`
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.inferLam_bridge, then delete this line
 clause: the binder's own domain is checked to be a type here (which is why the
 loop starts at `k = 1` with one free variable and a one-entry stack), and the
 rest of the λ-chain is peeled by `inferLams`. -/
@@ -2917,7 +3006,6 @@ def inferLam (r : CoreFnsA) (depth : Nat) (ty body : EIdx) : AM EIdx := do
   else fail (.invalid "expected a sort")
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.inferForall_bridge, then delete this line
 `.forallE` clause, `inferLam`'s twin. -/
 def inferForall (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     (ty body : EIdx) : AM EIdx := do
@@ -2984,7 +3072,6 @@ def inferSpine (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
 termination_by args.size - i
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI — the `.app`
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.inferApp_bridge, then delete this line
 clause: the head is inferred ONCE and the whole argument vector is run through
 `inferSpine`. -/
 def inferApp (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
@@ -3025,7 +3112,6 @@ def inferAppIOAt (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
   inferSpineIO r fe depth tf #[] hv.2 0
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI — the `.proj`
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.inferProj_bridge, then delete this line
 clause, shared by `inferBody` and `inferBodyIO` (con-leche's `inferBodyIOI`
 dispatches its `.proj` to `inferBodyI`'s): the subject type's head must be the
 node's structure at the table's arity (official `infer_proj`; these guards are

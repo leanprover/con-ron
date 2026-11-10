@@ -19,9 +19,9 @@
 //!
 //! ## The memos are ARGUMENTS, threaded by value
 //!
-//! con-leche threads a `Std.HashMap Expr Bool` through `mentionsConstGo`
-//! rather than putting it in a state, because the answer depends on data that
-//! is fixed for one call (`T`).  The twin does the same at handle keys —
+//! The `mentionsConst` walk threads its memo table rather than putting it in
+//! a state, because the answer depends on data that is fixed for one call
+//! (`T`).  The twin does the same at handle keys —
 //! **nothing is added to `AState`** — and this port threads the table *by
 //! value*, moved in and returned, which is the twin's `AM (Bool × Std.HashMap
 //! …)` term for term.  `con_ron_core::kernel::inductives::struct_parts` hands
@@ -326,14 +326,13 @@ pub fn mc_probe(memo: &HashMap<EIdx, bool>, k: &EIdx) -> Option<bool> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:124-133 Expr.mentionsConst
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_parts::mentions_const_go_refines, then delete this line
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:165-200 Expr.mentionsConstGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_parts::mentions_const_go_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:119-133 Expr.mentionsAnyConst
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1696-1740 mentionsAnyConstXP
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:140-181 mentionsConstGo`
-/// — does the constant `T` occur in `e`?  A syntactic walk (`fvar`
-/// annotations included; a `.proj` node names its structure), with con-leche's
-/// per-call memo keyed by the node — `T` is fixed for the whole walk.
+/// — does the constant `T` occur in `e`?  `mentionsAnyConst [T]`, the one
+/// name the `sorryAx` test asks: a syntactic walk (`fvar` annotations
+/// included; a `.proj` node names its structure) with a per-call memo keyed by
+/// the node, as the cached walk has — `T` is fixed for the whole walk.
 pub fn mentions_const_go(
     pers: &PersTier,
     st: &mut AState,
@@ -366,8 +365,7 @@ pub fn mentions_const_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:165-200 Expr.mentionsConstGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_parts::mentions_const_node_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1696-1740 mentionsAnyConstXP
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:140-181 mentionsConstGo`
 /// — the walk's compound arms, split off so that the `view`'s loans are dead at
 /// the memo's join (extraction rule 5).
@@ -420,10 +418,9 @@ pub fn mentions_const_node(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:273-275 Expr.mentionsConstFast
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_parts::mentions_const_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1742-1744 mentionsAnyConstC
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:183-186 mentionsConst`
-/// — the executed `mentionsConst` (one memoized DAG walk).
+/// — the executed `mentionsAnyConst [T]` (one memoized DAG walk).
 pub fn mentions_const(
     pers: &PersTier,
     st: &mut AState,

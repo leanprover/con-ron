@@ -2960,7 +2960,6 @@ pub const M_QUOT_PREDS: [u32; 41] = [
 /// con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
 /// con-leche: ConLeche/Kernel/Checker.lean:80-102 checkOpaqueVal
 /// con-leche: ConLeche/Cached/ParsedC.lean:38-55 checkDefnValCI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove decl_check::value_guards_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:824-840 valueGuards` — the value's
 /// syntactic guards the three value checks spell alike (no loose bound
 /// variable, no free variable, declared universe parameters, resolving
@@ -3029,7 +3028,6 @@ pub fn value_guards_tail(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:30-47 checkDefnVal
 /// con-leche: ConLeche/Cached/ParsedC.lean:38-55 checkDefnValCI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove decl_check::check_defn_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:842-855 checkDefnVal` — check a `def`
 /// declaration's value against its checked constant, returning the record to
 /// install, unpushed (the cached twin's shape: the caller certifies the pinned
@@ -3069,7 +3067,6 @@ pub fn check_defn_val(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
 /// con-leche: ConLeche/Cached/ParsedC.lean:57-77 checkThmValCI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove decl_check::check_thm_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:857-875 checkThmVal` — check a
 /// `theorem` declaration's value against its checked constant (whose type must
 /// additionally be a proposition), returning the record to install, unpushed.
@@ -3109,7 +3106,6 @@ pub fn check_thm_val(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
 /// con-leche: ConLeche/Cached/ParsedC.lean:57-77 checkThmValCI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove decl_check::check_thm_val_witness_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:857-875 checkThmVal` — the witness
 /// half: the value's guards, its inferred type against the statement, and the
 /// record `.thmInfo cv` — the statement only.
@@ -3141,7 +3137,6 @@ pub fn check_thm_val_witness(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:80-102 checkOpaqueVal
 /// con-leche: ConLeche/Cached/ParsedC.lean:79-95 checkOpaqueValCI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove decl_check::check_opaque_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:877-889 checkOpaqueVal` — check an
 /// `opaque` declaration's value against its checked constant: exactly the
 /// theorem check without the is-a-proposition requirement, returning the record

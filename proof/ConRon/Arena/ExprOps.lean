@@ -239,8 +239,7 @@ calls an arm at `fuel - 1`, and an arm at tag `1` calls the dispatcher at its
 own fuel.  A leaf arm whose whole body is `pure h` has nothing to split and
 stays in the dispatcher. -/
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:74-110 instantiate1Go — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instantiate1ArmBVar_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:453-484 instantiate1XP — the
 `bvar` arm.  It does not recurse, so it sits outside the `mutual` block:
 `i = d` answers the substituted handle, `i > d` interns the lowered index,
 `i < d` answers the handle itself. -/
@@ -255,8 +254,7 @@ def instantiate1ArmBVar (v : EIdx) (h : EIdx) (d : Nat) : AM EIdx := do
 mutual
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:23-39 instantiate1
-con-leche: ConLeche/Kernel/ExprOps.lean:74-110 instantiate1Go
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instantiate1Go_bridge, then delete this line
+con-leche: ConLeche/Cached/ExprOpsC.lean:453-484 instantiate1XP
 Replace `bvar d` by `v`, lowering loose `bvar`s above `d` by one.  The
 derived-word cutoff comes first (`bvarB ≤ d`, read off the packed word in
 `O(1)`); the five leaf kinds answer without touching the memo; everything
@@ -283,8 +281,7 @@ def instantiate1Go (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) : AM EIdx :=
       else pure h
 termination_by (fuel, 0)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:74-110 instantiate1Go — the `app`
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instantiate1ArmApp_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:453-484 instantiate1XP — the `app`
 arm: probe, project, recurse into both children, rebuild, insert. -/
 def instantiate1ArmApp (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -301,8 +298,7 @@ def instantiate1ArmApp (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
       pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:74-110 instantiate1Go — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instantiate1ArmBind_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:453-484 instantiate1XP — the
 binder arm, `lam` and `forallE` in one exactly as the tag dispatch tests them
 (`ETag.isBind`); the datum travels as a HANDLE (task #97-P6-16). -/
 def instantiate1ArmBind (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
@@ -320,8 +316,7 @@ def instantiate1ArmBind (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
       pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:74-110 instantiate1Go — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instantiate1ArmLet_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:453-484 instantiate1XP — the
 `letE` arm; the body descends at `d + 1`. -/
 def instantiate1ArmLet (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -339,8 +334,7 @@ def instantiate1ArmLet (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
       pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:74-110 instantiate1Go — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instantiate1ArmProj_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:453-484 instantiate1XP — the
 `proj` arm. -/
 def instantiate1ArmProj (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -385,8 +379,7 @@ theorem instantiate1Go_succ (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
         else pure h) := by
   rw [instantiate1Go]
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:176-178 instantiate1Fast — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instantiate1Fast_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:486-489 instantiate1C — the
 top-level entry: `(instantiate1Go v {} e d).1`, i.e. the memo is fresh before
 and dropped after, because it depends on the substituted term. -/
 def instantiate1Fast (fuel : Nat) (e v : EIdx) (d : Nat := 0) : AM EIdx := do
@@ -533,8 +526,7 @@ theorem instantiateList_succ (vs : Array EIdx) (fuel : Nat) (h : EIdx)
   rw [instantiateList]
 mutual
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:261-297 instantiateListGo — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instantiateListGo_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:535-584 instantiateListXP — the
 memoized bulk instantiation.  The `bvar` arm delegates to the pure walk
 above, exactly as con-leche's does — so it is called by name and is not one
 of this block's arms.  This is the DISPATCHER; the arms are split per DESIGN
@@ -559,8 +551,7 @@ def instantiateListGo (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
       else pure h
 termination_by (fuel, 0)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:261-297 instantiateListGo — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instListGoArmApp_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:535-584 instantiateListXP — the
 `app` arm. -/
 def instListGoArmApp (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -577,8 +568,7 @@ def instListGoArmApp (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
       pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:261-297 instantiateListGo — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instListGoArmBind_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:535-584 instantiateListXP — the
 binder arm. -/
 def instListGoArmBind (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -595,8 +585,7 @@ def instListGoArmBind (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
       pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:261-297 instantiateListGo — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instListGoArmLet_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:535-584 instantiateListXP — the
 `letE` arm. -/
 def instListGoArmLet (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -614,8 +603,7 @@ def instListGoArmLet (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
       pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:261-297 instantiateListGo — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instListGoArmProj_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:535-584 instantiateListXP — the
 `proj` arm. -/
 def instListGoArmProj (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -656,8 +644,7 @@ theorem instantiateListGo_succ (vs : Array EIdx) (fuel : Nat) (h : EIdx)
         else if tg == ETag.bvar then instantiateList vs fuel h d
         else pure h) := by
   rw [instantiateListGo]
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:365-367 instantiateListFast — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instantiateListFast_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:586-593 instantiateListC — the
 top-level entry. -/
 def instantiateListFast (fuel : Nat) (e : EIdx) (vs : Array EIdx) (d : Nat := 0) :
     AM EIdx := do
@@ -671,8 +658,7 @@ def instantiateListFast (fuel : Nat) (e : EIdx) (vs : Array EIdx) (d : Nat := 0)
 mutual
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:671-691 liftLooseBVars
-con-leche: ConLeche/Kernel/ExprOps.lean:502-538 liftLooseBVarsGo
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.liftLooseBVarsGo_bridge, then delete this line
+con-leche: ConLeche/Cached/ExprOpsC.lean:293-323 liftLooseBVarsXP
 Bump every loose bound variable `≥ cutoff` by `amount`.  This is the
 DISPATCHER (arms split per DESIGN §8.6's ruling of 2026-09-22).  A leaf arm
 whose whole body is `pure h` has nothing to split and stays here; every arm
@@ -706,8 +692,7 @@ def liftLooseBVarsGo (amount : Nat) (fuel : Nat) (h : EIdx) (c : Nat) :
     | .proj n i sub => liftArmProj amount fuel h c n i sub
 termination_by (fuel, 0)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:502-538 liftLooseBVarsGo — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.liftArmApp_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:293-323 liftLooseBVarsXP — the
 `app` arm. -/
 def liftArmApp (amount fuel : Nat) (h : EIdx) (c : Nat) (a b : EIdx) :
     AM EIdx := do
@@ -721,8 +706,7 @@ def liftArmApp (amount fuel : Nat) (h : EIdx) (c : Nat) (a b : EIdx) :
     pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:502-538 liftLooseBVarsGo — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.liftArmLam_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:293-323 liftLooseBVarsXP — the
 `lam` arm; the body descends at `c + 1`. -/
 def liftArmLam (amount fuel : Nat) (h : EIdx) (c : Nat) (ty body : EIdx) :
     AM EIdx := do
@@ -736,8 +720,7 @@ def liftArmLam (amount fuel : Nat) (h : EIdx) (c : Nat) (ty body : EIdx) :
     pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:502-538 liftLooseBVarsGo — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.liftArmForallE_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:293-323 liftLooseBVarsXP — the
 `forallE` arm. -/
 def liftArmForallE (amount fuel : Nat) (h : EIdx) (c : Nat) (ty body : EIdx) :
     AM EIdx := do
@@ -751,8 +734,7 @@ def liftArmForallE (amount fuel : Nat) (h : EIdx) (c : Nat) (ty body : EIdx) :
     pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:502-538 liftLooseBVarsGo — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.liftArmLet_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:293-323 liftLooseBVarsXP — the
 `letE` arm. -/
 def liftArmLet (amount fuel : Nat) (h : EIdx) (c : Nat) (ty val body : EIdx) :
     AM EIdx := do
@@ -767,8 +749,7 @@ def liftArmLet (amount fuel : Nat) (h : EIdx) (c : Nat) (ty val body : EIdx) :
     pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:502-538 liftLooseBVarsGo — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.liftArmProj_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:293-323 liftLooseBVarsXP — the
 `proj` arm. -/
 def liftArmProj (amount fuel : Nat) (h : EIdx) (c : Nat) (n : NIdx) (i : Nat)
     (sub : EIdx) : AM EIdx := do
@@ -810,8 +791,7 @@ theorem liftLooseBVarsGo_succ (amount fuel : Nat) (h : EIdx) (c : Nat) :
       | .letE ty val body => liftArmLet amount fuel h c ty val body
       | .proj n i sub => liftArmProj amount fuel h c n i sub) := by
   rw [liftLooseBVarsGo]
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:604-606 liftLooseBVarsFast — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.liftLooseBVarsFast_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:325-329 liftLooseBVarsC — the
 top-level entry. -/
 def liftLooseBVarsFast (fuel amount c : Nat) (e : EIdx) : AM EIdx := do
   liftClear
@@ -1622,8 +1602,7 @@ def looseBVarsBoundedFast (fuel k : Nat) (e : EIdx) : AM Bool := do
 The fvar-range cutoff comes first: a node whose whole subtree mentions no
 `fvar` at or above `d` is its own abstraction. -/
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1820-1864 abstract1Go — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.abstract1ArmFVar_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:727-757 abstract1XP — the
 `fvar` arm.  It does not recurse, so it sits outside the `mutual` block. -/
 def abstract1ArmFVar (d : Nat) (h : EIdx) (k : Nat) : AM EIdx := do
   match ← viewFVarIdx h with
@@ -1633,8 +1612,7 @@ def abstract1ArmFVar (d : Nat) (h : EIdx) (k : Nat) : AM EIdx := do
 mutual
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:735-751 abstract1
-con-leche: ConLeche/Kernel/ExprOps.lean:1820-1864 abstract1Go
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.abstract1Go_bridge, then delete this line
+con-leche: ConLeche/Cached/ExprOpsC.lean:727-757 abstract1XP
 Close a binder body: replace `fvar d …` leaves by `bvar k`, bumping `k` under
 binders.  `fvar` annotations are not descended into.  The dispatcher (arms
 split per DESIGN §8.6's ruling of 2026-09-22). -/
@@ -1655,8 +1633,7 @@ def abstract1Go (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) : AM EIdx :=
       else pure h
 termination_by (fuel, 0)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1820-1864 abstract1Go — the `app`
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.abstract1ArmApp_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:727-757 abstract1XP — the `app`
 arm. -/
 def abstract1ArmApp (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) : AM EIdx := do
   match ← abs1Get (h, k) with
@@ -1672,8 +1649,7 @@ def abstract1ArmApp (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) : AM EIdx := do
       pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1820-1864 abstract1Go — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.abstract1ArmBind_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:727-757 abstract1XP — the
 binder arm; the body descends at `k + 1`. -/
 def abstract1ArmBind (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) :
     AM EIdx := do
@@ -1690,8 +1666,7 @@ def abstract1ArmBind (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) :
       pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1820-1864 abstract1Go — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.abstract1ArmLet_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:727-757 abstract1XP — the
 `letE` arm. -/
 def abstract1ArmLet (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) : AM EIdx := do
   match ← abs1Get (h, k) with
@@ -1708,8 +1683,7 @@ def abstract1ArmLet (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) : AM EIdx := do
       pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1820-1864 abstract1Go — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.abstract1ArmProj_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:727-757 abstract1XP — the
 `proj` arm. -/
 def abstract1ArmProj (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) :
     AM EIdx := do
@@ -1748,8 +1722,7 @@ theorem abstract1Go_succ (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) :
         else if tg == ETag.proj then abstract1ArmProj d fuel h k
         else pure h) := by
   rw [abstract1Go]
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1958-1960 abstract1Fast — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.abstract1Fast_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:759-762 abstract1C — the
 top-level entry. -/
 def abstract1Fast (fuel : Nat) (e : EIdx) (d : Nat) (k : Nat := 0) : AM EIdx := do
   abs1Clear
@@ -2093,8 +2066,7 @@ def substLevelList (ks : List ConLeche.Name) (us : List Level) :
   | [] => []
   | u :: rest => Level.subst ks us u :: substLevelList ks us rest
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.substLMemoAt_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1036-1072 instLevelParamsXP — the
 LEVEL-handle substitution behind a per-call memo (task #97-P6-13).
 `instLPGo`'s `.sort` arm reads a level back, runs `Level.subst` and re-interns
 once per OCCURRENCE; keyed on the level handle alone, the whole of that is one
@@ -2111,8 +2083,7 @@ def substLMemoAt (ks : List ConLeche.Name) (us : List Level) (u : LIdx) : AM LId
     instLPLSet u hl
     pure hl
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — the same
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.substLsMemoAt_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1036-1072 instLevelParamsXP — the same
 at a universe-argument LIST handle, for the `.const` arm. -/
 def substLsMemoAt (ks : List ConLeche.Name) (us : List Level) (vs : LsIdx) :
     AM LsIdx := do
@@ -2126,8 +2097,7 @@ def substLsMemoAt (ks : List ConLeche.Name) (us : List Level) (vs : LsIdx) :
 
 mutual
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo —
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instLPGo_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1036-1072 instLevelParamsXP —
 substitute level parameters throughout an expression, with con-leche's own
 `hasLP = false` cutoff (the whole subtree is level-parameter free, so the
 substitution is the identity on it).  `.sort` and `.const` read their levels
@@ -2161,8 +2131,7 @@ def instLPGo (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
       | .proj n i sub => instLPArmProj ks us fuel h n i sub
 termination_by (fuel, 0)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instLPArmFVar_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1036-1072 instLevelParamsXP — the
 `fvar` arm. -/
 def instLPArmFVar (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
     (h : EIdx) (i : Nat) (ty : EIdx) : AM EIdx := do
@@ -2175,8 +2144,7 @@ def instLPArmFVar (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
     pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instLPArmApp_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1036-1072 instLevelParamsXP — the
 `app` arm. -/
 def instLPArmApp (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
     (h : EIdx) (f a : EIdx) : AM EIdx := do
@@ -2190,8 +2158,7 @@ def instLPArmApp (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
     pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instLPArmLam_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1036-1072 instLevelParamsXP — the
 `lam` arm. -/
 def instLPArmLam (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
     (h : EIdx) (ty body : EIdx) : AM EIdx := do
@@ -2205,8 +2172,7 @@ def instLPArmLam (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
     pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instLPArmForallE_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1036-1072 instLevelParamsXP — the
 `forallE` arm. -/
 def instLPArmForallE (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
     (h : EIdx) (ty body : EIdx) : AM EIdx := do
@@ -2220,8 +2186,7 @@ def instLPArmForallE (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
     pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instLPArmLet_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1036-1072 instLevelParamsXP — the
 `letE` arm. -/
 def instLPArmLet (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
     (h : EIdx) (ty val body : EIdx) : AM EIdx := do
@@ -2236,8 +2201,7 @@ def instLPArmLet (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
     pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instLPArmProj_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1036-1072 instLevelParamsXP — the
 `proj` arm. -/
 def instLPArmProj (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
     (h : EIdx) (n : NIdx) (i : Nat) (sub : EIdx) : AM EIdx := do
@@ -2282,8 +2246,7 @@ theorem instLPGo_succ (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
         | .letE ty val body => instLPArmLet ks us fuel h ty val body
         | .proj n i sub => instLPArmProj ks us fuel h n i sub) := by
   rw [instLPGo]
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2492-2494 Expr.instLPFast — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instLPFast_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1074-1078 instLevelParams — the
 top-level entry: read the substitution back out of the store once, walk, drop
 the memo. -/
 def instLPFast (fuel : Nat) (ks : List NIdx) (us : LsIdx) (e : EIdx) : AM EIdx := do

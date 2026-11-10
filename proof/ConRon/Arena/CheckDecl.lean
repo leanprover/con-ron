@@ -39,7 +39,6 @@ open ConLeche
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
 con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove CheckDecl.checkStructuralNatPinAtFe2_bridge, then delete this line
 The `.defnDecl` arm's structural-`Nat` gate, its reads at `fe2` (the
 environment with the definition): `natOpGuard` and the dependencies' storage,
 then the stored value. -/
@@ -55,7 +54,6 @@ def checkStructuralNatPinAtFe2 (fe2 : IFEnv) (n : NIdx) : AM EIdx := do
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
 con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove CheckDecl.checkStructuralNatPin_bridge, then delete this line
 **The structural-`Nat` gate**: the reads at `fe2`, then `certifyNatEqs` at `fe`,
 the environment without the definition, over the equations with the
 operation's self-references substituted.  Certifying with the definition
@@ -75,7 +73,6 @@ def checkStructuralNatPin (mode : CheckMode) (fe : IFEnv) (ci : IConstantInfo)
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
 con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove CheckDecl.checkDeclKind_bridge, then delete this line
 **A declaration's own checks**, by its kind, extending the environment on
 success.  A value arm checks the value returning the record unpushed, runs its
 pinned gates, and pushes last.  A block under a pinned basis block's names

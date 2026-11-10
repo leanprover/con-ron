@@ -7964,7 +7964,6 @@ pub fn infer_lit_str(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_forall_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3040-3098 inferBody` — the full
 /// body's `.forallE` clause: the domain's sort, then the binder-telescope loop
 /// (`infer_pis`), which infers the codomain sort and folds `imax` outward.
@@ -8014,7 +8013,6 @@ pub fn infer_forall(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_proj_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3004-3038 inferProj` — the `.proj`
 /// clause, shared by both bodies (`inferBodyIOI` dispatches it to
 /// `inferBodyI` at the io view, which is the `io` flag here): the subject's
@@ -8064,7 +8062,6 @@ pub fn infer_proj(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_proj_miss_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3004-3038 inferProj` — the
 /// `.proj` clause with no table entry at field `i`: `projMissError` at the
 /// table's presence and the subject type's argument count.
@@ -8086,7 +8083,6 @@ pub fn infer_proj_miss(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_proj_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3040-3098 inferBody` — the `.proj`
 /// clause's body, once the entry has been found: the node must name the
 /// subject type's head (official `infer_proj`, con-leche's TASK #271) at the
@@ -8137,7 +8133,6 @@ pub fn infer_proj_at(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_lam_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3040-3098 inferBody` — the full
 /// body's λ clause: the domain's sort is run (unlike the io grade's), then the
 /// binder-telescope loop (`infer_lams`).
@@ -8216,7 +8211,6 @@ pub fn infer_lam_open(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_let_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3040-3098 inferBody` — the full
 /// body's `let` clause, official's `infer_let` (con-leche task #342 S0): the
 /// `let`'s type is a type, the value's type matches it, then the body with the
@@ -8406,7 +8400,6 @@ pub fn infer_spine(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_app_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2964-2971 inferApp` — the `.app`
 /// clause of the cached inference body: the spine's head is inferred once and
 /// its Π-telescope is walked against the whole spine.

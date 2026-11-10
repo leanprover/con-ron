@@ -108,7 +108,6 @@ pub const M_STD_AXIOM_SHAPE: [u32; 29] = [
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
 /// con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove check_decl::check_decl_kind_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-152 checkDeclKind` — **a
 /// declaration's own checks**, by its kind, extending the environment on
 /// success.  A block under a pinned basis block's names takes the same route as
@@ -172,7 +171,6 @@ pub fn check_decl(
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
 /// con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove check_decl::check_defn_decl_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-152 checkDeclKind` — the `.defnDecl`
 /// arm: the common constant check (a definition may take a certified
 /// operation's name), the value check returning the record unpushed, then the
@@ -198,7 +196,6 @@ pub fn check_defn_decl(
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
 /// con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove check_decl::check_defn_pins_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-152 checkDeclKind` — the `.defnDecl`
 /// arm's structural-`Nat` gate (`natOpNames.contains`), then the next.
 pub fn check_defn_pins(
@@ -228,7 +225,6 @@ pub fn check_defn_pins(
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
 /// con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove check_decl::check_defn_div_mod_pin_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-152 checkDeclKind` — the
 /// `natDivModNames.contains` gate of the `.defnDecl` arm, and the push last.
 pub fn check_defn_div_mod_pin(
@@ -258,7 +254,6 @@ pub fn check_defn_div_mod_pin(
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
 /// con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove check_decl::check_structural_nat_pin_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-152 checkDeclKind` — the
 /// structural-`Nat` gate: the environment guards and the stored value at `fe2`,
 /// the environment with the definition, then `certifyNatEqs` at `fe`, the one
@@ -288,7 +283,6 @@ pub fn check_structural_nat_pin(
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
 /// con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove check_decl::check_structural_nat_pin_at_fe2_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-152 checkDeclKind` — the reads at
 /// `fe2`: `natOpGuard` and the dependencies' storage, then the stored value.
 pub fn check_structural_nat_pin_at_fe2(
@@ -320,7 +314,6 @@ pub fn check_structural_nat_pin_at_fe2(
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
 /// con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove check_decl::check_structural_nat_pin_eqs_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-152 checkDeclKind` — the equations,
 /// substituted with the stored value, certified at `fe`.
 pub fn check_structural_nat_pin_eqs(
@@ -351,7 +344,6 @@ pub fn check_structural_nat_pin_eqs(
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
 /// con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove check_decl::check_thm_decl_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-152 checkDeclKind` — the `.thmDecl`
 /// arm: the common constant check, the value check (`checkThmValCI`), the push
 /// of the statement.
@@ -374,7 +366,6 @@ pub fn check_thm_decl(
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
 /// con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove check_decl::check_opaque_decl_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-152 checkDeclKind` — the `.opaqueDecl`
 /// arm: the opaque check returning the record unpushed, the compiler-trust gate
 /// for `Lean.reduceNat`/`Lean.reduceBool`, the push last.
@@ -397,7 +388,6 @@ pub fn check_opaque_decl(
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
 /// con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove check_decl::check_opaque_reduce_pin_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-152 checkDeclKind` — the
 /// `reduceOpNames.contains` gate of the `.opaqueDecl` arm, and the push.
 pub fn check_opaque_reduce_pin(
@@ -427,7 +417,6 @@ pub fn check_opaque_reduce_pin(
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
 /// con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove check_decl::check_axiom_decl_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-152 checkDeclKind` — the `.axiomDecl`
 /// arm.  **`Quot.sound` is the pinned quotient package's own record**: the
 /// export writes it as an ordinary axiom record beside the four `#QUOT` ones.
@@ -454,7 +443,6 @@ pub fn check_axiom_decl(
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
 /// con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove check_decl::check_axiom_decl_std_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-152 checkDeclKind` — the rest of
 /// the `.axiomDecl` arm: the two standard axioms and the `Init` compiler-trust
 /// family are INSTALLED, `sorryAx` is tolerated and installs nothing, and
@@ -487,7 +475,6 @@ pub fn check_axiom_decl_std(
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
 /// con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove check_decl::check_axiom_decl_trust_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-152 checkDeclKind` — the
 /// `Lean.trustCompiler` branch: `True` is trivially realizable, so the axiom is
 /// installed exactly like a checked `opaque` with witness `True.intro` over the
@@ -526,7 +513,6 @@ pub fn check_axiom_decl_trust(
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
 /// con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove check_decl::check_axiom_decl_of_reduce_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-152 checkDeclKind` — the pinned
 /// `ofReduce*` axioms: over the pinned `Eq` basis, the element inductive and
 /// the identity-certified reduce opaque, `∀ a b, reduce a = b → a = b`
@@ -568,7 +554,6 @@ pub fn check_axiom_decl_of_reduce(
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
 /// con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove check_decl::check_axiom_decl_rest_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-152 checkDeclKind` — the last
 /// three tests: a pinned standard-axiom NAME whose shape did not match
 /// declines under its own message, `sorryAx` is tolerated as a DECLARATION and
