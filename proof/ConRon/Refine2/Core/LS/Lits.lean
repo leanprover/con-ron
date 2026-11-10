@@ -270,9 +270,76 @@ attribute [local simp] ConRon.Refine.LiteralWF
   rw [arena.core.lit_to_ctor_if_nat, litToCtorIfNat]
   lockstep
 
+/-! ## The maximum `Nat` size -/
+
+/-- `max_nat_size` against `maxNatSizeM`: the pin record's field, and the
+`NatWF` the relation keeps with it. -/
+@[lockstep] theorem max_nat_size_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSV pers (fun a b => ConRon.Refine.Nat.NatWF a ∧ b = ConRon.Refine.Nat.toNat a)
+      (arena.pins.max_nat_size st) st lst maxNatSizeM := by
+  intro o hrun
+  rw [arena.pins.max_nat_size] at hrun
+  have ho := (Result.ok_injective hrun).symm
+  subst ho
+  exact ⟨_, lst, rfl, ⟨hrel.pins.maxNatSizeWF, hrel.pins.maxNatSize⟩, hrel, hinv⟩
+
+@[lockstep] theorem nat_size_refused_ls {pers st n lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hn : ConRon.Refine.Nat.NatWF n) :
+    LSV pers (fun a b => b = a) (arena.core.nat_size_refused st n) st lst
+      (natSizeRefused (ConRon.Refine.Nat.toNat n)) := by
+  apply LSV.ofLS
+  rw [arena.core.nat_size_refused, natSizeRefused]
+  lockstep
+
+@[lockstep] theorem pow_refused_ls {pers st a b lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (ha : ConRon.Refine.Nat.NatWF a) (hb : ConRon.Refine.Nat.NatWF b) :
+    LSV pers (fun x y => y = x) (arena.core.pow_refused st a b) st lst
+      (powRefused (ConRon.Refine.Nat.toNat a) (ConRon.Refine.Nat.toNat b)) := by
+  apply LSV.ofLS
+  rw [arena.core.pow_refused, powRefused]
+  lockstep
+
+@[lockstep] theorem shift_left_refused_ls {pers st a b lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (ha : ConRon.Refine.Nat.NatWF a) (hb : ConRon.Refine.Nat.NatWF b) :
+    LSV pers (fun x y => y = x) (arena.core.shift_left_refused st a b) st lst
+      (shiftLeftRefused (ConRon.Refine.Nat.toNat a) (ConRon.Refine.Nat.toNat b)) := by
+  apply LSV.ofLS
+  rw [arena.core.shift_left_refused, shiftLeftRefused]
+  lockstep
+
+@[lockstep] theorem pow_guard_ls {pers st a b lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (ha : ConRon.Refine.Nat.NatWF a) (hb : ConRon.Refine.Nat.NatWF b) :
+    LSR pers (fun _ _ => True) (arena.core.pow_guard st a b) st lst
+      (powGuard (ConRon.Refine.Nat.toNat a) (ConRon.Refine.Nat.toNat b)) := by
+  apply LSR.of_LS
+  rw [arena.core.pow_guard, powGuard]
+  lockstep
+
+@[lockstep] theorem shift_left_guard_ls {pers st a b lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (ha : ConRon.Refine.Nat.NatWF a) (hb : ConRon.Refine.Nat.NatWF b) :
+    LSR pers (fun _ _ => True) (arena.core.shift_left_guard st a b) st lst
+      (shiftLeftGuard (ConRon.Refine.Nat.toNat a) (ConRon.Refine.Nat.toNat b)) := by
+  apply LSR.of_LS
+  rw [arena.core.shift_left_guard, shiftLeftGuard]
+  lockstep
+
 /-! ## `natOpResult` -/
 
 attribute [lockstep_inline] arena.core.lit_nat arena.core.bool_const
+
+@[lockstep] theorem lit_nat_sized_ls {pers st n lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hn : ConRon.Refine.Nat.NatWF n) :
+    LS pers (fun x y => y = absOptE x) (arena.core.lit_nat_sized pers st n) lst
+      (litNatSized (ConRon.Refine.Nat.toNat n)) := by
+  rw [arena.core.lit_nat_sized, litNatSized]
+  lockstep
 
 set_option maxHeartbeats 4000000 in
 @[lockstep] theorem nat_op_result_ls {pers st c a b lst}
