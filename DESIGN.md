@@ -72626,3 +72626,55 @@ walk's memo (a visit budget before it starts would keep most of the no-memo 256 
 proofs to `sym`/`vcgen`; `PinsOK.anon` has no reader left; `IndInstPrims.unwrap_or_eidx_vec_int`
 is probably unused; rename `inst1LC`; the Init peak RSS rose 351 → 386 MB (not investigated:
 the new `hlbi_c` table and the pins' bignum are the candidates).
+
+### Task #151 — con-leche sync 49d2fa3f → eb2c5939: easy cases before the memo, pointer-first equality, the K rule's index check kept (2026-11-10, Opus)
+
+Upstream tasks absorbed (19 commits): #550 (`whnfCore` and `whnf` return the official easy
+cases before the memo), #551 (`Name`, `Level` and `Literal` equality pointer first at every
+level), #552 (the K rule's index check is not needed for consistency, but kept; seven
+adversarial `k_skip_*` fixtures), #554 (`Expr` equality without a derived `DecidableEq`),
+#549 (DESIGN record only).  `update --auto`: 165 findings against 49d2fa3f (161 `CHANGED`,
+4 `GONE`), 182 citations merely moved; 6 markers deleted mechanically (doc-only), 159 by hand.
+Coverage 1074/1133 → 1083/1142 (Rust), arena 904/1132 → 906/1141 (the new plain-tier
+equality declarations have no arena counterpart: the arena compares handles).
+
+**No computation moved.**  Per upstream task:
+
+| upstream | con-ron had | done |
+|---|---|---|
+| #550 `whnfCoreEasy`/`whnfEasy` before the memo | the same test since task #97-P6-7 (lever 2): `whnf_core_stuck_tag`/`whnf_stuck_tag` (twin `whnfCoreStuckTag`/`whnfStuckTag`) in the knot's two slots, before the probe, both `whnfCore` modes | citations; con-ron's `whnf` set also holds `lam` (upstream's leaves it to the memo, as official does), written down as a deviation: a `lam` is its own head normal form, so the memo could only answer it with itself |
+| #551 `Name.decEqPtr`, `Level.decEqPtr`, `Literal.decEqPtr` | the arena interns names, levels and literals, so their equality is handle equality; the plain tier's `name::beq`/`level::beq` already tested pointer, hash, then one structural step whose children start over (called a deviation from `Name.beqPtr`'s top-level-only guard until now) | citations to `decEqPtr`/`decEq`; the deviation note is gone.  Two deviations stay, written down: `name::beq` compares the prefix before the component (upstream: the component first; both pure, same answer), and `literal_beq` has no pointer test (its one checker caller, `arena::canon`, compares a literal being interned with a stored one, two objects a pointer test would not find identical) |
+| #552 K rule | the index check, unconditional, as upstream keeps it | nothing: no verdict moved (the spike's switch stayed on upstream's branch).  The seven `k_skip_*` fixtures agree (below) |
+| #554 `Expr.decEq`, `decEqPtr`, `ptrDecStruct`, `beqGoX`'s explicit mismatch arms | handles (arena); the plain tier's `expr::beq` already pointer-first and memoised, its mismatch arm `_ => false` | citations: `decEqPtr`/`decEq` on `expr::beq`, `ptrDecStruct` on `pair_is` (`probeHit`'s identity test) |
+
+The 155 `changed` markers were the `Expr`, `Name`, `Level` and `Literal` inductives (only
+their `deriving DecidableEq` went), `beqGoX` (the catch-all arm spelled out) and `probeHit`
+(`ptrDec` renamed `ptrDecStruct`).  The prose line numbers of the constructors (`the bvar
+constructor, line 401`, in `arena/handle.rs`, `arena/store.rs`, `arena/monad.rs` and the twin's
+`Handle.lean`/`Store.lean`/`Monad.lean`) were refreshed; `arena/store.rs`'s were already stale
+before this sync.  `kernel/expr.rs`'s "not ported" block names the new proof-only declarations
+(`beqMemo_iff`, `decEq_eq_decEqPtr`) at their current lines.
+
+**Model.**  Regenerated: source positions only (the doc comments moved lines).  No Theorem 1,
+Theorem 2 or capstone statement changed; no proof changed; `Lockstep.lean` and
+`Tactic/Prims.lean` untouched.
+
+**Verdicts.**  `scripts/diff-e2e.sh` 730/730 with the branch's binary (master's binary at the new pin:
+730/730 too, `start`'s run).  The seven `k_skip_*` fixtures agree with con-leche's expectation
+(official's verdicts) on both.
+
+**Numbers.**  `Init`, `--verified --jobs=1`, `perf stat -e instructions:u,cycles:u`, one run each
+(`bump-con-leche.sh measure`), 57 919 / 57 919 accepted:
+
+| binary | instructions:u | cycles:u | peak RSS |
+|---|---:|---:|---:|
+| master `08bf6c31` | 191 174 559 671 | 76 392 554 843 | 384 MB |
+| this branch `e6d3c400` | **191 174 400 395** (−0.000 %) | 75 228 428 762 | 385 MB |
+
+The same code runs, so the same count is the expectation.  Upstream's own gains (#550's
+−4.4 % on `init-full`, #551's −5.9 % on CCK4) are what con-ron already had: the tag tests
+date from task #97-P6-7, and the arena compares name, level and literal handles.  The `k_skip_*` fixtures each
+run in the startup's time (0.05 s).
+
+**Follow-ups.**  None new.  (#550's `whnfCoreCheapC` question and #551's single-instance
+question are upstream's; con-ron's Rust equalities are hand-written, so there is no derived one to drop.)
