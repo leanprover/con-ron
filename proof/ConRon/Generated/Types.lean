@@ -206,22 +206,17 @@ theorem kernel.expr.Expr._0._simpLemma_ (_0 : alloc.sync.Arc
   kernel.expr.ExprNode) : (kernel.expr.Expr.mk _0)._0 = _0 := by rfl
 
 /-- [con_ron_core::kernel::env::IndCaps]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 217:0-233:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 215:0-228:1
     Visibility: public -/
 structure kernel.env.IndCaps where
   eta : Bool
-  eta_ctor : kernel.name.Name
-  eta_params : Std.U64
-  eta_fields : Std.U64
-  unitlike : Bool
-  unit_params : Std.U64
   all : alloc.vec.Vec kernel.name.Name
   nparams : Std.U64
   n_idx : Std.U64
   ctors : alloc.vec.Vec kernel.name.Name
 
 /-- [con_ron_core::kernel::env::ReducibilityHint]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 138:0-142:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 137:0-141:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.ReducibilityHint where
@@ -230,7 +225,7 @@ inductive kernel.env.ReducibilityHint where
 | Regular : Std.U64 → kernel.env.ReducibilityHint
 
 /-- [con_ron_core::kernel::env::RecRuleFire]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 116:0-120:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 115:0-119:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.RecRuleFire where
@@ -242,7 +237,7 @@ inductive kernel.env.RecRuleFire where
 | Levels : alloc.vec.Vec kernel.level.Level → kernel.env.RecRuleFire
 
 /-- [con_ron_core::kernel::env::RecRule]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 126:0-131:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 125:0-130:1
     Visibility: public -/
 structure kernel.env.RecRule where
   ctor : kernel.name.Name
@@ -251,7 +246,7 @@ structure kernel.env.RecRule where
   rhs : kernel.expr.Expr
 
 /-- [con_ron_core::kernel::env::ConstantVal]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 104:0-108:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 103:0-107:1
     Visibility: public -/
 structure kernel.env.ConstantVal where
   «name» : kernel.name.Name
@@ -259,7 +254,7 @@ structure kernel.env.ConstantVal where
   ty : kernel.expr.Expr
 
 /-- [con_ron_core::kernel::env::ConstantInfo]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 258:0-265:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 247:0-254:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.ConstantInfo where
@@ -288,7 +283,7 @@ inductive kernel.env.ConstantInfo where
   kernel.env.ConstantInfo
 
 /-- [con_ron_core::kernel::env::BasisKind]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 191:0-197:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 190:0-196:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.BasisKind where
@@ -339,15 +334,10 @@ structure arena.handle.EIdx where
   word : Std.U32
 
 /-- [con_ron_core::arena::env::IIndCaps]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 272:0-291:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 272:0-285:1
     Visibility: public -/
 structure arena.env.IIndCaps where
   eta : Bool
-  eta_ctor : arena.handle.NIdx
-  eta_params : Std.U64
-  eta_fields : Std.U64
-  unitlike : Bool
-  unit_params : Std.U64
   all : alloc.vec.Vec arena.handle.NIdx
   nparams : Std.U64
   n_idx : Std.U64
@@ -389,7 +379,7 @@ structure arena.env.IConstantVal where
   ty : arena.handle.EIdx
 
 /-- [con_ron_core::arena::env::IConstantInfo]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 390:0-397:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 372:0-379:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.env.IConstantInfo where
@@ -418,7 +408,7 @@ inductive arena.env.IConstantInfo where
   arena.env.IConstantInfo
 
 /-- [con_ron_core::arena::env::IProjTable]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 338:0-345:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 320:0-327:1
     Visibility: public -/
 structure arena.env.IProjTable where
   struct_name : arena.handle.NIdx
@@ -923,7 +913,7 @@ inductive arena.store.ENodeView where
   arena.store.ENodeView
 
 /-- [con_ron_core::kernel::env::QuotKind]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 296:0-302:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 285:0-291:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.QuotKind where
@@ -934,7 +924,7 @@ inductive kernel.env.QuotKind where
 | Sound : kernel.env.QuotKind
 
 /-- [con_ron_core::arena::env::IDeclaration]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 452:0-459:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 434:0-441:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.env.IDeclaration where
@@ -962,14 +952,14 @@ inductive arena.env.IDeclaration where
   arena.env.IDeclaration
 
 /-- [con_ron_core::arena::env::IEnv]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 571:0-574:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 553:0-556:1
     Visibility: public -/
 structure arena.env.IEnv where
   consts : alloc.vec.Vec arena.env.IConstantInfo
   tables : alloc.vec.Vec arena.env.IProjTable
 
 /-- [con_ron_core::arena::env::IFEnv]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 606:0-615:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 588:0-597:1
     Visibility: public -/
 structure arena.env.IFEnv where
   env : arena.env.IEnv
@@ -979,7 +969,7 @@ structure arena.env.IFEnv where
   base_below_rec : Std.U64
 
 /-- [con_ron_core::kernel::env::CheckMode]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 58:0-61:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 57:0-60:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.CheckMode where
@@ -1071,7 +1061,7 @@ structure kernel.level.SubstZ where
   vs : alloc.vec.Vec kernel.level.Level
 
 /-- [con_ron_core::arena::env::IProjEntry]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 350:0-358:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 332:0-340:1
     Visibility: public -/
 structure arena.env.IProjEntry where
   struct_name : arena.handle.NIdx
@@ -1083,7 +1073,7 @@ structure arena.env.IProjEntry where
   body : arena.handle.EIdx
 
 /-- [con_ron_core::arena::core::LazyResA]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9841:0-9848:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10281:0-10288:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.LazyResA where
@@ -1091,7 +1081,7 @@ inductive arena.core.LazyResA where
 | Unknown : arena.handle.EIdx → arena.handle.EIdx → arena.core.LazyResA
 
 /-- [con_ron_core::arena::core::DeltaStepA]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9608:0-9621:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10048:0-10061:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.DeltaStepA where
@@ -1101,7 +1091,7 @@ inductive arena.core.DeltaStepA where
 | Unknown : arena.core.DeltaStepA
 
 /-- [con_ron_core::arena::core::WhnfStep]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6711:0-6714:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7151:0-7154:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.WhnfStep where
