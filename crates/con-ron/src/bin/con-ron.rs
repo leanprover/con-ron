@@ -319,7 +319,6 @@ enum Input {
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove con-ron::check_main_refines, then delete this line
 /// con-leche: ConLeche/Driver/CheckMain.lean:87-98 readInputG
 /// The driver's front matter: the prelude, the streaming parse, the
 /// preparation, the pin walk, the receipts, then the index, the check phase
@@ -583,7 +582,6 @@ fn exit_after_verdict(code: u8) -> ! {
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:239-324 runArgs
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove con-ron::main_refines, then delete this line
 /// con-leche: Main.lean:56-103 main
 /// The entry point.  The checker runs IN THIS PROCESS: it spawns no copy of
 /// itself, and the whole run — parse, preparation, pin walk, fold — is on one
@@ -599,7 +597,6 @@ fn main() -> ! {
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:239-324 runArgs
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove con-ron::run_main_refines, then delete this line
 /// The run up to its exit code, for every path but the verdict's.
 fn run_main() -> u8 {
     let argv: Vec<String> = std::env::args().skip(1).collect();

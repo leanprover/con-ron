@@ -119,13 +119,14 @@ pub fn pins_dup(p: &Pins) -> Pins {
 }
 
 /// con-leche: ConLeche/Driver/CheckPool.lean:199-227 checkPool
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove checker::worker_state_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:64-71 AState.worker` — the twin's
 /// worker reads the persistent tier where it is.
 /// **A worker's start state** (the cited `init`): the empty store, FROZEN
 /// (`EStore::empty_frozen`, task #98-FREEZE), so that every persistent read goes
 /// to the `PersTier` the boundary froze and every append is a scratch append;
-/// fresh memos and caches; and a copy of the pins.  The store stays frozen for
+/// fresh memos and caches; and a copy of the pins, the run's maximum `Nat` size
+/// among them (con-leche's `checkPool mode maxNatSize`, which hands it to every
+/// job's fresh state through `runAt` and `recordJob`).  The store stays frozen for
 /// the worker's life: `record_job` only empties its scratch tier.
 pub fn worker_state(pins: &Pins) -> AState {
     let mut st = AState::init(EStore::empty_frozen());
@@ -134,7 +135,6 @@ pub fn worker_state(pins: &Pins) -> AState {
 }
 
 /// con-leche: ConLeche/Driver/CheckPool.lean:116-123 runAt
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove checker::run_job_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:73-83 runJob` — **job `k`, run**: the
 /// record's job at its position (`stream_index::record_job`), a failure tagged
 /// with that position.  A position past the records is an internal error, never
@@ -177,13 +177,15 @@ pub fn run_job(
 /// (`checkDecls mode pins maxNatSize`) into every declaration's fresh state
 /// (`{ maxNatSize := maxNatSize }`, `Cached.declStep`, `Cached.recordJob`); here
 /// every worker copies it with the pins (`worker_state`) and no job writes it.
+/// It is stored normalised (`nat::norm`), whatever limbs the caller hands in,
+/// so every comparison against it reads it as the number it denotes.
 pub fn intern_all_pins(
     pers: &PersTier,
     st: &mut AState,
     pins: &Vec<NatOpPinSet>,
     max_nat_size: &Nat,
 ) -> Result<Vec<INatOpPinSet>, CheckError> {
-    st.pins.max_nat_size = nat::clone(max_nat_size);
+    st.pins.max_nat_size = nat::norm(nat::clone(max_nat_size).limbs);
     match intern_all_basis(pers, st, 0) {
         Err(e) => Err(e),
         Ok(()) => match intern_all_axiom_pins(pers, st) {

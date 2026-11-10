@@ -213,9 +213,7 @@ pub fn merge_results<E>(
 }
 
 /// con-leche: ConLeche/Driver/CheckPool.lean:125-141 collectFrom
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove pool::first_failure_refines, then delete this line
 /// con-leche: ConLeche/Driver/CheckPool.lean:143-146 collect
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove pool::first_failure_refines, then delete this line
 /// **The results, walked in index order.**  Slot `k` holds index `k`'s
 /// result; the walk stops at the first failure, so its answer is the
 /// sequential fold's whatever order the results were produced in.  An empty
@@ -234,7 +232,6 @@ pub fn first_failure<E>(tab: Vec<Option<Result<(), E>>>) -> Result<(), ParallelE
 
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:457-483 parMapWorkersIO
 /// con-leche: ConLeche/Driver/CheckPool.lean:199-227 checkPool
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove pool::parallel_all_refines, then delete this line
 /// **`step` at every index of `0..n`, on a pool of `workers` threads** — the
 /// module note's trusted claim is this function's contract:
 ///

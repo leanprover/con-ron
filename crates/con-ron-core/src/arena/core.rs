@@ -3139,10 +3139,10 @@ pub fn nat_op_equations_ble(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:582-608 natOpResult
-/// con-leche: ConLeche/Cached/StateC.lean:177-197 natOpRefusal
-/// con-leche: ConLeche/Cached/StateC.lean:199-206 natResultRefused
-/// con-leche: ConLeche/Cached/CoreC.lean:87-157 reduceNatI
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:580-605 natOpResult
+/// con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal
+/// con-leche: ConLeche/Cached/StateC.lean:197-204 natResultRefused
+/// con-leche: ConLeche/Cached/CoreC.lean:87-156 reduceNatI
 /// Lean twin: `proof/ConRon/Arena/Core.lean natOpResult` — the reduct of
 /// op `c` on literal arguments (`pred` ignores the second slot).  `ron::Nat` is
 /// con-leche's `Nat` here, and a literal is a `Literal` value in a `lit` node.
@@ -3206,8 +3206,8 @@ pub fn nat_op_result(
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:199-206 natResultRefused
-/// con-leche: ConLeche/Cached/CoreC.lean:87-157 reduceNatI
+/// con-leche: ConLeche/Cached/StateC.lean:197-204 natResultRefused
+/// con-leche: ConLeche/Cached/CoreC.lean:87-156 reduceNatI
 /// Lean twin: `proof/ConRon/Arena/Core.lean litNatSized` — a computed
 /// numeral, refused above the run's maximum `Nat` size (the cited
 /// `natNumeralTooBig`), otherwise interned like `lit_nat`.
@@ -3228,7 +3228,7 @@ pub fn nat_size_refused(st: &AState, n: &Nat) -> bool {
     nat::size_bytes_gt(n, max_nat_size(st))
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:177-197 natOpRefusal
+/// con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal
 /// Lean twin: `proof/ConRon/Arena/Core.lean powGuard` — the cited `Nat.pow`
 /// clause: an exponent above `natCountMax` is refused whatever the base, and
 /// `a > 1`, `b ≠ 0`, `natSizeBytes a > maxNatSize / b` (`pow_refused`) is.
@@ -3242,7 +3242,7 @@ pub fn pow_guard(st: &AState, a: &Nat, b: &Nat) -> Result<(), CheckError> {
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:177-197 natOpRefusal
+/// con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal
 /// Lean twin: `proof/ConRon/Arena/Core.lean powRefused` — `a ^ b` has at most
 /// `natSizeBytes a * b` bytes, and a base `≤ 1` gives `0` or `1`.
 pub fn pow_refused(st: &AState, a: &Nat, b: &Nat) -> bool {
@@ -3255,7 +3255,7 @@ pub fn pow_refused(st: &AState, a: &Nat, b: &Nat) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:177-197 natOpRefusal
+/// con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal
 /// Lean twin: `proof/ConRon/Arena/Core.lean shiftLeftGuard` — the cited
 /// `Nat.shiftLeft` clause: `0 <<< b = 0` computes; otherwise an amount above
 /// `natCountMax` is refused, and so is a result of about
@@ -3272,7 +3272,7 @@ pub fn shift_left_guard(st: &AState, a: &Nat, b: &Nat) -> Result<(), CheckError>
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:177-197 natOpRefusal
+/// con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal
 /// Lean twin: `proof/ConRon/Arena/Core.lean shiftLeftRefused` —
 /// `natSizeBytes a + b / 8 + 1 > maxNatSize`.
 pub fn shift_left_refused(st: &AState, a: &Nat, b: &Nat) -> bool {
@@ -3280,7 +3280,7 @@ pub fn shift_left_refused(st: &AState, a: &Nat, b: &Nat) -> bool {
     nat::blt(max_nat_size(st), &s)
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:582-608 natOpResult
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:580-605 natOpResult
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1051-1092 natOpResult` — `internE (.lit
 /// (.natVal …))` wrapped in `some`, which every arithmetic arm above ends in.
 pub fn lit_nat(pers: &PersTier, st: &mut AState, n: Nat) -> Result<Option<EIdx>, CheckError> {
@@ -3290,7 +3290,7 @@ pub fn lit_nat(pers: &PersTier, st: &mut AState, n: Nat) -> Result<Option<EIdx>,
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:582-608 natOpResult
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:580-605 natOpResult
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1051-1092 natOpResult` — the two
 /// comparison arms' `Bool` constructor, interned.
 pub fn bool_const(pers: &PersTier, st: &mut AState, b: bool) -> Result<Option<EIdx>, CheckError> {
@@ -7855,7 +7855,7 @@ pub fn infer_const(
 /// con-leche: ConLeche/Kernel/Core.lean:1308-1394 inferBodyIO
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3040-3098 inferBody`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3100-3168 inferBodyIO`
-/// con-leche: ConLeche/Cached/CoreC.lean:1207-1312 inferBodyI
+/// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
 /// The `.lit (.natVal n)` clause, which both bodies write identically: a
 /// numeral entering the checker is bounded by the run's maximum `Nat` size
 /// (the cited cached clause, official `infer_lit`).

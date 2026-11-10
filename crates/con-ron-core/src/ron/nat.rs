@@ -309,14 +309,23 @@ pub fn pred(a: &Nat) -> Nat {
 // ---------------------------------------------------------------------------
 
 /// Push `count` zero limbs onto `out`.  The count is consumed by recursion
-/// rather than turned into an index, so no `u64 -> usize` cast is needed.
+/// rather than turned into an index, so no `u64 -> usize` cast is needed, and
+/// the recursion halves it, so its depth is the count's bit length (at most
+/// 64) rather than the count: a shift by `2^24` bits pushes `2^18` limbs, and
+/// a debug build, which has no tail calls, has no stack for one frame each.
 fn push_zeros(out: Vec<u64>, count: u64) -> Vec<u64> {
     if count == 0 {
         out
     } else {
-        let mut o = out;
-        o.push(0);
-        push_zeros(o, count - 1)
+        let half = count / 2;
+        let o = push_zeros(push_zeros(out, half), half);
+        if count % 2 == 0 {
+            o
+        } else {
+            let mut o1 = o;
+            o1.push(0);
+            o1
+        }
     }
 }
 
@@ -592,7 +601,7 @@ fn pow_go(a: &Nat, e: &Nat) -> Nat {
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:137-141 natSizeBytes
+/// con-leche: ConLeche/Cached/StateC.lean:159-162 natSizeBytes
 /// The official kernel's size of `a` in bytes (`lean_nat_size_in_bytes`):
 /// 8 bytes per limb, and at least 8.  The cited `8 * (a.log2 / 64 + 1)`,
 /// read off the limb count: a normalised `a` with `n > 0` limbs has
@@ -603,7 +612,7 @@ pub fn size_bytes(a: &Nat) -> Nat {
     shift_left(&from_u64(l), 3)
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:137-141 natSizeBytes
+/// con-leche: ConLeche/Cached/StateC.lean:159-162 natSizeBytes
 /// `natSizeBytes a > m`: the comparison every refusal of a numeral makes.
 pub fn size_bytes_gt(a: &Nat, m: &Nat) -> bool {
     blt(m, &size_bytes(a))
@@ -812,6 +821,12 @@ mod tests {
         assert!(eqn(&size_bytes(&of_u128(1 << 64)), &from_u64(16)));
         assert!(size_bytes_gt(&of_u128(1 << 64), &from_u64(15)));
         assert!(!size_bytes_gt(&of_u128(1 << 64), &from_u64(16)));
+        // `nat_size_ok`'s `2^(2^24)`: `2^18` zero limbs and a one, pushed at a
+        // recursion depth of the count's bit length (this runs unoptimised).
+        let big = pow_nat(&from_u64(2), &from_u64(1 << 24));
+        assert_eq!(big.limbs.len(), (1 << 18) + 1);
+        assert_eq!(big.limbs[1 << 18], 1);
+        assert!(eqn(&size_bytes(&big), &from_u64(8 * ((1 << 18) + 1))));
     }
 
     fn of_u128(x: u128) -> Nat {
