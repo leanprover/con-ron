@@ -785,7 +785,7 @@ theorem checkBlock_bridge (hk : CoreSpec Arena.checkFuel)
     ⟨env.pushDelta (ConLeche.blockConstants p₀P) QP, ?_⟩⟩
   unfold ConLeche.checkBlock
   rw [ite_eq_left hnd, ite_eq_left hbool, hQP]
-  exact FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ()) (FOk.bind hF1 (FOk.bind hFP
-    (FOk.bind FOk.unwrapOr (FOk.seq hFT (FOk.pure _))))))
+  dsimp only
+  exact FOk.bind hF1 (FOk.bind hFP (FOk.bind FOk.unwrapOr (FOk.seq hFT (FOk.pure _))))
 
 end ConRon.Bridge.Inductives

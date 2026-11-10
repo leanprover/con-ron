@@ -313,7 +313,7 @@ two binder projections) against `binderPair?`. -/
 
 @[lockstep] theorem defeq_domain_ls {f : Nat} (hk : KnotRel f)
     {pers st mode eager lane fu fe lfe depth fvs ty1 ty2 dom2 lst}
-    (hx : ExprOpsHyp pers)
+    (_hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = a)

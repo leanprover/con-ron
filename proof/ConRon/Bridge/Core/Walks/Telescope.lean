@@ -919,7 +919,7 @@ theorem hasLooseBVarIn_spec (d w : Nat) (e : EIdx) (eP : Expr) :
     simp only [beq_self_eq_true, ite_true] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, by simp [Expr.hasLooseBVarInC]⟩
-  · rw [if_neg (by simpa using hw)] at hrun
+  · rw [ite_eq_right (by simpa using hw)] at hrun
     obtain ⟨p, s₁, h1, h2⟩ := AM.bind_ok hrun
     obtain ⟨hstep, hr, _⟩ :=
       hasLooseBVarInGo_spec ∅ w d Arena.coreWalkFuel e eP s₀ s₁ p hok

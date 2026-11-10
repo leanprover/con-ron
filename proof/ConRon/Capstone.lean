@@ -417,7 +417,20 @@ def startState : arena.monad.AState :=
       { names := alloc.vec.Vec.new _, reserved := alloc.vec.Vec.new _,
         empty_levels := { word := 0#u32 }, zero_level := { word := 0#u32 },
         sort_one := { word := 0#u32 },
-        max_nat_size := { limbs := ⟨[134217728#u64], by simp⟩ } } }
+        max_nat_size := { limbs := .from [134217728#u64] (by scalar_tac) } } }
+
+/-- `max_nat_size_default` is the one-limb `2^27` of `startState`'s pins. -/
+theorem max_nat_size_default_eq :
+    arena.pins.max_nat_size_default = ok { limbs := .from [134217728#u64] (by scalar_tac) } := by
+  rw [arena.pins.max_nat_size_default, ron.nat.from_u64, ite_eq_right (by decide),
+    alloc.vec.Vec.push.eq_def]
+  dsimp only
+  split
+  · simp
+  · exfalso
+    obtain ⟨w, hw, -⟩ := ConRon.Refine.vec_singleton (134217728#u64)
+    rw [alloc.vec.Vec.push.eq_def] at hw
+    simp_all
 
 theorem startState_eq : arena.monad.AState.empty = ok startState := by
   simp only [arena.monad.AState.empty, arena.store.Tbl.empty, arena.store.ETables.empty,
@@ -426,7 +439,7 @@ theorem startState_eq : arena.monad.AState.empty = ok startState := by
     arena.store.EStore.empty, ron.hashmap2.HashMap2.new, arena.cons_map.ConsMap.new,
     arena.monad.AState.init, arena.monad.Memos.empty, arena.core_state.Caches.empty,
     arena.core_state.ModeMemos.empty, arena.pins.Pins.empty, arena.handle.LsIdx.of_word, arena.handle.LIdx.of_word,
-    arena.handle.EIdx.of_word, arena.pins.max_nat_size_default, ron.nat.from_u64, bind_ok]
+    arena.handle.EIdx.of_word, max_nat_size_default_eq, bind_ok]
   rfl
 
 /-- `startState` is `AState::init(EStore::empty())`, the form `rust_stages`

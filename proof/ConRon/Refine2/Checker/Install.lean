@@ -502,8 +502,8 @@ theorem block_tables_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : 
     intro r b hb
     rw [hout1] at hb
     cases r <;> cases b <;>
-      simp_all [List.map_append, List.map_cons, List.map_nil, List.append_assoc,
-        List.singleton_append] <;> rfl
+      simp_all [List.map_append, List.map_cons, List.map_nil, List.append_assoc]
+    rfl
 
 open Lockstep in
 /-- `block_tables` from member `0` and an empty accumulator: `blockTables` of the

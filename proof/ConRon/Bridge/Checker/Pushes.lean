@@ -117,8 +117,7 @@ theorem checkBlock_pushes {ops : CheckerOps CheckM} {env env' : Env}
   unfold checkBlock at h
   cases ht : blockTables p₀ p₀.members with
   | none =>
-    simp only [ht, unwrapOr, bind, Except.bind, pure, Except.pure, throw, throwThe,
-      MonadExceptOf.throw] at h
+    simp only [ht, unwrapOr, bind, Except.bind, throw, throwThe, MonadExceptOf.throw] at h
     repeat' split at h
     all_goals contradiction
   | some Q =>

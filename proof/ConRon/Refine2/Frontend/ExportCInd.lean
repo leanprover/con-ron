@@ -1608,10 +1608,7 @@ theorem validate_ind_d_refines {pers rst lst rsd lsd tys cts rcs o}
 theorem i_ind_caps_default_abs {ic : arena.env.IIndCaps}
     (h : arena.env.i_ind_caps_default = ok ic) : absIIndCaps ic = {} := by
   rw [arena.env.i_ind_caps_default] at h
-  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases Result.ok_injective h
-  rw [arena.handle.NIdx.of_word] at hn
-  cases Result.ok_injective hn
   simp only [absIIndCaps]
   rfl
 

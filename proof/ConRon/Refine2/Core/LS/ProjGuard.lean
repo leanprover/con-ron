@@ -424,12 +424,12 @@ carried by the walk's own memo relation. -/
   rw [arena.core.has_loose_bvar_in] at hrun
   rw [hasLooseBVarIn]
   by_cases hw : w = 0#u64
-  · rw [if_pos hw] at hrun
+  · rw [ite_eq_left hw] at hrun
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hrun)
     have : (absU w == 0) = true := by subst hw; rfl
     simp only [this, ite_true]
     exact ⟨false, lst, rfl, rfl, hrel, hinv⟩
-  · rw [if_neg hw] at hrun
+  · rw [ite_eq_right hw] at hrun
     have hw' : (absU w == 0) = false := by
       have : w.val ≠ 0 := fun h0 => hw (UScalar.eq_of_val_eq (by simpa using h0))
       simpa [absU] using this

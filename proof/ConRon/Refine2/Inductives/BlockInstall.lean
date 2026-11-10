@@ -150,12 +150,12 @@ The Rust tests `mi < len && ctors.len() == 1` where the twin matches
       obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨v, hv, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
       cases Result.ok_injective hq
-      simp only [arena.env.i_ind_caps_default, arena.handle.NIdx.of_word, bind_ok] at h
+      simp only [arena.env.i_ind_caps_default, bind_ok] at h
       cases Result.ok_injective h
       have hv' := ctor_name_list_twin0 _ v hv
       simp only [TwinEq, absCtorsL, hc, List.map_nil] at hv'
       simp only [absMemberShape, absCtorsL, hc, List.map_nil, absIIndCaps, IIndCaps.mk.injEq]
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> trivial
+      refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> trivial
     · have hlen : alloc.vec.Vec.len m.ctors = 1#usize := by
         have : (alloc.vec.Vec.len m.ctors).val = 1 := by simp [alloc.vec.Vec.len, hc]
         scalar_tac
@@ -167,30 +167,28 @@ The Rust tests `mi < len && ctors.len() == 1` where the twin matches
       simp only [hlen, ↓reduceIte, hidx0, bind_ok,
         arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2] at h
       obtain ⟨eta, heta, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨ul, hul, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨ctors, hctors, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       cases Result.ok_injective h
       simp only [absMemberShape, absCtorsL, hc, List.map_cons, List.map_nil,
         absIIndCaps, ConRon.Refine.vec_push_val hctors, alloc.vec.Vec.new,
         IIndCaps.mk.injEq]
-      simp only [pn_u64_bne_zero] at heta hul
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      simp only [pn_u64_bne_zero] at heta
+      refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;>
         first
         | trivial
-        | (split_ifs at heta <;> simp_all [absU]; done)
-        | (split_ifs at hul <;> simp_all [absU])
+        | (split_ifs at heta <;> simp_all [absU])
     · have hlen : ¬ alloc.vec.Vec.len m.ctors = 1#usize := by
         intro h; have := congrArg (·.val) h; simp [alloc.vec.Vec.len, hc] at this
       simp only [ite_eq_right hlen] at h
       obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨v, hv, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
       cases Result.ok_injective hq
-      simp only [arena.env.i_ind_caps_default, arena.handle.NIdx.of_word, bind_ok] at h
+      simp only [arena.env.i_ind_caps_default, bind_ok] at h
       cases Result.ok_injective h
       have hv' := ctor_name_list_twin0 _ v hv
       simp only [TwinEq, absCtorsL, hc] at hv'
       simp only [absMemberShape, absCtorsL, hc, List.map_cons, absIIndCaps, IIndCaps.mk.injEq]
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> trivial
+      refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> trivial
   · have hget : (absBlockShape p).members[absU mi]? = none := by
       show (p.members.val.map absMemberShape)[mi.val]? = _
       rw [List.getElem?_eq_none (by simp; omega)]
@@ -200,7 +198,7 @@ The Rust tests `mi < len && ctors.len() == 1` where the twin matches
       have := lift_cast_u64_of_usize (alloc.vec.Vec.len p.members) _ rfl
       simp only [alloc.vec.Vec.len] at this
       scalar_tac
-    simp only [ite_eq_right h1, bind_ok, arena.env.i_ind_caps_default, arena.handle.NIdx.of_word]
+    simp only [ite_eq_right h1, bind_ok, arena.env.i_ind_caps_default]
       at h
     cases Result.ok_injective h
     simp only [absIIndCaps, hn]

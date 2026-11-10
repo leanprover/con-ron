@@ -302,7 +302,7 @@ theorem struct_proj_bodies_go_aux {pers} {t : arena.handle.NIdx} (N : Nat) :
     have e1 : absU k1 = N := by simp only [absU]; scalar_tac
     have e2 : absU a = (i : Nat) + 1 := by simp only [absU]; scalar_tac
     have e3 : absEIdxArr vs1 = (absEIdxArr vs).push (absEIdx b) := by
-      simp [absEIdxArr, absEIdxL, hvs1]
+      simp [absEIdxArr, hvs1]
     rw [e1, e2, e3]
     refine am_bind_congr _ ?_; intro x
     cases x <;> simp [absEIdxL, hout1]
