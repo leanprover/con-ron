@@ -89,7 +89,6 @@ def IStreamIndex.view (I : IStreamIndex) (k : Nat) : IFEnv :=
   ⟨⟨[], []⟩, {}, { I.base with below := c, belowRec := k }, {}⟩
 
 /-- con-leche: ConLeche/Cached/StreamIndex.lean:74-81 recordJob — what the fold's
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StreamIndex.recordCheck_bridge, then delete this line
 step asks of record `pd` at position `k`: the `And` pin, then the record's check at
 its view.  `recordJob` is this in its bracket. -/
 def recordCheck (mode : CheckMode) (pins : List INatOpPinSet) (I : IStreamIndex)
@@ -100,7 +99,6 @@ def recordCheck (mode : CheckMode) (pins : List INatOpPinSet) (I : IStreamIndex)
   else fail (.invalid "`And` must be the standard `And`")
 
 /-- con-leche: ConLeche/Cached/StreamIndex.lean:74-81 recordJob — **record `pd`'s
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StreamIndex.recordJob_bridge, then delete this line
 job, at position `k`**: `recordCheck` from fresh memos and an empty scratch tier
 (the cited `checkDeclStepC`'s fresh `{}`), the tier dropped after it.  Nothing the
 job builds outlives it. -/

@@ -25,7 +25,6 @@ open ConLeche
 open ConRon.Arena.Frontend.Olean (OleanFs OleanPins ModRef ValueCache readValue)
 
 /-- con-leche: ConLeche/Driver/CheckMain.lean:120-133 oleanJobRun
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove OleanJobs.oleanJob_bridge, then delete this line
 **Job `t` of an `--olean` run**, from the cache `c` the worker kept: a theorem
 whose value is a reference opens the job's bracket (`enterScratch`), reads the
 value (`readValue`), checks the record with it (`recordCheck`) and closes the
@@ -77,7 +76,6 @@ def checkOleanJobList (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath
     | .error e => .error e
 
 /-- con-leche: ConLeche/Driver/CheckMain.lean:152-169 checkOleansG
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove OleanJobs.checkOleans_bridge, then delete this line
 **The check phase of an `--olean` run, as one worker runs it**: the index of the
 records, then every record's job in fold order, from the worker's state and the
 empty cache. -/

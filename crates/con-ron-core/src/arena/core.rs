@@ -9271,7 +9271,6 @@ pub fn infer_pis(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_body_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3248-3306 inferBody` — the
 /// full-grade inference body (official's `infer_type_core` with
 /// `infer_only = false`).

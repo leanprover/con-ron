@@ -169,13 +169,15 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
 /-! ## The spec fold -/
 
 /-- con-leche: ConLeche/Cached/Decls.lean:44-58 declStep
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove CheckDecl.checkDeclStep_bridge, then delete this line
 con-leche: ConLeche/Kernel/CheckDecl.lean:176-180 checkDeclsPure
 **One record of the fold**: the `And` pin, then the record's check from a
 fresh memo state (`flushCaches`, an empty `Memos`: the cited `checkDeclStepC`'s
 `{}`).  The scratch tier stays OFF, so what the record pushes is persistent and
 crosses to the next record, which is all that crosses.  The position the cited
-step threads is the caller's (the fold's error is not tagged here). -/
+step threads is the caller's (the fold's error is not tagged here).  The
+maximum `Nat` size the cited step puts in the fresh state
+(`{ maxNatSize := maxNatSize }`) is the interned pins' (`Pins.maxNatSize`, set
+once by `internAllPins`), which the flush and the fresh `Memos` leave alone. -/
 def checkDeclStep (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     (d : IDeclaration) : AM IFEnv := do
   unless ← andPinOk d do
@@ -186,7 +188,6 @@ def checkDeclStep (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
   checkDecl mode pins fe d
 
 /-- con-leche: ConLeche/Cached/Decls.lean:83-92 checkDecls
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove CheckDecl.checkDeclsPureGo_bridge, then delete this line
 con-leche: ConLeche/Kernel/CheckDecl.lean:176-180 checkDeclsPure
 The fold over a list of records, one `checkDeclStep` each.  con-leche's
 `ds.foldlM (declStep mode pins)` takes a closure, which DESIGN §3.4 forbids, so
@@ -197,7 +198,6 @@ def checkDeclsPureGo (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv) 
   | d :: ds => do checkDeclsPureGo mode pins (← checkDeclStep mode pins fe d) ds
 
 /-- con-leche: ConLeche/Cached/Decls.lean:83-92 checkDecls
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove CheckDecl.checkDeclsPure_bridge, then delete this line
 con-leche: ConLeche/Kernel/CheckDecl.lean:176-180 checkDeclsPure
 **The spec fold**: from the empty environment. -/
 def checkDeclsPure (mode : CheckMode) (pins : List INatOpPinSet)
