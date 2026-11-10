@@ -1000,6 +1000,13 @@ theorem triple_mono {α : Type} {x : AM α} {s₀ : AState}
   exact ⟨Triple.entails_wp_of_post h hq⟩
 
 
+/-- con-leche: none — **a `pure` exit** at a pinned state. -/
+theorem triple_pure_post {α : Type} {s₀ : AState} {v : α}
+    {Q : α → AState → Prop} (h : Q v s₀) :
+    ⦃fun s => s = s₀⦄ (pure v : AM α) ⦃fun r s => Q r s; ⊤⦄ := by
+  vcgen
+  subst_vars; exact h
+
 /-- con-leche: none — **a failure claims nothing** (exception postcondition `⊤`), at any pinned
 state and any postcondition: every throwing exit of a staged arm is this. -/
 theorem triple_fail {α : Type} {s₀ : AState} {e : ConRon.Arena.CheckError}

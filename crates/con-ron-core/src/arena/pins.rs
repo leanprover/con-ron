@@ -78,6 +78,7 @@ use crate::kernel::name::Name;
 use crate::kernel::std_axioms as cstd;
 use crate::kernel::trust_axioms as ctrust;
 use crate::ron::hashmap::Dup;
+use crate::ron::nat::{self, Nat};
 use crate::arena::store::PersTier;
 
 // ---------------------------------------------------------------------------
@@ -250,6 +251,13 @@ pub struct Pins {
     pub zero_level: LIdx,
     /// `arena::core::sort_one`: the expression `Sort 1`.
     pub sort_one: EIdx,
+    /// **The maximum `Nat` size** in bytes (con-leche's `CState.maxNatSize`,
+    /// `--max-nat-size`): the largest `Nat` numeral the core takes in or
+    /// computes (`arena::core::nat_size_refused`, `pow_guard`,
+    /// `shift_left_guard`).  Not a pin but the run's other constant: the
+    /// default until `checker::intern_all_pins` sets the run's value, read
+    /// only after that, and copied into every worker with the pins.
+    pub max_nat_size: Nat,
 }
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3, task #97c)
@@ -264,6 +272,7 @@ impl Pins {
             empty_levels: LsIdx::of_word(0),
             zero_level: LIdx::of_word(0),
             sort_one: EIdx::of_word(0),
+            max_nat_size: max_nat_size_default(),
         }
     }
 }
@@ -366,6 +375,7 @@ pub fn intern_reserved_pins(pers: &PersTier, st: &mut AState) -> Result<(), Chec
                                 empty_levels: us,
                                 zero_level: z,
                                 sort_one: s1,
+                                max_nat_size: max_nat_size_default(),
                             };
                             Ok(())
                         }
@@ -419,6 +429,20 @@ pub fn pin_at(st: &AState, i: usize) -> Result<NIdx, CheckError> {
     } else {
         Ok(st.pins.names[i].dup2())
     }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:156-157 maxNatSizeDefault
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean maxNatSizeDefault` — the
+/// official kernel's default maximum `Nat` size, 128 MiB.
+pub fn max_nat_size_default() -> Nat {
+    nat::from_u64(134217728)
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:267-271 maxNatSizeM
+/// Lean twin: `proof/ConRon/Arena/Pins.lean maxNatSizeM` — the run's maximum
+/// `Nat` size, read off the record, which it leaves as it is.
+pub fn max_nat_size(st: &AState) -> &Nat {
+    &st.pins.max_nat_size
 }
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3, task #97c)

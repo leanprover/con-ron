@@ -310,6 +310,12 @@ structure PinsRel (rp : arena.pins.Pins) (lp : Pins) : Prop where
   emptyLevels : lp.emptyLevels = absLsIdx rp.empty_levels
   zeroLevel : lp.zeroLevel = absLIdx rp.zero_level
   sortOne : lp.sortOne = absEIdx rp.sort_one
+  /-- The run's maximum `Nat` size, a bignum on the Rust side: its value, and
+  the representation fact every comparison against it reads (`NatWF`: no
+  leading zero limb), which `checker::intern_all_pins` establishes by
+  normalising whatever it is handed. -/
+  maxNatSize : lp.maxNatSize = ConRon.Refine.Nat.toNat rp.max_nat_size
+  maxNatSizeWF : ConRon.Refine.Nat.NatWF rp.max_nat_size
 
 /-! ## The whole state -/
 

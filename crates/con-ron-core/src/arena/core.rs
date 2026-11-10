@@ -90,7 +90,7 @@ use crate::arena::env::{
 };
 use crate::arena::expr_ops::{
     abstract1_fast, abstract_range_fast, cons_eidx, get_app_args, get_app_fn,
-    has_fvar_fast, instantiate1_fast, instantiate_list_fast, inst_lp_fast, inst_spine, lam_pair,
+    has_fvar_fast, instantiate1_fast, instantiate_list_fast, inst_lp_fast, inst_spine, binder_pair,
     leaf_guard, loose_bvars_bounded_fast, mk_app_n, mk_app_n_from, pi_result,
     snoc_eidx_of,
     take_eidx, take_eidx_n, wscoped_b_fast,
@@ -105,7 +105,7 @@ use crate::arena::monad::{
 };
 use crate::arena::prop_read::{is_proof_fast, not_proof_fast, peel_pis};
 use crate::arena::store::{ENodeView, LNodeView};
-use crate::arena::pins::{pin_and, pin_and_intro, pin_reserved, pin_bool, pin_bool_false, pin_bool_true, pin_char, pin_eager_reduce, pin_char_of_nat, pin_empty_levels, pin_list, pin_list_cons, pin_list_nil, pin_nat, pin_nat_add, pin_nat_beq, pin_nat_ble, pin_nat_div, pin_nat_gcd, pin_nat_land, pin_nat_lor, pin_nat_mod, pin_nat_mul, pin_nat_pow, pin_nat_pred, pin_nat_shift_left, pin_nat_shift_right, pin_nat_sub, pin_nat_succ, pin_nat_xor, pin_nat_zero, pin_sorry_ax, pin_sort_one, pin_string, pin_string_of_list, pin_zero_level};
+use crate::arena::pins::{pin_and, pin_and_intro, pin_reserved, pin_bool, pin_bool_false, pin_bool_true, pin_char, pin_eager_reduce, pin_char_of_nat, pin_empty_levels, pin_list, pin_list_cons, pin_list_nil, pin_nat, pin_nat_add, pin_nat_beq, pin_nat_ble, pin_nat_div, pin_nat_gcd, pin_nat_land, pin_nat_lor, pin_nat_mod, pin_nat_mul, pin_nat_pow, pin_nat_pred, pin_nat_shift_left, pin_nat_shift_right, pin_nat_sub, pin_nat_succ, pin_nat_xor, pin_nat_zero, pin_sorry_ax, pin_sort_one, pin_string, pin_string_of_list, pin_zero_level, max_nat_size};
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env::{verified_checks, CheckMode, ReducibilityHint};
 use crate::kernel::expr;
@@ -299,6 +299,55 @@ pub const M_STR: [u32; 54] = [
     102, 111, 114, 101, 32, 116, 104, 101, 32, 83, 116, 114, 105, 110, 103, 32, 115, 117,
     112, 112, 111, 114, 116, 32, 100, 101, 99, 108, 97, 114, 97, 116, 105, 111, 110, 115
 ];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"the kernel refused a `Nat` numeral because its size exceeds the maximum; raise it with --max-nat-size"`, as code points.
+pub const M_NAT_NUMERAL_TOO_BIG: [u32; 101] = [
+    116, 104, 101, 32, 107, 101, 114, 110, 101, 108, 32, 114, 101, 102, 117, 115, 101, 100,
+    32, 97, 32, 96, 78, 97, 116, 96, 32, 110, 117, 109, 101, 114, 97, 108, 32, 98,
+    101, 99, 97, 117, 115, 101, 32, 105, 116, 115, 32, 115, 105, 122, 101, 32, 101, 120,
+    99, 101, 101, 100, 115, 32, 116, 104, 101, 32, 109, 97, 120, 105, 109, 117, 109, 59,
+    32, 114, 97, 105, 115, 101, 32, 105, 116, 32, 119, 105, 116, 104, 32, 45, 45, 109,
+    97, 120, 45, 110, 97, 116, 45, 115, 105, 122, 101
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"the kernel refused to evaluate `Nat.pow` because its second argument does not fit in a 32-bit unsigned integer"`, as code points.
+pub const M_NAT_POW_COUNT: [u32; 110] = [
+    116, 104, 101, 32, 107, 101, 114, 110, 101, 108, 32, 114, 101, 102, 117, 115, 101, 100,
+    32, 116, 111, 32, 101, 118, 97, 108, 117, 97, 116, 101, 32, 96, 78, 97, 116, 46,
+    112, 111, 119, 96, 32, 98, 101, 99, 97, 117, 115, 101, 32, 105, 116, 115, 32, 115,
+    101, 99, 111, 110, 100, 32, 97, 114, 103, 117, 109, 101, 110, 116, 32, 100, 111, 101,
+    115, 32, 110, 111, 116, 32, 102, 105, 116, 32, 105, 110, 32, 97, 32, 51, 50, 45,
+    98, 105, 116, 32, 117, 110, 115, 105, 103, 110, 101, 100, 32, 105, 110, 116, 101, 103,
+    101, 114
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"the kernel refused to evaluate `Nat.shiftLeft` because its second argument does not fit in a 32-bit unsigned integer"`, as code points.
+pub const M_NAT_SHIFT_COUNT: [u32; 116] = [
+    116, 104, 101, 32, 107, 101, 114, 110, 101, 108, 32, 114, 101, 102, 117, 115, 101, 100,
+    32, 116, 111, 32, 101, 118, 97, 108, 117, 97, 116, 101, 32, 96, 78, 97, 116, 46,
+    115, 104, 105, 102, 116, 76, 101, 102, 116, 96, 32, 98, 101, 99, 97, 117, 115, 101,
+    32, 105, 116, 115, 32, 115, 101, 99, 111, 110, 100, 32, 97, 114, 103, 117, 109, 101,
+    110, 116, 32, 100, 111, 101, 115, 32, 110, 111, 116, 32, 102, 105, 116, 32, 105, 110,
+    32, 97, 32, 51, 50, 45, 98, 105, 116, 32, 117, 110, 115, 105, 103, 110, 101, 100,
+    32, 105, 110, 116, 101, 103, 101, 114
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"the kernel refused to evaluate `Nat.pow` because the result would exceed the maximum numeral size; raise it with --max-nat-size"`, as code points.
+pub const M_NAT_POW_TOO_BIG: [u32; 127] = [
+    116, 104, 101, 32, 107, 101, 114, 110, 101, 108, 32, 114, 101, 102, 117, 115, 101, 100,
+    32, 116, 111, 32, 101, 118, 97, 108, 117, 97, 116, 101, 32, 96, 78, 97, 116, 46,
+    112, 111, 119, 96, 32, 98, 101, 99, 97, 117, 115, 101, 32, 116, 104, 101, 32, 114,
+    101, 115, 117, 108, 116, 32, 119, 111, 117, 108, 100, 32, 101, 120, 99, 101, 101, 100,
+    32, 116, 104, 101, 32, 109, 97, 120, 105, 109, 117, 109, 32, 110, 117, 109, 101, 114,
+    97, 108, 32, 115, 105, 122, 101, 59, 32, 114, 97, 105, 115, 101, 32, 105, 116, 32,
+    119, 105, 116, 104, 32, 45, 45, 109, 97, 120, 45, 110, 97, 116, 45, 115, 105, 122,
+    101
+];
+
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"let value type mismatch"`, as code points.
@@ -3091,12 +3140,19 @@ pub fn nat_op_equations_ble(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:580-605 natOpResult
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::nat_op_result_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1051-1092 natOpResult` — the reduct of
+/// con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal
+/// con-leche: ConLeche/Cached/StateC.lean:197-204 natResultRefused
+/// con-leche: ConLeche/Cached/CoreC.lean:87-156 reduceNatI
+/// Lean twin: `proof/ConRon/Arena/Core.lean natOpResult` — the reduct of
 /// op `c` on literal arguments (`pred` ignores the second slot).  `ron::Nat` is
 /// con-leche's `Nat` here, and a literal is a `Literal` value in a `lit` node.
-/// The shifts take the bignum amount unbounded (task #98-SHIFT): a left shift
-/// too large for memory fails like any other allocation, with no decline.
+/// The computation is the cited one at any size; the run's maximum `Nat` size
+/// (con-leche's cached `reduceNatI`) refuses `pow` and `shiftLeft` before
+/// computing (`pow_guard`, `shift_left_guard`: the cited `natOpRefusal`) and an
+/// `add`, `sub` or `mul` result after it (`lit_nat_sized`: `natResultRefused`).
+/// Each refusal throws, so it sits in the arm that computes: where con-leche
+/// tests the operation's name a second time and reads the result back, the
+/// port is already in the arm and holds the number.
 pub fn nat_op_result(
     pers: &PersTier,
     st: &mut AState,
@@ -3110,19 +3166,15 @@ pub fn nat_op_result(
             if c.eq2(&p.pr) {
                 lit_nat(pers, st, nat::pred(a))
             } else if c.eq2(&p.ad) {
-                lit_nat(pers, st, nat::add(a, b))
+                lit_nat_sized(pers, st, nat::add(a, b))
             } else if c.eq2(&p.su) {
-                lit_nat(pers, st, nat::sub(a, b))
+                lit_nat_sized(pers, st, nat::sub(a, b))
             } else if c.eq2(&p.mu) {
-                lit_nat(pers, st, nat::mul(a, b))
+                lit_nat_sized(pers, st, nat::mul(a, b))
             } else if c.eq2(&p.po) {
-                if nat::blt(&nat::from_u64(16777216), b) {
-                    Ok(None)
-                } else {
-                    match nat::to_u64(b) {
-                        Some(e) => lit_nat(pers, st, nat::pow(a, e)),
-                        None => Ok(None),
-                    }
+                match pow_guard(st, a, b) {
+                    Err(e) => Err(e),
+                    Ok(()) => lit_nat(pers, st, nat::pow_nat(a, b)),
                 }
             } else if c.eq2(&p.di) {
                 lit_nat(pers, st, nat::div(a, b))
@@ -3137,7 +3189,10 @@ pub fn nat_op_result(
             } else if c.eq2(&p.xo) {
                 lit_nat(pers, st, nat::xor(a, b))
             } else if c.eq2(&p.sl) {
-                lit_nat(pers, st, nat::shift_left_nat(a, b))
+                match shift_left_guard(st, a, b) {
+                    Err(e) => Err(e),
+                    Ok(()) => lit_nat(pers, st, nat::shift_left_nat(a, b)),
+                }
             } else if c.eq2(&p.sr) {
                 lit_nat(pers, st, nat::shift_right_nat(a, b))
             } else if c.eq2(&p.be) {
@@ -3151,8 +3206,81 @@ pub fn nat_op_result(
     }
 }
 
+/// con-leche: ConLeche/Cached/StateC.lean:197-204 natResultRefused
+/// con-leche: ConLeche/Cached/CoreC.lean:87-156 reduceNatI
+/// Lean twin: `proof/ConRon/Arena/Core.lean litNatSized` — a computed
+/// numeral, refused above the run's maximum `Nat` size (the cited
+/// `natNumeralTooBig`), otherwise interned like `lit_nat`.
+pub fn lit_nat_sized(pers: &PersTier, st: &mut AState, n: Nat) -> Result<Option<EIdx>, CheckError> {
+    if nat_size_refused(st, &n) {
+        fail(CheckError::Invalid(code_points(&M_NAT_NUMERAL_TOO_BIG)))
+    } else {
+        lit_nat(pers, st, n)
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:159-162 natSizeBytes
+/// con-leche: ConLeche/Cached/StateC.lean:267-271 maxNatSizeM
+/// Lean twin: `proof/ConRon/Arena/Core.lean natSizeRefused` — whether the
+/// numeral `n` is above the run's maximum `Nat` size,
+/// `natSizeBytes n > maxNatSize`.
+pub fn nat_size_refused(st: &AState, n: &Nat) -> bool {
+    nat::size_bytes_gt(n, max_nat_size(st))
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal
+/// Lean twin: `proof/ConRon/Arena/Core.lean powGuard` — the cited `Nat.pow`
+/// clause: an exponent above `natCountMax` is refused whatever the base, and
+/// `a > 1`, `b ≠ 0`, `natSizeBytes a > maxNatSize / b` (`pow_refused`) is.
+pub fn pow_guard(st: &AState, a: &Nat, b: &Nat) -> Result<(), CheckError> {
+    if nat::blt(&nat::from_u64(4294967295), b) {
+        fail(CheckError::Invalid(code_points(&M_NAT_POW_COUNT)))
+    } else if pow_refused(st, a, b) {
+        fail(CheckError::Invalid(code_points(&M_NAT_POW_TOO_BIG)))
+    } else {
+        Ok(())
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal
+/// Lean twin: `proof/ConRon/Arena/Core.lean powRefused` — `a ^ b` has at most
+/// `natSizeBytes a * b` bytes, and a base `≤ 1` gives `0` or `1`.
+pub fn pow_refused(st: &AState, a: &Nat, b: &Nat) -> bool {
+    if nat::ble(a, &nat::one()) {
+        false
+    } else if nat::is_zero(b) {
+        false
+    } else {
+        nat::size_bytes_gt(a, &nat::div(max_nat_size(st), b))
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal
+/// Lean twin: `proof/ConRon/Arena/Core.lean shiftLeftGuard` — the cited
+/// `Nat.shiftLeft` clause: `0 <<< b = 0` computes; otherwise an amount above
+/// `natCountMax` is refused, and so is a result of about
+/// `natSizeBytes a + b / 8` bytes above the maximum (`shift_left_refused`).
+pub fn shift_left_guard(st: &AState, a: &Nat, b: &Nat) -> Result<(), CheckError> {
+    if nat::is_zero(a) {
+        Ok(())
+    } else if nat::blt(&nat::from_u64(4294967295), b) {
+        fail(CheckError::Invalid(code_points(&M_NAT_SHIFT_COUNT)))
+    } else if shift_left_refused(st, a, b) {
+        fail(CheckError::Invalid(code_points(&M_NAT_NUMERAL_TOO_BIG)))
+    } else {
+        Ok(())
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal
+/// Lean twin: `proof/ConRon/Arena/Core.lean shiftLeftRefused` —
+/// `natSizeBytes a + b / 8 + 1 > maxNatSize`.
+pub fn shift_left_refused(st: &AState, a: &Nat, b: &Nat) -> bool {
+    let s = nat::add(&nat::add(&nat::size_bytes(a), &nat::shift_right(b, 3)), &nat::one());
+    nat::blt(max_nat_size(st), &s)
+}
+
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:580-605 natOpResult
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::lit_nat_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1051-1092 natOpResult` — `internE (.lit
 /// (.natVal …))` wrapped in `some`, which every arithmetic arm above ends in.
 pub fn lit_nat(pers: &PersTier, st: &mut AState, n: Nat) -> Result<Option<EIdx>, CheckError> {
@@ -3163,7 +3291,6 @@ pub fn lit_nat(pers: &PersTier, st: &mut AState, n: Nat) -> Result<Option<EIdx>,
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:580-605 natOpResult
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::bool_const_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1051-1092 natOpResult` — the two
 /// comparison arms' `Bool` constructor, interned.
 pub fn bool_const(pers: &PersTier, st: &mut AState, b: bool) -> Result<Option<EIdx>, CheckError> {
@@ -3802,7 +3929,7 @@ pub fn reduce_nat_succ(
                                     Ok(w) => match raw_nat_lit(pers, st, &w) {
                                         Err(er) => Err(er),
                                         Ok(Some(n)) => {
-                                            lit_nat(pers, st, nat::add(&n, &nat::one()))
+                                            lit_nat_sized(pers, st, nat::add(&n, &nat::one()))
                                         }
                                         Ok(None) => Ok(None),
                                     },
@@ -7926,17 +8053,25 @@ pub fn infer_const(
 /// con-leche: ConLeche/Kernel/Core.lean:1308-1394 inferBodyIO
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3040-3098 inferBody`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3100-3168 inferBodyIO`
-/// The `.lit (.natVal _)` clause, which both bodies write identically.
+/// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
+/// The `.lit (.natVal n)` clause, which both bodies write identically: a
+/// numeral entering the checker is bounded by the run's maximum `Nat` size
+/// (the cited cached clause, official `infer_lit`).
 pub fn infer_lit_nat(
     pers: &PersTier,
     st: &mut AState,
     fe: &IFEnv,
+    n: &Nat,
 ) -> Result<EIdx, CheckError>  {
     match nat_lit_stored(pers, st, fe) {
         Err(e) => Err(e),
-        Ok(true) => match pin_nat(st) {
-            Err(e) => Err(e),
-            Ok(nn) => const_e(pers, st, &nn),
+        Ok(true) => if nat_size_refused(st, n) {
+            fail(CheckError::Invalid(code_points(&M_NAT_NUMERAL_TOO_BIG)))
+        } else {
+            match pin_nat(st) {
+                Err(e) => Err(e),
+                Ok(nn) => const_e(pers, st, &nn),
+            }
         },
         Ok(false) => fail(CheckError::Invalid(code_points(&M_NAT))),
     }
@@ -8716,7 +8851,7 @@ pub fn infer_body(
         Ok(ENodeView::Sort(u)) => infer_sort(pers, st, &u),
         Ok(ENodeView::FVar(idx, ty)) => infer_fvar(idx, &ty, depth),
         Ok(ENodeView::Const(n, us)) => infer_const(pers, st, fe, &n, &us),
-        Ok(ENodeView::Lit(Literal::NatVal(_))) => infer_lit_nat(pers, st, fe),
+        Ok(ENodeView::Lit(Literal::NatVal(n))) => infer_lit_nat(pers, st, fe, &n),
         Ok(ENodeView::Lit(Literal::StrVal(_))) => infer_lit_str(pers, st, fe),
         Ok(ENodeView::ForallE(ty, body)) => {
             infer_forall(pers, st, mode, eager, lane, fuel, fe, depth, &ty, &body)
@@ -8767,7 +8902,7 @@ pub fn infer_body_io(
         Ok(ENodeView::Sort(u)) => infer_sort(pers, st, &u),
         Ok(ENodeView::FVar(idx, ty)) => infer_fvar(idx, &ty, depth),
         Ok(ENodeView::Const(n, us)) => infer_const(pers, st, fe, &n, &us),
-        Ok(ENodeView::Lit(Literal::NatVal(_))) => infer_lit_nat(pers, st, fe),
+        Ok(ENodeView::Lit(Literal::NatVal(n))) => infer_lit_nat(pers, st, fe, &n),
         Ok(ENodeView::Lit(Literal::StrVal(_))) => infer_lit_str(pers, st, fe),
         Ok(ENodeView::ForallE(ty, body)) => {
             infer_forall_io(pers, st, mode, eager, lane, io, fuel, fe, depth, &ty, &body)
@@ -9087,22 +9222,20 @@ pub fn lazy_fold_ok(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1487-1509 quickDefEq
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::defeq_binders_refines, then delete this line
-/// con-leche: ConLeche/Cached/CoreC.lean:1402-1417 quickDefEqI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::defeq_binders_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3313-3322 defeqBinders` — the `∀`
-/// arm of `quickDefEq` (binder congruence: domains, then bodies opened at the
-/// RIGHT domain).
-///
-/// **The FIRST binder of the joint peel** (task #97-P6-14).  The domains are
-/// compared at `depth` and the fresh `fvar (depth, ty₂)` carries the SECOND
-/// side's domain, as con-leche's clause does; instead of opening both bodies
-/// with `instantiate1` and re-entering the knot — which walks the whole
-/// remaining telescope twice per binder — the two RAW bodies go to
-/// `defeq_peel`.  (Task #119: the λ arm is `defeq_lams` now, con-leche's own
-/// structural descent, and the binder-datum comparison is gone.)
-pub fn defeq_binders(
+/// con-leche: ConLeche/Kernel/Core.lean:1442-1445 bindersFuel
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3253-3257 bindersFuel` — descent
+/// budget of the binder-telescope comparison (`defeq_binders`): `2^62`.
+/// Exhaustion is not an error: the level reached is compared as the innermost
+/// one, which is always sound.
+pub const BINDERS_FUEL: u64 = 4611686018427387904; // 2^62
+
+/// con-leche: ConLeche/Kernel/Core.lean:1447-1454 defeqBindersInner
+/// con-leche: ConLeche/Cached/CoreC.lean:1368-1376 defeqBindersInnerI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3259-3270 defeqBindersInner` — the
+/// innermost level of `defeq_binders`: the opened bodies, and for two
+/// λ-telescopes (`lam`) at the verified mode their FULL-grade types (the λ
+/// check).
+pub fn defeq_binders_inner(
     pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
@@ -9110,181 +9243,7 @@ pub fn defeq_binders(
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
-    depth: u64,
-    ty1: &EIdx,
-    body1: &EIdx,
-    ty2: &EIdx,
-    body2: &EIdx,
-) -> Result<bool, CheckError> {
-    match knot_defeq(pers, st, mode, eager, lane, fuel, fe, depth, ty1, ty2) {
-        Err(e) => Err(e),
-        Ok(false) => Ok(false),
-        Ok(true) => match intern_e_fvar(pers, st, depth, ty2.dup2()) {
-            Err(e) => Err(e),
-            Ok(fv) => {
-                let mut fvs: Vec<EIdx> = Vec::new();
-                fvs.push(fv);
-                defeq_peel(pers, st, mode, eager, lane, fuel, fe, depth, PEEL_FUEL, body1, body2, 1, fvs)
-            }
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:1487-1509 quickDefEq
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove crates/con-ron-core/src/arena/core.rs_refines, then delete this line
-/// con-leche: ConLeche/Cached/CoreC.lean:1402-1417 quickDefEqI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove crates/con-ron-core/src/arena/core.rs_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3246-3311 defeqPeel` — **the
-/// batched `∀` defeq descent**, the PORT's own algorithm (task #97-P6-14; the
-/// maintainer's ruling before DESIGN.md §8.7, with its identification lemma
-/// against the chained arm owed by the bridge).
-///
-/// `a` and `b` are the two RAW bodies of the `∀` binders peeled so far — never
-/// opened — `fvs` holds the `k` free variables the peel has introduced, and
-/// `d + k` is the depth the next binder sits at.  While both handles are `∀`s
-/// the loop peels one more level: each domain is opened against the
-/// accumulated `fvs` in ONE `instantiate_list`, the two opened domains are
-/// compared with `knot_defeq` exactly where the chain compares them, the
-/// fresh `fvar (d + k, ty₂')` is pushed, and the two raw bodies go round
-/// again.  The leaf (`defeq_peel_leaf`) opens both residuals ONCE and hands
-/// the pair back to the knot — which is the chain's own next step, and is
-/// where a λ/λ pair under the telescope meets `defeq_lams`.
-///
-/// The identification the bridge owes: the opens agree
-/// (`Expr.instantiateList_cons`); the chain reaches the `∀` arm at every peeled
-/// level (`isBoolTrue` is `false` off a `.const`, `whnfCore` is the identity on
-/// `.forallE`); a failure lands at the same binder; and the caches see less,
-/// which changes no verdict.  Task #119: no binder datum is compared, so the
-/// outward pass of the old peel is gone, and the peel no longer descends
-/// through λ pairs (con-leche's λ/λ arm is `defeqLams`, whose innermost-level
-/// type comparison a joint peel would not run).
-pub fn defeq_peel(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    eager: bool,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    d: u64,
-    peel: u64,
-    a: &EIdx,
-    b: &EIdx,
-    k: u64,
-    fvs: Vec<EIdx>,
-) -> Result<bool, CheckError> {
-    if a.eq2(b) {
-        // `quickDefEq`'s OWN first test, one level up: the chain opens these
-        // two residuals against the same free variables and hands the pair to
-        // the knot, whose `a == b` test then decides `true`.
-        Ok(true)
-    } else if peel == 0 || a.tag() != ETAG_FORALL_E || b.tag() != ETAG_FORALL_E {
-        defeq_peel_leaf(pers, st, mode, eager, lane, fuel, fe, d, a, b, k, fvs)
-    } else {
-        match view_bind(pers, st, a) {
-            None => fail_dangling_e(),
-            Some(pa) => match view_bind(pers, st, b) {
-                None => fail_dangling_e(),
-                Some(pb) => {
-                    // The domains are the same walk of the same input when the
-                    // two RAW domains are the same handle, and the chain's own
-                    // `a == b` arm decides them `true`; one open, no knot call.
-                    let same_dom: bool = pa.0.eq2(&pb.0);
-                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &pa.0, &fvs, 0) {
-                        Err(e) => Err(e),
-                        Ok(t1) => {
-                            let t2r: Result<EIdx, CheckError> = if same_dom {
-                                Ok(t1.dup2())
-                            } else {
-                                instantiate_list_fast(pers, st, CORE_WALK_FUEL, &pb.0, &fvs, 0)
-                            };
-                            match t2r {
-                                Err(e) => Err(e),
-                                Ok(t2) => {
-                                    let dq: Result<bool, CheckError> = if same_dom {
-                                        Ok(true)
-                                    } else {
-                                        knot_defeq(pers, st, mode, eager, lane, fuel, fe, d + k, &t1, &t2)
-                                    };
-                                    match dq {
-                                        Err(e) => Err(e),
-                                        Ok(false) => Ok(false),
-                                        Ok(true) => match intern_e_fvar(pers, st, d + k, t2.dup2()) {
-                                            Err(e) => Err(e),
-                                            Ok(fv) => {
-                                                let mut fvs2: Vec<EIdx> = fvs;
-                                                fvs2.push(fv);
-                                                defeq_peel(
-                                                    pers, st, mode, eager, lane, fuel, fe, d, peel - 1,
-                                                    &pa.1, &pb.1, k + 1, fvs2,
-                                                )
-                                            }
-                                        },
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:1487-1509 quickDefEq
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::defeq_peel_leaf_refines, then delete this line
-/// con-leche: ConLeche/Cached/CoreC.lean:1402-1417 quickDefEqI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::defeq_peel_leaf_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3237-3244 defeqPeelLeaf` — the
-/// batched descent's LEAF phase: the two residuals are opened ONCE against the
-/// whole accumulated `fvs` and handed back to the knot at the depth the peel
-/// reached, which is the chain's own recursive call at its last binder.
-pub fn defeq_peel_leaf(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    eager: bool,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    d: u64,
-    a: &EIdx,
-    b: &EIdx,
-    k: u64,
-    fvs: Vec<EIdx>,
-) -> Result<bool, CheckError> {
-    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, a, &fvs, 0) {
-        Err(e) => Err(e),
-        Ok(o1) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, b, &fvs, 0) {
-            Err(e) => Err(e),
-            Ok(o2) => knot_defeq(pers, st, mode, eager, lane, fuel, fe, d + k, &o1, &o2),
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:1364-1367 lamsFuel
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::LAMS_FUEL_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3324-3328 lamsFuel` — descent
-/// budget of the λ-telescope comparison (`defeq_lams`): `2^62`.  Exhaustion is
-/// not an error: the level reached is compared as the innermost one, which is
-/// always sound.
-pub const LAMS_FUEL: u64 = 4611686018427387904; // 2^62
-
-/// con-leche: ConLeche/Kernel/Core.lean:1369-1376 defeqLamsInner
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::defeq_lams_inner_refines, then delete this line
-/// con-leche: ConLeche/Cached/CoreC.lean:1283-1290 defeqLamsInnerI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::defeq_lams_inner_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3330-3341 defeqLamsInner` — the
-/// innermost level of `defeq_lams`: the opened bodies, and at the verified
-/// mode their FULL-grade types (con-leche task #342: the λ check, T1).
-pub fn defeq_lams_inner(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    eager: bool,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
+    lam: bool,
     depth: u64,
     b1: &EIdx,
     b2: &EIdx,
@@ -9293,7 +9252,7 @@ pub fn defeq_lams_inner(
         Err(e) => Err(e),
         Ok(false) => Ok(false),
         Ok(true) => {
-            if verified_checks(mode) {
+            if lam && verified_checks(mode) {
                 match knot_infer(pers, st, mode, eager, lane, fuel, fe, depth + 1, b1) {
                     Err(e) => Err(e),
                     Ok(t1) => match knot_infer(pers, st, mode, eager, lane, fuel, fe, depth + 1, b2) {
@@ -9308,19 +9267,13 @@ pub fn defeq_lams_inner(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1378-1397 defeqLams
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::defeq_lams_refines, then delete this line
-/// con-leche: ConLeche/Cached/CoreC.lean:1292-1304 defeqLamsI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::defeq_lams_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3343-3364 defeqLams` — **λ-telescope
-/// congruence** (con-leche task #342, #349): two λs compare their domains;
-/// while both opened bodies are λs (and not equal) the comparison descends
-/// into them directly, comparing domains only; at the innermost level the
-/// opened bodies are compared and, at the verified mode, so are their
-/// FULL-grade types.  The descent is the λ arm's own, not a recursive `defeq`
-/// call: a recursive call could answer two λs by proof irrelevance or the
-/// memo, which skips the type comparison the outer levels rely on.
-pub fn defeq_lams(
+/// con-leche: ConLeche/Kernel/Core.lean:1456-1460 defeqDomain
+/// con-leche: ConLeche/Cached/CoreC.lean:1378-1383 defeqDomainI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3272-3282 defeqDomain` — one
+/// level's domains in `defeq_binders`: the same RAW domain handle is `true`;
+/// otherwise the left domain, opened over the variables so far in one
+/// `instantiate_list` (`fvs`, push order), against the opened right one `dom2`.
+pub fn defeq_domain(
     pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
@@ -9328,59 +9281,94 @@ pub fn defeq_lams(
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
-    lfuel: u64,
     depth: u64,
+    fvs: &Vec<EIdx>,
+    ty1: &EIdx,
+    ty2: &EIdx,
+    dom2: &EIdx,
+) -> Result<bool, CheckError> {
+    if ty1.eq2(ty2) {
+        Ok(true)
+    } else {
+        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty1, fvs, 0) {
+            Err(e) => Err(e),
+            Ok(dom1) => knot_defeq(pers, st, mode, eager, lane, fuel, fe, depth, &dom1, dom2),
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:1462-1485 defeqBinders
+/// con-leche: ConLeche/Cached/CoreC.lean:1385-1400 defeqBindersI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3284-3314 defeqBinders` —
+/// **binder-telescope congruence** (the official kernel's
+/// `is_def_eq_binding`): two ∀-telescopes (`!lam`) or two λ-telescopes (`lam`)
+/// are peeled together while both bodies are binders of that kind
+/// (`binder_pair`).  The bodies stay RAW: `fvs` holds the variables of the
+/// levels above, in push order (outermost first), and every opening is one
+/// `instantiate_list` over it.  Per level the right domain is opened (`dom2`),
+/// the domains are compared by `defeq_domain`, and the variable
+/// `fvar (depth, dom2)` is pushed.  At the innermost level both bodies are
+/// opened once and compared by `defeq_binders_inner`.
+pub fn defeq_binders(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    lam: bool,
+    bfuel: u64,
+    depth: u64,
+    fvs: Vec<EIdx>,
     ty1: &EIdx,
     body1: &EIdx,
     ty2: &EIdx,
     body2: &EIdx,
 ) -> Result<bool, CheckError> {
-    match knot_defeq(pers, st, mode, eager, lane, fuel, fe, depth, ty1, ty2) {
+    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty2, &fvs, 0) {
         Err(e) => Err(e),
-        Ok(false) => Ok(false),
-        Ok(true) => match intern_e_fvar(pers, st, depth, ty2.dup2()) {
+        Ok(dom2) => match defeq_domain(pers, st, mode, eager, lane, fuel, fe, depth, &fvs, ty1, ty2, &dom2) {
             Err(e) => Err(e),
-            Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body1, &fv, 0) {
+            Ok(false) => Ok(false),
+            Ok(true) => match intern_e_fvar(pers, st, depth, dom2) {
                 Err(e) => Err(e),
-                Ok(b1) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body2, &fv, 0) {
-                    Err(e) => Err(e),
-                    Ok(b2) => {
-                        let lp: Result<Option<(EIdx, EIdx, EIdx, EIdx)>, CheckError> = if lfuel == 0 {
-                            Ok(None)
-                        } else {
-                            lam_pair(pers, st, &b1, &b2)
-                        };
-                        match lp {
+                Ok(fv) => {
+                    let mut fvs2: Vec<EIdx> = fvs;
+                    fvs2.push(fv);
+                    let bp: Result<Option<(EIdx, EIdx, EIdx, EIdx)>, CheckError> = if bfuel == 0 {
+                        Ok(None)
+                    } else {
+                        binder_pair(pers, st, lam, body1, body2)
+                    };
+                    match bp {
+                        Err(e) => Err(e),
+                        Ok(Some((ty1b, body1b, ty2b, body2b))) => defeq_binders(
+                            pers, st, mode, eager, lane, fuel, fe, lam, bfuel - 1, depth + 1, fvs2, &ty1b,
+                            &body1b, &ty2b, &body2b,
+                        ),
+                        Ok(None) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, body1, &fvs2, 0) {
                             Err(e) => Err(e),
-                            Ok(Some((ty1b, body1b, ty2b, body2b))) => {
-                                if b1.eq2(&b2) {
-                                    Ok(true)
-                                } else {
-                                    defeq_lams(
-                                        pers, st, mode, eager, lane, fuel, fe, lfuel - 1, depth + 1,
-                                        &ty1b, &body1b, &ty2b, &body2b,
-                                    )
-                                }
-                            }
-                            Ok(None) => {
-                                defeq_lams_inner(pers, st, mode, eager, lane, fuel, fe, depth, &b1, &b2)
-                            }
-                        }
+                            Ok(o1) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, body2, &fvs2, 0) {
+                                Err(e) => Err(e),
+                                Ok(o2) => defeq_binders_inner(
+                                    pers, st, mode, eager, lane, fuel, fe, lam, depth, &o1, &o2,
+                                ),
+                            },
+                        },
                     }
-                },
+                }
             },
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1487-1509 quickDefEq
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::quick_defeq_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1402-1417 quickDefEqI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::quick_defeq_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3366-3392 quickDefEq` — **the easy
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3316-3342 quickDefEq` — **the easy
 /// cases** (the official kernel's `quick_is_def_eq`): the syntactic fast path,
-/// and the pairs decided on the spot — two sorts, two literals, two `∀`s
-/// (binder congruence, batched: `defeq_binders`) and two `λ`s (`defeq_lams`).
+/// and the pairs decided on the spot — two sorts, two literals, two `∀`s and
+/// two `λ`s (binder-telescope congruence, `defeq_binders`).
 /// `None` is "not an easy case".  Only a pair of equal tags among those four
 /// kinds is viewed.
 pub fn quick_defeq(
@@ -9421,16 +9409,17 @@ pub fn quick_defeq(
                         }
                         (ENodeView::ForallE(ty1, body1), ENodeView::ForallE(ty2, body2)) => {
                             match defeq_binders(
-                                pers, st, mode, eager, lane, fuel, fe, depth, &ty1, &body1, &ty2, &body2,
+                                pers, st, mode, eager, lane, fuel, fe, false, BINDERS_FUEL, depth, Vec::new(),
+                                &ty1, &body1, &ty2, &body2,
                             ) {
                                 Err(e) => Err(e),
                                 Ok(ok) => Ok(Some(ok)),
                             }
                         }
                         (ENodeView::Lam(ty1, body1), ENodeView::Lam(ty2, body2)) => {
-                            match defeq_lams(
-                                pers, st, mode, eager, lane, fuel, fe, LAMS_FUEL, depth, &ty1, &body1,
-                                &ty2, &body2,
+                            match defeq_binders(
+                                pers, st, mode, eager, lane, fuel, fe, true, BINDERS_FUEL, depth, Vec::new(),
+                                &ty1, &body1, &ty2, &body2,
                             ) {
                                 Err(e) => Err(e),
                                 Ok(ok) => Ok(Some(ok)),

@@ -9,7 +9,7 @@ so that the three can build in parallel:
 | group | contents |
 |---|---|
 | fuel | `Ev` ("from some fuel on") and its rules; `DqPost`, the frame-and-verdict postcondition |
-| stage rules | `triple_pure_post`, `triple_ite_bind`, `CheckOK.of_store_eq` |
+| stage rules | `triple_ite_bind`, `CheckOK.of_store_eq` (`triple_pure_post` is `Memo.lean`'s) |
 | guarded calls | `boolTrueShortcutIf_spec`, `defeqNoFvars_spec`, `reduceNatIf_spec` |
 | denotations | `VD` / `VD.of_view`, `ls_eq_iff_nil`, `n_eq_iff_pin` |
 | exits | `dq_pure_exit`, `dq_defeq_exit`, `dq_stuck_exit` |
@@ -97,13 +97,6 @@ untouched since `s₀`, and the pure goal `G` at some fuel. -/
     (G : Nat → Bool → Prop) (r : Bool) (s' : AState) : Prop :=
   CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
     ∃ F, G F r
-
-/-- con-leche: none — **a `pure` exit** at a pinned state. -/
-theorem triple_pure_post {α : Type} {s₀ : AState} {v : α}
-    {Q : α → AState → Prop} (h : Q v s₀) :
-    ⦃fun s => s = s₀⦄ (pure v : AM α) ⦃fun r s => Q r s; ⊤⦄ := by
-  vcgen
-  subst_vars; exact h
 
 /-- con-leche: none — **a join point**: the do-compiler's
 `if c then x >>= jp else y >>= jp` is the bind of the `if`. -/

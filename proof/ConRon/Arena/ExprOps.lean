@@ -1268,12 +1268,13 @@ Each is a single `view` and a test: no recursion, no fuel. -/
 expression a ∀?  A tag read off the handle word. -/
 @[inline] def isForallE (h : EIdx) : Bool := h.tag == ETag.forallE
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:776-780 lamPair? — two λs: their
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.lamPair?_bridge, then delete this line
-domains and bodies (the descent of the λ-telescope comparison, `defeqLams`).
-The tags first, then the two binder projections. -/
-def lamPair? (a b : EIdx) : AM (Option (EIdx × EIdx × EIdx × EIdx)) := do
-  if a.tag == ETag.lam && b.tag == ETag.lam then
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:840-845 binderPair? — two λs
+(`lam`) or two ∀s (`!lam`): their domains and bodies (the descent of the
+binder-telescope comparison, `defeqBinders`).  The tags first, then the two
+binder projections. -/
+def binderPair? (lam : Bool) (a b : EIdx) : AM (Option (EIdx × EIdx × EIdx × EIdx)) := do
+  let t := if lam then ETag.lam else ETag.forallE
+  if a.tag == t && b.tag == t then
     match ← viewBind a with
     | none => failDanglingE
     | some (ty₁, body₁) =>

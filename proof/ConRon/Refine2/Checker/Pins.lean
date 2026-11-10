@@ -423,15 +423,19 @@ theorem intern_reserved_pins_refines {pers st lst} {o}
   | Ok s1 =>
   obtain ⟨lst6, hx6, hrel6, hinv6⟩ := Sim₀.apply hS6
   rw [run_bind_ok hx6]
-  -- 7. the table, written whole
+  -- 7. the table, written whole, with the default maximum `Nat` size
+  obtain ⟨m, hm, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.pins.max_nat_size_default] at hm
+  obtain ⟨hmv, hmwf⟩ := ConRon.Refine.Nat.from_u64_refines hm
   have ho := Result.ok_injective hrun
   subst ho
   refine AOut₀.ok (lst' := { lst6 with pins :=
       { names := (absNIdxL hs).toArray, reserved := absNIdxL rs,
-        emptyLevels := absLsIdx us, zeroLevel := absLIdx z, sortOne := absEIdx s1 } })
+        emptyLevels := absLsIdx us, zeroLevel := absLIdx z, sortOne := absEIdx s1,
+        maxNatSize := maxNatSizeDefault } })
     rfl ?_ ⟨hinv6.store, hinv6.memos, hinv6.caches⟩
   exact ⟨hrel6.store, hrel6.memos, hrel6.caches,
-    ⟨by simp [absNIdxL], rfl, rfl, rfl, rfl⟩⟩
+    ⟨by simp [absNIdxL], rfl, rfl, rfl, rfl, by rw [hmv]; rfl, hmwf⟩⟩
 
 /-- `pins_ready` ⊑ `pinsReady` — a length test, because an unfilled table is
 EMPTY and not a sentinel handle. -/

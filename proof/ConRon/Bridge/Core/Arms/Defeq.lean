@@ -10,7 +10,7 @@ answer at some fuel (`Ev`, `DqPost`: `Arms/DefeqBase.lean`):
 
 | twin function | spec | module |
 |---|---|---|
-| `quickDefEq` (∀ arm: the batched `defeqBinders`; λ arm: `defeqLams`) | `quickDefEq_spec` (`defeqBinders_spec`, `defeqLams_spec`) | `Arms/DefeqLazy.lean` (`Arms/DefeqPeel.lean`) |
+| `quickDefEq` (∀ and λ arms: `defeqBinders`) | `quickDefEq_spec` (`defeqBinders_spec`) | `Arms/DefeqLazy.lean` (`Arms/DefeqBinders.lean`) |
 | `isNatZero`, `natPred?`, `defeqOffset` | `isNatZero_spec`, `natPred?_spec`, `defeqOffset_spec` | `Arms/DefeqLazy.lean` |
 | `headIsProj`, `tryUnfoldProjApp` | `headIsProj_spec`, `tryUnfoldProjApp_spec` | `Arms/DefeqLazy.lean` |
 | `deltaQuick`, `lazyDeltaStep` | `deltaQuick_spec`, `lazyDeltaStep_spec` | `Arms/DefeqLazy.lean` |
@@ -25,18 +25,13 @@ body, each under the facts the exit has established (`defeqBody_quick` …
 `defeqBody_restart`).  The projection rule of `lazyDeltaProjReduction` is
 `Walks/ProjCore.lean`'s `reduceProjCore_spec`.
 
-## The batched ∀ descent
+## The binder-telescope congruence
 
-`quickDefEq`'s `.forallE` arm is the one the twin does NOT run clause for
-clause: `defeqBinders` compares the first domains and then hands the two
-telescopes to the batched `defeqPeel`, which opens each domain against the
-accumulated free variables in ONE `instantiateList`.  Its identification
-against the chained arm (task #97-P6-14's port-side debt) is
-`Arms/DefeqPeel.lean`'s `defeqBinders_spec`: at each level the chain runs
-`defeqBody`, whose prefix is a no-op on two ∀s (`isBoolTrue` is `false`), so
-it reaches `quickDefEq`'s ∀ arm on the pair itself (`isDefEqCore_forallE`).
-The λ arm is con-leche's own `defeqLams` (task #342), run level by level by
-the twin as well (`defeqLams_spec`).
+`quickDefEq`'s `.forallE` and `.lam` arms are con-leche's `defeqBinders`
+(the official `is_def_eq_binding` shape), run level by level by the twin as
+well; the twin keeps the variables in a push-order vector and opens each
+domain and the two innermost bodies with ONE `instantiateList` over it.  Its
+spec is `Arms/DefeqBinders.lean`'s `defeqBinders_spec`.
 -/
 module
 
@@ -48,7 +43,7 @@ import ConRon.Bridge.ExprOps.Ranges
 import ConRon.Bridge.Core.Walks.Mono
 import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Specs
-import ConRon.Bridge.Core.Arms.DefeqPeel -- shake: keep (`#print axioms` names it; no proof term does)
+import ConRon.Bridge.Core.Arms.DefeqBinders -- shake: keep (`#print axioms` names it; no proof term does)
 
 public section
 

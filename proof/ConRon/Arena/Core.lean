@@ -1048,11 +1048,79 @@ def natOpEquations (d : Nat) (c : NIdx) : AM (List (EIdx × EIdx)) := do
     pure [(l1, bT), (l2, bF), (l3, r3)]
   else pure []
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:580-605 natOpResult — the reduct of
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.natOpResult_bridge, then delete this line
-op `c` on literal arguments (`pred` ignores the second slot).  `ron::Nat` is
-con-leche's `Nat` here, and a literal is a `Literal` value in a `lit`
-node. -/
+/-- con-leche: ConLeche/Cached/StateC.lean:159-162 natSizeBytes — the official
+kernel's size of a numeral in bytes (`lean_nat_size_in_bytes`): 8 bytes per
+started 64 bits, and at least 8. -/
+def natSizeBytes (n : Nat) : Nat := 8 * (n.log2 / 64 + 1)
+
+/-- con-leche: ConLeche/Cached/StateC.lean:159-162 natSizeBytes
+con-leche: ConLeche/Cached/StateC.lean:267-271 maxNatSizeM — whether the numeral
+`n` is above the run's maximum `Nat` size, `natSizeBytes n > maxNatSize`. -/
+def natSizeRefused (n : Nat) : AM Bool := do
+  let m ← maxNatSizeM
+  pure (decide (natSizeBytes n > m))
+
+/-- con-leche: ConLeche/Cached/StateC.lean:197-204 natResultRefused
+con-leche: ConLeche/Cached/StateC.lean:168-171 natNumeralTooBig
+con-leche: ConLeche/Cached/CoreC.lean:87-156 reduceNatI — a computed numeral,
+refused above the run's maximum `Nat` size (the cited `natNumeralTooBig`),
+otherwise interned. -/
+def litNatSized (n : Nat) : AM (Option EIdx) := do
+  if ← natSizeRefused n then
+    fail (.invalid "the kernel refused a `Nat` numeral because its size exceeds the maximum; raise it with --max-nat-size")
+  else do
+    let x ← internE (.lit (.natVal n))
+    pure (some x)
+
+/-- con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal — `a ^ b` has
+at most `natSizeBytes a * b` bytes, and a base `≤ 1` gives `0` or `1`. -/
+def powRefused (a b : Nat) : AM Bool := do
+  if a ≤ 1 then pure false
+  else if b = 0 then pure false
+  else do
+    let m ← maxNatSizeM
+    pure (decide (natSizeBytes a > m / b))
+
+/-- con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal
+con-leche: ConLeche/Cached/StateC.lean:164-166 natCountMax
+con-leche: ConLeche/Cached/StateC.lean:173-176 natCountTooBig — the cited
+`Nat.pow` clause: an exponent above `natCountMax` is refused whatever the base,
+and so is a result above the maximum size (`powRefused`). -/
+def powGuard (a b : Nat) : AM Unit := do
+  if b > 4294967295 then
+    fail (.invalid "the kernel refused to evaluate `Nat.pow` because its second argument does not fit in a 32-bit unsigned integer")
+  else if ← powRefused a b then
+    fail (.invalid "the kernel refused to evaluate `Nat.pow` because the result would exceed the maximum numeral size; raise it with --max-nat-size")
+  else pure ()
+
+/-- con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal —
+`natSizeBytes a + b / 8 + 1 > maxNatSize`, the `/ 8` a shift. -/
+def shiftLeftRefused (a b : Nat) : AM Bool := do
+  let m ← maxNatSizeM
+  pure (decide (m < natSizeBytes a + Nat.shiftRight b 3 + 1))
+
+/-- con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal — the cited
+`Nat.shiftLeft` clause: `0 <<< b = 0` computes; otherwise an amount above
+`natCountMax` is refused, and so is a result above the maximum size
+(`shiftLeftRefused`). -/
+def shiftLeftGuard (a b : Nat) : AM Unit := do
+  if a = 0 then pure ()
+  else if b > 4294967295 then
+    fail (.invalid "the kernel refused to evaluate `Nat.shiftLeft` because its second argument does not fit in a 32-bit unsigned integer")
+  else if ← shiftLeftRefused a b then
+    fail (.invalid "the kernel refused a `Nat` numeral because its size exceeds the maximum; raise it with --max-nat-size")
+  else pure ()
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:580-605 natOpResult
+con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal
+con-leche: ConLeche/Cached/StateC.lean:197-204 natResultRefused
+con-leche: ConLeche/Cached/CoreC.lean:87-156 reduceNatI — the reduct of op `c`
+on literal arguments (`pred` ignores the second slot).  `ron::Nat` is
+con-leche's `Nat` here, and a literal is a `Literal` value in a `lit` node.
+The computation is the cited one at any size; the run's maximum `Nat` size
+(con-leche's cached `reduceNatI`) refuses `pow` and `shiftLeft` before
+computing (`powGuard`, `shiftLeftGuard`: the cited `natOpRefusal`) and an
+`add`, `sub` or `mul` result after it (`litNatSized`: `natResultRefused`). -/
 def natOpResult (c : NIdx) (a b : Nat) : AM (Option EIdx) := do
   let pr ← natPredName; let ad ← natAddName; let su ← natSubName
   let mu ← natMulName; let po ← natPowName; let be ← natBeqName
@@ -1060,14 +1128,12 @@ def natOpResult (c : NIdx) (a b : Nat) : AM (Option EIdx) := do
   let gc ← natGcdName; let la ← natLandName; let lo ← natLorName
   let xo ← natXorName; let sl ← natShiftLeftName; let sr ← natShiftRightName
   if c == pr then do let x ← internE (.lit (.natVal (a - 1))); pure (some x)
-  else if c == ad then do let x ← internE (.lit (.natVal (a + b))); pure (some x)
-  else if c == su then do let x ← internE (.lit (.natVal (a - b))); pure (some x)
-  else if c == mu then do let x ← internE (.lit (.natVal (a * b))); pure (some x)
-  else if c == po then
-    -- the divergence audit's S2: official `reduce_pow` refuses exponents
-    -- above `ReducePowMaxExp = 1 << 24` and lets `Nat.pow` unfold instead
-    if b > 16777216 then pure none
-    else do let x ← internE (.lit (.natVal (a ^ b))); pure (some x)
+  else if c == ad then litNatSized (a + b)
+  else if c == su then litNatSized (a - b)
+  else if c == mu then litNatSized (a * b)
+  else if c == po then do
+    powGuard a b
+    let x ← internE (.lit (.natVal (a ^ b))); pure (some x)
   else if c == di then do let x ← internE (.lit (.natVal (a / b))); pure (some x)
   else if c == mo then do let x ← internE (.lit (.natVal (a % b))); pure (some x)
   else if c == gc then do
@@ -1079,6 +1145,7 @@ def natOpResult (c : NIdx) (a b : Nat) : AM (Option EIdx) := do
   else if c == xo then do
     let x ← internE (.lit (.natVal (Nat.xor a b))); pure (some x)
   else if c == sl then do
+    shiftLeftGuard a b
     let x ← internE (.lit (.natVal (Nat.shiftLeft a b))); pure (some x)
   else if c == sr then do
     let x ← internE (.lit (.natVal (Nat.shiftRight a b))); pure (some x)
@@ -1286,9 +1353,7 @@ def reduceNat (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (e : EIdx) :
           let ns ← pinNatSucc
           if c == ns && (← natLitStored fe) then do
             match ← rawNatLit? (← r.whnf depth b) with
-            | some n => do
-              let x ← internE (.lit (.natVal (n + 1)))
-              pure (some x)
+            | some n => litNatSized (n + 1)
             | none => pure none
           else pure none
       | .app g a => do
@@ -3173,10 +3238,15 @@ def inferBody (r : CoreFnsA) (fe : IFEnv) :
         if usl.length != cv.levelParams.length then do
           fail (.invalid "incorrect number of universe levels")
         else constTyAt cv us
-    | .lit (.natVal _) => do
+    | .lit (.natVal n) => do
       if ← natLitStored fe then do
-        let nn ← pinNat
-        constE nn
+        -- a numeral entering the checker is bounded by the run's maximum
+        -- `Nat` size (con-leche's cached `inferBodyI`, official `infer_lit`)
+        if ← natSizeRefused n then
+          fail (.invalid "the kernel refused a `Nat` numeral because its size exceeds the maximum; raise it with --max-nat-size")
+        else do
+          let nn ← pinNat
+          constE nn
       else fail (.invalid "Nat literal without the Nat basis declarations")
     | .lit (.strVal _) => do
       if ← strLitStored fe then do
@@ -3235,10 +3305,15 @@ def inferBodyIO (r : CoreFnsA) (fe : IFEnv) :
         if usl != cv.levelParams.length then do
           fail (.invalid "incorrect number of universe levels")
         else constTyAt cv us
-    | .lit (.natVal _) => do
+    | .lit (.natVal n) => do
       if ← natLitStored fe then do
-        let nn ← pinNat
-        constE nn
+        -- a numeral entering the checker is bounded by the run's maximum
+        -- `Nat` size (con-leche's cached `inferBodyI`, official `infer_lit`)
+        if ← natSizeRefused n then
+          fail (.invalid "the kernel refused a `Nat` numeral because its size exceeds the maximum; raise it with --max-nat-size")
+        else do
+          let nn ← pinNat
+          constE nn
       else fail (.invalid "Nat literal without the Nat basis declarations")
     | .lit (.strVal _) => do
       if ← strLitStored fe then do
@@ -3334,160 +3409,76 @@ sides are not walked. -/
 def lazyFoldOk (eager : Bool) (a b : EIdx) : AM Bool := do
   if eager then pure true else defeqNoFvars a b
 
-/-! ### The batched defeq binder descent
+/-! ### The binder-telescope congruence -/
 
-DESIGN §8.6 item 14, and **the one lever of the P6 campaign that is the
-PORT's own algorithm** rather than a clause copied from con-leche's cached
-tier: `Cached/CoreC.lean:1456-1623 defeqStepI` keeps its `.forallE`/`.lam`
-arms chained, so there is nothing upstream to mirror and the bridge owes its
-own identification lemma.  Licensed by the maintainer's ruling before
-DESIGN §8.7 ("do it here — with its own identification lemma against the pure
-tier's chained arms owed by the bridge (P3)"). -/
+/-- con-leche: ConLeche/Kernel/Core.lean:1442-1445 bindersFuel — the
+binder-telescope descent's own budget (`2^62`; `@[noinline]` for con-leche's
+reason: a literal at or above `2^32` is parsed from its decimal string at
+every use otherwise). -/
+@[noinline] def bindersFuel : Nat := 4611686018427387904  -- 2^62
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1487-1509 quickDefEq — the batched
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.defeqPeelLeaf_bridge, then delete this line
-descent's LEAF: open both residuals ONCE against the whole `fvs` and hand the
-pair back to the knot, which is the chain's own next step. -/
-def defeqPeelLeaf (r : CoreFnsA) (d : Nat) (a b : EIdx) (k : Nat)
-    (fvs : Array EIdx) : AM Bool := do
-  let o1 ← instantiateListFast coreWalkFuel a fvs 0
-  let o2 ← instantiateListFast coreWalkFuel b fvs 0
-  r.defeq (d + k) o1 o2
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1487-1509 quickDefEq — **the batched
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.defeqPeel_bridge, then delete this line
-∀ binder descent**.
-
-`a` and `b` are the two RAW bodies of the ∀ binders peeled so far — never
-opened — `fvs` holds the `k` free variables the peel has introduced, innermost
-first, and `d + k` is the depth the next binder sits at.  While both handles
-are ∀s the loop peels one more level: each domain is opened against the
-accumulated `fvs` in ONE `instantiateList`, the two opened domains are compared
-with the knot exactly where the chain compares them, the fresh
-`fvar (d + k) ty₂'` is pushed, and the two raw bodies go round again.
-
-**The identification the bridge owes** — *batched descent = the pure chain*,
-on every input, by `Expr.instantiateList_cons` (`Verify/InstList.lean`) and the
-per-binder domain check:
-
-1. *The opens agree.*  The chain's `k`-fold `instantiate1` of a domain at
-   cursors `k-1, …, 0` is one `instantiateList` against the same free
-   variables at cursor 0.
-2. *The chain really reaches this arm at every peeled level.*  At level `j`
-   the chain runs a WHOLE `defeqBody` on the opened pair, so the peel is sound
-   only because every earlier step is a no-op on a pair of ∀ nodes:
-   `isBoolTrue` is `false` off any non-`.const`, `propIrrel`'s readers answer
-   "not a proof" at a ∀ (`headProofPW`'s `.forallE` arm), and `whnfCore` is
-   the identity on a `.forallE` — so `quickDefEq` is reached on the pair
-   itself, and its ∀ arm is the one this loop continues.  Stopping EARLIER is
-   always safe: the leaf hands the pair to the knot.
-3. *A failure lands at the same binder.*  The domain comparison at level `j`
-   runs before the descent past `j`, in the chain's order.
-4. *The caches see less, and that is all.*  The batch neither probes nor
-   writes the `defeq` memo at the `k` intermediate opened pairs, and spends one
-   unit of knot fuel where the chain spends `k`; the bridge's statement is
-   existential in the fuel (`∃ F`).
-
-The λ pair is NOT peeled here: con-leche's λ arm is `defeqLams`, whose
-innermost level compares the bodies' types (task #342), so it has its own
-descent below.
-
-Two equality short-circuits ride with it, both `quickDefEq`'s own first test
-one level up: the peel returns `true` at `a == b`, and the domain's knot call
-is skipped when the two RAW domains are the same handle. -/
-def defeqPeel (r : CoreFnsA) (d : Nat) :
-    Nat → EIdx → EIdx → Nat → Array EIdx → AM Bool
-  | peel, a, b, k, fvs => do
-    -- The peel's test is a tag read off the two handle words (the ruling
-    -- before §8.7) and the binder PROJECTION (task #97-P6-10).
-    if a == b then pure true
-    else if peel = 0 || a.tag != ETag.forallE || b.tag != ETag.forallE then
-      defeqPeelLeaf r d a b k fvs
-    else
-      match ← viewBind a with
-      | none => failDanglingE
-      | some (da, ba) =>
-        match ← viewBind b with
-        | none => failDanglingE
-        | some (db, bb) => do
-          let sameDom := da == db
-          let t1 ← instantiateListFast coreWalkFuel da fvs 0
-          let t2 ← if sameDom then pure t1
-                   else instantiateListFast coreWalkFuel db fvs 0
-          let dq ← if sameDom then pure true else r.defeq (d + k) t1 t2
-          if !dq then pure false
-          else do
-            let fv ← internFVarE (d + k) t2
-            match peel with
-            | 0 => defeqPeelLeaf r d ba bb (k + 1) (fvs.push fv)
-            | p + 1 => defeqPeel r d p ba bb (k + 1) (fvs.push fv)
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1487-1509 quickDefEq — `quickDefEq`'s
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.defeqBinders_bridge, then delete this line
-`.forallE` binder-congruence arm: con-leche's clause for the FIRST binder (the
-domains are compared and the fresh free variable is made), then the batched
-descent for the rest of the two telescopes. -/
-def defeqBinders (r : CoreFnsA) (depth : Nat) (ty1 body1 ty2 body2 : EIdx) :
-    AM Bool := do
-  if !(← r.defeq depth ty1 ty2) then pure false
-  else do
-    let fv ← internFVarE depth ty2
-    defeqPeel r depth peelFuel body1 body2 1 #[fv]
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1364-1367 lamsFuel — the λ-telescope
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.lamsFuel_bridge, then delete this line
-descent's own budget (`2^62`; `@[noinline]` for con-leche's reason: a literal
-at or above `2^32` is parsed from its decimal string at every use
-otherwise). -/
-@[noinline] def lamsFuel : Nat := 4611686018427387904  -- 2^62
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1369-1376 defeqLamsInner
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.defeqLamsInner_bridge, then delete this line
-con-leche: ConLeche/Cached/CoreC.lean:1283-1290 defeqLamsInnerI — the innermost
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.defeqLamsInner_bridge, then delete this line
-level of `defeqLams`: the opened bodies, and at the verified mode their
-FULL-grade types (con-leche's task #342, T1). -/
-def defeqLamsInner (mode : CheckMode) (r : CoreFnsA) (depth : Nat) (b₁ b₂ : EIdx) :
-    AM Bool := do
+/-- con-leche: ConLeche/Kernel/Core.lean:1447-1454 defeqBindersInner
+con-leche: ConLeche/Cached/CoreC.lean:1368-1376 defeqBindersInnerI — the
+innermost level of `defeqBinders`: the opened bodies, and for two
+λ-telescopes at the verified mode their FULL-grade types (the λ check). -/
+def defeqBindersInner (mode : CheckMode) (r : CoreFnsA) (lam : Bool) (depth : Nat)
+    (b₁ b₂ : EIdx) : AM Bool := do
   if !(← r.defeq (depth + 1) b₁ b₂) then pure false
-  else if mode.verifiedChecks then do
+  else if lam && mode.verifiedChecks then do
     let t₁ ← r.infer (depth + 1) b₁
     let t₂ ← r.infer (depth + 1) b₂
     r.defeq (depth + 1) t₁ t₂
   else pure true
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1378-1397 defeqLams
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.defeqLams_bridge, then delete this line
-con-leche: ConLeche/Cached/CoreC.lean:1292-1304 defeqLamsI — **λ-telescope
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.defeqLams_bridge, then delete this line
-congruence**: two λs compare their domains; while both opened bodies are λs
-(`lamPair?`) the descent continues structurally (an equal pair of bodies is
-`true` outright), and at the innermost level `defeqLamsInner` compares the
-bodies and, at the verified mode, their types. -/
-def defeqLams (mode : CheckMode) (r : CoreFnsA) :
-    Nat → Nat → EIdx → EIdx → EIdx → EIdx → AM Bool
-  | fuel, depth, ty₁, body₁, ty₂, body₂ => do
-    if !(← r.defeq depth ty₁ ty₂) then pure false
+/-- con-leche: ConLeche/Kernel/Core.lean:1456-1460 defeqDomain
+con-leche: ConLeche/Cached/CoreC.lean:1378-1383 defeqDomainI — one level's
+domains in `defeqBinders`: the same RAW domain handle is `true`; otherwise the
+left domain, opened over the variables so far (`fvs`, push order) in one
+`instantiateList`, against the opened right one `dom₂`. -/
+def defeqDomain (r : CoreFnsA) (depth : Nat) (fvs : Array EIdx) (ty₁ ty₂ dom₂ : EIdx) :
+    AM Bool := do
+  if ty₁ == ty₂ then pure true
+  else do
+    let dom₁ ← instantiateListFast coreWalkFuel ty₁ fvs 0
+    r.defeq depth dom₁ dom₂
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1462-1485 defeqBinders
+con-leche: ConLeche/Cached/CoreC.lean:1385-1400 defeqBindersI —
+**binder-telescope congruence** (the official kernel's `is_def_eq_binding`):
+two ∀-telescopes (`lam = false`) or two λ-telescopes (`lam = true`) are peeled
+together while both bodies are binders of that kind (`binderPair?`).  The
+bodies stay RAW: `fvs` holds the variables of the levels above in push order
+(outermost first, the specification's list reversed), and every opening is
+one `instantiateList` over it.  Per level the right domain is opened (`dom₂`),
+the domains are compared by `defeqDomain`, and the variable
+`fvar depth dom₂` is pushed; at the innermost level both bodies are opened
+once and compared by `defeqBindersInner`. -/
+def defeqBinders (mode : CheckMode) (r : CoreFnsA) (lam : Bool) :
+    Nat → Nat → Array EIdx → EIdx → EIdx → EIdx → EIdx → AM Bool
+  | fuel, depth, fvs, ty₁, body₁, ty₂, body₂ => do
+    let dom₂ ← instantiateListFast coreWalkFuel ty₂ fvs 0
+    if !(← defeqDomain r depth fvs ty₁ ty₂ dom₂) then pure false
     else do
-    let fv ← internFVarE depth ty₂
-    let b₁ ← instantiate1Fast coreWalkFuel body₁ fv 0
-    let b₂ ← instantiate1Fast coreWalkFuel body₂ fv 0
+    let fv ← internFVarE depth dom₂
     match fuel with
-    | 0 => defeqLamsInner mode r depth b₁ b₂
+    | 0 => do
+      let b₁ ← instantiateListFast coreWalkFuel body₁ (fvs.push fv) 0
+      let b₂ ← instantiateListFast coreWalkFuel body₂ (fvs.push fv) 0
+      defeqBindersInner mode r lam depth b₁ b₂
     | fuel + 1 =>
-      match ← lamPair? b₁ b₂ with
+      match ← binderPair? lam body₁ body₂ with
       | some (ty₁', body₁', ty₂', body₂') =>
-        if b₁ == b₂ then pure true
-        else defeqLams mode r fuel (depth + 1) ty₁' body₁' ty₂' body₂'
-      | none => defeqLamsInner mode r depth b₁ b₂
+        defeqBinders mode r lam fuel (depth + 1) (fvs.push fv) ty₁' body₁' ty₂' body₂'
+      | none => do
+        let b₁ ← instantiateListFast coreWalkFuel body₁ (fvs.push fv) 0
+        let b₂ ← instantiateListFast coreWalkFuel body₂ (fvs.push fv) 0
+        defeqBindersInner mode r lam depth b₁ b₂
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1487-1509 quickDefEq
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.quickDefEq_bridge, then delete this line
 con-leche: ConLeche/Cached/CoreC.lean:1402-1417 quickDefEqI — **the easy
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.quickDefEq_bridge, then delete this line
 cases** (the official kernel's `quick_is_def_eq`): the syntactic fast path,
-and the pairs decided on the spot — two sorts, two literals, two `∀`s (binder
-congruence, batched: `defeqBinders`) and two `λ`s (`defeqLams`).  `none` is
+and the pairs decided on the spot — two sorts, two literals, two `∀`s and two
+`λ`s (binder-telescope congruence, `defeqBinders`).  `none` is
 "not an easy case".  The pair match is on the two handles' TAGS first: only a
 pair of equal tags among the four kinds is viewed. -/
 def quickDefEq (mode : CheckMode) (r : CoreFnsA) (depth : Nat) (a b : EIdx) :
@@ -3503,10 +3494,10 @@ def quickDefEq (mode : CheckMode) (r : CoreFnsA) (depth : Nat) (a b : EIdx) :
       pure (some ok)
     | .lit l₁, .lit l₂ => pure (some (l₁ == l₂))
     | .forallE ty₁ body₁, .forallE ty₂ body₂ => do
-      let ok ← defeqBinders r depth ty₁ body₁ ty₂ body₂
+      let ok ← defeqBinders mode r false bindersFuel depth #[] ty₁ body₁ ty₂ body₂
       pure (some ok)
     | .lam ty₁ body₁, .lam ty₂ body₂ => do
-      let ok ← defeqLams mode r lamsFuel depth ty₁ body₁ ty₂ body₂
+      let ok ← defeqBinders mode r true bindersFuel depth #[] ty₁ body₁ ty₂ body₂
       pure (some ok)
     | _, _ => pure none
   else pure none

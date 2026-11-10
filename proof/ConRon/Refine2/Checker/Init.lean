@@ -276,12 +276,15 @@ theorem init_rel {pers : arena.store.PersTier} {est : arena.store.EStore}
   rw [arena.pins.Pins.empty] at hp
   simp only [arena.handle.LsIdx.of_word, arena.handle.LIdx.of_word,
     arena.handle.EIdx.of_word, bind_ok] at hp
+  obtain ⟨n, hn, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+  rw [arena.pins.max_nat_size_default] at hn
+  obtain ⟨hnv, hnwf⟩ := ConRon.Refine.Nat.from_u64_refines hn
   have hp' := Result.ok_injective hp
   subst hp'
   obtain ⟨hMR, hMI⟩ := memos_empty hm
   obtain ⟨hCR, hCI⟩ := caches_empty hc
-  exact ⟨⟨hSR, hMR, hCR, ⟨rfl, rfl, rfl, rfl, rfl⟩⟩, ⟨hSI, hMI, hCI⟩,
-    hoff⟩
+  exact ⟨⟨hSR, hMR, hCR, ⟨rfl, rfl, rfl, rfl, rfl, by rw [hnv]; rfl, hnwf⟩⟩,
+    ⟨hSI, hMI, hCI⟩, hoff⟩
 
 /-- info: 'ConRon.Refine2.init_rel' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms init_rel

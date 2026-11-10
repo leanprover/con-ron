@@ -1222,33 +1222,38 @@ theorem push_zeros_val :
       ron.nat.push_zeros out count = ok w →
       limbsToNat w.val = limbsToNat out.val ∧ w.val.length = out.val.length + count.val := by
   intro d
-  induction d with
-  | zero =>
-    intro out w count hd h
-    rw [ron.nat.push_zeros, ite_eq_left (by scalar_tac)] at h
-    simp only [Result.ok.injEq] at h
+  induction d using Nat.strong_induction_on with
+  | _ d ih =>
+  intro out w count hd h
+  rw [ron.nat.push_zeros] at h
+  split at h <;> rename_i hz
+  · simp only [Result.ok.injEq] at h
     subst h
-    have : count.val = 0 := by omega
+    have : count.val = 0 := by scalar_tac
     simp [this]
-  | succ d ih =>
-    intro out w count hd h
-    rw [ron.nat.push_zeros] at h
-    split at h <;> rename_i hz
+  · have hcz : 0 < count.val := by scalar_tac
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨half, hhalf, v, hv, o, ho, i, hi, h⟩ := h
+    have hh : half.val = count.val / 2 := by have := udiv_val hhalf; simpa using this
+    have hi' : i.val = count.val % 2 := by have := urem_val hi; simpa using this
+    obtain ⟨hv0, hl0⟩ := ih half.val (by omega) out v half le_rfl hv
+    obtain ⟨hv1, hl1⟩ := ih half.val (by omega) v o half le_rfl ho
+    split at h <;> rename_i hpar
     · simp only [Result.ok.injEq] at h
       subst h
-      have : count.val = 0 := by scalar_tac
-      simp [this]
-    · simp only [bind_eq_ok_iff, push_eq_ok_iff] at h
-      obtain ⟨out1, ⟨-, hout1⟩, c1, hc1, h⟩ := h
-      have hc1' : c1.val = count.val - 1 := (usub_val hc1).2.trans (by simp)
-      have hcz : 0 < count.val := by scalar_tac
-      obtain ⟨hv, hl⟩ := ih out1 w c1 (by omega) h
-      rw [hout1] at hv hl
+      have hp : count.val % 2 = 0 := by rw [← hi']; scalar_tac
+      exact ⟨hv1.trans hv0, by rw [hl1, hl0]; omega⟩
+    · rw [push_eq_ok_iff] at h
+      obtain ⟨-, hw⟩ := h
+      have hp : count.val % 2 = 1 := by
+        have hne : i.val ≠ 0 := fun hc => hpar (by scalar_tac)
+        omega
+      rw [hw]
       simp only [limbsToNat_append, limbsToNat_cons, limbsToNat_nil, Nat.mul_zero,
-        Nat.add_zero, List.length_append, List.length_cons, List.length_nil] at hv hl
-      refine ⟨hv, ?_⟩
-      rw [hl, hc1']
-      omega
+        Nat.add_zero, List.length_append, List.length_cons, List.length_nil]
+      refine ⟨?_, by rw [hl1, hl0]; omega⟩
+      rw [hv1, hv0]
+      simp
 
 theorem shl_bits_from_val (v : alloc.vec.Vec Std.U64) (bits : Std.U64) (hb2 : bits.val < 64) :
     ∀ (d : Nat) (i : Std.Usize) (carry : Std.U64) (out w : alloc.vec.Vec Std.U64),
@@ -1864,47 +1869,183 @@ theorem mul_refines {a b c : ron.nat.Nat} (h : ron.nat.mul a b = ok c) :
   rw [hmf]
   simp [toNat]
 
-theorem pow_refines : ∀ (E : Nat) (a c : ron.nat.Nat) (e : Std.U64), e.val = E →
-    ron.nat.pow a e = ok c → toNat c = toNat a ^ e.val ∧ NatWF c := by
+/-- `word_log2_exact x k` answers `some j` only when `x * 2^k = 2^j`. -/
+theorem word_log2_exact_val : ∀ (X : Nat) (x k : Std.U64) (r : Option Std.U64), x.val = X →
+    ron.nat.word_log2_exact x k = ok r → ∀ j, r = some j → x.val * 2 ^ k.val = 2 ^ j.val := by
+  intro X
+  induction X using Nat.strong_induction_on with
+  | _ X ih =>
+  intro x k r hX h j hj
+  rw [ron.nat.word_log2_exact] at h
+  split at h <;> rename_i h1
+  · simp only [Result.ok.injEq] at h
+    subst h
+    cases hj
+    have : x.val = 1 := by scalar_tac
+    simp [this]
+  · split at h <;> rename_i h0
+    · simp only [Result.ok.injEq] at h
+      subst h; simp at hj
+    · simp only [bind_eq_ok_iff] at h
+      obtain ⟨i, hi, h⟩ := h
+      have hi' : i.val = x.val % 2 := by have := urem_val hi; simpa using this
+      split at h <;> rename_i hpar
+      · simp only [bind_eq_ok_iff] at h
+        obtain ⟨i1, hi1, i2, hi2, h⟩ := h
+        have hi1' : i1.val = x.val / 2 := by have := udiv_val hi1; simpa using this
+        have hi2' : i2.val = k.val + 1 := by have := uadd_val hi2; simpa using this
+        have hx0 : x.val ≠ 0 := fun hc => h0 (by scalar_tac)
+        have hp : x.val % 2 = 0 := by rw [← hi']; scalar_tac
+        have := ih i1.val (by omega) i1 i2 r rfl h j hj
+        rw [hi2', hi1', Nat.pow_succ] at this
+        rw [← this]
+        have hx : x.val = 2 * (x.val / 2) := by omega
+        conv_lhs => rw [hx]
+        ring
+      · simp only [Result.ok.injEq] at h
+        subst h; simp at hj
+
+/-- `pow2_log a` answers `some k` only when `a = 2^k`. -/
+theorem pow2_log_val {a : ron.nat.Nat} {r : Option Std.U64} (h : ron.nat.pow2_log a = ok r) :
+    ∀ k, r = some k → toNat a = 2 ^ k.val := by
+  intro k hk
+  rw [ron.nat.pow2_log] at h
+  split at h <;> rename_i h1
+  · simp only [bind_eq_ok_iff, alloc.vec.Vec.index_slice_index, index_usize_eq_ok_iff] at h
+    obtain ⟨x, hx, h⟩ := h
+    have hlen : a.limbs.val.length = 1 := by scalar_tac
+    have hw := word_log2_exact_val x.val x 0#u64 r rfl h k hk
+    obtain ⟨y, hy⟩ : ∃ y, a.limbs.val = [y] := List.length_eq_one_iff.mp hlen
+    rw [hy] at hx
+    have hxy : x = y := by simpa using hx.symm
+    subst hxy
+    simp only [toNat, hy, limbsToNat_cons, limbsToNat_nil, Nat.mul_zero, Nat.add_zero]
+    simpa using hw
+  · simp only [Result.ok.injEq] at h
+    subst h; simp at hk
+
+/-- Square-and-multiply over the exponent's bits: `a ^ e` for a normalised
+bignum `e`, by strong induction on its value. -/
+theorem pow_go_refines : ∀ (E : Nat) (a e c : ron.nat.Nat), toNat e = E → NatWF e →
+    ron.nat.pow_go a e = ok c → toNat c = toNat a ^ toNat e ∧ NatWF c := by
   intro E
   induction E using Nat.strong_induction_on with
   | _ E ihE =>
-    intro a c e hE h
-    rw [ron.nat.pow] at h
+    intro a e c hE hwf h
+    rw [ron.nat.pow_go] at h
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨b, hb, h⟩ := h
+    have hbv := is_zero_refines hwf hb
     split at h <;> rename_i hez
-    · obtain ⟨h1, hwf⟩ := one_refines h
-      have he0 : e.val = 0 := by scalar_tac
+    · obtain ⟨h1, hw⟩ := one_refines h
+      have he0 : toNat e = 0 := by simpa [hez] using hbv.symm
       rw [he0]
-      exact ⟨by rw [h1]; simp, hwf⟩
-    · have hez' : 0 < e.val := by scalar_tac
+      exact ⟨by rw [h1]; simp, hw⟩
+    · have hez' : toNat e ≠ 0 := by
+        intro hc; apply hez; rw [hbv]; simp [hc]
       simp only [bind_eq_ok_iff] at h
-      obtain ⟨i, hi, f, hf, hh2, hmul, i1, hi1, h⟩ := h
-      have hi' : i.val = e.val / 2 := by have := udiv_val hi; simpa using this
-      have hi1' : i1.val = e.val % 2 := by have := urem_val hi1; simpa using this
-      obtain ⟨hfv, hfwf⟩ := ihE i.val (by omega) a f i rfl hf
+      obtain ⟨n, hn, hh, hhh, hh2, hmul, i, hi, i1, hi1, h⟩ := h
+      obtain ⟨hnv, hnwf⟩ := shift_right_refines hn
+      have h1 : (1#u64 : Std.U64).val = 1 := by scalar_tac
+      rw [h1, nat_shiftRight_eq, Nat.pow_one] at hnv
+      obtain ⟨hhv, -⟩ := ihE (toNat n) (by omega) a n hh rfl hnwf hhh
       obtain ⟨hh2v, hh2wf⟩ := mul_refines hmul
+      have hiv := low_limb_val hi
+      have hi1v : i1.val = toNat e % 2 := by
+        have := urem_val hi1
+        rw [show i1.val = i.val % 2 by simpa using this, hiv,
+          Nat.mod_mod_of_dvd _ (by norm_num)]
       split at h <;> rename_i hpar
       · simp only [Result.ok.injEq] at h
         subst h
         refine ⟨?_, hh2wf⟩
-        have hp : e.val % 2 = 0 := by rw [← hi1', hpar]; scalar_tac
-        rw [hh2v, hfv, hi', ← Nat.pow_add]
+        have hp : toNat e % 2 = 0 := by rw [← hi1v, hpar]; scalar_tac
+        rw [hh2v, hhv, hnv, ← Nat.pow_add]
         congr 1
         omega
       · obtain ⟨hcv, hcwf⟩ := mul_refines h
         refine ⟨?_, hcwf⟩
-        have hp : e.val % 2 = 1 := by
+        have hp : toNat e % 2 = 1 := by
           have hne : i1.val ≠ 0 := fun hc => hpar (by scalar_tac)
           omega
-        rw [hcv, hh2v, hfv, hi', ← Nat.pow_add, ← Nat.pow_succ]
+        rw [hcv, hh2v, hhv, hnv, ← Nat.pow_add, ← Nat.pow_succ]
         congr 1
         omega
 
-/-! ## Division, remainder, gcd
+/-- The official kernel's size in bytes, off the limb count: a normalised
+`a` with `n > 0` limbs has `a.log2 / 64 = n - 1`. -/
+theorem size_bytes_refines {a c : ron.nat.Nat} (ha : NatWF a)
+    (h : ron.nat.size_bytes a = ok c) :
+    toNat c = 8 * ((toNat a).log2 / 64 + 1) ∧ NatWF c := by
+  rw [ron.nat.size_bytes] at h
+  simp only [bind_eq_ok_iff, lift_eq_ok_iff] at h
+  obtain ⟨n, hn, l, hl, n1, hn1, h⟩ := h
+  have hnv : n.val = a.limbs.val.length := by
+    rw [← hn]
+    have hc : (Std.UScalar.cast .U64 (alloc.vec.Vec.len a.limbs)).val
+        = (alloc.vec.Vec.len a.limbs).val := by
+      refine Std.UScalar.cast_val_mod_pow_greater_numBits_eq _ _ ?_
+      rw [UScalarTy.Usize_numBits_eq, UScalarTy.U64_numBits_eq]
+      rcases System.Platform.numBits_eq with h | h <;> omega
+    rw [hc]; exact alloc.vec.Vec.len_val _
+  obtain ⟨hn1v, -⟩ := from_u64_refines hn1
+  obtain ⟨hcv, hcwf⟩ := shift_left_refines h
+  refine ⟨?_, hcwf⟩
+  have h3 : (3#u64 : Std.U64).val = 3 := by scalar_tac
+  rw [hcv, h3, nat_shiftLeft_eq, hn1v]
+  have hlv : l.val = if a.limbs.val.length = 0 then 1 else a.limbs.val.length := by
+    split at hl <;> rename_i hz <;> simp only [Result.ok.injEq] at hl <;> subst hl
+    · have : a.limbs.val.length = 0 := by rw [← hnv]; scalar_tac
+      simp [this]
+    · have : a.limbs.val.length ≠ 0 := by
+        rw [← hnv]; intro hc; exact hz (by scalar_tac)
+      simp [this, hnv]
+  rw [hlv]
+  unfold toNat
+  rcases Nat.eq_zero_or_pos a.limbs.val.length with h0 | hpos
+  · have : a.limbs.val = [] := List.eq_nil_of_length_eq_zero h0
+    simp [this]
+  · have hne : a.limbs.val ≠ [] := List.ne_nil_of_length_pos hpos
+    have hlt := limbsToNat_lt a.limbs.val
+    have hge := limbsToNat_ge ha hne
+    have h1 : 1 ≤ 2 ^ (64 * (a.limbs.val.length - 1)) := Nat.one_le_two_pow
+    have hx0 : limbsToNat a.limbs.val ≠ 0 := by omega
+    have hlog1 : 64 * (a.limbs.val.length - 1) ≤ (limbsToNat a.limbs.val).log2 :=
+      (Nat.le_log2 hx0).mpr hge
+    have hlog2 : (limbsToNat a.limbs.val).log2 < 64 * a.limbs.val.length :=
+      (Nat.log2_lt hx0).mpr hlt
+    have hq : (limbsToNat a.limbs.val).log2 / 64 = a.limbs.val.length - 1 := by omega
+    have hne0 : a.limbs.val.length ≠ 0 := by omega
+    simp only [hne0, ↓reduceIte, hq]
+    omega
 
-Shift-subtract long division: `dm_bits` runs the standard restoring
-remainder/quotient invariant one bit at a time, `dm_limbs` one limb at a
-time, and `div_mod` reverses the most-significant-first quotient limbs. -/
+/-- `natSizeBytes a > m`, the comparison every refusal of a numeral makes. -/
+theorem size_bytes_gt_refines {a m : ron.nat.Nat} {r : Bool} (ha : NatWF a) (hm : NatWF m)
+    (h : ron.nat.size_bytes_gt a m = ok r) :
+    r = decide (8 * ((toNat a).log2 / 64 + 1) > toNat m) := by
+  rw [ron.nat.size_bytes_gt] at h
+  obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hnv, hnwf⟩ := size_bytes_refines ha hn
+  rw [blt_refines hm hnwf h, hnv]
+
+/-- `Nat.pow a e` at a normalised bignum exponent: the shift for a one-limb
+power of two, square-and-multiply otherwise. -/
+theorem pow_nat_refines {a e c : ron.nat.Nat} (hwf : NatWF e)
+    (h : ron.nat.pow_nat a e = ok c) : toNat c = toNat a ^ toNat e ∧ NatWF c := by
+  rw [ron.nat.pow_nat] at h
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  have hov := pow2_log_val ho
+  cases o with
+  | none => exact pow_go_refines _ a e c rfl hwf h
+  | some k =>
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨n, hn, s, hs, n1, hn1, h⟩ := h
+    obtain ⟨hnv, -⟩ := from_u64_refines hn
+    obtain ⟨hsv, hswf⟩ := mul_refines hs
+    obtain ⟨h1v, -⟩ := one_refines hn1
+    obtain ⟨hcv, hcwf⟩ := shift_left_nat_refines hswf h
+    refine ⟨?_, hcwf⟩
+    rw [hcv, nat_shiftLeft_eq, h1v, hsv, hnv, hov k rfl, Nat.one_mul, Nat.pow_mul]
 
 theorem mod_two_pow_succ (X m : Nat) :
     X % 2 ^ (m + 1) = X % 2 ^ m + 2 ^ m * (X / 2 ^ m % 2) := by

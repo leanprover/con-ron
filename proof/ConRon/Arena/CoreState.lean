@@ -144,6 +144,10 @@ def Caches.modeMemos (c : Caches) : ModeMemos :=
 
 /-! ## The pin table (task #97-P6-4a) -/
 
+/-- con-leche: ConLeche/Cached/StateC.lean:156-157 maxNatSizeDefault — the
+official kernel's default maximum `Nat` size, 128 MiB. -/
+def maxNatSizeDefault : Nat := 134217728
+
 /-- con-leche: none — the arena's own PIN TABLE (DESIGN §8.3, task #97c): the
 reserved constant names and the three interned values the checker compares
 against, interned ONCE at the driver instead of once per comparison.
@@ -167,10 +171,17 @@ structure Pins where
   zeroLevel : LIdx
   /-- `Arena/Core.lean`'s `sortOne`: the expression `Sort 1`. -/
   sortOne : EIdx
+  /-- **The maximum `Nat` size** in bytes (con-leche's `CState.maxNatSize`,
+  `--max-nat-size`): the largest `Nat` numeral the core takes in or computes
+  (`Arena/Core.lean`'s `natSizeRefused`, `powGuard`, `shiftLeftGuard`).  Not a
+  pin but the run's other constant: `maxNatSizeDefault` until
+  `Arena/Checker.lean`'s `internAllPins` sets the run's value, and carried into
+  every worker with the pins. -/
+  maxNatSize : Nat
 
 /-- con-leche: none — the UNFILLED table: the initial state's value, and the
 one `pinAt` refuses. -/
-def Pins.empty : Pins := ⟨#[], [], ⟨0⟩, ⟨0⟩, ⟨0⟩⟩
+def Pins.empty : Pins := ⟨#[], [], ⟨0⟩, ⟨0⟩, ⟨0⟩, maxNatSizeDefault⟩
 
 instance : Inhabited Pins := ⟨Pins.empty⟩
 

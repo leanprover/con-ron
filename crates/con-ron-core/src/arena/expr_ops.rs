@@ -1707,19 +1707,21 @@ pub fn leaf_guard(
 // The one-node readers: each is a single `view` and a test, no recursion
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:776-780 Expr.lamPair?
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove expr_ops::lam_pair_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1271-1282 lamPair?` — two λs:
-/// their domains and bodies (the descent of the λ-telescope comparison,
-/// `core::defeq_lams`); `none` unless both are λs.  Off the two handles' tags,
-/// then the two binder projections.
-pub fn lam_pair(
+/// con-leche: ConLeche/Kernel/ExprOps.lean:840-845 Expr.binderPair?
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1291-1304 binderPair?` — two λs
+/// (`lam`) or two ∀s (`!lam`): their domains and bodies (the descent of the
+/// binder-telescope comparison, `core::defeq_binders`); `none` unless both are
+/// binders of that kind.  Off the two handles' tags, then the two binder
+/// projections.
+pub fn binder_pair(
     pers: &PersTier,
     st: &AState,
+    lam: bool,
     a: &EIdx,
     b: &EIdx,
 ) -> Result<Option<(EIdx, EIdx, EIdx, EIdx)>, CheckError> {
-    if a.tag() == ETAG_LAM && b.tag() == ETAG_LAM {
+    let t: u32 = if lam { ETAG_LAM } else { ETAG_FORALL_E };
+    if a.tag() == t && b.tag() == t {
         match view_bind(pers, st, a) {
             None => fail_dangling_e(),
             Some((t1, b1)) => match view_bind(pers, st, b) {

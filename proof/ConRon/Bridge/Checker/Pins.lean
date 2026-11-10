@@ -639,16 +639,44 @@ one link per bind, each a scratch-agnostic `IStepS` — the five basis blocks
 reads that leave the state alone —
 then `internPinSets_run` for the variants.  `PersPins` travels because the pin
 record is untouched and persistence is a fact about handles. -/
-theorem internAllPins_run {ps : List NatOpPinSet} {r : List INatOpPinSet}
+theorem internAllPins_run {ps : List NatOpPinSet} {m : Nat} {r : List INatOpPinSet}
     {s s' : AState} (hok : StateOK s) (hpins : PinsOK s) (hpp : PersPins s)
     (hoff : s.store.scratchOn = false)
-    (hrun : internAllPins ps s = .ok (r, s')) :
+    (hrun : internAllPins ps m s = .ok (r, s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ PinsOK s' ∧ PersPins s' ∧
       PinsDenote s'.store r ps ∧ PersPinSets r ∧
       s'.store.scratchOn = false ∧
       s'.caches = s.caches ∧ s'.memos = s.memos := by
   simp only [Arena.internAllPins] at hrun
-  have a0 : Frontend.IStepS s s := Frontend.IStepS.refl hok
+  -- the maximum `Nat` size into the pin record: the store, the memos, the
+  -- caches and every pinned handle stay
+  obtain ⟨g, s0, g0, hrun⟩ := AM.bind_ok hrun
+  obtain ⟨hg, hs0⟩ : g = s ∧ s0 = s := by
+    simp only [get, getThe, MonadStateOf.get, StateT.get, pure, Except.pure,
+      Except.ok.injEq, Prod.mk.injEq] at g0
+    exact ⟨g0.1.symm, g0.2.symm⟩
+  subst g
+  subst s0
+  obtain ⟨_, s1, g1, hrun⟩ := AM.bind_ok hrun
+  simp only [set, MonadStateOf.set, StateT.set, pure, Except.pure,
+    Except.ok.injEq, Prod.mk.injEq] at g1
+  obtain ⟨-, rfl⟩ := g1
+  revert hrun
+  generalize hs1 : { s with pins := { s.pins with maxNatSize := m } } = s1
+  intro hrun
+  have hst1 : s1.store = s.store := by rw [← hs1]
+  have hca1 : s1.caches = s.caches := by rw [← hs1]
+  have hme1 : s1.memos = s.memos := by rw [← hs1]
+  have hpins1 : PinsOK s1 := by subst hs1; cases hpins; constructor <;> assumption
+  have hpp1 : PersPins s1 := by subst hs1; cases hpp; constructor <;> assumption
+  have hok1 : StateOK s1 := ⟨by rw [hst1]; exact hok.wf⟩
+  have hoff1 : s1.store.scratchOn = false := by rw [hst1]; exact hoff
+  suffices H : StateOK s' ∧ Ext s1.store s'.store ∧ PinsOK s' ∧ PersPins s' ∧
+      PinsDenote s'.store r ps ∧ PersPinSets r ∧
+      s'.store.scratchOn = false ∧
+      s'.caches = s1.caches ∧ s'.memos = s1.memos by
+    rw [hst1, hca1, hme1] at H; exact H
+  have a0 : Frontend.IStepS s1 s1 := Frontend.IStepS.refl hok1
   obtain ⟨_, u0, q0, w0⟩ := AM.bind_ok hrun
   have a1 := a0.trans (BasisKind.decls_sstep a0.ok q0)
   obtain ⟨_, u1, q1, w1⟩ := AM.bind_ok w0
@@ -696,31 +724,31 @@ theorem internAllPins_run {ps : List NatOpPinSet} {r : List INatOpPinSet}
   obtain ⟨_, u27, q27, w27⟩ := AM.bind_ok w26
   have a28 := a27.trans (Frontend.internExpr_sstep a27.ok q27).1
   obtain ⟨_, u28, q28, w28⟩ := AM.bind_ok w27
-  have a29 := a28.trans (reservedBasisNames_sstep a28.ok (hpins.mono a28.ext a28.pins) q28)
+  have a29 := a28.trans (reservedBasisNames_sstep a28.ok (hpins1.mono a28.ext a28.pins) q28)
   obtain ⟨_, u29, q29, w29⟩ := AM.bind_ok w28
-  obtain ⟨rfl, -⟩ := natOpNames_run (hpins.mono a29.ext a29.pins) q29
+  obtain ⟨rfl, -⟩ := natOpNames_run (hpins1.mono a29.ext a29.pins) q29
   have a30 := a29
   obtain ⟨_, u30, q30, w30⟩ := AM.bind_ok w29
-  obtain ⟨rfl, -⟩ := natDivModNames_run (hpins.mono a30.ext a30.pins) q30
+  obtain ⟨rfl, -⟩ := natDivModNames_run (hpins1.mono a30.ext a30.pins) q30
   have a31 := a30
   obtain ⟨_, u31, q31, w31⟩ := AM.bind_ok w30
-  obtain rfl := reduceOpNames_state (hpins.mono a31.ext a31.pins) q31
+  obtain rfl := reduceOpNames_state (hpins1.mono a31.ext a31.pins) q31
   have a32 := a31
   obtain ⟨_, u32, q32, w32⟩ := AM.bind_ok w31
-  obtain ⟨p32, -⟩ := pinAt_run (x := ConLeche.sorryAxName) (hpins.mono a32.ext a32.pins) rfl q32
+  obtain ⟨p32, -⟩ := pinAt_run (x := ConLeche.sorryAxName) (hpins1.mono a32.ext a32.pins) rfl q32
   rw [p32] at w32
   have a33 := a32
   obtain ⟨_, u33, q33, w33⟩ := AM.bind_ok w32
-  obtain ⟨p33, -⟩ := pinAt_run (x := ConLeche.quotSoundName) (hpins.mono a33.ext a33.pins) rfl q33
+  obtain ⟨p33, -⟩ := pinAt_run (x := ConLeche.quotSoundName) (hpins1.mono a33.ext a33.pins) rfl q33
   rw [p33] at w33
   have a34 := a33
-  obtain ⟨hst', hx', hden, hpps, hoff', hpe, hce, hme⟩ :=
-    internPinSets_run a34.ok (by rw [a34.scratch]; exact hoff) w33
-  have hpeq : s'.pins = s.pins := by rw [hpe, a34.pins]
-  refine ⟨hst', a34.ext.trans hx', hpins.mono (a34.ext.trans hx') hpeq, ?_, hden,
-    hpps, hoff', by rw [hce, a34.caches], by rw [hme, a34.memos]⟩
-  exact ⟨by rw [hpeq]; exact hpp.names, by rw [hpeq]; exact hpp.reserved,
-    by rw [hpeq]; exact hpp.emptyLevels, by rw [hpeq]; exact hpp.zeroLevel,
-    by rw [hpeq]; exact hpp.sortOne⟩
+  obtain ⟨hst', hx', hden, hpps, hoff1', hpe, hce, hme⟩ :=
+    internPinSets_run a34.ok (by rw [a34.scratch]; exact hoff1) w33
+  have hpeq : s'.pins = s1.pins := by rw [hpe, a34.pins]
+  refine ⟨hst', a34.ext.trans hx', hpins1.mono (a34.ext.trans hx') hpeq, ?_, hden,
+    hpps, hoff1', by rw [hce, a34.caches], by rw [hme, a34.memos]⟩
+  exact ⟨by rw [hpeq]; exact hpp1.names, by rw [hpeq]; exact hpp1.reserved,
+    by rw [hpeq]; exact hpp1.emptyLevels, by rw [hpeq]; exact hpp1.zeroLevel,
+    by rw [hpeq]; exact hpp1.sortOne⟩
 
 end ConRon.Bridge

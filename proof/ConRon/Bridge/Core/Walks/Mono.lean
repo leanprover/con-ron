@@ -211,18 +211,20 @@ theorem defeqSpine_mono (h : FnsRefines r₁ r₂) (d : Nat) (a b : Expr) :
   rwa [defeqSpine_fst, defeqSpine_snd] at this
 
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the
-innermost level of the λ-telescope comparison. -/
-theorem defeqLamsInner_mono (h : FnsRefines r₁ r₂) (d : Nat) (b₁ b₂ : Expr) :
-    MRefines (defeqLamsInner mode r₁ d b₁ b₂) (defeqLamsInner mode r₂ d b₁ b₂) := by
-  have := (defeqLamsInner mode (pairFns r₁ r₂ h) d b₁ b₂).property
-  rwa [defeqLamsInner_fst, defeqLamsInner_snd] at this
+innermost level of the binder-telescope comparison. -/
+theorem defeqBindersInner_mono (h : FnsRefines r₁ r₂) (lam : Bool) (d : Nat) (b₁ b₂ : Expr) :
+    MRefines (defeqBindersInner mode r₁ lam d b₁ b₂) (defeqBindersInner mode r₂ lam d b₁ b₂) := by
+  have := (defeqBindersInner mode (pairFns r₁ r₂ h) lam d b₁ b₂).property
+  rwa [defeqBindersInner_fst, defeqBindersInner_snd] at this
 
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — **the
-λ-telescope comparison** at an arbitrary descent budget. -/
-theorem defeqLams_mono (h : FnsRefines r₁ r₂) (n d : Nat) (ty₁ body₁ ty₂ body₂ : Expr) :
-    MRefines (defeqLams mode r₁ n d ty₁ body₁ ty₂ body₂) (defeqLams mode r₂ n d ty₁ body₁ ty₂ body₂) := by
-  have := (defeqLams mode (pairFns r₁ r₂ h) n d ty₁ body₁ ty₂ body₂).property
-  rwa [defeqLams_fst, defeqLams_snd] at this
+binder-telescope comparison** at an arbitrary descent budget. -/
+theorem defeqBinders_mono (h : FnsRefines r₁ r₂) (lam : Bool) (n d : Nat) (fvs : List Expr)
+    (ty₁ body₁ ty₂ body₂ : Expr) :
+    MRefines (defeqBinders mode r₁ lam n d fvs ty₁ body₁ ty₂ body₂)
+      (defeqBinders mode r₂ lam n d fvs ty₁ body₁ ty₂ body₂) := by
+  have := (defeqBinders mode (pairFns r₁ r₂ h) lam n d fvs ty₁ body₁ ty₂ body₂).property
+  rwa [defeqBinders_fst, defeqBinders_snd] at this
 
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — **the
 reduction loop at an ARBITRARY step budget**, which is what `whnfBody_spec`'s
@@ -368,18 +370,20 @@ theorem defeqSpineFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a b : Exp
   defeqSpine_mono (pureFns_mono env hle) d a b r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
-`defeqLamsInner`. -/
-theorem defeqLamsInnerFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {b₁ b₂ : Expr} {r : Bool}
-    (hr : defeqLamsInnerFueled mode eager env f d b₁ b₂ = .ok r) :
-    defeqLamsInnerFueled mode eager env f' d b₁ b₂ = .ok r :=
-  defeqLamsInner_mono (pureFns_mono env hle) d b₁ b₂ r hr
+`defeqBindersInner`. -/
+theorem defeqBindersInnerFueled_mono {f f' : Nat} (hle : f ≤ f') {lam : Bool} {d : Nat}
+    {b₁ b₂ : Expr} {r : Bool}
+    (hr : defeqBindersInnerFueled mode eager env f lam d b₁ b₂ = .ok r) :
+    defeqBindersInnerFueled mode eager env f' lam d b₁ b₂ = .ok r :=
+  defeqBindersInner_mono (pureFns_mono env hle) lam d b₁ b₂ r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
-`defeqLams`. -/
-theorem defeqLamsFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {n : Nat} {ty₁ body₁ ty₂ body₂ : Expr} {r : Bool}
-    (hr : defeqLamsFueled mode eager env f n d ty₁ body₁ ty₂ body₂ = .ok r) :
-    defeqLamsFueled mode eager env f' n d ty₁ body₁ ty₂ body₂ = .ok r :=
-  defeqLams_mono (pureFns_mono env hle) n d ty₁ body₁ ty₂ body₂ r hr
+`defeqBinders`. -/
+theorem defeqBindersFueled_mono {f f' : Nat} (hle : f ≤ f') {lam : Bool} {n d : Nat}
+    {fvs : List Expr} {ty₁ body₁ ty₂ body₂ : Expr} {r : Bool}
+    (hr : defeqBindersFueled mode eager env f lam n d fvs ty₁ body₁ ty₂ body₂ = .ok r) :
+    defeqBindersFueled mode eager env f' lam n d fvs ty₁ body₁ ty₂ body₂ = .ok r :=
+  defeqBinders_mono (pureFns_mono env hle) lam n d fvs ty₁ body₁ ty₂ body₂ r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:125 whnf_mono — **the merge
 `whnfBody_spec` needs**, at an arbitrary step budget: the `whnf` loop's own

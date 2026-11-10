@@ -1215,18 +1215,34 @@ Since round 2's ruling (a) the twin interns the raw pins too, so
 `internAllPinsPortSpec` is `internAllPins` (`internAllPinsPortSpec_eq`) and
 this is the proof route of `intern_all_pins_refines` below. -/
 theorem intern_all_pins_port_refines {pers st lst}
-    {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet} {o}
+    {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet} {m : ron.nat.Nat} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hwf : ∀ p ∈ pins.val, NatOpPinSetWF p)
-    (hrun : arena.checker.intern_all_pins pers st pins = ok o) :
+    (hrun : arena.checker.intern_all_pins pers st pins m = ok o) :
     Sim₀ absINatOpPinSetL pers lst o
-      (internAllPinsPortSpec (ConRon.Refine.absPins pins)) := by
+      (internAllPinsPortSpec (ConRon.Refine.absPins pins) (ConRon.Refine.Nat.toNat m)) := by
   rw [arena.checker.intern_all_pins] at hrun
   unfold Sim₀
   rw [internAllPinsPortSpec]
+  -- 0. the maximum `Nat` size into the pin record, normalised
+  obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n1, hn1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hcl := ConRon.Refine.Nat.clone_refines hn
+  obtain ⟨hn1v, hn1wf⟩ := ConRon.Refine.Nat.norm_refines hn1
+  have hrel0 : AStateRel₀ pers { st with pins := { st.pins with max_nat_size := n1 } }
+      { lst with pins := { lst.pins with maxNatSize := ConRon.Refine.Nat.toNat m } } :=
+    ⟨hrel.store, hrel.memos, hrel.caches,
+      ⟨hrel.pins.names, hrel.pins.reserved, hrel.pins.emptyLevels, hrel.pins.zeroLevel,
+        hrel.pins.sortOne, by
+          show ConRon.Refine.Nat.toNat m = ConRon.Refine.Nat.toNat n1
+          rw [hn1v, ← hcl.2]; rfl, hn1wf⟩⟩
+  have hinv0 : AStateInv pers { st with pins := { st.pins with max_nat_size := n1 } } :=
+    ⟨hinv.store, hinv.memos, hinv.caches⟩
+  rw [run_bind_ok (x := (get : AM AState)) rfl,
+    run_bind_ok (x := (set _ : AM PUnit)) rfl]
   obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r1, st1⟩ := q1
-  have hS1 := intern_all_basis_refines (i := 0#usize) hrel hinv hq1
+  have hS1 := intern_all_basis_refines (i := 0#usize) hrel0 hinv0 hq1
   simp only [List.drop_zero, show (0#usize : Std.Usize).val = 0 from rfl] at hS1
   cases r1 with
   | Err e =>
@@ -1274,8 +1290,8 @@ theorem intern_all_pins_port_refines {pers st lst}
 four Rust functions' transcriptions in sequence — is `internAllPins`, the flat
 `do` block, re-bracketed by the monad laws.  Both intern con-leche's plain
 pins (task #119: the raw/annotated pair is gone). -/
-theorem internAllPinsPortSpec_eq (ps : List ConLeche.NatOpPinSet) :
-    internAllPinsPortSpec ps = internAllPins ps := by
+theorem internAllPinsPortSpec_eq (ps : List ConLeche.NatOpPinSet) (m : Nat) :
+    internAllPinsPortSpec ps m = internAllPins ps m := by
   simp only [internAllPinsPortSpec, internAllBasisSpec, internAllAxiomPinsSpec,
     internAllAxiomPinsRestSpec, internAllTrustPinsSpec, internAllReducePinsSpec,
     internAllNamesSpec, internAllPins, bind_assoc, pure_bind]
@@ -1284,12 +1300,12 @@ theorem internAllPinsPortSpec_eq (ps : List ConLeche.NatOpPinSet) :
 
 It is `intern_all_pins_port_refines` through `internAllPinsPortSpec_eq`. -/
 theorem intern_all_pins_refines {pers st lst}
-    {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet} {o}
+    {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet} {m : ron.nat.Nat} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hwf : ∀ p ∈ pins.val, NatOpPinSetWF p)
-    (hrun : arena.checker.intern_all_pins pers st pins = ok o) :
+    (hrun : arena.checker.intern_all_pins pers st pins m = ok o) :
     Sim₀ absINatOpPinSetL pers lst o
-      (internAllPins (ConRon.Refine.absPins pins)) := by
+      (internAllPins (ConRon.Refine.absPins pins) (ConRon.Refine.Nat.toNat m)) := by
   rw [← internAllPinsPortSpec_eq]
   exact intern_all_pins_port_refines hrel hinv hwf hrun
 
