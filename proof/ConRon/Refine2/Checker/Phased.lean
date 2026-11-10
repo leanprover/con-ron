@@ -68,11 +68,19 @@ theorem pins_dup_val {p q : arena.pins.Pins} (h : arena.checker.pins_dup p = ok 
   obtain ⟨li, hli, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have h' := (Result.ok_injective h).symm
   subst h'
   have e1 : v = p.names := alloc.vec.Vec.ext _ _ (nidx_vec_dup_val hv)
   have e2 : v1 = p.reserved := alloc.vec.Vec.ext _ _ (nidx_vec_dup_val hv1)
-  rw [e1, e2, dupId_lsidx _ _ hli, dupId_lidx _ _ hl, dupId_eidx _ _ he]
+  have e3 : n = p.max_nat_size := by
+    have hl := (ConRon.Refine.Nat.clone_refines hn).1
+    revert hl
+    cases n
+    cases p.max_nat_size
+    intro hl
+    exact congrArg ron.nat.Nat.mk (alloc.vec.Vec.ext _ _ hl)
+  rw [e1, e2, e3, dupId_lsidx _ _ hli, dupId_lidx _ _ hl, dupId_eidx _ _ he]
 
 /-- **A check-phase worker over the frozen tier is the twin's worker of the
 driver's state, idle** (task #98-FREEZE).  `worker_state` builds an empty store

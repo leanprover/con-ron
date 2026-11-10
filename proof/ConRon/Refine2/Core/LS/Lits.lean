@@ -304,7 +304,7 @@ attribute [local simp] ConRon.Refine.LiteralWF
 
 @[lockstep] theorem shift_left_refused_ls {pers st a b lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (ha : ConRon.Refine.Nat.NatWF a) (hb : ConRon.Refine.Nat.NatWF b) :
+    (ha : ConRon.Refine.Nat.NatWF a) (_hb : ConRon.Refine.Nat.NatWF b) :
     LSV pers (fun x y => y = x) (arena.core.shift_left_refused st a b) st lst
       (shiftLeftRefused (ConRon.Refine.Nat.toNat a) (ConRon.Refine.Nat.toNat b)) := by
   apply LSV.ofLS

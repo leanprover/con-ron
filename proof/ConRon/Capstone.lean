@@ -415,7 +415,8 @@ def startState : arena.monad.AState :=
     pins :=
       { names := alloc.vec.Vec.new _, reserved := alloc.vec.Vec.new _,
         empty_levels := { word := 0#u32 }, zero_level := { word := 0#u32 },
-        sort_one := { word := 0#u32 } } }
+        sort_one := { word := 0#u32 },
+        max_nat_size := { limbs := ⟨[134217728#u64], by simp⟩ } } }
 
 theorem startState_eq : arena.monad.AState.empty = ok startState := by
   simp only [arena.monad.AState.empty, arena.store.Tbl.empty, arena.store.ETables.empty,
@@ -424,7 +425,7 @@ theorem startState_eq : arena.monad.AState.empty = ok startState := by
     arena.store.EStore.empty, ron.hashmap2.HashMap2.new, arena.cons_map.ConsMap.new,
     arena.monad.AState.init, arena.monad.Memos.empty, arena.core_state.Caches.empty,
     arena.core_state.ModeMemos.empty, arena.pins.Pins.empty, arena.handle.LsIdx.of_word, arena.handle.LIdx.of_word,
-    arena.handle.EIdx.of_word, bind_ok]
+    arena.handle.EIdx.of_word, arena.pins.max_nat_size_default, ron.nat.from_u64, bind_ok]
   rfl
 
 /-- `startState` is `AState::init(EStore::empty())`, the form `rust_stages`
