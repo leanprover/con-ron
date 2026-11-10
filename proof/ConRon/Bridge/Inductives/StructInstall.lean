@@ -204,11 +204,11 @@ theorem checkStructProjTable_run (fe : IFEnv) (env : Env)
       b.looseBVarsBounded (t.numParams + 1))
     (fun st => Frontend.denoteNList st.ns t.levelParams = some lpsP)
     (fun hx h => denoteNListE_ext hx _ _ h)
-    (fun e eP t t' x hr hq he hrun => by
+    (fun e eP u0 t' x hr hq he hrun => by
       obtain ⟨b1, t1, g1, y1⟩ := AM.bind_ok hrun
-      obtain ⟨h11, h12, h13, hb1⟩ := AM.of_run (P := fun u => u = t) rfl g1
-        (ExprOps.hasFvarFast_spec Arena.coreWalkFuel t e hr.state (by rw [he]; rfl))
-      have q1 : PStep t t1 := PStep.of_caches ⟨by rw [h11]; exact hr.state.wf⟩
+      obtain ⟨h11, h12, h13, hb1⟩ := AM.of_run (P := fun u => u = u0) rfl g1
+        (ExprOps.hasFvarFast_spec Arena.coreWalkFuel u0 e hr.state (by rw [he]; rfl))
+      have q1 : PStep u0 t1 := PStep.of_caches ⟨by rw [h11]; exact hr.state.wf⟩
         (by rw [h11]; exact Ext.refl _) h12 h13
       have he1 : denoteE t1.store e = some eP := by rw [h11]; exact he
       obtain ⟨b2, t2, g2, y2⟩ := AM.bind_ok y1

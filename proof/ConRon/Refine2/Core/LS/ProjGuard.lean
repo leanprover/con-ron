@@ -275,6 +275,188 @@ empty memo. -/
   rw [arena.core.struct_used_later, structUsedLater]
   lockstep
 
+/-! ## The window query -/
+
+/-- The node arms of `hasLooseBVarInGo`, as the Rust's `has_loose_bvar_in_node`. -/
+def hlbiNodeT (memo : Std.HashMap (EIdx × Nat) Bool) (w d fuel : Nat) :
+    ENodeView → AM (Bool × Std.HashMap (EIdx × Nat) Bool)
+  | .app f a => do
+    match ← hasLooseBVarInGo memo w d fuel f with
+    | (true, memo) => pure (true, memo)
+    | (false, memo) => hasLooseBVarInGo memo w d fuel a
+  | .lam ty b => do
+    match ← hasLooseBVarInGo memo w d fuel ty with
+    | (true, memo) => pure (true, memo)
+    | (false, memo) => hasLooseBVarInGo memo w (d + 1) fuel b
+  | .forallE ty b => do
+    match ← hasLooseBVarInGo memo w d fuel ty with
+    | (true, memo) => pure (true, memo)
+    | (false, memo) => hasLooseBVarInGo memo w (d + 1) fuel b
+  | .letE t v b => do
+    match ← hasLooseBVarInGo memo w d fuel t with
+    | (true, memo) => pure (true, memo)
+    | (false, memo) => do
+      match ← hasLooseBVarInGo memo w d fuel v with
+      | (true, memo) => pure (true, memo)
+      | (false, memo) => hasLooseBVarInGo memo w (d + 1) fuel b
+  | .proj _ _ sub => hasLooseBVarInGo memo w d fuel sub
+  | _ => pure (false, memo)
+
+/-- A recursing arm of the window walk: the memo probe, then the node and the
+insertion. -/
+def hlbiArmT (memo : Std.HashMap (EIdx × Nat) Bool) (w d fuel : Nat) (h : EIdx)
+    (v : ENodeView) : AM (Bool × Std.HashMap (EIdx × Nat) Bool) :=
+  match memo[(h, d)]? with
+  | none => do
+    let r ← hlbiNodeT memo w d fuel v
+    pure (hasLooseBVarBIns h d r)
+  | some r => pure (r, memo)
+
+/-- `hasLooseBVarInGo` at `fuel + 1` in the Rust's shape: the probe repeated in
+each recursing arm. -/
+theorem hasLooseBVarInGo_succ_split (memo : Std.HashMap (EIdx × Nat) Bool) (w d fuel : Nat)
+    (h : EIdx) :
+    hasLooseBVarInGo memo w d (fuel + 1) h = (do
+      let bb ← bvarB fuel h
+      if bb ≤ d then pure (false, memo) else
+      match ← view h with
+      | .bvar j => pure (decide (d ≤ j) && decide (j - d < w), memo)
+      | .fvar _ _ => pure (false, memo)
+      | .sort _ => pure (false, memo)
+      | .const _ _ => pure (false, memo)
+      | .app f a => hlbiArmT memo w d fuel h (.app f a)
+      | .lam ty b => hlbiArmT memo w d fuel h (.lam ty b)
+      | .forallE ty b => hlbiArmT memo w d fuel h (.forallE ty b)
+      | .letE t v b => hlbiArmT memo w d fuel h (.letE t v b)
+      | .lit _ => pure (false, memo)
+      | .proj s k sub => hlbiArmT memo w d fuel h (.proj s k sub)) := by
+  rw [hasLooseBVarInGo]
+  refine congrArg _ (funext fun bb => ?_)
+  split
+  · rfl
+  · refine congrArg _ (funext fun v => ?_)
+    cases v <;> try rfl
+    all_goals
+      cases hm : memo[(h, d)]? <;>
+        simp only [hlbiArmT, hlbiNodeT, hm, bind_assoc, pure_bind]
+      all_goals
+        refine congrArg _ (funext fun x => ?_)
+        rcases x with ⟨_ | _, m⟩ <;> simp only [pure_bind, bind_assoc]
+      all_goals
+        refine congrArg _ (funext fun y => ?_)
+        rcases y with ⟨_ | _, m'⟩ <;> simp only [pure_bind]
+
+section hlbi
+attribute [local lockstep_simp] hlbiArmT hlbiNodeT
+
+theorem has_loose_bvar_in_go_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (rm : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool) (lm : Std.HashMap (EIdx × Nat) Bool)
+      (w d fuel : Std.U64) (h : arena.handle.EIdx),
+      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st → ExprOps.WMemoRel rm lm →
+      LS pers (fun a b => ∃ m', ExprOps.WMemoRel a.2 m' ∧ b = (a.1, m'))
+        (arena.core.has_loose_bvar_in_go pers st rm w d fuel h) lst
+        (hasLooseBVarInGo lm (absU w) (absU d) n (absEIdx h)) := by
+  induction n with
+  | zero =>
+    intro pers st lst rm lm w d fuel h hn hrel hinv hm
+    rw [arena.core.has_loose_bvar_in_go, hasLooseBVarInGo]
+    lockstep
+  | succ m ih =>
+    intro pers st lst rm lm w d fuel h hn hrel hinv hm
+    rw [arena.core.has_loose_bvar_in_go, hasLooseBVarInGo_succ_split]
+    unfold arena.core.has_loose_bvar_in_node
+    lockstep
+
+end hlbi
+
+@[lockstep] theorem has_loose_bvar_in_go_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {rm : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool}
+    {lm : Std.HashMap (EIdx × Nat) Bool} (hm : ExprOps.WMemoRel rm lm) (w d fuel : Std.U64)
+    (h : arena.handle.EIdx) :
+    LS pers (fun a b => ∃ m', ExprOps.WMemoRel a.2 m' ∧ b = (a.1, m'))
+      (arena.core.has_loose_bvar_in_go pers st rm w d fuel h) lst
+      (hasLooseBVarInGo lm (absU w) (absU d) (absU fuel) (absEIdx h)) :=
+  has_loose_bvar_in_go_aux _ rm lm w d fuel h rfl hrel hinv hm
+
+/-- **`arena::core_state::take_walk_memo` at the window walk's table** (the
+`EIdxNat`-keyed instance of `Checker/Base.lean`'s `take_walk_memo_spec`, which
+sits above this module): the table it hands the walk is empty and well formed
+— the twin's `∅` — and the one it leaves in the slot is well formed. -/
+theorem take_walk_memo_wmemo {slot m slot' : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool}
+    (hinv : ConRon.Refine.HashMap2.Inv arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapHashable slot)
+    (h : arena.core_state.take_walk_memo slot = ok (m, slot')) :
+    ExprOps.WMemoRel m ∅ ∧
+      ConRon.Refine.HashMap2.Inv arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapHashable slot' := by
+  rw [arena.core_state.take_walk_memo] at h
+  obtain ⟨hm, hnew, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨hi, -, hn⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapHashable) hnew
+  simp only [core.mem.replace] at h
+  obtain ⟨i, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨i1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  split at h
+  · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+    exact ⟨⟨ConRon.Refine.HashMap2.RelOn_empty hn, hi⟩, hi⟩
+  · obtain ⟨m1, hm1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+    rw [arena.core_state.reset_map] at hm1
+    obtain ⟨hi1, -, hn1⟩ := ConRon.Refine.HashMap2.clear_fit_refines hinv hm1
+    exact ⟨⟨ConRon.Refine.HashMap2.RelOn_empty hn1, hi1⟩, hi⟩
+
+/-- The twin's `pure (← w).1`, run: the walk's run, its memo dropped
+(`Checker/Base.lean`'s `run_fst_eq`, which sits above this module). -/
+theorem run_fst_eq_core {β M : Type} (w : AM (β × M)) (lst : AState) :
+    (do pure (← w).1 : AM β).run lst = (w.run lst) >>= fun p => .ok (p.1.1, p.2) := by
+  simp only [StateT.run_bind, StateT.run_pure]
+  rcases w.run lst with _ | ⟨⟨b, mm⟩, l⟩ <;> rfl
+
+/-- `has_loose_bvar_in` ⊑ `hasLooseBVarIn`: the window query, one memoised walk.
+The walk's memo is the state's parked `hlbi_c` table, moved out and emptied by
+`take_walk_memo` and put back afterwards; `MemosRel` has no clause for it, so
+the two state updates are invisible to `AStateRel₀`, and `MemosInv.hlbiC` is
+carried by the walk's own memo relation. -/
+@[lockstep] theorem has_loose_bvar_in_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (d w : Std.U64) (e : arena.handle.EIdx) :
+    LS pers (fun a b => b = a) (arena.core.has_loose_bvar_in pers st d w e) lst
+      (hasLooseBVarIn (absU d) (absU w) (absEIdx e)) := by
+  intro o st' hrun
+  rw [arena.core.has_loose_bvar_in] at hrun
+  rw [hasLooseBVarIn]
+  by_cases hw : w = 0#u64
+  · rw [if_pos hw] at hrun
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hrun)
+    have : (absU w == 0) = true := by subst hw; rfl
+    simp only [this, ite_true]
+    exact ⟨false, lst, rfl, rfl, hrel, hinv⟩
+  · rw [if_neg hw] at hrun
+    have hw' : (absU w == 0) = false := by
+      have : w.val ≠ 0 := fun h0 => hw (UScalar.eq_of_val_eq (by simpa using h0))
+      simpa [absU] using this
+    simp only [hw', Bool.false_eq_true, ite_false]
+    obtain ⟨⟨m, hm⟩, htake, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨hml, hhm⟩ := take_walk_memo_wmemo hinv.memos.hlbiC htake
+    obtain ⟨⟨r, st1⟩, hgo, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hw2 := has_loose_bvar_in_go_ls
+      (st := { st with memos := { st.memos with hlbi_c := hm } })
+      ⟨hrel.store, { hrel.memos with }, hrel.caches, hrel.pins⟩
+      ⟨hinv.store, { hinv.memos with hlbiC := hhm }, hinv.caches⟩ hml
+      w d arena.core.CORE_WALK_FUEL e _ _ hgo
+    rw [core_walk_fuel_abs] at hw2
+    rw [run_fst_eq_core]
+    cases r with
+    | Ok a =>
+      obtain ⟨a1, a2⟩ := a
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hrun)
+      obtain ⟨b, lst', hx, ⟨m', hR, hb⟩, h3, h4⟩ := hw2
+      subst hb
+      exact ⟨a1, lst', by rw [hx]; rfl, rfl,
+        ⟨h3.store, { h3.memos with }, h3.caches, h3.pins⟩,
+        ⟨h4.store, { h4.memos with hlbiC := hR.2 }, h4.caches⟩⟩
+    | Err err =>
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hrun)
+      exact AErrSim.trans hw2 (fun le hle => by rw [hle]; rfl)
+
 /-! ## Opening a telescope at fresh free variables -/
 
 theorem open_pis_at_fvars_aux (n : Nat) :
@@ -302,33 +484,43 @@ theorem open_pis_at_fvars_aux (n : Nat) :
       (openPisAtFvars n.val (absEIdx h) (absU i)) :=
   open_pis_at_fvars_aux _ n h i rfl hrel hinv
 
-theorem open_pis_at_fvars_f_go_aux (n : Nat) :
+theorem open_pis_raw_go_aux (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
       (acc : alloc.vec.Vec arena.handle.EIdx) (nn : Std.U64) (h : arena.handle.EIdx)
       (i : Std.U64),
       nn.val = n → AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = a.map fun p => (absEIdxList p.1, absEIdx p.2))
-        (arena.core.open_pis_at_fvars_f_go pers st acc nn h i) lst
-        (openPisAtFvarsFGo (absEIdxArr acc) n (absEIdx h) (absU i)) := by
+      LS pers (fun a b => b = a.map fun p => (absEIdxList p.1, absEIdxArr p.2.1, absEIdx p.2.2))
+        (arena.core.open_pis_raw_go pers st acc nn h i) lst
+        (openPisRawGo (absEIdxArr acc) n (absEIdx h) (absU i)) := by
   induction n with
   | zero =>
     intro pers st lst acc nn h i hn hrel hinv
-    rw [arena.core.open_pis_at_fvars_f_go, openPisAtFvarsFGo]
+    rw [arena.core.open_pis_raw_go, openPisRawGo]
     lockstep
   | succ m ih =>
     intro pers st lst acc nn h i hn hrel hinv
-    rw [arena.core.open_pis_at_fvars_f_go, openPisAtFvarsFGo]
+    rw [arena.core.open_pis_raw_go, openPisRawGo]
     lockstep
 
-/-- `open_pis_at_fvars_f` ⊑ `openPisAtFvarsF`: the one-pass opening, the plain one
-as its fallback. -/
+/-- `open_pis_raw_go` ⊑ `openPisRawGo`: the one-pass opening, the residual left
+raw. -/
+@[lockstep] theorem open_pis_raw_go_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (acc : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64)
+    (h : arena.handle.EIdx) (i : Std.U64) :
+    LS pers (fun a b => b = a.map fun p => (absEIdxList p.1, absEIdxArr p.2.1, absEIdx p.2.2))
+      (arena.core.open_pis_raw_go pers st acc n h i) lst
+      (openPisRawGo (absEIdxArr acc) n.val (absEIdx h) (absU i)) :=
+  open_pis_raw_go_aux _ acc n h i rfl hrel hinv
+
+/-- `open_pis_at_fvars_f` ⊑ `openPisAtFvarsF`: the raw opening, then the residual
+in one pass. -/
 @[lockstep] theorem open_pis_at_fvars_f_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (n : Std.U64) (e : arena.handle.EIdx) (i : Std.U64) :
     LS pers (fun a b => b = a.map fun p => (absEIdxList p.1, absEIdx p.2))
       (arena.core.open_pis_at_fvars_f pers st n e i) lst
       (openPisAtFvarsF n.val (absEIdx e) (absU i)) := by
   rw [arena.core.open_pis_at_fvars_f, openPisAtFvarsF]
-  have hgo := open_pis_at_fvars_f_go_aux n.val (alloc.vec.Vec.new _) n e i rfl hrel hinv
+  have hgo := open_pis_raw_go_aux n.val (alloc.vec.Vec.new _) n e i rfl hrel hinv
   have h0 : absEIdxArr (alloc.vec.Vec.new arena.handle.EIdx) = #[] := by
     simp [absEIdxArr, alloc.vec.Vec.new]
   rw [h0] at hgo
@@ -384,6 +576,47 @@ theorem proj_guard_rows_go_aux (n : Nat) :
       (arena.core.proj_guard_rows_go pers st k d h out) lst
       (projGuardRowsGo k.val (absU d) (absEIdx h) (absRows out)) :=
   proj_guard_rows_go_aux _ k d h out _ _ rfl rfl rfl hrel hinv
+
+theorem proj_guard_fast_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (k j : Std.U64) (h : arena.handle.EIdx),
+      k.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a.map absEIdx)
+        (arena.core.proj_guard_fast pers st k j h) lst
+        (projGuardFast n (absU j) (absEIdx h)) := by
+  induction n with
+  | zero =>
+    intro pers st lst k j h hk hrel hinv
+    rw [arena.core.proj_guard_fast, projGuardFast]
+    lockstep
+  | succ m ih =>
+    intro pers st lst k j h hk hrel hinv
+    rw [arena.core.proj_guard_fast, projGuardFast]
+    lockstep
+
+/-- `proj_guard_fast` ⊑ `projGuardFast`: the guard's fast case, read off the raw
+telescope. -/
+@[lockstep] theorem proj_guard_fast_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k j : Std.U64) (h : arena.handle.EIdx) :
+    LS pers (fun a b => b = a.map absEIdx)
+      (arena.core.proj_guard_fast pers st k j h) lst
+      (projGuardFast k.val (absU j) (absEIdx h)) :=
+  proj_guard_fast_aux _ k j h rfl hrel hinv
+
+/-- `proj_guard_rows_at` ⊑ `projGuardRowsAt`: the rows past the parameters' raw
+opening. -/
+@[lockstep] theorem proj_guard_rows_at_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (entry : arena.env.IProjEntry)
+    (acc : alloc.vec.Vec arena.handle.EIdx) (r : arena.handle.EIdx) :
+    LS pers (fun a b => b = a.map absRows)
+      (arena.core.proj_guard_rows_at pers st entry acc r) lst
+      (projGuardRowsAt (absIProjEntry entry) (absEIdxArr acc) (absEIdx r)) := by
+  rw [arena.core.proj_guard_rows_at, projGuardRowsAt]
+  lockstep
+  all_goals
+    refine LS.pure ?_ ‹_› ‹_›
+    simp only [Option.map_some, absRows_push ‹_ = _ ++ _›, Option.some.injEq]
+    simp [absRows, alloc.vec.Vec.new, absU, *]
 
 /-- `proj_guard_rows` ⊑ `projGuardRows`: what a `.proj` use on a structure that
 may be a proposition must show. -/

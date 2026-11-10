@@ -584,8 +584,7 @@ pub fn intern_rebuilt_bind(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:23-39 instantiate1
-/// con-leche: ConLeche/Kernel/ExprOps.lean:74-110 instantiate1Go
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove expr_ops::instantiate1_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:453-484 instantiate1XP
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:256-282 instantiate1Go` —
 /// replace `bvar d` by `v`, lowering loose `bvar`s above `d` by one.  The
 /// derived-word cutoff comes first (`bvarB <= d`, read off the packed word in
@@ -742,8 +741,7 @@ pub fn instantiate1_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:176-178 instantiate1Fast
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove expr_ops::instantiate1_fast_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:486-489 instantiate1C
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:382-389 instantiate1Fast` — the
 /// top-level entry: `(instantiate1Go v {} e d).1`, i.e. the memo is fresh
 /// before and dropped after, because it depends on the substituted term.
@@ -934,8 +932,7 @@ pub fn instantiate_list(
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:261-297 instantiateListGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove expr_ops::instantiate_list_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:535-584 instantiateListXP
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:529-552 instantiateListGo` —
 /// the memoized bulk instantiation.  The `bvar` arm delegates to the pure walk
 /// above, exactly as con-leche's does.
@@ -1072,8 +1069,7 @@ pub fn instantiate_list_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:365-367 instantiateListFast
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove expr_ops::instantiate_list_fast_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:586-593 instantiateListC
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:647-654 instantiateListFast` —
 /// the top-level entry.
 pub fn instantiate_list_fast(
@@ -1099,8 +1095,7 @@ pub fn instantiate_list_fast(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:671-691 liftLooseBVars
-/// con-leche: ConLeche/Kernel/ExprOps.lean:502-538 liftLooseBVarsGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove expr_ops::lift_loose_bvars_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:293-323 liftLooseBVarsXP
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:660-693 liftLooseBVarsGo` —
 /// bump every loose bound variable `>= cutoff` by `amount`.
 pub fn lift_loose_bvars_go(
@@ -1230,8 +1225,7 @@ pub fn lift_loose_bvars_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:604-606 liftLooseBVarsFast
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove expr_ops::lift_loose_bvars_fast_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:325-329 liftLooseBVarsC
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:794-800 liftLooseBVarsFast` —
 /// the top-level entry.
 pub fn lift_loose_bvars_fast(
@@ -2235,8 +2229,7 @@ pub fn loose_bvars_bounded_fast(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:735-751 abstract1
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1820-1864 abstract1Go
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove expr_ops::abstract1_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:727-757 abstract1XP
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1613-1633 abstract1Go` — close
 /// a binder body: replace `fvar d …` leaves by `bvar k`, bumping `k` under
 /// binders.  `fvar` annotations are not descended into.
@@ -2410,8 +2403,7 @@ pub fn abstract1_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1958-1960 abstract1Fast
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove expr_ops::abstract1_fast_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:759-762 abstract1C
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1724-1730 abstract1Fast` — the
 /// top-level entry.
 pub fn abstract1_fast(
@@ -2924,8 +2916,7 @@ pub fn subst_level_list_from(
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove expr_ops::subst_l_memo_at_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1036-1072 instLevelParamsXP
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2076-2091 substLMemoAt` —
 /// `substLMemoAt`, `instLPGo`'s `.sort` arm's level work behind a memo on the
 /// level handle.
@@ -2962,8 +2953,7 @@ pub fn subst_l_memo_at(
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove expr_ops::subst_ls_memo_at_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1036-1072 instLevelParamsXP
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2093-2103 substLsMemoAt` —
 /// `substLsMemoAt`, the `.const` arm's twin of `substLMemoAt` at an interned
 /// universe-argument LIST. The list is one interned object, so the memo saves
@@ -2994,8 +2984,7 @@ pub fn subst_ls_memo_at(
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove expr_ops::inst_lp_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1036-1072 instLevelParamsXP
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2107-2139 instLPGo` —
 /// substitute level parameters throughout an expression, with con-leche's own
 /// `hasLP = false` cutoff (the whole subtree is level-parameter free, so the
@@ -3170,8 +3159,7 @@ pub fn inst_lp_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2492-2494 Expr.instLPFast
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove expr_ops::inst_lp_fast_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1074-1078 instLevelParams
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2256-2273 instLPFast` — the
 /// top-level entry: read the substitution back out of the store once, walk,
 /// drop the memo.

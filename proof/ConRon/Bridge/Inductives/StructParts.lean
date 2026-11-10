@@ -28,6 +28,7 @@ module
 
 import ConRon.Bridge.Inductives.Rel
 public import ConRon.Bridge.Inductives.Run
+public import ConRon.Bridge.ExprOps.Subst
 import ConRon.Bridge.ExprOps.Ranges
 import ConRon.Bridge.Specs
 
@@ -696,7 +697,8 @@ theorem structProjBodies_spec (T : NIdx) (TP : ConLeche.Name) (nP nF : Nat)
   obtain ⟨hT, hc⟩ := hpre
   simp only [Arena.structProjBodies] at hrun
   obtain ⟨o, s1, k1, hz1⟩ := AM.bind_ok hrun
-  obtain ⟨rfl, hbp⟩ := stripPis_pstep hok hc k1
+  obtain ⟨hs1, hbp⟩ := stripPis_pstep hok hc k1
+  rw [hs1] at hz1
   cases o with
   | none =>
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hz1
@@ -834,7 +836,8 @@ theorem structProjBodies_scr {T : NIdx} {TP : ConLeche.Name} {nP nF : Nat}
     s'.store.scratchOn = s₀.store.scratchOn := by
   simp only [Arena.structProjBodies] at hrun
   obtain ⟨o, s1, k1, hz1⟩ := AM.bind_ok hrun
-  obtain ⟨rfl, hbp⟩ := stripPis_pstep hok hc k1
+  obtain ⟨hs1, hbp⟩ := stripPis_pstep hok hc k1
+  rw [hs1] at hz1
   cases o with
   | none =>
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hz1

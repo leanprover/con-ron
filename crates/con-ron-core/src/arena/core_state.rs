@@ -468,10 +468,8 @@ pub fn reset_map<K, V>(m: &mut HashMap<K, V>) {
 /// instead of a cleared one; see its note for how the value was chosen.
 pub const WALK_MEMO_KEEP: usize = 1 << 16;
 
-/// con-leche: ConLeche/Kernel/Level.lean:402-404 Expr.allLevelParamsDefinedFast
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove crates/con-ron-core/src/arena/core_state.rs_refines, then delete this line
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:190-192 Expr.constsResolveFFast
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove crates/con-ron-core/src/arena/core_state.rs_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2310-2314 allLevelParamsDefinedC
+/// con-leche: ConLeche/Cached/StateC.lean:614-616 constsResolveFC
 /// Lean twin: the `∅` that `proof/ConRon/Arena/CheckerBase.lean`'s
 /// `allLevelParamsDefined` and `constsResolveFFast` start their walk from —
 /// **the parked walk memo, moved out of the state and emptied** (task

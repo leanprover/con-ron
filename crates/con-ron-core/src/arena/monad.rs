@@ -121,8 +121,7 @@ const M_DANGLING_LS: [u32; 33] = [
 // The memo key (`Monad.lean:77-101 Memos`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:54-56 Inst1MemoInv
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::EIdxNat_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:206-208 MemoXP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:63-107 Memos` — the `(EIdx × Nat)`
 /// key the nine handle-valued memo tables use: the node and the traversal
 /// cursor (DESIGN.md §8.3 "Caches", nanoda's trick — the substituted term is
@@ -171,16 +170,14 @@ impl Eq2 for EIdxNat {
 // The per-call memo tables (`Monad.lean:70-108`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:54-56 Inst1MemoInv
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::Memos_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:206-208 MemoXP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:63-107 Memos` — the memo tables of
 /// the `ExprOps` twins, in one record.
 ///
-/// con-leche threads each memo as an explicit argument-and-result pair
-/// (`instantiate1Go v memo e d : Expr × Std.HashMap …`), and
-/// `con_ron_core::kernel::expr_ops` turns that into a `&mut HashMap`
-/// parameter; the arena carries the eight tables in the state instead, which
-/// is what lets a `…Fast` entry clear one without its callers seeing it.
+/// con-leche's cached walks thread each memo through the walk as an
+/// argument-and-result pair (`instantiate1XP v memo e d`, a `MemoXP`); the
+/// arena carries the eight tables in the state instead, which is what lets a
+/// `…Fast` entry clear one without its callers seeing it.
 ///
 /// **Eight tables, one per con-leche `…Go` the arena runs**, because the walks
 /// NEST: `instantiateLift`'s `bvar` arm runs `liftLooseBVars`, so a shared
@@ -234,17 +231,18 @@ pub struct Memos {
     /// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
     /// `consts_resolve_f_fast`'s table; see `lp_def_c`.
     pub crf_c: HashMap<EIdx, bool>,
+    /// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
+    /// `has_loose_bvar_in`'s table; see `lp_def_c`.
+    pub hlbi_c: HashMap<EIdxNat, bool>,
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:176-178 instantiate1Fast
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::impl Memos_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:486-489 instantiate1C
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:109-112 Memos.empty` — every walk
-/// starts from the empty memo (`(instantiate1Go v {} e d).1`), so this is what
+/// starts from the empty memo (a cached walk's memo starts `none`), so this is what
 /// a top-level entry installs.  `HashMap::new` allocates nothing (task #35),
 /// so an empty table costs its header.
 impl Memos {
-    /// con-leche: ConLeche/Kernel/ExprOps.lean:176-178 instantiate1Fast
-    /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::empty_refines, then delete this line
+    /// con-leche: ConLeche/Cached/ExprOpsC.lean:486-489 instantiate1C
     /// Lean twin: `proof/ConRon/Arena/Monad.lean:109-112 Memos.empty`.
     pub fn empty() -> Memos {
         Memos {
@@ -260,11 +258,11 @@ impl Memos {
             inst_lp_ls_c: HashMap::new(),
             lp_def_c: HashMap::new(),
             crf_c: HashMap::new(),
+            hlbi_c: HashMap::new(),
         }
     }
 
-    /// con-leche: ConLeche/Kernel/ExprOps.lean:176-178 instantiate1Fast
-    /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::reset_refines, then delete this line
+    /// con-leche: ConLeche/Cached/ExprOpsC.lean:486-489 instantiate1C
     /// Lean twin: `proof/ConRon/Arena/Monad.lean:109-112 Memos.empty` — the same
     /// value as `empty`, reached in place: `enter_scratch` runs this once per
     /// declaration, and `arena::core_state::reset_map`'s note is why the
@@ -1231,8 +1229,7 @@ pub fn intern_levels(
 // `:= ∅` term for term and allocates nothing (task #35).
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:74-110 instantiate1Go
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::inst1_get_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:453-484 instantiate1XP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:627-630 inst1Get` — probe the
 /// `instantiate1` memo.  The answer is owned, so the map's borrow ends with
 /// the lookup and the miss branch can take the state mutably again
@@ -1244,24 +1241,21 @@ pub fn inst1_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:74-110 instantiate1Go
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::inst1_set_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:453-484 instantiate1XP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:632-638 inst1Set` — record an
 /// `instantiate1` answer.
 pub fn inst1_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
     st.memos.inst1_c.insert(k, r.dup2());
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:176-178 instantiate1Fast
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::inst1_clear_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:486-489 instantiate1C
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:640-644 inst1Clear` — the memo is
 /// "dropped after each call, since it also depends on `v`".
 pub fn inst1_clear(st: &mut AState) {
     reset_map(&mut st.memos.inst1_c)
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:261-297 instantiateListGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::inst_l_get_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:535-584 instantiateListXP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:646-649 instLGet` — probe the
 /// `instantiateList` memo.
 pub fn inst_l_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
@@ -1271,24 +1265,21 @@ pub fn inst_l_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:261-297 instantiateListGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::inst_l_set_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:535-584 instantiateListXP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:651-657 instLSet` — record an
 /// `instantiateList` answer.
 pub fn inst_l_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
     st.memos.inst_l_c.insert(k, r.dup2());
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:365-367 instantiateListFast
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::inst_l_clear_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:586-593 instantiateListC
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:659-663 instLClear` — drop the
 /// `instantiateList` memo (it depends on `vs`).
 pub fn inst_l_clear(st: &mut AState) {
     reset_map(&mut st.memos.inst_l_c)
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:502-538 liftLooseBVarsGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::lift_get_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:293-323 liftLooseBVarsXP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:665-668 liftGet` — probe the
 /// `liftLooseBVars` memo.
 pub fn lift_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
@@ -1298,24 +1289,21 @@ pub fn lift_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:502-538 liftLooseBVarsGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::lift_set_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:293-323 liftLooseBVarsXP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:670-676 liftSet` — record a
 /// `liftLooseBVars` answer.
 pub fn lift_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
     st.memos.lift_c.insert(k, r.dup2());
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:604-606 liftLooseBVarsFast
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::lift_clear_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:325-329 liftLooseBVarsC
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:678-682 liftClear` — drop the
 /// `liftLooseBVars` memo (it depends on `amount`).
 pub fn lift_clear(st: &mut AState) {
     reset_map(&mut st.memos.lift_c)
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1820-1864 abstract1Go
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::abs1_get_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:727-757 abstract1XP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:684-687 abs1Get` — probe the
 /// `abstract1` memo.
 pub fn abs1_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
@@ -1325,16 +1313,14 @@ pub fn abs1_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1820-1864 abstract1Go
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::abs1_set_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:727-757 abstract1XP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:689-695 abs1Set` — record an
 /// `abstract1` answer.
 pub fn abs1_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
     st.memos.abs1_c.insert(k, r.dup2());
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1958-1960 abstract1Fast
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::abs1_clear_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:759-762 abstract1C
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:697-701 abs1Clear` — drop the
 /// `abstract1` memo (it depends on `d`).
 pub fn abs1_clear(st: &mut AState) {
@@ -1365,8 +1351,7 @@ pub fn inst1_l_clear(st: &mut AState) {
     reset_map(&mut st.memos.inst1_l_c)
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::inst_lp_get_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1036-1072 instLevelParamsXP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:722-725 instLPGet` — probe the
 /// level-substitution memo.
 pub fn inst_lp_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
@@ -1376,16 +1361,14 @@ pub fn inst_lp_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::inst_lp_set_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1036-1072 instLevelParamsXP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:727-733 instLPSet` — record a
 /// level-substitution answer.
 pub fn inst_lp_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
     st.memos.inst_lp_c.insert(k, r.dup2());
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2492-2494 Expr.instLPFast
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::inst_lp_clear_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1074-1078 instLevelParams
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:735-740 instLPClear` — drop the
 /// level-substitution memo (it depends on `ks` and `us`).
 pub fn inst_lp_clear(st: &mut AState) {
@@ -1394,8 +1377,7 @@ pub fn inst_lp_clear(st: &mut AState) {
     reset_map(&mut st.memos.inst_lp_ls_c)
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::inst_lp_l_get_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1036-1072 instLevelParamsXP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:742-745 instLPLGet` — probe the
 /// level-handle substitution memo.
 pub fn inst_lp_l_get(st: &AState, h: &LIdx) -> Option<LIdx> {
@@ -1405,16 +1387,14 @@ pub fn inst_lp_l_get(st: &AState, h: &LIdx) -> Option<LIdx> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::inst_lp_l_set_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1036-1072 instLevelParamsXP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:747-753 instLPLSet` — record a
 /// level-handle substitution.
 pub fn inst_lp_l_set(st: &mut AState, h: LIdx, r: &LIdx) {
     st.memos.inst_lp_l_c.insert(h, r.dup2());
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::inst_lp_ls_get_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1036-1072 instLevelParamsXP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:755-758 instLPLsGet` — probe the
 /// level-LIST substitution memo.
 pub fn inst_lp_ls_get(st: &AState, h: &LsIdx) -> Option<LsIdx> {
@@ -1424,8 +1404,7 @@ pub fn inst_lp_ls_get(st: &AState, h: &LsIdx) -> Option<LsIdx> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::inst_lp_ls_set_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1036-1072 instLevelParamsXP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:760-766 instLPLsSet` — record a
 /// level-LIST substitution.
 pub fn inst_lp_ls_set(st: &mut AState, h: LsIdx, r: &LsIdx) {

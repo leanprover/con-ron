@@ -400,7 +400,8 @@ def startState : arena.monad.AState :=
         abs1_c := emptyMap _ _,
         inst1_l_c := emptyMap _ _, inst_lp_c := emptyMap _ _,
         bvar_b_c := emptyMap _ _, fvar_b_c := emptyMap _ _, inst_lp_l_c := emptyMap _ _,
-        inst_lp_ls_c := emptyMap _ _, lp_def_c := emptyMap _ _, crf_c := emptyMap _ _ },
+        inst_lp_ls_c := emptyMap _ _, lp_def_c := emptyMap _ _, crf_c := emptyMap _ _,
+        hlbi_c := emptyMap _ _ },
     caches :=
       { whnf_core_c := emptyMap _ _, whnf_core_cheap_c := emptyMap _ _,
         whnf_c := emptyMap _ _, infer_c := emptyMap _ _,

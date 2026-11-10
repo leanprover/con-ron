@@ -143,15 +143,14 @@ def structProjBodies (T : NIdx) (nP nF : Nat) (cty : EIdx) :
     | none => pure none
   | none => pure none
 
-/-! ## `mentionsConst` — one twin for the pure walk and the memo -/
+/-! ## `mentionsConst` — `mentionsAnyConst` at one name -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:124-133 Expr.mentionsConst
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StructParts.mentionsConstGo_bridge, then delete this line
-con-leche: ConLeche/Kernel/Inductives/StructParts.lean:165-200 Expr.mentionsConstGo
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StructParts.mentionsConstGo_bridge, then delete this line
-Does the constant `T` occur in `e`?  A syntactic walk (`fvar` annotations
-included; a `.proj` node names its structure), with con-leche's per-call memo
-keyed by the node — `T` is fixed for the whole walk. -/
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:119-133 Expr.mentionsAnyConst
+con-leche: ConLeche/Cached/ExprOpsC.lean:1696-1740 mentionsAnyConstXP
+Does the constant `T` occur in `e`?  `mentionsAnyConst [T]`, the one name
+the `sorryAx` test asks: a syntactic walk (`fvar` annotations included; a
+`.proj` node names its structure) with a per-call memo keyed by the node, as
+the cached walk has — `T` is fixed for the whole walk. -/
 def mentionsConstGo (T : NIdx) (memo : Std.HashMap EIdx Bool) :
     Nat → EIdx → AM (Bool × Std.HashMap EIdx Bool)
   | 0, _ => fail (.internal "fuel exhausted: mentionsConst")
@@ -190,9 +189,8 @@ def mentionsConstGo (T : NIdx) (memo : Std.HashMap EIdx Bool) :
           | _ => pure (false, memo)
         pure (r, memo.insert h r)
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:273-275 Expr.mentionsConstFast
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StructParts.mentionsConst_bridge, then delete this line
-The executed `mentionsConst` (one memoized DAG walk). -/
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1742-1744 mentionsAnyConstC
+The executed `mentionsAnyConst [T]` (one memoized DAG walk). -/
 def mentionsConst (T : NIdx) (e : EIdx) : AM Bool := do
   pure (← mentionsConstGo T ∅ coreWalkFuel e).1
 

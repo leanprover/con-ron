@@ -7846,27 +7846,25 @@ pub fn open_pis_at_fvars(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:770-784 openPisAtFvarsFGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::open_pis_at_fvars_f_go_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2794-2812 openPisAtFvarsFGo` —
-/// core of `openPisAtFvarsF`: `acc` holds the already-created fvars — the list
-/// `instantiate_list` takes at cursor 0, in PUSH order on an OWNED vector
-/// (task #97-P6-15).  One `instantiateList` pass per domain instead of one
-/// whole-telescope `instantiate1` pass per binder.  The list this function
-/// RETURNS is a different one and keeps its cons: it is built on the way out.
-pub fn open_pis_at_fvars_f_go(
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2068-2083 openPisRawGoC
+/// Lean twin: `proof/ConRon/Arena/Core.lean openPisRawGo` — the one-pass
+/// opening loop, the residual left raw: `acc` holds the already-created fvars
+/// — the list `instantiate_list` takes at cursor 0, in PUSH order on an OWNED
+/// vector — and each domain is instantiated by them in one `instantiateList`
+/// pass, where `openPisAtFvars` re-instantiates the whole remaining body at
+/// every binder.  Returns the fvars, the substitution they make and the raw
+/// residual.  The list of fvars RETURNED keeps its cons: it is built on the
+/// way out.
+pub fn open_pis_raw_go(
     pers: &PersTier,
     st: &mut AState,
     acc: Vec<EIdx>,
     n: u64,
     h: &EIdx,
     i: u64,
-) -> Result<Option<(Vec<EIdx>, EIdx)>, CheckError> {
+) -> Result<Option<(Vec<EIdx>, Vec<EIdx>, EIdx)>, CheckError> {
     if n == 0 {
-        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, h, &acc, 0) {
-            Err(e) => Err(e),
-            Ok(b) => Ok(Some((Vec::new(), b))),
-        }
+        Ok(Some((Vec::new(), acc, h.dup2())))
     } else {
         if h.tag() == ETAG_FORALL_E {
             match view_bind(pers, st, h) {
@@ -7879,9 +7877,11 @@ pub fn open_pis_at_fvars_f_go(
                             Ok(fv) => {
                                 let mut acc2: Vec<EIdx> = acc;
                                 acc2.push(fv.dup2());
-                                match open_pis_at_fvars_f_go(pers, st, acc2, n - 1, &body, i + 1) {
+                                match open_pis_raw_go(pers, st, acc2, n - 1, &body, i + 1) {
                                     Err(e) => Err(e),
-                                    Ok(Some((fvs, e2))) => Ok(Some((cons_eidx(&fv, &fvs), e2))),
+                                    Ok(Some((fvs, acc3, r))) => {
+                                        Ok(Some((cons_eidx(&fv, &fvs), acc3, r)))
+                                    }
                                     Ok(None) => Ok(None),
                                 }
                             }
@@ -7895,11 +7895,13 @@ pub fn open_pis_at_fvars_f_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:786-793 openPisAtFvarsF
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::open_pis_at_fvars_f_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2814-2822 openPisAtFvarsF` —
-/// one-pass `openPisAtFvars` (the fallback covers telescopes whose binders only
-/// appear after substitution).  **The executed one.**
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2085-2092 openPisAtFvarsGoC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2094-2102 openPisAtFvarsC
+/// Lean twin: `proof/ConRon/Arena/Core.lean openPisAtFvarsF` — the
+/// one-pass `openPisAtFvars`: the raw opening, then the residual in one
+/// `instantiateList` pass.  No fallback: instantiating at free variables never
+/// makes a binder appear, so where the one pass finds no `∀` the sequential
+/// opening finds none either.  **The executed one.**
 pub fn open_pis_at_fvars_f(
     pers: &PersTier,
     st: &mut AState,
@@ -7907,10 +7909,15 @@ pub fn open_pis_at_fvars_f(
     e: &EIdx,
     i: u64,
 ) -> Result<Option<(Vec<EIdx>, EIdx)>, CheckError> {
-    match open_pis_at_fvars_f_go(pers, st, Vec::new(), n, e, i) {
+    match open_pis_raw_go(pers, st, Vec::new(), n, e, i) {
         Err(err) => Err(err),
-        Ok(Some(r)) => Ok(Some(r)),
-        Ok(None) => open_pis_at_fvars(pers, st, n, e, i),
+        Ok(Some((fvs, acc, r))) => {
+            match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &r, &acc, 0) {
+                Err(err) => Err(err),
+                Ok(b) => Ok(Some((fvs, b))),
+            }
+        }
+        Ok(None) => Ok(None),
     }
 }
 
@@ -7932,9 +7939,8 @@ pub fn hlb_probe(memo: &HashMap<EIdxNat, bool>, k: &EIdxNat) -> Option<bool> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:873-878 Expr.hasLooseBVarBIns
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::has_loose_bvar_b_ins_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2824-2830 hasLooseBVarBIns`
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1419-1486 hasLooseBVarBXP
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2625-2630 hasLooseBVarBIns`
 /// — record one answer for `(e, i)` in the memo the walk hands back.
 pub fn has_loose_bvar_b_ins(
     e: &EIdx,
@@ -7948,11 +7954,10 @@ pub fn has_loose_bvar_b_ins(
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:824-837 Expr.hasLooseBVar
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:839-857 Expr.hasLooseBVarB
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:880-916 Expr.hasLooseBVarBGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::has_loose_bvar_b_go_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2832-2879 hasLooseBVarBGo`
-/// — does `bvar i` occur loose in `e`?  con-leche's packed-bound cutoff
-/// (`bvarB ≤ i`) and its per-call memo, both kept: the cutoff stops the walk
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1419-1486 hasLooseBVarBXP
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2632-2678 hasLooseBVarBGo`
+/// — does `bvar i` occur loose in `e`?  The packed-bound cutoff (`bvarB ≤ i`)
+/// and a per-call memo, as the cached walk has them: the cutoff stops the walk
 /// where the variable CANNOT occur, the memo shares a shared node's answer
 /// across the paths that reach it.  The memo is keyed by the node AND the
 /// index, because the index shifts under binders.
@@ -7997,9 +8002,8 @@ pub fn has_loose_bvar_b_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:880-916 Expr.hasLooseBVarBGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::has_loose_bvar_b_node_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2832-2879 hasLooseBVarBGo`
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1419-1486 hasLooseBVarBXP
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2632-2678 hasLooseBVarBGo`
 /// — the walk's compound arms, split off so that the `view`'s loans are dead
 /// at the memo's join (task #97-P4c's extraction rule 5, and P4a's second).
 pub fn has_loose_bvar_b_node(
@@ -8040,9 +8044,8 @@ pub fn has_loose_bvar_b_node(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:1062-1064 Expr.hasLooseBVarBFast
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::has_loose_bvar_b_fast_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2881-2885 hasLooseBVarBFast`
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1488-1492 hasLooseBVarBC
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2680-2683 hasLooseBVarBFast`
 /// — the executed `hasLooseBVarB` (one memoized DAG walk).
 pub fn has_loose_bvar_b_fast(
     pers: &PersTier,
@@ -8053,6 +8056,130 @@ pub fn has_loose_bvar_b_fast(
     match has_loose_bvar_b_go(pers, st, HashMap::new(), i, CORE_WALK_FUEL, e) {
         Err(er) => Err(er),
         Ok(r) => Ok(r.0),
+    }
+}
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"fuel exhausted: hasLooseBVarIn"`, as code points.
+pub const M_FUEL_HLBI: [u32; 30] = [
+    102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 104, 97, 115, 76,
+    111, 111, 115, 101, 66, 86, 97, 114, 73, 110,
+];
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1503-1516 hasLooseBVarInP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1532-1585 hasLooseBVarInXP
+/// Lean twin: `proof/ConRon/Arena/Core.lean hasLooseBVarInGo` — does a loose
+/// bound variable of index `d ..< d + w` occur in `e`?  Read only: no node is
+/// built.  The packed-bound cutoff (`bvarB ≤ d`: no loose variable at or above
+/// `d`) at every node; under a binder the window moves up by one.  The memo is
+/// `has_loose_bvar_b_go`'s, keyed by the node and the window's base (`w` is
+/// fixed for the walk).
+pub fn has_loose_bvar_in_go(
+    pers: &PersTier,
+    st: &mut AState,
+    memo: HashMap<EIdxNat, bool>,
+    w: u64,
+    d: u64,
+    fuel: u64,
+    h: &EIdx,
+) -> Result<(bool, HashMap<EIdxNat, bool>), CheckError> {
+    if fuel == 0 {
+        fail(CheckError::Internal(code_points(&M_FUEL_HLBI)))
+    } else {
+        match expr_ops::bvar_b(pers, st, fuel - 1, h) {
+            Err(e) => Err(e),
+            Ok(bb) => {
+                if bb <= d {
+                    Ok((false, memo))
+                } else {
+                    match view(pers, st, h) {
+                        Err(e) => Err(e),
+                        Ok(ENodeView::BVar(j)) => Ok((d <= j && j - d < w, memo)),
+                        Ok(ENodeView::FVar(_, _)) => Ok((false, memo)),
+                        Ok(ENodeView::Sort(_)) => Ok((false, memo)),
+                        Ok(ENodeView::Const(_, _)) => Ok((false, memo)),
+                        Ok(ENodeView::Lit(_)) => Ok((false, memo)),
+                        Ok(v) => {
+                            let k: EIdxNat = eidx_nat_key(h, d);
+                            match hlb_probe(&memo, &k) {
+                                Some(r) => Ok((r, memo)),
+                                None => match has_loose_bvar_in_node(pers, st, memo, w, d, fuel - 1, v) {
+                                    Err(e) => Err(e),
+                                    Ok(r) => Ok(has_loose_bvar_b_ins(h, d, r)),
+                                },
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1532-1585 hasLooseBVarInXP
+/// Lean twin: `proof/ConRon/Arena/Core.lean hasLooseBVarInGo` — the walk's
+/// compound arms, split off so that the `view`'s loans are dead at the memo's
+/// join (extraction rule 5).
+pub fn has_loose_bvar_in_node(
+    pers: &PersTier,
+    st: &mut AState,
+    memo: HashMap<EIdxNat, bool>,
+    w: u64,
+    d: u64,
+    fuel: u64,
+    v: ENodeView,
+) -> Result<(bool, HashMap<EIdxNat, bool>), CheckError> {
+    match v {
+        ENodeView::App(f, a) => match has_loose_bvar_in_go(pers, st, memo, w, d, fuel, &f) {
+            Err(e) => Err(e),
+            Ok((true, m)) => Ok((true, m)),
+            Ok((false, m)) => has_loose_bvar_in_go(pers, st, m, w, d, fuel, &a),
+        },
+        ENodeView::Lam(ty, b) => match has_loose_bvar_in_go(pers, st, memo, w, d, fuel, &ty) {
+            Err(e) => Err(e),
+            Ok((true, m)) => Ok((true, m)),
+            Ok((false, m)) => has_loose_bvar_in_go(pers, st, m, w, d + 1, fuel, &b),
+        },
+        ENodeView::ForallE(ty, b) => match has_loose_bvar_in_go(pers, st, memo, w, d, fuel, &ty) {
+            Err(e) => Err(e),
+            Ok((true, m)) => Ok((true, m)),
+            Ok((false, m)) => has_loose_bvar_in_go(pers, st, m, w, d + 1, fuel, &b),
+        },
+        ENodeView::LetE(t, val, b) => match has_loose_bvar_in_go(pers, st, memo, w, d, fuel, &t) {
+            Err(e) => Err(e),
+            Ok((true, m)) => Ok((true, m)),
+            Ok((false, m)) => match has_loose_bvar_in_go(pers, st, m, w, d, fuel, &val) {
+                Err(e) => Err(e),
+                Ok((true, m2)) => Ok((true, m2)),
+                Ok((false, m2)) => has_loose_bvar_in_go(pers, st, m2, w, d + 1, fuel, &b),
+            },
+        },
+        ENodeView::Proj(_, _, sub) => has_loose_bvar_in_go(pers, st, memo, w, d, fuel, &sub),
+        _ => Ok((false, memo)),
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1587-1591 hasLooseBVarInC
+/// Lean twin: `proof/ConRon/Arena/Core.lean hasLooseBVarIn` — the window
+/// query (one memoized DAG walk); an empty window asks nothing.
+pub fn has_loose_bvar_in(
+    pers: &PersTier,
+    st: &mut AState,
+    d: u64,
+    w: u64,
+    e: &EIdx,
+) -> Result<bool, CheckError> {
+    if w == 0 {
+        Ok(false)
+    } else {
+        let memo: HashMap<EIdxNat, bool> = crate::arena::core_state::take_walk_memo(&mut st.memos.hlbi_c);
+        match has_loose_bvar_in_go(pers, st, memo, w, d, CORE_WALK_FUEL, e) {
+            Err(er) => Err(er),
+            Ok(r) => {
+                st.memos.hlbi_c = r.1;
+                Ok(r.0)
+            }
+        }
     }
 }
 
@@ -8075,7 +8202,8 @@ pub fn struct_used_later(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:868-886 projGuardRowsGo
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2896-2919 projGuardRowsGo` — **the rows of
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2153-2164 projGuardRowsGoC
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2694-2717 projGuardRowsGo` — **the rows of
 /// a projection's guard: the field loop of the official `infer_proj`.**  `h`
 /// is the constructor telescope with its parameters and every field before
 /// the current one opened, the current field's variable at depth `d`; `k`
@@ -8124,18 +8252,61 @@ pub fn proj_guard_rows_go(
     }
 }
 
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2166-2178 projGuardFastC
+/// Lean twin: `proof/ConRon/Arena/Core.lean projGuardFast` — **the
+/// projection guard's fast case**, on the RAW field telescope (the parameters
+/// not substituted): `Some` the projected field's raw domain where no field's
+/// type up to the projected one, and nothing after it, mentions a field before
+/// it — then no earlier field is used and the projected field's domain is the
+/// one row.  `None` otherwise, and where the telescope binds too few fields.
+/// `j` counts the fields passed; every query is the read-only window query
+/// `has_loose_bvar_in` over the fields, the parameters above it.
+pub fn proj_guard_fast(
+    pers: &PersTier,
+    st: &mut AState,
+    k: u64,
+    j: u64,
+    h: &EIdx,
+) -> Result<Option<EIdx>, CheckError> {
+    if h.tag() == ETAG_FORALL_E {
+        match view_bind(pers, st, h) {
+            None => fail_dangling_e(),
+            Some((dom, body)) => {
+                if k == 0 {
+                    match has_loose_bvar_in(pers, st, 0, j, h) {
+                        Err(e) => Err(e),
+                        Ok(true) => Ok(None),
+                        Ok(false) => Ok(Some(dom)),
+                    }
+                } else {
+                    match has_loose_bvar_in(pers, st, 0, j, &dom) {
+                        Err(e) => Err(e),
+                        Ok(true) => Ok(None),
+                        Ok(false) => proj_guard_fast(pers, st, k - 1, j + 1, &body),
+                    }
+                }
+            }
+        }
+    } else {
+        Ok(None)
+    }
+}
+
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:888-906 projGuardRows
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2180-2195 projGuardRowsC
 /// con-leche: ConLeche/Cached/CoreC.lean:1063-1074 checkProjRowsI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::proj_guard_rows_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2921-2941 projGuardRows` — **what a `.proj`
+/// Lean twin: `proof/ConRon/Arena/Core.lean projGuardRows` — **what a `.proj`
 /// use on a structure that may be a proposition must show**: the domains, at
 /// the use's level instantiation and at the constructor telescope's own
-/// variables, that must be propositions.  The parameters are opened, then the
-/// fields stepped (`proj_guard_rows_go`).  `None` where the stored constructor
+/// variables, that must be propositions.  `None` where the stored constructor
 /// does not bind what the entry says.  The executed shape is the cached
 /// twin's: the constructor's type at the use's levels through the
-/// per-declaration memo (`const_ty_at`), its parameters opened in one pass
-/// (`open_pis_at_fvars_f`).
+/// per-declaration memo (`const_ty_at`), its parameters opened with the
+/// residual left raw (`open_pis_raw_go`).  Where no field before the
+/// projected one is mentioned after it (`proj_guard_fast`), the one row is the
+/// projected field's domain, its parameters substituted — the rest of the
+/// telescope is read, not rebuilt.  Otherwise the residual is substituted and
+/// its fields stepped (`proj_guard_rows_go`).
 pub fn proj_guard_rows(
     pers: &PersTier,
     st: &mut AState,
@@ -8148,9 +8319,9 @@ pub fn proj_guard_rows(
             let cv: IConstantVal = env::i_constant_info_to_constant_val(ci);
             match const_ty_at(pers, st, &cv, us) {
                 Err(e) => Err(e),
-                Ok(cty) => match open_pis_at_fvars_f(pers, st, entry.num_params, &cty, 0) {
+                Ok(cty) => match open_pis_raw_go(pers, st, Vec::new(), entry.num_params, &cty, 0) {
                     Err(e) => Err(e),
-                    Ok(Some((_, r))) => proj_guard_rows_go(pers, st, entry.idx, entry.num_params, &r, Vec::new()),
+                    Ok(Some((_, acc, r))) => proj_guard_rows_at(pers, st, entry, &acc, &r),
                     Ok(None) => Ok(None),
                 },
             }
@@ -8159,11 +8330,38 @@ pub fn proj_guard_rows(
     }
 }
 
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2180-2195 projGuardRowsC
+/// Lean twin: `proof/ConRon/Arena/Core.lean projGuardRowsAt` — the rows past
+/// the parameters' raw opening: the fast case, else the substituted residual
+/// stepped.
+pub fn proj_guard_rows_at(
+    pers: &PersTier,
+    st: &mut AState,
+    entry: &IProjEntry,
+    acc: &Vec<EIdx>,
+    r: &EIdx,
+) -> Result<Option<Vec<(u64, EIdx)>>, CheckError> {
+    match proj_guard_fast(pers, st, entry.idx, 0, r) {
+        Err(e) => Err(e),
+        Ok(Some(dom)) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, acc, entry.idx) {
+            Err(e) => Err(e),
+            Ok(d) => {
+                let mut out: Vec<(u64, EIdx)> = Vec::new();
+                out.push((entry.num_params + entry.idx, d));
+                Ok(Some(out))
+            }
+        },
+        Ok(None) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, r, acc, 0) {
+            Err(e) => Err(e),
+            Ok(r2) => proj_guard_rows_go(pers, st, entry.idx, entry.num_params, &r2, Vec::new()),
+        },
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Core.lean:1183-1196 checkProjGuard
 /// con-leche: ConLeche/Cached/CoreC.lean:1076-1088 checkProjGuardI
 /// con-leche: ConLeche/Cached/CoreC.lean:1063-1074 checkProjRowsI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::check_proj_guard_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2943-2961 checkProjGuard` — **the official
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2740-2757 checkProjGuard` — **the official
 /// `infer_proj` restriction** at this use (con-leche task #480), computed
 /// here from the stored structure and constructor types; nothing about it is
 /// stored.  The rows are inferred at the io grade in every body, as official's
@@ -8341,8 +8539,7 @@ pub fn infer_lit_str(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_forall_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3248-3306 inferBody` — the full
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3040-3098 inferBody` — the full
 /// body's `.forallE` clause: the domain's sort, then the binder-telescope loop
 /// (`infer_pis`), which infers the codomain sort and folds `imax` outward.
 pub fn infer_forall(
@@ -8391,8 +8588,7 @@ pub fn infer_forall(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_proj_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3211-3246 inferProj` — the `.proj`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3004-3038 inferProj` — the `.proj`
 /// clause, shared by both bodies (`inferBodyIOI` dispatches it to
 /// `inferBodyI` at the io view, which is the `io` flag here): the subject's
 /// type head-normalized, its head a constant with a projection-table entry at
@@ -8441,8 +8637,7 @@ pub fn infer_proj(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_proj_miss_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3211-3246 inferProj` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3004-3038 inferProj` — the
 /// `.proj` clause with no table entry at field `i`: `projMissError` at the
 /// table's presence and the subject type's argument count.
 pub fn infer_proj_miss(
@@ -8463,8 +8658,7 @@ pub fn infer_proj_miss(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_proj_at_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3248-3306 inferBody` — the `.proj`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3040-3098 inferBody` — the `.proj`
 /// clause's body, once the entry has been found: the node must name the
 /// subject type's head (official `infer_proj`, con-leche's TASK #271) at the
 /// entry's parameter count — two rejects that the annotate pass used to make
@@ -8514,8 +8708,7 @@ pub fn infer_proj_at(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_lam_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3248-3306 inferBody` — the full
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3040-3098 inferBody` — the full
 /// body's λ clause: the domain's sort is run (unlike the io grade's), then the
 /// binder-telescope loop (`infer_lams`).
 pub fn infer_lam(
@@ -8593,8 +8786,7 @@ pub fn infer_lam_open(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_let_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3248-3306 inferBody` — the full
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3040-3098 inferBody` — the full
 /// body's `let` clause, official's `infer_let` (con-leche task #342 S0): the
 /// `let`'s type is a type, the value's type matches it, then the body with the
 /// value substituted — the ζ reduct, as Lean's kernel infers it.
@@ -8783,8 +8975,7 @@ pub fn infer_spine(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_app_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3170-3178 inferApp` — the `.app`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2964-2971 inferApp` — the `.app`
 /// clause of the cached inference body: the spine's head is inferred once and
 /// its Π-telescope is walked against the whole spine.
 pub fn infer_app(

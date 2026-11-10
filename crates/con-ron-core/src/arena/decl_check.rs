@@ -718,6 +718,7 @@ pub fn of_reduce_ax_ok_rest(
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:195-199 reducePinGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:154-158 reducePinGuardF
+/// con-leche: ConLeche/Cached/ParsedC.lean:217-221 reducePinGuardC
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:152-160 reducePinGuard` —
 /// syntactic guards on the generated reduce pin (checked once).
 pub fn reduce_pin_guard(
@@ -2160,6 +2161,7 @@ pub fn bool_ctor_typed(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:310-320 divModPinGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:188-195 divModPinGuardF
+/// con-leche: ConLeche/Cached/ParsedC.lean:147-154 divModPinGuardC
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:592-601 divModPinGuard` — syntactic
 /// guards on one variant's pin (generated; checked once rather
 /// than proven about the blob), and on its type pins: each type-pinned
@@ -2192,6 +2194,7 @@ pub fn div_mod_pin_guard(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:310-320 divModPinGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:188-195 divModPinGuardF
+/// con-leche: ConLeche/Cached/ParsedC.lean:147-154 divModPinGuardC
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:582-590 typePinsGuard` — the cited
 /// `(divModTypePins ps c).all fun p => …` as a cursor recursion (DESIGN.md
 /// §3.4 forbids the closure `List.all` takes).
@@ -2220,6 +2223,7 @@ pub fn type_pins_guard(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:310-320 divModPinGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:188-195 divModPinGuardF
+/// con-leche: ConLeche/Cached/ParsedC.lean:147-154 divModPinGuardC
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:569-580 typePinGuard` — one type
 /// pin's guard, the `List.all` closure's body: the constant stored, its
 /// stored type free of free variables, the pinned type closed, free of free
@@ -2436,6 +2440,7 @@ pub fn check_div_mod_cert_tail(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:331-339 checkTypePins
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:262-269 checkTypePinsF
+/// con-leche: ConLeche/Cached/ParsedC.lean:156-162 checkTypePinsC
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:648-657 checkTypePins` — the type
 /// pins: each type-pinned constant's stored type against the variant's pinned
 /// one, by definitional equality; the cited list recursion as a cursor.
@@ -2707,6 +2712,7 @@ pub fn defn_value(pers: &PersTier, fe: &IFEnv, c: &NIdx) -> Option<EIdx> {
 
 /// con-leche: ConLeche/Kernel/Checker.lean:426-461 checkReducePin
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:312-331 checkReducePinF
+/// con-leche: ConLeche/Cached/ParsedC.lean:223-241 checkReducePinC
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:778-797 checkReducePin` — the
 /// `Lean.reduceNat`/`Lean.reduceBool` gate, after the ordinary opaque check:
 /// the stored constant carries the pinned type (at `fe2`, the environment with
@@ -2960,7 +2966,6 @@ pub const M_QUOT_PREDS: [u32; 41] = [
 /// con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
 /// con-leche: ConLeche/Kernel/Checker.lean:80-102 checkOpaqueVal
 /// con-leche: ConLeche/Cached/ParsedC.lean:38-55 checkDefnValCI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove decl_check::value_guards_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:824-840 valueGuards` — the value's
 /// syntactic guards the three value checks spell alike (no loose bound
 /// variable, no free variable, declared universe parameters, resolving
@@ -3029,7 +3034,6 @@ pub fn value_guards_tail(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:30-47 checkDefnVal
 /// con-leche: ConLeche/Cached/ParsedC.lean:38-55 checkDefnValCI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove decl_check::check_defn_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:842-855 checkDefnVal` — check a `def`
 /// declaration's value against its checked constant, returning the record to
 /// install, unpushed (the cached twin's shape: the caller certifies the pinned
@@ -3069,7 +3073,6 @@ pub fn check_defn_val(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
 /// con-leche: ConLeche/Cached/ParsedC.lean:57-77 checkThmValCI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove decl_check::check_thm_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:857-875 checkThmVal` — check a
 /// `theorem` declaration's value against its checked constant (whose type must
 /// additionally be a proposition), returning the record to install, unpushed.
@@ -3109,7 +3112,6 @@ pub fn check_thm_val(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
 /// con-leche: ConLeche/Cached/ParsedC.lean:57-77 checkThmValCI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove decl_check::check_thm_val_witness_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:857-875 checkThmVal` — the witness
 /// half: the value's guards, its inferred type against the statement, and the
 /// record `.thmInfo cv` — the statement only.
@@ -3141,7 +3143,6 @@ pub fn check_thm_val_witness(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:80-102 checkOpaqueVal
 /// con-leche: ConLeche/Cached/ParsedC.lean:79-95 checkOpaqueValCI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove decl_check::check_opaque_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:877-889 checkOpaqueVal` — check an
 /// `opaque` declaration's value against its checked constant: exactly the
 /// theorem check without the is-a-proposition requirement, returning the record

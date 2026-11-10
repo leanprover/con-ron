@@ -683,14 +683,14 @@ structure arena.pins.Pins where
   max_nat_size : ron.nat.Nat
 
 /-- [con_ron_core::arena::monad::EIdxNat]
-    Source: 'crates/con-ron-core/src/arena/monad.rs', lines 135:0-138:1
+    Source: 'crates/con-ron-core/src/arena/monad.rs', lines 134:0-137:1
     Visibility: public -/
 structure arena.monad.EIdxNat where
   h : arena.handle.EIdx
   d : Std.U64
 
 /-- [con_ron_core::arena::monad::Memos]
-    Source: 'crates/con-ron-core/src/arena/monad.rs', lines 193:0-237:1
+    Source: 'crates/con-ron-core/src/arena/monad.rs', lines 190:0-237:1
     Visibility: public -/
 structure arena.monad.Memos where
   inst1_c : ron.hashmap2.HashMap2 arena.monad.EIdxNat arena.handle.EIdx
@@ -705,6 +705,7 @@ structure arena.monad.Memos where
   inst_lp_ls_c : ron.hashmap2.HashMap2 arena.handle.LsIdx arena.handle.LsIdx
   lp_def_c : ron.hashmap2.HashMap2 arena.handle.EIdx Bool
   crf_c : ron.hashmap2.HashMap2 arena.handle.EIdx Bool
+  hlbi_c : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool
 
 /-- [con_ron_core::arena::core_state::EIdxPair]
     Source: 'crates/con-ron-core/src/arena/core_state.rs', lines 72:0-75:1
@@ -775,7 +776,7 @@ structure arena.core_state.Caches where
   eager_memos : arena.core_state.ModeMemos
 
 /-- [con_ron_core::arena::monad::AState]
-    Source: 'crates/con-ron-core/src/arena/monad.rs', lines 306:0-323:1
+    Source: 'crates/con-ron-core/src/arena/monad.rs', lines 304:0-321:1
     Visibility: public -/
 structure arena.monad.AState where
   store : arena.store.EStore
@@ -1072,7 +1073,7 @@ structure arena.env.IProjEntry where
   body : arena.handle.EIdx
 
 /-- [con_ron_core::arena::core::LazyResA]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10090:0-10097:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10281:0-10288:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.LazyResA where
@@ -1080,7 +1081,7 @@ inductive arena.core.LazyResA where
 | Unknown : arena.handle.EIdx → arena.handle.EIdx → arena.core.LazyResA
 
 /-- [con_ron_core::arena::core::DeltaStepA]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9857:0-9870:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10048:0-10061:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.DeltaStepA where
@@ -1315,7 +1316,7 @@ structure arena.core.NatEqCtx where
   b_f : arena.handle.EIdx
 
 /-- [con_ron_core::arena::decl_check::CertCtx]
-    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 1089:0-1111:1
+    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 1090:0-1112:1
     Visibility: public -/
 structure arena.decl_check.CertCtx where
   nat_ty : arena.handle.EIdx

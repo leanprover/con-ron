@@ -47,6 +47,8 @@ import all Init.Data.List.Control
 import ConRon.Bridge.Core.Walks.Proj
 import ConRon.Bridge.ExprOps.Inst1
 import ConRon.Bridge.Specs
+public import ConLeche.Verify.Cached.IndWalksC
+public import ConLeche.Verify.Cached.OpsC
 
 public section
 
@@ -875,12 +877,13 @@ end Knot
 
 /-! ## The telescope opener
 
-`Arena/CheckerBase.lean`'s `openPisAtFvars` / `openPisAtFvarsFGo` /
-`openPisAtFvarsF`, read by the constructors' stage, the recursor pre-pass and
-the generated recursors.  The one-pass form is related to con-leche's one-pass
-form walk for walk (the arena's push-order vector is `ExprOps.InstLVec` of con-leche's cons-order
-list), and con-leche's own `openPisAtFvarsF_eq` turns the answer into the
-binder-at-a-time `openPisAtFvars` that con-leche's callers read. -/
+`Arena/Core.lean`'s `openPisAtFvars` / `openPisRawGo` / `openPisAtFvarsF`,
+read by the constructors' stage, the recursor pre-pass and the generated
+recursors.  The one-pass form is related to con-leche's cached one-pass loop
+walk for walk (the arena's push-order vector is `ExprOps.InstLVec` of
+con-leche's cons-order list), and con-leche's own `openPisAtFvarsC_eq` turns
+the answer into the binder-at-a-time `openPisAtFvars` that con-leche's
+specification reads. -/
 
 /-- con-leche: none — the denotation of an opener's answer: `none` is
 `none`, a `some` denotes when its free variables and its residual do. -/
@@ -974,28 +977,49 @@ theorem openPisAtFvars_run : ∀ (n : Nat) {i : Nat} {h : EIdx} {hP : Expr}
       case forallE a b => simp [denoteEView] at hh
       all_goals rfl
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:153-167 openPisAtFvarsFGo — **the
-one-pass opener's core, as a run**: the arena's push-order vector is
-`InstLVec` of con-leche's cons-order list. -/
-theorem openPisAtFvarsFGo_run : ∀ (n : Nat) {acc : Array EIdx} {ws : List Expr}
-    {i : Nat} {h : EIdx} {hP : Expr} {s₀ s' : AState} {r : Option (List EIdx × EIdx)},
+/-- con-leche: none — the denotation of the raw opener's answer: `none` is
+`none`; a `some` denotes when its free variables, its substitution (a
+push-order vector, `ExprOps.InstLVec`, so the list is reversed) and its
+residual do. -/
+@[expose] def denoteRaw (st : EStore) :
+    Option (List EIdx × Array EIdx × EIdx) → Option (Option (List Expr × List Expr × Expr))
+  | none => some none
+  | some (fvs, acc, e) =>
+    (Frontend.denoteEList st fvs).bind fun xs =>
+      (Frontend.denoteEList st acc.toList).bind fun ws =>
+        (denoteE st e).map fun x => some (xs, ws.reverse, x)
+
+/-- con-leche: none — `denoteRaw` at a `some`, read back into its parts. -/
+theorem denoteRaw_some_inv {st : EStore} {fvs : List EIdx} {acc : Array EIdx} {e : EIdx}
+    {o : Option (List Expr × List Expr × Expr)}
+    (h : denoteRaw st (some (fvs, acc, e)) = some o) :
+    ∃ xs ws x, o = some (xs, ws, x) ∧ Frontend.denoteEList st fvs = some xs ∧
+      ExprOps.InstLVec st acc ws ∧ denoteE st e = some x := by
+  simp only [denoteRaw, Option.bind_eq_some_iff, Option.map_eq_some_iff] at h
+  obtain ⟨xs, h1, ws, h2, x, h3, rfl⟩ := h
+  exact ⟨xs, ws.reverse, x, rfl, h1, by simp [ExprOps.InstLVec, h2], h3⟩
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2068-2083 openPisRawGoC — **the
+one-pass opening loop, its residual left raw, as a run**: the arena's
+push-order vector is `InstLVec` of con-leche's cons-order list. -/
+theorem openPisRawGo_run : ∀ (n : Nat) {acc : Array EIdx} {ws : List Expr}
+    {i : Nat} {h : EIdx} {hP : Expr} {s₀ s' : AState}
+    {r : Option (List EIdx × Array EIdx × EIdx)},
     StateOK s₀ → ExprOps.InstLVec s₀.store acc ws → denoteE s₀.store h = some hP →
-    Arena.openPisAtFvarsFGo acc n h i s₀ = .ok (r, s') →
-    PStep s₀ s' ∧ denoteOpen s'.store r = some (ConLeche.openPisAtFvarsFGo ws n hP i) := by
+    Arena.openPisRawGo acc n h i s₀ = .ok (r, s') →
+    PStep s₀ s' ∧ denoteRaw s'.store r = some (ConLeche.openPisRawGoC ws n hP i) := by
   intro n
   induction n with
   | zero =>
     intro acc ws i h hP s₀ s' r hok hacc hh hrun
-    simp only [Arena.openPisAtFvarsFGo] at hrun
-    obtain ⟨e, s1, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨h1, h2, h4, h5, -, h7⟩ := ExprOps.instantiateListFast_run hok hacc
-      (by rw [hh]; rfl) k1
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
-    refine ⟨PStep.of_caches h1 h2 h4 h5, ?_⟩
-    simp [denoteOpen, Frontend.denoteEList, h7 _ hh, ConLeche.openPisAtFvarsFGo]
+    simp only [Arena.openPisRawGo] at hrun
+    have hacc' : Frontend.denoteEList s₀.store acc.toList = some ws.reverse := hacc
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    refine ⟨PStep.refl hok, ?_⟩
+    simp [denoteRaw, Frontend.denoteEList, hacc', hh, ConLeche.openPisRawGoC]
   | succ n ih =>
     intro acc ws i h hP s₀ s' r hok hacc hh hrun
-    simp only [Arena.openPisAtFvarsFGo] at hrun
+    simp only [Arena.openPisRawGo] at hrun
     -- the tag-first twin
     obtain ⟨v₀, hv₀⟩ := denoteE_view hh
     replace hrun := tagIf_view_run hv₀
@@ -1020,22 +1044,22 @@ theorem openPisAtFvarsFGo_run : ∀ (n : Nat) {acc : Array EIdx} {ws : List Expr
       obtain ⟨p4, ho⟩ := ih p3.ok (Core.InstLVec.push (hacc.ext (p2.ext.trans p3.ext)) hfv')
         (denote_ext hb (p2.ext.trans p3.ext)) k4
       have p24 := p2.trans (p3.trans p4)
-      simp only [ConLeche.openPisAtFvarsFGo]
+      simp only [ConLeche.openPisRawGoC, Expr.instantiateListC_spec]
       cases o with
       | none =>
         obtain ⟨rfl, rfl⟩ := AM.pure_ok z4
         refine ⟨p24, ?_⟩
-        have hn : ConLeche.openPisAtFvarsFGo (.fvar i (domP.instantiateList ws) :: ws) n
+        have hn : ConLeche.openPisRawGoC (.fvar i (domP.instantiateList ws) :: ws) n
             bodyP (i + 1) = none := (Option.some.inj ho).symm
-        simp [denoteOpen, hn]
+        simp [denoteRaw, hn]
       | some q =>
-        obtain ⟨fvs, e⟩ := q
-        obtain ⟨xs, x, hx, h1, h2⟩ := denoteOpen_some_inv ho
+        obtain ⟨fvs, acc', e⟩ := q
+        obtain ⟨xs, ws', x, hx, h1, h2, h3⟩ := denoteRaw_some_inv ho
+        have h2' : Frontend.denoteEList s4.store acc'.toList = some ws'.reverse := h2
         obtain ⟨rfl, rfl⟩ := AM.pure_ok z4
         refine ⟨p24, ?_⟩
         rw [hx]
-        exact denoteOpen_some (by
-          simp only [Frontend.denoteEList, denote_ext hfv' p4.ext, h1]) h2
+        simp [denoteRaw, Frontend.denoteEList, denote_ext hfv' p4.ext, h1, h2', h3]
     all_goals
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
       refine ⟨PStep.refl hok, ?_⟩
@@ -1044,33 +1068,39 @@ theorem openPisAtFvarsFGo_run : ∀ (n : Nat) {acc : Array EIdx} {ws : List Expr
       case forallE a b => simp [denoteEView] at hh
       all_goals rfl
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:169-176 openPisAtFvarsF — **the
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2094-2102 openPisAtFvarsC — **the
 one-pass opener, as a run**, answering con-leche's binder-at-a-time
-`openPisAtFvars` (through con-leche's `openPisAtFvarsF_eq`), which is what
-con-leche's `checkSumCtor` calls. -/
+`openPisAtFvars` (through con-leche's `openPisAtFvarsC_eq`), which is what
+con-leche's specification calls. -/
 theorem openPisAtFvarsF_run {n i : Nat} {h : EIdx} {hP : Expr} {s₀ s' : AState}
     {r : Option (List EIdx × EIdx)} (hok : StateOK s₀)
     (hh : denoteE s₀.store h = some hP)
     (hrun : Arena.openPisAtFvarsF n h i s₀ = .ok (r, s')) :
     PStep s₀ s' ∧ denoteOpen s'.store r = some (ConLeche.openPisAtFvars n hP i) := by
-  rw [← ConLeche.openPisAtFvarsF_eq]
+  rw [← ConLeche.Cached.openPisAtFvarsC_eq]
   simp only [Arena.openPisAtFvarsF] at hrun
   obtain ⟨o, s1, k1, z1⟩ := AM.bind_ok hrun
-  obtain ⟨p1, ho⟩ := openPisAtFvarsFGo_run n hok
+  obtain ⟨p1, ho⟩ := openPisRawGo_run n hok
     (show ExprOps.InstLVec s₀.store #[] [] from rfl) hh k1
-  simp only [ConLeche.openPisAtFvarsF]
+  simp only [ConLeche.openPisAtFvarsC, ConLeche.openPisAtFvarsGoC]
   cases o with
   | some q =>
-    obtain ⟨fvs, e⟩ := q
-    obtain ⟨xs, x, hx, h1, h2⟩ := denoteOpen_some_inv ho
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
-    refine ⟨p1, ?_⟩
+    obtain ⟨fvs, acc, e⟩ := q
+    obtain ⟨xs, ws, x, hx, h1, h2, h3⟩ := denoteRaw_some_inv ho
     rw [hx]
-    exact denoteOpen_some h1 h2
+    dsimp only at z1
+    obtain ⟨b, s2, k2, z2⟩ := AM.bind_ok z1
+    obtain ⟨h1', h2', h4', h5', -, h7'⟩ := ExprOps.instantiateListFast_run p1.ok h2
+      (by rw [h3]; rfl) k2
+    have p2 : PStep s1 s2 := PStep.of_caches h1' h2' h4' h5'
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
+    refine ⟨p1.trans p2, ?_⟩
+    simp only [Expr.instantiateListC_spec]
+    exact denoteOpen_some (denoteEList_ext p2.ext _ _ h1) (h7' _ h3)
   | none =>
-    have hn : ConLeche.openPisAtFvarsFGo [] n hP i = none := (Option.some.inj ho).symm
+    have hn : ConLeche.openPisRawGoC [] n hP i = none := (Option.some.inj ho).symm
     rw [hn]
-    obtain ⟨p2, h2⟩ := openPisAtFvars_run n p1.ok (denote_ext hh p1.ext) z1
-    exact ⟨p1.trans p2, h2⟩
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
+    exact ⟨p1, rfl⟩
 
 end ConRon.Bridge.Inductives
