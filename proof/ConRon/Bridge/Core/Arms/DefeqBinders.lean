@@ -27,7 +27,6 @@ public import ConRon.Bridge.ExprOps.Subst
 import ConRon.Bridge.ExprOps.Spine
 import ConRon.Bridge.ExprOps.Walks
 public import ConRon.Bridge.Core.Knot
-public import ConRon.Bridge.Core.Arms.DefeqBase
 import ConRon.Bridge.Core.Walks.Mono
 import ConLeche.Verify.Mono
 public import ConLeche.Verify.Knot
@@ -192,8 +191,8 @@ theorem defeqBindersInner_spec (hsim : KnotSpec eager env fe fuel) (lam : Bool) 
 /-- con-leche: ConLeche/Kernel/Core.lean:1456-1460 defeqDomain — **one
 level's domains**: the same raw handle is `true` (the specification's
 `ty₁ == ty₂` on the denotations); otherwise the left domain is opened over
-the vector and compared through the knot.  The answer holds from some fuel
-on. -/
+the vector and compared through the knot.  The answer holds from some fuel on
+(`DefeqBase`'s `Ev` spelled out: this module sits below `DefeqBase`). -/
 theorem defeqDomain_spec (hsim : KnotSpec eager env fe fuel) (d : Nat) {s₀ : AState}
     (fvs : Array EIdx) (ws : List Expr) (ty₁ ty₂ dom₂ : EIdx) (t₁ t₂ D : Expr)
     (hok : CheckOK eager env fe s₀) (hvec : ExprOps.InstLVec s₀.store fvs ws)
@@ -204,8 +203,8 @@ theorem defeqDomain_spec (hsim : KnotSpec eager env fe fuel) (d : Nat) {s₀ : A
       ConRon.Arena.defeqDomain (coreKnot .verified eager fe id fuel) d fvs ty₁ ty₂ dom₂
     ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        Ev (fun F => ConLeche.defeqDomain (ConLeche.pureFns .verified eager env F) d ws
-          t₁ t₂ D = .ok r); ⊤⦄ := by
+        ∃ F₀, ∀ F, F₀ ≤ F → ConLeche.defeqDomain (ConLeche.pureFns .verified eager env F) d ws
+          t₁ t₂ D = .ok r; ⊤⦄ := by
   unfold ConRon.Arena.defeqDomain
   rw [beq_of_denoteE hok.state.wf h1 h2]
   split
@@ -355,7 +354,7 @@ theorem defeqBinders_spec (hsim : KnotSpec eager env fe fuel) (lam : Bool) (n : 
       obtain ⟨et₂, eb₂, hd3, hd4, rfl⟩ := hdb
       dsimp only
       rw [binderOf_instantiateList, wscoped_binderOf] at hwc1 hwc2
-      refine triple_mono (defeqBinders_spec hsim lam m (d + 1) s3 (fvs.push fv) _
+      refine triple_mono (defeqBinders_spec hsim lam m (d + 1) _ (fvs.push fv) _
         ty₁' bd₁' ty₂' bd₂' et₁ eb₁ et₂ eb₂ hok3 hvec3 hd1 hd2 hd3 hd4
         (binders_wscoped_next (k := 0) hw2 hwc1.1)
         (binders_wscoped_next (k := 1) hw2 hwc1.2)
