@@ -335,3 +335,6 @@ ConLeche/Cached/ParsedC.lean checkDivModCertsC Not ported (task #150 lane E, fol
 ConLeche/Cached/ParsedC.lean checkDivModPinAtC Not ported (task #150 lane E, follow-up), as `divModCertGuardC`.
 ConLeche/Cached/ParsedC.lean checkDivModPinLoopC Not ported (task #150 lane E, follow-up), as `divModCertGuardC`.
 ConLeche/Cached/ParsedC.lean checkDivModPinC Not ported (task #150 lane E, follow-up), as `divModCertGuardC`.
+ConLeche/Cached/IndPass.lean opSIxC The cached pass's parsed `ensureSort` operation, a field of its operations record; the port has no operations record and calls `core::ensure_sort` at each site (`sum_install`, `positivity`, `gen_rec`, `stream_recs`).
+ConLeche/Cached/ExprOpsC.lean liftLooseBVarsP The plain descent `liftLooseBVarsXP` carries its proof against; as `instantiate1P` (the port's walk is `expr_ops::lift_loose_bvars_go`, handle-keyed).
+ConLeche/Cached/ExprOpsC.lean enterLLP The child step of `liftLooseBVarsXP`; as `enter1P`.

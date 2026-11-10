@@ -111,6 +111,7 @@ pub fn block_ctors(
 }
 
 /// con-leche: ConLeche/Kernel/Install.lean:34-37 Expr.dropVars
+/// con-leche: ConLeche/Cached/CheckerC.lean:73-77 Expr.dropVarsC
 /// **`n` variables below a term's own, which do not occur in it, dropped**:
 /// each instantiated at `Sort 0`.
 pub fn expr_drop_vars(pers: &PersTier, st: &mut AState, n: u64, e: EIdx) -> Result<EIdx, CheckError> {
@@ -131,6 +132,7 @@ pub fn expr_drop_vars(pers: &PersTier, st: &mut AState, n: u64, e: EIdx) -> Resu
 }
 
 /// con-leche: ConLeche/Kernel/Install.lean:34-37 Expr.dropVars
+/// con-leche: ConLeche/Cached/CheckerC.lean:73-77 Expr.dropVarsC
 /// `xs.map (Expr.dropVars n)`, from `i` on.
 pub fn drop_vars_all(
     pers: &PersTier,
@@ -155,6 +157,7 @@ pub fn drop_vars_all(
 }
 
 /// con-leche: ConLeche/Kernel/Install.lean:39-54 recFire
+/// con-leche: ConLeche/Cached/CheckerC.lean:79-91 recFireC
 /// **How a recursor's rules fire**: `.plain` at a member major; at a major
 /// outside the block, `.nested` at the levels and parameters of the major's
 /// container.  Those are read off the major's domain, whose arguments end in
@@ -182,6 +185,7 @@ pub fn rec_fire(pers: &PersTier, st: &mut AState, p: &BlockShape, rc: &RecShape)
 }
 
 /// con-leche: ConLeche/Kernel/Install.lean:39-54 recFire
+/// con-leche: ConLeche/Cached/CheckerC.lean:79-91 recFireC
 /// `recFire`'s major-domain arm: at a constant head, `.nested` at its levels
 /// and its leading arguments, the index variables dropped.
 pub fn rec_fire_dom(pers: &PersTier, st: &mut AState, rc: &RecShape, dom: &EIdx) -> Result<IRecRuleFire, CheckError> {
@@ -217,6 +221,7 @@ pub fn rec_fire_dom(pers: &PersTier, st: &mut AState, rc: &RecShape, dom: &EIdx)
 }
 
 /// con-leche: ConLeche/Kernel/Install.lean:56-61 blockRecs
+/// con-leche: ConLeche/Cached/CheckerC.lean:93-98 blockRecsC
 /// `rc.rules.map ({ · with fire := f })`, from `i` on.
 pub fn rules_with_fire(rules: &Vec<IRecRule>, f: &IRecRuleFire, i: usize, out: Vec<IRecRule>) -> Vec<IRecRule> {
     if i >= rules.len() {
@@ -234,6 +239,7 @@ pub fn rules_with_fire(rules: &Vec<IRecRule>, f: &IRecRuleFire, i: usize, out: V
 }
 
 /// con-leche: ConLeche/Kernel/Install.lean:56-61 blockRecs
+/// con-leche: ConLeche/Cached/CheckerC.lean:93-98 blockRecsC
 /// **The recursors** from `i` on, in block order: each record with its rules'
 /// firing mode.
 pub fn block_recs(

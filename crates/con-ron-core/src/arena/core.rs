@@ -300,7 +300,8 @@ pub const M_STR: [u32; 54] = [
     112, 112, 111, 114, 116, 32, 100, 101, 99, 108, 97, 114, 97, 116, 105, 111, 110, 115
 ];
 
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// con-leche: ConLeche/Cached/StateC.lean:168-171 natNumeralTooBig
+/// The port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3):
 /// `"the kernel refused a `Nat` numeral because its size exceeds the maximum; raise it with --max-nat-size"`, as code points.
 pub const M_NAT_NUMERAL_TOO_BIG: [u32; 101] = [
     116, 104, 101, 32, 107, 101, 114, 110, 101, 108, 32, 114, 101, 102, 117, 115, 101, 100,
@@ -311,7 +312,8 @@ pub const M_NAT_NUMERAL_TOO_BIG: [u32; 101] = [
     97, 120, 45, 110, 97, 116, 45, 115, 105, 122, 101
 ];
 
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// con-leche: ConLeche/Cached/StateC.lean:173-176 natCountTooBig
+/// The port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3):
 /// `"the kernel refused to evaluate `Nat.pow` because its second argument does not fit in a 32-bit unsigned integer"`, as code points.
 pub const M_NAT_POW_COUNT: [u32; 110] = [
     116, 104, 101, 32, 107, 101, 114, 110, 101, 108, 32, 114, 101, 102, 117, 115, 101, 100,
@@ -323,7 +325,8 @@ pub const M_NAT_POW_COUNT: [u32; 110] = [
     101, 114
 ];
 
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// con-leche: ConLeche/Cached/StateC.lean:173-176 natCountTooBig
+/// The port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3):
 /// `"the kernel refused to evaluate `Nat.shiftLeft` because its second argument does not fit in a 32-bit unsigned integer"`, as code points.
 pub const M_NAT_SHIFT_COUNT: [u32; 116] = [
     116, 104, 101, 32, 107, 101, 114, 110, 101, 108, 32, 114, 101, 102, 117, 115, 101, 100,
@@ -3228,6 +3231,7 @@ pub fn nat_size_refused(st: &AState, n: &Nat) -> bool {
     nat::size_bytes_gt(n, max_nat_size(st))
 }
 
+/// con-leche: ConLeche/Cached/StateC.lean:164-166 natCountMax
 /// con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1084-1094 powGuard` — the cited `Nat.pow`
 /// clause: an exponent above `natCountMax` is refused whatever the base, and
@@ -8184,6 +8188,7 @@ pub fn has_loose_bvar_in(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:859-866 structUsedLater
+/// con-leche: ConLeche/Cached/IndPositivity.lean:273-280 structUsedLaterC
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3005-3011 structUsedLater`
 /// — **field `j` is used by a later field**, the official `infer_proj`'s
 /// `has_loose_bvars(binding_body(r))` at step `j`.

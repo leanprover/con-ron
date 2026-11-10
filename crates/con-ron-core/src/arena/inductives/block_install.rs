@@ -222,6 +222,7 @@ pub fn pi_doms_mention_any(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:87-99 blockIsRec
+/// con-leche: ConLeche/Cached/CheckerC.lean:68-71 blockIsRecC
 /// Lean twin: `ms.ctors.any fun c => c.1.type.piDomsMentionAny names`.
 pub fn ctors_mention_any(
     pers: &PersTier,
@@ -242,6 +243,7 @@ pub fn ctors_mention_any(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:87-99 blockIsRec
+/// con-leche: ConLeche/Cached/CheckerC.lean:68-71 blockIsRecC
 /// Lean twin: `p.members.any fun ms => …` — from member `i` on.
 pub fn members_mention_any(
     pers: &PersTier,
@@ -262,6 +264,7 @@ pub fn members_mention_any(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:87-99 blockIsRec
+/// con-leche: ConLeche/Cached/CheckerC.lean:68-71 blockIsRecC
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:88-94 blockIsRec` —
 /// **official's `is_rec`**: does SOME member of the block occur in SOME binder
 /// domain of the syntactic telescope of SOME DECLARED constructor type?
