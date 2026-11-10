@@ -135,7 +135,6 @@ driver reads as con-leche's does. -/
 def chunkSize : USize := Frontend.chunkSize
 
 /-- con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Main.runPipelineHead_bridge, then delete this line
 **THE SEAM** (DESIGN.md §8.4): the whole checker, from the input's chunks
 to the verdict.
 
@@ -170,7 +169,6 @@ def runPipelineHead :
   | .ok pre => pure (.ok (pre, ← Frontend.StateD.init))
 
 /-- con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Main.runPipelineTail_bridge, then delete this line
 The pipeline AFTER the parse: `preparePrelude`, then **the check**: the
 stream's index and every record's job (`checkStream`), then the verdict number.  Shared verbatim by the pure seam and by the
 driver's interleaved loop, which is what makes the two the same computation.
@@ -183,7 +181,7 @@ moves.
 which is what DESIGN §8.6 P2d means by "at startup": every pinned datum is in
 the persistent cons table before any declaration's check can intern one into
 a tier that is about to vanish; so does the index build (`checkStream`). -/
-def runPipelineTail (mode : CheckMode) (pins : List NatOpPinSet)
+def runPipelineTail (mode : CheckMode) (pins : List NatOpPinSet) (maxNatSize : Nat)
     (pre : Frontend.PreludeIx) (r : Frontend.ParseResultD) :
     AM (Except CheckError Nat) := do
   -- The verdict number is read HERE, before the fold, so that `r` dies at
@@ -192,7 +190,7 @@ def runPipelineTail (mode : CheckMode) (pins : List NatOpPinSet)
   -- the expensive step).
   let records := r.decls.size
   let ds ← Frontend.preparePrelude pre r.decls
-  let ipins ← internAllPins pins
+  let ipins ← internAllPins pins maxNatSize
   match ← checkStream mode ipins ds with
   | .error (e, n) => pure (.error (atDecl e n))
   | .ok _ => pure (.ok records)
@@ -239,6 +237,18 @@ def jobsCount (v : String) : Except String Nat :=
   | some n => .ok n
   | none => .error s!"--jobs takes a worker count \
       (a decimal numeral of at least 1), got {Display.str v}"
+
+/-- con-leche: ConLeche/Driver/Cli.lean:104-114 maxNatSizeArg
+The maximum `Nat` size, read off the `--max-nat-size=<bytes>` flag: a decimal
+byte count, the official kernel's `LEAN_NAT_MAX_SIZE` (the largest `Nat`
+numeral the checker takes in or computes; a larger one rejects the
+declaration).  A non-numeral is a usage error (exit 3).  Without the flag the
+maximum size is the official default, 128 MiB (`maxNatSizeDefault`). -/
+def maxNatSizeArg (v : String) : Except String Nat :=
+  match v.toNat? with
+  | some n => .ok n
+  | none => .error s!"--max-nat-size takes a byte count \
+      (a decimal numeral), got {Display.str v}"
 
 /-- con-leche: none — the millisecond-to-seconds rendering of the
 heartbeat's `t=` field.  con-leche has it as `ConLeche.Cached.msSecs`,
@@ -288,7 +298,6 @@ partial def readFold (h : IO.FS.Handle)
       readFold h st carry lineNo total (chunks + 1) s
 
 /-- con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Main.runPipelineIO_bridge, then delete this line
 **THE SEAM, DRIVEN FROM A HANDLE**: `runPipelineHead`, then `readFold` in
 place of the pure seam's `parseChunksGo`, then `runPipelineTail` — the same
 three steps `runPipeline` runs, with the input never held whole.  The chunk
@@ -299,7 +308,7 @@ not the parse (task #97g found it measuring the fold as parse time).  The
 reading is taken between `readFold` and `runPipelineTail`, which is where the
 parse actually ends. -/
 def runPipelineIO (h : IO.FS.Handle) (mode : CheckMode)
-    (pins : List NatOpPinSet) : IO (Except CheckError Nat × Nat × Nat × Nat) := do
+    (pins : List NatOpPinSet) (maxNatSize : Nat) : IO (Except CheckError Nat × Nat × Nat × Nat) := do
   let s0 := AState.init EStore.empty
   match (runPipelineHead).run s0 with
   | .error e => pure (.error e, 0, 0, 0)
@@ -311,7 +320,7 @@ def runPipelineIO (h : IO.FS.Handle) (mode : CheckMode)
       pure (.error (Frontend.atLine e n), chunks, ← IO.monoMsNow, 0)
     | .ok (.ok r, s, chunks) =>
       let tParse ← IO.monoMsNow
-      match (runPipelineTail mode pins pre r).run s with
+      match (runPipelineTail mode pins maxNatSize pre r).run s with
       | .error e => pure (.error e, chunks, tParse, 0)
       | .ok (v, s') => pure (v, chunks, tParse, s'.store.persCount)
 
@@ -373,7 +382,8 @@ twin does not print the read's `read:` lines: its reader is pure, and the file
 seam's two note fields are no-ops here (a `Unit`-valued call a pure reader discards
 is erased by the compiler). -/
 def oleanPipeline (sp : List System.FilePath) (roots : Array Name) (constants : Option (Array Name))
-    (mode : CheckMode) (pins : List NatOpPinSet) : AM (Except CheckError Nat) := do
+    (mode : CheckMode) (pins : List NatOpPinSet) (maxNatSize : Nat) :
+    AM (Except CheckError Nat) := do
   match ← runPipelineHead with
   | .error (e, n) => pure (.error (Frontend.atLine e n))
   | .ok (pre, _) =>
@@ -386,21 +396,20 @@ def oleanPipeline (sp : List System.FilePath) (roots : Array Name) (constants : 
     | .ok rd =>
       let records := rd.decls.size
       let ds := (← Frontend.prepareD pre rd.decls rd.usedOf).decls
-      let ipins ← internAllPins pins
+      let ipins ← internAllPins pins maxNatSize
       match ← checkOleans stdFs rd.pins sp rd.values mode ipins ds with
       | .error (e, n) => pure (.error (atDecl e n))
       | .ok _ => pure (.ok records)
 
 /-- con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Main.checkMainOlean_bridge, then delete this line
 The driver on the `.olean` path. -/
 def checkMainOlean (sp : List System.FilePath) (roots : Array Name) (constants : Option (Array Name))
-    (mode : CheckMode) (pins : List NatOpPinSet) : IO UInt8 := do
+    (mode : CheckMode) (pins : List NatOpPinSet) (maxNatSize : Nat) : IO UInt8 := do
   let t0 ← IO.monoMsNow
   let modeTag : String := match mode with
     | .verified => "--verified"
     | .trusted => "--trusted"
-  let verdict : Except CheckError Nat := match (oleanPipeline sp roots constants mode pins).run (AState.init EStore.empty) with
+  let verdict : Except CheckError Nat := match (oleanPipeline sp roots constants mode pins maxNatSize).run (AState.init EStore.empty) with
     | .error e => .error e
     | .ok (r, _) => r
   match verdict with
@@ -424,7 +433,6 @@ The line after a usage error. -/
 def tryHelp : String := "Try 'con-ron-lean --help' for more information."
 
 /-- con-leche: ConLeche/Driver/Cli.lean:125-155 helpText
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Main.helpText_bridge, then delete this line
 The `--help` text: con-leche's, with this binary's name, its one flag of its own
 (`--no-pins`) and con-ron's documentation.  `--jobs` is accepted and validated,
 and this binary checks on one worker whatever it says. -/
@@ -437,6 +445,8 @@ def helpText : String := String.intercalate "\n" [
   "  --verified          Check in the mode the soundness theorem covers (default)",
   "  --trusted           Skip the checks only the proof needs; outside the theorem",
   "  --jobs=N            Accepted for the command line's sake; one worker always",
+  "  --max-nat-size=N    Largest Nat numeral in bytes the checker takes in or",
+  "                      computes; a larger one is rejected (default 134217728)",
   "  --progress[=PACE]   Report progress on stderr: PACE is N declarations",
   "                      (default 1), P% of each phase, or Ss seconds",
   "  --no-pins           Testing only: check with no Nat pin list",
@@ -458,13 +468,14 @@ def helpText : String := String.intercalate "\n" [
   "  README.md and OVERVIEW.md of the con-ron repository"]
 
 /-- con-leche: ConLeche/Driver/Cli.lean:157-175 Args
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Main.Args_bridge, then delete this line
 The parsed command line.  `progress = .off` is "no flag given"; `jobs = none`
 is "no flag given", one worker per hardware thread. -/
 structure Args where
   mode : CheckMode := .verified
   progress : Pace := .off
   jobs : Option Nat := none
+  /-- The maximum `Nat` size in bytes (`--max-nat-size=<n>`). -/
+  maxNatSize : Nat := maxNatSizeDefault
   noPins : Bool := false
   /-- `--olean`: the positional arguments are root module names. -/
   olean : Bool := false
@@ -476,7 +487,6 @@ structure Args where
   bad : Option String := none
 
 /-- con-leche: ConLeche/Driver/Cli.lean:191-229 parseArgs
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Main.parseArgs_bridge, then delete this line
 The argument parse, clause for clause: the mode flags in either order with
 the heartbeat, `=`-carrying spellings after the bare ones, an unknown
 `-`-leading word a usage error, everything else a file. -/
@@ -496,6 +506,10 @@ def parseArgs : List String → Args → Args
     else if s.startsWith "--jobs=" then
       match jobsCount (s.drop "--jobs=".length).toString with
       | .ok n => parseArgs rest { a with jobs := some n }
+      | .error msg => { a with bad := some msg }
+    else if s.startsWith "--max-nat-size=" then
+      match maxNatSizeArg (s.drop "--max-nat-size=".length).toString with
+      | .ok n => parseArgs rest { a with maxNatSize := n }
       | .error msg => { a with bad := some msg }
     else if s == "--jobs" then
       { a with bad := some "--jobs takes a worker count: --jobs=<n>; omit the \
@@ -525,14 +539,13 @@ def displayPath (s : String) : String :=
   if s.any fun c => c == '\\' || c == '"' || Display.unsafeChar c then Display.str s else s
 
 /-- con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Main.checkMain_bridge, then delete this line
 The driver, which `main` calls in process: read the chunks, run the seam,
 print the verdict.  Every VERDICT line names the mode — a `--trusted` run,
 the unverified lane, must never be mistaken for a `--verified` one in a
 log, whatever it says — and what the heartbeat prints between the steps
 touches no verdict, which is why there is one path and not two. -/
 def checkMain (file : String) (mode : CheckMode) (pins : List NatOpPinSet)
-    (pace : Pace) : IO UInt8 := do
+    (maxNatSize : Nat) (pace : Pace) : IO UInt8 := do
   let t0 ← IO.monoMsNow
   let modeTag : String := match mode with
     | .verified => "--verified"
@@ -546,7 +559,7 @@ def checkMain (file : String) (mode : CheckMode) (pins : List NatOpPinSet)
       IO.eprintln s!"con-ron-lean: {displayPath file}: {displayPath (toString e)} ({modeTag})"
       pure none
   let some h := h? | return 3
-  let (verdict, chunks, tParse, nodes) ← runPipelineIO h mode pins
+  let (verdict, chunks, tParse, nodes) ← runPipelineIO h mode pins maxNatSize
   if pace.on then
     let tRead ← IO.monoMsNow
     IO.eprintln s!"con-ron-lean: parse done: {chunks} chunks read \
@@ -568,7 +581,6 @@ def checkMain (file : String) (mode : CheckMode) (pins : List NatOpPinSet)
 
 /-- con-leche: Main.lean:56-103 main
 con-leche: ConLeche/Driver/Cli.lean:239-324 runArgs
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Main.main_bridge, then delete this line
 `--help` before any `--` prints the help on stdout and exits 0, reading
 nothing.  A bad flag prints its message and a pointer to `--help` on stderr
 and exits 3; no arguments prints the invocation forms and the pointer; more than
@@ -599,14 +611,14 @@ def main (args : List String) : IO UInt8 := do
       return 3
     let cs := if a.constants.isEmpty then none
       else some (a.constants.filterMap Frontend.Olean.parseConstName)
-    return ← checkMainOlean a.searchPath (a.files.filterMap Frontend.Olean.parseModName) cs a.mode pins
+    return ← checkMainOlean a.searchPath (a.files.filterMap Frontend.Olean.parseModName) cs a.mode pins a.maxNatSize
   if !a.searchPath.isEmpty || !a.constants.isEmpty then
     IO.eprintln "con-ron-lean: --search-path and --constant take --olean"
     IO.eprintln tryHelp
     return 3
   match a.files.toList with
   | [file] =>
-    checkMain file a.mode pins a.progress
+    checkMain file a.mode pins a.maxNatSize a.progress
   | [] =>
     IO.eprintln synopsis
     IO.eprintln tryHelp

@@ -88,7 +88,7 @@ with the startup pin walk in front. -/
 private def runJobs (dsCL : List Declaration) :
     AM (Except (CheckError × Nat) Unit) := do
   let (_, ds) ← Frontend.internDecls ∅ dsCL
-  let pins ← internAllPins []
+  let pins ← internAllPins [] maxNatSizeDefault
   checkStream MU pins ds.toArray
 
 /-- con-leche: none — the driver's jobs against con-leche's fold

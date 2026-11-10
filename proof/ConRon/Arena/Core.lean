@@ -1048,11 +1048,76 @@ def natOpEquations (d : Nat) (c : NIdx) : AM (List (EIdx × EIdx)) := do
     pure [(l1, bT), (l2, bF), (l3, r3)]
   else pure []
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:580-605 natOpResult — the reduct of
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.natOpResult_bridge, then delete this line
-op `c` on literal arguments (`pred` ignores the second slot).  `ron::Nat` is
-con-leche's `Nat` here, and a literal is a `Literal` value in a `lit`
-node. -/
+/-- con-leche: ConLeche/Cached/StateC.lean:159-162 natSizeBytes — the official
+kernel's size of a numeral in bytes (`lean_nat_size_in_bytes`): 8 bytes per
+started 64 bits, and at least 8. -/
+def natSizeBytes (n : Nat) : Nat := 8 * (n.log2 / 64 + 1)
+
+/-- con-leche: ConLeche/Cached/StateC.lean:159-162 natSizeBytes
+con-leche: ConLeche/Cached/StateC.lean:267-271 maxNatSizeM — whether the numeral
+`n` is above the run's maximum `Nat` size, `natSizeBytes n > maxNatSize`. -/
+def natSizeRefused (n : Nat) : AM Bool := do
+  let m ← maxNatSizeM
+  pure (decide (natSizeBytes n > m))
+
+/-- con-leche: ConLeche/Cached/StateC.lean:197-204 natResultRefused
+con-leche: ConLeche/Cached/CoreC.lean:87-156 reduceNatI — a computed numeral,
+refused above the run's maximum `Nat` size (the cited `natNumeralTooBig`),
+otherwise interned. -/
+def litNatSized (n : Nat) : AM (Option EIdx) := do
+  if ← natSizeRefused n then
+    fail (.invalid "the kernel refused a `Nat` numeral because its size exceeds the maximum; raise it with --max-nat-size")
+  else do
+    let x ← internE (.lit (.natVal n))
+    pure (some x)
+
+/-- con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal — `a ^ b` has
+at most `natSizeBytes a * b` bytes, and a base `≤ 1` gives `0` or `1`. -/
+def powRefused (a b : Nat) : AM Bool := do
+  if a ≤ 1 then pure false
+  else if b = 0 then pure false
+  else do
+    let m ← maxNatSizeM
+    pure (decide (natSizeBytes a > m / b))
+
+/-- con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal — the cited
+`Nat.pow` clause: an exponent above `natCountMax` is refused whatever the base,
+and so is a result above the maximum size (`powRefused`). -/
+def powGuard (a b : Nat) : AM Unit := do
+  if b > 4294967295 then
+    fail (.invalid "the kernel refused to evaluate `Nat.pow` because its second argument does not fit in a 32-bit unsigned integer")
+  else if ← powRefused a b then
+    fail (.invalid "the kernel refused to evaluate `Nat.pow` because the result would exceed the maximum numeral size; raise it with --max-nat-size")
+  else pure ()
+
+/-- con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal —
+`natSizeBytes a + b / 8 + 1 > maxNatSize`, the `/ 8` a shift. -/
+def shiftLeftRefused (a b : Nat) : AM Bool := do
+  let m ← maxNatSizeM
+  pure (decide (m < natSizeBytes a + Nat.shiftRight b 3 + 1))
+
+/-- con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal — the cited
+`Nat.shiftLeft` clause: `0 <<< b = 0` computes; otherwise an amount above
+`natCountMax` is refused, and so is a result above the maximum size
+(`shiftLeftRefused`). -/
+def shiftLeftGuard (a b : Nat) : AM Unit := do
+  if a = 0 then pure ()
+  else if b > 4294967295 then
+    fail (.invalid "the kernel refused to evaluate `Nat.shiftLeft` because its second argument does not fit in a 32-bit unsigned integer")
+  else if ← shiftLeftRefused a b then
+    fail (.invalid "the kernel refused a `Nat` numeral because its size exceeds the maximum; raise it with --max-nat-size")
+  else pure ()
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:580-605 natOpResult
+con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal
+con-leche: ConLeche/Cached/StateC.lean:197-204 natResultRefused
+con-leche: ConLeche/Cached/CoreC.lean:87-156 reduceNatI — the reduct of op `c`
+on literal arguments (`pred` ignores the second slot).  `ron::Nat` is
+con-leche's `Nat` here, and a literal is a `Literal` value in a `lit` node.
+The computation is the cited one at any size; the run's maximum `Nat` size
+(con-leche's cached `reduceNatI`) refuses `pow` and `shiftLeft` before
+computing (`powGuard`, `shiftLeftGuard`: the cited `natOpRefusal`) and an
+`add`, `sub` or `mul` result after it (`litNatSized`: `natResultRefused`). -/
 def natOpResult (c : NIdx) (a b : Nat) : AM (Option EIdx) := do
   let pr ← natPredName; let ad ← natAddName; let su ← natSubName
   let mu ← natMulName; let po ← natPowName; let be ← natBeqName
@@ -1060,14 +1125,12 @@ def natOpResult (c : NIdx) (a b : Nat) : AM (Option EIdx) := do
   let gc ← natGcdName; let la ← natLandName; let lo ← natLorName
   let xo ← natXorName; let sl ← natShiftLeftName; let sr ← natShiftRightName
   if c == pr then do let x ← internE (.lit (.natVal (a - 1))); pure (some x)
-  else if c == ad then do let x ← internE (.lit (.natVal (a + b))); pure (some x)
-  else if c == su then do let x ← internE (.lit (.natVal (a - b))); pure (some x)
-  else if c == mu then do let x ← internE (.lit (.natVal (a * b))); pure (some x)
-  else if c == po then
-    -- the divergence audit's S2: official `reduce_pow` refuses exponents
-    -- above `ReducePowMaxExp = 1 << 24` and lets `Nat.pow` unfold instead
-    if b > 16777216 then pure none
-    else do let x ← internE (.lit (.natVal (a ^ b))); pure (some x)
+  else if c == ad then litNatSized (a + b)
+  else if c == su then litNatSized (a - b)
+  else if c == mu then litNatSized (a * b)
+  else if c == po then do
+    powGuard a b
+    let x ← internE (.lit (.natVal (a ^ b))); pure (some x)
   else if c == di then do let x ← internE (.lit (.natVal (a / b))); pure (some x)
   else if c == mo then do let x ← internE (.lit (.natVal (a % b))); pure (some x)
   else if c == gc then do
@@ -1079,6 +1142,7 @@ def natOpResult (c : NIdx) (a b : Nat) : AM (Option EIdx) := do
   else if c == xo then do
     let x ← internE (.lit (.natVal (Nat.xor a b))); pure (some x)
   else if c == sl then do
+    shiftLeftGuard a b
     let x ← internE (.lit (.natVal (Nat.shiftLeft a b))); pure (some x)
   else if c == sr then do
     let x ← internE (.lit (.natVal (Nat.shiftRight a b))); pure (some x)
@@ -1286,9 +1350,7 @@ def reduceNat (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (e : EIdx) :
           let ns ← pinNatSucc
           if c == ns && (← natLitStored fe) then do
             match ← rawNatLit? (← r.whnf depth b) with
-            | some n => do
-              let x ← internE (.lit (.natVal (n + 1)))
-              pure (some x)
+            | some n => litNatSized (n + 1)
             | none => pure none
           else pure none
       | .app g a => do
@@ -3087,10 +3149,15 @@ def inferBody (r : CoreFnsA) (fe : IFEnv) :
         if usl.length != cv.levelParams.length then do
           fail (.invalid "incorrect number of universe levels")
         else constTyAt cv us
-    | .lit (.natVal _) => do
+    | .lit (.natVal n) => do
       if ← natLitStored fe then do
-        let nn ← pinNat
-        constE nn
+        -- a numeral entering the checker is bounded by the run's maximum
+        -- `Nat` size (con-leche's cached `inferBodyI`, official `infer_lit`)
+        if ← natSizeRefused n then
+          fail (.invalid "the kernel refused a `Nat` numeral because its size exceeds the maximum; raise it with --max-nat-size")
+        else do
+          let nn ← pinNat
+          constE nn
       else fail (.invalid "Nat literal without the Nat basis declarations")
     | .lit (.strVal _) => do
       if ← strLitStored fe then do
@@ -3149,10 +3216,15 @@ def inferBodyIO (r : CoreFnsA) (fe : IFEnv) :
         if usl != cv.levelParams.length then do
           fail (.invalid "incorrect number of universe levels")
         else constTyAt cv us
-    | .lit (.natVal _) => do
+    | .lit (.natVal n) => do
       if ← natLitStored fe then do
-        let nn ← pinNat
-        constE nn
+        -- a numeral entering the checker is bounded by the run's maximum
+        -- `Nat` size (con-leche's cached `inferBodyI`, official `infer_lit`)
+        if ← natSizeRefused n then
+          fail (.invalid "the kernel refused a `Nat` numeral because its size exceeds the maximum; raise it with --max-nat-size")
+        else do
+          let nn ← pinNat
+          constE nn
       else fail (.invalid "Nat literal without the Nat basis declarations")
     | .lit (.strVal _) => do
       if ← strLitStored fe then do

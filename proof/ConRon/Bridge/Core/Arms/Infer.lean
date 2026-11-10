@@ -368,7 +368,7 @@ theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
     | natVal n =>
       sym only [bridge_grind] =>
         vcgen [natLitStored_spec (eager := eager) (env := env) (fe := fe) s₀ hok,
-          ConRon.Arena.pinNat,
+          natSizeRefused_spec, ConRon.Arena.pinNat,
           constE_spec (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natName)] <;>
           finish
     | strVal str =>
