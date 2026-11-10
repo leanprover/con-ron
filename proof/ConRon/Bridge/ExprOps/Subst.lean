@@ -3,7 +3,7 @@
 
 DESIGN §8.2's Theorem 1 for group A of the `ExprOps` bridge tier:
 `instantiateList`, `liftLooseBVars`,
-`instantiate1Lift`, `instPisAtLift` and the three pure `Array` helpers the
+`instantiateLift` and the three pure `Array` helpers the
 first of them consumes.  The file has `ExprOps/Inst1.lean`'s shape — the `…Spec` record for one level of the recursion, the fuel
 induction, the per-arm theorems of the tag-dispatching walks.
 
@@ -38,9 +38,8 @@ lemma keyed by the cut subject's `bvarBound` (§H).
 | `instantiateListFast` | :670 | `instantiateListFast_spec`, `_run` |
 | `liftLooseBVarsGo` | :491 | `LiftSpec`, `liftLooseBVarsGo_spec` |
 | `liftLooseBVarsFast` | :552 | `liftLooseBVarsFast_spec`, `_run` |
-| `instantiate1LiftGo` | :1779 | `Inst1LSpec`, `instantiate1LiftGo_spec` |
-| `instantiate1LiftFast` | :1843 | `instantiate1LiftFast_spec`, `_run` |
-| `instPisAtLift` | :3057 | `RelEO.instPisAtLift_{cons,none}`, `instPisAtLift_spec` |
+| `instantiateLiftGo` | :1937 | `InstLiftSpec`, `instantiateLiftGo_spec` |
+| `instantiateLiftFast` | :2072 | `instantiateLiftFast_spec`, `_run` |
 
 ## The four deviations from con-leche this group carries
 
@@ -54,9 +53,9 @@ lemma keyed by the cut subject's `bvarBound` (§H).
    at the replacement (task #97-P6-9) — and both uses are licensed by it.
 2. **`liftLooseBVarsGo` likewise** (`bvarBRaw < satRange && bvarBRaw ≤ c`):
    `liftLooseBVars_of_bvarBound_le`, the same induction at a different offset.
-3. **`instantiate1LiftGo`'s cutoff IS con-leche's own**, so its licence is
-   QUOTED, not reproved: `Expr.instantiate1Lift_of_bvarBound_le`, wrapped as
-   `Inst1LAt.cutoff`.
+3. **`instantiateLiftGo`'s cutoff IS con-leche's own**, so its licence is
+   QUOTED, not reproved: `Expr.instantiateLift_of_bvarBound_le`, wrapped as
+   `instantiateLift_of_bvarBound_le'`.
 4. **The substitution vector is an `Array EIdx` in PUSH order** (task
    #97-P6-15, DESIGN §8.6's accumulator ruling): con-leche's `vs[j - d]` is the
    twin's entry `j - d` counted FROM THE END (`ExprOps.lean`'s own note,
@@ -67,7 +66,8 @@ lemma keyed by the cut subject's `bvarBound` (§H).
    written down once.  `InstLVec.get` (slot `size - 1 - m` denotes `ws[m]`) and
    `InstLVec.last` (`lastEidx vs m` denotes `ws.take m`) are the two facts the
    `.bvar` arm consumes, and `reverse_drop_eq_take_reverse` is the list law
-   behind the second.
+   behind the second.  `instantiateLiftGo`'s values are the same kind of
+   vector (`InstLVec`, `InstLVec.get`).
 
 ## The arm split, at this file's two tag-dispatching walks
 
@@ -86,17 +86,17 @@ conditions are the derived-word cutoff and the catch-all leaf
 * **A spec parameter the program does not mention is left open by
   `vcgen`.**  `Bridge/Specs.lean`'s four memo-insert specs
   (`instLSet_spec`, `liftSet_spec`, `inst1LSet_spec`) take the
-  walk's own parameter — `ws`, `amount`, `ve` — as an ordinary argument,
+  walk's own parameter — `ws`, `amount` — as an ordinary argument,
   which nothing in the program determines.  The generic specs make the PURE
   FUNCTION the parameter (`f : Nat → Expr → Expr`), registered
   `@[spec high]` (a later `@[spec]` does **not** override an earlier one for
   the same program), and each walk passes them INSTANTIATED in its `vcgen`
   list.  `liftSet_specG` carries the full note.
-* **`bvarB` is not one of these twins**, and `instantiate1LiftGo` tests it.
+* **`bvarB` is not one of these twins**, and `instantiateLiftGo` tests it.
   Its Theorem 1 is `bvarB_bvarBSpec` (from `Bridge/ExprOps/Ranges.lean`'s
   `bvarB_spec`, which states the memo-frame conjunct `s'.memos.inst1LC`
-  that `BvarBSpec` asks for), so the entry points and `instPisAtLift_spec`
-  are callable with no hypothesis about `bvarB` at all.
+  that `BvarBSpec` asks for), so the entry points are callable with no
+  hypothesis about `bvarB` at all.
 -/
 module
 
@@ -366,7 +366,7 @@ theorem InstLVec.get {st : EStore} {vs : Array EIdx} {ws : List Expr}
 `instantiateList` and `liftLooseBVars` carry a cutoff con-leche does NOT have
 (`ExprOps.lean`'s module note, "The two derived cutoffs").  Its licence is the
 analogue of `Inst1.lean`'s `instantiate1_of_bvarBound_le` and of con-leche's
-own `instantiate1Lift_of_bvarBound_le`: the same induction at a different
+own `instantiateLift_of_bvarBound_le`: the same induction at a different
 offset. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:211-235 instantiateList — **the
@@ -454,10 +454,11 @@ relation. -/
 abbrev LiftAt (amount c : Nat) : EStore → EIdx → EStore → EIdx → Prop :=
   RelE (Expr.liftLooseBVars amount c)
 
-/-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — `instantiate1Lift`'s
-answer relation. -/
-abbrev Inst1LAt (ve : Expr) (d : Nat) : EStore → EIdx → EStore → EIdx → Prop :=
-  RelE (fun e => e.instantiate1Lift ve d)
+/-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — `instantiateLift`'s
+answer relation, at the pure walk's own list `ws` (the REVERSE of what the
+twin's vector denotes — see `InstLVec`). -/
+abbrev InstLiftAt (ws : List Expr) (d : Nat) : EStore → EIdx → EStore → EIdx → Prop :=
+  RelE (fun e => e.instantiateLift ws d)
 
 /-! ## G. The derived word's bound
 
@@ -500,7 +501,7 @@ The pure functions as `grind` reads them — the cutoffs' licences keyed by the
 `bvarBound` term the cutoff created (so they fire at the cutoff's subject and
 nowhere else: a loose licence spirals on the pure function's own iterate),
 `instantiateList`'s `.bvar` clause and catch-all as equations without a
-dependent `if`, `instPisAtLift`'s cons clause over the tag —
+dependent `if`, `instantiateLift`'s `.bvar` clause likewise —
 and the push-order vector's three facts. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:211-235 instantiateList — the
@@ -519,17 +520,13 @@ theorem liftLooseBVars_of_bvarBound_le' {amount : Nat} {e : Expr} {c : Nat}
 grind_pattern [bridge_grind] liftLooseBVars_of_bvarBound_le' =>
   Expr.bvarBound e, Expr.liftLooseBVars amount c e
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2169 instantiate1Lift_of_bvarBound_le
-— `instantiate1LiftGo`'s cutoff, con-leche's own, keyed likewise. -/
-theorem instantiate1Lift_of_bvarBound_le' {e ve : Expr} {d : Nat}
-    (h : e.bvarBound ≤ d) : e.instantiate1Lift ve d = e := by
-  induction e generalizing d with
-  | bvar i =>
-    rw [Expr.bvarBound] at h
-    rw [Expr.instantiate1Lift, ite_eq_right (by omega), ite_eq_right (by omega)]
-  | _ => simp_all [Expr.bvarBound, Expr.instantiate1Lift, Nat.max_le] <;> omega
-grind_pattern [bridge_grind] instantiate1Lift_of_bvarBound_le' =>
-  Expr.bvarBound e, Expr.instantiate1Lift e ve d
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:954-985 instantiateLift_of_bvarBound_le
+— `instantiateLiftGo`'s cutoff, con-leche's own, keyed likewise. -/
+theorem instantiateLift_of_bvarBound_le' {e : Expr} {ws : List Expr} {d : Nat}
+    (h : e.bvarBound ≤ d) : e.instantiateLift ws d = e :=
+  Expr.instantiateLift_of_bvarBound_le ws e d h
+grind_pattern [bridge_grind] instantiateLift_of_bvarBound_le' =>
+  Expr.bvarBound e, Expr.instantiateLift e ws d
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:207-211 instantiateList — the
 `.bvar` clause as ONE equation, the replacement read with `getD` rather than
@@ -557,14 +554,20 @@ theorem instantiateList_leaf {ws : List Expr} {d : Nat} {e : Expr}
   cases e <;> simp_all [exprTag, Expr.instantiateList]
 grind_pattern [bridge_grind] instantiateList_leaf => exprTag e, Expr.instantiateList e ws d
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2178-2181 instPisAtLift — the cons
-clause as ONE equation over the tag and the body projection. -/
-theorem instPisAtLift_cons_eq (a : Expr) (as : List Expr) (e : Expr) :
-    Expr.instPisAtLift (a :: as) e =
-      if exprTag e = ETag.forallE then Expr.instPisAtLift as ((exprBody e).instantiate1Lift a)
-      else none := by
-  cases e <;> simp [Expr.instPisAtLift, exprTag, exprBody, ETag.forallE, ETag.bvar, ETag.fvar,
-    ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.letE, ETag.lit, ETag.proj]
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:932-952 instantiateLift — the
+`.bvar` clause as ONE equation, the value read with `getD` rather than a
+dependent index. -/
+theorem instantiateLift_bvar_eq (ws : List Expr) (j d : Nat) :
+    Expr.instantiateLift (.bvar j) ws d =
+      if j < d then .bvar j
+      else if j - d < ws.length then Expr.liftLooseBVars d 0 (ws.getD (j - d) (.bvar 0))
+      else .bvar (j - ws.length) := by
+  rw [Expr.instantiateLift]
+  split
+  · rfl
+  · split
+    · rename_i h; rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h]; rfl
+    · rfl
 
 /-- con-leche: none — `InstLVec.ext` along the store order. -/
 theorem InstLVec.le {st st' : EStore} {vs : Array EIdx} {ws : List Expr} (hx : st ≤ st')
@@ -591,7 +594,7 @@ grind_pattern [bridge_grind] InstLVec.getElem_eq =>
 
 /-! ## I. `bvarB`'s Theorem 1, as the two con-leche cutoffs consume it
 
-`instantiate1LiftGo` tests con-leche's own `bvarB` — the
+`instantiateLiftGo` tests con-leche's own `bvarB` — the
 packed field, or the memoized recomputation on the saturated branch
 (`Arena/ExprOps.lean:1486`).  **`bvarB` is not one of this file's thirteen
 twins**: it belongs to the packed-range group, and its Theorem 1 here is
@@ -650,8 +653,8 @@ elaborates to `let __src := s0.memos; …`, which `vcgen` rejects (reproducer
 one level of `liftLooseBVarsGo`'s recursion.
 
 The **one extra frame conjunct** over `Inst1.lean`'s shape is
-`s'.memos.inst1LC = s₁.memos.inst1LC`: `instantiate1LiftGo`'s `.bvar` arm runs
-`liftLooseBVarsFast` as a NESTED walk and has to carry `Inst1LMemoA ve` across
+`s'.memos.inst1LC = s₁.memos.inst1LC`: `instantiateLiftGo`'s `.bvar` arm runs
+`liftLooseBVarsFast` as a NESTED walk and has to carry `InstLiftMemoA ws` across
 it, so this tier's one nested walk is exactly where `Inst1.lean`'s "the twelve
 other per-call memo tables are NOT framed here" has to be paid. -/
 structure LiftSpec (amount : Nat) (rec : EIdx → Nat → AM EIdx) : Prop where
@@ -707,9 +710,9 @@ theorem liftLooseBVarsFast_spec (fuel amount c : Nat) (s₀ : AState) (e : EIdx)
   sym only [bridge_grind] =>
     vcgen [liftLooseBVarsFast, (liftLooseBVarsGo_spec amount fuel).run] <;> finish
 
-/-! ## K. Theorem 1 for `lowerBVars`, `instantiate1Lift` and `instPisAtLift` -/
+/-! ## K. Theorem 1 for `instantiateLift` -/
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2205-2207 Inst1LMemoInv — the memo
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:372-381 enterLiftP — the memo
 insert's spec for `inst1LC`, generic in the pure function (see
 `liftSet_specG`). -/
 @[spec high] theorem inst1LSet_specG (s₀ : AState) (f : Nat → Expr → Expr)
@@ -725,135 +728,79 @@ insert's spec for `inst1LC`, generic in the pure function (see
   sym only [bridge_grind] => vcgen [inst1LSet] <;> finish
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
-one level of `instantiate1LiftGo`'s recursion. -/
-structure Inst1LSpec (v : EIdx) (ve : Expr) (rec : EIdx → Nat → AM EIdx) :
+one level of `instantiateLiftGo`'s recursion, at the values `vs` (push order)
+denoting the pure walk's list `ws` (`InstLVec`). -/
+structure InstLiftSpec (vs : Array EIdx) (ws : List Expr) (rec : EIdx → Nat → AM EIdx) :
     Prop where
   run : ∀ (s₁ : AState) (c : EIdx) (dd : Nat), StateOK s₁ →
-    Inst1LMemoA ve s₁ → denoteE s₁.store v = some ve →
+    InstLiftMemoA ws s₁ → InstLVec s₁.store vs ws →
     (denoteE s₁.store c).isSome = true →
     ⦃fun s => s = s₁⦄ rec c dd
-    ⦃fun r s' => StateOK s' ∧ Inst1LMemoA ve s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun r s' => StateOK s' ∧ InstLiftMemoA ws s' ∧ Ext s₁.store s'.store ∧
         s'.store.scratchOn = s₁.store.scratchOn ∧ s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
-        Inst1LAt ve dd s₁.store c s'.store r; ⊤⦄
+        InstLiftAt ws dd s₁.store c s'.store r; ⊤⦄
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:718-739 instantiate1Lift
-con-leche: ConLeche/Kernel/ExprOps.lean:2224-2263 instantiate1LiftGo
-**THEOREM 1 for `instantiate1Lift`**, at one level of the recursion.
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:932-952 instantiateLift
+con-leche: ConLeche/Cached/ExprOpsC.lean:383-414 instantiateLiftXP
+**THEOREM 1 for `instantiateLift`**, at one level of the recursion.
 
 Two things make this the most interesting walk of the group:
 
 1. the cutoff is again **con-leche's own** (`bvarB ≤ d`), quoted from
-   `Expr.instantiate1Lift_of_bvarBound_le` (`ExprOps.lean:2169`) through
-   `bvarB`'s answer (`RelV`, read as `MapRelV`);
-2. it is the module's one **nested** walk: the `.bvar` arm at `i = d` answers
-   `liftLooseBVarsFast fuel d 0 v`, so the proof consumes
-   `liftLooseBVarsFast_spec` and needs its `inst1LC` frame conjunct to carry
-   `Inst1LMemoA ve` across the nested call.
+   `Expr.instantiateLift_of_bvarBound_le` through `bvarB`'s answer (`RelV`,
+   read as `MapRelV`);
+2. it is the module's one **nested** walk: the `.bvar` arm at a value answers
+   `liftLooseBVarsFast fuel d 0` of that value (`InstLVec.getElem_eq`), so the
+   proof consumes `liftLooseBVarsFast_spec` and needs its `inst1LC` frame
+   conjunct to carry `InstLiftMemoA ws` across the nested call.
 
 `bvarB` moves the STATE (it clears its own memo) and leaves the STORE alone,
 so every arm proves its answer at a store equal to the one its statement
 names, which congruence closure handles with no cast. -/
-theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
-    ∀ fuel, Inst1LSpec v ve (instantiate1LiftGo v fuel) := by
+theorem instantiateLiftGo_spec (vs : Array EIdx) (ws : List Expr) :
+    ∀ fuel, InstLiftSpec vs ws (instantiateLiftGo vs fuel) := by
   intro fuel
   induction fuel with
   | zero =>
     constructor
     intro s₀ h d _ _ _ _
-    sym only [bridge_grind] => vcgen [instantiate1LiftGo_zero] <;> finish
+    sym only [bridge_grind] => vcgen [instantiateLiftGo_zero] <;> finish
   | succ fuel ih =>
     constructor
     intro s₀ h d hok hm hv hden
-    sym only [bridge_grind, Expr.instantiate1Lift, ENodeView.tagOf] =>
-      vcgen [instantiate1LiftGo_succ, inst1LiftArmApp, inst1LiftArmLam,
-        inst1LiftArmForallE, inst1LiftArmLet, inst1LiftArmProj, ih.run,
+    sym only [bridge_grind, Expr.instantiateLift, ENodeView.tagOf, instantiateLift_bvar_eq] =>
+      vcgen [instantiateLiftGo_succ, instLiftArmApp, instLiftArmLam,
+        instLiftArmForallE, instLiftArmLet, instLiftArmProj, ih.run,
         (bvarB_bvarBSpec fuel).run,
         fun (s : AState) (e : EIdx) => liftLooseBVarsFast_spec fuel d 0 s e,
-        inst1LSet_specG (f := fun dd e => Expr.instantiate1Lift e ve dd)] <;> finish
+        inst1LSet_specG (f := fun dd e => Expr.instantiateLift e ws dd)] <;> finish
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2358-2360 instantiate1LiftFast —
-**THEOREM 1 for `instantiate1Lift`, at the entry point**. -/
-theorem instantiate1LiftFast_spec (fuel : Nat) (s₀ : AState) (e v : EIdx)
-    (d : Nat) (ve : Expr) (hok : StateOK s₀)
-    (hv : denoteE s₀.store v = some ve)
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:416-420 instantiateLiftC —
+**THEOREM 1 for `instantiateLift`, at the entry point**. -/
+theorem instantiateLiftFast_spec (fuel : Nat) (s₀ : AState) (e : EIdx) (vs : Array EIdx)
+    (d : Nat) (ws : List Expr) (hok : StateOK s₀)
+    (hv : InstLVec s₀.store vs ws)
     (hden : (denoteE s₀.store e).isSome = true) :
-    ⦃fun s => s = s₀⦄ instantiate1LiftFast fuel e v d
+    ⦃fun s => s = s₀⦄ instantiateLiftFast fuel e vs d
     ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
         s'.store.scratchOn = s₀.store.scratchOn ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        s'.memos.inst1LC = ∅ ∧ Inst1LAt ve d s₀.store e s'.store r; ⊤⦄ := by
+        s'.memos.inst1LC = ∅ ∧ InstLiftAt ws d s₀.store e s'.store r; ⊤⦄ := by
   sym only [bridge_grind] =>
-    vcgen [instantiate1LiftFast, (instantiate1LiftGo_spec v ve fuel).run] <;> finish
+    vcgen [instantiateLiftFast, (instantiateLiftGo_spec vs ws fuel).run] <;> finish
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — the same statement about
 a RUN. -/
-theorem instantiate1LiftFast_run {fuel : Nat} {s₀ s' : AState} {e v r : EIdx}
-    {d : Nat} {ve : Expr} (hok : StateOK s₀)
-    (hv : denoteE s₀.store v = some ve)
+theorem instantiateLiftFast_run {fuel : Nat} {s₀ s' : AState} {e r : EIdx} {vs : Array EIdx}
+    {d : Nat} {ws : List Expr} (hok : StateOK s₀)
+    (hv : InstLVec s₀.store vs ws)
     (hden : (denoteE s₀.store e).isSome = true)
-    (hrun : (instantiate1LiftFast fuel e v d).run s₀ = Except.ok (r, s')) :
+    (hrun : (instantiateLiftFast fuel e vs d).run s₀ = Except.ok (r, s')) :
     StateOK s' ∧ Ext s₀.store s'.store ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
       s'.caches = s₀.caches ∧
       s'.pins = s₀.pins ∧ s'.memos.inst1LC = ∅ ∧
-      Inst1LAt ve d s₀.store e s'.store r :=
+      InstLiftAt ws d s₀.store e s'.store r :=
   AM.of_run (P := fun s => s = s₀) rfl hrun
-    (instantiate1LiftFast_spec fuel s₀ e v d ve hok hv hden)
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2367-2380 instPisAtLift —
-`instPisAtLift_spec` at a GIVEN denotation of the argument list (the
-list is the induction's own parameter and its head and tail are split off
-before `sym`, so that `vcgen`'s list takes the induction hypothesis at the
-tail's denotation; the answer at the named function `Expr.instPisAtLift xs`,
-no `fun`). -/
-theorem instPisAtLift_specA (fuel : Nat) :
-    ∀ (args : List EIdx) (xs : List Expr) (s₀ : AState) (c : EIdx), StateOK s₀ →
-      Frontend.denoteEList s₀.store args = some xs →
-      (denoteE s₀.store c).isSome = true →
-      ⦃fun s => s = s₀⦄ instPisAtLift fuel args c
-      ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-          s'.store.scratchOn = s₀.store.scratchOn ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-          RelEO (Expr.instPisAtLift xs) s₀.store c s'.store r; ⊤⦄ := by
-  intro args
-  induction args with
-  | nil =>
-    intro xs s₀ c hok hxs hden
-    sym only [bridge_grind, Frontend.denoteEList, Expr.instPisAtLift] =>
-      vcgen [instPisAtLift] <;> finish
-  | cons a as ih =>
-    intro xs s₀ c hok hxs hden
-    obtain ⟨ea, eas, ha, has, rfl⟩ := denoteEList_cons_inv hxs
-    sym only [bridge_grind, instPisAtLift_cons_eq] =>
-      vcgen [instPisAtLift, ih eas,
-        fun (s : AState) (e : EIdx) => instantiate1LiftFast_spec fuel s e a 0 ea] <;> finish
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2367-2380 instPisAtLift —
-**THEOREM 1 for `instPisAtLift`**: instantiate the leading `∀`-binders at
-*open* arguments.  The answer is an OPTION of a handle, so the relation is
-`Bridge/Rel.lean`'s `RelEO` (`none` is `none`: a non-`∀` head is a failure of
-the pure function too, not of the monad).
-
-The recursion is on the argument LIST, not on fuel, so there is no fuel
-induction; the fuel is `instantiate1LiftFast`'s.  The argument list's
-denotation sits in the POSTCONDITION (`∀ xs, denoteEList … = some xs → …`)
-rather than as a parameter, for the callers' sake (a `List Expr` parameter the
-program does not mention is left open by `vcgen`); `instPisAtLift_specA` is
-the same at a given denotation. -/
-theorem instPisAtLift_spec (fuel : Nat) :
-    ∀ (args : List EIdx) (s₀ : AState) (c : EIdx), StateOK s₀ →
-      (Frontend.denoteEList s₀.store args).isSome = true →
-      (denoteE s₀.store c).isSome = true →
-      ⦃fun s => s = s₀⦄ instPisAtLift fuel args c
-      ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-          s'.store.scratchOn = s₀.store.scratchOn ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-          ∀ xs, Frontend.denoteEList s₀.store args = some xs →
-            RelEO (fun e => Expr.instPisAtLift xs e) s₀.store c s'.store r; ⊤⦄ := by
-  intro args s₀ c hok hargs hden
-  obtain ⟨xs, hxs⟩ := Option.isSome_iff_exists.mp hargs
-  refine ⟨Triple.entails_wp_of_post (instPisAtLift_specA fuel args xs s₀ c hok hxs hden) ?_⟩
-  rintro r s' ⟨h1, h2, h0, h3, h4, h5⟩
-  refine ⟨h1, h2, h0, h3, h4, fun xs' hxs' => ?_⟩
-  rw [hxs] at hxs'
-  obtain rfl := Option.some.inj hxs'
-  exact h5
+    (instantiateLiftFast_spec fuel s₀ e vs d ws hok hv hden)
 
 /-! ## L. Theorem 1 for `instantiateList` -/
 
@@ -1152,18 +1099,16 @@ hide anywhere. -/
 #print axioms derivedBound
 #print axioms instantiateList_bvar_eq
 #print axioms instantiateList_leaf
-#print axioms instPisAtLift_cons_eq
+#print axioms instantiateLift_bvar_eq
 #print axioms liftSet_specG
 #print axioms inst1LSet_specG
 #print axioms instLSet_specG
 #print axioms bvarB_bvarBSpec
 #print axioms liftLooseBVarsGo_spec
 #print axioms liftLooseBVarsFast_spec
-#print axioms instantiate1LiftGo_spec
-#print axioms instantiate1LiftFast_spec
-#print axioms instantiate1LiftFast_run
-#print axioms instPisAtLift_specA
-#print axioms instPisAtLift_spec
+#print axioms instantiateLiftGo_spec
+#print axioms instantiateLiftFast_spec
+#print axioms instantiateLiftFast_run
 #print axioms instListArmApp_spec
 #print axioms instListArmBind_spec
 #print axioms instListArmLet_spec

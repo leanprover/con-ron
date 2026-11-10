@@ -307,7 +307,7 @@ theorem recTyCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : Env
       (fun st => Frontend.denoteNList st.ns lps = some lpsP ∧ denoteE st s = some sP ∧
         denoteE st g = some gP)
       (Arena.recTyCheck .verified fe lps n s g) (fun _ _ _ => True)
-      (ConLeche.recTyCheck (fueledOpsM .verified) .plain (mkFEnv env) rec lpsP n sP gP) := by
+      (ConLeche.recTyCheck (fueledOpsM .verified) (mkFEnv env) rec lpsP n sP gP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hlps, hs, hg⟩ := hpre
   simp only [Arena.recTyCheck] at hrun
@@ -352,7 +352,7 @@ theorem recTyCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : Env
   obtain ⟨c8, _, -, hF8⟩ := recTyOpened_spec fe hk henv rec n sP gP hws hwg so go s7 s' r c7.ok
     ⟨denoteOpen_ext p7.ext _ _ hso, hgo⟩ z10
   refine ⟨(c15.trans c7).trans c8, (), trivial, ?_⟩
-  simp only [ConLeche.recTyCheck, hcl, hlp, StructWalkers.plain, constsResolveF_eq, hcr,
+  simp only [ConLeche.recTyCheck, hcl, hlp, constsResolveF_eq, hcr,
     mkFEnv_env, ↓reduceIte]
   exact FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ())
     (FOk.bind hF4 (FOk.bind hF5 hF8))))
@@ -367,7 +367,7 @@ theorem ruleAgree_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvW
       (fun st => Frontend.denoteNList st.ns lps = some lpsP ∧ denoteE st s = some sP ∧
         denoteE st g = some gP)
       (Arena.ruleAgree .verified fe lps s g) (fun _ _ _ => True)
-      (ConLeche.ruleAgree (fueledOpsM .verified) .plain (mkFEnv env) rec ctor lpsP sP gP) := by
+      (ConLeche.ruleAgree (fueledOpsM .verified) (mkFEnv env) rec ctor lpsP sP gP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hlps, hs, hg⟩ := hpre
   simp only [Arena.ruleAgree] at hrun
@@ -412,7 +412,7 @@ theorem ruleAgree_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvW
   obtain ⟨hv2, z12⟩ := AM.dunless_ok (AM.Never.fail _) z11
   obtain ⟨rfl, rfl⟩ := AM.pure_ok z12
   refine ⟨c16.trans c7, (), trivial, ?_⟩
-  simp only [ConLeche.ruleAgree, hcl, hlp, StructWalkers.plain, constsResolveF_eq, hcr,
+  simp only [ConLeche.ruleAgree, hcl, hlp, constsResolveF_eq, hcr,
     mkFEnv_env, ↓reduceIte]
   subst hv1 hv2
   exact FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ())
@@ -630,7 +630,7 @@ theorem streamRulesCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv
         (fun st => Frontend.denoteNList st.ns lps = some lpsP ∧
           Frontend.denoteRules st rs = some rsP ∧ Frontend.denoteEList st gs = some gsP)
         (Arena.streamRulesCheck .verified fe lps rs gs) (fun _ _ _ => True)
-        (ConLeche.streamRulesCheck (fueledOpsM .verified) .plain (mkFEnv env) rec lpsP rsP gsP) := by
+        (ConLeche.streamRulesCheck (fueledOpsM .verified) (mkFEnv env) rec lpsP rsP gsP) := by
   intro rs
   induction rs with
   | nil =>
@@ -699,7 +699,7 @@ theorem streamRecCompare_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv
     (gP : ConstantVal × ConLeche.TargetMajor × List Expr) :
     CSpecF env fe (fun st => dRec st rc = some rcP ∧ dRecOut st g = some gP)
       (Arena.streamRecCompare .verified fe rc g) (fun _ _ _ => True)
-      (ConLeche.streamRecCompare (fueledOpsM .verified) .plain (mkFEnv env) rcP gP) := by
+      (ConLeche.streamRecCompare (fueledOpsM .verified) (mkFEnv env) rcP gP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hrc, hg⟩ := hpre
   obtain ⟨hcv, -, hmI, -, hrules, -⟩ := dRec_inv hrc
@@ -737,7 +737,7 @@ theorem streamRecCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv :
     (gP : ConstantVal × ConLeche.TargetMajor × List Expr) :
     CSpecF env fe (fun st => dRec st rc = some rcP ∧ dRecOut st g = some gP)
       (Arena.streamRecCheck .verified fe rc g) (fun _ _ _ => True)
-      (ConLeche.streamRecCheck (fueledOpsM .verified) .plain (mkFEnv env) rcP gP) := by
+      (ConLeche.streamRecCheck (fueledOpsM .verified) (mkFEnv env) rcP gP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hrc, hg⟩ := hpre
   obtain ⟨hcv, hrP, hmI, -, hrules, -⟩ := dRec_inv hrc
@@ -773,7 +773,7 @@ theorem streamRecsCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv 
       CSpecF env fe
         (fun st => recs.mapM (dRec st) = some recsP ∧ out.mapM (dRecOut st) = some outP)
         (Arena.streamRecsCheck .verified fe recs out) (fun _ _ _ => True)
-        (ConLeche.streamRecsCheck (fueledOpsM .verified) .plain (mkFEnv env) recsP outP) := by
+        (ConLeche.streamRecsCheck (fueledOpsM .verified) (mkFEnv env) recsP outP) := by
   intro recs
   induction recs with
   | nil =>

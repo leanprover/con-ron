@@ -238,16 +238,22 @@ pub fn struct_proj_arg_p(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:89-110 structProjBodiesGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_parts::struct_proj_bodies_go_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:109-125 structProjBodiesGo`
+/// con-leche: ConLeche/Cached/CheckerC.lean:28-34 structProjBodiesGoC
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean structProjBodiesGo`
 /// — **the projection bodies of a recognised block**, one walk of the
-/// constructor telescope: field `i`'s domain is body `i`, and the field is
-/// replaced by the subject's projection `.proj T i (bvar 0)` before the walk
-/// continues.  Lean conses on the way out; the port pushes on the way in.
+/// constructor telescope: field `i`'s raw domain is substituted once
+/// (`instantiate_lift`) at the values of the binders before it, and the
+/// field's own value, the subject's projection `.proj T i (bvar 0)`, is pushed
+/// onto the values before the walk continues; the rest of the telescope is
+/// never rewritten.  `vs` is in PUSH order (con-leche conses onto the front of
+/// its list, innermost first).  Lean conses the bodies on the way out; the
+/// port pushes them on the way in.
+#[allow(clippy::too_many_arguments)]
 pub fn struct_proj_bodies_go(
     pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
+    vs: Vec<EIdx>,
     k: u64,
     i: u64,
     h: &EIdx,
@@ -259,17 +265,21 @@ pub fn struct_proj_bodies_go(
         if h.tag() == ETAG_FORALL_E {
             match view_bind(pers, st, h) {
                 None => fail_dangling_e(),
-                Some((fdom, body)) => match struct_proj_arg_p(pers, st, t, i) {
-                    Err(e) => Err(e),
-                    Ok(a) => match expr_ops::instantiate1_lift_fast(pers, st, CORE_WALK_FUEL, &body, &a, 0) {
+                Some((fdom, body)) => {
+                    match expr_ops::instantiate_lift_fast(pers, st, CORE_WALK_FUEL, &fdom, &vs, 0) {
                         Err(e) => Err(e),
-                        Ok(b) => {
-                            let mut o: Vec<EIdx> = out;
-                            o.push(fdom);
-                            struct_proj_bodies_go(pers, st, t, k - 1, i + 1, &b, o)
-                        }
-                    },
-                },
+                        Ok(b) => match struct_proj_arg_p(pers, st, t, i) {
+                            Err(e) => Err(e),
+                            Ok(a) => {
+                                let mut vs2: Vec<EIdx> = vs;
+                                vs2.push(a);
+                                let mut o: Vec<EIdx> = out;
+                                o.push(b);
+                                struct_proj_bodies_go(pers, st, t, vs2, k - 1, i + 1, &body, o)
+                            }
+                        },
+                    }
+                }
             }
         } else {
             Ok(None)
@@ -278,9 +288,11 @@ pub fn struct_proj_bodies_go(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:112-115 structProjBodies
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_parts::struct_proj_bodies_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:127-136 structProjBodies`
-/// — the block's projection bodies, as the table stores them.
+/// con-leche: ConLeche/Cached/CheckerC.lean:36-41 structProjBodiesC
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean structProjBodies`
+/// — the block's projection bodies, as the table stores them: the parameter
+/// binders skipped, then the fields' walk at the parameters' values
+/// (`structProjPs`, which in push order is con-leche's reversed list itself).
 pub fn struct_proj_bodies(
     pers: &PersTier,
     st: &mut AState,
@@ -289,12 +301,12 @@ pub fn struct_proj_bodies(
     n_f: u64,
     cty: &EIdx,
 ) -> Result<Option<Vec<EIdx>>, CheckError> {
-    match struct_proj_ps(pers, st, n_p) {
+    match expr_ops::strip_pis(pers, st, n_p, cty) {
         Err(e) => Err(e),
-        Ok(ps) => match expr_ops::inst_pis_at_lift(pers, st, CORE_WALK_FUEL, &ps, cty) {
+        Ok(None) => Ok(None),
+        Ok(Some(p)) => match struct_proj_ps(pers, st, n_p) {
             Err(e) => Err(e),
-            Ok(None) => Ok(None),
-            Ok(Some(r)) => struct_proj_bodies_go(pers, st, t, n_f, 0, &r, Vec::new()),
+            Ok(ps) => struct_proj_bodies_go(pers, st, t, ps, n_f, 0, &p.1, Vec::new()),
         },
     }
 }

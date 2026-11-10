@@ -658,22 +658,27 @@ theorem structCtor?_denote {st : EStore} {m : Arena.MemberShape} {mP : ConLeche.
       · simp only [h0, ite_true]; exact ⟨cP, rfl, hcP⟩
       · simp only [h0, Bool.false_eq_true, ite_false]; rfl
 
-/-- con-leche: ConLeche/Kernel/Install.lean:63-73 blockTables
-**The projection tables**, in block order: one per structure-like member whose
-constructor reads as one, each well shaped (one body per field). -/
+/-- con-leche: none — **the answer relation of the projection tables**: the
+handles denote the tables and each is well shaped. -/
+@[expose] def RTables (q : List ProjTable) (st : EStore) (Q : List IProjTable) : Prop :=
+  Frontend.denoteProjTableList st Q = some q ∧ ∀ t ∈ Q, IProjTableOK t
+
+/-- con-leche: ConLeche/Kernel/Install.lean:67-74 blockTables
+**The projection tables**, in block order: one per structure-like member, each
+well shaped (one body per field); `none` where a structure-like member's
+constructor type is too short to read them. -/
 theorem blockTables_run {p : Arena.BlockShape} {pP : ConLeche.BlockShape} :
     ∀ (ms : List Arena.MemberShape) (msP : List ConLeche.MemberShape) {s s' : AState}
-      {Q : List IProjTable}, StateOK s → dShape s.store p = some pP →
+      {Q : Option (List IProjTable)}, StateOK s → dShape s.store p = some pP →
       ms.mapM (dMember s.store) = some msP → Arena.blockTables p ms s = .ok (Q, s') →
       PStep s s' ∧ s'.store.scratchOn = s.store.scratchOn ∧
-        Frontend.denoteProjTableList s'.store Q = some (ConLeche.blockTables pP msP) ∧
-        ∀ t ∈ Q, IProjTableOK t
+        ROp RTables (ConLeche.blockTables pP msP) s'.store Q
   | [], msP, s, s', Q, hok, _, hms, hrun => by
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hms
     subst hms
     simp only [Arena.blockTables] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨PStep.refl hok, rfl, rfl, fun _ h => nomatch h⟩
+    exact ⟨PStep.refl hok, rfl, [], rfl, rfl, fun _ h => nomatch h⟩
   | m :: ms, msP, s, s', Q, hok, hp, hms, hrun => by
     obtain ⟨mP, msP', rfl, hm, hms'⟩ := mapM_option_cons_inv hms
     have hsc := structCtor?_denote hm
@@ -703,40 +708,48 @@ theorem blockTables_run {p : Arena.BlockShape} {pP : ConLeche.BlockShape} :
       | none =>
         simp only [ROp] at ho
         rw [ho]
-        exact (fun ⟨a, e, b, c⟩ => ⟨p1.trans a, by rw [e, e1], b, c⟩)
-          (blockTables_run ms msP' p1.ok (dShape_ext p1.ext _ _ hp)
-            (dMember_ext.list p1.ext _ _ hms') z1)
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
+        exact ⟨p1, e1, rfl⟩
       | some bodies =>
         obtain ⟨bodiesP, hbP, hbodies⟩ := ho
         rw [hbP]
         obtain ⟨Q', s₂, k2, z2⟩ := AM.bind_ok z1
-        obtain ⟨p2, e2, hQ', hok'⟩ := blockTables_run ms msP' p1.ok (dShape_ext p1.ext _ _ hp)
+        obtain ⟨p2, e2, hQ'⟩ := blockTables_run ms msP' p1.ok (dShape_ext p1.ext _ _ hp)
           (dMember_ext.list p1.ext _ _ hms') k2
-        obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
-        refine ⟨p1.trans p2, by rw [e2, e1], ?_, ?_⟩
-        · have x := p1.ext.trans p2.ext
-          have hb2 : Frontend.denoteEArray s'.store bodies = some bodiesP :=
-            denoteEArray_ext hbodies p2.ext
-          simp only [Frontend.denoteProjTableList, Frontend.denoteProjTable,
-            denoteN_ext (denoteCV_name hdecl) x, denoteNListE_ext x _ _ (BlockShape.lps_spec hp),
-            denoteN_ext (denoteCV_name hcv) x, hb2, hQ', hnP]
-        · intro t ht
-          rcases List.mem_cons.1 ht with rfl | ht
-          · refine ⟨?_⟩
-            have hsz := (ConLeche.structProjBodies_spec hbP).1
-            have hl : Frontend.denoteEList s₁.store bodies.toList = some bodiesP.toList := by
-              have h' : Frontend.denoteEArray s₁.store bodies = some bodiesP := hbodies
-              simp only [Frontend.denoteEArray] at h'
-              split at h'
-              · rename_i xs hxs
-                obtain rfl := (Option.some.inj h').symm
-                simpa using hxs
-              · exact nomatch h'
-            have := ExprOps.denoteEList_length _ _ hl
-            simp only [Array.length_toList] at this
-            show bodies.size = c.2
-            omega
-          · exact hok' t ht
+        have hsz : bodies.size = c.2 := by
+          have hsz := (ConLeche.structProjBodies_spec hbP).1
+          have hl : Frontend.denoteEList s₁.store bodies.toList = some bodiesP.toList := by
+            have h' : Frontend.denoteEArray s₁.store bodies = some bodiesP := hbodies
+            simp only [Frontend.denoteEArray] at h'
+            split at h'
+            · rename_i xs hxs
+              obtain rfl := (Option.some.inj h').symm
+              simpa using hxs
+            · exact nomatch h'
+          have := ExprOps.denoteEList_length _ _ hl
+          simp only [Array.length_toList] at this
+          omega
+        cases Q' with
+        | none =>
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
+          simp only [ROp] at hQ'
+          refine ⟨p1.trans p2, by rw [e2, e1], ?_⟩
+          show Option.map _ (ConLeche.blockTables _ msP') = none
+          rw [hQ']; rfl
+        | some q =>
+          obtain ⟨qP, hqP, hq, hokq⟩ := hQ'
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
+          refine ⟨p1.trans p2, by rw [e2, e1], _, by rw [hqP]; rfl, ?_, ?_⟩
+          · have x := p1.ext.trans p2.ext
+            have hb2 : Frontend.denoteEArray s'.store bodies = some bodiesP :=
+              denoteEArray_ext hbodies p2.ext
+            simp only [Frontend.denoteProjTableList, Frontend.denoteProjTable,
+              denoteN_ext (denoteCV_name hdecl) x, denoteNListE_ext x _ _ (BlockShape.lps_spec hp),
+              denoteN_ext (denoteCV_name hcv) x, hb2, hq, hnP]
+          · intro t ht
+            rcases List.mem_cons.1 ht with rfl | ht
+            · exact ⟨hsz⟩
+            · exact hokq t ht
 
 /-! ## The block's constants -/
 

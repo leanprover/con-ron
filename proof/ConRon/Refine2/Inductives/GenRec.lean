@@ -102,35 +102,47 @@ attribute [local lockstep high] drop_eidx_n_twin
     (arena.inductives.gen_rec.class_ctors_dup xs)
     (fun i out => by rw [arena.inductives.gen_rec.class_ctors_dup.eq_def])
 
-/-! ## `close_lams` -/
+/-! ## `close_lams_go` / `close_lams` -/
 
-/-- `close_lams` ⊑ `closeLams`, the telescope from the cursor on. -/
-@[lockstep] theorem close_lams_ls {pers}
+/-- `close_lams_go` ⊑ `closeLamsGo`, the telescope from the cursor on, after `k`
+binders. -/
+@[lockstep] theorem close_lams_go_ls {pers}
     {bs : alloc.vec.Vec arena.handle.EIdx}
-    {body : arena.handle.EIdx} :
-    ∀ (k : Std.Usize) (i : Std.U64) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+    {body : arena.handle.EIdx} (i : Std.U64) :
+    ∀ (j : Std.Usize) (k : Std.U64) st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = absEIdx a)
-        (arena.inductives.gen_rec.close_lams pers st bs k i body) lst
-        (closeLams (absBinderLFrom bs k) (absU i) (absEIdx body)) := by
-  intro k i st lst hrel hinv
+        (arena.inductives.gen_rec.close_lams_go pers st bs j i k body) lst
+        (closeLamsGo (absU i) (absU k) (absBinderLFrom bs j) (absEIdx body)) := by
+  intro j k st lst hrel hinv
   refine ls_cursor_acc bs absEIdx
-    (fun (w : Std.U64) l => closeLams l (absU w) (absEIdx body))
-    (fun st k w => arena.inductives.gen_rec.close_lams pers st bs k w body)
-    ?_ ?_ k st lst i hrel hinv
-  · intro st lst k w hn hrel hinv
-    rw [arena.inductives.gen_rec.close_lams.eq_def,
-      ite_eq_left (show k ≥ alloc.vec.Vec.len bs by scalar_tac), closeLams]
+    (fun (w : Std.U64) l => closeLamsGo (absU i) (absU w) l (absEIdx body))
+    (fun st j w => arena.inductives.gen_rec.close_lams_go pers st bs j i w body)
+    ?_ ?_ j st lst k hrel hinv
+  · intro st lst j w hn hrel hinv
+    rw [arena.inductives.gen_rec.close_lams_go.eq_def,
+      ite_eq_left (show j ≥ alloc.vec.Vec.len bs by scalar_tac), closeLamsGo]
     lockstep
-  · intro st lst k w hk hrel hinv ih
-    have ih' : ∀ st' lst' (j : Std.Usize) (w' : Std.U64), j.val = k.val + 1 →
+  · intro st lst j w hk hrel hinv ih
+    have ih' : ∀ st' lst' (j' : Std.Usize) (w' : Std.U64), j'.val = j.val + 1 →
         AStateRel₀ pers st' lst' → AStateInv pers st' →
         LS pers (fun a b => b = absEIdx a)
-          (arena.inductives.gen_rec.close_lams pers st' bs j w' body) lst'
-          (closeLams (absBinderLFrom bs j) (absU w') (absEIdx body)) := ih
+          (arena.inductives.gen_rec.close_lams_go pers st' bs j' i w' body) lst'
+          (closeLamsGo (absU i) (absU w') (absBinderLFrom bs j') (absEIdx body)) := ih
     clear ih
-    rw [arena.inductives.gen_rec.close_lams.eq_def,
-      ite_eq_right (show ¬ k ≥ alloc.vec.Vec.len bs by scalar_tac), closeLams]
+    rw [arena.inductives.gen_rec.close_lams_go.eq_def,
+      ite_eq_right (show ¬ j ≥ alloc.vec.Vec.len bs by scalar_tac), closeLamsGo]
     lockstep
+
+/-- `close_lams` ⊑ `closeLams`: `close_lams_go` from the outermost binder. -/
+@[lockstep] theorem close_lams_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (bs : alloc.vec.Vec arena.handle.EIdx) (i : Std.U64)
+    (body : arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.inductives.gen_rec.close_lams pers st bs i body) lst
+      (closeLams (absBinderLFrom bs 0#usize) (absU i) (absEIdx body)) := by
+  rw [arena.inductives.gen_rec.close_lams, closeLams]
+  have h := close_lams_go_ls (bs := bs) (body := body) i 0#usize 0#u64 st lst hrel hinv
+  exact h
 
 /-! ## `expr_get_d` -/
 

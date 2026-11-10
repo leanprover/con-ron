@@ -216,21 +216,20 @@ theorem block_rec_infos_tf_ls0 {pers st lst} (hrel : AStateRel₀ pers st lst)
 
 attribute [local lockstep high] block_rec_infos_tf_ls0
 
-/-- `check_block_tables` ⊑ `checkBlockTables` from the member cursor on: the
-table's checks at every structure-like member. -/
+/-- `check_block_tables` ⊑ `checkBlockTables` from the table cursor on: the
+checks of the block's projection tables, table by table. -/
 @[lockstep] theorem check_block_tables_ls {pers st lst} {rf lf}
-    {p : arena.inductives.block_shape.BlockShape}
-    {ms : alloc.vec.Vec arena.inductives.block_shape.MemberShape} {i : Std.Usize}
+    {q : alloc.vec.Vec arena.env.IProjTable} {i : Std.Usize}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers rf lf) :
     LS pers (fun _ _ => True)
-      (arena.inductives.block_tail.check_block_tables pers st p rf ms i) lst
-      (checkBlockTables (absBlockShape p) lf ((ms.val.drop i.val).map absMemberShape)) := by
-  refine cursor_induction (fun i : Std.Usize => i.val) ms.val.length
+      (arena.inductives.block_tail.check_block_tables pers st rf q i) lst
+      (checkBlockTables lf ((q.val.drop i.val).map absIProjTable)) := by
+  refine cursor_induction (fun i : Std.Usize => i.val) q.val.length
     (fun i (_ : Unit) => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun _ _ => True)
-        (arena.inductives.block_tail.check_block_tables pers st p rf ms i) lst
-        (checkBlockTables (absBlockShape p) lf ((ms.val.drop i.val).map absMemberShape)))
+        (arena.inductives.block_tail.check_block_tables pers st rf q i) lst
+        (checkBlockTables lf ((q.val.drop i.val).map absIProjTable)))
     ?_ ?_ i () st lst hrel hinv
   · intro i _ hn st lst hrel hinv
     rw [arena.inductives.block_tail.check_block_tables, ite_eq_left (by scalar_tac),
@@ -239,8 +238,8 @@ table's checks at every structure-like member. -/
   · intro i _ hlt ih st lst hrel hinv
     have ih' : ∀ j : Std.Usize, j.val = i.val + 1 → ∀ st lst, AStateRel₀ pers st lst →
         AStateInv pers st → LS pers (fun _ _ => True)
-          (arena.inductives.block_tail.check_block_tables pers st p rf ms j) lst
-          (checkBlockTables (absBlockShape p) lf ((ms.val.drop j.val).map absMemberShape)) :=
+          (arena.inductives.block_tail.check_block_tables pers st rf q j) lst
+          (checkBlockTables lf ((q.val.drop j.val).map absIProjTable)) :=
       fun j hj => ih j () hj
     clear ih
     rw [arena.inductives.block_tail.check_block_tables, ite_eq_right (by scalar_tac),
@@ -254,9 +253,9 @@ the pops.  Its answer is the twin's popped environment. -/
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers rf lf) (p : arena.inductives.block_shape.BlockShape)
     (out : alloc.vec.Vec (arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
-      alloc.vec.Vec arena.handle.EIdx)) :
+      alloc.vec.Vec arena.handle.EIdx)) (q : alloc.vec.Vec arena.env.IProjTable) :
     LS pers (IFEnvRelI pers)
-      (arena.inductives.block_tail.check_block_tail_stream pers st mode p out rf) lst
+      (arena.inductives.block_tail.check_block_tail_stream pers st mode p out q rf) lst
       (do
         streamKCheck (absBlockShape p) (absBlockShape p).recs (out.val.map absRecOut)
         let infos ← blockRecInfosTF (absBlockShape p) 0 (out.val.map absRecOut)
@@ -266,7 +265,7 @@ the pops.  Its answer is the twin's popped environment. -/
           (out.val.map absRecOut)
         let fe₃ := prevs.foldr (fun (n, prev) acc => acc.popTemp n prev) feG
         flushCaches
-        checkBlockTables (absBlockShape p) fe₃ (absBlockShape p).members
+        checkBlockTables fe₃ (q.val.map absIProjTable)
         pure fe₃) := by
   rw [arena.inductives.block_tail.check_block_tail_stream]
   lockstep
@@ -280,11 +279,13 @@ the pops.  Its answer is the twin's popped environment. -/
 @[lockstep] theorem check_block_tail_ls {pers st lst} {mode : kernel.env.CheckMode}
     {block : alloc.vec.Vec arena.env.IConstantInfo}
     {r : arena.inductives.block_tail.BlockPass} {q : BlockPass}
+    {tables : alloc.vec.Vec arena.env.IProjTable}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hq : BlockPassRel pers r q) :
     LS pers (IFEnvRelI pers)
-      (arena.inductives.block_tail.check_block_tail pers st mode block r) lst
-      (checkBlockTail (ConRon.Refine.absMode mode) (absICIL block) q) := by
+      (arena.inductives.block_tail.check_block_tail pers st mode block r tables) lst
+      (checkBlockTail (ConRon.Refine.absMode mode) (absICIL block) q
+        (tables.val.map absIProjTable)) := by
   obtain ⟨env1, qp, kinds, params, rd, cls, tbl⟩ := q
   obtain ⟨hfe, hp, hk, hpa, hrd, hcl, htb⟩ := hq
   simp only at hfe hp hk hpa hrd hcl htb
@@ -320,12 +321,23 @@ theorem bt_block_recs_ls0 {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv 
 theorem bt_block_tables_ls0 {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (p : arena.inductives.block_shape.BlockShape)
     (ms : alloc.vec.Vec arena.inductives.block_shape.MemberShape) :
-    LS pers (fun a b => b = a.val.map absIProjTable)
+    LS pers (fun a b => b = a.map (fun v => v.val.map absIProjTable))
       (arena.install.block_tables pers st p ms 0#usize (alloc.vec.Vec.new _)) lst
       (blockTables (absBlockShape p) (ms.val.map absMemberShape)) := by
   have h := block_tables_ls hrel hinv p ms 0#usize (alloc.vec.Vec.new _)
   refine LS.tail h (by simp) (fun a b h1 => ?_)
-  simpa [alloc.vec.Vec.new] using h1.symm
+  cases a <;> cases b <;> simp_all [alloc.vec.Vec.new]
+
+open Lockstep in
+/-- `unwrap_or` at the block's tables: an internal error where a constructor
+is too short for them. -/
+theorem bt_unwrap_or_tables_int {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {o : Option (alloc.vec.Vec arena.env.IProjTable)} {m : alloc.vec.Vec Std.U32} {s : String} :
+    LSR pers (fun a b => b = a.val.map absIProjTable)
+      (arena.checker_base.unwrap_or o (kernel.core_types.CheckError.Internal m)) st lst
+      (unwrapOr (o.map (fun v => v.val.map absIProjTable)) (.internal s)) :=
+  IndInstPrims.unwrap_or_lsr hrel hinv rfl
 
 /-- `push_delta`: the block's install pushed. -/
 theorem bt_push_delta_spec {pers : arena.store.PersTier} {rf : arena.env.IFEnv} {lf : IFEnv}
@@ -335,7 +347,7 @@ theorem bt_push_delta_spec {pers : arena.store.PersTier} {rf : arena.env.IFEnv} 
       (fun o => IFEnvRelI pers o (lf.pushDelta (absICIL l) (q.val.map absIProjTable))) :=
   fun _ h => push_delta_refines hfe h
 
-attribute [local lockstep high] bt_block_recs_ls0 bt_block_tables_ls0
+attribute [local lockstep high] bt_block_recs_ls0 bt_block_tables_ls0 bt_unwrap_or_tables_int
 attribute [local lockstep] bt_push_delta_spec
 
 attribute [local lockstep_inline] arena.inductives.block_tail.reduce_member_checked
@@ -408,8 +420,9 @@ install pushed onto the constructors' environment. -/
       (checkBlock (ConRon.Refine.absMode mode) lf (absICIL block) (absBlockShape p0)) := by
   rw [arena.inductives.block_tail.check_block, checkBlock]
   lockstep
-  simp only [TwinEq] at hP
-  rw [← hP, absBlockShape_recs, absBlockShape_members]
+  have hp := ‹TwinEq (absBlockShape p0) (absBlockShape _)›
+  simp only [TwinEq] at hp
+  rw [← hp, absBlockShape_recs]
   lockstep
 
 end ConRon.Refine2

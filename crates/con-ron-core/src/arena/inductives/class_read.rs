@@ -191,7 +191,8 @@ pub fn eidx_last(xs: &Vec<EIdx>) -> Option<EIdx> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:82-105 classReadMinor
-/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:105-149 classReadMinor` — the
+/// con-leche: ConLeche/Cached/IndBlock.lean:201-223 classReadMinorC
+/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:106-151 classReadMinor` — the
 /// `fvar` head of an application, its index (`none` at any other head).
 pub fn fvar_head(pers: &PersTier, st: &AState, e: &EIdx) -> Result<Option<u64>, CheckError> {
     match expr_ops::get_app_fn(pers, st, CORE_WALK_FUEL, e) {
@@ -210,7 +211,8 @@ pub fn fvar_head(pers: &PersTier, st: &AState, e: &EIdx) -> Result<Option<u64>, 
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:82-105 classReadMinor
-/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:105-149 classReadMinor` — one
+/// con-leche: ConLeche/Cached/IndBlock.lean:201-223 classReadMinorC
+/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:106-151 classReadMinor` — one
 /// opened binder `q` of a minor premise read as an inductive hypothesis: its
 /// type's conclusion is a motive applied to a field `f` of the minor (`d ≤
 /// f`), giving `(f - d, t)`.
@@ -255,6 +257,7 @@ pub fn class_read_ih(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:82-105 classReadMinor
+/// con-leche: ConLeche/Cached/IndBlock.lean:201-223 classReadMinorC
 /// Lean twin: `(List.range fvs.length).filterMap …` — the inductive hypotheses
 /// among the opened binders from `q` on, in order.
 #[allow(clippy::too_many_arguments)]
@@ -284,7 +287,8 @@ pub fn class_read_ihs(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:82-105 classReadMinor
-/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:105-149 classReadMinor` —
+/// con-leche: ConLeche/Cached/IndBlock.lean:201-223 classReadMinorC
+/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:106-151 classReadMinor` —
 /// **read one minor premise's type `dom`**, opened at depth `d`: its
 /// conclusion is a motive (the class), its last argument a constructor
 /// application (the constructor), and its inductive hypotheses.
@@ -335,7 +339,8 @@ pub fn class_read_minor(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:107-124 classReadSlots
-/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:185-209 classReadSlots` — one
+/// con-leche: ConLeche/Cached/IndBlock.lean:225-240 classReadSlotsC
+/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:188-213 classReadSlots` — one
 /// prefix binder's domain read as a motive (its telescope ends in a sort:
 /// the class is its last binder's domain, at the class's parameter count)
 /// or as a minor premise.
@@ -403,7 +408,8 @@ pub fn u64_snoc(xs: &Vec<u64>, x: u64) -> Vec<u64> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:107-124 classReadSlots
-/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:185-209 classReadSlots` — read
+/// con-leche: ConLeche/Cached/IndBlock.lean:225-240 classReadSlotsC
+/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:188-213 classReadSlots` — read
 /// the prefix binders `n` of a recursor type opened at the parameters (`e`,
 /// depth `d`), classifying each as a motive or a minor premise; each binder
 /// opened at `d` before the next is read.  `none` off the shape.
@@ -454,6 +460,7 @@ pub fn class_read_slots(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:126-140 classRead
+/// con-leche: ConLeche/Cached/IndBlock.lean:242-254 classReadC
 /// Lean twin: `recs.mapM fun rc => …` — every recursor's class off its
 /// conclusion `motive_c ı⃗ t`, from `i` on; `none` off the shape.
 #[allow(clippy::too_many_arguments)]
@@ -490,7 +497,8 @@ pub fn class_read_rec_cls(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:126-140 classRead
-/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:230-251 classRead` — **the
+/// con-leche: ConLeche/Cached/IndBlock.lean:242-254 classReadC
+/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:235-257 classRead` — **the
 /// pre-pass**: the prefix layout off the FIRST recursor's type, and every
 /// recursor's class off its conclusion.  `none` when the family is not of the
 /// generated shape.  `nPc` is `classNPcOf p fe` (the module note).

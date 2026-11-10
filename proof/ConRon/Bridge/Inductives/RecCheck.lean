@@ -13,13 +13,12 @@ recursor records' pins, node agreement (`targetCtorAt`, `targetK53`,
 
 **The twin module note's deviations, as the statements read them:**
 
-* The twin has no `ShadowOps`: it calls the core at the `IFEnv` it is handed.
-  Upstream's pure route runs `ShadowOps.ofOps ops`, whose `opsAt fe` is the
-  constant `ops`, so every core-grade statement here is `CSpecF` against the
-  con-leche function at `fueledOpsM .verified` (`Bridge/Inductives/Rel.lean`).
+* The twin calls the core at the `IFEnv` it is handed; the specification
+  takes a `CheckerOps`, so every core-grade statement here is `CSpecF`
+  against the con-leche function at `fueledOpsM .verified`
+  (`Bridge/Inductives/Rel.lean`).
 * `targetAbs` is ONE memoised walk; its statement is the STRUCTURAL
-  `ConLeche.targetAbs` (con-leche's own `@[csimp]` swaps its memoised
-  `targetAbsFast` in), with the memo invariant `TAMemoOK` at handle keys, as
+  `ConLeche.targetAbs` (con-leche runs its cached `targetAbsC`), with the memo invariant `TAMemoOK` at handle keys, as
   `Bridge/Inductives/PosWalks.lean`'s `RFMemoOK` is for `replaceFVars`.
 * `targetParamsDefEq`'s `absM` is `targetAbs names lvls holes`, at the
   denoted names, levels and holes.
@@ -55,6 +54,8 @@ import ConRon.Bridge.ExprOps.Owed
 import ConRon.Bridge.EnvDenote
 import ConRon.Bridge.ExprOps.Inst1
 import ConRon.Bridge.Specs
+import ConLeche.Verify.Cached.IndWalksC
+import ConLeche.Verify.Cached.OpsC
 
 public section
 
@@ -389,9 +390,9 @@ theorem targetAbsGo_spec (names : List NIdx) (lvls : LsIdx) (holes : List EIdx)
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin (hsA.trans hsC) (by rw [hq]; rfl) (hmA.ext hsC.ext) hz
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:240-245 targetAbsFast
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:66-86 targetAbs
 **The executed member abstraction** (a fresh memo) computes the structural
-`targetAbs` (con-leche's `@[csimp] targetAbs_eq_targetAbsFast`). -/
+`targetAbs` (the specification; con-leche runs its cached `targetAbsC`). -/
 theorem targetAbs_spec (names : List NIdx) (lvls : LsIdx) (holes : List EIdx)
     (namesP : List ConLeche.Name) (lvlsP : List Level) (holesP : List Expr)
     (e : EIdx) (eP : Expr) :
@@ -1313,29 +1314,20 @@ theorem recs_any_tgt {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockSh
 
 end RC
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:584-591 Expr.abstractPrefix
-The free variables `0 … k-1` closed at cursor `c`, one `abstract1Fast` pass
-each (`Bridge/ExprOps/Owed.lean`'s `abstract1Fast_spec`). -/
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:431-433 Expr.abstractPrefix
+The free variables `0 … k-1` closed at cursor `c` in one `abstractRangeFast`
+pass (`Bridge/ExprOps/Owed.lean`'s `abstractRangeFast_spec`), which is
+con-leche's fold of `abstract1` passes by con-leche's own `abstractPrefixC_eq`. -/
 theorem abstractPrefix_run : ∀ (k c : Nat) (e : EIdx) (eP : Expr) (s₀ s' : AState) (r : EIdx),
     StateOK s₀ → denoteE s₀.store e = some eP → Arena.abstractPrefix k c e s₀ = .ok (r, s') →
     PStep s₀ s' ∧ denoteE s'.store r = some (Expr.abstractPrefix k c eP) := by
-  intro k
-  induction k with
-  | zero =>
-    intro c e eP s₀ s' r hok he hrun
-    simp only [Arena.abstractPrefix] at hrun
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨PStep.refl hok, he⟩
-  | succ k ih =>
-    intro c e eP s₀ s' r hok he hrun
-    simp only [Arena.abstractPrefix] at hrun
-    obtain ⟨e1, s1, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨h1, h2, h4, h5, -, h7⟩ := AM.of_run (P := fun t => t = s₀) rfl k1
-      (ExprOps.abstract1Fast_spec Core.fvarBSpec Arena.coreWalkFuel s₀ e k c hok
-        (by rw [he]; rfl))
-    have p1 : PStep s₀ s1 := PStep.of_caches h1 h2 h4 h5
-    obtain ⟨p2, hr⟩ := ih (c + 1) e1 _ s1 s' r p1.ok (h7 _ he) z1
-    exact ⟨p1.trans p2, by simpa only [Expr.abstractPrefix] using hr⟩
+  intro k c e eP s₀ s' r hok he hrun
+  simp only [Arena.abstractPrefix] at hrun
+  obtain ⟨h1, h2, h4, h5, -, h7⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (ExprOps.abstractRangeFast_spec Core.fvarBSpec Arena.coreWalkFuel s₀ e 0 k c hok
+      (by rw [he]; rfl))
+  refine ⟨PStep.of_caches h1 h2 h4 h5, ?_⟩
+  rw [h7 _ he, ← Expr.abstractPrefixC_eq, Expr.abstractPrefixC, Expr.abstractRangeC_spec]
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:593-600 auxRuleFire —
 `M.ds.map (Expr.abstractPrefix rP 0)`, as the twin's list recursion. -/

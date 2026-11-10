@@ -10,7 +10,7 @@ dispatching walk).  Read it before any of the others.
 
 * `ExprOps/Inst1.lean` — `instantiate1`;
 * `ExprOps/Subst.lean` — the bulk substitution,
-  the lift, the lower and `instantiate1Lift`;
+  the lift, the lower and `instantiateLift`;
 * `ExprOps/MemoSpecs.lean` — the memo-set specs with the pure function
   INSIDE the relation, which the four rebuilding walks below share;
 * `ExprOps/Abs.lean` — `abstract1` and `abstractRange`;
