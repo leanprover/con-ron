@@ -41,7 +41,7 @@ import ConRon.Bridge.Core.Memo
 public import ConRon.Bridge.Core.Knot
 public import ConLeche.Verify.EnvWF
 import ConRon.Bridge.Core.Walks.ProjCore -- shake: keep (`#print axioms` names it; no proof term does)
-import ConRon.Bridge.Core.Arms.DefeqPeel -- shake: keep (`#print axioms` names it; no proof term does)
+import ConRon.Bridge.Core.Arms.DefeqBinders -- shake: keep (`#print axioms` names it; no proof term does)
 
 public section
 

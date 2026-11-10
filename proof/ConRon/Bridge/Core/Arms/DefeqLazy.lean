@@ -18,15 +18,15 @@ in the eventual form `Ev` (`Arms/DefeqBase.lean`):
 | `deltaQuick`, `lazyDeltaStep` | `deltaQuick_spec`, `lazyDeltaStep_spec` | `DSRel` |
 | `lazyDeltaReduction` | `lazyDeltaReduction_spec` (induction on the budget) | `LRRel` |
 
-The ∀ arm of `quickDefEq` is the port's batched descent (`defeqBinders`),
-whose identification is `Arms/DefeqPeel.lean`'s `defeqBinders_spec`; the λ
-arm is con-leche's own λ-telescope congruence `defeqLams` (task #342), whose
-twin is proved here (`defeqLamsInner_spec`, `defeqLams_spec`).
+The ∀ and λ arms of `quickDefEq` are con-leche's binder-telescope
+congruence `defeqBinders`, whose twin is `Arms/DefeqBinders.lean`'s
+`defeqBinders_spec`; `qdArm_binders` enters it at the budget from the empty
+variable list.
 -/
 module
 
 public import ConRon.Bridge.Core.Arms.DefeqBase
-import ConRon.Bridge.Core.Arms.DefeqPeel
+import ConRon.Bridge.Core.Arms.DefeqBinders
 import ConRon.Bridge.ExprOps.Walks
 import ConRon.Bridge.Core.Walks.Nat
 import ConRon.Bridge.Core.Walks.Spine
@@ -126,8 +126,46 @@ theorem qdArm_lit {l₁ l₂ : ConLeche.Literal} (hok : CheckOK eager env fe s�
   triple_pure_post ⟨hok, Ext.refl _, rfl, ⟨0, fun _ _ => by
     dsimp only; unfold ConLeche.quickDefEq; rw [ite_eq_right (by simp [hne])]; rfl⟩⟩
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1340-1366 quickDefEq — **two ∀s**,
-batched (`defeqBinders_spec`). -/
+/-- con-leche: ConLeche/Kernel/Core.lean:1487-1509 quickDefEq — **two binders
+of a kind** (`Expr.binderOf lam`): `defeqBinders` at its budget from the empty
+variable list (`defeqBinders_spec`). -/
+theorem qdArm_binders (hsim : KnotSpec eager env fe fuel) (lam : Bool)
+    (ty₁ bd₁ ty₂ bd₂ : EIdx) (t₁ c₁ t₂ c₂ : Expr)
+    (hok : CheckOK eager env fe s₀)
+    (h1 : denoteE s₀.store ty₁ = some t₁) (h2 : denoteE s₀.store bd₁ = some c₁)
+    (h3 : denoteE s₀.store ty₂ = some t₂) (h4 : denoteE s₀.store bd₂ = some c₂)
+    (hwa : Expr.WScoped d (Expr.binderOf lam t₁ c₁))
+    (hwb : Expr.WScoped d (Expr.binderOf lam t₂ c₂))
+    (hne : (Expr.binderOf lam t₁ c₁ == Expr.binderOf lam t₂ c₂) = false) :
+    ⦃fun s => s = s₀⦄
+      (do
+        let ok ← ConRon.Arena.defeqBinders .verified (coreKnot .verified eager fe id fuel) lam
+          ConRon.Arena.bindersFuel d #[] ty₁ bd₁ ty₂ bd₂
+        pure (some ok))
+    ⦃fun o s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        Ev (fun F => ConLeche.quickDefEq .verified (ConLeche.pureFns .verified eager env F) d
+          (Expr.binderOf lam t₁ c₁) (Expr.binderOf lam t₂ c₂) = .ok o); ⊤⦄ := by
+  rw [wscoped_binderOf] at hwa hwb
+  have hvec : ExprOps.InstLVec s₀.store #[] [] := rfl
+  refine triple_seq (defeqBinders_spec hsim lam ConRon.Arena.bindersFuel d s₀ #[] []
+    ty₁ bd₁ ty₂ bd₂ t₁ c₁ t₂ c₂ hok hvec h1 h2 h3 h4
+    (by rw [Expr.instantiateList_nil]; exact hwa.1) (by rw [Expr.instantiateList_nil]; exact hwa.2)
+    (by rw [Expr.instantiateList_nil]; exact hwb.1)
+    (by rw [Expr.instantiateList_nil]; exact hwb.2)) ?_
+  rintro ok s1 ⟨hok1, hx1, hp1, hF⟩
+  have hbf : ConRon.Arena.bindersFuel = ConLeche.bindersFuel := by
+    unfold ConRon.Arena.bindersFuel ConLeche.bindersFuel; rfl
+  rw [hbf] at hF
+  refine triple_pure_post ⟨hok1, hx1, hp1,
+    Ev.of_mono (p := fun F => ConLeche.defeqBinders .verified
+      (ConLeche.pureFns .verified eager env F) lam ConLeche.bindersFuel d [] t₁ c₁ t₂ c₂ = .ok ok)
+      (fun hle h => defeqBindersFueled_mono hle h) hF |>.imp fun F h => ?_⟩
+  cases lam <;> simp only [Expr.binderOf] at hne ⊢ <;> unfold ConLeche.quickDefEq <;>
+    simp [hne, h, bind, Except.bind, pure, Except.pure]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1487-1509 quickDefEq — **two ∀s**:
+`qdArm_binders` at `false`. -/
 theorem qdArm_forallE (hsim : KnotSpec eager env fe fuel)
     (ty₁ bd₁ ty₂ bd₂ : EIdx) (t₁ c₁ t₂ c₂ : Expr)
     (hok : CheckOK eager env fe s₀)
@@ -138,268 +176,17 @@ theorem qdArm_forallE (hsim : KnotSpec eager env fe fuel)
     (hne : (Expr.forallE t₁ c₁ == .forallE t₂ c₂) = false) :
     ⦃fun s => s = s₀⦄
       (do
-        let ok ← defeqBinders (coreKnot .verified eager fe id fuel) d ty₁ bd₁ ty₂ bd₂
+        let ok ← ConRon.Arena.defeqBinders .verified (coreKnot .verified eager fe id fuel) false
+          ConRon.Arena.bindersFuel d #[] ty₁ bd₁ ty₂ bd₂
         pure (some ok))
     ⦃fun o s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Ev (fun F => ConLeche.quickDefEq .verified (ConLeche.pureFns .verified eager env F) d
-          (.forallE t₁ c₁) (.forallE t₂ c₂) = .ok o); ⊤⦄ := by
-  refine triple_seq (defeqBinders_spec hsim s₀ d ty₁ bd₁ ty₂ bd₂
-    t₁ c₁ t₂ c₂ hok h1 h2 h3 h4 hwa hwb hne) ?_
-  rintro ok s1 ⟨hok1, hx1, hp1, hF⟩
-  exact triple_pure_post ⟨hok1, hx1, hp1,
-    Ev.of_mono (fun hle h => quickDefEqF_mono hle h) hF⟩
+          (.forallE t₁ c₁) (.forallE t₂ c₂) = .ok o); ⊤⦄ :=
+  qdArm_binders hsim false ty₁ bd₁ ty₂ bd₂ t₁ c₁ t₂ c₂ hok h1 h2 h3 h4 hwa hwb hne
 
-/-! ### The λ arm: `defeqLams` (con-leche's task #342) -/
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1310-1317 defeqLamsInner — **the
-innermost level of the λ-telescope comparison**: the opened bodies through
-the knot, and their FULL-grade types. -/
-theorem defeqLamsInner_spec (hsim : KnotSpec eager env fe fuel) (d : Nat)
-    (b₁ b₂ : EIdx) (x₁ x₂ : Expr) (hok : CheckOK eager env fe s₀)
-    (hd1 : denoteE s₀.store b₁ = some x₁) (hd2 : denoteE s₀.store b₂ = some x₂)
-    (hw1 : Expr.WScoped (d + 1) x₁) (hw2 : Expr.WScoped (d + 1) x₂) :
-    ⦃fun s => s = s₀⦄
-      ConRon.Arena.defeqLamsInner .verified (coreKnot .verified eager fe id fuel) d b₁ b₂
-    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        ∃ F, ConLeche.defeqLamsInner .verified (ConLeche.pureFns .verified eager env F) d x₁ x₂
-          = .ok r; ⊤⦄ := by
-  unfold ConRon.Arena.defeqLamsInner
-  refine triple_seq (hsim.defeq s₀ (d + 1) b₁ b₂ x₁ x₂ hok hd1 hd2 hw1 hw2) ?_
-  rintro v s1 ⟨hok1, hx1, hp1, F1, hF1⟩
-  cases v
-  · simp only [Bool.not_false, ite_true]
-    have e1 : (ConLeche.pureFns .verified eager env F1).defeq (d + 1) x₁ x₂ = .ok false :=
-      hF1
-    exact triple_pure_post ⟨hok1, hx1, hp1, F1, by
-      simp [ConLeche.defeqLamsInner, e1, bind, Except.bind, pure, Except.pure]⟩
-  simp only [Bool.not_true, Bool.false_eq_true, ite_false]
-  simp only [CheckMode.verifiedChecks, ite_true]
-  refine triple_seq (hsim.infer s1 (d + 1) b₁ x₁ hok1 (denote_ext hd1 hx1)
-    hw1) ?_
-  rintro t₁ s2 ⟨hok2, hx2, hp2, T1, hT1, hwT1, F2, hF2⟩
-  refine triple_seq (hsim.infer s2 (d + 1) b₂ x₂ hok2
-    (denote_ext hd2 (hx1.trans hx2)) hw2) ?_
-  rintro t₂ s3 ⟨hok3, hx3, hp3, T2, hT2, hwT2, F3, hF3⟩
-  refine triple_mono (hsim.defeq s3 (d + 1) t₁ t₂ T1 T2 hok3
-    (denote_ext hT1 hx3) hT2 hwT1 hwT2) ?_
-  rintro r s4 ⟨hok4, hx4, hp4, F4, hF4⟩
-  refine ⟨hok4, hx1.trans (hx2.trans (hx3.trans hx4)),
-    by rw [hp4, hp3, hp2, hp1], F1 + F2 + F3 + F4, ?_⟩
-  have e1 : (ConLeche.pureFns .verified eager env (F1 + F2 + F3 + F4)).defeq (d + 1) x₁ x₂
-      = .ok true := ConLeche.isDefEqCore_mono (by omega) hF1
-  have e2 : (ConLeche.pureFns .verified eager env (F1 + F2 + F3 + F4)).infer (d + 1) x₁
-      = .ok T1 := ConLeche.inferTypeCore_mono (by omega) hF2
-  have e3 : (ConLeche.pureFns .verified eager env (F1 + F2 + F3 + F4)).infer (d + 1) x₂
-      = .ok T2 := ConLeche.inferTypeCore_mono (by omega) hF3
-  have e4 : (ConLeche.pureFns .verified eager env (F1 + F2 + F3 + F4)).defeq (d + 1) T1 T2
-      = .ok r := ConLeche.isDefEqCore_mono (by omega) hF4
-  cases r <;>
-    simp [ConLeche.defeqLamsInner, e1, e2, e3, e4, CheckMode.verifiedChecks, bind, Except.bind, pure,
-      Except.pure]
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1319-1338 defeqLams — the domains
-differ. -/
-theorem defeqLams_dom {F n d : Nat} {t₁ c₁ t₂ c₂ : Expr}
-    (h1 : ConLeche.isDefEqCore mode eager env F d t₁ t₂ = .ok false) :
-    ConLeche.defeqLams mode (ConLeche.pureFns mode eager env F) n d t₁ c₁ t₂ c₂
-      = .ok false := by
-  have e1 : (ConLeche.pureFns mode eager env F).defeq d t₁ t₂ = .ok false := h1
-  rw [ConLeche.defeqLams.eq_def]
-  simp [e1, bind, Except.bind, pure, Except.pure]
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1319-1338 defeqLams — the domains
-agree and the descent stops here (budget out, or not both λs): the innermost
-level. -/
-theorem defeqLams_inner {F n d : Nat} {t₁ c₁ t₂ c₂ : Expr} {r : Bool}
-    (h1 : ConLeche.isDefEqCore mode eager env F d t₁ t₂ = .ok true)
-    (hstop : n = 0 ∨ Expr.lamPair? (c₁.instantiate1 (.fvar d t₂))
-      (c₂.instantiate1 (.fvar d t₂)) = none)
-    (h : ConLeche.defeqLamsInner mode (ConLeche.pureFns mode eager env F) d
-      (c₁.instantiate1 (.fvar d t₂)) (c₂.instantiate1 (.fvar d t₂)) = .ok r) :
-    ConLeche.defeqLams mode (ConLeche.pureFns mode eager env F) n d t₁ c₁ t₂ c₂
-      = .ok r := by
-  have e1 : (ConLeche.pureFns mode eager env F).defeq d t₁ t₂ = .ok true := h1
-  rw [ConLeche.defeqLams.eq_def]
-  simp only [e1, bind, Except.bind, pure, Except.pure]
-  rcases hstop with rfl | hn
-  · exact h
-  · rw [hn]; cases n <;> exact h
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1319-1338 defeqLams — the opened
-bodies are two equal λs: `true`. -/
-theorem defeqLams_same {F n d : Nat} {t₁ c₁ t₂ c₂ : Expr} {q}
-    (h1 : ConLeche.isDefEqCore mode eager env F d t₁ t₂ = .ok true)
-    (hlp : Expr.lamPair? (c₁.instantiate1 (.fvar d t₂))
-      (c₂.instantiate1 (.fvar d t₂)) = some q)
-    (heq : (c₁.instantiate1 (.fvar d t₂) == c₂.instantiate1 (.fvar d t₂))
-      = true) :
-    ConLeche.defeqLams mode (ConLeche.pureFns mode eager env F) (n + 1) d t₁ c₁ t₂ c₂
-      = .ok true := by
-  have e1 : (ConLeche.pureFns mode eager env F).defeq d t₁ t₂ = .ok true := h1
-  rw [ConLeche.defeqLams.eq_def]
-  simp only [e1, bind, Except.bind, pure, Except.pure, hlp]
-  obtain ⟨_, _, _, _⟩ := q
-  simp only [heq, ite_true]
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1319-1338 defeqLams — the opened
-bodies are two distinct λs: the descent, one level deeper. -/
-theorem defeqLams_descend {F n d : Nat} {t₁ c₁ t₂ c₂ a b c e : Expr}
-    {r : Bool}
-    (h1 : ConLeche.isDefEqCore mode eager env F d t₁ t₂ = .ok true)
-    (hlp : Expr.lamPair? (c₁.instantiate1 (.fvar d t₂))
-      (c₂.instantiate1 (.fvar d t₂)) = some (a, b, c, e))
-    (hne : (c₁.instantiate1 (.fvar d t₂) == c₂.instantiate1 (.fvar d t₂))
-      = false)
-    (h : ConLeche.defeqLams mode (ConLeche.pureFns mode eager env F) n (d + 1)
-      a b c e = .ok r) :
-    ConLeche.defeqLams mode (ConLeche.pureFns mode eager env F) (n + 1) d t₁ c₁ t₂ c₂
-      = .ok r := by
-  have e1 : (ConLeche.pureFns mode eager env F).defeq d t₁ t₂ = .ok true := h1
-  rw [ConLeche.defeqLams.eq_def]
-  simp only [e1, bind, Except.bind, pure, Except.pure, hlp, hne]
-  exact h
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1319-1338 defeqLams — **one level's
-opening**: the fresh variable at the second domain and both bodies opened at
-it, then any continuation that is sound at the two opened bodies. -/
-theorem lams_open {Q : Bool → AState → Prop} (s₁ : AState) (d : Nat)
-    (ty₂ bd₁ bd₂ : EIdx) (t₂ c₁ c₂ : Expr) (hok : CheckOK eager env fe s₁)
-    (h3 : denoteE s₁.store ty₂ = some t₂) (h2 : denoteE s₁.store bd₁ = some c₁)
-    (h4 : denoteE s₁.store bd₂ = some c₂) {k : EIdx → EIdx → AM Bool}
-    (hk : ∀ (s4 : AState) (b₁ b₂ : EIdx), CheckOK eager env fe s4 →
-      Ext s₁.store s4.store → s4.pins = s₁.pins →
-      denoteE s4.store b₁ = some (c₁.instantiate1 (.fvar d t₂)) →
-      denoteE s4.store b₂ = some (c₂.instantiate1 (.fvar d t₂)) →
-      ⦃fun s => s = s4⦄ k b₁ b₂ ⦃fun r s' => Q r s'; ⊤⦄) :
-    ⦃fun s => s = s₁⦄
-      (do
-        let fv ← internFVarE d ty₂
-        let b₁ ← instantiate1Fast coreWalkFuel bd₁ fv 0
-        let b₂ ← instantiate1Fast coreWalkFuel bd₂ fv 0
-        k b₁ b₂)
-    ⦃fun r s' => Q r s'; ⊤⦄ := by
-  refine triple_seq (internFVarE_spec s₁ d ty₂ hok.state.wf
-    (by rw [h3]; rfl)) ?_
-  rintro fv s2 ⟨hwf2, hx2, -, -, -, hc2, hp2, -, hfv⟩
-  have hok2 := hok.mono ⟨hwf2⟩ hx2 hc2 hp2
-  have hfv' : denoteE s2.store fv = some (.fvar d t₂) := by
-    rw [hfv]; simp [denoteEView, denote_ext h3 hx2]
-  refine triple_seq (instantiate1Fast_ok_spec s2 bd₁ fv c₁ (.fvar d t₂) hok2
-    (denote_ext h2 hx2) hfv') ?_
-  rintro b₁ s3 ⟨hok3, hx3, hp3, hb1⟩
-  refine triple_seq (instantiate1Fast_ok_spec s3 bd₂ fv c₂ (.fvar d t₂) hok3
-    (denote_ext h4 (hx2.trans hx3)) (denote_ext hfv' hx3)) ?_
-  rintro b₂ s4 ⟨hok4, hx4, hp4, hb2⟩
-  exact hk s4 b₁ b₂ hok4 (hx2.trans (hx3.trans hx4)) (by rw [hp4, hp3, hp2])
-    (denote_ext hb1 hx4) hb2
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1319-1338 defeqLams — **THEOREM 1
-for the λ-telescope congruence**, by induction on the descent budget: the
-twin's `defeqLams` (domains through the knot, the fresh variable, both bodies
-opened, then `lamPair?`) against con-leche's at the same budget.  The twin
-tests the budget before `lamPair?`, con-leche matches the pair `(fuel,
-lamPair? …)`: the same exits, since `lamPair?` is pure. -/
-theorem defeqLams_spec (hsim : KnotSpec eager env fe fuel) :
-    ∀ (n d : Nat) (s₀ : AState) (ty₁ bd₁ ty₂ bd₂ : EIdx) (t₁ c₁ t₂ c₂ : Expr),
-      CheckOK eager env fe s₀ →
-      denoteE s₀.store ty₁ = some t₁ → denoteE s₀.store bd₁ = some c₁ →
-      denoteE s₀.store ty₂ = some t₂ → denoteE s₀.store bd₂ = some c₂ →
-      Expr.WScoped d t₁ → Expr.WScoped d c₁ →
-      Expr.WScoped d t₂ → Expr.WScoped d c₂ →
-      ⦃fun s => s = s₀⦄
-        ConRon.Arena.defeqLams .verified (coreKnot .verified eager fe id fuel) n d ty₁ bd₁
-          ty₂ bd₂
-      ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
-          s'.pins = s₀.pins ∧
-          ∃ F, ConLeche.defeqLams .verified (ConLeche.pureFns .verified eager env F) n d
-            t₁ c₁ t₂ c₂ = .ok r; ⊤⦄ := by
-  intro n
-  induction n with
-  | zero =>
-    intro d s₀ ty₁ bd₁ ty₂ bd₂ t₁ c₁ t₂ c₂ hok h1 h2 h3 h4 hw1 hwc1 hw2 hwc2
-    unfold ConRon.Arena.defeqLams
-    refine triple_seq (hsim.defeq s₀ d ty₁ ty₂ t₁ t₂ hok h1 h3 hw1 hw2) ?_
-    rintro v s1 ⟨hok1, hx1, hp1, F1, hF1⟩
-    cases v
-    · simp only [Bool.not_false, ite_true]
-      exact triple_pure_post ⟨hok1, hx1, hp1, F1, defeqLams_dom hF1⟩
-    simp only [Bool.not_true, Bool.false_eq_true, ite_false]
-    refine lams_open s1 d ty₂ bd₁ bd₂ t₂ c₁ c₂ hok1 (denote_ext h3 hx1)
-      (denote_ext h2 hx1) (denote_ext h4 hx1) ?_
-    intro s4 b₁ b₂ hok4 hx4 hp4 hb1 hb2
-    refine triple_mono (defeqLamsInner_spec hsim d b₁ b₂ _ _ hok4 hb1 hb2
-      (Expr.WScoped.instantiate1 hw2 0 hwc1)
-      (Expr.WScoped.instantiate1 hw2 0 hwc2)) ?_
-    rintro r s' ⟨hok', hx', hp', F2, hF2⟩
-    exact ⟨hok', hx1.trans (hx4.trans hx'), by rw [hp', hp4, hp1],
-      max F1 F2, defeqLams_inner (ConLeche.isDefEqCore_mono (by omega) hF1)
-        (.inl rfl) (defeqLamsInnerFueled_mono (by omega) hF2)⟩
-  | succ n ih =>
-    intro d s₀ ty₁ bd₁ ty₂ bd₂ t₁ c₁ t₂ c₂ hok h1 h2 h3 h4 hw1 hwc1 hw2 hwc2
-    unfold ConRon.Arena.defeqLams
-    refine triple_seq (hsim.defeq s₀ d ty₁ ty₂ t₁ t₂ hok h1 h3 hw1 hw2) ?_
-    rintro v s1 ⟨hok1, hx1, hp1, F1, hF1⟩
-    cases v
-    · simp only [Bool.not_false, ite_true]
-      exact triple_pure_post ⟨hok1, hx1, hp1, F1, defeqLams_dom hF1⟩
-    simp only [Bool.not_true, Bool.false_eq_true, ite_false]
-    refine lams_open s1 d ty₂ bd₁ bd₂ t₂ c₁ c₂ hok1 (denote_ext h3 hx1)
-      (denote_ext h2 hx1) (denote_ext h4 hx1) ?_
-    intro s4 b₁ b₂ hok4 hx4 hp4 hb1 hb2
-    have hwo1 := Expr.WScoped.instantiate1 hw2 0 hwc1
-    have hwo2 := Expr.WScoped.instantiate1 hw2 0 hwc2
-    refine triple_seq (ExprOps.lamPair?_spec s4 b₁ b₂ hok4.state
-      (by rw [hb1]; rfl) (by rw [hb2]; rfl)) ?_
-    rintro lp s5 ⟨rfl, hrel⟩
-    cases lp with
-    | none =>
-      have hlp : Expr.lamPair? (c₁.instantiate1 (.fvar d t₂))
-          (c₂.instantiate1 (.fvar d t₂)) = none := by
-        simpa only [hb1, hb2, opt2, Option.some.injEq] using hrel
-      dsimp only
-      refine triple_mono (defeqLamsInner_spec hsim d b₁ b₂ _ _ hok4 hb1 hb2
-        hwo1 hwo2) ?_
-      rintro r s' ⟨hok', hx', hp', F2, hF2⟩
-      exact ⟨hok', hx1.trans (hx4.trans hx'), by rw [hp', hp4, hp1],
-        max F1 F2, defeqLams_inner (ConLeche.isDefEqCore_mono (by omega) hF1)
-          (.inr hlp) (defeqLamsInnerFueled_mono (by omega) hF2)⟩
-    | some q =>
-      obtain ⟨ty₁', bd₁', ty₂', bd₂'⟩ := q
-      obtain ⟨hda, hdb⟩ := hrel
-      rw [hb1, eq_comm, opt2_eq_some_iff] at hda
-      rw [hb2, eq_comm, opt2_eq_some_iff] at hdb
-      obtain ⟨et₁, eb₁, hd1, hd2, he1⟩ := hda
-      obtain ⟨et₂, eb₂, hd3, hd4, he2⟩ := hdb
-      have hlp' : Expr.lamPair? (c₁.instantiate1 (.fvar d t₂))
-          (c₂.instantiate1 (.fvar d t₂)) = some (et₁, eb₁, et₂, eb₂) := by
-        rw [← he1, ← he2]; rfl
-      dsimp only
-      rw [beq_of_denoteE hok4.state.wf hb1 hb2]
-      split
-      · rename_i heq
-        exact triple_pure_post ⟨hok4, hx1.trans hx4, by rw [hp4, hp1], F1,
-          defeqLams_same hF1 hlp' heq⟩
-      · rename_i hne
-        have hne' : (c₁.instantiate1 (.fvar d t₂) ==
-            c₂.instantiate1 (.fvar d t₂)) = false := by simpa using hne
-        rw [← he1] at hwo1
-        rw [← he2] at hwo2
-        obtain ⟨hwa1, hwa2⟩ : Expr.WScoped (d + 1) et₁ ∧
-            Expr.WScoped (d + 1) eb₁ := by simpa only [Expr.WScoped] using hwo1
-        obtain ⟨hwb1, hwb2⟩ : Expr.WScoped (d + 1) et₂ ∧
-            Expr.WScoped (d + 1) eb₂ := by simpa only [Expr.WScoped] using hwo2
-        refine triple_mono (ih (d + 1) s5 ty₁' bd₁' ty₂' bd₂' et₁ eb₁ et₂ eb₂
-          hok4 hd1 hd2 hd3 hd4 hwa1 hwa2 hwb1 hwb2) ?_
-        rintro r s' ⟨hok', hx', hp', F2, hF2⟩
-        exact ⟨hok', hx1.trans (hx4.trans hx'), by rw [hp', hp4, hp1],
-          max F1 F2, defeqLams_descend
-            (ConLeche.isDefEqCore_mono (by omega) hF1) hlp' hne'
-            (defeqLamsFueled_mono (by omega) hF2)⟩
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1340-1366 quickDefEq — **two λs**:
-`defeqLams` at its budget. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:1487-1509 quickDefEq — **two λs**:
+`qdArm_binders` at `true`. -/
 theorem qdArm_lam (hsim : KnotSpec eager env fe fuel)
     (ty₁ bd₁ ty₂ bd₂ : EIdx) (t₁ c₁ t₂ c₂ : Expr)
     (hok : CheckOK eager env fe s₀)
@@ -410,29 +197,14 @@ theorem qdArm_lam (hsim : KnotSpec eager env fe fuel)
     (hne : (Expr.lam t₁ c₁ == .lam t₂ c₂) = false) :
     ⦃fun s => s = s₀⦄
       (do
-        let ok ← ConRon.Arena.defeqLams .verified (coreKnot .verified eager fe id fuel)
-          ConRon.Arena.lamsFuel d ty₁ bd₁ ty₂ bd₂
+        let ok ← ConRon.Arena.defeqBinders .verified (coreKnot .verified eager fe id fuel) true
+          ConRon.Arena.bindersFuel d #[] ty₁ bd₁ ty₂ bd₂
         pure (some ok))
     ⦃fun o s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Ev (fun F => ConLeche.quickDefEq .verified (ConLeche.pureFns .verified eager env F) d
-          (.lam t₁ c₁) (.lam t₂ c₂) = .ok o); ⊤⦄ := by
-  obtain ⟨hwt1, hwc1⟩ : Expr.WScoped d t₁ ∧ Expr.WScoped d c₁ := by
-    simpa only [Expr.WScoped] using hwa
-  obtain ⟨hwt2, hwc2⟩ : Expr.WScoped d t₂ ∧ Expr.WScoped d c₂ := by
-    simpa only [Expr.WScoped] using hwb
-  refine triple_seq (defeqLams_spec hsim ConRon.Arena.lamsFuel d s₀ ty₁ bd₁
-    ty₂ bd₂ t₁ c₁ t₂ c₂ hok h1 h2 h3 h4 hwt1 hwc1 hwt2 hwc2) ?_
-  rintro ok s1 ⟨hok1, hx1, hp1, hF⟩
-  have hlf : ConRon.Arena.lamsFuel = ConLeche.lamsFuel := by
-    unfold ConRon.Arena.lamsFuel ConLeche.lamsFuel; rfl
-  rw [hlf] at hF
-  refine triple_pure_post ⟨hok1, hx1, hp1,
-    Ev.of_mono (p := fun F => ConLeche.defeqLams .verified
-      (ConLeche.pureFns .verified eager env F) ConLeche.lamsFuel d t₁ c₁ t₂ c₂ = .ok ok)
-      (fun hle h => defeqLamsFueled_mono hle h) hF |>.imp fun F h => ?_⟩
-  unfold ConLeche.quickDefEq
-  simp [hne, h, bind, Except.bind, pure, Except.pure]
+          (.lam t₁ c₁) (.lam t₂ c₂) = .ok o); ⊤⦄ :=
+  qdArm_binders hsim true ty₁ bd₁ ty₂ bd₂ t₁ c₁ t₂ c₂ hok h1 h2 h3 h4 hwa hwb hne
 
 end QuickArms
 
