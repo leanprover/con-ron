@@ -5,7 +5,7 @@ Task #97-P5-Core round 5, region A2.  The Theorem-2 lockstep lemmas of the
 small `arena::core` helpers — the spine readers (`get_app_spine`,
 `head_and_args`), the stuck-tag test, the
 telescope rebuilds (`infer_lams_out`, `infer_pis_out`), the projection-slot
-walks (`tower_slots_all`, `and_rescue_slots`), the
+walk (`and_rescue_slots`), the
 fabricated projections (`eta_projs`) and the scope/shape guards — each
 against its twin in `Arena/Core.lean`, by `lockstep_core`.
 
@@ -178,56 +178,6 @@ theorem pi_residual_aux (n : Nat) :
   pi_residual_aux _ e args i hx rfl hrel hinv
 
 /-! ## The projection-slot walks -/
-
-section slots
-attribute [local lockstep_simp] Option.map_none Option.map_some Option.isSome_none
-  Option.isSome_some absIProjEntry
-
-theorem tower_slots_all_go_abs {pers : arena.store.PersTier} (n : Nat) :
-    ∀ {fe : arena.env.IFEnv} {lfe : IFEnv}
-      (t : arena.handle.NIdx) (nn j : Std.U64) {o : Bool},
-      nn.val = n → CoreCtx pers fe lfe →
-      arena.core.tower_slots_all_go pers fe t nn j = ok o →
-      o = towerSlotsAllGo lfe (absNIdx t) n (absU j) := by
-  induction n with
-  | zero =>
-    intro fe lfe t nn j o hn hctx h
-    rw [arena.core.tower_slots_all_go] at h
-    rw [ite_eq_left (by scalar_tac)] at h
-    cases Result.ok_injective h
-    rfl
-  | succ m ih =>
-    intro fe lfe t nn j o hn hctx h
-    rw [arena.core.tower_slots_all_go] at h
-    rw [ite_eq_right (by scalar_tac)] at h
-    obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hf := ifenv_find_proj_abs hctx ho1
-    rw [towerSlotsAllGo, ← hf]
-    cases o1 with
-    | none =>
-      cases Result.ok_injective h
-      rfl
-    | some e =>
-      simp only at h
-      obtain ⟨i, hi, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hiv : i.val = m := by
-        have := ConRon.Refine.HashMap.uscalar_sub_eq hi; simp at this; omega
-      have hi1v : absU i1 = absU j + 1 := by
-        have := ConRon.Refine.HashMap.uscalar_add_eq hi1; simpa [absU] using this
-      rw [ih t i i1 hiv hctx h, hi1v]
-      rfl
-
-@[lockstep] theorem tower_slots_all_ls {fe lfe} (hctx : CoreCtx pers fe lfe)
-    (t : arena.handle.NIdx) (n_f : Std.U64) :
-    LSP (arena.core.tower_slots_all pers fe t n_f)
-      (fun b => TwinEq (towerSlotsAll lfe (absNIdx t) n_f.val) b) := by
-  intro b h
-  rw [arena.core.tower_slots_all] at h
-  rw [towerSlotsAll, tower_slots_all_go_abs _ t n_f 0#u64 rfl hctx h]
-  rfl
-
-end slots
 
 section projs
 attribute [local lockstep_simp] absEIdxList
@@ -462,7 +412,6 @@ end tele
 #print axioms infer_lam_result_ls
 #print axioms eta_ctor_shape_ls
 #print axioms pi_residual_ls
-#print axioms tower_slots_all_ls
 #print axioms eta_projs_ls
 #print axioms and_rescue_slots_ls
 #print axioms infer_lams_out_ls

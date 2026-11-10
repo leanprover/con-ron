@@ -118,8 +118,8 @@ private def internCV (cv : ConstantVal) : AM IConstantVal := do
   let ty ← internExprT cv.type
   pure ⟨n, lps, ty⟩
 
-/-- con-leche: none — intern an `IndCaps`: its scalars and its η constructor
-(the fixture's member and constructor lists are empty). -/
+/-- con-leche: none — intern an `IndCaps`: its scalars (the fixture's member
+and constructor lists are empty). -/
 private def internCaps (c : IndCaps) : AM IIndCaps := do
   pure { eta := c.eta, nparams := c.nparams, nIdx := c.nIdx }
 

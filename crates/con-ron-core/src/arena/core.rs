@@ -86,7 +86,7 @@ use crate::arena::core_state::{
 };
 use crate::arena::env;
 use crate::arena::env::{
-    IConstantInfo, IConstantVal, IFEnv, IIndCaps, IProjEntry, IRecRule, IRecRuleFire,
+    IConstantInfo, IConstantVal, IFEnv, IIndCaps, IProjEntry, IProjTable, IRecRule, IRecRuleFire,
 };
 use crate::arena::expr_ops::{
     abstract1_fast, abstract_range_fast, cons_eidx, get_app_args, get_app_fn,
@@ -3651,14 +3651,14 @@ pub fn drop_eidx_n_from(xs: &Vec<EIdx>, n: u64, i: usize) -> Vec<EIdx> {
 }
 
 /// con-leche: none — `List.append` on a `Vec`; Lean's `++` shares the tail
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1552-1598 structEtaCertWith` — `xs ++
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1536-1585 structEtaCertWith` — `xs ++
 /// ys`, consuming `xs` and copying `ys`' spine.
 pub fn append_eidx(xs: Vec<EIdx>, ys: &Vec<EIdx>) -> Vec<EIdx> {
     append_eidx_from(xs, ys, 0)
 }
 
 /// con-leche: none — `List.append` on a `Vec`; Lean's `++` shares the tail
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1552-1598 structEtaCertWith` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1536-1585 structEtaCertWith` — the
 /// cursor recursion behind `append_eidx`.
 pub fn append_eidx_from(xs: Vec<EIdx>, ys: &Vec<EIdx>, i: usize) -> Vec<EIdx> {
     if i >= ys.len() {
@@ -3671,7 +3671,7 @@ pub fn append_eidx_from(xs: Vec<EIdx>, ys: &Vec<EIdx>, i: usize) -> Vec<EIdx> {
 }
 
 /// con-leche: none — `xs ++ [y] ++ [z]` on a `Vec`, sized once
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1552-1598 structEtaCertWith` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1536-1585 structEtaCertWith` — the
 /// two-element case of `snoc_eidx_of` (task #97-P6-13); nested `snoc_eidx`
 /// was three allocations.
 pub fn snoc2_eidx_of(xs: &Vec<EIdx>, y: &EIdx, z: &EIdx) -> Vec<EIdx> {
@@ -3683,7 +3683,7 @@ pub fn snoc2_eidx_of(xs: &Vec<EIdx>, y: &EIdx, z: &EIdx) -> Vec<EIdx> {
 }
 
 /// con-leche: none — `xs ++ ys` on a `Vec`, at a borrowed `xs`
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1552-1598 structEtaCertWith` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1536-1585 structEtaCertWith` — the
 /// same `++` sized once (task #97-P6-13); see `snoc_eidx_of`.
 pub fn append_eidx_of(xs: &Vec<EIdx>, ys: &Vec<EIdx>) -> Vec<EIdx> {
     let out: Vec<EIdx> = Vec::with_capacity(xs.len() + ys.len());
@@ -4307,7 +4307,7 @@ pub fn prop_irrel(
 }
 
 /// con-leche: none — `List NIdx` equality; Lean's `deriving DecidableEq` on the level-parameter list
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1552-1598 structEtaCertWith` — a
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1536-1585 structEtaCertWith` — a
 /// level-parameter list comparison (`structEtaCertWith`'s `cvc.levelParams =
 /// cvT.levelParams`, `recRuleEtaOf`'s), over the `Vec` the port stores it in.
 pub fn nidx_vec_beq(a: &Vec<NIdx>, b: &Vec<NIdx>) -> bool {
@@ -4319,7 +4319,7 @@ pub fn nidx_vec_beq(a: &Vec<NIdx>, b: &Vec<NIdx>) -> bool {
 }
 
 /// con-leche: none — `List NIdx` equality; Lean's `deriving DecidableEq` on the level-parameter list
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1552-1598 structEtaCertWith` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1536-1585 structEtaCertWith` — the
 /// cursor recursion behind `nidx_vec_beq`.
 pub fn nidx_vec_beq_from(a: &Vec<NIdx>, b: &Vec<NIdx>, i: usize) -> bool {
     if i >= a.len() {
@@ -4329,32 +4329,6 @@ pub fn nidx_vec_beq_from(a: &Vec<NIdx>, b: &Vec<NIdx>, i: usize) -> bool {
     } else {
         false
     }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:715-720 towerSlotsAll
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::tower_slots_all_go_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1467-1475 towerSlotsAllGo` — the
-/// slot walk.  con-leche writes `(List.range nF).all fun j => …`; DESIGN.md
-/// §3.4's rule turns the closure into a counted recursion.
-pub fn tower_slots_all_go(pers: &PersTier, fe: &IFEnv, t: &NIdx, n: u64, j: u64) -> bool {
-    if n == 0 {
-        true
-    } else {
-        match env::ifenv_find_proj(pers, fe, t, j) {
-            Some(_) => tower_slots_all_go(pers, fe, t, n - 1, j + 1),
-            None => false,
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:715-720 towerSlotsAll
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::tower_slots_all_refines, then delete this line
-/// con-leche: ConLeche/Kernel/FEnv.lean:175-177 FEnv.towerSlotsAllF
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::tower_slots_all_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1477-1481 towerSlotsAll` — are all
-/// `nF` projection slots of `T` table entries?
-pub fn tower_slots_all(pers: &PersTier, fe: &IFEnv, t: &NIdx, n_f: u64) -> bool {
-    tower_slots_all_go(pers, fe, t, n_f, 0)
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:712-716 etaProjs
@@ -4383,11 +4357,10 @@ pub fn proj_nodes_go(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:712-716 etaProjs
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1492-1497 etaProjs` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1476-1481 etaProjs` — the
 /// fabricated projections of a structure-eta spine: the `.proj T j b` nodes
-/// (task #119: every slot of an η family the checker uses has a table entry,
-/// `towerSlotsAll`, so the projection-function spelling and its environment
-/// read are gone).
+/// (one per field of the family's projection table: the node is what the
+/// table types and reduces).
 pub fn eta_projs(
     pers: &PersTier,
     st: &mut AState,
@@ -4418,12 +4391,10 @@ pub fn reserved_basis_names(st: &AState) -> Result<Vec<NIdx>, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:332-372 structEtaCertWith
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_eta_cert_tail_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:326-363 structEtaCertWithI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_eta_cert_tail_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1552-1598 structEtaCertWith` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1536-1585 structEtaCertWith` — the
 /// certificate's tail, from the level comparison on: the constructor's levels
-/// against the type's, `defEqList (aargs.take caps.etaParams) targs` and the
+/// against the type's, `defEqList (aargs.take tbl.numParams) targs` and the
 /// field comparison against the `.proj` nodes.  No type-application
 /// certificate and no per-slot one (con-leche task #342 L11b, L-DEAD: `wtb` is
 /// the reduced type of `b`, so its spine fits the former's telescope).
@@ -4442,8 +4413,8 @@ pub fn struct_eta_cert_tail(
     targs: &Vec<EIdx>,
     b: &EIdx,
     aargs: &Vec<EIdx>,
-    eta_params: u64,
-    eta_fields: u64,
+    n_p: u64,
+    n_f: u64,
 ) -> Result<bool, CheckError> {
     match lvls_eq(pers, st, us, us2) {
         Err(e) => Err(e),
@@ -4451,14 +4422,14 @@ pub fn struct_eta_cert_tail(
             Err(e) => Err(e),
             Ok(false) => Ok(false),
             Ok(true) => {
-                let head: Vec<EIdx> = take_eidx_n(aargs, eta_params);
+                let head: Vec<EIdx> = take_eidx_n(aargs, n_p);
                 match def_eq_list(pers, st, mode, eager, lane, fuel, fe, depth, &head, targs, 0) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(false),
-                    Ok(true) => match eta_projs(pers, st, t, b, eta_fields) {
+                    Ok(true) => match eta_projs(pers, st, t, b, n_f) {
                         Err(e) => Err(e),
                         Ok(projs) => {
-                            let rest: Vec<EIdx> = drop_eidx_n(aargs, eta_params);
+                            let rest: Vec<EIdx> = drop_eidx_n(aargs, n_p);
                             def_eq_list(pers, st, mode, eager, lane, fuel, fe, depth, &rest, &projs, 0)
                         }
                     },
@@ -4469,15 +4440,13 @@ pub fn struct_eta_cert_tail(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:332-372 structEtaCertWith
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_eta_cert_at_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:326-363 structEtaCertWithI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_eta_cert_at_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1552-1598 structEtaCertWith` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1536-1585 structEtaCertWith` — the
 /// certificate's head: the stuck side's whnf'd type must be a stored,
-/// eta-capable, non-reserved inductive at the candidate's own constructor,
-/// with matching arities and level parameters, and every field slot a
-/// projection-table entry (`towerSlotsAll`; task #119: the
-/// projection-function slot discipline `recSlotsAll` is gone).
+/// eta-capable inductive whose projection table's constructor is the
+/// candidate's own, at the table's parameter count and the former's level
+/// parameters.  The constructor and the counts are the table's, at every
+/// field count (official: the family's constructor list).
 pub fn struct_eta_cert_at(
     pers: &PersTier,
     st: &mut AState,
@@ -4502,51 +4471,38 @@ pub fn struct_eta_cert_at(
                 Some((t, us2)) => match env::ifenv_find(pers, fe, &t) {
                     Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
                         let cvt: IConstantVal = env::i_constant_val_dup(cvt0);
-                        let caps: IIndCaps = env::i_ind_caps_dup(caps0);
-                        match get_app_args(pers, st, CORE_WALK_FUEL, wtb) {
-                            Err(e) => Err(e),
-                            Ok(targs) => match reserved_basis_names(st) {
-                                Err(e) => Err(e),
-                                Ok(reserved) => match view_ls(pers, st, &us2) {
+                        let eta: bool = caps0.eta;
+                        match env::ifenv_find_table(pers, fe, &t) {
+                            None => Ok(false),
+                            Some(tbl) => {
+                                let tctor: NIdx = tbl.ctor.dup2();
+                                let n_p: u64 = tbl.num_params;
+                                let n_f: u64 = tbl.num_fields;
+                                match get_app_args(pers, st, CORE_WALK_FUEL, wtb) {
                                     Err(e) => Err(e),
-                                    Ok(uslen) => {
-                                        let sl: bool = tower_slots_all(pers, fe, &t, caps.eta_fields);
-                                        if caps.eta
-                                            && caps.eta_ctor.eq2(c)
-                                            && !env::nidx_vec_contains(&reserved, &t)
-                                            && !env::nidx_vec_contains(&reserved, c)
-                                            && targs.len() as u64 == caps.eta_params
-                                            && uslen.len() == cvt.level_params.len()
-                                            && nidx_vec_beq(
-                                                &cvc.level_params,
-                                                &cvt.level_params,
-                                            )
-                                            && sl
-                                        {
-                                            struct_eta_cert_tail(
-                                                pers,
-                                                st,
-                                                mode,
-                                                eager,
-                                                lane,
-                                                fuel,
-                                                fe,
-                                                depth,
-                                                us,
-                                                &t,
-                                                &us2,
-                                                &targs,
-                                                b,
-                                                aargs,
-                                                caps.eta_params,
-                                                caps.eta_fields,
-                                            )
-                                        } else {
-                                            Ok(false)
+                                    Ok(targs) => match view_ls(pers, st, &us2) {
+                                        Err(e) => Err(e),
+                                        Ok(uslen) => {
+                                            if eta
+                                                && tctor.eq2(c)
+                                                && targs.len() as u64 == n_p
+                                                && uslen.len() == cvt.level_params.len()
+                                                && nidx_vec_beq(
+                                                    &cvc.level_params,
+                                                    &cvt.level_params,
+                                                )
+                                            {
+                                                struct_eta_cert_tail(
+                                                    pers, st, mode, eager, lane, fuel, fe, depth,
+                                                    us, &t, &us2, &targs, b, aargs, n_p, n_f,
+                                                )
+                                            } else {
+                                                Ok(false)
+                                            }
                                         }
-                                    }
-                                },
-                            },
+                                    },
+                                }
+                            }
                         }
                     }
                     Some(_) => Ok(false),
@@ -4560,10 +4516,8 @@ pub fn struct_eta_cert_at(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:332-372 structEtaCertWith
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_eta_cert_with_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:326-363 structEtaCertWithI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_eta_cert_with_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1552-1598 structEtaCertWith` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1536-1585 structEtaCertWith` — the
 /// structure-eta certificate against the weak-head-normal type `wtb` of the
 /// stuck side `b`.
 pub fn struct_eta_cert_with(
@@ -4614,7 +4568,7 @@ pub fn struct_eta_cert_with(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:718-729 etaCtorShape
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1600-1615 etaCtorShape` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1587-1602 etaCtorShape` — the
 /// constructor shape official's `try_eta_struct_core` tests before inferring
 /// anything: the candidate's head is a stored constructor applied to exactly
 /// its parameters and fields.
@@ -4647,14 +4601,128 @@ pub fn eta_ctor_shape(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:411-429 structEtaCert
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_eta_cert_refines, then delete this line
-/// con-leche: ConLeche/Cached/CoreC.lean:386-398 structEtaCertI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_eta_cert_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1617-1626 structEtaCert` —
-/// structural eta certification for a stored eta-capable structure.  The
-/// constructor-shape test comes FIRST (the divergence audit's D13).
-pub fn struct_eta_cert(
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:731-757 etaCtorPartial
+/// con-leche: ConLeche/Cached/StateC.lean:97-118 etaCtorPartialC
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1604-1620 etaCtorPartialFam` — the
+/// family half of `etaCtorPartial`: the family the constructor's type ends in
+/// is a stored η family whose projection table's constructor is `c`.
+pub fn eta_ctor_partial_fam(
+    pers: &PersTier,
+    st: &mut AState,
+    fe: &IFEnv,
+    c: &NIdx,
+    ty: &EIdx,
+) -> Result<bool, CheckError> {
+    match pi_result(pers, st, CORE_WALK_FUEL, ty) {
+        Err(e) => Err(e),
+        Ok(pr) => match get_app_fn(pers, st, CORE_WALK_FUEL, &pr) {
+            Err(e) => Err(e),
+            Ok(hd) => if hd.tag() == ETAG_CONST {
+                match view_const_name(pers, st, &hd) {
+                    None => fail_dangling_e(),
+                    Some(t) => match env::ifenv_find(pers, fe, &t) {
+                        Some(IConstantInfo::IndInfo(_, caps)) => {
+                            let eta: bool = caps.eta;
+                            match env::ifenv_find_table(pers, fe, &t) {
+                                Some(tbl) => Ok(eta && tbl.ctor.eq2(c)),
+                                None => Ok(false),
+                            }
+                        }
+                        Some(_) => Ok(false),
+                        None => Ok(false),
+                    },
+                }
+            } else {
+                Ok(false)
+            },
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:731-757 etaCtorPartial
+/// con-leche: ConLeche/Cached/StateC.lean:97-118 etaCtorPartialC
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1622-1643 etaCtorPartial` — **a
+/// partially applied η constructor** (official's `try_eta_struct_core` since
+/// lean4#15373): the candidate's head is a stored constructor applied to fewer
+/// than its parameters and fields, of a stored η family whose projection
+/// table's constructor it is.  `Some(k)`, `k > 0` the arguments it lacks.
+/// Read off the stored records alone, before any inference.
+pub fn eta_ctor_partial(
+    pers: &PersTier,
+    st: &mut AState,
+    fe: &IFEnv,
+    a: &EIdx,
+) -> Result<Option<u64>, CheckError> {
+    match get_app_fn(pers, st, CORE_WALK_FUEL, a) {
+        Err(e) => Err(e),
+        Ok(hd) => if hd.tag() == ETAG_CONST {
+            match view_const_name(pers, st, &hd) {
+                None => fail_dangling_e(),
+                Some(c) => match env::ifenv_find(pers, fe, &c) {
+                    Some(IConstantInfo::CtorInfo(cvc0, cn_p, cn_f)) => {
+                        let ty: EIdx = cvc0.ty.dup2();
+                        let want: u64 = *cn_p + *cn_f;
+                        match get_app_args(pers, st, CORE_WALK_FUEL, a) {
+                            Err(e) => Err(e),
+                            Ok(args) => {
+                                let n: u64 = args.len() as u64;
+                                if n < want {
+                                    match eta_ctor_partial_fam(pers, st, fe, &c, &ty) {
+                                        Err(e) => Err(e),
+                                        Ok(true) => Ok(Some(want - n)),
+                                        Ok(false) => Ok(None),
+                                    }
+                                } else {
+                                    Ok(None)
+                                }
+                            }
+                        }
+                    }
+                    Some(_) => Ok(None),
+                    None => Ok(None),
+                },
+            }
+        } else {
+            Ok(None)
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:374-395 structEtaFull
+/// con-leche: ConLeche/Cached/CoreC.lean:365-374 structEtaFullI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1645-1654 structEtaFullAt` — the body
+/// of **structure η at a fully applied constructor**, past the
+/// constructor-shape gate: `b`'s io-inferred type, head-normalised, and the
+/// certificate against it.
+pub fn struct_eta_full_at(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    a: &EIdx,
+    b: &EIdx,
+) -> Result<bool, CheckError> {
+    match knot_infer_io(pers, st, mode, eager, lane, fuel, fe, depth, b) {
+        Err(e) => Err(e),
+        Ok(tb) => match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, &tb) {
+            Err(e) => Err(e),
+            Ok(wtb) => {
+                struct_eta_cert_with(pers, st, mode, eager, lane, fuel, fe, depth, a, b, &wtb)
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:374-395 structEtaFull
+/// con-leche: ConLeche/Cached/CoreC.lean:365-374 structEtaFullI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1656-1663 structEtaFull` — **structure
+/// η at a fully applied constructor**.  The constructor-shape test comes FIRST
+/// (the divergence audit's D13).
+pub fn struct_eta_full(
     pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
@@ -4669,28 +4737,428 @@ pub fn struct_eta_cert(
     match eta_ctor_shape(pers, st, fe, a) {
         Err(e) => Err(e),
         Ok(false) => Ok(false),
-        Ok(true) => match knot_infer_io(pers, st, mode, eager, lane, fuel, fe, depth, b) {
-            Err(e) => Err(e),
-            Ok(tb) => match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, &tb) {
+        Ok(true) => struct_eta_full_at(pers, st, mode, eager, lane, fuel, fe, depth, a, b),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:397-409 structEtaExpand
+/// con-leche: ConLeche/Cached/CoreC.lean:376-384 structEtaExpandI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1665-1683 structEtaExpand` — **the
+/// η-expansion of a partially applied constructor**: both sides applied to
+/// fresh variables along the constructor side's type `ta`, one binder per
+/// missing argument, read syntactically; at the full application,
+/// `struct_eta_full`.
+pub fn struct_eta_expand(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    k: u64,
+    depth: u64,
+    a: &EIdx,
+    b: &EIdx,
+    ta: &EIdx,
+) -> Result<bool, CheckError> {
+    if k == 0 {
+        struct_eta_full(pers, st, mode, eager, lane, fuel, fe, depth, a, b)
+    } else if ta.tag() == ETAG_FORALL_E {
+        match view_bind(pers, st, ta) {
+            None => fail_dangling_e(),
+            Some((dom, body)) => match intern_e_fvar(pers, st, depth, dom) {
                 Err(e) => Err(e),
-                Ok(wtb) => {
-                    struct_eta_cert_with(pers, st, mode, eager, lane, fuel, fe, depth, a, b, &wtb)
-                }
+                Ok(fv) => match intern_e_app(pers, st, a.dup2(), fv.dup2()) {
+                    Err(e) => Err(e),
+                    Ok(a2) => match intern_e_app(pers, st, b.dup2(), fv.dup2()) {
+                        Err(e) => Err(e),
+                        Ok(b2) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
+                            Err(e) => Err(e),
+                            Ok(body2) => struct_eta_expand(
+                                pers, st, mode, eager, lane, fuel, fe, k - 1, depth + 1, &a2, &b2,
+                                &body2,
+                            ),
+                        },
+                    },
+                },
+            },
+        }
+    } else {
+        Ok(false)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:411-429 structEtaCert
+/// con-leche: ConLeche/Cached/CoreC.lean:386-398 structEtaCertI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1685-1697 structEtaCertPartial` — the
+/// partial-constructor arm of `structEtaCert`, at `k` missing arguments: the
+/// other side neutral, the two io-inferred types compared (official's
+/// `is_def_eq(t_type, s_type)`), then both sides η-expanded.
+pub fn struct_eta_cert_partial(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    k: u64,
+    a: &EIdx,
+    b: &EIdx,
+) -> Result<bool, CheckError> {
+    match io_neutral(pers, st, b) {
+        Err(e) => Err(e),
+        Ok(false) => Ok(false),
+        Ok(true) => match knot_infer_io(pers, st, mode, eager, lane, fuel, fe, depth, a) {
+            Err(e) => Err(e),
+            Ok(ta) => match knot_infer_io(pers, st, mode, eager, lane, fuel, fe, depth, b) {
+                Err(e) => Err(e),
+                Ok(tb) => match knot_defeq(pers, st, mode, eager, lane, fuel, fe, depth, &tb, &ta) {
+                    Err(e) => Err(e),
+                    Ok(false) => Ok(false),
+                    Ok(true) => {
+                        struct_eta_expand(pers, st, mode, eager, lane, fuel, fe, k, depth, a, b, &ta)
+                    }
+                },
             },
         },
     }
 }
 
+/// con-leche: ConLeche/Kernel/Core.lean:411-429 structEtaCert
+/// con-leche: ConLeche/Cached/CoreC.lean:386-398 structEtaCertI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1699-1710 structEtaCert` — structural
+/// eta certification (official's `try_eta_struct_core`): `a` is a constructor
+/// application of a stored η family, fully applied (`struct_eta_full`'s body;
+/// the shape gate is read once) or partially (`eta_ctor_partial`).
+pub fn struct_eta_cert(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    a: &EIdx,
+    b: &EIdx,
+) -> Result<bool, CheckError> {
+    match eta_ctor_shape(pers, st, fe, a) {
+        Err(e) => Err(e),
+        Ok(true) => struct_eta_full_at(pers, st, mode, eager, lane, fuel, fe, depth, a, b),
+        Ok(false) => match eta_ctor_partial(pers, st, fe, a) {
+            Err(e) => Err(e),
+            Ok(None) => Ok(false),
+            Ok(Some(k)) => {
+                struct_eta_cert_partial(pers, st, mode, eager, lane, fuel, fe, depth, k, a, b)
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:431-436 isPropType
+/// con-leche: ConLeche/Cached/CoreC.lean:400-408 isPropTypeI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1712-1725 isPropType` — **is a
+/// proposition** (official's `is_prop`): `t`'s io-inferred type head-normalises
+/// to a sort equivalent to `Prop`.
+pub fn is_prop_type(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    t: &EIdx,
+) -> Result<bool, CheckError> {
+    match knot_infer_io(pers, st, mode, eager, lane, fuel, fe, depth, t) {
+        Err(e) => Err(e),
+        Ok(tt) => match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, &tt) {
+            Err(e) => Err(e),
+            Ok(w) => if w.tag() == ETAG_SORT {
+                match view_sort(pers, st, &w) {
+                    None => fail_dangling_e(),
+                    Some(u) => match zero_level(st) {
+                        Err(e) => Err(e),
+                        Ok(z) => match lvl_eq(pers, st, &u, &z) {
+                            Err(e) => Err(e),
+                            Ok(o) => lift_fueled(o),
+                        },
+                    },
+                }
+            } else {
+                Ok(false)
+            },
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:438-453 unitLikeFields
+/// con-leche: ConLeche/Cached/CoreC.lean:410-422 unitLikeFieldsI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1727-1750 unitLikeFields` — one field
+/// accepted: the field opened at a fresh variable, then the rest of the loop.
+/// Both arms of the cited loop call it.
+pub fn unit_like_fields_next(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    ul_fuel: u64,
+    n: u64,
+    depth: u64,
+    dom: &EIdx,
+    body: &EIdx,
+) -> Result<bool, CheckError> {
+    match intern_e_fvar(pers, st, depth, dom.dup2()) {
+        Err(e) => Err(e),
+        Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body, &fv, 0) {
+            Err(e) => Err(e),
+            Ok(body2) => {
+                unit_like_fields(pers, st, mode, eager, lane, fuel, fe, ul_fuel, n, depth + 1, &body2)
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:438-453 unitLikeFields
+/// con-leche: ConLeche/Cached/CoreC.lean:410-422 unitLikeFieldsI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1727-1750 unitLikeFields` — **the field
+/// loop of official's `is_unit_like`**: each of the `n` field binders of an η
+/// family's instance telescope has a proposition or a unit-like type
+/// (`unit_like_loop` at `ul_fuel`, the cited loop's `ul`), the field opened at
+/// a fresh variable before the next.  The binders are syntactic.
+pub fn unit_like_fields(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    ul_fuel: u64,
+    n: u64,
+    depth: u64,
+    tele: &EIdx,
+) -> Result<bool, CheckError> {
+    if n == 0 {
+        Ok(true)
+    } else if tele.tag() == ETAG_FORALL_E {
+        match view_bind(pers, st, tele) {
+            None => fail_dangling_e(),
+            Some((dom, body)) => match is_prop_type(pers, st, mode, eager, lane, fuel, fe, depth, &dom) {
+                Err(e) => Err(e),
+                Ok(true) => unit_like_fields_next(
+                    pers, st, mode, eager, lane, fuel, fe, ul_fuel, n - 1, depth, &dom, &body,
+                ),
+                Ok(false) => match unit_like_loop(pers, st, mode, eager, lane, fuel, fe, ul_fuel, depth, &dom) {
+                    Err(e) => Err(e),
+                    Ok(true) => unit_like_fields_next(
+                        pers, st, mode, eager, lane, fuel, fe, ul_fuel, n - 1, depth, &dom, &body,
+                    ),
+                    Ok(false) => Ok(false),
+                },
+            },
+        }
+    } else {
+        Ok(false)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:455-458 unitLikeFuel
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1752-1755 unitLikeFuel` — recursion
+/// budget of the unit-like test (`unit_like_loop`).  Exhaustion is "not
+/// unit-like", which is always sound.
+pub const UNIT_LIKE_FUEL: u64 = 4611686018427387904; // 2^62
+
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:767-794 unitLikeShape
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:759-765 unitFieldTele
+/// con-leche: ConLeche/Cached/CoreC.lean:424-445 unitLikeShapeF
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1757-1773 unitLikeShapeAt` — the
+/// field telescope of an instance at its family's table: the table's
+/// constructor, stored, its type at the instance's levels `us`, the table's
+/// `n_p` parameter binders dropped and instantiated with the instance's
+/// arguments in one pass.
+pub fn unit_like_shape_at(
+    pers: &PersTier,
+    st: &mut AState,
+    fe: &IFEnv,
+    us: &LsIdx,
+    targs: &Vec<EIdx>,
+    tctor: &NIdx,
+    n_p: u64,
+    n_f: u64,
+) -> Result<Option<(EIdx, u64)>, CheckError> {
+    match env::ifenv_find(pers, fe, tctor) {
+        Some(IConstantInfo::CtorInfo(cvc0, _, _)) => {
+            let cvc: IConstantVal = env::i_constant_val_dup(cvc0);
+            match inst_lp_fast(pers, st, CORE_WALK_FUEL, &cvc.level_params, us, &cvc.ty) {
+                Err(e) => Err(e),
+                Ok(cty) => match peel_pis(pers, st, n_p, &cty) {
+                    Err(e) => Err(e),
+                    Ok(None) => Ok(None),
+                    Ok(Some(body)) => {
+                        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &body, targs, 0) {
+                            Err(e) => Err(e),
+                            Ok(tele) => Ok(Some((tele, n_f))),
+                        }
+                    }
+                },
+            }
+        }
+        Some(_) => Ok(None),
+        None => Ok(None),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:767-794 unitLikeShape
+/// con-leche: ConLeche/Cached/CoreC.lean:424-445 unitLikeShapeF
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1775-1802 unitLikeShape` — **the shape
+/// of an instance in official's `is_unit_like`**, read off the stored records:
+/// `w` is an instance of a stored η family at its parameters (the table's
+/// count), whose constructor's field telescope at the instance's parameters is
+/// `tele` with `n` fields to check (`Some((tele, n))`), or not (`None`).
+pub fn unit_like_shape(
+    pers: &PersTier,
+    st: &mut AState,
+    fe: &IFEnv,
+    w: &EIdx,
+) -> Result<Option<(EIdx, u64)>, CheckError> {
+    match get_app_fn(pers, st, CORE_WALK_FUEL, w) {
+        Err(e) => Err(e),
+        Ok(hd) => if hd.tag() == ETAG_CONST {
+            match view_const(pers, st, &hd) {
+                None => fail_dangling_e(),
+                Some((s, us)) => match env::ifenv_find(pers, fe, &s) {
+                    Some(IConstantInfo::IndInfo(cvs0, caps0)) => {
+                        let nlp: usize = cvs0.level_params.len();
+                        let eta: bool = caps0.eta;
+                        match view_ls(pers, st, &us) {
+                            Err(e) => Err(e),
+                            Ok(usl) => {
+                                if eta && usl.len() == nlp {
+                                    match env::ifenv_find_table(pers, fe, &s) {
+                                        None => Ok(None),
+                                        Some(tbl) => {
+                                            let tctor: NIdx = tbl.ctor.dup2();
+                                            let n_p: u64 = tbl.num_params;
+                                            let n_f: u64 = tbl.num_fields;
+                                            match get_app_args(pers, st, CORE_WALK_FUEL, w) {
+                                                Err(e) => Err(e),
+                                                Ok(targs) => {
+                                                    if targs.len() as u64 == n_p {
+                                                        unit_like_shape_at(
+                                                            pers, st, fe, &us, &targs, &tctor, n_p,
+                                                            n_f,
+                                                        )
+                                                    } else {
+                                                        Ok(None)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Ok(None)
+                                }
+                            }
+                        }
+                    }
+                    Some(_) => Ok(None),
+                    None => Ok(None),
+                },
+            }
+        } else {
+            Ok(None)
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:460-470 unitLikeStruct
+/// con-leche: ConLeche/Cached/CoreC.lean:447-452 unitLikeStructI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1804-1813 unitLikeStruct` — **the
+/// structure arm of official's `is_unit_like`**: `w`, a head normal form that
+/// is no ∀, is an instance of a stored η family every field of whose
+/// constructor, at the instance's parameters, has a proposition or a unit-like
+/// type (a fieldless family has none to check).
+pub fn unit_like_struct(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    ul_fuel: u64,
+    depth: u64,
+    w: &EIdx,
+) -> Result<bool, CheckError> {
+    match unit_like_shape(pers, st, fe, w) {
+        Err(e) => Err(e),
+        Ok(None) => Ok(false),
+        Ok(Some((tele, n))) => {
+            unit_like_fields(pers, st, mode, eager, lane, fuel, fe, ul_fuel, n, depth, &tele)
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:472-484 unitLikeLoop
+/// con-leche: ConLeche/Cached/CoreC.lean:454-463 unitLikeLoopI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1815-1832 unitLikeLoop` — **is a type
+/// unit-like** (official's `is_unit_like`, lean4#15372): its head normal form
+/// is a ∀ whose codomain, opened at a fresh variable, is unit-like, or an
+/// instance of a stored η family every field of whose constructor is a
+/// proposition or unit-like.  Structural on `ul_fuel`.
+pub fn unit_like_loop(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    ul_fuel: u64,
+    depth: u64,
+    t: &EIdx,
+) -> Result<bool, CheckError> {
+    if ul_fuel == 0 {
+        Ok(false)
+    } else {
+        match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, t) {
+            Err(e) => Err(e),
+            Ok(w) => if w.tag() == ETAG_FORALL_E {
+                match view_bind(pers, st, &w) {
+                    None => fail_dangling_e(),
+                    Some((dom, body)) => match intern_e_fvar(pers, st, depth, dom) {
+                        Err(e) => Err(e),
+                        Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
+                            Err(e) => Err(e),
+                            Ok(body2) => unit_like_loop(
+                                pers, st, mode, eager, lane, fuel, fe, ul_fuel - 1, depth + 1, &body2,
+                            ),
+                        },
+                    },
+                }
+            } else {
+                unit_like_struct(pers, st, mode, eager, lane, fuel, fe, ul_fuel - 1, depth, &w)
+            },
+        }
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Core.lean:486-503 structUnitCert
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_unit_cert_tail_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:465-476 structUnitCertI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_unit_cert_tail_refines, then delete this line
 /// con-leche: ConLeche/Kernel/ExprOps.lean:835-838 isForallE
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1628-1657 structUnitCert` — the
-/// certificate's tail, once the family's capabilities have been read: `b`'s
-/// whnf'd type is no `∀` (con-leche task #342 L18) and is defeq to `a`'s.
-/// No type-application certificate (task #342 L11b), as official's
-/// `is_def_eq_unit_like`.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1834-1852 structUnitCert` — the
+/// certificate's tail, once `a`'s type is unit-like: `b`'s whnf'd type, which
+/// must not be a `∀` unless `b` is neutral (con-leche task #342 L18), is
+/// defeq to `a`'s.  No type-application certificate (task #342 L11b), as
+/// official's `is_def_eq_unit_like`.
 pub fn struct_unit_cert_tail(
     pers: &PersTier,
     st: &mut AState,
@@ -4708,10 +5176,15 @@ pub fn struct_unit_cert_tail(
         Ok(tb) => match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, &tb) {
             Err(e) => Err(e),
             Ok(wtb) => {
-                if wtb.tag() == ETAG_FORALL_E {
-                    Ok(false)
+                let guard: Result<bool, CheckError> = if wtb.tag() == ETAG_FORALL_E {
+                    io_neutral(pers, st, b)
                 } else {
-                    knot_defeq(pers, st, mode, eager, lane, fuel, fe, depth, wta, &wtb)
+                    Ok(true)
+                };
+                match guard {
+                    Err(e) => Err(e),
+                    Ok(false) => Ok(false),
+                    Ok(true) => knot_defeq(pers, st, mode, eager, lane, fuel, fe, depth, wta, &wtb),
                 }
             }
         },
@@ -4719,12 +5192,11 @@ pub fn struct_unit_cert_tail(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:486-503 structUnitCert
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_unit_cert_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:465-476 structUnitCertI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_unit_cert_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1628-1657 structUnitCert` —
-/// unit-likeness certification: `a` and `b` inhabit the same stored unit-like
-/// family.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1834-1852 structUnitCert` —
+/// **unit-likeness** (official's `is_def_eq_unit_like`): `a`'s io-inferred
+/// type, head-normalised, is unit-like (`unit_like_loop`), and `b`'s type is
+/// definitionally equal to it.  A side whose type is a ∀ must be neutral.
 pub fn struct_unit_cert(
     pers: &PersTier,
     st: &mut AState,
@@ -4741,47 +5213,26 @@ pub fn struct_unit_cert(
         Err(e) => Err(e),
         Ok(ta) => match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, &ta) {
             Err(e) => Err(e),
-            Ok(wta) => match get_app_fn(pers, st, CORE_WALK_FUEL, &wta) {
-                Err(e) => Err(e),
-                Ok(hd) => if hd.tag() == ETAG_CONST {
-                    match view_const(pers, st, &hd) {
-                        None => fail_dangling_e(),
-                        Some((t, us2)) => match env::ifenv_find(pers, fe, &t) {
-                            Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
-                                let cvt: IConstantVal = env::i_constant_val_dup(cvt0);
-                                let caps: IIndCaps = env::i_ind_caps_dup(caps0);
-                                match get_app_args(pers, st, CORE_WALK_FUEL, &wta) {
-                                    Err(e) => Err(e),
-                                    Ok(targs) => match reserved_basis_names(st) {
-                                        Err(e) => Err(e),
-                                        Ok(reserved) => match view_ls(pers, st, &us2) {
-                                            Err(e) => Err(e),
-                                            Ok(uslen) => {
-                                                if caps.unitlike
-                                                    && !env::nidx_vec_contains(&reserved, &t)
-                                                    && targs.len() as u64 == caps.unit_params
-                                                    && uslen.len() == cvt.level_params.len()
-                                                {
-                                                    struct_unit_cert_tail(
-                                                        pers, st, mode, eager, lane, fuel, fe, depth,
-                                                        &wta, b,
-                                                    )
-                                                } else {
-                                                    Ok(false)
-                                                }
-                                            }
-                                        },
-                                    },
-                                }
-                            }
-                            Some(_) => Ok(false),
-                            None => Ok(false),
-                        },
-                    }
+            Ok(wta) => {
+                let guard: Result<bool, CheckError> = if wta.tag() == ETAG_FORALL_E {
+                    io_neutral(pers, st, a)
                 } else {
-                    Ok(false)
-                },
-            },
+                    Ok(true)
+                };
+                match guard {
+                    Err(e) => Err(e),
+                    Ok(false) => Ok(false),
+                    Ok(true) => match unit_like_loop(
+                        pers, st, mode, eager, lane, fuel, fe, UNIT_LIKE_FUEL, depth, &wta,
+                    ) {
+                        Err(e) => Err(e),
+                        Ok(false) => Ok(false),
+                        Ok(true) => struct_unit_cert_tail(
+                            pers, st, mode, eager, lane, fuel, fe, depth, &wta, b,
+                        ),
+                    },
+                }
+            }
         },
     }
 }
@@ -5048,7 +5499,7 @@ pub fn iota_case3_at(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:796-800 etaFabArgsE
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1762-1768 etaFabArgsE` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1957-1963 etaFabArgsE` — the
 /// eta-rescue fabrication's argument spine: the major's type's arguments, then
 /// the major's projections (`etaProjs`).
 pub fn eta_fab_args_e(
@@ -5114,28 +5565,41 @@ pub fn and_rescue_slots(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:1136-1146 etaRescueOk
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::eta_rescue_ok_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1793-1804 etaRescueOk` — **the
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:924-941 etaRescueTable?
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1988-2003 etaRescueTable?` — **the
 /// structure-η rescue's standing condition, at use**: the single rule's
-/// constructor `ctor` (stored as `cvj`) is the η constructor of its
-/// structure-like family `cvt` and carries the family's level parameters;
-/// `And.intro` is left to `And`'s own rescue.  The cited `&&` chain, left to
-/// right (the `And.intro` pin is interned only when the chain reaches it).
-pub fn eta_rescue_ok(
+/// constructor `ctor` (stored as `cvj`) is the constructor of its family's
+/// projection table `tbl` (the family `cvt` structure-like, `IIndCaps.eta`),
+/// and carries the family's level parameters; the table, for the
+/// fabrication's counts.  `And.intro` is left to `And`'s own rescue.  The
+/// cited `&&` chain, left to right (the `And.intro` pin is interned only when
+/// the chain reaches it).
+pub fn eta_rescue_table<'a>(
     st: &AState,
+    tbl: Option<&'a IProjTable>,
     ctor: &NIdx,
     cvj: &IConstantVal,
     cvt: &IConstantVal,
     caps: &IIndCaps,
-) -> Result<bool, CheckError> {
-    if caps.eta && caps.eta_ctor.eq2(ctor) && nidx_vec_beq(&cvj.level_params, &cvt.level_params) {
-        match pin_and_intro(st) {
-            Err(e) => Err(e),
-            Ok(ai) => Ok(!ctor.eq2(&ai)),
+) -> Result<Option<&'a IProjTable>, CheckError> {
+    match tbl {
+        None => Ok(None),
+        Some(t) => {
+            if caps.eta && t.ctor.eq2(ctor) && nidx_vec_beq(&cvj.level_params, &cvt.level_params) {
+                match pin_and_intro(st) {
+                    Err(e) => Err(e),
+                    Ok(ai) => {
+                        if !ctor.eq2(&ai) {
+                            Ok(Some(t))
+                        } else {
+                            Ok(None)
+                        }
+                    }
+                }
+            } else {
+                Ok(None)
+            }
         }
-    } else {
-        Ok(false)
     }
 }
 
@@ -5144,10 +5608,8 @@ pub fn eta_rescue_ok(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::fab_scope_ok_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:550-651 majorToCtorI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::fab_scope_ok_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1810-1827 fabScopeOk` — the scope
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2009-2026 fabScopeOk` — the scope
 /// guard the three rescue branches share: the fabricated major is well-scoped,
 /// closed under loose bvars, and mentions no free variable the stuck major
 /// does not.
@@ -5180,10 +5642,8 @@ pub fn fab_scope_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_certs_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:550-651 majorToCtorI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_certs_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1829-1946 majorToCtor` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2028-2142 majorToCtor` — the
 /// K and `And` rescues' checks, once the fabricated major is built: the scope
 /// guard, the official `to_cnstr_when_K` type check (both modes) and proof
 /// irrelevance, a certificate family off at the trusted mode
@@ -5229,8 +5689,7 @@ pub fn major_to_ctor_certs(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_k_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1829-1946 majorToCtor` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2028-2142 majorToCtor` — the
 /// K-flagged branch (`to_cnstr_when_K`): the major's whnf'd type is the rule's
 /// own inductive, and the fabricated major is its constructor at the type's
 /// leading parameters.
@@ -5300,14 +5759,11 @@ pub fn major_to_ctor_k(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_eta_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:550-651 majorToCtorI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_eta_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1829-1946 majorToCtor` — the
-/// η-capable branch: the fabricated major is the structure's constructor at
-/// the type's parameters and the `.proj` nodes of the stuck major.  The
-/// keys of the η law (con-leche task #342 L-DEAD) follow, then the
-/// *instantiated* non-`Prop` test at the use (`formerNeverZeroAt`).
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2028-2142 majorToCtor` — the
+/// η-capable branch: the fabricated major is the table's constructor at the
+/// type's parameters and the `.proj` nodes of the stuck major, the counts the
+/// family's projection table's, at every field count.
 pub fn major_to_ctor_eta(
     pers: &PersTier,
     st: &mut AState,
@@ -5319,6 +5775,7 @@ pub fn major_to_ctor_eta(
     depth: u64,
     cvt: &IConstantVal,
     caps: &IIndCaps,
+    tbl: &IProjTable,
     t: &NIdx,
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
@@ -5337,12 +5794,12 @@ pub fn major_to_ctor_eta(
                                 Err(e) => Err(e),
                                 Ok(targs) => {
                                     if t2.eq2(t)
-                                        && targs.len() as u64 == caps.eta_params
+                                        && targs.len() as u64 == tbl.num_params
                                         && ustl.len() == cvt.level_params.len()
                                     {
-                                        major_to_ctor_eta_keys(
+                                        major_to_ctor_eta_sort(
                                             pers, st, mode, eager, lane, fuel, fe, depth, cvt,
-                                            caps, t, &ust, &targs, major,
+                                            caps, tbl, t, &ust, &targs, major,
                                         )
                                     } else {
                                         Ok(major.dup2())
@@ -5360,15 +5817,11 @@ pub fn major_to_ctor_eta(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_eta_keys_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:550-651 majorToCtorI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_eta_keys_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1829-1946 majorToCtor` —
-/// the η branch's three law keys (`reservedBasisNames` on the family and on
-/// its constructor, `towerSlotsAll`), then the family's sort, never zero at the
-/// major type's levels (`formerNeverZeroAt`, computed here), then the
-/// fabrication.
-pub fn major_to_ctor_eta_keys(
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2028-2142 majorToCtor` — the η
+/// branch's sort test: the family's sort, never zero at the major type's
+/// levels (`formerNeverZeroAt`, computed here), then the fabrication.
+pub fn major_to_ctor_eta_sort(
     pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
@@ -5379,51 +5832,40 @@ pub fn major_to_ctor_eta_keys(
     depth: u64,
     cvt: &IConstantVal,
     caps: &IIndCaps,
+    tbl: &IProjTable,
     t: &NIdx,
     ust: &LsIdx,
     targs: &Vec<EIdx>,
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match reserved_basis_names(st) {
+    match former_never_zero_at(pers, st, mode, eager, lane, fuel, fe, cvt, caps, ust) {
         Err(e) => Err(e),
-        Ok(reserved) => {
-            if !env::nidx_vec_contains(&reserved, t)
-                && !env::nidx_vec_contains(&reserved, &caps.eta_ctor)
-                && tower_slots_all(pers, fe, t, caps.eta_fields)
-            {
-                match former_never_zero_at(pers, st, mode, eager, lane, fuel, fe, cvt, caps, ust) {
-                    Err(e) => Err(e),
-                    Ok(true) => major_to_ctor_eta_build(pers, st, depth, caps, t, ust, targs, major),
-                    Ok(false) => Ok(major.dup2()),
-                }
-            } else {
-                Ok(major.dup2())
-            }
-        }
+        Ok(true) => major_to_ctor_eta_build(pers, st, depth, &tbl.ctor, tbl.num_fields, t, ust, targs, major),
+        Ok(false) => Ok(major.dup2()),
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_eta_build_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:550-651 majorToCtorI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_eta_build_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1829-1946 majorToCtor` — the η
-/// branch's fabrication: the argument spine, the constructor application and
-/// the scope guard.  No certificate on the fabricated spine (con-leche task
-/// #342 L11b): the major is the fabrication by the family's η law.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2028-2142 majorToCtor` — the η
+/// branch's fabrication: the argument spine, the table's constructor `ctor`
+/// at `n_f` projections, and the scope guard.  No certificate on the
+/// fabricated spine (con-leche task #342 L11b): the major is the fabrication
+/// by the family's η law.
 pub fn major_to_ctor_eta_build(
     pers: &PersTier,
     st: &mut AState,
     depth: u64,
-    caps: &IIndCaps,
+    ctor: &NIdx,
+    n_f: u64,
     t: &NIdx,
     ust: &LsIdx,
     targs: &Vec<EIdx>,
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match eta_fab_args_e(pers, st, t, targs, major, caps.eta_fields) {
+    match eta_fab_args_e(pers, st, t, targs, major, n_f) {
         Err(e) => Err(e),
-        Ok(fab_args) => match intern_e_const(pers, st, caps.eta_ctor.dup2(), ust.dup2()) {
+        Ok(fab_args) => match intern_e_const(pers, st, ctor.dup2(), ust.dup2()) {
             Err(e) => Err(e),
             Ok(hd) => match mk_app_n(pers, st, &hd, &fab_args) {
                 Err(e) => Err(e),
@@ -5438,8 +5880,7 @@ pub fn major_to_ctor_eta_build(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_and_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1829-1946 majorToCtor` — **THE
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2028-2142 majorToCtor` — **THE
 /// `And`-ONLY η RESCUE** (the user ruling: `And` and nothing else): the
 /// fabricated major is `And.intro` at the two `.proj` nodes of the stuck one.
 pub fn major_to_ctor_and(
@@ -5501,8 +5942,7 @@ pub fn major_to_ctor_and(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_and_build_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1829-1946 majorToCtor` — the `And`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2028-2142 majorToCtor` — the `And`
 /// branch's fabrication and its certificate chain.
 pub fn major_to_ctor_and_build(
     pers: &PersTier,
@@ -5542,11 +5982,10 @@ pub fn major_to_ctor_and_build(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_at_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1829-1946 majorToCtor` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2028-2142 majorToCtor` — the
 /// three-way branch, once the rule's constructor and its inductive have been
-/// found: the record's K flag, the η family (`etaRescueOk`, decided here), or
-/// the pinned `And`.
+/// found: the record's K flag, the η family (`etaRescueTable?` at the
+/// family's projection table, decided here), or the pinned `And`.
 pub fn major_to_ctor_at(
     pers: &PersTier,
     st: &mut AState,
@@ -5568,10 +6007,12 @@ pub fn major_to_ctor_at(
     if is_k {
         major_to_ctor_k(pers, st, mode, eager, lane, fuel, fe, depth, cvj, cn_p, ctor, t, major)
     } else {
-        match eta_rescue_ok(st, ctor, cvj, cvt, caps) {
+        match eta_rescue_table(st, env::ifenv_find_table(pers, fe, t), ctor, cvj, cvt, caps) {
             Err(e) => Err(e),
-            Ok(true) => major_to_ctor_eta(pers, st, mode, eager, lane, fuel, fe, depth, cvt, caps, t, major),
-            Ok(false) => match pin_and(st) {
+            Ok(Some(tbl)) => {
+                major_to_ctor_eta(pers, st, mode, eager, lane, fuel, fe, depth, cvt, caps, tbl, t, major)
+            }
+            Ok(None) => match pin_and(st) {
                 Err(e) => Err(e),
                 Ok(an) => {
                     if t.eq2(&an) {
@@ -5589,8 +6030,7 @@ pub fn major_to_ctor_at(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1829-1946 majorToCtor` — **the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2028-2142 majorToCtor` — **the
 /// stuck-major rescue** (`to_cnstr_when_K` and `to_cnstr_when_structure`): a
 /// recursor's major premise that does not whnf to a constructor application
 /// may still be *replaced* by one — K-flagged (the record's `isK`), η-capable,

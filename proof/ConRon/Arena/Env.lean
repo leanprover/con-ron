@@ -78,19 +78,13 @@ structure IRecRule where
 /-! ## Inductive capabilities -/
 
 /-- con-leche: ConLeche/Kernel/Env.lean:184-221 IndCaps — the definitional
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Env.IIndCaps_bridge, then delete this line
-capabilities of a stored inductive type that its block alone decides.
-`etaCtor` is a handle. -/
+capabilities of a stored inductive type that its block alone decides.  The
+constructor and the counts every η reader works at are the family's
+projection table's (`IFEnv.findTable?`), not the record's. -/
 structure IIndCaps where
+  /-- Official's `is_non_rec_structure`: one constructor, no index, a block
+  that is not recursive. -/
   eta : Bool := false
-  /-- con-leche's default is `.anonymous`; the handle's is the zero word.
-  Neither is a name the field ever *denotes*: con-leche's own doc says the
-  field is "meaningful only when `eta`", and the install writes it then. -/
-  etaCtor : NIdx := default
-  etaParams : Nat := 0
-  etaFields : Nat := 0
-  unitlike : Bool := false
-  unitParams : Nat := 0
   /-- Official's `all`: the block's members, itself included, as handles. -/
   all : List NIdx := []
   /-- Official's `inductive_val.nparams`. -/

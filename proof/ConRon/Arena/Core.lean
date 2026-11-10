@@ -24,8 +24,7 @@ function argument and a closure is what DESIGN §3.4 forbids.
    makes `find?` the only read of the environment.  Consequently every
    `…Of`/`…F` PAIR of con-leche declarations — `natLitSupported` /
    `natLitSupportedF`, `natLitStored` / `natLitStoredF`, `natOpGuard` /
-   `natOpGuardF`, `towerSlotsAll` / `towerSlotsAllF`,
-   `andRescueSlotsOf` / `andRescueSlots` / `andRescueSlotsF`,
+   `natOpGuardF`, `andRescueSlotsOf` / `andRescueSlots` / `andRescueSlotsF`,
    `strLitStored` / `strLitStoredF` — collapses into
    ONE twin, which carries a `con-leche:` line per collapsed declaration.
    That is P2b's own rule for the `…Go`/`…Fast` triples, applied to the
@@ -1465,25 +1464,6 @@ def propIrrel (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (a b : EIdx) :
       | _ => pure false
     else pure false
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:715-720 towerSlotsAll — the slot
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.towerSlotsAllGo_bridge, then delete this line
-walk.  con-leche writes `(List.range nF).all fun j => …`; DESIGN §3.4's rule
-turns the closure into a counted recursion. -/
-def towerSlotsAllGo (fe : IFEnv) (T : NIdx) : Nat → Nat → Bool
-  | 0, _ => true
-  | n + 1, j =>
-    match fe.findProj? T j with
-    | some _ => towerSlotsAllGo fe T n (j + 1)
-    | none => false
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:715-720 towerSlotsAll
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.towerSlotsAll_bridge, then delete this line
-con-leche: ConLeche/Kernel/FEnv.lean:175-177 FEnv.towerSlotsAllF
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.towerSlotsAll_bridge, then delete this line
-Are all `nF` projection slots of `T` table entries? -/
-def towerSlotsAll (fe : IFEnv) (T : NIdx) (nF : Nat) : Bool :=
-  towerSlotsAllGo fe T nF 0
-
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:712-716 etaProjs — the `.proj`
 spine, as a counted recursion (con-leche's `(List.range nF).map`). -/
 def projNodesGo (T : NIdx) (b : EIdx) : Nat → Nat → AM (List EIdx)
@@ -1495,8 +1475,8 @@ def projNodesGo (T : NIdx) (b : EIdx) : Nat → Nat → AM (List EIdx)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:712-716 etaProjs
 con-leche: ConLeche/Cached/CoreC.lean:317-324 projNodesI — the fabricated
-projections of a structure-eta spine: the `.proj T j b` nodes (every slot of
-an η family the checker uses has a table entry, `towerSlotsAll`). -/
+projections of a structure-eta spine: the `.proj T j b` nodes, one per field
+of the family's projection table. -/
 def etaProjs (T : NIdx) (b : EIdx) (nF : Nat) : AM (List EIdx) :=
   projNodesGo T b nF 0
 
@@ -1554,13 +1534,14 @@ def reservedRecName (n : NIdx) : AM Bool := do
       else reservedRecBool n
 
 /-- con-leche: ConLeche/Kernel/Core.lean:332-372 structEtaCertWith
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.structEtaCertWith_bridge, then delete this line
 con-leche: ConLeche/Cached/CoreC.lean:326-363 structEtaCertWithI — the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.structEtaCertWith_bridge, then delete this line
 structure-eta certificate against a *given* weak-head-normal type of the stuck
-side: the η law's keys, the level comparison, then the parameters and the
+side: the type's head is a stored η family whose projection table's
+constructor is the candidate's, at the table's parameter count and the
+former's level parameters; the level comparison, then the parameters and the
 fields against the fabricated projections (no type-application certificate,
-con-leche's task #342 L11b). -/
+con-leche's task #342 L11b).  The constructor and the counts are the table's,
+at every field count. -/
 def structEtaCertWith (r : CoreFnsA) (fe : IFEnv)
     (depth : Nat) (a b wtb : EIdx) : AM Bool := do
   let hh ← getAppFn coreWalkFuel a
@@ -1576,25 +1557,25 @@ def structEtaCertWith (r : CoreFnsA) (fe : IFEnv)
             match ← view hh with
             | .const T us' =>
               match fe.find? T with
-              | some (.indInfo cvT caps) => do
-                let targs ← getAppArgs coreWalkFuel wtb
-                let reserved ← reservedBasisNames
-                match ← viewLsLen us' with
-                | none => failDanglingLs
-                | some uslen =>
-                let slots := towerSlotsAll fe T caps.etaFields
-                if caps.eta = true ∧ caps.etaCtor = c ∧
-                    reserved.contains T = false ∧ reserved.contains c = false ∧
-                    targs.length = caps.etaParams ∧
-                    uslen = cvT.levelParams.length ∧
-                    cvc.levelParams = cvT.levelParams ∧ slots = true then do
-                  if ← liftFueled "level comparison" (← lvlsEq? us us') then do
-                    if ← defEqList r fe depth (aargs.take caps.etaParams) targs then do
-                      let projs ← etaProjs T b caps.etaFields
-                      defEqList r fe depth (aargs.drop caps.etaParams) projs
+              | some (.indInfo cvT caps) =>
+                match fe.findTable? T with
+                | none => pure false
+                | some tbl => do
+                  let targs ← getAppArgs coreWalkFuel wtb
+                  match ← viewLsLen us' with
+                  | none => failDanglingLs
+                  | some uslen =>
+                  if caps.eta = true ∧ tbl.ctor = c ∧
+                      targs.length = tbl.numParams ∧
+                      uslen = cvT.levelParams.length ∧
+                      cvc.levelParams = cvT.levelParams then do
+                    if ← liftFueled "level comparison" (← lvlsEq? us us') then do
+                      if ← defEqList r fe depth (aargs.take tbl.numParams) targs then do
+                        let projs ← etaProjs T b tbl.numFields
+                        defEqList r fe depth (aargs.drop tbl.numParams) projs
+                      else pure false
                     else pure false
                   else pure false
-                else pure false
               | _ => pure false
             | _ => pure false
           else pure false
@@ -1620,48 +1601,254 @@ def etaCtorShape (fe : IFEnv) (a : EIdx) : AM Bool := do
     | _ => pure false
   else pure false
 
-/-- con-leche: ConLeche/Kernel/Core.lean:411-429 structEtaCert —
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.structEtaCert_bridge, then delete this line
-structural eta certification for a stored eta-capable structure.  The
-constructor-shape test comes FIRST (the divergence audit's D13). -/
-def structEtaCert (r : CoreFnsA) (fe : IFEnv)
-    (depth : Nat) (a b : EIdx) : AM Bool := do
-  if ← etaCtorShape fe a then do
-    let tb ← r.inferIO depth b
-    let wtb ← r.whnf depth tb
-    structEtaCertWith r fe depth a b wtb
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:731-757 etaCtorPartial
+con-leche: ConLeche/Cached/StateC.lean:97-118 etaCtorPartialC — the family
+half of `etaCtorPartial`: the family the constructor's type `ty` ends in is a
+stored η family whose projection table's constructor is `c`. -/
+def etaCtorPartialFam (fe : IFEnv) (c : NIdx) (ty : EIdx) : AM Bool := do
+  let hh ← getAppFn coreWalkFuel (← piResult coreWalkFuel ty)
+  if hh.tag == ETag.const then
+    match ← view hh with
+    | .const T _ =>
+      match fe.find? T with
+      | some (.indInfo _ caps) =>
+        match fe.findTable? T with
+        | some tbl => pure (caps.eta && tbl.ctor == c)
+        | none => pure false
+      | _ => pure false
+    | _ => pure false
   else pure false
 
-/-- con-leche: ConLeche/Kernel/Core.lean:486-503 structUnitCert —
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.structUnitCert_bridge, then delete this line
-unit-likeness certification: `a` and `b` inhabit the same stored unit-like
-family (no type-application certificate, as official's `is_def_eq_unit_like`;
-no ∀, con-leche's task #342 L18). -/
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:731-757 etaCtorPartial
+con-leche: ConLeche/Cached/StateC.lean:97-118 etaCtorPartialC — **a
+partially applied η constructor** (official's `try_eta_struct_core` since
+lean4#15373): the candidate's head is a stored constructor applied to fewer
+than its parameters and fields, of a stored η family whose projection table's
+constructor it is.  `some k`, `k > 0` the arguments it lacks.  Read off the
+stored records alone, before any inference. -/
+def etaCtorPartial (fe : IFEnv) (a : EIdx) : AM (Option Nat) := do
+  let hh ← getAppFn coreWalkFuel a
+  if hh.tag == ETag.const then
+    match ← view hh with
+    | .const c _ =>
+      match fe.find? c with
+      | some (.ctorInfo cvc cnP cnF) => do
+        let args ← getAppArgs coreWalkFuel a
+        if args.length < cnP + cnF then do
+          if ← etaCtorPartialFam fe c cvc.type then pure (some (cnP + cnF - args.length))
+          else pure none
+        else pure none
+      | _ => pure none
+    | _ => pure none
+  else pure none
+
+/-- con-leche: ConLeche/Kernel/Core.lean:374-395 structEtaFull
+con-leche: ConLeche/Cached/CoreC.lean:365-374 structEtaFullI — the body of
+**structure η at a fully applied constructor**, past the constructor-shape
+gate: `b`'s io-inferred type, head-normalised, and the certificate against
+it. -/
+def structEtaFullAt (r : CoreFnsA) (fe : IFEnv)
+    (depth : Nat) (a b : EIdx) : AM Bool := do
+  let tb ← r.inferIO depth b
+  let wtb ← r.whnf depth tb
+  structEtaCertWith r fe depth a b wtb
+
+/-- con-leche: ConLeche/Kernel/Core.lean:374-395 structEtaFull
+con-leche: ConLeche/Cached/CoreC.lean:365-374 structEtaFullI — **structure η
+at a fully applied constructor**.  The constructor-shape test comes FIRST (the
+divergence audit's D13). -/
+def structEtaFull (r : CoreFnsA) (fe : IFEnv)
+    (depth : Nat) (a b : EIdx) : AM Bool := do
+  if ← etaCtorShape fe a then structEtaFullAt r fe depth a b
+  else pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:397-409 structEtaExpand
+con-leche: ConLeche/Cached/CoreC.lean:376-384 structEtaExpandI — **the
+η-expansion of a partially applied constructor**: both sides applied to fresh
+variables along the constructor side's type `ta`, one binder per missing
+argument, read syntactically; at the full application, `structEtaFull`. -/
+def structEtaExpand (r : CoreFnsA) (fe : IFEnv) :
+    Nat → Nat → EIdx → EIdx → EIdx → AM Bool
+  | 0, depth, a, b, _ => structEtaFull r fe depth a b
+  | k + 1, depth, a, b, ta => do
+    if ta.tag == ETag.forallE then
+      match ← viewBind ta with
+      | none => failDanglingE
+      | some (dom, body) => do
+        let fv ← internE (.fvar depth dom)
+        let a2 ← internE (.app a fv)
+        let b2 ← internE (.app b fv)
+        let body2 ← instantiate1Fast coreWalkFuel body fv 0
+        structEtaExpand r fe k (depth + 1) a2 b2 body2
+    else pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:411-429 structEtaCert
+con-leche: ConLeche/Cached/CoreC.lean:386-398 structEtaCertI — the
+partial-constructor arm of `structEtaCert`, at `k` missing arguments: the
+other side neutral, the two io-inferred types compared (official's
+`is_def_eq(t_type, s_type)`), then both sides η-expanded. -/
+def structEtaCertPartial (r : CoreFnsA) (fe : IFEnv)
+    (depth k : Nat) (a b : EIdx) : AM Bool := do
+  if !(← ioNeutral b) then pure false
+  else do
+    let ta ← r.inferIO depth a
+    let tb ← r.inferIO depth b
+    if ← r.defeq depth tb ta then structEtaExpand r fe k depth a b ta
+    else pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:411-429 structEtaCert
+con-leche: ConLeche/Cached/CoreC.lean:386-398 structEtaCertI — structural eta
+certification (official's `try_eta_struct_core`): `a` is a constructor
+application of a stored η family, fully applied (`structEtaFull`'s body: the
+shape gate is read once) or partially (`etaCtorPartial`). -/
+def structEtaCert (r : CoreFnsA) (fe : IFEnv)
+    (depth : Nat) (a b : EIdx) : AM Bool := do
+  if ← etaCtorShape fe a then structEtaFullAt r fe depth a b
+  else
+    match ← etaCtorPartial fe a with
+    | some k => structEtaCertPartial r fe depth k a b
+    | none => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:431-436 isPropType
+con-leche: ConLeche/Cached/CoreC.lean:400-408 isPropTypeI — **is a
+proposition** (official's `is_prop`): `T`'s io-inferred type head-normalises
+to a sort equivalent to `Prop`. -/
+def isPropType (r : CoreFnsA) (depth : Nat) (T : EIdx) : AM Bool := do
+  let tt ← r.inferIO depth T
+  let w ← r.whnf depth tt
+  if w.tag == ETag.sort then
+    match ← viewSort w with
+    | none => failDanglingE
+    | some u => do
+      let z ← zeroLevel
+      liftFueled "level comparison" (← lvlEq? u z)
+  else pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:438-453 unitLikeFields
+con-leche: ConLeche/Cached/CoreC.lean:410-422 unitLikeFieldsI — **the field
+loop of official's `is_unit_like`**: each of the `n` field binders of an η
+family's instance telescope has a proposition or a unit-like type (`ul`,
+official's recursive `is_unit_like`), the field opened at a fresh variable
+before the next.  The binders are syntactic. -/
+def unitLikeFields (r : CoreFnsA) (ul : Nat → EIdx → AM Bool) :
+    Nat → Nat → EIdx → AM Bool
+  | 0, _, _ => pure true
+  | n + 1, depth, tele => do
+    if tele.tag == ETag.forallE then
+      match ← viewBind tele with
+      | none => failDanglingE
+      | some (dom, body) => do
+        if ← isPropType r depth dom then do
+          let fv ← internE (.fvar depth dom)
+          let body2 ← instantiate1Fast coreWalkFuel body fv 0
+          unitLikeFields r ul n (depth + 1) body2
+        else if ← ul depth dom then do
+          let fv ← internE (.fvar depth dom)
+          let body2 ← instantiate1Fast coreWalkFuel body fv 0
+          unitLikeFields r ul n (depth + 1) body2
+        else pure false
+    else pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:455-458 unitLikeFuel — recursion
+budget of the unit-like test (`unitLikeLoop`).  Exhaustion is "not
+unit-like", which is always sound. -/
+@[noinline] def unitLikeFuel : Nat := 4611686018427387904  -- 2^62
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:767-794 unitLikeShape
+con-leche: ConLeche/Kernel/CoreDefs.lean:759-765 unitFieldTele
+con-leche: ConLeche/Cached/CoreC.lean:424-445 unitLikeShapeF — the field
+telescope of an instance at its family's table: the table's constructor,
+stored, its type at the instance's levels `us`, the table's `nP` parameter
+binders dropped and instantiated with the instance's arguments in one pass. -/
+def unitLikeShapeAt (fe : IFEnv) (us : LsIdx) (targs : List EIdx) (tctor : NIdx)
+    (nP nF : Nat) : AM (Option (EIdx × Nat)) := do
+  match fe.find? tctor with
+  | some (.ctorInfo cvc _ _) => do
+    let cty ← instLPFast coreWalkFuel cvc.levelParams us cvc.type
+    match ← peelPis nP cty with
+    | none => pure none
+    | some body => do
+      let tele ← instantiateListFast coreWalkFuel body targs.toArray 0
+      pure (some (tele, nF))
+  | _ => pure none
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:767-794 unitLikeShape
+con-leche: ConLeche/Cached/CoreC.lean:424-445 unitLikeShapeF — **the shape of
+an instance in official's `is_unit_like`**, read off the stored records: `w`
+is an instance of a stored η family at its parameters (the table's count),
+whose constructor's field telescope at the instance's parameters is `tele`
+with `n` fields to check (`some (tele, n)`), or not (`none`). -/
+def unitLikeShape (fe : IFEnv) (w : EIdx) : AM (Option (EIdx × Nat)) := do
+  let hh ← getAppFn coreWalkFuel w
+  if hh.tag == ETag.const then
+    match ← view hh with
+    | .const S us =>
+      match fe.find? S with
+      | some (.indInfo cvS caps) => do
+        match ← viewLsLen us with
+        | none => failDanglingLs
+        | some usl =>
+        if caps.eta = true ∧ usl = cvS.levelParams.length then
+          match fe.findTable? S with
+          | none => pure none
+          | some tbl => do
+            let targs ← getAppArgs coreWalkFuel w
+            if targs.length = tbl.numParams then
+              unitLikeShapeAt fe us targs tbl.ctor tbl.numParams tbl.numFields
+            else pure none
+        else pure none
+      | _ => pure none
+    | _ => pure none
+  else pure none
+
+/-- con-leche: ConLeche/Kernel/Core.lean:460-470 unitLikeStruct
+con-leche: ConLeche/Cached/CoreC.lean:447-452 unitLikeStructI — **the
+structure arm of official's `is_unit_like`**: `w`, a head normal form that is
+no ∀, is an instance of a stored η family every field of whose constructor,
+at the instance's parameters, has a proposition or a unit-like type (`ul`). -/
+def unitLikeStruct (r : CoreFnsA) (ul : Nat → EIdx → AM Bool) (fe : IFEnv)
+    (depth : Nat) (w : EIdx) : AM Bool := do
+  match ← unitLikeShape fe w with
+  | some (tele, n) => unitLikeFields r ul n depth tele
+  | none => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:472-484 unitLikeLoop
+con-leche: ConLeche/Cached/CoreC.lean:454-463 unitLikeLoopI — **is a type
+unit-like** (official's `is_unit_like`, lean4#15372): its head normal form is
+a ∀ whose codomain, opened at a fresh variable, is unit-like, or an instance
+of a stored η family every field of whose constructor is a proposition or
+unit-like (`unitLikeStruct`). -/
+def unitLikeLoop (r : CoreFnsA) (fe : IFEnv) : Nat → Nat → EIdx → AM Bool
+  | 0, _, _ => pure false
+  | fuel + 1, depth, T => do
+    let w ← r.whnf depth T
+    if w.tag == ETag.forallE then
+      match ← viewBind w with
+      | none => failDanglingE
+      | some (dom, body) => do
+        let fv ← internE (.fvar depth dom)
+        let body2 ← instantiate1Fast coreWalkFuel body fv 0
+        unitLikeLoop r fe fuel (depth + 1) body2
+    else unitLikeStruct r (unitLikeLoop r fe fuel) fe depth w
+
+/-- con-leche: ConLeche/Kernel/Core.lean:486-503 structUnitCert
+con-leche: ConLeche/Cached/CoreC.lean:465-476 structUnitCertI —
+**unit-likeness** (official's `is_def_eq_unit_like`): `a`'s io-inferred type,
+head-normalised, is unit-like (`unitLikeLoop`), and `b`'s type is
+definitionally equal to it (no type-application certificate).  A side whose
+type is a ∀ must be neutral (`ioNeutral`, con-leche's task #342 L18). -/
 def structUnitCert (r : CoreFnsA) (fe : IFEnv)
     (depth : Nat) (a b : EIdx) : AM Bool := do
   let ta ← r.inferIO depth a
   let wta ← r.whnf depth ta
-  let hh ← getAppFn coreWalkFuel wta
-  if hh.tag == ETag.const then
-    match ← view hh with
-    | .const T us' =>
-      match fe.find? T with
-      | some (.indInfo cvT caps) => do
-        let targs ← getAppArgs coreWalkFuel wta
-        let reserved ← reservedBasisNames
-        match ← viewLsLen us' with
-        | none => failDanglingLs
-        | some uslen =>
-        if caps.unitlike = true ∧ reserved.contains T = false ∧
-            targs.length = caps.unitParams ∧
-            uslen = cvT.levelParams.length then do
-          let tb ← r.inferIO depth b
-          let wtb ← r.whnf depth tb
-          if isForallE wtb then pure false
-          else r.defeq depth wta wtb
-        else pure false
-      | _ => pure false
-    | _ => pure false
+  let ga ← if isForallE wta then ioNeutral a else pure true
+  if !ga then pure false
+  else if ← unitLikeLoop r fe unitLikeFuel depth wta then do
+    let tb ← r.inferIO depth b
+    let wtb ← r.whnf depth tb
+    let gb ← if isForallE wtb then ioNeutral b else pure true
+    if !gb then pure false
+    else r.defeq depth wta wtb
   else pure false
 
 /-- con-leche: ConLeche/Kernel/Core.lean:505-531 etaCert — eta
@@ -1798,28 +1985,29 @@ def andRescueSlots (fe : IFEnv) (ctor : NIdx) (nP : Nat) : AM Bool := do
   let an ← pinAnd
   pure (andRescueSlotsGo fe an ctor nP 2 0)
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:1136-1146 etaRescueOk — **the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.etaRescueOk_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:924-941 etaRescueTable? — **the
 structure-η rescue's standing condition, at use**: the single rule's
-constructor `ctor` (stored as `cvj`) is the η constructor of its
-structure-like family `cvT` and carries the family's level parameters;
-`And.intro` is left to `And`'s own rescue.  The cited `&&` chain, left to
-right (the `And.intro` pin is read only when the chain reaches it). -/
-def etaRescueOk (ctor : NIdx) (cvj cvT : IConstantVal) (caps : IIndCaps) :
-    AM Bool := do
-  if caps.eta && caps.etaCtor == ctor && cvj.levelParams == cvT.levelParams then do
-    let ai ← pinAndIntro
-    pure (ctor != ai)
-  else pure false
+constructor `ctor` (stored as `cvj`) is the constructor of its family's
+projection table `tbl?` (the family `cvT` structure-like, `IIndCaps.eta`), and
+carries the family's level parameters; the table, for the fabrication's
+counts.  `And.intro` is left to `And`'s own rescue.  The cited `&&` chain,
+left to right (the `And.intro` pin is read only when the chain reaches it). -/
+def etaRescueTable? (tbl? : Option IProjTable) (ctor : NIdx) (cvj cvT : IConstantVal)
+    (caps : IIndCaps) : AM (Option IProjTable) := do
+  match tbl? with
+  | none => pure none
+  | some t =>
+    if caps.eta && t.ctor == ctor && cvj.levelParams == cvT.levelParams then do
+      let ai ← pinAndIntro
+      if ctor != ai then pure (some t) else pure none
+    else pure none
 
 /-! ## The stuck-major rescue and the ι step
 
 con-leche's `Core.lean`:1311-1832. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.fabScopeOk_bridge, then delete this line
 con-leche: ConLeche/Cached/CoreC.lean:550-651 majorToCtorI — the scope guard
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.fabScopeOk_bridge, then delete this line
 the three rescue branches share (cf. `annotateProjElim`): the fabricated major
 is well-scoped, closed under loose bvars, and mentions no free variable the
 stuck major does not.
@@ -1838,12 +2026,10 @@ def fabScopeOk (depth : Nat) (fab major : EIdx) : AM Bool := do
   else leafGuard coreWalkFuel fab major
 
 /-- con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.majorToCtor_bridge, then delete this line
 con-leche: ConLeche/Cached/CoreC.lean:550-651 majorToCtorI — **the
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Core.majorToCtor_bridge, then delete this line
 stuck-major rescue** (`to_cnstr_when_K` and `to_cnstr_when_structure`): a
 recursor's major premise that is not a constructor application may still be
-*replaced* by one — K-flagged (the record's `isK`), η-capable (`etaRescueOk`),
+*replaced* by one — K-flagged (the record's `isK`), η-capable (`etaRescueTable?`),
 or the pinned `And`.  No certificate
 on a fabricated spine (con-leche's task #342 L-DEAD, L11b); the K and `And`
 fabrications keep official's type check, and their proof-irrelevance run is a
@@ -1891,7 +2077,8 @@ def majorToCtor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
                   else pure major
                 | _ => pure major
               else pure major
-            else if ← etaRescueOk rl.ctor cvj cvT caps then do
+            else match ← etaRescueTable? (fe.findTable? T) rl.ctor cvj cvT caps with
+            | some tbl => do
               let tmaj ← r.whnf depth (← r.inferIO depth major)
               let hh ← getAppFn coreWalkFuel tmaj
               if hh.tag == ETag.const then
@@ -1899,27 +2086,23 @@ def majorToCtor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
                 | .const T' ust => do
                   let ustl ← viewLs ust
                   let targs ← getAppArgs coreWalkFuel tmaj
-                  if T' = T ∧ targs.length = caps.etaParams ∧
+                  if T' = T ∧ targs.length = tbl.numParams ∧
                       ustl.length = cvT.levelParams.length then do
-                    -- the η law's keys, then the *instantiated* non-Prop
-                    -- test at the use (`formerNeverZeroAt`)
-                    let reserved ← reservedBasisNames
-                    if reserved.contains T = false ∧
-                        reserved.contains caps.etaCtor = false ∧
-                        towerSlotsAll fe T caps.etaFields = true then do
-                      if ← formerNeverZeroAt r cvT caps ust then do
-                        let fabArgs ← etaFabArgsE T targs major caps.etaFields
-                        let hd ← internE (.const caps.etaCtor ust)
-                        let fab ← mkAppN hd fabArgs
-                        -- no certificate on the fabricated spine (task #342 L11b)
-                        if ← fabScopeOk depth fab major then pure fab
-                        else pure major
+                    -- the *instantiated* non-Prop test at the use
+                    -- (`formerNeverZeroAt`); the constructor and the counts
+                    -- are the table's
+                    if ← formerNeverZeroAt r cvT caps ust then do
+                      let fabArgs ← etaFabArgsE T targs major tbl.numFields
+                      let hd ← internE (.const tbl.ctor ust)
+                      let fab ← mkAppN hd fabArgs
+                      -- no certificate on the fabricated spine (task #342 L11b)
+                      if ← fabScopeOk depth fab major then pure fab
                       else pure major
                     else pure major
                   else pure major
                 | _ => pure major
               else pure major
-            else do
+            | none => do
               let an ← pinAnd
               if T = an then do
                 -- THE `And`-ONLY η RESCUE (user ruling: `And` and nothing else)
