@@ -729,7 +729,10 @@ def internAllBasisSpec : List BasisKind → AM Unit
 /-- **The port's startup walk**, as a twin action: `intern_all_pins`' four
 calls in order — `internAllPins` itself, re-bracketed
 (`internAllPinsPortSpec_eq`, `Checker/Top.lean`). -/
-def internAllPinsPortSpec (pins : List NatOpPinSet) : AM (List INatOpPinSet) := do
+def internAllPinsPortSpec (pins : List NatOpPinSet) (maxNatSize : Nat) :
+    AM (List INatOpPinSet) := do
+  let s ← get
+  set { s with pins := { s.pins with maxNatSize := maxNatSize } }
   internAllBasisSpec [.eqK, .natK, .emptyK, .falseK, .quotK]
   internAllAxiomPinsSpec
   internAllNamesSpec

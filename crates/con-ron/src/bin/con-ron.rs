@@ -54,6 +54,8 @@ use std::time::Instant;
 
 use con_ron_core::arena::checker;
 use con_ron_core::arena::monad::AState;
+use con_ron_core::arena::pins::max_nat_size_default;
+use con_ron_core::ron::nat::Nat;
 use con_ron_core::frontend::export_c;
 use con_ron_core::frontend::export_c::ParseResultD;
 use con_ron_core::frontend::prelude;
@@ -96,7 +98,6 @@ Usage:
 const TRY_HELP: &str = "Try 'con-ron --help' for more information.";
 
 /// con-leche: ConLeche/Driver/Cli.lean:125-155 helpText
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove con-ron::HELP_HEAD_refines, then delete this line
 /// The `--help` text: con-leche's, with this binary's name, the port's two
 /// testing flags, and con-ron's documentation.  DESIGN.md §3.1: message
 /// strings need not match.
@@ -105,13 +106,14 @@ Check Lean declarations from a lean4export file or from .olean modules.
 ";
 
 /// con-leche: ConLeche/Driver/Cli.lean:125-155 helpText
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove con-ron::HELP_TAIL_refines, then delete this line
 /// The rest of the `--help` text, after the synopsis.
 const HELP_TAIL: &str = "\
 Options:
   --verified          Check in the mode the soundness theorem covers (default)
   --trusted           Skip the checks only the proof needs; outside the theorem
   --jobs=N            Worker threads (default: one per hardware thread, at most 16)
+  --max-nat-size=N    Largest Nat numeral in bytes the checker takes in or
+                      computes; a larger one is rejected (default 134217728)
   --progress[=PACE]   Report progress on stderr: PACE is N declarations
                       (default 1), P% of each phase, or Ss seconds
   --pins FILE         Testing only: check with this Nat pin list instead of
@@ -143,7 +145,6 @@ fn usage_error(msg: &str) -> u8 {
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:157-175 Args
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove con-ron::Args_refines, then delete this line
 /// What the command line asked for — `con-ron`'s `Args`, field for field, so
 /// that a script written against one binary reads against the other.
 struct Args {
@@ -151,6 +152,8 @@ struct Args {
     verified: bool,
     progress: Pace,
     jobs: Option<u64>,
+    /// The maximum `Nat` size in bytes (`--max-nat-size=<n>`).
+    max_nat_size: Nat,
     pins: Option<String>,
     no_pins: bool,
     /// `--olean`: the positional arguments are root module names.
@@ -163,7 +166,6 @@ struct Args {
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:191-229 parseArgs
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove con-ron::parse_args_refines, then delete this line
 /// The argument parse, clause for clause as `con-ron`'s: the mode flags in
 /// either order with the heartbeat, `=`-carrying spellings after the bare
 /// ones, an unknown `-`-leading word a usage error, everything else a file.
@@ -176,6 +178,7 @@ fn parse_args(argv: &[String]) -> Args {
         verified: true,
         progress: Pace::Off,
         jobs: None,
+        max_nat_size: max_nat_size_default(),
         pins: None,
         no_pins: false,
         olean: false,
@@ -226,6 +229,11 @@ fn parse_args(argv: &[String]) -> Args {
                 } else if let Some(v) = s.strip_prefix("--jobs=") {
                     match con_ron::driver::jobs_count(v) {
                         Ok(n) => a.jobs = Some(n),
+                        Err(m) => bad(m, &mut a),
+                    }
+                } else if let Some(v) = s.strip_prefix("--max-nat-size=") {
+                    match con_ron::driver::max_nat_size_arg(v) {
+                        Ok(n) => a.max_nat_size = n,
                         Err(m) => bad(m, &mut a),
                     }
                 } else if let Some(v) = s.strip_prefix("--pins=") {
@@ -311,7 +319,6 @@ enum Input {
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove con-ron::check_main_refines, then delete this line
 /// con-leche: ConLeche/Driver/CheckMain.lean:87-98 readInputG
 /// The driver's front matter: the prelude, the streaming parse, the
 /// preparation, the pin walk, the receipts, then the index, the check phase
@@ -494,7 +501,7 @@ fn check_main(a: &Args, input: &Input) -> u8 {
     // is still off, so that nothing the fold compares against lives in a tier
     // that is about to vanish.  Its result is the fold's pin parameter.
     // ConRon.Capstone: h5
-    let ipins = match checker::intern_all_pins(pers, &mut st, &pins) {
+    let ipins = match checker::intern_all_pins(pers, &mut st, &pins, &a.max_nat_size) {
         Ok(p) => p,
         Err(e) => return frontend_exit(&e, mode_tag),
     };
@@ -575,7 +582,6 @@ fn exit_after_verdict(code: u8) -> ! {
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:239-324 runArgs
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove con-ron::main_refines, then delete this line
 /// con-leche: Main.lean:56-103 main
 /// The entry point.  The checker runs IN THIS PROCESS: it spawns no copy of
 /// itself, and the whole run — parse, preparation, pin walk, fold — is on one
@@ -591,7 +597,6 @@ fn main() -> ! {
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:239-324 runArgs
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove con-ron::run_main_refines, then delete this line
 /// The run up to its exit code, for every path but the verdict's.
 fn run_main() -> u8 {
     let argv: Vec<String> = std::env::args().skip(1).collect();

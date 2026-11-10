@@ -246,7 +246,7 @@ def internReservedPins : AM Unit := do
   let s ← get
   set { s with pins :=
     { names := hs.toArray, reserved := rs, emptyLevels := us,
-      zeroLevel := z, sortOne := s1 } }
+      zeroLevel := z, sortOne := s1, maxNatSize := maxNatSizeDefault } }
 
 /-! ## Reading the table -/
 
@@ -287,6 +287,12 @@ def pinSortOne : AM EIdx := do
   let s ← get
   if pinsReady s then pure s.pins.sortOne
   else fail (.internal "arena: reserved-name pins not interned")
+
+/-- con-leche: ConLeche/Cached/StateC.lean:267-271 maxNatSizeM — the run's
+maximum `Nat` size, read off the record, which it leaves as it is. -/
+@[inline] def maxNatSizeM : AM Nat := do
+  let s ← get
+  pure s.pins.maxNatSize
 
 /-! ## The fifty-two named readers, one per slot -/
 

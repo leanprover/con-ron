@@ -440,7 +440,55 @@ theorem constE_specA (s₀ : AState) (n : NIdx)
   rintro r s' ⟨h1, h2, h3, h4⟩
   exact ⟨h1, h2, h3, by rw [h4, hnm]; rfl⟩
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:556-582 natOpResult — **THEOREM 1
+/-- con-leche: ConLeche/Cached/StateC.lean:159-162 natSizeBytes — the size test
+against the run's maximum `Nat` size reads the state and leaves it.  Theorem 1
+needs nothing more of a refusal: it only ever throws, and the specification
+computes on (the cached core's exception postcondition is `⊤`). -/
+theorem natSizeRefused_spec (s₀ : AState) (n : Nat) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natSizeRefused n ⦃fun _ s' => s' = s₀; ⊤⦄ := by
+  sym only [bridge_grind] =>
+    vcgen [ConRon.Arena.natSizeRefused, ConRon.Arena.maxNatSizeM] <;> finish
+
+/-- con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal — `Nat.pow`'s
+refusal test reads the state and leaves it. -/
+theorem powRefused_spec (s₀ : AState) (a b : Nat) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.powRefused a b ⦃fun _ s' => s' = s₀; ⊤⦄ := by
+  sym only [bridge_grind] =>
+    vcgen [ConRon.Arena.powRefused, ConRon.Arena.maxNatSizeM] <;> finish
+
+/-- con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal — `Nat.pow`'s
+guard: when it lets the operation compute, the state is as it was. -/
+theorem powGuard_spec (s₀ : AState) (a b : Nat) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.powGuard a b ⦃fun _ s' => s' = s₀; ⊤⦄ := by
+  sym only [bridge_grind] =>
+    vcgen [ConRon.Arena.powGuard, powRefused_spec] <;> finish
+
+/-- con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal —
+`Nat.shiftLeft`'s refusal test reads the state and leaves it. -/
+theorem shiftLeftRefused_spec (s₀ : AState) (a b : Nat) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.shiftLeftRefused a b ⦃fun _ s' => s' = s₀; ⊤⦄ := by
+  sym only [bridge_grind] =>
+    vcgen [ConRon.Arena.shiftLeftRefused, ConRon.Arena.maxNatSizeM] <;> finish
+
+/-- con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal —
+`Nat.shiftLeft`'s guard: when it lets the operation compute, the state is as it
+was. -/
+theorem shiftLeftGuard_spec (s₀ : AState) (a b : Nat) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.shiftLeftGuard a b ⦃fun _ s' => s' = s₀; ⊤⦄ := by
+  sym only [bridge_grind] =>
+    vcgen [ConRon.Arena.shiftLeftGuard, shiftLeftRefused_spec] <;> finish
+
+/-- con-leche: ConLeche/Cached/StateC.lean:197-204 natResultRefused — a
+computed numeral, interned unless the maximum size refuses it: the literal. -/
+theorem litNatSized_spec (s₀ : AState) (n : Nat) (hok : CheckOK eager env fe s₀) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.litNatSized n
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ denoteEO s'.store r = some (some (.lit (.natVal n))); ⊤⦄ := by
+  sym only [bridge_grind] =>
+    vcgen [ConRon.Arena.litNatSized, natSizeRefused_spec,
+      internE_specC (eager := eager) (env := env) (fe := fe)] <;> finish
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:580-605 natOpResult — **THEOREM 1
 for `natOpResult`**: the reduct of a binary operation on two literals. -/
 theorem natOpResult_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
     (a b : Nat) (hok : CheckOK eager env fe s₀)
@@ -469,6 +517,8 @@ theorem natOpResult_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
       ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight,
       ConRon.Arena.boolTrueName, ConRon.Arena.boolFalseName, ConRon.Arena.pinBoolTrue,
       ConRon.Arena.pinBoolFalse, internE_specC (eager := eager) (env := env) (fe := fe),
+      litNatSized_spec (eager := eager) (env := env) (fe := fe), powGuard_spec,
+      shiftLeftGuard_spec,
       constE_specA (eager := eager) (env := env) (fe := fe), pinAt_specE] <;> finish (splits := 20)
 
 /-! ## 5. `natLitSupported` — the three stored-declaration shapes
@@ -605,7 +655,7 @@ theorem reduceNatFueled_none_of {F d : Nat} {x : Expr}
   simp only [ConLeche.reduceNatFueled, ConLeche.reduceNat]
   rfl
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:556-582 natOpResult — every
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:580-605 natOpResult — every
 reduct is a literal or a `Bool` constant, hence closed. -/
 theorem natOpResult_wscoped {c : ConLeche.Name} {a b d : Nat} {y : Expr}
     (h : ConLeche.natOpResult c a b = some y) : Expr.WScoped d y := by
@@ -628,9 +678,7 @@ theorem natOpResult_wscoped {c : ConLeche.Name} {a b d : Nat} {y : Expr}
   rw [ite_eq_right h3] at h
   by_cases h4 : c = ConLeche.natPowName
   · rw [ite_eq_left h4] at h
-    by_cases hb : b > 16777216
-    · rw [ite_eq_left hb] at h; cases h
-    · rw [ite_eq_right hb] at h; cases h; simp [Expr.WScoped]
+    cases h; simp [Expr.WScoped]
   rw [ite_eq_right h4] at h
   by_cases h5 : c = ConLeche.natDivName
   · rw [ite_eq_left h5] at h
@@ -1055,6 +1103,7 @@ theorem reduceNat_specR {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
       natOpWfNames_spec (eager := eager) (env := env) (fe := fe),
       natOpResult_spec (eager := eager) (env := env) (fe := fe)
         (nm := exprConstName (exprFn (exprFn x))),
+      litNatSized_spec (eager := eager) (env := env) (fe := fe),
       internE_specC (eager := eager) (env := env) (fe := fe), pinAt_specE] <;> finish (gen := 16) (ematch := 10)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — **THEOREM 1 for

@@ -238,9 +238,19 @@ open ConRon.Refine.Nat in
   fun _ h => (mul_refines h).symm
 
 open ConRon.Refine.Nat in
-@[lockstep] theorem nat_pow_spec (a : ron.nat.Nat) (e : Std.U64) :
-    LSP (ron.nat.pow a e) (fun c => NatWF c ∧ toNat c = toNat a ^ e.val) :=
-  fun _ h => (pow_refines _ a _ e rfl h).symm
+@[lockstep] theorem nat_pow_nat_spec (a e : ron.nat.Nat) (he : NatWF e) :
+    LSP (ron.nat.pow_nat a e) (fun c => NatWF c ∧ toNat c = toNat a ^ toNat e) :=
+  fun _ h => (pow_nat_refines he h).symm
+
+open ConRon.Refine.Nat in
+@[lockstep] theorem nat_size_bytes_spec (a : ron.nat.Nat) (ha : NatWF a) :
+    LSP (ron.nat.size_bytes a) (fun c => NatWF c ∧ toNat c = natSizeBytes (toNat a)) :=
+  fun _ h => (size_bytes_refines ha h).symm
+
+open ConRon.Refine.Nat in
+@[lockstep] theorem nat_size_bytes_gt_spec (a m : ron.nat.Nat) (ha : NatWF a) (hm : NatWF m) :
+    LSP (ron.nat.size_bytes_gt a m) (fun r => r = decide (natSizeBytes (toNat a) > toNat m)) :=
+  fun _ h => size_bytes_gt_refines ha hm h
 
 open ConRon.Refine.Nat in
 @[lockstep] theorem nat_div_spec (a b : ron.nat.Nat) (ha : NatWF a) (hb : NatWF b) :
@@ -271,6 +281,12 @@ open ConRon.Refine.Nat in
 @[lockstep] theorem nat_xor_spec (a b : ron.nat.Nat) :
     LSP (ron.nat.xor a b) (fun c => NatWF c ∧ toNat c = Nat.xor (toNat a) (toNat b)) :=
   fun _ h => (xor_refines h).symm
+
+open ConRon.Refine.Nat in
+@[lockstep] theorem nat_shift_right_spec (a : ron.nat.Nat) (k : Std.U64) :
+    LSP (ron.nat.shift_right a k)
+      (fun c => NatWF c ∧ toNat c = Nat.shiftRight (toNat a) k.val) :=
+  fun _ h => (shift_right_refines h).symm
 
 open ConRon.Refine.Nat in
 @[lockstep] theorem nat_shift_left_nat_spec (a k : ron.nat.Nat) (hk : NatWF k) :
