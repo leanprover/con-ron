@@ -278,7 +278,7 @@ theorem mkAppN_absEIdxList (f : EIdx) (args : alloc.vec.Vec arena.handle.EIdx) :
 Every walk below is `rw [rust_f, twinF]; lockstep` in each fuel (or cursor,
 or count) case.  Their twins that read a node are tag-first since task
 #97-T2-LOCKSTEP (`instPis`, `instPisAt`, `instLamsAt`, `instPisAtFGo`,
-`instLamsAtFGo`, `instPisAtLift`, `pisToLams`, `replacePiBody`,
+`instLamsAtFGo`, `pisToLams`, `replacePiBody`,
 `recRulePlain`), and `renameConstsGo` interns unconditionally in every arm, as
 the port does. -/
 
@@ -577,38 +577,39 @@ end abstract_range_go
   rw [arena.expr_ops.abstract_range_fast, abstractRangeFast]
   lockstep
 
-section instantiate1_lift_go
-attribute [local lockstep_simp] inst1LiftArmApp inst1LiftArmLam inst1LiftArmForallE inst1LiftArmLet inst1LiftArmProj
+section instantiate_lift_go
+attribute [local lockstep_simp] instLiftArmApp instLiftArmLam instLiftArmForallE instLiftArmLet instLiftArmProj
 
-theorem instantiate1_lift_go_aux (n : Nat) :
+theorem instantiate_lift_go_aux (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (v : arena.handle.EIdx) (fuel : Std.U64) (h : arena.handle.EIdx) (d : Std.U64),
+      (vs : alloc.vec.Vec arena.handle.EIdx) (fuel : Std.U64) (h : arena.handle.EIdx) (d : Std.U64),
       fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = absEIdx a) (arena.expr_ops.instantiate1_lift_go pers st v fuel h d) lst
-        (instantiate1LiftGo (absEIdx v) n (absEIdx h) (absU d)) := by
+      LS pers (fun a b => b = absEIdx a) (arena.expr_ops.instantiate_lift_go pers st vs fuel h d) lst
+        (instantiateLiftGo (absEIdxArr vs) n (absEIdx h) (absU d)) := by
   induction n with
   | zero =>
-    intro pers st lst v fuel h d hn hrel hinv
-    rw [arena.expr_ops.instantiate1_lift_go, instantiate1LiftGo_zero]
+    intro pers st lst vs fuel h d hn hrel hinv
+    rw [arena.expr_ops.instantiate_lift_go, instantiateLiftGo_zero]
     lockstep
   | succ m ih =>
-    intro pers st lst v fuel h d hn hrel hinv
-    rw [arena.expr_ops.instantiate1_lift_go, instantiate1LiftGo_succ]
+    intro pers st lst vs fuel h d hn hrel hinv
+    rw [arena.expr_ops.instantiate_lift_go, instantiateLiftGo_succ]
     lockstep
 
-@[lockstep] theorem instantiate1_lift_go_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (v : arena.handle.EIdx) (fuel : Std.U64) (h : arena.handle.EIdx) (d : Std.U64) :
-    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.instantiate1_lift_go pers st v fuel h d) lst
-      (instantiate1LiftGo (absEIdx v) (absU fuel) (absEIdx h) (absU d)) :=
-  instantiate1_lift_go_aux _ v fuel h d rfl hrel hinv
+@[lockstep] theorem instantiate_lift_go_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (vs : alloc.vec.Vec arena.handle.EIdx) (fuel : Std.U64) (h : arena.handle.EIdx) (d : Std.U64) :
+    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.instantiate_lift_go pers st vs fuel h d) lst
+      (instantiateLiftGo (absEIdxArr vs) (absU fuel) (absEIdx h) (absU d)) :=
+  instantiate_lift_go_aux _ vs fuel h d rfl hrel hinv
 
-end instantiate1_lift_go
+end instantiate_lift_go
 
-@[lockstep] theorem instantiate1_lift_fast_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (fuel : Std.U64) (e v : arena.handle.EIdx) (d : Std.U64) :
-    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.instantiate1_lift_fast pers st fuel e v d) lst
-      (instantiate1LiftFast (absU fuel) (absEIdx e) (absEIdx v) (absU d)) := by
-  rw [arena.expr_ops.instantiate1_lift_fast, instantiate1LiftFast]
+@[lockstep] theorem instantiate_lift_fast_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (fuel : Std.U64) (e : arena.handle.EIdx)
+    (vs : alloc.vec.Vec arena.handle.EIdx) (d : Std.U64) :
+    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.instantiate_lift_fast pers st fuel e vs d) lst
+      (instantiateLiftFast (absU fuel) (absEIdx e) (absEIdxArr vs) (absU d)) := by
+  rw [arena.expr_ops.instantiate_lift_fast, instantiateLiftFast]
   lockstep
 
 theorem inst_spine_from_aux (n : Nat) :
@@ -638,35 +639,6 @@ theorem inst_spine_from_aux (n : Nat) :
     LS pers (fun a b => b = absEIdx a) (arena.expr_ops.inst_spine pers st fuel args t e) lst
       (instSpine (absU fuel) (absEIdxList args) (absU t) (absEIdx e)) := by
   rw [arena.expr_ops.inst_spine]
-  lockstep
-
-theorem inst_pis_at_lift_from_aux (n : Nat) :
-    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (fuel : Std.U64) (args : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize) (h : arena.handle.EIdx),
-      args.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = absOptE a) (arena.expr_ops.inst_pis_at_lift_from pers st fuel args i h) lst
-        (instPisAtLift (absU fuel) (absEIdxListFrom args i) (absEIdx h)) := by
-  induction n with
-  | zero =>
-    intro pers st lst fuel args i h hn hrel hinv
-    rw [arena.expr_ops.inst_pis_at_lift_from, listFrom_nil args i (by omega), instPisAtLift]
-    lockstep
-  | succ k ih =>
-    intro pers st lst fuel args i h hn hrel hinv
-    rw [arena.expr_ops.inst_pis_at_lift_from, listFrom_cons args i (by omega), instPisAtLift]
-    lockstep
-
-@[lockstep] theorem inst_pis_at_lift_from_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (fuel : Std.U64) (args : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize) (h : arena.handle.EIdx) :
-    LS pers (fun a b => b = absOptE a) (arena.expr_ops.inst_pis_at_lift_from pers st fuel args i h) lst
-      (instPisAtLift (absU fuel) (absEIdxListFrom args i) (absEIdx h)) :=
-  inst_pis_at_lift_from_aux _ fuel args i h rfl hrel hinv
-
-@[lockstep] theorem inst_pis_at_lift_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (fuel : Std.U64) (args : alloc.vec.Vec arena.handle.EIdx) (h : arena.handle.EIdx) :
-    LS pers (fun a b => b = absOptE a) (arena.expr_ops.inst_pis_at_lift pers st fuel args h) lst
-      (instPisAtLift (absU fuel) (absEIdxList args) (absEIdx h)) := by
-  rw [arena.expr_ops.inst_pis_at_lift]
   lockstep
 
 end ConRon.Refine2

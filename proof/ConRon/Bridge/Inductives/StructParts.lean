@@ -283,25 +283,15 @@ theorem structProjArgP_spec (T : NIdx) (TP : ConLeche.Name) (j : Nat) :
     internProjE_run hstep1.ok (denoteN_ext hT hstep1.ext) hb h2
   exact ⟨hstep1.trans hstep2, hr⟩
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2367-2380 instPisAtLift — the run
-form of `Bridge/ExprOps/Subst.lean`'s closed `instPisAtLift_spec` at this
-tier's frame, with the answer as an `ROp RE`. -/
-theorem instPisAtLift_pstep {fuel : Nat} {args : List EIdx} {argsP : List Expr}
-    {s₀ s' : AState} {c : EIdx} {cP : Expr} {r : Option EIdx}
-    (hok : StateOK s₀) (ha : Frontend.denoteEList s₀.store args = some argsP)
-    (hc : denoteE s₀.store c = some cP)
-    (hrun : Arena.instPisAtLift fuel args c s₀ = .ok (r, s')) :
-    PStep s₀ s' ∧ ROp RE (Expr.instPisAtLift argsP cP) s'.store r := by
-  obtain ⟨h1, h2, -, h4, h5, h6⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
-    (ExprOps.instPisAtLift_spec fuel args s₀ c hok (by rw [ha]; rfl) (by rw [hc]; rfl))
-  refine ⟨PStep.of_caches h1 h2 h4 h5, ?_⟩
-  have h7 := h6 argsP ha cP hc
-  cases r with
-  | none => simp only [denoteEO, Option.some.injEq] at h7; exact h7.symm
-  | some j =>
-    simp only [denoteEO, Option.map_eq_some_iff] at h7
-    obtain ⟨e, he, hx⟩ := h7
-    exact ⟨e, hx.symm, he⟩
+/-- con-leche: none — the projection bodies' values, extended by one field:
+the push-order vector of `Bridge/ExprOps/Subst.lean`'s `InstLVec` grows at the
+end exactly when con-leche's innermost-first list grows at the head. -/
+theorem projVals_push {st : EStore} {vs : Array EIdx} {ws : List Expr}
+    {a : EIdx} {x : Expr} (h : ExprOps.InstLVec st vs ws)
+    (hx : denoteE st a = some x) : ExprOps.InstLVec st (vs.push a) (x :: ws) := by
+  unfold ExprOps.InstLVec at h ⊢
+  simp only [Array.toList_push, List.reverse_cons]
+  exact ExprOps.denoteEList_snoc hx _ _ h
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1577 bvarB_eq — **the cutoff's
 run form**, at this tier's frame: `Bridge/ExprOps/Ranges.lean`'s `bvarB_run`
@@ -613,23 +603,28 @@ theorem structUsedLater_spec (cty : EIdx) (ctyP : Expr) (nP j : Nat) :
 
 /-! ## The projection bodies -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:516-521 structProjBodiesGo
-Peel `k` field binders, substituting the projection of the structure variable
-for each. -/
-theorem structProjBodiesGo_spec (T : NIdx) (TP : ConLeche.Name) (k i : Nat)
-    (h : EIdx) (hP : Expr) :
-    PSpec (fun st => denoteN st.ns T = some TP ∧ denoteE st h = some hP)
-      (Arena.structProjBodiesGo T k i h)
-      (ROp REL (ConLeche.structProjBodiesGo TP k i hP)) := by
-  induction k generalizing i h hP with
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:105-110 structProjBodiesGo
+Peel `k` field binders: each field's raw domain substituted once at the values
+`vs` of the binders before it, the field's own projection pushed for the rest.
+
+**Proof:** induction on `k`; at a `∀`, `instantiateLiftFast_run` for the
+body, `structProjArgP_spec` for the value, `projVals_push` for the
+hypothesis of the recursive call. -/
+theorem structProjBodiesGo_spec (T : NIdx) (TP : ConLeche.Name) (k : Nat) :
+    ∀ (vs : Array EIdx) (ws : List Expr) (i : Nat) (h : EIdx) (hP : Expr),
+    PSpec (fun st => denoteN st.ns T = some TP ∧ ExprOps.InstLVec st vs ws ∧
+        denoteE st h = some hP)
+      (Arena.structProjBodiesGo T vs k i h)
+      (ROp REL (ConLeche.structProjBodiesGo TP ws k i hP)) := by
+  induction k with
   | zero =>
-    intro s₀ s' r hok _ hrun
+    intro vs ws i h hP s₀ s' r hok _ hrun
     simp only [Arena.structProjBodiesGo] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, [], by simp only [ConLeche.structProjBodiesGo], rfl⟩
   | succ k ih =>
-    intro s₀ s' r hok hpre hrun
-    obtain ⟨hT, hh⟩ := hpre
+    intro vs ws i h hP s₀ s' r hok hpre hrun
+    obtain ⟨hT, hvs, hh⟩ := hpre
     simp only [Arena.structProjBodiesGo] at hrun
     obtain ⟨v0, hv0⟩ := denoteE_view hh
     obtain ⟨v, s1, k1, hz1⟩ := AM.bind_ok (tagIf_view_run hv0
@@ -641,34 +636,37 @@ theorem structProjBodiesGo_spec (T : NIdx) (TP : ConLeche.Name) (k i : Nat)
     split at hz1
     case h_1 fdom body =>
       obtain ⟨fdomP, bodyP, rfl, hfd, hbd⟩ := denote_forallE_inv hok.wf hv hh
-      obtain ⟨a, s2, k2, hz2⟩ := AM.bind_ok hz1
-      obtain ⟨p2, ha⟩ := structProjArgP_spec T TP i s₀ s2 a hok hT k2
-      obtain ⟨b, s3, k3, hz3⟩ := AM.bind_ok hz2
-      obtain ⟨hok3, hx3, -, hc3, hp3, -, hb⟩ :=
-        ExprOps.instantiate1LiftFast_run p2.ok ha
-          (by rw [denote_ext hbd p2.ext]; rfl) k3
-      have p3 : PStep s2 s3 := PStep.of_caches hok3 hx3 hc3 hp3
-      have hb' := hb bodyP (denote_ext hbd p2.ext)
+      obtain ⟨b, s2, k2, hz2⟩ := AM.bind_ok hz1
+      obtain ⟨hok2, hx2, -, hc2, hp2, -, hb⟩ :=
+        ExprOps.instantiateLiftFast_run hok hvs (by rw [hfd]; rfl) k2
+      have p2 : PStep s₀ s2 := PStep.of_caches hok2 hx2 hc2 hp2
+      have hb' := hb fdomP hfd
+      obtain ⟨a, s3, k3, hz3⟩ := AM.bind_ok hz2
+      obtain ⟨p3, ha⟩ := structProjArgP_spec T TP i s2 s3 a p2.ok
+        (denoteN_ext hT p2.ext) k3
+      have q3 : PStep s₀ s3 := p2.trans p3
       obtain ⟨o, s4, k4, hz4⟩ := AM.bind_ok hz3
-      obtain ⟨p4, ho⟩ := ih (i + 1) b _ s3 s4 o p3.ok
-        ⟨denoteN_ext hT (p2.ext.trans p3.ext), hb'⟩ k4
-      have q4 : PStep s₀ s4 := p2.trans (p3.trans p4)
+      obtain ⟨p4, ho⟩ := ih (vs.push a) (ConLeche.structProjArgP TP i :: ws) (i + 1)
+        body bodyP s3 s4 o p3.ok
+        ⟨denoteN_ext hT q3.ext, projVals_push (hvs.ext q3.ext) ha,
+          denote_ext hbd q3.ext⟩ k4
+      have q4 : PStep s₀ s4 := q3.trans p4
       cases o with
       | none =>
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hz4
         refine ⟨q4, ?_⟩
-        show ConLeche.structProjBodiesGo TP (k + 1) i (.forallE fdomP bodyP) = none
+        show ConLeche.structProjBodiesGo TP ws (k + 1) i (.forallE fdomP bodyP) = none
         simp only [ConLeche.structProjBodiesGo]
-        rw [show ConLeche.structProjBodiesGo TP k (i + 1) _ = none from ho]
+        rw [show ConLeche.structProjBodiesGo TP _ k (i + 1) _ = none from ho]
         rfl
       | some l =>
         obtain ⟨lP, hl, hdl⟩ := ho
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hz4
-        refine ⟨q4, fdomP :: lP, ?_, ?_⟩
+        refine ⟨q4, fdomP.instantiateLift ws :: lP, ?_, ?_⟩
         · simp only [ConLeche.structProjBodiesGo]
           rw [hl]; rfl
-        · show Frontend.denoteEList _ (fdom :: l) = some (fdomP :: lP)
-          simp only [Frontend.denoteEList, denote_ext hfd q4.ext, hdl]
+        · show Frontend.denoteEList _ (b :: l) = some (fdomP.instantiateLift ws :: lP)
+          simp only [Frontend.denoteEList, denote_ext hb' (p3.ext.trans p4.ext), hdl]
     case h_2 hne =>
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hz1
       refine ⟨PStep.refl hok, ?_⟩
@@ -676,8 +674,19 @@ theorem structProjBodiesGo_spec (T : NIdx) (TP : ConLeche.Name) (k i : Nat)
       show _ = none
       cases hP <;> first | rfl | exact absurd rfl (hns _ _)
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:523-526 structProjBodies
-The entry, after `nP` parameter binders. -/
+/-- con-leche: none — the parameters' values in push order: the arena's
+`structProjPs` list as a vector denotes con-leche's reversed
+`structProjPs nP`. -/
+theorem projVals_params {st : EStore} {ps : List EIdx} {nP : Nat}
+    (h : Frontend.denoteEList st ps = some (ConLeche.structProjPs nP)) :
+    ExprOps.InstLVec st ps.toArray (ConLeche.structProjPs nP).reverse := by
+  unfold ExprOps.InstLVec
+  rw [List.reverse_reverse, List.toList_toArray]
+  exact h
+
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:112-115 structProjBodies
+The entry: the `nP` parameter binders skipped, then the fields' walk at the
+parameters' values. -/
 theorem structProjBodies_spec (T : NIdx) (TP : ConLeche.Name) (nP nF : Nat)
     (cty : EIdx) (ctyP : Expr) :
     PSpec (fun st => denoteN st.ns T = some TP ∧ denoteE st cty = some ctyP)
@@ -686,36 +695,36 @@ theorem structProjBodies_spec (T : NIdx) (TP : ConLeche.Name) (nP nF : Nat)
   intro s₀ s' r hok hpre hrun
   obtain ⟨hT, hc⟩ := hpre
   simp only [Arena.structProjBodies] at hrun
-  obtain ⟨ps, s1, k1, hz1⟩ := AM.bind_ok hrun
-  obtain ⟨p1, hps⟩ := structProjPs_spec nP s₀ s1 ps hok trivial k1
-  obtain ⟨o, s2, k2, hz2⟩ := AM.bind_ok hz1
-  obtain ⟨p2, ho⟩ := instPisAtLift_pstep p1.ok hps (denote_ext hc p1.ext) k2
+  obtain ⟨o, s1, k1, hz1⟩ := AM.bind_ok hrun
+  obtain ⟨rfl, hbp⟩ := stripPis_pstep hok hc k1
   cases o with
   | none =>
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hz2
-    refine ⟨p1.trans p2, ?_⟩
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hz1
+    refine ⟨PStep.refl hok, ?_⟩
     show ConLeche.structProjBodies TP nP nF ctyP = none
-    simp only [ConLeche.structProjBodies]
-    rw [show Expr.instPisAtLift (ConLeche.structProjPs nP) ctyP = none from ho]
-  | some h =>
-    obtain ⟨e, he, hd⟩ := ho
+    simp only [ConLeche.structProjBodies, stripPis_none hbp]
+  | some p =>
+    obtain ⟨bs, rest⟩ := p
+    obtain ⟨xs, x, hsp, -, hx⟩ := denoteBP_some hbp
+    obtain ⟨ps, s2, k2, hz2⟩ := AM.bind_ok hz1
+    obtain ⟨p2, hps⟩ := structProjPs_spec nP s₀ s2 ps hok trivial k2
     obtain ⟨o2, s3, k3, hz3⟩ := AM.bind_ok hz2
-    obtain ⟨p3, ho2⟩ := structProjBodiesGo_spec T TP nF 0 h e s2 s3 o2 p2.ok
-      ⟨denoteN_ext hT (p1.ext.trans p2.ext), hd⟩ k3
-    have q3 : PStep s₀ s3 := p1.trans (p2.trans p3)
+    obtain ⟨p3, ho2⟩ := structProjBodiesGo_spec T TP nF ps.toArray _ 0 rest x s2 s3 o2
+      p2.ok ⟨denoteN_ext hT p2.ext, projVals_params hps, denote_ext hx p2.ext⟩ k3
+    have q3 : PStep s₀ s3 := p2.trans p3
     cases o2 with
     | none =>
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hz3
       refine ⟨q3, ?_⟩
       show ConLeche.structProjBodies TP nP nF ctyP = none
-      simp only [ConLeche.structProjBodies, he]
-      rw [show ConLeche.structProjBodiesGo TP nF 0 e = none from ho2]
+      simp only [ConLeche.structProjBodies, hsp]
+      rw [show ConLeche.structProjBodiesGo TP _ nF 0 x = none from ho2]
       rfl
     | some l =>
       obtain ⟨lP, hl, hdl⟩ := ho2
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hz3
       refine ⟨q3, lP.toArray, ?_, ?_⟩
-      · simp only [ConLeche.structProjBodies, he, hl]; rfl
+      · simp only [ConLeche.structProjBodies, hsp, hl]; rfl
       · show Frontend.denoteEArray _ l.toArray = _
         simp only [Frontend.denoteEArray, hdl]
 
@@ -770,32 +779,23 @@ theorem structProjArgP_scr {T : NIdx} {TP : ConLeche.Name} {j : Nat} {s s' : ASt
     (denoteN_ext hT hstep1.ext)) (by rw [hb]; rfl)) h2
   rw [e2, e1]
 
-/-- con-leche: none — `instPisAtLift` keeps the scratch flag
-(`instPisAtLift_spec`'s frame). -/
-theorem instPisAtLift_scr {fuel : Nat} {args : List EIdx} {argsP : List Expr}
-    {s₀ s' : AState} {c : EIdx} {cP : Expr} {r : Option EIdx}
-    (hok : StateOK s₀) (ha : Frontend.denoteEList s₀.store args = some argsP)
-    (hc : denoteE s₀.store c = some cP)
-    (hrun : Arena.instPisAtLift fuel args c s₀ = .ok (r, s')) :
-    s'.store.scratchOn = s₀.store.scratchOn :=
-  (AM.of_run (P := fun t => t = s₀) rfl hrun
-    (ExprOps.instPisAtLift_spec fuel args s₀ c hok (by rw [ha]; rfl) (by rw [hc]; rfl))).2.2.1
-
 /-- con-leche: none — `structProjBodiesGo` keeps the scratch flag. -/
 theorem structProjBodiesGo_scr (T : NIdx) (TP : ConLeche.Name) :
-    ∀ (k i : Nat) (h : EIdx) (hP : Expr) {s₀ s' : AState} {r : Option (List EIdx)},
-      StateOK s₀ → denoteN s₀.store.ns T = some TP → denoteE s₀.store h = some hP →
-      Arena.structProjBodiesGo T k i h s₀ = .ok (r, s') →
+    ∀ (k : Nat) (vs : Array EIdx) (ws : List Expr) (i : Nat) (h : EIdx) (hP : Expr)
+      {s₀ s' : AState} {r : Option (List EIdx)},
+      StateOK s₀ → denoteN s₀.store.ns T = some TP → ExprOps.InstLVec s₀.store vs ws →
+      denoteE s₀.store h = some hP →
+      Arena.structProjBodiesGo T vs k i h s₀ = .ok (r, s') →
       s'.store.scratchOn = s₀.store.scratchOn := by
   intro k
   induction k with
   | zero =>
-    intro i h hP s₀ s' r hok _ _ hrun
+    intro vs ws i h hP s₀ s' r hok _ _ _ hrun
     simp only [Arena.structProjBodiesGo] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     rfl
   | succ k ih =>
-    intro i h hP s₀ s' r hok hT hh hrun
+    intro vs ws i h hP s₀ s' r hok hT hvs hh hrun
     simp only [Arena.structProjBodiesGo] at hrun
     obtain ⟨v0, hv0⟩ := denoteE_view hh
     obtain ⟨v, s1, k1, hz1⟩ := AM.bind_ok (tagIf_view_run hv0
@@ -804,18 +804,20 @@ theorem structProjBodiesGo_scr (T : NIdx) (TP : ConLeche.Name) :
     rw [hs1] at hz1
     split at hz1
     case h_1 fdom body =>
-      obtain ⟨fdomP, bodyP, rfl, -, hbd⟩ := denote_forallE_inv hok.wf hv hh
-      obtain ⟨a, s2, k2, hz2⟩ := AM.bind_ok hz1
-      have e2 := structProjArgP_scr hok hT k2
-      obtain ⟨p2, ha⟩ := structProjArgP_spec T TP i s₀ s2 a hok hT k2
-      obtain ⟨b, s3, k3, hz3⟩ := AM.bind_ok hz2
-      obtain ⟨hok3, hx3, e3, hc3, hp3, -, hb⟩ :=
-        ExprOps.instantiate1LiftFast_run p2.ok ha
-          (by rw [denote_ext hbd p2.ext]; rfl) k3
-      have p3 : PStep s2 s3 := PStep.of_caches hok3 hx3 hc3 hp3
-      have hb' := hb bodyP (denote_ext hbd p2.ext)
+      obtain ⟨fdomP, bodyP, rfl, hfd, hbd⟩ := denote_forallE_inv hok.wf hv hh
+      obtain ⟨b, s2, k2, hz2⟩ := AM.bind_ok hz1
+      obtain ⟨hok2, hx2, e2, hc2, hp2, -, -⟩ :=
+        ExprOps.instantiateLiftFast_run hok hvs (by rw [hfd]; rfl) k2
+      have p2 : PStep s₀ s2 := PStep.of_caches hok2 hx2 hc2 hp2
+      obtain ⟨a, s3, k3, hz3⟩ := AM.bind_ok hz2
+      have e3 := structProjArgP_scr p2.ok (denoteN_ext hT p2.ext) k3
+      obtain ⟨p3, ha⟩ := structProjArgP_spec T TP i s2 s3 a p2.ok
+        (denoteN_ext hT p2.ext) k3
+      have q3 : PStep s₀ s3 := p2.trans p3
       obtain ⟨o, s4, k4, hz4⟩ := AM.bind_ok hz3
-      have e4 := ih (i + 1) b _ p3.ok (denoteN_ext hT (p2.ext.trans p3.ext)) hb' k4
+      have e4 := ih (vs.push a) (ConLeche.structProjArgP TP i :: ws) (i + 1) body bodyP
+        p3.ok (denoteN_ext hT q3.ext) (projVals_push (hvs.ext q3.ext) ha)
+        (denote_ext hbd q3.ext) k4
       have e5 : s'.store.scratchOn = s4.store.scratchOn := by
         cases o <;> (obtain ⟨rfl, rfl⟩ := AM.pure_ok hz4; rfl)
       rw [e5, e4, e3, e2]
@@ -831,23 +833,23 @@ theorem structProjBodies_scr {T : NIdx} {TP : ConLeche.Name} {nP nF : Nat}
     (hrun : Arena.structProjBodies T nP nF cty s₀ = .ok (r, s')) :
     s'.store.scratchOn = s₀.store.scratchOn := by
   simp only [Arena.structProjBodies] at hrun
-  obtain ⟨ps, s1, k1, hz1⟩ := AM.bind_ok hrun
-  have e1 := structPsAt_go_scr 1 nP nP 0 hok k1
-  obtain ⟨p1, hps⟩ := structProjPs_spec nP s₀ s1 ps hok trivial k1
-  obtain ⟨o, s2, k2, hz2⟩ := AM.bind_ok hz1
-  have e2 := instPisAtLift_scr p1.ok hps (denote_ext hc p1.ext) k2
-  obtain ⟨p2, ho⟩ := instPisAtLift_pstep p1.ok hps (denote_ext hc p1.ext) k2
+  obtain ⟨o, s1, k1, hz1⟩ := AM.bind_ok hrun
+  obtain ⟨rfl, hbp⟩ := stripPis_pstep hok hc k1
   cases o with
   | none =>
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hz2
-    rw [e2, e1]
-  | some h =>
-    obtain ⟨e, -, hd⟩ := ho
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hz1
+    rfl
+  | some p =>
+    obtain ⟨bs, rest⟩ := p
+    obtain ⟨xs, x, -, -, hx⟩ := denoteBP_some hbp
+    obtain ⟨ps, s2, k2, hz2⟩ := AM.bind_ok hz1
+    have e2 := structPsAt_go_scr 1 nP nP 0 hok k2
+    obtain ⟨p2, hps⟩ := structProjPs_spec nP s₀ s2 ps hok trivial k2
     obtain ⟨o2, s3, k3, hz3⟩ := AM.bind_ok hz2
-    have e3 := structProjBodiesGo_scr T TP nF 0 h e p2.ok
-      (denoteN_ext hT (p1.ext.trans p2.ext)) hd k3
+    have e3 := structProjBodiesGo_scr T TP nF ps.toArray _ 0 rest x p2.ok
+      (denoteN_ext hT p2.ext) (projVals_params hps) (denote_ext hx p2.ext) k3
     have e4 : s'.store.scratchOn = s3.store.scratchOn := by
       cases o2 <;> (obtain ⟨rfl, rfl⟩ := AM.pure_ok hz3; rfl)
-    rw [e4, e3, e2, e1]
+    rw [e4, e3, e2]
 
 end ConRon.Bridge.Inductives

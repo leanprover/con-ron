@@ -117,24 +117,21 @@ def checkStructProjTableTailSpec (T : NIdx) (fe : IFEnv) : AM Unit := do
   unless (fe.findTable? T).isNone do
     fail (.invalid "projection table taken")
 
-/-- The owed equation: `checkStructProjTable` IS the bodies, their scoping and
+/-- The owed equation: `checkStructProjTable` IS the bodies' scoping and
 `checkStructProjTableTailSpec`. -/
-theorem checkStructProjTable_unfold (T : NIdx) (lps : List NIdx) (nP nF : Nat)
-    (cvCa : IConstantVal) (fe : IFEnv) :
-    checkStructProjTable T lps nP nF cvCa fe = (do
-      let bodies ← unwrapOr (← structProjBodies T nP nF cvCa.type)
-        (.internal "direct structure: projection bodies")
-      let scopedOk ← projBodiesScopedSpec fe lps nP bodies.toList
-      unless bodies.size = nF ∧ scopedOk do
+theorem checkStructProjTable_unfold (t : IProjTable) (fe : IFEnv) :
+    checkStructProjTable t fe = (do
+      let scopedOk ← projBodiesScopedSpec fe t.levelParams t.numParams t.bodies.toList
+      unless t.bodies.size = t.numFields ∧ scopedOk do
         fail (.internal "direct structure: projection body scoping")
-      checkStructProjTableTailSpec T fe) := by
+      checkStructProjTableTailSpec t.structName fe) := by
   have hall := list_allM_counted (fun b => do
       let w1 ← hasFvarFast coreWalkFuel b
-      let w2 ← allLevelParamsDefined lps b
+      let w2 ← allLevelParamsDefined t.levelParams b
       let w3 ← constsResolveFFast fe b
-      let w4 ← looseBVarsBoundedFast coreWalkFuel (nP + 1) b
+      let w4 ← looseBVarsBoundedFast coreWalkFuel (t.numParams + 1) b
       pure (!w1 && w2 && w3 && w4))
-    (projBodiesScopedSpec fe lps nP) rfl
+    (projBodiesScopedSpec fe t.levelParams t.numParams) rfl
     (by intro a l; twin_reduce [projBodiesScopedSpec])
   twin_reduce [checkStructProjTable, hall, checkStructProjTableTailSpec]
 

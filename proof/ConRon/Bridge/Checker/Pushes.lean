@@ -113,12 +113,19 @@ final `pure`. -/
 theorem checkBlock_pushes {ops : CheckerOps CheckM} {env env' : Env}
     {block : List ConstantInfo} {p₀ : BlockShape}
     (h : checkBlock ops env block p₀ = .ok env') :
-    env' = env.pushDelta (blockConstants p₀) (blockTables p₀ p₀.members) := by
+    env' = env.pushDelta (blockConstants p₀) ((blockTables p₀ p₀.members).getD []) := by
   unfold checkBlock at h
-  simp only [bind, Except.bind, pure, Except.pure] at h
-  repeat' split at h
-  all_goals try contradiction
-  all_goals exact (Except.ok.inj h).symm
+  cases ht : blockTables p₀ p₀.members with
+  | none =>
+    simp only [ht, unwrapOr, bind, Except.bind, pure, Except.pure, throw, throwThe,
+      MonadExceptOf.throw] at h
+    repeat' split at h
+    all_goals contradiction
+  | some Q =>
+    simp only [ht, unwrapOr, bind, Except.bind, pure, Except.pure, Option.getD_some] at h ⊢
+    repeat' split at h
+    all_goals try contradiction
+    all_goals exact (Except.ok.inj h).symm
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:120 checkBlockTeles —
 every member's former was checked fresh at the base. -/
@@ -201,7 +208,7 @@ theorem blockRun_fresh {F : Nat} {env env' : Env} {block : List ConstantInfo}
     (h : BlockRun F env block p₀ env') :
     FreshAt env ((blockConstants p₀).map (·.name)) := by
   obtain ⟨ms, hms, hAt, -, hndC, hndM, -, isRec, env₁, p₁, sortsss, ctx, holes, rd, Ms,
-    kinds, nfs, pos, st, isorts, out, hInd, hCtors, -, -, -, -, -, -, hRec, -, -, -, -⟩ := h
+    kinds, nfs, pos, st, isorts, out, -, hInd, hCtors, -, -, -, -, -, -, hRec, -, -, -, -, -⟩ := h
   obtain ⟨-, hdecl, -, -, hctors⟩ := reduceMembers_inv hd hms
   obtain ⟨ms0, rest, cvTa0, s0, cvs, hm, hp1, henv1, htele0, hteles, -⟩ :=
     checkBlockInds_shape hInd

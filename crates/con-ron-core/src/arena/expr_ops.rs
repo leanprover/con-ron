@@ -39,7 +39,7 @@
 //! |---|---|---|
 //! | `instantiate1_go` | `bvarBRaw < satRange && bvarBRaw <= d` | task #97s's `instantiate1_of_bvarBound_le` |
 //! | `abstract1_go` | `fvarB <= d` | `abstract1_of_fvarRange_le` |
-//! | `instantiate1_lift_go` | `bvarB <= d` | `instantiate1Lift_of_bvarBound_le` |
+//! | `instantiate_lift_go` | `bvarB <= d` | `instantiateLift_of_bvarBound_le` |
 //! | `inst_lp_go` | `hasLP = false` | `Expr.instantiateLevelParams_eq_self` |
 //!
 //! `instantiate1`'s is the one cutoff con-leche does NOT have; DESIGN.md §8.3
@@ -189,10 +189,10 @@ const M_FUEL_ABS1: [u32; 25] = [
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"fuel exhausted: instantiate1Lift"`, as code points.
-const M_FUEL_INST1_LIFT: [u32; 32] = [
+/// `"fuel exhausted: instantiateLift"`, as code points.
+const M_FUEL_INST_LIFT: [u32; 31] = [
     102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 105, 110, 115,
-    116, 97, 110, 116, 105, 97, 116, 101, 49, 76, 105, 102, 116,
+    116, 97, 110, 116, 105, 97, 116, 101, 76, 105, 102, 116,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
@@ -2682,31 +2682,33 @@ pub fn abstract_range_fast(
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// `instantiate1Lift` — `ExprOps.lean:718-739`, `:2222-2261`, `:2356-2358`
+// `instantiateLift` — `ExprOps.lean:921-952`, `Cached/ExprOpsC.lean:339-420`
 //
-// The general capture-avoiding substitution: unlike `instantiate1`, the
-// replacement's own loose `bvar`s are lifted past the binders crossed on the
-// way, which is what makes it usable on let-values.  It is the module's one
-// NESTED walk — its `bvar` arm runs `liftLooseBVars`, which is why the two
-// have separate memo tables.
+// The capture-avoiding substitution of several variables at once: the values'
+// own loose `bvar`s are lifted past the binders crossed on the way.  It is the
+// module's one NESTED walk — its `bvar` arm runs `liftLooseBVars`, which is why
+// the two have separate memo tables.  `vs` is in PUSH order (the projection
+// bodies' accumulator grows by `Vec::push`, one field per step), as
+// `instantiate_list`'s.
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:693-714 instantiate1Lift
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2035-2074 instantiate1LiftGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove expr_ops::instantiate1_lift_go_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1902-1931 instantiate1LiftGo` —
-/// replace `bvar d` by `v`, lifting `v`'s loose `bvar`s past the binders
-/// crossed on the way, with con-leche's own `bvarB <= d` cutoff.
-pub fn instantiate1_lift_go(
+/// con-leche: ConLeche/Kernel/ExprOps.lean:932-952 instantiateLift
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:383-414 instantiateLiftXP
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean instantiateLiftGo` — replace
+/// `bvar (d + j)` by value `j` of `vs` lifted past the `d` binders crossed,
+/// and lower the variables above the values by their count, with con-leche's
+/// own `bvarB <= d` cutoff and the `(handle, cursor)`-keyed memo of the
+/// cached walk.
+pub fn instantiate_lift_go(
     pers: &PersTier,
     st: &mut AState,
-    v: &EIdx,
+    vs: &Vec<EIdx>,
     fuel: u64,
     h: &EIdx,
     d: u64,
 ) -> Result<EIdx, CheckError> {
     if fuel == 0 {
-        fail(CheckError::Internal(code_points(&M_FUEL_INST1_LIFT)))
+        fail(CheckError::Internal(code_points(&M_FUEL_INST_LIFT)))
     } else {
         match bvar_b(pers, st, fuel - 1, h) {
             Err(e) => Err(e),
@@ -2717,12 +2719,20 @@ pub fn instantiate1_lift_go(
                     match view(pers, st, h) {
                         Err(e) => Err(e),
                         Ok(ENodeView::BVar(i)) => {
-                            if i == d {
-                                lift_loose_bvars_fast(pers, st, fuel - 1, d, 0, v)
-                            } else if i > d {
-                                intern_e_bvar(pers, st, i - 1)
-                            } else {
+                            if i < d {
                                 Ok(h.dup2())
+                            } else {
+                                let n: u64 = vs.len() as u64;
+                                if i - d < n {
+                                    // **`vs` is in PUSH order**, as
+                                    // `instantiate_list`'s: con-leche's
+                                    // `vs[i - d]` is entry `i - d` FROM THE END.
+                                    let k: usize = (i - d) as usize;
+                                    let v: EIdx = vs[vs.len() - 1 - k].dup2();
+                                    lift_loose_bvars_fast(pers, st, fuel - 1, d, 0, &v)
+                                } else {
+                                    intern_e_bvar(pers, st, i - n)
+                                }
                             }
                         }
                         Ok(ENodeView::FVar(_, _)) => Ok(h.dup2()),
@@ -2733,10 +2743,10 @@ pub fn instantiate1_lift_go(
                             let k: EIdxNat = eidx_nat_key(h, d);
                             match inst1_l_get(st, &k) {
                                 Some(r) => Ok(r),
-                                None => match instantiate1_lift_go(pers, st, v, fuel - 1, &f, d) {
+                                None => match instantiate_lift_go(pers, st, vs, fuel - 1, &f, d) {
                                     Err(e) => Err(e),
                                     Ok(f2) => {
-                                        match instantiate1_lift_go(pers, st, v, fuel - 1, &a, d) {
+                                        match instantiate_lift_go(pers, st, vs, fuel - 1, &a, d) {
                                             Err(e) => Err(e),
                                             Ok(a2) => {
                                                 match intern_e_app(pers, st, f2, a2) {
@@ -2756,10 +2766,10 @@ pub fn instantiate1_lift_go(
                             let k: EIdxNat = eidx_nat_key(h, d);
                             match inst1_l_get(st, &k) {
                                 Some(r) => Ok(r),
-                                None => match instantiate1_lift_go(pers, st, v, fuel - 1, &ty, d) {
+                                None => match instantiate_lift_go(pers, st, vs, fuel - 1, &ty, d) {
                                     Err(e) => Err(e),
                                     Ok(t) => {
-                                        match instantiate1_lift_go(pers, st, v, fuel - 1, &body, d + 1) {
+                                        match instantiate_lift_go(pers, st, vs, fuel - 1, &body, d + 1) {
                                             Err(e) => Err(e),
                                             Ok(b) => {
                                                 match intern_e_lam(pers, st, t, b) {
@@ -2779,10 +2789,10 @@ pub fn instantiate1_lift_go(
                             let k: EIdxNat = eidx_nat_key(h, d);
                             match inst1_l_get(st, &k) {
                                 Some(r) => Ok(r),
-                                None => match instantiate1_lift_go(pers, st, v, fuel - 1, &ty, d) {
+                                None => match instantiate_lift_go(pers, st, vs, fuel - 1, &ty, d) {
                                     Err(e) => Err(e),
                                     Ok(t) => {
-                                        match instantiate1_lift_go(pers, st, v, fuel - 1, &body, d + 1) {
+                                        match instantiate_lift_go(pers, st, vs, fuel - 1, &body, d + 1) {
                                             Err(e) => Err(e),
                                             Ok(b) => {
                                                 match intern_e_forall_e(pers, st, t, b) {
@@ -2802,16 +2812,16 @@ pub fn instantiate1_lift_go(
                             let k: EIdxNat = eidx_nat_key(h, d);
                             match inst1_l_get(st, &k) {
                                 Some(r) => Ok(r),
-                                None => match instantiate1_lift_go(pers, st, v, fuel - 1, &ty, d) {
+                                None => match instantiate_lift_go(pers, st, vs, fuel - 1, &ty, d) {
                                     Err(e) => Err(e),
                                     Ok(t) => {
-                                        match instantiate1_lift_go(pers, st, v, fuel - 1, &val, d) {
+                                        match instantiate_lift_go(pers, st, vs, fuel - 1, &val, d) {
                                             Err(e) => Err(e),
                                             Ok(w) => {
-                                                match instantiate1_lift_go(
+                                                match instantiate_lift_go(
                                                     pers,
                                                     st,
-                                                    v,
+                                                    vs,
                                                     fuel - 1,
                                                     &body,
                                                     d + 1,
@@ -2837,7 +2847,7 @@ pub fn instantiate1_lift_go(
                             let k: EIdxNat = eidx_nat_key(h, d);
                             match inst1_l_get(st, &k) {
                                 Some(r) => Ok(r),
-                                None => match instantiate1_lift_go(pers, st, v, fuel - 1, &sub, d) {
+                                None => match instantiate_lift_go(pers, st, vs, fuel - 1, &sub, d) {
                                     Err(e) => Err(e),
                                     Ok(u) => match intern_e_proj(pers, st, n, i, u) {
                                         Err(e) => Err(e),
@@ -2856,20 +2866,19 @@ pub fn instantiate1_lift_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2169-2171 instantiate1LiftFast
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove expr_ops::instantiate1_lift_fast_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2035-2041 instantiate1LiftFast`
-/// — the top-level entry.
-pub fn instantiate1_lift_fast(
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:416-420 instantiateLiftC
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean instantiateLiftFast` — the
+/// top-level entry: the memo cleared around the walk.
+pub fn instantiate_lift_fast(
     pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     e: &EIdx,
-    v: &EIdx,
+    vs: &Vec<EIdx>,
     d: u64,
 ) -> Result<EIdx, CheckError> {
     inst1_l_clear(st);
-    match instantiate1_lift_go(pers, st, v, fuel, e, d) {
+    match instantiate_lift_go(pers, st, vs, fuel, e, d) {
         Err(er) => Err(er),
         Ok(r) => {
             inst1_l_clear(st);
@@ -2877,51 +2886,6 @@ pub fn instantiate1_lift_fast(
         }
     }
 }
-
-/// con-leche: ConLeche/Kernel/ExprOps.lean:989-998 instPisAtLift
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2043-2055 instPisAtLift` —
-/// instantiate the leading `∀`-binders at *open* arguments.
-pub fn inst_pis_at_lift(
-    pers: &PersTier,
-    st: &mut AState,
-    fuel: u64,
-    args: &Vec<EIdx>,
-    h: &EIdx,
-) -> Result<Option<EIdx>, CheckError> {
-    inst_pis_at_lift_from(pers, st, fuel, args, 0, h)
-}
-
-/// con-leche: ConLeche/Kernel/ExprOps.lean:989-998 instPisAtLift
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2043-2055 instPisAtLift` — the
-/// cursor recursion behind `inst_pis_at_lift`.
-pub fn inst_pis_at_lift_from(
-    pers: &PersTier,
-    st: &mut AState,
-    fuel: u64,
-    args: &Vec<EIdx>,
-    i: usize,
-    h: &EIdx,
-) -> Result<Option<EIdx>, CheckError> {
-    if i >= args.len() {
-        Ok(Some(h.dup2()))
-    } else {
-        if h.tag() == ETAG_FORALL_E {
-            match view_bind(pers, st, h) {
-                None => fail_dangling_e(),
-                Some((_, body)) => {
-                    let a: EIdx = args[i].dup2();
-                    match instantiate1_lift_fast(pers, st, fuel, &body, &a, 0) {
-                        Err(e) => Err(e),
-                        Ok(b) => inst_pis_at_lift_from(pers, st, fuel, args, i + 1, &b),
-                    }
-                },
-            }
-        } else {
-            Ok(None)
-        }
-    }
-}
-
 // ---------------------------------------------------------------------------
 // `instantiateLevelParams` — `ExprOps.lean:2564-2603`, `:2718-2720`
 //

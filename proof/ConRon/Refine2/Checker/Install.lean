@@ -465,17 +465,20 @@ open Lockstep in
   fun _ h => member_struct_ctor_abs h
 
 /-- `block_tables` ⊑ `blockTables` from the member cursor on, behind the
-accumulator: one table per structure-like member. -/
+accumulator: one table per structure-like member, `none` where one's
+constructor is too short. -/
 theorem block_tables_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (p : arena.inductives.block_shape.BlockShape)
     (ms : alloc.vec.Vec arena.inductives.block_shape.MemberShape) (i : Std.Usize)
     (out : alloc.vec.Vec arena.env.IProjTable) :
-    Lockstep.LS pers (fun a b => a.val.map absIProjTable = out.val.map absIProjTable ++ b)
+    Lockstep.LS pers (fun a b => a.map (fun v => v.val.map absIProjTable) =
+        b.map (out.val.map absIProjTable ++ ·))
       (arena.install.block_tables pers st p ms i out) lst
       (blockTables (absBlockShape p) ((ms.val.drop i.val).map absMemberShape)) := by
   suffices h : ∀ N (i : Std.Usize) out st lst, ms.val.length - i.val = N →
       AStateRel₀ pers st lst → AStateInv pers st →
-      Lockstep.LS pers (fun a b => a.val.map absIProjTable = out.val.map absIProjTable ++ b)
+      Lockstep.LS pers (fun a b => a.map (fun v => v.val.map absIProjTable) =
+          b.map (out.val.map absIProjTable ++ ·))
         (arena.install.block_tables pers st p ms i out) lst
         (blockTables (absBlockShape p) ((ms.val.drop i.val).map absMemberShape)) from
     h _ i out st lst rfl hrel hinv
@@ -497,23 +500,23 @@ theorem block_tables_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : 
     rw [hP, show ((1#usize : Std.Usize)).val = 1 from rfl] at h
     refine Lockstep.LS.tail_bind_pure h ?_
     intro r b hb
-    rw [hb, hout1]
-    simp only [List.map_append, List.map_cons, List.map_nil, List.append_assoc,
-      List.singleton_append]
-    rfl
+    rw [hout1] at hb
+    cases r <;> cases b <;>
+      simp_all [List.map_append, List.map_cons, List.map_nil, List.append_assoc,
+        List.singleton_append] <;> rfl
 
 open Lockstep in
 /-- `block_tables` from member `0` and an empty accumulator: `blockTables` of the
 block's members. -/
 @[lockstep] theorem block_tables_ls0 {pers st lst} {p : arena.inductives.block_shape.BlockShape}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = a.val.map absIProjTable)
+    LS pers (fun a b => b = a.map (fun v => v.val.map absIProjTable))
       (arena.install.block_tables pers st p p.members 0#usize (alloc.vec.Vec.new _)) lst
       (blockTables (absBlockShape p) (absBlockShape p).members) := by
   refine LS.tail (block_tables_ls hrel hinv p p.members 0#usize _) (by
     simp [absBlockShape_members]) ?_
   intro a b h
-  simpa [alloc.vec.Vec.new] using h.symm
+  cases a <;> cases b <;> simp_all [alloc.vec.Vec.new]
 
 open Lockstep in
 @[lockstep] theorem block_formers_twin0 (p : arena.inductives.block_shape.BlockShape) (is_rec : Bool) :

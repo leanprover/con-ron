@@ -50,7 +50,7 @@ the same one, read in `O(1)` off the derived column instead of recomputed:
 |---|---|---|
 | `instantiate1Go` | `bvarBRaw < satRange && bvarBRaw ≤ d` | `bvarBRaw_exact` + task #97s's `instantiate1_of_bvarBound_le` |
 | `abstract1Go` | `fvarB ≤ d` | `abstract1_of_fvarRange_le` |
-| `instantiate1LiftGo` | `bvarB ≤ d` | `instantiate1Lift_of_bvarBound_le` |
+| `instantiateLiftGo` | `bvarB ≤ d` | `instantiateLift_of_bvarBound_le` |
 | `instLPGo` | `hasLP = false` | `Expr.instantiateLevelParams_eq_self` |
 | `instantiateList`, `instantiateListGo` | `bvarBRaw < satRange && bvarBRaw ≤ d` | DERIVED, below |
 | `liftLooseBVarsGo` | `bvarBRaw < satRange && bvarBRaw ≤ c` | DERIVED, below |
@@ -128,7 +128,7 @@ where it can fire at all: `abstract1Go` (the cutoff is `fvarB ≤ d`, and the ar
 abstracts the index `= d`), `abstractRangeGo` and `instLPGo` (the cutoff is
 the `hasLP` bit, and a substitution touching none of the parameters present is
 the identity).  `instantiate1Go`, `instantiateListGo`, `liftLooseBVarsGo` and
-`instantiate1LiftGo` are NOT given it: their cutoff is `bvarB ≤ d` against a
+`instantiateLiftGo` are NOT given it: their cutoff is `bvarB ≤ d` against a
 field that is EXACT below saturation, so past the cutoff a loose `bvar` at or
 above `d` really is present and really does move. -/
 
@@ -1918,27 +1918,27 @@ def abstractRangeFast (fuel : Nat) (e : EIdx) (d k c : Nat) : AM EIdx := do
     abs1Clear
     pure r
 
-/-! ## `instantiate1Lift` — `ExprOps.lean:718-739`, `:2222-2261`, `:2356-2358`
+/-! ## `instantiateLift` — `ExprOps.lean:921-952`, `Cached/ExprOpsC.lean:339-420`
 
-The general capture-avoiding substitution: unlike `instantiate1`, the
-replacement's own loose `bvar`s are lifted past the binders crossed on the
-way, which is what makes it usable on let-values.  It is the module's one
-NESTED walk — its `bvar` arm runs `liftLooseBVars`, which is why the two have
-separate memo tables. -/
+The capture-avoiding substitution of several variables at once: the values'
+own loose `bvar`s are lifted past the binders crossed on the way.  It is the
+module's one NESTED walk — its `bvar` arm runs `liftLooseBVars`, which is why
+the two have separate memo tables.  `vs` is in PUSH order, as
+`instantiateList`'s. -/
 
 mutual
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:693-714 instantiate1Lift
-con-leche: ConLeche/Kernel/ExprOps.lean:2035-2074 instantiate1LiftGo
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instantiate1LiftGo_bridge, then delete this line
-Replace `bvar d` by `v`, lifting `v`'s loose `bvar`s past the binders crossed
-on the way, with con-leche's own `bvarB ≤ d` cutoff.  The dispatcher (arms
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:932-952 instantiateLift
+con-leche: ConLeche/Cached/ExprOpsC.lean:383-414 instantiateLiftXP
+Replace `bvar (d + j)` by value `j` lifted past the `d` binders crossed, and
+lower the variables above the values by their count, with con-leche's own
+`bvarB ≤ d` cutoff and the cached walk's `(handle, cursor)`-keyed memo.  The dispatcher (arms
 split per DESIGN §8.6's ruling of 2026-09-22); the `bvar` arm — the NESTED
 one, which runs `liftLooseBVars` — has no memo probe and stays here. -/
-def instantiate1LiftGo (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+def instantiateLiftGo (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx :=
   match fuel with
-  | 0 => fail (.internal "fuel exhausted: instantiate1Lift")
+  | 0 => fail (.internal "fuel exhausted: instantiateLift")
   | fuel + 1 => do
     let bb ← bvarB fuel h
     if bb ≤ d then
@@ -1946,90 +1946,88 @@ def instantiate1LiftGo (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     else
       match ← view h with
       | .bvar i =>
-        if i = d then liftLooseBVarsFast fuel d 0 v
-        else if i > d then internE (.bvar (i - 1))
-        else pure h
+        if i < d then pure h
+        else if hlt : i - d < vs.size then
+          -- **`vs` is in PUSH order**, as `instantiateList`'s: con-leche's
+          -- `vs[i - d]` is this array's entry `i - d` FROM THE END.
+          liftLooseBVarsFast fuel d 0 (vs[vs.size - 1 - (i - d)]'(by omega))
+        else internE (.bvar (i - vs.size))
       | .fvar _ _ => pure h
       | .sort _ => pure h
       | .const _ _ => pure h
       | .lit _ => pure h
-      | .app f a => inst1LiftArmApp v fuel h d f a
-      | .lam ty body => inst1LiftArmLam v fuel h d ty body
-      | .forallE ty body => inst1LiftArmForallE v fuel h d ty body
-      | .letE ty val body => inst1LiftArmLet v fuel h d ty val body
-      | .proj n i sub => inst1LiftArmProj v fuel h d n i sub
+      | .app f a => instLiftArmApp vs fuel h d f a
+      | .lam ty body => instLiftArmLam vs fuel h d ty body
+      | .forallE ty body => instLiftArmForallE vs fuel h d ty body
+      | .letE ty val body => instLiftArmLet vs fuel h d ty val body
+      | .proj n i sub => instLiftArmProj vs fuel h d n i sub
 termination_by (fuel, 0)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2035-2074 instantiate1LiftGo —
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.inst1LiftArmApp_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:383-414 instantiateLiftXP —
 the `app` arm. -/
-def inst1LiftArmApp (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) (f a : EIdx) :
+def instLiftArmApp (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) (f a : EIdx) :
     AM EIdx := do
   match ← inst1LGet (h, d) with
   | some r => pure r
   | none => do
-    let f' ← instantiate1LiftGo v fuel f d
-    let a' ← instantiate1LiftGo v fuel a d
+    let f' ← instantiateLiftGo vs fuel f d
+    let a' ← instantiateLiftGo vs fuel a d
     let r ← internE (.app f' a')
     inst1LSet (h, d) r
     pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2035-2074 instantiate1LiftGo —
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.inst1LiftArmLam_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:383-414 instantiateLiftXP —
 the `lam` arm. -/
-def inst1LiftArmLam (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat)
+def instLiftArmLam (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat)
     (ty body : EIdx) : AM EIdx := do
   match ← inst1LGet (h, d) with
   | some r => pure r
   | none => do
-    let t ← instantiate1LiftGo v fuel ty d
-    let b ← instantiate1LiftGo v fuel body (d + 1)
+    let t ← instantiateLiftGo vs fuel ty d
+    let b ← instantiateLiftGo vs fuel body (d + 1)
     let r ← internLamE t b
     inst1LSet (h, d) r
     pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2035-2074 instantiate1LiftGo —
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.inst1LiftArmForallE_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:383-414 instantiateLiftXP —
 the `forallE` arm. -/
-def inst1LiftArmForallE (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat)
+def instLiftArmForallE (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat)
     (ty body : EIdx) : AM EIdx := do
   match ← inst1LGet (h, d) with
   | some r => pure r
   | none => do
-    let t ← instantiate1LiftGo v fuel ty d
-    let b ← instantiate1LiftGo v fuel body (d + 1)
+    let t ← instantiateLiftGo vs fuel ty d
+    let b ← instantiateLiftGo vs fuel body (d + 1)
     let r ← internForallEE t b
     inst1LSet (h, d) r
     pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2035-2074 instantiate1LiftGo —
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.inst1LiftArmLet_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:383-414 instantiateLiftXP —
 the `letE` arm. -/
-def inst1LiftArmLet (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat)
+def instLiftArmLet (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat)
     (ty val body : EIdx) : AM EIdx := do
   match ← inst1LGet (h, d) with
   | some r => pure r
   | none => do
-    let t ← instantiate1LiftGo v fuel ty d
-    let w ← instantiate1LiftGo v fuel val d
-    let b ← instantiate1LiftGo v fuel body (d + 1)
+    let t ← instantiateLiftGo vs fuel ty d
+    let w ← instantiateLiftGo vs fuel val d
+    let b ← instantiateLiftGo vs fuel body (d + 1)
     let r ← internE (.letE t w b)
     inst1LSet (h, d) r
     pure r
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2035-2074 instantiate1LiftGo —
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.inst1LiftArmProj_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:383-414 instantiateLiftXP —
 the `proj` arm. -/
-def inst1LiftArmProj (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) (n : NIdx)
+def instLiftArmProj (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) (n : NIdx)
     (i : Nat) (sub : EIdx) : AM EIdx := do
   match ← inst1LGet (h, d) with
   | some r => pure r
   | none => do
-    let u ← instantiate1LiftGo v fuel sub d
+    let u ← instantiateLiftGo vs fuel sub d
     let r ← internE (.proj n i u)
     inst1LSet (h, d) r
     pure r
@@ -2037,58 +2035,45 @@ termination_by (fuel, 1)
 
 end
 
-/-- con-leche: none — `instantiate1LiftGo`'s clause at fuel `0` (template
+/-- con-leche: none — `instantiateLiftGo`'s clause at fuel `0` (template
 rule 9). -/
-theorem instantiate1LiftGo_zero (v h : EIdx) (d : Nat) :
-    instantiate1LiftGo v 0 h d =
-      fail (.internal "fuel exhausted: instantiate1Lift") := by
-  rw [instantiate1LiftGo]
+theorem instantiateLiftGo_zero (vs : Array EIdx) (h : EIdx) (d : Nat) :
+    instantiateLiftGo vs 0 h d =
+      fail (.internal "fuel exhausted: instantiateLift") := by
+  rw [instantiateLiftGo]
 
-/-- con-leche: none — `instantiate1LiftGo`'s clause at `fuel + 1` (template
+/-- con-leche: none — `instantiateLiftGo`'s clause at `fuel + 1` (template
 rule 9). -/
-theorem instantiate1LiftGo_succ (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
-    instantiate1LiftGo v (fuel + 1) h d = (do
+theorem instantiateLiftGo_succ (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    instantiateLiftGo vs (fuel + 1) h d = (do
       let bb ← bvarB fuel h
       if bb ≤ d then
         pure h
       else
         match ← view h with
         | .bvar i =>
-          if i = d then liftLooseBVarsFast fuel d 0 v
-          else if i > d then internE (.bvar (i - 1))
-          else pure h
+          if i < d then pure h
+          else if hlt : i - d < vs.size then
+            liftLooseBVarsFast fuel d 0 (vs[vs.size - 1 - (i - d)]'(by omega))
+          else internE (.bvar (i - vs.size))
         | .fvar _ _ => pure h
         | .sort _ => pure h
         | .const _ _ => pure h
         | .lit _ => pure h
-        | .app f a => inst1LiftArmApp v fuel h d f a
-        | .lam ty body => inst1LiftArmLam v fuel h d ty body
-        | .forallE ty body => inst1LiftArmForallE v fuel h d ty body
-        | .letE ty val body => inst1LiftArmLet v fuel h d ty val body
-        | .proj n i sub => inst1LiftArmProj v fuel h d n i sub) := by
-  rw [instantiate1LiftGo]
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2169-2171 instantiate1LiftFast —
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove ExprOps.instantiate1LiftFast_bridge, then delete this line
-the top-level entry. -/
-def instantiate1LiftFast (fuel : Nat) (e v : EIdx) (d : Nat := 0) : AM EIdx := do
+        | .app f a => instLiftArmApp vs fuel h d f a
+        | .lam ty body => instLiftArmLam vs fuel h d ty body
+        | .forallE ty body => instLiftArmForallE vs fuel h d ty body
+        | .letE ty val body => instLiftArmLet vs fuel h d ty val body
+        | .proj n i sub => instLiftArmProj vs fuel h d n i sub) := by
+  rw [instantiateLiftGo]
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:416-420 instantiateLiftC —
+the top-level entry: the memo cleared around the walk. -/
+def instantiateLiftFast (fuel : Nat) (e : EIdx) (vs : Array EIdx) (d : Nat := 0) :
+    AM EIdx := do
   inst1LClear
-  let r ← instantiate1LiftGo v fuel e d
+  let r ← instantiateLiftGo vs fuel e d
   inst1LClear
   pure r
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:989-998 instPisAtLift —
-instantiate the leading `∀`-binders at *open* arguments. -/
-def instPisAtLift (fuel : Nat) : List EIdx → EIdx → AM (Option EIdx)
-  | [], e => pure (some e)
-  | a :: as, h => do
-    -- tag first, then the binder projection (task #97-T2-LOCKSTEP, D1)
-    if h.tag == ETag.forallE then
-      match ← viewBind h with
-      | none => failDanglingE
-      | some (_, body) => do
-        let b ← instantiate1LiftFast fuel body a 0
-        instPisAtLift fuel as b
-    else pure none
 
 /-! ## `instantiateLevelParams` — `ExprOps.lean:2564-2603`, `:2718-2720`
 

@@ -6,22 +6,18 @@
 //! member installs (the table itself is read off the block,
 //! `arena::install::block_tables`).
 //!
-//! **The `…F` twins collapse into these** (task #97c's deviation 1): con-leche
-//! carries each of this module's two functions twice — once over `Env` and once
-//! over `FEnv` (`ConLeche/Kernel/Inductives/StructInstallF.lean`), and
-//! `checkStructDomsAtFA` a third time over `Array`.  The arena has ONE
-//! environment type, so the twin is one function citing all of them.
-//!
-//! `StructWalkers` has no twin here either: the arena's `consts_resolve_f_fast`
-//! and `struct_proj_bodies` ARE the memoised walks that record exists to
-//! substitute, and a record of two closures is what DESIGN.md §3.4 forbids.
+//! **The cached twins collapse into these**: con-leche carries each of this
+//! module's two functions twice — the specification over `Env` and the cached
+//! driver's twin over `FEnv` (`checkStructDomsAtC`,
+//! `ConLeche/Cached/IndBlock.lean`; `checkStructProjTableC`,
+//! `ConLeche/Cached/IndTail.lean`).  The arena has ONE environment type and one
+//! tier, so the twin is one function citing both.
 
-use super::struct_parts;
 use crate::arena::checker_base;
 use crate::arena::core;
 use crate::arena::core::CORE_WALK_FUEL;
 use crate::arena::env;
-use crate::arena::env::{IConstantVal, IFEnv};
+use crate::arena::env::{IFEnv, IProjTable};
 use crate::arena::expr_ops;
 use crate::arena::handle::{EIdx, NIdx};
 use crate::arena::monad::{fail, AState};
@@ -83,10 +79,7 @@ pub const M_TBL_TAKEN: [u32; 22] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:31-50 checkStructDomsAt
-/// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:25-34 checkStructDomsAtF
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_install::check_struct_doms_at_refines, then delete this line
-/// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:36-46 checkStructDomsAtFA
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_install::check_struct_doms_at_refines, then delete this line
+/// con-leche: ConLeche/Cached/IndBlock.lean:116-125 checkStructDomsAtC
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:26-41 checkStructDomsAt`
 /// — the reference kernels' binder-domain comparisons, run binder by binder
 /// **at its own frame**: the `j`-th opened variable's annotation against the
@@ -149,53 +142,38 @@ pub fn check_struct_doms_at(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-74 checkStructProjTable
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_install::check_struct_proj_table_refines, then delete this line
-/// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-89 checkStructProjTableF
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_install::check_struct_proj_table_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:43-69 checkStructProjTable`
-/// — stage 5: **the projection table's checks** (con-leche's task #175 S1):
-/// the fields' result-type bodies read off the stored constructor type by
-/// substitution alone, validated once (`proj_bodies_scoped`); the table
-/// follows its structure, declared by the same block (the structure must be
-/// stored, an internal error otherwise), and its name is not yet taken.
-/// Nothing is pushed: the table is the block's install
-/// (`arena::install::block_tables`).
-#[allow(clippy::too_many_arguments)]
+/// con-leche: ConLeche/Cached/IndTail.lean:194-202 checkStructProjTableC
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean checkStructProjTable`
+/// — stage 5: **the projection table's checks** (con-leche's task #175 S1),
+/// at the table the block installs (`arena::install::block_tables`): its
+/// bodies' scoping at its own level parameters and parameter count, validated
+/// once (`proj_bodies_scoped`); the table follows its structure, declared by
+/// the same block (the structure must be stored, an internal error
+/// otherwise), and its name is not yet taken.  Nothing is pushed.
 pub fn check_struct_proj_table(
     pers: &PersTier,
     st: &mut AState,
-    t: &NIdx,
-    lps: &Vec<NIdx>,
-    n_p: u64,
-    n_f: u64,
-    cv_ca: &IConstantVal,
+    t: &IProjTable,
     fe: &IFEnv,
 ) -> Result<(), CheckError> {
-    match struct_parts::struct_proj_bodies(pers, st, t, n_p, n_f, &cv_ca.ty) {
+    match proj_bodies_scoped(pers, st, fe, &t.level_params, t.num_params, &t.bodies, 0) {
         Err(e) => Err(e),
-        Ok(o) => match checker_base::unwrap_or(o, core_types::internal(code_points(&M_TBL_BODIES)))
-        {
-            Err(e) => Err(e),
-            Ok(bodies) => match proj_bodies_scoped(pers, st, fe, lps, n_p, &bodies, 0) {
-                Err(e) => Err(e),
-                Ok(scoped_ok) => {
-                    if !(bodies.len() as u64 == n_f && scoped_ok) {
-                        fail(core_types::internal(code_points(&M_TBL_SCOPE)))
-                    } else if env::ifenv_find(pers, fe, t).is_none() {
-                        fail(core_types::internal(code_points(&M_TBL_ORPHAN)))
-                    } else if env::ifenv_find_table(pers, fe, t).is_some() {
-                        fail(core_types::invalid(code_points(&M_TBL_TAKEN)))
-                    } else {
-                        Ok(())
-                    }
-                }
-            },
-        },
+        Ok(scoped_ok) => {
+            if !(t.bodies.len() as u64 == t.num_fields && scoped_ok) {
+                fail(core_types::internal(code_points(&M_TBL_SCOPE)))
+            } else if env::ifenv_find(pers, fe, &t.struct_name).is_none() {
+                fail(core_types::internal(code_points(&M_TBL_ORPHAN)))
+            } else if env::ifenv_find_table(pers, fe, &t.struct_name).is_some() {
+                fail(core_types::invalid(code_points(&M_TBL_TAKEN)))
+            } else {
+                Ok(())
+            }
+        }
     }
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-74 checkStructProjTable
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove struct_install::proj_bodies_scoped_refines, then delete this line
+/// con-leche: ConLeche/Cached/IndTail.lean:194-202 checkStructProjTableC
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:43-69 checkStructProjTable`
 /// — the bodies' scoping, validated once at insertion: fvar-free, level
 /// parameters within the structure's, resolving, scoped at the parameters and

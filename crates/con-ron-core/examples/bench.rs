@@ -251,8 +251,8 @@ fn run() {
     timed("instantiate1Fast  ", &mut st, |s| {
         instantiate1_fast(pers, s, BENCH_FUEL, &fx.tower, &fx.sub, 1).map(|r| r.word as u64)
     });
-    timed("instantiate1LiftF ", &mut st, |s| {
-        instantiate1_lift_fast(pers, s, BENCH_FUEL, &fx.tower, &fx.sub, 1).map(|r| r.word as u64)
+    timed("instantiateLiftF  ", &mut st, |s| {
+        instantiate_lift_fast(pers, s, BENCH_FUEL, &fx.tower, &vec![fx.sub.dup2()], 1).map(|r| r.word as u64)
     });
     timed("instLPFast        ", &mut st, |s| {
         inst_lp_fast(

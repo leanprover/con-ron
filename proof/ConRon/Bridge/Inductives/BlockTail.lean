@@ -245,59 +245,62 @@ theorem dPass_mk {st : EStore} {env₁ : Env} {q : Arena.BlockPass}
 
 /-! ## The projection tables -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:93-101 checkBlockTables
-con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:152-160 checkBlockTablesF —
-**the projection table's checks at every structure-like member**, member by
-member (`checkStructProjTable_runF`), all at one index. -/
-theorem checkBlockTables_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
-    (fe : IFEnv) (env : Env) :
-    ∀ (ms : List Arena.MemberShape) (msP : List ConLeche.MemberShape)
-      (s₀ s' : AState) (r : Unit),
-      StateOK s₀ → PinsOK s₀ → IFEnvOKS env fe s₀.store → dShape s₀.store p = some pP →
-      ms.mapM (dMember s₀.store) = some msP →
-      Arena.checkBlockTables p fe ms s₀ = .ok (r, s') →
-      PStep s₀ s' ∧ FOk (ConLeche.checkBlockTables (m := FueledM) pP env msP) ()
-  | [], msP, s₀, s', r, hok, _, _, _, hms, hrun => by
-    obtain rfl := mapM_option_nil_inv hms
+/-- con-leche: none — `dPass` survives an extension. -/
+theorem dPass_ext {st st' : EStore} {env₁ : Env} {q : Arena.BlockPass}
+    {qP : ConLeche.BlockPass Env} (hx : Ext st st') (h : dPass st env₁ q = some qP) :
+    dPass st' env₁ q = some qP := by
+  obtain ⟨he, hsh, hkd, hpa, hrd, hcl, htb⟩ := dPass_inv h
+  rw [dPass_mk (dShape_ext hx _ _ hsh) (denoteEList_ext hx _ _ hpa) (dClassRead_ext hx _ _ hrd)
+    (dMajor_ext.list hx _ _ hcl) (dCtorNf_ext.list hx _ _ htb)]
+  obtain ⟨e, p, k, pa, rd, cl, tb⟩ := qP
+  simp only at he hkd ⊢
+  subst he hkd
+  simp
+
+/-- con-leche: none — a table list's denotation survives an extension. -/
+theorem denoteProjTableList_ext {st st' : EStore} (hx : Ext st st') :
+    ∀ {Q : List IProjTable} {QP : List ProjTable},
+      Frontend.denoteProjTableList st Q = some QP →
+      Frontend.denoteProjTableList st' Q = some QP
+  | [], _, h => h
+  | t :: ts, QP, h => by
+    simp only [Frontend.denoteProjTableList] at h ⊢
+    split at h
+    · rename_i x xs hx1 hx2
+      rw [denoteProjTable_ext hx1 hx, denoteProjTableList_ext hx hx2]
+      exact h
+    · exact nomatch h
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:94-98 checkBlockTables
+con-leche: ConLeche/Cached/IndTail.lean:204-209 checkBlockTablesC —
+**the checks of the block's projection tables**, table by table
+(`checkStructProjTable_runF`), all at one index. -/
+theorem checkBlockTables_spec (fe : IFEnv) (env : Env) :
+    ∀ (Q : List IProjTable) (QP : List ProjTable) (s₀ s' : AState) (r : Unit),
+      StateOK s₀ → PinsOK s₀ → IFEnvOKS env fe s₀.store →
+      Frontend.denoteProjTableList s₀.store Q = some QP →
+      Arena.checkBlockTables fe Q s₀ = .ok (r, s') →
+      PStep s₀ s' ∧ FOk (ConLeche.checkBlockTables (m := FueledM) env QP) ()
+  | [], QP, s₀, s', r, hok, _, _, hQ, hrun => by
+    simp only [Frontend.denoteProjTableList, Option.some.injEq] at hQ
+    subst hQ
     simp only [Arena.checkBlockTables] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, by simp only [ConLeche.checkBlockTables]; exact FOk.pure ()⟩
-  | m :: ms, msP, s₀, s', r, hok, hpins, hie, hsh, hms, hrun => by
-    obtain ⟨mP, msP', rfl, hm, hms'⟩ := mapM_option_cons_inv hms
-    have hsc := structCtor?_denote hm
-    have hcvT := (dMember_inv hm).1
-    obtain ⟨-, -, hnP, -, -, -, -⟩ := dShape_inv hsh
-    simp only [Arena.checkBlockTables] at hrun
-    simp only [ConLeche.checkBlockTables]
-    have rest : ∀ {s₁ : AState}, PStep s₀ s₁ → Arena.checkBlockTables p fe ms s₁ = .ok (r, s') →
-        PStep s₀ s' ∧ FOk (ConLeche.checkBlockTables (m := FueledM) pP env msP') () :=
-      fun p1 z1 => (fun ⟨p2, hF2⟩ => ⟨p1.trans p2, hF2⟩)
-        (checkBlockTables_spec p pP fe env ms msP' _ s' r p1.ok
-          (hpins.mono p1.ext p1.pins) (hie.mono p1.ext) (dShape_ext p1.ext _ _ hsh)
-          (dMember_ext.list p1.ext _ _ hms') z1)
-    cases hc : m.structCtor? with
-    | none =>
-      rw [hc] at hrun hsc
-      simp only [ROp] at hsc
-      rw [hsc]
+  | t :: ts, QP, s₀, s', r, hok, hpins, hie, hQ, hrun => by
+    simp only [Frontend.denoteProjTableList] at hQ
+    split at hQ
+    · rename_i tP tsP ht hts
+      obtain rfl := (Option.some.inj hQ).symm
+      simp only [Arena.checkBlockTables] at hrun
+      simp only [ConLeche.checkBlockTables]
       obtain ⟨u, s₁, k1, z1⟩ := AM.bind_ok hrun
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok k1
-      obtain ⟨p2, hF2⟩ := rest (PStep.refl hok) z1
-      exact ⟨p2, FOk.seq (FOk.pure ()) hF2⟩
-    | some c =>
-      rw [hc] at hrun hsc
-      obtain ⟨cP, hcP, hdc⟩ := hsc
-      rw [hcP]
-      simp only [dCtor, Option.map_eq_some_iff] at hdc
-      obtain ⟨cv, hcv, rfl⟩ := hdc
-      dsimp only at hrun ⊢
-      obtain ⟨u, s₁, k1, z1⟩ := AM.bind_ok hrun
-      rw [hnP] at k1
-      obtain ⟨p1, hF1⟩ := checkStructProjTable_runF fe env m.cvT.name mP.cvT.name p.lps pP.lps
-        pP.nP c.2 c.1 cv s₀ s₁ u hok hpins
-        ⟨denoteCV_name hcvT, BlockShape.lps_spec hsh, hcv, hie⟩ k1
-      obtain ⟨p2, hF2⟩ := rest p1 z1
-      exact ⟨p2, FOk.seq hF1 hF2⟩
+      obtain ⟨p1, hF1⟩ := checkStructProjTable_runF fe env t tP s₀ s₁ u hok hpins
+        ⟨ht, hie⟩ k1
+      obtain ⟨p2, hF2⟩ := checkBlockTables_spec fe env ts tsP _ s' r p1.ok
+        (hpins.mono p1.ext p1.pins) (hie.mono p1.ext) (denoteProjTableList_ext p1.ext hts) z1
+      exact ⟨p1.trans p2, FOk.seq hF1 hF2⟩
+    · exact nomatch hQ
 
 /-! ## The checks after the pass -/
 
@@ -314,6 +317,7 @@ recursors against it (`streamRecsCheck_spec`), the pops
 theorem checkBlockTail_of (hk : CoreSpec Arena.checkFuel)
     {env₁ : Env} {q : Arena.BlockPass} {qP : ConLeche.BlockPass Env}
     {block : List IConstantInfo} {blockP : List ConstantInfo} {s s' : AState} {fe' : IFEnv}
+    {Q : List IProjTable} {QP : List ProjTable}
     (henv₁ : EnvWF env₁) (hck : CheckOK false env₁ q.env1 s)
     (hrel : EnvRel env₁ q.env1 s.store) (hq : dPass s.store env₁ q = some qP)
     (hb : Frontend.denoteCIList s.store block = some blockP)
@@ -321,8 +325,9 @@ theorem checkBlockTail_of (hk : CoreSpec Arena.checkFuel)
     (henv₂ : EnvWF (ConLeche.consBlockCtors qP.p.nP qP.p.memberCtors env₁))
     (hMs : ∀ M ∈ qP.cls, ConLeche.Cached.ClassMajScoped qP.p.nP M)
     (hpl : qP.params.length = qP.p.nP)
-    (hrun : Arena.checkBlockTail .verified block q s = .ok (fe', s')) :
-    InstStep s s' ∧ FOk (ConLeche.checkBlockTail (fueledOpsM .verified) blockP qP) () := by
+    (hQ : Frontend.denoteProjTableList s.store Q = some QP)
+    (hrun : Arena.checkBlockTail .verified block q Q s = .ok (fe', s')) :
+    InstStep s s' ∧ FOk (ConLeche.checkBlockTail (fueledOpsM .verified) blockP qP QP) () := by
   obtain ⟨he, hsh, hkd, hpa, hrd, hcl, htb⟩ := dPass_inv hq
   obtain ⟨env₁', pP, kindsP, paramsP, rdP, clsP, tblP⟩ := qP
   simp only at he hsh hkd hpa hrd hcl htb hT henv₂ hMs hpl
@@ -413,9 +418,9 @@ theorem checkBlockTail_of (hk : CoreSpec Arena.checkFuel)
   have x07 : Ext s.store s₇.store := by rw [hs7]; exact x06
   -- the projection tables
   obtain ⟨u8, s₈, h15, h16⟩ := AM.bind_ok h14
-  obtain ⟨p8, hFT⟩ := checkBlockTables_spec q.p pP fe₃ env₂ q.p.members pP.members s₇ s₈ u8
+  obtain ⟨p8, hFT⟩ := checkBlockTables_spec fe₃ env₂ Q QP s₇ s₈ u8
     c7.state c7.pins (hrel₃.ienv.mono (by rw [hs7]; exact Ext.refl _))
-    (dShape_ext x07 _ _ hsh) (dMember_ext.list x07 _ _ hms) h15
+    (denoteProjTableList_ext x07 hQ) h15
   obtain ⟨rfl, rfl⟩ := AM.pure_ok h16
   refine ⟨((c1.toInst.trans i2).trans (c3.toInst.trans (p4.toInst.trans (i5.trans
     (c6.toInst.trans (i7.trans p8.toInst)))))), ?_⟩
@@ -751,29 +756,36 @@ theorem checkBlock_bridge (hk : CoreSpec Arena.checkFuel)
         (dMember_ext.list (show Ext s₁.store s₃.store by rw [← hs2]; exact p3.ext) _ _ hms))
       (fun m hm => (hAt m hm).declaredWF) h7
   have x4 := i4.ext
+  -- the projection tables, read off the block once
+  obtain ⟨oQ, s₄₁, h81, h82⟩ := AM.bind_ok h8
+  obtain ⟨p41, -, hQ⟩ := blockTables_run p₀.members p₀P.members i4.state
+    (dShape_ext (x13.trans x4) _ _ hp) (dMember_ext.list (x13.trans x4) _ _ hms₀) h81
+  obtain ⟨Q, s₄₂, h83, h84⟩ := AM.bind_ok h82
+  obtain ⟨rfl, rfl⟩ := unwrapOr_ok h83
+  obtain ⟨QP, hQP, hQd, -⟩ := hQ
+  have c41 := p41.toCore c4
+  have x41 := x4.trans p41.ext
   -- the checks after it
-  obtain ⟨fe₂, s₅, h9, h10⟩ := AM.bind_ok h8
-  obtain ⟨i5, hFT⟩ := checkBlockTail_of hk henv₁ c4 hrel4 hq
-    (denoteCIList_mono (x13.trans x4) _ _ hb) hT henv₂ hMs hpl h9
+  obtain ⟨fe₂, s₅, h9, h10⟩ := AM.bind_ok h84
+  obtain ⟨i5, hFT⟩ := checkBlockTail_of hk henv₁ c41.ok (hrel4.mono p41.ext)
+    (dPass_ext p41.ext hq) (denoteCIList_mono (x13.trans x41) _ _ hb) hT henv₂ hMs hpl hQd h9
   have x5 := i5.ext
   -- the block's install, read off the block
-  have x05 : Ext s.store s₅.store := (x13.trans x4).trans x5
-  have hpins5 : s₅.pins = s.pins := by rw [i5.pins, i4.pins, p3.pins, i2.pins, c1.pins]
+  have x05 : Ext s.store s₅.store := (x13.trans x41).trans x5
+  have hpins5 : s₅.pins = s.pins := by
+    rw [i5.pins, p41.pins, i4.pins, p3.pins, i2.pins, c1.pins]
   obtain ⟨recs, s₆, h11, h12⟩ := AM.bind_ok h10
   obtain ⟨p6, -, -⟩ := blockRecs_run p₀.recs p₀P.recs i5.state
     (hok.pins.mono x05 hpins5) (dShape_ext x05 _ _ hp)
     (dRec_ext.list x05 _ _ (dShape_inv hp).2.1) h11
-  obtain ⟨tables, s₇, h13, h14⟩ := AM.bind_ok h12
-  obtain ⟨p7, -, -, -⟩ := blockTables_run p₀.members p₀P.members p6.ok
-    (dShape_ext (x05.trans p6.ext) _ _ hp) (dMember_ext.list (x05.trans p6.ext) _ _ hms₀) h13
-  obtain ⟨-, rfl⟩ := AM.pure_ok h14
-  have hi := ((c1.toInst.trans i2).trans (p3.toInst.trans (i4.trans i5))).trans
-    (p6.toInst.trans p7.toInst)
+  obtain ⟨-, rfl⟩ := AM.pure_ok h12
+  have hi := ((c1.toInst.trans i2).trans (p3.toInst.trans (i4.trans p41.toInst))).trans
+    (i5.trans p6.toInst)
   refine ⟨hi.state, hi.ext, hi.pins,
-    ⟨env.pushDelta (ConLeche.blockConstants p₀P) (ConLeche.blockTables p₀P p₀P.members), ?_⟩⟩
+    ⟨env.pushDelta (ConLeche.blockConstants p₀P) QP, ?_⟩⟩
   unfold ConLeche.checkBlock
-  rw [ite_eq_left hnd, ite_eq_left hbool]
+  rw [ite_eq_left hnd, ite_eq_left hbool, hQP]
   exact FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ()) (FOk.bind hF1 (FOk.bind hFP
-    (FOk.seq hFT (FOk.pure _)))))
+    (FOk.bind FOk.unwrapOr (FOk.seq hFT (FOk.pure _))))))
 
 end ConRon.Bridge.Inductives

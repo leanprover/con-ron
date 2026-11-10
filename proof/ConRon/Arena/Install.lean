@@ -34,13 +34,12 @@ namespace ConRon.Arena
 open ConLeche
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:150-153 FEnv.pushAll
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Install.IFEnv.pushAll_bridge, then delete this line
 Push a list of records, head first. -/
 def IFEnv.pushAll : List IConstantInfo → IFEnv → IFEnv
   | [], fe => fe
   | ci :: rest, fe => IFEnv.pushAll rest (fe.push ci)
 
-/-- con-leche: ConLeche/Kernel/Install.lean:22-24 Env.pushDelta
+/-- con-leche: ConLeche/Kernel/FEnv.lean:143-148 FEnv.pushTables
 The tables, pushed in order. -/
 def IFEnv.pushTables : List IProjTable → IFEnv → IFEnv
   | [], fe => fe
@@ -48,7 +47,6 @@ def IFEnv.pushTables : List IProjTable → IFEnv → IFEnv
 
 /-- con-leche: ConLeche/Kernel/Install.lean:22-24 Env.pushDelta
 con-leche: ConLeche/Kernel/FEnv.lean:155-160 FEnv.pushDelta
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Install.IFEnv.pushDelta_bridge, then delete this line
 **The environment with a declaration's constants and tables pushed**, each list
 oldest first: the constants, then the tables. -/
 def IFEnv.pushDelta (fe : IFEnv) (L : List IConstantInfo) (Q : List IProjTable) : IFEnv :=
@@ -114,22 +112,25 @@ def blockRecs (p : BlockShape) : List RecShape → AM (List IConstantInfo)
     pure (r :: (← blockRecs p rest))
 
 /-- con-leche: ConLeche/Kernel/Install.lean:63-74 blockTables
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Install.blockTables_bridge, then delete this line
-**The projection tables**, in block order: one per structure-like member whose
-constructor reads as one. -/
-def blockTables (p : BlockShape) : List MemberShape → AM (List IProjTable)
-  | [] => pure []
+con-leche: ConLeche/Cached/CheckerC.lean:43-55 blockTablesC
+**The projection tables**, in block order: one per structure-like member, its
+bodies read off its constructor's type (`structProjBodies`).  `none` where a
+structure-like member's constructor type is too short to read them
+(`checkBlock` rejects it). -/
+def blockTables (p : BlockShape) : List MemberShape → AM (Option (List IProjTable))
+  | [] => pure (some [])
   | ms :: rest => do
     match ms.structCtor? with
     | some c =>
       match ← structProjBodies ms.declared.name p.nP c.2 c.1.type with
       | some bodies =>
         let t : IProjTable := ⟨ms.declared.name, p.lps, p.nP, c.1.name, c.2, bodies⟩
-        pure (t :: (← blockTables p rest))
-      | none => blockTables p rest
+        pure ((← blockTables p rest).map (t :: ·))
+      | none => pure none
     | none => blockTables p rest
 
 /-- con-leche: ConLeche/Kernel/Install.lean:76-79 blockConstants
+con-leche: ConLeche/Cached/CheckerC.lean:99-102 blockConstantsC
 **The block's constants**, in push order: the formers (at official's `is_rec`,
 `blockIsRec`), the constructors, the recursors. -/
 def blockConstants (p : BlockShape) : AM (List IConstantInfo) := do
@@ -145,6 +146,7 @@ def declConstantsAxiom (cv : IConstantVal) : AM (List IConstantInfo) := do
   else pure [.axiomInfo cv]
 
 /-- con-leche: ConLeche/Kernel/Install.lean:81-95 declConstants
+con-leche: ConLeche/Cached/CheckerC.lean:104-118 declConstantsC
 **The constants a declaration installs**, in push order.  A block `readBlock`
 cannot read installs nothing (its check rejects it), and `sorryAx` nothing
 (any use of it declines). -/
@@ -160,13 +162,16 @@ def declConstants : IDeclaration → AM (List IConstantInfo)
     | .error _ => pure []
 
 /-- con-leche: ConLeche/Kernel/Install.lean:97-103 declTables
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Install.declTables_bridge, then delete this line
+con-leche: ConLeche/Cached/CheckerC.lean:57-63 declTablesC
 **The projection tables a declaration installs**: those of an inductive block
-`readBlock` reads. -/
+`readBlock` reads (none where a constructor is too short for them). -/
 def declTables : IDeclaration → AM (List IProjTable)
   | .indDecl block nP => do
     match ← readBlock nP block with
-    | .ok p => blockTables p p.members
+    | .ok p => do
+      match ← blockTables p p.members with
+      | some q => pure q
+      | none => pure []
     | .error _ => pure []
   | _ => pure []
 

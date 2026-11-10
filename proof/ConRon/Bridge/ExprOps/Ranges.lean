@@ -53,8 +53,8 @@ are framed.
 **One of the other per-call tables is framed too, on the `bvarBound` side
 only**: `bvarBoundGo`, `bvarBoundMemo` and `bvarB` all carry
 `s'.memos.inst1LC = s₁.memos.inst1LC`.  It is what `ExprOps/Subst.lean`'s
-`BvarBSpec` asks for — `instantiate1LiftGo` tests `bvarB` inside its own
-memoised walk and has to carry `Inst1LMemoA` across the call.  It costs the
+`BvarBSpec` asks for — `instantiateLiftGo` tests `bvarB` inside its own
+memoised walk and has to carry `InstLiftMemoA` across the call.  It costs the
 proofs nothing: `bvarBClear_spec` and `bvarBSet_spec` hand back a
 whole-record update `{ memos with bvarBC := … }`, so the conjunct is one
 projection.  The `fvarRange` side is deliberately left narrow — nothing asks;

@@ -8,9 +8,9 @@
 //! before any check runs (the driver's `decl_constants`/`decl_tables`).
 //!
 //! A block the checks reject may still read as something here (a recursor
-//! whose major is not a container reads as firing `.plain`, a structure whose
-//! constructor is too short has no table): what it reads as never reaches an
-//! accepted environment.
+//! whose major is not a container reads as firing `.plain`, a block with a
+//! structure whose constructor is too short has no tables): what it reads as
+//! never reaches an accepted environment.
 //!
 //! ## The port's deviations
 //!
@@ -45,7 +45,6 @@ use crate::ron::hashmap::{Dup, Eq2};
 
 /// con-leche: ConLeche/Kernel/Install.lean:22-24 Env.pushDelta
 /// con-leche: ConLeche/Kernel/FEnv.lean:155-160 FEnv.pushDelta
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove install::push_delta_refines, then delete this line
 /// **The environment with a declaration's constants and tables pushed**, each
 /// list oldest first: the constants, then the tables (a constant push and a
 /// table push touch different components, so the order between them is not
@@ -56,7 +55,6 @@ pub fn push_delta(fe: IFEnv, l: Vec<IConstantInfo>, q: Vec<IProjTable>) -> IFEnv
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:150-153 FEnv.pushAll
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove install::push_delta_consts_refines, then delete this line
 /// Push a list of records from `i` on, head first.
 pub fn push_delta_consts(fe: IFEnv, l: Vec<IConstantInfo>, i: usize) -> IFEnv {
     if i >= l.len() {
@@ -67,7 +65,7 @@ pub fn push_delta_consts(fe: IFEnv, l: Vec<IConstantInfo>, i: usize) -> IFEnv {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Install.lean:22-24 Env.pushDelta
+/// con-leche: ConLeche/Kernel/FEnv.lean:143-148 FEnv.pushTables
 /// The tables from `i` on, pushed in order.
 pub fn push_delta_tables(fe: IFEnv, q: Vec<IProjTable>, i: usize) -> IFEnv {
     if i >= q.len() {
@@ -268,9 +266,11 @@ pub fn block_recs(
 }
 
 /// con-leche: ConLeche/Kernel/Install.lean:63-74 blockTables
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove install::block_tables_refines, then delete this line
+/// con-leche: ConLeche/Cached/CheckerC.lean:43-55 blockTablesC
 /// **The projection tables** from member `i` on, in block order: one per
-/// structure-like member whose constructor reads as one.
+/// structure-like member, its bodies read off its constructor's type
+/// (`struct_proj_bodies`).  `None` where a structure-like member's
+/// constructor type is too short to read them (`check_block` rejects it).
 pub fn block_tables(
     pers: &PersTier,
     st: &mut AState,
@@ -278,9 +278,9 @@ pub fn block_tables(
     ms: &Vec<MemberShape>,
     i: usize,
     out: Vec<IProjTable>,
-) -> Result<Vec<IProjTable>, CheckError> {
+) -> Result<Option<Vec<IProjTable>>, CheckError> {
     if i >= ms.len() {
-        Ok(out)
+        Ok(Some(out))
     } else {
         match block_shape::member_struct_ctor(&ms[i]) {
             None => block_tables(pers, st, p, ms, i + 1, out),
@@ -288,7 +288,7 @@ pub fn block_tables(
                 let t: NIdx = ms[i].declared.name.dup2();
                 match struct_parts::struct_proj_bodies(pers, st, &t, p.n_p, c.1, &c.0.ty) {
                     Err(e) => Err(e),
-                    Ok(None) => block_tables(pers, st, p, ms, i + 1, out),
+                    Ok(None) => Ok(None),
                     Ok(Some(bodies)) => {
                         let mut o: Vec<IProjTable> = out;
                         o.push(IProjTable {
@@ -308,6 +308,7 @@ pub fn block_tables(
 }
 
 /// con-leche: ConLeche/Kernel/Install.lean:76-79 blockConstants
+/// con-leche: ConLeche/Cached/CheckerC.lean:99-102 blockConstantsC
 /// **The block's constants**, in push order: the formers (at official's
 /// `is_rec`, `blockIsRec`), the constructors, the recursors.
 pub fn block_constants(pers: &PersTier, st: &mut AState, p: &BlockShape) -> Result<Vec<IConstantInfo>, CheckError> {
@@ -323,6 +324,7 @@ pub fn block_constants(pers: &PersTier, st: &mut AState, p: &BlockShape) -> Resu
 }
 
 /// con-leche: ConLeche/Kernel/Install.lean:81-95 declConstants
+/// con-leche: ConLeche/Cached/CheckerC.lean:104-118 declConstantsC
 /// **The constants a declaration installs**, in push order.  A block
 /// `readBlock` cannot read installs nothing (its check rejects it), and
 /// `sorryAx` nothing (any use of it declines).
@@ -395,14 +397,18 @@ pub fn decl_constants_axiom(pers: &PersTier, st: &mut AState, cv: &IConstantVal)
 }
 
 /// con-leche: ConLeche/Kernel/Install.lean:97-103 declTables
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove install::decl_tables_refines, then delete this line
+/// con-leche: ConLeche/Cached/CheckerC.lean:57-63 declTablesC
 /// **The projection tables a declaration installs**: those of an inductive
-/// block `readBlock` reads.
+/// block `readBlock` reads (none where a constructor is too short for them).
 pub fn decl_tables(pers: &PersTier, st: &mut AState, pd: &IDeclaration) -> Result<Vec<IProjTable>, CheckError> {
     match pd {
         IDeclaration::IndDecl(block, n_p) => match block_shape::read_block(pers, st, *n_p, block) {
             Err(e) => Err(e),
-            Ok(Ok(p)) => block_tables(pers, st, &p, &p.members, 0, Vec::new()),
+            Ok(Ok(p)) => match block_tables(pers, st, &p, &p.members, 0, Vec::new()) {
+                Err(e) => Err(e),
+                Ok(Some(q)) => Ok(q),
+                Ok(None) => Ok(Vec::new()),
+            },
             Ok(Err(_)) => Ok(Vec::new()),
         },
         _ => Ok(Vec::new()),

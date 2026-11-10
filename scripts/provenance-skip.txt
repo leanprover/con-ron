@@ -40,7 +40,6 @@ ConLeche/Kernel/ExprOps.lean RenameMemoInv A `Prop`-valued memo invariant, as `I
 ConLeche/Kernel/ExprOps.lean MemoBInv A `Prop`-valued memo invariant, as `Inst1MemoInv`.
 ConLeche/Kernel/ExprOps.lean MemoFInv A `Prop`-valued memo invariant, as `Inst1MemoInv`.
 ConLeche/Kernel/ExprOps.lean Abs1MemoInv A `Prop`-valued memo invariant, as `Inst1MemoInv`.
-ConLeche/Kernel/ExprOps.lean Inst1LMemoInv A `Prop`-valued memo invariant, as `Inst1MemoInv`.
 ConLeche/Kernel/ExprOps.lean ILPMemoInv A `Prop`-valued memo invariant, as `Inst1MemoInv`.
 ConLeche/Kernel/Level.lean LPMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
 ConLeche/Kernel/DeclCheck.lean CRFMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
@@ -161,7 +160,7 @@ ConLeche/Cached/ExprOpsC.lean BTab The `Bool` walks' table; as `HTab`.
 ConLeche/Cached/ExprOpsC.lean ResB A `Bool` walk's result; as `ResXP`.
 ConLeche/Cached/ExprOpsC.lean ResB0 The cursor-free instance of it.
 ConLeche/Cached/ExprOpsC.lean instantiate1P The plain descent `instantiate1XP` carries its proof against; the port's specification is `ConLeche.Expr.instantiate1` itself.
-ConLeche/Cached/ExprOpsC.lean instantiate1LiftP As `instantiate1P`, for the capture-avoiding substitution.
+ConLeche/Cached/ExprOpsC.lean instantiateLiftP As `instantiate1P`, for the capture-avoiding substitution.
 ConLeche/Cached/ExprOpsC.lean instantiateListP As `instantiate1P`, for the bulk substitution.
 ConLeche/Cached/ExprOpsC.lean instantiateRevP As `instantiate1P`, on the reversed accumulator array.
 ConLeche/Cached/ExprOpsC.lean abstract1P As `instantiate1P`, for the single abstraction.
@@ -170,7 +169,6 @@ ConLeche/Cached/ExprOpsC.lean wscopedBP As `instantiate1P`, for the scope guard.
 ConLeche/Cached/ExprOpsC.lean leavesSubP As `instantiate1P`, for the leaf-subset guard.
 ConLeche/Cached/ExprOpsC.lean allLevelParamsDefinedP As `instantiate1P`, for the definedness guard.
 ConLeche/Cached/ExprOpsC.lean enter1P The child step of `instantiate1XP`; the port's walk makes its cutoff and compound test itself and reads `ron::node::is_exclusive` where this reads `withExclusive`.
-ConLeche/Cached/ExprOpsC.lean enterLiftP As `enter1P`.
 ConLeche/Cached/ExprOpsC.lean enterListP As `enter1P`.
 ConLeche/Cached/ExprOpsC.lean enterRevP As `enter1P`.
 ConLeche/Cached/ExprOpsC.lean enterAbs1P As `enter1P`.
@@ -252,7 +250,6 @@ ConLeche/Kernel/DeclCheck.lean natOpCodF Was `kernel/core_k.rs`'s `nat_op_deps` 
 ConLeche/Kernel/DeclCheck.lean natOpTyPinnedF Was `kernel/core_k.rs`'s `nat_op_ty_pinned` (deleted, task #105 sweep, as `whnfCoreLoopFuel` above).
 ConLeche/Kernel/DeclCheck.lean natOpStoredOkF Was `kernel/core_k.rs`'s `nat_op_stored_ok` (deleted, task #105 sweep, as `whnfCoreLoopFuel` above).
 ConLeche/Kernel/CheckDecl.lean checkDeclsPure Was `arena/check_decl.rs`'s `check_decls_pure` (and its `_go` fold), the one-step-per-record spec fold whose refinement theorem task #105 SW-R2 deleted as dead; the binary runs the two-phase driver (`crates/con-ron/src/driver.rs`), so with the theorem gone the Rust had no caller either (deleted, task #105 R-SWEEP2).
-ConLeche/Cached/CheckerC.lean instPisAtLiftC Ported only as the tree oracle of an arena differential test; deleted with it, task #105.
 ConLeche/Kernel/Env.lean find? Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
 ConLeche/Kernel/Env.lean findProj? Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
 ConLeche/Kernel/Env.lean findTable? The pure environment's table lookup (task #362), read by the pure checker and con-leche's model; the port runs the indexed `FEnv.findTable?` only (`env::ifenv_find_table`), as for `find?`/`findProj?`.
@@ -292,7 +289,6 @@ ConLeche/Kernel/ExprOps.lean fvarLeaves Was `arena::expr_ops::fvar_leaves`, the 
 # ---------------------------------------------------------------------------
 
 ConLeche/Kernel/FEnv.lean overlay The read-only overlay view sharing an index (task #329 BLOCKCOPY, #331), which avoids a copy of the Lean bucket array; the port's block install pushes and pops in place (`ifenv_push_temp`/`ifenv_pop_temp`) and its pinned arms read the pushed index, which on the install's environments is the same `find?`.
-ConLeche/Kernel/FEnv.lean pushTables The parallel commit's install of a record's tables (`FEnv.pushDelta`, task #362); the port has no parallel install, and its block install installs one table at a time (`env::ifenv_push_table`), as con-leche's `checkBlockTablesF` does.
 ConLeche/Kernel/Inductives/GenRec.lean blockRecInfosBare The records `classFeROvl` lays over the index; as `overlay` (the port pushes them, `gen_rec_generate`).
 ConLeche/Kernel/Inductives/GenRec.lean classFeROvl The cached driver's `ShadowOps.ruleEnv`, `classFeR` as an overlay (task #332); the pure install's `classFeR` is what the port computes, with its own push and pop (`gen_rec_generate`).
 

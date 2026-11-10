@@ -235,7 +235,7 @@ is why `#print axioms` does not list any of them.
 
 | premise | what it says | how it is discharged |
 |---|---|---|
-| `[ConLeche.SetTheory V]` and con-leche's soundness | a set theory to build the model in; con-leche's `checkDeclsPure_sound_of` and `no_proof_of_False_pure` at the pinned revision | con-leche's own proof, on the same three axioms |
+| `[ConLeche.SetTheory V]` and con-leche's soundness | a set theory to build the model in; con-leche's `checkDeclsPure_sound_of` and `no_proof_of_False_pure` at the pinned revision.  Only these last steps read it: Theorem 1 (`Arena.pooledAccepts_bridge`) is free of it | con-leche's own proof, on the same three axioms |
 | `h1`…`h5`, `hpins` | the binary ran exactly these extracted functions, in this order, on one state that starts at `AState::empty()` under one `PersTier::empty()` | the driver's calling order, which starts [here](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L334-L352); each call carries a `// ConRon.Capstone: hᵢ` comment: trusted |
 | `h6`, `h7`, `h8` (the index, the freeze, the check phase) | the stream's index was built from the records (`build_index`, from `stream_index_empty()`) as `ix`; `freeze_tier` moved the persistent tables and `ix` into the tier; and the check phase's `parallel_all` accepted: `ParallelAll` says there are lists of record positions, one per worker, that together cover every record, each in increasing order, and for each list the worker's run (one `worker_state`, then `jobStep`, the verified `run_job` on each position, folded over the list) answered `Ok` at every step.  Nothing is assumed about a job being claimed only once | `h6` and `h7` are calls like `h1`…`h5`, inside `driver::check_decls_driver`.  `h8` is the contract of the one generic combinator `pool::parallel_all`, an argument about its control flow (§8.2).  The driver's observer only prints, so `--progress` runs are covered |
 | `hreads : ReadsAs sinst src chunks` ([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Frontend/Source.lean#L34-L38)) | the chunk source hands out `chunks`, each nonempty, then an empty buffer | that the file handle returns the file's bytes in order: trusted.  The read loop itself (`parse_source`) is verified |
@@ -736,7 +736,10 @@ denotes con-leche's index of the denoted stream, and every job accepting is
 the pure fold accepting that stream at some fuel.  The proof is an induction
 in fold order: a job runs at the frozen index's view of its position, which is
 the environment of the records before it, and the jobs before it (each worker's
-claims are increasing) give that the fold accepted them.  Theorem 1 owns every invariant of the twin's state,
+claims are increasing) give that the fold accepted them.  That environment is
+well formed by con-leche's model-free `foldlM_checkDecl_envWF`
+(`ConLeche/Semantics/DeclWF.lean`), so Theorem 1 takes no set theory: `[SetTheory V]`
+enters only at step 3 below, where con-leche's soundness builds the model.  Theorem 1 owns every invariant of the twin's state,
 `StoreWF` included.
 
 The store primitives and the type checker are specified by Hoare triples

@@ -85,8 +85,7 @@ exactly as the cited code does. -/
 
 /-!Task #21, the three cutoff-and-memo walks of `kernel::expr_ops`: `abstract1`
 (`ExprOps.lean:760-1934`), `lowerBVars` (`:694-2151`) and `instantiate1Lift`
-(`:718-2363`), plus `instPisAtLift` (`:2375`), which folds the last of them
-over a `∀`-telescope's open arguments.
+(`:718-2363`).
 
 Each of the three is con-leche's `*Fast` member and carries **both** remedies
 of its family (task #233, quoted in the Rust): an `O(1)` cutoff on the packed
@@ -106,15 +105,5 @@ case discharges it with a single `exact`.
 imports `ExprOpsLift.lean` for `lift_loose_bvars_refines`; in the merged file
 that part must come first.
 -/
-
-/-! ## `instPisAtLift` (`ExprOps.lean:2365-2378`)
-
-The one telescope walk that uses the *general* substitution, so it belongs with
-`instantiate1Lift` rather than with the rest of the spine family.  Its
-recursion is on the argument *index* (task #13's deviation 3: Lean's list
-recursion becomes an index recursion over a `Vec`), and the expression changes
-at every step, so the induction is a strong induction on the number of
-arguments left -- not on an `ExprWF` derivation, which only supplies the node's
-shape here (through `cases`). -/
 
 end ConRon.Refine.ExprOps

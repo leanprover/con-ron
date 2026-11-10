@@ -979,7 +979,7 @@ record bought. -/
     ⦃fun s => s = s₀⦄ inst1LClear
     ⦃fun _u s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧ s'.memos = { s₀.memos with inst1LC := ∅ } ∧
-        ∀ ve, Inst1LMemoA ve s'; ⊤⦄ := by
+        ∀ ws, InstLiftMemoA ws s'; ⊤⦄ := by
   dsimp only
   sym only [bridge_grind] =>
     vcgen [inst1LClear] <;> finish

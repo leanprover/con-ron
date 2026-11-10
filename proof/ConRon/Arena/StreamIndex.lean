@@ -54,7 +54,6 @@ def insertTables (tbls : Std.HashMap NIdx (Nat × IProjTable)) (r : Nat) :
   | t :: Q => insertTables (tbls.insertIfNew t.structName (r, t)) r Q
 
 /-- con-leche: ConLeche/Cached/StreamIndex.lean:57-62 StreamIndex.add — one record
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StreamIndex.IStreamIndex.add_bridge, then delete this line
 into the index.  An `AM` action, as the module note says: reading off what a record
 installs interns the terms it builds. -/
 def IStreamIndex.add (I : IStreamIndex) (pd : IDeclaration) : AM IStreamIndex := do

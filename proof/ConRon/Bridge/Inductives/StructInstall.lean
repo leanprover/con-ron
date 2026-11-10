@@ -152,49 +152,45 @@ theorem checkStructDomsAt_spec {env : Env} (fe : IFEnv)
 
 /-! ## The projection table -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-80 checkStructProjTable
-con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-89 checkStructProjTableF
-**The projection table's checks** at a structure-like member: the fields'
-bodies read off the annotated constructor type, validated once, the structure
-stored and its table not taken.  Nothing is pushed (the table is the block's
-install, `Arena/Install.lean`'s `blockTables`).
+/-- con-leche: none — a table's denotation, field by field. -/
+theorem denoteProjTable_inv {st : EStore} {t : IProjTable} {tP : ProjTable}
+    (h : Frontend.denoteProjTable st t = some tP) :
+    ∃ sn lps c bs, tP = ⟨sn, lps, t.numParams, c, t.numFields, bs⟩ ∧
+      denoteN st.ns t.structName = some sn ∧
+      Frontend.denoteNList st.ns t.levelParams = some lps ∧
+      Frontend.denoteEArray st t.bodies = some bs := by
+  simp only [Frontend.denoteProjTable] at h
+  split at h
+  · rename_i sn lps c hs hl _
+    split at h
+    · rename_i bs hb
+      exact ⟨sn, lps, c, bs, (Option.some.inj h).symm, hs, hl, hb⟩
+    · exact nomatch h
+  · exact nomatch h
 
-**Proof:** over `structProjBodies_spec` (`Bridge/Inductives/StructParts.lean`)
-and the four scoping walks; the two gates (the structure is stored, its table
-is not taken) are the index's lookups at a handle that denotes
-(`IFEnvOK.find_isSome`, `IFEnvOK.findTable_isSome`). -/
+/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:60-74 checkStructProjTable
+con-leche: ConLeche/Cached/IndTail.lean:194-202 checkStructProjTableC
+**The projection table's checks**, at the table the block installs: its bodies'
+scoping, validated once, the structure stored and its table not taken.
+
+**Proof:** over the four scoping walks; the two gates (the structure is
+stored, its table is not taken) are the index's lookups at a handle that
+denotes (`IFEnvOK.find_isSome`, `IFEnvOK.findTable_isSome`). -/
 theorem checkStructProjTable_run (fe : IFEnv) (env : Env)
-    (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
-    (lpsP : List ConLeche.Name) (nP nF : Nat)
-    (cvCa : IConstantVal) (cvCaP : ConstantVal) :
+    (t : IProjTable) (tP : ProjTable) :
     PSpecP
-      (fun st => denoteN st.ns T = some TP ∧
-        Frontend.denoteNList st.ns lps = some lpsP ∧
-        Frontend.denoteCV st cvCa = some cvCaP ∧ IFEnvOKS env fe st)
-      (Arena.checkStructProjTable T lps nP nF cvCa fe)
-      (fun _ _ =>
-        @ConLeche.checkStructProjTable CheckM _ _ TP lpsP nP nF cvCaP env = .ok ()) := by
+      (fun st => Frontend.denoteProjTable st t = some tP ∧ IFEnvOKS env fe st)
+      (Arena.checkStructProjTable t fe)
+      (fun _ _ => @ConLeche.checkStructProjTable CheckM _ _ tP env = .ok ()) := by
   intro s₀ s' r hok hpins hpre hrun
-  obtain ⟨hT, hlps, hcv, hienvS⟩ := hpre
+  obtain ⟨ht, hienvS⟩ := hpre
+  obtain ⟨TP, lpsP, cP, bodiesP, rfl, hT, hlps, hbodies⟩ := denoteProjTable_inv ht
   have hread : ReadOK env fe s₀ := ⟨hok, hpins, hienvS s₀ rfl⟩
   have hnever : ∀ {α β : Type} {e : Arena.CheckError} {g : α → AM β},
       AM.Never ((Arena.fail e : AM α) >>= g) := fun {_ _ _ _} => AM.Never.fail_any
   simp only [Arena.checkStructProjTable] at hrun
-  -- the bodies
-  obtain ⟨o, s₁, k1, z1⟩ := AM.bind_ok hrun
-  obtain ⟨p1, ho⟩ := structProjBodies_spec T TP nP nF cvCa.type cvCaP.type s₀ s₁ o hok
-    ⟨hT, denoteCV_type hcv⟩ k1
-  obtain ⟨bodies, s₂, k2, z2⟩ := AM.bind_ok z1
-  cases o with
-  | none => simp only [Arena.unwrapOr] at k2; exact absurd k2 (fun h => AM.fail_ok h)
-  | some o' =>
-  simp only [Arena.unwrapOr] at k2
-  obtain ⟨hb2, hs2⟩ := AM.pure_ok k2
-  subst hb2
-  rw [hs2] at z2
-  obtain ⟨bodiesP, hbP, hbodies⟩ := ho
-  have hbl : Frontend.denoteEList s₁.store bodies.toList = some bodiesP.toList := by
-    have h' : Frontend.denoteEArray s₁.store bodies = some bodiesP := hbodies
+  have hbl : Frontend.denoteEList s₀.store t.bodies.toList = some bodiesP.toList := by
+    have h' : Frontend.denoteEArray s₀.store t.bodies = some bodiesP := hbodies
     simp only [Frontend.denoteEArray] at h'
     split at h'
     · rename_i xs hxs
@@ -202,11 +198,11 @@ theorem checkStructProjTable_run (fe : IFEnv) (env : Env)
       simpa using hxs
     · exact nomatch h'
   -- their scoping, one guard per body
-  obtain ⟨sc, s₃, k3, z3⟩ := AM.bind_ok z2
+  obtain ⟨sc, s₃, k3, z3⟩ := AM.bind_ok hrun
   obtain ⟨p3, hsc⟩ := allM_E_ckQ (env := env) (fe := fe)
     (F := fun b => !b.hasFvar && b.allLevelParamsDefined lpsP && b.constsResolve env &&
-      b.looseBVarsBounded (nP + 1))
-    (fun st => Frontend.denoteNList st.ns lps = some lpsP)
+      b.looseBVarsBounded (t.numParams + 1))
+    (fun st => Frontend.denoteNList st.ns t.levelParams = some lpsP)
     (fun hx h => denoteNListE_ext hx _ _ h)
     (fun e eP t t' x hr hq he hrun => by
       obtain ⟨b1, t1, g1, y1⟩ := AM.bind_ok hrun
@@ -229,20 +225,18 @@ theorem checkStructProjTable_run (fe : IFEnv) (env : Env)
       have he3 : denoteE t3.store e = some eP := by rw [h31]; exact he2
       obtain ⟨b4, t4, g4, y4⟩ := AM.bind_ok y3
       obtain ⟨h41, h42, h43, hb4⟩ := AM.of_run (P := fun u => u = t3) rfl g4
-        (ExprOps.looseBVarsBoundedFast_spec Arena.coreWalkFuel (nP + 1) t3 e q3.ok
+        (ExprOps.looseBVarsBoundedFast_spec Arena.coreWalkFuel (t.numParams + 1) t3 e q3.ok
           (by rw [he3]; rfl))
       have q4 : PStep t3 t4 := PStep.of_caches ⟨by rw [h41]; exact q3.ok.wf⟩
         (by rw [h41]; exact Ext.refl _) h42 h43
       obtain ⟨rfl, rfl⟩ := AM.pure_ok y4
       refine ⟨q1.trans (q2.trans (q3.trans q4)), ?_⟩
       rw [hb1 eP he, hb2, hb3, hb4 eP he3])
-    bodies.toList bodiesP.toList s₁ s₃ sc (hread.mono p1.ok p1.ext p1.pins)
-    (denoteNListE_ext p1.ext _ _ hlps) hbl k3
+    t.bodies.toList bodiesP.toList s₀ s₃ sc hread hlps hbl k3
   obtain ⟨hg1, z4⟩ := AM.dunless_ok hnever z3
   replace z4 := AM.pure_bind_ok z4
-  have hread₃ : ReadOK env fe s₃ := hread.mono p3.ok (p1.ext.trans p3.ext) (by rw [p3.pins, p1.pins])
-  have x05 : Ext s₀.store s₃.store := p1.ext.trans p3.ext
-  have hT₃ : denoteN s₃.store.ns T = some TP := denoteN_ext hT x05
+  have hread₃ : ReadOK env fe s₃ := hread.mono p3.ok p3.ext p3.pins
+  have hT₃ : denoteN s₃.store.ns t.structName = some TP := denoteN_ext hT p3.ext
   -- the structure is stored, and its table is not taken
   obtain ⟨hg2, z5⟩ := AM.dunless_ok hnever z4
   replace z5 := AM.pure_bind_ok z5
@@ -253,40 +247,33 @@ theorem checkStructProjTable_run (fe : IFEnv) (env : Env)
   have hg3' : (env.findTable? TP).isNone = true := by
     have e := hread₃.ienv.findTable_isSome p3.ok hT₃
     revert e hg3
-    cases fe.findTable? T <;> cases env.findTable? TP <;> simp
-  have hsize : bodies.size = nF := hg1.1
+    cases fe.findTable? t.structName <;> cases env.findTable? TP <;> simp
+  have hsize : t.bodies.size = t.numFields := hg1.1
   have hall : (bodiesP.toList.all fun b => !b.hasFvar && b.allLevelParamsDefined lpsP &&
-      b.constsResolve env && b.looseBVarsBounded (nP + 1)) = true := by
+      b.constsResolve env && b.looseBVarsBounded (t.numParams + 1)) = true := by
     rw [← hsc]; exact hg1.2
-  have hsizeP : bodiesP.size = nF := by
+  have hsizeP : bodiesP.size = t.numFields := by
     rw [← hsize]
     have := ExprOps.denoteEList_length _ _ hbl
     simpa using this
-  refine ⟨p1.trans p3, ?_⟩
-  simp only [ConLeche.checkStructProjTable, hbP, ConLeche.unwrapOr, bind, Except.bind, pure,
-    Except.pure]
+  refine ⟨p3, ?_⟩
+  simp only [ConLeche.checkStructProjTable, bind, Except.bind, pure, Except.pure]
   rw [ite_eq_left ⟨hsizeP, by rw [← Array.all_toList]; exact hall⟩,
     ite_eq_left hg2', ite_eq_left hg3']
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-80 checkStructProjTable
-con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-89 checkStructProjTableF
+/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:60-74 checkStructProjTable
 **The monad-generic form** (task #105): `checkStructProjTable_run` at
 `FueledM`, the monad the block's `checkBlockTables` runs it in.  The stage
 calls no operation, so the fuel is immaterial: `checkStructProjTable_datF` is
 `rfl` at every fuel. -/
 theorem checkStructProjTable_runF (fe : IFEnv) (env : Env)
-    (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
-    (lpsP : List ConLeche.Name) (nP nF : Nat)
-    (cvCa : IConstantVal) (cvCaP : ConstantVal) :
+    (t : IProjTable) (tP : ProjTable) :
     PSpecP
-      (fun st => denoteN st.ns T = some TP ∧
-        Frontend.denoteNList st.ns lps = some lpsP ∧
-        Frontend.denoteCV st cvCa = some cvCaP ∧ IFEnvOKS env fe st)
-      (Arena.checkStructProjTable T lps nP nF cvCa fe)
-      (fun _ _ => FOk (ConLeche.checkStructProjTable TP lpsP nP nF cvCaP env : FueledM Unit) ()) := by
+      (fun st => Frontend.denoteProjTable st t = some tP ∧ IFEnvOKS env fe st)
+      (Arena.checkStructProjTable t fe)
+      (fun _ _ => FOk (ConLeche.checkStructProjTable tP env : FueledM Unit) ()) := by
   intro s₀ s' r hok hpins hpre hrun
-  obtain ⟨hstep, hP⟩ := checkStructProjTable_run fe env T TP lps lpsP nP nF cvCa cvCaP
-    s₀ s' r hok hpins hpre hrun
+  obtain ⟨hstep, hP⟩ := checkStructProjTable_run fe env t tP s₀ s' r hok hpins hpre hrun
   exact ⟨hstep, 0, by rw [checkStructProjTable_datF]; exact hP⟩
 
 end ConRon.Bridge.Inductives
