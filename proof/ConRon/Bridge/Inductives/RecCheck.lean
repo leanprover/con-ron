@@ -13,13 +13,12 @@ recursor records' pins, node agreement (`targetCtorAt`, `targetK53`,
 
 **The twin module note's deviations, as the statements read them:**
 
-* The twin has no `ShadowOps`: it calls the core at the `IFEnv` it is handed.
-  Upstream's pure route runs `ShadowOps.ofOps ops`, whose `opsAt fe` is the
-  constant `ops`, so every core-grade statement here is `CSpecF` against the
-  con-leche function at `fueledOpsM .verified` (`Bridge/Inductives/Rel.lean`).
+* The twin calls the core at the `IFEnv` it is handed; the specification
+  takes a `CheckerOps`, so every core-grade statement here is `CSpecF`
+  against the con-leche function at `fueledOpsM .verified`
+  (`Bridge/Inductives/Rel.lean`).
 * `targetAbs` is ONE memoised walk; its statement is the STRUCTURAL
-  `ConLeche.targetAbs` (con-leche's own `@[csimp]` swaps its memoised
-  `targetAbsFast` in), with the memo invariant `TAMemoOK` at handle keys, as
+  `ConLeche.targetAbs` (con-leche runs its cached `targetAbsC`), with the memo invariant `TAMemoOK` at handle keys, as
   `Bridge/Inductives/PosWalks.lean`'s `RFMemoOK` is for `replaceFVars`.
 * `targetParamsDefEq`'s `absM` is `targetAbs names lvls holes`, at the
   denoted names, levels and holes.
@@ -391,9 +390,9 @@ theorem targetAbsGo_spec (names : List NIdx) (lvls : LsIdx) (holes : List EIdx)
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin (hsA.trans hsC) (by rw [hq]; rfl) (hmA.ext hsC.ext) hz
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:240-245 targetAbsFast
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:66-86 targetAbs
 **The executed member abstraction** (a fresh memo) computes the structural
-`targetAbs` (con-leche's `@[csimp] targetAbs_eq_targetAbsFast`). -/
+`targetAbs` (the specification; con-leche runs its cached `targetAbsC`). -/
 theorem targetAbs_spec (names : List NIdx) (lvls : LsIdx) (holes : List EIdx)
     (namesP : List ConLeche.Name) (lvlsP : List Level) (holesP : List Expr)
     (e : EIdx) (eP : Expr) :

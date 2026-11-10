@@ -229,9 +229,9 @@ theorem mentionsAnyGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
               simp only [Expr.mentionsAnyConst, hrA, contains_handle_eq hok.wf hn hT])
           hmA hz
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:192-194 Expr.mentionsAnyConstFast
-The entry, at an empty memo: the pure `mentionsAnyConst` (con-leche's
-`@[csimp]` swaps the memoised walk in; the pure definition is the spec). -/
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:119-133 Expr.mentionsAnyConst
+The entry, at an empty memo: the pure `mentionsAnyConst` (the specification;
+con-leche runs its cached `mentionsAnyConstC`). -/
 theorem mentionsAnyConst_spec (names : List NIdx) (namesP : List ConLeche.Name)
     (e : EIdx) (eP : Expr) :
     PSpec (fun st => Frontend.denoteNList st.ns names = some namesP ∧
@@ -502,8 +502,9 @@ theorem nestOccGo_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
         simp only at hrA
         exact fin hsA (by simp only [Expr.nestOcc, ← hrA]) hmA hn1
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:506-508 Expr.nestOccFast
-The entry, at an empty memo: the pure `nestOcc`. -/
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:240-256 Expr.nestOcc
+The entry, at an empty memo: the pure `nestOcc` (the specification; con-leche
+runs its cached `nestOccC`). -/
 theorem nestOcc_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi : Nat)
     (e : EIdx) (eP : Expr) :
     PSpec (fun st => Frontend.denoteNList st.ns names = some namesP ∧
@@ -1167,7 +1168,7 @@ theorem replaceFVarsGo_spec_of (f : Arena.FvMap) (fP : Nat → Option Expr)
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin (hsA.trans hsC) (by rw [hq]; rfl) (hmA.ext hsC.ext) hz
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:875-877 Expr.replaceFVarsFast
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:465-478 Expr.replaceFVars
 The entry at an empty memo, given `fvMapAt f`'s statement. -/
 theorem replaceFVars_spec_of (f : Arena.FvMap) (fP : Nat → Option Expr)
     (hfm : FvMapAtSpec f fP) (e : EIdx) (eP : Expr) :
@@ -1346,9 +1347,9 @@ theorem nestHoleImg_spec (ctx : Arena.NestCtx) (prog : List Arena.NestHole) :
 theorem fvMapAt_spec (f : Arena.FvMap) (fP : Nat → Option Expr) : FvMapAtSpec f fP :=
   fvMapAt_spec_of f fP (fun ctx prog n _ => nestHoleImg_spec ctx prog n)
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:875-877 Expr.replaceFVarsFast
-**`replaceFVars`**: the pure `Expr.replaceFVars` (con-leche's `@[csimp]`
-swaps its memoised walk in; the structural definition is the spec). -/
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:465-478 Expr.replaceFVars
+**`replaceFVars`**: the pure `Expr.replaceFVars` (the structural definition
+is the specification; con-leche runs its cached `replaceFVarsC`). -/
 theorem replaceFVars_spec (f : Arena.FvMap) (fP : Nat → Option Expr) (e : EIdx)
     (eP : Expr) :
     PSpecP (fun st => FvMapRel st f fP ∧ denoteE st e = some eP)
@@ -1774,8 +1775,9 @@ theorem replaceAppsGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin (hsA.trans hsC) (by rw [hq]; rfl) (hmA.ext hsC.ext) hz
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1077-1079 Expr.replaceAppsFast
-**`replaceApps` at `nestCanonSub`**: the pure `Expr.replaceApps`. -/
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:526-543 Expr.replaceApps
+**`replaceApps` at `nestCanonSub`**: the pure `Expr.replaceApps` (con-leche
+runs its cached `replaceAppsC`). -/
 theorem replaceApps_spec (names : List NIdx) (namesP : List ConLeche.Name)
     (us : LsIdx) (usP : List Level) (b n : Nat) (e : EIdx) (eP : Expr) :
     PSpecP (fun st => Frontend.denoteNList st.ns names = some namesP ∧

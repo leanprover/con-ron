@@ -15,10 +15,9 @@ the same scoping facts (`ClassMajScoped`, `classConstOk_typeWF`,
 
 **The twin's deviations** (its module note), and what each costs here:
 
-* no `ShadowOps`: the pure side is `ShadowOps.ofOps (fueledOpsM .verified)`, whose
-  `opsAt`/`opsRuleR` are constant and whose `flush` is `pure ()`; the twin's
-  flushes are `flushCaches`, which restore `CheckOK` at whichever index the
-  state reads (`ReadOK.flush`);
+* the pure side is `genRecCheck` at `fueledOpsM .verified`, which does not
+  flush; the twin's flushes (`genRecCheckC`'s) are `flushCaches`, which
+  restore `CheckOK` at whichever index the state reads (`ReadOK.flush`);
 * `feR` is the constructors' index with the rule-less recursors pushed
   TEMPORARILY (`classFeR`) and popped (`IFEnv.popTemp`): the rule stage's
   knot calls run at `consBlockRecsBare …` (con-leche's
@@ -3235,12 +3234,11 @@ theorem sum_lengths {α β : Type} {f : α → Option β} :
 
 end GR
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:537-586 genRecCheck
-con-leche: ConLeche/Cached/CheckerC.lean:118-125 shadowOpsC
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:543-581 genRecCheck
 **THEOREM 1 for the GENERATED recursor stage**, at the constructors'
 environment `env₂` (index `fe₂`), on the pass's classes (`ClassMajScoped`)
 and table: an accepting twin run answers con-leche's `genRecCheck` at
-`ShadowOps.ofOps (fueledOpsM .verified)` — the output family denotes con-leche's,
+`fueledOpsM .verified` — the output family denotes con-leche's,
 every output recursor is fresh in `env₂`, and the returned index answers
 exactly as `fe₂` (the pushes popped: same list, same row at every key, same
 base and tables, `GR.FEq`).  The rule stage's knot calls run at the rule-less
