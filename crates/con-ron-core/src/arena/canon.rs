@@ -725,16 +725,10 @@ pub fn i_rec_rules_beq(a: &Vec<IRecRule>, b: &Vec<IRecRule>, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:184-221 IndCaps
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove canon::i_ind_caps_beq_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Env.lean:80-101 IIndCaps` — the cited `deriving
+/// Lean twin: `proof/ConRon/Arena/Env.lean:80-96 IIndCaps` — the cited `deriving
 /// DecidableEq`, the `decide (c = c')` of `ConstantInfo.beqP`'s `.indInfo` arm.
 pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
     a.eta == b.eta
-        && a.eta_ctor.eq2(&b.eta_ctor)
-        && a.eta_params == b.eta_params
-        && a.eta_fields == b.eta_fields
-        && a.unitlike == b.unitlike
-        && a.unit_params == b.unit_params
         && nidx_vec_beq(&a.all, &b.all, 0)
         && a.nparams == b.nparams
         && a.n_idx == b.n_idx

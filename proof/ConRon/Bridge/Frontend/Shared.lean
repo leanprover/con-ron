@@ -743,17 +743,14 @@ theorem internCaps_sstep {s s' : AState} (hok : StateOK s)
     (hrun : internCaps c s = .ok (ci, s')) :
     IStepS s s' ∧ denoteCaps s'.store ci = some c := by
   rw [ConRon.Arena.Frontend.internCaps] at hrun
-  obtain ⟨ct, s₁, h1, hrest⟩ := AM.bind_ok hrun
-  obtain ⟨hstep1, hdc⟩ := internName_sstep hok h1
-  obtain ⟨all, s₂, h2, hrest2⟩ := AM.bind_ok hrest
-  obtain ⟨hstep2, hda⟩ := internNameList_sstep c.all hstep1.ok h2
+  obtain ⟨all, s₂, h2, hrest2⟩ := AM.bind_ok hrun
+  obtain ⟨hstep2, hda⟩ := internNameList_sstep c.all hok h2
   obtain ⟨ctors, s₃, h3, hrest3⟩ := AM.bind_ok hrest2
   obtain ⟨hstep3, hdct⟩ := internNameList_sstep c.ctors hstep2.ok h3
   obtain ⟨hv, hst⟩ := AM.pure_ok hrest3
   subst hst; subst hv
-  refine ⟨(hstep1.trans hstep2).trans hstep3, ?_⟩
-  simp only [denoteCaps, denoteN_ext hdc (hstep2.ext.trans hstep3.ext),
-    denoteNListE_ext hstep3.ext _ _ hda, hdct]
+  refine ⟨hstep2.trans hstep3, ?_⟩
+  simp only [denoteCaps, denoteNListE_ext hstep3.ext _ _ hda, hdct]
 
 theorem internCI_sstep {s s' : AState} (hok : StateOK s)
     {m m' : EMemo} (hm : EMemoOK s.store m)

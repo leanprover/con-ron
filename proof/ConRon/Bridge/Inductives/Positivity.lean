@@ -354,7 +354,7 @@ theorem nestContainer_spec {env : Env} {fe : IFEnv} (ctxP : ConLeche.NestCtx)
       have hctors : Frontend.denoteNList s₀.store.ns caps.ctors = some capsP.ctors := by
         simp only [Frontend.denoteCaps] at hcaps
         split at hcaps
-        · rename_i ct all ctors _ _ hct
+        · rename_i all ctors _ hct
           obtain rfl := (Option.some.inj hcaps).symm
           exact hct
         · exact nomatch hcaps
@@ -416,7 +416,7 @@ theorem denoteCaps_inv {st : EStore} {caps : IIndCaps} {capsP : IndCaps}
       caps.nparams = capsP.nparams ∧ caps.nIdx = capsP.nIdx := by
   simp only [Frontend.denoteCaps] at h
   split at h
-  · rename_i ct all ctors _ hall hct
+  · rename_i all ctors hall hct
     obtain rfl := (Option.some.inj h).symm
     exact ⟨hall, hct, rfl, rfl⟩
   · exact nomatch h

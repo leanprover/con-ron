@@ -4,12 +4,14 @@
 Task #97-P5-Core round 5, region C1.  Theorem 2's lockstep lemmas for the
 certificate bodies of `arena::core` against `Arena/Core.lean`:
 `iotaCertsFullAux`/`iotaCertsFull`, `defEqList`, `iotaIndexOk`, `proofIrrel`,
-`propIrrel`, `structEtaCertWith`, `structEtaCert`,
-`structUnitCert`, `etaCert`, `stuckIrrel`.
+`propIrrel`, `structEtaCertWith`, `structEtaFull`, `structEtaExpand`,
+`structEtaCert`, `isPropType`, `unitLikeShape`, `unitLikeFields` /
+`unitLikeStruct` / `unitLikeLoop`, `structUnitCert`, `etaCert`, `stuckIrrel`.
 -/
 import ConRon.Refine2.Core.LS.PrimsC1
 import ConRon.Refine2.Core.LS.Leaves
 import ConRon.Refine2.Core.LS.Shapes
+import ConRon.Refine2.Core.LS.PropRead
 
 -- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
 open scoped ConRon.Refine2.Lockstep.CoreLSReg ConRon.Refine2.Lockstep.PA1.CoreLSReg ConRon.Refine2.Lockstep.PC1.CoreLSReg
@@ -188,7 +190,138 @@ attribute [lockstep_inline] arena.core.eta_cert_body
   rw [arena.core.eta_cert, etaCert]
   lockstep_core
 
-/-! ## `structUnitCert` (fragment `struct_unit_cert_tail`) -/
+/-! ## The projection table's fields, as the twin reads them -/
+
+theorem absIProjTable_ctor (t : arena.env.IProjTable) :
+    (absIProjTable t).ctor = absNIdx t.ctor := rfl
+theorem absIProjTable_numParams (t : arena.env.IProjTable) :
+    (absIProjTable t).numParams = absU t.num_params := rfl
+theorem absIProjTable_numFields (t : arena.env.IProjTable) :
+    (absIProjTable t).numFields = absU t.num_fields := rfl
+
+attribute [local lockstep_simp] absIProjTable_ctor absIProjTable_numParams absIProjTable_numFields
+
+/-! ## Unit-likeness: `isPropType`, `unitLikeShape`, the loop, `structUnitCert` -/
+
+@[lockstep] theorem is_prop_type_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe depth t lst}
+    (_hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.is_prop_type pers st mode eager lane fu fe depth t) lst
+      (isPropType (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
+        (absU depth) (absEIdx t)) := by
+  rw [arena.core.is_prop_type, isPropType]
+  lockstep_core
+
+section unitShape
+attribute [local lockstep_simp] ExprOps.absEIdxList List.length_map alloc.vec.Vec.len_val
+  PC1.absIIndCaps_eta
+
+@[lockstep] theorem unit_like_shape_at_ls {pers st fe lfe us targs tctor n_p n_f lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) :
+    LS pers (fun a b => b = a.map fun p => (absEIdx p.1, absU p.2))
+      (arena.core.unit_like_shape_at pers st fe us targs tctor n_p n_f) lst
+      (unitLikeShapeAt lfe (absLsIdx us) (absEIdxList targs) (absNIdx tctor) (absU n_p)
+        (absU n_f)) := by
+  rw [arena.core.unit_like_shape_at, unitLikeShapeAt]
+  lockstep
+
+@[lockstep] theorem unit_like_shape_ls {pers st fe lfe w lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) :
+    LS pers (fun a b => b = a.map fun p => (absEIdx p.1, absU p.2))
+      (arena.core.unit_like_shape pers st fe w) lst
+      (unitLikeShape lfe (absEIdx w)) := by
+  rw [arena.core.unit_like_shape, unitLikeShape]
+  lockstep
+  -- glue: the port's `view_ls` against the twin's `viewLsLen` + `failDanglingLs`
+  all_goals
+    refine PC1.LS.view_ls_len_bind (by assumption) rfl (fun _ => errArm_ok) (fun v => ?_)
+    dsimp only
+    lockstep
+
+end unitShape
+
+/-- The unit-like loop's statement at the loop's budget `n`. -/
+def UnitLoopLS (f n : Nat) : Prop :=
+  ∀ {pers st mode eager lane fu fe lfe lst} (ulf depth : Std.U64) (t : arena.handle.EIdx),
+    ulf.val = n → ExprOpsHyp pers →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers fe lfe → absU fu = f →
+    LS pers (fun a b => b = a)
+      (arena.core.unit_like_loop pers st mode eager lane fu fe ulf depth t) lst
+      (unitLikeLoop (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe n
+        (absU depth) (absEIdx t))
+
+attribute [lockstep_inline] arena.core.unit_like_fields_next
+
+/-- `unit_like_fields` ⊑ `unitLikeFields` at the loop's budget `m`, given the
+loop there. -/
+theorem unit_like_fields_aux {f m : Nat} (hk : KnotRel f) (ihl : UnitLoopLS f m) (n : Nat) :
+    ∀ {pers st mode eager lane fu fe lfe lst} (ulf nn depth : Std.U64) (tele : arena.handle.EIdx),
+      ulf.val = m → nn.val = n → ExprOpsHyp pers →
+      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers fe lfe → absU fu = f →
+      LS pers (fun a b => b = a)
+        (arena.core.unit_like_fields pers st mode eager lane fu fe ulf nn depth tele) lst
+        (unitLikeFields (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
+          (unitLikeLoop (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe m) n
+          (absU depth) (absEIdx tele)) := by
+  unfold UnitLoopLS at ihl
+  induction n with
+  | zero =>
+    intro pers st mode eager lane fu fe lfe lst ulf nn depth tele hm hn hx hrel hinv hctx hf
+    rw [arena.core.unit_like_fields, unitLikeFields]
+    lockstep_core
+  | succ k ih =>
+    intro pers st mode eager lane fu fe lfe lst ulf nn depth tele hm hn hx hrel hinv hctx hf
+    rw [arena.core.unit_like_fields, unitLikeFields]
+    lockstep_core
+
+/-- `unit_like_struct` ⊑ `unitLikeStruct` at the loop's budget `m`. -/
+theorem unit_like_struct_aux {f m : Nat} (hk : KnotRel f) (ihl : UnitLoopLS f m) :
+    ∀ {pers st mode eager lane fu fe lfe lst} (ulf depth : Std.U64) (w : arena.handle.EIdx),
+      ulf.val = m → ExprOpsHyp pers →
+      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers fe lfe → absU fu = f →
+      LS pers (fun a b => b = a)
+        (arena.core.unit_like_struct pers st mode eager lane fu fe ulf depth w) lst
+        (unitLikeStruct (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
+          (unitLikeLoop (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe m) lfe
+          (absU depth) (absEIdx w)) := by
+  intro pers st mode eager lane fu fe lfe lst ulf depth w hm hx hrel hinv hctx hf
+  have hfl := @unit_like_fields_aux f m hk ihl
+  rw [arena.core.unit_like_struct, unitLikeStruct]
+  lockstep_core
+
+theorem unit_like_loop_aux {f : Nat} (hk : KnotRel f) (n : Nat) : UnitLoopLS f n := by
+  induction n with
+  | zero =>
+    intro pers st mode eager lane fu fe lfe lst ulf depth t hn hx hrel hinv hctx hf
+    rw [arena.core.unit_like_loop, unitLikeLoop]
+    lockstep_core
+  | succ m ih =>
+    intro pers st mode eager lane fu fe lfe lst ulf depth t hn hx hrel hinv hctx hf
+    have hst := @unit_like_struct_aux f m hk ih
+    unfold UnitLoopLS at ih
+    rw [arena.core.unit_like_loop, unitLikeLoop]
+    lockstep_core
+
+/-- `unit_like_loop` ⊑ `unitLikeLoop`: is a type unit-like, at the budget. -/
+@[lockstep] theorem unit_like_loop_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe ulf depth t lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.unit_like_loop pers st mode eager lane fu fe ulf depth t) lst
+      (unitLikeLoop (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe ulf.val
+        (absU depth) (absEIdx t)) :=
+  unit_like_loop_aux hk _ ulf depth t rfl hx hrel hinv hctx hf
+
+/-- The port's budget is the twin's. -/
+theorem unit_like_fuel_val : unitLikeFuel = arena.core.UNIT_LIKE_FUEL.val := by
+  unfold unitLikeFuel arena.core.UNIT_LIKE_FUEL; rfl
 
 attribute [lockstep_inline] arena.core.struct_unit_cert_tail
 
@@ -203,11 +336,7 @@ attribute [local lockstep_simp] isForallE
       (arena.core.struct_unit_cert pers st mode eager lane fu fe depth a b) lst
       (structUnitCert (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
         lfe (absU depth) (absEIdx a) (absEIdx b)) := by
-  rw [arena.core.struct_unit_cert, structUnitCert]
-  lockstep_core
-  -- glue: the port's `view_ls` against the twin's `viewLsLen` + `failDanglingLs`
-  refine PC1.LS.view_ls_len_bind (by assumption) rfl (fun _ => errArm_ok) (fun v => ?_)
-  dsimp only
+  rw [arena.core.struct_unit_cert, structUnitCert, unit_like_fuel_val]
   lockstep_core
 
 /-! ## `structEtaCertWith` (port fragments `struct_eta_cert_{at,tail}`)
@@ -240,20 +369,20 @@ def sectAt (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     match ← view hh with
     | .const T us' =>
       match fe.find? T with
-      | some (.indInfo cvT caps) => do
-        let targs ← getAppArgs coreWalkFuel wtb
-        let reserved ← reservedBasisNames
-        match ← viewLsLen us' with
-        | none => failDanglingLs
-        | some uslen =>
-        let slots := towerSlotsAll fe T caps.etaFields
-        if caps.eta = true ∧ caps.etaCtor = c ∧
-            reserved.contains T = false ∧ reserved.contains c = false ∧
-            targs.length = caps.etaParams ∧
-            uslen = cvT.levelParams.length ∧
-            cvc.levelParams = cvT.levelParams ∧ slots = true then
-          sectTail r fe depth us T us' targs aargs b caps.etaParams caps.etaFields
-        else pure false
+      | some (.indInfo cvT caps) =>
+        match fe.findTable? T with
+        | none => pure false
+        | some tbl => do
+          let targs ← getAppArgs coreWalkFuel wtb
+          match ← viewLsLen us' with
+          | none => failDanglingLs
+          | some uslen =>
+          if caps.eta = true ∧ tbl.ctor = c ∧
+              targs.length = tbl.numParams ∧
+              uslen = cvT.levelParams.length ∧
+              cvc.levelParams = cvT.levelParams then
+            sectTail r fe depth us T us' targs aargs b tbl.numParams tbl.numFields
+          else pure false
       | _ => pure false
     | _ => pure false
   else pure false
@@ -291,14 +420,6 @@ open ConRon.Refine2.Lockstep.PC1 in
   refine PC1.LS.view_ls_len_bind (by assumption) rfl (fun _ => errArm_ok) (fun v => ?_)
   dsimp only
   lockstep_core
-  -- glue: the slot test reads the port's copy of the caps (`i_ind_caps_dup`)
-  -- and the twin the stored caps; the copy's `eta_fields` is the original's
-  all_goals
-    obtain ⟨-, -, -, hef, -⟩ := ‹(_ : arena.env.IIndCaps).eta = _ ∧ _›
-    have hts := ‹TwinEq (towerSlotsAll _ _ _) _›
-    rw [← hef] at hts
-    rw [show towerSlotsAll _ _ _ = _ from hts]
-    lockstep_core
 
 /-- `structEtaCertWith` with its second half folded into `sectAt`. -/
 theorem structEtaCertWith_eq (r : CoreFnsA) (fe : IFEnv)
@@ -334,6 +455,76 @@ attribute [-lockstep_twin] LS.twin_view_const_name in
         (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth)
         (absEIdx a) (absEIdx b) (absEIdx wtb)) := by
   rw [arena.core.struct_eta_cert_with, structEtaCertWith_eq]
+  lockstep_core
+
+@[lockstep] theorem struct_eta_full_at_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe depth a b lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.struct_eta_full_at pers st mode eager lane fu fe depth a b) lst
+      (structEtaFullAt
+        (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth)
+        (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.struct_eta_full_at, structEtaFullAt]
+  lockstep_core
+
+@[lockstep] theorem struct_eta_full_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe depth a b lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.struct_eta_full pers st mode eager lane fu fe depth a b) lst
+      (structEtaFull
+        (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth)
+        (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.struct_eta_full, structEtaFull]
+  lockstep_core
+
+theorem struct_eta_expand_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
+    ∀ {pers st mode eager lane fu fe lfe lst} (kk depth : Std.U64) (a b ta : arena.handle.EIdx),
+      kk.val = n → ExprOpsHyp pers →
+      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers fe lfe → absU fu = f →
+      LS pers (fun a b => b = a)
+        (arena.core.struct_eta_expand pers st mode eager lane fu fe kk depth a b ta) lst
+        (structEtaExpand (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe n
+          (absU depth) (absEIdx a) (absEIdx b) (absEIdx ta)) := by
+  induction n with
+  | zero =>
+    intro pers st mode eager lane fu fe lfe lst kk depth a b ta hn hx hrel hinv hctx hf
+    rw [arena.core.struct_eta_expand, structEtaExpand]
+    lockstep_core
+  | succ m ih =>
+    intro pers st mode eager lane fu fe lfe lst kk depth a b ta hn hx hrel hinv hctx hf
+    rw [arena.core.struct_eta_expand, structEtaExpand]
+    lockstep_core
+
+/-- `struct_eta_expand` ⊑ `structEtaExpand`: the η-expansion of a partially
+applied constructor, `k` binders deep. -/
+@[lockstep] theorem struct_eta_expand_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe k depth a b ta lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.struct_eta_expand pers st mode eager lane fu fe k depth a b ta) lst
+      (structEtaExpand (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe k.val
+        (absU depth) (absEIdx a) (absEIdx b) (absEIdx ta)) :=
+  struct_eta_expand_aux hk _ k depth a b ta rfl hx hrel hinv hctx hf
+
+@[lockstep] theorem struct_eta_cert_partial_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe depth k a b lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.struct_eta_cert_partial pers st mode eager lane fu fe depth k a b) lst
+      (structEtaCertPartial
+        (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth) k.val
+        (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.struct_eta_cert_partial, structEtaCertPartial]
   lockstep_core
 
 @[lockstep] theorem struct_eta_cert_ls {f : Nat} (hk : KnotRel f)

@@ -86,7 +86,7 @@ use crate::arena::core_state::{
 };
 use crate::arena::env;
 use crate::arena::env::{
-    IConstantInfo, IConstantVal, IFEnv, IIndCaps, IProjEntry, IRecRule, IRecRuleFire,
+    IConstantInfo, IConstantVal, IFEnv, IIndCaps, IProjEntry, IProjTable, IRecRule, IRecRuleFire,
 };
 use crate::arena::expr_ops::{
     abstract1_fast, abstract_range_fast, cons_eidx, get_app_args, get_app_fn,
@@ -428,7 +428,7 @@ pub const M_FUEL_DEFEQ: [u32; 21] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:1852-1887 coreKnot
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3830-3920 coreKnot` — **the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4048-4138 coreKnot` — **the
 /// executed knot**: the memoized one, `pureFnsA`'s.
 pub const LANE_FULL: u32 = 0;
 
@@ -2448,7 +2448,7 @@ pub fn nat_op_names(st: &mut AState) -> Result<Vec<NIdx>, CheckError> {
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:464-477 natDivModNames
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:508-522 reservedRecName
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1523-1533 reservedRecBool` — the last three
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1508-1518 reservedRecBool` — the last three
 /// disjuncts: `n == boolName || n == boolTrueName || n == boolFalseName`.
 pub fn reserved_rec_bool(st: &AState, n: &NIdx) -> Result<bool, CheckError> {
     match pin_bool(st) {
@@ -2477,7 +2477,7 @@ pub fn reserved_rec_bool(st: &AState, n: &NIdx) -> Result<bool, CheckError> {
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:630-640 natOpWfNames
 /// Lean twin: `proof/ConRon/Arena/Core.lean:932-938 natDivModNames`
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1143-1149 natOpWfNames`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1144-1150 natOpWfNames`
 /// The WF-recursive operations with a *pinned-declaration* certified fast
 /// path.  The twin spells the same eight names twice, under two names, exactly
 /// as con-leche does; one function serves both and carries both citations.
@@ -2538,7 +2538,7 @@ pub fn nat_op_name(st: &mut AState, n: &NIdx) -> Result<bool, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:501-506 litGuardNames
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1505-1521 litGuardNames` — the ten names the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1490-1506 litGuardNames` — the ten names the
 /// two literal guards look up: the `Nat` guard's three and the `String`
 /// guard's seven, off the pin table (every one is pinned).
 pub fn lit_guard_names(st: &AState) -> Result<Vec<NIdx>, CheckError> {
@@ -2588,7 +2588,7 @@ pub fn lit_guard_names(st: &AState) -> Result<Vec<NIdx>, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:508-522 reservedRecName
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1535-1550 reservedRecName` — **a name no
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1520-1535 reservedRecName` — **a name no
 /// block RECURSOR may take**: one a literal guard looks up, one of the
 /// certified `Nat` operations, or `Bool` and its two constructors, whose stored
 /// entries the certified operations' guards read.  The basis names are
@@ -2626,7 +2626,7 @@ pub fn reserved_rec_name(st: &mut AState, n: &NIdx) -> Result<bool, CheckError> 
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:630-640 natOpWfNames
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1143-1149 natOpWfNames` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1144-1150 natOpWfNames` — the
 /// pin-certified WF-recursive `Nat` operations, as a *safety net*.  The twin's
 /// list is `natDivModNames`' element for element.
 pub fn nat_op_wf_names(st: &mut AState) -> Result<Vec<NIdx>, CheckError> {
@@ -3309,7 +3309,7 @@ pub fn bool_const(pers: &PersTier, st: &mut AState, b: bool) -> Result<Option<EI
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:607-628 natOpGuard
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1094-1103 natOpDepsStored` —
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1095-1104 natOpDepsStored` —
 /// con-leche writes `(natOpDeps c).all (fun n => …)`; DESIGN.md §3.4's rule for
 /// a `List` walk is a named helper, and the `Vec` turns the twin's cons
 /// recursion into a cursor.
@@ -3338,7 +3338,7 @@ pub fn nat_op_deps_stored(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:607-628 natOpGuard
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1117-1141 natOpGuard` — the two
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1118-1142 natOpGuard` — the two
 /// `Bool` constructors stored level-free at the type `Bool` itself, the
 /// guard's tail.  (Task #119, con-leche task #342: was
 /// `bool_ctors_lp_empty`, which checked the level parameters only.)
@@ -3361,7 +3361,7 @@ pub fn bool_ctors_ok(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:607-628 natOpGuard
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1105-1115 boolCtorOk` — `match
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1106-1116 boolCtorOk` — `match
 /// fe.find? n with | some ci => ci.levelParams.isEmpty && ci.type == .const
 /// boolName [] | none => false`, at one name.  (Task #119: was `lp_empty`.)
 pub fn bool_ctor_ok(
@@ -3391,7 +3391,7 @@ pub fn bool_ctor_ok(
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:607-628 natOpGuard
 /// con-leche: ConLeche/Kernel/FEnv.lean:211-226 natOpGuardF
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1117-1141 natOpGuard` —
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1118-1142 natOpGuard` —
 /// stored-constant guards for op `c`: the `Nat` basis, every dependency stored
 /// as a definition, and (for the `Bool`-valued ops and the `ble`-guarded
 /// `div`/`mod`) the `Bool` constructors stored, level-free, at the type `Bool`
@@ -3433,7 +3433,7 @@ pub fn nat_op_guard(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:642-648 Expr.substConst0
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1151-1165 substConst0` — substitute
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1152-1166 substConst0` — substitute
 /// the level-monomorphic constant `n` by `r` through an application spine (the
 /// equation sides are binder-free, so only `app` recurses).
 pub fn subst_const0(
@@ -3472,7 +3472,7 @@ pub fn subst_const0(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:650-666 Expr.substConstAll
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1167-1197 substConstAll` —
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1168-1198 substConstAll` —
 /// substitute the level-monomorphic constant `n` by the *closed* term `r`
 /// everywhere, including under binders.  `fvar` annotations are not entered.
 pub fn subst_const_all(
@@ -3541,7 +3541,7 @@ pub fn subst_const_all(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:668-678 natOpCod
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1199-1218 natOpCod` — the pinned
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1200-1219 natOpCod` — the pinned
 /// codomain of a structural-`Nat` operation: `Bool` for the comparisons, `Nat`
 /// otherwise.
 pub fn nat_op_cod(
@@ -3585,7 +3585,7 @@ pub fn nat_op_cod(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:668-678 natOpCod
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1199-1218 natOpCod` — the stored
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1200-1219 natOpCod` — the stored
 /// `Bool` declaration at no level parameters and type `Sort 1`.
 pub fn bool_ty_ok(
     pers: &PersTier,
@@ -3612,7 +3612,7 @@ pub fn bool_ty_ok(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:680-695 natOpTyPinned
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1220-1246 natOpTyPinned` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1221-1247 natOpTyPinned` — the
 /// pinned type of a certified `Nat` operation: `Nat → Nat` for the unary
 /// `pred`, `Nat → Nat → Nat` for the arithmetic operations, `Nat → Nat → Bool`
 /// for the comparisons.
@@ -3675,7 +3675,7 @@ pub fn nat_op_ty_pinned(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:697-703 natOpStoredOk
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1248-1254 natOpStoredOk` — op `n`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1249-1255 natOpStoredOk` — op `n`
 /// is stored as a level-monomorphic definition with the pinned type.
 pub fn nat_op_stored_ok(
     pers: &PersTier,
@@ -3698,7 +3698,7 @@ pub fn nat_op_stored_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:168-217 reduceNat
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1256-1268 natBinOpName` — the binary
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1257-1269 natBinOpName` — the binary
 /// literal acceleration's name test.  con-leche writes a fourteen-way
 /// disjunction inline; over handles the comparands have to be interned first,
 /// so the chain is its own function and the caller reads one `bool`.
@@ -3731,14 +3731,14 @@ pub fn nat_bin_op_name(st: &mut AState, c: &NIdx) -> Result<bool, CheckError> {
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — `List.drop` on a `Vec`; Lean's list tail is shared
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1395-1405 iotaIndexOk` — `args.drop k`,
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1396-1406 iotaIndexOk` — `args.drop k`,
 /// as a fresh `Vec` of handle words.
 pub fn drop_eidx(xs: &Vec<EIdx>, k: usize) -> Vec<EIdx> {
     drop_eidx_from(xs, k, Vec::new())
 }
 
 /// con-leche: none — `List.drop` on a `Vec`; Lean's list tail is shared
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1395-1405 iotaIndexOk` — the cursor
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1396-1406 iotaIndexOk` — the cursor
 /// recursion behind `drop_eidx`.
 pub fn drop_eidx_from(xs: &Vec<EIdx>, k: usize, out: Vec<EIdx>) -> Vec<EIdx> {
     if k >= xs.len() {
@@ -3757,7 +3757,7 @@ pub fn drop_eidx_from(xs: &Vec<EIdx>, k: usize, out: Vec<EIdx>) -> Vec<EIdx> {
 /// Aeneas, so on a 32-bit target a count past `u32::MAX` would keep entries
 /// the twin's `List.drop` drops.  The count is consumed by the recursion
 /// instead: `i` walks the `Vec` and `n` counts down.
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1395-1405 iotaIndexOk` — `args.drop k`.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1396-1406 iotaIndexOk` — `args.drop k`.
 pub fn drop_eidx_n(xs: &Vec<EIdx>, n: u64) -> Vec<EIdx> {
     drop_eidx_n_from(xs, n, 0)
 }
@@ -3765,7 +3765,7 @@ pub fn drop_eidx_n(xs: &Vec<EIdx>, n: u64) -> Vec<EIdx> {
 /// con-leche: none — `List.drop` on a `Vec` at a `u64` count
 /// The index recursion behind `drop_eidx_n`: it walks the prefix without
 /// copying and hands the rest to `drop_eidx_from`.
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1395-1405 iotaIndexOk` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1396-1406 iotaIndexOk` — the
 /// cursor recursion behind `drop_eidx_n`.
 pub fn drop_eidx_n_from(xs: &Vec<EIdx>, n: u64, i: usize) -> Vec<EIdx> {
     if n == 0 {
@@ -3778,14 +3778,14 @@ pub fn drop_eidx_n_from(xs: &Vec<EIdx>, n: u64, i: usize) -> Vec<EIdx> {
 }
 
 /// con-leche: none — `List.append` on a `Vec`; Lean's `++` shares the tail
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1552-1598 structEtaCertWith` — `xs ++
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1537-1586 structEtaCertWith` — `xs ++
 /// ys`, consuming `xs` and copying `ys`' spine.
 pub fn append_eidx(xs: Vec<EIdx>, ys: &Vec<EIdx>) -> Vec<EIdx> {
     append_eidx_from(xs, ys, 0)
 }
 
 /// con-leche: none — `List.append` on a `Vec`; Lean's `++` shares the tail
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1552-1598 structEtaCertWith` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1537-1586 structEtaCertWith` — the
 /// cursor recursion behind `append_eidx`.
 pub fn append_eidx_from(xs: Vec<EIdx>, ys: &Vec<EIdx>, i: usize) -> Vec<EIdx> {
     if i >= ys.len() {
@@ -3798,7 +3798,7 @@ pub fn append_eidx_from(xs: Vec<EIdx>, ys: &Vec<EIdx>, i: usize) -> Vec<EIdx> {
 }
 
 /// con-leche: none — `xs ++ [y] ++ [z]` on a `Vec`, sized once
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1552-1598 structEtaCertWith` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1537-1586 structEtaCertWith` — the
 /// two-element case of `snoc_eidx_of` (task #97-P6-13); nested `snoc_eidx`
 /// was three allocations.
 pub fn snoc2_eidx_of(xs: &Vec<EIdx>, y: &EIdx, z: &EIdx) -> Vec<EIdx> {
@@ -3810,7 +3810,7 @@ pub fn snoc2_eidx_of(xs: &Vec<EIdx>, y: &EIdx, z: &EIdx) -> Vec<EIdx> {
 }
 
 /// con-leche: none — `xs ++ ys` on a `Vec`, at a borrowed `xs`
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1552-1598 structEtaCertWith` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1537-1586 structEtaCertWith` — the
 /// same `++` sized once (task #97-P6-13); see `snoc_eidx_of`.
 pub fn append_eidx_of(xs: &Vec<EIdx>, ys: &Vec<EIdx>) -> Vec<EIdx> {
     let out: Vec<EIdx> = Vec::with_capacity(xs.len() + ys.len());
@@ -3819,7 +3819,7 @@ pub fn append_eidx_of(xs: &Vec<EIdx>, ys: &Vec<EIdx>) -> Vec<EIdx> {
 }
 
 /// con-leche: none — `List.reverse` on a `Vec`
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3181-3207 defeqSpine` — `aa.reverse`: pushes
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3389-3415 defeqSpine` — `aa.reverse`: pushes
 /// `xs[i-1], …, xs[0]` onto `out` (`rec_check::nfs_reverse`'s pattern).
 pub fn eidx_rev(xs: &Vec<EIdx>, i: usize, out: Vec<EIdx>) -> Vec<EIdx> {
     if i == 0 {
@@ -3834,7 +3834,7 @@ pub fn eidx_rev(xs: &Vec<EIdx>, i: usize, out: Vec<EIdx>) -> Vec<EIdx> {
 }
 
 /// con-leche: none — `List.getD` on a `Vec`
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2095-2182 iotaRecAt` — `args.getD i b0`,
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2292-2379 iotaRecAt` — `args.getD i b0`,
 /// the out-of-range guard the cited `.bvar 0` default stands for.
 pub fn get_d_eidx(xs: &Vec<EIdx>, i: u64, dflt: &EIdx) -> EIdx {
     if i < xs.len() as u64 {
@@ -3849,7 +3849,7 @@ pub fn get_d_eidx(xs: &Vec<EIdx>, i: u64, dflt: &EIdx) -> EIdx {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:168-217 reduceNat
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1270-1324 reduceNat` — literal
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1271-1325 reduceNat` — literal
 /// acceleration (the official kernel's `reduceNat`, run in the `whnf` loop
 /// *before* delta-unfolding).  The divergence audit's D15 is preserved: the
 /// FIRST argument is head-normalised and, unless it is a literal, the step
@@ -3892,7 +3892,7 @@ pub fn reduce_nat(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:168-217 reduceNat
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1270-1324 reduceNat` — the cited
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1271-1325 reduceNat` — the cited
 /// `.app (.const c []) a` arm: `Nat.succ` at a literal argument.
 pub fn reduce_nat_succ(
     pers: &PersTier,
@@ -3946,7 +3946,7 @@ pub fn reduce_nat_succ(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:168-217 reduceNat
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1270-1324 reduceNat` — the cited
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1271-1325 reduceNat` — the cited
 /// `.app (.app (.const c []) a) b` arm: a certified binary operation at two
 /// literal arguments, or the WF-recursive safety net's decline.
 pub fn reduce_nat_bin(
@@ -4004,7 +4004,7 @@ pub fn reduce_nat_bin(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:168-217 reduceNat
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1270-1324 reduceNat` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1271-1325 reduceNat` — the
 /// WF-recursive safety net: a pinned `div`/`mod`/… at two literals is a
 /// positively detected unsupported feature, not a reduction.
 pub fn reduce_nat_wf(
@@ -4060,7 +4060,7 @@ pub fn reduce_nat_wf(
 
 /// con-leche: ConLeche/Kernel/Core.lean:220-235 iotaCertsFull
 /// con-leche: ConLeche/Cached/CoreC.lean:187-190 iotaCertsFullI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1366-1371 iotaCertsFull` — **the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1367-1372 iotaCertsFull` — **the
 /// full-grade telescope certificate** (ι's case 3): every argument is inferred
 /// at the FULL grade and its type compared with its (instantiated) domain; no
 /// slot is skipped.  The cached tier's bulk form at the empty accumulator.
@@ -4083,7 +4083,7 @@ pub fn iota_certs_full(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:158-185 iotaCertsFullIAux
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1332-1364 iotaCertsFullAux` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1333-1365 iotaCertsFullAux` — the
 /// cached tier's bulk form of `iotaCertsFull`.
 ///
 /// **The batched instantiation lever** (task #97-P6-9): peel the RAW telescope
@@ -4154,7 +4154,7 @@ pub fn iota_certs_full_aux(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:705-710 piResidual
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1373-1384 piResidual` — peel a
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1374-1385 piResidual` — peel a
 /// ∀-telescope along an argument list.
 pub fn pi_residual(
     pers: &PersTier,
@@ -4185,7 +4185,7 @@ pub fn pi_residual(
 
 /// con-leche: ConLeche/Kernel/Core.lean:237-246 defEqList
 /// con-leche: ConLeche/Cached/CoreC.lean:192-200 defEqListI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1386-1393 defEqList` — pairwise
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1387-1394 defEqList` — pairwise
 /// definitional equality of two spines.  The twin's `| _, _ => false`
 /// catch-all is the length test.
 pub fn def_eq_list(
@@ -4221,7 +4221,7 @@ pub fn def_eq_list(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:248-262 iotaIndexOk
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1395-1405 iotaIndexOk` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1396-1406 iotaIndexOk` — the
 /// canonical-index comparison of a firing ι redex.
 pub fn iota_index_ok(
     pers: &PersTier,
@@ -4257,7 +4257,7 @@ pub fn iota_index_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:264-286 proofIrrel
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1407-1432 proofIrrel` — proof
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1408-1433 proofIrrel` — proof
 /// irrelevance certification: both sides' types' *sorts* are `Prop`.
 /// con-leche's task #172 B4: every inference here is at the io grade.  The
 /// unit-type branch went with the pinned `PUnit` (con-leche's lane PUNIT).
@@ -4283,8 +4283,8 @@ pub fn proof_irrel(
 
 /// con-leche: ConLeche/Kernel/Core.lean:264-286 proofIrrel
 /// con-leche: ConLeche/Kernel/Core.lean:288-330 propIrrel
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1407-1432 proofIrrel`
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1434-1465 propIrrel`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1408-1433 proofIrrel`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1435-1466 propIrrel`
 /// The `Prop` branch both certifications end in: the *sort* of the type of `a`
 /// and the sort of the type of `b` are both `Prop`.  `proofIrrel` reaches it
 /// with `ta` already inferred, `propIrrel` with `ta` inferred after its two
@@ -4336,7 +4336,7 @@ pub fn prop_sorts_zero(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:264-286 proofIrrel
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1407-1432 proofIrrel` — the right
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1408-1433 proofIrrel` — the right
 /// side of `prop_sorts_zero`.
 pub fn prop_sorts_zero_right(
     pers: &PersTier,
@@ -4376,7 +4376,7 @@ pub fn prop_sorts_zero_right(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:288-330 propIrrel
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1434-1465 propIrrel` — **the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1435-1466 propIrrel` — **the
 /// hoisted proof-irrelevance test** (con-leche's task #168, Option U): the
 /// `Prop` branch of `proofIrrel` alone, with the head-symbol readers deciding
 /// both fast arms before any inference.
@@ -4434,7 +4434,7 @@ pub fn prop_irrel(
 }
 
 /// con-leche: none — `List NIdx` equality; Lean's `deriving DecidableEq` on the level-parameter list
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1552-1598 structEtaCertWith` — a
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1537-1586 structEtaCertWith` — a
 /// level-parameter list comparison (`structEtaCertWith`'s `cvc.levelParams =
 /// cvT.levelParams`, `recRuleEtaOf`'s), over the `Vec` the port stores it in.
 pub fn nidx_vec_beq(a: &Vec<NIdx>, b: &Vec<NIdx>) -> bool {
@@ -4446,7 +4446,7 @@ pub fn nidx_vec_beq(a: &Vec<NIdx>, b: &Vec<NIdx>) -> bool {
 }
 
 /// con-leche: none — `List NIdx` equality; Lean's `deriving DecidableEq` on the level-parameter list
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1552-1598 structEtaCertWith` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1537-1586 structEtaCertWith` — the
 /// cursor recursion behind `nidx_vec_beq`.
 pub fn nidx_vec_beq_from(a: &Vec<NIdx>, b: &Vec<NIdx>, i: usize) -> bool {
     if i >= a.len() {
@@ -4458,35 +4458,9 @@ pub fn nidx_vec_beq_from(a: &Vec<NIdx>, b: &Vec<NIdx>, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:715-720 towerSlotsAll
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::tower_slots_all_go_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1467-1475 towerSlotsAllGo` — the
-/// slot walk.  con-leche writes `(List.range nF).all fun j => …`; DESIGN.md
-/// §3.4's rule turns the closure into a counted recursion.
-pub fn tower_slots_all_go(pers: &PersTier, fe: &IFEnv, t: &NIdx, n: u64, j: u64) -> bool {
-    if n == 0 {
-        true
-    } else {
-        match env::ifenv_find_proj(pers, fe, t, j) {
-            Some(_) => tower_slots_all_go(pers, fe, t, n - 1, j + 1),
-            None => false,
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:715-720 towerSlotsAll
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::tower_slots_all_refines, then delete this line
-/// con-leche: ConLeche/Kernel/FEnv.lean:175-177 FEnv.towerSlotsAllF
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::tower_slots_all_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1477-1481 towerSlotsAll` — are all
-/// `nF` projection slots of `T` table entries?
-pub fn tower_slots_all(pers: &PersTier, fe: &IFEnv, t: &NIdx, n_f: u64) -> bool {
-    tower_slots_all_go(pers, fe, t, n_f, 0)
-}
-
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:712-716 etaProjs
 /// con-leche: ConLeche/Cached/CoreC.lean:317-324 projNodesI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1483-1490 projNodesGo` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1468-1475 projNodesGo` — the
 /// `.proj T j b` spine, as a counted recursion over `List.range nF`.
 pub fn proj_nodes_go(
     pers: &PersTier,
@@ -4510,11 +4484,10 @@ pub fn proj_nodes_go(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:712-716 etaProjs
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1492-1497 etaProjs` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1477-1482 etaProjs` — the
 /// fabricated projections of a structure-eta spine: the `.proj T j b` nodes
-/// (task #119: every slot of an η family the checker uses has a table entry,
-/// `towerSlotsAll`, so the projection-function spelling and its environment
-/// read are gone).
+/// (one per field of the family's projection table: the node is what the
+/// table types and reduces).
 pub fn eta_projs(
     pers: &PersTier,
     st: &mut AState,
@@ -4526,7 +4499,7 @@ pub fn eta_projs(
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Names.lean:95-102 reservedBasisNames
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1499-1503 reservedBasisNames` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1484-1488 reservedBasisNames` — the
 /// names reserved for the pinned basis blocks, interned.  `contains` is then
 /// handle equality, as everywhere else in this module.  The nineteen
 /// `ConLeche.Name` values are `con_ron_core::kernel::basis_names`' own list, in
@@ -4545,12 +4518,10 @@ pub fn reserved_basis_names(st: &AState) -> Result<Vec<NIdx>, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:332-372 structEtaCertWith
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_eta_cert_tail_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:326-363 structEtaCertWithI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_eta_cert_tail_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1552-1598 structEtaCertWith` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1537-1586 structEtaCertWith` — the
 /// certificate's tail, from the level comparison on: the constructor's levels
-/// against the type's, `defEqList (aargs.take caps.etaParams) targs` and the
+/// against the type's, `defEqList (aargs.take tbl.numParams) targs` and the
 /// field comparison against the `.proj` nodes.  No type-application
 /// certificate and no per-slot one (con-leche task #342 L11b, L-DEAD: `wtb` is
 /// the reduced type of `b`, so its spine fits the former's telescope).
@@ -4569,8 +4540,8 @@ pub fn struct_eta_cert_tail(
     targs: &Vec<EIdx>,
     b: &EIdx,
     aargs: &Vec<EIdx>,
-    eta_params: u64,
-    eta_fields: u64,
+    n_p: u64,
+    n_f: u64,
 ) -> Result<bool, CheckError> {
     match lvls_eq(pers, st, us, us2) {
         Err(e) => Err(e),
@@ -4578,14 +4549,14 @@ pub fn struct_eta_cert_tail(
             Err(e) => Err(e),
             Ok(false) => Ok(false),
             Ok(true) => {
-                let head: Vec<EIdx> = take_eidx_n(aargs, eta_params);
+                let head: Vec<EIdx> = take_eidx_n(aargs, n_p);
                 match def_eq_list(pers, st, mode, eager, lane, fuel, fe, depth, &head, targs, 0) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(false),
-                    Ok(true) => match eta_projs(pers, st, t, b, eta_fields) {
+                    Ok(true) => match eta_projs(pers, st, t, b, n_f) {
                         Err(e) => Err(e),
                         Ok(projs) => {
-                            let rest: Vec<EIdx> = drop_eidx_n(aargs, eta_params);
+                            let rest: Vec<EIdx> = drop_eidx_n(aargs, n_p);
                             def_eq_list(pers, st, mode, eager, lane, fuel, fe, depth, &rest, &projs, 0)
                         }
                     },
@@ -4596,15 +4567,13 @@ pub fn struct_eta_cert_tail(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:332-372 structEtaCertWith
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_eta_cert_at_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:326-363 structEtaCertWithI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_eta_cert_at_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1552-1598 structEtaCertWith` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1537-1586 structEtaCertWith` — the
 /// certificate's head: the stuck side's whnf'd type must be a stored,
-/// eta-capable, non-reserved inductive at the candidate's own constructor,
-/// with matching arities and level parameters, and every field slot a
-/// projection-table entry (`towerSlotsAll`; task #119: the
-/// projection-function slot discipline `recSlotsAll` is gone).
+/// eta-capable inductive whose projection table's constructor is the
+/// candidate's own, at the table's parameter count and the former's level
+/// parameters.  The constructor and the counts are the table's, at every
+/// field count (official: the family's constructor list).
 pub fn struct_eta_cert_at(
     pers: &PersTier,
     st: &mut AState,
@@ -4629,51 +4598,38 @@ pub fn struct_eta_cert_at(
                 Some((t, us2)) => match env::ifenv_find(pers, fe, &t) {
                     Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
                         let cvt: IConstantVal = env::i_constant_val_dup(cvt0);
-                        let caps: IIndCaps = env::i_ind_caps_dup(caps0);
-                        match get_app_args(pers, st, CORE_WALK_FUEL, wtb) {
-                            Err(e) => Err(e),
-                            Ok(targs) => match reserved_basis_names(st) {
-                                Err(e) => Err(e),
-                                Ok(reserved) => match view_ls(pers, st, &us2) {
+                        let eta: bool = caps0.eta;
+                        match env::ifenv_find_table(pers, fe, &t) {
+                            None => Ok(false),
+                            Some(tbl) => {
+                                let tctor: NIdx = tbl.ctor.dup2();
+                                let n_p: u64 = tbl.num_params;
+                                let n_f: u64 = tbl.num_fields;
+                                match get_app_args(pers, st, CORE_WALK_FUEL, wtb) {
                                     Err(e) => Err(e),
-                                    Ok(uslen) => {
-                                        let sl: bool = tower_slots_all(pers, fe, &t, caps.eta_fields);
-                                        if caps.eta
-                                            && caps.eta_ctor.eq2(c)
-                                            && !env::nidx_vec_contains(&reserved, &t)
-                                            && !env::nidx_vec_contains(&reserved, c)
-                                            && targs.len() as u64 == caps.eta_params
-                                            && uslen.len() == cvt.level_params.len()
-                                            && nidx_vec_beq(
-                                                &cvc.level_params,
-                                                &cvt.level_params,
-                                            )
-                                            && sl
-                                        {
-                                            struct_eta_cert_tail(
-                                                pers,
-                                                st,
-                                                mode,
-                                                eager,
-                                                lane,
-                                                fuel,
-                                                fe,
-                                                depth,
-                                                us,
-                                                &t,
-                                                &us2,
-                                                &targs,
-                                                b,
-                                                aargs,
-                                                caps.eta_params,
-                                                caps.eta_fields,
-                                            )
-                                        } else {
-                                            Ok(false)
+                                    Ok(targs) => match view_ls(pers, st, &us2) {
+                                        Err(e) => Err(e),
+                                        Ok(uslen) => {
+                                            if eta
+                                                && tctor.eq2(c)
+                                                && targs.len() as u64 == n_p
+                                                && uslen.len() == cvt.level_params.len()
+                                                && nidx_vec_beq(
+                                                    &cvc.level_params,
+                                                    &cvt.level_params,
+                                                )
+                                            {
+                                                struct_eta_cert_tail(
+                                                    pers, st, mode, eager, lane, fuel, fe, depth,
+                                                    us, &t, &us2, &targs, b, aargs, n_p, n_f,
+                                                )
+                                            } else {
+                                                Ok(false)
+                                            }
                                         }
-                                    }
-                                },
-                            },
+                                    },
+                                }
+                            }
                         }
                     }
                     Some(_) => Ok(false),
@@ -4687,10 +4643,8 @@ pub fn struct_eta_cert_at(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:332-372 structEtaCertWith
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_eta_cert_with_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:326-363 structEtaCertWithI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_eta_cert_with_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1552-1598 structEtaCertWith` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1537-1586 structEtaCertWith` — the
 /// structure-eta certificate against the weak-head-normal type `wtb` of the
 /// stuck side `b`.
 pub fn struct_eta_cert_with(
@@ -4741,7 +4695,7 @@ pub fn struct_eta_cert_with(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:718-729 etaCtorShape
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1600-1615 etaCtorShape` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1588-1603 etaCtorShape` — the
 /// constructor shape official's `try_eta_struct_core` tests before inferring
 /// anything: the candidate's head is a stored constructor applied to exactly
 /// its parameters and fields.
@@ -4774,14 +4728,128 @@ pub fn eta_ctor_shape(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:411-429 structEtaCert
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_eta_cert_refines, then delete this line
-/// con-leche: ConLeche/Cached/CoreC.lean:386-398 structEtaCertI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_eta_cert_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1617-1626 structEtaCert` —
-/// structural eta certification for a stored eta-capable structure.  The
-/// constructor-shape test comes FIRST (the divergence audit's D13).
-pub fn struct_eta_cert(
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:731-757 etaCtorPartial
+/// con-leche: ConLeche/Cached/StateC.lean:97-118 etaCtorPartialC
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1605-1621 etaCtorPartialFam` — the
+/// family half of `etaCtorPartial`: the family the constructor's type ends in
+/// is a stored η family whose projection table's constructor is `c`.
+pub fn eta_ctor_partial_fam(
+    pers: &PersTier,
+    st: &mut AState,
+    fe: &IFEnv,
+    c: &NIdx,
+    ty: &EIdx,
+) -> Result<bool, CheckError> {
+    match pi_result(pers, st, CORE_WALK_FUEL, ty) {
+        Err(e) => Err(e),
+        Ok(pr) => match get_app_fn(pers, st, CORE_WALK_FUEL, &pr) {
+            Err(e) => Err(e),
+            Ok(hd) => if hd.tag() == ETAG_CONST {
+                match view_const_name(pers, st, &hd) {
+                    None => fail_dangling_e(),
+                    Some(t) => match env::ifenv_find(pers, fe, &t) {
+                        Some(IConstantInfo::IndInfo(_, caps)) => {
+                            let eta: bool = caps.eta;
+                            match env::ifenv_find_table(pers, fe, &t) {
+                                Some(tbl) => Ok(eta && tbl.ctor.eq2(c)),
+                                None => Ok(false),
+                            }
+                        }
+                        Some(_) => Ok(false),
+                        None => Ok(false),
+                    },
+                }
+            } else {
+                Ok(false)
+            },
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:731-757 etaCtorPartial
+/// con-leche: ConLeche/Cached/StateC.lean:97-118 etaCtorPartialC
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1623-1644 etaCtorPartial` — **a
+/// partially applied η constructor** (official's `try_eta_struct_core` since
+/// lean4#15373): the candidate's head is a stored constructor applied to fewer
+/// than its parameters and fields, of a stored η family whose projection
+/// table's constructor it is.  `Some(k)`, `k > 0` the arguments it lacks.
+/// Read off the stored records alone, before any inference.
+pub fn eta_ctor_partial(
+    pers: &PersTier,
+    st: &mut AState,
+    fe: &IFEnv,
+    a: &EIdx,
+) -> Result<Option<u64>, CheckError> {
+    match get_app_fn(pers, st, CORE_WALK_FUEL, a) {
+        Err(e) => Err(e),
+        Ok(hd) => if hd.tag() == ETAG_CONST {
+            match view_const_name(pers, st, &hd) {
+                None => fail_dangling_e(),
+                Some(c) => match env::ifenv_find(pers, fe, &c) {
+                    Some(IConstantInfo::CtorInfo(cvc0, cn_p, cn_f)) => {
+                        let ty: EIdx = cvc0.ty.dup2();
+                        let want: u64 = *cn_p + *cn_f;
+                        match get_app_args(pers, st, CORE_WALK_FUEL, a) {
+                            Err(e) => Err(e),
+                            Ok(args) => {
+                                let n: u64 = args.len() as u64;
+                                if n < want {
+                                    match eta_ctor_partial_fam(pers, st, fe, &c, &ty) {
+                                        Err(e) => Err(e),
+                                        Ok(true) => Ok(Some(want - n)),
+                                        Ok(false) => Ok(None),
+                                    }
+                                } else {
+                                    Ok(None)
+                                }
+                            }
+                        }
+                    }
+                    Some(_) => Ok(None),
+                    None => Ok(None),
+                },
+            }
+        } else {
+            Ok(None)
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:374-395 structEtaFull
+/// con-leche: ConLeche/Cached/CoreC.lean:365-374 structEtaFullI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1646-1655 structEtaFullAt` — the body
+/// of **structure η at a fully applied constructor**, past the
+/// constructor-shape gate: `b`'s io-inferred type, head-normalised, and the
+/// certificate against it.
+pub fn struct_eta_full_at(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    a: &EIdx,
+    b: &EIdx,
+) -> Result<bool, CheckError> {
+    match knot_infer_io(pers, st, mode, eager, lane, fuel, fe, depth, b) {
+        Err(e) => Err(e),
+        Ok(tb) => match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, &tb) {
+            Err(e) => Err(e),
+            Ok(wtb) => {
+                struct_eta_cert_with(pers, st, mode, eager, lane, fuel, fe, depth, a, b, &wtb)
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:374-395 structEtaFull
+/// con-leche: ConLeche/Cached/CoreC.lean:365-374 structEtaFullI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1657-1664 structEtaFull` — **structure
+/// η at a fully applied constructor**.  The constructor-shape test comes FIRST
+/// (the divergence audit's D13).
+pub fn struct_eta_full(
     pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
@@ -4796,28 +4864,428 @@ pub fn struct_eta_cert(
     match eta_ctor_shape(pers, st, fe, a) {
         Err(e) => Err(e),
         Ok(false) => Ok(false),
-        Ok(true) => match knot_infer_io(pers, st, mode, eager, lane, fuel, fe, depth, b) {
-            Err(e) => Err(e),
-            Ok(tb) => match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, &tb) {
+        Ok(true) => struct_eta_full_at(pers, st, mode, eager, lane, fuel, fe, depth, a, b),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:397-409 structEtaExpand
+/// con-leche: ConLeche/Cached/CoreC.lean:376-384 structEtaExpandI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1666-1684 structEtaExpand` — **the
+/// η-expansion of a partially applied constructor**: both sides applied to
+/// fresh variables along the constructor side's type `ta`, one binder per
+/// missing argument, read syntactically; at the full application,
+/// `struct_eta_full`.
+pub fn struct_eta_expand(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    k: u64,
+    depth: u64,
+    a: &EIdx,
+    b: &EIdx,
+    ta: &EIdx,
+) -> Result<bool, CheckError> {
+    if k == 0 {
+        struct_eta_full(pers, st, mode, eager, lane, fuel, fe, depth, a, b)
+    } else if ta.tag() == ETAG_FORALL_E {
+        match view_bind(pers, st, ta) {
+            None => fail_dangling_e(),
+            Some((dom, body)) => match intern_e_fvar(pers, st, depth, dom) {
                 Err(e) => Err(e),
-                Ok(wtb) => {
-                    struct_eta_cert_with(pers, st, mode, eager, lane, fuel, fe, depth, a, b, &wtb)
-                }
+                Ok(fv) => match intern_e_app(pers, st, a.dup2(), fv.dup2()) {
+                    Err(e) => Err(e),
+                    Ok(a2) => match intern_e_app(pers, st, b.dup2(), fv.dup2()) {
+                        Err(e) => Err(e),
+                        Ok(b2) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
+                            Err(e) => Err(e),
+                            Ok(body2) => struct_eta_expand(
+                                pers, st, mode, eager, lane, fuel, fe, k - 1, depth + 1, &a2, &b2,
+                                &body2,
+                            ),
+                        },
+                    },
+                },
+            },
+        }
+    } else {
+        Ok(false)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:411-429 structEtaCert
+/// con-leche: ConLeche/Cached/CoreC.lean:386-398 structEtaCertI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1686-1698 structEtaCertPartial` — the
+/// partial-constructor arm of `structEtaCert`, at `k` missing arguments: the
+/// other side neutral, the two io-inferred types compared (official's
+/// `is_def_eq(t_type, s_type)`), then both sides η-expanded.
+pub fn struct_eta_cert_partial(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    k: u64,
+    a: &EIdx,
+    b: &EIdx,
+) -> Result<bool, CheckError> {
+    match io_neutral(pers, st, b) {
+        Err(e) => Err(e),
+        Ok(false) => Ok(false),
+        Ok(true) => match knot_infer_io(pers, st, mode, eager, lane, fuel, fe, depth, a) {
+            Err(e) => Err(e),
+            Ok(ta) => match knot_infer_io(pers, st, mode, eager, lane, fuel, fe, depth, b) {
+                Err(e) => Err(e),
+                Ok(tb) => match knot_defeq(pers, st, mode, eager, lane, fuel, fe, depth, &tb, &ta) {
+                    Err(e) => Err(e),
+                    Ok(false) => Ok(false),
+                    Ok(true) => {
+                        struct_eta_expand(pers, st, mode, eager, lane, fuel, fe, k, depth, a, b, &ta)
+                    }
+                },
             },
         },
     }
 }
 
+/// con-leche: ConLeche/Kernel/Core.lean:411-429 structEtaCert
+/// con-leche: ConLeche/Cached/CoreC.lean:386-398 structEtaCertI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1700-1711 structEtaCert` — structural
+/// eta certification (official's `try_eta_struct_core`): `a` is a constructor
+/// application of a stored η family, fully applied (`struct_eta_full`'s body;
+/// the shape gate is read once) or partially (`eta_ctor_partial`).
+pub fn struct_eta_cert(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    a: &EIdx,
+    b: &EIdx,
+) -> Result<bool, CheckError> {
+    match eta_ctor_shape(pers, st, fe, a) {
+        Err(e) => Err(e),
+        Ok(true) => struct_eta_full_at(pers, st, mode, eager, lane, fuel, fe, depth, a, b),
+        Ok(false) => match eta_ctor_partial(pers, st, fe, a) {
+            Err(e) => Err(e),
+            Ok(None) => Ok(false),
+            Ok(Some(k)) => {
+                struct_eta_cert_partial(pers, st, mode, eager, lane, fuel, fe, depth, k, a, b)
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:431-436 isPropType
+/// con-leche: ConLeche/Cached/CoreC.lean:400-408 isPropTypeI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1713-1726 isPropType` — **is a
+/// proposition** (official's `is_prop`): `t`'s io-inferred type head-normalises
+/// to a sort equivalent to `Prop`.
+pub fn is_prop_type(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    t: &EIdx,
+) -> Result<bool, CheckError> {
+    match knot_infer_io(pers, st, mode, eager, lane, fuel, fe, depth, t) {
+        Err(e) => Err(e),
+        Ok(tt) => match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, &tt) {
+            Err(e) => Err(e),
+            Ok(w) => if w.tag() == ETAG_SORT {
+                match view_sort(pers, st, &w) {
+                    None => fail_dangling_e(),
+                    Some(u) => match zero_level(st) {
+                        Err(e) => Err(e),
+                        Ok(z) => match lvl_eq(pers, st, &u, &z) {
+                            Err(e) => Err(e),
+                            Ok(o) => lift_fueled(o),
+                        },
+                    },
+                }
+            } else {
+                Ok(false)
+            },
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:438-453 unitLikeFields
+/// con-leche: ConLeche/Cached/CoreC.lean:410-422 unitLikeFieldsI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1728-1751 unitLikeFields` — one field
+/// accepted: the field opened at a fresh variable, then the rest of the loop.
+/// Both arms of the cited loop call it.
+pub fn unit_like_fields_next(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    ul_fuel: u64,
+    n: u64,
+    depth: u64,
+    dom: &EIdx,
+    body: &EIdx,
+) -> Result<bool, CheckError> {
+    match intern_e_fvar(pers, st, depth, dom.dup2()) {
+        Err(e) => Err(e),
+        Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body, &fv, 0) {
+            Err(e) => Err(e),
+            Ok(body2) => {
+                unit_like_fields(pers, st, mode, eager, lane, fuel, fe, ul_fuel, n, depth + 1, &body2)
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:438-453 unitLikeFields
+/// con-leche: ConLeche/Cached/CoreC.lean:410-422 unitLikeFieldsI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1728-1751 unitLikeFields` — **the field
+/// loop of official's `is_unit_like`**: each of the `n` field binders of an η
+/// family's instance telescope has a proposition or a unit-like type
+/// (`unit_like_loop` at `ul_fuel`, the cited loop's `ul`), the field opened at
+/// a fresh variable before the next.  The binders are syntactic.
+pub fn unit_like_fields(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    ul_fuel: u64,
+    n: u64,
+    depth: u64,
+    tele: &EIdx,
+) -> Result<bool, CheckError> {
+    if n == 0 {
+        Ok(true)
+    } else if tele.tag() == ETAG_FORALL_E {
+        match view_bind(pers, st, tele) {
+            None => fail_dangling_e(),
+            Some((dom, body)) => match is_prop_type(pers, st, mode, eager, lane, fuel, fe, depth, &dom) {
+                Err(e) => Err(e),
+                Ok(true) => unit_like_fields_next(
+                    pers, st, mode, eager, lane, fuel, fe, ul_fuel, n - 1, depth, &dom, &body,
+                ),
+                Ok(false) => match unit_like_loop(pers, st, mode, eager, lane, fuel, fe, ul_fuel, depth, &dom) {
+                    Err(e) => Err(e),
+                    Ok(true) => unit_like_fields_next(
+                        pers, st, mode, eager, lane, fuel, fe, ul_fuel, n - 1, depth, &dom, &body,
+                    ),
+                    Ok(false) => Ok(false),
+                },
+            },
+        }
+    } else {
+        Ok(false)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:455-458 unitLikeFuel
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1753-1756 unitLikeFuel` — recursion
+/// budget of the unit-like test (`unit_like_loop`).  Exhaustion is "not
+/// unit-like", which is always sound.
+pub const UNIT_LIKE_FUEL: u64 = 4611686018427387904; // 2^62
+
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:767-794 unitLikeShape
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:759-765 unitFieldTele
+/// con-leche: ConLeche/Cached/CoreC.lean:424-445 unitLikeShapeF
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1758-1774 unitLikeShapeAt` — the
+/// field telescope of an instance at its family's table: the table's
+/// constructor, stored, its type at the instance's levels `us`, the table's
+/// `n_p` parameter binders dropped and instantiated with the instance's
+/// arguments in one pass.
+pub fn unit_like_shape_at(
+    pers: &PersTier,
+    st: &mut AState,
+    fe: &IFEnv,
+    us: &LsIdx,
+    targs: &Vec<EIdx>,
+    tctor: &NIdx,
+    n_p: u64,
+    n_f: u64,
+) -> Result<Option<(EIdx, u64)>, CheckError> {
+    match env::ifenv_find(pers, fe, tctor) {
+        Some(IConstantInfo::CtorInfo(cvc0, _, _)) => {
+            let cvc: IConstantVal = env::i_constant_val_dup(cvc0);
+            match inst_lp_fast(pers, st, CORE_WALK_FUEL, &cvc.level_params, us, &cvc.ty) {
+                Err(e) => Err(e),
+                Ok(cty) => match peel_pis(pers, st, n_p, &cty) {
+                    Err(e) => Err(e),
+                    Ok(None) => Ok(None),
+                    Ok(Some(body)) => {
+                        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &body, targs, 0) {
+                            Err(e) => Err(e),
+                            Ok(tele) => Ok(Some((tele, n_f))),
+                        }
+                    }
+                },
+            }
+        }
+        Some(_) => Ok(None),
+        None => Ok(None),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:767-794 unitLikeShape
+/// con-leche: ConLeche/Cached/CoreC.lean:424-445 unitLikeShapeF
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1776-1803 unitLikeShape` — **the shape
+/// of an instance in official's `is_unit_like`**, read off the stored records:
+/// `w` is an instance of a stored η family at its parameters (the table's
+/// count), whose constructor's field telescope at the instance's parameters is
+/// `tele` with `n` fields to check (`Some((tele, n))`), or not (`None`).
+pub fn unit_like_shape(
+    pers: &PersTier,
+    st: &mut AState,
+    fe: &IFEnv,
+    w: &EIdx,
+) -> Result<Option<(EIdx, u64)>, CheckError> {
+    match get_app_fn(pers, st, CORE_WALK_FUEL, w) {
+        Err(e) => Err(e),
+        Ok(hd) => if hd.tag() == ETAG_CONST {
+            match view_const(pers, st, &hd) {
+                None => fail_dangling_e(),
+                Some((s, us)) => match env::ifenv_find(pers, fe, &s) {
+                    Some(IConstantInfo::IndInfo(cvs0, caps0)) => {
+                        let nlp: usize = cvs0.level_params.len();
+                        let eta: bool = caps0.eta;
+                        match view_ls(pers, st, &us) {
+                            Err(e) => Err(e),
+                            Ok(usl) => {
+                                if eta && usl.len() == nlp {
+                                    match env::ifenv_find_table(pers, fe, &s) {
+                                        None => Ok(None),
+                                        Some(tbl) => {
+                                            let tctor: NIdx = tbl.ctor.dup2();
+                                            let n_p: u64 = tbl.num_params;
+                                            let n_f: u64 = tbl.num_fields;
+                                            match get_app_args(pers, st, CORE_WALK_FUEL, w) {
+                                                Err(e) => Err(e),
+                                                Ok(targs) => {
+                                                    if targs.len() as u64 == n_p {
+                                                        unit_like_shape_at(
+                                                            pers, st, fe, &us, &targs, &tctor, n_p,
+                                                            n_f,
+                                                        )
+                                                    } else {
+                                                        Ok(None)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Ok(None)
+                                }
+                            }
+                        }
+                    }
+                    Some(_) => Ok(None),
+                    None => Ok(None),
+                },
+            }
+        } else {
+            Ok(None)
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:460-470 unitLikeStruct
+/// con-leche: ConLeche/Cached/CoreC.lean:447-452 unitLikeStructI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1805-1814 unitLikeStruct` — **the
+/// structure arm of official's `is_unit_like`**: `w`, a head normal form that
+/// is no ∀, is an instance of a stored η family every field of whose
+/// constructor, at the instance's parameters, has a proposition or a unit-like
+/// type (a fieldless family has none to check).
+pub fn unit_like_struct(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    ul_fuel: u64,
+    depth: u64,
+    w: &EIdx,
+) -> Result<bool, CheckError> {
+    match unit_like_shape(pers, st, fe, w) {
+        Err(e) => Err(e),
+        Ok(None) => Ok(false),
+        Ok(Some((tele, n))) => {
+            unit_like_fields(pers, st, mode, eager, lane, fuel, fe, ul_fuel, n, depth, &tele)
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:472-484 unitLikeLoop
+/// con-leche: ConLeche/Cached/CoreC.lean:454-463 unitLikeLoopI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1816-1833 unitLikeLoop` — **is a type
+/// unit-like** (official's `is_unit_like`, lean4#15372): its head normal form
+/// is a ∀ whose codomain, opened at a fresh variable, is unit-like, or an
+/// instance of a stored η family every field of whose constructor is a
+/// proposition or unit-like.  Structural on `ul_fuel`.
+pub fn unit_like_loop(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    ul_fuel: u64,
+    depth: u64,
+    t: &EIdx,
+) -> Result<bool, CheckError> {
+    if ul_fuel == 0 {
+        Ok(false)
+    } else {
+        match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, t) {
+            Err(e) => Err(e),
+            Ok(w) => if w.tag() == ETAG_FORALL_E {
+                match view_bind(pers, st, &w) {
+                    None => fail_dangling_e(),
+                    Some((dom, body)) => match intern_e_fvar(pers, st, depth, dom) {
+                        Err(e) => Err(e),
+                        Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
+                            Err(e) => Err(e),
+                            Ok(body2) => unit_like_loop(
+                                pers, st, mode, eager, lane, fuel, fe, ul_fuel - 1, depth + 1, &body2,
+                            ),
+                        },
+                    },
+                }
+            } else {
+                unit_like_struct(pers, st, mode, eager, lane, fuel, fe, ul_fuel - 1, depth, &w)
+            },
+        }
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Core.lean:486-503 structUnitCert
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_unit_cert_tail_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:465-476 structUnitCertI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_unit_cert_tail_refines, then delete this line
 /// con-leche: ConLeche/Kernel/ExprOps.lean:835-838 isForallE
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1628-1657 structUnitCert` — the
-/// certificate's tail, once the family's capabilities have been read: `b`'s
-/// whnf'd type is no `∀` (con-leche task #342 L18) and is defeq to `a`'s.
-/// No type-application certificate (task #342 L11b), as official's
-/// `is_def_eq_unit_like`.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1835-1853 structUnitCert` — the
+/// certificate's tail, once `a`'s type is unit-like: `b`'s whnf'd type, which
+/// must not be a `∀` unless `b` is neutral (con-leche task #342 L18), is
+/// defeq to `a`'s.  No type-application certificate (task #342 L11b), as
+/// official's `is_def_eq_unit_like`.
 pub fn struct_unit_cert_tail(
     pers: &PersTier,
     st: &mut AState,
@@ -4835,10 +5303,15 @@ pub fn struct_unit_cert_tail(
         Ok(tb) => match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, &tb) {
             Err(e) => Err(e),
             Ok(wtb) => {
-                if wtb.tag() == ETAG_FORALL_E {
-                    Ok(false)
+                let guard: Result<bool, CheckError> = if wtb.tag() == ETAG_FORALL_E {
+                    io_neutral(pers, st, b)
                 } else {
-                    knot_defeq(pers, st, mode, eager, lane, fuel, fe, depth, wta, &wtb)
+                    Ok(true)
+                };
+                match guard {
+                    Err(e) => Err(e),
+                    Ok(false) => Ok(false),
+                    Ok(true) => knot_defeq(pers, st, mode, eager, lane, fuel, fe, depth, wta, &wtb),
                 }
             }
         },
@@ -4846,12 +5319,11 @@ pub fn struct_unit_cert_tail(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:486-503 structUnitCert
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_unit_cert_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:465-476 structUnitCertI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::struct_unit_cert_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1628-1657 structUnitCert` —
-/// unit-likeness certification: `a` and `b` inhabit the same stored unit-like
-/// family.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1835-1853 structUnitCert` —
+/// **unit-likeness** (official's `is_def_eq_unit_like`): `a`'s io-inferred
+/// type, head-normalised, is unit-like (`unit_like_loop`), and `b`'s type is
+/// definitionally equal to it.  A side whose type is a ∀ must be neutral.
 pub fn struct_unit_cert(
     pers: &PersTier,
     st: &mut AState,
@@ -4868,54 +5340,33 @@ pub fn struct_unit_cert(
         Err(e) => Err(e),
         Ok(ta) => match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, &ta) {
             Err(e) => Err(e),
-            Ok(wta) => match get_app_fn(pers, st, CORE_WALK_FUEL, &wta) {
-                Err(e) => Err(e),
-                Ok(hd) => if hd.tag() == ETAG_CONST {
-                    match view_const(pers, st, &hd) {
-                        None => fail_dangling_e(),
-                        Some((t, us2)) => match env::ifenv_find(pers, fe, &t) {
-                            Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
-                                let cvt: IConstantVal = env::i_constant_val_dup(cvt0);
-                                let caps: IIndCaps = env::i_ind_caps_dup(caps0);
-                                match get_app_args(pers, st, CORE_WALK_FUEL, &wta) {
-                                    Err(e) => Err(e),
-                                    Ok(targs) => match reserved_basis_names(st) {
-                                        Err(e) => Err(e),
-                                        Ok(reserved) => match view_ls(pers, st, &us2) {
-                                            Err(e) => Err(e),
-                                            Ok(uslen) => {
-                                                if caps.unitlike
-                                                    && !env::nidx_vec_contains(&reserved, &t)
-                                                    && targs.len() as u64 == caps.unit_params
-                                                    && uslen.len() == cvt.level_params.len()
-                                                {
-                                                    struct_unit_cert_tail(
-                                                        pers, st, mode, eager, lane, fuel, fe, depth,
-                                                        &wta, b,
-                                                    )
-                                                } else {
-                                                    Ok(false)
-                                                }
-                                            }
-                                        },
-                                    },
-                                }
-                            }
-                            Some(_) => Ok(false),
-                            None => Ok(false),
-                        },
-                    }
+            Ok(wta) => {
+                let guard: Result<bool, CheckError> = if wta.tag() == ETAG_FORALL_E {
+                    io_neutral(pers, st, a)
                 } else {
-                    Ok(false)
-                },
-            },
+                    Ok(true)
+                };
+                match guard {
+                    Err(e) => Err(e),
+                    Ok(false) => Ok(false),
+                    Ok(true) => match unit_like_loop(
+                        pers, st, mode, eager, lane, fuel, fe, UNIT_LIKE_FUEL, depth, &wta,
+                    ) {
+                        Err(e) => Err(e),
+                        Ok(false) => Ok(false),
+                        Ok(true) => struct_unit_cert_tail(
+                            pers, st, mode, eager, lane, fuel, fe, depth, &wta, b,
+                        ),
+                    },
+                }
+            }
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:505-531 etaCert
 /// con-leche: ConLeche/Cached/CoreC.lean:478-501 etaCertI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1659-1685 etaCert` — eta
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1855-1881 etaCert` — eta
 /// certification for a one-sided λ against a stuck term `b`: `b`'s head is no
 /// λ and no `let` (`Expr.ioNeutral`, con-leche task #342 L18), its whnf'd
 /// type is a `∀` whose domain is defeq to the λ's, and (`eta_cert_body`) the
@@ -4963,7 +5414,7 @@ pub fn eta_cert(
 
 /// con-leche: ConLeche/Kernel/Core.lean:505-531 etaCert
 /// con-leche: ConLeche/Cached/CoreC.lean:478-501 etaCertI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1659-1685 etaCert` — the cited
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1855-1881 etaCert` — the cited
 /// certificate's body, once the domains agree: open the λ at a fresh free
 /// variable and compare against `b` applied to it; then, at the verified mode
 /// only, **the η check** (con-leche task #342, T2): the λ body's FULL-grade
@@ -5016,7 +5467,7 @@ pub fn eta_cert_body(
 
 /// con-leche: ConLeche/Kernel/Core.lean:533-540 stuckIrrel
 /// con-leche: ConLeche/Cached/CoreC.lean:503-509 stuckIrrelI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1687-1695 stuckIrrel` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1883-1891 stuckIrrel` — the
 /// fallback for structurally distinct stuck terms: structural eta in either
 /// direction, unit-likeness, else proof irrelevance.
 pub fn stuck_irrel(
@@ -5048,7 +5499,7 @@ pub fn stuck_irrel(
 
 /// con-leche: ConLeche/Kernel/Core.lean:542-553 formerSortLoop
 /// con-leche: ConLeche/Cached/CoreC.lean:511-524 formerSortLoopI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1697-1721 formerSortLoop` — **official's
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1893-1917 formerSortLoop` — **official's
 /// walk to a family's sort** (the loop of `check_inductive_types` at the use):
 /// `n` binders down, each reached by head normalization (the knot's `whnf`),
 /// then a sort; `none` where the type does not get there.  Structural on `n`;
@@ -5096,7 +5547,7 @@ pub fn former_sort_loop(
 
 /// con-leche: ConLeche/Kernel/Core.lean:555-568 formerNeverZeroAt
 /// con-leche: ConLeche/Cached/CoreC.lean:526-536 formerNeverZeroI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1723-1740 formerNeverZeroAt` — **is a
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1919-1936 formerNeverZeroAt` — **is a
 /// family's sort never zero at the levels `us`** (official `is_never_zero`),
 /// computed where it is asked.  A stored type that ends in a sort is read off
 /// directly (`former_never_zero`); any other is walked by `former_sort_loop` at
@@ -5135,7 +5586,7 @@ pub fn former_never_zero_at(
 
 /// con-leche: ConLeche/Kernel/Core.lean:570-591 iotaCase3At
 /// con-leche: ConLeche/Cached/CoreC.lean:538-548 iotaCase3I
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1742-1760 iotaCase3At` — **case 3 of the ι
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1938-1956 iotaCase3At` — **case 3 of the ι
 /// case split** (con-leche task #342 L10, S5c): a rule that is not K (the
 /// record's `isK`) whose constructor's family may be `Prop` at the comparand
 /// levels `us`.  The family is not read at a K recursor.
@@ -5175,7 +5626,7 @@ pub fn iota_case3_at(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:796-800 etaFabArgsE
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1762-1768 etaFabArgsE` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1958-1964 etaFabArgsE` — the
 /// eta-rescue fabrication's argument spine: the major's type's arguments, then
 /// the major's projections (`etaProjs`).
 pub fn eta_fab_args_e(
@@ -5193,7 +5644,7 @@ pub fn eta_fab_args_e(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:908-918 andRescueSlotsOf
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1770-1782 andRescueSlotsGo` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1966-1978 andRescueSlotsGo` — the
 /// two-slot walk, as a counted recursion (con-leche's `(List.range 2).all`):
 /// each slot stored, naming the rule's constructor at the major's parameter
 /// count, with two fields.
@@ -5225,7 +5676,7 @@ pub fn and_rescue_slots_go(
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:908-918 andRescueSlotsOf
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:920-922 andRescueSlots
 /// con-leche: ConLeche/Kernel/FEnv.lean:187-189 FEnv.andRescueSlotsF
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1784-1791 andRescueSlots` — **the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1980-1987 andRescueSlots` — **the
 /// pinned `And`'s projection slots, ready to fire.**  One twin for con-leche's
 /// three spellings (deviation 1).
 pub fn and_rescue_slots(
@@ -5241,28 +5692,41 @@ pub fn and_rescue_slots(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:1136-1146 etaRescueOk
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::eta_rescue_ok_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1793-1804 etaRescueOk` — **the
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:924-941 etaRescueTable?
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1989-2004 etaRescueTable?` — **the
 /// structure-η rescue's standing condition, at use**: the single rule's
-/// constructor `ctor` (stored as `cvj`) is the η constructor of its
-/// structure-like family `cvt` and carries the family's level parameters;
-/// `And.intro` is left to `And`'s own rescue.  The cited `&&` chain, left to
-/// right (the `And.intro` pin is interned only when the chain reaches it).
-pub fn eta_rescue_ok(
+/// constructor `ctor` (stored as `cvj`) is the constructor of its family's
+/// projection table `tbl` (the family `cvt` structure-like, `IIndCaps.eta`),
+/// and carries the family's level parameters; the table, for the
+/// fabrication's counts.  `And.intro` is left to `And`'s own rescue.  The
+/// cited `&&` chain, left to right (the `And.intro` pin is interned only when
+/// the chain reaches it).
+pub fn eta_rescue_table<'a>(
     st: &AState,
+    tbl: Option<&'a IProjTable>,
     ctor: &NIdx,
     cvj: &IConstantVal,
     cvt: &IConstantVal,
     caps: &IIndCaps,
-) -> Result<bool, CheckError> {
-    if caps.eta && caps.eta_ctor.eq2(ctor) && nidx_vec_beq(&cvj.level_params, &cvt.level_params) {
-        match pin_and_intro(st) {
-            Err(e) => Err(e),
-            Ok(ai) => Ok(!ctor.eq2(&ai)),
+) -> Result<Option<&'a IProjTable>, CheckError> {
+    match tbl {
+        None => Ok(None),
+        Some(t) => {
+            if caps.eta && t.ctor.eq2(ctor) && nidx_vec_beq(&cvj.level_params, &cvt.level_params) {
+                match pin_and_intro(st) {
+                    Err(e) => Err(e),
+                    Ok(ai) => {
+                        if !ctor.eq2(&ai) {
+                            Ok(Some(t))
+                        } else {
+                            Ok(None)
+                        }
+                    }
+                }
+            } else {
+                Ok(None)
+            }
         }
-    } else {
-        Ok(false)
     }
 }
 
@@ -5271,10 +5735,8 @@ pub fn eta_rescue_ok(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::fab_scope_ok_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:550-651 majorToCtorI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::fab_scope_ok_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1810-1827 fabScopeOk` — the scope
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2010-2027 fabScopeOk` — the scope
 /// guard the three rescue branches share: the fabricated major is well-scoped,
 /// closed under loose bvars, and mentions no free variable the stuck major
 /// does not.
@@ -5307,10 +5769,8 @@ pub fn fab_scope_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_certs_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:550-651 majorToCtorI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_certs_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1829-1946 majorToCtor` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2029-2143 majorToCtor` — the
 /// K and `And` rescues' checks, once the fabricated major is built: the scope
 /// guard, the official `to_cnstr_when_K` type check (both modes) and proof
 /// irrelevance, a certificate family off at the trusted mode
@@ -5356,8 +5816,7 @@ pub fn major_to_ctor_certs(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_k_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1829-1946 majorToCtor` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2029-2143 majorToCtor` — the
 /// K-flagged branch (`to_cnstr_when_K`): the major's whnf'd type is the rule's
 /// own inductive, and the fabricated major is its constructor at the type's
 /// leading parameters.
@@ -5427,14 +5886,11 @@ pub fn major_to_ctor_k(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_eta_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:550-651 majorToCtorI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_eta_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1829-1946 majorToCtor` — the
-/// η-capable branch: the fabricated major is the structure's constructor at
-/// the type's parameters and the `.proj` nodes of the stuck major.  The
-/// keys of the η law (con-leche task #342 L-DEAD) follow, then the
-/// *instantiated* non-`Prop` test at the use (`formerNeverZeroAt`).
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2029-2143 majorToCtor` — the
+/// η-capable branch: the fabricated major is the table's constructor at the
+/// type's parameters and the `.proj` nodes of the stuck major, the counts the
+/// family's projection table's, at every field count.
 pub fn major_to_ctor_eta(
     pers: &PersTier,
     st: &mut AState,
@@ -5446,6 +5902,7 @@ pub fn major_to_ctor_eta(
     depth: u64,
     cvt: &IConstantVal,
     caps: &IIndCaps,
+    tbl: &IProjTable,
     t: &NIdx,
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
@@ -5464,12 +5921,12 @@ pub fn major_to_ctor_eta(
                                 Err(e) => Err(e),
                                 Ok(targs) => {
                                     if t2.eq2(t)
-                                        && targs.len() as u64 == caps.eta_params
+                                        && targs.len() as u64 == tbl.num_params
                                         && ustl.len() == cvt.level_params.len()
                                     {
-                                        major_to_ctor_eta_keys(
+                                        major_to_ctor_eta_sort(
                                             pers, st, mode, eager, lane, fuel, fe, depth, cvt,
-                                            caps, t, &ust, &targs, major,
+                                            caps, tbl, t, &ust, &targs, major,
                                         )
                                     } else {
                                         Ok(major.dup2())
@@ -5487,15 +5944,11 @@ pub fn major_to_ctor_eta(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_eta_keys_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:550-651 majorToCtorI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_eta_keys_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1829-1946 majorToCtor` —
-/// the η branch's three law keys (`reservedBasisNames` on the family and on
-/// its constructor, `towerSlotsAll`), then the family's sort, never zero at the
-/// major type's levels (`formerNeverZeroAt`, computed here), then the
-/// fabrication.
-pub fn major_to_ctor_eta_keys(
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2029-2143 majorToCtor` — the η
+/// branch's sort test: the family's sort, never zero at the major type's
+/// levels (`formerNeverZeroAt`, computed here), then the fabrication.
+pub fn major_to_ctor_eta_sort(
     pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
@@ -5506,51 +5959,40 @@ pub fn major_to_ctor_eta_keys(
     depth: u64,
     cvt: &IConstantVal,
     caps: &IIndCaps,
+    tbl: &IProjTable,
     t: &NIdx,
     ust: &LsIdx,
     targs: &Vec<EIdx>,
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match reserved_basis_names(st) {
+    match former_never_zero_at(pers, st, mode, eager, lane, fuel, fe, cvt, caps, ust) {
         Err(e) => Err(e),
-        Ok(reserved) => {
-            if !env::nidx_vec_contains(&reserved, t)
-                && !env::nidx_vec_contains(&reserved, &caps.eta_ctor)
-                && tower_slots_all(pers, fe, t, caps.eta_fields)
-            {
-                match former_never_zero_at(pers, st, mode, eager, lane, fuel, fe, cvt, caps, ust) {
-                    Err(e) => Err(e),
-                    Ok(true) => major_to_ctor_eta_build(pers, st, depth, caps, t, ust, targs, major),
-                    Ok(false) => Ok(major.dup2()),
-                }
-            } else {
-                Ok(major.dup2())
-            }
-        }
+        Ok(true) => major_to_ctor_eta_build(pers, st, depth, &tbl.ctor, tbl.num_fields, t, ust, targs, major),
+        Ok(false) => Ok(major.dup2()),
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_eta_build_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:550-651 majorToCtorI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_eta_build_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1829-1946 majorToCtor` — the η
-/// branch's fabrication: the argument spine, the constructor application and
-/// the scope guard.  No certificate on the fabricated spine (con-leche task
-/// #342 L11b): the major is the fabrication by the family's η law.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2029-2143 majorToCtor` — the η
+/// branch's fabrication: the argument spine, the table's constructor `ctor`
+/// at `n_f` projections, and the scope guard.  No certificate on the
+/// fabricated spine (con-leche task #342 L11b): the major is the fabrication
+/// by the family's η law.
 pub fn major_to_ctor_eta_build(
     pers: &PersTier,
     st: &mut AState,
     depth: u64,
-    caps: &IIndCaps,
+    ctor: &NIdx,
+    n_f: u64,
     t: &NIdx,
     ust: &LsIdx,
     targs: &Vec<EIdx>,
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match eta_fab_args_e(pers, st, t, targs, major, caps.eta_fields) {
+    match eta_fab_args_e(pers, st, t, targs, major, n_f) {
         Err(e) => Err(e),
-        Ok(fab_args) => match intern_e_const(pers, st, caps.eta_ctor.dup2(), ust.dup2()) {
+        Ok(fab_args) => match intern_e_const(pers, st, ctor.dup2(), ust.dup2()) {
             Err(e) => Err(e),
             Ok(hd) => match mk_app_n(pers, st, &hd, &fab_args) {
                 Err(e) => Err(e),
@@ -5565,8 +6007,7 @@ pub fn major_to_ctor_eta_build(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_and_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1829-1946 majorToCtor` — **THE
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2029-2143 majorToCtor` — **THE
 /// `And`-ONLY η RESCUE** (the user ruling: `And` and nothing else): the
 /// fabricated major is `And.intro` at the two `.proj` nodes of the stuck one.
 pub fn major_to_ctor_and(
@@ -5628,8 +6069,7 @@ pub fn major_to_ctor_and(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_and_build_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1829-1946 majorToCtor` — the `And`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2029-2143 majorToCtor` — the `And`
 /// branch's fabrication and its certificate chain.
 pub fn major_to_ctor_and_build(
     pers: &PersTier,
@@ -5669,11 +6109,10 @@ pub fn major_to_ctor_and_build(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_at_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1829-1946 majorToCtor` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2029-2143 majorToCtor` — the
 /// three-way branch, once the rule's constructor and its inductive have been
-/// found: the record's K flag, the η family (`etaRescueOk`, decided here), or
-/// the pinned `And`.
+/// found: the record's K flag, the η family (`etaRescueTable?` at the
+/// family's projection table, decided here), or the pinned `And`.
 pub fn major_to_ctor_at(
     pers: &PersTier,
     st: &mut AState,
@@ -5695,10 +6134,12 @@ pub fn major_to_ctor_at(
     if is_k {
         major_to_ctor_k(pers, st, mode, eager, lane, fuel, fe, depth, cvj, cn_p, ctor, t, major)
     } else {
-        match eta_rescue_ok(st, ctor, cvj, cvt, caps) {
+        match eta_rescue_table(st, env::ifenv_find_table(pers, fe, t), ctor, cvj, cvt, caps) {
             Err(e) => Err(e),
-            Ok(true) => major_to_ctor_eta(pers, st, mode, eager, lane, fuel, fe, depth, cvt, caps, t, major),
-            Ok(false) => match pin_and(st) {
+            Ok(Some(tbl)) => {
+                major_to_ctor_eta(pers, st, mode, eager, lane, fuel, fe, depth, cvt, caps, tbl, t, major)
+            }
+            Ok(None) => match pin_and(st) {
                 Err(e) => Err(e),
                 Ok(an) => {
                     if t.eq2(&an) {
@@ -5716,8 +6157,7 @@ pub fn major_to_ctor_at(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:593-752 majorToCtor
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::major_to_ctor_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1829-1946 majorToCtor` — **the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2029-2143 majorToCtor` — **the
 /// stuck-major rescue** (`to_cnstr_when_K` and `to_cnstr_when_structure`): a
 /// recursor's major premise that does not whnf to a constructor application
 /// may still be *replaced* by one — K-flagged (the record's `isK`), η-capable,
@@ -5789,7 +6229,7 @@ pub fn major_to_ctor(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:754-766 litMajorToCtor
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1948-1961 litMajorToCtor` — convert
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2145-2158 litMajorToCtor` — convert
 /// a literal major premise to constructor form: a `Nat` literal one layer, a
 /// `String` literal to its *reduced* constructor form.
 pub fn lit_major_to_ctor(
@@ -5825,7 +6265,7 @@ pub fn lit_major_to_ctor(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:768-782 projLitToCtor
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1963-1975 projLitToCtor` — convert
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2160-2172 projLitToCtor` — convert
 /// a string-literal projection scrutinee to its *reduced* constructor form.
 pub fn proj_lit_to_ctor(
     pers: &PersTier,
@@ -5860,7 +6300,7 @@ pub fn proj_lit_to_ctor(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:784-788 Expr.isStrLit
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1977-1985 isStrLit` — is `e` a
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2174-2182 isStrLit` — is `e` a
 /// `String` literal?  (The structure rescue leaves one to the literal
 /// conversion, as lean4#15351's `to_cnstr_when_structure` does.)
 pub fn is_str_lit(pers: &PersTier, st: &AState, e: &EIdx) -> Result<bool, CheckError> {
@@ -5877,7 +6317,7 @@ pub fn is_str_lit(pers: &PersTier, st: &AState, e: &EIdx) -> Result<bool, CheckE
 
 /// con-leche: ConLeche/Kernel/Core.lean:790-864 prepareMajor
 /// con-leche: ConLeche/Cached/CoreC.lean:675-697 prepareMajorI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1987-2013 prepareMajor` — the major
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2184-2210 prepareMajor` — the major
 /// premise's preparation before a rule fires.  At a K-flagged recursor (the
 /// record's `isK`) the K
 /// rescue runs on the **raw** major and, if it did not produce a constructor
@@ -5935,7 +6375,7 @@ pub fn prepare_major(
 
 /// con-leche: ConLeche/Kernel/Core.lean:790-864 prepareMajor
 /// con-leche: ConLeche/Cached/CoreC.lean:675-697 prepareMajorI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1987-2013 prepareMajor` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2184-2210 prepareMajor` — the
 /// non-K path past a rescue that produced no constructor: head-normalize the
 /// major, convert its literal, try the rescue once more on the reduct.
 pub fn prepare_major_whnf(
@@ -5964,7 +6404,7 @@ pub fn prepare_major_whnf(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:959-981 recFireComparands
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2015-2025 substLevelsAt` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2212-2222 substLevelsAt` — the
 /// nested rule's stored level comparands, substituted and re-interned
 /// (`lvls.map (Level.subst lps us)` as a named recursion).
 pub fn subst_levels_at(
@@ -5997,7 +6437,7 @@ pub fn subst_levels_at(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:959-981 recFireComparands
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2027-2037 substParamLevels` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2224-2234 substParamLevels` — the
 /// canonical rule's level comparands, `cvjLps.map fun p => Level.subst lps us
 /// (.param p)`, as a named recursion.
 pub fn subst_param_levels(
@@ -6030,7 +6470,7 @@ pub fn subst_param_levels(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:959-981 recFireComparands
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2039-2049 instSpinePins` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2236-2246 instSpinePins` — the
 /// nested rule's stored parameter pins, level-instantiated and instantiated at
 /// the recursor's leading-argument spine, as a named recursion.  `rP - 1` is
 /// Lean's truncating subtraction, hence `sub_nat`.
@@ -6068,7 +6508,7 @@ pub fn inst_spine_pins(
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:959-981 recFireComparands
 /// con-leche: ConLeche/Cached/CoreC.lean:732-808 iotaRecI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2051-2074 recFireLevels` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2248-2271 recFireLevels` — the
 /// LEVEL comparands of a firing rule (`(recFireComparands …).1`): the
 /// recursor's own instantiation of the constructor's level parameters at a
 /// `.plain` rule, the stored instantiation at a `.nested` or `.levels` one.  The
@@ -6111,7 +6551,7 @@ pub fn rec_fire_levels(
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:959-981 recFireComparands
 /// con-leche: ConLeche/Cached/CoreC.lean:732-808 iotaRecI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2076-2086 recFireArgs` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2273-2283 recFireArgs` — the
 /// PARAMETER comparands of a firing rule (`(recFireComparands …).2`): the
 /// recursor's leading `cn_p` arguments (the stored constructor's parameter
 /// count) at a `.plain` or `.levels` rule, the stored pins at the recursor's
@@ -6137,7 +6577,7 @@ pub fn rec_fire_args(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:866-965 iotaRec
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2088-2093 findRule` — the rule
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2285-2290 findRule` — the rule
 /// lookup `rules.find? (fun r' => r'.ctor == cj)`, as a named recursion
 /// (DESIGN.md §3.4).  The index is returned rather than the rule, so that the
 /// caller reads the record out of the `Vec` it is stored in.
@@ -6153,7 +6593,7 @@ pub fn find_rule(rules: &Vec<IRecRule>, c: &NIdx, i: usize) -> Option<usize> {
 
 /// con-leche: ConLeche/Kernel/Core.lean:866-965 iotaRec
 /// con-leche: ConLeche/Cached/CoreC.lean:732-808 iotaRecI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2095-2182 iotaRecAt` — a matched
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2292-2379 iotaRecAt` — a matched
 /// rule fires: **the ι case split** (con-leche task #342 L10, S5c) decides
 /// whether the constructor application is checked at all (`iota_rec_cert`, ONE
 /// certificate family, off at the trusted mode), then the reduct.
@@ -6192,7 +6632,7 @@ pub fn iota_rec_fire(
 /// con-leche: ConLeche/Kernel/Core.lean:866-965 iotaRec
 /// con-leche: ConLeche/Cached/CoreC.lean:732-808 iotaRecI
 /// con-leche: ConLeche/Cached/CoreC.lean:279-282 certAtI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2095-2182 iotaRecAt` — **the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2292-2379 iotaRecAt` — **the
 /// whole case-3 decision, one certificate family** (`certAtI mode (…)`):
 /// at the trusted mode `true` without running; at the verified mode the
 /// level comparands are computed and, at a case-3 redex (`iotaCase3At`: not K,
@@ -6241,7 +6681,7 @@ pub fn iota_rec_cert(
 
 /// con-leche: ConLeche/Kernel/Core.lean:866-965 iotaRec
 /// con-leche: ConLeche/Cached/CoreC.lean:732-808 iotaRecI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2095-2182 iotaRecAt` — a case-3
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2292-2379 iotaRecAt` — a case-3
 /// redex's checks: the constructor's levels against the comparand levels,
 /// its parameters against the parameter comparands, then the telescope and
 /// index certificates (`iota_rec_fam`).
@@ -6291,7 +6731,7 @@ pub fn iota_rec_case3(
 
 /// con-leche: ConLeche/Kernel/Core.lean:866-965 iotaRec
 /// con-leche: ConLeche/Cached/CoreC.lean:732-808 iotaRecI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2095-2182 iotaRecAt` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2292-2379 iotaRecAt` — the
 /// constructor telescope at the FULL grade (`iotaCertsFull`) and the
 /// canonical-index comparison (`iotaIndexOk`).  The constructor's type is
 /// looked up only here, where the certificates consume it.  (Task #119: the
@@ -6332,7 +6772,7 @@ pub fn iota_rec_fam(
 
 /// con-leche: ConLeche/Kernel/Core.lean:866-965 iotaRec
 /// con-leche: ConLeche/Cached/CoreC.lean:732-808 iotaRecI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2095-2182 iotaRecAt` — the ι
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2292-2379 iotaRecAt` — the ι
 /// reduct: the rule's right-hand side at the recursor's levels, applied to the
 /// recursor's leading arguments and the constructor's fields.
 pub fn iota_rec_reduct(
@@ -6362,7 +6802,7 @@ pub fn iota_rec_reduct(
 
 /// con-leche: ConLeche/Kernel/Core.lean:866-965 iotaRec
 /// con-leche: ConLeche/Cached/CoreC.lean:732-808 iotaRecI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2095-2182 iotaRecAt` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2292-2379 iotaRecAt` — the
 /// major's side of the step: it is a fully applied constructor with a
 /// matching rule.  The parameter count is the stored constructor's, the field
 /// count the rule's.  (Task #119: the inert-rule decline is gone with
@@ -6428,7 +6868,7 @@ pub fn iota_rec_major(
 
 /// con-leche: ConLeche/Kernel/Core.lean:866-965 iotaRec
 /// con-leche: ConLeche/Cached/CoreC.lean:732-808 iotaRecI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2095-2182 iotaRecAt` — `iotaRec` with
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2292-2379 iotaRecAt` — `iotaRec` with
 /// its two spine walks HOISTED: the head and the argument vector are the
 /// caller's, and `n` says how many of `sargs` the expression `e` applies.
 ///
@@ -6521,7 +6961,7 @@ pub fn iota_rec_at(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:983-992 ProjEntry.typeAt
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2344-2355 IProjEntry.typeAt` —
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2541-2552 IProjEntry.typeAt` —
 /// **the type of a `.proj` node at a tower-backed entry**: the stored body,
 /// level-instantiated at the subject type's levels, with the subject type's
 /// arguments and the subject substituted for its `numParams + 1` loose
@@ -6548,7 +6988,7 @@ pub fn proj_entry_type_at(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:802-810 teleArityOk
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2357-2362 teleArityOk` — **the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2554-2559 teleArityOk` — **the
 /// telescope check of a spine** (con-leche task #342 L18): the telescope's
 /// syntactic arity, nothing else.
 pub fn tele_arity_ok(pers: &PersTier, st: &AState, ty: &EIdx, args: &Vec<EIdx>) -> Result<bool, CheckError> {
@@ -6560,7 +7000,7 @@ pub fn tele_arity_ok(pers: &PersTier, st: &AState, ty: &EIdx, args: &Vec<EIdx>) 
 
 /// con-leche: ConLeche/Kernel/Core.lean:967-979 projCert
 /// con-leche: ConLeche/Cached/CoreC.lean:810-814 projCertF
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2364-2371 projCert` — **the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2561-2568 projCert` — **the
 /// structural projection's check** (con-leche task #175 W6, #342 L18): the
 /// redex `proj_i (C p⃗ x⃗)` fires only where `C`'s stored type has the spine's
 /// arity (`teleArityOk`; level instantiation keeps the arity, so the stored
@@ -6584,7 +7024,7 @@ pub fn proj_cert(
 
 /// con-leche: ConLeche/Kernel/Core.lean:981-988 projCertAt
 /// con-leche: ConLeche/Cached/CoreC.lean:816-819 projCertAtF
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2373-2379 projCertAt` — **the fire
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2570-2576 projCertAt` — **the fire
 /// check as the mode runs it**: the verified core checks the constructor
 /// telescope's arity; the trusted core is the official kernel's, which checks
 /// nothing.
@@ -6605,7 +7045,7 @@ pub fn proj_cert_at(
 
 /// con-leche: ConLeche/Kernel/Core.lean:990-1018 reduceProjCore
 /// con-leche: ConLeche/Cached/CoreC.lean:821-843 reduceProjCoreI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2381-2414 reduceProjCore` — **the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2578-2611 reduceProjCore` — **the
 /// projection rule on a reduced scrutinee** (the official kernel's
 /// `reduce_proj_core`): the scrutinee's string-literal expansion, then the
 /// table entry.  `None` when the rule does not fire.  Callers: the `.proj`
@@ -6633,7 +7073,7 @@ pub fn reduce_proj_core(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:990-1018 reduceProjCore
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2381-2414 reduceProjCore` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2578-2611 reduceProjCore` — the
 /// projection rule at a tower entry: the scrutinee's head must be the entry's
 /// constructor at the right arities; the rule fires unguarded.
 pub fn reduce_proj_core_at(
@@ -6675,7 +7115,7 @@ pub fn reduce_proj_core_at(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:990-1018 reduceProjCore
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2381-2414 reduceProjCore` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2578-2611 reduceProjCore` — the
 /// fire itself: the selected field, behind the mode's certificate.
 pub fn reduce_proj_core_fire(
     pers: &PersTier,
@@ -6702,7 +7142,7 @@ pub fn reduce_proj_core_fire(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1089-1098 WhnfStep
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2255-2263 WhnfStep` — the outcome
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2452-2460 WhnfStep` — the outcome
 /// of one step of the head-normalization loop: the head normal form, or the
 /// term the loop continues with (con-leche task #342 R2).  A step RETURNS its
 /// continuation instead of calling it, so every reduction step is the loop's
@@ -6714,7 +7154,7 @@ pub enum WhnfStep {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1071-1087 whnfCoreLoopFuel
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2265-2270 whnfCoreLoopFuel` — step
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2462-2467 whnfCoreLoopFuel` — step
 /// budget of the head-normalization loop: `2^62`, con-leche's value (task
 /// #330); exhaustion is an internal error, never a verdict, and a runaway
 /// input is left to the external timeout.
@@ -6722,7 +7162,7 @@ pub const WHNF_CORE_LOOP_FUEL: u64 = 4611686018427387904; // 2^62
 
 /// con-leche: ConLeche/Kernel/Core.lean:1020-1069 whnfCoreBody
 /// con-leche: ConLeche/Cached/CoreC.lean:893-927 whnfCoreStepI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2416-2427 whnfCoreStepProj`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2613-2624 whnfCoreStepProj`
 /// The `.proj` clause of the step: the scrutinee by `whnf`, or — in the CHEAP
 /// mode (official `cheap_proj`) — by the cheap `whnfCore`, then the
 /// projection rule (`reduce_proj_core`): a fired field is the term the loop
@@ -6764,7 +7204,7 @@ pub fn whnf_core_step_proj(
 
 /// con-leche: none — `getAppFn` and `getAppArgsC` in one descent, plus the
 /// spine's own application NODES (the arena's upward cutoff needs them)
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2210-2213 getAppSpine` —
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2407-2410 getAppSpine` —
 /// `Expr.getAppFn e`, `Expr.getAppArgsC e` and the list of prefixes `e` is
 /// built from.
 ///
@@ -6785,7 +7225,7 @@ pub fn get_app_spine(
 
 /// con-leche: none — `getAppFn`/`getAppArgsC` in one descent (see
 /// `get_app_spine`)
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2194-2208 getAppSpineGo` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2391-2405 getAppSpineGo` — the
 /// cursor recursion behind `get_app_spine`.
 ///
 /// `k` counts the arguments seen on the way DOWN and is spent at the head, as
@@ -6827,7 +7267,7 @@ pub fn get_app_spine_go(
 }
 
 /// con-leche: none — `getAppFn e` and `getAppArgsC e` in one place
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2215-2223 headAndArgs` — the head
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2412-2420 headAndArgs` — the head
 /// and the argument vector of a term, as `whnf_app` needs them for its ι step.
 ///
 /// `whnf_app` carries the head and the arguments of the application it has
@@ -6854,7 +7294,7 @@ pub fn head_and_args(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:864-891 whnfAppI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2307-2338 whnfApp` — the cached
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2504-2535 whnfApp` — the cached
 /// tier's bulk-β argument loop, the EXECUTED checker's own `.app` step.
 ///
 /// **The batched instantiation lever** (task #97-P6-9).  The loop consumes
@@ -6935,7 +7375,7 @@ pub fn whnf_app(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:845-862 betaPeelI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2286-2305 betaPeel` — the peel loop
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2483-2502 betaPeel` — the peel loop
 /// of `whnf_app`.
 ///
 /// `t` is the RAW (unsubstituted) λ body after the binders consumed so far and
@@ -6977,7 +7417,7 @@ pub fn beta_peel(
 }
 
 /// con-leche: none — `internE (.app f' a)`, the twin's one-line rebuild
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2471-2479 whnfCoreBody` — the stuck
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2668-2676 whnfCoreBody` — the stuck
 /// application, re-interned.  Its own function because both the plain and the
 /// gated β arm end in it.
 pub fn intern_app(
@@ -6990,7 +7430,7 @@ pub fn intern_app(
 }
 
 /// con-leche: none — `internE (.app f' a)`, the twin's one-line rebuild
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2188-2192 internAppRebuilt` — **the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2385-2389 internAppRebuilt` — **the
 /// UPWARD cutoff at the stuck application**, `expr_ops::intern_rebuilt`'s
 /// clause where task #97-P6-5's lever 2 could not reach.
 ///
@@ -7022,7 +7462,7 @@ pub fn intern_app_rebuilt(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1020-1069 whnfCoreBody
 /// con-leche: ConLeche/Cached/CoreC.lean:893-927 whnfCoreStepI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2429-2456 whnfCoreStep` — one
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2626-2653 whnfCoreStep` — one
 /// head-normalization step (β, ι, projection, ζ — **no δ**), returning the head
 /// normal form or the term to continue with.  Only the spine head's
 /// normalization stays a knot call (genuine nesting, bounded by the term's
@@ -7086,7 +7526,7 @@ pub fn whnf_core_step(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:929-940 whnfCoreLoopI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2458-2469 whnfCoreLoop` — iterate
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2655-2666 whnfCoreLoop` — iterate
 /// `whnf_core_step` on its own step budget.  **A real loop** (task #119,
 /// after con-leche task #342 R2): con-leche's self tail call compiles to a
 /// jump, and Rust promises no tail calls, so the iteration is spelled as one —
@@ -7125,7 +7565,7 @@ pub fn whnf_core_loop(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1020-1069 whnfCoreBody
 /// con-leche: ConLeche/Cached/CoreC.lean:942-945 whnfCoreBodyI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2471-2479 whnfCoreBody` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2668-2676 whnfCoreBody` — the
 /// head-normalization body: the loop at its own step budget.
 pub fn whnf_core_body(
     pers: &PersTier,
@@ -7143,7 +7583,7 @@ pub fn whnf_core_body(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1100-1111 whnfLoopFuel
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2481-2487 whnfLoopFuel` — step budget of
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2678-2684 whnfLoopFuel` — step budget of
 /// the `whnf` reduction loop.  Literal-acceleration and delta steps are
 /// *iteration*, not recursion.  Effectively unbounded since con-leche task
 /// #330: `2^62`, con-leche's value (exhaustion is an internal error, never an
@@ -7152,7 +7592,7 @@ pub const WHNF_LOOP_FUEL: u64 = 4611686018427387904; // 2^62
 
 /// con-leche: ConLeche/Kernel/Core.lean:1113-1128 whnfStep
 /// con-leche: ConLeche/Cached/CoreC.lean:1004-1018 whnfStepI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2489-2504 whnfStep` — one iteration
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2686-2701 whnfStep` — one iteration
 /// of the reduction loop: head-normalize, try literal acceleration, unfold one
 /// definition.  **The continuation is returned, not called** (task #119): the
 /// cited `k e'` is `Cont(e')`, and `whnf_loop` — a real loop — continues with
@@ -7187,7 +7627,7 @@ pub fn whnf_step(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1130-1135 whnfLoop
 /// con-leche: ConLeche/Cached/CoreC.lean:1020-1024 whnfLoopI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2506-2515 whnfLoop` — the reduction
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2703-2712 whnfLoop` — the reduction
 /// loop: iterate `whnf_step` on its own step budget, so the whole chain costs
 /// one knot level however many steps it takes.  **A real loop** (task #119),
 /// for `whnf_core_loop`'s reason: a δ chain of any length runs in constant
@@ -7222,7 +7662,7 @@ pub fn whnf_loop(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1137-1139 whnfBody
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2517-2520 whnfBody` — the reduction
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2714-2717 whnfBody` — the reduction
 /// loop's body: run `whnfLoop` at its own step budget.
 pub fn whnf_body(
     pers: &PersTier,
@@ -7239,7 +7679,7 @@ pub fn whnf_body(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1141-1147 ensureSort
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2522-2531 ensureSort` — ensure `e`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2719-2728 ensureSort` — ensure `e`
 /// (the type of some expression) is a sort, returning its level.
 pub fn ensure_sort(
     pers: &PersTier,
@@ -7267,7 +7707,7 @@ pub fn ensure_sort(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1149-1163 checkGuardRows
 /// con-leche: ConLeche/Cached/CoreC.lean:1037-1049 checkGuardRowsI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2533-2555 checkGuardRows` — **the rows of a
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2730-2752 checkGuardRows` — **the rows of a
 /// projection's guard** (official `infer_proj`'s `is_prop` tests): each row's
 /// term, inferred at the io grade at its own depth and head-normalized, has a
 /// sort that is zero wherever `guard_sort` is (`Level.zeroWhereZero`, on the
@@ -7317,7 +7757,7 @@ pub fn check_guard_rows(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1165-1181 projGuardSort
 /// con-leche: ConLeche/Cached/CoreC.lean:1051-1061 projGuardSortI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2557-2577 projGuardSort` — **the sort a
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2754-2774 projGuardSort` — **the sort a
 /// projection's rows answer to**, at this use: `none` where the guard has
 /// nothing to ask.  A stored type that ends in a sort answers at once (`Prop`
 /// asks for propositions, any other sort nothing); otherwise the sort is
@@ -7371,7 +7811,7 @@ pub fn proj_guard_sort(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:812-822 openPisAtFvars
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2579-2595 openPisAtFvars` —
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2776-2792 openPisAtFvars` —
 /// open the first `n` `∀`-binders at fresh free variables `0..n-1` (each
 /// fvar's type is the binder domain, instantiated with the earlier fvars).
 /// Structural on `n`, so no fuel of its own.
@@ -7408,7 +7848,7 @@ pub fn open_pis_at_fvars(
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:770-784 openPisAtFvarsFGo
 /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::open_pis_at_fvars_f_go_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2597-2614 openPisAtFvarsFGo` —
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2794-2812 openPisAtFvarsFGo` —
 /// core of `openPisAtFvarsF`: `acc` holds the already-created fvars — the list
 /// `instantiate_list` takes at cursor 0, in PUSH order on an OWNED vector
 /// (task #97-P6-15).  One `instantiateList` pass per domain instead of one
@@ -7457,7 +7897,7 @@ pub fn open_pis_at_fvars_f_go(
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:786-793 openPisAtFvarsF
 /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::open_pis_at_fvars_f_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2616-2623 openPisAtFvarsF` —
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2814-2822 openPisAtFvarsF` —
 /// one-pass `openPisAtFvars` (the fallback covers telescopes whose binders only
 /// appear after substitution).  **The executed one.**
 pub fn open_pis_at_fvars_f(
@@ -7482,7 +7922,7 @@ pub const M_FUEL_HLB: [u32; 29] = [
 ];
 
 /// con-leche: none — extraction rule 5 (DESIGN.md's task #97-P4c): a `HashMap::get` match is its own function
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2632-2678 hasLooseBVarBGo`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2832-2879 hasLooseBVarBGo`
 /// — the `memo[(h, i)]?` probe of the `hasLooseBVarB` walk.  Inline, Aeneas
 /// reports *"Could not match the contexts"* on the joined arms.
 pub fn hlb_probe(memo: &HashMap<EIdxNat, bool>, k: &EIdxNat) -> Option<bool> {
@@ -7494,7 +7934,7 @@ pub fn hlb_probe(memo: &HashMap<EIdxNat, bool>, k: &EIdxNat) -> Option<bool> {
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:873-878 Expr.hasLooseBVarBIns
 /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::has_loose_bvar_b_ins_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2625-2630 hasLooseBVarBIns`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2824-2830 hasLooseBVarBIns`
 /// — record one answer for `(e, i)` in the memo the walk hands back.
 pub fn has_loose_bvar_b_ins(
     e: &EIdx,
@@ -7510,7 +7950,7 @@ pub fn has_loose_bvar_b_ins(
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:839-857 Expr.hasLooseBVarB
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:880-916 Expr.hasLooseBVarBGo
 /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::has_loose_bvar_b_go_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2632-2678 hasLooseBVarBGo`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2832-2879 hasLooseBVarBGo`
 /// — does `bvar i` occur loose in `e`?  con-leche's packed-bound cutoff
 /// (`bvarB ≤ i`) and its per-call memo, both kept: the cutoff stops the walk
 /// where the variable CANNOT occur, the memo shares a shared node's answer
@@ -7559,7 +7999,7 @@ pub fn has_loose_bvar_b_go(
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:880-916 Expr.hasLooseBVarBGo
 /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::has_loose_bvar_b_node_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2632-2678 hasLooseBVarBGo`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2832-2879 hasLooseBVarBGo`
 /// — the walk's compound arms, split off so that the `view`'s loans are dead
 /// at the memo's join (task #97-P4c's extraction rule 5, and P4a's second).
 pub fn has_loose_bvar_b_node(
@@ -7602,7 +8042,7 @@ pub fn has_loose_bvar_b_node(
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:1062-1064 Expr.hasLooseBVarBFast
 /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::has_loose_bvar_b_fast_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2680-2683 hasLooseBVarBFast`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2881-2885 hasLooseBVarBFast`
 /// — the executed `hasLooseBVarB` (one memoized DAG walk).
 pub fn has_loose_bvar_b_fast(
     pers: &PersTier,
@@ -7617,7 +8057,7 @@ pub fn has_loose_bvar_b_fast(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:859-866 structUsedLater
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2685-2691 structUsedLater`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2887-2893 structUsedLater`
 /// — **field `j` is used by a later field**, the official `infer_proj`'s
 /// `has_loose_bvars(binding_body(r))` at step `j`.
 pub fn struct_used_later(
@@ -7635,7 +8075,7 @@ pub fn struct_used_later(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:868-886 projGuardRowsGo
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2694-2717 projGuardRowsGo` — **the rows of
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2896-2919 projGuardRowsGo` — **the rows of
 /// a projection's guard: the field loop of the official `infer_proj`.**  `h`
 /// is the constructor telescope with its parameters and every field before
 /// the current one opened, the current field's variable at depth `d`; `k`
@@ -7687,7 +8127,7 @@ pub fn proj_guard_rows_go(
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:888-906 projGuardRows
 /// con-leche: ConLeche/Cached/CoreC.lean:1063-1074 checkProjRowsI
 /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::proj_guard_rows_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2719-2738 projGuardRows` — **what a `.proj`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2921-2941 projGuardRows` — **what a `.proj`
 /// use on a structure that may be a proposition must show**: the domains, at
 /// the use's level instantiation and at the constructor telescope's own
 /// variables, that must be propositions.  The parameters are opened, then the
@@ -7723,7 +8163,7 @@ pub fn proj_guard_rows(
 /// con-leche: ConLeche/Cached/CoreC.lean:1076-1088 checkProjGuardI
 /// con-leche: ConLeche/Cached/CoreC.lean:1063-1074 checkProjRowsI
 /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::check_proj_guard_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2740-2757 checkProjGuard` — **the official
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2943-2961 checkProjGuard` — **the official
 /// `infer_proj` restriction** at this use (con-leche task #480), computed
 /// here from the stored structure and constructor types; nothing about it is
 /// stored.  The rows are inferred at the io grade in every body, as official's
@@ -7775,7 +8215,7 @@ pub fn check_proj_guard(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Kernel/Core.lean:1308-1394 inferBodyIO
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2759-2765 inferLamResult` — the λ
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2963-2969 inferLamResult` — the λ
 /// clause's result, `.forallE ty (bt.abstract1 depth)`.
 pub fn infer_lam_result(
     pers: &PersTier,
@@ -7792,8 +8232,8 @@ pub fn infer_lam_result(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Kernel/Core.lean:1308-1394 inferBodyIO
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3040-3098 inferBody`
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3100-3168 inferBodyIO`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3248-3306 inferBody`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3308-3376 inferBodyIO`
 /// The `.sort` clause, which both bodies write identically.
 pub fn infer_sort(pers: &PersTier, st: &mut AState, u: &LIdx) -> Result<EIdx, CheckError> {
     match intern_l_node(pers, st, LNodeView::Succ(u.dup2())) {
@@ -7804,8 +8244,8 @@ pub fn infer_sort(pers: &PersTier, st: &mut AState, u: &LIdx) -> Result<EIdx, Ch
 
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Kernel/Core.lean:1308-1394 inferBodyIO
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3040-3098 inferBody`
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3100-3168 inferBodyIO`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3248-3306 inferBody`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3308-3376 inferBodyIO`
 /// The `.fvar` clause — the scope check at the leaf of a traversal that
 /// happens anyway — which both bodies write identically.
 pub fn infer_fvar(idx: u64, ty: &EIdx, depth: u64) -> Result<EIdx, CheckError> {
@@ -7818,8 +8258,8 @@ pub fn infer_fvar(idx: u64, ty: &EIdx, depth: u64) -> Result<EIdx, CheckError> {
 
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Kernel/Core.lean:1308-1394 inferBodyIO
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3040-3098 inferBody`
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3100-3168 inferBodyIO`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3248-3306 inferBody`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3308-3376 inferBodyIO`
 /// The `.const` clause, which both bodies write identically: the stored type
 /// read through `constTyAt`, so a constant inferred twice at the same levels
 /// pays the level substitution once.
@@ -7881,8 +8321,8 @@ pub fn infer_lit_nat(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Kernel/Core.lean:1308-1394 inferBodyIO
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3040-3098 inferBody`
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3100-3168 inferBodyIO`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3248-3306 inferBody`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3308-3376 inferBodyIO`
 /// The `.lit (.strVal _)` clause, which both bodies write identically.
 pub fn infer_lit_str(
     pers: &PersTier,
@@ -7902,7 +8342,7 @@ pub fn infer_lit_str(
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
 /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_forall_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3040-3098 inferBody` — the full
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3248-3306 inferBody` — the full
 /// body's `.forallE` clause: the domain's sort, then the binder-telescope loop
 /// (`infer_pis`), which infers the codomain sort and folds `imax` outward.
 pub fn infer_forall(
@@ -7952,7 +8392,7 @@ pub fn infer_forall(
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
 /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_proj_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3004-3038 inferProj` — the `.proj`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3211-3246 inferProj` — the `.proj`
 /// clause, shared by both bodies (`inferBodyIOI` dispatches it to
 /// `inferBodyI` at the io view, which is the `io` flag here): the subject's
 /// type head-normalized, its head a constant with a projection-table entry at
@@ -8002,7 +8442,7 @@ pub fn infer_proj(
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
 /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_proj_miss_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3004-3038 inferProj` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3211-3246 inferProj` — the
 /// `.proj` clause with no table entry at field `i`: `projMissError` at the
 /// table's presence and the subject type's argument count.
 pub fn infer_proj_miss(
@@ -8024,7 +8464,7 @@ pub fn infer_proj_miss(
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
 /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_proj_at_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3040-3098 inferBody` — the `.proj`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3248-3306 inferBody` — the `.proj`
 /// clause's body, once the entry has been found: the node must name the
 /// subject type's head (official `infer_proj`, con-leche's TASK #271) at the
 /// entry's parameter count — two rejects that the annotate pass used to make
@@ -8075,7 +8515,7 @@ pub fn infer_proj_at(
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
 /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_lam_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3040-3098 inferBody` — the full
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3248-3306 inferBody` — the full
 /// body's λ clause: the domain's sort is run (unlike the io grade's), then the
 /// binder-telescope loop (`infer_lams`).
 pub fn infer_lam(
@@ -8122,7 +8562,7 @@ pub fn infer_lam(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1308-1394 inferBodyIO
 /// con-leche: ConLeche/Cached/CoreC.lean:1313-1361 inferBodyIOI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3100-3168 inferBodyIO` — the io
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3308-3376 inferBodyIO` — the io
 /// body's λ clause, chained: no domain-sort run (official's `infer_lambda` at
 /// `infer_only`), the binder opened at a fresh free variable, the body's type
 /// inferred through this lane (`io`, the knot's `ioView`), and the result.
@@ -8154,7 +8594,7 @@ pub fn infer_lam_open(
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
 /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_let_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3040-3098 inferBody` — the full
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3248-3306 inferBody` — the full
 /// body's `let` clause, official's `infer_let` (con-leche task #342 S0): the
 /// `let`'s type is a type, the value's type matches it, then the body with the
 /// value substituted — the ζ reduct, as Lean's kernel infers it.
@@ -8192,7 +8632,7 @@ pub fn infer_let(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1308-1394 inferBodyIO
 /// con-leche: ConLeche/Cached/CoreC.lean:1313-1361 inferBodyIOI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3100-3168 inferBodyIO` — the io
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3308-3376 inferBodyIO` — the io
 /// body's `let` clause, official's `infer_let` at `infer_only` (con-leche task
 /// #342 R-C): the body at its value, no check of the type or the value.
 pub fn infer_let_io(
@@ -8216,7 +8656,7 @@ pub fn infer_let_io(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1198-1204 defeqArg
 /// con-leche: ConLeche/Cached/CoreC.lean:947-950 defeqArgI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2926-2932 defeqArg` — **the argument check
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3132-3138 defeqArg` — **the argument check
 /// of a full-grade application** (official `infer_app`): the type of an
 /// `eagerReduce _ _` argument is compared with the domain in the eager tower
 /// (`knot_defeq_e`), every other argument's in the knot's own.
@@ -8241,7 +8681,7 @@ pub fn defeq_arg(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:952-981 inferSpineI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2934-2962 inferSpine` — the cached
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3140-3168 inferSpine` — the cached
 /// tier's application-inference spine loop, the EXECUTED checker's own `.app`
 /// clause.
 ///
@@ -8344,7 +8784,7 @@ pub fn infer_spine(
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
 /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_app_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2964-2971 inferApp` — the `.app`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3170-3178 inferApp` — the `.app`
 /// clause of the cached inference body: the spine's head is inferred once and
 /// its Π-telescope is walked against the whole spine.
 pub fn infer_app(
@@ -8396,7 +8836,7 @@ pub fn infer_app(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1107-1118 inferLamsOutI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2791-2802 inferLamsOut` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2995-3006 inferLamsOut` — the
 /// outward rebuild of the λ telescope loop: fold the stack innermost binder
 /// first, rebuilding one `∀` node per entry.  `stk[j]` is the binder at level
 /// `d + j` and its opened domain may mention the `j` free variables below it,
@@ -8425,7 +8865,7 @@ pub fn infer_lams_out(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1120-1133 inferLamsLeafI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2804-2812 inferLamsLeaf` — the leaf
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3008-3016 inferLamsLeaf` — the leaf
 /// phase of the λ telescope loop: bulk-open the residual body against the whole
 /// accumulated free-variable vector, infer it ONCE, close the leaf with ONE
 /// `abstract_range`, then rebuild outward.
@@ -8459,7 +8899,7 @@ pub fn infer_lams_leaf(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1135-1155 inferLamsI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2814-2838 inferLams` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3018-3042 inferLams` — the
 /// λ-telescope inference loop: peel the raw λ-chain, checking each opened
 /// domain to be a type on the way in. `k >= 1` counts the opened binders (the
 /// first is peeled by `infer_lam`'s own clause) and `fvs` holds their free
@@ -8517,7 +8957,7 @@ pub fn infer_lams(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1157-1168 inferPisOutI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2840-2849 inferPisOut` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3044-3053 inferPisOut` — the
 /// outward fold of the ∀ telescope loop: fold the accumulated domain sorts by
 /// `imax`, innermost binder first, which is exactly the chained `∀`-rule's
 /// result value.  It reads no per-node datum (con-leche task #272: a walk of
@@ -8541,7 +8981,7 @@ pub fn infer_pis_out(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1170-1181 inferPisLeafI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2851-2861 inferPisLeaf` — the leaf
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3055-3065 inferPisLeaf` — the leaf
 /// phase of the ∀ telescope loop: bulk-open the residual body against the whole
 /// accumulated free-variable vector, infer its sort ONCE, then fold the domain
 /// sorts outward.
@@ -8578,7 +9018,7 @@ pub fn infer_pis_leaf(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1183-1204 inferPisI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2863-2884 inferPis` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3067-3088 inferPis` — the
 /// ∀-telescope inference loop: peel the raw ∀-chain, checking each opened
 /// domain to be a type on the way in and accumulating its sort, infer the
 /// bulk-opened leaf's sort once, and fold `imax` outward.  The stack carries
@@ -8641,7 +9081,7 @@ pub fn infer_pis(
 /// con-leche: ConLeche/Kernel/Core.lean:1206-1306 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1206-1311 inferBodyI
 /// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::infer_body_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3040-3098 inferBody` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3248-3306 inferBody` — the
 /// full-grade inference body (official's `infer_type_core` with
 /// `infer_only = false`).
 pub fn infer_body(
@@ -8683,7 +9123,7 @@ pub fn infer_body(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1308-1394 inferBodyIO
 /// con-leche: ConLeche/Cached/CoreC.lean:1313-1361 inferBodyIOI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3100-3168 inferBodyIO` — **the io
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3308-3376 inferBodyIO` — **the io
 /// inference body**, official's `infer_type_core` with `infer_only = true`
 /// (con-leche tasks #161, #170, #346): the application's arguments are not
 /// checked against their domains, the λ's domain is not checked to be a type,
@@ -8736,7 +9176,7 @@ pub fn infer_body_io(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1308-1394 inferBodyIO
 /// con-leche: ConLeche/Cached/CoreC.lean:1313-1361 inferBodyIOI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3100-3168 inferBodyIO` — the io
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3308-3376 inferBodyIO` — the io
 /// body's ∀ clause, chained: the domain's sort through this lane, then
 /// `infer_forall_io_at`.
 pub fn infer_forall_io(
@@ -8772,7 +9212,7 @@ pub fn infer_forall_io(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1308-1394 inferBodyIO
 /// con-leche: ConLeche/Cached/CoreC.lean:1313-1361 inferBodyIOI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3100-3168 inferBodyIO` — the io
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3308-3376 inferBodyIO` — the io
 /// body's ∀ clause, once the domain's sort is known: the opened codomain's
 /// sort and `imax`.
 pub fn infer_forall_io_at(
@@ -8809,7 +9249,7 @@ pub fn infer_forall_io_at(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1308-1394 inferBodyIO
 /// con-leche: ConLeche/Cached/CoreC.lean:1313-1361 inferBodyIOI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3100-3168 inferBodyIO` — the io
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3308-3376 inferBodyIO` — the io
 /// body's `.app` clause, with `r.infer` resolved through this lane.
 pub fn infer_app_io_at(
     pers: &PersTier,
@@ -8838,7 +9278,7 @@ pub fn infer_app_io_at(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:983-1002 inferSpineIOI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2973-2994 inferSpineIO` — **the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3180-3201 inferSpineIO` — **the
 /// io-grade spine walk**, official's `infer_only` (con-leche task #342, #346):
 /// the function's type is walked through the arguments with no argument
 /// inference and no domain comparison.  A syntactic `.forallE` is its own
@@ -8903,7 +9343,7 @@ pub fn infer_spine_io(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:1396-1409 boolTrueShortcut
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3174-3179 boolTrueShortcut` — **the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3382-3387 boolTrueShortcut` — **the
 /// eq-true shortcut** (the divergence audit's E2): the left side is fully
 /// head-normalised and the verdict is `true` iff the reduct is `Bool.true`.
 pub fn bool_true_shortcut(
@@ -8924,7 +9364,7 @@ pub fn bool_true_shortcut(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1411-1440 defeqSpine
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3181-3207 defeqSpine` —
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3389-3415 defeqSpine` —
 /// levels-and-spine congruence for two applications of the *same* stored
 /// constant (the lazy delta same-head short-circuit, official's
 /// `try_eq_const_app`).  The arguments are compared **last to first**, as
@@ -8991,7 +9431,7 @@ pub fn defeq_spine(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1653-1688 lazyDeltaReduction
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3209-3217 defeqNoFvars` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3417-3425 defeqNoFvars` — the
 /// literal-acceleration guard: *both* sides free of free variables, mirroring
 /// the official kernel's `lazy_delta_reduction`.  The arena reads the `O(1)`
 /// eager per-node fvar range where the specification walks.
@@ -9012,7 +9452,7 @@ pub fn defeq_no_fvars(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1653-1688 lazyDeltaReduction
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3219-3225 lazyFoldOk` — **the literal
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3427-3433 lazyFoldOk` — **the literal
 /// fold's guard**: the eager flag (official `m_eager_reduce`)
 /// or both sides free of free variables — official's
 /// `(!has_fvar(t_n) && !has_fvar(s_n)) || m_eager_reduce`.  Under the flag the
@@ -9245,7 +9685,7 @@ pub fn quick_defeq(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1511-1515 Expr.isNatZero
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3394-3408 isNatZero` — `Nat.zero` or the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3612-3626 isNatZero` — `Nat.zero` or the
 /// literal `0` (official `is_nat_zero`).
 pub fn is_nat_zero(pers: &PersTier, st: &mut AState, e: &EIdx) -> Result<bool, CheckError> {
     if e.tag() == ETAG_LIT {
@@ -9271,7 +9711,7 @@ pub fn is_nat_zero(pers: &PersTier, st: &mut AState, e: &EIdx) -> Result<bool, C
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1522-1527 Expr.natPred?
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3410-3432 natPred?` — the predecessor of a
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3628-3650 natPred?` — the predecessor of a
 /// successor form (official `is_nat_succ`): a nonzero literal (its predecessor
 /// literal interned), or `Nat.succ x`.
 pub fn nat_pred(pers: &PersTier, st: &mut AState, e: &EIdx) -> Result<Option<EIdx>, CheckError> {
@@ -9324,7 +9764,7 @@ pub fn nat_pred(pers: &PersTier, st: &mut AState, e: &EIdx) -> Result<Option<EId
 
 /// con-leche: ConLeche/Kernel/Core.lean:1529-1541 defeqOffset
 /// con-leche: ConLeche/Cached/CoreC.lean:1419-1428 defeqOffsetI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3434-3452 defeqOffset` — **offsets** (the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3652-3670 defeqOffset` — **offsets** (the
 /// official kernel's `is_def_eq_offset`): two zeros are equal, two successor
 /// forms compare their predecessors; two literals are left to `quick_defeq`.
 pub fn defeq_offset(
@@ -9370,7 +9810,7 @@ pub fn defeq_offset(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1543-1547 Expr.headIsProj
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3454-3458 headIsProj` — is the head of
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3672-3676 headIsProj` — is the head of
 /// the application spine a projection?
 pub fn head_is_proj(pers: &PersTier, st: &mut AState, e: &EIdx) -> Result<bool, CheckError> {
     match get_app_fn(pers, st, CORE_WALK_FUEL, e) {
@@ -9381,7 +9821,7 @@ pub fn head_is_proj(pers: &PersTier, st: &mut AState, e: &EIdx) -> Result<bool, 
 
 /// con-leche: ConLeche/Kernel/Core.lean:1549-1557 tryUnfoldProjApp
 /// con-leche: ConLeche/Cached/CoreC.lean:1430-1436 tryUnfoldProjAppI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3460-3469 tryUnfoldProjApp` — official
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3678-3687 tryUnfoldProjApp` — official
 /// `try_unfold_proj_app`: a projection-headed term through the FULL `whnfCore`;
 /// `Some` whenever that changed it.
 pub fn try_unfold_proj_app(
@@ -9412,7 +9852,7 @@ pub fn try_unfold_proj_app(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1559-1566 DeltaStep
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3471-3477 DeltaStepA` — the outcome of one
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3689-3695 DeltaStepA` — the outcome of one
 /// lazy-delta step (official `reduction_status`), over handles.
 pub enum DeltaStepA {
     /// con-leche: ConLeche/Kernel/Core.lean:1559-1566 DeltaStep
@@ -9431,7 +9871,7 @@ pub enum DeltaStepA {
 
 /// con-leche: ConLeche/Kernel/Core.lean:1568-1573 deltaQuick
 /// con-leche: ConLeche/Cached/CoreC.lean:1438-1443 deltaQuickI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3479-3487 deltaQuick` — the end of a
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3697-3705 deltaQuick` — the end of a
 /// lazy-delta step: `quick_defeq` on the new pair.
 pub fn delta_quick(
     pers: &PersTier,
@@ -9454,7 +9894,7 @@ pub fn delta_quick(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1575-1636 lazyDeltaStep
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3489-3546 lazyDeltaStep` — one side
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3707-3764 lazyDeltaStep` — one side
 /// unfolded: the CHEAP `whnfCore` of the unfolding, then `delta_quick` with the
 /// sides in their places (`flipped`: the unfolded side is `b`).
 pub fn lazy_delta_one(
@@ -9487,7 +9927,7 @@ pub fn lazy_delta_one(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1575-1636 lazyDeltaStep
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3489-3546 lazyDeltaStep` — one side
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3707-3764 lazyDeltaStep` — one side
 /// unfoldable: a projection application on the OTHER side is reduced first
 /// (official `try_unfold_proj_app`), else the unfoldable side unfolds.
 /// `flipped`: the unfoldable side is `b`.
@@ -9518,7 +9958,7 @@ pub fn lazy_delta_side(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1575-1636 lazyDeltaStep
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3489-3546 lazyDeltaStep` — both sides
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3707-3764 lazyDeltaStep` — both sides
 /// unfold: the CHEAP `whnfCore` of each unfolding, then `delta_quick`.
 pub fn lazy_delta_unfold_both(
     pers: &PersTier,
@@ -9558,7 +9998,7 @@ pub fn lazy_delta_unfold_both(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1575-1636 lazyDeltaStep
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3489-3546 lazyDeltaStep` — both sides
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3707-3764 lazyDeltaStep` — both sides
 /// unfoldable: the hint comparison decides which side unfolds; at equal hints
 /// the same-head spine shortcut (equal *regular* hints only), then both.
 pub fn lazy_delta_both(
@@ -9610,7 +10050,7 @@ pub fn lazy_delta_both(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1575-1636 lazyDeltaStep
 /// con-leche: ConLeche/Cached/CoreC.lean:1445-1492 lazyDeltaStepI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3489-3546 lazyDeltaStep` — **one
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3707-3764 lazyDeltaStep` — **one
 /// lazy-delta step** (the official kernel's `lazy_delta_reduction_step`):
 /// `unfoldableHead` decides, and only the chosen side is unfolded.
 pub fn lazy_delta_step(
@@ -9645,7 +10085,7 @@ pub fn lazy_delta_step(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1638-1643 LazyRes
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3548-3552 LazyResA` — the outcome of the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3766-3770 LazyResA` — the outcome of the
 /// lazy-delta loop, over handles: a verdict, or the pair it got stuck on.
 pub enum LazyResA {
     /// con-leche: ConLeche/Kernel/Core.lean:1638-1643 LazyRes
@@ -9657,13 +10097,13 @@ pub enum LazyResA {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1645-1651 defeqLoopFuel
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3554-3557 defeqLoopFuel` — step budget of
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3772-3775 defeqLoopFuel` — step budget of
 /// the two lazy-delta loops.  Exhaustion is an internal error, never a
 /// verdict.  Effectively unbounded since con-leche task #330: `2^62`.
 pub const DEFEQ_LOOP_FUEL: u64 = 4611686018427387904; // 2^62
 
 /// con-leche: ConLeche/Kernel/Core.lean:1653-1688 lazyDeltaReduction
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3559-3587 lazyDeltaReduction` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3777-3805 lazyDeltaReduction` — the
 /// loop's literal acceleration, guarded on both sides being fvar-free; its
 /// reduct restarts the comparison (`defeq`).  `None`: neither side folds.
 pub fn lazy_delta_nat(
@@ -9716,7 +10156,7 @@ pub fn lazy_delta_nat(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1653-1688 lazyDeltaReduction
 /// con-leche: ConLeche/Cached/CoreC.lean:1494-1518 lazyDeltaReductionI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3559-3587 lazyDeltaReduction` — **the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3777-3805 lazyDeltaReduction` — **the
 /// lazy-delta loop** (the official kernel's `lazy_delta_reduction`): per
 /// iteration the offset check, the literal acceleration, then one
 /// `lazy_delta_step`, each unfolding one iteration on the loop's own budget
@@ -9758,7 +10198,7 @@ pub fn lazy_delta_reduction(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1690-1708 lazyDeltaProjReduction
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3589-3609 lazyDeltaProjReduction` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3807-3827 lazyDeltaProjReduction` — the
 /// projection loop's exit: the projection tried on both scrutinees and the
 /// projected fields compared; failing that, the scrutinees themselves.
 pub fn lazy_delta_proj_fields(
@@ -9788,7 +10228,7 @@ pub fn lazy_delta_proj_fields(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1690-1708 lazyDeltaProjReduction
 /// con-leche: ConLeche/Cached/CoreC.lean:1520-1534 lazyDeltaProjReductionI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3589-3609 lazyDeltaProjReduction` —
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3807-3827 lazyDeltaProjReduction` —
 /// **`a.i =?= b.i` by its scrutinees** (the official kernel's
 /// `lazy_delta_proj_reduction`): lazy-delta steps on the two scrutinees, on
 /// the loop's own budget `n`.
@@ -9828,7 +10268,7 @@ pub fn lazy_delta_proj_reduction(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1710-1719 defeqProjPair
 /// con-leche: ConLeche/Cached/CoreC.lean:1536-1544 defeqProjPairI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3611-3624 defeqProjPair` — the proj/proj
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3829-3842 defeqProjPair` — the proj/proj
 /// check of `is_def_eq_core`: two projections at the same slot go through
 /// `lazy_delta_proj_reduction` on their scrutinees.
 pub fn defeq_proj_pair(
@@ -9869,7 +10309,7 @@ pub fn defeq_proj_pair(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1721-1788 defeqStuck
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3626-3695 defeqStuck` — the string arms,
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3844-3913 defeqStuck` — the string arms,
 /// merged with their mirror image: a string literal `s` against a unary
 /// `String.ofList` application whose function part is `fo`, compared
 /// shape-directed (`flipped`: the literal is on the right).  Any other literal
@@ -9936,7 +10376,7 @@ pub fn defeq_str_app(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1721-1788 defeqStuck
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3626-3695 defeqStuck` — stuck
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3844-3913 defeqStuck` — stuck
 /// applications: **spine-wise** congruence (official's `is_def_eq_app`), never
 /// a recursion on the partial applications.
 pub fn defeq_apps(
@@ -9993,7 +10433,7 @@ pub fn defeq_apps(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1721-1788 defeqStuck
 /// con-leche: ConLeche/Cached/CoreC.lean:1546-1593 defeqStuckI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3626-3695 defeqStuck` — **the stuck
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3844-3913 defeqStuck` — **the stuck
 /// comparison** (the tail of the official kernel's `is_def_eq_core`): a string
 /// literal against `String.ofList`, the same free variable, the same constant
 /// at equivalent levels, the application spine, η on a one-sided λ; every
@@ -10071,7 +10511,7 @@ pub fn defeq_stuck(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1790-1848 defeqBody
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3697-3735 defeqBody` — the tail of the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3915-3953 defeqBody` — the tail of the
 /// body after the lazy-delta loop came back undecided: the proj/proj check,
 /// then the FULL `whnfCore` of both sides (only when one is projection-headed)
 /// and, if either changed, a restart; else the stuck comparison.
@@ -10122,7 +10562,7 @@ pub fn defeq_after_lazy(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1790-1848 defeqBody
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3697-3735 defeqBody` — the body after the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3915-3953 defeqBody` — the body after the
 /// CHEAP head normalization of both sides: `quick_defeq` on the reducts, the
 /// lazy-delta loop, and `defeq_after_lazy`.  (Proof irrelevance is no longer
 /// here: since con-leche task #333 it runs on the UNREDUCED pair, in
@@ -10157,7 +10597,7 @@ pub fn defeq_after_whnf(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1790-1848 defeqBody
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3697-3735 defeqBody` — the body
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3915-3953 defeqBody` — the body
 /// past the `Bool.true` shortcut (con-leche task #333): `quick_defeq` and proof
 /// irrelevance on the UNREDUCED pair, so that a proof is never head-normalized
 /// to be compared; then the CHEAP head normalization of both sides and
@@ -10198,7 +10638,7 @@ pub fn defeq_unreduced(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1790-1848 defeqBody
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3697-3735 defeqBody` — **the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3915-3953 defeqBody` — **the
 /// definitional-equality body** (the official kernel's `is_def_eq_core`,
 /// clause for clause except con-leche task #333's reordering): the syntactic
 /// fast path; the `Bool.true` shortcut; `quick_defeq` and proof irrelevance on
@@ -10245,7 +10685,7 @@ pub fn defeq_body(
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:259-263 peelFuel
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2785-2789 peelFuel` — the fuel of
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2989-2993 peelFuel` — the fuel of
 /// the two telescope peels, con-leche's number verbatim. Exhaustion is not an
 /// error: the loop falls through to its leaf phase with the binders peeled so
 /// far, which is con-leche's own `| 0, t, k, fvs, stk => …LeafI` clause.
@@ -10271,7 +10711,7 @@ pub const PEEL_FUEL: u64 = 16777216;
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:1020-1069 whnfCoreBody
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2225-2237 whnfCoreStuckTag` — **the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2422-2434 whnfCoreStuckTag` — **the
 /// head kinds `whnfCoreBody` answers with its own argument**, read off the
 /// handle's constructor tag without decoding the node.
 ///
@@ -10302,7 +10742,7 @@ pub fn whnf_core_stuck_tag(e: &EIdx) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1113-1128 whnfStep
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2517-2520 whnfBody` — **the head
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2714-2717 whnfBody` — **the head
 /// kinds `whnfBody` answers with its own argument**, again off the tag alone.
 ///
 /// One iteration of the reduction loop is `whnfCore`, then `reduceNat`, then
@@ -10336,35 +10776,35 @@ pub fn whnf_stuck_tag(e: &EIdx) -> bool {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1633-1646 memoEI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3745-3752 whnfCoreSet` — record a
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3963-3970 whnfCoreSet` — record a
 /// `whnfCore` answer.
 pub fn whnf_core_set(st: &mut AState, e: &EIdx, r: &EIdx) {
     let _ = st.caches.whnf_core_c.insert(e.dup2(), r.dup2());
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1627-1645 memoEI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3754-3761 whnfCoreCheapSet` — record
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3972-3979 whnfCoreCheapSet` — record
 /// a CHEAP-mode `whnfCore` answer, in the cheap mode's own table.
 pub fn whnf_core_cheap_set(st: &mut AState, e: &EIdx, r: &EIdx) {
     let _ = st.caches.whnf_core_cheap_c.insert(e.dup2(), r.dup2());
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1633-1646 memoEI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3763-3769 whnfSet` — record a
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3981-3987 whnfSet` — record a
 /// `whnf` answer.
 pub fn whnf_set(st: &mut AState, e: &EIdx, r: &EIdx) {
     let _ = st.caches.whnf_c.insert(e.dup2(), r.dup2());
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1633-1646 memoEI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3771-3777 inferSet` — record a
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3989-3995 inferSet` — record a
 /// full-grade `infer` answer.
 pub fn infer_set(st: &mut AState, e: &EIdx, r: &EIdx) {
     let _ = st.caches.infer_c.insert(e.dup2(), r.dup2());
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1633-1646 memoEI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3779-3786 inferIOSet` — record an
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3997-4004 inferIOSet` — record an
 /// io-grade `infer` answer, in the io grade's OWN table (con-leche's task #170
 /// memo ruling).
 pub fn infer_io_set(st: &mut AState, e: &EIdx, r: &EIdx) {
@@ -10372,7 +10812,7 @@ pub fn infer_io_set(st: &mut AState, e: &EIdx, r: &EIdx) {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1647-1660 memoBI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3788-3795 defeqSet` — record a
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4006-4013 defeqSet` — record a
 /// `defeq` verdict at the ORDERED pair, both signs (con-leche's `defeqC` stores
 /// the `Bool` result `r`, which is what makes a negative memo sound).
 pub fn defeq_set(st: &mut AState, a: &EIdx, b: &EIdx, r: bool) {
@@ -10381,7 +10821,7 @@ pub fn defeq_set(st: &mut AState, a: &EIdx, b: &EIdx, r: bool) {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1627-1645 memoEI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3830-3920 coreKnot` — the `whnfCoreC`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4048-4138 coreKnot` — the `whnfCoreC`
 /// probe, over a *shared* state borrow so the map's borrow ends before the
 /// miss branch writes (`con_ron_core::cached::core_c::whnf_core_probe`'s
 /// reason, task #14's rule).
@@ -10393,7 +10833,7 @@ pub fn whnf_core_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1627-1645 memoEI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3830-3920 coreKnot` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4048-4138 coreKnot` — the
 /// `whnfCoreCheapC` probe (the cheap mode's own table).
 pub fn whnf_core_cheap_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
     match st.caches.whnf_core_cheap_c.get(e) {
@@ -10403,7 +10843,7 @@ pub fn whnf_core_cheap_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1627-1645 memoEI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3830-3920 coreKnot` — the `whnfC` probe.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4048-4138 coreKnot` — the `whnfC` probe.
 pub fn whnf_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
     match st.caches.whnf_c.get(e) {
         Some(r) => Some(r.dup2()),
@@ -10412,7 +10852,7 @@ pub fn whnf_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1627-1645 memoEI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3830-3920 coreKnot` — the `inferC` probe.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4048-4138 coreKnot` — the `inferC` probe.
 pub fn infer_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
     match st.caches.infer_c.get(e) {
         Some(r) => Some(r.dup2()),
@@ -10421,7 +10861,7 @@ pub fn infer_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1627-1645 memoEI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3830-3920 coreKnot` — the `inferIOC`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4048-4138 coreKnot` — the `inferIOC`
 /// probe.
 pub fn infer_io_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
     match st.caches.infer_io_c.get(e) {
@@ -10431,7 +10871,7 @@ pub fn infer_io_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1647-1660 memoBI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3830-3920 coreKnot` — the `defeqC` probe
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4048-4138 coreKnot` — the `defeqC` probe
 /// at the ORDERED pair.
 pub fn defeq_probe(st: &AState, k: &EIdxPair) -> Option<bool> {
     match st.caches.defeq_c.get(k) {
@@ -10442,7 +10882,7 @@ pub fn defeq_probe(st: &AState, k: &EIdxPair) -> Option<bool> {
 
 /// con-leche: ConLeche/Kernel/Core.lean:1852-1887 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1742-1763 coreKnotI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3830-3920 coreKnot`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4048-4138 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — **the
 /// `whnfCore` slot.**  At `LANE_FULL` and `LANE_IO` it is the memoized body
 /// (`coreKnotIO`'s slot *is* the full knot's, at the same fuel).
@@ -10489,7 +10929,7 @@ pub fn knot_whnf_core(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1852-1887 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1742-1763 coreKnotI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3830-3920 coreKnot`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4048-4138 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — the `whnf` slot.
 pub fn knot_whnf(
     pers: &PersTier,
@@ -10523,7 +10963,7 @@ pub fn knot_whnf(
 /// con-leche: ConLeche/Kernel/Core.lean:1852-1887 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1742-1763 coreKnotI
 /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3830-3920 coreKnot`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4048-4138 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — **the `infer`
 /// slot.**  At `LANE_FULL` it is `inferBody` under `inferC`; at `LANE_IO` it is
 /// `inferBodyIO` tied to the io knot, unmemoized (the leaf lane).
@@ -10559,7 +10999,7 @@ pub fn knot_infer(
 /// con-leche: ConLeche/Kernel/Core.lean:1852-1887 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1742-1763 coreKnotI
 /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3830-3920 coreKnot`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4048-4138 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — **the `inferIO`
 /// slot.**  At `LANE_FULL` it is the io body at every mode (con-leche task
 /// #346: official's `infer_only`) under its own table (`inferIOC`): a hit in
@@ -10625,7 +11065,7 @@ pub fn knot_infer_at(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1852-1887 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1742-1763 coreKnotI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3830-3920 coreKnot`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4048-4138 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — the `defeq`
 /// slot, memoized at the ORDERED pair.
 pub fn knot_defeq(
@@ -10659,7 +11099,7 @@ pub fn knot_defeq(
 
 /// con-leche: ConLeche/Cached/StateC.lean:455-467 CState.enterEager
 /// con-leche: ConLeche/Cached/StateC.lean:451-453 CState.modeMemos
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3797-3812 enterEager` — **enter the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4015-4030 enterEager` — **enter the
 /// eager tower.**  With the flag clear (`eager` false) the plain memos move out
 /// (returned), the stored eager ones move into the six fields, and the eager
 /// slot is left empty (`ModeMemos::empty` allocates nothing).  Every table
@@ -10687,7 +11127,7 @@ pub fn enter_eager(st: &mut AState, eager: bool) -> Option<ModeMemos> {
 
 /// con-leche: ConLeche/Cached/StateC.lean:469-479 CState.leaveEager
 /// con-leche: ConLeche/Cached/StateC.lean:451-453 CState.modeMemos
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3814-3828 leaveEager` — **leave the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4032-4046 leaveEager` — **leave the
 /// eager tower**: the six fields (now the eager tower's, with what the
 /// comparison added) are stored back as the eager set, and the plain memos
 /// `saved` return to the six fields; nothing moves when `enter_eager` moved
@@ -10715,7 +11155,7 @@ pub fn leave_eager(st: &mut AState, saved: Option<ModeMemos>) {
 /// con-leche: ConLeche/Kernel/Core.lean:1852-1887 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1742-1763 coreKnotI
 /// con-leche: ConLeche/Cached/StateC.lean:481-499 withEagerMemos
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3830-3920 coreKnot` — **the eager slot**:
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4048-4138 coreKnot` — **the eager slot**:
 /// definitional equality in the eager tower, `defeq_body` at `eager` true
 /// one level down (the flag holds for the comparison and everything it calls,
 /// as official's `flet` scope does), memoized at the ordered pair in the
@@ -10765,7 +11205,7 @@ pub fn knot_defeq_e(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1889-1908 checkFuel
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3922-3928 checkFuel` — the shared fuel
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4140-4146 checkFuel` — the shared fuel
 /// for the checker core, counted in knot levels.  **Effectively unbounded**
 /// (`2^62`, as `WHNF_CORE_LOOP_FUEL`): the fuel exists so that the knot is a
 /// structural recursion the proofs can induct over, and running out of it is
@@ -10794,7 +11234,7 @@ pub const CHECK_FUEL: u64 = 4611686018427387904; // 2^62
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:33-35 whnf
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3946-3950 whnf` — the full
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4164-4168 whnf` — the full
 /// reduction loop (fueled).
 pub fn whnf(
     pers: &PersTier,
@@ -10809,7 +11249,7 @@ pub fn whnf(
 }
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:37-40 inferTypeCore
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3952-3956 inferTypeCore` —
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4170-4174 inferTypeCore` —
 /// full-grade type inference (fueled): the declaration front door's entry.
 pub fn infer_type_core(
     pers: &PersTier,
@@ -10824,7 +11264,7 @@ pub fn infer_type_core(
 }
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:48-50 isDefEqCore
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3958-3962 isDefEqCore` —
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4176-4180 isDefEqCore` —
 /// definitional equality (fueled).
 pub fn is_def_eq_core(
     pers: &PersTier,
@@ -10840,7 +11280,7 @@ pub fn is_def_eq_core(
 }
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:52-54 ensureSortCore
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3964-3968 ensureSortCore` —
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4182-4186 ensureSortCore` —
 /// `ensureSort` over the knot (fueled).
 pub fn ensure_sort_core(
     pers: &PersTier,
@@ -10859,7 +11299,7 @@ pub fn ensure_sort_core(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/StateC.lean:440-447 CState.flushed
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3976-3982 flushCaches` — **what
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4194-4200 flushCaches` — **what
 /// the per-declaration bracket does to the caches**: it drops them whole,
 /// which is con-leche's own `flushC`, the operation its driver runs at exactly
 /// this point.
@@ -10877,7 +11317,7 @@ pub fn flush_caches(st: &mut AState) {
 }
 
 /// con-leche: none — **a job's bracket, closed** (DESIGN.md §8.3)
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3984-3992 dropScratch` —
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4202-4210 dropScratch` —
 /// the twin's `dropScratch` on a store that STAYS frozen (task #98-FREEZE): the
 /// caches flushed and the scratch tiers emptied, the flag untouched.  A
 /// worker's store is frozen for its whole life, so between two jobs it is
@@ -10889,7 +11329,7 @@ pub fn leave_record(st: &mut AState) {
 }
 
 /// con-leche: none — **a job's bracket, opened** (DESIGN.md §8.3)
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3994-4001 enterScratch` —
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4212-4219 enterScratch` —
 /// the twin's `enterScratch` on an already frozen store (task #98-FREEZE): the
 /// memos cleared and the scratch tiers emptied, the flag untouched.
 pub fn enter_record(st: &mut AState) {

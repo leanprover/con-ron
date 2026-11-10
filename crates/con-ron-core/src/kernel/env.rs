@@ -41,7 +41,6 @@
 use crate::kernel::expr;
 use crate::kernel::expr::Expr;
 use crate::kernel::level::Level;
-use crate::kernel::name;
 use crate::kernel::name::Name;
 use std::vec::Vec;
 
@@ -209,18 +208,14 @@ pub fn basis_kind_dup(k: &BasisKind) -> BasisKind {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:184-221 IndCaps
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove env::IndCaps_refines, then delete this line
 /// Definitional capabilities of a stored inductive type that its block alone
 /// decides, read off the block's records.  The family's result sort is on no
 /// record, so what depends on it is computed where it is read.  Every field of
 /// the cited structure has a default; see `ind_caps_default`.
 pub struct IndCaps {
+    /// official's `is_non_rec_structure`: one constructor, no index, a block
+    /// that is not recursive
     pub eta: bool,
-    pub eta_ctor: Name,
-    pub eta_params: u64,
-    pub eta_fields: u64,
-    pub unitlike: bool,
-    pub unit_params: u64,
     /// the block's members (official's `all`), itself included
     pub all: Vec<Name>,
     /// the family's parameter count (official's `inductive_val.nparams`)
@@ -233,17 +228,11 @@ pub struct IndCaps {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:184-221 IndCaps
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove env::ind_caps_default_refines, then delete this line
 /// The cited structure's *field defaults*, which Rust has not: `eta :=
-/// false`, `etaCtor := .anonymous`, every count `0`, every list empty.
+/// false`, every count `0`, every list empty.
 pub fn ind_caps_default() -> IndCaps {
     IndCaps {
         eta: false,
-        eta_ctor: name::anonymous(),
-        eta_params: 0,
-        eta_fields: 0,
-        unitlike: false,
-        unit_params: 0,
         all: Vec::new(),
         nparams: 0,
         n_idx: 0,

@@ -132,7 +132,6 @@ pub const M_NOT_FORMER: [u32; 43] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-78 blockCapsAt
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove block_install::ctor_name_list_refines, then delete this line
 /// Lean twin: `cs.map (·.1.name)` — the constructors' names, in order.
 pub fn ctor_name_list(cs: &Vec<(IConstantVal, u64)>, i: usize, out: Vec<NIdx>) -> Vec<NIdx> {
     if i >= cs.len() {
@@ -145,11 +144,10 @@ pub fn ctor_name_list(cs: &Vec<(IConstantVal, u64)>, i: usize, out: Vec<NIdx>) -
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-78 blockCapsAt
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove block_install::block_caps_at_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:47-82 blockCapsAt` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:46-70 blockCapsAt` — **the
 /// capability record of member `mi`**: at a member with ONE constructor, η
-/// (index-free, the block not recursive: official's `is_non_rec_structure`)
-/// and unit-likeness (and no field); at every member the block's members, its
+/// (index-free, the block not recursive: official's `is_non_rec_structure`;
+/// no separate unit-like bit, as official has none); at every member the block's members, its
 /// parameter count, the member's index count and its constructors.
 /// (`p.members.getD mi default`: the default member has no constructor and no
 /// index.)
@@ -158,7 +156,6 @@ pub fn block_caps_at(p: &BlockShape, mi: u64, is_rec: bool) -> IIndCaps {
     if mi < p.members.len() as u64 && p.members[mi as usize].ctors.len() == 1 {
         let n_idx: u64 = p.members[mi as usize].n_idx;
         let c_name: NIdx = p.members[mi as usize].ctors[0].0.name.dup2();
-        let c_fields: u64 = p.members[mi as usize].ctors[0].1;
         let eta: bool = if n_idx != 0 {
             false
         } else if is_rec {
@@ -166,24 +163,10 @@ pub fn block_caps_at(p: &BlockShape, mi: u64, is_rec: bool) -> IIndCaps {
         } else {
             true
         };
-        let unitlike: bool = if n_idx != 0 {
-            false
-        } else if c_fields != 0 {
-            false
-        } else if is_rec {
-            false
-        } else {
-            true
-        };
         let mut ctors: Vec<NIdx> = Vec::new();
-        ctors.push(c_name.dup2());
+        ctors.push(c_name);
         IIndCaps {
             eta,
-            eta_ctor: c_name,
-            eta_params: p.n_p,
-            eta_fields: c_fields,
-            unitlike,
-            unit_params: p.n_p,
             all: names,
             nparams: p.n_p,
             n_idx,

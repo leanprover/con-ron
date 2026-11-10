@@ -45,10 +45,9 @@ open ConLeche
 /-! ## The capability record, per member -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-78 blockCapsAt
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove BlockInstall.blockCapsAt_bridge, then delete this line
 **The capability record of member `mi`**: at a member with ONE constructor, η
-(index-free, the block not recursive: official's `is_non_rec_structure`) and
-unit-likeness (and no field); at every member the block's members, its
+(index-free, the block not recursive: official's `is_non_rec_structure`; no
+separate unit-like bit, as official has none); at every member the block's members, its
 parameter count, the member's index count and its constructors.
 (`p.members.getD mi default`: the default member has no constructor and no
 index.) -/
@@ -63,17 +62,7 @@ def blockCapsAt (p : BlockShape) (mi : Nat) (isRec : Bool) : IIndCaps :=
         if nIdx != 0 then false
         else if isRec then false
         else true
-      let unitlike : Bool :=
-        if nIdx != 0 then false
-        else if c.2 != 0 then false
-        else if isRec then false
-        else true
       { eta := eta
-        etaCtor := c.1.name
-        etaParams := p.nP
-        etaFields := c.2
-        unitlike := unitlike
-        unitParams := p.nP
         all := names
         nparams := p.nP
         nIdx := nIdx

@@ -226,19 +226,15 @@ theorem nidx_vec_contains_from_aux (ns : alloc.vec.Vec arena.handle.NIdx)
     alloc.vec.Vec.ext _ _ hvv]
 
 @[lockstep] theorem i_ind_caps_dup_ls (c : arena.env.IIndCaps) :
-    LSP (arena.env.i_ind_caps_dup c) (fun o => c.eta = o.eta ∧ c.eta_ctor = o.eta_ctor ∧
-      c.eta_params = o.eta_params ∧ c.eta_fields = o.eta_fields ∧ c.unitlike = o.unitlike ∧
-      c.unit_params = o.unit_params ∧ absIIndCaps c = absIIndCaps o) := by
+    LSP (arena.env.i_ind_caps_dup c) (fun o => c.eta = o.eta ∧ absIIndCaps c = absIIndCaps o) := by
   intro o h
   have habs := (i_ind_caps_dup_abs h).symm
   rw [arena.env.i_ind_caps_dup] at h
-  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have ho := Result.ok_injective h
   subst ho
-  rw [dupId_nidx _ _ hn] at habs ⊢
-  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, habs⟩
+  exact ⟨rfl, habs⟩
 
 /-! ### The abstractions' field projections (`lockstep_simp`)
 
@@ -246,12 +242,6 @@ Stated as projection lemmas rather than by unfolding the abstraction, so that
 a dup's `absIIndCaps c = absIIndCaps o` rewrites the twin's record first. -/
 
 @[local lockstep_simp] theorem absIIndCaps_eta (c) : (absIIndCaps c).eta = c.eta := rfl
-@[local lockstep_simp] theorem absIIndCaps_etaCtor (c) : (absIIndCaps c).etaCtor = absNIdx c.eta_ctor := rfl
-@[local lockstep_simp] theorem absIIndCaps_etaParams (c) : (absIIndCaps c).etaParams = absU c.eta_params := rfl
-@[local lockstep_simp] theorem absIIndCaps_etaFields (c) : (absIIndCaps c).etaFields = absU c.eta_fields := rfl
-@[local lockstep_simp] theorem absIIndCaps_unitlike (c) : (absIIndCaps c).unitlike = c.unitlike := rfl
-@[local lockstep_simp] theorem absIIndCaps_unitParams (c) :
-    (absIIndCaps c).unitParams = absU c.unit_params := rfl
 @[local lockstep_simp] theorem absIConstantVal_levelParams (c) :
     (absIConstantVal c).levelParams = absNIdxList c.level_params := rfl
 @[local lockstep_simp] theorem absIConstantVal_type (c) : (absIConstantVal c).type = absEIdx c.ty := rfl
@@ -375,7 +365,6 @@ open Aeneas Aeneas.Std Result
 open ConRon.Generated
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
 attribute [scoped lockstep_simp] ExprOps.absStrip
-  Option.isSome_some Option.isSome_none absIIndCaps_eta absIIndCaps_etaCtor
-  absIIndCaps_etaParams absIIndCaps_etaFields absIIndCaps_unitlike absIIndCaps_unitParams
+  Option.isSome_some Option.isSome_none absIIndCaps_eta
   absIConstantVal_levelParams absIConstantVal_type absConstT
 end ConRon.Refine2.Lockstep.PC1.CoreLSReg
