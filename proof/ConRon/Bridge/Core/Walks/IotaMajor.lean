@@ -27,6 +27,7 @@ import ConRon.Bridge.Core.Walks.IotaLeaves
 public import ConRon.Bridge.Core.Walks.Former
 public import ConRon.Bridge.Core.Walks.Stuck
 import ConRon.Bridge.Core.Walks.Eta
+import ConRon.Bridge.Core.Walks.Proj
 import ConRon.Bridge.Core.Walks.StrLit
 import ConRon.Bridge.Core.Walks.StrCtor
 import ConRon.Bridge.ExprOps.Subst
@@ -409,7 +410,7 @@ theorem prepareMajorFueled_nk {F d : Nat} {cn : ConLeche.Name}
   else pure major
 
 /-- the twin's η rescue block (`majorToCtor`'s `etaRescueTable?` arm) -/
-@[expose] def majorEtaA (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (cvT : IConstantVal) (caps : IIndCaps)
+@[expose] def majorEtaA (r : CoreFnsA) (depth : Nat) (cvT : IConstantVal) (caps : IIndCaps)
     (tbl : IProjTable) (T : NIdx) (major : EIdx) : AM EIdx := do
   let tmaj ← r.whnf depth (← r.inferIO depth major)
   let hh ← getAppFn coreWalkFuel tmaj
@@ -479,7 +480,7 @@ theorem majorToCtor_one (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : 
               if isK = true then majorKA mode r fe depth rl cvj cnP T major
               else do
                 match ← etaRescueTable? (fe.findTable? T) rl.ctor cvj cvT caps with
-                | some tbl => majorEtaA r fe depth cvT caps tbl T major
+                | some tbl => majorEtaA r depth cvT caps tbl T major
                 | none => do
                   let an ← pinAnd
                   if T = an then majorAndA mode r fe depth rl cvj cnP T major
@@ -931,7 +932,7 @@ theorem majorEta_spec {fuel : Nat}
     (htbl : Frontend.denoteProjTable s₁.store itbl = some dtbl)
     (hT : denoteN s₁.store.ns T = some Tn) (hcl : dcvT.type.hasFvar = false) :
     ⦃fun s => s = s₁⦄
-      majorEtaA (coreKnot .verified eager fe id fuel) fe d icvT icaps itbl T major
+      majorEtaA (coreKnot .verified eager fe id fuel) d icvT icaps itbl T major
     ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₁.store s'.store ∧
         s'.pins = s₁.pins ∧
         SimEOp (mtcEtaOp .verified eager env d dcvT dcaps dtbl Tn x) d s'.store r; ⊤⦄ := by
@@ -972,7 +973,7 @@ theorem majorEta_specA {fuel : Nat}
     (htbl : (Frontend.denoteProjTable s₁.store itbl).isSome = true)
     (hT : denoteN s₁.store.ns T = some Tn) (hcl : dcvT.type.hasFvar = false) :
     ⦃fun s => s = s₁⦄
-      majorEtaA (coreKnot .verified eager fe id fuel) fe d icvT icaps itbl T major
+      majorEtaA (coreKnot .verified eager fe id fuel) d icvT icaps itbl T major
     ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₁.store s'.store ∧
         s'.pins = s₁.pins ∧
         EtaAns eager env d dcvT dcaps Tn x s'.store r

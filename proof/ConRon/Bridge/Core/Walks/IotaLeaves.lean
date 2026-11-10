@@ -513,7 +513,7 @@ theorem etaRescueTable?_spec (s₀ : AState) (tbl? : Option IProjTable) (tblP? :
       simp only [ConLeche.etaRescueTable?, hg, Bool.true_and, bne]
       by_cases hq : (ctor == ai) = true
       · have hq' : (cn == ConLeche.andIntroName) = true := h3 ▸ hq
-        simp only [bne, hq, Bool.not_true, Bool.false_eq_true, ite_false, hq']
+        simp only [hq, Bool.not_true, Bool.false_eq_true, ite_false, hq']
         exact triple_pureS ⟨rfl, trivial⟩
       · have hq' : (cn == ConLeche.andIntroName) = false := by
           rw [← h3]; simpa using hq

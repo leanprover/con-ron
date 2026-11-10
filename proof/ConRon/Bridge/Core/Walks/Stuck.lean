@@ -801,12 +801,14 @@ full nor a partial η constructor. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:411-429 structEtaCert — a partially
 applied η constructor, `k` arguments short. -/
-@[bridge_grind ←] theorem EtaCertE.partial {d k : Nat} {x y : Expr} {r : Bool}
+theorem EtaCertE.partial {d k : Nat} {x y : Expr} {r : Bool}
     (h : ConLeche.etaCtorShape env x = false) (hp : ConLeche.etaCtorPartial env x = some k)
     (hr : PartE mode eager env k d x y r) : EtaCertE mode eager env d x y r := by
   obtain ⟨F, hF⟩ := hr
   exact ⟨F, by simp only [ConLeche.structEtaCertFueled, ConLeche.structEtaCert, h, hp,
     Bool.false_eq_true, ite_false]; exact hF⟩
+grind_pattern [bridge_grind] EtaCertE.partial =>
+  EtaCertE mode eager env d x y r, PartE mode eager env k d x y r
 
 /-- con-leche: ConLeche/Kernel/Core.lean:411-429 structEtaCert — the other
 side is not neutral. -/
@@ -909,6 +911,16 @@ theorem wscoped_app_fvar {d : Nat} {x t : Expr} (hx : Expr.WScoped d x)
 grind_pattern [bridge_grind] wscoped_app_fvar =>
   Expr.WScoped d x, Expr.WScoped d t, Expr.app x (.fvar d (exprBinderType t))
 
+/-- con-leche: ConLeche/Verify/Shift.lean:81 WScoped — a `∀`'s domain is scoped as
+the `∀` is. -/
+theorem wscoped_binderType {d : Nat} {w : Expr} (h : Expr.WScoped d w)
+    (ht : exprTag w = ETag.forallE) : Expr.WScoped d (exprBinderType w) := by
+  rw [exprTag_forallE ht] at h
+  simp only [Expr.WScoped] at h
+  exact h.1
+grind_pattern [bridge_grind] wscoped_binderType => Expr.WScoped d w, exprTag w where
+  guard exprTag w = ETag.forallE
+
 /-! ### The twin's walks -/
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:731-757 etaCtorPartial — the
@@ -939,30 +951,49 @@ theorem etaCtorPartial_eq (x : Expr) :
           else none
         | _ => none
       | _ => none := by
-  simp only [ConLeche.etaCtorPartial, etaPartialFam]
-  split
-  · rename_i c us
-    split
-    · rename_i cvc cnP cnF _
-      split
-      · split
-        · rename_i T _ _
+  unfold ConLeche.etaCtorPartial
+  generalize x.getAppFn = g
+  cases g
+  case const c us =>
+    dsimp only
+    generalize env.find? c = o
+    match o with
+    | some (.ctorInfo cvc cnP cnF) =>
+      dsimp only
+      by_cases hl : x.getAppArgs.length < cnP + cnF
+      · rw [ite_eq_left hl, ite_eq_left hl]
+        unfold etaPartialFam
+        generalize cvc.type.piResult.getAppFn = h
+        cases h
+        case const T _ =>
+          dsimp only
           split
-          · rename_i cvT caps _
+          · rename_i val caps hT
+            simp only [hT]
             split
-            · rename_i tbl _
+            · rename_i tbl htb
+              simp only [htb]
               by_cases hg : caps.eta = true ∧ tbl.ctor = c
-              · rw [if_pos hg]; simp [hg.1, hg.2]
-              · rw [if_neg hg]
+              · rw [ite_eq_left hg]; simp [hg.1, hg.2]
+              · rw [ite_eq_right hg]
                 have : (caps.eta && tbl.ctor == c) = false := by
                   cases h1 : caps.eta <;> simp_all
                 simp [this]
-            · simp
-          · simp
-        · simp
-      · rfl
-    · rfl
-  · rfl
+            · rename_i htb
+              simp only [htb]; rfl
+          · rename_i hT
+            split
+            · rename_i h
+              split at h
+              · rename_i h2; exact absurd h2 (hT _ _)
+              · simp at h
+            · rfl
+        all_goals rfl
+        all_goals rfl
+      · rw [ite_eq_right hl, ite_eq_right hl]
+    | some (.axiomInfo _) | some (.thmInfo _) | some (.indInfo _ _)
+    | some (.defnInfo _ _ _) | some (.recInfo _ _ _ _ _) | none => rfl
+  all_goals rfl
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:731-757 etaCtorPartial
 con-leche: ConLeche/Cached/StateC.lean:97-118 etaCtorPartialC — **THEOREM 1
@@ -1010,10 +1041,11 @@ theorem etaCtorPartialFam_spec (s₀ : AState) (c : NIdx) (cn : Name) (ty : EIdx
         rw [hfindTb]
         dsimp only
         rw [hcapsE]
-        cases hce : dcaps.eta
-        · exact triple_pureS ⟨rfl, rfl⟩
-        · refine triple_pureS ⟨rfl, ?_⟩
-          rw [denoteN_beq hwf (denoteProjTable_ctor hpt) hc]; rfl
+        cases hce : icaps.eta
+        · simp only [Bool.false_eq_true, ite_false, Bool.false_and]
+          exact triple_pureS ⟨rfl, rfl⟩
+        · simp only [ite_true, Bool.true_and]
+          exact triple_pureS ⟨rfl, denoteN_beq hwf (denoteProjTable_ctor hpt) hc⟩
     next hnd =>
       have hnf := env_not_ind_of_index hok hTn (fun v c h => hnd v c h)
       refine triple_pureS ⟨rfl, ?_⟩
@@ -1062,14 +1094,14 @@ theorem etaCtorPartial_spec (s₀ : AState) (a : EIdx) (x : Expr)
       have hlenEq : x.getAppArgs.length = aargs.length := denoteEList_len haargs
       rw [hlenEq]
       by_cases hlt : aargs.length < cnP + cnF
-      · rw [if_pos hlt, if_pos hlt]
+      · rw [ite_eq_left hlt, ite_eq_left hlt]
         obtain ⟨-, -, hty⟩ := denoteCV_inv hdcvc
         refine triple_seq (etaCtorPartialFam_spec s2 c cn icvc.type dcvc.type hok hcn hty) ?_
         rintro b s3 ⟨rfl, rfl⟩
         by_cases hb : etaPartialFam env cn dcvc.type = true
-        · rw [if_pos hb, if_pos hb]; exact triple_pureS ⟨rfl, rfl⟩
-        · rw [if_neg hb, if_neg hb]; exact triple_pureS ⟨rfl, rfl⟩
-      · rw [if_neg hlt, if_neg hlt]; exact triple_pureS ⟨rfl, rfl⟩
+        · rw [ite_eq_left hb, ite_eq_left hb]; exact triple_pureS ⟨rfl, rfl⟩
+        · rw [ite_eq_right hb, ite_eq_right hb]; exact triple_pureS ⟨rfl, rfl⟩
+      · rw [ite_eq_right hlt, ite_eq_right hlt]; exact triple_pureS ⟨rfl, rfl⟩
     next hnd =>
       have hnc := env_not_ctor_of_index hok hcn (fun v p q h => hnd v p q h)
       refine triple_pureS ⟨rfl, ?_⟩
@@ -1132,18 +1164,87 @@ theorem structEtaExpand_specA {fuel : Nat}
   induction k with
   | zero =>
     intro d s₀ a b ta hok hda hdb hdt
-    sym only [bridge_grind] =>
-      vcgen [ConRon.Arena.structEtaExpand, structEtaFull_specA henv hsim] <;> finish
+    simp only [ConRon.Arena.structEtaExpand]
+    refine triple_mono (structEtaFull_specA henv hsim s₀ d a b hok hda hdb) ?_
+    rintro r s' ⟨h1, h2, h3, h4⟩
+    refine ⟨h1, h2, h3, ?_⟩
+    match denoteE s₀.store a, denoteE s₀.store b, denoteE s₀.store ta, h4 with
+    | some _, some _, some _, h4 => exact ExpandE.zero h4
+    | none, _, _, _ | some _, none, _, _ | some _, some _, none, _ => trivial
   | succ k ih =>
     intro d s₀ a b ta hok hda hdb hdt
-    sym only [bridge_grind] =>
-      vcgen [ConRon.Arena.structEtaExpand,
-        internE_specC (eager := eager) (env := env) (fe := fe),
-        instantiate1Fast_specR (eager := eager) (env := env) (fe := fe), ih] <;>
-        -- `gen := 16`: the opened type and the two applied sides are derived from
-        -- the type's view, the fvar's denotation and the substitution (as
-        -- `formerSortLoop_spec`)
-        finish (gen := 16)
+    cases ha : denoteE s₀.store a with
+    | none => rw [ha] at hda; exact hda.elim
+    | some x =>
+    cases hb : denoteE s₀.store b with
+    | none => rw [hb] at hdb; exact hdb.elim
+    | some y =>
+    cases ht : denoteE s₀.store ta with
+    | none => rw [ht] at hdt; exact hdt.elim
+    | some t =>
+    rw [ha, DenWS.some_eq] at hda; rw [hb, DenWS.some_eq] at hdb; rw [ht, DenWS.some_eq] at hdt
+    have hwf := hok.state.wf
+    simp only [ConRon.Arena.structEtaExpand]
+    by_cases htag : ta.tag = ETag.forallE
+    · rw [ite_eq_left (by simpa using htag)]
+      -- stage 1: the constructor side's type is a `∀`
+      refine triple_seq (viewBind_spec s₀ ta) ?_
+      rintro rv s1 ⟨hs1, hrv⟩
+      subst s1 rv
+      cases hvt : s₀.store.viewBind ta with
+      | none => exact triple_failDanglingE
+      | some p =>
+      obtain ⟨dom, body⟩ := p
+      dsimp only
+      obtain ⟨tdom, tbody, rfl, hdom, hbody⟩ :=
+        denote_forallE_inv hwf (view_of_viewBind_forallE htag hvt) ht
+      have hwdom : Expr.WScoped d tdom := by
+        simp only [Expr.WScoped] at hdt; exact hdt.1
+      -- stage 2: the next free variable, and both sides applied to it
+      refine triple_seq (internE_specC s₀ (.fvar d dom) hok
+        (viewOK_fvar (by rw [hdom]; rfl))) ?_
+      rintro fv s2 ⟨hok2, hx2, hp2, hfv⟩
+      have hfv' : denoteE s2.store fv = some (.fvar d tdom) := by
+        rw [hfv]; simp [denoteEView, denote_ext hdom hx2]
+      refine triple_seq (internE_specC s2 (.app a fv) hok2
+        (viewOK_app (by rw [denote_ext ha hx2]; rfl) (by rw [hfv']; rfl))) ?_
+      rintro a2 s3 ⟨hok3, hx3, hp3, ha2⟩
+      have ha2' : denoteE s3.store a2 = some (.app x (.fvar d tdom)) := by
+        rw [ha2]; simp [denoteEView, opt2, denote_ext ha (hx2.trans hx3), denote_ext hfv' hx3]
+      refine triple_seq (internE_specC s3 (.app b fv) hok3
+        (viewOK_app (by rw [denote_ext hb (hx2.trans hx3)]; rfl)
+          (by rw [denote_ext hfv' hx3]; rfl))) ?_
+      rintro b2 s4 ⟨hok4, hx4, hp4, hb2⟩
+      have hb2' : denoteE s4.store b2 = some (.app y (.fvar d tdom)) := by
+        rw [hb2]
+        simp [denoteEView, opt2, denote_ext hb ((hx2.trans hx3).trans hx4),
+          denote_ext hfv' (hx3.trans hx4)]
+      -- stage 3: the type's body, opened at the free variable
+      refine triple_seq (instantiate1Fast_ok_spec s4 body fv tbody (.fvar d tdom) hok4
+        (denote_ext hbody ((hx2.trans hx3).trans hx4)) (denote_ext hfv' (hx3.trans hx4))) ?_
+      rintro body2 s5 ⟨hok5, hx5, hp5, hbody2⟩
+      have hx05 : Ext s₀.store s5.store := ((hx2.trans hx3).trans hx4).trans hx5
+      -- stage 4: one binder down
+      refine triple_mono (ih (d + 1) s5 a2 b2 body2 hok5 ?_ ?_ ?_) ?_
+      · rw [denote_ext ha2' (hx4.trans hx5)]
+        show Expr.WScoped (d + 1) (.app x (.fvar d tdom))
+        simp only [Expr.WScoped]
+        exact ⟨Expr.WScoped.mono (by omega) hda, by omega, hwdom⟩
+      · rw [denote_ext hb2' hx5]
+        show Expr.WScoped (d + 1) (.app y (.fvar d tdom))
+        simp only [Expr.WScoped]
+        exact ⟨Expr.WScoped.mono (by omega) hdb, by omega, hwdom⟩
+      · rw [hbody2]
+        exact wscoped_open_body hdt rfl
+      rintro r s6 ⟨hok6, hx6, hp6, hr⟩
+      refine ⟨hok6, hx05.trans hx6, hp6.trans (hp5.trans (hp4.trans (hp3.trans hp2))), ?_⟩
+      rw [denote_ext ha2' (hx4.trans hx5), denote_ext hb2' hx5, hbody2, TripleAns.some_eq] at hr
+      rw [TripleAns.some_eq]
+      exact ExpandE.pi (t := .forallE tdom tbody) rfl hr
+    · rw [ite_eq_right (by simpa using htag)]
+      refine triple_pureC ⟨hok, Ext.refl _, rfl, ?_⟩
+      rw [TripleAns.some_eq]
+      exact ExpandE.nopi (by rw [← tag_of_denote hwf ht]; exact htag)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:411-429 structEtaCert
 con-leche: ConLeche/Cached/CoreC.lean:386-398 structEtaCertI — **THEOREM 1 for
@@ -1327,7 +1428,8 @@ theorem unitLikeShape_eq (w : Expr) :
           else none
         | _ => none
       | _ => none := by
-  simp only [ConLeche.unitLikeShape, shapeAt]
+  unfold ConLeche.unitLikeShape shapeAt
+  rfl
 
 /-- con-leche: none — the twin's shape answer against con-leche's: both absent,
 or both present at the same count with the telescope handle denoting. -/
@@ -1370,7 +1472,8 @@ theorem unitLikeShapeAt_spec (s₀ : AState) (us : LsIdx) (targs : List EIdx) (t
     refine triple_seq (instLPFast_specC s₀ icvc.levelParams us icvc.type _ ls _ hok hlps hus hty) ?_
     rintro cty s1 ⟨hok1, hx1, hp1, hcty⟩
     refine triple_seq (peelPis_spec s1 hok1.state.wf nP cty _ hcty) ?_
-    rintro ob s2 ⟨rfl, hob⟩
+    rintro ob s2 ⟨hs2, hob⟩
+    subst s2
     simp only [ConLeche.unitFieldTele]
     cases ob with
     | none =>
@@ -1383,8 +1486,9 @@ theorem unitLikeShapeAt_spec (s₀ : AState) (us : LsIdx) (targs : List EIdx) (t
       rw [← hpeel]
       dsimp only
       have hvec : ExprOps.InstLVec s1.store targs.toArray xs.reverse := by
+        have htl : targs.toArray.toList = targs := by simp
         unfold ExprOps.InstLVec
-        rw [List.reverse_reverse, Array.toList_toArray]
+        rw [List.reverse_reverse, htl]
         exact denoteEList_ext hx1 _ _ hargs
       refine triple_seq (instantiateListFast_specC coreWalkFuel s1 body targs.toArray 0
         xs.reverse hok1 hvec (by rw [hB]; rfl)) ?_
@@ -1446,7 +1550,7 @@ theorem unitLikeShape_spec (s₀ : AState) (w : EIdx) (W : Expr)
           (dcaps.eta = true ∧ ls.length = dcvS.levelParams.length) := by
         rw [hcapsE, denoteNList_len hlpsS]
       by_cases hgT : icaps.eta = true ∧ ls.length = icvS.levelParams.length
-      · rw [if_pos hgT, if_pos (hg.mp hgT)]
+      · rw [ite_eq_left hgT, ite_eq_left (hg.mp hgT)]
         obtain ⟨htHit, htMiss⟩ := findTable?_at hok hSn
         cases htb : fe.findTable? S with
         | none =>
@@ -1465,12 +1569,12 @@ theorem unitLikeShape_spec (s₀ : AState) (w : EIdx) (W : Expr)
           have hlenEq : W.getAppArgs.length = targs.length := denoteEList_len htargs
           rw [hlenEq, hnP]
           by_cases hlen : targs.length = tbl.numParams
-          · rw [if_pos hlen, if_pos hlen, hnF]
+          · rw [ite_eq_left hlen, ite_eq_left hlen, hnF]
             exact unitLikeShapeAt_spec s3 us targs tbl.ctor tbl.numParams tbl.numFields ls
               W.getAppArgs pt.ctor hok hus htargs hptc
-          · rw [if_neg hlen, if_neg hlen]
+          · rw [ite_eq_right hlen, ite_eq_right hlen]
             exact triple_pureS ⟨hok, Ext.refl _, rfl, trivial⟩
-      · rw [if_neg hgT, if_neg (fun h => hgT (hg.mpr h))]
+      · rw [ite_eq_right hgT, ite_eq_right (fun h => hgT (hg.mpr h))]
         exact triple_pureS ⟨hok, Ext.refl _, rfl, trivial⟩
     next hnd =>
       have hnf := env_not_ind_of_index hok hSn (fun v c h => hnd v c h)
@@ -1753,11 +1857,14 @@ theorem UnitCertE.guardA {d : Nat} {x y w : Expr} {r : Bool} (hr : r = false)
   subst hr
   have e1 : (ConLeche.pureFns mode eager env F).inferIO d x = .ok t := h1
   have e2 : (ConLeche.pureFns mode eager env F).whnf d t = .ok w := h2
-  have hg' : (w.isForallE && !x.ioNeutral) = true := by simpa [unitSideOk] using hg
-  exact ⟨F, by simp only [ConLeche.structUnitCertFueled, ConLeche.structUnitCert, e1, e2,
-    bind, Except.bind, hg', ite_true]; rfl⟩
+  have hg' : (w.isForallE && !x.ioNeutral) = true := by
+    unfold unitSideOk at hg; revert hg; cases (w.isForallE && !x.ioNeutral) <;> simp
+  refine ⟨F, ?_⟩
+  simp only [ConLeche.structUnitCertFueled, ConLeche.structUnitCert, e1, e2,
+    bind, Except.bind, hg', ite_true]
+  rfl
 grind_pattern [bridge_grind] UnitCertE.guardA =>
-  UnitCertE mode eager env d x y r, TyRun mode eager env d x w, unitSideOk w x
+  UnitCertE mode eager env d x y r, TyRun mode eager env d x w
 
 /-- con-leche: ConLeche/Kernel/Core.lean:486-503 structUnitCert — the first
 side's type is not unit-like. -/
@@ -1774,9 +1881,12 @@ theorem UnitCertE.notUnit {d : Nat} {x y w : Expr} {r : Bool} (hr : r = false)
     ConLeche.whnf_mono (by omega) h2
   have e3 : ConLeche.unitLikeLoop (ConLeche.pureFns .verified eager env (F1 + F2)) env
       ConLeche.unitLikeFuel d w = .ok false := unitLikeLoopFueled_mono (by omega) hF2
-  have hg' : (w.isForallE && !x.ioNeutral) = false := by simpa [unitSideOk] using hg
-  exact ⟨F1 + F2, by simp only [ConLeche.structUnitCertFueled, ConLeche.structUnitCert, e1, e2,
-    e3, bind, Except.bind, hg', Bool.false_eq_true, ite_false]; rfl⟩
+  have hg' : (w.isForallE && !x.ioNeutral) = false := by
+    unfold unitSideOk at hg; revert hg; cases (w.isForallE && !x.ioNeutral) <;> simp
+  refine ⟨F1 + F2, ?_⟩
+  simp only [ConLeche.structUnitCertFueled, ConLeche.structUnitCert, e1, e2,
+    e3, bind, Except.bind, hg', Bool.false_eq_true, ite_false]
+  rfl
 grind_pattern [bridge_grind] UnitCertE.notUnit =>
   UnitCertE .verified eager env d x y r, TyRun .verified eager env d x w,
   LoopE eager env ConLeche.unitLikeFuel d w false
@@ -1802,15 +1912,18 @@ theorem UnitCertE.guardB {d : Nat} {x y w w2 : Expr} {r : Bool} (hr : r = false)
     ConLeche.inferTypeIO_mono (by omega) h3
   have e5 : (ConLeche.pureFns .verified eager env (F1 + F2 + F3)).whnf d t2 = .ok w2 :=
     ConLeche.whnf_mono (by omega) h4
-  have hg' : (w.isForallE && !x.ioNeutral) = false := by simpa [unitSideOk] using hg
-  have hg2' : (w2.isForallE && !y.ioNeutral) = true := by simpa [unitSideOk] using hg2
-  exact ⟨F1 + F2 + F3, by simp only [ConLeche.structUnitCertFueled, ConLeche.structUnitCert,
+  have hg' : (w.isForallE && !x.ioNeutral) = false := by
+    unfold unitSideOk at hg; revert hg; cases (w.isForallE && !x.ioNeutral) <;> simp
+  have hg2' : (w2.isForallE && !y.ioNeutral) = true := by
+    unfold unitSideOk at hg2; revert hg2; cases (w2.isForallE && !y.ioNeutral) <;> simp
+  refine ⟨F1 + F2 + F3, ?_⟩
+  simp only [ConLeche.structUnitCertFueled, ConLeche.structUnitCert,
     e1, e2, e3, e4, e5, bind, Except.bind, hg', hg2', Bool.false_eq_true, ite_false,
-    ite_true]; rfl⟩
+    ite_true]
+  rfl
 grind_pattern [bridge_grind] UnitCertE.guardB =>
   UnitCertE .verified eager env d x y r, TyRun .verified eager env d x w,
-  LoopE eager env ConLeche.unitLikeFuel d w true, TyRun .verified eager env d y w2,
-  unitSideOk w2 y
+  LoopE eager env ConLeche.unitLikeFuel d w true, TyRun .verified eager env d y w2
 
 /-- con-leche: ConLeche/Kernel/Core.lean:486-503 structUnitCert — unit-like,
 both guards pass: the two types are compared. -/
@@ -1836,11 +1949,14 @@ theorem UnitCertE.defeq {d : Nat} {x y w w2 : Expr} {r : Bool}
     ConLeche.whnf_mono (by omega) h4
   have e6 : (ConLeche.pureFns .verified eager env (F1 + F2 + F3 + F4)).defeq d w w2 = .ok r :=
     ConLeche.isDefEqCore_mono (by omega) hF4
-  have hg' : (w.isForallE && !x.ioNeutral) = false := by simpa [unitSideOk] using hg
-  have hg2' : (w2.isForallE && !y.ioNeutral) = false := by simpa [unitSideOk] using hg2
-  exact ⟨F1 + F2 + F3 + F4, by simp only [ConLeche.structUnitCertFueled, ConLeche.structUnitCert,
+  have hg' : (w.isForallE && !x.ioNeutral) = false := by
+    unfold unitSideOk at hg; revert hg; cases (w.isForallE && !x.ioNeutral) <;> simp
+  have hg2' : (w2.isForallE && !y.ioNeutral) = false := by
+    unfold unitSideOk at hg2; revert hg2; cases (w2.isForallE && !y.ioNeutral) <;> simp
+  refine ⟨F1 + F2 + F3 + F4, ?_⟩
+  simp only [ConLeche.structUnitCertFueled, ConLeche.structUnitCert,
     e1, e2, e3, e4, e5, e6, bind, Except.bind, hg', hg2', Bool.false_eq_true, ite_false,
-    ite_true]⟩
+    ite_true]
 grind_pattern [bridge_grind] UnitCertE.defeq =>
   UnitCertE .verified eager env d x y r, TyRun .verified eager env d x w,
   LoopE eager env ConLeche.unitLikeFuel d w true, TyRun .verified eager env d y w2,
@@ -1848,12 +1964,13 @@ grind_pattern [bridge_grind] UnitCertE.defeq =>
 
 /-- con-leche: none — `unitSideOk` at a handle's denotation, read off the
 handle's tag (`ExprOps.isForallE_rel`). -/
-theorem unitSideOk_eq {st : EStore} (hwf : StoreWF st) {h : EIdx} {w x : Expr}
-    (hd : denoteE st h = some w) : unitSideOk w x = !(isForallE h && !x.ioNeutral) := by
+theorem unitSideOk_eq {s : AState} (hok : CheckOK eager env fe s) {h : EIdx} {w x : Expr}
+    (hd : denoteE s.store h = some w) : unitSideOk w x = !(isForallE h && !x.ioNeutral) := by
   unfold unitSideOk
-  rw [ExprOps.isForallE_rel hwf hd]
-grind_pattern [bridge_grind] unitSideOk_eq => unitSideOk w x, denoteE st h, StoreWF st where
-  guard denoteE st h = some w
+  rw [ExprOps.isForallE_rel hok.state.wf hd]
+grind_pattern [bridge_grind] unitSideOk_eq =>
+  unitSideOk w x, CheckOK eager env fe s, denoteE s.store h where
+  guard denoteE s.store h = some w
 
 /-- con-leche: ConLeche/Kernel/Core.lean:486-503 structUnitCert
 con-leche: ConLeche/Cached/CoreC.lean:465-476 structUnitCertI — **THEOREM 1
@@ -1873,7 +1990,10 @@ theorem structUnitCert_specA {fuel : Nat}
   rw [unitLikeFuel_eq] at hloop
   unfold ConRon.Arena.structUnitCert
   rw [unitLikeFuel_eq]
-  sym only [bridge_grind] =>
+  -- `gen := 12`: the guards read the answer of an answer (`inferIO`, then
+  -- `whnf`, then the tag of its handle and `unitSideOk` at its denotation),
+  -- past the default generation limit
+  sym (gen := 12) only [bridge_grind] =>
     vcgen [KnotSpec.inferIOS hsim, KnotSpec.whnfS hsim,
       ioNeutral_specA (eager := eager) (env := env) (fe := fe), hloop,
       KnotSpec.defeqS hsim] <;> finish
