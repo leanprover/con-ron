@@ -234,6 +234,9 @@ pub struct Memos {
     /// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
     /// `consts_resolve_f_fast`'s table; see `lp_def_c`.
     pub crf_c: HashMap<EIdx, bool>,
+    /// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
+    /// `has_loose_bvar_in`'s table; see `lp_def_c`.
+    pub hlbi_c: HashMap<EIdxNat, bool>,
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:176-178 instantiate1Fast
@@ -260,6 +263,7 @@ impl Memos {
             inst_lp_ls_c: HashMap::new(),
             lp_def_c: HashMap::new(),
             crf_c: HashMap::new(),
+            hlbi_c: HashMap::new(),
         }
     }
 
