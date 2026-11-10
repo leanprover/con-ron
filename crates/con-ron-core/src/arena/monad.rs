@@ -183,7 +183,7 @@ impl Eq2 for EIdxNat {
 /// is what lets a `…Fast` entry clear one without its callers seeing it.
 ///
 /// **Eight tables, one per con-leche `…Go` the arena runs**, because the walks
-/// NEST: `instantiate1Lift`'s `bvar` arm runs `liftLooseBVars`, so a shared
+/// NEST: `instantiateLift`'s `bvar` arm runs `liftLooseBVars`, so a shared
 /// table would answer one walk with the other's answers.  One of those walks
 /// has no cursor (`instLPGo` keys on the node alone); the arena keys it at
 /// cursor `0`, so that all six handle-valued tables have one shape.

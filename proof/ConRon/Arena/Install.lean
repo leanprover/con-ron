@@ -125,9 +125,7 @@ def blockTables (p : BlockShape) : List MemberShape → AM (Option (List IProjTa
       match ← structProjBodies ms.declared.name p.nP c.2 c.1.type with
       | some bodies =>
         let t : IProjTable := ⟨ms.declared.name, p.lps, p.nP, c.1.name, c.2, bodies⟩
-        match ← blockTables p rest with
-        | some q => pure (some (t :: q))
-        | none => pure none
+        pure ((← blockTables p rest).map (t :: ·))
       | none => pure none
     | none => blockTables p rest
 

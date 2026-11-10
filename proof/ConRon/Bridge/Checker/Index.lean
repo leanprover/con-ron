@@ -15,6 +15,7 @@ The two maps are related by one generic relation (`IdxRel2`) and one generic ins
 module
 
 public import ConRon.Bridge.Checker.StreamIndex
+import ConLeche.Verify.Cached.WalkersC
 
 public section
 
@@ -279,10 +280,12 @@ theorem add_run (hcs : ConstsSpec) (hts : TablesSpec) {s s' : AState} {I I' : IS
       refine ⟨hst₂, hx₁.trans hx₂, hp₂.trans hp₁, hoff₂, ?_⟩
       have hsz : I.firsts.size = J.firsts.size := by rw [hI.firsts]
       refine ⟨by simp [ConLeche.Cached.StreamIndex.add, hI.firsts, hI.next],
-        by simp only [ConLeche.Cached.StreamIndex.add]; rw [← hI.next]; exact hnext,
+        by simp only [ConLeche.Cached.StreamIndex.add, ConLeche.Cached.declConstantsC_eq]
+           rw [← hI.next]; exact hnext,
         ?_, ?_, ?_, ?_⟩
-      · simpa [ConLeche.Cached.StreamIndex.add, hI.next] using hidx₂
-      · simpa [ConLeche.Cached.StreamIndex.add, hsz] using htbl
+      · simpa [ConLeche.Cached.StreamIndex.add, hI.next, ConLeche.Cached.declConstantsC_eq]
+          using hidx₂
+      · simpa [ConLeche.Cached.StreamIndex.add, hsz, ConLeche.Cached.declTablesC_eq] using htbl
       · simpa using hpidx
       · simpa using hptbl
 

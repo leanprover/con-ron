@@ -224,12 +224,24 @@ theorem tablesSpec : TablesSpec := by
       simp only [ROp, Except.toOption] at hq
       obtain ⟨pP, hpP, hdp⟩ := hq
       obtain ⟨hms, -⟩ := dShape_inv hdp
-      obtain ⟨hp3, hsc3, hQ, hokQ⟩ := blockTables_run p.members pP.members hok2.state hdp hms k2
-      have hoff' : s'.store.scratchOn = false := by rw [hsc3, hoff2]
-      refine ⟨hok2.of_pstep hp3, hp2.ext.trans hp3.ext, hp3.pins.trans hp2.pins, hoff',
-        by simp [ConLeche.declTables, Inductives.toOption_eq_some hpP, hQ],
-        fun t ht => ⟨?_, hokQ t ht⟩⟩
-      exact persProjTables_of hp3.ok.wf hoff' hQ t ht
+      obtain ⟨o, s3, k3, k4⟩ := AM.bind_ok k2
+      obtain ⟨hp3, hsc3, hQ⟩ := blockTables_run p.members pP.members hok2.state hdp hms k3
+      have hoff' : s3.store.scratchOn = false := by rw [hsc3, hoff2]
+      cases o with
+      | none =>
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k4
+        simp only [ROp] at hQ
+        exact ⟨hok2.of_pstep hp3, hp2.ext.trans hp3.ext, hp3.pins.trans hp2.pins, hoff',
+          by simp [ConLeche.declTables, Inductives.toOption_eq_some hpP, hQ,
+            Frontend.denoteProjTableList],
+          fun _ h => nomatch h⟩
+      | some q =>
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k4
+        obtain ⟨qP, hqP, hq, hokQ⟩ := hQ
+        refine ⟨hok2.of_pstep hp3, hp2.ext.trans hp3.ext, hp3.pins.trans hp2.pins, hoff',
+          by simp [ConLeche.declTables, Inductives.toOption_eq_some hpP, hqP, hq],
+          fun t ht => ⟨?_, hokQ t ht⟩⟩
+        exact persProjTables_of hp3.ok.wf hoff' hq t ht
   | defnDecl v e hint =>
     refine nil_arm rfl ?_
     revert hd; cases d <;> simp [Frontend.denoteDecl, ConLeche.declTables] <;> split <;> simp
