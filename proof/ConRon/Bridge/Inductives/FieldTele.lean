@@ -20,6 +20,9 @@ import ConRon.Bridge.Core.Walks.FvarB
 import ConRon.Bridge.ExprOps.Owed
 import ConRon.Bridge.Pers
 import ConRon.Bridge.ExprOps.Inst1
+public import ConLeche.Cached.ExprOpsC
+import ConLeche.Verify.Cached.IndWalksC
+import ConLeche.Verify.Cached.OpsC
 
 public section
 
@@ -82,27 +85,31 @@ theorem piBinders_spec (fuel : Nat) (h : EIdx) (hP : Expr) :
   obtain ⟨rfl, h1, h2⟩ := piBinders_run fuel hok hd hrun
   exact ⟨PStep.refl hok, h1, h2⟩
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:211-219 closeTelescope
-Close a body under a telescope, abstracting the free variables as it goes.
-A list induction over `Bridge/ExprOps/Owed.lean`'s `abstract1Fast_spec` (at
-`Rel.lean`'s `Core.fvarBSpec`) and `internForallEE_run`. -/
-theorem closeTelescope_spec (bs : List EIdx)
-    (bsP : List Expr) (i : Nat) (body : EIdx) (bodyP : Expr) :
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2111-2113 closeTelescopeGoC —
+the twin's closer after `k` binders computes con-leche's cached closer: each
+domain and the body by `Bridge/ExprOps/Owed.lean`'s `abstractRangeFast_spec`
+(at `Rel.lean`'s `Core.fvarBSpec`), the binder by `internForallEE_run`. -/
+theorem closeTelescopeGo_spec (i : Nat) (bs : List EIdx) :
+    ∀ (k : Nat) (bsP : List Expr) (body : EIdx) (bodyP : Expr),
     PSpec (fun st => Frontend.denoteEList st bs = some bsP ∧
         denoteE st body = some bodyP)
-      (Arena.closeTelescope bs i body)
-      (RE (ConLeche.closeTelescope bsP i bodyP)) := by
-  induction bs generalizing bsP i with
+      (Arena.closeTelescopeGo i k bs body)
+      (RE (Expr.closeTelescopeGoC i k bsP bodyP)) := by
+  induction bs with
   | nil =>
-    intro s₀ s' r hok hpre hrun
+    intro k bsP body bodyP s₀ s' r hok hpre hrun
     obtain ⟨hbs, hbody⟩ := hpre
     simp only [Frontend.denoteEList, Option.some.injEq] at hbs
     subst hbs
-    simp only [Arena.closeTelescope] at hrun
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨PStep.refl hok, hbody⟩
+    simp only [Arena.closeTelescopeGo] at hrun
+    obtain ⟨h1, h2, h4, h5, -, h7⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+      (ExprOps.abstractRangeFast_spec Core.fvarBSpec Arena.coreWalkFuel s₀ body i k 0 hok
+        (by rw [hbody]; rfl))
+    refine ⟨PStep.of_caches h1 h2 h4 h5, ?_⟩
+    show denoteE _ r = _
+    rw [h7 _ hbody, Expr.closeTelescopeGoC, Expr.abstractRangeC_spec]
   | cons dom bs ih =>
-    intro s₀ s' r hok hpre hrun
+    intro k bsP body bodyP s₀ s' r hok hpre hrun
     obtain ⟨hbs, hbody⟩ := hpre
     simp only [Frontend.denoteEList] at hbs
     cases hdom : denoteE s₀.store dom with
@@ -113,17 +120,32 @@ theorem closeTelescope_spec (bs : List EIdx)
     | some rest =>
     rw [hdom, hrest] at hbs
     obtain rfl := (Option.some.inj hbs).symm
-    simp only [Arena.closeTelescope] at hrun
-    obtain ⟨inner, s1, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨p1, hin⟩ := ih rest (i + 1) s₀ s1 inner hok ⟨hrest, hbody⟩ k1
-    obtain ⟨cl, s2, k2, z2⟩ := AM.bind_ok z1
-    obtain ⟨h1, h2, h4, h5, -, h7⟩ := AM.of_run (P := fun t => t = s1) rfl k2
-      (ExprOps.abstract1Fast_spec Core.fvarBSpec Arena.coreWalkFuel s1 inner i 0 p1.ok
-        (by rw [hin]; rfl))
-    have p2 : PStep s1 s2 := PStep.of_caches h1 h2 h4 h5
-    obtain ⟨p3, hr⟩ := internForallEE_run p2.ok (denote_ext hdom (p1.ext.trans p2.ext))
-      (h7 _ hin) z2
-    exact ⟨p1.trans (p2.trans p3), hr⟩
+    simp only [Arena.closeTelescopeGo] at hrun
+    obtain ⟨d', s1, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨h1, h2, h4, h5, -, h7⟩ := AM.of_run (P := fun t => t = s₀) rfl k1
+      (ExprOps.abstractRangeFast_spec Core.fvarBSpec Arena.coreWalkFuel s₀ dom i k 0 hok
+        (by rw [hdom]; rfl))
+    have p1 : PStep s₀ s1 := PStep.of_caches h1 h2 h4 h5
+    obtain ⟨inner, s2, k2, z2⟩ := AM.bind_ok z1
+    obtain ⟨p2, hin⟩ := ih (k + 1) rest body bodyP s1 s2 inner p1.ok
+      ⟨denoteEList_ext p1.ext _ _ hrest, denote_ext hbody p1.ext⟩ k2
+    obtain ⟨p3, hr⟩ := internForallEE_run p2.ok (denote_ext (h7 _ hdom) p2.ext) hin z2
+    refine ⟨p1.trans (p2.trans p3), ?_⟩
+    show denoteE _ r = _
+    rw [hr, Expr.closeTelescopeGoC, Expr.abstractRangeC_spec, Expr.mkForallE_eq]
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:55-58 closeTelescope
+Close a body under a telescope: the twin's one-pass closer
+(`closeTelescopeGo_spec`) is con-leche's `closeTelescope` through con-leche's
+own `closeTelescopeC_eq`. -/
+theorem closeTelescope_spec (bs : List EIdx)
+    (bsP : List Expr) (i : Nat) (body : EIdx) (bodyP : Expr) :
+    PSpec (fun st => Frontend.denoteEList st bs = some bsP ∧
+        denoteE st body = some bodyP)
+      (Arena.closeTelescope bs i body)
+      (RE (ConLeche.closeTelescope bsP i bodyP)) := by
+  rw [← Expr.closeTelescopeC_eq]
+  exact closeTelescopeGo_spec i bs 0 bsP body bodyP
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:514-519 instPisWith
 Instantiate the leading `Π` binders at `args`, in order; `none` exactly when

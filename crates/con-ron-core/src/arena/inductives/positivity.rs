@@ -521,33 +521,52 @@ pub fn member_idx_at(
 // Closing a telescope
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:51-59 closeTelescope
-/// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:162-170 closeTelescope` —
-/// close a telescope opened at the free variables `i ..< i + bs.length` back
-/// into a syntactic Π-telescope over `body`.  The cursor recursion builds the
-/// innermost binder first, as the cited `closeTelescope bs (i + 1) body` does.
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2111-2113 closeTelescopeGoC
+/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:55-58 closeTelescope
+/// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:162-176 closeTelescopeGo` —
+/// close the telescope `bs[j..]`, opened at the free variables
+/// `i ..< i + bs.len()`, back into a syntactic Π-telescope over `body`, after
+/// `k` (= `j`) binders: each domain and the body abstracted ONCE, over the
+/// free variables of the `k` binders outside it (`abstract_range`), instead
+/// of re-abstracting the whole remaining telescope at every binder.  The
+/// domain is abstracted before the rest is closed, as the cited `mkForallE`'s
+/// arguments are evaluated.
+pub fn close_telescope_go(
+    pers: &PersTier,
+    st: &mut AState,
+    bs: &Vec<EIdx>,
+    j: usize,
+    i: u64,
+    k: u64,
+    body: &EIdx,
+) -> Result<EIdx, CheckError> {
+    if j >= bs.len() {
+        expr_ops::abstract_range_fast(pers, st, CORE_WALK_FUEL, body, i, k, 0)
+    } else {
+        match expr_ops::abstract_range_fast(pers, st, CORE_WALK_FUEL, &bs[j], i, k, 0) {
+            Err(e) => Err(e),
+            Ok(dom) => match close_telescope_go(pers, st, bs, j + 1, i, k + 1, body) {
+                Err(e) => Err(e),
+                Ok(inner) => intern_e_forall_e(pers, st, dom, inner),
+            },
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2116-2117 closeTelescopeC
+/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:55-58 closeTelescope
+/// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:178-181 closeTelescope` —
+/// close a telescope opened at the free variables `i ..< i + bs.len()` back
+/// into a syntactic Π-telescope over `body` (`close_telescope_go` from the
+/// outermost binder).
 pub fn close_telescope(
     pers: &PersTier,
     st: &mut AState,
     bs: &Vec<EIdx>,
-    k: usize,
     i: u64,
     body: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    if k >= bs.len() {
-        Ok(body.dup2())
-    } else {
-        match close_telescope(pers, st, bs, k + 1, i + 1, body) {
-            Err(e) => Err(e),
-            Ok(inner) => match expr_ops::abstract1_fast(pers, st, CORE_WALK_FUEL, &inner, i, 0) {
-                Err(e) => Err(e),
-                Ok(closed) => {
-                    let dom: EIdx = bs[k].dup2();
-                    intern_e_forall_e(pers, st, dom, closed)
-                }
-            },
-        }
-    }
+    close_telescope_go(pers, st, bs, 0, i, 0, body)
 }
 
 // ---------------------------------------------------------------------------
@@ -628,7 +647,7 @@ pub fn reduced_former(
         Err(e) => Err(e),
         Ok((bs, s)) => match intern_e_sort(pers, st, s) {
             Err(e) => Err(e),
-            Ok(srt) => match close_telescope(pers, st, &bs, 0, 0, &srt) {
+            Ok(srt) => match close_telescope(pers, st, &bs, 0, &srt) {
                 Err(e) => Err(e),
                 Ok(ty) => Ok(IConstantVal {
                     name: cv.name.dup2(),
@@ -2563,7 +2582,7 @@ pub fn nest_ctors_done(
     nds: Vec<EIdx>,
     cur: EIdx,
 ) -> Result<(Vec<(Vec<NestFieldKind>, EIdx)>, NestState), CheckError> {
-    match close_telescope(pers, st, &nds, 0, hi, &cur) {
+    match close_telescope(pers, st, &nds, hi, &cur) {
         Err(e) => Err(e),
         Ok(closed) => match nest_u4(pers, st, &ks, &closed, n_f, 0) {
             Err(e) => Err(e),

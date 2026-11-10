@@ -465,15 +465,12 @@ def targetPiDomsWith : List EIdx → EIdx → AM (Option (List EIdx))
 
 /-! ## The stored family -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:426-433 Expr.abstractPrefix
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2130-2131 abstractPrefixC
+con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:431-433 Expr.abstractPrefix
 **The free variables `0 … k-1` closed at cursor `c`**: `fvar i` becomes
-`bvar (c + k - 1 - i)`, as the fold of `abstract1` passes, innermost first.
-Structural on `k`. -/
-def abstractPrefix : Nat → Nat → EIdx → AM EIdx
-  | 0, _, e => pure e
-  | k + 1, c, e => do
-    let e' ← abstract1Fast coreWalkFuel e k c
-    abstractPrefix k (c + 1) e'
+`bvar (c + k - 1 - i)`, in one `abstractRangeFast` pass. -/
+def abstractPrefix (k c : Nat) (e : EIdx) : AM EIdx :=
+  abstractRangeFast coreWalkFuel e 0 k c
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:435-442 auxRuleFire —
 `M.ds.map (Expr.abstractPrefix rP 0)`, as an explicit list recursion (DESIGN

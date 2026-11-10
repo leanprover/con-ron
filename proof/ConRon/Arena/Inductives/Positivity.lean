@@ -161,15 +161,25 @@ def memberIdxAt? (names : List NIdx) (lvls : LsIdx) (e : EIdx) : AM (Option Nat)
 
 /-! ## Closing a telescope -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:51-59 closeTelescope
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2111-2113 closeTelescopeGoC
+con-leche: ConLeche/Kernel/Inductives/Positivity.lean:55-58 closeTelescope
+Close the telescope `bs`, opened at the free variables `i + k ..< i + k +
+bs.length`, after `k` binders: each domain and the body abstracted ONCE over
+the free variables `i ..< i + k` of the binders outside it, the domain
+before the rest is closed. -/
+def closeTelescopeGo (i : Nat) : Nat → List EIdx → EIdx → AM EIdx
+  | k, [], body => abstractRangeFast coreWalkFuel body i k 0
+  | k, d :: bs, body => do
+    let d' ← abstractRangeFast coreWalkFuel d i k 0
+    let inner ← closeTelescopeGo i (k + 1) bs body
+    internForallEE d' inner
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2116-2117 closeTelescopeC
+con-leche: ConLeche/Kernel/Inductives/Positivity.lean:55-58 closeTelescope
 Close a telescope opened at the free variables `i ..< i + bs.length` back into
-a syntactic Π-telescope over `body`, the innermost binder first. -/
-def closeTelescope : List EIdx → Nat → EIdx → AM EIdx
-  | [], _, body => pure body
-  | d :: bs, i, body => do
-    let inner ← closeTelescope bs (i + 1) body
-    let closed ← abstract1Fast coreWalkFuel inner i 0
-    internForallEE d closed
+a syntactic Π-telescope over `body`. -/
+def closeTelescope (bs : List EIdx) (i : Nat) (body : EIdx) : AM EIdx :=
+  closeTelescopeGo i 0 bs body
 
 /-! ## A family's telescope -/
 

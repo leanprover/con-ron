@@ -71,15 +71,22 @@ structure ClassCtor where
   tyN : EIdx
   deriving Inhabited
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:86-89 closeLams
-Close a telescope of `λ`s opened at `i ..< i + bs.length` (`closeTelescope`'s
-twin), innermost first. -/
-def closeLams : List EIdx → Nat → EIdx → AM EIdx
-  | [], _, body => pure body
-  | dom :: bs, i, body => do
-    let inner ← closeLams bs (i + 1) body
-    let closed ← abstract1Fast coreWalkFuel inner i 0
-    internE (.lam dom closed)
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2120-2122 closeLamsGoC
+con-leche: ConLeche/Kernel/Inductives/GenRec.lean:87-89 closeLams
+`closeTelescopeGo` with `λ` binders: each domain and the body abstracted
+once over the `k` binders outside it. -/
+def closeLamsGo (i : Nat) : Nat → List EIdx → EIdx → AM EIdx
+  | k, [], body => abstractRangeFast coreWalkFuel body i k 0
+  | k, dom :: bs, body => do
+    let d' ← abstractRangeFast coreWalkFuel dom i k 0
+    let inner ← closeLamsGo i (k + 1) bs body
+    internE (.lam d' inner)
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2125-2126 closeLamsC
+con-leche: ConLeche/Kernel/Inductives/GenRec.lean:87-89 closeLams
+Close a telescope of `λ`s opened at `i ..< i + bs.length`. -/
+def closeLams (bs : List EIdx) (i : Nat) (body : EIdx) : AM EIdx :=
+  closeLamsGo i 0 bs body
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:91-103 ClassGen
 What generation reads: the block, the classes, the layout, the constructors,

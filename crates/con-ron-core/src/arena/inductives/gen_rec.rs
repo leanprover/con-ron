@@ -378,32 +378,46 @@ pub fn class_ctor_dup(x: &ClassCtor) -> ClassCtor {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:86-89 closeLams
-/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:74-82 closeLams` — close a
-/// telescope of `λ`s opened at `i ..< i + bs.length` (`closeTelescope`'s
-/// twin), innermost first.
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2120-2122 closeLamsGoC
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:87-89 closeLams
+/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:74-84 closeLamsGo` —
+/// `close_telescope_go` with `λ` binders: each domain and the body
+/// abstracted once over the `k` (= `j`) binders outside it.
+pub fn close_lams_go(
+    pers: &PersTier,
+    st: &mut AState,
+    bs: &Vec<EIdx>,
+    j: usize,
+    i: u64,
+    k: u64,
+    body: &EIdx,
+) -> Result<EIdx, CheckError> {
+    if j >= bs.len() {
+        expr_ops::abstract_range_fast(pers, st, CORE_WALK_FUEL, body, i, k, 0)
+    } else {
+        match expr_ops::abstract_range_fast(pers, st, CORE_WALK_FUEL, &bs[j], i, k, 0) {
+            Err(e) => Err(e),
+            Ok(dom) => match close_lams_go(pers, st, bs, j + 1, i, k + 1, body) {
+                Err(e) => Err(e),
+                Ok(inner) => intern_e_lam(pers, st, dom, inner),
+            },
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2125-2126 closeLamsC
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:87-89 closeLams
+/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:86-89 closeLams` — close a
+/// telescope of `λ`s opened at `i ..< i + bs.len()` (`close_lams_go` from
+/// the outermost binder).
 pub fn close_lams(
     pers: &PersTier,
     st: &mut AState,
     bs: &Vec<EIdx>,
-    k: usize,
     i: u64,
     body: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    if k >= bs.len() {
-        Ok(body.dup2())
-    } else {
-        match close_lams(pers, st, bs, k + 1, i + 1, body) {
-            Err(e) => Err(e),
-            Ok(inner) => match expr_ops::abstract1_fast(pers, st, CORE_WALK_FUEL, &inner, i, 0) {
-                Err(e) => Err(e),
-                Ok(closed) => {
-                    let dom: EIdx = bs[k].dup2();
-                    intern_e_lam(pers, st, dom, closed)
-                }
-            },
-        }
-    }
+    close_lams_go(pers, st, bs, 0, i, 0, body)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:91-103 ClassGen
@@ -556,7 +570,7 @@ pub fn motive_ty(pers: &PersTier, st: &mut AState, g: &ClassGen, c: u64, d: u64)
                 Err(e) => Err(e),
                 Ok(body) => match class_binders(pers, st, &ifs, 0, Vec::new()) {
                     Err(e) => Err(e),
-                    Ok(bs) => match close_telescope(pers, st, &bs, 0, d, &body) {
+                    Ok(bs) => match close_telescope(pers, st, &bs, d, &body) {
                         Err(e) => Err(e),
                         Ok(r) => Ok(Some(r)),
                     },
@@ -657,7 +671,7 @@ pub fn minor_ihs(
                                     Err(er) => Err(er),
                                     Ok(body) => match gen_binders(pers, st, g, &xs, 0, Vec::new()) {
                                         Err(er) => Err(er),
-                                        Ok(bs) => match close_telescope(pers, st, &bs, 0, e, &body) {
+                                        Ok(bs) => match close_telescope(pers, st, &bs, e, &body) {
                                             Err(er) => Err(er),
                                             Ok(ih) => {
                                                 let mut o: Vec<EIdx> = out;
@@ -746,7 +760,7 @@ pub fn minor_ty_concl(
                                     Err(e) => Err(e),
                                     Ok(fbs) => {
                                         let bs: Vec<EIdx> = expr_ops::binder_copy_from(&ihs, 0, fbs);
-                                        match close_telescope(pers, st, &bs, 0, d, &concl) {
+                                        match close_telescope(pers, st, &bs, d, &concl) {
                                             Err(e) => Err(e),
                                             Ok(r) => Ok(Some(r)),
                                         }
@@ -869,7 +883,7 @@ pub fn class_gen_rec_ty(pers: &PersTier, st: &mut AState, g: &ClassGen, c: u64) 
                             args.push(t);
                             match expr_ops::mk_app_n(pers, st, &mv, &args) {
                                 Err(e) => Err(e),
-                                Ok(body) => match close_telescope(pers, st, &bs2, 0, 0, &body) {
+                                Ok(body) => match close_telescope(pers, st, &bs2, 0, &body) {
                                     Err(e) => Err(e),
                                     Ok(r) => Ok(Some(r)),
                                 },
@@ -1029,7 +1043,7 @@ pub fn rule_call(
                         Err(e) => Err(e),
                         Ok(app) => match gen_binders(pers, st, g, &xs, 0, Vec::new()) {
                             Err(e) => Err(e),
-                            Ok(bs) => match close_lams(pers, st, &bs, 0, r_p + x.n_f, &app) {
+                            Ok(bs) => match close_lams(pers, st, &bs, r_p + x.n_f, &app) {
                                 Err(e) => Err(e),
                                 Ok(call) => {
                                     let mut o: Vec<EIdx> = out;
@@ -1102,7 +1116,7 @@ pub fn class_gen_rule_close(
                 Err(e) => Err(e),
                 Ok(body) => match gen_binders(pers, st, g, fvs, 0, expr_ops::binder_copy_from(&g.pre, 0, Vec::new())) {
                     Err(e) => Err(e),
-                    Ok(bs) => match close_lams(pers, st, &bs, 0, 0, &body) {
+                    Ok(bs) => match close_lams(pers, st, &bs, 0, &body) {
                         Err(e) => Err(e),
                         Ok(r) => Ok(Some(r)),
                     },

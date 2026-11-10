@@ -1458,11 +1458,12 @@ pub fn target_pi_doms_with(
 // The stored family
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:426-433 Expr.abstractPrefix
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2130-2131 abstractPrefixC
+/// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:431-433 Expr.abstractPrefix
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:466-474 abstractPrefix` —
 /// **the free variables `0 … k-1` closed at cursor `c`**: `fvar i` becomes
-/// `bvar (c + k - 1 - i)`, as the fold of `abstract1` passes, innermost first.
-/// Structural on `k`.
+/// `bvar (c + k - 1 - i)`, in one `abstract_range` pass (the cited fold of
+/// `abstract1` passes, innermost first, is the same term).
 pub fn abstract_prefix(
     pers: &PersTier,
     st: &mut AState,
@@ -1470,14 +1471,7 @@ pub fn abstract_prefix(
     c: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    if k == 0 {
-        Ok(e.dup2())
-    } else {
-        match expr_ops::abstract1_fast(pers, st, CORE_WALK_FUEL, e, k - 1, c) {
-            Err(er) => Err(er),
-            Ok(e2) => abstract_prefix(pers, st, k - 1, c + 1, &e2),
-        }
-    }
+    expr_ops::abstract_range_fast(pers, st, CORE_WALK_FUEL, e, 0, k, c)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:435-442 auxRuleFire

@@ -66,6 +66,9 @@ import ConRon.Bridge.Core.Walks.FvarB
 import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.ExprOps.Owed
 import ConRon.Bridge.Specs
+public import ConLeche.Cached.ExprOpsC
+import ConLeche.Verify.Cached.IndWalksC
+import ConLeche.Verify.Cached.OpsC
 
 public section
 
@@ -229,25 +232,29 @@ open GR
 
 /-! ## The generator -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:83-86 closeLams —
-**a telescope of `λ`s closed**, innermost first: `closeTelescope_spec`'s
-induction at `.lam`. -/
-theorem closeLams_spec (bs : List EIdx)
-    (bsP : List Expr) (i : Nat) (body : EIdx) (bodyP : Expr) :
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2120-2122 closeLamsGoC —
+`closeTelescopeGo_spec` at `.lam`: the twin's closer after `k` binders
+computes con-leche's cached `λ` closer. -/
+theorem closeLamsGo_spec (i : Nat) (bs : List EIdx) :
+    ∀ (k : Nat) (bsP : List Expr) (body : EIdx) (bodyP : Expr),
     PSpec (fun st => Frontend.denoteEList st bs = some bsP ∧ denoteE st body = some bodyP)
-      (Arena.closeLams bs i body)
-      (RE (ConLeche.closeLams bsP i bodyP)) := by
-  induction bs generalizing bsP i with
+      (Arena.closeLamsGo i k bs body)
+      (RE (Expr.closeLamsGoC i k bsP bodyP)) := by
+  induction bs with
   | nil =>
-    intro s₀ s' r hok hpre hrun
+    intro k bsP body bodyP s₀ s' r hok hpre hrun
     obtain ⟨hbs, hbody⟩ := hpre
     simp only [Frontend.denoteEList, Option.some.injEq] at hbs
     subst hbs
-    simp only [Arena.closeLams] at hrun
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨PStep.refl hok, hbody⟩
+    simp only [Arena.closeLamsGo] at hrun
+    obtain ⟨h1, h2, h4, h5, -, h7⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+      (ExprOps.abstractRangeFast_spec Core.fvarBSpec Arena.coreWalkFuel s₀ body i k 0 hok
+        (by rw [hbody]; rfl))
+    refine ⟨PStep.of_caches h1 h2 h4 h5, ?_⟩
+    show denoteE _ r = _
+    rw [h7 _ hbody, Expr.closeLamsGoC, Expr.abstractRangeC_spec]
   | cons dom bs ih =>
-    intro s₀ s' r hok hpre hrun
+    intro k bsP body bodyP s₀ s' r hok hpre hrun
     obtain ⟨hbs, hbody⟩ := hpre
     simp only [Frontend.denoteEList] at hbs
     cases hdom : denoteE s₀.store dom with
@@ -258,17 +265,31 @@ theorem closeLams_spec (bs : List EIdx)
     | some rest =>
     rw [hdom, hrest] at hbs
     obtain rfl := (Option.some.inj hbs).symm
-    simp only [Arena.closeLams] at hrun
-    obtain ⟨inner, s1, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨p1, hin⟩ := ih rest (i + 1) s₀ s1 inner hok ⟨hrest, hbody⟩ k1
-    obtain ⟨cl, s2, k2, z2⟩ := AM.bind_ok z1
-    obtain ⟨h1, h2, h3, h4, -, h7⟩ := AM.of_run (P := fun t => t = s1) rfl k2
-      (ExprOps.abstract1Fast_spec Core.fvarBSpec Arena.coreWalkFuel s1 inner i 0 p1.ok
-        (by rw [hin]; rfl))
-    have p2 : PStep s1 s2 := PStep.of_caches h1 h2 h3 h4
-    obtain ⟨p3, hr⟩ := internLamE_run p2.ok (denote_ext hdom (p1.ext.trans p2.ext))
-      (h7 _ hin) z2
-    exact ⟨p1.trans (p2.trans p3), hr⟩
+    simp only [Arena.closeLamsGo] at hrun
+    obtain ⟨d', s1, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨h1, h2, h4, h5, -, h7⟩ := AM.of_run (P := fun t => t = s₀) rfl k1
+      (ExprOps.abstractRangeFast_spec Core.fvarBSpec Arena.coreWalkFuel s₀ dom i k 0 hok
+        (by rw [hdom]; rfl))
+    have p1 : PStep s₀ s1 := PStep.of_caches h1 h2 h4 h5
+    obtain ⟨inner, s2, k2, z2⟩ := AM.bind_ok z1
+    obtain ⟨p2, hin⟩ := ih (k + 1) rest body bodyP s1 s2 inner p1.ok
+      ⟨denoteEList_ext p1.ext _ _ hrest, denote_ext hbody p1.ext⟩ k2
+    obtain ⟨p3, hr⟩ := internLamE_run p2.ok (denote_ext (h7 _ hdom) p2.ext) hin z2
+    refine ⟨p1.trans (p2.trans p3), ?_⟩
+    show denoteE _ r = _
+    rw [hr, Expr.closeLamsGoC, Expr.abstractRangeC_spec, Expr.mkLam_eq]
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:87-89 closeLams —
+**a telescope of `λ`s closed**: the twin's one-pass closer
+(`closeLamsGo_spec`) is con-leche's `closeLams` through con-leche's own
+`closeLamsC_eq`. -/
+theorem closeLams_spec (bs : List EIdx)
+    (bsP : List Expr) (i : Nat) (body : EIdx) (bodyP : Expr) :
+    PSpec (fun st => Frontend.denoteEList st bs = some bsP ∧ denoteE st body = some bodyP)
+      (Arena.closeLams bs i body)
+      (RE (ConLeche.closeLams bsP i bodyP)) := by
+  rw [← Expr.closeLamsC_eq]
+  exact closeLamsGo_spec i bs 0 bsP body bodyP
 
 /-- con-leche: none — `xs.getD i default` on a term list: the twin's
 `exprGetD` reads the interned `.bvar 0`, con-leche's `default`. -/
