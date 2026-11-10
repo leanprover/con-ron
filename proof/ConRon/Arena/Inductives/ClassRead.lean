@@ -18,8 +18,8 @@ syntactically, checking nothing.  The Rust twin is
   `arena::inductives::gen_rec::class_n_pc_of`) put it: `GenRec` imports this
   module and Lean modules cannot be cyclic, so the one function the pre-pass
   calls from there is placed ahead of its reader.
-* **`openPisAtFvars` is `openPisAtFvarsF`**, the one-pass form con-leche
-  swaps in by `@[csimp]`.
+* **`openPisAtFvars` is `openPisAtFvarsF`**, the one-pass opener, as
+  con-leche's cached twins run `openPisAtFvarsC`.
 * **A pure reading computed twice is computed once** (`classReadMinor`'s
   `fvarTypeD.piResult` per field).
 * **`ClassRead.classes` and `ClassRead.motiveSlot` take the slot list**, as
@@ -92,6 +92,7 @@ def classOfMotiveVar (nP : Nat) (motPos : List Nat) (p : Nat) : Option Nat :=
   if nP ≤ p then motPos.findIdx? (· == p - nP) else none
 
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:82-105 classReadMinor
+con-leche: ConLeche/Cached/IndBlock.lean:201-223 classReadMinorC
 The `fvar` head of an application, its index (`none` at any other head) —
 the cited `.fvar p _ := e.getAppFn` (module note). -/
 def fvarHead (e : EIdx) : AM (Option Nat) := do
@@ -103,6 +104,7 @@ def fvarHead (e : EIdx) : AM (Option Nat) := do
   else pure none
 
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:82-105 classReadMinor
+con-leche: ConLeche/Cached/IndBlock.lean:201-223 classReadMinorC
 **Read one minor premise's type `dom`**, opened at depth `d`: its conclusion is
 a motive (the class), its last argument a constructor application (the
 constructor), and its inductive hypotheses — every opened binder whose type's
@@ -160,6 +162,7 @@ def classNPcOf (p : BlockShape) (fe : IFEnv) (i : NIdx) : Nat :=
     | _ => 0
 
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:107-124 classReadSlots
+con-leche: ConLeche/Cached/IndBlock.lean:225-240 classReadSlotsC
 One prefix binder's domain read as a motive (its telescope ends in a sort: the
 class is its last binder's domain, at the class's parameter count) or as a
 minor premise. -/
@@ -183,6 +186,7 @@ def classReadSlot (p : BlockShape) (fe : IFEnv) (np : Nat) (motPos : List Nat) (
   else classReadMinor np motPos d dom
 
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:107-124 classReadSlots
+con-leche: ConLeche/Cached/IndBlock.lean:225-240 classReadSlotsC
 Read the prefix binders `n` of a recursor type opened at the parameters (`e`,
 depth `d`), classifying each as a motive or a minor premise; each binder
 opened at `d` before the next is read.  `none` off the shape.  `nPc` is
@@ -209,6 +213,7 @@ def classReadSlots (p : BlockShape) (fe : IFEnv) (np : Nat) :
     else pure none
 
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:126-140 classRead
+con-leche: ConLeche/Cached/IndBlock.lean:242-254 classReadC
 `recs.mapM fun rc => …` — every recursor's class off its conclusion
 `motive_c ı⃗ t`; `none` off the shape. -/
 def classReadRecCls (nP : Nat) (motPos : List Nat) : List RecShape → AM (Option (List Nat))
@@ -228,6 +233,7 @@ def classReadRecCls (nP : Nat) (motPos : List Nat) : List RecShape → AM (Optio
           | some cs => pure (some (c :: cs))
 
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:126-140 classRead
+con-leche: ConLeche/Cached/IndBlock.lean:242-254 classReadC
 **The pre-pass**: the prefix layout off the FIRST recursor's type, and every
 recursor's class off its conclusion.  `none` when the family is not of the
 generated shape.  `nPc` is `classNPcOf p fe` (module note). -/

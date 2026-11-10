@@ -15,10 +15,9 @@ the same scoping facts (`ClassMajScoped`, `classConstOk_typeWF`,
 
 **The twin's deviations** (its module note), and what each costs here:
 
-* no `ShadowOps`: the pure side is `ShadowOps.ofOps (fueledOpsM .verified)`, whose
-  `opsAt`/`opsRuleR` are constant and whose `flush` is `pure ()`; the twin's
-  flushes are `flushCaches`, which restore `CheckOK` at whichever index the
-  state reads (`ReadOK.flush`);
+* the pure side is `genRecCheck` at `fueledOpsM .verified`, which does not
+  flush; the twin's flushes (`genRecCheckC`'s) are `flushCaches`, which
+  restore `CheckOK` at whichever index the state reads (`ReadOK.flush`);
 * `feR` is the constructors' index with the rule-less recursors pushed
   TEMPORARILY (`classFeR`) and popped (`IFEnv.popTemp`): the rule stage's
   knot calls run at `consBlockRecsBare …` (con-leche's
@@ -66,6 +65,9 @@ import ConRon.Bridge.Core.Walks.FvarB
 import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.ExprOps.Owed
 import ConRon.Bridge.Specs
+public import ConLeche.Cached.ExprOpsC
+import ConLeche.Verify.Cached.IndWalksC
+import ConLeche.Verify.Cached.OpsC
 
 public section
 
@@ -229,25 +231,29 @@ open GR
 
 /-! ## The generator -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:83-86 closeLams —
-**a telescope of `λ`s closed**, innermost first: `closeTelescope_spec`'s
-induction at `.lam`. -/
-theorem closeLams_spec (bs : List EIdx)
-    (bsP : List Expr) (i : Nat) (body : EIdx) (bodyP : Expr) :
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2120-2122 closeLamsGoC —
+`closeTelescopeGo_spec` at `.lam`: the twin's closer after `k` binders
+computes con-leche's cached `λ` closer. -/
+theorem closeLamsGo_spec (i : Nat) (bs : List EIdx) :
+    ∀ (k : Nat) (bsP : List Expr) (body : EIdx) (bodyP : Expr),
     PSpec (fun st => Frontend.denoteEList st bs = some bsP ∧ denoteE st body = some bodyP)
-      (Arena.closeLams bs i body)
-      (RE (ConLeche.closeLams bsP i bodyP)) := by
-  induction bs generalizing bsP i with
+      (Arena.closeLamsGo i k bs body)
+      (RE (Expr.closeLamsGoC i k bsP bodyP)) := by
+  induction bs with
   | nil =>
-    intro s₀ s' r hok hpre hrun
+    intro k bsP body bodyP s₀ s' r hok hpre hrun
     obtain ⟨hbs, hbody⟩ := hpre
     simp only [Frontend.denoteEList, Option.some.injEq] at hbs
     subst hbs
-    simp only [Arena.closeLams] at hrun
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨PStep.refl hok, hbody⟩
+    simp only [Arena.closeLamsGo] at hrun
+    obtain ⟨h1, h2, h4, h5, -, h7⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+      (ExprOps.abstractRangeFast_spec Core.fvarBSpec Arena.coreWalkFuel s₀ body i k 0 hok
+        (by rw [hbody]; rfl))
+    refine ⟨PStep.of_caches h1 h2 h4 h5, ?_⟩
+    show denoteE _ r = _
+    rw [h7 _ hbody, Expr.closeLamsGoC, Expr.abstractRangeC_spec]
   | cons dom bs ih =>
-    intro s₀ s' r hok hpre hrun
+    intro k bsP body bodyP s₀ s' r hok hpre hrun
     obtain ⟨hbs, hbody⟩ := hpre
     simp only [Frontend.denoteEList] at hbs
     cases hdom : denoteE s₀.store dom with
@@ -258,17 +264,31 @@ theorem closeLams_spec (bs : List EIdx)
     | some rest =>
     rw [hdom, hrest] at hbs
     obtain rfl := (Option.some.inj hbs).symm
-    simp only [Arena.closeLams] at hrun
-    obtain ⟨inner, s1, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨p1, hin⟩ := ih rest (i + 1) s₀ s1 inner hok ⟨hrest, hbody⟩ k1
-    obtain ⟨cl, s2, k2, z2⟩ := AM.bind_ok z1
-    obtain ⟨h1, h2, h3, h4, -, h7⟩ := AM.of_run (P := fun t => t = s1) rfl k2
-      (ExprOps.abstract1Fast_spec Core.fvarBSpec Arena.coreWalkFuel s1 inner i 0 p1.ok
-        (by rw [hin]; rfl))
-    have p2 : PStep s1 s2 := PStep.of_caches h1 h2 h3 h4
-    obtain ⟨p3, hr⟩ := internLamE_run p2.ok (denote_ext hdom (p1.ext.trans p2.ext))
-      (h7 _ hin) z2
-    exact ⟨p1.trans (p2.trans p3), hr⟩
+    simp only [Arena.closeLamsGo] at hrun
+    obtain ⟨d', s1, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨h1, h2, h4, h5, -, h7⟩ := AM.of_run (P := fun t => t = s₀) rfl k1
+      (ExprOps.abstractRangeFast_spec Core.fvarBSpec Arena.coreWalkFuel s₀ dom i k 0 hok
+        (by rw [hdom]; rfl))
+    have p1 : PStep s₀ s1 := PStep.of_caches h1 h2 h4 h5
+    obtain ⟨inner, s2, k2, z2⟩ := AM.bind_ok z1
+    obtain ⟨p2, hin⟩ := ih (k + 1) rest body bodyP s1 s2 inner p1.ok
+      ⟨denoteEList_ext p1.ext _ _ hrest, denote_ext hbody p1.ext⟩ k2
+    obtain ⟨p3, hr⟩ := internLamE_run p2.ok (denote_ext (h7 _ hdom) p2.ext) hin z2
+    refine ⟨p1.trans (p2.trans p3), ?_⟩
+    show denoteE _ r = _
+    rw [hr, Expr.closeLamsGoC, Expr.abstractRangeC_spec, Expr.mkLam_eq]
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:86-89 closeLams —
+**a telescope of `λ`s closed**: the twin's one-pass closer
+(`closeLamsGo_spec`) is con-leche's `closeLams` through con-leche's own
+`closeLamsC_eq`. -/
+theorem closeLams_spec (bs : List EIdx)
+    (bsP : List Expr) (i : Nat) (body : EIdx) (bodyP : Expr) :
+    PSpec (fun st => Frontend.denoteEList st bs = some bsP ∧ denoteE st body = some bodyP)
+      (Arena.closeLams bs i body)
+      (RE (ConLeche.closeLams bsP i bodyP)) := by
+  rw [← Expr.closeLamsC_eq]
+  exact closeLamsGo_spec i bs 0 bsP body bodyP
 
 /-- con-leche: none — `xs.getD i default` on a term list: the twin's
 `exprGetD` reads the interned `.bvar 0`, con-leche's `default`. -/
@@ -2667,7 +2687,7 @@ theorem classRuleCheck_spec {envR env₂ : Env} (feR : IFEnv) (pushed : List NId
       (fun st => Frontend.denoteCV st cvR = some cvRP ∧ denoteE st gen = some genP ∧
         Frontend.denoteNList st.ns pushed = some pushedP)
       (Arena.classRuleCheck .verified feR pushed cvR n gen) (fun _ _ _ => True)
-      (ConLeche.classRuleCheck (fueledOpsM .verified) .plain (mkFEnv env₂) (mkFEnv envR) cvRP n
+      (ConLeche.classRuleCheck (fueledOpsM .verified) (mkFEnv env₂) (mkFEnv envR) cvRP n
         genP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hcv, hgen, hie₂⟩ := hpre
@@ -2730,7 +2750,7 @@ theorem classRuleCheck_spec {envR env₂ : Env} (feR : IFEnv) (pushed : List NId
     refine ⟨c18, (), trivial, ?_⟩
     have h1P : (genP.looseBVarsBounded 0 && !genP.hasFvar) = true := by
       simp only [hlb, hfvP, Bool.not_false, Bool.and_self]
-    simp only [ConLeche.classRuleCheck, h1P, hlp, StructWalkers.plain, constsResolveF_eq, hcr,
+    simp only [ConLeche.classRuleCheck, h1P, hlp, constsResolveF_eq, hcr,
       mkFEnv_env, hsl, ↓reduceIte]
     refine FOk.bind hF5 (FOk.bind FOk.unwrapOr ?_)
     dsimp only
@@ -2754,7 +2774,7 @@ theorem classRuleOk_spec {envR env₂ : Env} (feR : IFEnv) (pushed : List NIdx)
       (fun st => Frontend.denoteCV st cvR = some cvRP ∧ denoteE st gen = some genP ∧
         Frontend.denoteNList st.ns pushed = some pushedP)
       (Arena.classRuleOk .verified feR pushed cvR n gen) (fun st r v => denoteE st r = some v)
-      (ConLeche.classRuleOk (fueledOpsM .verified) .plain (mkFEnv env₂) (mkFEnv envR) cvRP n
+      (ConLeche.classRuleOk (fueledOpsM .verified) (mkFEnv env₂) (mkFEnv envR) cvRP n
         genP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hcv, hgen, hie₂⟩ := hpre
@@ -2783,7 +2803,7 @@ theorem classRulesOk_spec {envR env₂ : Env} (feR : IFEnv) (pushed : List NIdx)
         Frontend.denoteNList st.ns pushed = some pushedP)
       (Arena.classRulesOk .verified feR pushed g recCls cvGs cvR c xs)
       (fun st r v => Frontend.denoteEList st r = some v)
-      (ConLeche.classRulesOk (fueledOpsM .verified) .plain (mkFEnv env₂) (mkFEnv envR) gP
+      (ConLeche.classRulesOk (fueledOpsM .verified) (mkFEnv env₂) (mkFEnv envR) gP
         (ConLeche.classRecOf recCls cvGsP) cvRP c xsP) := by
   intro xs
   induction xs with
@@ -2850,7 +2870,7 @@ theorem classRecsRulesOk_spec {envR env₂ : Env} (feR : IFEnv) (pushed : List N
         Frontend.denoteNList st.ns pushed = some pushedP)
       (Arena.classRecsRulesOk .verified feR pushed g recCls cvGs cvs cs)
       (fun st r v => r.mapM (dRecOut st) = some v)
-      (ConLeche.classRecsRulesOk (fueledOpsM .verified) .plain (mkFEnv env₂) (mkFEnv envR) gP
+      (ConLeche.classRecsRulesOk (fueledOpsM .verified) (mkFEnv env₂) (mkFEnv envR) gP
         (ConLeche.classRecOf recCls cvGsP) cvsP cs) := by
   intro cvs
   induction cvs with
@@ -3214,12 +3234,11 @@ theorem sum_lengths {α β : Type} {f : α → Option β} :
 
 end GR
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:537-586 genRecCheck
-con-leche: ConLeche/Cached/CheckerC.lean:118-125 shadowOpsC
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:543-581 genRecCheck
 **THEOREM 1 for the GENERATED recursor stage**, at the constructors'
 environment `env₂` (index `fe₂`), on the pass's classes (`ClassMajScoped`)
 and table: an accepting twin run answers con-leche's `genRecCheck` at
-`ShadowOps.ofOps (fueledOpsM .verified)` — the output family denotes con-leche's,
+`fueledOpsM .verified` — the output family denotes con-leche's,
 every output recursor is fresh in `env₂`, and the returned index answers
 exactly as `fe₂` (the pushes popped: same list, same row at every key, same
 base and tables, `GR.FEq`).  The rule stage's knot calls run at the rule-less
@@ -3244,7 +3263,7 @@ theorem genRecCheck_spec {env₂ : Env} (fe₂ : IFEnv)
       (Arena.genRecCheck .verified fe₂ p nestedBit params tbl rd ms block)
       (fun st r v => r.2.mapM (dRecOut st) = some v ∧ (∀ t ∈ v, env₂.find? t.1.name = none) ∧
         GR.FEq r.1 fe₂)
-      (ConLeche.genRecCheck (ShadowOps.ofOps (fueledOpsM .verified)) (mkFEnv env₂) pP nestedBit paramsP
+      (ConLeche.genRecCheck (fueledOpsM .verified) (mkFEnv env₂) pP nestedBit paramsP
         tblP rdP MsP blockP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hsh, hpar, htbl, hrd, hms, hblk⟩ := hpre
@@ -3432,9 +3451,9 @@ theorem genRecCheck_spec {env₂ : Env} (fe₂ : IFEnv)
     rw [← hs15] at hok13 hi13 hst13
     have hframe : CoreStep env₂ fe₂ s₀ s' :=
       ⟨hok13, by rw [hst13]; exact hext12, by rw [hi13.pins, hpins12]⟩
-    have hFOk : FOk (ConLeche.genRecCheck (ShadowOps.ofOps (fueledOpsM .verified)) (mkFEnv env₂) pP
+    have hFOk : FOk (ConLeche.genRecCheck (fueledOpsM .verified) (mkFEnv env₂) pP
         nestedBit paramsP tblP rdP MsP blockP) outP := by
-      simp only [ConLeche.genRecCheck, ShadowOps.ofOps, mkFEnv_env]
+      simp only [ConLeche.genRecCheck, mkFEnv_env]
       refine FOk.bind hF1 (FOk.bind hF2 ?_)
       rw [ite_eq_left hkP, hcond]
       simp only [Bool.false_eq_true, ↓reduceIte]
@@ -3443,14 +3462,14 @@ theorem genRecCheck_spec {env₂ : Env} (fe₂ : IFEnv)
       refine FOk.bind hF6 ?_
       rw [hpreP]
       rw [hrc] at hF10
-      refine FOk.bind FOk.unwrapOr (FOk.bind hF10 (FOk.seq (FOk.pure ()) ?_))
+      refine FOk.bind FOk.unwrapOr (FOk.bind hF10 ?_)
       have hfeReq : ConLeche.classFeR pP Ms2P cvGsP rdP.recCls (mkFEnv env₂) =
           mkFEnv (consBlockRecsBare pP 0
             ((cvGsP.zip rdP.recCls).map fun x => (x.1, (Ms2P.getD x.2 default).nIdx)) env₂) := by
         simp only [ConLeche.classFeR, consBlockRecsBareF_mkFEnv]
       rw [hfeReq]
       rw [hrc] at hF12
-      exact FOk.bind hF12 (FOk.seq (FOk.pure ()) (FOk.pure _))
+      exact hF12
     refine ⟨hframe, outP, ⟨by rw [hst13]; exact hout, ?_, GR.classFeR_pop p cvGs rd.recCls fe₂⟩,
       hFOk⟩
     obtain ⟨F, hF⟩ := hFOk

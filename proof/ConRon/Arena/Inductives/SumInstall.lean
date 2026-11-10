@@ -9,10 +9,11 @@ and the stored rules.  The Rust twin is `arena::inductives::sum_install`.
 
 **The deviations of this module:**
 
-* **The `…F` twins collapse into these** (task #97c's deviation 1), as in
-  `StructInstall.lean`: `ConLeche/Kernel/Inductives/SumInstallF.lean`'s
-  declarations are the same functions over an `FEnv`, and
-  `checkStructFieldSortsIFA` is one of them over `Array`.
+* **One function per stage, at the index**: each function is both the
+  `Env`-level specification and its cached twin over the index
+  (`checkSumCtorC`, `checkSumCtorsC` in `ConLeche/Cached/IndBlock.lean`,
+  `checkStructFieldSortsIC` in `ConLeche/Cached/IndPositivity.lean`), cited
+  side by side; the field loops are list loops.
 * **`consSumCtors` stays pure** — the index push touches no term.
 -/
 module
@@ -44,10 +45,8 @@ def checkSumTele (n : Nat) (cvTa₀ : IConstantVal) : AM (IConstantVal × LIdx) 
 /-! ## The constructors' stage -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:40-64 checkStructFieldSortsI
-con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:20-35 checkStructFieldSortsIF
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove SumInstall.checkStructFieldSortsI_bridge, then delete this line
-con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:37-54 checkStructFieldSortsIFA
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove SumInstall.checkStructFieldSortsI_bridge, then delete this line
+con-leche: ConLeche/Cached/IndPositivity.lean:497-513 checkStructFieldSortsIC
+con-leche: ConLeche/Cached/IndBlock.lean:127-142 checkStructFieldSortsC
 Every field's domain has a sort over the opened constructor telescope, under
 the official per-field universe bound unless the family is propositional.
 Walks the fields from the last to the first. -/
@@ -71,6 +70,7 @@ def checkStructFieldSortsI (mode : CheckMode) (fe : IFEnv) (isProp large : Bool)
     checkStructFieldSortsI mode fe isProp large s nP fvs idxArgs j
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:66-107 checkSumCtor
+con-leche: ConLeche/Cached/IndBlock.lean:144-170 checkSumCtorC
 Every field domain resolves at the PRE-BLOCK environment. -/
 def fieldDomsResolve (fe₀ : IFEnv) : List EIdx → AM Bool
   | [] => pure true
@@ -79,6 +79,7 @@ def fieldDomsResolve (fe₀ : IFEnv) : List EIdx → AM Bool
     if ← constsResolveFFast fe₀ t then fieldDomsResolve fe₀ xs else pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:66-107 checkSumCtor
+con-leche: ConLeche/Cached/IndBlock.lean:144-170 checkSumCtorC
 The index expressions never mention the block. -/
 def idxArgsResolve (fe₀ : IFEnv) : List EIdx → AM Bool
   | [] => pure true
@@ -86,8 +87,7 @@ def idxArgsResolve (fe₀ : IFEnv) : List EIdx → AM Bool
     if ← constsResolveFFast fe₀ e then idxArgsResolve fe₀ es else pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:66-107 checkSumCtor
-con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:56-84 checkSumCtorF
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove SumInstall.checkSumCtor_bridge, then delete this line
+con-leche: ConLeche/Cached/IndBlock.lean:144-170 checkSumCtorC
 Stage 2, one constructor's type: the ordinary constant check (the constructor
 is stored AS DECLARED), the result shape, the parameter pins against the type
 former's opened telescope, the pre-block resolution of the field domains, and
@@ -129,8 +129,7 @@ def checkSumCtor (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
   checkStructFieldSortsI mode fe isProp large resSort nP xq.1 idxArgs nF
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:109-117 checkSumCtors
-con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:86-93 checkSumCtorsF
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove SumInstall.checkSumCtors_bridge, then delete this line
+con-leche: ConLeche/Cached/IndBlock.lean:172-179 checkSumCtorsC
 Stage 2, all constructors' types, at the environment holding the type
 former. -/
 def checkSumCtors (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)

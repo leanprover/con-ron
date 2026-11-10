@@ -164,7 +164,7 @@ theorem genRecCheck_out_names {mode : CheckMode} {fe : FEnv} {p : BlockShape}
     {nestedBit : Bool} {params : List Expr} {tbl : List NestCtorNf} {rd : ClassRead}
     {Ms₀ : List TargetMajor} {block : List ConstantInfo}
     {out : List (ConstantVal × TargetMajor × List Expr)} {F : Nat}
-    (h : genRecCheck (ShadowOps.fueled mode F) fe p nestedBit params tbl rd Ms₀
+    (h : genRecCheck (fueledOps mode F) fe p nestedBit params tbl rd Ms₀
       block = .ok out) :
     out.map (·.1.name) = p.recs.map (·.cvR.name) := by
   obtain ⟨R⟩ := genRecCheck_run h
