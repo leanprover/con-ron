@@ -72428,3 +72428,195 @@ structure and its 150 projections), `--verified --jobs=1`, three runs each, verd
 | this branch `5713eaaf` | **415 085 463, 415 087 732, 415 086 210** (−92.5 %) | 0.156 G, 0.173 G, 0.187 G |
 
 `cargo test` green; `scripts/diff-e2e.sh` 696/696.
+
+### Task #150 — con-leche sync 501589f5 → 49d2fa3f: the cached twins the shipped binary runs, the official binder congruence, the wider unit-like η, the maximum `Nat` size (2026-11-10, Opus)
+
+Upstream tasks absorbed (128 commits): #495 (projection bodies by one substitution, the tables
+built once), #496 (instantiation stops at the loose-bvar bound), #497 and #498 L1–L8 (the
+shipped binary ran plain-tier `Kernel/*` code; cached `…C` twins under `Cached/*`, and
+`Kernel/Inductives/*` made naive specification), #515 (wider unit-like η, η of a partially
+applied constructor), #519 (the official maximum `Nat` size, `Nat.pow` at any exponent,
+`--max-nat-size`), #520 (binder-telescope congruence in the official `is_def_eq_binding`
+shape), #521 (the accepted environment is well formed, model-free), #543 (fixture).
+`update --auto`: 495 findings against 501589f5 (256 `CHANGED`, 239 `GONE`), 1 237 citations
+merely moved; 31 markers deleted mechanically (21 doc-only), 464 reconciled by hand.
+Coverage 930/1011 → 1074/1133 (Rust; the denominator grew with upstream's `Cached/*` files),
+arena 764/1010 → 904/1135; three new skip lines (`opSIxC`, `liftLooseBVarsP`, `enterLLP`) and
+the walk internals the lanes listed (`…P`/`enter…`/`NEnt`/`MemoN`: proof apparatus of the
+pointer-keyed walks).
+
+**How it was done.**  Seven lanes off the bump branch (A #520, B #515, C #519, D1 #495, D2 the
+inductive check, E walks/guards/projection guard, F #521 by the lead), merged into
+`bump-49d2fa3f`, then one integration pass.  The first attempt (2026-11-09) was OOM-killed by
+the 50 GB session cgroup: six lanes each ran `lake build` at `LAKE_JOBS=3`.  The resume ran
+every heavy command through `_tmp/t150/slot.sh` (3 machine-wide `flock` slots), and after two
+concurrent Aeneas runs peaked at 32 GB + 17 GB (48.1 GB, the session's peak), `extract.sh` and
+`gates.sh` took an exclusive lock plus two of the three slots.  **Aeneas on the whole crate now
+peaks at ~32 GB** (16.9 GB when last measured, task #98-era): one extraction at a time is a
+hard rule for parallel lanes.
+
+**The rule for the de-optimised specification (#497/#498).**  con-ron's arena is one tier of
+handle-keyed memo walks.  Where upstream deleted memo walks, flushes or array loops from
+`Kernel/*`, con-ron keeps its code and cites the cached twin it now mirrors beside the spec
+declaration Theorem 1 relates to; where upstream's twin changed the ALGORITHM, the algorithm is
+carried over; semantic changes are mirrored exactly.  Per group:
+
+| group | con-ron had | done |
+|---|---|---|
+| B1 `checkDivModPinC` (substitute once per pin variant, address memo) | plain `subst_const_all`, three walks per certificate | **not ported** (follow-up; ~0.5 % of `Init` by an earlier measurement); `substConstAllC`/`XP`, `enterSCA`, `checkDivModPin*C` skip-listed as follow-up |
+| B2 `checkReducePinC`, value checks | already the memoised guards | citations (`checkTypePinsC`, `divModPinGuardC`, `reducePinGuardC`, `checkReducePinC`) |
+| B3 tables `blockTablesC`/`declTablesC`/`structProjBodiesC` | quadratic `inst_pis_at_lift` chain, tables built three times | algorithm carried over (#495 below) |
+| B4 spec walks with no cached form | memo walks (nestOcc, depth, replaceFVars, replaceApps, mentionsAny, targetAbs) | kept; cite the `…XP`/`…C` walks |
+| B5/L6 opener `openPisAtFvarsC` | raw open + fallback to the sequential opener | fallback gone, as upstream (substituting fvars never makes a `∀`); `open_pis_raw_go` |
+| L1 walks, closers, openers | closers re-abstracted the whole remaining telescope per binder (quadratic) | `close_telescope_go`/`close_lams_go` abstract each domain and the body once by `abstract_range_fast`; `abstract_prefix` one pass; #496's cutoff was already at every node incl. the root |
+| L2 positivity (`nestCtorsC`, `nestInstTypeC`) | already: `whnf_walk_fuel` once per root constructor, telescope closed once, binders read once, spine without rebuild | citations |
+| L3 block pass/classes | same algorithm on `IFEnv` (no F layer) | spec + `Cached/IndBlock` citations |
+| L4 recursor stage | same, except the closers | closers (L1); citations |
+| L5 tail | `abstract_prefix` a fold of `abstract1` | one pass |
+| L6 spec clean-up (`ShadowOps`, `StructWalkers`, memo walks gone) | the twin had none of them | Theorem 1's statements drop `.plain`/`ShadowOps.ofOps`; `fueledOps` |
+| L7 projection guard read before rebuild (`projGuardRowsC`, `projGuardFastC`) | parameters opened and the whole field telescope substituted at every `.proj` | carried over: `proj_guard_fast` over the read-only window query `has_loose_bvar_in`; in the fast case only the projected field's domain is substituted |
+| L8 F layer gone | twin already at the index | stages cite the Env-level spec beside the `Cached/*` twin |
+
+**#495, ported (lane D1).**  A new memo walk `expr_ops::instantiate_lift_go/_fast` (several
+values at once, each lifted past the binders crossed; `bvarB ≤ d` cutoff; memo keyed as
+upstream's `instantiateLiftC`; values in push order) replaces `instantiate1_lift_go/_fast` and
+`inst_pis_at_lift(_from)`.  `struct_proj_bodies` is `stripPis nP` then one
+`instantiate_lift_fast` per field, `structProjArgP T i` pushed.  `block_tables` answers
+`Option (List IProjTable)`, `decl_tables` its `.getD []`; `check_block` reads the tables once
+after the pass (an internal error on `none`), checks those and pushes the same value;
+`check_struct_proj_table` takes the table.  The memo field keeps its name `inst1LC`.
+
+**#515, ported (lane B).**  `IndCaps` loses `etaCtor`, `etaParams`, `etaFields`, `unitlike`,
+`unitParams` (Rust, twin, readback, intern, canon, basis); `structEtaCertWith` reads the
+family's projection table, the reserved-name tests and `tower_slots_all(_go)` are gone; new
+`eta_ctor_partial(_fam)`, `struct_eta_full(_at)`, `struct_eta_expand`, `struct_eta_cert_partial`,
+`is_prop_type`, `unit_like_fields/_shape/_struct/_loop`, `UNIT_LIKE_FUEL`, `struct_unit_cert`;
+`eta_rescue_table` replaces `eta_rescue_ok`, `major_to_ctor_eta(_sort)` fabricate at the table's
+constructor and field count.  The arena already had upstream's cached algorithm (one tier
+calling the knot).  `bad/tutorial/115_etaCtor` is now accepted, as con-leche expects.
+Deviations: the Rust has no closure for the unit-like recursion (§3.4), so `unit_like_fields`
+calls `unit_like_loop` at its fuel and Theorem 2 relates it to the twin's `ul` parameter;
+`etaCtorPartialFam` writes `if caps.eta then … else false` (the Rust's order); `structEtaCert`
+reads the constructor-shape gate once (`structEtaFullAt`).  Same verdicts.
+
+**#519, ported (lane C).**  `natOpResult` lost the `pow` cap: `nat::pow_nat(a, e)` takes a
+bignum exponent, a one-limb base `2^k` is the shift `1 <<< k·e`, any other base
+square-and-multiply.  The refusals are upstream's: `pow_guard`/`shift_left_guard` before
+computing (exponent above `natCountMax`, result above the maximum), `lit_nat_sized` after
+`succ`/`add`/`sub`/`mul`, `nat_size_refused` on a literal; `nat::size_bytes` is read off the
+limb count (`8·max(len, 1)`, proved equal to `8·(log2 n / 64 + 1)`).  CLI
+`--max-nat-size=N` (digits with `_`, as `String.toNat?`; anything else exit 3; no environment
+variable); `scripts/diff-e2e.sh` gained con-leche's `E2E_FLAGS` table (`E2E_FLAGS` and
+`E2E_TIMEOUT` identical to `tests/arena.sh` at 49d2fa3f).  **Deviation:** the maximum lives in
+the pin record (`Pins::max_nat_size`, default 134 217 728), written once by
+`intern_all_pins` and inherited by every worker with the pins, instead of being threaded into
+every declaration's fresh state; the flush and the fresh `Memos` leave it alone, so the value
+each record sees is upstream's.  Theorem 2's `PinsRel` relates it (`lp.maxNatSize = toNat
+rp.max_nat_size`, `NatWF rp.max_nat_size` — a representation fact of the bignum, which
+`intern_all_pins` makes true by normalising).  `ron::nat::push_zeros` recursed once per limb
+and overflowed the stack of an unoptimised `cargo test` on `2^(2^24)`; it now halves the
+count (depth ≤ 64).  Master's binary overflows its stack on `nat_size_ok` after 106 G
+instructions and 3.5 GB; the branch accepts it in 410 M instructions and 217 MB.  Still
+accumulator recursions per limb: `hash64_from`, `cmp_from`, `copy_from` (fine in release on
+the 1 GiB worker stack; an unoptimised test on a 10⁵-limb number would overflow).
+
+**#520, ported (lane A).**  One loop for both binder kinds: `defeq_binders(lam, …)`,
+`defeq_domain`, `defeq_binders_inner`, `BINDERS_FUEL`, `expr_ops::binder_pair` (was
+`lam_pair`), keeping the port's one `instantiate_list_fast` over the push-order variables per
+level and upstream's raw-domain `ty₁ == ty₂` skip.  Deleted: `defeq_peel`, `defeq_peel_leaf`,
+`defeq_lams`, `defeq_lams_inner`, `LAMS_FUEL`.  The peel's residual short-circuit
+(`a.eq2(b)` → `true`) is dropped: the spec has none, and the knot's own first test decides the
+equal pair `true`, so no verdict moves.
+
+**#521 (lane F).**  `view_foldOK` reads each accepted prefix's `EnvWF` from con-leche's
+model-free `foldlM_checkDecl_envWF`, so `[SetTheory V]` leaves `view_foldOK`, `job_spec`,
+`pooled_fold_records`, `oleanJob_spec`, `pooled_fold_oleans` and
+`Arena.pooledAccepts_bridge`/`pooledOleanAccepts_bridge`; it stays on
+`stages_model`/`no_False` and the capstones, where con-leche's soundness builds the model.
+OVERVIEW §3.1 and §7.3 say so.
+
+**Walks, guards (lane E).**  The plain memo walks upstream deleted keep their con-ron
+counterparts, cited to `instantiate1XP`/`C`, `instantiateListXP`/`C`, `liftLooseBVarsXP`/`C`,
+`abstract1XP`/`C`, `instLevelParamsXP`, `allLevelParamsDefinedXP`/`C`, `constsResolveFXP`/`FC`,
+`hasLooseBVarBXP`/`BC`; `mentions_const` computes exactly `mentionsAnyConst [T]` and is cited so
+(not unified with positivity's `mentions_any_const`, which would move proofs for no change).
+The projection guard's window query parks its memo in a new `Memos.hlbi_c`, reset per call by
+`take_walk_memo` (on `prop_struct_proj_wide`: a fresh table per call 282 M, parked 270 M, no
+memo 256 M; no memo was rejected for its blow-up risk on DAG-shaped terms).
+
+**Verdicts.**  `scripts/diff-e2e.sh` 723/723 (master's binary at the new pin: 706/723; the 17
+it differs on are the #515 and #519 fixtures).  No new fixture is slow: every one runs in
+about the startup's ~145 M instructions plus little.
+
+**Theorem 1.**  The headline `Arena.pooledAccepts_bridge` loses `[SetTheory V]` (#521).
+`Bridge/Stages.lean`'s `stages_frame`, `stages_model`, `stages_no_False`, `stagesO_*` gain
+`{maxNatSize : Nat}` and `hE : internAllPins pins maxNatSize sD = …`.  Internal statement
+changes: `defeqBinders_spec` is new (kind, budget, vector, list; proved by induction on the
+budget directly against `Kernel/Core.lean`), `binderPair?_spec` replaces `lamPair?_spec`,
+`defeqLams*_spec` gone, `qdArm_forallE`/`qdArm_lam` keep their statements as wrappers of
+`qdArm_binders`; `blockTables_run`, `structProjBodiesGo_spec` (gains the values),
+`checkStructProjTable_run` (over a table), `checkBlockTables_spec`, `checkBlockTail_of` (gains
+`hQ`); `blockCapsAt_denote`, `blockFormers_denote`, `consBlockInds_rel`, `denoteCaps_default`
+lose their `.anonymous` hypothesis, `majorEta_spec` gains the table, `IndCapsWF`/`PersCaps`
+lose the η constructor.  Upstream's simulation lemmas were the cheaper route, and are used, for
+`declConstantsC_eq`/`declTablesC_eq` (the stream index), `closeTelescopeC_eq`/`closeLamsC_eq`/
+`abstractPrefixC_eq` (the closers: con-ron's one-pass closers are proved against the cached
+twin, which upstream equates with the spec), `openPisAtFvarsC_eq` and
+`projGuardRowsC_some`/`_none`/`projGuardRowsGoC_eq` (the projection guard).  New walk proofs
+in the `sym`/`vcgen`/`finish` style: the #515 certificates (`structEtaFull_specA`,
+`structEtaCert*_specA`, `isPropType_specA`, `unitLike*_spec`, `structUnitCert_specA`, the last
+at `gen := 12` with its reason); staged, in their files' style: `structEtaExpand_specA` (its
+`vcgen … finish (gen := 16)` ran over 20 minutes; the reproducer for
+`_tmp/corpus/vcgen-grind/` is a follow-up), `defeqBinders_spec`, the projection guard's walk
+proofs.
+
+**Theorem 2.**  Lockstep throughout; no invariant added, `Lockstep.lean` and
+`Tactic/Prims.lean` untouched.  New: `binder_pair_ls`, `defeq_domain_ls`,
+`defeq_binders_inner_ls`, `defeq_binders_aux`/`_ls`; `instantiate_lift_go_ls`/`_fast_ls`,
+`block_tables_ls`, `check_block_tables_ls`, `check_block_tail(_stream)_ls`,
+`check_struct_proj_table_ls`; the #515 certificates and loops (`Certs.lean`, `UnitLoopLS`),
+`eta_ctor_partial(_fam)`, `eta_rescue_table_ls`; `close_telescope_go_ls`/`close_lams_go_ls`;
+the window walk, `open_pis_raw_go`, `open_pis_at_fvars_f`, `proj_guard_fast`,
+`proj_guard_rows_at`; `pow_nat`, the Nat guards.  `MemosInv` gains `hlbiC`; `PinsRel` gains the
+maximum `Nat` size (above).  `intern_all_pins_refines`/`_port_refines` gain `{m : ron.nat.Nat}`.
+
+**The capstone.**  All ten headline and `rust_stages*` statements gain
+`{maxNatSize : ron.nat.Nat}`; `h5` is `arena.checker.intern_all_pins … st4 pins maxNatSize = ok
+(.Ok ipins, st5)` and `rust_stages`/`rust_stages_oleans` conclude about
+`ConRon.Arena.internAllPins (absPins pins) (toNat maxNatSize) sD`: the theorems hold at every
+maximum size, as upstream's do, with no well-formedness premise; `startState` gains
+`max_nat_size := ⟨[134217728]⟩`.
+
+**Numbers.**  `Init`, `--verified --jobs=1`, `perf stat -e instructions:u,cycles:u`, one run each
+(`bump-con-leche.sh measure`), 57 919 / 57 919 accepted:
+
+| binary | instructions:u | cycles:u | peak RSS |
+|---|---:|---:|---:|
+| master `73a3d314` | 191 283 629 584 | 78 784 462 969 | 351 MB |
+| this branch `3ed0142f` | **191 174 982 778** (−0.057 %) | 79 403 086 700 | 386 MB |
+
+Upstream's wide fixtures, `--verified --jobs=1`, instructions:u, two runs each (spread
+< 0.01 %):
+
+| fixture | master | branch | Δ |
+|---|---:|---:|---:|
+| `prop_struct_proj_wide` | 415 100 297 | **270 086 308** | −34.9 % |
+| `ind_mutual_wide_telescope` | 680 142 962 | **453 113 128** | −33.4 % (upstream 316.7 M) |
+| `defeq_binding_pi` | 154 018 826 | 153 789 963 | −0.1 % |
+| `defeq_binding_lam` | 170 803 156 | **154 006 042** | −9.8 % |
+| `defeq_binding_mutual` | 847 079 202 | **809 993 985** | −4.4 % |
+| `unitlike_wide` | 144 099 682 (rejects: wrong) | 153 739 260 (accepts) | |
+| `eta_partial_ctor` | 140 856 805 (rejects: wrong) | 142 406 658 (accepts) | |
+
+`prop_struct_proj_wide` by lane: D1's `instantiate_lift` −24 %, D2's closers −9 %, E's guard
+−2.6 % (upstream's own L7 step was −16 %: con-ron's hash-consed substitution was already cheap,
+and the window walk's memo inserts are ~20 % of the run).  The `nat_size*` fixtures: 144–157 M
+each except `nat_size_ok`'s 410 M.
+
+**Follow-ups.**  B1 (`subst_const_all` once per pin variant with an address memo); the window
+walk's memo (a visit budget before it starts would keep most of the no-memo 256 M);
+`mentions_any_go` evaluates both children where `mentionsAnyConstXP` stops at the first hit
+(same verdict); the `structEtaExpand` `grind` reproducer; move the projection guard's walk
+proofs to `sym`/`vcgen`; `PinsOK.anon` has no reader left; `IndInstPrims.unwrap_or_eidx_vec_int`
+is probably unused; rename `inst1LC`; the Init peak RSS rose 351 → 386 MB (not investigated:
+the new `hlbi_c` table and the pins' bignum are the candidates).
