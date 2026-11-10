@@ -50,10 +50,8 @@ open scoped Lean.Order
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:67-81 blockCapsAt
 **The capability record of member `mi`**, exactly: pure on both sides, read
-off the record.  The default member's `etaCtor` is the zero handle,
-`.anonymous` under `PinsOK.anon`. -/
+off the record. -/
 theorem blockCapsAt_denote {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
-    (hanon : denoteN st.ns (default : NIdx) = some ConLeche.Name.anonymous)
     (hp : dShape st p = some pP) (mi : Nat) (isRec : Bool) :
     Frontend.denoteCaps st (Arena.blockCapsAt p mi isRec)
       = some (ConLeche.blockCapsAt pP mi isRec) := by
@@ -68,7 +66,7 @@ theorem blockCapsAt_denote {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.B
     simp only [Option.bind_none] at hg
     rw [hg]
     simp only [Option.getD_none]
-    simp only [Frontend.denoteCaps, hanon, hnames, hnP, Frontend.denoteNList]
+    simp only [Frontend.denoteCaps, hnames, hnP, Frontend.denoteNList]
     rfl
   | some m =>
     rw [hmi] at hg
@@ -94,7 +92,7 @@ theorem blockCapsAt_denote {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.B
       rw [hc] at hcs
       simp only [dCtors, List.mapM_nil, Option.pure_def, Option.some.injEq] at hcs
       subst hcs
-      simp only [Frontend.denoteCaps, hanon, hnames, hnP, List.map_nil, Frontend.denoteNList]
+      simp only [Frontend.denoteCaps, hnames, hnP, List.map_nil, Frontend.denoteNList]
     | cons c rest =>
       rw [hc] at hcs
       obtain ⟨cP, restP, rfl, hcP, hrestP⟩ := mapM_option_cons_inv hcs
@@ -107,7 +105,7 @@ theorem blockCapsAt_denote {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.B
       | cons c' rest' =>
         obtain ⟨cP', restP', rfl, hcP', hrestP'⟩ := mapM_option_cons_inv hrestP
         have hall := dCtors_names hcs
-        simp only [Frontend.denoteCaps, hanon, hnames, hnP, hall]
+        simp only [Frontend.denoteCaps, hnames, hnP, hall]
       | nil =>
         simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hrestP
         subst hrestP
@@ -384,12 +382,11 @@ theorem declared_denote {st : EStore} :
 **The formers**, in block order, as declared, with their capability records:
 pure on both sides. -/
 theorem blockFormers_denote {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
-    (hanon : denoteN st.ns (default : NIdx) = some ConLeche.Name.anonymous)
     (hp : dShape st p = some pP) (isRec : Bool) :
     Frontend.denoteCIList st (Arena.blockFormers p isRec)
       = some (ConLeche.blockFormers pP isRec) := by
   obtain ⟨hms, -, -, -, -, -, -⟩ := dShape_inv hp
-  exact blockFormers_go isRec (blockCapsAt_denote hanon hp · isRec) _ _ 0
+  exact blockFormers_go isRec (blockCapsAt_denote hp · isRec) _ _ 0
     (declared_denote hms)
 
 /-- con-leche: none — `dCtors`'s constructor list, read as constructor
@@ -793,8 +790,7 @@ theorem blockConstants_run {s s' : AState} {p : Arena.BlockShape} {pP : ConLeche
   obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
   refine ⟨p1.trans p2, by rw [e2, e1], ?_⟩
   have hp2 := dShape_ext p2.ext _ _ hp1
-  have hanon := (hpins.mono (p1.trans p2).ext (p1.trans p2).pins).anon
-  rw [denoteCIList_append (denoteCIList_append (blockFormers_denote hanon hp2 _)
+  rw [denoteCIList_append (denoteCIList_append (blockFormers_denote hp2 _)
     (blockCtors_denote hp2)) hR]
   rfl
 

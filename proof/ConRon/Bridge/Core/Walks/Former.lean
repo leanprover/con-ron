@@ -287,7 +287,7 @@ theorem formerNeverZeroAt_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
     ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
         NZ eager env cvTP capsP ls r; ⊤⦄ := by
   obtain ⟨-, hlps, hty⟩ := denoteCV_inv hcv
-  obtain ⟨-, -, -, -, hnp, hni⟩ := denoteCaps_fields hcaps
+  obtain ⟨-, hnp, hni⟩ := denoteCaps_fields hcaps
   sym only [bridge_grind] =>
     vcgen [ConRon.Arena.formerNeverZeroAt,
       formerResSort_spec (eager := eager) (env := env) (fe := fe) (tyP := cvTP.type),
@@ -503,7 +503,7 @@ theorem projGuardSort_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
     ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
         GS eager env cvTP capsP ls r; ⊤⦄ := by
   obtain ⟨-, hlps, hty⟩ := denoteCV_inv hcv
-  obtain ⟨-, -, -, -, hnp, hni⟩ := denoteCaps_fields hcaps
+  obtain ⟨-, hnp, hni⟩ := denoteCaps_fields hcaps
   sym only [bridge_grind] =>
     vcgen [ConRon.Arena.projGuardSort,
       formerResSort_spec (eager := eager) (env := env) (fe := fe) (tyP := cvTP.type),

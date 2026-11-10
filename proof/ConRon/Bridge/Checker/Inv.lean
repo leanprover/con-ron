@@ -219,11 +219,7 @@ theorem denoteCaps_pext {st st' : EStore} (hx : PExt st st') {c : IIndCaps}
     {x : IndCaps} (hp : PersCaps c) (h : Frontend.denoteCaps st c = some x) :
     Frontend.denoteCaps st' c = some x := by
   simp only [Frontend.denoteCaps] at h ⊢
-  cases hn : denoteN st.ns c.etaCtor with
-  | none => rw [hn] at h; simp at h
-  | some ct =>
-    rw [hn] at h; rw [denoteN_pext hx hp.etaCtor hn]
-    cases ha : Frontend.denoteNList st.ns c.all with
+  · cases ha : Frontend.denoteNList st.ns c.all with
     | none => rw [ha] at h; simp at h
     | some all =>
       cases hk : Frontend.denoteNList st.ns c.ctors with

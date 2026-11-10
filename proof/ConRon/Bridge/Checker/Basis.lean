@@ -270,29 +270,22 @@ theorem denoteCaps_inj {st : EStore} (hwf : StoreWF st) {cap cap' : IIndCaps}
   have hwf' := hwf
   obtain ⟨rk, hrk⟩ := hwf'
   simp only [Frontend.denoteCaps] at hc hc'
-  cases he : denoteN st.ns cap.etaCtor with
-  | none => rw [he] at hc; simp at hc
-  | some ct =>
-    cases he' : denoteN st.ns cap'.etaCtor with
-    | none => rw [he'] at hc'; simp at hc'
-    | some ct' =>
-      cases ha : Frontend.denoteNList st.ns cap.all with
-      | none => rw [he, ha] at hc; simp at hc
+  · cases ha : Frontend.denoteNList st.ns cap.all with
+      | none => rw [ha] at hc; simp at hc
       | some al =>
       cases ha' : Frontend.denoteNList st.ns cap'.all with
-      | none => rw [he', ha'] at hc'; simp at hc'
+      | none => rw [ha'] at hc'; simp at hc'
       | some al' =>
       cases hk : Frontend.denoteNList st.ns cap.ctors with
-      | none => rw [he, ha, hk] at hc; simp at hc
+      | none => rw [ha, hk] at hc; simp at hc
       | some ks =>
       cases hk' : Frontend.denoteNList st.ns cap'.ctors with
-      | none => rw [he', ha', hk'] at hc'; simp at hc'
+      | none => rw [ha', hk'] at hc'; simp at hc'
       | some ks' =>
-      rw [he, ha, hk] at hc; rw [he', ha', hk'] at hc'
+      rw [ha, hk] at hc; rw [ha', hk'] at hc'
       rw [← hc'] at hc
       simp only [Option.some.injEq, IndCaps.mk.injEq] at hc
-      obtain ⟨e1, rfl, e3, e4, e5, e6, rfl, e8, e9, rfl⟩ := hc
-      have := denoteN_inj hrk.nsWF he he'
+      obtain ⟨e1, rfl, e3, e4, rfl⟩ := hc
       have hA := denoteNList_inj hwf _ _ _ ha ha'
       have hK := denoteNList_inj hwf _ _ _ hk hk'
       cases cap; cases cap'

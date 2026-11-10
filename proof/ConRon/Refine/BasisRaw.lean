@@ -1074,7 +1074,7 @@ theorem and_raw_refines {ci : env.ConstantInfo} (h : basis_raw.and_raw = ok ci) 
   obtain ⟨ae1, we1⟩ := pi_refines we we he1
   obtain ⟨ae2, we2⟩ := pi_refines we we1 he2
   obtain ⟨acv, wcv⟩ := cv_refines wn vec_new_wf we2 hcv
-  refine ⟨?_, ⟨wcv, wic.1, wv, wv1⟩⟩
+  refine ⟨?_, ⟨wcv, wv, wv1⟩⟩
   simp [absConstantInfo, absNames, absIndCaps_all_nparams_ctors aic, acv, ae2, ae1, ae,
     an, av, av1, an1, ConLeche.andRaw]
 

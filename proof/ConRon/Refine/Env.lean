@@ -140,19 +140,17 @@ the `abs` reading follows by `congrArg`. -/
 cited structure's field defaults. -/
 theorem ind_caps_default_refines {c : env.IndCaps} (h : env.ind_caps_default = ok c) :
     absIndCaps c = ({} : ConLeche.IndCaps) := by
-  simp only [env.ind_caps_default, bind_eq_ok_iff, Result.ok.injEq] at h
-  obtain ⟨n, hn, rfl⟩ := h
+  simp only [env.ind_caps_default, Result.ok.injEq] at h
+  subst h
   rw [absIndCaps]
-  simp only [Name.anonymous_refines hn, absNames]
-  simp [alloc.vec.Vec.new]
+  simp [absNames, alloc.vec.Vec.new]
 
 /-- `env::ind_caps_default` is well formed. -/
 theorem ind_caps_default_wf {c : env.IndCaps} (h : env.ind_caps_default = ok c) :
     IndCapsWF c := by
-  simp only [env.ind_caps_default, bind_eq_ok_iff, Result.ok.injEq] at h
-  obtain ⟨n, hn, rfl⟩ := h
-  exact ⟨Name.anonymous_wf hn,
-    fun _ hm => by simp [alloc.vec.Vec.new] at hm,
+  simp only [env.ind_caps_default, Result.ok.injEq] at h
+  subst h
+  exact ⟨fun _ hm => by simp [alloc.vec.Vec.new] at hm,
     fun _ hm => by simp [alloc.vec.Vec.new] at hm⟩
 
 /-! ## `default_expr` and the per-field view of a table

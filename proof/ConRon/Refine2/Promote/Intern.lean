@@ -1115,13 +1115,10 @@ private theorem intern_caps_ls {pers st lst} {c : kernel.env.IndCaps}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hwf : IndCapsWF c) :
     LS pers (fun a b => b = absIIndCaps a) (arena.intern.intern_caps pers st c) lst
       (Frontend.internCaps (ConRon.Refine.absIndCaps c)) := by
-  obtain ⟨hn, hall, hctors⟩ := hwf
+  obtain ⟨hall, hctors⟩ := hwf
   rw [arena.intern.intern_caps]
   simp only [Frontend.internCaps, ConRon.Refine.absIndCaps]
-  refine LS.bind (intern_name_ls' hrel hinv _ hn) rfl (fun _ _ => errArm_ok) ?_
-  intro a b st1 lst1 hR hrel1 hinv1
-  subst hR
-  refine LS.bind (intern_name_list_ls hrel1 hinv1 _ hall) rfl (fun _ _ => errArm_ok) ?_
+  refine LS.bind (intern_name_list_ls hrel hinv _ hall) rfl (fun _ _ => errArm_ok) ?_
   intro al bl st2 lst2 hR2 hrel2 hinv2
   subst hR2
   refine LS.bind (intern_name_list_ls hrel2 hinv2 _ hctors) rfl (fun _ _ => errArm_ok) ?_
