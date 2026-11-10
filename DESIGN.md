@@ -72587,6 +72587,12 @@ maximum `Nat` size (above).  `intern_all_pins_refines`/`_port_refines` gain `{m 
 maximum size, as upstream's do, with no well-formedness premise; `startState` gains
 `max_nat_size` at the default 134 217 728 (`max_nat_size_default_eq`).
 
+**Dead-census.**  32 owners the sync left without a user are deleted (the IndCaps shim's
+`CapsFields`, the sequential opener's run lemmas, `Walks/Reserved.lean` whole, the reserved-name
+and `quickDefEq` monotonicity leftovers, `peel_fuel_val`, …); `absIProjTable_ctor`/`numFields`/
+`numParams` are allowlisted beside `absIRecRule_*`: `simp` rewrites with them through
+`lockstep_simp`, which leaves no reference in the proof term.
+
 **Numbers.**  `Init`, `--verified --jobs=1`, `perf stat -e instructions:u,cycles:u`, one run each
 (`bump-con-leche.sh measure`), 57 919 / 57 919 accepted:
 
