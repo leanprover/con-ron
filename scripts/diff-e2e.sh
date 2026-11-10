@@ -228,19 +228,37 @@ declare -A E2E_TIMEOUT=(
   [complete_c05b_nest30_pi1000.ndjson]=600
 )
 
+# Per-fixture checker flags, each with its reason — con-leche's own
+# `E2E_FLAGS` table (`tests/arena.sh`), keyed and applied like `E2E_TIMEOUT`.
+# nat_size_limit_*: the port of lean4's tests/elab/nat_size_limit.lean,
+# which runs at LEAN_NAT_MAX_SIZE=16 so that the maximum `Nat` size trips on
+# small numerals; the flag is con-leche's spelling of that bound.
+declare -A E2E_FLAGS=(
+  [nat_size_limit_mul_ok.ndjson]=--max-nat-size=16
+  [nat_size_limit_mul_big.ndjson]=--max-nat-size=16
+  [nat_size_limit_pow_big.ndjson]=--max-nat-size=16
+  [nat_size_limit_pow_huge_exp.ndjson]=--max-nat-size=16
+  [nat_size_limit_pow_32bit.ndjson]=--max-nat-size=16
+  [nat_size_limit_shift_big.ndjson]=--max-nat-size=16
+  [nat_size_limit_big_lit.ndjson]=--max-nat-size=16
+)
+
 one() { # one <suite> <label> <stream> <expected-exit>
   local suite=$1 label=$2 path=$3 want=$4
   if [ -n "$only" ] && ! printf '%s' "$suite/$label" | grep -qE "$only"; then return; fi
   total=$((total + 1))
   want=$(want_for "$suite" "$label" "$want")
-  local out rc to=$TO
+  local out rc to=$TO flags=""
   if [ "$suite" = e2e ] && [ -n "${E2E_TIMEOUT[$label]:-}" ]; then
     to=${E2E_TIMEOUT[$label]}
+  fi
+  if [ "$suite" = e2e ] && [ -n "${E2E_FLAGS[$label]:-}" ]; then
+    flags=${E2E_FLAGS[$label]}
   fi
   # `ulimit -c 0` (inside the substitution's subshell): an abort (a native
   # stack overflow) would otherwise hand the system's core handler a 1 GiB
   # stack and leave a dump behind.
-  out=$(ulimit -c 0; timeout "$to" "$BIN" "$MODE" --jobs="$jobs" $pinargs $progress "$path" 2>&1); rc=$?
+  out=$(ulimit -c 0; timeout "$to" "$BIN" "$MODE" --jobs="$jobs" $pinargs $progress $flags "$path" 2>&1); rc=$?
   printf '=== %s/%s (expect %s)\n%s\n  exit %s\n' "$suite" "$label" "$want" "$out" "$rc" >>"$log"
   if [ "$rc" = 124 ] && [ "$want" != 124 ]; then
     timedout=$((timedout + 1)); echo "TIMEOUT $suite/$label (after ${to}s, expected $want)"

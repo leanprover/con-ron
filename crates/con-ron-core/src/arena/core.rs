@@ -105,7 +105,7 @@ use crate::arena::monad::{
 };
 use crate::arena::prop_read::{is_proof_fast, not_proof_fast, peel_pis};
 use crate::arena::store::{ENodeView, LNodeView};
-use crate::arena::pins::{pin_and, pin_and_intro, pin_reserved, pin_bool, pin_bool_false, pin_bool_true, pin_char, pin_eager_reduce, pin_char_of_nat, pin_empty_levels, pin_list, pin_list_cons, pin_list_nil, pin_nat, pin_nat_add, pin_nat_beq, pin_nat_ble, pin_nat_div, pin_nat_gcd, pin_nat_land, pin_nat_lor, pin_nat_mod, pin_nat_mul, pin_nat_pow, pin_nat_pred, pin_nat_shift_left, pin_nat_shift_right, pin_nat_sub, pin_nat_succ, pin_nat_xor, pin_nat_zero, pin_sorry_ax, pin_sort_one, pin_string, pin_string_of_list, pin_zero_level};
+use crate::arena::pins::{pin_and, pin_and_intro, pin_reserved, pin_bool, pin_bool_false, pin_bool_true, pin_char, pin_eager_reduce, pin_char_of_nat, pin_empty_levels, pin_list, pin_list_cons, pin_list_nil, pin_nat, pin_nat_add, pin_nat_beq, pin_nat_ble, pin_nat_div, pin_nat_gcd, pin_nat_land, pin_nat_lor, pin_nat_mod, pin_nat_mul, pin_nat_pow, pin_nat_pred, pin_nat_shift_left, pin_nat_shift_right, pin_nat_sub, pin_nat_succ, pin_nat_xor, pin_nat_zero, pin_sorry_ax, pin_sort_one, pin_string, pin_string_of_list, pin_zero_level, max_nat_size};
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env::{verified_checks, CheckMode, ReducibilityHint};
 use crate::kernel::expr;
@@ -299,6 +299,55 @@ pub const M_STR: [u32; 54] = [
     102, 111, 114, 101, 32, 116, 104, 101, 32, 83, 116, 114, 105, 110, 103, 32, 115, 117,
     112, 112, 111, 114, 116, 32, 100, 101, 99, 108, 97, 114, 97, 116, 105, 111, 110, 115
 ];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"the kernel refused a `Nat` numeral because its size exceeds the maximum; raise it with --max-nat-size"`, as code points.
+pub const M_NAT_NUMERAL_TOO_BIG: [u32; 101] = [
+    116, 104, 101, 32, 107, 101, 114, 110, 101, 108, 32, 114, 101, 102, 117, 115, 101, 100,
+    32, 97, 32, 96, 78, 97, 116, 96, 32, 110, 117, 109, 101, 114, 97, 108, 32, 98,
+    101, 99, 97, 117, 115, 101, 32, 105, 116, 115, 32, 115, 105, 122, 101, 32, 101, 120,
+    99, 101, 101, 100, 115, 32, 116, 104, 101, 32, 109, 97, 120, 105, 109, 117, 109, 59,
+    32, 114, 97, 105, 115, 101, 32, 105, 116, 32, 119, 105, 116, 104, 32, 45, 45, 109,
+    97, 120, 45, 110, 97, 116, 45, 115, 105, 122, 101
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"the kernel refused to evaluate `Nat.pow` because its second argument does not fit in a 32-bit unsigned integer"`, as code points.
+pub const M_NAT_POW_COUNT: [u32; 110] = [
+    116, 104, 101, 32, 107, 101, 114, 110, 101, 108, 32, 114, 101, 102, 117, 115, 101, 100,
+    32, 116, 111, 32, 101, 118, 97, 108, 117, 97, 116, 101, 32, 96, 78, 97, 116, 46,
+    112, 111, 119, 96, 32, 98, 101, 99, 97, 117, 115, 101, 32, 105, 116, 115, 32, 115,
+    101, 99, 111, 110, 100, 32, 97, 114, 103, 117, 109, 101, 110, 116, 32, 100, 111, 101,
+    115, 32, 110, 111, 116, 32, 102, 105, 116, 32, 105, 110, 32, 97, 32, 51, 50, 45,
+    98, 105, 116, 32, 117, 110, 115, 105, 103, 110, 101, 100, 32, 105, 110, 116, 101, 103,
+    101, 114
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"the kernel refused to evaluate `Nat.shiftLeft` because its second argument does not fit in a 32-bit unsigned integer"`, as code points.
+pub const M_NAT_SHIFT_COUNT: [u32; 116] = [
+    116, 104, 101, 32, 107, 101, 114, 110, 101, 108, 32, 114, 101, 102, 117, 115, 101, 100,
+    32, 116, 111, 32, 101, 118, 97, 108, 117, 97, 116, 101, 32, 96, 78, 97, 116, 46,
+    115, 104, 105, 102, 116, 76, 101, 102, 116, 96, 32, 98, 101, 99, 97, 117, 115, 101,
+    32, 105, 116, 115, 32, 115, 101, 99, 111, 110, 100, 32, 97, 114, 103, 117, 109, 101,
+    110, 116, 32, 100, 111, 101, 115, 32, 110, 111, 116, 32, 102, 105, 116, 32, 105, 110,
+    32, 97, 32, 51, 50, 45, 98, 105, 116, 32, 117, 110, 115, 105, 103, 110, 101, 100,
+    32, 105, 110, 116, 101, 103, 101, 114
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"the kernel refused to evaluate `Nat.pow` because the result would exceed the maximum numeral size; raise it with --max-nat-size"`, as code points.
+pub const M_NAT_POW_TOO_BIG: [u32; 127] = [
+    116, 104, 101, 32, 107, 101, 114, 110, 101, 108, 32, 114, 101, 102, 117, 115, 101, 100,
+    32, 116, 111, 32, 101, 118, 97, 108, 117, 97, 116, 101, 32, 96, 78, 97, 116, 46,
+    112, 111, 119, 96, 32, 98, 101, 99, 97, 117, 115, 101, 32, 116, 104, 101, 32, 114,
+    101, 115, 117, 108, 116, 32, 119, 111, 117, 108, 100, 32, 101, 120, 99, 101, 101, 100,
+    32, 116, 104, 101, 32, 109, 97, 120, 105, 109, 117, 109, 32, 110, 117, 109, 101, 114,
+    97, 108, 32, 115, 105, 122, 101, 59, 32, 114, 97, 105, 115, 101, 32, 105, 116, 32,
+    119, 105, 116, 104, 32, 45, 45, 109, 97, 120, 45, 110, 97, 116, 45, 115, 105, 122,
+    101
+];
+
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"let value type mismatch"`, as code points.
@@ -3090,13 +3139,20 @@ pub fn nat_op_equations_ble(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:580-605 natOpResult
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::nat_op_result_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1051-1092 natOpResult` — the reduct of
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:582-608 natOpResult
+/// con-leche: ConLeche/Cached/StateC.lean:177-197 natOpRefusal
+/// con-leche: ConLeche/Cached/StateC.lean:199-206 natResultRefused
+/// con-leche: ConLeche/Cached/CoreC.lean:87-157 reduceNatI
+/// Lean twin: `proof/ConRon/Arena/Core.lean natOpResult` — the reduct of
 /// op `c` on literal arguments (`pred` ignores the second slot).  `ron::Nat` is
 /// con-leche's `Nat` here, and a literal is a `Literal` value in a `lit` node.
-/// The shifts take the bignum amount unbounded (task #98-SHIFT): a left shift
-/// too large for memory fails like any other allocation, with no decline.
+/// The computation is the cited one at any size; the run's maximum `Nat` size
+/// (con-leche's cached `reduceNatI`) refuses `pow` and `shiftLeft` before
+/// computing (`pow_guard`, `shift_left_guard`: the cited `natOpRefusal`) and an
+/// `add`, `sub` or `mul` result after it (`lit_nat_sized`: `natResultRefused`).
+/// Each refusal throws, so it sits in the arm that computes: where con-leche
+/// tests the operation's name a second time and reads the result back, the
+/// port is already in the arm and holds the number.
 pub fn nat_op_result(
     pers: &PersTier,
     st: &mut AState,
@@ -3110,19 +3166,15 @@ pub fn nat_op_result(
             if c.eq2(&p.pr) {
                 lit_nat(pers, st, nat::pred(a))
             } else if c.eq2(&p.ad) {
-                lit_nat(pers, st, nat::add(a, b))
+                lit_nat_sized(pers, st, nat::add(a, b))
             } else if c.eq2(&p.su) {
-                lit_nat(pers, st, nat::sub(a, b))
+                lit_nat_sized(pers, st, nat::sub(a, b))
             } else if c.eq2(&p.mu) {
-                lit_nat(pers, st, nat::mul(a, b))
+                lit_nat_sized(pers, st, nat::mul(a, b))
             } else if c.eq2(&p.po) {
-                if nat::blt(&nat::from_u64(16777216), b) {
-                    Ok(None)
-                } else {
-                    match nat::to_u64(b) {
-                        Some(e) => lit_nat(pers, st, nat::pow(a, e)),
-                        None => Ok(None),
-                    }
+                match pow_guard(st, a, b) {
+                    Err(e) => Err(e),
+                    Ok(()) => lit_nat(pers, st, nat::pow_nat(a, b)),
                 }
             } else if c.eq2(&p.di) {
                 lit_nat(pers, st, nat::div(a, b))
@@ -3137,7 +3189,10 @@ pub fn nat_op_result(
             } else if c.eq2(&p.xo) {
                 lit_nat(pers, st, nat::xor(a, b))
             } else if c.eq2(&p.sl) {
-                lit_nat(pers, st, nat::shift_left_nat(a, b))
+                match shift_left_guard(st, a, b) {
+                    Err(e) => Err(e),
+                    Ok(()) => lit_nat(pers, st, nat::shift_left_nat(a, b)),
+                }
             } else if c.eq2(&p.sr) {
                 lit_nat(pers, st, nat::shift_right_nat(a, b))
             } else if c.eq2(&p.be) {
@@ -3151,8 +3206,81 @@ pub fn nat_op_result(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:580-605 natOpResult
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::lit_nat_refines, then delete this line
+/// con-leche: ConLeche/Cached/StateC.lean:199-206 natResultRefused
+/// con-leche: ConLeche/Cached/CoreC.lean:87-157 reduceNatI
+/// Lean twin: `proof/ConRon/Arena/Core.lean litNatSized` — a computed
+/// numeral, refused above the run's maximum `Nat` size (the cited
+/// `natNumeralTooBig`), otherwise interned like `lit_nat`.
+pub fn lit_nat_sized(pers: &PersTier, st: &mut AState, n: Nat) -> Result<Option<EIdx>, CheckError> {
+    if nat_size_refused(st, &n) {
+        fail(CheckError::Invalid(code_points(&M_NAT_NUMERAL_TOO_BIG)))
+    } else {
+        lit_nat(pers, st, n)
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:159-162 natSizeBytes
+/// con-leche: ConLeche/Cached/StateC.lean:267-271 maxNatSizeM
+/// Lean twin: `proof/ConRon/Arena/Core.lean natSizeRefused` — whether the
+/// numeral `n` is above the run's maximum `Nat` size,
+/// `natSizeBytes n > maxNatSize`.
+pub fn nat_size_refused(st: &AState, n: &Nat) -> bool {
+    nat::size_bytes_gt(n, max_nat_size(st))
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:177-197 natOpRefusal
+/// Lean twin: `proof/ConRon/Arena/Core.lean powGuard` — the cited `Nat.pow`
+/// clause: an exponent above `natCountMax` is refused whatever the base, and
+/// `a > 1`, `b ≠ 0`, `natSizeBytes a > maxNatSize / b` (`pow_refused`) is.
+pub fn pow_guard(st: &AState, a: &Nat, b: &Nat) -> Result<(), CheckError> {
+    if nat::blt(&nat::from_u64(4294967295), b) {
+        fail(CheckError::Invalid(code_points(&M_NAT_POW_COUNT)))
+    } else if pow_refused(st, a, b) {
+        fail(CheckError::Invalid(code_points(&M_NAT_POW_TOO_BIG)))
+    } else {
+        Ok(())
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:177-197 natOpRefusal
+/// Lean twin: `proof/ConRon/Arena/Core.lean powRefused` — `a ^ b` has at most
+/// `natSizeBytes a * b` bytes, and a base `≤ 1` gives `0` or `1`.
+pub fn pow_refused(st: &AState, a: &Nat, b: &Nat) -> bool {
+    if nat::ble(a, &nat::one()) {
+        false
+    } else if nat::is_zero(b) {
+        false
+    } else {
+        nat::size_bytes_gt(a, &nat::div(max_nat_size(st), b))
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:177-197 natOpRefusal
+/// Lean twin: `proof/ConRon/Arena/Core.lean shiftLeftGuard` — the cited
+/// `Nat.shiftLeft` clause: `0 <<< b = 0` computes; otherwise an amount above
+/// `natCountMax` is refused, and so is a result of about
+/// `natSizeBytes a + b / 8` bytes above the maximum (`shift_left_refused`).
+pub fn shift_left_guard(st: &AState, a: &Nat, b: &Nat) -> Result<(), CheckError> {
+    if nat::is_zero(a) {
+        Ok(())
+    } else if nat::blt(&nat::from_u64(4294967295), b) {
+        fail(CheckError::Invalid(code_points(&M_NAT_SHIFT_COUNT)))
+    } else if shift_left_refused(st, a, b) {
+        fail(CheckError::Invalid(code_points(&M_NAT_NUMERAL_TOO_BIG)))
+    } else {
+        Ok(())
+    }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:177-197 natOpRefusal
+/// Lean twin: `proof/ConRon/Arena/Core.lean shiftLeftRefused` —
+/// `natSizeBytes a + b / 8 + 1 > maxNatSize`.
+pub fn shift_left_refused(st: &AState, a: &Nat, b: &Nat) -> bool {
+    let s = nat::add(&nat::add(&nat::size_bytes(a), &nat::shift_right(b, 3)), &nat::one());
+    nat::blt(max_nat_size(st), &s)
+}
+
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:582-608 natOpResult
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1051-1092 natOpResult` — `internE (.lit
 /// (.natVal …))` wrapped in `some`, which every arithmetic arm above ends in.
 pub fn lit_nat(pers: &PersTier, st: &mut AState, n: Nat) -> Result<Option<EIdx>, CheckError> {
@@ -3162,8 +3290,7 @@ pub fn lit_nat(pers: &PersTier, st: &mut AState, n: Nat) -> Result<Option<EIdx>,
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:580-605 natOpResult
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::bool_const_refines, then delete this line
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:582-608 natOpResult
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1051-1092 natOpResult` — the two
 /// comparison arms' `Bool` constructor, interned.
 pub fn bool_const(pers: &PersTier, st: &mut AState, b: bool) -> Result<Option<EIdx>, CheckError> {
@@ -3802,7 +3929,7 @@ pub fn reduce_nat_succ(
                                     Ok(w) => match raw_nat_lit(pers, st, &w) {
                                         Err(er) => Err(er),
                                         Ok(Some(n)) => {
-                                            lit_nat(pers, st, nat::add(&n, &nat::one()))
+                                            lit_nat_sized(pers, st, nat::add(&n, &nat::one()))
                                         }
                                         Ok(None) => Ok(None),
                                     },
@@ -7728,17 +7855,25 @@ pub fn infer_const(
 /// con-leche: ConLeche/Kernel/Core.lean:1308-1394 inferBodyIO
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3040-3098 inferBody`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3100-3168 inferBodyIO`
-/// The `.lit (.natVal _)` clause, which both bodies write identically.
+/// con-leche: ConLeche/Cached/CoreC.lean:1207-1312 inferBodyI
+/// The `.lit (.natVal n)` clause, which both bodies write identically: a
+/// numeral entering the checker is bounded by the run's maximum `Nat` size
+/// (the cited cached clause, official `infer_lit`).
 pub fn infer_lit_nat(
     pers: &PersTier,
     st: &mut AState,
     fe: &IFEnv,
+    n: &Nat,
 ) -> Result<EIdx, CheckError>  {
     match nat_lit_stored(pers, st, fe) {
         Err(e) => Err(e),
-        Ok(true) => match pin_nat(st) {
-            Err(e) => Err(e),
-            Ok(nn) => const_e(pers, st, &nn),
+        Ok(true) => if nat_size_refused(st, n) {
+            fail(CheckError::Invalid(code_points(&M_NAT_NUMERAL_TOO_BIG)))
+        } else {
+            match pin_nat(st) {
+                Err(e) => Err(e),
+                Ok(nn) => const_e(pers, st, &nn),
+            }
         },
         Ok(false) => fail(CheckError::Invalid(code_points(&M_NAT))),
     }
@@ -8525,7 +8660,7 @@ pub fn infer_body(
         Ok(ENodeView::Sort(u)) => infer_sort(pers, st, &u),
         Ok(ENodeView::FVar(idx, ty)) => infer_fvar(idx, &ty, depth),
         Ok(ENodeView::Const(n, us)) => infer_const(pers, st, fe, &n, &us),
-        Ok(ENodeView::Lit(Literal::NatVal(_))) => infer_lit_nat(pers, st, fe),
+        Ok(ENodeView::Lit(Literal::NatVal(n))) => infer_lit_nat(pers, st, fe, &n),
         Ok(ENodeView::Lit(Literal::StrVal(_))) => infer_lit_str(pers, st, fe),
         Ok(ENodeView::ForallE(ty, body)) => {
             infer_forall(pers, st, mode, eager, lane, fuel, fe, depth, &ty, &body)
@@ -8576,7 +8711,7 @@ pub fn infer_body_io(
         Ok(ENodeView::Sort(u)) => infer_sort(pers, st, &u),
         Ok(ENodeView::FVar(idx, ty)) => infer_fvar(idx, &ty, depth),
         Ok(ENodeView::Const(n, us)) => infer_const(pers, st, fe, &n, &us),
-        Ok(ENodeView::Lit(Literal::NatVal(_))) => infer_lit_nat(pers, st, fe),
+        Ok(ENodeView::Lit(Literal::NatVal(n))) => infer_lit_nat(pers, st, fe, &n),
         Ok(ENodeView::Lit(Literal::StrVal(_))) => infer_lit_str(pers, st, fe),
         Ok(ENodeView::ForallE(ty, body)) => {
             infer_forall_io(pers, st, mode, eager, lane, io, fuel, fe, depth, &ty, &body)

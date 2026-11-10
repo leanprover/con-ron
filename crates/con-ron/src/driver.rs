@@ -84,6 +84,7 @@ use con_ron_core::kernel::pins_decode;
 use con_ron_core::kernel::env::CheckMode;
 
 use con_ron_core::arena::store::PersTier;
+use con_ron_core::ron::nat::{self, Nat};
 
 use crate::pool::parallel_all;
 use crate::pool::ParallelError;
@@ -236,6 +237,27 @@ pub fn jobs_count(v: &str) -> Result<u64, String> {
              (a decimal numeral of at least 1), got {}",
             crate::render::display_str(v)
         )),
+    }
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:104-114 maxNatSizeArg
+/// The maximum `Nat` size, read off the `--max-nat-size=<bytes>` flag: a
+/// decimal byte count, the official kernel's `LEAN_NAT_MAX_SIZE` (the largest
+/// `Nat` numeral the checker takes in or computes; a larger one rejects the
+/// declaration).  Any size, as con-leche's `String.toNat?` reads it; a
+/// non-numeral is a usage error (exit 3).  Without the flag the maximum size is
+/// the official default, 128 MiB (`arena::pins::max_nat_size_default`).
+pub fn max_nat_size_arg(v: &str) -> Result<Nat, String> {
+    if v.is_empty() || !v.bytes().all(|c| c.is_ascii_digit()) {
+        Err(format!(
+            "--max-nat-size takes a byte count (a decimal numeral), got {}",
+            crate::render::display_str(v)
+        ))
+    } else {
+        let ten = nat::from_u64(10);
+        Ok(v.bytes().fold(nat::zero(), |acc, c| {
+            nat::add(&nat::mul(&acc, &ten), &nat::from_u64((c - b'0') as u64))
+        }))
     }
 }
 

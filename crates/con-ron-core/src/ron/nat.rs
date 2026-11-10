@@ -538,24 +538,75 @@ fn mul_from(a: &Nat, b: &Nat, i: usize, sh: u64, acc: Nat) -> Nat {
     }
 }
 
-/// `a ^ e` by square-and-multiply.  The caller enforces con-leche's
-/// `ReducePowMaxExp` bound (`e <= 2^24`, `Kernel/Core.lean:639`); this
-/// function is total.  Repeated multiplication would give a one-line
-/// induction, but `e` up to `2^24` makes it quadratically slow, and the
-/// binary recursion is still a plain strong induction on `e` through
-/// `x ^ e = (x ^ (e / 2))^2 * x ^ (e % 2)`.
-pub fn pow(a: &Nat, e: u64) -> Nat {
-    if e == 0 {
+/// `Nat.pow a e` for a bignum exponent, exact and unbounded: a power-of-two
+/// base `2^k` (one limb) is the shift `1 <<< k * e`, which is how the large
+/// powers a kernel folds are written; any other base is square-and-multiply
+/// (`pow_go`).  The caller bounds the result (con-leche's maximum `Nat` size,
+/// `arena::core::pow_guard`); this function is total and runs out of memory
+/// like any allocation when the result is too large.
+pub fn pow_nat(a: &Nat, e: &Nat) -> Nat {
+    match pow2_log(a) {
+        Some(k) => {
+            let s = mul(&from_u64(k), e);
+            shift_left_nat(&one(), &s)
+        }
+        None => pow_go(a, e),
+    }
+}
+
+/// `some k` when `a = 2^k` fits one limb, `none` otherwise.
+fn pow2_log(a: &Nat) -> Option<u64> {
+    if a.limbs.len() == 1 {
+        word_log2_exact(a.limbs[0], 0)
+    } else {
+        None
+    }
+}
+
+/// `some (k + j)` when `x = 2^j`, `none` otherwise (`x = 0` included).
+fn word_log2_exact(x: u64, k: u64) -> Option<u64> {
+    if x == 1 {
+        Some(k)
+    } else if x == 0 {
+        None
+    } else if x % 2 == 0 {
+        word_log2_exact(x / 2, k + 1)
+    } else {
+        None
+    }
+}
+
+/// `a ^ e` by square-and-multiply over the exponent's bits:
+/// `a ^ e = (a ^ (e / 2))^2 * a ^ (e % 2)`.
+fn pow_go(a: &Nat, e: &Nat) -> Nat {
+    if is_zero(e) {
         one()
     } else {
-        let h = pow(a, e / 2);
+        let h = pow_go(a, &shift_right(e, 1));
         let hh = mul(&h, &h);
-        if e % 2 == 0 {
+        if low_limb(e) % 2 == 0 {
             hh
         } else {
             mul(&hh, a)
         }
     }
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:137-141 natSizeBytes
+/// The official kernel's size of `a` in bytes (`lean_nat_size_in_bytes`):
+/// 8 bytes per limb, and at least 8.  The cited `8 * (a.log2 / 64 + 1)`,
+/// read off the limb count: a normalised `a` with `n > 0` limbs has
+/// `a.log2 / 64 = n - 1`.
+pub fn size_bytes(a: &Nat) -> Nat {
+    let n: u64 = a.limbs.len() as u64;
+    let l: u64 = if n == 0 { 1 } else { n };
+    shift_left(&from_u64(l), 3)
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:137-141 natSizeBytes
+/// `natSizeBytes a > m`: the comparison every refusal of a numeral makes.
+pub fn size_bytes_gt(a: &Nat, m: &Nat) -> bool {
+    blt(m, &size_bytes(a))
 }
 
 // ---------------------------------------------------------------------------
@@ -737,6 +788,31 @@ mod tests {
     use super::*;
 
     // -- helpers ----------------------------------------------------------
+
+    /// `pow_nat` at a machine-word exponent, the form the tests below use.
+    fn pow(a: &Nat, e: u64) -> Nat {
+        pow_nat(a, &from_u64(e))
+    }
+
+    /// The power-of-two shortcut and the square-and-multiply loop agree, and
+    /// `size_bytes` is the official kernel's measure.
+    #[test]
+    fn pow_paths_and_size() {
+        for k in 0..6u64 {
+            for e in 0..70u64 {
+                let a = from_u64(1 << k);
+                assert!(eqn(&pow_nat(&a, &from_u64(e)), &pow_go(&a, &from_u64(e))), "{k} {e}");
+            }
+        }
+        assert!(eqn(&pow_nat(&zero(), &zero()), &one()));
+        assert!(is_zero(&pow_nat(&zero(), &from_u64(4000000000))));
+        assert!(eqn(&pow_nat(&one(), &from_u64(4294967295)), &one()));
+        assert!(eqn(&size_bytes(&zero()), &from_u64(8)));
+        assert!(eqn(&size_bytes(&from_u64(u64::MAX)), &from_u64(8)));
+        assert!(eqn(&size_bytes(&of_u128(1 << 64)), &from_u64(16)));
+        assert!(size_bytes_gt(&of_u128(1 << 64), &from_u64(15)));
+        assert!(!size_bytes_gt(&of_u128(1 << 64), &from_u64(16)));
+    }
 
     fn of_u128(x: u128) -> Nat {
         let mut v: Vec<u64> = Vec::new();

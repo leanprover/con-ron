@@ -49,6 +49,7 @@ use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env::{BasisKind, CheckMode};
 use crate::kernel::nat_op_pins::NatOpPinSet;
 use crate::ron::hashmap::Dup;
+use crate::ron::nat::{self, Nat};
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"check phase: no job"`, as code points — the cited message with the
@@ -113,6 +114,7 @@ pub fn pins_dup(p: &Pins) -> Pins {
         empty_levels: p.empty_levels.dup2(),
         zero_level: p.zero_level.dup2(),
         sort_one: p.sort_one.dup2(),
+        max_nat_size: nat::clone(&p.max_nat_size),
     }
 }
 
@@ -170,11 +172,18 @@ pub fn run_job(
 /// job compares the record with), the standard and compiler-trust axiom pins, the reserved names
 /// the guards compare by handle, and the `Nat`-operation pin variants, whose
 /// interned form is the checker's pin-list parameter (con-leche's task #304).
+/// First, the run's maximum `Nat` size goes into the pin record
+/// (`Pins::max_nat_size`): con-leche threads it beside the pin list
+/// (`checkDecls mode pins maxNatSize`) into every declaration's fresh state
+/// (`{ maxNatSize := maxNatSize }`, `Cached.declStep`, `Cached.recordJob`); here
+/// every worker copies it with the pins (`worker_state`) and no job writes it.
 pub fn intern_all_pins(
     pers: &PersTier,
     st: &mut AState,
     pins: &Vec<NatOpPinSet>,
+    max_nat_size: &Nat,
 ) -> Result<Vec<INatOpPinSet>, CheckError> {
+    st.pins.max_nat_size = nat::clone(max_nat_size);
     match intern_all_basis(pers, st, 0) {
         Err(e) => Err(e),
         Ok(()) => match intern_all_axiom_pins(pers, st) {
@@ -329,6 +338,7 @@ pub fn intern_all_names(st: &mut AState) -> Result<(), CheckError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::arena::pins::max_nat_size_default;
 
     /// con-leche: none — a test fixture
     /// The state the driver builds: an empty store with the reserved-name
@@ -514,7 +524,7 @@ mod tests {
     fn the_startup_walk_interns_into_the_persistent_tier() {
         let pers: &PersTier = &PersTier::empty();
         let mut st = pinned_state();
-        let _ = ok(intern_all_pins(pers, &mut st, &no_pins()));
+        let _ = ok(intern_all_pins(pers, &mut st, &no_pins(), &max_nat_size_default()));
         let n0 = st.store.pers_count(pers);
         assert!(n0 > 0);
         // a worker over the frozen tier, and the same names again: nothing new
@@ -555,7 +565,7 @@ mod tests {
                 };
                 assert!(pins.len() > 0);
                 let mut st = pinned_state();
-                let ip = ok(intern_all_pins(pers, &mut st, &pins));
+                let ip = ok(intern_all_pins(pers, &mut st, &pins, &max_nat_size_default()));
                 assert_eq!(ip.len(), pins.len());
                 // every interned pin is a PERSISTENT handle — the startup walk
                 // runs before the first `enter_scratch`, which is what makes a
