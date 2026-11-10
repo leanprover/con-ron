@@ -532,10 +532,7 @@ a pure projection on both sides. -/
     LSP arena.env.i_ind_caps_default (fun ic => TwinEq ({} : IIndCaps) (absIIndCaps ic)) := by
   intro ic h
   rw [arena.env.i_ind_caps_default] at h
-  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases Result.ok_injective h
-  rw [arena.handle.NIdx.of_word] at hn
-  cases Result.ok_injective hn
   simp only [TwinEq, absIIndCaps]
   rfl
 

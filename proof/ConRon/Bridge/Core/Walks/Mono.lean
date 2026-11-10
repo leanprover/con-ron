@@ -146,11 +146,57 @@ theorem structEtaCertWith_mono (h : FnsRefines r₁ r₂) (d : Nat) (a b wtb : E
   have := (structEtaCertWith (pairFns r₁ r₂ h) env d a b wtb).property
   rwa [structEtaCertWith_fst_proj, structEtaCertWith_snd_proj] at this
 
+/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — structure η at
+a fully applied constructor. -/
+theorem structEtaFull_mono (h : FnsRefines r₁ r₂) (d : Nat) (a b : Expr) :
+    MRefines (structEtaFull r₁ env d a b) (structEtaFull r₂ env d a b) := by
+  have := (structEtaFull (pairFns r₁ r₂ h) env d a b).property
+  rwa [structEtaFull_fst_proj, structEtaFull_snd_proj] at this
+
+/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the η-expansion
+of a partially applied constructor. -/
+theorem structEtaExpand_mono (h : FnsRefines r₁ r₂) (k d : Nat) (a b t : Expr) :
+    MRefines (structEtaExpand r₁ env k d a b t) (structEtaExpand r₂ env k d a b t) := by
+  have := (structEtaExpand (pairFns r₁ r₂ h) env k d a b t).property
+  rwa [structEtaExpand_fst_proj, structEtaExpand_snd_proj] at this
+
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — structure η. -/
 theorem structEtaCert_mono (h : FnsRefines r₁ r₂) (d : Nat) (a b : Expr) :
     MRefines (structEtaCert r₁ env d a b) (structEtaCert r₂ env d a b) := by
   have := (structEtaCert (pairFns r₁ r₂ h) env d a b).property
   rwa [structEtaCert_fst_proj, structEtaCert_snd_proj] at this
+
+/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — is a
+proposition. -/
+theorem isPropType_mono (h : FnsRefines r₁ r₂) (d : Nat) (T : Expr) :
+    MRefines (isPropType r₁ d T) (isPropType r₂ d T) := by
+  have := (isPropType (pairFns r₁ r₂ h) d T).property
+  rwa [isPropType_fst_proj, isPropType_snd_proj] at this
+
+/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — is a type
+unit-like. -/
+theorem unitLikeLoop_mono (h : FnsRefines r₁ r₂) (n d : Nat) (T : Expr) :
+    MRefines (unitLikeLoop r₁ env n d T) (unitLikeLoop r₂ env n d T) := by
+  have := (unitLikeLoop (pairFns r₁ r₂ h) env n d T).property
+  rwa [unitLikeLoop_fst_proj, unitLikeLoop_snd_proj] at this
+
+/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the field loop
+at the unit-like loop's budget `m`. -/
+theorem unitLikeFields_mono (h : FnsRefines r₁ r₂) (m n d : Nat) (t : Expr) :
+    MRefines (unitLikeFields r₁ (unitLikeLoop r₁ env m) n d t)
+      (unitLikeFields r₂ (unitLikeLoop r₂ env m) n d t) := by
+  have := (unitLikeFields (pairFns r₁ r₂ h) (unitLikeLoop (pairFns r₁ r₂ h) env m) n d t).property
+  rwa [unitLikeFields_fst_proj (fun d e => unitLikeLoop_fst_proj m d e),
+    unitLikeFields_snd_proj (fun d e => unitLikeLoop_snd_proj m d e)] at this
+
+/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the structure
+arm at the unit-like loop's budget `m`. -/
+theorem unitLikeStruct_mono (h : FnsRefines r₁ r₂) (m d : Nat) (w : Expr) :
+    MRefines (unitLikeStruct r₁ (unitLikeLoop r₁ env m) env d w)
+      (unitLikeStruct r₂ (unitLikeLoop r₂ env m) env d w) := by
+  have := (unitLikeStruct (pairFns r₁ r₂ h) (unitLikeLoop (pairFns r₁ r₂ h) env m) env d w).property
+  rwa [unitLikeStruct_fst_proj (fun d e => unitLikeLoop_fst_proj m d e),
+    unitLikeStruct_snd_proj (fun d e => unitLikeLoop_snd_proj m d e)] at this
 
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the unit
 certificate. -/
@@ -301,6 +347,54 @@ theorem structEtaCertWithFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a 
     (hr : structEtaCertWithFueled mode eager env f d a b wtb = .ok r) :
     structEtaCertWithFueled mode eager env f' d a b wtb = .ok r :=
   structEtaCertWith_mono (pureFns_mono env hle) d a b wtb r hr
+
+/-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
+`structEtaFull`. -/
+theorem structEtaFullFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a b : Expr} {r : Bool}
+    (hr : structEtaFullFueled mode eager env f d a b = .ok r) :
+    structEtaFullFueled mode eager env f' d a b = .ok r :=
+  structEtaFull_mono (pureFns_mono env hle) d a b r hr
+
+/-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
+`structEtaExpand`. -/
+theorem structEtaExpandFueled_mono {f f' : Nat} (hle : f ≤ f') {k d : Nat} {a b t : Expr}
+    {r : Bool} (hr : structEtaExpandFueled mode eager env f k d a b t = .ok r) :
+    structEtaExpandFueled mode eager env f' k d a b t = .ok r :=
+  structEtaExpand_mono (pureFns_mono env hle) k d a b t r hr
+
+/-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
+`isPropType`. -/
+theorem isPropTypeFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {T : Expr} {r : Bool}
+    (hr : isPropTypeFueled mode eager env f d T = .ok r) :
+    isPropTypeFueled mode eager env f' d T = .ok r :=
+  isPropType_mono (pureFns_mono env hle) d T r hr
+
+/-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
+`unitLikeLoop`. -/
+theorem unitLikeLoopFueled_mono {f f' : Nat} (hle : f ≤ f') {n d : Nat} {T : Expr} {r : Bool}
+    (hr : unitLikeLoopFueled mode eager env f n d T = .ok r) :
+    unitLikeLoopFueled mode eager env f' n d T = .ok r :=
+  unitLikeLoop_mono (pureFns_mono env hle) n d T r hr
+
+/-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
+`unitLikeFields`, the loop at budget `m` for its `ul`. -/
+theorem unitLikeFieldsFueled_mono {f f' : Nat} (hle : f ≤ f') {m n d : Nat} {t : Expr}
+    {r : Bool}
+    (hr : unitLikeFields (pureFns mode eager env f) (unitLikeLoopFueled mode eager env f m) n d t
+      = .ok r) :
+    unitLikeFields (pureFns mode eager env f') (unitLikeLoopFueled mode eager env f' m) n d t
+      = .ok r :=
+  unitLikeFields_mono (pureFns_mono env hle) m n d t r hr
+
+/-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
+`unitLikeStruct`, the loop at budget `m` for its `ul`. -/
+theorem unitLikeStructFueled_mono {f f' : Nat} (hle : f ≤ f') {m d : Nat} {w : Expr}
+    {r : Bool}
+    (hr : unitLikeStruct (pureFns mode eager env f) (unitLikeLoopFueled mode eager env f m) env d w
+      = .ok r) :
+    unitLikeStruct (pureFns mode eager env f') (unitLikeLoopFueled mode eager env f' m) env d w
+      = .ok r :=
+  unitLikeStruct_mono (pureFns_mono env hle) m d w r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `structEtaCert`. -/

@@ -113,14 +113,6 @@ writes the name it looked up under. -/
 
 /-! ## What is not here
 
-`fenv::tower_slots_all_f`/`_from` and `fenv::rec_slots_all_f`/`_from` are
-`ConLeche/Kernel/Core.lean`'s `towerSlotsAll`/`recSlotsAll` read through the
-index (`fenv.rs`'s citations say so), i.e. `(List.range nF).all …`.  Their
-refinement is the `List.range'` suffix bookkeeping of a `u64` index recursion
-and nothing to do with the relation this file is about, so they go with the rest
-of `Core.lean`'s readers in `Refine/CoreK/` (`CORE_PLAN.md` step 4).
-`rec_slot_ok_refines` above is the one of the four the relation *does* settle.
-
 `andRescueSlotsF` and the four indexed guard twins (`natLitSupportedF`,
 `strLitSupportedF`, `natOpGuardF`, `natOpStoredF`) are not ported yet
 (`fenv.rs`'s module note), so they have nothing to refine.

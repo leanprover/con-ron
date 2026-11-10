@@ -1689,13 +1689,11 @@ theorem denoteCIList_of_listRel {st : EStore} :
   | nil => rfl
   | cons hab _ ih => simp only [denoteCIList, hab, ih]
 
-/-- con-leche: ConLeche/Kernel/Env.lean:352-371 IndCaps — the DEFAULT capability
-record denotes con-leche's default, once the zero name handle decodes to
-`.anonymous` (`PinsOK.anon`). -/
-theorem denoteCaps_default {st : EStore}
-    (h : denoteN st.ns (default : NIdx) = some ConLeche.Name.anonymous) :
+/-- con-leche: ConLeche/Kernel/Env.lean:184-221 IndCaps — the DEFAULT capability
+record denotes con-leche's default. -/
+theorem denoteCaps_default {st : EStore} :
     denoteCaps st {} = some {} := by
-  simp only [denoteCaps, h, denoteNList]
+  simp only [denoteCaps, denoteNList]
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:368-373 installIndD — **an
 inductive record, INSTALLED**: the block's constants, pushed as one
@@ -1703,10 +1701,8 @@ inductive record, INSTALLED**: the block's constants, pushed as one
 (`Arena/Inductives/**`) at check time, so the parser only pushes it — the
 whole function is three `mapM`s (`parseCVD_run`/`parseRules_run`, none of
 whose callees intern) and `pushDecl_run`, so **nothing moves the store**.
-
-`PinsOK s` is what makes the pushed `.indInfo` rows' DEFAULT capability
-record denote con-leche's: its `etaCtor` is the zero name handle, and it
-denotes `.anonymous` only after the pin phase (`PinsOK.anon`). -/
+The pushed `.indInfo` rows carry the DEFAULT capability record, which denotes
+con-leche's (`denoteCaps_default`). -/
 theorem installIndD_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
@@ -1717,7 +1713,7 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
     s' = s ∧ PersStateD sd' ∧
       ∃ d, indBlockOfF sc.name sc.level sc.expr tys cts rcs nPd = .ok d ∧
         StateDRel s.store sd' (ConLeche.Frontend.pushDecl sc d) := by
-  have hcaps := denoteCaps_default hpins.anon
+  have hcaps : denoteCaps s.store {} = some {} := denoteCaps_default
   rw [installIndD] at hrun
   -- the type formers
   have htys : ∀ (ts : List ConLeche.Frontend.IndTypeRec)

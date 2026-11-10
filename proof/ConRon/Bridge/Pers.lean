@@ -428,10 +428,9 @@ structure PersRule (rl : IRecRule) : Prop where
 @[expose] def PersRules (rs : List IRecRule) : Prop := ∀ r ∈ rs, PersRule r
 
 /-- con-leche: none — an inductive's capabilities record is persistent, field
-by field: its handle fields are the eta constructor's name and the two name
-lists official's `inductive_val` carries (`all`, `ctors`). -/
+by field: its handle fields are the two name lists official's `inductive_val`
+carries (`all`, `ctors`). -/
 structure PersCaps (c : IIndCaps) : Prop where
-  etaCtor : PersN c.etaCtor
   all : PersNList c.all
   ctors : PersNList c.ctors
 

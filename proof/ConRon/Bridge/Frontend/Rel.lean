@@ -587,23 +587,19 @@ theorem PersRules_of_denote {st : EStore} (hwf : StoreWF st)
         · exact PersRule_of_denote hwf hoff h1
         · exact ih h2 r hr
 
-/-- con-leche: none — an inductive's capabilities record; its one handle field
-is the eta constructor's name. -/
+/-- con-leche: none — an inductive's capabilities record; its handle fields are
+the member and constructor name lists. -/
 theorem PersCaps_of_denote {st : EStore} (hwf : StoreWF st)
     (hoff : st.scratchOn = false) {c : IIndCaps} {cc : IndCaps}
     (hd : denoteCaps st c = some cc) : PersCaps c := by
   rw [denoteCaps] at hd
-  cases h1 : denoteN st.ns c.etaCtor with
-  | none => rw [h1] at hd; simp at hd
-  | some n =>
   cases h2 : denoteNList st.ns c.all with
-  | none => rw [h1, h2] at hd; simp at hd
+  | none => rw [h2] at hd; simp at hd
   | some all =>
   cases h3 : denoteNList st.ns c.ctors with
-  | none => rw [h1, h2, h3] at hd; simp at hd
+  | none => rw [h2, h3] at hd; simp at hd
   | some ctors =>
-    exact ⟨PersN_of_denote hwf hoff h1, PersNList_of_denote hwf hoff h2,
-      PersNList_of_denote hwf hoff h3⟩
+    exact ⟨PersNList_of_denote hwf hoff h2, PersNList_of_denote hwf hoff h3⟩
 
 /-- con-leche: none — **a stored constant**: six arms, each of them the
 layers above assembled. -/

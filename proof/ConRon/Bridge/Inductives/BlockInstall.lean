@@ -358,7 +358,6 @@ con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:75-80 consBlockIndsF
 on both sides): the index pushes answer for con-leche's conses
 (`EnvRel.push`, each). -/
 theorem consBlockInds_rel {st : EStore} (hwf : StoreWF st)
-    (hanon : denoteN st.ns (default : NIdx) = some ConLeche.Name.anonymous)
     {p₁ : Arena.BlockShape} {p₁P : ConLeche.BlockShape} (hp : dShape st p₁ = some p₁P)
     (isRec : Bool) :
     ∀ (cvs : List IConstantVal) (cvsP : List ConstantVal) (i : Nat) (fe : IFEnv) (env : Env),
@@ -373,9 +372,9 @@ theorem consBlockInds_rel {st : EStore} (hwf : StoreWF st)
     obtain ⟨cvP, restP, rfl, hcv, hrest⟩ := mapM_option_cons_inv hcvs
     have hci : Frontend.denoteCI st (.indInfo cv (Arena.blockCapsAt p₁ i isRec)) =
         some (.indInfo cvP (ConLeche.blockCapsAt p₁P i isRec)) := by
-      simp only [Frontend.denoteCI, hcv, blockCapsAt_denote hanon hp]
+      simp only [Frontend.denoteCI, hcv, blockCapsAt_denote hp]
     simp only [Arena.consBlockInds, ConLeche.consBlockInds]
-    exact consBlockInds_rel hwf hanon hp isRec rest restP (i + 1) _ _ hrest (h.push hwf hci)
+    exact consBlockInds_rel hwf hp isRec rest restP (i + 1) _ _ hrest (h.push hwf hci)
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:172-185 checkBlockInds
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:82-93 checkBlockIndsF
@@ -434,7 +433,7 @@ theorem checkBlockInds_spec {env : Env} (fe : IFEnv)
   · have hdecl : ((ms₀ :: rest).map (·.declared)).mapM (Frontend.denoteCV s'.store) =
         some ((ms₀P :: restP).map (·.declared)) := by
       exact declared_denote (dMember_ext.list c14.ext _ _ (mapM_option_cons hm0 hrestP))
-    exact consBlockInds_rel c14.ok.state.wf c14.ok.pins.anon hp₁ isRec _ _ 0 fe env hdecl
+    exact consBlockInds_rel c14.ok.state.wf hp₁ isRec _ _ 0 fe env hdecl
       (hfe.mono c14.ext)
   · unfold ConLeche.checkBlockInds
     exact FOk.bind fk1 (FOk.bind fk2 (FOk.bind fk3 (FOk.pure _)))

@@ -272,11 +272,10 @@ theorem i_rec_rules_dup_abs {rs r : alloc.vec.Vec arena.env.IRecRule}
 theorem i_ind_caps_dup_abs {c o : arena.env.IIndCaps}
     (h : arena.env.i_ind_caps_dup c = ok o) : absIIndCaps o = absIIndCaps c := by
   rw [arena.env.i_ind_caps_dup] at h
-  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [← Result.ok_injective h]
-  simp only [absIIndCaps, dupId_nidx _ _ hn, nidx_vec_dup_val hv, nidx_vec_dup_val hv1]
+  simp only [absIIndCaps, nidx_vec_dup_val hv, nidx_vec_dup_val hv1]
 
 /-- **`arena::env::i_constant_info_dup` is the identity on the abstraction.** -/
 theorem i_constant_info_dup_abs {c o : arena.env.IConstantInfo}

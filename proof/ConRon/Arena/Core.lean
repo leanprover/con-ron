@@ -1613,7 +1613,7 @@ def etaCtorPartialFam (fe : IFEnv) (c : NIdx) (ty : EIdx) : AM Bool := do
       match fe.find? T with
       | some (.indInfo _ caps) =>
         match fe.findTable? T with
-        | some tbl => pure (caps.eta && tbl.ctor == c)
+        | some tbl => if caps.eta then pure (tbl.ctor == c) else pure false
         | none => pure false
       | _ => pure false
     | _ => pure false

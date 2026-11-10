@@ -434,12 +434,10 @@ theorem andRescueSlots_spec (s₀ : AState) (ctor : NIdx) (nP : Nat) (cn : ConLe
 /-- con-leche: none — a denoted capability record's fields. -/
 theorem denoteCaps_fields {st : EStore} {c : IIndCaps} {dc : IndCaps}
     (h : Frontend.denoteCaps st c = some dc) :
-    dc.eta = c.eta ∧ denoteN st.ns c.etaCtor = some dc.etaCtor ∧
-      dc.etaParams = c.etaParams ∧ dc.etaFields = c.etaFields ∧
-      dc.nparams = c.nparams ∧ dc.nIdx = c.nIdx := by
+    dc.eta = c.eta ∧ dc.nparams = c.nparams ∧ dc.nIdx = c.nIdx := by
   simp only [Frontend.denoteCaps] at h
   split at h
-  · rename_i ct _ _ hct _ _; cases h; exact ⟨rfl, hct, rfl, rfl, rfl, rfl⟩
+  · cases h; exact ⟨rfl, rfl, rfl⟩
   · simp at h
 
 /-- con-leche: none — two denoting name-handle lists compare as their
@@ -460,37 +458,73 @@ theorem denoteN_beq {st : EStore} (hwf : StoreWF st) {a b : NIdx}
   · rintro rfl; exact Option.some.inj (ha.symm.trans hb)
   · rintro rfl; exact denoteN_inj hrk.nsWF ha hb
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:1121-1131 etaRescueOk — **THEOREM
-1 for `etaRescueOk`**: the cited `&&` chain at the denotations. -/
-theorem etaRescueOk_spec (s₀ : AState) (ctor : NIdx) (cn : ConLeche.Name)
+/-- con-leche: none — the twin's optional projection table against con-leche's:
+both absent, or the twin's denoting con-leche's. -/
+@[expose] def TblAns (st : EStore) : Option IProjTable → Option ProjTable → Prop
+  | none, none => True
+  | some t, some p => Frontend.denoteProjTable st t = some p
+  | _, _ => False
+
+/-- con-leche: none — `TblAns` at an absent table. -/
+@[bridge_grind =] theorem TblAns.none_eq (st : EStore) (o : Option ProjTable) :
+    TblAns st none o = (o = none) := by
+  cases o <;> simp [TblAns]
+
+/-- con-leche: none — `TblAns` at a present table. -/
+@[bridge_grind =] theorem TblAns.some_eq (st : EStore) (t : IProjTable) (o : Option ProjTable) :
+    TblAns st (some t) o = (∃ p, o = some p ∧ Frontend.denoteProjTable st t = some p) := by
+  cases o <;> simp [TblAns]
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:923-941 etaRescueTable? — **THEOREM
+1 for `etaRescueTable?`**: the cited `&&` chain at the denotations, the table
+it answers with denoting con-leche's. -/
+theorem etaRescueTable?_spec (s₀ : AState) (tbl? : Option IProjTable) (tblP? : Option ProjTable)
+    (ctor : NIdx) (cn : ConLeche.Name)
     (cvj cvT : IConstantVal) (cvjP cvTP : ConstantVal) (caps : IIndCaps) (capsP : IndCaps)
-    (hok : CheckOK eager env fe s₀) (hc : denoteN s₀.store.ns ctor = some cn)
+    (hok : CheckOK eager env fe s₀) (ht : TblAns s₀.store tbl? tblP?)
+    (hc : denoteN s₀.store.ns ctor = some cn)
     (hcvj : Frontend.denoteCV s₀.store cvj = some cvjP)
     (hcvT : Frontend.denoteCV s₀.store cvT = some cvTP)
     (hcaps : Frontend.denoteCaps s₀.store caps = some capsP) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.etaRescueOk ctor cvj cvT caps
-    ⦃fun r s' => s' = s₀ ∧ r = ConLeche.etaRescueOk cn cvjP cvTP capsP; ⊤⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.etaRescueTable? tbl? ctor cvj cvT caps
+    ⦃fun r s' => s' = s₀ ∧
+        TblAns s₀.store r (ConLeche.etaRescueTable? tblP? cn cvjP cvTP capsP); ⊤⦄ := by
   have hwf := hok.state.wf
-  obtain ⟨he, hct, -⟩ := denoteCaps_fields hcaps
+  obtain ⟨he, -⟩ := denoteCaps_fields hcaps
   obtain ⟨-, hlj, -⟩ := denoteCV_inv hcvj
   obtain ⟨-, hlT, -⟩ := denoteCV_inv hcvT
-  have h1 := denoteN_beq hwf hct hc
   have h2 := denoteNList_beq hwf hlj hlT
-  unfold ConRon.Arena.etaRescueOk
-  rw [h1, h2, ← he]
-  by_cases hg : (capsP.eta && capsP.etaCtor == cn && cvjP.levelParams == cvTP.levelParams) = true
-  · rw [ite_eq_left hg]
-    unfold ConRon.Arena.pinAndIntro
-    refine triple_seq (pinAt_specE s₀ _ hok.pins) ?_
-    rintro ai s1 ⟨rfl, hai⟩
-    refine triple_pureS ⟨rfl, ?_⟩
-    have hai' : denoteN s1.store.ns ai = some ConLeche.andIntroName := by rw [hai]; rfl
-    simp only [ConLeche.etaRescueOk, hg, Bool.true_and, bne, denoteN_beq hwf hc hai']
-  · rw [ite_eq_right hg]
-    refine triple_pureS ⟨rfl, ?_⟩
-    simp only [ConLeche.etaRescueOk]
-    simp only [Bool.not_eq_true] at hg
-    rw [hg]; rfl
+  unfold ConRon.Arena.etaRescueTable?
+  match tbl?, tblP?, ht with
+  | none, none, _ =>
+    exact triple_pureS ⟨rfl, trivial⟩
+  | some t, some p, hp =>
+    simp only [TblAns] at hp
+    have h1 := denoteN_beq hwf (denoteProjTable_ctor hp) hc
+    dsimp only
+    rw [h1, h2, ← he]
+    by_cases hg : (capsP.eta && p.ctor == cn && cvjP.levelParams == cvTP.levelParams) = true
+    · rw [ite_eq_left hg]
+      unfold ConRon.Arena.pinAndIntro
+      refine triple_seq (pinAt_specE s₀ _ hok.pins) ?_
+      rintro ai s1 ⟨rfl, hai⟩
+      have hai' : denoteN s1.store.ns ai = some ConLeche.andIntroName := by rw [hai]; rfl
+      have h3 := denoteN_beq hwf hc hai'
+      simp only [ConLeche.etaRescueTable?, hg, Bool.true_and, bne]
+      by_cases hq : (ctor == ai) = true
+      · have hq' : (cn == ConLeche.andIntroName) = true := h3 ▸ hq
+        simp only [bne, hq, Bool.not_true, Bool.false_eq_true, ite_false, hq']
+        exact triple_pureS ⟨rfl, trivial⟩
+      · have hq' : (cn == ConLeche.andIntroName) = false := by
+          rw [← h3]; simpa using hq
+        have hq2 : (ctor == ai) = false := by simpa using hq
+        simp only [hq2, Bool.not_false, ite_true, hq']
+        exact triple_pureS ⟨rfl, hp⟩
+    · rw [ite_eq_right hg]
+      refine triple_pureS ⟨rfl, ?_⟩
+      simp only [ConLeche.etaRescueTable?]
+      simp only [Bool.not_eq_true] at hg
+      rw [hg]; trivial
 
 /-- con-leche: none — a denoted rule's fields. -/
 theorem rule_denote {st : EStore} {rl : IRecRule} {rl' : RecRule}

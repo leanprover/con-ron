@@ -137,10 +137,9 @@ attribute [lockstep_simp] absNNodeView absLNodeView absLsNodeView absLIdxL absNI
     LSP (arena.env.i_ind_caps_dup c) (fun o => o = c) := by
   intro o h
   rw [arena.env.i_ind_caps_dup] at h
-  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  rw [← Result.ok_injective h, dupId_nidx _ _ hn,
+  rw [← Result.ok_injective h,
     alloc.vec.Vec.ext _ _ (nidx_vec_dup_val hv), alloc.vec.Vec.ext _ _ (nidx_vec_dup_val hv1)]
 
 @[lockstep] theorem basis_kind_dup_spec (k : kernel.env.BasisKind) :

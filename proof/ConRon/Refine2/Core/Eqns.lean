@@ -70,7 +70,16 @@ force_eqns
   arena.core.struct_eta_cert_tail
   arena.core.struct_eta_cert_at
   arena.core.struct_eta_cert_with
+  arena.core.struct_eta_full_at
+  arena.core.struct_eta_full
+  arena.core.struct_eta_expand
+  arena.core.struct_eta_cert_partial
   arena.core.struct_eta_cert
+  arena.core.is_prop_type
+  arena.core.unit_like_fields_next
+  arena.core.unit_like_fields
+  arena.core.unit_like_struct
+  arena.core.unit_like_loop
   arena.core.struct_unit_cert_tail
   arena.core.struct_unit_cert
   arena.core.eta_cert
@@ -79,6 +88,7 @@ force_eqns
   arena.core.major_to_ctor_certs
   arena.core.major_to_ctor_k
   arena.core.major_to_ctor_eta
+  arena.core.major_to_ctor_eta_sort
   arena.core.major_to_ctor_and
   arena.core.major_to_ctor_and_build
   arena.core.major_to_ctor_at

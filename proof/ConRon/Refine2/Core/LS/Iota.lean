@@ -4,7 +4,7 @@
 Task #97-P5-Core round 5, region C2.  The Theorem-2 lockstep lemmas of
 
 * `majorToCtor` (Rust `major_to_ctor` and its fragments
-  `major_to_ctor_{certs,k,eta,eta_keys,eta_build,and,and_build,at}`),
+  `major_to_ctor_{certs,k,eta,eta_sort,eta_build,and,and_build,at}`),
   `etaFabArgsE`;
 * `litMajorToCtor`, `projLitToCtor`, `prepareMajor` (`prepare_major_whnf`);
 * `iotaRecAt` (Rust `iota_rec_at` and the fragments
@@ -235,7 +235,7 @@ macro "lockstep_c2" : tactic =>
 /-! ## Local normalisation: record projections and lengths
 
 The twin reads fields of the abstracted records (`cvj.levelParams`,
-`caps.etaParams`); the Rust reads the same fields of the Rust records.  The
+`tbl.numParams`); the Rust reads the same fields of the Rust records.  The
 record copies are identities (`PrimsC2.i_*_dup_ls`), so these projections are
 all the glue the two readings need. -/
 
@@ -246,7 +246,7 @@ theorem vec_len_eq_iff {α β : Type} (x : alloc.vec.Vec α) (y : alloc.vec.Vec 
   · intro h; have := congrArg (·.val) h; simpa using this
   · intro h; apply UScalar.eq_imp; simpa using h
 
-attribute [local lockstep_simp] PC1.absIIndCaps_eta PC1.absIIndCaps_etaCtor vec_len_eq_iff
+attribute [local lockstep_simp] PC1.absIIndCaps_eta vec_len_eq_iff
   List.length_map
 
 /-! ## `teleArityOk`, `projCert` / `projCertAt` -/
@@ -320,7 +320,7 @@ attribute [local lockstep_simp] ConRon.Refine.absLiteral
 /-! ## `majorToCtor` -/
 
 attribute [lockstep_inline] arena.core.major_to_ctor_certs
-  arena.core.major_to_ctor_k arena.core.major_to_ctor_eta arena.core.major_to_ctor_eta_keys
+  arena.core.major_to_ctor_k arena.core.major_to_ctor_eta arena.core.major_to_ctor_eta_sort
   arena.core.major_to_ctor_eta_build arena.core.major_to_ctor_and
   arena.core.major_to_ctor_and_build arena.core.major_to_ctor_at
 
@@ -388,18 +388,28 @@ section majorToCtor
 
 theorem absIRecRule_ctor (r : arena.env.IRecRule) : (absIRecRule r).ctor = absNIdx r.ctor := rfl
 
-attribute [local lockstep_simp] absIRecRule_ctor
+attribute [local lockstep_simp] absIRecRule_ctor absIProjTable_ctor absIProjTable_numParams
+  absIProjTable_numFields
 
-/-- `eta_rescue_ok` ⊑ `etaRescueOk`: the structure-η rescue's standing condition,
-at use. -/
-@[lockstep] theorem eta_rescue_ok_ls {pers st ctor cvj cvt caps lst}
+/-- `eta_rescue_table` ⊑ `etaRescueTable?`: the structure-η rescue's standing
+condition at use, and the family's table it fabricates at. -/
+@[lockstep] theorem eta_rescue_table_ls {pers st tbl ctor cvj cvt caps lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = a) (arena.core.eta_rescue_ok st ctor cvj cvt caps) st lst
-      (etaRescueOk (absNIdx ctor) (absIConstantVal cvj) (absIConstantVal cvt)
-        (absIIndCaps caps)) := by
+    LSR pers (fun a b => b = a.map absIProjTable)
+      (arena.core.eta_rescue_table st tbl ctor cvj cvt caps) st lst
+      (etaRescueTable? (tbl.map absIProjTable) (absNIdx ctor) (absIConstantVal cvj)
+        (absIConstantVal cvt) (absIIndCaps caps)) := by
   intro o h
-  rw [arena.core.eta_rescue_ok] at h
-  simp only [etaRescueOk, absIIndCaps, absIConstantVal]
+  cases tbl with
+  | none =>
+    rw [arena.core.eta_rescue_table] at h
+    cases Result.ok_injective h
+    exact ⟨_, lst, rfl, rfl, hrel, hinv⟩
+  | some t =>
+  rw [arena.core.eta_rescue_table] at h
+  simp only [etaRescueTable?, Option.map_some, absIIndCaps, absIConstantVal]
+  have htc : (absIProjTable t).ctor = absNIdx t.ctor := rfl
+  rw [htc]
   by_cases he : caps.eta = true
   · rw [ite_eq_left he] at h
     obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -412,7 +422,7 @@ at use. -/
       · rw [ite_eq_left hb1t] at h
         obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         have hp := PA1.pin_and_intro_run₀ hrel hinv hr
-        have hc : (absNIdx caps.eta_ctor == absNIdx ctor) = true := hbv ▸ hbt
+        have hc : (absNIdx t.ctor == absNIdx ctor) = true := hbv ▸ hbt
         have hl : (cvj.level_params.val.map absNIdx == cvt.level_params.val.map absNIdx) = true := by
           rw [hb1t] at hb1v
           simpa [absNIdxList] using hb1v.symm
@@ -420,21 +430,34 @@ at use. -/
         cases r with
         | Err e =>
           cases Result.ok_injective h
-          show AErrSim e ((pinAndIntro >>= fun ai => pure (absNIdx ctor != ai)).run lst)
+          show AErrSim e ((pinAndIntro >>= fun ai =>
+            if absNIdx ctor != ai then pure (some (absIProjTable t)) else pure none).run lst)
           exact AErrSim.bind hp _
         | Ok ai =>
           simp only at h
           obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           have hb2v := PA2.nidx_eq2_ls _ _ _ hb2
-          cases Result.ok_injective h
-          refine ⟨absNIdx ctor != absNIdx ai, lst, ?_, ?_, hrel, hinv⟩
-          · show (pinAndIntro >>= fun ai => pure (absNIdx ctor != ai)).run lst = _
+          by_cases hb2t : b2 = true
+          · rw [ite_eq_left hb2t] at h
+            cases Result.ok_injective h
+            have hq : (absNIdx ctor == absNIdx ai) = true := hb2v ▸ hb2t
+            refine ⟨none, lst, ?_, rfl, hrel, hinv⟩
+            show (pinAndIntro >>= fun ai =>
+              if absNIdx ctor != ai then pure (some (absIProjTable t)) else pure none).run lst = _
             rw [run_bind_ok hp]
+            have hq' : absNIdx ctor = absNIdx ai := by simpa using hq
+            simp [hq']
             rfl
-          · simp only at hb2v
-            subst hb2v
-            show (!(absNIdx ctor == absNIdx ai)) = decide ¬(absNIdx ctor == absNIdx ai) = true
-            cases (absNIdx ctor == absNIdx ai) <;> rfl
+          · rw [ite_eq_right hb2t] at h
+            cases Result.ok_injective h
+            have hq : ¬ (absNIdx ctor == absNIdx ai) = true := by rw [← hb2v]; exact hb2t
+            refine ⟨some (absIProjTable t), lst, ?_, rfl, hrel, hinv⟩
+            show (pinAndIntro >>= fun ai =>
+              if absNIdx ctor != ai then pure (some (absIProjTable t)) else pure none).run lst = _
+            rw [run_bind_ok hp]
+            have hq' : ¬ absNIdx ctor = absNIdx ai := by simpa using hq
+            simp [hq']
+            rfl
       · rw [ite_eq_right hb1t] at h
         cases Result.ok_injective h
         have hl : ¬ (cvj.level_params.val.map absNIdx == cvt.level_params.val.map absNIdx) = true := by
@@ -445,7 +468,7 @@ at use. -/
         exact ⟨_, lst, rfl, rfl, hrel, hinv⟩
     · rw [ite_eq_right hbt] at h
       cases Result.ok_injective h
-      have hc : ¬ (absNIdx caps.eta_ctor == absNIdx ctor) = true := by
+      have hc : ¬ (absNIdx t.ctor == absNIdx ctor) = true := by
         rw [← hbv]; exact hbt
       rw [ite_eq_right (by simp [hc])]
       exact ⟨_, lst, rfl, rfl, hrel, hinv⟩

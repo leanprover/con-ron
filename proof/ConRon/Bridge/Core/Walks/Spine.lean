@@ -716,6 +716,53 @@ theorem instantiate1Fast_ok_spec (s₀ : AState) (b w : EIdx) (B W : Expr)
     (fun _ _ ⟨hst, hx, hc, hp, _, hrel⟩ =>
       ⟨hok.mono hst hx hc hp, hx, hp, hrel B hdb⟩)
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:36-45 Expr.ioNeutral — **THEOREM 1
+for `ioNeutral`**: read-only, and the answer is con-leche's test of the spine
+head's tag. -/
+theorem ioNeutral_spec (s₀ : AState) (b : EIdx) (y : Expr) (hok : CheckOK eager env fe s₀)
+    (hdy : denoteE s₀.store b = some y) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.ioNeutral b
+    ⦃fun r s' => s' = s₀ ∧ r = y.ioNeutral; ⊤⦄ := by
+  have tpure : ∀ {s : AState} {v : Bool} {Q : Bool → AState → Prop}, Q v s →
+      ⦃fun s' => s' = s⦄ (pure v : AM Bool) ⦃fun r s' => Q r s'; ⊤⦄ := by
+    intro s v Q h
+    vcgen
+    subst_vars; exact h
+  unfold ConRon.Arena.ioNeutral
+  refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ b hok.state
+    (by rw [hdy]; rfl)) ?_
+  rintro hd s1 ⟨rfl, hrel⟩
+  have hh := hrel y hdy
+  obtain ⟨v, hv⟩ := denoteE_view hh
+  have htag := EStore.tagOf_of_view hv
+  rw [denoteE_view_eq hok.state.wf hv] at hh
+  unfold Expr.ioNeutral
+  generalize y.getAppFn = g at hh ⊢
+  cases v <;>
+    simp [htag, denoteEView, opt2_eq_some_iff, opt3_eq_some_iff,
+      Option.map_eq_some_iff, ENodeView.tagOf, ETag.bvar, ETag.fvar,
+      ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.forallE, ETag.letE,
+      ETag.lit, ETag.proj] at hh ⊢ <;>
+    first
+      | (obtain ⟨_, _, _, _, _, _, rfl⟩ := hh; exact tpure ⟨rfl, rfl⟩)
+      | (obtain ⟨_, _, _, _, rfl⟩ := hh; exact tpure ⟨rfl, rfl⟩)
+      | (obtain ⟨_, _, _, rfl⟩ := hh; exact tpure ⟨rfl, rfl⟩)
+      | (obtain ⟨_, _, rfl⟩ := hh; exact tpure ⟨rfl, rfl⟩)
+      | (obtain ⟨_, rfl⟩ := hh; exact tpure ⟨rfl, rfl⟩)
+      | (subst hh; exact tpure ⟨rfl, rfl⟩)
+      | exact tpure ⟨rfl, rfl⟩
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:36-45 Expr.ioNeutral —
+`ioNeutral_spec` at whatever the handle denotes. -/
+theorem ioNeutral_specA (s₀ : AState) (b : EIdx) (hok : CheckOK eager env fe s₀)
+    (hdb : (denoteE s₀.store b).isSome = true) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.ioNeutral b
+    ⦃fun r s' => s' = s₀ ∧ (denoteE s₀.store b).map Expr.ioNeutral = some r; ⊤⦄ := by
+  obtain ⟨y, hy⟩ := Option.isSome_iff_exists.mp hdb
+  refine triple_mono (ioNeutral_spec s₀ b y hok hy) ?_
+  rintro r s' ⟨h1, h2⟩
+  exact ⟨h1, by rw [hy, h2]; rfl⟩
+
 /-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — **THEOREM 1 for
 `etaCert`**: η at a λ against a non-λ.
 
@@ -751,31 +798,7 @@ theorem etaCert_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
     vcgen
     subst_vars; exact h
   -- the guard: `ioNeutral` reads the spine head's tag
-  have hneu : ⦃fun s => s = s₀⦄ ConRon.Arena.ioNeutral b
-      ⦃fun r s' => s' = s₀ ∧ r = y.ioNeutral; ⊤⦄ := by
-    unfold ConRon.Arena.ioNeutral
-    refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ b hok.state
-      (by rw [hdy]; rfl)) ?_
-    rintro hd s1 ⟨rfl, hrel⟩
-    have hh := hrel y hdy
-    obtain ⟨v, hv⟩ := denoteE_view hh
-    have htag := EStore.tagOf_of_view hv
-    rw [denoteE_view_eq hok.state.wf hv] at hh
-    unfold Expr.ioNeutral
-    generalize y.getAppFn = g at hh ⊢
-    cases v <;>
-      simp [htag, denoteEView, opt2_eq_some_iff, opt3_eq_some_iff,
-        Option.map_eq_some_iff, ENodeView.tagOf, ETag.bvar, ETag.fvar,
-        ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.forallE, ETag.letE,
-        ETag.lit, ETag.proj] at hh ⊢ <;>
-      first
-        | (obtain ⟨_, _, _, _, _, _, rfl⟩ := hh; exact tpure ⟨rfl, rfl⟩)
-        | (obtain ⟨_, _, _, _, rfl⟩ := hh; exact tpure ⟨rfl, rfl⟩)
-        | (obtain ⟨_, _, _, rfl⟩ := hh; exact tpure ⟨rfl, rfl⟩)
-        | (obtain ⟨_, _, rfl⟩ := hh; exact tpure ⟨rfl, rfl⟩)
-        | (obtain ⟨_, rfl⟩ := hh; exact tpure ⟨rfl, rfl⟩)
-        | (subst hh; exact tpure ⟨rfl, rfl⟩)
-        | exact tpure ⟨rfl, rfl⟩
+  have hneu := ioNeutral_spec s₀ b y hok hdy
   unfold ConRon.Arena.etaCert
   refine triple_seq hneu ?_
   rintro nb s1 ⟨rfl, rfl⟩

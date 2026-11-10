@@ -689,10 +689,9 @@ def RecRuleWF (r : env.RecRule) : Prop :=
 /-- A `Vec<RecRule>` all of whose entries are well formed. -/
 def RecRulesWF (rs : alloc.vec.Vec env.RecRule) : Prop := ∀ r ∈ rs.val, RecRuleWF r
 
-/-- `IndCaps`: the η constructor's name, and the block's member and constructor
-names. -/
+/-- `IndCaps`: the block's member and constructor names. -/
 def IndCapsWF (c : env.IndCaps) : Prop :=
-  NameWF c.eta_ctor ∧ NamesWF c.all ∧ NamesWF c.ctors
+  NamesWF c.all ∧ NamesWF c.ctors
 
 /-- `ConstantInfo`: the hereditary invariant of a stored constant, one clause
 per constructor in the cited field order. -/

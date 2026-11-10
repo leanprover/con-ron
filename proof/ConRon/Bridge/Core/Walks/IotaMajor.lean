@@ -215,20 +215,17 @@ drift. -/
 (no certificate on the fabricated spine, con-leche's task #342 L11b; the
 never-zero test at the use, `formerNeverZeroAt`). -/
 @[expose] def mtcEta (mode : CheckMode) (eager : Bool) (env : Env) (F d : Nat) (cvT : ConstantVal)
-    (caps : IndCaps) (T : ConLeche.Name) (major : Expr) : CheckM Expr :=
+    (caps : IndCaps) (tbl : ProjTable) (T : ConLeche.Name) (major : Expr) : CheckM Expr :=
   (ConLeche.pureFns mode eager env F).inferIO d major >>= fun tm =>
   (ConLeche.pureFns mode eager env F).whnf d tm >>= fun tmaj =>
   match tmaj.getAppFn with
   | .const T' ust =>
-    if T' = T ∧ tmaj.getAppArgs.length = caps.etaParams ∧
-        ust.length = cvT.levelParams.length ∧
-        ConLeche.reservedBasisNames.contains T = false ∧
-        ConLeche.reservedBasisNames.contains caps.etaCtor = false ∧
-        ConLeche.towerSlotsAll env T caps.etaFields = true then
+    if T' = T ∧ tmaj.getAppArgs.length = tbl.numParams ∧
+        ust.length = cvT.levelParams.length then
       formerNeverZeroAt (ConLeche.pureFns mode eager env F).whnf cvT caps ust >>= fun nz =>
       if nz then
-        let fab := Expr.mkAppN (.const caps.etaCtor ust)
-          (ConLeche.etaFabArgsE T tmaj.getAppArgs major caps.etaFields)
+        let fab := Expr.mkAppN (.const tbl.ctor ust)
+          (ConLeche.etaFabArgsE T tmaj.getAppArgs major tbl.numFields)
         if fab.wscopedB d && fab.looseBVarsBounded 0 &&
             fab.fvarLeaves.all (fun l => major.fvarLeaves.contains l) then
           pure fab
@@ -275,10 +272,10 @@ theorem majorToCtorFueled_pre {F d : Nat} {cn : ConLeche.Name} {isK : Bool} {rl 
     (hfT : env.find? T = some (.indInfo cvT caps)) :
     ConLeche.majorToCtorFueled mode eager env F d cn isK [rl] x =
       if isK = true then mtcK mode eager env F d rl cvj cnP T x
-      else if ConLeche.etaRescueOk rl.ctor cvj cvT caps = true then
-        mtcEta mode eager env F d cvT caps T x
-      else if T = ConLeche.andName then mtcAnd mode eager env F d rl cvj cnP T x
-      else pure x := by
+      else match ConLeche.etaRescueTable? (env.findTable? T) rl.ctor cvj cvT caps with
+      | some tbl => mtcEta mode eager env F d cvT caps tbl T x
+      | none => if T = ConLeche.andName then mtcAnd mode eager env F d rl cvj cnP T x
+        else pure x := by
   simp only [ConLeche.majorToCtorFueled, ConLeche.majorToCtor, hnc, hfj, hpr,
     hfT, Bool.false_eq_true, ite_false]
   rfl
@@ -411,9 +408,9 @@ theorem prepareMajorFueled_nk {F d : Nat} {cn : ConLeche.Name}
     | _ => pure major
   else pure major
 
-/-- the twin's η rescue block (`majorToCtor`'s `etaRescueOk` arm) -/
+/-- the twin's η rescue block (`majorToCtor`'s `etaRescueTable?` arm) -/
 @[expose] def majorEtaA (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (cvT : IConstantVal) (caps : IIndCaps)
-    (T : NIdx) (major : EIdx) : AM EIdx := do
+    (tbl : IProjTable) (T : NIdx) (major : EIdx) : AM EIdx := do
   let tmaj ← r.whnf depth (← r.inferIO depth major)
   let hh ← getAppFn coreWalkFuel tmaj
   if hh.tag == ETag.const then
@@ -421,18 +418,13 @@ theorem prepareMajorFueled_nk {F d : Nat} {cn : ConLeche.Name}
     | .const T' ust => do
       let ustl ← viewLs ust
       let targs ← getAppArgs coreWalkFuel tmaj
-      if T' = T ∧ targs.length = caps.etaParams ∧
+      if T' = T ∧ targs.length = tbl.numParams ∧
           ustl.length = cvT.levelParams.length then do
-        let reserved ← reservedBasisNames
-        if reserved.contains T = false ∧
-            reserved.contains caps.etaCtor = false ∧
-            towerSlotsAll fe T caps.etaFields = true then do
-          if ← formerNeverZeroAt r cvT caps ust then do
-            let fabArgs ← etaFabArgsE T targs major caps.etaFields
-            let hd ← internE (.const caps.etaCtor ust)
-            let fab ← mkAppN hd fabArgs
-            if ← fabScopeOk depth fab major then pure fab
-            else pure major
+        if ← formerNeverZeroAt r cvT caps ust then do
+          let fabArgs ← etaFabArgsE T targs major tbl.numFields
+          let hd ← internE (.const tbl.ctor ust)
+          let fab ← mkAppN hd fabArgs
+          if ← fabScopeOk depth fab major then pure fab
           else pure major
         else pure major
       else pure major
@@ -486,8 +478,9 @@ theorem majorToCtor_one (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : 
             | some (.indInfo cvT caps) =>
               if isK = true then majorKA mode r fe depth rl cvj cnP T major
               else do
-                if ← etaRescueOk rl.ctor cvj cvT caps then majorEtaA r fe depth cvT caps T major
-                else do
+                match ← etaRescueTable? (fe.findTable? T) rl.ctor cvj cvT caps with
+                | some tbl => majorEtaA r fe depth cvT caps tbl T major
+                | none => do
                   let an ← pinAnd
                   if T = an then majorAndA mode r fe depth rl cvj cnP T major
                   else pure major
@@ -732,21 +725,18 @@ theorem majorK_spec {fuel : Nat}
 
 /-! ## The η rescue -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:513-675 majorToCtor — the η branch past its two
+/-- con-leche: ConLeche/Kernel/Core.lean:612-700 majorToCtor — the η branch past its two
 knot calls. -/
 @[expose] def mtcEtaT (mode : CheckMode) (eager : Bool) (env : Env) (F d : Nat) (cvT : ConstantVal)
-    (caps : IndCaps) (T : ConLeche.Name) (major tmaj : Expr) : CheckM Expr :=
+    (caps : IndCaps) (tbl : ProjTable) (T : ConLeche.Name) (major tmaj : Expr) : CheckM Expr :=
   match tmaj.getAppFn with
   | .const T' ust =>
-    if T' = T ∧ tmaj.getAppArgs.length = caps.etaParams ∧
-        ust.length = cvT.levelParams.length ∧
-        ConLeche.reservedBasisNames.contains T = false ∧
-        ConLeche.reservedBasisNames.contains caps.etaCtor = false ∧
-        ConLeche.towerSlotsAll env T caps.etaFields = true then
+    if T' = T ∧ tmaj.getAppArgs.length = tbl.numParams ∧
+        ust.length = cvT.levelParams.length then
       formerNeverZeroAt (ConLeche.pureFns mode eager env F).whnf cvT caps ust >>= fun nz =>
       if nz then
-        let fab := Expr.mkAppN (.const caps.etaCtor ust)
-          (ConLeche.etaFabArgsE T tmaj.getAppArgs major caps.etaFields)
+        let fab := Expr.mkAppN (.const tbl.ctor ust)
+          (ConLeche.etaFabArgsE T tmaj.getAppArgs major tbl.numFields)
         if fab.wscopedB d && fab.looseBVarsBounded 0 &&
             fab.fvarLeaves.all (fun l => major.fvarLeaves.contains l) then
           pure fab
@@ -755,42 +745,39 @@ knot calls. -/
     else pure major
   | _ => pure major
 
-/-- con-leche: ConLeche/Kernel/Core.lean:513-675 majorToCtor — the η branch: its two
+/-- con-leche: ConLeche/Kernel/Core.lean:612-700 majorToCtor — the η branch: its two
 knot calls, then `mtcEtaT`. -/
 theorem mtcEta_eq (mode : CheckMode) (eager : Bool) (env : Env) (F d : Nat) (cvT : ConstantVal)
-    (caps : IndCaps) (T : ConLeche.Name) (major : Expr) :
-    mtcEta mode eager env F d cvT caps T major =
+    (caps : IndCaps) (tbl : ProjTable) (T : ConLeche.Name) (major : Expr) :
+    mtcEta mode eager env F d cvT caps tbl T major =
       ((ConLeche.pureFns mode eager env F).inferIO d major >>= fun tm =>
        (ConLeche.pureFns mode eager env F).whnf d tm >>= fun tmaj =>
-       mtcEtaT mode eager env F d cvT caps T major tmaj) := rfl
+       mtcEtaT mode eager env F d cvT caps tbl T major tmaj) := rfl
 
-/-- the η fabrication -/
-def etaFab (caps : IndCaps) (T : ConLeche.Name) (x tmaj : Expr) : Expr :=
-  Expr.mkAppN (.const caps.etaCtor (exprConstLevels tmaj.getAppFn))
-    (ConLeche.etaFabArgsE T tmaj.getAppArgs x caps.etaFields)
+/-- the η fabrication: the table's constructor at the major type's levels -/
+def etaFab (tbl : ProjTable) (T : ConLeche.Name) (x tmaj : Expr) : Expr :=
+  Expr.mkAppN (.const tbl.ctor (exprConstLevels tmaj.getAppFn))
+    (ConLeche.etaFabArgsE T tmaj.getAppArgs x tbl.numFields)
 
 /-- the η rescue's syntactic guards, at the head-normalised type -/
-def etaGuardOk (env : Env) (cvT : ConstantVal) (caps : IndCaps) (T : ConLeche.Name)
+def etaGuardOk (cvT : ConstantVal) (tbl : ProjTable) (T : ConLeche.Name)
     (tmaj : Expr) : Bool :=
-  exprConstName tmaj.getAppFn == T && tmaj.getAppArgs.length == caps.etaParams &&
-    (exprConstLevels tmaj.getAppFn).length == cvT.levelParams.length &&
-    !ConLeche.reservedBasisNames.contains T &&
-    !ConLeche.reservedBasisNames.contains caps.etaCtor &&
-    ConLeche.towerSlotsAll env T caps.etaFields
+  exprConstName tmaj.getAppFn == T && tmaj.getAppArgs.length == tbl.numParams &&
+    (exprConstLevels tmaj.getAppFn).length == cvT.levelParams.length
 
-/-- con-leche: ConLeche/Kernel/Core.lean:513-675 majorToCtor — the η branch, as a fuelled run. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:612-700 majorToCtor — the η branch, as a fuelled run. -/
 def mtcEtaOp (mode : CheckMode) (eager : Bool) (env : Env) (d : Nat) (cvT : ConstantVal) (caps : IndCaps)
-    (T : ConLeche.Name) (x : Expr) : Nat → CheckM Expr :=
-  fun F => mtcEta mode eager env F d cvT caps T x
+    (tbl : ProjTable) (T : ConLeche.Name) (x : Expr) : Nat → CheckM Expr :=
+  fun F => mtcEta mode eager env F d cvT caps tbl T x
 
-/-- con-leche: ConLeche/Kernel/Core.lean:513-675 majorToCtor — the η branch through its
+/-- con-leche: ConLeche/Kernel/Core.lean:612-700 majorToCtor — the η branch through its
 prefix: the tail at one merged fuel. -/
-theorem mtcEta_runs {d : Nat} {cvT : ConstantVal} {caps : IndCaps}
+theorem mtcEta_runs {d : Nat} {cvT : ConstantVal} {caps : IndCaps} {tbl : ProjTable}
     {T : ConLeche.Name} {x tm tmaj v : Expr}
     (h1 : RunE (ConLeche.inferTypeIO mode eager env) d x tm)
     (h2 : RunE (ConLeche.whnf mode eager env) d tm tmaj)
-    (h3 : ∃ F₀, ∀ F, F₀ ≤ F → mtcEtaT mode eager env F d cvT caps T x tmaj = .ok v) :
-    Runs (mtcEtaOp mode eager env d cvT caps T x) v := by
+    (h3 : ∃ F₀, ∀ F, F₀ ≤ F → mtcEtaT mode eager env F d cvT caps tbl T x tmaj = .ok v) :
+    Runs (mtcEtaOp mode eager env d cvT caps tbl T x) v := by
   obtain ⟨F1, hF1⟩ := h1
   obtain ⟨F2, hF2⟩ := h2
   obtain ⟨F3, hF3⟩ := h3
@@ -802,16 +789,16 @@ theorem mtcEta_runs {d : Nat} {cvT : ConstantVal} {caps : IndCaps}
   simp only [mtcEtaOp, mtcEta_eq, e1, e2, bind, Except.bind]
   exact hF3 _ (by omega)
 
-/-- con-leche: ConLeche/Kernel/Core.lean:513-675 majorToCtor — the η branch past a
+/-- con-leche: ConLeche/Kernel/Core.lean:612-700 majorToCtor — the η branch past a
 constant head, its guards named. -/
-theorem mtcEtaT_const {F d : Nat} {cvT : ConstantVal} {caps : IndCaps} {T : ConLeche.Name}
-    {x tmaj : Expr} (hg : exprTag tmaj.getAppFn = ETag.const) :
-    mtcEtaT mode eager env F d cvT caps T x tmaj =
-      if etaGuardOk env cvT caps T tmaj then
+theorem mtcEtaT_const {F d : Nat} {cvT : ConstantVal} {caps : IndCaps} {tbl : ProjTable}
+    {T : ConLeche.Name} {x tmaj : Expr} (hg : exprTag tmaj.getAppFn = ETag.const) :
+    mtcEtaT mode eager env F d cvT caps tbl T x tmaj =
+      if etaGuardOk cvT tbl T tmaj then
         formerNeverZeroAt (ConLeche.pureFns mode eager env F).whnf cvT caps
             (exprConstLevels tmaj.getAppFn) >>= fun nz =>
         if nz then
-          (if scopeOkFn d (etaFab caps T x tmaj) x then pure (etaFab caps T x tmaj) else pure x)
+          (if scopeOkFn d (etaFab tbl T x tmaj) x then pure (etaFab tbl T x tmaj) else pure x)
         else pure x
       else pure x := by
   unfold mtcEtaT etaGuardOk etaFab scopeOkFn
@@ -821,75 +808,69 @@ theorem mtcEtaT_const {F d : Nat} {cvT : ConstantVal} {caps : IndCaps} {T : ConL
     | skip
   rename_i T' ust
   simp only [exprConstName, exprConstLevels]
-  by_cases h1 : T' = T ∧ tmaj.getAppArgs.length = caps.etaParams ∧
-      ust.length = cvT.levelParams.length ∧
-      ConLeche.reservedBasisNames.contains T = false ∧
-      ConLeche.reservedBasisNames.contains caps.etaCtor = false ∧
-      ConLeche.towerSlotsAll env T caps.etaFields = true
+  by_cases h1 : T' = T ∧ tmaj.getAppArgs.length = tbl.numParams ∧
+      ust.length = cvT.levelParams.length
   · rw [ite_eq_left h1]
-    obtain ⟨a, b, c, e, f, g⟩ := h1
+    obtain ⟨a, b, c⟩ := h1
     subst a
-    simp only [beq_self_eq_true, b, c, e, f, g, Bool.not_false, Bool.true_and, ite_true]
+    simp only [beq_self_eq_true, b, c, Bool.true_and, ite_true]
   · rw [ite_eq_right h1]
-    have hb : (T' == T && tmaj.getAppArgs.length == caps.etaParams &&
-        ust.length == cvT.levelParams.length &&
-        !ConLeche.reservedBasisNames.contains T &&
-        !ConLeche.reservedBasisNames.contains caps.etaCtor &&
-        ConLeche.towerSlotsAll env T caps.etaFields) = false :=
+    have hb : (T' == T && tmaj.getAppArgs.length == tbl.numParams &&
+        ust.length == cvT.levelParams.length) = false :=
       Bool.eq_false_iff.mpr fun h => h1 (by
-        simp only [Bool.and_eq_true, beq_iff_eq, Bool.not_eq_true'] at h
-        exact ⟨h.1.1.1.1.1, h.1.1.1.1.2, h.1.1.1.2, h.1.1.2, h.1.2, h.2⟩)
+        simp only [Bool.and_eq_true, beq_iff_eq] at h
+        exact ⟨h.1.1, h.1.2, h.2⟩)
     simp only [hb, Bool.false_eq_true, ite_false]
 
-/-- con-leche: ConLeche/Kernel/Core.lean:513-675 majorToCtor — the η branch, no constant
+/-- con-leche: ConLeche/Kernel/Core.lean:612-700 majorToCtor — the η branch, no constant
 head: the major stays. -/
-theorem mtcEta_nohead {d : Nat} {cvT : ConstantVal} {caps : IndCaps} {T : ConLeche.Name}
-    {x tm tmaj : Expr}
+theorem mtcEta_nohead {d : Nat} {cvT : ConstantVal} {caps : IndCaps} {tbl : ProjTable}
+    {T : ConLeche.Name} {x tm tmaj : Expr}
     (h1 : RunE (ConLeche.inferTypeIO mode eager env) d x tm)
     (h2 : RunE (ConLeche.whnf mode eager env) d tm tmaj)
     (hg : (exprTag tmaj.getAppFn == ETag.const) = false) :
-    Runs (mtcEtaOp mode eager env d cvT caps T x) x := by
+    Runs (mtcEtaOp mode eager env d cvT caps tbl T x) x := by
   refine mtcEta_runs h1 h2 ⟨0, fun F _ => ?_⟩
   unfold mtcEtaT
   generalize tmaj.getAppFn = g at hg ⊢
   cases g <;> first | rfl | (simp [exprTag] at hg)
 grind_pattern [bridge_grind] mtcEta_nohead =>
-  mtcEtaOp mode eager env d cvT caps T x, RunE (ConLeche.inferTypeIO mode eager env) d x tm,
+  mtcEtaOp mode eager env d cvT caps tbl T x, RunE (ConLeche.inferTypeIO mode eager env) d x tm,
     RunE (ConLeche.whnf mode eager env) d tm tmaj
 
-/-- con-leche: ConLeche/Kernel/Core.lean:513-675 majorToCtor — the η branch, a guard
+/-- con-leche: ConLeche/Kernel/Core.lean:612-700 majorToCtor — the η branch, a guard
 fails: the major stays. -/
-theorem mtcEta_guard {d : Nat} {cvT : ConstantVal} {caps : IndCaps} {T : ConLeche.Name}
-    {x tm tmaj : Expr}
+theorem mtcEta_guard {d : Nat} {cvT : ConstantVal} {caps : IndCaps} {tbl : ProjTable}
+    {T : ConLeche.Name} {x tm tmaj : Expr}
     (h1 : RunE (ConLeche.inferTypeIO mode eager env) d x tm)
     (h2 : RunE (ConLeche.whnf mode eager env) d tm tmaj)
     (hg : exprTag tmaj.getAppFn = ETag.const)
-    (hn : etaGuardOk env cvT caps T tmaj = false) :
-    Runs (mtcEtaOp mode eager env d cvT caps T x) x := by
+    (hn : etaGuardOk cvT tbl T tmaj = false) :
+    Runs (mtcEtaOp mode eager env d cvT caps tbl T x) x := by
   refine mtcEta_runs h1 h2 ⟨0, fun F _ => ?_⟩
   rw [mtcEtaT_const hg, hn]; rfl
 grind_pattern [bridge_grind] mtcEta_guard =>
-  mtcEtaOp mode eager env d cvT caps T x, RunE (ConLeche.inferTypeIO mode eager env) d x tm,
+  mtcEtaOp mode eager env d cvT caps tbl T x, RunE (ConLeche.inferTypeIO mode eager env) d x tm,
     RunE (ConLeche.whnf mode eager env) d tm tmaj
 
-/-- con-leche: ConLeche/Kernel/Core.lean:513-675 majorToCtor — the η branch past its
+/-- con-leche: ConLeche/Kernel/Core.lean:612-700 majorToCtor — the η branch past its
 guards: the never-zero test decides, then the scope check. -/
-theorem mtcEta_nz {d : Nat} {cvT : ConstantVal} {caps : IndCaps} {T : ConLeche.Name}
-    {x tm tmaj : Expr} {b : Bool}
+theorem mtcEta_nz {d : Nat} {cvT : ConstantVal} {caps : IndCaps} {tbl : ProjTable}
+    {T : ConLeche.Name} {x tm tmaj : Expr} {b : Bool}
     (h1 : RunE (ConLeche.inferTypeIO .verified eager env) d x tm)
     (h2 : RunE (ConLeche.whnf .verified eager env) d tm tmaj)
     (hg : exprTag tmaj.getAppFn = ETag.const)
-    (hc : etaGuardOk env cvT caps T tmaj = true)
+    (hc : etaGuardOk cvT tbl T tmaj = true)
     (hb : NZ eager env cvT caps (exprConstLevels tmaj.getAppFn) b) :
-    Runs (mtcEtaOp .verified eager env d cvT caps T x)
-      (if b && scopeOkFn d (etaFab caps T x tmaj) x then etaFab caps T x tmaj else x) := by
+    Runs (mtcEtaOp .verified eager env d cvT caps tbl T x)
+      (if b && scopeOkFn d (etaFab tbl T x tmaj) x then etaFab tbl T x tmaj else x) := by
   obtain ⟨F3, hF3⟩ := hb
   refine mtcEta_runs h1 h2 ⟨F3, fun F hF => ?_⟩
   rw [mtcEtaT_const hg, hc]
   simp only [ite_true, formerNeverZeroAtFueled_mono hF hF3, bind, Except.bind]
-  cases b <;> cases scopeOkFn d (etaFab caps T x tmaj) x <;> rfl
+  cases b <;> cases scopeOkFn d (etaFab tbl T x tmaj) x <;> rfl
 grind_pattern [bridge_grind] mtcEta_nz =>
-  mtcEtaOp .verified eager env d cvT caps T x, RunE (ConLeche.whnf .verified eager env) d tm tmaj,
+  mtcEtaOp .verified eager env d cvT caps tbl T x, RunE (ConLeche.whnf .verified eager env) d tm tmaj,
     NZ eager env cvT caps (exprConstLevels tmaj.getAppFn) b
 
 /-- con-leche's η spine arguments at a fixed family, major and field count -/
@@ -932,35 +913,74 @@ theorem denoteCaps_ext_eq {st st' : EStore} {c : IIndCaps} (hx : Ext st st')
   rw [hd, denoteCaps_ext hd hx]
 local grind_pattern [bridge_grind] denoteCaps_ext_eq => Frontend.denoteCaps st c, Ext st st'
 
-/-- con-leche: ConLeche/Kernel/Core.lean:603-640 majorToCtor — **the η rescue**
+/-- con-leche: ConLeche/Kernel/Core.lean:612-700 majorToCtor — **the η rescue**
 (`to_cnstr_when_structure`): the never-zero test at the use's levels
-(`formerNeverZeroAt`, a knot walk), at a closed stored family.  The answer
-arrives through the thirteen states of the block, each a transport step for
-the denotations it carries, hence `gen := 16`. -/
+(`formerNeverZeroAt`, a knot walk), at a closed stored family; the constructor
+and the counts are the family's projection table's.  The answer arrives through
+the twelve states of the block, each a transport step for the denotations it
+carries, hence `gen := 16`. -/
 theorem majorEta_spec {fuel : Nat}
     (hsim : KnotSpec eager env fe fuel)
     (s₁ : AState) (d : Nat) (major : EIdx) (x : Expr)
     (icvT : IConstantVal) (dcvT : ConstantVal) (icaps : IIndCaps)
-    (dcaps : IndCaps) (T : NIdx) (Tn : ConLeche.Name)
+    (dcaps : IndCaps) (itbl : IProjTable) (dtbl : ProjTable) (T : NIdx) (Tn : ConLeche.Name)
     (hok : CheckOK eager env fe s₁)
     (hmaj : denoteE s₁.store major = some x) (hw : Expr.WScoped d x)
     (hdcvT : Frontend.denoteCV s₁.store icvT = some dcvT)
     (hcaps : Frontend.denoteCaps s₁.store icaps = some dcaps)
+    (htbl : Frontend.denoteProjTable s₁.store itbl = some dtbl)
     (hT : denoteN s₁.store.ns T = some Tn) (hcl : dcvT.type.hasFvar = false) :
     ⦃fun s => s = s₁⦄
-      majorEtaA (coreKnot .verified eager fe id fuel) fe d icvT icaps T major
+      majorEtaA (coreKnot .verified eager fe id fuel) fe d icvT icaps itbl T major
     ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₁.store s'.store ∧
         s'.pins = s₁.pins ∧
-        SimEOp (mtcEtaOp .verified eager env d dcvT dcaps Tn x) d s'.store r; ⊤⦄ := by
-  obtain ⟨_, hctor, hep, hef, _, _⟩ := denoteCaps_fields hcaps
+        SimEOp (mtcEtaOp .verified eager env d dcvT dcaps dtbl Tn x) d s'.store r; ⊤⦄ := by
+  obtain ⟨hnF, hnP⟩ := denoteProjTable_fields htbl
+  have hctor := denoteProjTable_ctor htbl
   sym (gen := 16) only [bridge_grind, etaFab, etaGuardOk, etaArgsFn, ← viewOK_const] =>
     vcgen [majorEtaA, hsim.inferIOS, hsim.whnfS, ExprOps.getAppFn_spec, ExprOps.getAppArgs_spec,
-      reservedBasisNames_spec (eager := eager) (env := env) (fe := fe),
       formerNeverZeroAt_specA hsim (cvTP := dcvT) (capsP := dcaps),
       etaFabArgsE_specS (eager := eager) (env := env) (fe := fe) (Tn := Tn) (x := x),
       internE_specC (eager := eager) (env := env) (fe := fe),
       mkAppN_specC (eager := eager) (env := env) (fe := fe),
       fabScopeOk_specS (eager := eager) (env := env) (fe := fe)] <;> finish
+
+/-- con-leche: none — the η rescue's answer at the twin table's optional
+denotation (the answer shape `majorToCtor_spec`'s `grind` reads). -/
+@[expose] def EtaAns (eager : Bool) (env : Env) (d : Nat) (cvT : ConstantVal) (caps : IndCaps)
+    (T : ConLeche.Name) (x : Expr) (st : EStore) (r : EIdx) : Option ProjTable → Prop
+  | some tbl => SimEOp (mtcEtaOp .verified eager env d cvT caps tbl T x) d st r
+  | none => True
+
+/-- con-leche: none — `EtaAns` at a denoting table. -/
+@[bridge_grind =] theorem EtaAns.some_eq (d : Nat) (cvT : ConstantVal) (caps : IndCaps)
+    (T : ConLeche.Name) (x : Expr) (st : EStore) (r : EIdx) (tbl : ProjTable) :
+    EtaAns eager env d cvT caps T x st r (some tbl) =
+      SimEOp (mtcEtaOp .verified eager env d cvT caps tbl T x) d st r := rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:612-700 majorToCtor — `majorEta_spec` at the
+twin table's denotation. -/
+theorem majorEta_specA {fuel : Nat}
+    (hsim : KnotSpec eager env fe fuel)
+    (s₁ : AState) (d : Nat) (major : EIdx) (x : Expr)
+    (icvT : IConstantVal) (dcvT : ConstantVal) (icaps : IIndCaps)
+    (dcaps : IndCaps) (itbl : IProjTable) (T : NIdx) (Tn : ConLeche.Name)
+    (hok : CheckOK eager env fe s₁)
+    (hmaj : denoteE s₁.store major = some x) (hw : Expr.WScoped d x)
+    (hdcvT : Frontend.denoteCV s₁.store icvT = some dcvT)
+    (hcaps : Frontend.denoteCaps s₁.store icaps = some dcaps)
+    (htbl : (Frontend.denoteProjTable s₁.store itbl).isSome = true)
+    (hT : denoteN s₁.store.ns T = some Tn) (hcl : dcvT.type.hasFvar = false) :
+    ⦃fun s => s = s₁⦄
+      majorEtaA (coreKnot .verified eager fe id fuel) fe d icvT icaps itbl T major
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₁.store s'.store ∧
+        s'.pins = s₁.pins ∧
+        EtaAns eager env d dcvT dcaps Tn x s'.store r
+          (Frontend.denoteProjTable s₁.store itbl); ⊤⦄ := by
+  obtain ⟨dtbl, hd⟩ := Option.isSome_iff_exists.mp htbl
+  rw [hd]
+  exact majorEta_spec hsim s₁ d major x icvT dcvT icaps dcaps itbl dtbl T Tn hok hmaj hw
+    hdcvT hcaps hd hT hcl
 
 end EtaExt
 
@@ -1297,6 +1317,12 @@ def majorToCtorOp (mode : CheckMode) (eager : Bool) (env : Env) (d : Nat) (cn : 
 def mtcFam (env : Env) (rl : RecRule) : ConLeche.Name :=
   exprConstName (cCtorVal (env.find? rl.ctor)).type.piResult.getAppFn
 
+/-- the η rescue's table: the family's projection table, if the rule's
+constructor is its η constructor (`etaRescueTable?`) -/
+def mtcTbl (env : Env) (rl : RecRule) : Option ProjTable :=
+  ConLeche.etaRescueTable? (env.findTable? (mtcFam env rl)) rl.ctor (cCtorVal (env.find? rl.ctor))
+    (cIndVal (env.find? (mtcFam env rl))) (cIndCaps (env.find? (mtcFam env rl)))
+
 /-- the prefix every rescue shares: a stored constructor whose type ends in
 a stored inductive -/
 def mtcPrefixOk (env : Env) (rl : RecRule) : Bool :=
@@ -1314,16 +1340,17 @@ theorem majorToCtorFueled_one {F d : Nat} {cn : ConLeche.Name} {isK : Bool} {rl 
         if isK = true then
           mtcK mode eager env F d rl (cCtorVal (env.find? rl.ctor)) (cCtorNP (env.find? rl.ctor))
             (mtcFam env rl) x
-        else if ConLeche.etaRescueOk rl.ctor (cCtorVal (env.find? rl.ctor))
-            (cIndVal (env.find? (mtcFam env rl))) (cIndCaps (env.find? (mtcFam env rl))) = true then
+        else match mtcTbl env rl with
+        | some tbl =>
           mtcEta mode eager env F d (cIndVal (env.find? (mtcFam env rl)))
-            (cIndCaps (env.find? (mtcFam env rl))) (mtcFam env rl) x
-        else if mtcFam env rl = ConLeche.andName then
-          mtcAnd mode eager env F d rl (cCtorVal (env.find? rl.ctor)) (cCtorNP (env.find? rl.ctor))
-            (mtcFam env rl) x
-        else .ok x
+            (cIndCaps (env.find? (mtcFam env rl))) tbl (mtcFam env rl) x
+        | none =>
+          if mtcFam env rl = ConLeche.andName then
+            mtcAnd mode eager env F d rl (cCtorVal (env.find? rl.ctor)) (cCtorNP (env.find? rl.ctor))
+              (mtcFam env rl) x
+          else .ok x
       else .ok x := by
-  unfold mtcPrefixOk mtcFam
+  unfold mtcPrefixOk mtcTbl mtcFam
   cases hf : env.find? rl.ctor with
   | none =>
     simp only [ConLeche.majorToCtorFueled, ConLeche.majorToCtor, hnc, hf, cCtor?,
@@ -1400,26 +1427,25 @@ grind_pattern [bridge_grind] mtc_K => majorToCtorOp mode eager env d cn isK [rl]
   Runs (mtcKOp mode eager env d rl (cCtorVal (env.find? rl.ctor)) (cCtorNP (env.find? rl.ctor))
       (mtcFam env rl) x) v
 
-/-- con-leche: ConLeche/Kernel/Core.lean:513-662 majorToCtor — the η rescue's answer. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:612-700 majorToCtor — the η rescue's answer. -/
 theorem mtc_Eta {d : Nat} {cn : ConLeche.Name} {isK : Bool} {rl : RecRule} {x v : Expr}
+    {tbl : ProjTable}
     (h : ConLeche.isCtorApp env x = false) (hp : mtcPrefixOk env rl = true) (hk : isK = false)
-    (he : ConLeche.etaRescueOk rl.ctor (cCtorVal (env.find? rl.ctor))
-      (cIndVal (env.find? (mtcFam env rl))) (cIndCaps (env.find? (mtcFam env rl))) = true)
+    (he : mtcTbl env rl = some tbl)
     (H : Runs (mtcEtaOp mode eager env d (cIndVal (env.find? (mtcFam env rl)))
-      (cIndCaps (env.find? (mtcFam env rl))) (mtcFam env rl) x) v) :
+      (cIndCaps (env.find? (mtcFam env rl))) tbl (mtcFam env rl) x) v) :
     Runs (majorToCtorOp mode eager env d cn isK [rl] x) v :=
   let ⟨F, hF⟩ := H
   ⟨F, by simp only [majorToCtorOp, majorToCtorFueled_one h, hp, hk, he, ite_true,
     Bool.false_eq_true, ite_false]; exact hF⟩
 grind_pattern [bridge_grind] mtc_Eta => majorToCtorOp mode eager env d cn isK [rl] x,
   Runs (mtcEtaOp mode eager env d (cIndVal (env.find? (mtcFam env rl)))
-      (cIndCaps (env.find? (mtcFam env rl))) (mtcFam env rl) x) v
+      (cIndCaps (env.find? (mtcFam env rl))) tbl (mtcFam env rl) x) v
 
-/-- con-leche: ConLeche/Kernel/Core.lean:513-662 majorToCtor — the `And` rescue's answer. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:612-700 majorToCtor — the `And` rescue's answer. -/
 theorem mtc_And {d : Nat} {cn : ConLeche.Name} {isK : Bool} {rl : RecRule} {x v : Expr}
     (h : ConLeche.isCtorApp env x = false) (hp : mtcPrefixOk env rl = true) (hk : isK = false)
-    (he : ConLeche.etaRescueOk rl.ctor (cCtorVal (env.find? rl.ctor))
-      (cIndVal (env.find? (mtcFam env rl))) (cIndCaps (env.find? (mtcFam env rl))) = false) (hT : mtcFam env rl = ConLeche.andName)
+    (he : mtcTbl env rl = none) (hT : mtcFam env rl = ConLeche.andName)
     (H : Runs (mtcAndOp mode eager env d rl (cCtorVal (env.find? rl.ctor)) (cCtorNP (env.find? rl.ctor))
       (mtcFam env rl) x) v) :
     Runs (majorToCtorOp mode eager env d cn isK [rl] x) v :=
@@ -1430,16 +1456,30 @@ grind_pattern [bridge_grind] mtc_And => majorToCtorOp mode eager env d cn isK [r
   Runs (mtcAndOp mode eager env d rl (cCtorVal (env.find? rl.ctor)) (cCtorNP (env.find? rl.ctor))
       (mtcFam env rl) x) v
 
-/-- con-leche: ConLeche/Kernel/Core.lean:513-662 majorToCtor — no rescue applies: the
+/-- con-leche: ConLeche/Kernel/Core.lean:612-700 majorToCtor — no rescue applies: the
 major stays. -/
 theorem mtc_none {d : Nat} {cn : ConLeche.Name} {isK : Bool} {rl : RecRule} {x : Expr}
     (h : ConLeche.isCtorApp env x = false) (hp : mtcPrefixOk env rl = true) (hk : isK = false)
-    (he : ConLeche.etaRescueOk rl.ctor (cCtorVal (env.find? rl.ctor))
-      (cIndVal (env.find? (mtcFam env rl))) (cIndCaps (env.find? (mtcFam env rl))) = false) (hT : ¬ mtcFam env rl = ConLeche.andName) :
+    (he : mtcTbl env rl = none) (hT : ¬ mtcFam env rl = ConLeche.andName) :
     Runs (majorToCtorOp mode eager env d cn isK [rl] x) x :=
   ⟨0, by simp only [majorToCtorOp, majorToCtorFueled_one h, hp, hk, he, ite_true,
     Bool.false_eq_true, ite_false]; rw [ite_eq_right hT]⟩
 grind_pattern [bridge_grind] mtc_none => majorToCtorOp mode eager env d cn isK [rl] x
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:248-254 findTable? — the table lookups,
+side by side, as `TblAns` (`findTable?_at`). -/
+theorem findTable?_tblAns {s : AState} {T : NIdx} {Tn : ConLeche.Name}
+    (hck : CheckOK eager env fe s) (hT : denoteN s.store.ns T = some Tn) :
+    TblAns s.store (fe.findTable? T) (env.findTable? Tn) := by
+  obtain ⟨hhit, hmiss⟩ := findTable?_at hck hT
+  cases h : fe.findTable? T with
+  | none => rw [hmiss h]; trivial
+  | some t =>
+    obtain ⟨pt, hpt, he, -⟩ := hhit t h
+    rw [he]; exact hpt
+grind_pattern [bridge_grind] findTable?_tblAns =>
+  CheckOK eager env fe s, TblAns s.store (fe.findTable? T) (env.findTable? Tn) where
+  guard denoteN s.store.ns T = some Tn
 
 /-- con-leche: ConLeche/Kernel/Core.lean:544-726 majorToCtor — **THEOREM 1 for
 `majorToCtor`**: K, η and the pinned `And`.  The rule list is split structurally; at a
@@ -1476,15 +1516,16 @@ theorem majorToCtor_spec {fuel : Nat}
       · simp at hr
     obtain ⟨_, hrlc, _, _⟩ := rule_denote hrl'
     have hcl := indVal_closed henv (mtcFam env rl')
-    sym (gen := 10) only [bridge_grind, mtcPrefixOk, mtcFam] =>
+    sym (gen := 10) only [bridge_grind, mtcPrefixOk, mtcFam, mtcTbl] =>
       vcgen [majorToCtor_one, isCtorApp_spec (eager := eager) (env := env) (x := x), ExprOps.piResult_spec,
         ExprOps.getAppFn_spec, ConRon.Arena.pinAnd, pinAt_specE,
-        etaRescueOk_spec (eager := eager) (env := env) (fe := fe) (cn := rl'.ctor)
+        etaRescueTable?_spec (eager := eager) (env := env) (fe := fe) (cn := rl'.ctor)
+          (tblP? := env.findTable? (mtcFam env rl'))
           (cvjP := cCtorVal (env.find? rl'.ctor)) (cvTP := cIndVal (env.find? (mtcFam env rl')))
           (capsP := cIndCaps (env.find? (mtcFam env rl'))),
         majorK_spec hsim (rl' := rl') (x := x) (dcvj := cCtorVal (env.find? rl'.ctor))
           (Tn := mtcFam env rl'),
-        majorEta_spec hsim (x := x) (dcvT := cIndVal (env.find? (mtcFam env rl')))
+        majorEta_specA hsim (x := x) (dcvT := cIndVal (env.find? (mtcFam env rl')))
           (dcaps := cIndCaps (env.find? (mtcFam env rl'))) (Tn := mtcFam env rl'),
         majorAnd_spec hsim (rl' := rl') (x := x) (dcvj := cCtorVal (env.find? rl'.ctor))
           (Tn := mtcFam env rl')] <;> finish

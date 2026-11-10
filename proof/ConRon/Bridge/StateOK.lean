@@ -474,15 +474,6 @@ structure PinsOK (s : AState) : Prop where
   sortOne : denoteE s.store s.pins.sortOne = some (.sort (.succ .zero))
   /-- **the ZERO name handle decodes, and it decodes to `.anonymous`**.
 
-  `Arena/Env.lean`'s `IIndCaps.etaCtor` defaults to `(default : NIdx)` — the
-  zero word — where `ConLeche.IndCaps.etaCtor` defaults to `.anonymous`, and
-  `Frontend.denoteCaps` reads the field UNCONDITIONALLY.  So every capability
-  record built at a block that earns nothing — which is every multi-constructor
-  block the inductive route installs — denotes only if the zero handle
-  decodes to `.anonymous`; without this clause `Frontend.denoteCI` of the
-  pushed `.indInfo` row is `none`, and with it `denoteFEnv`, `InstRel.denote`
-  and `FoldOK.denote`.
-
   The clause is EXACT rather than a weakening.  `.anonymous` is nullary, so
   the persistent name store's `anons` table holds at most one element, at slot
   0; `Idx.ofWord 0` is tag-`anonymous`, tier-persistent, slot 0.  So as soon

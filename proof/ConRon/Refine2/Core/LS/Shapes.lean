@@ -152,6 +152,22 @@ attribute [local lockstep_simp] decide_u64_eq ExprOps.absEIdxList List.length_ma
   rw [arena.core.eta_ctor_shape, etaCtorShape]
   lockstep
 
+@[lockstep] theorem eta_ctor_partial_fam_ls {pers st fe lfe c ty lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.eta_ctor_partial_fam pers st fe c ty) lst
+      (etaCtorPartialFam lfe (absNIdx c) (absEIdx ty)) := by
+  rw [arena.core.eta_ctor_partial_fam, etaCtorPartialFam]
+  lockstep
+
+@[lockstep] theorem eta_ctor_partial_ls {pers st fe lfe a lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) :
+    LS pers (fun a b => b = a.map absU) (arena.core.eta_ctor_partial pers st fe a) lst
+      (etaCtorPartial lfe (absEIdx a)) := by
+  rw [arena.core.eta_ctor_partial, etaCtorPartial]
+  lockstep
+
 end
 
 theorem pi_residual_aux (n : Nat) :
@@ -411,6 +427,8 @@ end tele
 #print axioms fab_scope_ok_ls
 #print axioms infer_lam_result_ls
 #print axioms eta_ctor_shape_ls
+#print axioms eta_ctor_partial_fam_ls
+#print axioms eta_ctor_partial_ls
 #print axioms pi_residual_ls
 #print axioms eta_projs_ls
 #print axioms and_rescue_slots_ls
