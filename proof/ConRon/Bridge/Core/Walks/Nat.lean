@@ -678,9 +678,7 @@ theorem natOpResult_wscoped {c : ConLeche.Name} {a b d : Nat} {y : Expr}
   rw [ite_eq_right h3] at h
   by_cases h4 : c = ConLeche.natPowName
   · rw [ite_eq_left h4] at h
-    by_cases hb : b > 16777216
-    · rw [ite_eq_left hb] at h; cases h
-    · rw [ite_eq_right hb] at h; cases h; simp [Expr.WScoped]
+    cases h; simp [Expr.WScoped]
   rw [ite_eq_right h4] at h
   by_cases h5 : c = ConLeche.natDivName
   · rw [ite_eq_left h5] at h
