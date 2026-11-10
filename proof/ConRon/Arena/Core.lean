@@ -1061,6 +1061,7 @@ def natSizeRefused (n : Nat) : AM Bool := do
   pure (decide (natSizeBytes n > m))
 
 /-- con-leche: ConLeche/Cached/StateC.lean:197-204 natResultRefused
+con-leche: ConLeche/Cached/StateC.lean:168-171 natNumeralTooBig
 con-leche: ConLeche/Cached/CoreC.lean:87-156 reduceNatI — a computed numeral,
 refused above the run's maximum `Nat` size (the cited `natNumeralTooBig`),
 otherwise interned. -/
@@ -1080,7 +1081,9 @@ def powRefused (a b : Nat) : AM Bool := do
     let m ← maxNatSizeM
     pure (decide (natSizeBytes a > m / b))
 
-/-- con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal — the cited
+/-- con-leche: ConLeche/Cached/StateC.lean:178-195 natOpRefusal
+con-leche: ConLeche/Cached/StateC.lean:164-166 natCountMax
+con-leche: ConLeche/Cached/StateC.lean:173-176 natCountTooBig — the cited
 `Nat.pow` clause: an exponent above `natCountMax` is refused whatever the base,
 and so is a result above the maximum size (`powRefused`). -/
 def powGuard (a b : Nat) : AM Unit := do
