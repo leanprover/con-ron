@@ -151,6 +151,7 @@ def ofReduceAxOk (fe : IFEnv) (cv : IConstantVal) : AM Bool := do
 
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:195-199 reducePinGuard
 con-leche: ConLeche/Kernel/DeclCheck.lean:154-158 reducePinGuardF
+con-leche: ConLeche/Cached/ParsedC.lean:217-221 reducePinGuardC
 Syntactic guards on the generated reduce pin (checked once). -/
 def reducePinGuard (fe : IFEnv) (c : NIdx) : AM Bool := do
   let p ← reduceDeclPin c
@@ -558,6 +559,7 @@ def divModEnvGuard (fe2 : IFEnv) (c : NIdx) : AM Bool := do
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:310-320 divModPinGuard
 con-leche: ConLeche/Kernel/DeclCheck.lean:188-195 divModPinGuardF
+con-leche: ConLeche/Cached/ParsedC.lean:147-154 divModPinGuardC
 The pin's four ground guards — closed, free-variable-free, level-monomorphic
 and resolving — the first four clauses of `divModPinGuard`. -/
 def groundGuards (fe : IFEnv) (p : EIdx) : AM Bool := do
@@ -568,6 +570,7 @@ def groundGuards (fe : IFEnv) (p : EIdx) : AM Bool := do
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:310-320 divModPinGuard
 con-leche: ConLeche/Kernel/DeclCheck.lean:188-195 divModPinGuardF
+con-leche: ConLeche/Cached/ParsedC.lean:147-154 divModPinGuardC
 One type pin's guard, the body of `divModPinGuard`'s `List.all` closure: the
 constant stored, its stored type free of free variables, the pinned type
 closed, free of free variables and resolving. -/
@@ -581,6 +584,7 @@ def typePinGuard (fe : IFEnv) (n : NIdx) (ty : EIdx) : AM Bool := do
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:310-320 divModPinGuard
 con-leche: ConLeche/Kernel/DeclCheck.lean:188-195 divModPinGuardF
+con-leche: ConLeche/Cached/ParsedC.lean:147-154 divModPinGuardC
 `(divModTypePins ps c).all fun p => …` as a list recursion (DESIGN §3.4
 forbids the closure). -/
 def typePinsGuard (fe : IFEnv) : List (NIdx × EIdx) → AM Bool
@@ -591,6 +595,7 @@ def typePinsGuard (fe : IFEnv) : List (NIdx × EIdx) → AM Bool
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:310-320 divModPinGuard
 con-leche: ConLeche/Kernel/DeclCheck.lean:188-195 divModPinGuardF
+con-leche: ConLeche/Cached/ParsedC.lean:147-154 divModPinGuardC
 Syntactic guards on one variant's pin (generated; checked once at install
 rather than proven about the blob), and on its type pins: each type-pinned
 constant stored with a closed type, each pinned type closed over constants
@@ -647,6 +652,7 @@ def checkDivModCerts (mode : CheckMode) (fe : IFEnv) (c : NIdx)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:331-339 checkTypePins
 con-leche: ConLeche/Kernel/DeclCheck.lean:262-269 checkTypePinsF
+con-leche: ConLeche/Cached/ParsedC.lean:156-162 checkTypePinsC
 The type pins: each type-pinned constant's stored type against the variant's
 pinned one, by definitional equality. -/
 def checkTypePins (mode : CheckMode) (fe : IFEnv) : List (NIdx × EIdx) → AM Bool
@@ -751,6 +757,7 @@ def checkDivModPin (mode : CheckMode) (pins : List INatOpPinSet)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:426-461 checkReducePin
 con-leche: ConLeche/Kernel/DeclCheck.lean:312-331 checkReducePinF
+con-leche: ConLeche/Cached/ParsedC.lean:223-241 checkReducePinC
 The body at `fe`, the environment without the opaque: the element guard, the
 pin's own syntactic guards, the definitional comparison of the witness
 against the pin, and the identity certificate. -/
@@ -777,6 +784,7 @@ def checkReducePinPre (mode : CheckMode) (fe : IFEnv) (c : NIdx)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:426-461 checkReducePin
 con-leche: ConLeche/Kernel/DeclCheck.lean:312-331 checkReducePinF
+con-leche: ConLeche/Cached/ParsedC.lean:223-241 checkReducePinC
 The `Lean.reduceNat`/`Lean.reduceBool` gate, after the ordinary opaque check:
 the stored constant carries the pinned type (at `fe2`, the environment with
 it), then `checkReducePinPre` at `fe`.  The two guards short-circuit, as the

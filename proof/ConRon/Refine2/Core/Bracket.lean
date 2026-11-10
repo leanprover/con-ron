@@ -484,7 +484,7 @@ theorem memos_reset {rm rm' : arena.monad.Memos} (hinv : MemosInv rm)
   } := (Result.ok_injective h).symm
   subst hst
   refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩,
-    ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hinv.lpDefC, hinv.crfC⟩⟩
+    ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hinv.lpDefC, hinv.crfC, hinv.hlbiC⟩⟩
   exacts [reset_map_rel hinv.inst1C e0,
     reset_map_rel hinv.instLC e1,
     reset_map_rel hinv.liftC e2,
