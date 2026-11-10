@@ -24,7 +24,8 @@ function argument and a closure is what DESIGN §3.4 forbids.
    makes `find?` the only read of the environment.  Consequently every
    `…Of`/`…F` PAIR of con-leche declarations — `natLitSupported` /
    `natLitSupportedF`, `natLitStored` / `natLitStoredF`, `natOpGuard` /
-   `natOpGuardF`, `andRescueSlotsOf` / `andRescueSlots` / `andRescueSlotsF`,
+   `natOpGuardF`, `andRescueSlotsOf` / `andRescueSlots` /
+   `andRescueSlotsF`,
    `strLitStored` / `strLitStoredF` — collapses into
    ONE twin, which carries a `con-leche:` line per collapsed declaration.
    That is P2b's own rule for the `…Go`/`…Fast` triples, applied to the
