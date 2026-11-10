@@ -16,6 +16,7 @@ public import ConRon.Bridge.Core.Walks.Former
 import ConRon.Bridge.Core.Walks.IotaLeaves
 public import ConRon.Bridge.Core.Walks.Telescope
 public import ConLeche.Verify.ProjGuard
+import ConLeche.Verify.Cached.DiscC4
 import ConLeche.Kernel.CheckerBase
 import ConRon.Bridge.Core.Walks.PropRead
 import ConRon.Bridge.Core.Walks.Nat
@@ -204,6 +205,136 @@ theorem projGuardRowsGo_run : ∀ (k : Nat) {d : Nat} {h : EIdx} {hP : Expr}
       case forallE a b => simp [denoteEView] at hh
       all_goals simp [denoteRowsO, ConLeche.projGuardRowsGo]
 
+/-- con-leche: none — the denotation of an optional handle. -/
+@[expose] def denoteOE (st : EStore) : Option EIdx → Option (Option Expr)
+  | none => some none
+  | some h => (denoteE st h).map some
+
+open Guard in
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2166-2178 projGuardFastC — **the
+guard's fast case, in run form**: every query is the window query, so the
+answer is the cached fast case's. -/
+theorem projGuardFast_run : ∀ (k : Nat) {j : Nat} {h : EIdx} {hP : Expr} {s₀ s' : AState}
+    {r : Option EIdx}, StateOK s₀ → denoteE s₀.store h = some hP →
+    ConRon.Arena.projGuardFast k j h s₀ = .ok (r, s') →
+    PStep s₀ s' ∧ denoteOE s'.store r = some (ConLeche.projGuardFastC k j hP) := by
+  intro k
+  induction k with
+  | zero =>
+    intro j h hP s₀ s' r hok hh hrun
+    rw [ConRon.Arena.projGuardFast] at hrun
+    obtain ⟨v₀, hv₀⟩ := denoteE_view hh
+    replace hrun := tagIf_view_run hv₀
+      (fun hne => by cases v₀ <;> first | rfl | exact absurd rfl hne) hrun
+    obtain ⟨v, s1, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨hs1, hv⟩ := view_run k1
+    rw [hs1] at z1
+    cases v
+    case forallE dom body =>
+      obtain ⟨domP, bodyP, rfl, hd, hb⟩ := denote_forallE_inv hok.wf hv hh
+      dsimp only at z1
+      obtain ⟨u, s2, k2, z2⟩ := AM.bind_ok z1
+      obtain ⟨p2, hu⟩ := hasLooseBVarIn_spec 0 j h (.forallE domP bodyP) s₀ s2 u hok hh k2
+      have hu' : u = Expr.hasLooseBVarInC 0 j (.forallE domP bodyP) := hu
+      subst hu'
+      simp only [ConLeche.projGuardFastC]
+      cases hl : Expr.hasLooseBVarInC 0 j (.forallE domP bodyP)
+      · rw [hl] at z2
+        simp only [Bool.false_eq_true, ite_false] at z2
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
+        exact ⟨p2, by simp [denoteOE, denote_ext hd p2.ext]⟩
+      · rw [hl] at z2
+        simp only [ite_true] at z2
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
+        exact ⟨p2, by simp [denoteOE]⟩
+    all_goals
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
+      refine ⟨PStep.refl hok, ?_⟩
+      rw [denoteE_view_eq hok.wf hv] at hh
+      cases hP
+      case forallE a b => simp [denoteEView] at hh
+      all_goals simp [denoteOE, ConLeche.projGuardFastC]
+  | succ k ih =>
+    intro j h hP s₀ s' r hok hh hrun
+    rw [ConRon.Arena.projGuardFast] at hrun
+    obtain ⟨v₀, hv₀⟩ := denoteE_view hh
+    replace hrun := tagIf_view_run hv₀
+      (fun hne => by cases v₀ <;> first | rfl | exact absurd rfl hne) hrun
+    obtain ⟨v, s1, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨hs1, hv⟩ := view_run k1
+    rw [hs1] at z1
+    cases v
+    case forallE dom body =>
+      obtain ⟨domP, bodyP, rfl, hd, hb⟩ := denote_forallE_inv hok.wf hv hh
+      dsimp only at z1
+      obtain ⟨u, s2, k2, z2⟩ := AM.bind_ok z1
+      obtain ⟨p2, hu⟩ := hasLooseBVarIn_spec 0 j dom domP s₀ s2 u hok hd k2
+      have hu' : u = Expr.hasLooseBVarInC 0 j domP := hu
+      subst hu'
+      simp only [ConLeche.projGuardFastC]
+      cases hl : Expr.hasLooseBVarInC 0 j domP
+      · rw [hl] at z2
+        simp only [Bool.false_eq_true, ite_false] at z2
+        exact (fun ⟨p3, h3⟩ => ⟨p2.trans p3, h3⟩)
+          (ih p2.ok (denote_ext hb p2.ext) z2)
+      · rw [hl] at z2
+        simp only [ite_true] at z2
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
+        exact ⟨p2, by simp [denoteOE]⟩
+    all_goals
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
+      refine ⟨PStep.refl hok, ?_⟩
+      rw [denoteE_view_eq hok.wf hv] at hh
+      cases hP
+      case forallE a b => simp [denoteEView] at hh
+      all_goals simp [denoteOE, ConLeche.projGuardFastC]
+
+open Guard in
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2180-2195 projGuardRowsC — **the
+rows past the parameters' raw opening, in run form**: the fast case with its
+one domain substituted, else the substituted residual stepped — the cached
+rows' own `match`. -/
+theorem projGuardRowsAt_run {entry : IProjEntry} {acc : Array EIdx} {ws : List Expr}
+    {r : EIdx} {rP : Expr} {s₀ s' : AState} {o : Option (Array (Nat × EIdx))}
+    (hok : StateOK s₀) (hacc : ExprOps.InstLVec s₀.store acc ws)
+    (hr : denoteE s₀.store r = some rP)
+    (hrun : ConRon.Arena.projGuardRowsAt entry acc r s₀ = .ok (o, s')) :
+    PStep s₀ s' ∧ denoteRowsO s'.store o = some
+      (match ConLeche.projGuardFastC entry.idx 0 rP with
+        | some dom => some [(entry.numParams + entry.idx, Expr.instantiateListC dom ws entry.idx)]
+        | none => ConLeche.projGuardRowsGoC entry.idx entry.numParams
+            (Expr.instantiateListC rP ws)) := by
+  unfold ConRon.Arena.projGuardRowsAt at hrun
+  obtain ⟨f, s1, k1, z1⟩ := AM.bind_ok hrun
+  obtain ⟨p1, hf⟩ := projGuardFast_run entry.idx hok hr k1
+  have hacc1 := hacc.ext p1.ext
+  cases f with
+  | some dom =>
+    simp only [denoteOE, Option.map_eq_some_iff] at hf
+    obtain ⟨domP, hdom, hfast⟩ := hf
+    rw [← hfast]
+    dsimp only at z1
+    obtain ⟨dd, s2, k2, z2⟩ := AM.bind_ok z1
+    obtain ⟨h1, h2, h4, h5, -, h7⟩ := ExprOps.instantiateListFast_run p1.ok hacc1
+      (by rw [hdom]; rfl) k2
+    have p2 : PStep s1 s2 := PStep.of_caches h1 h2 h4 h5
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
+    refine ⟨p1.trans p2, ?_⟩
+    simp [denoteRowsO, denoteRows, h7 _ hdom, Expr.instantiateListC_spec]
+  | none =>
+    simp only [denoteOE, Option.some.injEq] at hf
+    rw [← hf]
+    dsimp only at z1
+    obtain ⟨r2, s2, k2, z2⟩ := AM.bind_ok z1
+    obtain ⟨h1, h2, h4, h5, -, h7⟩ := ExprOps.instantiateListFast_run p1.ok hacc1
+      (by rw [denote_ext hr p1.ext]; rfl) k2
+    have p2 : PStep s1 s2 := PStep.of_caches h1 h2 h4 h5
+    obtain ⟨p3, hrows⟩ := projGuardRowsGo_run entry.idx p2.ok
+      (h7 _ (denote_ext hr p1.ext)) (outP := []) rfl z2
+    refine ⟨p1.trans (p2.trans p3), ?_⟩
+    rw [hrows]
+    simp [Expr.instantiateListC_spec, ConLeche.Cached.projGuardRowsGoC_eq]
+
 open Guard in
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:1086-1103 projGuardRows
 con-leche: ConLeche/Cached/CoreC.lean:978-991 checkProjRowsI — **THEOREM 1 for
@@ -235,24 +366,34 @@ theorem projGuardRows_run (s₀ s' : AState) (entry : IProjEntry) (p : ProjEntry
       (constTyAt_spec s₀ ci.toConstantVal us p.ctor ls cP hok
         (by rw [denoteCV_name hcv, hname]) hus hfind hcv)
     obtain ⟨o, s2, k2, z2⟩ := AM.bind_ok z1
-    obtain ⟨p2, ho⟩ := openPisAtFvarsF_run hok1.state hcty k2
+    obtain ⟨p2, ho⟩ := openPisRawGo_run entry.numParams hok1.state
+      (show ExprOps.InstLVec s1.store #[] [] from rfl) hcty k2
     have hok2 := hok1.monoF p2.ok p2.ext p2.cframe p2.pins
+    -- the specification's rows are the cached rows (con-leche's
+    -- `projGuardRowsC_some` / `projGuardRowsC_none`)
+    have hspec : ConLeche.projGuardRows env.find? p ls =
+        ConLeche.projGuardRowsC p.numParams p.idx
+          (cP.toConstantVal.type.instantiateLevelParams cP.toConstantVal.levelParams ls) := by
+      simp only [ConLeche.projGuardRows, hfind]
+      split
+      · next fvs r hop => exact (ConLeche.Cached.projGuardRowsC_some hop).symm
+      · next hop => exact (ConLeche.Cached.projGuardRowsC_none hop).symm
+    rw [hspec, hidx, hnp]
     cases o with
     | none =>
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
       refine ⟨hok2, hx1.trans p2.ext, p2.pins.trans hp1, ?_⟩
-      have hn : ConLeche.openPisAtFvars p.numParams
-          (cP.toConstantVal.type.instantiateLevelParams cP.toConstantVal.levelParams ls) 0 =
-          none := by rw [hnp]; exact (Option.some.inj ho).symm
-      simp [denoteRowsO, ConLeche.projGuardRows, hfind, hn]
+      have hn := (Option.some.inj ho).symm
+      simp [denoteRowsO, ConLeche.projGuardRowsC, hn]
     | some q =>
-      obtain ⟨fvs, e⟩ := q
-      obtain ⟨xs, x, hx, -, he⟩ := denoteOpen_some_inv ho
-      obtain ⟨p3, hr⟩ := projGuardRowsGo_run entry.idx p2.ok he (outP := []) rfl z2
+      obtain ⟨fvs, acc, R⟩ := q
+      obtain ⟨xs, ws, RP, hq, -, hacc, hR⟩ := denoteRaw_some_inv ho
+      obtain ⟨p3, hr⟩ := projGuardRowsAt_run p2.ok hacc hR z2
       have hok3 := hok2.monoF p3.ok p3.ext p3.cframe p3.pins
       refine ⟨hok3, hx1.trans (p2.ext.trans p3.ext), p3.pins.trans (p2.pins.trans hp1), ?_⟩
       rw [hr]
-      simp only [ConLeche.projGuardRows, hfind, hidx, hnp, hx, List.nil_append, Option.map_id']
+      simp only [ConLeche.projGuardRowsC, hq]
+      rfl
 
 /-! ## The rows' sorts, at the knot -/
 
