@@ -90,7 +90,7 @@ use crate::arena::env::{
 };
 use crate::arena::expr_ops::{
     abstract1_fast, abstract_range_fast, cons_eidx, get_app_args, get_app_fn,
-    has_fvar_fast, instantiate1_fast, instantiate_list_fast, inst_lp_fast, inst_spine, lam_pair,
+    has_fvar_fast, instantiate1_fast, instantiate_list_fast, inst_lp_fast, inst_spine, binder_pair,
     leaf_guard, loose_bvars_bounded_fast, mk_app_n, mk_app_n_from, pi_result,
     snoc_eidx_of,
     take_eidx, take_eidx_n, wscoped_b_fast,
@@ -8896,22 +8896,20 @@ pub fn lazy_fold_ok(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1487-1509 quickDefEq
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::defeq_binders_refines, then delete this line
-/// con-leche: ConLeche/Cached/CoreC.lean:1402-1417 quickDefEqI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::defeq_binders_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3313-3322 defeqBinders` — the `∀`
-/// arm of `quickDefEq` (binder congruence: domains, then bodies opened at the
-/// RIGHT domain).
-///
-/// **The FIRST binder of the joint peel** (task #97-P6-14).  The domains are
-/// compared at `depth` and the fresh `fvar (depth, ty₂)` carries the SECOND
-/// side's domain, as con-leche's clause does; instead of opening both bodies
-/// with `instantiate1` and re-entering the knot — which walks the whole
-/// remaining telescope twice per binder — the two RAW bodies go to
-/// `defeq_peel`.  (Task #119: the λ arm is `defeq_lams` now, con-leche's own
-/// structural descent, and the binder-datum comparison is gone.)
-pub fn defeq_binders(
+/// con-leche: ConLeche/Kernel/Core.lean:1442-1445 bindersFuel
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3253-3257 bindersFuel` — descent
+/// budget of the binder-telescope comparison (`defeq_binders`): `2^62`.
+/// Exhaustion is not an error: the level reached is compared as the innermost
+/// one, which is always sound.
+pub const BINDERS_FUEL: u64 = 4611686018427387904; // 2^62
+
+/// con-leche: ConLeche/Kernel/Core.lean:1447-1454 defeqBindersInner
+/// con-leche: ConLeche/Cached/CoreC.lean:1368-1376 defeqBindersInnerI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3259-3270 defeqBindersInner` — the
+/// innermost level of `defeq_binders`: the opened bodies, and for two
+/// λ-telescopes (`lam`) at the verified mode their FULL-grade types (the λ
+/// check).
+pub fn defeq_binders_inner(
     pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
@@ -8919,181 +8917,7 @@ pub fn defeq_binders(
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
-    depth: u64,
-    ty1: &EIdx,
-    body1: &EIdx,
-    ty2: &EIdx,
-    body2: &EIdx,
-) -> Result<bool, CheckError> {
-    match knot_defeq(pers, st, mode, eager, lane, fuel, fe, depth, ty1, ty2) {
-        Err(e) => Err(e),
-        Ok(false) => Ok(false),
-        Ok(true) => match intern_e_fvar(pers, st, depth, ty2.dup2()) {
-            Err(e) => Err(e),
-            Ok(fv) => {
-                let mut fvs: Vec<EIdx> = Vec::new();
-                fvs.push(fv);
-                defeq_peel(pers, st, mode, eager, lane, fuel, fe, depth, PEEL_FUEL, body1, body2, 1, fvs)
-            }
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:1487-1509 quickDefEq
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove crates/con-ron-core/src/arena/core.rs_refines, then delete this line
-/// con-leche: ConLeche/Cached/CoreC.lean:1402-1417 quickDefEqI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove crates/con-ron-core/src/arena/core.rs_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3246-3311 defeqPeel` — **the
-/// batched `∀` defeq descent**, the PORT's own algorithm (task #97-P6-14; the
-/// maintainer's ruling before DESIGN.md §8.7, with its identification lemma
-/// against the chained arm owed by the bridge).
-///
-/// `a` and `b` are the two RAW bodies of the `∀` binders peeled so far — never
-/// opened — `fvs` holds the `k` free variables the peel has introduced, and
-/// `d + k` is the depth the next binder sits at.  While both handles are `∀`s
-/// the loop peels one more level: each domain is opened against the
-/// accumulated `fvs` in ONE `instantiate_list`, the two opened domains are
-/// compared with `knot_defeq` exactly where the chain compares them, the
-/// fresh `fvar (d + k, ty₂')` is pushed, and the two raw bodies go round
-/// again.  The leaf (`defeq_peel_leaf`) opens both residuals ONCE and hands
-/// the pair back to the knot — which is the chain's own next step, and is
-/// where a λ/λ pair under the telescope meets `defeq_lams`.
-///
-/// The identification the bridge owes: the opens agree
-/// (`Expr.instantiateList_cons`); the chain reaches the `∀` arm at every peeled
-/// level (`isBoolTrue` is `false` off a `.const`, `whnfCore` is the identity on
-/// `.forallE`); a failure lands at the same binder; and the caches see less,
-/// which changes no verdict.  Task #119: no binder datum is compared, so the
-/// outward pass of the old peel is gone, and the peel no longer descends
-/// through λ pairs (con-leche's λ/λ arm is `defeqLams`, whose innermost-level
-/// type comparison a joint peel would not run).
-pub fn defeq_peel(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    eager: bool,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    d: u64,
-    peel: u64,
-    a: &EIdx,
-    b: &EIdx,
-    k: u64,
-    fvs: Vec<EIdx>,
-) -> Result<bool, CheckError> {
-    if a.eq2(b) {
-        // `quickDefEq`'s OWN first test, one level up: the chain opens these
-        // two residuals against the same free variables and hands the pair to
-        // the knot, whose `a == b` test then decides `true`.
-        Ok(true)
-    } else if peel == 0 || a.tag() != ETAG_FORALL_E || b.tag() != ETAG_FORALL_E {
-        defeq_peel_leaf(pers, st, mode, eager, lane, fuel, fe, d, a, b, k, fvs)
-    } else {
-        match view_bind(pers, st, a) {
-            None => fail_dangling_e(),
-            Some(pa) => match view_bind(pers, st, b) {
-                None => fail_dangling_e(),
-                Some(pb) => {
-                    // The domains are the same walk of the same input when the
-                    // two RAW domains are the same handle, and the chain's own
-                    // `a == b` arm decides them `true`; one open, no knot call.
-                    let same_dom: bool = pa.0.eq2(&pb.0);
-                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &pa.0, &fvs, 0) {
-                        Err(e) => Err(e),
-                        Ok(t1) => {
-                            let t2r: Result<EIdx, CheckError> = if same_dom {
-                                Ok(t1.dup2())
-                            } else {
-                                instantiate_list_fast(pers, st, CORE_WALK_FUEL, &pb.0, &fvs, 0)
-                            };
-                            match t2r {
-                                Err(e) => Err(e),
-                                Ok(t2) => {
-                                    let dq: Result<bool, CheckError> = if same_dom {
-                                        Ok(true)
-                                    } else {
-                                        knot_defeq(pers, st, mode, eager, lane, fuel, fe, d + k, &t1, &t2)
-                                    };
-                                    match dq {
-                                        Err(e) => Err(e),
-                                        Ok(false) => Ok(false),
-                                        Ok(true) => match intern_e_fvar(pers, st, d + k, t2.dup2()) {
-                                            Err(e) => Err(e),
-                                            Ok(fv) => {
-                                                let mut fvs2: Vec<EIdx> = fvs;
-                                                fvs2.push(fv);
-                                                defeq_peel(
-                                                    pers, st, mode, eager, lane, fuel, fe, d, peel - 1,
-                                                    &pa.1, &pb.1, k + 1, fvs2,
-                                                )
-                                            }
-                                        },
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:1487-1509 quickDefEq
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::defeq_peel_leaf_refines, then delete this line
-/// con-leche: ConLeche/Cached/CoreC.lean:1402-1417 quickDefEqI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::defeq_peel_leaf_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3237-3244 defeqPeelLeaf` — the
-/// batched descent's LEAF phase: the two residuals are opened ONCE against the
-/// whole accumulated `fvs` and handed back to the knot at the depth the peel
-/// reached, which is the chain's own recursive call at its last binder.
-pub fn defeq_peel_leaf(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    eager: bool,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    d: u64,
-    a: &EIdx,
-    b: &EIdx,
-    k: u64,
-    fvs: Vec<EIdx>,
-) -> Result<bool, CheckError> {
-    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, a, &fvs, 0) {
-        Err(e) => Err(e),
-        Ok(o1) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, b, &fvs, 0) {
-            Err(e) => Err(e),
-            Ok(o2) => knot_defeq(pers, st, mode, eager, lane, fuel, fe, d + k, &o1, &o2),
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:1364-1367 lamsFuel
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::LAMS_FUEL_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3324-3328 lamsFuel` — descent
-/// budget of the λ-telescope comparison (`defeq_lams`): `2^62`.  Exhaustion is
-/// not an error: the level reached is compared as the innermost one, which is
-/// always sound.
-pub const LAMS_FUEL: u64 = 4611686018427387904; // 2^62
-
-/// con-leche: ConLeche/Kernel/Core.lean:1369-1376 defeqLamsInner
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::defeq_lams_inner_refines, then delete this line
-/// con-leche: ConLeche/Cached/CoreC.lean:1283-1290 defeqLamsInnerI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::defeq_lams_inner_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3330-3341 defeqLamsInner` — the
-/// innermost level of `defeq_lams`: the opened bodies, and at the verified
-/// mode their FULL-grade types (con-leche task #342: the λ check, T1).
-pub fn defeq_lams_inner(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    eager: bool,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
+    lam: bool,
     depth: u64,
     b1: &EIdx,
     b2: &EIdx,
@@ -9102,7 +8926,7 @@ pub fn defeq_lams_inner(
         Err(e) => Err(e),
         Ok(false) => Ok(false),
         Ok(true) => {
-            if verified_checks(mode) {
+            if lam && verified_checks(mode) {
                 match knot_infer(pers, st, mode, eager, lane, fuel, fe, depth + 1, b1) {
                     Err(e) => Err(e),
                     Ok(t1) => match knot_infer(pers, st, mode, eager, lane, fuel, fe, depth + 1, b2) {
@@ -9117,19 +8941,13 @@ pub fn defeq_lams_inner(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1378-1397 defeqLams
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::defeq_lams_refines, then delete this line
-/// con-leche: ConLeche/Cached/CoreC.lean:1292-1304 defeqLamsI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::defeq_lams_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3343-3364 defeqLams` — **λ-telescope
-/// congruence** (con-leche task #342, #349): two λs compare their domains;
-/// while both opened bodies are λs (and not equal) the comparison descends
-/// into them directly, comparing domains only; at the innermost level the
-/// opened bodies are compared and, at the verified mode, so are their
-/// FULL-grade types.  The descent is the λ arm's own, not a recursive `defeq`
-/// call: a recursive call could answer two λs by proof irrelevance or the
-/// memo, which skips the type comparison the outer levels rely on.
-pub fn defeq_lams(
+/// con-leche: ConLeche/Kernel/Core.lean:1456-1460 defeqDomain
+/// con-leche: ConLeche/Cached/CoreC.lean:1378-1383 defeqDomainI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3272-3282 defeqDomain` — one
+/// level's domains in `defeq_binders`: the same RAW domain handle is `true`;
+/// otherwise the left domain, opened over the variables so far in one
+/// `instantiate_list` (`fvs`, push order), against the opened right one `dom2`.
+pub fn defeq_domain(
     pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
@@ -9137,59 +8955,94 @@ pub fn defeq_lams(
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
-    lfuel: u64,
     depth: u64,
+    fvs: &Vec<EIdx>,
+    ty1: &EIdx,
+    ty2: &EIdx,
+    dom2: &EIdx,
+) -> Result<bool, CheckError> {
+    if ty1.eq2(ty2) {
+        Ok(true)
+    } else {
+        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty1, fvs, 0) {
+            Err(e) => Err(e),
+            Ok(dom1) => knot_defeq(pers, st, mode, eager, lane, fuel, fe, depth, &dom1, dom2),
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:1462-1485 defeqBinders
+/// con-leche: ConLeche/Cached/CoreC.lean:1385-1400 defeqBindersI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3284-3314 defeqBinders` —
+/// **binder-telescope congruence** (the official kernel's
+/// `is_def_eq_binding`): two ∀-telescopes (`!lam`) or two λ-telescopes (`lam`)
+/// are peeled together while both bodies are binders of that kind
+/// (`binder_pair`).  The bodies stay RAW: `fvs` holds the variables of the
+/// levels above, in push order (outermost first), and every opening is one
+/// `instantiate_list` over it.  Per level the right domain is opened (`dom2`),
+/// the domains are compared by `defeq_domain`, and the variable
+/// `fvar (depth, dom2)` is pushed.  At the innermost level both bodies are
+/// opened once and compared by `defeq_binders_inner`.
+pub fn defeq_binders(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    lam: bool,
+    bfuel: u64,
+    depth: u64,
+    fvs: Vec<EIdx>,
     ty1: &EIdx,
     body1: &EIdx,
     ty2: &EIdx,
     body2: &EIdx,
 ) -> Result<bool, CheckError> {
-    match knot_defeq(pers, st, mode, eager, lane, fuel, fe, depth, ty1, ty2) {
+    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty2, &fvs, 0) {
         Err(e) => Err(e),
-        Ok(false) => Ok(false),
-        Ok(true) => match intern_e_fvar(pers, st, depth, ty2.dup2()) {
+        Ok(dom2) => match defeq_domain(pers, st, mode, eager, lane, fuel, fe, depth, &fvs, ty1, ty2, &dom2) {
             Err(e) => Err(e),
-            Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body1, &fv, 0) {
+            Ok(false) => Ok(false),
+            Ok(true) => match intern_e_fvar(pers, st, depth, dom2) {
                 Err(e) => Err(e),
-                Ok(b1) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body2, &fv, 0) {
-                    Err(e) => Err(e),
-                    Ok(b2) => {
-                        let lp: Result<Option<(EIdx, EIdx, EIdx, EIdx)>, CheckError> = if lfuel == 0 {
-                            Ok(None)
-                        } else {
-                            lam_pair(pers, st, &b1, &b2)
-                        };
-                        match lp {
+                Ok(fv) => {
+                    let mut fvs2: Vec<EIdx> = fvs;
+                    fvs2.push(fv);
+                    let bp: Result<Option<(EIdx, EIdx, EIdx, EIdx)>, CheckError> = if bfuel == 0 {
+                        Ok(None)
+                    } else {
+                        binder_pair(pers, st, lam, body1, body2)
+                    };
+                    match bp {
+                        Err(e) => Err(e),
+                        Ok(Some((ty1b, body1b, ty2b, body2b))) => defeq_binders(
+                            pers, st, mode, eager, lane, fuel, fe, lam, bfuel - 1, depth + 1, fvs2, &ty1b,
+                            &body1b, &ty2b, &body2b,
+                        ),
+                        Ok(None) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, body1, &fvs2, 0) {
                             Err(e) => Err(e),
-                            Ok(Some((ty1b, body1b, ty2b, body2b))) => {
-                                if b1.eq2(&b2) {
-                                    Ok(true)
-                                } else {
-                                    defeq_lams(
-                                        pers, st, mode, eager, lane, fuel, fe, lfuel - 1, depth + 1,
-                                        &ty1b, &body1b, &ty2b, &body2b,
-                                    )
-                                }
-                            }
-                            Ok(None) => {
-                                defeq_lams_inner(pers, st, mode, eager, lane, fuel, fe, depth, &b1, &b2)
-                            }
-                        }
+                            Ok(o1) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, body2, &fvs2, 0) {
+                                Err(e) => Err(e),
+                                Ok(o2) => defeq_binders_inner(
+                                    pers, st, mode, eager, lane, fuel, fe, lam, depth, &o1, &o2,
+                                ),
+                            },
+                        },
                     }
-                },
+                }
             },
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1487-1509 quickDefEq
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::quick_defeq_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1402-1417 quickDefEqI
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove core::quick_defeq_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3366-3392 quickDefEq` — **the easy
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3316-3342 quickDefEq` — **the easy
 /// cases** (the official kernel's `quick_is_def_eq`): the syntactic fast path,
-/// and the pairs decided on the spot — two sorts, two literals, two `∀`s
-/// (binder congruence, batched: `defeq_binders`) and two `λ`s (`defeq_lams`).
+/// and the pairs decided on the spot — two sorts, two literals, two `∀`s and
+/// two `λ`s (binder-telescope congruence, `defeq_binders`).
 /// `None` is "not an easy case".  Only a pair of equal tags among those four
 /// kinds is viewed.
 pub fn quick_defeq(
@@ -9230,16 +9083,17 @@ pub fn quick_defeq(
                         }
                         (ENodeView::ForallE(ty1, body1), ENodeView::ForallE(ty2, body2)) => {
                             match defeq_binders(
-                                pers, st, mode, eager, lane, fuel, fe, depth, &ty1, &body1, &ty2, &body2,
+                                pers, st, mode, eager, lane, fuel, fe, false, BINDERS_FUEL, depth, Vec::new(),
+                                &ty1, &body1, &ty2, &body2,
                             ) {
                                 Err(e) => Err(e),
                                 Ok(ok) => Ok(Some(ok)),
                             }
                         }
                         (ENodeView::Lam(ty1, body1), ENodeView::Lam(ty2, body2)) => {
-                            match defeq_lams(
-                                pers, st, mode, eager, lane, fuel, fe, LAMS_FUEL, depth, &ty1, &body1,
-                                &ty2, &body2,
+                            match defeq_binders(
+                                pers, st, mode, eager, lane, fuel, fe, true, BINDERS_FUEL, depth, Vec::new(),
+                                &ty1, &body1, &ty2, &body2,
                             ) {
                                 Err(e) => Err(e),
                                 Ok(ok) => Ok(Some(ok)),
