@@ -509,67 +509,56 @@ impl Dup for LsIdx {
 // inductive and names the constructor it stands for.
 
 /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove handle::ETAG_BVAR_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:264-266 ETag.bvar` — the `bvar`
-/// constructor, line 316.
+/// constructor, line 401.
 pub const ETAG_BVAR: u32 = 0;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove handle::ETAG_FVAR_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:267-269 ETag.fvar` — the `fvar`
-/// constructor, line 317.
+/// constructor, line 402.
 pub const ETAG_FVAR: u32 = 1;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove handle::ETAG_SORT_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:270-272 ETag.sort` — the `sort`
-/// constructor, line 318.
+/// constructor, line 403.
 pub const ETAG_SORT: u32 = 2;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove handle::ETAG_CONST_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:273-275 ETag.const` — the `const`
-/// constructor, line 319.
+/// constructor, line 404.
 pub const ETAG_CONST: u32 = 3;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove handle::ETAG_APP_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:276-278 ETag.app` — the `app`
-/// constructor, line 320.
+/// constructor, line 405.
 pub const ETAG_APP: u32 = 4;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove handle::ETAG_LAM_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:279-281 ETag.lam` — the `lam`
-/// constructor, line 321.
+/// constructor, line 406.
 pub const ETAG_LAM: u32 = 5;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove handle::ETAG_FORALL_E_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:282-284 ETag.forallE` — the
-/// `forallE` constructor, line 322.
+/// `forallE` constructor, line 407.
 pub const ETAG_FORALL_E: u32 = 6;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove handle::ETAG_LET_E_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:285-287 ETag.letE` — the `letE`
-/// constructor, line 323.
+/// constructor, line 408.
 pub const ETAG_LET_E: u32 = 7;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove handle::ETAG_LIT_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:288-290 ETag.lit` — the `lit`
-/// constructor, line 324.
+/// constructor, line 409.
 pub const ETAG_LIT: u32 = 8;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove handle::ETAG_PROJ_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:291-293 ETag.proj` — the `proj`
-/// constructor, line 325.
+/// constructor, line 410.
 pub const ETAG_PROJ: u32 = 9;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove handle::e_tag_is_bind_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:295-302 ETag.isBind` —
 /// `ETag.isBind`: `lam` or `forallE`, the two constructors that share the
 /// `BindNode` record shape. A named predicate rather than the disjunction
@@ -582,42 +571,42 @@ pub fn e_tag_is_bind(t: u32) -> bool {
 
 /// con-leche: ConLeche/Kernel/Name.lean:27-30 Name
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:307-309 NTag.anonymous` — the
-/// `anonymous` constructor, line 35.
+/// `anonymous` constructor, line 28.
 pub const NTAG_ANONYMOUS: u32 = 0;
 
 /// con-leche: ConLeche/Kernel/Name.lean:27-30 Name
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:310-312 NTag.str` — the `str`
-/// constructor, line 36.
+/// constructor, line 29.
 pub const NTAG_STR: u32 = 1;
 
 /// con-leche: ConLeche/Kernel/Name.lean:27-30 Name
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:313-315 NTag.num` — the `num`
-/// constructor, line 37.
+/// constructor, line 30.
 pub const NTAG_NUM: u32 = 2;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:38-43 Level
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:320-322 LTag.zero` — the `zero`
-/// constructor, line 41.
+/// constructor, line 39.
 pub const LTAG_ZERO: u32 = 0;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:38-43 Level
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:323-325 LTag.succ` — the `succ`
-/// constructor, line 42.
+/// constructor, line 40.
 pub const LTAG_SUCC: u32 = 1;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:38-43 Level
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:326-328 LTag.max` — the `max`
-/// constructor, line 43.
+/// constructor, line 41.
 pub const LTAG_MAX: u32 = 2;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:38-43 Level
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:329-331 LTag.imax` — the `imax`
-/// constructor, line 44.
+/// constructor, line 42.
 pub const LTAG_IMAX: u32 = 3;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:38-43 Level
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:332-334 LTag.param` — the `param`
-/// constructor, line 45.
+/// constructor, line 43.
 pub const LTAG_PARAM: u32 = 4;
 
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:339-342 LsTag.list

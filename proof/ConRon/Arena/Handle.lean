@@ -262,49 +262,38 @@ inductive and names the constructor it stands for. -/
 
 namespace ETag
 /-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `bvar`
--- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Handle.bvar_bridge, then delete this line
 constructor, line 316. -/
 def bvar : UInt32 := 0
 /-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `fvar`
--- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Handle.fvar_bridge, then delete this line
 constructor, line 317. -/
 def fvar : UInt32 := 1
 /-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `sort`
--- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Handle.sort_bridge, then delete this line
 constructor, line 318. -/
 def sort : UInt32 := 2
 /-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `const`
--- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Handle.const_bridge, then delete this line
 constructor, line 319. -/
 def const : UInt32 := 3
 /-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `app`
--- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Handle.app_bridge, then delete this line
 constructor, line 320. -/
 def app : UInt32 := 4
 /-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `lam`
--- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Handle.lam_bridge, then delete this line
 constructor, line 321. -/
 def lam : UInt32 := 5
 /-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `forallE`
--- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Handle.forallE_bridge, then delete this line
 constructor, line 322. -/
 def forallE : UInt32 := 6
 /-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `letE`
--- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Handle.letE_bridge, then delete this line
 constructor, line 323. -/
 def letE : UInt32 := 7
 /-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `lit`
--- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Handle.lit_bridge, then delete this line
 constructor, line 324. -/
 def lit : UInt32 := 8
 /-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `proj`
--- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Handle.proj_bridge, then delete this line
 constructor, line 325. -/
 def proj : UInt32 := 9
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — `lam` (line 321) or
--- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Handle.isBind_bridge, then delete this line
-`forallE` (line 322), the two constructors that share the `BindNode` record
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — `lam` (line 406) or
+`forallE` (line 407), the two constructors that share the `BindNode` record
 shape (task #97-P6-10).  A named predicate rather than the disjunction written
 at the use site: the walks that dispatch on the handle's own tag hold the
 handle while they test it, and task #97-P4a's extraction rule 2 asks for the
@@ -316,32 +305,32 @@ end ETag
 /-! The three name-constructor tags. -/
 namespace NTag
 /-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the `anonymous`
-constructor, line 35. -/
+constructor, line 28. -/
 def anonymous : UInt32 := 0
 /-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the `str`
-constructor, line 36. -/
+constructor, line 29. -/
 def str : UInt32 := 1
 /-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the `num`
-constructor, line 37. -/
+constructor, line 30. -/
 def num : UInt32 := 2
 end NTag
 
 /-! The five level-constructor tags. -/
 namespace LTag
 /-- con-leche: ConLeche/Kernel/Expr.lean:38-43 Level — the `zero`
-constructor, line 41. -/
+constructor, line 39. -/
 def zero : UInt32 := 0
 /-- con-leche: ConLeche/Kernel/Expr.lean:38-43 Level — the `succ`
-constructor, line 42. -/
+constructor, line 40. -/
 def succ : UInt32 := 1
 /-- con-leche: ConLeche/Kernel/Expr.lean:38-43 Level — the `max`
-constructor, line 43. -/
+constructor, line 41. -/
 def max : UInt32 := 2
 /-- con-leche: ConLeche/Kernel/Expr.lean:38-43 Level — the `imax`
-constructor, line 44. -/
+constructor, line 42. -/
 def imax : UInt32 := 3
 /-- con-leche: ConLeche/Kernel/Expr.lean:38-43 Level — the `param`
-constructor, line 45. -/
+constructor, line 43. -/
 def param : UInt32 := 4
 end LTag
 

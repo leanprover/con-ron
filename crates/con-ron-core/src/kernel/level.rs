@@ -25,7 +25,6 @@ use crate::ron::ptr;
 use crate::ron::ptr::P;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:33-52 Level
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove level::LevelKind_refines, then delete this line
 /// The five constructors of `inductive Level`; the cached hash sits in
 /// `LevelNode` (DESIGN.md §3.2).
 pub enum LevelKind {
@@ -37,7 +36,6 @@ pub enum LevelKind {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:33-52 Level
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove level::LevelNode_refines, then delete this line
 /// The heap node of a `Level`: the cited inductive's `@[computed_field]
 /// hashData` beside the constructor data.
 pub struct LevelNode {
@@ -46,26 +44,22 @@ pub struct LevelNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:33-52 Level
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove level::Level_refines, then delete this line
 /// A universe level, as a `P` tree.
 pub struct Level(pub P<LevelNode>);
 
 /// con-leche: ConLeche/Kernel/Expr.lean:33-52 Level
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove level::hash_data_refines, then delete this line
 /// The cached hash, an `O(1)` field read.
 pub fn hash_data(u: &Level) -> u64 {
     u.0.hash
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:33-52 Level
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove level::zero_refines, then delete this line
 /// `Level.zero`, hash `1`.
 pub fn zero() -> Level {
     Level(ptr::new(LevelNode { hash: 1, kind: LevelKind::Zero }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:33-52 Level
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove level::succ_refines, then delete this line
 /// `Level.succ`, hash `mixHash 3 u.hashData`.
 pub fn succ(u: Level) -> Level {
     let h: u64 = name::mix_hash(3, hash_data(&u));
@@ -73,7 +67,6 @@ pub fn succ(u: Level) -> Level {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:33-52 Level
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove level::max_refines, then delete this line
 /// `Level.max`, hash `mixHash 5 (mixHash u.hashData v.hashData)`.
 pub fn max(u: Level, v: Level) -> Level {
     let h: u64 = name::mix_hash(5, name::mix_hash(hash_data(&u), hash_data(&v)));
@@ -81,7 +74,6 @@ pub fn max(u: Level, v: Level) -> Level {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:33-52 Level
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove level::imax_refines, then delete this line
 /// `Level.imax`, hash `mixHash 7 (mixHash u.hashData v.hashData)`.
 pub fn imax(u: Level, v: Level) -> Level {
     let h: u64 = name::mix_hash(7, name::mix_hash(hash_data(&u), hash_data(&v)));
@@ -89,7 +81,6 @@ pub fn imax(u: Level, v: Level) -> Level {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:33-52 Level
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove level::param_refines, then delete this line
 /// `Level.param`, hash `mixHash 11 (hash n)`.
 pub fn param(n: Name) -> Level {
     let h: u64 = name::mix_hash(11, name::hash_data(&n));
@@ -102,20 +93,20 @@ pub fn dup(u: &Level) -> Level {
     Level(ptr::clone(&u.0))
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:59-66 Level.beqPtr
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove level::ptr_eq_refines, then delete this line
-/// The pointer test behind the cited `withPtrEq`; modeled as `false` in
+/// con-leche: ConLeche/Kernel/Expr.lean:85-122 Level.decEqPtr
+/// The pointer test behind the cited `withPtrEqDecEq`; modeled as `false` in
 /// the generated Lean (DESIGN.md §3.2).
 pub fn ptr_eq(a: &Level, b: &Level) -> bool {
     ptr::ptr_eq(&a.0, &b.0)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:59-66 Level.beqPtr
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove level::beq_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Expr.lean:85-122 Level.decEqPtr
+/// con-leche: ConLeche/Kernel/Expr.lean:58-83 Level.decEq
 /// con-leche: ConLeche/Kernel/Expr.lean:132-133 Level.beq
-/// `Level.beqPtr` is the *executed* `Level.beq` (`@[csimp]`-substituted):
-/// pointer, cached hash, structural walk.  Deviation: the pointer fast
-/// path is kept at every level of the descent.
+/// `Level.decEqPtr` is the *executed* `Level.beq` (`decide` over the
+/// instance, whose structural `Level.decEq` is `@[csimp]`-substituted):
+/// pointer, cached hash, then one structural step whose children start over
+/// with the pointer.
 pub fn beq(a: &Level, b: &Level) -> bool {
     if ptr_eq(a, b) {
         true
@@ -623,7 +614,7 @@ impl Hashable for Level {
 /// instance is `beq` with its pointer and hash fast paths (DESIGN.md §3.2).
 impl Eq2 for Level {
     /// con-leche: ConLeche/Kernel/Expr.lean:132-133 Level.beq
-    /// `Level.beq`, i.e. the `@[csimp]`-substituted `Level.beqPtr`.
+    /// `Level.beq`, i.e. `decide` over `Level.decEqPtr`.
     fn eq2(&self, other: &Self) -> bool {
         beq(self, other)
     }

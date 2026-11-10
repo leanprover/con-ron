@@ -21,7 +21,6 @@ use crate::ron::ptr;
 use crate::ron::ptr::P;
 
 /// con-leche: ConLeche/Kernel/Name.lean:18-38 Name
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove name::NameKind_refines, then delete this line
 /// The three constructors of `inductive Name`; the cached hash they carry
 /// in Lean's `@[computed_field]` sits in `NameNode` (DESIGN.md §3.2).
 pub enum NameKind {
@@ -31,7 +30,6 @@ pub enum NameKind {
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:18-38 Name
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove name::NameNode_refines, then delete this line
 /// The heap node of a `Name`: the cited inductive's `@[computed_field]
 /// hashData` beside the constructor data.
 pub struct NameNode {
@@ -40,7 +38,6 @@ pub struct NameNode {
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:18-38 Name
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove name::Name_refines, then delete this line
 /// A hierarchical name: a `P` tree, Lean's value semantics made sharing
 /// (DESIGN.md §3.2).
 pub struct Name(pub P<NameNode>);
@@ -86,21 +83,18 @@ pub fn nat_hash(n: u64) -> u64 {
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:18-38 Name
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove name::hash_data_refines, then delete this line
 /// The cached `@[computed_field] hashData`, an `O(1)` field read.
 pub fn hash_data(n: &Name) -> u64 {
     n.0.hash
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:18-38 Name
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove name::anonymous_refines, then delete this line
 /// `Name.anonymous`, hash `1723`.
 pub fn anonymous() -> Name {
     Name(ptr::new(NameNode { hash: 1723, kind: NameKind::Anonymous }))
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:18-38 Name
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove name::mk_str_refines, then delete this line
 /// `Name.str`; the smart constructor computes the cited computed-field
 /// equation `mixHash (mixHash 1 p.hashData) (hash s)`, which in Lean the
 /// elaborator writes for you.
@@ -110,7 +104,6 @@ pub fn mk_str(pre: Name, s: Vec<u32>) -> Name {
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:18-38 Name
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove name::mk_num_refines, then delete this line
 /// `Name.num`; the smart constructor computes the cited computed-field
 /// equation `mixHash (mixHash 2 p.hashData) (hash n)`.
 pub fn mk_num(pre: Name, n: u64) -> Name {
@@ -124,11 +117,10 @@ pub fn dup(n: &Name) -> Name {
     Name(ptr::clone(&n.0))
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:51-59 Name.beqPtr
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove name::ptr_eq_refines, then delete this line
-/// The pointer test behind the cited `withPtrEq`.  Deviation: modeled as
-/// `false` in the generated Lean (DESIGN.md §3.2), where Lean discharges
-/// `withPtrEq`'s obligation instead.
+/// con-leche: ConLeche/Kernel/Name.lean:62-93 Name.decEqPtr
+/// The pointer test behind the cited `withPtrEqDecEq`.  Deviation: modeled as
+/// `false` in the generated Lean (DESIGN.md §3.2), where `withPtrEqDecEq`'s pure
+/// definition is its continuation.
 pub fn ptr_eq(a: &Name, b: &Name) -> bool {
     ptr::ptr_eq(&a.0, &b.0)
 }
@@ -155,14 +147,15 @@ pub fn str_eq_from(a: &Vec<u32>, b: &Vec<u32>, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:51-59 Name.beqPtr
-/// con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove name::beq_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Name.lean:62-93 Name.decEqPtr
+/// con-leche: ConLeche/Kernel/Name.lean:44-60 Name.decEq
 /// con-leche: ConLeche/Kernel/Name.lean:113-114 Name.beq
-/// `Name.beqPtr` is the *executed* `Name.beq` (`@[csimp]`-substituted):
-/// pointer, then the cached hash, then the structural walk.  Deviation:
-/// unlike Lean's `decide (a = b)` the descent keeps the pointer fast path
-/// at every level; DESIGN.md §3.2's reflexivity obligation is what makes
-/// that transparent.
+/// `Name.decEqPtr` is the *executed* `Name.beq` (`decide` over the instance,
+/// whose structural `Name.decEq` is `@[csimp]`-substituted): pointer, then the
+/// cached hash, then one structural step whose prefix starts over with the
+/// pointer.  Deviation: the prefix is compared before the component (the
+/// cited code compares the component first); both are pure, so the answer is
+/// the same.
 pub fn beq(a: &Name, b: &Name) -> bool {
     if ptr_eq(a, b) {
         true
@@ -683,7 +676,7 @@ impl Hashable for Name {
 /// `beq` with its pointer and hash fast paths (DESIGN.md §3.2, task #7).
 impl Eq2 for Name {
     /// con-leche: ConLeche/Kernel/Name.lean:113-114 Name.beq
-    /// `Name.beq`, i.e. the `@[csimp]`-substituted `Name.beqPtr`.
+    /// `Name.beq`, i.e. `decide` over `Name.decEqPtr`.
     fn eq2(&self, other: &Self) -> bool {
         beq(self, other)
     }

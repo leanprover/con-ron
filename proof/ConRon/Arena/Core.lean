@@ -2484,12 +2484,14 @@ def headAndArgs (v : EIdx) : AM (EIdx × Array EIdx) := do
     pure (hd, va.toArray)
   else pure (v, #[])
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1020-1069 whnfCoreBody — **the head
-kinds `whnfCoreBody` returns unchanged, off the handle's TAG** (task
-#97-P6-7's lever 2): `sort`, `fvar`, `forallE`, `lam`, `const` and `lit` are
-the body's own first six clauses, and a handle carries the tag of its own view
-on a well-formed store, so the memo probe and the node read are both skipped.
-The obligation is `whnfCoreBody e = pure e` for the six tags. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:1020-1069 whnfCoreBody
+con-leche: ConLeche/Cached/CoreC.lean:1627-1635 whnfCoreEasy — **the head
+kinds `whnfCoreBody` returns unchanged, off the handle's TAG**: `sort`, `fvar`,
+`forallE`, `lam`, `const` and `lit` are the body's own first six clauses and
+exactly `whnfCoreEasy`'s kinds, and a handle carries the tag of its own view
+on a well-formed store, so the memo probe and the node read are both skipped,
+in both modes, as the cited knot does.  The obligation is `whnfCoreBody e =
+pure e` for the six tags. -/
 @[inline] def whnfCoreStuckTag (e : EIdx) : Bool :=
   let t := e.tag
   if t == ETag.app then false
@@ -2498,9 +2500,12 @@ The obligation is `whnfCoreBody e = pure e` for the six tags. -/
   else if t == ETag.bvar then false
   else true
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1137-1139 whnfBody — **the head kinds
-`whnfBody` returns unchanged**, the same lever one rung up: `sort`, `fvar`,
-`lam`, `forallE` and `lit`.  The obligation adds `reduceNat e = none` (its
+/-- con-leche: ConLeche/Kernel/Core.lean:1137-1139 whnfBody
+con-leche: ConLeche/Cached/CoreC.lean:1637-1643 whnfEasy — **the head kinds
+`whnfBody` returns unchanged**, the same test one rung up: `sort`, `fvar`,
+`lam`, `forallE` and `lit`.  Deviation: `whnfEasy` leaves `lam` to the memo
+(official `whnf` does); a `lam` is its own head normal form, so the memo could
+only answer it with itself, and the test returns that answer before the probe.  The obligation adds `reduceNat e = none` (its
 `match` is on `.app`) and `unfoldDefinition e = none` (`getAppFn` of a
 non-`app` is the node itself and the `match` is on `.const`). -/
 @[inline] def whnfStuckTag (e : EIdx) : Bool :=
