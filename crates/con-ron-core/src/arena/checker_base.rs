@@ -483,7 +483,7 @@ pub fn fvar_type_ds(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:46-65 unresolvedConstsError
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:179-189 unresolvedConstsError`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:177-187 unresolvedConstsError`
 /// — **the verdict at a term whose constants do not all resolve.**  A term that
 /// mentions `sorryAx` DECLINES (the axiom is tolerated as a declaration and
 /// installs nothing, so a use of it is a positively detected unsupported
@@ -511,7 +511,7 @@ pub fn unresolved_consts_error(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:67-89 Expr.hasStrLitGo
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:191-224 hasStrLitGo` — does
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:189-222 hasStrLitGo` — does
 /// the term contain a string literal?  A memoized walk (error path only), the
 /// memo keyed by the node; con-leche's visited-set returns `false` at a
 /// revisit, which is the answer the first visit already gave unless it found
@@ -545,7 +545,7 @@ pub fn has_str_lit_go(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:67-89 Expr.hasStrLitGo
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:191-224 hasStrLitGo` — the
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:189-222 hasStrLitGo` — the
 /// walk's arms past the visit, each child in order, stopping at the first
 /// string literal.
 pub fn has_str_lit_node(
@@ -571,7 +571,7 @@ pub fn has_str_lit_node(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:67-89 Expr.hasStrLitGo
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:191-224 hasStrLitGo` — two
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:189-222 hasStrLitGo` — two
 /// children, the second only if the first had none.
 pub fn has_str_lit_two(
     pers: &PersTier,
@@ -590,7 +590,7 @@ pub fn has_str_lit_two(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:91-97 unresolvedConstsErrorL
 /// con-leche: ConLeche/Cached/IndPass.lean:23-30 unresolvedConstsErrorLC
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:226-238 unresolvedConstsErrorL`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:224-237 unresolvedConstsErrorL`
 /// — `unresolved_consts_error` with a string-literal guard ahead of it: a
 /// string literal is DECLINED here, before resolution, when the String support
 /// declarations are not yet present (con-leche task #342 L-CK: the guard the
@@ -617,7 +617,7 @@ pub fn unresolved_consts_error_l(
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:91-97 unresolvedConstsErrorL
 /// con-leche: ConLeche/Cached/IndPass.lean:23-30 unresolvedConstsErrorLC
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:218-238 checkConstantValF
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:226-238 unresolvedConstsErrorL`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:224-237 unresolvedConstsErrorL`
 /// — the failing arm every front door spells: `throw (unresolvedConstsErrorL
 /// (strLitStoredF fe) where_ e)`, the presence test read first, as Lean
 /// evaluates the argument.
@@ -643,7 +643,7 @@ pub fn unresolved_consts_fail<T>(
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:101-123 checkConstantVal
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:218-238 checkConstantValF
 /// con-leche: ConLeche/Cached/IndPass.lean:36-58 checkConstantValC
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-273 checkConstantVal` — checks
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:241-272 checkConstantVal` — checks
 /// common to all declarations: fresh name, a certified
 /// operation's name only at a definition (`allow_op`, the cited default
 /// `false`, which Rust spells at every call), a literal's name only at its
@@ -679,7 +679,7 @@ pub fn check_constant_val(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:101-123 checkConstantVal
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:218-238 checkConstantValF
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-273 checkConstantVal` — the
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:241-272 checkConstantVal` — the
 /// guards on the declaration's NAME, in the twin's order: fresh, not a
 /// certified operation's name unless `allow_op`.
 pub fn check_constant_val_guards(
@@ -718,7 +718,7 @@ pub fn check_constant_val_guards(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:101-123 checkConstantVal
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:218-238 checkConstantValF
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-273 checkConstantVal` — the
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:241-272 checkConstantVal` — the
 /// four guards past the name tests: a literal's name only at its shape
 /// (`litShapeOk (.axiomInfo cv)`), distinct universe parameters, no loose bound
 /// and no free variable in the type.
@@ -760,7 +760,7 @@ pub fn check_constant_val_guards_rest(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:101-123 checkConstantVal
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:218-238 checkConstantValF
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-273 checkConstantVal` — the two
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:241-272 checkConstantVal` — the two
 /// guards on the declared type: its universe parameters are declared, and its
 /// constants resolve (else `unresolvedConstsErrorL`'s verdict).
 pub fn check_constant_val_tail(
@@ -795,7 +795,7 @@ pub fn check_constant_val_tail(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:125-131 unwrapOr
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:277-282 unwrapOr` — unwrap
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:276-281 unwrapOr` — unwrap
 /// an optional value or fail with the given error.
 pub fn unwrap_or<T>(o: Option<T>, err: CheckError) -> Result<T, CheckError> {
     match o {
@@ -816,7 +816,7 @@ pub fn unwrap_or<T>(o: Option<T>, err: CheckError) -> Result<T, CheckError> {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:379-413 indParamsOk
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:289-302 indParamsOk` —
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:288-301 indParamsOk` —
 /// **the stream's declared parameter count, checked as official checks it**
 /// (con-leche's task #228).  Both halves are one-sided on purpose: `false`
 /// means official rejects.
@@ -844,7 +844,7 @@ pub fn ind_params_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:379-413 indParamsOk
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:289-302 indParamsOk` — one
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:288-301 indParamsOk` — one
 /// member's test: a type former's Π-telescope is at least `nP` long, a
 /// constructor's own parameter count is exactly `nP`, and everything else
 /// passes.

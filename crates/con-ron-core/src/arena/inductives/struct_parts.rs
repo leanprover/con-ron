@@ -239,7 +239,7 @@ pub fn struct_proj_arg_p(
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:89-110 structProjBodiesGo
 /// con-leche: ConLeche/Cached/CheckerC.lean:28-34 structProjBodiesGoC
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean structProjBodiesGo`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:109-129 structProjBodiesGo`
 /// — **the projection bodies of a recognised block**, one walk of the
 /// constructor telescope: field `i`'s raw domain is substituted once
 /// (`instantiate_lift`) at the values of the binders before it, and the
@@ -289,7 +289,7 @@ pub fn struct_proj_bodies_go(
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:112-115 structProjBodies
 /// con-leche: ConLeche/Cached/CheckerC.lean:36-41 structProjBodiesC
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean structProjBodies`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:131-144 structProjBodies`
 /// — the block's projection bodies, as the table stores them: the parameter
 /// binders skipped, then the fields' walk at the parameters' values
 /// (`structProjPs`, which in push order is con-leche's reversed list itself).
@@ -317,7 +317,7 @@ pub fn struct_proj_bodies(
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — extraction rule 5 (DESIGN.md's task #97-P4c): a `HashMap::get` match is its own function
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:140-181 mentionsConstGo`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:148-190 mentionsConstGo`
 /// — the `memo[h]?` probe of the `mentionsConst` walk.
 pub fn mc_probe(memo: &HashMap<EIdx, bool>, k: &EIdx) -> Option<bool> {
     match memo.get(k) {
@@ -328,7 +328,7 @@ pub fn mc_probe(memo: &HashMap<EIdx, bool>, k: &EIdx) -> Option<bool> {
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:119-133 Expr.mentionsAnyConst
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1696-1740 mentionsAnyConstXP
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:140-181 mentionsConstGo`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:148-190 mentionsConstGo`
 /// — does the constant `T` occur in `e`?  `mentionsAnyConst [T]`, the one
 /// name the `sorryAx` test asks: a syntactic walk (`fvar` annotations
 /// included; a `.proj` node names its structure) with a per-call memo keyed by
@@ -366,7 +366,7 @@ pub fn mentions_const_go(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1696-1740 mentionsAnyConstXP
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:140-181 mentionsConstGo`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:148-190 mentionsConstGo`
 /// — the walk's compound arms, split off so that the `view`'s loans are dead at
 /// the memo's join (extraction rule 5).
 pub fn mentions_const_node(
@@ -419,7 +419,7 @@ pub fn mentions_const_node(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1742-1744 mentionsAnyConstC
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:183-186 mentionsConst`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:192-195 mentionsConst`
 /// — the executed `mentionsAnyConst [T]` (one memoized DAG walk).
 pub fn mentions_const(
     pers: &PersTier,

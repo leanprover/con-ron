@@ -845,7 +845,7 @@ pub fn ifenv_find_proj(pers: &PersTier, fe: &IFEnv, t: &NIdx, i: u64) -> Option<
 // them.
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — the port's own dangling-handle guard; Lean twin: proof/ConRon/Arena/Monad.lean:158-165 view
+/// con-leche: none — the port's own dangling-handle guard; Lean twin: proof/ConRon/Arena/Monad.lean:156-163 view
 /// Decode an expression handle.  A dangling handle is an internal error: the
 /// checker never builds one, and the bridge claims nothing on failure.
 pub fn view_e(pers: &PersTier, ar: &EStore, h: &EIdx) -> Result<ENodeView, CheckError> {
@@ -861,7 +861,7 @@ pub fn view_e(pers: &PersTier, ar: &EStore, h: &EIdx) -> Result<ENodeView, Check
     }
 }
 
-/// con-leche: none — the port's own dangling-handle guard; Lean twin: proof/ConRon/Arena/Monad.lean:379-384 viewN
+/// con-leche: none — the port's own dangling-handle guard; Lean twin: proof/ConRon/Arena/Monad.lean:377-382 viewN
 /// Decode a name handle.
 pub fn view_n(pers: &PersTier, ar: &EStore, h: &NIdx) -> Result<NNodeView, CheckError> {
     match ar.ns().view(pers, h) {
@@ -870,7 +870,7 @@ pub fn view_n(pers: &PersTier, ar: &EStore, h: &NIdx) -> Result<NNodeView, Check
     }
 }
 
-/// con-leche: none — the port's own dangling-handle guard; Lean twin: proof/ConRon/Arena/Monad.lean:379-384 viewN
+/// con-leche: none — the port's own dangling-handle guard; Lean twin: proof/ConRon/Arena/Monad.lean:377-382 viewN
 /// `"arena: dangling name handle"`, named once: `view_n` and `read_name` raise
 /// the same error, as the twin's two primitives do.
 pub fn dangling_name() -> CheckError {
@@ -882,7 +882,7 @@ pub fn dangling_name() -> CheckError {
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:26-45 Name
-/// Lean twin: `proof/ConRon/Arena/Monad.lean:404-412 readName` — read a name
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:402-410 readName` — read a name
 /// back out of the store as a transient `Name`.  Names are compared by handle
 /// throughout the checker (DESIGN.md §8.3), so this is the error-text and
 /// level-substitution path only, and the readback IS the denotation

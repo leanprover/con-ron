@@ -80,7 +80,7 @@ pub const M_TBL_TAKEN: [u32; 22] = [
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:31-50 checkStructDomsAt
 /// con-leche: ConLeche/Cached/IndBlock.lean:116-125 checkStructDomsAtC
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:26-41 checkStructDomsAt`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:27-41 checkStructDomsAt`
 /// — the reference kernels' binder-domain comparisons, run binder by binder
 /// **at its own frame**: the `j`-th opened variable's annotation against the
 /// `j`-th expected domain, at frame `off + j`.  Walks from the last binder to
@@ -143,7 +143,7 @@ pub fn check_struct_doms_at(
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-74 checkStructProjTable
 /// con-leche: ConLeche/Cached/IndTail.lean:194-202 checkStructProjTableC
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean checkStructProjTable`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:43-65 checkStructProjTable`
 /// — stage 5: **the projection table's checks** (con-leche's task #175 S1),
 /// at the table the block installs (`arena::install::block_tables`): its
 /// bodies' scoping at its own level parameters and parameter count, validated
@@ -174,7 +174,7 @@ pub fn check_struct_proj_table(
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-74 checkStructProjTable
 /// con-leche: ConLeche/Cached/IndTail.lean:194-202 checkStructProjTableC
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:43-69 checkStructProjTable`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:43-65 checkStructProjTable`
 /// — the bodies' scoping, validated once at insertion: fvar-free, level
 /// parameters within the structure's, resolving, scoped at the parameters and
 /// the subject.  **All four conjuncts run for every body**, as the twin's `do`
