@@ -543,28 +543,17 @@ theorem i_ind_caps_beq_refines {a b : arena.env.IIndCaps} {o : Bool}
   refine beq_chain' Iff.rfl hrun ?_
   intro o1 h
   obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  refine beq_chain (nidx_eq2_abs_decide hb1) h ?_
+  have h1 := nidx_vec_beq_refines hb1
+  simp only [absNIdxLFrom] at h1
+  refine beq_chain (by simpa using h1) h ?_
   intro o2 h
   refine beq_chain' absU_iff h ?_
   intro o3 h
   refine beq_chain' absU_iff h ?_
   intro o4 h
-  refine beq_chain' Iff.rfl h ?_
-  intro o5 h
-  refine beq_chain' absU_iff h ?_
-  intro o6 h
-  obtain ⟨b9, hb9, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have h9 := nidx_vec_beq_refines hb9
-  simp only [absNIdxLFrom] at h9
-  refine beq_chain (by simpa using h9) h ?_
-  intro o9 h
-  refine beq_chain' absU_iff h ?_
-  intro o10 h
-  refine beq_chain' absU_iff h ?_
-  intro o11 h
-  have h10 := nidx_vec_beq_refines h
-  simp only [absNIdxLFrom] at h10
-  simpa using h10
+  have h4 := nidx_vec_beq_refines h
+  simp only [absNIdxLFrom] at h4
+  simpa using h4
 
 /-- `PartialEq` on `u64`, lifted, is `decide` of the abstracted equation. -/
 private theorem u64_eq_lift {x y : Std.U64} {b : Bool}
