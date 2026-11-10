@@ -48,7 +48,7 @@ fn rec_order(pers: &PersTier, st: &AState, block: &[IConstantInfo]) -> Vec<usize
     rest
 }
 
-/// con-leche: OleanCompare.lean:77-84 declEq
+/// con-leche: OleanCompare.lean:79-86 declEq
 /// Two records, field by field, by handle.
 fn decl_eq(pers: &PersTier, st: &AState, a: &IDeclaration, b: &IDeclaration) -> bool {
     use con_ron_core::ron::hashmap::Eq2;
@@ -74,7 +74,7 @@ fn decl_eq(pers: &PersTier, st: &AState, a: &IDeclaration, b: &IDeclaration) -> 
     }
 }
 
-/// con-leche: OleanCompare.lean:113-116 toMap
+/// con-leche: OleanCompare.lean:115-118 toMap
 /// The records by first name, and how many shared one.
 fn to_map(ds: &[IDeclaration]) -> (HashMap<u32, usize>, usize) {
     let mut m: HashMap<u32, usize> = HashMap::new();
@@ -94,7 +94,7 @@ fn to_map(ds: &[IDeclaration]) -> (HashMap<u32, usize>, usize) {
     (m, dup)
 }
 
-/// con-leche: OleanCompare.lean:118-121 viewsEq
+/// con-leche: OleanCompare.lean:120-123 viewsEq
 /// A view's constants by the checker's equality.
 fn views_eq(a: &spec::ModDecoded, b: &spec::ModDecoded) -> bool {
     a.is_module == b.is_module
@@ -142,7 +142,7 @@ fn agree(pk: &spec::OleanPins, pers: &PersTier, st: &mut AState, f: &view::ModFi
         })
 }
 
-/// con-leche: OleanCompare.lean:124-141 runViews
+/// con-leche: OleanCompare.lean:126-143 runViews
 /// `--views`: every module of the closure.
 fn run_views(sp: &[String], mods: &[String]) -> u8 {
     let pers: &PersTier = &PersTier::empty();
@@ -209,7 +209,7 @@ fn run_views(sp: &[String], mods: &[String]) -> u8 {
     0
 }
 
-/// con-leche: OleanCompare.lean:143-148 internalName
+/// con-leche: OleanCompare.lean:145-150 internalName
 /// Lean's `Name.isInternal`: lean4export's default roots leave out the constants so
 /// named, which the reader starts from, so a record only the reader has must be so
 /// named.
@@ -218,7 +218,7 @@ fn internal_name(pers: &PersTier, st: &AState, n: u32) -> bool {
     shown.split('.').any(|c| c.starts_with('_') || c.starts_with("\u{ab}_"))
 }
 
-/// con-leche: OleanCompare.lean:150-204 main
+/// con-leche: OleanCompare.lean:152-206 main
 /// The record for record comparison.
 fn run_compare(file: &str, sp: &[String], mods: &[String], constants: &[String]) -> u8 {
     let pers: &PersTier = &PersTier::empty();
@@ -313,7 +313,7 @@ fn run_compare(file: &str, sp: &[String], mods: &[String], constants: &[String])
     }
 }
 
-/// con-leche: OleanCompare.lean:150-204 main
+/// con-leche: OleanCompare.lean:152-206 main
 /// The entry point: one thread with the checker's stack, as the binary's.
 fn main() -> ExitCode {
     let argv: Vec<String> = std::env::args().skip(1).collect();

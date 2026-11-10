@@ -4037,7 +4037,7 @@ con-leche's `Core.lean`:2897-2936 with the memo probes of
 slot is what DESIGN §3.4 rules out.  The bodies above are pure of memo
 logic, which is the property that matters. -/
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1633-1646 memoEI — record a
+/-- con-leche: ConLeche/Cached/CoreC.lean:1651-1664 memoEI — record a
 `whnfCore` answer (detach before update, DESIGN §8.4 lesson 14).  A plain
 insert, as con-leche's: the table's cap was removed by task #115. -/
 @[noinline] def whnfCoreSet (e r : EIdx) : AM Unit := do
@@ -4046,7 +4046,7 @@ insert, as con-leche's: the table's cap was removed by task #115. -/
   let s := { s with caches := { s.caches with whnfCoreC := ∅ } }
   set { s with caches := { s.caches with whnfCoreC := mp.insert e r } }
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1627-1645 memoEI — record a
+/-- con-leche: ConLeche/Cached/CoreC.lean:1645-1663 memoEI — record a
 CHEAP-mode `whnfCore` answer, in the cheap mode's OWN table (con-leche's
 `whnfCoreCheapC`: the two modes differ on a stuck projection). -/
 @[noinline] def whnfCoreCheapSet (e r : EIdx) : AM Unit := do
@@ -4055,7 +4055,7 @@ CHEAP-mode `whnfCore` answer, in the cheap mode's OWN table (con-leche's
   let s := { s with caches := { s.caches with whnfCoreCheapC := ∅ } }
   set { s with caches := { s.caches with whnfCoreCheapC := mp.insert e r } }
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1633-1646 memoEI — record a `whnf`
+/-- con-leche: ConLeche/Cached/CoreC.lean:1651-1664 memoEI — record a `whnf`
 answer. -/
 @[noinline] def whnfSet (e r : EIdx) : AM Unit := do
   let s ← get
@@ -4063,7 +4063,7 @@ answer. -/
   let s := { s with caches := { s.caches with whnfC := ∅ } }
   set { s with caches := { s.caches with whnfC := mp.insert e r } }
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1633-1646 memoEI — record a
+/-- con-leche: ConLeche/Cached/CoreC.lean:1651-1664 memoEI — record a
 full-grade `infer` answer. -/
 @[noinline] def inferSet (e r : EIdx) : AM Unit := do
   let s ← get
@@ -4071,7 +4071,7 @@ full-grade `infer` answer. -/
   let s := { s with caches := { s.caches with inferC := ∅ } }
   set { s with caches := { s.caches with inferC := mp.insert e r } }
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1633-1646 memoEI — record an
+/-- con-leche: ConLeche/Cached/CoreC.lean:1651-1664 memoEI — record an
 io-grade `infer` answer, in the io grade's OWN table (con-leche's task #170
 memo ruling). -/
 @[noinline] def inferIOSet (e r : EIdx) : AM Unit := do
@@ -4080,7 +4080,7 @@ memo ruling). -/
   let s := { s with caches := { s.caches with inferIOC := ∅ } }
   set { s with caches := { s.caches with inferIOC := mp.insert e r } }
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1647-1660 memoBI — record a `defeq`
+/-- con-leche: ConLeche/Cached/CoreC.lean:1665-1678 memoBI — record a `defeq`
 verdict at the ORDERED pair, both signs (con-leche's `defeqC` stores the
 `Bool` result `r`, which is what makes a negative memo sound). -/
 @[noinline] def defeqSet (a b : EIdx) (r : Bool) : AM Unit := do
@@ -4123,7 +4123,7 @@ the six fields; nothing moves when `enterEager` moved nothing. -/
                defeqC := mm.defeqC } }
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1852-1887 coreKnot
-con-leche: ConLeche/Cached/CoreC.lean:1742-1763 coreKnotI
+con-leche: ConLeche/Cached/CoreC.lean:1767-1788 coreKnotI
 Tie the bodies together: the record whose entry points are the bodies applied
 to the record one fuel level down, each under its own memo.  Fuel is *only*
 here — exhaustion is an internal error, never a verdict — and the next level

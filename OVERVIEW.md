@@ -131,7 +131,7 @@ a failed allocation.
 
 Every name and raw string a message prints comes from the input, so it is
 printed through one rendering, con-leche's
-([`render` in `kernel/name.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/name.rs#L618-L630)).
+([`render` in `kernel/name.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/name.rs#L627-L639)).
 An identifier-shaped name component prints bare (`Nat.add_comm`, `α₁.ℕ`);
 any other is wrapped in `«…»` (`x.«3»`, `«a.b»`), with `\` doubled and with
 `»` and every control, format and separator character other than the ASCII
@@ -357,7 +357,7 @@ comparing two terms is comparing two words.
 
 Each store keeps, per tier, **one array per constructor**, each element a
 fixed-size record of handles and scalars; an `app` node is two `u32`s
-([`ETables`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1186-L1200)).
+([`ETables`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1196-L1210)).
 The stores nest: an expression refers to names, levels and level lists, a
 level to names.  Reading a node back (`view`) decodes the tag and reads one
 array element; there is no node enum in memory.
@@ -372,10 +372,10 @@ Every node is added through **`intern`**, which **hash-conses**: it looks
 the node's fields up in the tier's **cons table** (a hash map from fields to
 handle, which stores only the handle and compares the fields against the row
 the handle names) and returns the existing handle if there is one
-([`EStore::intern`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3603-L3638)).
+([`EStore::intern`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3627-L3662)).
 It probes the persistent table first, then the scratch table, and appends
 only if both miss
-([the `app` case](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3888-L3935)).
+([the `app` case](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3912-L3959)).
 
 Hash-consing is needed for soundness, not only for speed.  The checker
 treats equal handles as equal terms and unequal name handles as unequal
@@ -419,7 +419,7 @@ In Rust, the sharing is a separate parameter, and it is also what makes a
 store FROZEN.  After the index is built,
 [`freeze_tier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/checker.rs#L65-L88)
 moves the four stores' persistent tables and the index out into one
-[`PersTier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1217-L1269)
+[`PersTier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1227-L1279)
 value whose `frozen` bit is set.  Every persistent read goes to the
 `&PersTier` a function is handed when that tier is frozen, and to the store's
 own tables otherwise; a worker's store is empty and FROZEN (its scratch tier
@@ -727,7 +727,7 @@ Two definitions connect it to con-leche:
   exact, no scratch entry duplicates a persistent one, and persistent nodes
   have persistent children.  From it follow the injectivity of `denoteE`
   and extension,
-  [`Ext st st'`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Arena/Denote.lean#L274-L278):
+  [`Ext st st'`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Arena/Denote.lean#L276-L280):
   every handle that denoted a term still denotes the same term later.
 
 ### 7.3 Theorem 1: the twin refines con-leche

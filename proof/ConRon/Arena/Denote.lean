@@ -75,7 +75,7 @@ their `= some` characterisations so the `denote` proofs are `simp`. -/
 
 /-! ## Names -/
 
-/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the fuel-indexed
+/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the fuel-indexed
 readback of a name handle. -/
 def denoteNAux (st : NStore) : Nat → NIdx → Option ConLeche.Name
   | 0, _ => none
@@ -86,7 +86,7 @@ def denoteNAux (st : NStore) : Nat → NIdx → Option ConLeche.Name
       | .str p s => (denoteNAux st f p).map fun q => .str q s
       | .num p n => (denoteNAux st f p).map fun q => .num q n
 
-/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the readback of a name
+/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the readback of a name
 handle, at the store's own node count as fuel. -/
 def denoteN (st : NStore) (i : NIdx) : Option ConLeche.Name :=
   denoteNAux st (st.nodeCount + 1) i
@@ -117,7 +117,7 @@ theorem denoteNAux_mono (st : NStore) :
 
 /-! ## Levels -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:39-44 Level — the fuel-indexed
+/-- con-leche: ConLeche/Kernel/Expr.lean:38-43 Level — the fuel-indexed
 readback of a level handle. -/
 def denoteLAux (st : LStore) : Nat → LIdx → Option Level
   | 0, _ => none
@@ -130,7 +130,7 @@ def denoteLAux (st : LStore) : Nat → LIdx → Option Level
       | .imax u v => opt2 Level.imax (denoteLAux st f u) (denoteLAux st f v)
       | .param n => (denoteN st.ns n).map Level.param
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:39-44 Level — the readback of a level
+/-- con-leche: ConLeche/Kernel/Expr.lean:38-43 Level — the readback of a level
 handle. -/
 def denoteL (st : LStore) (i : LIdx) : Option Level :=
   denoteLAux st (st.nodeCount + 1) i
@@ -182,7 +182,8 @@ def denoteLs (st : LsStore) (i : LsIdx) : Option (List Level) :=
 
 /-! ## Expressions -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the fuel-indexed
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the fuel-indexed
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Denote.denoteEAux_bridge, then delete this line
 readback of an expression handle. -/
 def denoteEAux (st : EStore) : Nat → EIdx → Option Expr
   | 0, _ => none
@@ -202,7 +203,8 @@ def denoteEAux (st : EStore) : Nat → EIdx → Option Expr
       | .proj n k e =>
         opt2 (fun nm x => Expr.proj nm k x) (denoteN st.ns n) (denoteEAux st f e)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the readback of an
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the readback of an
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Denote.denoteE_bridge, then delete this line
 expression handle, at the store's own node count as fuel. -/
 def denoteE (st : EStore) (i : EIdx) : Option Expr :=
   denoteEAux st (st.nodeCount + 1) i

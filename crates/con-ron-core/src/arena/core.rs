@@ -10970,35 +10970,35 @@ pub fn whnf_stuck_tag(e: &EIdx) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:1633-1646 memoEI
+/// con-leche: ConLeche/Cached/CoreC.lean:1651-1664 memoEI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4040-4047 whnfCoreSet` — record a
 /// `whnfCore` answer.
 pub fn whnf_core_set(st: &mut AState, e: &EIdx, r: &EIdx) {
     let _ = st.caches.whnf_core_c.insert(e.dup2(), r.dup2());
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:1627-1645 memoEI
+/// con-leche: ConLeche/Cached/CoreC.lean:1645-1663 memoEI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4049-4056 whnfCoreCheapSet` — record
 /// a CHEAP-mode `whnfCore` answer, in the cheap mode's own table.
 pub fn whnf_core_cheap_set(st: &mut AState, e: &EIdx, r: &EIdx) {
     let _ = st.caches.whnf_core_cheap_c.insert(e.dup2(), r.dup2());
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:1633-1646 memoEI
+/// con-leche: ConLeche/Cached/CoreC.lean:1651-1664 memoEI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4058-4064 whnfSet` — record a
 /// `whnf` answer.
 pub fn whnf_set(st: &mut AState, e: &EIdx, r: &EIdx) {
     let _ = st.caches.whnf_c.insert(e.dup2(), r.dup2());
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:1633-1646 memoEI
+/// con-leche: ConLeche/Cached/CoreC.lean:1651-1664 memoEI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4066-4072 inferSet` — record a
 /// full-grade `infer` answer.
 pub fn infer_set(st: &mut AState, e: &EIdx, r: &EIdx) {
     let _ = st.caches.infer_c.insert(e.dup2(), r.dup2());
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:1633-1646 memoEI
+/// con-leche: ConLeche/Cached/CoreC.lean:1651-1664 memoEI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4074-4081 inferIOSet` — record an
 /// io-grade `infer` answer, in the io grade's OWN table (con-leche's task #170
 /// memo ruling).
@@ -11006,7 +11006,7 @@ pub fn infer_io_set(st: &mut AState, e: &EIdx, r: &EIdx) {
     let _ = st.caches.infer_io_c.insert(e.dup2(), r.dup2());
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:1647-1660 memoBI
+/// con-leche: ConLeche/Cached/CoreC.lean:1665-1678 memoBI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4083-4090 defeqSet` — record a
 /// `defeq` verdict at the ORDERED pair, both signs (con-leche's `defeqC` stores
 /// the `Bool` result `r`, which is what makes a negative memo sound).
@@ -11015,7 +11015,7 @@ pub fn defeq_set(st: &mut AState, a: &EIdx, b: &EIdx, r: bool) {
     let _ = st.caches.defeq_c.insert(k, r);
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:1627-1645 memoEI
+/// con-leche: ConLeche/Cached/CoreC.lean:1645-1663 memoEI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4125-4215 coreKnot` — the `whnfCoreC`
 /// probe, over a *shared* state borrow so the map's borrow ends before the
 /// miss branch writes (`con_ron_core::cached::core_c::whnf_core_probe`'s
@@ -11027,7 +11027,7 @@ pub fn whnf_core_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
     }
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:1627-1645 memoEI
+/// con-leche: ConLeche/Cached/CoreC.lean:1645-1663 memoEI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4125-4215 coreKnot` — the
 /// `whnfCoreCheapC` probe (the cheap mode's own table).
 pub fn whnf_core_cheap_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
@@ -11037,7 +11037,7 @@ pub fn whnf_core_cheap_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
     }
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:1627-1645 memoEI
+/// con-leche: ConLeche/Cached/CoreC.lean:1645-1663 memoEI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4125-4215 coreKnot` — the `whnfC` probe.
 pub fn whnf_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
     match st.caches.whnf_c.get(e) {
@@ -11046,7 +11046,7 @@ pub fn whnf_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
     }
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:1627-1645 memoEI
+/// con-leche: ConLeche/Cached/CoreC.lean:1645-1663 memoEI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4125-4215 coreKnot` — the `inferC` probe.
 pub fn infer_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
     match st.caches.infer_c.get(e) {
@@ -11055,7 +11055,7 @@ pub fn infer_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
     }
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:1627-1645 memoEI
+/// con-leche: ConLeche/Cached/CoreC.lean:1645-1663 memoEI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4125-4215 coreKnot` — the `inferIOC`
 /// probe.
 pub fn infer_io_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
@@ -11065,7 +11065,7 @@ pub fn infer_io_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
     }
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:1647-1660 memoBI
+/// con-leche: ConLeche/Cached/CoreC.lean:1665-1678 memoBI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4125-4215 coreKnot` — the `defeqC` probe
 /// at the ORDERED pair.
 pub fn defeq_probe(st: &AState, k: &EIdxPair) -> Option<bool> {
@@ -11076,7 +11076,7 @@ pub fn defeq_probe(st: &AState, k: &EIdxPair) -> Option<bool> {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1852-1887 coreKnot
-/// con-leche: ConLeche/Cached/CoreC.lean:1742-1763 coreKnotI
+/// con-leche: ConLeche/Cached/CoreC.lean:1767-1788 coreKnotI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4125-4215 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — **the
 /// `whnfCore` slot.**  At `LANE_FULL` and `LANE_IO` it is the memoized body
@@ -11123,7 +11123,7 @@ pub fn knot_whnf_core(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1852-1887 coreKnot
-/// con-leche: ConLeche/Cached/CoreC.lean:1742-1763 coreKnotI
+/// con-leche: ConLeche/Cached/CoreC.lean:1767-1788 coreKnotI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4125-4215 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — the `whnf` slot.
 pub fn knot_whnf(
@@ -11156,7 +11156,7 @@ pub fn knot_whnf(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1852-1887 coreKnot
-/// con-leche: ConLeche/Cached/CoreC.lean:1742-1763 coreKnotI
+/// con-leche: ConLeche/Cached/CoreC.lean:1767-1788 coreKnotI
 /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4125-4215 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — **the `infer`
@@ -11192,7 +11192,7 @@ pub fn knot_infer(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1852-1887 coreKnot
-/// con-leche: ConLeche/Cached/CoreC.lean:1742-1763 coreKnotI
+/// con-leche: ConLeche/Cached/CoreC.lean:1767-1788 coreKnotI
 /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4125-4215 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — **the `inferIO`
@@ -11259,7 +11259,7 @@ pub fn knot_infer_at(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1852-1887 coreKnot
-/// con-leche: ConLeche/Cached/CoreC.lean:1742-1763 coreKnotI
+/// con-leche: ConLeche/Cached/CoreC.lean:1767-1788 coreKnotI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4125-4215 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — the `defeq`
 /// slot, memoized at the ORDERED pair.
@@ -11348,7 +11348,7 @@ pub fn leave_eager(st: &mut AState, saved: Option<ModeMemos>) {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1852-1887 coreKnot
-/// con-leche: ConLeche/Cached/CoreC.lean:1742-1763 coreKnotI
+/// con-leche: ConLeche/Cached/CoreC.lean:1767-1788 coreKnotI
 /// con-leche: ConLeche/Cached/StateC.lean:481-499 withEagerMemos
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4125-4215 coreKnot` — **the eager slot**:
 /// definitional equality in the eager tower, `defeq_body` at `eager` true

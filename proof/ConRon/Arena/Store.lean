@@ -105,20 +105,20 @@ end Tbl
 
 /-! ## Names -/
 
-/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the `anonymous`
+/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the `anonymous`
 constructor, line 35. -/
 structure AnonNode where
   mk ::
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the `str`
+/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the `str`
 constructor, line 36. -/
 structure StrNode where
   pre : NIdx
   s : String
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the `num`
+/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the `num`
 constructor, line 37. -/
 structure NumNode where
   pre : NIdx
@@ -129,7 +129,7 @@ instance : BEq AnonNode := instBEqOfDecidableEq
 instance : BEq StrNode := instBEqOfDecidableEq
 instance : BEq NumNode := instBEqOfDecidableEq
 
-/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the store-side view of a
+/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the store-side view of a
 name node: con-leche's three constructors with the prefix as a handle. -/
 inductive NNodeView where
   | anonymous
@@ -152,19 +152,19 @@ structure NStore where
 
 /-! ## Levels -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:39-44 Level — the `zero`
+/-- con-leche: ConLeche/Kernel/Expr.lean:38-43 Level — the `zero`
 constructor, line 41. -/
 structure ZeroNode where
   mk ::
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:39-44 Level — the `succ`
+/-- con-leche: ConLeche/Kernel/Expr.lean:38-43 Level — the `succ`
 constructor, line 42. -/
 structure SuccNode where
   u : LIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:39-44 Level — the `max` constructor,
+/-- con-leche: ConLeche/Kernel/Expr.lean:38-43 Level — the `max` constructor,
 line 43, and `imax`, line 44, which has the same two fields and therefore the
 same record in its own array. -/
 structure BinLNode where
@@ -172,7 +172,7 @@ structure BinLNode where
   v : LIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:39-44 Level — the `param`
+/-- con-leche: ConLeche/Kernel/Expr.lean:38-43 Level — the `param`
 constructor, line 45. -/
 structure ParamNode where
   n : NIdx
@@ -183,7 +183,7 @@ instance : BEq SuccNode := instBEqOfDecidableEq
 instance : BEq BinLNode := instBEqOfDecidableEq
 instance : BEq ParamNode := instBEqOfDecidableEq
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:39-44 Level — the store-side view of
+/-- con-leche: ConLeche/Kernel/Expr.lean:38-43 Level — the store-side view of
 a level node. -/
 inductive LNodeView where
   | zero
@@ -193,7 +193,7 @@ inductive LNodeView where
   | param (n : NIdx)
   deriving DecidableEq, Repr, Inhabited
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:39-52 Level — the `hashData`
+/-- con-leche: ConLeche/Kernel/Expr.lean:38-51 Level — the `hashData`
 computed field, lines 47-53, plus the has-a-parameter flag, which con-leche
 recomputes by a walk (`Kernel/Expr.lean:114-122 levelHasParam`) because a
 `Level` tree has nowhere to cache it. -/
@@ -251,40 +251,46 @@ structure LsStore where
 
 /-! ## Expressions -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `bvar`
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `bvar`
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.BVarNode_bridge, then delete this line
 constructor, line 316. -/
 structure BVarNode where
   i : Nat
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `fvar`
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `fvar`
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.FVarNode_bridge, then delete this line
 constructor, line 317. -/
 structure FVarNode where
   idx : Nat
   ty : EIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `sort`
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `sort`
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.SortNode_bridge, then delete this line
 constructor, line 318. -/
 structure SortNode where
   u : LIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `const`
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `const`
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.ConstNode_bridge, then delete this line
 constructor, line 319. -/
 structure ConstNode where
   n : NIdx
   us : LsIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `app`
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `app`
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.AppNode_bridge, then delete this line
 constructor, line 320. -/
 structure AppNode where
   f : EIdx
   a : EIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `lam`
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `lam`
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.BindNode_bridge, then delete this line
 constructor, line 321, and `forallE`, line 322: same two fields, its own
 array.  (Task #119: con-leche's binders carry no datum any more, so the
 binder-datum store of task #97-P6-16 is gone and the record is two handles.) -/
@@ -293,7 +299,8 @@ structure BindNode where
   body : EIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `letE`
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `letE`
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.LetNode_bridge, then delete this line
 constructor, line 323. -/
 structure LetNode where
   ty : EIdx
@@ -301,13 +308,15 @@ structure LetNode where
   body : EIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `lit`
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `lit`
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.LitNode_bridge, then delete this line
 constructor, line 324. -/
 structure LitNode where
   l : ConLeche.Literal
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `proj`
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `proj`
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.ProjNode_bridge, then delete this line
 constructor, line 325. -/
 structure ProjNode where
   n : NIdx
@@ -325,7 +334,8 @@ instance : BEq LetNode := instBEqOfDecidableEq
 instance : BEq LitNode := instBEqOfDecidableEq
 instance : BEq ProjNode := instBEqOfDecidableEq
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the store-side view of
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the store-side view of
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.ENodeView_bridge, then delete this line
 an expression node: con-leche's ten constructors with every subterm replaced
 by a handle.  `Literal` stays a *value* (it is not an expression), exactly as
 DESIGN §8.3 specifies. -/
@@ -457,13 +467,13 @@ and a scratch handle reads as absent while the scratch tier is off. -/
   if i.isPersistent then st.pers.get i
   else if st.scratchOn then st.scr.get i else none
 
-/-- con-leche: ConLeche/Kernel/Name.lean:34-44 Name — the `hashData` computed
+/-- con-leche: ConLeche/Kernel/Name.lean:27-37 Name — the `hashData` computed
 field, lines 41-44: the derived word of a handle. -/
 @[inline] def derived (st : NStore) (i : NIdx) : UInt64 :=
   if i.isPersistent then st.pers.derAt i
   else if st.scratchOn then st.scr.derAt i else 0
 
-/-- con-leche: ConLeche/Kernel/Name.lean:34-44 Name — the `hashData` computed
+/-- con-leche: ConLeche/Kernel/Name.lean:27-37 Name — the `hashData` computed
 field, lines 41-44: the derived word a node view *would* get, computed in
 `O(1)` from the children's. -/
 def derOfView (st : NStore) (v : NNodeView) : UInt64 :=
@@ -623,13 +633,13 @@ instance : Inhabited LStore := ⟨empty⟩
   if i.isPersistent then st.pers.get i
   else if st.scratchOn then st.scr.get i else none
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:39-52 Level — the `hashData` computed
+/-- con-leche: ConLeche/Kernel/Expr.lean:38-51 Level — the `hashData` computed
 field, lines 47-53: the derived record of a level handle. -/
 @[inline] def derived (st : LStore) (i : LIdx) : LDer :=
   if i.isPersistent then st.pers.derAt i
   else if st.scratchOn then st.scr.derAt i else default
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:39-52 Level — the `hashData` computed
+/-- con-leche: ConLeche/Kernel/Expr.lean:38-51 Level — the `hashData` computed
 field, lines 47-53, and `Kernel/Expr.lean:114-122 levelHasParam`: the derived
 record a node view would get, in `O(1)` from the children's. -/
 def derOfView (st : LStore) (v : LNodeView) : LDer :=
@@ -738,13 +748,13 @@ instance : Inhabited LsStore := ⟨empty⟩
   if i.isPersistent then st.pers.get i
   else if st.scratchOn then st.scr.get i else none
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:117-120 levelsHash — the derived
+/-- con-leche: ConLeche/Kernel/Expr.lean:202-205 levelsHash — the derived
 record of a level-list handle. -/
 @[inline] def derived (st : LsStore) (i : LsIdx) : LDer :=
   if i.isPersistent then st.pers.derAt i
   else if st.scratchOn then st.scr.derAt i else default
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:117-120 levelsHash — and
+/-- con-leche: ConLeche/Kernel/Expr.lean:202-205 levelsHash — and
 `Kernel/Expr.lean:125-127 levelsHaveParam`: the derived record a level list
 would get.  `O(n)` in the list, as con-leche's own fold is. -/
 def derOfView (st : LsStore) : LsNodeView → LDer
@@ -1031,7 +1041,8 @@ def sizeOf (t : ETables) (v : ENodeView) : Nat :=
 
 end ETables
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `lam` (hash tag
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `lam` (hash tag
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.derOfBind_bridge, then delete this line
 19) and `forallE` (23) arms of `derOfView` as a function of the two
 children's derived words (task #119: the binder datum is gone from the hash
 and from the has-a-parameter bit, as upstream's `Expr.data`). -/
@@ -1041,7 +1052,8 @@ and from the has-a-parameter bit, as upstream's `Expr.data`). -/
     (max (fvarOfData dt) (fvarOfData db))
     (lpOfData dt || lpOfData db)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `letE` arm of
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `letE` arm of
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.derOfLet_bridge, then delete this line
 `derOfView` over the three children's derived words.  A function for the
 reason `derOfBind` is one. -/
 @[inline] def derOfLet (dt dv db : UInt64) : UInt64 :=
@@ -1051,7 +1063,8 @@ reason `derOfBind` is one. -/
     (max (max (fvarOfData dt) (fvarOfData dv)) (fvarOfData db))
     (lpOfData dt || lpOfData dv || lpOfData db)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the inverse of
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the inverse of
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.eBindView_bridge, then delete this line
 `EStore.viewBind` (task #97-P6-10): rebuild the binder view a walk decoded
 with `viewBind`, at the tag it decoded it at.  `lam` (line 321) and `forallE`
 (line 322) have one record shape and the projection reads either; this is the
@@ -1201,7 +1214,8 @@ array set, the tag selects the array, the index reads it. -/
   if i.isPersistent then st.pers.get i
   else if st.scratchOn then st.scr.get i else none
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `data` computed
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `data` computed
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.derived_bridge, then delete this line
 field, lines 329-374: the packed derived word of an expression handle. -/
 @[inline] def derived (st : EStore) (i : EIdx) : UInt64 :=
   if i.isPersistent then st.pers.derAt i
@@ -1228,25 +1242,30 @@ Each arm is a function of that arm's own fields, called from both, and
 `rfl` per constructor and `derived_exact` (`WFProofs.lean`) is still one
 `simp` per constructor. -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `bvar` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `bvar` arm. -/
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.derOfBVar_bridge, then delete this line
 @[inline] def derOfBVar (_st : EStore) (i : Nat) : UInt64 :=
   packData (hash32 (mixHash 3 (hash i))) (satSucc i) 0 false
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `fvar` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `fvar` arm. -/
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.derOfFVar_bridge, then delete this line
 @[inline] def derOfFVar (st : EStore) (idx : Nat) (ty : EIdx) : UInt64 :=
   packData (hash32 (mixHash 5 (mixHash (hash idx) (hashOfData (st.derived ty)))))
     0 (satSucc idx) (lpOfData (st.derived ty))
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `sort` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `sort` arm. -/
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.derOfSort_bridge, then delete this line
 @[inline] def derOfSort (st : EStore) (u : LIdx) : UInt64 :=
   packData (hash32 (mixHash 7 (st.lder u).hash)) 0 0 (st.lder u).hasParam
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `const` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `const` arm. -/
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.derOfConst_bridge, then delete this line
 @[inline] def derOfConst (st : EStore) (n : NIdx) (us : LsIdx) : UInt64 :=
   packData (hash32 (mixHash 11 (mixHash (st.nder n) (st.lsder us).hash)))
     0 0 (st.lsder us).hasParam
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `app` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `app` arm. -/
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.derOfApp_bridge, then delete this line
 @[inline] def derOfApp (st : EStore) (f a : EIdx) : UInt64 :=
   packData (hash32 (mixHash 17
       (mixHash (hashOfData (st.derived f)) (hashOfData (st.derived a)))))
@@ -1254,26 +1273,31 @@ Each arm is a function of that arm's own fields, called from both, and
     (max (fvarOfData (st.derived f)) (fvarOfData (st.derived a)))
     (lpOfData (st.derived f) || lpOfData (st.derived a))
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `lam` (tag 19) and
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `lam` (tag 19) and
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.derOfBindAt_bridge, then delete this line
 `forallE` (tag 23) arms. -/
 @[inline] def derOfBindAt (st : EStore) (tag : UInt64) (ty b : EIdx) : UInt64 :=
   derOfBind tag (st.derived ty) (st.derived b)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `letE` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `letE` arm. -/
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.derOfLetAt_bridge, then delete this line
 @[inline] def derOfLetAt (st : EStore) (ty v b : EIdx) : UInt64 :=
   derOfLet (st.derived ty) (st.derived v) (st.derived b)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `lit` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `lit` arm. -/
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.derOfLit_bridge, then delete this line
 @[inline] def derOfLit (_st : EStore) (l : ConLeche.Literal) : UInt64 :=
   packData (hash32 (mixHash 31 (hash l))) 0 0 false
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `proj` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `proj` arm. -/
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.derOfProj_bridge, then delete this line
 @[inline] def derOfProj (st : EStore) (s : NIdx) (i : Nat) (e : EIdx) : UInt64 :=
   packData (hash32 (mixHash 37 (mixHash (st.nder s)
       (mixHash (hash i) (hashOfData (st.derived e))))))
     (bvarOfData (st.derived e)) (fvarOfData (st.derived e)) (lpOfData (st.derived e))
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `data` computed
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `data` computed
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Store.derOfView_bridge, then delete this line
 field, lines 329-374: the derived word a node view *would* get, computed in
 `O(1)` from the children's, as the ten arms' dispatch. -/
 def derOfView (st : EStore) (v : ENodeView) : UInt64 :=

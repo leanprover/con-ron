@@ -153,7 +153,8 @@ def fail {α : Type} (e : CheckError) : AM α := throwThe CheckError e
 
 /-! ## The expression store's primitives -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — decode a handle.  A
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — decode a handle.  A
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Monad.view_bridge, then delete this line
 dangling handle is an internal error: the checker never builds one, and the
 bridge claims nothing on failure. -/
 @[inline] def view (h : EIdx) : AM ENodeView := do
@@ -162,7 +163,8 @@ bridge claims nothing on failure. -/
   | some v => pure v
   | none => fail (.internal "arena: dangling expression handle")
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the packed derived
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the packed derived
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Monad.derivedE_bridge, then delete this line
 word of a handle (the `data` computed field, lines 329-374), read in `O(1)`
 off the derived column. -/
 @[inline] def derivedE (h : EIdx) : AM UInt64 := do
@@ -275,12 +277,13 @@ returns the field and nothing else, and the caller spells the decline with
 inventing thirteen messages (task #97-P6-10; `#[cold]` on the Rust side, which
 Charon does not read). -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `none` arm of
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `none` arm of
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Monad.failDanglingE_bridge, then delete this line
 `view`, spelled once. -/
 def failDanglingE {α : Type} : AM α :=
   fail (.internal "arena: dangling expression handle")
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:39-52 Level — the `none` arm of
+/-- con-leche: ConLeche/Kernel/Expr.lean:38-51 Level — the `none` arm of
 `viewLs`, spelled once. -/
 def failDanglingLs {α : Type} : AM α :=
   fail (.internal "arena: dangling level-list handle")
@@ -293,51 +296,62 @@ whole `ENodeView` and dispatch on the tag a second time.  Each projection is
 `EStore`'s own under a state read, and each answers `Option` rather than
 failing, so that the caller spells `view`'s decline itself. -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `app` projection. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `app` projection. -/
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Monad.viewApp_bridge, then delete this line
 @[inline] def viewApp (h : EIdx) : AM (Option (EIdx × EIdx)) := do
   let s ← get; pure (s.store.viewApp h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `bvar` projection. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `bvar` projection. -/
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Monad.viewBVar_bridge, then delete this line
 @[inline] def viewBVar (h : EIdx) : AM (Option Nat) := do
   let s ← get; pure (s.store.viewBVar h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `sort` projection. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `sort` projection. -/
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Monad.viewSort_bridge, then delete this line
 @[inline] def viewSort (h : EIdx) : AM (Option LIdx) := do
   let s ← get; pure (s.store.viewSort h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `const` projection. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `const` projection. -/
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Monad.viewConst_bridge, then delete this line
 @[inline] def viewConst (h : EIdx) : AM (Option (NIdx × LsIdx)) := do
   let s ← get; pure (s.store.viewConst h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the head NAME of a
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the head NAME of a
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Monad.viewConstName_bridge, then delete this line
 `const` node; the level arguments are left in the store. -/
 @[inline] def viewConstName (h : EIdx) : AM (Option NIdx) := do
   let s ← get; pure (s.store.viewConstName h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `fvar` index. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `fvar` index. -/
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Monad.viewFVarIdx_bridge, then delete this line
 @[inline] def viewFVarIdx (h : EIdx) : AM (Option Nat) := do
   let s ← get; pure (s.store.viewFVarIdx h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `fvar` binder
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `fvar` binder
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Monad.viewFVarTy_bridge, then delete this line
 type. -/
 @[inline] def viewFVarTy (h : EIdx) : AM (Option EIdx) := do
   let s ← get; pure (s.store.viewFVarTy h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `lit` projection. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `lit` projection. -/
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Monad.viewLit_bridge, then delete this line
 @[inline] def viewLit (h : EIdx) : AM (Option ConLeche.Literal) := do
   let s ← get; pure (s.store.viewLit h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the binder
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the binder
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Monad.viewBind_bridge, then delete this line
 projection. -/
 @[inline] def viewBind (h : EIdx) : AM (Option (EIdx × EIdx)) := do
   let s ← get; pure (s.store.viewBind h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `letE`
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `letE`
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Monad.viewLet_bridge, then delete this line
 projection. -/
 @[inline] def viewLet (h : EIdx) : AM (Option (EIdx × EIdx × EIdx)) := do
   let s ← get; pure (s.store.viewLet h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `proj`
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the `proj`
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Monad.viewProj_bridge, then delete this line
 projection. -/
 @[inline] def viewProj (h : EIdx) : AM (Option (NIdx × Nat × EIdx)) := do
   let s ← get; pure (s.store.viewProj h)
@@ -374,7 +388,7 @@ shape the rebuilding walks want, where `eBindView` + `internE` stood. -/
 
 /-! ## The name store's primitives -/
 
-/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — decode a name handle. -/
+/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — decode a name handle. -/
 @[inline] def viewN (h : NIdx) : AM NNodeView := do
   let s ← get
   match s.store.ns.view h with
@@ -399,7 +413,7 @@ def internNNode (v : NNodeView) : AM NIdx := do
     else
       fail (.native "arena: name constructor array full")
 
-/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — read a name back out of
+/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — read a name back out of
 the store as a transient `ConLeche.Name`.  Names are compared by handle
 throughout the checker (DESIGN §8.3), so this is the error-text and
 level-substitution path only, and the readback IS the denotation. -/
@@ -409,7 +423,7 @@ def readName (h : NIdx) : AM ConLeche.Name := do
   | some x => pure x
   | none => fail (.internal "arena: dangling name handle")
 
-/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — read a LIST of name
+/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — read a LIST of name
 handles back.  `ks.mapM readName` would do it with a closure, which DESIGN
 §3.4 forbids in code Aeneas must translate; §3.4's rule for a `List`
 recursion is a helper, so this is one. -/
@@ -420,7 +434,7 @@ def readNames : List NIdx → AM (List ConLeche.Name)
     let xs ← readNames hs
     pure (x :: xs)
 
-/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — intern a transient
+/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — intern a transient
 name.  Structural on `Name`, so no fuel: the tree is a value, not a DAG. -/
 def internName : ConLeche.Name → AM NIdx
   | .anonymous => internNNode .anonymous
@@ -433,7 +447,7 @@ def internName : ConLeche.Name → AM NIdx
 
 /-! ## The level store's primitives -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:39-52 Level — decode a level
+/-- con-leche: ConLeche/Kernel/Expr.lean:38-51 Level — decode a level
 handle. -/
 @[inline] def viewL (h : LIdx) : AM LNodeView := do
   let s ← get
@@ -470,7 +484,7 @@ def readLevel (h : LIdx) : AM Level := do
   | some l => pure l
   | none => fail (.internal "arena: dangling level handle")
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:39-52 Level — intern a transient
+/-- con-leche: ConLeche/Kernel/Expr.lean:38-51 Level — intern a transient
 level tree.  Structural on `Level`, so no fuel. -/
 def internLevel : Level → AM LIdx
   | .zero => internLNode .zero
@@ -491,7 +505,8 @@ def internLevel : Level → AM LIdx
 
 /-! ## The level-list store's primitives -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — decode a
+/-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — decode a
+-- con-leche: CHANGED since 49d2fa3f — re-port, re-test, re-prove Monad.viewLs_bridge, then delete this line
 universe-argument list handle (the `const` node's second field, line 347). -/
 @[inline] def viewLs (h : LsIdx) : AM LsNodeView := do
   let s ← get
@@ -539,7 +554,7 @@ def internLevels (us : List Level) : AM LsIdx := do
   let hs ← internLevelList us
   internLsNode hs
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:39-52 Level — the LENGTH projection
+/-- con-leche: ConLeche/Kernel/Expr.lean:38-51 Level — the LENGTH projection
 of `viewLs` (task #97-P6-10): the callers that only compare a
 universe-argument list's length with a declaration's level-parameter count
 want this, and it reads the record's own length. -/
@@ -577,7 +592,7 @@ def readLevelM (h : LIdx) : AM Level := do
       set { s with caches := { s.caches with readLC := mp.insert h l } }
       pure l
 
-/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the memoised
+/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the memoised
 `readName`. -/
 def readNameM (h : NIdx) : AM ConLeche.Name := do
   let s ← get
@@ -592,7 +607,7 @@ def readNameM (h : NIdx) : AM ConLeche.Name := do
       set { s with caches := { s.caches with readNC := mp.insert h x } }
       pure x
 
-/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the memoised
+/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the memoised
 `readNames`.  The recursion is on the list, as `readNames`' is; the Rust's
 `_from` cursor companion is §3.4's standing `List`-as-`Vec` deviation. -/
 def readNamesM : List NIdx → AM (List ConLeche.Name)
