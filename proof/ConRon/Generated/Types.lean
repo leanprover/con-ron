@@ -142,7 +142,7 @@ inductive kernel.expr.Literal where
 mutual
 
 /-- [con_ron_core::kernel::expr::ExprKind]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 294:0-305:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 302:0-313:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.expr.ExprKind where
@@ -169,13 +169,13 @@ inductive kernel.expr.ExprKind where
   kernel.expr.ExprKind
 
 /-- [con_ron_core::kernel::expr::ExprNode]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 311:0-314:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 319:0-322:1
     Visibility: public -/
 inductive kernel.expr.ExprNode where
 | mk : Std.U64 → kernel.expr.ExprKind → kernel.expr.ExprNode
 
 /-- [con_ron_core::kernel::expr::Expr]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 339:0-339:33
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 347:0-347:33
     Visibility: public -/
 inductive kernel.expr.Expr where
 | mk : alloc.sync.Arc kernel.expr.ExprNode → kernel.expr.Expr
@@ -853,7 +853,7 @@ structure ron.hashmap.HashMap (K : Type) (V : Type) where
   slots : alloc.vec.Vec (ron.hashmap.AList K V)
 
 /-- [con_ron_core::kernel::expr::ExprView]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 350:0-361:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 358:0-369:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.expr.ExprView where
@@ -1054,7 +1054,7 @@ structure kernel.prop_when.NameToPw (Self : Type) where
   apply : Self → kernel.name.Name → Result kernel.prop_when.PropWhen
 
 /-- [con_ron_core::kernel::level::SubstZ]
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 563:0-566:1
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 565:0-568:1
     Visibility: public -/
 structure kernel.level.SubstZ where
   ks : alloc.vec.Vec kernel.name.Name
@@ -1119,7 +1119,7 @@ structure arena.core.NatOpPins where
   sr : arena.handle.NIdx
 
 /-- [con_ron_core::kernel::name::NameComponent]
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 585:0-588:1
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 587:0-590:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.name.NameComponent where
@@ -1127,7 +1127,7 @@ inductive kernel.name.NameComponent where
 | Num : Std.U64 → kernel.name.NameComponent
 
 /-- [con_ron_core::kernel::name::DisplayAcc]
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 347:0-352:1
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 349:0-354:1
     Visibility: public -/
 structure kernel.name.DisplayAcc where
   out : alloc.vec.Vec Std.U32
