@@ -591,8 +591,7 @@ against `ConLeche`'s chained body on the denotation. -/
   (ConLeche.inferTypeCore MU false envCL F 0 tBeta2)
 #guard chkE ((pureFnsA MU false FX.fe F).inferIO 0 FX.beta2)
   (ConLeche.inferTypeIO MU false envCL F 0 tBeta2)
--- `defeqBinders` / `defeqPeel` (∀) and `defeqLams` (λ): two telescopes
--- descended together
+-- `defeqBinders` (∀ and λ): two telescopes descended together
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.pi3 FX.pi3)
   (ConLeche.isDefEqCore MU false envCL F 0 tPi3 tPi3)
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.pi3 FX.piPi)

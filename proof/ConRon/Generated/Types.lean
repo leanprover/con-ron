@@ -1081,7 +1081,7 @@ structure arena.env.IProjEntry where
   body : arena.handle.EIdx
 
 /-- [con_ron_core::arena::core::LazyResA]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9661:0-9668:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9515:0-9522:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.LazyResA where
@@ -1089,7 +1089,7 @@ inductive arena.core.LazyResA where
 | Unknown : arena.handle.EIdx → arena.handle.EIdx → arena.core.LazyResA
 
 /-- [con_ron_core::arena::core::DeltaStepA]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9428:0-9441:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9282:0-9295:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.DeltaStepA where
