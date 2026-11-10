@@ -72585,7 +72585,7 @@ maximum `Nat` size (above).  `intern_all_pins_refines`/`_port_refines` gain `{m 
 (.Ok ipins, st5)` and `rust_stages`/`rust_stages_oleans` conclude about
 `ConRon.Arena.internAllPins (absPins pins) (toNat maxNatSize) sD`: the theorems hold at every
 maximum size, as upstream's do, with no well-formedness premise; `startState` gains
-`max_nat_size := ⟨[134217728]⟩`.
+`max_nat_size` at the default 134 217 728 (`max_nat_size_default_eq`).
 
 **Numbers.**  `Init`, `--verified --jobs=1`, `perf stat -e instructions:u,cycles:u`, one run each
 (`bump-con-leche.sh measure`), 57 919 / 57 919 accepted:

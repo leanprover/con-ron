@@ -557,11 +557,11 @@ section Headline
 
 open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean
 
-/-- con-leche: ConLeche/MainTheorem.lean:98 model_exists —
+/-- con-leche: ConLeche/MainTheorem.lean:102 model_exists —
 **THE MAIN THEOREM FOR THE RUST CHECKER** (DESIGN.md §1, §8.2): the environment of every stream
 the Rust checker accepts has a model, in every set theory.
 
-con-leche's reads `(accepted : checkDecls .verified pins ds = .ok env) : Nonempty (Model V env)`;
+con-leche's reads `(accepted : checkDecls .verified pins maxNatSize ds = .ok env) : Nonempty (Model V env)`;
 here the accepting run is the binary's calls, one premise each (§4's table), and the environment
 is the one the Rust's records denote (`RustDenotes`).
 
@@ -605,11 +605,11 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
   exact ⟨_, ⟨sF, dsP, hrelF.of₀ hwfF, by simpa using hden, rfl⟩,
     ⟨ConLeche.Model.Model.ofEnvModelM hmod⟩⟩
 
-/-- con-leche: ConLeche/MainTheorem.lean:112 no_False_declaration — **A FILE THAT DECLARES A
+/-- con-leche: ConLeche/MainTheorem.lean:116 no_False_declaration — **A FILE THAT DECLARES A
 THEOREM OF TYPE `False` IS REJECTED BY THE RUST CHECKER**: the binary's calls (§4's table)
 cannot all succeed on it.
 
-con-leche's concludes `∃ e, (do …; checkDecls .verified pins ds) = .error e` about its own
+con-leche's concludes `∃ e, (do …; checkDecls .verified pins maxNatSize ds) = .error e` about its own
 pipeline; the binary's is not one function (the pool is a contract, `h8`), so the letter here has
 the same premises as `model_exists` and concludes `False`.
 
@@ -717,7 +717,7 @@ theorem no_False_declaration_embedded (V : Type w) [ConLeche.SetTheory V]
   have ⟨_, hdec⟩ := decode_of_decode_embedded hpins
   no_False_declaration V hfalse h1 h2 hreads h3 h4 hdec h5 h6 h7 h8
 
-/-- con-leche: ConLeche/MainTheorem.lean:161 main_oleans_no_False — **A CLOSURE THAT HOLDS A
+/-- con-leche: ConLeche/MainTheorem.lean:166 main_oleans_no_False — **A CLOSURE THAT HOLDS A
 THEOREM OF TYPE `False` IS REJECTED BY THE RUST CHECKER'S `--olean`**: on a snapshot `F` of the
 files (`hsnap`), where the private view of a module of the closure of the roots, by con-leche's
 specification (`InClosure`, `ViewOf`: nothing about the fast parser), holds a theorem of type
@@ -825,7 +825,7 @@ theorem model_exists_oleans_of (hT2 : ReadOleansRefines)
   exact ⟨_, ⟨sF, dsP, val, hrelF.of₀ hwfF, by simpa using hden, rfl⟩,
     ⟨ConLeche.Model.Model.ofEnvModelM hmod⟩⟩
 
-/-- con-leche: ConLeche/MainTheorem.lean:161 main_oleans_no_False — **A CLOSURE THE RUST
+/-- con-leche: ConLeche/MainTheorem.lean:166 main_oleans_no_False — **A CLOSURE THE RUST
 CHECKER'S `--olean` ACCEPTS HOLDS NO PROOF OF `False`**: if a module of the import closure of
 the roots, read by the specification (`InClosure`, `ViewOf`), holds a theorem whose type is
 `False`, the binary's calls cannot all succeed.  The files are a premise: `hsnap`, the instance
