@@ -144,9 +144,6 @@ theorem vec_push_eidx_ls (v : alloc.vec.Vec arena.handle.EIdx) (x : arena.handle
   have := ConRon.Refine.vec_push_val h
   simp [absEIdxArr, this]
 
-@[local lockstep_simp] theorem peel_fuel_val : (arena.core.PEEL_FUEL).val = peelFuel := by
-  rw [arena.core.PEEL_FUEL]; rfl
-
 /-! ## Literals and binder data: exact comparisons on well-formed values -/
 
 /-- `==` at a type whose `BEq` is its `DecidableEq` (`ConLeche.Literal`,
@@ -297,6 +294,6 @@ attribute [scoped lockstep_simp] absConstT absU32_bne u32_bne ETag.isBind Bool.o
   Bool.not_eq_false Bool.not_eq_true Bool.true_or Bool.false_or Bool.or_true Bool.or_false
   Bool.true_and Bool.and_true Bool.false_and Bool.and_false Bool.and_eq_true decide_not
   ite_true ite_false and_self absU32_eq_lam absU32_eq_forallE etag_forallE_ne_lam
-  etag_lam_ne_forallE absU32_eq_const peel_fuel_val ConRon.Refine.absLiteral
+  etag_lam_ne_forallE absU32_eq_const ConRon.Refine.absLiteral
   ConRon.Refine.LiteralWF ENodeViewWF
 end ConRon.Refine2.Lockstep.PF.CoreLSReg

@@ -138,62 +138,6 @@ theorem pin_at_run₀ {pers st lst} {i : Std.Usize} {o}
     rw [Array.getElem?_eq_getElem hlt3] at hsome
     rw [Option.some_inj.mp hsome]
 
-/-- `pin_reserved` ⊑ `pinReserved` — the nineteen reserved basis names, off
-the table.  `arena::core`'s `reserved_basis_names` used to build and intern
-all nineteen on every call, which task #97-P6-4a's profile put at 1.1 % of
-`Init`'s cycles in the `Name` construction alone. -/
-theorem pin_reserved_run₀ {pers st lst} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.pins.pin_reserved st = ok o) :
-    PinRE absNIdxList lst o pinReserved := by
-  rw [arena.pins.pin_reserved] at hrun
-  obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hbr := pins_ready_run₀ hrel hinv hb
-  have hrun2 : (Arena.pinReserved).run lst
-      = (if Arena.pinsReady lst
-         then Except.ok (lst.pins.reserved, lst)
-         else Except.error
-           (Arena.CheckError.internal "arena: reserved-name pins not interned")) := by
-    by_cases h : Arena.pinsReady lst = true
-    · rw [ite_eq_left h]
-      show (Arena.pinReserved) lst = _
-      rw [Arena.pinReserved]
-      simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
-        Pure.pure, StateT.pure, Except.pure, Except.bind, ite_eq_left h]
-    · simp only [Bool.not_eq_true] at h
-      rw [ite_eq_right (by simp [h])]
-      show (Arena.pinReserved) lst = _
-      rw [Arena.pinReserved]
-      simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
-        Pure.pure, Except.pure, Except.bind, h, Bool.false_eq_true, ite_false,
-        Arena.fail, throwThe, MonadExceptOf.throw, Function.comp_apply, StateT.lift]
-  split at hrun
-  case isTrue hbt =>
-    obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have h2 := Result.ok_injective hrun
-    subst h2
-    show (Arena.pinReserved).run lst = _
-    rw [hrun2, ite_eq_left (by rw [← hbr, hbt]), hrel.pins.reserved]
-    simp only [absNIdxList, nidx_vec_dup_val hv]
-  case isFalse hbf =>
-    obtain ⟨sl, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨cps, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    rw [arena.monad.fail] at hrun
-    have h2 := Result.ok_injective hrun
-    subst h2
-    refine AErrSim.internal (s := "arena: reserved-name pins not interned") ?_
-    rw [hrun2, ite_eq_right (by simp only [← hbr]; simpa using hbf)]
-
-/-- `arena::core::reserved_basis_names` ⊑ `reservedBasisNames` — both are the
-pin-table read, `pin_reserved` against `pinReserved` (twin fix D5 of task
-#97-T2-LOCKSTEP: the twin used to re-intern thirteen of the nineteen). -/
-theorem reserved_basis_names_run₀ {pers st lst} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.core.reserved_basis_names st = ok o) :
-    PinRE absNIdxList lst o reservedBasisNames := by
-  rw [arena.core.reserved_basis_names] at hrun
-  exact pin_reserved_run₀ hrel hinv hrun
-
 /-- `pin_empty_levels` ⊑ `pinEmptyLevels`. -/
 theorem pin_empty_levels_run₀ {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -542,11 +486,6 @@ theorem pin_eager_reduce_run₀ {pers st lst} {o}
   exact h
 
 /-! ### As `@[lockstep]` reads -/
-
-@[lockstep] theorem reserved_basis_names_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdxList a) (arena.core.reserved_basis_names st) st lst reservedBasisNames :=
-  pinRE_lsr hrel hinv fun _ h => reserved_basis_names_run₀ hrel hinv h
 
 @[lockstep] theorem pin_empty_levels_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) :

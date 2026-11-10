@@ -39,7 +39,6 @@ statements are at `.verified`, as every body theorem of this tier is
 -/
 module
 
-import ConRon.Bridge.Core.Walks.Reserved
 import ConRon.Bridge.Core.Walks.Eta
 import ConRon.Bridge.Core.Walks.Former
 import ConRon.Bridge.Core.Walks.StrLit
@@ -203,22 +202,6 @@ theorem liftFueled_spec {α : Type} (s₀ : AState) (what : String)
   | none => exact triple_fail
   | some a =>
     vcgen [ConRon.Arena.liftFueled] with finish
-
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
-the reserved list in triple form: `Walks/Reserved.lean`'s
-`reservedBasisNames_runC` (a copy of `Bridge/Checker/Names.lean`'s) (the pin-table read `pinReserved`) read through
-`AM.triple_of_run_at`. -/
-theorem reservedBasisNames_spec (s₀ : AState) (hok : CheckOK eager env fe s₀) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.reservedBasisNames
-    ⦃fun hs s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        Frontend.denoteNList s'.store.ns hs =
-          some ConLeche.reservedBasisNames; ⊤⦄ :=
-  AM.triple_of_run_at fun hs s' hr => by
-    obtain ⟨hps, hd⟩ := reservedBasisNames_runC hok.state.wf hok.pins hr
-    refine ⟨hok.mono ⟨hps.wf⟩ hps.ext hps.caches hps.pins, hps.ext, hps.pins, ?_⟩
-    show Frontend.denoteNList s'.store.ns hs = some reservedBasisNameValues
-    exact denoteNL_toListC _ _ hd
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the index's HIT half at
 an inductive. -/
@@ -900,17 +883,6 @@ grind_pattern [bridge_grind] ExpandE.pi =>
     (.app y (.fvar d (exprBinderType t)))
     ((exprBody t).instantiate1 (.fvar d (exprBinderType t))) r
 
-/-- con-leche: ConLeche/Verify/Shift.lean:220 WScoped — a subject applied to
-the next free variable (at a `∀`'s domain) is scoped one deeper. -/
-theorem wscoped_app_fvar {d : Nat} {x t : Expr} (hx : Expr.WScoped d x)
-    (ht : Expr.WScoped d t) (htag : exprTag t = ETag.forallE) :
-    Expr.WScoped (d + 1) (.app x (.fvar d (exprBinderType t))) := by
-  rw [exprTag_forallE htag] at ht
-  simp only [Expr.WScoped] at ht ⊢
-  exact ⟨Expr.WScoped.mono (by omega) hx, by omega, ht.1⟩
-grind_pattern [bridge_grind] wscoped_app_fvar =>
-  Expr.WScoped d x, Expr.WScoped d t, Expr.app x (.fvar d (exprBinderType t))
-
 /-- con-leche: ConLeche/Verify/Shift.lean:81 WScoped — a `∀`'s domain is scoped as
 the `∀` is. -/
 theorem wscoped_binderType {d : Nat} {w : Expr} (h : Expr.WScoped d w)
@@ -1437,13 +1409,6 @@ or both present at the same count with the telescope handle denoting. -/
   | none, none => True
   | some (h, n), some (t, m) => denoteE st h = some t ∧ n = m
   | _, _ => False
-
-/-- con-leche: none — `ShapeAns` survives the arena's growth. -/
-theorem ShapeAns.ext {st st' : EStore} {r : Option (EIdx × Nat)} {o : Option (Expr × Nat)}
-    (h : ShapeAns st r o) (hx : Ext st st') : ShapeAns st' r o := by
-  match r, o, h with
-  | none, none, _ => trivial
-  | some (_, _), some (_, _), ⟨hd, hn⟩ => exact ⟨denote_ext hd hx, hn⟩
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:767-794 unitLikeShape
 con-leche: ConLeche/Cached/CoreC.lean:424-445 unitLikeShapeF — **THEOREM 1
@@ -2279,7 +2244,6 @@ section Census
 #print axioms liftFueled_spec
 #print axioms proofIrrel_sorts
 #print axioms proofIrrel_specA
-#print axioms reservedBasisNames_spec
 #print axioms env_ind_of_index
 #print axioms structUnitCert_specA
 #print axioms etaCtorShape_spec

@@ -317,17 +317,6 @@ theorem bt_block_recs_ls0 {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv 
   refine LS.tail h (by simp) (fun a b h1 => ?_)
   simpa [absICIL, alloc.vec.Vec.new] using h1.symm
 
-/-- `block_tables` from the first member into an empty accumulator. -/
-theorem bt_block_tables_ls0 {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (p : arena.inductives.block_shape.BlockShape)
-    (ms : alloc.vec.Vec arena.inductives.block_shape.MemberShape) :
-    LS pers (fun a b => b = a.map (fun v => v.val.map absIProjTable))
-      (arena.install.block_tables pers st p ms 0#usize (alloc.vec.Vec.new _)) lst
-      (blockTables (absBlockShape p) (ms.val.map absMemberShape)) := by
-  have h := block_tables_ls hrel hinv p ms 0#usize (alloc.vec.Vec.new _)
-  refine LS.tail h (by simp) (fun a b h1 => ?_)
-  cases a <;> cases b <;> simp_all [alloc.vec.Vec.new]
-
 open Lockstep in
 /-- `unwrap_or` at the block's tables: an internal error where a constructor
 is too short for them. -/
@@ -347,7 +336,7 @@ theorem bt_push_delta_spec {pers : arena.store.PersTier} {rf : arena.env.IFEnv} 
       (fun o => IFEnvRelI pers o (lf.pushDelta (absICIL l) (q.val.map absIProjTable))) :=
   fun _ h => push_delta_refines hfe h
 
-attribute [local lockstep high] bt_block_recs_ls0 bt_block_tables_ls0 bt_unwrap_or_tables_int
+attribute [local lockstep high] bt_block_recs_ls0 bt_unwrap_or_tables_int
 attribute [local lockstep] bt_push_delta_spec
 
 attribute [local lockstep_inline] arena.inductives.block_tail.reduce_member_checked

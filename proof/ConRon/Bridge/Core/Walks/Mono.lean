@@ -146,13 +146,6 @@ theorem structEtaCertWith_mono (h : FnsRefines r₁ r₂) (d : Nat) (a b wtb : E
   have := (structEtaCertWith (pairFns r₁ r₂ h) env d a b wtb).property
   rwa [structEtaCertWith_fst_proj, structEtaCertWith_snd_proj] at this
 
-/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — structure η at
-a fully applied constructor. -/
-theorem structEtaFull_mono (h : FnsRefines r₁ r₂) (d : Nat) (a b : Expr) :
-    MRefines (structEtaFull r₁ env d a b) (structEtaFull r₂ env d a b) := by
-  have := (structEtaFull (pairFns r₁ r₂ h) env d a b).property
-  rwa [structEtaFull_fst_proj, structEtaFull_snd_proj] at this
-
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the η-expansion
 of a partially applied constructor. -/
 theorem structEtaExpand_mono (h : FnsRefines r₁ r₂) (k d : Nat) (a b t : Expr) :
@@ -349,13 +342,6 @@ theorem structEtaCertWithFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a 
     (hr : structEtaCertWithFueled mode eager env f d a b wtb = .ok r) :
     structEtaCertWithFueled mode eager env f' d a b wtb = .ok r :=
   structEtaCertWith_mono (pureFns_mono env hle) d a b wtb r hr
-
-/-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
-`structEtaFull`. -/
-theorem structEtaFullFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a b : Expr} {r : Bool}
-    (hr : structEtaFullFueled mode eager env f d a b = .ok r) :
-    structEtaFullFueled mode eager env f' d a b = .ok r :=
-  structEtaFull_mono (pureFns_mono env hle) d a b r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `structEtaExpand`. -/

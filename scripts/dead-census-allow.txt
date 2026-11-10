@@ -63,6 +63,9 @@ ConRon.Refine2.Lockstep.absIRecRule_fire	rfl lemma a `simp`/`dsimp` call rewrite
 ConRon.Refine2.Lockstep.absIRecRule_k	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.Lockstep.absIRecRule_nfields	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.Lockstep.absIRecRule_rhs	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
+ConRon.Refine2.Lockstep.absIProjTable_ctor	rfl lemma a `simp`/`dsimp` call rewrites with (task #150: deleting them broke Core/LS/Certs.lean:226 and :405); leaves no reference in the term
+ConRon.Refine2.Lockstep.absIProjTable_numFields	rfl lemma a `simp`/`dsimp` call rewrites with (task #150: deleting them broke Core/LS/Certs.lean:226 and :405); leaves no reference in the term
+ConRon.Refine2.Lockstep.absIProjTable_numParams	rfl lemma a `simp`/`dsimp` call rewrites with (task #150: deleting them broke Core/LS/Certs.lean:226 and :405); leaves no reference in the term
 ConRon.Refine2.Lockstep.vec_len_eq_iff	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.Lockstep.bne_eq_not_beq'	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 _private.ConRon.Refine2.Core.LS.Lits.0.ConRon.Refine2.Lockstep.usize_zero_val_lits	rfl `lockstep_simp` row `Core/LS/Lits.lean`'s `lockstep` needs (the build fails without it); simp leaves no trace

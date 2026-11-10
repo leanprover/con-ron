@@ -906,14 +906,6 @@ theorem denoteCV_ext_eq {st st' : EStore} {cv : IConstantVal} (hx : Ext st st')
   rw [hc, denoteCV_ext hc hx]
 local grind_pattern [bridge_grind] denoteCV_ext_eq => Frontend.denoteCV st cv, Ext st st'
 
-/-- con-leche: none — `denoteCaps_ext` as an equation. -/
-theorem denoteCaps_ext_eq {st st' : EStore} {c : IIndCaps} (hx : Ext st st')
-    (h : (Frontend.denoteCaps st c).isSome = true) :
-    Frontend.denoteCaps st' c = Frontend.denoteCaps st c := by
-  obtain ⟨d, hd⟩ := Option.isSome_iff_exists.mp h
-  rw [hd, denoteCaps_ext hd hx]
-local grind_pattern [bridge_grind] denoteCaps_ext_eq => Frontend.denoteCaps st c, Ext st st'
-
 /-- con-leche: ConLeche/Kernel/Core.lean:612-700 majorToCtor — **the η rescue**
 (`to_cnstr_when_structure`): the never-zero test at the use's levels
 (`formerNeverZeroAt`, a knot walk), at a closed stored family; the constructor

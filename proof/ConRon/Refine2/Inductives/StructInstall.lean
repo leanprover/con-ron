@@ -65,15 +65,6 @@ theorem unwrap_or_lsr {T β : Type} {A : T → β} {pers st lst} {o : Option T}
       (unwrapOr (o.map absEIdx) (.internal s)) :=
   unwrap_or_lsr hrel hinv rfl
 
-@[lockstep] theorem unwrap_or_eidx_vec_int {pers st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    {o : Option (alloc.vec.Vec arena.handle.EIdx)} {m : alloc.vec.Vec Std.U32} {s : String} :
-    LSR pers (fun a b => b = (absEIdxL a).toArray)
-      (arena.checker_base.unwrap_or o (kernel.core_types.CheckError.Internal m)) st lst
-      (unwrapOr ((o.map absEIdxL).map List.toArray) (.internal s)) := by
-  rw [Option.map_map]
-  exact unwrap_or_lsr hrel hinv rfl
-
 /-- `kernel::level::leq` against `Level.leq` (the pure comparison; the
 `liftFueled` around it is the checker tier's `lift_fueled_ls`). -/
 @[lockstep] theorem level_leq_ls (l r : kernel.level.Level) (hl : ConRon.Refine.LevelWF l)

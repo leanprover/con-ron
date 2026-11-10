@@ -378,14 +378,6 @@ section MonoDefeq
 
 variable {r₁ r₂ : CoreFns CheckM}
 
-/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the easy
-cases refine at a refined record. -/
-theorem quickDefEq_monoR (h : FnsRefines r₁ r₂) (d : Nat) (a b : Expr) :
-    MRefines (ConLeche.quickDefEq mode r₁ d a b)
-      (ConLeche.quickDefEq mode r₂ d a b) := by
-  have := (ConLeche.quickDefEq mode (pairFns r₁ r₂ h) d a b).property
-  rwa [quickDefEq_fst_proj, quickDefEq_snd_proj] at this
-
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the proj/proj
 check. -/
 theorem defeqProjPair_monoR (h : FnsRefines r₁ r₂) (d : Nat) (a b : Expr) :
@@ -395,14 +387,6 @@ theorem defeqProjPair_monoR (h : FnsRefines r₁ r₂) (d : Nat) (a b : Expr) :
   rwa [defeqProjPair_fst_proj, defeqProjPair_snd_proj] at this
 
 end MonoDefeq
-
-/-- con-leche: ConLeche/Verify/Mono.lean:158 isDefEqCore_mono — the merge at
-`quickDefEq`. -/
-theorem quickDefEqF_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a b : Expr}
-    {r : Option Bool}
-    (hr : ConLeche.quickDefEq mode (pureFns mode eager env f) d a b = .ok r) :
-    ConLeche.quickDefEq mode (pureFns mode eager env f') d a b = .ok r :=
-  quickDefEq_monoR (pureFns_mono env hle) d a b r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:158 isDefEqCore_mono — the merge at
 `defeqProjPair`. -/

@@ -44,8 +44,7 @@ a walk module adds only what is about its own walk.
    `DenWS` precondition, which need the slots' `SimE`).
 4. **The state invariant** (`CheckOK → StateOK = StoreWF`), and small facts
    (`opt2`/`opt3`, `denoteEO`, the handle lists and their cons inversions,
-   membership in a name-handle list as `containsO` of the denotations, the
-   pin table's names).
+   the pin table's names).
 5. **The memo tables**: the hit, the insert and the dropped table of the
    generic expression memo invariant, each keyed by the table term the
    program builds.
@@ -96,8 +95,7 @@ a walk module adds only what is about its own walk.
    that is a definition (an inductive, a constructor) IS one
    (`iDefn?_eta`, …), which refutes a match's fall-through arm; the one case
    split left is on "definition or not" where a walk needs the hint of a
-   lookup it did not match (`iDefnHint_cases`).  A capability record's
-   denotation keeps its scalar fields (`CapsFields`).
+   lookup it did not match (`iDefnHint_cases`).
 -/
 module
 
@@ -627,36 +625,6 @@ theorem denoteNList_contains {st : EStore} (hwf : StoreWF st) :
               exact hae (denoteN_inj hns ha hx)
             rw [beq_eq_false_iff_ne.mpr hae', beq_eq_false_iff_ne.mpr hne']
         simp only [List.contains_cons, hhead, ih ys has n x hx]
-
-/-- con-leche: none — a name-list membership test at optional denotations. -/
-@[expose] def containsO : Option (List ConLeche.Name) → Option ConLeche.Name → Bool
-  | some xs, some x => xs.contains x
-  | _, _ => false
-
-/-- con-leche: none — `containsO` at denoting subjects. -/
-@[bridge_grind =] theorem containsO_some (xs : List ConLeche.Name) (x : ConLeche.Name) :
-    containsO (some xs) (some x) = xs.contains x := rfl
-
-/-- con-leche: none — `denoteNList_contains` as an equation: a handle-list
-membership test is its denotations' (the store interns names injectively). -/
-theorem contains_eq {st : EStore} (hwf : StoreWF st) (ns : List NIdx) (n : NIdx)
-    (h1 : (Frontend.denoteNList st.ns ns).isSome = true) (h2 : (denoteN st.ns n).isSome = true) :
-    ns.contains n = containsO (Frontend.denoteNList st.ns ns) (denoteN st.ns n) := by
-  obtain ⟨xs, hxs⟩ := Option.isSome_iff_exists.mp h1
-  obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp h2
-  rw [hxs, hx]
-  exact denoteNList_contains hwf ns xs hxs n x hx
-grind_pattern [bridge_grind] contains_eq =>
-  List.contains ns n, Frontend.denoteNList st.ns ns, denoteN st.ns n
-
-/-- con-leche: none — `contains_eq` at `List.elem` (the spelling the twins'
-`if` conditions reach `grind` in). -/
-theorem elem_eq {st : EStore} (hwf : StoreWF st) (ns : List NIdx) (n : NIdx)
-    (h1 : (Frontend.denoteNList st.ns ns).isSome = true) (h2 : (denoteN st.ns n).isSome = true) :
-    List.elem n ns = containsO (Frontend.denoteNList st.ns ns) (denoteN st.ns n) :=
-  contains_eq hwf ns n h1 h2
-grind_pattern [bridge_grind] elem_eq =>
-  List.elem n ns, Frontend.denoteNList st.ns ns, denoteN st.ns n
 
 /-! ### The pin table
 
@@ -1875,27 +1843,5 @@ theorem IndexAt.some {env : Env} {fe : IFEnv} {st : EStore} {c : NIdx} {nm : Con
         cRecRP (env.find? nm) = iRecRP (fe.find? c) ∧
         cRecK (env.find? nm) = iRecK (fe.find? c)) := H
 grind_pattern [bridge_grind] IndexAt.some => IndexAt env fe st c (some nm)
-
-/-- con-leche: none — a capability record's denotation, the scalar fields the
-walks compare (shared by the two tiers). -/
-def CapsFields (c : IIndCaps) : Option IndCaps → Prop
-  | some dc => dc.eta = c.eta ∧ dc.nparams = c.nparams ∧ dc.nIdx = c.nIdx
-  | none => True
-
-/-- con-leche: none — `CapsFields` at the denotation term. -/
-theorem capsFields (st : EStore) (c : IIndCaps) : CapsFields c (Frontend.denoteCaps st c) := by
-  cases h : Frontend.denoteCaps st c with
-  | none => trivial
-  | some dc =>
-    simp only [Frontend.denoteCaps] at h
-    split at h
-    · cases h; exact ⟨rfl, rfl, rfl⟩
-    · simp at h
-grind_pattern [bridge_grind] capsFields => Frontend.denoteCaps st c
-
-/-- con-leche: none — `CapsFields` at a denoting record. -/
-theorem CapsFields.some {c : IIndCaps} {dc : IndCaps} (H : CapsFields c (some dc)) :
-    dc.eta = c.eta ∧ dc.nparams = c.nparams ∧ dc.nIdx = c.nIdx := H
-grind_pattern [bridge_grind] CapsFields.some => CapsFields c (some dc)
 
 end ConRon.Bridge

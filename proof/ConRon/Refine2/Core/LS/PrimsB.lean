@@ -197,12 +197,6 @@ open ConRon.Refine.Nat in
   fun _ h => (from_u64_refines h).symm
 
 open ConRon.Refine.Nat in
-@[lockstep] theorem nat_to_u64_spec (a : ron.nat.Nat) (ha : NatWF a) :
-    LSP (ron.nat.to_u64 a)
-      (fun o => (∃ x : Std.U64, o = some x ∧ x.val = toNat a) ∨ (o = none ∧ 2 ^ 64 ≤ toNat a)) :=
-  fun _ h => to_u64_refines ha h
-
-open ConRon.Refine.Nat in
 @[lockstep] theorem nat_beq_spec (a b : ron.nat.Nat) (ha : NatWF a) (hb : NatWF b) :
     LSP (ron.nat.beq a b) (fun r => r = decide (toNat a = toNat b)) :=
   fun _ h => beq_refines ha hb h

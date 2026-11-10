@@ -225,17 +225,6 @@ theorem nidx_vec_contains_from_aux (ns : alloc.vec.Vec arena.handle.NIdx)
   rw [← Result.ok_injective h, dupId_nidx _ _ hn, dupId_eidx _ _ he,
     alloc.vec.Vec.ext _ _ hvv]
 
-@[lockstep] theorem i_ind_caps_dup_ls (c : arena.env.IIndCaps) :
-    LSP (arena.env.i_ind_caps_dup c) (fun o => c.eta = o.eta ∧ absIIndCaps c = absIIndCaps o) := by
-  intro o h
-  have habs := (i_ind_caps_dup_abs h).symm
-  rw [arena.env.i_ind_caps_dup] at h
-  obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have ho := Result.ok_injective h
-  subst ho
-  exact ⟨rfl, habs⟩
-
 /-! ### The abstractions' field projections (`lockstep_simp`)
 
 Stated as projection lemmas rather than by unfolding the abstraction, so that
