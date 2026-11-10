@@ -29,7 +29,7 @@ cursors, and is sound for the same reason: the two orders of EFFECT agree
 ## What these lemmas wait on
 
 `Refine2/Specs.lean`'s `intern_*` family, `Refine2/ExprOps/**`'s
-`inst_pis_at_lift`, `Refine2/Core/LS/{Leaves,Prims}.lean`'s `zero_level` and
+`instantiate_lift_fast` and `strip_pis`, `Refine2/Core/LS/{Leaves,Prims}.lean`'s `zero_level` and
 spine readers (`get_app_fn`, `get_app_args`), and `Refine2/Inductives/Spec.lean`'s
 `_unfold` equations.  **No clause of `KnotRel`.**
 -/
@@ -51,10 +51,9 @@ open ConRon.Arena
 
 /-! ## Helpers for Shape/Abs
 
-Bridges this file needs: `Core/Arms/Delta`'s `core_walk_fuel_abs` as a
-`lockstep_simp` fact (it is one in `Checker/KnotHyp`), and `inst_pis_at_lift`'s
-`ExprOps` companion at the walk fuel and this tier's abstractions.  Both are
-`local` so nothing clashes when those tiers are imported together
+The bridge this file needs: `Core/Arms/Delta`'s `core_walk_fuel_abs` as a
+`lockstep_simp` fact (it is one in `Checker/KnotHyp`).  It is `local` so
+nothing clashes when those tiers are imported together
 (`Checker/Base`'s `absU_beq_u64` is a global `lockstep_simp` row). -/
 
 attribute [local lockstep_simp] core_walk_fuel_abs
@@ -276,32 +275,35 @@ open Lockstep in
 
 open Lockstep in
 theorem struct_proj_bodies_go_aux {pers} {t : arena.handle.NIdx} (N : Nat) :
-    ∀ (k i : Std.U64) (h : arena.handle.EIdx) (out : alloc.vec.Vec arena.handle.EIdx) st lst,
+    ∀ (vs : alloc.vec.Vec arena.handle.EIdx) (k i : Std.U64) (h : arena.handle.EIdx)
+      (out : alloc.vec.Vec arena.handle.EIdx) st lst,
       k.val = N → AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = (Option.map absEIdxL) a)
-        (arena.inductives.struct_parts.struct_proj_bodies_go pers st t k i h out) lst
-        (do pure ((← structProjBodiesGo (absNIdx t) (absU k) (absU i) (absEIdx h)).map
-          fun r => absEIdxL out ++ r)) := by
+        (arena.inductives.struct_parts.struct_proj_bodies_go pers st t vs k i h out) lst
+        (do pure ((← structProjBodiesGo (absNIdx t) (absEIdxArr vs) (absU k) (absU i)
+          (absEIdx h)).map fun r => absEIdxL out ++ r)) := by
   induction N with
   | zero =>
-    intro k i h out st lst hk hrel hinv
+    intro vs k i h out st lst hk hrel hinv
     have h0 : k = 0#u64 := by scalar_tac
     subst h0
     rw [arena.inductives.struct_parts.struct_proj_bodies_go.eq_def, ite_eq_left rfl,
       show absU (0#u64 : Std.U64) = 0 from rfl, structProjBodiesGo]
     lockstep
   | succ N ih =>
-    intro k i h out st lst hk hrel hinv
+    intro vs k i h out st lst hk hrel hinv
     rw [arena.inductives.struct_parts.struct_proj_bodies_go.eq_def, ite_eq_right (by scalar_tac),
       show absU k = N + 1 by simp [absU, hk], structProjBodiesGo]
     lockstep
     -- the tail call: the twin's `some (fdom :: r)` against the port's `out`
     -- grown by `fdom`
-    rename_i b out1 hout1 k1 hk1
-    refine LS.tail (ih k1 _ b out1 _ _ (by scalar_tac) ‹_› ‹_›) ?_ (fun _ _ h => h)
+    rename_i b vs1 hvs1 out1 hout1 k1 hk1
+    refine LS.tail (ih vs1 k1 _ _ out1 _ _ (by scalar_tac) ‹_› ‹_›) ?_ (fun _ _ h => h)
     have e1 : absU k1 = N := by simp only [absU]; scalar_tac
     have e2 : absU a = (i : Nat) + 1 := by simp only [absU]; scalar_tac
-    rw [e1, e2]
+    have e3 : absEIdxArr vs1 = (absEIdxArr vs).push (absEIdx b) := by
+      simp [absEIdxArr, absEIdxL, hvs1]
+    rw [e1, e2, e3]
     refine am_bind_congr _ ?_; intro x
     cases x <;> simp [absEIdxL, hout1]
 
@@ -309,24 +311,24 @@ open Lockstep in
 /-- `struct_proj_bodies_go` from field `0` and an empty accumulator, read as
 the twin's `structProjBodies` tail (the list to an array). -/
 @[lockstep] theorem struct_proj_bodies_go_new_ls {pers st lst} {t : arena.handle.NIdx}
-    {k : Std.U64} {h : arena.handle.EIdx}
+    {vs : alloc.vec.Vec arena.handle.EIdx} {k : Std.U64} {h : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = (Option.map absEIdxL a).map List.toArray)
-      (arena.inductives.struct_parts.struct_proj_bodies_go pers st t k 0#u64 h
+      (arena.inductives.struct_parts.struct_proj_bodies_go pers st t vs k 0#u64 h
         (alloc.vec.Vec.new arena.handle.EIdx)) lst
-      (do match ← structProjBodiesGo (absNIdx t) (absU k) 0 (absEIdx h) with
+      (do match ← structProjBodiesGo (absNIdx t) (absEIdxL vs).toArray (absU k) 0 (absEIdx h) with
         | some l => pure (some l.toArray)
         | none => pure none) := by
   have h1 := LS.tail_bind_pure (f := fun o => o.map List.toArray) (R := fun a b => b = (Option.map absEIdxL a).map List.toArray)
-    (struct_proj_bodies_go_aux (pers := pers) (t := t) _ k 0#u64 h (alloc.vec.Vec.new _) st lst rfl hrel hinv)
+    (struct_proj_bodies_go_aux (pers := pers) (t := t) _ vs k 0#u64 h (alloc.vec.Vec.new _) st lst rfl hrel hinv)
     (fun a b hb => by rw [hb])
-  have e : ((do pure ((← structProjBodiesGo (absNIdx t) (absU k) (absU (0#u64 : Std.U64)) (absEIdx h)).map
+  have e : ((do pure ((← structProjBodiesGo (absNIdx t) (absEIdxArr vs) (absU k) (absU (0#u64 : Std.U64)) (absEIdx h)).map
       fun r => absEIdxL (alloc.vec.Vec.new arena.handle.EIdx) ++ r)) >>=
         fun b => pure (Option.map List.toArray b) : AM _) =
-      (do match ← structProjBodiesGo (absNIdx t) (absU k) 0 (absEIdx h) with
+      (do match ← structProjBodiesGo (absNIdx t) (absEIdxL vs).toArray (absU k) 0 (absEIdx h) with
         | some l => pure (some l.toArray)
         | none => pure none) := by
-    simp only [bind_assoc, pure_bind]
+    simp only [bind_assoc, pure_bind, absEIdxArr]
     refine am_bind_congr _ ?_; intro o
     cases o <;> simp [absEIdxL, alloc.vec.Vec.new]
   rwa [e] at h1

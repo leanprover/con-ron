@@ -6,12 +6,13 @@
 binder-domain walk and the checks of the projection TABLE a structure-like
 member installs (the table itself is read off the block, `Arena/Install.lean`).
 
-**The `…F` twins collapse into these** (task #97c's deviation 1): con-leche
-carries each of this module's two functions twice — once over `Env`
-(`StructInstall.lean`) and once over `FEnv`
-(`ConLeche/Kernel/Inductives/StructInstallF.lean`), and
-`checkStructDomsAtFA` a third time over `Array`.  The arena has ONE
-environment type, the index, so the twin is one function citing all of them.
+**The cached twins collapse into these**: con-leche carries each of this
+module's two functions twice — the specification over `Env`
+(`StructInstall.lean`) and the cached driver's twin over `FEnv`
+(`checkStructDomsAtC`, `ConLeche/Cached/IndBlock.lean`;
+`checkStructProjTableC`, `ConLeche/Cached/IndTail.lean`).  The arena has ONE
+environment type, the index, and one tier, so the twin is one function citing
+both.
 -/
 module
 
@@ -24,10 +25,7 @@ namespace ConRon.Arena
 open ConLeche
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:31-50 checkStructDomsAt
-con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:25-34 checkStructDomsAtF
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StructInstall.checkStructDomsAt_bridge, then delete this line
-con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:36-46 checkStructDomsAtFA
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StructInstall.checkStructDomsAt_bridge, then delete this line
+con-leche: ConLeche/Cached/IndBlock.lean:117-125 checkStructDomsAtC
 The reference kernels' binder-domain comparisons, run binder by binder **at
 its own frame**: the `j`-th opened variable's annotation against the `j`-th
 expected domain, at frame `off + j`.  Walks from the last binder to the
@@ -43,33 +41,27 @@ def checkStructDomsAt (mode : CheckMode) (fe : IFEnv) (off : Nat)
     checkStructDomsAt mode fe off fvs doms j
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-74 checkStructProjTable
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StructInstall.checkStructProjTable_bridge, then delete this line
-con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-89 checkStructProjTableF
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StructInstall.checkStructProjTable_bridge, then delete this line
-Stage 5: **the projection table's checks** (task #175 S1): the fields'
-result-type bodies read off the stored constructor type by substitution alone,
-validated once; the table follows its structure, declared by the same block
-(the structure must be stored), and its name is not yet taken.  Nothing is
-pushed: the table is the block's install (`Arena/Install.lean`'s
-`blockTables`). -/
-def checkStructProjTable (T : NIdx) (lps : List NIdx) (nP nF : Nat)
-    (cvCa : IConstantVal) (fe : IFEnv) : AM Unit := do
-  let bodies ← unwrapOr (← structProjBodies T nP nF cvCa.type)
-    (.internal "direct structure: projection bodies")
+con-leche: ConLeche/Cached/IndTail.lean:194-202 checkStructProjTableC
+Stage 5: **the projection table's checks** (task #175 S1), at the table the
+block installs (`Arena/Install.lean`'s `blockTables`): its bodies' scoping at
+its own level parameters and parameter count, validated once; the table
+follows its structure, declared by the same block (the structure must be
+stored), and its name is not yet taken.  Nothing is pushed. -/
+def checkStructProjTable (t : IProjTable) (fe : IFEnv) : AM Unit := do
   -- the bodies' scoping, validated once at insertion: fvar-free, level
   -- parameters within the structure's, resolving, scoped at the parameters
   -- and the subject; one per field
-  let scopedOk ← bodies.toList.allM fun b => do
+  let scopedOk ← t.bodies.toList.allM fun b => do
     pure (!(← hasFvarFast coreWalkFuel b) &&
-      (← allLevelParamsDefined lps b) &&
+      (← allLevelParamsDefined t.levelParams b) &&
       (← constsResolveFFast fe b) &&
-      (← looseBVarsBoundedFast coreWalkFuel (nP + 1) b))
-  unless bodies.size = nF ∧ scopedOk do
+      (← looseBVarsBoundedFast coreWalkFuel (t.numParams + 1) b))
+  unless t.bodies.size = t.numFields ∧ scopedOk do
     fail (.internal "direct structure: projection body scoping")
   -- the table follows its structure (declared by the same block)
-  unless (fe.find? T).isSome do
+  unless (fe.find? t.structName).isSome do
     fail (.internal "direct structure: projection table before its structure")
-  unless (fe.findTable? T).isNone do
+  unless (fe.findTable? t.structName).isNone do
     fail (.invalid "projection table taken")
 
 end ConRon.Arena

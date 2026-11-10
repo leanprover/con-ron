@@ -994,7 +994,7 @@ Four shapes cover the whole `ExprOps` tier:
 * `RelV f st c x` — a handle in, a REPRESENTATION-FREE value out (`Bool`,
   `Nat`: `wscopedB`, `sizeB`, `bvarBound`).  No target store,
   because the answer names none;
-* `RelEO f st c st' r` — an `Option` handle out (`instPisAtLift`);
+* `RelEO f st c st' r` — an `Option` handle out (`peelPis`);
 * `RelEL f st c st' rs` — a LIST of handles out (`getAppArgs`, `bvarRange`).
 
 The level and name shapes (`RelL`, `RelLs`) are the same at `denoteL` /

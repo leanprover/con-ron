@@ -283,9 +283,10 @@ abbrev LiftMemoA (amount : Nat) (s : AState) : Prop :=
 abbrev Abs1MemoA (d : Nat) (s : AState) : Prop :=
   MemoOK (fun k e => Expr.abstract1 e d k) s.memos.abs1C s.store
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2205-2207 Inst1LMemoInv. -/
-abbrev Inst1LMemoA (ve : Expr) (s : AState) : Prop :=
-  MemoOK (fun d e => Expr.instantiate1Lift e ve d) s.memos.inst1LC s.store
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:383-414 instantiateLiftXP (its
+memo, `MemoXP (instantiateLiftP vs)`). -/
+abbrev InstLiftMemoA (ws : List Expr) (s : AState) : Prop :=
+  MemoOK (fun d e => Expr.instantiateLift e ws d) s.memos.inst1LC s.store
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2546-2550 InstLPMemoInv, at
 cursor `0`. -/

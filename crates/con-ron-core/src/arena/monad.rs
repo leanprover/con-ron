@@ -183,7 +183,7 @@ impl Eq2 for EIdxNat {
 /// is what lets a `…Fast` entry clear one without its callers seeing it.
 ///
 /// **Eight tables, one per con-leche `…Go` the arena runs**, because the walks
-/// NEST: `instantiate1Lift`'s `bvar` arm runs `liftLooseBVars`, so a shared
+/// NEST: `instantiateLift`'s `bvar` arm runs `liftLooseBVars`, so a shared
 /// table would answer one walk with the other's answers.  One of those walks
 /// has no cursor (`instLPGo` keys on the node alone); the arena keys it at
 /// cursor `0`, so that all six handle-valued tables have one shape.
@@ -199,7 +199,7 @@ pub struct Memos {
     pub lift_c: HashMap<EIdxNat, EIdx>,
     /// `abstract1` (`ExprOps.lean:1789-1833`).
     pub abs1_c: HashMap<EIdxNat, EIdx>,
-    /// `instantiate1Lift` (`ExprOps.lean:2222-2261`).
+    /// `instantiateLift` (`Cached/ExprOpsC.lean:383-414`).
     pub inst1_l_c: HashMap<EIdxNat, EIdx>,
     /// `instantiateLevelParams` (`ExprOps.lean:2564-2603`), at cursor `0`.
     pub inst_lp_c: HashMap<EIdxNat, EIdx>,
@@ -1341,10 +1341,9 @@ pub fn abs1_clear(st: &mut AState) {
     reset_map(&mut st.memos.abs1_c)
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2035-2074 instantiate1LiftGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::inst1_l_get_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:372-381 enterLiftP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:703-706 inst1LGet` — probe the
-/// `instantiate1Lift` memo.
+/// `instantiateLift` memo.
 pub fn inst1_l_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
     match st.memos.inst1_l_c.get(k) {
         Some(r) => Some(r.dup2()),
@@ -1352,18 +1351,16 @@ pub fn inst1_l_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2035-2074 instantiate1LiftGo
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::inst1_l_set_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:372-381 enterLiftP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:708-714 inst1LSet` — record an
-/// `instantiate1Lift` answer.
+/// `instantiateLift` answer.
 pub fn inst1_l_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
     st.memos.inst1_l_c.insert(k, r.dup2());
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2169-2171 instantiate1LiftFast
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove monad::inst1_l_clear_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:416-420 instantiateLiftC
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:716-720 inst1LClear` — drop the
-/// `instantiate1Lift` memo (it depends on `v`).
+/// `instantiateLift` memo (it depends on the values).
 pub fn inst1_l_clear(st: &mut AState) {
     reset_map(&mut st.memos.inst1_l_c)
 }

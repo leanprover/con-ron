@@ -107,32 +107,38 @@ def structProjArgP (T : NIdx) (j : Nat) : AM EIdx := do
   internE (.proj T j b)
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:89-110 structProjBodiesGo
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StructParts.structProjBodiesGo_bridge, then delete this line
+con-leche: ConLeche/Cached/CheckerC.lean:28-34 structProjBodiesGoC
 **The projection bodies of a recognised block**, one walk of the constructor
-telescope: field `i`'s domain is body `i`, and the field is replaced by the
-subject's projection `.proj T i (bvar 0)` before the walk continues. -/
-def structProjBodiesGo (T : NIdx) : Nat → Nat → EIdx → AM (Option (List EIdx))
+telescope: field `i`'s raw domain is substituted once (`instantiateLiftFast`)
+at the values of the binders before it, and the field's own value, the
+subject's projection `.proj T i (bvar 0)`, is pushed onto the values before the
+walk continues; the rest of the telescope is never rewritten.  `vs` is in PUSH
+order: con-leche's list, innermost first, is its reverse. -/
+def structProjBodiesGo (T : NIdx) (vs : Array EIdx) : Nat → Nat → EIdx → AM (Option (List EIdx))
   | 0, _, _ => pure (some [])
   | k + 1, i, h => do
     if h.tag == ETag.forallE then
       match ← view h with
       | .forallE fdom body => do
+        let b ← instantiateLiftFast coreWalkFuel fdom vs 0
         let a ← structProjArgP T i
-        let b ← instantiate1LiftFast coreWalkFuel body a 0
-        match ← structProjBodiesGo T k (i + 1) b with
-        | some r => pure (some (fdom :: r))
+        match ← structProjBodiesGo T (vs.push a) k (i + 1) body with
+        | some r => pure (some (b :: r))
         | none => pure none
       | _ => pure none
     else pure none
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:112-115 structProjBodies
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove StructParts.structProjBodies_bridge, then delete this line
-The block's projection bodies, as the table stores them. -/
+con-leche: ConLeche/Cached/CheckerC.lean:36-41 structProjBodiesC
+The block's projection bodies, as the table stores them: the parameter binders
+skipped, then the fields' walk at the parameters' values (`structProjPs`,
+which in push order is con-leche's reversed list itself). -/
 def structProjBodies (T : NIdx) (nP nF : Nat) (cty : EIdx) :
     AM (Option (Array EIdx)) := do
-  match ← instPisAtLift coreWalkFuel (← structProjPs nP) cty with
-  | some r => do
-    match ← structProjBodiesGo T nF 0 r with
+  match ← stripPis nP cty with
+  | some p => do
+    let ps ← structProjPs nP
+    match ← structProjBodiesGo T ps.toArray nF 0 p.2 with
     | some l => pure (some l.toArray)
     | none => pure none
   | none => pure none

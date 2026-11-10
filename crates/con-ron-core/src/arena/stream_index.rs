@@ -4,7 +4,8 @@
 //! con-leche's `Cached/StreamIndex.lean`.
 //!
 //! The stream's index is built once, after the parse and before any check,
-//! from the records alone (`install::decl_constants`, `install::decl_tables`):
+//! from the records alone (`install::decl_constants`, `install::decl_tables`,
+//! con-leche's `declConstantsC`/`declTablesC`):
 //! every constant with its counter, its position among all the constants of
 //! the stream, and every table with its record's position.  It is never written
 //! again: `checker::freeze_tier` moves it into the `PersTier`, the base every
@@ -133,7 +134,6 @@ pub fn insert_tables(ix: IStreamIndex, r: u64, ts: Vec<IProjTable>, i: usize) ->
 }
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:57-62 StreamIndex.add
-/// con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove stream_index::stream_index_add_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:56-65 IStreamIndex.add` — one
 /// record into the index: its first counter, its constants, its tables at its
 /// position.

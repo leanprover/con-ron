@@ -187,8 +187,8 @@ def main (_args : List String) : IO UInt32 := do
     IO.println "  -- without the memo every one of these is exponential"
     timed "instantiate1Fast  " st (do
       let r ← instantiate1Fast benchFuel fx.tower fx.sub 1; pure r.word.toNat)
-    timed "instantiate1LiftF " st (do
-      let r ← instantiate1LiftFast benchFuel fx.tower fx.sub 1; pure r.word.toNat)
+    timed "instantiateLiftF  " st (do
+      let r ← instantiateLiftFast benchFuel fx.tower #[fx.sub] 1; pure r.word.toNat)
     timed "instLPFast        " st (do
       let r ← instLPFast benchFuel [fx.uName] fx.usZero fx.tower; pure r.word.toNat)
     timed "bvarBoundMemo     " st (bvarBoundMemo benchFuel fx.tower)

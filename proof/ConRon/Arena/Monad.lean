@@ -68,7 +68,7 @@ con-leche threads each memo as an explicit argument-and-result pair
 (`instantiate1Go v memo e d : Expr × Std.HashMap …`); the arena carries them
 in the state, which is what the census's twin column means by "the `…Go`
 family loses the pair and the `AM` carries it".  Eight tables, one per
-con-leche `…Go` the arena runs, because the walks NEST — `instantiate1Lift`'s `bvar` arm
+con-leche `…Go` the arena runs, because the walks NEST — `instantiateLift`'s `bvar` arm
 calls `liftLooseBVars`, so a single shared table would answer one walk with
 the other's answers.
 
@@ -90,7 +90,7 @@ structure Memos where
   liftC : Std.HashMap (EIdx × Nat) EIdx
   /-- `abstract1` (`ExprOps.lean:1789-1833`). -/
   abs1C : Std.HashMap (EIdx × Nat) EIdx
-  /-- `instantiate1Lift` (`ExprOps.lean:2222-2261`). -/
+  /-- `instantiateLift` (`Cached/ExprOpsC.lean:383-414`). -/
   inst1LC : Std.HashMap (EIdx × Nat) EIdx
   /-- `instantiateLevelParams` (`ExprOps.lean:2564-2603`), at cursor `0`. -/
   instLPC : Std.HashMap (EIdx × Nat) EIdx
@@ -714,24 +714,21 @@ the `liftLooseBVars` memo (it depends on `amount`). -/
   let s ← get
   set { s with memos := { s.memos with abs1C := ∅ } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2035-2074 instantiate1LiftGo —
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Monad.inst1LGet_bridge, then delete this line
-probe the `instantiate1Lift` memo. -/
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:372-381 enterLiftP —
+probe the `instantiateLift` memo. -/
 @[inline] def inst1LGet (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.inst1LC[k]?
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2035-2074 instantiate1LiftGo —
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Monad.inst1LSet_bridge, then delete this line
-record an `instantiate1Lift` answer. -/
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:372-381 enterLiftP —
+record an `instantiateLift` answer. -/
 @[noinline] def inst1LSet (k : EIdx × Nat) (r : EIdx) : AM Unit := do
   let s ← get
   let mp := s.memos.inst1LC
   let s := { s with memos := { s.memos with inst1LC := ∅ } }
   set { s with memos := { s.memos with inst1LC := mp.insert k r } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2169-2171 instantiate1LiftFast —
--- con-leche: CHANGED since 501589f5 — re-port, re-test, re-prove Monad.inst1LClear_bridge, then delete this line
-drop the `instantiate1Lift` memo (it depends on `v`). -/
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:416-420 instantiateLiftC —
+drop the `instantiateLift` memo (it depends on the values). -/
 @[noinline] def inst1LClear : AM Unit := do
   let s ← get
   set { s with memos := { s.memos with inst1LC := ∅ } }
