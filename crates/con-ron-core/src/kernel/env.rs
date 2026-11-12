@@ -226,12 +226,15 @@ pub struct IndCaps {
     pub n_idx: u64,
     /// the family's constructors, in declaration order (official's `cnstrs`)
     pub ctors: Vec<Name>,
+    /// the family's sort is never zero at every level instantiation, read off
+    /// the former's stored type at its check; `false` claims nothing
+    pub never_zero: bool,
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:184-227 IndCaps
 /// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove env::ind_caps_default_refines, then delete this line
 /// The cited structure's *field defaults*, which Rust has not: `eta :=
-/// false`, every count `0`, every list empty.
+/// false`, `never_zero := false`, every count `0`, every list empty.
 pub fn ind_caps_default() -> IndCaps {
     IndCaps {
         eta: false,
@@ -239,12 +242,14 @@ pub fn ind_caps_default() -> IndCaps {
         nparams: 0,
         n_idx: 0,
         ctors: Vec::new(),
+        never_zero: false,
     }
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:288-312 ConstantInfo
 /// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove env::ConstantInfo_refines, then delete this line
-/// Information stored about an accepted constant.  A recursor carries its
+/// Information stored about an accepted constant.  A constructor carries its
+/// family's name (official's `ConstructorVal.induct`).  A recursor carries its
 /// record's K flag (official's `recursor_val::is_k`), the `bool` before its
 /// rules.
 pub enum ConstantInfo {
@@ -252,7 +257,7 @@ pub enum ConstantInfo {
     DefnInfo(ConstantVal, Expr, ReducibilityHint),
     ThmInfo(ConstantVal),
     IndInfo(ConstantVal, IndCaps),
-    CtorInfo(ConstantVal, u64, u64),
+    CtorInfo(ConstantVal, u64, u64, Name),
     RecInfo(ConstantVal, u64, u64, bool, Vec<RecRule>),
 }
 

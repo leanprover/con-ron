@@ -44,6 +44,7 @@ use crate::arena::store::PersTier;
 use crate::kernel::core_types;
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env::CheckMode;
+use crate::kernel::prop_when;
 use crate::ron::hashmap::{Dup, Eq2};
 
 // ---------------------------------------------------------------------------
@@ -150,10 +151,20 @@ pub fn ctor_name_list(cs: &Vec<(IConstantVal, u64)>, i: usize, out: Vec<NIdx>) -
 /// capability record of member `mi`**: at a member with ONE constructor, η
 /// (index-free, the block not recursive: official's `is_non_rec_structure`;
 /// no separate unit-like bit, as official has none); at every member the block's members, its
-/// parameter count, the member's index count and its constructors.
-/// (`p.members.getD mi default`: the default member has no constructor and no
-/// index.)
-pub fn block_caps_at(p: &BlockShape, mi: u64, is_rec: bool) -> IIndCaps {
+/// parameter count, the member's index count, its constructors and whether
+/// its sort is never zero (`member_never_zero`).  (`p.members.getD mi
+/// default`: the default member has no constructor and no index.)
+pub fn block_caps_at(
+    pers: &PersTier,
+    st: &mut AState,
+    p: &BlockShape,
+    mi: u64,
+    is_rec: bool,
+) -> Result<IIndCaps, CheckError> {
+    let never_zero: bool = match member_never_zero(pers, st, p, mi) {
+        Err(e) => return Err(e),
+        Ok(b) => b,
+    };
     let names: Vec<NIdx> = shape_member_names(p);
     if mi < p.members.len() as u64 && p.members[mi as usize].ctors.len() == 1 {
         let n_idx: u64 = p.members[mi as usize].n_idx;
@@ -167,13 +178,14 @@ pub fn block_caps_at(p: &BlockShape, mi: u64, is_rec: bool) -> IIndCaps {
         };
         let mut ctors: Vec<NIdx> = Vec::new();
         ctors.push(c_name);
-        IIndCaps {
+        Ok(IIndCaps {
             eta,
             all: names,
             nparams: p.n_p,
             n_idx,
             ctors,
-        }
+            never_zero,
+        })
     } else {
         let (cs, n_idx): (Vec<NIdx>, u64) = if mi < p.members.len() as u64 {
             (ctor_name_list(&p.members[mi as usize].ctors, 0, Vec::new()), p.members[mi as usize].n_idx)
@@ -185,7 +197,25 @@ pub fn block_caps_at(p: &BlockShape, mi: u64, is_rec: bool) -> IIndCaps {
         caps.nparams = p.n_p;
         caps.n_idx = n_idx;
         caps.ctors = cs;
-        caps
+        caps.never_zero = never_zero;
+        Ok(caps)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-82 blockCapsAt
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean memberNeverZero` — the
+/// cited `(formerZ (p.members.getD mi default).declared).isNever`: whether
+/// member `mi`'s former, as declared, ends in a sort that is never zero.  The
+/// default member's type ends in no sort, so its datum is `ifAllZero []`,
+/// which is not `never`.
+pub fn member_never_zero(pers: &PersTier, st: &mut AState, p: &BlockShape, mi: u64) -> Result<bool, CheckError> {
+    if mi < p.members.len() as u64 {
+        match core::former_z(pers, st, &p.members[mi as usize].declared) {
+            Err(e) => Err(e),
+            Ok(z) => Ok(prop_when::is_never(&z)),
+        }
+    } else {
+        Ok(false)
     }
 }
 
@@ -441,13 +471,26 @@ pub fn check_block_agree(
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:161-169 consBlockInds` —
 /// the members' formers consed, in block order (member 0 deepest), each with
 /// ITS capability record at the block's `is_rec` verdict.
-pub fn cons_block_inds(p1: &BlockShape, is_rec: bool, cvs: &Vec<IConstantVal>, i: usize, fe: IFEnv) -> IFEnv {
+pub fn cons_block_inds(
+    pers: &PersTier,
+    st: &mut AState,
+    p1: &BlockShape,
+    is_rec: bool,
+    cvs: &Vec<IConstantVal>,
+    i: usize,
+    fe: IFEnv,
+) -> Result<IFEnv, CheckError> {
     if i >= cvs.len() {
-        fe
+        Ok(fe)
     } else {
-        let caps: IIndCaps = block_caps_at(p1, i as u64, is_rec);
-        let fe2: IFEnv = env::ifenv_push(fe, IConstantInfo::IndInfo(env::i_constant_val_dup(&cvs[i]), caps));
-        cons_block_inds(p1, is_rec, cvs, i + 1, fe2)
+        match block_caps_at(pers, st, p1, i as u64, is_rec) {
+            Err(e) => Err(e),
+            Ok(caps) => {
+                let fe2: IFEnv =
+                    env::ifenv_push(fe, IConstantInfo::IndInfo(env::i_constant_val_dup(&cvs[i]), caps));
+                cons_block_inds(pers, st, p1, is_rec, cvs, i + 1, fe2)
+            }
+        }
     }
 }
 
@@ -492,8 +535,10 @@ pub fn check_block_inds(
                         Err(e) => Err(e),
                         Ok(p1) => {
                             let declared: Vec<IConstantVal> = member_declared(&p.members, 0, Vec::new());
-                            let fe1: IFEnv = cons_block_inds(&p1, is_rec, &declared, 0, fe);
-                            Ok((fe1, p1))
+                            match cons_block_inds(pers, st, &p1, is_rec, &declared, 0, fe) {
+                                Err(e) => Err(e),
+                                Ok(fe1) => Ok((fe1, p1)),
+                            }
                         }
                     },
                 },
@@ -820,12 +865,18 @@ pub fn check_block_idx_sorts(
 /// con-leche: ConLeche/Cached/IndBlock.lean:49-52 consBlockCtorsF
 /// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_install::cons_block_ctors_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:300-306 consBlockCtors` —
-/// the members' constructors consed from member `i` on, in block order.
-pub fn cons_block_ctors(n_p: u64, ctors_as: &Vec<Vec<(IConstantVal, u64)>>, i: usize, fe: IFEnv) -> IFEnv {
-    if i >= ctors_as.len() {
+/// the members' constructors consed from member `i` on, in block order, each
+/// group under its member's name (`block_shape::ctor_groups`).
+pub fn cons_block_ctors(
+    n_p: u64,
+    groups: &Vec<(NIdx, Vec<(IConstantVal, u64)>)>,
+    i: usize,
+    fe: IFEnv,
+) -> IFEnv {
+    if i >= groups.len() {
         fe
     } else {
-        let fe2: IFEnv = sum_install::cons_sum_ctors(n_p, &ctors_as[i], 0, fe);
-        cons_block_ctors(n_p, ctors_as, i + 1, fe2)
+        let fe2: IFEnv = sum_install::cons_sum_ctors(n_p, &groups[i].0, &groups[i].1, 0, fe);
+        cons_block_ctors(n_p, groups, i + 1, fe2)
     }
 }

@@ -305,8 +305,9 @@ pub fn check_block_tail(
     match block_install::check_block_idx_sorts(pers, st, mode, &q.env1, &q.p, 0) {
         Err(e) => Err(e),
         Ok(()) => {
-            let ctors: Vec<Vec<(IConstantVal, u64)>> = block_shape::member_ctors(&q.p.members, 0, Vec::new());
-            let fe2: IFEnv = block_install::cons_block_ctors(q.p.n_p, &ctors, 0, q.env1);
+            let groups: Vec<(NIdx, Vec<(IConstantVal, u64)>)> =
+                block_shape::ctor_groups(&q.p.members, 0, Vec::new());
+            let fe2: IFEnv = block_install::cons_block_ctors(q.p.n_p, &groups, 0, q.env1);
             core::flush_caches(st);
             let nested: bool = rec_check::block_nested_bit(&q.p, &q.kinds);
             match check_block_rec(pers, st, mode, fe2, &q.p, nested, &q.params, &q.tbl, &q.rd, &q.cls, block) {

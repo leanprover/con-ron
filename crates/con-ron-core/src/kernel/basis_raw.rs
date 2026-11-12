@@ -138,6 +138,7 @@ pub fn eq_refl_a() -> ConstantInfo {
         ),
         2,
         0,
+        bnm::eq_name(),
     )
 }
 
@@ -236,7 +237,7 @@ pub fn nat_a() -> ConstantInfo {
 /// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove basis_raw::nat_zero_a_refines, then delete this line
 /// `Nat.zero : Nat`.
 pub fn nat_zero_a() -> ConstantInfo {
-    ConstantInfo::CtorInfo(cv(bnm::nat_zero_name(), Vec::new(), nat_t()), 0, 0)
+    ConstantInfo::CtorInfo(cv(bnm::nat_zero_name(), Vec::new(), nat_t()), 0, 0, bnm::nat_name())
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:32-34 natSuccA
@@ -247,6 +248,7 @@ pub fn nat_succ_a() -> ConstantInfo {
         cv(bnm::nat_succ_name(), Vec::new(), pi(nat_t(), nat_t())),
         0,
         1,
+        bnm::nat_name(),
     )
 }
 
@@ -470,6 +472,7 @@ pub fn quot_mk_a() -> ConstantInfo {
         ),
         2,
         1,
+        bnm::quot_name(),
     )
 }
 
@@ -711,6 +714,7 @@ pub fn and_intro_raw() -> ConstantInfo {
         ),
         2,
         2,
+        bnm::and_name(),
     )
 }
 

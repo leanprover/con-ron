@@ -1160,9 +1160,9 @@ pub fn check_one_ctor(
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
 /// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::order_type_ctors_refines, then delete this line
-/// One type former's constructors, in the order the type record LISTS them:
-/// the inner `for` of the twin's reordering, with the accumulator passed by
-/// value.
+/// One type former's constructors, in the order the type record LISTS them,
+/// each with that type `t`, its `induct`: the inner `for` of the twin's
+/// reordering, with the accumulator passed by value.
 pub fn order_type_ctors(
     pers: &PersTier,
     ar: &EStore,
@@ -1173,8 +1173,8 @@ pub fn order_type_ctors(
     cts: &Vec<IndCtorRec>,
     ctor_ix: &HashMap<NIdx, u64>,
     n_pd: u64,
-    out: Vec<IndCtorRec>,
-) -> Result<Vec<IndCtorRec>, LineErr> {
+    out: Vec<(IndCtorRec, NIdx)>,
+) -> Result<Vec<(IndCtorRec, NIdx)>, LineErr> {
     let mut out = out;
     let n = ns.len();
     let mut j: u64 = 0;
@@ -1198,7 +1198,7 @@ pub fn order_type_ctors(
             Err(e) => return Err(e),
             Ok(()) => {}
         }
-        out.push(ind_ctor_rec_dup(&cts[k]));
+        out.push((ind_ctor_rec_dup(&cts[k]), t.dup2()));
         j += 1;
         i += 1;
     }
@@ -1209,7 +1209,8 @@ pub fn order_type_ctors(
 /// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::order_block_ctors_refines, then delete this line
 /// **The constructors IN THE BLOCK'S OWN ORDER**, `types[].ctors` in type
 /// order: a record array in another order is the same block, and the recursor
-/// generated from it is the same one.
+/// generated from it is the same one; each with the type that lists it, its
+/// `induct` (the record's own claim, where it makes one, is that type).
 pub fn order_block_ctors(
     pers: &PersTier,
     ar: &EStore,
@@ -1220,8 +1221,8 @@ pub fn order_block_ctors(
     cts: &Vec<IndCtorRec>,
     ctor_ix: &HashMap<NIdx, u64>,
     n_pd: u64,
-) -> Result<Vec<IndCtorRec>, LineErr> {
-    let mut out: Vec<IndCtorRec> = Vec::new();
+) -> Result<Vec<(IndCtorRec, NIdx)>, LineErr> {
+    let mut out: Vec<(IndCtorRec, NIdx)> = Vec::new();
     let n = ty_names.len();
     let mut t_at = 0usize;
     while t_at < n {
@@ -1497,7 +1498,7 @@ pub fn check_rec_records(
 /// every message is con-leche's; what changed is that a name comparison is a
 /// handle comparison and that a structural read of a type is a `view`.
 ///
-/// Deviation: con-leche returns `RecordVerdict ⊕ (List IndCtorRec × Nat)` and
+/// Deviation: con-leche returns `RecordVerdict ⊕ (List (IndCtorRec × Name) × Nat)` and
 /// the port returns the verdict through [`LineErr`], the module's one merged
 /// error channel.  The twin's two `for`/`mut` loops are the functions above
 /// (this module's note).
@@ -1508,7 +1509,7 @@ pub fn validate_ind_d(
     tys: &Vec<IndTypeRec>,
     cts: &Vec<IndCtorRec>,
     rcs: &Vec<IndRecRec>,
-) -> Result<(Vec<IndCtorRec>, u64), LineErr> {
+) -> Result<(Vec<(IndCtorRec, NIdx)>, u64), LineErr> {
     // an `unsafe inductive` is DECLINED, not an error
     if any_ty_unsafe(tys) {
         const M_UNSAFE_IND: [u32; 28] = [
@@ -1596,7 +1597,7 @@ pub fn validate_ind_d(
 pub fn ind_block_of(
     st: &StateD,
     tys: &Vec<IndTypeRec>,
-    cts: &Vec<IndCtorRec>,
+    cts: &Vec<(IndCtorRec, NIdx)>,
     rcs: &Vec<IndRecRec>,
 ) -> Result<Vec<IConstantInfo>, LineErr> {
     match ind_block_types(st, tys, Vec::new()) {
@@ -1631,20 +1632,21 @@ pub fn ind_block_types(
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:375-392 indBlockOfF
 /// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::ind_block_ctors_refines, then delete this line
-/// The cited `cts.mapM`.
+/// The cited `cts.mapM`: each constructor with the type that lists it as its
+/// `induct`.
 pub fn ind_block_ctors(
     st: &StateD,
-    cts: &Vec<IndCtorRec>,
+    cts: &Vec<(IndCtorRec, NIdx)>,
     out: Vec<IConstantInfo>,
 ) -> Result<Vec<IConstantInfo>, LineErr> {
     let mut out = out;
     let n = cts.len();
     let mut i = 0usize;
     while i < n {
-        let c = &cts[i];
+        let c = &cts[i].0;
         match parse_cv_d(st, &c.cv) {
             Err(e) => return Err(e),
-            Ok(cv) => out.push(IConstantInfo::CtorInfo(cv, c.num_params, c.num_fields)),
+            Ok(cv) => out.push(IConstantInfo::CtorInfo(cv, c.num_params, c.num_fields, cts[i].1.dup2())),
         }
         i += 1;
     }
@@ -1702,7 +1704,7 @@ pub fn ind_block_recs(
 pub fn install_ind_d(
     st: &mut StateD,
     tys: &Vec<IndTypeRec>,
-    cts: Vec<IndCtorRec>,
+    cts: Vec<(IndCtorRec, NIdx)>,
     rcs: &Vec<IndRecRec>,
     n_pd: u64,
 ) -> Result<(), LineErr> {

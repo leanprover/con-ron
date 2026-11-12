@@ -79,35 +79,62 @@ pub fn push_delta_tables(fe: IFEnv, q: Vec<IProjTable>, i: usize) -> IFEnv {
 /// con-leche: ConLeche/Kernel/Install.lean:26-28 blockFormers
 /// **The formers** from member `i` on, in block order, as declared, with the
 /// capabilities their block gives them.
-pub fn block_formers(p: &BlockShape, is_rec: bool, i: usize, out: Vec<IConstantInfo>) -> Vec<IConstantInfo> {
+pub fn block_formers(
+    pers: &PersTier,
+    st: &mut AState,
+    p: &BlockShape,
+    is_rec: bool,
+    i: usize,
+    out: Vec<IConstantInfo>,
+) -> Result<Vec<IConstantInfo>, CheckError> {
     if i >= p.members.len() {
-        out
+        Ok(out)
     } else {
-        let mut o: Vec<IConstantInfo> = out;
-        o.push(IConstantInfo::IndInfo(
-            env::i_constant_val_dup(&p.members[i].declared),
-            block_install::block_caps_at(p, i as u64, is_rec),
-        ));
-        block_formers(p, is_rec, i + 1, o)
+        match block_install::block_caps_at(pers, st, p, i as u64, is_rec) {
+            Err(e) => Err(e),
+            Ok(caps) => {
+                let mut o: Vec<IConstantInfo> = out;
+                o.push(IConstantInfo::IndInfo(env::i_constant_val_dup(&p.members[i].declared), caps));
+                block_formers(pers, st, p, is_rec, i + 1, o)
+            }
+        }
     }
 }
 
 /// con-leche: ConLeche/Kernel/Install.lean:30-33 blockCtors
 /// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove install::block_ctors_refines, then delete this line
-/// **The constructors of every member**, as declared, in block order (the
-/// list `p.allCtors` from `i` on).
+/// **The constructors of every member**, as declared, in block order, each
+/// under its member's name (the groups `p.ctorGroups` from `i` on).
 pub fn block_ctors(
     n_p: u64,
-    cs: &Vec<(IConstantVal, u64)>,
+    gs: &Vec<(NIdx, Vec<(IConstantVal, u64)>)>,
     i: usize,
     out: Vec<IConstantInfo>,
 ) -> Vec<IConstantInfo> {
-    if i >= cs.len() {
+    if i >= gs.len() {
+        out
+    } else {
+        let o: Vec<IConstantInfo> = block_ctors_group(n_p, &gs[i].0, &gs[i].1, 0, out);
+        block_ctors(n_p, gs, i + 1, o)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Install.lean:30-33 blockCtors
+/// One group of `block_ctors`: the inner `g.2.map`, constructor `j` on, each
+/// with its member's name `t` as its `induct`.
+pub fn block_ctors_group(
+    n_p: u64,
+    t: &NIdx,
+    cs: &Vec<(IConstantVal, u64)>,
+    j: usize,
+    out: Vec<IConstantInfo>,
+) -> Vec<IConstantInfo> {
+    if j >= cs.len() {
         out
     } else {
         let mut o: Vec<IConstantInfo> = out;
-        o.push(IConstantInfo::CtorInfo(env::i_constant_val_dup(&cs[i].0), n_p, cs[i].1));
-        block_ctors(n_p, cs, i + 1, o)
+        o.push(IConstantInfo::CtorInfo(env::i_constant_val_dup(&cs[j].0), n_p, cs[j].1, t.dup2()));
+        block_ctors_group(n_p, t, cs, j + 1, o)
     }
 }
 
@@ -322,9 +349,12 @@ pub fn block_constants(pers: &PersTier, st: &mut AState, p: &BlockShape) -> Resu
     match block_install::block_is_rec(pers, st, p) {
         Err(e) => Err(e),
         Ok(is_rec) => {
-            let formers: Vec<IConstantInfo> = block_formers(p, is_rec, 0, Vec::new());
-            let all: Vec<(IConstantVal, u64)> = block_shape::all_ctors(&p.members, 0, Vec::new());
-            let with_ctors: Vec<IConstantInfo> = block_ctors(p.n_p, &all, 0, formers);
+            let formers: Vec<IConstantInfo> = match block_formers(pers, st, p, is_rec, 0, Vec::new()) {
+                Err(e) => return Err(e),
+                Ok(v) => v,
+            };
+            let gs: Vec<(NIdx, Vec<(IConstantVal, u64)>)> = block_shape::ctor_groups(&p.members, 0, Vec::new());
+            let with_ctors: Vec<IConstantInfo> = block_ctors(p.n_p, &gs, 0, formers);
             block_recs(pers, st, p, &p.recs, 0, with_ctors)
         }
     }

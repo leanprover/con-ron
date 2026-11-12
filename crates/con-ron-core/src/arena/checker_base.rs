@@ -865,7 +865,7 @@ pub fn ind_params_ok_at(
                 Ok(None) => Ok(true),
             }
         }
-        IConstantInfo::CtorInfo(_, n_pc, _) => Ok(*n_pc == n_p),
+        IConstantInfo::CtorInfo(_, n_pc, _, _) => Ok(*n_pc == n_p),
         _ => Ok(true),
     }
 }

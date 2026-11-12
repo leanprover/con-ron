@@ -1367,7 +1367,7 @@ pub fn nest_ctor_entry(
     ci: &IConstantInfo,
 ) -> Result<Option<(IConstantVal, u64, u64)>, CheckError> {
     match ci {
-        IConstantInfo::CtorInfo(cv, n_pc, n_f) => {
+        IConstantInfo::CtorInfo(cv, n_pc, n_f, _) => {
             match expr_ops::strip_pis(pers, st, *n_pc + *n_f, &cv.ty) {
                 Err(e) => Err(e),
                 Ok(None) => Ok(None),

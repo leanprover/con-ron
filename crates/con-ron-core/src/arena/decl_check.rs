@@ -210,7 +210,7 @@ pub fn iff_intro_pinned(
     match iff_intro_name(st) {
         Err(e) => Err(e),
         Ok(n) => match ifenv_find(pers, fe, &n) {
-            Some(IConstantInfo::CtorInfo(cv_ii, n_p, n_f)) => {
+            Some(IConstantInfo::CtorInfo(cv_ii, n_p, n_f, _)) => {
                 if *n_p == 2 && *n_f == 2 {
                     let cv = crate::arena::env::i_constant_val_dup(cv_ii);
                     match iff_intro_a(pers, st) {
@@ -297,7 +297,7 @@ pub fn nonempty_intro_pinned(
     match nonempty_intro_name(st) {
         Err(e) => Err(e),
         Ok(n) => match ifenv_find(pers, fe, &n) {
-            Some(IConstantInfo::CtorInfo(cv_ni, n_p, n_f)) => {
+            Some(IConstantInfo::CtorInfo(cv_ni, n_p, n_f, _)) => {
                 if *n_p == 1 && *n_f == 1 {
                     let cv = crate::arena::env::i_constant_val_dup(cv_ni);
                     match nonempty_intro_a(pers, st) {
@@ -548,7 +548,7 @@ pub fn true_intro_pinned(
     match true_intro_name(st) {
         Err(e) => Err(e),
         Ok(n) => match ifenv_find(pers, fe, &n) {
-            Some(IConstantInfo::CtorInfo(cv_ti, n_p, n_f)) => {
+            Some(IConstantInfo::CtorInfo(cv_ti, n_p, n_f, _)) => {
                 if *n_p == 0 && *n_f == 0 {
                     let cv = crate::arena::env::i_constant_val_dup(cv_ti);
                     match true_intro_cv_a(pers, st) {

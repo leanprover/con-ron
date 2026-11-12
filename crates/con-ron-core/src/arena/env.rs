@@ -283,6 +283,12 @@ pub struct IIndCaps {
     pub n_idx: u64,
     /// the family's constructors, in declaration order (official's `cnstrs`)
     pub ctors: Vec<NIdx>,
+    /// the family's sort is never zero (official's `is_never_zero` at every
+    /// level instantiation): the former's stored type ends in a sort whose
+    /// zero-ness datum is unsatisfiable, read off it at its check
+    /// (`block_caps_at`); `false` claims nothing.  The ι step's case split
+    /// reads it in place of the walk to the family's sort.
+    pub never_zero: bool,
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:184-227 IndCaps
@@ -296,6 +302,7 @@ pub fn i_ind_caps_default() -> IIndCaps {
         nparams: 0,
         n_idx: 0,
         ctors: Vec::new(),
+        never_zero: false,
     }
 }
 
@@ -309,6 +316,7 @@ pub fn i_ind_caps_dup(c: &IIndCaps) -> IIndCaps {
         nparams: c.nparams,
         n_idx: c.n_idx,
         ctors: nidx_vec_dup(&c.ctors),
+        never_zero: c.never_zero,
     }
 }
 
@@ -371,14 +379,16 @@ pub fn i_proj_table_entry(tbl: &IProjTable, i: u64) -> IProjEntry {
 /// con-leche: ConLeche/Kernel/Env.lean:288-312 ConstantInfo
 /// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove env::IConstantInfo_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:133-145 IConstantInfo` — the
-/// information stored about an accepted constant, over handles; a recursor
-/// carries its record's K flag, the `bool` before its rules.
+/// information stored about an accepted constant, over handles; a constructor
+/// carries its family's name (official's `ConstructorVal.induct`, set by the
+/// install from the member it is declared under), a recursor its record's K
+/// flag, the `bool` before its rules.
 pub enum IConstantInfo {
     AxiomInfo(IConstantVal),
     DefnInfo(IConstantVal, EIdx, ReducibilityHint),
     ThmInfo(IConstantVal),
     IndInfo(IConstantVal, IIndCaps),
-    CtorInfo(IConstantVal, u64, u64),
+    CtorInfo(IConstantVal, u64, u64, NIdx),
     RecInfo(IConstantVal, u64, u64, bool, Vec<IRecRule>),
 }
 
@@ -397,8 +407,8 @@ pub fn i_constant_info_dup(c: &IConstantInfo) -> IConstantInfo {
         IConstantInfo::IndInfo(cv, caps) => {
             IConstantInfo::IndInfo(i_constant_val_dup(cv), i_ind_caps_dup(caps))
         }
-        IConstantInfo::CtorInfo(cv, a, b) => {
-            IConstantInfo::CtorInfo(i_constant_val_dup(cv), *a, *b)
+        IConstantInfo::CtorInfo(cv, a, b, t) => {
+            IConstantInfo::CtorInfo(i_constant_val_dup(cv), *a, *b, t.dup2())
         }
         IConstantInfo::RecInfo(cv, a, b, k, rs) => {
             IConstantInfo::RecInfo(i_constant_val_dup(cv), *a, *b, *k, i_rec_rules_dup(rs))
@@ -484,7 +494,7 @@ pub fn i_constant_info_to_constant_val(c: &IConstantInfo) -> IConstantVal {
         IConstantInfo::DefnInfo(v, _, _) => i_constant_val_dup(v),
         IConstantInfo::ThmInfo(v) => i_constant_val_dup(v),
         IConstantInfo::IndInfo(v, _) => i_constant_val_dup(v),
-        IConstantInfo::CtorInfo(v, _, _) => i_constant_val_dup(v),
+        IConstantInfo::CtorInfo(v, _, _, _) => i_constant_val_dup(v),
         IConstantInfo::RecInfo(v, _, _, _, _) => i_constant_val_dup(v),
     }
 }
@@ -498,7 +508,7 @@ pub fn i_constant_info_name(c: &IConstantInfo) -> NIdx {
         IConstantInfo::DefnInfo(v, _, _) => v.name.dup2(),
         IConstantInfo::ThmInfo(v) => v.name.dup2(),
         IConstantInfo::IndInfo(v, _) => v.name.dup2(),
-        IConstantInfo::CtorInfo(v, _, _) => v.name.dup2(),
+        IConstantInfo::CtorInfo(v, _, _, _) => v.name.dup2(),
         IConstantInfo::RecInfo(v, _, _, _, _) => v.name.dup2(),
     }
 }

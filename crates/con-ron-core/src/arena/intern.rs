@@ -401,6 +401,7 @@ pub fn intern_caps(pers: &PersTier, st: &mut AState, c: &IndCaps) -> Result<IInd
                 nparams: c.nparams,
                 n_idx: c.n_idx,
                 ctors,
+                never_zero: c.never_zero,
             }),
         },
     }
@@ -437,9 +438,12 @@ pub fn intern_ci_go(
                 Ok(caps) => Ok(IConstantInfo::IndInfo(cv, caps)),
             },
         },
-        ConstantInfo::CtorInfo(v, n_p, n_f) => match intern_cv_go(pers, st, m, v) {
+        ConstantInfo::CtorInfo(v, n_p, n_f, t) => match intern_cv_go(pers, st, m, v) {
             Err(err) => Err(err),
-            Ok(cv) => Ok(IConstantInfo::CtorInfo(cv, *n_p, *n_f)),
+            Ok(cv) => match intern_name(pers, st, t) {
+                Err(err) => Err(err),
+                Ok(ti) => Ok(IConstantInfo::CtorInfo(cv, *n_p, *n_f, ti)),
+            },
         },
         ConstantInfo::RecInfo(v, m_i, r_p, is_k, rs) => match intern_cv_go(pers, st, m, v) {
             Err(err) => Err(err),

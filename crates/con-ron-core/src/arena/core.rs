@@ -779,7 +779,7 @@ pub fn proj_indexed_struct_like(
             Some(IConstantInfo::IndInfo(_, caps)) => {
                 if caps.ctors.len() == 1 && caps.nparams < n_args {
                     match env::ifenv_find(pers, fe, &caps.ctors[0]) {
-                        Some(IConstantInfo::CtorInfo(_, _, n_f)) => i < *n_f,
+                        Some(IConstantInfo::CtorInfo(_, _, n_f, _)) => i < *n_f,
                         _ => false,
                     }
                 } else {
@@ -866,7 +866,7 @@ pub fn is_ctor_app(
             match view_const_name(pers, st, &h) {
                 None => fail_dangling_e(),
                 Some(c) => match env::ifenv_find(pers, fe, &c) {
-                    Some(IConstantInfo::CtorInfo(_, _, _)) => Ok(true),
+                    Some(IConstantInfo::CtorInfo(_, _, _, _)) => Ok(true),
                     Some(_) => Ok(false),
                     None => Ok(false),
                 },
@@ -946,35 +946,18 @@ pub fn former_never_zero(
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:87-94 ctorFamily
 /// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::ctor_family_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:382-395 ctorFamily` — **the family a
-/// constructor's type concludes in**: its former and its capabilities, `none`
-/// where its type concludes in no stored inductive.  Read out of the
-/// environment and copied out, as every reader of a stored record here does.
-pub fn ctor_family(
-    pers: &PersTier,
-    st: &AState,
-    fe: &IFEnv,
-    cvj: &IConstantVal,
-) -> Result<Option<(IConstantVal, IIndCaps)>, CheckError> {
-    match pi_result(pers, st, CORE_WALK_FUEL, &cvj.ty) {
-        Err(er) => Err(er),
-        Ok(pr) => match get_app_fn(pers, st, CORE_WALK_FUEL, &pr) {
-            Err(er) => Err(er),
-            Ok(h) => if h.tag() == ETAG_CONST {
-                match view_const_name(pers, st, &h) {
-                    None => fail_dangling_e(),
-                    Some(t) => match env::ifenv_find(pers, fe, &t) {
-                        Some(IConstantInfo::IndInfo(cvt, caps)) => {
-                            Ok(Some((env::i_constant_val_dup(cvt), env::i_ind_caps_dup(caps))))
-                        }
-                        Some(_) => Ok(None),
-                        None => Ok(None),
-                    },
-                }
-            } else {
-                Ok(None)
-            },
-        },
+/// Lean twin: `proof/ConRon/Arena/Core.lean:382-395 ctorFamily` — **a
+/// constructor's family**: the former and the capabilities stored at the
+/// constructor's `induct`, `none` where no inductive is stored there.  One
+/// lookup, no walk.  Read out of the environment and copied out, as every
+/// reader of a stored record here does.
+pub fn ctor_family(pers: &PersTier, fe: &IFEnv, induct: &NIdx) -> Option<(IConstantVal, IIndCaps)> {
+    match env::ifenv_find(pers, fe, induct) {
+        Some(IConstantInfo::IndInfo(cvt, caps)) => {
+            Some((env::i_constant_val_dup(cvt), env::i_ind_caps_dup(caps)))
+        }
+        Some(_) => None,
+        None => None,
     }
 }
 
@@ -1210,7 +1193,7 @@ pub fn nat_zero_ok(
     ci: Option<&IConstantInfo>,
 ) -> Result<bool, CheckError> {
     match ci {
-        Some(IConstantInfo::CtorInfo(cv, _, _)) => {
+        Some(IConstantInfo::CtorInfo(cv, _, _, _)) => {
             let lp0 = cv.level_params.len() == 0;
             let ty: EIdx = cv.ty.dup2();
             match pin_nat(st) {
@@ -1242,7 +1225,7 @@ pub fn nat_succ_ok(
     ci: Option<&IConstantInfo>,
 ) -> Result<bool, CheckError> {
     match ci {
-        Some(IConstantInfo::CtorInfo(cv, _, _)) => {
+        Some(IConstantInfo::CtorInfo(cv, _, _, _)) => {
             if cv.level_params.len() != 0 {
                 Ok(false)
             } else {
@@ -2131,14 +2114,15 @@ pub fn lit_shape_ok(
             match pin_nat_zero(st) {
                 Err(e) => Err(e),
                 Ok(a1) => if n.eq2(&a1) {
-                    let ci: IConstantInfo = IConstantInfo::CtorInfo(env::i_constant_info_to_constant_val(c), 0, 0);
+                    let ci: IConstantInfo =
+                        IConstantInfo::CtorInfo(env::i_constant_info_to_constant_val(c), 0, 0, a0.dup2());
                     nat_zero_ok(pers, st, Some(&ci))
                 } else {
                     match pin_nat_succ(st) {
                         Err(e) => Err(e),
                         Ok(a2) => if n.eq2(&a2) {
                             let ci: IConstantInfo =
-                                IConstantInfo::CtorInfo(env::i_constant_info_to_constant_val(c), 0, 1);
+                                IConstantInfo::CtorInfo(env::i_constant_info_to_constant_val(c), 0, 1, a0.dup2());
                             nat_succ_ok(pers, st, Some(&ci))
                         } else {
                             lit_shape_ok_str(pers, st, &n, c)
@@ -4703,7 +4687,7 @@ pub fn struct_eta_cert_with(
             match view_const(pers, st, &hd) {
                 None => fail_dangling_e(),
                 Some((c, us)) => match env::ifenv_find(pers, fe, &c) {
-                    Some(IConstantInfo::CtorInfo(cvc0, cn_p, cn_f)) => {
+                    Some(IConstantInfo::CtorInfo(cvc0, cn_p, cn_f, _)) => {
                         let cvc: IConstantVal = env::i_constant_val_dup(cvc0);
                         let want: u64 = *cn_p + *cn_f;
                         match get_app_args(pers, st, CORE_WALK_FUEL, a) {
@@ -4749,7 +4733,7 @@ pub fn eta_ctor_shape(
             match view_const_name(pers, st, &hd) {
                 None => fail_dangling_e(),
                 Some(c) => match env::ifenv_find(pers, fe, &c) {
-                    Some(IConstantInfo::CtorInfo(_, cn_p, cn_f)) => {
+                    Some(IConstantInfo::CtorInfo(_, cn_p, cn_f, _)) => {
                         let want: u64 = *cn_p + *cn_f;
                         match get_app_args(pers, st, CORE_WALK_FUEL, a) {
                             Err(e) => Err(e),
@@ -4771,38 +4755,20 @@ pub fn eta_ctor_shape(
 /// con-leche: ConLeche/Cached/StateC.lean:97-115 etaCtorPartialC
 /// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::eta_ctor_partial_fam_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1670-1686 etaCtorPartialFam` — the
-/// family half of `etaCtorPartial`: the family the constructor's type ends in
-/// is a stored η family whose projection table's constructor is `c`.
-pub fn eta_ctor_partial_fam(
-    pers: &PersTier,
-    st: &mut AState,
-    fe: &IFEnv,
-    c: &NIdx,
-    ty: &EIdx,
-) -> Result<bool, CheckError> {
-    match pi_result(pers, st, CORE_WALK_FUEL, ty) {
-        Err(e) => Err(e),
-        Ok(pr) => match get_app_fn(pers, st, CORE_WALK_FUEL, &pr) {
-            Err(e) => Err(e),
-            Ok(hd) => if hd.tag() == ETAG_CONST {
-                match view_const_name(pers, st, &hd) {
-                    None => fail_dangling_e(),
-                    Some(t) => match env::ifenv_find(pers, fe, &t) {
-                        Some(IConstantInfo::IndInfo(_, caps)) => {
-                            let eta: bool = caps.eta;
-                            match env::ifenv_find_table(pers, fe, &t) {
-                                Some(tbl) => Ok(eta && tbl.ctor.eq2(c)),
-                                None => Ok(false),
-                            }
-                        }
-                        Some(_) => Ok(false),
-                        None => Ok(false),
-                    },
-                }
-            } else {
-                Ok(false)
-            },
-        },
+/// family half of `etaCtorPartial`: the constructor's family (its record's
+/// `induct`, `t`) is a stored η family whose projection table's constructor
+/// is `c`.  One lookup, no walk.
+pub fn eta_ctor_partial_fam(pers: &PersTier, fe: &IFEnv, c: &NIdx, t: &NIdx) -> bool {
+    match env::ifenv_find(pers, fe, t) {
+        Some(IConstantInfo::IndInfo(_, caps)) => {
+            let eta: bool = caps.eta;
+            match env::ifenv_find_table(pers, fe, t) {
+                Some(tbl) => eta && tbl.ctor.eq2(c),
+                None => false,
+            }
+        }
+        Some(_) => false,
+        None => false,
     }
 }
 
@@ -4828,18 +4794,18 @@ pub fn eta_ctor_partial(
             match view_const_name(pers, st, &hd) {
                 None => fail_dangling_e(),
                 Some(c) => match env::ifenv_find(pers, fe, &c) {
-                    Some(IConstantInfo::CtorInfo(cvc0, cn_p, cn_f)) => {
-                        let ty: EIdx = cvc0.ty.dup2();
+                    Some(IConstantInfo::CtorInfo(_, cn_p, cn_f, t0)) => {
+                        let t: NIdx = t0.dup2();
                         let want: u64 = *cn_p + *cn_f;
                         match get_app_args(pers, st, CORE_WALK_FUEL, a) {
                             Err(e) => Err(e),
                             Ok(args) => {
                                 let n: u64 = args.len() as u64;
                                 if n < want {
-                                    match eta_ctor_partial_fam(pers, st, fe, &c, &ty) {
-                                        Err(e) => Err(e),
-                                        Ok(true) => Ok(Some(want - n)),
-                                        Ok(false) => Ok(None),
+                                    if eta_ctor_partial_fam(pers, fe, &c, &t) {
+                                        Ok(Some(want - n))
+                                    } else {
+                                        Ok(None)
                                     }
                                 } else {
                                     Ok(None)
@@ -5174,7 +5140,7 @@ pub fn unit_like_shape_at(
     n_f: u64,
 ) -> Result<Option<(EIdx, u64)>, CheckError> {
     match env::ifenv_find(pers, fe, tctor) {
-        Some(IConstantInfo::CtorInfo(cvc0, _, _)) => {
+        Some(IConstantInfo::CtorInfo(cvc0, _, _, _)) => {
             let cvc: IConstantVal = env::i_constant_val_dup(cvc0);
             match inst_lp_fast(pers, st, CORE_WALK_FUEL, &cvc.level_params, us, &cvc.ty) {
                 Err(e) => Err(e),
@@ -5653,8 +5619,9 @@ pub fn former_never_zero_at(
 /// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::iota_case3_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2003-2021 iotaCase3At` — **case 3 of the ι
 /// case split** (con-leche task #342 L10, S5c): a rule that is not K (the
-/// record's `isK`) whose constructor's family may be `Prop` at the comparand
-/// levels `us`.  The family is not read at a K recursor.
+/// record's `isK`) whose constructor's family (stored at its `induct`) may be
+/// `Prop` at the comparand levels `us`.  The family is not read at a K
+/// recursor.
 pub fn iota_case3_at(
     pers: &PersTier,
     st: &mut AState,
@@ -5664,15 +5631,14 @@ pub fn iota_case3_at(
     fuel: u64,
     fe: &IFEnv,
     is_k: bool,
-    cvj: &IConstantVal,
+    induct: &NIdx,
     us: &LsIdx,
 ) -> Result<bool, CheckError> {
     if is_k {
         Ok(false)
     } else {
-        match ctor_family(pers, st, fe, cvj) {
-            Err(er) => Err(er),
-            Ok(Some((cvt, caps))) => match view_ls_len(pers, st, us) {
+        match ctor_family(pers, fe, induct) {
+            Some((cvt, caps)) => match view_ls_len(pers, st, us) {
                 None => fail_dangling_ls(),
                 Some(usl) => {
                     if cvt.level_params.len() == usl {
@@ -5685,8 +5651,63 @@ pub fn iota_case3_at(
                     }
                 }
             },
-            Ok(None) => Ok(true),
+            None => Ok(true),
         }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:978-990 iotaNoCert
+/// Lean twin: `proof/ConRon/Arena/Core.lean iotaNoCert` — **a rule fires with
+/// no certificate, by the stored facts** (the ι case split's case 2 read off
+/// the records): at a K recursor, or where the constructor's family (stored
+/// at its `induct`) records a sort that is never zero (`IIndCaps::never_zero`)
+/// and has `n` level parameters, the comparand levels' count.  The cited
+/// `ctorFamily` lookup reads the stored record in place, with no copy.
+pub fn iota_no_cert(pers: &PersTier, fe: &IFEnv, is_k: bool, induct: &NIdx, n: u64) -> bool {
+    if is_k {
+        true
+    } else {
+        match env::ifenv_find(pers, fe, induct) {
+            Some(IConstantInfo::IndInfo(cvt, caps)) => caps.never_zero && cvt.level_params.len() as u64 == n,
+            Some(_) => false,
+            None => false,
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:966-972 recFireLevelCount
+/// Lean twin: `proof/ConRon/Arena/Core.lean recFireLevelCount` — **how many
+/// comparand levels a rule has** (`rec_fire_levels`' length, read without
+/// substituting).
+pub fn rec_fire_level_count(rl: &IRecRule, cvj_lps: &Vec<NIdx>) -> u64 {
+    match &rl.fire {
+        IRecRuleFire::Nested(lvls, _) => lvls.len() as u64,
+        IRecRuleFire::Plain => cvj_lps.len() as u64,
+        IRecRuleFire::Levels(lvls) => lvls.len() as u64,
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:594-599 familyNeverZeroAt
+/// con-leche: ConLeche/Cached/CoreC.lean:788-792 familyNeverZeroI
+/// Lean twin: `proof/ConRon/Arena/Core.lean familyNeverZeroAt` — **is a family's
+/// sort never zero at the levels `us`**, at its recorded fact first
+/// (`IIndCaps::never_zero`), else where it is asked (`former_never_zero_at`).
+pub fn family_never_zero_at(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    cvt: &IConstantVal,
+    caps: &IIndCaps,
+    us: &LsIdx,
+) -> Result<bool, CheckError> {
+    if caps.never_zero {
+        Ok(true)
+    } else {
+        former_never_zero_at(pers, st, mode, eager, lane, fuel, fe, cvt, caps, us)
     }
 }
 
@@ -6021,7 +6042,8 @@ pub fn major_to_ctor_eta(
 /// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::major_to_ctor_eta_sort_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2094-2208 majorToCtor` — the η
 /// branch's sort test: the family's sort, never zero at the major type's
-/// levels (`formerNeverZeroAt`, computed here), then the fabrication.
+/// levels (`familyNeverZeroAt`: the stored fact, else computed here), then
+/// the fabrication.
 pub fn major_to_ctor_eta_sort(
     pers: &PersTier,
     st: &mut AState,
@@ -6039,7 +6061,7 @@ pub fn major_to_ctor_eta_sort(
     targs: &Vec<EIdx>,
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match former_never_zero_at(pers, st, mode, eager, lane, fuel, fe, cvt, caps, ust) {
+    match family_never_zero_at(pers, st, mode, eager, lane, fuel, fe, cvt, caps, ust) {
         Err(e) => Err(e),
         Ok(true) => major_to_ctor_eta_build(pers, st, depth, &tbl.ctor, tbl.num_fields, t, ust, targs, major),
         Ok(false) => Ok(major.dup2()),
@@ -6241,7 +6263,8 @@ pub fn major_to_ctor_at(
 /// stuck-major rescue** (`to_cnstr_when_K` and `to_cnstr_when_structure`): a
 /// recursor's major premise that does not whnf to a constructor application
 /// may still be *replaced* by one — K-flagged (the record's `isK`), η-capable,
-/// or the pinned `And`.  An uncertified major stays put.
+/// or the pinned `And`.  The rule's constructor's family is the one stored at
+/// its `induct`, looked up with no walk.  An uncertified major stays put.
 pub fn major_to_ctor(
     pers: &PersTier,
     st: &mut AState,
@@ -6265,39 +6288,21 @@ pub fn major_to_ctor(
             } else {
                 let ctor: NIdx = rules[0].ctor.dup2();
                 match env::ifenv_find(pers, fe, &ctor) {
-                    Some(IConstantInfo::CtorInfo(cvj0, cn_p0, _)) => {
+                    Some(IConstantInfo::CtorInfo(cvj0, cn_p0, _, t0)) => {
                         let cvj: IConstantVal = env::i_constant_val_dup(cvj0);
                         let cn_p: u64 = *cn_p0;
-                        match pi_result(pers, st, CORE_WALK_FUEL, &cvj.ty) {
-                            Err(e) => Err(e),
-                            Ok(pr) => match get_app_fn(pers, st, CORE_WALK_FUEL, &pr) {
-                                Err(e) => Err(e),
-                                Ok(hd) => if hd.tag() == ETAG_CONST {
-                                    match view_const_name(pers, st, &hd) {
-                                        None => fail_dangling_e(),
-                                        Some(t) => {
-                                            match env::ifenv_find(pers, fe, &t) {
-                                                Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
-                                                    let cvt: IConstantVal =
-                                                        env::i_constant_val_dup(cvt0);
-                                                    let caps: IIndCaps =
-                                                        env::i_ind_caps_dup(caps0);
-                                                    major_to_ctor_at(
-                                                        pers,
-                                                        st, mode, eager, lane, fuel, fe, depth,
-                                                        &cvj, cn_p, &ctor, is_k, &cvt,
-                                                        &caps, &t, major,
-                                                    )
-                                                }
-                                                Some(_) => Ok(major.dup2()),
-                                                None => Ok(major.dup2()),
-                                            }
-                                        },
-                                    }
-                                } else {
-                                    Ok(major.dup2())
-                                },
-                            },
+                        let t: NIdx = t0.dup2();
+                        match env::ifenv_find(pers, fe, &t) {
+                            Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
+                                let cvt: IConstantVal = env::i_constant_val_dup(cvt0);
+                                let caps: IIndCaps = env::i_ind_caps_dup(caps0);
+                                major_to_ctor_at(
+                                    pers, st, mode, eager, lane, fuel, fe, depth, &cvj, cn_p, &ctor,
+                                    is_k, &cvt, &caps, &t, major,
+                                )
+                            }
+                            Some(_) => Ok(major.dup2()),
+                            None => Ok(major.dup2()),
                         }
                     }
                     Some(_) => Ok(major.dup2()),
@@ -6697,6 +6702,7 @@ pub fn iota_rec_fire(
     is_k: bool,
     cvj: &IConstantVal,
     cn_p: u64,
+    induct: &NIdx,
     rl: &IRecRule,
     rec_c: &NIdx,
     us: &LsIdx,
@@ -6707,8 +6713,8 @@ pub fn iota_rec_fire(
     margs: &Vec<EIdx>,
 ) -> Result<Option<EIdx>, CheckError> {
     match iota_rec_cert(
-        pers, st, mode, eager, lane, fuel, fe, depth, cv, is_k, cvj, cn_p, rl, us, usj, m_i, r_p,
-        args, margs,
+        pers, st, mode, eager, lane, fuel, fe, depth, cv, is_k, cvj, cn_p, induct, rl, us, usj,
+        m_i, r_p, args, margs,
     ) {
         Err(e) => Err(e),
         Ok(false) => Ok(None),
@@ -6724,10 +6730,15 @@ pub fn iota_rec_fire(
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2357-2444 iotaRecAt` — **the
 /// whole case-3 decision, one certificate family** (`certAtI mode (…)`):
 /// at the trusted mode `true` without running; at the verified mode the
-/// level comparands are computed and, at a case-3 redex (`iotaCase3At`: not K,
-/// the constructor's family may be `Prop` at the comparand levels), the
-/// constructor application is checked (`iota_rec_case3`).  Cases 1 and 2 fire
-/// with no check, as official's `inductive_reduce_rec`.
+/// stored facts are read first (`iota_no_cert`: a K recursor, or a family that
+/// records a never-zero sort at the comparand levels' count, fires with no
+/// comparand computed), else the level comparands are computed and, at a
+/// case-3 redex (`iotaCase3At`: not K, the constructor's family may be `Prop`
+/// at the comparand levels), the constructor application is checked
+/// (`iota_rec_case3`).  Cases 1 and 2 fire with no check, as official's
+/// `inductive_reduce_rec`.  The split is the cached twin's: the spec's
+/// `iotaCaseAt` asks `iotaNoCert` at the computed levels' length, which
+/// `recFireLevelCount` is.
 pub fn iota_rec_cert(
     pers: &PersTier,
     st: &mut AState,
@@ -6741,6 +6752,7 @@ pub fn iota_rec_cert(
     is_k: bool,
     cvj: &IConstantVal,
     cn_p: u64,
+    induct: &NIdx,
     rl: &IRecRule,
     us: &LsIdx,
     usj: &LsIdx,
@@ -6751,11 +6763,13 @@ pub fn iota_rec_cert(
 ) -> Result<bool, CheckError> {
     if !verified_checks(mode) {
         Ok(true)
+    } else if iota_no_cert(pers, fe, is_k, induct, rec_fire_level_count(rl, &cvj.level_params)) {
+        Ok(true)
     } else {
         match rec_fire_levels(pers, st, rl, &cv.level_params, us, &cvj.level_params) {
             Err(e) => Err(e),
             Ok(cmp_lvls) => {
-                match iota_case3_at(pers, st, mode, eager, lane, fuel, fe, is_k, cvj, &cmp_lvls) {
+                match iota_case3_at(pers, st, mode, eager, lane, fuel, fe, is_k, induct, &cmp_lvls) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(true),
                     Ok(true) => iota_rec_case3(
@@ -6929,9 +6943,10 @@ pub fn iota_rec_major(
             match view_const(pers, st, &hd) {
                 None => fail_dangling_e(),
                 Some((cj, usj)) => match env::ifenv_find(pers, fe, &cj) {
-                    Some(IConstantInfo::CtorInfo(cvj0, cn_p0, _)) => {
+                    Some(IConstantInfo::CtorInfo(cvj0, cn_p0, _, induct0)) => {
                         let cvj: IConstantVal = env::i_constant_val_dup(cvj0);
                         let cn_p: u64 = *cn_p0;
+                        let induct: NIdx = induct0.dup2();
                         match find_rule(rules, &cj, 0) {
                             None => Ok(None),
                             Some(k) => {
@@ -6944,8 +6959,8 @@ pub fn iota_rec_major(
                                         } else {
                                             iota_rec_fire(
                                                 pers, st, mode, eager, lane, fuel, fe, depth, cv,
-                                                is_k, &cvj, cn_p, &rl, rec_c, us, &usj, m_i, r_p,
-                                                args, &margs,
+                                                is_k, &cvj, cn_p, &induct, &rl, rec_c, us, &usj,
+                                                m_i, r_p, args, &margs,
                                             )
                                         }
                                     }
@@ -7114,7 +7129,7 @@ pub fn proj_cert(
     args: &Vec<EIdx>,
 ) -> Result<bool, CheckError> {
     match env::ifenv_find(pers, fe, c) {
-        Some(IConstantInfo::CtorInfo(cvc0, _, _)) => {
+        Some(IConstantInfo::CtorInfo(cvc0, _, _, _)) => {
             let ty: EIdx = cvc0.ty.dup2();
             tele_arity_ok(pers, st, &ty, args)
         }

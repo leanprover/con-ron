@@ -556,14 +556,17 @@ pub fn check_sum_ctors(
 /// con-leche: ConLeche/Cached/IndBlock.lean:37-40 consSumCtorsF
 /// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove sum_install::cons_sum_ctors_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:143-149 consSumCtors`
-/// — the constructors' conses, in order (the first constructor deepest).
-/// Pure: the index push touches no term.
-pub fn cons_sum_ctors(n_p: u64, ctors: &Vec<(IConstantVal, u64)>, i: usize, fe: IFEnv) -> IFEnv {
+/// — the constructors' conses, in order (the first constructor deepest), each
+/// with the family `t` it is declared under as its `induct`: the constructor
+/// check has established that its declared type concludes in `t`.  Pure: the
+/// index push touches no term.
+pub fn cons_sum_ctors(n_p: u64, t: &NIdx, ctors: &Vec<(IConstantVal, u64)>, i: usize, fe: IFEnv) -> IFEnv {
     if i >= ctors.len() {
         fe
     } else {
-        let stored = IConstantInfo::CtorInfo(env::i_constant_val_dup(&ctors[i].0), n_p, ctors[i].1);
-        cons_sum_ctors(n_p, ctors, i + 1, env::ifenv_push(fe, stored))
+        let stored =
+            IConstantInfo::CtorInfo(env::i_constant_val_dup(&ctors[i].0), n_p, ctors[i].1, t.dup2());
+        cons_sum_ctors(n_p, t, ctors, i + 1, env::ifenv_push(fe, stored))
     }
 }
 

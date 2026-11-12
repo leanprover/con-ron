@@ -196,9 +196,9 @@ pub fn constant_info_at_lps(
             Err(e) => Err(e),
             Ok(cv2) => Ok(IConstantInfo::IndInfo(cv2, i_ind_caps_dup(caps))),
         },
-        IConstantInfo::CtorInfo(cv, n_p, n_f) => match constant_val_at_lps(pers, st, cv, ps) {
+        IConstantInfo::CtorInfo(cv, n_p, n_f, t) => match constant_val_at_lps(pers, st, cv, ps) {
             Err(e) => Err(e),
-            Ok(cv2) => Ok(IConstantInfo::CtorInfo(cv2, *n_p, *n_f)),
+            Ok(cv2) => Ok(IConstantInfo::CtorInfo(cv2, *n_p, *n_f, t.dup2())),
         },
         IConstantInfo::RecInfo(cv, m_i, r_p, is_k, rules) => {
             constant_info_at_lps_rec(pers, st, cv, *m_i, *r_p, *is_k, rules, ps)
@@ -424,7 +424,7 @@ pub fn block_link_ok_at(
     p: &IConstantInfo,
 ) -> Result<bool, CheckError> {
     match c {
-        IConstantInfo::CtorInfo(cv, _, _) => Ok(nidx_vec_beq(&cv.level_params, former, 0)),
+        IConstantInfo::CtorInfo(cv, _, _, _) => Ok(nidx_vec_beq(&cv.level_params, former, 0)),
         IConstantInfo::RecInfo(cv, _, _, _, _) => match p {
             IConstantInfo::RecInfo(cvp, _, _, _, rules) => {
                 rules_link_ok(pers, st, block, pins, &cv.level_params, &cvp.level_params, rules, 0)

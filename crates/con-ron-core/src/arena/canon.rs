@@ -563,8 +563,8 @@ pub fn i_constant_info_canon_eq(
         (IConstantInfo::IndInfo(cv, _), IConstantInfo::IndInfo(cv2, _)) => {
             i_constant_val_canon_eq(pers, st, cv, cv2)
         }
-        (IConstantInfo::CtorInfo(cv, np, nf), IConstantInfo::CtorInfo(cv2, np2, nf2)) => {
-            if np == np2 && nf == nf2 {
+        (IConstantInfo::CtorInfo(cv, np, nf, t), IConstantInfo::CtorInfo(cv2, np2, nf2, t2)) => {
+            if np == np2 && nf == nf2 && t.eq2(t2) {
                 i_constant_val_canon_eq(pers, st, cv, cv2)
             } else {
                 Ok(false)
@@ -738,6 +738,7 @@ pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
         && a.nparams == b.nparams
         && a.n_idx == b.n_idx
         && nidx_vec_beq(&a.ctors, &b.ctors, 0)
+        && a.never_zero == b.never_zero
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:288-312 ConstantInfo
@@ -760,8 +761,8 @@ pub fn i_constant_info_beq(a: &IConstantInfo, b: &IConstantInfo) -> bool {
         (IConstantInfo::IndInfo(x, c), IConstantInfo::IndInfo(y, d)) => {
             i_constant_val_beq(x, y) && i_ind_caps_beq(c, d)
         }
-        (IConstantInfo::CtorInfo(x, p, f), IConstantInfo::CtorInfo(y, q, g)) => {
-            i_constant_val_beq(x, y) && p == q && f == g
+        (IConstantInfo::CtorInfo(x, p, f, t), IConstantInfo::CtorInfo(y, q, g, u)) => {
+            i_constant_val_beq(x, y) && p == q && f == g && t.eq2(u)
         }
         (IConstantInfo::RecInfo(x, m, p, k, rs), IConstantInfo::RecInfo(y, n, q, k2, ss)) => {
             i_constant_val_beq(x, y) && m == n && p == q && k == k2 && i_rec_rules_beq(rs, ss, 0)

@@ -143,6 +143,7 @@ pub fn iff_intro_a() -> ConstantInfo {
         },
         2,
         2,
+        iff_name(),
     )
 }
 
@@ -293,6 +294,7 @@ pub fn nonempty_intro_a() -> ConstantInfo {
         },
         1,
         1,
+        nonempty_name(),
     )
 }
 
