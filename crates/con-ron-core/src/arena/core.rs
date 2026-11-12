@@ -179,13 +179,6 @@ pub const M_UNKNOWN_CONST: [u32; 16] = [
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"native Nat computation on literals"`, as code points.
-pub const M_NATIVE_NAT: [u32; 34] = [
-    110, 97, 116, 105, 118, 101, 32, 78, 97, 116, 32, 99, 111, 109, 112, 117, 116, 97, 116,
-    105, 111, 110, 32, 111, 110, 32, 108, 105, 116, 101, 114, 97, 108, 115
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"whnf beyond the supported fragment"`, as code points.
 pub const M_BVAR_WHNF: [u32; 34] = [
     119, 104, 110, 102, 32, 98, 101, 121, 111, 110, 100, 32, 116, 104, 101, 32, 115, 117,
@@ -2486,13 +2479,9 @@ pub fn reserved_rec_bool(st: &AState, n: &NIdx) -> Result<bool, CheckError> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:630-640 natOpWfNames
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::nat_div_mod_names_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:932-938 natDivModNames`
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1211-1217 natOpWfNames`
-/// The WF-recursive operations with a *pinned-declaration* certified fast
-/// path.  The twin spells the same eight names twice, under two names, exactly
-/// as con-leche does; one function serves both and carries both citations.
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:462-475 natDivModNames
+/// Lean twin: `proof/ConRon/Arena/Core.lean:932-938 natDivModNames` — the
+/// WF-recursive operations with a *pinned-declaration* certified fast path.
 pub fn nat_div_mod_names(st: &mut AState) -> Result<Vec<NIdx>, CheckError> {
     match nat_div_name(st) {
         Err(e) => Err(e),
@@ -2637,21 +2626,12 @@ pub fn reserved_rec_name(st: &mut AState, n: &NIdx) -> Result<bool, CheckError> 
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:630-640 natOpWfNames
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::nat_op_wf_names_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1211-1217 natOpWfNames` — the
-/// pin-certified WF-recursive `Nat` operations, as a *safety net*.  The twin's
-/// list is `natDivModNames`' element for element.
-pub fn nat_op_wf_names(st: &mut AState) -> Result<Vec<NIdx>, CheckError> {
-    nat_div_mod_names(st)
-}
-
 /// con-leche: none — the fifteen reserved `Nat`-operation handles, interned once
 /// Lean twin: `proof/ConRon/Arena/Core.lean:949-972 natOpDeps` — the twin
-/// opens `natOpDeps`, `natOpResult` and `natBinOpName` with the same fifteen
-/// `let`s; the port interns them once into a record so the three functions
-/// read as the twin's `if` chains do and the pin cost is paid once per call
-/// rather than three times.
+/// opens `natOpDeps`, `natOpEquations` and `natBinOpOfName?` with the same
+/// `let`s (the last without `pred`); the port interns them once into a record
+/// so the functions read as the twin's `if` chains do and the pin cost is paid
+/// once per call rather than per name.
 pub struct NatOpPins {
     pub pr: NIdx,
     pub ad: NIdx,
@@ -3152,80 +3132,72 @@ pub fn nat_op_equations_ble(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:578-603 natOpResult
+/// con-leche: ConLeche/Cached/StateC.lean:183-187 NatBinOp
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1114-1118 NatBinOp` — the fourteen
+/// binary `Nat` operations the kernel computes on literals, in the order of
+/// `reduceNat`'s name test.  `reduce_nat_bin` finds the operation once
+/// (`nat_bin_op_of_name`) and dispatches on it (`nat_bin_op_result`).
+pub enum NatBinOp {
+    Add,
+    Sub,
+    Mul,
+    Pow,
+    Beq,
+    Ble,
+    Div,
+    Mod,
+    Gcd,
+    Land,
+    Lor,
+    Xor,
+    ShiftLeft,
+    ShiftRight,
+}
+
+/// con-leche: ConLeche/Cached/StateC.lean:217-232 NatBinOp.result
 /// con-leche: ConLeche/Cached/StateC.lean:234-252 natOpRefusal
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::nat_op_result_refines, then delete this line
 /// con-leche: ConLeche/Cached/StateC.lean:254-263 natResultRefused
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::nat_op_result_refines, then delete this line
-/// con-leche: ConLeche/Cached/CoreC.lean:403-457 reduceNatI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::nat_op_result_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1114-1160 natOpResult` — the reduct of
-/// op `c` on literal arguments (`pred` ignores the second slot).  `ron::Nat` is
-/// con-leche's `Nat` here, and a literal is a `Literal` value in a `lit` node.
-/// The computation is the cited one at any size; the run's maximum `Nat` size
-/// (con-leche's cached `reduceNatI`) refuses `pow` and `shiftLeft` before
-/// computing (`pow_guard`, `shift_left_guard`: the cited `natOpRefusal`) and an
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1120-1150 natBinOpResult` — the
+/// reduct of `op` on literal arguments.  `ron::Nat` is con-leche's `Nat` here,
+/// and a literal is a `Literal` value in a `lit` node.  The refusals are by
+/// operation, in the operation's arm: `pow` and `shiftLeft` are refused before
+/// computing (`pow_guard`, `shift_left_guard`: the cited `natOpRefusal`), an
 /// `add`, `sub` or `mul` result after it (`lit_nat_sized`: `natResultRefused`).
-/// Each refusal throws, so it sits in the arm that computes: where con-leche
-/// tests the operation's name a second time and reads the result back, the
+/// Each refusal throws, so where con-leche reads the computed result back the
 /// port is already in the arm and holds the number.
-pub fn nat_op_result(
+pub fn nat_bin_op_result(
     pers: &PersTier,
     st: &mut AState,
-    c: &NIdx,
+    op: NatBinOp,
     a: &Nat,
     b: &Nat,
 ) -> Result<Option<EIdx>, CheckError> {
-    match nat_op_pins(st) {
-        Err(e) => Err(e),
-        Ok(p) => {
-            if c.eq2(&p.pr) {
-                lit_nat(pers, st, nat::pred(a))
-            } else if c.eq2(&p.ad) {
-                lit_nat_sized(pers, st, nat::add(a, b))
-            } else if c.eq2(&p.su) {
-                lit_nat_sized(pers, st, nat::sub(a, b))
-            } else if c.eq2(&p.mu) {
-                lit_nat_sized(pers, st, nat::mul(a, b))
-            } else if c.eq2(&p.po) {
-                match pow_guard(st, a, b) {
-                    Err(e) => Err(e),
-                    Ok(()) => lit_nat(pers, st, nat::pow_nat(a, b)),
-                }
-            } else if c.eq2(&p.di) {
-                lit_nat(pers, st, nat::div(a, b))
-            } else if c.eq2(&p.mo) {
-                lit_nat(pers, st, nat::modulo(a, b))
-            } else if c.eq2(&p.gc) {
-                lit_nat(pers, st, nat::gcd(a, b))
-            } else if c.eq2(&p.la) {
-                lit_nat(pers, st, nat::land(a, b))
-            } else if c.eq2(&p.lo) {
-                lit_nat(pers, st, nat::lor(a, b))
-            } else if c.eq2(&p.xo) {
-                lit_nat(pers, st, nat::xor(a, b))
-            } else if c.eq2(&p.sl) {
-                match shift_left_guard(st, a, b) {
-                    Err(e) => Err(e),
-                    Ok(()) => lit_nat(pers, st, nat::shift_left_nat(a, b)),
-                }
-            } else if c.eq2(&p.sr) {
-                lit_nat(pers, st, nat::shift_right_nat(a, b))
-            } else if c.eq2(&p.be) {
-                bool_const(pers, st, nat::beq(a, b))
-            } else if c.eq2(&p.bl) {
-                bool_const(pers, st, nat::ble(a, b))
-            } else {
-                Ok(None)
-            }
-        }
+    match op {
+        NatBinOp::Add => lit_nat_sized(pers, st, nat::add(a, b)),
+        NatBinOp::Sub => lit_nat_sized(pers, st, nat::sub(a, b)),
+        NatBinOp::Mul => lit_nat_sized(pers, st, nat::mul(a, b)),
+        NatBinOp::Pow => match pow_guard(st, a, b) {
+            Err(e) => Err(e),
+            Ok(()) => lit_nat(pers, st, nat::pow_nat(a, b)),
+        },
+        NatBinOp::Beq => bool_const(pers, st, nat::beq(a, b)),
+        NatBinOp::Ble => bool_const(pers, st, nat::ble(a, b)),
+        NatBinOp::Div => lit_nat(pers, st, nat::div(a, b)),
+        NatBinOp::Mod => lit_nat(pers, st, nat::modulo(a, b)),
+        NatBinOp::Gcd => lit_nat(pers, st, nat::gcd(a, b)),
+        NatBinOp::Land => lit_nat(pers, st, nat::land(a, b)),
+        NatBinOp::Lor => lit_nat(pers, st, nat::lor(a, b)),
+        NatBinOp::Xor => lit_nat(pers, st, nat::xor(a, b)),
+        NatBinOp::ShiftLeft => match shift_left_guard(st, a, b) {
+            Err(e) => Err(e),
+            Ok(()) => lit_nat(pers, st, nat::shift_left_nat(a, b)),
+        },
+        NatBinOp::ShiftRight => lit_nat(pers, st, nat::shift_right_nat(a, b)),
     }
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:254-263 natResultRefused
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::lit_nat_sized_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:403-457 reduceNatI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::lit_nat_sized_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1063-1073 litNatSized` — a computed
 /// numeral, refused above the run's maximum `Nat` size (the cited
 /// `natNumeralTooBig`), otherwise interned like `lit_nat`.
@@ -3248,7 +3220,6 @@ pub fn nat_size_refused(st: &AState, n: &Nat) -> bool {
 
 /// con-leche: ConLeche/Cached/StateC.lean:161-163 natCountMax
 /// con-leche: ConLeche/Cached/StateC.lean:234-252 natOpRefusal
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::pow_guard_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1084-1094 powGuard` — the cited `Nat.pow`
 /// clause: an exponent above `natCountMax` is refused whatever the base, and
 /// `a > 1`, `b ≠ 0`, `natSizeBytes a > maxNatSize / b` (`pow_refused`) is.
@@ -3263,7 +3234,6 @@ pub fn pow_guard(st: &AState, a: &Nat, b: &Nat) -> Result<(), CheckError> {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:234-252 natOpRefusal
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::pow_refused_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1075-1082 powRefused` — `a ^ b` has at most
 /// `natSizeBytes a * b` bytes, and a base `≤ 1` gives `0` or `1`.
 pub fn pow_refused(st: &AState, a: &Nat, b: &Nat) -> bool {
@@ -3277,7 +3247,6 @@ pub fn pow_refused(st: &AState, a: &Nat, b: &Nat) -> bool {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:234-252 natOpRefusal
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::shift_left_guard_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1102-1112 shiftLeftGuard` — the cited
 /// `Nat.shiftLeft` clause: `0 <<< b = 0` computes; otherwise an amount above
 /// `natCountMax` is refused, and so is a result of about
@@ -3295,7 +3264,6 @@ pub fn shift_left_guard(st: &AState, a: &Nat, b: &Nat) -> Result<(), CheckError>
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:234-252 natOpRefusal
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::shift_left_refused_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1096-1100 shiftLeftRefused` —
 /// `natSizeBytes a + b / 8 + 1 > maxNatSize`.
 pub fn shift_left_refused(st: &AState, a: &Nat, b: &Nat) -> bool {
@@ -3304,7 +3272,7 @@ pub fn shift_left_refused(st: &AState, a: &Nat, b: &Nat) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:578-603 natOpResult
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1114-1160 natOpResult` — `internE (.lit
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1120-1150 natBinOpResult` — `internE (.lit
 /// (.natVal …))` wrapped in `some`, which every arithmetic arm above ends in.
 pub fn lit_nat(pers: &PersTier, st: &mut AState, n: Nat) -> Result<Option<EIdx>, CheckError> {
     match intern_e_lit(pers, st, expr::literal_nat(n)) {
@@ -3314,7 +3282,7 @@ pub fn lit_nat(pers: &PersTier, st: &mut AState, n: Nat) -> Result<Option<EIdx>,
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:578-603 natOpResult
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1114-1160 natOpResult` — the two
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1120-1150 natBinOpResult` — the two
 /// comparison arms' `Bool` constructor, interned.
 pub fn bool_const(pers: &PersTier, st: &mut AState, b: bool) -> Result<Option<EIdx>, CheckError> {
     let r = if b {
@@ -3720,29 +3688,47 @@ pub fn nat_op_stored_ok(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:168-209 reduceNat
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::nat_bin_op_name_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1324-1336 natBinOpName` — the binary
-/// literal acceleration's name test.  con-leche writes a fourteen-way
-/// disjunction inline; over handles the comparands have to be interned first,
-/// so the chain is its own function and the caller reads one `bool`.
-pub fn nat_bin_op_name(st: &mut AState, c: &NIdx) -> Result<bool, CheckError> {
+/// con-leche: ConLeche/Cached/StateC.lean:199-215 NatBinOp.ofName?
+/// con-leche: ConLeche/Cached/StateC.lean:189-194 NatBinOp.name
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1324-1349 natBinOpOfName?` — the
+/// operation named `c`, if any: fourteen handle comparisons against the
+/// interned pins, in `reduceNat`'s order.  con-leche compares the cached hashes
+/// first (`nameIsC`); a name here is an interned handle, so each comparison is
+/// already one word.
+pub fn nat_bin_op_of_name(st: &mut AState, c: &NIdx) -> Result<Option<NatBinOp>, CheckError> {
     match nat_op_pins(st) {
         Err(e) => Err(e),
-        Ok(p) => Ok(c.eq2(&p.ad)
-            || c.eq2(&p.su)
-            || c.eq2(&p.mu)
-            || c.eq2(&p.po)
-            || c.eq2(&p.be)
-            || c.eq2(&p.bl)
-            || c.eq2(&p.di)
-            || c.eq2(&p.mo)
-            || c.eq2(&p.gc)
-            || c.eq2(&p.la)
-            || c.eq2(&p.lo)
-            || c.eq2(&p.xo)
-            || c.eq2(&p.sl)
-            || c.eq2(&p.sr)),
+        Ok(p) => Ok(if c.eq2(&p.ad) {
+            Some(NatBinOp::Add)
+        } else if c.eq2(&p.su) {
+            Some(NatBinOp::Sub)
+        } else if c.eq2(&p.mu) {
+            Some(NatBinOp::Mul)
+        } else if c.eq2(&p.po) {
+            Some(NatBinOp::Pow)
+        } else if c.eq2(&p.be) {
+            Some(NatBinOp::Beq)
+        } else if c.eq2(&p.bl) {
+            Some(NatBinOp::Ble)
+        } else if c.eq2(&p.di) {
+            Some(NatBinOp::Div)
+        } else if c.eq2(&p.mo) {
+            Some(NatBinOp::Mod)
+        } else if c.eq2(&p.gc) {
+            Some(NatBinOp::Gcd)
+        } else if c.eq2(&p.la) {
+            Some(NatBinOp::Land)
+        } else if c.eq2(&p.lo) {
+            Some(NatBinOp::Lor)
+        } else if c.eq2(&p.xo) {
+            Some(NatBinOp::Xor)
+        } else if c.eq2(&p.sl) {
+            Some(NatBinOp::ShiftLeft)
+        } else if c.eq2(&p.sr) {
+            Some(NatBinOp::ShiftRight)
+        } else {
+            None
+        }),
     }
 }
 
@@ -3873,7 +3859,6 @@ pub fn get_d_eidx(xs: &Vec<EIdx>, i: u64, dflt: &EIdx) -> EIdx {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:168-209 reduceNat
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::reduce_nat_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1338-1390 reduceNat` — literal
 /// acceleration (the official kernel's `reduceNat`, run in the `whnf` loop
 /// *before* delta-unfolding).  The divergence audit's D15 is preserved: the
@@ -3917,7 +3902,6 @@ pub fn reduce_nat(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:168-209 reduceNat
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::reduce_nat_succ_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1338-1390 reduceNat` — the cited
 /// `.app (.const c []) a` arm: `Nat.succ` at a literal argument.
 pub fn reduce_nat_succ(
@@ -3972,10 +3956,13 @@ pub fn reduce_nat_succ(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:168-209 reduceNat
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::reduce_nat_bin_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:403-457 reduceNatI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1338-1390 reduceNat` — the cited
 /// `.app (.app (.const c []) a) b` arm: a certified binary operation at two
-/// literal arguments, or the WF-recursive safety net's decline.
+/// literal arguments.  The operation is found once (`nat_bin_op_of_name`, the
+/// cached `reduceNatI`'s `NatBinOp.ofName?`) and the result and its refusals
+/// are by operation (`nat_bin_op_result`); the specification's name test is
+/// the same fourteen names in the same order.
 pub fn reduce_nat_bin(
     pers: &PersTier,
     st: &mut AState,
@@ -3996,83 +3983,29 @@ pub fn reduce_nat_bin(
             if !us.eq2(&el) {
                 Ok(None)
             } else {
-                match nat_bin_op_name(st, c) {
+                match nat_bin_op_of_name(st, c) {
                     Err(er) => Err(er),
-                    Ok(bin) => {
-                        if bin {
-                            match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, a) {
+                    Ok(None) => Ok(None),
+                    Ok(Some(op)) => {
+                        match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, a) {
+                            Err(er) => Err(er),
+                            Ok(wa) => match raw_nat_lit(pers, st, &wa) {
                                 Err(er) => Err(er),
-                                Ok(wa) => match raw_nat_lit(pers, st, &wa) {
-                                    Err(er) => Err(er),
-                                    Ok(None) => Ok(None),
-                                    Ok(Some(n1)) => {
-                                        match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, b)
-                                        {
+                                Ok(None) => Ok(None),
+                                Ok(Some(n1)) => {
+                                    match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, b) {
+                                        Err(er) => Err(er),
+                                        Ok(wb) => match raw_nat_lit(pers, st, &wb) {
                                             Err(er) => Err(er),
-                                            Ok(wb) => match raw_nat_lit(pers, st, &wb) {
-                                                Err(er) => Err(er),
-                                                Ok(None) => Ok(None),
-                                                Ok(Some(n2)) => {
-                                                    nat_op_result(pers, st, c, &n1, &n2)
-                                                }
-                                            },
-                                        }
+                                            Ok(None) => Ok(None),
+                                            Ok(Some(n2)) => nat_bin_op_result(pers, st, op, &n1, &n2),
+                                        },
                                     }
-                                },
-                            }
-                        } else {
-                            reduce_nat_wf(pers, st, mode, eager, lane, fuel, fe, depth, c, a, b)
+                                }
+                            },
                         }
                     }
                 }
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:168-209 reduceNat
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::reduce_nat_wf_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1338-1390 reduceNat` — the
-/// WF-recursive safety net: a pinned `div`/`mod`/… at two literals is a
-/// positively detected unsupported feature, not a reduction.
-pub fn reduce_nat_wf(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    eager: bool,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    c: &NIdx,
-    a: &EIdx,
-    b: &EIdx,
-) -> Result<Option<EIdx>, CheckError> {
-    match nat_op_wf_names(st) {
-        Err(er) => Err(er),
-        Ok(wf) => {
-            if env::nidx_vec_contains(&wf, c) {
-                match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, a) {
-                    Err(er) => Err(er),
-                    Ok(wa) => match raw_nat_lit(pers, st, &wa) {
-                        Err(er) => Err(er),
-                        Ok(None) => Ok(None),
-                        Ok(Some(_)) => {
-                            match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, b) {
-                                Err(er) => Err(er),
-                                Ok(wb) => match raw_nat_lit(pers, st, &wb) {
-                                    Err(er) => Err(er),
-                                    Ok(None) => Ok(None),
-                                    Ok(Some(_)) => fail(CheckError::NotImplemented(
-                                        code_points(&M_NATIVE_NAT),
-                                    )),
-                                },
-                            }
-                        }
-                    },
-                }
-            } else {
-                Ok(None)
             }
         }
     }
@@ -7699,17 +7632,18 @@ pub fn whnf_core_body(
 pub const WHNF_LOOP_FUEL: u64 = 4611686018427387904; // 2^62
 
 /// con-leche: ConLeche/Kernel/Core.lean:1123-1143 whnfStep
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::whnf_step_refines, then delete this line
-/// con-leche: ConLeche/Cached/CoreC.lean:1004-1018 whnfStepI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::whnf_step_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:1297-1316 whnfLoopI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2756-2771 whnfStep` — one iteration
 /// of the reduction loop: head-normalize, try literal acceleration, unfold one
-/// definition.  **The continuation is returned, not called** (task #119): the
-/// cited `k e'` is `Cont(e')`, and `whnf_loop` — a real loop — continues with
-/// it.  con-leche makes the same move by inlining the step into the loop so
-/// that its continuation call is the loop's own tail call (task #342 R2); a
-/// Rust tail call is not a jump, so the port returns the step, as
-/// `whnf_core_step` does.
+/// definition.  A literal the acceleration computed is the answer at once
+/// (`Done`), as the official kernel's `whnf` returns `reduce_nat`'s value; any
+/// other reduct — a `Bool` constructor from `Nat.beq`/`Nat.ble`, which an
+/// environment may store as a definition — continues.  **The continuation is
+/// returned, not called** (task #119): the cited `k e'` is `Cont(e')`, and
+/// `whnf_loop` — a real loop — continues with it.  con-leche makes the same
+/// move by folding the step into its loop (`whnfLoopI`) so that its
+/// continuation call is the loop's own tail call; a Rust tail call is not a
+/// jump, so the port returns the step, as `whnf_core_step` does.
 pub fn whnf_step(
     pers: &PersTier,
     st: &mut AState,
@@ -7725,7 +7659,11 @@ pub fn whnf_step(
         Err(er) => Err(er),
         Ok(e1) => match reduce_nat(pers, st, mode, eager, lane, fuel, fe, depth, &e1) {
             Err(er) => Err(er),
-            Ok(Some(e2)) => Ok(WhnfStep::Cont(e2)),
+            Ok(Some(e2)) => if e2.tag() == ETAG_LIT {
+                Ok(WhnfStep::Done(e2))
+            } else {
+                Ok(WhnfStep::Cont(e2))
+            },
             Ok(None) => match unfold_definition(pers, st, fe, &e1) {
                 Err(er) => Err(er),
                 Ok(Some(e2)) => Ok(WhnfStep::Cont(e2)),
@@ -7737,7 +7675,6 @@ pub fn whnf_step(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1145-1150 whnfLoop
 /// con-leche: ConLeche/Cached/CoreC.lean:1297-1316 whnfLoopI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::whnf_loop_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2773-2782 whnfLoop` — the reduction
 /// loop: iterate `whnf_step` on its own step budget, so the whole chain costs
 /// one knot level however many steps it takes.  **A real loop** (task #119),
@@ -11085,7 +11022,6 @@ pub fn whnf_core_stuck_tag(e: &EIdx) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1123-1143 whnfStep
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove crates/con-ron-core/src/arena/core.rs_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:318-324 whnfEasy
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2784-2787 whnfBody` — **the head
 /// kinds `whnfBody` answers with its own argument**, again off the tag alone.
