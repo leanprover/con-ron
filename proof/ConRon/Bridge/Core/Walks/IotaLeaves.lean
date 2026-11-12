@@ -239,12 +239,6 @@ answer against the environment's: a miss is a miss, a hit's two halves denote. -
 @[bridge_grind =] theorem FamAns.none_eq (st : EStore) (o : Option (ConstantVal × IndCaps)) :
     FamAns st none o = (o = none) := rfl
 
-/-- con-leche: none — `FamAns` at two hits. -/
-@[bridge_grind =] theorem FamAns.some_eq (st : EStore) (cv : IConstantVal) (caps : IIndCaps)
-    (cvP : ConstantVal) (capsP : IndCaps) :
-    FamAns st (some (cv, caps)) (some (cvP, capsP)) =
-      (Frontend.denoteCV st cv = some cvP ∧ Frontend.denoteCaps st caps = some capsP) := rfl
-
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:87-94 ctorFamily — the function as
 ONE equation over the lookup's projections at the stored family name. -/
 theorem ctorFamily_eq (find? : ConLeche.Name → Option ConstantInfo) (induct : ConLeche.Name) :

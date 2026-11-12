@@ -73,16 +73,6 @@ abbrev mStep (mode : CheckMode) (eager : Bool) (env : Env) (c : Bool) (F d : Nat
     CheckM ConLeche.WhnfStep :=
   ConLeche.whnfCoreStepW mode (ConLeche.pureFns mode eager env F) env c d e
 
-/-- con-leche: ConLeche/Verify/BetaSpine.lean:458 whnfCoreStepW_atF — fuel
-monotonicity of the step. -/
-theorem mStep_mono {c : Bool} {F F' d : Nat} {e : Expr} {r : ConLeche.WhnfStep}
-    (hle : F ≤ F') (h : mStep mode eager env c F d e = .ok r) :
-    mStep mode eager env c F' d e = .ok r := by
-  simp only [mStep] at h ⊢
-  rw [← ConLeche.whnfCoreStepW_atF] at h ⊢
-  exact (ConLeche.whnfCoreStepW mode (ConLeche.fueledFns mode eager env) env c d
-    e).property hle h
-
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:328 whnfCoreStepW — the `.app`
 exit: the spine head's normal form, then the batched walk. -/
 theorem mStep_app {c : Bool} {F d : Nat} {f a V : Expr} {r : ConLeche.WhnfStep}

@@ -735,17 +735,6 @@ theorem whnf_of_stuck {mode : CheckMode} {eager : Bool} {env : Env} {e : Expr}
       bind, Except.bind]
 
 
-/-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
-**the stuck tag** of the `whnfCore` wrappers: the pure body answers with its
-own argument.  Not registered: its operation is a `fun` over `mode`, `env`
-and `c`, which no pattern can bind, so a wrapper passes it instantiated. -/
-theorem SimE.of_whnfCoreStuck {mode : CheckMode} {eager : Bool} {env : Env} {c : Bool}
-    {st : EStore} {i : EIdx} {d : Nat} {e : Expr} (hwf : StoreWF st)
-    (hs : whnfCoreStuckTag i = true) (hden : denoteE st i = some e)
-    (hw : Expr.WScoped d e) :
-    SimE (fun F d e => ConLeche.whnfCore mode eager env F d e c) d e st i :=
-  ⟨e, hden, hw, 1, whnfCore_of_stuck (denote_stuck_of_whnfCoreStuckTag hwf hden hs) 0 d⟩
-
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:230 memoEI_whnf_sim — the
 stuck tag of the `whnf` wrapper. -/
 @[bridge_grind .] theorem SimE.of_whnfStuck {mode : CheckMode} {eager : Bool} {env : Env}

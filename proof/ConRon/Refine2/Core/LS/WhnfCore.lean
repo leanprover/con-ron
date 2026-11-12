@@ -212,21 +212,6 @@ section policy
 attribute [lockstep_inline] arena.core.whnf_core_store_keys arena.core.whnf_core_store_cheap_keys
 
 
-/-- `arena::core::whnf_core_set` against `Arena.whnfCoreSet`, as a lockstep
-write. -/
-@[lockstep] theorem whnf_core_set_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (e r : arena.handle.EIdx) :
-    LSW pers (arena.core.whnf_core_set st e r) lst
-      (Arena.whnfCoreSet (absEIdx e) (absEIdx r)) :=
-  LSW.ofSimS₀ fun _ h => whnf_core_set_run hrel hinv h
-
-/-- `arena::core::whnf_core_cheap_set` against `Arena.whnfCoreCheapSet`. -/
-@[lockstep] theorem whnf_core_cheap_set_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (e r : arena.handle.EIdx) :
-    LSW pers (arena.core.whnf_core_cheap_set st e r) lst
-      (Arena.whnfCoreCheapSet (absEIdx e) (absEIdx r)) :=
-  LSW.ofSimS₀ fun _ h => whnf_core_cheap_set_run hrel hinv h
-
 /-- The loop's easy-case test against the twin's, off the tag. -/
 theorem whnf_core_stuck_tag_abs {e : arena.handle.EIdx} {b : Bool}
     (h : arena.core.whnf_core_stuck_tag e = ok b) :
