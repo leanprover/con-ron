@@ -157,6 +157,54 @@ end spine
   rw [arena.core.reduce_proj_core, reduceProjCore]
   lockstep_core
 
+/-! ## The stuck spine: `is_stuck_head`, `iota_target`, `whnf_stuck` -/
+
+attribute [lockstep_inline] arena.core.is_stuck_head
+
+attribute [local lockstep_simp] isStuckHead
+
+@[lockstep] theorem iota_target_ls {pers st fe lfe h lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) :
+    LSR pers (fun a b => b = a.map absU)
+      (arena.core.iota_target pers st fe h) st lst (iotaTarget lfe (absEIdx h)) := by
+  apply LSR.of_LS
+  rw [arena.core.iota_target, iotaTarget]
+  lockstep_c2
+
+@[lockstep] theorem whnf_stuck_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe depth h e lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absWhnfStep a)
+      (arena.core.whnf_stuck pers st mode eager lane fu fe depth h e) lst
+      (whnfStuck (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth) (absEIdx h)
+        (absEIdx e)) := by
+  rw [arena.core.whnf_stuck, whnfStuck]
+  lockstep_core
+  -- glue: the ι target's `u64 as usize` cast keeps its value, the target being
+  -- at most the spine's length
+  rcases hP with hP | hP
+  · rw [← hP]
+    lockstep_core
+  · exfalso
+    scalar_tac
+
+@[lockstep] theorem whnf_core_step_app_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe cheap depth e lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absWhnfStep a)
+      (arena.core.whnf_core_step_app pers st mode eager lane fu fe cheap depth e) lst
+      (whnfCoreStepApp (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe cheap (absU depth)
+        (absEIdx e)) := by
+  rw [arena.core.whnf_core_step_app, whnfCoreStepApp]
+  lockstep_core
+
 /-! ## The step: `whnf_core_step` (fragment `whnf_core_step_proj`) -/
 
 @[lockstep] theorem whnf_core_step_proj_ls {f : Nat} (hk : KnotRel f)
