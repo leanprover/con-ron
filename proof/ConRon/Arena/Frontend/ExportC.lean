@@ -254,7 +254,6 @@ def parseRuleD (st : StateD) (ru : RuleRec) : AM IRecRule := do
   pure (IRecRule.mk (← st.name ru.ctor) ru.nfields .plain (← getDeclD st ru.rhs))
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF — an
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove ExportC.validateIndD_bridge, then delete this line
 inductive record, VALIDATED: the half of the record's processing that reads
 the state and changes nothing.  Every guard, every verdict and every message
 is con-leche's; what changed is that a name comparison is a handle comparison
@@ -267,7 +266,7 @@ The two `for`/`mut` loops are con-leche's own; they run over a block's records
 recursion" rule (lesson 16, about large linear state) does not bite.  The Rust
 writes them as `for` loops too. -/
 def validateIndD (st : @& StateD) (tys : List IndTypeRec) (cts : List IndCtorRec)
-    (rcs : List IndRecRec) : AM (RecordVerdict ⊕ (List IndCtorRec × Nat)) := do
+    (rcs : List IndRecRec) : AM (RecordVerdict ⊕ (List (IndCtorRec × NIdx) × Nat)) := do
   -- an `unsafe inductive` is DECLINED, not an error
   if tys.any (·.isUnsafe) then
     return .inl (.declined "unsafe inductive declaration")
@@ -294,8 +293,10 @@ def validateIndD (st : @& StateD) (tys : List IndTypeRec) (cts : List IndCtorRec
       (mi.1.insert n mi.2, mi.2 + 1)) ({}, 0)).1
   let ctsA := cts.toArray
   let fuel ← storeFuel
-  -- the constructors IN THE BLOCK'S OWN ORDER, `types[].ctors` in type order
-  let mut ordered : Array IndCtorRec := #[]
+  -- the constructors IN THE BLOCK'S OWN ORDER, `types[].ctors` in type order;
+  -- each with the type that lists it, its `induct` (the record's own claim,
+  -- where it makes one, is that type)
+  let mut ordered : Array (IndCtorRec × NIdx) := #[]
   for tn in tyNames.zip listed do
     let (T, ns) := tn
     let mut j := 0
@@ -318,7 +319,7 @@ def validateIndD (st : @& StateD) (tys : List IndTypeRec) (cts : List IndCtorRec
       unless nPd + c.numFields == tele do
         return .inl (.invalid s!"constructor {← readName n} declares {c.numFields} \
           fields at {nPd} parameters; its type has {tele} binders")
-      ordered := ordered.push c
+      ordered := ordered.push (c, T)
       j := j + 1
   let cts := ordered.toList
   -- the recursor records: the counts the GENERATED recursor carries.  NOT at a
@@ -353,7 +354,6 @@ def validateIndD (st : @& StateD) (tys : List IndTypeRec) (cts : List IndCtorRec
   return .inr (cts, nPd)
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:375-392 indBlockOfF — an
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove ExportC.installIndD_bridge, then delete this line
 inductive record, INSTALLED: the block's constants, pushed as one `IndDecl`.
 Every change to the state a validated inductive record makes is here.
 
@@ -366,12 +366,12 @@ nothing left to do but push the block.
 **EVERY BLOCK IS AN `indDecl`**: the fold recognises a pinned block by its
 members' names (`basisNameHit`) and its check compares it with the pin. -/
 def installIndD (st : StateD) (tys : List IndTypeRec)
-    (cts : List IndCtorRec) (rcs : List IndRecRec) (nPd : Nat) :
+    (cts : List (IndCtorRec × NIdx)) (rcs : List IndRecRec) (nPd : Nat) :
     AM StateD := do
   let types ← tys.mapM fun t => do
     pure (IConstantInfo.indInfo (← parseCVD st t.cv) {})
-  let ctors ← cts.mapM fun c => do
-    pure (IConstantInfo.ctorInfo (← parseCVD st c.cv) c.numParams c.numFields)
+  let ctors ← cts.mapM fun (c, T) => do
+    pure (IConstantInfo.ctorInfo (← parseCVD st c.cv) c.numParams c.numFields T)
   let recs ← rcs.mapM fun r => do
     let rules ← r.rules.mapM (parseRuleD st)
     pure (IConstantInfo.recInfo (← parseCVD st r.cv)

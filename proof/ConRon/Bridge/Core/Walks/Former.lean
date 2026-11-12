@@ -336,26 +336,24 @@ theorem indVal_closed (henv : EnvWF env) (T : ConLeche.Name) :
 
 /-! ## 3. `iotaCase3At` -/
 
-/-- con-leche: ConLeche/Verify/EnvWF.lean:102 ConstWF — the family a
-constructor concludes in has a closed stored type (and the default record,
-where there is none, a closed type too). -/
-theorem ctorFamily_closed (henv : EnvWF env) (cvj : ConstantVal) :
-    ((ConLeche.ctorFamily env.find? cvj).getD default).1.type.hasFvar = false := by
+/-- con-leche: ConLeche/Verify/EnvWF.lean:102 ConstWF — the family stored at a
+constructor's `induct` has a closed stored type (and the default record, where
+there is none, a closed type too). -/
+theorem ctorFamily_closed (henv : EnvWF env) (induct : ConLeche.Name) :
+    ((ConLeche.ctorFamily env.find? induct).getD default).1.type.hasFvar = false := by
   rw [ctorFamily_eq]
   split
-  · rename_i h
-    obtain ⟨-, hi⟩ := h
-    generalize exprConstName cvj.type.piResult.getAppFn = T at hi ⊢
-    cases hf : env.find? T with
+  · rename_i hi
+    simp only [Option.getD_some]
+    cases hf : env.find? induct with
     | none => rw [hf] at hi; cases hi
     | some ci =>
       rw [hf] at hi
-      simp only [Option.getD_some]
       cases ci <;> simp only [cInd?, Bool.false_eq_true] at hi
       exact (henv.consts _ (Env.find?_mem hf)).1
   · rfl
 grind_pattern [bridge_grind] ctorFamily_closed =>
-  EnvWF env, ConLeche.ctorFamily env.find? cvj
+  EnvWF env, ConLeche.ctorFamily env.find? induct
 
 /-- con-leche: none — `FamAns` at the index's hit: the environment's answer is
 the pair of its own components, which the hit's halves denote. -/
@@ -369,78 +367,177 @@ theorem FamAns.some_inv {st : EStore} {cv : IConstantVal} {caps : IIndCaps}
   | some p => exact ⟨rfl, h⟩
 grind_pattern [bridge_grind] FamAns.some_inv => FamAns st (some (cv, caps)) o
 
-/-- con-leche: ConLeche/Kernel/Core.lean:490-511 iotaCase3At — **the case
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:978-990 iotaNoCert — **THEOREM 1 for
+`iotaNoCert`**: pure on both sides, one lookup at the stored family name, an
+equation. -/
+theorem iotaNoCert_eq {s : AState} (hok : CheckOK eager env fe s) {induct : NIdx}
+    {inductP : ConLeche.Name} (hT : denoteN s.store.ns induct = some inductP)
+    (isK : Bool) (n : Nat) :
+    ConRon.Arena.iotaNoCert fe isK induct n = ConLeche.iotaNoCert env.find? isK inductP n := by
+  have hfam := ctorFamily_rel hok hT
+  have e : ConRon.Arena.iotaNoCert fe isK induct n =
+      (isK || match ConRon.Arena.ctorFamily fe induct with
+        | some (cvT, caps) => caps.neverZero && cvT.levelParams.length == n
+        | none => false) := by
+    unfold ConRon.Arena.iotaNoCert ConRon.Arena.ctorFamily
+    cases isK
+    · simp only [Bool.false_eq_true, ite_false, Bool.false_or]
+      cases fe.find? induct with
+      | none => rfl
+      | some ci => cases ci <;> rfl
+    · rfl
+  rw [e]
+  unfold ConLeche.iotaNoCert
+  congr 1
+  generalize ConRon.Arena.ctorFamily fe induct = a at hfam
+  generalize ConLeche.ctorFamily env.find? inductP = b at hfam
+  match a, b, hfam with
+  | none, _, h => rw [FamAns.none_eq] at h; subst h; rfl
+  | some (cv, caps), some (cvP, capsP), ⟨hcv, hcaps⟩ =>
+    simp only
+    rw [denoteCaps_neverZero hcaps, denoteNList_len (denoteCV_levelParams hcv)]
+  | some _, none, h => exact h.elim
+
+/-- con-leche: ConLeche/Kernel/Core.lean:562-583 iotaCase3At — **the case
 split's answer**: the pure split answers `b` at some fuel. -/
-@[expose] def C3 (eager : Bool) (env : Env) (isK : Bool) (cvj : ConstantVal)
+@[expose] def C3 (eager : Bool) (env : Env) (isK : Bool) (induct : ConLeche.Name)
     (us : List Level) (b : Bool) : Prop :=
-  ∃ F, iotaCase3At (pureFns .verified eager env F).whnf env.find? isK cvj us = .ok b
+  ∃ F, iotaCase3At (pureFns .verified eager env F).whnf env.find? isK induct us = .ok b
 
-/-- con-leche: ConLeche/Kernel/Core.lean:490-511 iotaCase3At — a K recursor is
+/-- con-leche: ConLeche/Kernel/Core.lean:562-583 iotaCase3At — a K recursor is
 never case 3. -/
-theorem c3_K {cvj : ConstantVal} {us : List Level} : C3 eager env true cvj us false :=
+theorem c3_K {induct : ConLeche.Name} {us : List Level} : C3 eager env true induct us false :=
   ⟨0, rfl⟩
-grind_pattern [bridge_grind] c3_K => C3 eager env true cvj us false
+grind_pattern [bridge_grind] c3_K => C3 eager env true induct us false
 
-/-- con-leche: ConLeche/Kernel/Core.lean:490-511 iotaCase3At — no stored family:
+/-- con-leche: ConLeche/Kernel/Core.lean:562-583 iotaCase3At — no stored family:
 case 3. -/
-theorem c3_nofam {cvj : ConstantVal} {us : List Level}
-    (h : ConLeche.ctorFamily env.find? cvj = none) : C3 eager env false cvj us true :=
+theorem c3_nofam {induct : ConLeche.Name} {us : List Level}
+    (h : ConLeche.ctorFamily env.find? induct = none) : C3 eager env false induct us true :=
   ⟨0, by simp only [ConLeche.iotaCase3At, h, Bool.false_eq_true, ite_false]; rfl⟩
 grind_pattern [bridge_grind] c3_nofam =>
-  C3 eager env false cvj us true, ConLeche.ctorFamily env.find? cvj
+  C3 eager env false induct us true, ConLeche.ctorFamily env.find? induct
 
-/-- con-leche: ConLeche/Kernel/Core.lean:490-511 iotaCase3At — the family's
+/-- con-leche: ConLeche/Kernel/Core.lean:562-583 iotaCase3At — the family's
 level parameters do not match the comparands: case 3. -/
-theorem c3_len {cvj : ConstantVal} {us : List Level}
-    (h : (ConLeche.ctorFamily env.find? cvj).isSome = true)
-    (hl : ((ConLeche.ctorFamily env.find? cvj).getD default).1.levelParams.length ≠
-      us.length) : C3 eager env false cvj us true := by
+theorem c3_len {induct : ConLeche.Name} {us : List Level}
+    (h : (ConLeche.ctorFamily env.find? induct).isSome = true)
+    (hl : ((ConLeche.ctorFamily env.find? induct).getD default).1.levelParams.length ≠
+      us.length) : C3 eager env false induct us true := by
   obtain ⟨⟨cvT, caps⟩, hc⟩ := Option.isSome_iff_exists.mp h
   rw [hc] at hl
   exact ⟨0, by simp only [ConLeche.iotaCase3At, hc, Bool.false_eq_true, ite_false, beq_iff_eq,
     Option.getD_some] at hl ⊢; simp only [hl, ite_false]; rfl⟩
 grind_pattern [bridge_grind] c3_len =>
-  C3 eager env false cvj us true, ConLeche.ctorFamily env.find? cvj
+  C3 eager env false induct us true, ConLeche.ctorFamily env.find? induct
 
-/-- con-leche: ConLeche/Kernel/Core.lean:490-511 iotaCase3At — case 3 exactly
+/-- con-leche: ConLeche/Kernel/Core.lean:562-583 iotaCase3At — case 3 exactly
 where the family's sort may be zero at the comparands. -/
-theorem c3_nz {cvj : ConstantVal} {us : List Level} {b : Bool}
-    (h : (ConLeche.ctorFamily env.find? cvj).isSome = true)
-    (hl : ((ConLeche.ctorFamily env.find? cvj).getD default).1.levelParams.length =
+theorem c3_nz {induct : ConLeche.Name} {us : List Level} {b : Bool}
+    (h : (ConLeche.ctorFamily env.find? induct).isSome = true)
+    (hl : ((ConLeche.ctorFamily env.find? induct).getD default).1.levelParams.length =
       us.length)
-    (hb : NZ eager env ((ConLeche.ctorFamily env.find? cvj).getD default).1
-      ((ConLeche.ctorFamily env.find? cvj).getD default).2 us b) :
-    C3 eager env false cvj us !b := by
+    (hb : NZ eager env ((ConLeche.ctorFamily env.find? induct).getD default).1
+      ((ConLeche.ctorFamily env.find? induct).getD default).2 us b) :
+    C3 eager env false induct us !b := by
   obtain ⟨⟨cvT, caps⟩, hc⟩ := Option.isSome_iff_exists.mp h
   rw [hc] at hl hb
   obtain ⟨F, hF⟩ := hb
   exact ⟨F, by simp only [Option.getD_some] at hl hF; simp only [ConLeche.iotaCase3At, hc,
     Bool.false_eq_true, ite_false, hl, beq_self_eq_true, ite_true, hF, bind, Except.bind]; rfl⟩
 grind_pattern [bridge_grind] c3_nz =>
-  C3 eager env false cvj us !b,
-  NZ eager env ((ConLeche.ctorFamily env.find? cvj).getD default).1
-    ((ConLeche.ctorFamily env.find? cvj).getD default).2 us b
+  C3 eager env false induct us !b,
+  NZ eager env ((ConLeche.ctorFamily env.find? induct).getD default).1
+    ((ConLeche.ctorFamily env.find? induct).getD default).2 us b
 
-/-- con-leche: ConLeche/Kernel/Core.lean:490-511 iotaCase3At
-con-leche: ConLeche/Cached/CoreC.lean:451-461 iotaCase3I — **THEOREM 1 for
-`iotaCase3At`**: the ι case split at the comparand levels. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:562-583 iotaCase3At
+con-leche: ConLeche/Cached/CoreC.lean:794-805 iotaCase3I — **THEOREM 1 for
+`iotaCase3At`**: the ι case split at the comparand levels, the family read at
+the constructor's stored `induct`. -/
 theorem iotaCase3At_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
-    (henv : EnvWF env) (s₀ : AState) (isK : Bool) (cvj : IConstantVal) (cvjP : ConstantVal)
+    (henv : EnvWF env) (s₀ : AState) (isK : Bool) (induct : NIdx) (inductP : ConLeche.Name)
     (us : LsIdx) (ls : List Level)
-    (hok : CheckOK eager env fe s₀) (hcv : Frontend.denoteCV s₀.store cvj = some cvjP)
+    (hok : CheckOK eager env fe s₀) (hT : denoteN s₀.store.ns induct = some inductP)
     (hus : denoteLs s₀.store.lss us = some ls) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.iotaCase3At (coreKnot .verified eager fe id fuel) fe isK cvj us
+      ConRon.Arena.iotaCase3At (coreKnot .verified eager fe id fuel) fe isK induct us
     ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
-        C3 eager env isK cvjP ls r; ⊤⦄ := by
+        C3 eager env isK inductP ls r; ⊤⦄ := by
   have hlen := viewLen_of_denoteLs hus
+  have hfam := ctorFamily_rel hok hT
+  have hcl := ctorFamily_closed henv inductP
   sym only [bridge_grind] =>
     vcgen [ConRon.Arena.iotaCase3At,
-      ctorFamily_spec (eager := eager) (env := env) (fe := fe) (cvjP := cvjP),
       formerNeverZeroAt_spec hsim
-        (cvTP := ((ConLeche.ctorFamily env.find? cvjP).getD default).1)
-        (capsP := ((ConLeche.ctorFamily env.find? cvjP).getD default).2) (ls := ls)] <;>
+        (cvTP := ((ConLeche.ctorFamily env.find? inductP).getD default).1)
+        (capsP := ((ConLeche.ctorFamily env.find? inductP).getD default).2) (ls := ls)] <;>
       finish (gen := 16)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:594-599 familyNeverZeroAt — **the
+family's never-zero answer**: the pure test answers `b` at some fuel. -/
+@[expose] def FNZ (eager : Bool) (env : Env) (cvT : ConstantVal) (caps : IndCaps)
+    (us : List Level) (b : Bool) : Prop :=
+  ∃ F, familyNeverZeroAt (pureFns .verified eager env F).whnf cvT caps us = .ok b
+
+/-- con-leche: ConLeche/Kernel/Core.lean:594-599 familyNeverZeroAt — the stored
+fact answers `true`. -/
+theorem fnz_stored {cvT : ConstantVal} {caps : IndCaps} {us : List Level}
+    (h : caps.neverZero = true) : FNZ eager env cvT caps us true :=
+  ⟨0, by simp only [ConLeche.familyNeverZeroAt, h, ite_true]; rfl⟩
+grind_pattern [bridge_grind] fnz_stored => FNZ eager env cvT caps us true
+
+/-- con-leche: ConLeche/Kernel/Core.lean:594-599 familyNeverZeroAt — no stored
+fact: the test where it is asked. -/
+theorem fnz_use {cvT : ConstantVal} {caps : IndCaps} {us : List Level} {b : Bool}
+    (h : caps.neverZero = false) (hb : NZ eager env cvT caps us b) :
+    FNZ eager env cvT caps us b :=
+  let ⟨F, hF⟩ := hb
+  ⟨F, by simp only [ConLeche.familyNeverZeroAt, h, Bool.false_eq_true, ite_false]; exact hF⟩
+grind_pattern [bridge_grind] fnz_use => FNZ eager env cvT caps us b, NZ eager env cvT caps us b
+
+/-- con-leche: ConLeche/Kernel/Core.lean:594-599 familyNeverZeroAt
+con-leche: ConLeche/Cached/CoreC.lean:788-792 familyNeverZeroI — **THEOREM 1 for
+`familyNeverZeroAt`**: the stored fact first, else `formerNeverZeroAt`. -/
+theorem familyNeverZeroAt_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
+    (s₀ : AState) (cvT : IConstantVal) (cvTP : ConstantVal) (caps : IIndCaps)
+    (capsP : IndCaps) (us : LsIdx) (ls : List Level)
+    (hok : CheckOK eager env fe s₀) (hcv : Frontend.denoteCV s₀.store cvT = some cvTP)
+    (hcaps : Frontend.denoteCaps s₀.store caps = some capsP)
+    (hus : denoteLs s₀.store.lss us = some ls) (hcl : cvTP.type.hasFvar = false) :
+    ⦃fun s => s = s₀⦄
+      ConRon.Arena.familyNeverZeroAt (coreKnot .verified eager fe id fuel) cvT caps us
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        FNZ eager env cvTP capsP ls r; ⊤⦄ := by
+  have hnz := denoteCaps_neverZero hcaps
+  sym only [bridge_grind] =>
+    vcgen [ConRon.Arena.familyNeverZeroAt,
+      formerNeverZeroAt_spec hsim (cvTP := cvTP) (capsP := capsP) (ls := ls)] <;> finish
+
+/-- con-leche: none — `FNZ` at an optional level list. -/
+@[expose] def FNZA (eager : Bool) (env : Env) (cvT : ConstantVal) (caps : IndCaps) (b : Bool) :
+    Option (List Level) → Prop
+  | some us => FNZ eager env cvT caps us b
+  | none => True
+
+/-- con-leche: none — `FNZA` at a denoting list. -/
+@[bridge_grind =] theorem FNZA.some_eq (cvT : ConstantVal) (caps : IndCaps) (b : Bool)
+    (us : List Level) : FNZA eager env cvT caps b (some us) = FNZ eager env cvT caps us b := rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:594-599 familyNeverZeroAt —
+`familyNeverZeroAt_spec` at whatever the level list denotes. -/
+theorem familyNeverZeroAt_specA {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
+    (s₀ : AState) (cvT : IConstantVal) (cvTP : ConstantVal) (caps : IIndCaps)
+    (capsP : IndCaps) (us : LsIdx)
+    (hok : CheckOK eager env fe s₀) (hcv : Frontend.denoteCV s₀.store cvT = some cvTP)
+    (hcaps : Frontend.denoteCaps s₀.store caps = some capsP)
+    (hus : (denoteLs s₀.store.lss us).isSome = true) (hcl : cvTP.type.hasFvar = false) :
+    ⦃fun s => s = s₀⦄
+      ConRon.Arena.familyNeverZeroAt (coreKnot .verified eager fe id fuel) cvT caps us
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        FNZA eager env cvTP capsP r (denoteLs s₀.store.lss us); ⊤⦄ := by
+  obtain ⟨ls, hls⟩ := Option.isSome_iff_exists.mp hus
+  rw [hls]
+  exact familyNeverZeroAt_spec hsim s₀ cvT cvTP caps capsP us ls hok hcv hcaps hls hcl
 
 /-! ## 4. `projGuardSort` -/
 

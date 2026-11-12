@@ -833,7 +833,7 @@ theorem natZeroOk_run {x : Option IConstantInfo} {y : Option ConstantInfo}
   rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
   · exact RunsB.ret hst
   · cases ci
-    case ctorInfo v nP nF =>
+    case ctorInfo v nP nF _ =>
       obtain ⟨v', rfl, hv⟩ := denoteCI_ctor_inv hd
       simp only [Arena.natZeroOk, ConLeche.natZeroOk]
       refine RunsB.pin hst hp (x := ConLeche.natName) (by rfl) fun nt dnt => ?_
@@ -860,8 +860,8 @@ def natSuccTy : Expr → Bool
     dom == .const ConLeche.natName [] && body == .const ConLeche.natName []
   | _ => false
 
-theorem natSuccOk_eq (cv : ConstantVal) (nP nF : Nat) :
-    ConLeche.natSuccOk (some (.ctorInfo cv nP nF)) =
+theorem natSuccOk_eq (cv : ConstantVal) (nP nF : Nat) (T : ConLeche.Name) :
+    ConLeche.natSuccOk (some (.ctorInfo cv nP nF T)) =
       (cv.levelParams.isEmpty && natSuccTy cv.type) := by
   simp only [ConLeche.natSuccOk]
   congr 1
@@ -883,7 +883,7 @@ theorem natSuccOk_run {x : Option IConstantInfo} {y : Option ConstantInfo}
   rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
   · exact RunsB.ret hst
   · cases ci
-    case ctorInfo v nP nF =>
+    case ctorInfo v nP nF _ =>
       obtain ⟨v', rfl, hv⟩ := denoteCI_ctor_inv hd
       rw [natSuccOk_eq]
       simp only [Arena.natSuccOk]
@@ -1771,7 +1771,7 @@ theorem checkStructuralNatPinAtFe2_bridge {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
     | .axiomInfo _, hfind
     | .thmInfo _, hfind
     | .indInfo _ _, hfind
-    | .ctorInfo _ _ _, hfind
+    | .ctorInfo _ _ _ _, hfind
     | .recInfo _ _ _ _ _, hfind => exact absurd r7 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:60-73 checkDecl — **the

@@ -827,9 +827,11 @@ theorem denoteCI_recInfo {st : EStore} {ci : IConstantInfo}
   | axiomInfo w =>
     rw [ConRon.Arena.Frontend.denoteCI] at hd
     rcases Option.map_eq_some_iff.mp hd with ⟨_, -, hh⟩; exact nomatch hh
-  | ctorInfo w a b =>
+  | ctorInfo w a b T =>
     rw [ConRon.Arena.Frontend.denoteCI] at hd
-    rcases Option.map_eq_some_iff.mp hd with ⟨_, -, hh⟩; exact nomatch hh
+    split at hd
+    · exact nomatch (Option.some.inj hd)
+    · exact absurd hd (by simp)
   | defnInfo w e hint =>
     rw [ConRon.Arena.Frontend.denoteCI] at hd
     split at hd
@@ -862,7 +864,7 @@ theorem ucBlockStep_denote {st : EStore} {ci : IConstantInfo}
   | defnInfo _ _ _ => rfl
   | thmInfo _ => rfl
   | indInfo _ _ => rfl
-  | ctorInfo _ _ _ => rfl
+  | ctorInfo _ _ _ _ => rfl
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:87-93 Declaration.usedConsts
 — **an inductive block**, folded over ONE visited set.
@@ -977,7 +979,7 @@ theorem usedConstsBlock_run :
           exact hgen (by intro _ _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
         | indInfo v c =>
           exact hgen (by intro _ _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
-        | ctorInfo v a b =>
+        | ctorInfo v a b T =>
           exact hgen (by intro _ _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:82 Declaration.usedConsts —

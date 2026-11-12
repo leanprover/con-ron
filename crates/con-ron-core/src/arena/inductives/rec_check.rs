@@ -484,7 +484,6 @@ pub fn target_canon_params(pers: &PersTier, st: &mut AState, pfvs: &Vec<EIdx>, e
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:164-183 targetParamsDefEq
 /// con-leche: ConLeche/Cached/IndRec.lean:165-182 targetParamsDefEqC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove rec_check::pair_closed_refines, then delete this line
 /// Lean twin: `a.bvarB == 0 && b.bvarB == 0 && a.fvarB ≤ n && b.fvarB ≤ n` —
 /// the two sides are closed over the openers, the four reads in order.
 pub fn pair_closed(pers: &PersTier, st: &mut AState, a: &EIdx, b: &EIdx, n: u64) -> Result<bool, CheckError> {
@@ -523,7 +522,6 @@ pub fn pair_closed(pers: &PersTier, st: &mut AState, a: &EIdx, b: &EIdx, n: u64)
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:164-183 targetParamsDefEq
 /// con-leche: ConLeche/Cached/IndRec.lean:165-182 targetParamsDefEqC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove rec_check::target_params_def_eq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:181-209 targetParamsDefEq` —
 /// **per-component parameter defeq** at depth `d`, each side moved to the
 /// openers and member-abstracted (`absM` is `targetAbs names lvls holes`, its
@@ -580,7 +578,6 @@ pub fn target_params_def_eq(
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:164-183 targetParamsDefEq
 /// con-leche: ConLeche/Cached/IndRec.lean:165-182 targetParamsDefEqC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove rec_check::target_params_def_eq_infer_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:181-209 targetParamsDefEq` —
 /// the two sides not syntactically equal: both inferred at `d`, then compared
 /// by the kernel's defeq.
@@ -1010,7 +1007,6 @@ pub fn target_major_outside_aux(
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:294-311 targetPinTys
 /// con-leche: ConLeche/Cached/IndBlock.lean:325-330 targetPinTysC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove rec_check::target_pin_tys_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:342-350 targetPinTys` — **an
 /// outside major's parameters, typed at the rule prefix** (depth `d`), in
 /// order.

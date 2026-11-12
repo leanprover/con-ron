@@ -846,7 +846,7 @@ theorem unfoldDefConst_run (fe : IFEnv) (e : EIdx) (n : NIdx) (us : LsIdx)
     | axiomInfo _ => rfl
     | thmInfo _ => rfl
     | indInfo _ _ => rfl
-    | ctorInfo _ _ _ => rfl
+    | ctorInfo _ _ _ _ => rfl
     | recInfo _ _ _ _ => rfl
 
 /-- `unfoldDefAt` at a `const`-tagged head: the one `view` read. -/
@@ -1134,7 +1134,7 @@ theorem unfold_definition_refines {pers st fe lfe e lst o}
             refine AOut₀.ok (lst' := lst0) ?_ hrel0 hinv0
             rw [htw2, unfoldDefConst_run, ← hfind]
             rfl
-          | CtorInfo cv np nf =>
+          | CtorInfo cv np nf _ =>
             have ho : (core.result.Result.Ok (T := Option arena.handle.EIdx) none, st)
                 = o := Result.ok_injective hrun
             rw [← ho]

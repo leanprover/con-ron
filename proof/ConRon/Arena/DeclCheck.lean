@@ -40,9 +40,7 @@ open ConLeche
 /-! ## The standard axioms' environment shape -/
 
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove DeclCheck.eqStored_bridge, then delete this line
 con-leche: ConLeche/Kernel/DeclCheck.lean:87-117 stdAxiomOkF
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove DeclCheck.eqStored_bridge, then delete this line
 con-leche: ConLeche/Kernel/TrustAxioms.lean:174-184 ofReduceAxOk
 con-leche: ConLeche/Kernel/Checker.lean:295-308 divModEnvGuard
 The `(fe.find? eqName).isSome` the three guards share: the environment holds
@@ -52,9 +50,7 @@ def eqStored (fe : IFEnv) : AM Bool := do
   pure (fe.find? (← pinEq)).isSome
 
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove DeclCheck.stdAxiomOk_bridge, then delete this line
 con-leche: ConLeche/Kernel/DeclCheck.lean:87-117 stdAxiomOkF
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove DeclCheck.stdAxiomOk_bridge, then delete this line
 Is this checked axiom one of the two recognized standard axioms, over
 standardly-shaped stored `Iff` / `Nonempty` families (and the pinned `Eq`
 basis)?  All three of each family's constants are pinned (the check must
@@ -68,7 +64,7 @@ def stdAxiomOk (fe : IFEnv) (cv : IConstantVal) : AM Bool := do
       | some (.indInfo cvI _) => do
         if !(← cvI.matchesPin (← iffA).toConstantVal) then pure false else do
           match fe.find? (← iffIntroName) with
-          | some (.ctorInfo cvIi 2 2) => do
+          | some (.ctorInfo cvIi 2 2 _) => do
             if !(← cvIi.matchesPin (← iffIntroA).toConstantVal) then pure false
             else do
               match fe.find? (← iffRecName) with
@@ -88,7 +84,7 @@ def stdAxiomOk (fe : IFEnv) (cv : IConstantVal) : AM Bool := do
       | some (.indInfo cvN _) => do
         if !(← cvN.matchesPin (← nonemptyA).toConstantVal) then pure false else do
           match fe.find? (← nonemptyIntroName) with
-          | some (.ctorInfo cvNi 1 1) => do
+          | some (.ctorInfo cvNi 1 1 _) => do
             if !(← cvNi.matchesPin (← nonemptyIntroA).toConstantVal) then pure false
             else do
               match fe.find? (← nonemptyRecName) with
@@ -103,9 +99,7 @@ def stdAxiomOk (fe : IFEnv) (cv : IConstantVal) : AM Bool := do
 /-! ## The compiler-trust family's environment shape -/
 
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:141-152 trustCompilerOk
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove DeclCheck.trustCompilerOk_bridge, then delete this line
 con-leche: ConLeche/Kernel/DeclCheck.lean:119-127 trustCompilerOkF
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove DeclCheck.trustCompilerOk_bridge, then delete this line
 Is `Lean.trustCompiler` installable here?  The `True` family must be stored
 with the pinned shapes, and the checked axiom's type must match the pin. -/
 def trustCompilerOk (fe : IFEnv) (cv : IConstantVal) : AM Bool := do
@@ -113,7 +107,7 @@ def trustCompilerOk (fe : IFEnv) (cv : IConstantVal) : AM Bool := do
   | some (.indInfo cvT _) => do
     if !(← cvT.matchesPin (← trueCvA)) then pure false else do
       match fe.find? (← trueIntroName) with
-      | some (.ctorInfo cvTi 0 0) => do
+      | some (.ctorInfo cvTi 0 0 _) => do
         if !(← cvTi.matchesPin (← trueIntroCvA)) then pure false
         else cv.matchesPin (← trustCompilerA)
       | _ => pure false

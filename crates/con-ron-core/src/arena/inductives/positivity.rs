@@ -574,7 +574,6 @@ pub fn close_telescope(
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:65-88 whnfTelescope
 /// con-leche: ConLeche/Cached/IndPositivity.lean:129-145 whnfTelescopeC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove positivity::whnf_telescope_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:185-210 whnfTelescope` —
 /// **official's telescope loop** (`check_inductive_types`): peel `n` Π
 /// binders off `e`, reducing the residual to weak head normal form before each
@@ -687,7 +686,6 @@ pub fn family_telescope(
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:105-116 checkSpineAt
 /// con-leche: ConLeche/Cached/IndPositivity.lean:161-172 checkSpineAtC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove positivity::check_spine_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:234-251 checkSpineAt` — **the
 /// arguments `as_[i..]` of an application against the telescope `t`**: each
 /// argument's type definitionally equal to its binder's domain (at depth
@@ -1356,7 +1354,6 @@ pub fn nest_state_empty() -> NestState {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:405-416 nestCtorEntry
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove positivity::nest_ctor_entry_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:477-493 nestCtorEntry` — a
 /// stored constant's entry as a constructor of `C`: a constructor record
 /// whose result, past its parameters and fields, is headed by `C`.
@@ -1367,7 +1364,7 @@ pub fn nest_ctor_entry(
     ci: &IConstantInfo,
 ) -> Result<Option<(IConstantVal, u64, u64)>, CheckError> {
     match ci {
-        IConstantInfo::CtorInfo(cv, n_pc, n_f) => {
+        IConstantInfo::CtorInfo(cv, n_pc, n_f, _) => {
             match expr_ops::strip_pis(pers, st, *n_pc + *n_f, &cv.ty) {
                 Err(e) => Err(e),
                 Ok(None) => Ok(None),
@@ -2394,7 +2391,6 @@ pub fn nest_ctor_nf(
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:659-723 nestCtors
 /// con-leche: ConLeche/Cached/IndPositivity.lean:278-319 nestCtorsC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove positivity::nest_u4_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:991-1043 nestCtors` — U4: some
 /// field `i ≥ i0` that is not ordinary is read by a later field or by the
 /// result (`structUsedLater` on the walked telescope; the kind is tested
@@ -2429,7 +2425,6 @@ pub fn nest_u4(
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:659-723 nestCtors
 /// con-leche: ConLeche/Cached/IndPositivity.lean:278-319 nestCtorsC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove positivity::nest_ctors_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:991-1043 nestCtors` — **a
 /// frame's constructors**, the root frame's (`root`: each constructor walked
 /// at the input-derived fuel of its instantiated type) and every container
@@ -2483,7 +2478,6 @@ pub fn nest_ctors(
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:659-723 nestCtors
 /// con-leche: ConLeche/Cached/IndPositivity.lean:278-319 nestCtorsC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove positivity::nest_ctors_typed_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:991-1043 nestCtors` — the
 /// crest typed at the frame's context, and its fields walked.
 #[allow(clippy::too_many_arguments)]
@@ -2535,7 +2529,6 @@ pub fn nest_ctors_typed(
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:659-723 nestCtors
 /// con-leche: ConLeche/Cached/IndPositivity.lean:278-319 nestCtorsC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove positivity::nest_ctors_walk_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:991-1043 nestCtors` — the
 /// fields walked at the constructor's fuel `fuel_c` (`rec crest`: the root's
 /// input-derived one, a frame's enclosing one).  Its own function so the two
@@ -2575,7 +2568,6 @@ pub fn nest_ctors_walk(
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:659-723 nestCtors
 /// con-leche: ConLeche/Cached/IndPositivity.lean:278-319 nestCtorsC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove positivity::nest_ctors_done_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:991-1043 nestCtors` — U4, the
 /// result's head and indices, the normal form recorded, and the rest of the
 /// constructors.
@@ -2632,7 +2624,6 @@ pub fn nest_ctors_done(
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:659-723 nestCtors
 /// con-leche: ConLeche/Cached/IndPositivity.lean:278-319 nestCtorsC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove positivity::nest_res_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:991-1043 nestCtors` —
 /// official's "invalid return type" on the instantiated constructor: its
 /// result is headed by its hole and its indices are hole-free below `hi` (the
@@ -3362,7 +3353,6 @@ pub fn nest_cont_params(
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:884-937 nestPos
 /// con-leche: ConLeche/Cached/IndPositivity.lean:394-430 nestPosC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove positivity::nest_pos_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1158-1216 nestPos` — **the
 /// positivity function**: the domain `e` at depth `dep`, `kb` `Π` binders
 /// into the field, `prog` the instantiations in progress.  The reduct (the
@@ -3404,7 +3394,6 @@ pub fn nest_pos(
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:884-937 nestPos
 /// con-leche: ConLeche/Cached/IndPositivity.lean:394-430 nestPosC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove positivity::nest_pos_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1158-1216 nestPos` — the reduct
 /// `w` mentions a member or a hole: a `Π` whose domain is hole-free (`pi`, the
 /// codomain walked one binder in), a hole application (`holeApp`), a stored
@@ -3475,7 +3464,6 @@ pub fn nest_pos_at(
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:884-937 nestPos
 /// con-leche: ConLeche/Cached/IndPositivity.lean:394-430 nestPosC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove positivity::nest_pos_hole_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1158-1216 nestPos` — the
 /// `holeApp` case: a hole standing for its entry's whole application to the
 /// parameters, applied to hole-free indices, exactly its entry's index count

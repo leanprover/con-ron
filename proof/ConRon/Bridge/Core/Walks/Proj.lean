@@ -520,27 +520,39 @@ theorem iotaCertsFull_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
 
 /-- con-leche: none — a stored constructor denotes a constructor, with the
 same two counts. -/
-theorem denoteCI_ctorInfo_inv {st : EStore} {v : IConstantVal} {nP nF : Nat}
+theorem denoteCI_ctorInfo_inv {st : EStore} {v : IConstantVal} {nP nF : Nat} {T : NIdx}
     {c : ConstantInfo}
-    (h : Frontend.denoteCI st (.ctorInfo v nP nF) = some c) :
+    (h : Frontend.denoteCI st (.ctorInfo v nP nF T) = some c) :
     ∃ cv, Frontend.denoteCV st v = some cv ∧
-      c = .ctorInfo cv nP nF (Frontend.shimCtorInduct cv) := by
-  simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-  obtain ⟨cv, hcv, rfl⟩ := h
-  exact ⟨cv, hcv, rfl⟩
+      c = .ctorInfo cv nP nF ((denoteN st.ns T).getD default) := by
+  simp only [Frontend.denoteCI] at h
+  split at h
+  · rename_i cv t hcv ht; cases h
+    exact ⟨cv, hcv, by rw [ht]; rfl⟩
+  · cases h
+
+/-- con-leche: none — a denoting constructor record's family handle denotes. -/
+theorem denoteCI_ctorInfo_induct {st : EStore} {v : IConstantVal} {nP nF : Nat} {T : NIdx}
+    {c : ConstantInfo}
+    (h : Frontend.denoteCI st (.ctorInfo v nP nF T) = some c) :
+    denoteN st.ns T = some ((denoteN st.ns T).getD default) := by
+  simp only [Frontend.denoteCI] at h
+  split at h
+  · rename_i cv t hcv ht; rw [ht]; rfl
+  · cases h
 
 /-- con-leche: none — and the other direction: a stored constant that
 denotes a constructor IS one (`projCert` decides a guard on it). -/
 theorem denoteCI_ctor_inv {st : EStore} {ci : IConstantInfo} {cv : ConstantVal}
-    {nP nF : Nat} {T : ConLeche.Name}
-    (h : Frontend.denoteCI st ci = some (.ctorInfo cv nP nF T)) :
-    ∃ v, ci = .ctorInfo v nP nF := by
+    {nP nF : Nat} {TP : ConLeche.Name}
+    (h : Frontend.denoteCI st ci = some (.ctorInfo cv nP nF TP)) :
+    ∃ v T, ci = .ctorInfo v nP nF T := by
   cases ci with
-  | ctorInfo v nP' nF' =>
+  | ctorInfo v nP' nF' T =>
     obtain ⟨_, _, hc⟩ := denoteCI_ctorInfo_inv h
     simp only [ConstantInfo.ctorInfo.injEq] at hc
     obtain ⟨_, rfl, rfl, _⟩ := hc
-    exact ⟨v, rfl⟩
+    exact ⟨v, T, rfl⟩
   | axiomInfo v =>
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
     obtain ⟨_, _, hc⟩ := h; simp at hc
@@ -577,21 +589,30 @@ theorem env_find_name {n : ConLeche.Name} {ci : ConstantInfo}
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the index's HIT half at
 a constructor. -/
 theorem env_ctor_of_index {s : AState} (hok : CheckOK eager env fe s)
-    {c : NIdx} {nm : ConLeche.Name} {icv : IConstantVal} {nP nF : Nat}
+    {c : NIdx} {nm : ConLeche.Name} {icv : IConstantVal} {nP nF : Nat} {T : NIdx}
     (hn : denoteN s.store.ns c = some nm)
-    (hfd : fe.find? c = some (.ctorInfo icv nP nF)) :
+    (hfd : fe.find? c = some (.ctorInfo icv nP nF T)) :
     ∃ dcv, Frontend.denoteCV s.store icv = some dcv ∧
-      env.find? nm = some (.ctorInfo dcv nP nF (Frontend.shimCtorInduct dcv)) := by
+      env.find? nm = some (.ctorInfo dcv nP nF ((denoteN s.store.ns T).getD default)) := by
   obtain ⟨nm', cc, hn', hci, hfind⟩ := hok.ienv.hit c _ hfd
   obtain rfl := Option.some.inj (hn'.symm.trans hn)
   obtain ⟨dcv, hdcv, rfl⟩ := denoteCI_ctorInfo_inv hci
   exact ⟨dcv, hdcv, hfind⟩
 
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — a stored constructor's family
+handle denotes. -/
+theorem env_ctor_induct_of_index {s : AState} (hok : CheckOK eager env fe s)
+    {c : NIdx} {icv : IConstantVal} {nP nF : Nat} {T : NIdx}
+    (hfd : fe.find? c = some (.ctorInfo icv nP nF T)) :
+    denoteN s.store.ns T = some ((denoteN s.store.ns T).getD default) := by
+  obtain ⟨_, _, _, hci, _⟩ := hok.ienv.hit c _ hfd
+  exact denoteCI_ctorInfo_induct hci
+
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the index's MISS half at
 a constructor. -/
 theorem env_not_ctor_of_index {s : AState} (hok : CheckOK eager env fe s)
     {c : NIdx} {nm : ConLeche.Name} (hn : denoteN s.store.ns c = some nm)
-    (hnd : ∀ v nP nF, fe.find? c ≠ some (.ctorInfo v nP nF)) :
+    (hnd : ∀ v nP nF T, fe.find? c ≠ some (.ctorInfo v nP nF T)) :
     ∀ cv nP nF T, env.find? nm ≠ some (.ctorInfo cv nP nF T) := by
   intro cv nP nF T hcon
   cases hf : fe.find? c with
@@ -601,8 +622,8 @@ theorem env_not_ctor_of_index {s : AState} (hok : CheckOK eager env fe s)
     obtain rfl := Option.some.inj (hn'.symm.trans hn)
     rw [hfind] at hcon
     obtain rfl := Option.some.inj hcon
-    obtain ⟨v, rfl⟩ := denoteCI_ctor_inv hci
-    exact hnd v nP nF hf
+    obtain ⟨v, T', rfl⟩ := denoteCI_ctor_inv hci
+    exact hnd v nP nF T' hf
 
 /-! ## 5b. The arity certificate -/
 

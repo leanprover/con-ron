@@ -168,20 +168,24 @@ theorem natIndOk_cvRun (s₀ : AState) (cv : IConstantVal) (cvP : ConstantVal)
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:208-212 natZeroOk — at the
 constructor record `litShapeOk` builds from a denoted constant. -/
 theorem natZeroOk_cvRun (s₀ : AState) (cv : IConstantVal) (cvP : ConstantVal) (a b : Nat)
-    (hok : CheckOK eager env fe s₀) (hcv : Frontend.denoteCV s₀.store cv = some cvP) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.natZeroOk (some (.ctorInfo cv a b))
+    (T : NIdx) (TP : ConLeche.Name)
+    (hok : CheckOK eager env fe s₀) (hcv : Frontend.denoteCV s₀.store cv = some cvP)
+    (hT : denoteN s₀.store.ns T = some TP) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natZeroOk (some (.ctorInfo cv a b T))
     ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ r = ConLeche.natZeroOk (some (.ctorInfo cvP a b)); ⊤⦄ :=
-  natZeroOk_optRun s₀ _ _ hok ⟨.ctorInfo cvP a b, by simp [Frontend.denoteCI, hcv], rfl⟩
+        s'.pins = s₀.pins ∧ r = ConLeche.natZeroOk (some (.ctorInfo cvP a b TP)); ⊤⦄ :=
+  natZeroOk_optRun s₀ _ _ hok ⟨.ctorInfo cvP a b TP, by simp [Frontend.denoteCI, hcv, hT], rfl⟩
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:214-223 natSuccOk — at the
 constructor record `litShapeOk` builds from a denoted constant. -/
 theorem natSuccOk_cvRun (s₀ : AState) (cv : IConstantVal) (cvP : ConstantVal) (a b : Nat)
-    (hok : CheckOK eager env fe s₀) (hcv : Frontend.denoteCV s₀.store cv = some cvP) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.natSuccOk (some (.ctorInfo cv a b))
+    (T : NIdx) (TP : ConLeche.Name)
+    (hok : CheckOK eager env fe s₀) (hcv : Frontend.denoteCV s₀.store cv = some cvP)
+    (hT : denoteN s₀.store.ns T = some TP) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natSuccOk (some (.ctorInfo cv a b T))
     ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ r = ConLeche.natSuccOk (some (.ctorInfo cvP a b)); ⊤⦄ :=
-  natSuccOk_optRun s₀ _ _ hok ⟨.ctorInfo cvP a b, by simp [Frontend.denoteCI, hcv], rfl⟩
+        s'.pins = s₀.pins ∧ r = ConLeche.natSuccOk (some (.ctorInfo cvP a b TP)); ⊤⦄ :=
+  natSuccOk_optRun s₀ _ _ hok ⟨.ctorInfo cvP a b TP, by simp [Frontend.denoteCI, hcv, hT], rfl⟩
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:373-389 litShapeOk — **THEOREM 1
 for `litShapeOk`**: the ten-way pinned-name chain, each arm the shape walk of
@@ -203,8 +207,10 @@ theorem litShapeOk_run (s₀ : AState) (ci : IConstantInfo) (c : ConstantInfo)
       ConRon.Arena.pinChar, ConRon.Arena.pinCharOfNat, pinAt_specE,
       natIndOk_cvRun (eager := eager) (env := env) (fe := fe) (cvP := c.toConstantVal)
         (capsP := {}),
-      natZeroOk_cvRun (eager := eager) (env := env) (fe := fe) (cvP := c.toConstantVal),
-      natSuccOk_cvRun (eager := eager) (env := env) (fe := fe) (cvP := c.toConstantVal),
+      natZeroOk_cvRun (eager := eager) (env := env) (fe := fe) (cvP := c.toConstantVal)
+        (TP := ConLeche.natName),
+      natSuccOk_cvRun (eager := eager) (env := env) (fe := fe) (cvP := c.toConstantVal)
+        (TP := ConLeche.natName),
       stringTyOk_spec (eager := eager) (env := env) (fe := fe) (oc' := some c),
       stringOfListTyOk_spec (eager := eager) (env := env) (fe := fe) (oc' := some c),
       listTyOk_spec (eager := eager) (env := env) (fe := fe) (oc' := some c),

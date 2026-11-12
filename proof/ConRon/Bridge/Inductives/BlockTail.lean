@@ -322,7 +322,7 @@ theorem checkBlockTail_of (hk : CoreSpec Arena.checkFuel)
     (hrel : EnvRel env₁ q.env1 s.store) (hq : dPass s.store env₁ q = some qP)
     (hb : Frontend.denoteCIList s.store block = some blockP)
     (hT : ∀ cv ∈ qP.p.formers, Expr.WScoped 0 cv.type)
-    (henv₂ : EnvWF (ConLeche.consBlockCtors qP.p.nP qP.p.memberCtors env₁))
+    (henv₂ : EnvWF (ConLeche.consBlockCtors qP.p.nP qP.p.ctorGroups env₁))
     (hMs : ∀ M ∈ qP.cls, ConLeche.Cached.ClassMajScoped qP.p.nP M)
     (hpl : qP.params.length = qP.p.nP)
     (hQ : Frontend.denoteProjTableList s.store Q = some QP)
@@ -342,13 +342,13 @@ theorem checkBlockTail_of (hk : CoreSpec Arena.checkFuel)
     q.p.members pP.members hzT s s₁ u1 hck ⟨hsh, hms⟩ h1
   have x1 := c1.ext
   -- the constructors consed
-  have hcss : q.p.memberCtors.mapM (dCtors s₁.store) = some pP.memberCtors :=
-    memberCtors_denote (dShape_ext x1 _ _ hsh)
-  obtain ⟨env₂, hrel₂, he₂⟩ := (consBlockCtors_spec c1.ok.state.wf q.p.nP q.p.memberCtors
-    pP.memberCtors q.env1 env₁ hcss (hrel.mono x1)).denote
+  have hcss : q.p.ctorGroups.mapM (dGroup s₁.store) = some pP.ctorGroups :=
+    ctorGroups_denote (dShape_ext x1 _ _ hsh)
+  obtain ⟨env₂, hrel₂, he₂⟩ := (consBlockCtors_spec c1.ok.state.wf q.p.nP q.p.ctorGroups
+    pP.ctorGroups q.env1 env₁ hcss (hrel.mono x1)).denote
   rw [hnP] at hrel₂ h2 he₂
   rw [← he₂] at henv₂
-  generalize hfe₂ : Arena.consBlockCtors pP.nP q.p.memberCtors q.env1 = fe₂ at h2 hrel₂
+  generalize hfe₂ : Arena.consBlockCtors pP.nP q.p.ctorGroups q.env1 = fe₂ at h2 hrel₂
   -- the flush entering them
   obtain ⟨u, s₂, h3, h4⟩ := AM.bind_ok h2
   obtain ⟨c2, i2, hs2⟩ := ReadOK.flush
@@ -448,7 +448,7 @@ theorem checkBlockPass_of (hk : CoreSpec Arena.checkFuel)
     ∃ env₁ qP, InstStep s s' ∧ CheckOK false env₁ q.env1 s' ∧
       EnvRel env₁ q.env1 s'.store ∧ EnvWF env₁ ∧
       dPass s'.store env₁ q = some qP ∧ (∀ cv ∈ qP.p.formers, Expr.WScoped 0 cv.type) ∧
-      EnvWF (ConLeche.consBlockCtors qP.p.nP qP.p.memberCtors env₁) ∧
+      EnvWF (ConLeche.consBlockCtors qP.p.nP qP.p.ctorGroups env₁) ∧
       (∀ M ∈ qP.cls, ConLeche.Cached.ClassMajScoped qP.p.nP M) ∧
       qP.params.length = qP.p.nP ∧
       FOk (ConLeche.checkBlockPass (fueledOpsM .verified) env p₀P isRec) qP := by

@@ -265,7 +265,6 @@ pub fn i_rec_rules_dup_from(rs: &Vec<IRecRule>, i: usize, out: Vec<IRecRule>) ->
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:184-227 IndCaps
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove env::IIndCaps_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:80-96 IIndCaps` — the
 /// definitional capabilities of a stored inductive type that its block alone
 /// decides.  The constructor and the counts every η reader works at are the
@@ -283,10 +282,15 @@ pub struct IIndCaps {
     pub n_idx: u64,
     /// the family's constructors, in declaration order (official's `cnstrs`)
     pub ctors: Vec<NIdx>,
+    /// the family's sort is never zero (official's `is_never_zero` at every
+    /// level instantiation): the former's stored type ends in a sort whose
+    /// zero-ness datum is unsatisfiable, read off it at its check
+    /// (`block_caps_at`); `false` claims nothing.  The ι step's case split
+    /// reads it in place of the walk to the family's sort.
+    pub never_zero: bool,
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:184-227 IndCaps
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove env::i_ind_caps_default_refines, then delete this line
 /// The cited structure's *field defaults*, which Rust has not.  The zero handle is the twin's `default :
 /// NIdx`, the `Inhabited` instance of `Idx`.
 pub fn i_ind_caps_default() -> IIndCaps {
@@ -296,11 +300,11 @@ pub fn i_ind_caps_default() -> IIndCaps {
         nparams: 0,
         n_idx: 0,
         ctors: Vec::new(),
+        never_zero: false,
     }
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:184-227 IndCaps
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove env::i_ind_caps_dup_refines, then delete this line
 /// The record copy.
 pub fn i_ind_caps_dup(c: &IIndCaps) -> IIndCaps {
     IIndCaps {
@@ -309,6 +313,7 @@ pub fn i_ind_caps_dup(c: &IIndCaps) -> IIndCaps {
         nparams: c.nparams,
         n_idx: c.n_idx,
         ctors: nidx_vec_dup(&c.ctors),
+        never_zero: c.never_zero,
     }
 }
 
@@ -369,21 +374,21 @@ pub fn i_proj_table_entry(tbl: &IProjTable, i: u64) -> IProjEntry {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:288-312 ConstantInfo
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove env::IConstantInfo_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:133-145 IConstantInfo` — the
-/// information stored about an accepted constant, over handles; a recursor
-/// carries its record's K flag, the `bool` before its rules.
+/// information stored about an accepted constant, over handles; a constructor
+/// carries its family's name (official's `ConstructorVal.induct`, set by the
+/// install from the member it is declared under), a recursor its record's K
+/// flag, the `bool` before its rules.
 pub enum IConstantInfo {
     AxiomInfo(IConstantVal),
     DefnInfo(IConstantVal, EIdx, ReducibilityHint),
     ThmInfo(IConstantVal),
     IndInfo(IConstantVal, IIndCaps),
-    CtorInfo(IConstantVal, u64, u64),
+    CtorInfo(IConstantVal, u64, u64, NIdx),
     RecInfo(IConstantVal, u64, u64, bool, Vec<IRecRule>),
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:288-312 ConstantInfo
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove env::i_constant_info_dup_refines, then delete this line
 /// The record copy, constructor for constructor.
 pub fn i_constant_info_dup(c: &IConstantInfo) -> IConstantInfo {
     match c {
@@ -397,8 +402,8 @@ pub fn i_constant_info_dup(c: &IConstantInfo) -> IConstantInfo {
         IConstantInfo::IndInfo(cv, caps) => {
             IConstantInfo::IndInfo(i_constant_val_dup(cv), i_ind_caps_dup(caps))
         }
-        IConstantInfo::CtorInfo(cv, a, b) => {
-            IConstantInfo::CtorInfo(i_constant_val_dup(cv), *a, *b)
+        IConstantInfo::CtorInfo(cv, a, b, t) => {
+            IConstantInfo::CtorInfo(i_constant_val_dup(cv), *a, *b, t.dup2())
         }
         IConstantInfo::RecInfo(cv, a, b, k, rs) => {
             IConstantInfo::RecInfo(i_constant_val_dup(cv), *a, *b, *k, i_rec_rules_dup(rs))
@@ -475,7 +480,6 @@ pub fn i_declaration_dup(d: &IDeclaration) -> IDeclaration {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:427-429 ConstantInfo.toConstantVal
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove env::i_constant_info_to_constant_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:163-167 IConstantInfo.toConstantVal`
 /// — the constant's common data, copied.
 pub fn i_constant_info_to_constant_val(c: &IConstantInfo) -> IConstantVal {
@@ -484,7 +488,7 @@ pub fn i_constant_info_to_constant_val(c: &IConstantInfo) -> IConstantVal {
         IConstantInfo::DefnInfo(v, _, _) => i_constant_val_dup(v),
         IConstantInfo::ThmInfo(v) => i_constant_val_dup(v),
         IConstantInfo::IndInfo(v, _) => i_constant_val_dup(v),
-        IConstantInfo::CtorInfo(v, _, _) => i_constant_val_dup(v),
+        IConstantInfo::CtorInfo(v, _, _, _) => i_constant_val_dup(v),
         IConstantInfo::RecInfo(v, _, _, _, _) => i_constant_val_dup(v),
     }
 }
@@ -498,7 +502,7 @@ pub fn i_constant_info_name(c: &IConstantInfo) -> NIdx {
         IConstantInfo::DefnInfo(v, _, _) => v.name.dup2(),
         IConstantInfo::ThmInfo(v) => v.name.dup2(),
         IConstantInfo::IndInfo(v, _) => v.name.dup2(),
-        IConstantInfo::CtorInfo(v, _, _) => v.name.dup2(),
+        IConstantInfo::CtorInfo(v, _, _, _) => v.name.dup2(),
         IConstantInfo::RecInfo(v, _, _, _, _) => v.name.dup2(),
     }
 }
@@ -744,7 +748,6 @@ pub fn i_constant_info_dummy_val() -> IConstantVal {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:288-312 ConstantInfo
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove env::i_constant_info_dummy_refines, then delete this line
 /// Lean twin: none — the `Inhabited IConstantInfo` the twin gets for free
 /// (task #97-P6-5, lever 5).  `Vec::resize` takes a filler it never reads when
 /// it shrinks; this is that filler, and nothing else may use it.
@@ -757,13 +760,11 @@ pub fn i_constant_info_dummy() -> IConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:288-312 ConstantInfo
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove env::impl core::clone::Clone for IConstantInfo_refines, then delete this line
 /// Lean twin: none — `core::clone::Clone` for `IConstantInfo`, which
 /// `Vec::resize`'s signature demands (task #97-P6-5, lever 5).  It is
 /// `i_constant_info_dup` and nothing else; no `#[derive]` (DESIGN.md §3.4).
 impl core::clone::Clone for IConstantInfo {
     /// con-leche: ConLeche/Kernel/Env.lean:288-312 ConstantInfo
-    /// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove env::clone_refines, then delete this line
     fn clone(&self) -> IConstantInfo {
         i_constant_info_dup(self)
     }

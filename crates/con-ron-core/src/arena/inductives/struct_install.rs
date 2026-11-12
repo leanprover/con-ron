@@ -80,7 +80,6 @@ pub const M_TBL_TAKEN: [u32; 22] = [
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:31-50 checkStructDomsAt
 /// con-leche: ConLeche/Cached/IndBlock.lean:117-125 checkStructDomsAtC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove struct_install::check_struct_doms_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:27-41 checkStructDomsAt`
 /// — the reference kernels' binder-domain comparisons, run binder by binder
 /// **at its own frame**: the `j`-th opened variable's annotation against the

@@ -896,20 +896,20 @@ theorem order_type_ctors_refines
     (hix : ∀ (x : NIdx) k, lm[x]? = some k → k < cts.val.length)
     (h : frontend.export_c.order_type_ctors pers rst.store fuel rsd t ns cts
       ctor_ix n_pd out = ok o) :
-    SimLV (fun v => ⟨none, (absNIdxL ns).length, (absIndCtorRecs v).toArray⟩)
+    SimLV (fun v => ⟨none, (absNIdxL ns).length, (absIndCtorRecTs v).toArray⟩)
       (fun b => vOfOpt b.1) lst o
       (orderTypeCtorsD lsd (absU fuel) (absNIdx t) lm (absIndCtorRecs cts).toArray
-        (absU n_pd) (absNIdxL ns) 0 (absIndCtorRecs out).toArray) := by
+        (absU n_pd) (absNIdxL ns) 0 (absIndCtorRecTs out).toArray) := by
   rw [frontend.export_c.order_type_ctors] at h
   have H : ∀ (k : Nat) out (j : Std.U64) (i : Std.Usize) o, ns.val.length - i.val = k →
       i.val ≤ ns.val.length → j.val = i.val →
       frontend.export_c.order_type_ctors_loop pers rst.store fuel rsd t ns cts ctor_ix n_pd
         out (alloc.vec.Vec.len ns) j i = ok o →
-      SimLV (fun v => ⟨none, (absNIdxL ns).length, (absIndCtorRecs v).toArray⟩)
+      SimLV (fun v => ⟨none, (absNIdxL ns).length, (absIndCtorRecTs v).toArray⟩)
         (fun b => vOfOpt b.1) lst o
         (forIn ((absNIdxL ns).drop i.val)
-          (⟨none, j.val, (absIndCtorRecs out).toArray⟩ :
-            MProd (Option VRes) (MProd Nat (Array IndCtorRec)))
+          (⟨none, j.val, (absIndCtorRecTs out).toArray⟩ :
+            MProd (Option VRes) (MProd Nat (Array (IndCtorRec × NIdx))))
           fun n r => orderCtorStepD lsd (absU fuel) (absNIdx t) lm
             (absIndCtorRecs cts).toArray (absU n_pd) n r.2.1 r.2.2) := by
     intro k
@@ -965,6 +965,7 @@ theorem order_type_ctors_refines
           · subst hok
             simp only [pure_bind]
             obtain ⟨icr1, hicr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+            obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
             obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
             obtain ⟨j1, hj1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
             obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -973,10 +974,10 @@ theorem order_type_ctors_refines
             have hR := ih (ns.val.length - i2.val) (by omega) out1 j1 i2 o rfl (by omega)
               (by simp at hj1v; omega) h
             rw [e2] at hR
-            have ea : (absIndCtorRecs out1).toArray =
-                (absIndCtorRecs out).toArray.push (absIndCtorRec icr) := by
-              simp only [absIndCtorRecs, e1, List.map_append, List.map_cons, List.map_nil,
-                ind_ctor_rec_dup_refines hicr1, List.push_toArray]
+            have ea : (absIndCtorRecTs out1).toArray =
+                (absIndCtorRecTs out).toArray.push (absIndCtorRec icr, absNIdx t) := by
+              simp only [absIndCtorRecTs, e1, List.map_append, List.map_cons, List.map_nil,
+                ind_ctor_rec_dup_refines hicr1, dupId_nidx _ _ hn1, List.push_toArray]
             rw [ea, show j1.val = j.val + 1 by simp at hj1v; omega] at hR
             exact hR
           · rcases b with _ | (lv' | _) <;> simp only [vOfOpt, reduceCtorEq, Option.some.injEq] at hb
@@ -1001,16 +1002,16 @@ theorem order_block_ctors_refines
     (hix : ∀ (x : NIdx) k, lm[x]? = some k → k < cts.val.length)
     (h : frontend.export_c.order_block_ctors pers rst.store fuel rsd ty_names
       listed cts ctor_ix n_pd = ok o) :
-    SimLV (fun v => ⟨none, (absIndCtorRecs v).toArray⟩) (fun b => vOfOpt b.1) lst o
+    SimLV (fun v => ⟨none, (absIndCtorRecTs v).toArray⟩) (fun b => vOfOpt b.1) lst o
       (orderBlockCtorsD lsd (absU fuel) lm (absIndCtorRecs cts).toArray (absU n_pd)
         ((absNIdxL ty_names).zip (listed.val.map absNIdxL)) #[]) := by
   rw [frontend.export_c.order_block_ctors] at h
   have H : ∀ (k : Nat) out (i : Std.Usize) o, ty_names.val.length - i.val = k →
       frontend.export_c.order_block_ctors_loop pers rst.store fuel rsd ty_names listed cts
         ctor_ix n_pd out (alloc.vec.Vec.len ty_names) i = ok o →
-      SimLV (fun v => ⟨none, (absIndCtorRecs v).toArray⟩) (fun b => vOfOpt b.1) lst o
+      SimLV (fun v => ⟨none, (absIndCtorRecTs v).toArray⟩) (fun b => vOfOpt b.1) lst o
         (forIn (((absNIdxL ty_names).zip (listed.val.map absNIdxL)).drop i.val)
-          (⟨none, (absIndCtorRecs out).toArray⟩ : MProd (Option VRes) (Array IndCtorRec))
+          (⟨none, (absIndCtorRecTs out).toArray⟩ : MProd (Option VRes) (Array (IndCtorRec × NIdx)))
           fun tn r => orderBlockStepD lsd (absU fuel) lm (absIndCtorRecs cts).toArray
             (absU n_pd) tn r.2) := by
     intro k
@@ -1437,7 +1438,7 @@ theorem validate_ind_d_refines {pers rst lst rsd lsd tys cts rcs o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (_hi : StateDInv rsd)
     (h : frontend.export_c.validate_ind_d pers rst.store rsd tys cts rcs = ok o) :
-    SimLV (fun v => .inr (absIndCtorRecs v.1, absU v.2)) vOfSum lst o
+    SimLV (fun v => .inr (absIndCtorRecTs v.1, absU v.2)) vOfSum lst o
       (validateIndD lsd (absIndTypeRecs tys) (absIndCtorRecs cts) (absIndRecRecs rcs)) := by
   rw [validateIndD_unfold]
   rw [frontend.export_c.validate_ind_d] at h
@@ -1578,9 +1579,9 @@ theorem validate_ind_d_refines {pers rst lst rsd lsd tys cts rcs o}
     simp only [lift, Result.ok.injEq] at hnt; subst hnt
     simp [absU, absIndTypeRecs]
   obtain ⟨n_ctors, hnc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hncv : absU n_ctors = (absIndCtorRecs v4).length := by
+  have hncv : absU n_ctors = (absIndCtorRecTs v4).length := by
     simp only [lift, Result.ok.injEq] at hnc; subst hnc
-    simp [absU, absIndCtorRecs]
+    simp [absU, absIndCtorRecTs]
   by_cases hns : (absIndTypeRecs tys).any (·.numNested != 0) = true
   · rw [ite_eq_left hns] at h
     cases Result.ok_injective h
@@ -1659,13 +1660,15 @@ theorem ind_block_ctors_refines {rsd lsd lst cts out o} (hd : StateDRel rsd lsd)
     (h : frontend.export_c.ind_block_ctors rsd cts out = ok o) :
     SimLR absICIL lst o
       (do
-        let cs ← (absIndCtorRecs cts).mapM fun c => do
-          pure (IConstantInfo.ctorInfo (← parseCVD lsd c.cv) c.numParams c.numFields)
+        let cs ← (absIndCtorRecTs cts).mapM fun (c, T) => do
+          pure (IConstantInfo.ctorInfo (← parseCVD lsd c.cv) c.numParams c.numFields T)
         pure (absICIL out ++ cs)) := by
   rw [frontend.export_c.ind_block_ctors] at h
-  have H := simLR_cursor (absY := absIConstantInfo) (absX := absIndCtorRec) (xs := cts)
+  have H := simLR_cursor (absY := absIConstantInfo)
+    (absX := fun p => (absIndCtorRec p.1, absNIdx p.2)) (xs := cts)
     (lst := lst)
-    (G := fun c => do pure (IConstantInfo.ctorInfo (← parseCVD lsd c.cv) c.numParams c.numFields))
+    (G := fun (c, T) => do
+      pure (IConstantInfo.ctorInfo (← parseCVD lsd c.cv) c.numParams c.numFields T))
     (loop := fun out i =>
       frontend.export_c.ind_block_ctors_loop rsd cts out (alloc.vec.Vec.len cts) i)
     (fun out i o hn h => by
@@ -1683,6 +1686,9 @@ theorem ind_block_ctors_refines {rsd lsd lst cts out o} (hd : StateDRel rsd lsd)
       | Err e =>
         exact ⟨.Err e, SimLR.bind_err hC, Or.inl ⟨e, rfl, (Result.ok_injective h).symm⟩⟩
       | Ok cv =>
+        obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hn2' := dupId_nidx _ _ hn2
+        subst hn2'
         obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨e1, e2⟩ := cursor_push hout1 hi1
@@ -1691,7 +1697,7 @@ theorem ind_block_ctors_refines {rsd lsd lst cts out o} (hd : StateDRel rsd lsd)
     out 0#usize o h
   rw [show absICIL = fun v : alloc.vec.Vec arena.env.IConstantInfo =>
     v.val.map absIConstantInfo from rfl]
-  simpa [show ((0#usize : Std.Usize)).val = 0 by rfl, absIndTypeRecs, absIndCtorRecs,
+  simpa [show ((0#usize : Std.Usize)).val = 0 by rfl, absIndTypeRecs, absIndCtorRecTs,
     absIndRecRecs] using H
 
 /-- **`ind_block_recs`** — the twin's `rcs.mapM` into `IConstantInfo.recInfo`. -/
@@ -1812,8 +1818,8 @@ theorem ind_block_of_refines {rsd lsd lst tys cts rcs o} (hd : StateDRel rsd lsd
       (do
         let ts ← (absIndTypeRecs tys).mapM fun t => do
           pure (IConstantInfo.indInfo (← parseCVD lsd t.cv) {})
-        let cs ← (absIndCtorRecs cts).mapM fun c => do
-          pure (IConstantInfo.ctorInfo (← parseCVD lsd c.cv) c.numParams c.numFields)
+        let cs ← (absIndCtorRecTs cts).mapM fun (c, T) => do
+          pure (IConstantInfo.ctorInfo (← parseCVD lsd c.cv) c.numParams c.numFields T)
         let rs ← (absIndRecRecs rcs).mapM fun r => do
           let rules ← r.rules.mapM (parseRuleD lsd)
           pure (IConstantInfo.recInfo (← parseCVD lsd r.cv)
@@ -1923,7 +1929,7 @@ theorem install_ind_d_refines {pers rst lst rsd lsd tys cts rcs n_pd o}
     (hd : StateDRel rsd lsd) (_hi : StateDInv rsd)
     (h : frontend.export_c.install_ind_d rsd tys cts rcs n_pd = ok o) :
     SimD pers lst (o.1, rst, o.2)
-      (installIndD lsd (absIndTypeRecs tys) (absIndCtorRecs cts)
+      (installIndD lsd (absIndTypeRecs tys) (absIndCtorRecTs cts)
         (absIndRecRecs rcs) (absU n_pd)) := by
   rw [installIndD_unfold]
   rw [frontend.export_c.install_ind_d] at h
@@ -1940,7 +1946,7 @@ theorem install_ind_d_refines {pers rst lst rsd lsd tys cts rcs n_pd o}
     cases Result.ok_injective h
     have hPD := push_decl_refines hd hst1
     refine SimD.mk (pers := pers) ?_ hPD ⟨⟩ hrel hinv
-    rw [am_run_bind', show (indBlockOf lsd (absIndTypeRecs tys) (absIndCtorRecs cts)
+    rw [am_run_bind', show (indBlockOf lsd (absIndTypeRecs tys) (absIndCtorRecTs cts)
         (absIndRecRecs rcs)).run lst = _ from hB, except_ok_bind]
     simp only [absICIL, absIDeclaration]; rfl
 

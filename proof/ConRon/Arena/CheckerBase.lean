@@ -241,7 +241,6 @@ def unresolvedConstsErrorL (strOk : Bool) (where_ : String) (e : EIdx) :
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:101-123 checkConstantVal
 con-leche: ConLeche/Kernel/DeclCheck.lean:218-238 checkConstantValF
 con-leche: ConLeche/Cached/IndPass.lean:36-58 checkConstantValC
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove CheckerBase.checkConstantVal_bridge, then delete this line
 Checks common to all declarations: fresh name, a certified
 operation's name only at a definition (`allowOp`, the cited default `false`,
 spelled at every call as the Rust must), a literal's name only at its shape,
@@ -287,7 +286,6 @@ A `ConLeche/Kernel/Env.lean` declaration, placed at its only reader — the
 `.indDecl` arm — exactly as the `Level.lean` declarations above are. -/
 
 /-- con-leche: ConLeche/Kernel/Env.lean:390-423 indParamsOk — **the stream's
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove CheckerBase.indParamsOk_bridge, then delete this line
 declared parameter count, checked as official checks it** (con-leche's task
 #228).  Both halves are one-sided on purpose: `false` means official rejects. -/
 def indParamsOk (nP : Nat) : List IConstantInfo → AM Bool
@@ -298,7 +296,7 @@ def indParamsOk (nP : Nat) : List IConstantInfo → AM Bool
         match ← piSortTeleLen? coreWalkFuel cvT.type with
         | some n => pure (decide (nP ≤ n))
         | none => pure true
-      | .ctorInfo _ nPc _ => pure (nPc == nP)
+      | .ctorInfo _ nPc _ _ => pure (nPc == nP)
       | _ => pure true
     if ok then indParamsOk nP rest else pure false
 

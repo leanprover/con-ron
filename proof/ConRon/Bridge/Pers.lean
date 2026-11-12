@@ -448,7 +448,7 @@ structure PersProjTable (t : IProjTable) : Prop where
   | .defnInfo v e _ => PersCV v ∧ PersE e
   | .thmInfo v => PersCV v
   | .indInfo v c => PersCV v ∧ PersCaps c
-  | .ctorInfo v _ _ => PersCV v
+  | .ctorInfo v _ _ T => PersCV v ∧ PersN T
   | .recInfo v _ _ _ rs => PersCV v ∧ PersRules rs
 
 /-- con-leche: none — every member of a block is persistent. -/

@@ -347,14 +347,97 @@ attribute [lockstep_inline] arena.core.major_to_ctor_certs
   rw [arena.core.former_never_zero, formerNeverZero]
   lockstep_c2
 
-/-- `ctor_family` ⊑ `ctorFamily`: the stored family a constructor's type ends in. -/
-@[lockstep] theorem ctor_family_ls {pers st fe lfe cvj lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe) :
-    LSR pers (fun a b => b = a.map fun p => (absIConstantVal p.1, absIIndCaps p.2))
-      (arena.core.ctor_family pers st fe cvj) st lst (ctorFamily lfe (absIConstantVal cvj)) := by
-  apply LSR.of_LS
-  rw [arena.core.ctor_family, ctorFamily]
-  lockstep_c2
+/-- `ctor_family` is pure on both sides: one lookup at the stored family name. -/
+theorem ctor_family_abs {pers : arena.store.PersTier} {fe lfe} (hctx : CoreCtx pers fe lfe)
+    {induct : arena.handle.NIdx} {o : Option (arena.env.IConstantVal × arena.env.IIndCaps)}
+    (h : arena.core.ctor_family pers fe induct = ok o) :
+    o.map (fun p => (absIConstantVal p.1, absIIndCaps p.2)) = ctorFamily lfe (absNIdx induct) := by
+  rw [arena.core.ctor_family] at h
+  obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  unfold ctorFamily
+  rw [← ifenv_find_abs hctx ho1]
+  rcases o1 with _ | ci
+  · cases Result.ok_injective h; rfl
+  · cases ci with
+    | IndInfo cv caps =>
+      obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨ic, hic, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      cases Result.ok_injective h
+      simp [absIConstantInfo, i_constant_val_dup_abs hiv, i_ind_caps_dup_abs hic]
+    | _ => cases Result.ok_injective h; rfl
+
+/-- `ctor_family` ⊑ `ctorFamily`: the family stored at a constructor's `induct`. -/
+@[lockstep] theorem ctor_family_ls {pers fe lfe} (hctx : CoreCtx pers fe lfe)
+    (induct : arena.handle.NIdx) :
+    LSP (arena.core.ctor_family pers fe induct)
+      (fun o => TwinEq (ctorFamily lfe (absNIdx induct))
+        (o.map fun p => (absIConstantVal p.1, absIIndCaps p.2))) :=
+  fun _ h => (ctor_family_abs hctx h).symm
+
+/-- `iota_no_cert` is pure on both sides: the stored facts read in place. -/
+theorem iota_no_cert_abs {pers : arena.store.PersTier} {fe lfe} (hctx : CoreCtx pers fe lfe)
+    {isK : Bool} {induct : arena.handle.NIdx} {n : Std.U64} {b : Bool}
+    (h : arena.core.iota_no_cert pers fe isK induct n = ok b) :
+    b = iotaNoCert lfe isK (absNIdx induct) (absU n) := by
+  rw [arena.core.iota_no_cert] at h
+  unfold iotaNoCert
+  cases isK
+  · simp only [Bool.false_eq_true, ite_false] at h ⊢
+    obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [← ifenv_find_abs hctx ho1]
+    rcases o1 with _ | ci
+    · cases Result.ok_injective h; rfl
+    · cases ci with
+      | IndInfo cv caps =>
+        simp only [Option.map_some, absIConstantInfo, absIIndCaps, absIConstantVal]
+        simp only at h
+        by_cases hz : caps.never_zero = true
+        · rw [ite_eq_left hz] at h
+          obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          cases Result.ok_injective h
+          simp only [lift, Result.ok.injEq] at hi1
+          subst hi1
+          simp only [hz, Bool.true_and, List.length_map, absU]
+          have hv : (UScalar.cast .U64 cv.level_params.len).val = cv.level_params.val.length := by
+            rw [usize_cast_u64_val']; simp [alloc.vec.Vec.len]
+          have hiff : (UScalar.cast .U64 cv.level_params.len = n) ↔
+              cv.level_params.val.length = n.val := by
+            constructor
+            · intro e; rw [← hv, e]
+            · intro e; apply Std.UScalar.eq_of_val_eq; rw [hv, e]
+          rw [Bool.eq_iff_iff, decide_eq_true_iff, beq_iff_eq]
+          exact hiff
+        · rw [ite_eq_right hz] at h
+          cases Result.ok_injective h
+          simp [show caps.never_zero = false by simpa using hz]
+      | _ => cases Result.ok_injective h; rfl
+  · simp only [ite_true] at h ⊢
+    cases Result.ok_injective h; rfl
+
+/-- `iota_no_cert` ⊑ `iotaNoCert`. -/
+@[lockstep] theorem iota_no_cert_ls {pers fe lfe} (hctx : CoreCtx pers fe lfe)
+    (isK : Bool) (induct : arena.handle.NIdx) (n : Std.U64) :
+    LSP (arena.core.iota_no_cert pers fe isK induct n)
+      (fun b => TwinEq (iotaNoCert lfe isK (absNIdx induct) (absU n)) b) :=
+  fun _ h => (iota_no_cert_abs hctx h).symm
+
+/-- `rec_fire_level_count` is pure on both sides. -/
+theorem rec_fire_level_count_abs {rl : arena.env.IRecRule}
+    {lps : alloc.vec.Vec arena.handle.NIdx} {n : Std.U64}
+    (h : arena.core.rec_fire_level_count rl lps = ok n) :
+    absU n = recFireLevelCount (absIRecRule rl) (lps.val.map absNIdx) := by
+  rw [arena.core.rec_fire_level_count] at h
+  unfold recFireLevelCount
+  simp only [absIRecRule]
+  cases hf : rl.fire <;> simp only [hf] at h <;> cases Result.ok_injective h <;>
+    simp [absIRecRuleFire, absU, alloc.vec.Vec.len]
+
+/-- `rec_fire_level_count` ⊑ `recFireLevelCount`. -/
+@[lockstep] theorem rec_fire_level_count_ls (rl : arena.env.IRecRule)
+    (lps : alloc.vec.Vec arena.handle.NIdx) :
+    LSP (arena.core.rec_fire_level_count rl lps)
+      (fun n => TwinEq (recFireLevelCount (absIRecRule rl) (lps.val.map absNIdx)) (absU n)) :=
+  fun _ h => (rec_fire_level_count_abs h).symm
 
 /-- `former_never_zero_at` ⊑ `formerNeverZeroAt`: the family's sort is never zero
 at the use's levels, read off its stored type at use. -/
@@ -370,17 +453,31 @@ at the use's levels, read off its stored type at use. -/
   rw [arena.core.former_never_zero_at, formerNeverZeroAt]
   lockstep_c2
 
-/-- `iota_case3_at` ⊑ `iotaCase3At`: case 3 of the ι case split, its family's sort
-read at use. -/
-@[lockstep] theorem iota_case3_at_ls {f : Nat} (hk : KnotRel f)
-    {pers st mode eager lane fu fe lfe isK cvj us lst}
+/-- `family_never_zero_at` ⊑ `familyNeverZeroAt`: the stored fact first, else
+the family's sort read at use. -/
+@[lockstep] theorem family_never_zero_at_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe cvt caps us lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = a)
-      (arena.core.iota_case3_at pers st mode eager lane fu fe isK cvj us) lst
+      (arena.core.family_never_zero_at pers st mode eager lane fu fe cvt caps us) lst
+      (familyNeverZeroAt (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
+        (absIConstantVal cvt) (absIIndCaps caps) (absLsIdx us)) := by
+  rw [arena.core.family_never_zero_at, familyNeverZeroAt]
+  lockstep_c2
+
+/-- `iota_case3_at` ⊑ `iotaCase3At`: case 3 of the ι case split, the family the
+one stored at the constructor's `induct`, its sort read at use. -/
+@[lockstep] theorem iota_case3_at_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe isK induct us lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.iota_case3_at pers st mode eager lane fu fe isK induct us) lst
       (iotaCase3At (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe isK
-        (absIConstantVal cvj) (absLsIdx us)) := by
+        (absNIdx induct) (absLsIdx us)) := by
   rw [arena.core.iota_case3_at, iotaCase3At]
   lockstep_c2
 

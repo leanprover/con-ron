@@ -1483,11 +1483,23 @@ theorem denoteCI_axiom_inv {st : EStore} {v : IConstantVal} {c : ConstantInfo}
   simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
   obtain ⟨cv, hcv, rfl⟩ := h; exact ⟨cv, rfl, hcv⟩
 
-theorem denoteCI_ctor_inv {st : EStore} {v : IConstantVal} {nP nF : Nat}
-    {c : ConstantInfo} (h : Frontend.denoteCI st (.ctorInfo v nP nF) = some c) :
-    ∃ cv, c = .ctorInfo cv nP nF ∧ Frontend.denoteCV st v = some cv := by
-  simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-  obtain ⟨cv, hcv, rfl⟩ := h; exact ⟨cv, rfl, hcv⟩
+theorem denoteCI_ctor_inv {st : EStore} {v : IConstantVal} {nP nF : Nat} {T : NIdx}
+    {c : ConstantInfo} (h : Frontend.denoteCI st (.ctorInfo v nP nF T) = some c) :
+    ∃ cv, c = .ctorInfo cv nP nF ((denoteN st.ns T).getD default) ∧
+      Frontend.denoteCV st v = some cv := by
+  simp only [Frontend.denoteCI] at h
+  split at h
+  · rename_i cv t hcv ht; cases h; exact ⟨cv, by rw [ht]; rfl, hcv⟩
+  · cases h
+
+/-- con-leche: none — a denoting constructor record's family handle denotes. -/
+theorem denoteCI_ctor_induct {st : EStore} {v : IConstantVal} {nP nF : Nat} {T : NIdx}
+    {c : ConstantInfo} (h : Frontend.denoteCI st (.ctorInfo v nP nF T) = some c) :
+    denoteN st.ns T = some ((denoteN st.ns T).getD default) := by
+  simp only [Frontend.denoteCI] at h
+  split at h
+  · rename_i cv t hcv ht; rw [ht]; rfl
+  · cases h
 
 theorem denoteCI_defn_inv {st : EStore} {v : IConstantVal} {e : EIdx}
     {hint : ReducibilityHint} {c : ConstantInfo}
@@ -1581,7 +1593,7 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
         simp [ConLeche.ConstantInfo.canonEqFast]⟩
-    | ctorInfo vB nPB nFB =>
+    | ctorInfo vB nPB nFB TB =>
       obtain ⟨yV, rfl, hyV⟩ := denoteCI_ctor_inv hci'
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨hok, Ext.refl _, rfl, rfl, by
@@ -1666,7 +1678,7 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
         simp [ConLeche.ConstantInfo.canonEqFast]⟩
-    | ctorInfo vB nPB nFB =>
+    | ctorInfo vB nPB nFB TB =>
       obtain ⟨yV, rfl, hyV⟩ := denoteCI_ctor_inv hci'
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨hok, Ext.refl _, rfl, rfl, by
@@ -1707,7 +1719,7 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
         simp [ConLeche.ConstantInfo.canonEqFast]⟩
-    | ctorInfo vB nPB nFB =>
+    | ctorInfo vB nPB nFB TB =>
       obtain ⟨yV, rfl, hyV⟩ := denoteCI_ctor_inv hci'
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨hok, Ext.refl _, rfl, rfl, by
@@ -1748,7 +1760,7 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
       rw [he, ConLeche.ConstantInfo.canonEq_eq_canonEqFast,
         ConLeche.ConstantVal.canonEq_eq_canonEqFast]
       rfl
-    | ctorInfo vB nPB nFB =>
+    | ctorInfo vB nPB nFB TB =>
       obtain ⟨yV, rfl, hyV⟩ := denoteCI_ctor_inv hci'
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨hok, Ext.refl _, rfl, rfl, by
@@ -1760,7 +1772,8 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
         simp [ConLeche.ConstantInfo.canonEqFast]⟩
-  | ctorInfo vA nPA nFA =>
+  | ctorInfo vA nPA nFA TA =>
+    have hTA := denoteCI_ctor_induct hci
     obtain ⟨xV, rfl, hxV⟩ := denoteCI_ctor_inv hci
     cases ci' with
     | axiomInfo vB =>
@@ -1787,21 +1800,26 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
         simp [ConLeche.ConstantInfo.canonEqFast]⟩
-    | ctorInfo vB nPB nFB =>
+    | ctorInfo vB nPB nFB TB =>
+      have hTB := denoteCI_ctor_induct hci'
       obtain ⟨yV, rfl, hyV⟩ := denoteCI_ctor_inv hci'
+      have hTT := denoteN_beqS hok.wf hTA hTB
       rcases AM.ite_ok hrun with ⟨hc0, k1⟩ | ⟨hc0, k1⟩
       · obtain ⟨hok1, hx1, hca1, hp1, he⟩ := IConstantVal.canonEq_run hok hxV hyV k1
         refine ⟨hok1, hx1, hca1, hp1, ?_⟩
         rw [he, ConLeche.ConstantInfo.canonEq_eq_canonEqFast,
           ConLeche.ConstantVal.canonEq_eq_canonEqFast]
+        rw [hTT] at hc0
         simp only [Bool.and_eq_true] at hc0
-        simp only [ConLeche.ConstantInfo.canonEqFast, hc0.1, hc0.2, Bool.and_true]
+        simp only [ConLeche.ConstantInfo.canonEqFast, hc0.1.1, hc0.1.2, hc0.2, Bool.and_true]
       · obtain ⟨rfl, rfl⟩ := AM.pure_ok k1
         refine ⟨hok, Ext.refl _, rfl, rfl, ?_⟩
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
-        have hbad : ((nPA == nPB) && (nFA == nFB)) = false := by simpa using hc0
+        rw [hTT] at hc0
+        have key : ∀ x a b c : Bool, ¬ (a && b && c) = true → (x && a && b && c) = false := by
+          decide
         simp only [ConLeche.ConstantInfo.canonEqFast]
-        rw [Bool.and_assoc, hbad, Bool.and_false]
+        exact (key _ _ _ _ hc0).symm
     | recInfo vB mIB rPB kB rsB =>
       obtain ⟨yV, yR, rfl, hyV, hyR⟩ := denoteCI_rec_inv hci'
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
@@ -1835,7 +1853,7 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
         simp [ConLeche.ConstantInfo.canonEqFast]⟩
-    | ctorInfo vB nPB nFB =>
+    | ctorInfo vB nPB nFB TB =>
       obtain ⟨yV, rfl, hyV⟩ := denoteCI_ctor_inv hci'
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨hok, Ext.refl _, rfl, rfl, by

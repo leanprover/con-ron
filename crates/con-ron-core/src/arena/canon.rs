@@ -532,10 +532,8 @@ pub fn canon_rules_eq(
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:72-84 ConstantInfo.canon
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove canon::i_constant_info_canon_eq_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Canon.lean:224-226 ConstantInfo.canonEq
 /// con-leche: ConLeche/Kernel/Canon.lean:228-243 ConstantInfo.canonEqFast
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove canon::i_constant_info_canon_eq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:196-221 IConstantInfo.canonEq` —
 /// two stored constants have the same canonical form.  `.indInfo`'s
 /// capabilities are not compared (`canon` resets both to `{}`), and a
@@ -563,8 +561,8 @@ pub fn i_constant_info_canon_eq(
         (IConstantInfo::IndInfo(cv, _), IConstantInfo::IndInfo(cv2, _)) => {
             i_constant_val_canon_eq(pers, st, cv, cv2)
         }
-        (IConstantInfo::CtorInfo(cv, np, nf), IConstantInfo::CtorInfo(cv2, np2, nf2)) => {
-            if np == np2 && nf == nf2 {
+        (IConstantInfo::CtorInfo(cv, np, nf, t), IConstantInfo::CtorInfo(cv2, np2, nf2, t2)) => {
+            if np == np2 && nf == nf2 && t.eq2(t2) {
                 i_constant_val_canon_eq(pers, st, cv, cv2)
             } else {
                 Ok(false)
@@ -585,7 +583,6 @@ pub fn i_constant_info_canon_eq(
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:228-243 ConstantInfo.canonEqFast
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove canon::canon_eq_cv_and_value_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:196-221 IConstantInfo.canonEq` —
 /// the `.defnInfo` arm's tail (a stored theorem has no value since con-leche
 /// task #329 THMVAL): the common data, then the value at the same names,
@@ -623,7 +620,6 @@ pub fn canon_eq_cv_and_value(
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:228-243 ConstantInfo.canonEqFast
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove canon::canon_eq_cv_and_rules_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:196-221 IConstantInfo.canonEq` —
 /// the `.recInfo` arm's tail: the common data, then the rule list.
 pub fn canon_eq_cv_and_rules(
@@ -729,7 +725,6 @@ pub fn i_rec_rules_beq(a: &Vec<IRecRule>, b: &Vec<IRecRule>, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:184-227 IndCaps
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove canon::i_ind_caps_beq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:80-96 IIndCaps` — the cited `deriving
 /// DecidableEq`, the `decide (c = c')` of `ConstantInfo.beqP`'s `.indInfo` arm.
 pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
@@ -738,12 +733,11 @@ pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
         && a.nparams == b.nparams
         && a.n_idx == b.n_idx
         && nidx_vec_beq(&a.ctors, &b.ctors, 0)
+        && a.never_zero == b.never_zero
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:288-312 ConstantInfo
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove canon::i_constant_info_beq_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Canon.lean:337-347 ConstantInfo.beqP
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove canon::i_constant_info_beq_refines, then delete this line
 /// Lean twin: none — the twin's derived `DecidableEq` (`==`), which Rust cannot derive (§3.4); **`ConstantInfo`
 /// equality**, constructor for constructor: what a pinned block's record is
 /// compared with its pin by (`arena::basis::pin_agrees`), and the exact
@@ -760,8 +754,8 @@ pub fn i_constant_info_beq(a: &IConstantInfo, b: &IConstantInfo) -> bool {
         (IConstantInfo::IndInfo(x, c), IConstantInfo::IndInfo(y, d)) => {
             i_constant_val_beq(x, y) && i_ind_caps_beq(c, d)
         }
-        (IConstantInfo::CtorInfo(x, p, f), IConstantInfo::CtorInfo(y, q, g)) => {
-            i_constant_val_beq(x, y) && p == q && f == g
+        (IConstantInfo::CtorInfo(x, p, f, t), IConstantInfo::CtorInfo(y, q, g, u)) => {
+            i_constant_val_beq(x, y) && p == q && f == g && t.eq2(u)
         }
         (IConstantInfo::RecInfo(x, m, p, k, rs), IConstantInfo::RecInfo(y, n, q, k2, ss)) => {
             i_constant_val_beq(x, y) && m == n && p == q && k == k2 && i_rec_rules_beq(rs, ss, 0)

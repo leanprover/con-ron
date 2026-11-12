@@ -134,9 +134,8 @@ theorem indParamsOk_spec (nP : Nat) (block : List IConstantInfo)
                 refine ⟨hstep1.trans hstep2, ?_⟩
                 rw [hr]
                 simp only [ConLeche.indParamsOk, List.all_cons, ← ho]
-        | ctorInfo cv nPc nF =>
-          simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hc
-          obtain ⟨cvP, _, rfl⟩ := hc
+        | ctorInfo cv nPc nF T =>
+          obtain ⟨cvP, _, _, _, rfl⟩ := denoteCI_ctorInfo_some hc
           have hrun' : (if (nPc == nP) = true then Arena.indParamsOk nP rest
               else (pure false : AM Bool)) s₀ = .ok (r, s') := hrun
           obtain ⟨hstep, hr⟩ := indParamsOk_tail (ih xs) hok hcs hrun'

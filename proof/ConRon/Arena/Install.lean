@@ -55,14 +55,15 @@ def IFEnv.pushDelta (fe : IFEnv) (L : List IConstantInfo) (Q : List IProjTable) 
 /-- con-leche: ConLeche/Kernel/Install.lean:26-28 blockFormers
 **The formers**, in block order, as declared, with the capabilities their
 block gives them. -/
-def blockFormers (p : BlockShape) (isRec : Bool) : List IConstantInfo :=
-  (p.members.map (·.declared)).zipIdx.map fun (cv, i) => .indInfo cv (blockCapsAt p i isRec)
+def blockFormers (p : BlockShape) (isRec : Bool) : AM (List IConstantInfo) :=
+  (p.members.map (·.declared)).zipIdx.mapM fun (cv, i) => do
+    pure (.indInfo cv (← blockCapsAt p i isRec))
 
 /-- con-leche: ConLeche/Kernel/Install.lean:30-33 blockCtors
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Install.blockCtors_bridge, then delete this line
-**The constructors of every member**, as declared, in block order. -/
+**The constructors of every member**, as declared, in block order, each under
+its member's name (`consBlockCtors`). -/
 def blockCtors (p : BlockShape) : List IConstantInfo :=
-  p.allCtors.map fun c => .ctorInfo c.1 p.nP c.2
+  p.ctorGroups.flatMap fun g => g.2.map fun c => .ctorInfo c.1 p.nP c.2 g.1
 
 /-- con-leche: ConLeche/Kernel/Install.lean:35-38 Expr.dropVars
 **`n` variables below a term's own, which do not occur in it, dropped**: each
@@ -136,7 +137,8 @@ con-leche: ConLeche/Cached/CheckerC.lean:99-102 blockConstantsC
 `blockIsRec`), the constructors, the recursors. -/
 def blockConstants (p : BlockShape) : AM (List IConstantInfo) := do
   let isRec ← blockIsRec p
-  pure (blockFormers p isRec ++ blockCtors p ++ (← blockRecs p p.recs))
+  let fs ← blockFormers p isRec
+  pure (fs ++ blockCtors p ++ (← blockRecs p p.recs))
 
 /-- con-leche: ConLeche/Kernel/Install.lean:82-96 declConstants
 The `.axiomDecl` arm: `Quot.sound` installs its pin at the record's names,

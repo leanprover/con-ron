@@ -142,7 +142,7 @@ theorem nestCtorEntry_spec (C : NIdx) (CP : ConLeche.Name) (ci : IConstantInfo)
   intro s₀ s' r hok hp hrun
   obtain ⟨hC, hci⟩ := hp
   cases ci with
-  | ctorInfo cv nPc nF =>
+  | ctorInfo cv nPc nF T =>
     obtain ⟨cvP, hcv, rfl⟩ := Core.denoteCI_ctorInfo_inv hci
     obtain ⟨-, -, hty⟩ := denoteCV_inv hcv
     simp only [Arena.nestCtorEntry] at hrun
@@ -152,7 +152,7 @@ theorem nestCtorEntry_spec (C : NIdx) (CP : ConLeche.Name) (ci : IConstantInfo)
     | none =>
       obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       refine ⟨PStep.refl hok, ?_⟩
-      show ConLeche.nestCtorEntry CP (.ctorInfo cvP nPc nF) = none
+      show ConLeche.nestCtorEntry CP (.ctorInfo cvP nPc nF _) = none
       simp only [ConLeche.nestCtorEntry, stripPis_none hbp]
     | some q =>
       obtain ⟨bs, body⟩ := q
@@ -191,7 +191,7 @@ theorem nestCtorEntry_spec (C : NIdx) (CP : ConLeche.Name) (ci : IConstantInfo)
       · rw [ite_eq_right htg] at h4
         obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
         refine ⟨PStep.refl hok, ?_⟩
-        show ConLeche.nestCtorEntry CP (.ctorInfo cvP nPc nF) = none
+        show ConLeche.nestCtorEntry CP (.ctorInfo cvP nPc nF _) = none
         simp only [ConLeche.nestCtorEntry, hsp]
         cases hg : x.getAppFn with
         | const c us =>
@@ -203,9 +203,9 @@ theorem nestCtorEntry_spec (C : NIdx) (CP : ConLeche.Name) (ci : IConstantInfo)
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     refine ⟨PStep.refl hok, ?_⟩
     show ConLeche.nestCtorEntry CP c = none
-    have := denoteCI_not_ctor hci (by intro v a b h; exact nomatch h)
+    have := denoteCI_not_ctor hci (by intro v a b t h; exact nomatch h)
     cases c with
-    | ctorInfo v a b => exact absurd rfl (this v a b)
+    | ctorInfo v a b t => exact absurd rfl (this v a b t)
     | _ => rfl
 
 /-- con-leche: none — the entry step of `nestContainer`'s `filterMapM`: a

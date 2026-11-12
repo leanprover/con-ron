@@ -187,6 +187,25 @@ pub fn member_ctors(
     }
 }
 
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:142-145 BlockShape.ctorGroups
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean BlockShape.ctorGroups` — the
+/// members' constructors from `i` on, grouped by member, each group under its
+/// member's name: what the install conses, the name becoming each
+/// constructor's `induct`.
+pub fn ctor_groups(
+    ms: &Vec<MemberShape>,
+    i: usize,
+    out: Vec<(NIdx, Vec<(IConstantVal, u64)>)>,
+) -> Vec<(NIdx, Vec<(IConstantVal, u64)>)> {
+    if i >= ms.len() {
+        out
+    } else {
+        let mut o: Vec<(NIdx, Vec<(IConstantVal, u64)>)> = out;
+        o.push((ms[i].cv_t.name.dup2(), ctors_dup(&ms[i].ctors, 0, Vec::new())));
+        ctor_groups(ms, i + 1, o)
+    }
+}
+
 /// con-leche: none — a `List MemberShape` copy; Lean shares the list
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:86-106 BlockShape`.
 pub fn members_dup(ms: &Vec<MemberShape>, i: usize, out: Vec<MemberShape>) -> Vec<MemberShape> {
@@ -365,7 +384,6 @@ pub fn block_split_recs(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:234-239 blockSplitCtors
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_shape::block_split_ctors_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:191-203 blockSplitCtors` —
 /// the constructors from `i` on, then the recursors.
 #[allow(clippy::type_complexity)]
@@ -387,24 +405,22 @@ pub fn block_split_ctors(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:234-239 blockSplitCtors
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_shape::is_ctor_info_refines, then delete this line
 /// Lean twin: the cited `.ctorInfo … :: rest` pattern's test, its own function
 /// so the element's loan ends before the recursion (extraction rule 1).
 pub fn is_ctor_info(ci: &IConstantInfo) -> bool {
     match ci {
-        IConstantInfo::CtorInfo(_, _, _) => true,
+        IConstantInfo::CtorInfo(_, _, _, _) => true,
         _ => false,
     }
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:234-239 blockSplitCtors
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_shape::ctor_info_parts_refines, then delete this line
 /// Lean twin: the `.ctorInfo cvC nP nF` pattern's fields, copied out.  Reached
 /// only past `is_ctor_info`; the other arm is the default the total function
 /// needs.
 pub fn ctor_info_parts(ci: &IConstantInfo) -> (IConstantVal, u64, u64) {
     match ci {
-        IConstantInfo::CtorInfo(cv, n_p, n_f) => (env::i_constant_val_dup(cv), *n_p, *n_f),
+        IConstantInfo::CtorInfo(cv, n_p, n_f, _) => (env::i_constant_val_dup(cv), *n_p, *n_f),
         _ => (env::i_constant_info_dummy_val(), 0, 0),
     }
 }

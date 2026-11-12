@@ -773,7 +773,6 @@ pub fn ind_ctor_rec_dup(c: &IndCtorRec) -> IndCtorRec {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::any_ty_unsafe_refines, then delete this line
 /// The cited `tys.any (·.isUnsafe)`.
 pub fn any_ty_unsafe(tys: &Vec<IndTypeRec>) -> bool {
     let n = tys.len();
@@ -788,7 +787,6 @@ pub fn any_ty_unsafe(tys: &Vec<IndTypeRec>) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::any_ty_nested_refines, then delete this line
 /// The cited `tys.any (·.numNested != 0)`.
 pub fn any_ty_nested(tys: &Vec<IndTypeRec>) -> bool {
     let n = tys.len();
@@ -803,7 +801,6 @@ pub fn any_ty_nested(tys: &Vec<IndTypeRec>) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::all_num_params_refines, then delete this line
 /// The cited `nPs.all (· == nPd)`.
 pub fn all_num_params(tys: &Vec<IndTypeRec>, n_pd: u64) -> bool {
     let n = tys.len();
@@ -818,7 +815,6 @@ pub fn all_num_params(tys: &Vec<IndTypeRec>, n_pd: u64) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::ty_names_of_refines, then delete this line
 /// The cited `tys.mapM fun t => st.name t.cv.name`.
 pub fn ty_names_of(st: &StateD, tys: &Vec<IndTypeRec>) -> Result<Vec<NIdx>, LineErr> {
     let mut out: Vec<NIdx> = Vec::with_capacity(tys.len());
@@ -835,7 +831,6 @@ pub fn ty_names_of(st: &StateD, tys: &Vec<IndTypeRec>) -> Result<Vec<NIdx>, Line
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::ty_types_of_refines, then delete this line
 /// The cited `tys.mapM fun t => getDeclD st t.cv.type`.
 pub fn ty_types_of(st: &StateD, tys: &Vec<IndTypeRec>) -> Result<Vec<EIdx>, LineErr> {
     let mut out: Vec<EIdx> = Vec::with_capacity(tys.len());
@@ -852,7 +847,6 @@ pub fn ty_types_of(st: &StateD, tys: &Vec<IndTypeRec>) -> Result<Vec<EIdx>, Line
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::listed_ctors_of_refines, then delete this line
 /// The cited `tys.mapM fun t => t.ctors.mapM st.name`.
 pub fn listed_ctors_of(
     st: &StateD,
@@ -872,7 +866,6 @@ pub fn listed_ctors_of(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::ctor_names_of_refines, then delete this line
 /// The cited `cts.mapM fun c => st.name c.cv.name`.
 pub fn ctor_names_of(st: &StateD, cts: &Vec<IndCtorRec>) -> Result<Vec<NIdx>, LineErr> {
     let mut out: Vec<NIdx> = Vec::with_capacity(cts.len());
@@ -889,7 +882,6 @@ pub fn ctor_names_of(st: &StateD, cts: &Vec<IndCtorRec>) -> Result<Vec<NIdx>, Li
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::flatten_listed_refines, then delete this line
 /// The cited `listed.flatten`.
 pub fn flatten_listed(listed: &Vec<Vec<NIdx>>) -> Vec<NIdx> {
     let mut out: Vec<NIdx> = Vec::new();
@@ -908,7 +900,6 @@ pub fn flatten_listed(listed: &Vec<Vec<NIdx>>) -> Vec<NIdx> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::names_have_dup_refines, then delete this line
 /// The cited `flat.Nodup`, decided: does the flattened constructor list repeat
 /// a name?  A handle-keyed set pass, as `con_ron_core::frontend::export_c`'s
 /// is (a `HashMap<_, bool>`), and not the quadratic scan: Aeneas answers
@@ -930,7 +921,6 @@ pub fn names_have_dup(flat: &Vec<NIdx>) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::ctor_index_of_refines, then delete this line
 /// The cited `ctorNames.foldl … ({}, 0)`: the constructor records by name,
 /// **LAST record wins** — the cited fold's `Std.HashMap.insert` overwrites,
 /// and task #87's refinement of `validateIndD` found that the difference is
@@ -948,7 +938,6 @@ pub fn ctor_index_of(ns: &Vec<NIdx>) -> HashMap<NIdx, u64> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::no_such_ctor_error_refines, then delete this line
 /// `"No such constructor {n}"`.
 pub fn no_such_ctor_error(n: &Vec<u32>) -> Vec<u32> {
     const A_NOSUCH: [u32; 20] = [
@@ -959,7 +948,6 @@ pub fn no_such_ctor_error(n: &Vec<u32>) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::ctor_count_error_refines, then delete this line
 /// `"the inductive block lists {a} constructors and carries {b} constructor
 /// records"`.
 pub fn ctor_count_error(a: u64, b: u64) -> Vec<u32> {
@@ -984,7 +972,6 @@ pub fn ctor_count_error(a: u64, b: u64) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::cidx_error_refines, then delete this line
 /// `"constructor {n} declares cidx {ci}; it is constructor {j} of {t}"`.
 pub fn cidx_error(n: &Vec<u32>, ci: u64, j: u64, t: &Vec<u32>) -> Vec<u32> {
     const A_CTOR: [u32; 12] = [
@@ -1014,7 +1001,6 @@ pub fn cidx_error(n: &Vec<u32>, ci: u64, j: u64, t: &Vec<u32>) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::induct_error_refines, then delete this line
 /// `"constructor {n} declares induct {iw}; it is a constructor of {t}"`.
 pub fn induct_error(n: &Vec<u32>, iw: &Vec<u32>, t: &Vec<u32>) -> Vec<u32> {
     const A_CTOR: [u32; 12] = [
@@ -1040,7 +1026,6 @@ pub fn induct_error(n: &Vec<u32>, iw: &Vec<u32>, t: &Vec<u32>) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::fields_error_refines, then delete this line
 /// `"constructor {n} declares {f} fields at {p} parameters; its type has {b}
 /// binders"`.
 pub fn fields_error(n: &Vec<u32>, f: u64, p: u64, b: u64) -> Vec<u32> {
@@ -1083,7 +1068,6 @@ pub fn show_name(pers: &PersTier, ar: &EStore, h: &NIdx) -> Result<Vec<u32>, Lin
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::check_one_ctor_refines, then delete this line
 /// One constructor record, validated against the block's own declarations:
 /// the redundant `cidx` and `induct` fields and the declared `numFields`.
 pub fn check_one_ctor(
@@ -1159,10 +1143,9 @@ pub fn check_one_ctor(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::order_type_ctors_refines, then delete this line
-/// One type former's constructors, in the order the type record LISTS them:
-/// the inner `for` of the twin's reordering, with the accumulator passed by
-/// value.
+/// One type former's constructors, in the order the type record LISTS them,
+/// each with that type `t`, its `induct`: the inner `for` of the twin's
+/// reordering, with the accumulator passed by value.
 pub fn order_type_ctors(
     pers: &PersTier,
     ar: &EStore,
@@ -1173,8 +1156,8 @@ pub fn order_type_ctors(
     cts: &Vec<IndCtorRec>,
     ctor_ix: &HashMap<NIdx, u64>,
     n_pd: u64,
-    out: Vec<IndCtorRec>,
-) -> Result<Vec<IndCtorRec>, LineErr> {
+    out: Vec<(IndCtorRec, NIdx)>,
+) -> Result<Vec<(IndCtorRec, NIdx)>, LineErr> {
     let mut out = out;
     let n = ns.len();
     let mut j: u64 = 0;
@@ -1198,7 +1181,7 @@ pub fn order_type_ctors(
             Err(e) => return Err(e),
             Ok(()) => {}
         }
-        out.push(ind_ctor_rec_dup(&cts[k]));
+        out.push((ind_ctor_rec_dup(&cts[k]), t.dup2()));
         j += 1;
         i += 1;
     }
@@ -1206,10 +1189,10 @@ pub fn order_type_ctors(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::order_block_ctors_refines, then delete this line
 /// **The constructors IN THE BLOCK'S OWN ORDER**, `types[].ctors` in type
 /// order: a record array in another order is the same block, and the recursor
-/// generated from it is the same one.
+/// generated from it is the same one; each with the type that lists it, its
+/// `induct` (the record's own claim, where it makes one, is that type).
 pub fn order_block_ctors(
     pers: &PersTier,
     ar: &EStore,
@@ -1220,8 +1203,8 @@ pub fn order_block_ctors(
     cts: &Vec<IndCtorRec>,
     ctor_ix: &HashMap<NIdx, u64>,
     n_pd: u64,
-) -> Result<Vec<IndCtorRec>, LineErr> {
-    let mut out: Vec<IndCtorRec> = Vec::new();
+) -> Result<Vec<(IndCtorRec, NIdx)>, LineErr> {
+    let mut out: Vec<(IndCtorRec, NIdx)> = Vec::new();
     let n = ty_names.len();
     let mut t_at = 0usize;
     while t_at < n {
@@ -1246,7 +1229,6 @@ pub fn order_block_ctors(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::rec_params_error_refines, then delete this line
 /// `"recursor {rn} declares {a} parameters; the block declares {b}"`.
 pub fn rec_params_error(rn: &Vec<u32>, a: u64, b: u64) -> Vec<u32> {
     const A_REC: [u32; 9] = [
@@ -1269,7 +1251,6 @@ pub fn rec_params_error(rn: &Vec<u32>, a: u64, b: u64) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::rec_motives_error_refines, then delete this line
 /// `"recursor {rn} declares {a} motives; the block has {b} inductive types"`.
 pub fn rec_motives_error(rn: &Vec<u32>, a: u64, b: u64) -> Vec<u32> {
     const A_REC: [u32; 9] = [
@@ -1295,7 +1276,6 @@ pub fn rec_motives_error(rn: &Vec<u32>, a: u64, b: u64) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::rec_minors_error_refines, then delete this line
 /// `"recursor {rn} declares {a} minor premises; the block has {b}
 /// constructors"`.
 pub fn rec_minors_error(rn: &Vec<u32>, a: u64, b: u64) -> Vec<u32> {
@@ -1322,7 +1302,6 @@ pub fn rec_minors_error(rn: &Vec<u32>, a: u64, b: u64) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::rec_indices_error_refines, then delete this line
 /// `"recursor {rn} declares {a} indices; {t} has {b} at {p} parameters"`.
 pub fn rec_indices_error(rn: &Vec<u32>, a: u64, t: &Vec<u32>, b: u64, p: u64) -> Vec<u32> {
     const A_REC: [u32; 9] = [
@@ -1355,7 +1334,6 @@ pub fn rec_indices_error(rn: &Vec<u32>, a: u64, t: &Vec<u32>, b: u64, p: u64) ->
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::check_rec_indices_refines, then delete this line
 /// `numIndices` of `T.rec` is what is left of `T`'s own telescope once the
 /// parameters are peeled; unreadable at a former declared at a definition, and
 /// then not checked.
@@ -1404,7 +1382,6 @@ pub fn check_rec_indices(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::check_one_rec_refines, then delete this line
 /// One recursor record: the counts the GENERATED recursor carries.  Its K flag
 /// is the record's own, which the fold's check compares with the block.
 pub fn check_one_rec(
@@ -1458,7 +1435,6 @@ pub fn check_one_rec(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::check_rec_records_refines, then delete this line
 /// Every recursor record of the block.  NOT run at a NESTED block — the kernel
 /// specialises a nested block into a mutual one with a mimic type per nested
 /// occurrence, and the recursors it generates are the SPECIALISED block's.
@@ -1490,14 +1466,13 @@ pub fn check_rec_records(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::validate_ind_d_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:256-352 validateIndD`
 /// — **an inductive record, VALIDATED**: the half of the record's processing
 /// that reads the state and changes nothing.  Every guard, every verdict and
 /// every message is con-leche's; what changed is that a name comparison is a
 /// handle comparison and that a structural read of a type is a `view`.
 ///
-/// Deviation: con-leche returns `RecordVerdict ⊕ (List IndCtorRec × Nat)` and
+/// Deviation: con-leche returns `RecordVerdict ⊕ (List (IndCtorRec × Name) × Nat)` and
 /// the port returns the verdict through [`LineErr`], the module's one merged
 /// error channel.  The twin's two `for`/`mut` loops are the functions above
 /// (this module's note).
@@ -1508,7 +1483,7 @@ pub fn validate_ind_d(
     tys: &Vec<IndTypeRec>,
     cts: &Vec<IndCtorRec>,
     rcs: &Vec<IndRecRec>,
-) -> Result<(Vec<IndCtorRec>, u64), LineErr> {
+) -> Result<(Vec<(IndCtorRec, NIdx)>, u64), LineErr> {
     // an `unsafe inductive` is DECLINED, not an error
     if any_ty_unsafe(tys) {
         const M_UNSAFE_IND: [u32; 28] = [
@@ -1590,13 +1565,12 @@ pub fn validate_ind_d(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:375-392 indBlockOfF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::ind_block_of_refines, then delete this line
 /// The cited `types ++ ctors ++ recs`: the block's `IConstantInfo`s, built in
 /// three loops each of which is its own function.
 pub fn ind_block_of(
     st: &StateD,
     tys: &Vec<IndTypeRec>,
-    cts: &Vec<IndCtorRec>,
+    cts: &Vec<(IndCtorRec, NIdx)>,
     rcs: &Vec<IndRecRec>,
 ) -> Result<Vec<IConstantInfo>, LineErr> {
     match ind_block_types(st, tys, Vec::new()) {
@@ -1609,7 +1583,6 @@ pub fn ind_block_of(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:375-392 indBlockOfF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::ind_block_types_refines, then delete this line
 /// The cited `tys.mapM`.
 pub fn ind_block_types(
     st: &StateD,
@@ -1630,21 +1603,21 @@ pub fn ind_block_types(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:375-392 indBlockOfF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::ind_block_ctors_refines, then delete this line
-/// The cited `cts.mapM`.
+/// The cited `cts.mapM`: each constructor with the type that lists it as its
+/// `induct`.
 pub fn ind_block_ctors(
     st: &StateD,
-    cts: &Vec<IndCtorRec>,
+    cts: &Vec<(IndCtorRec, NIdx)>,
     out: Vec<IConstantInfo>,
 ) -> Result<Vec<IConstantInfo>, LineErr> {
     let mut out = out;
     let n = cts.len();
     let mut i = 0usize;
     while i < n {
-        let c = &cts[i];
+        let c = &cts[i].0;
         match parse_cv_d(st, &c.cv) {
             Err(e) => return Err(e),
-            Ok(cv) => out.push(IConstantInfo::CtorInfo(cv, c.num_params, c.num_fields)),
+            Ok(cv) => out.push(IConstantInfo::CtorInfo(cv, c.num_params, c.num_fields, cts[i].1.dup2())),
         }
         i += 1;
     }
@@ -1652,7 +1625,6 @@ pub fn ind_block_ctors(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:375-392 indBlockOfF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::ind_block_recs_refines, then delete this line
 /// The cited `rcs.mapM`.
 pub fn ind_block_recs(
     st: &StateD,
@@ -1684,7 +1656,6 @@ pub fn ind_block_recs(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:375-392 indBlockOfF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove export_c::install_ind_d_refines, then delete this line
 /// con-leche: ConLeche/Frontend/ExportC.lean:452-457 processLineCoreD
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:354-379 installIndD` —
 /// **an inductive record, INSTALLED**: the block's constants, pushed as one
@@ -1702,7 +1673,7 @@ pub fn ind_block_recs(
 pub fn install_ind_d(
     st: &mut StateD,
     tys: &Vec<IndTypeRec>,
-    cts: Vec<IndCtorRec>,
+    cts: Vec<(IndCtorRec, NIdx)>,
     rcs: &Vec<IndRecRec>,
     n_pd: u64,
 ) -> Result<(), LineErr> {

@@ -107,12 +107,12 @@ theorem parseExprEntryD_unfold (st : StateD) (i : Nat) (r : ConLeche.Frontend.Ex
 
 /-- The twin's `types ++ ctors ++ recs` of `installIndD`, which the port
 factors out as `ind_block_of`. -/
-def indBlockOf (st : StateD) (tys : List IndTypeRec) (cts : List IndCtorRec)
+def indBlockOf (st : StateD) (tys : List IndTypeRec) (cts : List (IndCtorRec × NIdx))
     (rcs : List IndRecRec) : AM (List IConstantInfo) := do
   let types ← tys.mapM fun t => do
     pure (IConstantInfo.indInfo (← parseCVD st t.cv) {})
-  let ctors ← cts.mapM fun c => do
-    pure (IConstantInfo.ctorInfo (← parseCVD st c.cv) c.numParams c.numFields)
+  let ctors ← cts.mapM fun (c, T) => do
+    pure (IConstantInfo.ctorInfo (← parseCVD st c.cv) c.numParams c.numFields T)
   let recs ← rcs.mapM fun r => do
     let rules ← r.rules.mapM (parseRuleD st)
     pure (IConstantInfo.recInfo (← parseCVD st r.cv)
@@ -126,7 +126,7 @@ the modeller gate (`installGen`, `Modeller`) that used to follow
 `indBlockOf` here: every block installs through the kernel's uniform
 installer now, so the parser has nothing left to do but push it. -/
 theorem installIndD_unfold (st : StateD) (tys : List IndTypeRec)
-    (cts : List IndCtorRec) (rcs : List IndRecRec) (nPd : Nat) :
+    (cts : List (IndCtorRec × NIdx)) (rcs : List IndRecRec) (nPd : Nat) :
     installIndD st tys cts rcs nPd = (do
       let block ← indBlockOf st tys cts rcs
       pushDecl st (.indDecl block nPd)) := by

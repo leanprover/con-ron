@@ -121,7 +121,6 @@ pub fn eq_a() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:28-34 eqReflA
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove basis_raw::eq_refl_a_refines, then delete this line
 /// `Eq.refl.{u} {α : Sort u} (a : α) : Eq α a a`.
 pub fn eq_refl_a() -> ConstantInfo {
     ConstantInfo::CtorInfo(
@@ -138,6 +137,7 @@ pub fn eq_refl_a() -> ConstantInfo {
         ),
         2,
         0,
+        bnm::eq_name(),
     )
 }
 
@@ -233,20 +233,19 @@ pub fn nat_a() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:28-30 natZeroA
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove basis_raw::nat_zero_a_refines, then delete this line
 /// `Nat.zero : Nat`.
 pub fn nat_zero_a() -> ConstantInfo {
-    ConstantInfo::CtorInfo(cv(bnm::nat_zero_name(), Vec::new(), nat_t()), 0, 0)
+    ConstantInfo::CtorInfo(cv(bnm::nat_zero_name(), Vec::new(), nat_t()), 0, 0, bnm::nat_name())
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:32-34 natSuccA
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove basis_raw::nat_succ_a_refines, then delete this line
 /// `Nat.succ (n : Nat) : Nat`.
 pub fn nat_succ_a() -> ConstantInfo {
     ConstantInfo::CtorInfo(
         cv(bnm::nat_succ_name(), Vec::new(), pi(nat_t(), nat_t())),
         0,
         1,
+        bnm::nat_name(),
     )
 }
 
@@ -450,7 +449,6 @@ pub fn quot_a() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:37-43 quotMkA
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove basis_raw::quot_mk_a_refines, then delete this line
 /// `Quot.mk.{u} {α : Sort u} (r : α → α → Prop) (a : α) : Quot α r`.
 pub fn quot_mk_a() -> ConstantInfo {
     ConstantInfo::CtorInfo(
@@ -470,6 +468,7 @@ pub fn quot_mk_a() -> ConstantInfo {
         ),
         2,
         1,
+        bnm::quot_name(),
     )
 }
 
@@ -691,7 +690,6 @@ pub fn and_raw() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/And.lean:50-58 andIntroRaw
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove basis_raw::and_intro_raw_refines, then delete this line
 /// `And.intro {a b : Prop} (left : a) (right : b) : And a b`.
 pub fn and_intro_raw() -> ConstantInfo {
     ConstantInfo::CtorInfo(
@@ -711,6 +709,7 @@ pub fn and_intro_raw() -> ConstantInfo {
         ),
         2,
         2,
+        bnm::and_name(),
     )
 }
 

@@ -114,6 +114,13 @@ The members' constructors, per member, as declared. -/
 def BlockShape.memberCtors (p : BlockShape) : List (List (IConstantVal × Nat)) :=
   p.members.map (·.ctors)
 
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:142-145 BlockShape.ctorGroups
+The constructors grouped by member, each group under its member's name: what
+the install conses (`consBlockCtors`), the name becoming each constructor's
+`induct`. -/
+def BlockShape.ctorGroups (p : BlockShape) : List (NIdx × List (IConstantVal × Nat)) :=
+  p.members.map fun ms => (ms.cvT.name, ms.ctors)
+
 /-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:147-151 numCtorsOf
 The constructors of a list of members, counted. -/
 def numCtorsOf : List MemberShape → Nat
@@ -189,12 +196,11 @@ def blockSplitRecs : List IConstantInfo →
   | _ :: _ => none
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:234-239 blockSplitCtors
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove BlockShape.blockSplitCtors_bridge, then delete this line
 The constructors, then the recursors. -/
 def blockSplitCtors : List IConstantInfo →
     Option (List (IConstantVal × Nat × Nat) ×
       List (IConstantVal × Nat × Nat × Bool × List IRecRule))
-  | .ctorInfo cvC nP nF :: rest =>
+  | .ctorInfo cvC nP nF _ :: rest =>
     match blockSplitCtors rest with
     | some q => some ((cvC, nP, nF) :: q.1, q.2)
     | none => none

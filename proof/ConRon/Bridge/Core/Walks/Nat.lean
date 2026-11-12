@@ -189,7 +189,7 @@ theorem denoteCI_ind_iff {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
 /-- con-leche: none — the same at a constructor. -/
 theorem denoteCI_ctor_iff {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
     (h : Frontend.denoteCI st ci = some c) :
-    (∃ v nP nF, ci = .ctorInfo v nP nF) ↔ ∃ cv nP nF T, c = .ctorInfo cv nP nF T := by
+    (∃ v nP nF T, ci = .ctorInfo v nP nF T) ↔ ∃ cv nP nF T, c = .ctorInfo cv nP nF T := by
   cases ci <;> simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
   all_goals first
     | (obtain ⟨_, _, rfl⟩ := h; simp)
@@ -229,7 +229,7 @@ theorem OptCI.at {st : EStore} {oc : Option IConstantInfo} {oc' : Option Constan
     | indInfo v caps =>
       obtain ⟨cv, caps', hcv, _, rfl⟩ := denoteCI_indInfo_split hci
       exact ⟨rfl, rfl, fun _ => hcv, nofun⟩
-    | ctorInfo v nP nF =>
+    | ctorInfo v nP nF T =>
       obtain ⟨cv, hcv, rfl⟩ := denoteCI_ctorInfo_inv hci
       exact ⟨rfl, rfl, nofun, fun _ => hcv⟩
     | _ =>

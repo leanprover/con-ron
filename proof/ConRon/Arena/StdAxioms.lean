@@ -70,7 +70,6 @@ through `ConLeche/Kernel/Basis/Builder.lean`.  The arena reads the results. -/
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:93-95 iffA -/
 def iffA : AM IConstantInfo := internCI ConLeche.iffA
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:97-105 iffIntroA -/
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove StdAxioms.iffIntroA_bridge, then delete this line
 def iffIntroA : AM IConstantInfo := internCI ConLeche.iffIntroA
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:114-124 iffRecA -/
 def iffRecA : AM IConstantInfo := internCI ConLeche.iffRecA
@@ -79,7 +78,6 @@ def propextA : AM IConstantVal := internCV ConLeche.propextA
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:135-137 nonemptyA -/
 def nonemptyA : AM IConstantInfo := internCI ConLeche.nonemptyA
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:139-145 nonemptyIntroA -/
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove StdAxioms.nonemptyIntroA_bridge, then delete this line
 def nonemptyIntroA : AM IConstantInfo := internCI ConLeche.nonemptyIntroA
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:147-159 nonemptyRecA -/
 def nonemptyRecA : AM IConstantInfo := internCI ConLeche.nonemptyRecA

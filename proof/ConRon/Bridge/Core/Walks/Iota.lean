@@ -313,6 +313,31 @@ theorem recFireComparands_fst (rl : RecRule) (cnP : Nat) (lps : List ConLeche.Na
     (ConLeche.recFireComparands rl cnP lps us cvjLps args rP).1 = cmpLevels rl lps us cvjLps := by
   unfold cmpLevels ConLeche.recFireComparands; cases rl.fire <;> rfl
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:966-972 recFireLevelCount — the
+twin's count at a denoting rule and level-parameter list is con-leche's. -/
+theorem recFireLevelCount_denote {st : EStore} {rl : IRecRule} {rl' : RecRule}
+    {lps : List NIdx} {lpsP : List ConLeche.Name}
+    (hrl : Frontend.denoteRule st rl = some rl')
+    (hl : Frontend.denoteNList st.ns lps = some lpsP) :
+    ConRon.Arena.recFireLevelCount rl lps = ConLeche.recFireLevelCount rl' lpsP := by
+  obtain ⟨-, -, -, hf⟩ := rule_denote hrl
+  unfold ConRon.Arena.recFireLevelCount ConLeche.recFireLevelCount
+  generalize rl.fire = f at hf
+  generalize rl'.fire = f' at hf
+  cases f with
+  | plain =>
+    simp only [Frontend.denoteFire, Option.some.injEq] at hf
+    subst hf; exact (denoteNList_len hl).symm
+  | nested lvls pins =>
+    simp only [Frontend.denoteFire] at hf
+    split at hf
+    · rename_i L P hL hP; cases hf; exact (denoteLList_len hL).symm
+    · cases hf
+  | levels lvls =>
+    simp only [Frontend.denoteFire, Option.map_eq_some_iff] at hf
+    obtain ⟨L, hL, rfl⟩ := hf
+    exact (denoteLList_len hL).symm
+
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:1140-1162 recFireComparands — the level
 comparands at a nested rule. -/
 theorem cmpLevels_nested (c : ConLeche.Name) (nf : Nat) (L : List Level)
@@ -554,15 +579,16 @@ theorem iotaRecFueled_guard {F d : Nat} {E : Expr} {c : ConLeche.Name}
 
 /-- con-leche: ConLeche/Kernel/Core.lean:789-888 iotaRec — **the ι case
 split's certificate family** at fuel `F`: off at the trusted mode; at a case-3
-redex (`iotaCase3At`, a knot walk) the level comparison, the parameter
+redex (`iotaCaseAt`: the stored facts, then a knot walk; the family the
+constructor's stored `induct`) the level comparison, the parameter
 comparison, the constructor telescope at the full grade and the index
 comparison.  A copy of the con-leche text that `iotaRecFueled_pre` ties to it
 by `rfl`. -/
 def iotaFam (mode : CheckMode) (eager : Bool) (env : Env) (F d mI rP : Nat) (isK : Bool)
-    (cvj : ConstantVal) (cnP : Nat) (usj : List Level) (cmp : List Level × List Expr)
-    (margs args : List Expr) : CheckM Bool :=
+    (induct : ConLeche.Name) (cvj : ConstantVal) (cnP : Nat) (usj : List Level)
+    (cmp : List Level × List Expr) (margs args : List Expr) : CheckM Bool :=
   if mode.verifiedChecks then
-    (iotaCase3At (ConLeche.pureFns mode eager env F).whnf env.find? isK cvj cmp.1 >>= fun c3 =>
+    (iotaCaseAt (ConLeche.pureFns mode eager env F).whnf env.find? isK induct cmp.1 >>= fun c3 =>
       if c3 then do
         if ← ConLeche.liftFueled "level comparison" (Level.isEquivList usj cmp.1) then
           if ← ConLeche.defEqListFueled mode eager env F d (margs.take cnP) cmp.2 then
@@ -586,12 +612,12 @@ def iotaTail (mode : CheckMode) (eager : Bool) (env : Env) (F d : Nat) (us : Lis
   match major.getAppFn with
   | .const cj usj =>
     match env.find? cj with
-    | some (.ctorInfo cvj cnP _) =>
+    | some (.ctorInfo cvj cnP _ induct) =>
       match rules.find? (fun r' => r'.ctor == cj) with
       | some rl =>
         let margs := major.getAppArgs
         if margs.length = cnP + rl.nfields then do
-          if ← iotaFam mode eager env F d mI rP isK cvj cnP usj
+          if ← iotaFam mode eager env F d mI rP isK induct cvj cnP usj
               (ConLeche.recFireComparands rl cnP cv.levelParams us cvj.levelParams
                 args rP) margs args then
             pure (some (Expr.mkAppN
@@ -642,13 +668,13 @@ theorem iotaTail_noctor {F d : Nat} {us : List Level} {cv : ConstantVal}
     {mI rP : Nat} {isK : Bool} {rules : List RecRule} {args : List Expr} {major : Expr}
     {cj : ConLeche.Name} {usj : List Level}
     (hm : major.getAppFn = .const cj usj)
-    (hf : ∀ cvj a b, env.find? cj ≠ some (.ctorInfo cvj a b)) :
+    (hf : ∀ cvj a b T, env.find? cj ≠ some (.ctorInfo cvj a b T)) :
     iotaTail mode eager env F d us cv mI rP isK rules args major = .ok none := by
   simp only [iotaTail, hm]
   first
     | rfl
     | (split
-       · rename_i cvj a b heq; exact absurd heq (hf cvj a b)
+       · rename_i cvj a b T heq; exact absurd heq (hf cvj a b T)
        · rfl)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:786-868 iotaRec — no rule matches the
@@ -656,8 +682,9 @@ constructor. -/
 theorem iotaTail_norule {F d : Nat} {us : List Level} {cv : ConstantVal}
     {mI rP : Nat} {isK : Bool} {rules : List RecRule} {args : List Expr} {major : Expr}
     {cj : ConLeche.Name} {usj : List Level} {cvj : ConstantVal} {a b : Nat}
+    {T : ConLeche.Name}
     (hm : major.getAppFn = .const cj usj)
-    (hf : env.find? cj = some (.ctorInfo cvj a b))
+    (hf : env.find? cj = some (.ctorInfo cvj a b T))
     (hr : rules.find? (fun r' => r'.ctor == cj) = none) :
     iotaTail mode eager env F d us cv mI rP isK rules args major = .ok none := by
   simp only [iotaTail, hm, hf, hr]
@@ -668,9 +695,9 @@ not fully applied. -/
 theorem iotaTail_len {F d : Nat} {us : List Level} {cv : ConstantVal}
     {mI rP : Nat} {isK : Bool} {rules : List RecRule} {args : List Expr} {major : Expr}
     {cj : ConLeche.Name} {usj : List Level} {cvj : ConstantVal} {a b : Nat}
-    {rl : RecRule}
+    {T : ConLeche.Name} {rl : RecRule}
     (hm : major.getAppFn = .const cj usj)
-    (hf : env.find? cj = some (.ctorInfo cvj a b))
+    (hf : env.find? cj = some (.ctorInfo cvj a b T))
     (hr : rules.find? (fun r' => r'.ctor == cj) = some rl)
     (hl : ¬ major.getAppArgs.length = a + rl.nfields) :
     iotaTail mode eager env F d us cv mI rP isK rules args major = .ok none := by
@@ -683,12 +710,12 @@ block**, as a function of the certificate family's verdict. -/
 theorem iotaTail_fire {F d : Nat} {us : List Level} {cv : ConstantVal}
     {mI rP : Nat} {isK : Bool} {rules : List RecRule} {args : List Expr} {major : Expr}
     {cj : ConLeche.Name} {usj : List Level} {cvj : ConstantVal} {a b : Nat}
-    {rl : RecRule} {fam : Bool}
+    {T : ConLeche.Name} {rl : RecRule} {fam : Bool}
     (hm : major.getAppFn = .const cj usj)
-    (hf : env.find? cj = some (.ctorInfo cvj a b))
+    (hf : env.find? cj = some (.ctorInfo cvj a b T))
     (hr : rules.find? (fun r' => r'.ctor == cj) = some rl)
     (hl : major.getAppArgs.length = a + rl.nfields)
-    (hfam : iotaFam mode eager env F d mI rP isK cvj a usj
+    (hfam : iotaFam mode eager env F d mI rP isK T cvj a usj
       (ConLeche.recFireComparands rl a cv.levelParams us cvj.levelParams args rP)
       major.getAppArgs args = .ok fam) :
     iotaTail mode eager env F d us cv mI rP isK rules args major =
@@ -702,20 +729,21 @@ theorem iotaTail_fire {F d : Nat} {us : List Level} {cv : ConstantVal}
   cases fam <;> rfl
 
 /-- con-leche: none — the certificate family's pure side is fuel-monotone. -/
-theorem iotaFam_mono {F G d mI rP : Nat} {isK : Bool} {cvj : ConstantVal} {cnP : Nat}
+theorem iotaFam_mono {F G d mI rP : Nat} {isK : Bool} {induct : ConLeche.Name}
+    {cvj : ConstantVal} {cnP : Nat}
     {usj : List Level} {cmp : List Level × List Expr} {margs args : List Expr}
     {b : Bool} (hle : F ≤ G)
-    (h : iotaFam mode eager env F d mI rP isK cvj cnP usj cmp margs args = .ok b) :
-    iotaFam mode eager env G d mI rP isK cvj cnP usj cmp margs args = .ok b := by
+    (h : iotaFam mode eager env F d mI rP isK induct cvj cnP usj cmp margs args = .ok b) :
+    iotaFam mode eager env G d mI rP isK induct cvj cnP usj cmp margs args = .ok b := by
   unfold iotaFam at h ⊢
   by_cases hv : mode.verifiedChecks = true
   case neg => rw [ite_eq_right hv] at h ⊢; exact h
   rw [ite_eq_left hv] at h ⊢
-  cases hc : iotaCase3At (ConLeche.pureFns mode eager env F).whnf env.find? isK cvj cmp.1 with
+  cases hc : iotaCaseAt (ConLeche.pureFns mode eager env F).whnf env.find? isK induct cmp.1 with
   | error e => rw [hc] at h; cases h
   | ok c3 =>
   rw [hc] at h
-  rw [iotaCase3AtFueled_mono hle hc]
+  rw [iotaCaseAtFueled_mono hle hc]
   simp only [bind, Except.bind] at h ⊢
   cases c3
   · exact h
@@ -747,22 +775,40 @@ theorem iotaFam_mono {F G d mI rP : Nat} {isK : Bool} {cvj : ConstantVal} {cnP :
         simp only [ite_true] at h ⊢
         exact iotaIndexOkFueled_mono hle h
 
+/-- con-leche: ConLeche/Kernel/Core.lean:585-592 iotaCaseAt — the stored facts
+decide: no certificate. -/
+theorem iotaCaseAt_nocert {F : Nat} {isK : Bool} {induct : ConLeche.Name} {us : List Level}
+    (h : ConLeche.iotaNoCert env.find? isK induct us.length = true) :
+    iotaCaseAt (ConLeche.pureFns .verified eager env F).whnf env.find? isK induct us =
+      .ok false := by
+  simp only [ConLeche.iotaCaseAt, h, ite_true]; rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:585-592 iotaCaseAt — the stored facts do
+not decide: case 3 at the use. -/
+theorem iotaCaseAt_use {F : Nat} {isK : Bool} {induct : ConLeche.Name} {us : List Level}
+    (h : ConLeche.iotaNoCert env.find? isK induct us.length = false) :
+    iotaCaseAt (ConLeche.pureFns .verified eager env F).whnf env.find? isK induct us =
+      iotaCase3At (ConLeche.pureFns .verified eager env F).whnf env.find? isK induct us := by
+  simp only [ConLeche.iotaCaseAt, h, Bool.false_eq_true, ite_false]
+
 /-- con-leche: none — the family off case 3. -/
-theorem iotaFam_true {F d mI rP : Nat} {isK : Bool} {cvj : ConstantVal} {cnP : Nat}
+theorem iotaFam_true {F d mI rP : Nat} {isK : Bool} {induct : ConLeche.Name}
+    {cvj : ConstantVal} {cnP : Nat}
     {usj : List Level} {cmp : List Level × List Expr} {margs args : List Expr}
-    (h : iotaCase3At (ConLeche.pureFns .verified eager env F).whnf env.find? isK cvj cmp.1 =
+    (h : iotaCaseAt (ConLeche.pureFns .verified eager env F).whnf env.find? isK induct cmp.1 =
       .ok false) :
-    iotaFam .verified eager env F d mI rP isK cvj cnP usj cmp margs args = .ok true := by
+    iotaFam .verified eager env F d mI rP isK induct cvj cnP usj cmp margs args = .ok true := by
   unfold iotaFam
   simp only [CheckMode.verifiedChecks, ite_true, h, bind, Except.bind, Bool.false_eq_true,
     ite_false]; rfl
 
 /-- con-leche: none — the family past case 3's test, as a function of the
 four verdicts. -/
-theorem iotaFam_fire {F d mI rP : Nat} {isK : Bool} {cvj : ConstantVal} {cnP : Nat}
+theorem iotaFam_fire {F d mI rP : Nat} {isK : Bool} {induct : ConLeche.Name}
+    {cvj : ConstantVal} {cnP : Nat}
     {usj : List Level} {cmp : List Level × List Expr} {margs args : List Expr}
     {b1 b2 b3 b4 : Bool}
-    (hc : iotaCase3At (ConLeche.pureFns .verified eager env F).whnf env.find? isK cvj cmp.1 =
+    (hc : iotaCaseAt (ConLeche.pureFns .verified eager env F).whnf env.find? isK induct cmp.1 =
       .ok true)
     (h1 : Level.isEquivList usj cmp.1 = some b1)
     (h2 : b1 = true → ConLeche.defEqListFueled .verified eager env F d
@@ -773,7 +819,7 @@ theorem iotaFam_fire {F d mI rP : Nat} {isK : Bool} {cvj : ConstantVal} {cnP : N
       env F d mI rP cnP
       (cvj.type.instantiateLevelParams cvj.levelParams usj) margs
       ((args.take mI).drop rP) = .ok b4) :
-    iotaFam .verified eager env F d mI rP isK cvj cnP usj cmp margs args =
+    iotaFam .verified eager env F d mI rP isK induct cvj cnP usj cmp margs args =
       .ok (b1 && b2 && b3 && b4) := by
   unfold iotaFam
   have hv : CheckMode.verified.verifiedChecks = true := rfl
@@ -897,19 +943,24 @@ theorem simOOp_none {P : Nat → CheckM (Option Expr)} {d F : Nat} {st : EStore}
 /-- con-leche: ConLeche/Kernel/Core.lean:786-868 iotaRec — **the ι case
 split's certificate family** (task #342 L10, S5c): nothing at a K rule or a family never `Prop` at the comparand levels, and at
 a case-3 redex the level comparison, the parameter comparison, the
-constructor telescope at the full grade and the index comparison. -/
+constructor telescope at the full grade and the index comparison.  The stored
+facts are read first (`iotaNoCert`, the cached twin's order): where they
+decide, no comparand level is computed; the spec's `iotaCaseAt` asks the same
+question at the computed levels' length (`recFireComparands_fst_length`). -/
 theorem iotaFam_spec {α : Type} {fuel : Nat} (henv : ConLeche.EnvWF env)
     (hsim : KnotSpec eager env fe fuel)
     (s₁ : AState) (d : Nat) (icv icvj : IConstantVal)
     (us usj : LsIdx) (isK : Bool) (rl : IRecRule) (args margs : List EIdx)
     (mI rP : Nat) (ls lsj : List Level) (dcv dcvj : ConstantVal)
-    (cjn : ConLeche.Name) (cnP cnF : Nat) (rl' : RecRule) (xs ms : List Expr)
+    (cjn : ConLeche.Name) (cnP cnF : Nat) (induct : NIdx) (inductP : ConLeche.Name)
+    (rl' : RecRule) (xs ms : List Expr)
     (hok : CheckOK eager env fe s₁)
     (hls : denoteLs s₁.store.lss us = some ls)
     (hlsj : denoteLs s₁.store.lss usj = some lsj)
     (hdcv : Frontend.denoteCV s₁.store icv = some dcv)
     (hdcvj : Frontend.denoteCV s₁.store icvj = some dcvj)
-    (hfindj : env.find? cjn = some (.ctorInfo dcvj cnP cnF))
+    (hT : denoteN s₁.store.ns induct = some inductP)
+    (hfindj : env.find? cjn = some (.ctorInfo dcvj cnP cnF inductP))
     (hms : Frontend.denoteEList s₁.store margs = some ms)
     (hxs : Frontend.denoteEList s₁.store args = some xs)
     (hrl' : Frontend.denoteRule s₁.store rl = some rl')
@@ -919,14 +970,18 @@ theorem iotaFam_spec {α : Type} {fuel : Nat} (henv : ConLeche.EnvWF env)
     (k : Bool → AM α) (Q : α → AState → Prop)
     (hk : ∀ b s, (CheckOK eager env fe s ∧ Ext s₁.store s.store ∧
         s.pins = s₁.pins ∧
-        ∃ F, iotaFam .verified eager env F d mI rP isK dcvj cnP lsj
+        ∃ F, iotaFam .verified eager env F d mI rP isK inductP dcvj cnP lsj
           (ConLeche.recFireComparands rl' cnP dcv.levelParams ls dcvj.levelParams
             xs rP) ms xs = .ok b) →
       ⦃fun s' => s' = s⦄ k b ⦃fun r s' => Q r s'; ⊤⦄) :
     ⦃fun s => s = s₁⦄ (do
-      let fam ← if CheckMode.verified.verifiedChecks then do
+      let fam ← if !CheckMode.verified.verifiedChecks then pure true
+      else if ConRon.Arena.iotaNoCert fe isK induct
+          (ConRon.Arena.recFireLevelCount rl icvj.levelParams) then pure true
+      else do
         let cmpL ← ConRon.Arena.recFireLevels rl icv.levelParams us icvj.levelParams
-        if ← ConRon.Arena.iotaCase3At (coreKnot .verified eager fe id fuel) fe isK icvj cmpL then do
+        if ← ConRon.Arena.iotaCase3At (coreKnot .verified eager fe id fuel) fe isK induct
+            cmpL then do
           if ← ConRon.Arena.liftFueled "level comparison"
               (← ConRon.Arena.lvlsEq? usj cmpL) then do
             let cmpA ← ConRon.Arena.recFireArgs rl cnP icv.levelParams us args rP
@@ -941,23 +996,37 @@ theorem iotaFam_spec {α : Type} {fuel : Nat} (henv : ConLeche.EnvWF env)
             else pure false
           else pure false
         else pure true
-      else pure true
       k fam : AM α)
     ⦃fun r s' => Q r s'; ⊤⦄ := by
   obtain ⟨_, hlps, _⟩ := denoteCV_inv hdcv
   obtain ⟨_, hlpsj, _⟩ := denoteCV_inv hdcvj
   have hnamej : dcvj.name = cjn := env_find_name hfindj
-  have hv : CheckMode.verified.verifiedChecks = true := rfl
-  rw [ite_eq_left hv]
+  have hv : (!CheckMode.verified.verifiedChecks) = false := rfl
+  simp only [hv, Bool.false_eq_true, ite_false]
+  -- the stored facts first
+  have hcount : ConRon.Arena.recFireLevelCount rl icvj.levelParams =
+      (ConLeche.recFireComparands rl' cnP dcv.levelParams ls dcvj.levelParams xs rP).1.length := by
+    rw [ConLeche.recFireComparands_fst_length]
+    exact recFireLevelCount_denote hrl' hlpsj
+  have hnc := iotaNoCert_eq hok hT isK (ConRon.Arena.recFireLevelCount rl icvj.levelParams)
+  rw [hcount] at hnc
+  by_cases hnct : ConLeche.iotaNoCert env.find? isK inductP
+      (ConLeche.recFireComparands rl' cnP dcv.levelParams ls dcvj.levelParams xs rP).1.length
+      = true
+  · simp only [hcount, hnc, hnct, ite_true, pure_bind]
+    exact hk _ _ ⟨hok, Ext.refl _, rfl, 0, iotaFam_true (iotaCaseAt_nocert hnct)⟩
+  have hncf := Bool.eq_false_iff.mpr hnct
+  simp only [hcount, hnc, hncf, Bool.false_eq_true, ite_false]
   refine triple_seq (recFireLevels_spec s₁ rl rl' icv.levelParams us
     icvj.levelParams dcv.levelParams ls dcvj.levelParams hok hrl' hlps hls
     hlpsj) ?_
   rintro cmpL s2 ⟨hok2, hx2, hp2, hcL⟩
   have hcL2 : denoteLs s2.store.lss cmpL = some (ConLeche.recFireComparands rl' cnP
       dcv.levelParams ls dcvj.levelParams xs rP).1 := by rw [recFireComparands_fst]; exact hcL
-  refine triple_seq (iotaCase3At_spec hsim henv s2 isK icvj dcvj cmpL _ hok2
-    (denoteCV_ext hdcvj hx2) hcL2) ?_
-  rintro c3 s3 ⟨hok3, hx23, hp3, F0, hF0⟩
+  refine triple_seq (iotaCase3At_spec hsim henv s2 isK induct inductP cmpL _ hok2
+    (denoteN_ext hT hx2) hcL2) ?_
+  rintro c3 s3 ⟨hok3, hx23, hp3, F0, hF0'⟩
+  have hF0 := (iotaCaseAt_use (F := F0) hncf).trans hF0'
   have hx13 : Ext s₁.store s3.store := hx2.trans hx23
   have hp13 : s3.pins = s₁.pins := hp3.trans hp2
   by_cases hc3t : c3 = true
@@ -1013,13 +1082,13 @@ theorem iotaFam_spec {α : Type} {fuel : Nat} (henv : ConLeche.EnvWF env)
     subst hyf
     refine hk _ _ ⟨hok7, hx17, hp17, max F0 F1, ?_⟩
     rw [iotaFam_fire (b1 := true) (b2 := false) (b3 := false) (b4 := false)
-      (iotaCase3AtFueled_mono (Nat.le_max_left _ _) hF0) h1
+      (iotaCaseAtFueled_mono (Nat.le_max_left _ _) hF0) h1
       (fun _ => defEqListFueled_mono (Nat.le_max_right _ _) hF1)
       (fun _ h => by cases h) (fun _ h => by cases h)]
     rfl
   rw [ite_eq_left hyt]
   subst hyt
-  refine triple_seq (constTyAt_spec s7 icvj usj cjn lsj (.ctorInfo dcvj cnP cnF)
+  refine triple_seq (constTyAt_spec s7 icvj usj cjn lsj (.ctorInfo dcvj cnP cnF inductP)
     hok7 (by rw [denoteCV_name (denoteCV_ext hdcvj hx17), hnamej])
     (denoteLs_ext hlsj hx17) hfindj (denoteCV_ext hdcvj hx17)) ?_
   rintro tyC s8 ⟨hok8, hx8, hp8, htyC⟩
@@ -1039,8 +1108,8 @@ theorem iotaFam_spec {α : Type} {fuel : Nat} (henv : ConLeche.EnvWF env)
     have hc2f : c2 = false := by simpa using hc2t
     subst hc2f
     refine hk _ _ ⟨hok9, hx19, hp19, max F0 (max F1 F2), ?_⟩
-    rw [iotaFam_fire (b1 := true) (b2 := true) (b3 := false) (b4 := false)
-      (iotaCase3AtFueled_mono (by omega) hF0) h1
+    rw [iotaFam_fire (cvj := dcvj) (b1 := true) (b2 := true) (b3 := false) (b4 := false)
+      (iotaCaseAtFueled_mono (by omega) hF0) h1
       (fun _ => defEqListFueled_mono (by omega) hF1)
       (fun _ _ => iotaCertsFullFueled_mono (by omega) hF2)
       (fun _ _ h => by cases h)]
@@ -1055,8 +1124,8 @@ theorem iotaFam_spec {α : Type} {fuel : Nat} (henv : ConLeche.EnvWF env)
     (fun z hz => hwxs z (List.mem_of_mem_take (List.mem_of_mem_drop hz)))) ?_
   rintro c4 s10 ⟨hok10, hx10, hp10, F3, hF3⟩
   refine hk _ _ ⟨hok10, hx19.trans hx10, hp10.trans hp19, max F0 (max F1 (max F2 F3)), ?_⟩
-  rw [iotaFam_fire (b1 := true) (b2 := true) (b3 := true) (b4 := c4)
-    (iotaCase3AtFueled_mono (by omega) hF0) h1
+  rw [iotaFam_fire (cvj := dcvj) (b1 := true) (b2 := true) (b3 := true) (b4 := c4)
+    (iotaCaseAtFueled_mono (by omega) hF0) h1
     (fun _ => defEqListFueled_mono (by omega) hF1)
     (fun _ _ => iotaCertsFullFueled_mono (by omega) hF2)
     (fun _ _ _ => iotaIndexOkFueled_mono (by omega) hF3)]
@@ -1186,8 +1255,9 @@ theorem iotaRecAt_spec {fuel : Nat}
               obtain ⟨cjn, lsj, hgfm, hcjn, hlsj⟩ := denote_const_inv hwf4 hvh hmh
               dsimp only
               split
-              next icvj cnP cnF hfj =>
+              next icvj cnP cnF induct hfj =>
                 obtain ⟨dcvj, hdcvj, hfindj⟩ := env_ctor_of_index hok4 hcjn hfj
+                have hTj := env_ctor_induct_of_index hok4 hfj
                 have hdr4 := denoteRules_ext hx04 _ _ hdr
                 obtain ⟨hfr1, hfr2⟩ := findRule_denote hwf4 hcjn hdr4
                 split
@@ -1220,8 +1290,8 @@ theorem iotaRecAt_spec {fuel : Nat}
                       dcv.levelParams ls dcvj.levelParams xs rP hwargs hpinsW
                     refine iotaFam_spec henv hsim s4 d icv icvj us usj isK rl
                       (takeEidx sargs sargs.size).toList margs mI rP ls lsj dcv dcvj
-                      cjn cnP cnF rl' xs vmaj.getAppArgs hok4 (denoteLs_ext hls hx04)
-                      hlsj (denoteCV_ext hdcv hx04) hdcvj hfindj hmargs
+                      cjn cnP cnF induct _ rl' xs vmaj.getAppArgs hok4 (denoteLs_ext hls hx04)
+                      hlsj (denoteCV_ext hdcv hx04) hdcvj hTj hfindj hmargs
                       (denoteEList_ext hx04 _ _ hargs) hrl' hwargs hwmargs hcmpW _ _ ?_
                     rintro fam s7 ⟨hok7, hx7, hp7, Ff, hFf⟩
                     have hx07 := hx04.trans hx7
@@ -1288,7 +1358,7 @@ theorem iotaRecAt_spec {fuel : Nat}
                       exact iotaTail_norule hgfm hfindj (hfr2 hrl))
                   exact triple_pure_at ⟨hok4, hx04, hp04, hfin⟩
               next hnd =>
-                have hnc := env_not_ctor_of_index hok4 hcjn (fun v p q h => hnd v p q h)
+                have hnc := env_not_ctor_of_index hok4 hcjn (fun v p q t h => hnd v p q t h)
                 have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
                     (Expr.mkAppN (.const cn ls) xs)) d s4.store none :=
                   simOOp_none (F := Fp) (by rw [hT _ (Nat.le_refl _)]

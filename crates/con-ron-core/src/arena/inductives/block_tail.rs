@@ -171,7 +171,6 @@ pub fn check_block_pass_classes(
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:64-77 checkBlockRec
 /// con-leche: ConLeche/Cached/CheckerC.lean:203-223 checkBlockTailS
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_tail::check_block_rec_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:85-94 checkBlockRec` — **the
 /// installer's recursor stage**: the GENERATED recursor stage at the
 /// constructors' environment, on the stream's own recursor family (the raw
@@ -196,7 +195,6 @@ pub fn check_block_rec(
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:79-90 consBlockRecsT
 /// con-leche: ConLeche/Cached/CheckerC.lean:203-223 checkBlockTailS
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_tail::cons_block_recs_temp_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:96-108 consBlockRecsTemp` — **the
 /// checked family consed, at its majors, TEMPORARILY**: the records
 /// `rec_check::block_rec_infos_tf` built (each recursor with its rules at ITS
@@ -243,9 +241,7 @@ pub fn check_block_tables(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:100-112 checkBlockTail
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_tail::check_block_tail_stream_refines, then delete this line
 /// con-leche: ConLeche/Cached/CheckerC.lean:203-223 checkBlockTailS
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_tail::check_block_tail_stream_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:120-145 checkBlockTail` —
 /// **the stream's recursors against the generated ones**: the K flags, then
 /// the generated family pushed at its majors, a flush entering it, the
@@ -285,9 +281,7 @@ pub fn check_block_tail_stream(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:100-112 checkBlockTail
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_tail::check_block_tail_refines, then delete this line
 /// con-leche: ConLeche/Cached/CheckerC.lean:203-223 checkBlockTailS
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_tail::check_block_tail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:120-145 checkBlockTail` — **the
 /// checks after the pass**: the index binders' sorts, the constructors consed
 /// (and the flush entering that environment), the generated recursors, the
@@ -305,8 +299,9 @@ pub fn check_block_tail(
     match block_install::check_block_idx_sorts(pers, st, mode, &q.env1, &q.p, 0) {
         Err(e) => Err(e),
         Ok(()) => {
-            let ctors: Vec<Vec<(IConstantVal, u64)>> = block_shape::member_ctors(&q.p.members, 0, Vec::new());
-            let fe2: IFEnv = block_install::cons_block_ctors(q.p.n_p, &ctors, 0, q.env1);
+            let groups: Vec<(NIdx, Vec<(IConstantVal, u64)>)> =
+                block_shape::ctor_groups(&q.p.members, 0, Vec::new());
+            let fe2: IFEnv = block_install::cons_block_ctors(q.p.n_p, &groups, 0, q.env1);
             core::flush_caches(st);
             let nested: bool = rec_check::block_nested_bit(&q.p, &q.kinds);
             match check_block_rec(pers, st, mode, fe2, &q.p, nested, &q.params, &q.tbl, &q.rd, &q.cls, block) {

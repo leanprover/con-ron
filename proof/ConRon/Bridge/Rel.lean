@@ -952,6 +952,17 @@ theorem denoteProjTable_ctor {st : EStore} {t : IProjTable} {p : ProjTable}
           obtain rfl := Option.some.inj h
           rfl
 
+/-- con-leche: none — a denoting constructor record: its record and its family
+handle denote, and the denotation is the constructor at both. -/
+theorem denoteCI_ctorInfo_some {st : EStore} {v : IConstantVal} {nP nF : Nat} {T : NIdx}
+    {c : ConstantInfo} (h : Frontend.denoteCI st (.ctorInfo v nP nF T) = some c) :
+    ∃ cv t, Frontend.denoteCV st v = some cv ∧ denoteN st.ns T = some t ∧
+      c = .ctorInfo cv nP nF t := by
+  simp only [Frontend.denoteCI] at h
+  split at h
+  · rename_i cv t hcv ht; cases h; exact ⟨cv, t, hcv, ht, rfl⟩
+  · cases h
+
 theorem denoteCI_ext {st st' : EStore} {ci : IConstantInfo} {c : ConstantInfo}
     (h : Frontend.denoteCI st ci = some c) (hx : Ext st st') :
     Frontend.denoteCI st' ci = some c := by
@@ -960,10 +971,16 @@ theorem denoteCI_ext {st st' : EStore} {ci : IConstantInfo} {c : ConstantInfo}
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h ⊢
     obtain ⟨cv, hcv, hc⟩ := h
     exact ⟨cv, denoteCV_ext hcv hx, hc⟩
-  | ctorInfo v nP nF =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h ⊢
-    obtain ⟨cv, hcv, hc⟩ := h
-    exact ⟨cv, denoteCV_ext hcv hx, hc⟩
+  | ctorInfo v nP nF T =>
+    simp only [Frontend.denoteCI] at h ⊢
+    cases hcv : Frontend.denoteCV st v with
+    | none => rw [hcv] at h; simp at h
+    | some cv =>
+      cases hT : denoteN st.ns T with
+      | none => rw [hcv, hT] at h; simp at h
+      | some t =>
+        rw [hcv, hT] at h
+        rw [denoteCV_ext hcv hx, denoteN_ext hT hx]; exact h
   | defnInfo v e hint =>
     simp only [Frontend.denoteCI] at h ⊢
     cases hcv : Frontend.denoteCV st v with

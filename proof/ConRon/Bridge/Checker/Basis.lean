@@ -285,7 +285,7 @@ theorem denoteCaps_inj {st : EStore} (hwf : StoreWF st) {cap cap' : IIndCaps}
       rw [ha, hk] at hc; rw [ha', hk'] at hc'
       rw [← hc'] at hc
       simp only [Option.some.injEq, IndCaps.mk.injEq] at hc
-      obtain ⟨e1, rfl, e3, e4, rfl⟩ := hc
+      obtain ⟨e1, rfl, e3, e4, rfl, e6⟩ := hc
       have hA := denoteNList_inj hwf _ _ _ ha ha'
       have hK := denoteNList_inj hwf _ _ _ hk hk'
       cases cap; cases cap'
@@ -346,7 +346,7 @@ theorem denoteCI_inj {st : EStore} (hwf : StoreWF st) {ci ci' : IConstantInfo}
     | defnInfo w _ _ => obtain ⟨_, _, he, _⟩ := denoteCI_defn_inv h'; cases he
     | thmInfo w => obtain ⟨_, he, _⟩ := denoteCI_thm_inv h'; cases he
     | indInfo w _ => obtain ⟨_, _, he, _⟩ := denoteCI_ind_inv h'; cases he
-    | ctorInfo w _ _ => obtain ⟨_, he, _⟩ := denoteCI_ctor_inv h'; cases he
+    | ctorInfo w _ _ _ => obtain ⟨_, he, _⟩ := denoteCI_ctor_inv h'; cases he
     | recInfo w _ _ _ _ => obtain ⟨_, _, he, _⟩ := denoteCI_rec_inv h'; cases he
   | defnInfo v e hh =>
     obtain ⟨cv, x, rfl, hv, hx⟩ := denoteCI_defn_inv h
@@ -357,7 +357,7 @@ theorem denoteCI_inj {st : EStore} (hwf : StoreWF st) {ci ci' : IConstantInfo}
     | axiomInfo w => obtain ⟨_, he, _⟩ := denoteCI_axiom_inv h'; cases he
     | thmInfo w => obtain ⟨_, he, _⟩ := denoteCI_thm_inv h'; cases he
     | indInfo w _ => obtain ⟨_, _, he, _⟩ := denoteCI_ind_inv h'; cases he
-    | ctorInfo w _ _ => obtain ⟨_, he, _⟩ := denoteCI_ctor_inv h'; cases he
+    | ctorInfo w _ _ _ => obtain ⟨_, he, _⟩ := denoteCI_ctor_inv h'; cases he
     | recInfo w _ _ _ _ => obtain ⟨_, _, he, _⟩ := denoteCI_rec_inv h'; cases he
   | thmInfo v =>
     obtain ⟨cv, rfl, hv⟩ := denoteCI_thm_inv h
@@ -368,7 +368,7 @@ theorem denoteCI_inj {st : EStore} (hwf : StoreWF st) {ci ci' : IConstantInfo}
     | axiomInfo w => obtain ⟨_, he, _⟩ := denoteCI_axiom_inv h'; cases he
     | defnInfo w _ _ => obtain ⟨_, _, he, _⟩ := denoteCI_defn_inv h'; cases he
     | indInfo w _ => obtain ⟨_, _, he, _⟩ := denoteCI_ind_inv h'; cases he
-    | ctorInfo w _ _ => obtain ⟨_, he, _⟩ := denoteCI_ctor_inv h'; cases he
+    | ctorInfo w _ _ _ => obtain ⟨_, he, _⟩ := denoteCI_ctor_inv h'; cases he
     | recInfo w _ _ _ _ => obtain ⟨_, _, he, _⟩ := denoteCI_rec_inv h'; cases he
   | indInfo v cap =>
     obtain ⟨cv, d, rfl, hv, hd⟩ := denoteCI_ind_inv h
@@ -379,14 +379,19 @@ theorem denoteCI_inj {st : EStore} (hwf : StoreWF st) {ci ci' : IConstantInfo}
     | axiomInfo w => obtain ⟨_, he, _⟩ := denoteCI_axiom_inv h'; cases he
     | defnInfo w _ _ => obtain ⟨_, _, he, _⟩ := denoteCI_defn_inv h'; cases he
     | thmInfo w => obtain ⟨_, he, _⟩ := denoteCI_thm_inv h'; cases he
-    | ctorInfo w _ _ => obtain ⟨_, he, _⟩ := denoteCI_ctor_inv h'; cases he
+    | ctorInfo w _ _ _ => obtain ⟨_, he, _⟩ := denoteCI_ctor_inv h'; cases he
     | recInfo w _ _ _ _ => obtain ⟨_, _, he, _⟩ := denoteCI_rec_inv h'; cases he
-  | ctorInfo v nP nF =>
+  | ctorInfo v nP nF T =>
+    have hT := denoteCI_ctor_induct h
     obtain ⟨cv, rfl, hv⟩ := denoteCI_ctor_inv h
     cases ci' with
-    | ctorInfo w nP' nF' =>
+    | ctorInfo w nP' nF' T' =>
+      have hT' := denoteCI_ctor_induct h'
       obtain ⟨cw, he, hw⟩ := denoteCI_ctor_inv h'
-      cases he; rw [denoteCV_inj hwf hv hw]
+      simp only [ConstantInfo.ctorInfo.injEq] at he
+      obtain ⟨rfl, rfl, rfl, hTT⟩ := he
+      rw [← hTT] at hT'
+      rw [denoteCV_inj hwf hv hw, denoteN_injS hwf hT hT']
     | axiomInfo w => obtain ⟨_, he, _⟩ := denoteCI_axiom_inv h'; cases he
     | defnInfo w _ _ => obtain ⟨_, _, he, _⟩ := denoteCI_defn_inv h'; cases he
     | thmInfo w => obtain ⟨_, he, _⟩ := denoteCI_thm_inv h'; cases he
@@ -402,7 +407,7 @@ theorem denoteCI_inj {st : EStore} (hwf : StoreWF st) {ci ci' : IConstantInfo}
     | defnInfo w _ _ => obtain ⟨_, _, he, _⟩ := denoteCI_defn_inv h'; cases he
     | thmInfo w => obtain ⟨_, he, _⟩ := denoteCI_thm_inv h'; cases he
     | indInfo w _ => obtain ⟨_, _, he, _⟩ := denoteCI_ind_inv h'; cases he
-    | ctorInfo w _ _ => obtain ⟨_, he, _⟩ := denoteCI_ctor_inv h'; cases he
+    | ctorInfo w _ _ _ => obtain ⟨_, he, _⟩ := denoteCI_ctor_inv h'; cases he
 
 /-! ## The renaming's frame
 
@@ -747,13 +752,15 @@ theorem IConstantInfo.atLps_run {ci r : IConstantInfo} {ps : List NIdx}
     obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
     obtain ⟨hs1, hv2⟩ := IConstantVal.atLps_run hok hr hv hps h1
     exact ⟨hs1, by simp [Frontend.denoteCI, hv2, ConLeche.ConstantInfo.atLps]⟩
-  | ctorInfo v nP nF =>
+  | ctorInfo v nP nF T =>
+    have hT := denoteCI_ctor_induct hc
     obtain ⟨cv, rfl, hv⟩ := denoteCI_ctor_inv hc
     simp only [IConstantInfo.atLps] at hrun
     obtain ⟨v2, s₁, h1, h2⟩ := AM.bind_ok hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
     obtain ⟨hs1, hv2⟩ := IConstantVal.atLps_run hok hr hv hps h1
-    exact ⟨hs1, by simp [Frontend.denoteCI, hv2, ConLeche.ConstantInfo.atLps]⟩
+    exact ⟨hs1, by simp [Frontend.denoteCI, hv2, denoteN_ext hT hs1.ext,
+      ConLeche.ConstantInfo.atLps]⟩
   | indInfo v cap =>
     obtain ⟨cv, d, rfl, hv, hd⟩ := denoteCI_ind_inv hc
     simp only [IConstantInfo.atLps] at hrun
@@ -989,7 +996,7 @@ theorem constNamed_rel {st : EStore} (hwf : StoreWF st) :
     (former : List ConLeche.Name) : ConstantInfo × ConstantInfo → Bool :=
   fun (c, p) =>
     match c, p with
-    | .ctorInfo cv _ _, _ => cv.levelParams == former
+    | .ctorInfo cv _ _ _, _ => cv.levelParams == former
     | .recInfo cv .., .recInfo cvp _ _ _ rules =>
       rules.all (ruleLinkP block pins cv.levelParams cvp.levelParams)
     | _, _ => true
@@ -1072,7 +1079,7 @@ theorem blockLinkOkAt_run {block pins : List IConstantInfo} {B P : List Constant
     (hrun : blockLinkOkAt block pins former c p s = .ok (r, s')) :
     RStep s s' ∧ r = blockLinkAtP B P formerT (c', p') := by
   cases c with
-  | ctorInfo v nP nF =>
+  | ctorInfo v nP nF T =>
     obtain ⟨cv, rfl, hv⟩ := denoteCI_ctor_inv hc
     simp only [blockLinkOkAt] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
@@ -1103,7 +1110,7 @@ theorem blockLinkOkAt_run {block pins : List IConstantInfo} {B P : List Constant
       obtain ⟨_, _, rfl, _, _⟩ := denoteCI_ind_inv hp
       simp only [blockLinkOkAt] at hrun
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun; exact ⟨RStep.refl hok hr, rfl⟩
-    | ctorInfo _ _ _ =>
+    | ctorInfo _ _ _ _ =>
       obtain ⟨_, rfl, _⟩ := denoteCI_ctor_inv hp
       simp only [blockLinkOkAt] at hrun
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun; exact ⟨RStep.refl hok hr, rfl⟩
@@ -1706,7 +1713,7 @@ theorem RunsB.matchInd {x : Option IConstantInfo} {y : Option ConstantInfo}
       exact hK v v' hv
     | axiomInfo v =>
       obtain ⟨v', rfl, -⟩ := denoteCI_axiom_inv hd; exact RunsB.ret hok
-    | ctorInfo v nP nF =>
+    | ctorInfo v nP nF T =>
       obtain ⟨v', rfl, -⟩ := denoteCI_ctor_inv hd; exact RunsB.ret hok
     | defnInfo v e hh =>
       obtain ⟨v', x, rfl, -⟩ := denoteCI_defn_inv hd; exact RunsB.ret hok
@@ -1743,8 +1750,8 @@ theorem RunsB.matchCtor0 {x : Option IConstantInfo} {y : Option ConstantInfo}
     {K : IConstantVal → AM Bool} {L : ConstantVal → Bool} {R : Bool}
     (hK : ∀ v v', Frontend.denoteCV s.store v = some v' →
       RunsB (K v) s (L v' && R)) :
-    RunsB (match (generalizing := false) x with | some (.ctorInfo cv 0 0) => K cv | _ => pure false) s
-      ((match (generalizing := false) y with | some (.ctorInfo cv 0 0) => L cv | _ => false) && R) := by
+    RunsB (match (generalizing := false) x with | some (.ctorInfo cv 0 0 _) => K cv | _ => pure false) s
+      ((match (generalizing := false) y with | some (.ctorInfo cv 0 0 _) => L cv | _ => false) && R) := by
   rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
   · exact RunsB.ret hok
   · cases ci
@@ -1760,7 +1767,7 @@ theorem RunsB.matchCtor0 {x : Option IConstantInfo} {y : Option ConstantInfo}
       | exact hK _ _ hv
       | skip
     all_goals
-      rename_i nP nF
+      rename_i nP nF _
       rcases nP with _ | nP <;> rcases nF with _ | nF <;>
         first | exact RunsB.ret hok | exact hK _ _ hv
 
@@ -1769,8 +1776,8 @@ theorem RunsB.matchCtor1 {x : Option IConstantInfo} {y : Option ConstantInfo}
     {K : IConstantVal → AM Bool} {L : ConstantVal → Bool} {R : Bool}
     (hK : ∀ v v', Frontend.denoteCV s.store v = some v' →
       RunsB (K v) s (L v' && R)) :
-    RunsB (match (generalizing := false) x with | some (.ctorInfo cv 1 1) => K cv | _ => pure false) s
-      ((match (generalizing := false) y with | some (.ctorInfo cv 1 1) => L cv | _ => false) && R) := by
+    RunsB (match (generalizing := false) x with | some (.ctorInfo cv 1 1 _) => K cv | _ => pure false) s
+      ((match (generalizing := false) y with | some (.ctorInfo cv 1 1 _) => L cv | _ => false) && R) := by
   rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
   · exact RunsB.ret hok
   · cases ci
@@ -1786,7 +1793,7 @@ theorem RunsB.matchCtor1 {x : Option IConstantInfo} {y : Option ConstantInfo}
       | exact hK _ _ hv
       | skip
     all_goals
-      rename_i nP nF
+      rename_i nP nF _
       rcases nP with _ | _ | nP <;> rcases nF with _ | _ | nF <;>
         first | exact RunsB.ret hok | exact hK _ _ hv
 
@@ -1795,8 +1802,8 @@ theorem RunsB.matchCtor2 {x : Option IConstantInfo} {y : Option ConstantInfo}
     {K : IConstantVal → AM Bool} {L : ConstantVal → Bool} {R : Bool}
     (hK : ∀ v v', Frontend.denoteCV s.store v = some v' →
       RunsB (K v) s (L v' && R)) :
-    RunsB (match (generalizing := false) x with | some (.ctorInfo cv 2 2) => K cv | _ => pure false) s
-      ((match (generalizing := false) y with | some (.ctorInfo cv 2 2) => L cv | _ => false) && R) := by
+    RunsB (match (generalizing := false) x with | some (.ctorInfo cv 2 2 _) => K cv | _ => pure false) s
+      ((match (generalizing := false) y with | some (.ctorInfo cv 2 2 _) => L cv | _ => false) && R) := by
   rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
   · exact RunsB.ret hok
   · cases ci
@@ -1812,7 +1819,7 @@ theorem RunsB.matchCtor2 {x : Option IConstantInfo} {y : Option ConstantInfo}
       | exact hK _ _ hv
       | skip
     all_goals
-      rename_i nP nF
+      rename_i nP nF _
       rcases nP with _ | _ | _ | nP <;> rcases nF with _ | _ | _ | nF <;>
         first | exact RunsB.ret hok | exact hK _ _ hv
 

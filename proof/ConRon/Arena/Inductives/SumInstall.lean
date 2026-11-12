@@ -46,9 +46,7 @@ def checkSumTele (n : Nat) (cvTa₀ : IConstantVal) : AM (IConstantVal × LIdx) 
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:40-64 checkStructFieldSortsI
 con-leche: ConLeche/Cached/IndPositivity.lean:497-513 checkStructFieldSortsIC
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove SumInstall.checkStructFieldSortsI_bridge, then delete this line
 con-leche: ConLeche/Cached/IndBlock.lean:127-142 checkStructFieldSortsC
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove SumInstall.checkStructFieldSortsI_bridge, then delete this line
 Every field's domain has a sort over the opened constructor telescope, under
 the official per-field universe bound unless the family is propositional.
 Walks the fields from the last to the first. -/
@@ -143,14 +141,14 @@ def checkSumCtors (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
     checkSumCtors mode fe₀ fe T lps nP nIdx resSort isProp large cvTa cs
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:119-125 consSumCtors
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove SumInstall.consSumCtors_bridge, then delete this line
 con-leche: ConLeche/Cached/IndBlock.lean:37-40 consSumCtorsF
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove SumInstall.consSumCtors_bridge, then delete this line
-The constructors' conses, in order (the first constructor deepest).  Pure: the
-index push touches no term. -/
-def consSumCtors (nP : Nat) : List (IConstantVal × Nat) → IFEnv → IFEnv
+The constructors' conses, in order (the first constructor deepest), each with
+the family `T` it is declared under as its `induct`: the constructor check has
+established that its declared type concludes in `T`.  Pure: the index push
+touches no term. -/
+def consSumCtors (nP : Nat) (T : NIdx) : List (IConstantVal × Nat) → IFEnv → IFEnv
   | [], fe => fe
-  | c :: cs, fe => consSumCtors nP cs (fe.push (.ctorInfo c.1 nP c.2))
+  | c :: cs, fe => consSumCtors nP T cs (fe.push (.ctorInfo c.1 nP c.2 T))
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:127-133 sumRules
 The stored rules: constructor `j`'s with the generated right-hand side `j`,

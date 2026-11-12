@@ -44,15 +44,25 @@ open ConLeche
 
 /-! ## The capability record, per member -/
 
+/-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-82 blockCapsAt — the
+cited `(formerZ (p.members.getD mi default).declared).isNever`: whether member
+`mi`'s former, as declared, ends in a sort that is never zero.  The default
+member's type ends in no sort, so its datum is `ifAllZero []`, which is not
+`never`. -/
+def memberNeverZero (p : BlockShape) (mi : Nat) : AM Bool := do
+  match p.members[mi]? with
+  | some ms => pure (← formerZ ms.declared).isNever
+  | none => pure false
+
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-82 blockCapsAt
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove BlockInstall.blockCapsAt_bridge, then delete this line
 **The capability record of member `mi`**: at a member with ONE constructor, η
 (index-free, the block not recursive: official's `is_non_rec_structure`; no
 separate unit-like bit, as official has none); at every member the block's members, its
-parameter count, the member's index count and its constructors.
-(`p.members.getD mi default`: the default member has no constructor and no
-index.) -/
-def blockCapsAt (p : BlockShape) (mi : Nat) (isRec : Bool) : IIndCaps :=
+parameter count, the member's index count, its constructors and whether its
+sort is never zero (`memberNeverZero`).  (`p.members.getD mi default`: the
+default member has no constructor and no index.) -/
+def blockCapsAt (p : BlockShape) (mi : Nat) (isRec : Bool) : AM IIndCaps := do
+  let neverZero ← memberNeverZero p mi
   let names := p.memberNames
   match p.members[mi]? with
   | some ms =>
@@ -63,13 +73,15 @@ def blockCapsAt (p : BlockShape) (mi : Nat) (isRec : Bool) : IIndCaps :=
         if nIdx != 0 then false
         else if isRec then false
         else true
-      { eta := eta
-        all := names
-        nparams := p.nP
-        nIdx := nIdx
-        ctors := [c.1.name] }
-    | cs => { all := names, nparams := p.nP, nIdx := ms.nIdx, ctors := cs.map (·.1.name) }
-  | none => { all := names, nparams := p.nP, nIdx := 0, ctors := [] }
+      pure { eta := eta
+             all := names
+             nparams := p.nP
+             nIdx := nIdx
+             ctors := [c.1.name]
+             neverZero := neverZero }
+    | cs => pure { all := names, nparams := p.nP, nIdx := ms.nIdx,
+                   ctors := cs.map (·.1.name), neverZero := neverZero }
+  | none => pure { all := names, nparams := p.nP, nIdx := 0, ctors := [], neverZero := neverZero }
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:84-89 Expr.piDomsMentionAny
 con-leche: ConLeche/Cached/ExprOpsC.lean:2234-2238 piDomsMentionAnyC
@@ -124,7 +136,6 @@ def checkBlockTeles (mode : CheckMode) (fe : IFEnv) (nP : Nat) :
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:129-143 checkBlockDomsAt
 con-leche: ConLeche/Cached/IndBlock.lean:76-84 checkBlockDomsAtC
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove BlockInstall.checkBlockDomsAt_bridge, then delete this line
 **The parameter-domain agreement's comparison**: binder `j - 1`'s domain
 against member 0's, defeq at depth `off + j - 1`, from the last binder to the
 first; a mismatch is official's REJECT. -/
@@ -165,10 +176,11 @@ con-leche: ConLeche/Cached/IndBlock.lean:42-47 consBlockIndsF
 The members' formers consed, in block order (member 0 deepest), each with ITS
 capability record at the block's `is_rec` verdict. -/
 def consBlockInds (p₁ : BlockShape) (isRec : Bool) :
-    List IConstantVal → Nat → IFEnv → IFEnv
-  | [], _, fe => fe
-  | cvTa :: rest, i, fe =>
-    consBlockInds p₁ isRec rest (i + 1) (fe.push (.indInfo cvTa (blockCapsAt p₁ i isRec)))
+    List IConstantVal → Nat → IFEnv → AM IFEnv
+  | [], _, fe => pure fe
+  | cvTa :: rest, i, fe => do
+    let caps ← blockCapsAt p₁ i isRec
+    consBlockInds p₁ isRec rest (i + 1) (fe.push (.indInfo cvTa caps))
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:175-187 checkBlockInds
 con-leche: ConLeche/Cached/IndBlock.lean:103-113 checkBlockIndsC
@@ -185,7 +197,8 @@ def checkBlockInds (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (isRec : Boo
     let cvs ← checkBlockTeles mode fe nP rest
     checkBlockAgree mode fe nP cvTa₀ s₀ cvs
     let p₁ ← p.withSort s₀
-    pure (consBlockInds p₁ isRec (p.members.map (·.declared)) 0 fe, p₁)
+    let fe₁ ← consBlockInds p₁ isRec (p.members.map (·.declared)) 0 fe
+    pure (fe₁, p₁)
 
 /-! ## Stage 1b: the constructors, and the positivity check -/
 
@@ -300,13 +313,12 @@ def checkBlockIdxSorts (mode : CheckMode) (fe : IFEnv) (p : BlockShape) :
     checkBlockIdxSorts mode fe p rest
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:308-312 consBlockCtors
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove BlockInstall.consBlockCtors_bridge, then delete this line
 con-leche: ConLeche/Cached/IndBlock.lean:49-52 consBlockCtorsF
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove BlockInstall.consBlockCtors_bridge, then delete this line
-The members' constructors consed, member by member, in block order.  Pure: the
-index push touches no term. -/
-def consBlockCtors (nP : Nat) : List (List (IConstantVal × Nat)) → IFEnv → IFEnv
+The members' constructors consed, member by member, in block order, each group
+under its member's name (`BlockShape.ctorGroups`).  Pure: the index push
+touches no term. -/
+def consBlockCtors (nP : Nat) : List (NIdx × List (IConstantVal × Nat)) → IFEnv → IFEnv
   | [], fe => fe
-  | ctorList :: rest, fe => consBlockCtors nP rest (consSumCtors nP ctorList fe)
+  | (T, ctorList) :: rest, fe => consBlockCtors nP rest (consSumCtors nP T ctorList fe)
 
 end ConRon.Arena

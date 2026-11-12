@@ -375,7 +375,7 @@ theorem eq_refl_a_refines {r : env.ConstantInfo} (h : basis_raw.eq_refl_a = ok r
   obtain ⟨ae5, we5⟩ := pi_refines we1 we4 he5
   obtain ⟨ae6, we6⟩ := pi_refines we we5 he6
   obtain ⟨acv, wcv⟩ := cv_refines wn wv we6 hcv
-  refine ⟨?_, wcv⟩
+  refine ⟨?_, wcv, wn2⟩
   simp [absConstantInfo, absNames, absLevels, acv, ae6, ae5, ae4, ae3, ae2, av1, an2, ae1, ae, al, av, an1, an,
     ConLeche.eqReflA]
 
@@ -506,25 +506,27 @@ theorem nat_zero_a_refines {r : env.ConstantInfo} (h : basis_raw.nat_zero_a = ok
     absConstantInfo r = ConLeche.natZeroA ∧ ConstantInfoWF r := by
   rw [basis_raw.nat_zero_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
-  obtain ⟨n, hn, e, he, cv, hcv, rfl⟩ := h
+  obtain ⟨n, hn, e, he, cv, hcv, n1, hn1, rfl⟩ := h
   obtain ⟨an, wn⟩ := BasisNames.nat_zero_name_refines hn
   obtain ⟨ae, we⟩ := nat_t_refines he
   obtain ⟨acv, wcv⟩ := cv_refines wn vec_new_wf we hcv
-  refine ⟨?_, wcv⟩
-  simp [absConstantInfo, absNames, acv, ae, an,
+  obtain ⟨an1, wn1⟩ := BasisNames.nat_name_refines hn1
+  refine ⟨?_, wcv, wn1⟩
+  simp [absConstantInfo, absNames, acv, ae, an, an1,
     ConLeche.natZeroA]
 
 theorem nat_succ_a_refines {r : env.ConstantInfo} (h : basis_raw.nat_succ_a = ok r) :
     absConstantInfo r = ConLeche.natSuccA ∧ ConstantInfoWF r := by
   rw [basis_raw.nat_succ_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
-  obtain ⟨n, hn, e, he, e1, he1, cv, hcv, rfl⟩ := h
+  obtain ⟨n, hn, e, he, e1, he1, cv, hcv, n1, hn1, rfl⟩ := h
   obtain ⟨an, wn⟩ := BasisNames.nat_succ_name_refines hn
   obtain ⟨ae, we⟩ := nat_t_refines he
   obtain ⟨ae1, we1⟩ := pi_refines we we he1
   obtain ⟨acv, wcv⟩ := cv_refines wn vec_new_wf we1 hcv
-  refine ⟨?_, wcv⟩
-  simp [absConstantInfo, absNames, acv, ae1, ae, an,
+  obtain ⟨an2, wn2⟩ := BasisNames.nat_name_refines hn1
+  refine ⟨?_, wcv, wn2⟩
+  simp [absConstantInfo, absNames, acv, ae1, ae, an, an2,
     ConLeche.natSuccA]
 
 theorem nat_rec_motive_refines {r : expr.Expr} (h : basis_raw.nat_rec_motive = ok r) :
@@ -795,7 +797,7 @@ theorem quot_mk_a_refines {r : env.ConstantInfo} (h : basis_raw.quot_mk_a = ok r
   obtain ⟨ae7, we7⟩ := pi_refines we1 we6 he7
   obtain ⟨ae8, we8⟩ := pi_refines we we7 he8
   obtain ⟨acv, wcv⟩ := cv_refines wn wv we8 hcv
-  refine ⟨?_, wcv⟩
+  refine ⟨?_, wcv, wn2⟩
   simp [absConstantInfo, absNames, absLevels, acv, ae8, ae7, ae6, ae5, ae4, ae3, av1, an2, ae2, ae1, ae, al, av, an1, an,
     ConLeche.quotMkA]
 
@@ -1098,7 +1100,7 @@ theorem and_intro_raw_refines {r : env.ConstantInfo} (h : basis_raw.and_intro_ra
   obtain ⟨ae8, we8⟩ := pi_refines we we7 he8
   obtain ⟨ae9, we9⟩ := pi_refines we we8 he9
   obtain ⟨acv, wcv⟩ := cv_refines wn vec_new_wf we9 hcv
-  refine ⟨?_, wcv⟩
+  refine ⟨?_, wcv, wn1⟩
   simp [absConstantInfo, absNames, absLevels, acv, ae9, ae8, ae7, ae6, ae5, ae4, ae3, ae2,
     an1, ae1, ae, an, ConLeche.andIntroRaw]
 
