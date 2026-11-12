@@ -2931,6 +2931,12 @@ def whnfCoreLookup (cheap : Bool) (e : EIdx) : AM (Option EIdx) := do
   if cheap then pure (← get).caches.whnfCoreCheapC[e]?
   else pure (← get).caches.whnfCoreC[e]?
 
+/-- con-leche: ConLeche/Cached/CoreC.lean:1183-1229 whnfCoreLoopI — the loop's
+lookup: the mode's memo at a key (`whnfCoreKey`), nothing at a term no arm
+stores. -/
+def whnfCoreLookupAt (key cheap : Bool) (e : EIdx) : AM (Option EIdx) :=
+  if key then whnfCoreLookup cheap e else pure none
+
 /-- con-leche: ConLeche/Cached/CoreC.lean:1183-1229 whnfCoreLoopI — iterate
 `whnfCoreStep` on its own step budget, with official `whnf_core`'s memo
 policy: an easy case (`whnfCoreStuckTag`) ends the chain before any lookup;
@@ -2951,8 +2957,7 @@ def whnfCoreLoop (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (cheap : Bool)
     else do
       let h ← getAppFn coreWalkFuel e
       let key := whnfCoreKey h e
-      let hit ← if key then whnfCoreLookup cheap e else pure none
-      match hit with
+      match ← whnfCoreLookupAt key cheap e with
       | some x => do
         whnfCoreStoreChain cheap pend #[] x
         pure x

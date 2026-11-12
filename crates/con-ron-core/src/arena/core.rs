@@ -7908,6 +7908,18 @@ pub fn whnf_core_lookup(st: &AState, cheap: bool, e: &EIdx) -> Option<EIdx> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1183-1229 whnfCoreLoopI
+/// Lean twin: `proof/ConRon/Arena/Core.lean whnfCoreLookupAt` — the loop's
+/// lookup: the mode's memo at a key (`whnf_core_key`), nothing at a term no
+/// arm stores.
+pub fn whnf_core_lookup_at(st: &AState, key: bool, cheap: bool, e: &EIdx) -> Option<EIdx> {
+    if key {
+        whnf_core_lookup(st, cheap, e)
+    } else {
+        None
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:1183-1229 whnfCoreLoopI
 /// Lean twin: `proof/ConRon/Arena/Core.lean whnfCoreLoop` — iterate
 /// `whnf_core_step` on its own step budget, with official `whnf_core`'s memo
 /// policy (`src/kernel/type_checker.cpp`, `whnf_core`).  Official recurses:
@@ -7964,8 +7976,7 @@ pub fn whnf_core_loop(
             Err(er) => return Err(er),
             Ok(h) => {
                 let key: bool = whnf_core_key(&h, &cur);
-                let hit: Option<EIdx> = if key { whnf_core_lookup(st, cheap, &cur) } else { None };
-                match hit {
+                match whnf_core_lookup_at(st, key, cheap, &cur) {
                     Some(r) => {
                         let none_c: Vec<EIdx> = Vec::new();
                         whnf_core_store_chain(st, cheap, &pend, &none_c, &r);

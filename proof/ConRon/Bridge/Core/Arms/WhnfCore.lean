@@ -817,10 +817,11 @@ theorem whnfCoreLoop_spec {fe : IFEnv} {fuel : Nat}
       have hdh := hrelh E hden
       -- the lookup, at a key only
       have hlk : ⦃fun s => s = s₀⦄
-          (if whnfCoreKey hh i then whnfCoreLookup c i else pure none : AM (Option EIdx))
+          (whnfCoreLookupAt (whnfCoreKey hh i) c i)
           ⦃fun o s' => s' = s₀ ∧ ∀ x, o = some x →
             (if c then s₀.caches.whnfCoreCheapC[i]? else s₀.caches.whnfCoreC[i]?) = some x;
             ⊤⦄ := by
+        unfold whnfCoreLookupAt
         split
         · exact triple_mono (whnfCoreLookup_spec c s₀ i)
             (fun o s' ⟨h1, h2⟩ => ⟨h1, fun x hx => by rw [← h2, hx]⟩)
@@ -828,7 +829,6 @@ theorem whnfCoreLoop_spec {fe : IFEnv} {fuel : Nat}
           subst_vars
           simp
       dsimp only
-      rw [ite_bind_fold]
       refine triple_seq hlk ?_
       rintro hit s2 ⟨hs2, hhit⟩
       subst s2
