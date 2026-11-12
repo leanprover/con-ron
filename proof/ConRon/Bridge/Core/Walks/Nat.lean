@@ -533,7 +533,7 @@ as ONE equation over the projections. -/
     (cCtor? o && (cCtorVal o).levelParams.isEmpty &&
       (cCtorVal o).type == .const ConLeche.natName []) := by
   match o with
-  | some (.ctorInfo _ _ _) => rfl
+  | some (.ctorInfo _ _ _ _) => rfl
   | none | some (.axiomInfo _) | some (.defnInfo _ _ _) | some (.thmInfo _)
   | some (.indInfo _ _) | some (.recInfo _ _ _ _ _) => rfl
 
@@ -545,7 +545,7 @@ as ONE equation over the projections: a `∀` from `Nat` to `Nat`. -/
         exprBinderType (cCtorVal o).type == .const ConLeche.natName [] &&
         exprBody (cCtorVal o).type == .const ConLeche.natName [])) := by
   match o with
-  | some (.ctorInfo cv _ _) =>
+  | some (.ctorInfo cv _ _ _) =>
     simp only [ConLeche.natSuccOk, cCtor?, cCtorVal, Bool.true_and]
     congr 1
     generalize cv.type = t
