@@ -669,7 +669,6 @@ pub fn beq_key(ha: u64, hb: u64) -> u64 {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:952-967 Expr.probeHit
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::probe_hit_refines, then delete this line
 /// Does the key's bucket hold the pair `(a, b)`?  The stored objects, tested
 /// by *identity*, are the verification — con-leche's stored addresses are the
 /// filter that the key has become.  A `true` here is `a = b` because the
@@ -687,7 +686,6 @@ pub fn probe_hit(m: &BeqMap, key: u64, a: &Expr, b: &Expr) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:952-967 Expr.probeHit
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::probe_hit_from_refines, then delete this line
 /// The index recursion behind `probe_hit`: the bucket's candidates, each
 /// verified by `ptr_eq` on both components (task #38 — con-leche's single
 /// entry per key is its addresses' doing, see `BeqMap`).  No loops
@@ -706,7 +704,6 @@ pub fn probe_hit_from(ps: &Vec<EqPair>, i: usize, a: &Expr, b: &Expr) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:952-967 Expr.probeHit
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::pair_is_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Expr.lean:942-950 ptrDecStruct
 /// One candidate of the bucket: is this stored pair *these* two objects?
 /// The cited `probeHit`'s two `ptrDecStruct` identity tests, on the pair
@@ -744,7 +741,6 @@ pub fn levels_beq_from(ls: &Vec<Level>, rs: &Vec<Level>, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:1116-1237 Expr.beqGoX
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove crates/con-ron-core/src/kernel/expr.rs_refines, then delete this line
 /// The memoised structural descent, in the cited shape: pointer identity,
 /// then the computed word (a mismatch *is* an inequality), then the memo
 /// probe, then the constructor cases in the cited arm order, then the
@@ -758,8 +754,9 @@ pub fn levels_beq_from(ls: &Vec<Level>, rs: &Vec<Level>, i: usize) -> bool {
 /// addresses (`beq_key`) and a probe verifies the stored pair by identity
 /// (`probe_hit`), so in the model — where `ptr_eq` is `false` — the table is
 /// written and never read and this is the plain structural descent.  Gone
-/// with Lean's proof plumbing: `BeqRes`/`BeqOut`/`BeqOut.mk` and the
-/// `Squash` quotient (the result is a `bool`, not a `Decidable (a = b)`),
+/// with Lean's proof plumbing: `BeqSt`/`BeqOk`/`BeqOutX` and the `Squash`
+/// quotient (the result is a `bool` and the table, not a state carrying its
+/// iff),
 /// `withAddr`/`ptrDec` (`ptr_eq` above), `EqPair.dflt` (`get` returns an
 /// `Option`) and the `fuel`/`beqBudget` pair (the module note: `beq`'s two
 /// guards run before the table is allocated, so there is nothing left for a
@@ -773,6 +770,14 @@ pub fn levels_beq_from(ls: &Vec<Level>, rs: &Vec<Level>, i: usize) -> bool {
 /// but Aeneas cannot join the two branches of an arm's `if` when one of them
 /// reborrows the table and the shared borrows of `a` and `b` are still live
 /// ("Could not match the contexts", measured on the `fvar` arm).
+///
+/// **Deviation from the cited formulation, kept on purpose:** each node
+/// returns its `(bool, BeqMap)` pair (con-leche threads one state and drops
+/// the memo on `false`), and the `.app` arm compares the function before the
+/// argument (con-leche's spine loop, official's order, compares the last
+/// argument first and never visits a partial application).  The checker
+/// does not run this function: it compares hash-consed handles (`arena::*`);
+/// the tests and `proof/ConRon/Refine/Expr.lean` do.
 pub fn beq_go(m: BeqMap, a: &Expr, b: &Expr) -> (bool, BeqMap) {
     if ptr_eq(a, b) {
         (true, m)
@@ -791,7 +796,6 @@ pub fn beq_go(m: BeqMap, a: &Expr, b: &Expr) -> (bool, BeqMap) {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:1116-1237 Expr.beqGoX
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::beq_arm_refines, then delete this line
 /// `beqGo`'s constructor cases, in the cited arm order: the ten diagonal
 /// pairs and the wildcard, each one expression (the helpers below are why —
 /// see `beq_when`).  Its own function for two reasons.  It is where the
@@ -822,7 +826,6 @@ pub fn beq_arm(m: BeqMap, a: &Expr, b: &Expr) -> (bool, BeqMap) {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:1116-1237 Expr.beqGoX
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::beq_finish_refines, then delete this line
 /// `beqGo`'s `finish`: a completed `true` at a recursive node is recorded,
 /// everything else passes through.
 ///
@@ -853,7 +856,6 @@ pub fn beq_finish(
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:1116-1237 Expr.beqGoX
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::beq_record_refines, then delete this line
 /// `beqGo`'s `finish`, the write-back: record a completed `true` at a
 /// recursive node in its key's bucket (task #38 — the bucket is `BeqMap`'s
 /// note).  Its own function so that the table's `mut` binding is short and
@@ -881,7 +883,6 @@ pub fn beq_record(m: BeqMap, key: u64, a: &Expr, b: &Expr) -> BeqMap {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:1116-1237 Expr.beqGoX
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::beq_extend_refines, then delete this line
 /// The growing half of the write-back: the key already held `old`, so the
 /// bucket becomes `old` with the new pair appended and the one-element bucket
 /// `beq_record` has just stored is replaced by it.  `insert` on a key the
@@ -896,7 +897,6 @@ pub fn beq_extend(m: BeqMap, key: u64, old: BeqBucket, a: &Expr, b: &Expr) -> Be
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:1116-1237 Expr.beqGoX
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::beq_when_refines, then delete this line
 /// The cited `.fvar`/`.proj` arms' shape: a field comparison that decides
 /// the arm on its own, then the one recursive call.
 ///
@@ -919,9 +919,10 @@ pub fn beq_when(m: BeqMap, cond: bool, x: &Expr, y: &Expr) -> (bool, BeqMap) {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:1116-1237 Expr.beqGoX
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::beq_both_refines, then delete this line
-/// The cited `.app` arm: the two children in order, aborting on the first
-/// `false` (which is what keeps an unequal pair out of the memo).
+/// The `.app`, `.lam` and `.forallE` arms: the two children in order,
+/// aborting on the first `false` (which is what keeps an unequal pair out of
+/// the memo).  At `.app` that is function first, not the cited spine loop's
+/// order (`beq_go`'s deviation note).
 pub fn beq_both(m: BeqMap, x1: &Expr, y1: &Expr, x2: &Expr, y2: &Expr) -> (bool, BeqMap) {
     let (r1, m1): (bool, BeqMap) = beq_go(m, x1, y1);
     if r1 {
@@ -932,7 +933,6 @@ pub fn beq_both(m: BeqMap, x1: &Expr, y1: &Expr, x2: &Expr, y2: &Expr) -> (bool,
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:1116-1237 Expr.beqGoX
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::beq_three_refines, then delete this line
 /// The cited `.letE` arm: the type, the value, the body.
 pub fn beq_three(
     m: BeqMap,
@@ -952,7 +952,6 @@ pub fn beq_three(
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:1116-1237 Expr.beqGoX
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::const_beq_refines, then delete this line
 /// The cited `.const` arm's `n == m && us == vs`, as one `bool` so that the
 /// arm is a single expression (see `beq_when`).  Neither conjunct recurses.
 pub fn const_beq(n: &Name, us: &Vec<Level>, n2: &Name, vs: &Vec<Level>) -> bool {
@@ -964,7 +963,6 @@ pub fn const_beq(n: &Name, us: &Vec<Level>, n2: &Name, vs: &Vec<Level>) -> bool 
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:1116-1237 Expr.beqGoX
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::proj_head_beq_refines, then delete this line
 /// The cited `.proj` arm's `s == s' && i == i'`, the part that decides the
 /// arm before its one recursive call (see `beq_when`).
 pub fn proj_head_beq(s1: &Name, i1: u64, s2: &Name, i2: u64) -> bool {
@@ -976,7 +974,6 @@ pub fn proj_head_beq(s1: &Name, i1: u64, s2: &Name, i2: u64) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:1239-1242 Expr.beqDec
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::beq_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Expr.lean:1244-1249 Expr.beqMemo
 /// con-leche: ConLeche/Kernel/Expr.lean:1288-1292 Expr.beq
 /// con-leche: ConLeche/Kernel/Expr.lean:1260-1264 decEqPtr
@@ -1036,9 +1033,12 @@ pub fn mk_bvar(i: u64) -> Expr {
    * what exists only for Lean's proof plumbing or for addresses, now that
      task #30 has ported the memo itself (`EqPair`, `BeqMap`, `beqKey`,
      `probeHit` above, and `beqDec` cited on `beq`): `EqPair.dflt` (:806) —
-     `get` returns an `Option`, so a probe needs no default; `BeqResX`
-     (:993), `BeqOutX` (:999) and `BeqOutX.mk` (:1005) — the `Squash`ed
-     `Decidable (a = b)` is a `bool` here; `withAddr` (:822), `ptrDecStruct`
+     `get` returns an `Option`, so a probe needs no default; the descent's
+     state and its wrappers (`BeqSt` with `.ok`/`.record`/`.recordEq`,
+     `BeqOk`, `BeqOutX` with `.mk`/`.yes`/`.no`/`.cast`, `beqIsApp`) — the
+     `Squash`ed state with its iff is a `bool` and the table here, and the
+     spine loop `beqIsApp` steers is not followed (`beq_go`'s deviation
+     note); `withAddr` (:822), `ptrDecStruct`
      (:937) and `ptrDec` (:1208) — `expr::ptr_eq` is all three, and
      `withPtrAddr`'s subsingleton side condition is what the `Squash`
      existed for.  The budget con-leche retired at its task #319 was never

@@ -527,7 +527,6 @@ theorem instantiateList_succ (vs : Array EIdx) (fuel : Nat) (h : EIdx)
 mutual
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:590-626 instantiateListXP — the
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove ExprOps.instantiateListGo_bridge, then delete this line
 memoized bulk instantiation.  The `bvar` arm delegates to the pure walk
 above, exactly as con-leche's does — so it is called by name and is not one
 of this block's arms.  This is the DISPATCHER; the arms are split per DESIGN
@@ -553,7 +552,6 @@ def instantiateListGo (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
 termination_by (fuel, 0)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:590-626 instantiateListXP — the
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove ExprOps.instListGoArmApp_bridge, then delete this line
 `app` arm. -/
 def instListGoArmApp (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -571,7 +569,6 @@ def instListGoArmApp (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:590-626 instantiateListXP — the
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove ExprOps.instListGoArmBind_bridge, then delete this line
 binder arm. -/
 def instListGoArmBind (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -589,7 +586,6 @@ def instListGoArmBind (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:590-626 instantiateListXP — the
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove ExprOps.instListGoArmLet_bridge, then delete this line
 `letE` arm. -/
 def instListGoArmLet (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -608,7 +604,6 @@ def instListGoArmLet (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:590-626 instantiateListXP — the
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove ExprOps.instListGoArmProj_bridge, then delete this line
 `proj` arm. -/
 def instListGoArmProj (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do

@@ -354,7 +354,6 @@ pub fn declined_at_definition(st: &AState) -> Result<Vec<NIdx>, CheckError> {
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:124-136 reduceMember
 /// con-leche: ConLeche/Cached/CheckerC.lean:225-236 reduceMemberS
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_tail::reduce_member_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:155-172 reduceMember` — **a
 /// member's former at its telescope**, official's `whnf` loop where the
 /// declared type does not show it: the declared type checked, reduced, and
@@ -385,7 +384,6 @@ pub fn reduce_member(
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:124-136 reduceMember
 /// con-leche: ConLeche/Cached/CheckerC.lean:225-236 reduceMemberS
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_tail::reduce_member_checked_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:155-172 reduceMember` — the inner
 /// `do` block: the constant check, the reduct (`reducedFormer`) and the
 /// definitional comparison of the two types.
