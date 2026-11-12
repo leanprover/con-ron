@@ -29,7 +29,9 @@ import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Core.Walks.ProjCore
 public import ConRon.Bridge.Core.Walks.BetaSpine
 import ConRon.Bridge.Core.Walks.Spine
-import ConLeche.Verify.Cached.DiscC4
+public import ConLeche.Verify.Cached.DiscC4
+import ConRon.Bridge.Core.Walks.Iota
+import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.Specs
 
 public section
@@ -43,7 +45,7 @@ set_option maxHeartbeats 1000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-variable {mode : CheckMode} {eager : Bool} {env : Env}
+variable {mode : CheckMode} {eager : Bool} {env : Env} {fe : IFEnv}
 
 /-! ## 1. The scrutinee of the `.proj` exit -/
 
@@ -188,16 +190,17 @@ theorem iotaTarget_spec (s₀ : AState) (h : EIdx) (H : Expr)
             if ls.length = dcv.levelParams.length then some (mI + 1) else none := by
           simp [ConLeche.Cached.iotaTargetF, ConLeche.mkFEnv_find?, hfind]
         rw [htgt, ← hlenlps]
-        split <;> (vcgen; subst_vars; simp_all)
+        split <;> vcgen <;> subst_vars <;> simp_all
       next hnot =>
         have hnr := env_not_rec_of_index hok hcn hnot
         vcgen
         subst_vars
         refine ⟨rfl, ?_⟩
         simp only [ConLeche.Cached.iotaTargetF, ConLeche.mkFEnv_find?]
-        split
-        · next cv mI rP isK rules hf => exact absurd hf (hnr cv mI rP isK rules)
-        · rfl
+        all_goals
+          split <;> first
+            | rfl
+            | (rename_i cv mI rP isK rules hf; exact absurd hf (hnr cv mI rP isK rules))
   · rw [ite_eq_right htag]
     vcgen
     subst_vars
@@ -260,7 +263,7 @@ theorem iotaRecAt_take (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : N
     iotaRecAt mode r fe depth hd sargs n = iotaRecAt mode r fe depth hd (takeEidx sargs n) n := by
   have hcopy : takeEidx (takeEidx sargs n) n = takeEidx sargs n := by
     apply Array.toList_inj.mp
-    simp [ExprOps.takeEidx_toList]
+    simp [ExprOps.takeEidx_toList, List.take_take]
   unfold iotaRecAt
   rw [hcopy]
 
@@ -286,38 +289,42 @@ theorem whnfStuck_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
   have hnapp : ∀ g b, (Expr.app f a).getAppFn ≠ .app g b := getAppFn_not_app _
   unfold whnfStuck
   refine triple_seq (iotaTarget_spec s₀ h _ hok hdh) ?_
-  rintro o s1 ⟨rfl, ho⟩
+  rintro o s1 ⟨hs1, ho⟩
+  subst s1
   -- the input itself, done
-  have hdone : ∀ (P : Prop), (mWA .verified eager env 1 d (Expr.app f a).getAppFn
+  have hdone : ∀ (P : Prop), (mWA .verified eager env (0 + 1) d (Expr.app f a).getAppFn
       (Expr.app f a).getAppArgs = .ok (.done (.app f a))) →
       StepPost eager env fe d s₀ (fun F => mStep .verified eager env c F d (.app f a))
         (.done i) s₀ := by
     intro _ hm
-    exact ⟨hok, Ext.refl _, rfl, .done (.app f a), by simp [denoteStep, hden], hw, 1,
-      by rw [mStep_stuck hh]; exact hm⟩
+    exact ⟨hok, Ext.refl _, rfl, .done (.app f a), by simp [denoteStep, hden], hw, 0 + 1,
+      by show mStep .verified eager env c (0 + 1) d (.app f a) = _
+         rw [mStep_stuck hh]; exact hm⟩
   cases o with
   | none =>
     vcgen
     subst_vars
     refine hdone True ?_
+    show mWA .verified eager env (0 + 1) d (Expr.app f a).getAppFn (Expr.app f a).getAppArgs = _
     rw [mWA_stuck hh, ← ho, hmk]
   | some k =>
     dsimp only
     refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s₀ i hok.state
       (by rw [hden]; rfl)) ?_
-    rintro as s2 ⟨rfl, has⟩
+    rintro as s2 ⟨hs2, has⟩
+    subst s2
     have hdas := has _ hden
     have hlen : (Expr.app f a).getAppArgs.length = as.length := denoteEList_len hdas
     by_cases hk : k ≤ as.toArray.size
-    · rw [if_pos hk, iotaRecAt_take]
+    · rw [ite_eq_left hk, iotaRecAt_take]
       have hks : (takeEidx as.toArray k).size = k := by
         have := congrArg List.length (ExprOps.takeEidx_toList as.toArray k)
-        simp only [Array.length_toList, List.length_take, Array.toList_toArray] at this
+        simp only [Array.length_toList, List.length_take] at this
         simp at hk
         rw [this]; omega
       have hdk : Frontend.denoteEList s₀.store (takeEidx as.toArray k).toList =
           some ((Expr.app f a).getAppArgs.take k) := by
-        rw [ExprOps.takeEidx_toList, Array.toList_toArray]
+        rw [ExprOps.takeEidx_toList, List.toList_toArray]
         exact ExprOps.denoteEList_take k _ _ hdas
       have hwk : Expr.WScoped d (Expr.mkAppN (Expr.app f a).getAppFn
           ((Expr.app f a).getAppArgs.take k)) :=
@@ -335,9 +342,11 @@ theorem whnfStuck_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
         subst_vars
         refine ⟨hok3, hx3, hp3, .done (.app f a), by simp [denoteStep, denote_ext hden hx3],
           hw, F1 + 1, ?_⟩
+        show mStep .verified eager env c (F1 + 1) d (.app f a) = _
         rw [mStep_stuck hh, mWA_stuck hh, ← ho]
         dsimp only
-        rw [if_pos hkL, ConLeche.iotaRec_mono (by omega) hF1]
+        rw [ite_eq_left hkL, show ConLeche.iotaRecFueled .verified eager env (F1 + 1) d _ = _ from
+          ConLeche.iotaRec_mono (Nat.le_succ F1) hF1]
         simp only [bind, Except.bind, ConLeche.Cached.whnfStuckTail, hmk]
         rfl
       | some e2 =>
@@ -347,7 +356,7 @@ theorem whnfStuck_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
         dsimp only
         have hrest : Frontend.denoteEList s3.store (as.toArray.toList.drop k) =
             some ((Expr.app f a).getAppArgs.drop k) := by
-          rw [Array.toList_toArray]
+          rw [List.toList_toArray]
           exact denoteEList_ext' hx3 (ExprOps.denoteEList_drop k _ _ hdas)
         refine triple_seq (ExprOps.mkAppNFrom_spec _ s3 e2 as.toArray k rfl
           hok3.state (by rw [hdE2]; rfl) (by rw [hrest]; rfl)) ?_
@@ -359,23 +368,25 @@ theorem whnfStuck_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
             by simp [denoteStep, hrel _ _ hdE2 hrest],
             Expr.WScoped.mkAppN hwE2 (fun x hx => hwL x (List.mem_of_mem_drop hx)),
             F1 + 1, ?_⟩
-          dsimp only
+          show mStep .verified eager env c (F1 + 1) d (.app f a) = _
           rw [mStep_stuck hh, mWA_stuck hh, ← ho]
           dsimp only
-          rw [if_pos hkL, ConLeche.iotaRec_mono (by omega) hF1]
+          rw [ite_eq_left hkL, show ConLeche.iotaRecFueled .verified eager env (F1 + 1) d _ = _ from
+            ConLeche.iotaRec_mono (Nat.le_succ F1) hF1]
           rfl
         vcgen
         subst_vars
         exact hpost
-    · rw [if_neg hk]
+    · rw [ite_eq_right hk]
       vcgen
       subst_vars
       refine hdone True ?_
       have hkL : ¬ k ≤ (Expr.app f a).getAppArgs.length := by
         rw [hlen]; simpa using hk
+      show mWA .verified eager env (0 + 1) d (Expr.app f a).getAppFn (Expr.app f a).getAppArgs = _
       rw [mWA_stuck hh, ← ho]
       dsimp only
-      rw [if_neg hkL, hmk]
+      rw [ite_eq_right hkL, hmk]
 
 /-! ## 3. Theorem 1 for one step -/
 
@@ -488,10 +499,10 @@ theorem whnfCoreStep_spec {fe : IFEnv} {fuel : Nat}
     obtain ⟨ef, ea, rfl, _, _⟩ := denote_app_inv hwf hv hden
     -- the spine head, read by the loop
     by_cases hst : isStuckHead h = true
-    · rw [if_pos hst]
+    · rw [ite_eq_left hst]
       exact whnfStuck_spec henv hsim c s₀ d h i ef ea hok hden hdh
         (isStuckHeadC_of_tag hwf hdh hst) hw
-    rw [if_neg hst]
+    rw [ite_eq_right hst]
     unfold whnfCoreStepApp
     -- the spine, in one read
     refine triple_seq (getAppSpine_spec coreWalkFuel s₀ i _ hok.state hden) ?_
@@ -569,12 +580,12 @@ theorem whnfCoreCheapSafeC_of_tag {st : EStore} (hwf : StoreWF st) {h i : EIdx} 
   | app f a =>
     obtain ⟨ef, ea, rfl, _, _⟩ := denote_app_inv hwf hv hd
     rw [htag] at hs
-    simp only [ENodeView.tagOf, ETag.app, if_pos] at hs
+    simp only [ENodeView.tagOf, ETag.app] at hs
     simp only [ConLeche.Cached.whnfCoreCheapSafeC]
     by_cases hl : (h.tag == ETag.lam) = true
     · obtain ⟨_, _, Ty, Body, _, hlam, _, _⟩ := viewBind_of_lam_tag hwf (by simpa using hl) hh
-      rw [← hlam]
-    · rw [if_neg hl] at hs
+      rw [hlam]
+    · rw [ite_eq_right hl] at hs
       have hst := isStuckHeadC_of_tag hwf hh hs
       revert hst
       cases (Expr.app ef ea).getAppFn <;> intro hst <;> first | rfl | exact hst
@@ -609,7 +620,7 @@ theorem PendH.pushKey (b : Bool) {c : Bool} {d : Nat} {st : EStore} {pend : Arra
     {i : EIdx} {E : Expr} (h : PendH eager env c d st pend E)
     (hd : denoteE st i = some E) (hw : Expr.WScoped d E) :
     PendH eager env c d st (pushKey b i pend) E := by
-  unfold pushKey
+  unfold ConRon.Arena.pushKey
   split
   · intro k hk
     simp only [Array.toList_push, List.mem_append, List.mem_singleton] at hk
@@ -676,13 +687,13 @@ theorem whnfCoreStoreKeys_spec (henv : ConLeche.EnvWF env) (d : Nat) (v : EIdx) 
       ⦃fun s => s = s₀⦄ whnfCoreStoreKeys pend i v
       ⦃fun _ s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧ s'.pins = s₀.pins; ⊤⦄
   | 0, i, s₀, hn, hok, _, _, _ => by
-    rw [whnfCoreStoreKeys, dif_neg (by omega)]
+    rw [whnfCoreStoreKeys, dite_eq_right (by omega)]
     vcgen
     subst_vars
     exact ⟨hok, rfl, rfl⟩
   | n + 1, i, s₀, hn, hok, hv, hwV, hk => by
     have hi : i < pend.size := by omega
-    rw [whnfCoreStoreKeys, dif_pos hi]
+    rw [whnfCoreStoreKeys, dite_eq_left hi]
     refine triple_seq (whnfCoreSet_spec s₀ pend[i] v) ?_
     rintro _ s1 rfl
     obtain ⟨K, hK, hwK, F, hF⟩ := hk pend[i] (Array.getElem_mem_toList hi)
@@ -699,13 +710,13 @@ theorem whnfCoreStoreCheapKeys_spec (henv : ConLeche.EnvWF env) (d : Nat) (v : E
       ⦃fun s => s = s₀⦄ whnfCoreStoreCheapKeys pendC i v
       ⦃fun _ s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧ s'.pins = s₀.pins; ⊤⦄
   | 0, i, s₀, hn, hok, _, _, _ => by
-    rw [whnfCoreStoreCheapKeys, dif_neg (by omega)]
+    rw [whnfCoreStoreCheapKeys, dite_eq_right (by omega)]
     vcgen
     subst_vars
     exact ⟨hok, rfl, rfl⟩
   | n + 1, i, s₀, hn, hok, hv, hwV, hk => by
     have hi : i < pendC.size := by omega
-    rw [whnfCoreStoreCheapKeys, dif_pos hi]
+    rw [whnfCoreStoreCheapKeys, dite_eq_left hi]
     refine triple_seq (whnfCoreCheapSet_spec s₀ pendC[i] v) ?_
     rintro _ s1 rfl
     obtain ⟨K, hK, hwK, F, hF⟩ := hk pendC[i] (Array.getElem_mem_toList hi)
@@ -751,7 +762,7 @@ theorem whnfCoreLookup_spec (c : Bool) (s₀ : AState) (i : EIdx) :
     ⦃fun o s' => s' = s₀ ∧
         o = (if c then s₀.caches.whnfCoreCheapC[i]? else s₀.caches.whnfCoreC[i]?); ⊤⦄ := by
   unfold whnfCoreLookup
-  cases c <;> (vcgen; subst_vars; simp)
+  cases c <;> (vcgen; subst_vars) <;> simp_all
 
 /-- con-leche: none — the hit, in either mode, from the state invariant. -/
 theorem CheckOK.whnfCoreHitAt (henv : ConLeche.EnvWF env) {c : Bool} {s : AState}
@@ -786,7 +797,7 @@ theorem whnfCoreLoop_spec {fe : IFEnv} {fuel : Nat}
     rw [whnfCoreLoop]
     by_cases hst : whnfCoreStuckTag i = true
     · -- an easy case: its own answer in both modes
-      rw [if_pos hst]
+      rw [ite_eq_left hst]
       have hstk := denote_stuck_of_whnfCoreStuckTag hwf hden hst
       have hE : ∀ c', ConLeche.whnfCore .verified eager env 1 d E c' = .ok E :=
         fun _ => whnfCore_of_stuck hstk 0 d
@@ -798,10 +809,11 @@ theorem whnfCoreLoop_spec {fe : IFEnv} {fuel : Nat}
       subst_vars
       exact ⟨hok1, by rw [hs1]; exact Ext.refl _, hp1, E, by rw [hs1]; exact hden, hw, 1,
         hE c⟩
-    · rw [if_neg hst]
+    · rw [ite_eq_right hst]
       refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ i hok.state
         (by rw [hden]; rfl)) ?_
-      rintro hh s1 ⟨rfl, hrelh⟩
+      rintro hh s1 ⟨hs1, hrelh⟩
+      subst s1
       have hdh := hrelh E hden
       -- the lookup, at a key only
       have hlk : ⦃fun s => s = s₀⦄
@@ -815,8 +827,11 @@ theorem whnfCoreLoop_spec {fe : IFEnv} {fuel : Nat}
         · vcgen
           subst_vars
           simp
+      dsimp only
+      rw [ite_bind_fold]
       refine triple_seq hlk ?_
-      rintro hit s2 ⟨rfl, hhit⟩
+      rintro hit s2 ⟨hs2, hhit⟩
+      subst s2
       cases hit with
       | some x =>
         -- a hit ends the chain; its keys get the hit's answer
@@ -848,8 +863,9 @@ theorem whnfCoreLoop_spec {fe : IFEnv} {fuel : Nat}
             split
             · rename_i hsafe
               have hsc := whnfCoreCheapSafeC_of_tag hok3.state.wf hden3 hdh3 hsafe
-              rw [← mStep_cheap hsc] at hF1
-              obtain ⟨M', hM'⟩ := whnfCore_of_mStep_done hF1
+              have hF1c : mStep .verified eager env c F1 d E = .ok (.done V) := hF1
+              rw [← mStep_cheap hsc] at hF1c
+              obtain ⟨M', hM'⟩ := whnfCore_of_mStep_done hF1c
               exact ((hpc.ext hx3).pushKey _ hden3 hw).keysAns hM'
             · exact KeysAns.nil
           rintro _ s4 ⟨hok4, hs4, hp4⟩
@@ -885,6 +901,8 @@ section Census
 #print axioms mStep_proj_none
 #print axioms mStep_proj_some
 #print axioms whnfCoreStep_spec
+#print axioms whnfStuck_spec
+#print axioms whnfCoreStoreChain_spec
 #print axioms whnfCoreLoop_spec
 #print axioms whnfCoreBody_spec
 
