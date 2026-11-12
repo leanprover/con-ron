@@ -760,27 +760,27 @@
   1125  theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
   1126      (hi : denoteE st i = some x) (hj : denoteE st j = some x) : i = j := by
 
-== crates/con-ron-core/src/arena/core.rs#L11676-L11695
- 11676  /// con-leche: none — **a job's bracket, closed** (DESIGN.md §8.3)
- 11677  /// Lean twin: `proof/ConRon/Arena/Core.lean:4284-4292 dropScratch` —
- 11678  /// the twin's `dropScratch` on a store that STAYS frozen (task #98-FREEZE): the
- 11679  /// caches flushed and the scratch tiers emptied, the flag untouched.  A
- 11680  /// worker's store is frozen for its whole life, so between two jobs it is
- 11681  /// frozen with an empty scratch tier where the twin's is scratch-off; nothing
- 11682  /// is interned there.
- 11683  pub fn leave_record(st: &mut AState) {
- 11684      flush_caches(st);
- 11685      st.store.clear_scratch();
- 11686  }
- 11687  
- 11688  /// con-leche: none — **a job's bracket, opened** (DESIGN.md §8.3)
- 11689  /// Lean twin: `proof/ConRon/Arena/Core.lean:4294-4301 enterScratch` —
- 11690  /// the twin's `enterScratch` on an already frozen store (task #98-FREEZE): the
- 11691  /// memos cleared and the scratch tiers emptied, the flag untouched.
- 11692  pub fn enter_record(st: &mut AState) {
- 11693      st.memos.reset();
- 11694      st.store.clear_scratch();
- 11695  }
+== crates/con-ron-core/src/arena/core.rs#L11843-L11862
+ 11843  /// con-leche: none — **a job's bracket, closed** (DESIGN.md §8.3)
+ 11844  /// Lean twin: `proof/ConRon/Arena/Core.lean:4459-4467 dropScratch` —
+ 11845  /// the twin's `dropScratch` on a store that STAYS frozen (task #98-FREEZE): the
+ 11846  /// caches flushed and the scratch tiers emptied, the flag untouched.  A
+ 11847  /// worker's store is frozen for its whole life, so between two jobs it is
+ 11848  /// frozen with an empty scratch tier where the twin's is scratch-off; nothing
+ 11849  /// is interned there.
+ 11850  pub fn leave_record(st: &mut AState) {
+ 11851      flush_caches(st);
+ 11852      st.store.clear_scratch();
+ 11853  }
+ 11854  
+ 11855  /// con-leche: none — **a job's bracket, opened** (DESIGN.md §8.3)
+ 11856  /// Lean twin: `proof/ConRon/Arena/Core.lean:4469-4476 enterScratch` —
+ 11857  /// the twin's `enterScratch` on an already frozen store (task #98-FREEZE): the
+ 11858  /// memos cleared and the scratch tiers emptied, the flag untouched.
+ 11859  pub fn enter_record(st: &mut AState) {
+ 11860      st.memos.reset();
+ 11861      st.store.clear_scratch();
+ 11862  }
 
 == crates/con-ron-core/src/arena/checker.rs#L65-L88
     65  /// con-leche: none — the phase boundary, which con-leche has no tier to make
@@ -863,37 +863,37 @@
   1268      pub env: IStreamIndex,
   1269  }
 
-== crates/con-ron-core/src/arena/env.rs#L574-L603
-   574  /// con-leche: ConLeche/Kernel/FEnv.lean:55-76 FEnv
-   575  /// Lean twin: `proof/ConRon/Arena/Env.lean:227-236 IFEnv` — the environment
-   576  /// with its `O(1)` index (DESIGN.md §8.3 lesson 13), over the frozen base of a
-   577  /// stream's index.  con-leche's `ovl` field is not ported (see `ifenv_find`).
-   578  ///
-   579  /// **The environment has two tiers, like the store.**  An `IFEnv` is one LAYER:
-   580  /// a job's own, empty until its record pushes.  The BASE is the stream's index
-   581  /// (`arena::stream_index::IStreamIndex`), built once before any check and
-   582  /// frozen into the `PersTier` (`checker::freeze_tier`), where every worker reads
-   583  /// it by reference.  The layer's own entries are all visible (con-leche's local
-   584  /// index has no counter); the base is read below the layer's two bounds,
-   585  /// con-leche's `FBase.below` and `FBase.belowRec`, which live here because the
-   586  /// base itself is shared.
-   587  ///
-   588  /// **The index row is a SLOT and not an `IConstantInfo`** (task #97-P6-5,
-   589  /// lever 1): the twin's row carries the constant itself, a shared value in Lean
-   590  /// and a second deep copy in Rust.  Every writer keeps `idx` and `env.consts`
-   591  /// in step (`ifenv_push`, `ifenv_push_temp`, `ifenv_pop_temp`) and
-   592  /// `ifenv_find` reads `env.consts[s]`.  The table map `tbls` is built the same
-   593  /// way: its row is the table's slot in `env.tables`.
-   594  pub struct IFEnv {
-   595      pub env: IEnv,
-   596      pub idx: HashMap<NIdx, u64>,
-   597      pub tbls: HashMap<NIdx, u64>,
-   598      /// The base's constants are visible below this counter (`FBase.below`).
-   599      pub base_below: u64,
-   600      /// The base's tables are visible below this record position
-   601      /// (`FBase.belowRec`).
-   602      pub base_below_rec: u64,
-   603  }
+== crates/con-ron-core/src/arena/env.rs#L578-L607
+   578  /// con-leche: ConLeche/Kernel/FEnv.lean:55-76 FEnv
+   579  /// Lean twin: `proof/ConRon/Arena/Env.lean:232-241 IFEnv` — the environment
+   580  /// with its `O(1)` index (DESIGN.md §8.3 lesson 13), over the frozen base of a
+   581  /// stream's index.  con-leche's `ovl` field is not ported (see `ifenv_find`).
+   582  ///
+   583  /// **The environment has two tiers, like the store.**  An `IFEnv` is one LAYER:
+   584  /// a job's own, empty until its record pushes.  The BASE is the stream's index
+   585  /// (`arena::stream_index::IStreamIndex`), built once before any check and
+   586  /// frozen into the `PersTier` (`checker::freeze_tier`), where every worker reads
+   587  /// it by reference.  The layer's own entries are all visible (con-leche's local
+   588  /// index has no counter); the base is read below the layer's two bounds,
+   589  /// con-leche's `FBase.below` and `FBase.belowRec`, which live here because the
+   590  /// base itself is shared.
+   591  ///
+   592  /// **The index row is a SLOT and not an `IConstantInfo`** (task #97-P6-5,
+   593  /// lever 1): the twin's row carries the constant itself, a shared value in Lean
+   594  /// and a second deep copy in Rust.  Every writer keeps `idx` and `env.consts`
+   595  /// in step (`ifenv_push`, `ifenv_push_temp`, `ifenv_pop_temp`) and
+   596  /// `ifenv_find` reads `env.consts[s]`.  The table map `tbls` is built the same
+   597  /// way: its row is the table's slot in `env.tables`.
+   598  pub struct IFEnv {
+   599      pub env: IEnv,
+   600      pub idx: HashMap<NIdx, u64>,
+   601      pub tbls: HashMap<NIdx, u64>,
+   602      /// The base's constants are visible below this counter (`FBase.below`).
+   603      pub base_below: u64,
+   604      /// The base's tables are visible below this record position
+   605      /// (`FBase.belowRec`).
+   606      pub base_below_rec: u64,
+   607  }
 
 == crates/con-ron-core/src/arena/monad.rs#L173-L237
    173  /// con-leche: ConLeche/Cached/ExprOpsC.lean:206-208 MemoXP
@@ -1094,21 +1094,21 @@
    376      pub eager_memos: ModeMemos,
    377  }
 
-== crates/con-ron-core/src/arena/core.rs#L429-L442
-   429  // ---------------------------------------------------------------------------
-   430  // The lanes: the twin's `r : CoreFnsA`, defunctionalized (the module note)
-   431  // ---------------------------------------------------------------------------
-   432  
-   433  /// con-leche: ConLeche/Kernel/Core.lean:1862-1897 coreKnot
-   434  /// Lean twin: `proof/ConRon/Arena/Core.lean:4130-4220 coreKnot` — **the
-   435  /// executed knot**: the memoized one, `pureFnsA`'s.
-   436  pub const LANE_FULL: u32 = 0;
-   437  
-   438  /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
-   439  /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — the io knot
-   440  /// (the leaf lane): `infer` and `inferIO` are `inferBodyIO` tied to this knot,
-   441  /// unmemoized; every other slot is the full knot's.
-   442  pub const LANE_IO: u32 = 2;
+== crates/con-ron-core/src/arena/core.rs#L422-L435
+   422  // ---------------------------------------------------------------------------
+   423  // The lanes: the twin's `r : CoreFnsA`, defunctionalized (the module note)
+   424  // ---------------------------------------------------------------------------
+   425  
+   426  /// con-leche: ConLeche/Kernel/Core.lean:1862-1897 coreKnot
+   427  /// Lean twin: `proof/ConRon/Arena/Core.lean:4313-4392 coreKnot` — **the
+   428  /// executed knot**: the memoized one, `pureFnsA`'s.
+   429  pub const LANE_FULL: u32 = 0;
+   430  
+   431  /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
+   432  /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — the io knot
+   433  /// (the leaf lane): `infer` and `inferIO` are `inferBodyIO` tied to this knot,
+   434  /// unmemoized; every other slot is the full knot's.
+   435  pub const LANE_IO: u32 = 2;
 
 == crates/con-ron-core/src/ron/hashmap2.rs#L1-L40
      1  //! con-leche: none — arena infrastructure; a second `Std.HashMap` replacement, proved
@@ -1651,45 +1651,45 @@
    181      }
    182  }
 
-== crates/con-ron-core/src/arena/install.rs#L333-L370
-   333  /// con-leche: ConLeche/Kernel/Install.lean:82-96 declConstants
-   334  /// con-leche: ConLeche/Cached/CheckerC.lean:104-118 declConstantsC
-   335  /// **The constants a declaration installs**, in push order.  A block
-   336  /// `readBlock` cannot read installs nothing (its check rejects it), and
-   337  /// `sorryAx` nothing (any use of it declines).
-   338  pub fn decl_constants(pers: &PersTier, st: &mut AState, pd: &IDeclaration) -> Result<Vec<IConstantInfo>, CheckError> {
-   339      match pd {
-   340          IDeclaration::DefnDecl(cv, value, hint) => {
-   341              let mut o: Vec<IConstantInfo> = Vec::new();
-   342              o.push(IConstantInfo::DefnInfo(env::i_constant_val_dup(cv), value.dup2(), reducibility_hint_dup(hint)));
-   343              Ok(o)
-   344          }
-   345          IDeclaration::ThmDecl(cv, _) => {
-   346              let mut o: Vec<IConstantInfo> = Vec::new();
-   347              o.push(IConstantInfo::ThmInfo(env::i_constant_val_dup(cv)));
-   348              Ok(o)
-   349          }
-   350          IDeclaration::OpaqueDecl(cv, _) => {
-   351              let mut o: Vec<IConstantInfo> = Vec::new();
-   352              o.push(IConstantInfo::AxiomInfo(env::i_constant_val_dup(cv)));
-   353              Ok(o)
-   354          }
-   355          IDeclaration::AxiomDecl(cv) => decl_constants_axiom(pers, st, cv),
-   356          IDeclaration::QuotDecl(k, cv) => match basis::quot_at(pers, st, k, cv) {
-   357              Err(e) => Err(e),
-   358              Ok(ci) => {
-   359                  let mut o: Vec<IConstantInfo> = Vec::new();
-   360                  o.push(ci);
-   361                  Ok(o)
-   362              }
-   363          },
-   364          IDeclaration::IndDecl(block, n_p) => match block_shape::read_block(pers, st, *n_p, block) {
-   365              Err(e) => Err(e),
-   366              Ok(Ok(p)) => block_constants(pers, st, &p),
-   367              Ok(Err(_)) => Ok(Vec::new()),
-   368          },
-   369      }
-   370  }
+== crates/con-ron-core/src/arena/install.rs#L362-L399
+   362  /// con-leche: ConLeche/Kernel/Install.lean:82-96 declConstants
+   363  /// con-leche: ConLeche/Cached/CheckerC.lean:104-118 declConstantsC
+   364  /// **The constants a declaration installs**, in push order.  A block
+   365  /// `readBlock` cannot read installs nothing (its check rejects it), and
+   366  /// `sorryAx` nothing (any use of it declines).
+   367  pub fn decl_constants(pers: &PersTier, st: &mut AState, pd: &IDeclaration) -> Result<Vec<IConstantInfo>, CheckError> {
+   368      match pd {
+   369          IDeclaration::DefnDecl(cv, value, hint) => {
+   370              let mut o: Vec<IConstantInfo> = Vec::new();
+   371              o.push(IConstantInfo::DefnInfo(env::i_constant_val_dup(cv), value.dup2(), reducibility_hint_dup(hint)));
+   372              Ok(o)
+   373          }
+   374          IDeclaration::ThmDecl(cv, _) => {
+   375              let mut o: Vec<IConstantInfo> = Vec::new();
+   376              o.push(IConstantInfo::ThmInfo(env::i_constant_val_dup(cv)));
+   377              Ok(o)
+   378          }
+   379          IDeclaration::OpaqueDecl(cv, _) => {
+   380              let mut o: Vec<IConstantInfo> = Vec::new();
+   381              o.push(IConstantInfo::AxiomInfo(env::i_constant_val_dup(cv)));
+   382              Ok(o)
+   383          }
+   384          IDeclaration::AxiomDecl(cv) => decl_constants_axiom(pers, st, cv),
+   385          IDeclaration::QuotDecl(k, cv) => match basis::quot_at(pers, st, k, cv) {
+   386              Err(e) => Err(e),
+   387              Ok(ci) => {
+   388                  let mut o: Vec<IConstantInfo> = Vec::new();
+   389                  o.push(ci);
+   390                  Ok(o)
+   391              }
+   392          },
+   393          IDeclaration::IndDecl(block, n_p) => match block_shape::read_block(pers, st, *n_p, block) {
+   394              Err(e) => Err(e),
+   395              Ok(Ok(p)) => block_constants(pers, st, &p),
+   396              Ok(Err(_)) => Ok(Vec::new()),
+   397          },
+   398      }
+   399  }
 
 == crates/con-ron-core/src/arena/stream_index.rs#L221-L239
    221  /// con-leche: ConLeche/Cached/StreamIndex.lean:74-81 recordJob
@@ -2203,7 +2203,7 @@
     69    | 0, eager => knotSpec_zero eager env fe
     70    | f + 1, _ =>
     71      { whnfCore := fun {c} s₀ d i e hok hden hw =>
-    72          memoWhnfCore_step henv
+    72          memoWhnfCore_step
     73            (fun c => whnfCoreBody_spec henv (knot_spec_all henv f) c) (c := c)
     74            s₀ d i e hok hden hw
     75        whnf := fun s₀ d i e hok hden hw =>
@@ -2409,8 +2409,8 @@
    634        (instSpine (absU fuel) (absEIdxListFrom args i) (absU t) (absEIdx e)) :=
    635    inst_spine_from_aux _ fuel args i t e rfl hrel hinv
 
-== proof/ConRon/Refine2/Core/Induction.lean#L1123
-  1123  theorem knot_rel (hbody : ∀ f, KnotRel f → BodyRel f) : ∀ f, KnotRel f
+== proof/ConRon/Refine2/Core/Induction.lean#L905
+   905  theorem knot_rel (hbody : ∀ f, KnotRel f → BodyRel f) : ∀ f, KnotRel f
 
 == proof/ConRon/Capstone.lean#L14-L85
     14  /-!
