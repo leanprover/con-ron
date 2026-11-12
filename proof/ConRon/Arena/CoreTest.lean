@@ -163,7 +163,7 @@ private def internCI : ConstantInfo → AM IConstantInfo
     let icv ← internCV cv
     let ic ← internCaps caps
     pure (.indInfo icv ic)
-  | .ctorInfo cv nP nF => do pure (.ctorInfo (← internCV cv) nP nF)
+  | .ctorInfo cv nP nF _ => do pure (.ctorInfo (← internCV cv) nP nF)
   | .recInfo cv mI rP isK rules => do
     let icv ← internCV cv
     let rs ← internRules rules
@@ -214,8 +214,8 @@ private def envCL : ConLeche.Env :=
      .axiomInfo ⟨propName, [], .sort .zero⟩,
      .axiomInfo ⟨axName, [], natTy⟩,
      .defnInfo ⟨twoName, [], natTy⟩ (.app succE (.app succE zeroE)) (.regular 1),
-     .ctorInfo ⟨ConLeche.natSuccName, [], .forallE natTy natTy⟩ 0 1,
-     .ctorInfo ⟨ConLeche.natZeroName, [], natTy⟩ 0 0,
+     .ctorInfo ⟨ConLeche.natSuccName, [], .forallE natTy natTy⟩ 0 1 ConLeche.natName,
+     .ctorInfo ⟨ConLeche.natZeroName, [], natTy⟩ 0 0 ConLeche.natName,
      .indInfo ⟨ConLeche.natName, [], .sort (.succ .zero)⟩ {} ], []⟩
 
 /-! ## The subject terms, written once

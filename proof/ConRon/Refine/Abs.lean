@@ -615,6 +615,16 @@ def absIndCaps (c : env.IndCaps) : ConLeche.IndCaps where
   nparams := c.nparams.val
   nIdx := c.n_idx.val
   ctors := absNames c.ctors
+  -- TEMPORARY (task #152 lead shim): until lane A stores the field.
+  neverZero := false
+
+/-- TEMPORARY (task #152 lead shim, replaced by lane A's stored field): a
+constructor's family, the head of its type's result. -/
+def shimCtorInduct : ConLeche.Expr → ConLeche.Name
+  | .forallE _ b => shimCtorInduct b
+  | .app f _ => shimCtorInduct f
+  | .const T _ => T
+  | _ => .anonymous
 
 /-- `ConLeche/Kernel/Env.lean:471` — `ConstantInfo`. -/
 def absConstantInfo : env.ConstantInfo → ConLeche.ConstantInfo
@@ -622,7 +632,10 @@ def absConstantInfo : env.ConstantInfo → ConLeche.ConstantInfo
   | .DefnInfo cv v h => .defnInfo (absConstantVal cv) (absExpr v) (absHint h)
   | .ThmInfo cv => .thmInfo (absConstantVal cv)
   | .IndInfo cv c => .indInfo (absConstantVal cv) (absIndCaps c)
-  | .CtorInfo cv np nf => .ctorInfo (absConstantVal cv) np.val nf.val
+  -- TEMPORARY (task #152 lead shim): the family off the type's result head.
+  | .CtorInfo cv np nf =>
+    .ctorInfo (absConstantVal cv) np.val nf.val
+      (shimCtorInduct (absConstantVal cv).type)
   | .RecInfo cv mi rp k rs =>
     .recInfo (absConstantVal cv) mi.val rp.val k (rs.val.map absRecRule)
 

@@ -109,7 +109,8 @@ def denoteRules (st : EStore) : List IRecRule → Option (List RecRule)
 /-- con-leche: none — the denotation of an inductive's capabilities. -/
 def denoteCaps (st : EStore) (c : IIndCaps) : Option IndCaps :=
   match denoteNList st.ns c.all, denoteNList st.ns c.ctors with
-  | some all, some ctors => some ⟨c.eta, all, c.nparams, c.nIdx, ctors⟩
+  -- TEMPORARY (task #152 lead shim): `neverZero` until lane A stores it.
+  | some all, some ctors => some ⟨c.eta, all, c.nparams, c.nIdx, ctors, false⟩
   | _, _ => none
 
 /-- con-leche: none — the denotation of a projection table. -/
@@ -121,6 +122,18 @@ def denoteProjTable (st : EStore) (t : IProjTable) : Option ProjTable :=
     | some bs => some ⟨sn, lps, t.numParams, c, t.numFields, bs⟩
     | none => none
   | _, _, _ => none
+
+/-- TEMPORARY (task #152 lead shim, replaced by lane A's stored field): a
+constructor's family read off its type's result head, the value upstream's
+`CtorWF` gives `ctorInfo … induct`. -/
+def shimCtorInduct (cv : ConstantVal) : Name :=
+  go cv.type
+where
+  go : Expr → Name
+    | .forallE _ b => go b
+    | .app f _ => go f
+    | .const T _ => T
+    | _ => .anonymous
 
 /-- con-leche: none — the denotation of a stored constant. -/
 def denoteCI (st : EStore) : IConstantInfo → Option ConstantInfo
@@ -134,7 +147,7 @@ def denoteCI (st : EStore) : IConstantInfo → Option ConstantInfo
     match denoteCV st v, denoteCaps st c with
     | some cv, some caps => some (.indInfo cv caps)
     | _, _ => none
-  | .ctorInfo v nP nF => (denoteCV st v).map (fun cv => .ctorInfo cv nP nF)
+  | .ctorInfo v nP nF => (denoteCV st v).map (fun cv => .ctorInfo cv nP nF (shimCtorInduct cv))
   | .recInfo v mI rP k rs =>
     match denoteCV st v, denoteRules st rs with
     | some cv, some rules => some (.recInfo cv mI rP k rules)
@@ -328,7 +341,7 @@ def internCI (m : EMemo) : ConstantInfo → AM (EMemo × IConstantInfo)
     let (m, cv) ← internCV m v
     let caps ← internCaps c
     pure (m, .indInfo cv caps)
-  | .ctorInfo v nP nF => do
+  | .ctorInfo v nP nF _ => do
     let (m, cv) ← internCV m v
     pure (m, .ctorInfo cv nP nF)
   | .recInfo v mI rP k rs => do
