@@ -514,10 +514,10 @@ theorem formerNeverZeroAtFueled_mono {f f' : Nat} (hle : f ≤ f') {cvT : Consta
 /-- con-leche: ConLeche/Verify/Fueled.lean:249 iotaCase3At_atF — the merge at
 the ι case split. -/
 theorem iotaCase3AtFueled_mono {f f' : Nat} (hle : f ≤ f') {isK : Bool}
-    {cvj : ConstantVal} {us : List Level} {r : Bool}
-    (hr : iotaCase3At (pureFns mode eager env f).whnf env.find? isK cvj us = .ok r) :
-    iotaCase3At (pureFns mode eager env f').whnf env.find? isK cvj us = .ok r := by
-  have h := (iotaCase3At (fueledFns mode eager env).whnf env.find? isK cvj us).property
+    {induct : Name} {us : List Level} {r : Bool}
+    (hr : iotaCase3At (pureFns mode eager env f).whnf env.find? isK induct us = .ok r) :
+    iotaCase3At (pureFns mode eager env f').whnf env.find? isK induct us = .ok r := by
+  have h := (iotaCase3At (fueledFns mode eager env).whnf env.find? isK induct us).property
     (v := r) hle
   rw [iotaCase3At_atF, iotaCase3At_atF] at h
   exact h hr
