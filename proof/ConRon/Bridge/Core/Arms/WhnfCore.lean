@@ -774,6 +774,11 @@ theorem CheckOK.whnfCoreHitAt (henv : ConLeche.EnvWF env) {c : Bool} {s : AState
   · exact CheckOK.whnfCoreHit henv hok (by simpa using hx) hden hw
   · exact CheckOK.whnfCoreCheapHit henv hok (by simpa using hx) hden hw
 
+/-- con-leche: none — a choice between two values, bound, is the bound choice. -/
+theorem ite_pure_bind {α β : Type} (c : Prop) [Decidable c] (a b : α) (k : α → AM β) :
+    ((if c then pure a else pure b : AM α) >>= k) = k (if c then a else b) := by
+  split <;> rfl
+
 /-- con-leche: ConLeche/Verify/Cached/DiscC4.lean whnfCoreLoopC_spec —
 **THEOREM 1 for `whnfCoreLoop`**, by induction on the step budget: the twin's
 loop answers the chained `whnfCore` of its term, its pending keys being backed
@@ -856,6 +861,7 @@ theorem whnfCoreLoop_spec {fe : IFEnv} {fuel : Nat}
           obtain ⟨V, hdV, rfl⟩ := hdR
           obtain ⟨M, hM⟩ := whnfCore_of_mStep_done hF1
           dsimp only
+          simp only [ite_pure_bind, pure_bind]
           refine triple_seq (whnfCoreStoreChain_spec henv c d _ _ v V s3 hok3 hdV hwR
             (fun hc => by subst hc; exact ((hp.ext hx3).pushKey _ hden3 hw).keysAns hM)
             (fun _ => ?_)) ?_
@@ -877,6 +883,7 @@ theorem whnfCoreLoop_spec {fe : IFEnv} {fuel : Nat}
           simp only [denoteStep, Option.map_eq_some_iff] at hdR
           obtain ⟨E', hdE', rfl⟩ := hdR
           dsimp only
+          simp only [ite_pure_bind, pure_bind]
           refine triple_mono (whnfCoreLoop_spec henv hsim c d n s3 e' E' _ _ hok3 hdE' hwR
             (((hp.ext hx3).pushKey _ hden3 hw).cont hF1)
             ((hpc.ext hx3).pushCheapKey _ hok3.state.wf hden3 hdh3 hw hF1)) ?_
