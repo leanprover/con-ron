@@ -392,7 +392,7 @@ theorem iota_no_cert_abs {pers : arena.store.PersTier} {fe lfe} (hctx : CoreCtx 
         simp only [Option.map_some, absIConstantInfo, absIIndCaps, absIConstantVal]
         simp only at h
         by_cases hz : caps.never_zero = true
-        · rw [if_pos hz] at h
+        · rw [ite_eq_left hz] at h
           obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           cases Result.ok_injective h
           simp only [lift, Result.ok.injEq] at hi1
@@ -407,7 +407,7 @@ theorem iota_no_cert_abs {pers : arena.store.PersTier} {fe lfe} (hctx : CoreCtx 
             · intro e; apply Std.UScalar.eq_of_val_eq; rw [hv, e]
           rw [Bool.eq_iff_iff, decide_eq_true_iff, beq_iff_eq]
           exact hiff
-        · rw [if_neg hz] at h
+        · rw [ite_eq_right hz] at h
           cases Result.ok_injective h
           simp [show caps.never_zero = false by simpa using hz]
       | _ => cases Result.ok_injective h; rfl
@@ -430,7 +430,7 @@ theorem rec_fire_level_count_abs {rl : arena.env.IRecRule}
   unfold recFireLevelCount
   simp only [absIRecRule]
   cases hf : rl.fire <;> simp only [hf] at h <;> cases Result.ok_injective h <;>
-    simp [absIRecRuleFire, absU, usize_cast_u64_val', alloc.vec.Vec.len]
+    simp [absIRecRuleFire, absU, alloc.vec.Vec.len]
 
 /-- `rec_fire_level_count` ⊑ `recFireLevelCount`. -/
 @[lockstep] theorem rec_fire_level_count_ls (rl : arena.env.IRecRule)

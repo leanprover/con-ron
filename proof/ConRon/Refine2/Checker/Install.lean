@@ -585,18 +585,17 @@ open Lockstep in
       (arena.install.block_constants pers st p) lst (blockConstants (absBlockShape p)) := by
   rw [arena.install.block_constants, blockConstants]
   lockstep
-  rename_i _ formers _ all
-  have hall := hP
+  rename_i formers groups
   have hc := block_ctors_abs 0#usize formers a hf
   have hb := block_recs_ls hrel hinv p p.recs 0#usize a
   simp only [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at hb
   refine LS.tail_bind_pure hb ?_
   intro r rs hr
   rw [hr, hc]
-  unfold TwinEq at hall
+  simp only [TwinEq] at hP
   simp only [List.drop_zero, show ((0#usize : Std.Usize)).val = 0 from rfl, blockCtors]
-  rw [hall]
-  simp only [absCtorsL, List.map_map, List.append_assoc]
+  rw [hP]
+  simp only [absGroupsL, absCtorsL, List.map_map, List.flatMap_map, List.append_assoc]
   rfl
 
 /-! ## What a declaration installs -/

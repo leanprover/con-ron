@@ -173,7 +173,7 @@ theorem eta_ctor_partial_fam_abs {pers : arena.store.PersTier} {fe lfe}
       · cases Result.ok_injective h; rfl
       · simp only [Option.map_some] at h ⊢
         by_cases he : caps.eta = true
-        · rw [if_pos he] at h
+        · rw [ite_eq_left he] at h
           have := nidx_eq2 tbl.ctor c b trivial trivial h
           simp only [he, ite_true]
           rw [show (absIProjTable tbl).ctor = absNIdx tbl.ctor from rfl]
@@ -181,7 +181,7 @@ theorem eta_ctor_partial_fam_abs {pers : arena.store.PersTier} {fe lfe}
           · subst hc; simp_all
           · have : absNIdx tbl.ctor ≠ absNIdx c := fun h' => hc (absNIdx_inj h')
             simp_all
-        · rw [if_neg he] at h
+        · rw [ite_eq_right he] at h
           cases Result.ok_injective h
           simp [show caps.eta = false by simpa using he]
     | _ => cases Result.ok_injective h; rfl

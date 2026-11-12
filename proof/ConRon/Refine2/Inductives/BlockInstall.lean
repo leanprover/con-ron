@@ -23,12 +23,12 @@ steps are pure: repeated `members[mi]`/`ctors[0]` reads and `dup2`s in
   copy loops, stated as `TwinEq`s of the twin's `map` (`vec_cursor_copy`);
   `tele_vals` onto `[cv_ta0]` is `cvTa₀ :: cvs.map (·.1)`
   (`tele_vals_cons_abs`, used in place inside `check_block_inds_ls`).
-* **`block_caps_at`**: the Rust tests `mi < len && ctors.len() == 1` where the
-  twin matches `members[mi]?` and `[c]`, and builds the record by branches
-  (Aeneas lowers `rule_k` through a tuple).  The proof decides the Rust's tests
-  first (`bi_vec_index_eq`), then zips; the leaves compare the records field
-  by field (`bi_caps_leaf`, `bi_caps_leaf1`).  The answer carries the
-  `sort_z`'s `PropWhenWF` (`ifenv_push`'s `IConstantInfoWF`).
+* **`block_caps_at`**: the never-zero read (`member_never_zero`, the declared
+  former's `former_z`) is lockstep; past it the Rust tests `mi < len &&
+  ctors.len() == 1` where the twin matches `members[mi]?` and `[c]`
+  (`blockCapsAtP`, `blockCapsAt_eqP`), and builds the record by branches.  The
+  proof decides the Rust's tests first (`bi_vec_index_eq`), then compares the
+  records field by field.
 * **Cursor loops against structural recursion** (`ctors/members_mention_any`,
   `check_block_teles`, `check_block_agree`, `cons_block_inds`,
   `check_block_ctors`, `check_abs_ctor_sorts(_all)`, `check_block_idx_sorts`,
@@ -48,7 +48,8 @@ steps are pure: repeated `members[mi]`/`ctors[0]` reads and `dup2`s in
   binder: induction on the fuel.
 * **Environments** are `IFEnvRelI rf lf`; `cons_block_inds`,
   `check_block_inds` and `cons_block_ctors` answer `IFEnvRelI` of the extended
-  environments.  `cons_block_ctors` is pure on both sides (`LSP`).
+  environments.  `cons_block_ctors` is pure on both sides (`LSP`); `cons_block_inds`
+  threads the state, each capability record reading its former's sort.
 -/
 import ConRon.Refine2.Inductives.PositivityNest
 import ConRon.Refine2.Inductives.SumInstall
