@@ -65,7 +65,6 @@ def IRecRuleFire.atLps (lps : List ConLeche.Name) (us : List Level) :
   | f => pure f
 
 /-- con-leche: ConLeche/Kernel/Basis.lean:63-79 ConstantInfo.atLps — the
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Basis.rulesAtLps_bridge, then delete this line
 `.recInfo` arm's `rules.map`: each rule's right-hand side and firing mode at
 the new names (`lpsH`/`us` as handles for `instantiateLevelParams`,
 `lpsT`/`usT` read back for `Level.subst`). -/
@@ -79,7 +78,6 @@ def rulesAtLps (lpsH : List NIdx) (us : LsIdx) (lpsT : List ConLeche.Name)
     pure ({ ctor := r.ctor, nfields := r.nfields, fire, rhs } :: rest)
 
 /-- con-leche: ConLeche/Kernel/Basis.lean:63-79 ConstantInfo.atLps — **a stored
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Basis.IConstantInfo.atLps_bridge, then delete this line
 constant at other level-parameter names**: its type, a definition's value, its
 rules' right-hand sides and firing modes renamed; nothing else. -/
 def IConstantInfo.atLps (ci : IConstantInfo) (ps : List NIdx) : AM IConstantInfo := do
@@ -134,7 +132,6 @@ def constNamed? (cs : List IConstantInfo) (n : NIdx) : Option IConstantInfo :=
   cs.find? fun c => c.name == n
 
 /-- con-leche: ConLeche/Kernel/Basis.lean:105-119 blockLinksOk — the cited
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Basis.rulesLinkOk_bridge, then delete this line
 `rules.all`: each of the pin's rules' constructors, found in both lists,
 linked as the pin links it. -/
 def rulesLinkOk (block pins : List IConstantInfo) (R Rp : List NIdx) :
@@ -149,7 +146,6 @@ def rulesLinkOk (block pins : List IConstantInfo) (R Rp : List NIdx) :
     | _, _ => pure false
 
 /-- con-leche: ConLeche/Kernel/Basis.lean:105-119 blockLinksOk — the cited
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Basis.blockLinkOkAt_bridge, then delete this line
 `match c, p with`, one pair. -/
 def blockLinkOkAt (block pins : List IConstantInfo) (former : List NIdx) :
     IConstantInfo → IConstantInfo → AM Bool
@@ -159,7 +155,6 @@ def blockLinkOkAt (block pins : List IConstantInfo) (former : List NIdx) :
   | _, _ => pure true
 
 /-- con-leche: ConLeche/Kernel/Basis.lean:105-119 blockLinksOk — the cited
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Basis.blockLinksOkGo_bridge, then delete this line
 `(List.zip block pins).all`, as a recursion over the pairs. -/
 def blockLinksOkGo (block pins : List IConstantInfo) (former : List NIdx) :
     List IConstantInfo → List IConstantInfo → AM Bool
@@ -169,7 +164,6 @@ def blockLinksOkGo (block pins : List IConstantInfo) (former : List NIdx) :
   | _, _ => pure true
 
 /-- con-leche: ConLeche/Kernel/Basis.lean:105-119 blockLinksOk — the stream's
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Basis.blockLinksOk_bridge, then delete this line
 recursor links its rules' constructors as the pin's does (`pinLinkOk`), and a
 constructor carries its former's names. -/
 def blockLinksOk (block pins : List IConstantInfo) : AM Bool :=

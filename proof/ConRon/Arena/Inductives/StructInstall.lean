@@ -26,7 +26,6 @@ open ConLeche
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:31-50 checkStructDomsAt
 con-leche: ConLeche/Cached/IndBlock.lean:117-125 checkStructDomsAtC
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove StructInstall.checkStructDomsAt_bridge, then delete this line
 The reference kernels' binder-domain comparisons, run binder by binder **at
 its own frame**: the `j`-th opened variable's annotation against the `j`-th
 expected domain, at frame `off + j`.  Walks from the last binder to the

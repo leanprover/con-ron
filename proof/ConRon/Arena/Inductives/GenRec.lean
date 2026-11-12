@@ -538,7 +538,6 @@ def classFormerTy (mode : CheckMode) (fe : IFEnv) (formers : List IConstantVal)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:362-381 classConstOk
 con-leche: ConLeche/Cached/IndRec.lean:328-345 classConstOkC
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove GenRec.classConstOk_bridge, then delete this line
 **A generated constant, checked**: `checkConstantValF` — the generated type is
 stored as the generator built it; inference validates it like any other
 declared type: the guards in the cited order (a literal's name only at its
@@ -564,7 +563,6 @@ def classConstOk (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) : AM Unit :
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:383-390 classRecTyCheck
 con-leche: ConLeche/Cached/IndRec.lean:347-352 classRecTyCheckC
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove GenRec.classRecTyCheck_bridge, then delete this line
 **The check of a generated recursor type**: checked as a constant and defeq to
 the stream's checked type `cvRi`. -/
 def classRecTyCheck (mode : CheckMode) (fe : IFEnv) (cvRi cvG : IConstantVal) : AM Unit := do
@@ -609,9 +607,7 @@ def classRecTysOk (mode : CheckMode) (fe : IFEnv) (g : ClassGen) (k : Nat) :
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:421-440 classRuleCheck
 con-leche: ConLeche/Cached/IndRec.lean:378-398 classRuleCheckC
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove GenRec.classRuleCheck_bridge, then delete this line
 con-leche: ConLeche/Cached/CheckerC.lean:159-185 sharedOpsRuleR
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove GenRec.classRuleCheck_bridge, then delete this line
 **The check of a generated rule**: closed, its level parameters the
 recursor's, resolving and typed at the rule-less recursors' environment `feR`
 (`sharedOpsRuleR`'s flush leaving the inference), its λ-telescope `n` long, its

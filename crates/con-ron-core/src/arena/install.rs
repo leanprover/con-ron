@@ -102,7 +102,6 @@ pub fn block_formers(
 }
 
 /// con-leche: ConLeche/Kernel/Install.lean:30-33 blockCtors
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove install::block_ctors_refines, then delete this line
 /// **The constructors of every member**, as declared, in block order, each
 /// under its member's name (the groups `p.ctorGroups` from `i` on).
 pub fn block_ctors(

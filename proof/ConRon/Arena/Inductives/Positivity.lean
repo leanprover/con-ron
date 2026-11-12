@@ -184,7 +184,6 @@ def closeTelescope (bs : List EIdx) (i : Nat) (body : EIdx) : AM EIdx :=
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:65-88 whnfTelescope
 con-leche: ConLeche/Cached/IndPositivity.lean:129-145 whnfTelescopeC
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Positivity.whnfTelescope_bridge, then delete this line
 **Official's telescope loop** (`check_inductive_types`): peel `n` Π binders
 off `e`, reducing the residual to weak head normal form before each binder and
 at the end, where it must be a sort.  Binder `i` is opened at the free
@@ -234,7 +233,6 @@ def familyTelescope (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) (caps : 
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:105-116 checkSpineAt
 con-leche: ConLeche/Cached/IndPositivity.lean:161-172 checkSpineAtC
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Positivity.checkSpineAt_bridge, then delete this line
 **The arguments of an application against the telescope `t`**: each
 argument's type definitionally equal to its binder's domain (at depth `d`),
 the domains instantiated along the spine. -/
@@ -477,7 +475,6 @@ structure NestState where
 /-! ## Containers -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:405-416 nestCtorEntry
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Positivity.nestCtorEntry_bridge, then delete this line
 A stored constant's entry as a constructor of `C`: a constructor record whose
 result, past its parameters and fields, is headed by `C`. -/
 def nestCtorEntry (C : NIdx) (ci : IConstantInfo) :
@@ -993,7 +990,6 @@ decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:659-723 nestCtors
 con-leche: ConLeche/Cached/IndPositivity.lean:278-319 nestCtorsC
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Positivity.nestCtors_bridge, then delete this line
 **A frame's constructors**, the root frame's (`root`: each constructor walked
 at the input-derived fuel of its instantiated type) and every container
 frame's (at the enclosing walk's `fuel`) alike: each with the frame's group
@@ -1161,7 +1157,6 @@ decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:884-937 nestPos
 con-leche: ConLeche/Cached/IndPositivity.lean:394-430 nestPosC
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Positivity.nestPos_bridge, then delete this line
 **The positivity function**: the domain `e` at depth `dep`, `kb` `Π` binders
 into the field, `prog` the instantiations in progress.  The reduct (the
 kernel's own whnf) mentions no member and no hole — ordinary, its normal form

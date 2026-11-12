@@ -643,7 +643,6 @@ pub fn unresolved_consts_fail<T>(
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:101-123 checkConstantVal
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:218-238 checkConstantValF
 /// con-leche: ConLeche/Cached/IndPass.lean:36-58 checkConstantValC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:241-272 checkConstantVal` — checks
 /// common to all declarations: fresh name, a certified
 /// operation's name only at a definition (`allow_op`, the cited default
@@ -817,7 +816,6 @@ pub fn unwrap_or<T>(o: Option<T>, err: CheckError) -> Result<T, CheckError> {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:390-423 indParamsOk
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove checker_base::ind_params_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:288-301 indParamsOk` —
 /// **the stream's declared parameter count, checked as official checks it**
 /// (con-leche's task #228).  Both halves are one-sided on purpose: `false`
@@ -846,7 +844,6 @@ pub fn ind_params_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:390-423 indParamsOk
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove checker_base::ind_params_ok_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:288-301 indParamsOk` — one
 /// member's test: a type former's Π-telescope is at least `nP` long, a
 /// constructor's own parameter count is exactly `nP`, and everything else

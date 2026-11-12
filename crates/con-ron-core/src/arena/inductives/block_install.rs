@@ -133,7 +133,6 @@ pub const M_NOT_FORMER: [u32; 43] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-82 blockCapsAt
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_install::ctor_name_list_refines, then delete this line
 /// Lean twin: `cs.map (·.1.name)` — the constructors' names, in order.
 pub fn ctor_name_list(cs: &Vec<(IConstantVal, u64)>, i: usize, out: Vec<NIdx>) -> Vec<NIdx> {
     if i >= cs.len() {
@@ -146,7 +145,6 @@ pub fn ctor_name_list(cs: &Vec<(IConstantVal, u64)>, i: usize, out: Vec<NIdx>) -
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-82 blockCapsAt
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_install::block_caps_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:47-71 blockCapsAt` — **the
 /// capability record of member `mi`**: at a member with ONE constructor, η
 /// (index-free, the block not recursive: official's `is_non_rec_structure`;
@@ -374,7 +372,6 @@ pub fn check_block_teles(
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:129-143 checkBlockDomsAt
 /// con-leche: ConLeche/Cached/IndBlock.lean:76-84 checkBlockDomsAtC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_install::check_block_doms_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:124-138 checkBlockDomsAt` —
 /// **the parameter-domain agreement's comparison**: binder `j - 1`'s domain
 /// against member 0's, defeq at depth `off + j - 1`, from the last binder to
@@ -861,9 +858,7 @@ pub fn check_block_idx_sorts(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:308-312 consBlockCtors
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_install::cons_block_ctors_refines, then delete this line
 /// con-leche: ConLeche/Cached/IndBlock.lean:49-52 consBlockCtorsF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_install::cons_block_ctors_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:300-306 consBlockCtors` —
 /// the members' constructors consed from member `i` on, in block order, each
 /// group under its member's name (`block_shape::ctor_groups`).

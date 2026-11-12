@@ -60,7 +60,6 @@ def blockFormers (p : BlockShape) (isRec : Bool) : AM (List IConstantInfo) :=
     pure (.indInfo cv (← blockCapsAt p i isRec))
 
 /-- con-leche: ConLeche/Kernel/Install.lean:30-33 blockCtors
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Install.blockCtors_bridge, then delete this line
 **The constructors of every member**, as declared, in block order, each under
 its member's name (`consBlockCtors`). -/
 def blockCtors (p : BlockShape) : List IConstantInfo :=

@@ -196,7 +196,6 @@ def blockSplitRecs : List IConstantInfo →
   | _ :: _ => none
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:234-239 blockSplitCtors
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove BlockShape.blockSplitCtors_bridge, then delete this line
 The constructors, then the recursors. -/
 def blockSplitCtors : List IConstantInfo →
     Option (List (IConstantVal × Nat × Nat) ×

@@ -84,7 +84,6 @@ def checkBlockPass (mode : CheckMode) (fe : IFEnv) (p₀ : BlockShape) (isRec : 
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:64-77 checkBlockRec
 con-leche: ConLeche/Cached/CheckerC.lean:203-223 checkBlockTailS
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove BlockTail.checkBlockRec_bridge, then delete this line
 **The installer's recursor stage**: the GENERATED recursor stage at the
 constructors' environment, on the stream's own recursor family (the raw
 `block`), the pass's classes and table, and the container bit. -/
@@ -96,7 +95,6 @@ def checkBlockRec (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (nested : Boo
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:79-90 consBlockRecsT
 con-leche: ConLeche/Cached/CheckerC.lean:203-223 checkBlockTailS
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove BlockTail.consBlockRecsTemp_bridge, then delete this line
 **The checked family consed, at its majors, TEMPORARILY**: the records
 `blockRecInfosTF` built (each recursor with its rules at ITS major), pushed in
 place.  Returns the rows the pushes displaced (`idx[n]?` before each push), in
@@ -120,9 +118,7 @@ def checkBlockTables (fe : IFEnv) : List IProjTable → AM Unit
     checkBlockTables fe rest
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:100-112 checkBlockTail
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove BlockTail.checkBlockTail_bridge, then delete this line
 con-leche: ConLeche/Cached/CheckerC.lean:203-223 checkBlockTailS
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove BlockTail.checkBlockTail_bridge, then delete this line
 **The checks after the pass**: the index binders' sorts, the constructors
 consed (and the flush entering that environment), the generated recursors, the
 stream's K flags and recursors against them (at the generated family pushed in

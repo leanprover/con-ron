@@ -78,7 +78,6 @@ structure IRecRule where
 /-! ## Inductive capabilities -/
 
 /-- con-leche: ConLeche/Kernel/Env.lean:184-227 IndCaps — the definitional
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Env.IIndCaps_bridge, then delete this line
 capabilities of a stored inductive type that its block alone decides.  The
 constructor and the counts every η reader works at are the family's
 projection table's (`IFEnv.findTable?`), not the record's. -/
@@ -136,7 +135,6 @@ def IProjTable.entry (tbl : IProjTable) (i : Nat) : IProjEntry :=
 /-! ## Stored constants -/
 
 /-- con-leche: ConLeche/Kernel/Env.lean:288-312 ConstantInfo — the information
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Env.IConstantInfo_bridge, then delete this line
 stored about an accepted constant, over handles.  A theorem is stored by its
 statement only (con-leche task #329 THMVAL); a constructor carries its family's
 name (official's `ConstructorVal.induct`, set by the install from the member it
@@ -168,7 +166,6 @@ inductive IDeclaration where
 /-! ## Reading a stored constant -/
 
 /-- con-leche: ConLeche/Kernel/Env.lean:427-429 ConstantInfo.toConstantVal —
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Env.IConstantInfo.toConstantVal_bridge, then delete this line
 the constant's common data. -/
 def IConstantInfo.toConstantVal : IConstantInfo → IConstantVal
   | .axiomInfo v | .defnInfo v _ _ | .thmInfo v => v

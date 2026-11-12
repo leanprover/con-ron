@@ -384,7 +384,6 @@ pub fn block_split_recs(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:234-239 blockSplitCtors
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_shape::block_split_ctors_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:191-203 blockSplitCtors` —
 /// the constructors from `i` on, then the recursors.
 #[allow(clippy::type_complexity)]
@@ -406,7 +405,6 @@ pub fn block_split_ctors(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:234-239 blockSplitCtors
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_shape::is_ctor_info_refines, then delete this line
 /// Lean twin: the cited `.ctorInfo … :: rest` pattern's test, its own function
 /// so the element's loan ends before the recursion (extraction rule 1).
 pub fn is_ctor_info(ci: &IConstantInfo) -> bool {
@@ -417,7 +415,6 @@ pub fn is_ctor_info(ci: &IConstantInfo) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:234-239 blockSplitCtors
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_shape::ctor_info_parts_refines, then delete this line
 /// Lean twin: the `.ctorInfo cvC nP nF` pattern's fields, copied out.  Reached
 /// only past `is_ctor_info`; the other arm is the default the total function
 /// needs.

@@ -55,7 +55,6 @@ def memberNeverZero (p : BlockShape) (mi : Nat) : AM Bool := do
   | none => pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-82 blockCapsAt
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove BlockInstall.blockCapsAt_bridge, then delete this line
 **The capability record of member `mi`**: at a member with ONE constructor, η
 (index-free, the block not recursive: official's `is_non_rec_structure`; no
 separate unit-like bit, as official has none); at every member the block's members, its
@@ -137,7 +136,6 @@ def checkBlockTeles (mode : CheckMode) (fe : IFEnv) (nP : Nat) :
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:129-143 checkBlockDomsAt
 con-leche: ConLeche/Cached/IndBlock.lean:76-84 checkBlockDomsAtC
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove BlockInstall.checkBlockDomsAt_bridge, then delete this line
 **The parameter-domain agreement's comparison**: binder `j - 1`'s domain
 against member 0's, defeq at depth `off + j - 1`, from the last binder to the
 first; a mismatch is official's REJECT. -/
@@ -315,9 +313,7 @@ def checkBlockIdxSorts (mode : CheckMode) (fe : IFEnv) (p : BlockShape) :
     checkBlockIdxSorts mode fe p rest
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:308-312 consBlockCtors
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove BlockInstall.consBlockCtors_bridge, then delete this line
 con-leche: ConLeche/Cached/IndBlock.lean:49-52 consBlockCtorsF
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove BlockInstall.consBlockCtors_bridge, then delete this line
 The members' constructors consed, member by member, in block order, each group
 under its member's name (`BlockShape.ctorGroups`).  Pure: the index push
 touches no term. -/

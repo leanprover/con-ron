@@ -171,9 +171,7 @@ pub fn eidx_contains(xs: &Vec<EIdx>, x: &EIdx, i: usize) -> bool {
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:40-64 checkStructFieldSortsI
 /// con-leche: ConLeche/Cached/IndPositivity.lean:497-513 checkStructFieldSortsIC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove sum_install::check_struct_field_sorts_i_refines, then delete this line
 /// con-leche: ConLeche/Cached/IndBlock.lean:127-142 checkStructFieldSortsC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove sum_install::check_struct_field_sorts_i_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:47-70 checkStructFieldSortsI`
 /// — every field's domain has a sort over the opened constructor telescope,
 /// under the official per-field universe bound unless the family is
@@ -225,7 +223,6 @@ pub fn check_struct_field_sorts_i(
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:40-64 checkStructFieldSortsI
 /// con-leche: ConLeche/Cached/IndPositivity.lean:497-513 checkStructFieldSortsIC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove sum_install::field_sort_bound_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:47-70 checkStructFieldSortsI`
 /// — one field's universe bound: official's `leq` against the family's sort at
 /// a non-propositional family, and the large eliminator's escape hatch
@@ -552,9 +549,7 @@ pub fn check_sum_ctors(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:119-125 consSumCtors
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove sum_install::cons_sum_ctors_refines, then delete this line
 /// con-leche: ConLeche/Cached/IndBlock.lean:37-40 consSumCtorsF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove sum_install::cons_sum_ctors_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:143-149 consSumCtors`
 /// — the constructors' conses, in order (the first constructor deepest), each
 /// with the family `t` it is declared under as its `induct`: the constructor

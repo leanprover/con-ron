@@ -208,7 +208,6 @@ pub fn basis_kind_dup(k: &BasisKind) -> BasisKind {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:184-227 IndCaps
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove env::IndCaps_refines, then delete this line
 /// Definitional capabilities of a stored inductive type that its block alone
 /// decides, read off the block's records.  The family's result sort is on no
 /// record, so what depends on it is computed where it is read.  Every field of
@@ -232,7 +231,6 @@ pub struct IndCaps {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:184-227 IndCaps
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove env::ind_caps_default_refines, then delete this line
 /// The cited structure's *field defaults*, which Rust has not: `eta :=
 /// false`, `never_zero := false`, every count `0`, every list empty.
 pub fn ind_caps_default() -> IndCaps {
@@ -247,7 +245,6 @@ pub fn ind_caps_default() -> IndCaps {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:288-312 ConstantInfo
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove env::ConstantInfo_refines, then delete this line
 /// Information stored about an accepted constant.  A constructor carries its
 /// family's name (official's `ConstructorVal.induct`).  A recursor carries its
 /// record's K flag (official's `recursor_val::is_k`), the `bool` before its

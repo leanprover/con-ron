@@ -755,7 +755,6 @@ pub fn unknown_const_error(st: &mut AState, n: &NIdx) -> Result<CheckError, Chec
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:70-95 projIndexedStructLike
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::proj_indexed_struct_like_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:279-298 projIndexedStructLike` — **could
 /// official's `infer_proj` type `.proj sn i _` at a subject of type `T a⃗`
 /// where we store no projection table for `T`?**  Only at a
@@ -851,7 +850,6 @@ pub fn io_neutral(pers: &PersTier, st: &AState, e: &EIdx) -> Result<bool, CheckE
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:48-55 isCtorApp
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::is_ctor_app_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:331-342 isCtorApp` — is the
 /// expression headed by a stored constructor?
 pub fn is_ctor_app(
@@ -945,7 +943,6 @@ pub fn former_never_zero(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:87-94 ctorFamily
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::ctor_family_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:382-395 ctorFamily` — **a
 /// constructor's family**: the former and the capabilities stored at the
 /// constructor's `induct`, `none` where no inductive is stored there.  One
@@ -1184,7 +1181,6 @@ pub fn nat_ind_ok(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:168-172 natZeroOk
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::nat_zero_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:498-505 natZeroOk` — the stored
 /// `Nat.zero` declaration has the expected shape.
 pub fn nat_zero_ok(
@@ -1216,7 +1212,6 @@ pub fn nat_zero_ok(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:174-182 natSuccOk
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::nat_succ_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:507-519 natSuccOk` — the stored
 /// `Nat.succ` declaration has the expected shape.
 pub fn nat_succ_ok(
@@ -2091,7 +2086,6 @@ pub fn str_lit_stored(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:369-385 litShapeOk
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::lit_shape_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:822-839 litShapeOk` — **the shape a
 /// declaration at a literal's name must have**, its level parameters and type,
 /// checked at the declaration; any other name passes.  A declaration check
@@ -2135,7 +2129,6 @@ pub fn lit_shape_ok(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:369-385 litShapeOk
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::lit_shape_ok_str_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:822-839 litShapeOk` — the chain's
 /// `String`, `String.ofList` and `List` rungs, split off so the nesting stays
 /// readable.
@@ -2170,7 +2163,6 @@ pub fn lit_shape_ok_str(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:369-385 litShapeOk
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::lit_shape_ok_rest_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:822-839 litShapeOk` — the chain's last
 /// four rungs (`List.nil`, `List.cons`, `Char`, `Char.ofNat`) and its `true`.
 pub fn lit_shape_ok_rest(
@@ -4072,7 +4064,6 @@ pub fn reduce_nat_wf(
 
 /// con-leche: ConLeche/Kernel/Core.lean:212-227 iotaCertsFull
 /// con-leche: ConLeche/Cached/CoreC.lean:485-489 iotaCertsFullI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::iota_certs_full_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1432-1437 iotaCertsFull` — **the
 /// full-grade telescope certificate** (ι's case 3): every argument is inferred
 /// at the FULL grade and its type compared with its (instantiated) domain; no
@@ -4096,7 +4087,6 @@ pub fn iota_certs_full(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:459-483 iotaCertsFullIAux
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::iota_certs_full_aux_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1398-1430 iotaCertsFullAux` — the
 /// cached tier's bulk form of `iotaCertsFull`.
 ///
@@ -4533,9 +4523,7 @@ pub fn reserved_basis_names(st: &AState) -> Result<Vec<NIdx>, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:324-364 structEtaCertWith
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::struct_eta_cert_tail_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:585-623 structEtaCertWithI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::struct_eta_cert_tail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1602-1651 structEtaCertWith` — the
 /// certificate's tail, from the level comparison on: the constructor's levels
 /// against the type's, `defEqList (aargs.take tbl.numParams) targs` and the
@@ -4584,9 +4572,7 @@ pub fn struct_eta_cert_tail(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:324-364 structEtaCertWith
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::struct_eta_cert_at_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:585-623 structEtaCertWithI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::struct_eta_cert_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1602-1651 structEtaCertWith` — the
 /// certificate's head: the stuck side's whnf'd type must be a stored,
 /// eta-capable inductive whose projection table's constructor is the
@@ -4662,9 +4648,7 @@ pub fn struct_eta_cert_at(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:324-364 structEtaCertWith
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::struct_eta_cert_with_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:585-623 structEtaCertWithI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::struct_eta_cert_with_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1602-1651 structEtaCertWith` — the
 /// structure-eta certificate against the weak-head-normal type `wtb` of the
 /// stuck side `b`.
@@ -4716,7 +4700,6 @@ pub fn struct_eta_cert_with(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:704-715 etaCtorShape
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::eta_ctor_shape_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1653-1668 etaCtorShape` — the
 /// constructor shape official's `try_eta_struct_core` tests before inferring
 /// anything: the candidate's head is a stored constructor applied to exactly
@@ -4751,9 +4734,7 @@ pub fn eta_ctor_shape(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:717-740 etaCtorPartial
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::eta_ctor_partial_fam_refines, then delete this line
 /// con-leche: ConLeche/Cached/StateC.lean:97-115 etaCtorPartialC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::eta_ctor_partial_fam_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1670-1686 etaCtorPartialFam` — the
 /// family half of `etaCtorPartial`: the constructor's family (its record's
 /// `induct`, `t`) is a stored η family whose projection table's constructor
@@ -4773,9 +4754,7 @@ pub fn eta_ctor_partial_fam(pers: &PersTier, fe: &IFEnv, c: &NIdx, t: &NIdx) -> 
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:717-740 etaCtorPartial
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::eta_ctor_partial_refines, then delete this line
 /// con-leche: ConLeche/Cached/StateC.lean:97-115 etaCtorPartialC
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::eta_ctor_partial_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1688-1709 etaCtorPartial` — **a
 /// partially applied η constructor** (official's `try_eta_struct_core` since
 /// lean4#15373): the candidate's head is a stored constructor applied to fewer
@@ -4825,7 +4804,6 @@ pub fn eta_ctor_partial(
 
 /// con-leche: ConLeche/Kernel/Core.lean:366-387 structEtaFull
 /// con-leche: ConLeche/Cached/CoreC.lean:625-635 structEtaFullI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::struct_eta_full_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1711-1720 structEtaFullAt` — the body
 /// of **structure η at a fully applied constructor**, past the
 /// constructor-shape gate: `b`'s io-inferred type, head-normalised, and the
@@ -4855,7 +4833,6 @@ pub fn struct_eta_full_at(
 
 /// con-leche: ConLeche/Kernel/Core.lean:366-387 structEtaFull
 /// con-leche: ConLeche/Cached/CoreC.lean:625-635 structEtaFullI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::struct_eta_full_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1722-1729 structEtaFull` — **structure
 /// η at a fully applied constructor**.  The constructor-shape test comes FIRST
 /// (the divergence audit's D13).
@@ -4880,7 +4857,6 @@ pub fn struct_eta_full(
 
 /// con-leche: ConLeche/Kernel/Core.lean:389-401 structEtaExpand
 /// con-leche: ConLeche/Cached/CoreC.lean:637-646 structEtaExpandI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::struct_eta_expand_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1731-1749 structEtaExpand` — **the
 /// η-expansion of a partially applied constructor**: both sides applied to
 /// fresh variables along the constructor side's type `ta`, one binder per
@@ -4929,7 +4905,6 @@ pub fn struct_eta_expand(
 
 /// con-leche: ConLeche/Kernel/Core.lean:403-421 structEtaCert
 /// con-leche: ConLeche/Cached/CoreC.lean:648-661 structEtaCertI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::struct_eta_cert_partial_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1751-1763 structEtaCertPartial` — the
 /// partial-constructor arm of `structEtaCert`, at `k` missing arguments: the
 /// other side neutral, the two io-inferred types compared (official's
@@ -4968,7 +4943,6 @@ pub fn struct_eta_cert_partial(
 
 /// con-leche: ConLeche/Kernel/Core.lean:403-421 structEtaCert
 /// con-leche: ConLeche/Cached/CoreC.lean:648-661 structEtaCertI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::struct_eta_cert_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1765-1776 structEtaCert` — structural
 /// eta certification (official's `try_eta_struct_core`): `a` is a constructor
 /// application of a stored η family, fully applied (`struct_eta_full`'s body;
@@ -5000,7 +4974,6 @@ pub fn struct_eta_cert(
 
 /// con-leche: ConLeche/Kernel/Core.lean:423-428 isPropType
 /// con-leche: ConLeche/Cached/CoreC.lean:663-672 isPropTypeI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::is_prop_type_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1778-1791 isPropType` — **is a
 /// proposition** (official's `is_prop`): `t`'s io-inferred type head-normalises
 /// to a sort equivalent to `Prop`.
@@ -5039,7 +5012,6 @@ pub fn is_prop_type(
 
 /// con-leche: ConLeche/Kernel/Core.lean:430-445 unitLikeFields
 /// con-leche: ConLeche/Cached/CoreC.lean:674-688 unitLikeFieldsI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::unit_like_fields_next_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1793-1816 unitLikeFields` — one field
 /// accepted: the field opened at a fresh variable, then the rest of the loop.
 /// Both arms of the cited loop call it.
@@ -5070,7 +5042,6 @@ pub fn unit_like_fields_next(
 
 /// con-leche: ConLeche/Kernel/Core.lean:430-445 unitLikeFields
 /// con-leche: ConLeche/Cached/CoreC.lean:674-688 unitLikeFieldsI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::unit_like_fields_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1793-1816 unitLikeFields` — **the field
 /// loop of official's `is_unit_like`**: each of the `n` field binders of an η
 /// family's instance telescope has a proposition or a unit-like type
@@ -5120,10 +5091,8 @@ pub fn unit_like_fields(
 pub const UNIT_LIKE_FUEL: u64 = 4611686018427387904; // 2^62
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:750-777 unitLikeShape
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::unit_like_shape_at_refines, then delete this line
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:742-748 unitFieldTele
 /// con-leche: ConLeche/Cached/CoreC.lean:103-124 unitLikeShapeF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::unit_like_shape_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1823-1839 unitLikeShapeAt` — the
 /// field telescope of an instance at its family's table: the table's
 /// constructor, stored, its type at the instance's levels `us`, the table's
@@ -5162,9 +5131,7 @@ pub fn unit_like_shape_at(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:750-777 unitLikeShape
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::unit_like_shape_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:103-124 unitLikeShapeF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::unit_like_shape_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1841-1868 unitLikeShape` — **the shape
 /// of an instance in official's `is_unit_like`**, read off the stored records:
 /// `w` is an instance of a stored η family at its parameters (the table's
@@ -5228,7 +5195,6 @@ pub fn unit_like_shape(
 
 /// con-leche: ConLeche/Kernel/Core.lean:452-462 unitLikeStruct
 /// con-leche: ConLeche/Cached/CoreC.lean:690-696 unitLikeStructI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::unit_like_struct_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1870-1879 unitLikeStruct` — **the
 /// structure arm of official's `is_unit_like`**: `w`, a head normal form that
 /// is no ∀, is an instance of a stored η family every field of whose
@@ -5257,7 +5223,6 @@ pub fn unit_like_struct(
 
 /// con-leche: ConLeche/Kernel/Core.lean:464-476 unitLikeLoop
 /// con-leche: ConLeche/Cached/CoreC.lean:698-708 unitLikeLoopI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::unit_like_loop_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1881-1898 unitLikeLoop` — **is a type
 /// unit-like** (official's `is_unit_like`, lean4#15372): its head normal form
 /// is a ∀ whose codomain, opened at a fresh variable, is unit-like, or an
@@ -5302,7 +5267,6 @@ pub fn unit_like_loop(
 
 /// con-leche: ConLeche/Kernel/Core.lean:478-495 structUnitCert
 /// con-leche: ConLeche/Cached/CoreC.lean:710-722 structUnitCertI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::struct_unit_cert_tail_refines, then delete this line
 /// con-leche: ConLeche/Kernel/ExprOps.lean:835-838 isForallE
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1900-1918 structUnitCert` — the
 /// certificate's tail, once `a`'s type is unit-like: `b`'s whnf'd type, which
@@ -5343,7 +5307,6 @@ pub fn struct_unit_cert_tail(
 
 /// con-leche: ConLeche/Kernel/Core.lean:478-495 structUnitCert
 /// con-leche: ConLeche/Cached/CoreC.lean:710-722 structUnitCertI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::struct_unit_cert_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1900-1918 structUnitCert` —
 /// **unit-likeness** (official's `is_def_eq_unit_like`): `a`'s io-inferred
 /// type, head-normalised, is unit-like (`unit_like_loop`), and `b`'s type is
@@ -5390,7 +5353,6 @@ pub fn struct_unit_cert(
 
 /// con-leche: ConLeche/Kernel/Core.lean:497-523 etaCert
 /// con-leche: ConLeche/Cached/CoreC.lean:724-748 etaCertI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::eta_cert_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1920-1946 etaCert` — eta
 /// certification for a one-sided λ against a stuck term `b`: `b`'s head is no
 /// λ and no `let` (`Expr.ioNeutral`, con-leche task #342 L18), its whnf'd
@@ -5439,7 +5401,6 @@ pub fn eta_cert(
 
 /// con-leche: ConLeche/Kernel/Core.lean:497-523 etaCert
 /// con-leche: ConLeche/Cached/CoreC.lean:724-748 etaCertI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::eta_cert_body_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1920-1946 etaCert` — the cited
 /// certificate's body, once the domains agree: open the λ at a fresh free
 /// variable and compare against `b` applied to it; then, at the verified mode
@@ -5493,7 +5454,6 @@ pub fn eta_cert_body(
 
 /// con-leche: ConLeche/Kernel/Core.lean:525-532 stuckIrrel
 /// con-leche: ConLeche/Cached/CoreC.lean:750-757 stuckIrrelI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::stuck_irrel_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1948-1956 stuckIrrel` — the
 /// fallback for structurally distinct stuck terms: structural eta in either
 /// direction, unit-likeness, else proof irrelevance.
@@ -5526,7 +5486,6 @@ pub fn stuck_irrel(
 
 /// con-leche: ConLeche/Kernel/Core.lean:534-545 formerSortLoop
 /// con-leche: ConLeche/Cached/CoreC.lean:759-773 formerSortLoopI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::former_sort_loop_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1958-1982 formerSortLoop` — **official's
 /// walk to a family's sort** (the loop of `check_inductive_types` at the use):
 /// `n` binders down, each reached by head normalization (the knot's `whnf`),
@@ -5575,7 +5534,6 @@ pub fn former_sort_loop(
 
 /// con-leche: ConLeche/Kernel/Core.lean:547-560 formerNeverZeroAt
 /// con-leche: ConLeche/Cached/CoreC.lean:775-786 formerNeverZeroI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::former_never_zero_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1984-2001 formerNeverZeroAt` — **is a
 /// family's sort never zero at the levels `us`** (official `is_never_zero`),
 /// computed where it is asked.  A stored type that ends in a sort is read off
@@ -5614,9 +5572,7 @@ pub fn former_never_zero_at(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:562-583 iotaCase3At
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::iota_case3_at_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:794-805 iotaCase3I
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::iota_case3_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2003-2021 iotaCase3At` — **case 3 of the ι
 /// case split** (con-leche task #342 L10, S5c): a rule that is not K (the
 /// record's `isK`) whose constructor's family (stored at its `induct`) may be
@@ -5821,9 +5777,7 @@ pub fn eta_rescue_table<'a>(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:601-757 majorToCtor
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::fab_scope_ok_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:807-906 majorToCtorI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::fab_scope_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2075-2092 fabScopeOk` — the scope
 /// guard the three rescue branches share: the fabricated major is well-scoped,
 /// closed under loose bvars, and mentions no free variable the stuck major
@@ -5857,9 +5811,7 @@ pub fn fab_scope_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:601-757 majorToCtor
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::major_to_ctor_certs_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:807-906 majorToCtorI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::major_to_ctor_certs_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2094-2208 majorToCtor` — the
 /// K and `And` rescues' checks, once the fabricated major is built: the scope
 /// guard, the official `to_cnstr_when_K` type check (both modes) and proof
@@ -5906,7 +5858,6 @@ pub fn major_to_ctor_certs(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:601-757 majorToCtor
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::major_to_ctor_k_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2094-2208 majorToCtor` — the
 /// K-flagged branch (`to_cnstr_when_K`): the major's whnf'd type is the rule's
 /// own inductive, and the fabricated major is its constructor at the type's
@@ -5977,9 +5928,7 @@ pub fn major_to_ctor_k(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:601-757 majorToCtor
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::major_to_ctor_eta_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:807-906 majorToCtorI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::major_to_ctor_eta_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2094-2208 majorToCtor` — the
 /// η-capable branch: the fabricated major is the table's constructor at the
 /// type's parameters and the `.proj` nodes of the stuck major, the counts the
@@ -6037,9 +5986,7 @@ pub fn major_to_ctor_eta(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:601-757 majorToCtor
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::major_to_ctor_eta_sort_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:807-906 majorToCtorI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::major_to_ctor_eta_sort_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2094-2208 majorToCtor` — the η
 /// branch's sort test: the family's sort, never zero at the major type's
 /// levels (`familyNeverZeroAt`: the stored fact, else computed here), then
@@ -6069,9 +6016,7 @@ pub fn major_to_ctor_eta_sort(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:601-757 majorToCtor
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::major_to_ctor_eta_build_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:807-906 majorToCtorI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::major_to_ctor_eta_build_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2094-2208 majorToCtor` — the η
 /// branch's fabrication: the argument spine, the table's constructor `ctor`
 /// at `n_f` projections, and the scope guard.  No certificate on the
@@ -6105,7 +6050,6 @@ pub fn major_to_ctor_eta_build(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:601-757 majorToCtor
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::major_to_ctor_and_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2094-2208 majorToCtor` — **THE
 /// `And`-ONLY η RESCUE** (the user ruling: `And` and nothing else): the
 /// fabricated major is `And.intro` at the two `.proj` nodes of the stuck one.
@@ -6168,7 +6112,6 @@ pub fn major_to_ctor_and(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:601-757 majorToCtor
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::major_to_ctor_and_build_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2094-2208 majorToCtor` — the `And`
 /// branch's fabrication and its certificate chain.
 pub fn major_to_ctor_and_build(
@@ -6209,7 +6152,6 @@ pub fn major_to_ctor_and_build(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:601-757 majorToCtor
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::major_to_ctor_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2094-2208 majorToCtor` — the
 /// three-way branch, once the rule's constructor and its inductive have been
 /// found: the record's K flag, the η family (`etaRescueTable?` at the
@@ -6258,7 +6200,6 @@ pub fn major_to_ctor_at(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:601-757 majorToCtor
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::major_to_ctor_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2094-2208 majorToCtor` — **the
 /// stuck-major rescue** (`to_cnstr_when_K` and `to_cnstr_when_structure`): a
 /// recursor's major premise that does not whnf to a constructor application
@@ -6402,7 +6343,6 @@ pub fn is_str_lit(pers: &PersTier, st: &AState, e: &EIdx) -> Result<bool, CheckE
 
 /// con-leche: ConLeche/Kernel/Core.lean:795-869 prepareMajor
 /// con-leche: ConLeche/Cached/CoreC.lean:932-955 prepareMajorI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::prepare_major_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2249-2275 prepareMajor` — the major
 /// premise's preparation before a rule fires.  At a K-flagged recursor (the
 /// record's `isK`) the K
@@ -6461,7 +6401,6 @@ pub fn prepare_major(
 
 /// con-leche: ConLeche/Kernel/Core.lean:795-869 prepareMajor
 /// con-leche: ConLeche/Cached/CoreC.lean:932-955 prepareMajorI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::prepare_major_whnf_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2249-2275 prepareMajor` — the
 /// non-K path past a rescue that produced no constructor: head-normalize the
 /// major, convert its literal, try the rescue once more on the reduct.
@@ -6595,7 +6534,6 @@ pub fn inst_spine_pins(
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:942-964 recFireComparands
 /// con-leche: ConLeche/Cached/CoreC.lean:957-1042 iotaRecI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::rec_fire_levels_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2313-2336 recFireLevels` — the
 /// LEVEL comparands of a firing rule (`(recFireComparands …).1`): the
 /// recursor's own instantiation of the constructor's level parameters at a
@@ -6639,7 +6577,6 @@ pub fn rec_fire_levels(
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:942-964 recFireComparands
 /// con-leche: ConLeche/Cached/CoreC.lean:957-1042 iotaRecI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::rec_fire_args_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2338-2348 recFireArgs` — the
 /// PARAMETER comparands of a firing rule (`(recFireComparands …).2`): the
 /// recursor's leading `cn_p` arguments (the stored constructor's parameter
@@ -6666,7 +6603,6 @@ pub fn rec_fire_args(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:871-970 iotaRec
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::find_rule_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2350-2355 findRule` — the rule
 /// lookup `rules.find? (fun r' => r'.ctor == cj)`, as a named recursion
 /// (DESIGN.md §3.4).  The index is returned rather than the rule, so that the
@@ -6682,9 +6618,7 @@ pub fn find_rule(rules: &Vec<IRecRule>, c: &NIdx, i: usize) -> Option<usize> {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:871-970 iotaRec
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::iota_rec_fire_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:957-1042 iotaRecI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::iota_rec_fire_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2357-2444 iotaRecAt` — a matched
 /// rule fires: **the ι case split** (con-leche task #342 L10, S5c) decides
 /// whether the constructor application is checked at all (`iota_rec_cert`, ONE
@@ -6723,9 +6657,7 @@ pub fn iota_rec_fire(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:871-970 iotaRec
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::iota_rec_cert_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:957-1042 iotaRecI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::iota_rec_cert_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:84-87 certAtI
 /// con-leche: ConLeche/Kernel/Core.lean:585-592 iotaCaseAt
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2357-2444 iotaRecAt` — **the
@@ -6784,9 +6716,7 @@ pub fn iota_rec_cert(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:871-970 iotaRec
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::iota_rec_case3_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:957-1042 iotaRecI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::iota_rec_case3_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2357-2444 iotaRecAt` — a case-3
 /// redex's checks: the constructor's levels against the comparand levels,
 /// its parameters against the parameter comparands, then the telescope and
@@ -6836,9 +6766,7 @@ pub fn iota_rec_case3(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:871-970 iotaRec
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::iota_rec_fam_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:957-1042 iotaRecI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::iota_rec_fam_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2357-2444 iotaRecAt` — the
 /// constructor telescope at the FULL grade (`iotaCertsFull`) and the
 /// canonical-index comparison (`iotaIndexOk`).  The constructor's type is
@@ -6879,9 +6807,7 @@ pub fn iota_rec_fam(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:871-970 iotaRec
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::iota_rec_reduct_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:957-1042 iotaRecI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::iota_rec_reduct_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2357-2444 iotaRecAt` — the ι
 /// reduct: the rule's right-hand side at the recursor's levels, applied to the
 /// recursor's leading arguments and the constructor's fields.
@@ -6911,9 +6837,7 @@ pub fn iota_rec_reduct(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:871-970 iotaRec
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::iota_rec_major_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:957-1042 iotaRecI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::iota_rec_major_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2357-2444 iotaRecAt` — the
 /// major's side of the step: it is a fully applied constructor with a
 /// matching rule.  The parameter count is the stored constructor's, the field
@@ -6980,9 +6904,7 @@ pub fn iota_rec_major(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:871-970 iotaRec
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::iota_rec_at_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:957-1042 iotaRecI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::iota_rec_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2357-2444 iotaRecAt` — `iotaRec` with
 /// its two spine walks HOISTED: the head and the argument vector are the
 /// caller's, and `n` says how many of `sargs` the expression `e` applies.
@@ -7114,9 +7036,7 @@ pub fn tele_arity_ok(pers: &PersTier, st: &AState, ty: &EIdx, args: &Vec<EIdx>) 
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:972-984 projCert
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::proj_cert_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:199-203 projCertF
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::proj_cert_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2631-2638 projCert` — **the
 /// structural projection's check** (con-leche task #175 W6, #342 L18): the
 /// redex `proj_i (C p⃗ x⃗)` fires only where `C`'s stored type has the spine's
