@@ -658,9 +658,12 @@ it against a state whose table was filled by hand gives that entry back. -/
     pure (r == r₂)
   | none => pure false)
 
-/- A `whnf` run populates `whnfC` and `whnfCoreC`, never the infer tables. -/
+/- A `whnf` run populates `whnfC`, never the infer tables; a β step's key
+lands in `whnfCoreC` (con-leche's task #572: the stored arms only — `two` is
+an easy case of `whnfCore`, stored nowhere). -/
 #guard runB (do
   let _ ← whnf MU FX.fe F 0 FX.two
+  let _ ← whnf MU FX.fe F 0 FX.betaTwo
   let s ← get
   pure (s.caches.whnfC.size > 0 && s.caches.whnfCoreC.size > 0 &&
     s.caches.inferC.size == 0))

@@ -5,8 +5,10 @@ DESIGN §8.2, and `_tmp/t97/conleche-arena-history.md` §2.3's middle piece:
 between the body walks (`Bridge/Core/Arms/*.lean`) and the fuel induction
 (`Bridge/Core/Induction.lean`) sit **the memo wrapper steps** — con-leche's
 `Verify/Cached/KnotC.lean`, whose `memoEI_*_sim` / `memoBI_defeq_sim`
-theorems are the same as this module's six wrapper steps (five slots, the
-`whnfCore` slot in its two cheap modes).  The eager slot is the `defeq`
+theorems are the same as this module's wrapper steps.  The `whnfCore` slot
+has no wrapper: it is the loop itself, which follows official `whnf_core`'s
+memo policy step by step (con-leche's task #572; `Arms/WhnfCore.lean`), and
+`memoWhnfCore_step` is its body spec.  The eager slot is the `defeq`
 wrapper at `eager := true` on the eager tower's own memos, swapped in and back
 out around it (`memoDefeqE_step`, at the end of the module).
 
@@ -14,17 +16,19 @@ A slot of `Arena/Core.lean`'s `coreKnot` at `fuel + 1` is
 
 ```lean
 fun d e => do
-  if whnfCoreStuckTag e then pure e          -- the stuck-tag lever (DESIGN, task #97-P6-7)
-  else match (← get).caches.whnfCoreC[e]? with
+  if whnfStuckTag e then pure e              -- the stuck-tag lever (DESIGN, task #97-P6-7)
+  else match (← get).caches.whnfC[e]? with
   | some x => pure x                          -- the HIT
-  | none   => do let x ← whnfCoreBody …; whnfCoreSet e x; pure x
+  | none   => do let x ← whnfBody …; whnfSet e x; pure x
 ```
 
 so the wrapper has **three** branches where con-leche's `memoEI` has two, and
-the extra one is the arena's own: the six head kinds `whnfCoreBody` returns
-unchanged are read off the handle's tag without touching the store at all.
-Its obligation is `whnfCoreBody e = pure e` at those tags — below, as
-`denote_stuck_of_whnfCoreStuckTag` and `whnfCore_of_stuck` — and it is where
+the extra one is the arena's own: the head kinds the body returns unchanged
+are read off the handle's tag without touching the store at all (the
+`whnfCore` loop makes the same test at each step).  Its obligation is that the
+body answers those tags with themselves — below, as
+`denote_stuck_of_whnfStuckTag` / `whnf_of_stuck` and, for the loop,
+`denote_stuck_of_whnfCoreStuckTag` / `whnfCore_of_stuck` — and it is where
 DESIGN §8.3's "index inequality IS structural inequality" is cashed for the
 first time in the Core tier.
 
@@ -83,35 +87,14 @@ because the arena's knot carries its memo probes INLINE (DESIGN, task #97c,
 deviation 6), these equations are also the only place in the bridge where
 the probe's shape is written down. -/
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1916-1979 coreKnotI — the
-`whnfCore` slot at `fuel + 1`. -/
-theorem coreKnot_whnfCore_succ (mode : CheckMode) (eager : Bool) (fe : IFEnv) (fuel d : Nat)
-    (i : EIdx) :
-    (coreKnot mode eager fe id (fuel + 1)).whnfCore false d i =
-      (do
-        if whnfCoreStuckTag i then pure i
-        else
-        match (← get).caches.whnfCoreC[i]? with
-        | some x => pure x
-        | none => do
-          let x ← whnfCoreBody mode (coreKnot mode eager fe id fuel) fe false d i
-          whnfCoreSet i x
-          pure x) := rfl
-
-/-- con-leche: ConLeche/Cached/CoreC.lean:1945-2021 coreKnotI — the CHEAP
-`whnfCore` slot at `fuel + 1`, under its own table. -/
-theorem coreKnot_whnfCoreCheap_succ (mode : CheckMode) (eager : Bool) (fe : IFEnv) (fuel d : Nat)
-    (i : EIdx) :
-    (coreKnot mode eager fe id (fuel + 1)).whnfCore true d i =
-      (do
-        if whnfCoreStuckTag i then pure i
-        else
-        match (← get).caches.whnfCoreCheapC[i]? with
-        | some x => pure x
-        | none => do
-          let x ← whnfCoreBody mode (coreKnot mode eager fe id fuel) fe true d i
-          whnfCoreCheapSet i x
-          pure x) := rfl
+/-- con-leche: ConLeche/Cached/CoreC.lean:1918-1923 whnfCoreI — the
+`whnfCore` slot at `fuel + 1`: the loop itself, which reads and writes the
+memo (`Arms/WhnfCore.lean`). -/
+theorem coreKnot_whnfCore_succ (mode : CheckMode) (eager : Bool) (fe : IFEnv) (fuel : Nat)
+    (c : Bool) (d : Nat) (i : EIdx) :
+    (coreKnot mode eager fe id (fuel + 1)).whnfCore c d i =
+      whnfCoreBody mode (coreKnot mode eager fe id fuel) fe c d i := by
+  rw [ConRon.Arena.coreKnot]; rfl
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1916-1979 coreKnotI — the `whnf`
 slot at `fuel + 1`. -/
@@ -777,51 +760,11 @@ stuck tag of the `whnf` wrapper. -/
 con-leche's `Verify/Cached/KnotC.lean:175-529`, one per slot: from the body
 walk at fuel `f`, the SLOT at fuel `f + 1`. -/
 
-/-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
-**the `whnfCore` wrapper**, full mode: stuck tag, cache hit, cache miss. -/
-theorem memoWhnfCoreFull_step {eager : Bool} {env : Env} {fe : IFEnv}
-    {fuel : Nat} (henv : ConLeche.EnvWF env)
-    (hbody : BodySpec eager env fe
-      (whnfCoreBody .verified (coreKnot .verified eager fe id fuel) fe false)
-      (fun F d e => ConLeche.whnfCore .verified eager env F d e false))
-    (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
-    (hok : CheckOK eager env fe s₀) (hden : denoteE s₀.store i = some e)
-    (hw : Expr.WScoped d e) :
-    ⦃fun s => s = s₀⦄ (coreKnot .verified eager fe id (fuel + 1)).whnfCore false d i
-    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimE (fun F d e => ConLeche.whnfCore .verified eager env F d e false) d e s'.store r; ⊤⦄ := by
-  rw [coreKnot_whnfCore_succ]
-  -- the body spec at THIS subject: `e` does not occur in the program, so
-  -- `vcgen` would not solve it by unification (as `memoDefeq_step` notes);
-  -- the stuck-tag lemma at THIS slot: its answer's operation is a `fun`, so
-  -- the registered form would have no pattern for `.verified`, `env`, `c`
-  sym only [bridge_grind, SimE.of_whnfCoreStuck (mode := .verified) (eager := eager) (env := env) (c := false)] =>
-    vcgen [fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw] <;> finish
-
-/-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
-**the `whnfCore` wrapper**, CHEAP mode (official `cheap_proj`), under the
-cheap mode's own table. -/
-theorem memoWhnfCoreCheap_step {eager : Bool} {env : Env} {fe : IFEnv}
-    {fuel : Nat} (henv : ConLeche.EnvWF env)
-    (hbody : BodySpec eager env fe
-      (whnfCoreBody .verified (coreKnot .verified eager fe id fuel) fe true)
-      (fun F d e => ConLeche.whnfCore .verified eager env F d e true))
-    (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
-    (hok : CheckOK eager env fe s₀) (hden : denoteE s₀.store i = some e)
-    (hw : Expr.WScoped d e) :
-    ⦃fun s => s = s₀⦄ (coreKnot .verified eager fe id (fuel + 1)).whnfCore true d i
-    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimE (fun F d e => ConLeche.whnfCore .verified eager env F d e true) d e s'.store r; ⊤⦄ := by
-  rw [coreKnot_whnfCoreCheap_succ]
-  sym only [bridge_grind, SimE.of_whnfCoreStuck (mode := .verified) (eager := eager) (env := env) (c := true)] =>
-    vcgen [fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw] <;> finish
-
-/-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
-**the `whnfCore` wrapper** in either mode. -/
+/-- con-leche: ConLeche/Verify/Cached/KnotC.lean whnfCoreI_spec — **the
+`whnfCore` slot** in either mode: the body itself, whose loop reads and
+writes the memo (`Arms/WhnfCore.lean`'s `whnfCoreLoop_spec`). -/
 theorem memoWhnfCore_step {eager : Bool} {env : Env} {fe : IFEnv}
-    {fuel : Nat} (henv : ConLeche.EnvWF env)
+    {fuel : Nat}
     (hbody : ∀ c, BodySpec eager env fe
       (whnfCoreBody .verified (coreKnot .verified eager fe id fuel) fe c)
       (fun F d e => ConLeche.whnfCore .verified eager env F d e c))
@@ -832,10 +775,8 @@ theorem memoWhnfCore_step {eager : Bool} {env : Env} {fe : IFEnv}
     ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (fun F d e => ConLeche.whnfCore .verified eager env F d e c) d e s'.store r; ⊤⦄ := by
-  cases c
-  · exact memoWhnfCoreFull_step henv (hbody false) s₀ d i e hok hden hw
-  · exact memoWhnfCoreCheap_step henv (hbody true) s₀ d i e hok hden hw
-
+  rw [coreKnot_whnfCore_succ]
+  exact hbody c s₀ d i e hok hden hw
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:230 memoEI_whnf_sim — **the
 `whnf` wrapper**.  Its stuck-tag branch is one rung up: five head kinds, and

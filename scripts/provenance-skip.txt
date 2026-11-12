@@ -348,3 +348,7 @@ ConLeche/Cached/IndPass.lean opSIxC The cached pass's parsed `ensureSort` operat
 ConLeche/Cached/ExprOpsC.lean liftLooseBVarsP The plain descent `liftLooseBVarsXP` carries its proof against; as `instantiate1P` (the port's walk is `expr_ops::lift_loose_bvars_go`, handle-keyed).
 ConLeche/Cached/ExprOpsC.lean enterLLP The child step of `liftLooseBVarsXP`; as `enter1P`.
 ConLeche/Cached/StateC.lean nameIsC Lean runtime engineering (task #152 lane C): the cached hash first, then the structural name test; a con-ron name is an interned handle, so `arena::core::nat_bin_op_of_name`'s comparison is already one word.
+ConLeche/Cached/CoreC.lean getAppArgsArr The arguments as an array filled from the back; the port's `expr_ops::get_app_args` already builds the `Vec` in one pass at its final capacity (task #152 lane B).
+ConLeche/Cached/CoreC.lean getAppArgsArrGo The cursor recursion of `getAppArgsArr`; as `getAppArgsArr` (`expr_ops::get_app_args_go`).
+ConLeche/Cached/CoreC.lean spineArg `args.getD i (.bvar 0)` on the array; the port reads its `Vec` with `get_d_eidx` (task #152 lane B).
+ConLeche/Cached/CoreC.lean mkAppRange A range application; the port's ranges run to the end of the spine and are `expr_ops::mk_app_n_from` (`whnf_app`, `beta_peel`, `whnf_stuck`); the ι reduct's two inner ranges are `iota_rec_*`'s (task #152 lane B).

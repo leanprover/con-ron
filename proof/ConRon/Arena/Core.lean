@@ -2496,8 +2496,8 @@ con-leche: ConLeche/Cached/CoreC.lean:236-244 whnfCoreEasy — **the head
 kinds `whnfCoreBody` returns unchanged, off the handle's TAG**: `sort`, `fvar`,
 `forallE`, `lam`, `const` and `lit` are the body's own first six clauses and
 exactly `whnfCoreEasy`'s kinds, and a handle carries the tag of its own view
-on a well-formed store, so the memo probe and the node read are both skipped,
-in both modes, as the cited knot does.  The obligation is `whnfCoreBody e =
+on a well-formed store, so the loop (`whnfCoreLoop`) skips the memo probe and
+the node read at every step, in both modes, as the cited loop does.  The obligation is `whnfCoreBody e =
 pure e` for the six tags. -/
 @[inline] def whnfCoreStuckTag (e : EIdx) : Bool :=
   let t := e.tag
@@ -2558,7 +2558,6 @@ which `instantiateList` reads from the end — the same list con-leche's `::`
 chain builds, the other way round. -/
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1069-1090 betaPeelI — peel a
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.betaPeel_bridge, then delete this line
 consecutive run of λ binders, collecting their arguments, and substitute the
 whole run in ONE `instantiateList`; the reduct, applied to the arguments left
 over, is the term the loop continues with.  β is uniform (con-leche's task
@@ -2580,7 +2579,6 @@ def betaPeel (t : EIdx) (acc : Array EIdx) (args : Array EIdx) (i : Nat) :
 termination_by args.size - i
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1092-1120 whnfAppI — walk the spine's
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.whnfApp_bridge, then delete this line
 arguments, applying each to the head's reduct: a λ head opens a peel group
 (`betaPeel`), a stuck head applies the argument and tries one ι step at the
 spine the walk already holds; a fired ι hands the loop its reduct applied to
@@ -2612,6 +2610,57 @@ def whnfApp (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
         pure (.cont e3)
   else pure (.done v)
 termination_by args.size - i
+
+/-! ### The stuck spine (con-leche's task #556 P-A) -/
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:180-184 isStuckHeadC — **a spine
+head that is its own head normal form and not a λ**, off the handle's tag: a
+sort, a free variable, a Π-type, a constant or a literal. -/
+@[inline] def isStuckHead (h : EIdx) : Bool :=
+  let t := h.tag
+  if t == ETag.sort then true
+  else if t == ETag.fvar then true
+  else if t == ETag.forallE then true
+  else if t == ETag.const then true
+  else if t == ETag.lit then true
+  else false
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:186-197 iotaTargetF — **the ι
+target of a spine head**: the spine length `mI + 1` at which `iotaRecAt` can
+fire, where the head is a stored recursor at its own number of levels. -/
+def iotaTarget (fe : IFEnv) (h : EIdx) : AM (Option Nat) := do
+  if h.tag == ETag.const then
+    match ← viewConst h with
+    | none => failDanglingE
+    | some (c, us) =>
+      match fe.find? c with
+      | some (.recInfo cv mI _ _ _) =>
+        match ← viewLsLen us with
+        | none => failDanglingLs
+        | some usl =>
+          if usl = cv.levelParams.length then pure (some (mI + 1)) else pure none
+      | _ => pure none
+  else pure none
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1122-1138 whnfStuckI — **a spine
+`e` whose head `h` is its own head normal form and not a λ** (official
+`whnf_core`'s `f == f0` arm): the ι step, tried once, at the one prefix where
+it can fire (`iotaTarget`), on the spine's argument vector, and otherwise the
+input itself, with nothing rebuilt.  The vector is built at a recursor head
+and its length is con-leche's `iotaNumArgs` count. -/
+def whnfStuck (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (h e : EIdx) : AM WhnfStep := do
+  match ← iotaTarget fe h with
+  | none => pure (.done e)
+  | some k => do
+    let args := (← getAppArgs coreWalkFuel e).toArray
+    if k ≤ args.size then do
+      match ← iotaRecAt mode r fe depth h args k with
+      | none => pure (.done e)
+      | some e2 => do
+        let e3 ← mkAppNFrom e2 args k
+        pure (.cont e3)
+    else pure (.done e)
 
 /-! ## The projection certificate and the reduction bodies
 
@@ -2691,7 +2740,6 @@ def reduceProjCore (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1025-1074 whnfCoreBody
 con-leche: ConLeche/Cached/CoreC.lean:1140-1181 whnfCoreStepI — the `.proj`
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.whnfCoreStepProj_bridge, then delete this line
 clause of the step: the scrutinee by `whnf`, or — in the CHEAP mode (official
 `cheap_proj`) — by the cheap `whnfCore`, then the projection rule: a fired
 field is the term the loop continues with, a stuck projection is its own
@@ -2703,27 +2751,37 @@ def whnfCoreStepProj (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (cheap : Boo
   | some m' => pure (.cont m')
   | none => pure (.done e)
 
+/-- con-leche: ConLeche/Cached/CoreC.lean:1140-1181 whnfCoreStepI — the `.app`
+clause of the step at a head that is NOT its own head normal form (a λ, a
+projection, a let-expression): **the batched β spine** (task #97-P6-9), the
+spine's head normalized once and the whole argument vector run through
+`whnfApp`. -/
+def whnfCoreStepApp (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (cheap : Bool)
+    (depth : Nat) (e : EIdx) : AM WhnfStep := do
+  let sp ← getAppSpine coreWalkFuel e
+  let v ← r.whnfCore cheap depth sp.1
+  let same := v == sp.1
+  let hv ← headAndArgs v
+  whnfApp mode r fe depth v hv.1 hv.2 same sp.2.1 sp.2.2 0
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1025-1074 whnfCoreBody
 con-leche: ConLeche/Cached/CoreC.lean:1140-1181 whnfCoreStepI — **one
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.whnfCoreStep_bridge, then delete this line
 head-normalization step** (β, ι, projection, ζ — **no δ**), returning the head
 normal form or the term to continue with.  Only the spine head's
 normalization stays a knot call (genuine nesting, bounded by the term's
 depth); every *reduction* step is the loop's iteration.  Values return
 themselves, which over handles is the handle itself. -/
 def whnfCoreStep (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (cheap : Bool)
-    (depth : Nat) (e : EIdx) : AM WhnfStep := do
+    (depth : Nat) (h e : EIdx) : AM WhnfStep := do
   match ← view e with
   | .sort _ | .fvar _ _ | .forallE _ _ | .lam _ _ | .const _ _
   | .lit _ => pure (.done e)
-  -- **The batched β spine** (task #97-P6-9): the spine's head is normalized
-  -- once and the whole argument vector is run through `whnfApp`.
+  -- `h` is the spine head, computed by the loop
   | .app _ _ => do
-    let sp ← getAppSpine coreWalkFuel e
-    let v ← r.whnfCore cheap depth sp.1
-    let same := v == sp.1
-    let hv ← headAndArgs v
-    whnfApp mode r fe depth v hv.1 hv.2 same sp.2.1 sp.2.2 0
+    -- a head that is its own head normal form: the spine is stuck but for ι,
+    -- and is answered by itself
+    if isStuckHead h then whnfStuck mode r fe depth h e
+    else whnfCoreStepApp mode r fe cheap depth e
   | .proj sn i pe => whnfCoreStepProj mode r fe cheap depth e sn i pe
   | .letE _ v b => do
     -- ζ, Lean's way (con-leche's task #342 S0: lets are stored as Lean
@@ -2733,30 +2791,152 @@ def whnfCoreStep (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (cheap : Bool)
   | .bvar _ =>
     fail (.notImplemented "whnf beyond the supported fragment")
 
+/-! ### The memo policy (con-leche's task #572) -/
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:246-257 whnfCoreKeyC — **a
+`whnfCore` memo key**: a projection, a let-expression, or an application
+whose head `h` is not its own head normal form. -/
+@[inline] def whnfCoreKey (h e : EIdx) : Bool :=
+  let t := e.tag
+  if t == ETag.app then !isStuckHead h
+  else if t == ETag.proj then true
+  else if t == ETag.letE then true
+  else false
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:259-267 whnfCoreStoresDone — a
+key whose step ended the chain with `v` is stored, but for an application
+answered by itself. -/
+@[inline] def whnfCoreStoresDone (key : Bool) (e v : EIdx) : Bool :=
+  if e.tag == ETag.app then (if key then !(v == e) else false) else key
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:269-281 whnfCoreCheapSafeC — **a
+step the two modes take alike**: a let-expression, or an application whose
+head is a λ or stuck. -/
+@[inline] def whnfCoreCheapSafe (h e : EIdx) : Bool :=
+  let t := e.tag
+  if t == ETag.app then (if h.tag == ETag.lam then true else isStuckHead h)
+  else if t == ETag.letE then true
+  else false
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:295-298 pushKey — the pending keys
+past a step on `e`: `e` joins them where it is stored (`b`). -/
+@[inline] def pushKey (b : Bool) (e : EIdx) (pend : Array EIdx) : Array EIdx :=
+  if b then pend.push e else pend
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:300-304 pushCheapKey — the cheap
+mode's pending keys past a step on `e`: kept past a step the two modes take
+alike (`safe`), dropped past any other. -/
+@[inline] def pushCheapKey (safe b : Bool) (e : EIdx) (pendC : Array EIdx) :
+    Array EIdx :=
+  if safe then pushKey b e pendC else #[]
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:332-345 memoEI — record a
+`whnfCore` answer (detach before update, DESIGN §8.4 lesson 14).  A plain
+insert, as con-leche's: the table's cap was removed by task #115. -/
+@[noinline] def whnfCoreSet (e r : EIdx) : AM Unit := do
+  let s ← get
+  let mp := s.caches.whnfCoreC
+  let s := { s with caches := { s.caches with whnfCoreC := ∅ } }
+  set { s with caches := { s.caches with whnfCoreC := mp.insert e r } }
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:326-344 memoEI — record a
+key in the CHEAP mode's OWN table (con-leche's `whnfCoreCheapC`), which the
+full mode's chains fill with their cheap-safe keys. -/
+@[noinline] def whnfCoreCheapSet (e r : EIdx) : AM Unit := do
+  let s ← get
+  let mp := s.caches.whnfCoreCheapC
+  let s := { s with caches := { s.caches with whnfCoreCheapC := ∅ } }
+  set { s with caches := { s.caches with whnfCoreCheapC := mp.insert e r } }
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:283-293 storeChain — the keys
+`pend[i:]` map to `v` in the full mode's memo. -/
+def whnfCoreStoreKeys (pend : Array EIdx) (i : Nat) (v : EIdx) : AM Unit := do
+  if h : i < pend.size then do
+    whnfCoreSet pend[i] v
+    whnfCoreStoreKeys pend (i + 1) v
+  else pure ()
+termination_by pend.size - i
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:283-293 storeChain — the cheap keys
+`pendC[i:]` map to `v` in the cheap mode's memo. -/
+def whnfCoreStoreCheapKeys (pendC : Array EIdx) (i : Nat) (v : EIdx) : AM Unit := do
+  if h : i < pendC.size then do
+    whnfCoreCheapSet pendC[i] v
+    whnfCoreStoreCheapKeys pendC (i + 1) v
+  else pure ()
+termination_by pendC.size - i
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:306-310 storeChainI — **store a
+finished chain**: its keys map to the answer in the full mode's memo, its
+cheap keys in the cheap mode's; the cheap mode stores nothing, and a chain
+without keys has nothing to store. -/
+def whnfCoreStoreChain (cheap : Bool) (pend pendC : Array EIdx) (v : EIdx) : AM Unit :=
+  if cheap then pure ()
+  else if pend.size = 0 then pure ()
+  else do
+    whnfCoreStoreKeys pend 0 v
+    whnfCoreStoreCheapKeys pendC 0 v
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:312-316 whnfCoreLookupI — the
+`whnfCore` memo of a mode. -/
+def whnfCoreLookup (cheap : Bool) (e : EIdx) : AM (Option EIdx) := do
+  if cheap then pure (← get).caches.whnfCoreCheapC[e]?
+  else pure (← get).caches.whnfCoreC[e]?
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1183-1229 whnfCoreLoopI — the loop's
+lookup: the mode's memo at a key (`whnfCoreKey`), nothing at a term no arm
+stores. -/
+def whnfCoreLookupAt (key cheap : Bool) (e : EIdx) : AM (Option EIdx) :=
+  if key then whnfCoreLookup cheap e else pure none
+
 /-- con-leche: ConLeche/Cached/CoreC.lean:1183-1229 whnfCoreLoopI — iterate
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.whnfCoreLoop_bridge, then delete this line
-`whnfCoreStep` on its own step budget: the continuation is the loop's own tail
-call (con-leche's task #342 R2), so a reduction chain of any length runs in
-constant native stack, and a non-terminating one runs until the external
-timeout.  The Rust spells the iteration as a loop. -/
+`whnfCoreStep` on its own step budget, with official `whnf_core`'s memo
+policy: an easy case (`whnfCoreStuckTag`) ends the chain before any lookup;
+every other step looks its term up (`whnfCoreKey`), a hit ends the chain,
+and the keys of the steps taken so far (`pend`) wait for the chain's answer,
+stored at its end (`whnfCoreStoreChain`).  The cheap mode reads its own memo
+and stores nothing; the full mode also writes there the keys whose chain
+from the key on takes only steps the two modes take alike
+(`whnfCoreCheapSafe`, `pendC`).  The continuation is the loop's own tail call
+(con-leche's task #342 R2); the Rust spells the iteration as a loop. -/
 def whnfCoreLoop (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (cheap : Bool)
-    (depth : Nat) : Nat → EIdx → AM EIdx
-  | 0, _ => fail (.internal "fuel exhausted: whnfCore loop")
-  | n + 1, e => do
-    match ← whnfCoreStep mode r fe cheap depth e with
-    | .done v => pure v
-    | .cont e' => whnfCoreLoop mode r fe cheap depth n e'
+    (depth : Nat) : Nat → EIdx → Array EIdx → Array EIdx → AM EIdx
+  | 0, _, _, _ => fail (.internal "fuel exhausted: whnfCore loop")
+  | n + 1, e, pend, pendC => do
+    if whnfCoreStuckTag e then do
+      whnfCoreStoreChain cheap pend pendC e
+      pure e
+    else do
+      let h ← getAppFn coreWalkFuel e
+      let key := whnfCoreKey h e
+      match ← whnfCoreLookupAt key cheap e with
+      | some x => do
+        whnfCoreStoreChain cheap pend #[] x
+        pure x
+      | none => do
+        let safe := whnfCoreCheapSafe h e
+        match ← whnfCoreStep mode r fe cheap depth h e with
+        | .done v => do
+          let stb ← (if cheap then pure false else pure (whnfCoreStoresDone key e v) : AM Bool)
+          let pend2 ← pure (pushKey stb e pend)
+          let pendC2 ← pure (pushCheapKey safe stb e pendC)
+          whnfCoreStoreChain cheap pend2 pendC2 v
+          pure v
+        | .cont e' => do
+          let stb ← (if cheap then pure false else pure key : AM Bool)
+          let pend1 ← pure (pushKey stb e pend)
+          let pendC1 ← pure (pushCheapKey safe stb e pendC)
+          whnfCoreLoop mode r fe cheap depth n e' pend1 pendC1
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1025-1074 whnfCoreBody
 con-leche: ConLeche/Cached/CoreC.lean:1231-1235 whnfCoreBodyI — the
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.whnfCoreBody_bridge, then delete this line
 head-normalization body: the loop at its own step budget.  `cheap` is the
 official kernel's `cheap_proj`: a projection's scrutinee is reduced by
 `whnfCore` itself instead of `whnf`, and the flag propagates to every
 recursive head normalization. -/
 def whnfCoreBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
     Bool → Nat → EIdx → AM EIdx :=
-  fun cheap depth e => whnfCoreLoop mode r fe cheap depth whnfCoreLoopFuel e
+  fun cheap depth e => whnfCoreLoop mode r fe cheap depth whnfCoreLoopFuel e #[] #[]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1105-1116 whnfLoopFuel — step budget
 of the `whnf` reduction loop.  Literal-acceleration and delta steps are
@@ -4063,24 +4243,6 @@ con-leche's `Core.lean`:2897-2936 with the memo probes of
 slot is what DESIGN §3.4 rules out.  The bodies above are pure of memo
 logic, which is the property that matters. -/
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:332-345 memoEI — record a
-`whnfCore` answer (detach before update, DESIGN §8.4 lesson 14).  A plain
-insert, as con-leche's: the table's cap was removed by task #115. -/
-@[noinline] def whnfCoreSet (e r : EIdx) : AM Unit := do
-  let s ← get
-  let mp := s.caches.whnfCoreC
-  let s := { s with caches := { s.caches with whnfCoreC := ∅ } }
-  set { s with caches := { s.caches with whnfCoreC := mp.insert e r } }
-
-/-- con-leche: ConLeche/Cached/CoreC.lean:326-344 memoEI — record a
-CHEAP-mode `whnfCore` answer, in the cheap mode's OWN table (con-leche's
-`whnfCoreCheapC`: the two modes differ on a stuck projection). -/
-@[noinline] def whnfCoreCheapSet (e r : EIdx) : AM Unit := do
-  let s ← get
-  let mp := s.caches.whnfCoreCheapC
-  let s := { s with caches := { s.caches with whnfCoreCheapC := ∅ } }
-  set { s with caches := { s.caches with whnfCoreCheapC := mp.insert e r } }
-
 /-- con-leche: ConLeche/Cached/CoreC.lean:332-345 memoEI — record a `whnf`
 answer. -/
 @[noinline] def whnfSet (e r : EIdx) : AM Unit := do
@@ -4178,27 +4340,9 @@ def coreKnot (mode : CheckMode) (eager : Bool) (fe : IFEnv) (wrap : CoreFnsA →
       inferIO := fun _ _ => fail (.internal "fuel exhausted: infer") }
   | fuel + 1 =>
     wrap
-      { whnfCore := fun c d e => do
-          -- **The answer IS the argument, off the tag** (task #97-P6-7's
-          -- lever 2): the six head kinds `whnfCoreBody` returns unchanged are
-          -- read off the handle word, so neither the memo nor the store is
-          -- touched — and neither is the memo WRITTEN, which is what keeps the
-          -- table small enough for `clear_fit`'s high-water mark to settle.
-          if whnfCoreStuckTag e then pure e
-          else if c then
-            match (← get).caches.whnfCoreCheapC[e]? with
-            | some x => pure x
-            | none => do
-              let x ← whnfCoreBody mode (coreKnot mode eager fe wrap fuel) fe true d e
-              whnfCoreCheapSet e x
-              pure x
-          else
-          match (← get).caches.whnfCoreC[e]? with
-          | some x => pure x
-          | none => do
-            let x ← whnfCoreBody mode (coreKnot mode eager fe wrap fuel) fe false d e
-            whnfCoreSet e x
-            pure x
+      { -- the loop itself (con-leche's `whnfCoreI`): it answers an easy case
+        -- off the tag and looks its terms up in the mode's memo
+        whnfCore := fun c d e => whnfCoreBody mode (coreKnot mode eager fe wrap fuel) fe c d e
         whnf := fun d e => do
           if whnfStuckTag e then pure e
           else
