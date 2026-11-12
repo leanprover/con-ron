@@ -69,7 +69,7 @@ theorem knot_spec_all {env : Env} {fe : IFEnv} (henv : ConLeche.EnvWF env) :
   | 0, eager => knotSpec_zero eager env fe
   | f + 1, _ =>
     { whnfCore := fun {c} s₀ d i e hok hden hw =>
-        memoWhnfCore_step henv
+        memoWhnfCore_step
           (fun c => whnfCoreBody_spec henv (knot_spec_all henv f) c) (c := c)
           s₀ d i e hok hden hw
       whnf := fun s₀ d i e hok hden hw =>
@@ -169,7 +169,6 @@ memo layer of Theorem 1's Core tier, at the three standard axioms. -/
 #print axioms mStep_app
 #print axioms mStep_proj_none
 #print axioms mStep_proj_some
-#print axioms whnfCore_of_loopM
 #print axioms reduceProjCore_eq
 
 #print axioms whnfLoop_reduceNat
