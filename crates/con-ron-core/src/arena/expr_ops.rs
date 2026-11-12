@@ -933,7 +933,6 @@ pub fn instantiate_list(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:590-626 instantiateListXP
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr_ops::instantiate_list_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:529-552 instantiateListGo` —
 /// the memoized bulk instantiation.  The `bvar` arm delegates to the pure walk
 /// above, exactly as con-leche's does.

@@ -659,7 +659,6 @@ def checkDivModCerts (mode : CheckMode) (fe : IFEnv) (c : NIdx)
 /-- con-leche: ConLeche/Kernel/Checker.lean:331-339 checkTypePins
 con-leche: ConLeche/Kernel/DeclCheck.lean:262-269 checkTypePinsF
 con-leche: ConLeche/Cached/ParsedC.lean:156-162 checkTypePinsC
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove DeclCheck.checkTypePins_bridge, then delete this line
 The type pins: each type-pinned constant's stored type against the variant's
 pinned one, by definitional equality. -/
 def checkTypePins (mode : CheckMode) (fe : IFEnv) : List (NIdx × EIdx) → AM Bool
@@ -765,7 +764,6 @@ def checkDivModPin (mode : CheckMode) (pins : List INatOpPinSet)
 /-- con-leche: ConLeche/Kernel/Checker.lean:426-461 checkReducePin
 con-leche: ConLeche/Kernel/DeclCheck.lean:312-331 checkReducePinF
 con-leche: ConLeche/Cached/ParsedC.lean:223-241 checkReducePinC
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove DeclCheck.checkReducePinPre_bridge, then delete this line
 The body at `fe`, the environment without the opaque: the element guard, the
 pin's own syntactic guards, the definitional comparison of the witness
 against the pin, and the identity certificate. -/
@@ -793,7 +791,6 @@ def checkReducePinPre (mode : CheckMode) (fe : IFEnv) (c : NIdx)
 /-- con-leche: ConLeche/Kernel/Checker.lean:426-461 checkReducePin
 con-leche: ConLeche/Kernel/DeclCheck.lean:312-331 checkReducePinF
 con-leche: ConLeche/Cached/ParsedC.lean:223-241 checkReducePinC
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove DeclCheck.checkReducePin_bridge, then delete this line
 The `Lean.reduceNat`/`Lean.reduceBool` gate, after the ordinary opaque check:
 the stored constant carries the pinned type (at `fe2`, the environment with
 it), then `checkReducePinPre` at `fe`.  The two guards short-circuit, as the
@@ -842,7 +839,6 @@ def substConst0Pairs (n : NIdx) (r : EIdx) : List (EIdx × EIdx) → AM (List (E
 con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
 con-leche: ConLeche/Kernel/Checker.lean:80-102 checkOpaqueVal
 con-leche: ConLeche/Cached/ParsedC.lean:38-55 checkDefnValCI
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove DeclCheck.valueGuards_bridge, then delete this line
 The value's syntactic guards the three value checks spell alike (no loose
 bound variable, no free variable, declared universe parameters, resolving
 constants), spelled once here. -/
@@ -859,7 +855,6 @@ def valueGuards (fe : IFEnv) (cv : IConstantVal) (value : EIdx) : AM Unit := do
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:30-47 checkDefnVal
 con-leche: ConLeche/Cached/ParsedC.lean:38-55 checkDefnValCI
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove DeclCheck.checkDefnVal_bridge, then delete this line
 Check a `def` declaration's value against its checked constant, returning the
 record to install, unpushed (the cached twin's shape: the caller certifies the
 pinned operations against the environment with and without it, then pushes).
@@ -875,7 +870,6 @@ def checkDefnVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
 con-leche: ConLeche/Cached/ParsedC.lean:57-77 checkThmValCI
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove DeclCheck.checkThmVal_bridge, then delete this line
 Check a `theorem` declaration's value against its checked constant (whose
 type must additionally be a proposition), returning the record to install,
 unpushed.  **A theorem is stored by its statement only**: the checked value is
@@ -896,7 +890,6 @@ def checkThmVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:80-102 checkOpaqueVal
 con-leche: ConLeche/Cached/ParsedC.lean:79-95 checkOpaqueValCI
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove DeclCheck.checkOpaqueVal_bridge, then delete this line
 Check an `opaque` declaration's value against its checked constant: exactly
 the theorem check without the is-a-proposition requirement, returning the
 record to install, unpushed.  It is an `axiomInfo` — the checked value is a

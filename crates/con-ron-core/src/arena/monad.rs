@@ -1256,7 +1256,6 @@ pub fn inst1_clear(st: &mut AState) {
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:590-626 instantiateListXP
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove monad::inst_l_get_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:646-649 instLGet` — probe the
 /// `instantiateList` memo.
 pub fn inst_l_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
@@ -1267,7 +1266,6 @@ pub fn inst_l_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:590-626 instantiateListXP
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove monad::inst_l_set_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:651-657 instLSet` — record an
 /// `instantiateList` answer.
 pub fn inst_l_set(st: &mut AState, k: EIdxNat, r: &EIdx) {

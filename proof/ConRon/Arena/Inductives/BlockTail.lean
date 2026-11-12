@@ -158,7 +158,6 @@ def declinedAtDefinition : AM (List NIdx) := do
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:124-136 reduceMember
 con-leche: ConLeche/Cached/CheckerC.lean:225-236 reduceMemberS
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove BlockTail.reduceMember_bridge, then delete this line
 **A member's former at its telescope**, official's `whnf` loop where the
 declared type does not show it: the declared type checked, reduced, and the two
 compared; a member already at its telescope as it is. -/

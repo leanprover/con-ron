@@ -644,13 +644,11 @@ memo is "dropped after each call, since it also depends on `v`". -/
   set { s with memos := { s.memos with inst1C := ∅ } }
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:590-626 instantiateListXP — probe
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Monad.instLGet_bridge, then delete this line
 the `instantiateList` memo. -/
 @[inline] def instLGet (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.instLC[k]?
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:590-626 instantiateListXP — record
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Monad.instLSet_bridge, then delete this line
 an `instantiateList` answer. -/
 @[noinline] def instLSet (k : EIdx × Nat) (r : EIdx) : AM Unit := do
   let s ← get
