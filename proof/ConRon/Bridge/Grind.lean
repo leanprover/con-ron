@@ -1633,9 +1633,9 @@ def iCtorNF : Option IConstantInfo → Nat | some (.ctorInfo _ _ n) => n | _ => 
 /-- con-leche: none — an inductive's record. -/
 @[expose] def cIndVal : Option ConstantInfo → ConstantVal | some (.indInfo v _) => v | _ => default
 /-- con-leche: none — is an environment lookup a constructor. -/
-@[expose] def cCtor? : Option ConstantInfo → Bool | some (.ctorInfo _ _ _) => true | _ => false
+@[expose] def cCtor? : Option ConstantInfo → Bool | some (.ctorInfo _ _ _ _) => true | _ => false
 /-- con-leche: none — a constructor's record. -/
-@[expose] def cCtorVal : Option ConstantInfo → ConstantVal | some (.ctorInfo v _ _) => v | _ => default
+@[expose] def cCtorVal : Option ConstantInfo → ConstantVal | some (.ctorInfo v _ _ _) => v | _ => default
 
 /-! The projections at their own constructor, one equation each (as `iDefn?_defn`):
 the definitions' wildcard arms would reach `grind` as conditional equations it
@@ -1677,9 +1677,9 @@ and the recursors. -/
 /-- con-leche: none — an environment inductive's capabilities. -/
 @[expose] def cIndCaps : Option ConstantInfo → IndCaps | some (.indInfo _ c) => c | _ => {}
 /-- con-leche: none — an environment constructor's parameter count. -/
-@[expose] def cCtorNP : Option ConstantInfo → Nat | some (.ctorInfo _ n _) => n | _ => 0
+@[expose] def cCtorNP : Option ConstantInfo → Nat | some (.ctorInfo _ n _ _) => n | _ => 0
 /-- con-leche: none — an environment constructor's field count. -/
-@[expose] def cCtorNF : Option ConstantInfo → Nat | some (.ctorInfo _ _ n) => n | _ => 0
+@[expose] def cCtorNF : Option ConstantInfo → Nat | some (.ctorInfo _ _ n _) => n | _ => 0
 /-- con-leche: none — is a stored lookup a recursor. -/
 def iRec? : Option IConstantInfo → Bool | some (.recInfo _ _ _ _ _) => true | _ => false
 /-- con-leche: none — a stored recursor's record. -/
