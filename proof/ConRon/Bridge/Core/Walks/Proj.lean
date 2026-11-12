@@ -523,7 +523,8 @@ same two counts. -/
 theorem denoteCI_ctorInfo_inv {st : EStore} {v : IConstantVal} {nP nF : Nat}
     {c : ConstantInfo}
     (h : Frontend.denoteCI st (.ctorInfo v nP nF) = some c) :
-    ∃ cv, Frontend.denoteCV st v = some cv ∧ c = .ctorInfo cv nP nF := by
+    ∃ cv, Frontend.denoteCV st v = some cv ∧
+      c = .ctorInfo cv nP nF (Frontend.shimCtorInduct cv) := by
   simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
   obtain ⟨cv, hcv, rfl⟩ := h
   exact ⟨cv, hcv, rfl⟩
@@ -531,13 +532,14 @@ theorem denoteCI_ctorInfo_inv {st : EStore} {v : IConstantVal} {nP nF : Nat}
 /-- con-leche: none — and the other direction: a stored constant that
 denotes a constructor IS one (`projCert` decides a guard on it). -/
 theorem denoteCI_ctor_inv {st : EStore} {ci : IConstantInfo} {cv : ConstantVal}
-    {nP nF : Nat} (h : Frontend.denoteCI st ci = some (.ctorInfo cv nP nF)) :
+    {nP nF : Nat} {T : ConLeche.Name}
+    (h : Frontend.denoteCI st ci = some (.ctorInfo cv nP nF T)) :
     ∃ v, ci = .ctorInfo v nP nF := by
   cases ci with
   | ctorInfo v nP' nF' =>
     obtain ⟨_, _, hc⟩ := denoteCI_ctorInfo_inv h
     simp only [ConstantInfo.ctorInfo.injEq] at hc
-    obtain ⟨_, rfl, rfl⟩ := hc
+    obtain ⟨_, rfl, rfl, _⟩ := hc
     exact ⟨v, rfl⟩
   | axiomInfo v =>
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
@@ -579,7 +581,7 @@ theorem env_ctor_of_index {s : AState} (hok : CheckOK eager env fe s)
     (hn : denoteN s.store.ns c = some nm)
     (hfd : fe.find? c = some (.ctorInfo icv nP nF)) :
     ∃ dcv, Frontend.denoteCV s.store icv = some dcv ∧
-      env.find? nm = some (.ctorInfo dcv nP nF) := by
+      env.find? nm = some (.ctorInfo dcv nP nF (Frontend.shimCtorInduct dcv)) := by
   obtain ⟨nm', cc, hn', hci, hfind⟩ := hok.ienv.hit c _ hfd
   obtain rfl := Option.some.inj (hn'.symm.trans hn)
   obtain ⟨dcv, hdcv, rfl⟩ := denoteCI_ctorInfo_inv hci
@@ -590,8 +592,8 @@ a constructor. -/
 theorem env_not_ctor_of_index {s : AState} (hok : CheckOK eager env fe s)
     {c : NIdx} {nm : ConLeche.Name} (hn : denoteN s.store.ns c = some nm)
     (hnd : ∀ v nP nF, fe.find? c ≠ some (.ctorInfo v nP nF)) :
-    ∀ cv nP nF, env.find? nm ≠ some (.ctorInfo cv nP nF) := by
-  intro cv nP nF hcon
+    ∀ cv nP nF T, env.find? nm ≠ some (.ctorInfo cv nP nF T) := by
+  intro cv nP nF T hcon
   cases hf : fe.find? c with
   | none => rw [IFEnvOK.miss hok.state hok.ienv hn hf] at hcon; simp at hcon
   | some ci =>
@@ -677,7 +679,7 @@ ONE equation over the environment's constructor projections. -/
   simp only [ConLeche.projCert]
   generalize env.find? cn = o
   match o with
-  | some (.ctorInfo _ _ _) => rfl
+  | some (.ctorInfo _ _ _ _) => rfl
   | some (.axiomInfo _) | some (.thmInfo _) | some (.indInfo _ _) | some (.defnInfo _ _ _)
   | some (.recInfo _ _ _ _ _) | none => rfl
 

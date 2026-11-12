@@ -184,7 +184,7 @@ theorem denoteCI_ind_iff {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
 /-- con-leche: none — the same at a constructor. -/
 theorem denoteCI_ctor_iff {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
     (h : Frontend.denoteCI st ci = some c) :
-    (∃ v nP nF, ci = .ctorInfo v nP nF) ↔ ∃ cv nP nF, c = .ctorInfo cv nP nF := by
+    (∃ v nP nF, ci = .ctorInfo v nP nF) ↔ ∃ cv nP nF T, c = .ctorInfo cv nP nF T := by
   cases ci <;> simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
   all_goals first
     | (obtain ⟨_, _, rfl⟩ := h; simp)
@@ -533,7 +533,7 @@ as ONE equation over the projections. -/
     (cCtor? o && (cCtorVal o).levelParams.isEmpty &&
       (cCtorVal o).type == .const ConLeche.natName []) := by
   match o with
-  | some (.ctorInfo _ _ _) => rfl
+  | some (.ctorInfo _ _ _ _) => rfl
   | none | some (.axiomInfo _) | some (.defnInfo _ _ _) | some (.thmInfo _)
   | some (.indInfo _ _) | some (.recInfo _ _ _ _ _) => rfl
 
@@ -545,7 +545,7 @@ as ONE equation over the projections: a `∀` from `Nat` to `Nat`. -/
         exprBinderType (cCtorVal o).type == .const ConLeche.natName [] &&
         exprBody (cCtorVal o).type == .const ConLeche.natName [])) := by
   match o with
-  | some (.ctorInfo cv _ _) =>
+  | some (.ctorInfo cv _ _ _) =>
     simp only [ConLeche.natSuccOk, cCtor?, cCtorVal, Bool.true_and]
     congr 1
     generalize cv.type = t
