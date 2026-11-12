@@ -7264,7 +7264,6 @@ pub const WHNF_CORE_LOOP_FUEL: u64 = 4611686018427387904; // 2^62
 
 /// con-leche: ConLeche/Kernel/Core.lean:1025-1074 whnfCoreBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1140-1181 whnfCoreStepI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::whnf_core_step_proj_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2683-2694 whnfCoreStepProj`
 /// The `.proj` clause of the step: the scrutinee by `whnf`, or — in the CHEAP
 /// mode (official `cheap_proj`) — by the cheap `whnfCore`, then the
@@ -7397,7 +7396,6 @@ pub fn head_and_args(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1092-1120 whnfAppI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::whnf_app_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2574-2605 whnfApp` — the cached
 /// tier's bulk-β argument loop, the EXECUTED checker's own `.app` step.
 ///
@@ -7479,7 +7477,6 @@ pub fn whnf_app(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1069-1090 betaPeelI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::beta_peel_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2553-2572 betaPeel` — the peel loop
 /// of `whnf_app`.
 ///
@@ -7487,7 +7484,10 @@ pub fn whnf_app(
 /// `acc` their arguments — the list `instantiate_list` takes at cursor `0`,
 /// built in PUSH order on an OWNED vector (task #97-P6-15).  The body is
 /// substituted once, when peeling stops, and handed to the loop (`Cont`)
-/// together with the arguments left over.
+/// together with the arguments left over.  The substitution keeps no memo
+/// across calls (`instantiate_list_fast` clears its own per call), as
+/// con-leche's `betaPeelI` substitutes with `instantiateListC` and official's
+/// `instantiate` keeps no cache.
 pub fn beta_peel(
     pers: &PersTier,
     st: &mut AState,
@@ -7587,7 +7587,7 @@ pub fn is_stuck_head(h: &EIdx) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:186-198 iotaTargetF
+/// con-leche: ConLeche/Cached/CoreC.lean:186-197 iotaTargetF
 /// Lean twin: `proof/ConRon/Arena/Core.lean iotaTarget` — **the ι target of a
 /// spine head**: the spine length `mI + 1` at which `iota_rec_at` can fire,
 /// where the head is a stored recursor at its own number of levels (the arity
@@ -7621,7 +7621,7 @@ pub fn iota_target(
     }
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:1122-1148 whnfStuckI
+/// con-leche: ConLeche/Cached/CoreC.lean:1122-1138 whnfStuckI
 /// Lean twin: `proof/ConRon/Arena/Core.lean whnfStuck` — **a spine `e` whose
 /// head `h` is its own head normal form and not a λ** (official `whnf_core`'s
 /// `f == f0` arm, `src/kernel/type_checker.cpp:525-536`): the ι step, tried
@@ -7669,7 +7669,7 @@ pub fn whnf_stuck(
     }
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:1150-1203 whnfCoreStepI
+/// con-leche: ConLeche/Cached/CoreC.lean:1140-1181 whnfCoreStepI
 /// Lean twin: `proof/ConRon/Arena/Core.lean whnfCoreStepApp` — the `.app`
 /// clause of the step at a head that is NOT its own head normal form (a λ, a
 /// projection, a let-expression): **the batched β spine** (task #97-P6-9),
@@ -7712,13 +7712,15 @@ pub fn whnf_core_step_app(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1025-1074 whnfCoreBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1140-1181 whnfCoreStepI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::whnf_core_step_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2696-2723 whnfCoreStep` — one
 /// head-normalization step (β, ι, projection, ζ — **no δ**), returning the head
 /// normal form or the term to continue with.  Only the spine head's
 /// normalization stays a knot call (genuine nesting, bounded by the term's
 /// depth); every *reduction* step is the loop's iteration.  Values return
-/// themselves, which over handles is the handle itself.
+/// themselves, which over handles is the handle itself.  `h` is the term's
+/// spine head, which the loop computes once per step for its memo policy; an
+/// application whose head is its own head normal form is the stuck arm
+/// (`whnf_stuck`).
 pub fn whnf_core_step(
     pers: &PersTier,
     st: &mut AState,
@@ -7729,6 +7731,7 @@ pub fn whnf_core_step(
     fe: &IFEnv,
     cheap: bool,
     depth: u64,
+    h: &EIdx,
     e: &EIdx,
 ) -> Result<WhnfStep, CheckError> {
     match view(pers, st, e) {
@@ -7739,18 +7742,16 @@ pub fn whnf_core_step(
         Ok(ENodeView::Lam(_, _)) => Ok(WhnfStep::Done(e.dup2())),
         Ok(ENodeView::Const(_, _)) => Ok(WhnfStep::Done(e.dup2())),
         Ok(ENodeView::Lit(_)) => Ok(WhnfStep::Done(e.dup2())),
-        Ok(ENodeView::App(_, _)) => match get_app_fn(pers, st, CORE_WALK_FUEL, e) {
-            Err(er) => Err(er),
-            Ok(h) => {
-                if is_stuck_head(&h) {
-                    // a head that is its own head normal form: the spine is
-                    // stuck but for ι, and is answered by itself
-                    whnf_stuck(pers, st, mode, eager, lane, fuel, fe, depth, &h, e)
-                } else {
-                    whnf_core_step_app(pers, st, mode, eager, lane, fuel, fe, cheap, depth, e)
-                }
+        // `h` is the spine head, computed by the loop
+        Ok(ENodeView::App(_, _)) => {
+            if is_stuck_head(h) {
+                // a head that is its own head normal form: the spine is stuck
+                // but for ι, and is answered by itself
+                whnf_stuck(pers, st, mode, eager, lane, fuel, fe, depth, h, e)
+            } else {
+                whnf_core_step_app(pers, st, mode, eager, lane, fuel, fe, cheap, depth, e)
             }
-        },
+        }
         Ok(ENodeView::Proj(sn, i, pe)) => {
             whnf_core_step_proj(pers, st, mode, eager, lane, fuel, fe, cheap, depth, e, &sn, i, &pe)
         }
@@ -7764,15 +7765,176 @@ pub fn whnf_core_step(
     }
 }
 
+/// con-leche: ConLeche/Cached/CoreC.lean:246-257 whnfCoreKeyC
+/// Lean twin: `proof/ConRon/Arena/Core.lean whnfCoreKey` — **a `whnfCore` memo
+/// key**: a term of an arm official `whnf_core` stores (`Proj`, `Let`, and an
+/// application whose head is not its own head normal form).  An application
+/// with a stuck head is official's `f == f0` arm, which returns before the
+/// insert: never stored, so not looked up.  `h` is the term's spine head.
+pub fn whnf_core_key(h: &EIdx, e: &EIdx) -> bool {
+    let t: u32 = e.tag();
+    if t == ETAG_APP {
+        !is_stuck_head(h)
+    } else if t == ETAG_PROJ {
+        true
+    } else if t == ETAG_LET_E {
+        true
+    } else {
+        false
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:259-267 whnfCoreStoresDone
+/// Lean twin: `proof/ConRon/Arena/Core.lean whnfCoreStoresDone` — a key whose
+/// step ended the chain with `v` is stored, but for an application answered by
+/// itself (official's `f == f0` arm again).  A stuck projection is stored
+/// (official's `Proj` case stores `r = e`).
+pub fn whnf_core_stores_done(key: bool, e: &EIdx, v: &EIdx) -> bool {
+    if e.tag() == ETAG_APP {
+        if key {
+            !v.eq2(e)
+        } else {
+            false
+        }
+    } else {
+        key
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:269-281 whnfCoreCheapSafeC
+/// Lean twin: `proof/ConRon/Arena/Core.lean whnfCoreCheapSafe` — **a step the
+/// two modes take alike**: a let-expression, or an application whose head is a
+/// λ or stuck.  A chain of such steps answers the same in the cheap mode as in
+/// the full one, so the full mode also stores its keys in the cheap memo.
+pub fn whnf_core_cheap_safe(h: &EIdx, e: &EIdx) -> bool {
+    let t: u32 = e.tag();
+    if t == ETAG_APP {
+        if h.tag() == ETAG_LAM {
+            true
+        } else {
+            is_stuck_head(h)
+        }
+    } else if t == ETAG_LET_E {
+        true
+    } else {
+        false
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:295-298 pushKey
+/// Lean twin: `proof/ConRon/Arena/Core.lean pushKey` — the pending keys past a
+/// step on `e`: `e` joins them where it is stored (`b`).
+pub fn push_key(b: bool, e: &EIdx, pend: Vec<EIdx>) -> Vec<EIdx> {
+    let mut out: Vec<EIdx> = pend;
+    if b {
+        out.push(e.dup2());
+    }
+    out
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:300-304 pushCheapKey
+/// Lean twin: `proof/ConRon/Arena/Core.lean pushCheapKey` — the cheap mode's
+/// pending keys past a step on `e`: kept, and joined by `e` where it is stored,
+/// past a step the two modes take alike (`safe`); dropped past any other.
+pub fn push_cheap_key(safe: bool, b: bool, e: &EIdx, pend_c: Vec<EIdx>) -> Vec<EIdx> {
+    if safe {
+        push_key(b, e, pend_c)
+    } else {
+        Vec::new()
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:283-293 storeChain
+/// Lean twin: `proof/ConRon/Arena/Core.lean whnfCoreStoreKeys` — the keys
+/// `pend[i..]` map to `v` in the full mode's memo.  **A real loop**, for
+/// `whnf_core_loop`'s reason: a chain's keys are as many as its steps.
+pub fn whnf_core_store_keys(st: &mut AState, pend: &Vec<EIdx>, i: usize, v: &EIdx) {
+    let mut j: usize = i;
+    loop { // lint: allow (task #119: constant native stack, DESIGN.md §3.4)
+        if j >= pend.len() {
+            return;
+        }
+        whnf_core_set(st, &pend[j], v);
+        j = j + 1;
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:283-293 storeChain
+/// Lean twin: `proof/ConRon/Arena/Core.lean whnfCoreStoreCheapKeys` — the
+/// cheap keys `pend_c[i..]` map to `v` in the cheap mode's memo.
+pub fn whnf_core_store_cheap_keys(st: &mut AState, pend_c: &Vec<EIdx>, i: usize, v: &EIdx) {
+    let mut j: usize = i;
+    loop { // lint: allow (task #119: constant native stack, DESIGN.md §3.4)
+        if j >= pend_c.len() {
+            return;
+        }
+        whnf_core_cheap_set(st, &pend_c[j], v);
+        j = j + 1;
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:306-310 storeChainI
+/// con-leche: ConLeche/Cached/CoreC.lean:283-293 storeChain
+/// Lean twin: `proof/ConRon/Arena/Core.lean whnfCoreStoreChain` — **store a
+/// finished chain**: its keys `pend` map to the answer `v` in the full mode's
+/// memo, and those of them whose chain the cheap mode takes alike (`pend_c`)
+/// in the cheap mode's.  The cheap mode stores nothing (official stores only
+/// when not cheap), and a chain without keys has nothing to store.
+pub fn whnf_core_store_chain(
+    st: &mut AState,
+    cheap: bool,
+    pend: &Vec<EIdx>,
+    pend_c: &Vec<EIdx>,
+    v: &EIdx,
+) {
+    if cheap {
+    } else if pend.len() == 0 {
+    } else {
+        whnf_core_store_keys(st, pend, 0, v);
+        whnf_core_store_cheap_keys(st, pend_c, 0, v);
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:312-316 whnfCoreLookupI
+/// Lean twin: `proof/ConRon/Arena/Core.lean whnfCoreLookup` — the `whnfCore`
+/// memo of a mode: the full mode reads `whnf_core_c`, the cheap mode
+/// `whnf_core_cheap_c`.
+pub fn whnf_core_lookup(st: &AState, cheap: bool, e: &EIdx) -> Option<EIdx> {
+    if cheap {
+        whnf_core_cheap_probe(st, e)
+    } else {
+        whnf_core_probe(st, e)
+    }
+}
+
 /// con-leche: ConLeche/Cached/CoreC.lean:1183-1229 whnfCoreLoopI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::whnf_core_loop_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2725-2736 whnfCoreLoop` — iterate
-/// `whnf_core_step` on its own step budget.  **A real loop** (task #119,
-/// after con-leche task #342 R2): con-leche's self tail call compiles to a
-/// jump, and Rust promises no tail calls, so the iteration is spelled as one —
-/// a reduction chain of any length runs in constant native stack, and a
-/// non-terminating one runs until the external timeout.  Extraction's
-/// `-loops-to-rec` turns it back into the twin's recursion.
+/// Lean twin: `proof/ConRon/Arena/Core.lean whnfCoreLoop` — iterate
+/// `whnf_core_step` on its own step budget, with official `whnf_core`'s memo
+/// policy (`src/kernel/type_checker.cpp`, `whnf_core`).  Official recurses:
+/// every call on a term that is not easy looks the term up, and after the
+/// recursive call on its reduct returns, stores the answer for the β,
+/// projection, ζ and head-reduced arms, but not for the ι and stuck arms
+/// (`f == f0`), and only when not in a cheap mode.  The loop follows it
+/// iteratively: an easy case (`whnf_core_stuck_tag`) ends the chain before any
+/// lookup; every other step looks its term up (`whnf_core_key`: a term no arm
+/// stores is not looked up), a hit ends the chain, and the keys of the steps
+/// taken so far (`pend`) wait for the chain's answer, stored at its end
+/// (`whnf_core_store_chain`).  The spine head is computed once per step and
+/// handed to the step.
+///
+/// **The cheap mode.**  Official has one memo, read in both modes and written
+/// only by the full one; a cheap query can so be answered by a full answer,
+/// which the cheap specification need not compute.  Here the cheap mode reads
+/// its own memo and stores nothing; the full mode writes there the keys whose
+/// chain from the key on takes no step the two modes take differently
+/// (`whnf_core_cheap_safe`; `pend_c`, emptied at any other step and at a hit).
+///
+/// **A real loop** (task #119, after con-leche task #342 R2): con-leche's self
+/// tail call compiles to a jump, and Rust promises no tail calls, so the
+/// iteration is spelled as one — a reduction chain of any length runs in
+/// constant native stack, and a non-terminating one runs until the external
+/// timeout.  Extraction's `-loops-to-rec` turns it back into the twin's
+/// recursion.
 pub fn whnf_core_loop(
     pers: &PersTier,
     st: &mut AState,
@@ -7788,16 +7950,54 @@ pub fn whnf_core_loop(
 ) -> Result<EIdx, CheckError> {
     let mut k: u64 = n;
     let mut cur: EIdx = e.dup2();
+    let mut pend: Vec<EIdx> = Vec::new();
+    let mut pend_c: Vec<EIdx> = Vec::new();
     loop { // lint: allow (task #119: constant native stack, DESIGN.md §3.4)
         if k == 0 {
             return fail(CheckError::Internal(code_points(&M_FUEL_WHNF_CORE_LOOP)));
         }
-        match whnf_core_step(pers, st, mode, eager, lane, fuel, fe, cheap, depth, &cur) {
+        if whnf_core_stuck_tag(&cur) {
+            whnf_core_store_chain(st, cheap, &pend, &pend_c, &cur);
+            return Ok(cur);
+        }
+        match get_app_fn(pers, st, CORE_WALK_FUEL, &cur) {
             Err(er) => return Err(er),
-            Ok(WhnfStep::Done(v)) => return Ok(v),
-            Ok(WhnfStep::Cont(e2)) => {
-                cur = e2;
-                k = k - 1;
+            Ok(h) => {
+                let key: bool = whnf_core_key(&h, &cur);
+                let hit: Option<EIdx> = if key { whnf_core_lookup(st, cheap, &cur) } else { None };
+                match hit {
+                    Some(r) => {
+                        let none_c: Vec<EIdx> = Vec::new();
+                        whnf_core_store_chain(st, cheap, &pend, &none_c, &r);
+                        return Ok(r);
+                    }
+                    None => {
+                        let safe: bool = whnf_core_cheap_safe(&h, &cur);
+                        match whnf_core_step(
+                            pers, st, mode, eager, lane, fuel, fe, cheap, depth, &h, &cur,
+                        ) {
+                            Err(er) => return Err(er),
+                            Ok(WhnfStep::Done(v)) => {
+                                let stb: bool = if cheap {
+                                    false
+                                } else {
+                                    whnf_core_stores_done(key, &cur, &v)
+                                };
+                                let pend2: Vec<EIdx> = push_key(stb, &cur, pend);
+                                let pend_c2: Vec<EIdx> = push_cheap_key(safe, stb, &cur, pend_c);
+                                whnf_core_store_chain(st, cheap, &pend2, &pend_c2, &v);
+                                return Ok(v);
+                            }
+                            Ok(WhnfStep::Cont(e2)) => {
+                                let stb: bool = if cheap { false } else { key };
+                                pend = push_key(stb, &cur, pend);
+                                pend_c = push_cheap_key(safe, stb, &cur, pend_c);
+                                cur = e2;
+                                k = k - 1;
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -7805,7 +8005,6 @@ pub fn whnf_core_loop(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1025-1074 whnfCoreBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1231-1235 whnfCoreBodyI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::whnf_core_body_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2738-2746 whnfCoreBody` — the
 /// head-normalization body: the loop at its own step budget.
 pub fn whnf_core_body(
@@ -11192,9 +11391,10 @@ pub const PEEL_FUEL: u64 = 16777216;
 ///
 /// `whnfCoreBody`'s first six clauses are `pure e` (`sort`, `fvar`, `forallE`,
 /// `lam`, `const`, `lit`), exactly `whnfCoreEasy`'s kinds; only `app` and
-/// `proj` reduce, and `letE`/`bvar` fail.  The knot tests them before the memo
-/// in both modes, as the cited one does.  The knot's slot therefore spends a memo probe, a `view` decode, a
-/// `dup` and a memo insert to learn the tag it already had in its hand.  On
+/// `proj` reduce, and `letE`/`bvar` fail.  `whnf_core_loop` tests them at every
+/// step before the memo, in both modes, as the cited loop does.  Without the
+/// test a step would spend a memo probe, a `view` decode, a `dup` and a memo
+/// insert to learn the tag it already had in its hand.  On
 /// the Mathlib 25 % prefix that is **61.25 M of the 164.95 M `whnfCore` misses
 /// (37.1 %) and 9.57 M of the 33.85 M hits (28.3 %)**, and those 61.25 M rows
 /// were also 37 % of the biggest per-declaration table.
@@ -11364,12 +11564,13 @@ pub fn defeq_probe(st: &AState, k: &EIdxPair) -> Option<bool> {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1862-1897 coreKnot
-/// con-leche: ConLeche/Cached/CoreC.lean:1767-1788 coreKnotI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::knot_whnf_core_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:1918-1923 whnfCoreI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4130-4220 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — **the
-/// `whnfCore` slot.**  At `LANE_FULL` and `LANE_IO` it is the memoized body
-/// (`coreKnotIO`'s slot *is* the full knot's, at the same fuel).
+/// `whnfCore` slot**: the loop itself (`whnf_core_body`), which answers an easy
+/// case off the tag and looks its terms up in the mode's memo.  At `LANE_FULL`
+/// and `LANE_IO` alike (`coreKnotIO`'s slot *is* the full knot's, at the same
+/// fuel).
 pub fn knot_whnf_core(
     pers: &PersTier,
     st: &mut AState,
@@ -11384,36 +11585,13 @@ pub fn knot_whnf_core(
 ) -> Result<EIdx, CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_WHNF_CORE)))
-    } else if whnf_core_stuck_tag(e) {
-        Ok(e.dup2())
-    } else if cheap {
-        match whnf_core_cheap_probe(st, e) {
-            Some(r) => Ok(r),
-            None => match whnf_core_body(pers, st, mode, eager, LANE_FULL, fuel - 1, fe, true, depth, e) {
-                Err(er) => Err(er),
-                Ok(r) => {
-                    whnf_core_cheap_set(st, e, &r);
-                    Ok(r)
-                }
-            },
-        }
     } else {
-        match whnf_core_probe(st, e) {
-            Some(r) => Ok(r),
-            None => match whnf_core_body(pers, st, mode, eager, LANE_FULL, fuel - 1, fe, false, depth, e) {
-                Err(er) => Err(er),
-                Ok(r) => {
-                    whnf_core_set(st, e, &r);
-                    Ok(r)
-                }
-            },
-        }
+        whnf_core_body(pers, st, mode, eager, LANE_FULL, fuel - 1, fe, cheap, depth, e)
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1862-1897 coreKnot
-/// con-leche: ConLeche/Cached/CoreC.lean:1767-1788 coreKnotI
-/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::knot_whnf_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:1925-1934 whnfI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4130-4220 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — the `whnf` slot.
 pub fn knot_whnf(

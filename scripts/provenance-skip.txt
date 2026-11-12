@@ -338,3 +338,7 @@ ConLeche/Cached/ParsedC.lean checkDivModPinC Not ported (task #150 lane E, follo
 ConLeche/Cached/IndPass.lean opSIxC The cached pass's parsed `ensureSort` operation, a field of its operations record; the port has no operations record and calls `core::ensure_sort` at each site (`sum_install`, `positivity`, `gen_rec`, `stream_recs`).
 ConLeche/Cached/ExprOpsC.lean liftLooseBVarsP The plain descent `liftLooseBVarsXP` carries its proof against; as `instantiate1P` (the port's walk is `expr_ops::lift_loose_bvars_go`, handle-keyed).
 ConLeche/Cached/ExprOpsC.lean enterLLP The child step of `liftLooseBVarsXP`; as `enter1P`.
+ConLeche/Cached/CoreC.lean getAppArgsArr The arguments as an array filled from the back; the port's `expr_ops::get_app_args` already builds the `Vec` in one pass at its final capacity (task #152 lane B).
+ConLeche/Cached/CoreC.lean getAppArgsArrGo The cursor recursion of `getAppArgsArr`; as `getAppArgsArr` (`expr_ops::get_app_args_go`).
+ConLeche/Cached/CoreC.lean spineArg `args.getD i (.bvar 0)` on the array; the port reads its `Vec` with `get_d_eidx` (task #152 lane B).
+ConLeche/Cached/CoreC.lean mkAppRange A range application; the port's ranges run to the end of the spine and are `expr_ops::mk_app_n_from` (`whnf_app`, `beta_peel`, `whnf_stuck`); the ι reduct's two inner ranges are `iota_rec_*`'s (task #152 lane B).
