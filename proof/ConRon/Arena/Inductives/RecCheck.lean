@@ -51,7 +51,7 @@ open ConLeche
 /-! ## The holes: the block's members abstracted to free variables -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:66-86 targetAbs
-con-leche: ConLeche/Cached/ExprOpsC.lean:953-993 targetAbsXP
+con-leche: ConLeche/Cached/ExprOpsC.lean:1040-1080 targetAbsXP
 **The member abstraction of one term**: every member at the block's levels
 `lvls` becomes its hole; `fvar` annotations are not entered.  Memoised on the
 node. -/
@@ -107,7 +107,7 @@ def targetAbsGo (names : List NIdx) (lvls : LsIdx) (holes : List EIdx)
         pure (r, memo.insert h r)
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:66-86 targetAbs
-con-leche: ConLeche/Cached/ExprOpsC.lean:995-997 targetAbsC
+con-leche: ConLeche/Cached/ExprOpsC.lean:1082-1084 targetAbsC
 The executed member abstraction (one memoised DAG walk, a fresh memo). -/
 def targetAbs (names : List NIdx) (lvls : LsIdx) (holes : List EIdx) (e : EIdx) :
     AM EIdx := do
@@ -180,6 +180,7 @@ def targetCanonParams (pfvs : List EIdx) (e : EIdx) : AM EIdx :=
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:164-183 targetParamsDefEq
 con-leche: ConLeche/Cached/IndRec.lean:165-182 targetParamsDefEqC
+-- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove RecCheck.targetParamsDefEq_bridge, then delete this line
 **Per-component parameter defeq** at depth `d`, each side moved to the openers
 and member-abstracted (`absM` is `targetAbs names lvls holes`, its one
 instantiation): both sides closed over the openers (the four reads in order,
@@ -341,6 +342,7 @@ def targetMajorOf (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (pfvs fvs : L
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:294-311 targetPinTys
 con-leche: ConLeche/Cached/IndBlock.lean:325-330 targetPinTysC
+-- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove RecCheck.targetPinTys_bridge, then delete this line
 **An outside major's parameters, typed at the rule prefix** (depth `d`), in
 order. -/
 def targetPinTys (mode : CheckMode) (fe : IFEnv) (d : Nat) : List EIdx → AM Unit
@@ -455,7 +457,7 @@ def targetK53 (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (formerTys : List
       else pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:410-415 targetPiDomsWith
-con-leche: ConLeche/Cached/ExprOpsC.lean:2140-2145 targetPiDomsWithC
+con-leche: ConLeche/Cached/ExprOpsC.lean:2227-2232 targetPiDomsWithC
 The domains of the first `|xs|` `∀` binders, each instantiated at the earlier
 `xs`. -/
 def targetPiDomsWith : List EIdx → EIdx → AM (Option (List EIdx))
@@ -473,7 +475,7 @@ def targetPiDomsWith : List EIdx → EIdx → AM (Option (List EIdx))
 
 /-! ## The stored family -/
 
-/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2130-2131 abstractPrefixC
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2217-2218 abstractPrefixC
 con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:431-433 Expr.abstractPrefix
 **The free variables `0 … k-1` closed at cursor `c`**: `fvar i` becomes
 `bvar (c + k - 1 - i)`, in one `abstractRangeFast` pass. -/

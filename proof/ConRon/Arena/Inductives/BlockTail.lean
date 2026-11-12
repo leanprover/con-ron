@@ -62,7 +62,7 @@ structure BlockPass where
   tbl : List NestCtorNf
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:44-62 checkBlockPass
-con-leche: ConLeche/Cached/CheckerC.lean:183-197 checkBlockPassS
+con-leche: ConLeche/Cached/CheckerC.lean:187-201 checkBlockPassS
 **One pass over the formers, the constructors and the classes** at the
 block's `is_rec` verdict: the formers (and the flush entering the environment
 that holds them all), the constructors, the walk's context, the classes, and
@@ -83,7 +83,8 @@ def checkBlockPass (mode : CheckMode) (fe : IFEnv) (p₀ : BlockShape) (isRec : 
          rd := rd, cls := ms, tbl := ns.ctorNfs.toList }
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:64-77 checkBlockRec
-con-leche: ConLeche/Cached/CheckerC.lean:199-219 checkBlockTailS
+con-leche: ConLeche/Cached/CheckerC.lean:203-223 checkBlockTailS
+-- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove BlockTail.checkBlockRec_bridge, then delete this line
 **The installer's recursor stage**: the GENERATED recursor stage at the
 constructors' environment, on the stream's own recursor family (the raw
 `block`), the pass's classes and table, and the container bit. -/
@@ -94,7 +95,8 @@ def checkBlockRec (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (nested : Boo
   genRecCheck mode fe p nested params tbl rd ms block
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:79-90 consBlockRecsT
-con-leche: ConLeche/Cached/CheckerC.lean:199-219 checkBlockTailS
+con-leche: ConLeche/Cached/CheckerC.lean:203-223 checkBlockTailS
+-- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove BlockTail.consBlockRecsTemp_bridge, then delete this line
 **The checked family consed, at its majors, TEMPORARILY**: the records
 `blockRecInfosTF` built (each recursor with its rules at ITS major), pushed in
 place.  Returns the rows the pushes displaced (`idx[n]?` before each push), in
@@ -118,7 +120,9 @@ def checkBlockTables (fe : IFEnv) : List IProjTable → AM Unit
     checkBlockTables fe rest
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:100-112 checkBlockTail
-con-leche: ConLeche/Cached/CheckerC.lean:199-219 checkBlockTailS
+-- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove BlockTail.checkBlockTail_bridge, then delete this line
+con-leche: ConLeche/Cached/CheckerC.lean:203-223 checkBlockTailS
+-- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove BlockTail.checkBlockTail_bridge, then delete this line
 **The checks after the pass**: the index binders' sorts, the constructors
 consed (and the flush entering that environment), the generated recursors, the
 stream's K flags and recursors against them (at the generated family pushed in
@@ -153,7 +157,8 @@ def declinedAtDefinition : AM (List NIdx) := do
   pure [← pinStringOfList, ← pinListNil, ← pinListCons, ← pinCharOfNat, ← pinBool]
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:124-136 reduceMember
-con-leche: ConLeche/Cached/CheckerC.lean:221-232 reduceMemberS
+con-leche: ConLeche/Cached/CheckerC.lean:225-236 reduceMemberS
+-- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove BlockTail.reduceMember_bridge, then delete this line
 **A member's former at its telescope**, official's `whnf` loop where the
 declared type does not show it: the declared type checked, reduced, and the two
 compared; a member already at its telescope as it is. -/
@@ -172,7 +177,7 @@ def reduceMember (mode : CheckMode) (fe : IFEnv) (ms : MemberShape) (nP : Nat) :
   else pure ms
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:138-145 reduceMembers
-con-leche: ConLeche/Cached/CheckerC.lean:234-241 reduceMembersS
+con-leche: ConLeche/Cached/CheckerC.lean:238-245 reduceMembersS
 The members, each at its telescope, a flush before each (the cached twin's). -/
 def reduceMembers (mode : CheckMode) (fe : IFEnv) (nP : Nat) :
     List MemberShape → AM (List MemberShape)
@@ -184,7 +189,7 @@ def reduceMembers (mode : CheckMode) (fe : IFEnv) (nP : Nat) :
     pure (ms' :: rest')
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:147-163 checkBlock
-con-leche: ConLeche/Cached/CheckerC.lean:243-255 checkBlockKS
+con-leche: ConLeche/Cached/CheckerC.lean:247-259 checkBlockKS
 **Check an inductive block and install it**: the distinct names, no member at
 a `Bool` constructor's name, each former reduced to its telescope once
 (official's `check_inductive_types`), the flush, the pass at official's

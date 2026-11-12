@@ -327,7 +327,7 @@ pub fn mc_probe(memo: &HashMap<EIdx, bool>, k: &EIdx) -> Option<bool> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:119-133 Expr.mentionsAnyConst
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1696-1740 mentionsAnyConstXP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1783-1827 mentionsAnyConstXP
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:148-190 mentionsConstGo`
 /// — does the constant `T` occur in `e`?  `mentionsAnyConst [T]`, the one
 /// name the `sorryAx` test asks: a syntactic walk (`fvar` annotations
@@ -365,7 +365,7 @@ pub fn mentions_const_go(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1696-1740 mentionsAnyConstXP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1783-1827 mentionsAnyConstXP
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:148-190 mentionsConstGo`
 /// — the walk's compound arms, split off so that the `view`'s loans are dead at
 /// the memo's join (extraction rule 5).
@@ -418,7 +418,7 @@ pub fn mentions_const_node(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1742-1744 mentionsAnyConstC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1829-1831 mentionsAnyConstC
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:192-195 mentionsConst`
 /// — the executed `mentionsAnyConst [T]` (one memoized DAG walk).
 pub fn mentions_const(

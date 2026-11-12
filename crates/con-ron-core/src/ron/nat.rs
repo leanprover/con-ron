@@ -601,7 +601,7 @@ fn pow_go(a: &Nat, e: &Nat) -> Nat {
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:159-162 natSizeBytes
+/// con-leche: ConLeche/Cached/StateC.lean:156-159 natSizeBytes
 /// The official kernel's size of `a` in bytes (`lean_nat_size_in_bytes`):
 /// 8 bytes per limb, and at least 8.  The cited `8 * (a.log2 / 64 + 1)`,
 /// read off the limb count: a normalised `a` with `n > 0` limbs has
@@ -612,7 +612,7 @@ pub fn size_bytes(a: &Nat) -> Nat {
     shift_left(&from_u64(l), 3)
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:159-162 natSizeBytes
+/// con-leche: ConLeche/Cached/StateC.lean:156-159 natSizeBytes
 /// `natSizeBytes a > m`: the comparison every refusal of a numeral makes.
 pub fn size_bytes_gt(a: &Nat, m: &Nat) -> bool {
     blt(m, &size_bytes(a))

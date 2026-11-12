@@ -596,7 +596,7 @@ pub fn beq_recursive(e: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:1177-1182 Expr.beqMemo
+/// con-leche: ConLeche/Kernel/Expr.lean:1244-1249 Expr.beqMemo
 /// The pointer test behind the cited `withPtrEq`.  Deviation: modeled as
 /// `false` in the generated Lean (DESIGN.md §3.2), where the reflexivity of
 /// the walk is what discharges the fast path.
@@ -604,7 +604,7 @@ pub fn ptr_eq(a: &Expr, b: &Expr) -> bool {
     ptr::ptr_eq(&a.0, &b.0)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:794-804 EqPair
+/// con-leche: ConLeche/Kernel/Expr.lean:799-809 EqPair
 /// A memo entry: the pair of objects a completed descent proved equal.
 /// Deviations, both of them things Rust has not got: the two stored
 /// *addresses* (con-leche's cheap probe filter — here the key does that job)
@@ -615,12 +615,12 @@ pub fn ptr_eq(a: &Expr, b: &Expr) -> bool {
 /// `InferLamEntry` is).
 pub type EqPair = (Expr, Expr);
 
-/// con-leche: ConLeche/Kernel/Expr.lean:794-804 EqPair
+/// con-leche: ConLeche/Kernel/Expr.lean:799-809 EqPair
 /// All the pairs stored under one key — see `BeqMap`.  A `Vec`, walked by an
 /// index like every other list in the port (DESIGN.md §3.4).
 pub type BeqBucket = Vec<EqPair>;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:810-811 BeqMap
+/// con-leche: ConLeche/Kernel/Expr.lean:815-816 BeqMap
 /// The memo, keyed by `beq_key`, with **a bucket of pairs per key**.
 /// `ron::HashMap` is the crate's own table (DESIGN.md §3.3), verified at task
 /// #16; the cited `Std.HashMap` holds one entry per key because con-leche's
@@ -653,7 +653,7 @@ pub type BeqBucket = Vec<EqPair>;
 /// memo's total size is bounded by the comparisons the descent has completed.
 pub type BeqMap = HashMap<u64, BeqBucket>;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:813-820 Expr.beqKey
+/// con-leche: ConLeche/Kernel/Expr.lean:818-825 Expr.beqKey
 /// The memo key of a pair, packed into one word.
 ///
 /// **Deviation (the one change the port makes to the memo, see the module
@@ -668,7 +668,8 @@ pub fn beq_key(ha: u64, hb: u64) -> u64 {
     ha ^ hb.wrapping_mul(0x9E3779B97F4A7C15)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:947-959 Expr.probeHit
+/// con-leche: ConLeche/Kernel/Expr.lean:952-967 Expr.probeHit
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::probe_hit_refines, then delete this line
 /// Does the key's bucket hold the pair `(a, b)`?  The stored objects, tested
 /// by *identity*, are the verification — con-leche's stored addresses are the
 /// filter that the key has become.  A `true` here is `a = b` because the
@@ -685,7 +686,8 @@ pub fn probe_hit(m: &BeqMap, key: u64, a: &Expr, b: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:947-959 Expr.probeHit
+/// con-leche: ConLeche/Kernel/Expr.lean:952-967 Expr.probeHit
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::probe_hit_from_refines, then delete this line
 /// The index recursion behind `probe_hit`: the bucket's candidates, each
 /// verified by `ptr_eq` on both components (task #38 — con-leche's single
 /// entry per key is its addresses' doing, see `BeqMap`).  No loops
@@ -703,8 +705,9 @@ pub fn probe_hit_from(ps: &Vec<EqPair>, i: usize, a: &Expr, b: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:947-959 Expr.probeHit
-/// con-leche: ConLeche/Kernel/Expr.lean:937-945 ptrDecStruct
+/// con-leche: ConLeche/Kernel/Expr.lean:952-967 Expr.probeHit
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::pair_is_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Expr.lean:942-950 ptrDecStruct
 /// One candidate of the bucket: is this stored pair *these* two objects?
 /// The cited `probeHit`'s two `ptrDecStruct` identity tests, on the pair
 /// rather than on the entry's two address fields.  Its own function so that `probe_hit_from`
@@ -740,7 +743,8 @@ pub fn levels_beq_from(ls: &Vec<Level>, rs: &Vec<Level>, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:1045-1170 Expr.beqGoX
+/// con-leche: ConLeche/Kernel/Expr.lean:1116-1237 Expr.beqGoX
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove crates/con-ron-core/src/kernel/expr.rs_refines, then delete this line
 /// The memoised structural descent, in the cited shape: pointer identity,
 /// then the computed word (a mismatch *is* an inequality), then the memo
 /// probe, then the constructor cases in the cited arm order, then the
@@ -786,7 +790,8 @@ pub fn beq_go(m: BeqMap, a: &Expr, b: &Expr) -> (bool, BeqMap) {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:1045-1170 Expr.beqGoX
+/// con-leche: ConLeche/Kernel/Expr.lean:1116-1237 Expr.beqGoX
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::beq_arm_refines, then delete this line
 /// `beqGo`'s constructor cases, in the cited arm order: the ten diagonal
 /// pairs and the wildcard, each one expression (the helpers below are why —
 /// see `beq_when`).  Its own function for two reasons.  It is where the
@@ -816,7 +821,8 @@ pub fn beq_arm(m: BeqMap, a: &Expr, b: &Expr) -> (bool, BeqMap) {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:1045-1170 Expr.beqGoX
+/// con-leche: ConLeche/Kernel/Expr.lean:1116-1237 Expr.beqGoX
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::beq_finish_refines, then delete this line
 /// `beqGo`'s `finish`: a completed `true` at a recursive node is recorded,
 /// everything else passes through.
 ///
@@ -846,7 +852,8 @@ pub fn beq_finish(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:1045-1170 Expr.beqGoX
+/// con-leche: ConLeche/Kernel/Expr.lean:1116-1237 Expr.beqGoX
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::beq_record_refines, then delete this line
 /// `beqGo`'s `finish`, the write-back: record a completed `true` at a
 /// recursive node in its key's bucket (task #38 — the bucket is `BeqMap`'s
 /// note).  Its own function so that the table's `mut` binding is short and
@@ -873,7 +880,8 @@ pub fn beq_record(m: BeqMap, key: u64, a: &Expr, b: &Expr) -> BeqMap {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:1045-1170 Expr.beqGoX
+/// con-leche: ConLeche/Kernel/Expr.lean:1116-1237 Expr.beqGoX
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::beq_extend_refines, then delete this line
 /// The growing half of the write-back: the key already held `old`, so the
 /// bucket becomes `old` with the new pair appended and the one-element bucket
 /// `beq_record` has just stored is replaced by it.  `insert` on a key the
@@ -887,7 +895,8 @@ pub fn beq_extend(m: BeqMap, key: u64, old: BeqBucket, a: &Expr, b: &Expr) -> Be
     m
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:1045-1170 Expr.beqGoX
+/// con-leche: ConLeche/Kernel/Expr.lean:1116-1237 Expr.beqGoX
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::beq_when_refines, then delete this line
 /// The cited `.fvar`/`.proj` arms' shape: a field comparison that decides
 /// the arm on its own, then the one recursive call.
 ///
@@ -909,7 +918,8 @@ pub fn beq_when(m: BeqMap, cond: bool, x: &Expr, y: &Expr) -> (bool, BeqMap) {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:1045-1170 Expr.beqGoX
+/// con-leche: ConLeche/Kernel/Expr.lean:1116-1237 Expr.beqGoX
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::beq_both_refines, then delete this line
 /// The cited `.app` arm: the two children in order, aborting on the first
 /// `false` (which is what keeps an unequal pair out of the memo).
 pub fn beq_both(m: BeqMap, x1: &Expr, y1: &Expr, x2: &Expr, y2: &Expr) -> (bool, BeqMap) {
@@ -921,7 +931,8 @@ pub fn beq_both(m: BeqMap, x1: &Expr, y1: &Expr, x2: &Expr, y2: &Expr) -> (bool,
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:1045-1170 Expr.beqGoX
+/// con-leche: ConLeche/Kernel/Expr.lean:1116-1237 Expr.beqGoX
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::beq_three_refines, then delete this line
 /// The cited `.letE` arm: the type, the value, the body.
 pub fn beq_three(
     m: BeqMap,
@@ -940,7 +951,8 @@ pub fn beq_three(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:1045-1170 Expr.beqGoX
+/// con-leche: ConLeche/Kernel/Expr.lean:1116-1237 Expr.beqGoX
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::const_beq_refines, then delete this line
 /// The cited `.const` arm's `n == m && us == vs`, as one `bool` so that the
 /// arm is a single expression (see `beq_when`).  Neither conjunct recurses.
 pub fn const_beq(n: &Name, us: &Vec<Level>, n2: &Name, vs: &Vec<Level>) -> bool {
@@ -951,7 +963,8 @@ pub fn const_beq(n: &Name, us: &Vec<Level>, n2: &Name, vs: &Vec<Level>) -> bool 
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:1045-1170 Expr.beqGoX
+/// con-leche: ConLeche/Kernel/Expr.lean:1116-1237 Expr.beqGoX
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::proj_head_beq_refines, then delete this line
 /// The cited `.proj` arm's `s == s' && i == i'`, the part that decides the
 /// arm before its one recursive call (see `beq_when`).
 pub fn proj_head_beq(s1: &Name, i1: u64, s2: &Name, i2: u64) -> bool {
@@ -962,11 +975,12 @@ pub fn proj_head_beq(s1: &Name, i1: u64, s2: &Name, i2: u64) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:1172-1175 Expr.beqDec
-/// con-leche: ConLeche/Kernel/Expr.lean:1177-1182 Expr.beqMemo
-/// con-leche: ConLeche/Kernel/Expr.lean:1221-1225 Expr.beq
-/// con-leche: ConLeche/Kernel/Expr.lean:1193-1197 decEqPtr
-/// con-leche: ConLeche/Kernel/Expr.lean:829-935 decEq
+/// con-leche: ConLeche/Kernel/Expr.lean:1239-1242 Expr.beqDec
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove expr::beq_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Expr.lean:1244-1249 Expr.beqMemo
+/// con-leche: ConLeche/Kernel/Expr.lean:1288-1292 Expr.beq
+/// con-leche: ConLeche/Kernel/Expr.lean:1260-1264 decEqPtr
+/// con-leche: ConLeche/Kernel/Expr.lean:834-940 decEq
 /// `Expr.beqMemo` is the *executed* `Expr.beq` (`@[csimp]`-substituted):
 /// the pointer test, the computed-word test, then `beqDec`, which is the
 /// descent from a fresh state.  The memo is therefore **local to this
@@ -993,10 +1007,10 @@ pub fn beq(a: &Expr, b: &Expr) -> bool {
 // The `bvar` smart constructor (`Expr.lean:990-1037`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Expr.lean:1274-1275 Expr.bvarPool
-/// con-leche: ConLeche/Kernel/Expr.lean:1277-1280 Expr.mkBvar
-/// con-leche: ConLeche/Kernel/Expr.lean:1282-1286 Expr.mkBvar_eq
-/// con-leche: ConLeche/Kernel/Expr.lean:1277-1280 mkBvar
+/// con-leche: ConLeche/Kernel/Expr.lean:1341-1342 Expr.bvarPool
+/// con-leche: ConLeche/Kernel/Expr.lean:1344-1347 Expr.mkBvar
+/// con-leche: ConLeche/Kernel/Expr.lean:1349-1353 Expr.mkBvar_eq
+/// con-leche: ConLeche/Kernel/Expr.lean:1344-1347 mkBvar
 /// The `bvar` smart constructor.
 ///
 /// **Deviation: the pool is not ported.**  `bvarPool` is a closed top-level
@@ -1065,13 +1079,13 @@ impl Hashable for Expr {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:1232 _
+/// con-leche: ConLeche/Kernel/Expr.lean:1299 _
 /// The cited `instance : BEq Expr := ⟨Expr.beq⟩`, as the key dictionary of
 /// `crate::ron::hashmap`.  Deviation: `Eq2` is our own one-method trait rather
 /// than `core::cmp::PartialEq` — which is exactly what lets the instance be
 /// `beq` with its pointer and computed-word fast paths (task #7).
 impl Eq2 for Expr {
-    /// con-leche: ConLeche/Kernel/Expr.lean:1221-1225 Expr.beq
+    /// con-leche: ConLeche/Kernel/Expr.lean:1288-1292 Expr.beq
     /// `Expr.beq`, i.e. the `@[csimp]`-substituted `Expr.beqMemo`.
     fn eq2(&self, other: &Self) -> bool {
         beq(self, other)

@@ -431,14 +431,14 @@ pub fn pin_at(st: &AState, i: usize) -> Result<NIdx, CheckError> {
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:156-157 maxNatSizeDefault
+/// con-leche: ConLeche/Cached/StateC.lean:153-154 maxNatSizeDefault
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:147-149 maxNatSizeDefault` — the
 /// official kernel's default maximum `Nat` size, 128 MiB.
 pub fn max_nat_size_default() -> Nat {
     nat::from_u64(134217728)
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:267-271 maxNatSizeM
+/// con-leche: ConLeche/Cached/StateC.lean:326-330 maxNatSizeM
 /// Lean twin: `proof/ConRon/Arena/Pins.lean:291-295 maxNatSizeM` — the run's maximum
 /// `Nat` size, read off the record, which it leaves as it is.
 pub fn max_nat_size(st: &AState) -> &Nat {

@@ -57,7 +57,7 @@ own functions on transient values, and DESIGN §8.3's lesson 4 says a level
 algorithm runs on trees. -/
 
 /-- con-leche: ConLeche/Kernel/Level.lean:249-265 Expr.allLevelParamsDefined
-con-leche: ConLeche/Cached/ExprOpsC.lean:2238-2308 allLevelParamsDefinedXP
+con-leche: ConLeche/Cached/ExprOpsC.lean:2325-2395 allLevelParamsDefinedXP
 The memoized walk.  `params` are transient names (see the section note); the
 memo is keyed on the node, which is what makes a shared subterm cost one
 probe. -/
@@ -93,7 +93,7 @@ def allLevelParamsDefinedGo (params : List ConLeche.Name)
         | .proj _ _ e => allLevelParamsDefinedGo params memo fuel e
       pure (p.1, p.2.insert h p.1)
 
-/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2310-2314 allLevelParamsDefinedC
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2397-2401 allLevelParamsDefinedC
 The executed `allLevelParamsDefined`: one memoized DAG walk, at the parameter
 list read back once. -/
 def allLevelParamsDefined (lps : List NIdx) (e : EIdx) : AM Bool := do
@@ -112,7 +112,7 @@ only callers; the memo is threaded explicitly — the census's own twin column
 — because the answer depends on `fe` and `Memos` is the per-CALL record. -/
 
 /-- con-leche: ConLeche/Kernel/DeclCheck.lean:30-51 Expr.constsResolveF
-con-leche: ConLeche/Cached/StateC.lean:555-612 constsResolveFXP
+con-leche: ConLeche/Cached/StateC.lean:614-671 constsResolveFXP
 The memoized walk.  The leaf clauses are `Arena/Core.lean`'s `constsResolve`
 at one node, exactly as con-leche's `…Go` calls the pure walk at its four
 non-recursive constructors.  The node is viewed ONCE and the miss arm
@@ -151,7 +151,7 @@ def constsResolveFGo (fe : IFEnv) (memo : Std.HashMap EIdx Bool) :
           | _ => pure (← constsResolve fe coreWalkFuel h, memo)
         pure (p.1, p.2.insert h p.1)
 
-/-- con-leche: ConLeche/Cached/StateC.lean:614-616 constsResolveFC
+/-- con-leche: ConLeche/Cached/StateC.lean:673-675 constsResolveFC
 The executed `constsResolve` (one memoized DAG walk), which is what every
 front door below calls. -/
 def constsResolveFFast (fe : IFEnv) (e : EIdx) : AM Bool := do
@@ -241,6 +241,7 @@ def unresolvedConstsErrorL (strOk : Bool) (where_ : String) (e : EIdx) :
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:101-123 checkConstantVal
 con-leche: ConLeche/Kernel/DeclCheck.lean:218-238 checkConstantValF
 con-leche: ConLeche/Cached/IndPass.lean:36-58 checkConstantValC
+-- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove CheckerBase.checkConstantVal_bridge, then delete this line
 Checks common to all declarations: fresh name, a certified
 operation's name only at a definition (`allowOp`, the cited default `false`,
 spelled at every call as the Rust must), a literal's name only at its shape,
@@ -285,7 +286,8 @@ def unwrapOr {α : Type} (o : Option α) (err : CheckError) : AM α :=
 A `ConLeche/Kernel/Env.lean` declaration, placed at its only reader — the
 `.indDecl` arm — exactly as the `Level.lean` declarations above are. -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:379-413 indParamsOk — **the stream's
+/-- con-leche: ConLeche/Kernel/Env.lean:390-423 indParamsOk — **the stream's
+-- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove CheckerBase.indParamsOk_bridge, then delete this line
 declared parameter count, checked as official checks it** (con-leche's task
 #228).  Both halves are one-sided on purpose: `false` means official rejects. -/
 def indParamsOk (nP : Nat) : List IConstantInfo → AM Bool

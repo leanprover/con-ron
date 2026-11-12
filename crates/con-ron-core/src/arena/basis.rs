@@ -123,6 +123,7 @@ pub fn rec_rule_fire_at_lps(
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:63-79 ConstantInfo.atLps
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove basis::rules_at_lps_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:67-78 rulesAtLps` — the
 /// `.recInfo` arm's `rules.map`: each rule's right-hand side and firing mode at
 /// the new names.  `lps_h`/`us` are the cited `lps`/`us` as handles (for
@@ -162,6 +163,7 @@ pub fn rules_at_lps(
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:63-79 ConstantInfo.atLps
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove basis::constant_info_at_lps_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:80-100 IConstantInfo.atLps` — **a stored
 /// constant at other level-parameter names**: its type, a definition's value,
 /// its rules' right-hand sides and firing modes renamed; nothing else.
@@ -205,6 +207,7 @@ pub fn constant_info_at_lps(
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:63-79 ConstantInfo.atLps
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove basis::constant_info_at_lps_rec_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:80-100 IConstantInfo.atLps` — the
 /// `.recInfo` arm.
 pub fn constant_info_at_lps_rec(
@@ -365,6 +368,7 @@ pub fn const_named(cs: &Vec<IConstantInfo>, n: &NIdx, i: usize) -> Option<IConst
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:105-119 blockLinksOk
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove basis::block_links_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:166-171 blockLinksOk` — the stream's
 /// recursor links its rules' constructors as the pin's does (`pin_link_ok`),
 /// and a constructor carries its former's names.  The cited `(List.zip block
@@ -384,6 +388,7 @@ pub fn block_links_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:105-119 blockLinksOk
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove basis::block_links_ok_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:166-171 blockLinksOk` — the pairs from
 /// position `i` on.
 pub fn block_links_ok_go(
@@ -406,6 +411,7 @@ pub fn block_links_ok_go(
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:105-119 blockLinksOk
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove basis::block_link_ok_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:166-171 blockLinksOk` — the cited `match
 /// c, p with`, one pair.
 pub fn block_link_ok_at(
@@ -430,6 +436,7 @@ pub fn block_link_ok_at(
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:105-119 blockLinksOk
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove basis::rules_link_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:166-171 blockLinksOk` — the cited
 /// `rules.all`: each of the pin's rules' constructors, found in both lists,
 /// linked as the pin links it.

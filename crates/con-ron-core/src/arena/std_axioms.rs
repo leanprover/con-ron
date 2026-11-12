@@ -114,6 +114,7 @@ pub fn iff_a(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckErr
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:97-105 iffIntroA
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove std_axioms::iff_intro_a_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:72-73 iffIntroA`.
 pub fn iff_intro_a(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
     intern_ci(pers, st, &cstd::iff_intro_a())
@@ -138,6 +139,7 @@ pub fn nonempty_a(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, Che
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:139-145 nonemptyIntroA
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove std_axioms::nonempty_intro_a_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:80-81 nonemptyIntroA`.
 pub fn nonempty_intro_a(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
     intern_ci(pers, st, &cstd::nonempty_intro_a())

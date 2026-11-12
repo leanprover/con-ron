@@ -401,7 +401,7 @@ The parse, the pin walk and the stream's index (§6.3) write the persistent tier
 directly.  Each record's check then runs inside a **bracket** on a worker's own
 store: `enter_record` empties the scratch tier and the memos, and
 `leave_record` empties the scratch tier again and flushes the caches
-([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L11522-L11541)).
+([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L11676-L11695)).
 Nothing a check builds outlives it: what a declaration adds to the environment
 is read off the record itself when the index is built, so no term ever has to
 move from the scratch tier to the persistent one.  Dropping the tier leaves
@@ -429,7 +429,7 @@ shared tier, by construction, not by a guard.  After the check phase,
 `ReaderT PersTier` layer on the checker monad.
 
 The environment has two tiers in the same way
-([`IFEnv`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/env.rs#L568-L597)).
+([`IFEnv`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/env.rs#L574-L603)).
 A job's environment is an empty layer of its own over the frozen index: a
 lookup reads the layer first (skipped while it is empty), then the index below
 the record's position.  No job copies the environment.
@@ -583,7 +583,7 @@ There is no install phase.  After the parse, the stream's **index** is built
 once, from the records alone
 ([`build_index`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/stream_index.rs#L161-L182)):
 what each record adds to the environment is a function of the record
-([`decl_constants`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/install.rs#L332-L369)
+([`decl_constants`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/install.rs#L333-L370)
 and `decl_tables`, con-leche's `Kernel/Install.lean`: a definition's constant, a
 block's formers, constructors, recursors with the record's K flag and their
 rules' firing mode, and its projection tables, read off its records with no

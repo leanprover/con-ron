@@ -114,41 +114,41 @@ The members' constructors, per member, as declared. -/
 def BlockShape.memberCtors (p : BlockShape) : List (List (IConstantVal × Nat)) :=
   p.members.map (·.ctors)
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:142-146 numCtorsOf
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:147-151 numCtorsOf
 The constructors of a list of members, counted. -/
 def numCtorsOf : List MemberShape → Nat
   | [] => 0
   | ms :: rest => ms.ctors.length + numCtorsOf rest
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:150-151 BlockShape.k
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:155-156 BlockShape.k
 The number of members. -/
 def BlockShape.k (p : BlockShape) : Nat := p.members.length
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:152-153 BlockShape.numCtors
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:157-158 BlockShape.numCtors
 The number of constructors of the whole block. -/
 def BlockShape.numCtors (p : BlockShape) : Nat := numCtorsOf p.members
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:154-155 BlockShape.memberNames
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:159-160 BlockShape.memberNames
 The members' names, in block order. -/
 def BlockShape.memberNames (p : BlockShape) : List NIdx := p.members.map (·.cvT.name)
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:156-157 BlockShape.nIdxs
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:161-162 BlockShape.nIdxs
 The members' index counts, in block order. -/
 def BlockShape.nIdxs (p : BlockShape) : List Nat := p.members.map (·.nIdx)
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:158-161 BlockShape.lps
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:163-166 BlockShape.lps
 The block's level parameters (member 0's; `[]` at no member). -/
 def BlockShape.lps (p : BlockShape) : List NIdx :=
   match p.members with
   | [] => []
   | m :: _ => m.cvT.levelParams
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:162-164 BlockShape.allCtors
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:167-169 BlockShape.allCtors
 The constructors of the whole block, in block order. -/
 def BlockShape.allCtors (p : BlockShape) : List (IConstantVal × Nat) :=
   (p.members.map (·.ctors)).flatten
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:171-177 BlockShape.rulePrefixAt
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:176-182 BlockShape.rulePrefixAt
 Recursor `r`'s rule prefix, the RECORD's (`0`, the default record's, off the
 list). -/
 def BlockShape.rulePrefixAt (p : BlockShape) (r : Nat) : Nat :=
@@ -156,14 +156,14 @@ def BlockShape.rulePrefixAt (p : BlockShape) (r : Nat) : Nat :=
   | some rc => rc.rP
   | none => 0
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:179-182 BlockShape.majorIdxAt
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:184-187 BlockShape.majorIdxAt
 Recursor `r`'s major-premise index, the RECORD's. -/
 def BlockShape.majorIdxAt (p : BlockShape) (r : Nat) : Nat :=
   match p.recs[r]? with
   | some rc => rc.mI
   | none => 0
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:184-188 BlockShape.withSort
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:189-193 BlockShape.withSort
 The record completed with the former stage's result sort, `isProp` recomputed
 from it (`Level.isEquiv s .zero == some true`, at handles: `lvlEq?`). -/
 def BlockShape.withSort (p : BlockShape) (s : LIdx) : AM BlockShape := do
@@ -177,7 +177,7 @@ def BlockShape.withSort (p : BlockShape) (s : LIdx) : AM BlockShape := do
 
 /-! ## Recognition -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:221-227 blockSplitRecs
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:226-232 blockSplitRecs
 The closing recursors: `none` at anything else. -/
 def blockSplitRecs : List IConstantInfo →
     Option (List (IConstantVal × Nat × Nat × Bool × List IRecRule))
@@ -188,7 +188,8 @@ def blockSplitRecs : List IConstantInfo →
     | none => none
   | _ :: _ => none
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:229-234 blockSplitCtors
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:234-239 blockSplitCtors
+-- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove BlockShape.blockSplitCtors_bridge, then delete this line
 The constructors, then the recursors. -/
 def blockSplitCtors : List IConstantInfo →
     Option (List (IConstantVal × Nat × Nat) ×
@@ -202,7 +203,7 @@ def blockSplitCtors : List IConstantInfo →
     | some rs => some ([], rs)
     | none => none
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:236-242 blockSplit
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:241-247 blockSplit
 The type formers, the constructors and the recursors. -/
 def blockSplit : List IConstantInfo →
     Option (List IConstantVal × List (IConstantVal × Nat × Nat) ×
@@ -216,7 +217,7 @@ def blockSplit : List IConstantInfo →
     | some q => some ([], q.1, q.2)
     | none => none
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:244-261 recTargetOf
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:249-266 recTargetOf
 **The member a recursor's MAJOR names**: strip the `mI` binders the record
 claims, the next binder is the major, and its domain's head constant is read
 against the member names; `names.length` — no member — otherwise. -/
@@ -240,13 +241,13 @@ def recTargetOf (names : List NIdx) (mI : Nat) (ty : EIdx) : AM Nat := do
         else pure none'
     else pure none'
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:263-298 blockCounts.recCountsError
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:268-303 blockCounts.recCountsError
 A recursor whose argument counts do not fit the block (the cited names and
 counts dropped, §3.1). -/
 def recCountsError : CheckError :=
   .invalid "the argument counts of a recursor do not fit the block"
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:263-298 blockCounts
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:268-303 blockCounts
 **One member's parameter and index counts**, read as official reads them: off
 the member's own telescope when it is a syntactic one ending in a sort, else
 off the argument sums `r` of a recursor whose major names the member (the
@@ -271,7 +272,7 @@ def blockCounts (nPd k nC nR : Nat) (cvT : IConstantVal) (r : Option (Nat × Nat
       else if k < nR && nPd + nR + nC ≤ rP then pure (.ok (nPd, mI - rP))
       else pure (.error recCountsError)
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:300-307 ctorMember?
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:305-312 ctorMember?
 The member a constructor belongs to: the one its RESULT names (at the block's
 own levels `lvls`, `lps.map .param` interned). -/
 def ctorMember? (names : List NIdx) (lvls : LsIdx) (nP : Nat) (c : IConstantVal × Nat) :
@@ -282,7 +283,7 @@ def ctorMember? (names : List NIdx) (lvls : LsIdx) (nP : Nat) (c : IConstantVal 
     let hd ← getAppFn coreWalkFuel q.2
     memberIdxAt? names lvls hd
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:309-322 blockGroups
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:314-327 blockGroups
 **The constructors grouped by member**, in block order: at ONE member all of
 them, nothing read; at two or more read off the result head (a constructor
 whose head is no member lands in no group).  The Rust's `block_groups_from`
@@ -298,7 +299,7 @@ def blockGroups (names : List NIdx) (lvls : LsIdx) (nP k : Nat)
         | some t => pure (t == m)
         | none => pure false
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:324-332 blockRecLpsOk
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:329-337 blockRecLpsOk
 **The recursor records' level-parameter pin**: every recursor carries the
 block's level parameters, the elimination parameter in front at the large
 eliminator. -/
@@ -308,7 +309,7 @@ def blockRecLpsOk (p : BlockShape) : Bool :=
     if p.large then rc.cvR.levelParams == p.elim :: lps
     else rc.cvR.levelParams == lps
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:334-356 blockRecNameSetOk
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:339-361 blockRecNameSetOk
 **The recursor names, as a SET**: exactly `T_m.rec` at every member, each once.
 Takes the members and the recursors apart, as the Rust does (module note); the
 generated names are interned in block order. -/
@@ -318,7 +319,7 @@ def blockRecNameSetOk (members : List MemberShape) (recs : List RecShape) : AM B
   pure (got.length == want.length &&
     want.all (fun n => got.contains n) && got.all (fun n => want.contains n))
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:358-367 blockRecNamesUnreserved
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:363-372 blockRecNamesUnreserved
 **No recursor takes a name the environment's own guards look up**
 (`reservedRecName`), read recursor by recursor and stopping at the first hit,
 as the Rust does. -/
@@ -328,7 +329,7 @@ def blockRecNamesUnreserved : List RecShape → AM Bool
     if ← reservedRecName rc.cvR.name then pure false
     else blockRecNamesUnreserved rest
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:369-383 blockMemberCounts
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:374-388 blockMemberCounts
 **The members' index counts**, one `blockCounts` per member (from member `m`,
 the formers `cvTs`), in order; the recursor handed to it is the first whose
 major names the member (the Rust's `rec_for_member`, a `findM?`).  The first
@@ -349,7 +350,7 @@ def blockMemberCounts (nPd k nC : Nat) (names : List NIdx)
       | .error e => pure (.error e)
       | .ok ns => pure (.ok (c.2 :: ns))
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:390-463 readBlock
 **Read a declared inductive block**: split into formers, constructors and
 recursors (at least one of each of the first and the last), the members'
 counts, the universe and parameter declarations (formers', then constructors'

@@ -34,6 +34,7 @@ open ConLeche
 
 /-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:42-56 recDomsAt
 con-leche: ConLeche/Cached/IndTail.lean:82-92 recDomsAtC
+-- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove StreamRecs.recDomsAt_bridge, then delete this line
 **A record's type's domains against the generated one's**, binder by binder
 from binder `j` on (`k` of them): each stored domain `isDefEq` to the generated
 one at its depth, both telescopes opened at their own locals. -/
@@ -52,6 +53,7 @@ def recDomsAt (mode : CheckMode) (fe : IFEnv) (sfvs gfvs : List EIdx) :
 
 /-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:58-71 recTyOpened
 con-leche: ConLeche/Cached/IndTail.lean:94-106 recTyOpenedC
+-- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove StreamRecs.recTyOpened_bridge, then delete this line
 The record's and the generated type, opened `n` binders deep: the domains, then
 the residues. -/
 def recTyOpened (mode : CheckMode) (fe : IFEnv) (n : Nat) :
@@ -65,8 +67,10 @@ def recTyOpened (mode : CheckMode) (fe : IFEnv) (n : Nat) :
 
 /-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:73-87 recTyCheck
 con-leche: ConLeche/Cached/IndTail.lean:108-120 recTyCheckC
+-- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove StreamRecs.streamClosed_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:89-110 ruleAgree
 con-leche: ConLeche/Cached/IndTail.lean:122-140 ruleAgreeC
+-- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove StreamRecs.streamClosed_bridge, then delete this line
 The test both open with: `s.looseBVarsBounded 0 && !s.hasFvar && !g.hasFvar`. -/
 def streamClosed (s g : EIdx) : AM Bool := do
   if ← looseBVarsBoundedFast coreWalkFuel 0 s then
@@ -78,6 +82,7 @@ def streamClosed (s g : EIdx) : AM Bool := do
 
 /-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:73-87 recTyCheck
 con-leche: ConLeche/Cached/IndTail.lean:108-120 recTyCheckC
+-- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove StreamRecs.recTyCheck_bridge, then delete this line
 **A record's type's check**: closed, at the record's level parameters `lps`,
 resolving, a type (inferred, a sort), and the generated one binder by binder up
 to the major (`n` binders): the domains, then the residues. -/
@@ -97,6 +102,7 @@ def recTyCheck (mode : CheckMode) (fe : IFEnv) (lps : List NIdx) (n : Nat) (s g 
 
 /-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:89-110 ruleAgree
 con-leche: ConLeche/Cached/IndTail.lean:122-140 ruleAgreeC
+-- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove StreamRecs.ruleAgree_bridge, then delete this line
 **One rule's check**: the record's right-hand side `s` is closed, at the
 record's level parameters `lps`, resolving; it and the generated `g` are
 inferred, their types are definitionally equal, and so are they. -/

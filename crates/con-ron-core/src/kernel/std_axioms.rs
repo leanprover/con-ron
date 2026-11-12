@@ -116,6 +116,7 @@ pub fn iff_a() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:97-105 iffIntroA
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove std_axioms::iff_intro_a_refines, then delete this line
 /// `Iff.intro (a b : Prop) (mp : a → b) (mpr : b → a) : Iff a b`.
 pub fn iff_intro_a() -> ConstantInfo {
     ConstantInfo::CtorInfo(
@@ -268,6 +269,7 @@ pub fn nonempty_a() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:139-145 nonemptyIntroA
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove std_axioms::nonempty_intro_a_refines, then delete this line
 /// `Nonempty.intro.{u} (α : Sort u) (val : α) : Nonempty α`.
 pub fn nonempty_intro_a() -> ConstantInfo {
     let mut lps: Vec<Name> = Vec::new();

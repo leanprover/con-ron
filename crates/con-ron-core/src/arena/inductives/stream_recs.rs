@@ -195,6 +195,7 @@ pub const M_K_FLAG: [u32; 72] = [
 
 /// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:42-56 recDomsAt
 /// con-leche: ConLeche/Cached/IndTail.lean:82-92 recDomsAtC
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove stream_recs::rec_doms_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:35-51 recDomsAt` — **a
 /// record's type's domains against the generated one's**, binder by binder from
 /// binder `j` on (`k` of them): each stored domain `isDefEq` to the generated
@@ -231,6 +232,7 @@ pub fn rec_doms_at(
 
 /// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:58-71 recTyOpened
 /// con-leche: ConLeche/Cached/IndTail.lean:94-106 recTyOpenedC
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove stream_recs::rec_ty_opened_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:53-64 recTyOpened` — the
 /// record's and the generated type, opened `n` binders deep: the domains, then
 /// the residues.
@@ -261,8 +263,10 @@ pub fn rec_ty_opened(
 
 /// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:73-87 recTyCheck
 /// con-leche: ConLeche/Cached/IndTail.lean:108-120 recTyCheckC
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove stream_recs::stream_closed_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:89-110 ruleAgree
 /// con-leche: ConLeche/Cached/IndTail.lean:122-140 ruleAgreeC
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove stream_recs::stream_closed_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:66-77 streamClosed` — the
 /// test both open with: `s.looseBVarsBounded 0 && !s.hasFvar && !g.hasFvar`.
 pub fn stream_closed(pers: &PersTier, st: &mut AState, s: &EIdx, g: &EIdx) -> Result<bool, CheckError> {
@@ -282,6 +286,7 @@ pub fn stream_closed(pers: &PersTier, st: &mut AState, s: &EIdx, g: &EIdx) -> Re
 
 /// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:73-87 recTyCheck
 /// con-leche: ConLeche/Cached/IndTail.lean:108-120 recTyCheckC
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove stream_recs::rec_ty_check_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:79-96 recTyCheck` — **a
 /// record's type's check**: closed, at the record's level parameters `lps`,
 /// resolving, a type (inferred, a sort), and the generated one binder by binder
@@ -329,6 +334,7 @@ pub fn rec_ty_check(
 
 /// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:89-110 ruleAgree
 /// con-leche: ConLeche/Cached/IndTail.lean:122-140 ruleAgreeC
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove stream_recs::rule_agree_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:98-115 ruleAgree` — **one
 /// rule's check**: the record's right-hand side `s` is closed, at the
 /// record's level parameters `lps`, resolving; it and the generated `g` are

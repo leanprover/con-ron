@@ -92,7 +92,8 @@ pub fn block_formers(p: &BlockShape, is_rec: bool, i: usize, out: Vec<IConstantI
     }
 }
 
-/// con-leche: ConLeche/Kernel/Install.lean:30-32 blockCtors
+/// con-leche: ConLeche/Kernel/Install.lean:30-33 blockCtors
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove install::block_ctors_refines, then delete this line
 /// **The constructors of every member**, as declared, in block order (the
 /// list `p.allCtors` from `i` on).
 pub fn block_ctors(
@@ -110,7 +111,7 @@ pub fn block_ctors(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Install.lean:34-37 Expr.dropVars
+/// con-leche: ConLeche/Kernel/Install.lean:35-38 Expr.dropVars
 /// con-leche: ConLeche/Cached/CheckerC.lean:73-77 Expr.dropVarsC
 /// **`n` variables below a term's own, which do not occur in it, dropped**:
 /// each instantiated at `Sort 0`.
@@ -131,7 +132,7 @@ pub fn expr_drop_vars(pers: &PersTier, st: &mut AState, n: u64, e: EIdx) -> Resu
     }
 }
 
-/// con-leche: ConLeche/Kernel/Install.lean:34-37 Expr.dropVars
+/// con-leche: ConLeche/Kernel/Install.lean:35-38 Expr.dropVars
 /// con-leche: ConLeche/Cached/CheckerC.lean:73-77 Expr.dropVarsC
 /// `xs.map (Expr.dropVars n)`, from `i` on.
 pub fn drop_vars_all(
@@ -156,7 +157,7 @@ pub fn drop_vars_all(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Install.lean:39-54 recFire
+/// con-leche: ConLeche/Kernel/Install.lean:40-55 recFire
 /// con-leche: ConLeche/Cached/CheckerC.lean:79-91 recFireC
 /// **How a recursor's rules fire**: `.plain` at a member major; at a major
 /// outside the block, `.nested` at the levels and parameters of the major's
@@ -184,7 +185,7 @@ pub fn rec_fire(pers: &PersTier, st: &mut AState, p: &BlockShape, rc: &RecShape)
     }
 }
 
-/// con-leche: ConLeche/Kernel/Install.lean:39-54 recFire
+/// con-leche: ConLeche/Kernel/Install.lean:40-55 recFire
 /// con-leche: ConLeche/Cached/CheckerC.lean:79-91 recFireC
 /// `recFire`'s major-domain arm: at a constant head, `.nested` at its levels
 /// and its leading arguments, the index variables dropped.
@@ -220,7 +221,7 @@ pub fn rec_fire_dom(pers: &PersTier, st: &mut AState, rc: &RecShape, dom: &EIdx)
     }
 }
 
-/// con-leche: ConLeche/Kernel/Install.lean:56-61 blockRecs
+/// con-leche: ConLeche/Kernel/Install.lean:57-62 blockRecs
 /// con-leche: ConLeche/Cached/CheckerC.lean:93-98 blockRecsC
 /// `rc.rules.map ({ · with fire := f })`, from `i` on.
 pub fn rules_with_fire(rules: &Vec<IRecRule>, f: &IRecRuleFire, i: usize, out: Vec<IRecRule>) -> Vec<IRecRule> {
@@ -238,7 +239,7 @@ pub fn rules_with_fire(rules: &Vec<IRecRule>, f: &IRecRuleFire, i: usize, out: V
     }
 }
 
-/// con-leche: ConLeche/Kernel/Install.lean:56-61 blockRecs
+/// con-leche: ConLeche/Kernel/Install.lean:57-62 blockRecs
 /// con-leche: ConLeche/Cached/CheckerC.lean:93-98 blockRecsC
 /// **The recursors** from `i` on, in block order: each record with its rules'
 /// firing mode.
@@ -271,7 +272,7 @@ pub fn block_recs(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Install.lean:63-74 blockTables
+/// con-leche: ConLeche/Kernel/Install.lean:64-75 blockTables
 /// con-leche: ConLeche/Cached/CheckerC.lean:43-55 blockTablesC
 /// **The projection tables** from member `i` on, in block order: one per
 /// structure-like member, its bodies read off its constructor's type
@@ -313,7 +314,7 @@ pub fn block_tables(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Install.lean:76-79 blockConstants
+/// con-leche: ConLeche/Kernel/Install.lean:77-80 blockConstants
 /// con-leche: ConLeche/Cached/CheckerC.lean:99-102 blockConstantsC
 /// **The block's constants**, in push order: the formers (at official's
 /// `is_rec`, `blockIsRec`), the constructors, the recursors.
@@ -329,7 +330,7 @@ pub fn block_constants(pers: &PersTier, st: &mut AState, p: &BlockShape) -> Resu
     }
 }
 
-/// con-leche: ConLeche/Kernel/Install.lean:81-95 declConstants
+/// con-leche: ConLeche/Kernel/Install.lean:82-96 declConstants
 /// con-leche: ConLeche/Cached/CheckerC.lean:104-118 declConstantsC
 /// **The constants a declaration installs**, in push order.  A block
 /// `readBlock` cannot read installs nothing (its check rejects it), and
@@ -368,7 +369,7 @@ pub fn decl_constants(pers: &PersTier, st: &mut AState, pd: &IDeclaration) -> Re
     }
 }
 
-/// con-leche: ConLeche/Kernel/Install.lean:81-95 declConstants
+/// con-leche: ConLeche/Kernel/Install.lean:82-96 declConstants
 /// The `.axiomDecl` arm: `Quot.sound` installs its pin at the record's names,
 /// `sorryAx` nothing, any other axiom itself.
 pub fn decl_constants_axiom(pers: &PersTier, st: &mut AState, cv: &IConstantVal) -> Result<Vec<IConstantInfo>, CheckError> {
@@ -402,7 +403,7 @@ pub fn decl_constants_axiom(pers: &PersTier, st: &mut AState, cv: &IConstantVal)
     }
 }
 
-/// con-leche: ConLeche/Kernel/Install.lean:97-103 declTables
+/// con-leche: ConLeche/Kernel/Install.lean:98-104 declTables
 /// con-leche: ConLeche/Cached/CheckerC.lean:57-63 declTablesC
 /// **The projection tables a declaration installs**: those of an inductive
 /// block `readBlock` reads (none where a constructor is too short for them).

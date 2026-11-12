@@ -143,7 +143,9 @@ pub const M_DUP_DECL: [u32; 21] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::eq_stored_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:87-117 stdAxiomOkF
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::eq_stored_refines, then delete this line
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:174-184 ofReduceAxOk
 /// con-leche: ConLeche/Kernel/Checker.lean:295-308 divModEnvGuard
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:42-50 eqStored` — the
@@ -158,7 +160,9 @@ pub fn eq_stored(pers: &PersTier, st: &AState, fe: &IFEnv) -> Result<bool, Check
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::iff_pinned_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:87-117 stdAxiomOkF
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::iff_pinned_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:52-97 stdAxiomOk` — the stored
 /// `Iff` type former against the pin.  Factored out of the twin's `&&` cascade
 /// so each lookup's `match` ends before the next one begins (task #14's borrow
@@ -193,7 +197,9 @@ pub fn matches_pin_of_ci(cv: &IConstantVal, pin_ci: &IConstantInfo) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::iff_intro_pinned_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:87-117 stdAxiomOkF
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::iff_intro_pinned_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:52-97 stdAxiomOk` — the stored
 /// `Iff.intro` against the pin, at the pinned arity `2 2`.
 pub fn iff_intro_pinned(
@@ -221,7 +227,9 @@ pub fn iff_intro_pinned(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::iff_rec_pinned_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:87-117 stdAxiomOkF
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::iff_rec_pinned_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:52-97 stdAxiomOk` — the stored
 /// `Iff.rec` against the pin, at the pinned arity `4 4`.  Only its *type* is
 /// used, never its reduction rules.
@@ -250,7 +258,9 @@ pub fn iff_rec_pinned(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::nonempty_pinned_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:87-117 stdAxiomOkF
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::nonempty_pinned_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:52-97 stdAxiomOk` — the stored
 /// `Nonempty` type former against the pin.
 pub fn nonempty_pinned(
@@ -274,7 +284,9 @@ pub fn nonempty_pinned(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::nonempty_intro_pinned_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:87-117 stdAxiomOkF
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::nonempty_intro_pinned_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:52-97 stdAxiomOk` — the stored
 /// `Nonempty.intro` against the pin, at the pinned arity `1 1`.
 pub fn nonempty_intro_pinned(
@@ -302,7 +314,9 @@ pub fn nonempty_intro_pinned(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::nonempty_rec_pinned_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:87-117 stdAxiomOkF
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::nonempty_rec_pinned_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:52-97 stdAxiomOk` — the stored
 /// `Nonempty.rec` against the pin, at the pinned arity `3 3`.
 pub fn nonempty_rec_pinned(
@@ -330,7 +344,9 @@ pub fn nonempty_rec_pinned(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::std_axiom_ok_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:87-117 stdAxiomOkF
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::std_axiom_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:52-97 stdAxiomOk` — is this
 /// checked axiom one of the two recognized standard axioms, over
 /// standardly-shaped stored `Iff` / `Nonempty` families (and the pinned `Eq`
@@ -366,6 +382,7 @@ pub fn std_axiom_ok(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::std_axiom_ok_propext_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:52-97 stdAxiomOk` — the
 /// `propext` branch: the pinned `Eq` basis and the three `Iff` constants, then
 /// the axiom's own type.
@@ -397,6 +414,7 @@ pub fn std_axiom_ok_propext(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::std_axiom_ok_propext_rest_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:52-97 stdAxiomOk` — the two
 /// remaining `Iff` constants and `propext`'s own type.
 pub fn std_axiom_ok_propext_rest(
@@ -430,6 +448,7 @@ pub fn std_axiom_ok_propext_rest(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::std_axiom_ok_choice_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:52-97 stdAxiomOk` — the
 /// `Classical.choice` branch: the three `Nonempty` constants, then the axiom's
 /// own type.
@@ -461,6 +480,7 @@ pub fn std_axiom_ok_choice(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::std_axiom_ok_choice_rest_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:52-97 stdAxiomOk` — the
 /// recursor and `Classical.choice`'s own type.
 pub fn std_axiom_ok_choice_rest(
@@ -489,7 +509,9 @@ pub fn std_axiom_ok_choice_rest(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:141-152 trustCompilerOk
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::true_pinned_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:119-127 trustCompilerOkF
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::true_pinned_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:101-114 trustCompilerOk` — the
 /// stored `True` against its pin.
 pub fn true_pinned(
@@ -513,7 +535,9 @@ pub fn true_pinned(
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:141-152 trustCompilerOk
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::true_intro_pinned_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:119-127 trustCompilerOkF
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::true_intro_pinned_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:101-114 trustCompilerOk` — the
 /// stored `True.intro` against its pin, at the pinned arity `0 0`.
 pub fn true_intro_pinned(
@@ -541,7 +565,9 @@ pub fn true_intro_pinned(
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:141-152 trustCompilerOk
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::trust_compiler_ok_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:119-127 trustCompilerOkF
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::trust_compiler_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:101-114 trustCompilerOk` — is
 /// `Lean.trustCompiler` installable here?  The `True` family must be stored
 /// with the pinned shapes, and the checked axiom's type must match the pin.
@@ -2441,6 +2467,7 @@ pub fn check_div_mod_cert_tail(
 /// con-leche: ConLeche/Kernel/Checker.lean:331-339 checkTypePins
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:262-269 checkTypePinsF
 /// con-leche: ConLeche/Cached/ParsedC.lean:156-162 checkTypePinsC
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::check_type_pins_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:653-663 checkTypePins` — the type
 /// pins: each type-pinned constant's stored type against the variant's pinned
 /// one, by definitional equality; the cited list recursion as a cursor.
@@ -2713,6 +2740,7 @@ pub fn defn_value(pers: &PersTier, fe: &IFEnv, c: &NIdx) -> Option<EIdx> {
 /// con-leche: ConLeche/Kernel/Checker.lean:426-461 checkReducePin
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:312-331 checkReducePinF
 /// con-leche: ConLeche/Cached/ParsedC.lean:223-241 checkReducePinC
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::check_reduce_pin_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:785-805 checkReducePin` — the
 /// `Lean.reduceNat`/`Lean.reduceBool` gate, after the ordinary opaque check:
 /// the stored constant carries the pinned type (at `fe2`, the environment with
@@ -2966,6 +2994,7 @@ pub const M_QUOT_PREDS: [u32; 41] = [
 /// con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
 /// con-leche: ConLeche/Kernel/Checker.lean:80-102 checkOpaqueVal
 /// con-leche: ConLeche/Cached/ParsedC.lean:38-55 checkDefnValCI
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::value_guards_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:832-848 valueGuards` — the value's
 /// syntactic guards the three value checks spell alike (no loose bound
 /// variable, no free variable, declared universe parameters, resolving
@@ -3034,6 +3063,7 @@ pub fn value_guards_tail(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:30-47 checkDefnVal
 /// con-leche: ConLeche/Cached/ParsedC.lean:38-55 checkDefnValCI
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::check_defn_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:850-863 checkDefnVal` — check a `def`
 /// declaration's value against its checked constant, returning the record to
 /// install, unpushed (the cached twin's shape: the caller certifies the pinned
@@ -3073,6 +3103,7 @@ pub fn check_defn_val(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
 /// con-leche: ConLeche/Cached/ParsedC.lean:57-77 checkThmValCI
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::check_thm_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:865-883 checkThmVal` — check a
 /// `theorem` declaration's value against its checked constant (whose type must
 /// additionally be a proposition), returning the record to install, unpushed.
@@ -3112,6 +3143,7 @@ pub fn check_thm_val(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
 /// con-leche: ConLeche/Cached/ParsedC.lean:57-77 checkThmValCI
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::check_thm_val_witness_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:865-883 checkThmVal` — the witness
 /// half: the value's guards, its inferred type against the statement, and the
 /// record `.thmInfo cv` — the statement only.
@@ -3143,6 +3175,7 @@ pub fn check_thm_val_witness(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:80-102 checkOpaqueVal
 /// con-leche: ConLeche/Cached/ParsedC.lean:79-95 checkOpaqueValCI
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove decl_check::check_opaque_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:885-897 checkOpaqueVal` — check an
 /// `opaque` declaration's value against its checked constant: exactly the
 /// theorem check without the is-a-proposition requirement, returning the record

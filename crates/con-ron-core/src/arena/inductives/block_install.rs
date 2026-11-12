@@ -131,7 +131,8 @@ pub const M_NOT_FORMER: [u32; 43] = [
 // The capability record, per member
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-78 blockCapsAt
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-82 blockCapsAt
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_install::ctor_name_list_refines, then delete this line
 /// Lean twin: `cs.map (·.1.name)` — the constructors' names, in order.
 pub fn ctor_name_list(cs: &Vec<(IConstantVal, u64)>, i: usize, out: Vec<NIdx>) -> Vec<NIdx> {
     if i >= cs.len() {
@@ -143,7 +144,8 @@ pub fn ctor_name_list(cs: &Vec<(IConstantVal, u64)>, i: usize, out: Vec<NIdx>) -
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-78 blockCapsAt
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-82 blockCapsAt
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_install::block_caps_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:47-71 blockCapsAt` — **the
 /// capability record of member `mi`**: at a member with ONE constructor, η
 /// (index-free, the block not recursive: official's `is_non_rec_structure`;
@@ -191,8 +193,8 @@ pub fn block_caps_at(p: &BlockShape, mi: u64, is_rec: bool) -> IIndCaps {
 /// `fuel exhausted: piDomsMentionAny`, as code points.
 pub const M_FUEL_PI_DOMS: [u32; 32] = [102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 112, 105, 68, 111, 109, 115, 77, 101, 110, 116, 105, 111, 110, 65, 110, 121];
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:80-85 Expr.piDomsMentionAny
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:2147-2151 piDomsMentionAnyC
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:84-89 Expr.piDomsMentionAny
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2234-2238 piDomsMentionAnyC
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:73-86 piDomsMentionAny` —
 /// does some binder domain of the SYNTACTIC `∀`-telescope of `e` mention one
 /// of `names`?  No reduction; the `||` short-circuits.  Fueled, one unit per
@@ -221,7 +223,7 @@ pub fn pi_doms_mention_any(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:87-99 blockIsRec
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:91-103 blockIsRec
 /// con-leche: ConLeche/Cached/CheckerC.lean:68-71 blockIsRecC
 /// Lean twin: `ms.ctors.any fun c => c.1.type.piDomsMentionAny names`.
 pub fn ctors_mention_any(
@@ -242,7 +244,7 @@ pub fn ctors_mention_any(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:87-99 blockIsRec
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:91-103 blockIsRec
 /// con-leche: ConLeche/Cached/CheckerC.lean:68-71 blockIsRecC
 /// Lean twin: `p.members.any fun ms => …` — from member `i` on.
 pub fn members_mention_any(
@@ -263,7 +265,7 @@ pub fn members_mention_any(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:87-99 blockIsRec
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:91-103 blockIsRec
 /// con-leche: ConLeche/Cached/CheckerC.lean:68-71 blockIsRecC
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:88-94 blockIsRec` —
 /// **official's `is_rec`**: does SOME member of the block occur in SOME binder
@@ -277,7 +279,7 @@ pub fn block_is_rec(pers: &PersTier, st: &AState, p: &BlockShape) -> Result<bool
 // Stage 1: the formers
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:103-114 checkBlockTele
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:107-118 checkBlockTele
 /// con-leche: ConLeche/Cached/IndBlock.lean:56-65 checkBlockTeleC
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:98-111 checkBlockTele` —
 /// one member's type former: the constant check, official's telescope loop
@@ -312,7 +314,7 @@ pub fn check_block_tele(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:116-123 checkBlockTeles
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:120-127 checkBlockTeles
 /// con-leche: ConLeche/Cached/IndBlock.lean:67-74 checkBlockTelesC
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:113-122 checkBlockTeles` —
 /// the members' type formers from `i` on, in block order.
@@ -340,8 +342,9 @@ pub fn check_block_teles(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:125-139 checkBlockDomsAt
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:129-143 checkBlockDomsAt
 /// con-leche: ConLeche/Cached/IndBlock.lean:76-84 checkBlockDomsAtC
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_install::check_block_doms_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:124-138 checkBlockDomsAt` —
 /// **the parameter-domain agreement's comparison**: binder `j - 1`'s domain
 /// against member 0's, defeq at depth `off + j - 1`, from the last binder to
@@ -378,7 +381,7 @@ pub fn check_block_doms_at(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:141-161 checkBlockAgree
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:145-165 checkBlockAgree
 /// con-leche: ConLeche/Cached/IndBlock.lean:86-101 checkBlockAgreeC
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:140-159 checkBlockAgree` —
 /// **official's two agreements between the members** from `i` on: every
@@ -433,7 +436,7 @@ pub fn check_block_agree(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:163-169 consBlockInds
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:167-173 consBlockInds
 /// con-leche: ConLeche/Cached/IndBlock.lean:42-47 consBlockIndsF
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:161-169 consBlockInds` —
 /// the members' formers consed, in block order (member 0 deepest), each with
@@ -460,7 +463,7 @@ pub fn member_declared(ms: &Vec<MemberShape>, i: usize, out: Vec<IConstantVal>) 
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:171-183 checkBlockInds
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:175-187 checkBlockInds
 /// con-leche: ConLeche/Cached/IndBlock.lean:103-113 checkBlockIndsC
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:171-186 checkBlockInds` —
 /// **stage 1**: the k type formers, checked, agreed and consed — official's
@@ -503,7 +506,7 @@ pub fn check_block_inds(
 // Stage 1b: the constructors, and the positivity check
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:187-193 BlockShape.nestCtx
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:191-197 BlockShape.nestCtx
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:190-199 BlockShape.nestCtx` —
 /// **the block's positivity context** at the canonical parameter variables
 /// `fvs_p`, with the members' formers at their telescopes; its lookup is the
@@ -531,7 +534,7 @@ pub fn shape_nest_ctx(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:195-204 checkBlockCtors
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:199-208 checkBlockCtors
 /// con-leche: ConLeche/Cached/IndBlock.lean:181-187 checkBlockCtorsC
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:201-211 checkBlockCtors` —
 /// the constructors of every member from `i` on (against the member's former
@@ -573,7 +576,7 @@ pub fn check_block_ctors(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:222-244 checkAbsCtorSorts
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:226-248 checkAbsCtorSorts
 /// con-leche: ConLeche/Cached/IndPositivity.lean:515-528 checkAbsCtorSortsC
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:213-233 checkAbsCtorSorts` —
 /// **the fields' universes at the holes**: each constructor's positivity
@@ -630,7 +633,7 @@ pub fn check_abs_ctor_sorts(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:246-252 checkAbsCtorSortsAll
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:250-256 checkAbsCtorSortsAll
 /// con-leche: ConLeche/Cached/IndPositivity.lean:530-536 checkAbsCtorSortsAllC
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:235-244 checkAbsCtorSortsAll`
 /// — `checkAbsCtorSorts` on every member's constructors from `i` on; the
@@ -657,7 +660,7 @@ pub fn check_abs_ctor_sorts_all(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:254-267 blockNestCtx
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:258-271 blockNestCtx
 /// con-leche: ConLeche/Cached/IndPositivity.lean:538-547 blockNestCtxC
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:246-259 blockNestCtx` — **the
 /// walk's context** of a block: the canonical parameter variables are the
@@ -687,7 +690,7 @@ pub fn block_nest_ctx(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:269-271 nestOutKinds
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:273-275 nestOutKinds
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:261-265 nestOutKinds` — the field
 /// kinds of the root frame's outputs, from member `i` on.
 pub fn nest_out_kinds(
@@ -728,7 +731,7 @@ pub fn kinds_dup(ks: &Vec<NestFieldKind>, i: usize, out: Vec<NestFieldKind>) -> 
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:273-288 checkBlockPositivity
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:277-292 checkBlockPositivity
 /// con-leche: ConLeche/Cached/IndPositivity.lean:555-563 checkBlockPositivityC
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:267-283 checkBlockPositivity`
 /// — **the block's positivity, on its stored constructors**, at the walk's
@@ -777,7 +780,7 @@ pub fn check_block_positivity(
 // Stage 2: the tail
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:292-302 checkBlockIdxSorts
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:296-306 checkBlockIdxSorts
 /// con-leche: ConLeche/Cached/IndBlock.lean:189-197 checkBlockIdxSortsC
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:287-298 checkBlockIdxSorts` —
 /// every member's INDEX binders from `i` on have sorts: the member's telescope
@@ -812,8 +815,10 @@ pub fn check_block_idx_sorts(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:304-308 consBlockCtors
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:308-312 consBlockCtors
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_install::cons_block_ctors_refines, then delete this line
 /// con-leche: ConLeche/Cached/IndBlock.lean:49-52 consBlockCtorsF
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove block_install::cons_block_ctors_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:300-306 consBlockCtors` —
 /// the members' constructors consed from member `i` on, in block order.
 pub fn cons_block_ctors(n_p: u64, ctors_as: &Vec<Vec<(IConstantVal, u64)>>, i: usize, fe: IFEnv) -> IFEnv {

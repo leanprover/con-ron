@@ -380,7 +380,7 @@ pub fn class_ctor_dup(x: &ClassCtor) -> ClassCtor {
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:2120-2122 closeLamsGoC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2207-2209 closeLamsGoC
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:86-89 closeLams
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:76-85 closeLamsGo` —
 /// `close_telescope_go` with `λ` binders: each domain and the body
@@ -407,7 +407,7 @@ pub fn close_lams_go(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:2125-2126 closeLamsC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2212-2213 closeLamsC
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:86-89 closeLams
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:87-91 closeLams` — close a
 /// telescope of `λ`s opened at `i ..< i + bs.len()` (`close_lams_go` from
@@ -1657,6 +1657,7 @@ pub fn class_former_tys(
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:362-381 classConstOk
 /// con-leche: ConLeche/Cached/IndRec.lean:328-345 classConstOkC
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove gen_rec::class_const_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:539-562 classConstOk` — **a
 /// generated constant, checked**: `checkConstantValF` — the generated type is
 /// stored as the generator built it; inference validates it like any other
@@ -1682,6 +1683,7 @@ pub fn class_const_ok(
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:362-381 classConstOk
 /// con-leche: ConLeche/Cached/IndRec.lean:328-345 classConstOkC
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove gen_rec::class_const_ok_type_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:539-562 classConstOk` — the
 /// type's guards and its inference.
 pub fn class_const_ok_type(
@@ -1725,6 +1727,7 @@ pub fn class_const_ok_type(
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:383-390 classRecTyCheck
 /// con-leche: ConLeche/Cached/IndRec.lean:347-352 classRecTyCheckC
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove gen_rec::class_rec_ty_check_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:564-572 classRecTyCheck` — **the
 /// check of a generated recursor type**: checked as a constant and defeq to the
 /// stream's checked type `cv_ri`.
@@ -1843,6 +1846,7 @@ pub fn class_rec_tys_ok(
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:421-440 classRuleCheck
 /// con-leche: ConLeche/Cached/IndRec.lean:378-398 classRuleCheckC
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove gen_rec::domains_resolve_refines, then delete this line
 /// Lean twin: `rbs.all (fun b => b.1.constsResolveF feT)` — the rule's λ-domains
 /// resolve at the constructors' environment `feT`.  The port holds only the
 /// rule-less recursors' environment `fe` (`feT` with the generated recursors
@@ -1875,7 +1879,9 @@ pub fn domains_resolve(
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:421-440 classRuleCheck
 /// con-leche: ConLeche/Cached/IndRec.lean:378-398 classRuleCheckC
-/// con-leche: ConLeche/Cached/CheckerC.lean:155-181 sharedOpsRuleR
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove gen_rec::class_rule_check_refines, then delete this line
+/// con-leche: ConLeche/Cached/CheckerC.lean:159-185 sharedOpsRuleR
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove gen_rec::class_rule_check_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:608-638 classRuleCheck` — **the
 /// check of a generated rule**: closed, its level parameters the recursor's,
 /// resolving and typed at the rule-less recursors' environment `fe`
@@ -1925,6 +1931,7 @@ pub fn class_rule_check(
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:421-440 classRuleCheck
 /// con-leche: ConLeche/Cached/IndRec.lean:378-398 classRuleCheckC
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove gen_rec::class_rule_check_tail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:608-638 classRuleCheck` — the
 /// λ-telescope and its domains' resolution.
 pub fn class_rule_check_tail(
@@ -2290,7 +2297,7 @@ pub fn check_block_classes(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:125-129 classFeR
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:328-336 consBlockRecsBare
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:332-340 consBlockRecsBare
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:117-123 consBlockRecsBareF
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:749-766 classFeR` — **the
 /// rule-less generated recursors consed onto the constructors' environment**

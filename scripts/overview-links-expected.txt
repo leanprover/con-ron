@@ -508,7 +508,7 @@
 
 == crates/con-ron-core/src/arena/monad.rs#L298-L320
    298  
-   299  /// con-leche: ConLeche/Cached/StateC.lean:206-243 CState
+   299  /// con-leche: ConLeche/Cached/StateC.lean:265-302 CState
    300  /// Lean twin: `proof/ConRon/Arena/Monad.lean:118-135 AState` — the checker
    301  /// state of (C): the arena, the per-call memo tables and — since task
    302  /// #97-P4c — the per-declaration caches (`whnfCore`, `whnf`, the two infer
@@ -760,27 +760,27 @@
   1125  theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
   1126      (hi : denoteE st i = some x) (hj : denoteE st j = some x) : i = j := by
 
-== crates/con-ron-core/src/arena/core.rs#L11522-L11541
- 11522  /// con-leche: none — **a job's bracket, closed** (DESIGN.md §8.3)
- 11523  /// Lean twin: `proof/ConRon/Arena/Core.lean:4284-4292 dropScratch` —
- 11524  /// the twin's `dropScratch` on a store that STAYS frozen (task #98-FREEZE): the
- 11525  /// caches flushed and the scratch tiers emptied, the flag untouched.  A
- 11526  /// worker's store is frozen for its whole life, so between two jobs it is
- 11527  /// frozen with an empty scratch tier where the twin's is scratch-off; nothing
- 11528  /// is interned there.
- 11529  pub fn leave_record(st: &mut AState) {
- 11530      flush_caches(st);
- 11531      st.store.clear_scratch();
- 11532  }
- 11533  
- 11534  /// con-leche: none — **a job's bracket, opened** (DESIGN.md §8.3)
- 11535  /// Lean twin: `proof/ConRon/Arena/Core.lean:4294-4301 enterScratch` —
- 11536  /// the twin's `enterScratch` on an already frozen store (task #98-FREEZE): the
- 11537  /// memos cleared and the scratch tiers emptied, the flag untouched.
- 11538  pub fn enter_record(st: &mut AState) {
- 11539      st.memos.reset();
- 11540      st.store.clear_scratch();
- 11541  }
+== crates/con-ron-core/src/arena/core.rs#L11676-L11695
+ 11676  /// con-leche: none — **a job's bracket, closed** (DESIGN.md §8.3)
+ 11677  /// Lean twin: `proof/ConRon/Arena/Core.lean:4284-4292 dropScratch` —
+ 11678  /// the twin's `dropScratch` on a store that STAYS frozen (task #98-FREEZE): the
+ 11679  /// caches flushed and the scratch tiers emptied, the flag untouched.  A
+ 11680  /// worker's store is frozen for its whole life, so between two jobs it is
+ 11681  /// frozen with an empty scratch tier where the twin's is scratch-off; nothing
+ 11682  /// is interned there.
+ 11683  pub fn leave_record(st: &mut AState) {
+ 11684      flush_caches(st);
+ 11685      st.store.clear_scratch();
+ 11686  }
+ 11687  
+ 11688  /// con-leche: none — **a job's bracket, opened** (DESIGN.md §8.3)
+ 11689  /// Lean twin: `proof/ConRon/Arena/Core.lean:4294-4301 enterScratch` —
+ 11690  /// the twin's `enterScratch` on an already frozen store (task #98-FREEZE): the
+ 11691  /// memos cleared and the scratch tiers emptied, the flag untouched.
+ 11692  pub fn enter_record(st: &mut AState) {
+ 11693      st.memos.reset();
+ 11694      st.store.clear_scratch();
+ 11695  }
 
 == crates/con-ron-core/src/arena/checker.rs#L65-L88
     65  /// con-leche: none — the phase boundary, which con-leche has no tier to make
@@ -863,37 +863,37 @@
   1268      pub env: IStreamIndex,
   1269  }
 
-== crates/con-ron-core/src/arena/env.rs#L568-L597
-   568  /// con-leche: ConLeche/Kernel/FEnv.lean:55-76 FEnv
-   569  /// Lean twin: `proof/ConRon/Arena/Env.lean:227-236 IFEnv` — the environment
-   570  /// with its `O(1)` index (DESIGN.md §8.3 lesson 13), over the frozen base of a
-   571  /// stream's index.  con-leche's `ovl` field is not ported (see `ifenv_find`).
-   572  ///
-   573  /// **The environment has two tiers, like the store.**  An `IFEnv` is one LAYER:
-   574  /// a job's own, empty until its record pushes.  The BASE is the stream's index
-   575  /// (`arena::stream_index::IStreamIndex`), built once before any check and
-   576  /// frozen into the `PersTier` (`checker::freeze_tier`), where every worker reads
-   577  /// it by reference.  The layer's own entries are all visible (con-leche's local
-   578  /// index has no counter); the base is read below the layer's two bounds,
-   579  /// con-leche's `FBase.below` and `FBase.belowRec`, which live here because the
-   580  /// base itself is shared.
-   581  ///
-   582  /// **The index row is a SLOT and not an `IConstantInfo`** (task #97-P6-5,
-   583  /// lever 1): the twin's row carries the constant itself, a shared value in Lean
-   584  /// and a second deep copy in Rust.  Every writer keeps `idx` and `env.consts`
-   585  /// in step (`ifenv_push`, `ifenv_push_temp`, `ifenv_pop_temp`) and
-   586  /// `ifenv_find` reads `env.consts[s]`.  The table map `tbls` is built the same
-   587  /// way: its row is the table's slot in `env.tables`.
-   588  pub struct IFEnv {
-   589      pub env: IEnv,
-   590      pub idx: HashMap<NIdx, u64>,
-   591      pub tbls: HashMap<NIdx, u64>,
-   592      /// The base's constants are visible below this counter (`FBase.below`).
-   593      pub base_below: u64,
-   594      /// The base's tables are visible below this record position
-   595      /// (`FBase.belowRec`).
-   596      pub base_below_rec: u64,
-   597  }
+== crates/con-ron-core/src/arena/env.rs#L574-L603
+   574  /// con-leche: ConLeche/Kernel/FEnv.lean:55-76 FEnv
+   575  /// Lean twin: `proof/ConRon/Arena/Env.lean:227-236 IFEnv` — the environment
+   576  /// with its `O(1)` index (DESIGN.md §8.3 lesson 13), over the frozen base of a
+   577  /// stream's index.  con-leche's `ovl` field is not ported (see `ifenv_find`).
+   578  ///
+   579  /// **The environment has two tiers, like the store.**  An `IFEnv` is one LAYER:
+   580  /// a job's own, empty until its record pushes.  The BASE is the stream's index
+   581  /// (`arena::stream_index::IStreamIndex`), built once before any check and
+   582  /// frozen into the `PersTier` (`checker::freeze_tier`), where every worker reads
+   583  /// it by reference.  The layer's own entries are all visible (con-leche's local
+   584  /// index has no counter); the base is read below the layer's two bounds,
+   585  /// con-leche's `FBase.below` and `FBase.belowRec`, which live here because the
+   586  /// base itself is shared.
+   587  ///
+   588  /// **The index row is a SLOT and not an `IConstantInfo`** (task #97-P6-5,
+   589  /// lever 1): the twin's row carries the constant itself, a shared value in Lean
+   590  /// and a second deep copy in Rust.  Every writer keeps `idx` and `env.consts`
+   591  /// in step (`ifenv_push`, `ifenv_push_temp`, `ifenv_pop_temp`) and
+   592  /// `ifenv_find` reads `env.consts[s]`.  The table map `tbls` is built the same
+   593  /// way: its row is the table's slot in `env.tables`.
+   594  pub struct IFEnv {
+   595      pub env: IEnv,
+   596      pub idx: HashMap<NIdx, u64>,
+   597      pub tbls: HashMap<NIdx, u64>,
+   598      /// The base's constants are visible below this counter (`FBase.below`).
+   599      pub base_below: u64,
+   600      /// The base's tables are visible below this record position
+   601      /// (`FBase.belowRec`).
+   602      pub base_below_rec: u64,
+   603  }
 
 == crates/con-ron-core/src/arena/monad.rs#L173-L237
    173  /// con-leche: ConLeche/Cached/ExprOpsC.lean:206-208 MemoXP
@@ -985,8 +985,8 @@
    468  /// instead of a cleared one; see its note for how the value was chosen.
    469  pub const WALK_MEMO_KEEP: usize = 1 << 16;
    470  
-   471  /// con-leche: ConLeche/Cached/ExprOpsC.lean:2310-2314 allLevelParamsDefinedC
-   472  /// con-leche: ConLeche/Cached/StateC.lean:614-616 constsResolveFC
+   471  /// con-leche: ConLeche/Cached/ExprOpsC.lean:2397-2401 allLevelParamsDefinedC
+   472  /// con-leche: ConLeche/Cached/StateC.lean:673-675 constsResolveFC
    473  /// Lean twin: the `∅` that `proof/ConRon/Arena/CheckerBase.lean`'s
    474  /// `allLevelParamsDefined` and `constsResolveFFast` start their walk from —
    475  /// **the parked walk memo, moved out of the state and emptied** (task
@@ -1030,7 +1030,7 @@
    513  }
 
 == crates/con-ron-core/src/arena/core_state.rs#L315-L377
-   315  /// con-leche: ConLeche/Cached/StateC.lean:206-243 CState
+   315  /// con-leche: ConLeche/Cached/StateC.lean:265-302 CState
    316  /// Lean twin: `proof/ConRon/Arena/CoreState.lean:77-132 Caches` — the
    317  /// per-declaration caches of the arena checker, in one record beside
    318  /// `arena::monad`'s per-call `Memos`.  Keeping the two apart is deliberate:
@@ -1099,7 +1099,7 @@
    430  // The lanes: the twin's `r : CoreFnsA`, defunctionalized (the module note)
    431  // ---------------------------------------------------------------------------
    432  
-   433  /// con-leche: ConLeche/Kernel/Core.lean:1852-1887 coreKnot
+   433  /// con-leche: ConLeche/Kernel/Core.lean:1862-1897 coreKnot
    434  /// Lean twin: `proof/ConRon/Arena/Core.lean:4130-4220 coreKnot` — **the
    435  /// executed knot**: the memoized one, `pureFnsA`'s.
    436  pub const LANE_FULL: u32 = 0;
@@ -1651,45 +1651,45 @@
    181      }
    182  }
 
-== crates/con-ron-core/src/arena/install.rs#L332-L369
-   332  /// con-leche: ConLeche/Kernel/Install.lean:81-95 declConstants
-   333  /// con-leche: ConLeche/Cached/CheckerC.lean:104-118 declConstantsC
-   334  /// **The constants a declaration installs**, in push order.  A block
-   335  /// `readBlock` cannot read installs nothing (its check rejects it), and
-   336  /// `sorryAx` nothing (any use of it declines).
-   337  pub fn decl_constants(pers: &PersTier, st: &mut AState, pd: &IDeclaration) -> Result<Vec<IConstantInfo>, CheckError> {
-   338      match pd {
-   339          IDeclaration::DefnDecl(cv, value, hint) => {
-   340              let mut o: Vec<IConstantInfo> = Vec::new();
-   341              o.push(IConstantInfo::DefnInfo(env::i_constant_val_dup(cv), value.dup2(), reducibility_hint_dup(hint)));
-   342              Ok(o)
-   343          }
-   344          IDeclaration::ThmDecl(cv, _) => {
-   345              let mut o: Vec<IConstantInfo> = Vec::new();
-   346              o.push(IConstantInfo::ThmInfo(env::i_constant_val_dup(cv)));
-   347              Ok(o)
-   348          }
-   349          IDeclaration::OpaqueDecl(cv, _) => {
-   350              let mut o: Vec<IConstantInfo> = Vec::new();
-   351              o.push(IConstantInfo::AxiomInfo(env::i_constant_val_dup(cv)));
-   352              Ok(o)
-   353          }
-   354          IDeclaration::AxiomDecl(cv) => decl_constants_axiom(pers, st, cv),
-   355          IDeclaration::QuotDecl(k, cv) => match basis::quot_at(pers, st, k, cv) {
-   356              Err(e) => Err(e),
-   357              Ok(ci) => {
-   358                  let mut o: Vec<IConstantInfo> = Vec::new();
-   359                  o.push(ci);
-   360                  Ok(o)
-   361              }
-   362          },
-   363          IDeclaration::IndDecl(block, n_p) => match block_shape::read_block(pers, st, *n_p, block) {
-   364              Err(e) => Err(e),
-   365              Ok(Ok(p)) => block_constants(pers, st, &p),
-   366              Ok(Err(_)) => Ok(Vec::new()),
-   367          },
-   368      }
-   369  }
+== crates/con-ron-core/src/arena/install.rs#L333-L370
+   333  /// con-leche: ConLeche/Kernel/Install.lean:82-96 declConstants
+   334  /// con-leche: ConLeche/Cached/CheckerC.lean:104-118 declConstantsC
+   335  /// **The constants a declaration installs**, in push order.  A block
+   336  /// `readBlock` cannot read installs nothing (its check rejects it), and
+   337  /// `sorryAx` nothing (any use of it declines).
+   338  pub fn decl_constants(pers: &PersTier, st: &mut AState, pd: &IDeclaration) -> Result<Vec<IConstantInfo>, CheckError> {
+   339      match pd {
+   340          IDeclaration::DefnDecl(cv, value, hint) => {
+   341              let mut o: Vec<IConstantInfo> = Vec::new();
+   342              o.push(IConstantInfo::DefnInfo(env::i_constant_val_dup(cv), value.dup2(), reducibility_hint_dup(hint)));
+   343              Ok(o)
+   344          }
+   345          IDeclaration::ThmDecl(cv, _) => {
+   346              let mut o: Vec<IConstantInfo> = Vec::new();
+   347              o.push(IConstantInfo::ThmInfo(env::i_constant_val_dup(cv)));
+   348              Ok(o)
+   349          }
+   350          IDeclaration::OpaqueDecl(cv, _) => {
+   351              let mut o: Vec<IConstantInfo> = Vec::new();
+   352              o.push(IConstantInfo::AxiomInfo(env::i_constant_val_dup(cv)));
+   353              Ok(o)
+   354          }
+   355          IDeclaration::AxiomDecl(cv) => decl_constants_axiom(pers, st, cv),
+   356          IDeclaration::QuotDecl(k, cv) => match basis::quot_at(pers, st, k, cv) {
+   357              Err(e) => Err(e),
+   358              Ok(ci) => {
+   359                  let mut o: Vec<IConstantInfo> = Vec::new();
+   360                  o.push(ci);
+   361                  Ok(o)
+   362              }
+   363          },
+   364          IDeclaration::IndDecl(block, n_p) => match block_shape::read_block(pers, st, *n_p, block) {
+   365              Err(e) => Err(e),
+   366              Ok(Ok(p)) => block_constants(pers, st, &p),
+   367              Ok(Err(_)) => Ok(Vec::new()),
+   368          },
+   369      }
+   370  }
 
 == crates/con-ron-core/src/arena/stream_index.rs#L221-L239
    221  /// con-leche: ConLeche/Cached/StreamIndex.lean:74-81 recordJob

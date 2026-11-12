@@ -146,7 +146,7 @@ def structProjBodies (T : NIdx) (nP nF : Nat) (cty : EIdx) :
 /-! ## `mentionsConst` — `mentionsAnyConst` at one name -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:119-133 Expr.mentionsAnyConst
-con-leche: ConLeche/Cached/ExprOpsC.lean:1696-1740 mentionsAnyConstXP
+con-leche: ConLeche/Cached/ExprOpsC.lean:1783-1827 mentionsAnyConstXP
 Does the constant `T` occur in `e`?  `mentionsAnyConst [T]`, the one name
 the `sorryAx` test asks: a syntactic walk (`fvar` annotations included; a
 `.proj` node names its structure) with a per-call memo keyed by the node, as
@@ -189,7 +189,7 @@ def mentionsConstGo (T : NIdx) (memo : Std.HashMap EIdx Bool) :
           | _ => pure (false, memo)
         pure (r, memo.insert h r)
 
-/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1742-1744 mentionsAnyConstC
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1829-1831 mentionsAnyConstC
 The executed `mentionsAnyConst [T]` (one memoized DAG walk). -/
 def mentionsConst (T : NIdx) (e : EIdx) : AM Bool := do
   pure (← mentionsConstGo T ∅ coreWalkFuel e).1

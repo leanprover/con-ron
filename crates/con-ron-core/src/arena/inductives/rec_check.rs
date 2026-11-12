@@ -219,7 +219,7 @@ pub const M_NO_SPLIT: [u32; 36] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:66-86 targetAbs
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:953-993 targetAbsXP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1040-1080 targetAbsXP
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:53-107 targetAbsGo` — **the
 /// member abstraction of one term**: every member at the block's levels
 /// `lvls` becomes its hole; `fvar` annotations are not entered.  Memoised on
@@ -271,7 +271,7 @@ pub fn target_abs_go(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:953-993 targetAbsXP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1040-1080 targetAbsXP
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:53-107 targetAbsGo` — the
 /// walk's compound arms, each rebuilt.
 #[allow(clippy::too_many_arguments)]
@@ -344,7 +344,7 @@ pub fn target_abs_node(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:66-86 targetAbs
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:995-997 targetAbsC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1082-1084 targetAbsC
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:109-115 targetAbs` — the
 /// executed member abstraction (one memoised DAG walk).
 pub fn target_abs(
@@ -484,6 +484,7 @@ pub fn target_canon_params(pers: &PersTier, st: &mut AState, pfvs: &Vec<EIdx>, e
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:164-183 targetParamsDefEq
 /// con-leche: ConLeche/Cached/IndRec.lean:165-182 targetParamsDefEqC
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove rec_check::pair_closed_refines, then delete this line
 /// Lean twin: `a.bvarB == 0 && b.bvarB == 0 && a.fvarB ≤ n && b.fvarB ≤ n` —
 /// the two sides are closed over the openers, the four reads in order.
 pub fn pair_closed(pers: &PersTier, st: &mut AState, a: &EIdx, b: &EIdx, n: u64) -> Result<bool, CheckError> {
@@ -522,6 +523,7 @@ pub fn pair_closed(pers: &PersTier, st: &mut AState, a: &EIdx, b: &EIdx, n: u64)
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:164-183 targetParamsDefEq
 /// con-leche: ConLeche/Cached/IndRec.lean:165-182 targetParamsDefEqC
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove rec_check::target_params_def_eq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:181-209 targetParamsDefEq` —
 /// **per-component parameter defeq** at depth `d`, each side moved to the
 /// openers and member-abstracted (`absM` is `targetAbs names lvls holes`, its
@@ -578,6 +580,7 @@ pub fn target_params_def_eq(
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:164-183 targetParamsDefEq
 /// con-leche: ConLeche/Cached/IndRec.lean:165-182 targetParamsDefEqC
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove rec_check::target_params_def_eq_infer_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:181-209 targetParamsDefEq` —
 /// the two sides not syntactically equal: both inferred at `d`, then compared
 /// by the kernel's defeq.
@@ -1007,6 +1010,7 @@ pub fn target_major_outside_aux(
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:294-311 targetPinTys
 /// con-leche: ConLeche/Cached/IndBlock.lean:325-330 targetPinTysC
+/// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove rec_check::target_pin_tys_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:342-350 targetPinTys` — **an
 /// outside major's parameters, typed at the rule prefix** (depth `d`), in
 /// order.
@@ -1441,7 +1445,7 @@ pub fn target_k53_class(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:410-415 targetPiDomsWith
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:2140-2145 targetPiDomsWithC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2227-2232 targetPiDomsWithC
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:457-472 targetPiDomsWith` — the
 /// domains of the first `|xs|` `∀` binders, each instantiated at the earlier
 /// `xs`.
@@ -1479,7 +1483,7 @@ pub fn target_pi_doms_with(
 // The stored family
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:2130-2131 abstractPrefixC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2217-2218 abstractPrefixC
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:431-433 Expr.abstractPrefix
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:476-481 abstractPrefix` —
 /// **the free variables `0 … k-1` closed at cursor `c`**: `fvar i` becomes
