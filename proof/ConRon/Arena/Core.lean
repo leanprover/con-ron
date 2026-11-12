@@ -2056,7 +2056,7 @@ def iotaCase3At (r : CoreFnsA) (fe : IFEnv) (isK : Bool) (induct : NIdx)
         else pure true
     | none => pure true
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:978-990 iotaNoCert — **a rule
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:979-990 iotaNoCert — **a rule
 fires with no certificate, by the stored facts** (the ι case split's case 2
 read off the records): at a K recursor, or where the constructor's family
 (stored at its `induct`) records a sort that is never zero (`neverZero`) and

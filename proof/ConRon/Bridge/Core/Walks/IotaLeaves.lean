@@ -164,6 +164,16 @@ theorem formerResSort_spec (s₀ : AState) (ty : EIdx) (tyP : Expr)
   sym only [bridge_grind, formerResSort_eq] =>
     vcgen [ConRon.Arena.formerResSort, ExprOps.piResult_spec] <;> finish
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:59-65 formerResSort — `formerResSort_spec`
+at the bare state invariant (the install's frame, which holds no index). -/
+theorem formerResSort_specS (s₀ : AState) (ty : EIdx) (tyP : Expr)
+    (hok : StateOK s₀) (hty : denoteE s₀.store ty = some tyP) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.formerResSort ty
+    ⦃fun r s' => s' = s₀ ∧ r.isSome = (ConLeche.formerResSort tyP).isSome ∧
+        denoteLO s₀.store r = some (ConLeche.formerResSort tyP); ⊤⦄ := by
+  sym only [bridge_grind, formerResSort_eq] =>
+    vcgen [ConRon.Arena.formerResSort, ExprOps.piResult_spec] <;> finish
+
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:67-69 formerDefHeaded — the function
 as ONE equation over the result's tag. -/
 theorem formerDefHeaded_eq (cv : ConstantVal) :

@@ -181,7 +181,7 @@ theorem constsSpec : ConstsSpec := by
     | ok p =>
       simp only [ROp, Except.toOption] at hq
       obtain ⟨pP, hpP, hdp⟩ := hq
-      obtain ⟨hp3, hsc3, hL⟩ := blockConstants_run hok2.state hok2.pins hdp k2
+      obtain ⟨hp3, hsc3, hL⟩ := blockConstants_run hok2.state hok2.pins hok2.readOK.readL hdp k2
       have h : Frontend.denoteCIList s'.store L =
           some (ConLeche.declConstants (.indDecl b nP)) := by
         simp [ConLeche.declConstants, Inductives.toOption_eq_some hpP, hL]

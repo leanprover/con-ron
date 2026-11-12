@@ -400,8 +400,8 @@ shape a twin that DISPATCHES on the stored constant's kind needs at its
 fallthrough arm (`ctorResidualOk`'s `| _ => false`). -/
 theorem denoteCI_not_ctor {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
     (h : Frontend.denoteCI st ci = some c)
-    (hne : ∀ v n1 n2, ci ≠ .ctorInfo v n1 n2) :
-    ∀ v n1 n2, c ≠ .ctorInfo v n1 n2 := by
+    (hne : ∀ v n1 n2 t, ci ≠ .ctorInfo v n1 n2 t) :
+    ∀ v n1 n2 t, c ≠ .ctorInfo v n1 n2 t := by
   cases ci <;>
     simp_all [Frontend.denoteCI, Option.map_eq_some_iff] <;> grind
 

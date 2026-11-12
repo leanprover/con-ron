@@ -270,7 +270,7 @@ def CIShape (st : EStore) : IConstantInfo → ConstantInfo → Prop
   | .defnInfo _ _ _, .defnInfo _ _ _ => True
   | .thmInfo _, .thmInfo _ => True
   | .indInfo v _, .indInfo cv _ => Frontend.denoteCV st v = some cv
-  | .ctorInfo v a b, .ctorInfo cv a' b' => Frontend.denoteCV st v = some cv ∧ a = a' ∧ b = b'
+  | .ctorInfo v a b _, .ctorInfo cv a' b' _ => Frontend.denoteCV st v = some cv ∧ a = a' ∧ b = b'
   | .recInfo v a b k rs, .recInfo cv a' b' k' rs' =>
     Frontend.denoteCV st v = some cv ∧ a = a' ∧ b = b' ∧ k = k' ∧
       Frontend.denoteRules st rs = some rs'
@@ -296,9 +296,8 @@ theorem denoteCI_shape {st : EStore} {c : IConstantInfo} {x : ConstantInfo}
     · rename_i cv _ hcv _
       obtain rfl := Option.some.inj h; exact hcv
     · exact nomatch h
-  | ctorInfo v a b =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨cv, hcv, rfl⟩ := h; exact ⟨hcv, rfl, rfl⟩
+  | ctorInfo v a b T =>
+    obtain ⟨cv, _, hcv, _, rfl⟩ := denoteCI_ctorInfo_some h; exact ⟨hcv, rfl, rfl⟩
   | recInfo v a b k rs =>
     simp only [Frontend.denoteCI] at h
     split at h
@@ -361,10 +360,10 @@ theorem blockSplitCtors_spec (st : EStore) :
     have hR := blockSplitRecs_spec st _ _ h
     obtain ⟨x, xs, rfl, hc, hcs⟩ := denoteCIList_cons_inv h
     have hsh := denoteCI_shape hc
-    by_cases hk : ∃ v a b, c = .ctorInfo v a b
-    · obtain ⟨v, a, b, rfl⟩ := hk
+    by_cases hk : ∃ v a b t, c = .ctorInfo v a b t
+    · obtain ⟨v, a, b, t, rfl⟩ := hk
       cases x <;> (try exact hsh.elim)
-      rename_i cv a' b'
+      rename_i cv a' b' t'
       obtain ⟨hv, rfl, rfl⟩ := hsh
       have hih := ih xs hcs
       simp only [Arena.blockSplitCtors, ConLeche.blockSplitCtors]
@@ -384,10 +383,10 @@ theorem blockSplitCtors_spec (st : EStore) :
           (match Arena.blockSplitRecs (c :: cs) with
            | some rs => some ([], rs)
            | none => none) := by
-        cases c <;> first | rfl | exact absurd ⟨_, _, _, rfl⟩ hk
+        cases c <;> first | rfl | exact absurd ⟨_, _, _, _, rfl⟩ hk
       have e2 : ConLeche.blockSplitCtors (x :: xs) =
           (ConLeche.blockSplitRecs (x :: xs)).map fun rs => ([], rs) := by
-        cases c <;> cases x <;> (try exact hsh.elim) <;> first | rfl | exact absurd ⟨_, _, _, rfl⟩ hk
+        cases c <;> cases x <;> (try exact hsh.elim) <;> first | rfl | exact absurd ⟨_, _, _, _, rfl⟩ hk
       rw [e1, e2]
       cases ha : Arena.blockSplitRecs (c :: cs) with
       | none =>

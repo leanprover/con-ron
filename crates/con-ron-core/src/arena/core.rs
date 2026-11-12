@@ -5656,7 +5656,7 @@ pub fn iota_case3_at(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:978-990 iotaNoCert
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:979-990 iotaNoCert
 /// Lean twin: `proof/ConRon/Arena/Core.lean iotaNoCert` — **a rule fires with
 /// no certificate, by the stored facts** (the ι case split's case 2 read off
 /// the records): at a K recursor, or where the constructor's family (stored
@@ -6727,6 +6727,7 @@ pub fn iota_rec_fire(
 /// con-leche: ConLeche/Cached/CoreC.lean:957-1042 iotaRecI
 /// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::iota_rec_cert_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:84-87 certAtI
+/// con-leche: ConLeche/Kernel/Core.lean:585-592 iotaCaseAt
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2357-2444 iotaRecAt` — **the
 /// whole case-3 decision, one certificate family** (`certAtI mode (…)`):
 /// at the trusted mode `true` without running; at the verified mode the

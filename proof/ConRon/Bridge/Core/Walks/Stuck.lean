@@ -243,7 +243,7 @@ theorem etaCtorShape_eq (x : Expr) :
     simp only [exprTag, exprConstName, beq_self_eq_true, Bool.true_and]
     generalize env.find? c = o
     match o with
-    | some (.ctorInfo _ _ _) => rfl
+    | some (.ctorInfo _ _ _ _) => rfl
     | some (.axiomInfo _) | some (.thmInfo _) | some (.indInfo _ _)
     | some (.defnInfo _ _ _) | some (.recInfo _ _ _ _ _) | none => rfl
   | _ => rfl
@@ -287,21 +287,21 @@ theorem structEtaCertWith_nohead {F d : Nat} {x y w : Expr}
 head is not a stored constructor. -/
 theorem structEtaCertWith_noctor {F d : Nat} {x y w : Expr} {c : Name}
     {us : List Level} (hh : x.getAppFn = .const c us)
-    (hf : ∀ cv nP nF, env.find? c ≠ some (.ctorInfo cv nP nF)) :
+    (hf : ∀ cv nP nF T, env.find? c ≠ some (.ctorInfo cv nP nF T)) :
     ConLeche.structEtaCertWithFueled mode eager env F d x y w = .ok false := by
   simp only [ConLeche.structEtaCertWithFueled, ConLeche.structEtaCertWith, hh]
   first
     | rfl
     | (split
-       · rename_i cv nP nF heq; exact absurd heq (hf cv nP nF)
+       · rename_i cv nP nF T heq; exact absurd heq (hf cv nP nF T)
        · rfl)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — the
 constructor is not applied to exactly its parameters and fields. -/
 theorem structEtaCertWith_len {F d : Nat} {x y w : Expr} {c : Name}
-    {us : List Level} {cvc : ConstantVal} {cnP cnF : Nat}
+    {us : List Level} {cvc : ConstantVal} {cnP cnF : Nat} {Tc : Name}
     (hh : x.getAppFn = .const c us)
-    (hf : env.find? c = some (.ctorInfo cvc cnP cnF))
+    (hf : env.find? c = some (.ctorInfo cvc cnP cnF Tc))
     (hlen : ¬ x.getAppArgs.length = cnP + cnF) :
     ConLeche.structEtaCertWithFueled mode eager env F d x y w = .ok false := by
   simp only [ConLeche.structEtaCertWithFueled, ConLeche.structEtaCertWith, hh, hf]
@@ -311,9 +311,9 @@ theorem structEtaCertWith_len {F d : Nat} {x y w : Expr} {c : Name}
 /-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — the
 stuck side's type's head is not a constant. -/
 theorem structEtaCertWith_nohead_w {F d : Nat} {x y w : Expr} {c : Name}
-    {us : List Level} {cvc : ConstantVal} {cnP cnF : Nat}
+    {us : List Level} {cvc : ConstantVal} {cnP cnF : Nat} {Tc : Name}
     (hh : x.getAppFn = .const c us)
-    (hf : env.find? c = some (.ctorInfo cvc cnP cnF))
+    (hf : env.find? c = some (.ctorInfo cvc cnP cnF Tc))
     (hlen : x.getAppArgs.length = cnP + cnF)
     (hw : ∀ T us', w.getAppFn ≠ .const T us') :
     ConLeche.structEtaCertWithFueled mode eager env F d x y w = .ok false := by
@@ -328,9 +328,9 @@ theorem structEtaCertWith_nohead_w {F d : Nat} {x y w : Expr} {c : Name}
 /-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — that
 head is not a stored inductive. -/
 theorem structEtaCertWith_noind {F d : Nat} {x y w : Expr} {c T : Name}
-    {us us' : List Level} {cvc : ConstantVal} {cnP cnF : Nat}
+    {us us' : List Level} {cvc : ConstantVal} {cnP cnF : Nat} {Tc : Name}
     (hh : x.getAppFn = .const c us)
-    (hf : env.find? c = some (.ctorInfo cvc cnP cnF))
+    (hf : env.find? c = some (.ctorInfo cvc cnP cnF Tc))
     (hlen : x.getAppArgs.length = cnP + cnF)
     (hw : w.getAppFn = .const T us')
     (hfT : ∀ cv caps, env.find? T ≠ some (.indInfo cv caps)) :
@@ -347,10 +347,10 @@ theorem structEtaCertWith_noind {F d : Nat} {x y w : Expr} {c T : Name}
 /-- con-leche: ConLeche/Kernel/Core.lean:334-372 structEtaCertWith — that
 inductive has no projection table. -/
 theorem structEtaCertWith_notbl {F d : Nat} {x y w : Expr} {c T : Name}
-    {us us' : List Level} {cvc cvT : ConstantVal} {cnP cnF : Nat}
+    {us us' : List Level} {cvc cvT : ConstantVal} {cnP cnF : Nat} {Tc : Name}
     {caps : IndCaps}
     (hh : x.getAppFn = .const c us)
-    (hf : env.find? c = some (.ctorInfo cvc cnP cnF))
+    (hf : env.find? c = some (.ctorInfo cvc cnP cnF Tc))
     (hlen : x.getAppArgs.length = cnP + cnF)
     (hw : w.getAppFn = .const T us')
     (hfT : env.find? T = some (.indInfo cvT caps))
@@ -374,10 +374,10 @@ def EtaGuard (w : Expr) (c : Name) (us' : List Level)
 /-- con-leche: ConLeche/Kernel/Core.lean:334-372 structEtaCertWith — the
 guard fails. -/
 theorem structEtaCertWith_guard {F d : Nat} {x y w : Expr} {c T : Name}
-    {us us' : List Level} {cvc cvT : ConstantVal} {cnP cnF : Nat}
+    {us us' : List Level} {cvc cvT : ConstantVal} {cnP cnF : Nat} {Tc : Name}
     {caps : IndCaps} {tbl : ProjTable}
     (hh : x.getAppFn = .const c us)
-    (hf : env.find? c = some (.ctorInfo cvc cnP cnF))
+    (hf : env.find? c = some (.ctorInfo cvc cnP cnF Tc))
     (hlen : x.getAppArgs.length = cnP + cnF)
     (hw : w.getAppFn = .const T us')
     (hfT : env.find? T = some (.indInfo cvT caps))
@@ -394,10 +394,10 @@ theorem structEtaCertWith_guard {F d : Nat} {x y w : Expr} {c T : Name}
 the guard: the level comparison and the two spine comparisons, verbatim (no
 certificate on the type application, con-leche's task #342 L11b). -/
 theorem structEtaCertWith_tail {F d : Nat} {x y w : Expr} {c T : Name}
-    {us us' : List Level} {cvc cvT : ConstantVal} {cnP cnF : Nat}
+    {us us' : List Level} {cvc cvT : ConstantVal} {cnP cnF : Nat} {Tc : Name}
     {caps : IndCaps} {tbl : ProjTable}
     (hh : x.getAppFn = .const c us)
-    (hf : env.find? c = some (.ctorInfo cvc cnP cnF))
+    (hf : env.find? c = some (.ctorInfo cvc cnP cnF Tc))
     (hlen : x.getAppArgs.length = cnP + cnF)
     (hw : w.getAppFn = .const T us')
     (hfT : env.find? T = some (.indInfo cvT caps))
@@ -422,10 +422,10 @@ theorem structEtaCertWith_tail {F d : Nat} {x y w : Expr} {c T : Name}
 /-- con-leche: ConLeche/Kernel/Core.lean:334-372 structEtaCertWith — the
 tail's exits, each stated at the facts the twin's stages name. -/
 theorem structEtaCertWith_exits {F d : Nat} {x y w : Expr} {c T : Name}
-    {us us' : List Level} {cvc cvT : ConstantVal} {cnP cnF : Nat}
+    {us us' : List Level} {cvc cvT : ConstantVal} {cnP cnF : Nat} {Tc : Name}
     {caps : IndCaps} {tbl : ProjTable}
     (hh : x.getAppFn = .const c us)
-    (hf : env.find? c = some (.ctorInfo cvc cnP cnF))
+    (hf : env.find? c = some (.ctorInfo cvc cnP cnF Tc))
     (hlen : x.getAppArgs.length = cnP + cnF)
     (hw : w.getAppFn = .const T us')
     (hfT : env.find? T = some (.indInfo cvT caps))
@@ -504,7 +504,7 @@ theorem structEtaCertWith_spec {fuel : Nat}
     obtain ⟨cn, ls, hgf, hcn, hus⟩ := denote_const_inv hwf hvh hdd
     dsimp only
     split
-    next icvc cnP cnF hfdc =>
+    next icvc cnP cnF _ hfdc =>
       obtain ⟨dcvc, hdcvc, hfindc⟩ := env_ctor_of_index hok hcn hfdc
       -- stage 2: its arguments
       refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s₀ a hok.state
@@ -660,7 +660,7 @@ theorem structEtaCertWith_spec {fuel : Nat}
             .ok false := structEtaCertWith_len hgf hfindc (by rw [hlenEq]; exact hlenT)
         exact triple_pureC ⟨hok, Ext.refl _, rfl, 0, hres⟩
     next hnd =>
-      have hnc := env_not_ctor_of_index hok hcn (fun v p q h => hnd v p q h)
+      have hnc := env_not_ctor_of_index hok hcn (fun v p q t h => hnd v p q t h)
       have hres : ConLeche.structEtaCertWithFueled .verified eager env 0 d x y w =
           .ok false := structEtaCertWith_noctor hgf hnc
       exact triple_pureC ⟨hok, Ext.refl _, rfl, 0, hres⟩
@@ -932,18 +932,23 @@ theorem etaCtorPartial_eq (x : Expr) :
       by_cases hl : x.getAppArgs.length < cnP + cnF
       · rw [ite_eq_left hl, ite_eq_left hl]
         unfold etaPartialFam
-        split
-        · rename_i val caps hT
-          split
-          · rename_i tbl htb
-            by_cases hg : caps.eta = true ∧ tbl.ctor = c
-            · rw [ite_eq_left hg]; simp [hg.1, hg.2]
-            · rw [ite_eq_right hg]
-              have : (caps.eta && tbl.ctor == c) = false := by
-                cases h1 : caps.eta <;> simp_all
-              simp [this]
-          · rfl
-        · rfl
+        cases hT : env.find? T with
+        | none => simp
+        | some ci =>
+          cases ci with
+          | indInfo val caps =>
+            simp only
+            cases htb : env.findTable? T with
+            | none => simp
+            | some tbl =>
+              simp only
+              by_cases hg : caps.eta = true ∧ tbl.ctor = c
+              · rw [ite_eq_left hg]; simp [hg.1, hg.2]
+              · rw [ite_eq_right hg]
+                have : (caps.eta && tbl.ctor == c) = false := by
+                  cases h1 : caps.eta <;> simp_all
+                simp [this]
+          | _ => simp
       · rw [ite_eq_right hl, ite_eq_right hl]
     | some (.axiomInfo _) | some (.thmInfo _) | some (.indInfo _ _)
     | some (.defnInfo _ _ _) | some (.recInfo _ _ _ _ _) | none => rfl
@@ -1328,7 +1333,7 @@ reader's last stage, at the table's constructor `tc`, the instance's levels
 @[expose] def shapeAt (env : Env) (tc : Name) (ls : List Level) (nP nF : Nat) (xs : List Expr) :
     Option (Expr × Nat) :=
   match env.find? tc with
-  | some (.ctorInfo cvC _ _) =>
+  | some (.ctorInfo cvC _ _ _) =>
     (ConLeche.unitFieldTele (cvC.type.instantiateLevelParams cvC.levelParams ls) nP xs).map
       fun tele => (tele, nF)
   | _ => none
@@ -1380,7 +1385,7 @@ theorem unitLikeShapeAt_spec (s₀ : AState) (us : LsIdx) (targs : List EIdx) (t
     exact triple_pureS ⟨hok, Ext.refl _, rfl, trivial⟩
   | some ci =>
   cases ci
-  case ctorInfo icvc cnP cnF =>
+  case ctorInfo icvc cnP cnF _ =>
     obtain ⟨dcvc, hdcvc, hfindc⟩ := env_ctor_of_index hok htc hf
     rw [hfindc]
     dsimp only
@@ -1413,11 +1418,11 @@ theorem unitLikeShapeAt_spec (s₀ : AState) (us : LsIdx) (targs : List EIdx) (t
       exact ⟨hrel B hB, rfl⟩
   all_goals
     rename_i hci
-    have hnc := env_not_ctor_of_index hok htc (fun v p q h => by rw [hf] at h; cases h)
+    have hnc := env_not_ctor_of_index hok htc (fun v p q t h => by rw [hf] at h; cases h)
     refine triple_pureS ⟨hok, Ext.refl _, rfl, ?_⟩
     generalize henv : env.find? tc = o
     match o, henv with
-    | some (.ctorInfo cv p q), henv => exact absurd henv (hnc cv p q)
+    | some (.ctorInfo cv p q t), henv => exact absurd henv (hnc cv p q t)
     | some (.axiomInfo _), _ | some (.thmInfo _), _ | some (.indInfo _ _), _
     | some (.defnInfo _ _ _), _ | some (.recInfo _ _ _ _ _), _ | none, _ => trivial
 
@@ -1498,7 +1503,7 @@ theorem unitLikeShape_spec (s₀ : AState) (w : EIdx) (W : Expr)
       generalize henv : env.find? Sn = o
       match o, henv with
       | some (.indInfo cv caps), henv => exact absurd henv (hnf cv caps)
-      | some (.axiomInfo _), _ | some (.thmInfo _), _ | some (.ctorInfo _ _ _), _
+      | some (.axiomInfo _), _ | some (.thmInfo _), _ | some (.ctorInfo _ _ _ _), _
       | some (.defnInfo _ _ _), _ | some (.recInfo _ _ _ _ _), _ | none, _ => trivial
   all_goals
     dsimp only
@@ -1514,7 +1519,7 @@ constructor's type is closed (`const_ty_hasFvar`), the parameters scoped
 theorem unitLikeShape_WScoped (henv : ConLeche.EnvWF env) {d : Nat} {w tele : Expr} {n : Nat}
     (hw : Expr.WScoped d w) (h : ConLeche.unitLikeShape env w = some (tele, n)) :
     Expr.WScoped d tele := by
-  obtain ⟨S, us, cvS, caps, tbl, cvC, nPc, nFc, -, -, -, -, -, -, hfC, -, ht⟩ :=
+  obtain ⟨S, us, cvS, caps, tbl, cvC, nPc, nFc, Tc, -, -, -, -, -, -, hfC, -, ht⟩ :=
     ConLeche.unitLikeShape_some h
   exact ConLeche.unitFieldTele_WScoped (const_ty_hasFvar henv hfC us)
     (fun a ha => Expr.WScoped.getAppArgs hw a ha) ht

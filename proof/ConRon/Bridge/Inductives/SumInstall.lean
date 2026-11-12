@@ -731,13 +731,15 @@ theorem checkSumCtors_spec {env : Env} (fe₀ fe : IFEnv)
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:163-166 consSumCtors
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:114-117 consSumCtorsF
-The constructors pushed into the index.  PURE on both sides. -/
-theorem consSumCtors_spec (st : EStore) (nP : Nat)
+The constructors pushed into the index, each with its family `T`.  PURE on both
+sides. -/
+theorem consSumCtors_spec (st : EStore) (nP : Nat) {T : NIdx} {TP : ConLeche.Name}
+    (hT : denoteN st.ns T = some TP)
     (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat))
     (fe : IFEnv) (env : Env) (hwf : StoreWF st) (hcs : denoteCtors st cs = some csP)
     (hfe : EnvRel env fe st) :
-    InstRel (fun e => e = ConLeche.consSumCtors nP csP env) st
-      (Arena.consSumCtors nP cs fe) := by
+    InstRel (fun e => e = ConLeche.consSumCtors nP TP csP env) st
+      (Arena.consSumCtors nP T cs fe) := by
   induction cs generalizing csP fe env with
   | nil =>
     simp only [denoteCtors, Option.some.injEq] at hcs
@@ -754,9 +756,9 @@ theorem consSumCtors_spec (st : EStore) (nP : Nat)
     | some restP =>
     rw [hcv, hrest] at hcs
     obtain rfl := (Option.some.inj hcs).symm
-    have hci : Frontend.denoteCI st (.ctorInfo cv nP n) = some (.ctorInfo cP nP n) := by
-      simp only [Frontend.denoteCI, hcv, Option.map_some]
-    exact ih restP (fe.push (.ctorInfo cv nP n)) ⟨.ctorInfo cP nP n :: env.consts, env.tables⟩
+    have hci : Frontend.denoteCI st (.ctorInfo cv nP n T) = some (.ctorInfo cP nP n TP) := by
+      simp only [Frontend.denoteCI, hcv, hT]
+    exact ih restP (fe.push (.ctorInfo cv nP n T)) ⟨.ctorInfo cP nP n TP :: env.consts, env.tables⟩
       hrest (hfe.push hwf hci)
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:124-130 sumRules

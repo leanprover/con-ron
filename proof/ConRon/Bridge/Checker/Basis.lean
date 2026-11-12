@@ -285,7 +285,7 @@ theorem denoteCaps_inj {st : EStore} (hwf : StoreWF st) {cap cap' : IIndCaps}
       rw [ha, hk] at hc; rw [ha', hk'] at hc'
       rw [← hc'] at hc
       simp only [Option.some.injEq, IndCaps.mk.injEq] at hc
-      obtain ⟨e1, rfl, e3, e4, rfl⟩ := hc
+      obtain ⟨e1, rfl, e3, e4, rfl, e6⟩ := hc
       have hA := denoteNList_inj hwf _ _ _ ha ha'
       have hK := denoteNList_inj hwf _ _ _ hk hk'
       cases cap; cases cap'
@@ -390,7 +390,7 @@ theorem denoteCI_inj {st : EStore} (hwf : StoreWF st) {ci ci' : IConstantInfo}
       obtain ⟨cw, he, hw⟩ := denoteCI_ctor_inv h'
       simp only [ConstantInfo.ctorInfo.injEq] at he
       obtain ⟨rfl, rfl, rfl, hTT⟩ := he
-      rw [hTT] at hT'
+      rw [← hTT] at hT'
       rw [denoteCV_inj hwf hv hw, denoteN_injS hwf hT hT']
     | axiomInfo w => obtain ⟨_, he, _⟩ := denoteCI_axiom_inv h'; cases he
     | defnInfo w _ _ => obtain ⟨_, _, he, _⟩ := denoteCI_defn_inv h'; cases he
@@ -1110,7 +1110,7 @@ theorem blockLinkOkAt_run {block pins : List IConstantInfo} {B P : List Constant
       obtain ⟨_, _, rfl, _, _⟩ := denoteCI_ind_inv hp
       simp only [blockLinkOkAt] at hrun
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun; exact ⟨RStep.refl hok hr, rfl⟩
-    | ctorInfo _ _ _ =>
+    | ctorInfo _ _ _ _ =>
       obtain ⟨_, rfl, _⟩ := denoteCI_ctor_inv hp
       simp only [blockLinkOkAt] at hrun
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun; exact ⟨RStep.refl hok hr, rfl⟩

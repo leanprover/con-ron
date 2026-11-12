@@ -27,6 +27,8 @@ import ConRon.Bridge.Inductives.PosWalks
 import ConRon.Bridge.ExprOps.Inst1
 import ConRon.Bridge.Specs
 import ConRon.Bridge.Core.Walks.Cached
+import ConRon.Bridge.Core.Walks.IotaLeaves
+import ConRon.Bridge.EnvDenote
 import ConRon.Bridge.GrindAttr
 import ConRon.Bridge.ExprOps.Subst
 public import ConRon.Bridge.Inductives.Rel
@@ -48,17 +50,117 @@ open scoped Lean.Order
 
 /-! ## The capability record -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:67-81 blockCapsAt
-**The capability record of member `mi`**, exactly: pure on both sides, read
-off the record. -/
-theorem blockCapsAt_denote {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+/-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-82 blockCapsAt —
+the twin's record past its never-zero read (`memberNeverZero`), at the fact
+`nz`: pure. -/
+@[expose] def blockCapsAtP (p : Arena.BlockShape) (mi : Nat) (isRec nz : Bool) : IIndCaps :=
+  match p.members[mi]? with
+  | some ms =>
+    match ms.ctors with
+    | [c] =>
+      { eta := if ms.nIdx != 0 then false else if isRec then false else true
+        all := p.memberNames, nparams := p.nP, nIdx := ms.nIdx, ctors := [c.1.name],
+        neverZero := nz }
+    | cs => { all := p.memberNames, nparams := p.nP, nIdx := ms.nIdx,
+              ctors := cs.map (·.1.name), neverZero := nz }
+  | none => { all := p.memberNames, nparams := p.nP, nIdx := 0, ctors := [], neverZero := nz }
+
+/-- con-leche: none — the twin's `blockCapsAt` is its never-zero read, then
+`blockCapsAtP`. -/
+theorem blockCapsAt_split (p : Arena.BlockShape) (mi : Nat) (isRec : Bool) :
+    Arena.blockCapsAt p mi isRec =
+      (Arena.memberNeverZero p mi >>= fun nz => pure (blockCapsAtP p mi isRec nz)) := by
+  unfold Arena.blockCapsAt blockCapsAtP
+  congr 1; funext nz
+  cases h : p.members[mi]? with
+  | none => rfl
+  | some ms =>
+    dsimp only
+    cases hc : ms.ctors with
+    | nil => rfl
+    | cons c cs => cases cs <;> rfl
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:69-75 formerZ — the twin's
+`formerZ` at the install's frame: a pure step (the readback memo moves), and
+the answer is con-leche's under the readback invariant. -/
+theorem formerZ_runP {s s' : AState} {cv : IConstantVal} {cvP : ConstantVal}
+    {z : PropWhen} (hok : StateOK s) (hrl : ReadLCacheOK s.caches.readLC s.store)
+    (hcv : Frontend.denoteCV s.store cv = some cvP) (hrun : Arena.formerZ cv s = .ok (z, s')) :
+    PStep s s' ∧ s'.store = s.store ∧ z = ConLeche.formerZ cvP := by
+  obtain ⟨-, -, hty⟩ := denoteCV_inv hcv
+  simp only [Arena.formerZ] at hrun
+  obtain ⟨o, s1, k1, z1⟩ := AM.bind_ok hrun
+  obtain ⟨rfl, -, hlo⟩ := AM.of_run (P := fun t => t = s) rfl k1
+    (Core.formerResSort_specS s cv.type cvP.type hok hty)
+  unfold ConLeche.formerZ
+  cases o with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
+    simp only [Core.denoteLO, Option.some.injEq] at hlo
+    rw [← hlo]
+    exact ⟨PStep.refl hok, rfl, rfl⟩
+  | some l =>
+    obtain ⟨u, s2, k2, z2⟩ := AM.bind_ok z1
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
+    have hu := readLevelM_denote_L hrl (PStep.refl hok) k2
+    simp only [Core.denoteLO, hu, Option.map_some, Option.some.injEq] at hlo
+    rw [← hlo]
+    exact ⟨readLevelM_pstep hok k2, (Core.readLevelM_frame k2).1, rfl⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-82 blockCapsAt —
+**the member's never-zero fact**, `(formerZ (p.members.getD mi default).declared).isNever`:
+a pure step, read off the declared former (the default member's type ends in no
+sort, so its fact is `false`). -/
+theorem memberNeverZero_run {s s' : AState} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    {mi : Nat} {b : Bool} (hok : StateOK s) (hrl : ReadLCacheOK s.caches.readLC s.store)
+    (hp : dShape s.store p = some pP) (hrun : Arena.memberNeverZero p mi s = .ok (b, s')) :
+    PStep s s' ∧ s'.store = s.store ∧
+      b = (ConLeche.formerZ (pP.members.getD mi default).declared).isNever := by
+  obtain ⟨hms, -, -, -, -, -, -⟩ := dShape_inv hp
+  have hg := mapM_option_getElem?_bind hms mi
+  simp only [Arena.memberNeverZero] at hrun
+  rw [List.getD_eq_getElem?_getD]
+  cases hmi : p.members[mi]? with
+  | none =>
+    rw [hmi] at hrun hg
+    simp only [Option.bind_none] at hg
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    rw [hg]
+    exact ⟨PStep.refl hok, rfl, by decide⟩
+  | some m =>
+    rw [hmi] at hrun hg
+    simp only [Option.bind_some] at hg
+    obtain ⟨mP, hmP⟩ : ∃ mP, dMember s.store m = some mP := by
+      cases h : dMember s.store m with
+      | none =>
+        exfalso
+        rw [h] at hg
+        have h1 := List.getElem?_eq_none_iff.mp hg
+        obtain ⟨h2, -⟩ := List.getElem?_eq_some_iff.mp hmi
+        have hl := ConLeche.option_mapM_length hms
+        omega
+      | some mP => exact ⟨mP, rfl⟩
+    rw [hmP] at hg
+    rw [hg]
+    simp only [Option.getD_some]
+    obtain ⟨-, -, -, hdecl⟩ := dMember_inv hmP
+    obtain ⟨z, s1, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
+    obtain ⟨hps, hst, rfl⟩ := formerZ_runP hok hrl hdecl k1
+    exact ⟨hps, hst, rfl⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-82 blockCapsAt
+**The capability record of member `mi`** at its never-zero fact, exactly: pure
+on both sides, read off the record. -/
+theorem blockCapsAtP_denote {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
     (hp : dShape st p = some pP) (mi : Nat) (isRec : Bool) :
-    Frontend.denoteCaps st (Arena.blockCapsAt p mi isRec)
+    Frontend.denoteCaps st (blockCapsAtP p mi isRec
+        (ConLeche.formerZ (pP.members.getD mi default).declared).isNever)
       = some (ConLeche.blockCapsAt pP mi isRec) := by
   have hnames := BlockShape.memberNames_spec hp
   obtain ⟨hms, -, hnP, -, -, -, -⟩ := dShape_inv hp
   have hg := mapM_option_getElem?_bind hms mi
-  simp only [Arena.blockCapsAt]
+  simp only [blockCapsAtP]
   simp only [ConLeche.blockCapsAt, List.getD_eq_getElem?_getD]
   cases hmi : p.members[mi]? with
   | none =>
@@ -114,6 +216,21 @@ theorem blockCapsAt_denote {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.B
         generalize m.nIdx = a
         generalize c.2 = b
         cases a <;> cases b <;> cases isRec <;> rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-82 blockCapsAt —
+**the capability record of member `mi`**: a pure step (the never-zero read goes
+through the readback memo), and the record denotes con-leche's. -/
+theorem blockCapsAt_run {s s' : AState} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    {mi : Nat} {isRec : Bool} {caps : IIndCaps} (hok : StateOK s)
+    (hrl : ReadLCacheOK s.caches.readLC s.store) (hp : dShape s.store p = some pP)
+    (hrun : Arena.blockCapsAt p mi isRec s = .ok (caps, s')) :
+    PStep s s' ∧ s'.store = s.store ∧
+      Frontend.denoteCaps s'.store caps = some (ConLeche.blockCapsAt pP mi isRec) := by
+  rw [blockCapsAt_split] at hrun
+  obtain ⟨nz, s1, k1, z1⟩ := AM.bind_ok hrun
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
+  obtain ⟨hps, hst, rfl⟩ := memberNeverZero_run hok hrl hp k1
+  exact ⟨hps, hst, denoteCaps_ext (blockCapsAtP_denote hp mi isRec) hps.ext⟩
 
 /-! ## Official's `is_rec` -/
 
@@ -346,25 +463,37 @@ theorem blockIsRec_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) :
 /-! ## The formers and the constructors -/
 
 /-- con-leche: ConLeche/Kernel/Install.lean:26-28 blockFormers — the indexed
-form: the formers from position `k` on. -/
-theorem blockFormers_go {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
-    (isRec : Bool)
-    (hcaps : ∀ i, Frontend.denoteCaps st (Arena.blockCapsAt p i isRec)
-      = some (ConLeche.blockCapsAt pP i isRec)) :
-    ∀ (ds : List IConstantVal) (dsP : List ConstantVal) (k : Nat),
-      ds.mapM (Frontend.denoteCV st) = some dsP →
-      Frontend.denoteCIList st ((ds.zipIdx k).map fun (cv, i) =>
-          IConstantInfo.indInfo cv (Arena.blockCapsAt p i isRec))
-        = some ((dsP.zipIdx k).map fun (cv, i) =>
-          ConstantInfo.indInfo cv (ConLeche.blockCapsAt pP i isRec))
-  | [], dsP, k, h => by
-    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
-    subst h
-    rfl
-  | d :: ds, dsP, k, h => by
-    obtain ⟨dP, dsP', rfl, hd, hds⟩ := mapM_option_cons_inv h
-    simp only [List.zipIdx_cons, List.map_cons, Frontend.denoteCIList, Frontend.denoteCI, hd,
-      hcaps, blockFormers_go isRec hcaps ds dsP' (k + 1) hds]
+form: the formers from position `k` on, each a pure step. -/
+theorem blockFormers_go_run {p : Arena.BlockShape} {pP : ConLeche.BlockShape} {isRec : Bool} :
+    ∀ (ds : List IConstantVal) (dsP : List ConstantVal) (k : Nat) {s s' : AState}
+      {L : List IConstantInfo},
+      StateOK s → ReadLCacheOK s.caches.readLC s.store → dShape s.store p = some pP →
+      ds.mapM (Frontend.denoteCV s.store) = some dsP →
+      ((ds.zipIdx k).mapM (fun (cv, i) => do
+          pure (IConstantInfo.indInfo cv (← Arena.blockCapsAt p i isRec))) : AM (List IConstantInfo))
+        s = .ok (L, s') →
+      PStep s s' ∧ s'.store = s.store ∧ Frontend.denoteCIList s'.store L =
+        some ((dsP.zipIdx k).map fun (cv, i) => ConstantInfo.indInfo cv (ConLeche.blockCapsAt pP i isRec))
+  | [], dsP, k, s, s', L, hok, _, _, hds, hrun => by
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hds
+    subst hds
+    simp only [List.zipIdx_nil, List.mapM_nil] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨PStep.refl hok, rfl, rfl⟩
+  | d :: ds, dsP, k, s, s', L, hok, hrl, hp, hds, hrun => by
+    obtain ⟨dP, dsP', rfl, hd, hds'⟩ := mapM_option_cons_inv hds
+    simp only [List.zipIdx_cons, List.mapM_cons] at hrun
+    obtain ⟨ci, s1, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨caps, s2, k2, z2⟩ := AM.bind_ok k1
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
+    obtain ⟨q1, e1, hcaps⟩ := blockCapsAt_run hok hrl hp k2
+    obtain ⟨cis, s3, k3, z3⟩ := AM.bind_ok z1
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
+    obtain ⟨q2, e2, hL⟩ := blockFormers_go_run ds dsP' (k + 1) q1.ok (q1.cframe.readL hrl)
+      (dShape_ext q1.ext _ _ hp) (dExt_denoteCV.list q1.ext _ _ hds') k3
+    refine ⟨q1.trans q2, by rw [e2, e1], ?_⟩
+    simp only [List.zipIdx_cons, List.map_cons, Frontend.denoteCIList, Frontend.denoteCI,
+      denoteCV_ext hd (q1.ext.trans q2.ext), denoteCaps_ext hcaps q2.ext, hL]
 
 /-- con-leche: none — the members' declared formers denote. -/
 theorem declared_denote {st : EStore} :
@@ -379,23 +508,43 @@ theorem declared_denote {st : EStore} :
     exact mapM_option_cons (dMember_inv hm).2.2.2 (declared_denote hms)
 
 /-- con-leche: ConLeche/Kernel/Install.lean:26-28 blockFormers
-**The formers**, in block order, as declared, with their capability records:
-pure on both sides. -/
-theorem blockFormers_denote {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
-    (hp : dShape st p = some pP) (isRec : Bool) :
-    Frontend.denoteCIList st (Arena.blockFormers p isRec)
-      = some (ConLeche.blockFormers pP isRec) := by
+**The formers**, in block order, as declared, with their capability records: a
+pure step, denoting con-leche's. -/
+theorem blockFormers_run {s s' : AState} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    {isRec : Bool} {L : List IConstantInfo} (hok : StateOK s)
+    (hrl : ReadLCacheOK s.caches.readLC s.store) (hp : dShape s.store p = some pP)
+    (hrun : Arena.blockFormers p isRec s = .ok (L, s')) :
+    PStep s s' ∧ s'.store = s.store ∧
+      Frontend.denoteCIList s'.store L = some (ConLeche.blockFormers pP isRec) := by
   obtain ⟨hms, -, -, -, -, -, -⟩ := dShape_inv hp
-  exact blockFormers_go isRec (blockCapsAt_denote hp · isRec) _ _ 0
-    (declared_denote hms)
+  simp only [Arena.blockFormers] at hrun
+  exact blockFormers_go_run _ _ 0 hok hrl hp (declared_denote hms) hrun
+
+/-- con-leche: none — a constant list's denotation splits over an append. -/
+theorem denoteCIList_append {st : EStore} :
+    ∀ {a : List IConstantInfo} {as : List ConstantInfo} {b : List IConstantInfo}
+      {bs : List ConstantInfo},
+      Frontend.denoteCIList st a = some as → Frontend.denoteCIList st b = some bs →
+      Frontend.denoteCIList st (a ++ b) = some (as ++ bs)
+  | [], as, b, bs, ha, hb => by
+    simp only [Frontend.denoteCIList, Option.some.injEq] at ha
+    subst ha; simpa using hb
+  | x :: xs, as, b, bs, ha, hb => by
+    simp only [Frontend.denoteCIList] at ha
+    split at ha
+    · rename_i y ys hy hys
+      obtain rfl := (Option.some.inj ha).symm
+      simp only [List.cons_append, Frontend.denoteCIList, hy, denoteCIList_append hys hb]
+    · exact nomatch ha
 
 /-- con-leche: none — `dCtors`'s constructor list, read as constructor
-records at `nP`. -/
-theorem ctorInfos_denote {st : EStore} (nP : Nat) :
+records at `nP`, each with the family `T`. -/
+theorem ctorInfos_denote {st : EStore} (nP : Nat) {T : NIdx} {TP : ConLeche.Name}
+    (hT : denoteN st.ns T = some TP) :
     ∀ (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat)),
       dCtors st cs = some csP →
-      Frontend.denoteCIList st (cs.map fun c => IConstantInfo.ctorInfo c.1 nP c.2)
-        = some (csP.map fun c => ConstantInfo.ctorInfo c.1 nP c.2)
+      Frontend.denoteCIList st (cs.map fun c => IConstantInfo.ctorInfo c.1 nP c.2 T)
+        = some (csP.map fun c => ConstantInfo.ctorInfo c.1 nP c.2 TP)
   | [], csP, h => by
     simp only [dCtors, List.mapM_nil, Option.pure_def, Option.some.injEq] at h
     subst h; rfl
@@ -403,17 +552,70 @@ theorem ctorInfos_denote {st : EStore} (nP : Nat) :
     obtain ⟨cP, csP', rfl, hc, hcs⟩ := mapM_option_cons_inv h
     simp only [dCtor, Option.map_eq_some_iff] at hc
     obtain ⟨cv, hcv, rfl⟩ := hc
-    simp only [List.map_cons, Frontend.denoteCIList, Frontend.denoteCI, hcv, Option.map_some,
-      ctorInfos_denote nP cs csP' hcs]
+    simp only [List.map_cons, Frontend.denoteCIList, Frontend.denoteCI, hcv, hT,
+      ctorInfos_denote nP hT cs csP' hcs]
 
-/-- con-leche: ConLeche/Kernel/Install.lean:30-32 blockCtors
-**The constructors of every member**, as declared: pure on both sides. -/
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:142-145 BlockShape.ctorGroups
+— the denotation of one constructor group: its member's name and its
+constructors. -/
+@[expose] def dGroup (st : EStore) (g : NIdx × List (IConstantVal × Nat)) :
+    Option (ConLeche.Name × List (ConstantVal × Nat)) :=
+  match denoteN st.ns g.1, dCtors st g.2 with
+  | some n, some cs => some (n, cs)
+  | _, _ => none
+
+/-- con-leche: none — the members' constructor groups, denoted. -/
+theorem ctorGroups_denote {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    (hp : dShape st p = some pP) : p.ctorGroups.mapM (dGroup st) = some pP.ctorGroups := by
+  obtain ⟨hms, -⟩ := dShape_inv hp
+  simp only [Arena.BlockShape.ctorGroups, ConLeche.BlockShape.ctorGroups]
+  generalize pP.members = ys at hms ⊢
+  generalize p.members = xs at hms
+  induction xs generalizing ys with
+  | nil =>
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hms
+    subst hms; rfl
+  | cons x xs ih =>
+    obtain ⟨y, ys', rfl, hy, hys⟩ := mapM_option_cons_inv hms
+    obtain ⟨hcv, -, hcs, -⟩ := dMember_inv hy
+    refine mapM_option_cons ?_ (ih ys' hys)
+    simp only [dGroup, denoteCV_name hcv, hcs]
+
+/-- con-leche: none — the groups' constructors, each under its group's name. -/
+theorem groupInfos_denote {st : EStore} (nP : Nat) :
+    ∀ (gs : List (NIdx × List (IConstantVal × Nat)))
+      (gsP : List (ConLeche.Name × List (ConstantVal × Nat))),
+      gs.mapM (dGroup st) = some gsP →
+      Frontend.denoteCIList st
+          (gs.flatMap fun g => g.2.map fun c => IConstantInfo.ctorInfo c.1 nP c.2 g.1)
+        = some (gsP.flatMap fun g => g.2.map fun c => ConstantInfo.ctorInfo c.1 nP c.2 g.1)
+  | [], gsP, h => by
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
+    subst h; rfl
+  | g :: gs, gsP, h => by
+    obtain ⟨gP, gsP', rfl, hg, hgs⟩ := mapM_option_cons_inv h
+    obtain ⟨T, cs⟩ := g
+    simp only [dGroup] at hg
+    cases hT : denoteN st.ns T with
+    | none => rw [hT] at hg; simp at hg
+    | some TP =>
+    cases hcs : dCtors st cs with
+    | none => rw [hT, hcs] at hg; simp at hg
+    | some csP =>
+    rw [hT, hcs] at hg
+    obtain rfl := (Option.some.inj hg).symm
+    simp only [List.flatMap_cons]
+    exact denoteCIList_append (ctorInfos_denote nP hT cs csP hcs) (groupInfos_denote nP gs gsP' hgs)
+
+/-- con-leche: ConLeche/Kernel/Install.lean:30-33 blockCtors
+**The constructors of every member**, as declared, each under its member's
+name: pure on both sides. -/
 theorem blockCtors_denote {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
     (hp : dShape st p = some pP) :
     Frontend.denoteCIList st (Arena.blockCtors p) = some (ConLeche.blockCtors pP) := by
   obtain ⟨-, -, hnP, -, -, -, -⟩ := dShape_inv hp
   simp only [Arena.blockCtors, ConLeche.blockCtors, hnP]
-  exact ctorInfos_denote _ _ _ (BlockShape.allCtors_spec hp)
+  exact groupInfos_denote _ _ _ (ctorGroups_denote hp)
 
 /-! ## The recursors -/
 
@@ -750,22 +952,6 @@ theorem blockTables_run {p : Arena.BlockShape} {pP : ConLeche.BlockShape} :
 
 /-! ## The block's constants -/
 
-/-- con-leche: none — a constant list's denotation splits over an append. -/
-theorem denoteCIList_append {st : EStore} :
-    ∀ {a : List IConstantInfo} {as : List ConstantInfo} {b : List IConstantInfo}
-      {bs : List ConstantInfo},
-      Frontend.denoteCIList st a = some as → Frontend.denoteCIList st b = some bs →
-      Frontend.denoteCIList st (a ++ b) = some (as ++ bs)
-  | [], as, b, bs, ha, hb => by
-    simp only [Frontend.denoteCIList, Option.some.injEq] at ha
-    subst ha; simpa using hb
-  | x :: xs, as, b, bs, ha, hb => by
-    simp only [Frontend.denoteCIList] at ha
-    split at ha
-    · rename_i y ys hy hys
-      obtain rfl := (Option.some.inj ha).symm
-      simp only [List.cons_append, Frontend.denoteCIList, hy, denoteCIList_append hys hb]
-    · exact nomatch ha
 
 /-- con-leche: ConLeche/Kernel/Install.lean:75-78 blockConstants
 **The block's constants**, in push order: the formers at official's `is_rec`
@@ -774,6 +960,7 @@ the stream's index reads: the state invariant, an append and untouched pins
 (`PStep`). -/
 theorem blockConstants_run {s s' : AState} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
     {L : List IConstantInfo} (hok : StateOK s) (hpins : PinsOK s)
+    (hrl : ReadLCacheOK s.caches.readLC s.store)
     (hp : dShape s.store p = some pP) (hrun : Arena.blockConstants p s = .ok (L, s')) :
     PStep s s' ∧ s'.store.scratchOn = s.store.scratchOn ∧
       Frontend.denoteCIList s'.store L = some (ConLeche.blockConstants pP) := by
@@ -783,14 +970,18 @@ theorem blockConstants_run {s s' : AState} {p : Arena.BlockShape} {pP : ConLeche
   obtain ⟨p1, hr⟩ := blockIsRec_spec p pP s s₁ isRec hok hp k1
   simp only [RV] at hr
   subst hr
-  obtain ⟨R, s₂, k2, z2⟩ := AM.bind_ok z1
   have hp1 := dShape_ext p1.ext _ _ hp
-  obtain ⟨-, hrs, -, -, -, -, -⟩ := dShape_inv hp1
-  obtain ⟨p2, e2, hR⟩ := blockRecs_run p.recs pP.recs p1.ok (hpins.mono p1.ext p1.pins) hp1 hrs k2
+  obtain ⟨F, sF, kF, zF⟩ := AM.bind_ok z1
+  obtain ⟨pF, eF, hF⟩ := blockFormers_run p1.ok (p1.cframe.readL hrl) hp1 kF
+  obtain ⟨R, s₂, k2, z2⟩ := AM.bind_ok zF
+  have hpF := dShape_ext pF.ext _ _ hp1
+  obtain ⟨-, hrs, -, -, -, -, -⟩ := dShape_inv hpF
+  obtain ⟨p2, e2, hR⟩ := blockRecs_run p.recs pP.recs pF.ok
+    (hpins.mono (p1.ext.trans pF.ext) (pF.pins.trans p1.pins)) hpF hrs k2
   obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
-  refine ⟨p1.trans p2, by rw [e2, e1], ?_⟩
-  have hp2 := dShape_ext p2.ext _ _ hp1
-  rw [denoteCIList_append (denoteCIList_append (blockFormers_denote hp2 _)
+  refine ⟨(p1.trans pF).trans p2, by rw [e2, eF, e1], ?_⟩
+  have hp2 := dShape_ext p2.ext _ _ hpF
+  rw [denoteCIList_append (denoteCIList_append (denoteCIList_mono p2.ext _ _ hF)
     (blockCtors_denote hp2)) hR]
   rfl
 

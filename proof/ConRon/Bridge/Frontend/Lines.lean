@@ -936,14 +936,42 @@ theorem except_bind_ex {ε α β : Type} {m : Except ε α} {k : α → Except �
   obtain ⟨a, rfl, hq⟩ := hm
   exact hk a hq
 
+/-- con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF — the
+validated constructors, each with the type that lists it (its `induct`): the
+same records, the family handle denoting the family's name. -/
+def CtsRel (st : NStore) (a : List (ConLeche.Frontend.IndCtorRec × NIdx))
+    (b : List (ConLeche.Frontend.IndCtorRec × ConLeche.Name)) : Prop :=
+  ListRel (fun p q => p.1 = q.1 ∧ denoteN st p.2 = some q.2) a b
+
+/-- con-leche: none — `CtsRel` at one more pushed constructor. -/
+theorem CtsRel.snoc {st : NStore} :
+    ∀ {a : List (ConLeche.Frontend.IndCtorRec × NIdx)}
+      {b : List (ConLeche.Frontend.IndCtorRec × ConLeche.Name)},
+      CtsRel st a b → ∀ (c : ConLeche.Frontend.IndCtorRec) {t : NIdx} {T : ConLeche.Name},
+      denoteN st t = some T → CtsRel st (a ++ [(c, t)]) (b ++ [(c, T)]) := by
+  intro a b h
+  induction h with
+  | nil => intro c t T ht; exact ListRel.cons ⟨rfl, ht⟩ ListRel.nil
+  | cons hab _ ih => intro c t T ht; exact ListRel.cons hab (ih c ht)
+
+/-- con-leche: none — `CtsRel.snoc` at the two loops' arrays. -/
+theorem CtsRel.push {st : NStore} {a : Array (ConLeche.Frontend.IndCtorRec × NIdx)}
+    {b : Array (ConLeche.Frontend.IndCtorRec × ConLeche.Name)}
+    (h : CtsRel st a.toList b.toList) (c : ConLeche.Frontend.IndCtorRec) {t : NIdx}
+    {T : ConLeche.Name} (ht : denoteN st t = some T) :
+    CtsRel st (a.push (c, t)).toList (b.push (c, T)).toList := by
+  simp only [Array.toList_push]
+  exact CtsRel.snoc h c ht
+
 /-- con-leche: ConLeche/Frontend/ExportC.lean:412-413 validateIndD — the two
 answers agree: a verdict against a verdict of the same KIND (`VerdictRel`, the
 relation the capstone reads), the validated constructors and count against
-the same ones. -/
-def VRes : RecordVerdict ⊕ (List ConLeche.Frontend.IndCtorRec × Nat) →
-    ConLeche.Frontend.RecordVerdict ⊕ (List ConLeche.Frontend.IndCtorRec × Nat) → Prop
+the same ones (`CtsRel`: the family handles denote the family names). -/
+def VRes (st : NStore) : RecordVerdict ⊕ (List (ConLeche.Frontend.IndCtorRec × NIdx) × Nat) →
+    ConLeche.Frontend.RecordVerdict ⊕ (List (ConLeche.Frontend.IndCtorRec × ConLeche.Name) × Nat) →
+    Prop
   | .inl v, .inl w => VerdictRel v w
-  | .inr p, .inr q => p = q
+  | .inr p, .inr q => CtsRel st p.1 q.1 ∧ p.2 = q.2
   | _, _ => False
 
 /-- con-leche: none — what a loop of `validateIndD` carries in its early-exit
@@ -951,8 +979,9 @@ slot: nothing, or an `.invalid` verdict, on each side.  Every `return` inside
 the two loops is an `.invalid`, and this is what lets the two answers be
 related without the verdict strings (which name handles on one side and names
 on the other). -/
-def VInv (o : Option (RecordVerdict ⊕ (List ConLeche.Frontend.IndCtorRec × Nat)))
-    (p : Option (ConLeche.Frontend.RecordVerdict ⊕ (List ConLeche.Frontend.IndCtorRec × Nat))) :
+def VInv (o : Option (RecordVerdict ⊕ (List (ConLeche.Frontend.IndCtorRec × NIdx) × Nat)))
+    (p : Option (ConLeche.Frontend.RecordVerdict ⊕
+      (List (ConLeche.Frontend.IndCtorRec × ConLeche.Name) × Nat))) :
     Prop :=
   (∀ x, o = some x → ∃ m, x = .inl (.invalid m)) ∧
     (∀ y, p = some y → ∃ m, y = .inl (.invalid m))
@@ -964,9 +993,10 @@ theorem VInv.inv {m m' : String} :
     VInv (some (.inl (.invalid m))) (some (.inl (.invalid m'))) :=
   ⟨(fun _ h => by cases h; exact ⟨_, rfl⟩), (fun _ h => by cases h; exact ⟨_, rfl⟩)⟩
 
-theorem VInv.res {a : RecordVerdict ⊕ (List ConLeche.Frontend.IndCtorRec × Nat)}
-    {w : ConLeche.Frontend.RecordVerdict ⊕ (List ConLeche.Frontend.IndCtorRec × Nat)}
-    (h : VInv (some a) (some w)) : VRes a w := by
+theorem VInv.res {st : NStore}
+    {a : RecordVerdict ⊕ (List (ConLeche.Frontend.IndCtorRec × NIdx) × Nat)}
+    {w : ConLeche.Frontend.RecordVerdict ⊕ (List (ConLeche.Frontend.IndCtorRec × ConLeche.Name) × Nat)}
+    (h : VInv (some a) (some w)) : VRes st a w := by
   obtain ⟨m, rfl⟩ := h.1 a rfl
   obtain ⟨m', rfl⟩ := h.2 w rfl
   trivial
@@ -1264,7 +1294,7 @@ macro "vind_ctor_num" : tactic => `(tactic| (
   split at hsti
   · rename_i hnf; rw [ite_eq_left hnf]
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hsti
-    exact ⟨rfl, _, rfl, ⟨rfl, VInv.nil, (by show _ + 1 = _ + 1; rw [hj]), (by show Array.push _ c = Array.push _ c; rw [hord2])⟩⟩
+    exact ⟨rfl, _, rfl, ⟨rfl, VInv.nil, (by show _ + 1 = _ + 1; rw [hj]), CtsRel.push hord2 c hdT⟩⟩
   · rename_i hnf; rw [ite_eq_right hnf]
     obtain ⟨x, hsti⟩ := readName_bind hsti
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hsti
@@ -1308,9 +1338,9 @@ macro "vind_rec_loop" : tactic => `(tactic| (
   obtain ⟨r2, s₂, hloop2, hrun⟩ := AM.bind_ok hrun
   refine except_bind_ex
     (forIn_sim (P := fun (a b : ConLeche.Frontend.IndRecRec) => a = b)
-      (R := fun (b : MProd (Option (RecordVerdict ⊕ List ConLeche.Frontend.IndCtorRec × Nat))
+      (R := fun (b : MProd (Option (RecordVerdict ⊕ List (ConLeche.Frontend.IndCtorRec × NIdx) × Nat))
           PUnit)
-        (c : Option (ConLeche.Frontend.RecordVerdict ⊕ List ConLeche.Frontend.IndCtorRec × Nat)
+        (c : Option (ConLeche.Frontend.RecordVerdict ⊕ List (ConLeche.Frontend.IndCtorRec × ConLeche.Name) × Nat)
           × Unit) =>
           b.1.isNone = c.1.isNone ∧ VInv b.1 c.1)
       ?_ (ListRel.refl_eq _) (c := (none, ())) ⟨rfl, VInv.nil⟩ hloop2) ?_))
@@ -1369,7 +1399,7 @@ macro "vind_rec_fin" : tactic => `(tactic| (
       have h1 : c2.1.isNone = true := by rw [← hn2, hr2]; rfl
       exact Option.isNone_iff_eq_none.mp h1
     rw [hc2]
-    exact ⟨rfl, _, rfl, rfl⟩))
+    exact ⟨rfl, _, rfl, hord, rfl⟩))
 
 set_option hygiene false in
 /-- con-leche: none — the tail of `validateIndD`'s recursor-loop step, after
@@ -1391,9 +1421,9 @@ macro "vind_rec_tail" : tactic => `(tactic| (
     refine except_bind_ex
       (forIn_sim (P := fun (a : NIdx × EIdx) (b : ConLeche.Name × Expr) =>
           denoteN s.store.ns a.1 = some b.1 ∧ denoteE s.store a.2 = some b.2)
-        (R := fun (b : MProd (Option (RecordVerdict ⊕ List ConLeche.Frontend.IndCtorRec × Nat))
+        (R := fun (b : MProd (Option (RecordVerdict ⊕ List (ConLeche.Frontend.IndCtorRec × NIdx) × Nat))
             PUnit)
-          (c : Option (ConLeche.Frontend.RecordVerdict ⊕ List ConLeche.Frontend.IndCtorRec × Nat)
+          (c : Option (ConLeche.Frontend.RecordVerdict ⊕ List (ConLeche.Frontend.IndCtorRec × ConLeche.Name) × Nat)
             × Unit) =>
             b.1.isNone = c.1.isNone ∧ VInv b.1 c.1)
         ?_ (ListRel.zip htyR httR) (c := (none, ())) ⟨rfl, VInv.nil⟩ hloop3) ?_
@@ -1480,9 +1510,10 @@ theorem validateIndD_run' {s s' : AState} (hok : StateOK s) {sd : StateD}
     {tys : List ConLeche.Frontend.IndTypeRec}
     {cts : List ConLeche.Frontend.IndCtorRec}
     {rcs : List ConLeche.Frontend.IndRecRec}
-    {x : RecordVerdict ⊕ (List ConLeche.Frontend.IndCtorRec × Nat)}
+    {x : RecordVerdict ⊕ (List (ConLeche.Frontend.IndCtorRec × NIdx) × Nat)}
     (hrun : validateIndD sd tys cts rcs s = .ok (x, s')) :
-    s' = s ∧ ∃ y, validateIndF sc.name sc.level sc.expr tys cts rcs = .ok y ∧ VRes x y := by
+    s' = s ∧ ∃ y, validateIndF sc.name sc.level sc.expr tys cts rcs = .ok y ∧
+      VRes s.store.ns x y := by
   rw [validateIndD] at hrun
   rw [validateIndF]
   simp only [pure_bind] at hrun ⊢
@@ -1559,24 +1590,24 @@ theorem validateIndD_run' {s s' : AState} (hok : StateOK s) {sd : StateD}
     (forIn_sim (P := fun (p : NIdx × List NIdx) (q : ConLeche.Name × List ConLeche.Name) =>
         denoteN s.store.ns p.1 = some q.1 ∧
         ListRel (fun h n => denoteN s.store.ns h = some n) p.2 q.2)
-      (R := fun (b : MProd (Option (RecordVerdict ⊕ List ConLeche.Frontend.IndCtorRec × Nat))
-          (Array ConLeche.Frontend.IndCtorRec))
-        (c : Option (ConLeche.Frontend.RecordVerdict ⊕ List ConLeche.Frontend.IndCtorRec × Nat) ×
-          Array ConLeche.Frontend.IndCtorRec) =>
-          b.1.isNone = c.1.isNone ∧ VInv b.1 c.1 ∧ b.2 = c.2)
-      ?_ hz (c := (none, #[])) ⟨rfl, VInv.nil, rfl⟩ hloop) ?_
+      (R := fun (b : MProd (Option (RecordVerdict ⊕ List (ConLeche.Frontend.IndCtorRec × NIdx) × Nat))
+          (Array (ConLeche.Frontend.IndCtorRec × NIdx)))
+        (c : Option (ConLeche.Frontend.RecordVerdict ⊕ List (ConLeche.Frontend.IndCtorRec × ConLeche.Name) × Nat) ×
+          Array (ConLeche.Frontend.IndCtorRec × ConLeche.Name)) =>
+          b.1.isNone = c.1.isNone ∧ VInv b.1 c.1 ∧ CtsRel s.store.ns b.2.toList c.2.toList)
+      ?_ hz (b := ⟨none, #[]⟩) (c := (none, #[])) ⟨rfl, VInv.nil, ListRel.nil⟩ hloop) ?_
   · intro tn tnC b c0 s0' st hP hR hstep
     obtain ⟨hdT, hns⟩ := hP
     obtain ⟨hn0, hl0, h20⟩ := hR
     obtain ⟨ri, s₁, hin, hstep⟩ := AM.bind_ok hstep
     refine except_bind_ex
       (forIn_sim (P := fun (a : NIdx) (b : ConLeche.Name) => denoteN s.store.ns a = some b)
-        (R := fun (b : MProd (Option (RecordVerdict ⊕ List ConLeche.Frontend.IndCtorRec × Nat))
-            (MProd Nat (Array ConLeche.Frontend.IndCtorRec)))
-          (c : Option (ConLeche.Frontend.RecordVerdict ⊕ List ConLeche.Frontend.IndCtorRec × Nat)
-            × (Array ConLeche.Frontend.IndCtorRec × Nat)) =>
+        (R := fun (b : MProd (Option (RecordVerdict ⊕ List (ConLeche.Frontend.IndCtorRec × NIdx) × Nat))
+            (MProd Nat (Array (ConLeche.Frontend.IndCtorRec × NIdx))))
+          (c : Option (ConLeche.Frontend.RecordVerdict ⊕ List (ConLeche.Frontend.IndCtorRec × ConLeche.Name) × Nat)
+            × (Array (ConLeche.Frontend.IndCtorRec × ConLeche.Name) × Nat)) =>
             b.1.isNone = c.1.isNone ∧ VInv b.1 c.1 ∧
-              b.2.1 = c.2.2 ∧ b.2.2 = c.2.1)
+              b.2.1 = c.2.2 ∧ CtsRel s.store.ns b.2.2.toList c.2.1.toList)
         ?_ hns (c := (none, c0.2, 0)) ⟨rfl, VInv.nil, rfl, h20⟩ hin) ?_
     · intro n nm bi ci s0'' sti hdn hRi hsti
       obtain ⟨hni, hli, hj, hord2⟩ := hRi
@@ -1654,8 +1685,8 @@ theorem validateIndD_run' {s s' : AState} (hok : StateOK s) {sd : StateD}
       exact Option.isNone_iff_eq_none.mp h1
     rw [hc1]
     simp only []
-    rw [← hord]
-    generalize hO : r.snd.toList = O at hrun ⊢
+    generalize hO : r.snd.toList = O at hrun hord
+    rw [← ListRel.length_eq hord]
     vind_rec_loop
     · intro r0 r0' b c0 s0' st hEq hR hstep
       vind_rec_head
@@ -1707,11 +1738,13 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {tys : List ConLeche.Frontend.IndTypeRec}
-    {cts : List ConLeche.Frontend.IndCtorRec}
+    {cts : List (ConLeche.Frontend.IndCtorRec × NIdx)}
+    {ctsP : List (ConLeche.Frontend.IndCtorRec × ConLeche.Name)}
+    (hctsR : CtsRel s.store.ns cts ctsP)
     {rcs : List ConLeche.Frontend.IndRecRec} {nPd : Nat} {sd' : StateD}
     (hrun : installIndD sd tys cts rcs nPd s = .ok (sd', s')) :
     s' = s ∧ PersStateD sd' ∧
-      ∃ d, indBlockOfF sc.name sc.level sc.expr tys cts rcs nPd = .ok d ∧
+      ∃ d, indBlockOfF sc.name sc.level sc.expr tys ctsP rcs nPd = .ok d ∧
         StateDRel s.store sd' (ConLeche.Frontend.pushDecl sc d) := by
   have hcaps : denoteCaps s.store {} = some {} := denoteCaps_default
   rw [installIndD] at hrun
@@ -1751,25 +1784,31 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
       · simp only [List.mapM_cons, hclcv, hclys]; rfl
       · simp only [denoteCI, hdcv, hcaps]
   -- the constructors
-  have hcts : ∀ (ts : List ConLeche.Frontend.IndCtorRec)
-      {out : List IConstantInfo} {t : AState},
-      (ts.mapM fun (x : ConLeche.Frontend.IndCtorRec) => do
-        pure (IConstantInfo.ctorInfo (← parseCVD sd x.cv) x.numParams x.numFields))
+  have hcts : ∀ {ts : List (ConLeche.Frontend.IndCtorRec × NIdx)}
+      {tsP : List (ConLeche.Frontend.IndCtorRec × ConLeche.Name)}, CtsRel s.store.ns ts tsP →
+      ∀ {out : List IConstantInfo} {t : AState},
+      (ts.mapM fun (x : ConLeche.Frontend.IndCtorRec × NIdx) => do
+        pure (IConstantInfo.ctorInfo (← parseCVD sd x.1.cv) x.1.numParams x.1.numFields x.2))
           s = .ok (out, t) →
-      t = s ∧ ∃ outP, (ts.mapM fun (x : ConLeche.Frontend.IndCtorRec) => do
-          pure (ConstantInfo.ctorInfo (← cvOfF sc.name sc.level sc.expr x.cv)
-            x.numParams x.numFields)) = .ok outP ∧
+      t = s ∧ ∃ outP, (tsP.mapM fun (x : ConLeche.Frontend.IndCtorRec × ConLeche.Name) => do
+          pure (ConstantInfo.ctorInfo (← cvOfF sc.name sc.level sc.expr x.1.cv)
+            x.1.numParams x.1.numFields x.2)) = .ok outP ∧
         ListRel (fun ci c => denoteCI s.store ci = some c)
           out outP := by
-    intro ts
-    induction ts with
+    intro ts tsP hR
+    induction hR with
     | nil =>
       intro out t hrun
       simp only [List.mapM_nil] at hrun
       obtain ⟨hv, hst⟩ := AM.pure_ok hrun
       subst hv; subst hst
       exact ⟨rfl, [], rfl, .nil⟩
-    | cons x xs ih =>
+    | @cons x xP xs xsP hx _ ih =>
+      obtain ⟨xc, xt⟩ := x
+      obtain ⟨xPc, xPt⟩ := xP
+      obtain ⟨hx1, hx2⟩ := hx
+      dsimp only at hx1 hx2
+      subst hx1
       intro out t hrun
       simp only [List.mapM_cons] at hrun
       obtain ⟨y, s₁, hone, hrest⟩ := AM.bind_ok hrun
@@ -1783,10 +1822,10 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
       rw [hs4] at hrest2
       obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest2
       subst hv2; subst hst2; subst hv1
-      refine ⟨rfl, ConstantInfo.ctorInfo cvP x.numParams x.numFields :: ysP, ?_,
+      refine ⟨rfl, ConstantInfo.ctorInfo cvP xc.numParams xc.numFields xPt :: ysP, ?_,
         .cons ?_ hdys⟩
       · simp only [List.mapM_cons, hclcv, hclys]; rfl
-      · simp only [denoteCI, hdcv, Option.map_some]
+      · simp only [denoteCI, hdcv, hx2]
   -- the recursors
   have hrcs : ∀ (ts : List ConLeche.Frontend.IndRecRec)
       {out : List IConstantInfo} {t : AState},
@@ -1838,7 +1877,7 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
   obtain ⟨hs1, typesP, hcltys, hdtys⟩ := htys tys h1
   rw [hs1] at hrun
   obtain ⟨ctors, s₂, h2, hrun⟩ := AM.bind_ok hrun
-  obtain ⟨hs2, ctorsP, hclcts, hdcts⟩ := hcts cts h2
+  obtain ⟨hs2, ctorsP, hclcts, hdcts⟩ := hcts hctsR h2
   rw [hs2] at hrun
   obtain ⟨recs, s₃, h3, hrun⟩ := AM.bind_ok hrun
   obtain ⟨hs3, recsP, hclrcs, hdrcs⟩ := hrcs rcs h3
@@ -2031,10 +2070,12 @@ theorem processLineCoreD_run {s s' : AState} (hok : StateOK s)
       cases y with
       | inl w => exact absurd hvr (by simp [VRes])
       | inr q =>
-        obtain rfl : p = q := hvr
+        obtain ⟨p1, pn⟩ := p
+        obtain ⟨q1, qn⟩ := q
+        obtain ⟨hcts, rfl⟩ := hvr
         obtain ⟨sd'', s₂, h2, hrun2⟩ := AM.bind_ok hrun
         obtain ⟨hv2, hp2, d2, hcl2, hrel2⟩ :=
-          installIndD_run hok hoff hpins hrel hp h2
+          installIndD_run hok hoff hpins hrel hp hcts h2
         subst hv2
         obtain ⟨hxv, hsv⟩ := AM.pure_ok hrun2
         subst hxv; subst hsv

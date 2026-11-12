@@ -1002,7 +1002,7 @@ theorem iotaFam_spec {α : Type} {fuel : Nat} (henv : ConLeche.EnvWF env)
   obtain ⟨_, hlpsj, _⟩ := denoteCV_inv hdcvj
   have hnamej : dcvj.name = cjn := env_find_name hfindj
   have hv : (!CheckMode.verified.verifiedChecks) = false := rfl
-  rw [hv, Bool.false_eq_true, ite_false]
+  simp only [hv, Bool.false_eq_true, ite_false]
   -- the stored facts first
   have hcount : ConRon.Arena.recFireLevelCount rl icvj.levelParams =
       (ConLeche.recFireComparands rl' cnP dcv.levelParams ls dcvj.levelParams xs rP).1.length := by
@@ -1013,10 +1013,10 @@ theorem iotaFam_spec {α : Type} {fuel : Nat} (henv : ConLeche.EnvWF env)
   by_cases hnct : ConLeche.iotaNoCert env.find? isK inductP
       (ConLeche.recFireComparands rl' cnP dcv.levelParams ls dcvj.levelParams xs rP).1.length
       = true
-  · rw [hcount, hnc, ite_eq_left hnct, pure_bind]
+  · simp only [hcount, hnc, hnct, ite_true, pure_bind]
     exact hk _ _ ⟨hok, Ext.refl _, rfl, 0, iotaFam_true (iotaCaseAt_nocert hnct)⟩
   have hncf := Bool.eq_false_iff.mpr hnct
-  rw [hcount, hnc, ite_eq_right hnct]
+  simp only [hcount, hnc, hncf, Bool.false_eq_true, ite_false]
   refine triple_seq (recFireLevels_spec s₁ rl rl' icv.levelParams us
     icvj.levelParams dcv.levelParams ls dcvj.levelParams hok hrl' hlps hls
     hlpsj) ?_
@@ -1088,7 +1088,7 @@ theorem iotaFam_spec {α : Type} {fuel : Nat} (henv : ConLeche.EnvWF env)
     rfl
   rw [ite_eq_left hyt]
   subst hyt
-  refine triple_seq (constTyAt_spec s7 icvj usj cjn lsj (.ctorInfo dcvj cnP cnF)
+  refine triple_seq (constTyAt_spec s7 icvj usj cjn lsj (.ctorInfo dcvj cnP cnF inductP)
     hok7 (by rw [denoteCV_name (denoteCV_ext hdcvj hx17), hnamej])
     (denoteLs_ext hlsj hx17) hfindj (denoteCV_ext hdcvj hx17)) ?_
   rintro tyC s8 ⟨hok8, hx8, hp8, htyC⟩
@@ -1108,7 +1108,7 @@ theorem iotaFam_spec {α : Type} {fuel : Nat} (henv : ConLeche.EnvWF env)
     have hc2f : c2 = false := by simpa using hc2t
     subst hc2f
     refine hk _ _ ⟨hok9, hx19, hp19, max F0 (max F1 F2), ?_⟩
-    rw [iotaFam_fire (b1 := true) (b2 := true) (b3 := false) (b4 := false)
+    rw [iotaFam_fire (cvj := dcvj) (b1 := true) (b2 := true) (b3 := false) (b4 := false)
       (iotaCaseAtFueled_mono (by omega) hF0) h1
       (fun _ => defEqListFueled_mono (by omega) hF1)
       (fun _ _ => iotaCertsFullFueled_mono (by omega) hF2)
@@ -1124,7 +1124,7 @@ theorem iotaFam_spec {α : Type} {fuel : Nat} (henv : ConLeche.EnvWF env)
     (fun z hz => hwxs z (List.mem_of_mem_take (List.mem_of_mem_drop hz)))) ?_
   rintro c4 s10 ⟨hok10, hx10, hp10, F3, hF3⟩
   refine hk _ _ ⟨hok10, hx19.trans hx10, hp10.trans hp19, max F0 (max F1 (max F2 F3)), ?_⟩
-  rw [iotaFam_fire (b1 := true) (b2 := true) (b3 := true) (b4 := c4)
+  rw [iotaFam_fire (cvj := dcvj) (b1 := true) (b2 := true) (b3 := true) (b4 := c4)
     (iotaCaseAtFueled_mono (by omega) hF0) h1
     (fun _ => defEqListFueled_mono (by omega) hF1)
     (fun _ _ => iotaCertsFullFueled_mono (by omega) hF2)

@@ -2123,7 +2123,7 @@ theorem checkDivModPinAtFe2_bridge {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
     | .axiomInfo _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
     | .thmInfo _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
     | .indInfo _ _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
-    | .ctorInfo _ _ _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
+    | .ctorInfo _ _ _ _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
     | .recInfo _ _ _ _ _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
   · exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
 
