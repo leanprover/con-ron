@@ -225,7 +225,7 @@ theorem absICILFrom_nil {block : alloc.vec.Vec arena.env.IConstantInfo} {i : Std
 
 /-- `blockSplitCtors` at a list that does not start with a constructor. -/
 theorem blockSplitCtors_of_not_ctor (L : List IConstantInfo)
-    (hL : ∀ cv np nf rest, L ≠ .ctorInfo cv np nf :: rest) :
+    (hL : ∀ cv np nf T rest, L ≠ .ctorInfo cv np nf T :: rest) :
     blockSplitCtors L = (blockSplitRecs L).map (fun rs => ([], rs)) := by
   match L, hL with
   | [], _ => simp [blockSplitCtors, blockSplitRecs]
@@ -233,7 +233,7 @@ theorem blockSplitCtors_of_not_ctor (L : List IConstantInfo)
   | .defnInfo _ _ _ :: _, _ => simp [blockSplitCtors, blockSplitRecs]
   | .thmInfo _ :: _, _ => simp [blockSplitCtors, blockSplitRecs]
   | .indInfo _ _ :: _, _ => simp [blockSplitCtors, blockSplitRecs]
-  | .ctorInfo cv np nf :: rest, hL => exact absurd rfl (hL cv np nf rest)
+  | .ctorInfo cv np nf T :: rest, hL => exact absurd rfl (hL cv np nf T rest)
   | .recInfo _ _ _ _ _ :: rest, _ =>
     simp only [blockSplitCtors, blockSplitRecs]
     cases blockSplitRecs rest <;> rfl
@@ -249,8 +249,8 @@ theorem blockSplit_of_not_ind (L : List IConstantInfo)
     simp only [blockSplit]; cases blockSplitCtors (.defnInfo a b c :: r) <;> rfl
   | .thmInfo a :: r, _ => simp only [blockSplit]; cases blockSplitCtors (.thmInfo a :: r) <;> rfl
   | .indInfo cv caps :: rest, hL => exact absurd rfl (hL cv caps rest)
-  | .ctorInfo a b c :: r, _ =>
-    simp only [blockSplit]; cases blockSplitCtors (.ctorInfo a b c :: r) <;> rfl
+  | .ctorInfo a b c d :: r, _ =>
+    simp only [blockSplit]; cases blockSplitCtors (.ctorInfo a b c d :: r) <;> rfl
   | .recInfo a b c d e :: r, _ =>
     simp only [blockSplit]; cases blockSplitCtors (.recInfo a b c d e :: r) <;> rfl
 
@@ -288,7 +288,7 @@ theorem block_split_recs_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
     | DefnInfo _ _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
     | ThmInfo _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
     | IndInfo _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
-    | CtorInfo _ _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
+    | CtorInfo _ _ _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
 
 theorem block_split_recs_new_abs {block : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize} {o}
     (h : arena.inductives.block_shape.block_split_recs block i (alloc.vec.Vec.new _) = ok o) :
@@ -318,8 +318,8 @@ theorem block_split_ctors_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
     rw [ite_eq_left (show i < alloc.vec.Vec.len block by scalar_tac)] at h
     obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hx := vec_index_some hii
-    by_cases hc : ∃ cv np nf, ii = .CtorInfo cv np nf
-    · obtain ⟨cv, np, nf, rfl⟩ := hc
+    by_cases hc : ∃ cv np nf t, ii = .CtorInfo cv np nf t
+    · obtain ⟨cv, np, nf, t0, rfl⟩ := hc
       simp only [arena.inductives.block_shape.is_ctor_info, bind_ok, ite_true,
         arena.inductives.block_shape.ctor_info_parts] at h
       obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -341,7 +341,7 @@ theorem block_split_ctors_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
       have e := block_split_recs_new_abs ho1
       rw [blockSplitCtors_of_not_ctor _ ?_, ← e]
       · cases o1 <;> (obtain rfl := Result.ok_injective h; simp)
-      · intro cv np nf rest hc'
+      · intro cv np nf T rest hc'
         rw [bp_absICILFrom_cons' hx] at hc'
         cases ii <;> simp_all [absIConstantInfo]
 

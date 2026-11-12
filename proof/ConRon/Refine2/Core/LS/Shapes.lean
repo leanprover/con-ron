@@ -171,7 +171,7 @@ theorem eta_ctor_partial_fam_abs {pers : arena.store.PersTier} {fe lfe}
       rw [← ifenv_find_table_abs hctx ho2]
       rcases o2 with _ | tbl
       · cases Result.ok_injective h; rfl
-      · simp only [Option.map_some]
+      · simp only [Option.map_some] at h ⊢
         by_cases he : caps.eta = true
         · rw [if_pos he] at h
           have := nidx_eq2 tbl.ctor c b trivial trivial h

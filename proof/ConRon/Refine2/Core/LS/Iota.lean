@@ -390,6 +390,7 @@ theorem iota_no_cert_abs {pers : arena.store.PersTier} {fe lfe} (hctx : CoreCtx 
     · cases ci with
       | IndInfo cv caps =>
         simp only [Option.map_some, absIConstantInfo, absIIndCaps, absIConstantVal]
+        simp only at h
         by_cases hz : caps.never_zero = true
         · rw [if_pos hz] at h
           obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -397,11 +398,15 @@ theorem iota_no_cert_abs {pers : arena.store.PersTier} {fe lfe} (hctx : CoreCtx 
           simp only [lift, Result.ok.injEq] at hi1
           subst hi1
           simp only [hz, Bool.true_and, List.length_map, absU]
-          rw [decide_eq_decide]
-          constructor
-          · rintro rfl; rw [usize_cast_u64_val']; simp [alloc.vec.Vec.len]
-          · intro he; apply Std.UScalar.eq_of_val_eq
-            rw [usize_cast_u64_val', ← he]; simp [alloc.vec.Vec.len]
+          have hv : (UScalar.cast .U64 cv.level_params.len).val = cv.level_params.val.length := by
+            rw [usize_cast_u64_val']; simp [alloc.vec.Vec.len]
+          have hiff : (UScalar.cast .U64 cv.level_params.len = n) ↔
+              cv.level_params.val.length = n.val := by
+            constructor
+            · intro e; rw [← hv, e]
+            · intro e; apply Std.UScalar.eq_of_val_eq; rw [hv, e]
+          rw [Bool.eq_iff_iff, decide_eq_true_iff, beq_iff_eq]
+          exact hiff
         · rw [if_neg hz] at h
           cases Result.ok_injective h
           simp [show caps.never_zero = false by simpa using hz]

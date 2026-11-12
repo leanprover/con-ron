@@ -113,7 +113,7 @@ def indParamsOkAtSpec (nP : Nat) : IConstantInfo → AM Bool
     match ← piSortTeleLen? coreWalkFuel cvT.type with
     | some n => pure (decide (nP ≤ n))
     | none => pure true
-  | .ctorInfo _ nPc _ => pure (nPc == nP)
+  | .ctorInfo _ nPc _ _ => pure (nPc == nP)
   | _ => pure true
 
 /-! ## The `_unfold` equations
@@ -174,7 +174,7 @@ port writes it (the twin's literal pattern `.ctorInfo cv 2 2`, split by
 `stdAxiomOk_split`). -/
 def iffIntroPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← iffIntroName) with
-  | some (.ctorInfo cvIi np nf) =>
+  | some (.ctorInfo cvIi np nf _) =>
     if np == 2 && nf == 2 then do cvIi.matchesPin (← iffIntroA).toConstantVal
     else pure false
   | _ => pure false
@@ -196,7 +196,7 @@ def nonemptyPinnedSpec (fe : IFEnv) : AM Bool := do
 /-- `stdAxiomOk`'s `Nonempty.intro` clause. -/
 def nonemptyIntroPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← nonemptyIntroName) with
-  | some (.ctorInfo cvNi np nf) =>
+  | some (.ctorInfo cvNi np nf _) =>
     if np == 1 && nf == 1 then do cvNi.matchesPin (← nonemptyIntroA).toConstantVal
     else pure false
   | _ => pure false
@@ -218,7 +218,7 @@ def truePinnedSpec (fe : IFEnv) : AM Bool := do
 /-- `trustCompilerOk`'s `True.intro` clause. -/
 def trueIntroPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← trueIntroName) with
-  | some (.ctorInfo cvTi np nf) =>
+  | some (.ctorInfo cvTi np nf _) =>
     if np == 0 && nf == 0 then do cvTi.matchesPin (← trueIntroCvA)
     else pure false
   | _ => pure false
