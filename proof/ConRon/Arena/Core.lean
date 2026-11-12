@@ -2658,6 +2658,57 @@ def whnfApp (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
   else pure (.done v)
 termination_by args.size - i
 
+/-! ### The stuck spine (con-leche's task #556 P-A) -/
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:180-184 isStuckHeadC — **a spine
+head that is its own head normal form and not a λ**, off the handle's tag: a
+sort, a free variable, a Π-type, a constant or a literal. -/
+@[inline] def isStuckHead (h : EIdx) : Bool :=
+  let t := h.tag
+  if t == ETag.sort then true
+  else if t == ETag.fvar then true
+  else if t == ETag.forallE then true
+  else if t == ETag.const then true
+  else if t == ETag.lit then true
+  else false
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:186-198 iotaTargetF — **the ι
+target of a spine head**: the spine length `mI + 1` at which `iotaRecAt` can
+fire, where the head is a stored recursor at its own number of levels. -/
+def iotaTarget (fe : IFEnv) (h : EIdx) : AM (Option Nat) := do
+  if h.tag == ETag.const then
+    match ← viewConst h with
+    | none => failDanglingE
+    | some (c, us) =>
+      match fe.find? c with
+      | some (.recInfo cv mI _ _ _) =>
+        match ← viewLsLen us with
+        | none => failDanglingLs
+        | some usl =>
+          if usl = cv.levelParams.length then pure (some (mI + 1)) else pure none
+      | _ => pure none
+  else pure none
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1122-1148 whnfStuckI — **a spine
+`e` whose head `h` is its own head normal form and not a λ** (official
+`whnf_core`'s `f == f0` arm): the ι step, tried once, at the one prefix where
+it can fire (`iotaTarget`), on the spine's argument vector, and otherwise the
+input itself, with nothing rebuilt.  The vector is built at a recursor head
+and its length is con-leche's `iotaNumArgs` count. -/
+def whnfStuck (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (h e : EIdx) : AM WhnfStep := do
+  match ← iotaTarget fe h with
+  | none => pure (.done e)
+  | some k => do
+    let args := (← getAppArgs coreWalkFuel e).toArray
+    if k ≤ args.size then do
+      match ← iotaRecAt mode r fe depth h args k with
+      | none => pure (.done e)
+      | some e2 => do
+        let e3 ← mkAppNFrom e2 args k
+        pure (.cont e3)
+    else pure (.done e)
+
 /-! ## The projection certificate and the reduction bodies
 
 con-leche's `Core.lean`:1834-2074. -/
@@ -2751,6 +2802,19 @@ def whnfCoreStepProj (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (cheap : Boo
   | some m' => pure (.cont m')
   | none => pure (.done e)
 
+/-- con-leche: ConLeche/Cached/CoreC.lean:1150-1203 whnfCoreStepI — the `.app`
+clause of the step at a head that is NOT its own head normal form (a λ, a
+projection, a let-expression): **the batched β spine** (task #97-P6-9), the
+spine's head normalized once and the whole argument vector run through
+`whnfApp`. -/
+def whnfCoreStepApp (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (cheap : Bool)
+    (depth : Nat) (e : EIdx) : AM WhnfStep := do
+  let sp ← getAppSpine coreWalkFuel e
+  let v ← r.whnfCore cheap depth sp.1
+  let same := v == sp.1
+  let hv ← headAndArgs v
+  whnfApp mode r fe depth v hv.1 hv.2 same sp.2.1 sp.2.2 0
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1025-1074 whnfCoreBody
 con-leche: ConLeche/Cached/CoreC.lean:1140-1181 whnfCoreStepI — **one
 -- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.whnfCoreStep_bridge, then delete this line
@@ -2764,14 +2828,12 @@ def whnfCoreStep (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (cheap : Bool)
   match ← view e with
   | .sort _ | .fvar _ _ | .forallE _ _ | .lam _ _ | .const _ _
   | .lit _ => pure (.done e)
-  -- **The batched β spine** (task #97-P6-9): the spine's head is normalized
-  -- once and the whole argument vector is run through `whnfApp`.
   | .app _ _ => do
-    let sp ← getAppSpine coreWalkFuel e
-    let v ← r.whnfCore cheap depth sp.1
-    let same := v == sp.1
-    let hv ← headAndArgs v
-    whnfApp mode r fe depth v hv.1 hv.2 same sp.2.1 sp.2.2 0
+    let h ← getAppFn coreWalkFuel e
+    -- a head that is its own head normal form: the spine is stuck but for ι,
+    -- and is answered by itself
+    if isStuckHead h then whnfStuck mode r fe depth h e
+    else whnfCoreStepApp mode r fe cheap depth e
   | .proj sn i pe => whnfCoreStepProj mode r fe cheap depth e sn i pe
   | .letE _ v b => do
     -- ζ, Lean's way (con-leche's task #342 S0: lets are stored as Lean

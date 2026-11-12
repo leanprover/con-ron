@@ -7565,6 +7565,151 @@ pub fn intern_app_rebuilt(
     }
 }
 
+/// con-leche: ConLeche/Cached/CoreC.lean:180-184 isStuckHeadC
+/// Lean twin: `proof/ConRon/Arena/Core.lean isStuckHead` — **a spine head that
+/// is its own head normal form and not a λ**, off the handle's tag: a sort, a
+/// free variable, a Π-type, a constant or a literal (`whnf_core_stuck_tag`'s
+/// kinds but `lam`).
+pub fn is_stuck_head(h: &EIdx) -> bool {
+    let t: u32 = h.tag();
+    if t == ETAG_SORT {
+        true
+    } else if t == ETAG_FVAR {
+        true
+    } else if t == ETAG_FORALL_E {
+        true
+    } else if t == ETAG_CONST {
+        true
+    } else if t == ETAG_LIT {
+        true
+    } else {
+        false
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:186-198 iotaTargetF
+/// Lean twin: `proof/ConRon/Arena/Core.lean iotaTarget` — **the ι target of a
+/// spine head**: the spine length `mI + 1` at which `iota_rec_at` can fire,
+/// where the head is a stored recursor at its own number of levels (the arity
+/// test `iota_rec_at` makes first, read off the head once).
+pub fn iota_target(
+    pers: &PersTier,
+    st: &AState,
+    fe: &IFEnv,
+    h: &EIdx,
+) -> Result<Option<u64>, CheckError> {
+    if h.tag() == ETAG_CONST {
+        match view_const(pers, st, h) {
+            None => fail_dangling_e(),
+            Some((c, us)) => match env::ifenv_find(pers, fe, &c) {
+                Some(IConstantInfo::RecInfo(cv, m_i, _, _, _)) => match view_ls_len(pers, st, &us) {
+                    None => fail_dangling_ls(),
+                    Some(usl) => {
+                        if usl == cv.level_params.len() {
+                            Ok(Some(*m_i + 1))
+                        } else {
+                            Ok(None)
+                        }
+                    }
+                },
+                Some(_) => Ok(None),
+                None => Ok(None),
+            },
+        }
+    } else {
+        Ok(None)
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:1122-1148 whnfStuckI
+/// Lean twin: `proof/ConRon/Arena/Core.lean whnfStuck` — **a spine `e` whose
+/// head `h` is its own head normal form and not a λ** (official `whnf_core`'s
+/// `f == f0` arm, `src/kernel/type_checker.cpp:525-536`): the ι step, tried
+/// once, at the one prefix where it can fire (`iota_target`), on the spine's
+/// argument vector, and otherwise the input itself, with nothing rebuilt.  A
+/// fired ι hands the loop its reduct applied to the rest of the spine.
+///
+/// con-leche counts the spine (`iotaNumArgs`) before it builds the argument
+/// array; here the vector is built at a recursor head and its length is the
+/// count — a recursor head on too short a spine is the only case that builds
+/// a vector it does not use.
+pub fn whnf_stuck(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    h: &EIdx,
+    e: &EIdx,
+) -> Result<WhnfStep, CheckError> {
+    match iota_target(pers, st, fe, h) {
+        Err(er) => Err(er),
+        Ok(None) => Ok(WhnfStep::Done(e.dup2())),
+        Ok(Some(k)) => match get_app_args(pers, st, CORE_WALK_FUEL, e) {
+            Err(er) => Err(er),
+            Ok(args) => {
+                if k <= args.len() as u64 {
+                    let kz: usize = k as usize;
+                    match iota_rec_at(pers, st, mode, eager, lane, fuel, fe, depth, h, &args, kz) {
+                        Err(er) => Err(er),
+                        Ok(None) => Ok(WhnfStep::Done(e.dup2())),
+                        Ok(Some(e2)) => match mk_app_n_from(pers, st, &e2, &args, kz) {
+                            Err(er) => Err(er),
+                            Ok(e3) => Ok(WhnfStep::Cont(e3)),
+                        },
+                    }
+                } else {
+                    Ok(WhnfStep::Done(e.dup2()))
+                }
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:1150-1203 whnfCoreStepI
+/// Lean twin: `proof/ConRon/Arena/Core.lean whnfCoreStepApp` — the `.app`
+/// clause of the step at a head that is NOT its own head normal form (a λ, a
+/// projection, a let-expression): **the batched β spine** (task #97-P6-9),
+/// the spine's head normalized once and the whole argument vector run through
+/// `whnf_app`.
+pub fn whnf_core_step_app(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    cheap: bool,
+    depth: u64,
+    e: &EIdx,
+) -> Result<WhnfStep, CheckError> {
+    match get_app_spine(pers, st, CORE_WALK_FUEL, e) {
+        Err(er) => Err(er),
+        Ok(sp) => {
+            let hd: EIdx = sp.0;
+            let args: Vec<EIdx> = sp.1;
+            let nodes: Vec<EIdx> = sp.2;
+            match knot_whnf_core(pers, st, mode, eager, lane, fuel, fe, cheap, depth, &hd) {
+                Err(er) => Err(er),
+                Ok(v) => {
+                    let same: bool = v.eq2(&hd);
+                    match head_and_args(pers, st, &v) {
+                        Err(er) => Err(er),
+                        Ok(hv) => whnf_app(
+                            pers, st, mode, eager, lane, fuel, fe, depth, &v, &hv.0, hv.1, same,
+                            &args, &nodes, 0,
+                        ),
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Core.lean:1025-1074 whnfCoreBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1140-1181 whnfCoreStepI
 /// con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove core::whnf_core_step_refines, then delete this line
@@ -7594,27 +7739,15 @@ pub fn whnf_core_step(
         Ok(ENodeView::Lam(_, _)) => Ok(WhnfStep::Done(e.dup2())),
         Ok(ENodeView::Const(_, _)) => Ok(WhnfStep::Done(e.dup2())),
         Ok(ENodeView::Lit(_)) => Ok(WhnfStep::Done(e.dup2())),
-        // **The batched β spine** (task #97-P6-9): the spine's head is
-        // normalized once and the whole argument vector is run through
-        // `whnf_app`.
-        Ok(ENodeView::App(_, _)) => match get_app_spine(pers, st, CORE_WALK_FUEL, e) {
+        Ok(ENodeView::App(_, _)) => match get_app_fn(pers, st, CORE_WALK_FUEL, e) {
             Err(er) => Err(er),
-            Ok(sp) => {
-                let hd: EIdx = sp.0;
-                let args: Vec<EIdx> = sp.1;
-                let nodes: Vec<EIdx> = sp.2;
-                match knot_whnf_core(pers, st, mode, eager, lane, fuel, fe, cheap, depth, &hd) {
-                    Err(er) => Err(er),
-                    Ok(v) => {
-                        let same: bool = v.eq2(&hd);
-                        match head_and_args(pers, st, &v) {
-                            Err(er) => Err(er),
-                            Ok(hv) => whnf_app(
-                                pers, st, mode, eager, lane, fuel, fe, depth, &v, &hv.0, hv.1, same,
-                                &args, &nodes, 0,
-                            ),
-                        }
-                    }
+            Ok(h) => {
+                if is_stuck_head(&h) {
+                    // a head that is its own head normal form: the spine is
+                    // stuck but for ι, and is answered by itself
+                    whnf_stuck(pers, st, mode, eager, lane, fuel, fe, depth, &h, e)
+                } else {
+                    whnf_core_step_app(pers, st, mode, eager, lane, fuel, fe, cheap, depth, e)
                 }
             }
         },
