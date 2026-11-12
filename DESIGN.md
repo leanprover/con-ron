@@ -72678,3 +72678,87 @@ run in the startup's time (0.05 s).
 
 **Follow-ups.**  None new.  (#550's `whnfCoreCheapC` question and #551's single-instance
 question are upstream's; con-ron's Rust equalities are hand-written, so there is no derived one to drop.)
+
+### Task #152 — con-leche sync eb2c5939 → ca6af099: the constructor's family and the family's sort fact stored, the stuck spine, the official `whnfCore` memo policy, the literal answer (2026-11-12, Opus)
+
+Upstream tasks absorbed (33 commits): #556 (the official `whnf` arms: stuck spine, no memo
+entry for an unchanged answer, the literal answer, the `Nat` dispatch), #557 (the dead
+`natOpWfNames` branch leaves the specification), #558 (the cached knot as mutually recursive
+functions), #570 (e2e fixture `grind_field_cancel_inv`), #572 (the official `whnfCore` memo
+policy; the β peel without the instantiation memo), #573 (the ι step's static facts stored at
+install: `ctorInfo … induct`, `IndCaps.neverZero`), #574 (structural equality in the official
+formulation), #575 (open-addressing memos: a spike, not landed upstream), #576 (substitution
+walks return no pair for a leaf child), #577 (the ι step on array spines).  `update --auto`:
+492 findings against eb2c5939 (479 `CHANGED`, 13 `GONE`), 883 citations merely moved; 3
+markers deleted mechanically (doc-only), 489 by hand.  Coverage 1083/1142 → 1106/1164
+(95.0 %); every new upstream declaration is cited or skipped with its reason.
+
+**Triage: what is ported and what is not.**  The rule (memory, maintainer): mirror upstream
+unless there is a very good reason; Lean runtime engineering is the reason that recurs.
+
+| upstream | kind | con-ron had | done |
+|---|---|---|---|
+| #573 `ctorInfo … induct`, `IndCaps.neverZero` | data type + specification | three-field constructor record; families found by walking the type | **ported** (lane A): the fourth field (`NIdx` in the arena, `Name` in the plain tier), `never_zero`; the install sets both (`ctor_groups`, `cons_sum_ctors`, `cons_block_ctors`, `block_ctors`, `member_never_zero`), the pins carry the family literally, the parse pairs each constructor with the type record that lists it; the readers (`ctor_family`, `iota_no_cert`, `rec_fire_level_count`, `iota_case3_at`, `family_never_zero_at`, `major_to_ctor`, `eta_ctor_partial_fam`) look the family up by name |
+| #556 P-A stuck spine | algorithm (cached tier) | the head's knot call, then `whnf_app` rebuilding the spine and trying ι at every prefix | **ported** (lane B): `is_stuck_head`, `whnf_stuck`, `iota_target`: ι tried once, at the recursor's own prefix; other heads keep the batched β spine (`whnf_core_step_app`) |
+| #577 ι on array spines | algorithm | already `Vec` spines; `iota_rec_at(hd, args, n)` fires at a prefix | citations; `getAppArgsArr(Go)`, `spineArg`, `mkAppRange` skipped (the port's `Vec` code is them) |
+| #572 the official memo policy | algorithm (cached tier) | per-entry memo, the cheap mode writing its own table | **ported** (lane B): the loop carries the pending keys (`pend`, `pend_c`) and stores the chain at its end; no ι keys, no application answered by itself; the cheap mode stores nothing and reads the entries the full mode wrote for cheap-safe chains |
+| #572 probe C (β peel unmemoised) | algorithm | already: `instantiate_list_fast` clears its memo per call | citation |
+| #556 P-A2 (no entry for an unchanged answer) | algorithm | — | subsumed by #572, as upstream |
+| #556 P-W the literal answer | specification | `whnf_step` continued with every `reduce_nat` answer | **ported** (lane C): a literal is the answer at once; `Nat.beq`/`Nat.ble`'s `Bool` constructor still continues |
+| #556 P-N `NatBinOp` | algorithm | 14 handle comparisons, then a second dispatch by name in `nat_op_result` | **ported** (lane C): `NatBinOp`, `nat_bin_op_of_name` once, `nat_bin_op_result` by operation, refusals in the operation's arm; `nameIsC` skipped (a con-ron name is an interned handle: one word) |
+| #557 `natOpWfNames` | specification | `reduce_nat_wf`, `nat_op_wf_names`, `M_NATIVE_NAT` | **deleted** (lane C), twin and proofs with them |
+| #558 the knot as mutual functions | Lean runtime engineering | the Rust knot is already direct functions with fuel; the twin's record mirrors the specification's `CoreFns`, which #558 left alone | citations (lane D): the knot's slots cite `whnfCoreI`/`whnfI`/`inferI`/`defeqI`/`defeqEI`; `opI`/`opW` on `infer_type_core`/`whnf`; each Rust function of an `io`-flagged upstream one says its flag |
+| #574 structural equality | Lean runtime engineering (per-node allocation) | the checker compares hash-consed handles; the plain-tier `kernel::expr::beq` is run only by tests and `Refine/Expr.lean` | **not restructured** (lead's ruling): citations with a deviation note (the per-node `(bool, BeqMap)` result and function-first order kept); the new `Beq*` declarations skipped with that reason |
+| #576 walk result pairs | Lean runtime engineering | the walks return a bare `EIdx`, the memo in the state | citations; `leafListP`/`leafRevP`/`reent*` skipped |
+| #570, #575 | a fixture; a spike that did not land | — | the e2e run picks the fixture up |
+
+**How it was done.**  Four lanes off `bump-ca6af099`, each with its own marker list
+(`_tmp/t152/markers-{A,B,C,D}.tsv`, every item in exactly one lane): A #573 (322 markers), B
+#556 P-A/#577/#572 (16), C #556 P-W/P-N/#557 (35), D the citations (119).  The lead committed
+TEMPORARY compile shims for #573's two fields first (a constructor's family read off its type's
+result head, `neverZero := false`; gone with lane A) and `Bridge/Grind`'s projections at the new
+arity, and seeded the shared Lake cache from the bump tree so the lanes restored instead of
+rebuilding.  Lanes A and B used helper worktrees of their own (removed).  Merges: only the
+generated model (re-extracted on the merged Rust), the skip list (a union) and lane C's two
+TEMPORARY arity commits (lane A's side taken) conflicted; `scripts/twin-lines.py update` then
+relocated the 490 `Lean twin:` lines the lanes' moves had left behind.  A background-job lesson, not a
+project one, is in the session memory: a worktree-isolated lead's subagents can write only in
+the lead's worktree, so the lead stays unisolated and the lanes edit their pre-made `_tmp/wt-*`
+worktrees directly.
+
+**Statement changes.**  Theorem 1: `IndexCI` relates the constructor's family; `iotaCase3At_spec`
+and `C3` over the family name, `iotaFam_spec` through `iotaCaseAt`; `ctorFamily_spec` →
+`ctorFamily_rel` (pure); `etaCtorPartialFam_spec` → `_eq`; `blockCapsAt`, `blockFormers`,
+`consBlockInds` in run form (`blockCapsAt` is monadic in the port: `formerZ` reads levels
+through the readback memo — the same computation as upstream's pure one); `StepOK.push` takes
+upstream's `IndWF`/`CtorWF` with their defaults (the twin and the specification read the same
+stored record, so no new invariant of con-ron's own); `whnfCoreStep_spec` takes the spine head;
+`whnfCoreLoop_spec` concludes the chained `whnfCore` directly with the pending-keys invariant
+`PendH` (upstream's `PendOK`); `whnfLoop_reduceNat` splits at a literal reduct; the
+`reduceNat` exits read `NatBinOp.ofName?`.  Theorem 2: no new invariant; `Lockstep.lean` and
+`Tactic/Prims.lean` untouched (lane B added two local helpers, `LSW.seq` and `LS.bind_bool`, in
+`LS/WhnfCore.lean`; its loop lemma raises `maxHeartbeats` to 4 000 000).  The plain tier's
+`ConstantInfoWF` constructor clause gains `NameWF t`.  Capstone statements unchanged.
+
+**Verdicts.**  Master's binary at the new pin: 733/733 (`start`'s run).  Each lane's binary:
+733/733.
+
+**Numbers.**  `Init`, `--verified --jobs=1`, `perf stat -e instructions:u,cycles:u`, one run each
+(`bump-con-leche.sh measure`), 57 919 / 57 919 accepted:
+
+| binary | instructions:u | cycles:u | peak RSS |
+|---|---:|---:|---:|
+| master `4ca283d1` | 191 178 011 193 | 96 641 332 108 | 328 MB |
+| this branch `7332b442` | **180 448 620 535** (−5.61 %) | 92 794 413 641 | 295 MB |
+
+Per lane, each against master on its own branch (one run each): A (#573) −2.17 %; B after #556
+P-A + #577 −5.5 %, after #572 on top −2.9 % (**#572 alone costs +2.7 %** on `Init`, as upstream
+measured +2.69 % on init-full: more lookups and inserts per chain against fewer ι steps); C
+(#556 P-W/P-N, #557) −0.37 %.  On `grind_field_cancel_inv` (ι-heavy): A −7.3 %, B −13.3 % (of
+which #572 −9.6 %).
+
+**Follow-ups.**  (1) The maintainer's call on #572's cost on `Init` (kept, as upstream).
+(2) Lane B's new `Arms/WhnfCore` proofs and lane A's `iotaFam_spec` and frontend loop proofs are
+explicit triples, not `sym … vcgen … finish`.  (3) Doc text still
+naming the gone `crate::cached` (`kernel/core_k.rs`, the `isCompound` skip reason) and
+`natOpResult`/`natOpWfNames` (`Refine/CoreKNames.lean`).

@@ -207,7 +207,7 @@ pub struct StateD {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:511-513 StateD.init
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:490-499 StateD.init` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:492-501 StateD.init` —
 /// the initial parse state.  Over handles it INTERNS: index 0 of the name
 /// table is the format's implicit `Name.anonymous` and index 0 of the level
 /// table its `Level.zero`, in the PERSISTENT tier, which is the tier the whole
@@ -1466,7 +1466,7 @@ pub fn check_rec_records(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:256-352 validateIndD`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:256-354 validateIndD`
 /// — **an inductive record, VALIDATED**: the half of the record's processing
 /// that reads the state and changes nothing.  Every guard, every verdict and
 /// every message is con-leche's; what changed is that a name comparison is a
@@ -1657,7 +1657,7 @@ pub fn ind_block_recs(
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:375-392 indBlockOfF
 /// con-leche: ConLeche/Frontend/ExportC.lean:452-457 processLineCoreD
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:354-379 installIndD` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:356-381 installIndD` —
 /// **an inductive record, INSTALLED**: the block's constants, pushed as one
 /// `IndDecl`.  Every change to the state a validated inductive record makes
 /// is here.
@@ -1739,7 +1739,7 @@ pub fn quot_kind_of(k: &Vec<u32>) -> Option<QuotKind> {
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:452-457 processLineCoreD
 /// con-leche: ConLeche/Frontend/ExportC.lean:394-446 declOfF
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:381-431 processLineCoreD`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:383-433 processLineCoreD`
 /// — the record's own semantics: the declaration kinds, producing
 /// `IDeclaration` records.  Every branch, guard and error string is
 /// con-leche's; the projection-function rewrite that used to run in the
@@ -1846,7 +1846,7 @@ pub fn process_line_core_d(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:459-466 applyDeclD
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:433-438 applyDeclD` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:435-440 applyDeclD` —
 /// a declaration record.  `sorryAx` is the FOLD's: the parse forwards every
 /// declaration record, the `sorryAx` axiom record included.
 pub fn apply_decl_d(pers: &PersTier, ar: &EStore, st: &mut StateD, d: &DeclRec) -> Result<(), LineErr> {
@@ -1854,7 +1854,7 @@ pub fn apply_decl_d(pers: &PersTier, ar: &EStore, st: &mut StateD, d: &DeclRec) 
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:468-479 applyRecord
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:440-453 applyRecord` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:442-455 applyRecord` —
 /// **one record applied** to the parse state.  The scanned record is
 /// con-leche's own (`Scan/Fast.lean`, reused); what this does with it is
 /// resolve the indices and INTERN the nodes.  The header and a blank line
@@ -1871,7 +1871,7 @@ pub fn apply_record(pers: &PersTier, ar: &mut AState, st: &mut StateD, r: &LineR
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:481-489 LineRec.placed
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:455-462 lineRecPlaced` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:457-464 lineRecPlaced` —
 /// **where a line may stand**: the format's first line is its `meta` header
 /// (`first`), and every later line is a record — the header only first, every
 /// other record never first, a blank line nowhere.
@@ -1884,7 +1884,7 @@ pub fn line_rec_placed(first: bool, r: &LineRec) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:491-495 LineRec.misplaced
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:464-469 lineRecMisplaced` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:466-471 lineRecMisplaced` —
 /// what a line that stands where it may not is told.
 pub fn line_rec_misplaced(r: &LineRec) -> Vec<u32> {
     match r {
@@ -1911,7 +1911,7 @@ pub fn line_rec_misplaced(r: &LineRec) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:497-501 applyLine
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:471-477 applyLine` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:473-479 applyLine` —
 /// **THE SEMANTIC LAYER**: one scanned line, after `line_no` lines, applied to
 /// the parse state if it stands where it may.
 pub fn apply_line(pers: &PersTier, ar: &mut AState, st: &mut StateD, r: &LineRec, line_no: u64) -> Result<(), LineErr> {
@@ -1927,7 +1927,7 @@ pub fn apply_line(pers: &PersTier, ar: &mut AState, st: &mut StateD, r: &LineRec
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:505-509 ParseResultD
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:481-488 ParseResultD`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:483-490 ParseResultD`
 /// — the direct parse result: the declarations over handles.  No arena
 /// conversion: the handles already point into the persistent tier the fold
 /// will read.  con-leche's receipts (the projection rewrites, the modelled
@@ -1939,14 +1939,14 @@ pub struct ParseResultD {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:529-530 ParseResultD.ofState
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:501-504 ParseResultD.ofState`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:503-506 ParseResultD.ofState`
 /// — the result: the file's records, in the file's order.
 pub fn parse_result_of_state(st: StateD) -> ParseResultD {
     ParseResultD { decls: st.decls }
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:533-544 applyFinalLine
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:506-518 applyFinalLine`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:508-520 applyFinalLine`
 /// — scan and apply the LAST line of a stream, the one no newline ends,
 /// after `line_no` lines.  A syntactic failure is reported at its offset in
 /// the line.  con-leche calls
@@ -1976,7 +1976,7 @@ pub fn apply_final_line(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:546-580 feedChunk
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:520-549 feedChunk` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:522-551 feedChunk` —
 /// every COMPLETE line of the chunk from `i`, applied in order: the line count
 /// and where the incomplete tail begins.  A line a chunk cut in half is told
 /// from a malformed one by whether the rest of the chunk holds a newline at
@@ -2035,7 +2035,7 @@ pub fn feed_chunk(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:582-583 chunkSize
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:551-553 chunkSize` — how
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:553-555 chunkSize` — how
 /// many bytes the streaming driver asks for at a time.
 pub const CHUNK_SIZE: usize = 4 * 1024 * 1024;
 
@@ -2045,7 +2045,7 @@ pub const CHUNK_SIZE: usize = 4 * 1024 * 1024;
 pub const USIZE_SIZE: u128 = 1u128 << usize::BITS;
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:585-593 sizeError
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:555-559 sizeError` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:557-561 sizeError` —
 /// **THE SIZE GUARD**: the byte reader addresses its buffer by machine word,
 /// so an input of `USize.size` bytes or more is refused before any of it is
 /// read.  The error carries line 0: there is no line to name.  The port drops
@@ -2063,7 +2063,7 @@ pub fn size_error() -> (CheckError, u64) {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:595-607 parseBytes
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:561-574 parseBytes` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:563-576 parseBytes` —
 /// **wholesale direct parse of a byte buffer**: the whole input fed at once,
 /// then the last line.  The specification the streaming parse is proved equal
 /// to.
@@ -2102,7 +2102,7 @@ pub fn parse_bytes_final(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:627-637 chunkStep
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:576-588 chunkStep` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:578-590 chunkStep` —
 /// **one chunk of the stream, applied**: the carried incomplete tail is put in
 /// front of the new bytes, every complete line of the buffer is fed, and the
 /// new incomplete tail is cut off for the next chunk; `total` counts the bytes
@@ -2137,7 +2137,7 @@ pub fn chunk_step(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:637-644 chunkFinish
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:590-597 chunkFinish` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:592-599 chunkFinish` —
 /// the end of the stream: the carried tail, if any, is its last line.
 pub fn chunk_finish(
     pers: &PersTier,
@@ -2157,7 +2157,7 @@ pub fn chunk_finish(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:652-671 parseChunks
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:599-613 parseChunksGo`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:601-615 parseChunksGo`
 /// — **THE STREAMING PARSE, PURELY**: `chunk_step` folded over a list of
 /// chunks, `chunk_finish` at its end — what the driver's read loop does with
 /// the chunks its handle hands out, minus the reads.  The list is folded

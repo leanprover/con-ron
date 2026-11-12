@@ -550,7 +550,7 @@ pub fn check_sum_ctors(
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:119-125 consSumCtors
 /// con-leche: ConLeche/Cached/IndBlock.lean:37-40 consSumCtorsF
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:143-149 consSumCtors`
+/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:143-151 consSumCtors`
 /// — the constructors' conses, in order (the first constructor deepest), each
 /// with the family `t` it is declared under as its `induct`: the constructor
 /// check has established that its declared type concludes in `t`.  Pure: the
@@ -566,7 +566,7 @@ pub fn cons_sum_ctors(n_p: u64, t: &NIdx, ctors: &Vec<(IConstantVal, u64)>, i: u
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:127-133 sumRules
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:151-157 sumRules`
+/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:153-159 sumRules`
 /// — the stored rules from `i` on: constructor `j`'s with the generated
 /// right-hand side `j`, `.plain` (the major is the family at the recursor's
 /// parameters); pairwise, stopping at the shorter list.
