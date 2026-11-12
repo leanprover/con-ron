@@ -551,9 +551,13 @@ theorem i_ind_caps_beq_refines {a b : arena.env.IIndCaps} {o : Bool}
   intro o3 h
   refine beq_chain' absU_iff h ?_
   intro o4 h
-  have h4 := nidx_vec_beq_refines h
+  obtain ⟨b5, hb5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h4 := nidx_vec_beq_refines hb5
   simp only [absNIdxLFrom] at h4
-  simpa using h4
+  refine beq_chain (by simpa using h4) h ?_
+  intro o5 h
+  simp only [Result.ok.injEq] at h
+  exact h.symm
 
 /-- `PartialEq` on `u64`, lifted, is `decide` of the abstracted equation. -/
 private theorem u64_eq_lift {x y : Std.U64} {b : Bool}
@@ -588,7 +592,7 @@ theorem i_constant_info_beq_refines {a b : arena.env.IConstantInfo} {o : Bool}
     refine beq_chain (i_constant_val_beq_refines hb1) h ?_
     intro o1 h
     exact i_ind_caps_beq_refines h
-  case CtorInfo.CtorInfo x p f y q g =>
+  case CtorInfo.CtorInfo x p f t y q g u =>
     simp only [absIConstantInfo, IConstantInfo.ctorInfo.injEq]
     obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     refine beq_chain (i_constant_val_beq_refines hb1) h ?_
@@ -596,7 +600,10 @@ theorem i_constant_info_beq_refines {a b : arena.env.IConstantInfo} {o : Bool}
     obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     refine beq_chain ((u64_eq_lift hb2).trans (decide_eq_decide.mpr absU_iff)) h ?_
     intro o2 h
-    exact (u64_eq_lift h).trans (decide_eq_decide.mpr absU_iff)
+    obtain ⟨b3, hb3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine beq_chain ((u64_eq_lift hb3).trans (decide_eq_decide.mpr absU_iff)) h ?_
+    intro o3 h
+    exact nidx_eq2_abs_decide h
   case RecInfo.RecInfo x m p k rs y n q k2 ss =>
     simp only [absIConstantInfo, IConstantInfo.recInfo.injEq]
     obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun

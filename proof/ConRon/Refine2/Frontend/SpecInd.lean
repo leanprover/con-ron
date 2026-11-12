@@ -31,7 +31,7 @@ open ConRon.Arena.Frontend
 open ConLeche.Frontend (IndTypeRec IndCtorRec IndRecRec)
 
 /-- `validateIndD`'s result type. -/
-abbrev VRes := RecordVerdict ⊕ (List IndCtorRec × Nat)
+abbrev VRes := RecordVerdict ⊕ (List (IndCtorRec × NIdx) × Nat)
 
 /-- The first loop's body at one listed constructor `n` of type former `T`,
 past the two index probes: the `cidx`, `induct` and `numFields` checks. -/
@@ -59,8 +59,8 @@ the three checks, the push — the twin's loop body as it stands, so that
 `checkOneCtorD`. -/
 def orderCtorStepD (st : StateD) (fuel : Nat) (T : NIdx)
     (ctorIx : Std.HashMap NIdx Nat) (ctsA : Array IndCtorRec) (nPd : Nat)
-    (n : NIdx) (j : Nat) (ordered : Array IndCtorRec) :
-    AM (ForInStep (MProd (Option VRes) (MProd Nat (Array IndCtorRec)))) := do
+    (n : NIdx) (j : Nat) (ordered : Array (IndCtorRec × NIdx)) :
+    AM (ForInStep (MProd (Option VRes) (MProd Nat (Array (IndCtorRec × NIdx))))) := do
   let some k := ctorIx[n]? | return .done ⟨some (.inl (.invalid
     s!"No such constructor {← readName n}")), j, ordered⟩
   let some c := ctsA[k]? | return .done ⟨some (.inl (.invalid
@@ -79,20 +79,20 @@ def orderCtorStepD (st : StateD) (fuel : Nat) (T : NIdx)
   unless nPd + c.numFields == tele do
     return .done ⟨some (.inl (.invalid s!"constructor {← readName n} declares \
       {c.numFields} fields at {nPd} parameters; its type has {tele} binders")), j, ordered⟩
-  pure (.yield ⟨none, j + 1, ordered.push c⟩)
+  pure (.yield ⟨none, j + 1, ordered.push (c, T)⟩)
 
 /-- The first loop's inner `for n in ns`, at one type former `T`, from
 constructor position `j` onto `out`. -/
 def orderTypeCtorsD (st : StateD) (fuel : Nat) (T : NIdx)
     (ctorIx : Std.HashMap NIdx Nat) (ctsA : Array IndCtorRec) (nPd : Nat)
-    (ns : List NIdx) (j : Nat) (out : Array IndCtorRec) :
-    AM (MProd (Option VRes) (MProd Nat (Array IndCtorRec))) :=
+    (ns : List NIdx) (j : Nat) (out : Array (IndCtorRec × NIdx)) :
+    AM (MProd (Option VRes) (MProd Nat (Array (IndCtorRec × NIdx)))) :=
   forIn ns ⟨none, j, out⟩ fun n r => orderCtorStepD st fuel T ctorIx ctsA nPd n r.2.1 r.2.2
 
 /-- One step of the first loop, at one `(T, ns)`. -/
 def orderBlockStepD (st : StateD) (fuel : Nat) (ctorIx : Std.HashMap NIdx Nat)
-    (ctsA : Array IndCtorRec) (nPd : Nat) (tn : NIdx × List NIdx) (out : Array IndCtorRec) :
-    AM (ForInStep (MProd (Option VRes) (Array IndCtorRec))) :=
+    (ctsA : Array IndCtorRec) (nPd : Nat) (tn : NIdx × List NIdx) (out : Array (IndCtorRec × NIdx)) :
+    AM (ForInStep (MProd (Option VRes) (Array (IndCtorRec × NIdx)))) :=
   match tn with
   | (T, ns) => do
     let r ← orderTypeCtorsD st fuel T ctorIx ctsA nPd ns 0 out
@@ -106,7 +106,7 @@ def orderBlockStepD (st : StateD) (fuel : Nat) (ctorIx : Std.HashMap NIdx Nat)
 block's own order. -/
 def orderBlockCtorsD (st : StateD) (fuel : Nat) (ctorIx : Std.HashMap NIdx Nat)
     (ctsA : Array IndCtorRec) (nPd : Nat) (l : List (NIdx × List NIdx))
-    (out : Array IndCtorRec) : AM (MProd (Option VRes) (Array IndCtorRec)) :=
+    (out : Array (IndCtorRec × NIdx)) : AM (MProd (Option VRes) (Array (IndCtorRec × NIdx))) :=
   forIn l ⟨none, out⟩ fun tn r => orderBlockStepD st fuel ctorIx ctsA nPd tn r.2
 
 /-- One step of the second loop's inner `for tt in tyNames.zip tyTypes`. -/
@@ -223,7 +223,7 @@ theorem ite_bind' {m : Type → Type} [Monad m] {α β : Type} (c : Prop) [Decid
 /-- The inner loop's step, split at `checkOneCtorD`. -/
 theorem orderCtorStepD_eq (st : StateD) (fuel : Nat) (T : NIdx)
     (ctorIx : Std.HashMap NIdx Nat) (ctsA : Array IndCtorRec) (nPd : Nat)
-    (n : NIdx) (j : Nat) (ordered : Array IndCtorRec) :
+    (n : NIdx) (j : Nat) (ordered : Array (IndCtorRec × NIdx)) :
     orderCtorStepD st fuel T ctorIx ctsA nPd n j ordered =
       (match ctorIx[n]? with
       | some k =>
@@ -231,7 +231,7 @@ theorem orderCtorStepD_eq (st : StateD) (fuel : Nat) (T : NIdx)
         | some c => do
           match ← checkOneCtorD st fuel T n c j nPd with
           | some a => pure (.done ⟨some a, j, ordered⟩)
-          | none => pure (.yield ⟨none, j + 1, ordered.push c⟩)
+          | none => pure (.yield ⟨none, j + 1, ordered.push (c, T)⟩)
         | none => do
           pure (.done ⟨some (.inl (.invalid s!"No such constructor {← readName n}")), j, ordered⟩)
       | none => do

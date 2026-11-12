@@ -409,7 +409,8 @@ def absIRecRule (r : arena.env.IRecRule) : IRecRule :=
   ⟨absNIdx r.ctor, absU r.nfields, absIRecRuleFire r.fire, absEIdx r.rhs⟩
 
 def absIIndCaps (c : arena.env.IIndCaps) : IIndCaps :=
-  ⟨c.eta, c.all.val.map absNIdx, absU c.nparams, absU c.n_idx, c.ctors.val.map absNIdx⟩
+  ⟨c.eta, c.all.val.map absNIdx, absU c.nparams, absU c.n_idx, c.ctors.val.map absNIdx,
+    c.never_zero⟩
 
 def absIProjTable (t : arena.env.IProjTable) : IProjTable :=
   ⟨absNIdx t.struct_name, t.level_params.val.map absNIdx,
@@ -422,7 +423,7 @@ def absIConstantInfo : arena.env.IConstantInfo → IConstantInfo
     .defnInfo (absIConstantVal cv) (absEIdx v) (ConRon.Refine.absHint hint)
   | .ThmInfo cv => .thmInfo (absIConstantVal cv)
   | .IndInfo cv caps => .indInfo (absIConstantVal cv) (absIIndCaps caps)
-  | .CtorInfo cv np nf => .ctorInfo (absIConstantVal cv) (absU np) (absU nf)
+  | .CtorInfo cv np nf t => .ctorInfo (absIConstantVal cv) (absU np) (absU nf) (absNIdx t)
   | .RecInfo cv mi rp k rules =>
     .recInfo (absIConstantVal cv) (absU mi) (absU rp) k
       (rules.val.map absIRecRule)

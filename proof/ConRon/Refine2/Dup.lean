@@ -305,10 +305,11 @@ theorem i_constant_info_dup_abs {c o : arena.env.IConstantInfo}
     obtain ⟨ic, hic, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     rw [← Result.ok_injective h]
     simp only [absIConstantInfo, i_constant_val_dup_abs hiv, i_ind_caps_dup_abs hic]
-  | CtorInfo cv a b =>
+  | CtorInfo cv a b t =>
     obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     rw [← Result.ok_injective h]
-    simp only [absIConstantInfo, i_constant_val_dup_abs hiv]
+    simp only [absIConstantInfo, i_constant_val_dup_abs hiv, dupId_nidx _ _ hn]
   | RecInfo cv a b k rs =>
     obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h

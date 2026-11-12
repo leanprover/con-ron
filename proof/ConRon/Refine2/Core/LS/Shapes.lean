@@ -152,13 +152,45 @@ attribute [local lockstep_simp] decide_u64_eq ExprOps.absEIdxList List.length_ma
   rw [arena.core.eta_ctor_shape, etaCtorShape]
   lockstep
 
-@[lockstep] theorem eta_ctor_partial_fam_ls {pers st fe lfe c ty lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.eta_ctor_partial_fam pers st fe c ty) lst
-      (etaCtorPartialFam lfe (absNIdx c) (absEIdx ty)) := by
-  rw [arena.core.eta_ctor_partial_fam, etaCtorPartialFam]
-  lockstep
+/-- `eta_ctor_partial_fam` is pure on both sides: one lookup at the stored family
+name `t`, its projection table, and the η flag. -/
+theorem eta_ctor_partial_fam_abs {pers : arena.store.PersTier} {fe lfe}
+    (hctx : CoreCtx pers fe lfe) {c t : arena.handle.NIdx} {b : Bool}
+    (h : arena.core.eta_ctor_partial_fam pers fe c t = ok b) :
+    b = etaCtorPartialFam lfe (absNIdx c) (absNIdx t) := by
+  rw [arena.core.eta_ctor_partial_fam] at h
+  obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  unfold etaCtorPartialFam
+  rw [← ifenv_find_abs hctx ho1]
+  rcases o1 with _ | ci
+  · cases Result.ok_injective h; rfl
+  · cases ci with
+    | IndInfo cv caps =>
+      simp only [Option.map_some, absIConstantInfo, absIIndCaps]
+      obtain ⟨o2, ho2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      rw [← ifenv_find_table_abs hctx ho2]
+      rcases o2 with _ | tbl
+      · cases Result.ok_injective h; rfl
+      · simp only [Option.map_some]
+        by_cases he : caps.eta = true
+        · rw [if_pos he] at h
+          have := nidx_eq2 tbl.ctor c b trivial trivial h
+          simp only [he, ite_true]
+          rw [show (absIProjTable tbl).ctor = absNIdx tbl.ctor from rfl]
+          by_cases hc : tbl.ctor = c
+          · subst hc; simp_all
+          · have : absNIdx tbl.ctor ≠ absNIdx c := fun h' => hc (absNIdx_inj h')
+            simp_all
+        · rw [if_neg he] at h
+          cases Result.ok_injective h
+          simp [show caps.eta = false by simpa using he]
+    | _ => cases Result.ok_injective h; rfl
+
+@[lockstep] theorem eta_ctor_partial_fam_ls {pers fe lfe} (hctx : CoreCtx pers fe lfe)
+    (c t : arena.handle.NIdx) :
+    LSP (arena.core.eta_ctor_partial_fam pers fe c t)
+      (fun b => TwinEq (etaCtorPartialFam lfe (absNIdx c) (absNIdx t)) b) :=
+  fun _ h => (eta_ctor_partial_fam_abs hctx h).symm
 
 @[lockstep] theorem eta_ctor_partial_ls {pers st fe lfe a lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
