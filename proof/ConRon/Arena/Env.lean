@@ -94,6 +94,10 @@ structure IIndCaps where
   nIdx : Nat := 0
   /-- Official's `inductive_val.cnstrs`, in declaration order, as handles. -/
   ctors : List NIdx := []
+  /-- The family's sort is never zero (official's `is_never_zero` at every
+  level instantiation), read off the former's stored type at its check
+  (`blockCapsAt`); `false` claims nothing. -/
+  neverZero : Bool := false
   deriving DecidableEq, Repr, Inhabited
 
 /-! ## Projection tables -/
@@ -134,14 +138,15 @@ def IProjTable.entry (tbl : IProjTable) (i : Nat) : IProjEntry :=
 /-- con-leche: ConLeche/Kernel/Env.lean:288-312 ConstantInfo — the information
 -- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Env.IConstantInfo_bridge, then delete this line
 stored about an accepted constant, over handles.  A theorem is stored by its
-statement only (con-leche task #329 THMVAL); a recursor carries its record's K
-flag (`isK`). -/
+statement only (con-leche task #329 THMVAL); a constructor carries its family's
+name (official's `ConstructorVal.induct`, set by the install from the member it
+is declared under); a recursor carries its record's K flag (`isK`). -/
 inductive IConstantInfo where
   | axiomInfo (val : IConstantVal)
   | defnInfo (val : IConstantVal) (value : EIdx) (hint : ReducibilityHint)
   | thmInfo (val : IConstantVal)
   | indInfo (val : IConstantVal) (caps : IIndCaps)
-  | ctorInfo (val : IConstantVal) (numParams numFields : Nat)
+  | ctorInfo (val : IConstantVal) (numParams numFields : Nat) (induct : NIdx)
   | recInfo (val : IConstantVal) (majorIdx rulePrefix : Nat) (isK : Bool)
       (rules : List IRecRule)
   deriving DecidableEq, Repr, Inhabited
@@ -167,13 +172,13 @@ inductive IDeclaration where
 the constant's common data. -/
 def IConstantInfo.toConstantVal : IConstantInfo → IConstantVal
   | .axiomInfo v | .defnInfo v _ _ | .thmInfo v => v
-  | .indInfo v _ | .ctorInfo v _ _ | .recInfo v _ _ _ _ => v
+  | .indInfo v _ | .ctorInfo v _ _ _ | .recInfo v _ _ _ _ => v
 
 /-- con-leche: ConLeche/Kernel/Env.lean:431 name — the constant's
 name: the environment index's key. -/
 def IConstantInfo.name : IConstantInfo → NIdx
   | .axiomInfo v | .defnInfo v _ _ | .thmInfo v => v.name
-  | .indInfo v _ | .ctorInfo v _ _ | .recInfo v _ _ _ _ => v.name
+  | .indInfo v _ | .ctorInfo v _ _ _ | .recInfo v _ _ _ _ => v.name
 
 /-- con-leche: ConLeche/Kernel/Env.lean:437-444 Declaration.names — the names a
 declaration record declares; `preparePrelude`'s lookup and the ground hoist's

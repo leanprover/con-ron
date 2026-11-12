@@ -282,6 +282,21 @@ theorem denoteEList_inj {st : EStore} (hwf : StoreWF st) :
               obtain ⟨rfl, rfl⟩ := hj
               rw [denoteE_inj hwf ha hb, ih bs _ has hbs]
 
+/-- con-leche: none — `denoteN` is injective at a well-formed store. -/
+theorem denoteN_injS {st : EStore} (hwf : StoreWF st) {a b : NIdx} {x : ConLeche.Name}
+    (ha : denoteN st.ns a = some x) (hb : denoteN st.ns b = some x) : a = b := by
+  obtain ⟨rk, hrk⟩ := hwf
+  exact denoteN_inj hrk.nsWF ha hb
+
+/-- con-leche: none — two denoting name handles compare as their names. -/
+theorem denoteN_beqS {st : EStore} (hwf : StoreWF st) {a b : NIdx}
+    {x y : ConLeche.Name} (ha : denoteN st.ns a = some x) (hb : denoteN st.ns b = some y) :
+    (a == b) = (x == y) := by
+  rw [Bool.eq_iff_iff, beq_iff_eq, beq_iff_eq]
+  constructor
+  · rintro rfl; exact Option.some.inj (ha.symm.trans hb)
+  · rintro rfl; exact denoteN_injS hwf ha hb
+
 /-- con-leche: none — `Frontend.denoteNList` is injective; `denoteEList_inj`'s
 twin at the NAME store, off `Arena/WFProofs.lean`'s `denoteN_inj`. -/
 theorem denoteNList_inj {st : EStore} (hwf : StoreWF st) :

@@ -133,7 +133,7 @@ def checkBlockTail (mode : CheckMode) (block : List IConstantInfo) (q : BlockPas
     (Q : List IProjTable) : AM IFEnv := do
   let p := q.p
   checkBlockIdxSorts mode q.env1 p p.members
-  let fe₂ := consBlockCtors p.nP p.memberCtors q.env1
+  let fe₂ := consBlockCtors p.nP p.ctorGroups q.env1
   flushCaches
   let nested := blockNestedBit p q.kinds
   let (fe₂b, out) ← checkBlockRec mode fe₂ p nested q.params q.tbl q.rd q.cls block

@@ -121,7 +121,7 @@ private def internCV (cv : ConstantVal) : AM IConstantVal := do
 /-- con-leche: none — intern an `IndCaps`: its scalars (the fixture's member
 and constructor lists are empty). -/
 private def internCaps (c : IndCaps) : AM IIndCaps := do
-  pure { eta := c.eta, nparams := c.nparams, nIdx := c.nIdx }
+  pure { eta := c.eta, nparams := c.nparams, nIdx := c.nIdx, neverZero := c.neverZero }
 
 /-- con-leche: none — intern a `RecRuleFire`. -/
 private def internFire : RecRuleFire → AM IRecRuleFire
@@ -163,7 +163,9 @@ private def internCI : ConstantInfo → AM IConstantInfo
     let icv ← internCV cv
     let ic ← internCaps caps
     pure (.indInfo icv ic)
-  | .ctorInfo cv nP nF _ => do pure (.ctorInfo (← internCV cv) nP nF)
+  | .ctorInfo cv nP nF T => do
+    let icv ← internCV cv
+    pure (.ctorInfo icv nP nF (← internName T))
   | .recInfo cv mI rP isK rules => do
     let icv ← internCV cv
     let rs ← internRules rules

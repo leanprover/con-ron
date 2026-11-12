@@ -514,12 +514,34 @@ theorem formerNeverZeroAtFueled_mono {f f' : Nat} (hle : f ≤ f') {cvT : Consta
 /-- con-leche: ConLeche/Verify/Fueled.lean:249 iotaCase3At_atF — the merge at
 the ι case split. -/
 theorem iotaCase3AtFueled_mono {f f' : Nat} (hle : f ≤ f') {isK : Bool}
-    {cvj : ConstantVal} {us : List Level} {r : Bool}
-    (hr : iotaCase3At (pureFns mode eager env f).whnf env.find? isK cvj us = .ok r) :
-    iotaCase3At (pureFns mode eager env f').whnf env.find? isK cvj us = .ok r := by
-  have h := (iotaCase3At (fueledFns mode eager env).whnf env.find? isK cvj us).property
+    {induct : ConLeche.Name} {us : List Level} {r : Bool}
+    (hr : iotaCase3At (pureFns mode eager env f).whnf env.find? isK induct us = .ok r) :
+    iotaCase3At (pureFns mode eager env f').whnf env.find? isK induct us = .ok r := by
+  have h := (iotaCase3At (fueledFns mode eager env).whnf env.find? isK induct us).property
     (v := r) hle
   rw [iotaCase3At_atF, iotaCase3At_atF] at h
+  exact h hr
+
+/-- con-leche: ConLeche/Verify/Fueled.lean:270 iotaCaseAt_atF — the merge at the
+ι case split read off the stored facts first. -/
+theorem iotaCaseAtFueled_mono {f f' : Nat} (hle : f ≤ f') {isK : Bool}
+    {induct : ConLeche.Name} {us : List Level} {r : Bool}
+    (hr : iotaCaseAt (pureFns mode eager env f).whnf env.find? isK induct us = .ok r) :
+    iotaCaseAt (pureFns mode eager env f').whnf env.find? isK induct us = .ok r := by
+  have h := (iotaCaseAt (fueledFns mode eager env).whnf env.find? isK induct us).property
+    (v := r) hle
+  rw [iotaCaseAt_atF, iotaCaseAt_atF] at h
+  exact h hr
+
+/-- con-leche: ConLeche/Verify/Fueled.lean:262 familyNeverZeroAt_atF — the merge
+at the family's never-zero test, the stored fact first. -/
+theorem familyNeverZeroAtFueled_mono {f f' : Nat} (hle : f ≤ f') {cvT : ConstantVal}
+    {caps : IndCaps} {us : List Level} {r : Bool}
+    (hr : familyNeverZeroAt (pureFns mode eager env f).whnf cvT caps us = .ok r) :
+    familyNeverZeroAt (pureFns mode eager env f').whnf cvT caps us = .ok r := by
+  have h := (familyNeverZeroAt (fueledFns mode eager env).whnf cvT caps us).property
+    (v := r) hle
+  rw [familyNeverZeroAt_atF, familyNeverZeroAt_atF] at h
   exact h hr
 
 /-- con-leche: ConLeche/Verify/Fueled.lean:262 projGuardSort_atF — the merge at
@@ -569,6 +591,8 @@ section Census
 #print axioms lazyDeltaProjReductionFueled_mono
 #print axioms formerSortLoopFueled_mono
 #print axioms iotaCase3AtFueled_mono
+#print axioms iotaCaseAtFueled_mono
+#print axioms familyNeverZeroAtFueled_mono
 #print axioms checkProjGuardFueled_mono
 
 end Census

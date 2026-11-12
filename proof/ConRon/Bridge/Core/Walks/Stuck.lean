@@ -10,7 +10,7 @@ irrelevance — and every congruence failure of `defeqStuck` ends in it.
 | `stuckIrrel_specA` | `Arena/Core.lean` `stuckIrrel` | `Kernel/Core.lean` `stuckIrrel` | `vcgen`/`grind` over the four exits (`StuckE.*`) |
 | `structEtaCert_specA` | `structEtaCert` | `structEtaCert` | `vcgen`/`grind`, exits `EtaCertE.with`/`.none`/`.partial` |
 | `structEtaCertWith_spec` | `structEtaCertWith` | `structEtaCertWith` | staged over the twin's program order (`triple_seq`), exits `structEtaCertWith_exits` |
-| `etaCtorPartial_spec` | `etaCtorPartial` | `CoreDefs.lean` `etaCtorPartial` | staged, `etaPartialFam` |
+| `etaCtorPartial_spec` | `etaCtorPartial` | `CoreDefs.lean` `etaCtorPartial` | staged, `etaPartialFam` (`etaCtorPartialFam_eq`) |
 | `structEtaExpand_specA` | `structEtaExpand` | `structEtaExpand` | induction on the missing arguments, `vcgen`/`grind`, exits `ExpandE.*` |
 | `structUnitCert_specA` | `structUnitCert` | `structUnitCert` | `vcgen`/`grind`, guard `unitSideOk`, exits `UnitCertE.*` |
 | `unitLikeLoop_spec` | `unitLikeLoop` | `unitLikeLoop` | induction on the budget, the field loop (`unitLikeFields_spec`) and the shape (`unitLikeShape_spec`, staged) inside |
@@ -895,30 +895,27 @@ grind_pattern [bridge_grind] wscoped_binderType => Expr.WScoped d w, exprTag w w
 
 /-! ### The twin's walks -/
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:731-757 etaCtorPartial — the
-family half: the family a constructor's type ends in is a stored η family
-whose projection table's constructor is `c`. -/
-@[expose] def etaPartialFam (env : Env) (c : Name) (ty : Expr) : Bool :=
-  match ty.piResult.getAppFn with
-  | .const T _ =>
-    match env.find? T with
-    | some (.indInfo _ caps) =>
-      match env.findTable? T with
-      | some tbl => caps.eta && tbl.ctor == c
-      | none => false
-    | _ => false
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:717-740 etaCtorPartial — the
+family half: the constructor's family (its stored `induct`, `T`) is a stored η
+family whose projection table's constructor is `c`. -/
+@[expose] def etaPartialFam (env : Env) (c T : Name) : Bool :=
+  match env.find? T with
+  | some (.indInfo _ caps) =>
+    match env.findTable? T with
+    | some tbl => caps.eta && tbl.ctor == c
+    | none => false
   | _ => false
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:731-757 etaCtorPartial — the
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:717-740 etaCtorPartial — the
 reader through its family half. -/
 theorem etaCtorPartial_eq (x : Expr) :
     ConLeche.etaCtorPartial env x =
       match x.getAppFn with
       | .const c _ =>
         match env.find? c with
-        | some (.ctorInfo cvc cnP cnF) =>
+        | some (.ctorInfo _ cnP cnF T) =>
           if x.getAppArgs.length < cnP + cnF then
-            if etaPartialFam env c cvc.type then some (cnP + cnF - x.getAppArgs.length)
+            if etaPartialFam env c T then some (cnP + cnF - x.getAppArgs.length)
             else none
           else none
         | _ => none
@@ -930,111 +927,66 @@ theorem etaCtorPartial_eq (x : Expr) :
     dsimp only
     generalize env.find? c = o
     match o with
-    | some (.ctorInfo cvc cnP cnF) =>
+    | some (.ctorInfo cvc cnP cnF T) =>
       dsimp only
       by_cases hl : x.getAppArgs.length < cnP + cnF
       · rw [ite_eq_left hl, ite_eq_left hl]
         unfold etaPartialFam
-        generalize cvc.type.piResult.getAppFn = h
-        cases h
-        case const T _ =>
-          dsimp only
+        split
+        · rename_i val caps hT
           split
-          · rename_i val caps hT
-            simp only [hT]
-            split
-            · rename_i tbl htb
-              simp only [htb]
-              by_cases hg : caps.eta = true ∧ tbl.ctor = c
-              · rw [ite_eq_left hg]; simp [hg.1, hg.2]
-              · rw [ite_eq_right hg]
-                have : (caps.eta && tbl.ctor == c) = false := by
-                  cases h1 : caps.eta <;> simp_all
-                simp [this]
-            · rename_i htb
-              simp only [htb]; rfl
-          · rename_i hT
-            split
-            · rename_i h
-              split at h
-              · rename_i h2; exact absurd h2 (hT _ _)
-              · simp at h
-            · rfl
-        all_goals rfl
-        all_goals rfl
+          · rename_i tbl htb
+            by_cases hg : caps.eta = true ∧ tbl.ctor = c
+            · rw [ite_eq_left hg]; simp [hg.1, hg.2]
+            · rw [ite_eq_right hg]
+              have : (caps.eta && tbl.ctor == c) = false := by
+                cases h1 : caps.eta <;> simp_all
+              simp [this]
+          · rfl
+        · rfl
       · rw [ite_eq_right hl, ite_eq_right hl]
     | some (.axiomInfo _) | some (.thmInfo _) | some (.indInfo _ _)
     | some (.defnInfo _ _ _) | some (.recInfo _ _ _ _ _) | none => rfl
   all_goals rfl
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:731-757 etaCtorPartial
-con-leche: ConLeche/Cached/StateC.lean:97-118 etaCtorPartialC — **THEOREM 1
-for the family half of `etaCtorPartial`**: read-only, an equation with
-`etaPartialFam`. -/
-theorem etaCtorPartialFam_spec (s₀ : AState) (c : NIdx) (cn : Name) (ty : EIdx) (tyE : Expr)
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:717-740 etaCtorPartial
+con-leche: ConLeche/Cached/StateC.lean:97-115 etaCtorPartialC — **THEOREM 1
+for the family half of `etaCtorPartial`**: pure on both sides, one lookup at the
+stored family name, an equation with `etaPartialFam`. -/
+theorem etaCtorPartialFam_eq {s₀ : AState} (c : NIdx) (cn : Name) (T : NIdx) (Tn : Name)
     (hok : CheckOK eager env fe s₀) (hc : denoteN s₀.store.ns c = some cn)
-    (hty : denoteE s₀.store ty = some tyE) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.etaCtorPartialFam fe c ty
-    ⦃fun r s' => s' = s₀ ∧ r = etaPartialFam env cn tyE; ⊤⦄ := by
+    (hTn : denoteN s₀.store.ns T = some Tn) :
+    ConRon.Arena.etaCtorPartialFam fe c T = etaPartialFam env cn Tn := by
   have hwf := hok.state.wf
-  unfold ConRon.Arena.etaCtorPartialFam
-  refine triple_seq (ExprOps.piResult_spec coreWalkFuel s₀ ty hok.state (by rw [hty]; rfl)) ?_
-  rintro pr s1 ⟨rfl, hrelP⟩
-  have hpr : denoteE s1.store pr = some tyE.piResult := hrelP tyE hty
-  refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s1 pr hok.state (by rw [hpr]; rfl)) ?_
-  rintro hd s2 ⟨rfl, hrelF⟩
-  have hdd : denoteE s2.store hd = some tyE.piResult.getAppFn := hrelF _ hpr
-  obtain ⟨vh, hvh⟩ := denoteE_view hdd
-  refine tag_view_bind_triple hvh ?_
-    (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
-  unfold etaPartialFam
-  cases vh
-  case const T us =>
-    obtain ⟨Tn, ls, hgf, hTn, -⟩ := denote_const_inv hwf hvh hdd
-    rw [hgf]
+  unfold ConRon.Arena.etaCtorPartialFam etaPartialFam
+  split
+  next icvT icaps hfdT =>
+    obtain ⟨dcvT, dcaps, -, hdcaps, hfindT⟩ := env_ind_of_index hok hTn hfdT
+    rw [hfindT]
     dsimp only
-    split
-    next icvT icaps hfdT =>
-      obtain ⟨dcvT, dcaps, -, hdcaps, hfindT⟩ := env_ind_of_index hok hTn hfdT
-      rw [hfindT]
+    have hcapsE : dcaps.eta = icaps.eta := (denoteCaps_fields hdcaps).1
+    obtain ⟨htHit, htMiss⟩ := findTable?_at hok hTn
+    cases htb : fe.findTable? T with
+    | none => rw [htMiss htb]
+    | some tbl =>
+      obtain ⟨pt, hpt, hfindTb, -⟩ := htHit tbl htb
+      rw [hfindTb]
       dsimp only
-      have hcapsE : dcaps.eta = icaps.eta := by
-        simp only [Frontend.denoteCaps] at hdcaps
-        split at hdcaps
-        · exact (Option.some.inj hdcaps) ▸ rfl
-        · simp at hdcaps
-      obtain ⟨htHit, htMiss⟩ := findTable?_at hok hTn
-      cases htb : fe.findTable? T with
-      | none =>
-        rw [htMiss htb]
-        exact triple_pureS ⟨rfl, rfl⟩
-      | some tbl =>
-        obtain ⟨pt, hpt, hfindTb, -⟩ := htHit tbl htb
-        rw [hfindTb]
-        dsimp only
-        rw [hcapsE]
-        cases hce : icaps.eta
-        · simp only [Bool.false_eq_true, ite_false, Bool.false_and]
-          exact triple_pureS ⟨rfl, rfl⟩
-        · simp only [ite_true, Bool.true_and]
-          exact triple_pureS ⟨rfl, denoteN_beq hwf (denoteProjTable_ctor hpt) hc⟩
-    next hnd =>
-      have hnf := env_not_ind_of_index hok hTn (fun v c h => hnd v c h)
-      refine triple_pureS ⟨rfl, ?_⟩
-      generalize henv : env.find? Tn = o
-      match o, henv with
-      | some (.indInfo cv caps), henv => exact absurd henv (hnf cv caps)
-      | some (.axiomInfo _), _ | some (.thmInfo _), _ | some (.ctorInfo _ _ _), _
-      | some (.defnInfo _ _ _), _ | some (.recInfo _ _ _ _ _), _ | none, _ => rfl
-  all_goals
-    dsimp only
-    refine triple_pureS ⟨rfl, ?_⟩
-    have hnc := denote_not_const hwf hvh hdd (by intro c us h; cases h)
-    generalize tyE.piResult.getAppFn = g at hnc ⊢
-    cases g <;> first | rfl | exact absurd rfl (hnc _ _)
+      rw [hcapsE]
+      cases hce : icaps.eta
+      · simp only [Bool.false_eq_true, ite_false, Bool.false_and]
+      · simp only [ite_true, Bool.true_and]
+        exact denoteN_beq hwf (denoteProjTable_ctor hpt) hc
+  next hnd =>
+    have hnf := env_not_ind_of_index hok hTn (fun v c h => hnd v c h)
+    generalize henv : env.find? Tn = o
+    match o, henv with
+    | some (.indInfo cv caps), henv => exact absurd henv (hnf cv caps)
+    | some (.axiomInfo _), _ | some (.thmInfo _), _ | some (.ctorInfo _ _ _ _), _
+    | some (.defnInfo _ _ _), _ | some (.recInfo _ _ _ _ _), _ | none, _ => rfl
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:731-757 etaCtorPartial
-con-leche: ConLeche/Cached/StateC.lean:97-118 etaCtorPartialC — **THEOREM 1
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:717-740 etaCtorPartial
+con-leche: ConLeche/Cached/StateC.lean:97-115 etaCtorPartialC — **THEOREM 1
 for `etaCtorPartial`**: read-only, an equation with con-leche's reader. -/
 theorem etaCtorPartial_spec (s₀ : AState) (a : EIdx) (x : Expr)
     (hok : CheckOK eager env fe s₀) (hda : denoteE s₀.store a = some x) :
@@ -1055,8 +1007,9 @@ theorem etaCtorPartial_spec (s₀ : AState) (a : EIdx) (x : Expr)
     rw [hgf]
     dsimp only
     split
-    next icvc cnP cnF hfdc =>
+    next icvc cnP cnF T hfdc =>
       obtain ⟨dcvc, hdcvc, hfindc⟩ := env_ctor_of_index hok hcn hfdc
+      have hTn := env_ctor_induct_of_index hok hfdc
       rw [hfindc]
       dsimp only
       refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s1 a hok.state
@@ -1067,19 +1020,17 @@ theorem etaCtorPartial_spec (s₀ : AState) (a : EIdx) (x : Expr)
       rw [hlenEq]
       by_cases hlt : aargs.length < cnP + cnF
       · rw [ite_eq_left hlt, ite_eq_left hlt]
-        obtain ⟨-, -, hty⟩ := denoteCV_inv hdcvc
-        refine triple_seq (etaCtorPartialFam_spec s2 c cn icvc.type dcvc.type hok hcn hty) ?_
-        rintro b s3 ⟨rfl, rfl⟩
-        by_cases hb : etaPartialFam env cn dcvc.type = true
+        rw [etaCtorPartialFam_eq c cn T _ hok hcn hTn]
+        by_cases hb : etaPartialFam env cn ((denoteN s2.store.ns T).getD default) = true
         · rw [ite_eq_left hb, ite_eq_left hb]; exact triple_pureS ⟨rfl, rfl⟩
         · rw [ite_eq_right hb, ite_eq_right hb]; exact triple_pureS ⟨rfl, rfl⟩
       · rw [ite_eq_right hlt, ite_eq_right hlt]; exact triple_pureS ⟨rfl, rfl⟩
     next hnd =>
-      have hnc := env_not_ctor_of_index hok hcn (fun v p q h => hnd v p q h)
+      have hnc := env_not_ctor_of_index hok hcn (fun v p q t h => hnd v p q t h)
       refine triple_pureS ⟨rfl, ?_⟩
       generalize henv : env.find? cn = o
       match o, henv with
-      | some (.ctorInfo cv p q), henv => exact absurd henv (hnc cv p q)
+      | some (.ctorInfo cv p q t), henv => exact absurd henv (hnc cv p q t)
       | some (.axiomInfo _), _ | some (.thmInfo _), _ | some (.indInfo _ _), _
       | some (.defnInfo _ _ _), _ | some (.recInfo _ _ _ _ _), _ | none, _ => rfl
   all_goals

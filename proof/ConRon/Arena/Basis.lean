@@ -92,7 +92,7 @@ def IConstantInfo.atLps (ci : IConstantInfo) (ps : List NIdx) : AM IConstantInfo
     pure (.defnInfo cv2 v2 h)
   | .thmInfo cv => pure (.thmInfo (← cv.atLps ps))
   | .indInfo cv caps => pure (.indInfo (← cv.atLps ps) caps)
-  | .ctorInfo cv nP nF => pure (.ctorInfo (← cv.atLps ps) nP nF)
+  | .ctorInfo cv nP nF T => pure (.ctorInfo (← cv.atLps ps) nP nF T)
   | .recInfo cv mI rP isK rules => do
     let cv2 ← cv.atLps ps
     let us ← paramLevels ps
@@ -153,7 +153,7 @@ def rulesLinkOk (block pins : List IConstantInfo) (R Rp : List NIdx) :
 `match c, p with`, one pair. -/
 def blockLinkOkAt (block pins : List IConstantInfo) (former : List NIdx) :
     IConstantInfo → IConstantInfo → AM Bool
-  | .ctorInfo cv _ _, _ => pure (cv.levelParams == former)
+  | .ctorInfo cv _ _ _, _ => pure (cv.levelParams == former)
   | .recInfo cv .., .recInfo cvp _ _ _ rules =>
     rulesLinkOk block pins cv.levelParams cvp.levelParams rules
   | _, _ => pure true

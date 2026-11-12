@@ -612,11 +612,14 @@ theorem PersCI_of_denote {st : EStore} (hwf : StoreWF st)
     cases h1 : denoteCV st v with
     | none => rw [h1] at hd; simp at hd
     | some cv => exact PersCV_of_denote hwf hoff h1
-  | ctorInfo v nP nF =>
+  | ctorInfo v nP nF T =>
     rw [denoteCI] at hd
     cases h1 : denoteCV st v with
     | none => rw [h1] at hd; simp at hd
-    | some cv => exact PersCV_of_denote hwf hoff h1
+    | some cv =>
+    cases h2 : denoteN st.ns T with
+    | none => rw [h1, h2] at hd; simp at hd
+    | some t => exact ⟨PersCV_of_denote hwf hoff h1, PersN_of_denote hwf hoff h2⟩
   | defnInfo v e h =>
     rw [denoteCI] at hd
     cases h1 : denoteCV st v with

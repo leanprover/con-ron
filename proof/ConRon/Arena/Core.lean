@@ -292,7 +292,7 @@ def projIndexedStructLike (fe : IFEnv) (T sn : NIdx) (i nArgs : Nat) : Bool :=
       | [c] =>
         if caps.nparams < nArgs then
           match fe.find? c with
-          | some (.ctorInfo _ _ nF) => decide (i < nF)
+          | some (.ctorInfo _ _ nF _) => decide (i < nF)
           | _ => false
         else false
       | _ => false
@@ -338,7 +338,7 @@ def isCtorApp (fe : IFEnv) (e : EIdx) : AM Bool := do
     match ← view h with
     | .const c _ =>
       match fe.find? c with
-      | some (.ctorInfo _ _ _) => pure true
+      | some (.ctorInfo _ _ _ _) => pure true
       | _ => pure false
     | _ => pure false
   else pure false
@@ -383,19 +383,13 @@ def formerNeverZero (cvT : IConstantVal) (us : LsIdx) : AM Bool := do
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:87-94 ctorFamily — **the family a
 -- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.ctorFamily_bridge, then delete this line
-constructor's type concludes in**: its former and its capabilities, `none`
-where its type concludes in no stored inductive. -/
-def ctorFamily (fe : IFEnv) (cvj : IConstantVal) :
-    AM (Option (IConstantVal × IIndCaps)) := do
-  let hh ← getAppFn coreWalkFuel (← piResult coreWalkFuel cvj.type)
-  if hh.tag == ETag.const then
-    match ← viewConstName hh with
-    | none => failDanglingE
-    | some T =>
-      match fe.find? T with
-      | some (.indInfo cvT caps) => pure (some (cvT, caps))
-      | _ => pure none
-  else pure none
+constructor's family**: the former and the capabilities stored at the
+constructor's `induct`, `none` where no inductive is stored there.  One lookup,
+no walk. -/
+def ctorFamily (fe : IFEnv) (induct : NIdx) : Option (IConstantVal × IIndCaps) :=
+  match fe.find? induct with
+  | some (.indInfo cvT caps) => some (cvT, caps)
+  | _ => none
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:96-115 unfoldDefinition — unfold
 the (application of a) definition at the head, one step.  The stored value
@@ -502,7 +496,7 @@ def natIndOk : Option IConstantInfo → AM Bool
 -- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.natZeroOk_bridge, then delete this line
 `Nat.zero` declaration has the expected shape. -/
 def natZeroOk : Option IConstantInfo → AM Bool
-  | some (.ctorInfo cv _ _) => do
+  | some (.ctorInfo cv _ _ _) => do
     let nt ← pinNat
     let nc ← constE nt
     pure (cv.levelParams.isEmpty && cv.type == nc)
@@ -512,7 +506,7 @@ def natZeroOk : Option IConstantInfo → AM Bool
 -- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.natSuccOk_bridge, then delete this line
 `Nat.succ` declaration has the expected (annotated) shape. -/
 def natSuccOk : Option IConstantInfo → AM Bool
-  | some (.ctorInfo cv _ _) => do
+  | some (.ctorInfo cv _ _ _) => do
     if !cv.levelParams.isEmpty then pure false else do
       let nt ← pinNat
       let nc ← constE nt
@@ -832,9 +826,10 @@ show a kind, so the three `Nat` names are read at the kinds their guards ask
 for.  The cited `if`-chain, each name pinned only when the chain reaches it. -/
 def litShapeOk (c : IConstantInfo) : AM Bool := do
   let n := c.name
-  if n == (← pinNat) then natIndOk (some (.indInfo c.toConstantVal {}))
-  else if n == (← pinNatZero) then natZeroOk (some (.ctorInfo c.toConstantVal 0 0))
-  else if n == (← pinNatSucc) then natSuccOk (some (.ctorInfo c.toConstantVal 0 1))
+  let a0 ← pinNat
+  if n == a0 then natIndOk (some (.indInfo c.toConstantVal {}))
+  else if n == (← pinNatZero) then natZeroOk (some (.ctorInfo c.toConstantVal 0 0 a0))
+  else if n == (← pinNatSucc) then natSuccOk (some (.ctorInfo c.toConstantVal 0 1 a0))
   else if n == (← pinString) then stringTyOk (some c)
   else if n == (← pinStringOfList) then stringOfListTyOk (some c)
   else if n == (← pinList) then listTyOk (some c)
@@ -1637,7 +1632,7 @@ def structEtaCertWith (r : CoreFnsA) (fe : IFEnv)
     match ← view hh with
     | .const c us =>
       match fe.find? c with
-      | some (.ctorInfo cvc cnP cnF) => do
+      | some (.ctorInfo cvc cnP cnF _) => do
         let aargs ← getAppArgs coreWalkFuel a
         if aargs.length = cnP + cnF then do
           let hh ← getAppFn coreWalkFuel wtb
@@ -1683,7 +1678,7 @@ def etaCtorShape (fe : IFEnv) (a : EIdx) : AM Bool := do
     match ← view hh with
     | .const c _ =>
       match fe.find? c with
-      | some (.ctorInfo _ cnP cnF) => do
+      | some (.ctorInfo _ cnP cnF _) => do
         let args ← getAppArgs coreWalkFuel a
         pure (args.length == cnP + cnF)
       | _ => pure false
@@ -1694,21 +1689,16 @@ def etaCtorShape (fe : IFEnv) (a : EIdx) : AM Bool := do
 -- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.etaCtorPartialFam_bridge, then delete this line
 con-leche: ConLeche/Cached/StateC.lean:97-115 etaCtorPartialC — the family
 -- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.etaCtorPartialFam_bridge, then delete this line
-half of `etaCtorPartial`: the family the constructor's type `ty` ends in is a
-stored η family whose projection table's constructor is `c`. -/
-def etaCtorPartialFam (fe : IFEnv) (c : NIdx) (ty : EIdx) : AM Bool := do
-  let hh ← getAppFn coreWalkFuel (← piResult coreWalkFuel ty)
-  if hh.tag == ETag.const then
-    match ← view hh with
-    | .const T _ =>
-      match fe.find? T with
-      | some (.indInfo _ caps) =>
-        match fe.findTable? T with
-        | some tbl => if caps.eta then pure (tbl.ctor == c) else pure false
-        | none => pure false
-      | _ => pure false
-    | _ => pure false
-  else pure false
+half of `etaCtorPartial`: the constructor's family (its record's `induct`,
+`T`) is a stored η family whose projection table's constructor is `c`.  One
+lookup, no walk. -/
+def etaCtorPartialFam (fe : IFEnv) (c T : NIdx) : Bool :=
+  match fe.find? T with
+  | some (.indInfo _ caps) =>
+    match fe.findTable? T with
+    | some tbl => if caps.eta then tbl.ctor == c else false
+    | none => false
+  | _ => false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:717-740 etaCtorPartial
 -- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.etaCtorPartial_bridge, then delete this line
@@ -1725,10 +1715,10 @@ def etaCtorPartial (fe : IFEnv) (a : EIdx) : AM (Option Nat) := do
     match ← view hh with
     | .const c _ =>
       match fe.find? c with
-      | some (.ctorInfo cvc cnP cnF) => do
+      | some (.ctorInfo _ cnP cnF T) => do
         let args ← getAppArgs coreWalkFuel a
         if args.length < cnP + cnF then do
-          if ← etaCtorPartialFam fe c cvc.type then pure (some (cnP + cnF - args.length))
+          if etaCtorPartialFam fe c T then pure (some (cnP + cnF - args.length))
           else pure none
         else pure none
       | _ => pure none
@@ -1865,7 +1855,7 @@ binders dropped and instantiated with the instance's arguments in one pass. -/
 def unitLikeShapeAt (fe : IFEnv) (us : LsIdx) (targs : List EIdx) (tctor : NIdx)
     (nP nF : Nat) : AM (Option (EIdx × Nat)) := do
   match fe.find? tctor with
-  | some (.ctorInfo cvc _ _) => do
+  | some (.ctorInfo cvc _ _ _) => do
     let cty ← instLPFast coreWalkFuel cvc.levelParams us cvc.type
     match ← peelPis nP cty with
     | none => pure none
@@ -2049,12 +2039,13 @@ con-leche: ConLeche/Cached/CoreC.lean:794-805 iotaCase3I
 -- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.iotaCase3At_bridge, then delete this line
 **Case 3 of the ι case split** (con-leche task #342 L10, S5c): a rule that is
 not K (the record's `isK`) whose constructor's family may be `Prop` at the
-comparand levels `us`.  The family is not read at a K recursor. -/
-def iotaCase3At (r : CoreFnsA) (fe : IFEnv) (isK : Bool) (cvj : IConstantVal)
+comparand levels `us` (its family stored at its `induct`).  The family is not
+read at a K recursor. -/
+def iotaCase3At (r : CoreFnsA) (fe : IFEnv) (isK : Bool) (induct : NIdx)
     (us : LsIdx) : AM Bool := do
   if isK then pure false
   else
-    match ← ctorFamily fe cvj with
+    match ctorFamily fe induct with
     | some (cvT, caps) => do
       match ← viewLsLen us with
       | none => failDanglingLs
@@ -2064,6 +2055,36 @@ def iotaCase3At (r : CoreFnsA) (fe : IFEnv) (isK : Bool) (cvj : IConstantVal)
           pure !nz
         else pure true
     | none => pure true
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:978-990 iotaNoCert — **a rule
+fires with no certificate, by the stored facts** (the ι case split's case 2
+read off the records): at a K recursor, or where the constructor's family
+(stored at its `induct`) records a sort that is never zero (`neverZero`) and
+has `n` level parameters, the comparand levels' count.  The family's record
+is read in place (`ctorFamily` without the copy). -/
+def iotaNoCert (fe : IFEnv) (isK : Bool) (induct : NIdx) (n : Nat) : Bool :=
+  if isK then true
+  else
+    match fe.find? induct with
+    | some (.indInfo cvT caps) => caps.neverZero && cvT.levelParams.length == n
+    | _ => false
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:966-972 recFireLevelCount — **how
+many comparand levels a rule has** (`recFireLevels`' length, read without
+substituting). -/
+def recFireLevelCount (rl : IRecRule) (cvjLps : List NIdx) : Nat :=
+  match rl.fire with
+  | .nested lvls _ => lvls.length
+  | .plain => cvjLps.length
+  | .levels lvls => lvls.length
+
+/-- con-leche: ConLeche/Kernel/Core.lean:594-599 familyNeverZeroAt
+con-leche: ConLeche/Cached/CoreC.lean:788-792 familyNeverZeroI — **is a
+family's sort never zero at the levels `us`**, at its recorded fact first
+(`neverZero`), else where it is asked (`formerNeverZeroAt`). -/
+def familyNeverZeroAt (r : CoreFnsA) (cvT : IConstantVal) (caps : IIndCaps)
+    (us : LsIdx) : AM Bool :=
+  if caps.neverZero then pure true else formerNeverZeroAt r cvT caps us
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:779-783 etaFabArgsE — the
 eta-rescue fabrication's argument spine: the major's type's arguments, then
@@ -2145,7 +2166,8 @@ con-leche: ConLeche/Cached/CoreC.lean:807-906 majorToCtorI — **the
 stuck-major rescue** (`to_cnstr_when_K` and `to_cnstr_when_structure`): a
 recursor's major premise that is not a constructor application may still be
 *replaced* by one — K-flagged (the record's `isK`), η-capable (`etaRescueTable?`),
-or the pinned `And`.  No certificate
+or the pinned `And`, the family the one stored at the constructor's `induct`
+(no walk).  No certificate
 on a fabricated spine (con-leche's task #342 L-DEAD, L11b); the K and `And`
 fabrications keep official's type check, and their proof-irrelevance run is a
 certificate family (off at `.trusted`). -/
@@ -2157,11 +2179,7 @@ def majorToCtor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
   match rules with
   | [rl] =>
     match fe.find? rl.ctor with
-    | some (.ctorInfo cvj cnP _cnF) => do
-      let hh ← getAppFn coreWalkFuel (← piResult coreWalkFuel cvj.type)
-      if hh.tag == ETag.const then
-        match ← view hh with
-        | .const T _ =>
+    | some (.ctorInfo cvj cnP _cnF T) => do
           match fe.find? T with
           | some (.indInfo cvT caps) => do
             if isK = true then do
@@ -2203,10 +2221,10 @@ def majorToCtor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
                   let targs ← getAppArgs coreWalkFuel tmaj
                   if T' = T ∧ targs.length = tbl.numParams ∧
                       ustl.length = cvT.levelParams.length then do
-                    -- the *instantiated* non-Prop test at the use
-                    -- (`formerNeverZeroAt`); the constructor and the counts
-                    -- are the table's
-                    if ← formerNeverZeroAt r cvT caps ust then do
+                    -- the *instantiated* non-Prop test at the use, the stored
+                    -- fact first (`familyNeverZeroAt`); the constructor and
+                    -- the counts are the table's
+                    if ← familyNeverZeroAt r cvT caps ust then do
                       let fabArgs ← etaFabArgsE T targs major tbl.numFields
                       let hd ← internE (.const tbl.ctor ust)
                       let fab ← mkAppN hd fabArgs
@@ -2251,8 +2269,6 @@ def majorToCtor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
                 else pure major
               else pure major
           | _ => pure major
-        | _ => pure major
-      else pure major
     | _ => pure major
   | _ => pure major
 
@@ -2448,7 +2464,7 @@ def iotaRecAt (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
             match ← view hh with
             | .const cj usj =>
               match fe.find? cj with
-              | some (.ctorInfo cvj cnP _) =>
+              | some (.ctorInfo cvj cnP _ induct) =>
                 match findRule rules cj with
                 | some rl => do
                   let margs ← getAppArgs coreWalkFuel major
@@ -2464,10 +2480,15 @@ def iotaRecAt (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
                     -- the comparands, the constructor telescope at the FULL
                     -- grade and the canonical-index comparison
                     -- (`Cached/CoreC.lean:647-670`)
+                    -- the stored facts first (`iotaNoCert`, the cached twin's
+                    -- order): no comparand level is computed for them
                     let fam ←
-                      if mode.verifiedChecks then do
+                      if !mode.verifiedChecks then pure true
+                      else if iotaNoCert fe isK induct
+                          (recFireLevelCount rl cvj.levelParams) then pure true
+                      else do
                         let cmpL ← recFireLevels rl cv.levelParams us cvj.levelParams
-                        if ← iotaCase3At r fe isK cvj cmpL then do
+                        if ← iotaCase3At r fe isK induct cmpL then do
                           if ← liftFueled "level comparison" (← lvlsEq? usj cmpL) then do
                             let cmpA ← recFireArgs rl cnP cv.levelParams us args rP
                             if ← defEqList r fe depth (margs.take cnP) cmpA then do
@@ -2479,7 +2500,6 @@ def iotaRecAt (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
                             else pure false
                           else pure false
                         else pure true
-                      else pure true
                     if fam then do
                       let rhs ← ruleRhsAt c rl.ctor cv.levelParams rl.rhs us
                       let x ← mkAppN rhs
@@ -2690,7 +2710,7 @@ projection's certificate**: the redex `proj_i (C p⃗ x⃗)`'s spine has the ari
 of `C`'s stored (uninstantiated) type (`teleArityOk`). -/
 def projCert (fe : IFEnv) (c : NIdx) (args : List EIdx) : AM Bool := do
   match fe.find? c with
-  | some (.ctorInfo cvC _ _) => teleArityOk cvC.type args
+  | some (.ctorInfo cvC _ _ _) => teleArityOk cvC.type args
   | _ => pure false
 
 /-- con-leche: ConLeche/Kernel/Core.lean:986-993 projCertAt

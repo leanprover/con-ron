@@ -771,18 +771,21 @@ theorem internCI_sstep {s s' : AState} (hok : StateOK s)
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
     exact ⟨hstep1, by simp only [denoteCI, hdcv, Option.map_some], hm1⟩
-  | ctorInfo v nP nF =>
+  | ctorInfo v nP nF T =>
     rw [ConRon.Arena.Frontend.internCI] at hrun
     obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
     obtain ⟨m1, cv⟩ := p1
     obtain ⟨hstep1, hdcv, hm1⟩ := internCV_sstep hok hm h1
     simp only [] at hrest
-    obtain ⟨hv, hst⟩ := AM.pure_ok hrest
+    obtain ⟨t, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨hstep2, hdt⟩ := internName_sstep hstep1.ok h2
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
     subst hst
     simp only [Prod.mk.injEq] at hv
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
-    exact ⟨hstep1, by simp only [denoteCI, hdcv, Option.map_some], hm1⟩
+    exact ⟨hstep1.trans hstep2, by simp only [denoteCI, denoteCV_ext hdcv hstep2.ext, hdt],
+      hm1.mono hstep2.ext⟩
   | defnInfo v e hh =>
     rw [ConRon.Arena.Frontend.internCI] at hrun
     obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun

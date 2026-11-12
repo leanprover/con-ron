@@ -298,7 +298,7 @@ def indParamsOk (nP : Nat) : List IConstantInfo → AM Bool
         match ← piSortTeleLen? coreWalkFuel cvT.type with
         | some n => pure (decide (nP ≤ n))
         | none => pure true
-      | .ctorInfo _ nPc _ => pure (nPc == nP)
+      | .ctorInfo _ nPc _ _ => pure (nPc == nP)
       | _ => pure true
     if ok then indParamsOk nP rest else pure false
 

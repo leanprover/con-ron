@@ -161,7 +161,7 @@ private def withRules (pre : List Declaration) (nP : Nat) (block : List Constant
     | .ok p₀ =>
       let q ← ConLeche.checkBlockPass OPS env p₀ (ConLeche.blockIsRec p₀)
       let p := q.p
-      ConLeche.checkBlockRec OPS (ConLeche.consBlockCtors p.nP p.memberCtors q.env₁) p
+      ConLeche.checkBlockRec OPS (ConLeche.consBlockCtors p.nP p.ctorGroups q.env₁) p
         (ConLeche.blockNestedBit p q.kinds) q.params q.tbl.toList q.rd q.cls block
   match out? with
   | .ok out => fillRules block (out.map (·.2.2))
@@ -182,8 +182,8 @@ private def nRecTy : ConLeche.Expr :=
 private def nBlock : List ConstantInfo :=
   withRules [] 0 <|
   [ .indInfo ⟨nm "N", [], ty1⟩ {},
-    .ctorInfo ⟨nm2 "N" "zero", [], cN⟩ 0 0,
-    .ctorInfo ⟨nm2 "N" "succ", [], pi cN cN⟩ 0 1,
+    .ctorInfo ⟨nm2 "N" "zero", [], cN⟩ 0 0 (nm "N"),
+    .ctorInfo ⟨nm2 "N" "succ", [], pi cN cN⟩ 0 1 (nm "N"),
     .recInfo ⟨nm2 "N" "rec", [nm "u"], nRecTy⟩ 3 3
       false [rl (nm2 "N" "zero") 0, rl (nm2 "N" "succ") 1] ]
 
@@ -212,7 +212,7 @@ private def pairBlock : List ConstantInfo :=
   withRules [] 2 <|
   [ .indInfo ⟨nm "Pair", [], pi ty1 (pi ty1 ty1)⟩ {},
     .ctorInfo ⟨nm2 "Pair" "mk", [],
-      pi ty1 (pi ty1 (pi (bv 1) (pi (bv 1) (pairAt (bv 3) (bv 2)))))⟩ 2 2,
+      pi ty1 (pi ty1 (pi (bv 1) (pi (bv 1) (pairAt (bv 3) (bv 2)))))⟩ 2 2 (nm "Pair"),
     .recInfo ⟨nm2 "Pair" "rec", [nm "u"], pairRecTy⟩ 4 4 false [rl (nm2 "Pair" "mk") 2] ]
 
 #guard accepts [.indDecl pairBlock 2]
@@ -241,7 +241,7 @@ private def eqBlock : List ConstantInfo :=
   withRules [] 2 <|
   [ .indInfo ⟨nm "Eq'", [nm "u"], pi (sortP "u") (pi (bv 0) (pi (bv 1) (.sort .zero)))⟩ {},
     .ctorInfo ⟨nm2 "Eq'" "refl", [nm "u"],
-      pi (sortP "u") (pi (bv 0) (eqAt (bv 1) (bv 0) (bv 0)))⟩ 2 0,
+      pi (sortP "u") (pi (bv 0) (eqAt (bv 1) (bv 0) (bv 0)))⟩ 2 0 (nm "Eq'"),
     .recInfo ⟨nm2 "Eq'" "rec", [nm "v", nm "u"], eqRecTy⟩ 5 4 true [rl (nm2 "Eq'" "refl") 0] ]
 
 #guard accepts [.indDecl eqBlock 2]
@@ -260,7 +260,7 @@ private def truRecTy : ConLeche.Expr :=
 private def truBlock : List ConstantInfo :=
   withRules [] 0 <|
   [ .indInfo ⟨nm "Tru", [], .sort .zero⟩ {},
-    .ctorInfo ⟨nm2 "Tru" "intro", [], c0 (nm "Tru")⟩ 0 0,
+    .ctorInfo ⟨nm2 "Tru" "intro", [], c0 (nm "Tru")⟩ 0 0 (nm "Tru"),
     .recInfo ⟨nm2 "Tru" "rec", [nm "u"], truRecTy⟩ 2 2 true [rl (nm2 "Tru" "intro") 0] ]
 
 #guard accepts [.indDecl truBlock 0]
@@ -290,9 +290,9 @@ private def abBlock : List ConstantInfo :=
   withRules [] 0 <|
   [ .indInfo ⟨nm "A", [], ty1⟩ {},
     .indInfo ⟨nm "B", [], ty1⟩ {},
-    .ctorInfo ⟨nm2 "A" "a", [], cA⟩ 0 0,
-    .ctorInfo ⟨nm2 "A" "ab", [], pi cB cA⟩ 0 1,
-    .ctorInfo ⟨nm2 "B" "b", [], pi cA cB⟩ 0 1,
+    .ctorInfo ⟨nm2 "A" "a", [], cA⟩ 0 0 (nm "A"),
+    .ctorInfo ⟨nm2 "A" "ab", [], pi cB cA⟩ 0 1 (nm "A"),
+    .ctorInfo ⟨nm2 "B" "b", [], pi cA cB⟩ 0 1 (nm "B"),
     .recInfo ⟨nm2 "A" "rec", [nm "u"], abRecTy (pi cA (ap (bv 5) (bv 0)))⟩ 5 5
       false [rl (nm2 "A" "a") 0, rl (nm2 "A" "ab") 1],
     .recInfo ⟨nm2 "B" "rec", [nm "u"], abRecTy (pi cB (ap (bv 4) (bv 0)))⟩ 5 5
@@ -331,8 +331,8 @@ private def lRecTy : ConLeche.Expr :=
 private def lBlock : List ConstantInfo :=
   withRules [] 1 <|
   [ .indInfo ⟨nm "L", [], pi ty1 ty1⟩ {},
-    .ctorInfo ⟨nm2 "L" "nil", [], pi ty1 (lAt (bv 0))⟩ 1 0,
-    .ctorInfo ⟨nm2 "L" "cons", [], pi ty1 (pi (bv 0) (pi (lAt (bv 1)) (lAt (bv 2))))⟩ 1 2,
+    .ctorInfo ⟨nm2 "L" "nil", [], pi ty1 (lAt (bv 0))⟩ 1 0 (nm "L"),
+    .ctorInfo ⟨nm2 "L" "cons", [], pi ty1 (pi (bv 0) (pi (lAt (bv 1)) (lAt (bv 2))))⟩ 1 2 (nm "L"),
     .recInfo ⟨nm2 "L" "rec", [nm "u"], lRecTy⟩ 4 4
       false [rl (nm2 "L" "nil") 0, rl (nm2 "L" "cons") 2] ]
 
@@ -354,7 +354,7 @@ recursors. -/
 private def treeBlock : List ConstantInfo :=
   withRules [.indDecl lBlock 1] 0 <|
   [ .indInfo ⟨nm "Tree", [], ty1⟩ {},
-    .ctorInfo ⟨nm2 "Tree" "node", [], pi (lAt cT) cT⟩ 0 1,
+    .ctorInfo ⟨nm2 "Tree" "node", [], pi (lAt cT) cT⟩ 0 1 (nm "Tree"),
     .recInfo ⟨nm2 "Tree" "rec", [nm "u"], treeRecTy (pi cT (ap (bv 5) (bv 0)))⟩ 5 5
       false [rl (nm2 "Tree" "node") 1],
     .recInfo ⟨nm2 "Tree" "rec_1", [nm "u"], treeRecTy (pi (lAt cT) (ap (bv 4) (bv 0)))⟩ 5 5
@@ -378,7 +378,7 @@ private def treeBlock : List ConstantInfo :=
 /-- con-leche: none — the `Bad` block. -/
 private def badBlock : List ConstantInfo :=
   [ .indInfo ⟨nm "Bad", [], ty1⟩ {},
-    .ctorInfo ⟨nm2 "Bad" "mk", [], pi (pi (c0 (nm "Bad")) (c0 (nm "Bad"))) (c0 (nm "Bad"))⟩ 0 1,
+    .ctorInfo ⟨nm2 "Bad" "mk", [], pi (pi (c0 (nm "Bad")) (c0 (nm "Bad"))) (c0 (nm "Bad"))⟩ 0 1 (nm "Bad"),
     .recInfo ⟨nm2 "Bad" "rec", [nm "u"],
       pi (pi (c0 (nm "Bad")) (sortP "u"))
         (pi (pi (pi (c0 (nm "Bad")) (c0 (nm "Bad"))) (ap (bv 1) (ap (c0 (nm2 "Bad" "mk")) (bv 0))))
@@ -392,7 +392,7 @@ private def badBlock : List ConstantInfo :=
 /-- con-leche: none — `N` with both constructors under one name. -/
 private def dupBlock : List ConstantInfo :=
   nBlock.map fun ci => match ci with
-    | .ctorInfo cv nP 1 => .ctorInfo { cv with name := nm2 "N" "zero" } nP 1
+    | .ctorInfo cv nP 1 T => .ctorInfo { cv with name := nm2 "N" "zero" } nP 1 T
     | c => c
 
 #guard !accepts [.indDecl dupBlock 0]

@@ -235,34 +235,59 @@ answer against the environment's: a miss is a miss, a hit's two halves denote. -
     FamAns st (some (cv, caps)) (some (cvP, capsP)) =
       (Frontend.denoteCV st cv = some cvP ∧ Frontend.denoteCaps st caps = some capsP) := rfl
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:89-98 ctorFamily — the function as
-ONE equation over the result head's tag, its name and the lookup's projections. -/
-theorem ctorFamily_eq (find? : ConLeche.Name → Option ConstantInfo) (cvj : ConstantVal) :
-    ConLeche.ctorFamily find? cvj =
-      if exprTag cvj.type.piResult.getAppFn = ETag.const ∧
-          cInd? (find? (exprConstName cvj.type.piResult.getAppFn)) = true then
-        some (cIndVal (find? (exprConstName cvj.type.piResult.getAppFn)),
-          cIndCaps (find? (exprConstName cvj.type.piResult.getAppFn)))
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:87-94 ctorFamily — the function as
+ONE equation over the lookup's projections at the stored family name. -/
+theorem ctorFamily_eq (find? : ConLeche.Name → Option ConstantInfo) (induct : ConLeche.Name) :
+    ConLeche.ctorFamily find? induct =
+      if cInd? (find? induct) = true then
+        some (cIndVal (find? induct), cIndCaps (find? induct))
       else none := by
   simp only [ConLeche.ctorFamily]
-  generalize cvj.type.piResult.getAppFn = g
-  cases g <;> simp only [exprTag, exprConstName] <;> try rfl
-  rename_i T _
-  cases h : find? T with
+  cases h : find? induct with
   | none => simp [cInd?]
   | some ci => cases ci <;> simp [cInd?, cIndVal, cIndCaps]
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:89-98 ctorFamily — **THEOREM 1 for
-`ctorFamily`**: the family the constructor's type concludes in.  The family's
-name arrives through four derived steps (the type, its `piResult`, its head,
-the head view's name), hence `ematch := 8`. -/
-theorem ctorFamily_spec (s₀ : AState) (cvj : IConstantVal) (cvjP : ConstantVal)
-    (hok : CheckOK eager env fe s₀) (hcv : Frontend.denoteCV s₀.store cvj = some cvjP) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.ctorFamily fe cvj
-    ⦃fun r s' => s' = s₀ ∧ FamAns s₀.store r (ConLeche.ctorFamily env.find? cvjP); ⊤⦄ := by
-  sym only [bridge_grind, ctorFamily_eq] =>
-    vcgen [ConRon.Arena.ctorFamily, ExprOps.piResult_spec, ExprOps.getAppFn_spec,
-      viewConstName_spec] <;> finish (ematch := 12) (gen := 12)
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:87-94 ctorFamily — **THEOREM 1 for
+`ctorFamily`**: one lookup at the stored family name on both sides, so the
+index's answer is the environment's (`FamAns`). -/
+theorem ctorFamily_rel {s : AState} (hok : CheckOK eager env fe s) {induct : NIdx}
+    {inductP : ConLeche.Name} (hT : denoteN s.store.ns induct = some inductP) :
+    FamAns s.store (ConRon.Arena.ctorFamily fe induct) (ConLeche.ctorFamily env.find? inductP) := by
+  have hrel := optCI_find hok hT
+  unfold ConRon.Arena.ctorFamily ConLeche.ctorFamily
+  generalize fe.find? induct = oi at hrel
+  generalize env.find? inductP = oc at hrel
+  cases oi with
+  | none => subst hrel; rfl
+  | some ci =>
+    obtain ⟨c, hci, rfl⟩ := hrel
+    cases ci with
+    | indInfo v caps =>
+      simp only [Frontend.denoteCI] at hci
+      split at hci
+      · rename_i cv cp hcv hcp; cases hci; exact ⟨hcv, hcp⟩
+      · cases hci
+    | axiomInfo v =>
+      simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hci
+      obtain ⟨_, _, rfl⟩ := hci; rfl
+    | thmInfo v =>
+      simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hci
+      obtain ⟨_, _, rfl⟩ := hci; rfl
+    | defnInfo v e h =>
+      simp only [Frontend.denoteCI] at hci
+      split at hci
+      · cases hci; rfl
+      · cases hci
+    | ctorInfo v nP nF T =>
+      simp only [Frontend.denoteCI] at hci
+      split at hci
+      · cases hci; rfl
+      · cases hci
+    | recInfo v mI rP k rs =>
+      simp only [Frontend.denoteCI] at hci
+      split at hci
+      · cases hci; rfl
+      · cases hci
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean looseBVarsBounded —
 `ExprOps/Ranges.lean`'s `looseBVarsBoundedFast_spec` at the tier's invariant
@@ -439,6 +464,16 @@ theorem denoteCaps_fields {st : EStore} {c : IIndCaps} {dc : IndCaps}
   split at h
   · cases h; exact ⟨rfl, rfl, rfl⟩
   · simp at h
+
+/-- con-leche: none — a denoting capability record's never-zero fact is the
+record's own. -/
+theorem denoteCaps_neverZero {st : EStore} {c : IIndCaps} {dc : IndCaps}
+    (h : Frontend.denoteCaps st c = some dc) : dc.neverZero = c.neverZero := by
+  simp only [Frontend.denoteCaps] at h
+  split at h
+  · cases h; rfl
+  · simp at h
+grind_pattern [bridge_grind] denoteCaps_neverZero => Frontend.denoteCaps st c, some dc
 
 /-- con-leche: none — two denoting name-handle lists compare as their
 denotations. -/

@@ -917,9 +917,8 @@ theorem denoteCI_name {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
     obtain ⟨cv, hcv, rfl⟩ := h
     exact denoteCV_name hcv
-  | ctorInfo v nP nF =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨cv, hcv, rfl⟩ := h
+  | ctorInfo v nP nF T =>
+    obtain ⟨cv, _, hcv, _, rfl⟩ := denoteCI_ctorInfo_some h
     exact denoteCV_name hcv
   | defnInfo v e hh =>
     simp only [Frontend.denoteCI] at h
@@ -969,9 +968,8 @@ theorem denoteCI_toConstantVal {st : EStore} {ci : IConstantInfo}
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
     obtain ⟨cv, hcv, rfl⟩ := h
     exact hcv
-  | ctorInfo v nP nF =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨cv, hcv, rfl⟩ := h
+  | ctorInfo v nP nF T =>
+    obtain ⟨cv, _, hcv, _, rfl⟩ := denoteCI_ctorInfo_some h
     exact hcv
   | defnInfo v e hh =>
     simp only [Frontend.denoteCI] at h

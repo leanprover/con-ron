@@ -132,7 +132,7 @@ theorem persCI_name {ci : IConstantInfo} (h : PersCI ci) : PersN ci.name := by
   | defnInfo v e hint => exact h.1.name
   | thmInfo v => exact (show PersCV v from h).name
   | indInfo v c => exact h.1.name
-  | ctorInfo v nP nF => exact (show PersCV v from h).name
+  | ctorInfo v nP nF T => exact h.1.name
   | recInfo v mI rP k rs => exact h.1.name
 
 /-! ## A persistent record reads the same at both ends of a `PExt` -/

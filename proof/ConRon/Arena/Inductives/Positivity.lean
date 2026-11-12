@@ -483,7 +483,7 @@ result, past its parameters and fields, is headed by `C`. -/
 def nestCtorEntry (C : NIdx) (ci : IConstantInfo) :
     AM (Option (IConstantVal × Nat × Nat)) := do
   match ci with
-  | .ctorInfo cv nPc nF =>
+  | .ctorInfo cv nPc nF _ =>
     match ← stripPis (nPc + nF) cv.type with
     | none => pure none
     | some q => do

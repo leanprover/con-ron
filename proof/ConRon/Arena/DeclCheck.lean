@@ -68,7 +68,7 @@ def stdAxiomOk (fe : IFEnv) (cv : IConstantVal) : AM Bool := do
       | some (.indInfo cvI _) => do
         if !(← cvI.matchesPin (← iffA).toConstantVal) then pure false else do
           match fe.find? (← iffIntroName) with
-          | some (.ctorInfo cvIi 2 2) => do
+          | some (.ctorInfo cvIi 2 2 _) => do
             if !(← cvIi.matchesPin (← iffIntroA).toConstantVal) then pure false
             else do
               match fe.find? (← iffRecName) with
@@ -88,7 +88,7 @@ def stdAxiomOk (fe : IFEnv) (cv : IConstantVal) : AM Bool := do
       | some (.indInfo cvN _) => do
         if !(← cvN.matchesPin (← nonemptyA).toConstantVal) then pure false else do
           match fe.find? (← nonemptyIntroName) with
-          | some (.ctorInfo cvNi 1 1) => do
+          | some (.ctorInfo cvNi 1 1 _) => do
             if !(← cvNi.matchesPin (← nonemptyIntroA).toConstantVal) then pure false
             else do
               match fe.find? (← nonemptyRecName) with
@@ -113,7 +113,7 @@ def trustCompilerOk (fe : IFEnv) (cv : IConstantVal) : AM Bool := do
   | some (.indInfo cvT _) => do
     if !(← cvT.matchesPin (← trueCvA)) then pure false else do
       match fe.find? (← trueIntroName) with
-      | some (.ctorInfo cvTi 0 0) => do
+      | some (.ctorInfo cvTi 0 0 _) => do
         if !(← cvTi.matchesPin (← trueIntroCvA)) then pure false
         else cv.matchesPin (← trustCompilerA)
       | _ => pure false

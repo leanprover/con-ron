@@ -256,17 +256,19 @@ theorem blockRun_fresh {F : Nat} {env env' : Env} {block : List ConstantInfo}
     exact (checkConstantVal_inv hccv).1
   -- what the constructors' environment does not hold
   have hE₂ : ∀ n, (consBlockCtors ({ p₀ with members := ms } : BlockShape).nP
-      (({ p₀ with members := ms } : BlockShape).withSort s0).memberCtors env₁).find? n = none →
+      (({ p₀ with members := ms } : BlockShape).withSort s0).ctorGroups env₁).find? n = none →
       n ∉ p₀.allCtors.map (·.1.name) ∧ env₁.find? n = none := by
     intro n hn
     rw [consBlockCtors_eq] at hn
     obtain ⟨h₁, h₂⟩ := find?_none_append_rev hn
     refine ⟨fun hm' => h₁ ?_, h₂⟩
-    rw [List.map_map]
-    have : (({ p₀ with members := ms } : BlockShape).withSort s0).memberCtors.flatten
-        = p₀.allCtors := by
-      show (ms.map (·.ctors)).flatten = _
-      rw [hNC, List.flatMap_def]
+    have : ((({ p₀ with members := ms } : BlockShape).withSort s0).ctorGroups.flatMap
+        fun g => g.2.map fun c => ConstantInfo.ctorInfo c.1
+          ({ p₀ with members := ms } : BlockShape).nP c.2 g.1).map (·.name)
+        = p₀.allCtors.map (·.1.name) := by
+      rw [hNC]
+      simp [BlockShape.ctorGroups, BlockShape.withSort, List.flatMap_def, List.map_flatten,
+        List.map_map, Function.comp_def, ConstantInfo.name, ConstantInfo.toConstantVal]
     rw [this]
     exact hm'
   -- the recursors: fresh at the constructors' environment, distinct by the pins
@@ -275,7 +277,7 @@ theorem blockRun_fresh {F : Nat} {env env' : Env} {block : List ConstantInfo}
   have hndR : (p₀.recs.map (·.cvR.name)).Nodup := by have := targetRecPins_nodup R.pins; exact this
   have hnamesR := genRecCheck_out_names hRec
   have hfrR : ∀ rc ∈ p₀.recs, (consBlockCtors ({ p₀ with members := ms } : BlockShape).nP
-      (({ p₀ with members := ms } : BlockShape).withSort s0).memberCtors env₁).find?
+      (({ p₀ with members := ms } : BlockShape).withSort s0).ctorGroups env₁).find?
         rc.cvR.name = none := by
     intro rc hrc
     have : rc.cvR.name ∈ out.map (·.1.name) := by

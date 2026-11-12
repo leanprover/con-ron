@@ -1608,7 +1608,7 @@ theorem iDefnHint_cases (o : Option IConstantInfo) :
     iDefnHint o = if iDefn? o = true then iDefnHint o else .opaque := by
   match o with
   | some (.defnInfo _ _ _) => rfl
-  | some (.axiomInfo _) | some (.thmInfo _) | some (.indInfo _ _) | some (.ctorInfo _ _ _)
+  | some (.axiomInfo _) | some (.thmInfo _) | some (.indInfo _ _) | some (.ctorInfo _ _ _ _)
   | some (.recInfo _ _ _ _ _) | none => rfl
 grind_pattern [bridge_grind] iDefnHint_cases => iDefnHint o
 
@@ -1621,13 +1621,15 @@ grind_pattern [bridge_grind] iDefnHint_cases => iDefnHint o
 /-- con-leche: none — a stored inductive's capabilities. -/
 def iIndCaps : Option IConstantInfo → IIndCaps | some (.indInfo _ c) => c | _ => default
 /-- con-leche: none — is a stored lookup a constructor. -/
-@[expose] def iCtor? : Option IConstantInfo → Bool | some (.ctorInfo _ _ _) => true | _ => false
+@[expose] def iCtor? : Option IConstantInfo → Bool | some (.ctorInfo _ _ _ _) => true | _ => false
 /-- con-leche: none — a stored constructor's record. -/
-@[expose] def iCtorVal : Option IConstantInfo → IConstantVal | some (.ctorInfo v _ _) => v | _ => default
+@[expose] def iCtorVal : Option IConstantInfo → IConstantVal | some (.ctorInfo v _ _ _) => v | _ => default
 /-- con-leche: none — a stored constructor's parameter count. -/
-def iCtorNP : Option IConstantInfo → Nat | some (.ctorInfo _ n _) => n | _ => 0
+def iCtorNP : Option IConstantInfo → Nat | some (.ctorInfo _ n _ _) => n | _ => 0
 /-- con-leche: none — a stored constructor's field count. -/
-def iCtorNF : Option IConstantInfo → Nat | some (.ctorInfo _ _ n) => n | _ => 0
+def iCtorNF : Option IConstantInfo → Nat | some (.ctorInfo _ _ n _) => n | _ => 0
+/-- con-leche: none — a stored constructor's family (its `induct`). -/
+def iCtorInduct : Option IConstantInfo → NIdx | some (.ctorInfo _ _ _ t) => t | _ => default
 /-- con-leche: none — is an environment lookup an inductive. -/
 @[expose] def cInd? : Option ConstantInfo → Bool | some (.indInfo _ _) => true | _ => false
 /-- con-leche: none — an inductive's record. -/
@@ -1645,8 +1647,8 @@ case-splits on. -/
 @[bridge_grind =] theorem iInd?_ind (v : IConstantVal) (caps : IIndCaps) :
     iInd? (some (.indInfo v caps)) = true := rfl
 /-- con-leche: none — a stored lookup's projection at its constructor. -/
-@[bridge_grind =] theorem iCtor?_ctor (v : IConstantVal) (n f : Nat) :
-    iCtor? (some (.ctorInfo v n f)) = true := rfl
+@[bridge_grind =] theorem iCtor?_ctor (v : IConstantVal) (n f : Nat) (t : NIdx) :
+    iCtor? (some (.ctorInfo v n f t)) = true := rfl
 
 /-- con-leche: none — a lookup that is an inductive IS one. -/
 theorem iInd?_eta {o : Option IConstantInfo} (h : iInd? o = true) :
@@ -1657,9 +1659,9 @@ grind_pattern [bridge_grind] iInd?_eta => iInd? o
 
 /-- con-leche: none — a lookup that is a constructor IS one. -/
 theorem iCtor?_eta {o : Option IConstantInfo} (h : iCtor? o = true) :
-    o = some (.ctorInfo (iCtorVal o) (iCtorNP o) (iCtorNF o)) := by
+    o = some (.ctorInfo (iCtorVal o) (iCtorNP o) (iCtorNF o) (iCtorInduct o)) := by
   match o, h with
-  | some (.ctorInfo _ _ _), _ => rfl
+  | some (.ctorInfo _ _ _ _), _ => rfl
 grind_pattern [bridge_grind] iCtor?_eta => iCtor? o
 
 /-! The projections at any stored constant: its record
@@ -1680,6 +1682,9 @@ and the recursors. -/
 @[expose] def cCtorNP : Option ConstantInfo → Nat | some (.ctorInfo _ n _ _) => n | _ => 0
 /-- con-leche: none — an environment constructor's field count. -/
 @[expose] def cCtorNF : Option ConstantInfo → Nat | some (.ctorInfo _ _ n _) => n | _ => 0
+/-- con-leche: none — an environment constructor's family (its `induct`). -/
+@[expose] def cCtorInduct : Option ConstantInfo → ConLeche.Name
+  | some (.ctorInfo _ _ _ t) => t | _ => .anonymous
 /-- con-leche: none — is a stored lookup a recursor. -/
 def iRec? : Option IConstantInfo → Bool | some (.recInfo _ _ _ _ _) => true | _ => false
 /-- con-leche: none — a stored recursor's record. -/
@@ -1719,7 +1724,7 @@ the environment's, through every projection the walks read: the two
 lookups agree on being present, a definition, a constructor, an inductive, a
 recursor, on a definition's hint, a constructor's counts and a recursor's
 indices and K flag, and the stored records denote the environment's (a definition's
-record and value, a constructor's record, an inductive's record, level
+record and value, a constructor's record and family, an inductive's record, level
 parameters and capabilities, a recursor's record and rules, any record). -/
 @[expose] def IndexCI (st : EStore) (oi : Option IConstantInfo) (oc : Option ConstantInfo) : Prop :=
   cDefn? oc = iDefn? oi ∧ cDefnHint oc = iDefnHint oi ∧
@@ -1735,7 +1740,8 @@ parameters and capabilities, a recursor's record and rules, any record). -/
     Frontend.denoteCV st (iIndVal oi) = some (cIndVal oc) ∧
     Frontend.denoteNList st.ns (iIndVal oi).levelParams = some (cIndVal oc).levelParams ∧
     Frontend.denoteCaps st (iIndCaps oi) = some (cIndCaps oc)) ∧
-  (iCtor? oi = true → cCtorNP oc = iCtorNP oi ∧ cCtorNF oc = iCtorNF oi) ∧
+  (iCtor? oi = true → cCtorNP oc = iCtorNP oi ∧ cCtorNF oc = iCtorNF oi ∧
+    denoteN st.ns (iCtorInduct oi) = some (cCtorInduct oc)) ∧
   cRec? oc = iRec? oi ∧
   (iRec? oi = true → Frontend.denoteCV st (iRecVal oi) = some (cRecVal oc) ∧
     Frontend.denoteRules st (iRecRules oi) = some (cRecRules oc) ∧
@@ -1782,11 +1788,13 @@ theorem indexAt_hit {st : EStore} {ci : IConstantInfo} {cc : ConstantInfo}
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
     obtain ⟨cv, hcv, rfl⟩ := h
     exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, fun _ => hcv, rfl, nofun, nofun, rfl, nofun⟩
-  | ctorInfo v nP nF =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨cv, hcv, rfl⟩ := h
-    exact ⟨rfl, rfl, nofun, rfl, fun _ => hcv, rfl, fun _ => hcv, rfl, nofun,
-      fun _ => ⟨rfl, rfl⟩, rfl, nofun⟩
+  | ctorInfo v nP nF T =>
+    simp only [Frontend.denoteCI] at h
+    split at h
+    · rename_i cv t hcv ht; cases h
+      exact ⟨rfl, rfl, nofun, rfl, fun _ => hcv, rfl, fun _ => hcv, rfl, nofun,
+        fun _ => ⟨rfl, rfl, ht⟩, rfl, nofun⟩
+    · cases h
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — `IFEnvOK`'s two halves at
 every lookup the program makes, keyed by the invariant and the lookup: ONE
@@ -1834,7 +1842,8 @@ theorem IndexAt.some {env : Env} {fe : IFEnv} {st : EStore} {c : NIdx} {nm : Con
         Frontend.denoteCaps st (iIndCaps (fe.find? c)) = some (cIndCaps (env.find? nm))) ∧
       (iCtor? (fe.find? c) = true →
         cCtorNP (env.find? nm) = iCtorNP (fe.find? c) ∧
-        cCtorNF (env.find? nm) = iCtorNF (fe.find? c)) ∧
+        cCtorNF (env.find? nm) = iCtorNF (fe.find? c) ∧
+        denoteN st.ns (iCtorInduct (fe.find? c)) = some (cCtorInduct (env.find? nm))) ∧
       cRec? (env.find? nm) = iRec? (fe.find? c) ∧
       (iRec? (fe.find? c) = true →
         Frontend.denoteCV st (iRecVal (fe.find? c)) = some (cRecVal (env.find? nm)) ∧
