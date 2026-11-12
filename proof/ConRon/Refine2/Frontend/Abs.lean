@@ -369,6 +369,11 @@ def absIndCtorRecs (v : alloc.vec.Vec frontend.scan_types.IndCtorRec) :
     List ConLeche.Frontend.IndCtorRec :=
   v.val.map absIndCtorRec
 
+/-- The validated constructor records, each with the type that lists it. -/
+def absIndCtorRecTs (v : alloc.vec.Vec (frontend.scan_types.IndCtorRec × arena.handle.NIdx)) :
+    List (ConLeche.Frontend.IndCtorRec × Arena.NIdx) :=
+  v.val.map fun p => (absIndCtorRec p.1, absNIdx p.2)
+
 /-- `IndRecRec` (`Types.lean:218-227`). -/
 def absIndRecRec (r : frontend.scan_types.IndRecRec) : ConLeche.Frontend.IndRecRec :=
   { cv := absCVRec r.cv, isUnsafe := r.is_unsafe, k := r.k,

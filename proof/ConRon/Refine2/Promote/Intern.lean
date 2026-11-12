@@ -1171,12 +1171,16 @@ theorem intern_ci_go_ls {pers st lst rm lm} {c : kernel.env.ConstantInfo}
     intro a2 b2 st2 lst2 hR2 hrel2 hinv2
     subst hR2
     exact LSMI.pure hms rfl hrel2 hinv2
-  | CtorInfo v np nf =>
+  | CtorInfo v np nf t =>
+    obtain ⟨hv, ht⟩ := hwf
     rw [arena.intern.intern_ci_go]; simp only [Frontend.internCI, ConRon.Refine.absConstantInfo]
-    refine LSMI.bindM (intern_cv_go_ls hrel hinv hm hwf) (by lsm_err) ?_
+    refine LSMI.bindM (intern_cv_go_ls hrel hinv hm hv) (by lsm_err) ?_
     intro a b s st1 m1 lst1 hms hR hrel1 hinv1
     subst hR
-    exact LSMI.pure hms rfl hrel1 hinv1
+    refine LSMI.bindS (intern_name_ls' hrel1 hinv1 t ht) (by lsm_err) ?_
+    intro a2 b2 st2 lst2 hR2 hrel2 hinv2
+    subst hR2
+    exact LSMI.pure hms rfl hrel2 hinv2
   | RecInfo v mi rp k rs =>
     obtain ⟨hv, hrs⟩ := hwf
     rw [arena.intern.intern_ci_go]; simp only [Frontend.internCI, ConRon.Refine.absConstantInfo]

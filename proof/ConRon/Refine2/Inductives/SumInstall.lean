@@ -420,16 +420,18 @@ conses, in order (the first constructor deepest).  **Pure on both sides**: the
 index push touches no term, so there is no monad and no state, and the
 statement is an `IFEnvRel` of two folds. -/
 theorem cons_sum_ctors_refines {pers : arena.store.PersTier} {n_p : Std.U64}
+    {t : arena.handle.NIdx}
     {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} {i : Std.Usize}
     {rf lf} {o}
     (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.inductives.sum_install.cons_sum_ctors n_p ctors i rf = ok o) :
-    IFEnvRel pers o (consSumCtors (absU n_p) (absCtorsLFrom ctors i) lf) ∧
+    (hrun : arena.inductives.sum_install.cons_sum_ctors n_p t ctors i rf = ok o) :
+    IFEnvRel pers o (consSumCtors (absU n_p) (absNIdx t) (absCtorsLFrom ctors i) lf) ∧
       IFEnvInv o := by
   refine cursor_induction (fun i : Std.Usize => i.val) ctors.val.length
     (fun i rf => ∀ lf o, IFEnvRel pers rf lf → IFEnvInv rf →
-      arena.inductives.sum_install.cons_sum_ctors n_p ctors i rf = ok o →
-      IFEnvRel pers o (consSumCtors (absU n_p) (absCtorsLFrom ctors i) lf) ∧ IFEnvInv o)
+      arena.inductives.sum_install.cons_sum_ctors n_p t ctors i rf = ok o →
+      IFEnvRel pers o (consSumCtors (absU n_p) (absNIdx t) (absCtorsLFrom ctors i) lf) ∧
+        IFEnvInv o)
     ?_ ?_ i rf lf o hfe hfinv hrun
   · intro i rf hn lf o hfe hfinv h
     rw [arena.inductives.sum_install.cons_sum_ctors.eq_def] at h
@@ -443,11 +445,12 @@ theorem cons_sum_ctors_refines {pers : arena.store.PersTier} {n_p : Std.U64}
     obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨iv, nf⟩ := p
     obtain ⟨iv1, hiv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨tn, htn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨fe1, hfe1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hx : ctors.val[i.val]? = some (iv, nf) := vec_index_some hp
     obtain ⟨hb, hxv⟩ := List.getElem?_eq_some_iff.mp hx
-    obtain ⟨hrel1, hinv1⟩ := ifenv_push_refines (ci := .CtorInfo _ _ _) hfe hfinv hfe1
+    obtain ⟨hrel1, hinv1⟩ := ifenv_push_refines (ci := .CtorInfo _ _ _ _) hfe hfinv hfe1
     have h3 : i3.val = i.val + 1 := by
       have := ConRon.Refine.Nat.uadd_val hi3; simpa using this
     have hdrop : absCtorsLFrom ctors i
@@ -457,19 +460,21 @@ theorem cons_sum_ctors_refines {pers : arena.store.PersTier} {n_p : Std.U64}
       simp
     rw [hdrop, consSumCtors]
     refine ih i3 fe1 h3 _ o ?_ hinv1 h
-    have : absIConstantInfo (arena.env.IConstantInfo.CtorInfo iv1 n_p nf)
-        = IConstantInfo.ctorInfo (absIConstantVal iv) (absU n_p) (absU nf) := by
-      simp [absIConstantInfo, i_constant_val_dup_abs hiv1]
+    have : absIConstantInfo (arena.env.IConstantInfo.CtorInfo iv1 n_p nf tn)
+        = IConstantInfo.ctorInfo (absIConstantVal iv) (absU n_p) (absU nf) (absNIdx t) := by
+      simp [absIConstantInfo, i_constant_val_dup_abs hiv1, dupId_nidx _ _ htn]
     rwa [this] at hrel1
 
 open Lockstep in
 /-- `cons_sum_ctors` against `consSumCtors`: a pure Rust-only step, the related
 and well-formed environment after the folds. -/
 @[lockstep] theorem cons_sum_ctors_ls {pers : arena.store.PersTier} {n_p : Std.U64}
+    {t : arena.handle.NIdx}
     {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} {i : Std.Usize}
     {rf lf} (hfe : IFEnvRelI pers rf lf) :
-    LSP (arena.inductives.sum_install.cons_sum_ctors n_p ctors i rf)
-      (fun o => IFEnvRelI pers o (consSumCtors (absU n_p) (absCtorsLFrom ctors i) lf)) :=
+    LSP (arena.inductives.sum_install.cons_sum_ctors n_p t ctors i rf)
+      (fun o => IFEnvRelI pers o
+        (consSumCtors (absU n_p) (absNIdx t) (absCtorsLFrom ctors i) lf)) :=
   fun _ h => cons_sum_ctors_refines hfe.rel hfe.inv h
 
 /-! ## The axiom census -/

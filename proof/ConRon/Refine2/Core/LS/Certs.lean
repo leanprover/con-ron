@@ -430,7 +430,7 @@ theorem structEtaCertWith_eq (r : CoreFnsA) (fe : IFEnv)
         match ← view hh with
         | .const c us =>
           match fe.find? c with
-          | some (.ctorInfo cvc cnP cnF) => do
+          | some (.ctorInfo cvc cnP cnF _) => do
             let aargs ← getAppArgs coreWalkFuel a
             if aargs.length = cnP + cnF then sectAt r fe depth cvc c us b wtb aargs
             else pure false

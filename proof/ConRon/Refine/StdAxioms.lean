@@ -353,7 +353,7 @@ theorem iff_intro_a_refines {ci : env.ConstantInfo}
   obtain ⟨a9, w9⟩ := bb_pi w2 w8 he9
   obtain ⟨a10, w10⟩ := bb_pi pw w9 he10
   obtain ⟨a11, w11⟩ := bb_pi pw w10 he11
-  refine ⟨?_, nw, names_new.2, w11⟩
+  refine ⟨?_, ⟨nw, names_new.2, w11⟩, nw1⟩
   rw [absConstantInfo, absConstantVal, na, a11, a10, a9, a8, a7, a6, a5, a4, a3,
     a2, a1, pa, na1, levels_new.1, names_new.1]
   rfl
@@ -503,7 +503,7 @@ theorem nonempty_intro_a_refines {ci : env.ConstantInfo}
   obtain ⟨a3, w3⟩ := bb_bv he3
   obtain ⟨a5, w5⟩ := bb_pi w1 (Expr.app_wf w2 w3 he4) he5
   obtain ⟨a6, w6⟩ := bb_pi w w5 he6
-  refine ⟨?_, nw, lw, w6⟩
+  refine ⟨?_, ⟨nw, lw, w6⟩, n2w⟩
   rw [absConstantInfo, absConstantVal, na, la, ua, a6, a5, Expr.app_refines he4,
     a3, a2, a1, a, n2a, usa, lva]
   rfl
