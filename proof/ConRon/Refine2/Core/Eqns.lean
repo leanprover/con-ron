@@ -47,9 +47,9 @@ elab "force_eqns" ids:ident+ : command => do
       let _ ← Lean.Meta.getEqnsFor? n
       let _ ← Lean.Meta.getUnfoldEqnFor? n
 
-/-! ## The block — `arena::core`'s `whnf` / `infer` / `defeq` block, 110 functions
+/-! ## The block — `arena::core`'s `whnf` / `infer` / `defeq` block, 111 functions
 
-`ConRon/Generated/Funs.lean:27354-33688`: `arena.core.reduce_nat` …
+`ConRon/Generated/Funs.lean:27960-34500`: `arena.core.reduce_nat` …
 `arena.core.knot_defeq_e`.  (The `annotate` block of 9 went with the annotate
 pass, task #119.) -/
 
@@ -58,7 +58,6 @@ force_eqns
   arena.core.reduce_nat
   arena.core.reduce_nat_succ
   arena.core.reduce_nat_bin
-  arena.core.reduce_nat_wf
   arena.core.iota_certs_full
   arena.core.iota_certs_full_aux
   arena.core.def_eq_list

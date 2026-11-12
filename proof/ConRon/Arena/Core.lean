@@ -1068,10 +1068,8 @@ def natSizeRefused (n : Nat) : AM Bool := do
   pure (decide (natSizeBytes n > m))
 
 /-- con-leche: ConLeche/Cached/StateC.lean:254-263 natResultRefused
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.litNatSized_bridge, then delete this line
 con-leche: ConLeche/Cached/StateC.lean:165-168 natNumeralTooBig
 con-leche: ConLeche/Cached/CoreC.lean:403-457 reduceNatI — a computed numeral,
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.litNatSized_bridge, then delete this line
 refused above the run's maximum `Nat` size (the cited `natNumeralTooBig`),
 otherwise interned. -/
 def litNatSized (n : Nat) : AM (Option EIdx) := do
@@ -1082,7 +1080,6 @@ def litNatSized (n : Nat) : AM (Option EIdx) := do
     pure (some x)
 
 /-- con-leche: ConLeche/Cached/StateC.lean:234-252 natOpRefusal — `a ^ b` has
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.powRefused_bridge, then delete this line
 at most `natSizeBytes a * b` bytes, and a base `≤ 1` gives `0` or `1`. -/
 def powRefused (a b : Nat) : AM Bool := do
   if a ≤ 1 then pure false
@@ -1092,7 +1089,6 @@ def powRefused (a b : Nat) : AM Bool := do
     pure (decide (natSizeBytes a > m / b))
 
 /-- con-leche: ConLeche/Cached/StateC.lean:234-252 natOpRefusal
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.powGuard_bridge, then delete this line
 con-leche: ConLeche/Cached/StateC.lean:161-163 natCountMax
 con-leche: ConLeche/Cached/StateC.lean:170-173 natCountTooBig — the cited
 `Nat.pow` clause: an exponent above `natCountMax` is refused whatever the base,
@@ -1105,14 +1101,12 @@ def powGuard (a b : Nat) : AM Unit := do
   else pure ()
 
 /-- con-leche: ConLeche/Cached/StateC.lean:234-252 natOpRefusal —
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.shiftLeftRefused_bridge, then delete this line
 `natSizeBytes a + b / 8 + 1 > maxNatSize`, the `/ 8` a shift. -/
 def shiftLeftRefused (a b : Nat) : AM Bool := do
   let m ← maxNatSizeM
   pure (decide (m < natSizeBytes a + Nat.shiftRight b 3 + 1))
 
 /-- con-leche: ConLeche/Cached/StateC.lean:234-252 natOpRefusal — the cited
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.shiftLeftGuard_bridge, then delete this line
 `Nat.shiftLeft` clause: `0 <<< b = 0` computes; otherwise an amount above
 `natCountMax` is refused, and so is a result above the maximum size
 (`shiftLeftRefused`). -/
@@ -1124,56 +1118,48 @@ def shiftLeftGuard (a b : Nat) : AM Unit := do
     fail (.invalid "the kernel refused a `Nat` numeral because its size exceeds the maximum; raise it with --max-nat-size")
   else pure ()
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:578-603 natOpResult
+/-- con-leche: ConLeche/Cached/StateC.lean:183-187 NatBinOp — the fourteen
+binary `Nat` operations the kernel computes on literals, in the order of
+`reduceNat`'s name test.  `reduceNat` finds the operation once
+(`natBinOpOfName?`) and dispatches on it (`natBinOpResult`). -/
+inductive NatBinOp where
+  | add | sub | mul | pow | beq | ble | div | mod | gcd | land | lor | xor
+  | shiftLeft | shiftRight
+
+/-- con-leche: ConLeche/Cached/StateC.lean:217-232 NatBinOp.result
 con-leche: ConLeche/Cached/StateC.lean:234-252 natOpRefusal
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.natOpResult_bridge, then delete this line
-con-leche: ConLeche/Cached/StateC.lean:254-263 natResultRefused
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.natOpResult_bridge, then delete this line
-con-leche: ConLeche/Cached/CoreC.lean:403-457 reduceNatI — the reduct of op `c`
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.natOpResult_bridge, then delete this line
-on literal arguments (`pred` ignores the second slot).  `ron::Nat` is
-con-leche's `Nat` here, and a literal is a `Literal` value in a `lit` node.
-The computation is the cited one at any size; the run's maximum `Nat` size
-(con-leche's cached `reduceNatI`) refuses `pow` and `shiftLeft` before
-computing (`powGuard`, `shiftLeftGuard`: the cited `natOpRefusal`) and an
-`add`, `sub` or `mul` result after it (`litNatSized`: `natResultRefused`). -/
-def natOpResult (c : NIdx) (a b : Nat) : AM (Option EIdx) := do
-  let pr ← natPredName; let ad ← natAddName; let su ← natSubName
-  let mu ← natMulName; let po ← natPowName; let be ← natBeqName
-  let bl ← natBleName; let di ← natDivName; let mo ← natModName
-  let gc ← natGcdName; let la ← natLandName; let lo ← natLorName
-  let xo ← natXorName; let sl ← natShiftLeftName; let sr ← natShiftRightName
-  if c == pr then do let x ← internE (.lit (.natVal (a - 1))); pure (some x)
-  else if c == ad then litNatSized (a + b)
-  else if c == su then litNatSized (a - b)
-  else if c == mu then litNatSized (a * b)
-  else if c == po then do
+con-leche: ConLeche/Cached/StateC.lean:254-263 natResultRefused — the reduct
+of `op` on literal arguments.  `ron::Nat` is con-leche's `Nat` here, and a
+literal is a `Literal` value in a `lit` node.  The refusals are by operation,
+in the operation's arm: `pow` and `shiftLeft` are refused before computing
+(`powGuard`, `shiftLeftGuard`: the cited `natOpRefusal`), an `add`, `sub` or
+`mul` result after it (`litNatSized`: `natResultRefused`). -/
+def natBinOpResult (op : NatBinOp) (a b : Nat) : AM (Option EIdx) := do
+  match op with
+  | .add => litNatSized (a + b)
+  | .sub => litNatSized (a - b)
+  | .mul => litNatSized (a * b)
+  | .pow => do
     powGuard a b
     let x ← internE (.lit (.natVal (a ^ b))); pure (some x)
-  else if c == di then do let x ← internE (.lit (.natVal (a / b))); pure (some x)
-  else if c == mo then do let x ← internE (.lit (.natVal (a % b))); pure (some x)
-  else if c == gc then do
-    let x ← internE (.lit (.natVal (Nat.gcd a b))); pure (some x)
-  else if c == la then do
-    let x ← internE (.lit (.natVal (Nat.land a b))); pure (some x)
-  else if c == lo then do
-    let x ← internE (.lit (.natVal (Nat.lor a b))); pure (some x)
-  else if c == xo then do
-    let x ← internE (.lit (.natVal (Nat.xor a b))); pure (some x)
-  else if c == sl then do
-    shiftLeftGuard a b
-    let x ← internE (.lit (.natVal (Nat.shiftLeft a b))); pure (some x)
-  else if c == sr then do
-    let x ← internE (.lit (.natVal (Nat.shiftRight a b))); pure (some x)
-  else if c == be then do
+  | .beq => do
     let n ← if a = b then boolTrueName else boolFalseName
     let x ← constE n
     pure (some x)
-  else if c == bl then do
+  | .ble => do
     let n ← if a <= b then boolTrueName else boolFalseName
     let x ← constE n
     pure (some x)
-  else pure none
+  | .div => do let x ← internE (.lit (.natVal (a / b))); pure (some x)
+  | .mod => do let x ← internE (.lit (.natVal (a % b))); pure (some x)
+  | .gcd => do let x ← internE (.lit (.natVal (Nat.gcd a b))); pure (some x)
+  | .land => do let x ← internE (.lit (.natVal (Nat.land a b))); pure (some x)
+  | .lor => do let x ← internE (.lit (.natVal (Nat.lor a b))); pure (some x)
+  | .xor => do let x ← internE (.lit (.natVal (Nat.xor a b))); pure (some x)
+  | .shiftLeft => do
+    shiftLeftGuard a b
+    let x ← internE (.lit (.natVal (Nat.shiftLeft a b))); pure (some x)
+  | .shiftRight => do let x ← internE (.lit (.natVal (Nat.shiftRight a b))); pure (some x)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:605-626 natOpGuard — the dependency
 half of the guard.  con-leche writes `(natOpDeps c).all (fun n => …)`;
@@ -1223,15 +1209,6 @@ def natOpGuard (fe : IFEnv) (c : NIdx) : AM Bool := do
           | some ci => boolCtorOk ci
           | none => pure false
       else pure true
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:630-640 natOpWfNames — the
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.natOpWfNames_bridge, then delete this line
-pin-certified WF-recursive `Nat` operations, as a *safety net*. -/
-def natOpWfNames : AM (List NIdx) := do
-  let a ← natDivName; let b ← natModName; let c ← natGcdName
-  let d ← natLandName; let e ← natLorName; let f ← natXorName
-  let g ← natShiftLeftName; let h ← natShiftRightName
-  pure [a, b, c, d, e, f, g, h]
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:628-634 Expr.substConst0 —
 substitute the level-monomorphic constant `n` by `r` through an application
@@ -1338,27 +1315,35 @@ def natOpStoredOk (fe : IFEnv) (n : NIdx) : AM Bool := do
     if cv.levelParams.isEmpty then natOpTyPinned fe n cv.type else pure false
   | _ => pure false
 
-/-- con-leche: ConLeche/Kernel/Core.lean:168-209 reduceNat — the binary
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.natBinOpName_bridge, then delete this line
-literal acceleration's name test.  con-leche writes a fourteen-way disjunction
-inline; over handles the comparands have to be interned first, so the
-chain is its own `def` and the caller reads one `Bool`. -/
-def natBinOpName (c : NIdx) : AM Bool := do
+/-- con-leche: ConLeche/Cached/StateC.lean:199-215 NatBinOp.ofName?
+con-leche: ConLeche/Cached/StateC.lean:189-194 NatBinOp.name — the operation
+named `c`, if any: fourteen handle comparisons against the interned pins, in
+`reduceNat`'s order.  con-leche compares the cached hashes first (`nameIsC`);
+a name here is an interned handle, so each comparison is already one word. -/
+def natBinOpOfName? (c : NIdx) : AM (Option NatBinOp) := do
   let ad ← natAddName; let su ← natSubName; let mu ← natMulName
   let po ← natPowName; let be ← natBeqName; let bl ← natBleName
   let di ← natDivName; let mo ← natModName; let gc ← natGcdName
   let la ← natLandName; let lo ← natLorName; let xo ← natXorName
   let sl ← natShiftLeftName; let sr ← natShiftRightName
-  pure (c == ad || c == su || c == mu || c == po || c == be || c == bl ||
-    c == di || c == mo || c == gc || c == la || c == lo || c == xo ||
-    c == sl || c == sr)
+  if c == ad then pure (some .add) else if c == su then pure (some .sub)
+  else if c == mu then pure (some .mul) else if c == po then pure (some .pow)
+  else if c == be then pure (some .beq) else if c == bl then pure (some .ble)
+  else if c == di then pure (some .div) else if c == mo then pure (some .mod)
+  else if c == gc then pure (some .gcd) else if c == la then pure (some .land)
+  else if c == lo then pure (some .lor) else if c == xo then pure (some .xor)
+  else if c == sl then pure (some .shiftLeft) else if c == sr then pure (some .shiftRight)
+  else pure none
 
-/-- con-leche: ConLeche/Kernel/Core.lean:168-209 reduceNat — literal
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.reduceNat_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/Core.lean:168-209 reduceNat
+con-leche: ConLeche/Cached/CoreC.lean:403-457 reduceNatI — literal
 acceleration (the official kernel's `reduceNat`, run in the `whnf` loop
 *before* delta-unfolding).  The divergence audit's D15 is preserved: the
 FIRST argument is head-normalised and, unless it is a literal, the step
-fails WITHOUT touching the second. -/
+fails WITHOUT touching the second.  The binary operation is found once
+(`natBinOpOfName?`, the cached `reduceNatI`'s `NatBinOp.ofName?`) and the
+result and its refusals are by operation (`natBinOpResult`); the
+specification's name test is the same fourteen names in the same order. -/
 def reduceNat (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (e : EIdx) :
     AM (Option EIdx) := do
   if e.tag == ETag.app then
@@ -1382,26 +1367,15 @@ def reduceNat (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (e : EIdx) :
           | .const c us => do
             let el ← emptyLevels
             if us != el then pure none else do
-              if ← natBinOpName c then do
+              match ← natBinOpOfName? c with
+              | some op => do
                 match ← rawNatLit? (← r.whnf depth a) with
                 | some n₁ => do
                   match ← rawNatLit? (← r.whnf depth b) with
-                  | some n₂ => natOpResult c n₁ n₂
+                  | some n₂ => natBinOpResult op n₁ n₂
                   | none => pure none
                 | none => pure none
-              else do
-                let wf ← natOpWfNames
-                if wf.contains c then do
-                  match ← rawNatLit? (← r.whnf depth a) with
-                  | some _ => do
-                    match ← rawNatLit? (← r.whnf depth b) with
-                    | some _ => do
-                      -- no readback for the message: the port has none
-                      -- (round 4's audit)
-                      fail (.notImplemented "native Nat computation on literals")
-                    | none => pure none
-                  | none => pure none
-                else pure none
+              | none => pure none
           | _ => pure none
         else pure none
       | _ => pure none
@@ -1577,7 +1551,7 @@ def reservedBasisNames : AM (List NIdx) :=
 names the two literal guards look up: the `Nat` guard's three and the
 `String` guard's seven, off the pin table (every one is pinned).  Placed after
 `reservedBasisNames` (its one reader's other list) rather than beside
-`natOpWfNames` as in the Rust: a module-order difference only. -/
+`natOpName` as in the Rust: a module-order difference only. -/
 def litGuardNames : AM (List NIdx) := do
   let a ← pinNat
   let b ← pinNatZero
@@ -2815,19 +2789,20 @@ from its decimal string at every use otherwise. -/
 @[noinline] def whnfLoopFuel : Nat := 4611686018427387904  -- 2^62
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1123-1143 whnfStep
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.whnfStep_bridge, then delete this line
-con-leche: ConLeche/Cached/CoreC.lean:1004-1018 whnfStepI — one iteration of
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.whnfStep_bridge, then delete this line
+con-leche: ConLeche/Cached/CoreC.lean:1297-1316 whnfLoopI — one iteration of
 the reduction loop: head-normalize, try literal acceleration, unfold one
-definition.  **The continuation is returned, not called**: con-leche's `k e'`
-is `.cont e'` (con-leche inlines the step so that its continuation call is
-the loop's own tail call, task #342 R2; the twin returns the step, as the
-Rust does). -/
+definition.  A literal the acceleration computed is the answer at once
+(`.done`), as the official kernel's `whnf` returns `reduce_nat`'s value; any
+other reduct — a `Bool` constructor from `Nat.beq`/`Nat.ble`, which an
+environment may store as a definition — continues.  **The continuation is
+returned, not called**: con-leche's `k e'` is `.cont e'` (con-leche folds the
+step into its loop, `whnfLoopI`, so that its continuation call is the loop's
+own tail call; the twin returns the step, as the Rust does). -/
 def whnfStep (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (e : EIdx) :
     AM WhnfStep := do
   let e₁ ← r.whnfCore false depth e
   match ← reduceNat r fe depth e₁ with
-  | some e₂ => pure (.cont e₂)
+  | some e₂ => if e₂.tag == ETag.lit then pure (.done e₂) else pure (.cont e₂)
   | none =>
     match ← unfoldDefinition fe e₁ with
     | some e₂ => pure (.cont e₂)
@@ -2835,7 +2810,6 @@ def whnfStep (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (e : EIdx) :
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1145-1150 whnfLoop
 con-leche: ConLeche/Cached/CoreC.lean:1297-1316 whnfLoopI — the reduction loop:
--- con-leche: CHANGED since eb2c5939 — re-port, re-test, re-prove Core.whnfLoop_bridge, then delete this line
 iterate `whnfStep` on its own step budget, so the whole chain costs one knot
 level however many steps it takes, in constant native stack. -/
 def whnfLoop (r : CoreFnsA) (fe : IFEnv) (depth : Nat) : Nat → EIdx → AM EIdx

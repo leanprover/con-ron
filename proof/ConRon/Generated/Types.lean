@@ -1073,7 +1073,7 @@ structure arena.env.IProjEntry where
   body : arena.handle.EIdx
 
 /-- [con_ron_core::arena::core::LazyResA]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10401:0-10408:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10338:0-10345:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.LazyResA where
@@ -1081,7 +1081,7 @@ inductive arena.core.LazyResA where
 | Unknown : arena.handle.EIdx → arena.handle.EIdx → arena.core.LazyResA
 
 /-- [con_ron_core::arena::core::DeltaStepA]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10168:0-10181:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10105:0-10118:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.DeltaStepA where
@@ -1091,15 +1091,35 @@ inductive arena.core.DeltaStepA where
 | Unknown : arena.core.DeltaStepA
 
 /-- [con_ron_core::arena::core::WhnfStep]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7251:0-7254:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7184:0-7187:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.WhnfStep where
 | Done : arena.handle.EIdx → arena.core.WhnfStep
 | Cont : arena.handle.EIdx → arena.core.WhnfStep
 
+/-- [con_ron_core::arena::core::NatBinOp]
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3140:0-3155:1
+    Visibility: public -/
+@[discriminant isize]
+inductive arena.core.NatBinOp where
+| Add : arena.core.NatBinOp
+| Sub : arena.core.NatBinOp
+| Mul : arena.core.NatBinOp
+| Pow : arena.core.NatBinOp
+| Beq : arena.core.NatBinOp
+| Ble : arena.core.NatBinOp
+| Div : arena.core.NatBinOp
+| Mod : arena.core.NatBinOp
+| Gcd : arena.core.NatBinOp
+| Land : arena.core.NatBinOp
+| Lor : arena.core.NatBinOp
+| Xor : arena.core.NatBinOp
+| ShiftLeft : arena.core.NatBinOp
+| ShiftRight : arena.core.NatBinOp
+
 /-- [con_ron_core::arena::core::NatOpPins]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2655:0-2671:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2635:0-2651:1
     Visibility: public -/
 structure arena.core.NatOpPins where
   pr : arena.handle.NIdx
@@ -1303,7 +1323,7 @@ structure arena.inductives.positivity.NestState where
   ctor_nfs : alloc.vec.Vec arena.inductives.positivity.NestCtorNf
 
 /-- [con_ron_core::arena::core::NatEqCtx]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2876:0-2885:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2856:0-2865:1
     Visibility: public -/
 structure arena.core.NatEqCtx where
   x : arena.handle.EIdx

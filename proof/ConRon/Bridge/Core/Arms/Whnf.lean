@@ -3,12 +3,13 @@
 
 DESIGN §8.2, rule 8's inventory for `ConLeche/Kernel/Core.lean:1073-1099`
 (`whnfStep`, `whnfLoop`, `whnfBody`).  This body is the smallest of the six:
-a LOOP, not a dispatch, so the inventory is three exits of one iteration plus
+a LOOP, not a dispatch, so the inventory is four exits of one iteration plus
 the entry bracket.
 
 | clause | exit | lemma |
 |---|---|---|
-| `whnfStep` | literal acceleration fires | `whnfLoop_reduceNat` |
+| `whnfStep` | literal acceleration computes a literal — the answer | `whnfLoop_reduceNat_lit` |
+| `whnfStep` | literal acceleration computes anything else | `whnfLoop_reduceNat` |
 | `whnfStep` | a definition unfolds | `whnfLoop_delta` |
 | `whnfStep` | neither — the reduct is the head normal form | `whnfLoop_done` |
 | `whnfBody` | the entry at `whnfLoopFuel` | `whnf_of_loop` |
@@ -22,7 +23,7 @@ twin's induction is on the LOOP's budget with the knot record fixed — one
 runs.
 
 **The proofs are `vcgen` and `grind`** (as `Memo.lean`'s): the
-three exits are `grind` lemmas whose every variable occurs in a pattern
+four exits are `grind` lemmas whose every variable occurs in a pattern
 (§1's `_eq` forms), and the loop states its answer as an `Ans` atom about
 its subject's denotation (`Bridge/Grind.lean` §3), as do the two callees it
 reads that way (`reduceNat_specA`, `unfoldDefinition_specA`).
@@ -57,23 +58,45 @@ variable {mode : CheckMode} {eager : Bool} {env : Env}
 
 /-! ## 1. One iteration of the reduction loop -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1120-1121 whnfStep — **literal
-acceleration**: the head normal form is a `Nat` constructor application the
-`reduceNat` pass packs back into a literal, and the loop continues on the
-packed form. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:1118-1121 Expr.isLit — the literal
+test as the tag test. -/
+theorem isLit_eq_tag (e : Expr) : e.isLit = (exprTag e == ETag.lit) := by
+  cases e <;> simp [ConLeche.Expr.isLit, exprTag, ETag.lit, ETag.bvar, ETag.fvar, ETag.sort,
+    ETag.const, ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.proj]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1135-1139 whnfStep — **literal
+acceleration computes a literal**: `reduceNat`'s literal is the answer at
+once. -/
+theorem whnfLoop_reduceNat_lit {F d n : Nat} {e e₁ e₂ : Expr}
+    (h1 : ConLeche.whnfCore mode eager env F d e = .ok e₁)
+    (h2 : ConLeche.reduceNat (ConLeche.pureFns mode eager env F) env d e₁
+      = .ok (some e₂))
+    (hl : exprTag e₂ = ETag.lit) :
+    ConLeche.whnfLoop (ConLeche.pureFns mode eager env F) env d (n + 1) e
+      = .ok e₂ := by
+  have hl' : e₂.isLit = true := by rw [isLit_eq_tag, hl]; rfl
+  rw [ConLeche.whnfLoop, ConLeche.whnfStep]
+  simp only [ConLeche.whnfCore_def, h1, h2, hl', bind, Except.bind, ↓reduceIte, pure,
+    Except.pure]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1135-1139 whnfStep — **literal
+acceleration computes anything else** (a `Bool` constructor from `Nat.beq` or
+`Nat.ble`), and the loop continues on it. -/
 theorem whnfLoop_reduceNat {F d n : Nat} {e e₁ e₂ res : Expr}
     (h1 : ConLeche.whnfCore mode eager env F d e = .ok e₁)
     (h2 : ConLeche.reduceNat (ConLeche.pureFns mode eager env F) env d e₁
       = .ok (some e₂))
+    (hl : exprTag e₂ ≠ ETag.lit)
     (hk : ConLeche.whnfLoop (ConLeche.pureFns mode eager env F) env d n e₂
       = .ok res) :
     ConLeche.whnfLoop (ConLeche.pureFns mode eager env F) env d (n + 1) e
       = .ok res := by
+  have hl' : e₂.isLit = false := by rw [isLit_eq_tag]; simpa using hl
   rw [ConLeche.whnfLoop, ConLeche.whnfStep]
-  simp only [ConLeche.whnfCore_def, h1, h2, bind, Except.bind]
+  simp only [ConLeche.whnfCore_def, h1, h2, hl', bind, Except.bind]
   exact hk
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1123-1124 whnfStep — **the delta
+/-- con-leche: ConLeche/Kernel/Core.lean:1140-1142 whnfStep — **the delta
 step**: the head is an unfoldable constant, and the loop continues on the
 unfolding. -/
 theorem whnfLoop_delta {F d n : Nat} {e e₁ e₂ res : Expr}
@@ -89,7 +112,7 @@ theorem whnfLoop_delta {F d n : Nat} {e e₁ e₂ res : Expr}
   simp only [ConLeche.whnfCore_def, h1, h2, h3, bind, Except.bind]
   exact hk
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1125 whnfStep — **the loop's exit**:
+/-- con-leche: ConLeche/Kernel/Core.lean:1143 whnfStep — **the loop's exit**:
 nothing further reduces, so the `whnfCore` reduct is the answer. -/
 theorem whnfLoop_done {F d n : Nat} {e e₁ : Expr}
     (h1 : ConLeche.whnfCore mode eager env F d e = .ok e₁)
@@ -102,22 +125,40 @@ theorem whnfLoop_done {F d n : Nat} {e e₁ : Expr}
   simp only [ConLeche.whnfCore_def, h1, h2, h3, bind, Except.bind, pure,
     Except.pure]
 
-/-! ### The three iterations as `grind` lemmas
+/-! ### The four iterations as `grind` lemmas
 
-The same three step lemmas, in the shape a verification condition of the
+The same four step lemmas, in the shape a verification condition of the
 loop has: one `∃ F` per callee, merged by `max` inside the lemma, stated
 for `grind`: every variable occurs in the multi-pattern of the
-three runs (`whnfCore`, `reduceNat`, the inner loop), and the inner loop's run
+runs (`whnfCore`, `reduceNat`, the inner loop — or, for a literal answer, the
+reduct's tag), and the inner loop's run
 is a premise only as `isOk` and the merged loop's run is an EQUATION with it,
 so that no premise names an answer `grind` would have to guess.  The merged
 fuel is the one witness that stays an `∃`: it is not a function of the
 handles, so there is no term to state it as. -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1120-1121 whnfStep — the literal
-acceleration, fuels merged: the step's loop is the inner loop. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:1135-1139 whnfStep — the literal
+acceleration's literal, fuels merged, at every remaining budget. -/
+theorem whnfLoop_reduceNat_lit_eq {F₁ F₂ d : Nat} {e e₁ e₂ : Expr}
+    (h1 : ConLeche.whnfCore mode eager env F₁ d e = .ok e₁)
+    (h2 : ConLeche.reduceNat (ConLeche.pureFns mode eager env F₂) env d e₁ = .ok (some e₂))
+    (hl : exprTag e₂ = ETag.lit) :
+    ∃ F, ∀ n, ConLeche.whnfLoop (ConLeche.pureFns mode eager env F) env d (n + 1) e = .ok e₂ :=
+  ⟨max F₁ F₂, fun _ => whnfLoop_reduceNat_lit
+    (ConLeche.whnfCore_mono (Nat.le_max_left _ _) h1)
+    (reduceNatFueled_mono (Nat.le_max_right _ _) h2) hl⟩
+grind_pattern [bridge_grind] whnfLoop_reduceNat_lit_eq =>
+  ConLeche.whnfCore mode eager env F₁ d e,
+  ConLeche.reduceNat (ConLeche.pureFns mode eager env F₂) env d e₁,
+  exprTag e₂
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1135-1139 whnfStep — the literal
+acceleration's other reducts, fuels merged: the step's loop is the inner
+loop. -/
 theorem whnfLoop_reduceNat_eq {F₁ F₂ F₃ d n : Nat} {e e₁ e₂ : Expr}
     (h1 : ConLeche.whnfCore mode eager env F₁ d e = .ok e₁)
     (h2 : ConLeche.reduceNat (ConLeche.pureFns mode eager env F₂) env d e₁ = .ok (some e₂))
+    (hl : exprTag e₂ ≠ ETag.lit)
     (hk : (ConLeche.whnfLoop (ConLeche.pureFns mode eager env F₃) env d n e₂).isOk = true) :
     ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode eager env F) env d (n + 1) e =
       ConLeche.whnfLoop (ConLeche.pureFns mode eager env F₃) env d n e₂ := by
@@ -127,7 +168,7 @@ theorem whnfLoop_reduceNat_eq {F₁ F₂ F₃ d n : Nat} {e e₁ e₂ : Expr}
     exact ⟨max F₁ (max F₂ F₃), whnfLoop_reduceNat
       (ConLeche.whnfCore_mono (Nat.le_max_left _ _) h1)
       (reduceNatFueled_mono
-        (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_right _ _)) h2)
+        (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_right _ _)) h2) hl
       (whnfLoopFueled_mono
         (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_right _ _)) hr)⟩
 grind_pattern [bridge_grind] whnfLoop_reduceNat_eq =>
@@ -135,7 +176,7 @@ grind_pattern [bridge_grind] whnfLoop_reduceNat_eq =>
   ConLeche.reduceNat (ConLeche.pureFns mode eager env F₂) env d e₁,
   ConLeche.whnfLoop (ConLeche.pureFns mode eager env F₃) env d n e₂
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1123-1124 whnfStep — the delta step,
+/-- con-leche: ConLeche/Kernel/Core.lean:1140-1142 whnfStep — the delta step,
 fuels merged. -/
 theorem whnfLoop_delta_eq {F₁ F₂ F₃ d n : Nat} {e e₁ e₂ : Expr}
     (h1 : ConLeche.whnfCore mode eager env F₁ d e = .ok e₁)
@@ -160,7 +201,7 @@ grind_pattern [bridge_grind] whnfLoop_delta_eq =>
   ConLeche.unfoldDefinition env e₁,
   ConLeche.whnfLoop (ConLeche.pureFns mode eager env F₃) env d n e₂
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1125 whnfStep — the loop's exit,
+/-- con-leche: ConLeche/Kernel/Core.lean:1143 whnfStep — the loop's exit,
 fuels merged, at every remaining budget. -/
 theorem whnfLoop_done_eq {F₁ F₂ d : Nat} {e e₁ : Expr}
     (h1 : ConLeche.whnfCore mode eager env F₁ d e = .ok e₁)
@@ -201,7 +242,7 @@ grind_pattern [bridge_grind] SimOOp.none_inv => SimOOp P d st none
 
 /-! ## 2. The entry bracket -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1134-1136 whnfBody — the body IS the
+/-- con-leche: ConLeche/Kernel/Core.lean:1152-1154 whnfBody — the body IS the
 loop at its own budget, so the entry is one rewrite.  This is the lemma the
 twin's `whnfBody` theorem ends on. -/
 theorem whnf_of_loop {F d : Nat} {e res : Expr}
@@ -213,7 +254,7 @@ theorem whnf_of_loop {F d : Nat} {e res : Expr}
 
 /-! ## 3. The loop, by induction on its budget
 
-The three step lemmas above are about con-leche's loop; this is the twin's,
+The four step lemmas above are about con-leche's loop; this is the twin's,
 and the two meet in `whnfBody_spec`.  Two things make it work:
 
 * **the fuel merge** (`Bridge/Core/Walks/Mono.lean`).  Each iteration hands
@@ -274,9 +315,9 @@ theorem unfoldDefinition_specA {fe : IFEnv} (henv : ConLeche.EnvWF env) (s₀ : 
           (denoteE s₀.store e); ⊤⦄ :=
   unfoldDefinition_spec henv s₀ d e hok (denWS_exists hdw)
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1127-1132 whnfLoop — **THEOREM 1 for
+/-- con-leche: ConLeche/Kernel/Core.lean:1145-1150 whnfLoop — **THEOREM 1 for
 the reduction LOOP**, at an arbitrary step budget: one `Nat` induction over
-§1's three step lemmas, with the fuel merge at every iteration.  The answer is
+§1's four step lemmas, with the fuel merge at every iteration.  The answer is
 an `Ans` atom about the subject's denotation: the loop is also
 called on handles the caller has only just made, whose denotation is not a
 parameter. -/
@@ -299,7 +340,7 @@ theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
   | succ n ih =>
     intro s₀ d i hok hdw
     obtain ⟨e, hden, hw⟩ := denWS_exists hdw
-    -- every exit: the three iterations' fuels merged by the `_eq` lemmas
+    -- every exit: the four iterations' fuels merged by the `_eq` lemmas
     sym only [bridge_grind] =>
       vcgen [ConRon.Arena.whnfLoop, ConRon.Arena.whnfStep,
         hsim.whnfCore (c := false) (e := e), reduceNat_specA hsim,
@@ -307,7 +348,7 @@ theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
 
 /-! ## 4. The body theorem -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1134-1136 whnfBody — the loop's
+/-- con-leche: ConLeche/Kernel/Core.lean:1152-1154 whnfBody — the loop's
 answer at the twin's budget is a `whnf` answer (`whnf_of_loop` with the
 budgets' equation), from the loop's answer as ONE premise. -/
 @[bridge_grind .] theorem SimE.of_whnfLoop {st : EStore} {r : EIdx} {d : Nat} {e : Expr}
@@ -338,6 +379,7 @@ theorem whnfBody_spec {fe : IFEnv} {fuel : Nat}
 
 section Census
 
+#print axioms whnfLoop_reduceNat_lit
 #print axioms whnfLoop_reduceNat
 #print axioms whnfLoop_delta
 #print axioms whnfLoop_done
