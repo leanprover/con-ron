@@ -2965,13 +2965,13 @@ def whnfCoreLoop (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (cheap : Bool)
         let safe := whnfCoreCheapSafe h e
         match ← whnfCoreStep mode r fe cheap depth h e with
         | .done v => do
-          let stb ← if cheap then pure false else pure (whnfCoreStoresDone key e v)
+          let stb ← (if cheap then pure false else pure (whnfCoreStoresDone key e v) : AM Bool)
           let pend2 ← pure (pushKey stb e pend)
           let pendC2 ← pure (pushCheapKey safe stb e pendC)
           whnfCoreStoreChain cheap pend2 pendC2 v
           pure v
         | .cont e' => do
-          let stb ← if cheap then pure false else pure key
+          let stb ← (if cheap then pure false else pure key : AM Bool)
           let pend1 ← pure (pushKey stb e pend)
           let pendC1 ← pure (pushCheapKey safe stb e pendC)
           whnfCoreLoop mode r fe cheap depth n e' pend1 pendC1
