@@ -45,7 +45,8 @@ function argument and a closure is what DESIGN §3.4 forbids.
    `ConLeche.Level` trees, with the two VERDICTS cached on the handles
    (`lvlEq?`, `lvlsEq?`).
 5. **One knot, the memoized one.**  con-leche has three (`coreKnot` at
-   `id`, `Cached.coreKnotI` with the memos, `coreKnotGated`); the arena's
+   `id`, the cached tier's entry points `whnfCoreI` … `defeqEI` with the memos,
+   `coreKnotGated`); the arena's
    `coreKnot` carries the memo probes in its own slots, exactly as the
    Rust port has one knot (DESIGN §3.1, `kernel/type_checker.rs`'s module
    note).  `TypeChecker.lean`'s entries therefore live here.
@@ -3230,7 +3231,8 @@ termination_by n
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1405-1419 inferLamsLeafI — the λ
 loop's LEAF: open the residual body against every free variable at once,
-infer it, and hand the outward rebuild its starting point. -/
+infer it, and hand the outward rebuild its starting point. The cited function's `io` flag is
+which slot `r.infer` is here (`CoreFnsA.ioView`). -/
 def inferLamsLeaf (r : CoreFnsA) (d : Nat) (t : EIdx) (k : Nat)
     (fvs : Array EIdx) (stk : Array EIdx) : AM EIdx := do
   let ob ← instantiateListFast coreWalkFuel t fvs 0
@@ -3241,7 +3243,8 @@ def inferLamsLeaf (r : CoreFnsA) (d : Nat) (t : EIdx) (k : Nat)
 /-- con-leche: ConLeche/Cached/CoreC.lean:1421-1442 inferLamsI — the
 λ-telescope inference loop: peel a consecutive run of λ binders, opening each
 domain against the free variables introduced so far and checking that it is a
-type, then hand the residual to the leaf. -/
+type, then hand the residual to the leaf. The cited function's `io` flag is
+which slot `r.infer` is here (`CoreFnsA.ioView`). -/
 def inferLams (r : CoreFnsA) (d : Nat) :
     Nat → EIdx → Nat → Array EIdx → Array EIdx → AM EIdx
   | 0, t, k, fvs, stk => inferLamsLeaf r d t k fvs stk
@@ -3277,7 +3280,8 @@ termination_by n
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1444-1456 inferPisLeafI — the ∀
 loop's LEAF: open the residual codomain against every free variable at once,
-infer its sort and fold `imax` outward. -/
+infer its sort and fold `imax` outward. The cited function's `io` flag is
+which slot `r.infer` is here (`CoreFnsA.ioView`). -/
 def inferPisLeaf (r : CoreFnsA) (fe : IFEnv) (d : Nat)
     (t : EIdx) (k : Nat) (fvs : Array EIdx) (stk : Array LIdx) :
     AM EIdx := do
@@ -3289,7 +3293,8 @@ def inferPisLeaf (r : CoreFnsA) (fe : IFEnv) (d : Nat)
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1458-1480 inferPisI — the
 ∀-telescope inference loop, `inferLams`' twin: peel the chain, open each
-domain in bulk, and stack the binder's SORT (for the `imax` fold). -/
+domain in bulk, and stack the binder's SORT (for the `imax` fold). The cited function's `io` flag is
+which slot `r.infer` is here (`CoreFnsA.ioView`). -/
 def inferPis (r : CoreFnsA) (fe : IFEnv) (d : Nat) :
     Nat → EIdx → Nat → Array EIdx → Array LIdx → AM EIdx
   | 0, t, k, fvs, stk => inferPisLeaf r fe d t k fvs stk
@@ -3338,8 +3343,8 @@ def inferForall (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
 
 /-! ### The application spine's inference
 
-con-leche's own CACHED-tier clauses `Cached/CoreC.lean:1011-1042 inferSpineI`
-and `:1044-1091 inferSpineIOI` (task #97-P6-9).  The spec-shaped `.app` clause
+con-leche's own CACHED-tier clauses `Cached/CoreC.lean` `inferSpineI`
+and `inferSpineIOI` (task #97-P6-9).  The spec-shaped `.app` clause
 infers the type of every PREFIX of the spine and `whnf`s it, which is `O(n²)`
 node work down a long application; these walk the head's type once and carry
 the pending substitutions in an accumulator, opening each domain in ONE
@@ -3359,7 +3364,8 @@ def defeqArg (r : CoreFnsA) (depth : Nat) (a ta ty : EIdx) : AM Bool := do
   if ← isEagerReduce a then r.defeqE depth ta ty else r.defeq depth ta ty
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1243-1273 inferSpineI — walk the
-head's type down the argument vector at the FULL grade. -/
+head's type down the argument vector at the FULL grade. The cited function's `io` flag is
+which slot `r.infer` is here (`CoreFnsA.ioView`). -/
 def inferSpine (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     (ty : EIdx) (acc : Array EIdx) (args : Array EIdx) (i : Nat) : AM EIdx := do
   if hi : i < args.size then do
@@ -3507,12 +3513,12 @@ def inferBody (r : CoreFnsA) (fe : IFEnv) :
       else fail (.notImplemented
         "string literals before the String support declarations")
     -- **The binder-telescope loops** (task #97-P6-12), con-leche's own
-    -- `Cached/CoreC.lean:1292-1389 inferBodyI`: the whole chain is peeled and
+    -- `Cached/CoreC.lean` `inferBodyI`: the whole chain is peeled and
     -- opened in bulk rather than one binder at a time through the knot.
     | .forallE ty body => inferForall r fe depth ty body
     | .lam ty body => inferLam r depth ty body
     -- **The batched spine** (task #97-P6-9), con-leche's own
-    -- `Cached/CoreC.lean:1292-1389 inferBodyI`.
+    -- `Cached/CoreC.lean` `inferBodyI`.
     | .app _ _ => inferApp r fe depth e
     | .proj sn i pe => inferProj r fe depth sn i pe
     | .letE ty v b => do
@@ -3592,7 +3598,7 @@ def inferBodyIO (r : CoreFnsA) (fe : IFEnv) :
       let bt ← r.infer (depth + 1) ob
       inferLamResult ty bt depth
     -- **The batched spine at the io grade** (task #97-P6-9), con-leche's own
-    -- `Cached/CoreC.lean:1136-1184 inferBodyIOI`: no argument check
+    -- `Cached/CoreC.lean` `inferBodyIOI`: no argument check
     -- (official's `infer_only`, con-leche's task #346).
     | .app _ _ => inferAppIOAt r fe depth e
     | .proj sn i pe => inferProj r fe depth sn i pe
@@ -4191,9 +4197,16 @@ the six fields; nothing moves when `enterEager` moved nothing. -/
                defeqC := mm.defeqC } }
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1862-1897 coreKnot
-con-leche: ConLeche/Cached/CoreC.lean:1767-1788 coreKnotI
+con-leche: ConLeche/Cached/CoreC.lean:1918-1923 whnfCoreI
+con-leche: ConLeche/Cached/CoreC.lean:1925-1934 whnfI
+con-leche: ConLeche/Cached/CoreC.lean:1936-1949 inferI
+con-leche: ConLeche/Cached/CoreC.lean:1951-1955 defeqI
+con-leche: ConLeche/Cached/CoreC.lean:1957-1965 defeqEI
 Tie the bodies together: the record whose entry points are the bodies applied
-to the record one fuel level down, each under its own memo.  Fuel is *only*
+to the record one fuel level down, each under its own memo.  The cached
+tier's knot is the five entry points of one mutual block at a level `lv`
+(`inferI`'s `io` flag is this record's `inferIO` slot); the twin keeps the
+specification's record (`CoreFns`), with the level as the fuel.  Fuel is *only*
 here — exhaustion is an internal error, never a verdict — and the next level
 is constructed lazily inside each entry point's closure.
 
@@ -4306,14 +4319,17 @@ body would have answered). -/
 def pureFnsA (mode : CheckMode) (eager : Bool) (fe : IFEnv) : Nat → CoreFnsA :=
   coreKnot mode eager fe id
 
-/-- con-leche: ConLeche/Kernel/TypeChecker.lean:33-35 whnf — the full
-reduction loop (fueled). -/
+/-- con-leche: ConLeche/Kernel/TypeChecker.lean:33-35 whnf
+con-leche: ConLeche/Cached/CheckerC.lean:131-133 opW — the full
+reduction loop (fueled; the cited `opW` is this at `checkFuel`). -/
 def whnf (mode : CheckMode) (fe : IFEnv) (fuel depth : Nat) (e : EIdx) :
     AM EIdx :=
   (pureFnsA mode false fe fuel).whnf depth e
 
-/-- con-leche: ConLeche/Kernel/TypeChecker.lean:37-40 inferTypeCore —
-full-grade type inference (fueled): the declaration front door's entry. -/
+/-- con-leche: ConLeche/Kernel/TypeChecker.lean:37-40 inferTypeCore
+con-leche: ConLeche/Cached/CheckerC.lean:126-129 opI —
+full-grade type inference (fueled): the declaration front door's entry (the
+cited `opI` is this at `checkFuel`). -/
 def inferTypeCore (mode : CheckMode) (fe : IFEnv) (fuel depth : Nat)
     (e : EIdx) : AM EIdx :=
   (pureFnsA mode false fe fuel).infer depth e

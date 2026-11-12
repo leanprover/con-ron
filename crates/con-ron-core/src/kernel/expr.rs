@@ -754,8 +754,9 @@ pub fn levels_beq_from(ls: &Vec<Level>, rs: &Vec<Level>, i: usize) -> bool {
 /// addresses (`beq_key`) and a probe verifies the stored pair by identity
 /// (`probe_hit`), so in the model — where `ptr_eq` is `false` — the table is
 /// written and never read and this is the plain structural descent.  Gone
-/// with Lean's proof plumbing: `BeqRes`/`BeqOut`/`BeqOut.mk` and the
-/// `Squash` quotient (the result is a `bool`, not a `Decidable (a = b)`),
+/// with Lean's proof plumbing: `BeqSt`/`BeqOk`/`BeqOutX` and the `Squash`
+/// quotient (the result is a `bool` and the table, not a state carrying its
+/// iff),
 /// `withAddr`/`ptrDec` (`ptr_eq` above), `EqPair.dflt` (`get` returns an
 /// `Option`) and the `fuel`/`beqBudget` pair (the module note: `beq`'s two
 /// guards run before the table is allocated, so there is nothing left for a
@@ -769,6 +770,14 @@ pub fn levels_beq_from(ls: &Vec<Level>, rs: &Vec<Level>, i: usize) -> bool {
 /// but Aeneas cannot join the two branches of an arm's `if` when one of them
 /// reborrows the table and the shared borrows of `a` and `b` are still live
 /// ("Could not match the contexts", measured on the `fvar` arm).
+///
+/// **Deviation from the cited formulation, kept on purpose:** each node
+/// returns its `(bool, BeqMap)` pair (con-leche threads one state and drops
+/// the memo on `false`), and the `.app` arm compares the function before the
+/// argument (con-leche's spine loop, official's order, compares the last
+/// argument first and never visits a partial application).  The checker
+/// does not run this function: it compares hash-consed handles (`arena::*`);
+/// the tests and `proof/ConRon/Refine/Expr.lean` do.
 pub fn beq_go(m: BeqMap, a: &Expr, b: &Expr) -> (bool, BeqMap) {
     if ptr_eq(a, b) {
         (true, m)
@@ -910,8 +919,10 @@ pub fn beq_when(m: BeqMap, cond: bool, x: &Expr, y: &Expr) -> (bool, BeqMap) {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:1116-1237 Expr.beqGoX
-/// The cited `.app` arm: the two children in order, aborting on the first
-/// `false` (which is what keeps an unequal pair out of the memo).
+/// The `.app`, `.lam` and `.forallE` arms: the two children in order,
+/// aborting on the first `false` (which is what keeps an unequal pair out of
+/// the memo).  At `.app` that is function first, not the cited spine loop's
+/// order (`beq_go`'s deviation note).
 pub fn beq_both(m: BeqMap, x1: &Expr, y1: &Expr, x2: &Expr, y2: &Expr) -> (bool, BeqMap) {
     let (r1, m1): (bool, BeqMap) = beq_go(m, x1, y1);
     if r1 {
@@ -1022,9 +1033,12 @@ pub fn mk_bvar(i: u64) -> Expr {
    * what exists only for Lean's proof plumbing or for addresses, now that
      task #30 has ported the memo itself (`EqPair`, `BeqMap`, `beqKey`,
      `probeHit` above, and `beqDec` cited on `beq`): `EqPair.dflt` (:806) —
-     `get` returns an `Option`, so a probe needs no default; `BeqResX`
-     (:993), `BeqOutX` (:999) and `BeqOutX.mk` (:1005) — the `Squash`ed
-     `Decidable (a = b)` is a `bool` here; `withAddr` (:822), `ptrDecStruct`
+     `get` returns an `Option`, so a probe needs no default; the descent's
+     state and its wrappers (`BeqSt` with `.ok`/`.record`/`.recordEq`,
+     `BeqOk`, `BeqOutX` with `.mk`/`.yes`/`.no`/`.cast`, `beqIsApp`) — the
+     `Squash`ed state with its iff is a `bool` and the table here, and the
+     spine loop `beqIsApp` steers is not followed (`beq_go`'s deviation
+     note); `withAddr` (:822), `ptrDecStruct`
      (:937) and `ptrDec` (:1208) — `expr::ptr_eq` is all three, and
      `withPtrAddr`'s subsingleton side condition is what the `Squash`
      existed for.  The budget con-leche retired at its task #319 was never

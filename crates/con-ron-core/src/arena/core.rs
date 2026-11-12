@@ -8700,7 +8700,7 @@ pub fn infer_forall(
 /// con-leche: ConLeche/Cached/CoreC.lean:1482-1588 inferBodyI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3368-3402 inferProj` — the `.proj`
 /// clause, shared by both bodies (`inferBodyIOI` dispatches it to
-/// `inferBodyI` at the io view, which is the `io` flag here): the subject's
+/// `inferBodyI` at `io := true`, which is the `io` flag here): the subject's
 /// type head-normalized, its head a constant with a projection-table entry at
 /// field `i`; without one, official's `infer_proj` verdict
 /// (`proj_miss_error`); a head that is no constant rejects.
@@ -8996,7 +8996,8 @@ pub fn defeq_arg(
 ///
 /// The non-`forallE` arm is the twin's: substitute, `whnf`, and restart the
 /// accumulator.  Every argument is checked against its domain, at the full
-/// grade.
+/// grade.  It is the cited `inferSpineI` at `io := false`: the io
+/// body's `.app` clause is `infer_spine_io`.
 pub fn infer_spine(
     pers: &PersTier,
     st: &mut AState,
@@ -9170,6 +9171,8 @@ pub fn infer_lams_out(
 /// phase of the λ telescope loop: bulk-open the residual body against the whole
 /// accumulated free-variable vector, infer it ONCE, close the leaf with ONE
 /// `abstract_range`, then rebuild outward.
+/// It is the cited `inferLamsLeafI` at `io := false`: the io body's binder clauses
+/// are chained (`infer_lam_open`, `infer_forall_io`).
 pub fn infer_lams_leaf(
     pers: &PersTier,
     st: &mut AState,
@@ -9205,6 +9208,8 @@ pub fn infer_lams_leaf(
 /// domain to be a type on the way in. `k >= 1` counts the opened binders (the
 /// first is peeled by `infer_lam`'s own clause) and `fvs` holds their free
 /// variables, in PUSH order on an OWNED vector (task #97-P6-15).
+/// It is the cited `inferLamsI` at `io := false`: the io body's binder clauses
+/// are chained (`infer_lam_open`, `infer_forall_io`).
 pub fn infer_lams(
     pers: &PersTier,
     st: &mut AState,
@@ -9286,6 +9291,8 @@ pub fn infer_pis_out(
 /// phase of the ∀ telescope loop: bulk-open the residual body against the whole
 /// accumulated free-variable vector, infer its sort ONCE, then fold the domain
 /// sorts outward.
+/// It is the cited `inferPisLeafI` at `io := false`: the io body's binder clauses
+/// are chained (`infer_lam_open`, `infer_forall_io`).
 pub fn infer_pis_leaf(
     pers: &PersTier,
     st: &mut AState,
@@ -9324,6 +9331,8 @@ pub fn infer_pis_leaf(
 /// domain to be a type on the way in and accumulating its sort, infer the
 /// bulk-opened leaf's sort once, and fold `imax` outward.  The stack carries
 /// levels and no expression at all.
+/// It is the cited `inferPisI` at `io := false`: the io body's binder clauses
+/// are chained (`infer_lam_open`, `infer_forall_io`).
 pub fn infer_pis(
     pers: &PersTier,
     st: &mut AState,
@@ -9383,7 +9392,9 @@ pub fn infer_pis(
 /// con-leche: ConLeche/Cached/CoreC.lean:1482-1588 inferBodyI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3404-3467 inferBody` — the
 /// full-grade inference body (official's `infer_type_core` with
-/// `infer_only = false`).
+/// `infer_only = false`).  It is the cited `inferBodyI` at `io := false`; the
+/// clauses `inferBodyI` runs at `io := true` (`inferBodyIOI`'s fall-through)
+/// are `infer_body_io`'s own arms, shared with this body where they agree.
 pub fn infer_body(
     pers: &PersTier,
     st: &mut AState,
@@ -11272,12 +11283,13 @@ pub fn knot_whnf(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1862-1897 coreKnot
-/// con-leche: ConLeche/Cached/CoreC.lean:1767-1788 coreKnotI
+/// con-leche: ConLeche/Cached/CoreC.lean:1936-1949 inferI
 /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4130-4220 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — **the `infer`
 /// slot.**  At `LANE_FULL` it is `inferBody` under `inferC`; at `LANE_IO` it is
 /// `inferBodyIO` tied to the io knot, unmemoized (the leaf lane).
+/// At `LANE_FULL` this is the cited `inferI` at `io := false`.
 pub fn knot_infer(
     pers: &PersTier,
     st: &mut AState,
@@ -11308,7 +11320,7 @@ pub fn knot_infer(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1862-1897 coreKnot
-/// con-leche: ConLeche/Cached/CoreC.lean:1767-1788 coreKnotI
+/// con-leche: ConLeche/Cached/CoreC.lean:1936-1949 inferI
 /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4130-4220 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — **the `inferIO`
@@ -11316,6 +11328,7 @@ pub fn knot_infer(
 /// #346: official's `infer_only`) under its own table (`inferIOC`): a hit in
 /// one grade never serves the other (DESIGN.md §8.3, lesson 9).  `LANE_IO`'s
 /// is its `infer` slot again.
+/// At `LANE_FULL` this is the cited `inferI` at `io := true`.
 pub fn knot_infer_io(
     pers: &PersTier,
     st: &mut AState,
@@ -11348,13 +11361,14 @@ pub fn knot_infer_io(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:138-144 CoreFns.ioView
-/// con-leche: ConLeche/Cached/CoreC.lean:55-59 CoreFnsI.ioView
+/// con-leche: ConLeche/Cached/CoreC.lean:1936-1949 inferI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:270-275 CoreFnsA.ioView` — the knot
 /// slot a body's `r.infer` call resolves to: the `infer` slot under the plain
 /// record, the `inferIO` slot under its io view.  **This function IS the
-/// `ioView` substitution in the port** (`con_ron_core::cached::core_c::
-/// infer_at_i`'s own words): the knot is plain functions, so there is no
-/// record whose `infer` field can be rebound.
+/// `ioView` substitution in the port**: the knot is plain functions, so there
+/// is no record whose `infer` field can be rebound.  It is the cached
+/// `inferI` with its `io` flag passed through (`io` selects the grade and its
+/// memo).
 pub fn knot_infer_at(
     pers: &PersTier,
     st: &mut AState,
@@ -11375,7 +11389,7 @@ pub fn knot_infer_at(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1862-1897 coreKnot
-/// con-leche: ConLeche/Cached/CoreC.lean:1767-1788 coreKnotI
+/// con-leche: ConLeche/Cached/CoreC.lean:1951-1955 defeqI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4130-4220 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — the `defeq`
 /// slot, memoized at the ORDERED pair.
@@ -11464,7 +11478,7 @@ pub fn leave_eager(st: &mut AState, saved: Option<ModeMemos>) {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1862-1897 coreKnot
-/// con-leche: ConLeche/Cached/CoreC.lean:1767-1788 coreKnotI
+/// con-leche: ConLeche/Cached/CoreC.lean:1957-1965 defeqEI
 /// con-leche: ConLeche/Cached/StateC.lean:540-558 withEagerMemos
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4130-4220 coreKnot` — **the eager slot**:
 /// definitional equality in the eager tower, `defeq_body` at `eager` true
@@ -11545,8 +11559,10 @@ pub const CHECK_FUEL: u64 = 4611686018427387904; // 2^62
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:33-35 whnf
+/// con-leche: ConLeche/Cached/CheckerC.lean:131-133 opW
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4246-4250 whnf` — the full
-/// reduction loop (fueled).
+/// reduction loop (fueled; the cited `opW` is this at `checkFuel`, which the
+/// callers pass as `CHECK_FUEL`).
 pub fn whnf(
     pers: &PersTier,
     st: &mut AState,
@@ -11560,8 +11576,11 @@ pub fn whnf(
 }
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:37-40 inferTypeCore
+/// con-leche: ConLeche/Cached/CheckerC.lean:126-129 opI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4252-4256 inferTypeCore` —
-/// full-grade type inference (fueled): the declaration front door's entry.
+/// full-grade type inference (fueled): the declaration front door's entry
+/// (the cited `opI` is this at `checkFuel`, which the callers pass as
+/// `CHECK_FUEL`).
 pub fn infer_type_core(
     pers: &PersTier,
     st: &mut AState,
