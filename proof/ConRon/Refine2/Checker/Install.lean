@@ -268,9 +268,7 @@ theorem block_formers_ls_aux {pers} (p : arena.inductives.block_shape.BlockShape
     have hi2v : absU i2 = i.val := by
       simp only [lift, Result.ok.injEq] at hi2; subst hi2; rw [absU, usize_cast_u64_val']
     refine LS.bind (block_caps_at_ls hrel hinv p i2 is_rec) (by rw [hi2v]) ?_ ?_
-    · intro e st1 o st' h
-      simp only [Result.ok.injEq, Prod.mk.injEq] at h
-      exact h.1.symm
+    · exact fun _ _ => errArm_ok
     intro caps lcaps st1 lst1 hcaps hrel1 hinv1
     subst hcaps
     refine LS.bind_eq fun m hm => ?_

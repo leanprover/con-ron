@@ -291,7 +291,7 @@ theorem trustCompilerOk_split (fe : IFEnv) (cv : IConstantVal) :
   rcases fe.find? n2 with _ | ci
   · simp
   cases ci <;> simp
-  rename_i np nf
+  rename_i np nf _
   rcases np with _ | np <;> rcases nf with _ | nf <;> simp
 
 /-- `stdAxiomOk` split where the port splits it (`std_axiom_ok` →
@@ -323,7 +323,7 @@ theorem stdAxiomOk_split (fe : IFEnv) (cv : IConstantVal) :
     rcases fe.find? n2 with _ | ci
     · simp
     cases ci <;> simp
-    rename_i np nf
+    rename_i np nf _
     rcases np with _ | _ | _ | np <;> rcases nf with _ | _ | _ | nf <;> simp
     congr 1; funext p; congr 1; funext b
     cases b <;> simp
@@ -345,7 +345,7 @@ theorem stdAxiomOk_split (fe : IFEnv) (cv : IConstantVal) :
       rcases fe.find? n2 with _ | ci
       · simp
       cases ci <;> simp
-      rename_i np nf
+      rename_i np nf _
       rcases np with _ | _ | np <;> rcases nf with _ | _ | nf <;> simp
       congr 1; funext p; congr 1; funext b
       cases b <;> simp

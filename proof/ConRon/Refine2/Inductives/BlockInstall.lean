@@ -167,9 +167,10 @@ theorem blockCapsAt_eqP (p : BlockShape) (mi : Nat) (isRec : Bool) :
       (memberNeverZero p mi >>= fun nz => pure (blockCapsAtP p mi isRec nz)) := by
   unfold blockCapsAt blockCapsAtP
   congr 1; funext nz
-  split
-  · split <;> rfl
+  rcases p.members[mi]? with _ | ms
   · rfl
+  · dsimp only
+    rcases ms.ctors with _ | ⟨c, _ | ⟨c2, rest⟩⟩ <;> rfl
 
 /-- `block_caps_at` ⊑ `blockCapsAt` — the capability record of member `mi`.
 The never-zero read is lockstep (`member_never_zero_ls`); past it, the Rust tests
@@ -183,9 +184,7 @@ the Rust's tests are decided first. -/
       (blockCapsAt (absBlockShape p) (absU mi) is_rec) := by
   rw [arena.inductives.block_install.block_caps_at, blockCapsAt_eqP]
   refine LS.bind (member_never_zero_ls hrel hinv p mi) rfl ?_ ?_
-  · intro e st1 o st' h
-    simp only [Result.ok.injEq, Prod.mk.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h; rfl
+  · exact fun _ _ => errArm_ok
   intro b nz st1 lst1 hb hrel1 hinv1
   subst hb
   intro o st' h
@@ -194,7 +193,7 @@ the Rust's tests are decided first. -/
   have hn := shape_member_names_twin p names hnames
   simp only [TwinEq] at hn
   suffices hc : ∃ c, o = .Ok c ∧ st' = st1 ∧
-      blockCapsAtP (absBlockShape p) (absU mi) is_rec b = absIIndCaps c by
+      blockCapsAtP (absBlockShape p) (absU mi) is_rec nz = absIIndCaps c by
     obtain ⟨c, rfl, rfl, hc⟩ := hc
     exact ⟨_, lst1, rfl, hc, hrel1, hinv1⟩
   rw [blockCapsAtP]
@@ -226,10 +225,11 @@ the Rust's tests are decided first. -/
       cases Result.ok_injective hq
       simp only [arena.env.i_ind_caps_default, bind_ok] at h
       cases Result.ok_injective h
+      refine ⟨_, rfl, rfl, ?_⟩
       have hv' := ctor_name_list_twin0 _ v hv
       simp only [TwinEq, absCtorsL, hc, List.map_nil] at hv'
       simp only [absMemberShape, absCtorsL, hc, List.map_nil, absIIndCaps, IIndCaps.mk.injEq]
-      refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> trivial
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> trivial
     · have hlen : alloc.vec.Vec.len m.ctors = 1#usize := by
         have : (alloc.vec.Vec.len m.ctors).val = 1 := by simp [alloc.vec.Vec.len, hc]
         scalar_tac
@@ -240,17 +240,23 @@ the Rust's tests are decided first. -/
         simp [hc]
       simp only [hlen, ↓reduceIte, hidx0, bind_ok,
         arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2] at h
-      obtain ⟨eta, heta, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨se, heta, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨ctors, hctors, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hst : se.1 = st1 := by
+        revert heta
+        split
+        · intro heta; cases Result.ok_injective heta; rfl
+        · split <;> (intro heta; simp only [bind_ok] at heta; cases Result.ok_injective heta; rfl)
       cases Result.ok_injective h
+      refine ⟨_, rfl, hst, ?_⟩
       simp only [absMemberShape, absCtorsL, hc, List.map_cons, List.map_nil,
         absIIndCaps, ConRon.Refine.vec_push_val hctors, alloc.vec.Vec.new,
         IIndCaps.mk.injEq]
       simp only [pn_u64_bne_zero] at heta
-      refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;>
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
         first
         | trivial
-        | (split_ifs at heta <;> simp_all [absU])
+        | (split_ifs at heta <;> simp_all [absU] <;> rw [← heta])
     · have hlen : ¬ alloc.vec.Vec.len m.ctors = 1#usize := by
         intro h; have := congrArg (·.val) h; simp [alloc.vec.Vec.len, hc] at this
       simp only [ite_eq_right hlen] at h
@@ -259,10 +265,11 @@ the Rust's tests are decided first. -/
       cases Result.ok_injective hq
       simp only [arena.env.i_ind_caps_default, bind_ok] at h
       cases Result.ok_injective h
+      refine ⟨_, rfl, rfl, ?_⟩
       have hv' := ctor_name_list_twin0 _ v hv
       simp only [TwinEq, absCtorsL, hc] at hv'
       simp only [absMemberShape, absCtorsL, hc, List.map_cons, absIIndCaps, IIndCaps.mk.injEq]
-      refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> trivial
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> trivial
   · have hget : (absBlockShape p).members[absU mi]? = none := by
       show (p.members.val.map absMemberShape)[mi.val]? = _
       rw [List.getElem?_eq_none (by simp; omega)]
@@ -275,6 +282,7 @@ the Rust's tests are decided first. -/
     simp only [ite_eq_right h1, bind_ok, arena.env.i_ind_caps_default]
       at h
     cases Result.ok_injective h
+    refine ⟨_, rfl, rfl, ?_⟩
     simp only [absIIndCaps, hn]
     rfl
 
@@ -589,9 +597,7 @@ reads the declared former's sort). -/
       simp only [lift, Result.ok.injEq] at hi2; subst hi2
       exact ConRon.Refine.ExprOps.usize_cast_u64_val i
     refine LS.bind (block_caps_at_ls hrel hinv p1 i2 is_rec) (by rw [hi2v]) ?_ ?_
-    · intro e st1 o st' h
-      simp only [Result.ok.injEq, Prod.mk.injEq] at h
-      exact h.1.symm
+    · exact fun _ _ => errArm_ok
     intro caps lcaps st1 lst1 hcaps hrel1 hinv1
     subst hcaps
     refine LS.bind_eq fun iv hiv => ?_
@@ -632,11 +638,13 @@ reads the declared former's sort). -/
       simp [absMemberShapeLFrom, hms]
     simp only [h0, ↓reduceIte, hidx, bind_ok, List.map_cons]
     lockstep
-    refine LS.pure ⟨?_, rfl⟩ ‹_› ‹_›
     have hd := ‹TwinEq (List.map (fun x : MemberShape => x.declared) _) (absICVL _)›
     simp only [TwinEq, hms, List.map_cons] at hd
     rw [hd]
-    simpa [absICVLFrom, absICVL] using hP
+    refine LS.bind (cons_block_inds_ls ‹_› ‹_› _ is_rec _ 0#usize hfe)
+      (by rw [absICVLFrom_zero]; rfl) (fun _ _ => errArm_ok) ?_
+    intro fe1 lfe1 st2 lst2 hfe1 hrel2 hinv2
+    exact LS.pure ⟨hfe1, rfl⟩ hrel2 hinv2
 
 /-! ## Stage 1b: the constructors, and the positivity check -/
 
@@ -955,8 +963,8 @@ under its member's name. -/
     obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     refine ⟨i2, (n, v), out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, ?_, h⟩
-    have hc : absCtorsL x.ctors = absCtorsL v := ctors_dup_twin0 _ v hv
-    show (absNIdx n, absCtorsL v) = (absNIdx x.cv_t.name, absCtorsL x.ctors)
+    have hc : absCtorsL q.ctors = absCtorsL v := ctors_dup_twin0 _ v hv
+    show (absNIdx n, absCtorsL v) = (absNIdx q.cv_t.name, absCtorsL q.ctors)
     rw [dupId_nidx _ _ hn, hc]
 
 /-- `check_block_positivity` ⊑ `checkBlockPositivity`. -/

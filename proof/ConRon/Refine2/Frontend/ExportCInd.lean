@@ -1687,11 +1687,13 @@ theorem ind_block_ctors_refines {rsd lsd lst cts out o} (hd : StateDRel rsd lsd)
         exact ⟨.Err e, SimLR.bind_err hC, Or.inl ⟨e, rfl, (Result.ok_injective h).symm⟩⟩
       | Ok cv =>
         obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hn2' := dupId_nidx _ _ hn2
+        subst hn2'
         obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨e1, e2⟩ := cursor_push hout1 hi1
         refine ⟨.Ok _, ?_, Or.inr ⟨_, out1, i1, rfl, e1, e2, h⟩⟩
-        exact SimLR.bind_ok hC (by simp [absIConstantInfo, dupId_nidx _ _ hn2]))
+        exact SimLR.bind_ok hC rfl)
     out 0#usize o h
   rw [show absICIL = fun v : alloc.vec.Vec arena.env.IConstantInfo =>
     v.val.map absIConstantInfo from rfl]
