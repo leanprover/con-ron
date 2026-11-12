@@ -1550,7 +1550,7 @@ def reservedBasisNames : AM (List NIdx) :=
 names the two literal guards look up: the `Nat` guard's three and the
 `String` guard's seven, off the pin table (every one is pinned).  Placed after
 `reservedBasisNames` (its one reader's other list) rather than beside
-`natOpWfNames` as in the Rust: a module-order difference only. -/
+`natOpName` as in the Rust: a module-order difference only. -/
 def litGuardNames : AM (List NIdx) := do
   let a ← pinNat
   let b ← pinNatZero

@@ -6,7 +6,8 @@ Task #97-P5-Core round 5, region B.  `crates/con-ron-core/src/arena/core.rs`'s
 `Arena/Core.lean`'s twins: the fifteen `nat*Name` pins, the name lists, the
 stored-declaration shape guards (`natLitSupported`, `strLitStored` and their
 helpers), the constructor forms of a literal, `rawNatLit?`,
-`natOpResult` and the headline `reduceNat` (`reduce_nat_ls`).
+the binary operation's dispatch (`natBinOpOfName?`, `natBinOpResult`) and the
+headline `reduceNat` (`reduce_nat_ls`).
 -/
 import ConRon.Refine2.Core.LS.PrimsB
 import ConRon.Refine2.Core.LS.Leaves
@@ -86,15 +87,6 @@ namespace PB
   rw [arena.core.nat_div_mod_names, natDivModNames]
   lockstep_core
 
-/-- The port serves `natOpWfNames` with `nat_div_mod_names`: the twin's two
-lists are the same eight names in the same order. -/
-@[lockstep] theorem nat_op_wf_names_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdxList a) (arena.core.nat_op_wf_names st) lst
-      natOpWfNames := by
-  rw [arena.core.nat_op_wf_names, show natOpWfNames = natDivModNames from rfl]
-  exact nat_div_mod_names_ls hrel hinv
-
 end PB
 
 attribute [lockstep_inline] arena.core.nat_op_pins arena.core.nat_op_pins_rest
@@ -106,14 +98,23 @@ attribute [lockstep_inline] arena.core.nat_op_pins arena.core.nat_op_pins_rest
   rw [arena.core.nat_op_deps, natOpDeps]
   lockstep
 
-/-! ## `natBinOpName` and `natOpStored`
+/-! ## `natBinOpOfName?`
 
 The port reads its fifteen names once (`nat_op_pins`), `pred` included; the
-twin's `natBinOpName` reads the fourteen it compares and not `pred`.  The
+twin's `natBinOpOfName?` reads the fourteen it compares and not `pred`.  The
 extra read is harmless — a pin read writes nothing, and `pred`'s slot (16)
 precedes `add`'s (17), so when it declines the twin's first read declines
-too, at the same message — and `natBinOpName_pred` says so as a twin
+too, at the same message — and `natBinOpOfName?_pred` says so as a twin
 equation. -/
+
+/-- `arena::core::NatBinOp` as the twin's `NatBinOp`, constructor for
+constructor. -/
+def absNatBinOp : arena.core.NatBinOp → NatBinOp
+  | .Add => .add | .Sub => .sub | .Mul => .mul | .Pow => .pow | .Beq => .beq
+  | .Ble => .ble | .Div => .div | .Mod => .mod | .Gcd => .gcd | .Land => .land
+  | .Lor => .lor | .Xor => .xor | .ShiftLeft => .shiftLeft | .ShiftRight => .shiftRight
+
+attribute [local lockstep_simp] absNatBinOp
 
 theorem pinAt_run (i : Nat) (lst : AState) :
     (pinAt i).run lst = (if h : i < lst.pins.names.size
@@ -133,8 +134,8 @@ theorem pinAt_run (i : Nat) (lst : AState) :
       Arena.fail, throwThe, MonadExceptOf.throw,
       Function.comp_apply, StateT.lift]
 
-theorem natBinOpName_pred (c : NIdx) :
-    natBinOpName c = (natPredName >>= fun _ => natBinOpName c) := by
+theorem natBinOpOfName?_pred (c : NIdx) :
+    natBinOpOfName? c = (natPredName >>= fun _ => natBinOpOfName? c) := by
   apply StateT.ext
   intro lst
   by_cases h : PIN_NAT_PRED < lst.pins.names.size
@@ -153,28 +154,18 @@ theorem natBinOpName_pred (c : NIdx) :
         (Arena.CheckError.internal "arena: reserved-name pins not interned") := by
       rw [natAddName, pinNatAdd, pinAt_run, dite_eq_right (by
         simp only [PIN_NAT_PRED, PIN_NAT_ADD] at h ⊢; omega)]
-    have hl : (natBinOpName c).run lst = .error
+    have hl : (natBinOpOfName? c).run lst = .error
         (Arena.CheckError.internal "arena: reserved-name pins not interned") := by
-      unfold natBinOpName
+      unfold natBinOpOfName?
       rw [StateT.run_bind, ha, herr]
     rw [hl, StateT.run_bind, hp, herr]
 
-/-- The twin's disjunction as the port's short-circuit chain. -/
-theorem pure_or_ite (a b : Bool) :
-    (pure (a || b) : AM Bool) = if a = true then pure true else pure b := by
-  cases a <;> rfl
-
-section
-attribute [local lockstep_simp] pure_or_ite
-
-@[lockstep] theorem nat_bin_op_name_ls {pers st c lst}
+@[lockstep] theorem nat_bin_op_of_name_ls {pers st c lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = a) (arena.core.nat_bin_op_name st c) lst
-      (natBinOpName (absNIdx c)) := by
-  rw [arena.core.nat_bin_op_name, natBinOpName_pred, natBinOpName]
+    LS pers (fun a b => b = Option.map absNatBinOp a) (arena.core.nat_bin_op_of_name st c) lst
+      (natBinOpOfName? (absNIdx c)) := by
+  rw [arena.core.nat_bin_op_of_name, natBinOpOfName?_pred, natBinOpOfName?]
   lockstep
-
-end
 
 /-! ## The `Nat` literal guards -/
 
@@ -329,7 +320,7 @@ attribute [local simp] ConRon.Refine.LiteralWF
   rw [arena.core.shift_left_guard, shiftLeftGuard]
   lockstep
 
-/-! ## `natOpResult` -/
+/-! ## `natBinOpResult` -/
 
 attribute [lockstep_inline] arena.core.lit_nat arena.core.bool_const
 
@@ -341,14 +332,14 @@ attribute [lockstep_inline] arena.core.lit_nat arena.core.bool_const
   rw [arena.core.lit_nat_sized, litNatSized]
   lockstep
 
-set_option maxHeartbeats 4000000 in
-@[lockstep] theorem nat_op_result_ls {pers st c a b lst}
+@[lockstep] theorem nat_bin_op_result_ls {pers st op a b lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (ha : ConRon.Refine.Nat.NatWF a) (hb : ConRon.Refine.Nat.NatWF b) :
-    LS pers (fun x y => y = absOptE x) (arena.core.nat_op_result pers st c a b) lst
-      (natOpResult (absNIdx c) (ConRon.Refine.Nat.toNat a) (ConRon.Refine.Nat.toNat b)) := by
-  rw [arena.core.nat_op_result, natOpResult]
-  lockstep
+    LS pers (fun x y => y = absOptE x) (arena.core.nat_bin_op_result pers st op a b) lst
+      (natBinOpResult (absNatBinOp op) (ConRon.Refine.Nat.toNat a)
+        (ConRon.Refine.Nat.toNat b)) := by
+  rw [arena.core.nat_bin_op_result.eq_def, natBinOpResult.eq_def]
+  cases op <;> lockstep
 
 /-! ## String literals -/
 
@@ -611,7 +602,6 @@ theorem nidx_vec_contains_from_any (ns : alloc.vec.Vec arena.handle.NIdx)
   simp [absNIdxList, List.any_eq]
 
 attribute [lockstep_inline] arena.core.reduce_nat_succ arena.core.reduce_nat_bin
-  arena.core.reduce_nat_wf
 
 section
 
