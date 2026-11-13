@@ -94,6 +94,7 @@ pub fn dup(u: &Level) -> Level {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:85-122 Level.decEqPtr
+/// con-leche: CHANGED since ca6af099 — re-port, re-test, re-prove level::ptr_eq_refines, then delete this line
 /// The pointer test behind the cited `withPtrEqDecEq`; modeled as `false` in
 /// the generated Lean (DESIGN.md §3.2).
 pub fn ptr_eq(a: &Level, b: &Level) -> bool {
@@ -101,6 +102,7 @@ pub fn ptr_eq(a: &Level, b: &Level) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:85-122 Level.decEqPtr
+/// con-leche: CHANGED since ca6af099 — re-port, re-test, re-prove level::beq_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Expr.lean:58-83 Level.decEq
 /// con-leche: ConLeche/Kernel/Expr.lean:132-133 Level.beq
 /// `Level.decEqPtr` is the *executed* `Level.beq` (`decide` over the

@@ -569,17 +569,17 @@ pub fn e_tag_is_bind(t: u32) -> bool {
     t == ETAG_LAM || t == ETAG_FORALL_E
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:27-30 Name
+/// con-leche: ConLeche/Kernel/Name.lean:28-31 Name
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:307-309 NTag.anonymous` — the
 /// `anonymous` constructor, line 28.
 pub const NTAG_ANONYMOUS: u32 = 0;
 
-/// con-leche: ConLeche/Kernel/Name.lean:27-30 Name
+/// con-leche: ConLeche/Kernel/Name.lean:28-31 Name
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:310-312 NTag.str` — the `str`
 /// constructor, line 29.
 pub const NTAG_STR: u32 = 1;
 
-/// con-leche: ConLeche/Kernel/Name.lean:27-30 Name
+/// con-leche: ConLeche/Kernel/Name.lean:28-31 Name
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:313-315 NTag.num` — the `num`
 /// constructor, line 30.
 pub const NTAG_NUM: u32 = 2;

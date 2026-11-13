@@ -416,12 +416,12 @@ pub fn lidx_vec_dup_from(us: &Vec<LIdx>, i: usize, out: Vec<LIdx>) -> Vec<LIdx> 
 // Names (`Store.lean:102-147`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Name.lean:27-30 Name
+/// con-leche: ConLeche/Kernel/Name.lean:28-31 Name
 /// Lean twin: `proof/ConRon/Arena/Store.lean:108-112 AnonNode` — the
 /// `anonymous` constructor, line 28.
 pub struct AnonNode {}
 
-/// con-leche: ConLeche/Kernel/Name.lean:27-30 Name
+/// con-leche: ConLeche/Kernel/Name.lean:28-31 Name
 /// Lean twin: `proof/ConRon/Arena/Store.lean:114-119 StrNode` — the `str`
 /// constructor, line 29.  Deviation (DESIGN.md §3.3): the component is a
 /// `Vec<u32>` of code points, as every string in the verified core is.
@@ -430,7 +430,7 @@ pub struct StrNode {
     pub s: Vec<u32>,
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:27-30 Name
+/// con-leche: ConLeche/Kernel/Name.lean:28-31 Name
 /// Lean twin: `proof/ConRon/Arena/Store.lean:121-126 NumNode` — the `num`
 /// constructor, line 30.  Deviation (DESIGN.md §3.3): the Lean's `Nat` is a
 /// `u64`, as every de Bruijn index and name component in the core is.
@@ -523,7 +523,7 @@ impl Dup for NumNode {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:27-30 Name
+/// con-leche: ConLeche/Kernel/Name.lean:28-31 Name
 /// Lean twin: `proof/ConRon/Arena/Store.lean:132-138 NNodeView` — the
 /// store-side view of a name node: con-leche's three constructors with the
 /// prefix as a handle.
@@ -1518,7 +1518,7 @@ impl NStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Name.lean:27-37 Name
+    /// con-leche: ConLeche/Kernel/Name.lean:28-38 Name
     /// Lean twin: `proof/ConRon/Arena/Store.lean:460-464 NStore.derived` — the
     /// `hashData` computed field, lines 41-44: the derived word of a handle.
     pub fn derived(&self, pers: &PersTier, i: &NIdx) -> u64 {
@@ -1531,7 +1531,7 @@ impl NStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Name.lean:27-37 Name
+    /// con-leche: ConLeche/Kernel/Name.lean:28-38 Name
     /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 NStore.derOfView` —
     /// the `hashData` computed field, lines 41-44: the derived word a node
     /// view *would* get, in `O(1)` from the children's.  The three formulas

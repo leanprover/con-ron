@@ -304,13 +304,13 @@ end ETag
 
 /-! The three name-constructor tags. -/
 namespace NTag
-/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the `anonymous`
+/-- con-leche: ConLeche/Kernel/Name.lean:28-31 Name — the `anonymous`
 constructor, line 28. -/
 def anonymous : UInt32 := 0
-/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the `str`
+/-- con-leche: ConLeche/Kernel/Name.lean:28-31 Name — the `str`
 constructor, line 29. -/
 def str : UInt32 := 1
-/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the `num`
+/-- con-leche: ConLeche/Kernel/Name.lean:28-31 Name — the `num`
 constructor, line 30. -/
 def num : UInt32 := 2
 end NTag

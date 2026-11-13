@@ -105,20 +105,20 @@ end Tbl
 
 /-! ## Names -/
 
-/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the `anonymous`
+/-- con-leche: ConLeche/Kernel/Name.lean:28-31 Name — the `anonymous`
 constructor, line 28. -/
 structure AnonNode where
   mk ::
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the `str`
+/-- con-leche: ConLeche/Kernel/Name.lean:28-31 Name — the `str`
 constructor, line 29. -/
 structure StrNode where
   pre : NIdx
   s : String
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the `num`
+/-- con-leche: ConLeche/Kernel/Name.lean:28-31 Name — the `num`
 constructor, line 30. -/
 structure NumNode where
   pre : NIdx
@@ -129,7 +129,7 @@ instance : BEq AnonNode := instBEqOfDecidableEq
 instance : BEq StrNode := instBEqOfDecidableEq
 instance : BEq NumNode := instBEqOfDecidableEq
 
-/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the store-side view of a
+/-- con-leche: ConLeche/Kernel/Name.lean:28-31 Name — the store-side view of a
 name node: con-leche's three constructors with the prefix as a handle. -/
 inductive NNodeView where
   | anonymous
@@ -457,13 +457,13 @@ and a scratch handle reads as absent while the scratch tier is off. -/
   if i.isPersistent then st.pers.get i
   else if st.scratchOn then st.scr.get i else none
 
-/-- con-leche: ConLeche/Kernel/Name.lean:27-37 Name — the `hashData` computed
+/-- con-leche: ConLeche/Kernel/Name.lean:28-38 Name — the `hashData` computed
 field, lines 41-44: the derived word of a handle. -/
 @[inline] def derived (st : NStore) (i : NIdx) : UInt64 :=
   if i.isPersistent then st.pers.derAt i
   else if st.scratchOn then st.scr.derAt i else 0
 
-/-- con-leche: ConLeche/Kernel/Name.lean:27-37 Name — the `hashData` computed
+/-- con-leche: ConLeche/Kernel/Name.lean:28-38 Name — the `hashData` computed
 field, lines 41-44: the derived word a node view *would* get, computed in
 `O(1)` from the children's. -/
 def derOfView (st : NStore) (v : NNodeView) : UInt64 :=

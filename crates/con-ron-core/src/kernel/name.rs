@@ -20,7 +20,7 @@ use crate::ron::hashmap::Hashable;
 use crate::ron::ptr;
 use crate::ron::ptr::P;
 
-/// con-leche: ConLeche/Kernel/Name.lean:18-38 Name
+/// con-leche: ConLeche/Kernel/Name.lean:19-39 Name
 /// The three constructors of `inductive Name`; the cached hash they carry
 /// in Lean's `@[computed_field]` sits in `NameNode` (DESIGN.md §3.2).
 pub enum NameKind {
@@ -29,7 +29,7 @@ pub enum NameKind {
     Num(Name, u64),
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:18-38 Name
+/// con-leche: ConLeche/Kernel/Name.lean:19-39 Name
 /// The heap node of a `Name`: the cited inductive's `@[computed_field]
 /// hashData` beside the constructor data.
 pub struct NameNode {
@@ -37,7 +37,7 @@ pub struct NameNode {
     pub kind: NameKind,
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:18-38 Name
+/// con-leche: ConLeche/Kernel/Name.lean:19-39 Name
 /// A hierarchical name: a `P` tree, Lean's value semantics made sharing
 /// (DESIGN.md §3.2).
 pub struct Name(pub P<NameNode>);
@@ -82,19 +82,19 @@ pub fn nat_hash(n: u64) -> u64 {
     n
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:18-38 Name
+/// con-leche: ConLeche/Kernel/Name.lean:19-39 Name
 /// The cached `@[computed_field] hashData`, an `O(1)` field read.
 pub fn hash_data(n: &Name) -> u64 {
     n.0.hash
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:18-38 Name
+/// con-leche: ConLeche/Kernel/Name.lean:19-39 Name
 /// `Name.anonymous`, hash `1723`.
 pub fn anonymous() -> Name {
     Name(ptr::new(NameNode { hash: 1723, kind: NameKind::Anonymous }))
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:18-38 Name
+/// con-leche: ConLeche/Kernel/Name.lean:19-39 Name
 /// `Name.str`; the smart constructor computes the cited computed-field
 /// equation `mixHash (mixHash 1 p.hashData) (hash s)`, which in Lean the
 /// elaborator writes for you.
@@ -103,7 +103,7 @@ pub fn mk_str(pre: Name, s: Vec<u32>) -> Name {
     Name(ptr::new(NameNode { hash: h, kind: NameKind::Str(pre, s) }))
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:18-38 Name
+/// con-leche: ConLeche/Kernel/Name.lean:19-39 Name
 /// `Name.num`; the smart constructor computes the cited computed-field
 /// equation `mixHash (mixHash 2 p.hashData) (hash n)`.
 pub fn mk_num(pre: Name, n: u64) -> Name {
@@ -117,7 +117,8 @@ pub fn dup(n: &Name) -> Name {
     Name(ptr::clone(&n.0))
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:62-93 Name.decEqPtr
+/// con-leche: ConLeche/Kernel/Name.lean:63-94 Name.decEqPtr
+/// con-leche: CHANGED since ca6af099 — re-port, re-test, re-prove name::ptr_eq_refines, then delete this line
 /// The pointer test behind the cited `withPtrEqDecEq`.  Deviation: modeled as
 /// `false` in the generated Lean (DESIGN.md §3.2), where `withPtrEqDecEq`'s pure
 /// definition is its continuation.
@@ -147,9 +148,10 @@ pub fn str_eq_from(a: &Vec<u32>, b: &Vec<u32>, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:62-93 Name.decEqPtr
-/// con-leche: ConLeche/Kernel/Name.lean:44-60 Name.decEq
-/// con-leche: ConLeche/Kernel/Name.lean:113-114 Name.beq
+/// con-leche: ConLeche/Kernel/Name.lean:63-94 Name.decEqPtr
+/// con-leche: CHANGED since ca6af099 — re-port, re-test, re-prove name::beq_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Name.lean:45-61 Name.decEq
+/// con-leche: ConLeche/Kernel/Name.lean:114-115 Name.beq
 /// `Name.decEqPtr` is the *executed* `Name.beq` (`decide` over the instance,
 /// whose structural `Name.decEq` is `@[csimp]`-substituted): pointer, then the
 /// cached hash, then one structural step whose prefix starts over with the
@@ -223,7 +225,7 @@ pub fn display_in_range(v: u32, lo: u32, hi: u32) -> bool {
     lo <= v && v <= hi
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:141-152 Display.unsafeChar
+/// con-leche: ConLeche/Kernel/Name.lean:142-153 Display.unsafeChar
 /// The characters a display never prints raw: Unicode's control (Cc) and
 /// format (Cf, Unicode 15.1) characters, the line and paragraph separators
 /// (Zl, Zp) and every space separator (Zs) other than the ASCII space.
@@ -291,13 +293,13 @@ pub fn display_unsafe_char(v: u32) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:154 Display.maxLen
+/// con-leche: ConLeche/Kernel/Name.lean:155 Display.maxLen
 /// The cap on one rendering, in characters (before the marker).
 pub fn display_max_len() -> u64 {
     512
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:157-159 Display.codeEscape
+/// con-leche: ConLeche/Kernel/Name.lean:158-160 Display.codeEscape
 /// `\u{XXXX}`: the code point in upper-case hex, at least four digits.  The
 /// cited `Nat.toDigits 16` padded by `List.replicate (4 - ds.length) '0'` is
 /// the digit count `display_hex_width` and the nibble recursion
@@ -343,7 +345,7 @@ pub fn display_hex_from(v: u32, k: u32, out: Vec<u32>) -> Vec<u32> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:163-167 Display.Acc
+/// con-leche: ConLeche/Kernel/Name.lean:164-168 Display.Acc
 /// A capped rendering under construction: the output, its length, the input
 /// characters dropped since the cap was reached, and whether it was.
 pub struct DisplayAcc {
@@ -353,13 +355,13 @@ pub struct DisplayAcc {
     pub full: bool,
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:163-167 Display.Acc
+/// con-leche: ConLeche/Kernel/Name.lean:164-168 Display.Acc
 /// `Display.Acc.mk "" 0 0 false`, the empty rendering.
 pub fn display_acc_empty() -> DisplayAcc {
     DisplayAcc { out: Vec::new(), len: 0, dropped: 0, full: false }
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:171-174 Display.Acc.piece
+/// con-leche: ConLeche/Kernel/Name.lean:172-175 Display.Acc.piece
 /// Appends `p`, which stands for `raw` characters of the input, unless the
 /// cap is reached; past the cap only the count grows.
 pub fn display_acc_piece(a: DisplayAcc, p: &Vec<u32>, raw: u64) -> DisplayAcc {
@@ -376,7 +378,7 @@ pub fn display_acc_piece(a: DisplayAcc, p: &Vec<u32>, raw: u64) -> DisplayAcc {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:171-174 Display.Acc.piece
+/// con-leche: ConLeche/Kernel/Name.lean:172-175 Display.Acc.piece
 /// `a.piece c.toString 1`: one input character, unescaped.
 pub fn display_acc_char(a: DisplayAcc, c: u32) -> DisplayAcc {
     let mut p: Vec<u32> = Vec::new();
@@ -384,7 +386,7 @@ pub fn display_acc_char(a: DisplayAcc, c: u32) -> DisplayAcc {
     display_acc_piece(a, &p, 1)
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:177-178 Display.Acc.chars
+/// con-leche: ConLeche/Kernel/Name.lean:178-179 Display.Acc.chars
 /// Appends characters that need no escaping (an identifier, a numeral).
 pub fn display_acc_chars(a: DisplayAcc, s: &Vec<u32>) -> DisplayAcc {
     display_acc_chars_from(a, s, 0)
@@ -399,7 +401,7 @@ pub fn display_acc_chars_from(a: DisplayAcc, s: &Vec<u32>, i: usize) -> DisplayA
     }
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:182-186 Display.Acc.escaped
+/// con-leche: ConLeche/Kernel/Name.lean:183-187 Display.Acc.escaped
 /// Appends the inside of a quoted component or string closed by `close`: `\`
 /// doubled, `close` and the unsafe characters as `\u{XXXX}`.
 pub fn display_acc_escaped(a: DisplayAcc, close: u32, s: &Vec<u32>) -> DisplayAcc {
@@ -424,7 +426,7 @@ pub fn display_acc_escaped_from(a: DisplayAcc, close: u32, s: &Vec<u32>, i: usiz
     }
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:189-190 Display.Acc.finish
+/// con-leche: ConLeche/Kernel/Name.lean:190-191 Display.Acc.finish
 /// The rendering, with the elision marker when the cap was reached.
 pub fn display_acc_finish(a: DisplayAcc) -> Vec<u32> {
     if a.full {
@@ -530,7 +532,7 @@ pub fn display_id_rest(v: u32) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:196-199 Display.idShaped
+/// con-leche: ConLeche/Kernel/Name.lean:197-200 Display.idShaped
 /// Whether a string component prints bare: Lean's own rule
 /// (`Lean.Name.escapePart`) — a nonempty identifier, `isIdFirst` then
 /// `isIdRest`.  No such component contains a `.`, a control, format or
@@ -554,7 +556,7 @@ pub fn display_id_rest_from(s: &Vec<u32>, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:204-206 Display.Acc.component
+/// con-leche: ConLeche/Kernel/Name.lean:205-207 Display.Acc.component
 /// Pushes one component.  An identifier-shaped one bare; any other (including
 /// the empty one, a numeral-looking one and one with a `.`) between `«`…`»`,
 /// with `»` escaped like an unsafe character.
@@ -570,7 +572,7 @@ pub fn display_acc_component(a: DisplayAcc, s: &Vec<u32>) -> DisplayAcc {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:211-212 Display.str
+/// con-leche: ConLeche/Kernel/Name.lean:212-213 Display.str
 /// **The display rendering of a raw string from the input** (a `safety`
 /// field, a quotient kind, a command-line word): between `"`…`"`, escaped and
 /// capped like a quoted name component.
@@ -582,14 +584,14 @@ pub fn display_str(s: &Vec<u32>) -> Vec<u32> {
     display_acc_finish(a3)
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:224-227 componentList
+/// con-leche: ConLeche/Kernel/Name.lean:225-228 componentList
 /// One element of `componentList`'s `List (String ⊕ Nat)`.
 pub enum NameComponent {
     Str(Vec<u32>),
     Num(u64),
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:224-227 componentList
+/// con-leche: ConLeche/Kernel/Name.lean:225-228 componentList
 /// The name's components.  Deviation: the cited walk conses each component
 /// onto the front of a `List`, so its answer is root first; the port pushes
 /// onto the END of a `Vec`, so the same walk leaves the components LEAF
@@ -610,7 +612,7 @@ pub fn component_list(n: &Name, acc: Vec<NameComponent>) -> Vec<NameComponent> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:235-245 render
+/// con-leche: ConLeche/Kernel/Name.lean:236-246 render
 /// **The one display rendering of a name** (con-leche's `ToString Name`):
 /// the components joined by `.`, each bare when identifier-shaped and
 /// otherwise `«…»` with its unsafe characters escaped (`DisplayAcc`), numeric
@@ -631,7 +633,7 @@ pub fn render(n: &Name) -> Vec<u32> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:235-245 render
+/// con-leche: ConLeche/Kernel/Name.lean:236-246 render
 /// The cited `foldl` over the components, root first: `component_list`'s
 /// leaf-first `Vec` read from index `k - 1` down to `0`.  The `first` flag of
 /// the cited fold is `k == cs.len()`.
@@ -657,25 +659,25 @@ pub fn render_from(cs: &Vec<NameComponent>, k: usize, a: DisplayAcc) -> DisplayA
 // The hash-map dictionaries (`crate::ron::hashmap`'s own traits, task #7)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Name.lean:40-42 _
+/// con-leche: ConLeche/Kernel/Name.lean:41-43 _
 /// The cited `instance : Hashable Name := ⟨Name.hashData⟩`, as the key
 /// dictionary of `crate::ron::hashmap`.  Deviation: `Hashable` is our own
 /// one-method trait rather than Lean's class (task #7).
 impl Hashable for Name {
-    /// con-leche: ConLeche/Kernel/Name.lean:40-42 _
+    /// con-leche: ConLeche/Kernel/Name.lean:41-43 _
     /// The stored word, an `O(1)` field read.
     fn hash64(&self) -> u64 {
         hash_data(self)
     }
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:116 _
+/// con-leche: ConLeche/Kernel/Name.lean:117 _
 /// The cited `instance : BEq Name := ⟨Name.beq⟩`, as the key dictionary of
 /// `crate::ron::hashmap`.  Deviation: `Eq2` is our own one-method trait rather
 /// than `core::cmp::PartialEq` — which is exactly what lets the instance be
 /// `beq` with its pointer and hash fast paths (DESIGN.md §3.2, task #7).
 impl Eq2 for Name {
-    /// con-leche: ConLeche/Kernel/Name.lean:113-114 Name.beq
+    /// con-leche: ConLeche/Kernel/Name.lean:114-115 Name.beq
     /// `Name.beq`, i.e. `decide` over `Name.decEqPtr`.
     fn eq2(&self, other: &Self) -> bool {
         beq(self, other)

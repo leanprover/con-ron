@@ -891,7 +891,7 @@ pub fn dangling_name() -> CheckError {
     core_types::internal(core_types::code_points(&M))
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:18-38 Name
+/// con-leche: ConLeche/Kernel/Name.lean:19-39 Name
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:402-410 readName` — read a name
 /// back out of the store as a transient `Name`.  Names are compared by handle
 /// throughout the checker (DESIGN.md §8.3), so this is the error-text and
@@ -901,7 +901,7 @@ pub fn read_name(pers: &PersTier, ar: &EStore, h: &NIdx) -> Result<Name, CheckEr
     read_name_at(pers, ar, ar.ns().node_count(pers) as u64 + 1, h)
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:18-38 Name
+/// con-leche: ConLeche/Kernel/Name.lean:19-39 Name
 /// The fuel-indexed readback itself (`Denote.lean`'s `denoteNAux`): the store's
 /// name-node count bounds every path, because a prefix is interned before the
 /// name that carries it.

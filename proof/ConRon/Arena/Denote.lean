@@ -75,7 +75,7 @@ their `= some` characterisations so the `denote` proofs are `simp`. -/
 
 /-! ## Names -/
 
-/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the fuel-indexed
+/-- con-leche: ConLeche/Kernel/Name.lean:28-31 Name — the fuel-indexed
 readback of a name handle. -/
 def denoteNAux (st : NStore) : Nat → NIdx → Option ConLeche.Name
   | 0, _ => none
@@ -86,7 +86,7 @@ def denoteNAux (st : NStore) : Nat → NIdx → Option ConLeche.Name
       | .str p s => (denoteNAux st f p).map fun q => .str q s
       | .num p n => (denoteNAux st f p).map fun q => .num q n
 
-/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the readback of a name
+/-- con-leche: ConLeche/Kernel/Name.lean:28-31 Name — the readback of a name
 handle, at the store's own node count as fuel. -/
 def denoteN (st : NStore) (i : NIdx) : Option ConLeche.Name :=
   denoteNAux st (st.nodeCount + 1) i

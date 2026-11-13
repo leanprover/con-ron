@@ -374,7 +374,7 @@ shape the rebuilding walks want, where `eBindView` + `internE` stood. -/
 
 /-! ## The name store's primitives -/
 
-/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — decode a name handle. -/
+/-- con-leche: ConLeche/Kernel/Name.lean:28-31 Name — decode a name handle. -/
 @[inline] def viewN (h : NIdx) : AM NNodeView := do
   let s ← get
   match s.store.ns.view h with
@@ -399,7 +399,7 @@ def internNNode (v : NNodeView) : AM NIdx := do
     else
       fail (.native "arena: name constructor array full")
 
-/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — read a name back out of
+/-- con-leche: ConLeche/Kernel/Name.lean:28-31 Name — read a name back out of
 the store as a transient `ConLeche.Name`.  Names are compared by handle
 throughout the checker (DESIGN §8.3), so this is the error-text and
 level-substitution path only, and the readback IS the denotation. -/
@@ -409,7 +409,7 @@ def readName (h : NIdx) : AM ConLeche.Name := do
   | some x => pure x
   | none => fail (.internal "arena: dangling name handle")
 
-/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — read a LIST of name
+/-- con-leche: ConLeche/Kernel/Name.lean:28-31 Name — read a LIST of name
 handles back.  `ks.mapM readName` would do it with a closure, which DESIGN
 §3.4 forbids in code Aeneas must translate; §3.4's rule for a `List`
 recursion is a helper, so this is one. -/
@@ -420,7 +420,7 @@ def readNames : List NIdx → AM (List ConLeche.Name)
     let xs ← readNames hs
     pure (x :: xs)
 
-/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — intern a transient
+/-- con-leche: ConLeche/Kernel/Name.lean:28-31 Name — intern a transient
 name.  Structural on `Name`, so no fuel: the tree is a value, not a DAG. -/
 def internName : ConLeche.Name → AM NIdx
   | .anonymous => internNNode .anonymous
@@ -577,7 +577,7 @@ def readLevelM (h : LIdx) : AM Level := do
       set { s with caches := { s.caches with readLC := mp.insert h l } }
       pure l
 
-/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the memoised
+/-- con-leche: ConLeche/Kernel/Name.lean:28-31 Name — the memoised
 `readName`. -/
 def readNameM (h : NIdx) : AM ConLeche.Name := do
   let s ← get
@@ -592,7 +592,7 @@ def readNameM (h : NIdx) : AM ConLeche.Name := do
       set { s with caches := { s.caches with readNC := mp.insert h x } }
       pure x
 
-/-- con-leche: ConLeche/Kernel/Name.lean:27-30 Name — the memoised
+/-- con-leche: ConLeche/Kernel/Name.lean:28-31 Name — the memoised
 `readNames`.  The recursion is on the list, as `readNames`' is; the Rust's
 `_from` cursor companion is §3.4's standing `List`-as-`Vec` deviation. -/
 def readNamesM : List NIdx → AM (List ConLeche.Name)

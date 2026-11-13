@@ -162,6 +162,7 @@ pub fn run_job(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
+/// con-leche: CHANGED since ca6af099 — re-port, re-test, re-prove checker::intern_all_pins_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis.lean:39-45 BasisKind.decls
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:124-162 internAllPins` — **the
 /// one-time tree walk of DESIGN.md §8.6 P2d**: every datum the checker compares
@@ -229,6 +230,7 @@ pub fn all_basis_kinds() -> Vec<BasisKind> {
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
+/// con-leche: CHANGED since ca6af099 — re-port, re-test, re-prove checker::intern_all_axiom_pins_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:124-162 internAllPins` — the
 /// standard and compiler-trust axiom pins, in the twin's order.
 pub fn intern_all_axiom_pins(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
@@ -248,6 +250,7 @@ pub fn intern_all_axiom_pins(pers: &PersTier, st: &mut AState) -> Result<(), Che
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
+/// con-leche: CHANGED since ca6af099 — re-port, re-test, re-prove checker::intern_all_axiom_pins_rest_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:124-162 internAllPins` — the
 /// rest of the axiom pins and the two reduce pins.
 pub fn intern_all_axiom_pins_rest(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
@@ -267,6 +270,7 @@ pub fn intern_all_axiom_pins_rest(pers: &PersTier, st: &mut AState) -> Result<()
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
+/// con-leche: CHANGED since ca6af099 — re-port, re-test, re-prove checker::intern_all_trust_pins_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:124-162 internAllPins` — the
 /// compiler-trust shapes and the two reduce pins.
 pub fn intern_all_trust_pins(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
@@ -286,6 +290,7 @@ pub fn intern_all_trust_pins(pers: &PersTier, st: &mut AState) -> Result<(), Che
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
+/// con-leche: CHANGED since ca6af099 — re-port, re-test, re-prove checker::intern_all_reduce_pins_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:124-162 internAllPins` — the
 /// four `reduce*`/`ofReduce*` shapes and the two pinned defining expressions.
 pub fn intern_all_reduce_pins(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
@@ -312,6 +317,7 @@ pub fn intern_all_reduce_pins(pers: &PersTier, st: &mut AState) -> Result<(), Ch
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
+/// con-leche: CHANGED since ca6af099 — re-port, re-test, re-prove checker::intern_all_names_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:124-162 internAllPins` — the
 /// reserved names the guards compare by handle.
 pub fn intern_all_names(st: &mut AState) -> Result<(), CheckError> {

@@ -745,7 +745,7 @@ pub fn intern_n_node(pers: &PersTier, st: &mut AState, v: NNodeView) -> Result<N
     st.store.intern_name(pers, v)
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:27-30 Name
+/// con-leche: ConLeche/Kernel/Name.lean:28-31 Name
 /// Lean twin: `proof/ConRon/Arena/Denote.lean:78-87 denoteNAux` — the
 /// fuel-indexed readback of a name handle.  Shipped, not test-only: the level
 /// readback below is a shipped function of `Monad.lean` and it needs this one
@@ -769,14 +769,14 @@ pub fn denote_n_aux(pers: &PersTier, st: &NStore, fuel: u64, h: &NIdx) -> Option
     }
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:27-30 Name
+/// con-leche: ConLeche/Kernel/Name.lean:28-31 Name
 /// Lean twin: `proof/ConRon/Arena/Denote.lean:89-92 denoteN` — the readback of
 /// a name handle, at the store's own node count as fuel.
 pub fn denote_n(pers: &PersTier, st: &NStore, h: &NIdx) -> Option<Name> {
     denote_n_aux(pers, st, st.node_count(pers) as u64 + 1, h)
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:27-30 Name
+/// con-leche: ConLeche/Kernel/Name.lean:28-31 Name
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:402-410 readName` — read a name
 /// back out of the store as a transient `Name`.  Names are compared by handle
 /// throughout the checker (DESIGN.md §8.3), so this is the error-text and
@@ -788,7 +788,7 @@ pub fn read_name(pers: &PersTier, st: &AState, h: &NIdx) -> Result<Name, CheckEr
     }
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:27-30 Name
+/// con-leche: ConLeche/Kernel/Name.lean:28-31 Name
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:412-421 readNames` — read a LIST
 /// of name handles back.  The twin spells the `List` recursion as its own
 /// helper because `ks.mapM readName` is a closure (DESIGN.md §3.4); the Rust
@@ -798,7 +798,7 @@ pub fn read_names(pers: &PersTier, st: &AState, ks: &Vec<NIdx>) -> Result<Vec<Na
     read_names_from(pers, st, ks, 0, Vec::new())
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:27-30 Name
+/// con-leche: ConLeche/Kernel/Name.lean:28-31 Name
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:412-421 readNames` — the cursor
 /// recursion behind `read_names`.
 pub fn read_names_from(
@@ -822,7 +822,7 @@ pub fn read_names_from(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:27-30 Name
+/// con-leche: ConLeche/Kernel/Name.lean:28-31 Name
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:423-432 internName` — intern a
 /// transient name.  Structural on `Name`, so no fuel: the tree is a value, not
 /// a DAG.
@@ -1098,7 +1098,7 @@ pub fn read_level_m(pers: &PersTier, st: &mut AState, h: &LIdx) -> Result<Level,
     }
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:27-30 Name
+/// con-leche: ConLeche/Kernel/Name.lean:28-31 Name
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:580-593 readNameM` — `readNameM`,
 /// the memoised `readName`.
 pub fn read_name_m(pers: &PersTier, st: &mut AState, h: &NIdx) -> Result<Name, CheckError> {
@@ -1114,7 +1114,7 @@ pub fn read_name_m(pers: &PersTier, st: &mut AState, h: &NIdx) -> Result<Name, C
     }
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:27-30 Name
+/// con-leche: ConLeche/Kernel/Name.lean:28-31 Name
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:595-603 readNamesM` —
 /// `readNamesM`, the memoised `readNames`.
 pub fn read_names_m(
@@ -1125,7 +1125,7 @@ pub fn read_names_m(
     read_names_m_from(pers, st, ks, 0, Vec::new())
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:27-30 Name
+/// con-leche: ConLeche/Kernel/Name.lean:28-31 Name
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:595-603 readNamesM` — the cursor
 /// recursion behind `read_names_m`.
 pub fn read_names_m_from(

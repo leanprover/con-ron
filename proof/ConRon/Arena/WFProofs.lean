@@ -306,7 +306,7 @@ theorem denoteN_inj {st : NStore} (h : NStoreWF st) {i j : NIdx}
 
 /-! ## Names: the derived column is con-leche's cached hash -/
 
-/-- con-leche: ConLeche/Kernel/Name.lean:27-37 Name — the `hashData` computed
+/-- con-leche: ConLeche/Kernel/Name.lean:28-38 Name — the `hashData` computed
 field, lines 41-44.  **Exactness** (con-leche's lesson 2: prove exactness,
 not soundness): the name store's derived column is the cached hash of the
 name the handle denotes. -/
@@ -339,7 +339,7 @@ theorem NStore.derived_exact_at {st : NStore} {rk : NIdx → Nat}
     rw [h.derExact i _ hv]
     simp [NStore.derOfView, ih p hdp, ConLeche.Name.hashData]
 
-/-- con-leche: ConLeche/Kernel/Name.lean:27-37 Name — the `hashData` computed
+/-- con-leche: ConLeche/Kernel/Name.lean:28-38 Name — the `hashData` computed
 field, lines 41-44. -/
 theorem NStore.derived_exact {st : NStore} (h : NStoreWF st) {i : NIdx}
     {x : ConLeche.Name} (hi : denoteN st i = some x) :
