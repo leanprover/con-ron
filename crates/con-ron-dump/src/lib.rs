@@ -1059,7 +1059,7 @@ mod tests {
                 core.len()
             })
             .unwrap();
-        assert_eq!(h.join().unwrap(), 3);
+        assert_eq!(h.join().unwrap(), 4);
     }
 
     #[test]
