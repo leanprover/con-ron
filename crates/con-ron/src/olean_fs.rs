@@ -64,12 +64,14 @@ impl OleanFs for StdFs {
 
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:371-377 openReadIO
     /// A positional read: the bytes from `off` up to `off + len` or the end of the
-    /// file.  The path must name a regular file, as `openReadIO` checks; then
-    /// `read_at` where upstream reads its handle forward (the trait's deviation).
+    /// file.  The path must name a regular file, as `openReadIO` checks; then a
+    /// seek to `off` and forward reads on a handle of this call's own, so no other
+    /// reader shares its position (portable: no `FileExt::read_at`, which is
+    /// Unix-only).
     fn read_range(&self, p: &Vec<u32>, off: u64, len: u64) -> Result<Vec<u8>, Vec<u32>> {
-        use std::os::unix::fs::FileExt;
+        use std::io::{Read, Seek, SeekFrom};
         let s = path_of(p);
-        let f = std::fs::File::open(&s).map_err(|e| io_msg(&s, e))?;
+        let mut f = std::fs::File::open(&s).map_err(|e| io_msg(&s, e))?;
         let md = f.metadata().map_err(|e| io_msg(&s, e))?;
         if !md.is_file() {
             return Err(render::cps(&format!("{}: not a regular file", render::display_path(&s))));
@@ -79,10 +81,11 @@ impl OleanFs for StdFs {
             return Ok(Vec::new());
         }
         let want = std::cmp::min(len, size - off) as usize;
+        f.seek(SeekFrom::Start(off)).map_err(|e| io_msg(&s, e))?;
         let mut buf = vec![0u8; want];
         let mut got = 0usize;
         while got < want {
-            match f.read_at(&mut buf[got..], off + got as u64) {
+            match f.read(&mut buf[got..]) {
                 Ok(0) => break,
                 Ok(n) => got += n,
                 Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => {}
