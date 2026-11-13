@@ -131,7 +131,7 @@ a failed allocation.
 
 Every name and raw string a message prints comes from the input, so it is
 printed through one rendering, con-leche's
-([`render` in `kernel/name.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/name.rs#L622-L634)).
+([`render` in `kernel/name.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/name.rs#L620-L632)).
 An identifier-shaped name component prints bare (`Nat.add_comm`, `α₁.ℕ`);
 any other is wrapped in `«…»` (`x.«3»`, `«a.b»`), with `\` doubled and with
 `»` and every control, format and separator character other than the ASCII
@@ -542,7 +542,7 @@ They are the stages of the theorems (§3): `h1`…`h5`, then the index and the j
    `Nat.div`/`Nat.mod` pin list.  The call also stores the run's maximum
    `Nat` size (`--max-nat-size`) in the pin record, which every worker copies.
    The pin list is embedded as text
-   ([`PINS_TEXT`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/pins_text.rs#L42-L46),
+   ([`PINS_TEXT`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/pins_text.rs#L40-L44),
    generated from con-leche by `scripts/gen-pins.sh`) and read by a verified
    decoder
    ([`decode`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/pins_decode.rs#L1336-L1356)).
