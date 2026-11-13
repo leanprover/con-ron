@@ -72783,3 +72783,14 @@ No statement changed; no proof changed.  Verdicts: `diff-e2e.sh` 733/733 (master
 new pin as well).  Master's `Init` itself is not in con-ron's corpus (no toolchain here
 carries the change); lean4's release CI (`pkg/con-ron`) is the run that exercises the new
 variant, through the lean4 PR that moves both pins.
+
+### Task #154 — the `.olean` reader's ranged read is portable (2026-11-13, Opus)
+
+lean4's release CI builds con-ron on Windows too, and failed there: `olean_fs::StdFs::read_range`
+(`crates/con-ron`, the unverified driver) used `std::os::unix::fs::FileExt::read_at`.  The
+function opens a handle of its own on every call, so nothing shares its position: a
+`seek(SeekFrom::Start(off))` followed by forward `read`s is the same read, in portable `std`.
+Checked: `cargo test --workspace`; `cargo check --target x86_64-pc-windows-msvc -p con-ron --bins
+--no-default-features` is clean (mimalloc's C build needs an MSVC compiler this machine does not
+have; the Rust is the same).  The only other platform-specific code is the `/proc/self/status`
+reads for the heartbeat's resident set, which already answer nothing off Linux.
