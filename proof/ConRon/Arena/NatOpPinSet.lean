@@ -62,8 +62,7 @@ structure INatOpPinSet where
   shiftLeftTypePins : List (NIdx × EIdx)
   shiftRightTypePins : List (NIdx × EIdx)
 
-/-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _ — one type-pin list:
--- con-leche: CHANGED since ca6af099 — re-port, re-test, re-prove NatOpPinSet.internTypePins_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _ — one type-pin list:
 each name and each type interned, in list order. -/
 def internTypePins : List (ConLeche.Name × ConLeche.Expr) → AM (List (NIdx × EIdx))
   | [] => pure []
@@ -73,8 +72,7 @@ def internTypePins : List (ConLeche.Name × ConLeche.Expr) → AM (List (NIdx ×
     let r ← internTypePins rest
     pure ((n, t) :: r)
 
-/-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _ — the eight type-pin
--- con-leche: CHANGED since ca6af099 — re-port, re-test, re-prove NatOpPinSet.internPinSetTypePins_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _ — the eight type-pin
 lists, written into the record the sixteen term fields built (its type-pin
 fields empty until here). -/
 def internPinSetTypePins (ps : NatOpPinSet) (s : INatOpPinSet) : AM INatOpPinSet := do
@@ -96,8 +94,7 @@ def internPinSetTypePins (ps : NatOpPinSet) (s : INatOpPinSet) : AM INatOpPinSet
     shiftLeftTypePins := sltp
     shiftRightTypePins := srtp }
 
-/-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _ — intern one pin
--- con-leche: CHANGED since ca6af099 — re-port, re-test, re-prove NatOpPinSet.internPinSet_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _ — intern one pin
 variant: the one-time tree walk of DESIGN §8.6 P2d, twenty-four fields
 deep. -/
 def internPinSet (ps : NatOpPinSet) : AM INatOpPinSet := do
@@ -120,8 +117,7 @@ def internPinSet (ps : NatOpPinSet) : AM INatOpPinSet := do
   internPinSetTypePins ps ⟨ps.toolchain, dp, mp, gp, lap, lop, xp, slp, srp,
     dc, mc, gc, lac, loc, xc, slc, src, [], [], [], [], [], [], [], []⟩
 
-/-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _ — intern the variant
--- con-leche: CHANGED since ca6af099 — re-port, re-test, re-prove NatOpPinSet.internPinSets_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _ — intern the variant
 LIST, in the order the install gate tries them. -/
 def internPinSets : List NatOpPinSet → AM (List INatOpPinSet)
   | [] => pure []

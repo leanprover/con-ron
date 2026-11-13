@@ -118,7 +118,7 @@ structure PinSetDenote (st : EStore) (p : INatOpPinSet) (q : NatOpPinSet) :
   shiftLeftTypePins : TypePinsDenote st p.shiftLeftTypePins q.shiftLeftTypePins
   shiftRightTypePins : TypePinsDenote st p.shiftRightTypePins q.shiftRightTypePins
 
-/-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _ — the interned pin LIST
+/-- con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _ — the interned pin LIST
 denotes con-leche's, variant by variant and in order (the order is the order
 the install gate tries them, so it is part of the statement). -/
 @[expose] def PinsDenote (st : EStore) : List INatOpPinSet → List NatOpPinSet → Prop

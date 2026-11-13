@@ -352,3 +352,4 @@ ConLeche/Cached/CoreC.lean getAppArgsArr The arguments as an array filled from t
 ConLeche/Cached/CoreC.lean getAppArgsArrGo The cursor recursion of `getAppArgsArr`; as `getAppArgsArr` (`expr_ops::get_app_args_go`).
 ConLeche/Cached/CoreC.lean spineArg `args.getD i (.bvar 0)` on the array; the port reads its `Vec` with `get_d_eidx` (task #152 lane B).
 ConLeche/Cached/CoreC.lean mkAppRange A range application; the port's ranges run to the end of the spine and are `expr_ops::mk_app_n_from` (`whnf_app`, `beta_peel`, `whnf_stuck`); the ι reduct's two inner ranges are `iota_rec_*`'s (task #152 lane B).
+ConLeche/Kernel/PtrDecEq.lean ptrDecEq Lean toolchain plumbing (task #153, upstream #578): one name for `withPtrEqDecEq`, whose calling convention differs between toolchains; con-ron's pointer-first equalities (`name::ptr_eq`, `level::ptr_eq`, `expr::pair_is`) are Rust address tests of their own.

@@ -103,8 +103,8 @@ emit() {
 /// (The range is `#load_natop_pins`, the command that produces
 /// `natOpPinSets` out of the committed `pins/*.json` while `NatOpPins.lean`
 /// elaborates: the declaration has no source line of its own, hence `_`.)
-/// The `con-ron-pins/2` dump of con-leche's `natOpPinSets`, verbatim: 3 `S`
-/// records (one per pinned toolchain), the `N`/`L`/`E` records of the DAG
+/// The `con-ron-pins/2` dump of con-leche's `natOpPinSets`, verbatim: one `S`
+/// record per pinned toolchain (newest toolchain first), the `N`/`L`/`E` records of the DAG
 /// they share, and the `end <count>` footer.  `kernel::pins_decode::decode`
 /// is the inverse.
 pub const PINS_TEXT: &str = "\

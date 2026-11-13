@@ -130,7 +130,6 @@ pub fn literal_str(s: Vec<u32>) -> Literal {
 /// con-leche: ConLeche/Kernel/Expr.lean:142-146 Literal
 /// con-leche: ConLeche/Kernel/Expr.lean:148-154 Literal.decEq
 /// con-leche: ConLeche/Kernel/Expr.lean:156-174 Literal.decEqPtr
-/// con-leche: CHANGED since ca6af099 — re-port, re-test, re-prove expr::literal_beq_refines, then delete this line
 /// Literal equality: the cited structural `Literal.decEq`, which compiled
 /// code runs as `Literal.decEqPtr`.  Deviation: no pointer test on the
 /// `Literal` or on its number.  The arena interns literals, so equal
@@ -706,7 +705,6 @@ pub fn probe_hit_from(ps: &Vec<EqPair>, i: usize, a: &Expr, b: &Expr) -> bool {
 
 /// con-leche: ConLeche/Kernel/Expr.lean:952-967 Expr.probeHit
 /// con-leche: ConLeche/Kernel/Expr.lean:942-950 ptrDecStruct
-/// con-leche: CHANGED since ca6af099 — re-port, re-test, re-prove expr::pair_is_refines, then delete this line
 /// One candidate of the bucket: is this stored pair *these* two objects?
 /// The cited `probeHit`'s two `ptrDecStruct` identity tests, on the pair
 /// rather than on the entry's two address fields.  Its own function so that `probe_hit_from`

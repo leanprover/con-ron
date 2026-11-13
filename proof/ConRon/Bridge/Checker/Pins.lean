@@ -270,7 +270,7 @@ theorem internReservedPins_run {s s' : AState} (hok : StateOK s)
         zeroLevel := Frontend.PersL_of_denote hwf6 hoff6 hz6
         sortOne := Frontend.PersE_of_denote hwf6 hoff6 he6 }
 
-/-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _ — one type-pin list,
+/-- con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _ — one type-pin list,
 interned: each name and type an `IStepS` link (`Frontend.internName_sstep`,
 `Frontend.internExpr_sstep`), every denotation transported to the final
 store. -/
@@ -300,7 +300,7 @@ theorem internTypePins_sstep : ∀ (ps : List (ConLeche.Name × Expr))
     exact ⟨(t1.trans t2).trans t3, denoteN_ext d1 (t2.ext.trans t3.ext),
       denote_ext d2 t3.ext, d3⟩
 
-/-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _ — the eight type-pin
+/-- con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _ — the eight type-pin
 lists, written into the record. -/
 theorem internPinSetTypePins_sstep {ps : NatOpPinSet} {p0 p : INatOpPinSet}
     {s s' : AState} (hok : StateOK s)
@@ -354,7 +354,7 @@ theorem internPinSetTypePins_sstep {ps : NatOpPinSet} {p0 p : INatOpPinSet}
     TypePinsDenote.mono e5 _ _ d5, TypePinsDenote.mono e6 _ _ d6,
     TypePinsDenote.mono e7 _ _ d7, d8⟩
 
-/-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _ — ONE pin variant,
+/-- con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _ — ONE pin variant,
 interned: sixteen `internExpr`/`internExprList` calls, each an `IStepS` link
 (`Frontend.internExpr_sstep`, `Frontend.internExprList_sstep` at a fresh
 memo), then the type pins (`internPinSetTypePins_sstep`), every denotation
@@ -456,7 +456,7 @@ theorem internPinSet_sstep {ps : NatOpPinSet} {p : INatOpPinSet} {s s' : AState}
       shiftLeftTypePins := k7
       shiftRightTypePins := k8 }
 
-/-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _ — the variant list,
+/-- con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _ — the variant list,
 interned: the list recursion over `internPinSet_sstep`. -/
 theorem internPinSets_sstep : ∀ (ps : List NatOpPinSet) {r : List INatOpPinSet}
     {s s' : AState}, StateOK s → ConRon.Arena.internPinSets ps s = .ok (r, s') →
@@ -554,7 +554,7 @@ theorem PersPinSets_of_denote {st : EStore} (hwf : StoreWF st)
     · exact PersPinSets_of_denote hwf hoff h.2 x hx
 
 
-/-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _ — **the pin variants,
+/-- con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _ — **the pin variants,
 interned**: `internPinSets` on a closed scratch tier hands back a list that
 denotes its argument, variant by variant, in persistent handles.
 
@@ -611,7 +611,7 @@ theorem reservedBasisNames_sstep {s s' : AState} {hs : List NIdx}
   obtain ⟨rfl, -⟩ := h
   exact Frontend.IStepS.refl hst
 
-/-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
+/-- con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _
 **THE STARTUP WALK**: `internAllPins` interns every datum the checker compares
 a stream record against, and hands back the interned pin list.  Its
 postcondition is the fold's precondition — `PinsOK`, `PersPins`,

@@ -72762,3 +72762,24 @@ which #572 −9.6 %).
 explicit triples, not `sym … vcgen … finish`.  (3) Doc text still
 naming the gone `crate::cached` (`kernel/core_k.rs`, the `isCompound` skip reason) and
 `natOpResult`/`natOpWfNames` (`Refine/CoreKNames.lean`).
+
+### Task #153 — con-leche sync ca6af099 → 6810492c: the lean4-master pin variant, variants newest first (2026-11-13, Opus)
+
+Upstream task absorbed (1 commit): #578.  lean4 master's well-founded-recursion changes
+(lean4#16408, #16409) respell `Nat.bitwise` and with it `Nat.land`/`lor`/`xor`, so on master's
+`Init` every committed pin variant failed its ground guard and the stream declined at
+`Nat.lor` — in con-leche and, through the embedded `natOpPinSets`, in con-ron (lean4's
+`pkg/con-ron` failed the same way).  Upstream added the variant
+`pins/leanprover-lean4-pr-releases-pr-release-16441.json` and now lists the variants newest
+toolchain first.  `update --auto`: 26 findings (6 `CHANGED`, 20 `GONE`), 69 citations merely
+moved.
+
+| upstream | con-ron | done |
+|---|---|---|
+| the new variant, newest first (`#load_natop_pins`, now `NatOpPins.lean:77-81`) | three embedded variants, repository toolchain first | `scripts/gen-pins.sh`: `PINS_TEXT` carries four `S` records, pr-release-16441, nightly-2026-09-10, v4.34.0-rc2, v4.33.0; model regenerated; the interning loops (`checker::intern_all_*`, `nat_op_pin_set::*`, twin `internAllPins`/`NatOpPinSet.*`) are count-independent: citations only.  The generator's doc no longer counts the records. |
+| `ConLeche.ptrDecEq` (`Kernel/PtrDecEq.lean`) around `withPtrEqDecEq` | the plain tier's own address tests (`name::ptr_eq`, `level::ptr_eq`, `expr::pair_is`) | citations; `ptrDecEq` skipped (toolchain plumbing) |
+
+No statement changed; no proof changed.  Verdicts: `diff-e2e.sh` 733/733 (master's binary at the
+new pin as well).  Master's `Init` itself is not in con-ron's corpus (no toolchain here
+carries the change); lean4's release CI (`pkg/con-ron`) is the run that exercises the new
+variant, through the lean4 PR that moves both pins.

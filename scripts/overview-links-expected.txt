@@ -192,20 +192,20 @@
     22  //! | 2 | `declined` | the checker positively detected a feature it does not support, and says which |
     23  //! | 3 | error | bad usage, malformed input, or an internal failure of unclear cause |
 
-== crates/con-ron-core/src/kernel/name.rs#L622-L634
-   622  pub fn render(n: &Name) -> Vec<u32> {
-   623      match &n.0.kind {
-   624          NameKind::Anonymous => {
-   625              const A: [u32; 11] = [91, 97, 110, 111, 110, 121, 109, 111, 117, 115, 93];
-   626              crate::kernel::core_types::code_points(&A)
-   627          }
-   628          _ => {
-   629              let cs = component_list(n, Vec::new());
-   630              let k = cs.len();
-   631              display_acc_finish(render_from(&cs, k, display_acc_empty()))
-   632          }
-   633      }
-   634  }
+== crates/con-ron-core/src/kernel/name.rs#L620-L632
+   620  pub fn render(n: &Name) -> Vec<u32> {
+   621      match &n.0.kind {
+   622          NameKind::Anonymous => {
+   623              const A: [u32; 11] = [91, 97, 110, 111, 110, 121, 109, 111, 117, 115, 93];
+   624              crate::kernel::core_types::code_points(&A)
+   625          }
+   626          _ => {
+   627              let cs = component_list(n, Vec::new());
+   628              let k = cs.len();
+   629              display_acc_finish(render_from(&cs, k, display_acc_empty()))
+   630          }
+   631      }
+   632  }
 
 == flake.nix#L5-L29
      5      # Aeneas pins the Charon commit it needs (see `charon-pin` upstream) and
@@ -1502,7 +1502,7 @@
     50  //! on every `cargo test`.
 
 == crates/con-ron-core/src/arena/checker.rs#L164-L199
-   164  /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
+   164  /// con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _
    165  /// con-leche: ConLeche/Kernel/Basis.lean:39-45 BasisKind.decls
    166  /// Lean twin: `proof/ConRon/Arena/Checker.lean:124-162 internAllPins` — **the
    167  /// one-time tree walk of DESIGN.md §8.6 P2d**: every datum the checker compares
@@ -1539,12 +1539,12 @@
    198      }
    199  }
 
-== crates/con-ron-core/src/kernel/pins_text.rs#L42-L46
-    42  pub const PINS_TEXT: &str = "\
-    43  con-ron-pins/2
-    44  E 0 n 0
-    45  N 0 a
-    46  N 1 s 0 12 instOfNatNat
+== crates/con-ron-core/src/kernel/pins_text.rs#L40-L44
+    40  pub const PINS_TEXT: &str = "\
+    41  con-ron-pins/2
+    42  E 0 n 0
+    43  N 0 a
+    44  N 1 s 0 12 instOfNatNat
 
 == crates/con-ron-core/src/kernel/pins_decode.rs#L1336-L1356
   1336  /// in file order — which is the order `arena::decl_check::check_div_mod_pin_loop` tries
@@ -1558,7 +1558,7 @@
   1344      }
   1345  }
   1346  
-  1347  /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
+  1347  /// con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _
   1348  /// (The cited range is the `#load_natop_pins` command that *produces*
   1349  /// `natOpPinSets` while `NatOpPins.lean` elaborates; the declaration is not
   1350  /// written there, hence the `_`.)
