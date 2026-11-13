@@ -1378,18 +1378,18 @@ mod tests {
     }
 
     #[test]
-    fn the_embedded_text_decodes_to_three_variants() {
+    fn the_embedded_text_decodes_to_four_variants() {
         let n = on_a_big_stack(|| match decode_embedded() {
             Ok(v) => v.len(),
             Err(_) => 0,
         });
-        assert_eq!(n, 3);
+        assert_eq!(n, 4);
     }
 
     /// The toolchain strings, the one field of a variant a human reads: the
     /// decline message names them.
     #[test]
-    fn the_variants_are_the_three_pinned_toolchains() {
+    fn the_variants_are_the_four_pinned_toolchains() {
         let names = on_a_big_stack(|| {
             let v = decode_embedded().ok().unwrap();
             let mut out: Vec<String> = Vec::new();
@@ -1402,12 +1402,12 @@ mod tests {
             }
             out
         });
-        assert_eq!(names.len(), 3);
-        // con-leche's order (task #328): the dump that matches its own
-        // toolchain (v4.35.0's Init) first, the nightly one
-        assert!(names[0].contains("nightly"));
-        assert_eq!(names[1], "leanprover/lean4:v4.33.0");
+        assert_eq!(names.len(), 4);
+        // con-leche's order (its task #578): newest toolchain first
+        assert_eq!(names[0], "leanprover/lean4-pr-releases:pr-release-16441");
+        assert_eq!(names[1], "leanprover/lean4-nightly:nightly-2026-09-10");
         assert_eq!(names[2], "leanprover/lean4:v4.34.0-rc2");
+        assert_eq!(names[3], "leanprover/lean4:v4.33.0");
     }
 
     /// A text that is not this writer's output is rejected, not half-read: a
