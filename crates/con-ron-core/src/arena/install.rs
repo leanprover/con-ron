@@ -44,7 +44,7 @@ use crate::kernel::expr_ops::sub_nat;
 use crate::ron::hashmap::{Dup, Eq2};
 
 /// con-leche: ConLeche/Kernel/Install.lean:22-24 Env.pushDelta
-/// con-leche: ConLeche/Kernel/FEnv.lean:155-160 FEnv.pushDelta
+/// con-leche: ConLeche/Kernel/FEnv.lean:393-398 FEnv.pushDelta
 /// **The environment with a declaration's constants and tables pushed**, each
 /// list oldest first: the constants, then the tables (a constant push and a
 /// table push touch different components, so the order between them is not
@@ -54,7 +54,7 @@ pub fn push_delta(fe: IFEnv, l: Vec<IConstantInfo>, q: Vec<IProjTable>) -> IFEnv
     push_delta_tables(fe1, q, 0)
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:150-153 FEnv.pushAll
+/// con-leche: ConLeche/Kernel/FEnv.lean:388-391 FEnv.pushAll
 /// Push a list of records from `i` on, head first.
 pub fn push_delta_consts(fe: IFEnv, l: Vec<IConstantInfo>, i: usize) -> IFEnv {
     if i >= l.len() {
@@ -65,7 +65,7 @@ pub fn push_delta_consts(fe: IFEnv, l: Vec<IConstantInfo>, i: usize) -> IFEnv {
     }
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:143-148 FEnv.pushTables
+/// con-leche: ConLeche/Kernel/FEnv.lean:381-386 FEnv.pushTables
 /// The tables from `i` on, pushed in order.
 pub fn push_delta_tables(fe: IFEnv, q: Vec<IProjTable>, i: usize) -> IFEnv {
     if i >= q.len() {

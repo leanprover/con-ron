@@ -82,13 +82,15 @@ def buildIndex (ds : Array IDeclaration) : AM (Except (CheckError × Nat) IStrea
   buildIndexGo {} 0 ds.toList
 
 /-- con-leche: ConLeche/Cached/StreamIndex.lean:68-72 StreamIndex.view — **the view
+-- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove StreamIndex.IStreamIndex.view_bridge, then delete this line
 of record `k`**: no constants or tables of its own, the index visible below the
 record's first counter and its position. -/
 def IStreamIndex.view (I : IStreamIndex) (k : Nat) : IFEnv :=
   let c := I.firsts.getD k I.next
   ⟨⟨[], []⟩, {}, { I.base with below := c, belowRec := k }, {}⟩
 
-/-- con-leche: ConLeche/Cached/StreamIndex.lean:74-81 recordJob — what the fold's
+/-- con-leche: ConLeche/Cached/StreamIndex.lean:95-102 recordJob — what the fold's
+-- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove StreamIndex.recordCheck_bridge, then delete this line
 step asks of record `pd` at position `k`: the `And` pin, then the record's check at
 its view.  `recordJob` is this in its bracket. -/
 def recordCheck (mode : CheckMode) (pins : List INatOpPinSet) (I : IStreamIndex)
@@ -98,7 +100,8 @@ def recordCheck (mode : CheckMode) (pins : List INatOpPinSet) (I : IStreamIndex)
     pure ()
   else fail (.invalid "`And` must be the standard `And`")
 
-/-- con-leche: ConLeche/Cached/StreamIndex.lean:74-81 recordJob — **record `pd`'s
+/-- con-leche: ConLeche/Cached/StreamIndex.lean:95-102 recordJob — **record `pd`'s
+-- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove StreamIndex.recordJob_bridge, then delete this line
 job, at position `k`**: `recordCheck` from fresh memos and an empty scratch tier
 (the cited `checkDeclStepC`'s fresh `{}`), the tier dropped after it.  Nothing the
 job builds outlives it. -/

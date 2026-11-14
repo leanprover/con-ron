@@ -240,7 +240,9 @@ def unresolvedConstsErrorL (strOk : Bool) (where_ : String) (e : EIdx) :
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:101-123 checkConstantVal
 con-leche: ConLeche/Kernel/DeclCheck.lean:218-238 checkConstantValF
+-- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove CheckerBase.checkConstantVal_bridge, then delete this line
 con-leche: ConLeche/Cached/IndPass.lean:36-58 checkConstantValC
+-- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove CheckerBase.checkConstantVal_bridge, then delete this line
 Checks common to all declarations: fresh name, a certified
 operation's name only at a definition (`allowOp`, the cited default `false`,
 spelled at every call as the Rust must), a literal's name only at its shape,

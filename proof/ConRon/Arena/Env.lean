@@ -202,7 +202,7 @@ structure IEnv where
 environment; the starting point of every checker run. -/
 def IEnv.empty : IEnv := ⟨[], []⟩
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:27-39 FBase — **a frozen lookup layer**:
+/-- con-leche: ConLeche/Kernel/FEnv.lean:28-40 FBase — **a frozen lookup layer**:
 the index of a whole stream, built once before any record is checked and never
 written again (`Arena/StreamIndex.lean`).  An entry `n ↦ (c, ci)` says that the
 first constant named `n` in the stream is `ci`, at counter `c`; an entry
@@ -215,21 +215,22 @@ structure IFBase where
   below : Nat := 0
   belowRec : Nat := 0
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:41-45 FBase.find? — the base layer's
+/-- con-leche: ConLeche/Kernel/FEnv.lean:42-46 FBase.find? — the base layer's
 lookup: a visible entry's constant. -/
 def IFBase.find? (b : IFBase) (n : NIdx) : Option IConstantInfo :=
   match b.idx[n]? with
   | some (c, ci) => if c < b.below then some ci else none
   | none => none
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:47-51 FBase.findTable? — the base
+/-- con-leche: ConLeche/Kernel/FEnv.lean:48-52 FBase.findTable? — the base
 layer's table lookup: a visible entry's table. -/
 def IFBase.findTable? (b : IFBase) (T : NIdx) : Option IProjTable :=
   match b.tbls[T]? with
   | some (r, t) => if r < b.belowRec then some t else none
   | none => none
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:55-76 FEnv — the environment with its
+/-- con-leche: ConLeche/Kernel/FEnv.lean:189-218 FEnv — the environment with its
+-- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Env.IFEnv_bridge, then delete this line
 `O(1)` index (DESIGN §8.3 lesson 13) over the frozen layer of a stream's index
 (`base`).  `tbls` is the table map, keyed on the structure's name.  con-leche's
 overlay (`ovl`) is not twinned: the port pushes and pops in place
@@ -240,26 +241,28 @@ structure IFEnv where
   base : IFBase
   tbls : Std.HashMap NIdx IProjTable
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:78-84 mkIdxGo — the index build, from
+/-- con-leche: ConLeche/Kernel/FEnv.lean:237-243 mkIdxGo — the index build, from
 the back: the newest (front) constant is inserted last and wins, exactly as
 `List.find?` takes the first match. -/
 def mkIFEnvGo : List IConstantInfo → Std.HashMap NIdx IConstantInfo
   | [] => ∅
   | ci :: cs => (mkIFEnvGo cs).insert ci.name ci
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:86-90 mkTblsGo — the table map's
+/-- con-leche: ConLeche/Kernel/FEnv.lean:245-249 mkTblsGo — the table map's
 build, from the back: the newest (front) table is inserted last and wins,
 exactly as `List.find?` takes the first. -/
 def mkIFEnvTblsGo : List IProjTable → Std.HashMap NIdx IProjTable
   | [] => ∅
   | t :: ts => (mkIFEnvTblsGo ts).insert t.structName t
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:92-94 mkFEnv — build the indexes of
+/-- con-leche: ConLeche/Kernel/FEnv.lean:251-253 mkFEnv — build the indexes of
+-- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Env.mkIFEnv_bridge, then delete this line
 `env`, over the empty base. -/
 def mkIFEnv (env : IEnv) : IFEnv :=
   ⟨env, mkIFEnvGo env.consts, {}, mkIFEnvTblsGo env.tables⟩
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:98-105 FEnv.lookup — the index, then the
+/-- con-leche: ConLeche/Kernel/FEnv.lean:267-269 FEnv.lookup — the index, then the
+-- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Env.IFEnv.lookup_bridge, then delete this line
 frozen layer.  A job's own index is empty until its record pushes, and the
 lookups are hot, so an empty index is not hashed into. -/
 def IFEnv.lookup (fe : IFEnv) (n : NIdx) : Option IConstantInfo :=
@@ -269,17 +272,20 @@ def IFEnv.lookup (fe : IFEnv) (n : NIdx) : Option IConstantInfo :=
     | some ci => some ci
     | none => fe.base.find? n
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:118-128 FEnv.find? — indexed lookup: the
+/-- con-leche: ConLeche/Kernel/FEnv.lean:278-283 FEnv.find? — indexed lookup: the
+-- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Env.IFEnv.find?_bridge, then delete this line
 own layer, and on a miss the frozen base.  No overlay (the structure's note). -/
 def IFEnv.find? (fe : IFEnv) (n : NIdx) : Option IConstantInfo :=
   fe.lookup n
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:130-134 FEnv.push — the index of the
+/-- con-leche: ConLeche/Kernel/FEnv.lean:352-371 FEnv.push — the index of the
+-- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Env.IFEnv.push_bridge, then delete this line
 cons-extended environment; the base and the tables are untouched. -/
 def IFEnv.push (fe : IFEnv) (ci : IConstantInfo) : IFEnv :=
   ⟨⟨ci :: fe.env.consts, fe.env.tables⟩, fe.idx.insert ci.name ci, fe.base, fe.tbls⟩
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:136-141 FEnv.pushTable — **install a
+/-- con-leche: ConLeche/Kernel/FEnv.lean:373-379 FEnv.pushTable — **install a
+-- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Env.IFEnv.pushTable_bridge, then delete this line
 projection table**: the table component extended, the constant index
 untouched. -/
 def IFEnv.pushTable (fe : IFEnv) (t : IProjTable) : IFEnv :=
@@ -297,19 +303,19 @@ def IFEnv.popTemp (fe : IFEnv) (n : NIdx) (prev : Option IConstantInfo) : IFEnv 
     | none => fe.idx.erase n),
    fe.base, fe.tbls⟩
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:168-173 FEnv.rawTable? — the table map's
+/-- con-leche: ConLeche/Kernel/FEnv.lean:406-411 FEnv.rawTable? — the table map's
 lookup, ungated: a miss falls through to the base layer. -/
 def IFEnv.rawTable? (fe : IFEnv) (T : NIdx) : Option IProjTable :=
   match fe.tbls[T]? with
   | some t => some t
   | none => fe.base.findTable? T
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:175-179 FEnv.findTable? — **the table
+/-- con-leche: ConLeche/Kernel/FEnv.lean:413-417 FEnv.findTable? — **the table
 lookup**: `T`'s table, visible exactly where the constant `T` is. -/
 def IFEnv.findTable? (fe : IFEnv) (T : NIdx) : Option IProjTable :=
   if (fe.find? T).isSome then fe.rawTable? T else none
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:181-185 FEnv.findProj? — indexed
+/-- con-leche: ConLeche/Kernel/FEnv.lean:419-423 FEnv.findProj? — indexed
 projection-table lookup: the structure's table, viewed at field `i`. -/
 def IFEnv.findProj? (fe : IFEnv) (T : NIdx) (i : Nat) : Option IProjEntry :=
   match fe.findTable? T with

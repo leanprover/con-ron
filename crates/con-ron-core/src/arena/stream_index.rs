@@ -54,7 +54,7 @@ pub const M_AND_PIN: [u32; 32] = [
 ];
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:38-43 StreamIndex
-/// con-leche: ConLeche/Kernel/FEnv.lean:27-39 FBase
+/// con-leche: ConLeche/Kernel/FEnv.lean:28-40 FBase
 /// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:34-40 IStreamIndex` — the index
 /// under construction, and finished: the frozen layer's constants and tables
 /// (the module note's layout), each record's first counter, and the next
@@ -182,6 +182,7 @@ pub fn build_index(
 }
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:68-72 StreamIndex.view
+/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove stream_index::stream_index_view_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:84-89 IStreamIndex.view` — **the
 /// view of record `k`**: no constants or tables of its own, the frozen index
 /// visible below the record's first counter and its position.
@@ -194,7 +195,8 @@ pub fn stream_index_view(pers: &PersTier, k: u64) -> IFEnv {
     ifenv_layer(c, k)
 }
 
-/// con-leche: ConLeche/Cached/StreamIndex.lean:74-81 recordJob
+/// con-leche: ConLeche/Cached/StreamIndex.lean:95-102 recordJob
+/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove stream_index::record_check_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:91-99 recordCheck` — what the
 /// fold's step asks of record `pd` at position `k`: the `And` pin, then the
 /// record's check at its view.  `record_job` is this in its bracket; an
@@ -218,7 +220,8 @@ pub fn record_check(
     }
 }
 
-/// con-leche: ConLeche/Cached/StreamIndex.lean:74-81 recordJob
+/// con-leche: ConLeche/Cached/StreamIndex.lean:95-102 recordJob
+/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove stream_index::record_job_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:101-109 recordJob` — **record `pd`'s
 /// job, at position `k`**: `record_check` from fresh caches and an empty
 /// scratch tier (`enter_record`, the cited `checkDeclStepC`'s fresh `{}`), the

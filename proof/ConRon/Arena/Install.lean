@@ -33,20 +33,20 @@ namespace ConRon.Arena
 
 open ConLeche
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:150-153 FEnv.pushAll
+/-- con-leche: ConLeche/Kernel/FEnv.lean:388-391 FEnv.pushAll
 Push a list of records, head first. -/
 def IFEnv.pushAll : List IConstantInfo → IFEnv → IFEnv
   | [], fe => fe
   | ci :: rest, fe => IFEnv.pushAll rest (fe.push ci)
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:143-148 FEnv.pushTables
+/-- con-leche: ConLeche/Kernel/FEnv.lean:381-386 FEnv.pushTables
 The tables, pushed in order. -/
 def IFEnv.pushTables : List IProjTable → IFEnv → IFEnv
   | [], fe => fe
   | t :: rest, fe => IFEnv.pushTables rest (fe.pushTable t)
 
 /-- con-leche: ConLeche/Kernel/Install.lean:22-24 Env.pushDelta
-con-leche: ConLeche/Kernel/FEnv.lean:155-160 FEnv.pushDelta
+con-leche: ConLeche/Kernel/FEnv.lean:393-398 FEnv.pushDelta
 **The environment with a declaration's constants and tables pushed**, each list
 oldest first: the constants, then the tables. -/
 def IFEnv.pushDelta (fe : IFEnv) (L : List IConstantInfo) (Q : List IProjTable) : IFEnv :=
