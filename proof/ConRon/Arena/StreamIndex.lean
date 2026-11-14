@@ -31,13 +31,18 @@ namespace ConRon.Arena
 
 open ConLeche
 
-/-- con-leche: ConLeche/Cached/StreamIndex.lean:38-43 StreamIndex — the index under
+/-- con-leche: ConLeche/Cached/StreamIndex.lean:38-43 StreamIndex
+con-leche: ConLeche/Cached/StreamIndex.lean:68-76 FrozenIndex — the index under
 construction, and finished: the frozen layer (its bounds unused here), each record's
-first counter, and the next counter. -/
+first counter, and the next counter.  Frozen (`IStreamIndex.freeze`), it is
+con-leche's `FrozenIndex` too: the base holds the literal names, and for each literal
+flag the first counter from which a record's view has it (`natFrom`, `strFrom`). -/
 structure IStreamIndex where
   base : IFBase := {}
   firsts : Array Nat := #[]
   next : Nat := 0
+  natFrom : Option Nat := none
+  strFrom : Option Nat := none
 
 /-- con-leche: ConLeche/Cached/StreamIndex.lean:45-49 insertConsts — insert a
 record's constants from counter `c` on, a name's first entry winning. -/
@@ -64,13 +69,27 @@ def IStreamIndex.add (I : IStreamIndex) (pd : IDeclaration) : AM IStreamIndex :=
          firsts := I.firsts.push I.next
          next }
 
-/-- con-leche: ConLeche/Cached/StreamIndex.lean:64-66 buildIndex — **the index of
-a stream**, as an explicit list recursion (DESIGN §3.4 has no closures).  A failure
-is the store's (a term could not be interned), tagged with the position of the
-record whose reading failed. -/
+/-- con-leche: ConLeche/Cached/StreamIndex.lean:78-80 StreamIndex.freeze — **freeze a
+stream's index**: the literal names off the pin table into the base, and the literal
+flags' thresholds over them (`litFrom`). -/
+def IStreamIndex.freeze (I : IStreamIndex) : AM IStreamIndex := do
+  let lits ← strLitNames
+  let nf := litFrom I.base.idx lits 0 NAT_LIT_COUNT
+  let sf := litFrom I.base.idx lits 0 STR_LIT_COUNT
+  pure { I with base := { I.base with lits }, natFrom := nf, strFrom := sf }
+
+/-- con-leche: ConLeche/Cached/StreamIndex.lean:64-66 buildIndex
+con-leche: ConLeche/Driver/CheckPool.lean:66-70 Jobs.build — **the frozen index of
+a stream**, as an explicit list recursion (DESIGN §3.4 has no closures), frozen past
+the last record (`IStreamIndex.freeze`, con-leche's `Jobs.build`).  A failure is the
+store's (a term could not be interned) or the pin table's, tagged with the position
+of the record whose reading failed (past the last for the freeze). -/
 def buildIndexGo (I : IStreamIndex) (k : Nat) :
     List IDeclaration → AM (Except (CheckError × Nat) IStreamIndex)
-  | [] => pure (.ok I)
+  | [] => fun s =>
+    match I.freeze s with
+    | .ok (F, s') => .ok (.ok F, s')
+    | .error e => .ok (.error (e, k), s)
   | pd :: ds => fun s =>
     match I.add pd s with
     | .ok (I', s') => buildIndexGo I' (k + 1) ds s'
@@ -81,16 +100,16 @@ records, from the empty one. -/
 def buildIndex (ds : Array IDeclaration) : AM (Except (CheckError × Nat) IStreamIndex) :=
   buildIndexGo {} 0 ds.toList
 
-/-- con-leche: ConLeche/Cached/StreamIndex.lean:68-72 StreamIndex.view — **the view
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove StreamIndex.IStreamIndex.view_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/StreamIndex.lean:82-96 FrozenIndex.view — **the view
 of record `k`**: no constants or tables of its own, the index visible below the
-record's first counter and its position. -/
+record's first counter and its position, and its literal flags by one comparison each
+against the frozen thresholds (`fromLe`). -/
 def IStreamIndex.view (I : IStreamIndex) (k : Nat) : IFEnv :=
   let c := I.firsts.getD k I.next
-  ⟨⟨[], []⟩, {}, { I.base with below := c, belowRec := k }, {}⟩
+  ⟨⟨[], []⟩, {}, { I.base with below := c, belowRec := k }, {},
+    fromLe I.natFrom c, fromLe I.strFrom c⟩
 
 /-- con-leche: ConLeche/Cached/StreamIndex.lean:95-102 recordJob — what the fold's
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove StreamIndex.recordCheck_bridge, then delete this line
 step asks of record `pd` at position `k`: the `And` pin, then the record's check at
 its view.  `recordJob` is this in its bracket. -/
 def recordCheck (mode : CheckMode) (pins : List INatOpPinSet) (I : IStreamIndex)
@@ -101,7 +120,6 @@ def recordCheck (mode : CheckMode) (pins : List INatOpPinSet) (I : IStreamIndex)
   else fail (.invalid "`And` must be the standard `And`")
 
 /-- con-leche: ConLeche/Cached/StreamIndex.lean:95-102 recordJob — **record `pd`'s
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove StreamIndex.recordJob_bridge, then delete this line
 job, at position `k`**: `recordCheck` from fresh memos and an empty scratch tier
 (the cited `checkDeclStepC`'s fresh `{}`), the tier dropped after it.  Nothing the
 job builds outlives it. -/

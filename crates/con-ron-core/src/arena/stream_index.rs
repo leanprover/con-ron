@@ -59,7 +59,7 @@ pub const M_AND_PIN: [u32; 32] = [
 /// con-leche: ConLeche/Cached/StreamIndex.lean:38-43 StreamIndex
 /// con-leche: ConLeche/Cached/StreamIndex.lean:68-76 FrozenIndex
 /// con-leche: ConLeche/Kernel/FEnv.lean:28-40 FBase
-/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:34-40 IStreamIndex` — the index
+/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:34-45 IStreamIndex` — the index
 /// under construction, and finished: the frozen layer's constants and tables
 /// (the module note's layout), each record's first counter, and the next
 /// counter.  The layer's bounds are the reading layer's (`IFEnv.base_below`,
@@ -97,7 +97,7 @@ pub fn i_proj_table_dup(t: &IProjTable) -> IProjTable {
 }
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:38-43 StreamIndex
-/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:34-40 IStreamIndex` — the empty
+/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:34-45 IStreamIndex` — the empty
 /// index, con-leche's `{}`.
 pub fn stream_index_empty() -> IStreamIndex {
     IStreamIndex {
@@ -114,7 +114,7 @@ pub fn stream_index_empty() -> IStreamIndex {
 }
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:45-49 insertConsts
-/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:42-47 insertConsts` — insert a
+/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:47-52 insertConsts` — insert a
 /// record's constants from counter `I.next` on, a name's first entry winning;
 /// the cursor `i` walks the record's list.
 pub fn insert_consts(ix: IStreamIndex, cs: Vec<IConstantInfo>, i: usize) -> IStreamIndex {
@@ -133,7 +133,7 @@ pub fn insert_consts(ix: IStreamIndex, cs: Vec<IConstantInfo>, i: usize) -> IStr
 }
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:51-55 insertTables
-/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:49-54 insertTables` — insert a
+/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:54-59 insertTables` — insert a
 /// record's tables at record position `r`, a name's first entry winning.
 pub fn insert_tables(ix: IStreamIndex, r: u64, ts: Vec<IProjTable>, i: usize) -> IStreamIndex {
     if i >= ts.len() {
@@ -151,7 +151,7 @@ pub fn insert_tables(ix: IStreamIndex, r: u64, ts: Vec<IProjTable>, i: usize) ->
 }
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:57-62 StreamIndex.add
-/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:56-65 IStreamIndex.add` — one
+/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:61-70 IStreamIndex.add` — one
 /// record into the index: its first counter, its constants, its tables at its
 /// position.
 pub fn stream_index_add(
@@ -177,7 +177,7 @@ pub fn stream_index_add(
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:64-66 buildIndex
 /// con-leche: ConLeche/Driver/CheckPool.lean:66-70 Jobs.build
-/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:79-82 buildIndex` — **the frozen
+/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:98-101 buildIndex` — **the frozen
 /// index of a stream**, the records folded in order from `i` on and the index
 /// frozen past the last (`stream_index_freeze`, con-leche's `Jobs.build`).  An
 /// `Err` is the store's own failure (a term the install builds could not be
@@ -205,7 +205,7 @@ pub fn build_index(
 }
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:78-80 StreamIndex.freeze
-/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:1-1 IStreamIndex.freeze` —
+/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:72-79 IStreamIndex.freeze` —
 /// **freeze a stream's index**: the literal names off the pin table, and the
 /// literal flags' thresholds (`env::lit_from`) over them.  Run once by the
 /// driver, between the index's build and the freeze of the tier.
@@ -225,7 +225,7 @@ pub fn stream_index_freeze(st: &AState, ix: IStreamIndex) -> Result<IStreamIndex
 }
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:82-96 FrozenIndex.view
-/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:84-89 IStreamIndex.view` — **the
+/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:103-110 IStreamIndex.view` — **the
 /// view of record `k`**: no constants or tables of its own, the frozen index
 /// visible below the record's first counter and its position, and its literal
 /// flags by one comparison each against the frozen thresholds (`env::from_le`).
@@ -239,7 +239,7 @@ pub fn stream_index_view(pers: &PersTier, k: u64) -> IFEnv {
 }
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:95-102 recordJob
-/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:91-99 recordCheck` — what the
+/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:112-120 recordCheck` — what the
 /// fold's step asks of record `pd` at position `k`: the `And` pin, then the
 /// record's check at its view.  `record_job` is this in its bracket; an
 /// `--olean` run's job reads a theorem's value inside the same bracket first
@@ -263,7 +263,7 @@ pub fn record_check(
 }
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:95-102 recordJob
-/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:101-109 recordJob` — **record `pd`'s
+/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:122-130 recordJob` — **record `pd`'s
 /// job, at position `k`**: `record_check` from fresh caches and an empty
 /// scratch tier (`enter_record`, the cited `checkDeclStepC`'s fresh `{}`), the
 /// tier emptied again after it on both paths.  Nothing the job builds outlives

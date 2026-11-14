@@ -23,10 +23,9 @@ function argument and a closure is what DESIGN §3.4 forbids.
    has ONE environment type, the index, because DESIGN §8.3's lesson 13
    makes `find?` the only read of the environment.  Consequently every
    `…Of`/`…F` PAIR of con-leche declarations — `natLitSupported` /
-   `natLitSupportedF`, `natLitStored` / `natLitStoredF`, `natOpGuard` /
+   `natLitSupportedF`, `natOpGuard` /
    `natOpGuardF`, `andRescueSlotsOf` / `andRescueSlots` /
-   `andRescueSlotsF`,
-   `strLitStored` / `strLitStoredF` — collapses into
+   `andRescueSlotsF` — collapses into
    ONE twin, which carries a `con-leche:` line per collapsed declaration.
    That is P2b's own rule for the `…Go`/`…Fast` triples, applied to the
    lookup abstraction instead of to the memo.
@@ -113,6 +112,38 @@ recursor and projection-function names the modeller builds). -/
 /-- con-leche: none — the empty universe-argument list, off the pin table.
 `us == emptyLevels` is con-leche's pattern `.const _ []`. -/
 def emptyLevels : AM LsIdx := pinEmptyLevels
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:54-55 natLitNames — the names a `Nat`
+literal's expansion needs, `Nat`, `Nat.zero` and `Nat.succ`, as handles off the pin
+table. -/
+def natLitNames : AM (List NIdx) := do
+  let a0 ← pinNat
+  let a1 ← pinNatZero
+  let a2 ← pinNatSucc
+  pure [a0, a1, a2]
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:57-60 strLitNames — the names a string
+literal's expansion needs, as handles off the pin table: the `Nat` ones, then
+`String`, `String.ofList`, `List`, `List.nil`, `List.cons`, `Char` and
+`Char.ofNat`. -/
+def strLitNames : AM (List NIdx) := do
+  let o ← natLitNames
+  let a3 ← pinString
+  let a4 ← pinStringOfList
+  let a5 ← pinList
+  let a6 ← pinListNil
+  let a7 ← pinListCons
+  let a8 ← pinChar
+  let a9 ← pinCharOfNat
+  pure (o ++ [a3, a4, a5, a6, a7, a8, a9])
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:251-253 mkFEnv — the indexes of `env` over a
+base that holds nothing but the literal names (`strLitNames`), so that its pushes keep
+the literal flags as a frozen stream index's views do.  The starting environment of
+the spec fold (`checkDeclsPure`) and of the twin's tests. -/
+def mkIFEnvLits (env : IEnv) : AM IFEnv := do
+  let lits ← strLitNames
+  pure (IFEnv.ofParts env (mkIFEnvGo env.consts) { lits } (mkIFEnvTblsGo env.tables))
 
 /-- con-leche: none — the level `0`, off the pin table: the comparand of every
 `Level.isEquiv u .zero` in this module. -/
@@ -329,6 +360,26 @@ def ioNeutral (e : EIdx) : AM Bool := do
   else if t == ETag.bvar then pure false
   else pure true
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:48-56 Expr.isNatSuccApp — is the
+expression `Nat.succ x`, an application of the level-free constant `Nat.succ`?
+The one constructor application whose whnf is not itself: the whnf folds it to a
+literal when `x` reduces to one, so the ι step's major takes that whnf
+(`prepareMajor`). -/
+def isNatSuccApp (e : EIdx) : AM Bool := do
+  if e.tag == ETag.app then
+    match ← viewApp e with
+    | none => failDanglingE
+    | some (f, _) =>
+      if f.tag == ETag.const then
+        match ← viewConst f with
+        | none => failDanglingE
+        | some (c, us) => do
+          let el ← emptyLevels
+          let ns ← pinNatSucc
+          pure (us == el && c == ns)
+      else pure false
+  else pure false
+
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:58-65 isCtorApp — is the
 expression headed by a stored constructor? -/
 def isCtorApp (fe : IFEnv) (e : EIdx) : AM Bool := do
@@ -525,19 +576,6 @@ def natLitSupported (fe : IFEnv) : AM Bool := do
       let ns ← pinNatSucc
       natSuccOk (fe.find? ns)
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:201-204 natLitStored
-con-leche: ConLeche/Kernel/FEnv.lean:200-202 natLitStoredF
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Core.natLitStored_bridge, then delete this line
-Whether a `Nat` literal's constants are stored (presence only: what they are
-is the declarations' own check, `litShapeOk`).  One twin for con-leche's two
-spellings (deviation 1); the three names are pinned before the conjunction,
-as `constsResolve`'s `.natVal` arm pins them. -/
-def natLitStored (fe : IFEnv) : AM Bool := do
-  let nt ← pinNat
-  let nz ← pinNatZero
-  let ns ← pinNatSucc
-  pure ((fe.find? nt).isSome && (fe.find? nz).isSome && (fe.find? ns).isSome)
-
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:206-231 Expr.constsResolve — do all
 constants referenced in `e` (including inside `fvar` type annotations)
 resolve in `fe`?  A full walk over the term, hence fuel; unlike the
@@ -592,7 +630,7 @@ def litToCtorIfNat (fe : IFEnv) (h : EIdx) : AM EIdx := do
   if h.tag == ETag.lit then
     match ← view h with
     | .lit (.natVal n) => do
-      if ← natLitStored fe then natLitToConstructor n else pure h
+      if fe.natLit then natLitToConstructor n else pure h
     | _ => pure h
   else pure h
 
@@ -795,26 +833,6 @@ def stringOfListTyOk : Option IConstantInfo → AM Bool
         | _ => pure false
       else pure false
   | none => pure false
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:372-377 strLitStored
-con-leche: ConLeche/Kernel/FEnv.lean:204-209 strLitStoredF
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Core.strLitStored_bridge, then delete this line
-Whether a `String` literal's constants are stored: `natLitStored` and the
-seven string-support names, by presence only (deviation 1).  The seven are
-pinned before their conjunction, as `constsResolve`'s `.strVal` arm pins
-them. -/
-def strLitStored (fe : IFEnv) : AM Bool := do
-  if !(← natLitStored fe) then pure false else do
-    let st ← pinString
-    let sl ← pinStringOfList
-    let li ← pinList
-    let ln ← pinListNil
-    let lc ← pinListCons
-    let ch ← pinChar
-    let co ← pinCharOfNat
-    pure ((fe.find? st).isSome && (fe.find? sl).isSome && (fe.find? li).isSome &&
-      (fe.find? ln).isSome && (fe.find? lc).isSome && (fe.find? ch).isSome &&
-      (fe.find? co).isSome)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:379-395 litShapeOk — **the shape a
 declaration at a literal's name must have**, its level parameters and type,
@@ -1061,7 +1079,6 @@ def natSizeRefused (n : Nat) : AM Bool := do
 /-- con-leche: ConLeche/Cached/StateC.lean:254-263 natResultRefused
 con-leche: ConLeche/Cached/StateC.lean:165-168 natNumeralTooBig
 con-leche: ConLeche/Cached/CoreC.lean:403-457 reduceNatI — a computed numeral,
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Core.litNatSized_bridge, then delete this line
 refused above the run's maximum `Nat` size (the cited `natNumeralTooBig`),
 otherwise interned. -/
 def litNatSized (n : Nat) : AM (Option EIdx) := do
@@ -1329,7 +1346,6 @@ def natBinOpOfName? (c : NIdx) : AM (Option NatBinOp) := do
 
 /-- con-leche: ConLeche/Kernel/Core.lean:168-209 reduceNat
 con-leche: ConLeche/Cached/CoreC.lean:403-457 reduceNatI — literal
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Core.reduceNat_bridge, then delete this line
 acceleration (the official kernel's `reduceNat`, run in the `whnf` loop
 *before* delta-unfolding).  The divergence audit's D15 is preserved: the
 FIRST argument is head-normalised and, unless it is a literal, the step
@@ -1348,7 +1364,7 @@ def reduceNat (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (e : EIdx) :
         let el ← emptyLevels
         if us != el then pure none else do
           let ns ← pinNatSucc
-          if c == ns && (← natLitStored fe) then do
+          if c == ns && fe.natLit then do
             match ← rawNatLit? (← r.whnf depth b) with
             | some n => litNatSized (n + 1)
             | none => pure none
@@ -2222,7 +2238,7 @@ def litMajorToCtor (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (h : EIdx) :
   if h.tag == ETag.lit then
     match ← view h with
     | .lit (.strVal s) => do
-      if ← strLitStored fe then do
+      if fe.strLit then do
         let c ← strLitToConstructor s
         r.whnf depth c
       else pure h
@@ -2236,7 +2252,7 @@ def projLitToCtor (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (h : EIdx) :
   if h.tag == ETag.lit then
     match ← view h with
     | .lit (.strVal s) => do
-      if ← strLitStored fe then do
+      if fe.strLit then do
         let c ← strLitToConstructor s
         r.whnf depth c
       else pure h
@@ -2254,17 +2270,28 @@ def isStrLit (h : EIdx) : AM Bool := do
   else pure false
 
 /-- con-leche: ConLeche/Kernel/Core.lean:795-874 prepareMajor
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Core.prepareMajor_bridge, then delete this line
+con-leche: ConLeche/Cached/CoreC.lean:932-955 prepareMajorI — the non-K path
+past a rescue that produced no constructor (or produced `Nat.succ x`):
+head-normalize the major, convert its literal, try the rescue once more on the
+reduct. -/
+def prepareMajorWhnf (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (recName : NIdx) (isK : Bool) (rules : List IRecRule) (majorE : EIdx) :
+    AM EIdx := do
+  let major₀ ← r.whnf depth majorE
+  let major₁ ← litMajorToCtor r fe depth major₀
+  majorToCtor mode r fe depth recName isK rules major₁
+
+/-- con-leche: ConLeche/Kernel/Core.lean:795-874 prepareMajor
 con-leche: ConLeche/Cached/CoreC.lean:932-955 prepareMajorI — the major
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Core.prepareMajor_bridge, then delete this line
 premise's preparation before a rule fires: at a K-flagged recursor (the
 record's `isK`) the K
 rescue runs on the **raw** major and, if it did not produce a constructor
 application, the major is left as it is (con-leche task #334); elsewhere the
 structure rescues run on the major AS FOUND first (lean4#15351, con-leche's
 task #342 R2; a `String` literal skips that attempt), and only if they produce
-no constructor is the major head-normalized, its literal converted and the
-rescue tried on the reduct. -/
+no constructor — or a `Nat.succ x` (`isNatSuccApp`), whose whnf folds it to a
+literal — is the major head-normalized, its literal converted and the rescue
+tried on the reduct. -/
 def prepareMajor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     (recName : NIdx) (isK : Bool) (rules : List IRecRule) (major : EIdx) :
     AM EIdx := do
@@ -2277,11 +2304,10 @@ def prepareMajor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     let majorE ←
       if ← isStrLit major then pure major
       else majorToCtor mode r fe depth recName isK rules major
-    if ← isCtorApp fe majorE then pure majorE
-    else do
-      let major₀ ← r.whnf depth majorE
-      let major₁ ← litMajorToCtor r fe depth major₀
-      majorToCtor mode r fe depth recName isK rules major₁
+    if ← isCtorApp fe majorE then
+      if ← isNatSuccApp majorE then prepareMajorWhnf mode r fe depth recName isK rules majorE
+      else pure majorE
+    else prepareMajorWhnf mode r fe depth recName isK rules majorE
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:952-974 recFireComparands — the
 nested rule's stored level comparands, substituted and re-interned
@@ -3454,7 +3480,6 @@ def inferPis (r : CoreFnsA) (fe : IFEnv) (d : Nat) :
         else fail (.invalid "expected a sort")
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1482-1588 inferBodyI — the `.lam`
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Core.inferLam_bridge, then delete this line
 clause: the binder's own domain is checked to be a type here (which is why the
 loop starts at `k = 1` with one free variable and a one-entry stack), and the
 rest of the λ-chain is peeled by `inferLams`. -/
@@ -3467,7 +3492,6 @@ def inferLam (r : CoreFnsA) (depth : Nat) (ty body : EIdx) : AM EIdx := do
   else fail (.invalid "expected a sort")
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1482-1588 inferBodyI — the
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Core.inferForall_bridge, then delete this line
 `.forallE` clause, `inferLam`'s twin. -/
 def inferForall (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     (ty body : EIdx) : AM EIdx := do
@@ -3535,7 +3559,6 @@ def inferSpine (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
 termination_by args.size - i
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1482-1588 inferBodyI — the `.app`
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Core.inferApp_bridge, then delete this line
 clause: the head is inferred ONCE and the whole argument vector is run through
 `inferSpine`. -/
 def inferApp (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
@@ -3576,7 +3599,6 @@ def inferAppIOAt (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
   inferSpineIO r fe depth tf #[] hv.2 0
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1482-1588 inferBodyI — the `.proj`
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Core.inferProj_bridge, then delete this line
 clause, shared by `inferBody` and `inferBodyIO` (con-leche's `inferBodyIOI`
 dispatches its `.proj` to `inferBodyI`'s): the subject type's head must be the
 node's structure at the table's arity (official `infer_proj`; these guards are
@@ -3639,7 +3661,7 @@ def inferBody (r : CoreFnsA) (fe : IFEnv) :
           fail (.invalid "incorrect number of universe levels")
         else constTyAt cv us
     | .lit (.natVal n) => do
-      if ← natLitStored fe then do
+      if fe.natLit then do
         -- a numeral entering the checker is bounded by the run's maximum
         -- `Nat` size (con-leche's cached `inferBodyI`, official `infer_lit`)
         if ← natSizeRefused n then
@@ -3649,7 +3671,7 @@ def inferBody (r : CoreFnsA) (fe : IFEnv) :
           constE nn
       else fail (.invalid "Nat literal without the Nat basis declarations")
     | .lit (.strVal _) => do
-      if ← strLitStored fe then do
+      if fe.strLit then do
         let sn ← pinString
         constE sn
       else fail (.notImplemented
@@ -3706,7 +3728,7 @@ def inferBodyIO (r : CoreFnsA) (fe : IFEnv) :
           fail (.invalid "incorrect number of universe levels")
         else constTyAt cv us
     | .lit (.natVal n) => do
-      if ← natLitStored fe then do
+      if fe.natLit then do
         -- a numeral entering the checker is bounded by the run's maximum
         -- `Nat` size (con-leche's cached `inferBodyI`, official `infer_lit`)
         if ← natSizeRefused n then
@@ -3716,7 +3738,7 @@ def inferBodyIO (r : CoreFnsA) (fe : IFEnv) :
           constE nn
       else fail (.invalid "Nat literal without the Nat basis declarations")
     | .lit (.strVal _) => do
-      if ← strLitStored fe then do
+      if fe.strLit then do
         let sn ← pinString
         constE sn
       else fail (.notImplemented
@@ -4136,7 +4158,6 @@ def defeqProjPair (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1736-1803 defeqStuck
 con-leche: ConLeche/Cached/CoreC.lean:1837-1885 defeqStuckI — **the stuck
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Core.defeqStuck_bridge, then delete this line
 comparison** (the tail of the official kernel's `is_def_eq_core`): a string
 literal against `String.ofList`, the same free variable, the same constant at
 equivalent levels, the application spine, η on a one-sided λ; every failing
@@ -4153,7 +4174,7 @@ def defeqStuck (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
         | .const cO usO => do
           let el ← emptyLevels
           let sl ← pinStringOfList
-          if cO = sl ∧ usO = el ∧ (← strLitStored fe) then do
+          if cO = sl ∧ usO = el ∧ fe.strLit = true then do
             let c ← strLitToConstructor st
             r.defeq depth c b
           else stuckIrrel r fe depth a b
@@ -4168,7 +4189,7 @@ def defeqStuck (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
         | .const cO usO => do
           let el ← emptyLevels
           let sl ← pinStringOfList
-          if cO = sl ∧ usO = el ∧ (← strLitStored fe) then do
+          if cO = sl ∧ usO = el ∧ fe.strLit = true then do
             let c ← strLitToConstructor st
             r.defeq depth a c
           else stuckIrrel r fe depth a b

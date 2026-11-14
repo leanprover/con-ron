@@ -314,7 +314,7 @@ private structure Fx where
   lam2 : EIdx
   beta2 : EIdx
 
-private instance : Inhabited IFEnv := ⟨⟨IEnv.empty, ∅, {}, ∅⟩⟩
+private instance : Inhabited IFEnv := ⟨⟨IEnv.empty, ∅, {}, ∅, false, false⟩⟩
 private instance : Inhabited Fx := ⟨⟨default, default, default, default, default,
   default, default, default, default, default, default, default, default,
   default, default, default, default, default, default, default, default,
@@ -324,7 +324,7 @@ private instance : Inhabited Fx := ⟨⟨default, default, default, default, def
 it, and intern every subject term. -/
 private def buildFx : AM Fx := do
   let cs ← internConsts envCL.consts
-  let fe := mkIFEnv ⟨cs, []⟩
+  let fe ← mkIFEnvLits ⟨cs, []⟩
   let two ← internExprT tTwo
   let ax ← internExprT tAx
   let lit7 ← internExprT tLit7

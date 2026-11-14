@@ -833,7 +833,6 @@ def substConst0Pairs (n : NIdx) (r : EIdx) : List (EIdx × EIdx) → AM (List (E
 con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
 con-leche: ConLeche/Kernel/Checker.lean:80-102 checkOpaqueVal
 con-leche: ConLeche/Cached/ParsedC.lean:38-55 checkDefnValCI
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove DeclCheck.valueGuards_bridge, then delete this line
 The value's syntactic guards the three value checks spell alike (no loose
 bound variable, no free variable, declared universe parameters, resolving
 constants), spelled once here. -/
@@ -846,11 +845,10 @@ def valueGuards (fe : IFEnv) (cv : IConstantVal) (value : EIdx) : AM Unit := do
     fail (.invalid
       "undeclared universe parameter in value")
   unless ← constsResolveFFast fe value do
-    fail (← unresolvedConstsErrorL (← strLitStored fe) "value" value)
+    fail (← unresolvedConstsErrorL fe.strLit "value" value)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:30-47 checkDefnVal
 con-leche: ConLeche/Cached/ParsedC.lean:38-55 checkDefnValCI
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove DeclCheck.checkDefnVal_bridge, then delete this line
 Check a `def` declaration's value against its checked constant, returning the
 record to install, unpushed (the cached twin's shape: the caller certifies the
 pinned operations against the environment with and without it, then pushes).
@@ -866,7 +864,6 @@ def checkDefnVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
 con-leche: ConLeche/Cached/ParsedC.lean:57-77 checkThmValCI
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove DeclCheck.checkThmVal_bridge, then delete this line
 Check a `theorem` declaration's value against its checked constant (whose
 type must additionally be a proposition), returning the record to install,
 unpushed.  **A theorem is stored by its statement only**: the checked value is
@@ -887,7 +884,6 @@ def checkThmVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:80-102 checkOpaqueVal
 con-leche: ConLeche/Cached/ParsedC.lean:79-95 checkOpaqueValCI
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove DeclCheck.checkOpaqueVal_bridge, then delete this line
 Check an `opaque` declaration's value against its checked constant: exactly
 the theorem check without the is-a-proposition requirement, returning the
 record to install, unpushed.  It is an `axiomInfo` — the checked value is a

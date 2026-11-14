@@ -201,7 +201,7 @@ def checkDeclsPureGo (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv) 
 con-leche: ConLeche/Kernel/CheckDecl.lean:176-180 checkDeclsPure
 **The spec fold**: from the empty environment. -/
 def checkDeclsPure (mode : CheckMode) (pins : List INatOpPinSet)
-    (ds : List IDeclaration) : AM IFEnv :=
-  checkDeclsPureGo mode pins (mkIFEnv IEnv.empty) ds
+    (ds : List IDeclaration) : AM IFEnv := do
+  checkDeclsPureGo mode pins (← mkIFEnvLits IEnv.empty) ds
 
 end ConRon.Arena

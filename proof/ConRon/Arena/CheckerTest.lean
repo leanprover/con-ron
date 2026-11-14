@@ -86,7 +86,7 @@ arena's `checkDecl` on them. -/
 private def runDecl (envCL : ConLeche.Env) (dCL : Declaration) : AM IFEnv := do
   let cs ← internCIList envCL.consts
   let (_, ds) ← Frontend.internDecls ∅ [dCL]
-  checkDecl MU [] (mkIFEnv ⟨cs, []⟩) (ds.headD default)
+  checkDecl MU [] (← mkIFEnvLits ⟨cs, []⟩) (ds.headD default)
 
 /-- con-leche: none — the arena's `checkDecl` against con-leche's, over the
 whole outcome: the same environment, constant for constant, or the same
@@ -396,7 +396,7 @@ private def chkStdAxiom (envCL : ConLeche.Env) (cv : ConstantVal) : Bool :=
   let prog : AM Bool := do
     let cs ← internCIList envCL.consts
     let (_, icv) ← Frontend.internCV ∅ cv
-    stdAxiomOk (mkIFEnv ⟨cs, []⟩) icv
+    stdAxiomOk (← mkIFEnvLits ⟨cs, []⟩) icv
   match (do internReservedPins; prog).run (AState.init EStore.empty) with
   | .ok (r, _) => r == ConLeche.stdAxiomOk envCL cv
   | .error _ => false

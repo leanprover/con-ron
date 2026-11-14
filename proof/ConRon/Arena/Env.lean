@@ -31,7 +31,7 @@ name, as con-leche's `Env`/`FEnv`.  A table is not a constant, so
 **The environment.**  `IEnv` is con-leche's association list, `IFEnv` its
 `ConLeche/Kernel/FEnv.lean` index at `NIdx` keys over a frozen base layer
 (`IFBase`, the stream's index: `Arena/StreamIndex.lean`).  The guard twins
-that read them (`natLitStoredF` and its siblings) are `Arena/Core.lean`'s.
+that read them (`natLitSupportedF` and its siblings) are `Arena/Core.lean`'s.
 -/
 module
 
@@ -214,6 +214,10 @@ structure IFBase where
   tbls : Std.HashMap NIdx (Nat × IProjTable) := {}
   below : Nat := 0
   belowRec : Nat := 0
+  /-- The literal names (`strLitNames`) as handles, filled when a stream's index
+  is frozen (`IStreamIndex.freeze`), so that a push can tell whether it touched one
+  without the pin table.  Empty in an unfrozen base. -/
+  lits : List NIdx := []
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:42-46 FBase.find? — the base layer's
 lookup: a visible entry's constant. -/
@@ -229,17 +233,57 @@ def IFBase.findTable? (b : IFBase) (T : NIdx) : Option IProjTable :=
   | some (r, t) => if r < b.belowRec then some t else none
   | none => none
 
+/-- con-leche: ConLeche/Kernel/FEnv.lean:54-55 natLitNames — how many of the
+literal names a `Nat` literal's expansion needs: the first three. -/
+def NAT_LIT_COUNT : Nat := 3
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:57-60 strLitNames — how many a string
+literal's expansion needs: all ten. -/
+def STR_LIT_COUNT : Nat := 10
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:62-72 litFrom — **from which counter a
+view of the frozen layer holds all of `lits[i..stop]`**: one past the largest
+counter of their entries, `none` if one has no entry (or the list is short). -/
+def litFrom (idx : Std.HashMap NIdx (Nat × IConstantInfo)) (lits : List NIdx)
+    (i stop : Nat) : Option Nat :=
+  if i ≥ stop then some 0
+  else if h : i < lits.length then
+    match idx[lits[i]]? with
+    | none => none
+    | some (c, _) =>
+      match litFrom idx lits (i + 1) stop with
+      | none => none
+      | some k => if c + 1 ≤ k then some k else some (c + 1)
+  else none
+termination_by stop - i
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:73-76 fromLe — is a counter threshold
+(`litFrom`) reached at `c`. -/
+def fromLe : Option Nat → Nat → Bool
+  | some k, c => decide (k ≤ c)
+  | none, _ => false
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:144-148 litName — is `n` one of the
+literal names from `i` on: the ten names the two literal flags read. -/
+def litNameAt (lits : List NIdx) (n : NIdx) (i : Nat) : Bool :=
+  if h : i < lits.length then
+    if lits[i] == n then true else litNameAt lits n (i + 1)
+  else false
+termination_by lits.length - i
+
 /-- con-leche: ConLeche/Kernel/FEnv.lean:189-218 FEnv — the environment with its
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Env.IFEnv_bridge, then delete this line
 `O(1)` index (DESIGN §8.3 lesson 13) over the frozen layer of a stream's index
-(`base`).  `tbls` is the table map, keyed on the structure's name.  con-leche's
-overlay (`ovl`) is not twinned: the port pushes and pops in place
-(`IFEnv.popTemp`). -/
+(`base`), and the two literal flags of its lookups (`natLitStoredBy`,
+`strLitStoredBy`), set where it is made and kept by every push.  `tbls` is the
+table map, keyed on the structure's name.  con-leche's overlay (`ovl`) is not
+twinned: the port pushes and pops in place (`IFEnv.popTemp`). -/
 structure IFEnv where
   env : IEnv
   idx : Std.HashMap NIdx IConstantInfo
   base : IFBase
   tbls : Std.HashMap NIdx IProjTable
+  natLit : Bool
+  strLit : Bool
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:237-243 mkIdxGo — the index build, from
 the back: the newest (front) constant is inserted last and wins, exactly as
@@ -255,14 +299,8 @@ def mkIFEnvTblsGo : List IProjTable → Std.HashMap NIdx IProjTable
   | [] => ∅
   | t :: ts => (mkIFEnvTblsGo ts).insert t.structName t
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:251-253 mkFEnv — build the indexes of
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Env.mkIFEnv_bridge, then delete this line
-`env`, over the empty base. -/
-def mkIFEnv (env : IEnv) : IFEnv :=
-  ⟨env, mkIFEnvGo env.consts, {}, mkIFEnvTblsGo env.tables⟩
-
-/-- con-leche: ConLeche/Kernel/FEnv.lean:267-269 FEnv.lookup — the index, then the
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Env.IFEnv.lookup_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/FEnv.lean:267-269 FEnv.lookup
+con-leche: ConLeche/Kernel/FEnv.lean:102-110 lookupIn — the index, then the
 frozen layer.  A job's own index is empty until its record pushes, and the
 lookups are hot, so an empty index is not hashed into. -/
 def IFEnv.lookup (fe : IFEnv) (n : NIdx) : Option IConstantInfo :=
@@ -272,36 +310,85 @@ def IFEnv.lookup (fe : IFEnv) (n : NIdx) : Option IConstantInfo :=
     | some ci => some ci
     | none => fe.base.find? n
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:278-283 FEnv.find? — indexed lookup: the
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Env.IFEnv.find?_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/FEnv.lean:278-283 FEnv.find?
+con-leche: ConLeche/Kernel/FEnv.lean:112-120 findIn — indexed lookup: the
 own layer, and on a miss the frozen base.  No overlay (the structure's note). -/
 def IFEnv.find? (fe : IFEnv) (n : NIdx) : Option IConstantInfo :=
   fe.lookup n
 
+/-- con-leche: ConLeche/Kernel/FEnv.lean:122-126 natLitStoredBy
+con-leche: ConLeche/Kernel/FEnv.lean:128-134 strLitStoredBy — are the base's
+literal names `lits[i..stop]` all stored in `fe`, read through `find?`.  A list
+too short to hold them answers `false`. -/
+def IFEnv.litsStored (fe : IFEnv) (i stop : Nat) : Bool :=
+  if i ≥ stop then true
+  else if h : i < fe.base.lits.length then
+    match fe.find? fe.base.lits[i] with
+    | some _ => fe.litsStored (i + 1) stop
+    | none => false
+  else false
+termination_by stop - i
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:122-126 natLitStoredBy — **are `Nat`
+literals expandable** in `fe`, by lookups: `Nat`, `Nat.zero` and `Nat.succ` are
+stored. -/
+def IFEnv.natLitStoredBy (fe : IFEnv) : Bool := fe.litsStored 0 NAT_LIT_COUNT
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:128-134 strLitStoredBy — **are string
+literals expandable** in `fe`, by lookups: the `Nat` constants and the seven
+string-support constants are stored. -/
+def IFEnv.strLitStoredBy (fe : IFEnv) : Bool :=
+  fe.natLitStoredBy && fe.litsStored NAT_LIT_COUNT STR_LIT_COUNT
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:220-230 FEnv.ofParts — **an index from
+its components**, its literal flags computed by lookups. -/
+def IFEnv.ofParts (env : IEnv) (idx : Std.HashMap NIdx IConstantInfo) (base : IFBase)
+    (tbls : Std.HashMap NIdx IProjTable) : IFEnv :=
+  let fe : IFEnv := ⟨env, idx, base, tbls, false, false⟩
+  ⟨env, idx, base, tbls, fe.natLitStoredBy, fe.strLitStoredBy⟩
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:251-253 mkFEnv — build the indexes of
+`env`, over the empty base. -/
+def mkIFEnv (env : IEnv) : IFEnv :=
+  IFEnv.ofParts env (mkIFEnvGo env.consts) {} (mkIFEnvTblsGo env.tables)
+
 /-- con-leche: ConLeche/Kernel/FEnv.lean:352-371 FEnv.push — the index of the
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Env.IFEnv.push_bridge, then delete this line
-cons-extended environment; the base and the tables are untouched. -/
+cons-extended environment; the base and the tables are untouched.  The literal
+flags are recomputed only while string literals are not yet expandable and only
+when the pushed name is one of the base's literal names (`litNameAt`); every
+other push leaves them as they are. -/
 def IFEnv.push (fe : IFEnv) (ci : IConstantInfo) : IFEnv :=
-  ⟨⟨ci :: fe.env.consts, fe.env.tables⟩, fe.idx.insert ci.name ci, fe.base, fe.tbls⟩
+  let re := !fe.strLit && litNameAt fe.base.lits ci.name 0
+  let fe1 : IFEnv := ⟨⟨ci :: fe.env.consts, fe.env.tables⟩, fe.idx.insert ci.name ci,
+    fe.base, fe.tbls, fe.natLit, fe.strLit⟩
+  if re then
+    let fe2 := { fe1 with natLit := fe1.natLitStoredBy }
+    { fe2 with strLit := fe2.strLitStoredBy }
+  else fe1
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:373-379 FEnv.pushTable — **install a
--- con-leche: CHANGED since 6810492c — re-port, re-test, re-prove Env.IFEnv.pushTable_bridge, then delete this line
-projection table**: the table component extended, the constant index
-untouched. -/
+projection table**: the table component extended, the constant index and the
+literal flags untouched. -/
 def IFEnv.pushTable (fe : IFEnv) (t : IProjTable) : IFEnv :=
-  ⟨⟨fe.env.consts, t :: fe.env.tables⟩, fe.idx, fe.base, fe.tbls.insert t.structName t⟩
+  ⟨⟨fe.env.consts, t :: fe.env.tables⟩, fe.idx, fe.base, fe.tbls.insert t.structName t,
+    fe.natLit, fe.strLit⟩
 
 /-- con-leche: none — **the inverse of a temporary push** (the port's
 `env::ifenv_pop_temp`, task #97-P6-5 lever 5, in place of con-leche's
 `FEnv.overlay`): the pushed constant dropped and the index row under its name put
 back as it was before the push (`prev`, the raw row read with `idx[n]?` before
-it). -/
+it).  The literal flags are recomputed exactly when `n` is one of the base's
+literal names. -/
 def IFEnv.popTemp (fe : IFEnv) (n : NIdx) (prev : Option IConstantInfo) : IFEnv :=
-  ⟨⟨fe.env.consts.tail, fe.env.tables⟩,
+  let fe1 : IFEnv := ⟨⟨fe.env.consts.tail, fe.env.tables⟩,
    (match prev with
     | some r => fe.idx.insert n r
     | none => fe.idx.erase n),
-   fe.base, fe.tbls⟩
+   fe.base, fe.tbls, fe.natLit, fe.strLit⟩
+  if litNameAt fe.base.lits n 0 then
+    let fe2 := { fe1 with natLit := fe1.natLitStoredBy }
+    { fe2 with strLit := fe2.strLitStoredBy }
+  else fe1
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:406-411 FEnv.rawTable? — the table map's
 lookup, ungated: a miss falls through to the base layer. -/

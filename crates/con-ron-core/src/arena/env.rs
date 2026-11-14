@@ -581,18 +581,18 @@ pub fn i_env_empty() -> IEnv {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:54-55 natLitNames
-/// Lean twin: `proof/ConRon/Arena/Env.lean:1-1 NAT_LIT_COUNT` — how many of the
+/// Lean twin: `proof/ConRon/Arena/Env.lean:236-238 NAT_LIT_COUNT` — how many of the
 /// literal names (`str_lit_names`) a `Nat` literal's expansion needs: the first
 /// three.
 pub const NAT_LIT_COUNT: usize = 3;
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:57-60 strLitNames
-/// Lean twin: `proof/ConRon/Arena/Env.lean:1-1 STR_LIT_COUNT` — how many a string
+/// Lean twin: `proof/ConRon/Arena/Env.lean:240-242 STR_LIT_COUNT` — how many a string
 /// literal's expansion needs: all ten.
 pub const STR_LIT_COUNT: usize = 10;
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:54-55 natLitNames
-/// Lean twin: `proof/ConRon/Arena/Env.lean:1-1 natLitNames` — the names a `Nat`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:116-123 natLitNames` — the names a `Nat`
 /// literal's expansion needs, `Nat`, `Nat.zero` and `Nat.succ`, as handles off the
 /// pin table.
 pub fn nat_lit_names(st: &AState) -> Result<Vec<NIdx>, CheckError> {
@@ -615,7 +615,7 @@ pub fn nat_lit_names(st: &AState) -> Result<Vec<NIdx>, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:57-60 strLitNames
-/// Lean twin: `proof/ConRon/Arena/Env.lean:1-1 strLitNames` — the names a string
+/// Lean twin: `proof/ConRon/Arena/Core.lean:125-138 strLitNames` — the names a string
 /// literal's expansion needs, as handles off the pin table: the `Nat` ones
 /// (`nat_lit_names`), then `String`, `String.ofList`, `List`, `List.nil`,
 /// `List.cons`, `Char` and `Char.ofNat`.  The stream's index holds them once it
@@ -660,7 +660,7 @@ pub fn str_lit_names(st: &AState) -> Result<Vec<NIdx>, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:62-72 litFrom
-/// Lean twin: `proof/ConRon/Arena/Env.lean:1-1 litFrom` — **from which counter a
+/// Lean twin: `proof/ConRon/Arena/Env.lean:244-258 litFrom` — **from which counter a
 /// view of the frozen index holds all of `lits[i..stop]`**: one past the largest
 /// counter of their entries, `None` if one has no entry (or the list is short).
 /// Computed once per literal flag when the stream's index is frozen, so that a
@@ -689,7 +689,7 @@ pub fn lit_from(idx: &HashMap<NIdx, u64>, lits: &Vec<NIdx>, i: usize, stop: usiz
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:73-76 fromLe
-/// Lean twin: `proof/ConRon/Arena/Env.lean:1-1 fromLe` — is a counter threshold
+/// Lean twin: `proof/ConRon/Arena/Env.lean:260-264 fromLe` — is a counter threshold
 /// (`lit_from`) reached at `c`.
 pub fn from_le(k: Option<u64>, c: u64) -> bool {
     match k {
@@ -700,7 +700,7 @@ pub fn from_le(k: Option<u64>, c: u64) -> bool {
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:122-126 natLitStoredBy
 /// con-leche: ConLeche/Kernel/FEnv.lean:128-134 strLitStoredBy
-/// Lean twin: `proof/ConRon/Arena/Env.lean:1-1 IFEnv.litsStored` — are the
+/// Lean twin: `proof/ConRon/Arena/Env.lean:319-330 IFEnv.litsStored` — are the
 /// frozen index's literal names `lits[i..stop]` all stored in `fe`, read through
 /// `ifenv_find`.  A list too short to hold them answers `false`.
 pub fn lits_stored(pers: &PersTier, fe: &IFEnv, i: usize, stop: usize) -> bool {
@@ -717,7 +717,7 @@ pub fn lits_stored(pers: &PersTier, fe: &IFEnv, i: usize, stop: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:122-126 natLitStoredBy
-/// Lean twin: `proof/ConRon/Arena/Env.lean:1-1 IFEnv.natLitStoredBy` — **are `Nat`
+/// Lean twin: `proof/ConRon/Arena/Env.lean:332-335 IFEnv.natLitStoredBy` — **are `Nat`
 /// literals expandable** in `fe`, by lookups: `Nat`, `Nat.zero` and `Nat.succ`
 /// are stored.
 pub fn nat_lit_stored_by(pers: &PersTier, fe: &IFEnv) -> bool {
@@ -725,7 +725,7 @@ pub fn nat_lit_stored_by(pers: &PersTier, fe: &IFEnv) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:128-134 strLitStoredBy
-/// Lean twin: `proof/ConRon/Arena/Env.lean:1-1 IFEnv.strLitStoredBy` — **are
+/// Lean twin: `proof/ConRon/Arena/Env.lean:337-341 IFEnv.strLitStoredBy` — **are
 /// string literals expandable** in `fe`, by lookups: the `Nat` constants and the
 /// seven string-support constants are stored.
 pub fn str_lit_stored_by(pers: &PersTier, fe: &IFEnv) -> bool {
@@ -733,7 +733,7 @@ pub fn str_lit_stored_by(pers: &PersTier, fe: &IFEnv) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:144-148 litName
-/// Lean twin: `proof/ConRon/Arena/Env.lean:1-1 litNameAt` — is `n` one of the
+/// Lean twin: `proof/ConRon/Arena/Env.lean:266-272 litNameAt` — is `n` one of the
 /// frozen index's literal names from `i` on: the ten names the two literal flags
 /// read, so that a push of any other name leaves them as they are.
 pub fn lit_name_at(lits: &Vec<NIdx>, n: &NIdx, i: usize) -> bool {
@@ -747,7 +747,7 @@ pub fn lit_name_at(lits: &Vec<NIdx>, n: &NIdx, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:189-218 FEnv
-/// Lean twin: `proof/ConRon/Arena/Env.lean:232-241 IFEnv` — the environment
+/// Lean twin: `proof/ConRon/Arena/Env.lean:274-286 IFEnv` — the environment
 /// with its `O(1)` index (DESIGN.md §8.3 lesson 13), over the frozen base of a
 /// stream's index, and the two literal flags of its lookups.  con-leche's `ovl`
 /// field is not ported (see `ifenv_find`).
@@ -787,7 +787,7 @@ pub struct IFEnv {
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:189-218 FEnv
 /// con-leche: ConLeche/Kernel/FEnv.lean:220-230 FEnv.ofParts
-/// Lean twin: `proof/ConRon/Arena/Env.lean:232-241 IFEnv` — **an empty layer
+/// Lean twin: `proof/ConRon/Arena/Env.lean:274-286 IFEnv` — **an empty layer
 /// over the frozen base**, the base visible below counter `below` and record
 /// position `below_rec`, with its literal flags: con-leche's `⟨⟨[], []⟩, ∅, {
 /// base with below, belowRec }, [], ∅, nat, str, …⟩`, the base itself being the
@@ -809,7 +809,7 @@ pub fn ifenv_layer(below: u64, below_rec: u64, nat_lit: bool, str_lit: bool) -> 
 /// con-leche: ConLeche/Kernel/FEnv.lean:278-283 FEnv.find?
 /// con-leche: ConLeche/Kernel/FEnv.lean:102-110 lookupIn
 /// con-leche: ConLeche/Kernel/FEnv.lean:112-120 findIn
-/// Lean twin: `proof/ConRon/Arena/Env.lean:272-275 IFEnv.find?` — indexed
+/// Lean twin: `proof/ConRon/Arena/Env.lean:313-317 IFEnv.find?` — indexed
 /// lookup: the own layer, and on a miss the frozen base (`ifenv_find_base`).
 /// con-leche's `FEnv` also carries an overlay (the inductive block's rule-less
 /// recursors as a view sharing the index), which the port has not: its block
@@ -835,7 +835,7 @@ pub fn ifenv_find<'a>(pers: &'a PersTier, fe: &'a IFEnv, n: &NIdx) -> Option<&'a
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:42-46 FBase.find?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:272-275 IFEnv.find?` — **the base
+/// Lean twin: `proof/ConRon/Arena/Env.lean:313-317 IFEnv.find?` — **the base
 /// layer's lookup**: the stream index's first entry of `n`, visible below the
 /// layer's counter.  The base's slot is the entry's counter
 /// (`arena::stream_index`'s note).
@@ -853,7 +853,7 @@ pub fn ifenv_find_base<'a>(pers: &'a PersTier, below: u64, n: &NIdx) -> Option<&
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:352-371 FEnv.push
-/// Lean twin: `proof/ConRon/Arena/Env.lean:277-280 IFEnv.push` — the index of
+/// Lean twin: `proof/ConRon/Arena/Env.lean:355-367 IFEnv.push` — the index of
 /// the cons-extended environment: the new entry's slot indexed under its
 /// name; the tables are untouched.  The literal flags are recomputed only
 /// while string literals are not yet expandable and only when the pushed name
@@ -876,7 +876,7 @@ pub fn ifenv_push(pers: &PersTier, fe: IFEnv, ci: IConstantInfo) -> IFEnv {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:373-379 FEnv.pushTable
-/// Lean twin: `proof/ConRon/Arena/Env.lean:282-286 IFEnv.pushTable` — **install a
+/// Lean twin: `proof/ConRon/Arena/Env.lean:369-374 IFEnv.pushTable` — **install a
 /// projection table**: the table component extended and the table map's row
 /// under the structure's name pointed at it; the constant index and the
 /// literal flags untouched.
@@ -889,7 +889,7 @@ pub fn ifenv_push_table(fe: IFEnv, t: IProjTable) -> IFEnv {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:406-411 FEnv.rawTable?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:300-305 IFEnv.rawTable?` — the table
+/// Lean twin: `proof/ConRon/Arena/Env.lean:393-398 IFEnv.rawTable?` — the table
 /// map's lookup, ungated: the own layer, and on a miss the frozen base
 /// (`ifenv_table_base`).
 pub fn ifenv_raw_table<'a>(pers: &'a PersTier, fe: &'a IFEnv, t: &NIdx) -> Option<&'a IProjTable> {
@@ -906,7 +906,7 @@ pub fn ifenv_raw_table<'a>(pers: &'a PersTier, fe: &'a IFEnv, t: &NIdx) -> Optio
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:48-52 FBase.findTable?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:300-305 IFEnv.rawTable?` — **the base
+/// Lean twin: `proof/ConRon/Arena/Env.lean:393-398 IFEnv.rawTable?` — **the base
 /// layer's table lookup**: the stream index's first table of `t`, visible below
 /// the layer's record position.
 pub fn ifenv_table_base<'a>(pers: &'a PersTier, below_rec: u64, t: &NIdx) -> Option<&'a IProjTable> {
@@ -923,7 +923,7 @@ pub fn ifenv_table_base<'a>(pers: &'a PersTier, below_rec: u64, t: &NIdx) -> Opt
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:413-417 FEnv.findTable?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:307-310 IFEnv.findTable?` — **the table
+/// Lean twin: `proof/ConRon/Arena/Env.lean:400-403 IFEnv.findTable?` — **the table
 /// lookup**: `t`'s table, visible exactly where the constant `t` is.
 pub fn ifenv_find_table<'a>(pers: &'a PersTier, fe: &'a IFEnv, t: &NIdx) -> Option<&'a IProjTable> {
     if ifenv_find(pers, fe, t).is_some() {
@@ -969,7 +969,7 @@ impl core::clone::Clone for IConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:352-371 FEnv.push
-/// Lean twin: `proof/ConRon/Arena/Env.lean:277-280 IFEnv.push` — **the push of
+/// Lean twin: `proof/ConRon/Arena/Env.lean:355-367 IFEnv.push` — **the push of
 /// a TEMPORARY extension, with what it displaced** (task #97-P6-5, lever 4).
 ///
 /// The twin writes `fe_r := fe.push stored` and goes on using `fe`, which in
@@ -999,7 +999,7 @@ pub fn ifenv_push_temp(pers: &PersTier, fe: &mut IFEnv, ci: IConstantInfo) -> Op
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:352-371 FEnv.push
-/// Lean twin: `proof/ConRon/Arena/Env.lean:288-298 IFEnv.popTemp` — the inverse
+/// Lean twin: `proof/ConRon/Arena/Env.lean:376-391 IFEnv.popTemp` — the inverse
 /// of `ifenv_push_temp`: the constant popped, the displaced index row put
 /// back.  See that function's note.  The literal flags are recomputed exactly
 /// when the popped name is one of the literal names (`lit_name_at`): a pop of
@@ -1031,7 +1031,7 @@ pub fn ifenv_pop_temp(pers: &PersTier, fe: &mut IFEnv, n: &NIdx, prev: Option<u6
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:419-423 FEnv.findProj?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:312-317 IFEnv.findProj?` — indexed
+/// Lean twin: `proof/ConRon/Arena/Env.lean:405-410 IFEnv.findProj?` — indexed
 /// projection-table lookup: the structure's table, viewed at field `i`.
 pub fn ifenv_find_proj(pers: &PersTier, fe: &IFEnv, t: &NIdx, i: u64) -> Option<IProjEntry> {
     match ifenv_find_table(pers, fe, t) {
@@ -1142,7 +1142,7 @@ pub fn read_name_at(pers: &PersTier, ar: &EStore, fuel: u64, h: &NIdx) -> Result
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:374-388 Expr.piSortTeleLen?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:321-331 piSortTeleLen?` — the
+/// Lean twin: `proof/ConRon/Arena/Env.lean:414-424 piSortTeleLen?` — the
 /// length of a syntactic Π-telescope ending in a SORT.  A spine walk, so the
 /// fuel is the store's node count; con-leche's structural recursion is the
 /// same walk with the node read through `view`.
