@@ -578,6 +578,7 @@ mod tests {
         // the index was built without the repeat, so rebuild it with it
         let mut st = AState::init(EStore::empty());
         let _ = checker::thaw_tier(&mut st.store, tier);
+        st.pins = checker::pins_dup(&pins);
         let ix = match stream_index::build_index(&PersTier::empty(), &mut st, stream_index::stream_index_empty(), &ds, 0) {
             Ok(ix) => ix,
             Err(_) => panic!("the index must build"),

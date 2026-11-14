@@ -434,10 +434,10 @@ mod tests {
         let mut st = pinned_state();
         let cs = ok(intern_ci_list(pers, &mut st, &basis_consts()));
         let icv = ok(intern_cv(pers, &mut st, c));
-        let mut fe: IFEnv = crate::arena::env::ifenv_layer(0, 0);
+        let mut fe: IFEnv = crate::arena::env::ifenv_layer(0, 0, false, false);
         let mut i: usize = 0;
         while i < cs.len() {
-            fe = crate::arena::env::ifenv_push(fe, crate::arena::env::i_constant_info_dup(&cs[i]));
+            fe = crate::arena::env::ifenv_push(pers, fe, crate::arena::env::i_constant_info_dup(&cs[i]));
             i += 1;
         }
         ok(crate::arena::decl_check::std_axiom_ok(pers, &mut st, &fe, &icv))

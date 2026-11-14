@@ -34,7 +34,7 @@
 
 use crate::arena::core::{
     consts_resolve, ensure_sort_core, infer_type_core, lit_shape_ok, nat_op_name,
-    str_lit_stored, CHECK_FUEL, CORE_WALK_FUEL, M_SORRY, M_STR,
+    CHECK_FUEL, CORE_WALK_FUEL, M_SORRY, M_STR,
     M_UNKNOWN_CONST,
 };
 use crate::arena::core_state::take_walk_memo;
@@ -617,23 +617,18 @@ pub fn unresolved_consts_error_l(
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:91-97 unresolvedConstsErrorL
 /// con-leche: ConLeche/Cached/IndPass.lean:23-30 unresolvedConstsErrorLC
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:218-238 checkConstantValF
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove checker_base::unresolved_consts_fail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:224-237 unresolvedConstsErrorL`
 /// — the failing arm every front door spells: `throw (unresolvedConstsErrorL
-/// (strLitStoredF fe) where_ e)`, the presence test read first, as Lean
-/// evaluates the argument.
+/// (fe.strLit) where_ e)`.
 pub fn unresolved_consts_fail<T>(
     pers: &PersTier,
     st: &mut AState,
     fe: &IFEnv,
     e: &EIdx,
 ) -> Result<T, CheckError> {
-    match str_lit_stored(pers, st, fe) {
+    match unresolved_consts_error_l(pers, st, fe.str_lit, e) {
         Err(err) => Err(err),
-        Ok(ok) => match unresolved_consts_error_l(pers, st, ok, e) {
-            Err(err) => Err(err),
-            Ok(err) => fail(err),
-        },
+        Ok(err) => fail(err),
     }
 }
 
@@ -643,9 +638,7 @@ pub fn unresolved_consts_fail<T>(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:101-123 checkConstantVal
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:218-238 checkConstantValF
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
 /// con-leche: ConLeche/Cached/IndPass.lean:36-58 checkConstantValC
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:241-272 checkConstantVal` — checks
 /// common to all declarations: fresh name, a certified
 /// operation's name only at a definition (`allow_op`, the cited default
@@ -682,7 +675,6 @@ pub fn check_constant_val(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:101-123 checkConstantVal
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:218-238 checkConstantValF
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove checker_base::check_constant_val_guards_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:241-272 checkConstantVal` — the
 /// guards on the declaration's NAME, in the twin's order: fresh, not a
 /// certified operation's name unless `allow_op`.
@@ -722,7 +714,6 @@ pub fn check_constant_val_guards(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:101-123 checkConstantVal
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:218-238 checkConstantValF
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove checker_base::check_constant_val_guards_rest_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:241-272 checkConstantVal` — the
 /// four guards past the name tests: a literal's name only at its shape
 /// (`litShapeOk (.axiomInfo cv)`), distinct universe parameters, no loose bound
@@ -765,7 +756,6 @@ pub fn check_constant_val_guards_rest(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:101-123 checkConstantVal
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:218-238 checkConstantValF
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove checker_base::check_constant_val_tail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:241-272 checkConstantVal` — the two
 /// guards on the declared type: its universe parameters are declared, and its
 /// constants resolve (else `unresolvedConstsErrorL`'s verdict).

@@ -35,7 +35,10 @@
 
 use crate::arena::check_decl::check_decl;
 use crate::arena::core::{enter_record, leave_record};
-use crate::arena::env::{i_constant_info_name, ifenv_layer, IConstantInfo, IDeclaration, IFEnv, IProjTable};
+use crate::arena::env::{
+    from_le, i_constant_info_name, ifenv_layer, lit_from, str_lit_names, IConstantInfo, IDeclaration, IFEnv,
+    IProjTable, NAT_LIT_COUNT, STR_LIT_COUNT,
+};
 use crate::arena::handle::NIdx;
 use crate::arena::install::{decl_constants, decl_tables};
 use crate::arena::monad::AState;
@@ -54,12 +57,20 @@ pub const M_AND_PIN: [u32; 32] = [
 ];
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:38-43 StreamIndex
+/// con-leche: ConLeche/Cached/StreamIndex.lean:68-76 FrozenIndex
 /// con-leche: ConLeche/Kernel/FEnv.lean:28-40 FBase
 /// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:34-40 IStreamIndex` — the index
 /// under construction, and finished: the frozen layer's constants and tables
 /// (the module note's layout), each record's first counter, and the next
 /// counter.  The layer's bounds are the reading layer's (`IFEnv.base_below`,
 /// `IFEnv.base_below_rec`), the index itself being shared.
+///
+/// **Frozen, it is con-leche's `FrozenIndex` too** (`stream_index_freeze`):
+/// the literal names as handles (`env::str_lit_names`), which a push compares
+/// against without the pin table, and for each literal flag the first counter
+/// from which a record's view has it (`nat_from`, `str_from`, con-leche's
+/// `natFrom`/`strFrom`).  A layout deviation: one structure, the thresholds
+/// empty until the freeze, rather than a second structure around the first.
 pub struct IStreamIndex {
     pub consts: Vec<IConstantInfo>,
     pub idx: HashMap<NIdx, u64>,
@@ -67,6 +78,9 @@ pub struct IStreamIndex {
     pub tbls: HashMap<NIdx, (u64, u64)>,
     pub firsts: Vec<u64>,
     pub next: u64,
+    pub lits: Vec<NIdx>,
+    pub nat_from: Option<u64>,
+    pub str_from: Option<u64>,
 }
 
 /// con-leche: none — a `ProjTable` copy; Lean's record is shared by value (DESIGN.md §3.2)
@@ -93,6 +107,9 @@ pub fn stream_index_empty() -> IStreamIndex {
         tbls: HashMap::new(),
         firsts: Vec::new(),
         next: 0,
+        lits: Vec::new(),
+        nat_from: None,
+        str_from: None,
     }
 }
 
@@ -159,11 +176,14 @@ pub fn stream_index_add(
 }
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:64-66 buildIndex
-/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:79-82 buildIndex` — **the index of
-/// a stream**, the records folded in order from `i` on.  An `Err` is the
-/// store's own failure (a term the install builds could not be interned), never
-/// a verdict about the stream; it carries the position of the record whose
-/// reading failed, for the error line.
+/// con-leche: ConLeche/Driver/CheckPool.lean:66-70 Jobs.build
+/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:79-82 buildIndex` — **the frozen
+/// index of a stream**, the records folded in order from `i` on and the index
+/// frozen past the last (`stream_index_freeze`, con-leche's `Jobs.build`).  An
+/// `Err` is the store's own failure (a term the install builds could not be
+/// interned) or an unfilled pin table, never a verdict about the stream; it
+/// carries the position of the record whose reading failed (past the last for
+/// the freeze), for the error line.
 pub fn build_index(
     pers: &PersTier,
     st: &mut AState,
@@ -172,7 +192,10 @@ pub fn build_index(
     i: usize,
 ) -> Result<IStreamIndex, (CheckError, u64)> {
     if i >= ds.len() {
-        Ok(ix)
+        match stream_index_freeze(st, ix) {
+            Err(e) => Err((e, i as u64)),
+            Ok(fx) => Ok(fx),
+        }
     } else {
         match stream_index_add(pers, st, ix, &ds[i]) {
             Err(e) => Err((e, i as u64)),
@@ -181,22 +204,41 @@ pub fn build_index(
     }
 }
 
-/// con-leche: ConLeche/Cached/StreamIndex.lean:68-72 StreamIndex.view
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove stream_index::stream_index_view_refines, then delete this line
+/// con-leche: ConLeche/Cached/StreamIndex.lean:78-80 StreamIndex.freeze
+/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:1-1 IStreamIndex.freeze` —
+/// **freeze a stream's index**: the literal names off the pin table, and the
+/// literal flags' thresholds (`env::lit_from`) over them.  Run once by the
+/// driver, between the index's build and the freeze of the tier.
+pub fn stream_index_freeze(st: &AState, ix: IStreamIndex) -> Result<IStreamIndex, CheckError> {
+    match str_lit_names(st) {
+        Err(e) => Err(e),
+        Ok(lits) => {
+            let nf: Option<u64> = lit_from(&ix.idx, &lits, 0, NAT_LIT_COUNT);
+            let sf: Option<u64> = lit_from(&ix.idx, &lits, 0, STR_LIT_COUNT);
+            let mut ix = ix;
+            ix.lits = lits;
+            ix.nat_from = nf;
+            ix.str_from = sf;
+            Ok(ix)
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/StreamIndex.lean:82-96 FrozenIndex.view
 /// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:84-89 IStreamIndex.view` — **the
 /// view of record `k`**: no constants or tables of its own, the frozen index
-/// visible below the record's first counter and its position.
+/// visible below the record's first counter and its position, and its literal
+/// flags by one comparison each against the frozen thresholds (`env::from_le`).
 pub fn stream_index_view(pers: &PersTier, k: u64) -> IFEnv {
     let c: u64 = if (k as usize) < pers.env.firsts.len() {
         pers.env.firsts[k as usize]
     } else {
         pers.env.next
     };
-    ifenv_layer(c, k)
+    ifenv_layer(c, k, from_le(pers.env.nat_from, c), from_le(pers.env.str_from, c))
 }
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:95-102 recordJob
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove stream_index::record_check_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:91-99 recordCheck` — what the
 /// fold's step asks of record `pd` at position `k`: the `And` pin, then the
 /// record's check at its view.  `record_job` is this in its bracket; an
@@ -221,7 +263,6 @@ pub fn record_check(
 }
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:95-102 recordJob
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove stream_index::record_job_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:101-109 recordJob` — **record `pd`'s
 /// job, at position `k`**: `record_check` from fresh caches and an empty
 /// scratch tier (`enter_record`, the cited `checkDeclStepC`'s fresh `{}`), the

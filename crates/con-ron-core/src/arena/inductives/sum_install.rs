@@ -555,13 +555,13 @@ pub fn check_sum_ctors(
 /// with the family `t` it is declared under as its `induct`: the constructor
 /// check has established that its declared type concludes in `t`.  Pure: the
 /// index push touches no term.
-pub fn cons_sum_ctors(n_p: u64, t: &NIdx, ctors: &Vec<(IConstantVal, u64)>, i: usize, fe: IFEnv) -> IFEnv {
+pub fn cons_sum_ctors(pers: &PersTier, n_p: u64, t: &NIdx, ctors: &Vec<(IConstantVal, u64)>, i: usize, fe: IFEnv) -> IFEnv {
     if i >= ctors.len() {
         fe
     } else {
         let stored =
             IConstantInfo::CtorInfo(env::i_constant_val_dup(&ctors[i].0), n_p, ctors[i].1, t.dup2());
-        cons_sum_ctors(n_p, t, ctors, i + 1, env::ifenv_push(fe, stored))
+        cons_sum_ctors(pers, n_p, t, ctors, i + 1, env::ifenv_push(pers, fe, stored))
     }
 }
 

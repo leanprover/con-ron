@@ -842,6 +842,36 @@ pub fn io_neutral(pers: &PersTier, st: &AState, e: &EIdx) -> Result<bool, CheckE
     }
 }
 
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:48-56 Expr.isNatSuccApp
+/// Lean twin: `proof/ConRon/Arena/Core.lean:332-348 isNatSuccApp` — is `e`
+/// `Nat.succ x`, an application of the level-free constant `Nat.succ`?  The
+/// one constructor application whose whnf is not itself: the whnf folds it to
+/// a literal when `x` reduces to one, so the ι step's major takes that whnf
+/// (`prepare_major`).
+pub fn is_nat_succ_app(pers: &PersTier, st: &AState, e: &EIdx) -> Result<bool, CheckError> {
+    if e.tag() == ETAG_APP {
+        match view_app(pers, st, e) {
+            None => fail_dangling_e(),
+            Some((f, _)) => if f.tag() == ETAG_CONST {
+                match view_const(pers, st, &f) {
+                    None => fail_dangling_e(),
+                    Some((c, us)) => match empty_levels(st) {
+                        Err(er) => Err(er),
+                        Ok(el) => match pin_nat_succ(st) {
+                            Err(er) => Err(er),
+                            Ok(ns) => Ok(us.eq2(&el) && c.eq2(&ns)),
+                        },
+                    },
+                }
+            } else {
+                Ok(false)
+            },
+        }
+    } else {
+        Ok(false)
+    }
+}
+
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:58-65 isCtorApp
 /// Lean twin: `proof/ConRon/Arena/Core.lean:332-343 isCtorApp` — is the
 /// expression headed by a stored constructor?
@@ -1275,18 +1305,6 @@ pub fn nat_lit_supported(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:201-204 natLitStored
-/// con-leche: ConLeche/Kernel/FEnv.lean:200-202 natLitStoredF
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove core::nat_lit_stored_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:528-538 natLitStored` — whether a `Nat`
-/// literal's constants are stored (presence only: what they are is the
-/// declarations' own check, `lit_shape_ok`).  The conjunction is
-/// `constsResolve`'s `.natVal` arm's, so it is that arm's function.  One twin
-/// for con-leche's two spellings (deviation 1).
-pub fn nat_lit_stored(pers: &PersTier, st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
-    nat_trio_stored(pers, st, fe)
-}
-
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:206-231 Expr.constsResolve
 /// Lean twin: `proof/ConRon/Arena/Core.lean:540-586 constsResolve` — `(fe.find?
 /// n).isSome`, as its own function so the two literal arms below read as the
@@ -1438,10 +1456,10 @@ pub fn lit_to_ctor_if_nat(
             None => fail_dangling_e(),
             Some(Literal::NatVal(n)) => {
                 let m: Nat = nat::clone(&n);
-                match nat_lit_stored(pers, st, fe) {
-                    Err(e) => Err(e),
-                    Ok(true) => nat_lit_to_constructor(pers, st, &m),
-                    Ok(false) => Ok(h.dup2()),
+                if fe.nat_lit {
+                    nat_lit_to_constructor(pers, st, &m)
+                } else {
+                    Ok(h.dup2())
                 }
             }
             Some(_) => Ok(h.dup2()),
@@ -2058,25 +2076,6 @@ pub fn string_of_list_ty_ok(
             }
         },
         None => Ok(false),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:372-377 strLitStored
-/// con-leche: ConLeche/Kernel/FEnv.lean:204-209 strLitStoredF
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove core::str_lit_stored_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:798-815 strLitStored` — whether a `String`
-/// literal's constants are stored: `natLitStored` and the seven
-/// string-support names, read by presence only.  One twin for con-leche's two
-/// spellings (deviation 1).
-pub fn str_lit_stored(
-    pers: &PersTier,
-    st: &mut AState,
-    fe: &IFEnv,
-) -> Result<bool, CheckError> {
-    match nat_lit_stored(pers, st, fe) {
-        Err(e) => Err(e),
-        Ok(false) => Ok(false),
-        Ok(true) => str_support_stored(pers, st, fe),
     }
 }
 
@@ -3176,7 +3175,6 @@ pub fn nat_bin_op_result(
 
 /// con-leche: ConLeche/Cached/StateC.lean:254-263 natResultRefused
 /// con-leche: ConLeche/Cached/CoreC.lean:403-457 reduceNatI
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove core::lit_nat_sized_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1059-1069 litNatSized` — a computed
 /// numeral, refused above the run's maximum `Nat` size (the cited
 /// `natNumeralTooBig`), otherwise interned like `lit_nat`.
@@ -3904,30 +3902,22 @@ pub fn reduce_nat_succ(
             } else {
                 match pin_nat_succ(st) {
                     Err(er) => Err(er),
-                    // **Both conjuncts are evaluated**, because Lean's `do`
-                    // lifts `(← natLitStored fe)` out of the condition
-                    // `c == ns && …` to a `let` before the `if`.
-                    // `natLitStored` interns its names, so running it only when
-                    // `c == ns` would leave the store a node behind the twin's.
-                    Ok(ns) => match nat_lit_stored(pers, st, fe) {
-                        Err(er) => Err(er),
-                        Ok(nls) => {
-                            if c.eq2(&ns) && nls {
-                                match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, b) {
+                    Ok(ns) => {
+                        if c.eq2(&ns) && fe.nat_lit {
+                            match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, b) {
+                                Err(er) => Err(er),
+                                Ok(w) => match raw_nat_lit(pers, st, &w) {
                                     Err(er) => Err(er),
-                                    Ok(w) => match raw_nat_lit(pers, st, &w) {
-                                        Err(er) => Err(er),
-                                        Ok(Some(n)) => {
-                                            lit_nat_sized(pers, st, nat::add(&n, &nat::one()))
-                                        }
-                                        Ok(None) => Ok(None),
-                                    },
-                                }
-                            } else {
-                                Ok(None)
+                                    Ok(Some(n)) => {
+                                        lit_nat_sized(pers, st, nat::add(&n, &nat::one()))
+                                    }
+                                    Ok(None) => Ok(None),
+                                },
                             }
+                        } else {
+                            Ok(None)
                         }
-                    },
+                    }
                 }
             }
         }
@@ -3936,7 +3926,6 @@ pub fn reduce_nat_succ(
 
 /// con-leche: ConLeche/Kernel/Core.lean:168-209 reduceNat
 /// con-leche: ConLeche/Cached/CoreC.lean:403-457 reduceNatI
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove core::reduce_nat_bin_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1327-1372 reduceNat` — the cited
 /// `.app (.app (.const c []) a) b` arm: a certified binary operation at two
 /// literal arguments.  The operation is found once (`nat_bin_op_of_name`, the
@@ -6210,13 +6199,13 @@ pub fn lit_major_to_ctor(
             None => fail_dangling_e(),
             Some(Literal::StrVal(s)) => {
                 let cs: Vec<u32> = expr::str_copy(&s);
-                match str_lit_stored(pers, st, fe) {
-                    Err(e) => Err(e),
-                    Ok(false) => Ok(h.dup2()),
-                    Ok(true) => match str_lit_to_constructor(pers, st, &cs) {
+                if fe.str_lit {
+                    match str_lit_to_constructor(pers, st, &cs) {
                         Err(e) => Err(e),
                         Ok(c) => knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, &c),
-                    },
+                    }
+                } else {
+                    Ok(h.dup2())
                 }
             }
             Some(_) => lit_to_ctor_if_nat(pers, st, fe, h),
@@ -6245,13 +6234,13 @@ pub fn proj_lit_to_ctor(
             None => fail_dangling_e(),
             Some(Literal::StrVal(s)) => {
                 let cs: Vec<u32> = expr::str_copy(&s);
-                match str_lit_stored(pers, st, fe) {
-                    Err(e) => Err(e),
-                    Ok(false) => Ok(h.dup2()),
-                    Ok(true) => match str_lit_to_constructor(pers, st, &cs) {
+                if fe.str_lit {
+                    match str_lit_to_constructor(pers, st, &cs) {
                         Err(e) => Err(e),
                         Ok(c) => knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, &c),
-                    },
+                    }
+                } else {
+                    Ok(h.dup2())
                 }
             }
             Some(_) => Ok(h.dup2()),
@@ -6278,9 +6267,7 @@ pub fn is_str_lit(pers: &PersTier, st: &AState, e: &EIdx) -> Result<bool, CheckE
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:795-874 prepareMajor
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove core::prepare_major_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:932-955 prepareMajorI
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove core::prepare_major_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2252-2278 prepareMajor` — the major
 /// premise's preparation before a rule fires.  At a K-flagged recursor (the
 /// record's `isK`) the K
@@ -6291,6 +6278,9 @@ pub fn is_str_lit(pers: &PersTier, st: &AState, e: &EIdx) -> Result<bool, CheckE
 /// they produce no constructor is the major head-normalized, its literal
 /// converted and the rescue tried once more on the reduct — so a structure
 /// major whose head normalization does not terminate is rescued off its type.
+/// A `Nat.succ x` major (`is_nat_succ_app`), though a constructor application,
+/// takes that path too: its whnf folds it to a literal, so a counter that
+/// forces its index through `Nat.succ` holds a literal, not a unary tower.
 pub fn prepare_major(
     pers: &PersTier,
     st: &mut AState,
@@ -6328,7 +6318,13 @@ pub fn prepare_major(
             Err(e) => Err(e),
             Ok(major_e) => match is_ctor_app(pers, st, fe, &major_e) {
                 Err(e) => Err(e),
-                Ok(true) => Ok(major_e),
+                Ok(true) => match is_nat_succ_app(pers, st, &major_e) {
+                    Err(e) => Err(e),
+                    Ok(false) => Ok(major_e),
+                    Ok(true) => prepare_major_whnf(
+                        pers, st, mode, eager, lane, fuel, fe, depth, rec_name, is_k, rules, &major_e,
+                    ),
+                },
                 Ok(false) => prepare_major_whnf(
                     pers, st, mode, eager, lane, fuel, fe, depth, rec_name, is_k, rules, &major_e,
                 ),
@@ -6338,9 +6334,7 @@ pub fn prepare_major(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:795-874 prepareMajor
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove core::prepare_major_whnf_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:932-955 prepareMajorI
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove core::prepare_major_whnf_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2252-2278 prepareMajor` — the
 /// non-K path past a rescue that produced no constructor: head-normalize the
 /// major, convert its literal, try the rescue once more on the reduct.
@@ -8828,7 +8822,6 @@ pub fn infer_const(
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3605-3668 inferBody`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3670-3743 inferBodyIO`
 /// con-leche: ConLeche/Cached/CoreC.lean:1482-1588 inferBodyI
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove core::infer_lit_nat_refines, then delete this line
 /// The `.lit (.natVal n)` clause, which both bodies write identically: a
 /// numeral entering the checker is bounded by the run's maximum `Nat` size
 /// (the cited cached clause, official `infer_lit`).
@@ -8838,17 +8831,17 @@ pub fn infer_lit_nat(
     fe: &IFEnv,
     n: &Nat,
 ) -> Result<EIdx, CheckError>  {
-    match nat_lit_stored(pers, st, fe) {
-        Err(e) => Err(e),
-        Ok(true) => if nat_size_refused(st, n) {
+    if fe.nat_lit {
+        if nat_size_refused(st, n) {
             fail(CheckError::Invalid(code_points(&M_NAT_NUMERAL_TOO_BIG)))
         } else {
             match pin_nat(st) {
                 Err(e) => Err(e),
                 Ok(nn) => const_e(pers, st, &nn),
             }
-        },
-        Ok(false) => fail(CheckError::Invalid(code_points(&M_NAT))),
+        }
+    } else {
+        fail(CheckError::Invalid(code_points(&M_NAT)))
     }
 }
 
@@ -8862,19 +8855,18 @@ pub fn infer_lit_str(
     st: &mut AState,
     fe: &IFEnv,
 ) -> Result<EIdx, CheckError>  {
-    match str_lit_stored(pers, st, fe) {
-        Err(e) => Err(e),
-        Ok(true) => match pin_string(st) {
+    if fe.str_lit {
+        match pin_string(st) {
             Err(e) => Err(e),
             Ok(sn) => const_e(pers, st, &sn),
-        },
-        Ok(false) => fail(CheckError::NotImplemented(code_points(&M_STR))),
+        }
+    } else {
+        fail(CheckError::NotImplemented(code_points(&M_STR)))
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1226-1326 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1482-1588 inferBodyI
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove core::infer_forall_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3605-3668 inferBody` — the full
 /// body's `.forallE` clause: the domain's sort, then the binder-telescope loop
 /// (`infer_pis`), which infers the codomain sort and folds `imax` outward.
@@ -8924,7 +8916,6 @@ pub fn infer_forall(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1226-1326 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1482-1588 inferBodyI
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove core::infer_proj_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3569-3603 inferProj` — the `.proj`
 /// clause, shared by both bodies (`inferBodyIOI` dispatches it to
 /// `inferBodyI` at `io := true`, which is the `io` flag here): the subject's
@@ -8974,7 +8965,6 @@ pub fn infer_proj(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1226-1326 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1482-1588 inferBodyI
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove core::infer_proj_miss_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3569-3603 inferProj` — the
 /// `.proj` clause with no table entry at field `i`: `projMissError` at the
 /// table's presence and the subject type's argument count.
@@ -8996,7 +8986,6 @@ pub fn infer_proj_miss(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1226-1326 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1482-1588 inferBodyI
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove core::infer_proj_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3605-3668 inferBody` — the `.proj`
 /// clause's body, once the entry has been found: the node must name the
 /// subject type's head (official `infer_proj`, con-leche's TASK #271) at the
@@ -9047,7 +9036,6 @@ pub fn infer_proj_at(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1226-1326 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1482-1588 inferBodyI
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove core::infer_lam_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3605-3668 inferBody` — the full
 /// body's λ clause: the domain's sort is run (unlike the io grade's), then the
 /// binder-telescope loop (`infer_lams`).
@@ -9126,7 +9114,6 @@ pub fn infer_lam_open(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1226-1326 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1482-1588 inferBodyI
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove core::infer_let_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3605-3668 inferBody` — the full
 /// body's `let` clause, official's `infer_let` (con-leche task #342 S0): the
 /// `let`'s type is a type, the value's type matches it, then the body with the
@@ -9317,7 +9304,6 @@ pub fn infer_spine(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1482-1588 inferBodyI
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove core::infer_app_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3529-3536 inferApp` — the `.app`
 /// clause of the cached inference body: the spine's head is inferred once and
 /// its Π-telescope is walked against the whole spine.
@@ -9622,7 +9608,6 @@ pub fn infer_pis(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1226-1326 inferBody
 /// con-leche: ConLeche/Cached/CoreC.lean:1482-1588 inferBodyI
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove core::infer_body_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3605-3668 inferBody` — the
 /// full-grade inference body (official's `infer_type_core` with
 /// `infer_only = false`).  It is the cited `inferBodyI` at `io := false`; the
@@ -10884,31 +10869,28 @@ pub fn defeq_str_app(
                         Err(e) => Err(e),
                         Ok(el) => match pin_string_of_list(st) {
                             Err(e) => Err(e),
-                            Ok(sl) => match str_lit_stored(pers, st, fe) {
-                                Err(e) => Err(e),
-                                Ok(sup) => {
-                                    if c_o.eq2(&sl) && us_o.eq2(&el) && sup {
-                                        match str_lit_to_constructor(pers, st, &cs) {
-                                            Err(e) => Err(e),
-                                            Ok(ce) => {
-                                                if flipped {
-                                                    knot_defeq(
-                                                        pers, st, mode, eager, lane, fuel, fe, depth,
-                                                        a2, &ce,
-                                                    )
-                                                } else {
-                                                    knot_defeq(
-                                                        pers, st, mode, eager, lane, fuel, fe, depth,
-                                                        &ce, b2,
-                                                    )
-                                                }
+                            Ok(sl) => {
+                                if c_o.eq2(&sl) && us_o.eq2(&el) && fe.str_lit {
+                                    match str_lit_to_constructor(pers, st, &cs) {
+                                        Err(e) => Err(e),
+                                        Ok(ce) => {
+                                            if flipped {
+                                                knot_defeq(
+                                                    pers, st, mode, eager, lane, fuel, fe, depth,
+                                                    a2, &ce,
+                                                )
+                                            } else {
+                                                knot_defeq(
+                                                    pers, st, mode, eager, lane, fuel, fe, depth,
+                                                    &ce, b2,
+                                                )
                                             }
                                         }
-                                    } else {
-                                        stuck_irrel(pers, st, mode, eager, lane, fuel, fe, depth, a2, b2)
                                     }
+                                } else {
+                                    stuck_irrel(pers, st, mode, eager, lane, fuel, fe, depth, a2, b2)
                                 }
-                            },
+                            }
                         },
                     },
                 }
@@ -10977,7 +10959,6 @@ pub fn defeq_apps(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1736-1803 defeqStuck
 /// con-leche: ConLeche/Cached/CoreC.lean:1837-1885 defeqStuckI
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove core::defeq_stuck_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4127-4196 defeqStuck` — **the stuck
 /// comparison** (the tail of the official kernel's `is_def_eq_core`): a string
 /// literal against `String.ofList`, the same free variable, the same constant

@@ -484,7 +484,7 @@ pub fn cons_block_inds(
             Err(e) => Err(e),
             Ok(caps) => {
                 let fe2: IFEnv =
-                    env::ifenv_push(fe, IConstantInfo::IndInfo(env::i_constant_val_dup(&cvs[i]), caps));
+                    env::ifenv_push(pers, fe, IConstantInfo::IndInfo(env::i_constant_val_dup(&cvs[i]), caps));
                 cons_block_inds(pers, st, p1, is_rec, cvs, i + 1, fe2)
             }
         }
@@ -863,6 +863,7 @@ pub fn check_block_idx_sorts(
 /// the members' constructors consed from member `i` on, in block order, each
 /// group under its member's name (`block_shape::ctor_groups`).
 pub fn cons_block_ctors(
+    pers: &PersTier,
     n_p: u64,
     groups: &Vec<(NIdx, Vec<(IConstantVal, u64)>)>,
     i: usize,
@@ -871,7 +872,7 @@ pub fn cons_block_ctors(
     if i >= groups.len() {
         fe
     } else {
-        let fe2: IFEnv = sum_install::cons_sum_ctors(n_p, &groups[i].0, &groups[i].1, 0, fe);
-        cons_block_ctors(n_p, groups, i + 1, fe2)
+        let fe2: IFEnv = sum_install::cons_sum_ctors(pers, n_p, &groups[i].0, &groups[i].1, 0, fe);
+        cons_block_ctors(pers, n_p, groups, i + 1, fe2)
     }
 }

@@ -49,19 +49,19 @@ use crate::ron::hashmap::{Dup, Eq2};
 /// list oldest first: the constants, then the tables (a constant push and a
 /// table push touch different components, so the order between them is not
 /// observable).
-pub fn push_delta(fe: IFEnv, l: Vec<IConstantInfo>, q: Vec<IProjTable>) -> IFEnv {
-    let fe1: IFEnv = push_delta_consts(fe, l, 0);
+pub fn push_delta(pers: &PersTier, fe: IFEnv, l: Vec<IConstantInfo>, q: Vec<IProjTable>) -> IFEnv {
+    let fe1: IFEnv = push_delta_consts(pers, fe, l, 0);
     push_delta_tables(fe1, q, 0)
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:388-391 FEnv.pushAll
 /// Push a list of records from `i` on, head first.
-pub fn push_delta_consts(fe: IFEnv, l: Vec<IConstantInfo>, i: usize) -> IFEnv {
+pub fn push_delta_consts(pers: &PersTier, fe: IFEnv, l: Vec<IConstantInfo>, i: usize) -> IFEnv {
     if i >= l.len() {
         fe
     } else {
         let ci: IConstantInfo = env::i_constant_info_dup(&l[i]);
-        push_delta_consts(env::ifenv_push(fe, ci), l, i + 1)
+        push_delta_consts(pers, env::ifenv_push(pers, fe, ci), l, i + 1)
     }
 }
 

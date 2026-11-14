@@ -243,10 +243,10 @@ pub fn check_defn_div_mod_pin(
                 let mut fe1: IFEnv = fe;
                 match check_div_mod_pin(pers, st, mode, pins, &mut fe1, &ci, n) {
                     Err(e) => Err(e),
-                    Ok(()) => Ok(ifenv_push(fe1, ci)),
+                    Ok(()) => Ok(ifenv_push(pers, fe1, ci)),
                 }
             } else {
-                Ok(ifenv_push(fe, ci))
+                Ok(ifenv_push(pers, fe, ci))
             }
         }
     }
@@ -272,9 +272,9 @@ pub fn check_structural_nat_pin(
     ci: &IConstantInfo,
     n: &NIdx,
 ) -> Result<(), CheckError> {
-    let prev: Option<u64> = ifenv_push_temp(fe, i_constant_info_dup(ci));
+    let prev: Option<u64> = ifenv_push_temp(pers, fe, i_constant_info_dup(ci));
     let at_fe2: Result<EIdx, CheckError> = check_structural_nat_pin_at_fe2(pers, st, fe, n);
-    ifenv_pop_temp(fe, n, prev);
+    ifenv_pop_temp(pers, fe, n, prev);
     match at_fe2 {
         Err(e) => Err(e),
         Ok(value2) => check_structural_nat_pin_eqs(pers, st, mode, fe, n, &value2),
@@ -359,7 +359,7 @@ pub fn check_thm_decl(
         Err(e) => Err(e),
         Ok(()) => match check_thm_val(pers, st, mode, &fe, cv, value) {
             Err(e) => Err(e),
-            Ok(ci) => Ok(ifenv_push(fe, ci)),
+            Ok(ci) => Ok(ifenv_push(pers, fe, ci)),
         },
     }
 }
@@ -406,10 +406,10 @@ pub fn check_opaque_reduce_pin(
                 let mut fe1: IFEnv = fe;
                 match check_reduce_pin(pers, st, mode, &mut fe1, &ci, n, value) {
                     Err(e) => Err(e),
-                    Ok(()) => Ok(ifenv_push(fe1, ci)),
+                    Ok(()) => Ok(ifenv_push(pers, fe1, ci)),
                 }
             } else {
-                Ok(ifenv_push(fe, ci))
+                Ok(ifenv_push(pers, fe, ci))
             }
         }
     }
@@ -461,8 +461,7 @@ pub fn check_axiom_decl_std(
             Err(e) => Err(e),
             Ok(ok) => {
                 if ok {
-                    Ok(ifenv_push(
-                        fe,
+                    Ok(ifenv_push(pers, fe,
                         IConstantInfo::AxiomInfo(i_constant_val_dup(cv)),
                     ))
                 } else {
@@ -493,8 +492,7 @@ pub fn check_axiom_decl_trust(
                     Err(e) => Err(e),
                     Ok(ok) => {
                         if ok {
-                            Ok(ifenv_push(
-                                fe,
+                            Ok(ifenv_push(pers, fe,
                                 IConstantInfo::AxiomInfo(cv),
                             ))
                         } else {
@@ -533,8 +531,7 @@ pub fn check_axiom_decl_of_reduce(
                         Err(e) => Err(e),
                         Ok(ok) => {
                             if ok {
-                                Ok(ifenv_push(
-                                    fe,
+                                Ok(ifenv_push(pers, fe,
                                     IConstantInfo::AxiomInfo(cv),
                                 ))
                             } else {

@@ -2299,6 +2299,7 @@ pub fn check_block_classes(
 /// major index and rule prefix.  Returns the rows the pushes displaced, for
 /// `class_fe_r_pop`.
 pub fn class_fe_r_push(
+    pers: &PersTier,
     p: &BlockShape,
     cv_gs: &Vec<IConstantVal>,
     rec_cls: &Vec<u64>,
@@ -2311,8 +2312,7 @@ pub fn class_fe_r_push(
     } else {
         let mut fe2: IFEnv = fe;
         let n: NIdx = cv_gs[m].name.dup2();
-        let prev: Option<u64> = env::ifenv_push_temp(
-            &mut fe2,
+        let prev: Option<u64> = env::ifenv_push_temp(pers, &mut fe2,
             IConstantInfo::RecInfo(
                 env::i_constant_val_dup(&cv_gs[m]),
                 block_shape::major_idx_at(p, m as u64),
@@ -2323,7 +2323,7 @@ pub fn class_fe_r_push(
         );
         let mut ps: Vec<(NIdx, Option<u64>)> = prevs;
         ps.push((n, prev));
-        class_fe_r_push(p, cv_gs, rec_cls, m + 1, fe2, ps)
+        class_fe_r_push(pers, p, cv_gs, rec_cls, m + 1, fe2, ps)
     }
 }
 
@@ -2331,7 +2331,7 @@ pub fn class_fe_r_push(
 /// Lean twin: the inverse of `class_fe_r_push`: the pushes popped in reverse
 /// order, every displaced row restored, so the index is the constructors'
 /// again exactly.
-pub fn class_fe_r_pop(fe: IFEnv, prevs: &Vec<(NIdx, Option<u64>)>, i: usize) -> IFEnv {
+pub fn class_fe_r_pop(pers: &PersTier, fe: IFEnv, prevs: &Vec<(NIdx, Option<u64>)>, i: usize) -> IFEnv {
     if i == 0 {
         fe
     } else {
@@ -2340,8 +2340,8 @@ pub fn class_fe_r_pop(fe: IFEnv, prevs: &Vec<(NIdx, Option<u64>)>, i: usize) -> 
             Some(r) => Some(r),
             None => None,
         };
-        env::ifenv_pop_temp(&mut fe2, &prevs[i - 1].0, prev);
-        class_fe_r_pop(fe2, prevs, i - 1)
+        env::ifenv_pop_temp(pers, &mut fe2, &prevs[i - 1].0, prev);
+        class_fe_r_pop(pers, fe2, prevs, i - 1)
     }
 }
 
@@ -2534,7 +2534,7 @@ pub fn gen_rec_generate(
             match class_rec_tys_ok(pers, st, mode, &fe, &g, shape_k(p), &p.recs, &cv_ris, &rd.rec_cls, 0, Vec::new()) {
                 Err(e) => Err(e),
                 Ok(cv_gs) => {
-                    let pushed = class_fe_r_push(p, &cv_gs, &rd.rec_cls, 0, fe, Vec::new());
+                    let pushed = class_fe_r_push(pers, p, &cv_gs, &rd.rec_cls, 0, fe, Vec::new());
                     let fe_r: IFEnv = pushed.0;
                     let prevs: Vec<(NIdx, Option<u64>)> = pushed.1;
                     let names: Vec<NIdx> = const_val_names(&cv_gs, 0, Vec::new());
@@ -2542,7 +2542,7 @@ pub fn gen_rec_generate(
                     match class_recs_rules_ok(pers, st, mode, &fe_r, &names, &g, &rd.rec_cls, &cv_gs, 0, Vec::new()) {
                         Err(e) => Err(e),
                         Ok(out) => {
-                            let fe2: IFEnv = class_fe_r_pop(fe_r, &prevs, prevs.len());
+                            let fe2: IFEnv = class_fe_r_pop(pers, fe_r, &prevs, prevs.len());
                             core::flush_caches(st);
                             Ok((fe2, out))
                         }

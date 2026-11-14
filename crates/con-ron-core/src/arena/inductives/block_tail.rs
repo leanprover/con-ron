@@ -201,6 +201,7 @@ pub fn check_block_rec(
 /// major) from `i` on, pushed in place.  Returns the rows the pushes
 /// displaced, for `gen_rec::class_fe_r_pop`.
 pub fn cons_block_recs_temp(
+    pers: &PersTier,
     infos: &Vec<IConstantInfo>,
     i: usize,
     fe: IFEnv,
@@ -211,10 +212,10 @@ pub fn cons_block_recs_temp(
     } else {
         let n: NIdx = env::i_constant_info_name(&infos[i]);
         let mut fe2: IFEnv = fe;
-        let prev: Option<u64> = env::ifenv_push_temp(&mut fe2, env::i_constant_info_dup(&infos[i]));
+        let prev: Option<u64> = env::ifenv_push_temp(pers, &mut fe2, env::i_constant_info_dup(&infos[i]));
         let mut ps: Vec<(NIdx, Option<u64>)> = prevs;
         ps.push((n, prev));
-        cons_block_recs_temp(infos, i + 1, fe2, ps)
+        cons_block_recs_temp(pers, infos, i + 1, fe2, ps)
     }
 }
 
@@ -262,12 +263,12 @@ pub fn check_block_tail_stream(
         Ok(()) => match rec_check::block_rec_infos_tf(pers, st, p, 0, out, Vec::new()) {
             Err(e) => Err(e),
             Ok(infos) => {
-                let (fe_g, prevs) = cons_block_recs_temp(&infos, 0, fe, Vec::new());
+                let (fe_g, prevs) = cons_block_recs_temp(pers, &infos, 0, fe, Vec::new());
                 core::flush_caches(st);
                 match stream_recs::stream_recs_check(pers, st, mode, &fe_g, &p.recs, out, 0) {
                     Err(e) => Err(e),
                     Ok(()) => {
-                        let fe2: IFEnv = gen_rec::class_fe_r_pop(fe_g, &prevs, prevs.len());
+                        let fe2: IFEnv = gen_rec::class_fe_r_pop(pers, fe_g, &prevs, prevs.len());
                         core::flush_caches(st);
                         match check_block_tables(pers, st, &fe2, q, 0) {
                             Err(e) => Err(e),
@@ -301,7 +302,7 @@ pub fn check_block_tail(
         Ok(()) => {
             let groups: Vec<(NIdx, Vec<(IConstantVal, u64)>)> =
                 block_shape::ctor_groups(&q.p.members, 0, Vec::new());
-            let fe2: IFEnv = block_install::cons_block_ctors(q.p.n_p, &groups, 0, q.env1);
+            let fe2: IFEnv = block_install::cons_block_ctors(pers, q.p.n_p, &groups, 0, q.env1);
             core::flush_caches(st);
             let nested: bool = rec_check::block_nested_bit(&q.p, &q.kinds);
             match check_block_rec(pers, st, mode, fe2, &q.p, nested, &q.params, &q.tbl, &q.rd, &q.cls, block) {
@@ -515,7 +516,7 @@ pub fn check_block_reduced(
                                     Err(e) => Err(e),
                                     Ok(fe2) => match install::block_recs(pers, st, p0, &p0.recs, 0, Vec::new()) {
                                         Err(e) => Err(e),
-                                        Ok(recs) => Ok(install::push_delta(fe2, recs, tables)),
+                                        Ok(recs) => Ok(install::push_delta(pers, fe2, recs, tables)),
                                     },
                                 },
                             },

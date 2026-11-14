@@ -2664,9 +2664,9 @@ pub fn check_div_mod_pin(
     ci: &IConstantInfo,
     c: &NIdx,
 ) -> Result<(), CheckError> {
-    let prev: Option<u64> = ifenv_push_temp(fe, i_constant_info_dup(ci));
+    let prev: Option<u64> = ifenv_push_temp(pers, fe, i_constant_info_dup(ci));
     let at_fe2: Result<EIdx, CheckError> = check_div_mod_pin_at_fe2(pers, st, fe, c);
-    ifenv_pop_temp(fe, c, prev);
+    ifenv_pop_temp(pers, fe, c, prev);
     match at_fe2 {
         Err(e) => Err(e),
         Ok(value2) => check_div_mod_pin_loop(pers, st, mode, fe, c, &value2, pins, 0),
@@ -2731,9 +2731,9 @@ pub fn check_reduce_pin(
     c: &NIdx,
     value: &EIdx,
 ) -> Result<(), CheckError> {
-    let prev: Option<u64> = ifenv_push_temp(fe, i_constant_info_dup(ci));
+    let prev: Option<u64> = ifenv_push_temp(pers, fe, i_constant_info_dup(ci));
     let stored: Result<bool, CheckError> = reduce_stored_ok(pers, st, fe, c);
-    ifenv_pop_temp(fe, c, prev);
+    ifenv_pop_temp(pers, fe, c, prev);
     match stored {
         Err(e) => Err(e),
         Ok(s) => {
@@ -2966,7 +2966,6 @@ pub const M_QUOT_PREDS: [u32; 41] = [
 /// con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
 /// con-leche: ConLeche/Kernel/Checker.lean:80-102 checkOpaqueVal
 /// con-leche: ConLeche/Cached/ParsedC.lean:38-55 checkDefnValCI
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove decl_check::value_guards_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:832-848 valueGuards` — the value's
 /// syntactic guards the three value checks spell alike (no loose bound
 /// variable, no free variable, declared universe parameters, resolving
@@ -3035,7 +3034,6 @@ pub fn value_guards_tail(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:30-47 checkDefnVal
 /// con-leche: ConLeche/Cached/ParsedC.lean:38-55 checkDefnValCI
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove decl_check::check_defn_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:850-863 checkDefnVal` — check a `def`
 /// declaration's value against its checked constant, returning the record to
 /// install, unpushed (the cached twin's shape: the caller certifies the pinned
@@ -3075,7 +3073,6 @@ pub fn check_defn_val(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
 /// con-leche: ConLeche/Cached/ParsedC.lean:57-77 checkThmValCI
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove decl_check::check_thm_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:865-883 checkThmVal` — check a
 /// `theorem` declaration's value against its checked constant (whose type must
 /// additionally be a proposition), returning the record to install, unpushed.
@@ -3115,7 +3112,6 @@ pub fn check_thm_val(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
 /// con-leche: ConLeche/Cached/ParsedC.lean:57-77 checkThmValCI
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove decl_check::check_thm_val_witness_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:865-883 checkThmVal` — the witness
 /// half: the value's guards, its inferred type against the statement, and the
 /// record `.thmInfo cv` — the statement only.
@@ -3147,7 +3143,6 @@ pub fn check_thm_val_witness(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:80-102 checkOpaqueVal
 /// con-leche: ConLeche/Cached/ParsedC.lean:79-95 checkOpaqueValCI
-/// con-leche: CHANGED since 6810492c — re-port, re-test, re-prove decl_check::check_opaque_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:885-897 checkOpaqueVal` — check an
 /// `opaque` declaration's value against its checked constant: exactly the
 /// theorem check without the is-a-proposition requirement, returning the record
@@ -3195,7 +3190,7 @@ pub fn install_basis_decl(
     if ifenv_find(pers, &fe, &crate::arena::env::i_constant_info_name(&ci)).is_some() {
         fail(CheckError::Invalid(code_points(&M_DUP_DECL)))
     } else {
-        Ok(ifenv_push(fe, ci))
+        Ok(ifenv_push(pers, fe, ci))
     }
 }
 
