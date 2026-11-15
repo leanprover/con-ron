@@ -14,7 +14,7 @@ defaultTargets = ["ConRon", "ConRonTools", "ConRonArena", "ConRonBridge",
 [[require]]
 name = "con-leche"
 git = "https://github.com/leanprover/con-leche"
-rev = "41739c498998e6ee025dcd2b3df71c3296220e3f"
+rev = "9e3c81972655e2a81263f49a7da33c14b930d14d"
 
 # The Aeneas Lean library, patched onto this project's toolchain by
 # `scripts/setup-aeneas-lean.sh` (DESIGN.md, tasks #2 and #110).  The path is
