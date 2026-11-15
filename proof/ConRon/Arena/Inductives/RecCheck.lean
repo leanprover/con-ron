@@ -542,4 +542,15 @@ def blockRecInfosTF (p : BlockShape) :
     let infos ← blockRecInfosTF p (m + 1) rest
     pure (.recInfo cv (p.majorIdxAt m) (p.rulePrefixAt m) (recKExpected p M) rules :: infos)
 
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:499-508 ruleBinds —
+**a rule binds its arguments**: the right-hand side has at least `rP +
+nfields` manifest λs, one per argument of the recursor's rule prefix and per
+field of the constructor — what the ι step peels (`lamBody`).  A syntactic
+count, read before any comparison. -/
+def ruleBinds (rP : Nat) (r : IRecRule) : AM Unit := do
+  match ← stripLams (rP + r.nfields) r.rhs with
+  | some _ => pure ()
+  | none => fail (.invalid "the recursor 's rule for  is not written as a function of the recursor's  leading arguments and the constructor's  fields")
+
 end ConRon.Arena

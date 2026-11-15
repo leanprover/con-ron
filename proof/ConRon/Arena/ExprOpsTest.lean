@@ -302,9 +302,16 @@ private def chkBinders (c : AM (Option (List EIdx × EIdx)))
   ((E fx.letT).instantiateList [E fx.fv0] 0)
 #guard chkE (instantiateListFast F fx.b2 #[fx.cf] 0) ((E fx.b2).instantiateList [E fx.cf] 0)
 -- the unmemoized walk (the one `instantiateListGo`'s `bvar` arm calls)
-#guard chkE (instantiateList #[fx.s1, fx.cf] F fx.big 0)
+#guard chkE (instantiateList #[fx.s1, fx.cf] 2 2 F fx.big 0)
   ((E fx.big).instantiateList [E fx.cf, E fx.s1] 0)
-#guard chkE (instantiateList #[fx.cf] F fx.b0 0) ((E fx.b0).instantiateList [E fx.cf] 0)
+#guard chkE (instantiateList #[fx.cf] 1 1 F fx.b0 0) ((E fx.b0).instantiateList [E fx.cf] 0)
+-- a range of a longer array, read in place: `vs[1:3]` is the list `[vs[2], vs[1]]`
+#guard chkE (instantiateRevRange F fx.big #[fx.b0, fx.s1, fx.cf, fx.fv0] 1 3 0)
+  ((E fx.big).instantiateList [E fx.cf, E fx.s1] 0)
+#guard chkE (instantiateList #[fx.b0, fx.s1, fx.cf, fx.fv0] 3 2 F fx.big 0)
+  ((E fx.big).instantiateList [E fx.cf, E fx.s1] 0)
+-- an empty range is the identity
+#guard chkE (instantiateRevRange F fx.big #[fx.s1, fx.cf] 2 1 0) (E fx.big)
 -- `k = 0` is the identity, even on a term that HAS free variables
 #guard chkSame (abstractRangeFast F fx.fv0 0 0 0) (pure fx.fv0)
 -- and at `k = 1` it is `abstract1` (con-leche's `abstractRange_succ`)

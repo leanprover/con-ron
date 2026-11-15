@@ -180,7 +180,8 @@ list's head.*  So the substituting walks' argument vectors are `Array EIdx` in
 PUSH order: con-leche's `vs[j - d]`, the innermost binder's argument first, is
 this array's entry `j - d` FROM THE END. -/
 
-/-- con-leche: none — copy `xs[i], …, xs[k-1]` onto `out`, in order. -/
+/-- con-leche: ConLeche/Cached/CoreC.lean:165-168 pushRange — copy `xs[i], …,
+xs[k-1]` onto `out`, in order: the range read in place. -/
 def eidxCopyUpto (xs : Array EIdx) (k i : Nat) (out : Array EIdx) : Array EIdx :=
   if h : i < k ∧ i < xs.size then
     eidxCopyUpto xs k (i + 1) (out.push xs[i])
@@ -198,11 +199,6 @@ denotation-preserving by `looseBVarsBounded d e → instantiateList e vs d = e`)
 
 /-- con-leche: none — `xs.take k` over a push-order `Array EIdx`. -/
 def takeEidx (xs : Array EIdx) (k : Nat) : Array EIdx := eidxCopyUpto xs k 0 #[]
-
-/-- con-leche: none — the LAST `k` entries of a push-order array, which is
-`List.take k` on the list it denotes (the reverse of the array). -/
-def lastEidx (xs : Array EIdx) (k : Nat) : Array EIdx :=
-  eidxCopyUpto xs xs.size (if k < xs.size then xs.size - k else 0) #[]
 
 /-! ## `instantiate1` — `ExprOps.lean:29-45`, `:80-116`, `:182-184`
 
@@ -396,8 +392,10 @@ replacement with a *shorter* list and the memo is keyed for the outer one. -/
 
 mutual
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:531-575 instantiateList — the
-unmemoized bulk instantiation.  con-leche's termination measure is
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:531-575 instantiateList
+con-leche: ConLeche/Cached/ExprOpsC.lean:639-667 instantiateRevP — the
+unmemoized bulk instantiation of the range `vs[n - k:n]`, read from its end
+(`instantiateRevP vs n e k d`).  con-leche's termination measure is
 `(vs.length, sizeOf e)`; the arena's single fuel counter decreases on both
 kinds of recursive call, which is the same order flattened.  This is the
 DISPATCHER; the arms are split per DESIGN §8.6's ruling of 2026-09-22.
@@ -407,7 +405,7 @@ bvarBRaw ≤ d`, which con-leche does not have.  Denotation-preserving by
 `looseBVarsBounded d e → instantiateList e vs d = e` (the module note above
 states the induction; P3 discharges it).  It is what makes the `.bvar` arm's
 recursion into a `bvar`-closed replacement `O(1)` instead of a traversal. -/
-def instantiateList (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+def instantiateList (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx :=
   match fuel with
   | 0 => fail (.internal "fuel exhausted: instantiateList")
@@ -416,125 +414,126 @@ def instantiateList (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
       pure h
     else
       let tg := h.tag
-      if tg == ETag.app then instListArmApp vs fuel h d
-      else if ETag.isBind tg then instListArmBind vs fuel h d
-      else if tg == ETag.letE then instListArmLet vs fuel h d
-      else if tg == ETag.proj then instListArmProj vs fuel h d
-      else if tg == ETag.bvar then instListArmBVar vs fuel h d
+      if tg == ETag.app then instListArmApp vs n k fuel h d
+      else if ETag.isBind tg then instListArmBind vs n k fuel h d
+      else if tg == ETag.letE then instListArmLet vs n k fuel h d
+      else if tg == ETag.proj then instListArmProj vs n k fuel h d
+      else if tg == ETag.bvar then instListArmBVar vs n k fuel h d
       else pure h
 termination_by (fuel, 0)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:531-575 instantiateList — the
 `app` arm. -/
-def instListArmApp (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+def instListArmApp (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
   match ← viewApp h with
   | none => failDanglingE
   | some (f, a) => do
-    let f' ← instantiateList vs fuel f d
-    let a' ← instantiateList vs fuel a d
+    let f' ← instantiateList vs n k fuel f d
+    let a' ← instantiateList vs n k fuel a d
     internAppE f' a'
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:531-575 instantiateList — the
 binder arm. -/
-def instListArmBind (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+def instListArmBind (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
   match ← viewBind h with
   | none => failDanglingE
   | some (ty, body) => do
-    let t ← instantiateList vs fuel ty d
-    let b ← instantiateList vs fuel body (d + 1)
+    let t ← instantiateList vs n k fuel ty d
+    let b ← instantiateList vs n k fuel body (d + 1)
     internBindE h.tag t b
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:531-575 instantiateList — the
 `letE` arm. -/
-def instListArmLet (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+def instListArmLet (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
   match ← viewLet h with
   | none => failDanglingE
   | some (ty, val, body) => do
-    let t ← instantiateList vs fuel ty d
-    let w ← instantiateList vs fuel val d
-    let b ← instantiateList vs fuel body (d + 1)
+    let t ← instantiateList vs n k fuel ty d
+    let w ← instantiateList vs n k fuel val d
+    let b ← instantiateList vs n k fuel body (d + 1)
     internLetEE t w b
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:531-575 instantiateList — the
 `proj` arm. -/
-def instListArmProj (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+def instListArmProj (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
   match ← viewProj h with
   | none => failDanglingE
-  | some (n, i, sub) => do
-    let u ← instantiateList vs fuel sub d
-    internProjE n i u
+  | some (sn, i, sub) => do
+    let u ← instantiateList vs n k fuel sub d
+    internProjE sn i u
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:531-575 instantiateList — the
-`bvar` arm, which is the one that recurses with a SHORTER argument vector. -/
-def instListArmBVar (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+`bvar` arm, which is the one that recurses with a SHORTER range. -/
+def instListArmBVar (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
   match ← viewBVar h with
   | none => failDanglingE
   | some j =>
     if j < d then pure h
-    else if hlt : j - d < vs.size then
-      -- **`vs` is in PUSH order** (task #97-P6-15): con-leche's `vs[j - d]`,
-      -- the innermost binder's argument first, is this array's entry `j - d`
-      -- FROM THE END.  The two are the same list; only the direction the
-      -- accumulator grows changed.
-      let vi := vs[vs.size - 1 - (j - d)]'(by omega)
-      -- **The cutoff hoisted over the prefix copy** (task #97-P6-9).  The
-      -- recursion into the replacement is con-leche's own
-      -- `instantiateList vs[j-d] (vs.take (j-d)) d`, and its own note says it
-      -- is the identity on `bvar`-closed replacements (every checker call
-      -- site) — which is exactly what `instListCutoff` decides, in `O(1)` off
-      -- the handle's derived word.  Testing it BEFORE the prefix copy is the
-      -- same value, by the cutoff's own equation
-      -- `looseBVarsBounded d e → instantiateList e vs d = e`.
-      if ← instListCutoff vi d then pure vi
-      else instantiateList (lastEidx vs (j - d)) fuel vi d
-    else internBVarE (j - vs.size)
+    else if j - d < k then
+      if hlt : j - d < n ∧ n ≤ vs.size then
+        -- **The range is read from its end** (con-leche's `instantiateRevP vs
+        -- n e k d`): con-leche's `vs[j - d]`, the innermost binder's argument
+        -- first, is `vs[n - 1 - (j - d)]`.
+        let vi := vs[n - 1 - (j - d)]'(by omega)
+        -- **The cutoff before the re-entry** (task #97-P6-9).  The recursion
+        -- into the replacement is con-leche's own
+        -- `instantiateList vs[j-d] (vs.take (j-d)) d`, and its own note says it
+        -- is the identity on `bvar`-closed replacements (every checker call
+        -- site) — which is exactly what `instListCutoff` decides, in `O(1)` off
+        -- the handle's derived word.  The re-entry is the same range's last
+        -- `j - d` entries, read in place: the walk at `k := j - d`.
+        if ← instListCutoff vi d then pure vi
+        else instantiateList vs n (j - d) fuel vi d
+      else pure h
+    else internBVarE (j - k)
 termination_by (fuel, 1)
 
 end
 
 /-- con-leche: none — `instantiateList`'s clause at fuel `0` (template rule
 9, DESIGN task #97-P3-0 §4). -/
-theorem instantiateList_zero (vs : Array EIdx) (h : EIdx) (d : Nat) :
-    instantiateList vs 0 h d =
+theorem instantiateList_zero (vs : Array EIdx) (n k : Nat) (h : EIdx) (d : Nat) :
+    instantiateList vs n k 0 h d =
       fail (.internal "fuel exhausted: instantiateList") := by
   rw [instantiateList]
 
 /-- con-leche: none — `instantiateList`'s clause at `fuel + 1` (template rule
 9). -/
-theorem instantiateList_succ (vs : Array EIdx) (fuel : Nat) (h : EIdx)
+theorem instantiateList_succ (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx)
     (d : Nat) :
-    instantiateList vs (fuel + 1) h d = (do
+    instantiateList vs n k (fuel + 1) h d = (do
       if ← instListCutoff h d then
         pure h
       else
         let tg := h.tag
-        if tg == ETag.app then instListArmApp vs fuel h d
-        else if ETag.isBind tg then instListArmBind vs fuel h d
-        else if tg == ETag.letE then instListArmLet vs fuel h d
-        else if tg == ETag.proj then instListArmProj vs fuel h d
-        else if tg == ETag.bvar then instListArmBVar vs fuel h d
+        if tg == ETag.app then instListArmApp vs n k fuel h d
+        else if ETag.isBind tg then instListArmBind vs n k fuel h d
+        else if tg == ETag.letE then instListArmLet vs n k fuel h d
+        else if tg == ETag.proj then instListArmProj vs n k fuel h d
+        else if tg == ETag.bvar then instListArmBVar vs n k fuel h d
         else pure h) := by
   rw [instantiateList]
 mutual
 
-/-- con-leche: ConLeche/Cached/ExprOpsC.lean:590-626 instantiateListXP — the
-memoized bulk instantiation.  The `bvar` arm delegates to the pure walk
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:590-626 instantiateListXP
+con-leche: ConLeche/Cached/ExprOpsC.lean:740-776 instantiateRevXP — the
+memoized bulk instantiation of the range `vs[n - k:n]`.  The `bvar` arm delegates to the pure walk
 above, exactly as con-leche's does — so it is called by name and is not one
 of this block's arms.  This is the DISPATCHER; the arms are split per DESIGN
 §8.6's ruling of 2026-09-22.
 
 DEVIATION (task #97f): the same derived-word cutoff as the pure walk, with
 the same licence. -/
-def instantiateListGo (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+def instantiateListGo (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx :=
   match fuel with
   | 0 => fail (.internal "fuel exhausted: instantiateList")
@@ -543,17 +542,17 @@ def instantiateListGo (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
       pure h
     else
       let tg := h.tag
-      if tg == ETag.app then instListGoArmApp vs fuel h d
-      else if ETag.isBind tg then instListGoArmBind vs fuel h d
-      else if tg == ETag.letE then instListGoArmLet vs fuel h d
-      else if tg == ETag.proj then instListGoArmProj vs fuel h d
-      else if tg == ETag.bvar then instantiateList vs fuel h d
+      if tg == ETag.app then instListGoArmApp vs n k fuel h d
+      else if ETag.isBind tg then instListGoArmBind vs n k fuel h d
+      else if tg == ETag.letE then instListGoArmLet vs n k fuel h d
+      else if tg == ETag.proj then instListGoArmProj vs n k fuel h d
+      else if tg == ETag.bvar then instantiateList vs n k fuel h d
       else pure h
 termination_by (fuel, 0)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:590-626 instantiateListXP — the
 `app` arm. -/
-def instListGoArmApp (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+def instListGoArmApp (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
   match ← instLGet (h, d) with
   | some r => pure r
@@ -561,8 +560,8 @@ def instListGoArmApp (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     match ← viewApp h with
     | none => failDanglingE
     | some (f, a) => do
-      let f' ← instantiateListGo vs fuel f d
-      let a' ← instantiateListGo vs fuel a d
+      let f' ← instantiateListGo vs n k fuel f d
+      let a' ← instantiateListGo vs n k fuel a d
       let r ← internAppE f' a'
       instLSet (h, d) r
       pure r
@@ -570,7 +569,7 @@ termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:590-626 instantiateListXP — the
 binder arm. -/
-def instListGoArmBind (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+def instListGoArmBind (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
   match ← instLGet (h, d) with
   | some r => pure r
@@ -578,8 +577,8 @@ def instListGoArmBind (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     match ← viewBind h with
     | none => failDanglingE
     | some (ty, body) => do
-      let t ← instantiateListGo vs fuel ty d
-      let b ← instantiateListGo vs fuel body (d + 1)
+      let t ← instantiateListGo vs n k fuel ty d
+      let b ← instantiateListGo vs n k fuel body (d + 1)
       let r ← internBindE h.tag t b
       instLSet (h, d) r
       pure r
@@ -587,7 +586,7 @@ termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:590-626 instantiateListXP — the
 `letE` arm. -/
-def instListGoArmLet (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+def instListGoArmLet (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
   match ← instLGet (h, d) with
   | some r => pure r
@@ -595,9 +594,9 @@ def instListGoArmLet (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     match ← viewLet h with
     | none => failDanglingE
     | some (ty, val, body) => do
-      let t ← instantiateListGo vs fuel ty d
-      let w ← instantiateListGo vs fuel val d
-      let b ← instantiateListGo vs fuel body (d + 1)
+      let t ← instantiateListGo vs n k fuel ty d
+      let w ← instantiateListGo vs n k fuel val d
+      let b ← instantiateListGo vs n k fuel body (d + 1)
       let r ← internLetEE t w b
       instLSet (h, d) r
       pure r
@@ -605,16 +604,16 @@ termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:590-626 instantiateListXP — the
 `proj` arm. -/
-def instListGoArmProj (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+def instListGoArmProj (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
   match ← instLGet (h, d) with
   | some r => pure r
   | none =>
     match ← viewProj h with
     | none => failDanglingE
-    | some (n, i, sub) => do
-      let u ← instantiateListGo vs fuel sub d
-      let r ← internProjE n i u
+    | some (sn, i, sub) => do
+      let u ← instantiateListGo vs n k fuel sub d
+      let r ← internProjE sn i u
       instLSet (h, d) r
       pure r
 termination_by (fuel, 1)
@@ -623,35 +622,48 @@ end
 
 /-- con-leche: none — `instantiateListGo`'s clause at fuel `0` (template rule
 9). -/
-theorem instantiateListGo_zero (vs : Array EIdx) (h : EIdx) (d : Nat) :
-    instantiateListGo vs 0 h d =
+theorem instantiateListGo_zero (vs : Array EIdx) (n k : Nat) (h : EIdx) (d : Nat) :
+    instantiateListGo vs n k 0 h d =
       fail (.internal "fuel exhausted: instantiateList") := by
   rw [instantiateListGo]
 
 /-- con-leche: none — `instantiateListGo`'s clause at `fuel + 1` (template
 rule 9). -/
-theorem instantiateListGo_succ (vs : Array EIdx) (fuel : Nat) (h : EIdx)
+theorem instantiateListGo_succ (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx)
     (d : Nat) :
-    instantiateListGo vs (fuel + 1) h d = (do
+    instantiateListGo vs n k (fuel + 1) h d = (do
       if ← instListCutoff h d then
         pure h
       else
         let tg := h.tag
-        if tg == ETag.app then instListGoArmApp vs fuel h d
-        else if ETag.isBind tg then instListGoArmBind vs fuel h d
-        else if tg == ETag.letE then instListGoArmLet vs fuel h d
-        else if tg == ETag.proj then instListGoArmProj vs fuel h d
-        else if tg == ETag.bvar then instantiateList vs fuel h d
+        if tg == ETag.app then instListGoArmApp vs n k fuel h d
+        else if ETag.isBind tg then instListGoArmBind vs n k fuel h d
+        else if tg == ETag.letE then instListGoArmLet vs n k fuel h d
+        else if tg == ETag.proj then instListGoArmProj vs n k fuel h d
+        else if tg == ETag.bvar then instantiateList vs n k fuel h d
         else pure h) := by
   rw [instantiateListGo]
-/-- con-leche: ConLeche/Cached/ExprOpsC.lean:630-637 instantiateListC — the
-top-level entry. -/
-def instantiateListFast (fuel : Nat) (e : EIdx) (vs : Array EIdx) (d : Nat := 0) :
-    AM EIdx := do
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:780-790 instantiateRevRange —
+**bulk instantiation from the range `vs[s:n]`**, read from its end: bound
+variable `j` below `n - s` becomes `vs[n - 1 - j]`.  `n` is clamped to the
+array once.  The memo is fresh before and dropped after, because it depends
+on the substituted range. -/
+def instantiateRevRange (fuel : Nat) (e : EIdx) (vs : Array EIdx) (s n : Nat)
+    (d : Nat := 0) : AM EIdx := do
+  let n2 := if n < vs.size then n else vs.size
+  let k := if s < n2 then n2 - s else 0
   instLClear
-  let r ← instantiateListGo vs fuel e d
+  let r ← instantiateListGo vs n2 k fuel e d
   instLClear
   pure r
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:630-637 instantiateListC
+con-leche: ConLeche/Cached/ExprOpsC.lean:792-795 instantiateRev — the whole
+array's range: the push-order array is con-leche's `instantiateRev` array,
+and the reverse of `instantiateListC`'s list. -/
+def instantiateListFast (fuel : Nat) (e : EIdx) (vs : Array EIdx) (d : Nat := 0) :
+    AM EIdx :=
+  instantiateRevRange fuel e vs 0 vs.size d
 
 /-! ## `liftLooseBVars` — `ExprOps.lean:380-400`, `:430-466`, `:532-534` -/
 
@@ -1330,6 +1342,18 @@ termination_by args.size - i
 decreasing_by omega
 
 /-! ## Telescopes -/
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:862-868 lamBody — the body under
+`k` leading λs (where there are fewer, under all of them).  The recursion is
+structural on `k`, so no fuel. -/
+def lamBody : Nat → EIdx → AM EIdx
+  | 0, h => pure h
+  | k + 1, h => do
+    if h.tag == ETag.lam then
+      match ← viewBind h with
+      | none => failDanglingE
+      | some (_, b) => lamBody k b
+    else pure h
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:870-876 stripLams — strip `k`
 leading λs.  The recursion is structural on `k`, so no fuel. -/

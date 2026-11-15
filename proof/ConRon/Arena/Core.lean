@@ -242,21 +242,25 @@ def constValAt (n : NIdx) (lps : List NIdx) (value : EIdx) (us : LsIdx) :
     set { s with caches := { s.caches with constValC := mp.insert (n, us) r } }
     pure r
 
-/-- con-leche: none — an iota rule's right-hand side at the recursor's
-universe instantiation, memoized on `(recursor, rule constructor, levels)`
-— the three data that determine it (DESIGN §8.3, `ruleRhsAt`). -/
-def ruleRhsAt (recName ctor : NIdx) (lps : List NIdx) (rhs : EIdx)
+/-- con-leche: ConLeche/Cached/StateC.lean:478-499 ruleBodyAtM — **the rule
+read for its ι step**: the right-hand side's body under its `k = rulePrefix +
+nfields` λs (`lamBody`; the install checks it has them), at the recursor's
+universe instantiation, memoized on `(recursor, rule constructor, levels)` —
+the three data that determine it.  The caller passes the record it has
+already looked up. -/
+def ruleBodyAt (recName ctor : NIdx) (lps : List NIdx) (rhs : EIdx) (k : Nat)
     (us : LsIdx) : AM EIdx := do
   let s ← get
-  match s.caches.ruleRhsC[(recName, ctor, us)]? with
+  match s.caches.ruleBodyC[(recName, ctor, us)]? with
   | some r => pure r
   | none => do
-    let r ← instLPFast coreWalkFuel lps us rhs
+    let body ← lamBody k rhs
+    let r ← instLPFast coreWalkFuel lps us body
     let s ← get
-    let mp := s.caches.ruleRhsC
-    let s := { s with caches := { s.caches with ruleRhsC := ∅ } }
+    let mp := s.caches.ruleBodyC
+    let s := { s with caches := { s.caches with ruleBodyC := ∅ } }
     set { s with caches :=
-      { s.caches with ruleRhsC := mp.insert (recName, ctor, us) r } }
+      { s.caches with ruleBodyC := mp.insert (recName, ctor, us) r } }
     pure r
 
 /-! ## The error -/
@@ -1820,7 +1824,6 @@ unit-like", which is always sound. -/
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:760-787 unitLikeShape
 con-leche: ConLeche/Kernel/CoreDefs.lean:752-758 unitFieldTele
 con-leche: ConLeche/Cached/CoreC.lean:103-124 unitLikeShapeF — the field
--- con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove Core.unitLikeShapeAt_bridge, then delete this line
 telescope of an instance at its family's table: the table's constructor,
 stored, its type at the instance's levels `us`, the table's `nP` parameter
 binders dropped and instantiated with the instance's arguments in one pass. -/
@@ -1838,7 +1841,6 @@ def unitLikeShapeAt (fe : IFEnv) (us : LsIdx) (targs : List EIdx) (tctor : NIdx)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:760-787 unitLikeShape
 con-leche: ConLeche/Cached/CoreC.lean:103-124 unitLikeShapeF — **the shape of
--- con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove Core.unitLikeShape_bridge, then delete this line
 an instance in official's `is_unit_like`**, read off the stored records: `w`
 is an instance of a stored η family at its parameters (the table's count),
 whose constructor's field telescope at the instance's parameters is `tele`
@@ -2385,15 +2387,21 @@ def recFireArgs (rl : IRecRule) (cnP : Nat) (lps : List NIdx) (us : LsIdx)
   | .levels _ => pure (args.take cnP)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:876-974 iotaRec — the rule lookup
--- con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove Core.findRule_bridge, then delete this line
 `rules.find? (fun r' => r'.ctor == cj)`, as a named recursion (DESIGN
 §3.4). -/
 def findRule : List IRecRule → NIdx → Option IRecRule
   | [], _ => none
   | rl :: rs, c => if rl.ctor == c then some rl else findRule rs c
 
+/-- con-leche: ConLeche/Cached/CoreC.lean:170-177 iotaVals — **the values an
+ι reduct substitutes for the rule's binders**: the recursor's leading
+arguments `args[0:p]`, then the constructor's fields `margs[q:]`, in push
+order (`instantiateListFast`'s order: the last field is substituted for
+`bvar 0`). -/
+def iotaVals (args : Array EIdx) (p : Nat) (margs : Array EIdx) (q : Nat) : Array EIdx :=
+  eidxCopyUpto margs margs.size q (eidxCopyUpto args p 0 #[])
+
 /-- con-leche: ConLeche/Kernel/Core.lean:876-974 iotaRec — **one iota step at
--- con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove Core.iotaRecAt_bridge, then delete this line
 a spine the caller already holds** (task #97-P6-9's hoist).  `iotaRec`'s own
 first two steps are `getAppFn` and `getAppArgs`, and the batched β asks for an
 iota step at every reduction step of a spine it is already walking: this entry
@@ -2472,9 +2480,15 @@ def iotaRecAt (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
                           else pure false
                         else pure true
                     if fam then do
-                      let rhs ← ruleRhsAt c rl.ctor cv.levelParams rl.rhs us
-                      let x ← mkAppN rhs
-                        (args.take rP ++ margs.drop cnP)
+                      -- lean4 PR #10565's ι step: the rule's body under its
+                      -- binders (the per-declaration memo), one substitution
+                      -- of the leading arguments and the fields, no β-redex
+                      let body ← ruleBodyAt c rl.ctor cv.levelParams rl.rhs
+                        (rP + rl.nfields) us
+                      let p := if rP < args.length then rP else args.length
+                      let q := if cnP < margs.length then cnP else margs.length
+                      let x ← instantiateListFast coreWalkFuel body
+                        (iotaVals args.toArray p margs.toArray q) 0
                       pure (some x)
                     else pure none
                   else pure none
@@ -2589,34 +2603,33 @@ these peel a consecutive run of λ binders into ONE `instantiateList` walk.
 Both RETURN a `WhnfStep` (con-leche's task #342 R2): a fired ι or a finished
 peel hands the loop its reduct applied to the rest of the spine.
 
-The accumulator is an `Array` in PUSH order (task #97-P6-15's clause change),
-which `instantiateList` reads from the end — the same list con-leche's `::`
-chain builds, the other way round. -/
+The peeled arguments are the spine range `args[s:i]`, which the substitution
+reads from its end — the same list con-leche's specification chain builds,
+the other way round. -/
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1085-1109 betaPeelI — peel a
--- con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove Core.betaPeel_bridge, then delete this line
-consecutive run of λ binders, collecting their arguments, and substitute the
-whole run in ONE `instantiateList`; the reduct, applied to the arguments left
-over, is the term the loop continues with.  β is uniform (con-leche's task
-#342 S0: no certificate, no gate). -/
-def betaPeel (t : EIdx) (acc : Array EIdx) (args : Array EIdx) (i : Nat) :
+consecutive run of λ binders, their arguments the spine range `args[s:i]`,
+and substitute the whole run in ONE walk straight from the spine
+(`instantiateRevRange`: bound variable `j` is `args[i - 1 - j]`); the reduct,
+applied to the arguments left over, is the term the loop continues with.  β
+is uniform (con-leche's task #342 S0: no certificate, no gate). -/
+def betaPeel (t : EIdx) (s : Nat) (args : Array EIdx) (i : Nat) :
     AM WhnfStep := do
-  if hi : i < args.size then do
+  if _hi : i < args.size then do
     if t.tag == ETag.lam then
       match ← viewBind t with
       | none => failDanglingE
-      | some (_, body) => betaPeel body (acc.push args[i]) args (i + 1)
+      | some (_, body) => betaPeel body s args (i + 1)
     else do
-      let e2 ← instantiateListFast coreWalkFuel t acc 0
+      let e2 ← instantiateRevRange coreWalkFuel t args s i 0
       let e3 ← mkAppNFrom e2 args i
       pure (.cont e3)
   else do
-    let e2 ← instantiateListFast coreWalkFuel t acc 0
+    let e2 ← instantiateRevRange coreWalkFuel t args s i 0
     pure (.cont e2)
 termination_by args.size - i
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1111-1139 whnfAppI — walk the spine's
--- con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove Core.whnfApp_bridge, then delete this line
 arguments, applying each to the head's reduct: a λ head opens a peel group
 (`betaPeel`), a stuck head applies the argument and tries one ι step at the
 spine the walk already holds; a fired ι hands the loop its reduct applied to
@@ -2630,7 +2643,7 @@ def whnfApp (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     if v.tag == ETag.lam then
       match ← viewBind v with
       | none => failDanglingE
-      | some (_, body) => betaPeel body #[a] args (i + 1)
+      | some (_, body) => betaPeel body i args (i + 1)
     else do
       let ap ← internAppRebuilt node same v a
       let same2 := ap == node

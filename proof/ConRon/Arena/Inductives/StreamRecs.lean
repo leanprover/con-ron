@@ -176,31 +176,29 @@ def streamRulesShape : List IRecRule → List (IConstantVal × Nat) → AM Unit
   | _, _ => fail (.invalid "the recursor  carries  more or fewer rules than the generated one ( unmatched)")
 
 /-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:154-165 streamRulesCheck
--- con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove StreamRecs.streamRulesCheck_bridge, then delete this line
 con-leche: ConLeche/Cached/IndTail.lean:154-164 streamRulesCheckC
--- con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove StreamRecs.streamRulesCheck_bridge, then delete this line
-The record's rules' checks, each against the generated right-hand side at its
-position (a rule equal to the generated one needs none). -/
-def streamRulesCheck (mode : CheckMode) (fe : IFEnv) (lps : List NIdx) :
+The record's rules' checks: each binds its arguments (`ruleBinds`) and agrees
+with the generated right-hand side at its position (a rule equal to the
+generated one needs no comparison). -/
+def streamRulesCheck (mode : CheckMode) (fe : IFEnv) (lps : List NIdx) (rP : Nat) :
     List IRecRule → List EIdx → AM Unit
   | r :: rs, g :: gs => do
+    ruleBinds rP r
     unless r.rhs == g do
       ruleAgree mode fe lps r.rhs g
-    streamRulesCheck mode fe lps rs gs
+    streamRulesCheck mode fe lps rP rs gs
   | [], [] => pure ()
   | _, _ => fail (.internal "the recursor : the generated rules are not one per stored rule")
 
 /-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:167-172 streamRecCompare
--- con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove StreamRecs.streamRecCompare_bridge, then delete this line
 con-leche: ConLeche/Cached/IndTail.lean:166-171 streamRecCompareC
--- con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove StreamRecs.streamRecCompare_bridge, then delete this line
 **The comparison of one recursor**: its type unless it is the generated one, and
 its rules. -/
 def streamRecCompare (mode : CheckMode) (fe : IFEnv) (rc : RecShape)
     (g : IConstantVal × TargetMajor × List EIdx) : AM Unit := do
   unless rc.cvR.type == g.1.type do
     recTyCheck mode fe g.1.levelParams (rc.mI + 1) rc.cvR.type g.1.type
-  streamRulesCheck mode fe g.1.levelParams rc.rules g.2.2
+  streamRulesCheck mode fe g.1.levelParams rc.rP rc.rules g.2.2
 
 /-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:174-183 streamRecCheck
 con-leche: ConLeche/Cached/IndTail.lean:173-180 streamRecCheckC

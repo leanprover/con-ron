@@ -20,7 +20,7 @@ the whole of one declaration's check and drops at its boundary:
   §8.3 "Levels and names": the ALGORITHM runs on transient trees, the
   VERDICT is cached on the handles;
 * the lazy instantiated-constant caches (`constTyAt` / `constValAt` /
-  `ruleRhsAt`, con-leche's arena task #26), keyed on the name and the
+  `ruleBodyAt`, con-leche's arena task #26), keyed on the name and the
   universe-argument list rather than on the instantiated term — every
   `cv.type.instantiateLevelParams cv.levelParams us` in the checker is one
   of these three.
@@ -75,7 +75,6 @@ structure ModeMemos where
 def ModeMemos.empty : ModeMemos := ⟨∅, ∅, ∅, ∅, ∅, ∅⟩
 
 /-- con-leche: ConLeche/Cached/StateC.lean:265-307 CState — the
--- con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove CoreState.Caches_bridge, then delete this line
 per-declaration caches of the arena checker, in one record beside
 `Monad.lean`'s per-call `Memos`.  Keeping the two apart is deliberate: the
 per-call clear (`inst1Clear` and its ten siblings) and the per-declaration
@@ -112,7 +111,7 @@ structure Caches where
   /-- An iota rule's right-hand side at the recursor's universe
   instantiation, keyed by the recursor, the rule's constructor and the
   levels — the three data that determine it. -/
-  ruleRhsC : Std.HashMap (NIdx × NIdx × LsIdx) EIdx
+  ruleBodyC : Std.HashMap (NIdx × NIdx × LsIdx) EIdx
   /-- **The readback memo DESIGN §8.3 promised** and nothing had built
   (task #97-P6-13): "`Level` ops … run on transient `Level` trees read back
   from `LIdx` (*memoised readback per declaration*; levels are small)".  A
@@ -133,7 +132,6 @@ structure Caches where
   eagerMemos : ModeMemos
 
 /-- con-leche: ConLeche/Cached/StateC.lean:265-307 CState — the empty
--- con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove CoreState.Caches.empty_bridge, then delete this line
 cache set: what a fresh run and every declaration start from. -/
 def Caches.empty : Caches := ⟨∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ModeMemos.empty⟩
 
