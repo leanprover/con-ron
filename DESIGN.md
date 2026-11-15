@@ -72850,8 +72850,8 @@ picks up `strict_succ_counter`).
 
 | binary | instructions:u | cycles:u |
 |---|---:|---:|
-| master `42a08640` | 180 478 015 121 | 72 194 586 819 |
-| this branch `a6244ff4` | **180 158 747 423** (−0.177 %) | 71 119 561 030 |
+| master `42a08640` | 180 478 022 726 | 72 200 327 071 |
+| this branch `7ec50dfb` | **180 158 763 046** (−0.177 %) | 71 482 979 000 |
 
 The literal flags pay off in con-ron as upstream measured on its literal-heavy streams: the old
 readers interned up to ten pins and probed the index at every literal.  `strict_succ_counter`
