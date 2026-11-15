@@ -72844,3 +72844,18 @@ proofs rewrite the twin's `lfe.natLit`/`strLit` by `hctx.natLit`/`strLit` before
 
 **Verdicts.**  `diff-e2e.sh`: 734/734 (master's binary at the new pin as well; the e2e corpus
 picks up `strict_succ_counter`).
+
+**Numbers.**  `Init`, `--verified --jobs=1`, `perf stat -e instructions:u,cycles:u`, one run each
+(`bump-con-leche.sh measure`), 57 919 / 57 919 accepted:
+
+| binary | instructions:u | cycles:u |
+|---|---:|---:|
+| master `42a08640` | 180 478 015 121 | 72 194 586 819 |
+| this branch `a6244ff4` | **180 158 747 423** (−0.177 %) | 71 119 561 030 |
+
+The literal flags pay off in con-ron as upstream measured on its literal-heavy streams: the old
+readers interned up to ten pins and probed the index at every literal.  `strict_succ_counter`
+(one run each, `instructions:u`): master 13.38 G, this branch 14.07 G (+5.2 %).  con-ron did not
+have upstream's unary-tower slowdown on it (no 32-bit hash cycle in its interned store); the
+`Nat.succ` major now takes the whnf and the literal conversion, as upstream and the official
+kernel do.
