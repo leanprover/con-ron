@@ -661,6 +661,35 @@ attribute [lockstep_inline] arena.core.iota_rec_major arena.core.iota_rec_fire
   arena.core.iota_rec_cert arena.core.iota_rec_case3 arena.core.iota_rec_fam
   arena.core.iota_rec_reduct
 
+/-- `iota_vals` (the ι reduct's values: two ranges pushed) against `iotaVals`. -/
+@[lockstep] theorem iota_vals_spec (args margs : alloc.vec.Vec arena.handle.EIdx)
+    (p q : Std.Usize) :
+    LSP (arena.core.iota_vals args p margs q)
+      (fun r => absEIdxArr r = iotaVals (absEIdxArr args) p.val (absEIdxArr margs) q.val) := by
+  intro r h
+  rw [arena.core.iota_vals] at h
+  obtain ⟨nf, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨i1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨acc, hacc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h1 := ExprOps.eidx_copy_upto_refines hacc
+  have h2 := ExprOps.eidx_copy_upto_refines h
+  rw [ExprOps.absEIdxArr_with_capacity, ExprOps.usize_zero_val] at h1
+  have hacc' : ExprOps.absEIdxArr acc = eidxCopyUpto (ExprOps.absEIdxArr args) p.val 0 #[] := by
+    apply Array.ext'; rw [h1]; simp [ExprOps.absEIdxArr]
+  rw [hacc', ExprOps.absEIdxArr_size_len margs] at h2
+  apply Array.ext'
+  simp only [absEIdxArr, List.toList_toArray] at h2 ⊢
+  rw [iotaVals]
+  simpa [ExprOps.absEIdxArr, ExprOps.absEIdxL] using h2.symm
+
+/-- The twin's ι values at its clamped range bounds are the Rust's `iota_vals`
+answer (`iota_vals_spec`), once the bounds agree. -/
+theorem iota_vals_twin {r A M : alloc.vec.Vec arena.handle.EIdx} {p q p' q' : Nat}
+    (h : absEIdxArr r = iotaVals (absEIdxArr A) p (absEIdxArr M) q) (hp : p = p') (hq : q = q') :
+    iotaVals (List.map absEIdx A.val).toArray p' (List.map absEIdx M.val).toArray q' =
+      absEIdxArr r := by
+  subst hp hq; exact h.symm
+
 set_option maxHeartbeats 0 in
 @[lockstep] theorem iota_rec_at_ls {f : Nat} (hk : KnotRel f)
     {pers st mode eager lane fu fe lfe depth hd sargs n lst}
@@ -673,6 +702,15 @@ set_option maxHeartbeats 0 in
         lfe (absU depth) (absEIdx hd) (absEIdxArr sargs) (absSz n)) := by
   rw [arena.core.iota_rec_at, iotaRecAt]
   lockstep_c2
+  -- the reduct's values: the twin clamps its two range bounds with pure
+  -- `if`s inside the argument, the Rust with its own `if`s before `iota_vals`
+  all_goals
+    rw [iota_vals_twin ‹absEIdxArr _ = iotaVals _ _ _ _› ?hp ?hq]
+    case hp =>
+      split <;> (try rw [UScalar.cast_val_eq, Nat.mod_eq_of_lt (by scalar_tac)]) <;> scalar_tac
+    case hq =>
+      split <;> (try rw [UScalar.cast_val_eq, Nat.mod_eq_of_lt (by scalar_tac)]) <;> scalar_tac
+    lockstep_c2
 
 end iota
 

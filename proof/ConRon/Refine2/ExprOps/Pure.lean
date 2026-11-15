@@ -20,7 +20,7 @@ therefore DESIGN §3.5's original exact-result one —
 
 | Rust | twin | statement |
 |---|---|---|
-| `eidx_copy_upto`, `take_eidx`, `last_eidx` | `Arena.{eidxCopyUpto,takeEidx,lastEidx}` | a named `def`, so an equation between `Array EIdx`s |
+| `eidx_copy_upto`, `take_eidx` | `Arena.{eidxCopyUpto,takeEidx}` | a named `def`, so an equation between `Array EIdx`s |
 | `cons_eidx`, `snoc_eidx_of`, `cons_binder`, `binder_copy_from`, `fvl_copy_from`, `fvl_append` | **no named twin** — the twin gets `::` and `++` for free | the LIST equation the call sites use |
 | `eidx_take_beq`, `eidx_prefix_beq` | the twin's `args.take want.length == want` | a `↔` on the abstracted lists |
 | `wscoped_memo_{get,set}`, `fvl_{seen,record}`, `leaves_sub_{get,set}` | a `Std.HashMap` probe and insert | **relation in, relation out** (`Refine/HashMap2WF.lean`'s `RelOn`) — a `Std.HashMap` is not recoverable from a probe agreement, exactly as `Refine2/AbsStore.lean`'s note says of the cons tables |
@@ -278,27 +278,6 @@ theorem take_eidx_refines {xs : alloc.vec.Vec arena.handle.EIdx} {k : Std.Usize}
   have he := eidx_copy_upto_refines h
   rw [absEIdxArr_with_capacity, usize_zero_val] at he
   rw [takeEidx, he]
-
-theorem last_eidx_refines {xs : alloc.vec.Vec arena.handle.EIdx} {k : Std.Usize}
-    {r : alloc.vec.Vec arena.handle.EIdx}
-    (h : arena.expr_ops.last_eidx xs k = ok r) :
-    (lastEidx (absEIdxArr xs) k.val).toList = absEIdxL r := by
-  rw [arena.expr_ops.last_eidx] at h
-  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hnv : n.val = if k.val < xs.val.length then xs.val.length - k.val else 0 := by
-    by_cases hc : k.val < xs.val.length
-    · rw [ite_eq_left (show k < alloc.vec.Vec.len xs by scalar_tac)] at hn
-      obtain ⟨-, hv⟩ := ConRon.Refine.Nat.usub_val hn
-      rw [ite_eq_left hc]; simpa using hv
-    · rw [ite_eq_right (show ¬ k < alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at hn
-      subst hn
-      rw [ite_eq_right hc]; simp
-  have he := eidx_copy_upto_refines h
-  rw [absEIdxArr_with_capacity] at he
-  simp only [alloc.vec.Vec.len_val] at he
-  rw [lastEidx, absEIdxArr_size, ← hnv]
-  exact he
 
 /-! ## The copying cons and snoc: no named twin, so the LIST equation -/
 

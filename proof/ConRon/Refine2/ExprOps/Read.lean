@@ -185,6 +185,24 @@ end oneNode
 
 section strip
 
+theorem lam_body_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (k : Std.U64) (h : arena.handle.EIdx),
+      k.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = absEIdx a) (arena.expr_ops.lam_body pers st k h) st lst
+        (lamBody n (absEIdx h)) := by
+  induction n with
+  | zero =>
+    intro pers st lst k h hn hrel hinv
+    apply LSR.of_LS
+    rw [arena.expr_ops.lam_body, lamBody]
+    lockstep
+  | succ m ih =>
+    intro pers st lst k h hn hrel hinv
+    apply LSR.of_LS
+    rw [arena.expr_ops.lam_body, lamBody]
+    lockstep
+
 theorem strip_lams_aux (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
       (k : Std.U64) (h : arena.handle.EIdx),
@@ -372,6 +390,12 @@ end entries
     LSR pers (fun a b => b = absEIdxList a) (arena.expr_ops.get_app_args pers st fuel h)
       st lst (getAppArgs (absU fuel) (absEIdx h)) := by
   rw [arena.expr_ops.get_app_args]; exact get_app_args_go_ls hrel hinv fuel h 0#usize
+
+@[lockstep] theorem lam_body_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : Std.U64) (h : arena.handle.EIdx) :
+    LSR pers (fun a b => b = absEIdx a) (arena.expr_ops.lam_body pers st k h) st lst
+      (lamBody (absU k) (absEIdx h)) :=
+  lam_body_aux _ k h rfl hrel hinv
 
 @[lockstep] theorem strip_lams_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (k : Std.U64) (h : arena.handle.EIdx) :

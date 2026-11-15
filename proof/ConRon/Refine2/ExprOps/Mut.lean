@@ -318,59 +318,90 @@ end instantiate1_go
   rw [arena.expr_ops.instantiate1_fast, instantiate1Fast]
   lockstep
 
+/-- The twin's one conjunctive range test as the Rust's two nested ones (`i < n`,
+then `n <= vs.len()`). -/
+theorem dite_and_nested {α : Type} {p q : Prop} [Decidable p] [Decidable q]
+    (a : p ∧ q → α) (b : α) :
+    (if h : p ∧ q then a h else b) = if hp : p then (if hq : q then a ⟨hp, hq⟩ else b) else b := by
+  by_cases hp : p <;> by_cases hq : q <;> simp [hp, hq]
+
 section instantiate_list
 attribute [local lockstep_simp] instListArmApp instListArmBind instListArmLet instListArmProj instListArmBVar
+  dite_and_nested
 
 theorem instantiate_list_aux (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (vs : alloc.vec.Vec arena.handle.EIdx) (fuel : Std.U64) (h : arena.handle.EIdx) (d : Std.U64),
+      (rg : arena.expr_ops.InstRange) (fuel : Std.U64) (h : arena.handle.EIdx) (d : Std.U64),
       fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = absEIdx a) (arena.expr_ops.instantiate_list pers st vs fuel h d) lst
-        (instantiateList (absEIdxArr vs) n (absEIdx h) (absU d)) := by
+      LS pers (fun a b => b = absEIdx a) (arena.expr_ops.instantiate_list pers st rg fuel h d) lst
+        (instantiateList (absEIdxArr rg.vs) (absSz rg.n) (absSz rg.k) n (absEIdx h) (absU d)) := by
   induction n with
   | zero =>
-    intro pers st lst vs fuel h d hn hrel hinv
+    intro pers st lst rg fuel h d hn hrel hinv
     rw [arena.expr_ops.instantiate_list, instantiateList_zero]
     lockstep
   | succ m ih =>
-    intro pers st lst vs fuel h d hn hrel hinv
+    intro pers st lst rg fuel h d hn hrel hinv
     rw [arena.expr_ops.instantiate_list, instantiateList_succ]
     lockstep
+    -- the re-entry at the shorter live count: the range record the Rust
+    -- builds is the twin's three arguments
+    all_goals
+      convert ih _ _ _ _ ?_ ‹_› ‹_› using 3
+      all_goals first | scalar_tac | (simp only [absSz]; scalar_tac) | (congr 1; scalar_tac)
 
 @[lockstep] theorem instantiate_list_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (vs : alloc.vec.Vec arena.handle.EIdx) (fuel : Std.U64) (h : arena.handle.EIdx) (d : Std.U64) :
-    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.instantiate_list pers st vs fuel h d) lst
-      (instantiateList (absEIdxArr vs) (absU fuel) (absEIdx h) (absU d)) :=
-  instantiate_list_aux _ vs fuel h d rfl hrel hinv
+    (rg : arena.expr_ops.InstRange) (fuel : Std.U64) (h : arena.handle.EIdx) (d : Std.U64) :
+    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.instantiate_list pers st rg fuel h d) lst
+      (instantiateList (absEIdxArr rg.vs) (absSz rg.n) (absSz rg.k) (absU fuel) (absEIdx h) (absU d)) :=
+  instantiate_list_aux _ rg fuel h d rfl hrel hinv
 
 end instantiate_list
 
 section instantiate_list_go
 attribute [local lockstep_simp] instListGoArmApp instListGoArmBind instListGoArmLet instListGoArmProj instListArmBVar
+  dite_and_nested
 
 theorem instantiate_list_go_aux (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (vs : alloc.vec.Vec arena.handle.EIdx) (fuel : Std.U64) (h : arena.handle.EIdx) (d : Std.U64),
+      (rg : arena.expr_ops.InstRange) (fuel : Std.U64) (h : arena.handle.EIdx) (d : Std.U64),
       fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = absEIdx a) (arena.expr_ops.instantiate_list_go pers st vs fuel h d) lst
-        (instantiateListGo (absEIdxArr vs) n (absEIdx h) (absU d)) := by
+      LS pers (fun a b => b = absEIdx a) (arena.expr_ops.instantiate_list_go pers st rg fuel h d) lst
+        (instantiateListGo (absEIdxArr rg.vs) (absSz rg.n) (absSz rg.k) n (absEIdx h) (absU d)) := by
   induction n with
   | zero =>
-    intro pers st lst vs fuel h d hn hrel hinv
+    intro pers st lst rg fuel h d hn hrel hinv
     rw [arena.expr_ops.instantiate_list_go, instantiateListGo_zero]
     lockstep
   | succ m ih =>
-    intro pers st lst vs fuel h d hn hrel hinv
+    intro pers st lst rg fuel h d hn hrel hinv
     rw [arena.expr_ops.instantiate_list_go, instantiateListGo_succ]
     lockstep
 
 @[lockstep] theorem instantiate_list_go_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (vs : alloc.vec.Vec arena.handle.EIdx) (fuel : Std.U64) (h : arena.handle.EIdx) (d : Std.U64) :
-    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.instantiate_list_go pers st vs fuel h d) lst
-      (instantiateListGo (absEIdxArr vs) (absU fuel) (absEIdx h) (absU d)) :=
-  instantiate_list_go_aux _ vs fuel h d rfl hrel hinv
+    (rg : arena.expr_ops.InstRange) (fuel : Std.U64) (h : arena.handle.EIdx) (d : Std.U64) :
+    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.instantiate_list_go pers st rg fuel h d) lst
+      (instantiateListGo (absEIdxArr rg.vs) (absSz rg.n) (absSz rg.k) (absU fuel) (absEIdx h) (absU d)) :=
+  instantiate_list_go_aux _ rg fuel h d rfl hrel hinv
 
 end instantiate_list_go
+
+@[lockstep] theorem instantiate_rev_range_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (fuel : Std.U64) (e : arena.handle.EIdx)
+    (vs : alloc.vec.Vec arena.handle.EIdx) (s n : Std.Usize) (d : Std.U64) :
+    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.instantiate_rev_range pers st fuel e vs s n d)
+      lst (instantiateRevRange (absU fuel) (absEIdx e) (absEIdxArr vs) (absSz s) (absSz n) (absU d)) := by
+  rw [arena.expr_ops.instantiate_rev_range, instantiateRevRange]
+  simp only [absEIdxArr_size]
+  by_cases h1 : n.val < vs.val.length
+  · simp only [h1, ite_true]
+    by_cases h2 : s.val < n.val
+    · simp only [h2, ite_true]; lockstep
+    · simp only [h2, ite_false]; lockstep
+  · simp only [h1, ite_false]
+    by_cases h2 : s.val < vs.val.length
+    · simp only [h2, ite_true]; lockstep
+    · simp only [h2, ite_false]; lockstep
 
 @[lockstep] theorem instantiate_list_fast_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (fuel : Std.U64) (e : arena.handle.EIdx) (vs : alloc.vec.Vec arena.handle.EIdx) (d : Std.U64) :

@@ -1314,16 +1314,6 @@ theorem LSV.ofLS {α β : Type} {pers : arena.store.PersTier} {R : α → β →
     show (0 : Nat) = a.val - b.val
     scalar_tac
 
-@[lockstep] theorem last_eidx_spec (xs : alloc.vec.Vec arena.handle.EIdx) (k : Std.Usize) :
-    LSP (arena.expr_ops.last_eidx xs k)
-      (fun r => absEIdxArr r = lastEidx (absEIdxArr xs) k.val) := by
-  intro r h
-  have := ExprOps.last_eidx_refines h
-  simp only [ExprOps.absEIdxArr, ExprOps.absEIdxL] at this
-  apply Array.ext'
-  simp only [absEIdxArr, List.toList_toArray] at this ⊢
-  rw [← this]
-
 /-! ### The remaining memo probes, writes and clears (from `Specs.lean`'s `₀` lemmas) -/
 
 @[lockstep] theorem inst1_clear_ls {pers st lst} (hrel : AStateRel₀ pers st lst)

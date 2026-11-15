@@ -409,7 +409,7 @@ def startState : arena.monad.AState :=
         whnf_c := emptyMap _ _, infer_c := emptyMap _ _,
         infer_io_c := emptyMap _ _, defeq_c := emptyMap _ _,
         lvl_eq_c := emptyMap _ _, lvls_eq_c := emptyMap _ _, const_ty_c := emptyMap _ _,
-        const_val_c := emptyMap _ _, rule_rhs_c := emptyMap _ _, read_l_c := emptyMap _ _,
+        const_val_c := emptyMap _ _, rule_body_c := emptyMap _ _, read_l_c := emptyMap _ _,
         read_n_c := emptyMap _ _, read_ls_c := emptyMap _ _,
         eager_memos :=
           { whnf_core_c := emptyMap _ _, whnf_core_cheap_c := emptyMap _ _,

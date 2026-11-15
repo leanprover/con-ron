@@ -66,15 +66,15 @@ attribute [local lockstep_simp] absEIdxArr ExprOps.absEIdxL List.push_toArray
   List.length_map List.getElem_toArray List.getElem_map map_getElem!_absEIdx
 
 theorem beta_peel_aux (n : Nat) :
-    ∀ {pers st t acc args i lst},
+    ∀ {pers st t s args i lst},
       ExprOpsHyp pers → args.val.length - (i : Std.Usize).val = n →
       AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = absWhnfStep a)
-        (arena.core.beta_peel pers st t acc args i) lst
-        (betaPeel (absEIdx t) (absEIdxArr acc) (absEIdxArr args) (absSz i)) := by
+        (arena.core.beta_peel pers st t s args i) lst
+        (betaPeel (absEIdx t) (absSz s) (absEIdxArr args) (absSz i)) := by
   induction n with
   | zero =>
-    intro pers st t acc args i lst hx hn hrel hinv
+    intro pers st t s args i lst hx hn hrel hinv
     rw [arena.core.beta_peel, betaPeel]
     by_cases hi : i.val < args.val.length
     · rw [dite_eq_left (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
@@ -82,7 +82,7 @@ theorem beta_peel_aux (n : Nat) :
     · rw [dite_eq_right (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
       lockstep_core
   | succ k ih =>
-    intro pers st t acc args i lst hx hn hrel hinv
+    intro pers st t s args i lst hx hn hrel hinv
     rw [arena.core.beta_peel, betaPeel]
     by_cases hi : i.val < args.val.length
     · rw [dite_eq_left (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
@@ -90,12 +90,12 @@ theorem beta_peel_aux (n : Nat) :
     · rw [dite_eq_right (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
       lockstep_core
 
-@[lockstep] theorem beta_peel_ls {pers st t acc args i lst}
+@[lockstep] theorem beta_peel_ls {pers st t s args i lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = absWhnfStep a)
-      (arena.core.beta_peel pers st t acc args i) lst
-      (betaPeel (absEIdx t) (absEIdxArr acc) (absEIdxArr args) (absSz i)) :=
+      (arena.core.beta_peel pers st t s args i) lst
+      (betaPeel (absEIdx t) (absSz s) (absEIdxArr args) (absSz i)) :=
   beta_peel_aux _ hx rfl hrel hinv
 
 theorem whnf_app_aux {f : Nat} (hk : KnotRel f) (n : Nat) :

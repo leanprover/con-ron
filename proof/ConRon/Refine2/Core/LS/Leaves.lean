@@ -4,7 +4,7 @@
 Task #97-P5-Core round 5, region A1.  The Theorem-2 lockstep lemmas of the
 leaves every Core body calls: the pinned constants (`emptyLevels`,
 `zeroLevel`, `sortOne`, `constE`), the cached level verdicts (`lvlEq?`,
-`lvlsEq?`), the instantiated-constant caches (`constTyAt`, `ruleRhsAt`), the
+`lvlsEq?`), the instantiated-constant caches (`constTyAt`, `ruleBodyAt`), the
 error at an unknown constant, and the small head / name predicates.
 
 Statement convention: the brief's (`LS pers (fun a b => b = <abs> a) (rust) lst
@@ -310,12 +310,12 @@ attribute [-lockstep_simp] ConRon.Refine.absLevels ConRon.Refine.absNames
   rw [arena.core.const_ty_at, constTyAt]
   lockstep_a1
 
-@[lockstep] theorem rule_rhs_at_ls {pers st rec_name ctor lps rhs us lst}
+@[lockstep] theorem rule_body_at_ls {pers st rec_name ctor lps rhs k us lst}
     (_hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absEIdx a) (arena.core.rule_rhs_at pers st rec_name ctor lps rhs us) lst
-      (ruleRhsAt (absNIdx rec_name) (absNIdx ctor) (lps.val.map absNIdx) (absEIdx rhs)
-        (absLsIdx us)) := by
-  rw [arena.core.rule_rhs_at, ruleRhsAt]
+    LS pers (fun a b => b = absEIdx a) (arena.core.rule_body_at pers st rec_name ctor lps rhs k us) lst
+      (ruleBodyAt (absNIdx rec_name) (absNIdx ctor) (lps.val.map absNIdx) (absEIdx rhs)
+        (absU k) (absLsIdx us)) := by
+  rw [arena.core.rule_body_at, ruleBodyAt]
   lockstep_a1
 
 /-! ## The projection entry's type -/

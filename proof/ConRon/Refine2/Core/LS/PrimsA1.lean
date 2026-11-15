@@ -1272,7 +1272,7 @@ turns the port's `match o` into a match on the table lookup that the twin's
 own `match` is not split with.)
 
 `Core/Probes.lean`'s probe/write pair, at the four tables region A1's leaves
-use (`lvlEqC`, `lvlsEqC`, `constTyC`, `ruleRhsC`), stated as `@[lockstep]`
+use (`lvlEqC`, `lvlsEqC`, `constTyC`, `ruleBodyC`), stated as `@[lockstep]`
 steps: the key and the probe are Rust-only reads whose twin partner is a pure
 expression (`TwinEq`), the write is an `LSW` against the twin's inline `set`. -/
 
@@ -1428,17 +1428,17 @@ theorem absNNLsKey_inj : Function.Injective absNNLsKey := by
   exact ⟨(), _, rfl, trivial, { hrel with caches := { hrel.caches with constTyC := h1 } },
     { hinv with caches := { hinv.caches with constTyC := h2 } }⟩
 
-@[lockstep] theorem rule_rhs_probe_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+@[lockstep] theorem rule_body_probe_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (k : arena.core_state.NNLsKey) :
-    LSP (arena.core.rule_rhs_probe st k)
-      (fun o => TwinEq (lst.caches.ruleRhsC[absNNLsKey k]?) (o.map absEIdx)) := by
+    LSP (arena.core.rule_body_probe st k)
+      (fun o => TwinEq (lst.caches.ruleBodyC[absNNLsKey k]?) (o.map absEIdx)) := by
   intro o hrun
-  rw [arena.core.rule_rhs_probe] at hrun
+  rw [arena.core.rule_body_probe] at hrun
   obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hto := ConRon.Refine.HashMap2.get_refines_wf nnlsKey_eq2 hinv.caches.ruleRhsC
+  have hto := ConRon.Refine.HashMap2.get_refines_wf nnlsKey_eq2 hinv.caches.ruleBodyC
     ConRon.Refine.HashMap2.KeysOk_true trivial hq
-  have hrelk := hrel.caches.ruleRhsC k trivial
-  show lst.caches.ruleRhsC[absNNLsKey k]? = o.map absEIdx
+  have hrelk := hrel.caches.ruleBodyC k trivial
+  show lst.caches.ruleBodyC[absNNLsKey k]? = o.map absEIdx
   rw [← hrelk, ← hto]
   cases q with
   | none => cases Result.ok_injective hrun; rfl
@@ -1447,23 +1447,23 @@ theorem absNNLsKey_inj : Function.Injective absNNLsKey := by
     cases Result.ok_injective hrun
     rw [dupId_eidx _ _ hy]
 
-@[lockstep] theorem rule_rhs_set_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+@[lockstep] theorem rule_body_set_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (k : arena.core_state.NNLsKey) (r : arena.handle.EIdx) :
-    LSW pers (arena.core.rule_rhs_set st k r) lst
-      (set { lst with caches := { lst.caches with ruleRhsC := lst.caches.ruleRhsC.insert (absNNLsKey k) (absEIdx r) } } : AM Unit) := by
+    LSW pers (arena.core.rule_body_set st k r) lst
+      (set { lst with caches := { lst.caches with ruleBodyC := lst.caches.ruleBodyC.insert (absNNLsKey k) (absEIdx r) } } : AM Unit) := by
   intro st' hrun
-  rw [arena.core.rule_rhs_set] at hrun
+  rw [arena.core.rule_body_set] at hrun
   obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨old, hm2⟩ := p
   rw [dupId_eidx _ _ he1] at hp
-  have hst : st' = { st with caches := { st.caches with rule_rhs_c := hm2 } } :=
+  have hst : st' = { st with caches := { st.caches with rule_body_c := hm2 } } :=
     (Result.ok_injective hrun).symm
   subst hst
   obtain ⟨h1, h2⟩ := memo_insert_step nnlsKey_eq2 absNNLsKey_inj
-    hinv.caches.ruleRhsC hrel.caches.ruleRhsC hp
-  exact ⟨(), _, rfl, trivial, { hrel with caches := { hrel.caches with ruleRhsC := h1 } },
-    { hinv with caches := { hinv.caches with ruleRhsC := h2 } }⟩
+    hinv.caches.ruleBodyC hrel.caches.ruleBodyC hp
+  exact ⟨(), _, rfl, trivial, { hrel with caches := { hrel.caches with ruleBodyC := h1 } },
+    { hinv with caches := { hinv.caches with ruleBodyC := h2 } }⟩
 
 /-! ## Vector copies and cursors (Rust-only steps) -/
 

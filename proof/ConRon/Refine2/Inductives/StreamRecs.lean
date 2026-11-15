@@ -278,14 +278,23 @@ theorem stored_rules_shape_aux {pers st lst} (rs : alloc.vec.Vec arena.env.IRecR
   have h := stored_rules_shape_aux rs cs hrel hinv _ 0#usize rfl
   simpa [absCtorsLFrom, absCtorsL] using h
 
+@[lockstep] theorem rule_binds_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (r_p : Std.U64) (r : arena.env.IRecRule) :
+    LSR pers (fun a b => b = a) (arena.inductives.rec_check.rule_binds pers st r_p r) st lst
+      (ruleBinds (absU r_p) (absIRecRule r)) := by
+  apply LSR.of_LS
+  rw [arena.inductives.rec_check.rule_binds, ruleBinds]
+  lockstep
+
 theorem stored_rules_check_aux {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
     {lf : IFEnv} (hfe : IFEnvRelI pers rf lf) (lps : alloc.vec.Vec arena.handle.NIdx)
-    (rs : alloc.vec.Vec arena.env.IRecRule) (gs : alloc.vec.Vec arena.handle.EIdx) (n : Nat) :
+    (r_p : Std.U64) (rs : alloc.vec.Vec arena.env.IRecRule) (gs : alloc.vec.Vec arena.handle.EIdx)
+    (n : Nat) :
     ∀ (i : Std.Usize) st lst, rs.val.length - i.val = n →
       AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = a)
-        (arena.inductives.stream_recs.stream_rules_check pers st mode rf lps rs gs i) lst
-        (streamRulesCheck (ConRon.Refine.absMode mode) lf (absNIdxL lps)
+        (arena.inductives.stream_recs.stream_rules_check pers st mode rf lps r_p rs gs i) lst
+        (streamRulesCheck (ConRon.Refine.absMode mode) lf (absNIdxL lps) (absU r_p)
           ((rs.val.drop i.val).map absIRecRule) ((gs.val.drop i.val).map absEIdx)) := by
   induction n with
   | zero =>
@@ -314,13 +323,13 @@ theorem stored_rules_check_aux {pers} {mode : kernel.env.CheckMode} {rf : arena.
 
 @[lockstep] theorem stored_rules_check_ls {pers st lst} {mode : kernel.env.CheckMode}
     {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers rf lf) (lps : alloc.vec.Vec arena.handle.NIdx)
+    (hfe : IFEnvRelI pers rf lf) (lps : alloc.vec.Vec arena.handle.NIdx) (r_p : Std.U64)
     (rs : alloc.vec.Vec arena.env.IRecRule) (gs : alloc.vec.Vec arena.handle.EIdx) :
     LS pers (fun a b => b = a)
-      (arena.inductives.stream_recs.stream_rules_check pers st mode rf lps rs gs 0#usize) lst
-      (streamRulesCheck (ConRon.Refine.absMode mode) lf (absNIdxL lps)
+      (arena.inductives.stream_recs.stream_rules_check pers st mode rf lps r_p rs gs 0#usize) lst
+      (streamRulesCheck (ConRon.Refine.absMode mode) lf (absNIdxL lps) (absU r_p)
         (rs.val.map absIRecRule) (absEIdxL gs)) := by
-  have h := stored_rules_check_aux (mode := mode) hfe lps rs gs _ 0#usize st lst rfl hrel hinv
+  have h := stored_rules_check_aux (mode := mode) hfe lps r_p rs gs _ 0#usize st lst rfl hrel hinv
   simpa [absEIdxL] using h
 
 /-! ## One recursor, and the family: `stored_rec_compare`, `stored_rec_check`,
