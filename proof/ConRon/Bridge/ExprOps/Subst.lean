@@ -32,9 +32,9 @@ lemma keyed by the cut subject's `bvarBound` (§H).
 |---|---|---|
 | `eidxCopyUpto` | :205 | `eidxCopyUpto_toList` |
 | `takeEidx` | :221 | `takeEidx_toList`, `denoteEList_takeEidx` |
-| `lastEidx` | :225 | `lastEidx_toList`, `denoteEList_lastEidx`, `InstLVec.last` |
 | `instantiateList` | :431 | `InstLPureSpec`, `instListArm{App,Bind,Let,Proj,BVar}_spec`, `instantiateList_spec` |
 | `instantiateListGo` | :558 | `InstLSpec`, `instListGoArm{App,Bind,Let,Proj}_spec`, `instantiateListGo_spec` |
+| `instantiateRevRange` | :650 | `instantiateRevRange_spec`, `_run` (`InstLRange`, `InstLVec.clamp`) |
 | `instantiateListFast` | :670 | `instantiateListFast_spec`, `_run` |
 | `liftLooseBVarsGo` | :491 | `LiftSpec`, `liftLooseBVarsGo_spec` |
 | `liftLooseBVarsFast` | :552 | `liftLooseBVarsFast_spec`, `_run` |
@@ -56,18 +56,20 @@ lemma keyed by the cut subject's `bvarBound` (§H).
 3. **`instantiateLiftGo`'s cutoff IS con-leche's own**, so its licence is
    QUOTED, not reproved: `Expr.instantiateLift_of_bvarBound_le`, wrapped as
    `instantiateLift_of_bvarBound_le'`.
-4. **The substitution vector is an `Array EIdx` in PUSH order** (task
-   #97-P6-15, DESIGN §8.6's accumulator ruling): con-leche's `vs[j - d]` is the
-   twin's entry `j - d` counted FROM THE END (`ExprOps.lean`'s own note,
-   "con-leche's `[cf, s1]` is the twin's `#[s1, cf]`"; `ExprOpsTest.lean`'s
-   `instantiateList` guards).  So the array's denotation is the **reverse** of
-   the list `Expr.instantiateList` takes, and `InstLVec st vs ws :=
-   Frontend.denoteEList st vs.toList = some ws.reverse` is that orientation,
-   written down once.  `InstLVec.get` (slot `size - 1 - m` denotes `ws[m]`) and
-   `InstLVec.last` (`lastEidx vs m` denotes `ws.take m`) are the two facts the
-   `.bvar` arm consumes, and `reverse_drop_eq_take_reverse` is the list law
-   behind the second.  `instantiateLiftGo`'s values are the same kind of
-   vector (`InstLVec`, `InstLVec.get`).
+4. **The substitution is a range of an `Array EIdx` in PUSH order** (task
+   #97-P6-15, DESIGN §8.6's accumulator ruling; con-leche's `instantiateRevP vs
+   n e k d`): con-leche's `vs[j - d]` is the range's entry `j - d` counted FROM
+   ITS END (`ExprOps.lean`'s own note, "con-leche's `[cf, s1]` is the twin's
+   `#[s1, cf]`"; `ExprOpsTest.lean`'s `instantiateList` guards).  So the
+   array's denotation is the **reverse** of the list `Expr.instantiateList`
+   takes, and `InstLVec st vs ws := Frontend.denoteEList st vs.toList = some
+   ws.reverse` is that orientation, written down once; `InstLRange st vs n k
+   ws` is it at the range `vs[n - k:n]`.  `InstLRange.getElem_eq` (slot `n - 1
+   - m` denotes `ws[m]`) and `InstLRange.take` (the range's last `m` entries
+   denote `ws.take m`) are the two facts the `.bvar` arm consumes, and
+   `reverse_drop_eq_take_reverse` is the list law behind the second.
+   `instantiateLiftGo`'s values are a whole vector (`InstLVec`,
+   `InstLVec.get`).
 
 ## The arm split, at this file's two tag-dispatching walks
 
@@ -79,7 +81,7 @@ dispatcher whose `vcgen` list is the arm theorems.  The dispatcher's own
 conditions are the derived-word cutoff and the catch-all leaf
 (`instantiateList_leaf`); the `.bvar` arm's four branches are
 `instantiateList_bvar_eq`'s two `if`s and the vector's indexed read
-(`InstLVec.getElem_eq`, `InstLVec.last`).
+(`InstLRange.getElem_eq`, `InstLRange.take`).
 
 ## Two mechanical points
 
@@ -298,17 +300,6 @@ theorem takeEidx_toList (xs : Array EIdx) (k : Nat) :
   rw [takeEidx, eidxCopyUpto_toList]
   simp
 
-/-- con-leche: none — **Theorem 1 for `lastEidx`** (`ExprOps.lean:225`): the
-LAST `k` slots, as a list.  The `if` in the definition is `xs.size - k` in both
-branches, which is why the answer has no case split. -/
-theorem lastEidx_toList (xs : Array EIdx) (k : Nat) :
-    (lastEidx xs k).toList = xs.toList.drop (xs.size - k) := by
-  have hi : (if k < xs.size then xs.size - k else 0) = xs.size - k := by
-    split <;> omega
-  rw [lastEidx, eidxCopyUpto_toList, hi]
-  simp only [List.nil_append]
-  exact List.take_of_length_le (by simp)
-
 /-! ## D. The push-order substitution vector (task #97-P6-15)
 
 **The orientation, written down once.**  `vs : Array EIdx` is in PUSH order
@@ -335,16 +326,6 @@ theorem InstLVec.length {st : EStore} {vs : Array EIdx} {ws : List Expr}
 theorem InstLVec.ext {st st' : EStore} {vs : Array EIdx} {ws : List Expr}
     (h : InstLVec st vs ws) (hx : Ext st st') : InstLVec st' vs ws :=
   denoteEList_ext hx _ _ h
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:228 instantiateList (the `.bvar`
-arm's `vs.take (j - d)`) — **`lastEidx` is `List.take`, through the
-reversal**: the last `m` slots of the push-order vector denote the pure walk's
-`ws.take m`. -/
-theorem InstLVec.last {st : EStore} {vs : Array EIdx} {ws : List Expr}
-    (h : InstLVec st vs ws) (m : Nat) :
-    InstLVec st (lastEidx vs m) (ws.take m) := by
-  rw [InstLVec, lastEidx_toList, denoteEList_drop _ _ _ h, ← h.length,
-    reverse_drop_eq_take_reverse]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:227 instantiateList (the `.bvar`
 arm's `vs[j - d]`) — **the indexed read, through the reversal**: slot
@@ -579,8 +560,6 @@ theorem InstLVec.length_eq {st : EStore} {vs : Array EIdx} {ws : List Expr}
     (h : InstLVec st vs ws) : ws.length = vs.size := h.length
 grind_pattern [bridge_grind] InstLVec.length_eq => InstLVec st vs ws
 
-grind_pattern [bridge_grind] InstLVec.last => InstLVec st vs ws, lastEidx vs m
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:227 instantiateList (the `.bvar`
 arm's `vs[j - d]`) — `InstLVec.get` at the twin's own dependent array read, as
 an equation. -/
@@ -591,6 +570,101 @@ theorem InstLVec.getElem_eq {st : EStore} {vs : Array EIdx} {ws : List Expr} {m 
   rw [hd, List.getD_eq_getElem?_getD, hw]; rfl
 grind_pattern [bridge_grind] InstLVec.getElem_eq =>
   InstLVec st vs ws, GetElem.getElem vs (vs.size - 1 - m) hi
+
+/-! ## D'. The substitution RANGE (con-leche's `instantiateRevP vs n e k d`)
+
+The walks substitute the range `vs[n - k:n]` of a push-order vector, read from
+its end, so that the β peel substitutes straight from its spine and the
+`.bvar` arm's re-entry reads the same range's last `j - d` entries in place.
+`InstLRange` is the range's denotation; it is `InstLVec` of the range's
+`Array.extract`, with the bounds that make the reads in range. -/
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:639-667 instantiateRevP (the
+`vs`, `n`, `k` arguments) — the range `vs[n - k:n]` of the push-order vector
+denotes the pure walk's list `ws`. -/
+@[expose] def InstLRange (st : EStore) (vs : Array EIdx) (n k : Nat) (ws : List Expr) :
+    Prop :=
+  n ≤ vs.size ∧ k ≤ n ∧ InstLVec st (vs.extract (n - k) n) ws
+
+/-- con-leche: none — the range's bounds and its length. -/
+theorem InstLRange.bounds {st : EStore} {vs : Array EIdx} {n k : Nat} {ws : List Expr}
+    (h : InstLRange st vs n k ws) : k ≤ n ∧ n ≤ vs.size ∧ ws.length = k := by
+  obtain ⟨hn, hk, hv⟩ := h
+  refine ⟨hk, hn, ?_⟩
+  rw [hv.length, Array.size_extract]
+  omega
+grind_pattern [bridge_grind] InstLRange.bounds => InstLRange st vs n k ws
+
+/-- con-leche: none — `InstLRange` along the store order. -/
+theorem InstLRange.le {st st' : EStore} {vs : Array EIdx} {n k : Nat} {ws : List Expr}
+    (hx : st ≤ st') (h : InstLRange st vs n k ws) : InstLRange st' vs n k ws :=
+  ⟨h.1, h.2.1, h.2.2.ext hx⟩
+grind_pattern [bridge_grind] InstLRange.le => st ≤ st', InstLRange st vs n k ws
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:228 instantiateList (the `.bvar`
+arm's `vs.take (j - d)`) — **the re-entry's range**: the last `m` entries of
+the range denote the pure walk's `ws.take m`. -/
+theorem InstLRange.take {st : EStore} {vs : Array EIdx} {n k m : Nat} {ws : List Expr}
+    (h : InstLRange st vs n k ws) (hm : m ≤ k) : InstLRange st vs n m (ws.take m) := by
+  obtain ⟨hn, hk, hv⟩ := h
+  refine ⟨hn, by omega, ?_⟩
+  have hl := hv.length
+  rw [Array.size_extract] at hl
+  have hx : (vs.extract (n - m) n).toList = (vs.extract (n - k) n).toList.drop (k - m) := by
+    simp only [Array.toList_extract, List.extract_eq_take_drop, List.drop_take, List.drop_drop]
+    rw [show n - k + (k - m) = n - m by omega,
+      show n - (n - k) - (k - m) = n - (n - m) by omega]
+  rw [InstLVec, hx, denoteEList_drop _ _ _ hv,
+    show k - m = ws.length - m from by omega, reverse_drop_eq_take_reverse]
+grind_pattern [bridge_grind] InstLRange.take => InstLRange st vs n k ws, List.take m ws
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:639-667 instantiateRevP (the
+`.bvar` arm's `vs[n - 1 - (i - d)]`) — **the indexed read, through the
+reversal**: slot `n - 1 - m` of the vector denotes `ws[m]`. -/
+theorem InstLRange.getElem_eq {st : EStore} {vs : Array EIdx} {n k m : Nat} {ws : List Expr}
+    (h : InstLRange st vs n k ws) (hm : m < k) (hi : n - 1 - m < vs.size) :
+    denoteE st vs[n - 1 - m] = some (ws.getD m (.bvar 0)) := by
+  obtain ⟨hn, hk, hv⟩ := h
+  have hsz : (vs.extract (n - k) n).size = k := by rw [Array.size_extract]; omega
+  have hj : (vs.extract (n - k) n).size - 1 - m < (vs.extract (n - k) n).size := by omega
+  have he := hv.getElem_eq (by omega) hj
+  rw [Array.getElem_extract] at he
+  rw [← he]
+  congr 2
+  omega
+grind_pattern [bridge_grind] InstLRange.getElem_eq =>
+  InstLRange st vs n k ws, GetElem.getElem vs (n - 1 - m) hi
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:792-795 instantiateRev — the whole
+vector is its own range. -/
+theorem InstLVec.range {st : EStore} {vs : Array EIdx} {ws : List Expr}
+    (h : InstLVec st vs ws) : InstLRange st vs vs.size vs.size ws := by
+  refine ⟨Nat.le_refl _, Nat.le_refl _, ?_⟩
+  rw [Nat.sub_self, Array.extract_size]
+  exact h
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:780-790 instantiateRevRange — the
+entry's clamped range `vs[s:n]` is the walk's range at the clamped end and
+count. -/
+theorem InstLVec.clamp {st : EStore} {vs : Array EIdx} {s n : Nat} {ws : List Expr}
+    (h : InstLVec st (vs.extract s n) ws) :
+    InstLRange st vs (if n < vs.size then n else vs.size)
+      (if s < (if n < vs.size then n else vs.size) then
+        (if n < vs.size then n else vs.size) - s else 0) ws := by
+  refine ⟨by split <;> omega, by split <;> split <;> omega, ?_⟩
+  have hx : vs.extract ((if n < vs.size then n else vs.size) -
+      (if s < (if n < vs.size then n else vs.size) then
+        (if n < vs.size then n else vs.size) - s else 0))
+      (if n < vs.size then n else vs.size) = vs.extract s n := by
+    apply Array.ext
+    · simp only [Array.size_extract]; split <;> split <;> omega
+    · intro i h1 h2
+      simp only [Array.getElem_extract]
+      congr 1
+      simp only [Array.size_extract] at h1 h2
+      split <;> split <;> omega
+  rw [hx]
+  exact h
 
 /-! ## I. `bvarB`'s Theorem 1, as the two con-leche cutoffs consume it
 
@@ -826,20 +900,20 @@ one level of the UNMEMOIZED `instantiateList`'s recursion.
 
 Two departures from `Inst1.lean`'s `Inst1Spec`, both forced by this walk:
 
-* the substitution VECTOR and the list it denotes are both parameters, tied
-  by `InstLVec` (task #97-P6-15's push-order reversal).  The `.bvar` arm
+* the substitution RANGE and the list it denotes are both parameters, tied
+  by `InstLRange` (task #97-P6-15's push-order reversal).  The `.bvar` arm
   recurses at a SHORTER list, so it does not take this record as its
-  induction hypothesis but the whole family `∀ m, InstLPureSpec (lastEidx vs
-  m) (ws.take m) …` — which is why the fuel induction generalises over the
-  vector;
+  induction hypothesis but the whole family `∀ m, InstLPureSpec vs n m
+  (ws.take m) …` — which is why the fuel induction generalises over the
+  range's count;
 * `s'.memos = s₁.memos` rather than a memo invariant: this walk is the
   unmemoized one and touches no table at all, and `instantiateListGo`'s
   `.bvar` branch needs exactly that frame to carry `InstLMemoA ws` across it.
  -/
-structure InstLPureSpec (vs : Array EIdx) (ws : List Expr)
+structure InstLPureSpec (vs : Array EIdx) (n k : Nat) (ws : List Expr)
     (rec : EIdx → Nat → AM EIdx) : Prop where
   run : ∀ (s₁ : AState) (c : EIdx) (dd : Nat), StateOK s₁ →
-    InstLVec s₁.store vs ws → (denoteE s₁.store c).isSome = true →
+    InstLRange s₁.store vs n k ws → (denoteE s₁.store c).isSome = true →
     ⦃fun s => s = s₁⦄ rec c dd
     ⦃fun r s' => StateOK s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
@@ -847,12 +921,12 @@ structure InstLPureSpec (vs : Array EIdx) (ws : List Expr)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
 `app` ARM: project, recurse into both children, rebuild. -/
-theorem instListArmApp_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
-    (ih : InstLPureSpec vs ws (instantiateList vs fuel)) (s₁ : AState)
-    (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hvec : InstLVec s₁.store vs ws)
+theorem instListArmApp_spec (vs : Array EIdx) (n k : Nat) (ws : List Expr) (fuel : Nat)
+    (ih : InstLPureSpec vs n k ws (instantiateList vs n k fuel)) (s₁ : AState)
+    (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hvec : InstLRange s₁.store vs n k ws)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : (c.tag == ETag.app) = true) :
-    ⦃fun s => s = s₁⦄ instListArmApp vs fuel c dd
+    ⦃fun s => s = s₁⦄ instListArmApp vs n k fuel c dd
     ⦃fun r s' => StateOK s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
@@ -861,12 +935,12 @@ theorem instListArmApp_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
 BINDER ARM (`lam` and `forallE` in one, as the tag dispatch tests them). -/
-theorem instListArmBind_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
-    (ih : InstLPureSpec vs ws (instantiateList vs fuel)) (s₁ : AState)
-    (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hvec : InstLVec s₁.store vs ws)
+theorem instListArmBind_spec (vs : Array EIdx) (n k : Nat) (ws : List Expr) (fuel : Nat)
+    (ih : InstLPureSpec vs n k ws (instantiateList vs n k fuel)) (s₁ : AState)
+    (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hvec : InstLRange s₁.store vs n k ws)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : ETag.isBind c.tag = true) :
-    ⦃fun s => s = s₁⦄ instListArmBind vs fuel c dd
+    ⦃fun s => s = s₁⦄ instListArmBind vs n k fuel c dd
     ⦃fun r s' => StateOK s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
@@ -875,12 +949,12 @@ theorem instListArmBind_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
 `letE` ARM; the body descends at `dd + 1`. -/
-theorem instListArmLet_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
-    (ih : InstLPureSpec vs ws (instantiateList vs fuel)) (s₁ : AState)
-    (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hvec : InstLVec s₁.store vs ws)
+theorem instListArmLet_spec (vs : Array EIdx) (n k : Nat) (ws : List Expr) (fuel : Nat)
+    (ih : InstLPureSpec vs n k ws (instantiateList vs n k fuel)) (s₁ : AState)
+    (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hvec : InstLRange s₁.store vs n k ws)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : (c.tag == ETag.letE) = true) :
-    ⦃fun s => s = s₁⦄ instListArmLet vs fuel c dd
+    ⦃fun s => s = s₁⦄ instListArmLet vs n k fuel c dd
     ⦃fun r s' => StateOK s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
@@ -889,12 +963,12 @@ theorem instListArmLet_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
 `proj` ARM.  The struct NAME is carried unchanged. -/
-theorem instListArmProj_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
-    (ih : InstLPureSpec vs ws (instantiateList vs fuel)) (s₁ : AState)
-    (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hvec : InstLVec s₁.store vs ws)
+theorem instListArmProj_spec (vs : Array EIdx) (n k : Nat) (ws : List Expr) (fuel : Nat)
+    (ih : InstLPureSpec vs n k ws (instantiateList vs n k fuel)) (s₁ : AState)
+    (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hvec : InstLRange s₁.store vs n k ws)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : (c.tag == ETag.proj) = true) :
-    ⦃fun s => s = s₁⦄ instListArmProj vs fuel c dd
+    ⦃fun s => s = s₁⦄ instListArmProj vs n k fuel c dd
     ⦃fun r s' => StateOK s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
@@ -903,18 +977,17 @@ theorem instListArmProj_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:211-235 instantiateList — the
 `bvar` ARM, the one arm of this walk that is not a congruence: it recurses
-into the REPLACEMENT with the SHORTER vector `lastEidx vs (j - d)`, which is
-why its induction hypothesis is the whole family `ih m` rather than one
-record.  `InstLVec.get` is the indexed read through the push-order reversal
-and `InstLVec.last` the shortened vector's denotation. -/
-theorem instListArmBVar_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
-    (ih : ∀ m, InstLPureSpec (lastEidx vs m) (ws.take m)
-      (instantiateList (lastEidx vs m) fuel))
+into the REPLACEMENT with the SHORTER range of count `j - d`, which is why its
+induction hypothesis is the whole family `ih m` rather than one record.
+`InstLRange.getElem_eq` is the indexed read through the push-order reversal
+and `InstLRange.take` the shortened range's denotation. -/
+theorem instListArmBVar_spec (vs : Array EIdx) (n k : Nat) (ws : List Expr) (fuel : Nat)
+    (ih : ∀ m, InstLPureSpec vs n m (ws.take m) (instantiateList vs n m fuel))
     (s₁ : AState) (c : EIdx) (dd : Nat) (hok : StateOK s₁)
-    (hvec : InstLVec s₁.store vs ws)
+    (hvec : InstLRange s₁.store vs n k ws)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : (c.tag == ETag.bvar) = true) :
-    ⦃fun s => s = s₁⦄ instListArmBVar vs fuel c dd
+    ⦃fun s => s = s₁⦄ instListArmBVar vs n k fuel c dd
     ⦃fun r s' => StateOK s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
@@ -923,48 +996,50 @@ theorem instListArmBVar_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList —
 **THEOREM 1 for the unmemoized bulk instantiation**, by induction on the fuel,
-generalised over the vector (which the `.bvar` arm shortens).
+generalised over the range's count (which the `.bvar` arm shortens).
 
 DEVIATION (task #97f): the derived-word cutoff `bvarBRaw < satRange &&
 bvarBRaw ≤ d`, which con-leche does not have; licensed by
 `instantiateList_of_bvarBound_le` above.  It appears TWICE — once at the node
-and once, hoisted over the prefix copy (task #97-P6-9), at the replacement —
-and `InstLAt.cutoff` / `InstLAt.bvar_cut` are the two licences.
+and once, before the re-entry (task #97-P6-9), at the replacement — and
+`InstLAt.cutoff` / `InstLAt.bvar_cut` are the two licences.
 
-DEVIATION (task #97-P6-15): the substitution vector is an `Array EIdx` in PUSH
-order, so con-leche's `vs[j - d]` is the array's entry `j - d` FROM THE END and
-the array's denotation is the REVERSE of con-leche's list.  `InstLVec` is that
-orientation, written down once; `InstLVec.get` and `InstLVec.last` are the two
-facts the `.bvar` arm consumes. -/
+The substitution is the range `vs[n - k:n]` of an `Array EIdx` in PUSH order
+(con-leche's `instantiateRevP vs n e k d`), so con-leche's `vs[j - d]` is the
+array's entry `n - 1 - (j - d)` and the range's denotation is the REVERSE of
+con-leche's list.  `InstLRange` is that orientation, written down once;
+`InstLRange.getElem_eq` and `InstLRange.take` are the two facts the `.bvar` arm
+consumes. -/
 theorem instantiateList_spec :
-    ∀ (fuel : Nat) (vs : Array EIdx) (ws : List Expr),
-      InstLPureSpec vs ws (instantiateList vs fuel) := by
+    ∀ (fuel : Nat) (vs : Array EIdx) (n k : Nat) (ws : List Expr),
+      InstLPureSpec vs n k ws (instantiateList vs n k fuel) := by
   intro fuel
   induction fuel with
   | zero =>
-    intro vs ws
+    intro vs n k ws
     constructor
     intro s₀ h d _ _ _
     sym only [bridge_grind] => vcgen [instantiateList_zero] <;> finish
   | succ fuel ih =>
-    intro vs ws
+    intro vs n k ws
     constructor
     intro s₀ h d hok hvec hden
     sym only [bridge_grind] =>
-      vcgen [instantiateList_succ, instListArmApp_spec vs ws fuel (ih vs ws),
-        instListArmBind_spec vs ws fuel (ih vs ws), instListArmLet_spec vs ws fuel (ih vs ws),
-        instListArmProj_spec vs ws fuel (ih vs ws),
-        instListArmBVar_spec vs ws fuel (fun m => ih (lastEidx vs m) (ws.take m))] <;> finish
+      vcgen [instantiateList_succ, instListArmApp_spec vs n k ws fuel (ih vs n k ws),
+        instListArmBind_spec vs n k ws fuel (ih vs n k ws),
+        instListArmLet_spec vs n k ws fuel (ih vs n k ws),
+        instListArmProj_spec vs n k ws fuel (ih vs n k ws),
+        instListArmBVar_spec vs n k ws fuel (fun m => ih vs n m (ws.take m))] <;> finish
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
 one level of the MEMOIZED `instantiateListGo`'s recursion.  The memo table is
 keyed for ONE substitution list (`InstLMemoA ws`) and this walk never shortens
 it — the shortening `.bvar` arm is the unmemoized walk, called by name — so
 the record carries the invariant where the pure walk carries a memo frame. -/
-structure InstLSpec (vs : Array EIdx) (ws : List Expr)
+structure InstLSpec (vs : Array EIdx) (n k : Nat) (ws : List Expr)
     (rec : EIdx → Nat → AM EIdx) : Prop where
   run : ∀ (s₁ : AState) (c : EIdx) (dd : Nat), StateOK s₁ → InstLMemoA ws s₁ →
-    InstLVec s₁.store vs ws → (denoteE s₁.store c).isSome = true →
+    InstLRange s₁.store vs n k ws → (denoteE s₁.store c).isSome = true →
     ⦃fun s => s = s₁⦄ rec c dd
     ⦃fun r s' => StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
@@ -972,13 +1047,13 @@ structure InstLSpec (vs : Array EIdx) (ws : List Expr)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — the
 `app` ARM: probe, project, recurse into both children, rebuild, insert. -/
-theorem instListGoArmApp_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
-    (ih : InstLSpec vs ws (instantiateListGo vs fuel)) (s₁ : AState)
+theorem instListGoArmApp_spec (vs : Array EIdx) (n k : Nat) (ws : List Expr) (fuel : Nat)
+    (ih : InstLSpec vs n k ws (instantiateListGo vs n k fuel)) (s₁ : AState)
     (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hm : InstLMemoA ws s₁)
-    (hvec : InstLVec s₁.store vs ws)
+    (hvec : InstLRange s₁.store vs n k ws)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : (c.tag == ETag.app) = true) :
-    ⦃fun s => s = s₁⦄ instListGoArmApp vs fuel c dd
+    ⦃fun s => s = s₁⦄ instListGoArmApp vs n k fuel c dd
     ⦃fun r s' => StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
@@ -988,13 +1063,13 @@ theorem instListGoArmApp_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — the
 BINDER ARM. -/
-theorem instListGoArmBind_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
-    (ih : InstLSpec vs ws (instantiateListGo vs fuel)) (s₁ : AState)
+theorem instListGoArmBind_spec (vs : Array EIdx) (n k : Nat) (ws : List Expr) (fuel : Nat)
+    (ih : InstLSpec vs n k ws (instantiateListGo vs n k fuel)) (s₁ : AState)
     (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hm : InstLMemoA ws s₁)
-    (hvec : InstLVec s₁.store vs ws)
+    (hvec : InstLRange s₁.store vs n k ws)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : ETag.isBind c.tag = true) :
-    ⦃fun s => s = s₁⦄ instListGoArmBind vs fuel c dd
+    ⦃fun s => s = s₁⦄ instListGoArmBind vs n k fuel c dd
     ⦃fun r s' => StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
@@ -1004,13 +1079,13 @@ theorem instListGoArmBind_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — the
 `letE` ARM; the body descends at `dd + 1`. -/
-theorem instListGoArmLet_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
-    (ih : InstLSpec vs ws (instantiateListGo vs fuel)) (s₁ : AState)
+theorem instListGoArmLet_spec (vs : Array EIdx) (n k : Nat) (ws : List Expr) (fuel : Nat)
+    (ih : InstLSpec vs n k ws (instantiateListGo vs n k fuel)) (s₁ : AState)
     (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hm : InstLMemoA ws s₁)
-    (hvec : InstLVec s₁.store vs ws)
+    (hvec : InstLRange s₁.store vs n k ws)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : (c.tag == ETag.letE) = true) :
-    ⦃fun s => s = s₁⦄ instListGoArmLet vs fuel c dd
+    ⦃fun s => s = s₁⦄ instListGoArmLet vs n k fuel c dd
     ⦃fun r s' => StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
@@ -1020,13 +1095,13 @@ theorem instListGoArmLet_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — the
 `proj` ARM.  The struct NAME is carried unchanged. -/
-theorem instListGoArmProj_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
-    (ih : InstLSpec vs ws (instantiateListGo vs fuel)) (s₁ : AState)
+theorem instListGoArmProj_spec (vs : Array EIdx) (n k : Nat) (ws : List Expr) (fuel : Nat)
+    (ih : InstLSpec vs n k ws (instantiateListGo vs n k fuel)) (s₁ : AState)
     (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hm : InstLMemoA ws s₁)
-    (hvec : InstLVec s₁.store vs ws)
+    (hvec : InstLRange s₁.store vs n k ws)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : (c.tag == ETag.proj) = true) :
-    ⦃fun s => s = s₁⦄ instListGoArmProj vs fuel c dd
+    ⦃fun s => s = s₁⦄ instListGoArmProj vs n k fuel c dd
     ⦃fun r s' => StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
@@ -1039,8 +1114,8 @@ theorem instListGoArmProj_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
 to the unmemoized walk above, exactly as con-leche's does, so the proof
 consumes `instantiateList_spec` at the same fuel.  Same two deviations as the
 unmemoized walk, same two licences. -/
-theorem instantiateListGo_spec (vs : Array EIdx) (ws : List Expr) :
-    ∀ fuel, InstLSpec vs ws (instantiateListGo vs fuel) := by
+theorem instantiateListGo_spec (vs : Array EIdx) (n k : Nat) (ws : List Expr) :
+    ∀ fuel, InstLSpec vs n k ws (instantiateListGo vs n k fuel) := by
   intro fuel
   induction fuel with
   | zero =>
@@ -1051,13 +1126,30 @@ theorem instantiateListGo_spec (vs : Array EIdx) (ws : List Expr) :
     constructor
     intro s₀ h d hok hm hvec hden
     sym only [bridge_grind] =>
-      vcgen [instantiateListGo_succ, instListGoArmApp_spec vs ws fuel ih,
-        instListGoArmBind_spec vs ws fuel ih, instListGoArmLet_spec vs ws fuel ih,
-        instListGoArmProj_spec vs ws fuel ih, (instantiateList_spec fuel vs ws).run] <;> finish
+      vcgen [instantiateListGo_succ, instListGoArmApp_spec vs n k ws fuel ih,
+        instListGoArmBind_spec vs n k ws fuel ih, instListGoArmLet_spec vs n k ws fuel ih,
+        instListGoArmProj_spec vs n k ws fuel ih,
+        (instantiateList_spec fuel vs n k ws).run] <;> finish
 
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:780-790 instantiateRevRange —
+**THEOREM 1 for the range entry**: the range `vs[s:n]` (clamped) denotes the
+list `ws` reversed, and the answer is con-leche's `instantiateList` at `ws`
+(`instantiateRevRange_spec`'s `(vs.extract s n).toList.reverse`). -/
+theorem instantiateRevRange_spec (fuel : Nat) (s₀ : AState) (e : EIdx)
+    (vs : Array EIdx) (s n d : Nat) (ws : List Expr) (hok : StateOK s₀)
+    (hvec : InstLVec s₀.store (vs.extract s n) ws)
+    (hden : (denoteE s₀.store e).isSome = true) :
+    ⦃fun st => st = s₀⦄ instantiateRevRange fuel e vs s n d
+    ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
+        s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        s'.memos.instLC = ∅ ∧ InstLAt ws d s₀.store e s'.store r; ⊤⦄ := by
+  have hr := hvec.clamp
+  sym only [bridge_grind] =>
+    vcgen [instantiateRevRange, (instantiateListGo_spec vs _ _ ws fuel).run] <;> finish
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:371-373 instantiateListFast —
-**THEOREM 1 for `instantiateList`, at the entry point**. -/
+**THEOREM 1 for `instantiateList`, at the entry point**: the whole vector's
+range. -/
 theorem instantiateListFast_spec (fuel : Nat) (s₀ : AState) (e : EIdx)
     (vs : Array EIdx) (d : Nat) (ws : List Expr) (hok : StateOK s₀)
     (hvec : InstLVec s₀.store vs ws)
@@ -1066,8 +1158,10 @@ theorem instantiateListFast_spec (fuel : Nat) (s₀ : AState) (e : EIdx)
     ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.memos.instLC = ∅ ∧ InstLAt ws d s₀.store e s'.store r; ⊤⦄ := by
-  sym only [bridge_grind] =>
-    vcgen [instantiateListFast, (instantiateListGo_spec vs ws fuel).run] <;> finish
+  have hx : InstLVec s₀.store (vs.extract 0 vs.size) ws := by
+    rw [Array.extract_size]; exact hvec
+  rw [instantiateListFast]
+  exact instantiateRevRange_spec fuel s₀ e vs 0 vs.size d ws hok hx hden
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — the same statement about
 a RUN. -/
@@ -1083,6 +1177,20 @@ theorem instantiateListFast_run {fuel : Nat} {s₀ s' : AState} {e r : EIdx}
   AM.of_run (P := fun s => s = s₀) rfl hrun
     (instantiateListFast_spec fuel s₀ e vs d ws hok hvec hden)
 
+/-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — `instantiateRevRange_spec`
+about a RUN. -/
+theorem instantiateRevRange_run {fuel : Nat} {s₀ s' : AState} {e r : EIdx}
+    {vs : Array EIdx} {s n d : Nat} {ws : List Expr} (hok : StateOK s₀)
+    (hvec : InstLVec s₀.store (vs.extract s n) ws)
+    (hden : (denoteE s₀.store e).isSome = true)
+    (hrun : (instantiateRevRange fuel e vs s n d).run s₀ = Except.ok (r, s')) :
+    StateOK s' ∧ Ext s₀.store s'.store ∧
+      s'.caches = s₀.caches ∧
+      s'.pins = s₀.pins ∧ s'.memos.instLC = ∅ ∧
+      InstLAt ws d s₀.store e s'.store r :=
+  AM.of_run (P := fun st => st = s₀) rfl hrun
+    (instantiateRevRange_spec fuel s₀ e vs s n d ws hok hvec hden)
+
 /-! ## The axiom check
 
 Every Theorem 1 of this file and the licences it rests on, so that nothing can
@@ -1092,9 +1200,10 @@ hide anywhere. -/
 #print axioms liftLooseBVars_of_bvarBound_le
 #print axioms eidxCopyUpto_toList
 #print axioms takeEidx_toList
-#print axioms lastEidx_toList
 #print axioms InstLVec.get
-#print axioms InstLVec.last
+#print axioms InstLRange.take
+#print axioms InstLRange.getElem_eq
+#print axioms InstLVec.clamp
 #print axioms InstLVec.getElem_eq
 #print axioms derivedBound
 #print axioms instantiateList_bvar_eq

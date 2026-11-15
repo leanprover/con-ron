@@ -1122,7 +1122,7 @@ theorem CacheOK.of_empty {env : Env} {s : AState}
   lvlsEq := by intro k r hk; rw [h] at hk; simp [Caches.empty] at hk
   constTy := by intro k i hk; rw [h] at hk; simp [Caches.empty] at hk
   constVal := by intro k i hk; rw [h] at hk; simp [Caches.empty] at hk
-  ruleRhs := by intro k i hk; rw [h] at hk; simp [Caches.empty] at hk
+  ruleBody := by intro k i hk; rw [h] at hk; simp [Caches.empty] at hk
   readL := by intro k u hk; rw [h] at hk; simp [Caches.empty] at hk
   readN := by intro k x hk; rw [h] at hk; simp [Caches.empty] at hk
   readLs := by intro k us hk; rw [h] at hk; simp [Caches.empty] at hk

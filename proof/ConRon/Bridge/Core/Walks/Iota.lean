@@ -603,6 +603,30 @@ def iotaFam (mode : CheckMode) (eager : Bool) (env : Env) (F d mI rP : Nat) (isK
       else pure true)
   else pure true
 
+/-- con-leche: ConLeche/Cached/CoreC.lean:170-177 iotaVals — **Theorem 1 for
+`iotaVals`**: the leading range, then the fields' range. -/
+theorem iotaVals_toList (args : Array EIdx) (p : Nat) (margs : Array EIdx) (q : Nat) :
+    (iotaVals args p margs q).toList = args.toList.take p ++ margs.toList.drop q := by
+  rw [iotaVals, ExprOps.eidxCopyUpto_toList, ExprOps.eidxCopyUpto_toList,
+    List.take_of_length_le (l := margs.toList.drop q) (by simp)]
+  simp
+
+/-- con-leche: none — the ι reduct's leading range, clamped to the spine
+(`min rP k`), is `List.take`'s own. -/
+theorem take_clamp {α : Type} (l : List α) (p : Nat) :
+    l.take (if p < l.length then p else l.length) = l.take p := by
+  split
+  · rfl
+  · rw [List.take_length, List.take_of_length_le (by omega)]
+
+/-- con-leche: none — the fields' start, clamped to the major's spine, is
+`List.drop`'s own. -/
+theorem drop_clamp {α : Type} (l : List α) (q : Nat) :
+    l.drop (if q < l.length then q else l.length) = l.drop q := by
+  split
+  · rfl
+  · rw [List.drop_length, List.drop_eq_nil_of_le (by omega)]
+
 /-- con-leche: ConLeche/Kernel/Core.lean:789-888 iotaRec — past the guard and
 the major's preparation, as a function of the prepared major: every later exit
 is a statement about this tail. -/
@@ -620,9 +644,7 @@ def iotaTail (mode : CheckMode) (eager : Bool) (env : Env) (F d : Nat) (us : Lis
           if ← iotaFam mode eager env F d mI rP isK induct cvj cnP usj
               (ConLeche.recFireComparands rl cnP cv.levelParams us cvj.levelParams
                 args rP) margs args then
-            pure (some (Expr.mkAppN
-              (rl.rhs.instantiateLevelParams cv.levelParams us)
-              (args.take rP ++ margs.drop cnP)))
+            pure (some (rl.iotaReduct cv.levelParams us rP (args.take rP ++ margs.drop cnP)))
           else pure none
         else pure none
       | none => pure none
@@ -720,8 +742,7 @@ theorem iotaTail_fire {F d : Nat} {us : List Level} {cv : ConstantVal}
       major.getAppArgs args = .ok fam) :
     iotaTail mode eager env F d us cv mI rP isK rules args major =
       .ok (if fam then
-        some (Expr.mkAppN (rl.rhs.instantiateLevelParams cv.levelParams us)
-          (args.take rP ++ major.getAppArgs.drop a))
+        some (rl.iotaReduct cv.levelParams us rP (args.take rP ++ major.getAppArgs.drop a))
       else none) := by
   simp only [iotaTail, hm, hf, hr]
   rw [ite_eq_left hl]
@@ -1298,8 +1319,7 @@ theorem iotaRecAt_spec {fuel : Nat}
                     have hp07 : s7.pins = s₀.pins := hp7.trans hp04
                     have hval : ConLeche.iotaRecFueled .verified eager env (max Fp Ff) d
                         (Expr.mkAppN (.const cn ls) xs) = .ok (if fam then
-                          some (Expr.mkAppN
-                            (rl'.rhs.instantiateLevelParams dcv.levelParams ls)
+                          some (rl'.iotaReduct dcv.levelParams ls rP
                             (xs.take rP ++ vmaj.getAppArgs.drop cnP))
                         else none) := by
                       rw [hT _ (Nat.le_max_left _ _)]
@@ -1308,27 +1328,34 @@ theorem iotaRecAt_spec {fuel : Nat}
                     by_cases hft : fam = true
                     · rw [ite_eq_left hft]
                       subst hft
-                      refine triple_seq (ruleRhsAt_spec s7 c rl.ctor icv.levelParams
-                        rl.rhs us cn cjn ls dcv mI rP isK drules rl' hok7
+                      refine triple_seq (ruleBodyAt_spec s7 c rl.ctor icv.levelParams
+                        rl.rhs (rP + rl.nfields) us cn cjn ls dcv mI rP isK drules rl' hok7
                         (denoteN_ext hcn hx07)
                         (by rw [← hctor]; exact denoteN_ext hrlc hx7)
                         (denoteLs_ext hls hx07) (denoteNListE_ext hx07 _ _ hlps)
-                        (denote_ext hrlrhs hx7) hfind hfind') ?_
-                      rintro rhs s8 ⟨hok8, hx8, hp8, hrhs⟩
-                      have hB : Frontend.denoteEList s8.store
-                          ((takeEidx sargs sargs.size).toList.take rP ++
-                            margs.drop cnP) =
-                          some (xs.take rP ++ vmaj.getAppArgs.drop cnP) := by
+                        (denote_ext hrlrhs hx7) hfind hfind' (by rw [hnf])) ?_
+                      rintro body s8 ⟨hok8, hx8, hp8, hbody⟩
+                      have hB : ExprOps.InstLVec s8.store
+                          (iotaVals (takeEidx sargs sargs.size).toList.toArray
+                            (if rP < (takeEidx sargs sargs.size).toList.length then rP
+                              else (takeEidx sargs sargs.size).toList.length)
+                            margs.toArray
+                            (if cnP < margs.length then cnP else margs.length))
+                          (xs.take rP ++ vmaj.getAppArgs.drop cnP).reverse := by
+                        rw [ExprOps.InstLVec, List.reverse_reverse, iotaVals_toList,
+                          List.toList_toArray, List.toList_toArray, take_clamp, drop_clamp]
                         exact denoteEList_appendI
                           (ExprOps.denoteEList_take rP _ _
                             (denoteEList_ext (hx07.trans hx8) _ _ hargs))
                           (ExprOps.denoteEList_drop _ _ _
                             (denoteEList_ext (hx7.trans hx8) _ _ hmargs))
-                      refine triple_seq (ExprOps.mkAppN_spec _ s8 rhs hok8.state
-                        (by rw [hrhs]; rfl) (by rw [hB]; rfl)) ?_
-                      rintro x s9 ⟨hst9, hx9, _, hc9, hp9, hrel⟩
+                      refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s8 body
+                        _ 0 _ hok8.state hB (by rw [hbody]; rfl)) ?_
+                      rintro x s9 ⟨hst9, hx9, hc9, hp9, _, hrel⟩
                       have hok9 : CheckOK eager env fe s9 := hok8.mono hst9 hx9 hc9 hp9
-                      have hxd := hrel _ _ hrhs hB
+                      have hxd : denoteE s9.store x = some (rl'.iotaReduct dcv.levelParams ls rP
+                          (xs.take rP ++ vmaj.getAppArgs.drop cnP)) := by
+                        rw [hrel _ hbody, RecRule.iotaReduct]
                       have hvw := ConLeche.iotaRec_WScoped henv hval hw
                       have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
                           (Expr.mkAppN (.const cn ls) xs)) d s9.store (some x) :=

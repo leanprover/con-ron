@@ -205,7 +205,7 @@ pub fn nls_key(n: &NIdx, us: &LsIdx) -> NLsKey {
 
 /// con-leche: ConLeche/Cached/StateC.lean:265-307 CState
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:111-114 Caches.ruleBodyC` — the
-/// TRIPLE a rule's right-hand side is determined by: the recursor, the rule's
+/// TRIPLE a rule's peeled body is determined by: the recursor, the rule's
 /// constructor and the levels.
 pub struct NNLsKey {
     pub rec_name: NIdx,
@@ -346,9 +346,9 @@ pub struct Caches {
     pub const_ty_c: HashMap<NLsKey, EIdx>,
     /// A stored definition's VALUE at a universe instantiation.
     pub const_val_c: HashMap<NLsKey, EIdx>,
-    /// An iota rule's right-hand side at the recursor's universe
-    /// instantiation, keyed by the recursor, the rule's constructor and the
-    /// levels — the three data that determine it.
+    /// An iota rule's body under its `rulePrefix + nfields` λs at the
+    /// recursor's universe instantiation, keyed by the recursor, the rule's
+    /// constructor and the levels — the three data that determine it.
     pub rule_body_c: HashMap<NNLsKey, EIdx>,
     /// con-leche: none — arena infrastructure (task #97-P6-13)
     /// **The readback memo DESIGN.md §8.3 promised** and nobody had built:

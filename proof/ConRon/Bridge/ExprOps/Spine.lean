@@ -281,6 +281,20 @@ theorem stripLams_succ_eq (k : Nat) (e : Expr) :
     ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.letE, ETag.lit,
     ETag.proj] <;> rfl
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:862-868 lamBody — the zero
+clause. -/
+theorem lamBody_zero_eq (e : Expr) : Expr.lamBody 0 e = e := by
+  cases e <;> simp [Expr.lamBody]
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:862-868 lamBody — the successor
+clause as ONE equation over the tag and the body projection. -/
+theorem lamBody_succ_eq (k : Nat) (e : Expr) :
+    Expr.lamBody (k + 1) e = if exprTag e = ETag.lam then
+      Expr.lamBody k (exprBody e) else e := by
+  cases e <;> simp [Expr.lamBody, exprTag, exprBody, ETag.forallE,
+    ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.letE, ETag.lit,
+    ETag.proj]
+
 /-! ## 4. The application spine -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:793-796 getAppFn — **THEOREM 1**
@@ -374,6 +388,21 @@ theorem stripLams_spec : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
   | succ k ih =>
     intro s₀ h hok hden
     sym only [bridge_grind, stripLams_succ_eq] => vcgen [stripLams, ih] <;> finish
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:862-868 lamBody — **THEOREM 1**
+for `lamBody`: the body under `k` leading λs.  Structural on `k`, read-only. -/
+theorem lamBody_spec : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
+    StateOK s₀ → (denoteE s₀.store h).isSome = true →
+    ⦃fun s => s = s₀⦄ lamBody k h
+    ⦃fun r s' => s' = s₀ ∧ RelE (Expr.lamBody k) s₀.store h s₀.store r; ⊤⦄ := by
+  intro k
+  induction k with
+  | zero =>
+    intro s₀ h hok hden
+    sym only [bridge_grind, lamBody_zero_eq] => vcgen [lamBody] <;> finish
+  | succ k ih =>
+    intro s₀ h hok hden
+    sym only [bridge_grind, lamBody_succ_eq] => vcgen [lamBody, ih] <;> finish
 
 /-! ## 6. The two argument folds
 
@@ -498,6 +527,7 @@ DESIGN §8.2 asks for it on every closed theorem of the tier. -/
 #print axioms mkAppN_spec
 #print axioms mkAppNFrom_spec
 #print axioms stripLams_spec
+#print axioms lamBody_spec
 #print axioms stripPis_spec
 #print axioms piResult_spec
 #print axioms fvarTypeD_spec

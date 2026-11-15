@@ -108,9 +108,9 @@ structure Caches where
   constTyC : Std.HashMap (NIdx × LsIdx) EIdx
   /-- A stored definition's VALUE at a universe instantiation. -/
   constValC : Std.HashMap (NIdx × LsIdx) EIdx
-  /-- An iota rule's right-hand side at the recursor's universe
-  instantiation, keyed by the recursor, the rule's constructor and the
-  levels — the three data that determine it. -/
+  /-- An iota rule's body under its `rulePrefix + nfields` λs at the
+  recursor's universe instantiation, keyed by the recursor, the rule's
+  constructor and the levels — the three data that determine it. -/
   ruleBodyC : Std.HashMap (NIdx × NIdx × LsIdx) EIdx
   /-- **The readback memo DESIGN §8.3 promised** and nothing had built
   (task #97-P6-13): "`Level` ops … run on transient `Level` trees read back

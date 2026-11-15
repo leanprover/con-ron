@@ -834,18 +834,20 @@ a push**, which is what each of the three value checks
 concludes.  Three of the four clauses are push lemmas (above, and in
 `Bridge/Promote/Exact.lean`); the fourth is `EnvWF.cons`, and its `ConstWF`
 premise is the one thing con-leche does not prove about the value checks (see
-the section note).  Its `IndWF`/`CtorWF` premises hold of every value check's
-record (no inductive, no constructor) by their defaults. -/
+the section note).  Its `IndWF`/`CtorWF`/`RuleWF` premises hold of every value
+check's record (no inductive, no constructor, no recursor) by their
+defaults. -/
 theorem StepOK.push {env : Env} {fe : IFEnv} {s : AState}
     {ci : IConstantInfo} {c : ConstantInfo}
     (h : StepOK env fe s) (hst : StateOK s)
     (hci : Frontend.denoteCI s.store ci = some c)
     (hs : litShapeOk c = true) (hcw : ConstWF ⟨c :: env.consts, env.tables⟩ c)
     (hi : IndWF c := by exact IndWF.of_not_ind (fun _ _ heq => nomatch heq))
-    (hk : CtorWF c := by exact CtorWF.of_not_ctor (fun _ _ _ _ heq => nomatch heq)) :
+    (hk : CtorWF c := by exact CtorWF.of_not_ctor (fun _ _ _ _ heq => nomatch heq))
+    (hr : RuleWF c := by exact RuleWF.of_not_rec (fun _ _ _ _ _ heq => nomatch heq)) :
     StepOK ⟨c :: env.consts, env.tables⟩ (fe.push ci) s where
   ienv := h.ienv.pushStored hst h.gate (TablesStored.of_envWF h.envWF) hci
-  envWF := EnvWF.cons hs h.envWF hcw hi hk
+  envWF := EnvWF.cons hs h.envWF hcw hi hk hr
   coh := h.coh.push ci
   gate := h.gate.push ci
 

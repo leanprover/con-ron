@@ -381,12 +381,13 @@ the clause names it. -/
       env.find? nm = some (.defnInfo cv value hint) ∧
       denoteE st i = some (value.instantiateLevelParams cv.levelParams ls)
 
-/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — an iota rule's
-right-hand side at the recursor's universe instantiation.  The key's three
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — an ι rule read for its ι
+step: its right-hand side's body under its `rulePrefix + nfields` λs
+(`Expr.lamBody`) at the recursor's universe instantiation.  The key's three
 data determine the subject through the environment: the recursor's stored
-rules, the rule whose constructor is the key's second name, and that rule's
+record, the rule whose constructor is the key's second name, and that rule's
 `rhs`. -/
-@[expose] def RuleRhsCacheOK (env : Env) (tbl : Std.HashMap (NIdx × NIdx × LsIdx) EIdx)
+@[expose] def RuleBodyCacheOK (env : Env) (tbl : Std.HashMap (NIdx × NIdx × LsIdx) EIdx)
     (st : EStore) : Prop :=
   ∀ (k : NIdx × NIdx × LsIdx) (i : EIdx), tbl[k]? = some i →
     ∃ rn cn ls cv mi rp isK rules rl,
@@ -394,7 +395,8 @@ rules, the rule whose constructor is the key's second name, and that rule's
       denoteLs st.lss k.2.2 = some ls ∧
       env.find? rn = some (.recInfo cv mi rp isK rules) ∧
       rules.find? (fun r => r.ctor == cn) = some rl ∧
-      denoteE st i = some (rl.rhs.instantiateLevelParams cv.levelParams ls)
+      denoteE st i = some ((rl.rhs.lamBody (rp + rl.nfields)).instantiateLevelParams
+        cv.levelParams ls)
 
 /-- con-leche: none — the READBACK memos (DESIGN `### Task #97-P6-13`) are
 the identity on the denotation, so their clause is an equation and not a
@@ -444,7 +446,7 @@ structure CacheOK (eager : Bool) (env : Env) (s : AState) : Prop where
   lvlsEq : LvlsEqCacheOK s.caches.lvlsEqC s.store
   constTy : ConstTyCacheOK env s.caches.constTyC s.store
   constVal : ConstValCacheOK env s.caches.constValC s.store
-  ruleRhs : RuleRhsCacheOK env s.caches.ruleRhsC s.store
+  ruleBody : RuleBodyCacheOK env s.caches.ruleBodyC s.store
   readL : ReadLCacheOK s.caches.readLC s.store
   readN : ReadNCacheOK s.caches.readNC s.store
   readLs : ReadLsCacheOK s.caches.readLsC s.store
@@ -986,10 +988,10 @@ theorem ConstValCacheOK.mono {env : Env}
   exact ⟨nm, ls, cv, value, hint, denoteN_ext h1 hx, denoteLs_ext h2 hx, h3,
     denote_ext h4 hx⟩
 
-theorem RuleRhsCacheOK.mono {env : Env}
+theorem RuleBodyCacheOK.mono {env : Env}
     {tbl : Std.HashMap (NIdx × NIdx × LsIdx) EIdx} {st st' : EStore}
-    (h : RuleRhsCacheOK env tbl st) (hx : Ext st st') :
-    RuleRhsCacheOK env tbl st' := by
+    (h : RuleBodyCacheOK env tbl st) (hx : Ext st st') :
+    RuleBodyCacheOK env tbl st' := by
   intro k i hk
   obtain ⟨rn, cn, ls, cv, mi, rp, isK, rules, rl, h1, h2, h3, h4, h5, h6⟩ := h k i hk
   exact ⟨rn, cn, ls, cv, mi, rp, isK, rules, rl, denoteN_ext h1 hx,
@@ -1033,7 +1035,7 @@ theorem CacheOK.mono {eager : Bool} {env : Env} {s s' : AState}
   lvlsEq := by rw [hc]; exact h.lvlsEq.mono hx
   constTy := by rw [hc]; exact h.constTy.mono hx
   constVal := by rw [hc]; exact h.constVal.mono hx
-  ruleRhs := by rw [hc]; exact h.ruleRhs.mono hx
+  ruleBody := by rw [hc]; exact h.ruleBody.mono hx
   readL := by rw [hc]; exact h.readL.mono hx
   readN := by rw [hc]; exact h.readN.mono hx
   readLs := by rw [hc]; exact h.readLs.mono hx
@@ -1193,7 +1195,7 @@ theorem CacheOK.monoF {eager : Bool} {env : Env} {s s' : AState}
   lvlsEq := by rw [hf.caches]; exact h.lvlsEq.mono hx
   constTy := by rw [hf.caches]; exact h.constTy.mono hx
   constVal := by rw [hf.caches]; exact h.constVal.mono hx
-  ruleRhs := by rw [hf.caches]; exact h.ruleRhs.mono hx
+  ruleBody := by rw [hf.caches]; exact h.ruleBody.mono hx
   readL := hf.readL h.readL
   readN := hf.readN h.readN
   readLs := hf.readLs h.readLs

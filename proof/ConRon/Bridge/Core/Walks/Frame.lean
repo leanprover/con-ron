@@ -86,7 +86,7 @@ theorem CacheOK.ofReadbackFrame {eager : Bool} {env : Env} {s s' : AState}
   lvlsEq := by rw [hf.caches, hf.store]; exact h.lvlsEq
   constTy := by rw [hf.caches, hf.store]; exact h.constTy
   constVal := by rw [hf.caches, hf.store]; exact h.constVal
-  ruleRhs := by rw [hf.caches, hf.store]; exact h.ruleRhs
+  ruleBody := by rw [hf.caches, hf.store]; exact h.ruleBody
   readL := hf.readL h.readL
   readN := hf.readN h.readN
   readLs := hf.readLs h.readLs

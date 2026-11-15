@@ -1002,7 +1002,7 @@ theorem enterEager_ok_spec {eager : Bool} {env : Env} {fe : IFEnv}
   · obtain ⟨rfl, rfl⟩ := hf rfl
     exact ⟨CheckOK.ofCache hok ⟨hc.eager.whnfCore, hc.eager.whnfCoreCheap, hc.eager.whnf,
         hc.eager.infer, hc.eager.inferIO, hc.eager.defeq, hc.lvlEq, hc.lvlsEq, hc.constTy,
-        hc.constVal, hc.ruleRhs, hc.readL, hc.readN, hc.readLs, ModeMemosOK.empty⟩ rfl rfl,
+        hc.constVal, hc.ruleBody, hc.readL, hc.readN, hc.readLs, ModeMemosOK.empty⟩ rfl rfl,
       rfl, rfl, ⟨hc.whnfCore, hc.whnfCoreCheap, hc.whnf, hc.infer, hc.inferIO, hc.defeq⟩⟩
   · obtain ⟨rfl, rfl⟩ := ht rfl
     exact ⟨hok, rfl, rfl, rfl⟩
@@ -1030,7 +1030,7 @@ theorem leaveEager_ok_spec {eager : Bool} {env : Env} {fe : IFEnv}
     obtain rfl := hs mm rfl
     have hm : ModeMemosOK eager env mm s₀.store := ModeMemosOK.mono hsv hx
     exact ⟨CheckOK.ofCache hok ⟨hm.whnfCore, hm.whnfCoreCheap, hm.whnf, hm.infer,
-        hm.inferIO, hm.defeq, hc.lvlEq, hc.lvlsEq, hc.constTy, hc.constVal, hc.ruleRhs,
+        hm.inferIO, hm.defeq, hc.lvlEq, hc.lvlsEq, hc.constTy, hc.constVal, hc.ruleBody,
         hc.readL, hc.readN, hc.readLs,
         ⟨hc.whnfCore, hc.whnfCoreCheap, hc.whnf, hc.infer, hc.inferIO, hc.defeq⟩⟩ rfl rfl,
       rfl, rfl⟩

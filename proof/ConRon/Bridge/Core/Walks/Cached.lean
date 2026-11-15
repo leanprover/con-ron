@@ -13,7 +13,7 @@ three-branch shape (probe, hit, miss-and-insert) over the five tables of
 | `lvlsEq?` | `lvlsEqC` | `ConLeche/Kernel/Level.lean:165-172 isEquivList` |
 | `constTyAt` | `constTyC` | none — DESIGN §8.3's instantiated-constant cache |
 | `constValAt` | `constValC` | none — the delta step's expensive half |
-| `ruleRhsAt` | `ruleRhsC` | none — the ι rule's right-hand side |
+| `ruleBodyAt` | `ruleBodyC` | `ConLeche/Cached/StateC.lean:478-499 ruleBodyAtM` — the ι rule's peeled body |
 
 ## The two halves
 
@@ -59,6 +59,7 @@ module
 import ConRon.Bridge.Core.Walks.Frame
 import ConRon.Bridge.Pers
 import ConRon.Bridge.ExprOps.Owed
+import ConRon.Bridge.ExprOps.Spine
 public import ConRon.Bridge.Grind
 import ConRon.Bridge.ExprOps.MemoSpecs
 import ConRon.Bridge.Core.Memo
@@ -175,21 +176,21 @@ theorem ConstValCacheOK.insert {tbl : Std.HashMap (NIdx × LsIdx) EIdx}
 
 /-- con-leche: none — the ι rule right-hand-side cache's insert, at the
 THREE-part key. -/
-theorem RuleRhsCacheOK.insert
+theorem RuleBodyCacheOK.insert
     {tbl : Std.HashMap (NIdx × NIdx × LsIdx) EIdx} {st : EStore}
-    (h : RuleRhsCacheOK env tbl st) {rn cn : NIdx} {us : LsIdx} {i : EIdx}
+    (h : RuleBodyCacheOK env tbl st) {rn cn : NIdx} {us : LsIdx} {i : EIdx}
     {rnv cnv : ConLeche.Name} {ls : List Level} {cv : ConstantVal}
     {mi rp : Nat} {isK : Bool} {rules : List RecRule} {rl : RecRule}
     (hr : denoteN st.ns rn = some rnv) (hc : denoteN st.ns cn = some cnv)
     (hus : denoteLs st.lss us = some ls)
     (hf : env.find? rnv = some (.recInfo cv mi rp isK rules))
     (hrl : rules.find? (fun r => r.ctor == cnv) = some rl)
-    (hi : denoteE st i = some (rl.rhs.instantiateLevelParams cv.levelParams ls)) :
-    RuleRhsCacheOK env
+    (hi : denoteE st i = some ((rl.rhs.lamBody (rp + rl.nfields)).instantiateLevelParams cv.levelParams ls)) :
+    RuleBodyCacheOK env
       (tbl.insert (rn, cn, us) i) st := by
   have key : ∀ (t : Std.HashMap (NIdx × NIdx × LsIdx) EIdx),
-      RuleRhsCacheOK env t st →
-      RuleRhsCacheOK env (t.insert (rn, cn, us) i) st := by
+      RuleBodyCacheOK env t st →
+      RuleBodyCacheOK env (t.insert (rn, cn, us) i) st := by
     intro t ht k j hl
     rw [Std.HashMap.getElem?_insert] at hl
     split at hl
@@ -251,7 +252,7 @@ theorem CacheOK.insertConstVal {s : AState} (hc : CacheOK eager env s)
   { hc with constVal := ConstValCacheOK.insert hc.constVal hn hus hf hi }
 
 /-- con-leche: none — `CacheOK` past the ι right-hand-side cache's insert. -/
-theorem CacheOK.insertRuleRhs {s : AState} (hc : CacheOK eager env s)
+theorem CacheOK.insertRuleBody {s : AState} (hc : CacheOK eager env s)
     {rn cn : NIdx} {us : LsIdx} {i : EIdx}
     {rnv cnv : ConLeche.Name} {ls : List Level} {cv : ConstantVal}
     {mi rp : Nat} {isK : Bool} {rules : List RecRule} {rl : RecRule}
@@ -259,10 +260,10 @@ theorem CacheOK.insertRuleRhs {s : AState} (hc : CacheOK eager env s)
     (hus : denoteLs s.store.lss us = some ls)
     (hf : env.find? rnv = some (.recInfo cv mi rp isK rules))
     (hrl : rules.find? (fun r => r.ctor == cnv) = some rl)
-    (hi : denoteE s.store i = some (rl.rhs.instantiateLevelParams cv.levelParams ls)) :
+    (hi : denoteE s.store i = some ((rl.rhs.lamBody (rp + rl.nfields)).instantiateLevelParams cv.levelParams ls)) :
     CacheOK eager env { s with caches := { s.caches with
-      ruleRhsC := s.caches.ruleRhsC.insert (rn, cn, us) i } } :=
-  { hc with ruleRhs := RuleRhsCacheOK.insert hc.ruleRhs hr hcn hus hf hrl hi }
+      ruleBodyC := s.caches.ruleBodyC.insert (rn, cn, us) i } } :=
+  { hc with ruleBody := RuleBodyCacheOK.insert hc.ruleBody hr hcn hus hf hrl hi }
 
 /-! ### The five caches' hit and insert, at `CheckOK`
 
@@ -332,7 +333,7 @@ theorem CheckOK.insertConstVal {st₀ : EStore} {n : NIdx} {us : LsIdx}
     (denoteLs_ext hus hx) hf hi) rfl rfl
 
 /-- con-leche: none — `CheckOK` past the ι right-hand-side insert. -/
-theorem CheckOK.insertRuleRhs {st₀ : EStore} {rn cn : NIdx} {us : LsIdx}
+theorem CheckOK.insertRuleBody {st₀ : EStore} {rn cn : NIdx} {us : LsIdx}
     {rnv cnv : ConLeche.Name} {ls : List Level} {cv : ConstantVal}
     {mi rp : Nat} {isK : Bool} {rules : List RecRule} {rl : RecRule}
     (hr : denoteN st₀.ns rn = some rnv) (hcn : denoteN st₀.ns cn = some cnv)
@@ -340,10 +341,10 @@ theorem CheckOK.insertRuleRhs {st₀ : EStore} {rn cn : NIdx} {us : LsIdx}
     (hf : env.find? rnv = some (.recInfo cv mi rp isK rules))
     (hrl : rules.find? (fun r => r.ctor == cnv) = some rl) {s : AState} {i : EIdx}
     (h : CheckOK eager env fe s) (hx : st₀ ≤ s.store)
-    (hi : denoteE s.store i = some (rl.rhs.instantiateLevelParams cv.levelParams ls)) :
+    (hi : denoteE s.store i = some ((rl.rhs.lamBody (rp + rl.nfields)).instantiateLevelParams cv.levelParams ls)) :
     CheckOK eager env fe { s with caches := { s.caches with
-      ruleRhsC := s.caches.ruleRhsC.insert (rn, cn, us) i } } :=
-  CheckOK.ofCache h (CacheOK.insertRuleRhs h.caches (denoteN_ext hr hx)
+      ruleBodyC := s.caches.ruleBodyC.insert (rn, cn, us) i } } :=
+  CheckOK.ofCache h (CacheOK.insertRuleBody h.caches (denoteN_ext hr hx)
     (denoteN_ext hcn hx) (denoteLs_ext hus hx) hf hrl hi) rfl rfl
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — a level-verdict HIT is
@@ -406,7 +407,7 @@ theorem CheckOK.constVal_hit {st₀ : EStore} {n : NIdx} {us : LsIdx}
   exact hd
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — a rule-RHS-cache HIT. -/
-theorem CheckOK.ruleRhs_hit {st₀ : EStore} {rn cn : NIdx} {us : LsIdx}
+theorem CheckOK.ruleBody_hit {st₀ : EStore} {rn cn : NIdx} {us : LsIdx}
     {rnv cnv : ConLeche.Name} {ls : List Level} {cv : ConstantVal}
     {mi rp : Nat} {isK : Bool} {rules : List RecRule} {rl : RecRule}
     (hr : denoteN st₀.ns rn = some rnv) (hcn : denoteN st₀.ns cn = some cnv)
@@ -414,10 +415,10 @@ theorem CheckOK.ruleRhs_hit {st₀ : EStore} {rn cn : NIdx} {us : LsIdx}
     (hf : env.find? rnv = some (.recInfo cv mi rp isK rules))
     (hrl : rules.find? (fun r => r.ctor == cnv) = some rl) {s : AState}
     (h : CheckOK eager env fe s) (hx : st₀ ≤ s.store) :
-    Ans (fun i => denoteE s.store i = some (rl.rhs.instantiateLevelParams cv.levelParams ls))
-      (s.caches.ruleRhsC[(rn, cn, us)]?) := fun i hhit => by
+    Ans (fun i => denoteE s.store i = some ((rl.rhs.lamBody (rp + rl.nfields)).instantiateLevelParams cv.levelParams ls))
+      (s.caches.ruleBodyC[(rn, cn, us)]?) := fun i hhit => by
   obtain ⟨rn', cn', ls', cv', mi', rp', isK', rules', rl', hr', hc', hus', hf', hrl', hd⟩ :=
-    h.caches.ruleRhs _ i hhit
+    h.caches.ruleBody _ i hhit
   obtain rfl := Option.some.inj ((denoteN_ext hr hx).symm.trans hr')
   obtain rfl := Option.some.inj ((denoteN_ext hcn hx).symm.trans hc')
   obtain rfl := Option.some.inj ((denoteLs_ext hus hx).symm.trans hus')
@@ -556,7 +557,7 @@ theorem CheckOK.ofInstLP {s₀ s' : AState} (hok : CheckOK eager env fe s₀)
       lvlsEq := by rw [hc]; exact hok.caches.lvlsEq.mono hx
       constTy := by rw [hc]; exact hok.caches.constTy.mono hx
       constVal := by rw [hc]; exact hok.caches.constVal.mono hx
-      ruleRhs := by rw [hc]; exact hok.caches.ruleRhs.mono hx
+      ruleBody := by rw [hc]; exact hok.caches.ruleBody.mono hx
       readL := hL
       readN := hN
       readLs := hLs
@@ -662,10 +663,11 @@ theorem constValAt_spec' (s₀ : AState) (n : NIdx) (lps : List NIdx)
     vcgen [constValAt_spec s₀ n lps value us nm ls cv val hint hok hn hus
       hlps hval hfd] <;> finish
 
-/-- con-leche: none — **THEOREM 1 for `ruleRhsAt`** (an ι rule's right-hand
-side at the recursor's universe instantiation). -/
-theorem ruleRhsAt_spec (s₀ : AState) (recName ctor : NIdx) (lps : List NIdx)
-    (rhs : EIdx) (us : LsIdx) (rnv cnv : ConLeche.Name) (ls : List Level)
+/-- con-leche: ConLeche/Cached/StateC.lean:478-499 ruleBodyAtM — **THEOREM 1
+for `ruleBodyAt`** (an ι rule's body under its `rp + nfields` λs at the
+recursor's universe instantiation). -/
+theorem ruleBodyAt_spec (s₀ : AState) (recName ctor : NIdx) (lps : List NIdx)
+    (rhs : EIdx) (k : Nat) (us : LsIdx) (rnv cnv : ConLeche.Name) (ls : List Level)
     (cv : ConstantVal) (mi rp : Nat) (isK : Bool) (rules : List RecRule) (rl : RecRule)
     (hok : CheckOK eager env fe s₀)
     (hr : denoteN s₀.store.ns recName = some rnv)
@@ -674,18 +676,21 @@ theorem ruleRhsAt_spec (s₀ : AState) (recName ctor : NIdx) (lps : List NIdx)
     (hlps : Frontend.denoteNList s₀.store.ns lps = some cv.levelParams)
     (hrhs : denoteE s₀.store rhs = some rl.rhs)
     (hfr : env.find? rnv = some (.recInfo cv mi rp isK rules))
-    (hrl : rules.find? (fun r => r.ctor == cnv) = some rl) :
-    ⦃fun s => s = s₀⦄ ruleRhsAt recName ctor lps rhs us
+    (hrl : rules.find? (fun r => r.ctor == cnv) = some rl)
+    (hk : k = rp + rl.nfields) :
+    ⦃fun s => s = s₀⦄ ruleBodyAt recName ctor lps rhs k us
     ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         denoteE s'.store r =
-          some (rl.rhs.instantiateLevelParams cv.levelParams ls); ⊤⦄ := by
-  sym only [bridge_grind, CheckOK.insertRuleRhs (fe := fe) hr hc hus hfr hrl,
-      → CheckOK.ruleRhs_hit (fe := fe) hr hc hus hfr hrl] =>
-    vcgen [ruleRhsAt,
-      ExprOps.instLPFast_spec coreWalkFuel s₀ lps us rhs
+          some ((rl.rhs.lamBody (rp + rl.nfields)).instantiateLevelParams cv.levelParams ls); ⊤⦄ := by
+  subst hk
+  sym only [bridge_grind, CheckOK.insertRuleBody (fe := fe) hr hc hus hfr hrl,
+      → CheckOK.ruleBody_hit (fe := fe) hr hc hus hfr hrl] =>
+    vcgen [ruleBodyAt,
+      ExprOps.lamBody_spec (rp + rl.nfields) s₀ rhs hok.state (by rw [hrhs]; rfl),
+      fun e hden => ExprOps.instLPFast_spec coreWalkFuel s₀ lps us e
         _ _ hok.state hok.caches.readN hok.caches.readL hok.caches.readLs hlps hus
-        (by rw [hrhs]; rfl)] <;> finish
+        hden] <;> finish
 
 /-! ## 4b. `lvlEq?`'s FRAME, with no cache-content hypothesis
 
@@ -894,7 +899,7 @@ section Census
 #print axioms LvlsEqCacheOK.insert
 #print axioms ConstTyCacheOK.insert
 #print axioms ConstValCacheOK.insert
-#print axioms RuleRhsCacheOK.insert
+#print axioms RuleBodyCacheOK.insert
 #print axioms CacheOK.insertLvlEq
 #print axioms CacheOK.insertLvlsEq
 
@@ -917,11 +922,11 @@ frame. -/
 #print axioms denoteCV_inv
 #print axioms CacheOK.insertConstTy
 #print axioms CacheOK.insertConstVal
-#print axioms CacheOK.insertRuleRhs
+#print axioms CacheOK.insertRuleBody
 #print axioms constTyAt_spec
 #print axioms constValAt_spec
 #print axioms constValAt_spec'
-#print axioms ruleRhsAt_spec
+#print axioms ruleBodyAt_spec
 
 end Census
 

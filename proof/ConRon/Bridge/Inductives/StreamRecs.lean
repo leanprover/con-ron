@@ -616,21 +616,50 @@ theorem streamRulesShape_run (rec : ConLeche.Name) :
       rw [ite_eq_left hg]
       exact FOk.seq (FOk.pure ()) hF
 
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:499-508 ruleBinds —
+**a rule binds its arguments**: the twin's `stripLams` count is con-leche's,
+read-only. -/
+theorem ruleBinds_run {rec : ConLeche.Name} {rP : Nat} {r : IRecRule} {rl : RecRule}
+    {s₀ s' : AState} {u : Unit} (hok : StateOK s₀)
+    (hr : Frontend.denoteRule s₀.store r = some rl)
+    (hrun : Arena.ruleBinds rP r s₀ = .ok (u, s')) :
+    s' = s₀ ∧ FOk (ConLeche.ruleBinds (m := FueledM) rec rP rl) () := by
+  obtain ⟨-, -, hrhs, hnf⟩ := denoteRule_inv hr
+  simp only [Arena.ruleBinds] at hrun
+  obtain ⟨o, s1, k1, z1⟩ := AM.bind_ok hrun
+  obtain ⟨rfl, hbp⟩ := stripLams_pstep hok hrhs k1
+  cases o with
+  | none => exact absurd z1 (fun hc => AM.fail_ok hc)
+  | some p =>
+    obtain ⟨-, rfl⟩ := AM.pure_ok z1
+    have hsome : (rl.rhs.stripLams (rP + rl.nfields)).isSome = true := by
+      rw [← hnf]
+      obtain ⟨bs, e⟩ := p
+      simp only [ExprOps.denoteBP] at hbp
+      split at hbp
+      · rw [← Option.some.inj hbp]; rfl
+      · simp at hbp
+    refine ⟨rfl, ?_⟩
+    simp only [ConLeche.ruleBinds, hsome]
+    exact FOk.pure ()
+
+
 section Knot
 
 variable {env : Env}
 
-/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:151-160 streamRulesCheck
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:154-165 streamRulesCheck
 con-leche: ConLeche/Verify/Cached/GenRecC.lean:814 streamRulesCheckS_spec — each
-stored rule against the generated right-hand side at its position. -/
+stored rule binds its arguments and agrees with the generated right-hand side at
+its position. -/
 theorem streamRulesCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
-    (rec : ConLeche.Name) (lps : List NIdx) (lpsP : List ConLeche.Name) :
+    (rec : ConLeche.Name) (lps : List NIdx) (lpsP : List ConLeche.Name) (rP : Nat) :
     ∀ (rs : List IRecRule) (rsP : List RecRule) (gs : List EIdx) (gsP : List Expr),
       CSpecF env fe
         (fun st => Frontend.denoteNList st.ns lps = some lpsP ∧
           Frontend.denoteRules st rs = some rsP ∧ Frontend.denoteEList st gs = some gsP)
-        (Arena.streamRulesCheck .verified fe lps rs gs) (fun _ _ _ => True)
-        (ConLeche.streamRulesCheck (fueledOpsM .verified) (mkFEnv env) rec lpsP rsP gsP) := by
+        (Arena.streamRulesCheck .verified fe lps rP rs gs) (fun _ _ _ => True)
+        (ConLeche.streamRulesCheck (fueledOpsM .verified) (mkFEnv env) rec lpsP rP rsP gsP) := by
   intro rs
   induction rs with
   | nil =>
@@ -670,6 +699,11 @@ theorem streamRulesCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv
       obtain ⟨hyc, -, hyr, -⟩ := denoteRule_inv hy
       simp only [Arena.streamRulesCheck] at hrun
       simp only [ConLeche.streamRulesCheck]
+      obtain ⟨_, s0, k0, z0⟩ := AM.bind_ok hrun
+      obtain ⟨hs0, hF0⟩ := ruleBinds_run (rec := rec) hok.state hy k0
+      rw [hs0] at z0
+      clear hrun
+      have hrun := z0
       rw [beq_of_denoteE hok.state.wf hyr h1] at hrun
       by_cases hq : (y.rhs == gP) = true
       · rw [ite_eq_left hq] at hrun
@@ -677,7 +711,7 @@ theorem streamRulesCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv
         obtain ⟨c1, _, -, hF⟩ := ih ys gs gsP' s₀ s' r hok ⟨hlps, hys, h2⟩ hrun
         refine ⟨c1, (), trivial, ?_⟩
         rw [ite_eq_left hq]
-        exact FOk.seq (FOk.pure ()) hF
+        exact FOk.seq hF0 (FOk.seq (FOk.pure ()) hF)
       · rw [ite_eq_right hq] at hrun
         obtain ⟨_, s1, k1, z1⟩ := AM.bind_ok hrun
         obtain ⟨c1, _, -, hF1⟩ := ruleAgree_spec fe hk henv rec y.ctor lps lpsP _ _ _ _ s₀ s1 _
@@ -687,7 +721,7 @@ theorem streamRulesCheck_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv
             denoteEList_ext c1.ext _ _ h2⟩ z1
         refine ⟨c1.trans c2, (), trivial, ?_⟩
         rw [ite_eq_right hq]
-        exact FOk.seq hF1 hF2
+        exact FOk.seq hF0 (FOk.seq hF1 hF2)
 
 /-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:162-167 streamRecCompare
 con-leche: ConLeche/Verify/Cached/GenRecC.lean:843 streamRecCompareS_spec — one
@@ -702,17 +736,17 @@ theorem streamRecCompare_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv
       (ConLeche.streamRecCompare (fueledOpsM .verified) (mkFEnv env) rcP gP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hrc, hg⟩ := hpre
-  obtain ⟨hcv, -, hmI, -, hrules, -⟩ := dRec_inv hrc
+  obtain ⟨hcv, hrP, hmI, -, hrules, -⟩ := dRec_inv hrc
   obtain ⟨hcvG, hM, hrh⟩ := RC.dRecOut_inv hg
   simp only [Arena.streamRecCompare] at hrun
-  simp only [ConLeche.streamRecCompare]
+  simp only [ConLeche.streamRecCompare, ← hrP]
   obtain ⟨hnmG, hlpsG, htyG⟩ := Core.denoteCV_inv hcvG
   have hty := denoteCV_type hcv
   rw [beq_of_denoteE hok.state.wf hty htyG] at hrun
   by_cases hq : (rcP.cvR.type == gP.1.type) = true
   · rw [ite_eq_left hq] at hrun
     replace hrun := AM.pure_bind_ok hrun
-    obtain ⟨c1, _, -, hF⟩ := streamRulesCheck_spec fe hk henv gP.1.name _ _ _ _ _ _ s₀ s' r hok
+    obtain ⟨c1, _, -, hF⟩ := streamRulesCheck_spec fe hk henv gP.1.name _ _ rc.rP _ _ _ _ s₀ s' r hok
       ⟨hlpsG, hrules, hrh⟩ hrun
     refine ⟨c1, (), trivial, ?_⟩
     rw [ite_eq_left hq]
@@ -721,7 +755,7 @@ theorem streamRecCompare_spec (fe : IFEnv) (hk : CoreSpec Arena.checkFuel) (henv
     obtain ⟨_, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨c1, _, -, hF1⟩ := recTyCheck_spec fe hk henv gP.1.name _ _ (rc.mI + 1) _ _ _ _ s₀ s1 _
       hok ⟨hlpsG, hty, htyG⟩ k1
-    obtain ⟨c2, _, -, hF2⟩ := streamRulesCheck_spec fe hk henv gP.1.name _ _ _ _ _ _ s1 s' r c1.ok
+    obtain ⟨c2, _, -, hF2⟩ := streamRulesCheck_spec fe hk henv gP.1.name _ _ rc.rP _ _ _ _ s1 s' r c1.ok
       ⟨denoteNList_ext c1.ext.lss.ls.ns _ _ hlpsG, denoteRules_ext c1.ext _ _ hrules,
         denoteEList_ext c1.ext _ _ hrh⟩ z1
     refine ⟨c1.trans c2, (), trivial, ?_⟩
