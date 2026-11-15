@@ -401,7 +401,7 @@ The parse, the pin walk and the stream's index (§6.3) write the persistent tier
 directly.  Each record's check then runs inside a **bracket** on a worker's own
 store: `enter_record` empties the scratch tier and the memos, and
 `leave_record` empties the scratch tier again and flushes the caches
-([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L11866-L11885)).
+([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L11864-L11883)).
 Nothing a check builds outlives it: what a declaration adds to the environment
 is read off the record itself when the index is built, so no term ever has to
 move from the scratch tier to the persistent one.  Dropping the tier leaves
@@ -463,7 +463,7 @@ declaration guards `allLevelParamsDefined` and `constsResolve`, and the
 projection guard's window query `hasLooseBVarIn`, thread their memo as an
 argument, as con-leche does, and the port parks it in the state
 between calls, moving it out and emptying it at each entry
-([`take_walk_memo`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L474-L521)),
+([`take_walk_memo`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L466-L513)),
 or dropping it outright past 2¹⁶ slots.
 
 **Per-declaration caches**
@@ -477,8 +477,9 @@ These are con-leche's memo tables:
   and the full mode, which `whnf` runs);
 * `defeq` on the ordered pair, storing both `true` and `false` verdicts;
 * level and level-list equivalence verdicts;
-* a stored constant's type or value, and a recursor rule's right-hand side,
-  at a universe instantiation;
+* a stored constant's type or value, and a recursor rule's body under its
+  leading λs (what the ι step substitutes into), at a universe
+  instantiation;
 * the readbacks of names, levels and level lists (§4.2);
 * the eager tower's own set of the six entry-point tables (`eager_memos`):
   an eager comparison swaps it into the six fields for its length and back
@@ -931,7 +932,7 @@ theorem instantiate1_go_aux (n : Nat) :
 **Cursor induction.**  Where the twin recurses on a `List` and the Rust
 walks a `Vec` with an index `i`, induct on `args.length - i`, and relate the
 twin's list to the suffix from `i`
-([`inst_spine_from`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/ExprOps/Mut.lean#L615-L635)):
+([`inst_spine_from`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/ExprOps/Mut.lean#L646-L666)):
 
 ```lean
 theorem inst_spine_from_aux (n : Nat) :

@@ -72859,3 +72859,83 @@ readers interned up to ten pins and probed the index at every literal.  `strict_
 have upstream's unary-tower slowdown on it (no 32-bit hash cycle in its interned store); the
 `Nat.succ` major now takes the whnf and the literal conversion, as upstream and the official
 kernel do.
+
+### Task #156 — con-leche sync 41739c49 → 9e3c8197: the β peel substitutes from the spine range, the ι step peels the rule's λs (2026-11-15, Opus)
+
+Upstream tasks absorbed (3 commits of executed code): #583 (merge 5d910c48b: the β peel
+substitutes from the spine array range, `Expr.instantiateRevRange`) and #585 (merge 9e3c81972:
+the ι step peels the stored rule's `rulePrefix + nfields` λs and substitutes the leading
+arguments and the fields at once, `RecRule.iotaReduct`; stored rules must have those λs,
+`ruleBinds`; the record invariant `RuleWF`, `EnvWF.rules`; e2e fixture
+`stored_rule_lams_short`, accepted before, rejected now as by official).  `update --auto`: 57
+findings against 41739c49 (57 `CHANGED`: 7 doc-only, 50 changed), 647 citations merely moved;
+7 markers deleted mechanically, 50 by hand.  Coverage 1117/1175 → 1127/1182; every new upstream
+declaration is cited.
+
+| upstream | con-ron had | done |
+|---|---|---|
+| #583 `instantiateRevP`/`instantiateRevXP` at the range end `n` and live count `k`, `instantiateRevRange` the entry, `instantiateRev` the whole array | `instantiate_list`/`_go` over a whole push-order vector; the `.bvar` arm's re-entry copied the vector's last `j - d` entries (`last_eidx`) | **ported**: the walks take the range `vs[n - k:n]` (one borrowed record `InstRange`, below), the `.bvar` arm reads `vs[n - 1 - (j - d)]` under upstream's reference test (`j - d < k`, then `j - d < n ∧ n ≤ vs.size`) and re-enters at `k := j - d` in place; `instantiate_rev_range` clamps `n` and is the entry, `instantiate_list_fast` is the whole vector's range; `last_eidx` (and its twin `lastEidx`, `InstLVec.last`, `last_eidx_refines`, `last_eidx_spec`) deleted, nothing calls it |
+| #583 `betaPeelI` carries the range start `s`, `whnfAppI` starts it at `s = i` | `beta_peel` pushed each peeled argument onto an owned vector | **ported**: `beta_peel(t, s, args, i)` substitutes `args[s:i]` straight from the spine (`instantiate_rev_range`) |
+| #583 `unitLikeShapeF`, `ProjEntry.typeAtI`, `instSpineC` pass arrays to `instantiateRev` | already push-order vectors (`unit_like_shape_at`'s `targs`, `proj_entry_type_at`'s `targs ++ [pe]`); `instSpineC` not ported (the port's `inst_spine` is the kernel's chain) | citations |
+| #585 `Expr.lamBody` | — | **ported**: `expr_ops::lam_body` (twin `lamBody`) |
+| #585 `ruleBodyAtM` (was `ruleRhsAtM`): the memo holds the peeled, level-instantiated body | `rule_rhs_at`, the level-instantiated `rhs` | **ported**: `rule_body_at(…, k, us)` = `lam_body` then `inst_lp_fast`, memoized on the same triple; `rule_rhs_*`/`ruleRhs*`/`RuleRhs*` renamed `rule_body_*`/`ruleBody*`/`RuleBody*` throughout (Rust, twin, both theorems, capstone) |
+| #585 `pushRange`, `iotaVals`, `iotaRecI`'s reduct `instantiateRev body (iotaVals args (min rP k) margs cnP)` | `mk_app_n(rhs, args.take rP ++ margs.drop cnP)`, then the β peel in the loop | **ported**: `iota_vals` (twin `iotaVals`), two `eidx_copy_upto`s — which IS `pushRange` and now cites it; `iota_rec_reduct` substitutes once with `instantiate_list_fast`.  `min rP k` and the fields' start are clamped to their vectors without a truncating `as usize` (a range past the end is empty, as `pushRange`'s guard makes it) |
+| #585 `ruleBinds` in `streamRulesCheck` (with `rP`), `streamRecCompare` passes `rc.rP` | — | **ported**: `rec_check::rule_binds` (twin `ruleBinds`, `strip_lams` at `r_p + nfields`), `stream_rules_check(…, r_p, …)` runs it before the comparison |
+| #585 `RuleWF`, `EnvWF.rules`, `EnvWF.cons`'s `hr` | — | Theorem 1: `StepOK.push` takes `RuleWF c` with the same default as upstream's `EnvWF.cons` (a value check's record is no recursor); the inductive tier's records get it from con-leche's own preservation proofs, which con-ron's Theorem 1 already composes.  No invariant in Theorem 2 |
+| #585 `iotaRec` (spec), `RecRule.iotaReduct` | — | the specification con-ron's Theorem 1 targets; `iotaTail`/`iotaTail_fire` state the reduct as `rl.iotaReduct …` |
+
+**The walks' range as one record.**  The first port passed the range as two more arguments
+(`vs, n, k`), which made the substituting walks eight arguments wide: two spilled to the stack
+on every recursive call, and `Init` measured **+1.92 %** `instructions:u` (`instantiate_list_go`
+11.1 % → 13.7 % of the run, `instantiate_list` 4.7 % → 7.6 %, while the ι change itself saved
+elsewhere).  `expr_ops::InstRange { vs: &Vec<EIdx>, n, k }`, passed by reference, keeps the
+walks at six arguments; the re-entry builds a fresh record on the stack.  Aeneas models it as a
+structure of three values; the twin keeps `vs n k` as three arguments and Theorem 2 relates the
+fields.  With it, `Init` is −4.17 % (below).
+
+**Deviation kept.**  Upstream's `instantiateRevRange` returns the term untouched at an empty
+range (`n - s = 0`) before the walk; the port's entry walks it (the walk at `k = 0` is the
+identity) and keeps clearing the memo before and after, so `instantiateListFast_spec`'s
+`instLC = ∅` frame, which callers consume, still holds at every entry.
+
+**Theorem 1.**  `Bridge/ExprOps/Subst.lean`: `InstLRange st vs n k ws` (`n ≤ vs.size`, `k ≤ n`,
+`InstLVec` of `vs.extract (n - k) n`) is the walks' hypothesis; `InstLRange.bounds`, `.le`,
+`.take` (the re-entry, keyed by `ws.take m`) and `.getElem_eq` (the read at `n - 1 - m`) are
+the `bridge_grind` facts the `.bvar` arm consumes, so the arm proofs stay one `sym`/`vcgen`/
+`finish` each; `InstLVec.range`/`.clamp` give the entries; `instantiateRevRange_spec` (`InstLVec`
+of `vs.extract s n`) is the new entry theorem and `instantiateListFast_spec` its instance.
+`lamBody_spec` is one `sym`/`vcgen`/`finish` walk (`Bridge/ExprOps/Spine.lean`).
+`RuleBodyCacheOK` relates the memo's entries to `(rl.rhs.lamBody (rp + rl.nfields))
+.instantiateLevelParams …`; `ruleBodyAt_spec` takes `k = rp + rl.nfields`.  `betaPeel_carry`
+carries `InstLVec (args.extract s i) ws` (`extract_succ_push`, `extract_self_succ`, con-leche's
+`extract_rev_succ`/`extract_rev_single` read the push way).  The ι block's reduct is
+`instantiateListFast_spec` at `iotaVals_toList` with `take_clamp`/`drop_clamp`;
+`streamRulesCheck_spec` runs `ruleBinds_run` first.
+
+**Theorem 2.**  No new invariant; `Lockstep.lean` untouched.  `instantiate_list_aux`/`_go_aux`
+relate the Rust's `rg : InstRange` to the twin's `vs n k` through its fields; a local
+`lockstep_simp` lemma (`dite_and_nested`) splits the twin's one `if h : j - d < n ∧ n ≤ vs.size`
+into the Rust's two nested tests, and the `.bvar` arm's re-entry (the Rust builds a fresh
+record there) closes with a short finisher after `lockstep`.  New: `instantiate_rev_range_ls`
+(the two clamps split by hand, then `lockstep`), `lam_body_ls`, `rule_binds_ls`, `iota_vals_spec`
+and `iota_vals_twin` (in `Core/LS/Iota.lean`: not a handle-level prim, and `Tactic/Prims.lean`
+does not import `Arena.Core`).  `iota_rec_at_ls` needs a finisher after `lockstep_c2`, because
+the twin computes the clamps `p`/`q` as pure `if`s inside `iotaVals`' argument where the Rust
+binds them; making the twin's two clamps monadic `if`s would let `lockstep` pair them (a
+possible follow-up, not needed).  `last_eidx_refines` and `last_eidx_spec` are gone with
+`last_eidx`.
+
+**Verdicts.**  `diff-e2e.sh`: 735/735 with this branch's binary (master's binary at the new pin
+DIFFERs on `stored_rule_lams_short` only: it accepts, upstream and official reject).
+
+**Numbers.**  `Init`, `--verified --jobs=1`, `perf stat -e instructions:u,cycles:u`, one run each
+(`bump-con-leche.sh measure`), 57 919 / 57 919 accepted:
+
+| binary | instructions:u | cycles:u |
+|---|---:|---:|
+| master `e7432eb5` | 180 158 773 396 | 72 420 656 842 |
+| this branch `3113ae1d` | **172 644 634 557** (−4.171 %) | 68 154 039 612 |
+
+`grind_field_cancel_inv` (ι-heavy, one run each, `instructions:u`): master 1.664 G, this branch
+1.462 G (−12.1 %); upstream measured −3.0 % (#583) and −8.9 % (#585) on it.  The first port's
+eight-argument walks measured +1.92 % on `Init` (above).
