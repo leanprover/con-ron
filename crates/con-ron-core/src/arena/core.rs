@@ -6786,8 +6786,11 @@ pub fn iota_rec_reduct(
     match rule_body_at(pers, st, rec_c, &rl.ctor, &cv.level_params, &rl.rhs, r_p + rl.nfields, us) {
         Err(e) => Err(e),
         Ok(body) => {
+            // `min rP k` and the fields' start, clamped to their vectors
+            // without a truncating cast (a range past the end is empty).
             let p: usize = if r_p < args.len() as u64 { r_p as usize } else { args.len() };
-            let vals: Vec<EIdx> = iota_vals(args, p, margs, cn_p as usize);
+            let q: usize = if cn_p < margs.len() as u64 { cn_p as usize } else { margs.len() };
+            let vals: Vec<EIdx> = iota_vals(args, p, margs, q);
             match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &body, &vals, 0) {
                 Err(e) => Err(e),
                 Ok(x) => Ok(Some(x)),

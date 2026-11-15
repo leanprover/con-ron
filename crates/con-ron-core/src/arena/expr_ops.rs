@@ -271,7 +271,7 @@ pub fn take_eidx_n_from(xs: &Vec<EIdx>, n: u64, i: usize, out: Vec<EIdx>) -> Vec
 /// of `n` binders paid `n` allocations and `n²/2` handle copies —
 /// `eidx_copy_upto` was 4.3 % of `Init`.  Those accumulators are now built in
 /// PUSH order by `Vec::push` on an OWNED vector and read from the end
-/// (`last_eidx`, `instantiate_list`'s `bvar` arm); what is left here is the
+/// (`instantiate_list`'s `bvar` arm); what is left here is the
 /// lists that are genuinely built on the way OUT of a recursion, where the
 /// answer is a cons of a value the recursion produced.
 pub fn cons_eidx(a: &EIdx, xs: &Vec<EIdx>) -> Vec<EIdx> {
@@ -300,21 +300,6 @@ pub fn snoc_eidx_of(xs: &Vec<EIdx>, y: &EIdx) -> Vec<EIdx> {
     let mut out = eidx_copy_upto(xs, xs.len(), 0, out);
     out.push(y.dup2());
     out
-}
-
-/// con-leche: none — `List.take` over a PUSH-ORDER `Vec<EIdx>`
-/// The last `k` entries of `xs`, in `xs`' own order (task #97-P6-15).
-///
-/// A substitution vector is built by `Vec::push` and read from the END — its
-/// entry for `bvar (d + j)` is `xs[xs.len() - 1 - j]` — so the twin's
-/// `vs.take k`, the first `k` of the list, is this SUFFIX of the vector.
-/// `take_eidx` is the same function on a vector that is in list order, and
-/// both are `eidx_copy_upto` over a window.
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:202-205 lastEidx` — the same
-/// suffix of a push-order vector.
-pub fn last_eidx(xs: &Vec<EIdx>, k: usize) -> Vec<EIdx> {
-    let n: usize = if k < xs.len() { xs.len() - k } else { 0 };
-    eidx_copy_upto(xs, xs.len(), n, Vec::with_capacity(xs.len() - n))
 }
 
 /// con-leche: none — `==` on `List EIdx`, elementwise
@@ -791,6 +776,18 @@ pub fn inst_list_cutoff(pers: &PersTier, st: &AState, h: &EIdx, k: u64) -> bool 
     b < expr::sat_range() && b <= k
 }
 
+/// con-leche: none — the arguments `vs`, `n`, `k` of `instantiateRevP`/`instantiateRevXP`, bundled
+/// **The substitution range** of the bulk instantiation: the vector `vs` and
+/// its range `vs[n - k:n]`, read from its end.  One borrowed record rather
+/// than three arguments, so the walks' six arguments stay in registers: the
+/// three as arguments spilled two of eight to the stack on every recursive
+/// call (+1.9 % `instructions:u` on `Init`, task #156).
+pub struct InstRange<'a> {
+    pub vs: &'a Vec<EIdx>,
+    pub n: usize,
+    pub k: usize,
+}
+
 /// con-leche: ConLeche/Kernel/ExprOps.lean:531-575 instantiateList
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:639-667 instantiateRevP
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:399-425 instantiateList` — the
@@ -811,9 +808,7 @@ pub fn inst_list_cutoff(pers: &PersTier, st: &AState, h: &EIdx, k: u64) -> bool 
 pub fn instantiate_list(
     pers: &PersTier,
     st: &mut AState,
-    vs: &Vec<EIdx>,
-    n: usize,
-    k: usize,
+    rg: &InstRange,
     fuel: u64,
     h: &EIdx,
     d: u64,
@@ -830,9 +825,9 @@ pub fn instantiate_list(
                 Some(p) => {
                     let f: EIdx = p.0;
                     let a: EIdx = p.1;
-                    match instantiate_list(pers, st, vs, n, k, fuel - 1, &f, d) {
+                    match instantiate_list(pers, st, rg, fuel - 1, &f, d) {
                         Err(e) => Err(e),
-                        Ok(f2) => match instantiate_list(pers, st, vs, n, k, fuel - 1, &a, d) {
+                        Ok(f2) => match instantiate_list(pers, st, rg, fuel - 1, &a, d) {
                             Err(e) => Err(e),
                             Ok(a2) => intern_e_app(pers, st, f2, a2),
                         },
@@ -845,9 +840,9 @@ pub fn instantiate_list(
                 Some(p) => {
                     let ty: EIdx = p.0;
                     let body: EIdx = p.1;
-                    match instantiate_list(pers, st, vs, n, k, fuel - 1, &ty, d) {
+                    match instantiate_list(pers, st, rg, fuel - 1, &ty, d) {
                         Err(e) => Err(e),
-                        Ok(t2) => match instantiate_list(pers, st, vs, n, k, fuel - 1, &body, d + 1) {
+                        Ok(t2) => match instantiate_list(pers, st, rg, fuel - 1, &body, d + 1) {
                             Err(e) => Err(e),
                             Ok(b) => intern_e_bind(pers, st, t, t2, b),
                         },
@@ -861,11 +856,11 @@ pub fn instantiate_list(
                     let ty: EIdx = p.0;
                     let val: EIdx = p.1;
                     let body: EIdx = p.2;
-                    match instantiate_list(pers, st, vs, n, k, fuel - 1, &ty, d) {
+                    match instantiate_list(pers, st, rg, fuel - 1, &ty, d) {
                         Err(e) => Err(e),
-                        Ok(t2) => match instantiate_list(pers, st, vs, n, k, fuel - 1, &val, d) {
+                        Ok(t2) => match instantiate_list(pers, st, rg, fuel - 1, &val, d) {
                             Err(e) => Err(e),
-                            Ok(w) => match instantiate_list(pers, st, vs, n, k, fuel - 1, &body, d + 1) {
+                            Ok(w) => match instantiate_list(pers, st, rg, fuel - 1, &body, d + 1) {
                                 Err(e) => Err(e),
                                 Ok(b) => intern_e_let_e(pers, st, t2, w, b),
                             },
@@ -880,7 +875,7 @@ pub fn instantiate_list(
                     let sn: NIdx = p.0;
                     let i: u64 = p.1;
                     let sub: EIdx = p.2;
-                    match instantiate_list(pers, st, vs, n, k, fuel - 1, &sub, d) {
+                    match instantiate_list(pers, st, rg, fuel - 1, &sub, d) {
                         Err(e) => Err(e),
                         Ok(u) => intern_e_proj(pers, st, sn, i, u),
                     }
@@ -892,14 +887,14 @@ pub fn instantiate_list(
                 Some(j) => {
                     if j < d {
                         Ok(h.dup2())
-                    } else if j - d < k as u64 {
+                    } else if j - d < rg.k as u64 {
                         let i: usize = (j - d) as usize;
-                        if i < n && n <= vs.len() {
+                        if i < rg.n && rg.n <= rg.vs.len() {
                             // **The range is read from its end**: the
                             // twin's `vs[j - d]` (the innermost binder's
                             // argument first) is `vs[n - 1 - (j - d)]`, as
                             // con-leche's `instantiateRevP` reads it.
-                            let vi: EIdx = vs[n - 1 - i].dup2();
+                            let vi: EIdx = rg.vs[rg.n - 1 - i].dup2();
                             // **The cutoff before the re-entry** (task
                             // #97-P6-9).  The recursion into the replacement is
                             // con-leche's own `instantiateList vs[j-d]
@@ -913,13 +908,14 @@ pub fn instantiate_list(
                             if inst_list_cutoff(pers, st, &vi, d) {
                                 Ok(vi)
                             } else {
-                                instantiate_list(pers, st, vs, n, i, fuel - 1, &vi, d)
+                                let rg2: InstRange = InstRange { vs: rg.vs, n: rg.n, k: i };
+                                instantiate_list(pers, st, &rg2, fuel - 1, &vi, d)
                             }
                         } else {
                             Ok(h.dup2())
                         }
                     } else {
-                        intern_e_bvar(pers, st, j - k as u64)
+                        intern_e_bvar(pers, st, j - rg.k as u64)
                     }
                 }
             }
@@ -937,9 +933,7 @@ pub fn instantiate_list(
 pub fn instantiate_list_go(
     pers: &PersTier,
     st: &mut AState,
-    vs: &Vec<EIdx>,
-    n: usize,
-    k: usize,
+    rg: &InstRange,
     fuel: u64,
     h: &EIdx,
     d: u64,
@@ -959,9 +953,9 @@ pub fn instantiate_list_go(
                     Some(p) => {
                         let f: EIdx = p.0;
                         let a: EIdx = p.1;
-                        match instantiate_list_go(pers, st, vs, n, k, fuel - 1, &f, d) {
+                        match instantiate_list_go(pers, st, rg, fuel - 1, &f, d) {
                             Err(e) => Err(e),
-                            Ok(f2) => match instantiate_list_go(pers, st, vs, n, k, fuel - 1, &a, d) {
+                            Ok(f2) => match instantiate_list_go(pers, st, rg, fuel - 1, &a, d) {
                                 Err(e) => Err(e),
                                 Ok(a2) => match intern_e_app(pers, st, f2, a2) {
                                     Err(e) => Err(e),
@@ -984,10 +978,10 @@ pub fn instantiate_list_go(
                     Some(p) => {
                         let ty: EIdx = p.0;
                         let body: EIdx = p.1;
-                        match instantiate_list_go(pers, st, vs, n, k, fuel - 1, &ty, d) {
+                        match instantiate_list_go(pers, st, rg, fuel - 1, &ty, d) {
                             Err(e) => Err(e),
                             Ok(t2) => {
-                                match instantiate_list_go(pers, st, vs, n, k, fuel - 1, &body, d + 1) {
+                                match instantiate_list_go(pers, st, rg, fuel - 1, &body, d + 1) {
                                     Err(e) => Err(e),
                                     Ok(b) => {
                                         match intern_e_bind(pers, st, t, t2, b) {
@@ -1005,7 +999,7 @@ pub fn instantiate_list_go(
                 },
             }
         } else if t == ETAG_BVAR {
-            instantiate_list(pers, st, vs, n, k, fuel - 1, h, d)
+            instantiate_list(pers, st, rg, fuel - 1, h, d)
         } else if t == ETAG_LET_E {
             let key: EIdxNat = eidx_nat_key(h, d);
             match inst_l_get(st, &key) {
@@ -1016,12 +1010,12 @@ pub fn instantiate_list_go(
                         let ty: EIdx = p.0;
                         let val: EIdx = p.1;
                         let body: EIdx = p.2;
-                        match instantiate_list_go(pers, st, vs, n, k, fuel - 1, &ty, d) {
+                        match instantiate_list_go(pers, st, rg, fuel - 1, &ty, d) {
                             Err(e) => Err(e),
-                            Ok(t2) => match instantiate_list_go(pers, st, vs, n, k, fuel - 1, &val, d) {
+                            Ok(t2) => match instantiate_list_go(pers, st, rg, fuel - 1, &val, d) {
                                 Err(e) => Err(e),
                                 Ok(w) => {
-                                    match instantiate_list_go(pers, st, vs, n, k, fuel - 1, &body, d + 1)
+                                    match instantiate_list_go(pers, st, rg, fuel - 1, &body, d + 1)
                                     {
                                         Err(e) => Err(e),
                                         Ok(b) => {
@@ -1050,7 +1044,7 @@ pub fn instantiate_list_go(
                         let sn: NIdx = p.0;
                         let i: u64 = p.1;
                         let sub: EIdx = p.2;
-                        match instantiate_list_go(pers, st, vs, n, k, fuel - 1, &sub, d) {
+                        match instantiate_list_go(pers, st, rg, fuel - 1, &sub, d) {
                             Err(e) => Err(e),
                             Ok(u) => match intern_e_proj(pers, st, sn, i, u) {
                                 Err(e) => Err(e),
@@ -1089,8 +1083,9 @@ pub fn instantiate_rev_range(
 ) -> Result<EIdx, CheckError> {
     let n2: usize = if n < vs.len() { n } else { vs.len() };
     let k: usize = if s < n2 { n2 - s } else { 0 };
+    let rg: InstRange = InstRange { vs: vs, n: n2, k: k };
     inst_l_clear(st);
-    match instantiate_list_go(pers, st, vs, n2, k, fuel, e, d) {
+    match instantiate_list_go(pers, st, &rg, fuel, e, d) {
         Err(er) => Err(er),
         Ok(r) => {
             inst_l_clear(st);
