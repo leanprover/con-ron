@@ -90,7 +90,7 @@ use crate::arena::env::{
 };
 use crate::arena::expr_ops::{
     abstract1_fast, abstract_range_fast, cons_eidx, get_app_args, get_app_fn,
-    has_fvar_fast, instantiate1_fast, instantiate_list_fast, inst_lp_fast, inst_spine, binder_pair,
+    has_fvar_fast, instantiate1_fast, instantiate_list_fast, instantiate_rev_range, lam_body, inst_lp_fast, inst_spine, binder_pair,
     leaf_guard, loose_bvars_bounded_fast, mk_app_n, mk_app_n_from, pi_result,
     snoc_eidx_of,
     take_eidx, take_eidx_n, wscoped_b_fast,
@@ -679,47 +679,55 @@ pub fn const_val_set(st: &mut AState, k: NLsKey, r: &EIdx) {
     let _ = st.caches.const_val_c.insert(k, r.dup2());
 }
 
-/// con-leche: none — DESIGN.md §8.3's instantiated-constant cache
-/// Lean twin: `proof/ConRon/Arena/Core.lean:245-260 ruleRhsAt` — the probe, as its own
+/// con-leche: ConLeche/Cached/StateC.lean:478-499 ruleBodyAtM
+/// Lean twin: `proof/ConRon/Arena/Core.lean:245-260 ruleBodyAt` — the probe, as its own
 /// function over a *shared* state borrow (see `lvl_eq_probe`).
-pub fn rule_rhs_probe(st: &AState, k: &NNLsKey) -> Option<EIdx> {
-    match st.caches.rule_rhs_c.get(k) {
+pub fn rule_body_probe(st: &AState, k: &NNLsKey) -> Option<EIdx> {
+    match st.caches.rule_body_c.get(k) {
         Some(r) => Some(r.dup2()),
         None => None,
     }
 }
 
-/// con-leche: none — DESIGN.md §8.3's `ruleRhsAt`
-/// Lean twin: `proof/ConRon/Arena/Core.lean:245-260 ruleRhsAt` — an iota
-/// rule's right-hand side at the recursor's universe instantiation, memoized
-/// on `(recursor, rule constructor, levels)` — the three data that determine
-/// it.
-pub fn rule_rhs_at(
+/// con-leche: ConLeche/Cached/StateC.lean:478-499 ruleBodyAtM
+/// Lean twin: `proof/ConRon/Arena/Core.lean:245-260 ruleBodyAt` — **the
+/// rule read for its ι step**: the right-hand side's body under its `k =
+/// rulePrefix + nfields` λs (`lam_body`; the install checks it has them),
+/// at the recursor's universe instantiation, memoized on `(recursor, rule
+/// constructor, levels)` — the three data that determine it.  The record is
+/// passed in (`lps`, `rhs`, `k`) by the caller, which has already looked it
+/// up, where con-leche's reads it off the environment again.
+#[allow(clippy::too_many_arguments)]
+pub fn rule_body_at(
     pers: &PersTier,
     st: &mut AState,
     rec_name: &NIdx,
     ctor: &NIdx,
     lps: &Vec<NIdx>,
     rhs: &EIdx,
+    k: u64,
     us: &LsIdx,
 ) -> Result<EIdx, CheckError> {
-    let k: NNLsKey = nnls_key(rec_name, ctor, us);
-    match rule_rhs_probe(st, &k) {
+    let key: NNLsKey = nnls_key(rec_name, ctor, us);
+    match rule_body_probe(st, &key) {
         Some(r) => Ok(r),
-        None => match inst_lp_fast(pers, st, CORE_WALK_FUEL, lps, us, rhs) {
+        None => match lam_body(pers, st, k, rhs) {
             Err(e) => Err(e),
-            Ok(r) => {
-                rule_rhs_set(st, k, &r);
-                Ok(r)
-            }
+            Ok(body) => match inst_lp_fast(pers, st, CORE_WALK_FUEL, lps, us, &body) {
+                Err(e) => Err(e),
+                Ok(r) => {
+                    rule_body_set(st, key, &r);
+                    Ok(r)
+                }
+            },
         },
     }
 }
 
-/// con-leche: none — DESIGN.md §8.3's `ruleRhsAt`
-/// Lean twin: `proof/ConRon/Arena/Core.lean:245-260 ruleRhsAt` — the record half.
-pub fn rule_rhs_set(st: &mut AState, k: NNLsKey, r: &EIdx) {
-    let _ = st.caches.rule_rhs_c.insert(k, r.dup2());
+/// con-leche: ConLeche/Cached/StateC.lean:478-499 ruleBodyAtM
+/// Lean twin: `proof/ConRon/Arena/Core.lean:245-260 ruleBodyAt` — the record half.
+pub fn rule_body_set(st: &mut AState, k: NNLsKey, r: &EIdx) {
+    let _ = st.caches.rule_body_c.insert(k, r.dup2());
 }
 
 // ---------------------------------------------------------------------------
@@ -5020,7 +5028,6 @@ pub const UNIT_LIKE_FUEL: u64 = 4611686018427387904; // 2^62
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:760-787 unitLikeShape
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:752-758 unitFieldTele
 /// con-leche: ConLeche/Cached/CoreC.lean:103-124 unitLikeShapeF
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::unit_like_shape_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1820-1836 unitLikeShapeAt` — the
 /// field telescope of an instance at its family's table: the table's
 /// constructor, stored, its type at the instance's levels `us`, the table's
@@ -5060,7 +5067,6 @@ pub fn unit_like_shape_at(
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:760-787 unitLikeShape
 /// con-leche: ConLeche/Cached/CoreC.lean:103-124 unitLikeShapeF
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::unit_like_shape_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1838-1865 unitLikeShape` — **the shape
 /// of an instance in official's `is_unit_like`**, read off the stored records:
 /// `w` is an instance of a stored η family at its parameters (the table's
@@ -6472,7 +6478,6 @@ pub fn inst_spine_pins(
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:952-974 recFireComparands
 /// con-leche: ConLeche/Cached/CoreC.lean:971-1058 iotaRecI
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::rec_fire_levels_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2348-2371 recFireLevels` — the
 /// LEVEL comparands of a firing rule (`(recFireComparands …).1`): the
 /// recursor's own instantiation of the constructor's level parameters at a
@@ -6516,7 +6521,6 @@ pub fn rec_fire_levels(
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:952-974 recFireComparands
 /// con-leche: ConLeche/Cached/CoreC.lean:971-1058 iotaRecI
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::rec_fire_args_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2373-2383 recFireArgs` — the
 /// PARAMETER comparands of a firing rule (`(recFireComparands …).2`): the
 /// recursor's leading `cn_p` arguments (the stored constructor's parameter
@@ -6543,7 +6547,6 @@ pub fn rec_fire_args(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:876-974 iotaRec
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::find_rule_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2385-2390 findRule` — the rule
 /// lookup `rules.find? (fun r' => r'.ctor == cj)`, as a named recursion
 /// (DESIGN.md §3.4).  The index is returned rather than the rule, so that the
@@ -6559,9 +6562,7 @@ pub fn find_rule(rules: &Vec<IRecRule>, c: &NIdx, i: usize) -> Option<usize> {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:876-974 iotaRec
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::iota_rec_fire_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:971-1058 iotaRecI
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::iota_rec_fire_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2392-2483 iotaRecAt` — a matched
 /// rule fires: **the ι case split** (con-leche task #342 L10, S5c) decides
 /// whether the constructor application is checked at all (`iota_rec_cert`, ONE
@@ -6600,9 +6601,7 @@ pub fn iota_rec_fire(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:876-974 iotaRec
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::iota_rec_cert_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:971-1058 iotaRecI
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::iota_rec_cert_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:84-87 certAtI
 /// con-leche: ConLeche/Kernel/Core.lean:585-592 iotaCaseAt
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2392-2483 iotaRecAt` — **the
@@ -6661,9 +6660,7 @@ pub fn iota_rec_cert(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:876-974 iotaRec
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::iota_rec_case3_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:971-1058 iotaRecI
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::iota_rec_case3_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2392-2483 iotaRecAt` — a case-3
 /// redex's checks: the constructor's levels against the comparand levels,
 /// its parameters against the parameter comparands, then the telescope and
@@ -6713,9 +6710,7 @@ pub fn iota_rec_case3(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:876-974 iotaRec
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::iota_rec_fam_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:971-1058 iotaRecI
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::iota_rec_fam_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2392-2483 iotaRecAt` — the
 /// constructor telescope at the FULL grade (`iotaCertsFull`) and the
 /// canonical-index comparison (`iotaIndexOk`).  The constructor's type is
@@ -6755,13 +6750,27 @@ pub fn iota_rec_fam(
     }
 }
 
+/// con-leche: ConLeche/Cached/CoreC.lean:170-177 iotaVals
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2385-2390 iotaVals` — **the values
+/// an ι reduct substitutes for the rule's binders**: the recursor's leading
+/// arguments `args[0:p]`, then the constructor's fields `margs[q:]`, in one
+/// vector of exactly that capacity, in push order (`instantiate_list_fast`'s
+/// order: the last field is substituted for `bvar 0`).  `eidx_copy_upto` is
+/// con-leche's `pushRange`.
+pub fn iota_vals(args: &Vec<EIdx>, p: usize, margs: &Vec<EIdx>, q: usize) -> Vec<EIdx> {
+    let nf: usize = if q < margs.len() { margs.len() - q } else { 0 };
+    let acc: Vec<EIdx> = crate::arena::expr_ops::eidx_copy_upto(args, p, 0, Vec::with_capacity(p + nf));
+    crate::arena::expr_ops::eidx_copy_upto(margs, margs.len(), q, acc)
+}
+
 /// con-leche: ConLeche/Kernel/Core.lean:876-974 iotaRec
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::iota_rec_reduct_refines, then delete this line
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:976-986 RecRule.iotaReduct
 /// con-leche: ConLeche/Cached/CoreC.lean:971-1058 iotaRecI
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::iota_rec_reduct_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2392-2483 iotaRecAt` — the ι
-/// reduct: the rule's right-hand side at the recursor's levels, applied to the
-/// recursor's leading arguments and the constructor's fields.
+/// reduct, lean4 PR #10565's peel: the rule's body under its `r_p + nfields`
+/// λs at the recursor's levels (`rule_body_at`, the per-declaration memo), the
+/// recursor's leading arguments and the constructor's fields substituted at
+/// once (`iota_vals`), so no β-redex is built.
 pub fn iota_rec_reduct(
     pers: &PersTier,
     st: &mut AState,
@@ -6774,12 +6783,12 @@ pub fn iota_rec_reduct(
     args: &Vec<EIdx>,
     margs: &Vec<EIdx>,
 ) -> Result<Option<EIdx>, CheckError> {
-    match rule_rhs_at(pers, st, rec_c, &rl.ctor, &cv.level_params, &rl.rhs, us) {
+    match rule_body_at(pers, st, rec_c, &rl.ctor, &cv.level_params, &rl.rhs, r_p + rl.nfields, us) {
         Err(e) => Err(e),
-        Ok(rhs) => {
-            let tail: Vec<EIdx> = drop_eidx_n(margs, cn_p);
-            let spine: Vec<EIdx> = append_eidx(take_eidx_n(args, r_p), &tail);
-            match mk_app_n(pers, st, &rhs, &spine) {
+        Ok(body) => {
+            let p: usize = if r_p < args.len() as u64 { r_p as usize } else { args.len() };
+            let vals: Vec<EIdx> = iota_vals(args, p, margs, cn_p as usize);
+            match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &body, &vals, 0) {
                 Err(e) => Err(e),
                 Ok(x) => Ok(Some(x)),
             }
@@ -6788,9 +6797,7 @@ pub fn iota_rec_reduct(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:876-974 iotaRec
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::iota_rec_major_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:971-1058 iotaRecI
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::iota_rec_major_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2392-2483 iotaRecAt` — the
 /// major's side of the step: it is a fully applied constructor with a
 /// matching rule.  The parameter count is the stored constructor's, the field
@@ -6857,9 +6864,7 @@ pub fn iota_rec_major(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:876-974 iotaRec
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::iota_rec_at_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:971-1058 iotaRecI
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::iota_rec_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2392-2483 iotaRecAt` — `iotaRec` with
 /// its two spine walks HOISTED: the head and the argument vector are the
 /// caller's, and `n` says how many of `sargs` the expression `e` applies.
@@ -7286,7 +7291,6 @@ pub fn head_and_args(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1111-1139 whnfAppI
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::whnf_app_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2613-2644 whnfApp` — the cached
 /// tier's bulk-β argument loop, the EXECUTED checker's own `.app` step.
 ///
@@ -7330,11 +7334,7 @@ pub fn whnf_app(
         if v.tag() == ETAG_LAM {
             match view_bind(pers, st, v) {
                 None => fail_dangling_e(),
-                Some((_, body)) => {
-                    let mut acc: Vec<EIdx> = Vec::new();
-                    acc.push(a);
-                    beta_peel(pers, st, &body, acc, args, i + 1)
-                }
+                Some((_, body)) => beta_peel(pers, st, &body, i, args, i + 1),
             }
         } else {
             match intern_app_rebuilt(pers, st, &node, same, v, &a) {
@@ -7368,42 +7368,38 @@ pub fn whnf_app(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1085-1109 betaPeelI
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::beta_peel_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2592-2611 betaPeel` — the peel loop
 /// of `whnf_app`.
 ///
-/// `t` is the RAW (unsubstituted) λ body after the binders consumed so far and
-/// `acc` their arguments — the list `instantiate_list` takes at cursor `0`,
-/// built in PUSH order on an OWNED vector (task #97-P6-15).  The body is
-/// substituted once, when peeling stops, and handed to the loop (`Cont`)
-/// together with the arguments left over.  The substitution keeps no memo
-/// across calls (`instantiate_list_fast` clears its own per call), as
-/// con-leche's `betaPeelI` substitutes with `instantiateListC` and official's
+/// `t` is the RAW (unsubstituted) λ body after the binders consumed so far,
+/// their arguments the spine range `args[s:i]` (innermost last), `args[i:]`
+/// the spine left.  The body is substituted once, when peeling stops, straight
+/// from the spine (`instantiate_rev_range`: bound variable `j` is
+/// `args[i - 1 - j]`, official `whnf_core`'s `instantiate(binding_body(f), m,
+/// args.data() + (num_args - m))`), and handed to the loop (`Cont`) together
+/// with the arguments left over.  The substitution keeps no memo across calls
+/// (`instantiate_rev_range` clears its own per call), as official's
 /// `instantiate` keeps no cache.
 pub fn beta_peel(
     pers: &PersTier,
     st: &mut AState,
     t: &EIdx,
-    acc: Vec<EIdx>,
+    s: usize,
     args: &Vec<EIdx>,
     i: usize,
 ) -> Result<WhnfStep, CheckError> {
     if i >= args.len() {
-        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, &acc, 0) {
+        match instantiate_rev_range(pers, st, CORE_WALK_FUEL, t, args, s, i, 0) {
             Err(e) => Err(e),
             Ok(e2) => Ok(WhnfStep::Cont(e2)),
         }
     } else if t.tag() == ETAG_LAM {
         match view_bind(pers, st, t) {
             None => fail_dangling_e(),
-            Some((_, body)) => {
-                let mut acc2: Vec<EIdx> = acc;
-                acc2.push(args[i].dup2());
-                beta_peel(pers, st, &body, acc2, args, i + 1)
-            }
+            Some((_, body)) => beta_peel(pers, st, &body, s, args, i + 1),
         }
     } else {
-        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, &acc, 0) {
+        match instantiate_rev_range(pers, st, CORE_WALK_FUEL, t, args, s, i, 0) {
             Err(e) => Err(e),
             Ok(e2) => match mk_app_n_from(pers, st, &e2, args, i) {
                 Err(e) => Err(e),
@@ -11845,7 +11841,6 @@ pub fn ensure_sort_core(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/StateC.lean:501-508 CState.flushed
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core::flush_caches_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4483-4489 flushCaches` — **what
 /// the per-declaration bracket does to the caches**: it drops them whole,
 /// which is con-leche's own `flushC`, the operation its driver runs at exactly

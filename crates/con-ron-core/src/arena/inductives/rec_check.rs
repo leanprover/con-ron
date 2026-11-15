@@ -1661,3 +1661,29 @@ pub fn block_rec_infos_tf(
         }
     }
 }
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `the recursor 's rule for  is not written as a function of the recursor's  leading arguments and the constructor's  fields`, as code points.
+pub const M_RULE_BINDS: [u32; 121] = [
+    116, 104, 101, 32, 114, 101, 99, 117, 114, 115, 111, 114, 32, 39, 115, 32, 114, 117, 108, 101,
+    32, 102, 111, 114, 32, 32, 105, 115, 32, 110, 111, 116, 32, 119, 114, 105, 116, 116, 101, 110,
+    32, 97, 115, 32, 97, 32, 102, 117, 110, 99, 116, 105, 111, 110, 32, 111, 102, 32, 116, 104,
+    101, 32, 114, 101, 99, 117, 114, 115, 111, 114, 39, 115, 32, 32, 108, 101, 97, 100, 105, 110,
+    103, 32, 97, 114, 103, 117, 109, 101, 110, 116, 115, 32, 97, 110, 100, 32, 116, 104, 101, 32,
+    99, 111, 110, 115, 116, 114, 117, 99, 116, 111, 114, 39, 115, 32, 32, 102, 105, 101, 108, 100,
+    115,
+];
+
+/// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:499-508 ruleBinds
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:545-552 ruleBinds` — **a
+/// rule binds its arguments**: the right-hand side has at least `r_p +
+/// nfields` manifest λs, one per argument of the recursor's rule prefix and
+/// per field of the constructor — what the ι step peels (`lam_body`).  A
+/// syntactic count, read before any comparison.
+pub fn rule_binds(pers: &PersTier, st: &AState, r_p: u64, r: &IRecRule) -> Result<(), CheckError> {
+    match expr_ops::strip_lams(pers, st, r_p + r.nfields, &r.rhs) {
+        Err(e) => Err(e),
+        Ok(Some(_)) => Ok(()),
+        Ok(None) => fail(core_types::invalid(code_points(&M_RULE_BINDS))),
+    }
+}

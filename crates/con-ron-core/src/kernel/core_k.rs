@@ -14,7 +14,7 @@
 //! `Cached/CoreC.lean`'s wrappers.  `CoreC.lean` has its own twin of almost
 //! every one of those bodies, and it is the twins the executed checker runs:
 //! they read the level operations through `lsimpC`/`lnzC`/`eqvC`, the stored
-//! constants through `ienv`/`constTyAt`/`constValAt`/`ruleRhsAt`, and the
+//! constants through `ienv`/`constTyAt`/`constValAt`/`ruleBodyAt`, and the
 //! bulk instantiations through `instC`, and five of them are a different
 //! *algorithm* (bulk beta, the head-normalization loop, bulk telescope
 //! consumption, the binder-telescope loops).  Task #23 ported them and

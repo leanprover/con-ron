@@ -532,12 +532,11 @@ pub fn stream_rules_shape(rs: &Vec<IRecRule>, cs: &Vec<(IConstantVal, u64)>, i: 
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:154-165 streamRulesCheck
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove stream_recs::stream_rules_check_refines, then delete this line
 /// con-leche: ConLeche/Cached/IndTail.lean:154-164 streamRulesCheckC
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove stream_recs::stream_rules_check_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:178-189 streamRulesCheck` — the
-/// record's rules' checks from `i` on, each against the generated right-hand
-/// side at its position (a rule equal to the generated one needs none).
+/// record's rules' checks from `i` on: each binds its arguments
+/// (`rule_binds`) and agrees with the generated right-hand side at its position
+/// (a rule equal to the generated one needs no comparison).
 #[allow(clippy::too_many_arguments)]
 pub fn stream_rules_check(
     pers: &PersTier,
@@ -545,6 +544,7 @@ pub fn stream_rules_check(
     mode: &CheckMode,
     fe: &IFEnv,
     lps: &Vec<NIdx>,
+    r_p: u64,
     rs: &Vec<IRecRule>,
     gs: &Vec<EIdx>,
     i: usize,
@@ -553,20 +553,25 @@ pub fn stream_rules_check(
         Ok(())
     } else if i >= rs.len() || i >= gs.len() {
         fail(core_types::internal(code_points(&M_RULES_GEN)))
-    } else if rs[i].rhs.eq2(&gs[i]) {
-        stream_rules_check(pers, st, mode, fe, lps, rs, gs, i + 1)
     } else {
-        match rule_agree(pers, st, mode, fe, lps, &rs[i].rhs, &gs[i]) {
+        match rec_check::rule_binds(pers, st, r_p, &rs[i]) {
             Err(e) => Err(e),
-            Ok(()) => stream_rules_check(pers, st, mode, fe, lps, rs, gs, i + 1),
+            Ok(()) => {
+                if rs[i].rhs.eq2(&gs[i]) {
+                    stream_rules_check(pers, st, mode, fe, lps, r_p, rs, gs, i + 1)
+                } else {
+                    match rule_agree(pers, st, mode, fe, lps, &rs[i].rhs, &gs[i]) {
+                        Err(e) => Err(e),
+                        Ok(()) => stream_rules_check(pers, st, mode, fe, lps, r_p, rs, gs, i + 1),
+                    }
+                }
+            }
         }
     }
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:167-172 streamRecCompare
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove stream_recs::stream_rec_compare_refines, then delete this line
 /// con-leche: ConLeche/Cached/IndTail.lean:166-171 streamRecCompareC
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove stream_recs::stream_rec_compare_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:191-199 streamRecCompare` — **the
 /// comparison of one recursor**: its type unless it is the generated one, and
 /// its rules.
@@ -579,11 +584,11 @@ pub fn stream_rec_compare(
     g: &(IConstantVal, TargetMajor, Vec<EIdx>),
 ) -> Result<(), CheckError> {
     if rc.cv_r.ty.eq2(&g.0.ty) {
-        stream_rules_check(pers, st, mode, fe, &g.0.level_params, &rc.rules, &g.2, 0)
+        stream_rules_check(pers, st, mode, fe, &g.0.level_params, rc.r_p, &rc.rules, &g.2, 0)
     } else {
         match rec_ty_check(pers, st, mode, fe, &g.0.level_params, rc.m_i + 1, &rc.cv_r.ty, &g.0.ty) {
             Err(e) => Err(e),
-            Ok(()) => stream_rules_check(pers, st, mode, fe, &g.0.level_params, &rc.rules, &g.2, 0),
+            Ok(()) => stream_rules_check(pers, st, mode, fe, &g.0.level_params, rc.r_p, &rc.rules, &g.2, 0),
         }
     }
 }

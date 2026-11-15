@@ -14,7 +14,7 @@
 //! * `defeq` on the ORDERED pair with the `bool` verdict, both signs;
 //! * the two level-verdict caches (`(LIdx, LIdx)`, `(LsIdx, LsIdx)`);
 //! * the three lazy instantiated-constant caches (`const_ty_at` /
-//!   `const_val_at` / `rule_rhs_at`, con-leche's arena task #26).
+//!   `const_val_at` / `rule_body_at`, con-leche's arena task #26).
 //!
 //! **No cap** (task #115), as in con-leche, whose `memoEI`/`memoBI` insert
 //! unconditionally.  Until then a table past `CACHE_CAP = 2^22` entries was
@@ -67,7 +67,6 @@ use std::vec::Vec;
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/StateC.lean:265-307 CState
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core_state::EIdxPair_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:100-102 Caches.defeqC` — the
 /// ORDERED pair of expression handles the `defeq` verdict is stored at.
 pub struct EIdxPair {
@@ -170,7 +169,6 @@ pub fn lsidx_pair(a: &LsIdx, b: &LsIdx) -> LsIdxPair {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:265-307 CState
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core_state::NLsKey_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:107-108 Caches.constTyC` — a
 /// stored constant's name together with a universe-argument list: the key of
 /// the two instantiated-constant caches.
@@ -206,8 +204,7 @@ pub fn nls_key(n: &NIdx, us: &LsIdx) -> NLsKey {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:265-307 CState
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core_state::NNLsKey_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:111-114 Caches.ruleRhsC` — the
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:111-114 Caches.ruleBodyC` — the
 /// TRIPLE a rule's right-hand side is determined by: the recursor, the rule's
 /// constructor and the levels.
 pub struct NNLsKey {
@@ -243,7 +240,7 @@ impl Eq2 for NNLsKey {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:111-114 Caches.ruleRhsC
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:111-114 Caches.ruleBodyC
 /// Build an iota-rule right-hand-side key.
 pub fn nnls_key(rec_name: &NIdx, ctor: &NIdx, us: &LsIdx) -> NNLsKey {
     NNLsKey {
@@ -300,12 +297,10 @@ impl ModeMemos {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:501-508 CState.flushed
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core_state::impl ModeMemos_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:73-75 ModeMemos.empty` — the
 /// per-declaration flush of a set, in place.
 impl ModeMemos {
     /// con-leche: ConLeche/Cached/StateC.lean:501-508 CState.flushed
-    /// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core_state::reset_refines, then delete this line
     /// Lean twin: `proof/ConRon/Arena/CoreState.lean:73-75 ModeMemos.empty`.
     pub fn reset(&mut self) {
         reset_map(&mut self.whnf_core_c);
@@ -318,7 +313,6 @@ impl ModeMemos {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:265-307 CState
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core_state::Caches_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:77-132 Caches` — the
 /// per-declaration caches of the arena checker, in one record beside
 /// `arena::monad`'s per-call `Memos`.  Keeping the two apart is deliberate:
@@ -355,7 +349,7 @@ pub struct Caches {
     /// An iota rule's right-hand side at the recursor's universe
     /// instantiation, keyed by the recursor, the rule's constructor and the
     /// levels — the three data that determine it.
-    pub rule_rhs_c: HashMap<NNLsKey, EIdx>,
+    pub rule_body_c: HashMap<NNLsKey, EIdx>,
     /// con-leche: none — arena infrastructure (task #97-P6-13)
     /// **The readback memo DESIGN.md §8.3 promised** and nobody had built:
     /// "`Level` ops … run on transient `Level` trees read back from `LIdx`
@@ -383,7 +377,6 @@ pub struct Caches {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:265-307 CState
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core_state::impl Caches_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:134-136 Caches.empty` — the
 /// empty cache set: what a fresh run and every capped table start from.
 /// `ron::HashMap::new` allocates nothing (task #35), so the empty tables
@@ -392,7 +385,6 @@ pub struct Caches {
 /// reaches the same value without freeing the buckets.
 impl Caches {
     /// con-leche: ConLeche/Cached/StateC.lean:265-307 CState
-    /// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core_state::empty_refines, then delete this line
     /// Lean twin: `proof/ConRon/Arena/CoreState.lean:134-136 Caches.empty`.
     pub fn empty() -> Caches {
         Caches {
@@ -406,7 +398,7 @@ impl Caches {
             lvls_eq_c: HashMap::new(),
             const_ty_c: HashMap::new(),
             const_val_c: HashMap::new(),
-            rule_rhs_c: HashMap::new(),
+            rule_body_c: HashMap::new(),
             read_l_c: HashMap::new(),
             read_n_c: HashMap::new(),
             read_ls_c: HashMap::new(),
@@ -521,13 +513,11 @@ pub fn take_walk_memo<K, V>(slot: &mut HashMap<K, V>) -> HashMap<K, V> {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:501-508 CState.flushed
-/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core_state::impl Caches_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:134-136 Caches.empty` — the
 /// per-declaration flush, as an in-place reset of the tables rather
 /// than fresh records.  `Caches::empty` stays for `AState::init`.
 impl Caches {
     /// con-leche: ConLeche/Cached/StateC.lean:501-508 CState.flushed
-    /// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove core_state::reset_refines, then delete this line
     /// Lean twin: `proof/ConRon/Arena/CoreState.lean:134-136 Caches.empty`.
     pub fn reset(&mut self) {
         reset_map(&mut self.whnf_core_c);
@@ -540,7 +530,7 @@ impl Caches {
         reset_map(&mut self.lvls_eq_c);
         reset_map(&mut self.const_ty_c);
         reset_map(&mut self.const_val_c);
-        reset_map(&mut self.rule_rhs_c);
+        reset_map(&mut self.rule_body_c);
         reset_map(&mut self.read_l_c);
         reset_map(&mut self.read_n_c);
         reset_map(&mut self.read_ls_c);

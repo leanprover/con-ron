@@ -207,8 +207,9 @@ const M_FUEL_INST_LP: [u32; 38] = [
 // `++` for free (DESIGN.md §3.3's deviation 5, §3.4's no-closure rule)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — `List.take`/`List.append` over a `Vec<EIdx>`
-/// The first `k` entries of `xs` appended to `out`.  A handle is a `u32`, so
+/// con-leche: ConLeche/Cached/CoreC.lean:165-168 pushRange
+/// The entries `xs[i:k]` pushed onto `out`, the range read in place
+/// (`List.take`/`List.append` over a `Vec<EIdx>` at `i = 0`).  A handle is a `u32`, so
 /// the copy is a word each.
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:183-189 eidxCopyUpto` — the
 /// same window copy, `Array.push` for `Vec::push`.
@@ -791,6 +792,7 @@ pub fn inst_list_cutoff(pers: &PersTier, st: &AState, h: &EIdx, k: u64) -> bool 
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:531-575 instantiateList
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:639-667 instantiateRevP
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:399-425 instantiateList` — the
 /// unmemoized bulk instantiation.  con-leche's termination measure is
 /// `(vs.length, sizeOf e)`; the single fuel counter decreases on both kinds of
@@ -799,19 +801,19 @@ pub fn inst_list_cutoff(pers: &PersTier, st: &AState, h: &EIdx, k: u64) -> bool 
 /// recurses into the replacement with a *shorter* list and the memo is keyed
 /// for the outer one.
 ///
-/// **`vs` is in PUSH order** (task #97-P6-15, the maintainer's ruling): the
-/// callers build their substitution accumulator with `Vec::push` on an OWNED
-/// vector — `O(1)` amortised — instead of consing a fresh `Vec` per binder,
-/// which was `n` allocations and `n^2/2` handle copies over a telescope
-/// (`eidx_copy_upto`, 4.3 % of `Init`).  The LIST this function is about is
-/// unchanged; it is read from the end — `vs[vs.len() - 1 - j]` for the twin's
-/// `vs[j]`, `last_eidx k` for `vs.take k`.  The twin's clause changes with
-/// it: those accumulators become an `Array` built with `Array.push`, whose
-/// denotation is the reverse of the list the `::` chain built.
+/// **The substitution is the range `vs[n - k:n]`, read from its end**
+/// (con-leche's `instantiateRevP vs n e k d`): the twin's `vs[j]`, the
+/// innermost binder's argument first, is `vs[n - 1 - j]`, and its
+/// `vs.take j` is the same range's last `j` entries, i.e. the walk at `k :=
+/// j`.  The callers build their substitution accumulators with `Vec::push` on
+/// an OWNED vector (task #97-P6-15) or pass a spine they already hold
+/// (`beta_peel`), and nothing is copied to read a sub-range.
 pub fn instantiate_list(
     pers: &PersTier,
     st: &mut AState,
     vs: &Vec<EIdx>,
+    n: usize,
+    k: usize,
     fuel: u64,
     h: &EIdx,
     d: u64,
@@ -828,9 +830,9 @@ pub fn instantiate_list(
                 Some(p) => {
                     let f: EIdx = p.0;
                     let a: EIdx = p.1;
-                    match instantiate_list(pers, st, vs, fuel - 1, &f, d) {
+                    match instantiate_list(pers, st, vs, n, k, fuel - 1, &f, d) {
                         Err(e) => Err(e),
-                        Ok(f2) => match instantiate_list(pers, st, vs, fuel - 1, &a, d) {
+                        Ok(f2) => match instantiate_list(pers, st, vs, n, k, fuel - 1, &a, d) {
                             Err(e) => Err(e),
                             Ok(a2) => intern_e_app(pers, st, f2, a2),
                         },
@@ -843,9 +845,9 @@ pub fn instantiate_list(
                 Some(p) => {
                     let ty: EIdx = p.0;
                     let body: EIdx = p.1;
-                    match instantiate_list(pers, st, vs, fuel - 1, &ty, d) {
+                    match instantiate_list(pers, st, vs, n, k, fuel - 1, &ty, d) {
                         Err(e) => Err(e),
-                        Ok(t2) => match instantiate_list(pers, st, vs, fuel - 1, &body, d + 1) {
+                        Ok(t2) => match instantiate_list(pers, st, vs, n, k, fuel - 1, &body, d + 1) {
                             Err(e) => Err(e),
                             Ok(b) => intern_e_bind(pers, st, t, t2, b),
                         },
@@ -859,11 +861,11 @@ pub fn instantiate_list(
                     let ty: EIdx = p.0;
                     let val: EIdx = p.1;
                     let body: EIdx = p.2;
-                    match instantiate_list(pers, st, vs, fuel - 1, &ty, d) {
+                    match instantiate_list(pers, st, vs, n, k, fuel - 1, &ty, d) {
                         Err(e) => Err(e),
-                        Ok(t2) => match instantiate_list(pers, st, vs, fuel - 1, &val, d) {
+                        Ok(t2) => match instantiate_list(pers, st, vs, n, k, fuel - 1, &val, d) {
                             Err(e) => Err(e),
-                            Ok(w) => match instantiate_list(pers, st, vs, fuel - 1, &body, d + 1) {
+                            Ok(w) => match instantiate_list(pers, st, vs, n, k, fuel - 1, &body, d + 1) {
                                 Err(e) => Err(e),
                                 Ok(b) => intern_e_let_e(pers, st, t2, w, b),
                             },
@@ -875,12 +877,12 @@ pub fn instantiate_list(
             match view_proj(pers, st, h) {
                 None => fail_dangling_e(),
                 Some(p) => {
-                    let n: NIdx = p.0;
+                    let sn: NIdx = p.0;
                     let i: u64 = p.1;
                     let sub: EIdx = p.2;
-                    match instantiate_list(pers, st, vs, fuel - 1, &sub, d) {
+                    match instantiate_list(pers, st, vs, n, k, fuel - 1, &sub, d) {
                         Err(e) => Err(e),
-                        Ok(u) => intern_e_proj(pers, st, n, i, u),
+                        Ok(u) => intern_e_proj(pers, st, sn, i, u),
                     }
                 }
             }
@@ -890,39 +892,34 @@ pub fn instantiate_list(
                 Some(j) => {
                     if j < d {
                         Ok(h.dup2())
-                    } else {
-                        let n: u64 = vs.len() as u64;
-                        if j - d < n {
-                            let i: usize = (j - d) as usize;
-                            // **`vs` is in PUSH order** (task #97-P6-15): the
-                            // accumulator is built by `Vec::push`, so the
-                            // twin's `vs[j - d]` — the innermost binder's
-                            // argument first — is this vector's entry `j - d`
-                            // FROM THE END.  The two are the same list; only
-                            // the direction the `Vec` grows changed.
-                            let vi: EIdx = vs[vs.len() - 1 - i].dup2();
-                            // **The cutoff hoisted over the prefix copy** (task
+                    } else if j - d < k as u64 {
+                        let i: usize = (j - d) as usize;
+                        if i < n && n <= vs.len() {
+                            // **The range is read from its end**: the
+                            // twin's `vs[j - d]` (the innermost binder's
+                            // argument first) is `vs[n - 1 - (j - d)]`, as
+                            // con-leche's `instantiateRevP` reads it.
+                            let vi: EIdx = vs[n - 1 - i].dup2();
+                            // **The cutoff before the re-entry** (task
                             // #97-P6-9).  The recursion into the replacement is
                             // con-leche's own `instantiateList vs[j-d]
-                            // (vs.take (j-d)) d`, and its own note says it "is the
-                            // identity on `bvar`-closed replacements (every checker
-                            // call site)" — which is exactly what `inst_list_cutoff`
+                            // (vs.take (j-d)) d`, the identity on
+                            // `bvar`-closed replacements (every checker call
+                            // site) — which is exactly what `inst_list_cutoff`
                             // decides, in O(1), off the handle's derived word.
-                            // Testing it BEFORE `take_eidx` is the same value by
-                            // the cutoff's own equation (`looseBVarsBounded d e →
-                            // instantiateList e vs d = e`, for every `vs`), and it
-                            // takes the prefix copy off the batched β path, which
-                            // hits this clause once per bound variable of every
-                            // peeled group.
+                            // The re-entry is the same range's last `j - d`
+                            // entries, read in place (`instantiateRevP vs n w
+                            // (i - d) d`): no copy.
                             if inst_list_cutoff(pers, st, &vi, d) {
                                 Ok(vi)
                             } else {
-                                let pre: Vec<EIdx> = last_eidx(vs, i);
-                                instantiate_list(pers, st, &pre, fuel - 1, &vi, d)
+                                instantiate_list(pers, st, vs, n, i, fuel - 1, &vi, d)
                             }
                         } else {
-                            intern_e_bvar(pers, st, j - n)
+                            Ok(h.dup2())
                         }
+                    } else {
+                        intern_e_bvar(pers, st, j - k as u64)
                     }
                 }
             }
@@ -933,13 +930,16 @@ pub fn instantiate_list(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:590-626 instantiateListXP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:740-776 instantiateRevXP
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:529-552 instantiateListGo` —
-/// the memoized bulk instantiation.  The `bvar` arm delegates to the pure walk
-/// above, exactly as con-leche's does.
+/// the memoized bulk instantiation of the range `vs[n - k:n]`.  The `bvar`
+/// arm delegates to the pure walk above, exactly as con-leche's does.
 pub fn instantiate_list_go(
     pers: &PersTier,
     st: &mut AState,
     vs: &Vec<EIdx>,
+    n: usize,
+    k: usize,
     fuel: u64,
     h: &EIdx,
     d: u64,
@@ -951,22 +951,22 @@ pub fn instantiate_list_go(
     } else {
         let t: u32 = h.tag();
         if t == ETAG_APP {
-            let k: EIdxNat = eidx_nat_key(h, d);
-            match inst_l_get(st, &k) {
+            let key: EIdxNat = eidx_nat_key(h, d);
+            match inst_l_get(st, &key) {
                 Some(r) => Ok(r),
                 None => match view_app(pers, st, h) {
                     None => fail_dangling_e(),
                     Some(p) => {
                         let f: EIdx = p.0;
                         let a: EIdx = p.1;
-                        match instantiate_list_go(pers, st, vs, fuel - 1, &f, d) {
+                        match instantiate_list_go(pers, st, vs, n, k, fuel - 1, &f, d) {
                             Err(e) => Err(e),
-                            Ok(f2) => match instantiate_list_go(pers, st, vs, fuel - 1, &a, d) {
+                            Ok(f2) => match instantiate_list_go(pers, st, vs, n, k, fuel - 1, &a, d) {
                                 Err(e) => Err(e),
                                 Ok(a2) => match intern_e_app(pers, st, f2, a2) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
-                                        inst_l_set(st, k, &r);
+                                        inst_l_set(st, key, &r);
                                         Ok(r)
                                     }
                                 },
@@ -976,24 +976,24 @@ pub fn instantiate_list_go(
                 },
             }
         } else if e_tag_is_bind(t) {
-            let k: EIdxNat = eidx_nat_key(h, d);
-            match inst_l_get(st, &k) {
+            let key: EIdxNat = eidx_nat_key(h, d);
+            match inst_l_get(st, &key) {
                 Some(r) => Ok(r),
                 None => match view_bind(pers, st, h) {
                     None => fail_dangling_e(),
                     Some(p) => {
                         let ty: EIdx = p.0;
                         let body: EIdx = p.1;
-                        match instantiate_list_go(pers, st, vs, fuel - 1, &ty, d) {
+                        match instantiate_list_go(pers, st, vs, n, k, fuel - 1, &ty, d) {
                             Err(e) => Err(e),
                             Ok(t2) => {
-                                match instantiate_list_go(pers, st, vs, fuel - 1, &body, d + 1) {
+                                match instantiate_list_go(pers, st, vs, n, k, fuel - 1, &body, d + 1) {
                                     Err(e) => Err(e),
                                     Ok(b) => {
                                         match intern_e_bind(pers, st, t, t2, b) {
                                             Err(e) => Err(e),
                                             Ok(r) => {
-                                                inst_l_set(st, k, &r);
+                                                inst_l_set(st, key, &r);
                                                 Ok(r)
                                             }
                                         }
@@ -1005,10 +1005,10 @@ pub fn instantiate_list_go(
                 },
             }
         } else if t == ETAG_BVAR {
-            instantiate_list(pers, st, vs, fuel - 1, h, d)
+            instantiate_list(pers, st, vs, n, k, fuel - 1, h, d)
         } else if t == ETAG_LET_E {
-            let k: EIdxNat = eidx_nat_key(h, d);
-            match inst_l_get(st, &k) {
+            let key: EIdxNat = eidx_nat_key(h, d);
+            match inst_l_get(st, &key) {
                 Some(r) => Ok(r),
                 None => match view_let(pers, st, h) {
                     None => fail_dangling_e(),
@@ -1016,19 +1016,19 @@ pub fn instantiate_list_go(
                         let ty: EIdx = p.0;
                         let val: EIdx = p.1;
                         let body: EIdx = p.2;
-                        match instantiate_list_go(pers, st, vs, fuel - 1, &ty, d) {
+                        match instantiate_list_go(pers, st, vs, n, k, fuel - 1, &ty, d) {
                             Err(e) => Err(e),
-                            Ok(t2) => match instantiate_list_go(pers, st, vs, fuel - 1, &val, d) {
+                            Ok(t2) => match instantiate_list_go(pers, st, vs, n, k, fuel - 1, &val, d) {
                                 Err(e) => Err(e),
                                 Ok(w) => {
-                                    match instantiate_list_go(pers, st, vs, fuel - 1, &body, d + 1)
+                                    match instantiate_list_go(pers, st, vs, n, k, fuel - 1, &body, d + 1)
                                     {
                                         Err(e) => Err(e),
                                         Ok(b) => {
                                             match intern_e_let_e(pers, st, t2, w, b) {
                                                 Err(e) => Err(e),
                                                 Ok(r) => {
-                                                    inst_l_set(st, k, &r);
+                                                    inst_l_set(st, key, &r);
                                                     Ok(r)
                                                 }
                                             }
@@ -1041,21 +1041,21 @@ pub fn instantiate_list_go(
                 },
             }
         } else if t == ETAG_PROJ {
-            let k: EIdxNat = eidx_nat_key(h, d);
-            match inst_l_get(st, &k) {
+            let key: EIdxNat = eidx_nat_key(h, d);
+            match inst_l_get(st, &key) {
                 Some(r) => Ok(r),
                 None => match view_proj(pers, st, h) {
                     None => fail_dangling_e(),
                     Some(p) => {
-                        let n: NIdx = p.0;
+                        let sn: NIdx = p.0;
                         let i: u64 = p.1;
                         let sub: EIdx = p.2;
-                        match instantiate_list_go(pers, st, vs, fuel - 1, &sub, d) {
+                        match instantiate_list_go(pers, st, vs, n, k, fuel - 1, &sub, d) {
                             Err(e) => Err(e),
-                            Ok(u) => match intern_e_proj(pers, st, n, i, u) {
+                            Ok(u) => match intern_e_proj(pers, st, sn, i, u) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
-                                    inst_l_set(st, k, &r);
+                                    inst_l_set(st, key, &r);
                                     Ok(r)
                                 }
                             },
@@ -1069,9 +1069,41 @@ pub fn instantiate_list_go(
     }
 }
 
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:780-790 instantiateRevRange
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:647-654 instantiateRevRange` —
+/// **bulk instantiation from the range `vs[s:n]`**, read from its end: bound
+/// variable `j` below `n - s` becomes `vs[n - 1 - j]`, as official's
+/// `instantiate(e, n - s, vs.data() + s)`.  The β peel substitutes straight
+/// from its application spine this way (`beta_peel`).  `n` is clamped to the
+/// vector once, so the walk's read is in range.  The memo is fresh before and
+/// dropped after.
+pub fn instantiate_rev_range(
+    pers: &PersTier,
+    st: &mut AState,
+    fuel: u64,
+    e: &EIdx,
+    vs: &Vec<EIdx>,
+    s: usize,
+    n: usize,
+    d: u64,
+) -> Result<EIdx, CheckError> {
+    let n2: usize = if n < vs.len() { n } else { vs.len() };
+    let k: usize = if s < n2 { n2 - s } else { 0 };
+    inst_l_clear(st);
+    match instantiate_list_go(pers, st, vs, n2, k, fuel, e, d) {
+        Err(er) => Err(er),
+        Ok(r) => {
+            inst_l_clear(st);
+            Ok(r)
+        }
+    }
+}
+
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:630-637 instantiateListC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:792-795 instantiateRev
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:647-654 instantiateListFast` —
-/// the top-level entry.
+/// the whole vector's range: `vs` in PUSH order is con-leche's
+/// `instantiateRev` array, and the reverse of `instantiateListC`'s list.
 pub fn instantiate_list_fast(
     pers: &PersTier,
     st: &mut AState,
@@ -1080,14 +1112,7 @@ pub fn instantiate_list_fast(
     vs: &Vec<EIdx>,
     d: u64,
 ) -> Result<EIdx, CheckError> {
-    inst_l_clear(st);
-    match instantiate_list_go(pers, st, vs, fuel, e, d) {
-        Err(er) => Err(er),
-        Ok(r) => {
-            inst_l_clear(st);
-            Ok(r)
-        }
-    }
+    instantiate_rev_range(pers, st, fuel, e, vs, 0, vs.len(), d)
 }
 
 // ---------------------------------------------------------------------------
@@ -1840,6 +1865,24 @@ pub fn mk_app_n_from(
 // ---------------------------------------------------------------------------
 // Telescopes
 // ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Kernel/ExprOps.lean:862-868 lamBody
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1334-1347 lamBody` — the body
+/// under `k` leading λs (where there are fewer, under all of them).  The ι
+/// step reads a stored rule's right-hand side through it; the install checks
+/// that the rule has its `k` (`rule_binds`).  Structural on `k`, so no fuel.
+pub fn lam_body(pers: &PersTier, st: &AState, k: u64, h: &EIdx) -> Result<EIdx, CheckError> {
+    if k == 0 {
+        Ok(h.dup2())
+    } else if h.tag() == ETAG_LAM {
+        match view_bind(pers, st, h) {
+            None => fail_dangling_e(),
+            Some((_, b)) => lam_body(pers, st, k - 1, &b),
+        }
+    } else {
+        Ok(h.dup2())
+    }
+}
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:870-876 stripLams
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1334-1347 stripLams` — strip `k`
