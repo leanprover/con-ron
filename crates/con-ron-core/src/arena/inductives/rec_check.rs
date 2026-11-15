@@ -1675,7 +1675,7 @@ pub const M_RULE_BINDS: [u32; 121] = [
 ];
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:499-508 ruleBinds
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:545-552 ruleBinds` — **a
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:546-554 ruleBinds` — **a
 /// rule binds its arguments**: the right-hand side has at least `r_p +
 /// nfields` manifest λs, one per argument of the recursor's rule prefix and
 /// per field of the constructor — what the ι step peels (`lam_body`).  A

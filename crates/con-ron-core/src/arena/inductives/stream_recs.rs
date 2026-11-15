@@ -533,7 +533,7 @@ pub fn stream_rules_shape(rs: &Vec<IRecRule>, cs: &Vec<(IConstantVal, u64)>, i: 
 
 /// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:154-165 streamRulesCheck
 /// con-leche: ConLeche/Cached/IndTail.lean:154-164 streamRulesCheckC
-/// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:178-189 streamRulesCheck` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:178-191 streamRulesCheck` — the
 /// record's rules' checks from `i` on: each binds its arguments
 /// (`rule_binds`) and agrees with the generated right-hand side at its position
 /// (a rule equal to the generated one needs no comparison).
@@ -572,7 +572,7 @@ pub fn stream_rules_check(
 
 /// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:167-172 streamRecCompare
 /// con-leche: ConLeche/Cached/IndTail.lean:166-171 streamRecCompareC
-/// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:191-199 streamRecCompare` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:193-201 streamRecCompare` — **the
 /// comparison of one recursor**: its type unless it is the generated one, and
 /// its rules.
 pub fn stream_rec_compare(
@@ -595,7 +595,7 @@ pub fn stream_rec_compare(
 
 /// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:174-183 streamRecCheck
 /// con-leche: ConLeche/Cached/IndTail.lean:173-180 streamRecCheckC
-/// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:201-211 streamRecCheck` — **one
+/// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:203-213 streamRecCheck` — **one
 /// recursor, the stream's against the generated one**: the rules' shape and the
 /// record's major's container, then the comparison.
 pub fn stream_rec_check(
@@ -621,7 +621,7 @@ pub fn stream_rec_check(
 
 /// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:185-193 streamRecsCheck
 /// con-leche: ConLeche/Cached/IndTail.lean:182-189 streamRecsCheckC
-/// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:213-223 streamRecsCheck` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:215-225 streamRecsCheck` — **the
 /// block's recursors against the generated ones**, record by record from `i` on
 /// (the generated family is in the records' order).
 pub fn stream_recs_check(
@@ -646,7 +646,7 @@ pub fn stream_recs_check(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:195-206 streamKCheck
-/// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:225-234 streamKCheck` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:227-236 streamKCheck` — **the
 /// records' K flags against the block**, from `i` on: each record's flag is the
 /// one the generated recursor has (`rec_check::rec_k_expected`).  The shorter of
 /// the two lists decides, as the cited catch-all `| _, _ => pure ()` does.
