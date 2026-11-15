@@ -290,13 +290,6 @@ theorem append_eidx_from_abs {xs ys r : alloc.vec.Vec arena.handle.EIdx}
   have := append_eidx_from_aux _ xs ys 0#usize r rfl h
   simp [absEIdxList, this]
 
-@[lockstep] theorem append_eidx_ls (xs ys : alloc.vec.Vec arena.handle.EIdx) :
-    LSP (arena.core.append_eidx xs ys)
-      (fun r => TwinEq (absEIdxList xs ++ absEIdxList ys) (absEIdxList r)) := by
-  intro r h
-  rw [arena.core.append_eidx] at h
-  exact (append_eidx_from_abs h).symm
-
 @[lockstep] theorem append_eidx_of_ls (xs ys : alloc.vec.Vec arena.handle.EIdx) :
     LSP (arena.core.append_eidx_of xs ys)
       (fun r => TwinEq (absEIdxList xs ++ absEIdxList ys) (absEIdxList r)) := by

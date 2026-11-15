@@ -34,7 +34,7 @@ lemma keyed by the cut subject's `bvarBound` (§H).
 | `takeEidx` | :221 | `takeEidx_toList`, `denoteEList_takeEidx` |
 | `instantiateList` | :431 | `InstLPureSpec`, `instListArm{App,Bind,Let,Proj,BVar}_spec`, `instantiateList_spec` |
 | `instantiateListGo` | :558 | `InstLSpec`, `instListGoArm{App,Bind,Let,Proj}_spec`, `instantiateListGo_spec` |
-| `instantiateRevRange` | :650 | `instantiateRevRange_spec`, `_run` (`InstLRange`, `InstLVec.clamp`) |
+| `instantiateRevRange` | :650 | `instantiateRevRange_spec` (`InstLRange`, `InstLVec.clamp`) |
 | `instantiateListFast` | :670 | `instantiateListFast_spec`, `_run` |
 | `liftLooseBVarsGo` | :491 | `LiftSpec`, `liftLooseBVarsGo_spec` |
 | `liftLooseBVarsFast` | :552 | `liftLooseBVarsFast_spec`, `_run` |
@@ -635,14 +635,6 @@ theorem InstLRange.getElem_eq {st : EStore} {vs : Array EIdx} {n k m : Nat} {ws 
 grind_pattern [bridge_grind] InstLRange.getElem_eq =>
   InstLRange st vs n k ws, GetElem.getElem vs (n - 1 - m) hi
 
-/-- con-leche: ConLeche/Cached/ExprOpsC.lean:792-795 instantiateRev — the whole
-vector is its own range. -/
-theorem InstLVec.range {st : EStore} {vs : Array EIdx} {ws : List Expr}
-    (h : InstLVec st vs ws) : InstLRange st vs vs.size vs.size ws := by
-  refine ⟨Nat.le_refl _, Nat.le_refl _, ?_⟩
-  rw [Nat.sub_self, Array.extract_size]
-  exact h
-
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:780-790 instantiateRevRange — the
 entry's clamped range `vs[s:n]` is the walk's range at the clamped end and
 count. -/
@@ -1176,20 +1168,6 @@ theorem instantiateListFast_run {fuel : Nat} {s₀ s' : AState} {e r : EIdx}
       InstLAt ws d s₀.store e s'.store r :=
   AM.of_run (P := fun s => s = s₀) rfl hrun
     (instantiateListFast_spec fuel s₀ e vs d ws hok hvec hden)
-
-/-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — `instantiateRevRange_spec`
-about a RUN. -/
-theorem instantiateRevRange_run {fuel : Nat} {s₀ s' : AState} {e r : EIdx}
-    {vs : Array EIdx} {s n d : Nat} {ws : List Expr} (hok : StateOK s₀)
-    (hvec : InstLVec s₀.store (vs.extract s n) ws)
-    (hden : (denoteE s₀.store e).isSome = true)
-    (hrun : (instantiateRevRange fuel e vs s n d).run s₀ = Except.ok (r, s')) :
-    StateOK s' ∧ Ext s₀.store s'.store ∧
-      s'.caches = s₀.caches ∧
-      s'.pins = s₀.pins ∧ s'.memos.instLC = ∅ ∧
-      InstLAt ws d s₀.store e s'.store r :=
-  AM.of_run (P := fun st => st = s₀) rfl hrun
-    (instantiateRevRange_spec fuel s₀ e vs s n d ws hok hvec hden)
 
 /-! ## The axiom check
 

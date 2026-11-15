@@ -72902,7 +72902,7 @@ identity) and keeps clearing the memo before and after, so `instantiateListFast_
 `InstLVec` of `vs.extract (n - k) n`) is the walks' hypothesis; `InstLRange.bounds`, `.le`,
 `.take` (the re-entry, keyed by `ws.take m`) and `.getElem_eq` (the read at `n - 1 - m`) are
 the `bridge_grind` facts the `.bvar` arm consumes, so the arm proofs stay one `sym`/`vcgen`/
-`finish` each; `InstLVec.range`/`.clamp` give the entries; `instantiateRevRange_spec` (`InstLVec`
+`finish` each; `InstLVec.clamp` gives the entry's range; `instantiateRevRange_spec` (`InstLVec`
 of `vs.extract s n`) is the new entry theorem and `instantiateListFast_spec` its instance.
 `lamBody_spec` is one `sym`/`vcgen`/`finish` walk (`Bridge/ExprOps/Spine.lean`).
 `RuleBodyCacheOK` relates the memo's entries to `(rl.rhs.lamBody (rp + rl.nfields))
