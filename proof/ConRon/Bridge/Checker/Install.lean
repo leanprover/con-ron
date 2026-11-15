@@ -36,11 +36,12 @@ open ConLeche ConRon.Arena ConRon.Bridge.Inductives
 
 /-- con-leche: none — `DriverOK` across a frame that writes only the readback caches. -/
 theorem DriverOK.of_pstep {s s' : AState} (h : DriverOK s) (hp : PStep s s') : DriverOK s' :=
-  ⟨hp.ok, h.caches.monoF hp.ext hp.cframe, h.pins.mono hp.ext hp.pins, h.ienv.mono hp.ext⟩
+  DriverOK.of_check ⟨hp.ok, h.caches.monoF hp.ext hp.cframe, h.pins.mono hp.ext hp.pins,
+    h.ienv.mono hp.ext⟩ hp.pins
 
 /-- con-leche: none — `DriverOK` across a renaming. -/
 theorem DriverOK.of_rstep {s s' : AState} (h : DriverOK s) (hr : RStep s s') : DriverOK s' :=
-  hr.checkOK h
+  DriverOK.of_check (hr.checkOK h) hr.pins
 
 /-- con-leche: none — a denoting record list on a store with no scratch tier open is
 persistent. -/

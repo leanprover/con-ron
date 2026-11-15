@@ -889,7 +889,7 @@ pub fn ifenv_push_table(fe: IFEnv, t: IProjTable) -> IFEnv {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:406-411 FEnv.rawTable?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:393-398 IFEnv.rawTable?` — the table
+/// Lean twin: `proof/ConRon/Arena/Env.lean:394-399 IFEnv.rawTable?` — the table
 /// map's lookup, ungated: the own layer, and on a miss the frozen base
 /// (`ifenv_table_base`).
 pub fn ifenv_raw_table<'a>(pers: &'a PersTier, fe: &'a IFEnv, t: &NIdx) -> Option<&'a IProjTable> {
@@ -906,7 +906,7 @@ pub fn ifenv_raw_table<'a>(pers: &'a PersTier, fe: &'a IFEnv, t: &NIdx) -> Optio
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:48-52 FBase.findTable?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:393-398 IFEnv.rawTable?` — **the base
+/// Lean twin: `proof/ConRon/Arena/Env.lean:394-399 IFEnv.rawTable?` — **the base
 /// layer's table lookup**: the stream index's first table of `t`, visible below
 /// the layer's record position.
 pub fn ifenv_table_base<'a>(pers: &'a PersTier, below_rec: u64, t: &NIdx) -> Option<&'a IProjTable> {
@@ -923,7 +923,7 @@ pub fn ifenv_table_base<'a>(pers: &'a PersTier, below_rec: u64, t: &NIdx) -> Opt
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:413-417 FEnv.findTable?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:400-403 IFEnv.findTable?` — **the table
+/// Lean twin: `proof/ConRon/Arena/Env.lean:401-404 IFEnv.findTable?` — **the table
 /// lookup**: `t`'s table, visible exactly where the constant `t` is.
 pub fn ifenv_find_table<'a>(pers: &'a PersTier, fe: &'a IFEnv, t: &NIdx) -> Option<&'a IProjTable> {
     if ifenv_find(pers, fe, t).is_some() {
@@ -999,12 +999,12 @@ pub fn ifenv_push_temp(pers: &PersTier, fe: &mut IFEnv, ci: IConstantInfo) -> Op
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:352-371 FEnv.push
-/// Lean twin: `proof/ConRon/Arena/Env.lean:376-391 IFEnv.popTemp` — the inverse
+/// Lean twin: `proof/ConRon/Arena/Env.lean:376-386 IFEnv.popTemp` — the inverse
 /// of `ifenv_push_temp`: the constant popped, the displaced index row put
-/// back.  See that function's note.  The literal flags are recomputed exactly
-/// when the popped name is one of the literal names (`lit_name_at`): a pop of
-/// any other name changes no lookup they read.
-pub fn ifenv_pop_temp(pers: &PersTier, fe: &mut IFEnv, n: &NIdx, prev: Option<u64>) {
+/// back.  See that function's note.  The literal flags are left as the push
+/// left them: the caller restores the ones it saved before its pushes
+/// (`ifenv_set_flags`).
+pub fn ifenv_pop_temp(fe: &mut IFEnv, n: &NIdx, prev: Option<u64>) {
     // `Vec::resize` and NOT `Vec::pop`: Aeneas models the first
     // (`Aeneas/Std/Vec.lean:439`, `resize_spec`, `v.val.resize new_len value`)
     // and not the second, and task #97-P4a's rule is that every extraction
@@ -1024,14 +1024,21 @@ pub fn ifenv_pop_temp(pers: &PersTier, fe: &mut IFEnv, n: &NIdx, prev: Option<u6
             let _ = fe.idx.remove(n);
         }
     }
-    if lit_name_at(&pers.env.lits, n, 0) {
-        fe.nat_lit = nat_lit_stored_by(pers, fe);
-        fe.str_lit = str_lit_stored_by(pers, fe);
-    }
+}
+
+/// con-leche: none — the end of the port's in-place overlay (`ifenv_push_temp`)
+/// Lean twin: `proof/ConRon/Arena/Env.lean:388-392 IFEnv.setFlags` — **the end of a
+/// temporary extension**: the literal flags of the layer the pushes started
+/// from, saved before them, set back once the pops have restored its rows.
+/// con-leche's overlay is a second index and leaves the first one's flags
+/// alone; the port's pushes are in place, so its flags come back by hand.
+pub fn ifenv_set_flags(fe: &mut IFEnv, nat_lit: bool, str_lit: bool) {
+    fe.nat_lit = nat_lit;
+    fe.str_lit = str_lit;
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:419-423 FEnv.findProj?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:405-410 IFEnv.findProj?` — indexed
+/// Lean twin: `proof/ConRon/Arena/Env.lean:406-411 IFEnv.findProj?` — indexed
 /// projection-table lookup: the structure's table, viewed at field `i`.
 pub fn ifenv_find_proj(pers: &PersTier, fe: &IFEnv, t: &NIdx, i: u64) -> Option<IProjEntry> {
     match ifenv_find_table(pers, fe, t) {
@@ -1142,7 +1149,7 @@ pub fn read_name_at(pers: &PersTier, ar: &EStore, fuel: u64, h: &NIdx) -> Result
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:374-388 Expr.piSortTeleLen?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:414-424 piSortTeleLen?` — the
+/// Lean twin: `proof/ConRon/Arena/Env.lean:415-425 piSortTeleLen?` — the
 /// length of a syntactic Π-telescope ending in a SORT.  A spine walk, so the
 /// fuel is the store's node count; con-leche's structural recursion is the
 /// same walk with the node read through `view`.

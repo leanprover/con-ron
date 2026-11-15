@@ -801,8 +801,10 @@ theorem check_reduce_pin_refines {pers st lst} {rf lf}
   obtain ⟨⟨stored, st1⟩, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have hS := reduce_stored_ok_refines hrel hinv hfe1.rel hfe1.inv h2
   obtain ⟨fe2, h3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hfe2 := ifenv_pop_temp_refines hfeI (by rw [hdup]; exact hname) h1 h3
-  rw [hdup] at hfe2
+  have hfe2p := ifenv_pop_temp_refines hfeI (by rw [hdup]; exact hname) h1 h3
+  rw [hdup] at hfe2p
+  obtain ⟨fe3, h3f, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hfe2 := ifenv_set_flags_refines hfe2p hfe h3f
   simp only [SimEnv, checkReducePin]
   cases stored with
   | Err e =>
@@ -3231,8 +3233,10 @@ theorem check_div_mod_pin_refines {pers st lst} {rf lf}
   obtain ⟨⟨at2, st1⟩, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have hS := check_div_mod_pin_at_fe2_refines hrel hinv hfe1.rel hfe1.inv h2
   obtain ⟨fe2, h3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hfe2 := ifenv_pop_temp_refines hfeI (by rw [hdup]; exact hname) h1 h3
-  rw [hdup] at hfe2
+  have hfe2p := ifenv_pop_temp_refines hfeI (by rw [hdup]; exact hname) h1 h3
+  rw [hdup] at hfe2p
+  obtain ⟨fe3, h3f, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hfe2 := ifenv_set_flags_refines hfe2p hfe h3f
   simp only [SimEnv, checkDivModPin]
   cases at2 with
   | Err e =>

@@ -102,7 +102,7 @@ the invariant at any index answering `fe`'s lookups. -/
 /-- con-leche: none — a push popped puts the own index back as it was, row for row. -/
 theorem IFEnv.idx_popTemp (fe : IFEnv) (ci : IConstantInfo) (n : NIdx) :
     ((fe.push ci).popTemp ci.name fe.idx[ci.name]?).idx[n]? = fe.idx[n]? := by
-  simp only [IFEnv.popTemp, IFEnv.push]
+  simp only [IFEnv.popTemp_idx, IFEnv.push_idx]
   cases hp : fe.idx[ci.name]? with
   | some r =>
     simp only [Std.HashMap.getElem?_insert]
@@ -120,14 +120,14 @@ theorem IFEnv.idx_popTemp (fe : IFEnv) (ci : IConstantInfo) (n : NIdx) :
 /-- con-leche: none — **a push popped answers the old `find?`**. -/
 theorem IFEnv.find?_popTemp (fe : IFEnv) (ci : IConstantInfo) (n : NIdx) :
     ((fe.push ci).popTemp ci.name fe.idx[ci.name]?).find? n = fe.find? n := by
-  rw [IFEnv.find?_eq, IFEnv.find?_eq, IFEnv.idx_popTemp]
-  rfl
+  rw [IFEnv.find?_eq, IFEnv.find?_eq, IFEnv.idx_popTemp, IFEnv.popTemp_base, IFEnv.push_base]
 
 /-- con-leche: none — `IFEnvOK` reads its index through `find?` and the raw
 table lookup only. -/
 theorem IFEnvOK.congr_lookup {env : Env} {fe fe' : IFEnv} {s : AState}
     (h : IFEnvOK env fe s) (hf : ∀ n, fe'.find? n = fe.find? n)
-    (ht : ∀ n, fe'.rawTable? n = fe.rawTable? n) :
+    (ht : ∀ n, fe'.rawTable? n = fe.rawTable? n) (hfl : FlagsOK fe')
+    (hl : fe'.base.lits = fe.base.lits) :
     IFEnvOK env fe' s :=
   have hT : ∀ n, fe'.findTable? n = fe.findTable? n := fun n => by
     simp only [IFEnv.findTable?, hf, ht]
@@ -138,29 +138,31 @@ theorem IFEnvOK.congr_lookup {env : Env} {fe fe' : IFEnv} {s : AState}
     tblHit := fun n t hn => h.tblHit n t (by rw [← hT]; exact hn)
     tblCover := fun nm pt he => by
       obtain ⟨n, t, hd, hfn, hc⟩ := h.tblCover nm pt he
-      exact ⟨n, t, hd, by rw [hT]; exact hfn, hc⟩ }
+      exact ⟨n, t, hd, by rw [hT]; exact hfn, hc⟩
+    flags := hfl
+    lits := by unfold LitsOK; rw [hl]; exact h.lits }
 
 /-- con-leche: none — `IFEnvOK.congr_lookup` at the same table map. -/
 theorem IFEnvOK.congr_find {env : Env} {fe fe' : IFEnv} {s : AState}
     (h : IFEnvOK env fe s) (hf : ∀ n, fe'.find? n = fe.find? n)
-    (ht : fe'.tbls = fe.tbls) (hb : fe'.base = fe.base) :
+    (ht : fe'.tbls = fe.tbls) (hb : fe'.base = fe.base) (hfl : FlagsOK fe') :
     IFEnvOK env fe' s :=
-  h.congr_lookup hf fun n => by simp only [IFEnv.rawTable?, ht, hb]
+  h.congr_lookup hf (fun n => by simp only [IFEnv.rawTable?, ht, hb]) hfl (by rw [hb])
 
 /-- con-leche: none — so does the whole checker invariant. -/
 theorem CheckOK.congr_find {env : Env} {fe fe' : IFEnv}
     {s : AState} (h : CheckOK false env fe s) (hf : ∀ n, fe'.find? n = fe.find? n)
-    (ht : fe'.tbls = fe.tbls) (hb : fe'.base = fe.base) :
+    (ht : fe'.tbls = fe.tbls) (hb : fe'.base = fe.base) (hfl : FlagsOK fe') :
     CheckOK false env fe' s :=
-  ⟨h.state, h.caches, h.pins, h.ienv.congr_find hf ht hb⟩
+  ⟨h.state, h.caches, h.pins, h.ienv.congr_find hf ht hb hfl⟩
 
 /-- con-leche: none — and so does a core step's frame. -/
 theorem CoreStep.congr_find {env : Env} {fe fe' : IFEnv}
     {s s' : AState} (h : CoreStep env fe s s')
     (hf : ∀ n, fe'.find? n = fe.find? n) (ht : fe'.tbls = fe.tbls)
-    (hb : fe'.base = fe.base) :
+    (hb : fe'.base = fe.base) (hfl : FlagsOK fe') :
     CoreStep env fe' s s' :=
-  ⟨h.ok.congr_find hf ht hb, h.ext, h.pins⟩
+  ⟨h.ok.congr_find hf ht hb hfl, h.ext, h.pins⟩
 
 /-! ## The seventh entry point -/
 

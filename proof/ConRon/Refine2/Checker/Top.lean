@@ -409,11 +409,11 @@ theorem gate_push_refines {pers lst} {rf lf} {ci : arena.env.IConstantInfo}
           let (r1, st2, fe1) ← gate st1
           match r1 with
           | core.result.Result.Ok _ =>
-            let i ← arena.env.ifenv_push fe1 ci
+            let i ← arena.env.ifenv_push pers fe1 ci
             ok (core.result.Result.Ok i, st2)
           | core.result.Result.Err e => ok (core.result.Result.Err e, st2)
         else
-          let i ← arena.env.ifenv_push rf ci
+          let i ← arena.env.ifenv_push pers rf ci
           ok (core.result.Result.Ok i, st1)
       | core.result.Result.Err e => ok (core.result.Result.Err e, st1)) = ok o) :
     SimRel₀ (IFEnvRelI pers) pers lst o (do
@@ -512,8 +512,10 @@ theorem check_structural_nat_pin_refines {pers st lst} {rf lf}
   obtain ⟨⟨at2, st1⟩, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have hS := check_structural_nat_pin_at_fe2_refines hrel hinv hfe1.rel hfe1.inv h2
   obtain ⟨fe2, h3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hfe2 := ifenv_pop_temp_refines hfeI (by rw [hdup]; exact hname) h1 h3
-  rw [hdup] at hfe2
+  have hfe2p := ifenv_pop_temp_refines hfeI (by rw [hdup]; exact hname) h1 h3
+  rw [hdup] at hfe2p
+  obtain ⟨fe3, h3f, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hfe2 := ifenv_set_flags_refines hfe2p hfe h3f
   simp only [SimEnv, checkStructuralNatPin_split]
   cases at2 with
   | Err e =>

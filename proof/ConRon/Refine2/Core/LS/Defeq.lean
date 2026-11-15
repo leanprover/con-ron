@@ -656,7 +656,7 @@ set_option maxHeartbeats 40000000 in
         (absU depth) (absEIdx a) (absEIdx b)) := by
   have hview := @PF.view_wf_ls
   have hlift := @lift_fueled_level_ls
-  rw [arena.core.defeq_stuck, defeqStuck]
+  rw [arena.core.defeq_stuck, defeqStuck, hctx.strLit]
   lockstep_f
 
 /-! ## The body

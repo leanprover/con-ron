@@ -72794,3 +72794,53 @@ Checked: `cargo test --workspace`; `cargo check --target x86_64-pc-windows-msvc 
 --no-default-features` is clean (mimalloc's C build needs an MSVC compiler this machine does not
 have; the Rust is the same).  The only other platform-specific code is the `/proc/self/status`
 reads for the heartbeat's resident set, which already answer nothing off Linux.
+
+### Task #155 — con-leche sync 6810492c → 41739c49: a `Nat.succ` major goes to whnf, the literal flags as fields of the index (2026-11-15, Opus)
+
+Upstream tasks absorbed (8 commits): #582 (a `Nat.succ` major goes to whnf before the ι step;
+e2e fixture `strict_succ_counter`) and #579 (the literal flags as fields of the index).
+`update --auto`: 66 findings against 6810492c (60 `CHANGED`, 6 `GONE`: 4 deleted, 2
+moved-by-name), 435 citations merely moved; 0 markers deleted mechanically, 66 by hand.  Coverage
+1106/1164 → 1115/1175; every new upstream declaration is cited.
+
+| upstream | con-ron had | done |
+|---|---|---|
+| #582 `Expr.isNatSuccApp`, the constructor shortcut of `prepareMajor`/`prepareMajorI` excludes `Nat.succ x` | the shortcut on every constructor application | **ported**: `core::is_nat_succ_app` (twin `isNatSuccApp`, a `view` of the head as the twin's other tag-guarded reads), `prepare_major` sends a `Nat.succ` major through `prepare_major_whnf` (twin `prepareMajorWhnf`, now a definition of its own, as the Rust's fragment) |
+| #579 `FEnv.natLit`/`strLit` with their proof fields; `natLitStoredBy`/`strLitStoredBy`, `litName`, `lookupIn`/`findIn`, `FEnv.ofParts` | `nat_lit_stored`/`str_lit_stored` interning ten pins and probing the index at every literal | **ported**: `IFEnv.nat_lit`/`str_lit`; the readers (`lit_to_ctor_if_nat`, `reduce_nat_succ`, `lit_major_to_ctor`, `proj_lit_to_ctor`, `infer_lit_*`, `defeq_str_app`, `unresolved_consts_fail`) read the field; `nat_lit_stored`/`str_lit_stored` and their twins are gone (`constsResolve`'s literal arms keep their own lookups, as upstream's) |
+| #579 `FEnv.push` recomputing only at a literal name before string literals are expandable | `ifenv_push(fe, ci)` | **ported**: `ifenv_push(pers, fe, ci)`, the test `!fe.str_lit && lit_name_at(lits, name)`, the recomputation `nat_lit_stored_by`/`str_lit_stored_by` over the frozen index's literal handles (`lits_stored`) |
+| #579 `natLitNames`/`strLitNames`, `litFrom`, `fromLe`, `FrozenIndex`, `StreamIndex.freeze`, `FrozenIndex.view` | `IStreamIndex` in the `PersTier`; `stream_index_view` an empty layer | **ported**: `env::nat_lit_names`/`str_lit_names` (the ten pins, in `strLitNames`' order), `lit_from`, `from_le`; `stream_index_freeze` at the end of `build_index` (twin: `buildIndexGo`'s `[]` case, upstream's `Jobs.build`); the view sets its flags by `from_le` against `nat_from`/`str_from`.  Layout deviation: one structure, `IStreamIndex` with `lits`, `nat_from`, `str_from` filled by the freeze, rather than a second one around it |
+| #579 `FEnv.overlay` = `ofParts` (ten lookups) | the in-place temporary push and pop | `ifenv_push_temp` moves the flags as `ifenv_push`; the pop leaves them, and the caller sets back the ones it saved before its pushes (`ifenv_set_flags`, twin `IFEnv.setFlags`): the same flags as upstream's untouched first index, without an invariant in Theorem 2 |
+
+**Why the frozen index holds the literal names.**  A con-ron name is a handle off the pin
+table, so `litName` and the recomputation need the ten handles; the push is pure (no pin read,
+no `Result`) because the frozen index carries them (`IStreamIndex.lits`, twin `IFBase.lits`).
+An unfrozen base has none: its pushes never recompute.  The twin's spec fold and tests start
+from `mkIFEnvLits`, the empty index over a base holding the names.
+
+**Theorem 1.**  `IFEnvOK` gains two clauses: `flags : FlagsOK fe` (the flags are
+`natLitStoredBy`/`strLitStoredBy` of the index's own lookups — upstream's proof fields
+`natLit_eq`/`strLit_eq`, an invariant here since the twin's `IFEnv` is data) and `lits :
+LitsOK fe.base st` (the base's handles denote con-leche's `strLitNames`).  Readers use
+`CheckOK.natLitEq`/`strLitEq` (`fe.natLit = natLitStored env`, from `hit`/`miss` at the ten
+handles) as one more local fact of `sym only`; `natLitStored_spec`/`strLitStored_spec` are gone.
+`FlagsOK` is kept by `push` (con-leche's `push_flags` argument: `litNameAt` false moves no lookup
+the flags read, `strLit` true means a push only adds answers), `pushTable`, `ofParts`, and is
+carried to an index answering alike (`FlagsOK.of_same`; the gates' `SameView`, the inductive
+tier's `GR.FEq` with the flags set back).  The view's flags are the lookups' by
+`fromLe_litFrom` (upstream's `FBase.fromLe_litFrom`), given the frozen index's
+`natFrom`/`strFrom` equations, which `IndexDenotes` now carries with `LitsOK` (`Frozen`, from
+`freeze_run` and `strLitNames_run`; `buildIndex_run` takes `PersPins`).  `DriverOK` is
+`CheckOK` at `driverFE s.pins`, the empty index over the pins' literal names.  `isNatSuccApp_spec`
+is one `sym`/`vcgen`/`finish` walk; `prepareMajorFueled_nkCtor`/`_nk` and `prep_nkCtor`/`prep_nk`
+take the new condition.
+
+**Theorem 2.**  No new invariant.  `IFEnvRead` relates the flags (`natLit`, `strLit`) and
+`BaseRel` the literal handles; `StreamIndexRel` is unchanged and `FrozenRel` carries the
+thresholds and handles past the freeze (`stream_index_freeze_refines`, `lit_from_abs`,
+`str_lit_names_ls`).  `Refine2/Checker/LitFlags.lean` holds `lit_name_at_abs`,
+`lits_stored_abs`, `nat/str_lit_stored_by_abs`, `ifenv_push_refines` (the row part,
+`ifenv_push_row_rel`, stays in `Shape.lean`) and `ifenv_set_flags_spec`.  The readers' lockstep
+proofs rewrite the twin's `lfe.natLit`/`strLit` by `hctx.natLit`/`strLit` before `lockstep`.
+
+**Verdicts.**  `diff-e2e.sh`: 734/734 (master's binary at the new pin as well; the e2e corpus
+picks up `strict_succ_counter`).

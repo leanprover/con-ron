@@ -52,7 +52,7 @@ theorem FoldOK.ofCore {env : Env} {fe : IFEnv} {s s' : AState}
 lookups, the table map, the frozen layer and the list. -/
 theorem FoldOK.sameView {env : Env} {fe fe' : IFEnv} {s : AState}
     (h : FoldOK env fe s) (hsv : ConRon.Bridge.IFEnv.SameView fe' fe) : FoldOK env fe' s where
-  check := h.check.congr_find hsv.find hsv.tbls hsv.base
+  check := h.check.congr_find hsv.find hsv.tbls hsv.base (hsv.flags h.check.ienv.flags)
   envWF := h.envWF
   tblShape := by rw [hsv.env]; exact h.tblShape
   persPins := h.persPins
@@ -413,7 +413,7 @@ theorem checkDeclKind_bridge_defn
       checkStructuralNatPin_bridge hk hok2.check hok2.envWF hok2' rfl hnm2 g4
     exact tail fe3 s4 F hs hsv (fun _ => ⟨hgd, cv', v', hint', hf, hc⟩) r4
   · replace k3 := AM.pure_bind_ok k3
-    exact tail fe s2 0 (CoreStep.refl hok2.check) ⟨fun _ => rfl, fun _ => rfl, rfl, rfl, rfl⟩
+    exact tail fe s2 0 (CoreStep.refl hok2.check) ⟨fun _ => rfl, fun _ => rfl, rfl, rfl, rfl, id⟩
       (fun h => absurd (hcont ▸ h) hno) k3
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind (the `.indDecl` arm): the

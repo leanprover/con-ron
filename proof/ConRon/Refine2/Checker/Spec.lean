@@ -81,10 +81,10 @@ def checkConstantValGuardsSpec (fe : IFEnv) (cv : IConstantVal) (allowOp : Bool)
   checkConstantValGuardsRestSpec cv
 
 /-- The failing arm of an unresolved constant, `throw (unresolvedConstsErrorL
-(strLitStored fe) where_ e)` — the Rust's `unresolved_consts_fail`. -/
+fe.strLit where_ e)` — the Rust's `unresolved_consts_fail`. -/
 def unresolvedConstsFailSpec {α : Type} (fe : IFEnv) (where_ : String) (e : EIdx) :
     AM α := do
-  fail (← unresolvedConstsErrorL (← strLitStored fe) where_ e)
+  fail (← unresolvedConstsErrorL fe.strLit where_ e)
 
 /-- The two guards on the declared type (the Rust's `check_constant_val_tail`). -/
 def checkConstantValTailSpec (fe : IFEnv) (cv : IConstantVal) : AM Unit :=
@@ -810,8 +810,9 @@ theorem checkStructuralNatPin_split (mode : CheckMode) (fe : IFEnv) (ci : IConst
     (n : NIdx) :
     checkStructuralNatPin mode fe ci n = (do
       let v ← checkStructuralNatPinAtFe2 (fe.push ci) n
-      checkStructuralNatPinEqsSpec mode ((fe.push ci).popTemp n fe.idx[n]?) n v
-      pure ((fe.push ci).popTemp n fe.idx[n]?)) := by
+      checkStructuralNatPinEqsSpec mode (((fe.push ci).popTemp n fe.idx[n]?).setFlags fe.natLit
+        fe.strLit) n v
+      pure (((fe.push ci).popTemp n fe.idx[n]?).setFlags fe.natLit fe.strLit)) := by
   twin_reduce [checkStructuralNatPin, checkStructuralNatPinEqsSpec]
 
 theorem checkDeclKind_defnDecl (mode : CheckMode) (pins : List INatOpPinSet)

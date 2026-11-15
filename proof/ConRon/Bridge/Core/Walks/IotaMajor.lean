@@ -330,7 +330,7 @@ theorem prepareMajorFueled_nkCtor {F d : Nat} {cn : ConLeche.Name}
     (h0 : (if x.isStrLit then .ok x
       else ConLeche.majorToCtorFueled mode eager env F d cn isK rules' x : CheckM Expr)
         = .ok mE)
-    (hc : ConLeche.isCtorApp env mE = true) :
+    (hc : ConLeche.isCtorApp env mE = true) (hn : mE.isNatSuccApp = false) :
     ConLeche.prepareMajorFueled mode eager env F d cn isK rules' x = .ok mE := by
   subst hk
   simp only [ConLeche.prepareMajorFueled, ConLeche.prepareMajor,
@@ -339,12 +339,13 @@ theorem prepareMajorFueled_nkCtor {F d : Nat} {cn : ConLeche.Name}
   · simp only [hs, Bool.false_eq_true, ite_false] at h0
     have e0 : ConLeche.majorToCtor mode (ConLeche.pureFns mode eager env F) env d cn
         false rules' x = .ok mE := h0
-    simp only [Bool.false_eq_true, ite_false, e0, hc, ite_true, bind,
-      Except.bind]
+    simp only [Bool.false_eq_true, ite_false, e0, hc, hn, Bool.not_false, Bool.and_self,
+      ite_true, bind, Except.bind]
     rfl
   · simp only [hs, ite_true] at h0
     cases h0
-    simp only [ite_true, hc, bind, Except.bind, pure, Except.pure]
+    simp only [ite_true, hc, hn, Bool.not_false, Bool.and_self, bind, Except.bind, pure,
+      Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:751-769 prepareMajor — elsewhere,
 no constructor yet: `whnf`, the literal conversion, then the rescues once
@@ -355,7 +356,7 @@ theorem prepareMajorFueled_nk {F d : Nat} {cn : ConLeche.Name}
     (h0 : (if x.isStrLit then .ok x
       else ConLeche.majorToCtorFueled mode eager env F d cn isK rules' x : CheckM Expr)
         = .ok mE)
-    (hc : ConLeche.isCtorApp env mE = false)
+    (hc : (ConLeche.isCtorApp env mE && !mE.isNatSuccApp) = false)
     (h1 : ConLeche.whnf mode eager env F d mE = .ok m1)
     (h2 : ConLeche.litMajorToCtorFueled mode eager env F d m1 = .ok m2)
     (h3 : ConLeche.majorToCtorFueled mode eager env F d cn isK rules' m2 = .ok m3) :
@@ -1221,7 +1222,7 @@ theorem litMajorToCtor_split (r : CoreFnsA) (d : Nat) (h : EIdx) :
       (if h.tag == ETag.lit then do
         let v ← view h
         if (litStr? (nodeLit v)).isSome && v.tagOf == ETag.lit then do
-          if ← strLitStored fe then do
+          if fe.strLit then do
             let c ← strLitToConstructor ((litStr? (nodeLit v)).getD "")
             r.whnf d c
           else pure h
@@ -1288,9 +1289,8 @@ theorem litMajorToCtor_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
       ConRon.Arena.litMajorToCtor (coreKnot .verified eager fe id fuel) fe d h
     ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ SimEOp (litMajorOp .verified eager env d x) d s'.store r; ⊤⦄ := by
-  sym only [bridge_grind, isStrLit_eq, Option.getD_some, ConLeche.litToCtorIfNat_WScoped] =>
-    vcgen [litMajorToCtor_split, strLitStored_spec (eager := eager) (env := env) (fe := fe),
-      strLitToConstructor_spec (eager := eager) (env := env) (fe := fe), hsim.whnfS,
+  sym only [bridge_grind, isStrLit_eq, Option.getD_some, ConLeche.litToCtorIfNat_WScoped, hok.strLitEq] =>
+    vcgen [litMajorToCtor_split, strLitToConstructor_spec (eager := eager) (env := env) (fe := fe), hsim.whnfS,
       litToCtorIfNat_spec (x := x)] <;> finish
 
 /-! ## `majorToCtor`'s pure side -/
@@ -1672,17 +1672,17 @@ grind_pattern [bridge_grind] prepE_mtc => prepOp mode eager env d cn isK rules x
 attempt produced a constructor application. -/
 theorem prep_nkCtor {d : Nat} {cn : ConLeche.Name} {isK : Bool} {rules : List RecRule} {x mE : Expr}
     (hk : isK = false) (hE : PrepE mode eager env d cn isK rules x mE)
-    (hc : ConLeche.isCtorApp env mE = true) :
+    (hc : ConLeche.isCtorApp env mE = true) (hn : mE.isNatSuccApp = false) :
     Runs (prepOp mode eager env d cn isK rules x) mE :=
   let ⟨F, hF⟩ := hE
-  ⟨F, prepareMajorFueled_nkCtor hk hF hc⟩
+  ⟨F, prepareMajorFueled_nkCtor hk hF hc hn⟩
 grind_pattern [bridge_grind] prep_nkCtor => prepOp mode eager env d cn isK rules x, PrepE mode eager env d cn isK rules x mE
 
 /-- con-leche: ConLeche/Kernel/Core.lean:751-834 prepareMajor — elsewhere: `whnf`, the
 literal conversion and the rescues once more. -/
 theorem prep_nk {d : Nat} {cn : ConLeche.Name} {isK : Bool} {rules : List RecRule} {x mE m1 m2 m3 : Expr}
     (hk : isK = false) (hE : PrepE mode eager env d cn isK rules x mE)
-    (hc : ConLeche.isCtorApp env mE = false)
+    (hc : (ConLeche.isCtorApp env mE && !mE.isNatSuccApp) = false)
     (h1 : RunE (ConLeche.whnf mode eager env) d mE m1)
     (h2 : Runs (litMajorOp mode eager env d m1) m2)
     (h3 : Runs (majorToCtorOp mode eager env d cn isK rules m2) m3) :
@@ -1703,6 +1703,16 @@ grind_pattern [bridge_grind] prep_nk => prepOp mode eager env d cn isK rules x, 
   RunE (ConLeche.whnf mode eager env) d mE m1, Runs (litMajorOp mode eager env d m1) m2,
   Runs (majorToCtorOp mode eager env d cn isK rules m2) m3
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:48-56 Expr.isNatSuccApp — `isNatSuccApp_spec` at
+whatever the handle denotes. -/
+theorem isNatSuccApp_specS (s₀ : AState) (a : EIdx) (hok : CheckOK eager env fe s₀)
+    (hda : (denoteE s₀.store a).isSome = true) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.isNatSuccApp a
+    ⦃fun r s' => s' = s₀ ∧ MapRelV Expr.isNatSuccApp (denoteE s₀.store a) r; ⊤⦄ := by
+  obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hda
+  rw [hx]
+  exact isNatSuccApp_spec s₀ a x hok hx
+
 /-- con-leche: ConLeche/Kernel/Core.lean:751-769 prepareMajor — **THEOREM 1 for
 `prepareMajor`**.  The non-K path's answer arrives through four walks whose answers are
 each other's subjects, hence `gen := 16`. -/
@@ -1718,8 +1728,10 @@ theorem prepareMajor_spec {fuel : Nat}
     ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ SimEOp (prepOp .verified eager env d cn isK rules' x) d s'.store r; ⊤⦄ := by
   sym (gen := 16) only [bridge_grind] =>
-    vcgen [ConRon.Arena.prepareMajor, majorToCtor_specS hsim henv (cn := cn) (rules' := rules'),
-      isCtorApp_specS (eager := eager) (env := env), isStrLit_spec (eager := eager) (env := env) (fe := fe) (x := x),
+    vcgen [ConRon.Arena.prepareMajor, ConRon.Arena.prepareMajorWhnf,
+      majorToCtor_specS hsim henv (cn := cn) (rules' := rules'),
+      isCtorApp_specS (eager := eager) (env := env),
+      isNatSuccApp_specS (eager := eager) (env := env) (fe := fe), isStrLit_spec (eager := eager) (env := env) (fe := fe) (x := x),
       litMajorToCtor_specS hsim, hsim.whnfS] <;> finish
 
 

@@ -223,15 +223,15 @@ read of it goes through: a check-phase worker for its whole life).
 halves of a job's bracket are it.  The twin has one store and no tier: its
 `enableScratch`/`dropScratch` are the scratch halves alone. -/
 
-/-- `ifenv_layer(0, 0)`: the empty environment layer of every tier that holds no
-frozen base. -/
+/-- `ifenv_layer(0, 0, false, false)`: the empty environment layer of every tier that
+holds no frozen base. -/
 def layer00 : arena.env.IFEnv :=
   { env := { consts := alloc.vec.Vec.new _, tables := alloc.vec.Vec.new _ },
     idx := { num_entries := 0#usize, max_load := 0#usize, epoch := 1#u32, fit_hw := 0#usize,
              slots := alloc.vec.Vec.new _ },
     tbls := { num_entries := 0#usize, max_load := 0#usize, epoch := 1#u32, fit_hw := 0#usize,
               slots := alloc.vec.Vec.new _ },
-    base_below := 0#u64, base_below_rec := 0#u64 }
+    base_below := 0#u64, base_below_rec := 0#u64, «nat_lit» := false, str_lit := false }
 
 /-- `stream_index_empty()`: the empty stream index, the environment of every tier
 that holds no frozen index. -/
@@ -242,7 +242,8 @@ def ixEmpty : arena.stream_index.IStreamIndex :=
     tables := alloc.vec.Vec.new _,
     tbls := { num_entries := 0#usize, max_load := 0#usize, epoch := 1#u32, fit_hw := 0#usize,
               slots := alloc.vec.Vec.new _ },
-    firsts := alloc.vec.Vec.new _, next := 0#u64 }
+    firsts := alloc.vec.Vec.new _, next := 0#u64, lits := alloc.vec.Vec.new _,
+    nat_from := none, str_from := none }
 
 theorem stream_index_empty_eq : arena.stream_index.stream_index_empty = ok ixEmpty := by
   simp only [arena.stream_index.stream_index_empty, ron.hashmap2.HashMap2.new, bind_ok]

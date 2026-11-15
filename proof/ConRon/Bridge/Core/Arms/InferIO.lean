@@ -559,15 +559,13 @@ theorem inferBodyIO_lit {fe : IFEnv} {fuel : Nat}
     -- the pin's name is the basis constant's (`Bridge/Grind.lean`'s `pinNames_eq_natName`)
     cases l with
     | natVal n =>
-      sym only [bridge_grind] =>
-        vcgen [natLitStored_spec (eager := eager) (env := env) (fe := fe) s₀ hok,
-          natSizeRefused_spec, ConRon.Arena.pinNat,
+      sym only [bridge_grind, hok.natLitEq] =>
+        vcgen [natSizeRefused_spec, ConRon.Arena.pinNat,
           constE_spec (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natName)] <;>
           finish
     | strVal str =>
-      sym only [bridge_grind] =>
-        vcgen [strLitStored_spec (eager := eager) (env := env) (fe := fe) s₀ hok,
-          ConRon.Arena.pinString,
+      sym only [bridge_grind, hok.strLitEq] =>
+        vcgen [ConRon.Arena.pinString,
           constE_spec (eager := eager) (env := env) (fe := fe) (nm := ConLeche.stringName)] <;>
           finish
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))

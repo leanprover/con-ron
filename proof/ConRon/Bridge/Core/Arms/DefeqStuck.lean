@@ -271,8 +271,7 @@ theorem dqArm_strL
           | .const cO usO => do
             let el ← emptyLevels
             let sl ← pinStringOfList
-            let sup ← ConRon.Arena.strLitStored fe
-            if cO = sl ∧ usO = el ∧ sup = true then do
+            if cO = sl ∧ usO = el ∧ fe.strLit = true then do
               let c ← ConRon.Arena.strLitToConstructor st
               (coreKnot .verified eager fe id fuel).defeq d c b'
             else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b'
@@ -295,19 +294,17 @@ theorem dqArm_strL
     subst s3
     have hiff : (c = sl ∧ us = el) ↔ (nm = ConLeche.stringOfListName ∧ ls = []) := by
       rw [n_eq_iff_pin hwf hc (hsl _ rfl), ls_eq_iff_nil hwf hus hel]
-    refine triple_seq (strLitStored_spec s₁ hok) ?_
-    rintro sup s4 ⟨hs4, rfl⟩
-    subst hs4
+    have hslq := hok.strLitEq
     have hok4 := hok
-    have hx4 : Ext s4.store s4.store := Ext.refl _
-    have hp4 : s4.pins = s4.pins := rfl
+    have hx4 : Ext s₁.store s₁.store := Ext.refl _
+    have hp4 : s₁.pins = s₁.pins := rfl
     have hx04 := hx₁.trans hx4
-    have hp04 : s4.pins = s₀.pins := hp4.trans hp₁
+    have hp04 : s₁.pins = s₀.pins := hp4.trans hp₁
     split
     · rename_i h
       obtain ⟨rfl, rfl⟩ := hiff.mp ⟨h.1, h.2.1⟩
-      have hsup := h.2.2
-      refine triple_seq (strLitToConstructor_spec s4 st hok4) ?_
+      have hsup : ConLeche.strLitStored env = true := hslq ▸ h.2.2
+      refine triple_seq (strLitToConstructor_spec s₁ st hok4) ?_
       rintro cc s5 ⟨hok5, hx5, hp5, hd5⟩
       exact dq_defeq_exit hsim cc b' _ _ hok5 (hx04.trans hx5) (hp5.trans hp04)
         hd5 (denote_ext hy (hx4.trans hx5)) (strLitToConstructor_WScoped st d)
@@ -318,7 +315,7 @@ theorem dqArm_strL
       exact dq_stuck_exit henv hsim a' b' _ _ hok4 hx04 hp04 (denote_ext hx hx4)
         (denote_ext hy hx4) hwx hwy (hG.imp fun _ hh r hr => hh r
           ((ite_eq_right (fun h' => h ⟨(hiff.mpr ⟨h'.1, h'.2.1⟩).1,
-            (hiff.mpr ⟨h'.1, h'.2.1⟩).2, h'.2.2⟩)).trans hr))
+            (hiff.mpr ⟨h'.1, h'.2.1⟩).2, (hslq ▸ h'.2.2)⟩)).trans hr))
   all_goals
     exact dq_stuck_exit henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy
       (hG.imp fun _ h r hr => h r hr)
@@ -343,8 +340,7 @@ theorem dqArm_strR
           | .const cO usO => do
             let el ← emptyLevels
             let sl ← pinStringOfList
-            let sup ← ConRon.Arena.strLitStored fe
-            if cO = sl ∧ usO = el ∧ sup = true then do
+            if cO = sl ∧ usO = el ∧ fe.strLit = true then do
               let c ← ConRon.Arena.strLitToConstructor st
               (coreKnot .verified eager fe id fuel).defeq d a' c
             else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b'
@@ -367,19 +363,17 @@ theorem dqArm_strR
     subst s3
     have hiff : (c = sl ∧ us = el) ↔ (nm = ConLeche.stringOfListName ∧ ls = []) := by
       rw [n_eq_iff_pin hwf hc (hsl _ rfl), ls_eq_iff_nil hwf hus hel]
-    refine triple_seq (strLitStored_spec s₁ hok) ?_
-    rintro sup s4 ⟨hs4, rfl⟩
-    subst hs4
+    have hslq := hok.strLitEq
     have hok4 := hok
-    have hx4 : Ext s4.store s4.store := Ext.refl _
-    have hp4 : s4.pins = s4.pins := rfl
+    have hx4 : Ext s₁.store s₁.store := Ext.refl _
+    have hp4 : s₁.pins = s₁.pins := rfl
     have hx04 := hx₁.trans hx4
-    have hp04 : s4.pins = s₀.pins := hp4.trans hp₁
+    have hp04 : s₁.pins = s₀.pins := hp4.trans hp₁
     split
     · rename_i h
       obtain ⟨rfl, rfl⟩ := hiff.mp ⟨h.1, h.2.1⟩
-      have hsup := h.2.2
-      refine triple_seq (strLitToConstructor_spec s4 st hok4) ?_
+      have hsup : ConLeche.strLitStored env = true := hslq ▸ h.2.2
+      refine triple_seq (strLitToConstructor_spec s₁ st hok4) ?_
       rintro cc s5 ⟨hok5, hx5, hp5, hd5⟩
       exact dq_defeq_exit hsim a' cc _ _ hok5 (hx04.trans hx5) (hp5.trans hp04)
         (denote_ext hx (hx4.trans hx5)) hd5 hwx (strLitToConstructor_WScoped st d)
@@ -390,7 +384,7 @@ theorem dqArm_strR
       exact dq_stuck_exit henv hsim a' b' _ _ hok4 hx04 hp04 (denote_ext hx hx4)
         (denote_ext hy hx4) hwx hwy (hG.imp fun _ hh r hr => hh r
           ((ite_eq_right (fun h' => h ⟨(hiff.mpr ⟨h'.1, h'.2.1⟩).1,
-            (hiff.mpr ⟨h'.1, h'.2.1⟩).2, h'.2.2⟩)).trans hr))
+            (hiff.mpr ⟨h'.1, h'.2.1⟩).2, (hslq ▸ h'.2.2)⟩)).trans hr))
   all_goals
     exact dq_stuck_exit henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy
       (hG.imp fun _ h r hr => h r hr)

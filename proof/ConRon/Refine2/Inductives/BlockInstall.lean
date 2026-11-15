@@ -1016,12 +1016,12 @@ theorem cons_block_ctors_refines {pers : arena.store.PersTier} {n_p : Std.U64}
     {gs : alloc.vec.Vec (arena.handle.NIdx × alloc.vec.Vec (arena.env.IConstantVal × Std.U64))}
     {i : Std.Usize} {rf : arena.env.IFEnv} {lf : IFEnv} {o}
     (hfe : IFEnvRelI pers rf lf)
-    (hrun : arena.inductives.block_install.cons_block_ctors n_p gs i rf = ok o) :
+    (hrun : arena.inductives.block_install.cons_block_ctors pers n_p gs i rf = ok o) :
     IFEnvRelI pers o (consBlockCtors (absU n_p)
       ((gs.val.drop i.val).map fun g => (absNIdx g.1, absCtorsL g.2)) lf) := by
   refine cursor_induction (fun i : Std.Usize => i.val) gs.val.length
     (fun i rf => ∀ lf o, IFEnvRelI pers rf lf →
-      arena.inductives.block_install.cons_block_ctors n_p gs i rf = ok o →
+      arena.inductives.block_install.cons_block_ctors pers n_p gs i rf = ok o →
       IFEnvRelI pers o (consBlockCtors (absU n_p)
         ((gs.val.drop i.val).map fun g => (absNIdx g.1, absCtorsL g.2)) lf))
     ?_ ?_ i rf lf o hfe hrun
@@ -1054,7 +1054,7 @@ related environment after the folds. -/
 @[lockstep] theorem cons_block_ctors_ls {pers : arena.store.PersTier} {n_p : Std.U64}
     {gs : alloc.vec.Vec (arena.handle.NIdx × alloc.vec.Vec (arena.env.IConstantVal × Std.U64))}
     {i : Std.Usize} {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf) :
-    LSP (arena.inductives.block_install.cons_block_ctors n_p gs i rf)
+    LSP (arena.inductives.block_install.cons_block_ctors pers n_p gs i rf)
       (fun o => IFEnvRelI pers o
         (consBlockCtors (absU n_p) ((gs.val.drop i.val).map fun g => (absNIdx g.1, absCtorsL g.2))
           lf)) :=

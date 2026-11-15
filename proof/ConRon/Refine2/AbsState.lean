@@ -478,6 +478,7 @@ entry.  The bounds are the reading layer's, so they are not here. -/
 structure BaseRel (ix : arena.stream_index.IStreamIndex) (b : IFBase) : Prop where
   idx : ∀ n, ixRow ix n = b.idx[absNIdx n]?
   tbls : ∀ n, ixTbl ix n = b.tbls[absNIdx n]?
+  lits : b.lits = ix.lits.val.map absNIdx
 
 /-- **What a reader needs of the frozen base** (`PersTier.env`): its two maps
 well formed, since `HashMap2.get` specifies nothing otherwise, and every counter
@@ -511,6 +512,8 @@ structure IFEnvRead (pers : arena.store.PersTier) (rf : arena.env.IFEnv) (lf : I
   below : lf.base.below = absU rf.base_below
   belowRec : lf.base.belowRec = absU rf.base_below_rec
   baseOK : BaseOK pers
+  natLit : lf.natLit = rf.nat_lit
+  strLit : lf.strLit = rf.str_lit
 
 /-- **A Rust environment layer against the twin's `IFEnv`**: what a reader sees
 (`IFEnvRead`) and the pushed lists.  A job's layer starts empty on both sides

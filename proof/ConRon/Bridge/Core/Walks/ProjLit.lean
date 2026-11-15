@@ -166,7 +166,7 @@ theorem projLitToCtor_split (r : CoreFnsA) (d : Nat) (h : EIdx) :
       | .lit l =>
         match litStr? l with
         | some s => do
-          if ← ConRon.Arena.strLitStored fe then do
+          if fe.strLit then do
             let c ← ConRon.Arena.strLitToConstructor s
             r.whnf d c
           else pure h
@@ -193,9 +193,8 @@ theorem projLitToCtor_spec {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
       ConRon.Arena.projLitToCtor (coreKnot .verified eager fe id fuel) fe d h
     ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ ProjLitAns .verified eager env d x s'.store r; ⊤⦄ := by
-  sym only [bridge_grind] =>
-    vcgen [projLitToCtor_split, strLitStored_spec (eager := eager) (env := env) (fe := fe),
-      strLitToConstructor_spec (eager := eager) (env := env) (fe := fe),
+  sym only [bridge_grind, hok.strLitEq] =>
+    vcgen [projLitToCtor_split, strLitToConstructor_spec (eager := eager) (env := env) (fe := fe),
       KnotSpec.whnfS hsim] <;> finish
 
 section Census

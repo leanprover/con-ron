@@ -21,6 +21,7 @@ from `Refine2/Core/**` through `KnotRel` (`Refine2/Checker/KnotHyp.lean`).
 import ConRon.Refine2.Checker.Axioms
 import ConRon.Refine2.Checker.Spec
 import ConRon.Refine2.Checker.Leaves
+import ConRon.Refine2.Checker.LitFlags
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -854,16 +855,15 @@ guard (at a fresh memo) ahead of `unresolved_consts_error`, at the kind. -/
   lockstep
 
 open Lockstep in
-/-- `unresolved_consts_fail` ⊑ `throw (unresolvedConstsErrorL (strLitStored
-fe) where_ e)` — the failing arm every front door spells, the support test
-read first. -/
+/-- `unresolved_consts_fail` ⊑ `throw (unresolvedConstsErrorL fe.strLit where_ e)` — the
+failing arm every front door spells. -/
 @[lockstep] theorem unresolved_consts_fail_ls {α β : Type} {R : α → β → Prop}
     {pers st lst} {rf lf} {e : arena.handle.EIdx} {w : String}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx pers rf lf) :
     LS pers R (arena.checker_base.unresolved_consts_fail α pers st rf e) lst
       (unresolvedConstsFailSpec (α := β) lf w (absEIdx e)) := by
-  rw [arena.checker_base.unresolved_consts_fail, unresolvedConstsFailSpec]
+  rw [arena.checker_base.unresolved_consts_fail, unresolvedConstsFailSpec, hctx.strLit]
   lockstep
 
 /-! ### Twin readers leave the state alone
@@ -891,13 +891,6 @@ attribute [lockstep_simp] core.option.Option.is_some Option.isSome_map ite_true 
 
 namespace Lockstep
 
-/-- `ifenv_push`: the constant pushed onto the layer. -/
-@[lockstep] theorem ifenv_push_spec {pers : arena.store.PersTier} {rf lf} (hfe : IFEnvRelI pers rf lf)
-    (ci : arena.env.IConstantInfo) :
-    LSP (arena.env.ifenv_push rf ci)
-      (fun r => IFEnvRelI pers r (lf.push (absIConstantInfo ci))) :=
-  fun _ h => ifenv_push_refines hfe.rel hfe.inv h
-
 attribute [lockstep_simp] absIConstantInfo Option.map_some Option.map_none
 
 end Lockstep
@@ -914,7 +907,7 @@ row it overwrote, which the pop puts back. -/
 theorem ifenv_push_temp_refines {pers : arena.store.PersTier} {rf rf1 : arena.env.IFEnv}
     {lf : IFEnv} {ci : arena.env.IConstantInfo} {prev : Option Std.U64}
     (hfe : IFEnvRelI pers rf lf)
-    (h : arena.env.ifenv_push_temp rf ci = ok (prev, rf1)) :
+    (h : arena.env.ifenv_push_temp pers rf ci = ok (prev, rf1)) :
     IFEnvRelI pers rf1 (lf.push (absIConstantInfo ci)) ∧
     ∃ n, arena.env.i_constant_info_name ci = ok n ∧
       prev = ConRon.Refine.HashMap2.toFun rf.idx n ∧
@@ -924,38 +917,29 @@ theorem ifenv_push_temp_refines {pers : arena.store.PersTier} {rf rf1 : arena.en
           Function.update (ConRon.Refine.HashMap2.toFun rf.idx) n (some s)) ∧
       rf1.env.tables = rf.env.tables ∧ rf1.tbls = rf.tbls ∧
       rf1.base_below = rf.base_below ∧ rf1.base_below_rec = rf.base_below_rec := by
-  rw [arena.env.ifenv_push_temp] at h
-  obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨⟨old, hm⟩, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨hpush, n, s, hm, v, hn, hs, hq, hv, he, hi, ht, hb, hbr⟩ := ifenv_push_temp_push h
   obtain ⟨hinv', hold, hupd, -⟩ :=
     ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True) nidx_eq2
       hfe.inv.idxInv ConRon.Refine.HashMap2.KeysOk_true trivial hq
-  obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
-  have hpush : arena.env.ifenv_push rf ci =
-      ok { rf with env := { rf.env with consts := v }, idx := hm } := by
-    rw [arena.env.ifenv_push, hs]
-    simp only [bind_ok, hn, hq, hv]
-    rfl
   have hsv : s.val = rf.env.consts.val.length := by
     simp only [lift, Result.ok.injEq] at hs; subst hs
     rw [usize_cast_u64_val']; simp [alloc.vec.Vec.len]
   exact ⟨ifenv_push_refines hfe.rel hfe.inv hpush, n, hn, hold,
-    ConRon.Refine.vec_push_val hv, ⟨s, hsv, hupd⟩, rfl, rfl, rfl, rfl⟩
+    by rw [he]; exact ConRon.Refine.vec_push_val hv, ⟨s, hsv, by rw [hi]; exact hupd⟩,
+    by rw [he], ht, hb, hbr⟩
 
 /-- **`ifenv_pop_temp` after `ifenv_push_temp` ⊑ `IFEnv.popTemp` after `IFEnv.push`**:
 the layer the push started from, on both sides — the twin's displaced own row is
-the one read before the push. -/
+the one read before the push; the literal flags as the push left them on both sides. -/
 theorem ifenv_pop_temp_refines {pers : arena.store.PersTier} {rf rf1 rf2 : arena.env.IFEnv}
     {lf : IFEnv} {ci : arena.env.IConstantInfo} {prev : Option Std.U64}
     {n : arena.handle.NIdx}
     (hfe : IFEnvRelI pers rf lf) (hn : absNIdx n = (absIConstantInfo ci).name)
-    (h1 : arena.env.ifenv_push_temp rf ci = ok (prev, rf1))
+    (h1 : arena.env.ifenv_push_temp pers rf ci = ok (prev, rf1))
     (h2 : arena.env.ifenv_pop_temp rf1 n prev = ok rf2) :
     IFEnvRelI pers rf2
       ((lf.push (absIConstantInfo ci)).popTemp (absNIdx n) lf.idx[absNIdx n]?) := by
-  obtain ⟨-, n', hn', hprev, hcs, ⟨s, hsv, hidx⟩, htb, htbl, hbb, hbr⟩ :=
+  obtain ⟨hrel1, n', hn', hprev, hcs, ⟨s, hsv, hidx⟩, htb, htbl, hbb, hbr⟩ :=
     ifenv_push_temp_refines hfe h1
   have hnn : n' = n := absNIdx_inj (by rw [i_constant_info_name_abs hn', hn])
   subst n'
@@ -983,8 +967,7 @@ theorem ifenv_pop_temp_refines {pers : arena.store.PersTier} {rf rf1 rf2 : arena
       ConRon.Refine.HashMap2.toFun hm = ConRon.Refine.HashMap2.toFun rf.idx ∧
       rf2 = { rf1 with env := { rf1.env with consts := v }, idx := hm } := by
     have hi1 : ConRon.Refine.HashMap2.Inv
-        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf1.idx :=
-      (ifenv_push_temp_refines hfe h1).1.inv.idxInv
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf1.idx := hrel1.inv.idxInv
     have hback : Function.update (ConRon.Refine.HashMap2.toFun rf1.idx) n prev =
         ConRon.Refine.HashMap2.toFun rf.idx := by
       rw [hidx, hprev, Function.update_idem, Function.update_eq_self]
@@ -1011,43 +994,59 @@ theorem ifenv_pop_temp_refines {pers : arena.store.PersTier} {rf rf1 rf2 : arena
       ownTbl rf m := by
     intro m; simp only [ownTbl]; rw [htb, htbl]
   have hpop : ∀ k : NIdx,
-      ((lf.push (absIConstantInfo ci)).popTemp (absNIdx n) lf.idx[absNIdx n]?).idx[k]? =
+      (match lf.idx[absNIdx n]? with
+        | some r => (lf.push (absIConstantInfo ci)).idx.insert (absNIdx n) r
+        | none => (lf.push (absIConstantInfo ci)).idx.erase (absNIdx n))[k]? =
         lf.idx[k]? := by
     intro k
-    simp only [IFEnv.push, IFEnv.popTemp]
+    rw [twin_push_idx]
     cases hp : lf.idx[absNIdx n]? with
     | none =>
+      simp only
       rw [_root_.Std.HashMap.getElem?_erase]
       by_cases hk : absNIdx n = k
       · subst hk; simp [hp]
       · simp only [beq_iff_eq, hk, ite_false, _root_.Std.HashMap.getElem?_insert]
         rw [ite_eq_right (by simpa [← hn] using hk)]
     | some r =>
+      simp only
       rw [_root_.Std.HashMap.getElem?_insert]
       by_cases hk : absNIdx n = k
       · subst hk; simp [hp]
       · simp only [beq_iff_eq, hk, ite_false, _root_.Std.HashMap.getElem?_insert]
         rw [ite_eq_right (by simpa [← hn] using hk)]
-  refine ⟨⟨⟨fun m => ?_, fun m => ?_, ?_, ?_, ?_, ?_⟩, ?_⟩, hminv, ?_, ?_, ?_⟩
-  · rw [hown, hfe.rel.idx m, hpop]
-  · rw [hownT, hfe.rel.tbls m]; rfl
-  · exact hfe.rel.base
-  · show lf.base.below = absU rf1.base_below; rw [hbb]; exact hfe.rel.below
-  · show lf.base.belowRec = absU rf1.base_below_rec; rw [hbr]; exact hfe.rel.belowRec
-  · exact hfe.rel.baseOK
-  · show (IFEnv.popTemp _ _ _).env = absIEnv _
-    simp only [IFEnv.push, IFEnv.popTemp, List.tail_cons, absIEnv, hvv]
-    rw [hfe.rel.env, absIEnv, htb]
-  · intro m p hp
-    rw [hmfun] at hp
-    show p.val < v.val.length
-    rw [hvv]; exact hfe.inv.idxRange m p hp
-  · show ConRon.Refine.HashMap2.Inv _ rf1.tbls
-    rw [htbl]; exact hfe.inv.tblInv
-  · intro m p hp
-    rw [htbl] at hp
-    show p.val < rf1.env.tables.val.length
-    rw [htb]; exact hfe.inv.tblRange m p hp
+  have hraw : IFEnvRelI pers { rf1 with env := { rf1.env with consts := v }, idx := hm }
+      ⟨⟨(lf.push (absIConstantInfo ci)).env.consts.tail,
+          (lf.push (absIConstantInfo ci)).env.tables⟩,
+        (match lf.idx[absNIdx n]? with
+          | some r => (lf.push (absIConstantInfo ci)).idx.insert (absNIdx n) r
+          | none => (lf.push (absIConstantInfo ci)).idx.erase (absNIdx n)),
+        (lf.push (absIConstantInfo ci)).base, (lf.push (absIConstantInfo ci)).tbls,
+        (lf.push (absIConstantInfo ci)).natLit, (lf.push (absIConstantInfo ci)).strLit⟩ := by
+    refine ⟨⟨⟨fun m => ?_, fun m => ?_, ?_, ?_, ?_, ?_, hrel1.rel.natLit, hrel1.rel.strLit⟩, ?_⟩,
+      hminv, ?_, ?_, ?_⟩
+    · rw [hown, hfe.rel.idx m]; exact (hpop _).symm
+    · rw [hownT, hfe.rel.tbls m, twin_push_tbls]
+    · rw [twin_push_base]; exact hfe.rel.base
+    · show (lf.push _).base.below = absU rf1.base_below
+      rw [hbb, twin_push_base]; exact hfe.rel.below
+    · show (lf.push _).base.belowRec = absU rf1.base_below_rec
+      rw [hbr, twin_push_base]; exact hfe.rel.belowRec
+    · exact hfe.rel.baseOK
+    · show (⟨_, _⟩ : IEnv) = absIEnv _
+      simp only [twin_push_env, List.tail_cons, absIEnv, hvv]
+      rw [hfe.rel.env, absIEnv, htb]
+    · intro m p hp
+      rw [hmfun] at hp
+      show p.val < v.val.length
+      rw [hvv]; exact hfe.inv.idxRange m p hp
+    · show ConRon.Refine.HashMap2.Inv _ rf1.tbls
+      rw [htbl]; exact hfe.inv.tblInv
+    · intro m p hp
+      rw [htbl] at hp
+      show p.val < rf1.env.tables.val.length
+      rw [htb]; exact hfe.inv.tblRange m p hp
+  exact hraw
 
 /-! ## The per-declaration constant check -/
 

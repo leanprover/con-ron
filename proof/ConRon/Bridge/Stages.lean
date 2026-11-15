@@ -56,12 +56,14 @@ theorem DriverOK.start {s : AState} (hok : StateOK s) (hpins : PinsOK s)
     pins := hpins
     ienv :=
       { hit := fun n ci h => by
-          simp [mkIFEnv, IEnv.empty, IFEnv.find?, IFEnv.lookup, mkIFEnvGo, IFBase.find?] at h
+          simp [driverFE, IFEnv.ofParts, IFEnv.find?, IFEnv.lookup, IFBase.find?] at h
         cover := fun nm c h => by simp [Env.empty, Env.find?] at h
         tblHit := fun n t h => by
-          simp [mkIFEnv, IEnv.empty, IFEnv.findTable?, IFEnv.find?, IFEnv.lookup, mkIFEnvGo,
+          simp [driverFE, IFEnv.ofParts, IFEnv.findTable?, IFEnv.find?, IFEnv.lookup,
             IFBase.find?] at h
-        tblCover := fun nm pt h => by simp [Env.empty, Env.findTable?, Env.find?] at h } }
+        tblCover := fun nm pt h => by simp [Env.empty, Env.findTable?, Env.find?] at h
+        flags := FlagsOK.ofParts _ _ _ _
+        lits := driverFE_lits hpins } }
 
 /-! ## The stream -/
 
@@ -135,7 +137,7 @@ theorem stages_model (V : Type w) [ConLeche.SetTheory V]
   obtain ⟨F', hpure⟩ :=
     Arena.pooledAccepts_bridge hk hind hst hoff hpp hpps hipins hpd hden hF
   obtain ⟨parts, hidx, -⟩ := hF
-  obtain ⟨hst', hx, -⟩ := buildIndex_run constsSpec tablesSpec hst hoff hpd hden hidx
+  obtain ⟨hst', hx, -⟩ := buildIndex_run constsSpec tablesSpec hst hpp hoff hpd hden hidx
   exact ⟨hst'.state.wf, _, denoteDecls_ext hx _ _ hden,
     ConLeche.Model.checkDeclsPure_sound_of (V := V) (pins := pins) hpure⟩
 
@@ -318,7 +320,7 @@ theorem stagesO_model (V : Type w) [ConLeche.SetTheory V]
   obtain ⟨Fu, hpure⟩ := Arena.pooledOleanAccepts_bridge hk hind hst hoff hpp hpps hipins hpd
     hden hwfC hoffC hxC hvals hnu hF
   obtain ⟨parts, hidx, -⟩ := hF
-  obtain ⟨hst', hx, -⟩ := buildIndex_run constsSpec tablesSpec hst hoff hpd hden hidx
+  obtain ⟨hst', hx, -⟩ := buildIndex_run constsSpec tablesSpec hst hpp hoff hpd hden hidx
   exact ⟨hst'.state.wf, _, valueOf sp F valuesP, denoteDecls_ext hx _ _ hden,
     ConLeche.Model.checkDeclsPure_sound_of (V := V) (pins := pins) hpure⟩
 

@@ -17,6 +17,7 @@ sides (the index push touches no term).
 -/
 import ConRon.Refine2.Inductives.StructInstall
 import ConRon.Refine2.Inductives.Prims
+import ConRon.Refine2.Checker.LitFlags
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -424,12 +425,12 @@ theorem cons_sum_ctors_refines {pers : arena.store.PersTier} {n_p : Std.U64}
     {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} {i : Std.Usize}
     {rf lf} {o}
     (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.inductives.sum_install.cons_sum_ctors n_p t ctors i rf = ok o) :
+    (hrun : arena.inductives.sum_install.cons_sum_ctors pers n_p t ctors i rf = ok o) :
     IFEnvRel pers o (consSumCtors (absU n_p) (absNIdx t) (absCtorsLFrom ctors i) lf) ∧
       IFEnvInv o := by
   refine cursor_induction (fun i : Std.Usize => i.val) ctors.val.length
     (fun i rf => ∀ lf o, IFEnvRel pers rf lf → IFEnvInv rf →
-      arena.inductives.sum_install.cons_sum_ctors n_p t ctors i rf = ok o →
+      arena.inductives.sum_install.cons_sum_ctors pers n_p t ctors i rf = ok o →
       IFEnvRel pers o (consSumCtors (absU n_p) (absNIdx t) (absCtorsLFrom ctors i) lf) ∧
         IFEnvInv o)
     ?_ ?_ i rf lf o hfe hfinv hrun
@@ -472,7 +473,7 @@ and well-formed environment after the folds. -/
     {t : arena.handle.NIdx}
     {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} {i : Std.Usize}
     {rf lf} (hfe : IFEnvRelI pers rf lf) :
-    LSP (arena.inductives.sum_install.cons_sum_ctors n_p t ctors i rf)
+    LSP (arena.inductives.sum_install.cons_sum_ctors pers n_p t ctors i rf)
       (fun o => IFEnvRelI pers o
         (consSumCtors (absU n_p) (absNIdx t) (absCtorsLFrom ctors i) lf)) :=
   fun _ h => cons_sum_ctors_refines hfe.rel hfe.inv h

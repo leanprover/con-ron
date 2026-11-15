@@ -44,6 +44,7 @@ module
 public import ConRon.Bridge.Rel
 public import ConLeche.Kernel.TypeChecker
 public import ConRon.Arena.Pins
+public import ConLeche.Kernel.FEnv
 
 public section
 
@@ -503,8 +504,271 @@ install (`Bridge/Inductives/StructInstall.lean`). -/
 structure IProjTableOK (t : IProjTable) : Prop where
   bodies : t.bodies.size = t.numFields
 
+/-- con-leche: ConLeche/Kernel/FEnv.lean:189-218 FEnv (the proof fields
+`natLit_eq`, `strLit_eq`) — **the index's literal flags are its lookups'**:
+`natLitStoredBy`/`strLitStoredBy` over the base's literal names.  con-leche
+makes it a proof field; the twin's `IFEnv` is plain data, so it is an invariant
+here, kept by every operation that makes or moves an index
+(`Bridge/Checker/Inv.lean`'s `FlagsOK.push` and siblings). -/
+structure FlagsOK (fe : IFEnv) : Prop where
+  nat : fe.natLit = fe.natLitStoredBy
+  str : fe.strLit = fe.strLitStoredBy
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:57-60 strLitNames — **the base's
+literal names denote con-leche's ten**, in order: what the flags' lookups at
+handles (`FlagsOK`) mean at names. -/
+@[expose] def LitsOK (b : IFBase) (st : EStore) : Prop :=
+  b.lits.map (denoteN st.ns) = ConLeche.strLitNames.map some
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:98-105 FEnv.lookup — the emptiness test
+answers what the hash map answers. -/
+theorem IFEnv.find?_eq (fe : IFEnv) (n : NIdx) :
+    fe.find? n = match fe.idx[n]? with
+      | some ci => some ci
+      | none => fe.base.find? n := by
+  simp only [IFEnv.find?, IFEnv.lookup]
+  split
+  · rename_i he
+    rw [Std.HashMap.isEmpty_iff_forall_not_mem] at he
+    have : fe.idx[n]? = none := Std.HashMap.getElem?_eq_none (he n)
+    rw [this]
+  · rfl
+
+/-- con-leche: none — `litsStored` reads the base's literal names and the lookups at them only. -/
+theorem IFEnv.litsStored_congr {fe fe' : IFEnv} (hb : fe'.base.lits = fe.base.lits)
+    (hf : ∀ n ∈ fe.base.lits, fe'.find? n = fe.find? n) (i stop : Nat) :
+    fe'.litsStored i stop = fe.litsStored i stop := by
+  rw [IFEnv.litsStored.eq_1 fe', IFEnv.litsStored.eq_1 fe]
+  by_cases hi : i ≥ stop
+  · simp [hi]
+  · simp only [hi, ite_false]
+    by_cases hl : i < fe.base.lits.length
+    · have hl' : i < fe'.base.lits.length := hb ▸ hl
+      rw [dite_eq_left hl', dite_eq_left hl]
+      have he : fe'.base.lits[i] = fe.base.lits[i] := List.getElem_of_eq hb hl'
+      rw [he, hf _ (List.getElem_mem hl)]
+      split
+      · exact IFEnv.litsStored_congr hb hf (i + 1) stop
+      · rfl
+    · have hl' : ¬ i < fe'.base.lits.length := hb ▸ hl
+      rw [dite_eq_right hl', dite_eq_right hl]
+termination_by stop - i
+
+/-- con-leche: none — Every lookup that answers still answers: the stored names stay stored. -/
+theorem IFEnv.litsStored_mono {fe fe' : IFEnv} (hb : fe'.base.lits = fe.base.lits)
+    (hf : ∀ n, (fe.find? n).isSome → (fe'.find? n).isSome) (i stop : Nat)
+    (h : fe.litsStored i stop = true) : fe'.litsStored i stop = true := by
+  rw [IFEnv.litsStored.eq_1] at h ⊢
+  by_cases hi : i ≥ stop
+  · simp [hi]
+  · simp only [hi, ite_false] at h ⊢
+    by_cases hl : i < fe.base.lits.length
+    · have hl' : i < fe'.base.lits.length := hb ▸ hl
+      rw [dite_eq_left hl] at h
+      rw [dite_eq_left hl']
+      have he : fe'.base.lits[i] = fe.base.lits[i] := List.getElem_of_eq hb hl'
+      rw [he]
+      cases hfi : fe.find? fe.base.lits[i] with
+      | none => rw [hfi] at h; simp at h
+      | some c =>
+        rw [hfi] at h
+        simp only at h
+        obtain ⟨c', hc'⟩ := Option.isSome_iff_exists.mp (hf _ (by rw [hfi]; rfl))
+        rw [hc']
+        exact IFEnv.litsStored_mono hb hf (i + 1) stop h
+    · rw [dite_eq_right hl] at h; simp at h
+termination_by stop - i
+
+/-- con-leche: none — A lookup reads the own index's row and the base. -/
+theorem IFEnv.find?_congr {fe fe' : IFEnv} {n : NIdx} (hb : fe'.base = fe.base)
+    (hi : fe'.idx[n]? = fe.idx[n]?) : fe'.find? n = fe.find? n := by
+  rw [IFEnv.find?_eq, IFEnv.find?_eq, hi, hb]
+
+/-- con-leche: none — the literal names in two runs, `[i, mid)` then `[mid, stop)`. -/
+theorem IFEnv.litsStored_split (fe : IFEnv) {i mid stop : Nat} (h1 : i ≤ mid) (h2 : mid ≤ stop) :
+    fe.litsStored i stop = (fe.litsStored i mid && fe.litsStored mid stop) := by
+  by_cases he : i = mid
+  · subst he
+    rw [IFEnv.litsStored.eq_1 fe i i]; simp
+  · have hlt : i < mid := Nat.lt_of_le_of_ne h1 he
+    rw [IFEnv.litsStored.eq_1 fe i stop, IFEnv.litsStored.eq_1 fe i mid,
+      ite_eq_right (by omega), ite_eq_right (by omega)]
+    by_cases hl : i < fe.base.lits.length
+    · rw [dite_eq_left hl, dite_eq_left hl]
+      cases fe.find? fe.base.lits[i] with
+      | none => rfl
+      | some _ => exact IFEnv.litsStored_split fe (by omega) h2
+    · rw [dite_eq_right hl, dite_eq_right hl]; rfl
+termination_by mid - i
+
+/-- con-leche: none — Two indices with the same own rows and base answer the same literal lookups. -/
+theorem IFEnv.litsStored_same {fe fe' : IFEnv} (hi : fe'.idx = fe.idx) (hb : fe'.base = fe.base)
+    (i stop : Nat) : fe'.litsStored i stop = fe.litsStored i stop :=
+  IFEnv.litsStored_congr (by rw [hb]) (fun _ _ => IFEnv.find?_congr hb (by rw [hi])) i stop
+
+/-- con-leche: none — `litsStored` as a function of the own rows and the base only, so that `simp` can compare
+the lookups of two indices that differ in their flags or their constant list. -/
+@[irreducible] def litsStoredOn (idx : Std.HashMap NIdx IConstantInfo) (base : IFBase)
+    (i stop : Nat) : Bool :=
+  (IFEnv.mk ⟨[], []⟩ idx base ∅ false false).litsStored i stop
+
+@[simp] theorem IFEnv.litsStored_on (fe : IFEnv) (i stop : Nat) :
+    fe.litsStored i stop = litsStoredOn fe.idx fe.base i stop := by
+  unfold litsStoredOn
+  exact (IFEnv.litsStored_same (fe := fe) (fe' := IFEnv.mk ⟨[], []⟩ fe.idx fe.base ∅ false false)
+    rfl rfl i stop).symm
+
+/-- con-leche: none — **Flags recomputed are the lookups'.** -/
+theorem FlagsOK.recompute (fe1 : IFEnv) :
+    FlagsOK { ({ fe1 with natLit := fe1.natLitStoredBy } : IFEnv) with
+      strLit := ({ fe1 with natLit := fe1.natLitStoredBy } : IFEnv).strLitStoredBy } :=
+  ⟨by simp [IFEnv.natLitStoredBy], by simp [IFEnv.strLitStoredBy, IFEnv.natLitStoredBy]⟩
+
+/-- con-leche: none — `litNameAt` from `i` on is a membership test of the rest of the list. -/
+theorem litNameAt_false {lits : List NIdx} {n : NIdx} :
+    ∀ {i : Nat}, litNameAt lits n i = false → ∀ j (hj : j < lits.length), i ≤ j → lits[j] ≠ n := by
+  intro i h j hj hij
+  rw [litNameAt.eq_1] at h
+  have hi : i < lits.length := Nat.lt_of_le_of_lt hij hj
+  rw [dite_eq_left hi] at h
+  by_cases he : lits[i] == n
+  · rw [ite_eq_left he] at h; cases h
+  · rw [ite_eq_right he] at h
+    rcases Nat.lt_or_eq_of_le hij with hlt | rfl
+    · exact litNameAt_false h j hj hlt
+    · simpa using he
+termination_by i => lits.length - i
+
+theorem litNameAt_false_mem {lits : List NIdx} {n : NIdx} (h : litNameAt lits n 0 = false) :
+    ∀ m ∈ lits, m ≠ n := by
+  intro m hm
+  obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hm
+  exact litNameAt_false h j hj (Nat.zero_le _)
+
+/-- con-leche: none — `strLitStoredBy` holding, `natLitStoredBy` holds. -/
+theorem IFEnv.natLitStoredBy_of_str {fe : IFEnv} (h : fe.strLitStoredBy = true) :
+    fe.natLitStoredBy = true := by
+  rw [IFEnv.strLitStoredBy] at h
+  exact (Bool.and_eq_true _ _ ▸ h).1
+
+/-- con-leche: none — **The flags are a push's lookups'**: recomputed at a literal name before string literals
+are expandable; otherwise no lookup they read changed (`litNameAt`), or both hold and a push only
+adds answers (con-leche's `push_flags`). -/
+theorem FlagsOK.push {fe : IFEnv} (h : FlagsOK fe) (ci : IConstantInfo) : FlagsOK (fe.push ci) := by
+  let fe1 : IFEnv := ⟨⟨ci :: fe.env.consts, fe.env.tables⟩, fe.idx.insert ci.name ci,
+    fe.base, fe.tbls, fe.natLit, fe.strLit⟩
+  have hf1 : ∀ n, fe1.find? n = if (ci.name == n) = true then some ci else fe.find? n := by
+    intro n
+    rw [IFEnv.find?_eq, IFEnv.find?_eq]
+    simp only [fe1, Std.HashMap.getElem?_insert]
+    by_cases hb : (ci.name == n) = true <;> simp [hb]
+  unfold IFEnv.push
+  by_cases hre : (!fe.strLit && litNameAt fe.base.lits ci.name 0) = true
+  · rw [ite_eq_left hre]
+    exact FlagsOK.recompute _
+  · rw [ite_eq_right hre]
+    show FlagsOK fe1
+    cases hs : fe.strLit
+    · -- no literal name pushed: the lookups the flags read are the old ones
+      have hn : litNameAt fe.base.lits ci.name 0 = false := by simpa [hs] using hre
+      have hc : ∀ n ∈ fe.base.lits, fe1.find? n = fe.find? n := by
+        intro n hm
+        rw [hf1, ite_eq_right (by simpa using (litNameAt_false_mem hn n hm).symm)]
+      have hl := IFEnv.litsStored_congr (fe := fe) (fe' := fe1) rfl hc
+      exact ⟨by rw [IFEnv.natLitStoredBy, hl]; exact h.nat,
+        by rw [IFEnv.strLitStoredBy, IFEnv.natLitStoredBy, hl, hl]; exact hs ▸ h.str⟩
+    · -- string literals expandable: both hold, and a push only adds answers
+      have hstr : fe.strLitStoredBy = true := h.str ▸ hs
+      have hnat : fe.natLitStoredBy = true := IFEnv.natLitStoredBy_of_str hstr
+      have hm : ∀ n, (fe.find? n).isSome → (fe1.find? n).isSome := by
+        intro n hn
+        rw [hf1]; split
+        · rfl
+        · exact hn
+      have hn1 : fe1.natLitStoredBy = true :=
+        IFEnv.litsStored_mono (fe := fe) (fe' := fe1) rfl hm 0 NAT_LIT_COUNT hnat
+      have hs1 : fe1.strLitStoredBy = true := by
+        rw [IFEnv.strLitStoredBy] at hstr ⊢
+        rw [Bool.and_eq_true] at hstr ⊢
+        exact ⟨hn1, IFEnv.litsStored_mono (fe := fe) (fe' := fe1) rfl hm _ _ hstr.2⟩
+      exact ⟨by show fe.natLit = _; rw [h.nat, hnat, hn1], by show fe.strLit = _; rw [hs, hs1]⟩
+
+/-- con-leche: none — A table push moves no lookup. -/
+theorem FlagsOK.pushTable {fe : IFEnv} (h : FlagsOK fe) (t : IProjTable) :
+    FlagsOK (fe.pushTable t) := by
+  have hl := IFEnv.litsStored_congr (fe := fe) (fe' := fe.pushTable t) rfl
+    (fun n _ => IFEnv.find?_congr rfl rfl)
+  exact ⟨by rw [IFEnv.natLitStoredBy, hl]; exact h.nat,
+    by rw [IFEnv.strLitStoredBy, IFEnv.natLitStoredBy, hl, hl]; exact h.str⟩
+
+/-- con-leche: none — **flags carried to an index answering alike**: the same literal names,
+the same lookups, the same flags. -/
+theorem FlagsOK.of_same {fe fe0 : IFEnv} (h : FlagsOK fe0) (hb : fe.base.lits = fe0.base.lits)
+    (hf : ∀ n, fe.find? n = fe0.find? n) (hn : fe.natLit = fe0.natLit)
+    (hs : fe.strLit = fe0.strLit) : FlagsOK fe := by
+  have hl := IFEnv.litsStored_congr (fe := fe0) (fe' := fe) hb (fun n _ => hf n)
+  exact ⟨by rw [IFEnv.natLitStoredBy, hl, hn]; exact h.nat,
+    by rw [IFEnv.strLitStoredBy, IFEnv.natLitStoredBy, hl, hl, hs]; exact h.str⟩
+
+/-- con-leche: none — An index from its components carries its lookups' flags. -/
+theorem FlagsOK.ofParts (env : IEnv) (idx : Std.HashMap NIdx IConstantInfo) (base : IFBase)
+    (tbls : Std.HashMap NIdx IProjTable) : FlagsOK (IFEnv.ofParts env idx base tbls) :=
+  ⟨by simp [IFEnv.ofParts, IFEnv.natLitStoredBy], by
+    simp [IFEnv.ofParts, IFEnv.strLitStoredBy, IFEnv.natLitStoredBy]⟩
+
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:78-100 FBase.fromLe_litFrom — **a view of the frozen
+layer holds the literal names exactly from `litFrom` on**: the threshold's comparison is the
+view's lookups. -/
+theorem fromLe_litFrom (e : IEnv) (t : Std.HashMap NIdx IProjTable) (x y : Bool) (b : IFBase)
+    (i stop : Nat) :
+    Arena.fromLe (Arena.litFrom b.idx b.lits i stop) b.below = (IFEnv.mk e ∅ b t x y).litsStored i stop := by
+  rw [Arena.litFrom.eq_1, IFEnv.litsStored.eq_1]
+  by_cases hi : i ≥ stop
+  · simp [hi, Arena.fromLe]
+  · simp only [hi, ite_false]
+    by_cases hl : i < b.lits.length
+    · rw [dite_eq_left hl]
+      rw [dite_eq_left (show i < (IFEnv.mk e ∅ b t x y).base.lits.length from hl)]
+      have hf : (IFEnv.mk e ∅ b t x y).find? b.lits[i] = b.find? b.lits[i] := by
+        rw [IFEnv.find?_eq]; simp
+      show _ = (match (IFEnv.mk e ∅ b t x y).find? b.lits[i] with
+        | some _ => _ | none => false)
+      rw [hf]
+      have ih := fromLe_litFrom e t x y b (i + 1) stop
+      simp only [IFBase.find?]
+      cases hc : b.idx[b.lits[i]]? with
+      | none => simp [Arena.fromLe]
+      | some p =>
+        obtain ⟨c, ci⟩ := p
+        simp only
+        cases hr : Arena.litFrom b.idx b.lits (i + 1) stop with
+        | none =>
+          rw [hr] at ih
+          by_cases hlt : c < b.below
+          · simp only [hlt, ite_true]; exact ih
+          · simp [hlt, Arena.fromLe]
+        | some k =>
+          rw [hr] at ih
+          by_cases hlt : c < b.below
+          · simp only [hlt, ite_true]
+            rw [← ih]
+            by_cases hk : c + 1 ≤ k
+            · simp only [hk, ite_true]
+            · simp only [hk, ite_false, Arena.fromLe, decide_eq_decide]; omega
+          · simp only [hlt, ite_false]
+            by_cases hk : c + 1 ≤ k
+            · simp only [hk, ite_true, Arena.fromLe, decide_eq_false_iff_not]; omega
+            · simp only [hk, ite_false, Arena.fromLe, decide_eq_false_iff_not]; omega
+    · rw [dite_eq_right hl, dite_eq_right (show ¬ i < (IFEnv.mk e ∅ b t x y).base.lits.length from hl)]
+      rfl
+termination_by stop - i
+
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK (the `ienv` clause) — the
-index answers exactly what the denoted environment answers.
+index answers exactly what the denoted environment answers, and its literal
+flags are its lookups' at handles that denote the literal names (`FlagsOK`,
+`LitsOK`), so that they are `natLitStored`/`strLitStored` of the environment
+(`IFEnvOK.natLit_eq`, `IFEnvOK.strLit_eq`).
 
 **Two clauses, and the second is `cover` rather than `miss`.**  The naive
 spelling of the second direction — "a `find?` miss at a handle that denotes
@@ -534,6 +798,10 @@ structure IFEnvOK (env : Env) (fe : IFEnv) (s : AState) : Prop where
   tblCover : ∀ nm pt, env.findTable? nm = some pt →
     ∃ n t, denoteN s.store.ns n = some nm ∧ fe.findTable? n = some t ∧
       Frontend.denoteProjTable s.store t = some pt
+  /-- the literal flags are the index's lookups' -/
+  flags : FlagsOK fe
+  /-- at handles that denote the literal names -/
+  lits : LitsOK fe.base s.store
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the index's MISS half,
 derived: a handle the index does not know cannot denote a name the
@@ -551,6 +819,102 @@ theorem IFEnvOK.miss {env : Env} {fe : IFEnv} {s : AState}
     rw [hf] at hf'
     exact absurd hf' (by simp)
 
+/-- con-leche: none — the literal names' denotations survive the arena's
+growth. -/
+theorem LitsOK.mono {b : IFBase} {st st' : EStore} (h : LitsOK b st) (hx : Ext st st') :
+    LitsOK b st' := by
+  unfold LitsOK at h ⊢
+  rw [← h]
+  apply List.map_congr_left
+  intro n hn
+  cases hd : denoteN st.ns n with
+  | none =>
+    exfalso
+    have : (none : Option ConLeche.Name) ∈ ConLeche.strLitNames.map some := by
+      rw [← h]; exact List.mem_map.mpr ⟨n, hn, hd⟩
+    simp at this
+  | some nm => exact denoteN_ext hd hx
+
+/-- con-leche: none — a lookup at a handle that denotes a name answers exactly
+when the environment does (`hit`, and `IFEnvOK.miss`). -/
+theorem IFEnvOK.isSome_find {env : Env} {fe : IFEnv} {s : AState}
+    (hok : StateOK s) (h : IFEnvOK env fe s) {n : NIdx} {nm : ConLeche.Name}
+    (hd : denoteN s.store.ns n = some nm) : (fe.find? n).isSome = (env.find? nm).isSome := by
+  cases hf : fe.find? n with
+  | none => rw [IFEnvOK.miss hok h hd hf]; rfl
+  | some ci =>
+    obtain ⟨nm', c, hd', -, he⟩ := h.hit n ci hf
+    rw [hd] at hd'
+    obtain rfl := Option.some.inj hd'
+    rw [he]; rfl
+
+/-- con-leche: none — one step of `litsStored` at a known literal handle. -/
+theorem IFEnv.litsStored_step (fe : IFEnv) {i stop : Nat} {h : NIdx} (hi : i < stop)
+    (hl : fe.base.lits[i]? = some h) :
+    fe.litsStored i stop = ((fe.find? h).isSome && fe.litsStored (i + 1) stop) := by
+  rw [IFEnv.litsStored.eq_1, ite_eq_right (by omega)]
+  obtain ⟨hlt, he⟩ := List.getElem?_eq_some_iff.mp hl
+  rw [dite_eq_left hlt, he]
+  cases fe.find? h <;> rfl
+
+/-- con-leche: none — `litsStored` over no names. -/
+theorem IFEnv.litsStored_self (fe : IFEnv) (i : Nat) : fe.litsStored i i = true := by
+  rw [IFEnv.litsStored.eq_1, ite_eq_left (Nat.le_refl i)]
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:57-60 strLitNames — **the ten literal
+handles**, one per name, read off `LitsOK`. -/
+theorem LitsOK.ten {b : IFBase} {st : EStore} (h : LitsOK b st) :
+    ∃ h0 h1 h2 h3 h4 h5 h6 h7 h8 h9, b.lits = [h0, h1, h2, h3, h4, h5, h6, h7, h8, h9] ∧
+      denoteN st.ns h0 = some natName ∧ denoteN st.ns h1 = some natZeroName ∧
+      denoteN st.ns h2 = some natSuccName ∧ denoteN st.ns h3 = some stringName ∧
+      denoteN st.ns h4 = some stringOfListName ∧ denoteN st.ns h5 = some listName ∧
+      denoteN st.ns h6 = some listNilName ∧ denoteN st.ns h7 = some listConsName ∧
+      denoteN st.ns h8 = some charName ∧ denoteN st.ns h9 = some charOfNatName := by
+  unfold LitsOK at h
+  generalize b.lits = l at h ⊢
+  rcases l with _ | ⟨a0, _ | ⟨a1, _ | ⟨a2, _ | ⟨a3, _ | ⟨a4, _ | ⟨a5, _ | ⟨a6, _ | ⟨a7,
+    _ | ⟨a8, _ | ⟨a9, _ | ⟨a10, l⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩ <;>
+    simp [ConLeche.strLitNames, ConLeche.natLitNames] at h
+  obtain ⟨d0, d1, d2, d3, d4, d5, d6, d7, d8, d9⟩ := h
+  exact ⟨a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, rfl, d0, d1, d2, d3, d4, d5, d6, d7, d8, d9⟩
+
+/-- con-leche: ConLeche/Verify/EnvBound.lean:96 mkFEnv_natLit — **the index's
+`Nat`-literal flag is `natLitStored` of its environment**. -/
+theorem IFEnvOK.natLit_eq {env : Env} {fe : IFEnv} {s : AState}
+    (hok : StateOK s) (h : IFEnvOK env fe s) : fe.natLit = ConLeche.natLitStored env := by
+  obtain ⟨h0, h1, h2, _, _, _, _, _, _, _, hb, d0, d1, d2, _⟩ := h.lits.ten
+  rw [h.flags.nat, IFEnv.natLitStoredBy, NAT_LIT_COUNT, ConLeche.natLitStored,
+    IFEnv.litsStored_step fe (by decide) (by rw [hb]; rfl),
+    IFEnv.litsStored_step fe (by decide) (by rw [hb]; rfl),
+    IFEnv.litsStored_step fe (by decide) (by rw [hb]; rfl), IFEnv.litsStored_self,
+    IFEnvOK.isSome_find hok h d0, IFEnvOK.isSome_find hok h d1,
+    IFEnvOK.isSome_find hok h d2, Bool.and_true, Bool.and_assoc]
+
+/-- con-leche: ConLeche/Verify/EnvBound.lean:102 mkFEnv_strLit — **the index's
+string-literal flag is `strLitStored` of its environment**. -/
+theorem IFEnvOK.strLit_eq {env : Env} {fe : IFEnv} {s : AState}
+    (hok : StateOK s) (h : IFEnvOK env fe s) : fe.strLit = ConLeche.strLitStored env := by
+  obtain ⟨h0, h1, h2, h3, h4, h5, h6, h7, h8, h9, hb, d0, d1, d2, d3, d4, d5, d6, d7, d8, d9⟩ :=
+    h.lits.ten
+  rw [h.flags.str, IFEnv.strLitStoredBy, IFEnv.natLitStoredBy, NAT_LIT_COUNT, STR_LIT_COUNT,
+    ConLeche.strLitStored, ConLeche.natLitStored,
+    IFEnv.litsStored_step fe (by decide) (by rw [hb]; rfl),
+    IFEnv.litsStored_step fe (by decide) (by rw [hb]; rfl),
+    IFEnv.litsStored_step fe (by decide) (by rw [hb]; rfl), IFEnv.litsStored_self,
+    IFEnv.litsStored_step fe (by decide) (by rw [hb]; rfl),
+    IFEnv.litsStored_step fe (by decide) (by rw [hb]; rfl),
+    IFEnv.litsStored_step fe (by decide) (by rw [hb]; rfl),
+    IFEnv.litsStored_step fe (by decide) (by rw [hb]; rfl),
+    IFEnv.litsStored_step fe (by decide) (by rw [hb]; rfl),
+    IFEnv.litsStored_step fe (by decide) (by rw [hb]; rfl),
+    IFEnv.litsStored_step fe (by decide) (by rw [hb]; rfl), IFEnv.litsStored_self,
+    IFEnvOK.isSome_find hok h d0, IFEnvOK.isSome_find hok h d1,
+    IFEnvOK.isSome_find hok h d2, IFEnvOK.isSome_find hok h d3,
+    IFEnvOK.isSome_find hok h d4, IFEnvOK.isSome_find hok h d5,
+    IFEnvOK.isSome_find hok h d6, IFEnvOK.isSome_find hok h d7,
+    IFEnvOK.isSome_find hok h d8, IFEnvOK.isSome_find hok h d9]
+  simp only [Bool.and_true, Bool.and_assoc]
+
 /-! ## The whole invariant, and what carries it -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the checker's state
@@ -563,6 +927,18 @@ structure CheckOK (eager : Bool) (env : Env) (fe : IFEnv) (s : AState) :
   caches : CacheOK eager env s
   pins : PinsOK s
   ienv : IFEnvOK env fe s
+
+/-- con-leche: ConLeche/Verify/EnvBound.lean:96 mkFEnv_natLit — the index's
+`Nat`-literal flag, at a checking state: `natLitStored` of the environment. -/
+theorem CheckOK.natLitEq {eager : Bool} {env : Env} {fe : IFEnv} {s : AState}
+    (h : CheckOK eager env fe s) : fe.natLit = ConLeche.natLitStored env :=
+  h.ienv.natLit_eq h.state
+
+/-- con-leche: ConLeche/Verify/EnvBound.lean:102 mkFEnv_strLit — the index's
+string-literal flag, at a checking state: `strLitStored` of the environment. -/
+theorem CheckOK.strLitEq {eager : Bool} {env : Env} {fe : IFEnv} {s : AState}
+    (h : CheckOK eager env fe s) : fe.strLit = ConLeche.strLitStored env :=
+  h.ienv.strLit_eq h.state
 
 /-! ### Transport
 
@@ -716,6 +1092,8 @@ theorem IFEnvOK.mono {env : Env} {fe : IFEnv} {s s' : AState}
     intro nm pt he
     obtain ⟨n, t, h1, h2, h3⟩ := h.tblCover nm pt he
     exact ⟨n, t, denoteN_ext h1 hx, h2, denoteProjTable_ext h3 hx⟩
+  flags := h.flags
+  lits := LitsOK.mono h.lits hx
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the whole invariant
 transports past a call that only grows the arena.**  This is the theorem the

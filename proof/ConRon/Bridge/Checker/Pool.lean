@@ -108,7 +108,7 @@ theorem Arena.pooledAccepts_bridge
     ∃ F, ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified F) pinsP dsP
       = .ok (ConLeche.Cached.streamEnv dsP) := by
   obtain ⟨parts, hidx, hcov, -, hinc, hacc⟩ := hrun
-  obtain ⟨hst', hx, hp', -, hI, hpI⟩ := buildIndex_run constsSpec tablesSpec hst hoff hpd hden hidx
+  obtain ⟨hst', hx, hp', -, hI, hpI⟩ := buildIndex_run constsSpec tablesSpec hst hpersPins hoff hpd hden hidx
   have hx' := PExt.of_ext hx
   obtain ⟨hlen, hget⟩ := denoteDecls_getElem hden
   have hden' : ∀ (i : Nat) (hi : i < ds.size), ∃ hi' : i < dsP.length,
@@ -145,7 +145,7 @@ theorem Arena.pooledOleanAccepts_bridge
       (fillStream sp F valuesP dsP) =
         .ok (ConLeche.Cached.streamEnv (fillStream sp F valuesP dsP)) := by
   obtain ⟨parts, hidx, hcov, -, hinc, hacc⟩ := hrun
-  obtain ⟨hst', hx, hp', -, hI, hpI⟩ := buildIndex_run constsSpec tablesSpec hst hoff hpd hden hidx
+  obtain ⟨hst', hx, hp', -, hI, hpI⟩ := buildIndex_run constsSpec tablesSpec hst hpersPins hoff hpd hden hidx
   have hx' := PExt.of_ext hx
   obtain ⟨hlen, hget⟩ := denoteDecls_getElem hden
   have hden' : ∀ (i : Nat) (hi : i < ds.size), ∃ hi' : i < dsP.length,

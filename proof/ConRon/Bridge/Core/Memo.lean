@@ -396,11 +396,12 @@ theorem CheckOK.ofCache {eager eager' : Bool} {env : Env} {fe : IFEnv}
         | exact h.pins.emptyLevels | exact h.pins.zeroLevel
         | exact h.pins.sortOne | exact h.pins.anon
   ienv := by
-    refine ⟨?_, ?_, ?_, ?_⟩ <;> simp only [hst]
+    refine ⟨?_, ?_, ?_, ?_, h.ienv.flags, ?_⟩ <;> simp only [hst]
     · exact h.ienv.hit
     · exact h.ienv.cover
     · exact h.ienv.tblHit
     · exact h.ienv.tblCover
+    · exact h.ienv.lits
 
 
 /-! ### The three arms of a memo wrapper, as lemmas

@@ -817,7 +817,8 @@ def genRecCheck (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (nestedBit : Bo
     let pushed := cvGs.map (·.name)
     flushCaches
     let out ← classRecsRulesOk mode feR pushed g rd.recCls cvGs cvGs rd.recCls
-    let fe2 := prevs.foldr (fun (n, prev) acc => acc.popTemp n prev) feR
+    let fe2 := (prevs.foldr (fun (n, prev) acc => acc.popTemp n prev) feR).setFlags fe.natLit
+      fe.strLit
     flushCaches
     pure (fe2, out)
 

@@ -51,6 +51,12 @@ structure IndexDenotes (st : EStore) (I : IStreamIndex) (J : ConLeche.Cached.Str
     IProjTableOK p.2
   tblCover : ∀ nm q, J.base.tbls[nm]? = some q → ∃ n t, denoteN st.ns n = some nm ∧
     I.base.tbls[n]? = some (q.1, t) ∧ Frontend.denoteProjTable st t = some q.2
+  /-- frozen: the literal names, at handles that denote them -/
+  lits : LitsOK I.base st
+  /-- frozen: the `Nat`-literal flag's threshold (con-leche's `FrozenIndex.natFrom_eq`) -/
+  natFrom : I.natFrom = litFrom I.base.idx I.base.lits 0 NAT_LIT_COUNT
+  /-- frozen: the string-literal flag's threshold (`FrozenIndex.strFrom_eq`) -/
+  strFrom : I.strFrom = litFrom I.base.idx I.base.lits 0 STR_LIT_COUNT
 
 /-- con-leche: none — **the index reads the same across a persistent extension**: every handle
 it holds is persistent. -/
@@ -75,10 +81,25 @@ theorem IndexDenotes.pmono {st st' : EStore} {I : IStreamIndex} {J : ConLeche.Ca
     obtain ⟨n, t, h1, h2, h3⟩ := h.tblCover nm q hq
     obtain ⟨hpn, hpt⟩ := hp.tbls n _ h2
     exact ⟨n, t, denoteN_pext hx hpn h1, h2, denoteProjTable_pext hx hpt h3⟩
+  lits := by
+    have hl := h.lits
+    unfold LitsOK at hl ⊢
+    rw [← hl]
+    apply List.map_congr_left
+    intro n hn
+    cases hd : denoteN st.ns n with
+    | none =>
+      exfalso
+      have : (none : Option ConLeche.Name) ∈ ConLeche.strLitNames.map some := by
+        rw [← hl]; exact List.mem_map.mpr ⟨n, hn, hd⟩
+      simp at this
+    | some nm => exact denoteN_pext hx (hp.lits n hn) hd
+  natFrom := h.natFrom
+  strFrom := h.strFrom
 
 /-! ## What a view reads -/
 
-/-- con-leche: ConLeche/Cached/StreamIndex.lean:68-72 StreamIndex.view — the twin's view finds
+/-- con-leche: ConLeche/Cached/StreamIndex.lean:82-96 FrozenIndex.view — the twin's view finds
 in the frozen layer, below the record's first counter. -/
 theorem IStreamIndex.view_find? (I : IStreamIndex) (k : Nat) (n : NIdx) :
     (I.view k).find? n = match I.base.idx[n]? with
@@ -90,7 +111,7 @@ theorem IStreamIndex.view_find? (I : IStreamIndex) (k : Nat) (n : NIdx) :
   | none => rfl
   | some p => obtain ⟨c, ci⟩ := p; rfl
 
-/-- con-leche: ConLeche/Cached/StreamIndex.lean:68-72 StreamIndex.view — the twin's view's raw
+/-- con-leche: ConLeche/Cached/StreamIndex.lean:82-96 FrozenIndex.view — the twin's view's raw
 table lookup reads the frozen layer, below the record's position. -/
 theorem IStreamIndex.view_rawTable? (I : IStreamIndex) (k : Nat) (n : NIdx) :
     (I.view k).rawTable? n = match I.base.tbls[n]? with
@@ -101,26 +122,26 @@ theorem IStreamIndex.view_rawTable? (I : IStreamIndex) (k : Nat) (n : NIdx) :
   | none => rfl
   | some p => obtain ⟨r, t⟩ := p; rfl
 
-/-- con-leche: ConLeche/Cached/StreamIndex.lean:68-72 StreamIndex.view — con-leche's view, the
+/-- con-leche: ConLeche/Cached/StreamIndex.lean:82-96 FrozenIndex.view — con-leche's view, the
 same shape. -/
 theorem cachedView_find? (J : ConLeche.Cached.StreamIndex) (k : Nat) (nm : ConLeche.Name) :
-    (J.view k).find? nm = match J.base.idx[nm]? with
+    (J.freeze.view k).find? nm = match J.base.idx[nm]? with
       | some p => if p.1 < J.firsts.getD k J.next then some p.2 else none
       | none => none := by
-  simp only [ConLeche.Cached.StreamIndex.view, FEnv.find?, FEnv.lookup_eq,
-    Std.HashMap.getElem?_empty, FBase.find?]
+  simp only [ConLeche.Cached.FrozenIndex.view, ConLeche.Cached.StreamIndex.freeze, FEnv.find?,
+    findIn, lookupIn_eq, Std.HashMap.getElem?_empty, FBase.find?]
   cases J.base.idx[nm]? with
   | none => rfl
   | some p => obtain ⟨c, ci⟩ := p; rfl
 
-/-- con-leche: ConLeche/Cached/StreamIndex.lean:68-72 StreamIndex.view — con-leche's view's raw
+/-- con-leche: ConLeche/Cached/StreamIndex.lean:82-96 FrozenIndex.view — con-leche's view's raw
 table lookup. -/
 theorem cachedView_rawTable? (J : ConLeche.Cached.StreamIndex) (k : Nat) (nm : ConLeche.Name) :
-    (J.view k).rawTable? nm = match J.base.tbls[nm]? with
+    (J.freeze.view k).rawTable? nm = match J.base.tbls[nm]? with
       | some p => if p.1 < k then some p.2 else none
       | none => none := by
-  simp only [ConLeche.Cached.StreamIndex.view, FEnv.rawTable?, Std.HashMap.getElem?_empty,
-    FBase.findTable?]
+  simp only [ConLeche.Cached.FrozenIndex.view, ConLeche.Cached.StreamIndex.freeze,
+    FEnv.rawTable?, Std.HashMap.getElem?_empty, FBase.findTable?]
   cases J.base.tbls[nm]? with
   | none => rfl
   | some p => obtain ⟨r, t⟩ := p; rfl
@@ -140,9 +161,9 @@ theorem view_ok {s : AState} {I : IStreamIndex} {J : ConLeche.Cached.StreamIndex
   obtain ⟨rk, hrk⟩ := hst.wf
   have htw := ConLeche.Cached.viewTwin hJ rfl hnd
   -- con-leche's view against the prefix's environment
-  have hF : ∀ nm, (J.view pre.length).find? nm = (ConLeche.Cached.streamEnv pre).find? nm :=
+  have hF : ∀ nm, (J.freeze.view pre.length).find? nm = (ConLeche.Cached.streamEnv pre).find? nm :=
     fun nm => by rw [← htw.find, mkFEnv_find?]
-  have hR : ∀ nm, (J.view pre.length).rawTable? nm =
+  have hR : ∀ nm, (J.freeze.view pre.length).rawTable? nm =
       (ConLeche.Cached.streamEnv pre).tables.find? (·.structName == nm) :=
     fun nm => by rw [← htw.raw, mkFEnv_rawTable?]
   have hc : I.firsts.getD pre.length I.next = J.firsts.getD pre.length J.next := by
@@ -150,7 +171,7 @@ theorem view_ok {s : AState} {I : IStreamIndex} {J : ConLeche.Cached.StreamIndex
   -- the twin's find against con-leche's view
   have fHit : ∀ n ci, (I.view pre.length).find? n = some ci → ∃ nm c,
       denoteN s.store.ns n = some nm ∧ Frontend.denoteCI s.store ci = some c ∧
-      (J.view pre.length).find? nm = some c := by
+      (J.freeze.view pre.length).find? nm = some c := by
     intro n ci hf
     rw [IStreamIndex.view_find?] at hf
     cases hp : I.base.idx[n]? with
@@ -167,7 +188,7 @@ theorem view_ok {s : AState} {I : IStreamIndex} {J : ConLeche.Cached.StreamIndex
         simp only
         rw [ite_eq_left (by rw [← hc]; exact hlt)]
       · cases hf
-  have fCover : ∀ nm c, (J.view pre.length).find? nm = some c → ∃ n ci,
+  have fCover : ∀ nm c, (J.freeze.view pre.length).find? nm = some c → ∃ n ci,
       denoteN s.store.ns n = some nm ∧ (I.view pre.length).find? n = some ci ∧
       Frontend.denoteCI s.store ci = some c := by
     intro nm c hf
@@ -189,7 +210,7 @@ theorem view_ok {s : AState} {I : IStreamIndex} {J : ConLeche.Cached.StreamIndex
   -- the twin's raw table lookup against con-leche's view
   have tHit : ∀ n t, (I.view pre.length).rawTable? n = some t → ∃ nm pt,
       denoteN s.store.ns n = some nm ∧ Frontend.denoteProjTable s.store t = some pt ∧
-      (J.view pre.length).rawTable? nm = some pt ∧ IProjTableOK t := by
+      (J.freeze.view pre.length).rawTable? nm = some pt ∧ IProjTableOK t := by
     intro n t hf
     rw [IStreamIndex.view_rawTable?] at hf
     cases hp : I.base.tbls[n]? with
@@ -206,7 +227,7 @@ theorem view_ok {s : AState} {I : IStreamIndex} {J : ConLeche.Cached.StreamIndex
         simp only
         rw [ite_eq_left hlt]
       · cases hf
-  have tCover : ∀ nm pt, (J.view pre.length).rawTable? nm = some pt → ∃ n t,
+  have tCover : ∀ nm pt, (J.freeze.view pre.length).rawTable? nm = some pt → ∃ n t,
       denoteN s.store.ns n = some nm ∧ (I.view pre.length).rawTable? n = some t ∧
       Frontend.denoteProjTable s.store t = some pt := by
     intro nm pt hf
@@ -259,7 +280,22 @@ theorem view_ok {s : AState} {I : IStreamIndex} {J : ConLeche.Cached.StreamIndex
     obtain ⟨n', ci, h1', h2', -⟩ := fCover nm c hc'
     obtain rfl := denoteN_inj hrk.nsWF h1 h1'
     rw [h2']; rfl
-  refine ⟨⟨?_, ?_, ?_, ?_⟩, gate⟩
+  have hflags : FlagsOK (I.view pre.length) := by
+    have key := fun stop => fromLe_litFrom ⟨[], []⟩ {}
+      (Arena.fromLe I.natFrom (I.firsts.getD pre.length I.next))
+      (Arena.fromLe I.strFrom (I.firsts.getD pre.length I.next))
+      { I.base with below := I.firsts.getD pre.length I.next, belowRec := pre.length } 0 stop
+    constructor
+    · show Arena.fromLe I.natFrom _ = (I.view pre.length).litsStored 0 NAT_LIT_COUNT
+      rw [hI.natFrom]
+      exact key NAT_LIT_COUNT
+    · show Arena.fromLe I.strFrom _ =
+        ((I.view pre.length).litsStored 0 NAT_LIT_COUNT &&
+          (I.view pre.length).litsStored NAT_LIT_COUNT STR_LIT_COUNT)
+      rw [hI.strFrom,
+        ← IFEnv.litsStored_split (I.view pre.length) (Nat.zero_le _) (by decide : NAT_LIT_COUNT ≤ STR_LIT_COUNT)]
+      exact key STR_LIT_COUNT
+  refine ⟨⟨?_, ?_, ?_, ?_, hflags, hI.lits⟩, gate⟩
   · intro n ci hf
     obtain ⟨nm, c, h1, h2, h3⟩ := fHit n ci hf
     exact ⟨nm, c, h1, h2, by rw [← hF]; exact h3⟩

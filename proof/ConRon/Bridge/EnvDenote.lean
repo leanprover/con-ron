@@ -122,8 +122,8 @@ preserves the coherence clause**: `mkIFEnvGo` inserts from the back, so the
 cons-extended list's index is the old one with the new constant inserted. -/
 theorem IFEnvCoh.push {fe : IFEnv} (h : IFEnvCoh fe) (ci : IConstantInfo) :
     IFEnvCoh (fe.push ci) := by
-  refine ⟨fun n => ?_, fun n => h.tbls n⟩
-  simp only [IFEnv.push, mkIFEnvGo, Std.HashMap.getElem?_insert, h.idx n]
+  refine ⟨fun n => ?_, fun n => by rw [IFEnv.push_tbls, IFEnv.push_env]; exact h.tbls n⟩
+  simp only [IFEnv.push_idx, IFEnv.push_env, mkIFEnvGo, Std.HashMap.getElem?_insert, h.idx n]
 
 /-- con-leche: none — a persistent constant's name is persistent. -/
 theorem persCI_name {ci : IConstantInfo} (h : PersCI ci) : PersN ci.name := by

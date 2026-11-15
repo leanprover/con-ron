@@ -364,7 +364,7 @@ set_option maxHeartbeats 4000000 in
       (inferBody (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth)
         (absEIdx e)) := by
   have hv := @PF.view_wf_ls
-  rw [arena.core.infer_body, inferBody]
+  rw [arena.core.infer_body, inferBody, hctx.natLit, hctx.strLit]
   refine LSR.bind (hv hrel hinv e) rfl ?_ ?_
   · intro e1; exact errArm_ok
   intro a b lst1 hR hrel hinv
@@ -389,7 +389,7 @@ call of the io body is `knot_infer_at io`, `laneKnotAt`'s `infer`.) -/
       (inferBodyIO (laneKnotAt (ConRon.Refine.absMode mode) eager lfe lane io f) lfe (absU depth)
         (absEIdx e)) := by
   have hv := @PF.view_wf_ls
-  rw [arena.core.infer_body_io, inferBodyIO]
+  rw [arena.core.infer_body_io, inferBodyIO, hctx.natLit, hctx.strLit]
   refine LSR.bind (hv hrel hinv e) rfl ?_ ?_
   · intro e1; exact errArm_ok
   intro a b lst1 hR hrel hinv

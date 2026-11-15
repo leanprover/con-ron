@@ -43,7 +43,7 @@ at the view of its position. -/
 theorem record_check_refines {tier st lst} {I : IStreamIndex}
     {mode : kernel.env.CheckMode} {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
     {k : Std.U64} {pd : arena.env.IDeclaration} {st'}
-    (hrel : AStateRel₀ tier st lst) (hinv : AStateInv tier st) (hI : StreamIndexRel tier.env I)
+    (hrel : AStateRel₀ tier st lst) (hinv : AStateInv tier st) (hI : StreamIndexRel tier.env I ∧ FrozenRel tier.env I)
     (hk : k.val ≤ Std.Usize.max)
     (hrun : arena.stream_index.record_check tier st mode pins k pd = ok (.Ok (), st')) :
     ∃ lst', (recordCheck (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I (absU k)
@@ -63,7 +63,7 @@ theorem record_check_refines {tier st lst} {I : IStreamIndex}
       cases Result.ok_injective hrun
     | true =>
       obtain ⟨w, hw, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      have hfe := stream_index_view_rel hI hk hw
+      have hfe := stream_index_view_rel hI.1 hI.2 hk hw
       obtain ⟨⟨r1, st2⟩, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hS2 := check_decl_refines hrel1 hinv1 hfe.rel hfe.inv h2
       cases r1 with
@@ -83,7 +83,7 @@ theorem record_job_refines {tier st lst} {I : IStreamIndex}
     {mode : kernel.env.CheckMode} {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
     {k : Std.U64} {pd : arena.env.IDeclaration} {st'}
     (hidle : AIdle tier st lst) (hinv : AStateInv tier st) (htf : tier.frozen = true)
-    (hI : StreamIndexRel tier.env I) (hk : k.val ≤ Std.Usize.max)
+    (hI : StreamIndexRel tier.env I ∧ FrozenRel tier.env I) (hk : k.val ≤ Std.Usize.max)
     (hrun : arena.stream_index.record_job tier st mode pins k pd = ok (.Ok (), st')) :
     ∃ lst', (recordJob (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I (absU k)
         (absIDeclaration pd)).run lst = .ok ((), lst') ∧
@@ -112,7 +112,7 @@ theorem run_job_refines {tier st lst} {I : IStreamIndex}
     {mode : kernel.env.CheckMode} {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
     {ds : alloc.vec.Vec arena.env.IDeclaration} {k : Std.U64} {st'}
     (hidle : AIdle tier st lst) (hinv : AStateInv tier st) (htf : tier.frozen = true)
-    (hI : StreamIndexRel tier.env I) (hk : k.val ≤ Std.Usize.max)
+    (hI : StreamIndexRel tier.env I ∧ FrozenRel tier.env I) (hk : k.val ≤ Std.Usize.max)
     (hrun : arena.checker.run_job tier st mode pins ds k = ok (.Ok (), st')) :
     k.val < ds.val.length ∧
     ∃ lst', runJob (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I

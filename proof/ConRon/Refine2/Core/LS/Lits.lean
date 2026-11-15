@@ -4,7 +4,7 @@
 Task #97-P5-Core round 5, region B.  `crates/con-ron-core/src/arena/core.rs`'s
 `Nat`/`String` literal section and structural-`Nat` acceleration against
 `Arena/Core.lean`'s twins: the fifteen `nat*Name` pins, the name lists, the
-stored-declaration shape guards (`natLitSupported`, `strLitStored` and their
+stored-declaration shape guards (`natLitSupported` and its
 helpers), the constructor forms of a literal, `rawNatLit?`,
 the binary operation's dispatch (`natBinOpOfName?`, `natBinOpResult`) and the
 headline `reduceNat` (`reduce_nat_ls`).
@@ -217,14 +217,6 @@ theorem natBinOpOfName?_pred (c : NIdx) :
   | none => simp only [Result.ok.injEq] at h; subst h; rfl
   | some _ => simp only [Result.ok.injEq] at h; subst h; rfl
 
-/-- `nat_lit_stored` (`nat_trio_stored`) ⊑ `natLitStored`: the three pin reads,
-then the three probes. -/
-@[lockstep] theorem nat_lit_stored_ls {pers st fe lfe lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.nat_lit_stored pers st fe) lst
-      (natLitStored lfe) := by
-  rw [arena.core.nat_lit_stored, arena.core.nat_trio_stored, natLitStored]
-  lockstep
 
 /-! ## Constructor forms and the literal reading -/
 
@@ -258,7 +250,7 @@ attribute [local simp] ConRon.Refine.LiteralWF
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe) :
     LS pers (fun a b => b = absEIdx a) (arena.core.lit_to_ctor_if_nat pers st fe h) lst
       (litToCtorIfNat lfe (absEIdx h)) := by
-  rw [arena.core.lit_to_ctor_if_nat, litToCtorIfNat]
+  rw [arena.core.lit_to_ctor_if_nat, litToCtorIfNat, hctx.natLit]
   lockstep
 
 /-! ## The maximum `Nat` size -/
@@ -527,14 +519,6 @@ attribute [lockstep_inline] arena.core.string_of_list_ty_body arena.core.list_ni
 
 attribute [lockstep_inline] arena.core.str_support_stored
 
-/-- `str_lit_stored` ⊑ `strLitStored`: the `Nat` trio, then the seven string-support
-pins and probes. -/
-@[lockstep] theorem str_lit_stored_ls {pers st fe lfe lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.str_lit_stored pers st fe) lst
-      (strLitStored lfe) := by
-  rw [arena.core.str_lit_stored, strLitStored]
-  lockstep
 
 attribute [lockstep_inline] arena.core.lit_shape_ok_str arena.core.lit_shape_ok_rest
 
@@ -615,7 +599,7 @@ set_option maxHeartbeats 4000000 in
       (arena.core.reduce_nat pers st mode eager lane fu fe depth e) lst
       (reduceNat (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
         (absU depth) (absEIdx e)) := by
-  rw [arena.core.reduce_nat, reduceNat]
+  rw [arena.core.reduce_nat, reduceNat, hctx.natLit]
   lockstep
 
 end
@@ -656,8 +640,6 @@ four reserved lists and the `Bool` tail. -/
 /-- info: 'ConRon.Refine2.Lockstep.reduce_nat_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms reduce_nat_ls
 
-/-- info: 'ConRon.Refine2.Lockstep.str_lit_stored_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms str_lit_stored_ls
 
 /-- info: 'ConRon.Refine2.Lockstep.str_lit_to_constructor_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms str_lit_to_constructor_ls

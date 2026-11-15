@@ -2157,10 +2157,11 @@ theorem checkDivModPin_bridge
   obtain ⟨u, s2, g2, r2⟩ := AM.bind_ok r1
   obtain ⟨hck2, hx2, hp2, F, hF⟩ :=
     checkDivModPinLoop_bridge hk henv hws pins pinsP [] [] s1 s2
-      (hck1.congr_find hsv.find hsv.tbls hsv.base) (PinsDenote.mono hx1 _ _ hpins)
+      (hck1.congr_find hsv.find hsv.tbls hsv.base (hsv.flags hck.ienv.flags)) (PinsDenote.mono hx1 _ _ hpins)
       (denoteN_ext hn hx1) hv1 g2
   obtain ⟨rfl, rfl⟩ := AM.pure_ok r2
   have hck2' := hck2.congr_find (fun n => (hsv.find n).symm) hsv.tbls.symm hsv.base.symm
+    hck.ienv.flags
   refine ⟨⟨hck2', hx1.trans hx2, by rw [hp2, hp1]⟩, hsv, F, ?_⟩
   simp only [ConLeche.checkDivModPin, hG, hfindP, ite_true]
   exact hF

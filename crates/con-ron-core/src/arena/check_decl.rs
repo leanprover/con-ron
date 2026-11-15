@@ -29,7 +29,7 @@ use crate::arena::decl_check::{
     of_reduce_ax_ok, std_axiom_ok, subst_const0_pairs, trust_compiler_ok,
 };
 use crate::arena::env::{
-    i_constant_info_dup, i_constant_val_dup, ifenv_pop_temp, ifenv_push, ifenv_push_temp,
+    i_constant_info_dup, i_constant_val_dup, ifenv_pop_temp, ifenv_push, ifenv_set_flags, ifenv_push_temp,
     IConstantInfo, IConstantVal, IDeclaration, IFEnv,
 };
 use crate::arena::handle::{EIdx, NIdx};
@@ -272,9 +272,12 @@ pub fn check_structural_nat_pin(
     ci: &IConstantInfo,
     n: &NIdx,
 ) -> Result<(), CheckError> {
+    let nl: bool = fe.nat_lit;
+    let sl: bool = fe.str_lit;
     let prev: Option<u64> = ifenv_push_temp(pers, fe, i_constant_info_dup(ci));
     let at_fe2: Result<EIdx, CheckError> = check_structural_nat_pin_at_fe2(pers, st, fe, n);
-    ifenv_pop_temp(pers, fe, n, prev);
+    ifenv_pop_temp(fe, n, prev);
+    ifenv_set_flags(fe, nl, sl);
     match at_fe2 {
         Err(e) => Err(e),
         Ok(value2) => check_structural_nat_pin_eqs(pers, st, mode, fe, n, &value2),

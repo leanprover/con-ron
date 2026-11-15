@@ -139,7 +139,8 @@ def checkBlockTail (mode : CheckMode) (block : List IConstantInfo) (q : BlockPas
   let (feG, prevs) := consBlockRecsTemp infos fe₂b []
   flushCaches
   streamRecsCheck mode feG p.recs out
-  let fe₃ := prevs.foldr (fun (n, prev) acc => acc.popTemp n prev) feG
+  let fe₃ := (prevs.foldr (fun (n, prev) acc => acc.popTemp n prev) feG).setFlags fe₂b.natLit
+    fe₂b.strLit
   flushCaches
   checkBlockTables fe₃ Q
   pure fe₃

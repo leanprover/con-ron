@@ -1317,8 +1317,9 @@ pub fn stored(pers: &PersTier, fe: &IFEnv, n: &NIdx) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:206-231 Expr.constsResolve
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:201-204 natLitStored
 /// Lean twin: `proof/ConRon/Arena/Core.lean:579-625 constsResolve` — the
-/// `.lit (.natVal _)` arm's three `find?`s, as its own function
+/// `.lit (.natVal _)` arm's three `find?`s, `natLitStored`'s conjunction, as its own function
 /// (`con_ron_core::kernel::core_k::nat_trio_stored`'s reason: the `String`
 /// arm repeats them).
 pub fn nat_trio_stored(pers: &PersTier, st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
@@ -1334,6 +1335,7 @@ pub fn nat_trio_stored(pers: &PersTier, st: &mut AState, fe: &IFEnv) -> Result<b
     }
 }
 
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:372-377 strLitStored
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:206-231 Expr.constsResolve
 /// Lean twin: `proof/ConRon/Arena/Core.lean:579-625 constsResolve` — the
 /// `.lit (.strVal _)` arm's seven further `find?`s.

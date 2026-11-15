@@ -367,17 +367,17 @@ literal when `x` reduces to one, so the ι step's major takes that whnf
 (`prepareMajor`). -/
 def isNatSuccApp (e : EIdx) : AM Bool := do
   if e.tag == ETag.app then
-    match ← viewApp e with
-    | none => failDanglingE
-    | some (f, _) =>
+    match ← view e with
+    | .app f _ =>
       if f.tag == ETag.const then
-        match ← viewConst f with
-        | none => failDanglingE
-        | some (c, us) => do
+        match ← view f with
+        | .const c us => do
           let el ← emptyLevels
           let ns ← pinNatSucc
           pure (us == el && c == ns)
+        | _ => pure false
       else pure false
+    | _ => pure false
   else pure false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:58-65 isCtorApp — is the

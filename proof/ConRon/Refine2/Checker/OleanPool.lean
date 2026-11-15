@@ -98,7 +98,7 @@ theorem olean_job_step_refines {F : Type} {inst : frontend.olean.files.OleanFs F
     {st lst c c' st' c1}
     (hfs : FsRel inst fsv fs) (hv : List.Forall₂ ModRefRel values.val values'.toList)
     (hidle : AIdle tier st lst) (hinv : AStateInv tier st) (hoff : lst.store.scratchOn = false)
-    (htf : tier.frozen = true) (hI : StreamIndexRel tier.env I) (hc : VCRel c c')
+    (htf : tier.frozen = true) (hI : StreamIndexRel tier.env I ∧ FrozenRel tier.env I) (hc : VCRel c c')
     (hrun : oleanJobStep inst fsv tier mode pins ds pk values sp (st, c) k = ok (.Ok (), (st', c1))) :
     k < ds.val.length ∧
     ∃ c1' lst', oleanJob fs (absPins pk) (absSearchPath sp) values'
@@ -257,7 +257,7 @@ theorem foldAllOk_oleanJobStep_refines {F : Type} {inst : frontend.olean.files.O
     {ds : alloc.vec.Vec arena.env.IDeclaration} {pk : frontend.olean.spec.OleanPins} {values : alloc.vec.Vec frontend.olean.records.ModRef}
     {values' : Array Arena.Frontend.Olean.ModRef} {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
     (hfs : FsRel inst fsv fs) (hv : List.Forall₂ ModRefRel values.val values'.toList)
-    (htf : tier.frozen = true) (hI : StreamIndexRel tier.env I) :
+    (htf : tier.frozen = true) (hI : StreamIndexRel tier.env I ∧ FrozenRel tier.env I) :
     ∀ (ks : List Nat) {st lst c c'},
       AIdle tier st lst → AStateInv tier st → lst.store.scratchOn = false → VCRel c c' →
       FoldAllOk (oleanJobStep inst fsv tier mode pins ds pk values sp) (st, c) ks →

@@ -1191,4 +1191,61 @@ theorem viewOK_proj {st : EStore} {n : NIdx} {i : Nat} {sub : EIdx}
    by intro c hc; simp [ENodeView.nchildren] at hc; subst hc; exact hn,
    by simp [ENodeView.lchildren], by simp [ENodeView.lschildren]⟩
 
+/-! ## The twin's index operations, field by field
+
+`IFEnv.push` moves the literal flags under a condition; every field but the flags is the same
+on both branches. -/
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:352-371 FEnv.push — a push's own rows. -/
+@[simp] theorem IFEnv.push_idx (fe : IFEnv) (ci : IConstantInfo) :
+    (fe.push ci).idx = fe.idx.insert ci.name ci := by
+  unfold IFEnv.push; dsimp only; split <;> rfl
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:352-371 FEnv.push — a push's base. -/
+@[simp] theorem IFEnv.push_base (fe : IFEnv) (ci : IConstantInfo) :
+    (fe.push ci).base = fe.base := by
+  unfold IFEnv.push; dsimp only; split <;> rfl
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:352-371 FEnv.push — a push's environment. -/
+@[simp] theorem IFEnv.push_env (fe : IFEnv) (ci : IConstantInfo) :
+    (fe.push ci).env = ⟨ci :: fe.env.consts, fe.env.tables⟩ := by
+  unfold IFEnv.push; dsimp only; split <;> rfl
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:352-371 FEnv.push — a push's table map. -/
+@[simp] theorem IFEnv.push_tbls (fe : IFEnv) (ci : IConstantInfo) :
+    (fe.push ci).tbls = fe.tbls := by
+  unfold IFEnv.push; dsimp only; split <;> rfl
+
+/-- con-leche: none — a pop's own rows. -/
+@[simp] theorem IFEnv.popTemp_idx (fe : IFEnv) (n : NIdx) (prev : Option IConstantInfo) :
+    (fe.popTemp n prev).idx = (match prev with
+      | some r => fe.idx.insert n r
+      | none => fe.idx.erase n) := rfl
+
+/-- con-leche: none — a pop's base. -/
+@[simp] theorem IFEnv.popTemp_base (fe : IFEnv) (n : NIdx) (prev : Option IConstantInfo) :
+    (fe.popTemp n prev).base = fe.base := rfl
+
+/-- con-leche: none — a pop's environment. -/
+@[simp] theorem IFEnv.popTemp_env (fe : IFEnv) (n : NIdx) (prev : Option IConstantInfo) :
+    (fe.popTemp n prev).env = ⟨fe.env.consts.tail, fe.env.tables⟩ := rfl
+
+/-- con-leche: none — a pop's table map. -/
+@[simp] theorem IFEnv.popTemp_tbls (fe : IFEnv) (n : NIdx) (prev : Option IConstantInfo) :
+    (fe.popTemp n prev).tbls = fe.tbls := rfl
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:406-411 FEnv.rawTable? — a push moves no raw table
+lookup. -/
+@[simp] theorem IFEnv.rawTable?_push (fe : IFEnv) (ci : IConstantInfo) (n : NIdx) :
+    (fe.push ci).rawTable? n = fe.rawTable? n := by
+  simp only [IFEnv.rawTable?, IFEnv.push_tbls, IFEnv.push_base]
+
+/-- con-leche: none — setting the literal flags moves no lookup. -/
+@[simp] theorem IFEnv.setFlags_find? (fe : IFEnv) (a b : Bool) (n : NIdx) :
+    (fe.setFlags a b).find? n = fe.find? n := rfl
+
+/-- con-leche: none — nor a raw table lookup. -/
+@[simp] theorem IFEnv.setFlags_rawTable? (fe : IFEnv) (a b : Bool) (n : NIdx) :
+    (fe.setFlags a b).rawTable? n = fe.rawTable? n := rfl
+
 end ConRon.Bridge

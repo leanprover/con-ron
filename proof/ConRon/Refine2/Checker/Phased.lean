@@ -243,7 +243,7 @@ worker's jobs, from its one idle state, are the twin's. -/
 theorem foldAllOk_jobStep_refines {tier} {I : IStreamIndex} {mode : kernel.env.CheckMode}
     {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
     {ds : alloc.vec.Vec arena.env.IDeclaration}
-    (hI : StreamIndexRel tier.env I) (htf : tier.frozen = true) :
+    (hI : StreamIndexRel tier.env I ∧ FrozenRel tier.env I) (htf : tier.frozen = true) :
     ∀ (ks : List Nat) {st lst},
       AIdle tier st lst → AStateInv tier st →
       FoldAllOk (jobStep tier mode pins ds) st ks →
@@ -299,7 +299,7 @@ theorem pool_accepts_refines {pers st lst}
         (absIDeclL ds).toArray lst I lst' ∧
       AStateRel₀ pers st' lst' ∧ StreamIndexRel ix I := by
   obtain ⟨tier, est, hB, hfr, parts, hcov, hw⟩ := hpool
-  obtain ⟨I, lst', hx, hrel1, hinv1, hI⟩ := build_index_empty_refines hrel hinv hB
+  obtain ⟨I, lst', hx, hrel1, hinv1, hI, hF⟩ := build_index_empty_refines hrel hinv hB
   obtain ⟨htier, -⟩ := freeze_tier_ok hfr
   subst htier
   have hwork : ∀ w ∈ parts, (∀ k ∈ w, k < ds.val.length) ∧
@@ -308,7 +308,7 @@ theorem pool_accepts_refines {pers st lst}
     intro w hwm
     obtain ⟨-, ws, hws, hf⟩ := hw w hwm
     obtain ⟨hrelW, hinvW⟩ := worker_state_rel ix hrel1 hinv1 hpers hws
-    exact foldAllOk_jobStep_refines hI rfl w hrelW hinvW hf
+    exact foldAllOk_jobStep_refines ⟨hI, hF⟩ rfl w hrelW hinvW hf
   refine ⟨I, lst', ⟨parts, hx, fun t ht => ?_, fun w hw' t ht => ?_,
     fun w hw' => (hw w hw').1, fun w hw' => (hwork w hw').2⟩, hrel1, hI⟩
   · exact hcov t (by simpa [absIDeclL] using ht)
@@ -367,7 +367,7 @@ theorem olean_pool_accepts_refines {F : Type} {inst : frontend.olean.files.Olean
         (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) (absIDeclL ds).toArray lst I lst' ∧
       AStateRel₀ pers st' lst' ∧ StreamIndexRel ix I := by
   obtain ⟨tier, est, hB, hfr, parts, hcov, hw⟩ := hpool
-  obtain ⟨I, lst', hx, hrel1, hinv1, hI⟩ := build_index_empty_refines hrel hinv hB
+  obtain ⟨I, lst', hx, hrel1, hinv1, hI, hF⟩ := build_index_empty_refines hrel hinv hB
   obtain ⟨htier, -⟩ := freeze_tier_ok hfr
   subst htier
   have hwork : ∀ w ∈ parts, (∀ k ∈ w, k < ds.val.length) ∧
@@ -381,7 +381,7 @@ theorem olean_pool_accepts_refines {F : Type} {inst : frontend.olean.files.Olean
     obtain ⟨c0, hc0, hws⟩ := ConRon.Refine.bind_eq_ok_iff.mp hws
     obtain rfl := (Result.ok_injective hws).symm
     obtain ⟨hrelW, hinvW⟩ := worker_state_rel ix hrel1 hinv1 hpers hw0
-    exact foldAllOk_oleanJobStep_refines hfs hv rfl hI w hrelW hinvW rfl
+    exact foldAllOk_oleanJobStep_refines hfs hv rfl ⟨hI, hF⟩ w hrelW hinvW rfl
       (value_cache_empty_rel hc0) hf
   refine ⟨I, lst', ⟨parts, hx, fun t ht => ?_, fun w hw' t ht => ?_,
     fun w hw' => (hw w hw').1, fun w hw' => (hwork w hw').2⟩, hrel1, hI⟩

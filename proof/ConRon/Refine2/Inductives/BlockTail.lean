@@ -117,7 +117,7 @@ theorem bt_recs_temp_aux {pers : arena.store.PersTier}
       (prevsL : List (NIdx × Option IConstantInfo)) rfK prevsK,
       infos.val.length - m.val = q →
       IFEnvRelI pers rf lf →
-      arena.inductives.block_tail.cons_block_recs_temp infos m rf prevs = ok (rfK, prevsK) →
+      arena.inductives.block_tail.cons_block_recs_temp pers infos m rf prevs = ok (rfK, prevsK) →
       IFEnvRelI pers rfK
           (consBlockRecsTemp ((infos.val.drop m.val).map absIConstantInfo) lf prevsL).1 ∧
       (∃ Q, prevsK.val = prevs.val ++ Q ∧ Q.length = q) ∧
@@ -179,7 +179,7 @@ twin's `foldr popTemp`. -/
 @[lockstep] theorem cons_block_recs_temp_spec {pers : arena.store.PersTier}
     (infos : alloc.vec.Vec arena.env.IConstantInfo)
     {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf) :
-    LSP (arena.inductives.block_tail.cons_block_recs_temp infos 0#usize rf (alloc.vec.Vec.new _))
+    LSP (arena.inductives.block_tail.cons_block_recs_temp pers infos 0#usize rf (alloc.vec.Vec.new _))
       (fun r => IFEnvRelI pers r.1 (consBlockRecsTemp (absICIL infos) lf []).1 ∧
         ∀ (j : Std.Usize) out, j.val = r.2.val.length →
           arena.inductives.gen_rec.class_fe_r_pop r.1 r.2 j = ok out →
@@ -191,13 +191,17 @@ twin's `foldr popTemp`. -/
     (alloc.vec.Vec.new _) [] rfK prevsK rfl hfe hr
   simp only [Lockstep.usize_zero_val', List.drop_zero] at h1
   refine ⟨h1, fun j out hj hpop => ?_⟩
+  have hfl := gr_class_fe_r_pop_flags prevsK _ rfK j rfl hpop
   obtain ⟨rfY, hY, hYi, hpopY⟩ := h3 rfK (RFEq.refl _) h1.inv.1 j out
     (by rw [hj, hQ]; simp [alloc.vec.Vec.new, hQl]) hpop
   have hout := hpopY 0#usize (by simp [alloc.vec.Vec.new])
   rw [arena.inductives.gen_rec.class_fe_r_pop.eq_def, ite_eq_left rfl, Result.ok.injEq] at hout
   subst hout
   obtain ⟨news, hn, hT⟩ := bt_consBlockRecsTemp_pop (absICIL infos) lf []
-  refine IFEnvRelI.transfer hfe hY hYi ?_
+  have htf := foldr_popTemp_flags (consBlockRecsTemp (absICIL infos) lf []).2
+    (consBlockRecsTemp (absICIL infos) lf []).1
+  refine IFEnvRelI.transfer hfe hY hYi ?_ (by rw [htf.1, hfl.1]; exact h1.rel.natLit)
+    (by rw [htf.2, hfl.2]; exact h1.rel.strLit)
   rw [hn, List.nil_append]
   exact hT
 
@@ -263,7 +267,8 @@ the pops.  Its answer is the twin's popped environment. -/
         flushCaches
         streamRecsCheck (ConRon.Refine.absMode mode) feG (absBlockShape p).recs
           (out.val.map absRecOut)
-        let fe₃ := prevs.foldr (fun (n, prev) acc => acc.popTemp n prev) feG
+        let fe₃ := (prevs.foldr (fun (n, prev) acc => acc.popTemp n prev) feG).setFlags lf.natLit
+          lf.strLit
         flushCaches
         checkBlockTables fe₃ (q.val.map absIProjTable)
         pure fe₃) := by
@@ -273,6 +278,7 @@ the pops.  Its answer is the twin's popped environment. -/
     obtain ⟨hR, hpop⟩ := ‹IFEnvRelI _ _ _ ∧ ∀ _ _, _›
     have hpe := ‹arena.inductives.gen_rec.class_fe_r_pop _ _ _ = ok _›
     have hfe3 := hpop _ _ (by simp [alloc.vec.Vec.len]) hpe
+    have hfe4 := ifenv_set_flags_refines hfe3 hfe.rel ‹arena.env.ifenv_set_flags _ _ _ = ok _›
     lockstep
 
 /-- `check_block_tail` ⊑ `checkBlockTail`, at a related pass. -/
@@ -332,7 +338,7 @@ theorem bt_unwrap_or_tables_int {pers st lst}
 theorem bt_push_delta_spec {pers : arena.store.PersTier} {rf : arena.env.IFEnv} {lf : IFEnv}
     (hfe : IFEnvRelI pers rf lf) (l : alloc.vec.Vec arena.env.IConstantInfo)
     (q : alloc.vec.Vec arena.env.IProjTable) :
-    LSP (arena.install.push_delta rf l q)
+    LSP (arena.install.push_delta pers rf l q)
       (fun o => IFEnvRelI pers o (lf.pushDelta (absICIL l) (q.val.map absIProjTable))) :=
   fun _ h => push_delta_refines hfe h
 

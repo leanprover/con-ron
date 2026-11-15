@@ -51,12 +51,12 @@ pushed, in order. -/
 theorem push_delta_consts_refines {pers : arena.store.PersTier}
     {l : alloc.vec.Vec arena.env.IConstantInfo} :
     ∀ (i : Std.Usize) (rf : arena.env.IFEnv) (lf : IFEnv) (o : arena.env.IFEnv),
-      IFEnvRelI pers rf lf → arena.install.push_delta_consts rf l i = ok o →
+      IFEnvRelI pers rf lf → arena.install.push_delta_consts pers rf l i = ok o →
       IFEnvRelI pers o (IFEnv.pushAll ((l.val.drop i.val).map absIConstantInfo) lf) := by
   intro i
   refine cursor_induction (fun i : Std.Usize => i.val) l.val.length
     (fun i (_ : Unit) => ∀ (rf : arena.env.IFEnv) (lf : IFEnv) (o : arena.env.IFEnv),
-      IFEnvRelI pers rf lf → arena.install.push_delta_consts rf l i = ok o →
+      IFEnvRelI pers rf lf → arena.install.push_delta_consts pers rf l i = ok o →
       IFEnvRelI pers o (IFEnv.pushAll ((l.val.drop i.val).map absIConstantInfo) lf))
     ?_ ?_ i ()
   · intro i _ hn rf lf o hfe h
@@ -117,7 +117,7 @@ theorem push_delta_tables_refines {pers : arena.store.PersTier}
 tables, pushed in order, the related and well-formed environment after. -/
 theorem push_delta_refines {pers : arena.store.PersTier} {rf o : arena.env.IFEnv} {lf : IFEnv}
     {l : alloc.vec.Vec arena.env.IConstantInfo} {q : alloc.vec.Vec arena.env.IProjTable}
-    (hfe : IFEnvRelI pers rf lf) (h : arena.install.push_delta rf l q = ok o) :
+    (hfe : IFEnvRelI pers rf lf) (h : arena.install.push_delta pers rf l q = ok o) :
     IFEnvRelI pers o (lf.pushDelta (l.val.map absIConstantInfo) (q.val.map absIProjTable)) := by
   rw [arena.install.push_delta] at h
   obtain ⟨fe1, hfe1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h

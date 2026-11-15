@@ -42,7 +42,7 @@ use crate::arena::core::{
     zero_level, CHECK_FUEL, CORE_WALK_FUEL,
 };
 use crate::arena::env::{
-    i_constant_info_dup, i_constant_info_to_constant_val, ifenv_find, ifenv_pop_temp, ifenv_push,
+    i_constant_info_dup, i_constant_info_to_constant_val, ifenv_find, ifenv_pop_temp, ifenv_push, ifenv_set_flags,
     ifenv_push_temp, IConstantInfo, IConstantVal, IFEnv,
 };
 use crate::arena::expr_ops::{has_fvar_fast, loose_bvars_bounded_fast};
@@ -2664,9 +2664,12 @@ pub fn check_div_mod_pin(
     ci: &IConstantInfo,
     c: &NIdx,
 ) -> Result<(), CheckError> {
+    let nl: bool = fe.nat_lit;
+    let sl: bool = fe.str_lit;
     let prev: Option<u64> = ifenv_push_temp(pers, fe, i_constant_info_dup(ci));
     let at_fe2: Result<EIdx, CheckError> = check_div_mod_pin_at_fe2(pers, st, fe, c);
-    ifenv_pop_temp(pers, fe, c, prev);
+    ifenv_pop_temp(fe, c, prev);
+    ifenv_set_flags(fe, nl, sl);
     match at_fe2 {
         Err(e) => Err(e),
         Ok(value2) => check_div_mod_pin_loop(pers, st, mode, fe, c, &value2, pins, 0),
@@ -2731,9 +2734,12 @@ pub fn check_reduce_pin(
     c: &NIdx,
     value: &EIdx,
 ) -> Result<(), CheckError> {
+    let nl: bool = fe.nat_lit;
+    let sl: bool = fe.str_lit;
     let prev: Option<u64> = ifenv_push_temp(pers, fe, i_constant_info_dup(ci));
     let stored: Result<bool, CheckError> = reduce_stored_ok(pers, st, fe, c);
-    ifenv_pop_temp(pers, fe, c, prev);
+    ifenv_pop_temp(fe, c, prev);
+    ifenv_set_flags(fe, nl, sl);
     match stored {
         Err(e) => Err(e),
         Ok(s) => {

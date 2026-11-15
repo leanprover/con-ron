@@ -19,6 +19,7 @@ installed, and `gen_rec_check`.  The generator is `GenRec.lean`.
 -/
 import ConRon.Refine2.Inductives.GenRec
 import ConRon.Refine2.Inductives.BlockRec
+import ConRon.Refine2.Checker.LitFlags
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -1369,9 +1370,9 @@ theorem TFEq.trans {a b c : IFEnv} (h₁ : TFEq a b) (h₂ : TFEq b c) : TFEq a 
 
 theorem TFEq.popTemp {a b : IFEnv} (h : TFEq a b) (n : NIdx)
     (prev : Option IConstantInfo) : TFEq (a.popTemp n prev) (b.popTemp n prev) := by
-  refine ⟨by simp only [IFEnv.popTemp, h.1], fun k => ?_, by simp only [IFEnv.popTemp, h.2.2.1],
-    by simp only [IFEnv.popTemp, h.2.2.2]⟩
-  simp only [IFEnv.popTemp]
+  refine ⟨by simp only [twin_popTemp_env, h.1], fun k => ?_,
+    by simp only [twin_popTemp_base, h.2.2.1], by simp only [twin_popTemp_tbls, h.2.2.2]⟩
+  simp only [twin_popTemp_idx]
   cases prev with
   | none =>
     simp only [Std.HashMap.getElem?_erase]
@@ -1382,8 +1383,9 @@ theorem TFEq.popTemp {a b : IFEnv} (h : TFEq a b) (n : NIdx)
 
 theorem TFEq.popTemp_push (fe : IFEnv) (ci : IConstantInfo) :
     TFEq ((fe.push ci).popTemp ci.name fe.idx[ci.name]?) fe := by
-  refine ⟨rfl, fun k => ?_, rfl, rfl⟩
-  simp only [IFEnv.popTemp, IFEnv.push]
+  refine ⟨by simp only [twin_popTemp_env, twin_push_env, List.tail_cons], fun k => ?_,
+    by rw [twin_popTemp_base, twin_push_base], by rw [twin_popTemp_tbls, twin_push_tbls]⟩
+  simp only [twin_popTemp_idx, twin_push_idx]
   cases hprev : fe.idx[ci.name]? with
   | none =>
     simp only [Std.HashMap.getElem?_erase, Std.HashMap.getElem?_insert]
@@ -1400,13 +1402,66 @@ theorem TFEq.popTemp_push (fe : IFEnv) (ci : IConstantInfo) :
       simp [hprev]
     · simp [hk]
 
+/-- A pop moves no literal flag (port side). -/
+theorem gr_ifenv_pop_temp_flags {fe out : arena.env.IFEnv} {n : arena.handle.NIdx}
+    {prev : Option Std.U64} (h : arena.env.ifenv_pop_temp fe n prev = ok out) :
+    out.nat_lit = fe.nat_lit ∧ out.str_lit = fe.str_lit := by
+  unfold arena.env.ifenv_pop_temp at h
+  obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases prev with
+  | none =>
+    obtain ⟨q, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain rfl := (Result.ok_injective h).symm
+    exact ⟨rfl, rfl⟩
+  | some row =>
+    obtain ⟨n1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨q, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain rfl := (Result.ok_injective h).symm
+    exact ⟨rfl, rfl⟩
+
+/-- Nor do the pops of `class_fe_r_pop` (port side). -/
+theorem gr_class_fe_r_pop_flags (prevs : alloc.vec.Vec (arena.handle.NIdx × Option Std.U64)) :
+    ∀ (k : Nat) (fe : arena.env.IFEnv) (i : Std.Usize) {out}, i.val = k →
+      arena.inductives.gen_rec.class_fe_r_pop fe prevs i = ok out →
+      out.nat_lit = fe.nat_lit ∧ out.str_lit = fe.str_lit := by
+  intro k
+  induction k with
+  | zero =>
+    intro fe i out hk h
+    rw [arena.inductives.gen_rec.class_fe_r_pop.eq_def, ite_eq_left (by scalar_tac)] at h
+    obtain rfl := (Result.ok_injective h).symm
+    exact ⟨rfl, rfl⟩
+  | succ k ih =>
+    intro fe i out hk h
+    rw [arena.inductives.gen_rec.class_fe_r_pop.eq_def, ite_eq_right (by scalar_tac)] at h
+    obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hi1v := ConRon.Refine.Nat.usub_val hi1
+    obtain ⟨e, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨pv, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨e2, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨fe1, hfe1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨h1, h2⟩ := gr_ifenv_pop_temp_flags hfe1
+    obtain ⟨h3, h4⟩ := ih fe1 i1 (by simp at hi1v; omega) h
+    exact ⟨h3.trans h1, h4.trans h2⟩
+
+/-- Nor do the twin's pops. -/
+theorem foldr_popTemp_flags (news : List (NIdx × Option IConstantInfo)) (X : IFEnv) :
+    (news.foldr (fun (x : NIdx × Option IConstantInfo) acc => acc.popTemp x.1 x.2) X).natLit =
+        X.natLit ∧
+      (news.foldr (fun (x : NIdx × Option IConstantInfo) acc => acc.popTemp x.1 x.2) X).strLit =
+        X.strLit := by
+  induction news with
+  | nil => exact ⟨rfl, rfl⟩
+  | cons x news ih => exact ih
+
 /-- **The relation survives answering-alike layers on both sides.** -/
 theorem IFEnvRelI.transfer {pers : arena.store.PersTier} {rf rf' : arena.env.IFEnv}
     {lf lf' : IFEnv} (h : IFEnvRelI pers rf lf)
-    (hr : RFEq rf' rf) (hi : IdxInv rf') (hl : TFEq lf' lf) : IFEnvRelI pers rf' lf' := by
-  obtain ⟨⟨⟨hidx, htbls, hbase, hbelow, hbelowRec, hok⟩, henv⟩, ⟨-, hrange, htinv, htrange⟩⟩ := h
+    (hr : RFEq rf' rf) (hi : IdxInv rf') (hl : TFEq lf' lf)
+    (hn : lf'.natLit = rf'.nat_lit) (hs : lf'.strLit = rf'.str_lit) : IFEnvRelI pers rf' lf' := by
+  obtain ⟨⟨⟨hidx, htbls, hbase, hbelow, hbelowRec, hok, -, -⟩, henv⟩, ⟨-, hrange, htinv, htrange⟩⟩ := h
   obtain ⟨hc, ht, hT, hTb, hB, hBR⟩ := hr
-  refine ⟨⟨⟨fun n => ?_, fun n => ?_, ?_, ?_, ?_, hok⟩, ?_⟩, hi, ?_, ?_, ?_⟩
+  refine ⟨⟨⟨fun n => ?_, fun n => ?_, ?_, ?_, ?_, hok, hn, hs⟩, ?_⟩, hi, ?_, ?_, ?_⟩
   · rw [hl.2.1, ← hidx n]; simp only [ownRow, ht, hc]
   · rw [hl.2.2.2, ← htbls n]; simp only [ownTbl, hTb, hT]
   · rw [hl.2.2.1]; exact hbase
@@ -1418,10 +1473,11 @@ theorem IFEnvRelI.transfer {pers : arena.store.PersTier} {rf rf' : arena.env.IFE
   · intro n s hs; rw [hTb] at hs; rw [hT]; exact htrange n s hs
 
 /-- `ifenv_push_temp` is `ifenv_push` with the displaced slot handed back. -/
-theorem gr_ifenv_push_temp_spec {rf rf' : arena.env.IFEnv} {ci : arena.env.IConstantInfo}
+theorem gr_ifenv_push_temp_spec {pers : arena.store.PersTier} {rf rf' : arena.env.IFEnv}
+    {ci : arena.env.IConstantInfo}
     {prev : Option Std.U64} (hfinv : IFEnvInv rf)
-    (h : arena.env.ifenv_push_temp rf ci = ok (prev, rf')) :
-    arena.env.ifenv_push rf ci = ok rf' ∧
+    (h : arena.env.ifenv_push_temp pers rf ci = ok (prev, rf')) :
+    arena.env.ifenv_push pers rf ci = ok rf' ∧
     ∃ n, arena.env.i_constant_info_name ci = ok n ∧
       prev = ConRon.Refine.HashMap2.toFun rf.idx n ∧
       rf'.env.consts.val = rf.env.consts.val ++ [ci] ∧
@@ -1430,24 +1486,15 @@ theorem gr_ifenv_push_temp_spec {rf rf' : arena.env.IFEnv} {ci : arena.env.ICons
           Function.update (ConRon.Refine.HashMap2.toFun rf.idx) n (some s)) ∧
       IdxInv rf' ∧ rf'.env.tables = rf.env.tables ∧ rf'.tbls = rf.tbls ∧
       rf'.base_below = rf.base_below ∧ rf'.base_below_rec = rf.base_below_rec := by
-  rw [arena.env.ifenv_push_temp] at h
-  obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨hpush, n, s, hm, v, hn, hs, hq, hv, he, hi, ht, hb, hbr⟩ := ifenv_push_temp_push h
   obtain ⟨hinv', hold, hupd, -⟩ :=
     ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True) nidx_eq2
       hfinv.idxInv ConRon.Refine.HashMap2.KeysOk_true trivial hq
-  have h' := Prod.mk.inj (Result.ok_injective h)
-  obtain ⟨rfl, rfl⟩ := h'
-  refine ⟨?_, n, hn, hold, ConRon.Refine.vec_push_val hv, ⟨s, ?_, hupd⟩, hinv', rfl, rfl, rfl,
-    rfl⟩
-  · rw [arena.env.ifenv_push, hs]
-    simp only [bind_ok, hn, hq, hv]
-    rcases q with ⟨_, _⟩
-    rfl
-  · simp only [lift, Result.ok.injEq] at hs; subst hs
-    simp
+  refine ⟨hpush, n, hn, hold, by rw [he]; exact ConRon.Refine.vec_push_val hv,
+    ⟨s, ?_, by rw [hi]; exact hupd⟩, by show ConRon.Refine.HashMap2.Inv _ rf'.idx; rw [hi]; exact hinv', by rw [he], ht,
+    hb, hbr⟩
+  simp only [lift, Result.ok.injEq] at hs; subst hs
+  simp
 
 /-- `ifenv_pop_temp`: the last constant dropped and the row under `n` put back as
 `prev`. -/
@@ -1501,7 +1548,7 @@ theorem gr_ifenv_pop_temp_spec {fe out : arena.env.IFEnv} {n : arena.handle.NIdx
 the pushed one. -/
 theorem gr_pop_push {rf rf1 rfX out : arena.env.IFEnv} {ci : arena.env.IConstantInfo}
     {n : arena.handle.NIdx} {prev : Option Std.U64} (hfinv : IFEnvInv rf)
-    (hpush : arena.env.ifenv_push_temp rf ci = ok (prev, rf1))
+    (hpush : arena.env.ifenv_push_temp pers rf ci = ok (prev, rf1))
     (hn : arena.env.i_constant_info_name ci = ok n)
     (hX : RFEq rfX rf1) (hXi : IdxInv rfX)
     (hpop : arena.env.ifenv_pop_temp rfX n prev = ok out) :
@@ -1545,7 +1592,7 @@ theorem gr_pop_step {rf rf1 rfK : arena.env.IFEnv} {ci : arena.env.IConstantInfo
     {n : arena.handle.NIdx} {prev : Option Std.U64}
     {prevs prevs1 prevsK : alloc.vec.Vec (arena.handle.NIdx × Option Std.U64)}
     {Q : List (arena.handle.NIdx × Option Std.U64)} (hfinv : IFEnvInv rf)
-    (hpq : arena.env.ifenv_push_temp rf ci = ok (prev, rf1))
+    (hpq : arena.env.ifenv_push_temp pers rf ci = ok (prev, rf1))
     (hn : arena.env.i_constant_info_name ci = ok n)
     (hprevs1v : prevs1.val = prevs.val ++ [(n, prev)]) (hQ : prevsK.val = prevs1.val ++ Q)
     (ih3 : ∀ rfX, RFEq rfX rfK → IdxInv rfX → ∀ (j : Std.Usize) out,
@@ -1591,7 +1638,7 @@ theorem gr_fe_r_push_aux {pers : arena.store.PersTier} (p : arena.inductives.blo
       (prevsL : List (NIdx × Option IConstantInfo)) rfK prevsK,
       min cv_gs.val.length rec_cls.val.length - m.val = q →
       IFEnvRelI pers rf lf →
-      arena.inductives.gen_rec.class_fe_r_push p cv_gs rec_cls m rf prevs = ok (rfK, prevsK) →
+      arena.inductives.gen_rec.class_fe_r_push pers p cv_gs rec_cls m rf prevs = ok (rfK, prevsK) →
       IFEnvRelI pers rfK (classFeR.go (absBlockShape p) m.val
           (((cv_gs.val.map absIConstantVal).zip (rec_cls.val.map absU)).drop m.val) lf prevsL).1 ∧
       (∃ Q, prevsK.val = prevs.val ++ Q ∧ Q.length = q) ∧
@@ -1693,7 +1740,7 @@ theorem class_fe_r_push_spec {pers : arena.store.PersTier} (p : arena.inductives
     {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf)
     (f : NIdx × Option IConstantInfo → IFEnv → IFEnv)
     (hf : ∀ x acc, f x acc = acc.popTemp x.1 x.2) :
-    LSP (arena.inductives.gen_rec.class_fe_r_push p cv_gs rec_cls 0#usize rf (alloc.vec.Vec.new _))
+    LSP (arena.inductives.gen_rec.class_fe_r_push pers p cv_gs rec_cls 0#usize rf (alloc.vec.Vec.new _))
       (fun r => IFEnvRelI pers r.1 (classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
           (rec_cls.val.map absU) lf).1 ∧
         ∀ (j : Std.Usize) out, j.val = r.2.val.length →
@@ -1708,6 +1755,7 @@ theorem class_fe_r_push_spec {pers : arena.store.PersTier} (p : arena.inductives
     (alloc.vec.Vec.new _) [] rfK prevsK rfl hfe hr
   simp only [Lockstep.usize_zero_val', List.drop_zero] at h1
   refine ⟨h1, fun j out hj hpop => ?_⟩
+  have hfl := gr_class_fe_r_pop_flags prevsK _ rfK j rfl hpop
   obtain ⟨rfY, hY, hYi, hpopY⟩ := h3 rfK (RFEq.refl _) h1.inv.1 j out
     (by rw [hj, hQ]; simp [alloc.vec.Vec.new, hQl]) hpop
   have hout := hpopY 0#usize (by simp [alloc.vec.Vec.new])
@@ -1717,7 +1765,12 @@ theorem class_fe_r_push_spec {pers : arena.store.PersTier} (p : arena.inductives
     ((cv_gs.val.map absIConstantVal).zip (rec_cls.val.map absU)) 0 lf []
   have hfeq : f = fun (x : NIdx × Option IConstantInfo) acc => acc.popTemp x.1 x.2 := by
     funext x acc; exact hf x acc
-  refine IFEnvRelI.transfer hfe hY hYi ?_
+  have htf := foldr_popTemp_flags
+    (classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal) (rec_cls.val.map absU) lf).2
+    (classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal) (rec_cls.val.map absU) lf).1
+  rw [← hfeq] at htf
+  refine IFEnvRelI.transfer hfe hY hYi ?_ (by rw [htf.1, hfl.1]; exact h1.rel.natLit)
+    (by rw [htf.2, hfl.2]; exact h1.rel.strLit)
   simp only [classFeR]
   rw [hn, List.nil_append, hfeq]
   exact hT
@@ -1729,7 +1782,7 @@ def grPop (x : NIdx × Option IConstantInfo) (acc : IFEnv) : IFEnv :=
 theorem class_fe_r_push_ls {pers : arena.store.PersTier} (p : arena.inductives.block_shape.BlockShape)
     (cv_gs : alloc.vec.Vec arena.env.IConstantVal) (rec_cls : alloc.vec.Vec Std.U64)
     {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI pers rf lf) :
-    LSP (arena.inductives.gen_rec.class_fe_r_push p cv_gs rec_cls 0#usize rf (alloc.vec.Vec.new _))
+    LSP (arena.inductives.gen_rec.class_fe_r_push pers p cv_gs rec_cls 0#usize rf (alloc.vec.Vec.new _))
       (fun r => IFEnvRelI pers r.1 (classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
           (rec_cls.val.map absU) lf).1 ∧
         ∀ (j : Std.Usize) out, j.val = r.2.val.length →
@@ -1773,6 +1826,8 @@ attribute [local lockstep] class_fe_r_push_ls
 attribute [local lockstep_inline] arena.inductives.gen_rec.gen_rec_classes
   arena.inductives.gen_rec.gen_rec_generate
 
+-- the flags set back after the pops are one more step past the default budget
+set_option maxHeartbeats 1000000 in
 /-- `gen_rec_check` ⊑ `genRecCheck` — the export the block tail reads: the
 index handed back related to the twin's popped one, the rules alike. -/
 @[lockstep] theorem gen_rec_check_ls {pers st lst} {mode : kernel.env.CheckMode}
@@ -1795,8 +1850,10 @@ index handed back related to the twin's popped one, the rules alike. -/
   all_goals
     obtain ⟨hR, hpop⟩ := ‹IFEnvRelI _ _ _ ∧ ∀ _ _, _›
     simp only at hR hpop
+    have hpe := ‹arena.inductives.gen_rec.class_fe_r_pop _ _ _ = ok _›
+    have hfe3 := hpop _ _ (by simp [alloc.vec.Vec.len]) hpe
     refine LS.pure ⟨?_, rfl⟩ ‹_› ‹_›
-    exact hpop _ _ (by simp [alloc.vec.Vec.len]) hf
+    exact ifenv_set_flags_refines hfe3 hfe.rel ‹arena.env.ifenv_set_flags _ _ _ = ok _›
 
 /-! ## The axiom census -/
 

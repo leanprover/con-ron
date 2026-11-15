@@ -383,7 +383,7 @@ theorem checkConstantVal_bridge {env : Env}
   obtain ⟨h9st, h9c, h9p, h9r⟩ :=
     constsResolveFFast_run hck8 hty8 g9r
   obtain ⟨hcr, r15⟩ := AM.dunless_ok
-    (AM.Never.bind fun _ => AM.Never.bind fun _ => AM.Never.fail_any) r14
+    (AM.Never.bind fun _ => AM.Never.fail_any) r14
   replace r15 := AM.pure_bind_ok r15
   have hcrP : c.type.constsResolve env = true := by rw [← h9r]; exact hcr
   have hck9 : CheckOK false env fe s9 :=

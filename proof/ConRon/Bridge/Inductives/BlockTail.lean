@@ -127,10 +127,20 @@ theorem consBlockRecsTemp_pop :
     simp only [List.foldr_cons]
     exact (hf.popTemp _ _).trans (GR.popTemp_push fe ci)
 
-/-- con-leche: none — `GR.FEq` carries `EnvRel` (lookups and gate). -/
+/-- con-leche: none — `GR.FEq` carries `EnvRel` (lookups and gate) to an index whose literal
+flags are its lookups'. -/
 theorem EnvRel.feq {env : Env} {a b : IFEnv} {st : EStore} (h : GR.FEq a b)
-    (hb : EnvRel env b st) : EnvRel env a st :=
-  ⟨fun s hs => h.ifenv (hb.ienv s hs), h.gate hb.gate, hb.stored⟩
+    (hb : EnvRel env b st) (hfa : FlagsOK a) : EnvRel env a st :=
+  ⟨fun s hs => h.ifenv (hb.ienv s hs) hfa, h.gate hb.gate, hb.stored⟩
+
+/-- con-leche: none — the temporary pushes keep the literal flags their lookups'. -/
+theorem consBlockRecsTemp_flags :
+    ∀ (L : List IConstantInfo) (fe : IFEnv) (prevs : List (NIdx × Option IConstantInfo)),
+      FlagsOK fe → FlagsOK (Arena.consBlockRecsTemp L fe prevs).1
+  | [], fe, prevs, h => by simpa [Arena.consBlockRecsTemp] using h
+  | ci :: L, fe, prevs, h => by
+    simp only [Arena.consBlockRecsTemp]
+    exact consBlockRecsTemp_flags L (fe.push ci) _ (h.push ci)
 
 /-! ## The pass's helpers -/
 
@@ -357,7 +367,7 @@ theorem checkBlockTail_of (hk : CoreSpec Arena.checkFuel)
   -- the recursor stage
   obtain ⟨⟨fe₂b, out⟩, s₃, h5, h6⟩ := AM.bind_ok h4
   simp only [Arena.checkBlockRec] at h5
-  obtain ⟨c3, outP, ⟨hout, hfresh, hfeq⟩, hGRF⟩ := genRecCheck_spec fe₂ hk henv₂ hrel₂.gate
+  obtain ⟨c3, outP, ⟨hout, hfresh, hfeq, hfeqF⟩, hGRF⟩ := genRecCheck_spec fe₂ hk henv₂ hrel₂.gate
     q.p pP _ q.params paramsP q.tbl tblP.toList q.rd rdP q.cls clsP block blockP hMs hT s₂ s₃
     (fe₂b, out) c2
     ⟨dShape_ext x2 _ _ hsh, denoteEList_ext x2 _ _ hpa, dCtorNf_ext.list x2 _ _ htb,
@@ -385,6 +395,7 @@ theorem checkBlockTail_of (hk : CoreSpec Arena.checkFuel)
       (fun M hM => (hMs M hM).2.1)
   have hrel₂b : EnvRel env₂ fe₂b s₄.store :=
     EnvRel.feq hfeq (hrel₂.mono (show Ext s₁.store s₄.store by rw [← hs2]; exact x3.trans x4))
+      (hfeqF (hrel₂.ienv s₁ rfl).flags)
   have hienvG : IFEnvOK (ConLeche.consBlockRecsT pP 0 outP env₂)
       (Arena.consBlockRecsTemp infos fe₂b []).1 s₄ := by
     rw [consBlockRecsT_eq]
@@ -404,14 +415,21 @@ theorem checkBlockTail_of (hk : CoreSpec Arena.checkFuel)
   have x06 : Ext s.store s₆.store := x05.trans c6.ext
   -- the pops, and the flush leaving them
   rw [hn] at h12
-  generalize hfe₃ : news.foldr (fun (x : NIdx × Option IConstantInfo) acc =>
-    acc.popTemp x.1 x.2) (Arena.consBlockRecsTemp infos fe₂b []).1 = fe₃ at hpop
-  have hfe₃' : List.foldr (fun x acc => match x with
-      | (n, prev) => IFEnv.popTemp acc n prev) (Arena.consBlockRecsTemp infos fe₂b []).1 news
+  generalize hfe₃ : (news.foldr (fun (x : NIdx × Option IConstantInfo) acc =>
+    acc.popTemp x.1 x.2) (Arena.consBlockRecsTemp infos fe₂b []).1).setFlags fe₂b.natLit
+      fe₂b.strLit = fe₃
+  have hpop₃ : GR.FEq fe₃ fe₂b := by rw [← hfe₃]; exact hpop
+  have hfe₃' : (List.foldr (fun x acc => match x with
+      | (n, prev) => IFEnv.popTemp acc n prev)
+        (Arena.consBlockRecsTemp infos fe₂b []).1 news).setFlags fe₂b.natLit fe₂b.strLit
       = fe₃ := hfe₃
   rw [hfe₃'] at h12
+  have hfl₃ : FlagsOK fe₃ := by
+    rw [← hfe₃]
+    exact (hrel₂b.ienv s₄ rfl).flags.of_same (hpop.2.2.1 ▸ rfl)
+      (fun n => by rw [IFEnv.setFlags_find?]; exact hpop.find? n) rfl rfl
   have hrel₃ : EnvRel env₂ fe₃ s₆.store :=
-    EnvRel.feq hpop (hrel₂b.mono (by rw [← hs5]; exact c6.ext))
+    EnvRel.feq hpop₃ (hrel₂b.mono (by rw [← hs5]; exact c6.ext)) hfl₃
   obtain ⟨u7, s₇, h13, h14⟩ := AM.bind_ok h12
   obtain ⟨c7, i7, hs7⟩ := ReadOK.flush
     (⟨c6.ok.state, c6.ok.pins, hrel₃.ifenv⟩ : ReadOK env₂ fe₃ s₆) h13

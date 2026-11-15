@@ -293,7 +293,7 @@ attribute [local lockstep_simp] ConRon.Refine.absLiteral
       (arena.core.lit_major_to_ctor pers st mode eager lane fu fe depth h) lst
       (litMajorToCtor (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth)
         (absEIdx h)) := by
-  rw [arena.core.lit_major_to_ctor, litMajorToCtor]
+  rw [arena.core.lit_major_to_ctor, litMajorToCtor, hctx.strLit]
   lockstep_c2
 
 @[lockstep] theorem proj_lit_to_ctor_ls {f : Nat} (hk : KnotRel f)
@@ -304,7 +304,7 @@ attribute [local lockstep_simp] ConRon.Refine.absLiteral
       (arena.core.proj_lit_to_ctor pers st mode eager lane fu fe depth h) lst
       (projLitToCtor (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth)
         (absEIdx h)) := by
-  rw [arena.core.proj_lit_to_ctor, projLitToCtor]
+  rw [arena.core.proj_lit_to_ctor, projLitToCtor, hctx.strLit]
   lockstep_c2
 
 /-! ## `etaFabArgsE` -/
@@ -620,6 +620,17 @@ end majorToCtor
 
 attribute [lockstep_inline] arena.core.prepare_major_whnf
 
+/-- `is_nat_succ_app` (the constructor shortcut's `Nat.succ` exclusion) against
+`isNatSuccApp`. -/
+@[lockstep] theorem is_nat_succ_app_ls {pers st e lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = a) (arena.core.is_nat_succ_app pers st e) st lst
+      (isNatSuccApp (absEIdx e)) := by
+  apply LSR.of_LS
+  rw [arena.core.is_nat_succ_app, isNatSuccApp]
+  lockstep_c2
+  all_goals (simp only [Bool.true_and, beq_eq_decide]; lockstep_c2)
+
 set_option maxHeartbeats 0 in
 @[lockstep] theorem prepare_major_ls {f : Nat} (hk : KnotRel f)
     {pers st mode eager lane fu fe lfe depth recName isK rules major lst}
@@ -631,6 +642,7 @@ set_option maxHeartbeats 0 in
       (prepareMajor (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
         lfe (absU depth) (absNIdx recName) isK (rules.val.map absIRecRule) (absEIdx major)) := by
   rw [arena.core.prepare_major, prepareMajor]
+  simp only [prepareMajorWhnf]
   lockstep_c2
 
 /-! ## `iotaRecAt` -/

@@ -3002,9 +3002,9 @@ theorem FEq.rawTable? {a b : IFEnv} (h : FEq a b) (n : NIdx) :
 
 /-- con-leche: none — the index relation reads an index through its lookups
 (`IFEnvOK.congr_lookup`). -/
-theorem FEq.ifenv {env : Env} {a b : IFEnv} {s : AState} (h : FEq a b) (hb : IFEnvOK env b s) :
-    IFEnvOK env a s :=
-  hb.congr_lookup h.find? h.rawTable?
+theorem FEq.ifenv {env : Env} {a b : IFEnv} {s : AState} (h : FEq a b) (hb : IFEnvOK env b s)
+    (hfa : FlagsOK a) : IFEnvOK env a s :=
+  hb.congr_lookup h.find? h.rawTable? hfa (by rw [h.2.2.1])
 
 /-- con-leche: none — so does the table gate. -/
 theorem FEq.gate {a b : IFEnv} (h : FEq a b) (hb : TblGate b) : TblGate a := by
@@ -3016,9 +3016,9 @@ theorem FEq.gate {a b : IFEnv} (h : FEq a b) (hb : TblGate b) : TblGate a := by
 /-- con-leche: none — a temporary pop respects `FEq`. -/
 theorem FEq.popTemp {a b : IFEnv} (h : FEq a b) (n : NIdx) (prev : Option IConstantInfo) :
     FEq (a.popTemp n prev) (b.popTemp n prev) := by
-  refine ⟨by simp only [IFEnv.popTemp, h.1], fun k => ?_, by simp only [IFEnv.popTemp, h.2.2.1],
-    by simp only [IFEnv.popTemp, h.2.2.2]⟩
-  simp only [IFEnv.popTemp]
+  refine ⟨by simp only [IFEnv.popTemp_env, h.1], fun k => ?_,
+    by simp only [IFEnv.popTemp_base, h.2.2.1], by simp only [IFEnv.popTemp_tbls, h.2.2.2]⟩
+  simp only [IFEnv.popTemp_idx]
   cases prev with
   | none =>
     simp only [Std.HashMap.getElem?_erase]
@@ -3031,8 +3031,9 @@ theorem FEq.popTemp {a b : IFEnv} (h : FEq a b) (n : NIdx) (prev : Option IConst
 port's `ifenv_pop_temp`): the list and every row as before. -/
 theorem popTemp_push (fe : IFEnv) (ci : IConstantInfo) :
     FEq ((fe.push ci).popTemp ci.name fe.idx[ci.name]?) fe := by
-  refine ⟨rfl, fun k => ?_, rfl, rfl⟩
-  simp only [IFEnv.popTemp, IFEnv.push]
+  refine ⟨by simp only [IFEnv.popTemp_env, IFEnv.push_env, List.tail_cons], fun k => ?_,
+    by rw [IFEnv.popTemp_base, IFEnv.push_base], by rw [IFEnv.popTemp_tbls, IFEnv.push_tbls]⟩
+  simp only [IFEnv.popTemp_idx, IFEnv.push_idx]
   cases hprev : fe.idx[ci.name]? with
   | none =>
     simp only [Std.HashMap.getElem?_erase, Std.HashMap.getElem?_insert]
@@ -3078,6 +3079,26 @@ theorem classFeR_pop (p : Arena.BlockShape) (cvGs : List IConstantVal) (recCls :
   simp only [Arena.classFeR]
   rw [hn, List.nil_append]
   exact hf
+
+/-- con-leche: none — `classFeR.go`'s pushes keep the literal flags their lookups'. -/
+theorem classFeR_go_flags (p : Arena.BlockShape) :
+    ∀ (l : List (IConstantVal × Nat)) (m : Nat) (fe : IFEnv)
+      (prevs : List (NIdx × Option IConstantInfo)),
+      FlagsOK fe → FlagsOK (Arena.classFeR.go p m l fe prevs).1
+  | [], m, fe, prevs, h => by simpa [Arena.classFeR.go] using h
+  | (cv, c) :: rest, m, fe, prevs, h => by
+    simp only [Arena.classFeR.go]
+    exact classFeR_go_flags p rest (m + 1) _ _ (h.push _)
+
+/-- con-leche: none — the popped index with the flags set back carries them as its lookups'. -/
+theorem classFeR_pop_flags (p : Arena.BlockShape) (cvGs : List IConstantVal)
+    (recCls : List Nat) {fe : IFEnv} (h : FlagsOK fe) :
+    FlagsOK (((Arena.classFeR p cvGs recCls fe).2.foldr
+      (fun (x : NIdx × Option IConstantInfo) acc => acc.popTemp x.1 x.2)
+      (Arena.classFeR p cvGs recCls fe).1).setFlags fe.natLit fe.strLit) :=
+  have heq := classFeR_pop p cvGs recCls fe
+  h.of_same (heq.2.2.1 ▸ rfl) (fun n => by rw [IFEnv.setFlags_find?]; exact heq.find? n)
+    rfl rfl
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:255-257 classFeR
 con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:335-339 consBlockRecsBare —
@@ -3262,7 +3283,7 @@ theorem genRecCheck_spec {env₂ : Env} (fe₂ : IFEnv)
         ms.mapM (dMajor st) = some MsP ∧ Frontend.denoteCIList st block = some blockP)
       (Arena.genRecCheck .verified fe₂ p nestedBit params tbl rd ms block)
       (fun st r v => r.2.mapM (dRecOut st) = some v ∧ (∀ t ∈ v, env₂.find? t.1.name = none) ∧
-        GR.FEq r.1 fe₂)
+        GR.FEq r.1 fe₂ ∧ (FlagsOK fe₂ → FlagsOK r.1))
       (ConLeche.genRecCheck (fueledOpsM .verified) (mkFEnv env₂) pP nestedBit paramsP
         tblP rdP MsP blockP) := by
   intro s₀ s' r hok hpre hrun
@@ -3470,8 +3491,8 @@ theorem genRecCheck_spec {env₂ : Env} (fe₂ : IFEnv)
       rw [hfeReq]
       rw [hrc] at hF12
       exact hF12
-    refine ⟨hframe, outP, ⟨by rw [hst13]; exact hout, ?_, GR.classFeR_pop p cvGs rd.recCls fe₂⟩,
-      hFOk⟩
+    refine ⟨hframe, outP, ⟨by rw [hst13]; exact hout, ?_, GR.classFeR_pop p cvGs rd.recCls fe₂,
+      GR.classFeR_pop_flags p cvGs rd.recCls⟩, hFOk⟩
     obtain ⟨F, hF⟩ := hFOk
     rw [genRecCheck_datF] at hF
     exact genRecCheck_out_fresh hF

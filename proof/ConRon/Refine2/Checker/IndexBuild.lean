@@ -67,8 +67,9 @@ theorem stream_index_add_refines {pers st lst} {ix ix' : arena.stream_index.IStr
             by rw [hTm]; exact hI.tables.inv,
             fun n p hp => by rw [hTb]; rw [hTm] at hp; exact hI.tables.range n p hp⟩) hii
       let I' : IStreamIndex :=
-        ⟨⟨(insertConsts I.base.idx I.next L).1, insertTables I.base.tbls I.firsts.size Q,
-          I.base.below, I.base.belowRec⟩, I.firsts.push I.next, (insertConsts I.base.idx I.next L).2⟩
+        { base := { I.base with idx := (insertConsts I.base.idx I.next L).1,
+                                tbls := insertTables I.base.tbls I.firsts.size Q }
+          firsts := I.firsts.push I.next, next := (insertConsts I.base.idx I.next L).2 }
       refine ⟨I', lst2, ?_, hrel2, hinv2, ⟨?_, ?_, ?_, ?_⟩⟩
       · simp only [IStreamIndex.add, StateT.run_bind, hx1, hx2, except_ok_bind]
         rfl
@@ -93,6 +94,139 @@ theorem stream_index_add_refines {pers st lst} {ix ix' : arena.stream_index.IStr
         simp only [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at hN
         rw [hI.next, hL, ← hN, hNx]
 
+/-! ## The freeze -/
+
+open Lockstep in
+/-- `nat_lit_names` ⊑ `natLitNames`: three pin reads, the handles in order. -/
+@[lockstep] theorem nat_lit_names_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdxList a) (arena.env.nat_lit_names st) st lst natLitNames := by
+  apply LSR.of_LS
+  rw [arena.env.nat_lit_names, natLitNames]
+  lockstep
+
+open Lockstep in
+/-- `str_lit_names` ⊑ `strLitNames`: the `Nat` names, then seven pin reads. -/
+@[lockstep] theorem str_lit_names_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdxList a) (arena.env.str_lit_names st) st lst strLitNames := by
+  apply LSR.of_LS
+  rw [arena.env.str_lit_names, strLitNames]
+  lockstep
+
+/-- **`lit_from` ⊑ `litFrom`**: the frozen index's counters of the literal names from cursor
+`i` to `stop`; the counter is in range of the constant list, so `c + 1` does not overflow. -/
+theorem lit_from_abs {ix : arena.stream_index.IStreamIndex}
+    {idx : Std.HashMap NIdx (Nat × IConstantInfo)} (hC : IxConsts ix idx)
+    (lits : alloc.vec.Vec arena.handle.NIdx) (stop : Std.Usize) :
+    ∀ (m : Nat) (i : Std.Usize) {o : Option Std.U64}, stop.val - i.val = m →
+      arena.env.lit_from ix.idx lits i stop = ok o →
+      o.map absU = litFrom idx (lits.val.map absNIdx) i.val stop.val := by
+  intro m
+  induction m with
+  | zero =>
+    intro i o hm h
+    rw [arena.env.lit_from.eq_def] at h
+    rw [ite_eq_left (show i ≥ stop by scalar_tac)] at h
+    obtain rfl := (Result.ok_injective h).symm
+    rw [litFrom.eq_1, ite_eq_left (by omega)]
+    rfl
+  | succ m ih =>
+    intro i o hm h
+    rw [arena.env.lit_from.eq_def] at h
+    rw [ite_eq_right (show ¬ i ≥ stop by scalar_tac)] at h
+    rw [litFrom.eq_1, ite_eq_right (by omega)]
+    by_cases hlen : i.val < lits.val.length
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len lits by scalar_tac)] at h
+      have hlen' : i.val < (lits.val.map absNIdx).length := by simpa using hlen
+      rw [dite_eq_left hlen']
+      obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hnv := vec_index_some hn
+      have hget : (lits.val.map absNIdx)[i.val] = absNIdx n := by
+        have h1 : (lits.val.map absNIdx)[i.val]? = some (absNIdx n) := by
+          rw [List.getElem?_map, hnv]; rfl
+        rw [List.getElem?_eq_getElem hlen'] at h1
+        exact Option.some.inj h1
+      rw [hget, ← hC.rows n]
+      obtain ⟨g, hg, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hgv := ConRon.Refine.HashMap2.get_refines_wf nidx_eq2 hC.inv
+        ConRon.Refine.HashMap2.KeysOk_true trivial hg
+      unfold ixRow
+      rw [← hgv]
+      cases g with
+      | none => exact congrArg (Option.map absU) (Result.ok_injective h).symm
+      | some c =>
+        have hc : c.val < ix.consts.val.length := hC.range n c hgv.symm
+        obtain ⟨ci, hci⟩ : ∃ ci, ix.consts.val[c.val]? = some ci :=
+          ⟨_, List.getElem?_eq_getElem hc⟩
+        simp only [Option.bind_some, hci, Option.map_some]
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+        obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have ihr := ih i2 (by omega) hr
+        rw [hi2v] at ihr
+        rw [← ihr]
+        cases r with
+        | none => exact congrArg (Option.map absU) (Result.ok_injective h).symm
+        | some k =>
+          simp only [Option.map_some]
+          have hlenmax : ix.consts.val.length ≤ Std.Usize.max := ix.consts.property
+          obtain ⟨c1, hc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have hc1v : c1.val = c.val + 1 := by
+            have := ConRon.Refine.HashMap.uscalar_add_eq hc1; exact this
+          by_cases hk : c1 ≤ k
+          · rw [ite_eq_left hk] at h
+            obtain rfl := (Result.ok_injective h).symm
+            rw [ite_eq_left (by simp only [absU]; scalar_tac)]
+            rfl
+          · rw [ite_eq_right hk] at h
+            obtain rfl := (Result.ok_injective h).symm
+            rw [ite_eq_right (by simp only [absU]; scalar_tac)]
+            simp only [Option.map_some, absU, hc1v]
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len lits by scalar_tac)] at h
+      have hlen' : ¬ i.val < (lits.val.map absNIdx).length := by simpa using hlen
+      rw [dite_eq_right hlen']
+      obtain rfl := (Result.ok_injective h).symm
+      rfl
+
+/-- **`stream_index_freeze` ⊑ `IStreamIndex.freeze`**: the literal names off the pin table,
+the two thresholds over them; the rest of the index as it was. -/
+theorem stream_index_freeze_refines {pers st lst} {ix ix' : arena.stream_index.IStreamIndex}
+    {I : IStreamIndex}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hI : StreamIndexRel ix I)
+    (h : arena.stream_index.stream_index_freeze st ix = ok (.Ok ix')) :
+    ∃ F lst', I.freeze lst = .ok (F, lst') ∧ AStateRel₀ pers st lst' ∧
+      StreamIndexRel ix' F ∧ FrozenRel ix' F := by
+  rw [arena.stream_index.stream_index_freeze] at h
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hls := str_lit_names_ls hrel hinv r hr
+  cases r with
+  | Err e => simp at h
+  | Ok lits =>
+    obtain ⟨b, lst', hb, rfl, hrel', -⟩ := hls
+    obtain ⟨nf, hnf, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨sf, hsf, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have h' := Result.ok_injective h
+    simp only [core.result.Result.Ok.injEq] at h'
+    subst h'
+    have hnfv := lit_from_abs hI.consts lits _ _ 0#usize rfl hnf
+    have hsfv := lit_from_abs hI.consts lits _ _ 0#usize rfl hsf
+    rw [nat_lit_count_val] at hnfv
+    rw [str_lit_count_val] at hsfv
+    let B : IFBase := { I.base with lits := absNIdxList lits }
+    let F : IStreamIndex := { I with base := B
+                                     natFrom := litFrom I.base.idx (absNIdxList lits) 0 NAT_LIT_COUNT
+                                     strFrom := litFrom I.base.idx (absNIdxList lits) 0 STR_LIT_COUNT }
+    refine ⟨F, lst', ?_, hrel',
+      ⟨⟨fun n => hI.consts.rows n, hI.consts.len, hI.consts.inv, hI.consts.range⟩,
+        ⟨fun n => hI.tables.rows n, hI.tables.inv, hI.tables.range⟩, hI.firsts, hI.next⟩,
+      ⟨rfl, ?_, ?_⟩⟩
+    · show (do let lits ← strLitNames; pure _ : AM IStreamIndex).run lst = _
+      simp only [StateT.run_bind, hb]
+      rfl
+    · exact hnfv.symm
+    · exact hsfv.symm
+
 /-- **`build_index` ⊑ `buildIndexGo`, accepting**: the records from cursor `i` on, each
 into the index, in order. -/
 theorem build_index_refines {pers} (ds : alloc.vec.Vec arena.env.IDeclaration) :
@@ -102,17 +236,29 @@ theorem build_index_refines {pers} (ds : alloc.vec.Vec arena.env.IDeclaration) :
       AStateRel₀ pers st lst → AStateInv pers st → StreamIndexRel ix I →
       arena.stream_index.build_index pers st ix ds i = ok (.Ok ix', st') →
       ∃ I' lst', buildIndexGo I k ((absIDeclL ds).drop i.val) lst = .ok (.ok I', lst') ∧
-        AStateRel₀ pers st' lst' ∧ AStateInv pers st' ∧ StreamIndexRel ix' I' := by
+        AStateRel₀ pers st' lst' ∧ AStateInv pers st' ∧ StreamIndexRel ix' I' ∧
+        FrozenRel ix' I' := by
   intro m
   induction m with
   | zero =>
     intro st lst ix ix' I i st' k hm hrel hinv hI hrun
     rw [arena.stream_index.build_index.eq_def] at hrun
     rw [ite_eq_left (show i ≥ alloc.vec.Vec.len ds by scalar_tac)] at hrun
-    obtain ⟨h1, rfl⟩ := Prod.mk.inj (Result.ok_injective hrun)
-    cases h1
-    rw [List.drop_eq_nil_of_le (by simp [absIDeclL]; omega)]
-    exact ⟨I, lst, rfl, hrel, hinv, hI⟩
+    obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    cases r with
+    | Err e =>
+      obtain ⟨i2, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      cases Result.ok_injective hrun
+    | Ok fx =>
+      obtain ⟨h1, rfl⟩ := Prod.mk.inj (Result.ok_injective hrun)
+      cases h1
+      obtain ⟨F, lst', hF, hrel', hIF, hFR⟩ := stream_index_freeze_refines hrel hinv hI hr
+      rw [List.drop_eq_nil_of_le (by simp [absIDeclL]; omega)]
+      refine ⟨F, lst', ?_, hrel', hinv, hIF, hFR⟩
+      show (match I.freeze lst with
+        | Except.ok (F, s') => Except.ok (Except.ok F, s')
+        | Except.error e => Except.ok (Except.error (e, k), lst)) = _
+      rw [show I.freeze lst = .ok (F, lst') from hF]
   | succ m ih =>
     intro st lst ix ix' I i st' k hm hrel hinv hI hrun
     rw [arena.stream_index.build_index.eq_def] at hrun
@@ -129,8 +275,8 @@ theorem build_index_refines {pers} (ds : alloc.vec.Vec arena.env.IDeclaration) :
       obtain ⟨i3, hi3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hi3v : i3.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi3
       obtain ⟨I2, lst1, hx1, hrel1, hinv1, hI2⟩ := stream_index_add_refines hrel hinv hI h1
-      obtain ⟨I', lst', hx, hrel', hinv', hI'⟩ := ih (k + 1) (by omega) hrel1 hinv1 hI2 hrun
-      refine ⟨I', lst', ?_, hrel', hinv', hI'⟩
+      obtain ⟨I', lst', hx, hrel', hinv', hI', hF'⟩ := ih (k + 1) (by omega) hrel1 hinv1 hI2 hrun
+      refine ⟨I', lst', ?_, hrel', hinv', hI', hF'⟩
       have hdrop : (absIDeclL ds).drop i.val =
           absIDeclaration pd :: (absIDeclL ds).drop i3.val := by
         rw [hi3v, absIDeclL, ← List.map_drop, ← List.map_drop,
@@ -150,7 +296,7 @@ theorem build_index_empty_refines {pers st lst} {ds : alloc.vec.Vec arena.env.ID
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.stream_index.build_index pers st ixEmpty ds 0#usize = ok (.Ok ix, st')) :
     ∃ I lst', buildIndex (absIDeclL ds).toArray lst = .ok (.ok I, lst') ∧
-      AStateRel₀ pers st' lst' ∧ AStateInv pers st' ∧ StreamIndexRel ix I := by
+      AStateRel₀ pers st' lst' ∧ AStateInv pers st' ∧ StreamIndexRel ix I ∧ FrozenRel ix I := by
   obtain ⟨I, lst', hx, h⟩ := build_index_refines ds _ 0 rfl hrel hinv ixEmpty_rel hrun
   exact ⟨I, lst', by simpa [buildIndex] using hx, h⟩
 

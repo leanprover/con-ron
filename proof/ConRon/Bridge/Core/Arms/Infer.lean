@@ -341,8 +341,8 @@ theorem inferBody_const {fe : IFEnv} {fuel : Nat}
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1138-1147 inferBody — **the two
-literal clauses**: `natLitStored_spec` (`Walks/Nat.lean`) and
-`strLitStored_spec` (`Walks/StrLit.lean`), then `constE_spec`; pure side
+literal clauses**: the index's literal flags (`CheckOK.natLitEq`,
+`CheckOK.strLitEq`), then `constE_spec`; pure side
 `infer_natLit`/`infer_strLit`. -/
 theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
     (_henv : ConLeche.EnvWF env)
@@ -366,15 +366,13 @@ theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
     -- the pin's name is the basis constant's (`Bridge/Grind.lean`'s `pinNames_eq_natName`/`_stringName`)
     cases l with
     | natVal n =>
-      sym only [bridge_grind] =>
-        vcgen [natLitStored_spec (eager := eager) (env := env) (fe := fe) s₀ hok,
-          natSizeRefused_spec, ConRon.Arena.pinNat,
+      sym only [bridge_grind, hok.natLitEq] =>
+        vcgen [natSizeRefused_spec, ConRon.Arena.pinNat,
           constE_spec (eager := eager) (env := env) (fe := fe) (nm := ConLeche.natName)] <;>
           finish
     | strVal str =>
-      sym only [bridge_grind] =>
-        vcgen [strLitStored_spec (eager := eager) (env := env) (fe := fe) s₀ hok,
-          ConRon.Arena.pinString,
+      sym only [bridge_grind, hok.strLitEq] =>
+        vcgen [ConRon.Arena.pinString,
           constE_spec (eager := eager) (env := env) (fe := fe) (nm := ConLeche.stringName)] <;>
           finish
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))

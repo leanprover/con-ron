@@ -2331,7 +2331,7 @@ pub fn class_fe_r_push(
 /// Lean twin: the inverse of `class_fe_r_push`: the pushes popped in reverse
 /// order, every displaced row restored, so the index is the constructors'
 /// again exactly.
-pub fn class_fe_r_pop(pers: &PersTier, fe: IFEnv, prevs: &Vec<(NIdx, Option<u64>)>, i: usize) -> IFEnv {
+pub fn class_fe_r_pop(fe: IFEnv, prevs: &Vec<(NIdx, Option<u64>)>, i: usize) -> IFEnv {
     if i == 0 {
         fe
     } else {
@@ -2340,8 +2340,8 @@ pub fn class_fe_r_pop(pers: &PersTier, fe: IFEnv, prevs: &Vec<(NIdx, Option<u64>
             Some(r) => Some(r),
             None => None,
         };
-        env::ifenv_pop_temp(pers, &mut fe2, &prevs[i - 1].0, prev);
-        class_fe_r_pop(pers, fe2, prevs, i - 1)
+        env::ifenv_pop_temp(&mut fe2, &prevs[i - 1].0, prev);
+        class_fe_r_pop(fe2, prevs, i - 1)
     }
 }
 
@@ -2409,7 +2409,7 @@ pub fn former_types(cvs: &Vec<IConstantVal>, i: usize, out: Vec<EIdx>) -> Vec<EI
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:543-581 genRecCheck
 /// con-leche: ConLeche/Cached/IndRec.lean:432-467 genRecCheckC
-/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:768-822 genRecCheck` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:768-823 genRecCheck` — **the
 /// generated recursor stage**, at the constructors' environment `fe`, on the
 /// classes and the positivity check's table: the pins, the stream's recursor
 /// types checked, the elimination guard, the classes' table entries and
@@ -2453,7 +2453,7 @@ pub fn gen_rec_check(
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:543-581 genRecCheck
 /// con-leche: ConLeche/Cached/IndRec.lean:432-467 genRecCheckC
-/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:768-822 genRecCheck` — per class
+/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:768-823 genRecCheck` — per class
 /// and constructor: the table's entries, the datum, the inductive hypotheses,
 /// node agreement; every minor premise a constructor's.
 #[allow(clippy::too_many_arguments)]
@@ -2506,7 +2506,7 @@ pub fn gen_rec_classes(
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:543-581 genRecCheck
 /// con-leche: ConLeche/Cached/IndRec.lean:432-467 genRecCheckC
-/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:768-822 genRecCheck` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:768-823 genRecCheck` —
 /// generation: the prefix, every recursor's type checked and compared, the
 /// rule-less recursors pushed, the flush entering them, every rule
 /// installed, the recursors popped and the flush leaving them.  The rule-less
@@ -2534,6 +2534,8 @@ pub fn gen_rec_generate(
             match class_rec_tys_ok(pers, st, mode, &fe, &g, shape_k(p), &p.recs, &cv_ris, &rd.rec_cls, 0, Vec::new()) {
                 Err(e) => Err(e),
                 Ok(cv_gs) => {
+                    let nl: bool = fe.nat_lit;
+                    let sl: bool = fe.str_lit;
                     let pushed = class_fe_r_push(pers, p, &cv_gs, &rd.rec_cls, 0, fe, Vec::new());
                     let fe_r: IFEnv = pushed.0;
                     let prevs: Vec<(NIdx, Option<u64>)> = pushed.1;
@@ -2542,7 +2544,8 @@ pub fn gen_rec_generate(
                     match class_recs_rules_ok(pers, st, mode, &fe_r, &names, &g, &rd.rec_cls, &cv_gs, 0, Vec::new()) {
                         Err(e) => Err(e),
                         Ok(out) => {
-                            let fe2: IFEnv = class_fe_r_pop(pers, fe_r, &prevs, prevs.len());
+                            let mut fe2: IFEnv = class_fe_r_pop(fe_r, &prevs, prevs.len());
+                            env::ifenv_set_flags(&mut fe2, nl, sl);
                             core::flush_caches(st);
                             Ok((fe2, out))
                         }

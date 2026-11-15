@@ -53,10 +53,17 @@ structure StreamIndexRel (ix : arena.stream_index.IStreamIndex) (I : IStreamInde
   firsts : I.firsts.toList = ix.firsts.val.map absU
   next : I.next = absU ix.next
 
+/-- **A frozen index against the twin's**: the literal names and the two thresholds
+(`stream_index_freeze`, `IStreamIndex.freeze`). -/
+structure FrozenRel (ix : arena.stream_index.IStreamIndex) (I : IStreamIndex) : Prop where
+  lits : I.base.lits = ix.lits.val.map absNIdx
+  natFrom : I.natFrom = ix.nat_from.map absU
+  strFrom : I.strFrom = ix.str_from.map absU
+
 theorem StreamIndexRel.baseRel {ix : arena.stream_index.IStreamIndex} {I : IStreamIndex}
     (h : StreamIndexRel ix I) (b : IFBase) (hi : b.idx = I.base.idx)
-    (ht : b.tbls = I.base.tbls) : BaseRel ix b :=
-  ⟨fun n => by rw [hi]; exact h.consts.rows n, fun n => by rw [ht]; exact h.tables.rows n⟩
+    (ht : b.tbls = I.base.tbls) (hl : b.lits = ix.lits.val.map absNIdx) : BaseRel ix b :=
+  ⟨fun n => by rw [hi]; exact h.consts.rows n, fun n => by rw [ht]; exact h.tables.rows n, hl⟩
 
 /-- A tier holding a related index is a well-formed base. -/
 theorem StreamIndexRel.baseOK {pers : arena.store.PersTier} {I : IStreamIndex}
@@ -314,12 +321,25 @@ theorem insert_tables_rel (r : Std.U64) (ts : alloc.vec.Vec arena.env.IProjTable
 
 /-! ## The view of a position -/
 
+/-- **`from_le` ⊑ `fromLe`.** -/
+theorem from_le_abs {k : Option Std.U64} {c : Std.U64} {b : Bool}
+    (h : arena.env.from_le k c = ok b) : b = fromLe (k.map absU) (absU c) := by
+  rw [arena.env.from_le.eq_def] at h
+  cases k with
+  | none => exact (Result.ok_injective h).symm
+  | some k =>
+    obtain rfl := (Result.ok_injective h).symm
+    simp only [Option.map_some, fromLe, absU]
+    by_cases hkc : k ≤ c
+    · rw [decide_eq_true hkc, decide_eq_true (by scalar_tac)]
+    · rw [decide_eq_false hkc, decide_eq_false (by scalar_tac)]
+
 /-- **`stream_index_view` ⊑ `IStreamIndex.view`**: an empty layer over the frozen index,
 visible below the record's first counter (the counter past the records for a position
 past them) and its position. -/
 theorem stream_index_view_rel {pers : arena.store.PersTier} {I : IStreamIndex}
     {k : Std.U64} {w : arena.env.IFEnv}
-    (hI : StreamIndexRel pers.env I) (hk : k.val ≤ Std.Usize.max)
+    (hI : StreamIndexRel pers.env I) (hF : FrozenRel pers.env I) (hk : k.val ≤ Std.Usize.max)
     (h : arena.stream_index.stream_index_view pers k = ok w) :
     IFEnvRelI pers w (I.view (absU k)) := by
   rw [arena.stream_index.stream_index_view] at h
@@ -347,13 +367,21 @@ theorem stream_index_view_rel {pers : arena.store.PersTier} {I : IStreamIndex}
           alloc.vec.Vec.len_val _
         omega
       simp [absU, List.getElem?_map, List.getElem?_eq_none hge]
+  obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hbv := from_le_abs hb
+  have hb1v := from_le_abs hb1
+  rw [← hF.natFrom, hcv] at hbv
+  rw [← hF.strFrom, hcv] at hb1v
   rw [arena.env.ifenv_layer] at h
   simp only [arena.env.i_env_empty, ron.hashmap2.HashMap2.new, bind_ok] at h
   obtain rfl := (Result.ok_injective h).symm
   have hn := ConRon.Refine.HashMap2.new_refines
     (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable)
     (K := arena.handle.NIdx) (V := Std.U64) (m' := layer00.idx) rfl
-  refine ⟨⟨⟨fun n => ?_, fun n => ?_, hI.baseRel _ rfl rfl, ?_, rfl, hI.baseOK⟩, ?_⟩,
+  refine ⟨⟨⟨fun n => ?_, fun n => ?_, hI.baseRel _ rfl rfl hF.lits, ?_, rfl, hI.baseOK,
+    by simp only [IStreamIndex.view]; exact hbv.symm,
+    by simp only [IStreamIndex.view]; exact hb1v.symm⟩, ?_⟩,
     hn.1, fun n p hp => ?_, hn.1, fun n s hs => ?_⟩
   · show (ConRon.Refine.HashMap2.toFun layer00.idx n).bind _ = _
     simp [hn.2.2 n, IStreamIndex.view]

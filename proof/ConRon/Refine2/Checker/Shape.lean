@@ -367,22 +367,28 @@ theorem eidx_eq2_abs_decide {a b : arena.handle.EIdx} {o : Bool}
     o = decide (absEIdx a = absEIdx b) := by
   rw [eidx_eq2_abs h]; exact beq_eq_decide _ _
 
-/-- **`ifenv_push` ⊑ `IFEnv.push`, relation and invariant together.**  The port
-writes the index row at the constant list's CURRENT length and appends, where the
+/-- **`ifenv_push`'s row and list ⊑ `IFEnv.push`'s, relation and invariant
+together** (the literal flags as they were; `Refine2/Checker/LitFlags.lean`'s
+`ifenv_push_refines` adds their recomputation).  The port writes the index row at the constant list's CURRENT length and appends, where the
 twin conses onto a newest-first list and inserts the constant itself: at the pushed
 name the grown list's slot is the pushed constant, and every other row's slot was in
 range already (`IFEnvInv.idxRange`), so the append does not change what it reads.
 The base and the tables are untouched. -/
-theorem ifenv_push_refines {pers : arena.store.PersTier} {rf rf' : arena.env.IFEnv} {lf : IFEnv}
-    {ci : arena.env.IConstantInfo}
+theorem ifenv_push_row_rel {pers : arena.store.PersTier} {rf : arena.env.IFEnv} {lf : IFEnv}
+    {ci : arena.env.IConstantInfo} {s : Std.U64} {n : arena.handle.NIdx}
+    {q : Option Std.U64 × ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64}
+    {v : alloc.vec.Vec arena.env.IConstantInfo}
     (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
-    (h : arena.env.ifenv_push rf ci = ok rf') :
-    IFEnvRel pers rf' (lf.push (absIConstantInfo ci)) ∧ IFEnvInv rf' := by
-  rw [arena.env.ifenv_push] at h
-  obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    (hs : lift (UScalar.cast .U64 (alloc.vec.Vec.len rf.env.consts)) = ok s)
+    (hn : arena.env.i_constant_info_name ci = ok n)
+    (hq : ron.hashmap2.HashMap2.insert arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 rf.idx n s = ok q)
+    (hv : alloc.vec.Vec.push rf.env.consts ci = ok v) :
+    IFEnvRel pers { rf with env := { rf.env with consts := v }, idx := q.2 }
+      ⟨⟨absIConstantInfo ci :: lf.env.consts, lf.env.tables⟩,
+        lf.idx.insert (absIConstantInfo ci).name (absIConstantInfo ci), lf.base, lf.tbls,
+        lf.natLit, lf.strLit⟩ ∧
+    IFEnvInv { rf with env := { rf.env with consts := v }, idx := q.2 } := by
   have hsv : s.val = rf.env.consts.val.length := by
     simp only [lift, Result.ok.injEq] at hs
     subst hs
@@ -392,16 +398,13 @@ theorem ifenv_push_refines {pers : arena.store.PersTier} {rf rf' : arena.env.IFE
     ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True) nidx_eq2
       hfinv.idxInv ConRon.Refine.HashMap2.KeysOk_true trivial hq
   have hvv : v.val = rf.env.consts.val ++ [ci] := ConRon.Refine.vec_push_val hv
-  have hrf' : rf' = { rf with env := { rf.env with consts := v }, idx := q.2 } :=
-    (Result.ok_injective h).symm
-  subst hrf'
   have hname : absNIdx n = (absIConstantInfo ci).name := i_constant_info_name_abs hn
-  refine ⟨⟨⟨?_, hfe.tbls, hfe.base, hfe.below, hfe.belowRec, hfe.baseOK⟩, ?_⟩,
-    hinv', ?_, hfinv.tblInv, hfinv.tblRange⟩
+  refine ⟨⟨⟨?_, hfe.tbls, hfe.base, hfe.below, hfe.belowRec, hfe.baseOK, hfe.natLit,
+    hfe.strLit⟩, ?_⟩, hinv', ?_, hfinv.tblInv, hfinv.tblRange⟩
   · -- the own index
     intro m
     simp only [ownRow, hupd]
-    simp only [IFEnv.push, _root_.Std.HashMap.getElem?_insert, Function.update_apply]
+    simp only [_root_.Std.HashMap.getElem?_insert, Function.update_apply]
     by_cases hm : m = n
     · subst hm
       rw [ite_eq_left rfl, ite_eq_left (by simp [hname])]
@@ -420,8 +423,8 @@ theorem ifenv_push_refines {pers : arena.store.PersTier} {rf rf' : arena.env.IFE
         simp only [hvv, Option.bind_some]
         rw [List.getElem?_append_left (hfinv.idxRange m p hp)]
   · -- the constant list
-    show (lf.push (absIConstantInfo ci)).env = absIEnv _
-    simp only [IFEnv.push, absIEnv, hvv, List.map_append, List.reverse_append]
+    show (⟨absIConstantInfo ci :: lf.env.consts, lf.env.tables⟩ : IEnv) = absIEnv _
+    simp only [absIEnv, hvv, List.map_append, List.reverse_append]
     rw [hfe.env]
     simp [absIEnv]
   · -- every stored slot still in range
@@ -465,7 +468,7 @@ theorem ifenv_push_table_refines {pers : arena.store.PersTier} {rf rf' : arena.e
   have hrf' : rf' = { rf with env := { rf.env with tables := v }, tbls := q.2 } :=
     (Result.ok_injective h).symm
   subst hrf'
-  refine ⟨⟨⟨hfe.idx, ?_, hfe.base, hfe.below, hfe.belowRec, hfe.baseOK⟩, ?_⟩,
+  refine ⟨⟨⟨hfe.idx, ?_, hfe.base, hfe.below, hfe.belowRec, hfe.baseOK, hfe.natLit, hfe.strLit⟩, ?_⟩,
     hfinv.idxInv, hfinv.idxRange, hinv', ?_⟩
   · -- the table map
     intro m
@@ -595,8 +598,8 @@ attribute [simp] absTypePinsI absINatOpPinSet absINatOpPinSetL
 /-- info: 'ConRon.Refine2.am_bind_congr' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms am_bind_congr
 
-/-- info: 'ConRon.Refine2.ifenv_push_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms ifenv_push_refines
+/-- info: 'ConRon.Refine2.ifenv_push_row_rel' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ifenv_push_row_rel
 
 /-- info: 'ConRon.Refine2.ifenv_push_table_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ifenv_push_table_refines

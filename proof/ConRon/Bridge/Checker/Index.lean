@@ -16,14 +16,18 @@ module
 
 public import ConRon.Bridge.Checker.StreamIndex
 import ConLeche.Verify.Cached.WalkersC
+import ConRon.Bridge.Specs
+import ConRon.Bridge.GrindAttr
 
 public section
 
 namespace ConRon.Bridge
 
 set_option autoImplicit false
+set_option experimental.vcgen true
 
-open ConLeche ConRon.Arena
+open ConLeche ConRon.Arena Std.WP
+open scoped Lean.Order
 
 /-! ## The two maps, related -/
 
@@ -180,10 +184,39 @@ theorem IdxRel2.mono {V W : Type} {st st' : EStore} {R : V → W → Prop} {R' :
 
 /-! ## What a record installs, as this module takes it -/
 
+/-- con-leche: ConLeche/Kernel/FEnv.lean:251-253 mkFEnv — **the driver's index**: the empty
+environment's, over a base holding nothing but the literal names off the pin table, as
+`mkIFEnvLits` builds it. -/
+@[expose] def driverFE (p : Pins) : IFEnv :=
+  IFEnv.ofParts IEnv.empty ∅
+    { lits := [PIN_NAT, PIN_NAT_ZERO, PIN_NAT_SUCC, PIN_STRING, PIN_STRING_OF_LIST, PIN_LIST,
+        PIN_LIST_NIL, PIN_LIST_CONS, PIN_CHAR, PIN_CHAR_OF_NAT].map (p.names.getD · default) } ∅
+
+/-- con-leche: none — the driver's index's literal names are the pins'. -/
+theorem driverFE_lits {s : AState} (hp : PinsOK s) : LitsOK (driverFE s.pins).base s.store := by
+  have h : ∀ i, i < pinCount → denoteN s.store.ns (s.pins.names.getD i default) = pinNames[i]? :=
+    fun i hi => by
+      have hlt : i < s.pins.names.size := by rw [hp.ready]; exact hi
+      have hpl : pinNames.length = pinCount := by decide
+      have hl : i < pinNames.length := by rw [hpl]; exact hi
+      rw [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem hlt, Option.getD_some,
+        List.getElem?_eq_getElem hl]
+      exact hp.pinAt hlt _ (List.getElem?_eq_getElem hl)
+  unfold LitsOK driverFE IFEnv.ofParts
+  simp only [List.map_cons, List.map_nil]
+  rw [h _ (by decide), h _ (by decide), h _ (by decide), h _ (by decide), h _ (by decide),
+    h _ (by decide), h _ (by decide), h _ (by decide), h _ (by decide), h _ (by decide)]
+  rfl
+
 /-- con-leche: none — **the driver's state before the check phase**: the core tier's invariant at
 the empty environment, which is what the records' walks run from (their readback caches sound,
 the pins in place). -/
-abbrev DriverOK (s : AState) : Prop := CheckOK false Env.empty (mkIFEnv IEnv.empty) s
+abbrev DriverOK (s : AState) : Prop := CheckOK false Env.empty (driverFE s.pins) s
+
+/-- con-leche: none — `DriverOK` at a state with the same pins. -/
+theorem DriverOK.of_check {s s' : AState} (h : CheckOK false Env.empty (driverFE s.pins) s')
+    (hp : s'.pins = s.pins) : DriverOK s' := by
+  unfold DriverOK; rw [hp]; exact h
 
 /-- con-leche: ConLeche/Kernel/Install.lean:80-98 declConstants — **the twin's `declConstants`
 denotes con-leche's**, on a state with no scratch tier open: the store invariant, an append, the
@@ -218,8 +251,20 @@ structure IndexRel (st : EStore) (I : IStreamIndex) (J : ConLeche.Cached.StreamI
   persIdx : PersMap PersCI I.base.idx
   persTbls : PersMap PersProjTable I.base.tbls
 
+/-- con-leche: ConLeche/Cached/StreamIndex.lean:68-76 FrozenIndex — **a frozen index's own
+facts**: its literal names denote con-leche's and are persistent, and its two thresholds are
+`litFrom` over them (con-leche's proof fields `natFrom_eq`, `strFrom_eq`). -/
+structure Frozen (st : EStore) (I : IStreamIndex) : Prop where
+  lits : LitsOK I.base st
+  persLits : PersNList I.base.lits
+  natFrom : I.natFrom = litFrom I.base.idx I.base.lits 0 NAT_LIT_COUNT
+  strFrom : I.strFrom = litFrom I.base.idx I.base.lits 0 STR_LIT_COUNT
+
 theorem IndexRel.denotes {st : EStore} {I : IStreamIndex} {J : ConLeche.Cached.StreamIndex}
-    (h : IndexRel st I J) : IndexDenotes st I J where
+    (h : IndexRel st I J) (hf : Frozen st I) : IndexDenotes st I J where
+  lits := hf.lits
+  natFrom := hf.natFrom
+  strFrom := hf.strFrom
   firsts := h.firsts
   next := h.next
   idxHit := h.idx.1
@@ -232,8 +277,8 @@ theorem IndexRel.denotes {st : EStore} {I : IStreamIndex} {J : ConLeche.Cached.S
     exact ⟨n, t, h1, h2, h3⟩
 
 theorem IndexRel.pers {st : EStore} {I : IStreamIndex} {J : ConLeche.Cached.StreamIndex}
-    (h : IndexRel st I J) : PersIFBase I.base :=
-  ⟨h.persIdx, h.persTbls⟩
+    (h : IndexRel st I J) (hl : PersNList I.base.lits) : PersIFBase I.base :=
+  ⟨h.persIdx, h.persTbls, hl⟩
 
 theorem IndexRel.mono {st st' : EStore} {I : IStreamIndex} {J : ConLeche.Cached.StreamIndex}
     (h : IndexRel st I J) (hx : Ext st st') : IndexRel st' I J where
@@ -289,24 +334,111 @@ theorem add_run (hcs : ConstsSpec) (hts : TablesSpec) {s s' : AState} {I I' : IS
       · simpa using hpidx
       · simpa using hptbl
 
+/-- con-leche: none — `Bridge/Specs.lean`'s `pinAt_spec` with its answer persistent. -/
+theorem pinAt_specP (s₀ : AState) (i : Nat) (hp : PinsOK s₀) (hpp : PersPins s₀) :
+    ⦃fun s => s = s₀⦄ pinAt i
+    ⦃fun n s' => s' = s₀ ∧ (∀ x, pinNames[i]? = some x → denoteN s₀.store.ns n = some x) ∧
+        PersN n; ⊤⦄ := by
+  have hpn : ∀ j (h : j < s₀.pins.names.size), PersN s₀.pins.names[j] :=
+    fun j h => hpp.names _ (Array.getElem_mem h)
+  sym only [bridge_grind, PinsOK.pinAt] =>
+    vcgen [pinAt] <;> finish
+
+/-- con-leche: none — a pin read, as a run: the state as it was, the handle the pin's name's,
+persistent. -/
+theorem pinAt_runP {s s' : AState} {i : Nat} {n : NIdx} {x : ConLeche.Name}
+    (hp : PinsOK s) (hpp : PersPins s) (hx : pinNames[i]? = some x)
+    (h : pinAt i s = .ok (n, s')) : s' = s ∧ denoteN s.store.ns n = some x ∧ PersN n := by
+  obtain ⟨rfl, hd, hpn⟩ := AM.of_run (P := fun t => t = s) rfl h (pinAt_specP s i hp hpp)
+  exact ⟨rfl, hd x hx, hpn⟩
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:57-60 strLitNames — **the twin's literal names are
+con-leche's ten**, at persistent handles off the pin table. -/
+theorem strLitNames_run {s s' : AState} {L : List NIdx} (hp : PinsOK s) (hpp : PersPins s)
+    (h : Arena.strLitNames s = .ok (L, s')) :
+    s' = s ∧ L.map (denoteN s.store.ns) = ConLeche.strLitNames.map some ∧ PersNList L := by
+  unfold Arena.strLitNames at h
+  obtain ⟨o, s1, hA, hB⟩ := AM.bind_ok h
+  unfold Arena.natLitNames at hA
+  obtain ⟨b0, t0, g0, k0⟩ := AM.bind_ok hA
+  obtain ⟨e0, d0, p0⟩ := pinAt_runP (i := PIN_NAT) hp hpp pinNames_eq_natName g0
+  subst e0
+  obtain ⟨b1, t1, g1, k1⟩ := AM.bind_ok k0
+  obtain ⟨e1, d1, p1⟩ := pinAt_runP (i := PIN_NAT_ZERO) hp hpp pinNames_eq_natZeroName g1
+  subst e1
+  obtain ⟨b2, t2, g2, k2⟩ := AM.bind_ok k1
+  obtain ⟨e2, d2, p2⟩ := pinAt_runP (i := PIN_NAT_SUCC) hp hpp pinNames_eq_natSuccName g2
+  subst e2
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+  obtain ⟨b3, t3, g3, k3⟩ := AM.bind_ok hB
+  obtain ⟨e3, d3, p3⟩ := pinAt_runP (i := PIN_STRING) hp hpp pinNames_eq_stringName g3
+  subst e3
+  obtain ⟨b4, t4, g4, k4⟩ := AM.bind_ok k3
+  obtain ⟨e4, d4, p4⟩ := pinAt_runP (i := PIN_STRING_OF_LIST) hp hpp pinNames_eq_stringOfListName g4
+  subst e4
+  obtain ⟨b5, t5, g5, k5⟩ := AM.bind_ok k4
+  obtain ⟨e5, d5, p5⟩ := pinAt_runP (i := PIN_LIST) hp hpp pinNames_eq_listName g5
+  subst e5
+  obtain ⟨b6, t6, g6, k6⟩ := AM.bind_ok k5
+  obtain ⟨e6, d6, p6⟩ := pinAt_runP (i := PIN_LIST_NIL) hp hpp pinNames_eq_listNilName g6
+  subst e6
+  obtain ⟨b7, t7, g7, k7⟩ := AM.bind_ok k6
+  obtain ⟨e7, d7, p7⟩ := pinAt_runP (i := PIN_LIST_CONS) hp hpp pinNames_eq_listConsName g7
+  subst e7
+  obtain ⟨b8, t8, g8, k8⟩ := AM.bind_ok k7
+  obtain ⟨e8, d8, p8⟩ := pinAt_runP (i := PIN_CHAR) hp hpp pinNames_eq_charName g8
+  subst e8
+  obtain ⟨b9, t9, g9, k9⟩ := AM.bind_ok k8
+  obtain ⟨e9, d9, p9⟩ := pinAt_runP (i := PIN_CHAR_OF_NAT) hp hpp pinNames_eq_charOfNatName g9
+  subst e9
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok k9
+  refine ⟨rfl, ?_, ?_⟩
+  · simp [d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, ConLeche.strLitNames, ConLeche.natLitNames]
+  · intro n hn
+    simp only [List.cons_append, List.nil_append, List.mem_cons, List.not_mem_nil, or_false] at hn
+    rcases hn with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+    all_goals assumption
+
+/-- con-leche: ConLeche/Cached/StreamIndex.lean:78-80 StreamIndex.freeze — **the twin's freeze**:
+the state as it was, the index with the literal names and its thresholds over them, which is
+`Frozen`. -/
+theorem freeze_run {s s' : AState} {I F : IStreamIndex} (hp : PinsOK s) (hpp : PersPins s)
+    (h : I.freeze s = .ok (F, s')) :
+    s' = s ∧ F.base.idx = I.base.idx ∧ F.base.tbls = I.base.tbls ∧ F.firsts = I.firsts ∧
+      F.next = I.next ∧ Frozen s.store F := by
+  unfold IStreamIndex.freeze at h
+  obtain ⟨L, s1, h1, h2⟩ := AM.bind_ok h
+  obtain ⟨rfl, hL, hpL⟩ := strLitNames_run hp hpp h1
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
+  exact ⟨rfl, rfl, rfl, rfl, rfl, ⟨hL, hpL, rfl, rfl⟩⟩
+
 /-- con-leche: ConLeche/Cached/StreamIndex.lean:64-66 buildIndex — the records, one after
-another, on both sides. -/
+another, on both sides, and the index frozen past the last. -/
 theorem buildIndexGo_run (hcs : ConstsSpec) (hts : TablesSpec) :
     ∀ (ds : List IDeclaration) (dsP : List Declaration) (I : IStreamIndex)
       (J : ConLeche.Cached.StreamIndex) (k : Nat) {s s' : AState} {I' : IStreamIndex},
-      DriverOK s → s.store.scratchOn = false → (∀ x ∈ ds, PersDecl x) →
+      DriverOK s → PersPins s → s.store.scratchOn = false → (∀ x ∈ ds, PersDecl x) →
       denoteDecls s.store ds = some dsP → IndexRel s.store I J →
       buildIndexGo I k ds s = .ok (.ok I', s') →
       DriverOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧ s'.store.scratchOn = false ∧
-        IndexRel s'.store I' (dsP.foldl ConLeche.Cached.StreamIndex.add J)
-  | [], dsP, I, J, k, s, s', I', hst, hoff, _, hden, hI, h => by
+        IndexRel s'.store I' (dsP.foldl ConLeche.Cached.StreamIndex.add J) ∧ Frozen s'.store I'
+  | [], dsP, I, J, k, s, s', I', hst, hpp, hoff, _, hden, hI, h => by
     simp only [denoteDecls, Option.some.injEq] at hden
     subst hden
-    simp only [buildIndexGo, pure, StateT.pure, Except.pure, Except.ok.injEq, Prod.mk.injEq] at h
-    obtain ⟨h1, rfl⟩ := h
-    cases h1
-    exact ⟨hst, Ext.refl _, rfl, hoff, hI⟩
-  | pd :: ds, dsP, I, J, k, s, s', I', hst, hoff, hp, hden, hI, h => by
+    simp only [buildIndexGo] at h
+    cases hf : I.freeze s with
+    | error e => rw [hf] at h; simp at h
+    | ok r =>
+      obtain ⟨F, s1⟩ := r
+      rw [hf] at h
+      simp only [Except.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨⟨⟩, rfl⟩ := h
+      obtain ⟨rfl, hi, ht, hfi, hn, hfz⟩ := freeze_run hst.pins hpp hf
+      refine ⟨hst, Ext.refl _, rfl, hoff, ?_, hfz⟩
+      exact { firsts := hfi.trans hI.firsts, next := hn.trans hI.next
+              idx := hi ▸ hI.idx, tbls := ht ▸ hI.tbls
+              persIdx := hi ▸ hI.persIdx, persTbls := ht ▸ hI.persTbls }
+  | pd :: ds, dsP, I, J, k, s, s', I', hst, hpp, hoff, hp, hden, hI, h => by
     simp only [denoteDecls] at hden
     cases h1 : Frontend.denoteDecl s.store pd with
     | none => rw [h1] at hden; simp at hden
@@ -324,16 +456,17 @@ theorem buildIndexGo_run (hcs : ConstsSpec) (hts : TablesSpec) :
           rw [ha] at h
           obtain ⟨hst₁, hx₁, hp₁, hoff₁, hI₁⟩ := add_run hcs hts hst hoff (hp pd (by simp)) h1 hI ha
           have hden₁ := denoteDecls_pext (PExt.of_ext hx₁) ds dsP' (fun x hx => hp x (by simp [hx])) h2
-          obtain ⟨hst₂, hx₂, hp₂, hoff₂, hI₂⟩ := buildIndexGo_run hcs hts ds dsP' I₁ (J.add d) (k + 1)
-            hst₁ hoff₁ (fun x hx => hp x (by simp [hx])) hden₁ hI₁ h
-          exact ⟨hst₂, hx₁.trans hx₂, hp₂.trans hp₁, hoff₂, hI₂⟩
+          obtain ⟨hst₂, hx₂, hp₂, hoff₂, hI₂, hf₂⟩ := buildIndexGo_run hcs hts ds dsP' I₁ (J.add d)
+            (k + 1) hst₁ (hpp.mono hp₁) hoff₁ (fun x hx => hp x (by simp [hx])) hden₁ hI₁ h
+          exact ⟨hst₂, hx₁.trans hx₂, hp₂.trans hp₁, hoff₂, hI₂, hf₂⟩
 
 /-- con-leche: ConLeche/Cached/StreamIndex.lean:64-66 buildIndex — **the twin's index of the
 records denotes con-leche's index of the denoted records**, on a state with no scratch tier open,
 and every handle in it is persistent. -/
 theorem buildIndex_run (hcs : ConstsSpec) (hts : TablesSpec) {ds : Array IDeclaration}
     {dsP : List Declaration} {s s' : AState} {I : IStreamIndex}
-    (hst : DriverOK s) (hoff : s.store.scratchOn = false) (hp : ∀ x ∈ ds.toList, PersDecl x)
+    (hst : DriverOK s) (hpp : PersPins s) (hoff : s.store.scratchOn = false)
+    (hp : ∀ x ∈ ds.toList, PersDecl x)
     (hden : denoteDecls s.store ds.toList = some dsP)
     (h : buildIndex ds s = .ok (.ok I, s')) :
     DriverOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧ s'.store.scratchOn = false ∧
@@ -344,10 +477,10 @@ theorem buildIndex_run (hcs : ConstsSpec) (hts : TablesSpec) {ds : Array IDeclar
       tbls := ⟨fun _ _ hp => by simp at hp, fun _ _ hq => by simp at hq⟩
       persIdx := fun _ _ hp => by simp at hp
       persTbls := fun _ _ hp => by simp at hp }
-  obtain ⟨hst', hx, hpins, hoff', hI⟩ :=
-    buildIndexGo_run hcs hts ds.toList dsP {} {} 0 hst hoff hp hden h0 h
+  obtain ⟨hst', hx, hpins, hoff', hI, hfz⟩ :=
+    buildIndexGo_run hcs hts ds.toList dsP {} {} 0 hst hpp hoff hp hden h0 h
   have hb : ConLeche.Cached.buildIndex dsP.toArray = dsP.foldl ConLeche.Cached.StreamIndex.add {} := by
     simp [ConLeche.Cached.buildIndex]
-  exact ⟨hst', hx, hpins, hoff', hb ▸ hI.denotes, hI.pers⟩
+  exact ⟨hst', hx, hpins, hoff', hb ▸ hI.denotes hfz, hI.pers hfz.persLits⟩
 
 end ConRon.Bridge

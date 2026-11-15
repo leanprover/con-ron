@@ -148,7 +148,7 @@ theorem ReadOK.flush {env : Env} {fe : IFEnv} {s s' : AState}
   rw [e] at hrun
   obtain ⟨-, rfl⟩ := Prod.mk.inj (Except.ok.inj hrun)
   exact ⟨⟨⟨h.state.wf⟩, CacheOK.of_empty rfl, ⟨h.pins.1, h.pins.2, h.pins.3, h.pins.4,
-      h.pins.5, h.pins.6, h.pins.7⟩, ⟨h.ienv.1, h.ienv.2, h.ienv.3, h.ienv.4⟩⟩,
+      h.pins.5, h.pins.6, h.pins.7⟩, ⟨h.ienv.1, h.ienv.2, h.ienv.3, h.ienv.4, h.ienv.5, h.ienv.6⟩⟩,
     ⟨⟨h.state.wf⟩, Ext.refl _, rfl⟩, rfl⟩
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK (the `ienv` clause) — the
@@ -165,7 +165,7 @@ theorem _root_.ConRon.Bridge.IFEnvOK.toS {env : Env} {fe : IFEnv} {s : AState} (
   exact ⟨fun n ci hf => by rw [hs]; exact h.hit n ci hf,
     fun nm c he => by rw [hs]; exact h.cover nm c he,
     fun n t hf => by rw [hs]; exact h.tblHit n t hf,
-    fun nm pt he => by rw [hs]; exact h.tblCover nm pt he⟩
+    fun nm pt he => by rw [hs]; exact h.tblCover nm pt he, h.flags, by rw [hs]; exact h.lits⟩
 
 theorem IFEnvOKS.mono {env : Env} {fe : IFEnv} {st st' : EStore}
     (h : IFEnvOKS env fe st) (hx : Ext st st') : IFEnvOKS env fe st' := by

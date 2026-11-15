@@ -461,6 +461,8 @@ reads it across its own scratch tier and the drop that ends it. -/
 structure PersIFBase (b : IFBase) : Prop where
   idx : ∀ n p, b.idx[n]? = some p → PersN n ∧ PersCI p.2
   tbls : ∀ n p, b.tbls[n]? = some p → PersN n ∧ PersProjTable p.2
+  /-- the literal names, the pins' handles -/
+  lits : PersNList b.lits
 
 /-- con-leche: none — arena infrastructure; a gated table hit is a raw one. -/
 theorem IFEnv.rawTable?_of_findTable? {fe : IFEnv} {n : NIdx} {t : IProjTable}

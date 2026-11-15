@@ -2,8 +2,8 @@
 # `ConRon.Bridge.Core.Walks.Nat` — the literal acceleration, `reduceNat`
 
 `reduceNat`, the walk `Bridge/Core/Arms/Whnf.lean`'s `whnfBody_spec` runs
-before delta-unfolding.  This module is that walk and the six
-state-only walks under it (`rawNatLit?`, `natLitStored`, `natBinOpOfName?`,
+before delta-unfolding.  This module is that walk and the five
+state-only walks under it (`rawNatLit?`, `natBinOpOfName?`,
 `natBinOpResult`; `natLitSupported`, which the declaration
 checker reads), each an EQUATION with the
 con-leche function of the same name — none of them is fueled on the pure
@@ -530,16 +530,26 @@ as ONE equation over the projections: a `∀` from `Nat` to `Nat`. -/
   | none | some (.axiomInfo _) | some (.defnInfo _ _ _) | some (.thmInfo _)
   | some (.indInfo _ _) | some (.recInfo _ _ _ _ _) => rfl
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:195-198 natLitStored
-con-leche: ConLeche/Kernel/FEnv.lean:192-194 natLitStoredF —
-**THEOREM 1 for `natLitStored`**: the three names present, read through the
-index (`indexAt`'s `isSome` clause). -/
-theorem natLitStored_spec (s₀ : AState) (hok : CheckOK eager env fe s₀) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.natLitStored fe
-    ⦃fun b s' => s' = s₀ ∧ b = ConLeche.natLitStored env; ⊤⦄ := by
-  sym only [bridge_grind, ConLeche.natLitStored] =>
-    vcgen [ConRon.Arena.natLitStored, ConRon.Arena.pinNat,
-      ConRon.Arena.pinNatZero, ConRon.Arena.pinNatSucc, pinAt_specE] <;> finish
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:48-56 Expr.isNatSuccApp — as one equation over
+the tags and the projections. -/
+theorem isNatSuccApp_eq (e : Expr) :
+    e.isNatSuccApp = (exprTag e == ETag.app && exprTag (exprFn e) == ETag.const &&
+      exprConstLevels (exprFn e) == [] && exprConstName (exprFn e) == ConLeche.natSuccName) := by
+  cases e <;> try rfl
+  rename_i f a
+  cases f <;> try rfl
+  rename_i c us
+  cases us <;> rfl
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:48-56 Expr.isNatSuccApp — **THEOREM 1 for
+`isNatSuccApp`**: an application of the level-free `Nat.succ`. -/
+theorem isNatSuccApp_spec (s₀ : AState) (a : EIdx) (x : Expr)
+    (hok : CheckOK eager env fe s₀) (hda : denoteE s₀.store a = some x) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.isNatSuccApp a
+    ⦃fun r s' => s' = s₀ ∧ r = x.isNatSuccApp; ⊤⦄ := by
+  sym only [bridge_grind, isNatSuccApp_eq] =>
+    vcgen [ConRon.Arena.isNatSuccApp, ConRon.Arena.emptyLevels, ConRon.Arena.pinNatSucc,
+      pinAt_specE] <;> finish
 
 /-! ## 6. `reduceNat`'s pure side at its exits
 
@@ -971,10 +981,9 @@ theorem reduceNat_specR {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
         s'.pins = s₀.pins ∧ NatRed .verified eager env d x s'.store r; ⊤⦄ := by
   -- `gen := 16`, `ematch := 10`: the callees are stated at `exprFn (exprFn x)`, behind the
   -- application spine and the knot's `whnf`, past the default generation and e-matching limits
-  sym only [bridge_grind] =>
+  sym only [bridge_grind, hok.natLitEq] =>
     vcgen [ConRon.Arena.reduceNat, ConRon.Arena.emptyLevels, ConRon.Arena.pinNatSucc,
       KnotSpec.whnfS hsim, rawNatLit?_specA (eager := eager) (env := env) (fe := fe),
-      natLitStored_spec (eager := eager) (env := env) (fe := fe),
       natBinOpOfName?_spec (eager := eager) (env := env) (fe := fe)
         (nm := exprConstName (exprFn (exprFn x))),
       natBinOpResult_spec (eager := eager) (env := env) (fe := fe)
@@ -1014,7 +1023,6 @@ section Census
 #print axioms natBinOpOfName?_spec
 #print axioms natBinOpResult_spec
 #print axioms constE_spec
-#print axioms natLitStored_spec
 #print axioms natOpResult_wscoped
 #print axioms reduceNat_spec
 

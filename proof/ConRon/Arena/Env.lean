@@ -377,18 +377,19 @@ def IFEnv.pushTable (fe : IFEnv) (t : IProjTable) : IFEnv :=
 `env::ifenv_pop_temp`, task #97-P6-5 lever 5, in place of con-leche's
 `FEnv.overlay`): the pushed constant dropped and the index row under its name put
 back as it was before the push (`prev`, the raw row read with `idx[n]?` before
-it).  The literal flags are recomputed exactly when `n` is one of the base's
-literal names. -/
+it).  The literal flags are left as the push left them (`IFEnv.setFlags`). -/
 def IFEnv.popTemp (fe : IFEnv) (n : NIdx) (prev : Option IConstantInfo) : IFEnv :=
-  let fe1 : IFEnv := ⟨⟨fe.env.consts.tail, fe.env.tables⟩,
+  ⟨⟨fe.env.consts.tail, fe.env.tables⟩,
    (match prev with
     | some r => fe.idx.insert n r
     | none => fe.idx.erase n),
    fe.base, fe.tbls, fe.natLit, fe.strLit⟩
-  if litNameAt fe.base.lits n 0 then
-    let fe2 := { fe1 with natLit := fe1.natLitStoredBy }
-    { fe2 with strLit := fe2.strLitStoredBy }
-  else fe1
+
+/-- con-leche: none — the end of the port's in-place overlay — **the end of a temporary
+extension**: the literal flags of the layer the pushes started from, set back once the pops
+have restored its rows. -/
+def IFEnv.setFlags (fe : IFEnv) (natLit strLit : Bool) : IFEnv :=
+  { fe with natLit, strLit }
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:406-411 FEnv.rawTable? — the table map's
 lookup, ungated: a miss falls through to the base layer. -/

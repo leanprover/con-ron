@@ -751,7 +751,7 @@ def checkDivModPin (mode : CheckMode) (pins : List INatOpPinSet)
   let prev := fe.idx[c]?
   let fe2 := fe.push ci
   let value' ← checkDivModPinAtFe2 fe2 c
-  let fe := fe2.popTemp c prev
+  let fe := (fe2.popTemp c prev).setFlags fe.natLit fe.strLit
   checkDivModPinLoop mode fe c value' pins []
   pure fe
 
@@ -797,7 +797,7 @@ def checkReducePin (mode : CheckMode) (fe : IFEnv) (ci : IConstantInfo) (c : NId
   let prev := fe.idx[c]?
   let fe2 := fe.push ci
   let stored ← reduceStoredOk fe2 c
-  let fe := fe2.popTemp c prev
+  let fe := (fe2.popTemp c prev).setFlags fe.natLit fe.strLit
   if stored then do
     checkReducePinPre mode fe c value
     pure fe

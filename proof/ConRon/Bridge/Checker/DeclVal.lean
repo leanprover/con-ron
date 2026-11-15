@@ -193,7 +193,7 @@ theorem valueGuards_bridge {env : Env} {fe : IFEnv}
   obtain ⟨h9st, h9c, h9p, h9r⟩ :=
     constsResolveFFast_run hck8 hv8 g9r
   obtain ⟨hcr, r15⟩ := AM.dunless_ok
-    (AM.Never.bind fun _ => AM.Never.bind fun _ => AM.Never.fail _) r14
+    (AM.Never.bind fun _ => AM.Never.fail _) r14
   have hcrP : x.constsResolve env = true := by rw [← h9r]; exact hcr
   have hck9 : CheckOK false env fe s9 :=
     hck8.mono ⟨by rw [h9st]; exact hck8.state.wf⟩ (by rw [h9st]; exact Ext.refl _)
@@ -619,16 +619,28 @@ structure IFEnv.SameView (fe' fe : IFEnv) : Prop where
   tbls : fe'.tbls = fe.tbls
   base : fe'.base = fe.base
   env : fe'.env = fe.env
+  flags : FlagsOK fe → FlagsOK fe'
 
 /-- con-leche: none — a push popped is `fe`'s view (`IFEnv.find?_popTemp`, and
 the other three by the definitions). -/
 theorem IFEnv.sameView_popTemp (fe : IFEnv) (ci : IConstantInfo) :
-    IFEnv.SameView ((fe.push ci).popTemp ci.name fe.idx[ci.name]?) fe where
+    IFEnv.SameView (((fe.push ci).popTemp ci.name fe.idx[ci.name]?).setFlags fe.natLit fe.strLit)
+      fe where
   idx := IFEnv.idx_popTemp fe ci
   find := IFEnv.find?_popTemp fe ci
-  tbls := rfl
-  base := rfl
-  env := rfl
+  tbls := by
+    show ((fe.push ci).popTemp ci.name fe.idx[ci.name]?).tbls = _
+    rw [IFEnv.popTemp_tbls, IFEnv.push_tbls]
+  base := by
+    show ((fe.push ci).popTemp ci.name fe.idx[ci.name]?).base = _
+    rw [IFEnv.popTemp_base, IFEnv.push_base]
+  env := by
+    show ((fe.push ci).popTemp ci.name fe.idx[ci.name]?).env = _
+    simp only [IFEnv.popTemp_env, IFEnv.push_env, List.tail_cons]
+  flags := fun h => h.of_same (by
+      show ((fe.push ci).popTemp ci.name fe.idx[ci.name]?).base.lits = _
+      rw [IFEnv.popTemp_base, IFEnv.push_base])
+    (IFEnv.find?_popTemp fe ci ·) rfl rfl
 
 /-! ## The structural-`Nat` gate
 
@@ -1814,10 +1826,10 @@ theorem checkStructuralNatPin_bridge {env env2 : Env} {fe fe' : IFEnv}
   have hck3 : CheckOK false env fe s3 := hck2.mono hst3 hx3 hc3 hp3
   obtain ⟨okb, s4, g4, r4⟩ := AM.bind_ok r3
   obtain ⟨hstepC, hcertOf⟩ :=
-    certifyNatEqs_bridge hk (hck3.congr_find hsv.find hsv.tbls hsv.base) henv
+    certifyNatEqs_bridge hk (hck3.congr_find hsv.find hsv.tbls hsv.base (hsv.flags hck.ienv.flags)) henv
       hdps (natOpEqs_wscoped hok2.envWF hfindP) g4
   replace hstepC := hstepC.congr_find (fun n => (hsv.find n).symm) hsv.tbls.symm
-    hsv.base.symm
+    hsv.base.symm hck.ienv.flags
   obtain ⟨hy4, r5⟩ := AM.dunless_ok AM.Never.fail_any r4
   replace r5 := AM.pure_bind_ok r5
   obtain ⟨rfl, rfl⟩ := AM.pure_ok r5
@@ -2134,10 +2146,11 @@ theorem checkReducePin_bridge {env env2 : Env}
   have hck1 : CheckOK false env fe s1 := hck.mono hs1.ok hs1.ext hs1.caches hs1.pins
   obtain ⟨u, s2, g2, r2⟩ := AM.bind_ok r1'
   obtain ⟨hstep2, he, hg, F, h5, h6⟩ :=
-    checkReducePinPre_bridge hk (hck1.congr_find hsv.find hsv.tbls hsv.base) henv
+    checkReducePinPre_bridge hk (hck1.congr_find hsv.find hsv.tbls hsv.base (hsv.flags hck.ienv.flags)) henv
       (denoteN_ext hn hs1.ext) (denote_ext hv hs1.ext) hws g2
   obtain ⟨rfl, rfl⟩ := AM.pure_ok r2
   have hstep2' := hstep2.congr_find (fun n => (hsv.find n).symm) hsv.tbls.symm hsv.base.symm
+    hck.ienv.flags
   exact ⟨⟨hstep2'.ok, hs1.ext.trans hstep2'.ext, by rw [hstep2'.pins, hs1.pins]⟩, hsv,
     F, checkReducePin_pure hc0 he hg h5 h6⟩
 

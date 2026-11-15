@@ -367,10 +367,12 @@ def emptyETables : arena.store.ETables :=
     foralls := emptyTbl _ _ _, lets := emptyTbl _ _ _, lits := emptyTbl _ _ _,
     projs := emptyTbl _ _ _ }
 
-/-- `stream_index_empty()` (`arena/stream_index.rs`): no constants, no tables, no records. -/
+/-- `stream_index_empty()` (`arena/stream_index.rs`): no constants, no tables, no records, not
+frozen. -/
 def emptyIndex : arena.stream_index.IStreamIndex :=
   { consts := alloc.vec.Vec.new _, idx := emptyMap _ _, tables := alloc.vec.Vec.new _,
-    tbls := emptyMap _ _, firsts := alloc.vec.Vec.new _, next := 0#u64 }
+    tbls := emptyMap _ _, firsts := alloc.vec.Vec.new _, next := 0#u64,
+    lits := alloc.vec.Vec.new _, nat_from := none, str_from := none }
 
 /-- **The binary's persistent tier**, `&PersTier::empty()`
 (`bin/con-ron.rs:339`): the tier every stage up to the check phase is handed — not

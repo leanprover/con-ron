@@ -99,7 +99,7 @@ theorem litToCtorIfNat_split (h : EIdx) : ConRon.Arena.litToCtorIfNat fe h =
       match ← view h with
       | .lit l =>
         match litNat? l with
-        | some n => do if ← ConRon.Arena.natLitStored fe then
+        | some n => do if fe.natLit then
             ConRon.Arena.natLitToConstructor n else pure h
         | none => pure h
       | _ => pure h
@@ -120,9 +120,8 @@ theorem litToCtorIfNat_spec (s₀ : AState) (h : EIdx) (x : Expr)
     ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         denoteE s'.store r = some (ConLeche.litToCtorIfNat env x); ⊤⦄ := by
-  sym only [bridge_grind, litToCtorIfNat_eq, Option.getD_some] =>
-    vcgen [litToCtorIfNat_split, natLitStored_spec (eager := eager) (env := env) (fe := fe),
-      natLitToConstructor_spec (eager := eager) (env := env) (fe := fe)] <;> finish
+  sym only [bridge_grind, litToCtorIfNat_eq, Option.getD_some, hok.natLitEq] =>
+    vcgen [litToCtorIfNat_split, natLitToConstructor_spec (eager := eager) (env := env) (fe := fe)] <;> finish
 
 /-! ## 2. The family's sort, read off its stored type -/
 
