@@ -3080,16 +3080,6 @@ theorem classFeR_pop (p : Arena.BlockShape) (cvGs : List IConstantVal) (recCls :
   rw [hn, List.nil_append]
   exact hf
 
-/-- con-leche: none — `classFeR.go`'s pushes keep the literal flags their lookups'. -/
-theorem classFeR_go_flags (p : Arena.BlockShape) :
-    ∀ (l : List (IConstantVal × Nat)) (m : Nat) (fe : IFEnv)
-      (prevs : List (NIdx × Option IConstantInfo)),
-      FlagsOK fe → FlagsOK (Arena.classFeR.go p m l fe prevs).1
-  | [], m, fe, prevs, h => by simpa [Arena.classFeR.go] using h
-  | (cv, c) :: rest, m, fe, prevs, h => by
-    simp only [Arena.classFeR.go]
-    exact classFeR_go_flags p rest (m + 1) _ _ (h.push _)
-
 /-- con-leche: none — the popped index with the flags set back carries them as its lookups'. -/
 theorem classFeR_pop_flags (p : Arena.BlockShape) (cvGs : List IConstantVal)
     (recCls : List Nat) {fe : IFEnv} (h : FlagsOK fe) :

@@ -1370,9 +1370,9 @@ theorem TFEq.trans {a b c : IFEnv} (h₁ : TFEq a b) (h₂ : TFEq b c) : TFEq a 
 
 theorem TFEq.popTemp {a b : IFEnv} (h : TFEq a b) (n : NIdx)
     (prev : Option IConstantInfo) : TFEq (a.popTemp n prev) (b.popTemp n prev) := by
-  refine ⟨by simp only [twin_popTemp_env, h.1], fun k => ?_,
+  refine ⟨by simp only [IFEnv.popTemp, h.1], fun k => ?_,
     by simp only [twin_popTemp_base, h.2.2.1], by simp only [twin_popTemp_tbls, h.2.2.2]⟩
-  simp only [twin_popTemp_idx]
+  simp only [IFEnv.popTemp]
   cases prev with
   | none =>
     simp only [Std.HashMap.getElem?_erase]
@@ -1383,9 +1383,9 @@ theorem TFEq.popTemp {a b : IFEnv} (h : TFEq a b) (n : NIdx)
 
 theorem TFEq.popTemp_push (fe : IFEnv) (ci : IConstantInfo) :
     TFEq ((fe.push ci).popTemp ci.name fe.idx[ci.name]?) fe := by
-  refine ⟨by simp only [twin_popTemp_env, twin_push_env, List.tail_cons], fun k => ?_,
+  refine ⟨by simp only [IFEnv.popTemp, twin_push_env, List.tail_cons], fun k => ?_,
     by rw [twin_popTemp_base, twin_push_base], by rw [twin_popTemp_tbls, twin_push_tbls]⟩
-  simp only [twin_popTemp_idx, twin_push_idx]
+  simp only [IFEnv.popTemp, twin_push_idx]
   cases hprev : fe.idx[ci.name]? with
   | none =>
     simp only [Std.HashMap.getElem?_erase, Std.HashMap.getElem?_insert]

@@ -30,14 +30,8 @@ theorem twin_push_env (fe : IFEnv) (c : IConstantInfo) :
     (fe.push c).env = ⟨c :: fe.env.consts, fe.env.tables⟩ := by unfold IFEnv.push; dsimp only; split <;> rfl
 theorem twin_push_tbls (fe : IFEnv) (c : IConstantInfo) :
     (fe.push c).tbls = fe.tbls := by unfold IFEnv.push; dsimp only; split <;> rfl
-theorem twin_popTemp_idx (fe : IFEnv) (n : NIdx) (prev : Option IConstantInfo) :
-    (fe.popTemp n prev).idx = (match prev with
-      | some r => fe.idx.insert n r
-      | none => fe.idx.erase n) := rfl
 theorem twin_popTemp_base (fe : IFEnv) (n : NIdx) (prev : Option IConstantInfo) :
     (fe.popTemp n prev).base = fe.base := rfl
-theorem twin_popTemp_env (fe : IFEnv) (n : NIdx) (prev : Option IConstantInfo) :
-    (fe.popTemp n prev).env = ⟨fe.env.consts.tail, fe.env.tables⟩ := rfl
 theorem twin_popTemp_tbls (fe : IFEnv) (n : NIdx) (prev : Option IConstantInfo) :
     (fe.popTemp n prev).tbls = fe.tbls := rfl
 
@@ -301,13 +295,6 @@ namespace Lockstep
     LSP (arena.env.ifenv_push pers rf ci)
       (fun r => IFEnvRelI pers r (lf.push (absIConstantInfo ci))) :=
   fun _ h => ifenv_push_refines hfe.rel hfe.inv h
-
-/-- `ifenv_set_flags`: the flags of the layer a temporary extension started from. -/
-@[lockstep] theorem ifenv_set_flags_spec {pers : arena.store.PersTier} {rf rf0 lf lf0}
-    (hfe : IFEnvRelI pers rf lf) (h0 : IFEnvRelI pers rf0 lf0) :
-    LSP (arena.env.ifenv_set_flags rf rf0.nat_lit rf0.str_lit)
-      (fun r => IFEnvRelI pers r (lf.setFlags lf0.natLit lf0.strLit)) :=
-  fun _ h => ifenv_set_flags_refines hfe h0.rel h
 
 end Lockstep
 

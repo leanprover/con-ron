@@ -133,15 +133,6 @@ theorem EnvRel.feq {env : Env} {a b : IFEnv} {st : EStore} (h : GR.FEq a b)
     (hb : EnvRel env b st) (hfa : FlagsOK a) : EnvRel env a st :=
   ⟨fun s hs => h.ifenv (hb.ienv s hs) hfa, h.gate hb.gate, hb.stored⟩
 
-/-- con-leche: none — the temporary pushes keep the literal flags their lookups'. -/
-theorem consBlockRecsTemp_flags :
-    ∀ (L : List IConstantInfo) (fe : IFEnv) (prevs : List (NIdx × Option IConstantInfo)),
-      FlagsOK fe → FlagsOK (Arena.consBlockRecsTemp L fe prevs).1
-  | [], fe, prevs, h => by simpa [Arena.consBlockRecsTemp] using h
-  | ci :: L, fe, prevs, h => by
-    simp only [Arena.consBlockRecsTemp]
-    exact consBlockRecsTemp_flags L (fe.push ci) _ (h.push ci)
-
 /-! ## The pass's helpers -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:263-270 blockNestCtx —

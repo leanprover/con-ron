@@ -693,14 +693,6 @@ theorem FlagsOK.push {fe : IFEnv} (h : FlagsOK fe) (ci : IConstantInfo) : FlagsO
         exact ⟨hn1, IFEnv.litsStored_mono (fe := fe) (fe' := fe1) rfl hm _ _ hstr.2⟩
       exact ⟨by show fe.natLit = _; rw [h.nat, hnat, hn1], by show fe.strLit = _; rw [hs, hs1]⟩
 
-/-- con-leche: none — A table push moves no lookup. -/
-theorem FlagsOK.pushTable {fe : IFEnv} (h : FlagsOK fe) (t : IProjTable) :
-    FlagsOK (fe.pushTable t) := by
-  have hl := IFEnv.litsStored_congr (fe := fe) (fe' := fe.pushTable t) rfl
-    (fun n _ => IFEnv.find?_congr rfl rfl)
-  exact ⟨by rw [IFEnv.natLitStoredBy, hl]; exact h.nat,
-    by rw [IFEnv.strLitStoredBy, IFEnv.natLitStoredBy, hl, hl]; exact h.str⟩
-
 /-- con-leche: none — **flags carried to an index answering alike**: the same literal names,
 the same lookups, the same flags. -/
 theorem FlagsOK.of_same {fe fe0 : IFEnv} (h : FlagsOK fe0) (hb : fe.base.lits = fe0.base.lits)

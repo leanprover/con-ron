@@ -347,11 +347,6 @@ def IFEnv.ofParts (env : IEnv) (idx : Std.HashMap NIdx IConstantInfo) (base : IF
   let fe : IFEnv := ⟨env, idx, base, tbls, false, false⟩
   ⟨env, idx, base, tbls, fe.natLitStoredBy, fe.strLitStoredBy⟩
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:251-253 mkFEnv — build the indexes of
-`env`, over the empty base. -/
-def mkIFEnv (env : IEnv) : IFEnv :=
-  IFEnv.ofParts env (mkIFEnvGo env.consts) {} (mkIFEnvTblsGo env.tables)
-
 /-- con-leche: ConLeche/Kernel/FEnv.lean:352-371 FEnv.push — the index of the
 cons-extended environment; the base and the tables are untouched.  The literal
 flags are recomputed only while string literals are not yet expandable and only
