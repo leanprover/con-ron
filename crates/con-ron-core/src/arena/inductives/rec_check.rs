@@ -219,7 +219,7 @@ pub const M_NO_SPLIT: [u32; 36] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:66-86 targetAbs
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1040-1080 targetAbsXP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1052-1092 targetAbsXP
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:53-107 targetAbsGo` — **the
 /// member abstraction of one term**: every member at the block's levels
 /// `lvls` becomes its hole; `fvar` annotations are not entered.  Memoised on
@@ -271,7 +271,7 @@ pub fn target_abs_go(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1040-1080 targetAbsXP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1052-1092 targetAbsXP
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:53-107 targetAbsGo` — the
 /// walk's compound arms, each rebuilt.
 #[allow(clippy::too_many_arguments)]
@@ -344,7 +344,7 @@ pub fn target_abs_node(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:66-86 targetAbs
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1082-1084 targetAbsC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1094-1096 targetAbsC
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:109-115 targetAbs` — the
 /// executed member abstraction (one memoised DAG walk).
 pub fn target_abs(
@@ -1441,7 +1441,7 @@ pub fn target_k53_class(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:410-415 targetPiDomsWith
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:2227-2232 targetPiDomsWithC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2239-2244 targetPiDomsWithC
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:457-472 targetPiDomsWith` — the
 /// domains of the first `|xs|` `∀` binders, each instantiated at the earlier
 /// `xs`.
@@ -1479,7 +1479,7 @@ pub fn target_pi_doms_with(
 // The stored family
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:2217-2218 abstractPrefixC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2229-2230 abstractPrefixC
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:431-433 Expr.abstractPrefix
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:476-481 abstractPrefix` —
 /// **the free variables `0 … k-1` closed at cursor `c`**: `fvar i` becomes

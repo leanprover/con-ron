@@ -760,27 +760,27 @@
   1125  theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
   1126      (hi : denoteE st i = some x) (hj : denoteE st j = some x) : i = j := by
 
-== crates/con-ron-core/src/arena/core.rs#L11844-L11863
- 11844  /// con-leche: none — **a job's bracket, closed** (DESIGN.md §8.3)
- 11845  /// Lean twin: `proof/ConRon/Arena/Core.lean:4491-4499 dropScratch` —
- 11846  /// the twin's `dropScratch` on a store that STAYS frozen (task #98-FREEZE): the
- 11847  /// caches flushed and the scratch tiers emptied, the flag untouched.  A
- 11848  /// worker's store is frozen for its whole life, so between two jobs it is
- 11849  /// frozen with an empty scratch tier where the twin's is scratch-off; nothing
- 11850  /// is interned there.
- 11851  pub fn leave_record(st: &mut AState) {
- 11852      flush_caches(st);
- 11853      st.store.clear_scratch();
- 11854  }
- 11855  
- 11856  /// con-leche: none — **a job's bracket, opened** (DESIGN.md §8.3)
- 11857  /// Lean twin: `proof/ConRon/Arena/Core.lean:4501-4508 enterScratch` —
- 11858  /// the twin's `enterScratch` on an already frozen store (task #98-FREEZE): the
- 11859  /// memos cleared and the scratch tiers emptied, the flag untouched.
- 11860  pub fn enter_record(st: &mut AState) {
- 11861      st.memos.reset();
- 11862      st.store.clear_scratch();
- 11863  }
+== crates/con-ron-core/src/arena/core.rs#L11866-L11885
+ 11866  /// con-leche: none — **a job's bracket, closed** (DESIGN.md §8.3)
+ 11867  /// Lean twin: `proof/ConRon/Arena/Core.lean:4491-4499 dropScratch` —
+ 11868  /// the twin's `dropScratch` on a store that STAYS frozen (task #98-FREEZE): the
+ 11869  /// caches flushed and the scratch tiers emptied, the flag untouched.  A
+ 11870  /// worker's store is frozen for its whole life, so between two jobs it is
+ 11871  /// frozen with an empty scratch tier where the twin's is scratch-off; nothing
+ 11872  /// is interned there.
+ 11873  pub fn leave_record(st: &mut AState) {
+ 11874      flush_caches(st);
+ 11875      st.store.clear_scratch();
+ 11876  }
+ 11877  
+ 11878  /// con-leche: none — **a job's bracket, opened** (DESIGN.md §8.3)
+ 11879  /// Lean twin: `proof/ConRon/Arena/Core.lean:4501-4508 enterScratch` —
+ 11880  /// the twin's `enterScratch` on an already frozen store (task #98-FREEZE): the
+ 11881  /// memos cleared and the scratch tiers emptied, the flag untouched.
+ 11882  pub fn enter_record(st: &mut AState) {
+ 11883      st.memos.reset();
+ 11884      st.store.clear_scratch();
+ 11885  }
 
 == crates/con-ron-core/src/arena/checker.rs#L65-L88
     65  /// con-leche: none — the phase boundary, which con-leche has no tier to make
@@ -987,55 +987,55 @@
     48  //! cutoff the original does not have needs its own licence proved.
     49  //!
 
-== crates/con-ron-core/src/arena/core_state.rs#L466-L513
-   466  /// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
-   467  /// The slot count past which `take_walk_memo` hands back a FRESH table
-   468  /// instead of a cleared one; see its note for how the value was chosen.
-   469  pub const WALK_MEMO_KEEP: usize = 1 << 16;
-   470  
-   471  /// con-leche: ConLeche/Cached/ExprOpsC.lean:2397-2401 allLevelParamsDefinedC
-   472  /// con-leche: ConLeche/Cached/StateC.lean:673-675 constsResolveFC
-   473  /// Lean twin: the `∅` that `proof/ConRon/Arena/CheckerBase.lean`'s
-   474  /// `allLevelParamsDefined` and `constsResolveFFast` start their walk from —
-   475  /// **the parked walk memo, moved out of the state and emptied** (task
-   476  /// #97-PERF-WALKMEMO).  The slot is left holding `HashMap::new()` (which
-   477  /// allocates nothing) for the length of the walk, and the entry puts the
-   478  /// grown table back afterwards; either way the table this returns is empty,
-   479  /// so the walk starts where the twin's does.
-   480  ///
-   481  /// **nanoda's guard** (`nanoda_lib/src/expr.rs`, `inst`): a table past
-   482  /// `WALK_MEMO_KEEP` slots is dropped rather than kept, so that one huge walk
-   483  /// does not leave a huge table behind for every later call.  `reset_map`'s
-   484  /// `clear_fit` already decays such a table, one eighth of its high-water mark
-   485  /// a call, so the guard only decides which of the two is cheaper for an
-   486  /// outlier: re-growing from nothing, or `clear_fit`'s re-make at the decayed
-   487  /// size.  The threshold, measured on `Init` (`--verified --jobs=1`, one
-   488  /// `perf stat -e instructions:u` run each, all accepting 57 977):
-   489  ///
-   490  /// | `WALK_MEMO_KEEP` | instructions:u |
-   491  /// |---|---:|
-   492  /// | fresh `HashMap::new()` per call (before) | 211 976 016 505 |
-   493  /// | 2^10 slots (nanoda's 1024) | 208 379 555 799 |
-   494  /// | 2^12 | 206 572 063 910 |
-   495  /// | 2^14 | 205 851 105 938 |
-   496  /// | **2^16** | **205 785 515 243** |
-   497  /// | no guard (2^60) | 205 783 023 575 |
-   498  ///
-   499  /// A guard low enough to trip on ordinary calls gives the saving back — at
-   500  /// nanoda's 1024 more than half of it — because those calls re-grow by
-   501  /// doubling, which is exactly the cost this table exists to avoid.  2^16 is
-   502  /// the smallest power tried that costs nothing measurable on `Init` (2.5 M
-   503  /// instructions over no guard), so it only ever fires on an outlier.
-   504  pub fn take_walk_memo<K, V>(slot: &mut HashMap<K, V>) -> HashMap<K, V> {
-   505      let m: HashMap<K, V> = core::mem::replace(slot, HashMap::new());
-   506      if m.capacity() > WALK_MEMO_KEEP {
-   507          HashMap::new()
-   508      } else {
-   509          let mut m2: HashMap<K, V> = m;
-   510          reset_map(&mut m2);
-   511          m2
-   512      }
-   513  }
+== crates/con-ron-core/src/arena/core_state.rs#L474-L521
+   474  /// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
+   475  /// The slot count past which `take_walk_memo` hands back a FRESH table
+   476  /// instead of a cleared one; see its note for how the value was chosen.
+   477  pub const WALK_MEMO_KEEP: usize = 1 << 16;
+   478  
+   479  /// con-leche: ConLeche/Cached/ExprOpsC.lean:2409-2413 allLevelParamsDefinedC
+   480  /// con-leche: ConLeche/Cached/StateC.lean:675-677 constsResolveFC
+   481  /// Lean twin: the `∅` that `proof/ConRon/Arena/CheckerBase.lean`'s
+   482  /// `allLevelParamsDefined` and `constsResolveFFast` start their walk from —
+   483  /// **the parked walk memo, moved out of the state and emptied** (task
+   484  /// #97-PERF-WALKMEMO).  The slot is left holding `HashMap::new()` (which
+   485  /// allocates nothing) for the length of the walk, and the entry puts the
+   486  /// grown table back afterwards; either way the table this returns is empty,
+   487  /// so the walk starts where the twin's does.
+   488  ///
+   489  /// **nanoda's guard** (`nanoda_lib/src/expr.rs`, `inst`): a table past
+   490  /// `WALK_MEMO_KEEP` slots is dropped rather than kept, so that one huge walk
+   491  /// does not leave a huge table behind for every later call.  `reset_map`'s
+   492  /// `clear_fit` already decays such a table, one eighth of its high-water mark
+   493  /// a call, so the guard only decides which of the two is cheaper for an
+   494  /// outlier: re-growing from nothing, or `clear_fit`'s re-make at the decayed
+   495  /// size.  The threshold, measured on `Init` (`--verified --jobs=1`, one
+   496  /// `perf stat -e instructions:u` run each, all accepting 57 977):
+   497  ///
+   498  /// | `WALK_MEMO_KEEP` | instructions:u |
+   499  /// |---|---:|
+   500  /// | fresh `HashMap::new()` per call (before) | 211 976 016 505 |
+   501  /// | 2^10 slots (nanoda's 1024) | 208 379 555 799 |
+   502  /// | 2^12 | 206 572 063 910 |
+   503  /// | 2^14 | 205 851 105 938 |
+   504  /// | **2^16** | **205 785 515 243** |
+   505  /// | no guard (2^60) | 205 783 023 575 |
+   506  ///
+   507  /// A guard low enough to trip on ordinary calls gives the saving back — at
+   508  /// nanoda's 1024 more than half of it — because those calls re-grow by
+   509  /// doubling, which is exactly the cost this table exists to avoid.  2^16 is
+   510  /// the smallest power tried that costs nothing measurable on `Init` (2.5 M
+   511  /// instructions over no guard), so it only ever fires on an outlier.
+   512  pub fn take_walk_memo<K, V>(slot: &mut HashMap<K, V>) -> HashMap<K, V> {
+   513      let m: HashMap<K, V> = core::mem::replace(slot, HashMap::new());
+   514      if m.capacity() > WALK_MEMO_KEEP {
+   515          HashMap::new()
+   516      } else {
+   517          let mut m2: HashMap<K, V> = m;
+   518          reset_map(&mut m2);
+   519          m2
+   520      }
+   521  }
 
 == crates/con-ron-core/src/arena/core_state.rs#L315-L377
    315  /// con-leche: ConLeche/Cached/StateC.lean:265-302 CState
@@ -1107,7 +1107,7 @@
    423  // The lanes: the twin's `r : CoreFnsA`, defunctionalized (the module note)
    424  // ---------------------------------------------------------------------------
    425  
-   426  /// con-leche: ConLeche/Kernel/Core.lean:1867-1902 coreKnot
+   426  /// con-leche: ConLeche/Kernel/Core.lean:1866-1901 coreKnot
    427  /// Lean twin: `proof/ConRon/Arena/Core.lean:4345-4424 coreKnot` — **the
    428  /// executed knot**: the memoized one, `pureFnsA`'s.
    429  pub const LANE_FULL: u32 = 0;

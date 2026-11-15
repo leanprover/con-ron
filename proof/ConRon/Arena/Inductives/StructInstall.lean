@@ -41,7 +41,7 @@ def checkStructDomsAt (mode : CheckMode) (fe : IFEnv) (off : Nat)
     checkStructDomsAt mode fe off fvs doms j
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-74 checkStructProjTable
-con-leche: ConLeche/Cached/IndTail.lean:194-202 checkStructProjTableC
+con-leche: ConLeche/Cached/IndTail.lean:195-203 checkStructProjTableC
 Stage 5: **the projection table's checks** (task #175 S1), at the table the
 block installs (`Arena/Install.lean`'s `blockTables`): its bodies' scoping at
 its own level parameters and parameter count, validated once; the table

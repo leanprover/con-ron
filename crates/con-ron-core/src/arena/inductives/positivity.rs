@@ -377,7 +377,7 @@ pub fn names_find_idx(ns: &Vec<NIdx>, n: &NIdx, i: usize) -> Option<u64> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:119-133 Expr.mentionsAnyConst
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1783-1827 mentionsAnyConstXP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1795-1839 mentionsAnyConstXP
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:98-140 mentionsAnyGo` —
 /// does any of the constants `names` occur in `e`?  A syntactic walk (`fvar`
 /// annotations included; a `.proj` node names its structure), memoised on
@@ -416,7 +416,7 @@ pub fn mentions_any_go(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1783-1827 mentionsAnyConstXP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1795-1839 mentionsAnyConstXP
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:98-140 mentionsAnyGo` — the
 /// walk's compound arms.
 pub fn mentions_any_node(
@@ -473,7 +473,7 @@ pub fn mentions_any_node(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:119-133 Expr.mentionsAnyConst
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1829-1831 mentionsAnyConstC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1841-1843 mentionsAnyConstC
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:142-147 mentionsAnyConst` —
 /// the executed `mentionsAnyConst` (one memoised DAG walk).
 pub fn mentions_any_const(
@@ -520,7 +520,7 @@ pub fn member_idx_at(
 // Closing a telescope
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:2198-2200 closeTelescopeGoC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2210-2212 closeTelescopeGoC
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:51-59 closeTelescope
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:163-174 closeTelescopeGo` —
 /// close the telescope `bs[j..]`, opened at the free variables
@@ -552,7 +552,7 @@ pub fn close_telescope_go(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:2203-2204 closeTelescopeC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2215-2216 closeTelescopeC
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:51-59 closeTelescope
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:176-181 closeTelescope` —
 /// close a telescope opened at the free variables `i ..< i + bs.len()` back
@@ -770,7 +770,7 @@ pub fn family_key_check(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:240-256 Expr.nestOcc
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1716-1754 nestOccXP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1728-1766 nestOccXP
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:276-312 nestOccGo` — does a
 /// MEMBER or a HOLE (the free variables `lo ..< hi`) occur in `e`?  A free
 /// variable's annotation is NOT looked into, and a `.proj` node's structure
@@ -810,7 +810,7 @@ pub fn nest_occ_go(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1716-1754 nestOccXP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1728-1766 nestOccXP
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:276-312 nestOccGo` — the
 /// walk's compound arms, each a short circuit.
 pub fn nest_occ_node(
@@ -858,7 +858,7 @@ pub fn nest_occ_node(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:240-256 Expr.nestOcc
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1756-1758 nestOccC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1768-1770 nestOccC
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:314-319 nestOcc` — the
 /// executed `nestOcc` (one memoised DAG walk).
 pub fn nest_occ(
@@ -900,7 +900,7 @@ pub fn nest_occ_any(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:258-263 instPisWith
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:2220-2225 instPisWithC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2232-2237 instPisWithC
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:321-334 instPisWith` —
 /// instantiate the leading `Π` binders of `e` at `args[i..]`, in order.
 pub fn inst_pis_with(
@@ -1044,7 +1044,7 @@ pub fn max_u64(a: u64, b: u64) -> u64 {
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1917-1937 depthXP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1929-1949 depthXP
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:364-402 depthGo` — the
 /// longest root-to-leaf path (`fvar` annotations not descended), memoised on
 /// the node, so a DAG costs its distinct nodes.
@@ -1080,7 +1080,7 @@ pub fn depth_go(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1917-1937 depthXP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1929-1949 depthXP
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:364-402 depthGo` — the
 /// walk's compound arms.
 pub fn depth_node(
@@ -1131,7 +1131,7 @@ pub fn depth_node(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:302-311 Expr.depth
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1939-1941 depthC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1951-1953 depthC
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:404-409 depth` — a term's
 /// depth, memoised.
 pub fn expr_depth(pers: &PersTier, st: &AState, e: &EIdx) -> Result<u64, CheckError> {
@@ -1630,7 +1630,7 @@ pub fn memo_e_probe(memo: &HashMap<EIdx, EIdx>, k: &EIdx) -> Option<EIdx> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:465-478 Expr.replaceFVars
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:961-990 replaceFVarsXP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:973-1002 replaceFVarsXP
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:581-633 replaceFVarsGo` —
 /// replace the free variables `f` maps (a mapped variable is replaced whole,
 /// its annotation not descended into), memoised on the node.
@@ -1671,7 +1671,7 @@ pub fn replace_fvars_go(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:961-990 replaceFVarsXP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:973-1002 replaceFVarsXP
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:581-633 replaceFVarsGo` — the
 /// walk's compound arms, each rebuilt.
 pub fn replace_fvars_node(
@@ -1740,7 +1740,7 @@ pub fn replace_fvars_node(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:465-478 Expr.replaceFVars
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:992-995 replaceFVarsC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1004-1007 replaceFVarsC
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:635-643 replaceFVars` — the
 /// executed `replaceFVars` (one memoised DAG walk, a fresh memo per call).
 pub fn replace_fvars(

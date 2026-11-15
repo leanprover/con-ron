@@ -380,7 +380,7 @@ pub fn class_ctor_dup(x: &ClassCtor) -> ClassCtor {
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:2207-2209 closeLamsGoC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2219-2221 closeLamsGoC
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:86-89 closeLams
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:76-85 closeLamsGo` —
 /// `close_telescope_go` with `λ` binders: each domain and the body
@@ -407,7 +407,7 @@ pub fn close_lams_go(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:2212-2213 closeLamsC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2224-2225 closeLamsC
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:86-89 closeLams
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:87-91 closeLams` — close a
 /// telescope of `λ`s opened at `i ..< i + bs.len()` (`close_lams_go` from

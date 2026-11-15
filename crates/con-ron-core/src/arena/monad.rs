@@ -296,7 +296,8 @@ impl Memos {
 // The state (`Monad.lean:110-126`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/StateC.lean:265-302 CState
+/// con-leche: ConLeche/Cached/StateC.lean:265-307 CState
+/// con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove monad::AState_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:118-135 AState` — the checker
 /// state of (C): the arena, the per-call memo tables and — since task
 /// #97-P4c — the per-declaration caches (`whnfCore`, `whnf`, the two infer
@@ -1303,7 +1304,7 @@ pub fn lift_clear(st: &mut AState) {
     reset_map(&mut st.memos.lift_c)
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:814-844 abstract1XP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:826-856 abstract1XP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:684-687 abs1Get` — probe the
 /// `abstract1` memo.
 pub fn abs1_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
@@ -1313,14 +1314,14 @@ pub fn abs1_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:814-844 abstract1XP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:826-856 abstract1XP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:689-695 abs1Set` — record an
 /// `abstract1` answer.
 pub fn abs1_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
     st.memos.abs1_c.insert(k, r.dup2());
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:846-849 abstract1C
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:858-861 abstract1C
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:697-701 abs1Clear` — drop the
 /// `abstract1` memo (it depends on `d`).
 pub fn abs1_clear(st: &mut AState) {
@@ -1351,7 +1352,7 @@ pub fn inst1_l_clear(st: &mut AState) {
     reset_map(&mut st.memos.inst1_l_c)
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1123-1159 instLevelParamsXP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1135-1171 instLevelParamsXP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:722-725 instLPGet` — probe the
 /// level-substitution memo.
 pub fn inst_lp_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
@@ -1361,14 +1362,14 @@ pub fn inst_lp_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1123-1159 instLevelParamsXP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1135-1171 instLevelParamsXP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:727-733 instLPSet` — record a
 /// level-substitution answer.
 pub fn inst_lp_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
     st.memos.inst_lp_c.insert(k, r.dup2());
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1161-1165 instLevelParams
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1173-1177 instLevelParams
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:735-740 instLPClear` — drop the
 /// level-substitution memo (it depends on `ks` and `us`).
 pub fn inst_lp_clear(st: &mut AState) {
@@ -1377,7 +1378,7 @@ pub fn inst_lp_clear(st: &mut AState) {
     reset_map(&mut st.memos.inst_lp_ls_c)
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1123-1159 instLevelParamsXP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1135-1171 instLevelParamsXP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:742-745 instLPLGet` — probe the
 /// level-handle substitution memo.
 pub fn inst_lp_l_get(st: &AState, h: &LIdx) -> Option<LIdx> {
@@ -1387,14 +1388,14 @@ pub fn inst_lp_l_get(st: &AState, h: &LIdx) -> Option<LIdx> {
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1123-1159 instLevelParamsXP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1135-1171 instLevelParamsXP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:747-753 instLPLSet` — record a
 /// level-handle substitution.
 pub fn inst_lp_l_set(st: &mut AState, h: LIdx, r: &LIdx) {
     st.memos.inst_lp_l_c.insert(h, r.dup2());
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1123-1159 instLevelParamsXP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1135-1171 instLevelParamsXP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:755-758 instLPLsGet` — probe the
 /// level-LIST substitution memo.
 pub fn inst_lp_ls_get(st: &AState, h: &LsIdx) -> Option<LsIdx> {
@@ -1404,7 +1405,7 @@ pub fn inst_lp_ls_get(st: &AState, h: &LsIdx) -> Option<LsIdx> {
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:1123-1159 instLevelParamsXP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1135-1171 instLevelParamsXP
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:760-766 instLPLsSet` — record a
 /// level-LIST substitution.
 pub fn inst_lp_ls_set(st: &mut AState, h: LsIdx, r: &LsIdx) {

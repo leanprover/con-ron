@@ -51,7 +51,7 @@ open ConLeche
 /-! ## The holes: the block's members abstracted to free variables -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:66-86 targetAbs
-con-leche: ConLeche/Cached/ExprOpsC.lean:1040-1080 targetAbsXP
+con-leche: ConLeche/Cached/ExprOpsC.lean:1052-1092 targetAbsXP
 **The member abstraction of one term**: every member at the block's levels
 `lvls` becomes its hole; `fvar` annotations are not entered.  Memoised on the
 node. -/
@@ -107,7 +107,7 @@ def targetAbsGo (names : List NIdx) (lvls : LsIdx) (holes : List EIdx)
         pure (r, memo.insert h r)
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:66-86 targetAbs
-con-leche: ConLeche/Cached/ExprOpsC.lean:1082-1084 targetAbsC
+con-leche: ConLeche/Cached/ExprOpsC.lean:1094-1096 targetAbsC
 The executed member abstraction (one memoised DAG walk, a fresh memo). -/
 def targetAbs (names : List NIdx) (lvls : LsIdx) (holes : List EIdx) (e : EIdx) :
     AM EIdx := do
@@ -455,7 +455,7 @@ def targetK53 (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (formerTys : List
       else pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:410-415 targetPiDomsWith
-con-leche: ConLeche/Cached/ExprOpsC.lean:2227-2232 targetPiDomsWithC
+con-leche: ConLeche/Cached/ExprOpsC.lean:2239-2244 targetPiDomsWithC
 The domains of the first `|xs|` `∀` binders, each instantiated at the earlier
 `xs`. -/
 def targetPiDomsWith : List EIdx → EIdx → AM (Option (List EIdx))
@@ -473,7 +473,7 @@ def targetPiDomsWith : List EIdx → EIdx → AM (Option (List EIdx))
 
 /-! ## The stored family -/
 
-/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2217-2218 abstractPrefixC
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2229-2230 abstractPrefixC
 con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:431-433 Expr.abstractPrefix
 **The free variables `0 … k-1` closed at cursor `c`**: `fvar i` becomes
 `bvar (c + k - 1 - i)`, in one `abstractRangeFast` pass. -/

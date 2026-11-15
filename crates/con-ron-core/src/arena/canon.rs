@@ -701,7 +701,7 @@ pub fn i_constant_val_beq(a: &IConstantVal, b: &IConstantVal) -> bool {
     a.name.eq2(&b.name) && nidx_vec_beq(&a.level_params, &b.level_params, 0) && a.ty.eq2(&b.ty)
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:124-139 RecRule
+/// con-leche: ConLeche/Kernel/Env.lean:124-141 RecRule
 /// con-leche: ConLeche/Kernel/Canon.lean:326-328 RecRule.beqP
 /// Lean twin: none — the twin's derived `DecidableEq` (`==`), which Rust cannot derive (§3.4);
 /// `i_rec_rule_eq_but_rhs` and the right-hand side.
@@ -709,7 +709,7 @@ pub fn i_rec_rule_beq(a: &IRecRule, b: &IRecRule) -> bool {
     i_rec_rule_eq_but_rhs(a, b) && a.rhs.eq2(&b.rhs)
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:124-139 RecRule
+/// con-leche: ConLeche/Kernel/Env.lean:124-141 RecRule
 /// con-leche: ConLeche/Kernel/Canon.lean:291-295 listBeqBy
 /// `listBeqBy RecRule.beqP`: a rule list compared elementwise.
 pub fn i_rec_rules_beq(a: &Vec<IRecRule>, b: &Vec<IRecRule>, i: usize) -> bool {
@@ -724,7 +724,7 @@ pub fn i_rec_rules_beq(a: &Vec<IRecRule>, b: &Vec<IRecRule>, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:184-227 IndCaps
+/// con-leche: ConLeche/Kernel/Env.lean:186-229 IndCaps
 /// Lean twin: `proof/ConRon/Arena/Env.lean:80-100 IIndCaps` — the cited `deriving
 /// DecidableEq`, the `decide (c = c')` of `ConstantInfo.beqP`'s `.indInfo` arm.
 pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
@@ -736,7 +736,7 @@ pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
         && a.never_zero == b.never_zero
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:288-312 ConstantInfo
+/// con-leche: ConLeche/Kernel/Env.lean:290-314 ConstantInfo
 /// con-leche: ConLeche/Kernel/Canon.lean:337-347 ConstantInfo.beqP
 /// Lean twin: none — the twin's derived `DecidableEq` (`==`), which Rust cannot derive (§3.4); **`ConstantInfo`
 /// equality**, constructor for constructor: what a pinned block's record is

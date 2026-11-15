@@ -118,7 +118,7 @@ pub enum RecRuleFire {
     Levels(Vec<Level>),
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:124-139 RecRule
+/// con-leche: ConLeche/Kernel/Env.lean:124-141 RecRule
 /// One iota rule of a recursor: the record's three fields, as Lean's
 /// `RecursorRule` has them, and `fire`, read off the recursor's record (the
 /// parse placeholder `.plain`).
@@ -129,7 +129,7 @@ pub struct RecRule {
     pub rhs: Expr,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:147-151 ReducibilityHint
+/// con-leche: ConLeche/Kernel/Env.lean:149-153 ReducibilityHint
 /// The reducibility hint of a definition.  Deviation: `opaque` and `abbrev`
 /// are spelled `Opaque`/`Abbrev` (the Lean writes them in `«»` because they
 /// are Lean keywords; they are not Rust ones, but the constructor case is
@@ -140,7 +140,7 @@ pub enum ReducibilityHint {
     Regular(u64),
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:147-151 ReducibilityHint
+/// con-leche: ConLeche/Kernel/Env.lean:149-153 ReducibilityHint
 /// The copy.
 pub fn reducibility_hint_dup(h: &ReducibilityHint) -> ReducibilityHint {
     match h {
@@ -150,7 +150,7 @@ pub fn reducibility_hint_dup(h: &ReducibilityHint) -> ReducibilityHint {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:158-163 ReducibilityHint.lt
+/// con-leche: ConLeche/Kernel/Env.lean:160-165 ReducibilityHint.lt
 /// `h₁.lt h₂`: `h₁` is strictly less eager to unfold than `h₂`.  The cited
 /// five arms overlap, so they are read *in order*: the first arm matching a
 /// pair wins.  Spelled here as one nested match in the same order, with
@@ -171,7 +171,7 @@ pub fn reducibility_hint_lt(h1: &ReducibilityHint, h2: &ReducibilityHint) -> boo
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:173-175 ReducibilityHint.sameRegular
+/// con-leche: ConLeche/Kernel/Env.lean:175-177 ReducibilityHint.sameRegular
 /// Both hints are `regular` at the *same* height.
 pub fn reducibility_hint_same_regular(h1: &ReducibilityHint, h2: &ReducibilityHint) -> bool {
     match h1 {
@@ -185,7 +185,7 @@ pub fn reducibility_hint_same_regular(h1: &ReducibilityHint, h2: &ReducibilityHi
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:179-182 BasisKind
+/// con-leche: ConLeche/Kernel/Env.lean:181-184 BasisKind
 /// The trusted basis inductives.
 pub enum BasisKind {
     EqK,
@@ -195,7 +195,7 @@ pub enum BasisKind {
     QuotK,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:179-182 BasisKind
+/// con-leche: ConLeche/Kernel/Env.lean:181-184 BasisKind
 /// The copy.
 pub fn basis_kind_dup(k: &BasisKind) -> BasisKind {
     match k {
@@ -207,7 +207,7 @@ pub fn basis_kind_dup(k: &BasisKind) -> BasisKind {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:184-227 IndCaps
+/// con-leche: ConLeche/Kernel/Env.lean:186-229 IndCaps
 /// Definitional capabilities of a stored inductive type that its block alone
 /// decides, read off the block's records.  The family's result sort is on no
 /// record, so what depends on it is computed where it is read.  Every field of
@@ -230,7 +230,7 @@ pub struct IndCaps {
     pub never_zero: bool,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:184-227 IndCaps
+/// con-leche: ConLeche/Kernel/Env.lean:186-229 IndCaps
 /// The cited structure's *field defaults*, which Rust has not: `eta :=
 /// false`, `never_zero := false`, every count `0`, every list empty.
 pub fn ind_caps_default() -> IndCaps {
@@ -244,7 +244,7 @@ pub fn ind_caps_default() -> IndCaps {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:288-312 ConstantInfo
+/// con-leche: ConLeche/Kernel/Env.lean:290-314 ConstantInfo
 /// Information stored about an accepted constant.  A constructor carries its
 /// family's name (official's `ConstructorVal.induct`).  A recursor carries its
 /// record's K flag (official's `recursor_val::is_k`), the `bool` before its
@@ -263,7 +263,7 @@ pub enum ConstantInfo {
 // above) — what the two pinned-basis guards read (`kernel::basis_pins`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:141-151 ReducibilityHint
+/// con-leche: ConLeche/Kernel/Env.lean:143-153 ReducibilityHint
 /// Lean's `deriving DecidableEq` on `ReducibilityHint`.
 pub fn reducibility_hint_beq(a: &ReducibilityHint, b: &ReducibilityHint) -> bool {
     match a {
@@ -282,7 +282,7 @@ pub fn reducibility_hint_beq(a: &ReducibilityHint, b: &ReducibilityHint) -> bool
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:314-325 QuotKind
+/// con-leche: ConLeche/Kernel/Env.lean:316-327 QuotKind
 /// Which of the four quotient constants a `#QUOT` record declares — the
 /// record's `kind` field, decoded — plus `Sound`, which is not a kind the
 /// decoder reads but the slot `Quot.sound`'s own axiom record is compared at
@@ -295,7 +295,7 @@ pub enum QuotKind {
     Sound,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:327-330 QuotKind.slot
+/// con-leche: ConLeche/Kernel/Env.lean:329-332 QuotKind.slot
 /// The quotient constant's position in the pinned block.
 ///
 /// Deviation: the cited `Nat` is a `u64` (§3.3).

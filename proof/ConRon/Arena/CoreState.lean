@@ -74,7 +74,8 @@ structure ModeMemos where
 (each of con-leche's six fields defaults to `{}`). -/
 def ModeMemos.empty : ModeMemos := ⟨∅, ∅, ∅, ∅, ∅, ∅⟩
 
-/-- con-leche: ConLeche/Cached/StateC.lean:265-302 CState — the
+/-- con-leche: ConLeche/Cached/StateC.lean:265-307 CState — the
+-- con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove CoreState.Caches_bridge, then delete this line
 per-declaration caches of the arena checker, in one record beside
 `Monad.lean`'s per-call `Memos`.  Keeping the two apart is deliberate: the
 per-call clear (`inst1Clear` and its ten siblings) and the per-declaration
@@ -131,13 +132,14 @@ structure Caches where
   way round. -/
   eagerMemos : ModeMemos
 
-/-- con-leche: ConLeche/Cached/StateC.lean:265-302 CState — the empty
+/-- con-leche: ConLeche/Cached/StateC.lean:265-307 CState — the empty
+-- con-leche: CHANGED since 41739c49 — re-port, re-test, re-prove CoreState.Caches.empty_bridge, then delete this line
 cache set: what a fresh run and every declaration start from. -/
 def Caches.empty : Caches := ⟨∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ModeMemos.empty⟩
 
 instance : Inhabited Caches := ⟨Caches.empty⟩
 
-/-- con-leche: ConLeche/Cached/StateC.lean:510-512 CState.modeMemos — the
+/-- con-leche: ConLeche/Cached/StateC.lean:512-514 CState.modeMemos — the
 plain tower's mode memos, read out of the record. -/
 def Caches.modeMemos (c : Caches) : ModeMemos :=
   ⟨c.whnfCoreC, c.whnfCoreCheapC, c.whnfC, c.inferC, c.inferIOC, c.defeqC⟩

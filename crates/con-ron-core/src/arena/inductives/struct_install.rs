@@ -142,7 +142,7 @@ pub fn check_struct_doms_at(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-74 checkStructProjTable
-/// con-leche: ConLeche/Cached/IndTail.lean:194-202 checkStructProjTableC
+/// con-leche: ConLeche/Cached/IndTail.lean:195-203 checkStructProjTableC
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:43-65 checkStructProjTable`
 /// — stage 5: **the projection table's checks** (con-leche's task #175 S1),
 /// at the table the block installs (`arena::install::block_tables`): its
@@ -173,7 +173,7 @@ pub fn check_struct_proj_table(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-74 checkStructProjTable
-/// con-leche: ConLeche/Cached/IndTail.lean:194-202 checkStructProjTableC
+/// con-leche: ConLeche/Cached/IndTail.lean:195-203 checkStructProjTableC
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:43-65 checkStructProjTable`
 /// — the bodies' scoping, validated once at insertion: fvar-free, level
 /// parameters within the structure's, resolving, scoped at the parameters and

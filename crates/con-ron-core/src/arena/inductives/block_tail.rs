@@ -220,7 +220,7 @@ pub fn cons_block_recs_temp(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:92-98 checkBlockTables
-/// con-leche: ConLeche/Cached/IndTail.lean:204-209 checkBlockTablesC
+/// con-leche: ConLeche/Cached/IndTail.lean:205-210 checkBlockTablesC
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:110-118 checkBlockTables` — **the
 /// checks of the block's projection tables** (`install::block_tables`) from
 /// table `i` on, at the environment holding the formers and the constructors.

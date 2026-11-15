@@ -222,7 +222,7 @@ pub fn member_never_zero(pers: &PersTier, st: &mut AState, p: &BlockShape, mi: u
 pub const M_FUEL_PI_DOMS: [u32; 32] = [102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 112, 105, 68, 111, 109, 115, 77, 101, 110, 116, 105, 111, 110, 65, 110, 121];
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:84-89 Expr.piDomsMentionAny
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:2234-2238 piDomsMentionAnyC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:2246-2250 piDomsMentionAnyC
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:86-99 piDomsMentionAny` —
 /// does some binder domain of the SYNTACTIC `∀`-telescope of `e` mention one
 /// of `names`?  No reduction; the `||` short-circuits.  Fueled, one unit per

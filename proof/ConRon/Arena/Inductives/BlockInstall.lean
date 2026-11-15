@@ -84,7 +84,7 @@ def blockCapsAt (p : BlockShape) (mi : Nat) (isRec : Bool) : AM IIndCaps := do
   | none => pure { all := names, nparams := p.nP, nIdx := 0, ctors := [], neverZero := neverZero }
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:84-89 Expr.piDomsMentionAny
-con-leche: ConLeche/Cached/ExprOpsC.lean:2234-2238 piDomsMentionAnyC
+con-leche: ConLeche/Cached/ExprOpsC.lean:2246-2250 piDomsMentionAnyC
 Does some binder domain of the SYNTACTIC `∀`-telescope of `e` mention one of
 `names`?  No reduction; the `||` short-circuits.  Fueled (the module note). -/
 def piDomsMentionAny (names : List NIdx) : Nat → EIdx → AM Bool

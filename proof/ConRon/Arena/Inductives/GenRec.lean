@@ -73,7 +73,7 @@ structure ClassCtor where
   tyN : EIdx
   deriving Inhabited
 
-/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2207-2209 closeLamsGoC
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2219-2221 closeLamsGoC
 con-leche: ConLeche/Kernel/Inductives/GenRec.lean:86-89 closeLams
 `closeTelescopeGo` with `λ` binders: each domain and the body abstracted
 once over the `k` binders outside it. -/
@@ -84,7 +84,7 @@ def closeLamsGo (i : Nat) : Nat → List EIdx → EIdx → AM EIdx
     let inner ← closeLamsGo i (k + 1) bs body
     internE (.lam d' inner)
 
-/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2212-2213 closeLamsC
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:2224-2225 closeLamsC
 con-leche: ConLeche/Kernel/Inductives/GenRec.lean:86-89 closeLams
 Close a telescope of `λ`s opened at `i ..< i + bs.length`. -/
 def closeLams (bs : List EIdx) (i : Nat) (body : EIdx) : AM EIdx :=

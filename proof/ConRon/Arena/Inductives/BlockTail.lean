@@ -108,7 +108,7 @@ def consBlockRecsTemp :
     consBlockRecsTemp rest (fe.push ci) (prevs ++ [(ci.name, prev)])
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:92-98 checkBlockTables
-con-leche: ConLeche/Cached/IndTail.lean:204-209 checkBlockTablesC
+con-leche: ConLeche/Cached/IndTail.lean:205-210 checkBlockTablesC
 **The checks of the block's projection tables** (`blockTables`), at the
 environment holding the formers and the constructors. -/
 def checkBlockTables (fe : IFEnv) : List IProjTable → AM Unit
