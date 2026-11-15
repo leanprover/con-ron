@@ -315,9 +315,7 @@ PY
     git -C "$wt" commit --quiet -m "Task $task: provenance update --auto at con-leche ${short} (pin uncommitted); anchors follow their text
 
 The mechanical buckets of scripts/provenance.py update --auto applied; the
-markers left are the work order (scripts/bump-con-leche.sh status).
-
-Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
+markers left are the work order (scripts/bump-con-leche.sh status)."
   fi
   work_order | tee "$state/work-order.txt"
 }
@@ -448,17 +446,13 @@ $dirty"
   (cd "$wt" && scripts/overview-links.sh --follow) || true
   git -C "$wt" add -- README.md OVERVIEW.md scripts/overview-links-expected.txt
   if ! git -C "$wt" diff --cached --quiet; then
-    git -C "$wt" commit --quiet -m "Task $task: anchors follow their unchanged text at con-leche ${short} (numbers and pins only)
-
-Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
+    git -C "$wt" commit --quiet -m "Task $task: anchors follow their unchanged text at con-leche ${short} (numbers and pins only)"
   fi
   git -C "$wt" add -- proof/lakefile.toml proof/lake-manifest.json
   git -C "$wt" commit --quiet -m "Task $task: pin con-leche at ${short}
 
 The last commit of the sync (DESIGN.md §7): proof/lakefile.toml and
-proof/lake-manifest.json, nothing else.
-
-Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
+proof/lake-manifest.json, nothing else."
   (cd "$wt" && python3 scripts/pin-last.py --tip-is-pin)
   echo "next: LAKE_JOBS=4 scripts/gates.sh, then scripts/bump-con-leche.sh land"
 }

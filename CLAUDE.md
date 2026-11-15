@@ -244,3 +244,8 @@ section for every task you land.
   all per-checkout scratch, task #108), and skipping it once cost 13 GB of
   orphans on a shared machine.
 * Commit often; the maintainer pushes and opens PRs.
+* **Co-author trailers.**  A commit an agent writes ends with that agent's
+  own `Co-Authored-By:` line (its own model name, as its harness gives it).
+  A commit a script makes on its own (`bump-con-leche.sh`'s update and pin
+  commits, and the like) is mechanical and carries no trailer: never
+  hard-code one into a script.
