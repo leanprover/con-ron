@@ -11,7 +11,7 @@ lemmas of the `defeq` half of `arena::core` against `Arena/Core.lean`:
 | `defeqBindersInner`, `defeqDomain` | `defeq_binders_inner`, `defeq_domain` |
 | `defeqBinders` | `defeq_binders` (a loop: induction on `bfuel`) |
 | `defeqSpine` | `defeq_spine` |
-| `boolTrueShortcut` | `bool_true_shortcut` |
+| `ctorTarget`, `ctorTargetFor`, `ctorHeadAgainst` | `ctor_target`, `ctor_target_for`, `ctor_head_against` |
 | `quickDefEq` | `quick_defeq` |
 | `isNatZero`, `natPred?`, `defeqOffset` | `is_nat_zero`, `nat_pred`, `defeq_offset` |
 | `headIsProj`, `tryUnfoldProjApp` | `head_is_proj`, `try_unfold_proj_app` |
@@ -21,7 +21,8 @@ lemmas of the `defeq` half of `arena::core` against `Arena/Core.lean`:
 | `lazyDeltaProjReduction` | `lazy_delta_proj_reduction` (its own budget: induction on `n`) + the fragment `lazy_delta_proj_fields` |
 | `defeqProjPair` | `defeq_proj_pair` |
 | `defeqStuck` | `defeq_stuck` + the fragments `defeq_str_app` (the two mirrored string-literal arms, a `flipped` flag), `defeq_apps` |
-| `defeqBody` | `defeq_body` + the fragments `defeq_after_whnf`, `defeq_after_lazy` |
+| `defeqLazy` | `defeq_lazy` + the fragments `defeq_after_whnf`, `defeq_after_lazy` |
+| `defeqBody` | `defeq_body` + the fragments `defeq_ctor_right`, `defeq_ctor_left` |
 
 The two loops recurse on their OWN budget, `n + 1 ↦ n` in the twin and
 `n - 1` at `n ≠ 0` in the port: the port's counter IS the twin's argument
@@ -212,15 +213,36 @@ macro "lockstep_f" : tactic =>
 
 /-! ## The eq-true shortcut and the same-head spine -/
 
-@[lockstep] theorem bool_true_shortcut_ls {f : Nat} (hk : KnotRel f)
-    {pers st mode eager lane fu fe lfe depth a lst}
+/-- The capability record's never-zero flag through the abstraction. -/
+theorem absIIndCaps_neverZero (c : arena.env.IIndCaps) :
+    (absIIndCaps c).neverZero = c.never_zero := rfl
+
+attribute [local lockstep_simp] PC1.absIIndCaps_eta absIIndCaps_neverZero
+
+@[lockstep] theorem ctor_target_ls {pers st fe lfe e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
-    LS pers (fun a b => b = a)
-      (arena.core.bool_true_shortcut pers st mode eager lane fu fe depth a) lst
-      (boolTrueShortcut (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) (absU depth)
-        (absEIdx a)) := by
-  rw [arena.core.bool_true_shortcut, boolTrueShortcut]
+    (hctx : CoreCtx pers fe lfe) :
+    LS pers (fun a b => b = Option.map absNIdx a) (arena.core.ctor_target pers st fe e) lst
+      (ctorTarget lfe (absEIdx e)) := by
+  rw [arena.core.ctor_target, ctorTarget]
+  lockstep_f
+
+@[lockstep] theorem ctor_target_for_ls {pers st fe lfe eager o e lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) :
+    LS pers (fun a b => b = Option.map absNIdx a)
+      (arena.core.ctor_target_for pers st fe eager o e) lst
+      (ctorTargetFor lfe eager (absEIdx o) (absEIdx e)) := by
+  rw [arena.core.ctor_target_for, ctorTargetFor]
+  lockstep_f
+
+@[lockstep] theorem ctor_head_against_ls {pers st fe lfe c w lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) :
+    LSR pers (fun a b => b = a) (arena.core.ctor_head_against pers st fe c w) st lst
+      (ctorHeadAgainst lfe (absNIdx c) (absEIdx w)) := by
+  apply LSR.of_LS
+  rw [arena.core.ctor_head_against, ctorHeadAgainst]
   lockstep_f
 
 /-- `eidx_rev xs i out` pushes `xs[i-1], …, xs[0]` onto `out` (task #125:
@@ -661,12 +683,29 @@ set_option maxHeartbeats 40000000 in
 
 /-! ## The body
 
-`defeq_unreduced` / `defeq_after_whnf` / `defeq_after_lazy` are the tail of `defeqBody` (the
-port splits it after the cheap head normalization and after the lazy-delta
-loop); unfolded in place. -/
+`defeq_after_whnf` / `defeq_after_lazy` are the tail of `defeqLazy` (the port
+splits it after the cheap head normalization and after the lazy-delta loop),
+`defeq_ctor_right` / `defeq_ctor_left` the constructor shortcut's two arms of
+`defeqBody`; unfolded in place. -/
 
-attribute [lockstep_inline] arena.core.defeq_unreduced arena.core.defeq_after_whnf
-  arena.core.defeq_after_lazy
+attribute [lockstep_inline] arena.core.defeq_after_whnf arena.core.defeq_after_lazy
+  arena.core.defeq_ctor_right arena.core.defeq_ctor_left
+
+set_option maxRecDepth 8000 in
+set_option maxHeartbeats 8000000 in
+/-- `arena::core::defeq_lazy` against `Arena.defeqLazy`. -/
+@[lockstep] theorem defeq_lazy_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe depth a b lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.defeq_lazy pers st mode eager lane fu fe depth a b) lst
+      (defeqLazy (ConRon.Refine.absMode mode) eager
+        (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
+        (absU depth) (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.defeq_lazy, defeqLazy]
+  lockstep_f
 
 set_option maxRecDepth 8000 in
 set_option maxHeartbeats 8000000 in
@@ -707,3 +746,6 @@ end ConRon.Refine2.Lockstep.CoreLSReg
 
 /-- info: 'ConRon.Refine2.Lockstep.defeq_body_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConRon.Refine2.Lockstep.defeq_body_ls
+
+/-- info: 'ConRon.Refine2.Lockstep.defeq_lazy_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ConRon.Refine2.Lockstep.defeq_lazy_ls

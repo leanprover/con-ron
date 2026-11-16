@@ -217,13 +217,27 @@ the twin's `what` is free (messages are never compared). -/
     rw [fail_run hr]
     exact AErrSim.notImplemented rfl
 
-@[lockstep] theorem is_ctor_app_ls {pers st fe lfe e lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.is_ctor_app pers st fe e) lst
-      (isCtorApp lfe (absEIdx e)) := by
-  rw [arena.core.is_ctor_app, isCtorApp]
-  lockstep_core
+/-- `arena::core::MajorView` as the twin's `MajorView`, constructor for
+constructor. -/
+def absMajorView : arena.core.MajorView → MajorView
+  | .Ctor e cj usj cvj nP nF ind =>
+    .ctor (absEIdx e) (absNIdx cj) (absLsIdx usj) (absIConstantVal cvj) nP.val nF.val
+      (absNIdx ind)
+  | .Stuck e => .stuck (absEIdx e)
+
+/-- `major_view_is_ctor` (a pure match) against `MajorView.isCtor`. -/
+@[lockstep] theorem major_view_is_ctor_ls (v : arena.core.MajorView) :
+    LSP (arena.core.major_view_is_ctor v) (fun r => TwinEq (absMajorView v).isCtor r) := by
+  intro r h
+  cases v <;> simp only [arena.core.major_view_is_ctor, Result.ok.injEq] at h <;> subst h <;> rfl
+
+/-- `major_view_expr` (a pure match) against `MajorView.expr`. -/
+@[lockstep] theorem major_view_expr_ls (v : arena.core.MajorView) :
+    LSP (arena.core.major_view_expr v) (fun r => TwinEq (absMajorView v).expr (absEIdx r)) := by
+  intro r h
+  cases v <;> simp only [arena.core.major_view_expr] at h <;>
+    (have := dup2_eidx _ _ h; subst this; rfl)
+
 
 @[lockstep] theorem bool_true_name_ls {pers st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -235,13 +249,6 @@ the twin's `what` is free (messages are never compared). -/
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = absNIdx a) (arena.core.bool_false_name st) lst boolFalseName := by
   rw [arena.core.bool_false_name, boolFalseName, ← bind_pure pinBoolFalse]
-  lockstep_core
-
-@[lockstep] theorem is_bool_true_ls {pers st h lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = a) (arena.core.is_bool_true pers st h) lst
-      (isBoolTrue (absEIdx h)) := by
-  rw [arena.core.is_bool_true, isBoolTrue]
   lockstep_core
 
 @[lockstep] theorem eager_reduce_name_ls {pers st lst}

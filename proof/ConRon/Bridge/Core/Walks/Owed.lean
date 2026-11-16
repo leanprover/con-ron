@@ -18,7 +18,7 @@ The others live in the module whose imports they need:
 |---|---|
 | `lvlEq?`/`lvlsEq?`, the readbacks | `Walks/{Cached,Frame}.lean` |
 | `ensureSort` | `Core/EnsureSort.lean` |
-| `isBoolTrue` | `Walks/Guards.lean` |
+| `ctorTarget`, `ctorTargetFor`, `ctorHeadAgainst` | `Walks/Guards.lean` |
 | `unfoldableHead`, `unfoldDefinition`, `headHint`, `sameConstHeads`, `defeqSpine`, `etaCert` | `Walks/Spine.lean` |
 | `reduceNat` | `Walks/Nat.lean` |
 | `projCertAt` | `Walks/Proj.lean` |
@@ -53,12 +53,12 @@ abstracted:
 | `SimOOp` — an `Option EIdx` answer | `reduceNat`, `iotaRec` |
 | `SimEOp` — an `EIdx` answer | `projLitToCtor` |
 | `SimBOp` — a `Bool` answer | `projCertAt`, `propIrrel`, `stuckIrrel`, `etaCert`, `defeqSpine`, `defEqList` |
-| an EQUATION — the pure side takes no fuel | `unfoldDefinition`, `unfoldableHead`, `sameConstHeads`, `headHint`, `isBoolTrue` |
+| an EQUATION — the pure side takes no fuel | `unfoldDefinition`, `unfoldableHead`, `sameConstHeads`, `headHint`, `ctorHeadAgainst` |
 
 The last row refines con-leche functions that are not in `CheckM` at all
 (`unfoldDefinition env e : Option Expr`, `unfoldableHead env e : Bool`,
 `sameConstHeads a b : Bool`, `headHint env e : ReducibilityHint`,
-`Expr.isBoolTrue e : Bool`), so there is no `∃ F` and no fuel bookkeeping:
+`ctorHeadAgainst env c w : Option Bool`), so there is no `∃ F` and no fuel bookkeeping:
 the conclusion is an equation between the arena's answer and con-leche's.
 -/
 module

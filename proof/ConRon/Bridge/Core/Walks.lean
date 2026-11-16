@@ -28,9 +28,10 @@
   already applied to everything but its fuel.
 * `Walks/Cached.lean` — the five cached verdict walks: `lvlEq?_spec`,
   `lvlsEq?_spec` and the three instantiated-constant caches.
-* `Walks/Guards.lean` — the `defeq` body's cheap scalar tests
-  (`isBoolTrue_spec`): DESIGN §8.3's "index inequality IS structural
-  inequality" cashed twice in one walk.
+* `Walks/Guards.lean` — the `defeq` body's cheap tests (the constructor
+  shortcut's `ctorTarget_spec`, `ctorTargetFor_spec`, `ctorHeadAgainst_spec`;
+  `isEagerReduce_spec`): DESIGN §8.3's "index inequality IS structural
+  inequality" cashed at the name handles.
 * `Walks/Mono.lean` — **the fuel merge** (DESIGN §8's `### Task
   #97-P3-CoreWalks` §6.1): one `…_mono` at the record and one `…Fueled_mono`
   at the fuel for every knot-calling walk of con-leche's `Kernel/Core.lean`,

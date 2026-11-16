@@ -157,20 +157,20 @@ end spine
   rw [arena.core.reduce_proj_core, reduceProjCore]
   lockstep_core
 
-/-! ## The stuck spine: `is_stuck_head`, `iota_target`, `whnf_stuck` -/
+/-! ## The stuck spine: `is_stuck_head`, `whnf_stuck` -/
 
 attribute [lockstep_inline] arena.core.is_stuck_head
 
 attribute [local lockstep_simp] isStuckHead
 
-@[lockstep] theorem iota_target_ls {pers st fe lfe h lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers fe lfe) :
-    LSR pers (fun a b => b = a.map absU)
-      (arena.core.iota_target pers st fe h) st lst (iotaTarget lfe (absEIdx h)) := by
-  apply LSR.of_LS
-  rw [arena.core.iota_target, iotaTarget]
-  lockstep_c2
+/-- The twin's redex prefix `takeEidx args k` is the Rust's `take_eidx` copy,
+at the count the Rust cast to `usize`. -/
+theorem take_eidx_twin {xs ys : alloc.vec.Vec arena.handle.EIdx} {k : Std.Usize} {n : Nat}
+    (h : TwinEq (List.take k.val (absEIdxList xs)) (absEIdxList ys)) (hk : k.val = n) :
+    takeEidx (List.map absEIdx xs.val).toArray n = absEIdxArr ys := by
+  apply Array.toList_inj.mp
+  rw [PC2.takeEidx_toList', ← hk]
+  simpa [absEIdxArr, absEIdxList, TwinEq] using h
 
 @[lockstep] theorem whnf_stuck_ls {f : Nat} (hk : KnotRel f)
     {pers st mode eager lane fu fe lfe depth h e lst}
@@ -183,12 +183,12 @@ attribute [local lockstep_simp] isStuckHead
         (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth) (absEIdx h)
         (absEIdx e)) := by
   rw [arena.core.whnf_stuck, whnfStuck]
-  lockstep_core
-  -- glue: the ι target's `u64 as usize` cast keeps its value, the target being
-  -- at most the spine's length
-  rcases hP with hP | hP
-  · rw [← hP]
-    lockstep_core
+  lockstep_c2
+  -- glue: the redex prefix, cut at the `u64 as usize` cast of `mI + 1`, which
+  -- keeps its value (the count is at most the spine's length)
+  rcases ‹_ = _ ∨ Usize.max < _› with hc | hc
+  · rw [take_eidx_twin ‹TwinEq (List.take _ _) _› (by scalar_tac)]
+    lockstep_c2
   · exfalso
     scalar_tac
 

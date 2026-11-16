@@ -129,8 +129,7 @@ theorem denoteCI_defnInfo_inv {st : EStore} {v : IConstantVal} {e : EIdx}
       exact ⟨cv, x, rfl, rfl, (Option.some.inj h).symm⟩
 
 /-- con-leche: none — a handle whose VIEW is not a `.const` denotes an
-expression that is not a `.const`.  `Bridge/Core/Walks/Guards.lean`'s
-`isBoolTrue_of_not_const` with the conclusion left general. -/
+expression that is not a `.const`. -/
 theorem denote_not_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
     {e : Expr} {v : ENodeView} (hv : st.view h = some v)
     (he : denoteE st h = some e)
@@ -322,10 +321,8 @@ theorem constValAt_specA (s₀ : AState) (n : NIdx) (lps : List NIdx)
 
 con-leche's comparand is a plain function of the environment, so the
 conclusion is an equation and there is no fuel existential anywhere in the
-statement.  These are the cheapest walks of the tier — their fourth,
-`isBoolTrue`, is in `Bridge/Core/Walks/Guards.lean`, and the three here
-differ from it only by needing `getAppFn`, which is what the `ExprOps`
-import buys. -/
+statement.  These are the cheapest walks of the tier; the constructor
+shortcut's readers are their siblings in `Bridge/Core/Walks/Guards.lean`. -/
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:134-140 unfoldableHead — the
 function as ONE equation over tags and projections: the head is a

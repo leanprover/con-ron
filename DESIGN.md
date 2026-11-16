@@ -72939,3 +72939,75 @@ DIFFERs on `stored_rule_lams_short` only: it accepts, upstream and official reje
 `grind_field_cancel_inv` (ι-heavy, one run each, `instructions:u`): master 1.664 G, this branch
 1.462 G (−12.1 %); upstream measured −3.0 % (#583) and −8.9 % (#585) on it.  The first port's
 eight-argument walks measured +1.92 % on `Init` (above).
+
+### Task #157 — con-leche sync 9e3c8197 → 600d3b58: the ι step looks each record up once, the constructor shortcut (2026-11-16, Opus)
+
+Upstream tasks absorbed (2 of 17 commits carry executed code): #591 (merge d7ee38d80, commit
+0c3933b96: the ι step looks each record up once — the caller finds the recursor's record, the
+major is classified once into a `MajorView`) and #592 (merge 49bb39bc8, commit 56f3dcd62: the
+constructor shortcut replaces the `Bool.true` shortcut in `defeqBody`).  #590 was merged and
+reverted (net zero); #593 and the other commits are DESIGN/OVERVIEW only.  `update --auto`: 35
+findings against 9e3c8197 (29 `CHANGED`, 6 `GONE`), 462 citations merely moved; 0 markers
+deleted mechanically, 35 by hand.  Coverage 1127/1182 → 1137/1189; every new upstream
+declaration is cited (the 12 of the work order), and the STALE skip entry `isCtorAppC` is gone.
+
+| upstream | con-ron had | done |
+|---|---|---|
+| #591 `MajorView`, `.expr`, `.isCtor`, `ctorViewC` (`isCtorAppC` goes) | `is_ctor_app`, asked up to three times per step, then `iota_rec_major` found the constructor again | **ported**: `core::MajorView` (the constructor's name, levels, record copy, counts, family), `major_view_expr`, `major_view_is_ctor`, `ctor_view` (twin `MajorView`, `ctorView`); `is_ctor_app` and its twin deleted |
+| #591 `majorToCtorI`/`prepareMajorI` answer with the view; the K side drops the literal conversion of a constructor application (the identity) | both answered a term | **ported**: `major_to_ctor` classifies the major, then `major_to_ctor_rescue` (the old body past the test, answering a term); its answer is `Stuck(major)` when it is the major (no lookup: a fabrication is a constructor application, never the major) and `ctor_view` of the fabrication otherwise — upstream's `.stuck major` / `ctorViewC fe fab` exits, collapsed into one test at the end; `prepare_major`, `prepare_major_whnf` answer the view |
+| #591 `iotaRecI` at the caller's record; `whnfStuckI`/`whnfAppI` look the recursor up (level count, spine length); `iotaTargetF`, `iotaArityOk` go | `iota_rec_at(hd, sargs, n)` looked the recursor up itself, `iota_target` once more | **ported**: `iota_rec_at(c, us, cv, m_i, r_p, is_k, rules, args)`, `iota_rec_major` reads the view (no lookup); `whnf_stuck` and `whnf_app_iota` (the spine loop's ι step, a fragment of `whnfAppI`) do the lookup; `iota_target` deleted |
+| #592 `ctorTarget`/`ctorTargetC`, `ctorTargetFor`(`C`), `ctorHeadAgainst`(`C`) | — | **ported**: `ctor_target` (the spine counted with `num_args`, as `ctorTargetC` counts it), `ctor_target_for`, `ctor_head_against` |
+| #592 `defeqBody` = fast path, the shortcut, `defeqLazy`; `boolTrueShortcut`, `Expr.isBoolTrue` go | `defeq_body` with the eq-true shortcut, `defeq_unreduced` the rest | **ported**: `defeq_lazy` (was `defeq_unreduced`; twin `defeqLazy`, a definition of its own), `defeq_body` with the fragments `defeq_ctor_right`/`defeq_ctor_left`; `is_bool_true`, `bool_true_shortcut` and twins deleted |
+
+**Deviations kept.**  (1) `iota_rec_at` takes the redex's `m_i + 1` arguments exactly: `whnf_app`
+already holds exactly those (`va`), so the step copies nothing there (the old entry copied the
+held vector once more), and `whnf_stuck` cuts its spine with `take_eidx`; upstream's `iotaRecI`
+takes the longer spine and reads its prefix.  (2) The rescue fragments keep answering a term;
+the view is made once at the end of `major_to_ctor` (above).  (3) `ctor_view` copies the
+constructor's `IConstantVal` into the view, which con-leche shares by reference; the copy
+replaces the one `iota_rec_major` made before, so the step copies no more than it did.  No hot
+walk gained an argument (`iota_rec_at` is not recursive; the recursive `whnf_app` keeps its
+fifteen, its ι step in the fragment).
+
+**Theorem 1.**  `MajorViewRel env fe st v y` (`Bridge/Core/Walks/IotaLeaves.lean`): a `.ctor`
+view's term denotes `y`, a constructor application whose head is the view's name and levels
+and whose index record is the view's; a `.stuck` view's term denotes a `y` that is no
+constructor application (upstream's `MajorView.OK`).  `ctorView_spec`;
+`majorToCtorRescue_spec` (the old `majorToCtor_spec` at a major that is no constructor
+application), `majorToCtor_spec`, `prepareMajorWhnf_spec`, `prepareMajor_spec` post `SimVOp` (the
+view's relation at the pure run's answer); the K side uses `litMajor_ctor` (con-leche's literal
+conversion of a constructor application is the identity).  `iotaRecAt_spec` takes the record's
+`fe.find?` equation, the level count and `sargs.size = mI + 1`; `iotaTail_stuck` closes the
+`.stuck` arm.  `whnfAppIota_spec` (`Walks/BetaSpine.lean`) and `whnfStuck_spec`
+(`Arms/WhnfCore.lean`, con-leche's proof-side `iotaTarget` with its arm lemmas
+`iotaTarget_rec`/`_lvl`/`_notrec`/`_notconst`) do the lookup.  The shortcut:
+`ctorTarget_spec`, `ctorTargetFor_spec`, `ctorHeadAgainst_spec` (`Walks/Guards.lean`, answers
+related by `OptNRel`), `defeqLazy_at` (the old body past the shortcut), `defeqBody_at` over
+seven pure exits (`defeqBody_rightT/F/N`, `_leftT/F/N`, `_lazy`), `defeqLazyFueled_mono`.  The
+new walks are written as explicit triples (`triple_seq`), as the `iotaRecAt`/`defeqBody`
+proofs they extend are; the `isBoolTrue` lemmas and `boolTrueShortcutIf_spec` are gone.
+
+**Theorem 2.**  No new invariant; `Lockstep.lean` untouched.  `absMajorView`,
+`major_view_is_ctor_ls`/`major_view_expr_ls` (`LSP` with `TwinEq`), `ctor_view_ls`,
+`major_to_ctor_rescue_ls` (the old proof), `major_to_ctor_ls`, `ctor_target_ls`,
+`ctor_target_for_ls`, `ctor_head_against_ls`, `defeq_lazy_ls`, `whnf_app_iota_ls` are plain
+`lockstep` runs; `defeq_body_ls` inlines the two shortcut fragments.  Glue: `iota_rec_at_ls`
+reads the twin's `sargs.toList` as the Rust vector's list (`absEIdxArr_toList_eq`, local
+`lockstep_simp`); `whnf_stuck_ls` rewrites the twin's `takeEidx sargs (mI + 1)` to the Rust's
+`take_eidx` copy at the cast count (`take_eidx_twin`).  `Core/Eqns.lean` forces 114 equations
+(was 111).
+
+**Verdicts.**  `diff-e2e.sh`: 747/747 with this branch's binary (master's binary at the new pin:
+747/747 as well — both upstream changes are verdict-neutral).
+
+**Numbers.**  `Init`, `--verified --jobs=1`, `perf stat -e instructions:u,cycles:u`, one run each
+(`bump-con-leche.sh measure`), 57 919 / 57 919 accepted:
+
+| binary | instructions:u | cycles:u |
+|---|---:|---:|
+| master `49c19a55` | 172 644 969 392 | 73 457 171 802 |
+| this branch `b28aff8b` | **165 892 221 920** (−3.911 %) | 66 195 567 991 |
+
+Upstream measured −0.55 % (#591) and −3.33 % (#592) on `init-full`.
+`grind_field_cancel_inv` (ι-heavy, one run each, `instructions:u`): master 1.471 G, this branch
+1.440 G (−2.1 %); upstream measured −2.9 % (#591) on it.

@@ -228,7 +228,6 @@ ConLeche/Cached/ExprOpsC.lean MemoB Was the citation on `kernel/expr_ops.rs`'s `
 ConLeche/Cached/ExprOpsC.lean MemoB.insert Was the citation on `kernel/expr_ops.rs`'s `memo_b_record` (deleted, task #105 sweep, as `MemoXP` above).
 ConLeche/Cached/ExprOpsC.lean MemoB0 Was the citation on `kernel/expr_ops.rs`'s `memo_b_probe` (deleted, task #105 sweep, as `MemoXP` above).
 ConLeche/Cached/ExprOpsC.lean MemoB0.shared Was the citation on `kernel/expr_ops.rs`'s `memo_b_probe` (deleted, task #105 sweep, as `MemoXP` above).
-ConLeche/Cached/StateC.lean isCtorAppC Was the second citation on `kernel/core_k.rs`'s `is_ctor_app` (deleted, task #105 sweep, as `litToCtorIfNatI` above).
 ConLeche/Cached/StateC.lean headHintC Was the second citation on `kernel/core_k.rs`'s `head_hint` (deleted, task #105 sweep, as `litToCtorIfNatI` above).
 ConLeche/Cached/StateC.lean unfoldableHeadC Was the second citation on `kernel/core_k.rs`'s `unfoldable_head` (deleted, task #105 sweep, as `litToCtorIfNatI` above).
 ConLeche/Cached/StateC.lean sameConstHeadsC Was the second citation on `kernel/core_k.rs`'s `same_const_heads` (deleted, task #105 sweep, as `litToCtorIfNatI` above).
