@@ -180,7 +180,7 @@ list's head.*  So the substituting walks' argument vectors are `Array EIdx` in
 PUSH order: con-leche's `vs[j - d]`, the innermost binder's argument first, is
 this array's entry `j - d` FROM THE END. -/
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:165-168 pushRange — copy `xs[i], …,
+/-- con-leche: ConLeche/Cached/CoreC.lean:194-197 pushRange — copy `xs[i], …,
 xs[k-1]` onto `out`, in order: the range read in place. -/
 def eidxCopyUpto (xs : Array EIdx) (k i : Nat) (out : Array EIdx) : Array EIdx :=
   if h : i < k ∧ i < xs.size then

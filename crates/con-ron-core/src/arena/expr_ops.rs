@@ -207,7 +207,7 @@ const M_FUEL_INST_LP: [u32; 38] = [
 // `++` for free (DESIGN.md §3.3's deviation 5, §3.4's no-closure rule)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/CoreC.lean:165-168 pushRange
+/// con-leche: ConLeche/Cached/CoreC.lean:194-197 pushRange
 /// The entries `xs[i:k]` pushed onto `out`, the range read in place
 /// (`List.take`/`List.append` over a `Vec<EIdx>` at `i = 0`).  A handle is a `u32`, so
 /// the copy is a word each.
