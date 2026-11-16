@@ -503,18 +503,10 @@ theorem EStore.tagOf_of_view {st : EStore} {i : EIdx} {v : ENodeView}
     · simp only [Bool.not_eq_true] at hon
       rw [hon] at h; simp at h
 
-/-! ### The tag-first twin's two arms
+/-! ### The tag-first twin's binder arm
 
-A twin that tests a handle's TAG before it reads the node has two arm shapes:
-the `else` arm, with the tag test's negation and the handle's view, and the
-binder arm, which reads `viewBind`.  One lemma each. -/
-
-/-- con-leche: none — **the `else` arm**: a handle whose tag is not `t`
-views to a node whose tag is not `t`. -/
-theorem view_tagOf_ne {st : EStore} {h : EIdx} {v : ENodeView} {t : UInt32}
-    (hv : st.view h = some v) (ht : ¬ (h.tag == t) = true) : v.tagOf ≠ t := by
-  rw [← EStore.tagOf_of_view hv]
-  simpa using ht
+A twin that tests a handle's TAG before it reads the node reads `viewBind` at
+its binder arm. -/
 
 /-- con-leche: none — **a `forallE`-tagged handle's `viewBind` is its view**. -/
 theorem view_forallE_of_viewBind {st : EStore} {h ty b : EIdx}

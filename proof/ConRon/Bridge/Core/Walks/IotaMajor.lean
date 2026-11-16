@@ -1522,12 +1522,6 @@ theorem majorToCtorRescue_spec {fuel : Nat}
     (v : MajorView) : Prop :=
   ∃ y, MajorViewRel env fe st v y ∧ Expr.WScoped d y ∧ Runs P y
 
-/-- con-leche: none — the classified answer survives a store extension. -/
-theorem SimVOp.ext {P : Nat → CheckM Expr} {d : Nat} {st st' : EStore} (hx : Ext st st')
-    {v : MajorView} (h : SimVOp P d env fe st v) : SimVOp P d env fe st' v :=
-  let ⟨y, hr, hw, hR⟩ := h
-  ⟨y, hr.ext hx, hw, hR⟩
-
 /-- con-leche: ConLeche/Kernel/Core.lean:544-726 majorToCtor
 con-leche: ConLeche/Cached/CoreC.lean:850-953 majorToCtorI — **THEOREM 1 for
 `majorToCtor`**: the major classified once (`ctorView_spec`); a constructor

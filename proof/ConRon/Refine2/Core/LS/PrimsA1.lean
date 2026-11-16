@@ -582,19 +582,6 @@ theorem pin_eager_reduce_run₀ {pers st lst} {o}
     have h2 : absNIdx a ≠ absNIdx b := fun hc => hab (absNIdx_inj hc)
     simp [h1, h2]
 
-@[lockstep] theorem eq2_lsidx (a b : arena.handle.LsIdx) :
-    LSP (arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
-      (fun o => o = (absLsIdx a == absLsIdx b)) := by
-  intro o h
-  rw [arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
-  rw [← Result.ok_injective h]
-  by_cases hab : a = b
-  · subst hab; simp
-  · have h1 : a.word ≠ b.word := by
-      intro hc; exact hab (by cases a; cases b; simp_all)
-    have h2 : absLsIdx a ≠ absLsIdx b := fun hc => hab (absLsIdx_inj hc)
-    simp [h1, h2]
-
 /-! ## The projection-table entry -/
 
 @[lockstep] theorem snoc_eidx_of_ls (xs : alloc.vec.Vec arena.handle.EIdx)

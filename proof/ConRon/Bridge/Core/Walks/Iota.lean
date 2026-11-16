@@ -671,34 +671,6 @@ theorem iotaRecFueled_pre {F d : Nat} {E : Expr} {c : ConLeche.Name}
   simp only [hpm', bind, Except.bind]
   rfl
 
-/-- con-leche: ConLeche/Kernel/Core.lean:786-868 iotaRec — the prepared
-major's head is not a constant. -/
-theorem iotaTail_nohead {F d : Nat} {us : List Level} {cv : ConstantVal}
-    {mI rP : Nat} {isK : Bool} {rules : List RecRule} {args : List Expr} {major : Expr}
-    (hm : ∀ cj usj, major.getAppFn ≠ .const cj usj) :
-    iotaTail mode eager env F d us cv mI rP isK rules args major = .ok none := by
-  simp only [iotaTail]
-  first
-    | rfl
-    | (split
-       · rename_i c us heq; exact absurd heq (hm c us)
-       · rfl)
-
-/-- con-leche: ConLeche/Kernel/Core.lean:786-868 iotaRec — the head is not a
-stored constructor. -/
-theorem iotaTail_noctor {F d : Nat} {us : List Level} {cv : ConstantVal}
-    {mI rP : Nat} {isK : Bool} {rules : List RecRule} {args : List Expr} {major : Expr}
-    {cj : ConLeche.Name} {usj : List Level}
-    (hm : major.getAppFn = .const cj usj)
-    (hf : ∀ cvj a b T, env.find? cj ≠ some (.ctorInfo cvj a b T)) :
-    iotaTail mode eager env F d us cv mI rP isK rules args major = .ok none := by
-  simp only [iotaTail, hm]
-  first
-    | rfl
-    | (split
-       · rename_i cvj a b T heq; exact absurd heq (hf cvj a b T)
-       · rfl)
-
 /-- con-leche: ConLeche/Kernel/Core.lean:786-868 iotaRec — no rule matches the
 constructor. -/
 theorem iotaTail_norule {F d : Nat} {us : List Level} {cv : ConstantVal}

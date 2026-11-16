@@ -50,22 +50,6 @@ open scoped Lean.Order
 
 variable {eager : Bool} {env : Env} {fe : IFEnv}
 
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
-the `PIN_BOOL_TRUE` slot of `pinNames` is `Bool.true`'s name.  `rfl`: both
-sides are closed terms, which is what makes `PinsOK.names` usable at a
-NAMED slot rather than only at a quantified one. -/
-theorem pinNames_boolTrue :
-    pinNames[PIN_BOOL_TRUE]? = some ConLeche.boolTrueName := by rfl
-
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
-the `Bool.true` pin, as the name it denotes (`pinAt_spec` at the named slot,
-`pinNames_boolTrue`). -/
-theorem boolTrueName_spec (s₀ : AState) (hp : PinsOK s₀) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.boolTrueName
-    ⦃fun n s' => s' = s₀ ∧ denoteN s₀.store.ns n = some ConLeche.boolTrueName; ⊤⦄ := by
-  have hbt := pinNames_boolTrue
-  vcgen [ConRon.Arena.boolTrueName, pinBoolTrue] with finish
-
 /-- con-leche: none — `CheckOK` across a stage that moved nothing but the
 memos. -/
 theorem _root_.ConRon.Bridge.CheckOK.of_store_eq {eager : Bool} {env : Env} {fe : IFEnv}

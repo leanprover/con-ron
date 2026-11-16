@@ -226,15 +226,6 @@ throw). -/
 discharged at the call below. -/
 
 
-/-- con-leche: ConLeche/Model/Inductives/TargetCallWalk.lean:198
-getAppFn_ne_app — a spine head is never an application (a local copy: the
-cited module sits deep in the model tier). -/
-theorem getAppFn_not_app : ∀ (e f a : Expr), e.getAppFn ≠ .app f a := by
-  intro e
-  induction e with
-  | app g b ihg ihb => intro f a; exact ihg f a
-  | _ => intro f a h; exact nomatch h
-
 /-- con-leche: ConLeche/Cached/CoreC.lean:1133-1167 whnfAppI
 con-leche: ConLeche/Verify/BetaSpine.lean:224 iotaRec_head_not_const —
 **THEOREM 1 for `whnfAppIota`, the ι step `whnfApp` runs at a non-λ head**:

@@ -5,9 +5,9 @@ The readers the stuck-major rescue and the ι step consult, each an equation
 with con-leche's function.  The walks that call the knot are
 `Walks/IotaMajor.lean` and `Walks/Iota.lean`.
 
-Every proof is `sym only [bridge_grind, …] => vcgen [f, callee specs…] <;>
+Every proof but `ctorView_spec` (an explicit triple, as the ι step it feeds) is `sym only [bridge_grind, …] => vcgen [f, callee specs…] <;>
 finish`.  What makes them `grind`-shaped: each con-leche function as ONE
-equation over tags and projections (`isCtorApp_eq`, `litToCtorIfNat_eq`,
+equation over tags and projections (`litToCtorIfNat_eq`,
 `andRescueSlots_eq` over the named slot walk `andSlotsFrom`, `formerResSort_eq`,
 `ctorFamily_eq`), a twin's nested `match` one constructor deep
 (`litToCtorIfNat_split`), and the callees with `∀`-shaped posts restated as
@@ -46,15 +46,6 @@ variable {eager : Bool} {env : Env} {fe : IFEnv}
 
 /-! ## 1. State-only readers -/
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:46-53 isCtorApp — the reader as
-ONE equation over the head's tag, its constant name and the environment's
-constructor projection. -/
-theorem isCtorApp_eq (x : Expr) :
-    ConLeche.isCtorApp env x =
-      (exprTag x.getAppFn == ETag.const && cCtor? (env.find? (exprConstName x.getAppFn))) := by
-  simp only [ConLeche.isCtorApp]
-  cases x.getAppFn <;> rfl
-
 /-- con-leche: ConLeche/Cached/CoreC.lean:214-221 MajorView — **what a
 classified major means** at the term `y` it denotes: a `.ctor` view's term is
 a constructor application whose head is the view's name and levels and whose
@@ -82,15 +73,6 @@ theorem MajorViewRel.isCtor {st : EStore} {v : MajorView} {y : Expr}
   cases v
   · exact h.2.1
   · exact h.2
-
-/-- con-leche: none — the relation survives a store extension. -/
-theorem MajorViewRel.ext {st st' : EStore} (hx : Ext st st') {v : MajorView} {y : Expr}
-    (h : MajorViewRel env fe st v y) : MajorViewRel env fe st' v y := by
-  cases v with
-  | ctor e cj usj cvj nP nF ind =>
-    obtain ⟨h1, h2, h3, h4, h5, h6⟩ := h
-    exact ⟨denote_ext h1 hx, h2, h3, h4, denoteN_ext h5 hx, denoteLs_ext h6 hx⟩
-  | stuck e => exact ⟨denote_ext h.1 hx, h.2⟩
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:58-65 isCtorApp
 con-leche: ConLeche/Cached/CoreC.lean:233-240 ctorViewC — **THEOREM 1 for

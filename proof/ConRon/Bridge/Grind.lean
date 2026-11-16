@@ -187,14 +187,6 @@ theorem denoteCaps_le {st st' : EStore} {c : IIndCaps} (hx : st ≤ st')
   rw [h]; exact denoteCaps_ext h hx
 grind_pattern [bridge_grind] denoteCaps_le => st ≤ st', Frontend.denoteCaps st c
 
-/-- con-leche: none — `denote_le` for a rule list. -/
-theorem denoteRules_le {st st' : EStore} {rs : List IRecRule} (hx : st ≤ st')
-    (hd : Frontend.denoteRules st rs ≠ none) :
-    Frontend.denoteRules st' rs = Frontend.denoteRules st rs := by
-  obtain ⟨xs, h⟩ := Option.ne_none_iff_exists'.mp hd
-  rw [h]; exact denoteRules_ext hx _ _ h
-grind_pattern [bridge_grind] denoteRules_le => st ≤ st', Frontend.denoteRules st rs
-
 /-- con-leche: none — `denote_le` for a level-handle LIST. -/
 theorem denoteLList_le {st st' : EStore} {hs : List LIdx} (hx : st ≤ st')
     (hd : denoteLList st.ls hs ≠ none) :
