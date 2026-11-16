@@ -73005,8 +73005,8 @@ reads the twin's `sargs.toList` as the Rust vector's list (`absEIdxArr_toList_eq
 
 | binary | instructions:u | cycles:u |
 |---|---:|---:|
-| master `49c19a55` | 172 644 969 392 | 73 457 171 802 |
-| this branch `b28aff8b` | **165 892 221 920** (−3.911 %) | 66 195 567 991 |
+| master `49c19a55` | 172 645 898 723 | 73 758 904 094 |
+| this branch `3f01e190` | **165 892 807 351** (−3.912 %) | 69 076 867 288 |
 
 Upstream measured −0.55 % (#591) and −3.33 % (#592) on `init-full`.
 `grind_field_cancel_inv` (ι-heavy, one run each, `instructions:u`): master 1.471 G, this branch
