@@ -10,7 +10,7 @@ so that the three can build in parallel:
 |---|---|
 | fuel | `Ev` ("from some fuel on") and its rules; `DqPost`, the frame-and-verdict postcondition |
 | stage rules | `triple_ite_bind`, `CheckOK.of_store_eq` (`triple_pure_post` is `Memo.lean`'s) |
-| guarded calls | `boolTrueShortcutIf_spec`, `defeqNoFvars_spec`, `reduceNatIf_spec` |
+| guarded calls | `defeqNoFvars_spec`, `reduceNatIf_spec` |
 | denotations | `VD` / `VD.of_view`, `ls_eq_iff_nil`, `n_eq_iff_pin` |
 | exits | `dq_pure_exit`, `dq_defeq_exit`, `dq_stuck_exit` |
 | monotonicity | `…F_mono` for the helpers of the defeq block the specs merge at (`Walks/Mono.lean`'s shape) |
@@ -109,48 +109,6 @@ theorem triple_ite_bind {α β : Type} {c : Prop} [Decidable c] {x y : AM α}
   by_cases hc : c
   · rw [ite_eq_left hc] at h ⊢; exact h
   · rw [ite_eq_right hc] at h ⊢; exact h
-
-/-- con-leche: none — `CheckOK` across a stage that moved nothing but the
-memos. -/
-theorem _root_.ConRon.Bridge.CheckOK.of_store_eq {eager : Bool} {env : Env} {fe : IFEnv}
-    {s s' : AState} (h : CheckOK eager env fe s) (hst : s'.store = s.store)
-    (hc : s'.caches = s.caches) (hp : s'.pins = s.pins) :
-    CheckOK eager env fe s' :=
-  h.mono ⟨by rw [hst]; exact h.state.wf⟩ (by rw [hst]; exact Ext.refl _) hc hp
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1443-1455 boolTrueShortcut —
-**the eq-true shortcut's guarded call**, both guard outcomes: the twin's
-`boolTrueShortcut` is `KnotSpec.whnf` then `isBoolTrue`, con-leche's is
-`whnf` then `Expr.isBoolTrue`. -/
-theorem boolTrueShortcutIf_spec {fe : IFEnv} {fuel : Nat}
-    (hsim : KnotSpec eager env fe fuel) (s₀ : AState) (d : Nat) (a : EIdx)
-    (x : Expr) (c : Bool) (hok : CheckOK eager env fe s₀)
-    (hx : denoteE s₀.store a = some x) (hwx : Expr.WScoped d x) :
-    ⦃fun s => s = s₀⦄
-      (if c = true then
-        ConRon.Arena.boolTrueShortcut (coreKnot .verified eager fe id fuel) d a
-      else pure false)
-    ⦃fun sc s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        Ev (fun F => (if c then
-          ConLeche.boolTrueShortcut (ConLeche.pureFns .verified eager env F) d x
-          else pure false) = (.ok sc : CheckM Bool)); ⊤⦄ := by
-  cases c
-  · simp only [Bool.false_eq_true, ite_false]
-    exact triple_pure_post ⟨hok, Ext.refl _, rfl, Ev.const rfl⟩
-  · simp only [ite_true]
-    unfold ConRon.Arena.boolTrueShortcut
-    refine triple_seq (hsim.whnf s₀ d a x hok hx hwx) ?_
-    rintro w s1 ⟨hok1, hx1, hp1, v, hv, _hwv, F1, hF1⟩
-    refine triple_mono (isBoolTrue_spec s1 w v hok1 hv) ?_
-    rintro sc s2 ⟨hok2, hst2, hp2, rfl⟩
-    refine ⟨hok2, by rw [hst2]; exact hx1, hp2.trans hp1, ?_⟩
-    refine Ev.of_mono (p := fun F => ConLeche.boolTrueShortcut
-      (ConLeche.pureFns .verified eager env F) d x = .ok v.isBoolTrue)
-      (fun hle h => boolTrueShortcutFueled_mono hle h) ⟨F1, ?_⟩
-    simp only [ConLeche.boolTrueShortcut, ConLeche.whnf_def, hF1, bind,
-      Except.bind, pure, Except.pure]
-
 
 /-! ## 2. Denotations and guards -/
 

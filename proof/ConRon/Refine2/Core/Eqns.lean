@@ -47,7 +47,7 @@ elab "force_eqns" ids:ident+ : command => do
       let _ ← Lean.Meta.getEqnsFor? n
       let _ ← Lean.Meta.getUnfoldEqnFor? n
 
-/-! ## The block — `arena::core`'s `whnf` / `infer` / `defeq` block, 111 functions
+/-! ## The block — `arena::core`'s `whnf` / `infer` / `defeq` block, 114 functions
 
 `ConRon/Generated/Funs.lean:27960-34500`: `arena.core.reduce_nat` …
 `arena.core.knot_defeq_e`.  (The `annotate` block of 9 went with the annotate
@@ -91,6 +91,7 @@ force_eqns
   arena.core.major_to_ctor_and
   arena.core.major_to_ctor_and_build
   arena.core.major_to_ctor_at
+  arena.core.major_to_ctor_rescue
   arena.core.major_to_ctor
   arena.core.lit_major_to_ctor
   arena.core.proj_lit_to_ctor
@@ -104,6 +105,7 @@ force_eqns
   arena.core.iota_rec_at
   arena.core.reduce_proj_core
   arena.core.whnf_core_step_proj
+  arena.core.whnf_app_iota
   arena.core.whnf_app
   arena.core.whnf_core_step
   arena.core.whnf_core_loop_loop
@@ -133,7 +135,6 @@ force_eqns
   arena.core.infer_forall_io_at
   arena.core.infer_app_io_at
   arena.core.infer_spine_io
-  arena.core.bool_true_shortcut
   arena.core.defeq_spine
   arena.core.defeq_binders_inner
   arena.core.defeq_domain
@@ -157,7 +158,9 @@ force_eqns
   arena.core.defeq_stuck
   arena.core.defeq_after_lazy
   arena.core.defeq_after_whnf
-  arena.core.defeq_unreduced
+  arena.core.defeq_lazy
+  arena.core.defeq_ctor_right
+  arena.core.defeq_ctor_left
   arena.core.defeq_body
   arena.core.knot_whnf_core
   arena.core.knot_whnf

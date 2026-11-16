@@ -70,32 +70,98 @@ theorem defeqBody_syntactic (h : (x == y) = true) :
   rw [ConLeche.defeqBody]
   simp only [h, ite_true, pure, Except.pure]
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — **the eq-true
-shortcut** (the divergence audit's E2). -/
-theorem defeqBody_boolTrue (hab : (x == y) = false)
-    (hsc : (if (y.isBoolTrue && (eager || !x.hasFvar)) = true then
-        ConLeche.boolTrueShortcut (ConLeche.pureFns mode eager env F) d x
-      else pure false) = (.ok true : CheckM Bool)) :
-    ConLeche.defeqBody mode eager (ConLeche.pureFns mode eager env F) env d x y = .ok true := by
-  rw [ConLeche.defeqBody]
-  simp only [hab, Bool.false_eq_true, ite_false]
-  rw [hsc]
-  simp only [bind, Except.bind, ite_true, pure, Except.pure]
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — the prefix
-up to the UNREDUCED pair (con-leche task #333): no syntactic hit, no eq-true
-shortcut. -/
-structure DbPre0 (mode : CheckMode) (eager : Bool) (env : Env) (F d : Nat) (x y : Expr) : Prop where
-  hab : (x == y) = false
-  hsc : (if (y.isBoolTrue && (eager || !x.hasFvar)) = true then
-      ConLeche.boolTrueShortcut (ConLeche.pureFns mode eager env F) d x
-    else pure false) = (.ok false : CheckM Bool)
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — the body past
-the eq-true shortcut: `quickDefEq` and proof irrelevance on the UNREDUCED
-pair, then the cheap head normal forms and what follows. -/
-theorem defeqBody_pre0 (h : DbPre0 mode eager env F d x y) :
+/-- con-leche: ConLeche/Kernel/Core.lean:1842-1884 defeqBody — **the constructor
+shortcut at a target on the right**, its three exits: the left side's normal
+form `w` headed by the target continues with the lazy comparison of `w`. -/
+theorem defeqBody_rightT {cn : Name} {w : Expr} (hab : (x == y) = false)
+    (ht : ConLeche.ctorTargetFor env eager x y = some cn)
+    (hw : ConLeche.whnf mode eager env F d x = .ok w)
+    (ho : ConLeche.ctorHeadAgainst env cn w = some true) :
     ConLeche.defeqBody mode eager (ConLeche.pureFns mode eager env F) env d x y =
+      ConLeche.defeqLazy mode eager (ConLeche.pureFns mode eager env F) env d w y := by
+  rw [ConLeche.defeqBody]
+  simp only [hab, Bool.false_eq_true, ite_false, ht, ConLeche.whnf_def, hw, ho, bind,
+    Except.bind]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1842-1884 defeqBody — another
+constructor's head: `false`. -/
+theorem defeqBody_rightF {cn : Name} {w : Expr} (hab : (x == y) = false)
+    (ht : ConLeche.ctorTargetFor env eager x y = some cn)
+    (hw : ConLeche.whnf mode eager env F d x = .ok w)
+    (ho : ConLeche.ctorHeadAgainst env cn w = some false) :
+    ConLeche.defeqBody mode eager (ConLeche.pureFns mode eager env F) env d x y = .ok false := by
+  rw [ConLeche.defeqBody]
+  simp only [hab, Bool.false_eq_true, ite_false, ht, ConLeche.whnf_def, hw, ho, bind,
+    Except.bind]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1842-1884 defeqBody — any other head:
+the lazy comparison of the original pair. -/
+theorem defeqBody_rightN {cn : Name} {w : Expr} (hab : (x == y) = false)
+    (ht : ConLeche.ctorTargetFor env eager x y = some cn)
+    (hw : ConLeche.whnf mode eager env F d x = .ok w)
+    (ho : ConLeche.ctorHeadAgainst env cn w = none) :
+    ConLeche.defeqBody mode eager (ConLeche.pureFns mode eager env F) env d x y =
+      ConLeche.defeqLazy mode eager (ConLeche.pureFns mode eager env F) env d x y := by
+  rw [ConLeche.defeqBody]
+  simp only [hab, Bool.false_eq_true, ite_false, ht, ConLeche.whnf_def, hw, ho, bind,
+    Except.bind]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1842-1884 defeqBody — **the constructor
+shortcut at a target on the left** (no target on the right): the right side's
+normal form headed by the target continues with the lazy comparison. -/
+theorem defeqBody_leftT {cn : Name} {w : Expr} (hab : (x == y) = false)
+    (ht0 : ConLeche.ctorTargetFor env eager x y = none)
+    (ht : ConLeche.ctorTargetFor env eager y x = some cn)
+    (hw : ConLeche.whnf mode eager env F d y = .ok w)
+    (ho : ConLeche.ctorHeadAgainst env cn w = some true) :
+    ConLeche.defeqBody mode eager (ConLeche.pureFns mode eager env F) env d x y =
+      ConLeche.defeqLazy mode eager (ConLeche.pureFns mode eager env F) env d x w := by
+  rw [ConLeche.defeqBody]
+  simp only [hab, Bool.false_eq_true, ite_false, ht0, ht, ConLeche.whnf_def, hw, ho, bind,
+    Except.bind]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1842-1884 defeqBody — the left
+target against another constructor: `false`. -/
+theorem defeqBody_leftF {cn : Name} {w : Expr} (hab : (x == y) = false)
+    (ht0 : ConLeche.ctorTargetFor env eager x y = none)
+    (ht : ConLeche.ctorTargetFor env eager y x = some cn)
+    (hw : ConLeche.whnf mode eager env F d y = .ok w)
+    (ho : ConLeche.ctorHeadAgainst env cn w = some false) :
+    ConLeche.defeqBody mode eager (ConLeche.pureFns mode eager env F) env d x y = .ok false := by
+  rw [ConLeche.defeqBody]
+  simp only [hab, Bool.false_eq_true, ite_false, ht0, ht, ConLeche.whnf_def, hw, ho, bind,
+    Except.bind]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1842-1884 defeqBody — the left
+target against any other head: the lazy comparison of the original pair. -/
+theorem defeqBody_leftN {cn : Name} {w : Expr} (hab : (x == y) = false)
+    (ht0 : ConLeche.ctorTargetFor env eager x y = none)
+    (ht : ConLeche.ctorTargetFor env eager y x = some cn)
+    (hw : ConLeche.whnf mode eager env F d y = .ok w)
+    (ho : ConLeche.ctorHeadAgainst env cn w = none) :
+    ConLeche.defeqBody mode eager (ConLeche.pureFns mode eager env F) env d x y =
+      ConLeche.defeqLazy mode eager (ConLeche.pureFns mode eager env F) env d x y := by
+  rw [ConLeche.defeqBody]
+  simp only [hab, Bool.false_eq_true, ite_false, ht0, ht, ConLeche.whnf_def, hw, ho, bind,
+    Except.bind]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1842-1884 defeqBody — no target on
+either side: the lazy comparison. -/
+theorem defeqBody_lazy (hab : (x == y) = false)
+    (ht0 : ConLeche.ctorTargetFor env eager x y = none)
+    (ht1 : ConLeche.ctorTargetFor env eager y x = none) :
+    ConLeche.defeqBody mode eager (ConLeche.pureFns mode eager env F) env d x y =
+      ConLeche.defeqLazy mode eager (ConLeche.pureFns mode eager env F) env d x y := by
+  rw [ConLeche.defeqBody]
+  simp only [hab, Bool.false_eq_true, ite_false, ht0, ht1]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1789-1840 defeqLazy — the lazy
+comparison: `quickDefEq` and proof irrelevance on the UNREDUCED pair, then
+the cheap head normal forms and what follows. -/
+theorem defeqLazy_pre0 :
+    ConLeche.defeqLazy mode eager (ConLeche.pureFns mode eager env F) env d x y =
       (ConLeche.quickDefEq mode (ConLeche.pureFns mode eager env F) d x y >>= fun o =>
         match o with
         | some v => pure v
@@ -120,48 +186,41 @@ theorem defeqBody_pre0 (h : DbPre0 mode eager env F d x y) :
           if a₂ == a₁ && b₂ == b₁ then
             ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d a₁ b₁
           else (ConLeche.pureFns mode eager env F).defeq d a₂ b₂) := by
-  rw [ConLeche.defeqBody]
-  simp only [h.hab, Bool.false_eq_true, ite_false]
-  rw [h.hsc]
+  rw [ConLeche.defeqLazy]
   rfl
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — the easy
+/-- con-leche: ConLeche/Kernel/Core.lean:1789-1840 defeqLazy — the easy
 cases decide on the UNREDUCED pair. -/
-theorem defeqBody_quick0 {v : Bool} (h : DbPre0 mode eager env F d x y)
+theorem defeqLazy_quick0 {v : Bool}
     (hq : ConLeche.quickDefEq mode (ConLeche.pureFns mode eager env F) d x y
       = .ok (some v)) :
-    ConLeche.defeqBody mode eager (ConLeche.pureFns mode eager env F) env d x y = .ok v := by
-  rw [defeqBody_pre0 h, hq]; rfl
+    ConLeche.defeqLazy mode eager (ConLeche.pureFns mode eager env F) env d x y = .ok v := by
+  rw [defeqLazy_pre0, hq]; rfl
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — **proof
+/-- con-leche: ConLeche/Kernel/Core.lean:1789-1840 defeqLazy — **proof
 irrelevance**, on the UNREDUCED pair (con-leche task #333). -/
-theorem defeqBody_propIrrel (h : DbPre0 mode eager env F d x y)
+theorem defeqLazy_propIrrel
     (hq : ConLeche.quickDefEq mode (ConLeche.pureFns mode eager env F) d x y = .ok none)
     (hpi : ConLeche.propIrrel (ConLeche.pureFns mode eager env F) env d x y = .ok true) :
-    ConLeche.defeqBody mode eager (ConLeche.pureFns mode eager env F) env d x y = .ok true := by
-  rw [defeqBody_pre0 h, hq]
+    ConLeche.defeqLazy mode eager (ConLeche.pureFns mode eager env F) env d x y = .ok true := by
+  rw [defeqLazy_pre0, hq]
   simp only [bind, Except.bind, hpi]
   rfl
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — **the prefix
-every later exit has run**, at one fuel: no syntactic hit, no eq-true
-shortcut, no easy case and no proof irrelevance on the unreduced pair, the two
-cheap head normal forms. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:1789-1840 defeqLazy — **the prefix
+every later exit has run**, at one fuel: no easy case and no proof
+irrelevance on the unreduced pair, the two cheap head normal forms. -/
 structure DbPre (mode : CheckMode) (eager : Bool) (env : Env) (F d : Nat)
     (x y x' y' : Expr) : Prop where
-  hab : (x == y) = false
-  hsc : (if (y.isBoolTrue && (eager || !x.hasFvar)) = true then
-      ConLeche.boolTrueShortcut (ConLeche.pureFns mode eager env F) d x
-    else pure false) = (.ok false : CheckM Bool)
   hq0 : ConLeche.quickDefEq mode (ConLeche.pureFns mode eager env F) d x y = .ok none
   hpi0 : ConLeche.propIrrel (ConLeche.pureFns mode eager env F) env d x y = .ok false
   ha : ConLeche.whnfCore mode eager env F d x true = .ok x'
   hb : ConLeche.whnfCore mode eager env F d y true = .ok y'
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — the body past
-the prefix: `quickDefEq` on the cheap head normal forms and what follows. -/
-theorem defeqBody_pre (h : DbPre mode eager env F d x y x' y') :
-    ConLeche.defeqBody mode eager (ConLeche.pureFns mode eager env F) env d x y =
+/-- con-leche: ConLeche/Kernel/Core.lean:1789-1840 defeqLazy — past the
+prefix: `quickDefEq` on the cheap head normal forms and what follows. -/
+theorem defeqLazy_pre (h : DbPre mode eager env F d x y x' y') :
+    ConLeche.defeqLazy mode eager (ConLeche.pureFns mode eager env F) env d x y =
       (ConLeche.quickDefEq mode (ConLeche.pureFns mode eager env F) d x' y' >>= fun o =>
         match o with
         | some v => pure v
@@ -179,19 +238,19 @@ theorem defeqBody_pre (h : DbPre mode eager env F d x y x' y') :
           if a₂ == a₁ && b₂ == b₁ then
             ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d a₁ b₁
           else (ConLeche.pureFns mode eager env F).defeq d a₂ b₂) := by
-  rw [defeqBody_pre0 ⟨h.hab, h.hsc⟩, h.hq0]
+  rw [defeqLazy_pre0, h.hq0]
   simp only [bind, Except.bind, h.hpi0, Bool.false_eq_true, ite_false,
     ConLeche.whnfCore_def, h.ha, h.hb]
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — the easy
+/-- con-leche: ConLeche/Kernel/Core.lean:1789-1840 defeqLazy — the easy
 cases decide. -/
-theorem defeqBody_quick {v : Bool} (h : DbPre mode eager env F d x y x' y')
+theorem defeqLazy_quick {v : Bool} (h : DbPre mode eager env F d x y x' y')
     (hq : ConLeche.quickDefEq mode (ConLeche.pureFns mode eager env F) d x' y'
       = .ok (some v)) :
-    ConLeche.defeqBody mode eager (ConLeche.pureFns mode eager env F) env d x y = .ok v := by
-  rw [defeqBody_pre h, hq]; rfl
+    ConLeche.defeqLazy mode eager (ConLeche.pureFns mode eager env F) env d x y = .ok v := by
+  rw [defeqLazy_pre h, hq]; rfl
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — the facts
+/-- con-leche: ConLeche/Kernel/Core.lean:1789-1840 defeqLazy — the facts
 past the lazy-delta loop that the last four exits share. -/
 structure DbMid (mode : CheckMode) (eager : Bool) (env : Env) (F d : Nat)
     (x' y' : Expr) (r : LazyRes) : Prop where
@@ -199,20 +258,20 @@ structure DbMid (mode : CheckMode) (eager : Bool) (env : Env) (F d : Nat)
   hl : ConLeche.lazyDeltaReduction mode eager (ConLeche.pureFns mode eager env F) env d
     ConLeche.defeqLoopFuel x' y' = .ok r
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — **the
+/-- con-leche: ConLeche/Kernel/Core.lean:1789-1840 defeqLazy — **the
 lazy-delta loop decides**. -/
-theorem defeqBody_verdict {v : Bool} (h : DbPre mode eager env F d x y x' y')
+theorem defeqLazy_verdict {v : Bool} (h : DbPre mode eager env F d x y x' y')
     (hm : DbMid mode eager env F d x' y' (.verdict v)) :
-    ConLeche.defeqBody mode eager (ConLeche.pureFns mode eager env F) env d x y = .ok v := by
-  rw [defeqBody_pre h, hm.hq]
+    ConLeche.defeqLazy mode eager (ConLeche.pureFns mode eager env F) env d x y = .ok v := by
+  rw [defeqLazy_pre h, hm.hq]
   simp only [bind, Except.bind, hm.hl]
   rfl
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — the body past
-the loop's `unknown`: the proj/proj check and what follows. -/
-theorem defeqBody_unknown {a₁ b₁ : Expr} (h : DbPre mode eager env F d x y x' y')
+/-- con-leche: ConLeche/Kernel/Core.lean:1789-1840 defeqLazy — past the
+loop's `unknown`: the proj/proj check and what follows. -/
+theorem defeqLazy_unknown {a₁ b₁ : Expr} (h : DbPre mode eager env F d x y x' y')
     (hm : DbMid mode eager env F d x' y' (.unknown a₁ b₁)) :
-    ConLeche.defeqBody mode eager (ConLeche.pureFns mode eager env F) env d x y =
+    ConLeche.defeqLazy mode eager (ConLeche.pureFns mode eager env F) env d x y =
       (ConLeche.defeqProjPair mode (ConLeche.pureFns mode eager env F) env d a₁ b₁ >>=
         fun pp => if pp = true then pure true else
           if (!a₁.headIsProj && !b₁.headIsProj) = true then
@@ -222,7 +281,7 @@ theorem defeqBody_unknown {a₁ b₁ : Expr} (h : DbPre mode eager env F d x y x
             if (a₂ == a₁ && b₂ == b₁) = true then
               ConLeche.defeqStuck mode (ConLeche.pureFns mode eager env F) env d a₁ b₁
             else ConLeche.isDefEqCore mode eager env F d a₂ b₂)) := by
-  rw [defeqBody_pre h, hm.hq]
+  rw [defeqLazy_pre h, hm.hq]
   simp only [bind, Except.bind, hm.hl]
   rfl
 
@@ -451,67 +510,32 @@ section Body
 
 variable {fe : IFEnv} {fuel : Nat}
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — **THEOREM 1
-for the body at FIXED denotations of its two subjects**, stage by stage: the
-syntactic fast path, the eq-true shortcut, `quickDefEq` and proof irrelevance
-on the unreduced pair (con-leche task #333), the cheap head normal forms,
-`quickDefEq` again, the lazy-delta loop, the proj/proj check,
-and — only at a projection-headed side — the full `whnfCore` and either the
-stuck comparison or a restart through the knot. -/
-theorem defeqBody_at (henv : ConLeche.EnvWF env)
+/-- con-leche: ConLeche/Kernel/Core.lean:1789-1840 defeqLazy
+con-leche: ConLeche/Cached/CoreC.lean:1933-1955 defeqLazyI — **THEOREM 1 for
+the lazy comparison at FIXED denotations of its two subjects**, stage by stage:
+`quickDefEq` and proof irrelevance on the unreduced pair (con-leche task #333),
+the cheap head normal forms, `quickDefEq` again, the lazy-delta loop, the
+proj/proj check, and — only at a projection-headed side — the full `whnfCore`
+and either the stuck comparison or a restart through the knot. -/
+theorem defeqLazy_at (henv : ConLeche.EnvWF env)
     (hsim : KnotSpec eager env fe fuel) (d : Nat) (s₀ : AState) (a b : EIdx)
     (x y : Expr) (hok : CheckOK eager env fe s₀)
     (hx : denoteE s₀.store a = some x) (hy : denoteE s₀.store b = some y)
     (hwx : Expr.WScoped d x) (hwy : Expr.WScoped d y) :
-    ⦃fun s => s = s₀⦄ defeqBody .verified eager (coreKnot .verified eager fe id fuel) fe d a b
+    ⦃fun s => s = s₀⦄ defeqLazy .verified eager (coreKnot .verified eager fe id fuel) fe d a b
     ⦃fun r s' => DqPost eager env fe s₀ (fun F r =>
-        ConLeche.defeqBody .verified eager (ConLeche.pureFns .verified eager env F) env d x y = .ok r)
-        r s'; ⊤⦄ := by
-  have hwf := hok.state.wf
-  unfold ConRon.Arena.defeqBody
-  split
-  · -- the syntactic fast path
-    rename_i hab
-    rw [beq_of_denoteE hwf hx hy] at hab
-    exact triple_pure_post ⟨hok, Ext.refl _, rfl, 0, defeqBody_syntactic hab⟩
-  rename_i hab
-  rw [beq_of_denoteE hwf hx hy] at hab
-  simp only [Bool.not_eq_true] at hab
-  -- the eq-true shortcut's two guard reads
-  refine triple_seq (isBoolTrue_spec s₀ b y hok hy) ?_
-  rintro bt s1 ⟨hok1, hst1, hp1, rfl⟩
-  refine triple_seq (ExprOps.hasFvarFast_spec coreWalkFuel s1 a hok1.state
-    (by rw [hst1, hx]; rfl)) ?_
-  rintro hf s2 ⟨hst2, hc2, hp2, hr2⟩
-  have hfe : hf = x.hasFvar := hr2 x (by rw [hst1]; exact hx)
-  subst hfe
-  have hok2 := hok1.of_store_eq hst2 hc2 hp2
-  have hst02 : s2.store = s₀.store := hst2.trans hst1
-  have hp02 : s2.pins = s₀.pins := hp2.trans hp1
-  dsimp only
-  refine triple_ite_bind ?_
-  refine triple_seq (boolTrueShortcutIf_spec hsim s2 d a x _ hok2
-    (by rw [hst02]; exact hx) hwx) ?_
-  rintro sc s3 ⟨hok3, hx3, hp3, hsc⟩
-  have hx03 : Ext s₀.store s3.store := by rw [← hst02]; exact hx3
-  have hp03 : s3.pins = s₀.pins := hp3.trans hp02
-  cases sc
-  case true =>
-    simp only [ite_true]
-    obtain ⟨F, hF⟩ := hsc.exists
-    exact triple_pure_post ⟨hok3, hx03, hp03, F, defeqBody_boolTrue hab hF⟩
-  simp only [Bool.false_eq_true, ↓reduceIte]
-  have hpre0 : Ev (fun F => DbPre0 .verified eager env F d x y) := hsc.imp fun _ h1 => ⟨hab, h1⟩
+        ConLeche.defeqLazy .verified eager (ConLeche.pureFns .verified eager env F) env d x y
+          = .ok r) r s'; ⊤⦄ := by
+  unfold ConRon.Arena.defeqLazy
   -- the easy cases on the UNREDUCED pair (con-leche task #333)
-  refine triple_seq (quickDefEq_spec hsim d s3 a b x y hok3 (denote_ext hx hx03)
-    (denote_ext hy hx03) hwx hwy) ?_
+  refine triple_seq (quickDefEq_spec hsim d s₀ a b x y hok hx hy hwx hwy) ?_
   rintro q0 t1 ⟨hokt1, hxt1, hpt1, hq0⟩
-  have hx0t1 := hx03.trans hxt1
-  have hp0t1 : t1.pins = s₀.pins := hpt1.trans hp03
+  have hx0t1 := hxt1
+  have hp0t1 : t1.pins = s₀.pins := hpt1
   cases q0 with
   | some v =>
     exact triple_pure_post ⟨hokt1, hx0t1, hp0t1,
-      Ev.exists ((hpre0.and hq0).imp fun _ ⟨h1, h2⟩ => defeqBody_quick0 h1 h2)⟩
+      Ev.exists (hq0.imp fun _ h2 => defeqLazy_quick0 h2)⟩
   | none =>
   dsimp only
   -- proof irrelevance on the UNREDUCED pair
@@ -528,8 +552,8 @@ theorem defeqBody_at (henv : ConLeche.EnvWF env)
   case true =>
     simp only [ite_true]
     exact triple_pure_post ⟨hokt2, hx0t2, hp0t2,
-      Ev.exists (((hpre0.and hq0).and hpi0).imp fun _ ⟨⟨h1, h2⟩, h3⟩ =>
-        defeqBody_propIrrel h1 h2 h3)⟩
+      Ev.exists ((hq0.and hpi0).imp fun _ ⟨h2, h3⟩ =>
+        defeqLazy_propIrrel h2 h3)⟩
   simp only [Bool.false_eq_true, ↓reduceIte]
   -- the two cheap head normal forms
   refine triple_seq (hsim.whnfCore (c := true) t2 d a x hokt2 (denote_ext hx hx0t2)
@@ -547,8 +571,8 @@ theorem defeqBody_at (henv : ConLeche.EnvWF env)
   have hb : Ev (fun F => ConLeche.whnfCore .verified eager env F d y true = .ok y') :=
     Ev.of_mono (fun hle h => ConLeche.whnfCore_mono hle h) ⟨F5, hF5⟩
   have hpre : Ev (fun F => DbPre .verified eager env F d x y x' y') :=
-    ((((hpre0.and hq0).and hpi0).and ha).and hb).imp
-      fun _ ⟨⟨⟨⟨h1, h2⟩, h3⟩, h4⟩, h5⟩ => ⟨h1.hab, h1.hsc, h2, h3, h4, h5⟩
+    (((hq0.and hpi0).and ha).and hb).imp
+      fun _ ⟨⟨⟨h2, h3⟩, h4⟩, h5⟩ => ⟨h2, h3, h4, h5⟩
   -- the easy cases on the reducts
   refine triple_seq (quickDefEq_spec hsim d s5 a' b' x' y' hok5 hdx5 hdy' hwx'
     hwy') ?_
@@ -558,7 +582,7 @@ theorem defeqBody_at (henv : ConLeche.EnvWF env)
   cases q with
   | some v =>
     exact triple_pure_post ⟨hok6, hx06, hp06,
-      Ev.exists ((hpre.and hq).imp fun _ ⟨h1, h2⟩ => defeqBody_quick h1 h2)⟩
+      Ev.exists ((hpre.and hq).imp fun _ ⟨h1, h2⟩ => defeqLazy_quick h1 h2)⟩
   | none =>
   dsimp only
   have hdx6 := denote_ext hdx5 hx6
@@ -578,7 +602,7 @@ theorem defeqBody_at (henv : ConLeche.EnvWF env)
     simp only [LRRel] at hrw
   · subst hrw
     exact triple_pure_post ⟨hok8, hx08, hp08,
-      Ev.exists ((hmid _ rfl).imp fun _ ⟨h1, h2⟩ => defeqBody_verdict h1 h2)⟩
+      Ev.exists ((hmid _ rfl).imp fun _ ⟨h1, h2⟩ => defeqLazy_verdict h1 h2)⟩
   obtain ⟨ha₁, hb₁, hwx₁, hwy₁⟩ := hrw
   have hU := hmid _ rfl
   dsimp only
@@ -591,7 +615,7 @@ theorem defeqBody_at (henv : ConLeche.EnvWF env)
     Ev.of_mono (fun hle h => defeqProjPairF_mono hle h) ⟨F9, hF9⟩
   have hx09 := hx08.trans hx9
   have hp09 : s9.pins = s₀.pins := hp9.trans hp08
-  have hU' : Ev (fun F => ConLeche.defeqBody .verified eager (ConLeche.pureFns .verified eager env F) env
+  have hU' : Ev (fun F => ConLeche.defeqLazy .verified eager (ConLeche.pureFns .verified eager env F) env
       d x y =
       (if pp = true then pure true else
           if (!x₁.headIsProj && !y₁.headIsProj) = true then
@@ -602,7 +626,7 @@ theorem defeqBody_at (henv : ConLeche.EnvWF env)
               ConLeche.defeqStuck .verified (ConLeche.pureFns .verified eager env F) env d x₁ y₁
             else ConLeche.isDefEqCore .verified eager env F d a₂ b₂))) :=
     (hU.and hPP).imp fun _ ⟨⟨h1, h2⟩, h3⟩ => by
-      rw [defeqBody_unknown h1 h2, h3]; rfl
+      rw [defeqLazy_unknown h1 h2, h3]; rfl
   cases pp
   case true =>
     simp only [ite_true]
@@ -659,6 +683,133 @@ theorem defeqBody_at (henv : ConLeche.EnvWF env)
         simp only [h1, h2, bind, Except.bind, hun, Bool.false_eq_true, ite_false]
         exact hr)
 
+/-- con-leche: ConLeche/Kernel/Core.lean:1842-1884 defeqBody
+con-leche: ConLeche/Cached/CoreC.lean:1957-1977 defeqBodyI — **THEOREM 1 for
+the body at FIXED denotations of its two subjects**: the syntactic fast path;
+the constructor shortcut — the target on the right first (`ctorTargetFor_spec`),
+the other side's `whnf`, its head against the target (`ctorHeadAgainst_spec`),
+then `false` or the lazy comparison of the normal form or of the original
+pair; the same with the sides swapped; otherwise the lazy comparison
+(`defeqLazy_at`). -/
+theorem defeqBody_at (henv : ConLeche.EnvWF env)
+    (hsim : KnotSpec eager env fe fuel) (d : Nat) (s₀ : AState) (a b : EIdx)
+    (x y : Expr) (hok : CheckOK eager env fe s₀)
+    (hx : denoteE s₀.store a = some x) (hy : denoteE s₀.store b = some y)
+    (hwx : Expr.WScoped d x) (hwy : Expr.WScoped d y) :
+    ⦃fun s => s = s₀⦄ defeqBody .verified eager (coreKnot .verified eager fe id fuel) fe d a b
+    ⦃fun r s' => DqPost eager env fe s₀ (fun F r =>
+        ConLeche.defeqBody .verified eager (ConLeche.pureFns .verified eager env F) env d x y = .ok r)
+        r s'; ⊤⦄ := by
+  have hwf := hok.state.wf
+  unfold ConRon.Arena.defeqBody
+  split
+  · -- the syntactic fast path
+    rename_i hab
+    rw [beq_of_denoteE hwf hx hy] at hab
+    exact triple_pure_post ⟨hok, Ext.refl _, rfl, 0, defeqBody_syntactic hab⟩
+  rename_i hab
+  rw [beq_of_denoteE hwf hx hy] at hab
+  simp only [Bool.not_eq_true] at hab
+  -- the lazy comparison at a later state, read back into `defeqBody`
+  have hlazy : ∀ (s : AState) (p q : EIdx) (u w : Expr), CheckOK eager env fe s →
+      Ext s₀.store s.store → s.pins = s₀.pins →
+      denoteE s.store p = some u → denoteE s.store q = some w →
+      Expr.WScoped d u → Expr.WScoped d w → ∀ (P : Nat → Prop),
+      Ev P → (∀ F r, P F → ConLeche.defeqLazy .verified eager
+          (ConLeche.pureFns .verified eager env F) env d u w = .ok r →
+          ConLeche.defeqBody .verified eager (ConLeche.pureFns .verified eager env F) env d x y
+            = .ok r) →
+      ⦃fun s' => s' = s⦄ defeqLazy .verified eager (coreKnot .verified eager fe id fuel) fe d p q
+      ⦃fun r s' => DqPost eager env fe s₀ (fun F r =>
+          ConLeche.defeqBody .verified eager (ConLeche.pureFns .verified eager env F) env d x y
+            = .ok r) r s'; ⊤⦄ := by
+    intro s p q u w hoks hxs hps hp hq hwu hww P hP hPL
+    refine triple_mono (defeqLazy_at henv hsim d s p q u w hoks hp hq hwu hww) ?_
+    rintro r s' ⟨h1, h2, h3, F2, hF2⟩
+    have hL : Ev (fun F => ConLeche.defeqLazy .verified eager
+        (ConLeche.pureFns .verified eager env F) env d u w = .ok r) :=
+      Ev.of_mono (fun hle h => defeqLazyFueled_mono hle h) ⟨F2, hF2⟩
+    exact ⟨h1, hxs.trans h2, h3.trans hps,
+      Ev.exists ((hP.and hL).imp fun F ⟨hp1, hp2⟩ => hPL F r hp1 hp2)⟩
+  refine triple_seq (ctorTargetFor_spec s₀ eager a b x y hok hx hy) ?_
+  rintro t1 s1 ⟨hok1, hst1, hp1, ht1⟩
+  have hx1 : Ext s₀.store s1.store := by rw [hst1]; exact Ext.refl _
+  have hx1' : denoteE s1.store a = some x := by rw [hst1]; exact hx
+  have hy1' : denoteE s1.store b = some y := by rw [hst1]; exact hy
+  cases t1 with
+  | some c =>
+    obtain ⟨cn, hcn, htgt⟩ : ∃ cn, denoteN s₀.store.ns c = some cn ∧
+        ConLeche.ctorTargetFor env eager x y = some cn := by
+      simp only [OptNRel, Option.map_some] at ht1
+      cases h : ConLeche.ctorTargetFor env eager x y with
+      | none => rw [h] at ht1; simp at ht1
+      | some cn => rw [h] at ht1; simp at ht1; exact ⟨cn, ht1, rfl⟩
+    dsimp only
+    refine triple_seq (hsim.whnf s1 d a x hok1 hx1' hwx) ?_
+    rintro w s2 ⟨hok2, hx2, hp2, v, hv, hwv, F1, hF1⟩
+    have hW : Ev (fun F => ConLeche.whnf .verified eager env F d x = .ok v) :=
+      Ev.of_mono (fun hle h => ConLeche.whnf_mono hle h) ⟨F1, hF1⟩
+    have hx02 := hx1.trans hx2
+    have hp02 : s2.pins = s₀.pins := hp2.trans hp1
+    refine triple_seq (ctorHeadAgainst_spec s2 c cn w v hok2 (denoteN_ext hcn hx02) hv) ?_
+    rintro o s3 ⟨hs3, ho⟩
+    rw [hs3]
+    rcases o with _ | _ | _
+    · exact hlazy s2 a b x y hok2 hx02 hp02 (denote_ext hx hx02) (denote_ext hy hx02) hwx hwy
+        _ hW (fun F r hF h => by rw [defeqBody_rightN hab htgt hF ho.symm]; exact h)
+    · exact triple_pure_post ⟨hok2, hx02, hp02,
+        Ev.exists (hW.imp fun F hF => defeqBody_rightF hab htgt hF ho.symm)⟩
+    · exact hlazy s2 w b v y hok2 hx02 hp02 hv (denote_ext hy hx02) hwv hwy
+        _ hW (fun F r hF h => by rw [defeqBody_rightT hab htgt hF ho.symm]; exact h)
+  | none =>
+    have htgt0 : ConLeche.ctorTargetFor env eager x y = none := by
+      simp only [OptNRel, Option.map_none] at ht1
+      cases h : ConLeche.ctorTargetFor env eager x y with
+      | none => rfl
+      | some _ => rw [h] at ht1; simp at ht1
+    dsimp only
+    refine triple_seq (ctorTargetFor_spec s1 eager b a y x hok1 hy1' hx1') ?_
+    rintro t2 s4 ⟨hok4, hst4, hp4, ht2⟩
+    have hx4 : Ext s₀.store s4.store := by rw [hst4, hst1]; exact Ext.refl _
+    have hp04 : s4.pins = s₀.pins := hp4.trans hp1
+    cases t2 with
+    | some c =>
+      obtain ⟨cn, hcn, htgt⟩ : ∃ cn, denoteN s1.store.ns c = some cn ∧
+          ConLeche.ctorTargetFor env eager y x = some cn := by
+        simp only [OptNRel, Option.map_some] at ht2
+        cases h : ConLeche.ctorTargetFor env eager y x with
+        | none => rw [h] at ht2; simp at ht2
+        | some cn => rw [h] at ht2; simp at ht2; exact ⟨cn, ht2, rfl⟩
+      dsimp only
+      refine triple_seq (hsim.whnf s4 d b y hok4 (denote_ext hy hx4) hwy) ?_
+      rintro w s2 ⟨hok2, hx2, hp2, v, hv, hwv, F1, hF1⟩
+      have hW : Ev (fun F => ConLeche.whnf .verified eager env F d y = .ok v) :=
+        Ev.of_mono (fun hle h => ConLeche.whnf_mono hle h) ⟨F1, hF1⟩
+      have hx02 := hx4.trans hx2
+      have hp02 : s2.pins = s₀.pins := hp2.trans hp04
+      refine triple_seq (ctorHeadAgainst_spec s2 c cn w v hok2
+        (denoteN_ext hcn ((by rw [hst4]; exact Ext.refl _ : Ext s1.store s4.store).trans hx2))
+        hv) ?_
+      rintro o s3 ⟨hs3, ho⟩
+      rw [hs3]
+      rcases o with _ | _ | _
+      · exact hlazy s2 a b x y hok2 hx02 hp02 (denote_ext hx hx02) (denote_ext hy hx02) hwx hwy
+          _ hW (fun F r hF h => by rw [defeqBody_leftN hab htgt0 htgt hF ho.symm]; exact h)
+      · exact triple_pure_post ⟨hok2, hx02, hp02,
+          Ev.exists (hW.imp fun F hF => defeqBody_leftF hab htgt0 htgt hF ho.symm)⟩
+      · exact hlazy s2 a w x v hok2 hx02 hp02 (denote_ext hx hx02) hv hwx hwv
+          _ hW (fun F r hF h => by rw [defeqBody_leftT hab htgt0 htgt hF ho.symm]; exact h)
+    | none =>
+      have htgt1 : ConLeche.ctorTargetFor env eager y x = none := by
+        simp only [OptNRel, Option.map_none] at ht2
+        cases h : ConLeche.ctorTargetFor env eager y x with
+        | none => rfl
+        | some _ => rw [h] at ht2; simp at ht2
+      dsimp only
+      exact hlazy s4 a b x y hok4 hx4 hp04 (denote_ext hx hx4) (denote_ext hy hx4) hwx hwy
+        (fun _ => True) (Ev.const trivial)
+        (fun F r _ h => by rw [defeqBody_lazy hab htgt0 htgt1]; exact h)
+
 /-- con-leche: ConLeche/Verify/Cached/DiscC5.lean defeqBodyC_sim — **THEOREM 1
 for `defeqBody`**: `defeqBody_at` at the two subjects' denotations, one fuel
 up (`isDefEqCore_succ`). -/
@@ -687,6 +838,7 @@ section Census
 #print axioms defeqStuck_spec
 #print axioms lazyDeltaProjReduction_spec
 #print axioms defeqProjPair_spec
+#print axioms defeqLazy_at
 #print axioms defeqBody_at
 #print axioms defeqBody_spec
 

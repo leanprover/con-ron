@@ -81,20 +81,6 @@ projections.  Ordered as `ConLeche/Kernel/Core.lean` orders the definitions.
 (`projCert`/`projCertAt` read only the environment — the syntactic
 `teleArityOk` — so they need none.) -/
 
-/-- con-leche: ConLeche/Verify/PairM.lean:351 fst_tac — `boolTrueShortcut`'s
-first projection (con-leche proves the pair inline in `defeqBody_fst_proj`;
-the bridge's merge wants it named). -/
-theorem boolTrueShortcut_fst_proj (h : FnsRefines r₁ r₂) (d : Nat) (e : Expr) :
-    (boolTrueShortcut (pairFns r₁ r₂ h) d e).val.1 = boolTrueShortcut r₁ d e := by
-  unfold boolTrueShortcut
-  fst_tac
-
-/-- con-leche: ConLeche/Verify/PairM.lean:369 snd_tac — and its second. -/
-theorem boolTrueShortcut_snd_proj (h : FnsRefines r₁ r₂) (d : Nat) (e : Expr) :
-    (boolTrueShortcut (pairFns r₁ r₂ h) d e).val.2 = boolTrueShortcut r₂ d e := by
-  unfold boolTrueShortcut
-  snd_tac
-
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the literal
 acceleration refines at a refined record. -/
 theorem reduceNat_mono (h : FnsRefines r₁ r₂) (d : Nat) (e : Expr) :
@@ -235,12 +221,12 @@ theorem prepareMajor_mono (h : FnsRefines r₁ r₂) (d : Nat) (c : Name) (isK :
   have := (prepareMajor mode (pairFns r₁ r₂ h) env d c isK rules e).property
   rwa [prepareMajor_fst_proj, prepareMajor_snd_proj] at this
 
-/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the
-`Bool.true` short-circuit. -/
-theorem boolTrueShortcut_mono (h : FnsRefines r₁ r₂) (d : Nat) (e : Expr) :
-    MRefines (boolTrueShortcut r₁ d e) (boolTrueShortcut r₂ d e) := by
-  have := (boolTrueShortcut (pairFns r₁ r₂ h) d e).property
-  rwa [boolTrueShortcut_fst_proj, boolTrueShortcut_snd_proj] at this
+/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the lazy
+comparison (`defeqBody` past its fast path and the constructor shortcut). -/
+theorem defeqLazy_mono (h : FnsRefines r₁ r₂) (d : Nat) (a b : Expr) :
+    MRefines (defeqLazy mode eager r₁ env d a b) (defeqLazy mode eager r₂ env d a b) := by
+  have := (defeqLazy mode eager (pairFns r₁ r₂ h) env d a b).property
+  rwa [defeqLazy_fst_proj, defeqLazy_snd_proj] at this
 
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — two
 applications of the same constant. -/
@@ -436,11 +422,11 @@ theorem prepareMajorFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {c : Nam
   prepareMajor_mono (pureFns_mono env hle) d c isK rules e r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
-`boolTrueShortcut`. -/
-theorem boolTrueShortcutFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {e : Expr} {r : Bool}
-    (hr : boolTrueShortcutFueled mode eager env f d e = .ok r) :
-    boolTrueShortcutFueled mode eager env f' d e = .ok r :=
-  boolTrueShortcut_mono (pureFns_mono env hle) d e r hr
+`defeqLazy`. -/
+theorem defeqLazyFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a b : Expr} {r : Bool}
+    (hr : defeqLazyFueled mode eager env f d a b = .ok r) :
+    defeqLazyFueled mode eager env f' d a b = .ok r :=
+  defeqLazy_mono (pureFns_mono env hle) d a b r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `defeqSpine`. -/

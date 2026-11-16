@@ -64,7 +64,7 @@ denoting subject) is `SlotRes` at the answer's denotation term, a walk's
 `SimEOp` is `OutE` there — no `∃` reaches `grind`. -/
 
 /-- a fuelled pure run reaches `v` at some fuel -/
-def Runs {α : Type} (P : Nat → CheckM α) (v : α) : Prop := ∃ F, P F = .ok v
+@[expose] def Runs {α : Type} (P : Nat → CheckM α) (v : α) : Prop := ∃ F, P F = .ok v
 
 /-- a knot slot's pure run at a subject reaches `v` -/
 def RunE (op : Nat → Nat → Expr → CheckM Expr) (d : Nat) (e v : Expr) : Prop :=
@@ -464,11 +464,10 @@ theorem prepareMajorFueled_nk {F d : Nat} {cn : ConLeche.Name}
     | _ => pure major
   else pure major
 
-/-- the twin's `majorToCtor` at a single rule, its three rescues named -/
-theorem majorToCtor_one (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+/-- the twin's `majorToCtorRescue` at a single rule, its three rescues named -/
+theorem majorToCtorRescue_one (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     (c : NIdx) (isK : Bool) (rl : IRecRule) (major : EIdx) :
-    ConRon.Arena.majorToCtor mode r fe depth c isK [rl] major = (do
-      if ← isCtorApp fe major then pure major else
+    ConRon.Arena.majorToCtorRescue mode r fe depth c isK [rl] major = (do
       match fe.find? rl.ctor with
       | some (.ctorInfo cvj cnP _cnF T) => do
             match fe.find? T with
@@ -1461,27 +1460,29 @@ grind_pattern [bridge_grind] findTable?_tblAns =>
   guard denoteN s.store.ns T = some Tn
 
 /-- con-leche: ConLeche/Kernel/Core.lean:544-726 majorToCtor — **THEOREM 1 for
-`majorToCtor`**: K, η and the pinned `And`.  The rule list is split structurally; at a
+`majorToCtorRescue`**, at a major that is no constructor application: K, η and the
+pinned `And`.  The rule list is split structurally; at a
 single rule the twin's three blocks are the named `majorKA`/`majorEtaA`/`majorAndA`
 (`majorToCtor_one`), the global projection equations with a wildcard arm are erased
 (each one a case split) for the per-constructor ones, and the rescues' answers arrive
 through ten states, hence `gen := 10`. -/
-theorem majorToCtor_spec {fuel : Nat}
+theorem majorToCtorRescue_spec {fuel : Nat}
     (hsim : KnotSpec eager env fe fuel) (henv : EnvWF env)
     (s₀ : AState) (d : Nat) (c : NIdx) (isK : Bool) (rules : List IRecRule) (major : EIdx)
     (cn : ConLeche.Name) (rules' : List RecRule) (x : Expr)
     (hok : CheckOK eager env fe s₀)
     (hr : Frontend.denoteRules s₀.store rules = some rules')
-    (hden : denoteE s₀.store major = some x) (hw : Expr.WScoped d x) :
+    (hden : denoteE s₀.store major = some x) (hw : Expr.WScoped d x)
+    (hnc : ConLeche.isCtorApp env x = false) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.majorToCtor .verified (coreKnot .verified eager fe id fuel) fe d c isK rules major
+      ConRon.Arena.majorToCtorRescue .verified (coreKnot .verified eager fe id fuel) fe d c isK rules major
     ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ SimEOp (majorToCtorOp .verified eager env d cn isK rules' x) d s'.store r; ⊤⦄ := by
   match rules, rules', hr with
   | [], rules', hr =>
     obtain rfl : rules' = [] := by simpa [Frontend.denoteRules] using hr.symm
     sym only [bridge_grind] =>
-      vcgen [ConRon.Arena.majorToCtor, isCtorApp_spec (eager := eager) (env := env) (x := x)] <;> finish
+      vcgen [ConRon.Arena.majorToCtorRescue] <;> finish
   | [rl], rules', hr =>
     obtain ⟨rl', hrl', rfl⟩ : ∃ rl', Frontend.denoteRule s₀.store rl = some rl' ∧
         rules' = [rl'] := by
@@ -1496,7 +1497,7 @@ theorem majorToCtor_spec {fuel : Nat}
     obtain ⟨_, hrlc, _, _⟩ := rule_denote hrl'
     have hcl := indVal_closed henv (mtcFam env rl')
     sym (gen := 10) only [bridge_grind, mtcPrefixOk, mtcFam, mtcTbl] =>
-      vcgen [majorToCtor_one, isCtorApp_spec (eager := eager) (env := env) (x := x),
+      vcgen [majorToCtorRescue_one,
         ConRon.Arena.pinAnd, pinAt_specE,
         etaRescueTable?_spec (eager := eager) (env := env) (fe := fe) (cn := rl'.ctor)
           (tblP? := env.findTable? (mtcFam env rl'))
@@ -1514,7 +1515,60 @@ theorem majorToCtor_spec {fuel : Nat}
       match rules', hl with
       | a :: b :: cs, _ => exact ⟨a, b, cs, rfl⟩
     sym only [bridge_grind] =>
-      vcgen [ConRon.Arena.majorToCtor, isCtorApp_spec (eager := eager) (env := env) (x := x)] <;> finish
+      vcgen [ConRon.Arena.majorToCtorRescue] <;> finish
+
+/-- the major classified (`MajorView`), at the pure run's answer -/
+@[expose] def SimVOp (P : Nat → CheckM Expr) (d : Nat) (env : Env) (fe : IFEnv) (st : EStore)
+    (v : MajorView) : Prop :=
+  ∃ y, MajorViewRel env fe st v y ∧ Expr.WScoped d y ∧ Runs P y
+
+/-- con-leche: none — the classified answer survives a store extension. -/
+theorem SimVOp.ext {P : Nat → CheckM Expr} {d : Nat} {st st' : EStore} (hx : Ext st st')
+    {v : MajorView} (h : SimVOp P d env fe st v) : SimVOp P d env fe st' v :=
+  let ⟨y, hr, hw, hR⟩ := h
+  ⟨y, hr.ext hx, hw, hR⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:544-726 majorToCtor
+con-leche: ConLeche/Cached/CoreC.lean:850-953 majorToCtorI — **THEOREM 1 for
+`majorToCtor`**: the major classified once (`ctorView_spec`); a constructor
+application stays (`mtc_isCtor`); otherwise the rescue
+(`majorToCtorRescue_spec`), whose answer is the stuck major itself, classified
+`.stuck` with no lookup, or the fabricated spine, classified by `ctorView`. -/
+theorem majorToCtor_spec {fuel : Nat}
+    (hsim : KnotSpec eager env fe fuel) (henv : EnvWF env)
+    (s₀ : AState) (d : Nat) (c : NIdx) (isK : Bool) (rules : List IRecRule) (major : EIdx)
+    (cn : ConLeche.Name) (rules' : List RecRule) (x : Expr)
+    (hok : CheckOK eager env fe s₀)
+    (hr : Frontend.denoteRules s₀.store rules = some rules')
+    (hden : denoteE s₀.store major = some x) (hw : Expr.WScoped d x) :
+    ⦃fun s => s = s₀⦄
+      ConRon.Arena.majorToCtor .verified (coreKnot .verified eager fe id fuel) fe d c isK rules major
+    ⦃fun v s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ SimVOp (majorToCtorOp .verified eager env d cn isK rules' x) d env fe
+          s'.store v; ⊤⦄ := by
+  unfold ConRon.Arena.majorToCtor
+  refine triple_seq (ctorView_spec s₀ major x hok hden) ?_
+  rintro v s1 ⟨rfl, -, hrel⟩
+  cases hc : v.isCtor
+  · simp only [Bool.false_eq_true, ite_false]
+    have hnc : ConLeche.isCtorApp env x = false := by rw [hrel.isCtor, hc]
+    refine triple_seq (majorToCtorRescue_spec hsim henv s1 d c isK rules major cn rules' x hok hr
+      hden hw hnc) ?_
+    rintro r s2 ⟨hok2, hx2, hp2, y, hy, hwy, hR⟩
+    by_cases hrm : (r == major) = true
+    · rw [ite_eq_left hrm]
+      have hrm' : r = major := by simpa using hrm
+      subst hrm'
+      have hyx : y = x := by
+        rw [denote_ext hden hx2] at hy; exact (Option.some.inj hy).symm
+      subst hyx
+      exact triple_pureS ⟨hok2, hx2, hp2, y, ⟨hy, hnc⟩, hwy, hR⟩
+    · rw [ite_eq_right hrm]
+      refine triple_mono (ctorView_spec s2 r y hok2 hy) ?_
+      rintro v' s3 ⟨rfl, -, hrel'⟩
+      exact ⟨hok2, hx2, hp2, y, hrel', hwy, hR⟩
+  · simp only [ite_true]
+    exact triple_pureS ⟨hok, Ext.refl _, rfl, x, hrel, hw, mtc_isCtor (by rw [hrel.isCtor, hc])⟩
 
 /-! ## `isStrLit` -/
 
@@ -1544,73 +1598,6 @@ theorem isStrLit_spec (s₀ : AState) (h : EIdx) (x : Expr)
     vcgen [isStrLit_split, ConRon.Arena.viewLit] <;> finish
 
 /-! ## `prepareMajor` -/
-
-/-- `majorToCtor`'s answer at an optional subject -/
-@[expose] def MtcAns (mode : CheckMode) (eager : Bool) (env : Env) (d : Nat) (cn : ConLeche.Name)
-    (isK : Bool) (rules : List RecRule)
-    (st : EStore) (r : EIdx) : Option Expr → Prop
-  | some x => SimEOp (majorToCtorOp mode eager env d cn isK rules x) d st r
-  | none => True
-
-/-- con-leche: none — `MtcAns` at a denoting subject. -/
-@[bridge_grind =] theorem MtcAns.some_eq (d : Nat) (cn : ConLeche.Name) (isK : Bool) (rules : List RecRule)
-    (st : EStore) (r : EIdx) (x : Expr) :
-    MtcAns mode eager env d cn isK rules st r (some x) = SimEOp (majorToCtorOp mode eager env d cn isK rules x) d st r :=
-  rfl
-
-/-- con-leche: ConLeche/Kernel/Core.lean:513-662 majorToCtor — `majorToCtor_spec` in
-answer shape. -/
-theorem majorToCtor_specS {fuel : Nat}
-    (hsim : KnotSpec eager env fe fuel) (henv : EnvWF env)
-    (s₀ : AState) (d : Nat) (c : NIdx) (isK : Bool) (rules : List IRecRule) (major : EIdx)
-    (cn : ConLeche.Name) (rules' : List RecRule)
-    (hok : CheckOK eager env fe s₀)
-    (hr : Frontend.denoteRules s₀.store rules = some rules')
-    (hw : DenWS d (denoteE s₀.store major)) :
-    ⦃fun s => s = s₀⦄
-      ConRon.Arena.majorToCtor .verified (coreKnot .verified eager fe id fuel) fe d c isK rules major
-    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ MtcAns .verified eager env d cn isK rules' s'.store r (denoteE s₀.store major); ⊤⦄ := by
-  cases hd : denoteE s₀.store major with
-  | none => rw [hd] at hw; exact hw.elim
-  | some x =>
-    rw [hd] at hw
-    exact majorToCtor_spec hsim henv s₀ d c isK rules major cn rules' x hok hr hd hw
-
-/-- `litMajorToCtor`'s answer at an optional subject -/
-@[expose] def LitAns (mode : CheckMode) (eager : Bool) (env : Env) (d : Nat) (st : EStore) (r : EIdx) :
-    Option Expr → Prop
-  | some x => SimEOp (litMajorOp mode eager env d x) d st r
-  | none => True
-
-/-- con-leche: none — `LitAns` at a denoting subject. -/
-@[bridge_grind =] theorem LitAns.some_eq (d : Nat) (st : EStore) (r : EIdx) (x : Expr) :
-    LitAns mode eager env d st r (some x) = SimEOp (litMajorOp mode eager env d x) d st r := rfl
-
-/-- con-leche: ConLeche/Kernel/Core.lean:728-740 litMajorToCtor — `litMajorToCtor_spec`
-in answer shape. -/
-theorem litMajorToCtor_specS {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
-    (s₀ : AState) (d : Nat) (h : EIdx) (hok : CheckOK eager env fe s₀)
-    (hw : DenWS d (denoteE s₀.store h)) :
-    ⦃fun s => s = s₀⦄
-      ConRon.Arena.litMajorToCtor (coreKnot .verified eager fe id fuel) fe d h
-    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ LitAns .verified eager env d s'.store r (denoteE s₀.store h); ⊤⦄ := by
-  cases hd : denoteE s₀.store h with
-  | none => rw [hd] at hw; exact hw.elim
-  | some x =>
-    rw [hd] at hw
-    exact litMajorToCtor_spec hsim s₀ d h x hok hd hw
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean isCtorApp — `isCtorApp_spec` at whatever
-the handle denotes. -/
-theorem isCtorApp_specS (s₀ : AState) (a : EIdx) (hok : CheckOK eager env fe s₀)
-    (hda : (denoteE s₀.store a).isSome = true) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.isCtorApp fe a
-    ⦃fun r s' => s' = s₀ ∧ MapRelV (ConLeche.isCtorApp env) (denoteE s₀.store a) r; ⊤⦄ := by
-  obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hda
-  rw [hx]
-  exact isCtorApp_spec s₀ a x hok hx
 
 /-- con-leche: ConLeche/Kernel/Core.lean:751-834 prepareMajor — as a fuelled run. -/
 @[expose] def prepOp (mode : CheckMode) (eager : Bool) (env : Env) (d : Nat) (cn : ConLeche.Name)
@@ -1703,19 +1690,62 @@ grind_pattern [bridge_grind] prep_nk => prepOp mode eager env d cn isK rules x, 
   RunE (ConLeche.whnf mode eager env) d mE m1, Runs (litMajorOp mode eager env d m1) m2,
   Runs (majorToCtorOp mode eager env d cn isK rules m2) m3
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:48-56 Expr.isNatSuccApp — `isNatSuccApp_spec` at
-whatever the handle denotes. -/
-theorem isNatSuccApp_specS (s₀ : AState) (a : EIdx) (hok : CheckOK eager env fe s₀)
-    (hda : (denoteE s₀.store a).isSome = true) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.isNatSuccApp a
-    ⦃fun r s' => s' = s₀ ∧ MapRelV Expr.isNatSuccApp (denoteE s₀.store a) r; ⊤⦄ := by
-  obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hda
-  rw [hx]
-  exact isNatSuccApp_spec s₀ a x hok hx
+/-- con-leche: ConLeche/Kernel/Core.lean:759-771 litMajorToCtor — the literal
+conversion of a constructor application is the identity. -/
+theorem litMajor_ctor {d : Nat} {m : Expr} (h : ConLeche.isCtorApp env m = true) :
+    Runs (litMajorOp mode eager env d m) m := by
+  refine ⟨0, ?_⟩
+  cases m with
+  | lit l => exact absurd h (by simp [ConLeche.isCtorApp, Expr.getAppFn])
+  | _ => rfl
 
-/-- con-leche: ConLeche/Kernel/Core.lean:751-769 prepareMajor — **THEOREM 1 for
-`prepareMajor`**.  The non-K path's answer arrives through four walks whose answers are
-each other's subjects, hence `gen := 16`. -/
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:58-65 isCtorApp — a `String`
+literal is no constructor application. -/
+theorem isCtorApp_of_isStrLit {e : Expr} (h : e.isStrLit = true) :
+    ConLeche.isCtorApp env e = false := by
+  cases e with
+  | lit _ => rfl
+  | _ => simp [Expr.isStrLit] at h
+
+/-- con-leche: ConLeche/Kernel/Core.lean:795-874 prepareMajor
+con-leche: ConLeche/Cached/CoreC.lean:979-1000 prepareMajorI — **THEOREM 1 for
+`prepareMajorWhnf`**: `whnf`, the literal conversion, the rescues once more on
+the reduct, the answer classified. -/
+theorem prepareMajorWhnf_spec {fuel : Nat}
+    (hsim : KnotSpec eager env fe fuel) (henv : EnvWF env)
+    (s₀ : AState) (d : Nat) (c : NIdx) (isK : Bool) (rules : List IRecRule) (majorE : EIdx)
+    (cn : ConLeche.Name) (rules' : List RecRule) (mE : Expr)
+    (hok : CheckOK eager env fe s₀)
+    (hr : Frontend.denoteRules s₀.store rules = some rules')
+    (hden : denoteE s₀.store majorE = some mE) (hw : Expr.WScoped d mE) :
+    ⦃fun s => s = s₀⦄
+      ConRon.Arena.prepareMajorWhnf .verified (coreKnot .verified eager fe id fuel) fe d c isK
+        rules majorE
+    ⦃fun v s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        ∃ m1 m2 m3, RunE (ConLeche.whnf .verified eager env) d mE m1 ∧
+          Runs (litMajorOp .verified eager env d m1) m2 ∧
+          MajorViewRel env fe s'.store v m3 ∧ Expr.WScoped d m3 ∧
+          Runs (majorToCtorOp .verified eager env d cn isK rules' m2) m3; ⊤⦄ := by
+  unfold ConRon.Arena.prepareMajorWhnf
+  refine triple_seq (hsim.whnf s₀ d majorE mE hok hden hw) ?_
+  rintro w s1 ⟨hok1, hx1, hp1, m1, hm1, hwm1, F1, hF1⟩
+  refine triple_seq (litMajorToCtor_spec hsim s1 d w m1 hok1 hm1 hwm1) ?_
+  rintro l s2 ⟨hok2, hx2, hp2, m2, hm2, hwm2, hR2⟩
+  have hr2 : Frontend.denoteRules s2.store rules = some rules' :=
+    denoteRules_ext (hx1.trans hx2) _ _ hr
+  refine triple_mono (majorToCtor_spec hsim henv s2 d c isK rules l cn rules' m2 hok2 hr2 hm2
+    hwm2) ?_
+  rintro v s3 ⟨hok3, hx3, hp3, m3, hrel, hwm3, hR3⟩
+  exact ⟨hok3, hx1.trans (hx2.trans hx3), hp3.trans (hp2.trans hp1), m1, m2, m3, ⟨F1, hF1⟩,
+    hR2, hrel, hwm3, hR3⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:795-874 prepareMajor
+con-leche: ConLeche/Cached/CoreC.lean:979-1000 prepareMajorI — **THEOREM 1 for
+`prepareMajor`**, the answer classified (`SimVOp`).  K: the rescue's answer is
+final, con-leche's literal conversion of a constructor application being the
+identity (`litMajor_ctor`).  Elsewhere: the rescue on the major as found (a
+`String` literal skips it, `.stuck`), then by the classification's flag either
+that answer or `prepareMajorWhnf`. -/
 theorem prepareMajor_spec {fuel : Nat}
     (hsim : KnotSpec eager env fe fuel) (henv : EnvWF env)
     (s₀ : AState) (d : Nat) (c : NIdx) (isK : Bool) (rules : List IRecRule) (major : EIdx)
@@ -1725,14 +1755,72 @@ theorem prepareMajor_spec {fuel : Nat}
     (hden : denoteE s₀.store major = some x) (hw : Expr.WScoped d x) :
     ⦃fun s => s = s₀⦄
       ConRon.Arena.prepareMajor .verified (coreKnot .verified eager fe id fuel) fe d c isK rules major
-    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ SimEOp (prepOp .verified eager env d cn isK rules' x) d s'.store r; ⊤⦄ := by
-  sym (gen := 16) only [bridge_grind] =>
-    vcgen [ConRon.Arena.prepareMajor, ConRon.Arena.prepareMajorWhnf,
-      majorToCtor_specS hsim henv (cn := cn) (rules' := rules'),
-      isCtorApp_specS (eager := eager) (env := env),
-      isNatSuccApp_specS (eager := eager) (env := env) (fe := fe), isStrLit_spec (eager := eager) (env := env) (fe := fe) (x := x),
-      litMajorToCtor_specS hsim, hsim.whnfS] <;> finish
-
+    ⦃fun v s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ SimVOp (prepOp .verified eager env d cn isK rules' x) d env fe
+          s'.store v; ⊤⦄ := by
+  unfold ConRon.Arena.prepareMajor
+  cases isK
+  · simp only [Bool.false_eq_true, ite_false]
+    refine triple_seq (isStrLit_spec s₀ major x hok hden) ?_
+    rintro b s1 ⟨rfl, rfl⟩
+    have hcont : ∀ vE s2, (CheckOK eager env fe s2 ∧ Ext s1.store s2.store ∧
+        s2.pins = s1.pins ∧ ∃ mE, MajorViewRel env fe s2.store vE mE ∧ Expr.WScoped d mE ∧
+          PrepE .verified eager env d cn false rules' x mE) →
+        ⦃fun s => s = s2⦄
+          (if vE.isCtor = true then do
+              let n ← ConRon.Arena.isNatSuccApp vE.expr
+              if n = true then
+                ConRon.Arena.prepareMajorWhnf .verified (coreKnot .verified eager fe id fuel) fe d c
+                  false rules vE.expr
+              else pure vE
+            else
+              ConRon.Arena.prepareMajorWhnf .verified (coreKnot .verified eager fe id fuel) fe d c
+                false rules vE.expr)
+        ⦃fun v s' => CheckOK eager env fe s' ∧ Ext s1.store s'.store ∧
+            s'.pins = s1.pins ∧ SimVOp (prepOp .verified eager env d cn false rules' x) d env fe
+              s'.store v; ⊤⦄ := by
+      rintro vE s2 ⟨hok2, hx2, hp2, mE, hrel, hwm, hE⟩
+      have hve := hrel.expr
+      have hr2 : Frontend.denoteRules s2.store rules = some rules' := denoteRules_ext hx2 _ _ hr
+      cases hc : vE.isCtor
+      · simp only [Bool.false_eq_true, ite_false]
+        refine triple_mono (prepareMajorWhnf_spec hsim henv s2 d c false rules vE.expr cn rules'
+          mE hok2 hr2 hve hwm) ?_
+        rintro v s3 ⟨hok3, hx3, hp3, m1, m2, m3, h1, h2, hrel3, hw3, h3⟩
+        refine ⟨hok3, hx2.trans hx3, hp3.trans hp2, m3, hrel3, hw3,
+          prep_nk rfl hE ?_ h1 h2 h3⟩
+        rw [hrel.isCtor, hc]; rfl
+      · simp only [ite_true]
+        refine triple_seq (isNatSuccApp_spec s2 vE.expr mE hok2 hve) ?_
+        rintro n s3 ⟨hs3, rfl⟩
+        rw [hs3]
+        cases hn : mE.isNatSuccApp
+        · simp only [Bool.false_eq_true, ite_false]
+          exact triple_pureS ⟨hok2, hx2, hp2, mE, hrel, hwm,
+            prep_nkCtor rfl hE (by rw [hrel.isCtor, hc]) hn⟩
+        · simp only [ite_true]
+          refine triple_mono (prepareMajorWhnf_spec hsim henv s2 d c false rules vE.expr cn
+            rules' mE hok2 hr2 hve hwm) ?_
+          rintro v s3 ⟨hok3, hx3, hp3, m1, m2, m3, h1, h2, hrel3, hw3, h3⟩
+          refine ⟨hok3, hx2.trans hx3, hp3.trans hp2, m3, hrel3, hw3,
+            prep_nk rfl hE ?_ h1 h2 h3⟩
+          rw [hrel.isCtor, hc, hn]; rfl
+    cases hs : x.isStrLit
+    · simp only [Bool.false_eq_true, ite_false]
+      refine triple_seq (majorToCtor_spec hsim henv s1 d c false rules major cn rules' x hok
+        hr hden hw) ?_
+      rintro v s2 ⟨h1, h2, h3, mE, hrel, hwm, hR⟩
+      exact hcont v s2 ⟨h1, h2, h3, mE, hrel, hwm, prepE_mtc hs hR⟩
+    · simp only [ite_true, pure_bind]
+      exact hcont _ s1 ⟨hok, Ext.refl _, rfl, x, ⟨hden, isCtorApp_of_isStrLit hs⟩, hw,
+        prepE_str hs⟩
+  · simp only [ite_true]
+    refine triple_mono (majorToCtor_spec hsim henv s₀ d c true rules major cn rules' x hok hr
+      hden hw) ?_
+    rintro v s' ⟨h1, h2, h3, m1, hrel, hwm, hR⟩
+    refine ⟨h1, h2, h3, m1, hrel, hwm, ?_⟩
+    cases hc : ConLeche.isCtorApp env m1
+    · exact prep_kStuck rfl hR hc
+    · exact prep_k rfl hR hc (litMajor_ctor hc)
 
 end ConRon.Bridge.Core

@@ -1159,275 +1159,227 @@ theorem triple_pure_at {α : Type} {s₀ : AState} {v : α}
   vcgen
   subst_vars; exact h
 
-/-- con-leche: ConLeche/Kernel/Core.lean:786-868 iotaRec — **THEOREM 1 for
-`iotaRecAt`**: one ι step at a spine the caller already holds (task
-#97-P6-9's hoist).  The held head `h` is not an application (it is a spine
-head), so `getAppFn`/`getAppArgs` of `Expr.mkAppN h xs` are `h` and `xs`,
-which is the equation the hoist owes.  The count `n` is the whole held
-vector (`hn`): both callers pass `size`, and at a larger `n` the twin's
-arity guard reads `n` where con-leche's reads the spine. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:786-868 iotaRec — the prepared major
+is no constructor application. -/
+theorem iotaTail_stuck {F d : Nat} {us : List Level} {cv : ConstantVal}
+    {mI rP : Nat} {isK : Bool} {rules : List RecRule} {args : List Expr} {major : Expr}
+    (h : ConLeche.isCtorApp env major = false) :
+    iotaTail mode eager env F d us cv mI rP isK rules args major = .ok none := by
+  unfold ConLeche.isCtorApp at h
+  simp only [iotaTail]
+  split
+  · rename_i cj usj hfn
+    simp only [hfn] at h
+    split
+    · rename_i cvj a b T hf
+      simp [hf] at h
+    · rfl
+  · rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:876-974 iotaRec
+con-leche: ConLeche/Cached/CoreC.lean:1002-1080 iotaRecI — **THEOREM 1 for
+`iotaRecAt`**: one ι step at the stored recursor `c`, whose record the caller
+found (`hfc`) and whose level count it checked (`hlev`), on the redex's
+`mI + 1` arguments (`hn`).  The spec's `iotaRec` runs at
+`Expr.mkAppN (.const cn ls) xs`, whose head and arguments are `.const cn ls`
+and `xs`.  The prepared major arrives classified (`prepareMajor_spec`'s
+`SimVOp`): a `.ctor` view carries the constructor's stored record, a `.stuck`
+view's term is no constructor application (`iotaTail_stuck`). -/
 theorem iotaRecAt_spec {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hsim : KnotSpec eager env fe fuel)
-    (s₀ : AState) (d : Nat) (hd : EIdx) (sargs : Array EIdx) (n : Nat)
-    (h : Expr) (xs : List Expr)
-    (hok : CheckOK eager env fe s₀) (hdh : denoteE s₀.store hd = some h)
-    (hnapp : ∀ f a, h ≠ .app f a)
-    (hn : n = sargs.size)
+    (s₀ : AState) (d : Nat) (c : NIdx) (us : LsIdx) (icv : IConstantVal) (mI rP : Nat)
+    (isK : Bool) (rules : List IRecRule) (sargs : Array EIdx)
+    (cn : ConLeche.Name) (ls : List Level) (xs : List Expr)
+    (hok : CheckOK eager env fe s₀)
+    (hfc : fe.find? c = some (.recInfo icv mI rP isK rules))
+    (hcn : denoteN s₀.store.ns c = some cn) (hls : denoteLs s₀.store.lss us = some ls)
+    (hlev : ls.length = icv.levelParams.length)
+    (hn : sargs.size = mI + 1)
     (hxs : Frontend.denoteEList s₀.store sargs.toList = some xs)
-    (hw : Expr.WScoped d (Expr.mkAppN h xs)) :
+    (hw : Expr.WScoped d (Expr.mkAppN (.const cn ls) xs)) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.iotaRecAt .verified (coreKnot .verified eager fe id fuel) fe d hd sargs n
+      ConRon.Arena.iotaRecAt .verified (coreKnot .verified eager fe id fuel) fe d c us icv mI rP
+        isK rules sargs
     ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d (Expr.mkAppN h xs))
-          d s'.store r; ⊤⦄ := by
+        SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
+          (Expr.mkAppN (.const cn ls) xs)) d s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
-  subst hn
   have hxl : xs.length = sargs.size := by rw [denoteEList_len hxs]; simp
+  have hE1 : (Expr.mkAppN (.const cn ls) xs).getAppFn = .const cn ls := by
+    rw [Expr.getAppFn_mkAppN]; rfl
+  have hE2 : (Expr.mkAppN (.const cn ls) xs).getAppArgs = xs := by
+    rw [Expr.getAppArgs_mkAppN]; rfl
+  have hwargs : ∀ z ∈ xs, Expr.WScoped d z := fun z hz =>
+    Expr.WScoped.getAppArgs hw z (by rw [hE2]; exact hz)
+  obtain ⟨dcv, drules, hdcv, hdr, hfind⟩ := env_rec_of_index hok hcn hfc
+  obtain ⟨_, hlps, hty⟩ := denoteCV_inv hdcv
+  have hlenlps := denoteNList_len hlps
+  have hal : sargs.toList.length = mI + 1 := by simp [hn]
   unfold ConRon.Arena.iotaRecAt
-  by_cases htag : (hd.tag == ETag.const) = true
-  · rw [ite_eq_left htag]
-    refine triple_seq (viewConst_spec s₀ hd) ?_
-    rintro oc s1 ⟨hs1, hoc⟩
-    subst s1
-    cases oc with
-    | none => exact triple_failDanglingE
-    | some cu =>
-      obtain ⟨c, us⟩ := cu
-      have hv := view_of_viewConst_tag htag hoc.symm
-      obtain ⟨cn, ls, rfl, hcn, hls⟩ := denote_const_inv hwf hv hdh
-      have hE1 : (Expr.mkAppN (.const cn ls) xs).getAppFn = .const cn ls := by
-        rw [Expr.getAppFn_mkAppN]; rfl
-      have hE2 : (Expr.mkAppN (.const cn ls) xs).getAppArgs = xs := by
-        rw [Expr.getAppArgs_mkAppN]; rfl
-      have hwargs : ∀ z ∈ xs, Expr.WScoped d z := fun z hz =>
-        Expr.WScoped.getAppArgs hw z (by rw [hE2]; exact hz)
-      dsimp only
-      split
-      next icv mI rP isK rules hfc =>
-        obtain ⟨dcv, drules, hdcv, hdr, hfind⟩ := env_rec_of_index hok hcn hfc
-        obtain ⟨_, hlps, hty⟩ := denoteCV_inv hdcv
-        have hlenlps := denoteNList_len hlps
-        by_cases hne : sargs.size ≠ mI + 1
-        · rw [ite_eq_left hne]
-          have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
-              (Expr.mkAppN (.const cn ls) xs)) d s₀.store none :=
-            simOOp_none (F := 0) (iotaRecFueled_guard hE1 hfind (by
-              rw [hE2]; intro hg; exact hne (by rw [← hxl, hg.1])))
-          exact triple_pure_at ⟨hok, Ext.refl _, rfl, hfin⟩
-        · rw [ite_eq_right hne]
-          have hmI : sargs.size = mI + 1 := by simpa using hne
-          have hargs : Frontend.denoteEList s₀.store
-              (takeEidx sargs sargs.size).toList = some xs := by
-            rw [ExprOps.takeEidx_toList, List.take_of_length_le (by simp)]
-            exact hxs
-          have hal : (takeEidx sargs sargs.size).toList.length = mI + 1 := by
-            rw [← denoteEList_len hargs, hxl, hmI]
-          refine triple_seq (viewLsLen_spec s₀ us) ?_
-          rintro ol s2 ⟨hs2, hol⟩
-          subst s2
-          rw [viewLen_of_denoteLs hls] at hol
-          subst hol
-          dsimp only
-          refine triple_seq (peelPis_spec s₀ hwf (mI + 1) icv.type dcv.type hty) ?_
-          rintro peeled s2 ⟨hs2, hpeel⟩
-          subst s2
-          have hpi : peeled.isSome = (Expr.peelPis (mI + 1) dcv.type).isSome := by
-            cases peeled <;> cases hp : Expr.peelPis (mI + 1) dcv.type <;>
-              simp_all [denoteEO]
-          by_cases hg : (takeEidx sargs sargs.size).toList.length = mI + 1 ∧
-              ls.length = icv.levelParams.length ∧ peeled.isSome = true
-          · rw [ite_eq_left hg]
-            have hgP : xs.length = mI + 1 ∧ ls.length = dcv.levelParams.length ∧
-                (Expr.peelPis (mI + 1) dcv.type).isSome = true :=
-              ⟨by rw [hxl, hmI], by rw [hg.2.1, hlenlps], by rw [← hpi]; exact hg.2.2⟩
-            refine triple_seq (internE_ok_spec (eager := eager) (env := env) (fe := fe)
-              s₀ (.bvar 0) hok viewOK_bvar) ?_
-            rintro b0 s3 ⟨hok3, hx3, hp3, _⟩
-            have hargs3 := denoteEList_ext hx3 _ _ hargs
-            have hmaj := denoteEList_getD_lt hargs3 (i := mI) (by rw [hal]; omega) b0
-              (.bvar 0)
-            have hmI' : mI < xs.length := by omega
-            have hwmaj : Expr.WScoped d (xs.getD mI (.bvar 0)) := by
-              simp only [List.getD, List.getElem?_eq_getElem hmI', Option.getD_some]
-              exact hwargs _ (List.getElem_mem hmI')
-            refine triple_seq (prepareMajor_spec hsim henv s3 d c isK rules _ cn drules _
-              hok3 (denoteRules_ext hx3 _ _ hdr) hmaj hwmaj) ?_
-            rintro major s4 ⟨hok4, hx4, hp4, vmaj, hvmaj, hwvmaj, Fp, hFp⟩
-            have hx04 := hx3.trans hx4
-            have hp04 : s4.pins = s₀.pins := hp4.trans hp3
-            have hwf4 := hok4.state.wf
-            have hT : ∀ G, Fp ≤ G → ConLeche.iotaRecFueled .verified eager env G d
-                (Expr.mkAppN (.const cn ls) xs) =
-                iotaTail .verified eager env G d ls dcv mI rP isK drules xs vmaj := by
-              intro G hG
-              rw [iotaRecFueled_pre hE1 hfind (by rw [hE2]; exact hgP)
-                (by rw [hE2]; exact prepareMajorFueled_mono hG hFp), hE2]
-            refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s4 major hok4.state
-              (by rw [hvmaj]; rfl)) ?_
-            rintro mh s5 ⟨hs5, hrelF⟩
-            subst s5
-            have hmh := hrelF vmaj hvmaj
-            obtain ⟨vh, hvh⟩ := denoteE_view hmh
-            refine tag_view_bind_triple hvh ?_
-              (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
-            cases vh
-            case const cj usj =>
-              obtain ⟨cjn, lsj, hgfm, hcjn, hlsj⟩ := denote_const_inv hwf4 hvh hmh
-              dsimp only
-              split
-              next icvj cnP cnF induct hfj =>
-                obtain ⟨dcvj, hdcvj, hfindj⟩ := env_ctor_of_index hok4 hcjn hfj
-                have hTj := env_ctor_induct_of_index hok4 hfj
-                have hdr4 := denoteRules_ext hx04 _ _ hdr
-                obtain ⟨hfr1, hfr2⟩ := findRule_denote hwf4 hcjn hdr4
-                split
-                next rl hrl =>
-                  obtain ⟨rl', hrl', hfind'⟩ := hfr1 rl hrl
-                  obtain ⟨hnf, hrlc, hrlrhs, _⟩ := rule_denote hrl'
-                  have hctor : rl'.ctor = cjn := by
-                    have := List.find?_some hfind'
-                    simpa using this
-                  refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s4 major
-                    hok4.state (by rw [hvmaj]; rfl)) ?_
-                  rintro margs s6 ⟨hs6, hrelA⟩
-                  subst s6
-                  have hmargs := hrelA vmaj hvmaj
-                  have hmlen := denoteEList_len hmargs
-                  by_cases hl : margs.length = cnP + rl.nfields
-                  · rw [ite_eq_left hl]
-                    have hlP : vmaj.getAppArgs.length = cnP + rl'.nfields := by
-                      rw [hmlen, hl, hnf]
-                    have hwmargs : ∀ z ∈ vmaj.getAppArgs, Expr.WScoped d z :=
-                      Expr.WScoped.getAppArgs hwvmaj
-                    have hpinsW : ∀ lvls pins, rl'.fire = .nested lvls pins →
-                        ∀ pin ∈ pins, pin.hasFvar = false := by
-                      intro lvls pins hf' pin hpin
-                      obtain ⟨-, -, -, -, g5⟩ :=
-                        (henv.consts _ (ConLeche.Env.find?_mem hfind)).2.2.2.2.2 dcv mI rP isK
-                          drules rfl rl' (List.mem_of_find?_eq_some hfind')
-                      exact ((g5 lvls pins hf').2.2.1 pin hpin).1
-                    have hcmpW := ConLeche.recFireComparands_snd_WScoped (cnP := cnP) rl'
-                      dcv.levelParams ls dcvj.levelParams xs rP hwargs hpinsW
-                    refine iotaFam_spec henv hsim s4 d icv icvj us usj isK rl
-                      (takeEidx sargs sargs.size).toList margs mI rP ls lsj dcv dcvj
-                      cjn cnP cnF induct _ rl' xs vmaj.getAppArgs hok4 (denoteLs_ext hls hx04)
-                      hlsj (denoteCV_ext hdcv hx04) hdcvj hTj hfindj hmargs
-                      (denoteEList_ext hx04 _ _ hargs) hrl' hwargs hwmargs hcmpW _ _ ?_
-                    rintro fam s7 ⟨hok7, hx7, hp7, Ff, hFf⟩
-                    have hx07 := hx04.trans hx7
-                    have hp07 : s7.pins = s₀.pins := hp7.trans hp04
-                    have hval : ConLeche.iotaRecFueled .verified eager env (max Fp Ff) d
-                        (Expr.mkAppN (.const cn ls) xs) = .ok (if fam then
-                          some (rl'.iotaReduct dcv.levelParams ls rP
-                            (xs.take rP ++ vmaj.getAppArgs.drop cnP))
-                        else none) := by
-                      rw [hT _ (Nat.le_max_left _ _)]
-                      exact iotaTail_fire hgfm hfindj hfind' hlP
-                        (iotaFam_mono (Nat.le_max_right _ _) hFf)
-                    by_cases hft : fam = true
-                    · rw [ite_eq_left hft]
-                      subst hft
-                      refine triple_seq (ruleBodyAt_spec s7 c rl.ctor icv.levelParams
-                        rl.rhs (rP + rl.nfields) us cn cjn ls dcv mI rP isK drules rl' hok7
-                        (denoteN_ext hcn hx07)
-                        (by rw [← hctor]; exact denoteN_ext hrlc hx7)
-                        (denoteLs_ext hls hx07) (denoteNListE_ext hx07 _ _ hlps)
-                        (denote_ext hrlrhs hx7) hfind hfind' (by rw [hnf])) ?_
-                      rintro body s8 ⟨hok8, hx8, hp8, hbody⟩
-                      have hB : ExprOps.InstLVec s8.store
-                          (iotaVals (takeEidx sargs sargs.size).toList.toArray
-                            (if rP < (takeEidx sargs sargs.size).toList.length then rP
-                              else (takeEidx sargs sargs.size).toList.length)
-                            margs.toArray
-                            (if cnP < margs.length then cnP else margs.length))
-                          (xs.take rP ++ vmaj.getAppArgs.drop cnP).reverse := by
-                        rw [ExprOps.InstLVec, List.reverse_reverse, iotaVals_toList,
-                          List.toList_toArray, List.toList_toArray, take_clamp, drop_clamp]
-                        exact denoteEList_appendI
-                          (ExprOps.denoteEList_take rP _ _
-                            (denoteEList_ext (hx07.trans hx8) _ _ hargs))
-                          (ExprOps.denoteEList_drop _ _ _
-                            (denoteEList_ext (hx7.trans hx8) _ _ hmargs))
-                      refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s8 body
-                        _ 0 _ hok8.state hB (by rw [hbody]; rfl)) ?_
-                      rintro x s9 ⟨hst9, hx9, hc9, hp9, _, hrel⟩
-                      have hok9 : CheckOK eager env fe s9 := hok8.mono hst9 hx9 hc9 hp9
-                      have hxd : denoteE s9.store x = some (rl'.iotaReduct dcv.levelParams ls rP
-                          (xs.take rP ++ vmaj.getAppArgs.drop cnP)) := by
-                        rw [hrel _ hbody, RecRule.iotaReduct]
-                      have hvw := ConLeche.iotaRec_WScoped henv hval hw
-                      have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
-                          (Expr.mkAppN (.const cn ls) xs)) d s9.store (some x) :=
-                        ⟨_, by simp [denoteEO, hxd], fun y hy => by
-                          cases hy; exact hvw, _, hval⟩
-                      exact triple_pure_at ⟨hok9, hx07.trans (hx8.trans hx9),
-                        hp9.trans (hp8.trans hp07), hfin⟩
-                    · rw [ite_eq_right hft]
-                      have hff : fam = false := by simpa using hft
-                      subst hff
-                      have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
-                          (Expr.mkAppN (.const cn ls) xs)) d s7.store none :=
-                        simOOp_none hval
-                      exact triple_pure_at ⟨hok7, hx07, hp07, hfin⟩
-                  · rw [ite_eq_right hl]
-                    have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
-                        (Expr.mkAppN (.const cn ls) xs)) d s4.store none :=
-                      simOOp_none (F := Fp) (by
-                        rw [hT _ (Nat.le_refl _)]
-                        exact iotaTail_len hgfm hfindj hfind' (by rw [hmlen, hnf]; exact hl))
-                    exact triple_pure_at ⟨hok4, hx04, hp04, hfin⟩
-                next hrl =>
-                  have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
-                      (Expr.mkAppN (.const cn ls) xs)) d s4.store none :=
-                    simOOp_none (F := Fp) (by
-                      rw [hT _ (Nat.le_refl _)]
-                      exact iotaTail_norule hgfm hfindj (hfr2 hrl))
-                  exact triple_pure_at ⟨hok4, hx04, hp04, hfin⟩
-              next hnd =>
-                have hnc := env_not_ctor_of_index hok4 hcjn (fun v p q t h => hnd v p q t h)
-                have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
-                    (Expr.mkAppN (.const cn ls) xs)) d s4.store none :=
-                  simOOp_none (F := Fp) (by rw [hT _ (Nat.le_refl _)]
-                                            exact iotaTail_noctor hgfm hnc)
-                exact triple_pure_at ⟨hok4, hx04, hp04, hfin⟩
-            all_goals
-              dsimp only
-              have hnc := denote_not_const hwf4 hvh hmh (by intro c us h; cases h)
-              have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
-                  (Expr.mkAppN (.const cn ls) xs)) d s4.store none :=
-                simOOp_none (F := Fp) (by rw [hT _ (Nat.le_refl _)]
-                                          exact iotaTail_nohead hnc)
-              exact triple_pure_at ⟨hok4, hx04, hp04, hfin⟩
-          · rw [ite_eq_right hg]
-            have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
-                (Expr.mkAppN (.const cn ls) xs)) d s₀.store none :=
-              simOOp_none (F := 0) (iotaRecFueled_guard hE1 hfind (by
-                rw [hE2]; intro hg'
-                exact hg ⟨hal, by rw [hg'.2.1, hlenlps], by rw [hpi]; exact hg'.2.2⟩))
-            exact triple_pure_at ⟨hok, Ext.refl _, rfl, hfin⟩
-      next hnd =>
-        have hnr := env_not_rec_of_index hok hcn (fun v mI rP k rs h => hnd v mI rP k rs h)
-        have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
-            (Expr.mkAppN (.const cn ls) xs)) d s₀.store none :=
-          simOOp_none (F := 0) (iotaRecFueled_norec hE1 hnr)
-        exact triple_pure_at ⟨hok, Ext.refl _, rfl, hfin⟩
-  · rw [ite_eq_right htag]
-    obtain ⟨v, hv⟩ := denoteE_view hdh
-    have hvt := EStore.tagOf_of_view hv
-    have hnc := denote_not_const hwf hv hdh (by
-      intro c us h; subst h; exact htag (by rw [hvt]; rfl))
+  refine triple_seq (peelPis_spec s₀ hwf (mI + 1) icv.type dcv.type hty) ?_
+  rintro peeled s2 ⟨hs2, hpeel⟩
+  subst s2
+  have hpi : peeled.isSome = (Expr.peelPis (mI + 1) dcv.type).isSome := by
+    cases peeled <;> cases hp : Expr.peelPis (mI + 1) dcv.type <;>
+      simp_all [denoteEO]
+  cases peeled with
+  | none =>
     have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
-        (Expr.mkAppN h xs)) d s₀.store none :=
-      simOOp_none (F := 0) (iotaRecFueled_nohead (by
-        rw [Expr.getAppFn_mkAppN]
-        cases h with
-        | app f a => exact absurd rfl (hnapp f a)
-        | _ => exact hnc))
+        (Expr.mkAppN (.const cn ls) xs)) d s₀.store none :=
+      simOOp_none (F := 0) (iotaRecFueled_guard hE1 hfind (by
+        rw [hE2]; intro hg'
+        have := hg'.2.2; rw [← hpi] at this; exact absurd this (by simp)))
     exact triple_pure_at ⟨hok, Ext.refl _, rfl, hfin⟩
+  | some pz =>
+  have hgP : xs.length = mI + 1 ∧ ls.length = dcv.levelParams.length ∧
+      (Expr.peelPis (mI + 1) dcv.type).isSome = true :=
+    ⟨by rw [hxl, hn], by rw [hlev, hlenlps], by rw [← hpi]; rfl⟩
+  dsimp only
+  refine triple_seq (internE_ok_spec (eager := eager) (env := env) (fe := fe)
+    s₀ (.bvar 0) hok viewOK_bvar) ?_
+  rintro b0 s3 ⟨hok3, hx3, hp3, _⟩
+  have hargs3 := denoteEList_ext hx3 _ _ hxs
+  have hmaj := denoteEList_getD_lt hargs3 (i := mI) (by rw [hal]; omega) b0
+    (.bvar 0)
+  have hmI' : mI < xs.length := by omega
+  have hwmaj : Expr.WScoped d (xs.getD mI (.bvar 0)) := by
+    simp only [List.getD, List.getElem?_eq_getElem hmI', Option.getD_some]
+    exact hwargs _ (List.getElem_mem hmI')
+  refine triple_seq (prepareMajor_spec hsim henv s3 d c isK rules _ cn drules _
+    hok3 (denoteRules_ext hx3 _ _ hdr) hmaj hwmaj) ?_
+  rintro v s4 ⟨hok4, hx4, hp4, vmaj, hrel, hwvmaj, Fp, hFp⟩
+  have hx04 := hx3.trans hx4
+  have hp04 : s4.pins = s₀.pins := hp4.trans hp3
+  have hwf4 := hok4.state.wf
+  have hT : ∀ G, Fp ≤ G → ConLeche.iotaRecFueled .verified eager env G d
+      (Expr.mkAppN (.const cn ls) xs) =
+      iotaTail .verified eager env G d ls dcv mI rP isK drules xs vmaj := by
+    intro G hG
+    rw [iotaRecFueled_pre hE1 hfind (by rw [hE2]; exact hgP)
+      (by rw [hE2]; exact prepareMajorFueled_mono hG hFp), hE2]
+  cases v with
+  | stuck e =>
+    have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
+        (Expr.mkAppN (.const cn ls) xs)) d s4.store none :=
+      simOOp_none (F := Fp) (by rw [hT _ (Nat.le_refl _)]; exact iotaTail_stuck hrel.2)
+    exact triple_pure_at ⟨hok4, hx04, hp04, hfin⟩
+  | ctor major cj usj icvj cnP cnF induct =>
+  obtain ⟨hvmaj, -, hfj, htag, hcjn, hlsj⟩ := hrel
+  have hgfm := exprTag_const htag
+  generalize exprConstName vmaj.getAppFn = cjn at hgfm hcjn
+  generalize exprConstLevels vmaj.getAppFn = lsj at hgfm hlsj
+  obtain ⟨dcvj, hdcvj, hfindj⟩ := env_ctor_of_index hok4 hcjn hfj
+  have hTj := env_ctor_induct_of_index hok4 hfj
+  have hdr4 := denoteRules_ext hx04 _ _ hdr
+  dsimp only
+  obtain ⟨hfr1, hfr2⟩ := findRule_denote hwf4 hcjn hdr4
+  split
+  next rl hrl =>
+    obtain ⟨rl', hrl', hfind'⟩ := hfr1 rl hrl
+    obtain ⟨hnf, hrlc, hrlrhs, _⟩ := rule_denote hrl'
+    have hctor : rl'.ctor = cjn := by
+      have := List.find?_some hfind'
+      simpa using this
+    refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s4 major
+      hok4.state (by rw [hvmaj]; rfl)) ?_
+    rintro margs s6 ⟨hs6, hrelA⟩
+    subst s6
+    have hmargs := hrelA vmaj hvmaj
+    have hmlen := denoteEList_len hmargs
+    by_cases hl : margs.length = cnP + rl.nfields
+    · rw [ite_eq_left hl]
+      have hlP : vmaj.getAppArgs.length = cnP + rl'.nfields := by
+        rw [hmlen, hl, hnf]
+      have hwmargs : ∀ z ∈ vmaj.getAppArgs, Expr.WScoped d z :=
+        Expr.WScoped.getAppArgs hwvmaj
+      have hpinsW : ∀ lvls pins, rl'.fire = .nested lvls pins →
+          ∀ pin ∈ pins, pin.hasFvar = false := by
+        intro lvls pins hf' pin hpin
+        obtain ⟨-, -, -, -, g5⟩ :=
+          (henv.consts _ (ConLeche.Env.find?_mem hfind)).2.2.2.2.2 dcv mI rP isK
+            drules rfl rl' (List.mem_of_find?_eq_some hfind')
+        exact ((g5 lvls pins hf').2.2.1 pin hpin).1
+      have hcmpW := ConLeche.recFireComparands_snd_WScoped (cnP := cnP) rl'
+        dcv.levelParams ls dcvj.levelParams xs rP hwargs hpinsW
+      refine iotaFam_spec henv hsim s4 d icv icvj us usj isK rl
+        sargs.toList margs mI rP ls lsj dcv dcvj
+        cjn cnP cnF induct _ rl' xs vmaj.getAppArgs hok4 (denoteLs_ext hls hx04)
+        hlsj (denoteCV_ext hdcv hx04) hdcvj hTj hfindj hmargs
+        (denoteEList_ext hx04 _ _ hxs) hrl' hwargs hwmargs hcmpW _ _ ?_
+      rintro fam s7 ⟨hok7, hx7, hp7, Ff, hFf⟩
+      have hx07 := hx04.trans hx7
+      have hp07 : s7.pins = s₀.pins := hp7.trans hp04
+      have hval : ConLeche.iotaRecFueled .verified eager env (max Fp Ff) d
+          (Expr.mkAppN (.const cn ls) xs) = .ok (if fam then
+            some (rl'.iotaReduct dcv.levelParams ls rP
+              (xs.take rP ++ vmaj.getAppArgs.drop cnP))
+          else none) := by
+        rw [hT _ (Nat.le_max_left _ _)]
+        exact iotaTail_fire hgfm hfindj hfind' hlP
+          (iotaFam_mono (Nat.le_max_right _ _) hFf)
+      by_cases hft : fam = true
+      · rw [ite_eq_left hft]
+        subst hft
+        refine triple_seq (ruleBodyAt_spec s7 c rl.ctor icv.levelParams
+          rl.rhs (rP + rl.nfields) us cn cjn ls dcv mI rP isK drules rl' hok7
+          (denoteN_ext hcn hx07)
+          (by rw [← hctor]; exact denoteN_ext hrlc hx7)
+          (denoteLs_ext hls hx07) (denoteNListE_ext hx07 _ _ hlps)
+          (denote_ext hrlrhs hx7) hfind hfind' (by rw [hnf])) ?_
+        rintro body s8 ⟨hok8, hx8, hp8, hbody⟩
+        have hB : ExprOps.InstLVec s8.store
+            (iotaVals sargs.toList.toArray
+              (if rP < sargs.toList.length then rP
+                else sargs.toList.length)
+              margs.toArray
+              (if cnP < margs.length then cnP else margs.length))
+            (xs.take rP ++ vmaj.getAppArgs.drop cnP).reverse := by
+          rw [ExprOps.InstLVec, List.reverse_reverse, iotaVals_toList,
+            List.toList_toArray, List.toList_toArray, take_clamp, drop_clamp]
+          exact denoteEList_appendI
+            (ExprOps.denoteEList_take rP _ _
+              (denoteEList_ext (hx07.trans hx8) _ _ hxs))
+            (ExprOps.denoteEList_drop _ _ _
+              (denoteEList_ext (hx7.trans hx8) _ _ hmargs))
+        refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s8 body
+          _ 0 _ hok8.state hB (by rw [hbody]; rfl)) ?_
+        rintro x s9 ⟨hst9, hx9, hc9, hp9, _, hrel⟩
+        have hok9 : CheckOK eager env fe s9 := hok8.mono hst9 hx9 hc9 hp9
+        have hxd : denoteE s9.store x = some (rl'.iotaReduct dcv.levelParams ls rP
+            (xs.take rP ++ vmaj.getAppArgs.drop cnP)) := by
+          rw [hrel _ hbody, RecRule.iotaReduct]
+        have hvw := ConLeche.iotaRec_WScoped henv hval hw
+        have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
+            (Expr.mkAppN (.const cn ls) xs)) d s9.store (some x) :=
+          ⟨_, by simp [denoteEO, hxd], fun y hy => by
+            cases hy; exact hvw, _, hval⟩
+        exact triple_pure_at ⟨hok9, hx07.trans (hx8.trans hx9),
+          hp9.trans (hp8.trans hp07), hfin⟩
+      · rw [ite_eq_right hft]
+        have hff : fam = false := by simpa using hft
+        subst hff
+        have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
+            (Expr.mkAppN (.const cn ls) xs)) d s7.store none :=
+          simOOp_none hval
+        exact triple_pure_at ⟨hok7, hx07, hp07, hfin⟩
+    · rw [ite_eq_right hl]
+      have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
+          (Expr.mkAppN (.const cn ls) xs)) d s4.store none :=
+        simOOp_none (F := Fp) (by
+          rw [hT _ (Nat.le_refl _)]
+          exact iotaTail_len hgfm hfindj hfind' (by rw [hmlen, hnf]; exact hl))
+      exact triple_pure_at ⟨hok4, hx04, hp04, hfin⟩
+  next hrl =>
+    have hfin : SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d
+        (Expr.mkAppN (.const cn ls) xs)) d s4.store none :=
+      simOOp_none (F := Fp) (by
+        rw [hT _ (Nat.le_refl _)]
+        exact iotaTail_norule hgfm hfindj (hfr2 hrl))
+    exact triple_pure_at ⟨hok4, hx04, hp04, hfin⟩
 
 section Census
-#print axioms isCtorApp_spec
+#print axioms ctorView_spec
 #print axioms litToCtorIfNat_spec
 #print axioms fabScopeOk_spec
 #print axioms etaFabArgsE_spec

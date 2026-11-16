@@ -189,11 +189,13 @@ memo layer of Theorem 1's Core tier, at the three standard axioms. -/
 #print axioms inferIO_letE
 
 #print axioms defeqBody_syntactic
-#print axioms defeqBody_boolTrue
-#print axioms defeqBody_quick
-#print axioms defeqBody_propIrrel
-#print axioms defeqBody_verdict
-#print axioms defeqBody_unknown
+#print axioms defeqBody_rightT
+#print axioms defeqBody_leftT
+#print axioms defeqBody_lazy
+#print axioms defeqLazy_quick
+#print axioms defeqLazy_propIrrel
+#print axioms defeqLazy_verdict
+#print axioms defeqLazy_unknown
 
 /-! ### The body walks, the batched-clause carries and the knot
 

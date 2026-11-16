@@ -384,18 +384,42 @@ def isNatSuccApp (e : EIdx) : AM Bool := do
     | _ => pure false
   else pure false
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:58-65 isCtorApp — is the
-expression headed by a stored constructor? -/
-def isCtorApp (fe : IFEnv) (e : EIdx) : AM Bool := do
+/-- con-leche: ConLeche/Cached/CoreC.lean:214-221 MajorView — **a major
+premise as the ι step reads it**: a spine headed by a stored constructor, with
+the constructor's name, levels and record (its value, parameter and field
+counts and family), found once where the major is classified and handed down
+to the rule's firing; or any other term. -/
+inductive MajorView where
+  | ctor (e : EIdx) (cj : NIdx) (usj : LsIdx) (cvj : IConstantVal) (nP nF : Nat)
+      (induct : NIdx)
+  | stuck (e : EIdx)
+  deriving Inhabited
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:223-226 MajorView.expr — the
+classified term. -/
+def MajorView.expr : MajorView → EIdx
+  | .ctor e .. => e
+  | .stuck e => e
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:228-231 MajorView.isCtor — is the
+term headed by a stored constructor? -/
+def MajorView.isCtor : MajorView → Bool
+  | .ctor .. => true
+  | .stuck _ => false
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:58-65 isCtorApp
+con-leche: ConLeche/Cached/CoreC.lean:233-240 ctorViewC — `isCtorApp` through
+the index, keeping what the lookup found. -/
+def ctorView (fe : IFEnv) (e : EIdx) : AM MajorView := do
   let h ← getAppFn coreWalkFuel e
   if h.tag == ETag.const then
-    match ← view h with
-    | .const c _ =>
-      match fe.find? c with
-      | some (.ctorInfo _ _ _ _) => pure true
-      | _ => pure false
-    | _ => pure false
-  else pure false
+    match ← viewConst h with
+    | none => failDanglingE
+    | some (cj, usj) =>
+      match fe.find? cj with
+      | some (.ctorInfo cvj nP nF induct) => pure (.ctor e cj usj cvj nP nF induct)
+      | _ => pure (.stuck e)
+  else pure (.stuck e)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:67-73 formerResSort — **a stored
 inductive's result sort, read where it is needed**: the sort its stored type
@@ -904,21 +928,6 @@ def boolTrueName : AM NIdx := pinBoolTrue
 def boolFalseName : AM NIdx := pinBoolFalse
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:442-444 eagerReduceName -/
 def eagerReduceName : AM NIdx := pinEagerReduce
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:455-460 Expr.isBoolTrue — is `e` the
--- con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove Core.isBoolTrue_bridge, then delete this line
-constant `Bool.true` (the official kernel's `is_constant(e, Bool.true)`):
-the name, no universe levels. -/
-def isBoolTrue (h : EIdx) : AM Bool := do
-  if h.tag == ETag.const then
-    match ← view h with
-    | .const c us => do
-      let el ← emptyLevels
-      if us != el then pure false else do
-        let bt ← boolTrueName
-        pure (c == bt)
-    | _ => pure false
-  else pure false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:446-451 Expr.isEagerReduce — is
 `e` of the form `eagerReduce _ _` (official `is_eager_reduce`): the head
@@ -1710,6 +1719,60 @@ def etaCtorPartial (fe : IFEnv) (a : EIdx) : AM (Option Nat) := do
     | _ => pure none
   else pure none
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:746-764 ctorTarget
+con-leche: ConLeche/Cached/CoreC.lean:144-157 ctorTargetC — **the constructor
+shortcut's target** (`defeqBody`): `some c` when `e` is a closed application
+of the stored constructor `c` to exactly its parameters and fields, whose
+family is never a proposition (`IIndCaps.neverZero`), has no η law
+(`IIndCaps.eta`) and is not `Nat`.  The spine is counted (`numArgs`), not
+listed. -/
+def ctorTarget (fe : IFEnv) (e : EIdx) : AM (Option NIdx) := do
+  if ← hasFvarFast coreWalkFuel e then pure none else do
+  let h ← getAppFn coreWalkFuel e
+  if h.tag == ETag.const then
+    match ← view h with
+    | .const c _ =>
+      match fe.find? c with
+      | some (.ctorInfo _ cnP cnF T) => do
+        let nn ← pinNat
+        if T == nn then pure none else do
+        let n ← numArgs coreWalkFuel e
+        if n == cnP + cnF then
+          match fe.find? T with
+          | some (.indInfo _ caps) =>
+            if caps.neverZero && !caps.eta then pure (some c) else pure none
+          | _ => pure none
+        else pure none
+      | _ => pure none
+    | _ => pure none
+  else pure none
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:766-771 ctorTargetFor
+con-leche: ConLeche/Cached/CoreC.lean:159-161 ctorTargetForC — **the
+constructor shortcut's gate**: the target `e` (`ctorTarget`) when the other
+side `o`, the one to be head-normalised, is fvar-free or the eager flag is set
+(official's `!has_fvar(t) || m_eager_reduce`). -/
+def ctorTargetFor (fe : IFEnv) (eager : Bool) (o e : EIdx) : AM (Option NIdx) := do
+  if eager then ctorTarget fe e
+  else if ← hasFvarFast coreWalkFuel o then pure none
+  else ctorTarget fe e
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:773-783 ctorHeadAgainst
+con-leche: ConLeche/Cached/CoreC.lean:163-171 ctorHeadAgainstC — **a head
+normal form against the constructor `c`**: `some true` when its head is `c`,
+`some false` when it is another stored constructor, `none` otherwise. -/
+def ctorHeadAgainst (fe : IFEnv) (c : NIdx) (w : EIdx) : AM (Option Bool) := do
+  let h ← getAppFn coreWalkFuel w
+  if h.tag == ETag.const then
+    match ← view h with
+    | .const d _ =>
+      if d == c then pure (some true) else
+      match fe.find? d with
+      | some (.ctorInfo ..) => pure (some false)
+      | _ => pure none
+    | _ => pure none
+  else pure none
+
 /-- con-leche: ConLeche/Kernel/Core.lean:366-387 structEtaFull
 con-leche: ConLeche/Cached/CoreC.lean:668-678 structEtaFullI — the body of
 **structure η at a fully applied constructor**, past the constructor-shape
@@ -2107,7 +2170,6 @@ con-leche's `Core.lean`:1311-1832. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:601-757 majorToCtor
 con-leche: ConLeche/Cached/CoreC.lean:850-953 majorToCtorI — the scope guard
--- con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove Core.fabScopeOk_bridge, then delete this line
 the three rescue branches share (cf. `annotateProjElim`): the fabricated major
 is well-scoped, closed under loose bvars, and mentions no free variable the
 stuck major does not.
@@ -2127,20 +2189,18 @@ def fabScopeOk (depth : Nat) (fab major : EIdx) : AM Bool := do
 
 /-- con-leche: ConLeche/Kernel/Core.lean:601-757 majorToCtor
 con-leche: ConLeche/Cached/CoreC.lean:850-953 majorToCtorI — **the
--- con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove Core.majorToCtor_bridge, then delete this line
-stuck-major rescue** (`to_cnstr_when_K` and `to_cnstr_when_structure`): a
-recursor's major premise that is not a constructor application may still be
-*replaced* by one — K-flagged (the record's `isK`), η-capable (`etaRescueTable?`),
+stuck-major rescue** (`to_cnstr_when_K` and `to_cnstr_when_structure`) at a
+recursor's major premise that is not a constructor application: it may still
+be *replaced* by one — K-flagged (the record's `isK`), η-capable (`etaRescueTable?`),
 or the pinned `And`, the family the one stored at the constructor's `induct`
 (no walk).  No certificate
 on a fabricated spine (con-leche's task #342 L-DEAD, L11b); the K and `And`
 fabrications keep official's type check, and their proof-irrelevance run is a
-certificate family (off at `.trusted`). -/
-def majorToCtor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+certificate family (off at `.trusted`).  The answer is the fabricated major,
+or the major itself where no rescue fires. -/
+def majorToCtorRescue (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     (_recName : NIdx) (isK : Bool) (rules : List IRecRule) (major : EIdx) :
     AM EIdx := do
-  -- cheap syntactic gates before any inference
-  if ← isCtorApp fe major then pure major else
   match rules with
   | [rl] =>
     match fe.find? rl.ctor with
@@ -2237,6 +2297,22 @@ def majorToCtor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     | _ => pure major
   | _ => pure major
 
+/-- con-leche: ConLeche/Kernel/Core.lean:601-757 majorToCtor
+con-leche: ConLeche/Cached/CoreC.lean:850-953 majorToCtorI — the rescue,
+answering with the result classified (`MajorView`): the major's own
+classification where it is a constructor application; otherwise
+`majorToCtorRescue`, whose answer is the stuck major itself where no rescue
+fires (`.stuck`, no lookup: a rescue's fabrication is a constructor
+application, so it is never the major) and the fabricated spine's
+classification where one does. -/
+def majorToCtor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (recName : NIdx) (isK : Bool) (rules : List IRecRule) (major : EIdx) :
+    AM MajorView := do
+  let v ← ctorView fe major
+  if v.isCtor then pure v else do
+  let x ← majorToCtorRescue mode r fe depth recName isK rules major
+  if x == major then pure (.stuck x) else ctorView fe x
+
 /-- con-leche: ConLeche/Kernel/Core.lean:759-771 litMajorToCtor — convert a
 literal major premise to constructor form: a `Nat` literal one layer, a
 `String` literal to its *reduced* constructor form. -/
@@ -2278,45 +2354,39 @@ def isStrLit (h : EIdx) : AM Bool := do
 
 /-- con-leche: ConLeche/Kernel/Core.lean:795-874 prepareMajor
 con-leche: ConLeche/Cached/CoreC.lean:979-1000 prepareMajorI — the non-K path
--- con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove Core.prepareMajorWhnf_bridge, then delete this line
 past a rescue that produced no constructor (or produced `Nat.succ x`):
 head-normalize the major, convert its literal, try the rescue once more on the
 reduct. -/
 def prepareMajorWhnf (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     (recName : NIdx) (isK : Bool) (rules : List IRecRule) (majorE : EIdx) :
-    AM EIdx := do
+    AM MajorView := do
   let major₀ ← r.whnf depth majorE
   let major₁ ← litMajorToCtor r fe depth major₀
   majorToCtor mode r fe depth recName isK rules major₁
 
 /-- con-leche: ConLeche/Kernel/Core.lean:795-874 prepareMajor
 con-leche: ConLeche/Cached/CoreC.lean:979-1000 prepareMajorI — the major
--- con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove Core.prepareMajor_bridge, then delete this line
-premise's preparation before a rule fires: at a K-flagged recursor (the
-record's `isK`) the K
-rescue runs on the **raw** major and, if it did not produce a constructor
-application, the major is left as it is (con-leche task #334); elsewhere the
-structure rescues run on the major AS FOUND first (lean4#15351, con-leche's
-task #342 R2; a `String` literal skips that attempt), and only if they produce
-no constructor — or a `Nat.succ x` (`isNatSuccApp`), whose whnf folds it to a
-literal — is the major head-normalized, its literal converted and the rescue
-tried on the reduct. -/
+premise's preparation before a rule fires, answering with the result
+classified (`MajorView`): at a K-flagged recursor (the record's `isK`) the K
+rescue runs on the **raw** major and its answer is final (con-leche task #334;
+the spec's literal conversion of a constructor application is the identity);
+elsewhere the structure rescues run on the major AS FOUND first (lean4#15351,
+con-leche's task #342 R2; a `String` literal skips that attempt), and only if
+they produce no constructor — or a `Nat.succ x` (`isNatSuccApp`), whose whnf
+folds it to a literal — is the major head-normalized, its literal converted
+and the rescue tried on the reduct. -/
 def prepareMajor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     (recName : NIdx) (isK : Bool) (rules : List IRecRule) (major : EIdx) :
-    AM EIdx := do
-  if isK then do
-    let majorK ← majorToCtor mode r fe depth recName isK rules major
-    if ← isCtorApp fe majorK then
-      litMajorToCtor r fe depth majorK
-    else pure majorK
+    AM MajorView := do
+  if isK then majorToCtor mode r fe depth recName isK rules major
   else do
-    let majorE ←
-      if ← isStrLit major then pure major
+    let vE ←
+      if ← isStrLit major then pure (.stuck major)
       else majorToCtor mode r fe depth recName isK rules major
-    if ← isCtorApp fe majorE then
-      if ← isNatSuccApp majorE then prepareMajorWhnf mode r fe depth recName isK rules majorE
-      else pure majorE
-    else prepareMajorWhnf mode r fe depth recName isK rules majorE
+    if vE.isCtor then
+      if ← isNatSuccApp vE.expr then prepareMajorWhnf mode r fe depth recName isK rules vE.expr
+      else pure vE
+    else prepareMajorWhnf mode r fe depth recName isK rules vE.expr
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:985-1007 recFireComparands — the
 nested rule's stored level comparands, substituted and re-interned
@@ -2406,104 +2476,66 @@ order (`instantiateListFast`'s order: the last field is substituted for
 def iotaVals (args : Array EIdx) (p : Nat) (margs : Array EIdx) (q : Nat) : Array EIdx :=
   eidxCopyUpto margs margs.size q (eidxCopyUpto args p 0 #[])
 
-/-- con-leche: ConLeche/Kernel/Core.lean:876-974 iotaRec — **one iota step at
-a spine the caller already holds** (task #97-P6-9's hoist).  `iotaRec`'s own
-first two steps are `getAppFn` and `getAppArgs`, and the batched β asks for an
-iota step at every reduction step of a spine it is already walking: this entry
-takes the head and the argument vector instead of re-walking them, which is
-`getAppFn (mkAppN h as) = h` and `getAppArgsC (mkAppN h as) = as` — the
-equation the bridge owes and the only thing OWED here that is not con-leche's
-own clause.
-
-The arity conjunct is moved in FRONT of the level-list read and of the
-recursor's value copies (task #97-P6-10): both sides of `n = mI + 1` are pure
-tests of the same conjunction and this one is `O(1)`.  con-leche's own
-`iotaArityOk` is the same guard inside its `whnfAppI`. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:876-974 iotaRec
+con-leche: ConLeche/Cached/CoreC.lean:1002-1080 iotaRecI — **the ι step at the
+stored recursor `c`**, its record (`cv mI rP isK rules`) found by the caller,
+at the levels `us`, which the caller has checked against the record, on the
+redex's arguments `sargs`, exactly `mI + 1` of them (the caller cuts the
+spine; con-leche's `iotaRecI` takes the longer spine and reads its prefix):
+the redex is `c.{us} sargs`.  The recursor's stored type's syntactic arity
+(con-leche's task #342 L18) is what the uncertified spine is read against;
+then the major is prepared and classified once (`prepareMajor`) and the rule
+fires off the classification (`MajorView`), whose constructor record is the
+one the classification found. -/
 def iotaRecAt (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
-    (hd : EIdx) (sargs : Array EIdx) (n : Nat) : AM (Option EIdx) := do
-  if hd.tag == ETag.const then
-    match ← viewConst hd with
-    | none => failDanglingE
-    | some (c, us) =>
-      match fe.find? c with
-      | some (.recInfo cv mI rP isK rules) => do
-        if n ≠ mI + 1 then pure none
-        else do
-        let args := (takeEidx sargs n).toList
-        match ← viewLsLen us with
-        | none => failDanglingLs
-        | some usl =>
-        -- checker change #9: the recursor's level arity, guarded as
-        -- `unfoldDefinition` guards it
-        -- the recursor's own telescope has the arity it is applied at
-        -- (con-leche's task #342: in place of the spine's certificate);
-        -- peeled before the three-way test, as the port does
-        let peeled ← peelPis (mI + 1) cv.type
-        if args.length = mI + 1 ∧ usl = cv.levelParams.length ∧
-            peeled.isSome then do
-          let b0 ← internE (.bvar 0)
-          let major ← prepareMajor mode r fe depth c isK rules (args.getD mI b0)
-          let hh ← getAppFn coreWalkFuel major
-          if hh.tag == ETag.const then
-            match ← view hh with
-            | .const cj usj =>
-              match fe.find? cj with
-              | some (.ctorInfo cvj cnP _ induct) =>
-                match findRule rules cj with
-                | some rl => do
-                  let margs ← getAppArgs coreWalkFuel major
-                  -- the parameter count is the stored constructor's, the
-                  -- field count the rule's
-                  if margs.length = cnP + rl.nfields then do
-                    -- ONE certificate family (con-leche's task #342 L10, S5c;
-                    -- official's `inductive_reduce_rec` checks nothing of the
-                    -- major's constructor), so the whole block is what
-                    -- `.trusted` omits: at a case-3 redex — not K, the
-                    -- constructor's family may be `Prop` at the comparand
-                    -- levels — the constructor's levels and parameters against
-                    -- the comparands, the constructor telescope at the FULL
-                    -- grade and the canonical-index comparison
-                    -- (`Cached/CoreC.lean:647-670`)
-                    -- the stored facts first (`iotaNoCert`, the cached twin's
-                    -- order): no comparand level is computed for them
-                    let fam ←
-                      if !mode.verifiedChecks then pure true
-                      else if iotaNoCert fe isK induct
-                          (recFireLevelCount rl cvj.levelParams) then pure true
-                      else do
-                        let cmpL ← recFireLevels rl cv.levelParams us cvj.levelParams
-                        if ← iotaCase3At r fe isK induct cmpL then do
-                          if ← liftFueled "level comparison" (← lvlsEq? usj cmpL) then do
-                            let cmpA ← recFireArgs rl cnP cv.levelParams us args rP
-                            if ← defEqList r fe depth (margs.take cnP) cmpA then do
-                              let tyC ← constTyAt cvj usj
-                              if ← iotaCertsFull r fe depth tyC margs then
-                                iotaIndexOk r fe depth mI rP cnP tyC
-                                  margs ((args.take mI).drop rP)
-                              else pure false
-                            else pure false
-                          else pure false
-                        else pure true
-                    if fam then do
-                      -- lean4 PR #10565's ι step: the rule's body under its
-                      -- binders (the per-declaration memo), one substitution
-                      -- of the leading arguments and the fields, no β-redex
-                      let body ← ruleBodyAt c rl.ctor cv.levelParams rl.rhs
-                        (rP + rl.nfields) us
-                      let p := if rP < args.length then rP else args.length
-                      let q := if cnP < margs.length then cnP else margs.length
-                      let x ← instantiateListFast coreWalkFuel body
-                        (iotaVals args.toArray p margs.toArray q) 0
-                      pure (some x)
-                    else pure none
-                  else pure none
-                | none => pure none
-              | _ => pure none
-            | _ => pure none
-          else pure none
+    (c : NIdx) (us : LsIdx) (cv : IConstantVal) (mI rP : Nat) (isK : Bool)
+    (rules : List IRecRule) (sargs : Array EIdx) : AM (Option EIdx) := do
+  match ← peelPis (mI + 1) cv.type with
+  | none => pure none
+  | some _ => do
+  let b0 ← internE (.bvar 0)
+  let args := sargs.toList
+  match ← prepareMajor mode r fe depth c isK rules (args.getD mI b0) with
+  | .ctor major cj usj cvj cnP _ induct =>
+    match findRule rules cj with
+    | some rl => do
+      let margs ← getAppArgs coreWalkFuel major
+      -- the parameter count is the stored constructor's, the field count the
+      -- rule's
+      if margs.length = cnP + rl.nfields then do
+        let fam ←
+          if !mode.verifiedChecks then pure true
+          else if iotaNoCert fe isK induct
+              (recFireLevelCount rl cvj.levelParams) then pure true
+          else do
+            let cmpL ← recFireLevels rl cv.levelParams us cvj.levelParams
+            if ← iotaCase3At r fe isK induct cmpL then do
+              if ← liftFueled "level comparison" (← lvlsEq? usj cmpL) then do
+                let cmpA ← recFireArgs rl cnP cv.levelParams us args rP
+                if ← defEqList r fe depth (margs.take cnP) cmpA then do
+                  let tyC ← constTyAt cvj usj
+                  if ← iotaCertsFull r fe depth tyC margs then
+                    iotaIndexOk r fe depth mI rP cnP tyC
+                      margs ((args.take mI).drop rP)
+                  else pure false
+                else pure false
+              else pure false
+            else pure true
+        if fam then do
+          -- lean4 PR #10565's ι step: the rule's body under its
+          -- binders (the per-declaration memo), one substitution
+          -- of the leading arguments and the fields, no β-redex
+          let body ← ruleBodyAt c rl.ctor cv.levelParams rl.rhs
+            (rP + rl.nfields) us
+          let p := if rP < args.length then rP else args.length
+          let q := if cnP < margs.length then cnP else margs.length
+          let x ← instantiateListFast coreWalkFuel body
+            (iotaVals args.toArray p margs.toArray q) 0
+          pure (some x)
         else pure none
-      | _ => pure none
-  else pure none
+      else pure none
+    | none => pure none
+  | .stuck _ => pure none
 
 /-! ## The application spine, the batched β, and the two stuck tags
 
@@ -2634,8 +2666,30 @@ def betaPeel (t : EIdx) (s : Nat) (args : Array EIdx) (i : Nat) :
     pure (.cont e2)
 termination_by args.size - i
 
+/-- con-leche: ConLeche/Cached/CoreC.lean:1133-1167 whnfAppI — the ι step of
+`whnfApp`'s loop at the application `hd vargs` it has accumulated (`n`
+arguments), tried only where it can fire: a stored recursor at its own number
+of levels, applied to exactly `mI + 1` arguments.  The recursor's record is
+looked up here, once, and handed to the step (`iotaRecAt`). -/
+def whnfAppIota (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (hd : EIdx) (vargs : Array EIdx) (n : Nat) : AM (Option EIdx) := do
+  if hd.tag == ETag.const then
+    match ← viewConst hd with
+    | none => failDanglingE
+    | some (c, us) =>
+      match fe.find? c with
+      | some (.recInfo cv mI rP isK rules) => do
+        if n ≠ mI + 1 then pure none
+        else do
+        match ← viewLsLen us with
+        | none => failDanglingLs
+        | some usl =>
+          if usl ≠ cv.levelParams.length then pure none
+          else iotaRecAt mode r fe depth c us cv mI rP isK rules vargs
+      | _ => pure none
+  else pure none
+
 /-- con-leche: ConLeche/Cached/CoreC.lean:1133-1167 whnfAppI — walk the spine's
--- con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove Core.whnfApp_bridge, then delete this line
 arguments, applying each to the head's reduct: a λ head opens a peel group
 (`betaPeel`), a stuck head applies the argument and tries one ι step at the
 spine the walk already holds; a fired ι hands the loop its reduct applied to
@@ -2654,13 +2708,7 @@ def whnfApp (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
       let ap ← internAppRebuilt node same v a
       let same2 := ap == node
       let va := vargs.push a
-      let step ←
-        if hd.tag == ETag.const then iotaRecAt mode r fe depth hd va va.size
-        -- `iotaRec`'s own first two steps are `getAppFn` and a `.const` match,
-        -- so a spine whose head is anything else answers `none` from every
-        -- prefix: con-leche's `iotaArityOk` guard, off the handle's tag.
-        else pure none
-      match step with
+      match ← whnfAppIota mode r fe depth hd va va.size with
       | none => whnfApp mode r fe depth ap hd va same2 args nodes (i + 1)
       | some e2 => do
         let e3 ← mkAppNFrom e2 args (i + 1)
@@ -2682,44 +2730,37 @@ sort, a free variable, a Π-type, a constant or a literal. -/
   else if t == ETag.lit then true
   else false
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:200-211 iotaTargetF — **the ι
--- con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove Core.iotaTarget_bridge, then delete this line
-target of a spine head**: the spine length `mI + 1` at which `iotaRecAt` can
-fire, where the head is a stored recursor at its own number of levels. -/
-def iotaTarget (fe : IFEnv) (h : EIdx) : AM (Option Nat) := do
+/-- con-leche: ConLeche/Cached/CoreC.lean:1169-1190 whnfStuckI — **a spine
+`e` whose head `h` is its own head normal form and not a λ** (official
+`whnf_core`'s `f == f0` arm): the ι step, tried once, at the one prefix where
+it can fire (a stored recursor at its own number of levels: the prefix of
+`mI + 1` arguments), on the spine's argument vector, and otherwise the input
+itself, with nothing rebuilt.  The recursor's record is looked up here, once,
+and handed to the ι step.  The vector is built at a recursor head and its
+length is con-leche's `iotaNumArgs` count. -/
+def whnfStuck (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (h e : EIdx) : AM WhnfStep := do
   if h.tag == ETag.const then
     match ← viewConst h with
     | none => failDanglingE
     | some (c, us) =>
       match fe.find? c with
-      | some (.recInfo cv mI _ _ _) =>
+      | some (.recInfo cv mI rP isK rules) => do
         match ← viewLsLen us with
         | none => failDanglingLs
         | some usl =>
-          if usl = cv.levelParams.length then pure (some (mI + 1)) else pure none
-      | _ => pure none
-  else pure none
-
-/-- con-leche: ConLeche/Cached/CoreC.lean:1169-1190 whnfStuckI — **a spine
--- con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove Core.whnfStuck_bridge, then delete this line
-`e` whose head `h` is its own head normal form and not a λ** (official
-`whnf_core`'s `f == f0` arm): the ι step, tried once, at the one prefix where
-it can fire (`iotaTarget`), on the spine's argument vector, and otherwise the
-input itself, with nothing rebuilt.  The vector is built at a recursor head
-and its length is con-leche's `iotaNumArgs` count. -/
-def whnfStuck (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
-    (h e : EIdx) : AM WhnfStep := do
-  match ← iotaTarget fe h with
-  | none => pure (.done e)
-  | some k => do
-    let args := (← getAppArgs coreWalkFuel e).toArray
-    if k ≤ args.size then do
-      match ← iotaRecAt mode r fe depth h args k with
-      | none => pure (.done e)
-      | some e2 => do
-        let e3 ← mkAppNFrom e2 args k
-        pure (.cont e3)
-    else pure (.done e)
+          if usl ≠ cv.levelParams.length then pure (.done e) else do
+          let sargs := (← getAppArgs coreWalkFuel e).toArray
+          if mI + 1 ≤ sargs.size then do
+            let args := takeEidx sargs (mI + 1)
+            match ← iotaRecAt mode r fe depth c us cv mI rP isK rules args with
+            | none => pure (.done e)
+            | some e2 => do
+              let e3 ← mkAppNFrom e2 sargs (mI + 1)
+              pure (.cont e3)
+          else pure (.done e)
+      | _ => pure (.done e)
+  else pure (.done e)
 
 /-! ## The projection certificate and the reduction bodies
 
@@ -3805,14 +3846,6 @@ def inferBodyIO (r : CoreFnsA) (fe : IFEnv) :
 
 con-leche's `Core.lean`:2373-2697. -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1415-1428 boolTrueShortcut — **the
--- con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove Core.boolTrueShortcut_bridge, then delete this line
-eq-true shortcut** (the divergence audit's E2): the left side is fully
-head-normalised and the verdict is `true` iff the reduct is `Bool.true`. -/
-def boolTrueShortcut (r : CoreFnsA) (depth : Nat) (a : EIdx) : AM Bool := do
-  let w ← r.whnf depth a
-  isBoolTrue w
-
 /-- con-leche: ConLeche/Kernel/Core.lean:1415-1444 defeqSpine —
 levels-and-spine congruence for two applications of the *same* stored
 constant (the lazy delta same-head short-circuit, official's
@@ -4255,26 +4288,18 @@ def defeqStuck (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
   -- distinct whnf-stuck head symbols
   | _, _ => stuckIrrel r fe depth a b
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1842-1884 defeqBody — **the
--- con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove Core.defeqBody_bridge, then delete this line
-definitional-equality body** (the official kernel's `is_def_eq_core`, clause
-for clause except con-leche task #333's reordering): the syntactic fast path;
-the `Bool.true` shortcut; `quickDefEq` and proof irrelevance on the UNREDUCED
-pair (so that a proof is never head-normalized to be compared); the CHEAP head
-normalization of both sides; `quickDefEq` again; the lazy-delta loop; the proj/proj check; the FULL `whnfCore` of both sides (only when one
-of them is projection-headed — elsewhere the two modes agree) and, if either
-changed, a restart; and the stuck comparison. -/
-def defeqBody (mode : CheckMode) (eager : Bool) (r : CoreFnsA) (fe : IFEnv) :
-    Nat → EIdx → EIdx → AM Bool :=
-  fun depth a b => do
-  if a == b then pure true else do
-  -- the eq-true shortcut (E2): right side `Bool.true`, left side fvar-free
-  -- or the eager flag set (official `m_eager_reduce`)
-  let sc ←
-    if (← isBoolTrue b) && (eager || !(← hasFvarFast coreWalkFuel a)) then
-      boolTrueShortcut r depth a
-    else pure false
-  if sc then pure true else do
+/-- con-leche: ConLeche/Kernel/Core.lean:1789-1840 defeqLazy
+con-leche: ConLeche/Cached/CoreC.lean:1933-1955 defeqLazyI — **the lazy
+comparison**, the official kernel's `is_def_eq_core` past its syntactic fast
+path and its eq-true clause, clause for clause except con-leche task #333's
+reordering: `quickDefEq` and proof irrelevance on the UNREDUCED pair (so that a
+proof is never head-normalized to be compared); the CHEAP head normalization of
+both sides; `quickDefEq` again; the lazy-delta loop; the proj/proj check; the
+FULL `whnfCore` of both sides (only when one of them is projection-headed —
+elsewhere the two modes agree) and, if either changed, a restart; and the
+stuck comparison. -/
+def defeqLazy (mode : CheckMode) (eager : Bool) (r : CoreFnsA) (fe : IFEnv)
+    (depth : Nat) (a b : EIdx) : AM Bool := do
   match ← quickDefEq mode r depth a b with
   | some v => pure v
   | none =>
@@ -4295,6 +4320,39 @@ def defeqBody (mode : CheckMode) (eager : Bool) (r : CoreFnsA) (fe : IFEnv) :
   let b₂ ← r.whnfCore false depth b₁
   if a₂ == a₁ && b₂ == b₁ then defeqStuck mode r fe depth a₁ b₁
   else r.defeq depth a₂ b₂
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1842-1884 defeqBody
+con-leche: ConLeche/Cached/CoreC.lean:1957-1977 defeqBodyI — **the
+definitional-equality body** (the official kernel's `is_def_eq_core`): the
+syntactic fast path, the constructor shortcut, then the lazy comparison
+(`defeqLazy`).  The constructor shortcut generalises official's eq-true
+clause: when one side is a closed, fully applied constructor application `C bs`
+of a family that is never a proposition, has no η law and is not `Nat`
+(`ctorTargetFor`, the right side tried first), the other side is fully
+head-normalised (`whnf`) and its head read (`ctorHeadAgainst`): the head `C`
+continues with the lazy comparison of the normal form against `C bs`, another
+constructor is `false`, and any other head leaves the comparison to the lazy
+path on the original pair. -/
+def defeqBody (mode : CheckMode) (eager : Bool) (r : CoreFnsA) (fe : IFEnv) :
+    Nat → EIdx → EIdx → AM Bool :=
+  fun depth a b => do
+  if a == b then pure true else do
+  match ← ctorTargetFor fe eager a b with
+  | some c => do
+    let w ← r.whnf depth a
+    match ← ctorHeadAgainst fe c w with
+    | some true => defeqLazy mode eager r fe depth w b
+    | some false => pure false
+    | none => defeqLazy mode eager r fe depth a b
+  | none =>
+  match ← ctorTargetFor fe eager b a with
+  | some c => do
+    let w ← r.whnf depth b
+    match ← ctorHeadAgainst fe c w with
+    | some true => defeqLazy mode eager r fe depth a w
+    | some false => pure false
+    | none => defeqLazy mode eager r fe depth a b
+  | none => defeqLazy mode eager r fe depth a b
 
 /-! ## The knot
 

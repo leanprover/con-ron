@@ -2,32 +2,37 @@
 # `ConRon.Bridge.Core.Walks.Guards` — the `defeq` body's cheap tests
 
 `Arena/Core.lean`'s definitional-equality block (`defeqBody` and its
-lazy-delta steps) runs scalar tests — `isBoolTrue`, `sameConstHeads`,
-`unfoldableHead` — that read the handle word or one `view` and nothing else.
-They are the cheapest walks of the whole non-slot tier, because con-leche's comparand is a
-plain function (no `CheckM`, no fuel), so the conclusion is an EQUATION
-between the arena's answer and con-leche's and there is no `∃ F` to carry.
+lazy-delta steps) runs cheap tests that read the handle word, one `view` and
+the environment index.  con-leche's comparand is a plain function (no
+`CheckM`, no fuel), so the conclusion is an EQUATION between the arena's
+answer and con-leche's and there is no `∃ F` to carry.
 
-This module holds `isBoolTrue_spec`: five verification conditions, no
-`ExprOps` callee rule, no new denotation.  Its two siblings that need
-`getAppFn` (`sameConstHeads_spec`, `unfoldableHead_spec`) are in
-`Spine.lean`, over the `ExprOps` tier.
+This module holds the constructor shortcut's readers (`ctorTarget_spec`,
+`ctorTargetFor_spec`, `ctorHeadAgainst_spec`) and `isEagerReduce_spec`.  The
+siblings that need only `getAppFn` (`sameConstHeads_spec`,
+`unfoldableHead_spec`) are in `Spine.lean`, over the `ExprOps` tier.
 
 ## What it cashes
 
-DESIGN §8.3's **"index inequality IS structural inequality"**, twice in one
-walk: the twin tests `us != emptyLevels` where con-leche matches `.const c []`,
-and `c == boolTrueName`'s pin handle where con-leche compares `Name`s.
-`denoteLs_inj` and `denoteN_inj` (`Arena/WFProofs.lean`) are exactly what
-turns each handle test into its structural one — and `PinsOK` is what says
-the pin handle denotes what it is named for.  `pinNames_boolTrue` below is
-the one-line bridge from `Bridge/Specs.lean`'s quantified `pinAt_spec` to the
-named slot.
+DESIGN §8.3's **"index inequality IS structural inequality"**: the twin
+compares name handles where con-leche compares `Name`s; `denoteN_inj`
+(`Arena/WFProofs.lean`) turns each handle test into its structural one, and
+`PinsOK` says a pin handle denotes what it is named for.
 -/
 module
 
 public import ConRon.Bridge.Grind
 import ConRon.Bridge.Core.Walks.Iota
+import ConRon.Bridge.Core.Walks.PropRead
+import ConRon.Bridge.Core.Walks.Stuck
+import ConRon.Bridge.Core.Walks.Nat
+import ConLeche.Verify.PropRead
+import ConRon.Bridge.Core.Memo
+import ConRon.Bridge.Core.Walks.StrLit
+import ConRon.Bridge.Core.Walks.Proj
+import ConRon.Bridge.Core.Walks.IotaLeaves
+import ConRon.Bridge.ExprOps.Ranges
+import ConRon.Bridge.ExprOps.Spine
 import ConRon.Bridge.Specs
 import ConRon.Bridge.GrindAttr
 public import ConRon.Arena.Core
@@ -52,89 +57,6 @@ NAMED slot rather than only at a quantified one. -/
 theorem pinNames_boolTrue :
     pinNames[PIN_BOOL_TRUE]? = some ConLeche.boolTrueName := by rfl
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:452-457 Expr.isBoolTrue — **the
-catch-all arm's obligation**: a handle whose view is not a `.const` denotes
-an expression that is not a `.const`, so con-leche's own `isBoolTrue`
-answers `false` on it.  Ten `denote_*_inv`s and no `grind`; this is
-`Bridge/Core/Memo.lean`'s `denote_stuck_of_whnfCoreStuckTag` at one
-constructor instead of six. -/
-theorem isBoolTrue_of_not_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {e : Expr} {v : ENodeView} (hv : st.view h = some v)
-    (he : denoteE st h = some e)
-    (hne : ∀ c us, v ≠ .const c us) : ConLeche.Expr.isBoolTrue e = false := by
-  cases v with
-  | bvar i => rw [denote_bvar_inv hwf hv he]; rfl
-  | fvar k t =>
-    obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv he; rfl
-  | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv he; rfl
-  | const n us => exact absurd rfl (hne n us)
-  | app f a => obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv he; rfl
-  | lam ty b => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; rfl
-  | forallE ty b =>
-    obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv he; rfl
-  | letE ty w b =>
-    obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv he; rfl
-  | lit l => rw [denote_lit_inv hwf hv he]; rfl
-  | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; rfl
-
-/-! ### The arms as `grind` lemmas
-
-Each exit of the twin is one lemma in the shape its verification condition
-has, registered with `@[bridge_grind]`; `isBoolTrue_spec` is then `vcgen` with
-`finish`.  The subject's constant view comes from `Bridge/Grind.lean` §6
-(the tag test the twin makes first, `DenoteView.const`, `exprTag_const`,
-`ENodeView.tagOf_const`), and con-leche's `isBoolTrue` is met at a
-constant by the two lemmas for its universe-argument and name tests. -/
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:452-457 Expr.isBoolTrue — the
-tag-first twin's `else` arm: a handle whose TAG is not `const`. -/
-theorem isBoolTrue_of_tag {st : EStore} (hwf : StoreWF st) {h : EIdx} {e : Expr}
-    (he : denoteE st h = some e) (ht : ¬ h.tag = ETag.const) :
-    ConLeche.Expr.isBoolTrue e = false := by
-  obtain ⟨v, hv⟩ := denoteE_view he
-  exact isBoolTrue_of_not_const hwf hv he
-    (fun c us hh => view_tagOf_ne hv (t := ETag.const) (by simpa using ht)
-      (by rw [hh]; rfl))
-grind_pattern [bridge_grind] isBoolTrue_of_tag =>
-  ConLeche.Expr.isBoolTrue e, denoteE st h
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:452-457 Expr.isBoolTrue — the
-universe-argument test fails: the handle is not the empty-levels pin, so the
-denoted list is not `[]` (`denoteLs_inj`: index inequality IS structural
-inequality). -/
-theorem isBoolTrue_levels {st : EStore} (hwf : StoreWF st) {u e : LsIdx}
-    {n : ConLeche.Name} {l : List Level} (hne : ¬ u = e)
-    (hus : denoteLs st.lss u = some l) (hel : denoteLs st.lss e = some []) :
-    ConLeche.Expr.isBoolTrue (.const n l) = false := by
-  obtain ⟨rk, hrk⟩ := hwf
-  cases l with
-  | nil => exact absurd (denoteLs_inj hrk.lss hus hel) hne
-  | cons a as => rfl
-grind_pattern [bridge_grind] isBoolTrue_levels =>
-  ConLeche.Expr.isBoolTrue (.const n l), denoteLs st.lss u, denoteLs st.lss e
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:452-457 Expr.isBoolTrue — the
-universe arguments are the empty list, and the name decides by handle
-(`denoteN_inj`: index equality IS name equality). -/
-theorem isBoolTrue_name {st : EStore} (hwf : StoreWF st) {c b : NIdx}
-    {n : ConLeche.Name} (hc : denoteN st.ns c = some n)
-    (hbtn : denoteN st.ns b = some ConLeche.boolTrueName) :
-    ConLeche.Expr.isBoolTrue (.const n []) = (c == b) := by
-  obtain ⟨rk, hrk⟩ := hwf
-  simp only [ConLeche.Expr.isBoolTrue]
-  by_cases hb : n = ConLeche.boolTrueName
-  · subst hb
-    obtain rfl := denoteN_inj hrk.nsWF hc hbtn
-    simp only [beq_self_eq_true]
-  · have h1 : (c == b) = false := by
-      simp only [beq_eq_false_iff_ne]
-      intro hcc; subst hcc; exact hb (Option.some.inj (hc.symm.trans hbtn))
-    have h2 : (n == ConLeche.boolTrueName) = false := by
-      simp only [beq_eq_false_iff_ne]; exact hb
-    rw [h1, h2]
-grind_pattern [bridge_grind] isBoolTrue_name =>
-  ConLeche.Expr.isBoolTrue (.const n []), denoteN st.ns c, denoteN st.ns b
-
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
 the `Bool.true` pin, as the name it denotes (`pinAt_spec` at the named slot,
 `pinNames_boolTrue`). -/
@@ -144,30 +66,209 @@ theorem boolTrueName_spec (s₀ : AState) (hp : PinsOK s₀) :
   have hbt := pinNames_boolTrue
   vcgen [ConRon.Arena.boolTrueName, pinBoolTrue] with finish
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:452-457 Expr.isBoolTrue —
-**THEOREM 1 for `isBoolTrue`**: is `e` the constant `Bool.true` (the official
-kernel's `is_constant(e, Bool.true)`)?
+/-- con-leche: none — `CheckOK` across a stage that moved nothing but the
+memos. -/
+theorem _root_.ConRon.Bridge.CheckOK.of_store_eq {eager : Bool} {env : Env} {fe : IFEnv}
+    {s s' : AState} (h : CheckOK eager env fe s) (hst : s'.store = s.store)
+    (hc : s'.caches = s.caches) (hp : s'.pins = s.pins) :
+    CheckOK eager env fe s' :=
+  h.mono ⟨by rw [hst]; exact h.state.wf⟩ (by rw [hst]; exact Ext.refl _) hc hp
 
-Five verification conditions: the universe-argument test, the name test
-(both signs), the catch-all of the view match and the tag test.  **Both tests
-are DESIGN §8.3's "index inequality IS structural inequality" cashed** — the
-twin compares an `LsIdx` against the empty-levels pin and an `NIdx` against
-the `Bool.true` pin where con-leche compares a `List Level` against `[]` and
-a `Name` against `boolTrueName`, and `denoteLs_inj` / `denoteN_inj` are what
-make the two the same test.
+/-! ## The constructor shortcut's readers
 
-It needs nothing from the `ExprOps` tier, nothing from `denoteProjEntry` and
-no fuel bookkeeping (con-leche's `Expr.isBoolTrue` is a plain function). -/
-theorem isBoolTrue_spec (s₀ : AState) (h : EIdx) (x : Expr)
-    (hok : CheckOK eager env fe s₀) (hden : denoteE s₀.store h = some x) :
-    ⦃fun s => s = s₀⦄ ConRon.Arena.isBoolTrue h
-    ⦃fun b s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.Expr.isBoolTrue x; ⊤⦄ := by
-  -- the pin table's invariant at the initial state: the two pin reads'
-  -- precondition (as a registered forward rule it would fire at every
-  -- `CheckOK` of every walk)
-  sym only [bridge_grind, hok.pins] =>
-    vcgen [ConRon.Arena.isBoolTrue, ConRon.Arena.emptyLevels, boolTrueName_spec] <;> finish
+`ctorTarget`, `ctorTargetFor` and `ctorHeadAgainst` (con-leche task #592) read
+the head and the environment index; their answers are names, related by
+`OptNRel` (the handle denotes the name, or both are absent). -/
+
+/-- An optional name handle against an optional name: both absent, or the
+handle denotes the name. -/
+@[expose] def OptNRel (st : EStore) (r : Option NIdx) (o : Option ConLeche.Name) : Prop :=
+  r.map (denoteN st.ns) = o.map some
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:746-764 ctorTarget
+con-leche: ConLeche/Cached/CoreC.lean:144-157 ctorTargetC — **THEOREM 1 for
+`ctorTarget`**: read-only (the fvar test's memo only), an `OptNRel` with
+con-leche's target.  The spine is counted (`numArgs`), con-leche's is listed
+(`getAppArgs.length`). -/
+theorem ctorTarget_spec (s₀ : AState) (a : EIdx) (x : Expr)
+    (hok : CheckOK eager env fe s₀) (hda : denoteE s₀.store a = some x) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.ctorTarget fe a
+    ⦃fun r s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧ s'.pins = s₀.pins ∧
+        OptNRel s₀.store r (ConLeche.ctorTarget env x); ⊤⦄ := by
+  have hwf := hok.state.wf
+  unfold ConRon.Arena.ctorTarget
+  refine triple_seq (ExprOps.hasFvarFast_spec coreWalkFuel s₀ a hok.state
+    (by rw [hda]; rfl)) ?_
+  rintro hf s1 ⟨hst1, hc1, hp1, hr1⟩
+  have hfe : hf = x.hasFvar := hr1 x hda
+  subst hfe
+  have hok1 := hok.of_store_eq hst1 hc1 hp1
+  have hda1 : denoteE s1.store a = some x := by rw [hst1]; exact hda
+  have hwf1 := hok1.state.wf
+  cases hfx : x.hasFvar
+  · simp only [Bool.false_eq_true, ite_false]
+    refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s1 a hok1.state
+      (by rw [hda1]; rfl)) ?_
+    rintro hd s2 ⟨rfl, hrelF⟩
+    have hdd : denoteE s2.store hd = some x.getAppFn := hrelF x hda1
+    obtain ⟨vh, hvh⟩ := denoteE_view hdd
+    refine tag_view_bind_triple hvh ?_
+      (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
+    cases vh
+    case const c us =>
+      obtain ⟨cn, ls, hgf, hcn, -⟩ := denote_const_inv hwf1 hvh hdd
+      dsimp only
+      split
+      next icv cnP cnF T hfd =>
+        obtain ⟨dcv, -, hfind⟩ := env_ctor_of_index hok1 hcn hfd
+        have hTn := env_ctor_induct_of_index hok1 hfd
+        generalize (denoteN s2.store.ns T).getD default = Tn at hfind hTn
+        unfold ConRon.Arena.pinNat
+        refine triple_seq (pinAt_specE s2 PIN_NAT hok1.pins) ?_
+        rintro nn s3 ⟨rfl, hnn⟩
+        rw [pinNames_eq_natName] at hnn
+        have hTeq : (T == nn) = (Tn == ConLeche.natName) := by
+          rw [beq_handle_eq hwf1 hTn hnn]
+        rw [hTeq]
+        have hcn0 : denoteN s₀.store.ns c = some cn := by rw [← hst1]; exact hcn
+        cases hTN : (Tn == ConLeche.natName)
+        · have hTN' : ¬ Tn = ConLeche.natName := by simpa using hTN
+          simp only [Bool.false_eq_true, ite_false]
+          refine triple_seq (numArgs_specA coreWalkFuel s3 a hok1 (by rw [hda1]; rfl)) ?_
+          rintro n s4 ⟨rfl, hn⟩
+          rw [hda1] at hn
+          simp only [Option.map_some, Option.some.injEq] at hn
+          subst hn
+          have hna : x.numArgs = x.getAppArgs.length := Expr.numArgs_eq_length x
+          by_cases hlen : (x.numArgs == cnP + cnF) = true
+          · rw [ite_eq_left hlen]
+            rw [hna] at hlen
+            simp only [beq_iff_eq] at hlen
+            split
+            next icvT icaps hfdT =>
+              obtain ⟨dcvT, dcaps, -, hdcaps, hfindT⟩ := env_ind_of_index hok1 hTn hfdT
+              have hcE : dcaps.eta = icaps.eta := (denoteCaps_fields hdcaps).1
+              have hcN : dcaps.neverZero = icaps.neverZero := denoteCaps_neverZero hdcaps
+              by_cases hg : (icaps.neverZero && !icaps.eta) = true
+              · rw [ite_eq_left hg]
+                refine triple_pureS ⟨hok1, hst1, hp1, ?_⟩
+                simp only [Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true] at hg
+                simp [OptNRel, hcn0, ConLeche.ctorTarget, hfx, hgf, hfind, hfindT, hTN', hlen,
+                  hcE, hcN, hg]
+              · rw [ite_eq_right hg]
+                refine triple_pureS ⟨hok1, hst1, hp1, ?_⟩
+                have hg' : ¬ (dcaps.neverZero = true ∧ dcaps.eta = false) := by
+                  rw [hcE, hcN]; simpa using hg
+                simp [OptNRel, ConLeche.ctorTarget, hfx, hgf, hfind, hfindT, hTN', hlen, hg']
+            next hnd =>
+              have hnf := env_not_ind_of_index hok1 hTn (fun v c h => hnd v c h)
+              refine triple_pureS ⟨hok1, hst1, hp1, ?_⟩
+              cases hfT : env.find? Tn with
+              | none => simp [OptNRel, ConLeche.ctorTarget, hfx, hgf, hfind, hTN', hlen, hfT]
+              | some ci =>
+                cases ci with
+                | indInfo cv caps => exact absurd hfT (hnf cv caps)
+                | _ => simp [OptNRel, ConLeche.ctorTarget, hfx, hgf, hfind, hTN', hlen, hfT]
+          · rw [ite_eq_right hlen]
+            refine triple_pureS ⟨hok1, hst1, hp1, ?_⟩
+            rw [hna] at hlen
+            simp only [beq_iff_eq] at hlen
+            simp [OptNRel, ConLeche.ctorTarget, hfx, hgf, hfind, hlen]
+        · have hTN' : Tn = ConLeche.natName := by simpa using hTN
+          simp only [ite_true]
+          refine triple_pureS ⟨hok1, hst1, hp1, ?_⟩
+          simp [OptNRel, ConLeche.ctorTarget, hfx, hgf, hfind, hTN']
+      next hnd =>
+        have hnc := env_not_ctor_of_index hok1 hcn (fun v p q t h => hnd v p q t h)
+        refine triple_pureS ⟨hok1, hst1, hp1, ?_⟩
+        simp only [OptNRel, Option.map_none, ConLeche.ctorTarget, hfx, Bool.false_eq_true,
+          ite_false, hgf]
+    all_goals
+      dsimp only
+      refine triple_pureS ⟨hok1, hst1, hp1, ?_⟩
+      have hnc := denote_not_const hwf1 hvh hdd (by intro c us h; cases h)
+      simp only [OptNRel, Option.map_none, ConLeche.ctorTarget, hfx, Bool.false_eq_true,
+        ite_false]
+  · simp only [ite_true]
+    exact triple_pureS ⟨hok1, hst1, hp1, by simp [OptNRel, ConLeche.ctorTarget, hfx]⟩
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:766-771 ctorTargetFor
+con-leche: ConLeche/Cached/CoreC.lean:159-161 ctorTargetForC — **THEOREM 1 for
+`ctorTargetFor`**: the eager flag, else the other side's fvar test, then
+`ctorTarget_spec`. -/
+theorem ctorTargetFor_spec (s₀ : AState) (eg : Bool) (o a : EIdx) (y x : Expr)
+    (hok : CheckOK eager env fe s₀) (hdo : denoteE s₀.store o = some y)
+    (hda : denoteE s₀.store a = some x) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.ctorTargetFor fe eg o a
+    ⦃fun r s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧ s'.pins = s₀.pins ∧
+        OptNRel s₀.store r (ConLeche.ctorTargetFor env eg y x); ⊤⦄ := by
+  unfold ConRon.Arena.ctorTargetFor
+  cases eg
+  · simp only [Bool.false_eq_true, ite_false]
+    refine triple_seq (ExprOps.hasFvarFast_spec coreWalkFuel s₀ o hok.state
+      (by rw [hdo]; rfl)) ?_
+    rintro hf s1 ⟨hst1, hc1, hp1, hr1⟩
+    have hfe : hf = y.hasFvar := hr1 y hdo
+    subst hfe
+    have hok1 := hok.of_store_eq hst1 hc1 hp1
+    cases hfy : y.hasFvar
+    · simp only [Bool.false_eq_true, ite_false]
+      refine triple_mono (ctorTarget_spec s1 a x hok1 (by rw [hst1]; exact hda)) ?_
+      rintro r s' ⟨h1, h2, h3, h4⟩
+      refine ⟨h1, h2.trans hst1, h3.trans hp1, ?_⟩
+      rw [← hst1]
+      simp only [ConLeche.ctorTargetFor, hfy, Bool.not_false, Bool.or_true, ite_true]
+      exact h4
+    · simp only [ite_true]
+      exact triple_pureS ⟨hok1, hst1, hp1, by simp [OptNRel, ConLeche.ctorTargetFor, hfy]⟩
+  · simp only [ite_true]
+    refine triple_mono (ctorTarget_spec s₀ a x hok hda) ?_
+    rintro r s' ⟨h1, h2, h3, h4⟩
+    exact ⟨h1, h2, h3, by simpa [ConLeche.ctorTargetFor] using h4⟩
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:773-783 ctorHeadAgainst
+con-leche: ConLeche/Cached/CoreC.lean:163-171 ctorHeadAgainstC — **THEOREM 1
+for `ctorHeadAgainst`**: read-only, an equation with con-leche's reader. -/
+theorem ctorHeadAgainst_spec (s₀ : AState) (c : NIdx) (cn : ConLeche.Name) (w : EIdx)
+    (x : Expr) (hok : CheckOK eager env fe s₀) (hc : denoteN s₀.store.ns c = some cn)
+    (hdw : denoteE s₀.store w = some x) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.ctorHeadAgainst fe c w
+    ⦃fun r s' => s' = s₀ ∧ r = ConLeche.ctorHeadAgainst env cn x; ⊤⦄ := by
+  have hwf := hok.state.wf
+  unfold ConRon.Arena.ctorHeadAgainst
+  refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ w hok.state
+    (by rw [hdw]; rfl)) ?_
+  rintro hd s1 ⟨rfl, hrelF⟩
+  have hdd : denoteE s1.store hd = some x.getAppFn := hrelF x hdw
+  obtain ⟨vh, hvh⟩ := denoteE_view hdd
+  refine tag_view_bind_triple hvh ?_
+    (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
+  cases vh
+  case const d us =>
+    obtain ⟨dn, ls, hgf, hdn, -⟩ := denote_const_inv hwf hvh hdd
+    dsimp only
+    have hdc : (d == c) = (dn == cn) := beq_handle_eq hwf hdn hc
+    rw [hdc]
+    cases hb : (dn == cn)
+    · simp only [Bool.false_eq_true, ite_false]
+      split
+      next icv p q t hfd =>
+        obtain ⟨dcv, -, hfind⟩ := env_ctor_of_index hok hdn hfd
+        exact triple_pureS ⟨rfl, by simp [ConLeche.ctorHeadAgainst, hgf, hb, hfind]⟩
+      next hnd =>
+        have hnc := env_not_ctor_of_index hok hdn (fun v p q t h => hnd v p q t h)
+        refine triple_pureS ⟨rfl, ?_⟩
+        simp only [ConLeche.ctorHeadAgainst, hgf, hb, Bool.false_eq_true, ite_false]
+    · simp only [ite_true]
+      exact triple_pureS ⟨rfl, by simp [ConLeche.ctorHeadAgainst, hgf, hb]⟩
+  all_goals
+    dsimp only
+    refine triple_pureS ⟨rfl, ?_⟩
+    have hnc := denote_not_const hwf hvh hdd (by intro c us h; cases h)
+    simp only [ConLeche.ctorHeadAgainst]
+    try
+      generalize x.getAppFn = g at hnc ⊢
+      cases g <;> first | rfl | exact absurd rfl (hnc _ _)
 
 /-! ## `isEagerReduce`
 
@@ -223,11 +324,9 @@ theorem isEagerReduce_spec (s₀ : AState) (h : EIdx) (x : Expr)
 
 section Census
 
-#print axioms pinNames_boolTrue
-#print axioms isBoolTrue_of_not_const
-#print axioms isBoolTrue_levels
-#print axioms isBoolTrue_name
-#print axioms isBoolTrue_spec
+#print axioms ctorTarget_spec
+#print axioms ctorTargetFor_spec
+#print axioms ctorHeadAgainst_spec
 #print axioms pinNames_eagerReduce
 #print axioms isEagerReduce_eq
 #print axioms isEagerReduce_spec

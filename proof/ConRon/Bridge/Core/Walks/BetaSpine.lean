@@ -29,6 +29,7 @@ import ConRon.Bridge.Core.Walks.StrCtor
 public import ConLeche.Verify.BetaSpine
 import ConRon.Bridge.Core.Walks.Iota
 import ConRon.Bridge.Core.Walks.Proj
+import ConRon.Bridge.Core.Walks.Cached
 public import ConRon.Bridge.ExprOps.Subst
 public import ConRon.Bridge.Core.Walks.Spec
 import ConRon.Bridge.Core.Memo
@@ -234,11 +235,13 @@ theorem getAppFn_not_app : ∀ (e f a : Expr), e.getAppFn ≠ .app f a := by
   | app g b ihg ihb => intro f a; exact ihg f a
   | _ => intro f a h; exact nomatch h
 
-/-- con-leche: ConLeche/Verify/BetaSpine.lean:224 iotaRec_head_not_const —
-**the iota step `whnfApp` runs at a non-λ head**: `iotaRecAt` when the
-spine's head handle is a constant, else `none` off the tag (con-leche's
-`iotaArityOk` guard), against con-leche's `iotaRec` at `.app V A`. -/
-theorem whnfApp_iotaStep_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
+/-- con-leche: ConLeche/Cached/CoreC.lean:1133-1167 whnfAppI
+con-leche: ConLeche/Verify/BetaSpine.lean:224 iotaRec_head_not_const —
+**THEOREM 1 for `whnfAppIota`, the ι step `whnfApp` runs at a non-λ head**:
+the recursor's record looked up once at a constant head (`iotaRecAt_spec` at
+the arity and the level count), else `none` (con-leche's arity guard), against
+con-leche's `iotaRec` at `.app V A`. -/
+theorem whnfAppIota_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
     (hsim : KnotSpec eager env fe fuel)
     (s₀ : AState) (d : Nat) (hd a : EIdx) (vargs : Array EIdx) (V A : Expr)
     (hok : CheckOK eager env fe s₀)
@@ -247,27 +250,73 @@ theorem whnfApp_iotaStep_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
     (hda : denoteE s₀.store a = some A)
     (hw : Expr.WScoped d (.app V A)) :
     ⦃fun s => s = s₀⦄
-      (if hd.tag == ETag.const then
-        ConRon.Arena.iotaRecAt .verified (coreKnot .verified eager fe id fuel) fe d hd
-          (vargs.push a) (vargs.push a).size
-      else pure none : AM (Option EIdx))
+      ConRon.Arena.whnfAppIota .verified (coreKnot .verified eager fe id fuel) fe d hd
+        (vargs.push a) (vargs.push a).size
     ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d (.app V A)) d
           s'.store r; ⊤⦄ := by
+  have hwf := hok.state.wf
   have happ : Expr.mkAppN V.getAppFn (V.getAppArgs ++ [A]) = .app V A := by
     rw [Expr.mkAppN_append_one, Expr.mkAppN_getApp]
+  have hdx : Frontend.denoteEList s₀.store (vargs.push a).toList =
+      some (V.getAppArgs ++ [A]) := by
+    simp only [Array.toList_push]
+    exact ExprOps.denoteEList_snoc hda _ _ hdv
+  have hsz : (vargs.push a).size = V.getAppArgs.length + 1 := by
+    simp [denoteEList_len hdv]
+  unfold ConRon.Arena.whnfAppIota
   by_cases htc : (hd.tag == ETag.const) = true
   · rw [ite_eq_left htc]
-    have hdx : Frontend.denoteEList s₀.store (vargs.push a).toList =
-        some (V.getAppArgs ++ [A]) := by
-      simp only [Array.toList_push]
-      exact ExprOps.denoteEList_snoc hda _ _ hdv
-    have h := iotaRecAt_spec henv hsim s₀ d hd (vargs.push a) (vargs.push a).size
-      V.getAppFn (V.getAppArgs ++ [A]) hok hdh
-      (fun f a => getAppFn_not_app V f a) rfl hdx (by rw [happ]; exact hw)
-    rw [happ] at h
-    exact h
+    refine triple_seq (viewConst_spec s₀ hd) ?_
+    rintro oc s1 ⟨hs1, hoc⟩
+    subst s1
+    cases oc with
+    | none => exact triple_failDanglingE
+    | some cu =>
+      obtain ⟨c, us⟩ := cu
+      have hv := view_of_viewConst_tag htc hoc.symm
+      obtain ⟨cn, ls, hgf, hcn, hls⟩ := denote_const_inv hwf hv hdh
+      have hE1 : (Expr.app V A).getAppFn = .const cn ls := by
+        simp only [Expr.getAppFn]; exact hgf
+      have happ' : Expr.mkAppN (.const cn ls) (V.getAppArgs ++ [A]) = .app V A := by
+        rw [← hgf]; exact happ
+      have hE2 : (Expr.app V A).getAppArgs = V.getAppArgs ++ [A] := by
+        rw [← happ', Expr.getAppArgs_mkAppN]; rfl
+      dsimp only
+      split
+      next icv mI rP isK rules hfc =>
+        obtain ⟨dcv, drules, hdcv, hdr, hfind⟩ := env_rec_of_index hok hcn hfc
+        obtain ⟨_, hlps, hty⟩ := denoteCV_inv hdcv
+        have hlenlps := denoteNList_len hlps
+        by_cases hne : (vargs.push a).size ≠ mI + 1
+        · rw [ite_eq_left hne]
+          refine triple_pure_at ⟨hok, Ext.refl _, rfl, simOOp_none (F := 0)
+            (iotaRecFueled_guard hE1 hfind (by
+              rw [hE2]; intro hg; apply hne; rw [hsz, ← hg.1]; simp))⟩
+        · rw [ite_eq_right hne]
+          have hmI : (vargs.push a).size = mI + 1 := by simpa using hne
+          refine triple_seq (viewLsLen_spec s₀ us) ?_
+          rintro ol s2 ⟨hs2, hol⟩
+          subst s2
+          rw [viewLen_of_denoteLs hls] at hol
+          subst hol
+          dsimp only
+          by_cases hlv : ls.length ≠ icv.levelParams.length
+          · rw [ite_eq_left hlv]
+            refine triple_pure_at ⟨hok, Ext.refl _, rfl, simOOp_none (F := 0)
+              (iotaRecFueled_guard hE1 hfind (by
+                intro hg; apply hlv; rw [hg.2.1, hlenlps]))⟩
+          · rw [ite_eq_right hlv]
+            have h := iotaRecAt_spec henv hsim s₀ d c us icv mI rP isK rules (vargs.push a)
+              cn ls (V.getAppArgs ++ [A]) hok hfc hcn hls (by simpa using hlv) hmI hdx
+              (by rw [happ']; exact hw)
+            rw [happ'] at h
+            exact h
+      next hnd =>
+        have hnr := env_not_rec_of_index hok hcn (fun v mI rP k rs h => hnd v mI rP k rs h)
+        exact triple_pure_at ⟨hok, Ext.refl _, rfl,
+          simOOp_none (F := 0) (iotaRecFueled_norec hE1 hnr)⟩
   · rw [ite_eq_right htc]
     vcgen
     subst_vars
@@ -657,8 +706,7 @@ theorem whnfApp_carry {fuel : Nat} (henv : ConLeche.EnvWF env)
         V A hok hdv hdA (fun hs => by
           rw [hctx.node hi hdrop', ← hsame hs])) ?_
       rintro ap s1 ⟨hok1, hx1, hp1, hdap⟩
-      rw [ite_bind_fold]
-      refine triple_seq (whnfApp_iotaStep_spec henv hsim s1 d hd args[i]
+      refine triple_seq (whnfAppIota_spec henv hsim s1 d hd args[i]
         vargs V A hok1 (denote_ext hdh hx1) (denoteEList_ext' hx1 hdva)
         (denote_ext hdA hx1) (wscoped_app hwV hwA)) ?_
       rintro step s2 ⟨hok2, hx2, hp2, ov, hov, hwov, F1, hF1⟩
@@ -731,7 +779,7 @@ section Census
 #print axioms mWA_iota_some
 #print axioms mBP_nonlam
 #print axioms instantiateRevRange_ok_spec
-#print axioms whnfApp_iotaStep_spec
+#print axioms whnfAppIota_spec
 #print axioms betaPeel_carry
 #print axioms whnfApp_carry
 
