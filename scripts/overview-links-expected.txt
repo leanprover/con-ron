@@ -760,27 +760,27 @@
   1125  theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
   1126      (hi : denoteE st i = some x) (hj : denoteE st j = some x) : i = j := by
 
-== crates/con-ron-core/src/arena/core.rs#L11889-L11908
- 11889  /// con-leche: none — **a job's bracket, closed** (DESIGN.md §8.3)
- 11890  /// Lean twin: `proof/ConRon/Arena/Core.lean:4510-4518 dropScratch` —
- 11891  /// the twin's `dropScratch` on a store that STAYS frozen (task #98-FREEZE): the
- 11892  /// caches flushed and the scratch tiers emptied, the flag untouched.  A
- 11893  /// worker's store is frozen for its whole life, so between two jobs it is
- 11894  /// frozen with an empty scratch tier where the twin's is scratch-off; nothing
- 11895  /// is interned there.
- 11896  pub fn leave_record(st: &mut AState) {
- 11897      flush_caches(st);
- 11898      st.store.clear_scratch();
- 11899  }
- 11900  
- 11901  /// con-leche: none — **a job's bracket, opened** (DESIGN.md §8.3)
- 11902  /// Lean twin: `proof/ConRon/Arena/Core.lean:4520-4527 enterScratch` —
- 11903  /// the twin's `enterScratch` on an already frozen store (task #98-FREEZE): the
- 11904  /// memos cleared and the scratch tiers emptied, the flag untouched.
- 11905  pub fn enter_record(st: &mut AState) {
- 11906      st.memos.reset();
- 11907      st.store.clear_scratch();
- 11908  }
+== crates/con-ron-core/src/arena/core.rs#L12057-L12076
+ 12057  /// con-leche: none — **a job's bracket, closed** (DESIGN.md §8.3)
+ 12058  /// Lean twin: `proof/ConRon/Arena/Core.lean:4578-4586 dropScratch` —
+ 12059  /// the twin's `dropScratch` on a store that STAYS frozen (task #98-FREEZE): the
+ 12060  /// caches flushed and the scratch tiers emptied, the flag untouched.  A
+ 12061  /// worker's store is frozen for its whole life, so between two jobs it is
+ 12062  /// frozen with an empty scratch tier where the twin's is scratch-off; nothing
+ 12063  /// is interned there.
+ 12064  pub fn leave_record(st: &mut AState) {
+ 12065      flush_caches(st);
+ 12066      st.store.clear_scratch();
+ 12067  }
+ 12068  
+ 12069  /// con-leche: none — **a job's bracket, opened** (DESIGN.md §8.3)
+ 12070  /// Lean twin: `proof/ConRon/Arena/Core.lean:4588-4595 enterScratch` —
+ 12071  /// the twin's `enterScratch` on an already frozen store (task #98-FREEZE): the
+ 12072  /// memos cleared and the scratch tiers emptied, the flag untouched.
+ 12073  pub fn enter_record(st: &mut AState) {
+ 12074      st.memos.reset();
+ 12075      st.store.clear_scratch();
+ 12076  }
 
 == crates/con-ron-core/src/arena/checker.rs#L65-L88
     65  /// con-leche: none — the phase boundary, which con-leche has no tier to make
@@ -1103,20 +1103,20 @@
    377  }
 
 == crates/con-ron-core/src/arena/core.rs#L422-L435
-   422  // ---------------------------------------------------------------------------
-   423  // The lanes: the twin's `r : CoreFnsA`, defunctionalized (the module note)
-   424  // ---------------------------------------------------------------------------
-   425  
-   426  /// con-leche: ConLeche/Kernel/Core.lean:1888-1923 coreKnot
-   427  /// Lean twin: `proof/ConRon/Arena/Core.lean:4364-4443 coreKnot` — **the
-   428  /// executed knot**: the memoized one, `pureFnsA`'s.
-   429  pub const LANE_FULL: u32 = 0;
-   430  
-   431  /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
-   432  /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — the io knot
-   433  /// (the leaf lane): `infer` and `inferIO` are `inferBodyIO` tied to this knot,
-   434  /// unmemoized; every other slot is the full knot's.
-   435  pub const LANE_IO: u32 = 2;
+   422  
+   423  // ---------------------------------------------------------------------------
+   424  // The lanes: the twin's `r : CoreFnsA`, defunctionalized (the module note)
+   425  // ---------------------------------------------------------------------------
+   426  
+   427  /// con-leche: ConLeche/Kernel/Core.lean:1888-1923 coreKnot
+   428  /// Lean twin: `proof/ConRon/Arena/Core.lean:4432-4511 coreKnot` — **the
+   429  /// executed knot**: the memoized one, `pureFnsA`'s.
+   430  pub const LANE_FULL: u32 = 0;
+   431  
+   432  /// con-leche: ConLeche/Kernel/CoreIO.lean:44-66 coreKnotIO
+   433  /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:34-51 coreKnotIO` — the io knot
+   434  /// (the leaf lane): `infer` and `inferIO` are `inferBodyIO` tied to this knot,
+   435  /// unmemoized; every other slot is the full knot's.
 
 == crates/con-ron-core/src/ron/hashmap2.rs#L1-L40
      1  //! con-leche: none — arena infrastructure; a second `Std.HashMap` replacement, proved
