@@ -63,7 +63,8 @@
 //! ## Three smaller shapes worth naming
 //!
 //! * **`defeqBody` and `lazyDeltaStep` are several functions here**
-//!   (`defeq_body` → `defeq_unreduced` → `defeq_after_whnf` → `defeq_after_lazy`;
+//!   (`defeq_body` → `defeq_ctor_right`/`defeq_ctor_left`; `defeq_lazy` →
+//!   `defeq_after_whnf` → `defeq_after_lazy`;
 //!   `lazy_delta_step` → `lazy_delta_side`/`lazy_delta_both` →
 //!   `lazy_delta_one`/`lazy_delta_unfold_both`): inlined, each would nest
 //!   twenty deep.  Every cited clause is still in the twin's order; the split
@@ -103,7 +104,7 @@ use crate::arena::handle::{
 use crate::arena::monad::{
     AState, fail, fail_dangling_e, fail_dangling_ls, intern_e_app, intern_e_bvar, intern_e_const, intern_e_forall_e, intern_e_fvar, intern_e_lam, intern_e_let_e, intern_e_lit, intern_e_proj, intern_e_sort, intern_l_node, intern_level, intern_ls_node, read_level_m, read_levels_m, read_name_m, read_names_m, view, view_app, view_bind, view_bvar, view_const, view_const_name, view_lit, view_ls, view_ls_len, view_sort,
 };
-use crate::arena::prop_read::{is_proof_fast, not_proof_fast, peel_pis};
+use crate::arena::prop_read::{is_proof_fast, not_proof_fast, num_args, peel_pis};
 use crate::arena::store::{ENodeView, LNodeView};
 use crate::arena::pins::{pin_and, pin_and_intro, pin_reserved, pin_bool, pin_bool_false, pin_bool_true, pin_char, pin_eager_reduce, pin_char_of_nat, pin_empty_levels, pin_list, pin_list_cons, pin_list_nil, pin_nat, pin_nat_add, pin_nat_beq, pin_nat_ble, pin_nat_div, pin_nat_gcd, pin_nat_land, pin_nat_lor, pin_nat_mod, pin_nat_mul, pin_nat_pow, pin_nat_pred, pin_nat_shift_left, pin_nat_shift_right, pin_nat_sub, pin_nat_succ, pin_nat_xor, pin_nat_zero, pin_sorry_ax, pin_sort_one, pin_string, pin_string_of_list, pin_zero_level, max_nat_size};
 use crate::kernel::core_types::{code_points, CheckError};
@@ -880,28 +881,69 @@ pub fn is_nat_succ_app(pers: &PersTier, st: &AState, e: &EIdx) -> Result<bool, C
     }
 }
 
+/// con-leche: ConLeche/Cached/CoreC.lean:214-221 MajorView
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1 MajorView` — **a major premise
+/// as the ι step reads it**: a spine headed by a stored constructor, with the
+/// constructor's name, levels and record (its value, parameter and field
+/// counts and family), found once where the major is classified and handed
+/// down to the rule's firing; or any other term.
+pub enum MajorView {
+    Ctor(EIdx, NIdx, LsIdx, IConstantVal, u64, u64, NIdx),
+    Stuck(EIdx),
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:223-226 MajorView.expr
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1 MajorView.expr` — the
+/// classified term.
+pub fn major_view_expr(v: &MajorView) -> EIdx {
+    match v {
+        MajorView::Ctor(e, _, _, _, _, _, _) => e.dup2(),
+        MajorView::Stuck(e) => e.dup2(),
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:228-231 MajorView.isCtor
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1 MajorView.isCtor` — is the
+/// term headed by a stored constructor?
+pub fn major_view_is_ctor(v: &MajorView) -> bool {
+    match v {
+        MajorView::Ctor(_, _, _, _, _, _, _) => true,
+        MajorView::Stuck(_) => false,
+    }
+}
+
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:58-65 isCtorApp
-/// Lean twin: `proof/ConRon/Arena/Core.lean:387-398 isCtorApp` — is the
-/// expression headed by a stored constructor?
-pub fn is_ctor_app(
+/// con-leche: ConLeche/Cached/CoreC.lean:233-240 ctorViewC
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1 ctorView` — `isCtorApp` through
+/// the index, keeping what the lookup found: the head's stored constructor
+/// record, copied into the view.
+pub fn ctor_view(
     pers: &PersTier,
-    st: &mut AState,
+    st: &AState,
     fe: &IFEnv,
     e: &EIdx,
-) -> Result<bool, CheckError>  {
+) -> Result<MajorView, CheckError> {
     match get_app_fn(pers, st, CORE_WALK_FUEL, e) {
         Err(er) => Err(er),
         Ok(h) => if h.tag() == ETAG_CONST {
-            match view_const_name(pers, st, &h) {
+            match view_const(pers, st, &h) {
                 None => fail_dangling_e(),
-                Some(c) => match env::ifenv_find(pers, fe, &c) {
-                    Some(IConstantInfo::CtorInfo(_, _, _, _)) => Ok(true),
-                    Some(_) => Ok(false),
-                    None => Ok(false),
+                Some((cj, usj)) => match env::ifenv_find(pers, fe, &cj) {
+                    Some(IConstantInfo::CtorInfo(cvj, n_p, n_f, induct)) => Ok(MajorView::Ctor(
+                        e.dup2(),
+                        cj,
+                        usj,
+                        env::i_constant_val_dup(cvj),
+                        *n_p,
+                        *n_f,
+                        induct.dup2(),
+                    )),
+                    Some(_) => Ok(MajorView::Stuck(e.dup2())),
+                    None => Ok(MajorView::Stuck(e.dup2())),
                 },
             }
         } else {
-            Ok(false)
+            Ok(MajorView::Stuck(e.dup2()))
         },
     }
 }
@@ -2323,34 +2365,6 @@ pub fn bool_true_name(st: &mut AState) -> Result<NIdx, CheckError> {
 /// Lean twin: `proof/ConRon/Arena/Core.lean:903-904 boolFalseName`.
 pub fn bool_false_name(st: &mut AState) -> Result<NIdx, CheckError> {
     pin_bool_false(st)
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:455-460 Expr.isBoolTrue
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::is_bool_true_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:908-920 isBoolTrue` — is `e` the
-/// constant `Bool.true` (the official kernel's `is_constant(e, Bool.true)`):
-/// the name, no universe levels.
-pub fn is_bool_true(pers: &PersTier, st: &mut AState, h: &EIdx) -> Result<bool, CheckError> {
-    if h.tag() == ETAG_CONST {
-        match view_const(pers, st, h) {
-            None => fail_dangling_e(),
-            Some((c, us)) => match empty_levels(st) {
-                Err(e) => Err(e),
-                Ok(el) => {
-                    if !us.eq2(&el) {
-                        Ok(false)
-                    } else {
-                        match bool_true_name(st) {
-                            Err(e) => Err(e),
-                            Ok(bt) => Ok(c.eq2(&bt)),
-                        }
-                    }
-                }
-            },
-        }
-    } else {
-        Ok(false)
-    }
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:442-444 eagerReduceName
@@ -4738,6 +4752,130 @@ pub fn eta_ctor_partial(
     }
 }
 
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:746-764 ctorTarget
+/// con-leche: ConLeche/Cached/CoreC.lean:144-157 ctorTargetC
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1 ctorTarget` — **the constructor
+/// shortcut's target** (`defeq_body`): `Some(c)` when `e` is a closed
+/// application of the stored constructor `c` to exactly its parameters and
+/// fields, whose family is never a proposition (`IIndCaps.never_zero`), has
+/// no η law (`IIndCaps.eta`) and is not `Nat`.  The spine is counted
+/// (`num_args`), not listed, as the cached twin counts it.
+pub fn ctor_target(
+    pers: &PersTier,
+    st: &mut AState,
+    fe: &IFEnv,
+    e: &EIdx,
+) -> Result<Option<NIdx>, CheckError> {
+    match has_fvar_fast(pers, st, CORE_WALK_FUEL, e) {
+        Err(er) => Err(er),
+        Ok(true) => Ok(None),
+        Ok(false) => match get_app_fn(pers, st, CORE_WALK_FUEL, e) {
+            Err(er) => Err(er),
+            Ok(hd) => if hd.tag() == ETAG_CONST {
+                match view_const_name(pers, st, &hd) {
+                    None => fail_dangling_e(),
+                    Some(c) => match env::ifenv_find(pers, fe, &c) {
+                        Some(IConstantInfo::CtorInfo(_, cn_p, cn_f, t)) => match pin_nat(st) {
+                            Err(er) => Err(er),
+                            Ok(nn) => {
+                                if t.eq2(&nn) {
+                                    Ok(None)
+                                } else {
+                                    match num_args(pers, st, CORE_WALK_FUEL, e) {
+                                        Err(er) => Err(er),
+                                        Ok(n) => {
+                                            if n == *cn_p + *cn_f {
+                                                match env::ifenv_find(pers, fe, t) {
+                                                    Some(IConstantInfo::IndInfo(_, caps)) => {
+                                                        if caps.never_zero && !caps.eta {
+                                                            Ok(Some(c))
+                                                        } else {
+                                                            Ok(None)
+                                                        }
+                                                    }
+                                                    Some(_) => Ok(None),
+                                                    None => Ok(None),
+                                                }
+                                            } else {
+                                                Ok(None)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        Some(_) => Ok(None),
+                        None => Ok(None),
+                    },
+                }
+            } else {
+                Ok(None)
+            },
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:766-771 ctorTargetFor
+/// con-leche: ConLeche/Cached/CoreC.lean:159-161 ctorTargetForC
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1 ctorTargetFor` — **the
+/// constructor shortcut's gate**: the target `e` (`ctor_target`) when the
+/// other side `o`, the one to be head-normalised, is fvar-free or the eager
+/// flag is set (official's `!has_fvar(t) || m_eager_reduce`).
+pub fn ctor_target_for(
+    pers: &PersTier,
+    st: &mut AState,
+    fe: &IFEnv,
+    eager: bool,
+    o: &EIdx,
+    e: &EIdx,
+) -> Result<Option<NIdx>, CheckError> {
+    if eager {
+        ctor_target(pers, st, fe, e)
+    } else {
+        match has_fvar_fast(pers, st, CORE_WALK_FUEL, o) {
+            Err(er) => Err(er),
+            Ok(true) => Ok(None),
+            Ok(false) => ctor_target(pers, st, fe, e),
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:773-783 ctorHeadAgainst
+/// con-leche: ConLeche/Cached/CoreC.lean:163-171 ctorHeadAgainstC
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1 ctorHeadAgainst` — **a head
+/// normal form against the constructor `c`**: `Some(true)` when its head is
+/// `c`, `Some(false)` when it is another stored constructor, `None`
+/// otherwise.
+pub fn ctor_head_against(
+    pers: &PersTier,
+    st: &AState,
+    fe: &IFEnv,
+    c: &NIdx,
+    w: &EIdx,
+) -> Result<Option<bool>, CheckError> {
+    match get_app_fn(pers, st, CORE_WALK_FUEL, w) {
+        Err(er) => Err(er),
+        Ok(hd) => if hd.tag() == ETAG_CONST {
+            match view_const_name(pers, st, &hd) {
+                None => fail_dangling_e(),
+                Some(d) => {
+                    if d.eq2(c) {
+                        Ok(Some(true))
+                    } else {
+                        match env::ifenv_find(pers, fe, &d) {
+                            Some(IConstantInfo::CtorInfo(_, _, _, _)) => Ok(Some(false)),
+                            Some(_) => Ok(None),
+                            None => Ok(None),
+                        }
+                    }
+                }
+            }
+        } else {
+            Ok(None)
+        },
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Core.lean:366-387 structEtaFull
 /// con-leche: ConLeche/Cached/CoreC.lean:668-678 structEtaFullI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1712-1721 structEtaFullAt` — the body
@@ -5714,7 +5852,6 @@ pub fn eta_rescue_table<'a>(
 
 /// con-leche: ConLeche/Kernel/Core.lean:601-757 majorToCtor
 /// con-leche: ConLeche/Cached/CoreC.lean:850-953 majorToCtorI
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::fab_scope_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2107-2124 fabScopeOk` — the scope
 /// guard the three rescue branches share: the fabricated major is well-scoped,
 /// closed under loose bvars, and mentions no free variable the stuck major
@@ -5749,7 +5886,6 @@ pub fn fab_scope_ok(
 
 /// con-leche: ConLeche/Kernel/Core.lean:601-757 majorToCtor
 /// con-leche: ConLeche/Cached/CoreC.lean:850-953 majorToCtorI
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::major_to_ctor_certs_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2126-2235 majorToCtor` — the
 /// K and `And` rescues' checks, once the fabricated major is built: the scope
 /// guard, the official `to_cnstr_when_K` type check (both modes) and proof
@@ -5867,7 +6003,6 @@ pub fn major_to_ctor_k(
 
 /// con-leche: ConLeche/Kernel/Core.lean:601-757 majorToCtor
 /// con-leche: ConLeche/Cached/CoreC.lean:850-953 majorToCtorI
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::major_to_ctor_eta_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2126-2235 majorToCtor` — the
 /// η-capable branch: the fabricated major is the table's constructor at the
 /// type's parameters and the `.proj` nodes of the stuck major, the counts the
@@ -5926,7 +6061,6 @@ pub fn major_to_ctor_eta(
 
 /// con-leche: ConLeche/Kernel/Core.lean:601-757 majorToCtor
 /// con-leche: ConLeche/Cached/CoreC.lean:850-953 majorToCtorI
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::major_to_ctor_eta_sort_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2126-2235 majorToCtor` — the η
 /// branch's sort test: the family's sort, never zero at the major type's
 /// levels (`familyNeverZeroAt`: the stored fact, else computed here), then
@@ -5957,7 +6091,6 @@ pub fn major_to_ctor_eta_sort(
 
 /// con-leche: ConLeche/Kernel/Core.lean:601-757 majorToCtor
 /// con-leche: ConLeche/Cached/CoreC.lean:850-953 majorToCtorI
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::major_to_ctor_eta_build_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2126-2235 majorToCtor` — the η
 /// branch's fabrication: the argument spine, the table's constructor `ctor`
 /// at `n_f` projections, and the scope guard.  No certificate on the
@@ -6141,13 +6274,15 @@ pub fn major_to_ctor_at(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:601-757 majorToCtor
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2126-2235 majorToCtor` — **the
-/// stuck-major rescue** (`to_cnstr_when_K` and `to_cnstr_when_structure`): a
-/// recursor's major premise that does not whnf to a constructor application
-/// may still be *replaced* by one — K-flagged (the record's `isK`), η-capable,
-/// or the pinned `And`.  The rule's constructor's family is the one stored at
-/// its `induct`, looked up with no walk.  An uncertified major stays put.
-pub fn major_to_ctor(
+/// con-leche: ConLeche/Cached/CoreC.lean:850-953 majorToCtorI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2126-2235 majorToCtorRescue` — **the
+/// stuck-major rescue** (`to_cnstr_when_K` and `to_cnstr_when_structure`) at a
+/// major that is no constructor application: it may still be *replaced* by
+/// one — K-flagged (the record's `isK`), η-capable, or the pinned `And`.  The
+/// rule's constructor's family is the one stored at its `induct`, looked up
+/// with no walk.  The answer is the fabricated major, or the major itself
+/// where no rescue fires.
+pub fn major_to_ctor_rescue(
     pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
@@ -6161,34 +6296,74 @@ pub fn major_to_ctor(
     rules: &Vec<IRecRule>,
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match is_ctor_app(pers, st, fe, major) {
-        Err(e) => Err(e),
-        Ok(true) => Ok(major.dup2()),
-        Ok(false) => {
-            if rules.len() != 1 {
-                Ok(major.dup2())
-            } else {
-                let ctor: NIdx = rules[0].ctor.dup2();
-                match env::ifenv_find(pers, fe, &ctor) {
-                    Some(IConstantInfo::CtorInfo(cvj0, cn_p0, _, t0)) => {
-                        let cvj: IConstantVal = env::i_constant_val_dup(cvj0);
-                        let cn_p: u64 = *cn_p0;
-                        let t: NIdx = t0.dup2();
-                        match env::ifenv_find(pers, fe, &t) {
-                            Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
-                                let cvt: IConstantVal = env::i_constant_val_dup(cvt0);
-                                let caps: IIndCaps = env::i_ind_caps_dup(caps0);
-                                major_to_ctor_at(
-                                    pers, st, mode, eager, lane, fuel, fe, depth, &cvj, cn_p, &ctor,
-                                    is_k, &cvt, &caps, &t, major,
-                                )
-                            }
-                            Some(_) => Ok(major.dup2()),
-                            None => Ok(major.dup2()),
-                        }
+    if rules.len() != 1 {
+        Ok(major.dup2())
+    } else {
+        let ctor: NIdx = rules[0].ctor.dup2();
+        match env::ifenv_find(pers, fe, &ctor) {
+            Some(IConstantInfo::CtorInfo(cvj0, cn_p0, _, t0)) => {
+                let cvj: IConstantVal = env::i_constant_val_dup(cvj0);
+                let cn_p: u64 = *cn_p0;
+                let t: NIdx = t0.dup2();
+                match env::ifenv_find(pers, fe, &t) {
+                    Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
+                        let cvt: IConstantVal = env::i_constant_val_dup(cvt0);
+                        let caps: IIndCaps = env::i_ind_caps_dup(caps0);
+                        major_to_ctor_at(
+                            pers, st, mode, eager, lane, fuel, fe, depth, &cvj, cn_p, &ctor,
+                            is_k, &cvt, &caps, &t, major,
+                        )
                     }
                     Some(_) => Ok(major.dup2()),
                     None => Ok(major.dup2()),
+                }
+            }
+            Some(_) => Ok(major.dup2()),
+            None => Ok(major.dup2()),
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:601-757 majorToCtor
+/// con-leche: ConLeche/Cached/CoreC.lean:850-953 majorToCtorI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2126-2235 majorToCtor` — the
+/// rescue, answering with the result classified (`MajorView`): the major's
+/// own classification where it is a constructor application; otherwise
+/// `major_to_ctor_rescue`, whose answer is the stuck major itself where no
+/// rescue fires (`Stuck`, no lookup: a rescue's fabrication is a constructor
+/// application, so it is never the major) and the fabricated spine's
+/// classification where one does.
+pub fn major_to_ctor(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    rec_name: &NIdx,
+    is_k: bool,
+    rules: &Vec<IRecRule>,
+    major: &EIdx,
+) -> Result<MajorView, CheckError> {
+    match ctor_view(pers, st, fe, major) {
+        Err(e) => Err(e),
+        Ok(v) => {
+            if major_view_is_ctor(&v) {
+                Ok(v)
+            } else {
+                match major_to_ctor_rescue(
+                    pers, st, mode, eager, lane, fuel, fe, depth, rec_name, is_k, rules, major,
+                ) {
+                    Err(e) => Err(e),
+                    Ok(r) => {
+                        if r.eq2(major) {
+                            Ok(MajorView::Stuck(r))
+                        } else {
+                            ctor_view(pers, st, fe, &r)
+                        }
+                    }
                 }
             }
         }
@@ -6284,20 +6459,20 @@ pub fn is_str_lit(pers: &PersTier, st: &AState, e: &EIdx) -> Result<bool, CheckE
 
 /// con-leche: ConLeche/Kernel/Core.lean:795-874 prepareMajor
 /// con-leche: ConLeche/Cached/CoreC.lean:979-1000 prepareMajorI
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::prepare_major_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2288-2314 prepareMajor` — the major
-/// premise's preparation before a rule fires.  At a K-flagged recursor (the
-/// record's `isK`) the K
-/// rescue runs on the **raw** major and, if it did not produce a constructor
-/// application, the major is left as it is (con-leche task #334).  Elsewhere
-/// the order of lean4#15351 (con-leche task #342 R2): the structure rescues
-/// run on the major **as found** (a `String` literal skips them), and only if
-/// they produce no constructor is the major head-normalized, its literal
-/// converted and the rescue tried once more on the reduct — so a structure
-/// major whose head normalization does not terminate is rescued off its type.
-/// A `Nat.succ x` major (`is_nat_succ_app`), though a constructor application,
-/// takes that path too: its whnf folds it to a literal, so a counter that
-/// forces its index through `Nat.succ` holds a literal, not a unary tower.
+/// premise's preparation before a rule fires, answering with the result
+/// classified (`MajorView`).  At a K-flagged recursor (the record's `isK`) the
+/// K rescue runs on the **raw** major and its answer is final (con-leche task
+/// #334; the spec's literal conversion of a constructor application is the
+/// identity).  Elsewhere the order of lean4#15351 (con-leche task #342 R2): the
+/// structure rescues run on the major **as found** (a `String` literal skips
+/// them), and only if they produce no constructor is the major
+/// head-normalized, its literal converted and the rescue tried once more on
+/// the reduct — so a structure major whose head normalization does not
+/// terminate is rescued off its type.  A `Nat.succ x` major
+/// (`is_nat_succ_app`), though a constructor application, takes that path
+/// too: its whnf folds it to a literal, so a counter that forces its index
+/// through `Nat.succ` holds a literal, not a unary tower.
 pub fn prepare_major(
     pers: &PersTier,
     st: &mut AState,
@@ -6311,48 +6486,42 @@ pub fn prepare_major(
     is_k: bool,
     rules: &Vec<IRecRule>,
     major: &EIdx,
-) -> Result<EIdx, CheckError> {
+) -> Result<MajorView, CheckError> {
     if is_k {
-        match major_to_ctor(pers, st, mode, eager, lane, fuel, fe, depth, rec_name, is_k, rules, major) {
-            Err(e) => Err(e),
-            Ok(major_k) => match is_ctor_app(pers, st, fe, &major_k) {
-                Err(e) => Err(e),
-                Ok(true) => {
-                    lit_major_to_ctor(pers, st, mode, eager, lane, fuel, fe, depth, &major_k)
-                }
-                Ok(false) => Ok(major_k),
-            },
-        }
+        major_to_ctor(pers, st, mode, eager, lane, fuel, fe, depth, rec_name, is_k, rules, major)
     } else {
-        let major_e: Result<EIdx, CheckError> = match is_str_lit(pers, st, major) {
+        let v_e: Result<MajorView, CheckError> = match is_str_lit(pers, st, major) {
             Err(e) => Err(e),
-            Ok(true) => Ok(major.dup2()),
+            Ok(true) => Ok(MajorView::Stuck(major.dup2())),
             Ok(false) => {
                 major_to_ctor(pers, st, mode, eager, lane, fuel, fe, depth, rec_name, is_k, rules, major)
             }
         };
-        match major_e {
+        match v_e {
             Err(e) => Err(e),
-            Ok(major_e) => match is_ctor_app(pers, st, fe, &major_e) {
-                Err(e) => Err(e),
-                Ok(true) => match is_nat_succ_app(pers, st, &major_e) {
-                    Err(e) => Err(e),
-                    Ok(false) => Ok(major_e),
-                    Ok(true) => prepare_major_whnf(
-                        pers, st, mode, eager, lane, fuel, fe, depth, rec_name, is_k, rules, &major_e,
-                    ),
-                },
-                Ok(false) => prepare_major_whnf(
-                    pers, st, mode, eager, lane, fuel, fe, depth, rec_name, is_k, rules, &major_e,
-                ),
-            },
+            Ok(v_e) => {
+                if major_view_is_ctor(&v_e) {
+                    match is_nat_succ_app(pers, st, &major_view_expr(&v_e)) {
+                        Err(e) => Err(e),
+                        Ok(false) => Ok(v_e),
+                        Ok(true) => prepare_major_whnf(
+                            pers, st, mode, eager, lane, fuel, fe, depth, rec_name, is_k, rules,
+                            &major_view_expr(&v_e),
+                        ),
+                    }
+                } else {
+                    prepare_major_whnf(
+                        pers, st, mode, eager, lane, fuel, fe, depth, rec_name, is_k, rules,
+                        &major_view_expr(&v_e),
+                    )
+                }
+            }
         }
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:795-874 prepareMajor
 /// con-leche: ConLeche/Cached/CoreC.lean:979-1000 prepareMajorI
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::prepare_major_whnf_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2276-2286 prepareMajorWhnf` — the
 /// non-K path past a rescue that produced no constructor: head-normalize the
 /// major, convert its literal, try the rescue once more on the reduct.
@@ -6369,7 +6538,7 @@ pub fn prepare_major_whnf(
     is_k: bool,
     rules: &Vec<IRecRule>,
     major: &EIdx,
-) -> Result<EIdx, CheckError> {
+) -> Result<MajorView, CheckError> {
     match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, major) {
         Err(e) => Err(e),
         Ok(major0) => match lit_major_to_ctor(pers, st, mode, eager, lane, fuel, fe, depth, &major0) {
@@ -6486,7 +6655,6 @@ pub fn inst_spine_pins(
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:985-1007 recFireComparands
 /// con-leche: ConLeche/Cached/CoreC.lean:1002-1080 iotaRecI
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::rec_fire_levels_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2352-2375 recFireLevels` — the
 /// LEVEL comparands of a firing rule (`(recFireComparands …).1`): the
 /// recursor's own instantiation of the constructor's level parameters at a
@@ -6530,7 +6698,6 @@ pub fn rec_fire_levels(
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:985-1007 recFireComparands
 /// con-leche: ConLeche/Cached/CoreC.lean:1002-1080 iotaRecI
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::rec_fire_args_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2377-2387 recFireArgs` — the
 /// PARAMETER comparands of a firing rule (`(recFireComparands …).2`): the
 /// recursor's leading `cn_p` arguments (the stored constructor's parameter
@@ -6573,7 +6740,6 @@ pub fn find_rule(rules: &Vec<IRecRule>, c: &NIdx, i: usize) -> Option<usize> {
 
 /// con-leche: ConLeche/Kernel/Core.lean:876-974 iotaRec
 /// con-leche: ConLeche/Cached/CoreC.lean:1002-1080 iotaRecI
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::iota_rec_fire_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2404-2501 iotaRecAt` — a matched
 /// rule fires: **the ι case split** (con-leche task #342 L10, S5c) decides
 /// whether the constructor application is checked at all (`iota_rec_cert`, ONE
@@ -6613,7 +6779,6 @@ pub fn iota_rec_fire(
 
 /// con-leche: ConLeche/Kernel/Core.lean:876-974 iotaRec
 /// con-leche: ConLeche/Cached/CoreC.lean:1002-1080 iotaRecI
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::iota_rec_cert_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:84-87 certAtI
 /// con-leche: ConLeche/Kernel/Core.lean:585-592 iotaCaseAt
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2404-2501 iotaRecAt` — **the
@@ -6673,7 +6838,6 @@ pub fn iota_rec_cert(
 
 /// con-leche: ConLeche/Kernel/Core.lean:876-974 iotaRec
 /// con-leche: ConLeche/Cached/CoreC.lean:1002-1080 iotaRecI
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::iota_rec_case3_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2404-2501 iotaRecAt` — a case-3
 /// redex's checks: the constructor's levels against the comparand levels,
 /// its parameters against the parameter comparands, then the telescope and
@@ -6724,7 +6888,6 @@ pub fn iota_rec_case3(
 
 /// con-leche: ConLeche/Kernel/Core.lean:876-974 iotaRec
 /// con-leche: ConLeche/Cached/CoreC.lean:1002-1080 iotaRecI
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::iota_rec_fam_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2404-2501 iotaRecAt` — the
 /// constructor telescope at the FULL grade (`iotaCertsFull`) and the
 /// canonical-index comparison (`iotaIndexOk`).  The constructor's type is
@@ -6780,7 +6943,6 @@ pub fn iota_vals(args: &Vec<EIdx>, p: usize, margs: &Vec<EIdx>, q: usize) -> Vec
 /// con-leche: ConLeche/Kernel/Core.lean:876-974 iotaRec
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:1009-1019 RecRule.iotaReduct
 /// con-leche: ConLeche/Cached/CoreC.lean:1002-1080 iotaRecI
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::iota_rec_reduct_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2404-2501 iotaRecAt` — the ι
 /// reduct, lean4 PR #10565's peel: the rule's body under its `r_p + nfields`
 /// λs at the recursor's levels (`rule_body_at`, the per-declaration memo), the
@@ -6816,12 +6978,11 @@ pub fn iota_rec_reduct(
 
 /// con-leche: ConLeche/Kernel/Core.lean:876-974 iotaRec
 /// con-leche: ConLeche/Cached/CoreC.lean:1002-1080 iotaRecI
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::iota_rec_major_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2404-2501 iotaRecAt` — the
-/// major's side of the step: it is a fully applied constructor with a
-/// matching rule.  The parameter count is the stored constructor's, the field
-/// count the rule's.  (Task #119: the inert-rule decline is gone with
-/// `RecRuleFire.inert`.)
+/// major's side of the step, read off its classification (`MajorView`): a
+/// fully applied constructor with a matching rule.  The constructor's record
+/// is the view's, found where the major was classified; the parameter count
+/// is the stored constructor's, the field count the rule's.
 pub fn iota_rec_major(
     pers: &PersTier,
     st: &mut AState,
@@ -6839,64 +7000,44 @@ pub fn iota_rec_major(
     m_i: u64,
     r_p: u64,
     args: &Vec<EIdx>,
-    major: &EIdx,
+    v: &MajorView,
 ) -> Result<Option<EIdx>, CheckError> {
-    match get_app_fn(pers, st, CORE_WALK_FUEL, major) {
-        Err(e) => Err(e),
-        Ok(hd) => if hd.tag() == ETAG_CONST {
-            match view_const(pers, st, &hd) {
-                None => fail_dangling_e(),
-                Some((cj, usj)) => match env::ifenv_find(pers, fe, &cj) {
-                    Some(IConstantInfo::CtorInfo(cvj0, cn_p0, _, induct0)) => {
-                        let cvj: IConstantVal = env::i_constant_val_dup(cvj0);
-                        let cn_p: u64 = *cn_p0;
-                        let induct: NIdx = induct0.dup2();
-                        match find_rule(rules, &cj, 0) {
-                            None => Ok(None),
-                            Some(k) => {
-                                let rl: IRecRule = env::i_rec_rule_dup(&rules[k]);
-                                match get_app_args(pers, st, CORE_WALK_FUEL, major) {
-                                    Err(e) => Err(e),
-                                    Ok(margs) => {
-                                        if margs.len() as u64 != cn_p + rl.nfields {
-                                            Ok(None)
-                                        } else {
-                                            iota_rec_fire(
-                                                pers, st, mode, eager, lane, fuel, fe, depth, cv,
-                                                is_k, &cvj, cn_p, &induct, &rl, rec_c, us, &usj,
-                                                m_i, r_p, args, &margs,
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+    match v {
+        MajorView::Ctor(major, cj, usj, cvj, cn_p, _, induct) => match find_rule(rules, cj, 0) {
+            None => Ok(None),
+            Some(k) => {
+                let rl: IRecRule = env::i_rec_rule_dup(&rules[k]);
+                match get_app_args(pers, st, CORE_WALK_FUEL, major) {
+                    Err(e) => Err(e),
+                    Ok(margs) => {
+                        if margs.len() as u64 != *cn_p + rl.nfields {
+                            Ok(None)
+                        } else {
+                            iota_rec_fire(
+                                pers, st, mode, eager, lane, fuel, fe, depth, cv, is_k, cvj, *cn_p,
+                                induct, &rl, rec_c, us, usj, m_i, r_p, args, &margs,
+                            )
                         }
                     }
-                    Some(_) => Ok(None),
-                    None => Ok(None),
-                },
+                }
             }
-        } else {
-            Ok(None)
         },
+        MajorView::Stuck(_) => Ok(None),
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:876-974 iotaRec
 /// con-leche: ConLeche/Cached/CoreC.lean:1002-1080 iotaRecI
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::iota_rec_at_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2404-2501 iotaRecAt` — `iotaRec` with
-/// its two spine walks HOISTED: the head and the argument vector are the
-/// caller's, and `n` says how many of `sargs` the expression `e` applies.
-///
-/// `whnf_app` (task #97-P6-9) has both already — it walked the spine once —
-/// and the spec-shaped body it replaces called `iotaRec` on every prefix of
-/// the spine, so `getAppFn`+`getAppArgs` were walked once per argument: a
-/// quadratic that neither checker's shape needs.  The arity test moves in
-/// front of the level-list read for the same reason (both are pure tests of
-/// the same conjunction, and the arity one is O(1) here).  The third
-/// conjunct (con-leche task #342 L18) is the recursor's stored type's
-/// syntactic arity, which the uncertified recursor spine is read against.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2404-2501 iotaRecAt` — **the ι
+/// step at the stored recursor `c`**, its record (`cv`, `m_i`, `r_p`, `is_k`,
+/// `rules`) found by the caller, at the levels `us`, which the caller has
+/// checked against the record, on the redex's arguments `args`, exactly
+/// `m_i + 1` of them (the caller cuts the spine; con-leche's `iotaRecI` takes
+/// the longer spine and reads its prefix): the redex is `c.{us} args`.  The
+/// recursor's stored type's
+/// syntactic arity (con-leche task #342 L18) is what the uncertified
+/// recursor spine is read against; then the major is prepared and classified
+/// once (`prepare_major`) and the rule fires off the classification.
 pub fn iota_rec_at(
     pers: &PersTier,
     st: &mut AState,
@@ -6906,70 +7047,31 @@ pub fn iota_rec_at(
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
-    hd: &EIdx,
-    sargs: &Vec<EIdx>,
-    n: usize,
+    c: &NIdx,
+    us: &LsIdx,
+    cv: &IConstantVal,
+    m_i: u64,
+    r_p: u64,
+    is_k: bool,
+    rules: &Vec<IRecRule>,
+    args: &Vec<EIdx>,
 ) -> Result<Option<EIdx>, CheckError> {
-    if hd.tag() == ETAG_CONST {
-        match view_const(pers, st, hd) {
-            None => fail_dangling_e(),
-            Some((c, us)) => match env::ifenv_find(pers, fe, &c) {
-                Some(IConstantInfo::RecInfo(cv0, m_i0, r_p0, is_k0, rules0)) => {
-                    let m_i: u64 = *m_i0;
-                    // **The arity test hoisted over the copies** (task
-                    // #97-P6-10): `whnf_app` asks `iota_rec_at` at every
-                    // reduction step and the answer is `none` at the wrong
-                    // arity, so copying the recursor's `IConstantVal` and its
-                    // whole rule vector first is work for a branch that reads
-                    // neither.
-                    if n as u64 != m_i + 1 {
-                        Ok(None)
-                    } else {
-                        let cv: IConstantVal = env::i_constant_val_dup(cv0);
-                        let r_p: u64 = *r_p0;
-                        let is_k: bool = *is_k0;
-                        let rules: Vec<IRecRule> = env::i_rec_rules_dup(rules0);
-                        let args: Vec<EIdx> = take_eidx(sargs, n);
-                        match view_ls_len(pers, st, &us) {
-                            None => fail_dangling_ls(),
-                            Some(usl) => match peel_pis(pers, st, m_i + 1, &cv.ty) {
-                                Err(er) => Err(er),
-                                Ok(peeled) => {
-                                    if args.len() as u64 == m_i + 1
-                                        && usl == cv.level_params.len()
-                                        && peeled.is_some()
-                                    {
-                                        match intern_e_bvar(pers, st, 0) {
-                                            Err(er) => Err(er),
-                                            Ok(b0) => {
-                                                let maj0: EIdx = get_d_eidx(&args, m_i, &b0);
-                                                match prepare_major(
-                                                    pers, st, mode, eager, lane, fuel, fe, depth, &c,
-                                                    is_k, &rules, &maj0,
-                                                ) {
-                                                    Err(er) => Err(er),
-                                                    Ok(major) => iota_rec_major(
-                                                        pers, st, mode, eager, lane, fuel, fe, depth,
-                                                        &cv, is_k, &rules, &c, &us, m_i, r_p, &args,
-                                                        &major,
-                                                    ),
-                                                }
-                                            }
-                                        }
-                                    } else {
-                                        Ok(None)
-                                    }
-                                }
-                            },
-                        }
-                    }
+    match peel_pis(pers, st, m_i + 1, &cv.ty) {
+        Err(er) => Err(er),
+        Ok(None) => Ok(None),
+        Ok(Some(_)) => match intern_e_bvar(pers, st, 0) {
+            Err(er) => Err(er),
+            Ok(b0) => {
+                let maj0: EIdx = get_d_eidx(args, m_i, &b0);
+                match prepare_major(pers, st, mode, eager, lane, fuel, fe, depth, c, is_k, rules, &maj0) {
+                    Err(er) => Err(er),
+                    Ok(v) => iota_rec_major(
+                        pers, st, mode, eager, lane, fuel, fe, depth, cv, is_k, rules, c, us, m_i, r_p,
+                        args, &v,
+                    ),
                 }
-                Some(_) => Ok(None),
-                None => Ok(None),
-            },
-        }
-    } else {
-        Ok(None)
+            }
+        },
     }
 }
 
@@ -7311,7 +7413,62 @@ pub fn head_and_args(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1133-1167 whnfAppI
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::whnf_app_refines, then delete this line
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1 whnfAppIota` — the ι step of
+/// `whnf_app`'s loop at the application `hd vargs` it has accumulated (`n`
+/// arguments), tried only where it can fire: a stored recursor at its own
+/// number of levels, applied to exactly `m_i + 1` arguments.  The recursor's
+/// record is looked up here, once, and handed to the step (`iota_rec_at`);
+/// the arity test comes before the record's copies, which a branch that does
+/// not fire never reads.
+pub fn whnf_app_iota(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    hd: &EIdx,
+    vargs: &Vec<EIdx>,
+    n: usize,
+) -> Result<Option<EIdx>, CheckError> {
+    if hd.tag() == ETAG_CONST {
+        match view_const(pers, st, hd) {
+            None => fail_dangling_e(),
+            Some((c, us)) => match env::ifenv_find(pers, fe, &c) {
+                Some(IConstantInfo::RecInfo(cv0, m_i0, r_p0, is_k0, rules0)) => {
+                    let m_i: u64 = *m_i0;
+                    if n as u64 != m_i + 1 {
+                        Ok(None)
+                    } else {
+                        match view_ls_len(pers, st, &us) {
+                            None => fail_dangling_ls(),
+                            Some(usl) => {
+                                if usl != cv0.level_params.len() {
+                                    Ok(None)
+                                } else {
+                                    let cv: IConstantVal = env::i_constant_val_dup(cv0);
+                                    let rules: Vec<IRecRule> = env::i_rec_rules_dup(rules0);
+                                    iota_rec_at(
+                                        pers, st, mode, eager, lane, fuel, fe, depth, &c, &us, &cv, m_i,
+                                        *r_p0, *is_k0, &rules, vargs,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                Some(_) => Ok(None),
+                None => Ok(None),
+            },
+        }
+    } else {
+        Ok(None)
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:1133-1167 whnfAppI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2632-2663 whnfApp` — the cached
 /// tier's bulk-β argument loop, the EXECUTED checker's own `.app` step.
 ///
@@ -7327,8 +7484,9 @@ pub fn head_and_args(
 /// Three things travel with `v`, all bookkeeping:
 ///   * `same` — `v` still IS the function part of `nodes[i]`, which is task
 ///     #97-P6-5's upward cutoff (`intern_app_rebuilt`);
-///   * `hd` and `vargs` — `v = mkAppN hd vargs`, so that the ι step is
-///     `iota_rec_at` and not a fresh `getAppFn`/`getAppArgs` walk per argument;
+///   * `hd` and `vargs` — `v = mkAppN hd vargs`, so that the ι step
+///     (`whnf_app_iota`) is not a fresh `getAppFn`/`getAppArgs` walk per
+///     argument;
 ///   * `i` — the cursor into `args`, which is the twin's list pattern.
 pub fn whnf_app(
     pers: &PersTier,
@@ -7365,13 +7523,7 @@ pub fn whnf_app(
                     let mut va: Vec<EIdx> = vargs;
                     va.push(a);
                     let n: usize = va.len();
-                    let step = if hd.tag() == ETAG_CONST {
-                        iota_rec_at(pers, st, mode, eager, lane, fuel, fe, depth, hd, &va, n)
-                    } else {
-                        // `iotaArityOk`'s `.const` match, off the handle's tag.
-                        Ok(None)
-                    };
-                    match step {
+                    match whnf_app_iota(pers, st, mode, eager, lane, fuel, fe, depth, hd, &va, n) {
                         Err(e) => Err(e),
                         Ok(None) => whnf_app(
                             pers, st, mode, eager, lane, fuel, fe, depth, &ap, hd, va, same2, args,
@@ -7496,49 +7648,16 @@ pub fn is_stuck_head(h: &EIdx) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:200-211 iotaTargetF
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::iota_target_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2679-2694 iotaTarget` — **the ι target of a
-/// spine head**: the spine length `mI + 1` at which `iota_rec_at` can fire,
-/// where the head is a stored recursor at its own number of levels (the arity
-/// test `iota_rec_at` makes first, read off the head once).
-pub fn iota_target(
-    pers: &PersTier,
-    st: &AState,
-    fe: &IFEnv,
-    h: &EIdx,
-) -> Result<Option<u64>, CheckError> {
-    if h.tag() == ETAG_CONST {
-        match view_const(pers, st, h) {
-            None => fail_dangling_e(),
-            Some((c, us)) => match env::ifenv_find(pers, fe, &c) {
-                Some(IConstantInfo::RecInfo(cv, m_i, _, _, _)) => match view_ls_len(pers, st, &us) {
-                    None => fail_dangling_ls(),
-                    Some(usl) => {
-                        if usl == cv.level_params.len() {
-                            Ok(Some(*m_i + 1))
-                        } else {
-                            Ok(None)
-                        }
-                    }
-                },
-                Some(_) => Ok(None),
-                None => Ok(None),
-            },
-        }
-    } else {
-        Ok(None)
-    }
-}
-
 /// con-leche: ConLeche/Cached/CoreC.lean:1169-1190 whnfStuckI
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::whnf_stuck_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2696-2714 whnfStuck` — **a spine `e` whose
 /// head `h` is its own head normal form and not a λ** (official `whnf_core`'s
 /// `f == f0` arm, `src/kernel/type_checker.cpp:525-536`): the ι step, tried
-/// once, at the one prefix where it can fire (`iota_target`), on the spine's
-/// argument vector, and otherwise the input itself, with nothing rebuilt.  A
-/// fired ι hands the loop its reduct applied to the rest of the spine.
+/// once, at the one prefix where it can fire (a stored recursor at its own
+/// number of levels: the prefix of `m_i + 1` arguments), on the spine's
+/// argument vector, and otherwise the input itself, with nothing rebuilt.  The
+/// recursor's record is looked up here, once, and handed to the ι step
+/// (`iota_rec_at`).  A fired ι hands the loop its reduct applied to the rest
+/// of the spine.
 ///
 /// con-leche counts the spine (`iotaNumArgs`) before it builds the argument
 /// array; here the vector is built at a recursor head and its length is the
@@ -7556,27 +7675,52 @@ pub fn whnf_stuck(
     h: &EIdx,
     e: &EIdx,
 ) -> Result<WhnfStep, CheckError> {
-    match iota_target(pers, st, fe, h) {
-        Err(er) => Err(er),
-        Ok(None) => Ok(WhnfStep::Done(e.dup2())),
-        Ok(Some(k)) => match get_app_args(pers, st, CORE_WALK_FUEL, e) {
-            Err(er) => Err(er),
-            Ok(args) => {
-                if k <= args.len() as u64 {
-                    let kz: usize = k as usize;
-                    match iota_rec_at(pers, st, mode, eager, lane, fuel, fe, depth, h, &args, kz) {
-                        Err(er) => Err(er),
-                        Ok(None) => Ok(WhnfStep::Done(e.dup2())),
-                        Ok(Some(e2)) => match mk_app_n_from(pers, st, &e2, &args, kz) {
-                            Err(er) => Err(er),
-                            Ok(e3) => Ok(WhnfStep::Cont(e3)),
-                        },
+    if h.tag() == ETAG_CONST {
+        match view_const(pers, st, h) {
+            None => fail_dangling_e(),
+            Some((c, us)) => match env::ifenv_find(pers, fe, &c) {
+                Some(IConstantInfo::RecInfo(cv0, m_i0, r_p0, is_k0, rules0)) => {
+                    let m_i: u64 = *m_i0;
+                    match view_ls_len(pers, st, &us) {
+                        None => fail_dangling_ls(),
+                        Some(usl) => {
+                            if usl != cv0.level_params.len() {
+                                Ok(WhnfStep::Done(e.dup2()))
+                            } else {
+                                match get_app_args(pers, st, CORE_WALK_FUEL, e) {
+                                    Err(er) => Err(er),
+                                    Ok(sargs) => {
+                                        if m_i + 1 <= sargs.len() as u64 {
+                                            let k: usize = (m_i + 1) as usize;
+                                            let args: Vec<EIdx> = take_eidx(&sargs, k);
+                                            let cv: IConstantVal = env::i_constant_val_dup(cv0);
+                                            let rules: Vec<IRecRule> = env::i_rec_rules_dup(rules0);
+                                            match iota_rec_at(
+                                                pers, st, mode, eager, lane, fuel, fe, depth, &c, &us,
+                                                &cv, m_i, *r_p0, *is_k0, &rules, &args,
+                                            ) {
+                                                Err(er) => Err(er),
+                                                Ok(None) => Ok(WhnfStep::Done(e.dup2())),
+                                                Ok(Some(e2)) => match mk_app_n_from(pers, st, &e2, &sargs, k) {
+                                                    Err(er) => Err(er),
+                                                    Ok(e3) => Ok(WhnfStep::Cont(e3)),
+                                                },
+                                            }
+                                        } else {
+                                            Ok(WhnfStep::Done(e.dup2()))
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
-                } else {
-                    Ok(WhnfStep::Done(e.dup2()))
                 }
-            }
-        },
+                Some(_) => Ok(WhnfStep::Done(e.dup2())),
+                None => Ok(WhnfStep::Done(e.dup2())),
+            },
+        }
+    } else {
+        Ok(WhnfStep::Done(e.dup2()))
     }
 }
 
@@ -9913,28 +10057,6 @@ pub fn infer_spine_io(
 // Definitional equality (`Core.lean:2342-2593`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Core.lean:1415-1428 boolTrueShortcut
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::bool_true_shortcut_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3800-3805 boolTrueShortcut` — **the
-/// eq-true shortcut** (the divergence audit's E2): the left side is fully
-/// head-normalised and the verdict is `true` iff the reduct is `Bool.true`.
-pub fn bool_true_shortcut(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    eager: bool,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    a: &EIdx,
-) -> Result<bool, CheckError> {
-    match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, a) {
-        Err(e) => Err(e),
-        Ok(w) => is_bool_true(pers, st, &w),
-    }
-}
-
 /// con-leche: ConLeche/Kernel/Core.lean:1415-1444 defeqSpine
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3807-3833 defeqSpine` —
 /// levels-and-spine congruence for two applications of the *same* stored
@@ -11079,9 +11201,8 @@ pub fn defeq_stuck(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1842-1884 defeqBody
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::defeq_after_lazy_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:4249-4287 defeqBody` — the tail of the
+/// con-leche: ConLeche/Kernel/Core.lean:1789-1840 defeqLazy
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4249-4287 defeqLazy` — the tail of the
 /// body after the lazy-delta loop came back undecided: the proj/proj check,
 /// then the FULL `whnfCore` of both sides (only when one is projection-headed)
 /// and, if either changed, a restart; else the stuck comparison.
@@ -11131,13 +11252,11 @@ pub fn defeq_after_lazy(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1842-1884 defeqBody
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::defeq_after_whnf_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:4249-4287 defeqBody` — the body after the
-/// CHEAP head normalization of both sides: `quick_defeq` on the reducts, the
-/// lazy-delta loop, and `defeq_after_lazy`.  (Proof irrelevance is no longer
-/// here: since con-leche task #333 it runs on the UNREDUCED pair, in
-/// `defeq_unreduced`.)
+/// con-leche: ConLeche/Kernel/Core.lean:1789-1840 defeqLazy
+/// Lean twin: `proof/ConRon/Arena/Core.lean:4249-4287 defeqLazy` — the lazy
+/// comparison after the CHEAP head normalization of both sides: `quick_defeq`
+/// on the reducts, the lazy-delta loop, and `defeq_after_lazy`.  (Proof
+/// irrelevance runs on the UNREDUCED pair, in `defeq_lazy`.)
 pub fn defeq_after_whnf(
     pers: &PersTier,
     st: &mut AState,
@@ -11167,14 +11286,15 @@ pub fn defeq_after_whnf(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1842-1884 defeqBody
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::defeq_unreduced_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:4249-4287 defeqBody` — the body
-/// past the `Bool.true` shortcut (con-leche task #333): `quick_defeq` and proof
-/// irrelevance on the UNREDUCED pair, so that a proof is never head-normalized
-/// to be compared; then the CHEAP head normalization of both sides and
-/// `defeq_after_whnf`.
-pub fn defeq_unreduced(
+/// con-leche: ConLeche/Kernel/Core.lean:1789-1840 defeqLazy
+/// con-leche: ConLeche/Cached/CoreC.lean:1933-1955 defeqLazyI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1 defeqLazy` — **the lazy
+/// comparison**, the official kernel's `is_def_eq_core` past its syntactic
+/// fast path and its eq-true clause: `quick_defeq` and proof irrelevance on
+/// the UNREDUCED pair (con-leche task #333), so that a proof is never
+/// head-normalized to be compared; then the CHEAP head normalization of both
+/// sides and `defeq_after_whnf`.
+pub fn defeq_lazy(
     pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
@@ -11210,13 +11330,74 @@ pub fn defeq_unreduced(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1842-1884 defeqBody
-/// con-leche: CHANGED since 9e3c8197 — re-port, re-test, re-prove core::defeq_body_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:4249-4287 defeqBody` — **the
-/// definitional-equality body** (the official kernel's `is_def_eq_core`,
-/// clause for clause except con-leche task #333's reordering): the syntactic
-/// fast path; the `Bool.true` shortcut; `quick_defeq` and proof irrelevance on
-/// the UNREDUCED sides; the CHEAP head normalization of both sides; then
-/// `defeq_after_whnf`.
+/// con-leche: ConLeche/Cached/CoreC.lean:1957-1977 defeqBodyI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1 defeqBody` — the constructor
+/// shortcut at a target `c` on the RIGHT (`b`): the left side head-normalised
+/// (`whnf`) and its head read against `c` (`ctor_head_against`) — head `c`
+/// continues with the lazy comparison of the normal form, another
+/// constructor is `false`, anything else is the lazy comparison of the
+/// original pair.
+pub fn defeq_ctor_right(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    c: &NIdx,
+    a: &EIdx,
+    b: &EIdx,
+) -> Result<bool, CheckError> {
+    match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, a) {
+        Err(e) => Err(e),
+        Ok(w) => match ctor_head_against(pers, st, fe, c, &w) {
+            Err(e) => Err(e),
+            Ok(Some(true)) => defeq_lazy(pers, st, mode, eager, lane, fuel, fe, depth, &w, b),
+            Ok(Some(false)) => Ok(false),
+            Ok(None) => defeq_lazy(pers, st, mode, eager, lane, fuel, fe, depth, a, b),
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:1842-1884 defeqBody
+/// con-leche: ConLeche/Cached/CoreC.lean:1957-1977 defeqBodyI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1 defeqBody` — the constructor
+/// shortcut at a target `c` on the LEFT (`a`): `defeq_ctor_right` with the
+/// sides' roles swapped, the pair kept in its order.
+pub fn defeq_ctor_left(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    c: &NIdx,
+    a: &EIdx,
+    b: &EIdx,
+) -> Result<bool, CheckError> {
+    match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, b) {
+        Err(e) => Err(e),
+        Ok(w) => match ctor_head_against(pers, st, fe, c, &w) {
+            Err(e) => Err(e),
+            Ok(Some(true)) => defeq_lazy(pers, st, mode, eager, lane, fuel, fe, depth, a, &w),
+            Ok(Some(false)) => Ok(false),
+            Ok(None) => defeq_lazy(pers, st, mode, eager, lane, fuel, fe, depth, a, b),
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:1842-1884 defeqBody
+/// con-leche: ConLeche/Cached/CoreC.lean:1957-1977 defeqBodyI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1 defeqBody` — **the
+/// definitional-equality body** (the official kernel's `is_def_eq_core`): the
+/// syntactic fast path, the constructor shortcut — a closed, fully applied
+/// constructor application of a family that is never a proposition, has no η
+/// law and is not `Nat` (`ctor_target_for`), the right side tried first — and
+/// otherwise the lazy comparison (`defeq_lazy`).
 pub fn defeq_body(
     pers: &PersTier,
     st: &mut AState,
@@ -11232,26 +11413,13 @@ pub fn defeq_body(
     if a.eq2(b) {
         Ok(true)
     } else {
-        match is_bool_true(pers, st, b) {
+        match ctor_target_for(pers, st, fe, eager, a, b) {
             Err(e) => Err(e),
-            Ok(ibt) => match has_fvar_fast(pers, st, CORE_WALK_FUEL, a) {
+            Ok(Some(c)) => defeq_ctor_right(pers, st, mode, eager, lane, fuel, fe, depth, &c, a, b),
+            Ok(None) => match ctor_target_for(pers, st, fe, eager, b, a) {
                 Err(e) => Err(e),
-                Ok(hf) => {
-                    // the eager flag fires the shortcut with free
-                    // variables present (official `m_eager_reduce`)
-                    let sc = if ibt && (eager || !hf) {
-                        bool_true_shortcut(pers, st, mode, eager, lane, fuel, fe, depth, a)
-                    } else {
-                        Ok(false)
-                    };
-                    match sc {
-                        Err(e) => Err(e),
-                        Ok(true) => Ok(true),
-                        Ok(false) => {
-                            defeq_unreduced(pers, st, mode, eager, lane, fuel, fe, depth, a, b)
-                        }
-                    }
-                }
+                Ok(Some(c)) => defeq_ctor_left(pers, st, mode, eager, lane, fuel, fe, depth, &c, a, b),
+                Ok(None) => defeq_lazy(pers, st, mode, eager, lane, fuel, fe, depth, a, b),
             },
         }
     }
@@ -11357,7 +11525,7 @@ pub fn whnf_stuck_tag(e: &EIdx) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:375-388 memoEI
+/// con-leche: ConLeche/Cached/CoreC.lean:369-387 memoEI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2884-2891 whnfCoreSet` — record a
 /// `whnfCore` answer.
 pub fn whnf_core_set(st: &mut AState, e: &EIdx, r: &EIdx) {
@@ -11371,21 +11539,21 @@ pub fn whnf_core_cheap_set(st: &mut AState, e: &EIdx, r: &EIdx) {
     let _ = st.caches.whnf_core_cheap_c.insert(e.dup2(), r.dup2());
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:375-388 memoEI
+/// con-leche: ConLeche/Cached/CoreC.lean:369-387 memoEI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4297-4303 whnfSet` — record a
 /// `whnf` answer.
 pub fn whnf_set(st: &mut AState, e: &EIdx, r: &EIdx) {
     let _ = st.caches.whnf_c.insert(e.dup2(), r.dup2());
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:375-388 memoEI
+/// con-leche: ConLeche/Cached/CoreC.lean:369-387 memoEI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4305-4311 inferSet` — record a
 /// full-grade `infer` answer.
 pub fn infer_set(st: &mut AState, e: &EIdx, r: &EIdx) {
     let _ = st.caches.infer_c.insert(e.dup2(), r.dup2());
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:375-388 memoEI
+/// con-leche: ConLeche/Cached/CoreC.lean:369-387 memoEI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4313-4320 inferIOSet` — record an
 /// io-grade `infer` answer, in the io grade's OWN table (con-leche's task #170
 /// memo ruling).
