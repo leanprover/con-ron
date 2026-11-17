@@ -172,3 +172,4 @@ ConRon.Bridge.Core.mtcAnd_eq	rfl lemma in `simp only [mtcAndOp, mtcAnd_eq, …]`
 ConRon.Refine2.Lockstep.LSS	the `@[lockstep]` attribute dispatches on this name (Refine2/Tactic/Attr.lean), shared core (CLAUDE.md); no current lemma is LSS-shaped
 ConRon.Refine2.Lockstep.LSS.bind	as ConRon.Refine2.Lockstep.LSS
 ConRon.Refine2.Lockstep.absIIndCaps_neverZero	rfl `lockstep_simp` row `Core/LS/Defeq.lean`'s `ctor_target_ls` needs (the capability record's never-zero flag through the abstraction); simp leaves no trace
+ConRon.Refine.Nat.nat_lor_eq	rfl lemma in `simp only` sets of Refine/Nat.lean (the `Nat.lor` ↔ `|||` bridge of the shift and bitwise proofs)

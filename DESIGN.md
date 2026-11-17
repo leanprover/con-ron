@@ -606,9 +606,16 @@ Both are written in the crate and verified:
   of four representation cases, and one invariant instead of two (task #6).
   Operations needed (`Kernel/Core.lean:628-655`): `pred, add, sub, mul, pow
   (exponent ≤ 2^24), div, mod, gcd, land, lor, xor, shiftLeft, shiftRight,
-  beq, ble`.  Spec: `toNat : ron.Nat → Nat` is a homomorphism.  Shift-subtract
-  long division (easy proof); Knuth D only if a profile demands it.  This
-  discharges con-leche's "verified bignum" wish list item for the Rust side.
+  beq, ble`.  Spec: `toNat : ron.Nat → Nat` is a homomorphism.  The
+  algorithms (task #158): schoolbook multiplication as in-place
+  multiply-accumulate rows below 64 limbs and Karatsuba above, with an
+  unbalanced product split into balanced ones; long division a limb at a
+  time, a `u128` division for a one-limb divisor and Knuth's algorithm D on
+  normalised operands otherwise (the proof needs only that the estimate is
+  never below the quotient, not Knuth's two-correction bound).
+  Subquadratic division (Burnikel–Ziegler, Newton) is a possible follow-up.
+  This discharges con-leche's "verified bignum" wish list item for the Rust
+  side.
 
 Indices that are `Nat` in con-leche but never large (`bvar i`, `fvar idx`,
 `Name.num n`, level params, positions) are `u64`; `abs` casts, and an
@@ -629,7 +636,7 @@ equality, hashing and `String.toList`/`Char.ofNat` for literal reduction);
   `StructuralPartialEq` impl into the model (`ron/hashmap.rs`'s note on
   `Eq2`).  No closures; no `?` in the core (explicit `match` keeps the
   generated Lean shaped like con-leche's `do` blocks); no `loop`/`while`
-  except where the next bullet allows it; no generic instantiated
+  except where the "Loops" bullet below allows it; no generic instantiated
   with `&mut`; no `unsafe` (one exemption, below); no `std::collections`; no
   counted-pointer API beyond `new/clone/deref/ptr_eq` and the count *read*
   of the bullet after next; `&mut` only for the state parameter.
@@ -648,23 +655,30 @@ equality, hashing and `String.toList`/`Char.ofNat` for literal reduction);
   every caller is a memo gate (`expr::beq_memoise`, `expr_ops_c::memo_skip`
   and the six `memo*_probe`/`memo*_record` helpers).  OVERVIEW.md §8.1's hole
   row carries the trust argument.
-* **Loops, the one exemption (2026-09-14, task #84).**
-  `crates/con-ron-core/src/frontend/` — the ported export parser, and only
-  that directory — may use `while`, `loop` and `for … in a..b` where the cited
-  Lean function is a per-byte or per-element tail recursion or a bounded fold.
-  The reason is faithfulness, not convenience: `Scan/Fast.lean` recurses once
-  per byte and *Lean compiles those tail calls to loops*, which is what
-  con-leche actually runs; Rust promises no such thing, and a per-byte
-  recursion on a long export line is a stack overflow.  Extraction already
-  runs with `-loops-to-rec`, so each loop becomes a `foo_loop` function that
-  mirrors the Lean recursion one for one and is what the refinement is stated
-  against.  Two facts to design around, measured by task #84's spike:
-  Aeneas **duplicates the code after a loop into every loop exit** (a `while`
-  with four `break`s and a fifteen-line tail is sixty lines of Lean), so the
-  post-loop tail belongs in its own function; and `while`, `loop`+`break`,
-  `for k in 0..n`, `Vec::push` inside a loop and an early `return` out of one
-  all translate with no new external.  `scripts/lint-rust-style.sh` enforces
-  the exemption's boundary — and task #84 found that its loop check had been
+* **Loops, the two exemptions (2026-09-14, task #84; 2026-11-17, task
+  #158).**  `crates/con-ron-core/src/frontend/` — the ported export parser —
+  and `crates/con-ron-core/src/ron/nat.rs` — the bignum — may use `while`,
+  `loop` and `for … in a..b`; nothing else in the core may.  For the parser
+  the reason is faithfulness, not convenience: the cited Lean function is a
+  per-byte or per-element tail recursion or a bounded fold, `Scan/Fast.lean`
+  recurses once per byte and *Lean compiles those tail calls to loops*,
+  which is what con-leche actually runs; Rust promises no such thing, and a
+  per-byte recursion on a long export line is a stack overflow.  For the
+  bignum (no Lean source) the reason is the algorithms: a limb pass is a
+  loop, the in-place multiply-accumulate of `mul` is naturally a `while`
+  writing `v[i] = x` into a pre-sized accumulator, and a per-limb recursion
+  is the same stack hazard in a debug build.  Extraction already runs with
+  `-loops-to-rec`, so each loop becomes a `foo_loop` function that mirrors
+  the recursion one for one and is what the refinement is stated against —
+  and, being a `partial_fixpoint` like every other function, is proved by its
+  `fixpoint_induct` (`partial_induct`, task #99-PFIX) with no measure.  Two
+  facts to design around, measured by task #84's spike: Aeneas **duplicates
+  the code after a loop into every loop exit** (a `while` with four `break`s
+  and a fifteen-line tail is sixty lines of Lean), so the post-loop tail
+  belongs in its own function; and `while`, `loop`+`break`, `for k in 0..n`,
+  `Vec::push` inside a loop and an early `return` out of one all translate
+  with no new external.  `scripts/lint-rust-style.sh` enforces the
+  exemptions' boundary — and task #84 found that its loop check had been
   anchored `^\s*(while|…)` against lines that `gather` prefixes with
   `file:line:`, so it had never matched anything since it was written; the
   core turned out to be clean under the repaired check.
@@ -73011,3 +73025,121 @@ reads the twin's `sargs.toList` as the Rust vector's list (`absEIdxArr_toList_eq
 Upstream measured −0.55 % (#591) and −3.33 % (#592) on `init-full`.
 `grind_field_cancel_inv` (ι-heavy, one run each, `instructions:u`): master 1.471 G, this branch
 1.440 G (−2.1 %); upstream measured −2.9 % (#591) on it.
+
+### Task #158 — the bignum's algorithms: Karatsuba, Knuth D, loops (2026-11-17, Opus)
+
+**Why.**  Arena test `perf/gf3-matrix-product` (`_tmp/gf3/gf3.ndjson`): con-ron retired
+269.7 G instructions at `--jobs=1`, con-leche 18.5 G, con-agua 146.8 G, and ~80 % of
+con-ron's was `nat::mul` — schoolbook written as shift-and-add, three fresh `Vec`s per limb
+of `b`, each pushed from empty — and `div_mod` was restoring division one *bit* at a time
+with an allocation per bit.  Task #15 had chosen both for the proof (§3.3: "Knuth D only if
+a profile demands it"); this is the profile.
+
+**The design.**  Representation, public API and every public `*_refines` statement are
+unchanged (`div_mod`'s helpers lost hypotheses, none gained one).
+
+* **Loops in `ron/nat.rs`** (§3.4's exemption, now two paths; `lint-rust-style.sh`'s
+  `check_loops` filter): every in-place pass is a `while` over a vector the function owns,
+  writing `v[i] = x` (Aeneas `index_mut` + `Vec.set`).  The value-passing `*_from` helpers
+  the task did not touch stay recursions.
+* **`mul`** (`mul_win`): the product of two limb *windows* `a[alo..ahi] * b[blo..bhi]`
+  accumulated in place into `out` at limb offset `off`, so no operand is ever copied.
+  Below `KARATSUBA_THRESHOLD = 64` limbs in the shorter window: schoolbook, one
+  multiply-accumulate row (`mul_row`: `t = a[i]*y + out[j] + carry` in `u128`) per limb of
+  the shorter window, the carry rippled in place (`add_carry_at`).  A window at least twice
+  as long as the other is halved, both halves accumulating straight into `out`
+  (`O(la/lb)` balanced products, no combination cost).  Otherwise Karatsuba at
+  `k = ceil(la/2)`: `z0`, `z2` and `s = (a0+a1)(b0+b1)` each into its own zero accumulator
+  (`zeros`), `z1 = s - z0 - z2` by in-place subtraction (`sub_row`, `sub_borrow_at`, a
+  `u128` limb `B + o - a - borrow`), then `out += z0 + z1 B^k + z2 B^2k`.  The terms are
+  added by their significant length (`sig_len`), so the bound on the sum alone keeps every
+  index inside `out` (adding `s` before subtracting `z0 + z2` could overflow `out`; the
+  subtraction is therefore done in `s`).  The top call is `norm(mul_win(..., zeros(la+lb),
+  0))`.  `pow_nat` and `pins_decode` inherit it.
+* **`div_mod`**: long division one quotient limb at a time, `dm_limbs`'s recursion and
+  invariant unchanged since task #15, with the limb step `dm_step` replacing the 64-step
+  `dm_bits`: a one-limb divisor is one `u128` division per limb; a longer one is first
+  normalised (`norm_shift`: both operands shifted left until the divisor's top bit is set;
+  the quotient is unchanged and the remainder comes back through `shift_right`), then each
+  step is Knuth's: `t = rem·2^64 + x` (`prepend_limb`), `q̂ = min(t[m..m-1] / b[m-1],
+  2^64 - 1)`, `p = q̂ b` (`mul_u64`), and `dm_correct` steps `q̂` down while `p > t`.  The
+  proof needs only `q̂ ≥ t / b` (`knuth_estimate`: `(t/b)·top·2^(64(m-1)) ≤ (t/b)·b ≤ t`)
+  and that the correction keeps it (it steps only while `q̂ b > t`); Knuth's
+  "at most two corrections" is a speed fact and is not proved (the test
+  `dm_step_corrects_the_estimate` checks it, and that corrections happen).  `b[m-2]` is not
+  used.  The per-step temporaries are `O(|b|)`, so a division is `O(|a|·|b|)` words;
+  Burnikel–Ziegler / Newton division is a possible follow-up.
+* **Constants**: every output vector is `Vec::with_capacity` of its bound (Aeneas: `Vec.new`);
+  `norm` truncates with `Vec::resize` instead of copying (the copy was 42 % of gf3 after the
+  algorithmic change); `clone` is `Vec::clone` (a `memcpy`; `alloc.vec.CloneVec.clone` over
+  `core.clone.CloneU64`, a standard-library instance, so no trait of this crate enters the
+  model).  `shl1_or`/`shl1_from`, `dm_bits`, `mul_from` and the shift-and-add `mul` are gone.
+
+**Threshold.**  Measured with the microbenchmark (`_tmp/bench-158`, a crate over
+`con_ron_core::ron::nat` with the shipped allocator), `instructions:u` per balanced `n×n`
+product, by `KARATSUBA_THRESHOLD`:
+
+| T | n=32 | n=48 | n=64 | n=96 | n=128 | n=256 | n=1024 | n=4096 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| 32 | 23 113 | 43 076 | 79 987 | 144 851 | 260 159 | 818 907 | 7.74 M | 71.2 M |
+| 48 | 19 648 | 43 076 | 69 178 | 144 851 | 227 794 | 721 868 | 6.87 M | 63.4 M |
+| **64** | 19 648 | 41 660 | 69 178 | 140 001 | 227 794 | 721 869 | 6.87 M | 63.4 M |
+| 96 | 19 649 | 41 660 | 71 864 | 140 001 | 235 324 | 744 979 | 7.08 M | 65.2 M |
+| ∞ (schoolbook) | 19 648 | 41 660 | 71 864 | 156 976 | 274 749 | 1.07 M | 16.9 M | 269 M |
+
+64 is never worse than 48 or 96.  The crossover is higher than GMP's (~30) because a
+Karatsuba node's overhead (five zeroed temporaries, six in-place passes, three `sig_len`s)
+is checked Rust; the schoolbook row costs ~16 instructions per limb product (bounds and
+overflow checks included).
+
+**The proof** (`Refine/Nat.lean`: **2 552 → 3 056 lines**, 109 → 129 theorems; Rust before
+`mod tests` 794 → 966 lines).  Every new loop and `mul_win` itself is proved by its
+`fixpoint_induct` (`partial_induct`, task #99-PFIX): partial correctness, so no fuel, no
+measure, and **no index bound anywhere** — an out-of-range index is a `fail`, about which an
+`= ok` lemma says nothing, which is exactly why `mul_win` needs no size precondition and
+Karatsuba's strong induction on `|a| + |b|` (the plan's fallback) was not needed.  The
+vocabulary: `limbsToNat_set` (writing limb `j` moves the value by the difference times
+`2^(64 j)`), `seg_split` (a window is its two halves), `sig_len_full`, `split128`/
+`shl64_val`/`cast128_val`/`cast64_val` for the `u128` words, and `index_mut_eq_ok_iff`
+(`Vec::with_capacity` is unfolded by its own definition, `Vec.new`).  Each loop's value invariant is additive (`value(final) + carry·P_j =
+value(o) + …`, the subtraction loops with the subtrahend on the left), so no truncated
+subtraction appears.  `mul_row`'s and `add_carry_at`'s steps close by `grind`;
+`sub_borrow_at`'s by `nlinarith` over the word equation scaled by `2^(64 j)`, and `sub_row`'s
+by a `calc` lemma (`sub_row_step_arith`, task #15's trick) after `nlinarith` timed out.
+Observation for the record: plain `grind` on `sub_borrow_at_val`'s step produced a proof
+the kernel rejected (`eq_false_of_decide (eagerReduce (Eq.refl false))` against
+`decide (0 = 0) = false → …`); a pure-`Nat` restatement of the same facts does not
+reproduce it (there `grind` simply fails), so there is no standalone reproducer yet —
+replacing that `nlinarith` by `grind` shows it.  Karatsuba's identity is one `calc` for
+`z1 = a0 b1 + a1 b0` and a `ring`.  Charon's `let (_, back) ← index_mut …` leaves a
+`match` on a pair that `simp`/`dsimp` do not reduce even after the pair is a constructor;
+`bind_eq_ok_iff.mp h` goes through it by defeq (as in `ConsMap.lean`).
+`Refine2/Frontend/Scan/Str.lean`'s `norm_ok` follows `norm`'s `resize` (its private
+`copy_from_ok` is gone).  `nat_lor_eq` lost its one term-level use (`lor_one_of_even`, gone
+with `dm_bits`) and is now used only as an `rfl` lemma in `simp only` sets, the dead census's
+blind spot, so it is in `scripts/dead-census-allow.txt`.  `#print axioms` guard extended to `mul_refines` and
+`div_mod_refines`.
+
+**Measurements** (`perf stat -e instructions:u`, one run per side, `--jobs=1`):
+
+| | before (`8b088905`) | after | |
+|---|---:|---:|---:|
+| gf3 export | 269 733 220 903 | **50 948 562 931** | −81.1 % (5.3×) |
+| `Init` export | 165 887 653 267 | 165 741 931 914 | −0.09 % |
+| bench: `pow_nat(1000003, 32000)` | 7 471 523 480 | 131 777 357 | 57× |
+| bench: one 9519×13-limb product | 18.83 M | 2.05 M | 9.2× |
+| bench: one 9532÷13-limb `div_mod` | 239 M | 15.4 M | 15.5× |
+
+(The two per-operation rows are `(mode − setup) / iterations`.)  gf3's peak RSS went from
+6.1 GB to 3.8 GB: the baseline did not fit `bench-baselines.sh`'s 8 GiB `--jobs=1` cap
+("memory allocation of 131072 bytes failed" at 267 G instructions) and was measured under
+27 GB; the new binary runs under 8 GiB.  After the change `mul_row` is 37 % of gf3's
+instructions (the products themselves); the rest is the bitwise and shift passes,
+`add_from`, and the arena's literal interning.  `scripts/diff-e2e.sh`: 747/747 agree.
+
+**Environment note.**  The worktree found `_tmp/aeneas-lean-v4.35.0/.lake` empty (no
+Mathlib, no shared Lake cache under `_tmp/lake-cache`, the main tree without
+`proof/.lake`); it was rebuilt from scratch: `lake exe cache get` in
+`_tmp/aeneas-lean-v4.35.0`, then this worktree's `lake build`, which materialised
+con-leche into the shared package directory at the pinned rev.  The worktree's `.envrc`
+also needed `direnv allow`.
