@@ -3,7 +3,7 @@
 (`ConLeche/Frontend/Prelude.lean`'s `builtinPreludeText`, task #97e part 2)
 
 **Generated file — do not edit.**  Written by `scripts/gen-prelude-lean.sh`
-from con-leche's own committed `pins/leanprover-lean4-v4.35.0.prelude.ndjson`, the file its
+from con-leche's own committed `pins/leanprover-lean4-v4.36.0.prelude.ndjson`, the file its
 `builtinPreludeText` reads with `include_str`.
 `scripts/gen-prelude-lean.sh --check` is the freshness gate, and
 `scripts/gates.sh` runs it.
@@ -49,7 +49,6 @@ module
 namespace ConRon.Arena.Frontend
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P00_bridge, then delete this line
 Bytes 0..256 of the prelude (the module note says why it is split). -/
 def P00 : ByteArray := ⟨#[
   123, 34, 109, 101, 116, 97, 34, 58, 123, 34, 101, 120, 112, 111, 114, 116,
@@ -58,11 +57,11 @@ def P00 : ByteArray := ⟨#[
   34, 118, 101, 114, 115, 105, 111, 110, 34, 58, 34, 49, 34, 125, 44, 34,
   102, 111, 114, 109, 97, 116, 34, 58, 123, 34, 118, 101, 114, 115, 105,
   111, 110, 34, 58, 34, 51, 46, 49, 46, 48, 34, 125, 44, 34, 108, 101, 97,
-  110, 34, 58, 123, 34, 103, 105, 116, 104, 97, 115, 104, 34, 58, 34, 101,
-  98, 54, 99, 97, 102, 98, 55, 50, 57, 48, 101, 56, 98, 100, 53, 102, 50,
-  57, 51, 55, 53, 50, 50, 100, 56, 100, 56, 48, 52, 102, 53, 56, 102, 48,
-  50, 98, 97, 102, 99, 34, 44, 34, 118, 101, 114, 115, 105, 111, 110, 34,
-  58, 34, 52, 46, 51, 53, 46, 48, 34, 125, 125, 125, 10, 123, 34, 105, 110,
+  110, 34, 58, 123, 34, 103, 105, 116, 104, 97, 115, 104, 34, 58, 34, 54,
+  49, 49, 99, 49, 49, 55, 98, 102, 97, 102, 55, 98, 55, 97, 101, 49, 99,
+  102, 99, 102, 50, 52, 54, 99, 101, 54, 102, 98, 97, 51, 49, 101, 56, 102,
+  53, 48, 57, 101, 57, 34, 44, 34, 118, 101, 114, 115, 105, 111, 110, 34,
+  58, 34, 52, 46, 51, 54, 46, 48, 34, 125, 125, 125, 10, 123, 34, 105, 110,
   34, 58, 49, 44, 34, 115, 116, 114, 34, 58, 123, 34, 112, 114, 101, 34, 58,
   48, 44, 34, 115, 116, 114, 34, 58, 34, 69, 113, 34, 125, 125, 10, 123, 34,
   105, 110, 34, 58, 50, 44, 34, 115, 116, 114, 34, 58, 123, 34, 112, 114,
@@ -70,7 +69,6 @@ def P00 : ByteArray := ⟨#[
   125, 10, 123, 34, 105, 108, 34, 58, 49, 44]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P01_bridge, then delete this line
 Bytes 256..512 of the prelude (the module note says why it is split). -/
 def P01 : ByteArray := ⟨#[
   34, 112, 97, 114, 97, 109, 34, 58, 50, 125, 10, 123, 34, 105, 110, 34, 58,
@@ -91,7 +89,6 @@ def P01 : ByteArray := ⟨#[
   123, 34, 98, 118, 97, 114, 34, 58]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P02_bridge, then delete this line
 Bytes 512..768 of the prelude (the module note says why it is split). -/
 def P02 : ByteArray := ⟨#[
   48, 44, 34, 105, 101, 34, 58, 49, 125, 10, 123, 34, 98, 118, 97, 114, 34,
@@ -112,7 +109,6 @@ def P02 : ByteArray := ⟨#[
   101, 34, 58, 48, 125, 44, 34, 105, 101, 34]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P03_bridge, then delete this line
 Bytes 768..1024 of the prelude (the module note says why it is split). -/
 def P03 : ByteArray := ⟨#[
   58, 54, 125, 10, 123, 34, 105, 110, 34, 58, 57, 44, 34, 115, 116, 114, 34,
@@ -133,7 +129,6 @@ def P03 : ByteArray := ⟨#[
   102, 111, 114, 97, 108]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P04_bridge, then delete this line
 Bytes 1024..1280 of the prelude (the module note says why it is split). -/
 def P04 : ByteArray := ⟨#[
   108, 69, 34, 58, 123, 34, 98, 105, 110, 100, 101, 114, 73, 110, 102, 111,
@@ -154,7 +149,6 @@ def P04 : ByteArray := ⟨#[
   110, 34, 58, 49, 53, 125, 44]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P05_bridge, then delete this line
 Bytes 1280..1536 of the prelude (the module note says why it is split). -/
 def P05 : ByteArray := ⟨#[
   34, 105, 101, 34, 58, 49, 54, 125, 10, 123, 34, 105, 110, 34, 58, 49, 50,
@@ -175,7 +169,6 @@ def P05 : ByteArray := ⟨#[
   112, 114, 101, 34, 58, 48, 44]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P06_bridge, then delete this line
 Bytes 1536..1792 of the prelude (the module note says why it is split). -/
 def P06 : ByteArray := ⟨#[
   34, 115, 116, 114, 34, 58, 34, 114, 101, 102, 108, 34, 125, 125, 10, 123,
@@ -196,7 +189,6 @@ def P06 : ByteArray := ⟨#[
   112, 101, 34, 58, 50]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P07_bridge, then delete this line
 Bytes 1792..2048 of the prelude (the module note says why it is split). -/
 def P07 : ByteArray := ⟨#[
   52, 125, 125, 10, 123, 34, 105, 101, 34, 58, 50, 54, 44, 34, 108, 97, 109,
@@ -217,7 +209,6 @@ def P07 : ByteArray := ⟨#[
   99, 34, 125, 125, 10, 123, 34, 98, 118]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P08_bridge, then delete this line
 Bytes 2048..2304 of the prelude (the module note says why it is split). -/
 def P08 : ByteArray := ⟨#[
   97, 114, 34, 58, 51, 44, 34, 105, 101, 34, 58, 50, 57, 125, 10, 123, 34,
@@ -238,7 +229,6 @@ def P08 : ByteArray := ⟨#[
   109, 101, 34]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P09_bridge, then delete this line
 Bytes 2304..2560 of the prelude (the module note says why it is split). -/
 def P09 : ByteArray := ⟨#[
   58, 49, 49, 44, 34, 116, 121, 112, 101, 34, 58, 51, 51, 125, 44, 34, 105,
@@ -259,7 +249,6 @@ def P09 : ByteArray := ⟨#[
   57, 125, 10, 123, 34, 102, 111, 114, 97]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P10_bridge, then delete this line
 Bytes 2560..2816 of the prelude (the module note says why it is split). -/
 def P10 : ByteArray := ⟨#[
   108, 108, 69, 34, 58, 123, 34, 98, 105, 110, 100, 101, 114, 73, 110, 102,
@@ -280,7 +269,6 @@ def P10 : ByteArray := ⟨#[
   34, 110, 117, 109, 80, 97, 114, 97, 109, 115, 34, 58]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P11_bridge, then delete this line
 Bytes 2816..3072 of the prelude (the module note says why it is split). -/
 def P11 : ByteArray := ⟨#[
   50, 44, 34, 116, 121, 112, 101, 34, 58, 49, 50, 125, 93, 44, 34, 114, 101,
@@ -301,7 +289,6 @@ def P11 : ByteArray := ⟨#[
   44, 34, 105, 115, 82, 101, 102, 108, 101]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P12_bridge, then delete this line
 Bytes 3072..3328 of the prelude (the module note says why it is split). -/
 def P12 : ByteArray := ⟨#[
   120, 105, 118, 101, 34, 58, 102, 97, 108, 115, 101, 44, 34, 105, 115, 85,
@@ -322,7 +309,6 @@ def P12 : ByteArray := ⟨#[
   101, 34, 58, 49, 53, 44, 34, 115, 116, 114]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P13_bridge, then delete this line
 Bytes 3328..3584 of the prelude (the module note says why it is split). -/
 def P13 : ByteArray := ⟨#[
   34, 58, 34, 115, 117, 99, 99, 34, 125, 125, 10, 123, 34, 99, 111, 110,
@@ -343,7 +329,6 @@ def P13 : ByteArray := ⟨#[
   34, 58, 123, 34, 112, 114, 101, 34]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P14_bridge, then delete this line
 Bytes 3584..3840 of the prelude (the module note says why it is split). -/
 def P14 : ByteArray := ⟨#[
   58, 48, 44, 34, 115, 116, 114, 34, 58, 34, 122, 101, 114, 111, 34, 125,
@@ -364,7 +349,6 @@ def P14 : ByteArray := ⟨#[
   34, 97, 114, 103, 34, 58, 50, 44]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P15_bridge, then delete this line
 Bytes 3840..4096 of the prelude (the module note says why it is split). -/
 def P15 : ByteArray := ⟨#[
   34, 102, 110, 34, 58, 52, 57, 125, 44, 34, 105, 101, 34, 58, 53, 48, 125,
@@ -385,7 +369,6 @@ def P15 : ByteArray := ⟨#[
   58, 50, 44, 34, 110, 97, 109, 101]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P16_bridge, then delete this line
 Bytes 4096..4352 of the prelude (the module note says why it is split). -/
 def P16 : ByteArray := ⟨#[
   34, 58, 50, 48, 44, 34, 116, 121, 112, 101, 34, 58, 53, 51, 125, 125, 10,
@@ -406,7 +389,6 @@ def P16 : ByteArray := ⟨#[
   50, 44, 34, 117, 115, 34, 58]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P17_bridge, then delete this line
 Bytes 4352..4608 of the prelude (the module note says why it is split). -/
 def P17 : ByteArray := ⟨#[
   91, 50, 93, 125, 44, 34, 105, 101, 34, 58, 53, 56, 125, 10, 123, 34, 97,
@@ -427,7 +409,6 @@ def P17 : ByteArray := ⟨#[
   51, 125]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P18_bridge, then delete this line
 Bytes 4608..4864 of the prelude (the module note says why it is split). -/
 def P18 : ByteArray := ⟨#[
   125, 10, 123, 34, 105, 101, 34, 58, 54, 53, 44, 34, 108, 97, 109, 34, 58,
@@ -448,7 +429,6 @@ def P18 : ByteArray := ⟨#[
   123, 34, 102, 111, 114, 97, 108]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P19_bridge, then delete this line
 Bytes 4864..5120 of the prelude (the module note says why it is split). -/
 def P19 : ByteArray := ⟨#[
   108, 69, 34, 58, 123, 34, 98, 105, 110, 100, 101, 114, 73, 110, 102, 111,
@@ -469,7 +449,6 @@ def P19 : ByteArray := ⟨#[
   112, 108, 105, 99, 105, 116, 34, 44, 34, 98]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P20_bridge, then delete this line
 Bytes 5120..5376 of the prelude (the module note says why it is split). -/
 def P20 : ByteArray := ⟨#[
   111, 100, 121, 34, 58, 55, 49, 44, 34, 110, 97, 109, 101, 34, 58, 49, 48,
@@ -490,7 +469,6 @@ def P20 : ByteArray := ⟨#[
   110, 117, 109, 80, 97, 114, 97, 109, 115]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P21_bridge, then delete this line
 Bytes 5376..5632 of the prelude (the module note says why it is split). -/
 def P21 : ByteArray := ⟨#[
   34, 58, 48, 44, 34, 116, 121, 112, 101, 34, 58, 52, 52, 125, 93, 44, 34,
@@ -511,7 +489,6 @@ def P21 : ByteArray := ⟨#[
   123, 34, 97, 108, 108, 34, 58, 91, 49]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P22_bridge, then delete this line
 Bytes 5632..5888 of the prelude (the module note says why it is split). -/
 def P22 : ByteArray := ⟨#[
   53, 93, 44, 34, 99, 116, 111, 114, 115, 34, 58, 91, 49, 54, 44, 49, 55,
@@ -532,7 +509,6 @@ def P22 : ByteArray := ⟨#[
   97, 109, 101, 34, 58, 50, 51, 44, 34, 117, 115, 34]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P23_bridge, then delete this line
 Bytes 5888..6144 of the prelude (the module note says why it is split). -/
 def P23 : ByteArray := ⟨#[
   58, 91, 93, 125, 44, 34, 105, 101, 34, 58, 55, 51, 125, 10, 123, 34, 102,
@@ -553,7 +529,6 @@ def P23 : ByteArray := ⟨#[
   118, 101, 34, 58, 123, 34, 99, 116]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P24_bridge, then delete this line
 Bytes 6144..6400 of the prelude (the module note says why it is split). -/
 def P24 : ByteArray := ⟨#[
   111, 114, 115, 34, 58, 91, 93, 44, 34, 114, 101, 99, 115, 34, 58, 91, 123,
@@ -574,7 +549,6 @@ def P24 : ByteArray := ⟨#[
   108, 115, 101, 44, 34, 108, 101, 118, 101, 108, 80, 97]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P25_bridge, then delete this line
 Bytes 6400..6656 of the prelude (the module note says why it is split). -/
 def P25 : ByteArray := ⟨#[
   114, 97, 109, 115, 34, 58, 91, 93, 44, 34, 110, 97, 109, 101, 34, 58, 50,
@@ -595,7 +569,6 @@ def P25 : ByteArray := ⟨#[
   49, 44, 34, 116, 121, 112, 101, 34, 58, 55]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P26_bridge, then delete this line
 Bytes 6656..6912 of the prelude (the module note says why it is split). -/
 def P26 : ByteArray := ⟨#[
   55, 125, 44, 34, 105, 101, 34, 58, 55, 56, 125, 10, 123, 34, 102, 111,
@@ -616,7 +589,6 @@ def P26 : ByteArray := ⟨#[
   34, 58, 91, 49, 50, 93, 44, 34, 110, 97]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P27_bridge, then delete this line
 Bytes 6912..7168 of the prelude (the module note says why it is split). -/
 def P27 : ByteArray := ⟨#[
   109, 101, 34, 58, 50, 54, 44, 34, 110, 117, 109, 73, 110, 100, 105, 99,
@@ -637,7 +609,6 @@ def P27 : ByteArray := ⟨#[
   101, 34, 58, 51, 125, 93, 125, 125, 10, 123, 34]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P28_bridge, then delete this line
 Bytes 7168..7424 of the prelude (the module note says why it is split). -/
 def P28 : ByteArray := ⟨#[
   105, 110, 34, 58, 50, 55, 44, 34, 115, 116, 114, 34, 58, 123, 34, 112,
@@ -658,7 +629,6 @@ def P28 : ByteArray := ⟨#[
   101, 34, 44, 34, 108, 101, 118, 101, 108, 80, 97, 114, 97, 109]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P29_bridge, then delete this line
 Bytes 7424..7680 of the prelude (the module note says why it is split). -/
 def P29 : ByteArray := ⟨#[
   115, 34, 58, 91, 49, 50, 93, 44, 34, 110, 97, 109, 101, 34, 58, 50, 55,
@@ -679,7 +649,6 @@ def P29 : ByteArray := ⟨#[
   123, 34, 102, 111, 114, 97, 108]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P30_bridge, then delete this line
 Bytes 7680..7936 of the prelude (the module note says why it is split). -/
 def P30 : ByteArray := ⟨#[
   108, 69, 34, 58, 123, 34, 98, 105, 110, 100, 101, 114, 73, 110, 102, 111,
@@ -700,7 +669,6 @@ def P30 : ByteArray := ⟨#[
   125, 10, 123, 34, 105, 110, 34, 58, 51, 49, 44, 34]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P31_bridge, then delete this line
 Bytes 7936..8192 of the prelude (the module note says why it is split). -/
 def P31 : ByteArray := ⟨#[
   115, 116, 114, 34, 58, 123, 34, 112, 114, 101, 34, 58, 48, 44, 34, 115,
@@ -721,7 +689,6 @@ def P31 : ByteArray := ⟨#[
   10, 123, 34, 97, 112, 112, 34, 58, 123, 34]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P32_bridge, then delete this line
 Bytes 8192..8448 of the prelude (the module note says why it is split). -/
 def P32 : ByteArray := ⟨#[
   97, 114, 103, 34, 58, 50, 44, 34, 102, 110, 34, 58, 51, 48, 125, 44, 34,
@@ -742,7 +709,6 @@ def P32 : ByteArray := ⟨#[
   100, 101, 114]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P33_bridge, then delete this line
 Bytes 8448..8704 of the prelude (the module note says why it is split). -/
 def P33 : ByteArray := ⟨#[
   73, 110, 102, 111, 34, 58, 34, 100, 101, 102, 97, 117, 108, 116, 34, 44,
@@ -763,7 +729,6 @@ def P33 : ByteArray := ⟨#[
   34, 97, 114, 103, 34, 58, 50]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P34_bridge, then delete this line
 Bytes 8704..8960 of the prelude (the module note says why it is split). -/
 def P34 : ByteArray := ⟨#[
   57, 44, 34, 102, 110, 34, 58, 49, 48, 49, 125, 44, 34, 105, 101, 34, 58,
@@ -784,7 +749,6 @@ def P34 : ByteArray := ⟨#[
   49, 48, 53, 125, 10, 123, 34, 102, 111]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P35_bridge, then delete this line
 Bytes 8960..9216 of the prelude (the module note says why it is split). -/
 def P35 : ByteArray := ⟨#[
   114, 97, 108, 108, 69, 34, 58, 123, 34, 98, 105, 110, 100, 101, 114, 73,
@@ -805,7 +769,6 @@ def P35 : ByteArray := ⟨#[
   102, 116, 34, 44, 34, 108, 101, 118, 101]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P36_bridge, then delete this line
 Bytes 9216..9472 of the prelude (the module note says why it is split). -/
 def P36 : ByteArray := ⟨#[
   108, 80, 97, 114, 97, 109, 115, 34, 58, 91, 49, 50, 44, 51, 49, 93, 44,
@@ -826,7 +789,6 @@ def P36 : ByteArray := ⟨#[
   115, 116, 114, 34, 58, 34]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P37_bridge, then delete this line
 Bytes 9472..9728 of the prelude (the module note says why it is split). -/
 def P37 : ByteArray := ⟨#[
   109, 107, 34, 125, 125, 10, 123, 34, 99, 111, 110, 115, 116, 34, 58, 123,
@@ -847,7 +809,6 @@ def P37 : ByteArray := ⟨#[
   34, 58, 49, 51]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P38_bridge, then delete this line
 Bytes 9728..9984 of the prelude (the module note says why it is split). -/
 def P38 : ByteArray := ⟨#[
   125, 44, 34, 105, 101, 34, 58, 49, 49, 55, 125, 10, 123, 34, 105, 110, 34,
@@ -868,7 +829,6 @@ def P38 : ByteArray := ⟨#[
   51, 54, 44, 34, 116]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P39_bridge, then delete this line
 Bytes 9984..10240 of the prelude (the module note says why it is split). -/
 def P39 : ByteArray := ⟨#[
   121, 112, 101, 34, 58, 49, 49, 55, 125, 44, 34, 105, 101, 34, 58, 49, 50,
@@ -889,7 +849,6 @@ def P39 : ByteArray := ⟨#[
   49, 50, 52, 125, 10, 123, 34, 113]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P40_bridge, then delete this line
 Bytes 10240..10496 of the prelude (the module note says why it is split). -/
 def P40 : ByteArray := ⟨#[
   117, 111, 116, 34, 58, 123, 34, 107, 105, 110, 100, 34, 58, 34, 105, 110,
@@ -910,7 +869,6 @@ def P40 : ByteArray := ⟨#[
   123, 34, 97, 112, 112, 34]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P41_bridge, then delete this line
 Bytes 10496..10752 of the prelude (the module note says why it is split). -/
 def P41 : ByteArray := ⟨#[
   58, 123, 34, 97, 114, 103, 34, 58, 51, 48, 44, 34, 102, 110, 34, 58, 49,
@@ -931,7 +889,6 @@ def P41 : ByteArray := ⟨#[
   98, 111, 100]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P42_bridge, then delete this line
 Bytes 10752..11008 of the prelude (the module note says why it is split). -/
 def P42 : ByteArray := ⟨#[
   121, 34, 58, 49, 51, 52, 44, 34, 110, 97, 109, 101, 34, 58, 56, 44, 34,
@@ -952,7 +909,6 @@ def P42 : ByteArray := ⟨#[
   56, 44, 34, 116, 121, 112, 101, 34, 58]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P43_bridge, then delete this line
 Bytes 11008..11264 of the prelude (the module note says why it is split). -/
 def P43 : ByteArray := ⟨#[
   53, 125, 44, 34, 105, 101, 34, 58, 49, 51, 56, 125, 10, 123, 34, 102, 111,
@@ -973,7 +929,6 @@ def P43 : ByteArray := ⟨#[
   51, 52, 44, 34, 116, 121, 112, 101]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P44_bridge, then delete this line
 Bytes 11264..11520 of the prelude (the module note says why it is split). -/
 def P44 : ByteArray := ⟨#[
   34, 58, 51, 125, 44, 34, 105, 101, 34, 58, 49, 52, 48, 125, 10, 123, 34,
@@ -994,7 +949,6 @@ def P44 : ByteArray := ⟨#[
   50, 125, 10, 123, 34, 97, 112, 112, 34, 58]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P45_bridge, then delete this line
 Bytes 11520..11776 of the prelude (the module note says why it is split). -/
 def P45 : ByteArray := ⟨#[
   123, 34, 97, 114, 103, 34, 58, 50, 57, 44, 34, 102, 110, 34, 58, 49, 52,
@@ -1015,7 +969,6 @@ def P45 : ByteArray := ⟨#[
   108, 105, 99, 105, 116, 34, 44, 34]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P46_bridge, then delete this line
 Bytes 11776..12032 of the prelude (the module note says why it is split). -/
 def P46 : ByteArray := ⟨#[
   98, 111, 100, 121, 34, 58, 49, 52, 54, 44, 34, 110, 97, 109, 101, 34, 58,
@@ -1036,7 +989,6 @@ def P46 : ByteArray := ⟨#[
   53, 48, 125, 44, 34]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P47_bridge, then delete this line
 Bytes 12032..12288 of the prelude (the module note says why it is split). -/
 def P47 : ByteArray := ⟨#[
   105, 101, 34, 58, 49, 53, 49, 125, 10, 123, 34, 105, 110, 34, 58, 52, 51,
@@ -1057,7 +1009,6 @@ def P47 : ByteArray := ⟨#[
   102, 110, 34]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P48_bridge, then delete this line
 Bytes 12288..12544 of the prelude (the module note says why it is split). -/
 def P48 : ByteArray := ⟨#[
   58, 49, 51, 125, 44, 34, 105, 101, 34, 58, 49, 53, 55, 125, 10, 123, 34,
@@ -1078,7 +1029,6 @@ def P48 : ByteArray := ⟨#[
   58, 49, 54, 49, 44, 34, 108, 97, 109]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P49_bridge, then delete this line
 Bytes 12544..12800 of the prelude (the module note says why it is split). -/
 def P49 : ByteArray := ⟨#[
   34, 58, 123, 34, 98, 105, 110, 100, 101, 114, 73, 110, 102, 111, 34, 58,
@@ -1099,7 +1049,6 @@ def P49 : ByteArray := ⟨#[
   34, 98, 111, 100, 121, 34, 58, 49, 54]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P50_bridge, then delete this line
 Bytes 12800..13056 of the prelude (the module note says why it is split). -/
 def P50 : ByteArray := ⟨#[
   51, 44, 34, 110, 97, 109, 101, 34, 58, 51, 52, 44, 34, 116, 121, 112, 101,
@@ -1120,7 +1069,6 @@ def P50 : ByteArray := ⟨#[
   100, 121, 34, 58, 49, 54, 54, 44]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P51_bridge, then delete this line
 Bytes 13056..13312 of the prelude (the module note says why it is split). -/
 def P51 : ByteArray := ⟨#[
   34, 110, 97, 109, 101, 34, 58, 52, 51, 44, 34, 116, 121, 112, 101, 34, 58,
@@ -1141,7 +1089,6 @@ def P51 : ByteArray := ⟨#[
   101, 34, 58, 51, 125, 44, 34, 105]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P52_bridge, then delete this line
 Bytes 13312..13568 of the prelude (the module note says why it is split). -/
 def P52 : ByteArray := ⟨#[
   101, 34, 58, 49, 55, 48, 125, 10, 123, 34, 105, 110, 100, 117, 99, 116,
@@ -1162,7 +1109,6 @@ def P52 : ByteArray := ⟨#[
   117, 109, 77, 111, 116, 105, 118, 101, 115, 34, 58]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P53_bridge, then delete this line
 Bytes 13568..13824 of the prelude (the module note says why it is split). -/
 def P53 : ByteArray := ⟨#[
   49, 44, 34, 110, 117, 109, 80, 97, 114, 97, 109, 115, 34, 58, 50, 44, 34,
@@ -1183,7 +1129,6 @@ def P53 : ByteArray := ⟨#[
   105, 110, 34, 58, 52, 53, 44, 34, 115, 116, 114]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P54_bridge, then delete this line
 Bytes 13824..14080 of the prelude (the module note says why it is split). -/
 def P54 : ByteArray := ⟨#[
   34, 58, 123, 34, 112, 114, 101, 34, 58, 48, 44, 34, 115, 116, 114, 34, 58,
@@ -1204,7 +1149,6 @@ def P54 : ByteArray := ⟨#[
   116, 114, 34, 58, 34, 102, 97]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P55_bridge, then delete this line
 Bytes 14080..14336 of the prelude (the module note says why it is split). -/
 def P55 : ByteArray := ⟨#[
   108, 115, 101, 34, 125, 125, 10, 123, 34, 99, 111, 110, 115, 116, 34, 58,
@@ -1225,7 +1169,6 @@ def P55 : ByteArray := ⟨#[
   34, 58, 52, 57, 44, 34]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P56_bridge, then delete this line
 Bytes 14336..14592 of the prelude (the module note says why it is split). -/
 def P56 : ByteArray := ⟨#[
   116, 121, 112, 101, 34, 58, 49, 55, 54, 125, 125, 10, 123, 34, 105, 101,
@@ -1246,7 +1189,6 @@ def P56 : ByteArray := ⟨#[
   34, 98, 105, 110, 100, 101, 114]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P57_bridge, then delete this line
 Bytes 14592..14848 of the prelude (the module note says why it is split). -/
 def P57 : ByteArray := ⟨#[
   73, 110, 102, 111, 34, 58, 34, 100, 101, 102, 97, 117, 108, 116, 34, 44,
@@ -1267,7 +1209,6 @@ def P57 : ByteArray := ⟨#[
   69, 34, 58, 123, 34, 98, 105, 110]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P58_bridge, then delete this line
 Bytes 14848..15104 of the prelude (the module note says why it is split). -/
 def P58 : ByteArray := ⟨#[
   100, 101, 114, 73, 110, 102, 111, 34, 58, 34, 100, 101, 102, 97, 117, 108,
@@ -1288,7 +1229,6 @@ def P58 : ByteArray := ⟨#[
   100, 120, 34, 58, 48, 44, 34, 105, 110, 100]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P59_bridge, then delete this line
 Bytes 15104..15360 of the prelude (the module note says why it is split). -/
 def P59 : ByteArray := ⟨#[
   117, 99, 116, 34, 58, 52, 53, 44, 34, 105, 115, 85, 110, 115, 97, 102,
@@ -1309,7 +1249,6 @@ def P59 : ByteArray := ⟨#[
   108, 101, 118, 101, 108, 80, 97, 114, 97]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P60_bridge, then delete this line
 Bytes 15360..15616 of the prelude (the module note says why it is split). -/
 def P60 : ByteArray := ⟨#[
   109, 115, 34, 58, 91, 49, 50, 93, 44, 34, 110, 97, 109, 101, 34, 58, 53,
@@ -1330,7 +1269,6 @@ def P60 : ByteArray := ⟨#[
   97, 102, 101, 34, 58, 102, 97, 108, 115, 101, 44]⟩
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.P61_bridge, then delete this line
 Bytes 15616..15700 of the prelude (the module note says why it is split). -/
 def P61 : ByteArray := ⟨#[
   34, 108, 101, 118, 101, 108, 80, 97, 114, 97, 109, 115, 34, 58, 91, 93,
@@ -1346,7 +1284,6 @@ passed by value and returned, so the two read the same way. -/
 def pushChunk (out : ByteArray) (c : ByteArray) : ByteArray := out ++ c
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
--- con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove PreludeText.preludeText_bridge, then delete this line
 The committed prelude for the pinned toolchain (con-leche's `lean-toolchain`),
 verbatim: the `meta` header, the name, level and expression table entries, and
 the declaration records of the six pinned basis blocks, `Bool` and `And`.

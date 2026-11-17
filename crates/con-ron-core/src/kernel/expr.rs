@@ -99,7 +99,6 @@ use crate::ron::ptr::P;
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Expr.lean:136-140 Literal
-/// con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove expr::Literal_refines, then delete this line
 /// The two literals.  Deviation (DESIGN.md §3.3): `natVal`'s `Nat` is
 /// `crate::ron::nat::Nat`, the crate's own bignum, and `strVal`'s `String` is a
 /// `Vec<u32>` of code points.
@@ -116,7 +115,6 @@ pub enum Literal {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:136-140 Literal
-/// con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove expr::literal_nat_refines, then delete this line
 /// `Literal.natVal`, taking its bignum by value as the cited constructor
 /// does; the handle of the note above is taken here.
 pub fn literal_nat(n: nat::Nat) -> Literal {
@@ -124,17 +122,14 @@ pub fn literal_nat(n: nat::Nat) -> Literal {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:136-140 Literal
-/// con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove expr::literal_str_refines, then delete this line
 /// `Literal.strVal`, taking its code points by value.
 pub fn literal_str(s: Vec<u32>) -> Literal {
     Literal::StrVal(ptr::new(s))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:136-140 Literal
-/// con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove expr::literal_beq_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Expr.lean:142-148 Literal.decEq
 /// con-leche: ConLeche/Kernel/Expr.lean:150-168 Literal.decEqPtr
-/// con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove expr::literal_beq_refines, then delete this line
 /// Literal equality: the cited structural `Literal.decEq`, which compiled
 /// code runs as `Literal.decEqPtr`.  Deviation: no pointer test on the
 /// `Literal` or on its number.  The arena interns literals, so equal
@@ -150,13 +145,14 @@ pub fn literal_beq(a: &Literal, b: &Literal) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:136-140 Literal
-/// con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove expr::literal_hash_refines, then delete this line
-/// The cited `deriving Hashable`: the constructor index then `mixHash` over
-/// the field.  Deviation: the `Nat` and `String` hashes are the crate's own
-/// (`nat::hash64`, `name::str_hash`), which already differ from Lean's — a
-/// free choice by DESIGN.md §3.2, where a hash need only be a function of
-/// the value.
+/// con-leche: ConLeche/Kernel/Expr.lean:203-207 Literal.hash
+/// A literal's hash, by cases on the literal as the cited `Literal.hash`.
+/// Deviation: the constructor index is mixed in, and the `Nat` and `String`
+/// hashes are the crate's own (`nat::hash64`, `name::str_hash`) rather than
+/// con-leche's `natHash` and `lean_string_hash` — a free choice by DESIGN.md
+/// §3.2, where a hash need only be a function of the value.  Like `natHash`
+/// (lean4#16146), `nat::hash64` reads every limb, so literals that agree in
+/// their low 64 bits do not share a hash (lean4#15686; task #161).
 pub fn literal_hash(l: &Literal) -> u64 {
     match l {
         Literal::NatVal(n) => name::mix_hash(0, nat::hash64(n)),
@@ -711,7 +707,6 @@ pub fn probe_hit_from(ps: &Vec<EqPair>, i: usize, a: &Expr, b: &Expr) -> bool {
 
 /// con-leche: ConLeche/Kernel/Expr.lean:980-995 Expr.probeHit
 /// con-leche: ConLeche/Kernel/Expr.lean:970-978 ptrDecStruct
-/// con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove expr::pair_is_refines, then delete this line
 /// One candidate of the bucket: is this stored pair *these* two objects?
 /// The cited `probeHit`'s two `ptrDecStruct` identity tests, on the pair
 /// rather than on the entry's two address fields.  Its own function so that `probe_hit_from`

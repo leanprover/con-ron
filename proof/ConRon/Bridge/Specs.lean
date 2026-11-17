@@ -68,7 +68,7 @@ public import ConRon.Bridge.Grind
 import ConRon.Bridge.StoreNested
 import ConRon.Bridge.StoreBind
 public import Std.WP
--- the `vcgen` syntax on v4.35.0 (lean4#15290 moves it to `Std.WP.Tactic`)
+-- the `vcgen` syntax (lean4#15290 moves it to `Std.WP.Tactic`)
 public import Std.Tactic.Do
 import ConRon.Bridge.GrindAttr
 public import ConRon.Arena.Core
@@ -450,7 +450,7 @@ theorem internLamE_spec_view (s₀ : AState) (ty b : EIdx)
         s'.store.view h = some (.lam ty b) ∧
         denoteE s'.store h = denoteEView s'.store (.lam ty b); ⊤⦄ := by
   sym only [bridge_grind, → EStore.view_of_findBind (tag := ETag.lam) (htag := rfl),
-      denoteE_view_eq, EStore.internBind_spec (tag := ETag.lam) (htag := rfl)] =>
+      denoteE_view_eq, EStore.internBind_spec] =>
     vcgen [internLamE] <;> finish
 
 theorem internForallEE_spec_view (s₀ : AState) (ty b : EIdx)
@@ -463,7 +463,7 @@ theorem internForallEE_spec_view (s₀ : AState) (ty b : EIdx)
         s'.store.view h = some (.forallE ty b) ∧
         denoteE s'.store h = denoteEView s'.store (.forallE ty b); ⊤⦄ := by
   sym only [bridge_grind, → EStore.view_of_findBind (tag := ETag.forallE) (htag := rfl),
-      denoteE_view_eq, EStore.internBind_spec (tag := ETag.forallE) (htag := rfl)] =>
+      denoteE_view_eq, EStore.internBind_spec] =>
     vcgen [internForallEE] <;> finish
 
 /-- con-leche: none — `internLamE_spec_view` at denoting children: the face

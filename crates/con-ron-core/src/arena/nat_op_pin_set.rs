@@ -67,7 +67,6 @@ pub struct INatOpPinSet {
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _
-/// con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove nat_op_pin_set::intern_pin_set_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/NatOpPinSet.lean:97-118 internPinSet` —
 /// intern one pin variant: the one-time tree walk of DESIGN.md §8.6 P2d,
 /// sixteen terms deep.  The twin's sixteen `let`s are sixteen nested matches
@@ -108,7 +107,6 @@ pub fn intern_pin_set(
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _
-/// con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove nat_op_pin_set::intern_pin_set_proofs_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/NatOpPinSet.lean:97-118 internPinSet` — the
 /// eight certificate-proof lists, and the record.  Split at the twin's own
 /// `let dc ←` boundary (task #97-P4c's rule for a long `do` block).
@@ -181,7 +179,6 @@ pub fn intern_pin_set_proofs(
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _
-/// con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove nat_op_pin_set::intern_pin_set_type_pins_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/NatOpPinSet.lean:75-95 internPinSetTypePins` —
 /// the eight type-pin lists, written into the record the two halves above
 /// built (its eight type-pin fields empty until here).
@@ -232,7 +229,6 @@ pub fn intern_pin_set_type_pins(
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _
-/// con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove nat_op_pin_set::intern_type_pins_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/NatOpPinSet.lean:65-73 internTypePins` — one
 /// type-pin list: each name and each type interned, in list order.
 pub fn intern_type_pins(
@@ -244,7 +240,6 @@ pub fn intern_type_pins(
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _
-/// con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove nat_op_pin_set::intern_type_pins_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/NatOpPinSet.lean:65-73 internTypePins` — the
 /// `List` recursion of the twin, as a cursor over the `Vec` (DESIGN.md §3.4's
 /// standing rule).
@@ -273,7 +268,6 @@ pub fn intern_type_pins_go(
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _
-/// con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove nat_op_pin_set::intern_pin_sets_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/NatOpPinSet.lean:120-127 internPinSets` —
 /// intern the variant LIST, in the order the install gate tries them.
 pub fn intern_pin_sets(

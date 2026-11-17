@@ -285,7 +285,6 @@ pub struct Loaded {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Lazy.lean:184-187 refBase
-/// con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove lazy::REF_BASE_refines, then delete this line
 /// What separates the two parts of a reference.
 pub const REF_BASE: u64 = 1 << 32;
 

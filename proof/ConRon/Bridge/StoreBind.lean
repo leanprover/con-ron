@@ -136,4 +136,11 @@ theorem EStore.internBind_spec {st : EStore} {tag : UInt32} {ty b : EIdx}
   obtain ⟨h1, h2, h3, h4⟩ := EStore.intern_spec h hv hcap'
   exact ⟨h1, h2, EStore.lss_intern st _, EStore.scratchOn_intern st _, h3, h4⟩
 
+/- The trigger is the store call itself, which every conjunct mentions.
+`grind`'s own choice is the first conjunct's `StoreWF (st.internBind …).1`,
+and since `vcgen` proves a post's conjuncts one goal at a time (lean4#15487,
+v4.36.0; task #161) a goal about `Ext`, `lss` or the view alone does not
+contain it. -/
+grind_pattern EStore.internBind_spec => st.internBind tag ty b
+
 end ConRon.Bridge

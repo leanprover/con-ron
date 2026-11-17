@@ -1345,7 +1345,6 @@ pub fn decode(t: &[u8]) -> CheckM<Vec<NatOpPinSet>> {
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _
-/// con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove pins_decode::decode_embedded_refines, then delete this line
 /// (The cited range is the `#load_natop_pins` command that *produces*
 /// `natOpPinSets` while `NatOpPins.lean` elaborates; the declaration is not
 /// written there, hence the `_`.)
@@ -1405,7 +1404,7 @@ mod tests {
         });
         assert_eq!(names.len(), 4);
         // con-leche's order (its task #578): newest toolchain first
-        assert_eq!(names[0], "leanprover/lean4-pr-releases:pr-release-16441");
+        assert_eq!(names[0], "leanprover/lean4-nightly:nightly-2026-11-16");
         assert_eq!(names[1], "leanprover/lean4-nightly:nightly-2026-09-10");
         assert_eq!(names[2], "leanprover/lean4:v4.34.0-rc2");
         assert_eq!(names[3], "leanprover/lean4:v4.33.0");

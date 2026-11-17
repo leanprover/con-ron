@@ -2,7 +2,6 @@
 //! (DESIGN.md §3, task #43).
 //!
 //! con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _
-//! con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove crates/con-ron-core/src/kernel/pins_text.rs_refines, then delete this line
 //!
 //! **Generated file — do not edit.**  Written by `scripts/gen-pins.sh` from
 //! con-leche's own value: `lake exe con-ron-dump-pins` writes
@@ -31,7 +30,6 @@
 //! therefore takes `PINS_TEXT.as_bytes()`.
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:77-81 _
-/// con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove pins_text::PINS_TEXT_refines, then delete this line
 /// (The range is `#load_natop_pins`, the command that produces
 /// `natOpPinSets` out of the committed `pins/*.json` while `NatOpPins.lean`
 /// elaborates: the declaration has no source line of its own, hence `_`.)
@@ -21758,7 +21756,7 @@ E 21521 a 670 21
 E 21522 f 21521 21520
 E 21523 f 21510 21522
 E 21524 f 505 21523
-S 45 leanprover/lean4-pr-releases:pr-release-16441 233 296 381 384 386 395 447 476 3 3794 4892 4944 3 8674 8888 9219 2 9994 10109 2 15057 15294 2 19149 19325 2 20981 21155 2 21299 21391 2 21457 21496 1 97 21512 1 97 21512 1 124 21524 1 124 21524 1 124 21524 1 124 21524 0 0
+S 43 leanprover/lean4-nightly:nightly-2026-11-16 233 296 381 384 386 395 447 476 3 3794 4892 4944 3 8674 8888 9219 2 9994 10109 2 15057 15294 2 19149 19325 2 20981 21155 2 21299 21391 2 21457 21496 1 97 21512 1 97 21512 1 124 21524 1 124 21524 1 124 21524 1 124 21524 0 0
 N 188 s 49 7 Bitwise
 N 189 s 188 5 Basic
 N 190 n 189 0
