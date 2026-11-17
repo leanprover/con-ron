@@ -1841,13 +1841,13 @@ files go back to uncommitted; nothing is pushed), fix, commit, `pin` again.
 **7. Land.**
 
 ```
-scripts/bump-con-leche.sh land
+scripts/bump-con-leche.sh land --report <file>
 ```
 
 refuses unless the worktree is clean, the tip is the pin commit and the only
 one moving the pin, master is merged, the gates were green at exactly this
-commit, and `measure` saw the crates as they are.  Then: the fast-forward of
-master, seeding the shared Lake cache from the worktree (the private packages
+commit, and `measure` saw the crates as they are.  Then: a `--no-ff` merge
+into master whose message is `<file>`, the sync's final report (task #160), seeding the shared Lake cache from the worktree (the private packages
 are its own, so CLAUDE.md's caveat does not bite), `drop-worktree.sh`,
 deleting `_tmp/bump-<short>` with the private packages, and step 8.
 
@@ -73143,6 +73143,33 @@ Mathlib, no shared Lake cache under `_tmp/lake-cache`, the main tree without
 `_tmp/aeneas-lean-v4.35.0`, then this worktree's `lake build`, which materialised
 con-leche into the shared package directory at the pinned rev.  The worktree's `.envrc`
 also needed `direnv allow`.
+
+### Task #160 — every task lands as a `--no-ff` merge carrying its report (2026-11-17, Opus)
+
+The maintainer, 2026-11-17: "it's nicer if each task/lane lands with a
+--no-ff merge, and also put the final report in that commit message".
+Until now a landing was a fast-forward (`land.sh`'s `merge --ff-only`,
+`bump-con-leche.sh land`'s likewise), so master's history showed a task only
+as the run of its commits and the report lived nowhere in git.
+
+* `scripts/land.sh <worktree> <report-file>`: refuses unless the
+  integration branch is already merged into the agent branch (the guard the
+  fast-forward used to give: the landing merge is conflict-free and adds
+  nothing ungated), then `git merge --no-ff -F <report-file>`, then
+  `drop-worktree.sh` as before.
+* `scripts/bump-con-leche.sh land --report <file>`: the same `--no-ff`
+  merge with the sync's report; its other checks are unchanged.
+  `pin-last.py` is unaffected: it walks the branch's own first-parent line
+  against master, never master's tip.
+* The merge queue (`_tmp/wt-mq`) merges each lane into `mq` with `--no-ff`
+  and the lane's report; the main tree still fast-forwards to `mq`, whose
+  commits are those merges.
+* The report's shape: subject `Task #N: merge <branch> — <summary>`, then
+  what changed, the gates, the measurements, what was left, and the
+  `Co-Authored-By` trailer.  Task #158, landed the same day as a
+  fast-forward and not yet pushed, was re-landed this way (`922fd542`).
+* CLAUDE.md's merge-discipline bullet, its queue bullet and the bump
+  summary say so.
 
 ### Task #159 — subquadratic decimal literals (2026-11-17, Opus)
 

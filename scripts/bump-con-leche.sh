@@ -7,7 +7,7 @@
 #   scripts/bump-con-leche.sh status  [<short>]
 #   scripts/bump-con-leche.sh measure [<short>]
 #   scripts/bump-con-leche.sh pin     [<short>]
-#   scripts/bump-con-leche.sh land    [<short>] [--no-measure]
+#   scripts/bump-con-leche.sh land    [<short>] --report FILE [--no-measure]
 #   scripts/bump-con-leche.sh abort   [<short>] --yes
 #
 # <short> is the first eight hex digits of the new con-leche commit; inside
@@ -362,7 +362,7 @@ work_order() {
   echo "  scripts/bump-con-leche.sh measure                    # once, when the Rust is final"
   echo "  git merge master; LAKE_JOBS=4 scripts/gates.sh       # green, on a clean tree"
   echo "  scripts/bump-con-leche.sh pin                        # the LAST commit"
-  echo "  LAKE_JOBS=4 scripts/gates.sh; scripts/bump-con-leche.sh land"
+  echo "  LAKE_JOBS=4 scripts/gates.sh; scripts/bump-con-leche.sh land --report <final report file>"
 }
 
 # ---------------------------------------------------------------- status
@@ -454,15 +454,24 @@ $dirty"
 The last commit of the sync (DESIGN.md §7): proof/lakefile.toml and
 proof/lake-manifest.json, nothing else."
   (cd "$wt" && python3 scripts/pin-last.py --tip-is-pin)
-  echo "next: LAKE_JOBS=4 scripts/gates.sh, then scripts/bump-con-leche.sh land"
+  echo "next: LAKE_JOBS=4 scripts/gates.sh, then scripts/bump-con-leche.sh land --report <final report file>"
 }
 
 # ---------------------------------------------------------------- land
 cmd_land() {
-  local arg="" nomeasure=0
-  for a in "$@"; do
-    case "$a" in --no-measure) nomeasure=1 ;; *) arg=$a ;; esac
+  local arg="" nomeasure=0 report=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --no-measure) nomeasure=1; shift ;;
+      --report) report=${2-}; shift 2 || die "--report needs a file" ;;
+      --report=*) report=${1#--report=}; shift ;;
+      *) arg=$1; shift ;;
+    esac
   done
+  # task #160: a sync lands as one `--no-ff` merge whose message is the
+  # sync's final report (subject `Task #N: merge <branch> — <summary>`)
+  [ -n "$report" ] && [ -s "$report" ] || die "land needs --report FILE: the merge commit's message, the sync's final report"
+  report=$(cd "$(dirname "$report")" && pwd -P)/$(basename "$report")
   resolve_short "$arg"
   [ -z "$(git -C "$wt" status --porcelain --untracked-files=no)" ] || die "$wt has uncommitted changes"
   (cd "$wt" && python3 scripts/pin-last.py --tip-is-pin) || die "the pin commit must be the tip, and the only commit moving the pin"
@@ -483,8 +492,8 @@ cmd_land() {
   [ "$(git -C "$main" symbolic-ref --quiet --short HEAD)" = master ] || die "the main tree is not on master"
   [ -z "$(git -C "$main" status --porcelain --untracked-files=no)" ] || die "the main tree has uncommitted changes"
 
-  say "fast-forward master to $branch"
-  git -C "$main" merge --quiet --ff-only "$branch" || die "not a fast-forward; merge master into $branch, re-gate, retry"
+  say "merging $branch into master (--no-ff, the report as the message)"
+  git -C "$main" merge --quiet --no-ff -F "$report" "$branch" || die "the merge of $branch into master failed"
   say "seeding the shared Lake cache from $wt (the private packages are the bump's own)"
   (cd "$wt/proof" && LAKE_ARTIFACT_CACHE=true LAKE_RESTORE_ARTIFACTS=true lake build) \
     > "$state/seed.log" 2>&1 || echo "WARNING: seeding failed ($state/seed.log); the main tree will build what it misses"
