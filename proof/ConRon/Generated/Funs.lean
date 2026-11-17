@@ -5986,7 +5986,7 @@ def arena.store.ProjNode.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::ron::nat::hash64_from]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 782:0-788:1 -/
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 937:0-943:1 -/
 def ron.nat.hash64_from
   (v : alloc.vec.Vec Std.U64) (i : Std.Usize) (acc : Std.U64) :
   Result Std.U64
@@ -6004,7 +6004,7 @@ def ron.nat.hash64_from
 partial_fixpoint
 
 /-- [con_ron_core::ron::nat::hash64]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 778:0-780:1
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 933:0-935:1
     Visibility: public -/
 def ron.nat.hash64 (a : ron.nat.Nat) : Result Std.U64 := do
   ron.nat.hash64_from a.limbs 0#usize 14695981039346656037#u64
@@ -17384,27 +17384,6 @@ def ron.nat.add_from
     ron.nat.add_from a b i1 n c out1
 partial_fixpoint
 
-/-- [con_ron_core::ron::nat::copy_from]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 134:0-144:1 -/
-def ron.nat.copy_from
-  (v : alloc.vec.Vec Std.U64) (i : Std.Usize) («end» : Std.Usize)
-  (out : alloc.vec.Vec Std.U64) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  if i >= «end»
-  then ok out
-  else
-    let i1 := alloc.vec.Vec.len v
-    if i >= i1
-    then ok out
-    else
-      let i2 ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) v i
-      let out1 ← alloc.vec.Vec.push out i2
-      let i3 ← i + 1#usize
-      ron.nat.copy_from v i3 «end» out1
-partial_fixpoint
-
 /-- [con_ron_core::ron::nat::sig_len]:
     Source: 'crates/con-ron-core/src/ron/nat.rs', lines 122:0-130:1 -/
 def ron.nat.sig_len
@@ -17421,7 +17400,7 @@ def ron.nat.sig_len
 partial_fixpoint
 
 /-- [con_ron_core::ron::nat::norm]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 149:0-157:1
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 149:0-159:1
     Visibility: public -/
 def ron.nat.norm (limbs : alloc.vec.Vec Std.U64) : Result ron.nat.Nat := do
   let n := alloc.vec.Vec.len limbs
@@ -17429,8 +17408,8 @@ def ron.nat.norm (limbs : alloc.vec.Vec Std.U64) : Result ron.nat.Nat := do
   if s = n
   then ok { limbs }
   else
-    let v ← ron.nat.copy_from limbs 0#usize s (alloc.vec.Vec.new Std.U64)
-    ok { limbs := v }
+    let limbs1 ← alloc.vec.Vec.resize core.clone.CloneU64 limbs s 0#u64
+    ok { limbs := limbs1 }
 
 /-- [con_ron_core::ron::nat::add]:
     Source: 'crates/con-ron-core/src/ron/nat.rs', lines 235:0-238:1
@@ -17442,10 +17421,10 @@ def ron.nat.add (a : ron.nat.Nat) (b : ron.nat.Nat) : Result ron.nat.Nat := do
     if i < i1
     then ok (alloc.vec.Vec.len b.limbs)
     else ok (alloc.vec.Vec.len a.limbs)
-  let v ←
-    ron.nat.add_from a.limbs b.limbs 0#usize n 0#u64 (alloc.vec.Vec.new
-      Std.U64)
-  ron.nat.norm v
+  let i2 ← n + 1#usize
+  let v := alloc.vec.Vec.with_capacity Std.U64 i2
+  let v1 ← ron.nat.add_from a.limbs b.limbs 0#usize n 0#u64 v
+  ron.nat.norm v1
 
 /-- [con_ron_core::ron::nat::from_u64]:
     Source: 'crates/con-ron-core/src/ron/nat.rs', lines 85:0-93:1
@@ -20379,10 +20358,10 @@ def ron.nat.sub (a : ron.nat.Nat) (b : ron.nat.Nat) : Result ron.nat.Nat := do
   | ron.nat.Cmp.Eq => ron.nat.zero
   | ron.nat.Cmp.Gt =>
     let i := alloc.vec.Vec.len a.limbs
-    let v ←
-      ron.nat.sub_from a.limbs b.limbs 0#usize i 0#u64 (alloc.vec.Vec.new
-        Std.U64)
-    ron.nat.norm v
+    let i1 := alloc.vec.Vec.len a.limbs
+    let v := alloc.vec.Vec.with_capacity Std.U64 i1
+    let v1 ← ron.nat.sub_from a.limbs b.limbs 0#usize i 0#u64 v
+    ron.nat.norm v1
 
 /-- [con_ron_core::ron::nat::pred]:
     Source: 'crates/con-ron-core/src/ron/nat.rs', lines 302:0-305:1
@@ -20968,6 +20947,27 @@ def ron.nat.shl_bits_from
     ron.nat.shl_bits_from v i4 bits hi out1
 partial_fixpoint
 
+/-- [con_ron_core::ron::nat::copy_from]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 134:0-144:1 -/
+def ron.nat.copy_from
+  (v : alloc.vec.Vec Std.U64) (i : Std.Usize) («end» : Std.Usize)
+  (out : alloc.vec.Vec Std.U64) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  if i >= «end»
+  then ok out
+  else
+    let i1 := alloc.vec.Vec.len v
+    if i >= i1
+    then ok out
+    else
+      let i2 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) v i
+      let out1 ← alloc.vec.Vec.push out i2
+      let i3 ← i + 1#usize
+      ron.nat.copy_from v i3 «end» out1
+partial_fixpoint
+
 /-- [con_ron_core::ron::nat::shl_onto]:
     Source: 'crates/con-ron-core/src/ron/nat.rs', lines 351:0-357:1 -/
 def ron.nat.shl_onto
@@ -21016,7 +21016,7 @@ def ron.nat.shift_left
     ron.nat.shl_onto a i1 out
 
 /-- [con_ron_core::ron::nat::size_bytes]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 609:0-613:1
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 711:0-715:1
     Visibility: public -/
 def ron.nat.size_bytes (a : ron.nat.Nat) : Result ron.nat.Nat := do
   let i := alloc.vec.Vec.len a.limbs
@@ -21038,7 +21038,7 @@ def ron.nat.blt (a : ron.nat.Nat) (b : ron.nat.Nat) : Result Bool := do
   | ron.nat.Cmp.Gt => ok false
 
 /-- [con_ron_core::ron::nat::size_bytes_gt]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 617:0-619:1
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 719:0-721:1
     Visibility: public -/
 def ron.nat.size_bytes_gt
   (a : ron.nat.Nat) (m : ron.nat.Nat) : Result Bool := do
@@ -25520,7 +25520,7 @@ def arena.core.lit_nat_sized
   else arena.core.lit_nat pers st n
 
 /-- [con_ron_core::ron::nat::xor_from]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 755:0-763:1 -/
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 910:0-918:1 -/
 def ron.nat.xor_from
   (a : alloc.vec.Vec Std.U64) (b : alloc.vec.Vec Std.U64) (i : Std.Usize)
   (n : Std.Usize) (out : alloc.vec.Vec Std.U64) :
@@ -25538,7 +25538,7 @@ def ron.nat.xor_from
 partial_fixpoint
 
 /-- [con_ron_core::ron::nat::xor]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 750:0-753:1
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 905:0-908:1
     Visibility: public -/
 def ron.nat.xor (a : ron.nat.Nat) (b : ron.nat.Nat) : Result ron.nat.Nat := do
   let i := alloc.vec.Vec.len a.limbs
@@ -25547,12 +25547,12 @@ def ron.nat.xor (a : ron.nat.Nat) (b : ron.nat.Nat) : Result ron.nat.Nat := do
     if i < i1
     then ok (alloc.vec.Vec.len b.limbs)
     else ok (alloc.vec.Vec.len a.limbs)
-  let v ←
-    ron.nat.xor_from a.limbs b.limbs 0#usize n (alloc.vec.Vec.new Std.U64)
-  ron.nat.norm v
+  let v := alloc.vec.Vec.with_capacity Std.U64 n
+  let v1 ← ron.nat.xor_from a.limbs b.limbs 0#usize n v
+  ron.nat.norm v1
 
 /-- [con_ron_core::ron::nat::or_from]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 739:0-747:1 -/
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 894:0-902:1 -/
 def ron.nat.or_from
   (a : alloc.vec.Vec Std.U64) (b : alloc.vec.Vec Std.U64) (i : Std.Usize)
   (n : Std.Usize) (out : alloc.vec.Vec Std.U64) :
@@ -25570,7 +25570,7 @@ def ron.nat.or_from
 partial_fixpoint
 
 /-- [con_ron_core::ron::nat::lor]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 734:0-737:1
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 889:0-892:1
     Visibility: public -/
 def ron.nat.lor (a : ron.nat.Nat) (b : ron.nat.Nat) : Result ron.nat.Nat := do
   let i := alloc.vec.Vec.len a.limbs
@@ -25579,12 +25579,12 @@ def ron.nat.lor (a : ron.nat.Nat) (b : ron.nat.Nat) : Result ron.nat.Nat := do
     if i < i1
     then ok (alloc.vec.Vec.len b.limbs)
     else ok (alloc.vec.Vec.len a.limbs)
-  let v ←
-    ron.nat.or_from a.limbs b.limbs 0#usize n (alloc.vec.Vec.new Std.U64)
-  ron.nat.norm v
+  let v := alloc.vec.Vec.with_capacity Std.U64 n
+  let v1 ← ron.nat.or_from a.limbs b.limbs 0#usize n v
+  ron.nat.norm v1
 
 /-- [con_ron_core::ron::nat::and_from]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 723:0-731:1 -/
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 878:0-886:1 -/
 def ron.nat.and_from
   (a : alloc.vec.Vec Std.U64) (b : alloc.vec.Vec Std.U64) (i : Std.Usize)
   (n : Std.Usize) (out : alloc.vec.Vec Std.U64) :
@@ -25602,7 +25602,7 @@ def ron.nat.and_from
 partial_fixpoint
 
 /-- [con_ron_core::ron::nat::land]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 718:0-721:1
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 873:0-876:1
     Visibility: public -/
 def ron.nat.land (a : ron.nat.Nat) (b : ron.nat.Nat) : Result ron.nat.Nat := do
   let i := alloc.vec.Vec.len a.limbs
@@ -25611,168 +25611,50 @@ def ron.nat.land (a : ron.nat.Nat) (b : ron.nat.Nat) : Result ron.nat.Nat := do
     if i < i1
     then ok (alloc.vec.Vec.len a.limbs)
     else ok (alloc.vec.Vec.len b.limbs)
-  let v ←
-    ron.nat.and_from a.limbs b.limbs 0#usize n (alloc.vec.Vec.new Std.U64)
-  ron.nat.norm v
+  let v := alloc.vec.Vec.with_capacity Std.U64 n
+  let v1 ← ron.nat.and_from a.limbs b.limbs 0#usize n v
+  ron.nat.norm v1
 
-/-- [con_ron_core::ron::nat::shl1_from]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 477:0-492:1 -/
-def ron.nat.shl1_from
-  (v : alloc.vec.Vec Std.U64) (i : Std.Usize) (carry : Std.U64)
-  (out : alloc.vec.Vec Std.U64) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  let i1 := alloc.vec.Vec.len v
-  if i >= i1
-  then if carry = 0#u64
-       then ok out
-       else alloc.vec.Vec.push out carry
-  else
-    let x ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) v i
-    let i2 ← x <<< 1#i32
-    let i3 ← lift (i2 ||| carry)
-    let out1 ← alloc.vec.Vec.push out i3
-    let i4 ← i + 1#usize
-    let i5 ← x >>> 63#i32
-    ron.nat.shl1_from v i4 i5 out1
-partial_fixpoint
-
-/-- [con_ron_core::ron::nat::shl1_or]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 473:0-475:1 -/
-def ron.nat.shl1_or
-  (a : ron.nat.Nat) (bit : Std.U64) : Result ron.nat.Nat := do
-  let v ← ron.nat.shl1_from a.limbs 0#usize bit (alloc.vec.Vec.new Std.U64)
-  ron.nat.norm v
-
-/-- [con_ron_core::ron::nat::dm_bits]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 682:0-700:1 -/
-def ron.nat.dm_bits
-  (a : ron.nat.Nat) (b : ron.nat.Nat) (i : Std.Usize) (j : Std.U64)
-  (qacc : Std.U64) (rem : ron.nat.Nat) :
+/-- [con_ron_core::ron::nat::dm_correct]: loop 0:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 850:4-853:5 -/
+@[rust_loop]
+def ron.nat.dm_correct_loop
+  (b : ron.nat.Nat) (t : ron.nat.Nat) (qq : Std.U64) (pp : ron.nat.Nat) :
   Result (Std.U64 × ron.nat.Nat)
   := do
-  if j = 0#u64
-  then ok (qacc, rem)
-  else
-    let i1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64)
-        a.limbs i
-    let i2 ← j - 1#u64
-    let i3 ← i1 >>> i2
-    let bit ← lift (i3 &&& 1#u64)
-    let r1 ← ron.nat.shl1_or rem bit
-    let c ← ron.nat.cmp r1 b
-    match c with
-    | ron.nat.Cmp.Lt =>
-      let i4 ← qacc <<< 1#i32
-      ron.nat.dm_bits a b i i2 i4 r1
-    | ron.nat.Cmp.Eq =>
-      let r2 ← ron.nat.sub r1 b
-      let i4 ← qacc <<< 1#i32
-      let i5 ← lift (i4 ||| 1#u64)
-      ron.nat.dm_bits a b i i2 i5 r2
-    | ron.nat.Cmp.Gt =>
-      let r2 ← ron.nat.sub r1 b
-      let i4 ← qacc <<< 1#i32
-      let i5 ← lift (i4 ||| 1#u64)
-      ron.nat.dm_bits a b i i2 i5 r2
-partial_fixpoint
-
-/-- [con_ron_core::ron::nat::dm_limbs]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 668:0-677:1 -/
-def ron.nat.dm_limbs
-  (a : ron.nat.Nat) (b : ron.nat.Nat) (i : Std.Usize)
-  (qrev : alloc.vec.Vec Std.U64) (rem : ron.nat.Nat) :
-  Result ((alloc.vec.Vec Std.U64) × ron.nat.Nat)
-  := do
-  if i = 0#usize
-  then ok (qrev, rem)
-  else
-    let i1 ← i - 1#usize
-    let (ql, rem2) ← ron.nat.dm_bits a b i1 64#u64 0#u64 rem
-    let qrev1 ← alloc.vec.Vec.push qrev ql
-    ron.nat.dm_limbs a b i1 qrev1 rem2
-partial_fixpoint
-
-/-- [con_ron_core::ron::nat::rev_copy_from]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 655:0-665:1 -/
-def ron.nat.rev_copy_from
-  (v : alloc.vec.Vec Std.U64) (k : Std.Usize) (out : alloc.vec.Vec Std.U64) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  if k = 0#usize
-  then ok out
-  else
-    let i := alloc.vec.Vec.len v
-    if k > i
-    then ok out
-    else
-      let i1 ← k - 1#usize
-      let i2 ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) v
-          i1
-      let out1 ← alloc.vec.Vec.push out i2
-      ron.nat.rev_copy_from v i1 out1
-partial_fixpoint
-
-/-- [con_ron_core::ron::nat::clone]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 164:0-166:1
-    Visibility: public -/
-def ron.nat.clone (a : ron.nat.Nat) : Result ron.nat.Nat := do
-  let i := alloc.vec.Vec.len a.limbs
-  let v ← ron.nat.copy_from a.limbs 0#usize i (alloc.vec.Vec.new Std.U64)
-  ok { limbs := v }
-
-/-- [con_ron_core::ron::nat::div_mod]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 630:0-639:1
-    Visibility: public -/
-def ron.nat.div_mod
-  (a : ron.nat.Nat) (b : ron.nat.Nat) :
-  Result (ron.nat.Nat × ron.nat.Nat)
-  := do
-  let b1 ← ron.nat.is_zero b
+  let b1 ← ron.nat.blt t pp
   if b1
-  then let n ← ron.nat.zero
-       let n1 ← ron.nat.clone a
-       ok (n, n1)
-  else
-    let z ← ron.nat.zero
-    let i := alloc.vec.Vec.len a.limbs
-    let (qrev, r) ← ron.nat.dm_limbs a b i (alloc.vec.Vec.new Std.U64) z
-    let k := alloc.vec.Vec.len qrev
-    let v ← ron.nat.rev_copy_from qrev k (alloc.vec.Vec.new Std.U64)
-    let n ← ron.nat.norm v
-    ok (n, r)
-
-/-- [con_ron_core::ron::nat::modulo]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 648:0-651:1
-    Visibility: public -/
-def ron.nat.modulo
-  (a : ron.nat.Nat) (b : ron.nat.Nat) : Result ron.nat.Nat := do
-  let (_, r) ← ron.nat.div_mod a b
-  ok r
-
-/-- [con_ron_core::ron::nat::gcd]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 704:0-711:1
-    Visibility: public -/
-def ron.nat.gcd (a : ron.nat.Nat) (b : ron.nat.Nat) : Result ron.nat.Nat := do
-  let b1 ← ron.nat.is_zero a
-  if b1
-  then ron.nat.clone b
-  else let m ← ron.nat.modulo b a
-       ron.nat.gcd m a
+  then
+    let qq1 ← qq - 1#u64
+    let pp1 ← ron.nat.sub pp b
+    ron.nat.dm_correct_loop b t qq1 pp1
+  else ok (qq, pp)
 partial_fixpoint
 
-/-- [con_ron_core::ron::nat::div]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 642:0-645:1
-    Visibility: public -/
-def ron.nat.div (a : ron.nat.Nat) (b : ron.nat.Nat) : Result ron.nat.Nat := do
-  let (q, _) ← ron.nat.div_mod a b
-  ok q
+/-- [con_ron_core::ron::nat::dm_correct]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 847:0-855:1 -/
+def ron.nat.dm_correct
+  (b : ron.nat.Nat) (t : ron.nat.Nat) (q : Std.U64) (p : ron.nat.Nat) :
+  Result (Std.U64 × ron.nat.Nat)
+  := do
+  let (qq, pp) ← ron.nat.dm_correct_loop b t q p
+  let n ← ron.nat.sub t pp
+  ok (qq, n)
+
+/-- [con_ron_core::ron::nat::prepend_limb]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 810:0-814:1 -/
+def ron.nat.prepend_limb
+  (x : Std.U64) (r : ron.nat.Nat) : Result ron.nat.Nat := do
+  let i := alloc.vec.Vec.len r.limbs
+  let i1 ← i + 1#usize
+  let v := alloc.vec.Vec.with_capacity Std.U64 i1
+  let v1 ← alloc.vec.Vec.push v x
+  let i2 := alloc.vec.Vec.len r.limbs
+  let v2 ← ron.nat.copy_from r.limbs 0#usize i2 v1
+  ron.nat.norm v2
 
 /-- [con_ron_core::ron::nat::mul_u64_from]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 506:0-523:1 -/
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 484:0-501:1 -/
 def ron.nat.mul_u64_from
   (v : alloc.vec.Vec Std.U64) (i : Std.Usize) (m : Std.U64) (carry : Std.U64)
   (out : alloc.vec.Vec Std.U64) :
@@ -25800,40 +25682,145 @@ def ron.nat.mul_u64_from
 partial_fixpoint
 
 /-- [con_ron_core::ron::nat::mul_u64]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 499:0-501:1 -/
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 477:0-479:1 -/
 def ron.nat.mul_u64 (a : ron.nat.Nat) (m : Std.U64) : Result ron.nat.Nat := do
-  let v ←
-    ron.nat.mul_u64_from a.limbs 0#usize m 0#u64 (alloc.vec.Vec.new Std.U64)
-  ron.nat.norm v
+  let i := alloc.vec.Vec.len a.limbs
+  let i1 ← i + 1#usize
+  let v := alloc.vec.Vec.with_capacity Std.U64 i1
+  let v1 ← ron.nat.mul_u64_from a.limbs 0#usize m 0#u64 v
+  ron.nat.norm v1
 
-/-- [con_ron_core::ron::nat::mul_from]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 539:0-548:1 -/
-def ron.nat.mul_from
-  (a : ron.nat.Nat) (b : ron.nat.Nat) (i : Std.Usize) (sh : Std.U64)
-  (acc : ron.nat.Nat) :
-  Result ron.nat.Nat
-  := do
-  let i1 := alloc.vec.Vec.len b.limbs
-  if i >= i1
-  then ok acc
+/-- [con_ron_core::ron::nat::low_limb]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 370:0-376:1 -/
+def ron.nat.low_limb (a : ron.nat.Nat) : Result Std.U64 := do
+  let i := alloc.vec.Vec.len a.limbs
+  if i = 0#usize
+  then ok 0#u64
   else
-    let i2 ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) 
+      a.limbs 0#usize
+
+/-- [con_ron_core::ron::nat::dm_step]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 825:0-842:1 -/
+def ron.nat.dm_step
+  (b : ron.nat.Nat) (rem : ron.nat.Nat) (x : Std.U64) :
+  Result (Std.U64 × ron.nat.Nat)
+  := do
+  let m := alloc.vec.Vec.len b.limbs
+  if m = 1#usize
+  then
+    let i ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        b.limbs 0#usize
+    let d ← lift (UScalar.cast .U128 i)
+    let i1 ← ron.nat.low_limb rem
+    let i2 ← lift (UScalar.cast .U128 i1)
+    let i3 ← i2 <<< 64#i32
+    let i4 ← lift (UScalar.cast .U128 x)
+    let t ← i3 + i4
+    let i5 ← t / d
+    let q ← lift (UScalar.cast .U64 i5)
+    let i6 ← t % d
+    let r ← lift (UScalar.cast .U64 i6)
+    let n ← ron.nat.from_u64 r
+    ok (q, n)
+  else
+    let t ← ron.nat.prepend_limb x rem
+    let i ← m - 1#usize
+    let i1 ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64)
         b.limbs i
-    let p ← ron.nat.mul_u64 a i2
-    let ps ← ron.nat.shift_left p sh
-    let acc2 ← ron.nat.add acc ps
-    let i3 ← i + 1#usize
-    let i4 ← sh + 64#u64
-    ron.nat.mul_from a b i3 i4 acc2
+    let top ← lift (UScalar.cast .U128 i1)
+    let i2 ← ron.nat.limb t.limbs m
+    let i3 ← lift (UScalar.cast .U128 i2)
+    let i4 ← i3 <<< 64#i32
+    let i5 ← ron.nat.limb t.limbs i
+    let i6 ← lift (UScalar.cast .U128 i5)
+    let t2 ← i4 + i6
+    let qe ← t2 / top
+    let qhat ←
+      if qe > 18446744073709551615#u128
+      then ok 18446744073709551615#u64
+      else ok (UScalar.cast .U64 qe)
+    let p ← ron.nat.mul_u64 b qhat
+    ron.nat.dm_correct b t qhat p
+
+/-- [con_ron_core::ron::nat::dm_limbs]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 798:0-807:1 -/
+def ron.nat.dm_limbs
+  (a : ron.nat.Nat) (b : ron.nat.Nat) (i : Std.Usize)
+  (qrev : alloc.vec.Vec Std.U64) (rem : ron.nat.Nat) :
+  Result ((alloc.vec.Vec Std.U64) × ron.nat.Nat)
+  := do
+  if i = 0#usize
+  then ok (qrev, rem)
+  else
+    let i1 ← i - 1#usize
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        a.limbs i1
+    let (ql, rem2) ← ron.nat.dm_step b rem i2
+    let qrev1 ← alloc.vec.Vec.push qrev ql
+    ron.nat.dm_limbs a b i1 qrev1 rem2
 partial_fixpoint
 
-/-- [con_ron_core::ron::nat::mul]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 534:0-537:1
-    Visibility: public -/
-def ron.nat.mul (a : ron.nat.Nat) (b : ron.nat.Nat) : Result ron.nat.Nat := do
-  let z ← ron.nat.zero
-  ron.nat.mul_from a b 0#usize 0#u64 z
+/-- [con_ron_core::ron::nat::rev_copy_from]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 784:0-794:1 -/
+def ron.nat.rev_copy_from
+  (v : alloc.vec.Vec Std.U64) (k : Std.Usize) (out : alloc.vec.Vec Std.U64) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  if k = 0#usize
+  then ok out
+  else
+    let i := alloc.vec.Vec.len v
+    if k > i
+    then ok out
+    else
+      let i1 ← k - 1#usize
+      let i2 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) v
+          i1
+      let out1 ← alloc.vec.Vec.push out i2
+      ron.nat.rev_copy_from v i1 out1
+partial_fixpoint
+
+/-- [con_ron_core::ron::nat::dm_run]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 775:0-780:1 -/
+def ron.nat.dm_run
+  (a : ron.nat.Nat) (b : ron.nat.Nat) :
+  Result (ron.nat.Nat × ron.nat.Nat)
+  := do
+  let n := alloc.vec.Vec.len a.limbs
+  let v := alloc.vec.Vec.with_capacity Std.U64 n
+  let n1 ← ron.nat.zero
+  let (qrev, r) ← ron.nat.dm_limbs a b n v n1
+  let k := alloc.vec.Vec.len qrev
+  let v1 := alloc.vec.Vec.with_capacity Std.U64 k
+  let v2 ← ron.nat.rev_copy_from qrev k v1
+  let n2 ← ron.nat.norm v2
+  ok (n2, r)
+
+/-- [con_ron_core::ron::nat::norm_shift]: loop 0:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 766:4-769:5 -/
+@[rust_loop]
+def ron.nat.norm_shift_loop (x : Std.U64) (s : Std.U64) : Result Std.U64 := do
+  if s < 63#u64
+  then
+    if x < 9223372036854775808#u64
+    then
+      let x1 ← x <<< 1#i32
+      let s1 ← s + 1#u64
+      ron.nat.norm_shift_loop x1 s1
+    else ok s
+  else ok s
+partial_fixpoint
+
+/-- [con_ron_core::ron::nat::norm_shift]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 763:0-771:1 -/
+@[reducible]
+def ron.nat.norm_shift (top : Std.U64) : Result Std.U64 := do
+  ron.nat.norm_shift_loop top 0#u64
 
 /-- [con_ron_core::ron::nat::shr_bits_from]:
     Source: 'crates/con-ron-core/src/ron/nat.rs', lines 456:0-470:1 -/
@@ -25873,11 +25860,17 @@ def ron.nat.shr_from
   if bits = 0#u64
   then
     let i := alloc.vec.Vec.len a.limbs
-    let v ← ron.nat.copy_from a.limbs s i (alloc.vec.Vec.new Std.U64)
-    ron.nat.norm v
+    let i1 := alloc.vec.Vec.len a.limbs
+    let i2 ← i1 - s
+    let v := alloc.vec.Vec.with_capacity Std.U64 i2
+    let v1 ← ron.nat.copy_from a.limbs s i v
+    ron.nat.norm v1
   else
-    let v ← ron.nat.shr_bits_from a.limbs s bits (alloc.vec.Vec.new Std.U64)
-    ron.nat.norm v
+    let i := alloc.vec.Vec.len a.limbs
+    let i1 ← i - s
+    let v := alloc.vec.Vec.with_capacity Std.U64 i1
+    let v1 ← ron.nat.shr_bits_from a.limbs s bits v
+    ron.nat.norm v1
 
 /-- [con_ron_core::ron::nat::skip_index]:
     Source: 'crates/con-ron-core/src/ron/nat.rs', lines 415:0-423:1 -/
@@ -25907,18 +25900,357 @@ def ron.nat.shift_right
   let i1 ← k % 64#u64
   ron.nat.shr_from a s i1
 
-/-- [con_ron_core::ron::nat::low_limb]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 370:0-376:1 -/
-def ron.nat.low_limb (a : ron.nat.Nat) : Result Std.U64 := do
-  let i := alloc.vec.Vec.len a.limbs
-  if i = 0#usize
-  then ok 0#u64
+/-- [con_ron_core::ron::nat::clone]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 164:0-166:1
+    Visibility: public -/
+def ron.nat.clone (a : ron.nat.Nat) : Result ron.nat.Nat := do
+  let v ← alloc.vec.CloneVec.clone core.clone.CloneU64 a.limbs
+  ok { limbs := v }
+
+/-- [con_ron_core::ron::nat::div_mod]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 735:0-747:1
+    Visibility: public -/
+def ron.nat.div_mod
+  (a : ron.nat.Nat) (b : ron.nat.Nat) :
+  Result (ron.nat.Nat × ron.nat.Nat)
+  := do
+  let b1 ← ron.nat.is_zero b
+  if b1
+  then let n ← ron.nat.zero
+       let n1 ← ron.nat.clone a
+       ok (n, n1)
   else
-    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) 
-      a.limbs 0#usize
+    let i := alloc.vec.Vec.len b.limbs
+    if i = 1#usize
+    then ron.nat.dm_run a b
+    else
+      let i1 := alloc.vec.Vec.len b.limbs
+      let i2 ← i1 - 1#usize
+      let i3 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64)
+          b.limbs i2
+      let s ← ron.nat.norm_shift i3
+      let an ← ron.nat.shift_left a s
+      let bn ← ron.nat.shift_left b s
+      let (q, rn) ← ron.nat.dm_run an bn
+      let n ← ron.nat.shift_right rn s
+      ok (q, n)
+
+/-- [con_ron_core::ron::nat::modulo]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 756:0-759:1
+    Visibility: public -/
+def ron.nat.modulo
+  (a : ron.nat.Nat) (b : ron.nat.Nat) : Result ron.nat.Nat := do
+  let (_, r) ← ron.nat.div_mod a b
+  ok r
+
+/-- [con_ron_core::ron::nat::gcd]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 859:0-866:1
+    Visibility: public -/
+def ron.nat.gcd (a : ron.nat.Nat) (b : ron.nat.Nat) : Result ron.nat.Nat := do
+  let b1 ← ron.nat.is_zero a
+  if b1
+  then ron.nat.clone b
+  else let m ← ron.nat.modulo b a
+       ron.nat.gcd m a
+partial_fixpoint
+
+/-- [con_ron_core::ron::nat::div]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 750:0-753:1
+    Visibility: public -/
+def ron.nat.div (a : ron.nat.Nat) (b : ron.nat.Nat) : Result ron.nat.Nat := do
+  let (q, _) ← ron.nat.div_mod a b
+  ok q
+
+/-- [con_ron_core::ron::nat::add_carry_at]: loop 0:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 526:4-531:5 -/
+@[rust_loop]
+def ron.nat.add_carry_at_loop
+  (o : alloc.vec.Vec Std.U64) (c : Std.U64) (j : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  if c != 0#u64
+  then
+    let i ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) o j
+    let i1 ← lift (UScalar.cast .U128 i)
+    let i2 ← lift (UScalar.cast .U128 c)
+    let t ← i1 + i2
+    let (_, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64) o
+        j
+    let i3 ← lift (UScalar.cast .U64 t)
+    let i4 ← t >>> 64#i32
+    let c1 ← lift (UScalar.cast .U64 i4)
+    let j1 ← j + 1#usize
+    let o1 := index_mut_back i3
+    ron.nat.add_carry_at_loop o1 c1 j1
+  else ok o
+partial_fixpoint
+
+/-- [con_ron_core::ron::nat::add_carry_at]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 522:0-533:1 -/
+@[reducible]
+def ron.nat.add_carry_at
+  (out : alloc.vec.Vec Std.U64) (k : Std.Usize) (carry : Std.U64) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  ron.nat.add_carry_at_loop out carry k
+
+/-- [con_ron_core::ron::nat::mul_row]: loop 0:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 544:4-550:5 -/
+@[rust_loop]
+def ron.nat.mul_row_loop
+  (a : alloc.vec.Vec Std.U64) (hi : Std.Usize) (y : Std.U64)
+  (o : alloc.vec.Vec Std.U64) (carry : Std.U64) (i : Std.Usize) (j : Std.Usize)
+  :
+  Result ((alloc.vec.Vec Std.U64) × Std.U64 × Std.Usize)
+  := do
+  if i < hi
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) a i
+    let i2 ← lift (UScalar.cast .U128 i1)
+    let i3 ← lift (UScalar.cast .U128 y)
+    let i4 ← i2 * i3
+    let i5 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) o j
+    let i6 ← lift (UScalar.cast .U128 i5)
+    let i7 ← i4 + i6
+    let i8 ← lift (UScalar.cast .U128 carry)
+    let t ← i7 + i8
+    let (_, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64) o
+        j
+    let i9 ← lift (UScalar.cast .U64 t)
+    let i10 ← t >>> 64#i32
+    let carry1 ← lift (UScalar.cast .U64 i10)
+    let i11 ← i + 1#usize
+    let j1 ← j + 1#usize
+    let o1 := index_mut_back i9
+    ron.nat.mul_row_loop a hi y o1 carry1 i11 j1
+  else ok (o, carry, j)
+partial_fixpoint
+
+/-- [con_ron_core::ron::nat::mul_row]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 539:0-552:1 -/
+def ron.nat.mul_row
+  (out : alloc.vec.Vec Std.U64) (off : Std.Usize) (a : alloc.vec.Vec Std.U64)
+  (lo : Std.Usize) (hi : Std.Usize) (y : Std.U64) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  let (o, carry, j) ← ron.nat.mul_row_loop a hi y out 0#u64 lo off
+  ron.nat.add_carry_at o j carry
+
+/-- [con_ron_core::ron::nat::mul_rows]: loop 0:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 602:4-605:5 -/
+@[rust_loop]
+def ron.nat.mul_rows_loop
+  (off : Std.Usize) (a : alloc.vec.Vec Std.U64) (alo : Std.Usize)
+  (ahi : Std.Usize) (b : alloc.vec.Vec Std.U64) (blo : Std.Usize)
+  (bhi : Std.Usize) (o : alloc.vec.Vec Std.U64) (j : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  if j < bhi
+  then
+    let i ← j - blo
+    let i1 ← off + i
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) b j
+    let o1 ← ron.nat.mul_row o i1 a alo ahi i2
+    let j1 ← j + 1#usize
+    ron.nat.mul_rows_loop off a alo ahi b blo bhi o1 j1
+  else ok o
+partial_fixpoint
+
+/-- [con_ron_core::ron::nat::mul_rows]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 599:0-607:1 -/
+@[reducible]
+def ron.nat.mul_rows
+  (out : alloc.vec.Vec Std.U64) (off : Std.Usize) (a : alloc.vec.Vec Std.U64)
+  (alo : Std.Usize) (ahi : Std.Usize) (b : alloc.vec.Vec Std.U64)
+  (blo : Std.Usize) (bhi : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  ron.nat.mul_rows_loop off a alo ahi b blo bhi out blo
+
+/-- [con_ron_core::ron::nat::sub_borrow_at]: loop 0:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 561:4-566:5 -/
+@[rust_loop]
+def ron.nat.sub_borrow_at_loop
+  (o : alloc.vec.Vec Std.U64) (bo : Std.U64) (j : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  if bo != 0#u64
+  then
+    let i ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) o j
+    let i1 ← lift (UScalar.cast .U128 i)
+    let t ← i1 + 18446744073709551615#u128
+    let (_, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64) o
+        j
+    let i2 ← lift (UScalar.cast .U64 t)
+    let i3 ← t >>> 64#i32
+    let i4 ← lift (UScalar.cast .U64 i3)
+    let bo1 ← 1#u64 - i4
+    let j1 ← j + 1#usize
+    let o1 := index_mut_back i2
+    ron.nat.sub_borrow_at_loop o1 bo1 j1
+  else ok o
+partial_fixpoint
+
+/-- [con_ron_core::ron::nat::sub_borrow_at]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 557:0-568:1 -/
+@[reducible]
+def ron.nat.sub_borrow_at
+  (out : alloc.vec.Vec Std.U64) (k : Std.Usize) (borrow : Std.U64) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  ron.nat.sub_borrow_at_loop out borrow k
+
+/-- [con_ron_core::ron::nat::sub_row]: loop 0:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 578:4-584:5 -/
+@[rust_loop]
+def ron.nat.sub_row_loop
+  (a : alloc.vec.Vec Std.U64) (hi : Std.Usize) (o : alloc.vec.Vec Std.U64)
+  (bo : Std.U64) (i : Std.Usize) (j : Std.Usize) :
+  Result ((alloc.vec.Vec Std.U64) × Std.U64 × Std.Usize)
+  := do
+  if i < hi
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) o j
+    let i2 ← lift (UScalar.cast .U128 i1)
+    let i3 ← i2 + 18446744073709551616#u128
+    let i4 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) a i
+    let i5 ← lift (UScalar.cast .U128 i4)
+    let i6 ← i3 - i5
+    let i7 ← lift (UScalar.cast .U128 bo)
+    let t ← i6 - i7
+    let (_, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64) o
+        j
+    let i8 ← lift (UScalar.cast .U64 t)
+    let i9 ← t >>> 64#i32
+    let i10 ← lift (UScalar.cast .U64 i9)
+    let bo1 ← 1#u64 - i10
+    let i11 ← i + 1#usize
+    let j1 ← j + 1#usize
+    let o1 := index_mut_back i8
+    ron.nat.sub_row_loop a hi o1 bo1 i11 j1
+  else ok (o, bo, j)
+partial_fixpoint
+
+/-- [con_ron_core::ron::nat::sub_row]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 573:0-586:1 -/
+def ron.nat.sub_row
+  (out : alloc.vec.Vec Std.U64) (off : Std.Usize) (a : alloc.vec.Vec Std.U64)
+  (lo : Std.Usize) (hi : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  let (o, bo, j) ← ron.nat.sub_row_loop a hi out 0#u64 lo off
+  ron.nat.sub_borrow_at o j bo
+
+/-- [con_ron_core::ron::nat::zeros]: loop 0:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 512:4-515:5 -/
+@[rust_loop]
+def ron.nat.zeros_loop
+  (n : Std.Usize) (v : alloc.vec.Vec Std.U64) (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  if i < n
+  then
+    let v1 ← alloc.vec.Vec.push v 0#u64
+    let i1 ← i + 1#usize
+    ron.nat.zeros_loop n v1 i1
+  else ok v
+partial_fixpoint
+
+/-- [con_ron_core::ron::nat::zeros]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 509:0-517:1 -/
+def ron.nat.zeros (n : Std.Usize) : Result (alloc.vec.Vec Std.U64) := do
+  let v := alloc.vec.Vec.with_capacity Std.U64 n
+  ron.nat.zeros_loop n v 0#usize
+
+/-- [con_ron_core::ron::nat::KARATSUBA_THRESHOLD]
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 506:0-506:38 -/
+@[global_simps, irreducible]
+def ron.nat.KARATSUBA_THRESHOLD : Std.Usize := 64#usize
+
+/-- [con_ron_core::ron::nat::mul_win]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 622:0-650:1 -/
+def ron.nat.mul_win
+  (a : alloc.vec.Vec Std.U64) (alo : Std.Usize) (ahi : Std.Usize)
+  (b : alloc.vec.Vec Std.U64) (blo : Std.Usize) (bhi : Std.Usize)
+  (out : alloc.vec.Vec Std.U64) (off : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  let la ← ahi - alo
+  let lb ← bhi - blo
+  if la < lb
+  then ron.nat.mul_win b blo bhi a alo ahi out off
+  else
+    if lb < ron.nat.KARATSUBA_THRESHOLD
+    then ron.nat.mul_rows out off a alo ahi b blo bhi
+    else
+      let i ← la / 2#usize
+      if lb <= i
+      then
+        let mid ← alo + i
+        let o ← ron.nat.mul_win a alo mid b blo bhi out off
+        let i1 ← off + i
+        ron.nat.mul_win a mid ahi b blo bhi o i1
+      else
+        let k ← la - i
+        let am ← alo + k
+        let bm ← blo + k
+        let i1 ← k + k
+        let v ← ron.nat.zeros i1
+        let z0 ← ron.nat.mul_win a alo am b blo bm v 0#usize
+        let i2 ← la + lb
+        let i3 ← i2 - i1
+        let v1 ← ron.nat.zeros i3
+        let z2 ← ron.nat.mul_win a am ahi b bm bhi v1 0#usize
+        let i4 ← k + 1#usize
+        let v2 ← ron.nat.zeros i4
+        let v3 ← ron.nat.mul_row v2 0#usize a alo am 1#u64
+        let sa ← ron.nat.mul_row v3 0#usize a am ahi 1#u64
+        let v4 ← ron.nat.zeros i4
+        let v5 ← ron.nat.mul_row v4 0#usize b blo bm 1#u64
+        let sb ← ron.nat.mul_row v5 0#usize b bm bhi 1#u64
+        let i5 ← i1 + 2#usize
+        let v6 ← ron.nat.zeros i5
+        let s ← ron.nat.mul_win sa 0#usize i4 sb 0#usize i4 v6 0#usize
+        let i6 := alloc.vec.Vec.len z0
+        let n0 ← ron.nat.sig_len z0 i6
+        let i7 := alloc.vec.Vec.len z2
+        let n2 ← ron.nat.sig_len z2 i7
+        let v7 ← ron.nat.sub_row s 0#usize z0 0#usize n0
+        let z1 ← ron.nat.sub_row v7 0#usize z2 0#usize n2
+        let i8 := alloc.vec.Vec.len z1
+        let n1 ← ron.nat.sig_len z1 i8
+        let o1 ← ron.nat.mul_row out off z0 0#usize n0 1#u64
+        let i9 ← off + k
+        let o2 ← ron.nat.mul_row o1 i9 z1 0#usize n1 1#u64
+        let i10 ← off + i1
+        ron.nat.mul_row o2 i10 z2 0#usize n2 1#u64
+partial_fixpoint
+
+/-- [con_ron_core::ron::nat::mul]:
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 590:0-594:1
+    Visibility: public -/
+def ron.nat.mul (a : ron.nat.Nat) (b : ron.nat.Nat) : Result ron.nat.Nat := do
+  let la := alloc.vec.Vec.len a.limbs
+  let lb := alloc.vec.Vec.len b.limbs
+  let i ← la + lb
+  let v ← ron.nat.zeros i
+  let v1 ← ron.nat.mul_win a.limbs 0#usize la b.limbs 0#usize lb v 0#usize
+  ron.nat.norm v1
 
 /-- [con_ron_core::ron::nat::pow_go]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 590:0-602:1 -/
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 692:0-704:1 -/
 def ron.nat.pow_go
   (a : ron.nat.Nat) (e : ron.nat.Nat) : Result ron.nat.Nat := do
   let b ← ron.nat.is_zero e
@@ -25936,7 +26268,7 @@ def ron.nat.pow_go
 partial_fixpoint
 
 /-- [con_ron_core::ron::nat::word_log2_exact]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 576:0-586:1 -/
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 678:0-688:1 -/
 def ron.nat.word_log2_exact
   (x : Std.U64) (k : Std.U64) : Result (Option Std.U64) := do
   if x = 1#u64
@@ -25955,7 +26287,7 @@ def ron.nat.word_log2_exact
 partial_fixpoint
 
 /-- [con_ron_core::ron::nat::pow2_log]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 567:0-573:1 -/
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 669:0-675:1 -/
 def ron.nat.pow2_log (a : ron.nat.Nat) : Result (Option Std.U64) := do
   let i := alloc.vec.Vec.len a.limbs
   if i = 1#usize
@@ -26015,7 +26347,7 @@ def ron.nat.shift_left_nat
     ron.nat.shl_onto a i1 out
 
 /-- [con_ron_core::ron::nat::pow_nat]:
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 556:0-564:1
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 658:0-666:1
     Visibility: public -/
 def ron.nat.pow_nat
   (a : ron.nat.Nat) (e : ron.nat.Nat) : Result ron.nat.Nat := do

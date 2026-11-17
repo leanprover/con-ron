@@ -143,26 +143,26 @@ fn copy_from(v: &Vec<u64>, i: usize, end: usize, out: Vec<u64>) -> Vec<u64> {
     }
 }
 
-/// Re-establish the invariant: drop trailing zero limbs.  Aeneas's `Vec`
-/// model has neither `pop` nor `truncate`, so trimming copies; when nothing
-/// has to be dropped (the common case) the vector is moved through.
+/// Re-establish the invariant: drop trailing zero limbs, by truncating in
+/// place (`Vec::resize` to a shorter length); when nothing has to be dropped
+/// (the common case) the vector is moved through.
 pub fn norm(limbs: Vec<u64>) -> Nat {
     let n = limbs.len();
     let s = sig_len(&limbs, n);
     if s == n {
         Nat { limbs }
     } else {
-        Nat { limbs: copy_from(&limbs, 0, s, Vec::new()) }
+        let mut v = limbs;
+        v.resize(s, 0);
+        Nat { limbs: v }
     }
 }
 
-/// A deep copy.  `#[derive(Clone)]` also goes through (measured: Aeneas
-/// models `Vec::clone` as `alloc.vec.CloneVec.clone`, so it is *not* an
-/// external hole), but it puts a `core::clone::Clone` trait declaration and
-/// instance into the model for nothing; an explicit limb copy keeps the
-/// generated Lean trait-free and matches the module's free-function API.
+/// A deep copy: `Vec::clone`, a single `memcpy` (Aeneas models it as
+/// `alloc.vec.CloneVec.clone` over `u64`'s `Clone`, an instance of its
+/// standard library, so no trait of this crate enters the model).
 pub fn clone(a: &Nat) -> Nat {
-    Nat { limbs: copy_from(&a.limbs, 0, a.limbs.len(), Vec::new()) }
+    Nat { limbs: a.limbs.clone() }
 }
 
 // ---------------------------------------------------------------------------
@@ -234,7 +234,7 @@ pub fn blt(a: &Nat, b: &Nat) -> bool {
 /// `a + b`.
 pub fn add(a: &Nat, b: &Nat) -> Nat {
     let n = if a.limbs.len() < b.limbs.len() { b.limbs.len() } else { a.limbs.len() };
-    norm(add_from(&a.limbs, &b.limbs, 0, n, 0, Vec::new()))
+    norm(add_from(&a.limbs, &b.limbs, 0, n, 0, Vec::with_capacity(n + 1)))
 }
 
 /// Ripple-carry over limbs `i..n`, then the final carry limb.  `carry` is `0`
@@ -271,7 +271,7 @@ pub fn sub(a: &Nat, b: &Nat) -> Nat {
     match cmp(a, b) {
         Cmp::Lt => zero(),
         Cmp::Eq => zero(),
-        Cmp::Gt => norm(sub_from(&a.limbs, &b.limbs, 0, a.limbs.len(), 0, Vec::new())),
+        Cmp::Gt => norm(sub_from(&a.limbs, &b.limbs, 0, a.limbs.len(), 0, Vec::with_capacity(a.limbs.len()))),
     }
 }
 
@@ -426,9 +426,9 @@ fn skip_index(v: &Vec<u64>, i: usize, remaining: u64) -> usize {
 /// normalised: the tail shared by both right shifts.
 fn shr_from(a: &Nat, s: usize, bits: u64) -> Nat {
     if bits == 0 {
-        norm(copy_from(&a.limbs, s, a.limbs.len(), Vec::new()))
+        norm(copy_from(&a.limbs, s, a.limbs.len(), Vec::with_capacity(a.limbs.len() - s)))
     } else {
-        norm(shr_bits_from(&a.limbs, s, bits, Vec::new()))
+        norm(shr_bits_from(&a.limbs, s, bits, Vec::with_capacity(a.limbs.len() - s)))
     }
 }
 
@@ -469,35 +469,13 @@ fn shr_bits_from(v: &Vec<u64>, i: usize, bits: u64, out: Vec<u64>) -> Vec<u64> {
     }
 }
 
-/// `2 * a + bit` (`bit` is `0` or `1`) — the step of the long division below.
-fn shl1_or(a: &Nat, bit: u64) -> Nat {
-    norm(shl1_from(&a.limbs, 0, bit, Vec::new()))
-}
-
-fn shl1_from(v: &Vec<u64>, i: usize, carry: u64, out: Vec<u64>) -> Vec<u64> {
-    if i >= v.len() {
-        if carry == 0 {
-            out
-        } else {
-            let mut o = out;
-            o.push(carry);
-            o
-        }
-    } else {
-        let x = v[i];
-        let mut o = out;
-        o.push((x << 1) | carry);
-        shl1_from(v, i + 1, x >> 63, o)
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Multiplication and power
 // ---------------------------------------------------------------------------
 
-/// `a * m` for a single-limb `m`.
+/// `a * m` for a single-limb `m` (`div_mod`'s trial product `q̂ * b`).
 fn mul_u64(a: &Nat, m: u64) -> Nat {
-    norm(mul_u64_from(&a.limbs, 0, m, 0, Vec::new()))
+    norm(mul_u64_from(&a.limbs, 0, m, 0, Vec::with_capacity(a.limbs.len() + 1)))
 }
 
 /// One pass with a `u128` accumulator: `v[i] * m + carry` is at most
@@ -522,28 +500,152 @@ fn mul_u64_from(v: &Vec<u64>, i: usize, m: u64, carry: u64, out: Vec<u64>) -> Ve
     }
 }
 
-/// `a * b`, as `sum_i (a * b[i]) << (64 * i)`.
-///
-/// This is schoolbook multiplication written as shift-and-add rather than as
-/// an in-place accumulation into a pre-sized output, so that the only `Vec`
-/// operations are `new`/`push`/`len`/index (no `IndexMut`) and the
-/// homomorphism proof is one induction over `i` with the invariant
-/// `toNat acc = toNat a * toNat (b[0..i])`.  Same `O(n*m)` word count as the
-/// in-place form, with an extra pass per limb of `b`; if P1.6 profiling asks
-/// for it, the in-place version is a local replacement.
-pub fn mul(a: &Nat, b: &Nat) -> Nat {
-    let z = zero();
-    mul_from(a, b, 0, 0, z)
+/// Below this many limbs in the shorter operand, `mul_win` is the schoolbook
+/// product; from it on, Karatsuba (or halving, for unbalanced operands).
+/// Measured with the multiplication microbenchmark of DESIGN.md task #158.
+const KARATSUBA_THRESHOLD: usize = 64;
+
+/// `n` zero limbs: the accumulators the in-place products write into.
+fn zeros(n: usize) -> Vec<u64> {
+    let mut v: Vec<u64> = Vec::with_capacity(n);
+    let mut i: usize = 0;
+    while i < n {
+        v.push(0);
+        i += 1;
+    }
+    v
 }
 
-fn mul_from(a: &Nat, b: &Nat, i: usize, sh: u64, acc: Nat) -> Nat {
-    if i >= b.limbs.len() {
-        acc
+/// Add `carry * B^k` (`B = 2^64`) into `out` in place, rippling the carry
+/// upwards until it is `0`.  The callers' sums fit `out`, so the ripple stops
+/// inside it.
+fn add_carry_at(out: Vec<u64>, k: usize, carry: u64) -> Vec<u64> {
+    let mut o = out;
+    let mut c = carry;
+    let mut j = k;
+    while c != 0 {
+        let t: u128 = (o[j] as u128) + (c as u128);
+        o[j] = t as u64;
+        c = (t >> 64) as u64;
+        j += 1;
+    }
+    o
+}
+
+/// `out + y * a[lo..hi] * B^off`, in place: one multiply-accumulate row
+/// (`a[lo..hi]` is the value of that limb window).  `a[i] * y + out[j] +
+/// carry` is at most `(2^64 - 1)^2 + 2 (2^64 - 1) = 2^128 - 1`, so the `u128`
+/// cannot overflow.  With `y = 1` it is the in-place addition of a window.
+fn mul_row(out: Vec<u64>, off: usize, a: &Vec<u64>, lo: usize, hi: usize, y: u64) -> Vec<u64> {
+    let mut o = out;
+    let mut carry: u64 = 0;
+    let mut i: usize = lo;
+    let mut j: usize = off;
+    while i < hi {
+        let t: u128 = (a[i] as u128) * (y as u128) + (o[j] as u128) + (carry as u128);
+        o[j] = t as u64;
+        carry = (t >> 64) as u64;
+        i += 1;
+        j += 1;
+    }
+    add_carry_at(o, j, carry)
+}
+
+/// Subtract `B^k` from `out` in place if `borrow` is `1`, rippling the borrow
+/// upwards; the callers never subtract more than `out` holds, so the ripple
+/// stops inside it.
+fn sub_borrow_at(out: Vec<u64>, k: usize, borrow: u64) -> Vec<u64> {
+    let mut o = out;
+    let mut bo = borrow;
+    let mut j = k;
+    while bo != 0 {
+        let t: u128 = (o[j] as u128) + 18446744073709551615;
+        o[j] = t as u64;
+        bo = 1 - ((t >> 64) as u64);
+        j += 1;
+    }
+    o
+}
+
+/// `out - a[lo..hi] * B^off`, in place (`out` holds at least that much).
+/// Each limb is `B + out[j] - a[i] - borrow`, in `1..2 B`, so the `u128`
+/// neither underflows nor overflows, and its high bit is "no borrow".
+fn sub_row(out: Vec<u64>, off: usize, a: &Vec<u64>, lo: usize, hi: usize) -> Vec<u64> {
+    let mut o = out;
+    let mut bo: u64 = 0;
+    let mut i: usize = lo;
+    let mut j: usize = off;
+    while i < hi {
+        let t: u128 = (o[j] as u128) + 18446744073709551616 - (a[i] as u128) - (bo as u128);
+        o[j] = t as u64;
+        bo = 1 - ((t >> 64) as u64);
+        i += 1;
+        j += 1;
+    }
+    sub_borrow_at(o, j, bo)
+}
+
+/// `a * b`: the window product below into a zero accumulator of `|a| + |b|`
+/// limbs, normalised.
+pub fn mul(a: &Nat, b: &Nat) -> Nat {
+    let la = a.limbs.len();
+    let lb = b.limbs.len();
+    norm(mul_win(&a.limbs, 0, la, &b.limbs, 0, lb, zeros(la + lb), 0))
+}
+
+/// Schoolbook: one multiply-accumulate row of `a[alo..ahi]` per limb of
+/// `b[blo..bhi]` (the shorter window, so the inner loop runs over the longer
+/// one).
+fn mul_rows(out: Vec<u64>, off: usize, a: &Vec<u64>, alo: usize, ahi: usize, b: &Vec<u64>, blo: usize, bhi: usize) -> Vec<u64> {
+    let mut o = out;
+    let mut j: usize = blo;
+    while j < bhi {
+        o = mul_row(o, off + (j - blo), a, alo, ahi, b[j]);
+        j += 1;
+    }
+    o
+}
+
+/// `out + a[alo..ahi] * b[blo..bhi] * B^off`, in place.  The caller
+/// guarantees that `out` has at least `off + (ahi - alo) + (bhi - blo)` limbs
+/// and that the sum fits them.  The longer window goes first (the swap is the
+/// first branch); then, with `la >= lb` limbs: schoolbook below
+/// `KARATSUBA_THRESHOLD`; otherwise, when `a` is at least twice as long, it
+/// is halved and both halves accumulate straight into `out`, so an
+/// unbalanced product costs `O(la / lb)` balanced ones; otherwise Karatsuba
+/// at `k = ceil(la / 2)`: with `a = a0 + a1 * B^k` and `b = b0 + b1 * B^k`,
+/// `a * b = z0 + z1 * B^k + z2 * B^(2k)` for `z0 = a0 * b0`, `z2 = a1 * b1`
+/// and `z1 = (a0 + a1) * (b0 + b1) - z0 - z2`, three half-size products
+/// instead of four, each into its own zero accumulator.  The terms are
+/// added into `out` by their significant length (`sig_len`), so the sum's
+/// bound alone keeps every index inside `out`.
+fn mul_win(a: &Vec<u64>, alo: usize, ahi: usize, b: &Vec<u64>, blo: usize, bhi: usize, out: Vec<u64>, off: usize) -> Vec<u64> {
+    let la = ahi - alo;
+    let lb = bhi - blo;
+    if la < lb {
+        mul_win(b, blo, bhi, a, alo, ahi, out, off)
+    } else if lb < KARATSUBA_THRESHOLD {
+        mul_rows(out, off, a, alo, ahi, b, blo, bhi)
+    } else if lb <= la / 2 {
+        let mid = alo + la / 2;
+        let o = mul_win(a, alo, mid, b, blo, bhi, out, off);
+        mul_win(a, mid, ahi, b, blo, bhi, o, off + la / 2)
     } else {
-        let p = mul_u64(a, b.limbs[i]);
-        let ps = shift_left(&p, sh);
-        let acc2 = add(&acc, &ps);
-        mul_from(a, b, i + 1, sh + 64, acc2)
+        let k = la - la / 2;
+        let am = alo + k;
+        let bm = blo + k;
+        let z0 = mul_win(a, alo, am, b, blo, bm, zeros(k + k), 0);
+        let z2 = mul_win(a, am, ahi, b, bm, bhi, zeros(la + lb - (k + k)), 0);
+        let sa = mul_row(mul_row(zeros(k + 1), 0, a, alo, am, 1), 0, a, am, ahi, 1);
+        let sb = mul_row(mul_row(zeros(k + 1), 0, b, blo, bm, 1), 0, b, bm, bhi, 1);
+        let s = mul_win(&sa, 0, k + 1, &sb, 0, k + 1, zeros(k + k + 2), 0);
+        let n0 = sig_len(&z0, z0.len());
+        let n2 = sig_len(&z2, z2.len());
+        let z1 = sub_row(sub_row(s, 0, &z0, 0, n0), 0, &z2, 0, n2);
+        let n1 = sig_len(&z1, z1.len());
+        let o1 = mul_row(out, off, &z0, 0, n0, 1);
+        let o2 = mul_row(o1, off + k, &z1, 0, n1, 1);
+        mul_row(o2, off + (k + k), &z2, 0, n2, 1)
     }
 }
 
@@ -622,19 +724,25 @@ pub fn size_bytes_gt(a: &Nat, m: &Nat) -> bool {
 // Division, remainder, gcd
 // ---------------------------------------------------------------------------
 
-/// `(a / b, a % b)` by shift-subtract long division, restoring, one bit at a
-/// time from the top: `rem := 2 * rem + bit; if rem >= b then rem -= b`.
-/// Knuth D would be faster and much harder to prove (DESIGN.md §3.3).
+/// `(a / b, a % b)` by long division, one quotient limb at a time from the
+/// top (`dm_limbs`).  A one-limb divisor divides each limb with a `u128`
+/// division; a longer one is first normalised — both operands shifted left
+/// until the divisor's top limb has its top bit set, which leaves the
+/// quotient unchanged and scales the remainder, shifted back at the end — and
+/// then each quotient limb is Knuth's algorithm D step (`dm_step`).
 ///
 /// Lean's conventions on a zero divisor: `a / 0 = 0` and `a % 0 = a`.
 pub fn div_mod(a: &Nat, b: &Nat) -> (Nat, Nat) {
     if is_zero(b) {
         (zero(), clone(a))
+    } else if b.limbs.len() == 1 {
+        dm_run(a, b)
     } else {
-        let z = zero();
-        let (qrev, r) = dm_limbs(a, b, a.limbs.len(), Vec::new(), z);
-        let k = qrev.len();
-        (norm(rev_copy_from(&qrev, k, Vec::new())), r)
+        let s = norm_shift(b.limbs[b.limbs.len() - 1]);
+        let an = shift_left(a, s);
+        let bn = shift_left(b, s);
+        let (q, rn) = dm_run(&an, &bn);
+        (q, shift_right(&rn, s))
     }
 }
 
@@ -648,6 +756,27 @@ pub fn div(a: &Nat, b: &Nat) -> Nat {
 pub fn modulo(a: &Nat, b: &Nat) -> Nat {
     let (_q, r) = div_mod(a, b);
     r
+}
+
+/// The left shift that sets the top bit of `top` (`top != 0`): its number of
+/// leading zeros, at most `63`.
+fn norm_shift(top: u64) -> u64 {
+    let mut x = top;
+    let mut s: u64 = 0;
+    while s < 63 && x < 0x8000_0000_0000_0000 {
+        x = x << 1;
+        s += 1;
+    }
+    s
+}
+
+/// The long division proper, `b != 0`: the quotient limbs come out most
+/// significant first and are reversed into place.
+fn dm_run(a: &Nat, b: &Nat) -> (Nat, Nat) {
+    let n = a.limbs.len();
+    let (qrev, r) = dm_limbs(a, b, n, Vec::with_capacity(n), zero());
+    let k = qrev.len();
+    (norm(rev_copy_from(&qrev, k, Vec::with_capacity(k))), r)
 }
 
 /// Push `v[k - 1], v[k - 2], ..., v[0]` onto `out`: the quotient limbs are
@@ -664,39 +793,65 @@ fn rev_copy_from(v: &Vec<u64>, k: usize, out: Vec<u64>) -> Vec<u64> {
     }
 }
 
-/// The outer division recursion: limb `i - 1` of the dividend, downwards.
+/// The outer division recursion: limb `i - 1` of the dividend, downwards,
+/// with `rem < b` the remainder of the limbs above it.
 fn dm_limbs(a: &Nat, b: &Nat, i: usize, qrev: Vec<u64>, rem: Nat) -> (Vec<u64>, Nat) {
     if i == 0 {
         (qrev, rem)
     } else {
-        let (ql, rem2) = dm_bits(a, b, i - 1, 64, 0, rem);
+        let (ql, rem2) = dm_step(b, &rem, a.limbs[i - 1]);
         let mut q = qrev;
         q.push(ql);
         dm_limbs(a, b, i - 1, q, rem2)
     }
 }
 
-/// The inner division recursion: bit `j - 1` of limb `i`, downwards, with the
-/// quotient limb accumulated in `qacc`.  `j` runs in `0..=64`, so `j - 1` is
-/// always a legal shift amount.
-fn dm_bits(a: &Nat, b: &Nat, i: usize, j: u64, qacc: u64, rem: Nat) -> (u64, Nat) {
-    if j == 0 {
-        (qacc, rem)
+/// `x + 2^64 * r`: the remainder with the next dividend limb brought down.
+fn prepend_limb(x: u64, r: &Nat) -> Nat {
+    let mut v: Vec<u64> = Vec::with_capacity(r.limbs.len() + 1);
+    v.push(x);
+    norm(copy_from(&r.limbs, 0, r.limbs.len(), v))
+}
+
+/// One quotient limb: for `rem < b`, with `t = rem * 2^64 + x`, the pair
+/// `(t / b, t % b)` (the quotient fits a limb because `rem < b`).
+///
+/// A one-limb `b` is one `u128` division.  Otherwise (`m = |b| >= 2`) this
+/// is Knuth's step: the estimate `q̂ = min(t[m..m-1] / b[m-1], 2^64 - 1)`
+/// from the top two limbs of `t` and the top limb of `b` is never below the
+/// true quotient, and `dm_correct` walks it down to it.  On a normalised `b`
+/// (top bit set) `q̂` is at most two too large (Knuth, TAOCP 4.3.1,
+/// Theorem B); correctness does not depend on it.
+fn dm_step(b: &Nat, rem: &Nat, x: u64) -> (u64, Nat) {
+    let m = b.limbs.len();
+    if m == 1 {
+        let d = b.limbs[0] as u128;
+        let t: u128 = ((low_limb(rem) as u128) << 64) + (x as u128);
+        let q = (t / d) as u64;
+        let r = (t % d) as u64;
+        (q, from_u64(r))
     } else {
-        let bit = (a.limbs[i] >> (j - 1)) & 1;
-        let r1 = shl1_or(&rem, bit);
-        match cmp(&r1, b) {
-            Cmp::Lt => dm_bits(a, b, i, j - 1, qacc << 1, r1),
-            Cmp::Eq => {
-                let r2 = sub(&r1, b);
-                dm_bits(a, b, i, j - 1, (qacc << 1) | 1, r2)
-            }
-            Cmp::Gt => {
-                let r2 = sub(&r1, b);
-                dm_bits(a, b, i, j - 1, (qacc << 1) | 1, r2)
-            }
-        }
+        let t = prepend_limb(x, rem);
+        let top = b.limbs[m - 1] as u128;
+        let t2: u128 = ((limb(&t.limbs, m) as u128) << 64) + (limb(&t.limbs, m - 1) as u128);
+        let qe = t2 / top;
+        let qhat: u64 = if qe > 18446744073709551615 { 18446744073709551615 } else { qe as u64 };
+        let p = mul_u64(b, qhat);
+        dm_correct(b, &t, qhat, p)
     }
+}
+
+/// The correction of algorithm D: given `p = q * b` with `q` at least the true
+/// quotient `t / b`, step `q` down while `q * b > t`, then the remainder is
+/// `t - q * b`.
+fn dm_correct(b: &Nat, t: &Nat, q: u64, p: Nat) -> (u64, Nat) {
+    let mut qq = q;
+    let mut pp = p;
+    while blt(t, &pp) {
+        qq -= 1;
+        pp = sub(&pp, b);
+    }
+    (qq, sub(t, &pp))
 }
 
 /// `Nat.gcd`, transliterated from Lean's own recursion
@@ -717,7 +872,7 @@ pub fn gcd(a: &Nat, b: &Nat) -> Nat {
 /// `Nat.land`.  The result is at most as long as the shorter operand.
 pub fn land(a: &Nat, b: &Nat) -> Nat {
     let n = if a.limbs.len() < b.limbs.len() { a.limbs.len() } else { b.limbs.len() };
-    norm(and_from(&a.limbs, &b.limbs, 0, n, Vec::new()))
+    norm(and_from(&a.limbs, &b.limbs, 0, n, Vec::with_capacity(n)))
 }
 
 fn and_from(a: &Vec<u64>, b: &Vec<u64>, i: usize, n: usize, out: Vec<u64>) -> Vec<u64> {
@@ -733,7 +888,7 @@ fn and_from(a: &Vec<u64>, b: &Vec<u64>, i: usize, n: usize, out: Vec<u64>) -> Ve
 /// `Nat.lor`.
 pub fn lor(a: &Nat, b: &Nat) -> Nat {
     let n = if a.limbs.len() < b.limbs.len() { b.limbs.len() } else { a.limbs.len() };
-    norm(or_from(&a.limbs, &b.limbs, 0, n, Vec::new()))
+    norm(or_from(&a.limbs, &b.limbs, 0, n, Vec::with_capacity(n)))
 }
 
 fn or_from(a: &Vec<u64>, b: &Vec<u64>, i: usize, n: usize, out: Vec<u64>) -> Vec<u64> {
@@ -749,7 +904,7 @@ fn or_from(a: &Vec<u64>, b: &Vec<u64>, i: usize, n: usize, out: Vec<u64>) -> Vec
 /// `Nat.xor`.
 pub fn xor(a: &Nat, b: &Nat) -> Nat {
     let n = if a.limbs.len() < b.limbs.len() { b.limbs.len() } else { a.limbs.len() };
-    norm(xor_from(&a.limbs, &b.limbs, 0, n, Vec::new()))
+    norm(xor_from(&a.limbs, &b.limbs, 0, n, Vec::with_capacity(n)))
 }
 
 fn xor_from(a: &Vec<u64>, b: &Vec<u64>, i: usize, n: usize, out: Vec<u64>) -> Vec<u64> {
@@ -1137,6 +1292,173 @@ mod tests {
         } else {
             gcd_usize(b % a, a)
         }
+    }
+
+    /// The schoolbook product on its own: `mul_rows` over the whole operands.
+    fn mul_base(a: &Nat, b: &Nat) -> Nat {
+        let la = a.limbs.len();
+        let lb = b.limbs.len();
+        norm(mul_rows(zeros(la + lb), 0, &a.limbs, 0, la, &b.limbs, 0, lb))
+    }
+
+    fn rand_limbs(rng: &mut Rng, n: usize) -> Nat {
+        let mut v: Vec<u64> = Vec::new();
+        for _ in 0..n {
+            v.push(rng.next());
+        }
+        norm(v)
+    }
+
+    /// The fast paths of `mul` (Karatsuba, halving the longer operand)
+    /// against the schoolbook base case, across sizes around the threshold
+    /// and unbalanced shapes, plus all-ones operands (maximal carries).
+    #[test]
+    fn mul_paths_agree_with_schoolbook() {
+        let mut rng = Rng(0x0123_4567_89ab_cdef);
+        let t = KARATSUBA_THRESHOLD;
+        let sizes = [1, 2, t - 1, t, t + 1, 2 * t - 1, 2 * t, 2 * t + 1, 3 * t + 5, 5 * t];
+        for &n in &sizes {
+            for &m in &sizes {
+                let a = rand_limbs(&mut rng, n);
+                let b = rand_limbs(&mut rng, m);
+                let p = mul(&a, &b);
+                assert!(wf(&p));
+                assert!(eqn(&p, &mul_base(&a, &b)), "mul {n} x {m}");
+                assert!(eqn(&p, &mul(&b, &a)), "commuted {n} x {m}");
+            }
+        }
+        for &(n, m) in &[(10 * t, t), (7 * t + 3, t + 2), (40 * t, 2 * t + 1), (9519, 40)] {
+            let a = rand_limbs(&mut rng, n);
+            let b = rand_limbs(&mut rng, m);
+            assert!(eqn(&mul(&a, &b), &mul_base(&a, &b)), "unbalanced {n} x {m}");
+        }
+        for &(n, m) in &[(2 * t - 1, t), (2 * t, t + 1), (2 * t + 1, t + 1), (3 * t, 2 * t), (5 * t, 2 * t)] {
+            let x = of_limbs(&vec![M; n]);
+            let y = of_limbs(&vec![M; m]);
+            assert!(eqn(&mul(&x, &y), &mul_base(&x, &y)), "all ones {n} x {m}");
+        }
+        for &n in &[t, 2 * t + 1, 4 * t] {
+            let ones = of_limbs(&vec![M; n]);
+            let p = mul(&ones, &ones);
+            assert!(eqn(&p, &mul_base(&ones, &ones)), "all ones {n}");
+            // (B^n - 1)^2 = B^2n - 2 B^n + 1
+            let bn = shift_left(&one(), 64 * n as u64);
+            assert!(eqn(&add(&p, &add(&bn, &bn)), &add(&mul_base(&bn, &bn), &one())));
+        }
+        // operands with zero runs, so the halves normalise to fewer limbs
+        let mut v = vec![0u64; 3 * t];
+        v[0] = 5;
+        v[3 * t - 1] = 7;
+        let a = of_limbs(&v);
+        let b = rand_limbs(&mut rng, 2 * t);
+        assert!(eqn(&mul(&a, &b), &mul_base(&a, &b)));
+        assert!(eqn(&mul(&a, &a), &mul_base(&a, &a)));
+        assert!(is_zero(&mul(&a, &zero())));
+    }
+
+    fn check_div(a: &Nat, b: &Nat) {
+        let (q, r) = div_mod(a, b);
+        assert!(wf(&q) && wf(&r));
+        assert!(eqn(&add(&mul(&q, b), &r), a), "q b + r = a: {:?} {:?}", a.limbs, b.limbs);
+        assert!(blt(&r, b), "r < b: {:?} {:?}", a.limbs, b.limbs);
+    }
+
+    /// `q * b + r = a` and `r < b` across divisor shapes: one and two limbs,
+    /// top limb `1` (the largest normalisation shift) and `2^64 - 1` (none),
+    /// `a < b`, `a = b`, exact quotients, and the near-boundary values that
+    /// make the estimate `q̂` too large and force the correction loop.
+    #[test]
+    fn div_identities() {
+        let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+        for _ in 0..300 {
+            let n = 1 + (rng.next() % 12) as usize;
+            let m = 1 + (rng.next() % 6) as usize;
+            let a = rand_limbs(&mut rng, n);
+            let b = rand_limbs(&mut rng, m);
+            if !is_zero(&b) {
+                check_div(&a, &b);
+                check_div(&b, &clone(&a));
+            }
+            let mut bt = b.limbs.clone();
+            let l = bt.len();
+            bt[l - 1] = 1;
+            check_div(&a, &of_limbs(&bt));
+            bt[l - 1] = M;
+            check_div(&a, &of_limbs(&bt));
+            check_div(&a, &clone(&a));
+            let (q, r) = div_mod(&mul(&a, &b), &b);
+            if !is_zero(&b) {
+                assert!(eqn(&q, &a) && is_zero(&r), "(a b) / b");
+            }
+        }
+        for &d in &[1u64, 2, 3, 7, 1 << 63, M, M - 1] {
+            check_div(&of_limbs(&[M, M, M, M]), &from_u64(d));
+            check_div(&of_limbs(&[0, 0, 0, 1]), &from_u64(d));
+        }
+        // q̂ overshoots: divisor top limbs just above a power of two with a
+        // large second limb, dividend just below a multiple
+        let hard: [(&[u64], &[u64]); 6] = [
+            (&[0, 0, 0x8000_0000_0000_0000], &[1, 0x8000_0000_0000_0000]),
+            (&[0, M, 0x7fff_ffff_ffff_ffff], &[M, 0x8000_0000_0000_0000]),
+            (&[0, 0, M - 1, M], &[M, M, M]),
+            (&[3, 0, 0x8000_0000_0000_0000, 0x7fff_ffff_ffff_ffff], &[1, 0, 0x8000_0000_0000_0000]),
+            (&[0, 0, 0, 0x8000_0000_0000_0000], &[1, 0, 0x8000_0000_0000_0000]),
+            (&[M, M, M, M, M], &[M, 1]),
+        ];
+        for (a, b) in hard.iter() {
+            check_div(&of_limbs(a), &of_limbs(b));
+        }
+        let b = of_limbs(&[1, 0, 0x8000_0000_0000_0000]);
+        let q = of_limbs(&[M, M]);
+        let a = sub(&mul(&q, &b), &one());
+        check_div(&a, &b);
+        assert!(eqn(&div(&add(&a, &one()), &b), &q));
+        // big operands
+        let a = rand_limbs(&mut rng, 300);
+        let b = rand_limbs(&mut rng, 70);
+        check_div(&a, &b);
+        check_div(&a, &of_limbs(&[M, 1]));
+    }
+
+    /// `dm_step` directly, on normalised two- and three-limb divisors whose
+    /// top limb is just above `2^63` and whose lower limbs are large (where
+    /// the estimate, which reads only the top limb, overshoots): the result
+    /// is exact, the estimate is within Knuth's bound of two, and some
+    /// estimates were in fact corrected.
+    #[test]
+    fn dm_step_corrects_the_estimate() {
+        let mut rng = Rng(0x5851_f42d_4c95_7f2d);
+        let mut corrected = 0;
+        for round in 0..2000 {
+            let m = 2 + round % 2;
+            let mut bv: Vec<u64> = Vec::new();
+            for _ in 0..m - 1 {
+                bv.push(M - rng.next() % 4);
+            }
+            bv.push((1 << 63) | (rng.next() % 4));
+            let top = bv[m - 1];
+            let b = norm(bv);
+            // any `rem < b`: random limbs under a top limb below `b`'s
+            let mut rv: Vec<u64> = Vec::new();
+            for _ in 0..m - 1 {
+                rv.push(rng.next());
+            }
+            rv.push(rng.next() % top);
+            let rem = norm(rv);
+            let x = rng.next();
+            let (q, r) = dm_step(&b, &rem, x);
+            let t = prepend_limb(x, &rem);
+            assert!(eqn(&add(&mul(&from_u64(q), &b), &r), &t));
+            assert!(blt(&r, &b));
+            let t2 = ((limb(&t.limbs, m) as u128) << 64) + (limb(&t.limbs, m - 1) as u128);
+            let qe = t2 / (b.limbs[m - 1] as u128);
+            let qhat = if qe > (M as u128) { M } else { qe as u64 };
+            assert!(qhat >= q && qhat - q <= 2, "Knuth's bound");
+            if qhat > q {
+                corrected += 1;
+            }
+        }
+        assert!(corrected > 0);
     }
 
     #[test]

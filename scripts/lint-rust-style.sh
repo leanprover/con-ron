@@ -24,22 +24,25 @@ check "derive(Debug) (mixed recursion groups in Charon)" 'derive\([^)]*Debug'
 # keeps `a || b` and `x | y` out (`||` and `|_|`-less bars are not closures).
 check "closures" '\|\s*(_|mut |&|[a-z])[a-z_0-9,&: ]*\|\s*(\{|[a-z])'
 check "? operator" '\)\?[;.) ]|\)\?$'
-# Loops.  The rule is recursion (DESIGN.md §3.4); the exemption is the ported
-# PARSER directory, `crates/con-ron-core/src/frontend/` (task #84, and task
-# #97-P4e's rewrite of it over store handles, which task #97-SWAP moved back
-# under this path): the Lean it cites is a per-byte tail recursion that *Lean*
-# compiles to a loop, and a per-byte recursion in Rust overflows the stack on
-# a long export line.  `-loops-to-rec` gives each loop a `foo_loop` function
-# that mirrors the Lean recursion one for one.  (The `:[0-9]+:` is the
-# `file:line:` prefix `gather` adds: a `^\s*` anchor here matched nothing at
-# all until task #84 noticed.)
+# Loops.  The rule is recursion (DESIGN.md §3.4); the exemption is two paths.
+# The ported PARSER directory, `crates/con-ron-core/src/frontend/` (task #84,
+# and task #97-P4e's rewrite of it over store handles, which task #97-SWAP
+# moved back under this path): the Lean it cites is a per-byte tail recursion
+# that *Lean* compiles to a loop, and a per-byte recursion in Rust overflows
+# the stack on a long export line.  And the bignum, `ron/nat.rs` (task #158):
+# a limb pass is a loop, the in-place multiply-accumulate is naturally a
+# `while`, and a per-limb recursion is the same stack hazard in a debug build.
+# `-loops-to-rec` gives each loop a `foo_loop` function that the proof reads
+# like any other recursion.  (The `:[0-9]+:` is the `file:line:` prefix
+# `gather` adds: a `^\s*` anchor here matched nothing at all until task #84
+# noticed.)
 check_loops() {
   local hits
   hits=$(gather | grep -E ':[0-9]+:[[:space:]]*(while|for|loop)\b' \
     | grep -v '^\S*:\S*:\s*//' | grep -v 'lint: allow' \
-    | grep -vE 'con-ron-core/src/frontend/')   # unanchored: gates.sh passes an absolute dir
+    | grep -vE 'con-ron-core/src/(frontend/|ron/nat\.rs:)')   # unanchored: gates.sh passes an absolute dir
   if [ -n "$hits" ]; then
-    echo "== loops (use recursion; only the two frontend/ directories may loop, DESIGN.md §3.4)"
+    echo "== loops (use recursion; only frontend/ and ron/nat.rs may loop, DESIGN.md §3.4)"
     echo "$hits"; fail=1
   fi
 }
