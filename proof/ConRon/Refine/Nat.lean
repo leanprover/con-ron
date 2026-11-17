@@ -63,11 +63,6 @@ body in one step. -/
     · intro h; simp at h
     · rintro ⟨h, -⟩; omega
 
-/-- `Vec::with_capacity` is `Vec::new` in the model (the capacity is only a
-hint to the allocator). -/
-@[local simp] theorem with_capacity_eq {α : Type} (n : Std.Usize) :
-    alloc.vec.Vec.with_capacity α n = alloc.vec.Vec.new α := rfl
-
 /-- `v[i] = x`: Charon's `index_mut` hands back the old element and the
 `Vec.set` continuation. -/
 theorem index_mut_eq_ok_iff {α : Type} (v : alloc.vec.Vec α) (i : Std.Usize)
@@ -1818,8 +1813,8 @@ theorem zeros_val (n : Std.Usize) (w : alloc.vec.Vec Std.U64) (h : ron.nat.zeros
       subst h
       exact ⟨rfl, by scalar_tac⟩
   rw [ron.nat.zeros] at h
-  obtain ⟨h1, h2⟩ := hl _ _ _ h (by simp)
-  refine ⟨by simpa using h1, by rw [h2]; simp⟩
+  obtain ⟨h1, h2⟩ := hl _ _ _ h (by simp [alloc.vec.Vec.with_capacity])
+  refine ⟨by simpa [alloc.vec.Vec.with_capacity] using h1, by rw [h2]; simp⟩
 
 theorem add_carry_at_val :
     ∀ (o : alloc.vec.Vec Std.U64) (c : Std.U64) (j : Std.Usize) (w : alloc.vec.Vec Std.U64),
@@ -2566,7 +2561,7 @@ theorem knuth_estimate {T Bv top t2 m : Nat} (htop : 0 < top)
 theorem prepend_limb_val {x : Std.U64} {r t : ron.nat.Nat}
     (h : ron.nat.prepend_limb x r = ok t) : toNat t = x.val + 2 ^ 64 * toNat r ∧ NatWF t := by
   rw [ron.nat.prepend_limb] at h
-  simp only [bind_eq_ok_iff, with_capacity_eq, push_eq_ok_iff] at h
+  simp only [bind_eq_ok_iff, alloc.vec.Vec.with_capacity, push_eq_ok_iff] at h
   obtain ⟨i1, -, v1, ⟨-, hv1⟩, v2, hv2, h⟩ := h
   have hcf := copy_from_refines (v := r.limbs) (i := 0#usize) (e := alloc.vec.Vec.len r.limbs)
     (by scalar_tac) hv2
@@ -2882,7 +2877,7 @@ theorem dm_run_val {a b q r : ron.nat.Nat} (hb : NatWF b) (hb0 : 0 < toNat b)
     (h : ron.nat.dm_run a b = ok (q, r)) :
     toNat q = toNat a / toNat b ∧ toNat r = toNat a % toNat b ∧ NatWF q ∧ NatWF r := by
   rw [ron.nat.dm_run] at h
-  simp only [bind_eq_ok_iff, with_capacity_eq] at h
+  simp only [bind_eq_ok_iff, alloc.vec.Vec.with_capacity] at h
   obtain ⟨z, hz, h⟩ := h
   obtain ⟨hz0, hzwf⟩ := zero_refines hz
   obtain ⟨p, hp, h⟩ := h
@@ -2903,7 +2898,7 @@ theorem dm_run_val {a b q r : ron.nat.Nat} (hb : NatWF b) (hb0 : 0 < toNat b)
   have hQ : toNat a / toNat b % 2 ^ (64 * a.limbs.val.length) = toNat a / toNat b :=
     Nat.mod_eq_of_lt (lt_of_le_of_lt (Nat.div_le_self _ _) (limbsToNat_lt _))
   rw [hQ] at hl3
-  simp only [bind_eq_ok_iff, with_capacity_eq, Result.ok.injEq, Prod.mk.injEq] at h
+  simp only [bind_eq_ok_iff, alloc.vec.Vec.with_capacity, Result.ok.injEq, Prod.mk.injEq] at h
   obtain ⟨v, hv, n, hn, h1, h2⟩ := h
   subst h1; subst h2
   have hkl : (alloc.vec.Vec.len qrev).val = qrev.val.length := by scalar_tac
