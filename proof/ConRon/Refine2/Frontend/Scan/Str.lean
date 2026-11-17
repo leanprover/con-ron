@@ -1282,34 +1282,6 @@ private theorem sig_len_ok (v : alloc.vec.Vec Std.U64) :
       · obtain ⟨s, hs, hsv⟩ := ih i (by scalar_tac) (by omega)
         exact ⟨s, by rw [ite_eq_right hnz, hs], by scalar_tac⟩
 
-private theorem copy_from_ok (v : alloc.vec.Vec Std.U64) (e : Std.Usize) :
-    ∀ (d : Nat) (i : Std.Usize) (out : alloc.vec.Vec Std.U64), e.val - i.val ≤ d →
-      out.val.length + (e.val - i.val) ≤ Std.Usize.max →
-      ∃ w, ron.nat.copy_from v i e out = ok w := by
-  intro d
-  induction d with
-  | zero =>
-    intro i out hd hb
-    exact ⟨out, by rw [ron.nat.copy_from, ite_eq_left (show i ≥ e by scalar_tac)]⟩
-  | succ d ih =>
-    intro i out hd hb
-    by_cases hie : i ≥ e
-    · exact ⟨out, by rw [ron.nat.copy_from, ite_eq_left hie]⟩
-    · by_cases hiv : i ≥ alloc.vec.Vec.len v
-      · exact ⟨out, by rw [ron.nat.copy_from, ite_eq_right hie, ite_eq_left hiv]⟩
-      · have hilt : i.val < v.val.length := by scalar_tac
-        have hlt : i.val < e.val := by scalar_tac
-        obtain ⟨out1, hout1, hout1v⟩ := push_ok out (v.val[i.val]'hilt) (by omega)
-        obtain ⟨i3, hi3, hi3v⟩ := usize_add_ok (i := i) (by scalar_tac)
-        obtain ⟨w, hw⟩ := ih i3 out1 (by omega) (by
-          rw [hout1v]
-          simp only [List.length_append, List.length_cons, List.length_nil]
-          omega)
-        refine ⟨w, ?_⟩
-        rw [ron.nat.copy_from, ite_eq_right hie, ite_eq_right hiv]
-        simp only [vec_index_ok v i hilt, hout1, hi3, bind_ok]
-        exact hw
-
 private theorem norm_ok (limbs : alloc.vec.Vec Std.U64) :
     ∃ n, ron.nat.norm limbs = ok n := by
   obtain ⟨s, hs, hsv⟩ := sig_len_ok limbs limbs.val.length (alloc.vec.Vec.len limbs)
@@ -1318,11 +1290,15 @@ private theorem norm_ok (limbs : alloc.vec.Vec Std.U64) :
   simp only [hs, bind_ok]
   by_cases heq : s = alloc.vec.Vec.len limbs
   · exact ⟨{ limbs := limbs }, by rw [ite_eq_left heq]⟩
-  · obtain ⟨w, hw⟩ := copy_from_ok limbs s s.val 0#usize (alloc.vec.Vec.new Std.U64)
-      (by scalar_tac) (by
-        simp only [alloc.vec.Vec.new, alloc.vec.Vec.from_val, List.length_nil]
-        scalar_tac)
-    exact ⟨{ limbs := w }, by rw [ite_eq_right heq]; simp only [hw, bind_ok]⟩
+  · have hlt : s.val < limbs.val.length := by
+      have : s.val ≠ limbs.val.length := fun hc => heq (by scalar_tac)
+      have : s.val ≤ limbs.val.length := by scalar_tac
+      omega
+    rw [ite_eq_right heq]
+    unfold alloc.vec.Vec.resize
+    rw [ite_eq_left (by simpa using hlt)]
+    simp only [bind_ok]
+    exact ⟨_, rfl⟩
 
 /-- **`nat_decimal::from_decimal` accepts every non-empty run of decimal
 digits.**  With `scan_quoted_nat_digits` this rules out the `none` arm at the
