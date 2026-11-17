@@ -73170,3 +73170,103 @@ as the run of its commits and the report lived nowhere in git.
   fast-forward and not yet pushed, was re-landed this way (`922fd542`).
 * CLAUDE.md's merge-discipline bullet, its queue bullet and the bump
   summary say so.
+
+### Task #159 — subquadratic decimal literals (2026-11-17, Opus)
+
+**Why.**  `frontend/nat_decimal.rs::from_decimal`, the reader of a `natVal` literal's digits
+(its one caller is `export_c::parse_expr_rec_d`), folded 19-digit chunks into the limbs with
+`mul_add_small`: one `O(limbs)` pass per chunk, `O(n² / 19)` for `n` digits.  A literal of
+10⁶ digits cost 19.2 G instructions.
+
+**The design.**  Validation (`all_digits`) and the `None` behaviour are unchanged.
+* A literal of at most `BASE_DIGITS = 4864` digits (256 chunks) is the old chunk loop,
+  now named `read_chunks` (`norm(from_decimal_go(...))`); no table is built, so short
+  literals take the same code path as before.
+* A longer one builds `power_table(n)`: `P[t] = 10^(19·2^t)` for every `t` with
+  `2·19·2^t ≤ n`, by repeated squaring with `nat::mul` from `P[0] = 10^19`, and then
+  `read_split(digits, &pows)` recurses: at most `BASE_DIGITS` digits is `read_chunks`;
+  otherwise `split_level(len)` returns the largest `t` with `2d ≤ len` for `d = 19·2^t`,
+  the run is split into a high part of `len − d` digits (between half and three quarters)
+  and a low part of exactly `d` digits (subslices `&digits[0..m]`, `&digits[m..len]`), and
+  the value is `nat::add(nat::mul(hi, pows[t]), lo)`.  Depth `O(log n)`, cost
+  `O(M(n) log n)` with task #158's Karatsuba.
+* The first version split the other way (low part the largest `19·2^t < len`, so the
+  high part was the short one).  Making the high part the longer one keeps every power at
+  most half the literal, so the table's last squaring is a quarter of the literal; it was
+  10 % cheaper at 10⁶ digits and 15–25 % cheaper at 1.5–6·10⁴ (table below).
+* `ron::nat`'s untouched `*_from` helpers recurse once per limb, which overflows the
+  2 MiB default test-thread stack in an unoptimised build for a 16 000-limb number; the two
+  long tests run on a 1 GiB thread, like the checker's own threads.
+* `con-ron-dump/src/natdec.rs` keeps the quadratic algorithm: it is unverified dump tooling
+  off the checker path, and it is used only for its `to_decimal`.
+
+**`BASE_DIGITS`, measured** (microbenchmark `_tmp/bench-159`, `instructions:u` per parse:
+`rep N K` minus `rep N 0`, divided by `K`).  "L" is the first split rule (low part longer),
+"H" the shipped one (high part longer), with the base case in chunks:
+
+| digits | chunk loop only | L32 | L128 | L512 | H128 | **H256** | H512 | H1024 |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 3 000 | 281 k | 430 k | 391 k | 281 k | 335 k | 281 k | 281 k | 281 k |
+| 10 000 | 2.39 M | 3.35 M | 3.19 M | 3.47 M | 2.46 M | 2.49 M | 2.54 M | 2.39 M |
+| 15 000 | 5.04 M | – | – | 5.67 M | 4.67 M | 4.76 M | 4.80 M | 5.04 M |
+| 30 000 | 18.7 M | 17.3 M | 16.8 M | 17.8 M | 14.6 M | 14.8 M | 15.3 M | 15.6 M |
+| 100 000 | 196 M | 131 M | 129 M | 133 M | 108 M | 109 M | 111 M | 117 M |
+| 300 000 | 1 738 M | 629 M | 624 M | 634 M | 652 M | 655 M | 662 M | 683 M |
+| 1 000 000 | – | 4 695 M | 4 677 M | 4 712 M | 4 206 M | 4 215 M | 4 239 M | 4 313 M |
+
+The chunk loop beats the split up to a few thousand digits: the split's products below
+Karatsuba's 64 limbs are schoolbook at ~16 instructions per limb product (bounds and
+overflow checks), more than `mul_add_small`'s pass, and the table costs squarings of its
+own.  H256 is never more than 4 % above the chunk loop (at 5 000–10 000 digits) and within
+1 % of the best base case from 15 000 digits on; H128 is 19 % worse at 3 000.
+
+**The proof** (`Refine2/Frontend/Scan/Str.lean`: **3 088 → 2 958 lines**, 133 → 127
+theorems; `ExportC.lean` +32 lines).  All new lemmas are partial correctness by
+`partial_induct` (task #99-PFIX), with no fuel and no index bound:
+* `read_chunks_val` is the old `from_decimal_refines` body (the chunk-loop proofs are
+  unchanged).
+* `PowTable pows` (`∀ t x, pows[t]? = some x → toNat x = 10^(19·2^t)`) is
+  `power_table_loop_val`'s invariant, together with `|pows| = t + 1`, which places the
+  pushed square at index `t + 1`.  `pow_add`/`pow_succ` give the square's value.
+  `split_level_loop_val` gives `d = 19·2^t`.
+* `read_split_val`, with the table fixed as a parameter (Lean's `fixpoint_induct` treats
+  `pows` as fixed): `range_index_val` for the two subslices, `List.take_append_drop`, and
+  `digitsVal_append` (`val (xs ++ ys) = val xs · 10^|ys| + val ys`, already in the file),
+  then `mul_refines`/`add_refines`.  An out-of-range `pows[t]` is a `fail`, so the
+  table does not need to be shown long enough.
+* `from_decimal_refines`: statement unchanged.
+* **`from_decimal_ok` (a totality statement: `∃ n, from_decimal ds = ok (some n)` on a
+  non-empty digit run) is replaced by `from_decimal_some`** (`from_decimal ds = ok o →
+  ∃ n, o = some n` on the same hypotheses).  Totality of the split would need totality of
+  `ron::nat::mul` and `add`, and `Refine/Nat.lean` proves partial correctness only.  The
+  one consumer, `Scan/Spec.lean`'s `natValSpec_of_digits`, needs only the partial form,
+  because `NatValSpec` is stated as `∀ o, from_decimal … = ok o → …`.  So nothing
+  downstream changes.  The totality lemmas the old statement needed (`chunk_loop_ok`,
+  `mul_add_small{,_loop}_ok`, `from_decimal_go_loop_ok`, `sig_len_ok`, `norm_ok` and five
+  scalar helpers) were removed, because the dead census rejects unused declarations.
+  `all_digits_ok` stays.
+* `ExportC.lean`'s `from_decimal_wf` (ExportC does not import `Scan/Str.lean`) follows
+  the new shape: a private `read_split_wf` by `partial_induct` (last step `norm` or
+  `add`).
+
+**Measurements** (`perf stat -e instructions:u`, one run per side; before = `b450d4c1`):
+
+| | before | after | |
+|---|---:|---:|---:|
+| bench: one parse, 10³ digits | 59 327 | 59 266 | −0.1 % |
+| bench: one parse, 10⁴ digits | 2 406 513 | 2 491 318 | +3.5 % |
+| bench: one parse, 10⁵ digits | 196 476 031 | 108 761 644 | −44.6 % |
+| bench: one parse, 10⁶ digits | 19 184 827 721 | 4 215 372 916 | −78.0 % (4.6×) |
+| export, one 200 000-digit literal, `--jobs=1` | 954 054 290 | 508 622 302 | −46.7 % |
+| export, one 10⁶-digit literal, `--jobs=1` | 19 348 520 641 | 4 372 005 372 | −77.4 % |
+| `Init` export, `--jobs=1` | 165 745 433 573 | 165 757 008 852 | +0.007 % |
+
+The two exports are `def bigLit : Nat := <n digits>` plus `theorem bigLit_eq : bigLit =
+<same> := rfl`, compiled with v4.35.0-rc3 and exported with `_tmp/lean4export` (one
+`natVal` record).  Lean and lean4export both handled 10⁶ digits: Lean took about 7 minutes
+to elaborate it, and lean4export a few minutes.  No OVERVIEW perf edit.
+
+**Environment note.**  The shared Lake cache (`_tmp/lake-cache`) does not exist and the
+main tree has no `proof/.lake/build`, so this worktree built everything from the
+already-populated `_tmp/aeneas-lean-v4.35.0/.lake/packages`.  The cache was not seeded
+(that is a write to shared state, and this branch's `Generated/Funs.lean` is not master's).
