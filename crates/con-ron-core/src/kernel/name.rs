@@ -118,6 +118,7 @@ pub fn dup(n: &Name) -> Name {
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:63-94 Name.decEqPtr
+/// con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove name::ptr_eq_refines, then delete this line
 /// The pointer test behind the cited `withPtrEqDecEq`.  Deviation: modeled as
 /// `false` in the generated Lean (DESIGN.md §3.2), where `withPtrEqDecEq`'s pure
 /// definition is its continuation.
@@ -148,6 +149,7 @@ pub fn str_eq_from(a: &Vec<u32>, b: &Vec<u32>, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:63-94 Name.decEqPtr
+/// con-leche: CHANGED since 600d3b58 — re-port, re-test, re-prove name::beq_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Name.lean:45-61 Name.decEq
 /// con-leche: ConLeche/Kernel/Name.lean:114-115 Name.beq
 /// `Name.decEqPtr` is the *executed* `Name.beq` (`decide` over the instance,
