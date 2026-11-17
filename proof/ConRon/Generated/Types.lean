@@ -126,7 +126,7 @@ theorem kernel.level.Level._0._simpLemma_ (_0 : alloc.sync.Arc
   kernel.level.LevelNode) : (kernel.level.Level.mk _0)._0 = _0 := by rfl
 
 /-- [con_ron_core::ron::nat::Nat]
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 57:0-59:1
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 73:0-75:1
     Visibility: public -/
 structure ron.nat.Nat where
   limbs : alloc.vec.Vec Std.U64
@@ -888,7 +888,7 @@ inductive kernel.expr.ExprView where
   kernel.expr.ExprView
 
 /-- [con_ron_core::ron::nat::Cmp]
-    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 64:0-68:1
+    Source: 'crates/con-ron-core/src/ron/nat.rs', lines 80:0-84:1
     Visibility: public -/
 @[discriminant isize]
 inductive ron.nat.Cmp where

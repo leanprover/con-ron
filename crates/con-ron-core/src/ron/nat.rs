@@ -37,13 +37,29 @@
 //!
 //! # Shape of the code (DESIGN.md §3.4 and the task-#3 patterns)
 //!
-//! No loops: every pass over the limbs is an index-carrying `*_from` helper,
-//! the public function being the `i = 0` wrapper.  Accumulators are passed
-//! *by value* and returned (`out: Vec<u64>` in, `Vec<u64>` out), so no `&mut`
-//! parameter appears and Aeneas sees a plain value-passing recursion.  The
-//! only `Vec` operations used are `new`, `push`, `len` and indexing — Aeneas
-//! models all four (`Aeneas/Std/Vec.lean`), and in particular the model has
-//! no `pop`/`truncate`, which is why `norm` trims by copying.
+//! Two kinds of limb pass.  The value-passing one is an index-carrying
+//! `*_from` helper, the public function being the `i = 0` wrapper, with the
+//! output vector passed *by value* and returned (`out: Vec<u64>` in,
+//! `Vec<u64>` out), so no `&mut` parameter appears.  The in-place one is a
+//! `while` loop over a vector owned by the function (this file is one of the
+//! two places §3.4 lets loop): `mul`'s multiply-accumulate rows and the
+//! carry and borrow ripples write `v[i] = x` into a pre-sized accumulator,
+//! and `-loops-to-rec` gives each loop a `*_loop` function the proof reads
+//! like any other recursion.  Every output vector is allocated with
+//! `Vec::with_capacity` of its bound.  The `Vec` operations used are `new`,
+//! `with_capacity`, `push`, `len`, indexing, index assignment, `resize` (only
+//! to truncate, in `norm`) and `clone`; Aeneas models all of them
+//! (`Aeneas/Std/Vec.lean`).
+//!
+//! # Algorithms
+//!
+//! `mul` is schoolbook below `KARATSUBA_THRESHOLD` limbs and Karatsuba above
+//! it, with an unbalanced product split into balanced ones (`mul_win`); it
+//! works on limb windows of its operands, so no operand is copied.
+//! `div_mod` is long division a limb at a time: a `u128` division for a
+//! one-limb divisor, Knuth's algorithm D (TAOCP 4.3.1) on the normalised
+//! operands otherwise.  `pow_nat` is square-and-multiply.  Subquadratic
+//! division (Burnikel–Ziegler, Newton) is not implemented.
 //!
 //! The only casts are `u64 -> u128` (widening) and `u128 -> u64` (truncating,
 //! modelled as `BitVec.setWidth` — total, and only ever applied to a value
@@ -356,7 +372,8 @@ fn shl_onto(a: &Nat, bits: u64, out: Vec<u64>) -> Nat {
     }
 }
 
-/// `Nat.shiftLeft a k` for a machine-word amount (`mul`'s partial products).
+/// `Nat.shiftLeft a k` for a machine-word amount (`div_mod`'s normalisation,
+/// `size_bytes`).
 pub fn shift_left(a: &Nat, k: u64) -> Nat {
     if is_zero(a) {
         zero()
