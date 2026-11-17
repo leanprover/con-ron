@@ -73358,3 +73358,21 @@ after reading upstream: 128 the prelude chunks (the generators clear them), 20 t
 `#load_natop_pins` (the interning loops are count-independent, as in #153), 7 `ptrDecEq`
 callers, `Literal`'s four, `refBase`.  **0 markers at the end**; coverage 1137/1189 at the old
 pin, 1138/1190 at the new (52 uncovered either way; 165 skips).
+
+diff-e2e: master's binary at the new pin 748/748 (`lit_hash_low_bits` included); the
+branch's **748/748** at `--verified --jobs=1` and at `--trusted --jobs=4`.
+
+**Measure** (`bump-con-leche.sh measure`, `Init`, con-ron, one worker; both accept 57 919):
+
+| binary | instructions:u | cycles:u |
+|---|---:|---:|
+| master `de06320f` | 165 757 426 936 | 62 992 713 428 |
+| this branch `3e54ae0b` | **165 757 448 728** (+0.000 %) | 63 016 001 933 |
+
+Peak RSS 423 / 427 MB.  The Rust changed by comments and generated data only.
+
+**Left.**  The tactic-style Theorem 1 proofs touched here (and their untouched siblings in
+`Arms/WhnfCore.lean`, `Walks/BetaSpine.lean`) are the candidates for the `sym => vcgen <;>
+finish` shape; the Aeneas submodule stays at `557eff83` with #1547's library hunk carried in
+the patch (a full Aeneas bump moves the extractor too).  When a stable Lean ships
+lean4#16146, upstream drops `natBigHash` (its task #598's plan): the three skips go with it.
