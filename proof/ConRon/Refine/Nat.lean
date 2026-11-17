@@ -1,4 +1,5 @@
 import ConRon.Generated
+import ConRon.Refine.Fixpoint
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -61,6 +62,28 @@ body in one step. -/
   · constructor
     · intro h; simp at h
     · rintro ⟨h, -⟩; omega
+
+/-- `Vec::with_capacity` is `Vec::new` in the model (the capacity is only a
+hint to the allocator). -/
+@[local simp] theorem with_capacity_eq {α : Type} (n : Std.Usize) :
+    alloc.vec.Vec.with_capacity α n = alloc.vec.Vec.new α := rfl
+
+/-- `v[i] = x`: Charon's `index_mut` hands back the old element and the
+`Vec.set` continuation. -/
+theorem index_mut_eq_ok_iff {α : Type} (v : alloc.vec.Vec α) (i : Std.Usize)
+    (p : α × (α → alloc.vec.Vec α)) :
+    alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice α) v i = ok p ↔
+      v.val[i.val]? = some p.1 ∧ p.2 = alloc.vec.Vec.set v i := by
+  rw [alloc.vec.Vec.index_mut_slice_index, alloc.vec.Vec.index_mut_usize,
+    alloc.vec.Vec.index_usize]
+  obtain ⟨x, f⟩ := p
+  cases hv : v.val[i.val]? with
+  | none => simp
+  | some y =>
+    simp only [bind_tc_ok, Result.ok.injEq, Prod.mk.injEq, Option.some.injEq]
+    constructor
+    · rintro ⟨rfl, rfl⟩; exact ⟨rfl, rfl⟩
+    · rintro ⟨rfl, rfl⟩; exact ⟨rfl, rfl⟩
 
 /-! ## Forward readings of the machine-word operations
 
@@ -316,11 +339,14 @@ theorem norm_refines {limbs : alloc.vec.Vec Std.U64} {n : ron.nat.Nat}
     obtain ⟨w, hw, h⟩ := h
     subst h
     have hwv : w.val = limbs.val.take s.val := by
-      have hcf := copy_from_refines (v := limbs) (i := 0#usize) (e := s)
-        (out := alloc.vec.Vec.new Std.U64) (w := w) h1 hw
-      have h0 : (0#usize : Std.Usize).val = 0 := by scalar_tac
-      rw [h0] at hcf
-      simpa using hcf
+      have hslt : s.val < limbs.val.length := by
+        have : s.val ≠ limbs.val.length := fun hc => hsn (by scalar_tac)
+        omega
+      unfold alloc.vec.Vec.resize at hw
+      rw [ite_eq_left (by simpa using hslt)] at hw
+      simp only [Result.ok.injEq] at hw
+      rw [← hw]
+      simp [List.resize, Nat.sub_eq_zero_of_le (le_of_lt hslt)]
     exact ⟨by simp only [toNat, hwv]; exact h3, by simp only [NatWF, hwv]; exact h2⟩
 
 /-! ## Bounds, and injectivity of `toNat` under the invariant -/
@@ -443,14 +469,17 @@ theorem clone_refines {a n : ron.nat.Nat} (h : ron.nat.clone a = ok n) :
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨v, hv, h⟩ := h
   subst h
-  have := copy_from_refines (v := a.limbs) (i := 0#usize)
-    (e := alloc.vec.Vec.len a.limbs) (out := alloc.vec.Vec.new Std.U64) (w := v)
-    (by scalar_tac) hv
-  have h0 : (0#usize : Std.Usize).val = 0 := by scalar_tac
-  have hl : (alloc.vec.Vec.len a.limbs).val = a.limbs.val.length := by scalar_tac
-  rw [h0, hl] at this
-  simp only [Nat.sub_zero, List.drop_zero, List.take_length] at this
-  exact ⟨this, by simp [toNat, this]⟩
+  have hv' : v = a.limbs := by
+    have hc : Slice.clone (liftFun1 core.clone.impls.CloneU64.clone) a.limbs.slice
+        = ok a.limbs.slice := by
+      obtain ⟨y, hy, hsy⟩ := WP.spec_imp_exists
+        (Slice.clone_spec (clone := liftFun1 core.clone.impls.CloneU64.clone)
+          (s := a.limbs.slice) (fun _ _ => rfl))
+      rw [hy, ← hsy]
+    simp only [alloc.vec.CloneVec.clone, hc, bind_tc_ok, Result.ok.injEq] at hv
+    rw [← hv]
+  subst hv'
+  exact ⟨rfl, rfl⟩
 
 theorem to_u64_refines {a : ron.nat.Nat} {o : Option Std.U64} (ha : NatWF a)
     (h : ron.nat.to_u64 a = ok o) :
@@ -765,7 +794,7 @@ theorem add_refines {a b c : ron.nat.Nat} (h : ron.nat.add a b = ok c) :
     toNat c = toNat a + toNat b ∧ NatWF c := by
   rw [ron.nat.add] at h
   simp only [bind_eq_ok_iff] at h
-  obtain ⟨n, hn, v, hv, h⟩ := h
+  obtain ⟨n, hn, i1, hi1, v, hv, h⟩ := h
   have hna : a.limbs.val.length ≤ n.val ∧ b.limbs.val.length ≤ n.val := by
     split at hn <;> simp only [Result.ok.injEq] at hn <;> subst hn <;>
       constructor <;> scalar_tac
@@ -1575,7 +1604,7 @@ theorem shr_from_refines {a c : ron.nat.Nat} {s : Std.Usize} {bits : Std.U64}
     limbsToNat_drop _ _
   split at h <;> rename_i hbz2
   · simp only [bind_eq_ok_iff] at h
-    obtain ⟨v, hv, h⟩ := h
+    obtain ⟨i1, hi1, v, hv, h⟩ := h
     have hcf := copy_from_refines (v := a.limbs) (i := s)
       (e := alloc.vec.Vec.len a.limbs) (out := alloc.vec.Vec.new Std.U64) (w := v)
       (by scalar_tac) hv
@@ -1588,7 +1617,7 @@ theorem shr_from_refines {a c : ron.nat.Nat} {s : Std.Usize} {bits : Std.U64}
     have hbz3 : bits.val = 0 := by rw [hbz2]; scalar_tac
     rw [hnv, hcf, hdrop, hbz3, pow_zero, Nat.div_one]
   · simp only [bind_eq_ok_iff] at h
-    obtain ⟨v, hv, h⟩ := h
+    obtain ⟨i1, hi1, v, hv, h⟩ := h
     have hsr := shr_bits_from_val a.limbs bits hb a.limbs.val.length s
       (alloc.vec.Vec.new Std.U64) v (by omega) hv
     simp only [alloc.vec.Vec.new, alloc.vec.Vec.from_val, limbsToNat_nil, List.length_nil,
@@ -1716,7 +1745,510 @@ theorem shift_left_nat_refines {a k c : ron.nat.Nat} (_hk : NatWF k)
     congr 2
     omega
 
-/-! ## Multiplication and power -/
+/-! ## Multiplication and power
+
+`mul` is an in-place window product (`mul_win`): every pass is a `while` loop
+that Aeneas turns into a `partial_fixpoint` `*_loop` function, and every proof
+below is by that function's `fixpoint_induct` (`partial_induct`, task
+#99-PFIX): partial correctness, so no measure, no fuel and no index bound —
+an index out of range is a `fail`, about which an `= ok` lemma says nothing.
+The value of a vector written in place moves by `limbsToNat_set`; each loop
+step is then one `grind` over the word equation and that. -/
+
+/-- Writing limb `j` moves the value by the difference, scaled by `2^(64 j)`. -/
+theorem limbsToNat_set (l : List Std.U64) (j : Nat) (x : Std.U64) (hj : j < l.length) :
+    limbsToNat (l.set j x) + (l[j]'hj).val * 2 ^ (64 * j)
+      = limbsToNat l + x.val * 2 ^ (64 * j) := by
+  induction l generalizing j with
+  | nil => simp at hj
+  | cons y r ih =>
+    cases j with
+    | zero => simp; ring
+    | succ j =>
+      have := ih j (by simpa using hj)
+      simp only [List.set_cons_succ, limbsToNat_cons, List.getElem_cons_succ]
+      rw [show 64 * (j + 1) = 64 + 64 * j by ring, Nat.pow_add]
+      grind
+
+theorem cast128_val (x : Std.U64) : (UScalar.cast .U128 x).val = x.val := by
+  rw [Std.UScalar.cast_val_eq]
+  exact Nat.mod_eq_of_lt (by scalar_tac)
+
+theorem cast64_val (t : Std.U128) : (UScalar.cast .U64 t).val = t.val % 2 ^ 64 :=
+  Std.UScalar.cast_val_eq _ _
+
+/-- A `u128` is its two halves: `t as u64` and `(t >> 64) as u64`. -/
+theorem split128 {t i : Std.U128} (hi : t >>> 64#i32 = ok i) :
+    (UScalar.cast .U64 t).val + 2 ^ 64 * (UScalar.cast .U64 i).val = t.val := by
+  have hiv : i.val = t.val / 2 ^ 64 := by
+    have := (ushiftRightI_val hi).2; simpa using this
+  have ht : t.val < 2 ^ 64 * 2 ^ 64 := by
+    have : t.val < 2 ^ 128 := by scalar_tac
+    simpa [← Nat.pow_add] using this
+  rw [cast64_val, cast64_val, hiv, Nat.mod_eq_of_lt (Nat.div_lt_of_lt_mul ht)]
+  exact Nat.mod_add_div _ _
+
+/-- `(x as u128) << 64` is exact. -/
+theorem shl64_val {x : Std.U64} {z : Std.U128} (h : UScalar.cast .U128 x <<< 64#i32 = ok z) :
+    z.val = x.val * 2 ^ 64 := by
+  have h1 := (ushiftLeftI_val h).2
+  have h2 : (64#i32 : Std.I32).toNat = 64 := by scalar_tac
+  have h3 : UScalarTy.U128.numBits = 128 := rfl
+  rw [h1, h2, h3, cast128_val]
+  apply Nat.mod_eq_of_lt
+  have : x.val < 2 ^ 64 := by scalar_tac
+  calc x.val * 2 ^ 64 < 2 ^ 64 * 2 ^ 64 := Nat.mul_lt_mul_of_pos_right this (Nat.two_pow_pos _)
+    _ = 2 ^ 128 := by norm_num
+
+theorem zeros_val (n : Std.Usize) (w : alloc.vec.Vec Std.U64) (h : ron.nat.zeros n = ok w) :
+    limbsToNat w.val = 0 ∧ w.val.length = n.val := by
+  have hl : ∀ (v : alloc.vec.Vec Std.U64) (i : Std.Usize) (w : alloc.vec.Vec Std.U64),
+      ron.nat.zeros_loop n v i = ok w → v.val.length = i.val →
+      limbsToNat w.val = limbsToNat v.val ∧ w.val.length = max n.val i.val := by
+    partial_induct ron.nat.zeros_loop
+    intro g ih v i w h hvi
+    beta_reduce at h
+    split at h <;> rename_i hin
+    · simp only [bind_eq_ok_iff, push_eq_ok_iff] at h
+      obtain ⟨v1, ⟨-, hv1⟩, i1, hi1, h⟩ := h
+      have hi1' : i1.val = i.val + 1 := by have := uadd_val hi1; simpa using this
+      obtain ⟨h1, h2⟩ := ih v1 i1 w h (by rw [hv1]; simp [hvi, hi1'])
+      refine ⟨by rw [h1, hv1, limbsToNat_append]; simp, by rw [h2]; scalar_tac⟩
+    · simp only [Result.ok.injEq] at h
+      subst h
+      exact ⟨rfl, by scalar_tac⟩
+  rw [ron.nat.zeros] at h
+  obtain ⟨h1, h2⟩ := hl _ _ _ h (by simp)
+  refine ⟨by simpa using h1, by rw [h2]; simp⟩
+
+theorem add_carry_at_val :
+    ∀ (o : alloc.vec.Vec Std.U64) (c : Std.U64) (j : Std.Usize) (w : alloc.vec.Vec Std.U64),
+      ron.nat.add_carry_at_loop o c j = ok w →
+      limbsToNat w.val = limbsToNat o.val + 2 ^ (64 * j.val) * c.val ∧
+        w.val.length = o.val.length := by
+  partial_induct ron.nat.add_carry_at_loop
+  intro g ih o c j w h
+  beta_reduce at h
+  split at h <;> rename_i hc
+  · simp only [bind_eq_ok_iff, lift_eq_ok_iff, alloc.vec.Vec.index_slice_index,
+      index_usize_eq_ok_iff, exists_eq_left'] at h
+    obtain ⟨x, hx, t, ht, p, hp, h⟩ := h
+    obtain ⟨y, back⟩ := p
+    rw [index_mut_eq_ok_iff] at hp
+    obtain ⟨-, rfl⟩ := hp
+    obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+    rw [lift_eq_ok_iff] at hi3
+    subst hi3
+    simp only [bind_eq_ok_iff, lift_eq_ok_iff, exists_eq_left'] at h
+    obtain ⟨i4, hi4, j1, hj1, h⟩ := h
+    have hjl : j.val < o.val.length := by
+      by_contra hc'; rw [List.getElem?_eq_none (by omega)] at hx; simp at hx
+    have hx' : o.val[j.val] = x := by
+      rw [List.getElem?_eq_getElem hjl] at hx; simpa using hx
+    have htv : t.val = x.val + c.val := by
+      have := uadd_val ht; rwa [cast128_val, cast128_val] at this
+    have hj1' : j1.val = j.val + 1 := by have := uadd_val hj1; simpa using this
+    obtain ⟨hw, hwl⟩ := ih _ _ _ _ h
+    have hset := limbsToNat_set o.val j.val (UScalar.cast .U64 t) hjl
+    have hsp := split128 hi4
+    simp only [alloc.vec.Vec.set_val_eq, hx', hj1'] at hw hset
+    refine ⟨?_, by simp [hwl]⟩
+    rw [show 64 * (j.val + 1) = 64 * j.val + 64 by ring, Nat.pow_add] at hw
+    grind
+  · simp only [Result.ok.injEq] at h
+    subst h
+    have : c.val = 0 := by scalar_tac
+    simp [this]
+
+theorem mul_row_loop_val (a : alloc.vec.Vec Std.U64) (hi : Std.Usize) (y : Std.U64) :
+    ∀ (o : alloc.vec.Vec Std.U64) (carry : Std.U64) (i j : Std.Usize)
+      (r : alloc.vec.Vec Std.U64 × Std.U64 × Std.Usize),
+      ron.nat.mul_row_loop a hi y o carry i j = ok r →
+      limbsToNat r.1.val + 2 ^ (64 * r.2.2.val) * r.2.1.val
+          = limbsToNat o.val + 2 ^ (64 * j.val) * (y.val * seg a.val i.val hi.val + carry.val) ∧
+        r.1.val.length = o.val.length := by
+  partial_induct ron.nat.mul_row_loop
+  intro g ih o carry i j r h
+  beta_reduce at h
+  split at h <;> rename_i hin
+  · simp only [bind_eq_ok_iff, lift_eq_ok_iff, alloc.vec.Vec.index_slice_index,
+      index_usize_eq_ok_iff, exists_eq_left'] at h
+    obtain ⟨x, hx, i4, hi4, oj, hoj, i7, hi7, t, ht, p, hp, h⟩ := h
+    obtain ⟨z, back⟩ := p
+    rw [index_mut_eq_ok_iff] at hp
+    obtain ⟨-, rfl⟩ := hp
+    obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+    rw [lift_eq_ok_iff] at hi3
+    subst hi3
+    simp only [bind_eq_ok_iff, lift_eq_ok_iff, exists_eq_left'] at h
+    obtain ⟨i10, hi10, i11, hi11, j1, hj1, h⟩ := h
+    have hil : i.val < a.val.length := by
+      by_contra hc'; rw [List.getElem?_eq_none (by omega)] at hx; simp at hx
+    have hjl : j.val < o.val.length := by
+      by_contra hc'; rw [List.getElem?_eq_none (by omega)] at hoj; simp at hoj
+    have hx' : a.val[i.val] = x := by
+      rw [List.getElem?_eq_getElem hil] at hx; simpa using hx
+    have hoj' : o.val[j.val] = oj := by
+      rw [List.getElem?_eq_getElem hjl] at hoj; simpa using hoj
+    have hi4v : i4.val = x.val * y.val := by
+      have := (umul_val hi4).2; rwa [cast128_val, cast128_val] at this
+    have hi7v : i7.val = i4.val + oj.val := by
+      have := uadd_val hi7; rwa [cast128_val] at this
+    have htv : t.val = i7.val + carry.val := by
+      have := uadd_val ht; rwa [cast128_val] at this
+    have hi11' : i11.val = i.val + 1 := by have := uadd_val hi11; simpa using this
+    have hj1' : j1.val = j.val + 1 := by have := uadd_val hj1; simpa using this
+    obtain ⟨hw, hwl⟩ := ih _ _ _ _ _ h
+    have hset := limbsToNat_set o.val j.val (UScalar.cast .U64 t) hjl
+    have hsp := split128 hi10
+    have hseg := seg_succ a.val (show i.val < hi.val by scalar_tac)
+    have hlimb : limbAt a.val i.val = x := by rw [limbAt, List.getD_eq_getElem _ _ hil, hx']
+    simp only [alloc.vec.Vec.set_val_eq, hoj', hi11', hj1'] at hw hset
+    refine ⟨?_, by simp [hwl]⟩
+    rw [show 64 * (j.val + 1) = 64 * j.val + 64 by ring, Nat.pow_add] at hw
+    rw [hseg, hlimb]
+    grind
+  · simp only [Result.ok.injEq] at h
+    subst h
+    rw [seg_of_le (v := a.val) (show hi.val ≤ i.val by scalar_tac)]
+    simp
+
+theorem mul_row_val {out w a : alloc.vec.Vec Std.U64} {off lo hi : Std.Usize} {y : Std.U64}
+    (h : ron.nat.mul_row out off a lo hi y = ok w) :
+    limbsToNat w.val = limbsToNat out.val + 2 ^ (64 * off.val) * (y.val * seg a.val lo.val hi.val) ∧
+      w.val.length = out.val.length := by
+  rw [ron.nat.mul_row] at h
+  obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨o, carry, j⟩ := r
+  obtain ⟨h1, h2⟩ := mul_row_loop_val a hi y _ _ _ _ _ hr
+  obtain ⟨h3, h4⟩ := add_carry_at_val _ _ _ _ h
+  simp only at h1 h2
+  refine ⟨?_, by rw [h4, h2]⟩
+  rw [h3, h1]
+  simp
+
+theorem sub_borrow_at_val :
+    ∀ (o : alloc.vec.Vec Std.U64) (bo : Std.U64) (j : Std.Usize) (w : alloc.vec.Vec Std.U64),
+      bo.val ≤ 1 → ron.nat.sub_borrow_at_loop o bo j = ok w →
+      limbsToNat w.val + 2 ^ (64 * j.val) * bo.val = limbsToNat o.val ∧
+        w.val.length = o.val.length := by
+  partial_induct ron.nat.sub_borrow_at_loop
+  intro g ih o bo j w hbo h
+  beta_reduce at h
+  split at h <;> rename_i hc
+  · simp only [bind_eq_ok_iff, lift_eq_ok_iff, alloc.vec.Vec.index_slice_index,
+      index_usize_eq_ok_iff, exists_eq_left'] at h
+    obtain ⟨x, hx, t, ht, p, hp, h⟩ := h
+    obtain ⟨z, back⟩ := p
+    rw [index_mut_eq_ok_iff] at hp
+    obtain ⟨-, rfl⟩ := hp
+    obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+    rw [lift_eq_ok_iff] at hi3
+    subst hi3
+    simp only [bind_eq_ok_iff, lift_eq_ok_iff, exists_eq_left'] at h
+    obtain ⟨i3, hi3, bo1, hbo1, j1, hj1, h⟩ := h
+    have hjl : j.val < o.val.length := by
+      by_contra hc'; rw [List.getElem?_eq_none (by omega)] at hx; simp at hx
+    have hx' : o.val[j.val] = x := by
+      rw [List.getElem?_eq_getElem hjl] at hx; simpa using hx
+    have htv : t.val = x.val + (2 ^ 64 - 1) := by
+      have := uadd_val ht; rw [cast128_val] at this; rw [this]; rfl
+    have hbo1v := usub_val hbo1
+    have hj1' : j1.val = j.val + 1 := by have := uadd_val hj1; simpa using this
+    have hbo' : bo.val = 1 := by scalar_tac
+    obtain ⟨hw, hwl⟩ := ih _ _ _ _ (by scalar_tac) h
+    have hset := limbsToNat_set o.val j.val (UScalar.cast .U64 t) hjl
+    have hsp := split128 hi3
+    simp only [alloc.vec.Vec.set_val_eq, hx', hj1'] at hw hset
+    refine ⟨?_, by simp [hwl]⟩
+    rw [show 64 * (j.val + 1) = 64 * j.val + 64 by ring, Nat.pow_add] at hw
+    rw [hbo']
+    have h1 : (1#u64 : Std.U64).val = 1 := by scalar_tac
+    rw [h1] at hbo1v
+    have hword : (UScalar.cast .U64 t).val + 1 = x.val + 2 ^ 64 * bo1.val := by omega
+    have hP := congrArg (· * 2 ^ (64 * j.val)) hword
+    nlinarith [hP, hset, hw]
+  · simp only [Result.ok.injEq] at h
+    subst h
+    have : bo.val = 0 := by scalar_tac
+    simp [this]
+
+/-- The subtraction loop step, as pure arithmetic (task #15's `*_step_arith`
+trick: the word equation is scaled by the place value `P` inside a `calc`). -/
+theorem sub_row_step_arith (O S' R Pf rb P lo oj x bo bo1 Sn B : Nat)
+    (hset : S' + oj * P = O + lo * P) (hw : S' + Pf * rb = R + P * B * (Sn + bo1))
+    (hword : lo + x + bo = oj + B * bo1) :
+    O + Pf * rb = R + P * (x + B * Sn + bo) := by
+  have : (O + Pf * rb) + lo * P = (R + P * (x + B * Sn + bo)) + lo * P := by
+    calc (O + Pf * rb) + lo * P = (O + lo * P) + Pf * rb := by ring
+      _ = S' + oj * P + Pf * rb := by rw [hset]
+      _ = (S' + Pf * rb) + oj * P := by ring
+      _ = R + P * B * (Sn + bo1) + oj * P := by rw [hw]
+      _ = R + P * (B * Sn + (oj + B * bo1)) := by ring
+      _ = R + P * (B * Sn + (lo + x + bo)) := by rw [hword]
+      _ = (R + P * (x + B * Sn + bo)) + lo * P := by ring
+  exact Nat.add_right_cancel this
+
+theorem sub_row_loop_val (a : alloc.vec.Vec Std.U64) (hi : Std.Usize) :
+    ∀ (o : alloc.vec.Vec Std.U64) (bo : Std.U64) (i j : Std.Usize)
+      (r : alloc.vec.Vec Std.U64 × Std.U64 × Std.Usize),
+      bo.val ≤ 1 → ron.nat.sub_row_loop a hi o bo i j = ok r →
+      limbsToNat o.val + 2 ^ (64 * r.2.2.val) * r.2.1.val
+          = limbsToNat r.1.val + 2 ^ (64 * j.val) * (seg a.val i.val hi.val + bo.val) ∧
+        r.2.1.val ≤ 1 ∧ r.1.val.length = o.val.length := by
+  partial_induct ron.nat.sub_row_loop
+  intro g ih o bo i j r hbo h
+  beta_reduce at h
+  split at h <;> rename_i hin
+  · simp only [bind_eq_ok_iff, lift_eq_ok_iff, alloc.vec.Vec.index_slice_index,
+      index_usize_eq_ok_iff, exists_eq_left'] at h
+    obtain ⟨oj, hoj, i3, hi3, x, hx, i6, hi6, t, ht, p, hp, h⟩ := h
+    obtain ⟨z, back⟩ := p
+    rw [index_mut_eq_ok_iff] at hp
+    obtain ⟨-, rfl⟩ := hp
+    obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+    rw [lift_eq_ok_iff] at hi3
+    subst hi3
+    simp only [bind_eq_ok_iff, lift_eq_ok_iff, exists_eq_left'] at h
+    obtain ⟨i9, hi9, bo1, hbo1, i11, hi11, j1, hj1, h⟩ := h
+    have hil : i.val < a.val.length := by
+      by_contra hc'; rw [List.getElem?_eq_none (by omega)] at hx; simp at hx
+    have hjl : j.val < o.val.length := by
+      by_contra hc'; rw [List.getElem?_eq_none (by omega)] at hoj; simp at hoj
+    have hx' : a.val[i.val] = x := by
+      rw [List.getElem?_eq_getElem hil] at hx; simpa using hx
+    have hoj' : o.val[j.val] = oj := by
+      rw [List.getElem?_eq_getElem hjl] at hoj; simpa using hoj
+    have hi3v : i3.val = oj.val + 2 ^ 64 := by
+      have := uadd_val hi3; rw [cast128_val] at this; rw [this]; rfl
+    have hi6v := usub_val hi6
+    have htv := usub_val ht
+    rw [cast128_val] at hi6v htv
+    have hbo1v := usub_val hbo1
+    have h1 : (1#u64 : Std.U64).val = 1 := by scalar_tac
+    rw [h1] at hbo1v
+    have hi11' : i11.val = i.val + 1 := by have := uadd_val hi11; simpa using this
+    have hj1' : j1.val = j.val + 1 := by have := uadd_val hj1; simpa using this
+    obtain ⟨hw, hwb, hwl⟩ := ih _ _ _ _ _ (by omega) h
+    have hset := limbsToNat_set o.val j.val (UScalar.cast .U64 t) hjl
+    have hsp := split128 hi9
+    have hseg := seg_succ a.val (show i.val < hi.val by scalar_tac)
+    have hlimb : limbAt a.val i.val = x := by rw [limbAt, List.getD_eq_getElem _ _ hil, hx']
+    simp only [alloc.vec.Vec.set_val_eq, hoj', hi11', hj1'] at hw hset hwl
+    refine ⟨?_, hwb, by simp [hwl]⟩
+    rw [show 64 * (j.val + 1) = 64 * j.val + 64 by ring, Nat.pow_add] at hw
+    rw [hseg, hlimb]
+    have hword : (UScalar.cast .U64 t).val + x.val + bo.val = oj.val + 2 ^ 64 * bo1.val := by
+      omega
+    exact sub_row_step_arith _ _ _ _ _ _ _ _ _ _ _ _ _ hset hw hword
+  · simp only [Result.ok.injEq] at h
+    subst h
+    rw [seg_of_le (v := a.val) (show hi.val ≤ i.val by scalar_tac)]
+    simp [hbo]
+
+theorem sub_row_val {out w a : alloc.vec.Vec Std.U64} {off lo hi : Std.Usize}
+    (h : ron.nat.sub_row out off a lo hi = ok w) :
+    limbsToNat w.val + 2 ^ (64 * off.val) * seg a.val lo.val hi.val = limbsToNat out.val ∧
+      w.val.length = out.val.length := by
+  rw [ron.nat.sub_row] at h
+  obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨o, bo, j⟩ := r
+  obtain ⟨h1, h1b, h2⟩ := sub_row_loop_val a hi _ _ _ _ _ (by simp) hr
+  simp only at h1 h1b h2
+  obtain ⟨h3, h4⟩ := sub_borrow_at_val _ _ _ _ h1b h
+  refine ⟨?_, by rw [h4, h2]⟩
+  simp at h1
+  omega
+
+theorem mul_rows_val (off : Std.Usize) (a : alloc.vec.Vec Std.U64) (alo ahi : Std.Usize)
+    (b : alloc.vec.Vec Std.U64) (blo bhi : Std.Usize) :
+    ∀ (o : alloc.vec.Vec Std.U64) (j : Std.Usize) (w : alloc.vec.Vec Std.U64),
+      blo.val ≤ j.val → ron.nat.mul_rows_loop off a alo ahi b blo bhi o j = ok w →
+      limbsToNat w.val = limbsToNat o.val + 2 ^ (64 * (off.val + (j.val - blo.val))) *
+          (seg a.val alo.val ahi.val * seg b.val j.val bhi.val) ∧
+        w.val.length = o.val.length := by
+  partial_induct ron.nat.mul_rows_loop
+  intro g ih o j w hj h
+  beta_reduce at h
+  split at h <;> rename_i hin
+  · simp only [bind_eq_ok_iff, alloc.vec.Vec.index_slice_index, index_usize_eq_ok_iff] at h
+    obtain ⟨i, hi, i1, hi1, y, hy, o1, ho1, j1, hj1, h⟩ := h
+    have hjl : j.val < b.val.length := by
+      by_contra hc'; rw [List.getElem?_eq_none (by omega)] at hy; simp at hy
+    have hy' : b.val[j.val] = y := by
+      rw [List.getElem?_eq_getElem hjl] at hy; simpa using hy
+    have hiv : i.val = j.val - blo.val := (usub_val hi).2
+    have hi1v : i1.val = off.val + i.val := uadd_val hi1
+    have hj1' : j1.val = j.val + 1 := by have := uadd_val hj1; simpa using this
+    obtain ⟨hw, hwl⟩ := ih _ _ _ (by omega) h
+    obtain ⟨ho, hol⟩ := mul_row_val ho1
+    have hseg := seg_succ b.val (show j.val < bhi.val by scalar_tac)
+    have hlimb : limbAt b.val j.val = y := by rw [limbAt, List.getD_eq_getElem _ _ hjl, hy']
+    refine ⟨?_, by rw [hwl, hol]⟩
+    rw [hw, ho, hseg, hlimb, hi1v, hiv, hj1',
+      show 64 * (off.val + (j.val + 1 - blo.val)) = 64 * (off.val + (j.val - blo.val)) + 64 by
+        omega, Nat.pow_add]
+    ring
+  · simp only [Result.ok.injEq] at h
+    subst h
+    rw [seg_of_le (v := b.val) (show bhi.val ≤ j.val by scalar_tac)]
+    simp
+
+theorem seg_split (v : List Std.U64) : ∀ (d i j n : Nat), j - i = d → i ≤ j → j ≤ n →
+    seg v i n = seg v i j + 2 ^ (64 * (j - i)) * seg v j n := by
+  intro d
+  induction d with
+  | zero =>
+    intro i j n hd hij hjn
+    obtain rfl : i = j := by omega
+    simp [seg_of_le (v := v) (le_refl i)]
+  | succ d ih =>
+    intro i j n hd hij hjn
+    rw [seg_succ v (show i < n by omega), seg_succ v (show i < j by omega),
+      ih (i + 1) j n (by omega) (by omega) hjn,
+      show 64 * (j - i) = 64 + 64 * (j - (i + 1)) by omega, Nat.pow_add]
+    ring
+
+/-- A significant-length window is the whole value. -/
+theorem sig_len_full {v : alloc.vec.Vec Std.U64} {s : Std.Usize}
+    (h : ron.nat.sig_len v (alloc.vec.Vec.len v) = ok s) :
+    seg v.val 0 s.val = limbsToNat v.val := by
+  obtain ⟨-, -, h3⟩ := sig_len_val v v.val.length _ s (by scalar_tac) (by scalar_tac) h
+  have hl : (alloc.vec.Vec.len v).val = v.val.length := by scalar_tac
+  rw [hl, List.take_length] at h3
+  simp only [seg, List.drop_zero, Nat.sub_zero]
+  exact h3
+
+theorem mul_win_val :
+    ∀ (a : alloc.vec.Vec Std.U64) (alo ahi : Std.Usize) (b : alloc.vec.Vec Std.U64)
+      (blo bhi : Std.Usize) (out : alloc.vec.Vec Std.U64) (off : Std.Usize)
+      (w : alloc.vec.Vec Std.U64),
+      ron.nat.mul_win a alo ahi b blo bhi out off = ok w →
+      limbsToNat w.val = limbsToNat out.val +
+          2 ^ (64 * off.val) * (seg a.val alo.val ahi.val * seg b.val blo.val bhi.val) ∧
+        w.val.length = out.val.length := by
+  partial_induct ron.nat.mul_win
+  intro g ih a alo ahi b blo bhi out off w h
+  beta_reduce at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨la, hla, lb, hlb, h⟩ := h
+  obtain ⟨hloa, hlav⟩ := usub_val hla
+  obtain ⟨hlob, hlbv⟩ := usub_val hlb
+  split at h <;> rename_i hlt
+  · obtain ⟨h1, h2⟩ := ih _ _ _ _ _ _ _ _ _ h
+    exact ⟨by rw [h1]; ring, h2⟩
+  have hlt' : lb.val ≤ la.val := by scalar_tac
+  split at h <;> rename_i hT
+  · obtain ⟨h1, h2⟩ := mul_rows_val off a alo ahi b blo bhi out blo w le_rfl h
+    simpa using And.intro h1 h2
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨i, hi, h⟩ := h
+  have hiv : i.val = la.val / 2 := by have := udiv_val hi; simpa using this
+  have hle2 : la.val / 2 ≤ la.val := Nat.div_le_self _ _
+  split at h <;> rename_i hle
+  · -- the longer window halved
+    have hle' : lb.val ≤ i.val := by scalar_tac
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨mid, hmid, o, ho, i1, hi1, h⟩ := h
+    have hmidv : mid.val = alo.val + i.val := uadd_val hmid
+    have hi1v : i1.val = off.val + i.val := uadd_val hi1
+    obtain ⟨h1, h2⟩ := ih _ _ _ _ _ _ _ _ _ ho
+    obtain ⟨h3, h4⟩ := ih _ _ _ _ _ _ _ _ _ h
+    refine ⟨?_, by rw [h4, h2]⟩
+    rw [h3, h1, seg_split a.val i.val alo.val mid.val ahi.val (by omega) (by omega) (by omega),
+      hi1v, show mid.val - alo.val = i.val by omega, Nat.mul_add, Nat.pow_add]
+    ring
+  · -- Karatsuba
+    have hle' : i.val < lb.val := by scalar_tac
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨k, hk, am, ham, bm, hbm, i1, hi1, v, hv, z0, hz0, i2, hi2, i3, hi3, v1, hv1, z2, hz2,
+      i4, hi4, v2, hv2, v3, hv3, sa, hsa, v4, hv4, v5, hv5, sb, hsb, i5, hi5, v6, hv6, s, hs,
+      n0, hn0, n2, hn2, v7, hv7, z1, hz1, n1, hn1, o1, ho1, i9, hi9, o2, ho2, i10, hi10, h⟩ := h
+    have hkv : k.val = la.val - i.val := (usub_val hk).2
+    have hamv : am.val = alo.val + k.val := uadd_val ham
+    have hbmv : bm.val = blo.val + k.val := uadd_val hbm
+    have hi1v : i1.val = k.val + k.val := uadd_val hi1
+    have hi4v : i4.val = k.val + 1 := by have := uadd_val hi4; simpa using this
+    have hi9v : i9.val = off.val + k.val := uadd_val hi9
+    have hi10v : i10.val = off.val + i1.val := uadd_val hi10
+    have h1 : (1#u64 : Std.U64).val = 1 := by scalar_tac
+    have h0 : (0#usize : Std.Usize).val = 0 := by scalar_tac
+    -- the four half windows
+    have hA := seg_split a.val k.val alo.val am.val ahi.val (by omega) (by omega) (by omega)
+    have hB := seg_split b.val k.val blo.val bm.val bhi.val (by omega) (by omega) (by omega)
+    rw [show am.val - alo.val = k.val by omega] at hA
+    rw [show bm.val - blo.val = k.val by omega] at hB
+    -- the three products
+    obtain ⟨hv0, -⟩ := zeros_val _ _ hv
+    obtain ⟨hv10, -⟩ := zeros_val _ _ hv1
+    obtain ⟨hv20, hv2l⟩ := zeros_val _ _ hv2
+    obtain ⟨hv40, hv4l⟩ := zeros_val _ _ hv4
+    obtain ⟨hv60, -⟩ := zeros_val _ _ hv6
+    obtain ⟨hz0v, -⟩ := ih _ _ _ _ _ _ _ _ _ hz0
+    obtain ⟨hz2v, -⟩ := ih _ _ _ _ _ _ _ _ _ hz2
+    obtain ⟨hv3v, hv3l⟩ := mul_row_val hv3
+    obtain ⟨hsav, hsal⟩ := mul_row_val hsa
+    obtain ⟨hv5v, hv5l⟩ := mul_row_val hv5
+    obtain ⟨hsbv, hsbl⟩ := mul_row_val hsb
+    obtain ⟨hsv, -⟩ := ih _ _ _ _ _ _ _ _ _ hs
+    obtain ⟨hv7v, -⟩ := sub_row_val hv7
+    obtain ⟨hz1v, -⟩ := sub_row_val hz1
+    obtain ⟨ho1v, ho1l⟩ := mul_row_val ho1
+    obtain ⟨ho2v, ho2l⟩ := mul_row_val ho2
+    obtain ⟨hwv, hwl⟩ := mul_row_val h
+    rw [h0] at hz0v hz2v hv3v hsav hv5v hsbv hsv hv7v hz1v ho1v ho2v hwv
+    rw [seg_full sa.val (by rw [hsal, hv3l, hv2l]), seg_full sb.val (by rw [hsbl, hv5l, hv4l])]
+      at hsv
+    rw [sig_len_full hn0] at hv7v ho1v
+    rw [sig_len_full hn2] at hz1v hwv
+    rw [sig_len_full hn1] at ho2v
+    refine ⟨?_, by rw [hwl, ho2l, ho1l]⟩
+    simp only [h1, Nat.mul_zero, pow_zero, Nat.one_mul] at hz0v hz2v hv3v hsav
+    simp only [h1, Nat.mul_zero, pow_zero, Nat.one_mul] at hv5v hsbv hsv hv7v
+    simp only [h1, Nat.mul_zero, pow_zero, Nat.one_mul] at hz1v ho1v ho2v hwv
+    have hZ1 : limbsToNat z1.val
+        = seg a.val alo.val am.val * seg b.val bm.val bhi.val
+          + seg a.val am.val ahi.val * seg b.val blo.val bm.val := by
+      have hS : limbsToNat s.val
+          = (seg a.val alo.val am.val + seg a.val am.val ahi.val)
+            * (seg b.val blo.val bm.val + seg b.val bm.val bhi.val) := by
+        rw [hsv, hv60, hsav, hv3v, hv20, hsbv, hv5v, hv40]
+        ring
+      have e : limbsToNat z1.val
+            + (seg a.val am.val ahi.val * seg b.val bm.val bhi.val
+              + seg a.val alo.val am.val * seg b.val blo.val bm.val)
+          = (seg a.val alo.val am.val * seg b.val bm.val bhi.val
+              + seg a.val am.val ahi.val * seg b.val blo.val bm.val)
+            + (seg a.val am.val ahi.val * seg b.val bm.val bhi.val
+              + seg a.val alo.val am.val * seg b.val blo.val bm.val) := by
+        calc _ = (limbsToNat z1.val + limbsToNat z2.val) + limbsToNat z0.val := by
+              rw [hz0v, hz2v, hv0, hv10]; ring
+          _ = limbsToNat s.val := by rw [hz1v, hv7v]
+          _ = _ := by rw [hS]; ring
+      exact Nat.add_right_cancel e
+    rw [hwv, ho2v, ho1v, hZ1, hz0v, hv0, hz2v, hv10, hA, hB, hi10v, hi9v, hi1v,
+      show 64 * (off.val + k.val) = 64 * off.val + 64 * k.val by ring,
+      show 64 * (off.val + (k.val + k.val)) = 64 * off.val + 64 * k.val + 64 * k.val by ring]
+    simp only [Nat.pow_add]
+    ring
+
+theorem mul_refines {a b c : ron.nat.Nat} (h : ron.nat.mul a b = ok c) :
+    toNat c = toNat a * toNat b ∧ NatWF c := by
+  rw [ron.nat.mul] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨i, hi, v, hv, v1, hv1, h⟩ := h
+  obtain ⟨hv0, -⟩ := zeros_val _ _ hv
+  obtain ⟨h1, -⟩ := mul_win_val _ _ _ _ _ _ _ _ _ hv1
+  obtain ⟨hn, hwf⟩ := norm_refines h
+  refine ⟨?_, hwf⟩
+  have hla : (alloc.vec.Vec.len a.limbs).val = a.limbs.val.length := by scalar_tac
+  have hlb : (alloc.vec.Vec.len b.limbs).val = b.limbs.val.length := by scalar_tac
+  have h0 : (0#usize : Std.Usize).val = 0 := by scalar_tac
+  rw [hn, h1, hv0, h0, hla, hlb, seg_full _ le_rfl, seg_full _ le_rfl]
+  simp [toNat]
+
+/-! ### The single-limb product (`div_mod`'s trial product) -/
+
 
 theorem mul_u64_from_val (v : alloc.vec.Vec Std.U64) (m : Std.U64) :
     ∀ (d : Nat) (i : Std.Usize) (carry : Std.U64) (out w : alloc.vec.Vec Std.U64),
@@ -1802,7 +2334,7 @@ theorem mul_u64_refines {a c : ron.nat.Nat} {m : Std.U64} (h : ron.nat.mul_u64 a
     toNat c = m.val * toNat a ∧ NatWF c := by
   rw [ron.nat.mul_u64] at h
   simp only [bind_eq_ok_iff] at h
-  obtain ⟨v, hv, h⟩ := h
+  obtain ⟨i1, hi1, v, hv, h⟩ := h
   have hmf := mul_u64_from_val a.limbs m a.limbs.val.length 0#usize 0#u64
     (alloc.vec.Vec.new Std.U64) v (by omega) hv
   have h0 : (0#usize : Std.Usize).val = 0 := by scalar_tac
@@ -1812,62 +2344,6 @@ theorem mul_u64_refines {a c : ron.nat.Nat} {m : Std.U64} (h : ron.nat.mul_u64 a
     Nat.mul_zero, pow_zero, Nat.one_mul, Nat.zero_add, Nat.add_zero, List.drop_zero] at hmf
   obtain ⟨hnv, hwf⟩ := norm_refines h
   exact ⟨by rw [hnv, hmf]; rfl, hwf⟩
-
-theorem mul_from_val (a b : ron.nat.Nat) :
-    ∀ (d : Nat) (i : Std.Usize) (sh : Std.U64) (acc c : ron.nat.Nat),
-      b.limbs.val.length - i.val ≤ d → sh.val = 64 * i.val → NatWF acc →
-      ron.nat.mul_from a b i sh acc = ok c →
-      toNat c = toNat acc + 2 ^ sh.val * toNat a * seg b.limbs.val i.val b.limbs.val.length
-        ∧ NatWF c := by
-  intro d
-  induction d with
-  | zero =>
-    intro i sh acc c hd hsh hwf h
-    rw [ron.nat.mul_from, ite_eq_left (by scalar_tac)] at h
-    simp only [Result.ok.injEq] at h
-    subst h
-    rw [seg_of_le (by omega)]
-    exact ⟨by simp, hwf⟩
-  | succ d ih =>
-    intro i sh acc c hd hsh hwf h
-    rw [ron.nat.mul_from] at h
-    split at h <;> rename_i hie
-    · simp only [Result.ok.injEq] at h
-      subst h
-      rw [seg_of_le (by scalar_tac)]
-      exact ⟨by simp, hwf⟩
-    · have hin : i.val < b.limbs.val.length := by scalar_tac
-      simp only [bind_eq_ok_iff, alloc.vec.Vec.index_slice_index, index_usize_eq_ok_iff] at h
-      obtain ⟨y, hy, p, hp, ps, hps, acc2, hacc2, i3, hi3, i4, hi4, h⟩ := h
-      have hy' : y = b.limbs.val[i.val] := by
-        rw [List.getElem?_eq_getElem hin] at hy; exact (Option.some.injEq _ _ ▸ hy).symm
-      have hlimb : limbAt b.limbs.val i.val = y := by
-        rw [limbAt, List.getD_eq_getElem _ _ hin, hy']
-      have hpv := (mul_u64_refines hp).1
-      have hpsv := (shift_left_refines hps).1
-      obtain ⟨haccv, haccwf⟩ := add_refines hacc2
-      have hi3' : i3.val = i.val + 1 := by have := uadd_val hi3; simpa using this
-      have hi4' : i4.val = sh.val + 64 := by have := uadd_val hi4; simpa using this
-      obtain ⟨hIH, hcwf⟩ := ih i3 i4 acc2 c (by omega) (by omega) haccwf h
-      refine ⟨?_, hcwf⟩
-      rw [hIH, haccv, hpsv, nat_shiftLeft_eq, hpv, hi4', hi3']
-      rw [seg_succ b.limbs.val hin, hlimb, Nat.pow_add, hsh]
-      ring
-
-theorem mul_refines {a b c : ron.nat.Nat} (h : ron.nat.mul a b = ok c) :
-    toNat c = toNat a * toNat b ∧ NatWF c := by
-  rw [ron.nat.mul] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨z, hz, h⟩ := h
-  obtain ⟨hz0, hzwf⟩ := zero_refines hz
-  have h0 : (0#usize : Std.Usize).val = 0 := by scalar_tac
-  have h0' : (0#u64 : Std.U64).val = 0 := by scalar_tac
-  obtain ⟨hmf, hwf⟩ := mul_from_val a b b.limbs.val.length 0#usize 0#u64 z c (by omega)
-    (by rw [h0, h0']) hzwf h
-  rw [h0, h0', hz0, seg_full _ le_rfl] at hmf
-  refine ⟨?_, hwf⟩
-  rw [hmf]
-  simp [toNat]
 
 /-- `word_log2_exact x k` answers `some j` only when `x * 2^k = 2^j`. -/
 theorem word_log2_exact_val : ∀ (X : Nat) (x k : Std.U64) (r : Option Std.U64), x.val = X →
@@ -2047,223 +2523,223 @@ theorem pow_nat_refines {a e c : ron.nat.Nat} (hwf : NatWF e)
     refine ⟨?_, hcwf⟩
     rw [hcv, nat_shiftLeft_eq, h1v, hsv, hnv, hov k rfl, Nat.one_mul, Nat.pow_mul]
 
-theorem mod_two_pow_succ (X m : Nat) :
-    X % 2 ^ (m + 1) = X % 2 ^ m + 2 ^ m * (X / 2 ^ m % 2) := by
-  rw [Nat.pow_succ, Nat.mod_mul]
+/-! ## Division
 
-theorem lor_one_of_even {e : Nat} (he : e % 2 = 0) : Nat.lor e 1 = e + 1 := by
-  have h2 : e = 2 ^ 1 * (e / 2) := by
-    have := Nat.div_add_mod e 2
-    simp only [pow_one]
-    omega
-  rw [h2, lor_disjoint' 1 (e / 2) 1 (by norm_num)]
-  omega
+`div_mod` is long division one quotient limb at a time (`dm_limbs`, unchanged
+in shape since task #15: its invariant is the remainder of the limbs above),
+with the limb step `dm_step`: a `u128` division for a one-limb divisor, and
+Knuth's algorithm D step otherwise.  The proof of the latter needs only that
+the estimate `q̂` is never below the true quotient (`knuth_estimate`) and that
+the correction loop keeps `q ≤ q̂` (it steps down only while `q̂ * b > t`);
+Knuth's "at most two corrections" is a fact about speed, not about the
+answer, and is not proved. -/
 
-theorem shl1_from_val (v : alloc.vec.Vec Std.U64) :
-    ∀ (d : Nat) (i : Std.Usize) (carry : Std.U64) (out w : alloc.vec.Vec Std.U64),
-      v.val.length - i.val ≤ d → carry.val ≤ 1 →
-      ron.nat.shl1_from v i carry out = ok w →
-      limbsToNat w.val = limbsToNat out.val + 2 ^ (64 * out.val.length) *
-        (2 * limbsToNat (v.val.drop i.val) + carry.val) := by
-  have base : ∀ (i : Std.Usize) (carry : Std.U64) (out w : alloc.vec.Vec Std.U64),
-      v.val.length ≤ i.val → ron.nat.shl1_from v i carry out = ok w →
-      limbsToNat w.val = limbsToNat out.val + 2 ^ (64 * out.val.length) *
-        (2 * limbsToNat (v.val.drop i.val) + carry.val) := by
-    intro i carry out w hni h
-    rw [ron.nat.shl1_from, ite_eq_left (by scalar_tac)] at h
-    rw [List.drop_eq_nil_of_le hni]
-    split at h <;> rename_i hcz
-    · simp only [Result.ok.injEq] at h
-      subst h
-      have hz : carry.val = 0 := by scalar_tac
-      simp [hz]
-    · simp only [push_eq_ok_iff] at h
-      rw [h.2, limbsToNat_append]
-      simp
-  intro d
-  induction d with
-  | zero => intro i carry out w hd hc h; exact base i carry out w (by omega) h
-  | succ d ih =>
-    intro i carry out w hd hc h
-    rcases Nat.lt_or_ge i.val v.val.length with hin | hin
-    · rw [ron.nat.shl1_from, ite_eq_right (by scalar_tac)] at h
-      simp only [bind_eq_ok_iff, lift_eq_ok_iff, push_eq_ok_iff, exists_eq_left',
-        alloc.vec.Vec.index_slice_index, index_usize_eq_ok_iff] at h
-      obtain ⟨x, hx, i2, hi2, out1, ⟨-, hout1⟩, i4, hi4, i5, hi5, h⟩ := h
-      have hx' : x = v.val[i.val] := by
-        rw [List.getElem?_eq_getElem hin] at hx; exact (Option.some.injEq _ _ ▸ hx).symm
-      have hi2' : i2.val = x.val * 2 ^ 1 % 2 ^ 64 := by
-        have := (ushiftLeftI_val hi2).2; simpa using this
-      have hi5' : i5.val = x.val / 2 ^ (64 - 1) := by
-        have := (ushiftRightI_val hi5).2; simpa using this
-      have hi4' : i4.val = i.val + 1 := by have := uadd_val hi4; simpa using this
-      obtain ⟨hword, hib⟩ :=
-        shl_word (x := x.val) (carry := carry.val) (bits := 1) (by omega) (by scalar_tac)
-          (by simpa using hc)
-      have hIH := ih i4 i5 out1 w (by omega) (by rw [hi5']; simpa using hib) h
-      rw [hout1, hi4'] at hIH
-      simp only [List.length_append, List.length_cons, List.length_nil, limbsToNat_append,
-        limbsToNat_cons, limbsToNat_nil, Nat.mul_zero, Nat.add_zero] at hIH
-      rw [show 64 * (out.val.length + (0 + 1)) = 64 * out.val.length + 64 by omega,
-        Nat.pow_add] at hIH
-      rw [List.drop_eq_getElem_cons hin, limbsToNat_cons, ← hx']
-      have hlov : (i2 ||| carry).val = Nat.lor i2.val carry.val := by
-        simp only [Std.UScalar.val_or, nat_lor_eq]
-      have hw2 : (i2 ||| carry).val + 2 ^ 64 * i5.val = 2 * x.val + carry.val := by
-        rw [hlov, hi2', hi5']
-        simpa using hword
-      exact shl_step_arith _ _ _ _ _ _ _ _ _ _ hIH hw2
-    · exact base i carry out w hin h
+theorem limbsToNat_drop_succ (l : List Std.U64) (k : Nat) :
+    limbsToNat (l.drop k) = (limbAt l k).val + 2 ^ 64 * limbsToNat (l.drop (k + 1)) := by
+  rcases Nat.lt_or_ge k l.length with hk | hk
+  · rw [List.drop_eq_getElem_cons hk, limbsToNat_cons, limbAt, List.getD_eq_getElem _ _ hk]
+  · rw [List.drop_eq_nil_of_le hk, List.drop_eq_nil_of_le (by omega), limbAt,
+      List.getD_eq_default _ _ hk]
+    simp
 
-theorem shl1_or_refines {a c : ron.nat.Nat} {bit : Std.U64} (hbit : bit.val ≤ 1)
-    (h : ron.nat.shl1_or a bit = ok c) : toNat c = 2 * toNat a + bit.val ∧ NatWF c := by
-  rw [ron.nat.shl1_or] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨v, hv, h⟩ := h
-  have hsf := shl1_from_val a.limbs a.limbs.val.length 0#usize bit
-    (alloc.vec.Vec.new Std.U64) v (by omega) hbit hv
+/-- A limb, at its place value, is at most the whole number. -/
+theorem limb_le (l : List Std.U64) (k : Nat) :
+    (limbAt l k).val * 2 ^ (64 * k) ≤ limbsToNat l := by
+  have h1 := limbsToNat_drop_succ l k
+  rw [limbsToNat_drop] at h1
+  have h2 : (limbAt l k).val ≤ limbsToNat l / 2 ^ (64 * k) := by omega
+  calc (limbAt l k).val * 2 ^ (64 * k) ≤ limbsToNat l / 2 ^ (64 * k) * 2 ^ (64 * k) :=
+        Nat.mul_le_mul_right _ h2
+    _ ≤ limbsToNat l := Nat.div_mul_le_self _ _
+
+/-- **Knuth's estimate is never too small.**  With `b ≥ top * 2^(64 (m-1))`
+and `t2 = t / 2^(64 (m-1))` (the top two limbs of `t`), `t / b ≤ t2 / top`:
+`(t / b) * top * 2^(64 (m-1)) ≤ (t / b) * b ≤ t`. -/
+theorem knuth_estimate {T Bv top t2 m : Nat} (htop : 0 < top)
+    (hB : top * 2 ^ (64 * (m - 1)) ≤ Bv) (hT2 : T / 2 ^ (64 * (m - 1)) = t2) :
+    T / Bv ≤ t2 / top := by
+  rw [Nat.le_div_iff_mul_le htop, ← hT2, Nat.le_div_iff_mul_le (Nat.two_pow_pos _)]
+  calc T / Bv * top * 2 ^ (64 * (m - 1)) = T / Bv * (top * 2 ^ (64 * (m - 1))) := by ring
+    _ ≤ T / Bv * Bv := Nat.mul_le_mul_left _ hB
+    _ ≤ T := Nat.div_mul_le_self _ _
+
+theorem prepend_limb_val {x : Std.U64} {r t : ron.nat.Nat}
+    (h : ron.nat.prepend_limb x r = ok t) : toNat t = x.val + 2 ^ 64 * toNat r ∧ NatWF t := by
+  rw [ron.nat.prepend_limb] at h
+  simp only [bind_eq_ok_iff, with_capacity_eq, push_eq_ok_iff] at h
+  obtain ⟨i1, -, v1, ⟨-, hv1⟩, v2, hv2, h⟩ := h
+  have hcf := copy_from_refines (v := r.limbs) (i := 0#usize) (e := alloc.vec.Vec.len r.limbs)
+    (by scalar_tac) hv2
   have h0 : (0#usize : Std.Usize).val = 0 := by scalar_tac
-  rw [h0] at hsf
-  simp only [alloc.vec.Vec.new, alloc.vec.Vec.from_val, limbsToNat_nil, List.length_nil,
-    Nat.mul_zero, pow_zero, Nat.one_mul, Nat.zero_add, List.drop_zero] at hsf
-  obtain ⟨hnv, hwf⟩ := norm_refines h
-  exact ⟨by rw [hnv, hsf]; rfl, hwf⟩
+  have hl : (alloc.vec.Vec.len r.limbs).val = r.limbs.val.length := by scalar_tac
+  rw [h0, hl] at hcf
+  simp only [Nat.sub_zero, List.drop_zero, List.take_length, hv1] at hcf
+  obtain ⟨hn, hwf⟩ := norm_refines h
+  refine ⟨?_, hwf⟩
+  rw [hn, hcf]
+  simp [alloc.vec.Vec.new, toNat]
 
-theorem dm_bits_val (a b : ron.nat.Nat) (i : Std.Usize) (x : Std.U64)
-    (hx : a.limbs.val[i.val]? = some x) (hbw : NatWF b) (hb : 0 < toNat b) :
-    ∀ (d : Nat) (j qacc : Std.U64) (rem : ron.nat.Nat) (ql : Std.U64) (r : ron.nat.Nat),
-      j.val ≤ d → NatWF rem → toNat rem < toNat b →
-      ron.nat.dm_bits a b i j qacc rem = ok (ql, r) →
-      ql.val = (qacc.val * 2 ^ j.val
-          + (toNat rem * 2 ^ j.val + x.val % 2 ^ j.val) / toNat b) % 2 ^ 64 ∧
-        toNat r = (toNat rem * 2 ^ j.val + x.val % 2 ^ j.val) % toNat b ∧ NatWF r := by
-  have base : ∀ (qacc : Std.U64) (rem : ron.nat.Nat) (ql : Std.U64) (r : ron.nat.Nat)
-      (j : Std.U64), j.val = 0 → NatWF rem → toNat rem < toNat b →
-      ron.nat.dm_bits a b i j qacc rem = ok (ql, r) →
-      ql.val = (qacc.val * 2 ^ j.val
-          + (toNat rem * 2 ^ j.val + x.val % 2 ^ j.val) / toNat b) % 2 ^ 64 ∧
-        toNat r = (toNat rem * 2 ^ j.val + x.val % 2 ^ j.val) % toNat b ∧ NatWF r := by
-    intro qacc rem ql r j hj hrw hrb h
-    rw [ron.nat.dm_bits, ite_eq_left (by scalar_tac)] at h
-    simp only [Result.ok.injEq, Prod.mk.injEq] at h
-    obtain ⟨h1, h2⟩ := h
-    subst h1; subst h2
-    rw [hj]
-    refine ⟨?_, ?_, hrw⟩
-    · simp only [pow_zero, Nat.mul_one, Nat.mod_one, Nat.add_zero,
-        Nat.div_eq_of_lt hrb]
-      have : qacc.val < 2 ^ 64 := by scalar_tac
+theorem dm_correct_loop_val (b t : ron.nat.Nat) (hb : NatWF b) (ht : NatWF t)
+    (hb0 : 0 < toNat b) :
+    ∀ (qq : Std.U64) (pp : ron.nat.Nat) (r : Std.U64 × ron.nat.Nat),
+      NatWF pp → toNat pp = qq.val * toNat b → toNat t / toNat b ≤ qq.val →
+      ron.nat.dm_correct_loop b t qq pp = ok r →
+      r.1.val = toNat t / toNat b ∧ toNat r.2 = r.1.val * toNat b ∧ NatWF r.2 := by
+  partial_induct ron.nat.dm_correct_loop
+  intro g ih qq pp r hpw hpv hle h
+  beta_reduce at h
+  obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+  have hcv := blt_refines ht hpw hc
+  have hdm := Nat.div_mul_le_self (toNat t) (toNat b)
+  split at h <;> rename_i hcz
+  · simp only [bind_eq_ok_iff] at h
+    obtain ⟨qq1, hqq1, pp1, hpp1, h⟩ := h
+    rw [hcz] at hcv
+    have hlt : toNat t < toNat pp := by simpa using hcv.symm
+    obtain ⟨-, hq1v⟩ := usub_val hqq1
+    have h1 : (1#u64 : Std.U64).val = 1 := by scalar_tac
+    rw [h1] at hq1v
+    obtain ⟨hp1v, hp1w⟩ := sub_refines hpw hb hpp1
+    have hq : toNat t / toNat b < qq.val := by
+      by_contra hcon
+      have : qq.val * toNat b ≤ toNat t / toNat b * toNat b :=
+        Nat.mul_le_mul_right _ (by omega)
       omega
-    · simp only [pow_zero, Nat.mul_one, Nat.mod_one, Nat.add_zero]
-      exact (Nat.mod_eq_of_lt hrb).symm
-  intro d
-  induction d with
-  | zero =>
-    intro j qacc rem ql r hd hrw hrb h
-    exact base qacc rem ql r j (by omega) hrw hrb h
-  | succ d ih =>
-    intro j qacc rem ql r hd hrw hrb h
-    rcases Nat.eq_zero_or_pos j.val with hj0 | hj0
-    · exact base qacc rem ql r j hj0 hrw hrb h
-    rw [ron.nat.dm_bits, ite_eq_right (by scalar_tac)] at h
-    simp only [bind_eq_ok_iff, lift_eq_ok_iff, exists_eq_left',
-      alloc.vec.Vec.index_slice_index, index_usize_eq_ok_iff] at h
-    obtain ⟨i1, hi1, i2, hi2, i3, hi3, r1, hr1, cc, hcc, h⟩ := h
-    have hi1x : i1 = x := by
-      rw [hx] at hi1; exact (Option.some.injEq _ _ ▸ hi1).symm
-    have hi2' : i2.val = j.val - 1 := (usub_val hi2).2.trans (by simp)
-    have hi3' : i3.val = x.val / 2 ^ (j.val - 1) := by
-      have := (ushiftRight_val hi3).2; rw [hi2', hi1x] at this; exact this
-    set m := j.val - 1 with hm
-    have hjm : j.val = m + 1 := by omega
-    have hbitv : (i3 &&& 1#u64 : Std.U64).val = x.val / 2 ^ m % 2 := by
-      simp only [Std.UScalar.val_and]
-      rw [show (1#u64 : Std.U64).val = 1 from rfl, Nat.and_one_is_mod, hi3']
-    have hbitb : (i3 &&& 1#u64 : Std.U64).val ≤ 1 := by rw [hbitv]; omega
-    obtain ⟨hr1v, hr1w⟩ := shl1_or_refines hbitb hr1
-    rw [hbitv] at hr1v
-    -- the window value, split at bit `m`
-    have hV : toNat rem * 2 ^ j.val + x.val % 2 ^ j.val
-        = toNat r1 * 2 ^ m + x.val % 2 ^ m := by
-      rw [hjm, mod_two_pow_succ, hr1v, Nat.pow_succ]
+    refine ih _ _ _ hp1w ?_ (by omega) h
+    rw [hp1v, hpv, hq1v, Nat.sub_mul, Nat.one_mul]
+  · simp only [Result.ok.injEq] at h
+    subst h
+    have hge : ¬ toNat t < toNat pp := by
+      intro hc'; apply hcz; rw [hcv]; simpa using hc'
+    have : qq.val ≤ toNat t / toNat b :=
+      (Nat.le_div_iff_mul_le hb0).2 (by rw [← hpv]; omega)
+    exact ⟨show qq.val = toNat t / toNat b by omega, hpv, hpw⟩
+
+theorem dm_correct_val {b t p r : ron.nat.Nat} {q q' : Std.U64} (hb : NatWF b) (ht : NatWF t)
+    (hp : NatWF p) (hb0 : 0 < toNat b) (hpv : toNat p = q.val * toNat b)
+    (hle : toNat t / toNat b ≤ q.val) (h : ron.nat.dm_correct b t q p = ok (q', r)) :
+    q'.val = toNat t / toNat b ∧ toNat r = toNat t % toNat b ∧ NatWF r := by
+  rw [ron.nat.dm_correct] at h
+  obtain ⟨pq, hpq, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨qq, pp⟩ := pq
+  obtain ⟨h1, h2, h3⟩ := dm_correct_loop_val b t hb ht hb0 q p (qq, pp) hp hpv hle hpq
+  simp only at h1 h2 h3
+  replace h : (do let n ← ron.nat.sub t pp; ok (qq, n)) = ok (q', r) := h
+  obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
+  simp only [Result.ok.injEq, Prod.mk.injEq] at h
+  obtain ⟨rfl, rfl⟩ := h
+  obtain ⟨hnv, hnw⟩ := sub_refines ht h3 hn
+  refine ⟨h1, ?_, hnw⟩
+  rw [hnv, h2, h1, Nat.mod_eq_sub_div_mul]
+
+theorem dm_step_val {b rem r : ron.nat.Nat} {x q : Std.U64} (hb : NatWF b)
+    (hb0 : 0 < toNat b) (hrb : toNat rem < toNat b)
+    (h : ron.nat.dm_step b rem x = ok (q, r)) :
+    q.val = (toNat rem * 2 ^ 64 + x.val) / toNat b ∧
+      toNat r = (toNat rem * 2 ^ 64 + x.val) % toNat b ∧ NatWF r := by
+  have hTlt : toNat rem * 2 ^ 64 + x.val < toNat b * 2 ^ 64 := by
+    have : x.val < 2 ^ 64 := by scalar_tac
+    have : (toNat rem + 1) * 2 ^ 64 ≤ toNat b * 2 ^ 64 := Nat.mul_le_mul_right _ hrb
+    rw [Nat.add_mul] at this
+    omega
+  have hqlt : (toNat rem * 2 ^ 64 + x.val) / toNat b < 2 ^ 64 := Nat.div_lt_of_lt_mul hTlt
+  rw [ron.nat.dm_step] at h
+  split at h <;> rename_i hm1
+  · -- a one-limb divisor: one `u128` division
+    have hlen : b.limbs.val.length = 1 := by scalar_tac
+    obtain ⟨d, hd⟩ := List.length_eq_one_iff.mp hlen
+    have hbv : toNat b = d.val := by simp [toNat, hd]
+    simp only [bind_eq_ok_iff, lift_eq_ok_iff, alloc.vec.Vec.index_slice_index,
+      index_usize_eq_ok_iff, exists_eq_left'] at h
+    obtain ⟨i, hi, i1, hi1, i3, hi3, t, ht, i5, hi5, i6, hi6, n, hn, h⟩ := h
+    simp only [Result.ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    have hid : i = d := by
+      rw [hd] at hi; simpa using hi.symm
+    subst hid
+    have hi1v : i1.val = toNat rem := by
+      rw [low_limb_val hi1, Nat.mod_eq_of_lt (by rw [hbv] at hrb; scalar_tac)]
+    have hi3v : i3.val = toNat rem * 2 ^ 64 := by rw [shl64_val hi3, hi1v]
+    have htv : t.val = toNat rem * 2 ^ 64 + x.val := by
+      have := uadd_val ht; rw [cast128_val, hi3v] at this; exact this
+    have hi5v : i5.val = t.val / i.val := by
+      have := udiv_val hi5; rwa [cast128_val] at this
+    have hi6v : i6.val = t.val % i.val := by
+      have := urem_val hi6; rwa [cast128_val] at this
+    obtain ⟨hnv, hnw⟩ := from_u64_refines hn
+    rw [← hbv] at hi5v hi6v
+    refine ⟨?_, ?_, hnw⟩
+    · rw [cast64_val, hi5v, htv, Nat.mod_eq_of_lt hqlt]
+    · rw [hnv, cast64_val, hi6v, htv, Nat.mod_eq_of_lt]
+      exact lt_of_lt_of_le (Nat.mod_lt _ hb0) (by rw [hbv]; scalar_tac)
+  · -- Knuth's step
+    have hne : b.limbs.val ≠ [] := by
+      intro hc; simp [toNat, hc] at hb0
+    have hm2 : 2 ≤ b.limbs.val.length := by
+      have : b.limbs.val.length ≠ 0 := by simpa using hne
+      have : b.limbs.val.length ≠ 1 := by intro hc; apply hm1; scalar_tac
+      omega
+    simp only [bind_eq_ok_iff, lift_eq_ok_iff, alloc.vec.Vec.index_slice_index,
+      index_usize_eq_ok_iff, exists_eq_left'] at h
+    obtain ⟨t, ht, i, hi, top, htop, i2, hi2, i4, hi4, i5, hi5, t2, ht2, qe, hqe, qhat, hqhat,
+      p, hp, h⟩ := h
+    obtain ⟨htv, htw⟩ := prepend_limb_val ht
+    have hiv : i.val = b.limbs.val.length - 1 := by
+      have := (usub_val hi).2; simpa using this
+    have hml : (alloc.vec.Vec.len b.limbs).val = b.limbs.val.length := by scalar_tac
+    have hil : i.val < b.limbs.val.length := by omega
+    have htop' : b.limbs.val[i.val] = top := by
+      rw [List.getElem?_eq_getElem hil] at htop; simpa using htop
+    -- the top limb of `b` is nonzero, and `b ≥ top * 2^(64 (m-1))`
+    have htop0 : 0 < top.val := by
+      have hlast := hb top (by
+        rw [List.getLast?_eq_getElem?, show b.limbs.val.length - 1 = i.val by omega]; exact htop)
+      omega
+    have hbtop : top.val * 2 ^ (64 * (b.limbs.val.length - 1)) ≤ toNat b := by
+      have := limb_le b.limbs.val i.val
+      rw [limbAt, List.getD_eq_getElem _ _ hil, htop', hiv] at this
+      exact this
+    -- `t2` is `t / 2^(64 (m-1))`: the limbs above `m` are zero because `t < b * 2^64`
+    have hi2v := limb_refines hi2
+    have hi5v := limb_refines hi5
+    rw [hml] at hi2v
+    have hi4v : i4.val = (limbAt t.limbs.val b.limbs.val.length).val * 2 ^ 64 := by
+      rw [shl64_val hi4, hi2v]
+    have ht2v : t2.val = (limbAt t.limbs.val b.limbs.val.length).val * 2 ^ 64
+        + (limbAt t.limbs.val (b.limbs.val.length - 1)).val := by
+      have := uadd_val ht2; rw [cast128_val, hi4v, hi5v, hiv] at this; exact this
+    have hT2 : toNat t / 2 ^ (64 * (b.limbs.val.length - 1)) = t2.val := by
+      have hbl := limbsToNat_lt b.limbs.val
+      have hTl : toNat t < 2 ^ (64 * (b.limbs.val.length + 1)) := by
+        rw [htv, Nat.mul_add, Nat.pow_add]
+        have := hTlt
+        rw [Nat.add_comm, Nat.mul_comm (toNat rem)] at this
+        calc x.val + 2 ^ 64 * toNat rem < toNat b * 2 ^ 64 := by omega
+          _ ≤ 2 ^ (64 * b.limbs.val.length) * 2 ^ (64 * 1) :=
+            Nat.mul_le_mul_right _ (le_of_lt hbl)
+      have hz : limbsToNat (t.limbs.val.drop (b.limbs.val.length + 1)) = 0 := by
+        rw [limbsToNat_drop]; exact Nat.div_eq_of_lt hTl
+      rw [toNat, ← limbsToNat_drop, limbsToNat_drop_succ,
+        show b.limbs.val.length - 1 + 1 = b.limbs.val.length by omega,
+        limbsToNat_drop_succ, hz, ht2v]
       ring
-    have hqacc : ∀ (q2 : Std.U64) (Z : Nat), q2.val = qacc.val * 2 % 2 ^ 64 →
-        (q2.val * 2 ^ m + Z) % 2 ^ 64 = (qacc.val * 2 ^ j.val + Z) % 2 ^ 64 := by
-      intro q2 Z hq2
-      rw [hq2, hjm,
-        show qacc.val * 2 ^ (m + 1) = qacc.val * 2 * 2 ^ m by rw [Nat.pow_succ]; ring]
-      exact (Nat.ModEq.add_right Z
-        (Nat.ModEq.mul_right (2 ^ m) (Nat.mod_modEq (qacc.val * 2) (2 ^ 64))))
-    have hqacc1 : ∀ (q2 : Std.U64) (Z : Nat), q2.val = qacc.val * 2 % 2 ^ 64 + 1 →
-        ((q2.val * 2 ^ m + Z) % 2 ^ 64) = (qacc.val * 2 ^ j.val + (Z + 2 ^ m)) % 2 ^ 64 := by
-      intro q2 Z hq2
-      rw [hq2, hjm,
-        show qacc.val * 2 ^ (m + 1) + (Z + 2 ^ m) = qacc.val * 2 * 2 ^ m + 2 ^ m + Z by
-          rw [Nat.pow_succ]; ring,
-        show (qacc.val * 2 % 2 ^ 64 + 1) * 2 ^ m + Z
-            = qacc.val * 2 % 2 ^ 64 * 2 ^ m + 2 ^ m + Z by ring]
-      exact (Nat.ModEq.add_right Z (Nat.ModEq.add_right (2 ^ m)
-        (Nat.ModEq.mul_right (2 ^ m) (Nat.mod_modEq (qacc.val * 2) (2 ^ 64)))))
-    rcases cmp_refines hr1w hbw hcc with ⟨rfl, hlt⟩ | ⟨rfl, heq⟩ | ⟨rfl, hgt⟩
-    · -- no subtraction
-      simp only [bind_eq_ok_iff] at h
-      obtain ⟨i4, hi4, h⟩ := h
-      have hi4' : i4.val = qacc.val * 2 % 2 ^ 64 := by
-        have := (ushiftLeftI_val hi4).2; simpa using this
-      obtain ⟨h1, h2, h3⟩ := ih i2 i4 r1 ql r (by omega) hr1w hlt h
-      rw [hi2'] at h1 h2
-      refine ⟨?_, ?_, h3⟩
-      · rw [h1, hV]; exact hqacc i4 _ hi4'
-      · rw [h2, hV]
-    · -- `r1 = b`: subtract, quotient bit 1
-      simp only [bind_eq_ok_iff, lift_eq_ok_iff, exists_eq_left'] at h
-      obtain ⟨r2, hr2, i4, hi4, h⟩ := h
-      obtain ⟨hr2v, hr2w⟩ := sub_refines hr1w hbw hr2
-      have hi4' : i4.val = qacc.val * 2 % 2 ^ 64 := by
-        have := (ushiftLeftI_val hi4).2; simpa using this
-      have hev : i4.val % 2 = 0 := by
-        rw [hi4', Nat.mod_mod_of_dvd _ (by norm_num : (2 : Nat) ∣ 2 ^ 64)]
+    have hqe' : qe.val = t2.val / top.val := by
+      have := udiv_val hqe; rwa [cast128_val] at this
+    have hest : toNat t / toNat b ≤ qhat.val := by
+      have hk := knuth_estimate htop0 hbtop hT2
+      have hq64 : toNat t / toNat b < 2 ^ 64 := by rw [htv]; rw [Nat.add_comm, Nat.mul_comm]; exact hqlt
+      split at hqhat <;> rename_i hbig
+      · simp only [Result.ok.injEq] at hqhat; subst hqhat
+        have : (18446744073709551615#u64 : Std.U64).val = 2 ^ 64 - 1 := by scalar_tac
         omega
-      have hi5' : (i4 ||| 1#u64 : Std.U64).val = qacc.val * 2 % 2 ^ 64 + 1 := by
-        simp only [Std.UScalar.val_or]
-        rw [show (1#u64 : Std.U64).val = 1 from rfl, ← nat_lor_eq, lor_one_of_even hev, hi4']
-      have hr2lt : toNat r2 < toNat b := by rw [hr2v]; omega
-      obtain ⟨h1, h2, h3⟩ := ih i2 (i4 ||| 1#u64) r2 ql r (by omega) hr2w hr2lt h
-      rw [hi2'] at h1 h2
-      have hsplit : toNat r1 * 2 ^ m + x.val % 2 ^ m
-          = toNat r2 * 2 ^ m + x.val % 2 ^ m + toNat b * 2 ^ m := by
-        have hd2 : toNat r1 = toNat r2 + toNat b := by omega
-        rw [hd2]
-        ring
-      refine ⟨?_, ?_, h3⟩
-      · rw [h1, hV, hsplit, Nat.add_mul_div_left _ _ hb]
-        exact hqacc1 (i4 ||| 1#u64) _ hi5'
-      · rw [h2, hV, hsplit, Nat.add_mul_mod_self_left]
-    · -- `r1 > b`: same branch body
-      simp only [bind_eq_ok_iff, lift_eq_ok_iff, exists_eq_left'] at h
-      obtain ⟨r2, hr2, i4, hi4, h⟩ := h
-      obtain ⟨hr2v, hr2w⟩ := sub_refines hr1w hbw hr2
-      have hi4' : i4.val = qacc.val * 2 % 2 ^ 64 := by
-        have := (ushiftLeftI_val hi4).2; simpa using this
-      have hev : i4.val % 2 = 0 := by
-        rw [hi4', Nat.mod_mod_of_dvd _ (by norm_num : (2 : Nat) ∣ 2 ^ 64)]
-        omega
-      have hi5' : (i4 ||| 1#u64 : Std.U64).val = qacc.val * 2 % 2 ^ 64 + 1 := by
-        simp only [Std.UScalar.val_or]
-        rw [show (1#u64 : Std.U64).val = 1 from rfl, ← nat_lor_eq, lor_one_of_even hev, hi4']
-      have hr1b : toNat r1 < 2 * toNat b := by rw [hr1v]; omega
-      have hr2lt : toNat r2 < toNat b := by rw [hr2v]; omega
-      obtain ⟨h1, h2, h3⟩ := ih i2 (i4 ||| 1#u64) r2 ql r (by omega) hr2w hr2lt h
-      rw [hi2'] at h1 h2
-      have hsplit : toNat r1 * 2 ^ m + x.val % 2 ^ m
-          = toNat r2 * 2 ^ m + x.val % 2 ^ m + toNat b * 2 ^ m := by
-        have hd2 : toNat r1 = toNat r2 + toNat b := by omega
-        rw [hd2]
-        ring
-      refine ⟨?_, ?_, h3⟩
-      · rw [h1, hV, hsplit, Nat.add_mul_div_left _ _ hb]
-        exact hqacc1 (i4 ||| 1#u64) _ hi5'
-      · rw [h2, hV, hsplit, Nat.add_mul_mod_self_left]
+      · simp only [Result.ok.injEq] at hqhat; subst hqhat
+        have hqs : qe.val ≤ 18446744073709551615 := by scalar_tac
+        rw [cast64_val, Nat.mod_eq_of_lt (by omega), hqe']
+        exact hk
+    obtain ⟨hpv, hpw⟩ := mul_u64_refines hp
+    obtain ⟨h1, h2, h3⟩ := dm_correct_val hb htw hpw hb0 (by rw [hpv, Nat.mul_comm]) hest h
+    rw [htv, Nat.add_comm, Nat.mul_comm] at h1 h2
+    exact ⟨h1, h2, h3⟩
 
 theorem rev_copy_from_val (v : alloc.vec.Vec Std.U64) :
     ∀ (d : Nat) (k : Std.Usize) (out w : alloc.vec.Vec Std.U64),
@@ -2344,16 +2820,13 @@ theorem dm_limbs_val (a b : ron.nat.Nat) (hbw : NatWF b) (hb : 0 < toNat b) :
     rcases Nat.eq_zero_or_pos i.val with hi0 | hi0
     · exact base i qrev qrev' rem rem' hi0 hrw hrv h
     rw [ron.nat.dm_limbs, ite_eq_right (by scalar_tac)] at h
-    simp only [bind_eq_ok_iff] at h
-    obtain ⟨i1, hi1, h⟩ := h
+    simp only [bind_eq_ok_iff, alloc.vec.Vec.index_slice_index, index_usize_eq_ok_iff] at h
+    obtain ⟨i1, hi1, x, hx, p, hp, h⟩ := h
     have hi1' : i1.val = i.val - 1 := (usub_val hi1).2.trans (by simp)
     have hlt : i1.val < a.limbs.val.length := by omega
-    obtain ⟨p, hp, h⟩ := h
     obtain ⟨ql, rem2⟩ := p
     replace h : (do let qrev1 ← alloc.vec.Vec.push qrev ql
                     ron.nat.dm_limbs a b i1 qrev1 rem2) = ok (qrev', rem') := h
-    obtain ⟨x, hx⟩ : ∃ x, a.limbs.val[i1.val]? = some x :=
-      ⟨_, List.getElem?_eq_getElem hlt⟩
     have hxe : a.limbs.val[i1.val] = x := by
       rw [List.getElem?_eq_getElem hlt] at hx; exact Option.some.injEq _ _ ▸ hx
     have hAi1 : toNat a / 2 ^ (64 * i1.val)
@@ -2361,13 +2834,14 @@ theorem dm_limbs_val (a b : ron.nat.Nat) (hbw : NatWF b) (hb : 0 < toNat b) :
       simp only [toNat]
       rw [← limbsToNat_drop, ← limbsToNat_drop, List.drop_eq_getElem_cons hlt,
         limbsToNat_cons, hxe, show i1.val + 1 = i.val by omega]
-    obtain ⟨hql, hrem2, hrem2w⟩ :=
-      dm_bits_val a b i1 x hx hbw hb 64 64#u64 0#u64 rem ql rem2 (by scalar_tac) hrw hrb hp
-    have h64 : (64#u64 : Std.U64).val = 64 := by scalar_tac
-    have h0 : (0#u64 : Std.U64).val = 0 := by scalar_tac
-    rw [h64, Nat.mod_eq_of_lt (by scalar_tac : x.val < 2 ^ 64)] at hql hrem2
-    rw [h0] at hql
-    simp only [Nat.zero_mul, Nat.zero_add] at hql
+    obtain ⟨hql, hrem2, hrem2w⟩ := dm_step_val hbw hb hrb hp
+    have hqlt : (2 ^ 64 * toNat rem + x.val) / toNat b < 2 ^ 64 := by
+      refine Nat.div_lt_of_lt_mul ?_
+      have : x.val < 2 ^ 64 := by scalar_tac
+      have : 2 ^ 64 * (toNat rem + 1) ≤ 2 ^ 64 * toNat b := Nat.mul_le_mul_left _ hrb
+      rw [Nat.mul_add] at this
+      rw [Nat.mul_comm (toNat b)]
+      omega
     have hAdecomp : toNat a / 2 ^ (64 * i1.val)
         = (2 ^ 64 * toNat rem + x.val)
             + toNat b * (2 ^ 64 * (toNat a / 2 ^ (64 * i.val) / toNat b)) := by
@@ -2388,7 +2862,7 @@ theorem dm_limbs_val (a b : ron.nat.Nat) (hbw : NatWF b) (hb : 0 < toNat b) :
               + 2 ^ 64 * (toNat a / 2 ^ (64 * i.val) / toNat b) := by
         rw [Nat.div_div_eq_div_mul, Nat.mul_comm (toNat b), ← Nat.div_div_eq_div_mul,
           hAdecomp, Nat.add_mul_div_left _ _ hb]
-      rw [hql, hB, Nat.add_mul_mod_self_left]
+      rw [hql, hB, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hqlt]
     simp only [bind_eq_ok_iff, push_eq_ok_iff] at h
     obtain ⟨qrev1, ⟨-, hqrev1⟩, h⟩ := h
     obtain ⟨⟨l, hl1, hl2, hl3⟩, hrem', hrem'w⟩ :=
@@ -2401,6 +2875,45 @@ theorem dm_limbs_val (a b : ron.nat.Nat) (hbw : NatWF b) (hb : 0 < toNat b) :
         limbsToNat_cons, limbsToNat_nil]
       rw [show 64 * i.val = 64 * i1.val + 64 by omega, Nat.pow_add, Nat.mod_mul, hqlv]
       ring
+
+/-- The long division proper: the quotient limbs of `dm_limbs`, reversed into
+place. -/
+theorem dm_run_val {a b q r : ron.nat.Nat} (hb : NatWF b) (hb0 : 0 < toNat b)
+    (h : ron.nat.dm_run a b = ok (q, r)) :
+    toNat q = toNat a / toNat b ∧ toNat r = toNat a % toNat b ∧ NatWF q ∧ NatWF r := by
+  rw [ron.nat.dm_run] at h
+  simp only [bind_eq_ok_iff, with_capacity_eq] at h
+  obtain ⟨z, hz, h⟩ := h
+  obtain ⟨hz0, hzwf⟩ := zero_refines hz
+  obtain ⟨p, hp, h⟩ := h
+  obtain ⟨qrev, rr⟩ := p
+  replace h : (do let v ← ron.nat.rev_copy_from qrev (alloc.vec.Vec.len qrev)
+                    (alloc.vec.Vec.with_capacity Std.U64 (alloc.vec.Vec.len qrev))
+                  let n ← ron.nat.norm v
+                  ok (n, rr)) = ok (q, r) := h
+  have hazero : toNat a / 2 ^ (64 * a.limbs.val.length) = 0 :=
+    Nat.div_eq_of_lt (limbsToNat_lt _)
+  have hlen : (alloc.vec.Vec.len a.limbs).val = a.limbs.val.length := by scalar_tac
+  obtain ⟨⟨l, hl1, hl2, hl3⟩, hrr, hrrw⟩ :=
+    dm_limbs_val a b hb hb0 a.limbs.val.length (alloc.vec.Vec.len a.limbs)
+      (alloc.vec.Vec.new Std.U64) qrev z rr (by omega) (by omega) hzwf
+      (by rw [hz0]; exact hb0) (by rw [hz0, hlen, hazero]; simp) hp
+  rw [hlen] at hl2 hl3
+  simp only [alloc.vec.Vec.new, alloc.vec.Vec.from_val, List.nil_append] at hl1
+  have hQ : toNat a / toNat b % 2 ^ (64 * a.limbs.val.length) = toNat a / toNat b :=
+    Nat.mod_eq_of_lt (lt_of_le_of_lt (Nat.div_le_self _ _) (limbsToNat_lt _))
+  rw [hQ] at hl3
+  simp only [bind_eq_ok_iff, with_capacity_eq, Result.ok.injEq, Prod.mk.injEq] at h
+  obtain ⟨v, hv, n, hn, h1, h2⟩ := h
+  subst h1; subst h2
+  have hkl : (alloc.vec.Vec.len qrev).val = qrev.val.length := by scalar_tac
+  have hrc := rev_copy_from_val qrev qrev.val.length (alloc.vec.Vec.len qrev)
+    (alloc.vec.Vec.new Std.U64) v (by omega) (by omega) hv
+  rw [hkl, List.take_of_length_le le_rfl] at hrc
+  simp only [alloc.vec.Vec.new, alloc.vec.Vec.from_val, List.nil_append] at hrc
+  obtain ⟨hnv, hnwf⟩ := norm_refines hn
+  refine ⟨?_, hrr, hnwf, hrrw⟩
+  rw [hnv, hrc, hl1, hl3]
 
 theorem div_mod_refines {a b q r : ron.nat.Nat} (ha : NatWF a) (hb : NatWF b)
     (h : ron.nat.div_mod a b = ok (q, r)) :
@@ -2437,38 +2950,28 @@ theorem div_mod_refines {a b q r : ron.nat.Nat} (ha : NatWF a) (hb : NatWF b)
       have hp : 0 < 2 ^ (64 * (b.limbs.val.length - 1)) := Nat.two_pow_pos _
       simp only [toNat]
       omega
-    simp only [bind_eq_ok_iff] at h
-    obtain ⟨z, hz, h⟩ := h
-    obtain ⟨hz0, hzwf⟩ := zero_refines hz
-    obtain ⟨p, hp, h⟩ := h
-    obtain ⟨qrev, rr⟩ := p
-    replace h : (do let v ← ron.nat.rev_copy_from qrev (alloc.vec.Vec.len qrev)
-                      (alloc.vec.Vec.new Std.U64)
-                    let n ← ron.nat.norm v
-                    ok (n, rr)) = ok (q, r) := h
-    have hazero : toNat a / 2 ^ (64 * a.limbs.val.length) = 0 :=
-      Nat.div_eq_of_lt (limbsToNat_lt _)
-    have hlen : (alloc.vec.Vec.len a.limbs).val = a.limbs.val.length := by scalar_tac
-    obtain ⟨⟨l, hl1, hl2, hl3⟩, hrr, hrrw⟩ :=
-      dm_limbs_val a b hb hb0 a.limbs.val.length (alloc.vec.Vec.len a.limbs)
-        (alloc.vec.Vec.new Std.U64) qrev z rr (by omega) (by omega) hzwf
-        (by rw [hz0]; exact hb0) (by rw [hz0, hlen, hazero]; simp) hp
-    rw [hlen] at hl2 hl3
-    simp only [alloc.vec.Vec.new, alloc.vec.Vec.from_val, List.nil_append] at hl1
-    have hQ : toNat a / toNat b % 2 ^ (64 * a.limbs.val.length) = toNat a / toNat b :=
-      Nat.mod_eq_of_lt (lt_of_le_of_lt (Nat.div_le_self _ _) (limbsToNat_lt _))
-    rw [hQ] at hl3
-    simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at h
-    obtain ⟨v, hv, n, hn, h1, h2⟩ := h
-    subst h1; subst h2
-    have hkl : (alloc.vec.Vec.len qrev).val = qrev.val.length := by scalar_tac
-    have hrc := rev_copy_from_val qrev qrev.val.length (alloc.vec.Vec.len qrev)
-      (alloc.vec.Vec.new Std.U64) v (by omega) (by omega) hv
-    rw [hkl, List.take_of_length_le le_rfl] at hrc
-    simp only [alloc.vec.Vec.new, alloc.vec.Vec.from_val, List.nil_append] at hrc
-    obtain ⟨hnv, hnwf⟩ := norm_refines hn
-    refine ⟨?_, hrr, hnwf, hrrw⟩
-    rw [hnv, hrc, hl1, hl3]
+    split at h <;> rename_i hm1
+    · exact dm_run_val hb hb0 h
+    · -- normalise: both operands shifted left by `s`; the quotient is
+      -- unchanged and the remainder comes back scaled by `2^s`
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨i2, -, top, -, s, -, an, han, bn, hbn, p, hp, h⟩ := h
+      obtain ⟨q', rn⟩ := p
+      replace h : (do let n ← ron.nat.shift_right rn s; ok (q', n)) = ok (q, r) := h
+      obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      obtain ⟨hanv, hanw⟩ := shift_left_refines han
+      obtain ⟨hbnv, hbnw⟩ := shift_left_refines hbn
+      rw [nat_shiftLeft_eq] at hanv hbnv
+      have hpos : 0 < 2 ^ s.val := Nat.two_pow_pos _
+      obtain ⟨hqv, hrv, hqw, hrw⟩ :=
+        dm_run_val hbnw (by rw [hbnv]; exact Nat.mul_pos hb0 hpos) hp
+      obtain ⟨hnv, hnw⟩ := shift_right_refines hn
+      refine ⟨?_, ?_, hqw, hnw⟩
+      · rw [hqv, hanv, hbnv, Nat.mul_div_mul_right _ _ hpos]
+      · rw [hnv, nat_shiftRight_eq, hrv, hanv, hbnv, Nat.mul_mod_mul_right,
+          Nat.mul_div_cancel _ hpos]
 
 theorem div_refines {a b c : ron.nat.Nat} (ha : NatWF a) (hb : NatWF b)
     (h : ron.nat.div a b = ok c) : toNat c = toNat a / toNat b ∧ NatWF c := by
@@ -2536,7 +3039,7 @@ theorem gcd_refines : ∀ (N : Nat) (a b c : ron.nat.Nat), toNat a = N → NatWF
 
 /-! ## Axiom census
 
-Committed gate (task #5's convention): the three representative operations
+Committed gate (task #5's convention): the representative operations
 depend on nothing beyond Lean's three classical axioms — no `sorry`, nothing
 from Aeneas's library, nothing from the hand-written `Arc` model. -/
 
@@ -2548,5 +3051,11 @@ from Aeneas's library, nothing from the hand-written `Arc` model. -/
 
 /-- info: 'ConRon.Refine.Nat.land_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms land_refines
+
+/-- info: 'ConRon.Refine.Nat.mul_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms mul_refines
+
+/-- info: 'ConRon.Refine.Nat.div_mod_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms div_mod_refines
 
 end ConRon.Refine.Nat
