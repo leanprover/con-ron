@@ -132,7 +132,7 @@ section for every task you land.
   reflink copy of the packages, moves the pin in the working tree only,
   classifies the provenance findings and prints the work order; `measure`,
   `pin` (the pin files, committed LAST — `scripts/pin-last.py` gates it) and
-  `land` (fast-forward, cache seed, drop, then
+  `land --report <file>` (the `--no-ff` merge, cache seed, drop, then
   `scripts/sync-shared-con-leche.sh`, the only sanctioned move of the shared
   checkout) follow.  Never `lake update con-leche` against the shared
   directory.
@@ -174,8 +174,10 @@ section for every task you land.
   * **Queue agent**: takes `_tmp/merge-queue` in order, merges each commit
     into its own worktree `_tmp/wt-mq` (a branch following `arena`), runs
     `scripts/gates.sh --only <steps>` for the steps the merge's delta can
-    touch (see DESIGN `### Task #97-MQ` for the path→step table), fast-
-    forwards the main tree (`git -C <main> merge --ff-only mq`), and drops the
+    touch (see DESIGN `### Task #97-MQ` for the path→step table), merges
+    each lane into `mq` with `git merge --no-ff` and the lane's report as the
+    message (task #160), fast-forwards the main tree to `mq`
+    (`git -C <main> merge --ff-only mq`), and drops the
     lane's worktree with `scripts/drop-worktree.sh`.  It resolves MECHANICAL
     conflicts only (DESIGN.md appends, import lists, generated axioms/census
     output, overview-links anchors); anything that needs a proof changed is
@@ -219,14 +221,21 @@ section for every task you land.
   is missing, add it there as a separate small commit (found by the merge
   queue: `dup2_*` and `eidx_eq2_spec` each broke a merge).
 * **Landing a branch (merge discipline).**  The *agent* merges master into
-  its branch and runs the gates there; the landing is then a fast-forward
-  merge of that branch into master.  If master moved in between so the
-  merge is not a fast-forward, the agent merges master again and re-runs
-  the gates — unless what moved on master since the last gated state is
-  clearly irrelevant (documentation only, a script the gates do not run),
-  in which case skip the gates, or the gates the change cannot touch, to
-  keep development velocity.  The gates are not run a second time on master
-  after a fast-forward.  Landing then finishes with
+  its branch and runs the gates there; the landing is then a **`--no-ff`
+  merge** of that branch into master (maintainer, 2026-11-17, task #160 —
+  never a fast-forward, never a rebase): `scripts/land.sh <worktree>
+  <report-file>`, whose merge commit message is the task's FINAL REPORT
+  (subject `Task #N: merge <branch> — <summary>`, then what changed, the
+  gates, the measurements, what was left, and the trailer).  So master's
+  first-parent history is one merge commit per task, each carrying its
+  report.  `land.sh` refuses unless master is already merged into the branch,
+  so the landing merge adds nothing ungated; if master moved in between, the
+  agent merges master again and re-runs the gates — unless what moved on
+  master since the last gated state is clearly irrelevant (documentation
+  only, a script the gates do not run), in which case skip the gates, or the
+  gates the change cannot touch, to keep development velocity.  The gates
+  are not run a second time on master after the landing merge.  Landing then
+  finishes with
   `scripts/drop-worktree.sh <its worktree path>` — which removes exactly
   that worktree, its branch and its per-checkout scratch under `_tmp/`, and
   refuses a branch that is not merged.  Nothing sweeps
