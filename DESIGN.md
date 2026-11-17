@@ -73194,7 +73194,7 @@ own.  H256 is never more than 4 % above the chunk loop (at 5 000–10 000 digits
 1 % of the best base case from 15 000 digits on; H128 is 19 % worse at 3 000.
 
 **The proof** (`Refine2/Frontend/Scan/Str.lean`: **3 088 → 2 958 lines**, 133 → 127
-theorems; `ExportC.lean` +21 lines).  All new lemmas are partial correctness by
+theorems; `ExportC.lean` +32 lines).  All new lemmas are partial correctness by
 `partial_induct` (task #99-PFIX), with no fuel and no index bound:
 * `read_chunks_val` is the old `from_decimal_refines` body (the chunk-loop proofs are
   unchanged).

@@ -1148,8 +1148,14 @@ private theorem read_split_wf (pows : alloc.vec.Vec ron.nat.Nat) :
   · rw [frontend.nat_decimal.read_chunks] at h
     obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     exact (ConRon.Refine.Nat.norm_refines h).2
-  · simp only [ConRon.Refine.bind_eq_ok_iff] at h
-    obtain ⟨_, -, _, -, _, -, _, -, _, -, _, -, _, -, _, -, h⟩ := h
+  · obtain ⟨⟨t, d⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨m, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨s0, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hi, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨lo, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨p, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨sh, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     exact (ConRon.Refine.Nat.add_refines h).2
 
 /-- `nat_decimal::from_decimal` returns `ron::nat`'s own normal form, because
