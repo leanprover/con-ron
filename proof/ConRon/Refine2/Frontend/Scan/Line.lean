@@ -2262,7 +2262,7 @@ private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
         next_member_ge (b.length - i.val) i w k ks v ni nw (le_refl _) hres
       have hib : i.val < b.length := next_member_lt hres
       cases k <;> simp only [absKey]
-      all_goals (try dsimp only at h)
+      all_goals (dsimp only at h)
       all_goals
         (try (rw [err_val h]; exact ScanSim.err (ScanErrSim.mk rfl (by simp))))
       case KIn =>
@@ -3236,7 +3236,7 @@ theorem scan_line_fwd_refines {b : Slice Std.U8} (hu : Utf8DecodeSpec) (hun : Un
     rw [ite_eq_left (blit_eq 10 rfl h10)]
     obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
     rw [← Result.ok_injective h]
-    exact ScanSim.ok (by rw [absPos_add_one hi2]; try rfl)
+    exact ScanSim.ok (by rw [absPos_add_one hi2]; rfl)
   · rw [ite_eq_right h10] at h
     rw [ite_eq_right (blit_ne 10 rfl h10)]
     by_cases hend : Slice.len b ≤ s

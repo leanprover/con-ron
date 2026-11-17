@@ -346,9 +346,8 @@ theorem instantiate_list_aux (n : Nat) :
     lockstep
     -- the re-entry at the shorter live count: the range record the Rust
     -- builds is the twin's three arguments
-    all_goals
-      convert ih _ _ _ _ ?_ ‹_› ‹_› using 3
-      all_goals first | scalar_tac | (simp only [absSz]; scalar_tac) | (congr 1; scalar_tac)
+    convert ih _ _ _ _ ?_ ‹_› ‹_› using 3
+    all_goals first | scalar_tac | (simp only [absSz]; scalar_tac) | (congr 1; scalar_tac)
 
 @[lockstep] theorem instantiate_list_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (rg : arena.expr_ops.InstRange) (fuel : Std.U64) (h : arena.handle.EIdx) (d : Std.U64) :

@@ -73270,3 +73270,91 @@ to elaborate it, and lean4export a few minutes.  No OVERVIEW perf edit.
 main tree has no `proof/.lake/build`, so this worktree built everything from the
 already-populated `_tmp/aeneas-lean-v4.35.0/.lake/packages`.  The cache was not seeded
 (that is a write to shared state, and this branch's `Generated/Funs.lean` is not master's).
+
+### Task #161 — con-leche sync 600d3b58 → cd2eceab: toolchain v4.36.0, a literal's hash reads all its bits (2026-11-17, Opus)
+
+con-leche goes from `600d3b58` to **`cd2eceab`** (15 commits) and the toolchain from v4.35.0
+to **v4.36.0** (the start script's toolchain-move path: `_tmp/aeneas-lean-v4.36.0`, Mathlib
+`v4.36.0`).
+
+| upstream | what it did | here |
+|---|---|---|
+| #594 | the whitepaper's application and lambda rules on values | proof-internal, **not ported** |
+| #598 | `Literal.hash` replaces the derived `Hashable`: `natHash` is lean4#16146's hash (the number below `2^64`, all 64-bit words `mixHash`ed above), the words read by vendored C (`native/nat_hash.c`, `natBigHash`); `lakefile.toml` → `lakefile.lean`; e2e fixture `lit_hash_low_bits` | **citation only**: `expr::literal_hash` cites `Literal.hash`; `natHash`, `natHashWordBound`, `natBigHash` skipped (below) |
+| #599 | the lean4-master pin variant renamed after nightly-2026-11-16 | `scripts/gen-pins.sh`: the first `S` record's label, DAG byte-identical; the decoder test names it |
+| #604 | toolchain v4.36.0: `ptrDecEq` takes the pointer test and its equation (`withPtrEq` only at concrete types); `refBase` `@[noinline]`; the prelude file renamed | prelude regenerated (`gen-prelude{,-lean}`: the meta line); `ptrDecEq` callers and `refBase`: citations only |
+
+**#598 is a bug con-ron never had.**  lean4#15686 is `Hashable Nat` reading only the low 64 bits,
+so literals that agree there share a bucket.  `nat::hash64` is FNV-1a over every limb (task #3),
+so con-ron's literal hash already reads all bits; the hash is a free function of the value
+(§3.2), so the port keeps it, and keeps the constructor index mixed in, as the deviation on
+`literal_hash` says.  The C exists upstream only because Lean has no word access to a big
+`Nat`; con-ron's bignum is its limb vector.  `diff-e2e` with master's binary at the new pin was
+already 748/748, `lit_hash_low_bits` included.  The upstream `lakefile.lean` is no obstacle to a
+lake dependency: `lake update` resolves it, and the native object reaches our executables (the
+pin dumper links and runs).
+
+**The Aeneas library on v4.36.0.**  Mathlib PR 41506 made `Set` a structure, so Aeneas's four
+`ScalarTac` lemmas `Set.mem_{insert,singleton}_{nat,int}` (`… x s y ↔ … s y`) no longer
+elaborate.  `patches/aeneas.patch` takes Aeneas's own fix (AeneasVerif/aeneas#1547, `0d21a9ec`:
+`(…).Mem y`), the one hunk of that PR that applies to the pinned `557eff83` (its
+`BvEnumToBitVec` hunk patches code the pinned Aeneas does not have, and `LeanKeywords.ml` is the
+extractor, which the flake pins).  The library then builds (3 568 jobs).
+
+**Theorem 1 under `vcgen`'s per-conjunct VCs (lean4#15487).**  v4.36.0's `vcgen` proves a
+post's conjuncts one goal at a time — upstream's #604 met it in its memo-hit lemmas.  A lemma
+whose `grind` trigger lives in one conjunct then no longer fires in the others' goals:
+* `EStore.internBind_spec` (`Bridge/StoreBind.lean`): `grind`'s own trigger was the first
+  conjunct's `StoreWF (st.internBind …).1`; a `grind_pattern` on the store call
+  `st.internBind tag ty b` (every conjunct names it) replaces it, and the two binder specs in
+  `Bridge/Specs.lean` pass the plain lemma (`grind` discharges `htag`).
+* `fvarLeavesGo_spec` (`Bridge/ExprOps/Leaves.lean`): the `SeenGrow` conjunct needs the
+  node's `BlackA`, which `LeavesEq.black` derived from the node's `LeavesEq` — the step
+  lemmas were keyed by that conclusion, which is now another goal.  Each step (and
+  `of_leafV`) gets a second, forward pattern: the node's `BlackA` (the premise of
+  `drop_insert`/`insert_black`, in the E-graph once they are instantiated) with its children's
+  answers.  Upstream split its lemmas instead; here no statement changed.
+* `instLPGo_specS` (`Bridge/ExprOps/Owed.lean`): the `letE` arm's `RelE` goal (three
+  children, the intern and the memo insert) reaches `finish`'s default term generation 8;
+  `finish (gen := 16)` there, with the reason at the call (the precedent is
+  `Walks/Former.lean`).
+* The tactic-style proofs that ended in `vcgen; subst_vars; exact ⟨c₁, …, cₙ⟩` (one anonymous
+  constructor over the whole post): v4.36.0's `vcgen` discharges a conjunct that is `True` or
+  a definitional equation itself (`cleanupVC`), splits the rest where its `solve` splits
+  (`CheckOK` is often a goal of its own), and recombines what one VC leaves, so the goals are
+  some partition of the non-trivial conjuncts that differs from site to site.  Each failing
+  site (`ExprOps/{MemoSpecs,Abs,Owed}.lean`: 6, `Walks/BetaSpine.lean`: 5,
+  `Walks/InferSpine.lean`: 1, `Arms/WhnfCore.lean`: 8) is now `vcgen <;> subst_vars` and
+  `all_goals first | …` over the components and their contiguous runs, each alternative a
+  whole proof of the goal it closes (no positional addressing); a component that read a
+  post-`vcgen` hypothesis (`hna`, `hnc`) is proved before `vcgen`; where `vcgen` introduced a
+  contradictory `none = some x`, `simp_all`.  Two sites of `BetaSpine` keep their bullets (the
+  rest comes back as one conjunction): only the `rfl` components left their constructor.  The
+  sites that still build on v4.36.0 are untouched (a first, mechanical pass over every such
+  site broke working ones and was reverted).  These hand proofs are candidates for the
+  `sym => vcgen <;> finish` shape (task #123), which does not care how the post is split.
+
+**Theorem 2: v4.36.0's linters.**  The unused-tactic linter flags 118 sites in 25 files of
+`Refine2/`: 79 "`try` can be removed", 37 "`all_goals` can be removed", 2 "there are no goals
+left for `all_goals`".  The first two name a redundant COMBINATOR, not a dead step: the `try`'s
+tactic always succeeds, the `all_goals` runs on one goal.  So the fix strips the combinator and
+keeps its tactic (`try X` → `X`; `all_goals X` → `X`; a block `all_goals` loses its header and
+is dedented; `decreasing_by all_goals omega` → `decreasing_by omega`), by `lean --json`
+positions.  **The exception is the linter's own blind spot**: it judges each RUN of a tactic,
+so under an outer `all_goals` whose goals have different shapes it flags a nested combinator
+that is one-goal in some arms, empty in others and needed in a third.  That is the case of the
+two "no goals left" sites and their sibling blocks (`Core/LS/ProjGuard.lean`'s
+`hasLooseBVar{B,In}Go_succ_split`: deleting the "dead" block leaves `letE` unsolved, and every
+`<;>` respelling is flagged in turn); those two theorems keep HEAD's text under
+`set_option linter.unusedTactic false in`, with the reason at the declaration.  (Read as "the step does nothing", deleting the steps broke
+`Refine2/Specs.lean`'s `estore_intern_bvar_abs` — without its `simp only [Aeneas.Std.uncurry]
+at h` and `dsimp only at h` the next `split at h` meets `let (self1, hit) := (rs, none)` — and
+`ExprOps/Mut.lean`'s re-entry `convert`; that reading is the one to avoid.)
+`Refine/Abs.lean`'s `#allow_unused_tactic!` is deprecated: `allow_unused_tactic`, which it
+expanded to.  No statement changed.
+
+**Findings.**  `update --auto`: 160 findings (140 `changed`, 20 `deleted`), all citation-only
+after reading upstream: 128 the prelude chunks (the generators clear them), 20 the pin set's
+`#load_natop_pins` (the interning loops are count-independent, as in #153), 7 `ptrDecEq`
+callers, `Literal`'s four, `refBase`.  **0 markers at the end**; coverage 1137/1189 at the old
+pin, 1138/1190 at the new (52 uncovered either way; 165 skips).

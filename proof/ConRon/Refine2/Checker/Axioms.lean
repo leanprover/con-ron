@@ -697,7 +697,7 @@ theorem of_reduce_op_refines {pers st lst} {n : arena.handle.NIdx} {o}
       (ofReduceOp (absNIdx n)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.trust_axioms.of_reduce_op]
-  try unfold ofReduceOp
+  unfold ofReduceOp
   lockstep
 
 open Lockstep in
@@ -790,7 +790,7 @@ theorem reduce_elem_name_refines {pers st lst} {c : arena.handle.NIdx} {o}
       (reduceElemName (absNIdx c)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.trust_axioms.reduce_elem_name]
-  try unfold reduceElemName
+  unfold reduceElemName
   lockstep
 
 open Lockstep in
@@ -811,7 +811,7 @@ theorem reduce_elem_ty_refines {pers st lst} {c : arena.handle.NIdx} {o}
       (reduceElemTy (absNIdx c)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.trust_axioms.reduce_elem_ty]
-  try unfold reduceElemTy
+  unfold reduceElemTy
   lockstep
 
 open Lockstep in
@@ -908,7 +908,7 @@ theorem reduce_op_cv_a_refines {pers st lst} {c : arena.handle.NIdx} {o}
       (reduceOpCvA (absNIdx c)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.trust_axioms.reduce_op_cv_a]
-  try unfold reduceOpCvA
+  unfold reduceOpCvA
   lockstep
 
 open Lockstep in
@@ -929,7 +929,7 @@ theorem of_reduce_pin_a_refines {pers st lst} {n : arena.handle.NIdx} {o}
       (ofReducePinA (absNIdx n)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.trust_axioms.of_reduce_pin_a]
-  try unfold ofReducePinA
+  unfold ofReducePinA
   lockstep
 
 open Lockstep in
@@ -986,7 +986,7 @@ theorem reduce_decl_pin_refines {pers st lst} {c : arena.handle.NIdx} {o}
       (reduceDeclPin (absNIdx c)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.trust_axioms.reduce_decl_pin]
-  try unfold reduceDeclPin
+  unfold reduceDeclPin
   lockstep
 
 open Lockstep in
@@ -1007,7 +1007,7 @@ theorem reduce_cert_var_refines {pers st lst} {c : arena.handle.NIdx} {o}
       (reduceCertVar (absNIdx c)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.trust_axioms.reduce_cert_var]
-  try unfold reduceCertVar
+  unfold reduceCertVar
   lockstep
 
 open Lockstep in

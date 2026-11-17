@@ -341,13 +341,12 @@ attribute [lockstep_inline] arena.core.major_to_ctor_certs
       (arena.core.former_z pers st cvt) lst (formerZ (absIConstantVal cvt)) := by
   rw [arena.core.former_z, formerZ]
   lockstep_c2
-  all_goals
-    intro o st' h
-    cases Result.ok_injective h
-    exact ⟨_, _, rfl,
-      ⟨ConRon.Refine.PropWhen.if_all_zero_wf (fun _ hm => by simp [alloc.vec.Vec.new] at hm) hf,
-        by rw [ConRon.Refine.PropWhen.if_all_zero_refines hf]; simp [ConRon.Refine.absNames,
-          alloc.vec.Vec.new]⟩, hrel, hinv⟩
+  intro o st' h
+  cases Result.ok_injective h
+  exact ⟨_, _, rfl,
+    ⟨ConRon.Refine.PropWhen.if_all_zero_wf (fun _ hm => by simp [alloc.vec.Vec.new] at hm) hf,
+      by rw [ConRon.Refine.PropWhen.if_all_zero_refines hf]; simp [ConRon.Refine.absNames,
+        alloc.vec.Vec.new]⟩, hrel, hinv⟩
 
 /-- `former_never_zero` ⊑ `formerNeverZero`: the stored datum at the use's levels. -/
 @[lockstep] theorem former_never_zero_ls {pers st cvt us lst}
@@ -654,7 +653,7 @@ attribute [lockstep_inline] arena.core.prepare_major_whnf
   apply LSR.of_LS
   rw [arena.core.is_nat_succ_app, isNatSuccApp]
   lockstep_c2
-  all_goals (simp only [Bool.true_and, beq_eq_decide]; lockstep_c2)
+  (simp only [Bool.true_and, beq_eq_decide]; lockstep_c2)
 
 set_option maxHeartbeats 0 in
 @[lockstep] theorem prepare_major_ls {f : Nat} (hk : KnotRel f)

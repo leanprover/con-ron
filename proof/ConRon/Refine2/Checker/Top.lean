@@ -227,7 +227,7 @@ theorem check_axiom_decl_rest_refines {pers st lst} {rf lf}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.check_decl.check_axiom_decl_rest]
-  try unfold checkAxiomDeclRestSpec
+  unfold checkAxiomDeclRestSpec
   lockstep
 
 open Lockstep in
@@ -367,7 +367,7 @@ theorem check_ind_decl_refines {pers st lst} {rf lf}
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.check_decl.check_ind_decl, checkIndDeclArmSpec]
   lockstep
-  all_goals exact LS_fail_absACheckError _
+  exact LS_fail_absACheckError _
 
 /-- **`check_axiom_decl` ⊑ `checkDecl`'s `.axiomDecl` arm**. -/
 theorem check_axiom_decl_refines {pers st lst} {rf lf}
@@ -790,7 +790,7 @@ theorem check_decl_refines {pers st lst} {rf lf}
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.check_decl.check_decl, checkDecl]
   lockstep
-  all_goals exact LS_fail_absACheckError _
+  exact LS_fail_absACheckError _
 
 /-! ## The error tag and the startup walk -/
 

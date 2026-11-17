@@ -277,9 +277,12 @@ theorem abs1Set_specA (f : Nat → Expr → Expr) (s₀ : AState) (h : EIdx) (c 
     ⦃fun s => s = s₀⦄ abs1Set (h, c) r
     ⦃fun _u s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧ MemoOK f s'.memos.abs1C s'.store; ⊤⦄ := by
-  vcgen [abs1Set]
-  subst_vars
-  exact ⟨rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
+  vcgen [abs1Set] <;> subst_vars
+  all_goals first
+    | exact rfl
+    | exact MemoOK.insert hm rfl hk hr
+    | exact ⟨rfl, rfl, MemoOK.insert hm rfl hk hr⟩
+    | exact ⟨rfl, MemoOK.insert hm rfl hk hr⟩
 
 /-! ## `fvarB`, as a hypothesis (see the module header)
 

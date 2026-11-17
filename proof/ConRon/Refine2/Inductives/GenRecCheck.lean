@@ -260,7 +260,7 @@ attribute [local lockstep_simp] Option.getD_some Option.getD_none
     rw [arena.inductives.gen_rec.class_nodes_agree.eq_def,
       ite_eq_right (show ¬ j ≥ alloc.vec.Vec.len es by scalar_tac), classNodesAgree]
     lockstep
-    all_goals simp [TwinEq, absEIdxL, alloc.vec.Vec.new] at hP
+    simp [TwinEq, absEIdxL, alloc.vec.Vec.new] at hP
 
 set_option maxHeartbeats 1000000 in
 theorem class_fields_of_acc {pers st} (p : arena.inductives.block_shape.BlockShape)
@@ -291,9 +291,8 @@ theorem class_fields_of_acc {pers st} (p : arena.inductives.block_shape.BlockSha
     all_goals
       refine LS.pure ?_ ‹_› ‹_›
       simp_all [absClassField, absBinderL]
-    all_goals
-      rw [List.getElem?_eq_getElem (show 0 < _ from ‹(0#usize : Std.Usize).val < _›)]
-      rfl
+    rw [List.getElem?_eq_getElem (show 0 < _ from ‹(0#usize : Std.Usize).val < _›)]
+    rfl
 
 /-- `class_fields_of` from field `0` into `Vec::new()` ⊑ `classFieldsOf … 0`. -/
 @[lockstep] theorem class_fields_of_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -406,15 +405,13 @@ attribute [local lockstep high] rc_ctors_dup_spec
     rcases hes : (‹alloc.vec.Vec arena.inductives.positivity.NestCtorNf›).val with _ | ⟨e0, tl⟩
     all_goals simp only [hes, List.map_nil, List.map_cons, Lockstep.usize_zero_val', List.getElem_cons_zero]
   all_goals first | (exfalso; simp_all [alloc.vec.Vec.len]; done) | lockstep
-  all_goals
-    have hd := ‹List.map absNestCtorNf _ = _ :: _›
-    rw [hes, List.map_cons, List.cons.injEq] at hd
-    obtain ⟨rfl, rfl⟩ := hd
-    lockstep
-  all_goals
-    refine LS.pure ?_ ‹_› ‹_›
-    simp only [absClassCtor, ‹absIConstantVal _ = absIConstantVal _›]
-    rfl
+  have hd := ‹List.map absNestCtorNf _ = _ :: _›
+  rw [hes, List.map_cons, List.cons.injEq] at hd
+  obtain ⟨rfl, rfl⟩ := hd
+  lockstep
+  refine LS.pure ?_ ‹_› ‹_›
+  simp only [absClassCtor, ‹absIConstantVal _ = absIConstantVal _›]
+  rfl
 
 def absClassCtorL (v : alloc.vec.Vec arena.inductives.gen_rec.ClassCtor) : List ClassCtor :=
   v.val.map absClassCtor

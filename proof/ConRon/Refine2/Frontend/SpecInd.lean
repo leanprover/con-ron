@@ -261,9 +261,9 @@ theorem recStepD_eq (st : StateD) (fuel : Nat) (tyNames : List NIdx) (tyTypes : 
   simp only [bind_assoc, pure_bind, ite_bind']
   split_ifs
   all_goals try simp only
-  all_goals try refine bind_congr fun v => ?_
-  all_goals try split
-  all_goals try simp only [bind_assoc, pure_bind]
-  all_goals exact bind_congr fun x => by rcases x with ⟨_ | _, _⟩ <;> rfl
+  refine bind_congr fun v => ?_
+  split
+  all_goals simp only [bind_assoc, pure_bind]
+  exact bind_congr fun x => by rcases x with ⟨_ | _, _⟩ <;> rfl
 
 end ConRon.Refine2.Frontend

@@ -158,7 +158,7 @@ theorem level_list_beq_refines {a b : alloc.vec.Vec kernel.level.Level}
         ite_eq_left (show i ≥ alloc.vec.Vec.len a by scalar_tac), Result.ok.injEq] at h
       subst h
       rw [List.drop_eq_getElem_cons (Nat.lt_of_not_le hbl)]; simp
-      all_goals exact Nat.lt_of_not_le hbl
+      exact Nat.lt_of_not_le hbl
   | succ k ih =>
     intro i o hk h
     rw [arena.basis.level_list_beq.eq_def] at h; simp only [] at h
@@ -173,7 +173,7 @@ theorem level_list_beq_refines {a b : alloc.vec.Vec kernel.level.Level}
           ite_eq_left (show i ≥ alloc.vec.Vec.len a by scalar_tac), Result.ok.injEq] at h
         subst h
         rw [List.drop_eq_getElem_cons (Nat.lt_of_not_le hbl)]; simp
-        all_goals exact Nat.lt_of_not_le hbl
+        exact Nat.lt_of_not_le hbl
     · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len a by scalar_tac),
         ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
       have hla : i.val < a.val.length := Nat.lt_of_not_le hal
@@ -181,7 +181,7 @@ theorem level_list_beq_refines {a b : alloc.vec.Vec kernel.level.Level}
       · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len b by scalar_tac), Result.ok.injEq] at h
         subst h
         rw [List.drop_eq_nil_of_le hbl, List.drop_eq_getElem_cons hla]; simp
-        all_goals exact hla
+        exact hla
       · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len b by scalar_tac)] at h
         have hlb : i.val < b.val.length := Nat.lt_of_not_le hbl
         obtain ⟨x, hx, hxv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec a i hla)

@@ -86,7 +86,7 @@ open Lean Meta Elab Tactic in
     throwError "rust_bind_guard: not a bind{indentExpr l}"
 
 -- a guard changes no goal by design (it only fails)
-#allow_unused_tactic! ConRon.Refine.rustBindGuard
+allow_unused_tactic ConRon.Refine.rustBindGuard
 
 @[simp] theorem lift_eq {α : Type} (x : α) : Aeneas.Std.lift x = ok x := rfl
 
