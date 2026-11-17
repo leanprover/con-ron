@@ -73092,7 +73092,7 @@ Karatsuba node's overhead (five zeroed temporaries, six in-place passes, three `
 is checked Rust; the schoolbook row costs ~16 instructions per limb product (bounds and
 overflow checks included).
 
-**The proof** (`Refine/Nat.lean`: **2 552 → 3 061 lines**, 109 → 129 theorems; Rust before
+**The proof** (`Refine/Nat.lean`: **2 552 → 3 056 lines**, 109 → 129 theorems; Rust before
 `mod tests` 794 → 966 lines).  Every new loop and `mul_win` itself is proved by its
 `fixpoint_induct` (`partial_induct`, task #99-PFIX): partial correctness, so no fuel, no
 measure, and **no index bound anywhere** — an out-of-range index is a `fail`, about which an
@@ -73100,8 +73100,8 @@ measure, and **no index bound anywhere** — an out-of-range index is a `fail`, 
 Karatsuba's strong induction on `|a| + |b|` (the plan's fallback) was not needed.  The
 vocabulary: `limbsToNat_set` (writing limb `j` moves the value by the difference times
 `2^(64 j)`), `seg_split` (a window is its two halves), `sig_len_full`, `split128`/
-`shl64_val`/`cast128_val`/`cast64_val` for the `u128` words, `index_mut_eq_ok_iff`, and
-`with_capacity_eq`.  Each loop's value invariant is additive (`value(final) + carry·P_j =
+`shl64_val`/`cast128_val`/`cast64_val` for the `u128` words, and `index_mut_eq_ok_iff`
+(`Vec::with_capacity` is unfolded by its own definition, `Vec.new`).  Each loop's value invariant is additive (`value(final) + carry·P_j =
 value(o) + …`, the subtraction loops with the subtrahend on the left), so no truncated
 subtraction appears.  `mul_row`'s and `add_carry_at`'s steps close by `grind`;
 `sub_borrow_at`'s by `nlinarith` over the word equation scaled by `2^(64 j)`, and `sub_row`'s
@@ -73115,7 +73115,9 @@ replacing that `nlinarith` by `grind` shows it.  Karatsuba's identity is one `ca
 `match` on a pair that `simp`/`dsimp` do not reduce even after the pair is a constructor;
 `bind_eq_ok_iff.mp h` goes through it by defeq (as in `ConsMap.lean`).
 `Refine2/Frontend/Scan/Str.lean`'s `norm_ok` follows `norm`'s `resize` (its private
-`copy_from_ok` is gone).  `#print axioms` guard extended to `mul_refines` and
+`copy_from_ok` is gone).  `nat_lor_eq` lost its one term-level use (`lor_one_of_even`, gone
+with `dm_bits`) and is now used only as an `rfl` lemma in `simp only` sets, the dead census's
+blind spot, so it is in `scripts/dead-census-allow.txt`.  `#print axioms` guard extended to `mul_refines` and
 `div_mod_refines`.
 
 **Measurements** (`perf stat -e instructions:u`, one run per side, `--jobs=1`):
