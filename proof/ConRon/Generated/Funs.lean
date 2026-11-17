@@ -69895,8 +69895,37 @@ def kernel.expr.literal_str
   let a ← ron.ptr.new s
   ok (kernel.expr.Literal.StrVal a)
 
+/-- [con_ron_core::frontend::nat_decimal::CHUNK_DIGITS]
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 38:0-38:31 -/
+@[global_simps, irreducible]
+def frontend.nat_decimal.CHUNK_DIGITS : Std.Usize := 19#usize
+
+/-- [con_ron_core::frontend::nat_decimal::split_level]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 165:4-168:5 -/
+@[rust_loop]
+def frontend.nat_decimal.split_level_loop
+  (len : Std.Usize) (d : Std.Usize) (t : Std.Usize) :
+  Result (Std.Usize × Std.Usize)
+  := do
+  let i ← d + d
+  let i1 ← len - d
+  let i2 ← i1 - d
+  if i <= i2
+  then let t1 ← t + 1#usize
+       frontend.nat_decimal.split_level_loop len i t1
+  else ok (t, d)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_decimal::split_level]:
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 162:0-170:1 -/
+@[reducible]
+def frontend.nat_decimal.split_level
+  (len : Std.Usize) : Result (Std.Usize × Std.Usize) := do
+  frontend.nat_decimal.split_level_loop len frontend.nat_decimal.CHUNK_DIGITS
+    0#usize
+
 /-- [con_ron_core::frontend::nat_decimal::mul_add_small]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 45:4-51:5 -/
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 55:4-61:5 -/
 @[rust_loop]
 def frontend.nat_decimal.mul_add_small_loop
   (limbs : alloc.vec.Vec Std.U64) (m : Std.U64) (n : Std.Usize)
@@ -69923,7 +69952,7 @@ def frontend.nat_decimal.mul_add_small_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::nat_decimal::mul_add_small]:
-    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 40:0-56:1 -/
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 50:0-66:1 -/
 def frontend.nat_decimal.mul_add_small
   (limbs : alloc.vec.Vec Std.U64) (m : Std.U64) (a : Std.U64) :
   Result (alloc.vec.Vec Std.U64)
@@ -69937,13 +69966,8 @@ def frontend.nat_decimal.mul_add_small
   then alloc.vec.Vec.push out1 carry
   else ok out1
 
-/-- [con_ron_core::frontend::nat_decimal::CHUNK_DIGITS]
-    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 33:0-33:31 -/
-@[global_simps, irreducible]
-def frontend.nat_decimal.CHUNK_DIGITS : Std.Usize := 19#usize
-
 /-- [con_ron_core::frontend::nat_decimal::from_decimal_go]: loop 1:
-    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 106:8-110:9 -/
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 124:8-128:9 -/
 @[rust_loop]
 def frontend.nat_decimal.from_decimal_go_loop0_loop0
   (digits : Slice Std.U8) (i : Std.Usize) (k : Std.Usize) (chunk : Std.U64)
@@ -69965,7 +69989,7 @@ def frontend.nat_decimal.from_decimal_go_loop0_loop0
 partial_fixpoint
 
 /-- [con_ron_core::frontend::nat_decimal::from_decimal_go]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 98:4-113:5 -/
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 116:4-131:5 -/
 @[rust_loop]
 def frontend.nat_decimal.from_decimal_go_loop0
   (digits : Slice Std.U8) (n : Std.Usize) (limbs : alloc.vec.Vec Std.U64)
@@ -69989,7 +70013,7 @@ def frontend.nat_decimal.from_decimal_go_loop0
 partial_fixpoint
 
 /-- [con_ron_core::frontend::nat_decimal::from_decimal_go]:
-    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 94:0-115:1 -/
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 112:0-133:1 -/
 def frontend.nat_decimal.from_decimal_go
   (digits : Slice Std.U8) (start : Std.Usize) (acc : alloc.vec.Vec Std.U64) :
   Result (alloc.vec.Vec Std.U64)
@@ -69997,8 +70021,81 @@ def frontend.nat_decimal.from_decimal_go
   let n := Slice.len digits
   frontend.nat_decimal.from_decimal_go_loop0 digits n acc start
 
+/-- [con_ron_core::frontend::nat_decimal::read_chunks]:
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 137:0-139:1 -/
+def frontend.nat_decimal.read_chunks
+  (digits : Slice Std.U8) : Result ron.nat.Nat := do
+  let v ←
+    frontend.nat_decimal.from_decimal_go digits 0#usize (alloc.vec.Vec.new
+      Std.U64)
+  ron.nat.norm v
+
+/-- [con_ron_core::frontend::nat_decimal::BASE_DIGITS]
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 43:0-43:32 -/
+@[global_simps, irreducible]
+def frontend.nat_decimal.BASE_DIGITS : Std.Usize := 4864#usize
+
+/-- [con_ron_core::frontend::nat_decimal::read_split]:
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 183:0-195:1 -/
+def frontend.nat_decimal.read_split
+  (digits : Slice Std.U8) (pows : alloc.vec.Vec ron.nat.Nat) :
+  Result ron.nat.Nat
+  := do
+  let len := Slice.len digits
+  if len <= frontend.nat_decimal.BASE_DIGITS
+  then frontend.nat_decimal.read_chunks digits
+  else
+    let (t, d) ← frontend.nat_decimal.split_level len
+    let m ← len - d
+    let s ←
+      core.slice.index.Slice.index (core.slice.index.SliceIndexRangeUsizeSlice
+        Std.U8) digits { start := 0#usize, «end» := m }
+    let hi ← frontend.nat_decimal.read_split s pows
+    let s1 ←
+      core.slice.index.Slice.index (core.slice.index.SliceIndexRangeUsizeSlice
+        Std.U8) digits { start := m, «end» := len }
+    let lo ← frontend.nat_decimal.read_split s1 pows
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice ron.nat.Nat)
+        pows t
+    let shifted ← ron.nat.mul hi n
+    ron.nat.add shifted lo
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_decimal::power_table]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 150:4-155:5 -/
+@[rust_loop]
+def frontend.nat_decimal.power_table_loop
+  (n : Std.Usize) (pows : alloc.vec.Vec ron.nat.Nat) (d : Std.Usize)
+  (t : Std.Usize) :
+  Result (alloc.vec.Vec ron.nat.Nat)
+  := do
+  let i ← d + d
+  let i1 ← n - d
+  let i2 ← i1 - d
+  if i <= i2
+  then
+    let n1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice ron.nat.Nat)
+        pows t
+    let sq ← ron.nat.mul n1 n1
+    let pows1 ← alloc.vec.Vec.push pows sq
+    let t1 ← t + 1#usize
+    frontend.nat_decimal.power_table_loop n pows1 i t1
+  else ok pows
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_decimal::power_table]:
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 145:0-157:1 -/
+def frontend.nat_decimal.power_table
+  (n : Std.Usize) : Result (alloc.vec.Vec ron.nat.Nat) := do
+  let n1 ← ron.nat.from_u64 10000000000000000000#u64
+  let pows ← alloc.vec.Vec.push (alloc.vec.Vec.new ron.nat.Nat) n1
+  frontend.nat_decimal.power_table_loop n pows
+    frontend.nat_decimal.CHUNK_DIGITS 0#usize
+
 /-- [con_ron_core::frontend::nat_decimal::all_digits]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 81:4-89:1 -/
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 99:4-107:1 -/
 @[rust_loop]
 def frontend.nat_decimal.all_digits_loop
   (digits : Slice Std.U8) (n : Std.Usize) (i : Std.Usize) : Result Bool := do
@@ -70017,13 +70114,13 @@ def frontend.nat_decimal.all_digits_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::nat_decimal::all_digits]:
-    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 78:0-89:1 -/
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 96:0-107:1 -/
 def frontend.nat_decimal.all_digits (digits : Slice Std.U8) : Result Bool := do
   let n := Slice.len digits
   frontend.nat_decimal.all_digits_loop digits n 0#usize
 
 /-- [con_ron_core::frontend::nat_decimal::from_decimal]:
-    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 63:0-72:1
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 75:0-90:1
     Visibility: public -/
 def frontend.nat_decimal.from_decimal
   (digits : Slice Std.U8) : Result (Option ron.nat.Nat) := do
@@ -70034,11 +70131,14 @@ def frontend.nat_decimal.from_decimal
     let b ← frontend.nat_decimal.all_digits digits
     if b
     then
-      let v ←
-        frontend.nat_decimal.from_decimal_go digits 0#usize (alloc.vec.Vec.new
-          Std.U64)
-      let n ← ron.nat.norm v
-      ok (some n)
+      let n := Slice.len digits
+      if n <= frontend.nat_decimal.BASE_DIGITS
+      then let n1 ← frontend.nat_decimal.read_chunks digits
+           ok (some n1)
+      else
+        let pows ← frontend.nat_decimal.power_table n
+        let n1 ← frontend.nat_decimal.read_split digits pows
+        ok (some n1)
     else ok none
 
 /-- [con_ron_core::frontend::export_c::parse_expr_rec_d]:
