@@ -37,7 +37,7 @@ open ConRon.Generated
 namespace ConRon.Refine2.Frontend
 
 /-- **`NatValSpec` from the scanner's digit fact** (moved from
-`RefineOld/Frontend/StateDR.lean`): `from_decimal_ok` rules out the `none` arm
+`RefineOld/Frontend/StateDR.lean`): `from_decimal_some` rules out the `none` arm
 and `from_decimal_refines` gives the value. -/
 theorem natValSpec_of_digits {r : frontend.scan_types.ExprRec}
     (h : ExprDigits r) : NatValSpec r := by
@@ -45,11 +45,10 @@ theorem natValSpec_of_digits {r : frontend.scan_types.ExprRec}
   subst hr
   simp only [ExprDigits] at h
   have hval : (alloc.vec.Vec.deref ds).val = ds.val := Slice.from_val _ _
-  obtain ⟨n, hn⟩ := from_decimal_ok (ds := alloc.vec.Vec.deref ds)
-    (by rw [hval]; exact h.1) (by rw [hval]; exact h.2)
-  rw [hn] at ho
-  refine ⟨n, (Result.ok_injective ho).symm, ?_⟩
-  rw [(from_decimal_refines hn).1, natOfDigits_eq, hval]
+  obtain ⟨n, rfl⟩ := from_decimal_some (ds := alloc.vec.Vec.deref ds)
+    (by rw [hval]; exact h.1) (by rw [hval]; exact h.2) ho
+  refine ⟨n, rfl, ?_⟩
+  rw [(from_decimal_refines ho).1, natOfDigits_eq, hval]
 
 /-- **The scanner seam, discharged.** -/
 theorem scanSpec : ScanSpec where

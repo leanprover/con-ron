@@ -1135,8 +1135,26 @@ theorem expr_intern_tail {pers rst lst} {v : arena.store.ENodeView} {o}
     obtain ⟨e', rfl, hk⟩ := fail_refines hr2
     exact AErrSim.of_kind (Sim₀.apply_err hS) hk
 
+/-- `nat_decimal::read_split` returns `ron::nat`'s own normal form: its last
+step is `nat::norm` (the chunk loop) or `nat::add`. -/
+private theorem read_split_wf (pows : alloc.vec.Vec ron.nat.Nat) :
+    ∀ (s : Slice Std.U8) (n : ron.nat.Nat),
+      frontend.nat_decimal.read_split s pows = ok n → ConRon.Refine.Nat.NatWF n := by
+  partial_induct frontend.nat_decimal.read_split
+  intro g ih s n h
+  beta_reduce at h
+  dsimp only at h
+  split at h
+  · rw [frontend.nat_decimal.read_chunks] at h
+    obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact (ConRon.Refine.Nat.norm_refines h).2
+  · simp only [ConRon.Refine.bind_eq_ok_iff] at h
+    obtain ⟨_, -, _, -, _, -, _, -, _, -, _, -, _, -, _, -, h⟩ := h
+    exact (ConRon.Refine.Nat.add_refines h).2
+
 /-- `nat_decimal::from_decimal` returns `ron::nat`'s own normal form, because
-its last step is `nat::norm` (ported from `RefineOld/Frontend/Readers.lean`). -/
+its last step is `nat::norm` or `nat::add` (ported from
+`RefineOld/Frontend/Readers.lean`). -/
 theorem from_decimal_wf {s : Slice Std.U8} {n : ron.nat.Nat}
     (h : frontend.nat_decimal.from_decimal s = ok (some n)) : ConRon.Refine.Nat.NatWF n := by
   rw [frontend.nat_decimal.from_decimal] at h
@@ -1144,11 +1162,19 @@ theorem from_decimal_wf {s : Slice Std.U8} {n : ron.nat.Nat}
   · simp only [Result.ok.injEq, reduceCtorEq] at h
   · obtain ⟨b, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     split at h
-    · obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      simp only [Result.ok.injEq, Option.some.injEq] at h
-      subst h
-      exact (ConRon.Refine.Nat.norm_refines hm).2
+    · dsimp only at h
+      split at h
+      · obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        simp only [Result.ok.injEq, Option.some.injEq] at h
+        subst h
+        rw [frontend.nat_decimal.read_chunks] at hm
+        obtain ⟨v, -, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+        exact (ConRon.Refine.Nat.norm_refines hm).2
+      · obtain ⟨pows, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        simp only [Result.ok.injEq, Option.some.injEq] at h
+        subst h
+        exact read_split_wf pows s m hm
     · simp only [Result.ok.injEq, reduceCtorEq] at h
 
 theorem no_lit_wf {v : arena.store.ENodeView} (hv : ∀ l, v ≠ .Lit l) :
