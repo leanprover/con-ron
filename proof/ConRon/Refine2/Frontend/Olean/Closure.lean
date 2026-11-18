@@ -304,7 +304,7 @@ theorem closure_order_loop_eq (roots : alloc.vec.Vec arena.handle.NIdx)
     rw [e]
     simpa using hl
 termination_by i.val
-decreasing_by all_goals omega
+decreasing_by omega
 
 
 end ConRon.Refine2.Frontend.Olean

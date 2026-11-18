@@ -151,6 +151,10 @@ def hlbArmT (memo : Std.HashMap (EIdx × Nat) Bool) (i fuel : Nat) (h : EIdx)
     pure (hasLooseBVarBIns h i r)
   | some r => pure (r, memo)
 
+-- The unused-tactic linter reports each run of a tactic: under the outer `all_goals`,
+-- the inner `all_goals` blocks are one-goal in some constructor arms, empty in others and
+-- needed in `letE`, so every spelling is flagged in some arm (v4.36.0; task #161).
+set_option linter.unusedTactic false in
 /-- `hasLooseBVarBGo` at `fuel + 1` in the Rust's shape: the probe repeated in
 each recursing arm. -/
 theorem hasLooseBVarBGo_succ_split (memo : Std.HashMap (EIdx × Nat) Bool) (i fuel : Nat)
@@ -237,15 +241,14 @@ theorem has_loose_bvar_b_go_aux (n : Nat) :
     rw [arena.core.has_loose_bvar_b_go, hasLooseBVarBGo_succ_split]
     unfold arena.core.has_loose_bvar_b_node
     lockstep
-    all_goals
-      intro o st' hh
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hh)
-      refine ⟨_, _, rfl, ⟨_, hm, ?_⟩, by assumption, by assumption⟩
-      simp only [Prod.mk.injEq, and_true]
-      by_cases hij : i = ‹Std.U64›
-      · subst hij; simp
-      · have : (i : Std.U64).val ≠ (‹Std.U64› : Std.U64).val := fun hv => hij (UScalar.eq_of_val_eq hv)
-        simp [hij, this]
+    intro o st' hh
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hh)
+    refine ⟨_, _, rfl, ⟨_, hm, ?_⟩, by assumption, by assumption⟩
+    simp only [Prod.mk.injEq, and_true]
+    by_cases hij : i = ‹Std.U64›
+    · subst hij; simp
+    · have : (i : Std.U64).val ≠ (‹Std.U64› : Std.U64).val := fun hv => hij (UScalar.eq_of_val_eq hv)
+      simp [hij, this]
 
 end hlb
 
@@ -312,6 +315,10 @@ def hlbiArmT (memo : Std.HashMap (EIdx × Nat) Bool) (w d fuel : Nat) (h : EIdx)
     pure (hasLooseBVarBIns h d r)
   | some r => pure (r, memo)
 
+-- The unused-tactic linter reports each run of a tactic: under the outer `all_goals`,
+-- the inner `all_goals` blocks are one-goal in some constructor arms, empty in others and
+-- needed in `letE`, so every spelling is flagged in some arm (v4.36.0; task #161).
+set_option linter.unusedTactic false in
 /-- `hasLooseBVarInGo` at `fuel + 1` in the Rust's shape: the probe repeated in
 each recursing arm. -/
 theorem hasLooseBVarInGo_succ_split (memo : Std.HashMap (EIdx × Nat) Bool) (w d fuel : Nat)
@@ -553,19 +560,17 @@ theorem proj_guard_rows_go_aux (n : Nat) :
     subst hout hx
     rw [arena.core.proj_guard_rows_go, projGuardRowsGo]
     lockstep
-    all_goals
-      refine LS.pure ?_ ‹_› ‹_›
-      simp only [Option.map_some, absRows_push ‹_ = _ ++ _›]
+    refine LS.pure ?_ ‹_› ‹_›
+    simp only [Option.map_some, absRows_push ‹_ = _ ++ _›]
   | succ m ih =>
     intro pers st lst k d h out x lout hk hx hout hrel hinv
     subst hout hx
     rw [arena.core.proj_guard_rows_go, projGuardRowsGo]
     lockstep
-    all_goals
-      refine ih _ _ _ _ _ _ ?_ ?_ ?_ ‹_› ‹_›
-      all_goals first
-        | (simp only [absU] at *; scalar_tac)
-        | simp [absRows, absU, ‹_ = _ ++ _›]
+    refine ih _ _ _ _ _ _ ?_ ?_ ?_ ‹_› ‹_›
+    all_goals first
+      | (simp only [absU] at *; scalar_tac)
+      | simp [absRows, absU, ‹_ = _ ++ _›]
 
 /-- `proj_guard_rows_go` ⊑ `projGuardRowsGo`: the field loop of the official
 `infer_proj`, the rows in push order. -/
@@ -613,10 +618,9 @@ opening. -/
       (projGuardRowsAt (absIProjEntry entry) (absEIdxArr acc) (absEIdx r)) := by
   rw [arena.core.proj_guard_rows_at, projGuardRowsAt]
   lockstep
-  all_goals
-    refine LS.pure ?_ ‹_› ‹_›
-    simp only [Option.map_some, absRows_push ‹_ = _ ++ _›, Option.some.injEq]
-    simp [absRows, alloc.vec.Vec.new, absU, *]
+  refine LS.pure ?_ ‹_› ‹_›
+  simp only [Option.map_some, absRows_push ‹_ = _ ++ _›, Option.some.injEq]
+  simp [absRows, alloc.vec.Vec.new, absU, *]
 
 /-- `proj_guard_rows` ⊑ `projGuardRows`: what a `.proj` use on a structure that
 may be a proposition must show. -/

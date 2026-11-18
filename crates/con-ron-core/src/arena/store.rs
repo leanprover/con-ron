@@ -553,19 +553,19 @@ pub struct NStore {
 // Levels (`Store.lean:149-214`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Expr.lean:38-43 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:32-37 Level
 /// Lean twin: `proof/ConRon/Arena/Store.lean:155-159 ZeroNode` — the `zero`
 /// constructor, line 39.
 pub struct ZeroNode {}
 
-/// con-leche: ConLeche/Kernel/Expr.lean:38-43 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:32-37 Level
 /// Lean twin: `proof/ConRon/Arena/Store.lean:161-165 SuccNode` — the `succ`
 /// constructor, line 40.
 pub struct SuccNode {
     pub u: LIdx,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:38-43 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:32-37 Level
 /// Lean twin: `proof/ConRon/Arena/Store.lean:167-173 BinLNode` — the `max`
 /// constructor, line 41, and `imax`, line 42, which has the same two fields
 /// and therefore the same record in its own array.
@@ -574,7 +574,7 @@ pub struct BinLNode {
     pub v: LIdx,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:38-43 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:32-37 Level
 /// Lean twin: `proof/ConRon/Arena/Store.lean:175-179 ParamNode` — the `param`
 /// constructor, line 43.
 pub struct ParamNode {
@@ -681,7 +681,7 @@ impl Dup for ParamNode {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:38-43 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:32-37 Level
 /// Lean twin: `proof/ConRon/Arena/Store.lean:186-194 LNodeView` — the
 /// store-side view of a level node.
 pub enum LNodeView {
@@ -692,7 +692,7 @@ pub enum LNodeView {
     Param(NIdx),
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:38-51 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:32-45 Level
 /// Lean twin: `proof/ConRon/Arena/Store.lean:196-203 LDer` — the `hashData`
 /// computed field, lines 47-53, plus the has-a-parameter flag, which
 /// con-leche recomputes by a walk (`Kernel/Expr.lean:114-122 levelHasParam`)
@@ -798,7 +798,7 @@ pub struct LsStore {
 // Expressions (`Store.lean:248-363`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:254-258 BVarNode` — the `bvar`
 /// constructor, line 401.  Deviation (DESIGN.md §3.3): the Lean's `Nat` is a
 /// `u64`, as `expr::bvar`'s index already is.
@@ -806,7 +806,7 @@ pub struct BVarNode {
     pub i: u64,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:260-265 FVarNode` — the `fvar`
 /// constructor, line 402.
 pub struct FVarNode {
@@ -814,14 +814,14 @@ pub struct FVarNode {
     pub ty: EIdx,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:267-271 SortNode` — the `sort`
 /// constructor, line 403.
 pub struct SortNode {
     pub u: LIdx,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:273-278 ConstNode` — the `const`
 /// constructor, line 404.  Two words: the level arguments are one interned
 /// handle, not a list.
@@ -830,7 +830,7 @@ pub struct ConstNode {
     pub us: LsIdx,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:280-285 AppNode` — the `app`
 /// constructor, line 405.  Eight bytes of node and eight of derived word,
 /// which is what DESIGN.md §8.5 prices the representation at.
@@ -839,7 +839,7 @@ pub struct AppNode {
     pub a: EIdx,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:287-294 BindNode` — the `lam`
 /// constructor, line 406, and `forallE`, line 407: same three fields, its own
 /// array.
@@ -848,7 +848,7 @@ pub struct BindNode {
     pub body: EIdx,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:296-302 LetNode` — the `letE`
 /// constructor, line 408.
 pub struct LetNode {
@@ -857,14 +857,14 @@ pub struct LetNode {
     pub body: EIdx,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:304-308 LitNode` — the `lit`
 /// constructor, line 409.
 pub struct LitNode {
     pub l: Literal,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:310-316 ProjNode` — the `proj`
 /// constructor, line 410.
 pub struct ProjNode {
@@ -1164,7 +1164,7 @@ impl Dup for ProjNode {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:328-343 ENodeView` — the
 /// store-side view of an expression node: con-leche's ten constructors with
 /// every subterm replaced by a handle.  `Literal` stays a *value* (it is
@@ -1944,7 +1944,7 @@ impl LStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:38-51 Level
+    /// con-leche: ConLeche/Kernel/Expr.lean:32-45 Level
     /// Lean twin: `proof/ConRon/Arena/Store.lean:460-464 LStore.derived` — the
     /// `hashData` computed field, lines 47-53, and `Kernel/Expr.lean:114-122
     /// levelHasParam`.
@@ -1958,7 +1958,7 @@ impl LStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:38-51 Level
+    /// con-leche: ConLeche/Kernel/Expr.lean:32-45 Level
     /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 LStore.derOfView` —
     /// the derived record a node view would get, in `O(1)` from the
     /// children's.  con-leche recomputes the parameter flag by an `O(|u|)`
@@ -2282,7 +2282,7 @@ impl LsStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:202-205 levelsHash
+    /// con-leche: ConLeche/Kernel/Expr.lean:230-233 levelsHash
     /// Lean twin: `proof/ConRon/Arena/Store.lean:460-464 LsStore.derived` —
     /// the derived record of a level-list handle.
     pub fn derived(&self, pers: &PersTier, i: &LsIdx) -> LDer {
@@ -2295,7 +2295,7 @@ impl LsStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:202-205 levelsHash
+    /// con-leche: ConLeche/Kernel/Expr.lean:230-233 levelsHash
     /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 LsStore.derOfView` —
     /// and `Kernel/Expr.lean:125-127 levelsHaveParam`: the derived record a
     /// level list would get.  `O(n)` in the list, as con-leche's own fold is.
@@ -2801,7 +2801,7 @@ impl ETables {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` — the
 /// `lam` (hash tag 19) and `forallE` (23) arms, which differ in nothing but
 /// the tag.  It is `con_ron_core::kernel::expr::lam`'s body with `data(&ty)`
@@ -2824,7 +2824,7 @@ pub fn der_of_bind(tag: u64, dt: u64, db: u64) -> u64 {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` — the
 /// `letE` arm, `con_ron_core::kernel::expr::let_e`'s body over the derived
 /// column.  A function for the reason `der_of_bind` is one: its
@@ -2851,7 +2851,7 @@ pub fn der_of_let(dt: u64, dv: u64, db: u64) -> u64 {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:1054-1061 eBindView` —
 /// `eBindView`, the inverse of `EStore.viewBind`: rebuild the binder view a
 /// walk decoded with `viewBind`, at the tag it decoded it at. `lam` and
@@ -3379,7 +3379,7 @@ impl EStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:460-464 EStore.derived` — the
     /// `data` computed field, lines 414-459: the packed derived word of an
     /// expression handle, an `O(1)` column read.
@@ -3394,7 +3394,7 @@ impl EStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` —
     /// the `bvar` arm, which is `con_ron_core::kernel::expr::bvar`'s own body.
     ///
@@ -3420,7 +3420,7 @@ impl EStore {
         expr::pack_data(h, expr::sat_succ(i), 0, false)
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` —
     /// the `fvar` arm (`con_ron_core::kernel::expr::fvar`'s body).  See
     /// `der_of_bvar`'s note.
@@ -3434,7 +3434,7 @@ impl EStore {
         expr::pack_data(h, 0, expr::sat_succ(idx), expr::lp_of_data(dt))
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` —
     /// the `sort` arm (`con_ron_core::kernel::expr::sort`'s body).  See
     /// `der_of_bvar`'s note.
@@ -3445,7 +3445,7 @@ impl EStore {
         expr::pack_data(h, 0, 0, du.has_param)
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` —
     /// the `const` arm (`con_ron_core::kernel::expr::mk_const`'s body).  See
     /// `der_of_bvar`'s note.
@@ -3457,7 +3457,7 @@ impl EStore {
         expr::pack_data(h, 0, 0, dus.has_param)
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` —
     /// the `app` arm (`con_ron_core::kernel::expr::app`'s body).  See
     /// `der_of_bvar`'s note.
@@ -3477,7 +3477,7 @@ impl EStore {
         )
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:365-373 EStore.derOfBindAtI`
     /// — `derOfBindAtI`, the `lam`/`forallE` arm over the datum's HANDLE: the
     /// two scalars `derOfBind` wants of the datum are the binder-datum store's
@@ -3488,7 +3488,7 @@ impl EStore {
         der_of_bind(tag, self.derived(pers, ty), self.derived(pers, b))
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` —
     /// the `letE` arm, whose arithmetic is `der_of_let`'s.  See
     /// `der_of_bvar`'s note.
@@ -3497,7 +3497,7 @@ impl EStore {
         der_of_let(self.derived(pers, ty), self.derived(pers, val), self.derived(pers, b))
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` —
     /// the `lit` arm (`con_ron_core::kernel::expr::lit`'s body).  See
     /// `der_of_bvar`'s note.
@@ -3507,7 +3507,7 @@ impl EStore {
         expr::pack_data(h, 0, 0, false)
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` —
     /// the `proj` arm (`con_ron_core::kernel::expr::proj`'s body).  See
     /// `der_of_bvar`'s note.
@@ -3529,7 +3529,7 @@ impl EStore {
         )
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` —
     /// the `data` computed field, lines 414-459.
     ///

@@ -342,7 +342,7 @@ private theorem scan_rule_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
     cases mem with
     | Close =>
       rw [hstep.close]
-      try dsimp only at h
+      dsimp only at h
       rw [u32_bne (x := seen) (y := 0#u32) (by rfl)]
       by_cases hnw : nw = true
       · rw [ite_eq_left hnw] at h
@@ -771,7 +771,7 @@ private theorem scan_ind_rec_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
     cases mem with
     | Close =>
       rw [hstep.close]
-      try dsimp only at h
+      dsimp only at h
       rw [u32_bne (x := seen) (y := 0#u32) (by rfl)]
       by_cases hnw : nw = true
       · rw [ite_eq_left hnw] at h
@@ -871,7 +871,7 @@ private theorem scan_ind_rec_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
                  obtain ⟨x, e⟩ := p1
                  simp only [uncurry_apply_pair] at h
                  rw [scanSim_ok_eq (scan_nat_list_refines hr1)]
-                 try dsimp only
+                 dsimp only
                  obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
                  by_cases hp : b2 = true
                  · rw [ite_eq_left hp] at h
@@ -908,7 +908,7 @@ private theorem scan_ind_rec_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
                  obtain ⟨x, e⟩ := p1
                  simp only [uncurry_apply_pair] at h
                  rw [scanSim_ok_eq (scan_bool_refines hr1)]
-                 try dsimp only
+                 dsimp only
                  obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
                  by_cases hp : b2 = true
                  · rw [ite_eq_left hp] at h
@@ -945,7 +945,7 @@ private theorem scan_ind_rec_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
                  obtain ⟨x, e⟩ := p1
                  simp only [uncurry_apply_pair] at h
                  rw [scanSim_ok_eq (scan_rules_refines hr1)]
-                 try dsimp only
+                 dsimp only
                  obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
                  by_cases hp : b2 = true
                  · rw [ite_eq_left hp] at h
@@ -1316,7 +1316,7 @@ private theorem scan_ind_type_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
     cases mem with
     | Close =>
       rw [hstep.close]
-      try dsimp only at h
+      dsimp only at h
       rw [u32_bne (x := seen) (y := 0#u32) (by rfl)]
       by_cases hnw : nw = true
       · rw [ite_eq_left hnw] at h
@@ -1416,7 +1416,7 @@ private theorem scan_ind_type_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
                  obtain ⟨x, e⟩ := p1
                  simp only [uncurry_apply_pair] at h
                  rw [scanSim_ok_eq (scan_nat_list_refines hr1)]
-                 try dsimp only
+                 dsimp only
                  obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
                  by_cases hp : b2 = true
                  · rw [ite_eq_left hp] at h
@@ -1453,7 +1453,7 @@ private theorem scan_ind_type_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
                  obtain ⟨x, e⟩ := p1
                  simp only [uncurry_apply_pair] at h
                  rw [scanSim_ok_eq (scan_bool_refines hr1)]
-                 try dsimp only
+                 dsimp only
                  obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
                  by_cases hp : b2 = true
                  · rw [ite_eq_left hp] at h
@@ -1792,7 +1792,7 @@ private theorem scan_ind_ctor_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
     cases mem with
     | Close =>
       rw [hstep.close]
-      try dsimp only at h
+      dsimp only at h
       rw [u32_bne (x := seen) (y := 0#u32) (by rfl)]
       by_cases hnw : nw = true
       · rw [ite_eq_left hnw] at h
@@ -1892,7 +1892,7 @@ private theorem scan_ind_ctor_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
                  obtain ⟨x, e⟩ := p1
                  simp only [uncurry_apply_pair] at h
                  rw [scanSim_ok_eq (scan_nat_list_refines hr1)]
-                 try dsimp only
+                 dsimp only
                  obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
                  by_cases hp : b2 = true
                  · rw [ite_eq_left hp] at h
@@ -1929,7 +1929,7 @@ private theorem scan_ind_ctor_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
                  obtain ⟨x, e⟩ := p1
                  simp only [uncurry_apply_pair] at h
                  rw [scanSim_ok_eq (scan_bool_refines hr1)]
-                 try dsimp only
+                 dsimp only
                  obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
                  by_cases hp : b2 = true
                  · rw [ite_eq_left hp] at h

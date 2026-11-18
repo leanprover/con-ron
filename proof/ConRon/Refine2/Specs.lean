@@ -3866,7 +3866,7 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       rw [← h3]; exact this
   obtain ⟨hE1, hE3⟩ := hE
   subst e
-  try simp only [Aeneas.Std.uncurry] at h
+  simp only [Aeneas.Std.uncurry] at h
   rw [EStore.intern]
   have hfind : ls.persFindMaybe (ENodeView.bvar (absU i))
       = ls.pers.bvars.find? ⟨absU i⟩ := by
@@ -3875,7 +3875,7 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
   cases hitc : hit with
   | some hp =>
     rw [hitc] at h
-    try dsimp only at h
+    dsimp only at h
     have he := Result.ok_injective h
     simp only [Prod.mk.injEq] at he
     obtain ⟨hr, hs'⟩ := he
@@ -3893,7 +3893,7 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     · exact ⟨rfl, rfl⟩
   | none =>
     rw [hitc] at h
-    try dsimp only at h
+    dsimp only at h
     simp only [Option.map_none]
     rw [hrel.scratchOn]
     split at h <;> rename_i hsc
@@ -6142,7 +6142,7 @@ theorem estore_intern_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       rw [← h3]; exact this
   obtain ⟨hE1, hE3⟩ := hE
   subst e
-  try simp only [Aeneas.Std.uncurry] at h
+  simp only [Aeneas.Std.uncurry] at h
   rw [EStore.intern]
   have hfind : ls.persFindMaybe (ENodeView.lit (ConRon.Refine.absLiteral l))
       = ls.pers.lits.find? ⟨ConRon.Refine.absLiteral l⟩ := by
@@ -6151,7 +6151,7 @@ theorem estore_intern_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
   cases hitc : hit with
   | some hp =>
     rw [hitc] at h
-    try dsimp only at h
+    dsimp only at h
     have he := Result.ok_injective h
     simp only [Prod.mk.injEq] at he
     obtain ⟨hr, hs'⟩ := he
@@ -6168,7 +6168,7 @@ theorem estore_intern_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     · intro ee hbad; simp at hbad
   | none =>
     rw [hitc] at h
-    try dsimp only at h
+    dsimp only at h
     simp only [Option.map_none]
     rw [hrel.scratchOn]
     split at h <;> rename_i hsc

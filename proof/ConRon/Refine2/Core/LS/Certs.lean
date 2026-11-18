@@ -238,10 +238,9 @@ attribute [local lockstep_simp] ExprOps.absEIdxList List.length_map alloc.vec.Ve
   rw [arena.core.unit_like_shape, unitLikeShape]
   lockstep
   -- glue: the port's `view_ls` against the twin's `viewLsLen` + `failDanglingLs`
-  all_goals
-    refine PC1.LS.view_ls_len_bind (by assumption) rfl (fun _ => errArm_ok) (fun v => ?_)
-    dsimp only
-    lockstep
+  refine PC1.LS.view_ls_len_bind (by assumption) rfl (fun _ => errArm_ok) (fun v => ?_)
+  dsimp only
+  lockstep
 
 end unitShape
 

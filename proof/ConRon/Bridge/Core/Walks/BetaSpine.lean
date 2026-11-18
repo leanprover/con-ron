@@ -113,7 +113,7 @@ theorem getAppSpineGo_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx)
         subst s2
         vcgen
         subst_vars
-        refine ⟨rfl, ?_, ?_, ?_, ?_⟩
+        refine ⟨?_, ?_, ?_, ?_⟩
         · simpa [Expr.getAppFn] using ht1
         · simp only [Array.toList_push, Expr.getAppArgs]
           exact ExprOps.denoteEList_snoc ha _ _ ht2
@@ -139,7 +139,7 @@ theorem getAppSpineGo_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx)
         refine denote_not_app hok.wf hw hd ?_
         intro f a hfa; subst hfa
         exact htg (by rw [EStore.tagOf_of_view hw]; rfl)
-      refine ⟨rfl, ?_, ?_, rfl, ?_⟩
+      refine ⟨?_, ?_, rfl, ?_⟩
       · simpa [ExprOps.getAppFn_of_not_app hna] using hd
       · simp [ExprOps.getAppArgs_of_not_app hna, Frontend.denoteEList]
       · intro j hj; simp at hj
@@ -170,19 +170,23 @@ theorem headAndArgs_spec (s₀ : AState) (v : EIdx) (V : Expr)
       (by rw [hd]; rfl)) ?_
     rintro va s2 ⟨hs2, hr2⟩
     subst s2
-    vcgen
-    subst_vars
-    exact ⟨rfl, hr1 V hd, by simpa using hr2 V hd⟩
+    vcgen <;> subst_vars
+    all_goals first
+      | exact hr1 V hd
+      | simpa using hr2 V hd
+      | exact ⟨hr1 V hd, by simpa using hr2 V hd⟩
   · rw [ite_eq_right htg]
-    vcgen
-    subst_vars
     have hna : ∀ x y, V ≠ Expr.app x y := by
       obtain ⟨w, hw⟩ := denoteE_view hd
       refine denote_not_app hok.wf hw hd ?_
       intro f a hfa; subst hfa
       exact htg (by rw [EStore.tagOf_of_view hw]; rfl)
-    exact ⟨rfl, by simpa [ExprOps.getAppFn_of_not_app hna] using hd,
-      by simp [ExprOps.getAppArgs_of_not_app hna, Frontend.denoteEList]⟩
+    vcgen <;> subst_vars
+    all_goals first
+      | simpa [ExprOps.getAppFn_of_not_app hna] using hd
+      | simp [ExprOps.getAppArgs_of_not_app hna, Frontend.denoteEList]
+      | exact ⟨by simpa [ExprOps.getAppFn_of_not_app hna] using hd,
+          by simp [ExprOps.getAppArgs_of_not_app hna, Frontend.denoteEList]⟩
 
 /-- con-leche: none — **THEOREM 1 for `internAppRebuilt`**: the upward
 cutoff hands back the spine's own node when the caller vouches for it
@@ -198,9 +202,13 @@ theorem internAppRebuilt_spec (s₀ : AState) (node : EIdx) (same : Bool)
   unfold internAppRebuilt
   cases same with
   | true =>
-    vcgen +internalize
-    subst_vars
-    exact ⟨hok, Ext.refl _, rfl, by simpa using hsame⟩
+    vcgen +internalize <;> subst_vars
+    all_goals first
+      | exact hok
+      | exact Ext.refl _
+      | exact ⟨hok, Ext.refl _, by simpa using hsame⟩
+      | exact ⟨Ext.refl _, by simpa using hsame⟩
+      | simp_all
   | false =>
     simp only [Bool.false_eq_true, ite_false]
     refine triple_mono (internE_ok_spec s₀ (.app f a) hok
@@ -309,8 +317,6 @@ theorem whnfAppIota_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
         exact triple_pure_at ⟨hok, Ext.refl _, rfl,
           simOOp_none (F := 0) (iotaRecFueled_norec hE1 hnr)⟩
   · rw [ite_eq_right htc]
-    vcgen
-    subst_vars
     have hnc : ∀ c us, (Expr.app V A).getAppFn ≠ .const c us := by
       obtain ⟨w, hw'⟩ := denoteE_view hdh
       have h1 := denote_not_const hok.state.wf hw' hdh (by
@@ -318,10 +324,21 @@ theorem whnfAppIota_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
         exact htc (by rw [EStore.tagOf_of_view hw']; rfl))
       intro c us hcu
       exact h1 c us (by simpa [Expr.getAppFn] using hcu)
-    refine ⟨hok, Ext.refl _, rfl, none, rfl,
-      ⟨fun (x : Expr) (hx : (none : Option Expr) = some x) => by simp at hx,
-        0, ?_⟩⟩
-    exact iotaRecFueled_nohead hnc
+    vcgen <;> subst_vars
+    all_goals first
+      | exact hok
+      | exact Ext.refl _
+      | rfl
+      | exact ⟨rfl, none, rfl, ⟨fun (x : Expr) (hx : (none : Option Expr) = some x) => by
+          simp at hx, 0, iotaRecFueled_nohead hnc⟩⟩
+      | exact ⟨Ext.refl _, rfl, none, rfl, ⟨fun (x : Expr) (hx : (none : Option Expr) = some x) =>
+          by simp at hx, 0, iotaRecFueled_nohead hnc⟩⟩
+      | exact ⟨none, rfl, ⟨fun (x : Expr) (hx : (none : Option Expr) = some x) => by simp at hx,
+          0, iotaRecFueled_nohead hnc⟩⟩
+      | exact ⟨Ext.refl _, none, rfl, ⟨fun (x : Expr) (hx : (none : Option Expr) = some x) => by
+          simp at hx, 0, iotaRecFueled_nohead hnc⟩⟩
+      | exact ⟨hok, Ext.refl _, none, rfl, ⟨fun (x : Expr) (hx : (none : Option Expr) = some x) =>
+          by simp at hx, 0, iotaRecFueled_nohead hnc⟩⟩
 
 /-! ## 3. The pure mirrors at the pure knot
 

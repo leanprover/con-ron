@@ -1105,7 +1105,7 @@ theorem check_constant_val_guards_refines {pers st lst} {rf lf}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.checker_base.check_constant_val_guards]
-  try unfold checkConstantValGuardsSpec
+  unfold checkConstantValGuardsSpec
   lockstep
 
 open Lockstep in
@@ -1133,7 +1133,7 @@ theorem check_constant_val_tail_refines {pers st lst} {rf lf}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.checker_base.check_constant_val_tail]
-  try unfold checkConstantValTailSpec
+  unfold checkConstantValTailSpec
   lockstep
 
 open Lockstep in
@@ -1360,7 +1360,7 @@ theorem value_guards_tail_refines {pers st lst} {rf lf}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.value_guards_tail]
-  try unfold valueGuardsTailSpec
+  unfold valueGuardsTailSpec
   lockstep
 
 open Lockstep in

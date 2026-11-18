@@ -638,7 +638,7 @@ attribute [local lockstep high] binder_copy_from_new_spec
   rcases hcls : (g.cls.val)[(absU t)]? with _ | m <;>
     simp only [absClassGen_cls, List.getElem?_map, hcls, Option.map_none, Option.map_some]
   · lockstep
-    all_goals (exfalso; rw [List.getElem?_eq_none_iff] at hcls; simp only [absU] at hcls; scalar_tac)
+    (exfalso; rw [List.getElem?_eq_none_iff] at hcls; simp only [absU] at hcls; scalar_tac)
   · obtain ⟨hb, rfl⟩ := List.getElem?_eq_some_iff.mp hcls
     lockstep
     rename_i n hn k hk hkb args
@@ -1386,7 +1386,7 @@ theorem slotsGo_cons (g : ClassGen) (s : Nat) (sl : ClassSlot) (sls : List Class
   | minor c C ihs =>
     simp only [grSlotTy]
     cases List.find? (fun x => x.cv.name == C) (g.ctors.getD c []) <;> simp only [pure_bind]
-    all_goals gr_opt_congr
+    gr_opt_congr
 
 /-- `slot_binder` at a slot `sl` ⊑ `grSlotTy`. -/
 theorem slot_binder_ls {pers st lst} (hrel : AStateRel₀ pers st lst)

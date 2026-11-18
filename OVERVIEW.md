@@ -932,7 +932,7 @@ theorem instantiate1_go_aux (n : Nat) :
 **Cursor induction.**  Where the twin recurses on a `List` and the Rust
 walks a `Vec` with an index `i`, induct on `args.length - i`, and relate the
 twin's list to the suffix from `i`
-([`inst_spine_from`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/ExprOps/Mut.lean#L646-L666)):
+([`inst_spine_from`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/ExprOps/Mut.lean#L645-L665)):
 
 ```lean
 theorem inst_spine_from_aux (n : Nat) :
@@ -1118,7 +1118,7 @@ warning from `proof/`'s own sources.
 **Upstream patches.**  One: the pinned Aeneas builds its Lean library
 against an older Lean, and
 [`patches/aeneas.patch`](https://github.com/leanprover/con-ron/tree/master/patches/aeneas.patch)
-(595 lines, nineteen files) makes it build on con-leche's Lean (v4.35.0)
+(627 lines, twenty-one files) makes it build on con-leche's Lean (v4.36.0)
 and its Mathlib.  `scripts/setup-aeneas-lean.sh` applies it.  Charon and con-leche
 are used unpatched.
 

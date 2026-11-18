@@ -883,6 +883,26 @@ local grind_pattern [bridge_grind] LeavesEq.letE_step =>
 local grind_pattern [bridge_grind] LeavesEq.proj_step =>
   LeavesEq st acc h res, LeavesEq st acc sub res, ENodeView.proj n i sub
 
+/- The same steps keyed FORWARD, by the node's `BlackA` and its children's
+answers.  `vcgen` proves a post's conjuncts one goal at a time (lean4#15487,
+v4.36.0; task #161), so the `SeenGrow` conjunct's goal does not contain the
+node's `LeavesEq` goal that keys the steps above; it does contain the
+children's answers and, once `drop_insert`/`insert_black` is instantiated,
+the `BlackA` premise that `LeavesEq.black` supplies from the node's step. -/
+local grind_pattern [bridge_grind] LeavesEq.of_leafV => BlackA st acc c
+local grind_pattern [bridge_grind] LeavesEq.fvar_step =>
+  BlackA st res h, LeavesEq st ((idx, ty) :: acc) ty res
+local grind_pattern [bridge_grind] LeavesEq.app_step =>
+  BlackA st res h, LeavesEq st acc f mid, LeavesEq st mid a res
+local grind_pattern [bridge_grind] LeavesEq.lam_step =>
+  BlackA st res h, LeavesEq st acc ty mid, LeavesEq st mid b res, ENodeView.lam ty b
+local grind_pattern [bridge_grind] LeavesEq.forallE_step =>
+  BlackA st res h, LeavesEq st acc ty mid, LeavesEq st mid b res, ENodeView.forallE ty b
+local grind_pattern [bridge_grind] LeavesEq.letE_step =>
+  BlackA st res h, LeavesEq st acc ty m1, LeavesEq st m1 w m2, LeavesEq st m2 b res
+local grind_pattern [bridge_grind] LeavesEq.proj_step =>
+  BlackA st res h, LeavesEq st acc sub res, ENodeView.proj n i sub
+
 /-- con-leche: none — the empty `seen` set, keyed by the goal. -/
 private theorem SeenOK.empty {st : EStore} {acc : List (Nat × EIdx)} {c : EIdx} :
     SeenOK st acc ∅ c := SeenOK.of_empty rfl

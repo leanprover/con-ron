@@ -89,10 +89,9 @@ theorem mentions_const_go_aux (n : Nat) :
     lockstep
     -- the `.proj` arm: the port tested `s.eq2(t)` first (false here), the twin
     -- reads `s == T || b`
-    all_goals
-      simp only [Bool.not_eq_true] at hc
-      simp only [hc, Bool.false_or]
-      exact LS.pure ⟨_, hP, rfl⟩ hrel hinv
+    simp only [Bool.not_eq_true] at hc
+    simp only [hc, Bool.false_or]
+    exact LS.pure ⟨_, hP, rfl⟩ hrel hinv
 
 open Lockstep in
 @[lockstep] theorem mentions_const_go_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -238,7 +237,7 @@ theorem env_pi_sort_tele_len_run {pers rst lst fuel h' o}
               rfl
         | «Sort» s => cases Result.ok_injective h; show _ = _; rw [view_bind_run hV']; rfl
         | _ =>
-          all_goals (cases Result.ok_injective h; show _ = _; rw [view_bind_run hV']; rfl)
+          (cases Result.ok_injective h; show _ = _; rw [view_bind_run hV']; rfl)
   exact H _ fuel h' o rfl h
 
 end ConRon.Refine2.Frontend

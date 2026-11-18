@@ -119,10 +119,8 @@ open scoped Lean.Order
           RelL f s₀.store h s₀.store r →
             MemoLOK f s'.memos.instLPLC s'.store; ⊤⦄ := by
   dsimp only
-  vcgen [instLPLSet]
-  subst_vars
-  refine ⟨rfl, rfl, rfl, rfl, fun f hm hr => ?_⟩
-  exact MemoLOK.insert hm rfl hk hr
+  vcgen [instLPLSet] <;> subst_vars
+  all_goals first | rfl | exact MemoLOK.insert (by assumption) rfl hk (by assumption)
 
 /-- con-leche: ConLeche/Kernel/Level.lean:28-40 Level.subst — the same for
 `instLPLsSet`, the universe-argument-LIST memo, the one where the trap is a
@@ -138,10 +136,8 @@ false goal (module note). -/
           RelLs f s₀.store h s₀.store r →
             MemoLsOK f s'.memos.instLPLsC s'.store; ⊤⦄ := by
   dsimp only
-  vcgen [instLPLsSet]
-  subst_vars
-  refine ⟨rfl, rfl, rfl, rfl, fun f hm hr => ?_⟩
-  exact MemoLsOK.insert hm rfl hk hr
+  vcgen [instLPLsSet] <;> subst_vars
+  all_goals first | rfl | exact MemoLsOK.insert (by assumption) rfl hk (by assumption)
 
 /-! ## The readback memos, with the frame the walks need
 
@@ -388,10 +384,10 @@ theorem internRebuiltBind_specV (s₀ : AState) (h : EIdx) (same : Bool)
   · have hprog : internRebuiltBind h same tag ty b = pure h := by
       simp [internRebuiltBind, hc]
     rw [hprog]
-    vcgen
-    subst s₀
-    exact ⟨hwf, Ext.refl _, rfl, rfl, rfl, rfl, rfl, fun _ _ hj => hj, hsame hc,
-      denoteE_view_eq hwf (hsame hc)⟩
+    vcgen <;> subst_vars
+    all_goals first
+      | exact hwf | exact Ext.refl _ | rfl | assumption
+      | exact hsame rfl | exact denoteE_view_eq hwf (hsame rfl)
   · have hprog : internRebuiltBind h same tag ty b = internBindE tag ty b := by
       simp [internRebuiltBind, hc]
     rw [hprog]

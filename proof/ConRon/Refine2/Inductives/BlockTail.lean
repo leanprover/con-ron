@@ -274,12 +274,11 @@ the pops.  Its answer is the twin's popped environment. -/
         pure fe₃) := by
   rw [arena.inductives.block_tail.check_block_tail_stream]
   lockstep
-  all_goals
-    obtain ⟨hR, hpop⟩ := ‹IFEnvRelI _ _ _ ∧ ∀ _ _, _›
-    have hpe := ‹arena.inductives.gen_rec.class_fe_r_pop _ _ _ = ok _›
-    have hfe3 := hpop _ _ (by simp [alloc.vec.Vec.len]) hpe
-    have hfe4 := ifenv_set_flags_refines hfe3 hfe.rel ‹arena.env.ifenv_set_flags _ _ _ = ok _›
-    lockstep
+  obtain ⟨hR, hpop⟩ := ‹IFEnvRelI _ _ _ ∧ ∀ _ _, _›
+  have hpe := ‹arena.inductives.gen_rec.class_fe_r_pop _ _ _ = ok _›
+  have hfe3 := hpop _ _ (by simp [alloc.vec.Vec.len]) hpe
+  have hfe4 := ifenv_set_flags_refines hfe3 hfe.rel ‹arena.env.ifenv_set_flags _ _ _ = ok _›
+  lockstep
 
 /-- `check_block_tail` ⊑ `checkBlockTail`, at a related pass. -/
 @[lockstep] theorem check_block_tail_ls {pers st lst} {mode : kernel.env.CheckMode}

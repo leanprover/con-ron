@@ -590,52 +590,52 @@
    212  }
 
 == crates/con-ron-core/src/arena/handle.rs#L511-L559
-   511  /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+   511  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
    512  /// Lean twin: `proof/ConRon/Arena/Handle.lean:264-266 ETag.bvar` — the `bvar`
    513  /// constructor, line 401.
    514  pub const ETAG_BVAR: u32 = 0;
    515  
-   516  /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+   516  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
    517  /// Lean twin: `proof/ConRon/Arena/Handle.lean:267-269 ETag.fvar` — the `fvar`
    518  /// constructor, line 402.
    519  pub const ETAG_FVAR: u32 = 1;
    520  
-   521  /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+   521  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
    522  /// Lean twin: `proof/ConRon/Arena/Handle.lean:270-272 ETag.sort` — the `sort`
    523  /// constructor, line 403.
    524  pub const ETAG_SORT: u32 = 2;
    525  
-   526  /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+   526  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
    527  /// Lean twin: `proof/ConRon/Arena/Handle.lean:273-275 ETag.const` — the `const`
    528  /// constructor, line 404.
    529  pub const ETAG_CONST: u32 = 3;
    530  
-   531  /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+   531  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
    532  /// Lean twin: `proof/ConRon/Arena/Handle.lean:276-278 ETag.app` — the `app`
    533  /// constructor, line 405.
    534  pub const ETAG_APP: u32 = 4;
    535  
-   536  /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+   536  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
    537  /// Lean twin: `proof/ConRon/Arena/Handle.lean:279-281 ETag.lam` — the `lam`
    538  /// constructor, line 406.
    539  pub const ETAG_LAM: u32 = 5;
    540  
-   541  /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+   541  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
    542  /// Lean twin: `proof/ConRon/Arena/Handle.lean:282-284 ETag.forallE` — the
    543  /// `forallE` constructor, line 407.
    544  pub const ETAG_FORALL_E: u32 = 6;
    545  
-   546  /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+   546  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
    547  /// Lean twin: `proof/ConRon/Arena/Handle.lean:285-287 ETag.letE` — the `letE`
    548  /// constructor, line 408.
    549  pub const ETAG_LET_E: u32 = 7;
    550  
-   551  /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+   551  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
    552  /// Lean twin: `proof/ConRon/Arena/Handle.lean:288-290 ETag.lit` — the `lit`
    553  /// constructor, line 409.
    554  pub const ETAG_LIT: u32 = 8;
    555  
-   556  /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+   556  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
    557  /// Lean twin: `proof/ConRon/Arena/Handle.lean:291-293 ETag.proj` — the `proj`
    558  /// constructor, line 410.
    559  pub const ETAG_PROJ: u32 = 9;
@@ -1969,7 +1969,7 @@
     23  overflow-checks = true
 
 == proof/ConRon/Arena/Denote.lean#L185-L208
-   185  /-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the fuel-indexed
+   185  /-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the fuel-indexed
    186  readback of an expression handle. -/
    187  def denoteEAux (st : EStore) : Nat → EIdx → Option Expr
    188    | 0, _ => none
@@ -1989,7 +1989,7 @@
    202        | .proj n k e =>
    203          opt2 (fun nm x => Expr.proj nm k x) (denoteN st.ns n) (denoteEAux st f e)
    204  
-   205  /-- con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr — the readback of an
+   205  /-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the readback of an
    206  expression handle, at the store's own node count as fuel. -/
    207  def denoteE (st : EStore) (i : EIdx) : Option Expr :=
    208    denoteEAux st (st.nodeCount + 1) i
@@ -2400,28 +2400,28 @@
    318    rw [arena.expr_ops.instantiate1_fast, instantiate1Fast]
    319    lockstep
 
-== proof/ConRon/Refine2/ExprOps/Mut.lean#L646-L666
-   646  theorem inst_spine_from_aux (n : Nat) :
-   647      ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-   648        (fuel : Std.U64) (args : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize) (t : Std.U64) (e : arena.handle.EIdx),
-   649        args.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
-   650        LS pers (fun a b => b = absEIdx a) (arena.expr_ops.inst_spine_from pers st fuel args i t e) lst
-   651          (instSpine (absU fuel) (absEIdxListFrom args i) (absU t) (absEIdx e)) := by
-   652    induction n with
-   653    | zero =>
-   654      intro pers st lst fuel args i t e hn hrel hinv
-   655      rw [arena.expr_ops.inst_spine_from, listFrom_nil args i (by omega), instSpine]
-   656      lockstep
-   657    | succ k ih =>
-   658      intro pers st lst fuel args i t e hn hrel hinv
-   659      rw [arena.expr_ops.inst_spine_from, listFrom_cons args i (by omega), instSpine]
-   660      lockstep
-   661  
-   662  @[lockstep] theorem inst_spine_from_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-   663      (hinv : AStateInv pers st) (fuel : Std.U64) (args : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize) (t : Std.U64) (e : arena.handle.EIdx) :
-   664      LS pers (fun a b => b = absEIdx a) (arena.expr_ops.inst_spine_from pers st fuel args i t e) lst
-   665        (instSpine (absU fuel) (absEIdxListFrom args i) (absU t) (absEIdx e)) :=
-   666    inst_spine_from_aux _ fuel args i t e rfl hrel hinv
+== proof/ConRon/Refine2/ExprOps/Mut.lean#L645-L665
+   645  theorem inst_spine_from_aux (n : Nat) :
+   646      ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+   647        (fuel : Std.U64) (args : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize) (t : Std.U64) (e : arena.handle.EIdx),
+   648        args.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+   649        LS pers (fun a b => b = absEIdx a) (arena.expr_ops.inst_spine_from pers st fuel args i t e) lst
+   650          (instSpine (absU fuel) (absEIdxListFrom args i) (absU t) (absEIdx e)) := by
+   651    induction n with
+   652    | zero =>
+   653      intro pers st lst fuel args i t e hn hrel hinv
+   654      rw [arena.expr_ops.inst_spine_from, listFrom_nil args i (by omega), instSpine]
+   655      lockstep
+   656    | succ k ih =>
+   657      intro pers st lst fuel args i t e hn hrel hinv
+   658      rw [arena.expr_ops.inst_spine_from, listFrom_cons args i (by omega), instSpine]
+   659      lockstep
+   660  
+   661  @[lockstep] theorem inst_spine_from_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+   662      (hinv : AStateInv pers st) (fuel : Std.U64) (args : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize) (t : Std.U64) (e : arena.handle.EIdx) :
+   663      LS pers (fun a b => b = absEIdx a) (arena.expr_ops.inst_spine_from pers st fuel args i t e) lst
+   664        (instSpine (absU fuel) (absEIdxListFrom args i) (absU t) (absEIdx e)) :=
+   665    inst_spine_from_aux _ fuel args i t e rfl hrel hinv
 
 == proof/ConRon/Refine2/Core/Induction.lean#L905
    905  theorem knot_rel (hbody : ∀ f, KnotRel f → BodyRel f) : ∀ f, KnotRel f
@@ -2780,7 +2780,7 @@
    174      ∀ w ∈ parts, w.Pairwise (· < ·) ∧ ∃ s₀, init = ok s₀ ∧ FoldAllOk step s₀ w
 
 == crates/con-ron-core/src/arena/handle.rs#L511-L514
-   511  /// con-leche: ConLeche/Kernel/Expr.lean:341-460 Expr
+   511  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
    512  /// Lean twin: `proof/ConRon/Arena/Handle.lean:264-266 ETag.bvar` — the `bvar`
    513  /// constructor, line 401.
    514  pub const ETAG_BVAR: u32 = 0;

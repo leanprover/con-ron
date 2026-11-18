@@ -73,9 +73,11 @@ theorem headAndArgs_app_spec (s₀ : AState) (e : EIdx) (x : Expr)
     (by rw [hden]; rfl)) ?_
   rintro va s2 ⟨hs2, hrelA⟩
   subst s2
-  vcgen
-  subst_vars
-  exact ⟨rfl, hrelF x hden, by simpa using hrelA x hden⟩
+  vcgen <;> subst_vars
+  all_goals first
+    | exact hrelF x hden
+    | simpa using hrelA x hden
+    | exact ⟨hrelF x hden, by simpa using hrelA x hden⟩
 
 /-! ## 2. The argument check -/
 

@@ -247,24 +247,22 @@ theorem peel_pis_w_aux (n : Nat) :
     | nil =>
       simp only [ConRon.Refine.absPropWhen, ConRon.Refine.absNames, hv, List.map_nil, substPWAt]
       lockstep
-      all_goals
-        intro o st' h
-        simp only [Result.ok.injEq, Prod.mk.injEq] at h
-        obtain ⟨rfl, rfl⟩ := h
-        exact ⟨_, _, rfl, ⟨by simp_all [PG2.optPwWF], by
-          simp_all [ExprOps.absPwOpt, ConRon.Refine.absPropWhen, ConRon.Refine.absNames]⟩,
-          by assumption, by assumption⟩
+      intro o st' h
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact ⟨_, _, rfl, ⟨by simp_all [PG2.optPwWF], by
+        simp_all [ExprOps.absPwOpt, ConRon.Refine.absPropWhen, ConRon.Refine.absNames]⟩,
+        by assumption, by assumption⟩
     | cons x xs =>
       simp only [ConRon.Refine.absPropWhen, ConRon.Refine.absNames, hv, List.map_cons, substPWAt]
       lockstep
-      all_goals
-        intro o st' h
-        simp only [Result.ok.injEq, Prod.mk.injEq] at h
-        obtain ⟨rfl, rfl⟩ := h
-        exact ⟨_, _, rfl, ⟨by simp_all [PG2.optPwWF], by
-          simp_all [ExprOps.absPwOpt, ConRon.Refine.absPropWhen, ConRon.Refine.absNames,
-            ConRon.Refine.absLevels]⟩,
-          by assumption, by assumption⟩
+      intro o st' h
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact ⟨_, _, rfl, ⟨by simp_all [PG2.optPwWF], by
+        simp_all [ExprOps.absPwOpt, ConRon.Refine.absPropWhen, ConRon.Refine.absNames,
+          ConRon.Refine.absLevels]⟩,
+        by assumption, by assumption⟩
 
 @[lockstep] theorem head_type_pw_ls {pers st lst fe lfe}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx pers fe lfe)

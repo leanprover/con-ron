@@ -799,10 +799,9 @@ theorem checkStructuralNatPinAtFe2_split (fe2 : IFEnv) (n : NIdx) :
     ConRon.Refine2.am_bind_congr _ fun d => ?_
   cases g <;> cases d <;> simp only [Bool.and_true, Bool.and_false, Bool.false_eq_true,
     ↓reduceIte, ConRon.Refine2.am_fail_bind]
-  all_goals
-    rcases fe2.find? n with _ | ci
-    · rfl
-    · cases ci <;> rfl
+  rcases fe2.find? n with _ | ci
+  · rfl
+  · cases ci <;> rfl
 
 /-- `checkStructuralNatPin` is the reads at the environment with the definition,
 the pop, and the certification (`check_structural_nat_pin_eqs`). -/

@@ -1484,10 +1484,9 @@ cursor on. -/
     rw [arena.inductives.positivity.nest_uniform_member.eq_def,
       ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac), List.allM]
     lockstep
-    all_goals
-      simp only [Bool.not_eq_true] at hc
-      subst hc
-      lockstep
+    simp only [Bool.not_eq_true] at hc
+    subst hc
+    lockstep
 
 /-- A member list's constructor lists. -/
 def absCtorsLL (v : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))) :

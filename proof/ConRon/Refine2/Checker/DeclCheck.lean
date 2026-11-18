@@ -134,7 +134,7 @@ theorem iff_pinned_refines {pers st lst} {rf lf} {o}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.iff_pinned]
-  try unfold iffPinnedSpec
+  unfold iffPinnedSpec
   lockstep
 
 open Lockstep in
@@ -158,7 +158,7 @@ theorem iff_intro_pinned_refines {pers st lst} {rf lf} {o}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.iff_intro_pinned]
-  try unfold iffIntroPinnedSpec
+  unfold iffIntroPinnedSpec
   lockstep
 
 open Lockstep in
@@ -182,7 +182,7 @@ theorem iff_rec_pinned_refines {pers st lst} {rf lf} {o}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.iff_rec_pinned]
-  try unfold iffRecPinnedSpec
+  unfold iffRecPinnedSpec
   lockstep
 
 open Lockstep in
@@ -206,7 +206,7 @@ theorem nonempty_pinned_refines {pers st lst} {rf lf} {o}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.nonempty_pinned]
-  try unfold nonemptyPinnedSpec
+  unfold nonemptyPinnedSpec
   lockstep
 
 open Lockstep in
@@ -230,7 +230,7 @@ theorem nonempty_intro_pinned_refines {pers st lst} {rf lf} {o}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.nonempty_intro_pinned]
-  try unfold nonemptyIntroPinnedSpec
+  unfold nonemptyIntroPinnedSpec
   lockstep
 
 open Lockstep in
@@ -254,7 +254,7 @@ theorem nonempty_rec_pinned_refines {pers st lst} {rf lf} {o}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.nonempty_rec_pinned]
-  try unfold nonemptyRecPinnedSpec
+  unfold nonemptyRecPinnedSpec
   lockstep
 
 open Lockstep in
@@ -280,7 +280,7 @@ theorem std_axiom_ok_propext_rest_refines {pers st lst} {rf lf}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.std_axiom_ok_propext_rest]
-  try unfold stdAxiomOkPropextRestSpec
+  unfold stdAxiomOkPropextRestSpec
   lockstep
 
 open Lockstep in
@@ -307,7 +307,7 @@ theorem std_axiom_ok_propext_refines {pers st lst} {rf lf}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.std_axiom_ok_propext]
-  try unfold stdAxiomOkPropextSpec
+  unfold stdAxiomOkPropextSpec
   lockstep
 
 open Lockstep in
@@ -334,7 +334,7 @@ theorem std_axiom_ok_choice_rest_refines {pers st lst} {rf lf}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.std_axiom_ok_choice_rest]
-  try unfold stdAxiomOkChoiceRestSpec
+  unfold stdAxiomOkChoiceRestSpec
   lockstep
 
 open Lockstep in
@@ -361,7 +361,7 @@ theorem std_axiom_ok_choice_refines {pers st lst} {rf lf}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.std_axiom_ok_choice]
-  try unfold stdAxiomOkChoiceSpec
+  unfold stdAxiomOkChoiceSpec
   lockstep
 
 open Lockstep in
@@ -414,7 +414,7 @@ theorem true_pinned_refines {pers st lst} {rf lf} {o}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.true_pinned]
-  try unfold truePinnedSpec
+  unfold truePinnedSpec
   lockstep
 
 open Lockstep in
@@ -438,7 +438,7 @@ theorem true_intro_pinned_refines {pers st lst} {rf lf} {o}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.true_intro_pinned]
-  try unfold trueIntroPinnedSpec
+  unfold trueIntroPinnedSpec
   lockstep
 
 open Lockstep in
@@ -488,7 +488,7 @@ theorem reduce_elem_ok_bool_refines {pers st lst} {rf lf} {o}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.reduce_elem_ok_bool]
-  try unfold reduceElemOkBoolSpec
+  unfold reduceElemOkBoolSpec
   lockstep
 
 open Lockstep in
@@ -537,7 +537,7 @@ theorem reduce_stored_ok_refines {pers st lst} {rf lf}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.reduce_stored_ok]
-  try unfold reduceStoredOk
+  unfold reduceStoredOk
   lockstep
 
 open Lockstep in
@@ -562,7 +562,7 @@ theorem of_reduce_ax_ok_rest_refines {pers st lst} {rf lf}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.of_reduce_ax_ok_rest]
-  try unfold ofReduceAxOkRestSpec
+  unfold ofReduceAxOkRestSpec
   lockstep
 
 open Lockstep in
@@ -665,7 +665,7 @@ theorem reduce_pin_guard_refines {pers st lst} {rf lf}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.reduce_pin_guard]
-  try unfold reducePinGuard
+  unfold reducePinGuard
   lockstep
 
 open Lockstep in
@@ -696,7 +696,7 @@ theorem check_reduce_identity_refines {pers st lst} {rf lf}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.check_reduce_identity]
-  try unfold checkReduceIdentitySpec
+  unfold checkReduceIdentitySpec
   lockstep
 
 open Lockstep in
@@ -729,7 +729,7 @@ theorem check_reduce_pin_value_refines {pers st lst} {rf lf}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.check_reduce_pin_value]
-  try unfold checkReducePinValueSpec
+  unfold checkReducePinValueSpec
   lockstep
 
 open Lockstep in
@@ -762,7 +762,7 @@ theorem check_reduce_pin_pre_refines {pers st lst} {rf lf}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.check_reduce_pin_pre]
-  try unfold checkReducePinPreSpec
+  unfold checkReducePinPreSpec
   lockstep
 
 /-- **The outcome of a pinned gate**, which hands its environment back beside its
@@ -856,7 +856,7 @@ theorem check_defn_val_refines {pers st lst} {rf lf}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.check_defn_val]
-  try unfold checkDefnVal
+  unfold checkDefnVal
   lockstep
 
 /-- `check_thm_val_witness` — `checkThmVal`'s tail past the proposition test. -/
@@ -937,7 +937,7 @@ theorem check_opaque_val_refines {pers st lst} {rf lf}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.check_opaque_val]
-  try unfold checkOpaqueVal
+  unfold checkOpaqueVal
   lockstep
 
 /-! ### The record a value check returns is at the declared name
@@ -1619,7 +1619,7 @@ theorem nat_one_refines {pers st lst} {o}
     Sim₀ absEIdx pers lst o natOne := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.nat_one]
-  try unfold natOne
+  unfold natOne
   lockstep
 
 open Lockstep in
@@ -1638,7 +1638,7 @@ theorem nat_var_refines {pers st lst} {i : Std.U64} {o}
     Sim₀ absEIdx pers lst o (natVar (absU i)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.nat_var]
-  try unfold natVar
+  unfold natVar
   lockstep
 
 open Lockstep in
@@ -1691,7 +1691,7 @@ theorem eq_at1_refines {pers st lst} {ty a b : arena.handle.EIdx} {o}
       (eqAt1 (absEIdx ty) (absEIdx a) (absEIdx b)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.eq_at1]
-  try unfold eqAt1
+  unfold eqAt1
   lockstep
 
 open Lockstep in
@@ -1768,7 +1768,7 @@ theorem cert_guard_refines {pers st lst} {cx : arena.decl_check.CertCtx}
       (certGuard (absCertCtx cx) (absEIdx a) (absEIdx b) (absEIdx r)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.cert_guard]
-  try unfold certGuard
+  unfold certGuard
   lockstep
 
 open Lockstep in
@@ -1792,7 +1792,7 @@ theorem cert_eq_refines {pers st lst} {cx : arena.decl_check.CertCtx}
       (certEq (absCertCtx cx) (absNIdx c) (absEIdx rhs)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.cert_eq]
-  try unfold certEq
+  unfold certEq
   lockstep
 
 open Lockstep in
@@ -1817,7 +1817,7 @@ theorem cert_halves_refines {pers st lst} {cx : arena.decl_check.CertCtx}
       (certHalves (absCertCtx cx) (absNIdx c)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.cert_halves]
-  try unfold certHalves
+  unfold certHalves
   lockstep
 
 open Lockstep in
@@ -1840,7 +1840,7 @@ theorem cert_rec_rhs_refines {pers st lst} {cx : arena.decl_check.CertCtx}
       (certRecRhs (absCertCtx cx) (absNIdx c)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.cert_rec_rhs]
-  try unfold certRecRhs
+  unfold certRecRhs
   lockstep
 
 open Lockstep in
@@ -1862,7 +1862,7 @@ theorem cert_lor_rhs_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     Sim₀ absEIdx pers lst o (certLorRhs (absCertCtx cx) (absNIdx c)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.cert_lor_rhs]
-  try unfold certLorRhs
+  unfold certLorRhs
   lockstep
 
 open Lockstep in
@@ -1884,7 +1884,7 @@ theorem cert_xor_rhs_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     Sim₀ absEIdx pers lst o (certXorRhs (absCertCtx cx) (absNIdx c)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.cert_xor_rhs]
-  try unfold certXorRhs
+  unfold certXorRhs
   lockstep
 
 open Lockstep in
@@ -1909,7 +1909,7 @@ theorem cert_two_eqs_refines {pers st lst} {cx : arena.decl_check.CertCtx}
         (absEIdx r1) (absEIdx r2)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.cert_two_eqs]
-  try unfold certTwoEqs
+  unfold certTwoEqs
   lockstep
 
 open Lockstep in
@@ -1933,7 +1933,7 @@ theorem cert_gcd_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     Sim₀ absStmts pers lst o (certGcd (absCertCtx cx) (absNIdx c)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.cert_gcd]
-  try unfold certGcd
+  unfold certGcd
   lockstep
 
 open Lockstep in
@@ -1955,7 +1955,7 @@ theorem cert_shift_left_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     Sim₀ absStmts pers lst o (certShiftLeft (absCertCtx cx) (absNIdx c)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.cert_shift_left]
-  try unfold certShiftLeft
+  unfold certShiftLeft
   lockstep
 
 open Lockstep in
@@ -1977,7 +1977,7 @@ theorem cert_shift_right_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     Sim₀ absStmts pers lst o (certShiftRight (absCertCtx cx) (absNIdx c)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.cert_shift_right]
-  try unfold certShiftRight
+  unfold certShiftRight
   lockstep
 
 open Lockstep in
@@ -1999,7 +1999,7 @@ theorem cert_land_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     Sim₀ absStmts pers lst o (certLand (absCertCtx cx) (absNIdx c)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.cert_land]
-  try unfold certLand
+  unfold certLand
   lockstep
 
 open Lockstep in
@@ -2021,7 +2021,7 @@ theorem cert_lor_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     Sim₀ absStmts pers lst o (certLor (absCertCtx cx) (absNIdx c)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.cert_lor]
-  try unfold certLor
+  unfold certLor
   lockstep
 
 open Lockstep in
@@ -2043,7 +2043,7 @@ theorem cert_xor_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     Sim₀ absStmts pers lst o (certXor (absCertCtx cx) (absNIdx c)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.cert_xor]
-  try unfold certXor
+  unfold certXor
   lockstep
 
 open Lockstep in
@@ -2069,7 +2069,7 @@ theorem cert_div_mod_eqs_refines {pers st lst} {cx : arena.decl_check.CertCtx}
         (absEIdx h3) (absEIdx h4) (absEIdx rec_rhs) (absEIdx base_rhs)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.cert_div_mod_eqs]
-  try unfold certDivModEqs
+  unfold certDivModEqs
   lockstep
 
 open Lockstep in
@@ -2096,7 +2096,7 @@ theorem cert_div_mod_guards_refines {pers st lst} {cx : arena.decl_check.CertCtx
       (certDivModGuards (absCertCtx cx) (absNIdx c) (absEIdx rec_rhs) (absEIdx base_rhs)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.cert_div_mod_guards]
-  try unfold certDivModGuards
+  unfold certDivModGuards
   lockstep
 
 open Lockstep in
@@ -2150,7 +2150,7 @@ theorem div_mod_cert_stmts_at_refines {pers st lst} {cx : arena.decl_check.CertC
     Sim₀ absStmts pers lst o (divModCertStmtsAt (absCertCtx cx) (absNIdx c)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.div_mod_cert_stmts_at]
-  try unfold divModCertStmtsAt
+  unfold divModCertStmtsAt
   lockstep
 
 open Lockstep in
@@ -2179,7 +2179,7 @@ theorem cert_ctx_names_rest_refines {pers st lst}
         (absNIdx add_n) (absNIdx mul_n) (absNIdx sub_n) (absNIdx gcd_n)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.cert_ctx_names_rest]
-  try unfold certCtxNamesRestFullSpec
+  unfold certCtxNamesRestFullSpec
   lockstep
 
 open Lockstep in
@@ -2212,7 +2212,7 @@ theorem cert_ctx_names_refines {pers st lst}
         (absEIdx two)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.cert_ctx_names]
-  try unfold certCtxNamesFullSpec
+  unfold certCtxNamesFullSpec
   lockstep
 
 open Lockstep in
@@ -2294,7 +2294,7 @@ theorem cert_ctx_refines {pers st lst} {o}
     Sim₀ absCertCtx pers lst o certCtxFullSpec := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.cert_ctx]
-  try unfold certCtxFullSpec
+  unfold certCtxFullSpec
   lockstep
 
 open Lockstep in
@@ -2375,7 +2375,7 @@ theorem div_mod_cert_applied_refines {pers st lst}
       (divModCertApplied (absEIdx proof_s) (absEIdxL hyps)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.div_mod_cert_applied]
-  try unfold divModCertApplied
+  unfold divModCertApplied
   lockstep
 
 open Lockstep in
@@ -2551,7 +2551,7 @@ theorem div_mod_certs_guard_refines {pers st lst} {rf lf}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.div_mod_certs_guard]
-  try unfold divModCertsGuard
+  unfold divModCertsGuard
   lockstep
 
 attribute [local lockstep_simp] absINatOpPinSet in
@@ -2829,7 +2829,7 @@ theorem check_div_mod_pin_certs_refines {pers st lst} {rf lf}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.check_div_mod_pin_certs]
-  try unfold checkDivModPinCertsSpec
+  unfold checkDivModPinCertsSpec
   lockstep
 
 open Lockstep in
@@ -2905,7 +2905,7 @@ theorem check_div_mod_pin_value_refines {pers st lst} {rf lf}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.check_div_mod_pin_value]
-  try unfold checkDivModPinValue
+  unfold checkDivModPinValue
   lockstep
 
 open Lockstep in
@@ -3128,14 +3128,13 @@ theorem bool_ctor_typed_refines {pers st lst} {rf2 lf2}
   lockstep
   -- glue: the port reads the stored constant's copy (`i_constant_info_dup`),
   -- the twin the constant itself
-  all_goals
-    refine Lockstep.LS.pure ?_ ‹_› ‹_›
-    have h2 := ‹Lockstep.TwinEq (absIConstantInfo _).toConstantVal _›
-    simp only [Lockstep.TwinEq] at h2
-    rw [i_constant_info_dup_abs ‹arena.env.i_constant_info_dup _ = ok _›] at h2
-    simp only [absIConstantInfo] at h2
-    rw [h2]
-    rfl
+  refine Lockstep.LS.pure ?_ ‹_› ‹_›
+  have h2 := ‹Lockstep.TwinEq (absIConstantInfo _).toConstantVal _›
+  simp only [Lockstep.TwinEq] at h2
+  rw [i_constant_info_dup_abs ‹arena.env.i_constant_info_dup _ = ok _›] at h2
+  simp only [absIConstantInfo] at h2
+  rw [h2]
+  rfl
 
 open Lockstep in
 @[lockstep] theorem bool_ctor_typed_ls {pers st lst}
@@ -3183,7 +3182,7 @@ theorem div_mod_env_guard_refines {pers st lst} {rf2 lf2}
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.div_mod_env_guard]
-  try unfold divModEnvGuard
+  unfold divModEnvGuard
   lockstep
 
 open Lockstep in

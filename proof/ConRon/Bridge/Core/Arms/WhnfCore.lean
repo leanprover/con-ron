@@ -649,9 +649,13 @@ theorem whnfCoreStoreKeys_spec (henv : ConLeche.EnvWF env) (d : Nat) (v : EIdx) 
       ⦃fun _ s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧ s'.pins = s₀.pins; ⊤⦄
   | 0, i, s₀, hn, hok, _, _, _ => by
     rw [whnfCoreStoreKeys, dite_eq_right (by omega)]
-    vcgen
-    subst_vars
-    exact ⟨hok, rfl, rfl⟩
+    vcgen <;> subst_vars
+    all_goals first
+      | exact hok
+      | rfl
+      | exact ⟨hok, rfl⟩
+      | exact ⟨hok, rfl, rfl⟩
+      | exact ⟨rfl, rfl⟩
   | n + 1, i, s₀, hn, hok, hv, hwV, hk => by
     have hi : i < pend.size := by omega
     rw [whnfCoreStoreKeys, dite_eq_left hi]
@@ -672,9 +676,13 @@ theorem whnfCoreStoreCheapKeys_spec (henv : ConLeche.EnvWF env) (d : Nat) (v : E
       ⦃fun _ s' => CheckOK eager env fe s' ∧ s'.store = s₀.store ∧ s'.pins = s₀.pins; ⊤⦄
   | 0, i, s₀, hn, hok, _, _, _ => by
     rw [whnfCoreStoreCheapKeys, dite_eq_right (by omega)]
-    vcgen
-    subst_vars
-    exact ⟨hok, rfl, rfl⟩
+    vcgen <;> subst_vars
+    all_goals first
+      | exact hok
+      | rfl
+      | exact ⟨hok, rfl⟩
+      | exact ⟨hok, rfl, rfl⟩
+      | exact ⟨rfl, rfl⟩
   | n + 1, i, s₀, hn, hok, hv, hwV, hk => by
     have hi : i < pendC.size := by omega
     rw [whnfCoreStoreCheapKeys, dite_eq_left hi]
@@ -699,15 +707,23 @@ theorem whnfCoreStoreChain_spec (henv : ConLeche.EnvWF env) (c : Bool) (d : Nat)
   cases c with
   | true =>
     simp only [ite_true]
-    vcgen
-    subst_vars
-    exact ⟨hok, rfl, rfl⟩
+    vcgen <;> subst_vars
+    all_goals first
+      | exact hok
+      | rfl
+      | exact ⟨hok, rfl⟩
+      | exact ⟨hok, rfl, rfl⟩
+      | exact ⟨rfl, rfl⟩
   | false =>
     simp only [Bool.false_eq_true, ite_false]
     split
-    · vcgen
-      subst_vars
-      exact ⟨hok, rfl, rfl⟩
+    · vcgen <;> subst_vars
+      all_goals first
+        | exact hok
+        | rfl
+        | exact ⟨hok, rfl⟩
+        | exact ⟨hok, rfl, rfl⟩
+        | exact ⟨rfl, rfl⟩
     · refine triple_seq (whnfCoreStoreKeys_spec henv d v V pend _ 0 s₀ rfl hok hv hwV
         (hk rfl)) ?_
       rintro _ s1 ⟨hok1, hs1, hp1⟩
@@ -771,10 +787,33 @@ theorem whnfCoreLoop_spec {fe : IFEnv} {fuel : Nat}
         (fun hc => by subst hc; exact hp.keysAns (hE false))
         (fun _ => hpc.keysAns (hE true))) ?_
       rintro _ s1 ⟨hok1, hs1, hp1⟩
-      vcgen
-      subst_vars
-      exact ⟨hok1, by rw [hs1]; exact Ext.refl _, hp1, E, by rw [hs1]; exact hden, hw, 1,
-        hE c⟩
+      vcgen <;> subst_vars
+      all_goals first
+        | exact hok1
+        | exact by rw [hs1]; exact Ext.refl _
+        | exact hp1
+        | exact by rw [hs1]; exact hden
+        | exact hw
+        | exact hE c
+        | exact ⟨hok1, by rw [hs1]; exact Ext.refl _⟩
+        | exact ⟨hok1, by rw [hs1]; exact Ext.refl _, hp1⟩
+        | exact ⟨hok1, by rw [hs1]; exact Ext.refl _, hp1, E, by rw [hs1]; exact hden⟩
+        | exact ⟨hok1, by rw [hs1]; exact Ext.refl _, hp1, E, by rw [hs1]; exact hden, hw⟩
+        | exact ⟨hok1, by rw [hs1]; exact Ext.refl _, hp1, E, by rw [hs1]; exact hden, hw, 1, hE c⟩
+        | exact ⟨by rw [hs1]; exact Ext.refl _, hp1⟩
+        | exact ⟨by rw [hs1]; exact Ext.refl _, hp1, E, by rw [hs1]; exact hden⟩
+        | exact ⟨by rw [hs1]; exact Ext.refl _, hp1, E, by rw [hs1]; exact hden, hw⟩
+        | exact ⟨by rw [hs1]; exact Ext.refl _, hp1, E, by rw [hs1]; exact hden, hw, 1, hE c⟩
+        | exact ⟨hp1, E, by rw [hs1]; exact hden⟩
+        | exact ⟨hp1, E, by rw [hs1]; exact hden, hw⟩
+        | exact ⟨hp1, E, by rw [hs1]; exact hden, hw, 1, hE c⟩
+        | exact ⟨E, by rw [hs1]; exact hden⟩
+        | exact ⟨E, by rw [hs1]; exact hden, hw⟩
+        | exact ⟨E, by rw [hs1]; exact hden, hw, 1, hE c⟩
+        | exact ⟨by rw [hs1]; exact hden, hw⟩
+        | exact ⟨by rw [hs1]; exact hden, hw, 1, hE c⟩
+        | exact ⟨hw, 1, hE c⟩
+        | exact ⟨1, hE c⟩
     · rw [ite_eq_right hst]
       refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ i hok.state
         (by rw [hden]; rfl)) ?_
@@ -791,9 +830,8 @@ theorem whnfCoreLoop_spec {fe : IFEnv} {fuel : Nat}
         split
         · exact triple_mono (whnfCoreLookup_spec c s₀ i)
             (fun o s' ⟨h1, h2⟩ => ⟨h1, fun x hx => by rw [← h2, hx]⟩)
-        · vcgen
-          subst_vars
-          simp
+        · vcgen <;> subst_vars
+          all_goals first | rfl | simp_all
       dsimp only
       refine triple_seq hlk ?_
       rintro hit s2 ⟨hs2, hhit⟩
@@ -806,10 +844,33 @@ theorem whnfCoreLoop_spec {fe : IFEnv} {fuel : Nat}
         refine triple_seq (whnfCoreStoreChain_spec henv c d pend #[] x X s₀ hok hdX hwX
           (fun hc => by subst hc; exact hp.keysAns hFX) (fun _ => KeysAns.nil)) ?_
         rintro _ s3 ⟨hok3, hs3, hp3⟩
-        vcgen
-        subst_vars
-        exact ⟨hok3, by rw [hs3]; exact Ext.refl _, hp3, X, by rw [hs3]; exact hdX, hwX,
-          FX, hFX⟩
+        vcgen <;> subst_vars
+        all_goals first
+          | exact hok3
+          | exact by rw [hs3]; exact Ext.refl _
+          | exact hp3
+          | exact by rw [hs3]; exact hdX
+          | exact hwX
+          | exact hFX
+          | exact ⟨hok3, by rw [hs3]; exact Ext.refl _⟩
+          | exact ⟨hok3, by rw [hs3]; exact Ext.refl _, hp3⟩
+          | exact ⟨hok3, by rw [hs3]; exact Ext.refl _, hp3, X, by rw [hs3]; exact hdX⟩
+          | exact ⟨hok3, by rw [hs3]; exact Ext.refl _, hp3, X, by rw [hs3]; exact hdX, hwX⟩
+          | exact ⟨hok3, by rw [hs3]; exact Ext.refl _, hp3, X, by rw [hs3]; exact hdX, hwX, FX, hFX⟩
+          | exact ⟨by rw [hs3]; exact Ext.refl _, hp3⟩
+          | exact ⟨by rw [hs3]; exact Ext.refl _, hp3, X, by rw [hs3]; exact hdX⟩
+          | exact ⟨by rw [hs3]; exact Ext.refl _, hp3, X, by rw [hs3]; exact hdX, hwX⟩
+          | exact ⟨by rw [hs3]; exact Ext.refl _, hp3, X, by rw [hs3]; exact hdX, hwX, FX, hFX⟩
+          | exact ⟨hp3, X, by rw [hs3]; exact hdX⟩
+          | exact ⟨hp3, X, by rw [hs3]; exact hdX, hwX⟩
+          | exact ⟨hp3, X, by rw [hs3]; exact hdX, hwX, FX, hFX⟩
+          | exact ⟨X, by rw [hs3]; exact hdX⟩
+          | exact ⟨X, by rw [hs3]; exact hdX, hwX⟩
+          | exact ⟨X, by rw [hs3]; exact hdX, hwX, FX, hFX⟩
+          | exact ⟨by rw [hs3]; exact hdX, hwX⟩
+          | exact ⟨by rw [hs3]; exact hdX, hwX, FX, hFX⟩
+          | exact ⟨hwX, FX, hFX⟩
+          | exact ⟨FX, hFX⟩
       | none =>
         dsimp only
         refine triple_seq (whnfCoreStep_spec henv hsim c s₀ d hh i E hok hden hdh hw) ?_
@@ -836,10 +897,33 @@ theorem whnfCoreLoop_spec {fe : IFEnv} {fuel : Nat}
               exact ((hpc.ext hx3).pushKey _ hden3 hw).keysAns hM'
             · exact KeysAns.nil
           rintro _ s4 ⟨hok4, hs4, hp4⟩
-          vcgen
-          subst_vars
-          exact ⟨hok4, by rw [hs4]; exact hx3, by rw [hp4, hp3], V,
-            by rw [hs4]; exact hdV, hwR, M, hM⟩
+          vcgen <;> subst_vars
+          all_goals first
+            | exact hok4
+            | exact by rw [hs4]; exact hx3
+            | exact by rw [hp4, hp3]
+            | exact by rw [hs4]; exact hdV
+            | exact hwR
+            | exact hM
+            | exact ⟨hok4, by rw [hs4]; exact hx3⟩
+            | exact ⟨hok4, by rw [hs4]; exact hx3, by rw [hp4, hp3]⟩
+            | exact ⟨hok4, by rw [hs4]; exact hx3, by rw [hp4, hp3], V, by rw [hs4]; exact hdV⟩
+            | exact ⟨hok4, by rw [hs4]; exact hx3, by rw [hp4, hp3], V, by rw [hs4]; exact hdV, hwR⟩
+            | exact ⟨hok4, by rw [hs4]; exact hx3, by rw [hp4, hp3], V, by rw [hs4]; exact hdV, hwR, M, hM⟩
+            | exact ⟨by rw [hs4]; exact hx3, by rw [hp4, hp3]⟩
+            | exact ⟨by rw [hs4]; exact hx3, by rw [hp4, hp3], V, by rw [hs4]; exact hdV⟩
+            | exact ⟨by rw [hs4]; exact hx3, by rw [hp4, hp3], V, by rw [hs4]; exact hdV, hwR⟩
+            | exact ⟨by rw [hs4]; exact hx3, by rw [hp4, hp3], V, by rw [hs4]; exact hdV, hwR, M, hM⟩
+            | exact ⟨by rw [hp4, hp3], V, by rw [hs4]; exact hdV⟩
+            | exact ⟨by rw [hp4, hp3], V, by rw [hs4]; exact hdV, hwR⟩
+            | exact ⟨by rw [hp4, hp3], V, by rw [hs4]; exact hdV, hwR, M, hM⟩
+            | exact ⟨V, by rw [hs4]; exact hdV⟩
+            | exact ⟨V, by rw [hs4]; exact hdV, hwR⟩
+            | exact ⟨V, by rw [hs4]; exact hdV, hwR, M, hM⟩
+            | exact ⟨by rw [hs4]; exact hdV, hwR⟩
+            | exact ⟨by rw [hs4]; exact hdV, hwR, M, hM⟩
+            | exact ⟨hwR, M, hM⟩
+            | exact ⟨M, hM⟩
         | cont e' =>
           simp only [denoteStep, Option.map_eq_some_iff] at hdR
           obtain ⟨E', hdE', rfl⟩ := hdR

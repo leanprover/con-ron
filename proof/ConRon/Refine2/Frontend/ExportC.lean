@@ -1528,7 +1528,7 @@ theorem ind_pi_tele_len_refines {pers rst lst fuel h' o}
             rw [← e] at h2
             exact h2
         | _ =>
-          all_goals (cases Result.ok_injective h; show _ = _; rw [view_bind_run hV']; rfl)
+          (cases Result.ok_injective h; show _ = _; rw [view_bind_run hV']; rfl)
   have := H _ fuel 0#u64 h' o rfl h
   simpa using this
 

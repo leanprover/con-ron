@@ -146,12 +146,12 @@ structure Loaded where
   constants : Array CEntry
   frontier : Frontier
 
-/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:187-190 valueRef
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:189-192 valueRef
 **A theorem's value, until its check reads it**: the value at location `g` of module
 `i` of the closure's order, as an expression. -/
 def valueRef (i g : Nat) : AM EIdx := internE (.bvar (g * refBase + i))
 
-/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:204-216 lazyEntry
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:206-218 lazyEntry
 **A constant read, a theorem's value as its reference.**  As the Rust, `g` must be
 below `refBase` too (its code is a word). -/
 def lazyEntry (pk : OleanPins) (r : Region) (st : DS) (i : Nat) (s : CEntryF UInt64 UInt64) :
@@ -168,7 +168,7 @@ def lazyEntry (pk : OleanPins) (r : Region) (st : DS) (i : Nat) (s : CEntryF UIn
     pure (some ⟨name, lps, type, .thm (← valueRef i g) all⟩)
   | _ => entryMap (st.read pk r) s
 
-/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:218-231 lazyEntries
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:220-233 lazyEntries
 `lazyEntry` of every constant, each with what it mentions (`outs`, by position). -/
 def lazyEntries (pk : OleanPins) (r : Region) (st : DS) (i : Nat) (outs : Array (Array UInt64)) :
     Nat → List (CEntryF UInt64 UInt64) → AM (Option (List CEntry))
@@ -181,7 +181,7 @@ def lazyEntries (pk : OleanPins) (r : Region) (st : DS) (i : Nat) (outs : Array 
       | none => pure none
       | some es => pure (some ({ c := e, uses := usesRead pk (st.nameOf pk r) (outs.getD k #[]) } :: es))
 
-/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:243-266 frontierWalk
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:245-268 frontierWalk
 **The objects the load read that the values reach directly**: a walk from the values
 over what the load did not read (each object once, `seen`), stopping at what it did
 (`env`), which goes into `fr`.  Entries are a location and a kind's code.  Spent fuel
@@ -208,7 +208,7 @@ def frontierWalk (r : Region) (env : ByteArray) (seen fr : ByteArray) :
             | none => st) stack
         frontierWalk r env seen fr fuel stack
 
-/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:273-282 frontierStep
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:275-284 frontierStep
 Slot `p` of `fr`, where the marks `m` hold it too, into the frontier. -/
 @[inline] def frontierStep (m fr : ByteArray) (st : DS) (p : Nat) (b : Frontier) : Frontier :=
   if marksAt fr p == 0 then b else
@@ -224,19 +224,19 @@ Slot `p` of `fr`, where the marks `m` hold it too, into the frontier. -/
     exprs.add c (st.exprs.getD p default) else exprs
   { names, levels, lists, exprs }
 
-/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:284-288 frontierOf
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:286-290 frontierOf
 **The frontier**: the slots from `p` to `n` of `fr` that the marks `m` hold, with
 their values in the passes' memo.  Ascending, so each table's keys are. -/
 def frontierOf (m fr : ByteArray) (st : DS) (n p : Nat) (b : Frontier) : Frontier :=
   if p < n then frontierOf m fr st n (p + 1) (frontierStep m fr st p b) else b
 termination_by n - p
 
-/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:292-311 loadAt
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:294-313 loadAt
 The name and expression roots of the load. -/
 def loadRoots (sk : ModSkel) (skels : List (CEntryF UInt64 UInt64)) : List UInt64 × List UInt64 :=
   (sk.imports.map (·.module) ++ skels.flatMap CEntryF.names, skels.flatMap CEntryF.exprs)
 
-/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:292-311 loadAt
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:294-313 loadAt
 The imports read off the memo, against those at the start of `M.olean`. -/
 def loadImports (pk : OleanPins) (r : Region) (st : DS) (sk : ModSkel) (f : ModFiles) : AM Bool := do
   let some imports := sk.imports.mapM (fun i => i.mapM (st.nameOf pk r)) | return false
@@ -244,14 +244,14 @@ def loadImports (pk : OleanPins) (r : Region) (st : DS) (sk : ModSkel) (f : ModF
   | some pre => pure (pre == imports.toArray)
   | none => pure false
 
-/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:292-311 loadAt
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:294-313 loadAt
 The values' locations, each with the expression kind's code: the walk's start. -/
 def valueRoots (r : Region) (skels : List (CEntryF UInt64 UInt64)) : List Nat :=
   skels.filterMap fun c => match c.kind with
     | .thm v _ => (r.loc v).map (· + kindCode kExpr)
     | _ => none
 
-/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:292-311 loadAt
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:294-313 loadAt
 **The load of a module's private view**, everything but its theorems' values.
 `none` where the part of the view it reads does not read: `viewError` says why. -/
 def loadAt (pk : OleanPins) (i : Nat) (m : NIdx) (f : ModFiles) : AM (Option Loaded) := do
@@ -269,7 +269,7 @@ def loadAt (pk : OleanPins) (i : Nat) (m : NIdx) (f : ModFiles) : AM (Option Loa
   let fr := frontierWalk r ms (zeros n) (zeros n) closureFuel (valueRoots r skels).reverse
   pure (some { name := m, constants := cs.toArray, frontier := frontierOf ms fr st nm 0 {} })
 
-/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:313-317 loadView
+/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:315-319 loadView
 **The load, with the reason where it does not read.** -/
 def loadView (pk : OleanPins) (i : Nat) (m : NIdx) (f : ModFiles) : AM Loaded := do
   match ← loadAt pk i m f with

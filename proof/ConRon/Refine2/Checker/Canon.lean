@@ -366,7 +366,7 @@ theorem i_rec_rule_fire_beq_refines {a b : arena.env.IRecRuleFire} {o : Bool}
       rw [h1]
       simp [absIRecRuleFire, absLIdxLFrom]
     all_goals (rw [← Result.ok_injective hrun]; simp [absIRecRuleFire])
-  all_goals (cases b <;> (rw [← Result.ok_injective hrun]; simp [absIRecRuleFire]))
+  (cases b <;> (rw [← Result.ok_injective hrun]; simp [absIRecRuleFire]))
 
 /-! ### The short-circuit conjunction, once
 

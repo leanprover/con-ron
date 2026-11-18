@@ -1711,7 +1711,7 @@ theorem idx_at_abs {α : Type} (v : alloc.vec.Vec α) (r : Std.U64) (f : α → 
       lst ((absBlockShape p).withSort (absLIdx s)) := by
   rw [arena.inductives.block_shape.with_sort, BlockShape.withSort]
   lockstep
-  all_goals (split <;> (refine LS.pure ?_ ‹_› ‹_›; simp_all [absBlockShape]))
+  (split <;> (refine LS.pure ?_ ‹_› ‹_›; simp_all [absBlockShape]))
 
 /-! ## The recursor records' pins -/
 
