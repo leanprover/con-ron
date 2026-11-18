@@ -40,20 +40,14 @@ theorem clone_u8 : ∀ x : Std.U8, core.clone.CloneU8.clone x = ok x := fun _ =>
 theorem extend_u8_val {v w : alloc.vec.Vec Std.U8} {s : Slice Std.U8}
     (h : alloc.vec.Vec.extend_from_slice core.clone.CloneU8 v s = ok w) :
     w.val = v.val ++ s.val := by
-  obtain ⟨s', hs', hss⟩ := WP.spec_imp_exists
-    (Slice.clone_spec (clone := core.clone.CloneU8.clone) (s := s) (fun x _ => clone_u8 x))
+  obtain ⟨s', hs', hss, _⟩ := WP.spec_imp_exists
+    (List.clone_spec (clone := core.clone.CloneU8.clone) (l := s.val) (fun x _ => clone_u8 x))
   unfold alloc.vec.Vec.extend_from_slice at h
   split at h
-  · split at h
-    · rename_i s'' hm
-      simp only [Result.ok.injEq] at h
-      subst h
-      have : Slice.clone core.clone.CloneU8.clone s = ok s'' := by simpa using hm
-      rw [hs'] at this
-      cases Result.ok_injective this
-      simp [hss]
-    · simp at h
-    · simp at h
+  · rw [hs'] at h
+    simp only [bind_tc_ok, Result.ok.injEq] at h
+    subst h
+    simp [hss]
   · simp at h
 
 theorem vec_with_capacity_val {α : Type} (c : Std.Usize) :

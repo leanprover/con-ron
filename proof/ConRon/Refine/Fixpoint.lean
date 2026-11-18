@@ -140,3 +140,20 @@ elab "partial_induct" func:ident : tactic => do
   setGoals [gStep]
 
 end ConRon.Refine.Fixpoint
+
+/-! ## A total `spec` is an `ok`
+
+Aeneas's `WP.spec_imp_exists`, restated (task #162): upstream removed it
+(AeneasVerif/aeneas#1384) in favour of `spec_exists`, which forgets the
+equation `m = ok y` that every use here needs — a total `spec` on a `Result`
+says the computation returns `ok` with a value satisfying the post.  Kept under
+its old name, so the call sites read as before. -/
+
+namespace Aeneas.Std.WP
+
+theorem spec_imp_exists {α} {m : Result α} {P : Post α} :
+    spec m P → (∃ y, m = ok y ∧ P y) := by
+  intro h
+  cases m <;> simp_all
+
+end Aeneas.Std.WP

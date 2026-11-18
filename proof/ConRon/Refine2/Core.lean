@@ -11,7 +11,6 @@ entries against `Arena/Core.lean`'s `coreKnot` and `Arena/CoreIO.lean`'s
 | `Core/KnotRel.lean` | `laneKnot` / `laneKnotAt` (the port's `u32` lane and `bool` io flag as the twin's record), `CoreCtx`, and the two relations `KnotRel f` / `BodyRel f` | — |
 | `Core/Induction.lean` | `knotRel_zero`, the six `knotRel_succ_*` fields, `knotRel_succ : BodyRel f → KnotRel (f + 1)` and the fuel induction `knot_rel` | all |
 | `Core/Entries.lean` | the six fueled entry points, from `KnotRel` — what the Checker tier consumes | all |
-| `Core/Eqns.lean` | the 109 `partial_fixpoint` unfolding equations of `arena::core`'s two mutual blocks, derived ONCE and cached into one `.olean` (task #97-P5-Arms) | — |
 | `Core/Arms.lean` | the tier index, `bodyRel_of_knot : ∀ f, KnotRel f → BodyRel f` and the census of the ≈ 95 helpers under it | **open** |
 | `Core/Arms/Sort.lean` | the `view`/tag agreement — the ten-way `EStore_view_tagOf` and the `sort` projection — and `ensure_sort_refines` | all |
 | `Core/Arms/Delta.lean` | the `whnf` loop's delta leaf: `ifenv_find_abs`, the `const` tag/view agreement, `const_val_at_refines` and **`unfold_definition_refines`** (task #97-P5-Core-2) | all |
@@ -28,6 +27,5 @@ import ConRon.Refine2.Core.Probes
 import ConRon.Refine2.Core.KnotRel
 import ConRon.Refine2.Core.Induction
 import ConRon.Refine2.Core.Entries
-import ConRon.Refine2.Core.Eqns
 import ConRon.Refine2.Core.Arms
 import ConRon.Refine2.Core.Bracket

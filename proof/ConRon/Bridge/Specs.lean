@@ -106,7 +106,7 @@ the auxiliary and that imports a module carrying only the two lines below
 re-uses the owner's auxiliary (`getModuleIdxFor?` names the owner) and adds
 nothing.
 
-**The spelling matters** (the `Refine2/Core/Eqns.lean` precedent).  What
+**The spelling matters.**  What
 forces the derivation is a `grind` on a goal whose head IS the matcher and
 which cannot be closed without splitting it; a `grind` on `f x = f x`, or one
 whose goal is `True`, closes first and derives nothing.  Hence the shape

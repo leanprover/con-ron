@@ -10,6 +10,7 @@ set_option linter.unusedVariables false
 set_option linter.style.whitespace false
 set_option linter.style.setOption false
 set_option linter.style.longLine false
+set_option linter.internalConstructors false
 
 /- You can set the `maxHeartbeats` value with the `-max-heartbeats` CLI option -/
 set_option maxHeartbeats 1000000
@@ -30,7 +31,7 @@ axiom core.str.Str.as_bytes : Str → Result (Slice Std.U8)
     Name pattern: [alloc::sync::{alloc::sync::Arc<@T>}::new]
     Visibility: public -/
 @[rust_fun "alloc::sync::{alloc::sync::Arc<@T>}::new"]
-axiom alloc.sync.Arc.new {T : Type} : T → Result (alloc.sync.Arc T)
+axiom alloc.sync.Arc.new {T : Type _} : T → Result (alloc.sync.Arc T)
 
 /-- [alloc::sync::{alloc::sync::Arc<T>}::ptr_eq]:
     Source: '/rustc/library/alloc/src/sync.rs', lines 2276:4-2276:52
@@ -38,7 +39,8 @@ axiom alloc.sync.Arc.new {T : Type} : T → Result (alloc.sync.Arc T)
     Visibility: public -/
 @[rust_fun "alloc::sync::{alloc::sync::Arc<@T>}::ptr_eq"]
 axiom alloc.sync.Arc.ptr_eq
-  {T : Type} (A : Type) : alloc.sync.Arc T → alloc.sync.Arc T → Result Bool
+  {T : Type _} (A : Type _) :
+  alloc.sync.Arc T → alloc.sync.Arc T → Result Bool
 
 /-- [alloc::sync::{impl core::clone::Clone for alloc::sync::Arc<T>}::clone]:
     Source: '/rustc/library/alloc/src/sync.rs', lines 2521:4-2521:32
@@ -46,7 +48,7 @@ axiom alloc.sync.Arc.ptr_eq
     Visibility: public -/
 @[rust_fun "alloc::sync::{core::clone::Clone<alloc::sync::Arc<@T>>}::clone"]
 axiom alloc.sync.Arc.Insts.CoreCloneClone.clone
-  {T : Type} {A : Type} (coreallocAllocatorCloneInst :
+  {T : Type _} {A : Type _} (coreallocAllocatorCloneInst :
   core.alloc.AllocatorClone A) :
   alloc.sync.Arc T → Result (alloc.sync.Arc T)
 
@@ -57,5 +59,5 @@ axiom alloc.sync.Arc.Insts.CoreCloneClone.clone
 @[rust_fun
   "alloc::sync::{core::ops::deref::Deref<alloc::sync::Arc<@T>, @T>}::deref"]
 axiom alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref
-  {T : Type} (A : Type) : alloc.sync.Arc T → Result T
+  {T : Type _} (A : Type _) : alloc.sync.Arc T → Result T
 
