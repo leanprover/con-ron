@@ -540,8 +540,8 @@ theorem etables_get_lit_wf {rt} (hinv : ETablesInv rt) {i : arena.handle.EIdx}
   simp only [Result.ok.injEq, Option.some.injEq, arena.store.ENodeView.Lit.injEq] at h
   subst h
   obtain rfl := ConRon.Refine.Expr.literal_dup_eq ‹kernel.expr.literal_dup _ = ok _›
-  exact tbl_node_wf hinv.lits ‹arena.store.Tbl.node _ _ _ _ _ _ _ rt.lits _ = ok _› _
-    rfl
+  exact (tbl_node_wf hinv.lits ‹arena.store.Tbl.node _ _ _ _ _ _ _ rt.lits _ = ok _› _
+    rfl).1
 
 /-- … and so is one read through `EStore::view`. -/
 theorem estore_view_lit_wf {pers rs} (hinv : StoreInv pers rs) {i : arena.handle.EIdx}

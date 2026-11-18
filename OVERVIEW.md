@@ -357,7 +357,7 @@ comparing two terms is comparing two words.
 
 Each store keeps, per tier, **one array per constructor**, each element a
 fixed-size record of handles and scalars; an `app` node is two `u32`s
-([`ETables`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1186-L1200)).
+([`ETables`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1198-L1212)).
 The stores nest: an expression refers to names, levels and level lists, a
 level to names.  Reading a node back (`view`) decodes the tag and reads one
 array element; there is no node enum in memory.
@@ -372,10 +372,10 @@ Every node is added through **`intern`**, which **hash-conses**: it looks
 the node's fields up in the tier's **cons table** (a hash map from fields to
 handle, which stores only the handle and compares the fields against the row
 the handle names) and returns the existing handle if there is one
-([`EStore::intern`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3603-L3638)).
+([`EStore::intern`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3623-L3658)).
 It probes the persistent table first, then the scratch table, and appends
 only if both miss
-([the `app` case](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3888-L3935)).
+([the `app` case](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3908-L3955)).
 
 Hash-consing is needed for soundness, not only for speed.  The checker
 treats equal handles as equal terms and unequal name handles as unequal
@@ -419,7 +419,7 @@ In Rust, the sharing is a separate parameter, and it is also what makes a
 store FROZEN.  After the index is built,
 [`freeze_tier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/checker.rs#L65-L88)
 moves the four stores' persistent tables and the index out into one
-[`PersTier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1217-L1269)
+[`PersTier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1229-L1281)
 value whose `frozen` bit is set.  Every persistent read goes to the
 `&PersTier` a function is handed when that tier is frozen, and to the store's
 own tables otherwise; a worker's store is empty and FROZEN (its scratch tier

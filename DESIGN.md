@@ -73437,3 +73437,57 @@ task (master's cargo is the same).
 **Shared-state switch-over at landing** (#112's instant route, no other worktree alive):
 the private library replaces `_tmp/aeneas-lean-v4.36.0`, the main tree's
 `vendor/aeneas` follows, `direnv reload`, `lake build`, reseed the cache.
+
+### Task #163 — a literal's hash computed once; `pred` by an in-place borrow (2026-11-18, Opus)
+
+**Why.**  The maintainer asked for a spike of bignums as `low limb + 2^64 · (interned
+bignum)` — limb lists whose tails are shared through the interning table, so that
+`n ± 1` shares the upper limbs (branch `worktree-spike-nat-tails`, `a55a905e`, not for
+landing).  Instrumenting `intern_lit` on `perf/gf3-matrix-product` answered it: of
+367.7 M limbs in newly interned nat literals, 12.55 % lie in an upper-limb suffix that an
+earlier literal already had, and that is nearly all ONE source — `pred` from the
+`Nat.succ (n-1)` view of a literal (gf3's `strictN`, a `Nat.rec` on a 610 kbit number:
+5 049 literals, 44.7 M limbs, ~100 % shared).  `mul`/`lor`/`xor`/`land`/`add` (317 M
+limbs) share 0.0–1.3 %, `shr` 11 % of 5.3 M.  A limb list would help that one path and
+make every other operation flatten its operands.  The profile pointed elsewhere:
+**literal interning was ~46 % of gf3** (`intern_lit` 31.5 %, `ConsMap::insert_no_resize`
+14.4 %), because a `LitNode`'s key hash — `literal_hash`, FNV-1a over every limb, a
+serial xor-multiply chain at ~4 cycles a limb — was recomputed in `find_slot`, in
+`der_of_lit`, in `insert_at`, and for every entry at each table doubling.  Every other
+expression node's key hash is O(1) (handle words packed); the name store's `StrNode`
+and the level-list store's `ListNode` hash their contents too, but are short.  After
+that, `pred` was the next item (`sub_from`, 6.5 %): `sub(a, 1)` pushes every limb from
+empty with bounds-checked reads of both operands.
+
+**The change.**
+* `arena::store::LitNode { l, h }`; `lit_node(l)` computes `literal_hash` once and is the
+  only constructor `intern_lit` uses; `Hashable` returns `h`; `Dup` copies it; the
+  derived word comes from it (`der_of_lit_hash`, which `der_of_lit` now calls).  The twin
+  is unchanged: `absLitNode` drops `h`.
+* `ron::nat::pred`: `zero` at zero, otherwise `norm(sub_borrow_at(a.limbs.clone(), 0,
+  1))` — a `memcpy` and the borrow rippled in place from limb 0 by task #158's loop.
+  Test `pred_ripples_the_borrow_through_zero_limbs` (`2^(64k)`, `[0, 0, 5]`).
+
+**The proof.**  `LitNodeWF r := LiteralWF r.l ∧ literal_hash r.l = ok r.h` — `eq2`
+compares only the literal, so the cached hash must be a function of it for `Eq2Fwd`
+(`lit_eq2`) and `absLitNode_inj`.  `der_of_lit_hash_obs` holds for ANY hash (the
+observation reads no hash bit); it replaces `der_of_lit_obs`, whose one user was `intern_lit`.
+`estore_intern_lit_abs` peels `lit_node` first and hands `⟨hwf, hlh⟩` to the table
+lemmas; the four readers of a stored literal's WF (`PrimsF`, `PrimsB` ×2,
+`Tactic/Prims`) take `.1`.  `pred_refines` is `sub_borrow_at_val` + `norm_refines`, so it
+moved after that lemma; `vec_clone_u64` is factored out of `clone_refines`.
+
+**Measurements** (`perf stat -e instructions:u,cycles:u`, `--jobs=1`, one run each;
+master's Rust is unchanged since `c77150ee`, same rustc, so its numbers stand):
+
+| | master | this task | |
+|---|---:|---:|---:|
+| gf3, instructions | 50 946 606 994 | 41 740 661 120 | −18.1 % |
+| `Init`, instructions | 165 751 223 723 | 165 747 986 439 | −0.002 % |
+
+Of gf3's 9.2 G, the hash cache is 6.7 G and `pred` 2.5 G (the spike, step by step).
+Cycles from the spike's paired runs (quiet machine): gf3 21.56 G → 12.89 G (−40 %),
+`Init` 62.95 G → 63.06 G; this branch's own runs (gf3 15.2 G, `Init` 86.3 G) were on a
+loaded machine, `Init` included, and are not comparable.  Verdicts unchanged (gf3 364,
+`Init` 57 919 accepted).  After both changes, what tail sharing could still remove is
+the `pred` path's one copy and one hash of 44.7 M limbs, ~1–2 % of gf3.

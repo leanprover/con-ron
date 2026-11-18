@@ -476,7 +476,8 @@ theorem clone_refines {a n : ron.nat.Nat} (h : ron.nat.clone a = ok n) :
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨v, hv, h⟩ := h
   subst h
-  subst (vec_clone_u64 hv)
+  have hva := vec_clone_u64 hv
+  subst hva
   exact ⟨rfl, rfl⟩
 
 theorem to_u64_refines {a : ron.nat.Nat} {o : Option Std.U64} (ha : NatWF a)
@@ -915,27 +916,6 @@ theorem sub_refines {a b c : ron.nat.Nat} (ha : NatWF a) (hb : NatWF b)
     refine ⟨?_, hwf⟩
     rw [hnv]
     simp only [Nat.mul_zero, Nat.add_zero] at hseg
-    omega
-
-theorem pred_refines {a c : ron.nat.Nat} (ha : NatWF a) (h : ron.nat.pred a = ok c) :
-    toNat c = toNat a - 1 ∧ NatWF c := by
-  rw [ron.nat.pred] at h
-  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
-  have hz := is_zero_refines ha hb
-  split at h
-  · obtain ⟨hc, hwf⟩ := zero_refines h
-    exact ⟨by rw [hc]; omega, hwf⟩
-  · obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-    -- the clone is the limbs themselves; the ripple subtracts `1 · B^0`
-    subst (vec_clone_u64 hv)
-    rw [ron.nat.sub_borrow_at] at hw
-    obtain ⟨hwv, -⟩ := sub_borrow_at_val _ _ _ _ (by scalar_tac) hw
-    obtain ⟨hcv, hwf⟩ := norm_refines h
-    refine ⟨?_, hwf⟩
-    rw [hcv]
-    have : toNat a = limbsToNat a.limbs.val := rfl
-    simp at hwv
     omega
 
 /-! ## Bitwise operations
@@ -1982,6 +1962,31 @@ theorem sub_borrow_at_val :
     subst h
     have : bo.val = 0 := by scalar_tac
     simp [this]
+
+/-- `pred` is a copy of the limbs with the borrow rippled in from limb 0
+(`sub_borrow_at`), hence here, after that loop's lemma. -/
+theorem pred_refines {a c : ron.nat.Nat} (ha : NatWF a) (h : ron.nat.pred a = ok c) :
+    toNat c = toNat a - 1 ∧ NatWF c := by
+  rw [ron.nat.pred] at h
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  have hz := is_zero_refines ha hb
+  split at h <;> rename_i hbt
+  · obtain ⟨hc, hwf⟩ := zero_refines h
+    have h0 : toNat a = 0 := by simpa [hbt] using hz
+    exact ⟨by rw [hc, h0], hwf⟩
+  · simp only [bind_eq_ok_iff] at h
+    obtain ⟨v, hv, w, hw, h⟩ := h
+    -- the clone is the limbs themselves; the ripple subtracts `1 · B^0`
+    have hva := vec_clone_u64 hv
+    subst hva
+    rw [ron.nat.sub_borrow_at] at hw
+    obtain ⟨hwv, -⟩ := sub_borrow_at_val _ _ _ _ (by scalar_tac) hw
+    obtain ⟨hcv, hwf⟩ := norm_refines h
+    refine ⟨?_, hwf⟩
+    rw [hcv]
+    have : toNat a = limbsToNat a.limbs.val := rfl
+    simp at hwv
+    omega
 
 /-- The subtraction loop step, as pure arithmetic (task #15's `*_step_arith`
 trick: the word equation is scaled by the place value `P` inside a `calc`). -/
