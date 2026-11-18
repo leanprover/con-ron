@@ -73376,3 +73376,64 @@ Peak RSS 423 / 427 MB.  The Rust changed by comments and generated data only.
 finish` shape; the Aeneas submodule stays at `557eff83` with #1547's library hunk carried in
 the patch (a full Aeneas bump moves the extractor too).  When a stable Lean ships
 lean4#16146, upstream drops `natBigHash` (its task #598's plan): the three skips go with it.
+
+### Task #162 — Aeneas 557eff83 → 1dc8ad31, on v4.36.0; `Core/Eqns.lean` goes (2026-11-18, Opus)
+
+`vendor/aeneas` and `flake.nix` move to upstream `main` **`1dc8ad31`** (2026-11-14, 97
+commits; nightly-2026.11.18).  Aeneas cuts no releases; `main` is the newest it has.
+The flake follows: Charon `454586e9` (0.1.315), nixpkgs 2026-10-20; rustc and cargo are
+unchanged (nightly 2026-09-16).  Worktree `_tmp/wt-t162`; the library was built in a
+private `_tmp/aeneas-lean-t162-<key>` (a reflink copy of the v4.36.0 package set) reached
+through a worktree-private `_tmp/` whose `aeneas-lean-v4.36.0` entry points at it, as in #112.
+
+**The patch: 627 lines → 2 hunks.**  Upstream builds on v4.36.0 by itself (its
+lean-toolchain is v4.36.0-rc2; #1547 carried the `Set.Mem` lemmas #161 had patched), so
+every toolchain hunk went.  Rebuilt from the errors up, not rebased: the library builds
+(3 611 jobs) with only
+* `Aeneas/Extract/Extract.lean` — task #104's relative source paths (the shared cache
+  depends on it);
+* `Aeneas/Std/String.lean` — `toStr`'s default proof back to the pinned 557eff83's
+  `decide +native`.  Upstream's `decide +kernel` makes the kernel UTF-8-encode the literal:
+  on the 600 KB `kernel.pins_text.PINS_TEXT` it fails with "(kernel) deep recursion"
+  (`Generated/Funs.lean` does not elaborate).  No simproc evaluates `String.utf8ByteSize`
+  on a literal (`simp` makes no progress even on `"abc"`), so there is no cheap
+  axiom-free proof to offer instead.  No pinned axiom list changes (none contains
+  `Lean.ofReduceBool`).  Worth an upstream report.
+
+**The regenerated model** (`Funs.lean` ±4 486, `Types.lean` 85): generic parameters are
+universe-polymorphic (`Type _`; the hand-written `TypesExternal`/`FunsExternal` at
+`Type` still fit); `Global` is qualified; and **branch continuations are joined** —
+where the old model copied the tail of a loop body into each branch, the new one binds
+the branches' result once (`let (stack1, sp1) ← if b then … else …`), which is the
+Rust's shape.  Much of the line count is the prelude's byte arrays moving with
+declaration order.
+
+**Proofs** (Theorem 1 untouched — the Bridge imports no Aeneas):
+* `WP.spec_imp_exists` (61 uses) was removed upstream (#1384) for `spec_exists`, which
+  forgets `m = ok y`; restated in `Refine/Fixpoint.lean` under its old name and namespace
+  (`cases m <;> simp_all`, as upstream's own proof was), so no call site changed.
+* `Refine2/Frontend/PreludeText.lean`'s `extend_u8_val`: `Vec.extend_from_slice` now
+  clones with `List.clone` in a bind (it matched on `Slice.clone`); the proof follows.
+* `Refine2/Frontend/Olean/Lazy.lean`'s `frontier_walk` step: the joined continuation is
+  one more bind to split before the old argument applies.
+
+**`Core/Eqns.lean` is gone.**  It existed to pay, once, the ≈ 17 minutes of deriving the
+109 `partial_fixpoint` unfolding equations of `arena::core` (task #97-P5-Arms).
+lean4#15313 (in v4.36.0) derives a block's unfold theorems from one shared fixpoint
+equation; the module elaborated in 1.6 s.  Measured, `instructions:u`, one run each, the
+whole chain downstream rebuilt: with `Eqns` (71 modules) **5 532.2 G**, without it (70
+modules, each deriving its equations on first use) **5 527.2 G**.  Removed: the module,
+its two imports, the index rows, `Arms/Sort.lean`'s uncommented `maxRecDepth 4000`;
+CLAUDE.md loses the build-copy fallback (it existed for those 17 minutes) and rewords the
+no-copy rule and the cache-seeding note.  The shared cache stays: it still saves
+`Generated/Funs.lean` (≈ 130 s) and everything above it.
+
+**Numbers.**  `Generated/Funs.lean` 129 s in the build; Aeneas's extraction 405 s (one
+run; #112 noted its count moves ±12 % between identical runs).  The checker binary is
+built from unchanged Rust by the same rustc: no checker measurement.  The `mimalloc`
+unused-dependency warning of `crates/con-ron-dump` is cargo's own and older than this
+task (master's cargo is the same).
+
+**Shared-state switch-over at landing** (#112's instant route, no other worktree alive):
+the private library replaces `_tmp/aeneas-lean-v4.36.0`, the main tree's
+`vendor/aeneas` follows, `direnv reload`, `lake build`, reseed the cache.

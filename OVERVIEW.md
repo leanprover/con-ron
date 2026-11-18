@@ -1115,11 +1115,11 @@ Rust prelude text and the twin's prelude bytes are con-leche's
 include `ConRonBridge`, `ConRonRefine2` and `ConRonCapstone`, failing on any
 warning from `proof/`'s own sources.
 
-**Upstream patches.**  One: the pinned Aeneas builds its Lean library
-against an older Lean, and
+**Upstream patches.**  One, of two hunks:
 [`patches/aeneas.patch`](https://github.com/leanprover/con-ron/tree/master/patches/aeneas.patch)
-(627 lines, twenty-one files) makes it build on con-leche's Lean (v4.36.0)
-and its Mathlib.  `scripts/setup-aeneas-lean.sh` applies it.  Charon and con-leche
+keeps absolute source paths out of the extracted `.olean`s (so one Lake cache
+serves every checkout) and lets `toStr` accept the 600 KB pin-text literal
+(the kernel cannot encode it).  `scripts/setup-aeneas-lean.sh` applies it.  Charon and con-leche
 are used unpatched.
 
 ## 11. Module map
