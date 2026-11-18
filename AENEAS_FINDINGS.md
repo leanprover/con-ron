@@ -24,10 +24,10 @@ Rust.
 
 | | |
 |---|---|
-| Aeneas | `AeneasVerif/aeneas` **557eff83ecef5083b98a52a94ca7fae63d6c1dab** (2026-10-02; 505b6ca3 until task #112); translator and `backends/lean` from the same rev |
-| Charon | `aeneasverif/charon` **c8f15d7d658c86a95658f71ad99cddd4be002e04** (b104e24f until task #112), via Aeneas's own flake input |
+| Aeneas | `AeneasVerif/aeneas` **1dc8ad31b1b062a77c50e29144a6c7bba955fa09** (2026-11-14; 557eff83 until task #162); translator and `backends/lean` from the same rev |
+| Charon | `aeneasverif/charon` **454586e9b770231e66d2062993e632dfc06463e2** (c8f15d7d until task #162), via Aeneas's own flake input |
 | Rust toolchain | the nightly Charon pins, **nightly-2026-09-17** (nightly-2026-08-18 until task #112) |
-| Lean (our proof project *and* con-leche) | **leanprover/lean4:v4.35.0-rc3** + Mathlib `v4.35.0-rc3` (v4.33.0 until task #110) |
+| Lean (our proof project *and* con-leche) | **leanprover/lean4:v4.36.0** + Mathlib `v4.36.0` (v4.35.0 until task #161) |
 | Lean the Aeneas library wants | v4.31.0 — reconciled by our `patches/aeneas.patch` (§3.1; `aeneas-433.patch` until task #110) |
 | CLI | `charon cargo --preset=aeneas --dest-file <abs>.llbc`; `aeneas -backend lean -split-files -loops-to-rec -use-lean-modules false -dest … -subdir ConRon/Generated -namespace ConRon.Generated -no-progress-bar` |
 

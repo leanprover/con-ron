@@ -212,7 +212,7 @@
      6      # Charon pins the Rust nightly it needs (`rust-toolchain`).  Everything
      7      # else follows from these two so that the Rust we write is compiled by
      8      # exactly the toolchain Charon understands.
-     9      aeneas.url = "github:AeneasVerif/aeneas/557eff83ecef5083b98a52a94ca7fae63d6c1dab";
+     9      aeneas.url = "github:AeneasVerif/aeneas/1dc8ad31b1b062a77c50e29144a6c7bba955fa09";
     10      nixpkgs.follows = "aeneas/charon/nixpkgs";
     11      flake-utils.follows = "aeneas/flake-utils";
     12    };

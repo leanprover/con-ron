@@ -538,7 +538,7 @@ set_option maxHeartbeats 8000000 in
         (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe
         (absU depth) (absEIdx a) (absEIdx b)) := by
   rw [arena.core.lazy_delta_step]
-  -- Aeneas 557eff83 (task #112) re-tests `ua`/`ub` inside the branches
+  -- Aeneas (since task #112) re-tests `ua`/`ub` inside the branches
   -- that already decided them (`if ua then if ua then …`); the contextual
   -- `simp` folds the dead re-tests away, back to the two-level test
   simp (config := { contextual := true }) only [↓reduceIte, Bool.false_eq_true]

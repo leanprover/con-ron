@@ -30,7 +30,7 @@ section for every task you land.
   ConRon.Refine2.Specs` (or whichever) is what tells it whether the proof
   went through, and it costs seconds where the full gates cost minutes —
   `extract-check` alone is 100–300 s, and a merge that moves
-  `Generated/Funs.lean` costs ~1 000 s of `Core/Eqns.lean` re-derivation.
+  `Generated/Funs.lean` re-elaborates it (~130 s) and everything above it.
   Run the module build after every edit, the whole-target build
   (`lake build ConRonBridge` or `lake build ConRonRefine2` for one tier;
   plain `lake build` builds every library of the chain, task #98-TIDY) when
@@ -69,25 +69,12 @@ section for every task you land.
   several runs of a benchmark small enough to repeat (`Init`, the fixtures) —
   never from one run of a large one.  Report the spread when you report wall
   time.
-* **A new worktree should NOT copy the build now that the shared Lake cache
-  is seeded** (found 2026-09-23 by task #97-P3-Ind round 7): copying the
-  main tree's `proof/.lake/build` made Lake rebuild `Generated/Types` and
-  then miss the cache all the way down to `Refine2/Core/Eqns.lean`, while a
-  worktree with *no* build directory restored everything from the cache.
-  Start with no `proof/.lake/build`.  The copy advice below is the fallback
-  for an unseeded cache only.  (The cause, found by task #103: Aeneas wrote
-  the absolute source path into the `Generated/*.olean`s, so a tree that
-  compiled them at one path never matched a seed from another.  Task #104
-  patched that; a tree that compiles its own `Generated` now restores the
-  rest from the cache too.)
-* **(Fallback) A new worktree can copy the build instead of rebuilding it.**  A fresh
-  worktree with no `proof/.lake/build` pays ~17 minutes and 6 GB
-  re-deriving `Refine2/Core/Eqns.lean`'s 109 `partial_fixpoint` equations.
-  `cp -a --reflink=auto <a tree that has it>/proof/.lake/build
-  proof/.lake/build` is instantaneous on this filesystem.  Do it before the
-  first `lake build` in any new worktree.  It needs a *source tree that
-  still has the build*, which is why the shared Lake cache below is the
-  better answer when it has been seeded.
+* **A new worktree starts with no `proof/.lake/build`**, and never copies
+  another tree's: the shared Lake cache below restores what it has, and a
+  cold build of the rest is minutes.  A copied build
+  made Lake rebuild `Generated/Types` and miss the cache for everything above
+  it (task #97-P3-Ind round 7; the cause was Aeneas writing absolute source
+  paths into the `Generated/*.olean`s, task #103, patched by #104).
 * **The shared Lake artifact cache** (task #97-CACHE).  Lake 5 keeps a
   content-addressed local cache keyed by each module's *input hash* — source
   bytes, import artifact hashes, toolchain, options, module name — with **no
@@ -104,8 +91,8 @@ section for every task you land.
     already has the artifacts: `LAKE_ARTIFACT_CACHE=true
     LAKE_RESTORE_ARTIFACTS=true lake build <target>` — this re-elaborates
     nothing when the tree is up to date, it just hard-links what is already
-    there into the cache.  **Do this after building
-    `Refine2/Core/Eqns.lean`**; that one module is the whole prize.
+    there into the cache.  It pays most after a build that moved
+    `Generated/Funs.lean`, whose dependents are the bulk of the chain.
   * `lake cache get`/`put` are for *remote* services (Reservoir/S3) and are
     irrelevant here.  `lake cache clean` (or `rm -rf _tmp/lake-cache`) is
     the only GC there is: the cache pins every artifact ever written to it,
