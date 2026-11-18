@@ -32,7 +32,6 @@ tier did not have, and both of them are findings rather than plumbing.
    needs nothing: `view_of_tag_sort` says the twin's `view` answers `none`
    exactly there, and the twin's `none` arm is the same `internal` kind.
 -/
-import ConRon.Refine2.Core.Eqns
 import ConRon.Refine2.Core.Entries
 
 open Aeneas Aeneas.Std Result
@@ -40,7 +39,6 @@ open ConRon.Generated
 
 attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
 
-set_option maxRecDepth 4000
 
 namespace ConRon.Refine2
 

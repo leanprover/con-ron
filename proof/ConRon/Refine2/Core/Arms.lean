@@ -13,7 +13,6 @@ statement; the arms themselves live in `Core/Arms/`:
 
 | file | what | closed |
 |---|---|---|
-| `Core/Eqns.lean` | the 105 `partial_fixpoint` unfolding equations of `arena::core`'s two mutual blocks, derived ONCE (≈ 9.4 s each; ≈ 17 min, once) and cached into one `.olean` that every arm file imports | — |
 | `Core/Arms/Sort.lean` | the `view`/tag agreement — the ten-way `EStore_view_tagOf` and the `sort` projection — and **`ensure_sort_refines`** | **all** |
 | `Core/Arms/Delta.lean` | the `whnf` loop's DELTA leaf (task #97-P5-Core-2): `ifenv_find_abs` (the environment index's one reader), the `const` tag/view agreement, `nidx_vec_dup_val`, `const_val_at_refines` and **`unfold_definition_refines`** — lockstep since task #97-P5-Core round 4, closed modulo `ExprOpsHyp` (the `ExprOps` migration's two walks) | **all** (modulo `ExprOpsHyp`) |
 | `Core/Arms/Loops.lean` | the `whnf` loop's SECOND fuel dimension: `whnf_step` / `whnf_loop_loop` / `whnf_body` **closed**; `defeq_body_refines` (the `defeq_step`/`defeq_loop` pair went with con-leche 8afe1815, task #109) | all |
@@ -50,9 +49,8 @@ They are closed since (task #97-P5-Core round 5 zipped them in `lockstep`,
 round 6 discharged `exprOpsHyp`).  Round 3's budget is **≈ 20 lines of shape step, 2 lines of idiom and 0.26 s of
 `grind` per residual branch** per function.  At ≈ 95 functions and the arena's
 ten-way bodies that is the tier's whole cost, and it is more than one round;
-what this round owes it is the equation floor (`Core/Eqns.lean`, which turns a
-per-file 17 minutes into a once-and-for-all 17 minutes), the two shapes above,
-and the exemplar (`ensure_sort`, closed end to end).
+what this round owes it is the two shapes above and the exemplar
+(`ensure_sort`, closed end to end).
 -/
 import ConRon.Refine2.Core.Arms.Sort
 import ConRon.Refine2.Core.Arms.Delta
