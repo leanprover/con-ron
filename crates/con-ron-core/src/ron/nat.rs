@@ -314,10 +314,16 @@ fn sub_from(a: &Vec<u64>, b: &Vec<u64>, i: usize, n: usize, borrow: u64, out: Ve
     }
 }
 
-/// `Nat.pred`: `a - 1`, with `pred 0 = 0`.
+/// `Nat.pred`: `a - 1`, with `pred 0 = 0`.  A copy of the limbs and the
+/// borrow rippled in place from limb 0 (`sub_borrow_at`), which stops at the
+/// first nonzero limb: a `memcpy` and, but for a run of zero limbs, one limb
+/// written — not `sub`'s limb-at-a-time pass against `1` (task #163).
 pub fn pred(a: &Nat) -> Nat {
-    let o = one();
-    sub(a, &o)
+    if is_zero(a) {
+        zero()
+    } else {
+        norm(sub_borrow_at(a.limbs.clone(), 0, 1))
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1059,6 +1065,22 @@ mod tests {
     }
 
     // -- the differential test against u128 -------------------------------
+
+    #[test]
+    fn pred_ripples_the_borrow_through_zero_limbs() {
+        // `2^(64k)`: the borrow crosses k zero limbs and the top limb vanishes
+        for k in 1..5u64 {
+            let p = shift_left(&one(), 64 * k);
+            let q = pred(&p);
+            assert!(wf(&q));
+            assert_eq!(q.limbs, vec![u64::MAX; k as usize], "pred 2^{}", 64 * k);
+            assert!(beq(&add(&q, &one()), &p));
+        }
+        // a zero low limb under a top limb that stays
+        let p = norm(vec![0, 0, 5]);
+        assert_eq!(pred(&p).limbs, vec![u64::MAX, u64::MAX, 4]);
+        assert!(is_zero(&pred(&one())));
+    }
 
     #[test]
     fn differential_against_u128() {

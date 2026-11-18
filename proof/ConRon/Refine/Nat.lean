@@ -458,22 +458,25 @@ theorem is_zero_refines {a : ron.nat.Nat} {b : Bool} (ha : NatWF a) (h : ron.nat
     have h2 : toNat a ≠ 0 := fun hc => hz (limbsToNat_eq_zero ha hc)
     simp [h1, h2]
 
+/-- `Vec::clone` on `u64` limbs is the vector itself. -/
+theorem vec_clone_u64 {a v : alloc.vec.Vec Std.U64}
+    (hv : alloc.vec.CloneVec.clone core.clone.CloneU64 a = ok v) : v = a := by
+  have hc : Slice.clone (liftFun1 core.clone.impls.CloneU64.clone) a.slice
+      = ok a.slice := by
+    obtain ⟨y, hy, hsy⟩ := WP.spec_imp_exists
+      (Slice.clone_spec (clone := liftFun1 core.clone.impls.CloneU64.clone)
+        (s := a.slice) (fun _ _ => rfl))
+    rw [hy, ← hsy]
+  simp only [alloc.vec.CloneVec.clone, hc, bind_tc_ok, Result.ok.injEq] at hv
+  rw [← hv]
+
 theorem clone_refines {a n : ron.nat.Nat} (h : ron.nat.clone a = ok n) :
     n.limbs.val = a.limbs.val ∧ toNat n = toNat a := by
   rw [ron.nat.clone] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨v, hv, h⟩ := h
   subst h
-  have hv' : v = a.limbs := by
-    have hc : Slice.clone (liftFun1 core.clone.impls.CloneU64.clone) a.limbs.slice
-        = ok a.limbs.slice := by
-      obtain ⟨y, hy, hsy⟩ := WP.spec_imp_exists
-        (Slice.clone_spec (clone := liftFun1 core.clone.impls.CloneU64.clone)
-          (s := a.limbs.slice) (fun _ _ => rfl))
-      rw [hy, ← hsy]
-    simp only [alloc.vec.CloneVec.clone, hc, bind_tc_ok, Result.ok.injEq] at hv
-    rw [← hv]
-  subst hv'
+  subst (vec_clone_u64 hv)
   exact ⟨rfl, rfl⟩
 
 theorem to_u64_refines {a : ron.nat.Nat} {o : Option Std.U64} (ha : NatWF a)
@@ -917,11 +920,23 @@ theorem sub_refines {a b c : ron.nat.Nat} (ha : NatWF a) (hb : NatWF b)
 theorem pred_refines {a c : ron.nat.Nat} (ha : NatWF a) (h : ron.nat.pred a = ok c) :
     toNat c = toNat a - 1 ∧ NatWF c := by
   rw [ron.nat.pred] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨o, ho, h⟩ := h
-  obtain ⟨ho1, howf⟩ := one_refines ho
-  obtain ⟨hcv, hwf⟩ := sub_refines ha howf h
-  exact ⟨by rw [hcv, ho1], hwf⟩
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  have hz := is_zero_refines ha hb
+  split at h
+  · obtain ⟨hc, hwf⟩ := zero_refines h
+    exact ⟨by rw [hc]; omega, hwf⟩
+  · obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
+    -- the clone is the limbs themselves; the ripple subtracts `1 · B^0`
+    subst (vec_clone_u64 hv)
+    rw [ron.nat.sub_borrow_at] at hw
+    obtain ⟨hwv, -⟩ := sub_borrow_at_val _ _ _ _ (by scalar_tac) hw
+    obtain ⟨hcv, hwf⟩ := norm_refines h
+    refine ⟨?_, hwf⟩
+    rw [hcv]
+    have : toNat a = limbsToNat a.limbs.val := rfl
+    simp at hwv
+    omega
 
 /-! ## Bitwise operations
 

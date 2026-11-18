@@ -216,15 +216,18 @@ theorem lit_eq2 :
     Eq2Fwd arena.store.LitNode.Insts.Con_ron_coreRonHashmapEq2 LitNodeWF := by
   apply eq2Fwd_of_iff
   intro a b c ha hb h
-  obtain ⟨la⟩ := a; obtain ⟨lb⟩ := b
+  obtain ⟨la, ha_h⟩ := a; obtain ⟨lb, hb_h⟩ := b
+  obtain ⟨ha, hah⟩ := ha; obtain ⟨hb, hbh⟩ := hb
   simp only [arena.store.LitNode.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
   rw [ConRon.Refine.Expr.literal_beq_refines ha hb h]
   constructor
   · intro hc
     have hl := ConRon.Refine.Expr.absLiteral_inj ha hb (of_decide_eq_true hc)
-    simpa using hl
+    subst hl
+    have hh : ha_h = hb_h := Result.ok_injective (hah.symm.trans hbh)
+    subst hh; rfl
   · intro he
-    have hl : la = lb := ((arena.store.LitNode.mk.injEq _ _).mp he)
+    have hl : la = lb := ((arena.store.LitNode.mk.injEq _ _ _ _).mp he).1
     simp [hl]
 
 /-! ### `ListNode`: the handle vector compared element by element

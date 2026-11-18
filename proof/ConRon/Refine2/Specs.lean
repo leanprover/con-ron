@@ -4352,16 +4352,25 @@ theorem der_of_const_obs {pers} {rs : arena.store.EStore} {ls : EStore}
 
 /-! ### The `lit` arm -/
 
+/-- The `lit` arm's word from the literal's hash (`der_of_lit_hash`, task
+#163): the observation reads no hash bit, so ANY hash gives the twin's word. -/
+theorem der_of_lit_hash_obs {ls : EStore}
+    {l : kernel.expr.Literal} {lh d : Std.U64}
+    (h : arena.store.der_of_lit_hash lh = ok d) :
+    derObsE (ls.derOfLit (ConRon.Refine.absLiteral l)) = derObsE (absU64 d) := by
+  rw [arena.store.der_of_lit_hash] at h
+  obtain ⟨j1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨hh, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [EStore.derOfLit]
+  exact derObsE_pack _ (by simp) (by simp) rfl (by simp) (by simp) h
+
 theorem der_of_lit_obs {rs : arena.store.EStore} {ls : EStore}
     {l : kernel.expr.Literal} {d : Std.U64}
     (h : arena.store.EStore.der_of_lit rs l = ok d) :
     derObsE (ls.derOfLit (ConRon.Refine.absLiteral l)) = derObsE (absU64 d) := by
   rw [arena.store.EStore.der_of_lit] at h
   obtain ⟨j0, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨j1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨hh, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  rw [EStore.derOfLit]
-  exact derObsE_pack _ (by simp) (by simp) rfl (by simp) (by simp) h
+  exact der_of_lit_hash_obs h
 
 /-! ### The `proj` arm — the first that reads a child's word BACK -/
 
@@ -4905,11 +4914,13 @@ theorem absLitNode_inj :
     ∀ a b : arena.store.LitNode, LitNodeWF a → LitNodeWF b →
       absLitNode a = absLitNode b → a = b := by
   intro a b ha hb h
-  obtain ⟨x⟩ := a; obtain ⟨y⟩ := b
+  obtain ⟨x, hx⟩ := a; obtain ⟨y, hy⟩ := b
   have h1 : ConRon.Refine.absLiteral x = ConRon.Refine.absLiteral y :=
     congrArg LitNode.l h
-  have h2 : x = y := ConRon.Refine.Expr.absLiteral_inj ha hb h1
-  subst h2; rfl
+  have h2 : x = y := ConRon.Refine.Expr.absLiteral_inj ha.1 hb.1 h1
+  subst h2
+  have h3 : hx = hy := Result.ok_injective (ha.2.symm.trans hb.2)
+  subst h3; rfl
 
 /-- `arena::store::EStore.intern_sort` against `EStore.intern` at the
 `sort` view: §3b's six-arm peel at the `sorts` array, with finding 7's

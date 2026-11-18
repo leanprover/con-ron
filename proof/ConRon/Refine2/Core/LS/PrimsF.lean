@@ -217,7 +217,7 @@ theorem etables_get_wf {rt} (hinv : ETablesInv rt) {i : arena.handle.EIdx}
   cases Option.some.inj hv
   show ConRon.Refine.LiteralWF w
   rw [ConRon.Refine.Expr.literal_dup_eq hd]
-  exact tbl_node_wf hinv.lits hn r rfl
+  exact (tbl_node_wf hinv.lits hn r rfl).1
 
 theorem estore_view_wf {pers rs} (hinv : StoreInv pers rs) {i : arena.handle.EIdx}
     {o : Option arena.store.ENodeView}
