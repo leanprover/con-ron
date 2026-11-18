@@ -409,7 +409,11 @@ def ConstNodeWF (_ : arena.store.ConstNode) : Prop := True
 def AppNodeWF (_ : arena.store.AppNode) : Prop := True
 def BindNodeWF (_ : arena.store.BindNode) : Prop := True
 def LetNodeWF (_ : arena.store.LetNode) : Prop := True
-def LitNodeWF (r : arena.store.LitNode) : Prop := ConRon.Refine.LiteralWF r.l
+/-- A literal record is well formed when its literal is and its cached hash is
+the literal's (`arena::store::lit_node`, task #163): `eq2` compares only the
+literal, so the hash must be a function of it for equal keys to be equal. -/
+def LitNodeWF (r : arena.store.LitNode) : Prop :=
+  ConRon.Refine.LiteralWF r.l ∧ kernel.expr.literal_hash r.l = ok r.h
 def ProjNodeWF (_ : arena.store.ProjNode) : Prop := True
 
 /-! ## The four tiers -/

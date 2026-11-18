@@ -862,6 +862,18 @@ pub struct LetNode {
 /// constructor, line 409.
 pub struct LitNode {
     pub l: Literal,
+    /// `expr::literal_hash(&l)`, computed once by `lit_node`: the table's key
+    /// hash and the derived word's input.  A literal's hash reads every limb
+    /// (or code point), and recomputing it at each probe, insert and rehash
+    /// was ~46 % of the gf3 benchmark (task #163).
+    pub h: u64,
+}
+
+/// con-leche: none — arena infrastructure (task #163)
+/// The `lits` table's record for `l`, its hash computed here and only here.
+pub fn lit_node(l: Literal) -> LitNode {
+    let h: u64 = expr::literal_hash(&l);
+    LitNode { l, h }
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
@@ -971,7 +983,7 @@ impl Hashable for LetNode {
 impl Hashable for LitNode {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:304-308 LitNode
     fn hash64(&self) -> u64 {
-        expr::literal_hash(&self.l)
+        self.h
     }
 }
 
@@ -1152,7 +1164,7 @@ impl Dup for LetNode {
 impl Dup for LitNode {
     /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
     fn dup2(&self) -> LitNode {
-        LitNode { l: expr::literal_dup(&self.l) }
+        LitNode { l: expr::literal_dup(&self.l), h: self.h }
     }
 }
 
@@ -2719,7 +2731,7 @@ impl ETables {
                 val: val.dup2(),
                 body: b.dup2(),
             }),
-            ENodeView::Lit(l) => self.lits.find(&LitNode { l: expr::literal_dup(l) }),
+            ENodeView::Lit(l) => self.lits.find(&lit_node(expr::literal_dup(l))),
             ENodeView::Proj(n, i, e) => {
                 self.projs.find(&ProjNode { n: n.dup2(), i: *i, e: e.dup2() })
             }
@@ -2789,7 +2801,7 @@ impl ETables {
             }
             ENodeView::Lit(l) => {
                 let h: EIdx = EIdx::pack(ETAG_LIT, tier, self.lits.size() as u32);
-                self.lits.push(LitNode { l }, d, h.dup2());
+                self.lits.push(lit_node(l), d, h.dup2());
                 h
             }
             ENodeView::Proj(n, i, e) => {
@@ -2822,6 +2834,15 @@ pub fn der_of_bind(tag: u64, dt: u64, db: u64) -> u64 {
         expr::max_u64(expr::fvar_of_data(dt), expr::fvar_of_data(db)),
         expr::lp_of_data(dt) || expr::lp_of_data(db),
     )
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` — the
+/// `lit` arm (`con_ron_core::kernel::expr::lit`'s body) from the literal's
+/// hash, which `intern_lit` already holds in its record (`LitNode::h`).
+pub fn der_of_lit_hash(lh: u64) -> u64 {
+    let h: u64 = expr::hash32(name::mix_hash(31, lh));
+    expr::pack_data(h, 0, 0, false)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
@@ -3503,8 +3524,7 @@ impl EStore {
     /// `der_of_bvar`'s note.
     #[inline(always)]
     pub fn der_of_lit(&self, l: &Literal) -> u64 {
-        let h: u64 = expr::hash32(name::mix_hash(31, expr::literal_hash(l)));
-        expr::pack_data(h, 0, 0, false)
+        der_of_lit_hash(expr::literal_hash(l))
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
@@ -4124,7 +4144,7 @@ impl EStore {
     /// own arm), the scratch probe, the capacity test, the append — with the
     /// node record built ONCE and shared by all four.  See `intern`'s note.
     pub fn intern_lit(&mut self, pers: &PersTier, l: Literal) -> Result<EIdx, CheckError> {
-        let r: LitNode = LitNode { l };
+        let r: LitNode = lit_node(l);
         let sk: bool = false;
         let hit: Option<EIdx> = if sk {
             None
@@ -4144,7 +4164,7 @@ impl EStore {
                             if self.scr.lits.full() {
                                 Err(CheckError::Native(code_points(&M_E_CAP)))
                             } else {
-                                let d: u64 = self.der_of_lit(&r.l);
+                                let d: u64 = der_of_lit_hash(r.h);
                                 let h: EIdx =
                                     EIdx::pack(ETAG_LIT, TIER_S, self.scr.lits.size() as u32);
                                 self.scr.lits.push_at(at.0, r, d, h.dup2());
@@ -4155,7 +4175,7 @@ impl EStore {
                 } else if self.pers.lits.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
-                    let d: u64 = self.der_of_lit(&r.l);
+                    let d: u64 = der_of_lit_hash(r.h);
                     let h: EIdx = EIdx::pack(ETAG_LIT, TIER_P, self.pers.lits.size() as u32);
                     self.pers.lits.push(r, d, h.dup2());
                     Ok(h)

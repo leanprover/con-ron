@@ -438,7 +438,7 @@ structure arena.stream_index.IStreamIndex where
   str_from : Option Std.U64
 
 /-- [con_ron_core::arena::store::ProjNode]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 870:0-874:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 882:0-886:1
     Visibility: public -/
 structure arena.store.ProjNode where
   n : arena.handle.NIdx
@@ -446,10 +446,11 @@ structure arena.store.ProjNode where
   e : arena.handle.EIdx
 
 /-- [con_ron_core::arena::store::LitNode]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 863:0-865:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 863:0-870:1
     Visibility: public -/
 structure arena.store.LitNode where
   l : kernel.expr.Literal
+  h : Std.U64
 
 /-- [con_ron_core::arena::store::LetNode]
     Source: 'crates/con-ron-core/src/arena/store.rs', lines 854:0-858:1
@@ -531,7 +532,7 @@ structure arena.store.Tbl (A : Type _) (I : Type _) (D : Type _) where
   cons : arena.cons_map.ConsMap I
 
 /-- [con_ron_core::arena::store::ETables]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1189:0-1200:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1201:0-1212:1
     Visibility: public -/
 structure arena.store.ETables where
   bvars : arena.store.Tbl arena.store.BVarNode arena.handle.EIdx Std.U64
@@ -634,7 +635,7 @@ structure arena.store.NTables where
   nums : arena.store.Tbl arena.store.NumNode arena.handle.NIdx Std.U64
 
 /-- [con_ron_core::arena::store::PersTier]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1256:0-1269:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1268:0-1281:1
     Visibility: public -/
 structure arena.store.PersTier where
   frozen : Bool
@@ -671,7 +672,7 @@ structure arena.store.LsStore where
   scratch_on : Bool
 
 /-- [con_ron_core::arena::store::EStore]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1206:0-1211:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1218:0-1223:1
     Visibility: public -/
 structure arena.store.EStore where
   lss : arena.store.LsStore
@@ -898,7 +899,7 @@ inductive ron.nat.Cmp where
 | Gt : ron.nat.Cmp
 
 /-- [con_ron_core::arena::store::ENodeView]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1173:0-1184:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1185:0-1196:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.store.ENodeView where

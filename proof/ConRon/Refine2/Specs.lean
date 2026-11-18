@@ -4352,12 +4352,13 @@ theorem der_of_const_obs {pers} {rs : arena.store.EStore} {ls : EStore}
 
 /-! ### The `lit` arm -/
 
-theorem der_of_lit_obs {rs : arena.store.EStore} {ls : EStore}
-    {l : kernel.expr.Literal} {d : Std.U64}
-    (h : arena.store.EStore.der_of_lit rs l = ok d) :
+/-- The `lit` arm's word from the literal's hash (`der_of_lit_hash`, task
+#163): the observation reads no hash bit, so ANY hash gives the twin's word. -/
+theorem der_of_lit_hash_obs {ls : EStore}
+    {l : kernel.expr.Literal} {lh d : Std.U64}
+    (h : arena.store.der_of_lit_hash lh = ok d) :
     derObsE (ls.derOfLit (ConRon.Refine.absLiteral l)) = derObsE (absU64 d) := by
-  rw [arena.store.EStore.der_of_lit] at h
-  obtain ⟨j0, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [arena.store.der_of_lit_hash] at h
   obtain ⟨j1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨hh, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [EStore.derOfLit]
@@ -4905,11 +4906,13 @@ theorem absLitNode_inj :
     ∀ a b : arena.store.LitNode, LitNodeWF a → LitNodeWF b →
       absLitNode a = absLitNode b → a = b := by
   intro a b ha hb h
-  obtain ⟨x⟩ := a; obtain ⟨y⟩ := b
+  obtain ⟨x, hx⟩ := a; obtain ⟨y, hy⟩ := b
   have h1 : ConRon.Refine.absLiteral x = ConRon.Refine.absLiteral y :=
     congrArg LitNode.l h
-  have h2 : x = y := ConRon.Refine.Expr.absLiteral_inj ha hb h1
-  subst h2; rfl
+  have h2 : x = y := ConRon.Refine.Expr.absLiteral_inj ha.1 hb.1 h1
+  subst h2
+  have h3 : hx = hy := Result.ok_injective (ha.2.symm.trans hb.2)
+  subst h3; rfl
 
 /-- `arena::store::EStore.intern_sort` against `EStore.intern` at the
 `sort` view: §3b's six-arm peel at the `sorts` array, with finding 7's
@@ -6123,6 +6126,12 @@ theorem estore_intern_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreInv pers rs' ∧ ECapAt ls (.lit (ConRon.Refine.absLiteral l))) ∧
       (∀ e, r = .Err e → absAErrKind e = some .native ∧ ¬ ECapAt ls (.lit (ConRon.Refine.absLiteral l))) := by
   rw [arena.store.EStore.intern_lit] at h
+  -- the record, its hash computed once (`lit_node`, task #163)
+  obtain ⟨r0, hr0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [arena.store.lit_node] at hr0
+  obtain ⟨lh, hlh, hr0⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr0
+  cases Result.ok_injective hr0
+  have hwfN : LitNodeWF { l := l, h := lh } := ⟨hwf, hlh⟩
   obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨e, hit⟩ := q
   -- the persistent probe, under the reader's `frozen` select
@@ -6134,11 +6143,11 @@ theorem estore_intern_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       obtain ⟨h1, h3⟩ := hq
     · refine ⟨h1.symm, ?_⟩
       have := tbl_find_abs hrel.perst.lits hinv.perst.lits lit_eq2 dupId_eidx
-        (P := LitNodeWF) hwf (by unfold rPersE; rw [ite_eq_left hs]; exact hf)
+        (P := LitNodeWF) hwfN (by unfold rPersE; rw [ite_eq_left hs]; exact hf)
       rw [← h3]; exact this
     · refine ⟨h1.symm, ?_⟩
       have := tbl_find_abs hrel.perst.lits hinv.perst.lits lit_eq2 dupId_eidx
-        (P := LitNodeWF) hwf (by unfold rPersE; rw [ite_eq_right hs]; exact hf)
+        (P := LitNodeWF) hwfN (by unfold rPersE; rw [ite_eq_right hs]; exact hf)
       rw [← h3]; exact this
   obtain ⟨hE1, hE3⟩ := hE
   subst e
@@ -6178,7 +6187,7 @@ theorem estore_intern_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       obtain ⟨⟨slot, o⟩, t⟩ := p2
       obtain ⟨hrelT, hinvT, hfindT, hpushT⟩ :=
         tbl_find_slot_abs hrel.scrt.lits hinv.scrt.lits lit_eq2
-          dupId_eidx absLitNode_inj (P := LitNodeWF) hwf hfs
+          dupId_eidx absLitNode_inj (P := LitNodeWF) hwfN hfs
       have hfind2 : ls.scr.find? (ENodeView.lit (ConRon.Refine.absLiteral l))
           = ls.scr.lits.find? ⟨ConRon.Refine.absLiteral l⟩ := rfl
       simp only [absLitNode] at hfindT
@@ -6232,7 +6241,7 @@ theorem estore_intern_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
             rw [eidx_pack_abs hpk, etag_lit_abs, tier_s_abs, cast_u32_size hn3,
               tbl_size_abs hrelT hn2]
           obtain ⟨hrel1, hinv1⟩ :=
-            hpushT hoc d (ls.derOfLit (ConRon.Refine.absLiteral l)) (der_of_lit_obs (ls := ls) hd)
+            hpushT hoc d (ls.derOfLit (ConRon.Refine.absLiteral l)) (der_of_lit_hash_obs (ls := ls) hd)
               hnew (rowIs_e_mk hhandle (by decide) (by decide) (tbl_not_full_size hrelT hb1 hfull)) t1 ht1
           simp only [absLitNode] at hrel1
           rw [hhandle] at hrel1
@@ -6290,8 +6299,8 @@ theorem estore_intern_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
             tbl_size_abs hrelP hn2]
         obtain ⟨hrel1, hinv1⟩ :=
           tbl_push_abs hrelP hinvP (hrow := rowIs_e_mk hhandle (by decide) (by decide) (tbl_not_full_size hrelP hb1 hfull)) lit_eq2 absLitNode_inj
-            (P := LitNodeWF) hwf (dl := ls.derOfLit (ConRon.Refine.absLiteral l))
-            (der_of_lit_obs (ls := ls) hd) ht1
+            (P := LitNodeWF) hwfN (dl := ls.derOfLit (ConRon.Refine.absLiteral l))
+            (der_of_lit_hash_obs (ls := ls) hd) ht1
         simp only [absLitNode] at hrel1
         rw [hhandle] at hrel1
         refine ⟨?_, by intro ee hbad; simp at hbad⟩
@@ -10775,8 +10784,8 @@ packing's `*`/`/`/`%` spelling is what buys. -/
 /-- info: 'ConRon.Refine2.der_of_const_obs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms der_of_const_obs
 
-/-- info: 'ConRon.Refine2.der_of_lit_obs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms der_of_lit_obs
+/-- info: 'ConRon.Refine2.der_of_lit_hash_obs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms der_of_lit_hash_obs
 
 /-- info: 'ConRon.Refine2.der_of_proj_obs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms der_of_proj_obs

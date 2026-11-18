@@ -352,7 +352,7 @@ theorem etables_get_lit_wf {rt} (hinv : ETablesInv rt)
     intro l hl
     cases hl
     rw [ConRon.Refine.Expr.literal_dup_eq hx]
-    exact hwf r (by rw [hpc])
+    exact (hwf r (by rw [hpc])).1
 
 theorem estore_view_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     {i : arena.handle.EIdx} {o}
@@ -450,7 +450,7 @@ theorem etables_get_lit_wf' {rt} (hinv : ETablesInv rt) {i : arena.handle.EIdx}
       simp only [Option.some.injEq, arena.store.ENodeView.Lit.injEq] at h2
       subst h2
       rw [ConRon.Refine.Expr.literal_dup_eq hx]
-      exact tbl_node_wf hinv.lits hp r rfl
+      exact (tbl_node_wf hinv.lits hp r rfl).1
   split at h
   · nonlit_arm
   · have := Result.ok_injective h; simp at this
