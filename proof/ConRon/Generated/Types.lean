@@ -9,6 +9,7 @@ set_option linter.unusedVariables false
 set_option linter.style.whitespace false
 set_option linter.style.setOption false
 set_option linter.style.longLine false
+set_option linter.internalConstructors false
 
 /- You can set the `maxHeartbeats` value with the `-max-heartbeats` CLI option -/
 set_option maxHeartbeats 1000000
@@ -24,7 +25,7 @@ namespace ConRon.Generated
     Visibility: public -/
 @[rust_trait "core::alloc::AllocatorClone"
   (parentClauses := ["cloneCloneInst"])]
-structure core.alloc.AllocatorClone (Self : Type) where
+structure core.alloc.AllocatorClone (Self : Type _) where
   cloneCloneInst : core.clone.Clone Self
 
 mutual
@@ -309,14 +310,14 @@ inductive kernel.core_types.CheckError where
     Source: 'crates/con-ron-core/src/ron/hashmap2.rs', lines 89:0-92:1
     Visibility: public -/
 @[discriminant isize]
-inductive ron.hashmap2.Slot (K : Type) (V : Type) where
+inductive ron.hashmap2.Slot (K : Type _) (V : Type _) where
 | Vacant : ron.hashmap2.Slot K V
 | Live : Std.U32 → K → V → ron.hashmap2.Slot K V
 
 /-- [con_ron_core::ron::hashmap2::HashMap2]
     Source: 'crates/con-ron-core/src/ron/hashmap2.rs', lines 108:0-125:1
     Visibility: public -/
-structure ron.hashmap2.HashMap2 (K : Type) (V : Type) where
+structure ron.hashmap2.HashMap2 (K : Type _) (V : Type _) where
   num_entries : Std.Usize
   max_load : Std.Usize
   epoch : Std.U32
@@ -507,7 +508,7 @@ structure arena.store.BVarNode where
 /-- [con_ron_core::arena::cons_map::CSlot]
     Source: 'crates/con-ron-core/src/arena/cons_map.rs', lines 118:0-122:1
     Visibility: public -/
-structure arena.cons_map.CSlot (I : Type) where
+structure arena.cons_map.CSlot (I : Type _) where
   g : Std.U16
   f : Std.U16
   h : I
@@ -515,7 +516,7 @@ structure arena.cons_map.CSlot (I : Type) where
 /-- [con_ron_core::arena::cons_map::ConsMap]
     Source: 'crates/con-ron-core/src/arena/cons_map.rs', lines 140:0-146:1
     Visibility: public -/
-structure arena.cons_map.ConsMap (I : Type) where
+structure arena.cons_map.ConsMap (I : Type _) where
   num_entries : Std.Usize
   max_load : Std.Usize
   epoch : Std.U16
@@ -525,7 +526,7 @@ structure arena.cons_map.ConsMap (I : Type) where
 /-- [con_ron_core::arena::store::Tbl]
     Source: 'crates/con-ron-core/src/arena/store.rs', lines 192:0-195:1
     Visibility: public -/
-structure arena.store.Tbl (A : Type) (I : Type) (D : Type) where
+structure arena.store.Tbl (A : Type _) (I : Type _) (D : Type _) where
   rows : alloc.vec.Vec (A × D)
   cons : arena.cons_map.ConsMap I
 
@@ -804,31 +805,31 @@ inductive arena.store.NNodeView where
 /-- Trait declaration: [con_ron_core::ron::hashmap::Dup]
     Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 428:0-430:1
     Visibility: public -/
-structure ron.hashmap.Dup (Self : Type) where
+structure ron.hashmap.Dup (Self : Type _) where
   dup2 : Self → Result Self
 
 /-- Trait declaration: [con_ron_core::ron::hashmap::Eq2]
     Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 113:0-115:1
     Visibility: public -/
-structure ron.hashmap.Eq2 (Self : Type) where
+structure ron.hashmap.Eq2 (Self : Type _) where
   eq2 : Self → Self → Result Bool
 
 /-- Trait declaration: [con_ron_core::ron::hashmap::Hashable]
     Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 98:0-100:1
     Visibility: public -/
-structure ron.hashmap.Hashable (Self : Type) where
+structure ron.hashmap.Hashable (Self : Type _) where
   hash64 : Self → Result Std.U64
 
 /-- Trait declaration: [con_ron_core::arena::store::DerDefault]
     Source: 'crates/con-ron-core/src/arena/store.rs', lines 155:0-159:1
     Visibility: public -/
-structure arena.store.DerDefault (Self : Type) where
+structure arena.store.DerDefault (Self : Type _) where
   der_default : Result Self
 
 /-- Trait declaration: [con_ron_core::arena::cons_map::ConsHandle]
     Source: 'crates/con-ron-core/src/arena/cons_map.rs', lines 55:0-63:1
     Visibility: public -/
-structure arena.cons_map.ConsHandle (Self : Type) where
+structure arena.cons_map.ConsHandle (Self : Type _) where
   row : Self → Result Std.Usize
   vacant : Result Self
 
@@ -847,14 +848,14 @@ inductive arena.store.LNodeView where
     Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 136:0-139:1
     Visibility: public -/
 @[discriminant isize]
-inductive ron.hashmap.AList (K : Type) (V : Type) where
+inductive ron.hashmap.AList (K : Type _) (V : Type _) where
 | Cons : K → V → Option (ron.hashmap.AList K V) → ron.hashmap.AList K V
 | Nil : ron.hashmap.AList K V
 
 /-- [con_ron_core::ron::hashmap::HashMap]
     Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 148:0-157:1
     Visibility: public -/
-structure ron.hashmap.HashMap (K : Type) (V : Type) where
+structure ron.hashmap.HashMap (K : Type _) (V : Type _) where
   num_entries : Std.Usize
   max_load : Std.Usize
   saturated : Bool
@@ -1060,7 +1061,7 @@ inductive kernel.prop_when.PropWhen where
 /-- Trait declaration: [con_ron_core::kernel::prop_when::NameToPw]
     Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 104:0-108:1
     Visibility: public -/
-structure kernel.prop_when.NameToPw (Self : Type) where
+structure kernel.prop_when.NameToPw (Self : Type _) where
   apply : Self → kernel.name.Name → Result kernel.prop_when.PropWhen
 
 /-- [con_ron_core::kernel::level::SubstZ]
@@ -1477,7 +1478,7 @@ structure frontend.scan_types.ScanErr where
 /-- [con_ron_core::frontend::scan_types::IdTable]
     Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 539:0-542:1
     Visibility: public -/
-structure frontend.scan_types.IdTable (T : Type) where
+structure frontend.scan_types.IdTable (T : Type _) where
   dense : alloc.vec.Vec T
   sparse : ron.hashmap.HashMap Std.U64 T
 
@@ -1740,13 +1741,13 @@ inductive frontend.scan_fast.Member where
 /-- Trait declaration: [con_ron_core::frontend::export_c::ChunkSource]
     Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2206:0-2213:1
     Visibility: public -/
-structure frontend.export_c.ChunkSource (Self : Type) where
+structure frontend.export_c.ChunkSource (Self : Type _) where
   next_chunk : Self → Result ((alloc.vec.Vec Std.U8) × Self)
 
 /-- Trait declaration: [con_ron_core::frontend::nat_op_ground::UsedConsts]
     Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 271:0-275:1
     Visibility: public -/
-structure frontend.nat_op_ground.UsedConsts (Self : Type) where
+structure frontend.nat_op_ground.UsedConsts (Self : Type _) where
   used_consts : Self → arena.store.PersTier → arena.monad.AState →
     arena.env.IDeclaration → Result ((core.result.Result (alloc.vec.Vec
     arena.handle.NIdx) kernel.core_types.CheckError) × arena.monad.AState)
@@ -1760,7 +1761,7 @@ def frontend.nat_op_ground.DeclUsedConsts := Unit
 /-- [con_ron_core::frontend::olean::spec::ImportF]
     Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 1087:0-1092:1
     Visibility: public -/
-structure frontend.olean.spec.ImportF (N : Type) where
+structure frontend.olean.spec.ImportF (N : Type _) where
   module : N
   import_all : Bool
   is_exported : Bool
@@ -1790,19 +1791,10 @@ inductive frontend.olean.spec.RdErr where
 | Bad : frontend.olean.spec.RdErr
 | Err : kernel.core_types.CheckError → frontend.olean.spec.RdErr
 
-/-- [con_ron_core::frontend::olean::header::HdrWalk]
-    Source: 'crates/con-ron-core/src/frontend/olean/header.rs', lines 21:0-25:1
-    Visibility: public -/
-@[discriminant isize]
-inductive frontend.olean.header.HdrWalk where
-| Found : Std.U64 → Std.U64 → frontend.olean.header.HdrWalk
-| Short : frontend.olean.header.HdrWalk
-| Bad : frontend.olean.header.HdrWalk
-
 /-- Trait declaration: [con_ron_core::frontend::olean::files::OleanFs]
     Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 58:0-87:1
     Visibility: public -/
-structure frontend.olean.files.OleanFs (Self : Type) where
+structure frontend.olean.files.OleanFs (Self : Type _) where
   path_exists : Self → alloc.vec.Vec Std.U32 → Result (core.result.Result
     Bool (alloc.vec.Vec Std.U32))
   real_path : Self → alloc.vec.Vec Std.U32 → Result (core.result.Result
@@ -1815,6 +1807,15 @@ structure frontend.olean.files.OleanFs (Self : Type) where
     Std.U64 (alloc.vec.Vec Std.U32))
   read_notes_say : Self → alloc.vec.Vec Std.U32 → Result Unit
   read_notes_module_loaded : Self → Std.U64 → Std.U64 → Result Unit
+
+/-- [con_ron_core::frontend::olean::header::HdrWalk]
+    Source: 'crates/con-ron-core/src/frontend/olean/header.rs', lines 21:0-25:1
+    Visibility: public -/
+@[discriminant isize]
+inductive frontend.olean.header.HdrWalk where
+| Found : Std.U64 → Std.U64 → frontend.olean.header.HdrWalk
+| Short : frontend.olean.header.HdrWalk
+| Bad : frontend.olean.header.HdrWalk
 
 /-- [con_ron_core::frontend::olean::region::Part]
     Source: 'crates/con-ron-core/src/frontend/olean/region.rs', lines 103:0-106:1
@@ -1840,7 +1841,7 @@ structure frontend.olean.region.Region where
 /-- Trait declaration: [con_ron_core::frontend::olean::spec::PtrRead]
     Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 664:0-669:1
     Visibility: public -/
-structure frontend.olean.spec.PtrRead (Self : Type) where
+structure frontend.olean.spec.PtrRead (Self : Type _) where
   rd_name : Self → frontend.olean.spec.OleanPins → arena.store.PersTier →
     arena.store.EStore → Slice Std.U8 → frontend.olean.region.Region →
     Std.U64 → Result ((core.result.Result arena.handle.NIdx
@@ -1923,7 +1924,7 @@ structure frontend.olean.spec.ModSkel where
     Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 640:0-649:1
     Visibility: public -/
 @[discriminant isize]
-inductive frontend.olean.spec.CKindF (N : Type) (E : Type) where
+inductive frontend.olean.spec.CKindF (N : Type _) (E : Type _) where
 | Ax : Bool → frontend.olean.spec.CKindF N E
 | Defn :
   E →
@@ -1964,7 +1965,7 @@ inductive frontend.olean.spec.CKindF (N : Type) (E : Type) where
 /-- [con_ron_core::frontend::olean::spec::CEntryF]
     Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 654:0-659:1
     Visibility: public -/
-structure frontend.olean.spec.CEntryF (N : Type) (E : Type) where
+structure frontend.olean.spec.CEntryF (N : Type _) (E : Type _) where
   «name» : N
   level_params : alloc.vec.Vec N
   ty : E
@@ -1991,7 +1992,7 @@ structure frontend.olean.fast.DS where
 /-- Trait declaration: [con_ron_core::frontend::olean::spec::Sub]
     Source: 'crates/con-ron-core/src/frontend/olean/spec.rs', lines 167:0-176:1
     Visibility: public -/
-structure frontend.olean.spec.Sub (Self : Type) where
+structure frontend.olean.spec.Sub (Self : Type _) where
   sub_name : Self → Std.U64 → Result (Option arena.handle.NIdx)
   sub_level : Self → Std.U64 → Result (Option arena.handle.LIdx)
   sub_levels : Self → Std.U64 → Result (Option arena.handle.LsIdx)
@@ -2000,7 +2001,7 @@ structure frontend.olean.spec.Sub (Self : Type) where
 /-- [con_ron_core::frontend::olean::sparse::Table]
     Source: 'crates/con-ron-core/src/frontend/olean/sparse.rs', lines 149:0-152:1
     Visibility: public -/
-structure frontend.olean.sparse.Table (T : Type) where
+structure frontend.olean.sparse.Table (T : Type _) where
   keys : alloc.vec.Vec Std.U64
   vals : alloc.vec.Vec T
 
@@ -2085,6 +2086,15 @@ structure frontend.olean.view.AllViews where
   server : frontend.olean.spec.ModDecoded
   private_part : frontend.olean.spec.ModDecoded
 
+/-- [con_ron_core::frontend::olean::module::Expo]
+    Source: 'crates/con-ron-core/src/frontend/olean/module.rs', lines 30:0-34:1
+    Visibility: public -/
+@[discriminant isize]
+inductive frontend.olean.module.Expo where
+| Same : frontend.olean.module.Expo
+| Hidden : frontend.olean.module.Expo
+| Absent : frontend.olean.module.Expo
+
 /-- [con_ron_core::frontend::olean::sparse::SparseRead]
     Source: 'crates/con-ron-core/src/frontend/olean/sparse.rs', lines 398:0-398:22
     Visibility: public -/
@@ -2114,15 +2124,6 @@ structure frontend.olean.sparse.SMIn where
 inductive frontend.olean.module.ExpoErr where
 | Msg : alloc.vec.Vec Std.U32 → frontend.olean.module.ExpoErr
 | Err : kernel.core_types.CheckError → frontend.olean.module.ExpoErr
-
-/-- [con_ron_core::frontend::olean::module::Expo]
-    Source: 'crates/con-ron-core/src/frontend/olean/module.rs', lines 30:0-34:1
-    Visibility: public -/
-@[discriminant isize]
-inductive frontend.olean.module.Expo where
-| Same : frontend.olean.module.Expo
-| Hidden : frontend.olean.module.Expo
-| Absent : frontend.olean.module.Expo
 
 /-- [con_ron_core::frontend::pace::Pace]
     Source: 'crates/con-ron-core/src/frontend/pace.rs', lines 19:0-24:1

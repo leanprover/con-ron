@@ -1674,28 +1674,31 @@ theorem frontier_kids_loop {bs : Slice Std.U8} {r : frontend.olean.region.Region
       simp only [kidPush, absKid]
       rw [ite_eq_right hnb, ← ev]
       exact this
+    -- the kid's push is one bound computation (`(stack1, sp1)`), the step after it
+    obtain ⟨q1, hq1, hk⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    clear h
+    rcases q1 with ⟨s1, p1⟩
     cases b with
     | true =>
-      simp only [ite_true] at h
+      simp only [ite_true] at hq1
       by_cases h1 : v = 1#u64
-      · rw [ite_eq_left h1] at h
-        refine step (q1 := (stack, sp)) l hs hb ?_ h
+      · rw [ite_eq_left h1] at hq1
+        cases Result.ok_injective hq1
+        refine step (q1 := (stack, sp)) l hs hb ?_ hk
         simp only [kidPush, absKid, ← ev, h1]
         rfl
-      · rw [ite_eq_right h1] at h
-        peel h as o, ho
-        obtain ⟨q1, hq1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      · rw [ite_eq_right h1] at hq1
+        peel hq1 as o, ho
         have hne : ¬ (true && (absRegion bs r).fld g.val i1.val == 1) = true := by
           rw [← ev]; simp only [Bool.true_and, beq_iff_eq]
           intro he; exact h1 (absWord_inj (by rw [he]; rfl))
         obtain ⟨a1, a2⟩ := hpush ho hq1 hne
-        exact step _ a1 a2 rfl h
+        exact step (q1 := (s1, p1)) _ a1 a2 rfl hk
     | false =>
-      simp only [Bool.false_eq_true, ↓reduceIte] at h
-      peel h as o, ho
-      obtain ⟨q1, hq1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      simp only [Bool.false_eq_true, ↓reduceIte] at hq1
+      peel hq1 as o, ho
       obtain ⟨a1, a2⟩ := hpush ho hq1 (by simp)
-      exact step _ a1 a2 rfl h
+      exact step (q1 := (s1, p1)) _ a1 a2 rfl hk
 
 /-- **`frontier_walk`'s loop is `frontierWalk`**, fuel for fuel. -/
 theorem frontier_walk_loop_eq {bs : Slice Std.U8} {r : frontend.olean.region.Region} (hr : RegionFits bs r)
