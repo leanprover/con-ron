@@ -73396,9 +73396,15 @@ every toolchain hunk went.  Rebuilt from the errors up, not rebased: the library
   `decide +native`.  Upstream's `decide +kernel` makes the kernel UTF-8-encode the literal:
   on the 600 KB `kernel.pins_text.PINS_TEXT` it fails with "(kernel) deep recursion"
   (`Generated/Funs.lean` does not elaborate).  No simproc evaluates `String.utf8ByteSize`
-  on a literal (`simp` makes no progress even on `"abc"`), so there is no cheap
-  axiom-free proof to offer instead.  No pinned axiom list changes (none contains
-  `Lean.ofReduceBool`).  Worth an upstream report.
+  on a literal (`simp` makes no progress even on `"abc"`), and the kernel route does
+  not scale: `decide +kernel` on the `utf8ByteSize` bound proves a 1 KB prefix of the
+  text in 18 s and hits deep recursion from 2 KB on (so chunking the Rust constant is no
+  way out either).  The axiom is unchanged from master:
+  `kernel.pins_text.PINS_TEXT._native.decide.ax_1`, which only the two `_embedded`
+  corollaries carry (the headline theorems take the pin text as a premise;
+  `Capstone.lean` §4, `PinsWF.lean`'s census, AENEAS_FINDINGS §3.8), and their pinned
+  axiom lists passed unchanged.  Worth an upstream report: the new default breaks any
+  `str` literal over ~1 KB.
 
 **The regenerated model** (`Funs.lean` ±4 486, `Types.lean` 85): generic parameters are
 universe-polymorphic (`Type _`; the hand-written `TypesExternal`/`FunsExternal` at
