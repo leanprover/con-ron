@@ -25,7 +25,7 @@ set_option autoImplicit false
 open ConLeche ConRon.Arena ConRon.Arena.Frontend ConRon.Bridge ConRon.Bridge.Frontend
 open ConRon.Bridge.Frontend.Olean
 open ConRon.Arena.Frontend.Olean (OleanPins Merged CEntry Loaded)
-open ConLeche.Frontend.Olean (CEntryF CKindF bind_some_left)
+open ConLeche.Frontend.Olean (CEntryF CKindF Copy bind_some_left)
 
 /-! ## A merge of a list -/
 
@@ -51,7 +51,8 @@ related, upstream's keys their constants' names. -/
 structure MInv (st : EStore) (pk : OleanPins)
     (x : Std.HashMap NIdx (Nat × Nat) × Array NIdx × Array CEntry)
     (mgC : ConLeche.Frontend.Olean.Merged) : Prop where
-  keys : ∀ n p, x.1[n]? = some p → p.1 = 0 ∧ ∃ c, x.2.2[p.2]? = some c ∧ c.c.name = n
+  keys : ∀ (n : NIdx) (p : Nat × Nat), x.1[n]? = some p → p.1 = 0 ∧
+    ∃ c : CEntry, x.2.2[p.2]? = some c ∧ c.c.name = n
   rel : MergedRel st (mOf pk x) mgC
   names : ∀ (n : ConLeche.Name) (c : ConLeche.Frontend.Olean.CEntry), mgC.map[n]? = some c → c.name = n
 
@@ -75,9 +76,9 @@ theorem mergedOfList_step {st : EStore} (hw : NStoreWF st.ns) {pk : OleanPins}
   have hc := hi.rel.contains hn
   simp only [mOf] at hc
   by_cases hk : x.1.contains c.c.name = true
-  · rw [if_pos hk, if_pos (hc ▸ hk)]
+  · rw [ite_eq_left hk, ite_eq_left (hc ▸ hk)]
     exact hi
-  · rw [if_neg hk, if_neg (by rw [← hc]; exact hk)]
+  · rw [ite_eq_right hk, ite_eq_right (by rw [← hc]; exact hk)]
     obtain ⟨map, order, kept⟩ := x
     simp only at hk ⊢
     -- the kept list grown: the old lookups unchanged
@@ -93,13 +94,13 @@ theorem mergedOfList_step {st : EStore} (hw : NStoreWF st.ns) {pk : OleanPins}
           exact h
         cases p with
         | mk m i =>
+          have hlt' : i < kept.size := hlt
           simp only [Array.getElem?_singleton]
           split
-          · simp only [Option.bind_some]
-            exact Array.getElem?_push_lt hlt
+          · simp [Array.getElem?_push, Nat.ne_of_lt hlt']
           · rfl
     have hrel1 : MergedRel st (mOf pk (map, order, kept.push c)) mgC :=
-      hi.rel.congr hget rfl rfl
+      MergedRel.congr hi.rel hget rfl rfl
     have hself : ((mOf pk (map, order, kept.push c)).ls[0]?).bind (·.constants[kept.size]?) = some c := by
       simp [mOf]
     have hord : ListRel (NR st) (order.push c.c.name).toList (mgC.order.push cC.name).toList :=
@@ -108,22 +109,21 @@ theorem mergedOfList_step {st : EStore} (hw : NStoreWF st.ns) {pk : OleanPins}
     refine ⟨fun n p hp => ?_, ?_, fun n z hz => ?_⟩
     · rw [Std.HashMap.getElem?_insert] at hp
       by_cases e : c.c.name = n
-      · rw [if_pos (by simpa using e)] at hp
+      · rw [ite_eq_left (by simpa using e)] at hp
         cases hp
         exact ⟨rfl, c, by simp, e⟩
-      · rw [if_neg (by simpa using e)] at hp
+      · rw [ite_eq_right (by simpa using e)] at hp
         obtain ⟨h1, c', hc', hn'⟩ := hi.keys n p hp
         refine ⟨h1, c', ?_, hn'⟩
         have hlt : p.2 < kept.size := (Array.getElem?_eq_some_iff.mp hc').1
-        rw [Array.getElem?_push_lt hlt]
-        exact hc'
+        simpa [Array.getElem?_push, Nat.ne_of_lt hlt] using hc'
     · exact hrel2
     · rw [Std.HashMap.getElem?_insert] at hz
       by_cases e : cC.name = n
-      · rw [if_pos (by simpa using e)] at hz
+      · rw [ite_eq_left (by simpa using e)] at hz
         cases hz
         exact e
-      · rw [if_neg (by simpa using e)] at hz
+      · rw [ite_eq_right (by simpa using e)] at hz
         exact hi.names n z hz
 
 /-- The twin's fold step of `mergedOfList`. -/
@@ -214,18 +214,18 @@ theorem ownRecords_run {pk : OleanPins} {s s' : AState} (hok : StateOK s)
       (listRel_of_mapM hl.constants)
   have hwc := mergedOfList_rel hw pk hcs
   unfold ConRon.Arena.Modular.ownRecords at h
-  simp only at h
-  obtain ⟨u, s₁, h1, h⟩ := AM.bind_ok h
+  obtain ⟨u, s₁, h1, k1⟩ := AM.bind_ok h
+  clear h
   obtain ⟨hs1, hb⟩ := blocksOk_run hwc hp h1
   subst hs1
-  obtain ⟨em, s₂, h2, h⟩ := AM.bind_ok h
+  obtain ⟨em, s₂, h2, k2⟩ := AM.bind_ok k1
   obtain ⟨hs2, hem⟩ := emitAll_run hwc hp hwc.rel.order h2
   subst hs2
-  obtain ⟨x, s₃, h3, h⟩ := AM.bind_ok h
+  obtain ⟨x, s₃, h3, k3⟩ := AM.bind_ok k2
   cases x with
-  | error e => cases (AM.pure_ok h).1
+  | error e => cases (AM.pure_ok k3).1
   | ok p =>
-  obtain ⟨hv, hs⟩ := AM.pure_ok h
+  obtain ⟨hv, hs⟩ := AM.pure_ok k3
   cases hv
   subst hs
   obtain ⟨hst, hpers, dsC, hds, hden⟩ := declsOf_run hok hoff hpins hem h3
@@ -338,7 +338,7 @@ theorem ctxNamesNodupGo_run :
         (fun x hx => hp x (List.mem_cons_of_mem _ hx)) (denoteDecls_ext hst1.ext _ _ hds) h
       refine ⟨hst1.trans hst2, ns ++ hs, ?_, ?_, fun x hx => ?_⟩
       · simp only [List.flatMap_cons]
-        exact denoteNList_append' (denoteNList_ext hst2.ext.ns _ _ hns) hhs
+        exact denoteNList_append' (denoteNList_ext hst2.ext.lss.ls.ns _ _ hns) hhs
       · refine List.nodup_append.2 ⟨g1, hnd, fun a ha b hb hab => ?_⟩
         subst hab
         have := hdis a hb
@@ -404,15 +404,16 @@ theorem ctxNamesNodup_run {s s' : AState} (hok : DriverOK s) (hoff : s.store.scr
 theorem HMRel.contains {α β : Type} {R : α → β → Prop} {st : EStore} (hw : NStoreWF st.ns)
     {M : Std.HashMap NIdx α} {MC : Std.HashMap ConLeche.Name β} (h : HMRel R st M MC) {x : NIdx}
     {n : ConLeche.Name} (hd : denoteN st.ns x = some n) : M.contains x = MC.contains n := by
-  rw [Std.HashMap.contains_eq_isSome_getElem?, Std.HashMap.contains_eq_isSome_getElem?]
-  cases h.get hw hd <;> rfl
+  rcases optRel_cases (h.get hw hd) with ⟨h1, h2⟩ | ⟨a, b, h1, h2, -⟩
+  · simp [Std.HashMap.contains_eq_isSome_getElem?, h1, h2]
+  · simp [Std.HashMap.contains_eq_isSome_getElem?, h1, h2]
 
 /-- Added imports read back: empty alike. -/
 theorem ImpsD.isEmpty {st : EStore} {x : Array (ConLeche.Frontend.Olean.ImportF NIdx)}
     {xC : Array ConLeche.Frontend.Olean.ImportRec} (h : ImpsD st x xC) : x.isEmpty = xC.isEmpty := by
   have hl := (listRel_of_mapM h).length_eq
-  simp only [Array.length_toList] at hl
-  simp only [Array.isEmpty_iff_size_eq_zero, hl]
+  have hs : x.size = xC.size := by simpa using hl
+  simp [Array.isEmpty, hs]
 
 theorem ownNamesFold_rel {st : EStore} {P : CEntry → Bool} {PC : ConLeche.Frontend.Olean.CEntry → Bool}
     (hP : ∀ c cC, denoteCEntry st c = some cC → P c = PC cC) :
@@ -441,7 +442,7 @@ theorem ownNamesOf_rel {st : EStore} (hw : NStoreWF st.ns)
       (ConLeche.Driver.ownNamesOf xC ixC lC) := by
   have hcs := listRel_of_mapM hl.constants
   unfold ConRon.Arena.Modular.ownNamesOf ConLeche.Driver.ownNamesOf
-  rw [hx.isEmpty]
+  rw [(ImpsD.isEmpty hx)]
   split
   · unfold ConRon.Arena.Modular.ownNames ConLeche.Driver.ownNames
     rw [← Array.foldl_toList, ← Array.foldl_toList]
@@ -463,7 +464,9 @@ theorem ownUsesAt_fold (n : NIdx) :
       match m[n]? with
       | some i => some i
       | none => (l.findIdx? (·.c.name == n)).map (· + k)
-  | [], m, k => by cases m[n]? <;> rfl
+  | [], m, k => by
+    simp only [List.foldl_nil, List.findIdx?_nil, Option.map_none]
+    cases m[n]? <;> rfl
   | c :: l, m, k => by
     simp only [List.foldl_cons]
     rw [ownUsesAt_fold n l]
@@ -526,14 +529,92 @@ theorem ownUsesThm_eq (cs : Array CEntry) (n : NIdx) :
   | some i => simp [Array.getElem?_toList]
 
 theorem find?_rel {α β : Type} {R : α → β → Prop} {p : α → Bool} {q : β → Bool}
-    (hpq : ∀ a b, R a b → p a = q b) :
-    ∀ {l : List α} {ys : List β}, ListRel R l ys → Option.Rel R (l.find? p) (ys.find? q)
-  | _, _, .nil => .none
-  | a :: _, b :: _, .cons hab hr => by
-    simp only [List.find?_cons, hpq a b hab]
-    split
+    (hpq : ∀ a b, R a b → p a = q b) {l : List α} {ys : List β} (h : ListRel R l ys) :
+    Option.Rel R (l.find? p) (ys.find? q) := by
+  induction h with
+  | nil => exact .none
+  | @cons a b _ _ hab _ ih =>
+    rw [List.find?_cons, List.find?_cons, hpq a b hab]
+    cases q b
+    · exact ih
     · exact .some hab
-    · exact find?_rel hpq hr
+
+/-- con-leche: ConLeche/Driver/Worker.lean:87-94 ownUses — **what an own record mentions,
+upstream's**: at a theorem, what the load read off the file, found by name in the load (the
+twin's index of it, upstream's `find?`); else the record's own constants. -/
+theorem ownUsesOf_other (cs : Array CEntry) (at_ : Std.HashMap NIdx Nat) (d : IDeclaration)
+    (h : ∀ cv v, d ≠ .thmDecl cv v) :
+    ConRon.Arena.Modular.ownUsesOf cs at_ d = ConRon.Arena.Frontend.IDeclaration.usedConsts d := by
+  cases d with
+  | thmDecl cv v => exact absurd rfl (h cv v)
+  | _ => rfl
+
+theorem ownUses_other (lC : ConLeche.Frontend.Olean.Loaded) (d : Declaration)
+    (h : ∀ cv v, d ≠ .thmDecl cv v) : ConLeche.Driver.ownUses lC d = d.usedConsts := by
+  cases d with
+  | thmDecl cv v => exact absurd rfl (h cv v)
+  | _ => rfl
+
+theorem denoteDecl_thm_iff {st : EStore} {d : IDeclaration} {dP : Declaration}
+    (hd : ConRon.Arena.Frontend.denoteDecl st d = some dP) {cvP : ConstantVal} {vP : Expr}
+    (he : dP = .thmDecl cvP vP) : ∃ cv v, d = .thmDecl cv v := by
+  subst he
+  cases d with
+  | thmDecl cv v => exact ⟨cv, v, rfl⟩
+  | _ =>
+    simp only [ConRon.Arena.Frontend.denoteDecl] at hd
+    first
+    | (simp only [Option.map_eq_some_iff] at hd; obtain ⟨_, -, h⟩ := hd; cases h)
+    | (split at hd <;> simp at hd)
+
+theorem ownUses_thm_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn = false)
+    {cs : Array CEntry} {lC : ConLeche.Frontend.Olean.Loaded}
+    (hcs : ListRel (fun c cC => denoteCEntry s.store c = some cC) cs.toList lC.constants.toList)
+    {cv : IConstantVal} {v : EIdx} {dP : Declaration}
+    (hd : ConRon.Arena.Frontend.denoteDecl s.store (.thmDecl cv v) = some dP) {ns : Array NIdx}
+    (hrun : ((cs.toList.find? (·.c.name == cv.name)).map (·.uses)).elim
+        (ConRon.Arena.Frontend.IDeclaration.usedConsts (.thmDecl cv v)) pure s = .ok (ns, s')) :
+    ParseStep s s' ∧ denoteNList s'.store.ns ns.toList = some (ConLeche.Driver.ownUses lC dP).toList := by
+  have hw := nsWF_of_StateOK hok
+  simp only [ConRon.Arena.Frontend.denoteDecl] at hd
+  cases hcv : ConRon.Arena.Frontend.denoteCV s.store cv with
+  | none => simp [hcv] at hd
+  | some cvP =>
+  cases he : denoteE s.store v with
+  | none => simp [hcv, he] at hd
+  | some vP =>
+  simp only [hcv, he, Option.some.injEq] at hd
+  subst hd
+  have hname := denoteCV_name hcv
+  have hrel := find?_rel (p := (·.c.name == cv.name)) (q := (·.name == cvP.name))
+    (fun a b hab => by
+      have ha := (denoteCEntry_parts hab).1
+      cases h1 : (a.c.name == cv.name) <;> cases h2 : (b.name == cvP.name) <;> try rfl
+      · simp only [beq_iff_eq, beq_eq_false_iff_ne] at h1 h2
+        exact absurd (h2 ▸ ha) (fun h => h1 (denoteN_inj hw h hname))
+      · simp only [beq_iff_eq, beq_eq_false_iff_ne] at h1 h2
+        rw [h1] at ha
+        exact absurd (Option.some.inj (ha.symm.trans hname)) h2) hcs
+  simp only [ConLeche.Driver.ownUses, ← Array.find?_toList]
+  rcases optRel_cases hrel with ⟨h1, h2⟩ | ⟨a, b, h1, h2, hab⟩
+  · rw [h1] at hrun
+    rw [h2]
+    simp only [Option.map_none, Option.elim] at hrun
+    exact usedConsts_run hok hoff (by simp [ConRon.Arena.Frontend.denoteDecl, hcv, he]) hrun
+  · rw [h1] at hrun
+    rw [h2]
+    simp only [Option.map_some, Option.elim] at hrun
+    obtain ⟨hv, rfl⟩ := AM.pure_ok hrun
+    subst hv
+    refine ⟨ParseStep.refl hok, ?_⟩
+    unfold denoteCEntry at hab
+    obtain ⟨e, -, hab⟩ := ConLeche.Frontend.Olean.bind_some_left hab
+    obtain ⟨u, hu, hab⟩ := ConLeche.Frontend.Olean.bind_some_left hab
+    simp only [pure, Option.some.injEq] at hab
+    subst hab
+    simp only [Option.map_some, Option.getD_some, toArray_toSubarray_toList]
+    rw [denoteNList_eq_mapM]
+    exact hu
 
 /-- con-leche: ConLeche/Driver/Worker.lean:87-94 ownUses — **what an own record mentions,
 upstream's**: at a theorem, what the load read off the file, found by name in the load (the
@@ -543,59 +624,22 @@ theorem usedRel_ownUses {st0 : EStore} {l : Loaded} {lC : ConLeche.Frontend.Olea
     UsedRel st0 (ConRon.Arena.Modular.ownUsesOf l.constants (ConRon.Arena.Modular.ownUsesAt l.constants))
       (ConLeche.Driver.ownUses lC) := by
   intro s s' d dP ns hx hok hoff hd hrun
-  have hw := nsWF_of_StateOK hok
-  have hcs := ListRel.mono' (fun a b h => denoteCEntry_ext hx h) (listRel_of_mapM hl.constants)
-  cases d with
-  | thmDecl cv v =>
-    simp only [ConRon.Arena.Frontend.denoteDecl] at hd
-    cases hcv : ConRon.Arena.Frontend.denoteCV s.store cv with
-    | none => simp [hcv] at hd
-    | some cvP =>
-    cases he : denoteE s.store v with
-    | none => simp [hcv, he] at hd
-    | some vP =>
-    simp only [hcv, he, Option.some.injEq] at hd
-    subst hd
-    have hname := denoteCV_name hcv
-    have hrel := find?_rel (p := (·.c.name == cv.name)) (q := (·.name == cvP.name))
-      (fun a b hab => by
-        have ha := (denoteCEntry_parts hab).1
-        cases h1 : (a.c.name == cv.name) <;> cases h2 : (b.name == cvP.name) <;> try rfl
-        · simp only [beq_iff_eq, beq_eq_false_iff_ne] at h1 h2
-          exact absurd (h2 ▸ ha) (fun h => h1 (denoteN_inj hw h hname))
-        · simp only [beq_iff_eq, beq_eq_false_iff_ne] at h1 h2
-          subst h1
-          exact absurd (Option.some.inj (ha.symm.trans hname)) h2) hcs
-    simp only [ConRon.Arena.Modular.ownUsesOf, ownUsesThm_eq] at hrun
-    simp only [ConLeche.Driver.ownUses, ← Array.find?_toList]
-    cases hrel with
-    | none =>
-      simp only [Option.map_none] at hrun
-      exact usedConsts_run hok hoff (by simp [ConRon.Arena.Frontend.denoteDecl, hcv, he]) hrun
-    | some hab =>
-      rename_i a b
-      simp only [Option.map_some] at hrun
-      obtain ⟨hv, rfl⟩ := AM.pure_ok hrun
-      subst hv
-      refine ⟨ParseStep.refl hok, ?_⟩
-      unfold denoteCEntry at hab
-      obtain ⟨e, -, hab⟩ := ConLeche.Frontend.Olean.bind_some_left hab
-      obtain ⟨u, hu, hab⟩ := ConLeche.Frontend.Olean.bind_some_left hab
-      simp only [pure, Option.some.injEq] at hab
-      subst hab
-      simp only [toArray_toSubarray_toList]
-      rw [denoteNList_eq_mapM]
-      exact hu
-  | _ =>
-    simp only [ConRon.Arena.Modular.ownUsesOf] at hrun
-    have he : ConLeche.Declaration.usedConsts dP = ConLeche.Driver.ownUses lC dP := by
-      first
-      | (simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
-         obtain ⟨_, -, rfl⟩ := hd; rfl)
-      | (simp only [ConRon.Arena.Frontend.denoteDecl] at hd
-         split at hd <;> simp at hd
-         subst hd; rfl)
-    rw [← he]
+  have hcs : ListRel (fun c cC => denoteCEntry s.store c = some cC) l.constants.toList
+      lC.constants.toList :=
+    ListRel.mono' (fun a b h => denoteCEntry_ext hx h) (listRel_of_mapM hl.constants)
+  by_cases hk : ∃ cv v, d = .thmDecl cv v
+  · obtain ⟨cv, v, rfl⟩ := hk
+    have e : ConRon.Arena.Modular.ownUsesOf l.constants (ConRon.Arena.Modular.ownUsesAt l.constants)
+        (.thmDecl cv v) = ((l.constants.toList.find? (·.c.name == cv.name)).map (·.uses)).elim
+        (ConRon.Arena.Frontend.IDeclaration.usedConsts (.thmDecl cv v)) pure := by
+      simp only [ConRon.Arena.Modular.ownUsesOf, ownUsesThm_eq]
+      cases (l.constants.toList.find? (·.c.name == cv.name)).map (·.uses) <;> rfl
+    rw [e] at hrun
+    exact ownUses_thm_run hok hoff hcs hd hrun
+  · have hk' : ∀ cv v, d ≠ .thmDecl cv v := fun cv v h => hk ⟨cv, v, h⟩
+    rw [ownUsesOf_other _ _ _ hk'] at hrun
+    have hkP : ∀ cvP vP, dP ≠ .thmDecl cvP vP := fun cvP vP h => hk (denoteDecl_thm_iff hd h)
+    rw [ownUses_other _ _ hkP]
     exact usedConsts_run hok hoff hd hrun
 
 /-! ## The own records of a compared challenge, and the hoist -/
@@ -613,6 +657,21 @@ theorem denoteDecls_append {st : EStore} :
       cases ha
       simp only [List.cons_append, denoteDecls, hx, denoteDecls_append hxs hb]
     · cases ha
+
+theorem anyLoaded_rel {st : EStore} (hw : NStoreWF st.ns) {first : Std.HashMap NIdx Copy}
+    {firstC : Std.HashMap ConLeche.Name Copy} (hf : HMRel (· = ·) st first firstC) :
+    ∀ {ns : List NIdx} {zs : List ConLeche.Name}, ConRon.Arena.Frontend.denoteNList st.ns ns = some zs →
+      ns.any first.contains = zs.any firstC.contains
+  | [], zs, hns => by
+    simp only [ConRon.Arena.Frontend.denoteNList, Option.some.injEq] at hns
+    subst hns; rfl
+  | a :: l, zs, hns => by
+    simp only [ConRon.Arena.Frontend.denoteNList] at hns
+    split at hns
+    · rename_i y ys hy hys
+      cases hns
+      simp only [List.any_cons, anyLoaded_rel hw hf hys, HMRel.contains hw hf hy]
+    · cases hns
 
 /-- con-leche: ConLeche/Driver/Worker.lean:124-125 loadedRec — **a record some name of which a
 loaded module stores, upstream's**. -/
@@ -634,18 +693,7 @@ theorem loadedRec_run {s s' : AState} (hok : DriverOK s) (hoff : s.store.scratch
   have hf' := hf.ext hst.ext (fun _ _ h => h)
   unfold ConRon.Arena.Modular.anyLoaded ConLeche.Driver.loadedRec
   rw [hix1, hix2]
-  generalize ConLeche.Modular.declNames dC = zs at hns
-  induction ns generalizing zs with
-  | nil =>
-    simp only [ConRon.Arena.Frontend.denoteNList, Option.some.injEq] at hns
-    subst hns; rfl
-  | cons a l ih =>
-    simp only [ConRon.Arena.Frontend.denoteNList] at hns
-    split at hns
-    · rename_i y ys hy hys
-      cases hns
-      simp only [List.any_cons, ih ys hys, HMRel.contains hw hf' hy]
-    · cases hns
+  exact anyLoaded_rel hw hf' hns
 
 theorem recsLoaded_go {want : Bool} {ix : ConRon.Arena.Frontend.Olean.NameIndex}
     {ixC : ConLeche.Frontend.Olean.NameIndex} :
@@ -654,7 +702,7 @@ theorem recsLoaded_go {want : Bool} {ix : ConRon.Arena.Frontend.Olean.NameIndex}
       DriverOK s → s.store.scratchOn = false → HMRel (· = ·) s.store ix.first ixC.first →
       (∀ d ∈ l, PersDecl d) → PersDecls out →
       denoteDecls s.store l = some lC → denoteDecls s.store out.toList = some outC →
-      l.foldlM (fun out d => do
+      l.foldlM (m := AM) (fun out d => do
         if (← ConRon.Arena.Modular.loadedRec ix d) == want then pure (out.push d) else pure out)
         out s = .ok (r, s') →
       DStep s s' ∧ PersDecls r ∧
@@ -676,11 +724,13 @@ theorem recsLoaded_go {want : Bool} {ix : ConRon.Arena.Frontend.Olean.NameIndex}
       obtain ⟨b, s₀, h0, h1⟩ := AM.bind_ok h1
       obtain ⟨hst0, hb⟩ := loadedRec_run hok hoff hf rfl rfl (hp d (List.mem_cons_self ..)) hd h0
       subst hb
-      have hpo1 : PersDecls out₁ ∧ denoteDecls s₀.store out₁.toList =
+      have hs10 : s₁ = s₀ := by split at h1 <;> exact (AM.pure_ok h1).2
+      subst hs10
+      have hpo1 : PersDecls out₁ ∧ denoteDecls s₁.store out₁.toList =
           some (outC ++ ([dC].filter (fun d => ConLeche.Driver.loadedRec ixC d == want))) := by
         split at h1
         · rename_i hw
-          obtain ⟨rfl, rfl⟩ := AM.pure_ok h1
+          obtain ⟨rfl, -⟩ := AM.pure_ok h1
           refine ⟨fun x hx => ?_, ?_⟩
           · rcases Array.mem_push.1 hx with hx | rfl
             · exact hpo x hx
@@ -689,7 +739,7 @@ theorem recsLoaded_go {want : Bool} {ix : ConRon.Arena.Frontend.Olean.NameIndex}
             exact denoteDecls_append (denoteDecls_ext hst0.ext _ _ ho)
               (by simp [denoteDecls, denoteDecl_ext hst0.ext hd])
         · rename_i hw
-          obtain ⟨rfl, rfl⟩ := AM.pure_ok h1
+          obtain ⟨rfl, -⟩ := AM.pure_ok h1
           refine ⟨hpo, ?_⟩
           simp only [List.filter_cons, hw, Bool.false_eq_true, ↓reduceIte, List.filter_nil,
             List.append_nil]
@@ -715,21 +765,21 @@ theorem ownRecs_run {s s' : AState} (hok : DriverOK s) (hoff : s.store.scratchOn
     DStep s s' ∧ PersDecls r ∧ denoteDeclArray s'.store r = some (ConLeche.Driver.ownRecs xC ixC dsC) := by
   unfold ConRon.Arena.Modular.ownRecs at h
   unfold ConLeche.Driver.ownRecs
-  rw [← hx.isEmpty]
-  split
-  · obtain ⟨rfl, rfl⟩ := AM.pure_ok h
+  rw [← (ImpsD.isEmpty hx)]
+  by_cases he : x.isEmpty = true
+  · rw [ite_eq_left he] at h ⊢
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h
     exact ⟨DStep.refl hok hoff, hp, hd⟩
-  · unfold ConRon.Arena.Modular.recsLoaded at h
+  · rw [ite_eq_right he] at h ⊢
+    unfold ConRon.Arena.Modular.recsLoaded at h
     rw [← Array.foldlM_toList] at h
-    obtain ⟨hst, hpr, hr⟩ := recsLoaded_go ds.toList #[] hok hoff hix (fun d hd => hp d (by simpa using hd))
-      (fun _ h => by simp at h) (denoteDeclArray_iff.mp hd) rfl h
+    obtain ⟨hst, hpr, hr⟩ := recsLoaded_go (want := false) ds.toList #[] hok hoff hix
+      (fun d hd => hp d (by simpa using hd)) (fun _ h => by simp at h) (denoteDeclArray_iff.mp hd) rfl h
     refine ⟨hst, hpr, denoteDeclArray_iff.mpr ?_⟩
     rw [hr, Array.toList_filter]
     simp only [List.nil_append]
     congr 1
-    apply List.filter_congr
-    intro d _
-    cases ConLeche.Driver.loadedRec ixC d <;> rfl
+    try (apply List.filter_congr; intro d _; cases ConLeche.Driver.loadedRec ixC d <;> rfl)
 
 /-- con-leche: ConLeche/Driver/Worker.lean:300-343 workerRead — **the records checked, upstream's
 `recsOf`**: the own records hoisted (`hoistNatOpGround` at `ownUses`). -/
@@ -750,5 +800,5 @@ theorem recsOf_run {s s₁ s' : AState} (hok : DriverOK s) (hoff : s.store.scrat
         (ConLeche.Driver.ownRecs xC ixC dsC)).1 := by
   obtain ⟨hst1, hp1, hr1⟩ := ownRecs_run hok hoff hx hix hp hd h1
   obtain ⟨hst2, hp2, ho, -⟩ := hoistNatOpGround_run hst1.ok.state hst1.scratch hst1.ok.pins
-    hst1.ok.state.wf hr1 hp1 ((usedRel_ownUses hl).mono hst1.ext) h2
+    hst1.ok.state.wf hr1 hp1 (UsedRel.mono hst1.ext (usedRel_ownUses hl)) h2
   exact ⟨hst1.trans (DStep.of_parse hst1.ok hst1.scratch hst2), hp2, ho⟩
