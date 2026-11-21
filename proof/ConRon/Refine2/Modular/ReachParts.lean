@@ -427,4 +427,371 @@ theorem record_spot_eq {pk : frontend.olean.spec.OleanPins} {wr : frontend.olean
     | none => cases Result.ok_injective h; rfl
     | some s => cases Result.ok_injective h; rfl
 
+/-! ## Recursor blocks -/
+
+/-- A vector's element at `0`: its head. -/
+theorem vec_index_zero_cons {α : Type} {v : alloc.vec.Vec α} {x : α}
+    (h : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) v 0#usize = ok x) :
+    ∃ t, v.val = x :: t := by
+  obtain ⟨hl, rfl⟩ := vec_index_eq h
+  refine ⟨v.val.drop ((0#usize : Std.Usize).val + 1), ?_⟩
+  rw [List.getElem_cons_drop]
+  rfl
+
+/-- **`rec_blocks_add` is `recBlocksAdd`.** -/
+theorem rec_blocks_add_rel {m : ron.hashmap2.HashMap2 arena.handle.NIdx (alloc.vec.Vec Std.U64)}
+    {M : _root_.Std.HashMap NIdx (_root_.Array Nat)} (hm : NMapRel absLocs m M) {l : Std.U64}
+    {k : frontend.olean.spec.CKindF arena.handle.NIdx Unit} {k' : CKindF NIdx Unit}
+    (hk : KindNamesRel k k') {o} (h : rec_blocks_add m l k = ok o) :
+    NMapRel absLocs o (ConRon.Arena.Modular.recBlocksAdd M l.val k') := by
+  unfold rec_blocks_add at h
+  cases k <;> cases k' <;> simp only [KindNamesRel, KindRel] at hk
+  all_goals try (cases Result.ok_injective h; exact hm)
+  rename_i all np ni nmo nmi rules k2 iu all' np' ni' nmo' nmi' rules' k2' iu'
+  obtain ⟨hall, -⟩ := hk
+  dsimp only at h
+  by_cases h0 : alloc.vec.Vec.len all > 0#usize
+  · rw [ite_eq_left h0] at h
+    have h0' : 0 < all.val.length := by
+      have : (0#usize : Std.Usize).val < (alloc.vec.Vec.len all).val := h0
+      simpa [vec_len_val] using this
+    peel h as n, hn
+    obtain ⟨t, ht⟩ := vec_index_zero_cons hn
+    peel h as q, hq
+    obtain ⟨old, m1⟩ := q
+    obtain ⟨eold, hm1⟩ := hm.remove hq
+    peel h as xs, hxs
+    peel h as xs1, hxs1
+    peel h as n1, hn1
+    cases nidx_dup2_ok hn1
+    peel h as q2, hq2
+    obtain ⟨_, m2⟩ := q2
+    cases Result.ok_injective h
+    have ha : all' = absNIdx n :: t.map absNIdx := by rw [← hall, ht]; rfl
+    rw [ha]
+    simp only [ConRon.Arena.Modular.recBlocksAdd]
+    have hv : absLocs xs1 = ((M[absNIdx n]?).getD #[]).push l.val := by
+      rw [← eold]
+      have e1 := ConRon.Refine.vec_push_val hxs1
+      cases old with
+      | none =>
+        cases Result.ok_injective hxs
+        simp [absLocs, e1, alloc.vec.Vec.new]
+      | some ys =>
+        cases Result.ok_injective hxs
+        simp [absLocs, e1]
+    refine NMapRel.congr (by simpa [hv] using hm1.insert hq2) fun k1 => ?_
+    simp only [_root_.Std.HashMap.getElem?_insert, _root_.Std.HashMap.getElem?_erase]
+    split <;> simp [*]
+  · rw [ite_eq_right h0] at h
+    cases Result.ok_injective h
+    have : all.val = [] := by
+      have : ¬ (0#usize : Std.Usize).val < (alloc.vec.Vec.len all).val := h0
+      simpa [vec_len_val] using this
+    rw [← hall, this]
+    exact hm
+
+/-! ## A group's parts -/
+
+/-- The constructors an entry lists, the Rust's. -/
+def rCtors (e : frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx) : List NIdx :=
+  match e.kind with
+  | .Induct _ _ _ cs _ _ _ _ => cs.val.map absNIdx
+  | _ => []
+
+theorem rCtors_groupCtorNames {l : List (frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx)}
+    {l' : List (CEntryF NIdx EIdx)} (h : List.Forall₂ (EntryRel absNIdx absEIdx ValRel) l l') :
+    l.flatMap rCtors = ConRon.Arena.Modular.groupCtorNames l' := by
+  induction h with
+  | nil => rfl
+  | @cons a b _ _ he _ ih =>
+    simp only [ConRon.Arena.Modular.groupCtorNames] at ih ⊢
+    rw [List.flatMap_cons, List.flatMap_cons, ih]
+    congr 1
+    have hk := he.kind
+    unfold rCtors
+    generalize a.kind = ak at hk ⊢
+    generalize b.kind = bk at hk ⊢
+    cases ak <;> cases bk <;> simp only [KindRel] at hk <;> first | rfl | exact hk.2.2.2.1
+
+theorem group_ctor_names_loop0_loop0_eq (out cs : alloc.vec.Vec arena.handle.NIdx) (j : Std.Usize) {o}
+    (h : group_ctor_names_loop0_loop0 out cs j = ok o) : o.val = out.val ++ cs.val.drop j.val := by
+  rw [group_ctor_names_loop0_loop0] at h
+  by_cases h1 : j < alloc.vec.Vec.len cs
+  · rw [ite_eq_left h1] at h
+    have hi := lt_of_lt_len h1
+    peel h as n, hn
+    obtain ⟨_, rfl⟩ := vec_index_eq hn
+    peel h as n1, hn1
+    cases nidx_dup2_ok hn1
+    peel h as out1, hout1
+    peel h as j1, hj1
+    rw [group_ctor_names_loop0_loop0_eq out1 cs j1 h, ConRon.Refine.vec_push_val hout1, usize_succ hj1,
+      List.drop_eq_getElem_cons hi]
+    simp
+  · rw [ite_eq_right h1] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (lt_of_not_lt_len h1)]
+    simp
+termination_by cs.val.length - j.val
+decreasing_by
+  have := lt_of_lt_len h1
+  have := usize_succ hj1
+  omega
+
+theorem group_ctor_names_loop0_eq
+    (tys : alloc.vec.Vec (frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx))
+    (out : alloc.vec.Vec arena.handle.NIdx) (i : Std.Usize) {o}
+    (h : group_ctor_names_loop0 tys out i = ok o) :
+    o.val.map absNIdx = out.val.map absNIdx ++ (tys.val.drop i.val).flatMap rCtors := by
+  rw [group_ctor_names_loop0] at h
+  by_cases h1 : i < alloc.vec.Vec.len tys
+  · rw [ite_eq_left h1] at h
+    have hi := lt_of_lt_len h1
+    peel h as cf, hcf
+    obtain ⟨_, rfl⟩ := vec_index_eq hcf
+    rw [List.drop_eq_getElem_cons hi, List.flatMap_cons]
+    split at h
+    all_goals first
+      | (rename_i cs _ _ _ _ heq
+         have hr : rCtors tys.val[i.val] = cs.val.map absNIdx := by simp only [rCtors, heq]
+         peel h as out1, hout1
+         peel h as i2, hi2
+         rw [hr, group_ctor_names_loop0_eq tys out1 i2 h, group_ctor_names_loop0_loop0_eq _ _ _ hout1,
+           usize_succ hi2]
+         simp)
+      | (rename_i heq
+         have hr : rCtors tys.val[i.val] = [] := by simp only [rCtors, heq]
+         peel h as i2, hi2
+         rw [hr, group_ctor_names_loop0_eq tys out i2 h, usize_succ hi2]
+         simp)
+  · rw [ite_eq_right h1] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (lt_of_not_lt_len h1)]
+    simp
+termination_by tys.val.length - i.val
+decreasing_by
+  all_goals
+    have := lt_of_lt_len h1
+    have := usize_succ hi2
+    omega
+
+/-- **`group_ctor_names` is `groupCtorNames`.** -/
+theorem group_ctor_names_eq
+    {tys : alloc.vec.Vec (frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx)}
+    {tys' : List (CEntryF NIdx EIdx)} (hr : List.Forall₂ (EntryRel absNIdx absEIdx ValRel) tys.val tys')
+    {o} (h : group_ctor_names tys = ok o) :
+    o.val.map absNIdx = ConRon.Arena.Modular.groupCtorNames tys' := by
+  rw [group_ctor_names] at h
+  rw [group_ctor_names_loop0_eq _ _ _ h, ← rCtors_groupCtorNames hr]
+  simp [alloc.vec.Vec.new]
+
+theorem group_rec_locs_loop_eq (xs out : alloc.vec.Vec Std.U64) (i : Std.Usize) {o}
+    (h : group_rec_locs_loop xs out i = ok o) : o.val = out.val ++ xs.val.drop i.val := by
+  rw [group_rec_locs_loop] at h
+  by_cases h1 : i < alloc.vec.Vec.len xs
+  · rw [ite_eq_left h1] at h
+    have hi := lt_of_lt_len h1
+    peel h as n, hn
+    obtain ⟨_, rfl⟩ := vec_index_eq hn
+    peel h as out1, hout1
+    peel h as i3, hi3
+    rw [group_rec_locs_loop_eq xs out1 i3 h, ConRon.Refine.vec_push_val hout1, usize_succ hi3,
+      List.drop_eq_getElem_cons hi]
+    simp
+  · rw [ite_eq_right h1] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (lt_of_not_lt_len h1)]
+    simp
+termination_by xs.val.length - i.val
+decreasing_by
+  have := lt_of_lt_len h1
+  have := usize_succ hi3
+  omega
+
+/-- **`group_rec_locs` is `groupRecLocs`.** -/
+theorem group_rec_locs_eq {rb : ron.hashmap2.HashMap2 arena.handle.NIdx (alloc.vec.Vec Std.U64)}
+    {RB : _root_.Std.HashMap NIdx (_root_.Array Nat)} (hrb : NMapRel absLocs rb RB)
+    {all : alloc.vec.Vec arena.handle.NIdx} {o} (h : group_rec_locs rb all = ok o) :
+    o.val.map (·.val) = ConRon.Arena.Modular.groupRecLocs RB (all.val.map absNIdx) := by
+  rw [group_rec_locs] at h
+  rw [ConRon.Arena.Modular.groupRecLocs]
+  by_cases h0 : alloc.vec.Vec.len all = 0#usize
+  · rw [ite_eq_left h0] at h
+    cases Result.ok_injective h
+    have : all.val = [] := by
+      have := congrArg (·.val) h0
+      simp only [vec_len_val] at this
+      exact List.eq_nil_of_length_eq_zero this
+    simp [this, alloc.vec.Vec.new]
+  · rw [ite_eq_right h0] at h
+    peel h as n, hn
+    obtain ⟨t, ht⟩ := vec_index_zero_cons hn
+    peel h as o0, ho0
+    have e0 := hrb.get_eq ho0
+    have ha : (all.val.map absNIdx).head? = some (absNIdx n) := by rw [ht]; rfl
+    rw [ha, Option.bind_some, ← e0]
+    cases o0 with
+    | none => cases Result.ok_injective h; simp [alloc.vec.Vec.new]
+    | some xs =>
+      rw [group_rec_locs_loop_eq _ _ _ h]
+      simp [alloc.vec.Vec.with_capacity, absLocs]
+
+/-- **`group_keeps` is `groupKeeps`.** -/
+theorem group_keeps_eq {e : frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx}
+    {e' : CEntryF NIdx EIdx} (he : EntryRel absNIdx absEIdx ValRel e e')
+    {all : alloc.vec.Vec arena.handle.NIdx} {b} (h : group_keeps e all = ok b) :
+    b = ConRon.Arena.Modular.groupKeeps e' (all.val.map absNIdx) := by
+  rw [group_keeps] at h
+  have hk := he.kind
+  rw [ConRon.Arena.Modular.groupKeeps]
+  generalize e.kind = ek at h hk
+  generalize e'.kind = ek' at hk ⊢
+  cases ek <;> cases ek' <;> simp only [KindRel] at hk
+  all_goals first
+    | exact (Result.ok_injective h).symm
+    | rw [nidx_list_eq_abs h, hk.1]
+
+/-! ## Lookups of several names -/
+
+/-- **`look_loc` is a lookup's location.** -/
+theorem look_loc_eq {l : ron.hashmap2.HashMap2 arena.handle.NIdx frontend.olean.reads.NamePosition}
+    {L : _root_.Std.HashMap NIdx Arena.Frontend.Olean.NamePosition} (hl : NMapRel absNamePosition l L)
+    {n : arena.handle.NIdx} {o} (h : look_loc l n = ok o) :
+    o.map (·.val) = (L[absNIdx n]?).map (·.loc) := by
+  rw [look_loc] at h
+  peel h as o0, ho0
+  rw [← hl.get_eq ho0]
+  cases o0 <;> cases Result.ok_injective h <;> rfl
+
+theorem look_locs_in_loop_eq {l : ron.hashmap2.HashMap2 arena.handle.NIdx frontend.olean.reads.NamePosition}
+    {L : _root_.Std.HashMap NIdx Arena.Frontend.Olean.NamePosition} (hl : NMapRel absNamePosition l L)
+    (ns : alloc.vec.Vec arena.handle.NIdx) (out : alloc.vec.Vec Std.U64) (i : Std.Usize) {o}
+    (h : look_locs_in_loop l ns out i = ok o) :
+    o.map (fun v => v.val.map (·.val)) =
+      (((ns.val.drop i.val).map absNIdx).mapM fun n => (L[n]?).map (·.loc)).map
+        (out.val.map (·.val) ++ ·) := by
+  rw [look_locs_in_loop] at h
+  by_cases h1 : i < alloc.vec.Vec.len ns
+  · rw [ite_eq_left h1] at h
+    have hi := lt_of_lt_len h1
+    peel h as n, hn
+    obtain ⟨_, rfl⟩ := vec_index_eq hn
+    peel h as o0, ho0
+    have e0 := look_loc_eq hl ho0
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, List.mapM_cons, ← e0]
+    cases o0 with
+    | none => cases Result.ok_injective h; rfl
+    | some x =>
+      peel h as out1, hout1
+      peel h as i2, hi2
+      have ih := look_locs_in_loop_eq hl ns out1 i2 h
+      rw [usize_succ hi2, ConRon.Refine.vec_push_val hout1] at ih
+      rw [ih]
+      cases (((ns.val.drop (i.val + 1)).map absNIdx).mapM fun n => (L[n]?).map (·.loc)) <;> simp
+  · rw [ite_eq_right h1] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (lt_of_not_lt_len h1)]
+    simp
+termination_by ns.val.length - i.val
+decreasing_by
+  have := lt_of_lt_len h1
+  have := usize_succ hi2
+  omega
+
+/-- **`look_locs_in` is `ns.mapM (look[·]?)`.** -/
+theorem look_locs_in_eq {l : ron.hashmap2.HashMap2 arena.handle.NIdx frontend.olean.reads.NamePosition}
+    {L : _root_.Std.HashMap NIdx Arena.Frontend.Olean.NamePosition} (hl : NMapRel absNamePosition l L)
+    {ns : alloc.vec.Vec arena.handle.NIdx} {o} (h : look_locs_in l ns = ok o) :
+    o.map (fun v => v.val.map (·.val)) = (ns.val.map absNIdx).mapM fun n => (L[n]?).map (·.loc) := by
+  rw [look_locs_in] at h
+  rw [look_locs_in_loop_eq hl _ _ _ h]
+  have e0 : (alloc.vec.Vec.with_capacity Std.U64 (alloc.vec.Vec.len ns)).val = [] := rfl
+  rw [e0]
+  simp
+
+/-- **`look_locs`' `Ok` is `lookLocs`'.** -/
+theorem look_locs_eq {c : frontend.modular.reach.ReachCache} {C : ConRon.Arena.Modular.ReachCache}
+    (hc : ReachCacheRel c C) {k : frontend.modular.reach.PartKey} {ns : alloc.vec.Vec arena.handle.NIdx}
+    {o} (h : look_locs c k ns = ok (.Ok o)) (lst : AState) :
+    (ConRon.Arena.Modular.lookLocs C (absPartKey k) (ns.val.map absNIdx)).run lst =
+      .ok (o.map (fun v => v.val.map (·.val)), lst) := by
+  rw [look_locs] at h
+  peel h as o0, ho0
+  rcases orel_cases (hc.looks.get_eq ho0) with ⟨rfl, -⟩ | ⟨l, L, rfl, he, hr⟩
+  · peel h as ce, -
+    cases Result.ok_injective h
+  · rw [ConRon.Arena.Modular.lookLocs, he]
+    dsimp only
+    peel h as o1, ho1
+    cases Result.ok_injective h
+    rw [look_locs_in_eq hr ho1]
+    rfl
+
+/-- **`rec_locs_at`'s `Ok` is `recLocsAt`'s.** -/
+theorem rec_locs_at_eq {c : frontend.modular.reach.ReachCache} {C : ConRon.Arena.Modular.ReachCache}
+    (hc : ReachCacheRel c C) {k : frontend.modular.reach.PartKey} {all : alloc.vec.Vec arena.handle.NIdx}
+    {o} (h : rec_locs_at c k all = ok (.Ok o)) (lst : AState) :
+    (ConRon.Arena.Modular.recLocsAt C (absPartKey k) (all.val.map absNIdx)).run lst =
+      .ok (o.val.map (·.val), lst) := by
+  rw [rec_locs_at] at h
+  peel h as o0, ho0
+  rcases orel_cases (hc.recBlocks.get_eq ho0) with ⟨rfl, -⟩ | ⟨l, L, rfl, he, hr⟩
+  · peel h as ce, -
+    cases Result.ok_injective h
+  · rw [ConRon.Arena.Modular.recLocsAt, he]
+    dsimp only
+    peel h as o1, ho1
+    cases Result.ok_injective h
+    rw [group_rec_locs_eq hr ho1]
+    rfl
+
+/-! ## A copy's presentation -/
+
+/-- **`group_of_kind` is `groupOfKind`.** -/
+theorem group_of_kind_eq {x : arena.handle.NIdx} {k : frontend.olean.spec.CKindF arena.handle.NIdx Unit}
+    {k' : CKindF NIdx Unit} (hk : KindNamesRel k k') {o} (h : group_of_kind x k = ok o) :
+    o.map absNIdx = ConRon.Arena.Modular.groupOfKind (absNIdx x) k' := by
+  unfold group_of_kind at h
+  cases k <;> cases k' <;> simp only [KindNamesRel, KindRel] at hk <;>
+    simp only [ConRon.Arena.Modular.groupOfKind] <;>
+    try (cases Result.ok_injective h; rfl)
+  · -- an inductive type
+    peel h as n, hn
+    cases nidx_dup2_ok hn
+    cases Result.ok_injective h
+    rfl
+  · -- a constructor
+    peel h as n, hn
+    cases nidx_dup2_ok hn
+    cases Result.ok_injective h
+    rw [← hk.1]; rfl
+  · -- a recursor
+    rename_i all _ _ _ _ _ _ _ all' _ _ _ _ _ _ _
+    rw [← hk.1]
+    dsimp only at h
+    by_cases h0 : alloc.vec.Vec.len all > 0#usize
+    · rw [ite_eq_left h0] at h
+      peel h as n, hn
+      obtain ⟨t, ht⟩ := vec_index_zero_cons hn
+      peel h as n1, hn1
+      cases nidx_dup2_ok hn1
+      cases Result.ok_injective h
+      rw [ht]; rfl
+    · rw [ite_eq_right h0] at h
+      peel h as n, hn
+      cases nidx_dup2_ok hn
+      cases Result.ok_injective h
+      have : all.val = [] := by
+        have : ¬ (0#usize : Std.Usize).val < (alloc.vec.Vec.len all).val := h0
+        simpa [vec_len_val] using this
+      simp [this]
+
+/-- **`axiom_of` is `axiomOf`.** -/
+theorem axiom_of_eq {cv : frontend.olean.spec.StmtRec} {d} (h : axiom_of cv = ok d) :
+    absIDeclaration d = ConRon.Arena.Modular.axiomOf (absStmtRec cv) := by
+  rw [axiom_of] at h
+  cases Result.ok_injective h
+  rfl
+
 end ConRon.Refine2.Modular
