@@ -19,6 +19,7 @@ import ConRon.Refine2.Checker.Install
 import ConRon.Refine2.Inductives.StreamRecs
 import ConRon.Refine2.Core.LS.Lits
 import ConRon.Refine2.Modular.Graph
+import ConRon.Refine2.Frontend.Olean.NamePos
 import ConRon.Arena.Modular.Reach
 
 open Aeneas Aeneas.Std Result
@@ -36,6 +37,13 @@ open ConRon.Refine2.Frontend.Olean (nidx_dup_id)
 open ConRon.Refine.HashMap2 (toFun)
 
 attribute [local lockstep] decl_constants_ls decl_tables_ls
+
+/-- A Rust run that ends in `ok (.Err _, _)` after any binds does not accept. -/
+macro "err_contra " h:ident : tactic =>
+  `(tactic| (repeat (have h_ := ConRon.Refine.bind_eq_ok_iff.mp $h:ident; clear $h:ident;
+                     obtain ⟨_, _, $h:ident⟩ := h_);
+             first | (cases Result.ok_injective $h:ident) | (simp at $h:ident) |
+               (split at $h:ident <;> simp at $h:ident)))
 
 /-! ## What a record reads -/
 
@@ -610,5 +618,236 @@ theorem part_pos_eq {m s} (hm : IdxRel m s) (n : Std.U64) (y : arena.handle.NIdx
   cases o with
   | none => cases Result.ok_injective h; exact ⟨rfl, id⟩
   | some j => cases Result.ok_injective h; exact ⟨rfl, fun _ => hfit _ rfl⟩
+
+
+/-! ## The accept of a function whose failures carry twin-only reads
+
+`validate_ctx`, `infer_one`, `infer_flags` and the read order fail with messages the twin
+builds from `readName`, which may itself fail at another kind; so these claim their accept
+only (`LA`), as the reach's file reads do. -/
+
+/-- **The accept of a state-threading Rust computation**: its `Ok` is a run of the twin, in
+related states.  An `Err` claims nothing. -/
+def LA {α β : Type} (pers : arena.store.PersTier) (R : α → β → Prop)
+    (m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState))
+    (lst : AState) (x : AM β) : Prop :=
+  ∀ a st', m = ok (.Ok a, st') →
+    ∃ b lst', x.run lst = .ok (b, lst') ∧ R a b ∧ AStateRel₀ pers st' lst' ∧ AStateInv pers st'
+
+theorem LS.toLA {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM β} (h : LS pers R m lst x) : LA pers R m lst x :=
+  fun _ _ hm => h _ _ hm
+
+/-! ## The validation of the context -/
+
+theorem validate_ctx_loop_aux {pers : arena.store.PersTier} (ds : alloc.vec.Vec arena.env.IDeclaration)
+    (hs : alloc.vec.Vec arena.handle.NIdx) (n : Nat) :
+    ∀ {st lst} {i : Std.Usize}, ds.val.length - i.val = n →
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LA pers (fun _ _ => True) (validate_ctx_loop pers st ds hs i) lst
+        (Modular.validateCtx ((ds.val.drop i.val).map absIDeclaration) (hs.val.map absNIdx).toArray
+          i.val) := by
+  induction n with
+  | zero =>
+    intro st lst i hn hrel hinv a st' h
+    rw [validate_ctx_loop, ite_eq_right (by scalar_tac)] at h
+    obtain ⟨-, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+    rw [vecFrom_nil _ _ _ (by omega)]
+    exact ⟨(), lst, rfl, trivial, hrel, hinv⟩
+  | succ k ih =>
+    intro st lst i hn hrel hinv a st' h
+    rw [validate_ctx_loop, ite_eq_left (by scalar_tac)] at h
+    have hi : i.val < ds.val.length := by omega
+    obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, hdv⟩ := ExprOps.vecIndexAt hd
+    obtain ⟨⟨r, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have H := record_ok_ls hrel hinv d _ _ h1
+    rw [vecFrom_cons _ _ _ hi, hdv]
+    simp only [Modular.validateCtx]
+    cases r with
+    | Err e => cases Result.ok_injective h
+    | Ok b =>
+      obtain ⟨b', lst1, hx1, hbb, hrel1, hinv1⟩ := H
+      subst hbb
+      cases b' with
+      | false =>
+        obtain ⟨⟨ce, st2⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        cases Result.ok_injective h
+      | true =>
+        obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi3v := ConRon.Refine.Nat.uadd_val hi3
+        simp at hi3v
+        obtain ⟨b2, lst2, hx2, -, hrel2, hinv2⟩ := ih (i := i3) (by omega) hrel1 hinv1 a st' h
+        rw [hi3v] at hx2
+        refine ⟨b2, lst2, ?_, trivial, hrel2, hinv2⟩
+        rw [StateT.run_bind, hx1]
+        exact hx2
+
+/-- **`validate_ctx` ⊑ `validateCtx`, accepting**: every context record validated. -/
+theorem validate_ctx_la {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ds : alloc.vec.Vec arena.env.IDeclaration)
+    (hs : alloc.vec.Vec arena.handle.NIdx) :
+    LA pers (fun _ _ => True) (validate_ctx pers st ds hs) lst
+      (Modular.validateCtx (absIDeclL ds) (hs.val.map absNIdx).toArray 0) := by
+  have := validate_ctx_loop_aux (pers := pers) ds hs _ (i := 0#usize) rfl hrel hinv
+  simpa [absIDeclL] using this
+
+/-! ## The inferred flags -/
+
+/-- `type_is_prop_c` ⊑ `typeIsPropC`. -/
+@[lockstep] theorem type_is_prop_c_ls {pers st lst} {fe lfe} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers fe lfe) (cv : frontend.olean.spec.StmtRec) :
+    LS pers (fun a b => b = a) (type_is_prop_c pers st fe cv) lst
+      (Modular.typeIsPropC lfe (Frontend.Olean.absStmtRec cv)) := by
+  have hctx := IFEnvInv.coreCtx hfe.rel hfe.inv
+  rw [type_is_prop_c, Modular.typeIsPropC]
+  simp only [Frontend.Olean.absStmtRec]
+  lockstep
+
+/-- **`cps_dup` copies.** -/
+theorem cps_dup_loop_eq (a : alloc.vec.Vec Std.U32) :
+    ∀ (n : Nat) (out : alloc.vec.Vec Std.U32) (i : Std.Usize) {r},
+      a.val.length - i.val = n → cps_dup_loop a out i = ok r → r.val = out.val ++ a.val.drop i.val := by
+  intro n
+  induction n with
+  | zero =>
+    intro out i r hn h
+    rw [cps_dup_loop, ite_eq_right (by scalar_tac)] at h
+    cases Result.ok_injective h
+    rw [List.drop_eq_nil_of_le (by omega)]; simp
+  | succ m ih =>
+    intro out i r hn h
+    rw [cps_dup_loop, ite_eq_left (by scalar_tac)] at h
+    have hi : i.val < a.val.length := by omega
+    obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, hxv⟩ := ExprOps.vecIndexAt hx
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hout1v : out1.val = out.val ++ [x] := ConRon.Refine.vec_push_val hout1
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hi2v := ConRon.Refine.Nat.uadd_val hi2
+    simp at hi2v
+    rw [ih out1 i2 (by omega) h, hout1v, hi2v, List.drop_eq_getElem_cons hi, hxv]
+    simp
+
+theorem cps_dup_eq (a : alloc.vec.Vec Std.U32) {r} (h : cps_dup a = ok r) : r.val = a.val := by
+  rw [cps_dup] at h
+  simpa [alloc.vec.Vec.with_capacity] using cps_dup_loop_eq a _ _ 0#usize rfl h
+
+
+/-- **`infer_one` ⊑ `inferOne`, accepting**: a recorded statement's names stored before it,
+its type a proposition.  The message `what` is not related. -/
+theorem infer_one_la {pers st lst fe lfe} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI pers fe lfe) (what : alloc.vec.Vec Std.U32)
+    (w : String) (y : arena.handle.NIdx) (cv : frontend.olean.spec.StmtRec) :
+    LA pers (fun _ _ => True) (infer_one pers st fe what y cv) lst
+      (Modular.inferOne lfe w (absNIdx y) (Frontend.Olean.absStmtRec cv)) := by
+  intro a st' h
+  rw [infer_one] at h
+  obtain ⟨⟨r1, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have H1 := expr_ok_ls hrel hinv cv.level_params 0#u64 cv.ty _ _ h1
+  cases r1 with
+  | Err e => cases Result.ok_injective h
+  | Ok b =>
+    obtain ⟨b', lst1, hx1, hbb, hrel1, hinv1⟩ := H1
+    subst hbb
+    cases b' with
+    | false => err_contra h
+    | true =>
+      obtain ⟨⟨r2, st2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have H2 := consts_resolve_f_fast_ls (e := cv.ty) hrel1 hinv1 hfe _ _ h2
+      cases r2 with
+      | Err e => cases Result.ok_injective h
+      | Ok b =>
+        obtain ⟨b', lst2, hx2, hbb, hrel2, hinv2⟩ := H2
+        subst hbb
+        cases b' with
+        | false => err_contra h
+        | true =>
+          obtain ⟨⟨r3, st3⟩, h3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have H3 := type_is_prop_c_ls hrel2 hinv2 hfe cv _ _ h3
+          cases r3 with
+          | Err e => cases Result.ok_injective h
+          | Ok b =>
+            obtain ⟨b', lst3, hx3, hbb, hrel3, hinv3⟩ := H3
+            subst hbb
+            cases b' with
+            | false => err_contra h
+            | true =>
+              obtain ⟨-, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+              refine ⟨(), lst3, ?_, trivial, hrel3, hinv3⟩
+              have e0 : absU (0#u64) = 0 := rfl
+              simp only [absNIdxL, e0] at hx1
+              simp only [Modular.inferOne, Frontend.Olean.absStmtRec_levelParams,
+                Frontend.Olean.absStmtRec_type]
+              simp only [StateT.run_bind, hx1, except_ok_bind, ↓reduceIte, hx2, Bool.not_true,
+                Bool.false_eq_true]
+              rw [show StateT.run (pure PUnit.unit : AM PUnit) lst2 = .ok (PUnit.unit, lst2) from rfl,
+                except_ok_bind, hx3]
+              rfl
+
+
+/-- **A recorded statement**, as the twin's: its name and its statement (the message is
+not related). -/
+def PendRel (r : alloc.vec.Vec Std.U32 × arena.handle.NIdx × frontend.olean.spec.StmtRec)
+    (t : String × NIdx × Arena.Frontend.Olean.StmtRec) : Prop :=
+  t.2.1 = absNIdx r.2.1 ∧ t.2.2 = Frontend.Olean.absStmtRec r.2.2
+
+/-- **`infer_flags`' loop ⊑ `inferAll`, accepting**, between two idle workers: each recorded
+statement inferred in its own bracket, at the view of its part's position. -/
+theorem infer_flags_loop_la {tier : arena.store.PersTier} {I : IStreamIndex}
+    (htf : tier.frozen = true) (hI : StreamIndexRel tier.env I ∧ FrozenRel tier.env I)
+    {owner : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64} {s : _root_.Std.HashMap NIdx Nat}
+    (hown : IdxRel owner s) {nU : Std.U64} (hnU : nU.val ≤ Std.Usize.max)
+    (pending : alloc.vec.Vec (alloc.vec.Vec Std.U32 × arena.handle.NIdx × frontend.olean.spec.StmtRec)) :
+    ∀ (k : Nat) {st lst} {i : Std.Usize} {P : List (String × NIdx × Arena.Frontend.Olean.StmtRec)},
+      pending.val.length - i.val = k → List.Forall₂ PendRel (pending.val.drop i.val) P →
+      AIdle tier st lst → AStateInv tier st →
+      ∀ st', infer_flags_loop tier st pending owner nU i = ok (.Ok (), st') →
+        ∃ lst', (Modular.inferAll I s nU.val P).run lst = .ok ((), lst') ∧
+          AIdle tier st' lst' ∧ AStateInv tier st' := by
+  intro k
+  induction k with
+  | zero =>
+    intro st lst i P hn hP hidle hinv st' h
+    rw [infer_flags_loop, ite_eq_right (by scalar_tac)] at h
+    obtain ⟨-, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+    rw [List.drop_eq_nil_of_le (by omega)] at hP
+    cases hP
+    exact ⟨lst, rfl, hidle, hinv⟩
+  | succ k ih =>
+    intro st lst i P hn hP hidle hinv st' h
+    rw [infer_flags_loop, ite_eq_left (by scalar_tac)] at h
+    have hi : i.val < pending.val.length := by omega
+    obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, hxv⟩ := ExprOps.vecIndexAt hx
+    rw [List.drop_eq_getElem_cons hi, hxv] at hP
+    obtain ⟨⟨w, y, cv⟩, P', ⟨hy, hcv⟩, hrest, rfl⟩ := List.forall₂_cons_left_iff.mp hP
+    obtain ⟨v, n1, sr⟩ := x
+    dsimp only at hy hcv h
+    subst hy hcv
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hpos, hfit⟩ := part_pos_eq hown nU n1 hi2
+    obtain ⟨fe, hfe, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hfeR := stream_index_view_rel hI.1 hI.2 (hfit hnU) hfe
+    obtain ⟨st1, hst1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := (enter_record_sim hidle hinv hst1).apply
+    obtain ⟨⟨r, st2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨st3, hst3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases r with
+    | Err e => cases Result.ok_injective h
+    | Ok u =>
+      cases u
+      obtain ⟨_, lst2, hx2, -, hrel2, hinv2⟩ := infer_one_la hrel1 hinv1 hfeR v w n1 sr () st2 h2
+      obtain ⟨lst3, hx3, hidle3, hinv3⟩ := leave_record_rel hrel2 hinv2 htf hst3
+      obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi3v := ConRon.Refine.Nat.uadd_val hi3
+      simp at hi3v
+      obtain ⟨lst4, hx4, hidle4, hinv4⟩ :=
+        ih (i := i3) (P := P') (by omega) (by rw [hi3v]; exact hrest) hidle3 hinv3 st' h
+      refine ⟨lst4, ?_, hidle4, hinv4⟩
+      have hview : absU i2 = Modular.partPos s nU.val (absNIdx n1) := hpos
+      rw [hview] at hx2
+      simp only [Modular.inferAll, StateT.run_bind, hx1, except_ok_bind, hx2, hx3, hx4]
 
 end ConRon.Refine2.Modular
