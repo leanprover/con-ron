@@ -4,7 +4,9 @@
 The twin of `olean/levels.rs`.  `LoadFlags`, `LoadFlags.level` and `ModSet` with its operations
 are upstream's own: two flags, a byte array.  The worklist is a `List`, as upstream's, the head
 on top; the Rust's is a `Vec` and an index (`olean/closure.rs`'s stack).  A module's header is
-read on the search path (`moduleImports`).
+read on the search path (`moduleImports`).  `HeaderLoads.ofState` moves each module's imports out of
+the state as it takes its place, as the Rust's `header_loads_of` does; upstream reads them with
+`getD`, which agrees where the order has no module twice.
 -/
 module
 
@@ -87,12 +89,22 @@ structure HeaderLoads where
   index : Std.HashMap NIdx Nat
 
 /-- con-leche: ConLeche/Frontend/Olean/Levels.lean:124-153 headerFixpoint
-The fixpoint's state as `HeaderLoads`. -/
+The fixpoint's state as `HeaderLoads`, one module of the order at a time (the Rust's
+`header_loads_of` loop): its flags, its imports moved out of the state (`im`), its position. -/
+def HeaderLoads.ofStateGo (fm : Std.HashMap NIdx LoadFlags) :
+    List NIdx → Nat → Std.HashMap NIdx (Array ImportRec) → Array LoadFlags →
+      Array (Array ImportRec) → Std.HashMap NIdx Nat →
+      Array LoadFlags × Array (Array ImportRec) × Std.HashMap NIdx Nat
+  | [], _, _, fl, is, ix => (fl, is, ix)
+  | m :: ms, i, im, fl, is, ix =>
+    HeaderLoads.ofStateGo fm ms (i + 1) (im.erase m) (fl.push ((fm[m]?).getD default))
+      (is.push ((im[m]?).getD #[])) (ix.insert m i)
+
+/-- con-leche: ConLeche/Frontend/Olean/Levels.lean:124-153 headerFixpoint
+The fixpoint's state as `HeaderLoads`.  A module's imports are moved out of the state as it
+takes its place (each module is read once). -/
 def HeaderLoads.ofState (st : LvState) : HeaderLoads :=
-  let flags := st.order.map fun m => (st.flags[m]?).getD default
-  let imps := st.order.map fun m => (st.imports[m]?).getD #[]
-  let index := st.order.foldl (fun (acc : Std.HashMap NIdx Nat × Nat) m =>
-    (acc.1.insert m acc.2, acc.2 + 1)) ({}, 0) |>.1
+  let (flags, imps, index) := HeaderLoads.ofStateGo st.flags st.order.toList 0 st.imports #[] #[] {}
   { order := st.order, flags, imports := imps, index }
 
 /-- con-leche: ConLeche/Frontend/Olean/Levels.lean:124-153 headerFixpoint
