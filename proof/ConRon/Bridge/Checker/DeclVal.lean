@@ -15,7 +15,7 @@ module is its bridge tier.  Four groups, and they are exactly the four things
    facts the arm's `StepOK.push` takes (`ConstWF`, `litShapeOk`).  Their
    state frame is `CoreStep`: each CALLS the core at `fe`;
 2. **the structural-`Nat` gate** — `checkStructuralNatPin`: `natOpGuard` /
-   `natOpStoredOkAll` and the stored value at `fe.push ci`, then
+   `natOpStoredOk` and the stored value at `fe.push ci`, then
    `certifyNatEqs` at `fe` with the operation's self-references replaced by
    its stored value;
 3. **the `Nat.div`/`Nat.mod` variant gate** — `checkDivModPin`
@@ -265,8 +265,8 @@ con-leche: ConLeche/Verify/Extend/Inversions.lean:122 checkConstantVal_litShapeA
 **The type clauses of a CHECKED constant**, off con-leche's own inversions:
 four guards on the type as stored, and the literal shape. -/
 theorem checkConstantVal_typeWF {μ : CheckMode} {F : Nat} {env : Env}
-    {cv : ConstantVal} {a : Bool}
-    (h : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env cv a = .ok ()) :
+    {cv : ConstantVal} {a b c : Bool}
+    (h : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env cv a b c = .ok ()) :
     CVTypeWF env cv := by
   obtain ⟨-, -, hlbt, hitf, _, _, htp, htr, -, -⟩ :=
     ConLeche.checkConstantVal_inv h
@@ -962,9 +962,7 @@ theorem natOpDepsStored_run {env : Env} {fe : IFEnv} :
     ∀ (ds : List NIdx) (xs : List ConLeche.Name) {s : AState}, StateOK s →
       IFEnvOK env fe s → denoteNL s.store ds xs →
       RunsB (Arena.natOpDepsStored fe ds) s
-        (xs.all fun n => match env.find? n with
-          | some (.defnInfo cv _ _) => cv.levelParams.isEmpty
-          | _ => false) := by
+        (xs.all fun n => (env.find? n).isSome) := by
   intro ds
   induction ds with
   | nil =>
@@ -980,8 +978,9 @@ theorem natOpDepsStored_run {env : Env} {fe : IFEnv} :
       obtain ⟨hd1, hdt⟩ := hd
       rw [List.all_cons]
       simp only [Arena.natOpDepsStored]
-      refine RunsB.matchDefn hst (hie.findRel hst hd1) fun v v' hv => ?_
-      exact RunsB.guardT hst (lpsEmpty_of_denote hv) fun _ => ih xs hst hie hdt
+      rcases hie.findRel hst hd1 with ⟨h1, h2⟩ | ⟨ci, c, h1, h2, -⟩
+      · rw [h1, h2]; exact RunsB.ret hst
+      · rw [h1, h2, Option.isSome_some, Bool.true_and]; exact ih xs hst hie hdt
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean (natOpGuard) — the
 structural-`Nat` environment guard is con-leche's at the denoted environment.
@@ -1169,49 +1168,20 @@ theorem natOpStoredOk_run {env : Env} {fe : IFEnv} {cH : NIdx}
   exact RunsB.guardT hst (lpsEmpty_of_denote hv) fun _ =>
     natOpTyPinned_run hst hp hie hc (denoteCV_inv hv).2.2
 
-theorem natOpStoredOkAll_runs {env : Env} {fe : IFEnv} :
-    ∀ (ds : List NIdx) (xs : List ConLeche.Name) {s : AState}, StateOK s →
-      PinsOK s → IFEnvOK env fe s → denoteNL s.store ds xs →
-      RunsB (Arena.natOpStoredOkAll fe ds) s
-        (xs.all (ConLeche.natOpStoredOk env)) := by
-  intro ds
-  induction ds with
-  | nil =>
-    intro xs s hst _ _ hd
-    cases xs with
-    | nil => exact RunsB.ret hst
-    | cons x xs => exact absurd hd (by simp [denoteNL])
-  | cons d ds ih =>
-    intro xs s hst hp hie hd
-    cases xs with
-    | nil => exact absurd hd (by simp [denoteNL])
-    | cons x xs =>
-      obtain ⟨hd1, hdt⟩ := hd
-      rw [List.all_cons]
-      simp only [Arena.natOpStoredOkAll]
-      refine RunsB.bindB (natOpStoredOk_run hst hp hie hd1) fun {s1} hs1 => ?_
-      exact RunsB.guardT hs1.ok rfl fun _ =>
-        ih xs hs1.ok (hp.mono hs1.ext hs1.pins) (hie.mono hs1.ext)
-          (denoteNL_ext hs1.ext _ _ hdt)
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:669-675 natOpStoredOk — in run
+form, for the two gates that bind it (`checkStructuralNatPinAtFe2`,
+`divModEnvGuard`).
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean (natOpStoredOk) — the twin's list
-recursion answers con-leche's `List.all` (DESIGN §3.4 forbids the closure).
-
-**Why `PinsOK s`**: each step is `natOpStoredOk`, which is `natOpTyPinned` on
-a hit, which reads the pin table — so this walk is a pin reader too and
-`StateOK` alone is not enough.  Free at the one call site
-(`hok5.check.pins`).
-
-The proof: `natOpStoredOkAll_runs`, a list
-induction over `natOpStoredOk_run` (`natOpTyPinned_run`, `natOpCod_run`). -/
-theorem natOpStoredOkAll_run {env2 : Env} {fe2 : IFEnv} {ds : List NIdx}
-    {xs : List ConLeche.Name} {r : Bool} {s s' : AState} (hok : StateOK s)
+**Why `PinsOK s`**: `natOpStoredOk` is `natOpTyPinned` on a hit, which reads
+the pin table, so `StateOK` alone is not enough. -/
+theorem natOpStoredOk_runR {env2 : Env} {fe2 : IFEnv} {cH : NIdx}
+    {cn : ConLeche.Name} {r : Bool} {s s' : AState} (hok : StateOK s)
     (hp : PinsOK s)
-    (hie : IFEnvOK env2 fe2 s) (hd : denoteNL s.store ds xs)
-    (hr : natOpStoredOkAll fe2 ds s = .ok (r, s')) :
+    (hie : IFEnvOK env2 fe2 s) (hc : denoteN s.store.ns cH = some cn)
+    (hr : natOpStoredOk fe2 cH s = .ok (r, s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
-      s'.pins = s.pins ∧ r = xs.all (ConLeche.natOpStoredOk env2) := by
-  obtain ⟨hs, rfl⟩ := natOpStoredOkAll_runs ds xs hok hp hie hd _ _ hr
+      s'.pins = s.pins ∧ r = ConLeche.natOpStoredOk env2 cn := by
+  obtain ⟨hs, rfl⟩ := natOpStoredOk_run hok hp hie hc _ _ hr
   exact ⟨hs.ok, hs.ext, hs.caches, hs.pins, rfl⟩
 
 /-- con-leche: none — an interned `fvar` node denotes the `fvar` at its type's
@@ -1728,16 +1698,15 @@ theorem natOpEqs_wscoped {env2 : Env} {nm : ConLeche.Name}
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:60-73 checkDecl — the reads of
 the `.defnDecl` arm's structural-`Nat` gate at `env2`, the environment WITH the
-definition (`Arena.checkStructuralNatPinAtFe2`): the guard, the dependency
-list, their storage, then the stored value.  No core call. -/
+definition (`Arena.checkStructuralNatPinAtFe2`): the guard, the operation's
+own pinned type, then the stored value.  No core call. -/
 theorem checkStructuralNatPinAtFe2_bridge {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
     {nm : ConLeche.Name} {v : EIdx} {s s' : AState}
     (hst : StateOK s) (hp : PinsOK s) (hok2 : StepOK env2 fe2 s)
     (hn : denoteN s.store.ns cn = some nm)
     (hrun : checkStructuralNatPinAtFe2 fe2 cn s = .ok (v, s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧ s'.pins = s.pins ∧
-      (ConLeche.natOpGuard env2 nm &&
-        (ConLeche.natOpDeps nm).all (ConLeche.natOpStoredOk env2)) = true ∧
+      (ConLeche.natOpGuard env2 nm && ConLeche.natOpStoredOk env2 nm) = true ∧
       ∃ cv' v' hint', env2.find? nm = some (.defnInfo cv' v' hint') ∧
         denoteE s'.store v = some v' := by
   simp only [Arena.checkStructuralNatPinAtFe2] at hrun
@@ -1745,19 +1714,17 @@ theorem checkStructuralNatPinAtFe2_bridge {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
   obtain ⟨hst4, hx4, hc4, hp4, he4⟩ := natOpGuard_run hst hp hok2.ienv hn g4
   have hp4' : PinsOK s4 := hp.mono hx4 hp4
   have hn4 : denoteN s4.store.ns cn = some nm := denoteN_ext hn hx4
-  obtain ⟨deps, s5, g5, r5⟩ := AM.bind_ok r4
-  obtain ⟨hst5, hx5, hc5, hp5, hdeps⟩ := natOpDeps_run hst4 hp4' hn4 g5
-  have hp5' : PinsOK s5 := hp4'.mono hx5 hp5
-  have hn5 : denoteN s5.store.ns cn = some nm := denoteN_ext hn4 hx5
-  obtain ⟨b6, s6, g6, r6⟩ := AM.bind_ok r5
+  obtain ⟨b6, s6, g6, r6⟩ := AM.bind_ok r4
   obtain ⟨hst6, hx6, hc6, hp6, he6⟩ :=
-    natOpStoredOkAll_run hst5 hp5' ((hok2.mono (hx4.trans hx5)).ienv) hdeps g6
-  have hn6 : denoteN s6.store.ns cn = some nm := denoteN_ext hn5 hx6
+    natOpStoredOk_runR hst4 hp4' ((hok2.mono hx4).ienv) hn4 g6
+  have hx5 : Ext s4.store s4.store := Ext.refl _
+  have hc5 : s4.caches = s4.caches := rfl
+  have hp5 : s4.pins = s4.pins := rfl
+  have hn6 : denoteN s6.store.ns cn = some nm := denoteN_ext hn4 hx6
   have hie6 : StepOK env2 fe2 s6 := hok2.mono ((hx4.trans hx5).trans hx6)
   obtain ⟨hy6, r7⟩ := AM.dunless_ok AM.Never.fail_any r6
   replace r7 := AM.pure_bind_ok r7
-  have hgP : (ConLeche.natOpGuard env2 nm &&
-      (ConLeche.natOpDeps nm).all (ConLeche.natOpStoredOk env2)) = true := by
+  have hgP : (ConLeche.natOpGuard env2 nm && ConLeche.natOpStoredOk env2 nm) = true := by
     rw [← he4, ← he6]; exact hy6
   cases hfind : fe2.find? cn with
   | none => rw [hfind] at r7; exact absurd r7 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
@@ -1801,8 +1768,7 @@ theorem checkStructuralNatPin_bridge {env env2 : Env} {fe fe' : IFEnv}
     (hn : denoteN s.store.ns cn = some nm)
     (hrun : checkStructuralNatPin .verified fe ci cn s = .ok (fe', s')) :
     CoreStep env fe s s' ∧ IFEnv.SameView fe' fe ∧
-      (ConLeche.natOpGuard env2 nm &&
-        (ConLeche.natOpDeps nm).all (ConLeche.natOpStoredOk env2)) = true ∧
+      (ConLeche.natOpGuard env2 nm && ConLeche.natOpStoredOk env2 nm) = true ∧
       ∃ cv' v' hint' F, env2.find? nm = some (.defnInfo cv' v' hint') ∧
         ConLeche.certifyNatEqs (ConLeche.fueledOps .verified F) env
           ((ConLeche.natOpEquations 0 nm).map fun eq =>

@@ -1092,15 +1092,40 @@ open Lockstep in
       (checkConstantValGuardsRestSpec (absIConstantVal cv)) :=
   LS.ofSim₀ fun _ h => check_constant_val_guards_rest_refines hrel hinv h
 
+/-- `check_constant_val_reserved` is `check_constant_val_guards`'s tail past the
+operation-name test: the two reserved names, then the guards past them. -/
+theorem check_constant_val_reserved_refines {pers st lst}
+    {cv : arena.env.IConstantVal} {allowReduce allowSorry : Bool} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.checker_base.check_constant_val_reserved pers st cv allowReduce allowSorry
+      = ok o) :
+    Sim₀ (fun _ : Unit => ()) pers lst o
+      (checkConstantValReservedSpec (absIConstantVal cv) allowReduce allowSorry) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.checker_base.check_constant_val_reserved]
+  unfold checkConstantValReservedSpec
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem check_constant_val_reserved_ls {pers st lst}
+    {cv : arena.env.IConstantVal} {allowReduce allowSorry : Bool}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = (fun _ : Unit => ()) a)
+      (arena.checker_base.check_constant_val_reserved pers st cv allowReduce allowSorry) lst
+      (checkConstantValReservedSpec (absIConstantVal cv) allowReduce allowSorry) :=
+  LS.ofSim₀ fun _ h => check_constant_val_reserved_refines hrel hinv h
+
 /-- `check_constant_val_guards` is `checkConstantVal`'s guard prefix — the
 syntactic tests, the operation name allowed only at a definition. -/
 theorem check_constant_val_guards_refines {pers st lst} {rf lf}
-    {cv : arena.env.IConstantVal} {allowOp : Bool} {o}
+    {cv : arena.env.IConstantVal} {allowOp allowReduce allowSorry : Bool} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.checker_base.check_constant_val_guards pers st rf cv allowOp = ok o) :
+    (hrun : arena.checker_base.check_constant_val_guards pers st rf cv allowOp allowReduce
+      allowSorry = ok o) :
     Sim₀ (fun _ : Unit => ()) pers lst o
-      (checkConstantValGuardsSpec lf (absIConstantVal cv) allowOp) := by
+      (checkConstantValGuardsSpec lf (absIConstantVal cv) allowOp allowReduce allowSorry) := by
   have hfeI : IFEnvRelI pers rf lf := ⟨hfe, hfinv⟩
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
@@ -1111,13 +1136,14 @@ theorem check_constant_val_guards_refines {pers st lst} {rf lf}
 open Lockstep in
 @[lockstep] theorem check_constant_val_guards_ls {pers st lst}
     {rf lf}
-    {cv : arena.env.IConstantVal} {allowOp : Bool}
+    {cv : arena.env.IConstantVal} {allowOp allowReduce allowSorry : Bool}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers rf lf) :
     LS pers (fun a b => b = (fun _ : Unit => ()) a)
-      (arena.checker_base.check_constant_val_guards pers st rf cv allowOp) lst
-      (checkConstantValGuardsSpec lf (absIConstantVal cv) allowOp) :=
+      (arena.checker_base.check_constant_val_guards pers st rf cv allowOp allowReduce
+        allowSorry) lst
+      (checkConstantValGuardsSpec lf (absIConstantVal cv) allowOp allowReduce allowSorry) :=
   LS.ofSim₀ fun _ h => check_constant_val_guards_refines hrel hinv hfe.rel hfe.inv h
 
 /-- `check_constant_val_tail` is `checkConstantVal`'s tail: the level-parameter
@@ -1151,12 +1177,15 @@ open Lockstep in
 /-- **`check_constant_val` ⊑ `checkConstantVal`** — the common per-declaration
 constant check, whole, at the caller's `allowOp`. -/
 theorem check_constant_val_refines {pers st lst} {rf lf}
-    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal} {allowOp : Bool} {o}
+    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
+    {allowOp allowReduce allowSorry : Bool} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.checker_base.check_constant_val pers st mode rf cv allowOp = ok o) :
+    (hrun : arena.checker_base.check_constant_val pers st mode rf cv allowOp allowReduce
+      allowSorry = ok o) :
     Sim₀ (fun _ : Unit => ()) pers lst o
-      (checkConstantVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv) allowOp) := by
+      (checkConstantVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv) allowOp allowReduce
+        allowSorry) := by
   have hfeI : IFEnvRelI pers rf lf := ⟨hfe, hfinv⟩
   have hctx := IFEnvInv.coreCtx hfe hfinv
   refine Lockstep.LS.toSim₀ ?_ hrun
@@ -1168,13 +1197,15 @@ open Lockstep in
 @[lockstep] theorem check_constant_val_ls {pers st lst}
     {rf lf}
     {mode : kernel.env.CheckMode}
-    {cv : arena.env.IConstantVal} {allowOp : Bool}
+    {cv : arena.env.IConstantVal} {allowOp allowReduce allowSorry : Bool}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI pers rf lf) :
     LS pers (fun a b => b = (fun _ : Unit => ()) a)
-      (arena.checker_base.check_constant_val pers st mode rf cv allowOp) lst
-      (checkConstantVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv) allowOp) :=
+      (arena.checker_base.check_constant_val pers st mode rf cv allowOp allowReduce allowSorry)
+        lst
+      (checkConstantVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv) allowOp allowReduce
+        allowSorry) :=
   LS.ofSim₀ fun _ h => check_constant_val_refines hrel hinv hfe.rel hfe.inv h
 
 /-! ## The free variables' types -/

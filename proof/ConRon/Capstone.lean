@@ -467,7 +467,7 @@ def RustDenotes (ds : alloc.vec.Vec arena.env.IDeclaration) (st : arena.monad.AS
     (env : ConLeche.Env) : Prop :=
   ∃ (lst : ConRon.Arena.AState) (dsP : List ConLeche.Declaration),
     AStateRel emptyTier st lst ∧ ConRon.Bridge.denoteDecls lst.store (absIDeclL ds) = some dsP ∧
-      env = ConLeche.Cached.streamEnv dsP
+      env = ConLeche.streamEnv dsP
 
 /-- **What the Rust's records denote on `--olean`**: `RustDenotes`, each theorem's reference
 replaced by a value (`fillDecl`): the records of an `--olean` run hold a reference where a
@@ -476,7 +476,7 @@ def RustDenotesFilled (ds : alloc.vec.Vec arena.env.IDeclaration) (st : arena.mo
     (env : ConLeche.Env) : Prop :=
   ∃ (lst : ConRon.Arena.AState) (dsP : List ConLeche.Declaration) (val : Nat → ConLeche.Expr),
     AStateRel emptyTier st lst ∧ ConRon.Bridge.denoteDecls lst.store (absIDeclL ds) = some dsP ∧
-      env = ConLeche.Cached.streamEnv
+      env = ConLeche.streamEnv
         (dsP.map (ConLeche.Cached.fillDecl (ConRon.Bridge.fillRef val)))
 
 /-- `prepare::prepare_d` at `DeclUsedConsts`, the call the binary makes on a stream

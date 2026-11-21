@@ -325,7 +325,7 @@ theorem oleanJob_spec
               caches := rfl
               pins := (hp'.trans hps.pins).trans hpj }
 
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:396-419 parWorker — a worker's accepted list on
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:461-484 parWorker — a worker's accepted list on
 an `--olean` run is a chain of `--olean` jobs. -/
 theorem checkOleanJobList_chain {fs : ConRon.Arena.Frontend.Olean.OleanFs}
     {pk : ConRon.Arena.Frontend.Olean.OleanPins} {sp : List System.FilePath}
@@ -356,7 +356,7 @@ theorem checkOleanJobList_chain {fs : ConRon.Arena.Frontend.Olean.OleanFs}
           | some _ => exact (Array.getElem?_eq_some_iff.mp hdt).1
         exact .cons (w' := (w₁, c')) ⟨ht, by cases u; exact hj⟩ (ih c' w₁ w'' hl)
 
-/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:488 checkDecls_of_jobs — **the pool of an
+/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:527 checkDecls_of_jobs — **the pool of an
 `--olean` run**: every `--olean` job passing is an accept of con-leche's fold at the FILLED
 stream, from an index that denotes con-leche's index of the records as read. -/
 theorem pooled_fold_oleans
@@ -382,7 +382,7 @@ theorem pooled_fold_oleans
       .verified pins I ds w {} s₁.worker = .ok (.ok (), s'')) :
     ∃ Fu, ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified Fu) pinsP
       (fillStream sp F valuesP dsP) =
-        .ok (ConLeche.Cached.streamEnv (fillStream sp F valuesP dsP)) := by
+        .ok (ConLeche.streamEnv (fillStream sp F valuesP dsP)) := by
   have hlenF : (fillStream sp F valuesP dsP).length = ds.size := by simp [fillStream, hlen]
   refine pooled_fold
     (Inv := fun w => WorkerOK s₁ w.1 ∧ Frontend.Olean.CacheOK sp F valuesP w.2)

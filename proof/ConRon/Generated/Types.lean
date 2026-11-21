@@ -1093,7 +1093,7 @@ structure arena.expr_ops.InstRange where
   k : Std.Usize
 
 /-- [con_ron_core::arena::core::LazyResA]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10789:0-10796:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10778:0-10785:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.LazyResA where
@@ -1101,7 +1101,7 @@ inductive arena.core.LazyResA where
 | Unknown : arena.handle.EIdx → arena.handle.EIdx → arena.core.LazyResA
 
 /-- [con_ron_core::arena::core::DeltaStepA]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10556:0-10569:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10545:0-10558:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.DeltaStepA where
@@ -1111,7 +1111,7 @@ inductive arena.core.DeltaStepA where
 | Unknown : arena.core.DeltaStepA
 
 /-- [con_ron_core::arena::core::WhnfStep]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7275:0-7278:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7264:0-7267:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.WhnfStep where
@@ -1192,7 +1192,7 @@ structure kernel.name.DisplayAcc where
   full : Bool
 
 /-- [con_ron_core::arena::inductives::positivity::NestFieldKind]
-    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 1160:0-1166:1
+    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 1185:0-1191:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.inductives.positivity.NestFieldKind where
@@ -1203,7 +1203,7 @@ inductive arena.inductives.positivity.NestFieldKind where
 | Nested : Bool → arena.inductives.positivity.NestFieldKind
 
 /-- [con_ron_core::arena::inductives::positivity::NestCtorNf]
-    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 1247:0-1252:1
+    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 1272:0-1277:1
     Visibility: public -/
 structure arena.inductives.positivity.NestCtorNf where
   ctor : arena.handle.NIdx
@@ -1286,7 +1286,7 @@ structure arena.inductives.gen_rec.ClassGen where
   pre : alloc.vec.Vec arena.handle.EIdx
 
 /-- [con_ron_core::arena::inductives::positivity::NestCtx]
-    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 1283:0-1292:1
+    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 1308:0-1317:1
     Visibility: public -/
 structure arena.inductives.positivity.NestCtx where
   names : alloc.vec.Vec arena.handle.NIdx
@@ -1299,7 +1299,7 @@ structure arena.inductives.positivity.NestCtx where
   lvls : arena.handle.LsIdx
 
 /-- [con_ron_core::arena::inductives::positivity::NestKey]
-    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 941:0-945:1
+    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 966:0-970:1
     Visibility: public -/
 structure arena.inductives.positivity.NestKey where
   cname : arena.handle.NIdx
@@ -1307,7 +1307,7 @@ structure arena.inductives.positivity.NestKey where
   ds : alloc.vec.Vec arena.handle.EIdx
 
 /-- [con_ron_core::arena::inductives::positivity::NestHole]
-    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 992:0-996:1
+    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 1017:0-1021:1
     Visibility: public -/
 structure arena.inductives.positivity.NestHole where
   key : arena.inductives.positivity.NestKey
@@ -1315,7 +1315,7 @@ structure arena.inductives.positivity.NestHole where
   n_idx : Std.U64
 
 /-- [con_ron_core::arena::inductives::positivity::HoleImgMap]
-    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 1562:0-1566:1
+    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 1587:0-1591:1
     Visibility: public -/
 structure arena.inductives.positivity.HoleImgMap where
   ctx : arena.inductives.positivity.NestCtx
@@ -1323,7 +1323,7 @@ structure arena.inductives.positivity.HoleImgMap where
   n : Std.U64
 
 /-- [con_ron_core::arena::inductives::positivity::FvMap]
-    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 1574:0-1579:1
+    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 1599:0-1604:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.inductives.positivity.FvMap where
@@ -1351,7 +1351,7 @@ structure arena.inductives.block_tail.BlockPass where
   tbl : alloc.vec.Vec arena.inductives.positivity.NestCtorNf
 
 /-- [con_ron_core::arena::inductives::positivity::NestState]
-    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 1338:0-1342:1
+    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 1363:0-1367:1
     Visibility: public -/
 structure arena.inductives.positivity.NestState where
   keys : alloc.vec.Vec arena.inductives.positivity.NestKey
@@ -1372,7 +1372,7 @@ structure arena.core.NatEqCtx where
   b_f : arena.handle.EIdx
 
 /-- [con_ron_core::arena::decl_check::CertCtx]
-    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 1091:0-1113:1
+    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 1062:0-1084:1
     Visibility: public -/
 structure arena.decl_check.CertCtx where
   nat_ty : arena.handle.EIdx

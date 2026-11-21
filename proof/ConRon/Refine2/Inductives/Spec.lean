@@ -209,7 +209,7 @@ theorem checkSumCtor_unfold (mode : ConLeche.CheckMode) (fe₀ fe : IFEnv) (T : 
     (lps : List NIdx) (nP nIdx : Nat) (resSort : LIdx) (isProp large : Bool)
     (cvC : IConstantVal) (nF : Nat) (cvTa : IConstantVal) :
     checkSumCtor mode fe₀ fe T lps nP nIdx resSort isProp large cvC nF cvTa = (do
-      checkConstantVal mode fe cvC false
+      checkConstantVal mode fe cvC false false false
       let (_, cbody) ← unwrapOr (← stripPis (nP + nF) cvC.type)
         (.notImplemented "direct sum: constructor telescope")
       unless ← structCtorResidOk T lps nP nF nIdx cbody do

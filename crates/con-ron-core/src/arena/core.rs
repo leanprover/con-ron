@@ -3302,9 +3302,9 @@ pub fn bool_const(pers: &PersTier, st: &mut AState, b: bool) -> Result<Option<EI
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:611-638 natOpGuard
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove core::nat_op_deps_stored_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1187-1196 natOpDepsStored` —
-/// con-leche writes `(natOpDeps c).all (fun n => …)`; DESIGN.md §3.4's rule for
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1187-1196 natOpDepsStored` — every
+/// dependency stored, of any kind.  con-leche writes `(natOpDeps c).all (fun n =>
+/// (env.find? n).isSome)`; DESIGN.md §3.4's rule for
 /// a `List` walk is a named helper, and the `Vec` turns the twin's cons
 /// recursion into a cursor.
 pub fn nat_op_deps_stored(
@@ -3318,21 +3318,13 @@ pub fn nat_op_deps_stored(
         Ok(true)
     } else {
         match env::ifenv_find(pers, fe, &ns[i]) {
-            Some(IConstantInfo::DefnInfo(cv, _, _)) => {
-                if cv.level_params.len() == 0 {
-                    nat_op_deps_stored(pers, st, fe, ns, i + 1)
-                } else {
-                    Ok(false)
-                }
-            }
-            Some(_) => Ok(false),
+            Some(_) => nat_op_deps_stored(pers, st, fe, ns, i + 1),
             None => Ok(false),
         }
     }
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:611-638 natOpGuard
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove core::bool_ctors_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1210-1234 natOpGuard` — the two
 /// `Bool` constructors stored level-free at the type `Bool` itself, the
 /// guard's tail.  (Task #119, con-leche task #342: was
@@ -3356,7 +3348,6 @@ pub fn bool_ctors_ok(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:611-638 natOpGuard
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove core::bool_ctor_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1198-1208 boolCtorOk` — `match
 /// fe.find? n with | some ci => ci.levelParams.isEmpty && ci.type == .const
 /// boolName [] | none => false`, at one name.  (Task #119: was `lp_empty`.)
@@ -3386,12 +3377,10 @@ pub fn bool_ctor_ok(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:611-638 natOpGuard
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove core::nat_op_guard_refines, then delete this line
 /// con-leche: ConLeche/Kernel/FEnv.lean:438-451 natOpGuardF
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove core::nat_op_guard_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1210-1234 natOpGuard` —
-/// stored-constant guards for op `c`: the `Nat` basis, every dependency stored
-/// as a definition, and (for the `Bool`-valued ops and the `ble`-guarded
+/// stored-constant guards for op `c`: the `Nat` basis, every dependency stored,
+/// and (for the `Bool`-valued ops and the `ble`-guarded
 /// `div`/`mod`) the `Bool` constructors stored, level-free, at the type `Bool`
 /// itself (`bool_ctor_ok`).
 pub fn nat_op_guard(

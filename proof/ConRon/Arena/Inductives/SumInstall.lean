@@ -95,7 +95,7 @@ the per-field universe bound. -/
 def checkSumCtor (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
     (lps : List NIdx) (nP nIdx : Nat) (resSort : LIdx) (isProp large : Bool)
     (cvC : IConstantVal) (nF : Nat) (cvTa : IConstantVal) : AM Unit := do
-  checkConstantVal mode fe cvC false
+  checkConstantVal mode fe cvC false false false
   let (_, cbody) ← unwrapOr (← stripPis (nP + nF) cvC.type)
     (.notImplemented "direct sum: constructor telescope")
   -- official's `is_valid_ind_app` on the constructor's result: a REJECT, not a

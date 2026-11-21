@@ -21,7 +21,7 @@ the root frame (`nest_root`) and the seeds (`nest_seeds`).  The low part
   signatures that lose an argument are stated in the Rust's order.
 * **Fragments are inline.**  `ind_caps_ctors`, `ind_cv_of`,
   `nest_inst_type_at`/`_sort`, `nest_ctors_typed`/`_walk`/`_done`,
-  `nest_frame_at`/`_walk`, `nest_cont_params`, `nest_pos_at`/`_hole` are
+  `nest_frame_walk`, `nest_cont_params`, `nest_pos_at`/`_hole` are
   `@[lockstep_inline]` (the twin's function they are part of is unfolded
   once); `nest_res_ok` and `checker_base::unwrap_or` are unfolded locally (the
   twin's normal form flattens `resOk` into its test).
@@ -348,6 +348,45 @@ its binder's domain, the domains instantiated along the spine. -/
         (absEIdxL ds)) := by
   rw [arena.inductives.positivity.family_key_check, familyKeyCheck]
   lockstep
+
+theorem family_key_checks_aux (n : Nat) :
+    ∀ {pers st lst} {rf lf} {mode : kernel.env.CheckMode}
+      {d : Std.U64} {us : arena.handle.LsIdx} {ds : alloc.vec.Vec arena.handle.EIdx}
+      (cs : alloc.vec.Vec arena.handle.NIdx) (i : Std.Usize),
+      cs.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI pers rf lf →
+      LS pers (fun _ _ => True)
+        (arena.inductives.positivity.family_key_checks pers st mode rf d us ds cs i) lst
+        (familyKeyChecks (ConRon.Refine.absMode mode) lf (absU d) (absLsIdx us)
+          (absEIdxL ds) (absNIdxLFrom cs i)) := by
+  induction n with
+  | zero =>
+    intro pers st lst rf lf mode d us ds cs i hn hrel hinv hfe
+    have hl := alloc.vec.Vec.len_val cs
+    rw [arena.inductives.positivity.family_key_checks, absNIdxLFrom,
+      List.drop_eq_nil_of_le (by omega), List.map_nil, familyKeyChecks,
+      ite_eq_left (by scalar_tac)]
+    lockstep
+  | succ k ih =>
+    intro pers st lst rf lf mode d us ds cs i hn hrel hinv hfe
+    have hl := alloc.vec.Vec.len_val cs
+    rw [arena.inductives.positivity.family_key_checks, absNIdxLFrom,
+      List.drop_eq_getElem_cons (by omega), List.map_cons, familyKeyChecks,
+      ite_eq_right (by scalar_tac)]
+    simp only [absNIdxLFrom] at ih
+    lockstep
+
+/-- `family_key_checks` ⊑ `familyKeyChecks` from the cursor on: every family of
+the group at the key, typed. -/
+@[lockstep] theorem family_key_checks_ls {pers st lst} {rf lf} {mode : kernel.env.CheckMode}
+    {d : Std.U64} {us : arena.handle.LsIdx} {ds : alloc.vec.Vec arena.handle.EIdx}
+    {cs : alloc.vec.Vec arena.handle.NIdx} {i : Std.Usize}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf) :
+    LS pers (fun _ _ => True)
+      (arena.inductives.positivity.family_key_checks pers st mode rf d us ds cs i) lst
+      (familyKeyChecks (ConRon.Refine.absMode mode) lf (absU d) (absLsIdx us)
+        (absEIdxL ds) (absNIdxLFrom cs i)) :=
+  family_key_checks_aux _ cs i rfl hrel hinv hfe
 
 /-! ## The container's former: `nest_inst_type` -/
 
@@ -728,8 +767,8 @@ theorem nest_ctors_frame_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env
 
 -- A container frame's fragments (the instantiation typed; the stack, the
 -- group's constructors and the walk).
-attribute [lockstep_inline] arena.inductives.positivity.nest_frame_at
-  arena.inductives.positivity.nest_frame_walk arena.inductives.positivity.nest_frame_walk_at
+attribute [lockstep_inline] arena.inductives.positivity.nest_frame_walk
+  arena.inductives.positivity.nest_frame_walk_at
 
 /-- `nest_frame` ⊑ `nestFrame` at a fuel whose `nest_pos` is related. -/
 theorem nest_frame_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
@@ -750,31 +789,10 @@ theorem nest_frame_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv
   rw [arena.inductives.positivity.nest_frame, nestFrame.eq_def]
   simp only [frameStackSpec_eq]
   lockstep
-  · -- the empty group: the twin's `match grp` at `[]`
-    split
-    · lockstep
-    · rename_i heq
-      exfalso
-      have : grp.val.length = 0 := by scalar_tac
-      simp [absGrpL, List.eq_nil_of_length_eq_zero this] at heq
-  · -- a group: the twin's `match grp` at its head
-    split
-    · rename_i heq
-      exfalso
-      simp [absGrpL] at heq
-      scalar_tac
-    · rename_i c _ _ heq
-      have hc : c = absNIdx (grp.val[0]'(by scalar_tac)).1 := by
-        have e : grp.val = grp.val[0]'(by scalar_tac) :: grp.val.drop 1 := by
-          rw [← List.drop_eq_getElem_cons (by scalar_tac)]; rfl
-        rw [absGrpL, e, List.map_cons, List.cons.injEq, Prod.mk.injEq] at heq
-        exact heq.1.1.symm
-      subst hc
-      lockstep
-      have e : absU a = absU hi + (absGrpL grp).length := by
-        simp only [absU, absGrpL, List.length_map]; scalar_tac
-      rw [← e, ← hR]
-      lockstep
+  have e : absU a = absU hi + (absGrpL grp).length := by
+    simp only [absU, absGrpL, List.length_map]; scalar_tac
+  rw [← e, ← hR]
+  lockstep
 
 /-- `nest_keys_dup` behind a non-empty accumulator: the accumulator, then the
 copied keys (`nest_cont_new`'s `group_keys ++ active`). -/

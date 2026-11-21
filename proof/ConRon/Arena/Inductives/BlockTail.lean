@@ -165,7 +165,7 @@ def reduceMember (mode : CheckMode) (fe : IFEnv) (ms : MemberShape) (nP : Nat) :
       fail (.notImplemented "this family stored at a definition")
     else do
       -- the Rust's `reduce_member_checked`
-      checkConstantVal mode fe ms.cvT false
+      checkConstantVal mode fe ms.cvT false false false
       let cvR ← reducedFormer mode fe ms.cvT (nP + ms.nIdx)
       unless ← isDefEqCore mode fe checkFuel 0 ms.cvT.type cvR.type do
         fail (.invalid "direct sum: a type former's declared type and its reduct differ")

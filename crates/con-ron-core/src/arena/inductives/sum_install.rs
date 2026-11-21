@@ -299,7 +299,7 @@ pub fn check_sum_ctor(
     n_f: u64,
     cv_ta: &IConstantVal,
 ) -> Result<(), CheckError> {
-    match checker_base::check_constant_val(pers, st, mode, fe, cv_c, false) {
+    match checker_base::check_constant_val(pers, st, mode, fe, cv_c, false, false, false) {
         Err(e) => Err(e),
         Ok(()) => match expr_ops::strip_pis(pers, st, n_p + n_f, &cv_c.ty) {
                 Err(e) => Err(e),

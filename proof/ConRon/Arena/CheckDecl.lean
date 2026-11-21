@@ -38,16 +38,13 @@ open ConLeche
 /-! ## One declaration -/
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove CheckDecl.checkStructuralNatPinAtFe2_bridge, then delete this line
 con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove CheckDecl.checkStructuralNatPinAtFe2_bridge, then delete this line
 The `.defnDecl` arm's structural-`Nat` gate, its reads at `fe2` (the
-environment with the definition): `natOpGuard` and the dependencies' storage,
-then the stored value. -/
+environment with the definition): `natOpGuard` and the operation's own pinned
+type (`natOpStoredOk`), then the stored value. -/
 def checkStructuralNatPinAtFe2 (fe2 : IFEnv) (n : NIdx) : AM EIdx := do
   let g ← natOpGuard fe2 n
-  let deps ← natOpDeps n
-  let d ← natOpStoredOkAll fe2 deps
+  let d ← natOpStoredOk fe2 n
   unless g && d do
     fail (.notImplemented "nonstandard structural Nat operation environment")
   match fe2.find? n with
@@ -55,9 +52,7 @@ def checkStructuralNatPinAtFe2 (fe2 : IFEnv) (n : NIdx) : AM EIdx := do
   | _ => fail (.internal "structural Nat operation not stored")
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove CheckDecl.checkStructuralNatPin_bridge, then delete this line
 con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove CheckDecl.checkStructuralNatPin_bridge, then delete this line
 **The structural-`Nat` gate**: the reads at `fe2`, then `certifyNatEqs` at `fe`,
 the environment without the definition, over the equations with the
 operation's self-references substituted.  Certifying with the definition
@@ -87,7 +82,7 @@ def checkDeclKind (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     (d : IDeclaration) : AM IFEnv := do
   match d with
   | .defnDecl cv value hint => do
-    checkConstantVal mode fe cv true
+    checkConstantVal mode fe cv true false false
     let ci ← checkDefnVal mode fe cv value hint
     let fe ← if (← natOpNames).contains cv.name then checkStructuralNatPin mode fe ci cv.name
       else pure fe
@@ -95,11 +90,11 @@ def checkDeclKind (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
       else pure fe
     pure (fe.push ci)
   | .thmDecl cv value => do
-    checkConstantVal mode fe cv false
+    checkConstantVal mode fe cv false false false
     let ci ← checkThmVal mode fe cv value
     pure (fe.push ci)
   | .opaqueDecl cv value => do
-    checkConstantVal mode fe cv false
+    checkConstantVal mode fe cv false true false
     let ci ← checkOpaqueVal mode fe cv value
     let fe ← if (← reduceOpNames).contains cv.name then checkReducePin mode fe ci cv.name value
       else pure fe
@@ -110,7 +105,7 @@ def checkDeclKind (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     -- name is a reserved basis name: this record IS the package's.
     if cv.name == (← pinQuotSound) then checkQuotRecord fe .sound cv
     else do
-      checkConstantVal mode fe cv false
+      checkConstantVal mode fe cv false false true
       if ← stdAxiomOk fe cv then
         pure (fe.push (.axiomInfo cv))
       else if cv.name == (← trustCompilerName) then
@@ -175,7 +170,7 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
 /-! ## The spec fold -/
 
 /-- con-leche: ConLeche/Cached/Decls.lean:44-58 declStep
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove CheckDecl.checkDeclStep_bridge, then delete this line
+The cited solution `J` is absent: `none` on this path (`checkRecordC … none` = `checkDeclStepC`).
 con-leche: ConLeche/Kernel/CheckDecl.lean:182-186 checkDeclsPure
 **One record of the fold**: the `And` pin, then the record's check from a
 fresh memo state (`flushCaches`, an empty `Memos`: the cited `checkDeclStepC`'s
@@ -195,20 +190,21 @@ def checkDeclStep (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
   checkDecl mode pins fe d
 
 /-- con-leche: ConLeche/Cached/Decls.lean:105-108 checkDecls
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove CheckDecl.checkDeclsPureGo_bridge, then delete this line
+con-leche: ConLeche/Cached/Decls.lean:86-103 checkDeclsWith
 con-leche: ConLeche/Kernel/CheckDecl.lean:182-186 checkDeclsPure
-The fold over a list of records, one `checkDeclStep` each.  con-leche's
-`ds.foldlM (declStep mode pins)` takes a closure, which DESIGN §3.4 forbids, so
-the fold is an explicit list recursion. -/
+The fold over a list of records, one `checkDeclStep` each: `checkDeclsWith … none`
+(no solution, so `sideRecords none ds = ds`).  con-leche's
+`ds.foldlM (declStep mode pins)` takes a closure, which DESIGN §3.4 forbids, so the fold
+is an explicit list recursion. -/
 def checkDeclsPureGo (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv) :
     List IDeclaration → AM IFEnv
   | [] => pure fe
   | d :: ds => do checkDeclsPureGo mode pins (← checkDeclStep mode pins fe d) ds
 
 /-- con-leche: ConLeche/Cached/Decls.lean:105-108 checkDecls
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove CheckDecl.checkDeclsPure_bridge, then delete this line
+con-leche: ConLeche/Cached/Decls.lean:86-103 checkDeclsWith
 con-leche: ConLeche/Kernel/CheckDecl.lean:182-186 checkDeclsPure
-**The spec fold**: from the empty environment. -/
+**The spec fold**: from the empty environment, without a solution (`checkDecls`). -/
 def checkDeclsPure (mode : CheckMode) (pins : List INatOpPinSet)
     (ds : List IDeclaration) : AM IFEnv := do
   checkDeclsPureGo mode pins (← mkIFEnvLits IEnv.empty) ds
