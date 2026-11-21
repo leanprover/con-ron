@@ -1852,6 +1852,188 @@ theorem load_part_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : front
       rw [am_bind_ok hx1, ht]
       rfl
 
+/-! ### A group, read from one part -/
+
+theorem group_at_loop_eq (locs rl : alloc.vec.Vec Std.U64) (i : Std.Usize) {o}
+    (h : group_at_loop locs rl i = ok o) : o.val = locs.val ++ rl.val.drop i.val := by
+  rw [group_at_loop] at h
+  by_cases h1 : i < alloc.vec.Vec.len rl
+  · rw [ite_eq_left h1] at h
+    have hi := lt_of_lt_len h1
+    peel h as x, hx
+    obtain ⟨_, rfl⟩ := vec_index_eq hx
+    peel h as locs1, hlocs1
+    peel h as i3, hi3
+    rw [group_at_loop_eq locs1 rl i3 h, ConRon.Refine.vec_push_val hlocs1, usize_succ hi3,
+      List.drop_eq_getElem_cons hi]
+    simp
+  · rw [ite_eq_right h1] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (lt_of_not_lt_len h1)]
+    simp
+termination_by rl.val.length - i.val
+decreasing_by
+  have := lt_of_lt_len h1
+  have := usize_succ hi3
+  omega
+
+/-- **`group_at`'s accept is `groupAt`'s.** -/
+theorem group_at_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
+    {env wr own E} (henv : ReachEnvRel env wr own E) {c C} (hc : ReachCacheRel c C)
+    {k : frontend.modular.reach.PartKey} {n : arena.handle.NIdx} :
+    ACS pers (fun o c X => ReachCacheRel c X.1 ∧ X.2 = o.map absIDeclaration) st lst
+      (group_at inst fsv pk pers st sp wr c k n)
+      (ConRon.Arena.Modular.groupAt fs (absPins pk) (absRoots sp) E C (absPartKey k) (absNIdx n)) := by
+  intro hrel hinv a st' c' h
+  rw [group_at] at h
+  unfold ConRon.Arena.Modular.groupAt
+  peel h as ⟨r, st1, c1⟩, hq
+  cases r with
+  | Err e => simp at h
+  | Ok u =>
+  obtain ⟨C1, lst1, hx1, hc1, hrel1, hinv1⟩ := load_part_refines hfs hc hrel hinv u st1 c1 hq
+  peel h as ⟨r1, st2, c2⟩, hq1
+  cases r1 with
+  | Err e => simp at h
+  | Ok u1 =>
+  obtain ⟨C2, lst2, hx2, hc2, hrel2, hinv2⟩ := look_of_refines hfs henv hc1 hrel1 hinv1 u1 st2 c2 hq1
+  peel h as r2, hr2
+  cases r2 with
+  | Err e => simp at h
+  | Ok o =>
+  have hl := look_at_eq hc2 hr2 lst2
+  cases o with
+  | none =>
+    have e2 := Result.ok_injective h
+    simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e2
+    obtain ⟨rfl, rfl, rfl⟩ := e2
+    refine ⟨(C2, none), lst2, ?_, ⟨hc2, rfl⟩, hrel2, hinv2⟩
+    refine (am_bind_ok hx1).trans ?_
+    refine (am_bind_ok hx2).trans ?_
+    refine (am_bind_ok hl).trans ?_
+    rfl
+  | some q =>
+  peel h as ⟨r3, st3, c3⟩, hq3
+  cases r3 with
+  | Err e => simp at h
+  | Ok t =>
+  obtain ⟨⟨C3, t'⟩, lst3, hx3, ⟨hc3, ht⟩, hrel3, hinv3⟩ :=
+    part_entry_refines hfs hc2 hrel2 hinv2 t st3 c3 hq3
+  obtain ⟨tn, tlp, tty, tk⟩ := t
+  obtain ⟨tn', tlp', tty', tk'⟩ := t'
+  have hk := ht.kind
+  cases tk with
+  | Ax _ => repeat (peel h as _x, -); simp at h
+  | Defn _ _ _ => repeat (peel h as _x, -); simp at h
+  | Thm _ _ => repeat (peel h as _x, -); simp at h
+  | Opaq _ _ => repeat (peel h as _x, -); simp at h
+  | Quot _ => repeat (peel h as _x, -); simp at h
+  | Ctor _ _ _ _ _ => repeat (peel h as _x, -); simp at h
+  | Recur _ _ _ _ _ _ _ _ => repeat (peel h as _x, -); simp at h
+  | Induct np ni all cs nn ir iu irf =>
+  cases tk' with
+  | induct np' ni' all' cs' nn' ir' iu' irf' => ?_
+  | _ => simp only [KindRel] at hk
+  obtain ⟨-, -, hall, -⟩ := hk
+  peel h as all1, hall1
+  have eall : all1.val.map absNIdx = all' := by rw [nidx_vec_dup_val hall1]; exact hall
+  peel h as r4, hr4
+  cases r4 with
+  | Err e => simp at h
+  | Ok o1 =>
+  have hl4 := look_locs_eq hc3 hr4 lst3
+  rw [eall] at hl4
+  cases o1 with
+  | none =>
+    have e2 := Result.ok_injective h
+    simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e2
+    obtain ⟨rfl, rfl, rfl⟩ := e2
+    refine ⟨(C3, none), lst3, ?_, ⟨hc3, rfl⟩, hrel3, hinv3⟩
+    refine (am_bind_ok hx1).trans ?_
+    refine (am_bind_ok hx2).trans ?_
+    refine (am_bind_ok hl).trans ?_
+    refine (am_bind_ok hx3).trans ?_
+    simp only [pure_bind]
+    refine (am_bind_ok hl4).trans ?_
+    rfl
+  | some ls =>
+  peel h as ⟨r5, st4, c4⟩, hq5
+  cases r5 with
+  | Err e => simp at h
+  | Ok tys =>
+  obtain ⟨⟨C4, tys'⟩, lst4, hx4, ⟨hc4, htys⟩, hrel4, hinv4⟩ :=
+    part_entries_refines hfs hc3 hrel3 hinv3 tys st4 c4 hq5
+  peel h as v, hv
+  have ev := group_ctor_names_eq htys hv
+  peel h as r6, hr6
+  cases r6 with
+  | Err e => simp at h
+  | Ok o2 =>
+  have hl6 := look_locs_eq hc4 hr6 lst4
+  rw [ev] at hl6
+  cases o2 with
+  | none =>
+    have e2 := Result.ok_injective h
+    simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e2
+    obtain ⟨rfl, rfl, rfl⟩ := e2
+    refine ⟨(C4, none), lst4, ?_, ⟨hc4, rfl⟩, hrel4, hinv4⟩
+    refine (am_bind_ok hx1).trans ?_
+    refine (am_bind_ok hx2).trans ?_
+    refine (am_bind_ok hl).trans ?_
+    refine (am_bind_ok hx3).trans ?_
+    simp only [pure_bind]
+    refine (am_bind_ok hl4).trans ?_
+    refine (am_bind_ok hx4).trans ?_
+    refine (am_bind_ok hl6).trans ?_
+    rfl
+  | some ls1 =>
+  peel h as ⟨r7, st5, c5⟩, hq7
+  cases r7 with
+  | Err e => simp at h
+  | Ok u7 =>
+  obtain ⟨C5, lst5, hx5, hc5, hrel5, hinv5⟩ := rec_blocks_of_refines hfs henv hc4 hrel4 hinv4 u7 st5 c5 hq7
+  peel h as r8, hr8
+  cases r8 with
+  | Err e => simp at h
+  | Ok rl =>
+  have hl8 := rec_locs_at_eq hc5 hr8 lst5
+  rw [eall] at hl8
+  peel h as locs, hlocs
+  have elocs := group_at_loop_eq _ _ _ hlocs
+  peel h as ⟨r9, st6, c6⟩, hq9
+  cases r9 with
+  | Err e => simp at h
+  | Ok rest =>
+  obtain ⟨⟨C6, rest'⟩, lst6, hx6, ⟨hc6, hrest⟩, hrel6, hinv6⟩ :=
+    part_entries_refines hfs hc5 hrel5 hinv5 rest st6 c6 hq9
+  have e0 : ((0#usize : Std.Usize).val) = 0 := rfl
+  rw [elocs, e0, List.drop_zero, List.map_append] at hx6
+  peel h as mg, hmg
+  have hM := group_merged_rel ht htys hrest hmg
+  rw [eall] at hM
+  peel h as r10, hr10
+  cases r10 with
+  | Err e => simp at h
+  | Ok d =>
+  have e2 := Result.ok_injective h
+  simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e2
+  obtain ⟨rfl, rfl, rfl⟩ := e2
+  obtain ⟨lst7, hx7, hrel7, hinv7⟩ := group_record_ok hrel6 hinv6 hM hr10
+  refine ⟨(C6, some (absIDeclaration d)), lst7, ?_, ⟨hc6, rfl⟩, hrel7, hinv7⟩
+  refine (am_bind_ok hx1).trans ?_
+  refine (am_bind_ok hx2).trans ?_
+  refine (am_bind_ok hl).trans ?_
+  refine (am_bind_ok hx3).trans ?_
+  simp only [pure_bind]
+  refine (am_bind_ok hl4).trans ?_
+  refine (am_bind_ok hx4).trans ?_
+  refine (am_bind_ok hl6).trans ?_
+  refine (am_bind_ok hx5).trans ?_
+  refine (am_bind_ok hl8).trans ?_
+  refine (am_bind_ok hx6).trans ?_
+  refine (am_bind_ok hx7).trans ?_
+  rfl
+
 end reads
 
 end ConRon.Refine2.Modular
