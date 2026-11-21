@@ -26,6 +26,7 @@ the pinned basis blocks too).
 module
 
 public import ConRon.Arena.Inductives.BlockTail
+public import ConRon.Arena.Inductives.IotaRead
 public import ConRon.Arena.DeclCheck
 public import ConRon.Arena.Basis
 
@@ -148,12 +149,18 @@ def checkDeclKind (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     -- one-sided), then ONE ROUTE: the uniform route takes every block
     -- `readBlock` reads, at any number of members, nested ones and the pinned
     -- basis blocks included; any other block is rejected with the reason
-    -- `readBlock` gives.
+    -- `readBlock` gives.  Then the recursors' ι equations read off their own
+    -- types (`blockReadsOk`), at the input index with the block's constants
+    -- pushed in place, decided after the block's check (`blockReadsAt`).
     if !(← indParamsOk nP block) then
       fail (.invalid "number of parameters mismatch")
     else
       match ← readBlock nP block with
-      | .ok p => checkBlock mode fe block p
+      | .ok p => do
+        let (reads, fe₀) ← blockReadsAt fe p
+        let fe' ← checkBlock mode fe₀ block p
+        if reads then pure fe'
+        else fail (.invalid "the recursor's minor premise does not state the constructor's fields, indices and parameters as the constructor's type does")
       | .error e => fail e
   | .quotDecl k cv => checkQuotRecord fe k cv
 

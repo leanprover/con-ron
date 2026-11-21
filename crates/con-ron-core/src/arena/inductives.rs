@@ -13,6 +13,7 @@
 //! | `positivity` | `Inductives/Positivity.lean` |
 //! | `block_rec` | `Inductives/BlockRec.lean` |
 //! | `rec_check` | `Inductives/RecCheck.lean` |
+//! | `iota_read` | `Inductives/IotaRead.lean`, `IotaEq.lean` |
 //! | `class_read` | `Inductives/ClassRead.lean` |
 //! | `gen_rec` | `Inductives/GenRec.lean` |
 //! | `block_install` | `Inductives/BlockInstall.lean`, `BlockInstallF.lean` |
@@ -44,6 +45,7 @@ pub mod field_tele;
 pub mod positivity;
 pub mod block_rec;
 pub mod rec_check;
+pub mod iota_read;
 pub mod class_read;
 pub mod gen_rec;
 pub mod stream_recs;

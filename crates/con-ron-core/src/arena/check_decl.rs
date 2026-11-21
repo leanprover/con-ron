@@ -33,7 +33,7 @@ use crate::arena::env::{
     IConstantInfo, IConstantVal, IDeclaration, IFEnv,
 };
 use crate::arena::handle::{EIdx, NIdx};
-use crate::arena::inductives::{block_shape, block_tail};
+use crate::arena::inductives::{block_shape, block_tail, iota_read};
 use crate::arena::monad::{fail, read_name_m, AState};
 use crate::arena::nat_op_pin_set::INatOpPinSet;
 use crate::arena::pins::{pin_quot_sound, pin_sorry_ax};
@@ -627,15 +627,17 @@ pub fn check_axiom_decl_rest(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove check_decl::check_ind_decl_refines, then delete this line
 /// con-leche: ConLeche/Cached/ParsedC.lean:106-126 checkIndDeclC
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove check_decl::check_ind_decl_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-152 checkDeclKind` — the `.indDecl`
 /// arm: the DECLARED parameter count first (con-leche's task #228: `indParamsOk`
 /// is official's own check, one-sided, so a `false` is official's reject), then
 /// ONE ROUTE: the uniform route takes every block `readBlock` reads, at any
 /// number of members, nested ones and the pinned basis blocks included; any
-/// other block is rejected with the reason `readBlock` gives.
+/// other block is rejected with the reason `readBlock` gives.  Then the ι
+/// reading rule (`blockReadsOk`, `iota_read::block_reads_at`): read at the
+/// input index with the block's constants pushed in place, the pushes undone
+/// before the block's check, and acted on after it, so a block both reject
+/// has the block check's verdict.
 pub fn check_ind_decl(
     pers: &PersTier,
     st: &mut AState,
@@ -649,7 +651,19 @@ pub fn check_ind_decl(
         Ok(false) => fail(CheckError::Invalid(code_points(&M_NUM_PARAMS))),
         Ok(true) => match block_shape::read_block(pers, st, n_p, block) {
             Err(e) => Err(e),
-            Ok(Ok(p)) => block_tail::check_block(pers, st, mode, fe, block, &p),
+            Ok(Ok(p)) => match iota_read::block_reads_at(pers, st, fe, &p) {
+                Err(e) => Err(e),
+                Ok((reads, fe0)) => match block_tail::check_block(pers, st, mode, fe0, block, &p) {
+                    Err(e) => Err(e),
+                    Ok(fe2) => {
+                        if reads {
+                            Ok(fe2)
+                        } else {
+                            fail(CheckError::Invalid(code_points(&iota_read::M_NOT_READ)))
+                        }
+                    }
+                },
+            },
             Ok(Err(e)) => fail(e),
         },
     }
