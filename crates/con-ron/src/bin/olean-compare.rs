@@ -143,7 +143,6 @@ fn agree(pk: &spec::OleanPins, pers: &PersTier, st: &mut AState, f: &view::ModFi
 }
 
 /// con-leche: OleanCompare.lean:145-162 runViews
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove olean-compare::run_views_refines, then delete this line
 /// `--views`: every module of the closure.
 fn run_views(sp: &[String], mods: &[String]) -> u8 {
     let pers: &PersTier = &PersTier::empty();
@@ -220,7 +219,6 @@ fn internal_name(pers: &PersTier, st: &AState, n: u32) -> bool {
 }
 
 /// con-leche: OleanCompare.lean:253-329 main
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove olean-compare::run_compare_refines, then delete this line
 /// The record for record comparison.
 fn run_compare(file: &str, sp: &[String], mods: &[String], constants: &[String]) -> u8 {
     let pers: &PersTier = &PersTier::empty();
@@ -316,7 +314,6 @@ fn run_compare(file: &str, sp: &[String], mods: &[String], constants: &[String])
 }
 
 /// con-leche: OleanCompare.lean:253-329 main
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove olean-compare::main_refines, then delete this line
 /// The entry point: one thread with the checker's stack, as the binary's.
 fn main() -> ExitCode {
     let argv: Vec<String> = std::env::args().skip(1).collect();

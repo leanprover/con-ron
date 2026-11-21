@@ -244,10 +244,8 @@ pub struct OleanRequest {
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:64-67 Input.label
 /// con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove olean_fs::impl OleanRequest_refines, then delete this line
 impl OleanRequest {
     /// con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
-    /// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove olean_fs::new_refines, then delete this line
     /// The names of the command line, or the usage error.
     pub fn new(search_path: &[String], modules: &[String], constants: &[String]) -> Result<OleanRequest, String> {
         let mut roots: Vec<Name> = Vec::new();
@@ -297,11 +295,10 @@ impl OleanRequest {
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:87-98 readInputG
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove olean_fs::read_request_refines, then delete this line
 /// The input's declaration records, by the `.olean` reader: a theorem's value a
 /// reference, with what its check needs to read it (`OleanRead.values`,
 /// `OleanRead.pins`).  The `read:` lines at `pace`, timed from the read's start
-/// (`ReadNotes.new` is the first thing `readOleans` does).
+/// (`ReadNotes.new` is the first thing `readOleansAt` does).
 pub fn read_request(pers: &PersTier, st: &mut AState, req: &OleanRequest, pace: &Pace) -> Result<OleanRead, (CheckError, u64)> {
     let (roots, cs) = match req.intern(pers, st) {
         Ok(p) => p,

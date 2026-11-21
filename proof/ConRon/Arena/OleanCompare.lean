@@ -40,7 +40,6 @@ def agree (pk : OleanPins) (f : ConLeche.Frontend.Olean.ModFiles) (d : ModDecode
   return ss == d.constants.toList.map entryStmt
 
 /-- con-leche: OleanCompare.lean:145-162 runViews
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove OleanCompare.viewsGo_bridge, then delete this line
 `--views`: every module of the closure, as one `AM`. -/
 def viewsGo (sp : List System.FilePath) (roots : Array Name) : AM (Except String Nat) := do
   let pk ← oleanPins
@@ -58,7 +57,6 @@ def viewsGo (sp : List System.FilePath) (roots : Array Name) : AM (Except String
   pure (.ok order.size)
 
 /-- con-leche: OleanCompare.lean:253-329 main
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove OleanCompare.main_bridge, then delete this line
 The command line. -/
 def main (args : List String) : IO UInt8 := do
   match args with

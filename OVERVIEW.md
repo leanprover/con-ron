@@ -298,10 +298,12 @@ same premises without `hcl` … `hty` and concludes as `model_exists` does, at
 (con-leche states no model theorem for `--olean`).
 
 The one new trust premise is
-[`hsnap : SnapshotOf finst fsv F`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L186-L198):
-every answer the file operations give (does the file exist, its real path,
-its bytes, a byte range of it, its size) is the answer of one snapshot `F` of
-the file system.  A failed operation claims nothing, because it gives no
+[`hsnap : SnapshotOf finst fsv F`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L186-L199):
+every answer the file operations give (does the path exist, is it a
+directory, its real path, its bytes, a byte range of it, its size) is the
+answer of one snapshot `F` of the file system, at the paths the reader asks:
+a module's file or directory below a search-path directory, or a search-path
+directory itself.  A failed operation claims nothing, because it gives no
 accept.  So the theorems assume that the files do not change during the run
 and that the driver's operations over `std` (`olean_fs::StdFs`) read what is on
 disk; the reader itself, from the search for a module's files to the records

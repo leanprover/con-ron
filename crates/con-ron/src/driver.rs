@@ -635,9 +635,10 @@ where
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:120-134 oleanJobRun
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove driver::olean_job_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/OleanJobs.lean:27-62 oleanJob`; Theorem 2 reads this
-/// function as `Refine2/Checker/OleanPool.lean`'s `oleanJobStep`.
+/// function as `Refine2/Checker/OleanPool.lean`'s `oleanJobStep`.  Upstream's
+/// `sp : Roots` (the closure's resolved roots) is the bare search path here
+/// (`files::find_module`'s note), and its jobs' `justify` the flat path's `none`.
 /// **One job of an `--olean` run**, from the module region the worker kept: a
 /// theorem whose value is still in its file (`.thmDecl cv (.bvar code)`, a
 /// reference) reads it into the worker's scratch tier and is checked with it in

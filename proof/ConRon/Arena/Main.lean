@@ -346,7 +346,6 @@ partial def readRangeIO (p : System.FilePath) (off len : Nat) : IO ByteArray := 
   go len .empty
 
 /-- con-leche: ConLeche/Frontend/CheckerIO.lean:514-529 instCheckerIOIO
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Main.stdFsImpl_bridge, then delete this line
 The binary's file operations, as the pure functions the reader takes: `IO` run where
 it is asked, outside every theorem (`Frontend/Olean/Files.lean`'s note). -/
 unsafe def stdFsImpl : Frontend.Olean.OleanFs where
@@ -376,13 +375,11 @@ unsafe def stdFsImpl : Frontend.Olean.OleanFs where
     | .error e => pure (.error (toString e))
 
 /-- con-leche: ConLeche/Frontend/CheckerIO.lean:514-529 instCheckerIOIO
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Main.stdFs_bridge, then delete this line
 The binary's file operations, opaque to the logic. -/
 @[implemented_by stdFsImpl]
 opaque stdFs : Frontend.Olean.OleanFs
 
 /-- con-leche: ConLeche/Driver/CheckMain.lean:87-98 readInputG
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Main.oleanPipeline_bridge, then delete this line
 **The seam on the `.olean` path**: the head of the pipeline, the reader in place of
 the chunks' fold, then the tail as the binary runs it on this path: the preparation
 with what a record mentions read off the load (`OleanRead.usedOf`), the pins, and the
@@ -412,7 +409,6 @@ def oleanPipeline (sp : List System.FilePath) (roots : Array Name) (constants : 
       | .ok _ => pure (.ok records)
 
 /-- con-leche: ConLeche/Driver/CheckMain.lean:233-385 checkMainG
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Main.checkMainOlean_bridge, then delete this line
 The driver on the `.olean` path. -/
 def checkMainOlean (sp : List System.FilePath) (roots : Array Name) (constants : Option (Array Name))
     (mode : CheckMode) (pins : List NatOpPinSet) (maxNatSize : Nat) : IO UInt8 := do
