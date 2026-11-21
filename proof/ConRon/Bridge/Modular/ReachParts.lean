@@ -382,4 +382,107 @@ theorem privSpot_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
   simp only [g5]
   exact ModelIO.gives_pure _ _
 
+/-! ## A home's view -/
+
+theorem hmrel_contains {α β : Type} {R : α → β → Prop} {st : EStore} (hw : NStoreWF st.ns)
+    {M : Std.HashMap NIdx α} {MC : Std.HashMap ConLeche.Name β} (h : HMRel R st M MC) {x : NIdx}
+    {n : ConLeche.Name} (hd : denoteN st.ns x = some n) : M.contains x = MC.contains n := by
+  rw [Std.HashMap.contains_eq_isSome_getElem?, Std.HashMap.contains_eq_isSome_getElem?]
+  rcases optRel_cases (h.get hw hd) with ⟨h1, h2⟩ | ⟨a, b, h1, h2, -⟩
+  · rw [h1, h2]; rfl
+  · rw [h1, h2]; rfl
+
+theorem viewFold_rel {st : EStore} (hw : NStoreWF st.ns) {k : ConRon.Arena.Modular.PartKey}
+    {kC : ConLeche.Driver.PartKey} (hk : PKRel st k kC) :
+    ∀ {qs : List ConRon.Arena.Frontend.Olean.NamePosition}
+      {qsC : List ConLeche.Frontend.Olean.NamePosition}
+      {v : Std.HashMap NIdx ConRon.Arena.Modular.Spot}
+      {vC : Std.HashMap ConLeche.Name ConLeche.Driver.Spot},
+      ListRel (NPRel st) qs qsC → HMRel (SpotRel st) st v vC →
+      HMRel (SpotRel st) st
+        (qs.foldl (fun (v : Std.HashMap NIdx ConRon.Arena.Modular.Spot) q =>
+          if v.contains q.name then v else v.insert q.name ⟨k, q⟩) v)
+        (qsC.foldl (fun (v : Std.HashMap ConLeche.Name ConLeche.Driver.Spot) q =>
+          if v.contains q.name then v else v.insert q.name ⟨kC, q⟩) vC)
+  | [], [], _, _, .nil, h => h
+  | q :: qs, qC :: qsC, v, vC, .cons hq hqs, h => by
+    simp only [List.foldl_cons]
+    refine viewFold_rel hw hk hqs ?_
+    rw [hmrel_contains hw h hq.name]
+    split
+    · exact h
+    · exact h.insert hw hq.name ⟨hk, hq⟩
+
+/-- con-leche: ConLeche/Driver/Reach.lean:218-222 viewStep — one part's names into a view,
+upstream's. -/
+theorem viewStep_rel {st : EStore} (hw : NStoreWF st.ns) {v : Std.HashMap NIdx ConRon.Arena.Modular.Spot}
+    {vC : Std.HashMap ConLeche.Name ConLeche.Driver.Spot} (hv : HMRel (SpotRel st) st v vC)
+    {k : ConRon.Arena.Modular.PartKey} {kC : ConLeche.Driver.PartKey} (hk : PKRel st k kC)
+    {t : ConRon.Arena.Frontend.Olean.NamePositions} {tC : ConLeche.Frontend.Olean.NamePositions}
+    (ht : NPsRel st t tC) :
+    HMRel (SpotRel st) st (ConRon.Arena.Modular.viewStep v k t) (ConLeche.Driver.viewStep vC kC tC) := by
+  unfold ConRon.Arena.Modular.viewStep ConLeche.Driver.viewStep
+  rw [← Array.foldl_toList, ← Array.foldl_toList]
+  exact viewFold_rel hw hk ht.consts hv
+
+/-- con-leche: ConLeche/Driver/Reach.lean:332-340 viewAdd — **some parts' names into a view**,
+upstream's, the caches related after. -/
+theorem viewAdd_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO} :
+    ∀ (ks : List ConRon.Arena.Modular.PartKey) {ksC : List ConLeche.Driver.PartKey}
+      {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
+      {v v' : Std.HashMap NIdx ConRon.Arena.Modular.Spot}
+      {vC : Std.HashMap ConLeche.Name ConLeche.Driver.Spot} {s s' : AState},
+      RCtx pk s → EnvRel sp s.store env envC → CacheRel s.store c cC →
+      ListRel (PKRel s.store) ks ksC → HMRel (SpotRel s.store) s.store v vC →
+      ConRon.Arena.Modular.viewAdd (modelFs F) pk sp env c v ks s = .ok ((c', v'), s') →
+      DStep s s' ∧ ∃ cC' vC', ModelIO.Gives (ConLeche.Driver.viewAdd envC cC vC ksC) F
+          (cC', .ok vC') ∧ CacheRel s'.store c' cC' ∧ HMRel (SpotRel s'.store) s'.store v' vC'
+  | [], _, c, c', cC, v, v', vC, s, s', hctx, _, hc, .nil, hv, h => by
+    rw [ConRon.Arena.Modular.viewAdd] at h
+    obtain ⟨hv', rfl⟩ := AM.pure_ok h
+    simp only [Prod.mk.injEq] at hv'
+    obtain ⟨rfl, rfl⟩ := hv'
+    exact ⟨DStep.refl hctx.ok hctx.off, cC, vC, ModelIO.gives_pure _ _, hc, hv⟩
+  | k :: ks, _, c, c', cC, v, v', vC, s, s', hctx, he, hc, .cons hk hks, hv, h => by
+    rw [ConRon.Arena.Modular.viewAdd] at h
+    obtain ⟨⟨c₁, v₁⟩, s₁, h1, h2⟩ := AM.bind_ok h
+    unfold ConRon.Arena.Modular.viewAddOne at h1
+    obtain ⟨c₀, s₀, g1, g2⟩ := AM.bind_ok h1
+    obtain ⟨hst0, cC₀, tC, t, hgt, hc0, ht, htr⟩ := tableOf_run hsp hctx he hc hk g1
+    rw [ht] at g2
+    obtain ⟨hv1, rfl⟩ := AM.pure_ok g2
+    simp only [Prod.mk.injEq] at hv1
+    obtain ⟨rfl, rfl⟩ := hv1
+    have hw0 := nsWF_of_StateOK hst0.ok.state
+    have hv₁ := viewStep_rel hw0 (hv.ext hst0.ext (fun _ _ h => h.ext hst0.ext)) (hk.ext hst0.ext) htr
+    obtain ⟨hst1, cC', vC', hg, hc', hv'⟩ := viewAdd_run hsp ks (hctx.step hst0)
+      (he.ext hst0.ext hw0) hc0 (ListRel.mono' (fun _ _ h => h.ext hst0.ext) hks) hv₁ h2
+    refine ⟨hst0.trans hst1, cC', vC', ?_, hc', hv'⟩
+    rw [ConLeche.Driver.viewAdd]
+    refine hgt.bind ?_
+    exact hg
+
+/-- con-leche: ConLeche/Driver/Reach.lean:213-216 viewKeys — the parts of a home's view,
+upstream's. -/
+theorem viewKeys_rel {st : EStore} {h : NIdx} {hC : ConLeche.Name} (hh : denoteN st.ns h = some hC)
+    {ld : ConRon.Arena.Frontend.Olean.HeaderLoads} {ldC : ConLeche.Frontend.Olean.HeaderLoads}
+    (hl : LoadsRel st ld ldC) :
+    ListRel (PKRel st) (ConRon.Arena.Modular.viewKeys h ld) (ConLeche.Driver.viewKeys hC ldC) := by
+  unfold ConRon.Arena.Modular.viewKeys ConLeche.Driver.viewKeys
+  refine .cons ⟨hh, rfl⟩ ?_
+  have ho := hl.order
+  have hf := hl.flags
+  rw [Array.toList_zip, Array.toList_zip, ← hf]
+  generalize ld.order.toList = os at ho
+  generalize ldC.order.toList = osC at ho
+  generalize ld.flags.toList = fs
+  induction ho generalizing fs with
+  | nil => simp; exact .nil
+  | cons ha _ ih =>
+    cases fs with
+    | nil => simp; exact .nil
+    | cons f fs => simp only [List.zip_cons_cons, List.map_cons]; exact .cons ⟨ha, rfl⟩ (ih fs)
+
+
 end ConRon.Bridge.Modular
