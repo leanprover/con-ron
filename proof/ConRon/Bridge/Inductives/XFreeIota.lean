@@ -366,6 +366,7 @@ macro_rules
     | (with_reducible exact XFree.pure _)
     | (with_reducible exact XFree.fail _)
     | (with_reducible exact XFree.failDanglingE')
+    | (with_reducible exact XFree.failDanglingLs)
     | (with_reducible exact XFree.get)
     | (with_reducible exact XFree.internE _)
     | (with_reducible exact XFree.internAppE _ _)
@@ -567,5 +568,188 @@ theorem XFree.exprDropVars : ∀ (n : Nat) (e : EIdx), XFree (Arena.exprDropVars
     have ih := XFree.exprDropVars n
     have hx1 := XFree.zeroLevel; have hx2 := XFree.instantiate1Fast
     unfold Arena.exprDropVars; xfree_walk [ih, hx1, hx2]
+
+/-! ## The recursor's own type -/
+
+theorem XFree.piTele : ∀ (fuel : Nat) (h : EIdx), XFree (Arena.piTele fuel h)
+  | 0, _ => by unfold Arena.piTele; exact XFree.fail _
+  | fuel + 1, h => by
+    have ih := XFree.piTele fuel
+    unfold Arena.piTele; xfree_walk [ih]
+
+theorem XFree.motiveLevel? (pre : List EIdx) (nIdx : Nat) (body : EIdx) :
+    XFree (Arena.motiveLevel? pre nIdx body) := by
+  have ga := XFree.getAppFn; have gd := XFree.exprGetD; have pr := XFree.piResult
+  unfold Arena.motiveLevel?; xfree_walk [ga, gd, pr]
+
+theorem XFree.iotaFrame (cv : IConstantVal) (mI rP : Nat) : XFree (Arena.iotaFrame cv mI rP) := by
+  have sp := XFree.stripPis; have ml := XFree.motiveLevel?
+  unfold Arena.iotaFrame; xfree_walk [sp, ml]
+
+theorem XFree.isMinorAt (pre : List EIdx) (mot q : Nat) : XFree (Arena.isMinorAt pre mot q) := by
+  have ga := XFree.getAppFn; have gd := XFree.exprGetD; have pt := XFree.piTele
+  unfold Arena.isMinorAt; xfree_walk [ga, gd, pt]
+
+theorem XFree.minorsFrom (pre : List EIdx) (mot q : Nat) : XFree (Arena.minorsFrom pre mot q) := by
+  rw [Arena.minorsFrom]
+  split
+  · rename_i hq
+    have ih := XFree.minorsFrom pre mot (q + 1)
+    have im := XFree.isMinorAt pre mot
+    xfree_walk [ih, im]
+  · exact XFree.pure _
+termination_by pre.length - q
+
+theorem XFree.iotaRecMajor (pre doms : List EIdx) (nIdx rP k : Nat) :
+    XFree (Arena.iotaRecMajor pre doms nIdx rP k) := by
+  have mf := XFree.minorsFrom; have gd := XFree.exprGetD; have ga := XFree.getAppFn
+  have gr := XFree.getAppArgs
+  have dv : ∀ (l : List EIdx), XFree (l.mapM (Arena.exprDropVars nIdx)) :=
+    XFree.mapM (XFree.exprDropVars nIdx)
+  unfold Arena.iotaRecMajor; xfree_walk [mf, gd, ga, gr, dv]
+
+theorem XFree.iotaRecOf (cv : IConstantVal) (mI rP : Nat) : XFree (Arena.iotaRecOf cv mI rP) := by
+  have fr := XFree.iotaFrame; have ga := XFree.getAppFn; have rm := XFree.iotaRecMajor
+  unfold Arena.iotaRecOf; xfree_walk [fr, ga, rm]
+
+theorem XFree.liftFieldDoms (amt : Nat) :
+    ∀ (ds : List EIdx) (j : Nat), XFree (Arena.liftFieldDoms amt ds j)
+  | [], _ => by unfold Arena.liftFieldDoms; exact XFree.pure _
+  | d :: ds, j => by
+    have ih := XFree.liftFieldDoms amt ds; have lf := XFree.liftLooseBVarsFast
+    unfold Arena.liftFieldDoms; xfree_walk [ih, lf]
+
+theorem XFree.liftIdxArgs (amt nT nF : Nat) :
+    ∀ (as : List EIdx), XFree (Arena.liftIdxArgs amt nT nF as)
+  | [] => by unfold Arena.liftIdxArgs; exact XFree.pure _
+  | a :: as => by
+    have ih := XFree.liftIdxArgs amt nT nF as; have lf := XFree.liftLooseBVarsFast
+    have dv := XFree.exprDropVars
+    unfold Arena.liftIdxArgs; xfree_walk [ih, lf, dv]
+
+theorem XFree.iotaPartsOfAt (rr : IotaRec) (rP nIdx i : Nat) (rl : IRecRule) :
+    XFree (Arena.iotaPartsOfAt rr rP nIdx i rl) := by
+  have gd := XFree.exprGetD; have sp := XFree.stripPis; have fd := XFree.liftFieldDoms
+  have pt := XFree.piTele; have gr := XFree.getAppArgs; have ia := XFree.liftIdxArgs
+  unfold Arena.iotaPartsOfAt; xfree_walk [gd, sp, fd, pt, gr, ia]
+
+/-! ## The constructor's reading -/
+
+theorem XFree.ctorLevelsAt (rl : IRecRule) (lps : List NIdx) :
+    XFree (Arena.ctorLevelsAt rl lps) := by
+  have il := XFree.internLsNode; have pl := XFree.paramLevels
+  unfold Arena.ctorLevelsAt; xfree_walk [il, pl]
+
+theorem XFree.iotaBVars (rP n i : Nat) : XFree (Arena.iotaBVars rP n i) := by
+  rw [Arena.iotaBVars]
+  split
+  · rename_i hi
+    have ih := XFree.iotaBVars rP n (i + 1)
+    xfree_walk [ih]
+  · exact XFree.pure _
+termination_by n - i
+
+theorem XFree.iotaParamsAt (rl : IRecRule) (rP cnP : Nat) : XFree (Arena.iotaParamsAt rl rP cnP) := by
+  have ib := XFree.iotaBVars
+  unfold Arena.iotaParamsAt; xfree_walk [ib]
+
+theorem XFree.iotaPartsAtBody (cnP mI rP : Nat) (rl : IRecRule) (lvls : LsIdx)
+    (params pd : List EIdx) (b : EIdx) :
+    XFree (Arena.iotaPartsAtBody cnP mI rP rl lvls params pd b) := by
+  have il := XFree.instantiateLiftFast; have sp := XFree.stripPis; have gr := XFree.getAppArgs
+  unfold Arena.iotaPartsAtBody; xfree_walk [il, sp, gr]
+
+theorem XFree.iotaPartsAt (cvj : IConstantVal) (cnP mI rP : Nat) (rl : IRecRule) :
+    XFree (Arena.iotaPartsAt cvj cnP mI rP rl) := by
+  have cl := XFree.ctorLevelsAt; have ip := XFree.iotaParamsAt; have lp := XFree.instLPFast
+  have sp := XFree.stripPis; have pb := XFree.iotaPartsAtBody
+  unfold Arena.iotaPartsAt; xfree_walk [cl, ip, lp, sp, pb]
+
+/-! ## The checker's rule -/
+
+theorem XFree.lvlEq : ∀ (fuel : Nat) (a b : EIdx), XFree (Arena.lvlEq fuel a b)
+  | 0, _, _ => by unfold Arena.lvlEq; exact XFree.fail _
+  | fuel + 1, a, b => by
+    have ih := XFree.lvlEq fuel; have rl := XFree.readLevelM; have rls := XFree.readLevelsM
+    unfold Arena.lvlEq; xfree_walk [ih, rl, rls]
+
+theorem XFree.topName (s : String) : XFree (Arena.topName s) := by
+  have nn := XFree.internNNode
+  unfold Arena.topName; xfree_walk [nn]
+
+theorem XFree.annWitness (fe : IFEnv) (D : EIdx) : XFree (Arena.annWitness fe D) := by
+  have nn := XFree.internNNode
+  unfold Arena.annWitness; xfree_walk [nn]
+
+theorem XFree.annIdentBody (fe : IFEnv) (p p' : NIdx) (arity : Nat) (b : EIdx) :
+    XFree (Arena.annIdentBody fe p p' arity b) := by
+  have aw := XFree.annWitness fe
+  unfold Arena.annIdentBody; xfree_walk [aw]
+
+theorem XFree.annIdentVal (fe : IFEnv) (lps : List NIdx) (arity : Nat) (v : EIdx) :
+    XFree (Arena.annIdentVal fe lps arity v) := by
+  have ab := XFree.annIdentBody fe
+  unfold Arena.annIdentVal; xfree_walk [ab]
+
+theorem XFree.annIdent (fe : IFEnv) (n : NIdx) (arity : Nat) : XFree (Arena.annIdent fe n arity) := by
+  have av := XFree.annIdentVal fe
+  unfold Arena.annIdent; xfree_walk [av]
+
+theorem XFree.annEq (fe : IFEnv) : ∀ (fuel : Nat) (a b : EIdx), XFree (Arena.annEq fe fuel a b)
+  | 0, _, _ => by unfold Arena.annEq; exact XFree.fail _
+  | fuel + 1, a, b => by
+    have ih := XFree.annEq fe fuel; have le := XFree.lvlEq; have tn := XFree.topName
+    have ai := XFree.annIdent fe
+    unfold Arena.annEq; xfree_walk [ih, le, tn, ai]
+
+theorem XFree.listLvlEq : ∀ (as bs : List EIdx), XFree (Arena.listLvlEq as bs)
+  | [], [] => by unfold Arena.listLvlEq; exact XFree.pure _
+  | [], _ :: _ => by unfold Arena.listLvlEq; exact XFree.pure _
+  | _ :: _, [] => by unfold Arena.listLvlEq; exact XFree.pure _
+  | a :: as, b :: bs => by
+    have ih := XFree.listLvlEq as bs; have le := XFree.lvlEq
+    unfold Arena.listLvlEq; xfree_walk [ih, le]
+
+theorem XFree.listAnnEq (fe : IFEnv) : ∀ (as bs : List EIdx), XFree (Arena.listAnnEq fe as bs)
+  | [], [] => by unfold Arena.listAnnEq; exact XFree.pure _
+  | [], _ :: _ => by unfold Arena.listAnnEq; exact XFree.pure _
+  | _ :: _, [] => by unfold Arena.listAnnEq; exact XFree.pure _
+  | a :: as, b :: bs => by
+    have ih := XFree.listAnnEq fe as bs; have ae := XFree.annEq fe
+    unfold Arena.listAnnEq; xfree_walk [ih, ae]
+
+theorem XFree.paramsAnnEq (fe : IFEnv) (cnP : Nat) (cv : IConstantVal) (pd : List EIdx) :
+    XFree (Arena.paramsAnnEq fe cnP cv pd) := by
+  have sp := XFree.stripPis; have la := XFree.listAnnEq fe
+  unfold Arena.paramsAnnEq; xfree_walk [sp, la]
+
+theorem XFree.iotaPartsRel (fe : IFEnv) (cnP : Nat) (cv : IConstantVal) (rl : IRecRule)
+    (p' p : IIotaParts) (pd : List EIdx) : XFree (Arena.iotaPartsRel fe cnP cv rl p' p pd) := by
+  have ll := XFree.listLvlEq; have pa := XFree.paramsAnnEq fe; have la := XFree.listAnnEq fe
+  unfold Arena.iotaPartsRel; xfree_walk [ll, pa, la]
+
+theorem XFree.ruleReads (fe : IFEnv) (cv : IConstantVal) (rr : Option IotaRec) (mI rP i : Nat)
+    (rl : IRecRule) : XFree (Arena.ruleReads fe cv rr mI rP i rl) := by
+  have po := XFree.iotaPartsOfAt; have pa := XFree.iotaPartsAt; have pr := XFree.iotaPartsRel fe
+  unfold Arena.ruleReads; xfree_walk [po, pa, pr]
+
+theorem XFree.rulesRead (fe : IFEnv) (cv : IConstantVal) (rr : Option IotaRec) (mI rP : Nat) :
+    ∀ (rules : List IRecRule) (i : Nat), XFree (Arena.rulesRead fe cv rr mI rP rules i)
+  | [], _ => by unfold Arena.rulesRead; exact XFree.pure _
+  | rl :: rest, i => by
+    have ih := XFree.rulesRead fe cv rr mI rP rest; have rr' := XFree.ruleReads fe cv rr mI rP
+    unfold Arena.rulesRead; xfree_walk [ih, rr']
+
+theorem XFree.recReads (fe : IFEnv) (ci : IConstantInfo) : XFree (Arena.recReads fe ci) := by
+  have ro := XFree.iotaRecOf; have rs := XFree.rulesRead fe
+  unfold Arena.recReads; xfree_walk [ro, rs]
+
+/-- **The ι reading rule keeps the scratch flag**: every recursor's rules read, the scratch
+tier neither opened nor dropped. -/
+theorem XFree.recsRead (fe : IFEnv) : ∀ (l : List IConstantInfo), XFree (Arena.recsRead fe l)
+  | [] => by unfold Arena.recsRead; exact XFree.pure _
+  | ci :: rest => by
+    have ih := XFree.recsRead fe rest; have rr := XFree.recReads fe
+    unfold Arena.recsRead; xfree_walk [ih, rr]
 
 end ConRon.Bridge.Inductives

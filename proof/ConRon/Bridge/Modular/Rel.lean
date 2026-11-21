@@ -101,4 +101,10 @@ structure ReachRel (st : EStore) (r : ConRon.Arena.Modular.Reach) (rC : ConLeche
   searches : r.searches = rC.searches
   inferred : r.inferred = rC.inferred
 
+theorem ReachRel.ext {st st' : EStore} {r : ConRon.Arena.Modular.Reach}
+    {rC : ConLeche.Driver.Reach} (h : ReachRel st r rC) (hx : Ext st st') : ReachRel st' r rC :=
+  ⟨denoteDecls_ext hx _ _ h.ctx, ListRel.mono' (fun _ _ h => denoteN_ext h hx) h.homes,
+    ListRel.mono' (fun _ _ h => ⟨denoteN_ext h.1 hx, denoteN_ext h.2 hx⟩) h.completed,
+    h.searches, h.inferred⟩
+
 end ConRon.Bridge.Modular
