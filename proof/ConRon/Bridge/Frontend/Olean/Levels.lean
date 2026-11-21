@@ -327,4 +327,246 @@ theorem levelsGo_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
                 refine ⟨hst1.trans hst2, xFC, ?_, hR⟩
                 exact hz.bind hC
 
+/-! ## The loads -/
+
+/-- con-leche: ConLeche/Frontend/Olean/Levels.lean:113-122 HeaderLoads — **the loads read back**:
+the order denoted, the flags equal, each module's imports denoted, the index answering alike. -/
+structure LoadsRel (st : EStore) (ld : HeaderLoads) (ldC : ConLeche.Frontend.Olean.HeaderLoads) :
+    Prop where
+  order : ListRel (NR st) ld.order.toList ldC.order.toList
+  flags : ld.flags = ldC.flags
+  imports : ListRel (ImpsD st) ld.imports.toList ldC.imports.toList
+  index : ∀ h n, denoteN st.ns h = some n → ld.index[h]? = ldC.index[n]?
+
+theorem listRel_map_eq {α β γ : Type} {R : α → β → Prop} {f : α → γ} {g : β → γ}
+    (hfg : ∀ a b, R a b → f a = g b) :
+    ∀ {l : List α} {lC : List β}, ListRel R l lC → l.map f = lC.map g
+  | _, _, .nil => rfl
+  | _, _, .cons a b => by
+    simp only [List.map_cons, hfg _ _ a, listRel_map_eq hfg b]
+
+theorem listRel_foldl_eq {α β γ : Type} {R : α → β → Prop} {f : γ → α → γ} {g : γ → β → γ}
+    (hfg : ∀ c a b, R a b → f c a = g c b) :
+    ∀ {l : List α} {lC : List β}, ListRel R l lC → ∀ c, l.foldl f c = lC.foldl g c
+  | _, _, .nil, _ => rfl
+  | _, _, .cons a b, c => by
+    simp only [List.foldl_cons, hfg _ _ _ a]
+    exact listRel_foldl_eq hfg b _
+
+theorem listRel_getElem? {α β : Type} {R : α → β → Prop} :
+    ∀ {l : List α} {lC : List β}, ListRel R l lC → ∀ (k : Nat), Option.Rel R l[k]? lC[k]?
+  | _, _, .nil, _ => .none
+  | _, _, .cons a _, 0 => .some a
+  | _, _, .cons _ b, k + 1 => by
+    simp only [List.getElem?_cons_succ]
+    exact listRel_getElem? b k
+
+theorem listRel_memR' {α β : Type} {R : α → β → Prop} :
+    ∀ {l : List α} {lC : List β}, ListRel R l lC → ∀ {b : β}, b ∈ lC → ∃ a ∈ l, R a b
+  | _, _, .nil, _, hb => by simp at hb
+  | _, _, .cons a h, _, hb => by
+    rcases List.mem_cons.1 hb with rfl | hb
+    · exact ⟨_, List.mem_cons_self, a⟩
+    · obtain ⟨x, hx, hr⟩ := listRel_memR' h hb
+      exact ⟨x, List.mem_cons_of_mem _ hx, hr⟩
+
+/-- con-leche: ConLeche/Frontend/Olean/Levels.lean:124-153 headerFixpoint — the index fold, related. -/
+theorem indexFold_rel {st : EStore} (hw : NStoreWF st.ns) :
+    ∀ {l : List NIdx} {lC : List ConLeche.Name}, ListRel (NR st) l lC →
+      ∀ (M : Std.HashMap NIdx Nat) (MC : Std.HashMap ConLeche.Name Nat) (k : Nat),
+      (∀ h n, denoteN st.ns h = some n → M[h]? = MC[n]?) →
+      ∀ h n, denoteN st.ns h = some n →
+        (l.foldl (fun (acc : Std.HashMap NIdx Nat × Nat) m => (acc.1.insert m acc.2, acc.2 + 1))
+          (M, k)).1[h]? =
+        (lC.foldl (fun (acc : Std.HashMap ConLeche.Name Nat × Nat) m => (acc.1.insert m acc.2, acc.2 + 1))
+          (MC, k)).1[n]?
+  | _, _, .nil, _, _, _, hM, h, n, hd => hM h n hd
+  | _, _, @ListRel.cons _ _ _ a b _ _ hab hr, M, MC, k, hM, h, n, hd => by
+    simp only [List.foldl_cons]
+    refine indexFold_rel hw hr _ _ _ (fun h' n' hd' => ?_) h n hd
+    simp only [Std.HashMap.getElem?_insert]
+    by_cases he : a = h'
+    · subst he
+      have : b = n' := Option.some.inj (hab.symm.trans hd')
+      subst this
+      simp
+    · have hn : ¬ b = n' := fun hn => he (denoteN_inj hw hab (hn ▸ hd'))
+      simp only [beq_iff_eq, he, hn, ↓reduceIte]
+      exact hM h' n' hd'
+
+/-- con-leche: ConLeche/Frontend/Olean/Levels.lean:124-153 headerFixpoint — the flags of the
+loads, as a map over the order. -/
+theorem ofStateGo_flags (fm : Std.HashMap NIdx LoadFlags) :
+    ∀ (ms : List NIdx) (i : Nat) (im : Std.HashMap NIdx (Array (ImportF NIdx)))
+      (fl : Array LoadFlags) (is : Array (Array (ImportF NIdx))) (ix : Std.HashMap NIdx Nat),
+      (HeaderLoads.ofStateGo fm ms i im fl is ix).1.toList =
+        fl.toList ++ ms.map fun m => (fm[m]?).getD default
+  | [], _, _, _, _, _ => by simp [HeaderLoads.ofStateGo]
+  | m :: ms, i, im, fl, is, ix => by
+    rw [HeaderLoads.ofStateGo, ofStateGo_flags fm ms]
+    simp
+
+/-- con-leche: ConLeche/Frontend/Olean/Levels.lean:124-153 headerFixpoint — the imports of the
+loads, as a map over an order without duplicates: each module's are moved out as it is placed. -/
+theorem ofStateGo_imports (fm : Std.HashMap NIdx LoadFlags) :
+    ∀ (ms : List NIdx), ms.Nodup → ∀ (i : Nat) (im : Std.HashMap NIdx (Array (ImportF NIdx)))
+      (fl : Array LoadFlags) (is : Array (Array (ImportF NIdx))) (ix : Std.HashMap NIdx Nat),
+      (HeaderLoads.ofStateGo fm ms i im fl is ix).2.1.toList =
+        is.toList ++ ms.map fun m => (im[m]?).getD #[]
+  | [], _, _, _, _, _, _ => by simp [HeaderLoads.ofStateGo]
+  | m :: ms, hnd, i, im, fl, is, ix => by
+    rw [List.nodup_cons] at hnd
+    rw [HeaderLoads.ofStateGo, ofStateGo_imports fm ms hnd.2]
+    simp only [Array.toList_push, List.append_assoc, List.map_cons, List.singleton_append]
+    congr 2
+    refine List.map_congr_left (fun m' hm' => ?_)
+    have : ¬ m = m' := fun he => hnd.1 (he ▸ hm')
+    simp [Std.HashMap.getElem?_erase, this]
+
+/-- con-leche: ConLeche/Frontend/Olean/Levels.lean:124-153 headerFixpoint — the index of the
+loads, upstream's fold. -/
+theorem ofStateGo_index (fm : Std.HashMap NIdx LoadFlags) :
+    ∀ (ms : List NIdx) (i : Nat) (im : Std.HashMap NIdx (Array (ImportF NIdx)))
+      (fl : Array LoadFlags) (is : Array (Array (ImportF NIdx))) (ix : Std.HashMap NIdx Nat),
+      (HeaderLoads.ofStateGo fm ms i im fl is ix).2.2 =
+        (ms.foldl (fun (acc : Std.HashMap NIdx Nat × Nat) m => (acc.1.insert m acc.2, acc.2 + 1))
+          (ix, i)).1
+  | [], _, _, _, _, _ => by simp [HeaderLoads.ofStateGo]
+  | m :: ms, i, im, fl, is, ix => by
+    rw [HeaderLoads.ofStateGo, ofStateGo_index fm ms]
+    rfl
+
+/-- con-leche: ConLeche/Frontend/Olean/Levels.lean:124-153 headerFixpoint — the fixpoint's state
+as loads, related, its order without duplicates. -/
+theorem ofState_rel {st : EStore} (hw : NStoreWF st.ns) {x : LvState}
+    {xC : ConLeche.Frontend.Olean.LvState} (h : StRel st x xC) (hnd : xC.order.toList.Nodup) :
+    LoadsRel st (HeaderLoads.ofState x)
+      { order := xC.order, flags := xC.order.map fun m => (xC.flags[m]?).getD default,
+        imports := xC.order.map fun m => (xC.imports[m]?).getD #[],
+        index := xC.order.foldl (fun (acc : Std.HashMap ConLeche.Name Nat × Nat) m =>
+          (acc.1.insert m acc.2, acc.2 + 1)) ({}, 0) |>.1 } := by
+  have hnd' : x.order.toList.Nodup := (ListRel.nodup_iff_denoteN hw h.order).2 hnd
+  have hf := ofStateGo_flags x.flags x.order.toList 0 x.imports #[] #[] {}
+  have hi := ofStateGo_imports x.flags x.order.toList hnd' 0 x.imports #[] #[] {}
+  have hx := ofStateGo_index x.flags x.order.toList 0 x.imports #[] #[] {}
+  unfold HeaderLoads.ofState
+  generalize HeaderLoads.ofStateGo x.flags x.order.toList 0 x.imports #[] #[] {} = r at hf hi hx
+  obtain ⟨fl, is, ix⟩ := r
+  simp only [List.nil_append] at hf hi hx
+  refine ⟨h.order, ?_, ?_, ?_⟩
+  · apply Array.toList_inj.mp
+    simp only [hf, Array.toList_map]
+    exact listRel_map_eq (fun a b hab => by rw [h.flags.get_eq hw hab]) h.order
+  · simp only [hi, Array.toList_map]
+    refine ListRel.map_left (ListRel.map_right (ListRel.mono' (fun a b hab => ?_) h.order))
+    rcases optRel_cases (h.imports.get hw hab) with ⟨h1, h2⟩ | ⟨is, isC, h1, h2, h3⟩
+    · rw [h1, h2]; rfl
+    · rw [h1, h2]; exact h3
+  · intro a n hd
+    simp only [hx]
+    rw [← Array.foldl_toList]
+    exact indexFold_rel hw h.order _ _ _ (fun _ _ _ => by simp) a n hd
+
+/-- con-leche: ConLeche/Verify/Driver/Loads.lean:669 headerFixpoint_sound — **an accepting twin
+run of the header fixpoint is upstream's run on the snapshot, denoted**. -/
+theorem headerFixpoint_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {isM : Bool} {imps : Array (ImportF NIdx)} {impsC : Array ImportRec} {ld : HeaderLoads}
+    {s s' : AState} (hctx : Ctx pk s)
+    (hi : imps.toList.mapM (denoteImport s.store) = some impsC.toList)
+    (h : headerFixpoint (modelFs F) pk sp isM imps s = .ok (ld, s')) :
+    ParseStep s s' ∧ ∃ ldC, ModelIO.CanGive
+      (ConLeche.Frontend.Olean.headerFixpoint (ConLeche.Frontend.Olean.moduleImports sp) isM impsC :
+        ModelIO _) F (.ok ldC) ∧ LoadsRel s'.store ld ldC := by
+  unfold headerFixpoint at h
+  obtain ⟨x, s₁, h1, h2⟩ := AM.bind_ok h
+  obtain ⟨hv, hs⟩ := AM.pure_ok h2
+  subst hv hs
+  obtain ⟨hst, xC, hG, hR⟩ := levelsGo_run hsp _ _ _ _ _ {} hctx (ofImports_rel _ hi)
+    ⟨HMRel.empty _ _, SetRel.empty _, .nil, HMRel.empty _ _⟩ h1
+  have hC : ModelIO.CanGive
+      (ConLeche.Frontend.Olean.headerFixpoint (ConLeche.Frontend.Olean.moduleImports sp) isM impsC :
+        ModelIO _) F (.ok
+      { order := xC.order, flags := xC.order.map fun m => (xC.flags[m]?).getD default,
+        imports := xC.order.map fun m => (xC.imports[m]?).getD #[],
+        index := xC.order.foldl (fun (acc : Std.HashMap ConLeche.Name Nat × Nat) m =>
+          (acc.1.insert m acc.2, acc.2 + 1)) ({}, 0) |>.1 }) := by
+    unfold ConLeche.Frontend.Olean.headerFixpoint
+    dsimp only
+    refine (hG.bind ?_).canGive
+    exact ModelIO.gives_pure _ _
+  obtain ⟨-, -, hnd, -, -⟩ := ConLeche.Driver.headerFixpoint_sound hC
+  exact ⟨hst, _, hC, ofState_rel (nsWF_of_StateOK hst.ok) hR hnd⟩
+
+/-! ## The public-import closures -/
+
+/-- con-leche: ConLeche/Frontend/Olean/Levels.lean:179-193 pubClosures — **the twin's
+public-import closures are upstream's**, of loads read back. -/
+theorem pubClosures_eq {st : EStore} {ld : HeaderLoads} {ldC : ConLeche.Frontend.Olean.HeaderLoads}
+    (h : LoadsRel st ld ldC) :
+    ConRon.Arena.Frontend.Olean.pubClosures ld = ConLeche.Frontend.Olean.pubClosures ldC := by
+  have hn : ld.order.size = ldC.order.size := by
+    rw [← Array.length_toList, ← Array.length_toList]; exact h.order.length_eq
+  unfold ConRon.Arena.Frontend.Olean.pubClosures ConLeche.Frontend.Olean.pubClosures
+  dsimp only
+  rw [hn]
+  congr 1
+  funext acc i
+  congr 1
+  rw [← Array.getElem?_toList, ← Array.getElem?_toList]
+  rcases optRel_cases (listRel_getElem? h.imports i) with ⟨h1, h2⟩ | ⟨is, isC, h1, h2, h3⟩
+  · rw [h1, h2]; rfl
+  · rw [h1, h2, Option.getD_some, Option.getD_some, ← Array.foldl_toList, ← Array.foldl_toList]
+    refine listRel_foldl_eq (fun c a b hab => ?_) (listRel_of_mapM h3) _
+    obtain ⟨y, hy, rfl⟩ := denoteImport_eq hab
+    rw [h.index _ _ hy]
+    rfl
+
+/-! ## Upstream's facts, of the twin's loads -/
+
+/-- con-leche: ConLeche/Verify/Driver/Loads.lean:669 headerFixpoint_sound — **what the twin's
+header fixpoint loads**: its order without duplicates; each loaded handle denotes a module reached
+from the root's imports, at its position in the index, with the imports its header read answers. -/
+theorem headerFixpoint_run_sound {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {isM : Bool} {imps : Array (ImportF NIdx)} {impsC : Array ImportRec} {ld : HeaderLoads}
+    {s s' : AState} (hctx : Ctx pk s)
+    (hi : imps.toList.mapM (denoteImport s.store) = some impsC.toList)
+    (h : headerFixpoint (modelFs F) pk sp isM imps s = .ok (ld, s')) :
+    ld.order.toList.Nodup ∧ ∀ (k : Nat) (x : NIdx), ld.order[k]? = some x →
+      ∃ m, denoteN s'.store.ns x = some m ∧ ConLeche.Driver.ImpReach sp F impsC m ∧
+        ld.index[x]? = some k ∧ ∀ is, ld.imports[k]? = some is →
+          ∃ isC, ImpsD s'.store is isC ∧
+            ModelIO.CanGive (ConLeche.Frontend.Olean.moduleImports sp m) F (.ok isC) := by
+  obtain ⟨hst, ldC, hC, hL⟩ := headerFixpoint_run hsp hctx hi h
+  have hw := nsWF_of_StateOK hst.ok
+  obtain ⟨-, -, hnd, hk, -⟩ := ConLeche.Driver.headerFixpoint_sound hC
+  refine ⟨(ListRel.nodup_iff_denoteN hw hL.order).2 hnd, fun k x hx => ?_⟩
+  have ho := listRel_getElem? hL.order k
+  rw [Array.getElem?_toList, Array.getElem?_toList, hx] at ho
+  rcases optRel_cases ho with ⟨h1, -⟩ | ⟨_, m, h1, h2, h3⟩
+  · cases h1
+  · cases h1
+    obtain ⟨hr, hix, himp⟩ := hk k m h2
+    refine ⟨m, h3, hr, by rw [hL.index _ _ h3, hix], fun is his => ?_⟩
+    have hi' := listRel_getElem? hL.imports k
+    rw [Array.getElem?_toList, Array.getElem?_toList, his] at hi'
+    rcases optRel_cases hi' with ⟨h4, -⟩ | ⟨_, isC, h4, h5, h6⟩
+    · cases h4
+    · cases h4
+      exact ⟨isC, h6, himp isC h5⟩
+
+/-- con-leche: ConLeche/Verify/Driver/Loads.lean:711 headerFixpoint_complete — **the twin's header
+fixpoint loads every module a path of public imports leads to from one of the root's imports**. -/
+theorem headerFixpoint_run_complete {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {isM : Bool} {imps : Array (ImportF NIdx)} {impsC : Array ImportRec} {ld : HeaderLoads}
+    {s s' : AState} (hctx : Ctx pk s)
+    (hi : imps.toList.mapM (denoteImport s.store) = some impsC.toList)
+    (h : headerFixpoint (modelFs F) pk sp isM imps s = .ok (ld, s'))
+    {i : ImportRec} (hi0 : i ∈ impsC) {m : ConLeche.Name}
+    (hm : ConLeche.Driver.PubReach sp F i.module m) :
+    ∃ x ∈ ld.order, denoteN s'.store.ns x = some m := by
+  obtain ⟨-, ldC, hC, hL⟩ := headerFixpoint_run hsp hctx hi h
+  have hmC := ConLeche.Driver.headerFixpoint_complete hC hi0 hm
+  obtain ⟨x, hx, hd⟩ := listRel_memR' hL.order (Array.mem_toList_iff.2 hmC)
+  exact ⟨x, Array.mem_toList_iff.1 hx, hd⟩
+
 end ConRon.Bridge.Frontend.Olean
