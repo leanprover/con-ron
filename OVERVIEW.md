@@ -74,7 +74,7 @@ con-ron [OPTIONS] --olean --compare [--trusted-search-path=DIRS]
         --search-path=DIRS [--] CHALLENGE SOLUTION
 ```
 
-([the help text](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L87-L145)).
+([the help text](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L90-L172)).
 Run with no arguments, `con-ron` prints these forms; a usage error prints its
 message and a pointer to `--help`, and exits 3.
 

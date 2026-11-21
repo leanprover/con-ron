@@ -112,10 +112,7 @@
   1211      pub projs: Tbl<ProjNode, EIdx, u64>,
   1212  }
 
-== crates/con-ron/src/bin/con-ron.rs#L87-L145
-    87  // `--help` prints `con_ron_dump::ALLOCATOR` so a measurement can be
-    88  // reproduced.
-    89  
+== crates/con-ron/src/bin/con-ron.rs#L90-L172
     90  /// con-leche: ConLeche/Driver/Cli.lean:116-132 synopsis
     91  /// The invocation forms, printed on their own when there are no arguments.
     92  /// `--pins`/`--no-pins` are the port's own testing flags (`driver::pins_for_run`)
@@ -172,6 +169,33 @@
    143                        in both, record by record. Prints the justified axioms
    144  
    145  .olean input:
+   146    --olean             Read modules and their import closure from .olean files
+   147    --search-path=DIRS  Colon-separated .olean directories; repeatable
+   148    --constant=NAME     Check only NAME and what it mentions; repeatable
+   149    --compare           CHALLENGE SOLUTION: check the closure of the module
+   150                        SOLUTION, then the closure of CHALLENGE, its axioms
+   151                        justified by SOLUTION's as for lean4export input.
+   152                        Prints the justified axioms. With --constant=NAME
+   153                        (declarations of CHALLENGE itself), only NAME and
+   154                        what it reads
+   155    --trusted-search-path=DIRS
+   156                        With --compare: CHALLENGE and all it imports must be
+   157                        in DIRS, and are read from there only; SOLUTION's
+   158                        modules from DIRS first, then --search-path.
+   159                        Colon-separated; repeatable
+   160  
+   161  con-leche's other modes, not run by con-ron yet (a usage error, exit 3):
+   162    --check-graph, --module, --modular, --schedule[-OPT=V],
+   163    --worker-stack-size=SIZE, and --compare with any of them
+   164  
+   165  Exit status:
+   166    0  accepted
+   167    1  rejected: a declaration is invalid
+   168    2  declined: an unsupported feature
+   169    3  error: bad usage, malformed input or an internal failure
+   170  
+   171  Documentation:
+   172    README.md and OVERVIEW.md of the con-ron repository";
 
 == crates/con-ron/src/driver.rs#L18-L23
     18  //! | exit | verdict | meaning |
