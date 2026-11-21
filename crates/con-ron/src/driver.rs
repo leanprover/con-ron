@@ -643,7 +643,7 @@ where
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:120-134 oleanJobRun
-/// Lean twin: `proof/ConRon/Arena/OleanJobs.lean:27-63 oleanJob`; Theorem 2 reads this
+/// Lean twin: `proof/ConRon/Arena/OleanJobs.lean:28-64 oleanJob`; Theorem 2 reads this
 /// function as `Refine2/Checker/OleanPool.lean`'s `oleanJobStep`.  Upstream's
 /// `sp : Roots` (the closure's resolved roots) is the lookup without its map here
 /// (`files::find_module`'s note), and its jobs' `justify` the flat path's `none`.

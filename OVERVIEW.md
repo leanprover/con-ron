@@ -284,15 +284,20 @@ theorem ConRon.Capstone.no_False_oleans (V : Type w) [ConLeche.SetTheory V]
     (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
     (hroots : InternRoots emptyTier st2 names roots.val stR)
     (hsnap : SnapshotOf finst fsv F)
-    (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store dirs roots none
-      = ok (.Ok rd, store3))
+    (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store
+      ⟨dirs, alloc.vec.Vec.new _⟩ roots none false false = ok (.Ok rd, store3))
     (h4 : frontend.prepare.prepare_d OleanRead.Insts… emptyTier { stR with store := store3 } pre
       rd.decls rd = ok (.Ok prepared, st4))
     …
     (h8 : ParallelAll prepared.decls.length (oleanWorkerInit st6.pins)
-      (oleanJobStep finst fsv tier .Verified ipins prepared.decls rd.pins rd.values dirs)) :
+      (oleanJobStep finst fsv tier .Verified ipins prepared.decls rd.pins rd.values
+        ⟨dirs, alloc.vec.Vec.new _⟩)) :
     False
 ```
+
+The read is the flat one: the search path `dirs` with no fallback
+(`⟨dirs, alloc.vec.Vec.new _⟩`, a `files::Roots`), and neither `lenient` nor
+`homes`, the two flags only a compared run sets.
 
 In words: if, in the files `F`, a module of the roots' import closure holds a
 theorem whose type is `False`, then the binary's calls cannot all succeed.
