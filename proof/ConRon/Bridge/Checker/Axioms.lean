@@ -350,7 +350,7 @@ namespace ConRon.Bridge
 #print axioms natLitSupported_run
 #print axioms natOpDepsStored_run
 #print axioms natOpGuard_run
-#print axioms natOpStoredOkAll_run
+#print axioms natOpStoredOk_runR
 #print axioms natOpEqs_wscoped
 #print axioms reduceDeclPin_run
 #print axioms reduceCertVar_run

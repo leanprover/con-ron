@@ -80,7 +80,7 @@ theorem checkDecl_thm_pure {μ : CheckMode} {F : Nat}
 `.opaqueDecl` arm) with the compiler-trust gate NOT taken. -/
 theorem checkDecl_opaque_pure {μ : CheckMode} {F : Nat}
     {pinsP : List NatOpPinSet} {env env2 : Env} {c : ConstantVal} {x : Expr}
-    (h1 : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok ())
+    (h1 : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c false true = .ok ())
     (h2 : ConLeche.checkOpaqueVal (ConLeche.fueledOps μ F) env c x = .ok env2)
     (h3 : ConLeche.reduceOpNames.contains c.name = false) :
     ConLeche.checkDeclKind (ConLeche.fueledOps μ F) pinsP env (.opaqueDecl c x)
@@ -92,7 +92,7 @@ theorem checkDecl_opaque_pure {μ : CheckMode} {F : Nat}
 `.opaqueDecl` arm) with the compiler-trust gate TAKEN. -/
 theorem checkDecl_opaque_pin_pure {μ : CheckMode} {F : Nat}
     {pinsP : List NatOpPinSet} {env env2 : Env} {c : ConstantVal} {x : Expr}
-    (h1 : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok ())
+    (h1 : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c false true = .ok ())
     (h2 : ConLeche.checkOpaqueVal (ConLeche.fueledOps μ F) env c x = .ok env2)
     (h3 : ConLeche.reduceOpNames.contains c.name = true)
     (h4 : ConLeche.checkReducePin (ConLeche.fueledOps μ F) env env2 c.name x
@@ -109,8 +109,7 @@ theorem checkDecl_defn_pure {F : Nat} {pinsP : List NatOpPinSet} {env env2 : Env
     (h1 : ConLeche.checkConstantVal (ConLeche.fueledOps .verified F) env c true = .ok ())
     (h2 : ConLeche.checkDefnVal (ConLeche.fueledOps .verified F) env c x hint = .ok env2)
     (h3 : ConLeche.natOpNames.contains c.name = true →
-      (ConLeche.natOpGuard env2 c.name &&
-        (ConLeche.natOpDeps c.name).all (ConLeche.natOpStoredOk env2)) = true ∧
+      (ConLeche.natOpGuard env2 c.name && ConLeche.natOpStoredOk env2 c.name) = true ∧
       ∃ cv' v' hint', env2.find? c.name = some (.defnInfo cv' v' hint') ∧
         ConLeche.certifyNatEqs (ConLeche.fueledOps .verified F) env
           ((ConLeche.natOpEquations 0 c.name).map fun eq =>
@@ -132,20 +131,6 @@ theorem checkDecl_defn_pure {F : Nat} {pinsP : List NatOpPinSet} {env env2 : Env
     simp only [ConLeche.checkDeclKind, h1, h2, hn, hd, hg, hf, hc, h4 hd, bind, Except.bind,
       ite_true, pure, Except.pure]
 
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:72-73 reduceOpNames. -/
-theorem reduceOpNames_run {s s' : AState} {ns : List NIdx} (hp : PinsOK s)
-    (hr : reduceOpNames s = .ok (ns, s')) :
-    s' = s ∧ denoteNL s.store ns ConLeche.reduceOpNames := by
-  simp only [Arena.reduceOpNames] at hr
-  obtain ⟨h1, t1, g1, r1⟩ := AM.bind_ok hr
-  obtain ⟨e1, d1⟩ := pinAt_run (x := ConLeche.reduceNatName) hp rfl g1
-  rw [e1] at r1
-  obtain ⟨h2, t2, g2, r2⟩ := AM.bind_ok r1
-  obtain ⟨e2, d2⟩ := pinAt_run (x := ConLeche.reduceBoolName) hp rfl g2
-  rw [e2] at r2
-  obtain ⟨rfl, rfl⟩ := AM.pure_ok r2
-  exact ⟨rfl, d1, d2, trivial⟩
-
 /-! ### The `.axiomDecl` arm's six exits -/
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind — the
@@ -164,7 +149,7 @@ axiom, installed. -/
 theorem checkDecl_axiom_std_pure {μ : CheckMode} {F : Nat}
     {pinsP : List NatOpPinSet} {env : Env} {c : ConstantVal}
     (hnm : ¬ (c.name = ConLeche.quotSoundName))
-    (h1 : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok ())
+    (h1 : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c false false true = .ok ())
     (h2 : ConLeche.stdAxiomOk env c = true) :
     ConLeche.checkDeclKind (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
       = .ok ⟨.axiomInfo c :: env.consts, env.tables⟩ := by
@@ -176,7 +161,7 @@ theorem checkDecl_axiom_std_pure {μ : CheckMode} {F : Nat}
 theorem checkDecl_axiom_trust_pure {μ : CheckMode} {F : Nat}
     {pinsP : List NatOpPinSet} {env : Env} {c : ConstantVal}
     (hnm : ¬ (c.name = ConLeche.quotSoundName))
-    (h1 : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok ())
+    (h1 : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c false false true = .ok ())
     (h2 : ConLeche.stdAxiomOk env c = false)
     (h3 : c.name = ConLeche.trustCompilerName)
     (h4 : ConLeche.trustCompilerOk env c = true) :
@@ -191,7 +176,7 @@ theorem checkDecl_axiom_trust_pure {μ : CheckMode} {F : Nat}
 theorem checkDecl_axiom_ofReduce_pure {μ : CheckMode} {F : Nat}
     {pinsP : List NatOpPinSet} {env : Env} {c : ConstantVal}
     (hnm : ¬ (c.name = ConLeche.quotSoundName))
-    (h1 : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok ())
+    (h1 : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c false false true = .ok ())
     (h2 : ConLeche.stdAxiomOk env c = false)
     (h3 : ¬ (c.name = ConLeche.trustCompilerName))
     (h4 : c.name = ConLeche.ofReduceNatName ∨
@@ -209,7 +194,7 @@ nothing. -/
 theorem checkDecl_axiom_sorryAx_pure {μ : CheckMode} {F : Nat}
     {pinsP : List NatOpPinSet} {env : Env} {c : ConstantVal}
     (hnm : ¬ (c.name = ConLeche.quotSoundName))
-    (h1 : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok ())
+    (h1 : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c false false true = .ok ())
     (h2 : ConLeche.stdAxiomOk env c = false)
     (h3 : ¬ (c.name = ConLeche.trustCompilerName))
     (h4 : ¬ (c.name = ConLeche.ofReduceNatName ∨
@@ -348,8 +333,7 @@ theorem checkDeclKind_bridge_defn
       ConRon.Bridge.IFEnv.SameView fe3 fe →
       (ConLeche.natOpNames.contains c.name = true →
         (ConLeche.natOpGuard ⟨.defnInfo c x hint :: env.consts, env.tables⟩ c.name &&
-          (ConLeche.natOpDeps c.name).all
-            (ConLeche.natOpStoredOk ⟨.defnInfo c x hint :: env.consts, env.tables⟩)) = true ∧
+          ConLeche.natOpStoredOk ⟨.defnInfo c x hint :: env.consts, env.tables⟩ c.name) = true ∧
         ∃ cv' v' hint', (⟨.defnInfo c x hint :: env.consts, env.tables⟩ : Env).find? c.name =
             some (.defnInfo cv' v' hint') ∧
           ConLeche.certifyNatEqs (ConLeche.fueledOps .verified Fa) env
@@ -379,8 +363,7 @@ theorem checkDeclKind_bridge_defn
     have hp4 : s4.pins = s.pins := by rw [hstep4.pins, hstep2.pins, hstep1.pins]
     have hGF : ∀ F, max (max F1 F2) Fa ≤ F → ConLeche.natOpNames.contains c.name = true →
         (ConLeche.natOpGuard ⟨.defnInfo c x hint :: env.consts, env.tables⟩ c.name &&
-          (ConLeche.natOpDeps c.name).all
-            (ConLeche.natOpStoredOk ⟨.defnInfo c x hint :: env.consts, env.tables⟩)) = true ∧
+          ConLeche.natOpStoredOk ⟨.defnInfo c x hint :: env.consts, env.tables⟩ c.name) = true ∧
         ∃ cv' v' hint', (⟨.defnInfo c x hint :: env.consts, env.tables⟩ : Env).find? c.name =
             some (.defnInfo cv' v' hint') ∧
           ConLeche.certifyNatEqs (ConLeche.fueledOps .verified F) env

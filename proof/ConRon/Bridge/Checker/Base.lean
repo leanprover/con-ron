@@ -224,6 +224,20 @@ end Walks
 
 /-! ## The per-declaration constant check -/
 
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:70-71 reduceOpNames. -/
+theorem reduceOpNames_run {s s' : AState} {ns : List NIdx} (hp : PinsOK s)
+    (hr : reduceOpNames s = .ok (ns, s')) :
+    s' = s ∧ denoteNL s.store ns ConLeche.reduceOpNames := by
+  simp only [Arena.reduceOpNames] at hr
+  obtain ⟨h1, t1, g1, r1⟩ := AM.bind_ok hr
+  obtain ⟨e1, d1⟩ := pinAt_run (x := ConLeche.reduceNatName) hp rfl g1
+  rw [e1] at r1
+  obtain ⟨h2, t2, g2, r2⟩ := AM.bind_ok r1
+  obtain ⟨e2, d2⟩ := pinAt_run (x := ConLeche.reduceBoolName) hp rfl g2
+  rw [e2] at r2
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok r2
+  exact ⟨rfl, d1, d2, trivial⟩
+
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:95-119 checkConstantVal —
 **THE declaration front door**, and what every arm of
 `Bridge/Checker/Decl.lean` bottoms out in: the seven guards, the inference of
@@ -247,9 +261,11 @@ Inductives tier: the inductive routes call it at an index that already holds
 a scratch constant, where `FoldOK`'s `PersIFEnv` is false, and the proof
 does not read `PersIFEnv`.  The arms use `checkConstantVal_bridge_of_fold`. -/
 theorem checkConstantVal_pure {μ : CheckMode} {F : Nat} {env : Env}
-    {c : ConstantVal} {a : Bool} {sty : Expr} {u : Level}
+    {c : ConstantVal} {a ar aq : Bool} {sty : Expr} {u : Level}
     (h1 : env.find? c.name = none)
     (h3 : (ConLeche.natOpName c.name && !a) = false)
+    (h3r : (ConLeche.reduceOpNames.contains c.name && !ar) = false)
+    (h3q : (ConLeche.sorryAxNameAt c.name && !aq) = false)
     (h3s : ConLeche.litShapeOk (.axiomInfo c) = true)
     (h4 : ConLeche.Name.nodup c.levelParams = true)
     (h5 : c.type.looseBVarsBounded 0 = true)
@@ -258,8 +274,8 @@ theorem checkConstantVal_pure {μ : CheckMode} {F : Nat} {env : Env}
     (h9 : c.type.constsResolve env = true)
     (h10 : ConLeche.inferTypeCore μ false env F 0 c.type = .ok sty)
     (h11 : ConLeche.ensureSortCore μ false env F 0 sty = .ok u) :
-    ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c a = .ok () := by
-  simp only [ConLeche.checkConstantVal, ConLeche.fueledOps, h1, h3, h3s, h4, h5,
+    ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c a ar aq = .ok () := by
+  simp only [ConLeche.checkConstantVal, ConLeche.fueledOps, h1, h3, h3r, h3q, h3s, h4, h5,
     h6, h8, h9, h10, h11, Option.isSome_none, Bool.false_eq_true, ite_false,
     ite_true, bind, Except.bind, pure, Except.pure]
 
@@ -267,10 +283,11 @@ theorem checkConstantVal_bridge {env : Env}
     {fe : IFEnv} {cv : IConstantVal} {c : ConstantVal} {s s' : AState}
     (hk : CoreSpec Arena.checkFuel)
     (hck0 : CheckOK false env fe s) (henv : EnvWF env)
-    (hcv : Frontend.denoteCV s.store cv = some c) {allowOp : Bool}
-    (hrun : checkConstantVal .verified fe cv allowOp s = .ok ((), s')) :
+    (hcv : Frontend.denoteCV s.store cv = some c) {allowOp allowReduce allowSorry : Bool}
+    (hrun : checkConstantVal .verified fe cv allowOp allowReduce allowSorry s = .ok ((), s')) :
     CoreStep env fe s s' ∧ ∃ F,
-      ConLeche.checkConstantVal (ConLeche.fueledOps .verified F) env c allowOp = .ok () := by
+      ConLeche.checkConstantVal (ConLeche.fueledOps .verified F) env c allowOp allowReduce
+        allowSorry = .ok () := by
   obtain ⟨hnm, hlps, hty⟩ := denoteCV_inv hcv
   have hknot := hk.knot env fe henv
   have hsortS := hk.sort env fe henv
@@ -303,7 +320,42 @@ theorem checkConstantVal_bridge {env : Env}
     cases hb : (bo && !allowOp) with
     | false => rfl
     | true => rw [hb] at hop; exact absurd rfl hop
-  -- 2b. the literal-shape guard, at the record as an axiom
+  -- 2b. the compiler-trust-name guard: two pin reads move nothing
+  obtain ⟨rs, sR, gR, rR⟩ := AM.bind_ok rO2
+  obtain ⟨hsR, hrs⟩ := reduceOpNames_run hck1.pins gR
+  subst sR
+  obtain ⟨hred, rR2⟩ := AM.dguard_ok AM.Never.fail_any rR
+  replace rR2 := AM.pure_bind_ok rR2
+  have hredP : (ConLeche.reduceOpNames.contains c.name && !allowReduce) = false := by
+    rw [← denoteNList_contains hck1.state.wf rs ConLeche.reduceOpNames
+      (denoteNL_toList rs ConLeche.reduceOpNames hrs) cv.name c.name hnm1]
+    cases hb : (rs.contains cv.name && !allowReduce) with
+    | false => rfl
+    | true => rw [hb] at hred; exact absurd rfl hred
+  -- 2c. the tolerated-axiom-name guard
+  obtain ⟨sa, sQ, gQ, rQ⟩ := AM.bind_ok rR2
+  obtain ⟨hsQ, hsa⟩ := pinAt_run (x := ConLeche.sorryAxName) hck1.pins rfl gQ
+  subst sQ
+  obtain ⟨hsor, rO2⟩ := AM.dguard_ok AM.Never.fail_any rQ
+  replace rO2 := AM.pure_bind_ok rO2
+  have hsorP : (ConLeche.sorryAxNameAt c.name && !allowSorry) = false := by
+    have hiff := beq_handle_iff hck1.state.wf hnm1 hsa
+    cases hb : ((cv.name == sa) && !allowSorry) with
+    | true => rw [hb] at hsor; exact absurd rfl hsor
+    | false =>
+      simp only [ConLeche.sorryAxNameAt]
+      cases hq : (cv.name == sa) with
+      | true =>
+        rw [hq, Bool.true_and] at hb
+        rw [show (c.name == ConLeche.sorryAxName) = true from beq_iff_eq.mpr (hiff.mp hq),
+          Bool.true_and, hb]
+      | false =>
+        have : (c.name == ConLeche.sorryAxName) = false := by
+          cases h : (c.name == ConLeche.sorryAxName) with
+          | false => rfl
+          | true => rw [hiff.mpr (beq_iff_eq.mp h)] at hq; exact absurd hq (by simp)
+        rw [this, Bool.false_and]
+  -- 2d. the literal-shape guard, at the record as an axiom
   have hciA : Frontend.denoteCI s.store (.axiomInfo cv) = some (.axiomInfo c) := by
     simp only [Frontend.denoteCI, hcv, Option.map_some]
   obtain ⟨bl, s2, gL, rL⟩ := AM.bind_ok rO2
@@ -418,7 +470,7 @@ theorem checkConstantVal_bridge {env : Env}
   have hle10 : F10 ≤ max F10 F11 := Nat.le_max_left F10 F11
   have hle11 : F11 ≤ max F10 F11 := Nat.le_max_right F10 F11
   refine ⟨⟨hck11, hext, hpins⟩, max F10 F11, ?_⟩
-  exact checkConstantVal_pure hfindP hopP hshapeP hnodP hlbbP hfvP
+  exact checkConstantVal_pure hfindP hopP hredP hsorP hshapeP hnodP hlbbP hfvP
     hlpdP hcrP
     (ConLeche.inferTypeCore_mono hle10 hF10)
     (ConLeche.ensureSortCore_mono hle11 hF11)
@@ -430,20 +482,21 @@ theorem checkConstantVal_bridge_of_fold {env : Env}
     {fe : IFEnv} {cv : IConstantVal} {c : ConstantVal} {s s' : AState}
     (hk : CoreSpec Arena.checkFuel)
     (hok : FoldOK env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
-    {allowOp : Bool}
-    (hrun : checkConstantVal .verified fe cv allowOp s = .ok ((), s')) :
+    {allowOp allowReduce allowSorry : Bool}
+    (hrun : checkConstantVal .verified fe cv allowOp allowReduce allowSorry s = .ok ((), s')) :
     CoreStep env fe s s' ∧ ∃ F,
-      ConLeche.checkConstantVal (ConLeche.fueledOps .verified F) env c allowOp = .ok () :=
+      ConLeche.checkConstantVal (ConLeche.fueledOps .verified F) env c allowOp allowReduce
+        allowSorry = .ok () :=
   checkConstantVal_bridge hk hok.check hok.envWF hcv hrun
 
 /-- con-leche: ConLeche/Verify/BridgeDecl.lean:279 checkConstantVal_datF —
 one fuel for the front door, through con-leche's own monotone family. -/
 theorem checkConstantVal_mono {μ : CheckMode} {env : Env} {c : ConstantVal}
-    {a : Bool} {F F' : Nat} (hle : F ≤ F')
-    (h : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c a = .ok ()) :
-    ConLeche.checkConstantVal (ConLeche.fueledOps μ F') env c a = .ok () := by
+    {a ar aq : Bool} {F F' : Nat} (hle : F ≤ F')
+    (h : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c a ar aq = .ok ()) :
+    ConLeche.checkConstantVal (ConLeche.fueledOps μ F') env c a ar aq = .ok () := by
   rw [← ConLeche.checkConstantVal_datF (mode := μ)] at h ⊢
-  exact (ConLeche.checkConstantVal (ConLeche.fueledOpsM μ) env c a).property hle h
+  exact (ConLeche.checkConstantVal (ConLeche.fueledOpsM μ) env c a ar aq).property hle h
 
 /-! ## A list inversion -/
 

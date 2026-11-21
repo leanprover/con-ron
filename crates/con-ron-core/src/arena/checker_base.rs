@@ -38,7 +38,7 @@ use crate::arena::core::{
     M_UNKNOWN_CONST,
 };
 use crate::arena::core_state::take_walk_memo;
-use crate::arena::env::{i_constant_val_dup, ifenv_find, IConstantInfo, IConstantVal, IFEnv};
+use crate::arena::env::{i_constant_val_dup, ifenv_find, nidx_vec_contains, IConstantInfo, IConstantVal, IFEnv};
 use crate::arena::expr_ops::{fvar_type_d, has_fvar_fast, loose_bvars_bounded_fast};
 use crate::arena::handle::{EIdx, NIdx};
 use crate::arena::monad::{AState, fail, read_level, read_levels, read_names, view};
@@ -752,7 +752,7 @@ pub fn check_constant_val_reserved(
     match reduce_op_names(st) {
         Err(e) => Err(e),
         Ok(rs) => {
-            if nidx_contains_from(&rs, 0, &cv.name) && !allow_reduce {
+            if nidx_vec_contains(&rs, &cv.name) && !allow_reduce {
                 fail(CheckError::Invalid(code_points(&M_REDUCE_NAME)))
             } else {
                 match pin_sorry_ax(st) {

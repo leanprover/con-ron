@@ -689,6 +689,15 @@ theorem reduce_op_names_refines {pers st lst} {o}
   simp only [absNIdxL, hv, List.map_cons, List.map_nil]
   rfl
 
+open Lockstep in
+@[lockstep] theorem reduce_op_names_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdxL a)
+      (arena.trust_axioms.reduce_op_names st) lst
+      (reduceOpNames) :=
+  LS.ofSim₀ fun _ h => reduce_op_names_refines hrel hinv h
+
 /-- `of_reduce_op` ⊑ `ofReduceOp` — the reduce operation an `ofReduce*` axiom speaks about; con-leche's name test is a handle comparison here. -/
 theorem of_reduce_op_refines {pers st lst} {n : arena.handle.NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)

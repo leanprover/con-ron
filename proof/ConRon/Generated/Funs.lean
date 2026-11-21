@@ -39301,7 +39301,7 @@ def arena.checker_base.check_constant_val_reserved
   let (r, st1) ← arena.trust_axioms.reduce_op_names st
   match r with
   | core.result.Result.Ok rs =>
-    let b ← arena.checker_base.nidx_contains_from rs 0#usize cv.name
+    let b ← arena.env.nidx_vec_contains rs cv.name
     if b
     then
       if allow_reduce
