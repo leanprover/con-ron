@@ -1247,6 +1247,115 @@ theorem reach_read_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
   rw [am_bind_ok hx6]
   exact ⟨_, lst6, rfl, hL1, hc3.with_partners hA6, hrel6, hinv6⟩
 
+theorem fuel_pred {fuel fuel1 : Std.U64} (hf : ¬ fuel = 0#u64) (h : fuel - 1#u64 = ok fuel1) :
+    fuel.val = fuel1.val + 1 := by
+  have hv := ConRon.Refine.HashMap.uscalar_sub_eq h
+  have l1 : (1#u64 : Std.U64).val = 1 := by decide
+  rw [l1] at hv
+  have : fuel.val ≠ 0 := fun e => hf (UScalar.eq_of_val_eq (by simpa using e))
+  omega
+
+/-- **`reach_go`'s loop is `reachGo`**, at the twin's fuel the Rust's. -/
+theorem reach_go_loop_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
+    (he : ReachEnvRel env wr own E) (fuel : Std.U64) (st : arena.monad.AState) (lst : AState)
+    (l : frontend.modular.reach.ReachLog) (L : Modular.ReachLog) (hl : ReachLogRel l L)
+    (c : frontend.modular.reach.ReachCache) (C : Modular.ReachCache) (hc : ReachCacheRel c C) :
+    ACL pers st lst (reach_go_loop inst fsv pk pers st sp wr own env l c fuel)
+      (Modular.reachGo fs (absPins pk) (absRoots sp) E fuel.val L C) := by
+  intro hrel hinv st' l' c' hr
+  rw [reach_go_loop] at hr
+  rw [Modular.reachGo.eq_def]
+  dsimp only
+  by_cases hsp : l.sp > 0#usize
+  · rw [ite_eq_left hsp] at hr
+    by_cases hf : fuel = 0#u64
+    · rw [ite_eq_left hf] at hr; err_peel hr
+    rw [ite_eq_right hf] at hr
+    peel hr as fuel1, hfuel1
+    have hfv := fuel_pred hf hfuel1
+    have hsp0 : ¬ l.sp = 0#usize := by
+      intro e; rw [e] at hsp; exact absurd hsp (by decide)
+    rw [ite_eq_right hsp0] at hr
+    peel hr as i, hi
+    obtain ⟨hlt, rest, hL, hrest⟩ := hl.stack.pop hsp hi
+    peel hr as n, hn
+    obtain ⟨_, rfl⟩ := vec_index_eq hn
+    simp only [nidx_dup2_eq, Aeneas.Std.bind_ok] at hr
+    peel hr as q, hq
+    obtain ⟨r, st1, l1, c1⟩ := q
+    cases r with
+    | Err e => cases Result.ok_injective hr
+    | Ok u =>
+    have hl' : ReachLogRel { l with sp := i } { L with stack := rest } :=
+      ⟨hl.seen, hl.stored, hl.ctx, hl.homes, hl.reads, hrest⟩
+    obtain ⟨⟨L1, C1⟩, lst1, hx1, hl1, hc1, hrel1, hinv1⟩ :=
+      reach_read_ok hP he hl' hc _ hrel hinv st1 l1 c1 hq
+    obtain ⟨b2, lst2, hx2, hl2, hc2, hrel2, hinv2⟩ :=
+      reach_go_loop_ok hP he fuel1 st1 lst1 l1 L1 hl1 c1 C1 hc1 hrel1 hinv1 st' l' c' hr
+    refine ⟨b2, lst2, ?_, hl2, hc2, hrel2, hinv2⟩
+    rw [hL, hfv]
+    dsimp only
+    rw [am_bind_ok hx1]
+    exact hx2
+  · rw [ite_eq_right hsp] at hr
+    rw [hl.stack.nil_of_zero hsp]
+    dsimp only
+    have hlen : C.partners.size = c.partners.val.length := by
+      rw [← Array.length_toList, ← hc.partners, List.length_map]
+    by_cases hp : alloc.vec.Vec.len c.partners > 0#usize
+    · rw [ite_eq_left hp] at hr
+      have hne : C.partners.isEmpty = false := by
+        have : (0#usize : Std.Usize).val < (alloc.vec.Vec.len c.partners).val := hp
+        rw [vec_len_val] at this
+        have h0 : (0#usize : Std.Usize).val = 0 := by decide
+        rw [Bool.eq_false_iff, ne_eq, Array.isEmpty_iff_size_eq_zero]; omega
+      simp only [hne, Bool.false_eq_true, ↓reduceIte]
+      by_cases hf : fuel = 0#u64
+      · rw [ite_eq_left hf] at hr; err_peel hr
+      rw [ite_eq_right hf] at hr
+      peel hr as fuel1, hfuel1
+      have hfv := fuel_pred hf hfuel1
+      have hsp0 : l.sp = 0#usize := by
+        have : ¬ (0#usize : Std.Usize).val < l.sp.val := hsp
+        apply UScalar.eq_of_val_eq; simp at this ⊢; omega
+      rw [ite_eq_left hsp0] at hr
+      peel hr as q, hq
+      obtain ⟨r, st1, l1, c1⟩ := q
+      cases r with
+      | Err e => cases Result.ok_injective hr
+      | Ok u =>
+      obtain ⟨⟨L1, C1⟩, lst1, hx1, hl1, hc1, hrel1, hinv1⟩ :=
+        reach_partners_ok hP he hl hc hrel hinv st1 l1 c1 hq
+      obtain ⟨b2, lst2, hx2, hl2, hc2, hrel2, hinv2⟩ :=
+        reach_go_loop_ok hP he fuel1 st1 lst1 l1 L1 hl1 c1 C1 hc1 hrel1 hinv1 st' l' c' hr
+      refine ⟨b2, lst2, ?_, hl2, hc2, hrel2, hinv2⟩
+      rw [hfv]
+      dsimp only
+      rw [am_bind_ok hx1]
+      exact hx2
+    · rw [ite_eq_right hp] at hr
+      have e := Result.ok_injective hr
+      simp only [Prod.mk.injEq] at e
+      obtain ⟨-, rfl, rfl, rfl⟩ := e
+      have he' : C.partners.isEmpty = true := by
+        have : ¬ (0#usize : Std.Usize).val < (alloc.vec.Vec.len c.partners).val := hp
+        rw [vec_len_val] at this
+        have h0 : (0#usize : Std.Usize).val = 0 := by decide
+        rw [Array.isEmpty_iff_size_eq_zero]; omega
+      simp only [he', ↓reduceIte]
+      exact ⟨(L, C), lst, rfl, hl, hc, hrel, hinv⟩
+termination_by fuel.val
+decreasing_by all_goals omega
+
+/-- **`reach_go` is `reachGo`.** -/
+theorem reach_go_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
+    (he : ReachEnvRel env wr own E) {st lst} {l : frontend.modular.reach.ReachLog} {L : Modular.ReachLog}
+    (hl : ReachLogRel l L) {c : frontend.modular.reach.ReachCache} {C : Modular.ReachCache}
+    (hc : ReachCacheRel c C) (fuel : Std.U64) :
+    ACL pers st lst (reach_go inst fsv pk pers st sp wr own env l c fuel)
+      (Modular.reachGo fs (absPins pk) (absRoots sp) E fuel.val L C) :=
+  reach_go_loop_ok hP he fuel st lst l L hl c C hc
+
 end reads
 
 end ConRon.Refine2.Modular
