@@ -301,4 +301,121 @@ theorem reachRead_run (hRR : ReadRecordHyp) {pk : OleanPins} {F : FS} {sp : Root
     simp only
     exact hR
 
+theorem listRel_map_snd {st : EStore} :
+    ∀ {ps : List (NIdx × NIdx)} {psC : List (ConLeche.Name × ConLeche.Name)},
+      ListRel (NN st) ps psC → ListRel (NR st) (ps.map (·.2)) (psC.map (·.2))
+  | [], [], .nil => .nil
+  | _ :: _, _ :: _, .cons h t => .cons h.2 (listRel_map_snd t)
+
+theorem listRel_length {α β : Type} {R : α → β → Prop} :
+    ∀ {l : List α} {l' : List β}, ListRel R l l' → l.length = l'.length
+  | [], [], .nil => rfl
+  | _ :: _, _ :: _, .cons _ t => by simp [listRel_length t]
+
+/-- con-leche: ConLeche/Driver/Reach.lean:791-800 reachGo — **the worklist's step at an empty
+stack, at the twin** (`reachPartners`): upstream's step answers whatever its run from the related
+log and caches after the step answers. -/
+theorem reachPartners_run {pk : OleanPins} {F : FS} {sp : Roots}
+    (hsp : sp.bare = sp) {env : ConRon.Arena.Modular.ReachEnv}
+    {envC : ConLeche.Driver.ReachEnv ModelIO} {L L' : ConRon.Arena.Modular.ReachLog}
+    {LC : ConLeche.Driver.ReachLog} {c c' : ConRon.Arena.Modular.ReachCache}
+    {cC : ConLeche.Driver.ReachCache} {s s' : AState}
+    (hctx : RCtx pk s) (he : EnvRel sp s.store env envC) (hc : CacheRel s.store c cC)
+    (hL : ReachLogRel s.store L LC) (hst : LC.stack = []) (hne : cC.partners.isEmpty = false)
+    (h : ConRon.Arena.Modular.reachPartners (modelFs F) pk sp env L c s = .ok ((L', c'), s')) :
+    DStep s s' ∧ L'.ctx = L.ctx ∧ ∃ LC' cC', ReachLogRel s'.store L' LC' ∧
+      CacheRel s'.store c' cC' ∧ ∀ (fuel : Nat) (R : Except ConLeche.CheckError
+        (ConLeche.Driver.ReachLog × ConLeche.Driver.ReachCache)),
+        ModelIO.Gives (ConLeche.Driver.reachGo envC fuel LC' cC') F R →
+        ModelIO.Gives (ConLeche.Driver.reachGo envC (fuel + 1) LC cC) F R := by
+  unfold ConRon.Arena.Modular.reachPartners at h
+  obtain ⟨c₁, s₁, h1, h⟩ := AM.bind_ok h
+  have hps : ListRel (NN s.store) c.partners.toList cC.partners.toList := hc.partners
+  obtain ⟨hst1, cC₁, hg1, hc1⟩ := capturePairs_run hsp c.partners.toList hctx he
+    (hc.withPartners (p := #[]) (pC := #[]) .nil) hps h1
+  obtain ⟨hv, rfl⟩ := AM.pure_ok h
+  cases hv
+  have hw1 := (hctx.step hst1).wf
+  obtain ⟨h1', h2'⟩ := pushNames_rel hw1 (listRel_map_snd (ListRel.mono' (fun _ _ h => h.ext hst1.ext) hps))
+    (hL.seen.ext hst1.ext) .nil
+  refine ⟨hst1, rfl, ConLeche.Driver.ReachLog.mk
+      (ConLeche.Driver.pushNames LC.seen [] (cC.partners.toList.map (·.2))).1 LC.stored LC.ctx
+      LC.homes LC.reads (ConLeche.Driver.pushNames LC.seen [] (cC.partners.toList.map (·.2))).2, cC₁,
+    ⟨h1', hL.stored.ext hst1.ext, denoteDecls_ext hst1.ext _ _ hL.ctx,
+      ListRel.mono' (fun _ _ h => denoteN_ext h hst1.ext) hL.homes,
+      ListRel.mono' (fun _ _ h => ListRel.mono' (fun _ _ h => denoteN_ext h hst1.ext) h) hL.reads, h2'⟩,
+    hc1, fun fuel R hR => ?_⟩
+  rw [ConLeche.Driver.reachGo]
+  simp only [hst, hne, Bool.false_eq_true, ↓reduceIte]
+  refine hg1.bind ?_
+  simp only
+  exact hR
+
+/-- con-leche: ConLeche/Driver/Reach.lean:788-826 reachGo — **the worklist at the twin is
+upstream's**: an accepting twin run at fuel `fuel`, from related logs and caches, gives upstream's
+run, at any fuel at least the twin's, accepting with the related log and caches. -/
+theorem reachGo_run (hRR : ReadRecordHyp) {pk : OleanPins} {F : FS} {sp : Roots}
+    (hsp : sp.bare = sp) {env : ConRon.Arena.Modular.ReachEnv}
+    {envC : ConLeche.Driver.ReachEnv ModelIO} :
+    ∀ (fuel : Nat) {L L' : ConRon.Arena.Modular.ReachLog} {LC : ConLeche.Driver.ReachLog}
+      {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache} {s s' : AState}
+      (fuelC : Nat), fuel ≤ fuelC → RCtx pk s → EnvRel sp s.store env envC →
+      CacheRel s.store c cC → ReachLogRel s.store L LC → (∀ d ∈ L.ctx.toList, PersDecl d) →
+      ConRon.Arena.Modular.reachGo (modelFs F) pk sp env fuel L c s = .ok ((L', c'), s') →
+      DStep s s' ∧ (∀ d ∈ L'.ctx.toList, PersDecl d) ∧ ∃ LC' cC',
+        ModelIO.Gives (ConLeche.Driver.reachGo envC fuelC LC cC) F (.ok (LC', cC')) ∧
+        ReachLogRel s'.store L' LC' ∧ CacheRel s'.store c' cC'
+  | fuel, L, L', LC, c, c', cC, s, s', fuelC, hle, hctx, he, hc, hL, hpL, h => by
+    have hpe : c.partners.isEmpty = cC.partners.isEmpty := by
+      have hsz : c.partners.size = cC.partners.size := by simpa using listRel_length hc.partners
+      unfold Array.isEmpty
+      rw [hsz]
+    have hrs := hL.stack
+    rcases hLs : L.stack with _ | ⟨x, rest⟩
+    · rw [hLs] at hrs
+      generalize hLCs : LC.stack = lsC at hrs
+      cases hrs
+      rw [ConRon.Arena.Modular.reachGo.eq_def] at h
+      simp only [hLs] at h
+      by_cases hemp : c.partners.isEmpty = true
+      · rw [ite_eq_left hemp] at h
+        obtain ⟨hv, rfl⟩ := AM.pure_ok h
+        cases hv
+        refine ⟨DStep.refl hctx.ok hctx.off, hpL, LC, cC, ?_, hL, hc⟩
+        rw [ConLeche.Driver.reachGo.eq_def]
+        simp only [hLCs, ← hpe, hemp, ↓reduceIte]
+        exact ModelIO.gives_pure _ _
+      · rw [ite_eq_right hemp] at h
+        cases fuel with
+        | zero => exact (AM.fail_ok h).elim
+        | succ f =>
+          obtain ⟨⟨L₁, c₁⟩, s₁, h1, h⟩ := AM.bind_ok h
+          obtain ⟨hst1, hctxL, LC₁, cC₁, hL1, hc1, hstep⟩ :=
+            reachPartners_run hsp hctx he hc hL hLCs (by rw [← hpe]; simpa using hemp) h1
+          have hctx1 := hctx.step hst1
+          obtain ⟨k, rfl⟩ : ∃ k, fuelC = k + 1 := ⟨fuelC - 1, by omega⟩
+          obtain ⟨hst2, hp2, LC', cC', hg, hL', hc'⟩ := reachGo_run hRR hsp f k (by omega) hctx1
+            (he.ext hst1.ext hctx1.wf) hc1 hL1 (by rw [hctxL]; exact hpL) h
+          exact ⟨hst1.trans hst2, hp2, LC', cC', hstep k _ hg, hL', hc'⟩
+    · rw [hLs] at hrs
+      generalize hq : LC.stack = lsC at hrs
+      cases hrs with
+      | cons hx hrest =>
+        rename_i xC restC
+        rw [ConRon.Arena.Modular.reachGo.eq_def] at h
+        simp only [hLs] at h
+        cases fuel with
+        | zero => exact (AM.fail_ok h).elim
+        | succ f =>
+          obtain ⟨⟨L₁, c₁⟩, s₁, h1, h⟩ := AM.bind_ok h
+          have hL0 : ReachLogRel s.store { L with stack := rest } { LC with stack := restC } :=
+            ⟨hL.seen, hL.stored, hL.ctx, hL.homes, hL.reads, hrest⟩
+          obtain ⟨hst1, hp1, LC₁, cC₁, hL1, hc1, hstep⟩ :=
+            reachRead_run hRR hsp hctx he hc hL0 hq hx hpL h1
+          have hctx1 := hctx.step hst1
+          obtain ⟨k, rfl⟩ : ∃ k, fuelC = k + 1 := ⟨fuelC - 1, by omega⟩
+          obtain ⟨hst2, hp2, LC', cC', hg, hL', hc'⟩ := reachGo_run hRR hsp f k (by omega) hctx1
+            (he.ext hst1.ext hctx1.wf) hc1 hL1 hp1 h
+          exact ⟨hst1.trans hst2, hp2, LC', cC', hstep k _ hg, hL', hc'⟩
+
 end ConRon.Bridge.Modular
