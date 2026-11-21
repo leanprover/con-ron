@@ -1506,7 +1506,8 @@ theorem reach_refines (hfs : FsRel inst fsv fs)
   obtain ⟨rfl, rfl⟩ := e
   refine ⟨(⟨(Modular.inReadOrder L1 O1).1, (Modular.inReadOrder L1 O1).2, C2.completed, C2.searches,
       C2.pending.size, C2.pending⟩ : Modular.Reach), lst4, ?_,
-    ⟨(by rw [eO1]; exact ectx), (by rw [eO1]; exact ehomes), hc2.completed, hc2.searches, ?_, hc2.pending⟩,
+    ⟨(by apply Array.ext'; rw [eO1, ← ectx]; rfl), (by apply Array.ext'; rw [eO1, ← ehomes]; rfl),
+      (by rw [hc2.completed]), hc2.searches.symm, ?_, hc2.pending⟩,
     hrel4, hinv4⟩
   · unfold Modular.reach
     rw [am_bind_ok hx1]
@@ -1524,7 +1525,7 @@ theorem reach_refines (hfs : FsRel inst fsv fs)
     rw [ev1, ev2, am_bind_ok hx4]
     rfl
   · rw [einf, vec_len_val]
-    exact List.Forall₂.length_eq hc2.pending
+    exact (List.Forall₂.length_eq hc2.pending).symm
 
 /-- **What the reach needs of the worker's reads beyond `WorkerReadsRel`**: the positions the
 Rust reads back as `usize` fit one — the load positions (`IndexFits`, as `headerFixpoint` makes
