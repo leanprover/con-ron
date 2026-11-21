@@ -3,6 +3,7 @@ module
 public import ConRon.Arena.Frontend.Prelude
 public import ConRon.Arena.Frontend.Olean.Records
 public import ConRon.Arena.OleanJobs
+public import ConRon.Arena.Frontend.Compare
 public import ConLeche.Kernel.NatOpPins
 public import ConLeche.Frontend.Pace
 
@@ -429,12 +430,15 @@ def checkMainOlean (sp : List System.FilePath) (roots : Array Name) (constants :
 
 /-- con-leche: ConLeche/Driver/Cli.lean:116-132 synopsis
 The invocation forms, printed on their own when there are no arguments.  con-leche's forms
-of the modes this binary does not run (`--compare`, `--check-graph`, `--module`, `--modular`,
-`--schedule`) are not here (`helpText`). -/
+of the modes this binary does not run (`--check-graph`, `--module`, `--modular`, `--schedule`)
+are not here (`helpText`). -/
 def synopsis : String := String.intercalate "\n" [
   "Usage:",
   "  con-ron-lean [OPTIONS] [--] FILE.ndjson",
-  "  con-ron-lean [OPTIONS] --olean --search-path=DIRS [--] MODULE..."]
+  "  con-ron-lean [OPTIONS] --compare [--] CHALLENGE.ndjson SOLUTION.ndjson",
+  "  con-ron-lean [OPTIONS] --olean --search-path=DIRS [--] MODULE...",
+  "  con-ron-lean [OPTIONS] --olean --compare [--trusted-search-path=DIRS]",
+  "               --search-path=DIRS [--] CHALLENGE SOLUTION"]
 
 /-- con-leche: ConLeche/Driver/Cli.lean:134-135 tryHelp
 The line after a usage error. -/
@@ -462,14 +466,23 @@ def helpText : String := String.intercalate "\n" [
   "  --help              Print this help and exit",
   "  --                  End of options",
   "",
+  "lean4export input:",
+  "  --compare           CHALLENGE.ndjson SOLUTION.ndjson: check SOLUTION, then",
+  "                      check CHALLENGE, its axioms justified by SOLUTION",
+  "",
   ".olean input:",
   "  --olean             Read modules and their import closure from .olean files",
   "  --search-path=DIRS  Colon-separated .olean directories; repeatable",
   "  --constant=NAME     Check only NAME and what it mentions; repeatable",
+  "  --compare           CHALLENGE SOLUTION: check the closure of SOLUTION, then",
+  "                      the closure of CHALLENGE, its axioms justified by it",
+  "  --trusted-search-path=DIRS",
+  "                      With --compare: where CHALLENGE is read, and where",
+  "                      SOLUTION is read first; colon-separated; repeatable",
   "",
   "con-leche's other modes, not run by con-ron yet (a usage error, exit 3):",
-  "  --compare, --trusted-search-path=DIRS, --check-graph, --module,",
-  "  --modular, --schedule[-OPT=V], --worker-stack-size=SIZE",
+  "  --check-graph, --module, --modular, --schedule[-OPT=V],",
+  "  --worker-stack-size=SIZE, and --compare with any of them",
   "",
   "Exit status:",
   "  0  accepted",
@@ -505,9 +518,10 @@ structure Args where
   /-- some `--schedule[-OPT=VALUE]` flag was given (not run here; the values are not read, so
   they are not kept) -/
   scheduled : Bool := false
-  /-- `--compare` (not run here). -/
+  /-- `--compare`: the two arguments are a challenge and its solution. -/
   compare : Bool := false
-  /-- `--trusted-search-path=DIR:DIR…` (read only by the modes not run here). -/
+  /-- `--trusted-search-path=DIR:DIR…`: with `--compare`, where the challenge is read, and where
+  the solution is read first. -/
   trustedPath : List System.FilePath := []
   /-- `--worker-stack-size=SIZE` was given, with a valid size (a `--schedule` worker's, so only
   that it was given is kept) -/
@@ -644,6 +658,224 @@ def checkMain (file : String) (mode : CheckMode) (pins : List NatOpPinSet)
     IO.eprintln s!"con-ron-lean: {e.message} ({modeTag}) t={msSecs (now - t0)}s"
     return e.exitCode
 
+/-! ## `--compare`: a challenge checked with its axioms justified by a solution
+
+The binary's `crates/con-ron/src/compare.rs`, over the twin: the solution checked as any
+input, its index kept, then the challenge's records read with the solution
+(`sideRecordsGo`; on `--olean` its theorem holes first, `holeRecordsGo`) and checked with it
+(`solutionOf`).  Both inputs are read into the one state. -/
+
+/-- con-leche: ConLeche/Driver/CompareJson.lean:38-90 compareJsonG
+**A compared run's verdict**: a failed read or step, the driver's own rejection (a message,
+exit 1), the solution's failed check, the challenge's, or the accept with the challenge's
+record count, the labels of its justified records and the solution's record count. -/
+inductive CmpVerdict where
+  | failed (e : CheckError)
+  | reject (why : String)
+  | solution (e : CheckError)
+  | challenge (e : CheckError)
+  | accepted (records : Nat) (holes : Array String) (solRecords : Nat)
+
+/-- con-leche: ConLeche/Driver/Run.lean:74-99 checkDeclsIO
+**A check phase that keeps its index**: `checkStream` at the solution `J`, the index and the
+post-index state back on the accept (the binary's thawed tier). -/
+def checkStreamJ (mode : CheckMode) (pins : List INatOpPinSet) (J : Option ISolution)
+    (ds : Array IDeclaration) : AM (Except (CheckError × Nat) IStreamIndex) := fun s =>
+  match buildIndex ds s with
+  | .ok (.ok I, s₁) =>
+    match checkJobList mode pins J I ds (List.range ds.size) s₁.worker with
+    | .ok (.ok (), _) => .ok (.ok I, s₁)
+    | .ok (.error e, _) => .ok (.error e, s₁)
+    | .error e => .error e
+  | .ok (.error e, s₁) => .ok (.error e, s₁)
+  | .error e => .error e
+
+/-- con-leche: ConLeche/Driver/CheckMain.lean:154-177 checkOleansG
+**An `--olean` check phase that keeps its index**: `checkOleans` at the solution `J`. -/
+def checkOleansJ (fs : Frontend.Olean.OleanFs) (pk : Frontend.Olean.OleanPins)
+    (sp : ConLeche.Frontend.Olean.Roots) (values : Array Frontend.Olean.ModRef) (mode : CheckMode)
+    (pins : List INatOpPinSet) (J : Option ISolution) (ds : Array IDeclaration) :
+    AM (Except (CheckError × Nat) IStreamIndex) := fun s =>
+  match buildIndex ds s with
+  | .ok (.ok I, s₁) =>
+    match checkOleanJobListJ fs pk sp values mode pins J I ds (List.range ds.size) {} s₁.worker with
+    | .ok (.ok (), _) => .ok (.ok I, s₁)
+    | .ok (.error e, _) => .ok (.error e, s₁)
+    | .error e => .error e
+  | .ok (.error e, s₁) => .ok (.error e, s₁)
+  | .error e => .error e
+
+/-- con-leche: ConLeche/Driver/CompareJson.lean:38-90 compareJsonG
+The accept line's records: `prepared[i]` labelled where `checked[i]` offers a statement. -/
+def holesOf (prepared checked : Array IDeclaration) : AM (Array String) := do
+  let mut out := #[]
+  for (d, c) in prepared.zip checked do
+    if (← justifiable c).isSome then out := out.push (← declLabel d)
+  pure out
+
+/-- con-leche: ConLeche/Driver/CompareJson.lean:38-90 compareJsonG
+**The compared run after the two parses** (`compare_json`): the solution prepared and
+checked, its index kept; the challenge prepared, read with the solution and checked with it. -/
+def compareJsonTail (mode : CheckMode) (pins : List NatOpPinSet) (maxNatSize : Nat)
+    (pre : Frontend.PreludeIx) (rC rS : Frontend.ParseResultD) : AM CmpVerdict := do
+  let dsS := (← Frontend.prepareD pre rS.decls).decls
+  let ipins ← internAllPins pins maxNatSize
+  match ← checkStreamJ mode ipins none dsS with
+  | .error (e, n) => pure (.solution (atDecl e n))
+  | .ok IS =>
+    let dsC := (← Frontend.prepareD pre rC.decls).decls
+    let recsC := (← sideRecordsGo [] dsC.toList).toArray
+    match ← checkStreamJ mode ipins (some (solutionOf IS recsC.toList)) recsC with
+    | .error (e, n) => pure (.challenge (atDecl e n))
+    | .ok _ => pure (.accepted rC.decls.size (← holesOf dsC recsC) rS.decls.size)
+
+/-- con-leche: ConLeche/Driver/Compare.lean:86-101 fallbackOnly
+**Why a challenge module is not on the trusted path**, where the solution's lookup finds it on
+the search path: the challenge's closure walked through that lookup, the first module whose
+root only the search path holds.  For the message only. -/
+def fallbackOnly (trusted : List System.FilePath) (sr : ConLeche.Frontend.Olean.Roots)
+    (c : NIdx) : AM (Option String) := fun s =>
+  if trusted.isEmpty then .ok (none, s) else
+  match (do Frontend.Olean.closureOrder stdFs (← Frontend.Olean.oleanPins) sr #[c]) s with
+  | .error _ => .ok (none, s)
+  | .ok (order, s') =>
+    let why := order.toList.findSome? fun m =>
+      match denoteN s'.store.ns m with
+      | none => none
+      | some n =>
+        match Frontend.Olean.rootAt stdFs trusted n.root,
+            Frontend.Olean.lookAt stdFs sr.path sr.fallback n.root with
+        | .missing, .dir d => some s!"the challenge's module {n} is not on the trusted path \
+            ({":".intercalate (trusted.map toString)}); it is in {d}, on the search path, which \
+            only the solution reads"
+        | _, _ => none
+    .ok (why, s')
+
+/-- con-leche: ConLeche/Driver/Compare.lean:141-208 compareG
+**`--olean --compare`** (`compare_oleans`): the challenge's closure read through the trusted
+lookup alone with its homes, `--constant` names checked to be its own, prepared and its theorem
+holes read as axioms; the solution's closure read through the solution's lookup, prepared and
+checked; then the challenge's records read with the solution and checked with it. -/
+def compareOleanPipeline (trusted path : List System.FilePath) (c s : Name)
+    (constants : Option (Array Name)) (mode : CheckMode) (pins : List NatOpPinSet)
+    (maxNatSize : Nat) : AM CmpVerdict := do
+  match ← runPipelineHead with
+  | .error (e, n) => pure (.failed (Frontend.atLine e n))
+  | .ok (pre, _) =>
+    let ch ← internName c
+    let sh ← internName s
+    let cs ← match constants with
+      | none => pure none
+      | some cs => pure (some (← cs.mapM internName))
+    let cr : ConLeche.Frontend.Olean.Roots :=
+      if trusted.isEmpty then { path := path } else { path := trusted }
+    let sr : ConLeche.Frontend.Olean.Roots :=
+      if trusted.isEmpty then { path := path } else { path := trusted, fallback := path }
+    match ← Frontend.Olean.readOleans stdFs cr #[ch] cs true true with
+    | .error (e, n) =>
+      match ← fallbackOnly trusted sr ch with
+      | some why => pure (.reject why)
+      | none => pure (.failed (Frontend.atLine e n))
+    | .ok rdC =>
+      match ← Frontend.foreignConstant cs ch rdC.homes with
+      | some why => pure (.reject why)
+      | none =>
+        let dsC := (← Frontend.prepareD pre rdC.decls rdC.usedOf).decls
+        let holed := (← Frontend.holeRecordsGo rdC.usedOf [] dsC.toList).toArray
+        let need := cs.map fun _ => dsC.filterMap Frontend.recKey
+        match ← Frontend.Olean.readOleans stdFs sr #[sh] need true false with
+        | .error (e, n) => pure (.failed (Frontend.atLine e n))
+        | .ok rdS =>
+          if rdS.values.any (·.name == ch) then
+            pure (.reject s!"{s} does not solve {c}: the solution's closure holds the challenge")
+          else
+            let dsS := (← Frontend.prepareD pre rdS.decls rdS.usedOf).decls
+            let ipins ← internAllPins pins maxNatSize
+            match ← checkOleansJ stdFs rdS.pins sr rdS.values mode ipins none dsS with
+            | .error (e, n) => pure (.solution (atDecl e n))
+            | .ok IS =>
+              let recsC := (← sideRecordsGo [] holed.toList).toArray
+              match ← checkOleansJ stdFs rdC.pins cr rdC.values mode ipins
+                  (some (solutionOf IS recsC.toList)) recsC with
+              | .error (e, n) => pure (.challenge (atDecl e n))
+              | .ok _ => pure (.accepted rdC.decls.size (← holesOf dsC recsC) rdS.decls.size)
+
+/-- con-leche: ConLeche/Driver/CompareJson.lean:38-90 compareJsonG
+con-leche: ConLeche/Driver/Compare.lean:141-208 compareG
+**A compared run's lines and exit code**: the solution's failure prefixed `the solution S: `,
+the accept line and one line per justified record. -/
+def cmpVerdictIO (modeTag solution : String) (t0 : Nat) : Except CheckError CmpVerdict → IO UInt8
+  | .error e | .ok (.failed e) | .ok (.challenge e) => do
+    let now ← IO.monoMsNow
+    IO.eprintln s!"con-ron-lean: {e.message} ({modeTag}) t={msSecs (now - t0)}s"
+    return e.exitCode
+  | .ok (.reject why) => do
+    IO.eprintln s!"con-ron-lean: {why} ({modeTag})"
+    return 1
+  | .ok (.solution e) => do
+    let now ← IO.monoMsNow
+    IO.eprintln s!"con-ron-lean: the solution {solution}: {e.message} ({modeTag}) \
+      t={msSecs (now - t0)}s"
+    return e.exitCode
+  | .ok (.accepted n holes nS) => do
+    IO.println s!"con-ron-lean: accepted {n} declarations, {holes.size} axioms justified by the \
+      solution {solution} ({nS} declarations accepted) ({modeTag})"
+    for h in holes do
+      IO.println s!"con-ron-lean: {h} justified by the solution"
+    return 0
+
+/-- con-leche: ConLeche/Driver/CompareJson.lean:38-90 compareJsonG
+**`--compare` on two lean4export files**: both parsed into the one state (`readFold`, the
+challenge's first), then `compareJsonTail`. -/
+def compareJsonMain (c s : String) (mode : CheckMode) (pins : List NatOpPinSet)
+    (maxNatSize : Nat) : IO UInt8 := do
+  let t0 ← IO.monoMsNow
+  let modeTag : String := match mode with
+    | .verified => "--verified"
+    | .trusted => "--trusted"
+  let open? (file : String) : IO (Option IO.FS.Handle) := do
+    try
+      let md ← System.FilePath.metadata file
+      unless md.type == .file do
+        throw (.inappropriateType (some file) 21 "not a regular file")
+      pure (some (← IO.FS.Handle.mk file .read))
+    catch e => do
+      IO.eprintln s!"con-ron-lean: {displayPath file}: {displayPath (toString e)} ({modeTag})"
+      pure none
+  let some hC ← open? c | return 3
+  let some hS ← open? s | return 3
+  let failed (e : CheckError) : IO UInt8 := cmpVerdictIO modeTag s t0 (.ok (.failed e))
+  match (runPipelineHead).run (AState.init EStore.empty) with
+  | .error e => failed e
+  | .ok (.error (e, n), _) => failed (Frontend.atLine e n)
+  | .ok (.ok (pre, stC), st) =>
+    match ← readFold hC stC .empty 0 0 0 st with
+    | .error e => failed e
+    | .ok (.error (e, n), _, _) => failed (Frontend.atLine e n)
+    | .ok (.ok rC, st, _) =>
+      match (Frontend.StateD.init).run st with
+      | .error e => failed e
+      | .ok (stS, st) =>
+        match ← readFold hS stS .empty 0 0 0 st with
+        | .error e => failed e
+        | .ok (.error (e, n), _, _) => failed (Frontend.atLine e n)
+        | .ok (.ok rS, st, _) =>
+          cmpVerdictIO modeTag s t0
+            ((compareJsonTail mode pins maxNatSize pre rC rS).run st |>.map (·.1))
+
+/-- con-leche: ConLeche/Driver/Compare.lean:141-208 compareG
+The driver of `--olean --compare`. -/
+def compareOleanMain (trusted path : List System.FilePath) (c s : Name)
+    (constants : Option (Array Name)) (mode : CheckMode) (pins : List NatOpPinSet)
+    (maxNatSize : Nat) : IO UInt8 := do
+  let t0 ← IO.monoMsNow
+  let modeTag : String := match mode with
+    | .verified => "--verified"
+    | .trusted => "--trusted"
+  cmpVerdictIO modeTag (toString s) t0
+    ((compareOleanPipeline trusted path c s constants mode pins maxNatSize).run
+      (AState.init EStore.empty) |>.map (·.1))
+
 /-- con-leche: none — a usage error's two lines (con-leche writes them out at each site of
 `runArgs`): the message, then the pointer to `--help`; exit 3. -/
 def usageError (msg : String) : IO UInt8 := do
@@ -716,11 +948,17 @@ def main (args : List String) : IO UInt8 := do
       | [c, s] =>
         if c == s then
           return ← usageError "--compare takes two different modules, a challenge and its solution"
-        if (a.module || a.modular || a.scheduled) && (!a.constants.isEmpty ||
-            (a.module && a.scheduled) || (a.modular && (a.module || a.scheduled))) then
-          return ← usageError "--compare with --module, --modular or --schedule takes one of \
-            them, and no --constant"
-        return ← unsupported "--olean --compare"
+        if a.module || a.modular || a.scheduled then
+          if !a.constants.isEmpty || (a.module && a.scheduled) ||
+              (a.modular && (a.module || a.scheduled)) then
+            return ← usageError "--compare with --module, --modular or --schedule takes one of \
+              them, and no --constant"
+          if a.module then return ← unsupported "--olean --module --compare"
+          if a.modular then return ← unsupported "--olean --modular --compare"
+          return ← unsupported "--olean --schedule --compare"
+        let cs := if a.constants.isEmpty then none
+          else some (a.constants.filterMap Frontend.Olean.parseConstName)
+        return ← compareOleanMain a.trustedPath a.searchPath c s cs a.mode pins a.maxNatSize
       | _ => return ← usageError "--compare takes two module names, a challenge and its solution"
     if !a.trustedPath.isEmpty && (!a.module || a.modular || a.scheduled) then
       return ← usageError "--trusted-search-path takes --compare or --module"
@@ -749,7 +987,7 @@ def main (args : List String) : IO UInt8 := do
     | [c, s] =>
       if c == s then
         return ← usageError "--compare takes two different files, a challenge and its solution"
-      return ← unsupported "--compare"
+      return ← compareJsonMain c s a.mode pins a.maxNatSize
     | _ => return ← usageError "--compare takes two files, a challenge and its solution"
   if !a.searchPath.isEmpty || !a.constants.isEmpty || a.module || a.modular || a.scheduled ||
       !a.trustedPath.isEmpty then

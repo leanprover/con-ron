@@ -68,11 +68,14 @@ equality (§6.3).
 
 ```
 con-ron [OPTIONS] [--] FILE.ndjson
+con-ron [OPTIONS] --compare [--] CHALLENGE.ndjson SOLUTION.ndjson
 con-ron [OPTIONS] --olean --search-path=DIRS [--] MODULE...
+con-ron [OPTIONS] --olean --compare [--trusted-search-path=DIRS]
+        --search-path=DIRS [--] CHALLENGE SOLUTION
 ```
 
 ([the help text](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L87-L145)).
-Run with no arguments, `con-ron` prints these two forms; a usage error prints its
+Run with no arguments, `con-ron` prints these forms; a usage error prints its
 message and a pointer to `--help`, and exits 3.
 
 * **`--verified`** is the default, and the only mode the theorems cover.
@@ -113,16 +116,33 @@ message and a pointer to `--help`, and exits 3.
   Without it every constant of the closure is checked, whatever its name; unsafe
   and partial constants stay out, as lean4export leaves them out.  A run with
   `--constant` is outside the theorems.
-* **con-leche's other modes** are not ported yet: `--compare` (a challenge
-  checked against a solution, task #165), `--check-graph`, `--module`,
-  `--modular` and `--schedule[-OPT=V]` (task #166), and the flags only they
-  read, `--trusted-search-path=DIRS` and `--worker-stack-size=SIZE`.  con-ron
-  reads them and makes con-leche's usage checks on them, with con-leche's
-  messages (`--search-path`, `--constant` and these flags without `--olean`;
-  `--trusted-search-path` without `--compare` or `--module`;
-  `--worker-stack-size` without `--schedule`; the wrong number of arguments);
-  a command line that passes those checks is the usage error `<mode> is not
-  supported by con-ron yet`, exit 3.  It never runs another mode in their place.
+* **`--compare`** checks a CHALLENGE with its axioms justified by a SOLUTION:
+  two lean4export files, or with `--olean` two modules (their closures).  The
+  solution is checked as any input is; then the challenge is checked as any
+  input is, except that its axioms other than the built-in ones, and its
+  declarations whose value uses `sorry` (each read as the axiom of its
+  statement), are accepted when the solution holds a constant of the same name
+  and type, up to the names of its level parameters, and everything that type
+  reads is the same constant in both.  Both inputs are read into one store, so
+  "the same" is a handle comparison.  The accept line counts the challenge's
+  records and the justified ones, and one line names each justified record; an
+  axiom the solution does not justify is a rejection with the reason (exit 1),
+  and the solution's own failure is reported as `the solution S: …`.  With
+  `--olean`, a theorem whose file says its value uses `sorryAx` is a hole, the
+  challenge's closure is read from the trusted path alone and the solution's
+  from the trusted path first, then the search path; `--constant=NAME` names
+  declarations of the challenge module itself.  A solution whose closure holds
+  the challenge is rejected.
+* **`--trusted-search-path=DIR[:DIR...]`** (with `--compare`): where the
+  challenge and all it imports must be; without it the search path is trusted.
+* **con-leche's other modes** are not ported yet: `--check-graph`, `--module`,
+  `--modular` and `--schedule[-OPT=V]`, with or without `--compare`, and `--worker-stack-size=SIZE`.  con-ron reads them and makes
+  con-leche's usage checks on them, with con-leche's messages (`--search-path`,
+  `--constant` and these flags without `--olean`; `--trusted-search-path`
+  without `--compare` or `--module`; `--worker-stack-size` without
+  `--schedule`; the wrong number of arguments); a command line that passes
+  those checks is the usage error `<mode> is not supported by con-ron yet`,
+  exit 3.  It never runs another mode in their place.
 
 ### 2.2 Exit codes
 
@@ -131,7 +151,7 @@ The codes are con-leche's
 
 | exit | verdict line | meaning |
 |---|---|---|
-| 0 | `accepted N declarations` | every declaration checked; `N` counts the file's own declaration records |
+| 0 | `accepted N declarations` | every declaration checked; `N` counts the file's own declaration records (`--compare`: `accepted N declarations, K axioms justified by the solution S (M declarations accepted)`, then one line per justified record) |
 | 1 | `rejected` | a declaration is invalid |
 | 2 | `declined` | the input uses something the checker does not support, and says what |
 | 3 | error | bad usage (a mode con-ron does not run included, §2.1), malformed input, or an internal failure |

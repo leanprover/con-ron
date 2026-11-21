@@ -72,6 +72,7 @@
 //! phase boundary and shared by reference.  Threads live here and never in
 //! `con-ron-core` (§8.5).
 
+pub mod compare;
 pub mod driver;
 pub mod keys;
 pub mod olean_fs;

@@ -185,7 +185,7 @@ log="${LOG:-$WORK/run.log}"
 printf '# binary: %s\n# mode: %s, pins: %s, --jobs=%s\n' \
   "$BIN" "$MODE" "${pinargs:-embedded}" "$jobs" >>"$log"
 
-total=0; agree=0; differ=0; timedout=0; other=0; notported=0
+total=0; agree=0; differ=0; timedout=0; other=0
 
 # con-leche's `tests/trusted-expected.txt` ("<exit> <suite> <fixture>")
 # overrides the certified expectation under `--trusted`.
@@ -280,10 +280,8 @@ one() { # one <suite> <label> <stream> <expected-exit>
 
 # A row of ARGUMENTS (con-leche task #619's format, `<exit> --<arguments>`:
 # every `.ndjson` among them a fixture of tests/e2e/), run as con-leche's
-# `tests/arena.sh` runs it, with the sweep's flags in front.  A `--compare` row
-# whose expectation is not a usage error is a mode con-ron does not run yet
-# (task #165): its answer is the usage error "not supported by con-ron yet",
-# counted as NOT PORTED, never as an agreement and never as a DIFFER.
+# `tests/arena.sh` runs it, with the sweep's flags in front (the `--compare`
+# pairs: a challenge and its solution, `crates/con-ron/src/compare.rs`).
 one_args() { # one_args <row> <expected-exit>
   local rel=$1 want=$2 out rc tok
   if [ -n "$only" ] && ! printf '%s' "e2e/$rel" | grep -qE "$only"; then return; fi
@@ -298,9 +296,6 @@ one_args() { # one_args <row> <expected-exit>
   if [ "$rc" = "$want" ]; then
     agree=$((agree + 1))
     [ "$verbose" -eq 1 ] && echo "ok      e2e/$rel ($rc)"
-  elif [ "$rc" = 3 ] && printf '%s' "$out" | grep -q -- '--compare is not supported by con-ron yet'; then
-    notported=$((notported + 1))
-    echo "NOT PORTED (task #165)  e2e/$rel: con-leche expects $want"
   elif [ "$rc" = 124 ]; then
     timedout=$((timedout + 1)); echo "TIMEOUT e2e/$rel (after ${TO}s, expected $want)"
   else
@@ -422,9 +417,10 @@ if [ -f "$cli_good" ]; then
   cli_case 0 --no-such-option --help
   cli_case 3 -- no-such-file --help
   cli_case 3 -- no-such-file
+  # `--compare` after `--`: two files, whatever they are called
+  cli_case 0 --compare -- -weird-name.ndjson --help
   # con-ron's own (task #164): con-leche's modes con-ron does not run, and the
   # flags only they read, are usage errors before anything is read.
-  cli_case 3 --compare -- -weird-name.ndjson --help
   cli_case 3 --module -- -weird-name.ndjson
   cli_case 3 --worker-stack-size=8G -- -weird-name.ndjson
   cli_case 3 --olean --search-path=. --modular M
@@ -453,7 +449,6 @@ echo "  binary              $BIN"
 echo "  agree               $agree"
 echo "  DIFFER              $differ"
 echo "  timed out           $timedout"
-echo "  not ported (#165)   $notported"
 echo "  other errors        $other"
 echo "  display gate        $display_ok/$display_total"
 echo "  command-line gate   $cli_ok/$cli_total"

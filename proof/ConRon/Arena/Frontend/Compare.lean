@@ -2,7 +2,8 @@
 # `ConRon.Arena.Frontend.Compare` — a challenge and its solution, the pure parts (task #165)
 
 The twin of `frontend/compare.rs`: the name a record is found under (`recKey`), its kind for
-the messages (`recKind`), and a `--constant` name that is no declaration of the challenge module
+the messages (`recKind`), a theorem read as the hole it is (`holeRecord`, `holeRecordsGo`), and
+a `--constant` name that is no declaration of the challenge module
 (`foreignConstant`, over the homes the challenge's read reports, `homesOf`).  `recKey` of an
 inductive block with no type is `none`, upstream's `.anonymous` (the Rust's note); names are
 compared by handle.
@@ -11,6 +12,7 @@ module
 
 public import ConRon.Arena.Env
 public import ConRon.Arena.Monad
+public import ConRon.Arena.Justify
 
 @[expose] public section
 
@@ -35,6 +37,29 @@ def recKind : IDeclaration → String
   | .opaqueDecl .. => "opaque constant"
   | .quotDecl .. => "quotient constant"
   | .indDecl .. => "inductive type"
+
+/-- con-leche: ConLeche/Driver/Compare.lean:63-70 holeRecord
+**A theorem read as the hole it is** (`--olean --compare`): a theorem whose file says its value
+uses `sorryAx` (`used`, the read's used constants: `OleanRead.usedOf`) is the axiom of its
+statement; a theorem at a built-in axiom's name keeps its own check, every other record is itself. -/
+def holeRecord (used : IDeclaration → AM (Array NIdx)) (d : IDeclaration) : AM IDeclaration :=
+  match d with
+  | .thmDecl cv _ => do
+    if ← builtinAxiomName cv.name then pure d
+    else
+      let us ← used d
+      let sa ← pinSorryAx
+      if us.contains sa then pure (.axiomDecl cv) else pure d
+  | _ => pure d
+
+/-- con-leche: ConLeche/Driver/Compare.lean:132-138 chalRecords
+The cited `recs.map (holeRecord uses)`: every record through `holeRecord`, onto `out`. -/
+def holeRecordsGo (used : IDeclaration → AM (Array NIdx)) (out : List IDeclaration) :
+    List IDeclaration → AM (List IDeclaration)
+  | [] => pure out
+  | d :: ds => do
+    let d' ← holeRecord used d
+    holeRecordsGo used (out ++ [d']) ds
 
 /-- con-leche: ConLeche/Driver/Compare.lean:103-110 foreignConstant
 `homes[c]? != some challenge`: `c` is not a declaration of the challenge module. -/

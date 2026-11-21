@@ -5,6 +5,9 @@
 //! con-ron [--verified|--trusted] [--jobs=<n>]
 //!         [--progress[=N|P%|Ss]] [--pins FILE|--no-pins] FILE.ndjson
 //! con-ron [flags] --olean --search-path=DIR[:DIR...] [--constant=NAME]... [--] MODULE...
+//! con-ron [flags] --compare [--] CHALLENGE.ndjson SOLUTION.ndjson
+//! con-ron [flags] --olean --compare [--trusted-search-path=DIRS] --search-path=DIRS
+//!         [--constant=NAME]... [--] CHALLENGE SOLUTION
 //! con-ron --help
 //! ```
 //!
@@ -88,12 +91,15 @@ use con_ron_core::arena::store::PersTier;
 /// The invocation forms, printed on their own when there are no arguments.
 /// `--pins`/`--no-pins` are the port's own testing flags (`driver::pins_for_run`)
 /// and are not in con-leche's synopsis; they are in the help text's options.
-/// con-leche's forms for `--compare`, `--check-graph`, `--module`, `--modular`
-/// and `--schedule` are not here: con-ron does not run those modes (`HELP_TAIL`).
+/// con-leche's forms for `--check-graph`, `--module`, `--modular` and
+/// `--schedule` are not here: con-ron does not run those modes (`HELP_TAIL`).
 const SYNOPSIS: &str = "\
 Usage:
   con-ron [OPTIONS] [--] FILE.ndjson
-  con-ron [OPTIONS] --olean --search-path=DIRS [--] MODULE...";
+  con-ron [OPTIONS] --compare [--] CHALLENGE.ndjson SOLUTION.ndjson
+  con-ron [OPTIONS] --olean --search-path=DIRS [--] MODULE...
+  con-ron [OPTIONS] --olean --compare [--trusted-search-path=DIRS]
+          --search-path=DIRS [--] CHALLENGE SOLUTION";
 
 /// con-leche: ConLeche/Driver/Cli.lean:134-135 tryHelp
 /// The line after a usage error.
@@ -126,14 +132,35 @@ Options:
   --help              Print this help and exit
   --                  End of options
 
+lean4export input:
+  --compare           CHALLENGE.ndjson SOLUTION.ndjson: check SOLUTION, then
+                      check CHALLENGE, its axioms justified by SOLUTION: each
+                      axiom of CHALLENGE (but the standard ones) and each
+                      declaration whose value uses sorry is accepted as an
+                      axiom of its statement when SOLUTION holds a constant
+                      of that name and type, up to the names of level
+                      parameters, and everything that type reads is the same
+                      in both, record by record. Prints the justified axioms
+
 .olean input:
   --olean             Read modules and their import closure from .olean files
   --search-path=DIRS  Colon-separated .olean directories; repeatable
   --constant=NAME     Check only NAME and what it mentions; repeatable
+  --compare           CHALLENGE SOLUTION: check the closure of the module
+                      SOLUTION, then the closure of CHALLENGE, its axioms
+                      justified by SOLUTION's as for lean4export input.
+                      Prints the justified axioms. With --constant=NAME
+                      (declarations of CHALLENGE itself), only NAME and
+                      what it reads
+  --trusted-search-path=DIRS
+                      With --compare: CHALLENGE and all it imports must be
+                      in DIRS, and are read from there only; SOLUTION's
+                      modules from DIRS first, then --search-path.
+                      Colon-separated; repeatable
 
 con-leche's other modes, not run by con-ron yet (a usage error, exit 3):
-  --compare, --trusted-search-path=DIRS, --check-graph, --module,
-  --modular, --schedule[-OPT=V], --worker-stack-size=SIZE
+  --check-graph, --module, --modular, --schedule[-OPT=V],
+  --worker-stack-size=SIZE, and --compare with any of them
 
 Exit status:
   0  accepted
@@ -179,10 +206,10 @@ struct Args {
     /// some `--schedule[-OPT=VALUE]` flag was given (not run by con-ron; its
     /// values are not read, so they are not kept).
     scheduled: bool,
-    /// `--compare` (not run by con-ron).
+    /// `--compare`: the two arguments are a challenge and its solution.
     compare: bool,
-    /// `--trusted-search-path=DIR:DIR...` (read only by the modes con-ron does
-    /// not run, so only whether it was given is used).
+    /// `--trusted-search-path=DIR:DIR...`: with `--compare`, where the
+    /// challenge is read, and where the solution is read first.
     trusted_path: Vec<String>,
     /// `--worker-stack-size=SIZE` was given, with a valid size (the value is a
     /// `--schedule` worker's, so only that it was given is kept).
@@ -432,6 +459,15 @@ enum Input {
     Oleans(con_ron::olean_fs::OleanRequest),
 }
 
+/// con-leche: ConLeche/Driver/Dispatch.lean:26-62 Req
+/// **What a run is**: a check of one input (`check_main`), or a compared run of
+/// two lean4export files or two modules (`con_ron::compare`).
+enum Run {
+    Check(Input),
+    CompareJson(String, String),
+    CompareOleans(con_ron::compare::CmpRequest),
+}
+
 /// con-leche: ConLeche/Driver/CheckMain.lean:233-385 checkMainG
 /// con-leche: ConLeche/Driver/CheckMain.lean:87-98 readInputG
 /// The driver's front matter: the prelude, the streaming parse, the
@@ -637,7 +673,7 @@ fn check_main(a: &Args, input: &Input) -> u8 {
         (Some((pk, values)), Input::Oleans(req)) => {
             let sp = &req.search_path;
             let job = |tier: &PersTier, w: &mut AState, c: &mut ValueCache, k: u64| {
-                driver::olean_job(tier, w, c, &mode, &ipins, ds, pk, values, sp, k)
+                driver::olean_job(tier, w, c, &mode, &ipins, ds, pk, values, sp, None, k)
             };
             if on {
                 driver::check_decls_driver_with(pers, &mut st, ds, jobs, &mut hb, value_cache_empty, job)
@@ -647,9 +683,9 @@ fn check_main(a: &Args, input: &Input) -> u8 {
         }
         _ => {
             if on {
-                driver::check_decls_driver(pers, &mut st, &mode, &ipins, ds, jobs, &mut hb)
+                driver::check_decls_driver(pers, &mut st, &mode, &ipins, None, ds, jobs, &mut hb)
             } else {
-                driver::check_decls_driver(pers, &mut st, &mode, &ipins, ds, jobs, &mut driver::Silent)
+                driver::check_decls_driver(pers, &mut st, &mode, &ipins, None, ds, jobs, &mut driver::Silent)
             }
         }
     };
@@ -660,10 +696,40 @@ fn check_main(a: &Args, input: &Input) -> u8 {
     let code = match &verdict {
         Ok(_) => driver::verdict_accept(stream_records, mode_tag),
         Err((e, i)) => {
-            driver::verdict_failure(pers, &st.store, &prepared.decls, e, *i, mode_tag, t0)
+            driver::verdict_failure(pers, &st.store, &prepared.decls, e, *i, mode_tag, t0, "")
         }
     };
     exit_after_verdict(code)
+}
+
+/// con-leche: ConLeche/Driver/Dispatch.lean:63-88 runReq
+/// The run on the checking thread: `check_main`, or a compared run's own driver
+/// (`con_ron::compare`), whose verdict path exits as `check_main`'s does.
+fn run(a: &Args, r: &Run) -> u8 {
+    let mode_tag = if a.verified { "--verified" } else { "--trusted" };
+    let mode = if a.verified { CheckMode::Verified } else { CheckMode::Trusted };
+    match r {
+        Run::Check(input) => check_main(a, input),
+        Run::CompareJson(c, s) => exit_after_verdict(con_ron::compare::compare_json(&compare_opts(a, mode, mode_tag), c, s)),
+        Run::CompareOleans(q) => exit_after_verdict(con_ron::compare::compare_oleans(&compare_opts(a, mode, mode_tag), q)),
+    }
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
+/// A compared run's options, off the command line.
+fn compare_opts<'a>(a: &'a Args, mode: CheckMode, mode_tag: &'a str) -> con_ron::compare::CompareOpts<'a> {
+    con_ron::compare::CompareOpts {
+        mode,
+        mode_tag,
+        max_nat_size: &a.max_nat_size,
+        pins: &a.pins,
+        no_pins: a.no_pins,
+        jobs: match a.jobs {
+            Some(n) => n,
+            None => con_ron::driver::default_jobs(),
+        },
+        progress: &a.progress,
+    }
 }
 
 /// con-leche: Main.lean:32-54 flushStdoutStderr
@@ -741,7 +807,7 @@ fn run_main() -> u8 {
     if a.check_graph {
         return check_graph_usage(&a);
     }
-    let input: Input = if a.olean {
+    let input: Run = if a.olean {
         // `--olean`: the arguments are root modules, read with their import
         // closure along the search path, module names as Lean spells them.
         if a.files.is_empty() || (a.search_path.is_empty() && a.trusted_path.is_empty()) {
@@ -772,9 +838,29 @@ fn run_main() -> u8 {
                          and no --constant",
                     );
                 }
+                if a.module {
+                    return unsupported("--olean --module --compare");
+                }
+                if a.modular {
+                    return unsupported("--olean --modular --compare");
+                }
+                return unsupported("--olean --schedule --compare");
             }
-            return unsupported("--olean --compare");
-        }
+            let dirs = |v: &Vec<String>| -> Vec<Vec<u32>> { v.iter().map(|d| con_ron::render::cps(d)).collect() };
+            let mut roots = req.roots;
+            let s = roots.pop();
+            let c = roots.pop();
+            match (c, s) {
+                (Some(c), Some(s)) => Run::CompareOleans(con_ron::compare::CmpRequest {
+                    challenge: c,
+                    solution: s,
+                    trusted: dirs(&a.trusted_path),
+                    path: dirs(&a.search_path),
+                    constants: req.constants,
+                }),
+                _ => return usage_error("--compare takes two module names, a challenge and its solution"),
+            }
+        } else {
         if !a.trusted_path.is_empty() && (!a.module || a.modular || a.scheduled) {
             return usage_error("--trusted-search-path takes --compare or --module");
         }
@@ -801,7 +887,8 @@ fn run_main() -> u8 {
             }
             return unsupported("--olean --module");
         }
-        Input::Oleans(req)
+        Run::Check(Input::Oleans(req))
+        }
     } else {
         if a.compare {
             // `--compare` on two lean4export files: con-leche's usage checks,
@@ -827,8 +914,8 @@ fn run_main() -> u8 {
                     "--compare takes two different files, a challenge and its solution",
                 );
             }
-            return unsupported("--compare");
-        }
+            Run::CompareJson(a.files[0].clone(), a.files[1].clone())
+        } else {
         if !a.search_path.is_empty()
             || !a.constants.is_empty()
             || a.module
@@ -851,11 +938,12 @@ fn run_main() -> u8 {
             }
             _ => return usage_error("takes one input file"),
         }
-        Input::Ndjson(a.files[0].clone())
+        Run::Check(Input::Ndjson(a.files[0].clone()))
+        }
     };
     let h = std::thread::Builder::new()
         .stack_size(STACK_BYTES)
-        .spawn(move || check_main(&a, &input));
+        .spawn(move || run(&a, &input));
     match h {
         Err(e) => {
             eprintln!("con-ron: cannot spawn the checking thread: {}", e);

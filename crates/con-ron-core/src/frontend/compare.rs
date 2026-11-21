@@ -3,7 +3,8 @@
 //!
 //! What the compared run decides of the records and of the `--constant` names
 //! before anything is checked: the name a record is found under ([`rec_key`]),
-//! its kind for the messages ([`rec_kind`]), and a `--constant` name that is no
+//! its kind for the messages ([`rec_kind`]), a theorem read as the hole it is
+//! ([`hole_record`], [`hole_records`]), and a `--constant` name that is no
 //! declaration of the challenge module ([`foreign_constant`], over the homes the
 //! challenge's read reports, `records::homes_of`).  The run itself, its reads and
 //! its lines (`compareG`, `fallbackOnly`, `hoistedNote`, `readFailed`) are the
@@ -20,7 +21,12 @@
 use crate::arena::env;
 use crate::arena::env::IDeclaration;
 use crate::arena::handle::NIdx;
+use crate::arena::justify::builtin_axiom_name;
+use crate::arena::monad::AState;
+use crate::arena::pins::pin_sorry_ax;
 use crate::arena::store::{EStore, PersTier};
+use crate::frontend::nat_op_ground::UsedConsts;
+use crate::kernel::core_types::CheckError;
 use crate::frontend::olean::view;
 use crate::frontend::text;
 use crate::ron::hashmap::Dup;
@@ -57,6 +63,61 @@ pub fn rec_kind(d: &IDeclaration) -> Vec<u32> {
         IDeclaration::OpaqueDecl(_, _) => { const M: [u32; 15] = [111, 112, 97, 113, 117, 101, 32, 99, 111, 110, 115, 116, 97, 110, 116]; crate::kernel::core_types::code_points(&M) },
         IDeclaration::QuotDecl(_, _) => { const M: [u32; 17] = [113, 117, 111, 116, 105, 101, 110, 116, 32, 99, 111, 110, 115, 116, 97, 110, 116]; crate::kernel::core_types::code_points(&M) },
         IDeclaration::IndDecl(_, _) => { const M: [u32; 14] = [105, 110, 100, 117, 99, 116, 105, 118, 101, 32, 116, 121, 112, 101]; crate::kernel::core_types::code_points(&M) },
+    }
+}
+
+/// con-leche: ConLeche/Driver/Compare.lean:63-70 holeRecord
+/// Lean twin: `proof/ConRon/Arena/Frontend/Compare.lean:41-53 holeRecord` — **a theorem
+/// read as the hole it is** (`--olean --compare`): a theorem whose file says its
+/// value uses `sorryAx` (`u`, the read's used constants: `OleanRead`'s
+/// `UsedConsts`) is the axiom of its statement; a theorem at a built-in axiom's
+/// name keeps its own check, and every other record is itself.
+pub fn hole_record<U: UsedConsts>(u: &U, pers: &PersTier, st: &mut AState, d: &IDeclaration) -> Result<IDeclaration, CheckError> {
+    match d {
+        IDeclaration::ThmDecl(cv, _) => match builtin_axiom_name(st, &cv.name) {
+            Err(e) => Err(e),
+            Ok(true) => Ok(env::i_declaration_dup(d)),
+            Ok(false) => match u.used_consts(pers, st, d) {
+                Err(e) => Err(e),
+                Ok(us) => match pin_sorry_ax(st) {
+                    Err(e) => Err(e),
+                    Ok(sa) => {
+                        if env::nidx_vec_contains(&us, &sa) {
+                            Ok(IDeclaration::AxiomDecl(env::i_constant_val_dup(cv)))
+                        } else {
+                            Ok(env::i_declaration_dup(d))
+                        }
+                    }
+                },
+            },
+        },
+        _ => Ok(env::i_declaration_dup(d)),
+    }
+}
+
+/// con-leche: ConLeche/Driver/Compare.lean:132-138 chalRecords
+/// Lean twin: `proof/ConRon/Arena/Frontend/Compare.lean:55-62 holeRecordsGo` — the cited
+/// `recs.map (holeRecord uses)`: every record from cursor `i` through
+/// [`hole_record`], onto `out`.
+pub fn hole_records<U: UsedConsts>(
+    u: &U,
+    pers: &PersTier,
+    st: &mut AState,
+    ds: &Vec<IDeclaration>,
+    i: usize,
+    out: Vec<IDeclaration>,
+) -> Result<Vec<IDeclaration>, CheckError> {
+    if i >= ds.len() {
+        Ok(out)
+    } else {
+        match hole_record(u, pers, st, &ds[i]) {
+            Err(e) => Err(e),
+            Ok(d) => {
+                let mut out = out;
+                out.push(d);
+                hole_records(u, pers, st, ds, i + 1, out)
+            }
+        }
     }
 }
 

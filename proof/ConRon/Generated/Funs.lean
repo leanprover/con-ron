@@ -72432,7 +72432,7 @@ def arena.stream_index.build_index
 partial_fixpoint
 
 /-- [con_ron_core::frontend::compare::rec_key]:
-    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 33:0-48:1
+    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 39:0-54:1
     Visibility: public -/
 def frontend.compare.rec_key
   (d : arena.env.IDeclaration) : Result (Option arena.handle.NIdx) := do
@@ -72464,7 +72464,7 @@ def frontend.compare.rec_key
     ok (some n)
 
 /-- [con_ron_core::frontend::compare::rec_kind::M#5]
-    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 59:41-59:131 -/
+    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 65:41-65:131 -/
 @[global_simps, irreducible]
 def frontend.compare.rec_kind.M_5 : Array Std.U32 14#usize :=
   Array.make 14#usize [
@@ -72473,7 +72473,7 @@ def frontend.compare.rec_kind.M_5 : Array Std.U32 14#usize :=
     ]
 
 /-- [con_ron_core::frontend::compare::rec_kind::M#4]
-    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 58:42-58:146 -/
+    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 64:42-64:146 -/
 @[global_simps, irreducible]
 def frontend.compare.rec_kind.M_4 : Array Std.U32 17#usize :=
   Array.make 17#usize [
@@ -72483,7 +72483,7 @@ def frontend.compare.rec_kind.M_4 : Array Std.U32 17#usize :=
     ]
 
 /-- [con_ron_core::frontend::compare::rec_kind::M#3]
-    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 57:44-57:137 -/
+    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 63:44-63:137 -/
 @[global_simps, irreducible]
 def frontend.compare.rec_kind.M_3 : Array Std.U32 15#usize :=
   Array.make 15#usize [
@@ -72492,7 +72492,7 @@ def frontend.compare.rec_kind.M_3 : Array Std.U32 15#usize :=
     ]
 
 /-- [con_ron_core::frontend::compare::rec_kind::M#2]
-    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 56:41-56:97 -/
+    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 62:41-62:97 -/
 @[global_simps, irreducible]
 def frontend.compare.rec_kind.M_2 : Array Std.U32 7#usize :=
   Array.make 7#usize [
@@ -72500,7 +72500,7 @@ def frontend.compare.rec_kind.M_2 : Array Std.U32 7#usize :=
     ]
 
 /-- [con_ron_core::frontend::compare::rec_kind::M#1]
-    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 55:45-55:117 -/
+    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 61:45-61:117 -/
 @[global_simps, irreducible]
 def frontend.compare.rec_kind.M_1 : Array Std.U32 10#usize :=
   Array.make 10#usize [
@@ -72509,13 +72509,13 @@ def frontend.compare.rec_kind.M_1 : Array Std.U32 10#usize :=
     ]
 
 /-- [con_ron_core::frontend::compare::rec_kind::M]
-    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 54:40-54:85 -/
+    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 60:40-60:85 -/
 @[global_simps, irreducible]
 def frontend.compare.rec_kind.M : Array Std.U32 5#usize :=
   Array.make 5#usize [ 97#u32, 120#u32, 105#u32, 111#u32, 109#u32 ]
 
 /-- [con_ron_core::frontend::compare::rec_kind]:
-    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 52:0-61:1
+    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 58:0-67:1
     Visibility: public -/
 def frontend.compare.rec_kind
   (d : arena.env.IDeclaration) : Result (alloc.vec.Vec Std.U32) := do
@@ -72539,8 +72539,91 @@ def frontend.compare.rec_kind
     let s ← lift (Array.to_slice frontend.compare.rec_kind.M_4)
     kernel.core_types.code_points s
 
+/-- [con_ron_core::frontend::compare::hole_record]:
+    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 75:0-96:1
+    Visibility: public -/
+def frontend.compare.hole_record
+  {U : Type _} (nat_op_groundUsedConstsInst : frontend.nat_op_ground.UsedConsts
+  U) (u : U) (pers : arena.store.PersTier) (st : arena.monad.AState)
+  (d : arena.env.IDeclaration) :
+  Result ((core.result.Result arena.env.IDeclaration
+    kernel.core_types.CheckError) × arena.monad.AState)
+  := do
+  match d with
+  | arena.env.IDeclaration.AxiomDecl _ =>
+    let i ← arena.env.i_declaration_dup d
+    ok (core.result.Result.Ok i, st)
+  | arena.env.IDeclaration.DefnDecl _ _ _ =>
+    let i ← arena.env.i_declaration_dup d
+    ok (core.result.Result.Ok i, st)
+  | arena.env.IDeclaration.ThmDecl cv _ =>
+    let (r, st1) ← arena.justify.builtin_axiom_name st cv.name
+    match r with
+    | core.result.Result.Ok b =>
+      if b
+      then
+        let i ← arena.env.i_declaration_dup d
+        ok (core.result.Result.Ok i, st1)
+      else
+        let (r1, st2) ← nat_op_groundUsedConstsInst.used_consts u pers st1 d
+        match r1 with
+        | core.result.Result.Ok us =>
+          let r2 ← arena.pins.pin_sorry_ax st2
+          match r2 with
+          | core.result.Result.Ok sa =>
+            let b1 ← arena.env.nidx_vec_contains us sa
+            if b1
+            then
+              let iv ← arena.env.i_constant_val_dup cv
+              ok (core.result.Result.Ok (arena.env.IDeclaration.AxiomDecl iv),
+                st2)
+            else
+              let i ← arena.env.i_declaration_dup d
+              ok (core.result.Result.Ok i, st2)
+          | core.result.Result.Err e => ok (core.result.Result.Err e, st2)
+        | core.result.Result.Err e => ok (core.result.Result.Err e, st2)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
+  | arena.env.IDeclaration.OpaqueDecl _ _ =>
+    let i ← arena.env.i_declaration_dup d
+    ok (core.result.Result.Ok i, st)
+  | arena.env.IDeclaration.IndDecl _ _ =>
+    let i ← arena.env.i_declaration_dup d
+    ok (core.result.Result.Ok i, st)
+  | arena.env.IDeclaration.QuotDecl _ _ =>
+    let i ← arena.env.i_declaration_dup d
+    ok (core.result.Result.Ok i, st)
+
+/-- [con_ron_core::frontend::compare::hole_records]:
+    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 102:0-122:1
+    Visibility: public -/
+def frontend.compare.hole_records
+  {U : Type _} (nat_op_groundUsedConstsInst : frontend.nat_op_ground.UsedConsts
+  U) (u : U) (pers : arena.store.PersTier) (st : arena.monad.AState)
+  (ds : alloc.vec.Vec arena.env.IDeclaration) (i : Std.Usize)
+  (out : alloc.vec.Vec arena.env.IDeclaration) :
+  Result ((core.result.Result (alloc.vec.Vec arena.env.IDeclaration)
+    kernel.core_types.CheckError) × arena.monad.AState)
+  := do
+  let i1 := alloc.vec.Vec.len ds
+  if i >= i1
+  then ok (core.result.Result.Ok out, st)
+  else
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.env.IDeclaration) ds i
+    let (r, st1) ←
+      frontend.compare.hole_record nat_op_groundUsedConstsInst u pers st i2
+    match r with
+    | core.result.Result.Ok d =>
+      let out1 ← alloc.vec.Vec.push out d
+      let i3 ← i + 1#usize
+      frontend.compare.hole_records nat_op_groundUsedConstsInst u pers st1 ds
+        i3 out1
+    | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
+partial_fixpoint
+
 /-- [con_ron_core::frontend::compare::foreign_at]:
-    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 65:0-70:1
+    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 126:0-131:1
     Visibility: public -/
 def frontend.compare.foreign_at
   (homes : ron.hashmap2.HashMap2 arena.handle.NIdx arena.handle.NIdx)
@@ -72558,7 +72641,7 @@ def frontend.compare.foreign_at
     ok (¬ b)
 
 /-- [con_ron_core::frontend::compare::first_foreign]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 76:4-83:1
+    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 137:4-144:1
     Visibility: public -/
 @[rust_loop]
 def frontend.compare.first_foreign_loop
@@ -72583,7 +72666,7 @@ def frontend.compare.first_foreign_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::compare::first_foreign]:
-    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 74:0-83:1
+    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 135:0-144:1
     Visibility: public -/
 @[reducible]
 def frontend.compare.first_foreign
@@ -72615,7 +72698,7 @@ def frontend.olean.view.name_text
     kernel.core_types.code_points s
 
 /-- [con_ron_core::frontend::compare::foreign_constant::M#4]
-    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 98:49-98:254 -/
+    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 159:49-159:254 -/
 @[global_simps, irreducible]
 def frontend.compare.foreign_constant.M_4 : Array Std.U32 39#usize :=
   Array.make 39#usize [
@@ -72627,13 +72710,13 @@ def frontend.compare.foreign_constant.M_4 : Array Std.U32 39#usize :=
     ]
 
 /-- [con_ron_core::frontend::compare::foreign_constant::M#3]
-    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 97:201-97:235 -/
+    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 158:201-158:235 -/
 @[global_simps, irreducible]
 def frontend.compare.foreign_constant.M_3 : Array Std.U32 3#usize :=
   Array.make 3#usize [ 39#u32, 115#u32, 41#u32 ]
 
 /-- [con_ron_core::frontend::compare::foreign_constant::M#2]
-    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 97:53-97:110 -/
+    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 158:53-158:110 -/
 @[global_simps, irreducible]
 def frontend.compare.foreign_constant.M_2 : Array Std.U32 8#usize :=
   Array.make 8#usize [
@@ -72641,7 +72724,7 @@ def frontend.compare.foreign_constant.M_2 : Array Std.U32 8#usize :=
     ]
 
 /-- [con_ron_core::frontend::compare::foreign_constant::M#1]
-    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 94:195-94:422 -/
+    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 155:195-155:422 -/
 @[global_simps, irreducible]
 def frontend.compare.foreign_constant.M_1 : Array Std.U32 44#usize :=
   Array.make 44#usize [
@@ -72654,7 +72737,7 @@ def frontend.compare.foreign_constant.M_1 : Array Std.U32 44#usize :=
     ]
 
 /-- [con_ron_core::frontend::compare::foreign_constant::M]
-    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 94:37-94:109 -/
+    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 155:37-155:109 -/
 @[global_simps, irreducible]
 def frontend.compare.foreign_constant.M : Array Std.U32 11#usize :=
   Array.make 11#usize [
@@ -72663,7 +72746,7 @@ def frontend.compare.foreign_constant.M : Array Std.U32 11#usize :=
     ]
 
 /-- [con_ron_core::frontend::compare::foreign_constant]:
-    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 88:0-105:1
+    Source: 'crates/con-ron-core/src/frontend/compare.rs', lines 149:0-166:1
     Visibility: public -/
 def frontend.compare.foreign_constant
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -117589,8 +117672,39 @@ def frontend.prelude.builtin_prelude_e
     ok (core.result.Result.Ok { decls := r1.decls }, ar1)
   | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
 
+/-- [con_ron_core::frontend::prepare::prelude_decls_dup]:
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 75:0-83:1
+    Visibility: public -/
+def frontend.prepare.prelude_decls_dup
+  (ds : alloc.vec.Vec arena.env.IDeclaration) (i : Std.Usize)
+  (out : alloc.vec.Vec arena.env.IDeclaration) :
+  Result (alloc.vec.Vec arena.env.IDeclaration)
+  := do
+  let i1 := alloc.vec.Vec.len ds
+  if i >= i1
+  then ok out
+  else
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.env.IDeclaration) ds i
+    let i3 ← arena.env.i_declaration_dup i2
+    let out1 ← alloc.vec.Vec.push out i3
+    let i4 ← i + 1#usize
+    frontend.prepare.prelude_decls_dup ds i4 out1
+partial_fixpoint
+
+/-- [con_ron_core::frontend::prepare::prelude_ix_dup]:
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 88:0-90:1
+    Visibility: public -/
+def frontend.prepare.prelude_ix_dup
+  (pre : frontend.prepare.PreludeIx) : Result frontend.prepare.PreludeIx := do
+  let v ←
+    frontend.prepare.prelude_decls_dup pre.decls 0#usize (alloc.vec.Vec.new
+      arena.env.IDeclaration)
+  ok { decls := v }
+
 /-- [con_ron_core::frontend::prepare::prelude_key]:
-    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 78:0-85:1
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 99:0-106:1
     Visibility: public -/
 def frontend.prepare.prelude_key
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -117610,7 +117724,7 @@ def frontend.prepare.prelude_key
     ok (core.result.Result.Ok n1, ar)
 
 /-- [con_ron_core::frontend::prepare::declares]:
-    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 90:0-92:1
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 111:0-113:1
     Visibility: public -/
 def frontend.prepare.declares
   (n : arena.handle.NIdx) (d : arena.env.IDeclaration) : Result Bool := do
@@ -117618,7 +117732,7 @@ def frontend.prepare.declares
   arena.env.nidx_vec_contains v n
 
 /-- [con_ron_core::frontend::prepare::pick_idx]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 107:4-112:5
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 128:4-133:5
     Visibility: public -/
 @[rust_loop]
 def frontend.prepare.pick_idx_loop
@@ -117653,7 +117767,7 @@ def frontend.prepare.pick_idx_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::prepare::pick_idx]:
-    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 103:0-114:1
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 124:0-135:1
     Visibility: public -/
 def frontend.prepare.pick_idx
   (n : arena.handle.NIdx) (ds : alloc.vec.Vec arena.env.IDeclaration)
@@ -117664,7 +117778,7 @@ def frontend.prepare.pick_idx
   frontend.prepare.pick_idx_loop n ds picked m 0#usize m
 
 /-- [con_ron_core::frontend::prepare::no_picks]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 123:4-126:5
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 144:4-147:5
     Visibility: public -/
 @[rust_loop]
 def frontend.prepare.no_picks_loop
@@ -117680,7 +117794,7 @@ def frontend.prepare.no_picks_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::prepare::no_picks]:
-    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 120:0-128:1
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 141:0-149:1
     Visibility: public -/
 def frontend.prepare.no_picks
   (n : Std.Usize) : Result (alloc.vec.Vec Bool) := do
@@ -117688,7 +117802,7 @@ def frontend.prepare.no_picks
   frontend.prepare.no_picks_loop n picked 0#usize
 
 /-- [con_ron_core::frontend::prepare::front_of]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 147:4-160:1
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 168:4-181:1
     Visibility: public -/
 @[rust_loop]
 def frontend.prepare.front_of_loop
@@ -117726,7 +117840,7 @@ def frontend.prepare.front_of_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::prepare::front_of]:
-    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 136:0-160:1
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 157:0-181:1
     Visibility: public -/
 def frontend.prepare.front_of
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -117742,7 +117856,7 @@ def frontend.prepare.front_of
   frontend.prepare.front_of_loop pers ar ps ds n picked np picks 0#usize
 
 /-- [con_ron_core::frontend::prepare::prepared_rest]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 210:4-215:5
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 231:4-236:5
     Visibility: public -/
 @[rust_loop]
 def frontend.prepare.prepared_rest_loop
@@ -117771,7 +117885,7 @@ def frontend.prepare.prepared_rest_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::prepare::prepared_rest]:
-    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 202:0-217:1
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 223:0-238:1
     Visibility: public -/
 def frontend.prepare.prepared_rest
   (out : alloc.vec.Vec arena.env.IDeclaration)
@@ -117782,7 +117896,7 @@ def frontend.prepare.prepared_rest
   frontend.prepare.prepared_rest_loop ds picked out n 0#usize
 
 /-- [con_ron_core::frontend::prepare::prepared_front]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 187:4-195:5
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 208:4-216:5
     Visibility: public -/
 @[rust_loop]
 def frontend.prepare.prepared_front_loop
@@ -117819,7 +117933,7 @@ def frontend.prepare.prepared_front_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::prepare::prepared_front]:
-    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 177:0-197:1
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 198:0-218:1
     Visibility: public -/
 def frontend.prepare.prepared_front
   (out : alloc.vec.Vec arena.env.IDeclaration)
@@ -117833,7 +117947,7 @@ def frontend.prepare.prepared_front
   frontend.prepare.prepared_front_loop ps ds picks out n np 0#usize
 
 /-- [con_ron_core::frontend::prepare::prepared_stream]:
-    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 164:0-172:1
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 185:0-193:1
     Visibility: public -/
 def frontend.prepare.prepared_stream
   (ps : alloc.vec.Vec arena.env.IDeclaration)
@@ -117849,7 +117963,7 @@ def frontend.prepare.prepared_stream
   frontend.prepare.prepared_rest v ds picked
 
 /-- [con_ron_core::frontend::prepare::prepare_d]:
-    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 239:0-266:1
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 260:0-287:1
     Visibility: public -/
 def frontend.prepare.prepare_d
   {U : Type _} (nat_op_groundUsedConstsInst : frontend.nat_op_ground.UsedConsts
@@ -117882,7 +117996,7 @@ def frontend.prepare.prepare_d
     ok (core.result.Result.Err e1, { st with store := e })
 
 /-- [con_ron_core::frontend::prepare::prepare_prelude]:
-    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 275:0-285:1
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 296:0-306:1
     Visibility: public -/
 def frontend.prepare.prepare_prelude
   (pers : arena.store.PersTier) (st : arena.monad.AState)
