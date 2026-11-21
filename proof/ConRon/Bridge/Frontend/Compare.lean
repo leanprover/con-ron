@@ -12,6 +12,7 @@ module
 public import ConRon.Arena.Frontend.Compare
 public import ConRon.Arena.Frontend.Olean.Records
 public import ConRon.Bridge.Frontend.Olean.Closure
+public import ConRon.Bridge.Frontend.Olean.Merge
 public import ConLeche.Driver.Compare
 
 public section
@@ -120,14 +121,14 @@ theorem HomesDen.insert {ns : NStore} (hwf : NStoreWF ns) {h : Std.HashMap NIdx 
   refine ⟨fun k v hk => ?_, fun kC vC hk => ?_⟩
   · rw [Std.HashMap.getElem?_insert] at hk
     by_cases e : (n == k) = true
-    · rw [if_pos e] at hk
+    · rw [ite_eq_left e] at hk
       cases hk
       obtain rfl := beq_iff_eq.mp e
       exact ⟨nC, mC, hn, hm, by simp⟩
-    · rw [if_neg e] at hk
+    · rw [ite_eq_right e] at hk
       obtain ⟨kC, vC, hk1, hk2, hk3⟩ := hd.1 k v hk
       refine ⟨kC, vC, hk1, hk2, ?_⟩
-      rw [Std.HashMap.getElem?_insert, if_neg]
+      rw [Std.HashMap.getElem?_insert, ite_eq_right]
       · exact hk3
       · intro e'
         apply e
@@ -135,14 +136,14 @@ theorem HomesDen.insert {ns : NStore} (hwf : NStoreWF ns) {h : Std.HashMap NIdx 
         exact beq_iff_eq.mpr (denoteN_inj hwf hn hk1)
   · rw [Std.HashMap.getElem?_insert] at hk
     by_cases e : (nC == kC) = true
-    · rw [if_pos e] at hk
+    · rw [ite_eq_left e] at hk
       cases hk
       obtain rfl := beq_iff_eq.mp e
       exact ⟨n, m, hn, by simp, hm⟩
-    · rw [if_neg e] at hk
+    · rw [ite_eq_right e] at hk
       obtain ⟨k, v, hk1, hk2, hk3⟩ := hd.2 kC vC hk
       refine ⟨k, v, hk1, ?_, hk3⟩
-      rw [Std.HashMap.getElem?_insert, if_neg]
+      rw [Std.HashMap.getElem?_insert, ite_eq_right]
       · exact hk2
       · intro e'
         apply e
@@ -151,30 +152,8 @@ theorem HomesDen.insert {ns : NStore} (hwf : NStoreWF ns) {h : Std.HashMap NIdx 
 
 theorem denoteCEntry_name {st : EStore} {c : ConRon.Arena.Frontend.Olean.CEntry}
     {z : ConLeche.Frontend.Olean.CEntry} (h : Olean.denoteCEntry st c = some z) :
-    denoteN st.ns c.c.name = some z.name := by
-  unfold Olean.denoteCEntry at h
-  cases he : Olean.denoteEntry st c.c with
-  | none => simp [he] at h
-  | some e =>
-    cases hu : c.uses.toList.mapM (denoteN st.ns) with
-    | none => simp [he, hu] at h
-    | some u =>
-      simp only [he, hu, Option.bind_eq_bind, Option.bind_some, Option.pure_def,
-        Option.some.injEq, bind, pure] at h
-      subst h
-      unfold Olean.denoteEntry ConLeche.Frontend.Olean.CEntryF.mapM at he
-      cases hn : denoteN st.ns c.c.name with
-      | none => simp [hn, bind, Option.bind] at he
-      | some x =>
-        simp only [hn, bind, Option.bind] at he
-        split at he
-        · cases he
-        · split at he
-          · cases he
-          · split at he
-            · cases he
-            · cases he
-              rfl
+    denoteN st.ns c.c.name = some z.name :=
+  (Olean.denoteCEntry_parts h).1
 
 /-- One module's constants, folded into the homes. -/
 theorem homes_inner_den {st : EStore} (hwf : NStoreWF st.ns) {m : NIdx} {mC : ConLeche.Name}

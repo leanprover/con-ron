@@ -120,7 +120,7 @@ theorem valueOf_eq {sp : ConLeche.Frontend.Olean.Roots} {F : FS} {valuesP : Arra
 is either a record's plain job, at a record that is not a theorem with a reference, or the
 reference read into the job's scratch tier and the theorem checked with the value in place. -/
 theorem oleanJob_ok {fs : ConRon.Arena.Frontend.Olean.OleanFs}
-    {pk : ConRon.Arena.Frontend.Olean.OleanPins} {sp : List System.FilePath}
+    {pk : ConRon.Arena.Frontend.Olean.OleanPins} {sp : ConLeche.Frontend.Olean.Roots}
     {values : Array ConRon.Arena.Frontend.Olean.ModRef} {pins : List INatOpPinSet}
     {I : IStreamIndex} {ds : Array IDeclaration} {c c' : ValueCache} {t : Nat}
     {s s' : AState} (ht : t < ds.size)
@@ -190,7 +190,7 @@ theorem oleanJob_ok {fs : ConRon.Arena.Frontend.Olean.OleanFs}
 /-- con-leche: ConLeche/Driver/CheckMain.lean:120-133 oleanJobRun — the `--olean` step: job `k`
 from a worker's state and cache, accepted. -/
 @[expose] def OleanRun (fs : ConRon.Arena.Frontend.Olean.OleanFs)
-    (pk : ConRon.Arena.Frontend.Olean.OleanPins) (sp : List System.FilePath)
+    (pk : ConRon.Arena.Frontend.Olean.OleanPins) (sp : ConLeche.Frontend.Olean.Roots)
     (values : Array ConRon.Arena.Frontend.Olean.ModRef) (pins : List INatOpPinSet)
     (I : IStreamIndex) (ds : Array IDeclaration) (k : Nat) (w w' : AState × ValueCache) : Prop :=
   ∃ _ : k < ds.size, oleanJob fs pk sp values .verified pins I ds w.2 k w.1 = .ok ((w'.2, .ok ()), w'.1)
@@ -328,7 +328,7 @@ theorem oleanJob_spec
 /-- con-leche: ConLeche/Frontend/CheckerIO.lean:461-484 parWorker — a worker's accepted list on
 an `--olean` run is a chain of `--olean` jobs. -/
 theorem checkOleanJobList_chain {fs : ConRon.Arena.Frontend.Olean.OleanFs}
-    {pk : ConRon.Arena.Frontend.Olean.OleanPins} {sp : List System.FilePath}
+    {pk : ConRon.Arena.Frontend.Olean.OleanPins} {sp : ConLeche.Frontend.Olean.Roots}
     {values : Array ConRon.Arena.Frontend.Olean.ModRef} {pins : List INatOpPinSet}
     {I : IStreamIndex} {ds : Array IDeclaration} :
     ∀ (l : List Nat) (c : ValueCache) (w w'' : AState),

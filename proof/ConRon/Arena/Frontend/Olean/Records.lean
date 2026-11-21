@@ -122,8 +122,7 @@ def readOleans (fs : OleanFs) (sp : Roots) (roots : Array NIdx)
   let mg ← mergeAll pk ls
   let () := fs.readNotesSay s!"checking the blocks of {mg.order.size} constants"
   blocksOk pk mg
-  let cs ← if lenient then rootConstants mg (heldConstants mg constants)
-    else rootConstants mg constants
+  let cs ← rootConstants mg (if lenient then heldConstants mg constants else constants)
   let () := fs.readNotesSay s!"emitting records from {cs.size} constants"
   match ← declsOf (← emitAll pk mg cs) with
   | .error e => pure (.error e)

@@ -282,7 +282,7 @@ theorem held_constants_rel {mg : frontend.olean.merge.Merged} {mg' : Merged}
     simp only [show (alloc.vec.Vec.new arena.handle.NIdx).val = [] from rfl, List.map_nil,
       List.nil_append, show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero]
     rw [show cs.val.map absNIdx = cs'.toList from ha]
-    simp [Arena.Frontend.Olean.heldConstants]
+    simp
 
 /-- The twin's step at one stored constant of module `m`. -/
 @[reducible] def homeStep (m : NIdx) (h : Std.HashMap NIdx NIdx)
@@ -393,8 +393,9 @@ theorem homes_outer_rel {ls : alloc.vec.Vec frontend.olean.lazy.Loaded}
     have e := ih i2 h1 _ (by rw [usize_succ hi2]; omega) e1 hx
     rw [usize_succ hi2] at e
     have hj : i.val < ls'.length := (List.getElem?_eq_some_iff.mp hl').1
-    rw [List.drop_eq_getElem_cons hj, (List.getElem?_eq_some_iff.mp hl').2, List.foldl_cons]
-    rwa [Array.foldl_toList] at e
+    rw [List.drop_eq_getElem_cons hj, (List.getElem?_eq_some_iff.mp hl').2, List.foldl_cons,
+      ← Array.foldl_toList]
+    exact e
 
 /-- **`homes_of` is `homesOf`.** -/
 theorem homes_of_rel {ls : alloc.vec.Vec frontend.olean.lazy.Loaded}

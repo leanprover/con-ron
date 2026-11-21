@@ -77,8 +77,8 @@ theorem read_oleans_refines : ReadOleansRefines := by
         let o ← frontend.olean.records.held_constants m cs
         frontend.olean.records.root_constants pers ar2 m o
       else frontend.olean.records.root_constants pers ar2 m cs)
-      (if lenient then rootConstants mg' (Arena.Frontend.Olean.heldConstants mg' (cs.map absNIdxArr))
-        else rootConstants mg' (cs.map absNIdxArr)) := by
+      (Arena.Frontend.Olean.rootConstants mg' (if lenient then Arena.Frontend.Olean.heldConstants mg' (cs.map absNIdxArr)
+        else cs.map absNIdxArr)) := by
     cases lenient with
     | false => exact root_constants_pr hm hcs0
     | true =>
@@ -133,8 +133,8 @@ theorem read_oleans_refines : ReadOleansRefines := by
     rw [am_bind_ok hx3]
     show ((Arena.Frontend.Olean.blocksOk (absPins p) mg') >>= _).run lst3 = _
     rw [am_bind_ok hxb]
-    show ((if lenient then rootConstants mg' (Arena.Frontend.Olean.heldConstants mg' (cs.map absNIdxArr))
-        else rootConstants mg' (cs.map absNIdxArr)) >>= _).run lst3 = _
+    show ((Arena.Frontend.Olean.rootConstants mg' (if lenient then Arena.Frontend.Olean.heldConstants mg' (cs.map absNIdxArr)
+        else cs.map absNIdxArr)) >>= _).run lst3 = _
     rw [am_bind_ok hxcs]
     show ((Arena.Frontend.Olean.emitAll (absPins p) mg' cs') >>= _).run lst3 = _
     rw [am_bind_ok hxe]
