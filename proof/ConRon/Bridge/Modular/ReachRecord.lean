@@ -418,4 +418,140 @@ theorem recBlocksOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = 
       hc2.completed, hc2.pending, hc2.partners, hc2.searches⟩, ?_, hmr⟩
   simp
 
+/-! ## A group read from one part -/
+
+/-- `takePart` keeps the lookups and the recursor blocks. -/
+theorem takePart_keeps {pk : OleanPins} {F : FS} {sp : Roots} {c c' : ConRon.Arena.Modular.ReachCache}
+    {k : ConRon.Arena.Modular.PartKey} {r : Region} {st : SM} {s s' : AState}
+    (h : ConRon.Arena.Modular.takePart (modelFs F) pk sp c k s = .ok ((c', r, st), s')) :
+    c'.looks = c.looks ∧ c'.recBlocks = c.recBlocks := by
+  unfold ConRon.Arena.Modular.takePart at h
+  cases hp : c.parts[k]? with
+  | some p =>
+    obtain ⟨r', st'⟩ := p
+    rw [hp] at h
+    obtain ⟨hv, -⟩ := AM.pure_ok h
+    simp only [Prod.mk.injEq] at hv
+    rw [hv.1]
+    exact ⟨rfl, rfl⟩
+  | none =>
+    rw [hp] at h
+    obtain ⟨mn, t₁, g1, k1⟩ := AM.bind_ok h
+    obtain ⟨fv, t₂, g2, k2⟩ := AM.bind_ok k1
+    cases hv : fv.viewRegion k.level with
+    | none => rw [hv] at k2; exfalso; am_never k2
+    | some ra =>
+      rw [hv] at k2
+      obtain ⟨hv, -⟩ := AM.pure_ok k2
+      simp only [Prod.mk.injEq] at hv
+      rw [← hv.1]
+      exact ⟨rfl, rfl⟩
+
+/-- `putPart` keeps the lookups and the recursor blocks. -/
+theorem putPart_keeps {α : Type} {c c' : ConRon.Arena.Modular.ReachCache}
+    {k : ConRon.Arena.Modular.PartKey} {r : Region} {res : SM × Option α} {a : α} {s s' : AState}
+    (h : ConRon.Arena.Modular.putPart c k r res s = .ok ((c', a), s')) :
+    c'.looks = c.looks ∧ c'.recBlocks = c.recBlocks := by
+  unfold ConRon.Arena.Modular.putPart at h
+  obtain ⟨st, o⟩ := res
+  cases o with
+  | some a' =>
+    obtain ⟨hv, -⟩ := AM.pure_ok h
+    simp only [Prod.mk.injEq] at hv
+    rw [hv.1]
+    exact ⟨rfl, rfl⟩
+  | none => exfalso; am_never h
+
+/-- A read of a part keeps the lookups and the recursor blocks. -/
+theorem partRead_keeps {α : Type} {pk : OleanPins} {F : FS} {sp : Roots}
+    {g : Region → SM → AM (SM × Option α)} {c c' : ConRon.Arena.Modular.ReachCache}
+    {k : ConRon.Arena.Modular.PartKey} {a : α} {s s' : AState}
+    (h : (do
+        let (c, r, st) ← ConRon.Arena.Modular.takePart (modelFs F) pk sp c k
+        ConRon.Arena.Modular.putPart c k r (← g r st)) s = .ok ((c', a), s')) :
+    c'.looks = c.looks ∧ c'.recBlocks = c.recBlocks := by
+  obtain ⟨⟨c₁, r, st⟩, s₁, h1, h⟩ := AM.bind_ok h
+  obtain ⟨res, s₂, h2, h3⟩ := AM.bind_ok h
+  obtain ⟨e1, e2⟩ := takePart_keeps h1
+  obtain ⟨e3, e4⟩ := putPart_keeps h3
+  exact ⟨e3.trans e1, e4.trans e2⟩
+
+theorem partEntry_keeps {pk : OleanPins} {F : FS} {sp : Roots} {c c' : ConRon.Arena.Modular.ReachCache}
+    {k : ConRon.Arena.Modular.PartKey} {l : Nat} {e : CEntryF NIdx EIdx} {s s' : AState}
+    (h : ConRon.Arena.Modular.partEntry (modelFs F) pk sp c k l s = .ok ((c', e), s')) :
+    c'.looks = c.looks ∧ c'.recBlocks = c.recBlocks := by
+  unfold ConRon.Arena.Modular.partEntry at h
+  obtain ⟨⟨c₁, r, st⟩, s₁, h1, h⟩ := AM.bind_ok h
+  obtain ⟨res, s₂, h2, h3⟩ := AM.bind_ok h
+  obtain ⟨e1, e2⟩ := takePart_keeps h1
+  obtain ⟨e3, e4⟩ := putPart_keeps h3
+  exact ⟨e3.trans e1, e4.trans e2⟩
+
+theorem partEntries_keeps {pk : OleanPins} {F : FS} {sp : Roots} {c c' : ConRon.Arena.Modular.ReachCache}
+    {k : ConRon.Arena.Modular.PartKey} {ls : List Nat} {es : List (CEntryF NIdx EIdx)} {s s' : AState}
+    (h : ConRon.Arena.Modular.partEntries (modelFs F) pk sp c k ls s = .ok ((c', es), s')) :
+    c'.looks = c.looks ∧ c'.recBlocks = c.recBlocks := by
+  unfold ConRon.Arena.Modular.partEntries at h
+  obtain ⟨⟨c₁, r, st⟩, s₁, h1, h⟩ := AM.bind_ok h
+  obtain ⟨res, s₂, h2, h3⟩ := AM.bind_ok h
+  obtain ⟨e1, e2⟩ := takePart_keeps h1
+  obtain ⟨e3, e4⟩ := putPart_keeps h3
+  exact ⟨e3.trans e1, e4.trans e2⟩
+
+/-- `tableOf` keeps the lookups. -/
+theorem tableOf_looks {pk : OleanPins} {F : FS} {sp : Roots} {env : ConRon.Arena.Modular.ReachEnv}
+    {c c' : ConRon.Arena.Modular.ReachCache} {k : ConRon.Arena.Modular.PartKey} {s s' : AState}
+    (h : ConRon.Arena.Modular.tableOf (modelFs F) pk sp env c k s = .ok (c', s')) :
+    c'.looks = c.looks := by
+  unfold ConRon.Arena.Modular.tableOf at h
+  by_cases h1 : c.tables.contains k = true
+  · rw [ite_eq_left h1] at h; obtain ⟨rfl, -⟩ := AM.pure_ok h; rfl
+  rw [ite_eq_right h1] at h
+  obtain ⟨u, s₀, h0, h⟩ := AM.bind_ok h
+  obtain ⟨-, hs⟩ := AM.pure_ok h0
+  subst s₀
+  by_cases h2 : (ConRon.Arena.Modular.indexTable env.wr k).isSome = true
+  · rw [ite_eq_left h2] at h; obtain ⟨rfl, -⟩ := AM.pure_ok h; rfl
+  rw [ite_eq_right h2] at h
+  obtain ⟨u, s₀, h0, h⟩ := AM.bind_ok h
+  obtain ⟨-, hs⟩ := AM.pure_ok h0
+  subst s₀
+  obtain ⟨t, s₁, h1', h⟩ := AM.bind_ok h
+  obtain ⟨rfl, -⟩ := AM.pure_ok h
+  rfl
+
+/-- `recBlocksOf` keeps the lookups. -/
+theorem recBlocksOf_looks {pk : OleanPins} {F : FS} {sp : Roots} {env : ConRon.Arena.Modular.ReachEnv}
+    {c c' : ConRon.Arena.Modular.ReachCache} {k : ConRon.Arena.Modular.PartKey} {s s' : AState}
+    (h : ConRon.Arena.Modular.recBlocksOf (modelFs F) pk sp env c k s = .ok (c', s')) :
+    c'.looks = c.looks := by
+  unfold ConRon.Arena.Modular.recBlocksOf at h
+  by_cases h0 : c.recBlocks.contains k = true
+  · rw [ite_eq_left h0] at h; obtain ⟨rfl, -⟩ := AM.pure_ok h; rfl
+  rw [ite_eq_right h0] at h
+  obtain ⟨u0, s₀, h0', h⟩ := AM.bind_ok h
+  obtain ⟨-, hs0⟩ := AM.pure_ok h0'
+  subst s₀
+  obtain ⟨c₁, s₁, h1, h⟩ := AM.bind_ok h
+  have e1 := tableOf_looks h1
+  obtain ⟨tk, s₂, h2, h⟩ := AM.bind_ok h
+  obtain ⟨c₂, r, st⟩ := tk
+  have e2 := (takePart_keeps h2).1
+  dsimp only at h
+  cases htg : ConRon.Arena.Modular.tableGet env.wr c₂ k with
+  | none =>
+    rw [htg] at h; exfalso
+    obtain ⟨_, _, h', _⟩ := AM.bind_ok h
+    exact AM.fail_ok h'
+  | some t =>
+  rw [htg] at h
+  dsimp only at h
+  obtain ⟨res, s₃, h3, h⟩ := AM.bind_ok h
+  obtain ⟨cm, s₄, h4, h5⟩ := AM.bind_ok h
+  obtain ⟨c₃, m⟩ := cm
+  have e3 := (putPart_keeps h4).1
+  obtain ⟨hv, -⟩ := AM.pure_ok h5
+  subst hv
+  exact e3.trans (e2.trans e1)
+
 end ConRon.Bridge.Modular
