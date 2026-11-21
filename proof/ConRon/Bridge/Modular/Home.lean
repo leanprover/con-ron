@@ -20,6 +20,7 @@ module
 
 public import ConRon.Bridge.Modular.Rel
 public import ConRon.Bridge.Frontend.Olean.Sparse
+public import ConRon.Bridge.Modular.ReadsParts
 public import ConRon.Bridge.Frontend.Olean.Parse
 public import ConRon.Bridge.Frontend.Olean.Closure
 public import ConLeche.Verify.Driver.Loads
@@ -697,5 +698,191 @@ theorem expoOf_den {st : EStore} (hwf : StoreWF st) {a b : CEntryF NIdx EIdx}
       | (obtain ⟨_, _, ak⟩ := bind_some_left ak)
       | (obtain ⟨_, _, bk⟩ := bind_some_left bk))) <;>
     simp only [pure, Option.some.injEq] at ak bk <;> subst ak bk <;> rfl
+
+/-! ## A constant read sparsely -/
+
+/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:244-248 sparseExprP — **an expression read
+sparsely is the specification's**. -/
+theorem sparseExprP_run {pk : OleanPins} {r : Region} {v : UInt64} {s s' : AState}
+    (hok : StateOK s) (hpk : NullsRel s.store pk) {x : EIdx}
+    (h : ConRon.Arena.Frontend.Olean.sparseExprP pk r v s = .ok (some x, s')) :
+    ParseStep s s' ∧ ∃ e, exprP r v = some e ∧ denoteE s'.store x = some e := by
+  unfold ConRon.Arena.Frontend.Olean.sparseExprP at h
+  unfold exprP
+  cases hc : r.loc v with
+  | none => simp only [hc] at h; cases (AM.pure_ok h).1
+  | some c =>
+    simp only [hc] at h
+    unfold ConRon.Arena.Frontend.Olean.frontierExpr at h
+    obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok h
+    cases o with
+    | none => cases (AM.pure_ok h2).1
+    | some m =>
+      obtain ⟨hx, rfl⟩ := AM.pure_ok h2
+      obtain ⟨hst, hg, -, -⟩ := sGo_run c hok hpk (Or.inr (Or.inr (Or.inl rfl))) (SMGood.empty _ _)
+        (FrontierGood.empty _ _) h1
+      obtain ⟨e, h3, h4⟩ := lookup_good hg.exprs (FrontierGood.empty _ r).exprs hx.symm
+      exact ⟨hst, e, h3, h4⟩
+
+/-- An expression read in `OptionT AM`, upstream's, read back. -/
+theorem exprs_run {pk : OleanPins} {fe : UInt64 → AM (Option EIdx)} {ge : UInt64 → Option Expr}
+    (hstep : ∀ a s s' y, Ctx pk s → fe a s = .ok (some y, s') →
+      ParseStep s s' ∧ ∃ z, ge a = some z ∧ denoteE s'.store y = some z)
+    (v : UInt64) {y : EIdx} {s s' : AState} (hctx : Ctx pk s)
+    (h : (OptionT.mk (fe v) : OptionT AM EIdx) s = .ok (some y, s')) :
+    ParseStep s s' ∧ ∃ z, ge v = some z ∧ denoteE s'.store y = some z :=
+  hstep v s s' y hctx h
+
+/-- con-leche: ConLeche/Frontend/Olean/Spec.lean:275-296 CKindF.mapM — **a kind read in
+`OptionT AM`**, upstream's, read back. -/
+theorem kindMap_run {pk : OleanPins} {fn : UInt64 → AM (Option NIdx)} {fe : UInt64 → AM (Option EIdx)}
+    {gn : UInt64 → Option ConLeche.Name} {ge : UInt64 → Option Expr}
+    (hn : ∀ a s s' y, Ctx pk s → fn a s = .ok (some y, s') →
+      ParseStep s s' ∧ ∃ z, gn a = some z ∧ denoteN s'.store.ns y = some z)
+    (he : ∀ a s s' y, Ctx pk s → fe a s = .ok (some y, s') →
+      ParseStep s s' ∧ ∃ z, ge a = some z ∧ denoteE s'.store y = some z)
+    (k : CKindF UInt64 UInt64) {kr : CKindF NIdx EIdx} {s s' : AState} (hctx : Ctx pk s)
+    (h : (k.mapM (m := OptionT AM) (fun v => OptionT.mk (fn v)) (fun v => OptionT.mk (fe v))) s
+      = .ok (some kr, s')) :
+    ParseStep s s' ∧ ∃ kC, k.mapM gn ge = some kC ∧
+      kr.mapM (denoteN s'.store.ns) (denoteE s'.store) = some kC := by
+  cases k with
+  | ax u =>
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h
+    exact ⟨ParseStep.refl hctx.ok, _, rfl, rfl⟩
+  | quot u =>
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h
+    exact ⟨ParseStep.refl hctx.ok, _, rfl, rfl⟩
+  | defn v hh sf =>
+    simp only [CKindF.mapM] at h
+    obtain ⟨a, s₁, h1, h2⟩ := OT.bind_ok h
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h2
+    obtain ⟨hst, z, hz, hd⟩ := he v s _ a hctx h1
+    refine ⟨hst, .defn z hh sf, ?_, ?_⟩
+    · simp [CKindF.mapM, hz, bind, Option.bind, pure]
+    · simp [CKindF.mapM, hd, bind, Option.bind, pure]
+  | opaq v u =>
+    simp only [CKindF.mapM] at h
+    obtain ⟨a, s₁, h1, h2⟩ := OT.bind_ok h
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h2
+    obtain ⟨hst, z, hz, hd⟩ := he v s _ a hctx h1
+    refine ⟨hst, .opaq z u, ?_, ?_⟩
+    · simp [CKindF.mapM, hz, bind, Option.bind, pure]
+    · simp [CKindF.mapM, hd, bind, Option.bind, pure]
+  | thm v all =>
+    simp only [CKindF.mapM] at h
+    obtain ⟨a, s₁, h1, h2⟩ := OT.bind_ok h
+    obtain ⟨ns, s₂, h3, h4⟩ := OT.bind_ok h2
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h4
+    obtain ⟨hst1, z, hz, hd⟩ := he v s _ a hctx h1
+    obtain ⟨hst2, zs, hzs, hds⟩ := names_run hn all (hctx.step hst1) h3
+    refine ⟨hst1.trans hst2, .thm z zs, ?_, ?_⟩
+    · simp [CKindF.mapM, hz, hzs, bind, Option.bind, pure]
+    · simp [CKindF.mapM, denote_ext hd hst2.ext, hds, bind, Option.bind, pure]
+  | induct np ni all cs nn ir iu irf =>
+    simp only [CKindF.mapM] at h
+    obtain ⟨as, s₁, h1, h2⟩ := OT.bind_ok h
+    obtain ⟨bs, s₂, h3, h4⟩ := OT.bind_ok h2
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h4
+    obtain ⟨hst1, zs, hz, hd⟩ := names_run hn all hctx h1
+    obtain ⟨hst2, ws, hw, hdw⟩ := names_run hn cs (hctx.step hst1) h3
+    refine ⟨hst1.trans hst2, .induct np ni zs ws nn ir iu irf, ?_, ?_⟩
+    · simp [CKindF.mapM, hz, hw, bind, Option.bind, pure]
+    · have hd' := mapM_denoteN_ext hst2.ext hd
+      simp [CKindF.mapM, hd', hdw, bind, Option.bind, pure]
+  | ctor ind ci np nf iu =>
+    simp only [CKindF.mapM] at h
+    obtain ⟨a, s₁, h1, h2⟩ := OT.bind_ok h
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h2
+    obtain ⟨hst, z, hz, hd⟩ := hn ind s _ a hctx h1
+    refine ⟨hst, .ctor z ci np nf iu, ?_, ?_⟩
+    · simp [CKindF.mapM, hz, bind, Option.bind, pure]
+    · simp [CKindF.mapM, hd, bind, Option.bind, pure]
+  | recur all np ni nmo nmi rules kk iu =>
+    rw [recur_mapM] at h ⊢
+    obtain ⟨as, s₁, h1, h2⟩ := OT.bind_ok h
+    obtain ⟨rs, s₂, h3, h4⟩ := OT.bind_ok h2
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h4
+    obtain ⟨hst1, zs, hz, hd⟩ := names_run hn all hctx h1
+    obtain ⟨hst2, ws, hw, hdw⟩ := optT_list_run (pk := pk)
+      (den := fun st (x : NIdx × Nat × EIdx) => do
+        let c ← denoteN st.ns x.1
+        let e ← denoteE st x.2.2
+        pure (c, x.2.1, e))
+      (g := fun (x : UInt64 × Nat × UInt64) => do
+        let c ← gn x.1
+        let e ← ge x.2.2
+        pure (c, x.2.1, e))
+      (fun {st st' y z} hx hy => by
+        obtain ⟨c, hc, hy⟩ := bind_some_left hy
+        obtain ⟨e, he', hy⟩ := bind_some_left hy
+        simp only [denoteN_ext hc hx, denote_ext he' hx]
+        exact hy)
+      (fun x s s' y hctx hrun => by
+        obtain ⟨a, s₁, h1, h2⟩ := OT.bind_ok hrun
+        obtain ⟨b, s₂, h3, h4⟩ := OT.bind_ok h2
+        obtain ⟨rfl, rfl⟩ := OT.pure_ok h4
+        obtain ⟨hst1, z, hz, hd⟩ := hn x.1 s _ a hctx h1
+        obtain ⟨hst2, w, hw', hdw'⟩ := he x.2.2 s₁ _ b (hctx.step hst1) h3
+        exact ⟨hst1.trans hst2, (z, x.2.1, w), by simp [hz, hw', bind, Option.bind, pure],
+          by simp [denoteN_ext hd hst2.ext, hdw', bind, Option.bind, pure]⟩) rules (hctx.step hst1) h3
+    refine ⟨hst1.trans hst2, .recur zs np ni nmo nmi ws kk iu, ?_, ?_⟩
+    · rw [hz, hw]; rfl
+    · have hd' := mapM_denoteN_ext hst2.ext hd
+      rw [recur_mapM, hd', hdw]; rfl
+
+/-- con-leche: ConLeche/Frontend/Olean/Spec.lean:298-305 CEntryF.mapM — **a constant read in
+`OptionT AM`**, upstream's, read back. -/
+theorem entryMapRd_run {pk : OleanPins} {rd : ConRon.Arena.Frontend.Olean.PtrRead}
+    {gn : UInt64 → Option ConLeche.Name} {ge : UInt64 → Option Expr}
+    (hn : ∀ a s s' y, Ctx pk s → rd.rdName a s = .ok (some y, s') →
+      ParseStep s s' ∧ ∃ z, gn a = some z ∧ denoteN s'.store.ns y = some z)
+    (he : ∀ a s s' y, Ctx pk s → rd.rdExpr a s = .ok (some y, s') →
+      ParseStep s s' ∧ ∃ z, ge a = some z ∧ denoteE s'.store y = some z)
+    (c : CEntryF UInt64 UInt64) {e : CEntryF NIdx EIdx} {s s' : AState} (hctx : Ctx pk s)
+    (h : ConRon.Arena.Frontend.Olean.entryMap rd c s = .ok (some e, s')) :
+    ParseStep s s' ∧ ∃ z, c.mapM gn ge = some z ∧ denoteEntry s'.store e = some z := by
+  unfold ConRon.Arena.Frontend.Olean.entryMap at h
+  rcases c with ⟨name, lps, type, kind⟩
+  have h' : (CEntryF.mapM (m := OptionT AM) (fun v => OptionT.mk (rd.rdName v))
+      (fun v => OptionT.mk (rd.rdExpr v)) ⟨name, lps, type, kind⟩) s = .ok (some e, s') := h
+  simp only [CEntryF.mapM] at h'
+  obtain ⟨a, s₁, h1, h2⟩ := OT.bind_ok h'
+  obtain ⟨ls, s₂, h3, h4⟩ := OT.bind_ok h2
+  obtain ⟨t, s₃, h5, h6⟩ := OT.bind_ok h4
+  obtain ⟨k, s₄, h7, h8⟩ := OT.bind_ok h6
+  obtain ⟨rfl, rfl⟩ := OT.pure_ok h8
+  obtain ⟨hst1, zn, hzn, hdn⟩ := hn name s _ a hctx h1
+  obtain ⟨hst2, zl, hzl, hdl⟩ := names_run hn lps (hctx.step hst1) h3
+  obtain ⟨hst3, zt, hzt, hdt⟩ := he type s₂ _ t (hctx.step (hst1.trans hst2)) h5
+  obtain ⟨hst4, zk, hzk, hdk⟩ := kindMap_run hn he kind (hctx.step ((hst1.trans hst2).trans hst3)) h7
+  refine ⟨((hst1.trans hst2).trans hst3).trans hst4, ⟨zn, zl, zt, zk⟩, ?_, ?_⟩
+  · simp [CEntryF.mapM, hzn, hzl, hzt, hzk, bind, Option.bind, pure]
+  · have x1 := denoteN_ext hdn ((hst2.trans hst3).trans hst4).ext
+    have x2 := mapM_denoteN_ext (hst3.trans hst4).ext hdl
+    have x3 := denote_ext hdt hst4.ext
+    simp [denoteEntry, CEntryF.mapM, x1, x2, x3, hdk, bind, Option.bind, pure]
+
+/-- con-leche: ConLeche/Frontend/Olean/Reads.lean:82-84 entryAt — **a constant read sparsely is
+the specification's** (`entryAt_eq`). -/
+theorem entryAt_run {pk : OleanPins} {r : Region} {c : Nat} {e : CEntryF NIdx EIdx} {s s' : AState}
+    (hctx : Ctx pk s)
+    (h : ConRon.Arena.Frontend.Olean.entryAt pk r c s = .ok (some e, s')) :
+    ParseStep s s' ∧ ∃ z, ConLeche.Frontend.Olean.entryAt r c = some z ∧ denoteEntry s'.store e = some z := by
+  unfold ConRon.Arena.Frontend.Olean.entryAt at h
+  rw [ConLeche.Frontend.Olean.entryAt_eq]
+  unfold constSpec
+  cases hsk : constSkel r c with
+  | none => simp only [hsk] at h; cases (AM.pure_ok h).1
+  | some sk =>
+    simp only [hsk] at h
+    obtain ⟨u, s₁, h1, h2⟩ := AM.bind_ok h
+    have := skelFits_run h1
+    subst this
+    unfold ConRon.Arena.Frontend.Olean.sparseEntry at h2
+    obtain ⟨hst, z, hz, hd⟩ := entryMapRd_run (gn := nameP r) (ge := exprP r)
+      (fun a s s' y hctx hrun => sparseNameP_run hctx.ok hctx.nulls hrun)
+      (fun a s s' y hctx hrun => sparseExprP_run hctx.ok hctx.nulls hrun) sk hctx h2
+    exact ⟨hst, z, by simpa [bind, Option.bind] using hz, hd⟩
 
 end ConRon.Bridge.Modular.Home
