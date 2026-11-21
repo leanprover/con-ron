@@ -1082,6 +1082,171 @@ theorem capture_pairs_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
   intro hrel hinv a st' c' hr
   simpa using capture_pairs_loop_ok hP he ps st lst c C hc 0#usize hrel hinv a st' c' hr
 
+/-! ## The worklist -/
+
+/-- **`reach_log_add` is `ReachLog.add`.** -/
+theorem reach_log_add_rel {l : frontend.modular.reach.ReachLog} {L : Modular.ReachLog} (hl : ReachLogRel l L)
+    (d : arena.env.IDeclaration) (h : arena.handle.NIdx) (ns rd : alloc.vec.Vec arena.handle.NIdx) {l'}
+    (hr : reach_log_add l d h ns rd = ok l') :
+    ReachLogRel l' (L.add (absIDeclaration d) (absNIdx h) (absNIdxList ns) (absNIdxList rd)) := by
+  rw [reach_log_add] at hr
+  peel hr as q, hq
+  obtain ⟨i, hm, v⟩ := q
+  have hp := push_names_eq hl.seen hl.stack hq
+  peel hr as hm1, hhm1
+  have hs := set_add_all_eq hl.stored hhm1
+  peel hr as v1, hv1
+  peel hr as v2, hv2
+  peel hr as v3, hv3
+  cases Result.ok_injective hr
+  refine ⟨hp.1, hs, ?_, ?_, ?_, hp.2⟩
+  · rw [ConRon.Refine.vec_push_val hv1]; simp [hl.ctx, Modular.ReachLog.add]
+  · rw [ConRon.Refine.vec_push_val hv2]; simp [hl.homes, Modular.ReachLog.add]
+  · rw [ConRon.Refine.vec_push_val hv3]; simp [hl.reads, absNIdxList, Modular.ReachLog.add]
+
+/-- **The accept of a worklist step** (`&mut ReachLog`, `&mut ReachCache` on the state): the
+Rust's `Ok` is a run of the twin, the logs and the caches related. -/
+def ACL (pers : arena.store.PersTier) (st : arena.monad.AState) (lst : AState)
+    (m : Result (core.result.Result Unit kernel.core_types.CheckError × arena.monad.AState ×
+      frontend.modular.reach.ReachLog × frontend.modular.reach.ReachCache))
+    (x : AM (Modular.ReachLog × Modular.ReachCache)) : Prop :=
+  AStateRel₀ pers st lst → AStateInv pers st → ∀ st' l' c', m = ok (.Ok (), st', l', c') →
+    ∃ b lst', x.run lst = .ok (b, lst') ∧ ReachLogRel l' b.1 ∧ ReachCacheRel c' b.2 ∧
+      AStateRel₀ pers st' lst' ∧ AStateInv pers st'
+
+/-- **`reach_partners` is `reachPartners`.** -/
+theorem reach_partners_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
+    (he : ReachEnvRel env wr own E) {st lst} {l : frontend.modular.reach.ReachLog} {L : Modular.ReachLog}
+    (hl : ReachLogRel l L) {c : frontend.modular.reach.ReachCache} {C : Modular.ReachCache}
+    (hc : ReachCacheRel c C) :
+    ACL pers st lst (reach_partners inst fsv pk pers st sp wr own env l c)
+      (Modular.reachPartners fs (absPins pk) (absRoots sp) E L C) := by
+  intro hrel hinv st' l' c' hr
+  rw [reach_partners] at hr
+  simp only [core.mem.replace] at hr
+  have hc0 := hc.with_partners (v := alloc.vec.Vec.new (arena.handle.NIdx × arena.handle.NIdx))
+    (A := #[]) rfl
+  peel hr as q, hq
+  obtain ⟨r, st1, c1⟩ := q
+  cases r with
+  | Err e => cases Result.ok_injective hr
+  | Ok u =>
+  obtain ⟨C1, lst1, hx1, hc1, hrel1, hinv1⟩ := capture_pairs_ok hP he hc0 c.partners hrel hinv u st1 c1 hq
+  peel hr as v1, hv1
+  have ev1 := pair_seconds_eq hv1
+  peel hr as q2, hq2
+  obtain ⟨i, hm, v2⟩ := q2
+  have hp := push_names_eq hl.seen (StackRel.empty absNIdx l.stack) hq2
+  have e := Result.ok_injective hr
+  simp only [Prod.mk.injEq] at e
+  obtain ⟨-, rfl, rfl, rfl⟩ := e
+  unfold Modular.reachPartners
+  rw [hc.partners] at hx1
+  rw [am_bind_ok hx1]
+  rw [ev1, hc.partners] at hp
+  exact ⟨_, lst1, rfl, ⟨hp.1, hl.stored, hl.ctx, hl.homes, hl.reads, hp.2⟩, hc1, hrel1, hinv1⟩
+
+theorem catchE_ok {α : Type} {x : AM α} {s s' : AState} {a : α} (h : x.run s = .ok (a, s')) :
+    (Modular.catchE x).run s = Except.ok (Except.ok a, s') := by
+  show (match x s with
+    | Except.ok (a, s') => Except.ok (Except.ok a, s')
+    | Except.error e => Except.ok (Except.error e, s)) = _
+  rw [show x s = Except.ok (a, s') from h]
+
+/-- **`reach_read` is `reachRead`**: a popped name's record read, checked and added. -/
+theorem reach_read_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
+    (he : ReachEnvRel env wr own E) {st lst} {l : frontend.modular.reach.ReachLog} {L : Modular.ReachLog}
+    (hl : ReachLogRel l L) {c : frontend.modular.reach.ReachCache} {C : Modular.ReachCache}
+    (hc : ReachCacheRel c C) (x : arena.handle.NIdx) :
+    ACL pers st lst (reach_read inst fsv pk pers st sp wr own env l c x)
+      (Modular.reachRead fs (absPins pk) (absRoots sp) E L C (absNIdx x)) := by
+  intro hrel hinv st' l' c' hr
+  rw [reach_read] at hr
+  unfold Modular.reachRead
+  peel hr as b, hb
+  have eb := SetRel.contains_key nidx_eq2 hl.stored hb
+  by_cases cb : b = true
+  · rw [ite_eq_left cb] at hr
+    have e := Result.ok_injective hr
+    simp only [Prod.mk.injEq] at e
+    obtain ⟨-, rfl, rfl, rfl⟩ := e
+    have : L.stored.contains (absNIdx x) = true := by rw [← eb]; exact cb
+    simp only [this, ↓reduceIte]
+    exact ⟨(L, C), lst, rfl, hl, hc, hrel, hinv⟩
+  rw [ite_eq_right cb] at hr
+  have hsx : L.stored.contains (absNIdx x) = false := by rw [← eb]; simpa using cb
+  simp only [hsx, Bool.false_eq_true, ↓reduceIte, pure_bind]
+  peel hr as q1, hq1
+  obtain ⟨r1, st1, c1⟩ := q1
+  cases r1 with
+  | Err e => cases Result.ok_injective hr
+  | Ok p =>
+  obtain ⟨⟨C1, d', h'⟩, lst1, hx1, ⟨hc1, hd, hh⟩, hrel1, hinv1⟩ :=
+    hP.readRecord he st lst c C x hc hrel hinv p st1 c1 hq1
+  obtain ⟨d, h⟩ := p
+  simp only at hd hh
+  subst hd hh
+  rw [am_bind_ok hx1]
+  dsimp only [Std.uncurry] at hr ⊢
+  peel hr as q2, hq2
+  obtain ⟨r2, st2⟩ := q2
+  cases r2 with
+  | Err e => cases Result.ok_injective hr
+  | Ok ns =>
+  obtain ⟨ns', lst2, hx2, hns, hrel2, hinv2⟩ := decl_names_ls hrel1 hinv1 d (.Ok ns) st2 hq2
+  subst hns
+  rw [am_bind_ok hx2]
+  peel hr as b1, hb1
+  have eb1 := ConRon.Refine2.Lockstep.PC1.nidx_vec_contains_ls ns x b1 hb1
+  by_cases c1' : b1 = true
+  swap
+  · rw [ite_eq_right c1'] at hr; err_peel hr
+  rw [ite_eq_left c1'] at hr
+  have hcx : (absNIdxList ns).contains (absNIdx x) = true := by rw [← eb1]; exact c1'
+  peel hr as b2, hb2
+  have eb2 := any_stored_eq hl.stored hb2
+  by_cases c2' : b2 = true
+  · rw [ite_eq_left c2'] at hr; err_peel hr
+  rw [ite_eq_right c2'] at hr
+  have han : Modular.anyStored L.stored (absNIdxList ns) = false := by
+    rw [absNIdxList, ← eb2]; simpa using c2'
+  simp only [hcx, han, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+  peel hr as q3, hq3
+  obtain ⟨r3, st3⟩ := q3
+  cases r3 with
+  | Err e => cases Result.ok_injective hr
+  | Ok rd =>
+  obtain ⟨rd', lst3, hx3, hrd, hrel3, hinv3⟩ := record_reads_ls hrel2 hinv2 d (.Ok rd) st3 hq3
+  subst hrd
+  rw [am_bind_ok hx3]
+  peel hr as q4, hq4
+  obtain ⟨r4, st4, c2⟩ := q4
+  cases r4 with
+  | Err e => err_peel hr
+  | Ok u4 =>
+  obtain ⟨C2, lst4, hx4, hc2, hrel4, hinv4⟩ := capture_all_ok hP he hc1 h rd hrel3 hinv3 u4 st4 c2 hq4
+  rw [absNIdxList, am_bind_ok (catchE_ok hx4)]
+  peel hr as q5, hq5
+  obtain ⟨r5, st5, c3⟩ := q5
+  cases r5 with
+  | Err e => cases Result.ok_injective hr
+  | Ok u5 =>
+  obtain ⟨C3, lst5, hx5, hc3, hrel5, hinv5⟩ := stored_names_ok_ok hP he hc2 h ns hrel4 hinv4 u5 st5 c3 hq5
+  rw [absNIdxList, am_bind_ok hx5]
+  peel hr as l1, hl1
+  have hL1 := reach_log_add_rel hl d h ns rd hl1
+  peel hr as q6, hq6
+  obtain ⟨r6, st6, v⟩ := q6
+  have e := Result.ok_injective hr
+  simp only [Prod.mk.injEq] at e
+  obtain ⟨rfl, rfl, rfl, rfl⟩ := e
+  obtain ⟨A6, lst6, hx6, hA6, hrel6, hinv6⟩ := clash_partners_ok he.copies c3.partners ns hrel5 hinv5 st6 v hq6
+  have eP : (c3.partners.val.map absNN).toArray = C3.partners := by rw [hc3.partners]
+  rw [eP] at hx6
+  beta_reduce at hx6
+  rw [am_bind_ok hx6]
+  exact ⟨_, lst6, rfl, hL1, hc3.with_partners hA6, hrel6, hinv6⟩
+
 end reads
 
 end ConRon.Refine2.Modular
