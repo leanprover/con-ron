@@ -65,4 +65,13 @@ structure FsRel {F : Type} (inst : frontend.olean.files.OleanFs F) (fsv : F)
 def absSearchPath (dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)) : List System.FilePath :=
   dirs.val.map fun d => ⟨ConRon.Refine.absString d⟩
 
+/-- A lookup, as the twin's: its search path and its fallback, no root resolved. -/
+def absRoots (sp : frontend.olean.files.Roots) : ConLeche.Frontend.Olean.Roots :=
+  { path := absSearchPath sp.path, fallback := absSearchPath sp.fallback }
+
+/-- A lookup with no fallback is its search path's. -/
+theorem absRoots_nofallback (dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)) :
+    absRoots { path := dirs, fallback := alloc.vec.Vec.new _ } =
+      (absSearchPath dirs : ConLeche.Frontend.Olean.Roots) := rfl
+
 end ConRon.Refine2.Frontend.Olean

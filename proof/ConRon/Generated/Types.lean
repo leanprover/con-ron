@@ -1894,7 +1894,7 @@ structure frontend.olean.spec.PtrRead (Self : Type _) where
 def frontend.olean.header.NamePRead := Unit
 
 /-- [con_ron_core::frontend::olean::files::Located]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 455:0-457:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 491:0-493:1
     Visibility: public -/
 structure frontend.olean.files.Located where
   dir : alloc.vec.Vec Std.U32
@@ -1908,6 +1908,13 @@ inductive frontend.olean.files.RootAt where
 | Missing : frontend.olean.files.RootAt
 | Twice : alloc.vec.Vec (alloc.vec.Vec Std.U32) → frontend.olean.files.RootAt
 | Failed : alloc.vec.Vec Std.U32 → frontend.olean.files.RootAt
+
+/-- [con_ron_core::frontend::olean::files::Roots]
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 459:0-462:1
+    Visibility: public -/
+structure frontend.olean.files.Roots where
+  path : alloc.vec.Vec (alloc.vec.Vec Std.U32)
+  fallback : alloc.vec.Vec (alloc.vec.Vec Std.U32)
 
 /-- [con_ron_core::frontend::olean::view::ModFiles]
     Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 42:0-46:1
@@ -2188,23 +2195,24 @@ structure frontend.olean.reads.NamePositions where
   consts : alloc.vec.Vec frontend.olean.reads.NamePosition
 
 /-- [con_ron_core::frontend::olean::records::ModRef]
-    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 135:0-138:1
+    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 179:0-182:1
     Visibility: public -/
 structure frontend.olean.records.ModRef where
   «name» : arena.handle.NIdx
   frontier : frontend.olean.sparse.Frontier
 
 /-- [con_ron_core::frontend::olean::records::OleanRead]
-    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 146:0-151:1
+    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 190:0-196:1
     Visibility: public -/
 structure frontend.olean.records.OleanRead where
   decls : alloc.vec.Vec arena.env.IDeclaration
   values : alloc.vec.Vec frontend.olean.records.ModRef
   merged : frontend.olean.merge.Merged
+  homes : ron.hashmap2.HashMap2 arena.handle.NIdx arena.handle.NIdx
   pins : frontend.olean.spec.OleanPins
 
 /-- [con_ron_core::frontend::olean::records::ValueCache]
-    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 241:0-244:1
+    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 294:0-297:1
     Visibility: public -/
 structure frontend.olean.records.ValueCache where
   idx : Std.U64

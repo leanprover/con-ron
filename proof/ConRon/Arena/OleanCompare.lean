@@ -41,7 +41,7 @@ def agree (pk : OleanPins) (f : ConLeche.Frontend.Olean.ModFiles) (d : ModDecode
 
 /-- con-leche: OleanCompare.lean:145-162 runViews
 `--views`: every module of the closure, as one `AM`. -/
-def viewsGo (sp : List System.FilePath) (roots : Array Name) : AM (Except String Nat) := do
+def viewsGo (sp : ConLeche.Frontend.Olean.Roots) (roots : Array Name) : AM (Except String Nat) := do
   let pk ← oleanPins
   let rs ← roots.mapM internName
   let order ← closureOrder stdFs pk sp rs

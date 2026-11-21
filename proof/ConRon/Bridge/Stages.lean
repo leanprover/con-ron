@@ -204,7 +204,7 @@ theorem stagesO_frame {F : FS} {sp : ConLeche.Frontend.Olean.SearchPath}
     (hA : internReservedPins (AState.init EStore.empty) = .ok ((), sA))
     (hB : builtinPreludeE sA = .ok (.ok pre, sB))
     (hR : names.mapM ConRon.Arena.internName sB = .ok (roots, sB'))
-    (hC : ConRon.Arena.Frontend.Olean.readOleans (Olean.modelFs F) sp roots.toArray none sB' =
+    (hC : ConRon.Arena.Frontend.Olean.readOleans (Olean.modelFs F) sp roots.toArray none false false sB' =
       .ok (.ok rd, sC))
     (hD : prepareD pre rd.decls rd.usedOf sC = .ok (prep, sD))
     (hE : internAllPins pins maxNatSize sD = .ok (ipins, sE)) :
@@ -230,7 +230,7 @@ theorem stagesO_frame {F : FS} {sp : ConLeche.Frontend.Olean.SearchPath}
   obtain ⟨hstR, hnr⟩ := internNames_run hstep1.ok hoffB names hR
   have hoffB' : sB'.store.scratchOn = false := by rw [hstR.scratch]; exact hoffB
   obtain ⟨hstC, hpersR, hpk, ⟨usedC, hU⟩, valuesP, dsR, hvals, hdenR, hthm, -⟩ :=
-    Olean.readOleans_run (roots := roots.toArray) (rootsC := names.toArray) hstR.ok hoffB'
+    Olean.readOleans_run (roots := roots.toArray) (rootsC := names.toArray) rfl hstR.ok hoffB'
       (hpinsA.mono (hstep1.trans hstR).ext (hstep1.trans hstR).pins) (by simpa using hnr) hC
   have hstep2 := hstR.trans hstC
   have hoffC : sC.store.scratchOn = false := by rw [hstC.scratch]; exact hoffB'
@@ -275,7 +275,7 @@ theorem stagesO_no_False (V : Type w) [ConLeche.SetTheory V]
     (hA : internReservedPins (AState.init EStore.empty) = .ok ((), sA))
     (hB : builtinPreludeE sA = .ok (.ok pre, sB))
     (hR : names.mapM ConRon.Arena.internName sB = .ok (roots, sB'))
-    (hC : ConRon.Arena.Frontend.Olean.readOleans (Olean.modelFs F) sp roots.toArray none sB' =
+    (hC : ConRon.Arena.Frontend.Olean.readOleans (Olean.modelFs F) sp roots.toArray none false false sB' =
       .ok (.ok rd, sC))
     (hD : prepareD pre rd.decls rd.usedOf sC = .ok (prep, sD))
     (hE : internAllPins pins maxNatSize sD = .ok (ipins, sE))
@@ -285,7 +285,7 @@ theorem stagesO_no_False (V : Type w) [ConLeche.SetTheory V]
   obtain ⟨hoff, hst, hpp, hipins, hpps, hpd, hwfC, hoffC, hxC, hnu, valuesP, dsR, preC, usedC,
     hvals, hden, hthm⟩ := stagesO_frame hA hB hR hC hD hE
   obtain ⟨Fu, hpure⟩ := Arena.pooledOleanAccepts_bridge hk hind hst hoff hpp hpps hipins hpd
-    hden hwfC hoffC hxC hvals hnu hF
+    hden hwfC hoffC hxC hvals hnu rfl hF
   obtain ⟨code, hd⟩ := hthm hcl hv hmem hkind
   have hm := List.mem_map_of_mem (f := ConLeche.Cached.fillDecl (fillRef (valueOf sp F valuesP)))
     (Array.mem_toList_iff.mpr (ConLeche.Frontend.mem_prepareD (pre := preC) (used := usedC) hd))
@@ -306,7 +306,7 @@ theorem stagesO_model (V : Type w) [ConLeche.SetTheory V]
     (hA : internReservedPins (AState.init EStore.empty) = .ok ((), sA))
     (hB : builtinPreludeE sA = .ok (.ok pre, sB))
     (hR : names.mapM ConRon.Arena.internName sB = .ok (roots, sB'))
-    (hC : ConRon.Arena.Frontend.Olean.readOleans (Olean.modelFs F) sp roots.toArray none sB' =
+    (hC : ConRon.Arena.Frontend.Olean.readOleans (Olean.modelFs F) sp roots.toArray none false false sB' =
       .ok (.ok rd, sC))
     (hD : prepareD pre rd.decls rd.usedOf sC = .ok (prep, sD))
     (hE : internAllPins pins maxNatSize sD = .ok (ipins, sE))
@@ -318,7 +318,7 @@ theorem stagesO_model (V : Type w) [ConLeche.SetTheory V]
   obtain ⟨hoff, hst, hpp, hipins, hpps, hpd, hwfC, hoffC, hxC, hnu, valuesP, dsR, preC, usedC,
     hvals, hden, -⟩ := stagesO_frame hA hB hR hC hD hE
   obtain ⟨Fu, hpure⟩ := Arena.pooledOleanAccepts_bridge hk hind hst hoff hpp hpps hipins hpd
-    hden hwfC hoffC hxC hvals hnu hF
+    hden hwfC hoffC hxC hvals hnu rfl hF
   obtain ⟨parts, hidx, -⟩ := hF
   obtain ⟨hst', hx, -⟩ := buildIndex_run constsSpec tablesSpec hst hpp hoff hpd hden hidx
   exact ⟨hst'.state.wf, _, valueOf sp F valuesP, denoteDecls_ext hx _ _ hden,

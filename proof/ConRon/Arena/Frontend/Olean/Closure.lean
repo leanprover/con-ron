@@ -23,7 +23,7 @@ public import ConRon.Arena.Frontend.Olean.Lazy
 namespace ConRon.Arena.Frontend.Olean
 
 open ConLeche
-open ConLeche.Frontend.Olean (CEntryF CKindF closureFuel OLeanLevel)
+open ConLeche.Frontend.Olean (CEntryF CKindF closureFuel OLeanLevel Roots)
 
 /-- con-leche: none — a walk's fuel spent -/
 def outOfFuel {α : Type} : AM α := fail (.internal "the import closure's walk ran out of steps")
@@ -34,7 +34,7 @@ by an explicit stack.  A module whose imports are being expanded is on the walk'
 current path, so an import of it is a cycle.  Each read looks its root up (`findModule`):
 upstream's resolved `Roots`, threaded through the walk and returned with the order, is not
 kept. -/
-def closureGo (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) :
+def closureGo (fs : OleanFs) (pk : OleanPins) (sp : Roots) :
     Nat → List (NIdx × Bool) → Std.HashSet NIdx → Std.HashSet NIdx → Array NIdx → AM (Array NIdx)
   | _, [], _, _, out => pure out
   | 0, _ :: _, _, _, _ => outOfFuel
@@ -54,14 +54,14 @@ def closureGo (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) :
 
 /-- con-leche: ConLeche/Frontend/Olean/Closure.lean:58-60 closureOrder
 The closure's module order from the roots. -/
-def closureOrder (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (roots : Array NIdx) :
+def closureOrder (fs : OleanFs) (pk : OleanPins) (sp : Roots) (roots : Array NIdx) :
     AM (Array NIdx) :=
   closureGo fs pk sp closureFuel (roots.toList.map (·, false)) {} {} #[]
 
 /-- con-leche: ConLeche/Frontend/Olean/Closure.lean:64-76 loadModule
 **Load one module** for the merge, module `idx` of the `total` in the closure's order:
 its private view, its theorems' values left in the file (`loadView`). -/
-def loadModule (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (total : Nat)
+def loadModule (fs : OleanFs) (pk : OleanPins) (sp : Roots) (total : Nat)
     (m : NIdx) (idx : Nat) : AM Loaded := do
   let mn ← readName m
   let f ← liftE (readFiles fs sp mn .private)
@@ -72,14 +72,14 @@ def loadModule (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (tota
 
 /-- con-leche: ConLeche/Frontend/Olean/Closure.lean:78-91 loadClosure
 `order.toList.zipIdx`, loaded in order, up to the first failure. -/
-def loadAll (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (order : Array NIdx) :
+def loadAll (fs : OleanFs) (pk : OleanPins) (sp : Roots) (order : Array NIdx) :
     AM (Array Loaded) :=
   (order.toList.zipIdx.mapM fun (m, i) => loadModule fs pk sp order.size m i).map List.toArray
 
 /-- con-leche: ConLeche/Frontend/Olean/Closure.lean:78-91 loadClosure
 **The closure, loaded**: its modules in Lean's order, the heartbeat saying when the
 walk and the load start. -/
-def loadClosure (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (roots : Array NIdx) :
+def loadClosure (fs : OleanFs) (pk : OleanPins) (sp : Roots) (roots : Array NIdx) :
     AM (Array Loaded) := do
   let () := fs.readNotesSay "tracing the import closure"
   let order ← closureOrder fs pk sp roots

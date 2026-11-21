@@ -428,7 +428,7 @@
    857      {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
    858      (hsnap : SnapshotOf finst fsv F)
    859      {rd : frontend.olean.records.OleanRead} {store3 : arena.store.EStore}
-   860      (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store dirs roots none
+   860      (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store ⟨dirs, alloc.vec.Vec.new _⟩ roots none false false
    861        = ok (.Ok rd, store3))
    862      {prepared : frontend.prepare.Prepared}
    863      (h4 : frontend.prepare.prepare_d frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier { stR with store := store3 } pre rd.decls rd
@@ -445,7 +445,7 @@
    874      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
    875      (h7 : arena.checker.freeze_tier st6.store ix = ok (tier, frozen))
    876      (h8 : ParallelAll prepared.decls.length (oleanWorkerInit st6.pins)
-   877        (oleanJobStep finst fsv tier .Verified ipins prepared.decls rd.pins rd.values dirs)) :
+   877        (oleanJobStep finst fsv tier .Verified ipins prepared.decls rd.pins rd.values ⟨dirs, alloc.vec.Vec.new _⟩)) :
    878      False :=
 
 == proof/ConRon/Capstone.lean#L887-L916
@@ -460,7 +460,7 @@
    895      {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
    896      (hsnap : SnapshotOf finst fsv F)
    897      {rd : frontend.olean.records.OleanRead} {store3 : arena.store.EStore}
-   898      (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store dirs roots none
+   898      (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store ⟨dirs, alloc.vec.Vec.new _⟩ roots none false false
    899        = ok (.Ok rd, store3))
    900      {prepared : frontend.prepare.Prepared}
    901      (h4 : frontend.prepare.prepare_d frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier { stR with store := store3 } pre rd.decls rd
@@ -477,7 +477,7 @@
    912      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
    913      (h7 : arena.checker.freeze_tier st6.store ix = ok (tier, frozen))
    914      (h8 : ParallelAll prepared.decls.length (oleanWorkerInit st6.pins)
-   915        (oleanJobStep finst fsv tier .Verified ipins prepared.decls rd.pins rd.values dirs)) :
+   915        (oleanJobStep finst fsv tier .Verified ipins prepared.decls rd.pins rd.values ⟨dirs, alloc.vec.Vec.new _⟩)) :
    916      ∃ env, RustDenotesFilled prepared.decls st6 env ∧ Nonempty (ConLeche.Model V env) :=
 
 == proof/ConRon/Capstone.lean#L186-L199

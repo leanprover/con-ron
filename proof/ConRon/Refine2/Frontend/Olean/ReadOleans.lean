@@ -21,7 +21,7 @@ open ConRon.Arena
 /-- **Theorem 2 at the reader**: the Rust's accepting read of the closure is the twin's, on a
 record of the file system answering as the Rust's instance. -/
 theorem read_oleans_refines : ReadOleansRefines := by
-  intro F inst fsv fs pers rst lst dirs roots rd ar' hfs hrel hinv h
+  intro F inst fsv fs pers rst lst sp roots cs lenient homes rd ar' hfs hrel hinv h
   rw [frontend.olean.records.read_oleans] at h
   peel h as q, hq
   obtain ⟨r0, ar1⟩ := q
@@ -37,7 +37,7 @@ theorem read_oleans_refines : ReadOleansRefines := by
   | Ok l =>
   obtain ⟨ls', lst2, hx2, hls, hrel2, hinv2⟩ :=
     load_closure_refines (st := withStore rst ar1) (lst := lst1) (pk := p) (pers := pers)
-      (sp_dirs := dirs) (roots := roots) hfs hrel1 hinv1 _ _ hq1
+      (sp_dirs := sp) (roots := roots) hfs hrel1 hinv1 _ _ hq1
   -- the notes, then the merge
   peel h as s0, -
   peel h as v0, -
@@ -68,11 +68,27 @@ theorem read_oleans_refines : ReadOleansRefines := by
   | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
   | Ok u =>
   obtain ⟨b, hxb, -⟩ := hB
+  have hcs0 : Option.Rel RootsRel cs (cs.map absNIdxArr) := by
+    cases cs with
+    | none => exact Option.Rel.none
+    | some v => exact Option.Rel.some (by simp [RootsRel])
   peel h as r4, hr4
-  have hR := root_constants_pr hm (Option.Rel.none) (pers := pers) (ar := ar2) r4 hr4 lst3
+  have hR : PR RootsRel (if lenient then do
+        let o ← frontend.olean.records.held_constants m cs
+        frontend.olean.records.root_constants pers ar2 m o
+      else frontend.olean.records.root_constants pers ar2 m cs)
+      (Arena.Frontend.Olean.rootConstants mg' (if lenient then Arena.Frontend.Olean.heldConstants mg' (cs.map absNIdxArr)
+        else cs.map absNIdxArr)) := by
+    cases lenient with
+    | false => exact root_constants_pr hm hcs0
+    | true =>
+      intro o ho
+      peel ho as o1, ho1
+      exact root_constants_pr hm (held_constants_rel hm hcs0 ho1) o ho
+  have hR := hR r4 hr4 lst3
   cases r4 with
   | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
-  | Ok cs =>
+  | Ok cs1 =>
   obtain ⟨cs', hxcs, hcs⟩ := hR
   peel h as s4, -
   peel h as v8, -
@@ -95,23 +111,30 @@ theorem read_oleans_refines : ReadOleansRefines := by
   | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
   | Ok ds =>
   obtain ⟨dv, lst4, hxd, hdv, hrel4, hinv4⟩ := hD
+  peel h as hs, hhs
+  have hH : HomesRel hs (if homes then Arena.Frontend.Olean.homesOf mg'.ls else {}) := by
+    cases homes with
+    | true => exact homes_of_rel hm.ls hhs
+    | false => exact homes_new_rel hhs
   peel h as q2, hq2
   obtain ⟨values, mg2⟩ := q2
   obtain ⟨h1, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
   cases h1
   obtain ⟨hvals, hmg2⟩ := mod_refs_rel hm hq2
   refine ⟨⟨dv.decls, (Arena.Frontend.Olean.modRefs mg').2, (Arena.Frontend.Olean.modRefs mg').1,
-    absPins p⟩, lst4, ?_, ⟨?_, hvals, hmg2, rfl⟩, hrel4, hinv4⟩
+    (if homes then Arena.Frontend.Olean.homesOf mg'.ls else {}), absPins p⟩, lst4, ?_,
+    ⟨?_, hvals, hmg2, hH, rfl⟩, hrel4, hinv4⟩
   · show (Arena.Frontend.Olean.oleanPins >>= _).run lst = _
     rw [am_bind_ok hx1]
-    show ((Arena.Frontend.Olean.loadClosure fs (absPins p) (absSearchPath dirs) (absNIdxArr roots))
+    show ((Arena.Frontend.Olean.loadClosure fs (absPins p) (absRoots sp) (absNIdxArr roots))
       >>= _).run lst1 = _
     rw [am_bind_ok hx2]
     show ((Arena.Frontend.Olean.mergeAll (absPins p) ls') >>= _).run lst2 = _
     rw [am_bind_ok hx3]
     show ((Arena.Frontend.Olean.blocksOk (absPins p) mg') >>= _).run lst3 = _
     rw [am_bind_ok hxb]
-    show ((Arena.Frontend.Olean.rootConstants mg' none) >>= _).run lst3 = _
+    show ((Arena.Frontend.Olean.rootConstants mg' (if lenient then Arena.Frontend.Olean.heldConstants mg' (cs.map absNIdxArr)
+        else cs.map absNIdxArr)) >>= _).run lst3 = _
     rw [am_bind_ok hxcs]
     show ((Arena.Frontend.Olean.emitAll (absPins p) mg' cs') >>= _).run lst3 = _
     rw [am_bind_ok hxe]

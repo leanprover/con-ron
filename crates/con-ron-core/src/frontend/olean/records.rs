@@ -36,6 +36,7 @@ use crate::frontend::nat_op_ground;
 use crate::frontend::nat_op_ground::UsedConsts;
 use crate::frontend::olean::files;
 use crate::frontend::olean::lazy;
+use crate::frontend::olean::lazy::Loaded;
 use crate::frontend::olean::region;
 use crate::frontend::olean::region::RegionBuf;
 use crate::frontend::olean::sparse;
@@ -60,6 +61,7 @@ use crate::frontend::text;
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckError;
 use crate::ron::hashmap;
+use crate::ron::hashmap2::HashMap2;
 
 /// con-leche: ConLeche/Frontend/Olean/Records.lean:36-40 Emit.nm
 /// con-leche: ConLeche/Frontend/Olean/Records.lean:45-49 Emit.ex
@@ -130,6 +132,48 @@ pub fn root_constants(pers: &PersTier, ar: &EStore, mg: &Merged, constants: &Opt
     }
 }
 
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:108-138 readOleansAt
+/// `constants.map (·.filter mg.map.contains)`: the named constants the closure
+/// holds (`lenient`).
+pub fn held_constants(mg: &Merged, constants: &Option<Vec<NIdx>>) -> Option<Vec<NIdx>> {
+    match constants {
+        None => None,
+        Some(cs) => {
+            let mut out: Vec<NIdx> = Vec::new();
+            let mut i = 0usize;
+            while i < cs.len() {
+                if merge::mg_has(mg, &cs[i]) {
+                    out.push(cs[i].dup2());
+                }
+                i += 1;
+            }
+            Some(out)
+        }
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:76-81 homesOf
+/// **What a constant's merged copy is read under**: for every name the closure
+/// stores, the first module of the order storing it — the home of every constant
+/// but a theorem (or a proposition's axiom) stored twice, which Lean's rule keys
+/// by its statement.
+pub fn homes_of(ls: &Vec<Loaded>) -> HashMap2<NIdx, NIdx> {
+    let mut h: HashMap2<NIdx, NIdx> = HashMap2::new();
+    let mut i = 0usize;
+    while i < ls.len() {
+        let mut j = 0usize;
+        while j < ls[i].constants.len() {
+            let n = &ls[i].constants[j].c.name;
+            if !h.contains_key(n) {
+                h.insert(n.dup2(), ls[i].name.dup2());
+            }
+            j += 1;
+        }
+        i += 1;
+    }
+    h
+}
+
 /// con-leche: ConLeche/Frontend/Olean/Records.lean:83-86 ModRef
 /// What a theorem's check needs of a module of the closure's order.
 pub struct ModRef {
@@ -140,13 +184,14 @@ pub struct ModRef {
 /// con-leche: ConLeche/Frontend/Olean/Records.lean:90-100 OleanRead
 /// **What a read gives**: the records, a theorem's value as its reference; what
 /// its check needs to read it, by the reference's module; the merged constants,
-/// for what a value mentions; and the reader's pins (module note).  Upstream's
-/// `roots` (a cache, `files::find_module`) and `homes` (the `--compare` mode's,
-/// task #165) are not kept.
+/// for what a value mentions; each constant's home (`homes_of`), where the read
+/// was asked for them, empty otherwise; and the reader's pins (module note).
+/// Upstream's `roots` (a cache, `files::find_module`) is not kept.
 pub struct OleanRead {
     pub decls: Vec<IDeclaration>,
     pub values: Vec<ModRef>,
     pub merged: Merged,
+    pub homes: HashMap2<NIdx, NIdx>,
     pub pins: spec::OleanPins,
 }
 
@@ -192,13 +237,15 @@ pub fn mod_refs(mg: &mut Merged) -> Vec<ModRef> {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Records.lean:108-138 readOleansAt
-/// **The whole read**: `readOleansAt` as the flat path calls it (`lenient` and
-/// `homes` false, the `--compare` mode's: task #165), and on the bare search path
-/// (`find_module`'s note).  Load, merge, emit, build, the heartbeat saying each step
-/// (`OleanFs::read_notes_say`).  `constants` names the constants to start from,
-/// as lean4export's arguments after `--` do; `None` is every constant of the
-/// closure.  A theorem's value is a reference.
-pub fn read_oleans<F: OleanFs>(fs: &F, pers: &PersTier, ar: &mut EStore, sp: &Vec<Vec<u32>>, roots: &Vec<NIdx>, constants: &Option<Vec<NIdx>>) -> Result<OleanRead, (CheckError, u64)> {
+/// **The whole read, through a lookup**: load, merge, emit, build, the heartbeat
+/// saying each step (`OleanFs::read_notes_say`).  `constants` names the constants
+/// to start from, as lean4export's arguments after `--` do; `None` is every
+/// constant of the closure.  A theorem's value is a reference.  A compared run
+/// reads through a lookup with a fallback (`sp`), keeps the constants it names
+/// that the closure holds (`lenient`: those it does not are the comparison's
+/// business) and asks for the constants' homes (`homes`); the flat run passes
+/// `false` for both.
+pub fn read_oleans<F: OleanFs>(fs: &F, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, roots: &Vec<NIdx>, constants: &Option<Vec<NIdx>>, lenient: bool, homes: bool) -> Result<OleanRead, (CheckError, u64)> {
     let pk = match spec::olean_pins(pers, ar) {
         Err(e) => return Err((e, 0)),
         Ok(p) => p,
@@ -217,7 +264,12 @@ pub fn read_oleans<F: OleanFs>(fs: &F, pers: &PersTier, ar: &mut EStore, sp: &Ve
         Err(e) => return Err((e, 0)),
         Ok(()) => {}
     }
-    let cs = match root_constants(pers, ar, &mg, constants) {
+    let rc = if lenient {
+        root_constants(pers, ar, &mg, &held_constants(&mg, constants))
+    } else {
+        root_constants(pers, ar, &mg, constants)
+    };
+    let cs = match rc {
         Err(e) => return Err((e, 0)),
         Ok(cs) => cs,
     };
@@ -229,8 +281,9 @@ pub fn read_oleans<F: OleanFs>(fs: &F, pers: &PersTier, ar: &mut EStore, sp: &Ve
     match decls_of(pers, ar, em) {
         Err(e) => Err(e),
         Ok(ds) => {
+            let hs = if homes { homes_of(&mg.ls) } else { HashMap2::new() };
             let values = mod_refs(&mut mg);
-            Ok(OleanRead { decls: ds.decls, values, merged: mg, pins: pk })
+            Ok(OleanRead { decls: ds.decls, values, merged: mg, homes: hs, pins: pk })
         }
     }
 }
@@ -264,7 +317,7 @@ pub fn owned_view(f: ModFiles, vb: ViewBytes) -> RegionBuf {
 /// con-leche: ConLeche/Frontend/Olean/Records.lean:149-164 regionFor
 /// The region of module `idx` (named `m`), from the cache or the files, the
 /// cache left to go on with: a failure empties it.
-pub fn region_for<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Vec<Vec<u32>>, m: &NIdx, idx: u64, c: &mut ValueCache) -> Result<(), CheckError> {
+pub fn region_for<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, m: &NIdx, idx: u64, c: &mut ValueCache) -> Result<(), CheckError> {
     let hit = match &c.region {
         Some(_) => c.idx == idx,
         None => false,
@@ -296,7 +349,7 @@ pub fn region_for<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar:
 /// (`region_for`, the worker's cache `c`), then the value, over the module's
 /// frontier (`sparse::frontier_expr`), interned into `ar`: a worker's store,
 /// so its scratch tier.  `pk` is the read's (`OleanRead.pins`).
-pub fn read_value<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Vec<Vec<u32>>, values: &Vec<ModRef>, c: &mut ValueCache, code: u64) -> Result<EIdx, CheckError> {
+pub fn read_value<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, values: &Vec<ModRef>, c: &mut ValueCache, code: u64) -> Result<EIdx, CheckError> {
     let i = lazy::ref_module(code);
     if !(i < (values.len() as u64)) {
         let t = text::cat3({ const M: [u32; 28] = [97, 32, 116, 104, 101, 111, 114, 101, 109, 39, 115, 32, 118, 97, 108, 117, 101, 32, 105, 110, 32, 109, 111, 100, 117, 108, 101, 32]; crate::kernel::core_types::code_points(&M) }, &text::u64_str(i), &{ const M: [u32; 5] = [44, 32, 111, 102, 32]; crate::kernel::core_types::code_points(&M) });
@@ -319,7 +372,7 @@ pub fn read_value<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar:
 /// con-leche: ConLeche/Frontend/Olean/Records.lean:180-187 fillRecord
 /// A record with its theorem's value read, if it is a theorem's whose value is a
 /// reference.
-pub fn fill_record<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Vec<Vec<u32>>, values: &Vec<ModRef>, c: &mut ValueCache, d: &IDeclaration) -> Result<IDeclaration, CheckError> {
+pub fn fill_record<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, values: &Vec<ModRef>, c: &mut ValueCache, d: &IDeclaration) -> Result<IDeclaration, CheckError> {
     match d {
         IDeclaration::ThmDecl(cv, v) => match ar.view_bvar(pers, v) {
             Some(code) => match read_value(fs, pk, pers, ar, sp, values, c, code) {
@@ -334,7 +387,7 @@ pub fn fill_record<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar
 
 /// con-leche: ConLeche/Frontend/Olean/Records.lean:189-196 fillRecords
 /// `fillRecord` of each record, in order, one cache.
-pub fn fill_records<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Vec<Vec<u32>>, values: &Vec<ModRef>, ds: &Vec<IDeclaration>) -> Result<Vec<IDeclaration>, CheckError> {
+pub fn fill_records<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, values: &Vec<ModRef>, ds: &Vec<IDeclaration>) -> Result<Vec<IDeclaration>, CheckError> {
     let mut c = value_cache_empty();
     let mut acc: Vec<IDeclaration> = Vec::with_capacity(ds.len());
     let mut i = 0usize;
@@ -351,8 +404,8 @@ pub fn fill_records<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, a
 /// con-leche: ConLeche/Frontend/Olean/Records.lean:198-208 readOleansFull
 /// **The records with every theorem's value read**, for the tools that compare
 /// them: the checker itself reads a value in its check.
-pub fn read_oleans_full<F: OleanFs>(fs: &F, pers: &PersTier, ar: &mut EStore, sp: &Vec<Vec<u32>>, roots: &Vec<NIdx>, constants: &Option<Vec<NIdx>>) -> Result<Vec<IDeclaration>, (CheckError, u64)> {
-    match read_oleans(fs, pers, ar, sp, roots, constants) {
+pub fn read_oleans_full<F: OleanFs>(fs: &F, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, roots: &Vec<NIdx>, constants: &Option<Vec<NIdx>>) -> Result<Vec<IDeclaration>, (CheckError, u64)> {
+    match read_oleans(fs, pers, ar, sp, roots, constants, false, false) {
         Err(e) => Err(e),
         Ok(rd) => match fill_records(fs, &rd.pins, pers, ar, sp, &rd.values, &rd.decls) {
             Err(e) => Err((e, 0)),

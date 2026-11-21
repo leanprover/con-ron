@@ -22,6 +22,7 @@ public import ConLeche.Frontend.Olean.Records
 public import ConLeche.Verify.Frontend.Olean.Files
 public import ConLeche.Verify.Frontend.Olean.Emit
 public import ConRon.Bridge.Frontend.Prepare
+public import ConRon.Bridge.Frontend.Compare
 
 public section
 
@@ -32,7 +33,7 @@ set_option autoImplicit false
 open ConLeche ConRon.Arena ConRon.Arena.Frontend
 open ConRon.Arena.Frontend.Olean (OleanPins Merged CEntry Emit Work emitAll declsGo declsOf)
 open ConLeche.Frontend (DeclRec)
-open ConLeche.Frontend.Olean (CEntryF CKindF SearchPath InClosure ViewOf bind_some_left)
+open ConLeche.Frontend.Olean (CEntryF CKindF SearchPath Roots InClosure ViewOf bind_some_left)
 
 /-! ## The emission -/
 
@@ -277,7 +278,7 @@ theorem usedRel_usedOf {st0 : EStore} {rd : ConRon.Arena.Frontend.Olean.OleanRea
 /-- con-leche: ConLeche/Frontend/Olean/Records.lean:76-79 ModRef — **what a theorem's check needs
 of the closure's modules, on both sides**: the module's name, and a frontier good on the region of
 its files on the snapshot.  Upstream's `ValueAt` reads `valuesP`. -/
-@[expose] def ValuesRel (sp : SearchPath) (F : FS) (st : EStore)
+@[expose] def ValuesRel (sp : Roots) (F : FS) (st : EStore)
     (values : Array ConRon.Arena.Frontend.Olean.ModRef)
     (valuesP : Array ConLeche.Frontend.Olean.ModRef) : Prop :=
   ListRel (fun md mdP => denoteN st.ns md.name = some mdP.name ∧
@@ -285,7 +286,7 @@ its files on the snapshot.  Upstream's `ValueAt` reads `valuesP`. -/
         FrontGoodAt st f md.frontier)
     values.toList valuesP.toList
 
-theorem valuesRel_of_loads {sp : SearchPath} {F : FS} {st : EStore} :
+theorem valuesRel_of_loads {sp : Roots} {F : FS} {st : EStore} :
     ∀ {ls : List ConRon.Arena.Frontend.Olean.Loaded} {lsC : List ConLeche.Frontend.Olean.Loaded},
       ListRel (LoadedRel st) ls lsC → ListRel (ModFront sp F st) ls lsC →
       ListRel (fun (md : ConRon.Arena.Frontend.Olean.ModRef) (mdP : ConLeche.Frontend.Olean.ModRef) =>
@@ -301,7 +302,7 @@ record, with its value in place, is the specification's constant**: the referenc
 stands, on the snapshot, for the value of the theorem the specification reads off the files of
 the reference's module (`constSpec`), and the record's statement is that theorem's.  Upstream's
 proof, over the loads `loadClosure_run` gives (`LoadSpec`) and the values they make. -/
-theorem filled_of {sp : SearchPath} {F : FS} {orderC : Array ConLeche.Name}
+theorem filled_of {sp : Roots} {F : FS} {orderC : Array ConLeche.Name}
     {lsC : List ConLeche.Frontend.Olean.Loaded} {mgC : ConLeche.Frontend.Olean.Merged}
     {ds : Array Declaration}
     (hnames : lsC.map (·.name) = orderC.toList)
@@ -400,11 +401,13 @@ READER**: the twin's accepting read on a snapshot leaves a store its records den
 theorem of the private view of a module of the closure, by the specification, is among them with
 its statement.  The record's value is the reference to where the theorem's value is stored (a
 `bvar`, upstream's `valueRef`): the check reads it.  `hroots` is the roots' denotation. -/
-theorem readOleans_run {F : FS} {sp : SearchPath} {roots : Array NIdx}
-    {rootsC : Array ConLeche.Name} {rd : ConRon.Arena.Frontend.Olean.OleanRead} {s s' : AState}
+theorem readOleans_run {F : FS} {sp : Roots} {roots : Array NIdx}
+    {rootsC : Array ConLeche.Name} {lenient homes : Bool}
+    {rd : ConRon.Arena.Frontend.Olean.OleanRead} {s s' : AState} (hsp : sp.bare = sp)
     (hok : StateOK s) (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
     (hroots : ListRel (NR s.store) roots.toList rootsC.toList)
-    (h : ConRon.Arena.Frontend.Olean.readOleans (modelFs F) sp roots none s = .ok (.ok rd, s')) :
+    (h : ConRon.Arena.Frontend.Olean.readOleans (modelFs F) sp roots none lenient homes s =
+      .ok (.ok rd, s')) :
     ParseStep s s' ∧ PersDecls rd.decls ∧ PinsRel s'.store rd.pins ∧
       (∃ usedC, UsedRel s'.store rd.usedOf usedC) ∧
       ∃ valuesP ds, ValuesRel sp F s'.store rd.values valuesP ∧
@@ -413,20 +416,28 @@ theorem readOleans_run {F : FS} {sp : SearchPath} {roots : Array NIdx}
         {v : Expr} {all : List ConLeche.Name}, InClosure sp F rootsC m → ViewOf sp F m d →
         c ∈ d.constants → c.kind = .thm v all →
         ∃ code, Declaration.thmDecl ⟨c.name, c.levelParams, c.type⟩ (.bvar code) ∈ ds) ∧
-      ∀ {cv : ConstantVal} {code : Nat} {x : Expr}, Declaration.thmDecl cv (.bvar code) ∈ ds →
+      (∀ {cv : ConstantVal} {code : Nat} {x : Expr}, Declaration.thmDecl cv (.bvar code) ∈ ds →
         ConLeche.Frontend.Olean.ValueAt sp F valuesP code x →
         ∃ md f r a sk loc c all, valuesP[ConLeche.Frontend.Olean.refModule code]? = some md ∧
           ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp md.name .private : ModelIO _) F (.ok f) ∧
           f.viewRegion .private = some (r, a) ∧ ConLeche.Frontend.Olean.moduleSkel r a = some sk ∧
           loc ∈ sk.consts ∧ ConLeche.Frontend.Olean.constSpec r loc = some c ∧ c.kind = .thm x all ∧
-          cv = ⟨c.name, c.levelParams, c.type⟩ := by
+          cv = ⟨c.name, c.levelParams, c.type⟩) ∧
+      ∃ (orderC : Array ConLeche.Name) (R' : Roots) (lsC : List ConLeche.Frontend.Olean.Loaded),
+        ModelIO.Gives (ConLeche.Frontend.Olean.closureOrder sp rootsC : ModelIO _) F
+          (.ok (orderC, R')) ∧ lsC.map (·.name) = orderC.toList ∧
+        (∀ lC ∈ lsC, ∃ i f, (lC.name, i) ∈ orderC.toList.zipIdx ∧
+          ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp lC.name .private : ModelIO _) F
+            (.ok f) ∧ LoadSpec f i lC) ∧
+        HomesDen s'.store.ns rd.homes
+          (if homes then ConLeche.Frontend.Olean.homesOf lsC.toArray else {}) := by
   unfold ConRon.Arena.Frontend.Olean.readOleans at h
   obtain ⟨pk, s₁, h1, h⟩ := AM.bind_ok h
   obtain ⟨hst1, hp1⟩ := oleanPins_run hok hoff h1
   have hctx1 : Ctx pk s₁ := ⟨hst1.ok, by rw [hst1.scratch]; exact hoff, hp1.nulls⟩
   obtain ⟨ls, s₂, h2, h⟩ := AM.bind_ok h
   obtain ⟨hst2, orderC, R', lsC, ho, hlsR, hfront, hnames, hloads⟩ :=
-    loadClosure_run hctx1 hp1 (NR_list_ext hst1.ext hroots) h2
+    loadClosure_run hsp hctx1 hp1 (NR_list_ext hst1.ext hroots) h2
   have hctx2 := hctx1.step hst2
   have hp2 := hp1.ext hst2.ext
   obtain ⟨mg, s₃, h3, h⟩ := AM.bind_ok h
@@ -440,6 +451,7 @@ theorem readOleans_run {F : FS} {sp : SearchPath} {roots : Array NIdx}
   obtain ⟨hs4, hb⟩ := blocksOk_run hwc hp2 h4
   rw [hs4] at h
   obtain ⟨cs, s₅, h5, h⟩ := AM.bind_ok h
+  simp only [ConRon.Arena.Frontend.Olean.heldConstants, Option.map_none, ite_self] at h5
   obtain ⟨hv5, hs5⟩ := AM.pure_ok h5
   subst hv5
   rw [hs5] at h
@@ -459,14 +471,14 @@ theorem readOleans_run {F : FS} {sp : SearchPath} {roots : Array NIdx}
   refine ⟨(hst1.trans hst2).trans hst3, hpers, hp2.ext hst3.ext,
     ⟨usedOfC mgC, UsedRel.mono hst3.ext (usedRel_usedOf hmr.strip)⟩,
     (lsC.map fun l => (⟨l.name, l.frontier⟩ : ConLeche.Frontend.Olean.ModRef)).toArray, ds, ?_, hden,
-    ?_, fun hd hv => filled_of hnames hloads hm hds hd hv⟩
+    ?_, fun hd hv => filled_of hnames hloads hm hds hd hv, orderC, R', lsC, ho, hnames, hloads, ?_⟩
   · have := valuesRel_of_loads (ListRel.mono' (fun _ _ h => h.ext hst3.ext) hlsR)
       (ListRel.mono' (fun _ _ h => ModFront.ext h hst3.ext) hfront) (sp := sp) (F := F)
     simp only [ValuesRel, hmls]
     simpa using this
   intro m d c v all hcl hv hc hk
   obtain ⟨_, ho⟩ := ho.outcome #[]
-  obtain ⟨hco, hcr, -, -⟩ := ConLeche.Frontend.Olean.closureOrder_ok rfl ho
+  obtain ⟨hco, hcr, -, -⟩ := ConLeche.Frontend.Olean.closureOrder_ok hsp ho
   have hmo := hcl.mem_order hco hcr
   have hmem : m ∈ lsC.map (·.name) := by
     rw [hnames]
@@ -513,5 +525,10 @@ theorem readOleans_run {F : FS} {sp : SearchPath} {roots : Array NIdx}
   obtain ⟨-, g0, -, -, hw, -⟩ := ConLeche.Frontend.Olean.lazyEntry_thm hent0 hk5
   rw [hw] at this
   exact ⟨_, this⟩
+  -- the homes
+  cases homes with
+  | true =>
+    exact (homesOf_denote (nsWF_of_StateOK hctx2.ok) (by rw [hmls]; exact hlsR)).ext hst3.ext
+  | false => exact HomesDen.empty _
 
 end ConRon.Bridge.Frontend.Olean

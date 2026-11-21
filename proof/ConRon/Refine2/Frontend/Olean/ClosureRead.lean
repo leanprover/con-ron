@@ -56,7 +56,7 @@ section walk
 
 variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
   {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
-  {sp_dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
+  {sp_dirs : frontend.olean.files.Roots}
 
 /-- A tail that ends in an `Err`, with a store beside it. -/
 macro "err_any2" : tactic => `(tactic| (
@@ -78,7 +78,7 @@ theorem closure_go_loop_ok (hfs : FsRel inst fsv fs)
     (o' : _root_.Array NIdx) (hf : fuel.val = f) (hl : StackRel absWEnt stack sp l) (hs : NSet seen s)
     (hd : NSet done1 d) (ho : OutA out o') :
     AS pers OutA st lst (closure_go_loop inst fsv pk pers st.store sp_dirs stack sp fuel seen done1 out)
-      (closureGo fs (absPins pk) (absSearchPath sp_dirs) f l s d o') := by
+      (closureGo fs (absPins pk) (absRoots sp_dirs) f l s d o') := by
   intro hrel hinv a s' h
   rw [closure_go_loop] at h
   by_cases hsp : sp > 0#usize
@@ -88,7 +88,7 @@ theorem closure_go_loop_ok (hfs : FsRel inst fsv fs)
     cases h1
     have hnil := hl.nil_of_zero hsp
     subst hnil
-    have e : closureGo fs (absPins pk) (absSearchPath sp_dirs) f [] s d o' = pure o' := by rw [closureGo]
+    have e : closureGo fs (absPins pk) (absRoots sp_dirs) f [] s d o' = pure o' := by rw [closureGo]
     rw [e]
     exact ⟨o', lst, rfl, ho, hrel, hinv⟩
   rw [ite_eq_left hsp] at h
@@ -130,8 +130,8 @@ theorem closure_go_loop_ok (hfs : FsRel inst fsv fs)
       show out1.val.map absNIdx = _
       rw [ConRon.Refine.vec_push_val ho1, List.map_append, ho]
       simp
-    have e : closureGo fs (absPins pk) (absSearchPath sp_dirs) (f' + 1) (absWEnt (n, true) :: l') s d o' =
-        closureGo fs (absPins pk) (absSearchPath sp_dirs) f' l' s (d.insert (absNIdx n)) (o'.push (absNIdx n)) :=
+    have e : closureGo fs (absPins pk) (absRoots sp_dirs) (f' + 1) (absWEnt (n, true) :: l') s d o' =
+        closureGo fs (absPins pk) (absRoots sp_dirs) f' l' s (d.insert (absNIdx n)) (o'.push (absNIdx n)) :=
       go_done
     rw [e]
     exact closure_go_loop_ok hfs f' st lst stack sp1 fuel1 seen done2 out1 l' s _ _ hfv' hl' hs ins ho' hrel hinv a s' h
@@ -141,8 +141,8 @@ theorem closure_go_loop_ok (hfs : FsRel inst fsv fs)
     have ec := SetRel.contains_key nidx_eq2 hs hc
     by_cases cc : c = true
     · rw [ite_eq_left cc] at h
-      have e : closureGo fs (absPins pk) (absSearchPath sp_dirs) (f' + 1) (absWEnt (n, false) :: l') s d o' =
-          closureGo fs (absPins pk) (absSearchPath sp_dirs) f' l' s d o' :=
+      have e : closureGo fs (absPins pk) (absRoots sp_dirs) (f' + 1) (absWEnt (n, false) :: l') s d o' =
+          closureGo fs (absPins pk) (absRoots sp_dirs) f' l' s d o' :=
         go_seen (by rw [← ec]; exact cc)
       rw [e]
       exact closure_go_loop_ok hfs f' st lst stack sp1 fuel1 seen done1 out l' s d o' hfv' hl' hs hd ho hrel hinv a s' h
@@ -172,10 +172,10 @@ theorem closure_go_loop_ok (hfs : FsRel inst fsv fs)
         peel h as p2, hp2
         obtain ⟨sp2, stack1⟩ := p2
         have hS := walk_expand_eq ins hl' hp2
-        have e := go_expand (fs := fs) (pk := absPins pk) (sp := absSearchPath sp_dirs) (f := f') (m := absNIdx n)
+        have e := go_expand (fs := fs) (pk := absPins pk) (sp := absRoots sp_dirs) (f := f') (m := absNIdx n)
           (rest := l') (s := s) (d := d) (o := o') (lst := lst) (lst1 := lst1) (imps := imps)
           (by rw [← ec]; simpa using cc) hx eo.symm
-        have e' : (closureGo fs (absPins pk) (absSearchPath sp_dirs) (f' + 1) (absWEnt (n, false) :: l') s d o').run lst = _ := e
+        have e' : (closureGo fs (absPins pk) (absRoots sp_dirs) (f' + 1) (absWEnt (n, false) :: l') s d o').run lst = _ := e
         rw [e']
         exact closure_go_loop_ok hfs f' (withStore st ar1) lst1 stack1 sp2 fuel1 seen1 done1 out _ _ _ _ hfv' hS ins hd ho
           hrel1 hinv1 a s' h
@@ -193,7 +193,7 @@ theorem closure_go_refines {st : arena.monad.AState} {lst : AState}
     {stack : alloc.vec.Vec (arena.handle.NIdx × Bool)} {top : Std.Usize} {l : List (NIdx × Bool)}
     (hfs : FsRel inst fsv fs) (hl : StackRel absWEnt stack top l) :
     AS pers OutA st lst (closure_go inst fsv pk pers st.store sp_dirs stack top)
-      (closureGo fs (absPins pk) (absSearchPath sp_dirs) ConLeche.Frontend.Olean.closureFuel l {} {} #[]) := by
+      (closureGo fs (absPins pk) (absRoots sp_dirs) ConLeche.Frontend.Olean.closureFuel l {} {} #[]) := by
   intro hrel hinv a s' h
   rw [closure_go] at h
   peel h as fuel, hfuel
@@ -205,15 +205,15 @@ theorem closure_go_refines {st : arena.monad.AState} {lst : AState}
 theorem closure_order_refines {st : arena.monad.AState} {lst : AState}
     {roots : alloc.vec.Vec arena.handle.NIdx} (hfs : FsRel inst fsv fs) :
     AS pers OutA st lst (closure_order inst fsv pk pers st.store sp_dirs roots)
-      (closureOrder fs (absPins pk) (absSearchPath sp_dirs) (absNIdxArr roots)) := by
+      (closureOrder fs (absPins pk) (absRoots sp_dirs) (absNIdxArr roots)) := by
   intro hrel hinv a s' h
   rw [closure_order] at h
   peel h as q, hq
   obtain ⟨stack1, sp⟩ := q
   have hS := closure_order_loop_eq roots _ _ _ (StackRel.empty absWEnt _) hq
   rw [vec_len_val, List.take_length, List.append_nil] at hS
-  have e : closureOrder fs (absPins pk) (absSearchPath sp_dirs) (absNIdxArr roots) =
-      closureGo fs (absPins pk) (absSearchPath sp_dirs) ConLeche.Frontend.Olean.closureFuel
+  have e : closureOrder fs (absPins pk) (absRoots sp_dirs) (absNIdxArr roots) =
+      closureGo fs (absPins pk) (absRoots sp_dirs) ConLeche.Frontend.Olean.closureFuel
         (roots.val.map fun r => (absNIdx r, false)) {} {} #[] := by
     simp [closureOrder, absNIdxArr, List.map_map, Function.comp_def]
   rw [e]
@@ -226,7 +226,7 @@ theorem load_module_ok {st : arena.monad.AState} {lst : AState} {total idx : Std
     {m : arena.handle.NIdx} (hfs : FsRel inst fsv fs)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) {a s'}
     (h : load_module inst fsv pk pers st.store sp_dirs total m idx = ok (.Ok a, s')) :
-    ∃ b lst', (loadModule fs (absPins pk) (absSearchPath sp_dirs) total.val (absNIdx m) idx.val).run lst
+    ∃ b lst', (loadModule fs (absPins pk) (absRoots sp_dirs) total.val (absNIdx m) idx.val).run lst
         = .ok (b, lst') ∧
       LoadedRel a b ∧ AStateRel₀ pers (withStore st s') lst' ∧ AStateInv pers (withStore st s') := by
   rw [load_module] at h
@@ -256,7 +256,7 @@ theorem load_module_ok {st : arena.monad.AState} {lst : AState} {total idx : Std
     refine ⟨b, lst1, ?_, hR, hrel1, hinv1⟩
     show ((Arena.readName (absNIdx m)) >>= _).run lst = _
     rw [am_bind_ok (read_name_run hrel hn)]
-    have e1' : Arena.Frontend.Olean.readFiles fs (absSearchPath sp_dirs) (ConRon.Refine.absName n)
+    have e1' : Arena.Frontend.Olean.readFiles fs (absRoots sp_dirs) (ConRon.Refine.absName n)
         .private = .ok f' := e1
     simp only [e1', Arena.Frontend.Olean.liftE]
     show ((pure f' : AM _) >>= _).run lst = _
@@ -272,7 +272,7 @@ theorem load_all_loop_ok (hfs : FsRel inst fsv fs)
         List.Forall₂ LoadedRel o.val (acc ++ ys)) st lst
       (load_all_loop inst fsv pk pers st.store sp_dirs order out total i)
       ((((order.val.drop i.val).map absNIdx).zipIdx i.val).mapM fun (p : NIdx × Nat) =>
-        loadModule fs (absPins pk) (absSearchPath sp_dirs) total.val p.1 p.2) := by
+        loadModule fs (absPins pk) (absRoots sp_dirs) total.val p.1 p.2) := by
   intro hrel hinv a s' h
   rw [load_all_loop] at h
   by_cases hlt : i < alloc.vec.Vec.len order
@@ -327,7 +327,7 @@ theorem load_all_refines {st : arena.monad.AState} {lst : AState}
     {order : alloc.vec.Vec arena.handle.NIdx} {order' : _root_.Array NIdx} (ho : OutA order order')
     (hfs : FsRel inst fsv fs) :
     AS pers LoadedA st lst (load_all inst fsv pk pers st.store sp_dirs order)
-      (Arena.Frontend.Olean.loadAll fs (absPins pk) (absSearchPath sp_dirs) order') := by
+      (Arena.Frontend.Olean.loadAll fs (absPins pk) (absRoots sp_dirs) order') := by
   intro hrel hinv a s' h
   rw [load_all] at h
   peel h as total, htotal
@@ -348,7 +348,7 @@ theorem load_all_refines {st : arena.monad.AState} {lst : AState}
 theorem load_closure_refines {st : arena.monad.AState} {lst : AState}
     {roots : alloc.vec.Vec arena.handle.NIdx} (hfs : FsRel inst fsv fs) :
     AS pers LoadedA st lst (load_closure inst fsv pk pers st.store sp_dirs roots)
-      (loadClosure fs (absPins pk) (absSearchPath sp_dirs) (absNIdxArr roots)) := by
+      (loadClosure fs (absPins pk) (absRoots sp_dirs) (absNIdxArr roots)) := by
   intro hrel hinv a s' h
   rw [load_closure] at h
   peel h as s0, -
@@ -374,7 +374,7 @@ theorem load_closure_refines {st : arena.monad.AState} {lst : AState}
       (sp_dirs := sp_dirs) (roots := roots) hfs hrel hinv _ _ hq
     obtain ⟨b, lst2, hb, hR2, hrel2, hinv2⟩ := load_all_refines hR hfs hrel1 hinv1 a s' h
     refine ⟨b, lst2, ?_, hR2, hrel2, hinv2⟩
-    show ((closureOrder fs (absPins pk) (absSearchPath sp_dirs) (absNIdxArr roots)) >>= _).run lst = _
+    show ((closureOrder fs (absPins pk) (absRoots sp_dirs) (absNIdxArr roots)) >>= _).run lst = _
     rw [am_bind_ok hx]
     exact hb
 

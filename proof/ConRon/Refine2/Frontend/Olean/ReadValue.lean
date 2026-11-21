@@ -115,12 +115,12 @@ variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F}
 /-- **`region_for`'s accept is `regionFor`'s**: the store unchanged, the twin's run reading
 nothing, and the region of module `idx` in the caches both hand on. -/
 theorem region_for_ok {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
-    {st : arena.monad.AState} {lst : AState} {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
+    {st : arena.monad.AState} {lst : AState} {sp : frontend.olean.files.Roots}
     {m : arena.handle.NIdx} {idx : Std.U64} {c c1 : frontend.olean.records.ValueCache}
     {c' : Arena.Frontend.Olean.ValueCache} {s'} (hfs : FsRel inst fsv fs) (hc : VCRel c c')
     (hrel : AStateRel₀ pers st lst)
     (h : region_for inst fsv pk pers st.store sp m idx c = ok (.Ok (), s', c1)) :
-    s' = st.store ∧ ∃ c1' r', (regionFor fs (absPins pk) (absSearchPath sp) (absNIdx m) idx.val c').run lst
+    s' = st.store ∧ ∃ c1' r', (regionFor fs (absPins pk) (absRoots sp) (absNIdx m) idx.val c').run lst
         = .ok ((c1', .ok r'), lst) ∧ VCRel c1 c1' ∧ c1'.region = some r' := by
   -- the read of the files, both sides
   have hread : ∀ {s' c1}, (do
@@ -143,7 +143,7 @@ theorem region_for_ok {pk : frontend.olean.spec.OleanPins} {pers : arena.store.P
           let c1 ← value_cache_empty
           ok (core.result.Result.Err e, st.store, c1)) = ok (.Ok (), s', c1) →
       s' = st.store ∧ ∃ c1' r',
-        (regionFor.readRegion fs (absPins pk) (absSearchPath sp) (absNIdx m) idx.val).run lst
+        (regionFor.readRegion fs (absPins pk) (absRoots sp) (absNIdx m) idx.val).run lst
           = .ok ((c1', .ok r'), lst) ∧ VCRel c1 c1' ∧ c1'.region = some r' := by
     intro s' c1 h
     peel h as r, hr
@@ -174,7 +174,7 @@ theorem region_for_ok {pk : frontend.olean.spec.OleanPins} {pers : arena.store.P
         obtain ⟨hy, hfit⟩ := owned_view_rel hV hrb
         refine ⟨rfl, ⟨idx.val, some (absRegion (alloc.vec.Vec.deref rb.bytes) rb.region)⟩,
           absRegion (alloc.vec.Vec.deref rb.bytes) rb.region, ?_, ⟨rfl, .some ⟨rfl, hfit⟩⟩, rfl⟩
-        have e1' : Arena.Frontend.Olean.readFiles fs (absSearchPath sp) (ConRon.Refine.absName n)
+        have e1' : Arena.Frontend.Olean.readFiles fs (absRoots sp) (ConRon.Refine.absName n)
             .private = .ok f' := e1
         have hy' : f'.viewRegion .private =
             some (absRegion (alloc.vec.Vec.deref rb.bytes) rb.region, absWord a) := hy
@@ -232,14 +232,14 @@ theorem region_for_ok {pk : frontend.olean.spec.OleanPins} {pers : arena.store.P
 the files of its module (through the worker's cache), then the value over the module's
 frontier, interned into the worker's store.  `values` are the read's `ModRef`s (`OleanReadRel`). -/
 theorem read_value_refines {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
-    {st : arena.monad.AState} {lst : AState} {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
+    {st : arena.monad.AState} {lst : AState} {sp : frontend.olean.files.Roots}
     {values : alloc.vec.Vec frontend.olean.records.ModRef}
     {values' : Array Arena.Frontend.Olean.ModRef} {c c1 : frontend.olean.records.ValueCache}
     {c' : Arena.Frontend.Olean.ValueCache} {code : Std.U64} {e : arena.handle.EIdx} {s'}
     (hfs : FsRel inst fsv fs) (hv : List.Forall₂ ModRefRel values.val values'.toList)
     (hc : VCRel c c') (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (h : read_value inst fsv pk pers st.store sp values c code = ok (.Ok e, s', c1)) :
-    ∃ c1' lst', (readValue fs (absPins pk) (absSearchPath sp) values' c' code.val).run lst
+    ∃ c1' lst', (readValue fs (absPins pk) (absRoots sp) values' c' code.val).run lst
         = .ok ((c1', .ok (absEIdx e)), lst') ∧ VCRel c1 c1' ∧
       AStateRel₀ pers (withStore st s') lst' ∧ AStateInv pers (withStore st s') := by
   rw [read_value] at h

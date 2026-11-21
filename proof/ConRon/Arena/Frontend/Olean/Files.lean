@@ -29,7 +29,7 @@ public import ConRon.Arena.Frontend.Olean.Module
 namespace ConRon.Arena.Frontend.Olean
 
 open ConLeche
-open ConLeche.Frontend.Olean (Located RootAt oneEach locatedOf modDir modFile hdrWalk HdrWalk dataStart
+open ConLeche.Frontend.Olean (Located RootAt Roots oneEach locatedOf modDir modFile hdrWalk HdrWalk dataStart
   OLeanLevel ModFiles Part Region moduleSkel Expo)
 
 /-- con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
@@ -103,14 +103,26 @@ def rootAt (fs : OleanFs) (sp : List System.FilePath) (r : Name) : RootAt :=
   | .ok a => a
   | .error e => .failed e
 
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:144-148 lookNext
+The fallback's turn: where the path holds no directory of the root, the fallback's answer. -/
+def lookNext (fs : OleanFs) (fallback : List System.FilePath) (r : Name) : RootAt → RootAt
+  | .missing => rootAt fs fallback r
+  | a => a
+
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:150-154 lookAt
+**Where a root's modules are, on a path and its fallback**: on the path, and where no
+directory of it holds the root, on the fallback. -/
+def lookAt (fs : OleanFs) (path fallback : List System.FilePath) (r : Name) : RootAt :=
+  lookNext fs fallback r (rootAt fs path r)
+
 /-- con-leche: ConLeche/Frontend/Olean/Files.lean:182-202 findModule
-**Find a module, as Lean does, strictly**: the one search-path directory holding its root
-(`rootAt`), or why there is none (`locatedOf`).  Each read looks the root up: upstream's
-`Roots`, which resolves each root once per run (`Roots.resolve`), is a cache over one
-snapshot, where the lookup answers the same each time (`findModule_rev`), and its
-`--trusted-search-path` fallback is the `--compare` mode's (task #165). -/
-def findModule (fs : OleanFs) (sp : List System.FilePath) (m : Name) : Except CheckError Located :=
-  match locatedOf m (rootAt fs sp m.root) with
+**Find a module, as Lean does, strictly**: the one directory holding its root, on the path or
+else on the fallback (`lookAt`), or why there is none (`locatedOf`).  Each read looks the root
+up: the lookup's map of resolved roots (`Roots.resolve`) is a cache over one snapshot, where
+the lookup answers the same each time (`findModule_rev`); the twin reads `sp.path` and
+`sp.fallback` only, as the Rust's `files::Roots` holds no map. -/
+def findModule (fs : OleanFs) (sp : Roots) (m : Name) : Except CheckError Located :=
+  match locatedOf m (lookAt fs sp.path sp.fallback m.root) with
   | .ok l => .ok l
   | .error e => .error (toArenaError e)
 
@@ -209,7 +221,7 @@ def readImportsAt (fs : OleanFs) (pk : OleanPins) (loc : Located) (m : Name) :
 /-- con-leche: ConLeche/Frontend/Olean/Files.lean:273-279 moduleImports
 **A module's imports**, off the start of its exported `.olean`, located on the search
 path. -/
-def moduleImports (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (m : NIdx) :
+def moduleImports (fs : OleanFs) (pk : OleanPins) (sp : Roots) (m : NIdx) :
     AM (Array ImportRec) := do
   let mn ← readName m
   match findModule fs sp mn with
@@ -267,7 +279,7 @@ def readFilesAt (fs : OleanFs) (loc : Located) (m : Name) (level : OLeanLevel) :
 /-- con-leche: ConLeche/Frontend/Olean/Files.lean:327-333 readFiles
 **The files of a module a view reads**, located on the search path (`findModule`), then read
 at that location (`readFilesAt`). -/
-def readFiles (fs : OleanFs) (sp : List System.FilePath) (m : Name) (level : OLeanLevel) :
+def readFiles (fs : OleanFs) (sp : Roots) (m : Name) (level : OLeanLevel) :
     Except CheckError ModFiles := do
   let loc ← findModule fs sp m
   readFilesAt fs loc m level
@@ -279,7 +291,7 @@ def readFiles (fs : OleanFs) (sp : List System.FilePath) (m : Name) (level : OLe
 
 /-- con-leche: ConLeche/Frontend/Olean/Files.lean:335-343 readView
 **One view of a module**, located on the search path. -/
-def readView (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (m : NIdx)
+def readView (fs : OleanFs) (pk : OleanPins) (sp : Roots) (m : NIdx)
     (level : OLeanLevel) : AM ModDecoded := do
   let mn ← readName m
   let f ← liftE (readFiles fs sp mn level)
@@ -290,7 +302,7 @@ def readView (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (m : NI
 /-- con-leche: ConLeche/Frontend/Olean/Files.lean:396-413 readAllViews
 **All three views of a module, each parsed whole, and their check against each other**
 (`checkViews`, over the views): for the tools that compare the views. -/
-def readAllViews (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (m : NIdx) :
+def readAllViews (fs : OleanFs) (pk : OleanPins) (sp : Roots) (m : NIdx) :
     AM (AllViews × Array Expo) := do
   let mn ← readName m
   let f ← liftE (readFiles fs sp mn .private)
