@@ -408,7 +408,7 @@ pub fn compare_json(o: &CompareOpts, challenge: &str, solution: &str) -> u8 {
 /// search path: the challenge's closure walked through the solution's lookup,
 /// and the first module whose root only the search path holds.  Only after the
 /// challenge's read failed, and only for the message.
-fn fallback_only(pers: &PersTier, st: &mut AState, r: &CmpRequest, c: &NIdx) -> Option<String> {
+pub fn fallback_only(pers: &PersTier, st: &mut AState, r: &CmpRequest, c: &NIdx) -> Option<String> {
     if r.trusted.is_empty() {
         return None;
     }

@@ -280,7 +280,7 @@ pub fn size_positive(v: &str) -> bool {
 /// con-leche: none — Lean core's `String.Slice.isNat`, which `String.toNat?` tests first
 /// Whether `v` is a decimal numeral as Lean's `String.toNat?` takes one: not
 /// empty, ASCII digits, each `_` right after a digit, ending in a digit.
-fn is_nat(v: &str) -> bool {
+pub fn is_nat(v: &str) -> bool {
     let mut last_was_digit = false;
     for c in v.chars() {
         if c == '_' {
