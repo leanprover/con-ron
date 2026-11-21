@@ -242,4 +242,132 @@ theorem partnerReads_run (hN : NeedsExprHyp) {hh : NIdx} {hC : ConLeche.Name} {t
   rw [Array.toList_append, Array.toList_map]
   simpa using this
 
+theorem nidx_beq_iff {st : EStore} (hw : NStoreWF st.ns) {a b : NIdx} {aC bC : ConLeche.Name}
+    (ha : denoteN st.ns a = some aC) (hb : denoteN st.ns b = some bC) : (a == b) = (aC == bC) := by
+  by_cases h : a = b
+  · subst h
+    rw [ha] at hb; cases hb
+    exact (beq_self_eq_true a).trans (beq_self_eq_true aC).symm
+  · have : aC ≠ bC := fun he => h (denoteN_inj hw ha (he ▸ hb))
+    rw [beq_eq_false_iff_ne.mpr h, beq_eq_false_iff_ne.mpr this]
+
+/-- con-leche: ConLeche/Driver/Reach.lean:408-440 agreeCheck — **two copies of `y` agree**:
+upstream's accept, the caches related after. -/
+theorem agreeCheck_run (hN : NeedsExprHyp) {pk : OleanPins} {F : FS} {sp : Roots}
+    (hsp : sp.bare = sp)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
+    {h y : NIdx} {hC yC : ConLeche.Name} {s₁ s₂ : ConRon.Arena.Modular.Spot}
+    {s₁C s₂C : ConLeche.Driver.Spot} {s s' : AState}
+    (hctx : RCtx pk s) (he : EnvRel sp s.store env envC) (hc : CacheRel s.store c cC)
+    (hy : denoteN s.store.ns y = some yC)
+    (h1 : SpotRel s.store s₁ s₁C) (h2 : SpotRel s.store s₂ s₂C)
+    (hrun : ConRon.Arena.Modular.agreeCheck (modelFs F) pk sp env c h y s₁ s₂ s = .ok (c', s')) :
+    DStep s s' ∧ ∃ cC', ModelIO.Gives (ConLeche.Driver.agreeCheck envC cC hC yC s₁C s₂C) F
+        (cC', .ok ()) ∧ CacheRel s'.store c' cC' := by
+  have hw := hctx.wf
+  have hmods := nidx_beq_iff hw h1.1.1 h2.1.1
+  unfold ConRon.Arena.Modular.agreeCheck at hrun
+  unfold ConLeche.Driver.agreeCheck
+  by_cases hm : (s₁.part.mod == s₂.part.mod) = true
+  · simp only [hm, ↓reduceIte] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    rw [hmods] at hm
+    simp only [hm, ↓reduceIte]
+    exact ⟨DStep.refl hctx.ok hctx.off, cC, ModelIO.gives_pure _ _, hc⟩
+  have hmC : (s₁C.part.mod == s₂C.part.mod) = false := by rw [← hmods]; simpa using hm
+  simp only [hm, Bool.false_eq_true, ↓reduceIte, pure_bind] at hrun
+  simp only [hmC, Bool.false_eq_true, ↓reduceIte]
+  have hsk := h2.2.skipped
+  by_cases hk : s₂.pos.skipped = true
+  · simp only [hk, ↓reduceIte] at hrun
+    am_never hrun
+  simp only [hk, Bool.false_eq_true, ↓reduceIte] at hrun
+  have hkC : s₂C.pos.skipped = false := by rw [← hsk]; simpa using hk
+  simp only [hkC, Bool.false_eq_true, ↓reduceIte]
+  -- the two statements
+  obtain ⟨⟨c₁, cv₁, k₁⟩, t₁, g1, r1⟩ := AM.bind_ok hrun
+  obtain ⟨hst1, cC₁, cvC₁, kC₁, hg1, hc1, hd1, hk1⟩ := stmtAt_run hsp hctx he hc h1 g1
+  have hctx1 := hctx.step hst1
+  have he1 := he.ext hst1.ext hctx1.wf
+  obtain ⟨⟨c₂, cv₂, k₂⟩, t₂, g2, r2⟩ := AM.bind_ok r1
+  obtain ⟨hst2, cC₂, cvC₂, kC₂, hg2, hc2, hd2, hk2⟩ :=
+    stmtAt_run hsp hctx1 he1 hc1 (h2.ext hst1.ext) g2
+  have hctx2 := hctx1.step hst2
+  have he2 := he1.ext hst2.ext hctx2.wf
+  have hd1' := denoteStmt_ext hst2.ext hd1
+  -- one statement
+  cases hsame : (cv₁.levelParams == cv₂.levelParams && cv₁.type == cv₂.type) with
+  | false =>
+    simp only [hsame, Bool.not_false, ↓reduceIte] at r2
+    am_never r2
+  | true =>
+  simp only [hsame, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at r2
+  have hsameC : (cvC₁.levelParams == cvC₂.levelParams && cvC₁.type == cvC₂.type) = true := by
+    simp only [Bool.and_eq_true, beq_iff_eq] at hsame ⊢
+    obtain ⟨n1, l1, t1⟩ := denoteStmt_parts hd1'
+    obtain ⟨n2, l2, t2⟩ := denoteStmt_parts hd2
+    rw [hsame.1] at l1; rw [hsame.2] at t1
+    exact ⟨Option.some.inj (l1.symm.trans l2), Option.some.inj (t1.symm.trans t2)⟩
+  -- the proof flags
+  obtain ⟨⟨c₃, p₁⟩, t₃, g3, r3⟩ := AM.bind_ok r2
+  obtain ⟨hst3, cC₃, hg3, hc3⟩ := proofStatus_run hsp hctx2 he2 hc2
+    ((h1.ext hst1.ext).ext hst2.ext) (denoteKindN_ext hst2.ext hk1) g3
+  have hctx3 := hctx2.step hst3
+  have he3 := he2.ext hst3.ext hctx3.wf
+  obtain ⟨⟨c₄, p₂⟩, t₄, g4, r4⟩ := AM.bind_ok r3
+  obtain ⟨hst4, cC₄, hg4, hc4⟩ := proofStatus_run hsp hctx3 he3 hc3
+    ((h2.ext hst1.ext).ext (hst2.trans hst3).ext) (denoteKindN_ext hst3.ext hk2) g4
+  have hctx4 := hctx3.step hst4
+  rw [statusIs_no, statusIs_no] at r4
+  by_cases hno : (psC p₁ == .no || psC p₂ == .no) = true
+  · simp only [hno, ↓reduceIte] at r4
+    am_never r4
+  simp only [hno, Bool.false_eq_true, ↓reduceIte] at r4
+  -- the partners
+  obtain ⟨ps, t₅, g5, r5⟩ := AM.bind_ok r4
+  have hs2m := denoteN_ext h2.1.1 ((((hst1.trans hst2).trans hst3).trans hst4)).ext
+  obtain ⟨-, -, ht2⟩ := denoteStmt_parts (denoteStmt_ext (hst3.trans hst4).ext hd2)
+  obtain ⟨hst5, hps⟩ := partnerReads_run hN hctx4.ok hctx4.off hs2m ht2 hc4.partners g5
+  have hst45 := hst5
+  rw [statusIs_yes, statusIs_yes] at r5
+  have hc5 : CacheRel t₅.store { c₄ with partners := ps }
+      { cC₄ with partners := cC₄.partners ++ ConLeche.Driver.partnerReads s₂C.part.mod cvC₂.type } :=
+    { hc4.ext hst5.ext with partners := hps }
+  have hall := (((hst1.trans hst2).trans hst3).trans hst4).trans hst5
+  have hnoC : (psC p₁ == .no || psC p₂ == .no) = false := by simpa using hno
+  by_cases hyes : (psC p₁ == .yes || psC p₂ == .yes) = true
+  · simp only [hyes, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at r5
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok r5
+    refine ⟨hall, _, ?_, hc5⟩
+    refine hg1.bind ?_
+    refine hg2.bind ?_
+    simp only [hsameC, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+    refine hg3.bind ?_
+    refine hg4.bind ?_
+    simp only [hnoC, Bool.false_eq_true, ↓reduceIte, hyes]
+    exact ModelIO.gives_pure _ _
+  · simp only [hyes, Bool.not_false, ↓reduceIte] at r5
+    obtain ⟨w, t₆, g6, r6⟩ := AM.bind_ok r5
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok r6
+    have e6 := captureWhat_ok g6
+    subst e6
+    let what : String := s!"name capture at {yC}, read by module {hC}"
+    let parts' := cC₄.partners ++ ConLeche.Driver.partnerReads s₂C.part.mod cvC₂.type
+    let cF : ConLeche.Driver.ReachCache :=
+      { cC₄ with partners := parts', pending := cC₄.pending.push (what, yC, cvC₁) }
+    refine ⟨hall, cF, ?_, { hc5 with pending := ?_ }⟩
+    · refine hg1.bind ?_
+      refine hg2.bind ?_
+      simp only [hsameC, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+      refine hg3.bind ?_
+      refine hg4.bind ?_
+      have hyesC : (psC p₁ == .yes || psC p₂ == .yes) = false := by simpa using hyes
+      simp only [hnoC, Bool.false_eq_true, ↓reduceIte, hyesC]
+      exact ModelIO.gives_pure _ _
+    · show ListRel _ _ (cC₄.pending.push (what, yC, cvC₁)).toList
+      simp only [Array.toList_push]
+      exact listRel_append hc5.pending (.cons ⟨denoteN_ext hy hall.ext,
+        denoteStmt_ext ((hst2.trans hst3).trans (hst4.trans hst5)).ext hd1⟩ .nil)
+
 end ConRon.Bridge.Modular
