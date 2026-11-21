@@ -790,4 +790,106 @@ theorem ranks_distinct_eq {idx S} (hidx : IdxRel idx S)
   have := ranks_distinct_loop_eq hidx c rank (T := {}) ⟨hinv, fun r => by rw [hnone]; simp, by simp⟩ _ h
   simpa using this
 
+/-! ## `verdict` -/
+
+/-- **`verdict` is `verdict`**, the rank function the twin's of the two tables. -/
+theorem verdict_eq {roots : alloc.vec.Vec arena.handle.NIdx}
+    {c : alloc.vec.Vec (arena.handle.NIdx ×
+      alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))}
+    {idx S} (hidx : IdxRel idx S) {rank : alloc.vec.Vec (Option Std.U64)} {o}
+    (h : verdict roots c idx rank = ok o) :
+    o.map absFault = Modular.verdict (roots.val.map absNIdx) (absC c).toList (absRk S rank) := by
+  rw [verdict] at h
+  peel h as pos, hpos
+  have hP := names_of_eq hpos
+  peel h as o0, ho0
+  have e0 := first_missing_root_loop_eq hP roots _ ho0
+  simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at e0
+  simp only [Modular.verdict]
+  cases o0 with
+  | some r =>
+    dsimp only at h
+    peel h as n, hn
+    obtain ⟨hi, rfl⟩ := vec_index_eq hn
+    peel h as n1, hn1
+    cases nidx_dup2_ok hn1
+    cases Result.ok_injective h
+    simp only [Option.bind_some, List.getElem?_eq_getElem hi, Option.map_some] at e0
+    rw [← e0]
+    rfl
+  | none =>
+    dsimp only at h
+    simp only [Option.bind_none, Option.map_none] at e0
+    rw [← e0]
+    dsimp only
+    peel h as o1, ho1
+    have e1 := first_unranked_loop_eq hidx c rank _ ho1
+    simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at e1
+    have ec : (absC c).toList = c.val.map absNode := by simp
+    cases o1 with
+    | some k =>
+      dsimp only at h
+      peel h as ⟨n, v⟩, hp
+      obtain ⟨hi, he⟩ := vec_index_eq hp
+      peel h as n1, hn1
+      cases nidx_dup2_ok hn1
+      cases Result.ok_injective h
+      simp only [Option.bind_some, List.getElem?_eq_getElem hi, Option.map_some, ← he] at e1
+      rw [← e1]
+      rfl
+    | none =>
+      dsimp only at h
+      simp only [Option.bind_none, Option.map_none] at e1
+      rw [← e1]
+      dsimp only
+      peel h as b, hb
+      have eb := ranks_distinct_eq hidx hb
+      rw [ec] at eb
+      rw [← eb]
+      by_cases cb : b = true
+      · rw [ite_eq_left cb] at h
+        rw [cb]
+        simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+        peel h as o2, ho2
+        have e2 := first_bad_node_loop_eq hP hidx rank c _ ho2
+        simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at e2
+        cases o2 with
+        | none =>
+          cases Result.ok_injective h
+          simp only [Option.bind_none, Option.map_none] at e2
+          cases hf : (c.val.map absNode).find? (fun e => !e.2.all (Modular.edgeOk (Modular.namesOf (c.val.map absNode)) (absRk S rank) e.1)) with
+          | none => rfl
+          | some x =>
+            rw [hf] at e2; cases e2
+        | some q =>
+          obtain ⟨e, i⟩ := q
+          dsimp only at h
+          peel h as ⟨n, v⟩, hp
+          obtain ⟨hi, he⟩ := vec_index_eq hp
+          peel h as n1, hn1
+          cases nidx_dup2_ok hn1
+          peel h as x, hx
+          obtain ⟨hix, rfl⟩ := vec_index_eq hx
+          peel h as n2, hn2
+          cases nidx_dup2_ok hn2
+          cases Result.ok_injective h
+          simp only [Option.bind_some, List.getElem?_eq_getElem hi, ← he, List.getElem?_eq_getElem hix,
+            Option.map_some] at e2
+          cases hf : (c.val.map absNode).find? (fun e => !e.2.all (Modular.edgeOk (Modular.namesOf (c.val.map absNode)) (absRk S rank) e.1)) with
+          | none => rw [hf] at e2; cases e2
+          | some y =>
+            rw [hf] at e2
+            simp only [Option.map_some, Option.some.injEq] at e2
+            obtain ⟨y1, y2⟩ := y
+            simp only [edgeFault, Prod.mk.injEq] at e2
+            obtain ⟨r1, r2⟩ := e2
+            subst r1
+            simp only [Option.map_some, absFault]
+            rw [r2]
+      · rw [ite_eq_right cb] at h
+        cases Result.ok_injective h
+        simp at cb
+        rw [cb]
+        rfl
+
 end ConRon.Refine2.Modular
