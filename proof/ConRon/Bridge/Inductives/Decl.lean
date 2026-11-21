@@ -32,6 +32,7 @@ Core tier's discharged hypothesis (`CoreSpec.of_core`).
 module
 
 import ConRon.Bridge.Inductives.BlockTail
+import ConRon.Bridge.Inductives.IotaRead
 import ConRon.Bridge.Inductives.BlockShape
 public import ConRon.Bridge.Inductives.Rel
 import ConRon.Bridge.EnvDenote
@@ -194,7 +195,11 @@ theorem checkDecl_ind_route {μ : CheckMode} {pins : List NatOpPinSet} {env : En
     (hparams : ConLeche.indParamsOk nP b = true) :
     ConLeche.checkDeclKind (fueledOpsM μ) pins env (.indDecl b nP)
       = (match ConLeche.readBlock nP b with
-         | .ok p => ConLeche.checkBlock (fueledOpsM μ) env b p
+         | .ok p => do
+           let env' ← ConLeche.checkBlock (fueledOpsM μ) env b p
+           match ConLeche.blockReadsOk env'.find? p with
+           | .ok _ => pure env'
+           | .error e => throw e
          | .error e => throw e) := by
   simp only [ConLeche.checkDeclKind, hparams, ite_true]
   rfl
@@ -246,16 +251,28 @@ theorem checkIndRoute_bridge {env : Env} {fe fe' : IFEnv}
   simp only [ROp] at hr2
   obtain ⟨q, hq, hrel⟩ := hr2
   have hq' := toOption_eq_some hq
-  have out := checkBlock_bridge hk c2.ok hok.envWF
-    (EnvRel.ofCheck hok.check hok.gate hok.envWF |>.mono hext12)
-    (denoteCIList_mono c2.ext _ _ hb₁) hrel (ConLeche.readBlock_declared hq') h4
-  obtain ⟨env', hF⟩ := out.run
+  -- the ι reading rule, read at the input index with the block pushed
+  obtain ⟨⟨reads, fe₀⟩, s₃, h5, h6⟩ := AM.bind_ok h4
+  obtain ⟨c3, hrel3, x3, pn3, hreads⟩ := blockReadsAt_bridge c2.ok
+    (EnvRel.ofCheck hok.check hok.gate hok.envWF |>.mono hext12) hrel h5
+  -- the block's check, at the index the pops gave back
+  obtain ⟨fe'', s₄, h7, h8⟩ := AM.bind_ok h6
+  have out := checkBlock_bridge hk c3 hok.envWF hrel3
+    (denoteCIList_mono (c2.ext.trans x3) _ _ hb₁) (dShape_ext x3 _ _ hrel)
+    (ConLeche.readBlock_declared hq') h7
+  obtain ⟨env', hF, Q, rfl⟩ := out.run
+  cases reads with
+  | false => exact absurd h8 (fun h => AM.fail_ok h)
+  | true =>
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok h8
+  have hR := hreads rfl Q
   exact
     { state := out.state
-      ext := hext12.trans out.ext
-      pins := by rw [out.pins, hpins12]
-      run := ⟨env', FOk.checkDeclKind (pins := pinsP) (by
-        rw [checkDecl_ind_route hparams, hq']; exact hF)⟩ }
+      ext := (hext12.trans x3).trans out.ext
+      pins := by rw [out.pins, pn3, hpins12]
+      run := ⟨_, FOk.checkDeclKind (pins := pinsP) (by
+        rw [checkDecl_ind_route hparams, hq']
+        exact FOk.bind hF (by simp only [hR]; exact FOk.pure _))⟩ }
 
 /-! ## `IndSpec` -/
 

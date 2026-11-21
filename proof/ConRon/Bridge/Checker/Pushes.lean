@@ -390,7 +390,14 @@ theorem checkDecl_pushes_fresh {pinsP : List NatOpPinSet} {F : Nat} {env env' : 
       simp only [declConstants, declTables, hbp]
       by_cases hok : indParamsOk nP block = true
       · rw [ite_eq_left hok, hbp] at hK
-        exact ⟨checkBlock_pushes hK, blockRun_fresh (readBlock_declared hbp) hrun⟩
+        -- the block's install, then the ι reading rule at its output (`blockReadsOk`)
+        obtain ⟨env₁, hK1, hK2⟩ := exceptBind_ok hK
+        have he : env₁ = env' := by
+          cases hr : blockReadsOk env₁.find? p with
+          | error e => rw [hr] at hK2; exact nomatch hK2
+          | ok u => rw [hr] at hK2; exact Except.ok.inj hK2
+        subst he
+        exact ⟨checkBlock_pushes hK1, blockRun_fresh (readBlock_declared hbp) hrun⟩
       · rw [ite_eq_right hok] at hK
         exact nomatch hK
 
