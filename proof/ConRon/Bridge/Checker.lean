@@ -19,8 +19,6 @@ In dependency order:
   `DeclVal.lean`, `DivMod.lean` — the specs of the declaration checker's stages;
 * `Bridge/Checker/Arms.lean` — **`checkDecl`'s six arms**; `Bridge/Checker/Fold.lean` —
   **`Arena.checkDecl_bridge`**;
-* `Bridge/Checker/Pushes.lean` — con-leche's pure `checkDecl` pushes what the record says, at
-  fresh names;
 * `Bridge/Checker/StreamIndex.lean`, `Index.lean`, `Install.lean` — the stream's index denotes
   con-leche's, and a view of it is the environment of the records before the position;
 * `Bridge/Checker/Pooled.lean`, `PooledOleans.lean` — every job passing is con-leche's fold
@@ -44,7 +42,6 @@ public import ConRon.Bridge.Checker.Pins
 public import ConRon.Bridge.Checker.TypePins
 public import ConRon.Bridge.Checker.DeclVal
 public import ConRon.Bridge.Checker.DivMod
-public import ConRon.Bridge.Checker.Pushes
 public import ConRon.Bridge.Checker.StreamIndex
 public import ConRon.Bridge.Checker.Index
 public import ConRon.Bridge.Checker.Install

@@ -23,6 +23,7 @@ public import ConRon.Bridge.Compare.Pooled
 public import ConRon.Bridge.Compare.Side
 public import ConRon.Bridge.Stages
 import ConRon.Bridge.Specs
+import ConLeche.Verify.Cached.PureRun
 import ConRon.Bridge.Checker.Install
 import ConLeche.Verify.Frontend.FileFalse
 import ConLeche.Verify.Frontend.Prepare
@@ -47,7 +48,7 @@ theorem pure_nodup {pinsP : List NatOpPinSet} {F : Nat} {ds : List Declaration}
     ((ConLeche.Cached.recsConsts ds).map (·.name)).Nodup := by
   have h' : ds.foldlM (ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP)
       Env.empty = .ok (ConLeche.streamEnv ds) := h
-  have hch := Compare.pureFold_chain (pinsP := pinsP) ds h' (ConLeche.Cached.PushChain.refl Env.empty)
+  have hch := (ConLeche.PureRun.of_foldlM (pins := pinsP) ds h').chain (ConLeche.Cached.PushChain.refl Env.empty)
   have hnd : ConLeche.NodupNames (ConLeche.streamEnv ds) := by
     have := hch.2.2.1 List.nodup_nil
     rwa [mkFEnv_env] at this

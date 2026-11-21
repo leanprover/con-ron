@@ -175,7 +175,7 @@ invariant survives, the arena only grew, the pin table is untouched, and
 con-leche's pure `checkDecl` accepts the denoted declaration at some fuel.
 
 What the environment becomes is not here: con-leche's `checkDecl` pushes what
-the declaration says (`Bridge/Checker/Pushes.lean`), and the next record's view
+the declaration says (con-leche's `checkDecl_pushes`, `Verify/Cached/PureRun.lean`), and the next record's view
 is read off the stream's index, not off this run's environment. -/
 structure DeclOut (pinsP : List NatOpPinSet) (env : Env)
     (d : Declaration) (s : AState) (s' : AState) : Prop where

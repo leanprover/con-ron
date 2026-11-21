@@ -24,7 +24,7 @@ is an accept of con-leche's pure fold `checkDeclsPure`.  This is con-leche's
 
 The per-record facts are hypotheses here, discharged in `Bridge/Checker/Pool.lean`:
 `RecordSpec` (the per-declaration bridge `Arena.checkDecl_bridge` and the `And` pin's frame) and
-`KernelPushes` (`Bridge/Checker/Pushes.lean`).  Nothing here unfolds a check.
+`KernelPushes` (con-leche's `checkDecl_pushes`/`checkDecl_fresh`, `Verify/Cached/PureRun.lean`).  Nothing here unfolds a check.
 -/
 module
 
@@ -132,7 +132,7 @@ proves it from `Arena.checkDecl_bridge`. -/
 
 /-- con-leche: ConLeche/Verify/Cached/DeclPushes.lean:710 checkDeclStepC_pushes
 con-leche: ConLeche/Verify/Cached/PushChain.lean:48 PushChain — **an accepted step pushes what
-the record says, at fresh names**, for con-leche's pure `checkDecl`.  `Bridge/Checker/Pushes.lean`
+the record says, at fresh names**, for con-leche's pure `checkDecl`.  con-leche's `checkDecl_pushes`/`checkDecl_fresh`
 proves it. -/
 @[expose] def KernelPushes (pinsP : List NatOpPinSet) : Prop :=
   ∀ {F : Nat} {env env' : Env} {d : Declaration},
