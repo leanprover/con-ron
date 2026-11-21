@@ -690,11 +690,6 @@ theorem TOut.refl {st : EStore} {x : Arena.NeedsSt} (h : NeedsInvT st x.seen x.a
     TOut st x x [] :=
   ⟨h, fun _ hk => hk, NamesCover.nil _ _⟩
 
-/-- con-leche: none — a smaller list covered. -/
-theorem TOut.weaken {st : EStore} {x y : Arena.NeedsSt} {L L' : List ConLeche.Name}
-    (h : TOut st x y L) (hL : ∀ m ∈ L', m ∈ L) : TOut st x y L' :=
-  ⟨h.1, h.2.1, fun m hm => h.2.2 m (hL m hm)⟩
-
 /-- con-leche: none — a cover survives a store extension. -/
 theorem NamesCover.mono {st st' : EStore} {hs : List NIdx} {L : List ConLeche.Name}
     (h : NamesCover st hs L) (hx : Ext st st') : NamesCover st' hs L :=

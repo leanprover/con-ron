@@ -27,7 +27,10 @@ Theorem 1 ∘ con-leche."*  This is the one module that imports both
   model of the Rust pipeline accepts has a model in every set theory;
 * `ConRon.Capstone.no_False_declaration` — a file that declares a theorem of
   type `False` is never accepted by it;
-* `no_False_oleans` / `model_exists_oleans` — the same on `--olean`.
+* `no_False_oleans` / `model_exists_oleans` — the same on `--olean`;
+* `model_exists_compare` / `no_False_compare` and `model_exists_oleans_compare` /
+  `no_False_oleans_compare` — the same for a challenge checked with its axioms justified by
+  a solution (`--compare`, §4b and §4c), about the challenge alone.
 
 **They are the campaign's root theorems** (task #97-COMPOSE): the sorry
 frontier is measured as their dependency closure, and §5's census prints their

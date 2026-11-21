@@ -197,16 +197,16 @@ was built with.
 ## 3. What is proved
 
 The two headline theorems are in
-[`proof/ConRon/Capstone.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L14-L85).
+[`proof/ConRon/Capstone.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L18-L92).
 They are stated about the Aeneas model of the Rust functions the binary's
 `check_main` calls, one premise per call, in the order it calls them, from
 the binary's own start values.  Both depend on con-leche's three axioms
 (`propext`, `Classical.choice`, `Quot.sound`) and on nothing else: no
 `sorry`, no `native_decide`.  A `#guard_msgs` check keeps it that way
-([the census](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L928-L944)).
+([the census](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L1672-L1712)).
 
 **Soundness**
-([`ConRon.Capstone.no_False_declaration`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L623-L649)),
+([`ConRon.Capstone.no_False_declaration`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L630-L656)),
 with the implicit arguments left out:
 
 ```lean
@@ -238,7 +238,7 @@ returned `Ok`; the first starts from `startState`, the value of the binary's
 of `check_main`.
 
 **The model statement**
-([`ConRon.Capstone.model_exists`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L575-L600))
+([`ConRon.Capstone.model_exists`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L582-L607))
 takes the same premises without `hfalse` and concludes
 
 ```lean
@@ -246,7 +246,7 @@ takes the same premises without `hfalse` and concludes
 ```
 
 where
-[`RustDenotes`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L466-L470)
+[`RustDenotes`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L473-L477)
 says that the records the Rust checked (`prepared.decls`), read in a twin state
 related to the Rust's final state, denote a con-leche stream `dsP`, and that
 `env` is that stream's environment (`streamEnv dsP`: every record's constants
@@ -285,9 +285,9 @@ still checks that con-ron ships con-leche's prelude.
 ### 3.2 The `.olean` path
 
 `--olean` has its own two theorems,
-[`no_False_oleans`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L841-L878)
+[`no_False_oleans`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L848-L885)
 and
-[`model_exists_oleans`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L887-L916),
+[`model_exists_oleans`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L894-L923),
 on the same three axioms.  They take the calls of §3 with the stream's two
 replaced by the `.olean` reader's: `hroots`, the roots' names interned one by
 one, and `h3`, the whole read of their import closure.  Soundness, with the
@@ -333,7 +333,7 @@ same premises without `hcl` … `hty` and concludes as `model_exists` does, at
 (con-leche states no model theorem for `--olean`).
 
 The one new trust premise is
-[`hsnap : SnapshotOf finst fsv F`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L186-L199):
+[`hsnap : SnapshotOf finst fsv F`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L193-L206):
 every answer the file operations give (does the path exist, is it a
 directory, its real path, its bytes, a byte range of it, its size) is the
 answer of one snapshot `F` of the file system, at the paths the reader asks:
@@ -348,6 +348,79 @@ is outside the theorems.
 §8 lists everything else that must hold for the theorems to describe the
 binary: the translator, the compiler, and the hand-written models of what
 Aeneas cannot translate.
+
+### 3.3 The compared run
+
+`--compare -- C S` checks a challenge file `C` whose axioms, and whose
+definitions, theorems and opaque constants with a `sorryAx` in their value,
+are justified by a solution file `S`.  Both files are parsed into one store;
+`S` is checked as any input; then each of `C`'s prepared records with a hole
+becomes the axiom of its statement (`justify::side_records`), and the
+challenge's jobs run with the solution (`justify::solution_of`, `run_job` at
+`Some(&sol)`).  An axiom is accepted when `S` holds a constant of its name and
+statement, up to a renaming of the level parameters, and everything its type
+reads is the same constant in both files up to that renaming (con-leche's
+`justifyWhy`).  Two theorems,
+[`model_exists_compare`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L1216-L1259)
+and
+[`no_False_compare`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L1282-L1326),
+depend on the same three axioms.  Their premises are the calls of
+`crates/con-ron/src/compare.rs`'s `compare_json`, one each, in its order
+(the module note of §4b in `Capstone.lean` maps each to its call): §3's
+calls, with a second `parse_source` (`h3S`, the solution's file, into the
+same store), the challenge's copy of the prelude (`hdup`), the solution's
+preparation and check phase (`h4S`, `h6S`…`h8S`), then the challenge's
+preparation from the state the solution's phase hands back (`h4`), its side
+records (`hside`), the solution (`hsol`) and the challenge's check phase at
+it (`h6`…`h8`, its step `jobStepSol … (some sol)`).
+
+The conclusions are about the challenge alone, as con-leche's
+`main_compare_json_model`: `model_exists_compare` concludes
+
+```lean
+    ∃ env, RustDenotes recsC st10 env ∧ Nonempty (ConLeche.Model V env)
+```
+
+where `recsC` are the records the challenge's check phase checks (`C`'s
+prepared records, each hole the axiom of its statement); `no_False_compare`
+says that if `C`'s bytes declare a theorem of type `False`, the calls cannot
+all succeed, whatever `S` is.  The solution's run is a premise like any other
+call; nothing is concluded about `S`.
+
+con-leche proves the soundness of a comparison over its cached fold.  Theorem
+1 relates the twin to con-leche's pure fold, so the challenge's accept is
+stated as a *mixed run*
+([`Compare.MixedStep`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Compare/Model.lean#L69-L76)):
+each record either a pure `checkDecl` step, or the justification route as
+con-leche's `checkRecordC_justified_run` reads it (the statement justified,
+its type's front door, the reserved names' check, its axiom pushed).
+con-leche's per-step model lemmas apply to it unchanged, and the fold over
+them is restated once (`sideFoldM`, `mixed_model`).  The twin's walk over
+what a justified type reads is related to a closed set of shared names, not
+to con-leche's walk, so the two walks' fuels need not agree
+(`justifyWhy_of_cone`).
+
+### 3.4 The compared `.olean` run
+
+`--olean --compare -- C S` reads the challenge module `C`'s import closure at
+the challenge's lookup (the trusted path when there is one) and the solution
+`S`'s at the solution's, and checks them as §3.3 does, after reading each
+theorem the challenge's file marks as a hole as the axiom of its statement
+(`compare::hole_records`).  Its two theorems,
+[`no_False_oleans_compare`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L1536-L1598)
+and
+[`model_exists_oleans_compare`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L1604-L1659),
+take the premises of §3.2 with the one read replaced by the compared run's
+calls (the names `C` and `S` interned, the challenge's read with its homes,
+its preparation and holes, the solution's read, preparation and check phase,
+the side records, the solution, the challenge's check phase at it), and
+conclude about the challenge alone: no module of `C`'s closure, read by the
+specification through the challenge's lookup, holds a theorem of type
+`False`; and the challenge's checked records, each reference replaced by a
+value, have an environment with a model.  Both reads are at `constants =
+none`, so a run with `--constant` is outside the theorems; the driver's own
+rejections (a foreign `--constant`, a solution whose closure holds the
+challenge) end the run before the theorems' calls and claim nothing.
 
 ## 4. The expression representation
 
@@ -999,7 +1072,7 @@ fuel `0` directly, fuel `f + 1` from the six function bodies at fuel `f`.
 
 ### 7.6 The composition
 
-[`Capstone.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L14-L85)
+[`Capstone.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L18-L92)
 contains no new mathematics, only glue:
 
 1. **Theorem 2, stage by stage**: each of `h1`…`h5` becomes a twin run from

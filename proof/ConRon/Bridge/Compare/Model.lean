@@ -210,16 +210,6 @@ theorem MixedRun.chain {ds : List Declaration} {E₀ env env' : Env}
     rw [he] at ih
     exact ih (pushChain_step hp hnd hfr)
 
-/-- con-leche: ConLeche/Verify/Cached/DeclPushes.lean:770 declsRun_env — **a run's environment
-is the stream's**. -/
-theorem MixedRun.env {ds : List Declaration} {env env' : Env}
-    (h : MixedRun pinsP JS ds env env') : env' = streamEnv ds env := by
-  induction h with
-  | nil => rfl
-  | cons hs _ ih =>
-    rw [ih, (hs.pushes).1]
-    rfl
-
 /-! ## The walk's fuel -/
 
 /-- con-leche: none — counting a property over a list: a weaker property true nowhere else and
@@ -584,17 +574,6 @@ theorem mixed_model (V : Type w) [SetTheory V] {F : Nat} {dsS rs : List Declarat
     (L := []) rfl List.nodup_nil Scoped.empty
     (EnvModelM.empty V) lfpCover_empty (EnvModelOk.empty (V := V)).2 (fun x hx => nomatch hx)
   exact ⟨mq⟩
-
-/-- con-leche: ConLeche/Model/Capstone.lean:137 no_constant_of_False — **a challenge's mixed run,
-with an accepted solution, stores no constant of type `False`**. -/
-theorem mixed_no_False (V : Type w) [SetTheory V] {F : Nat} {dsS rs : List Declaration}
-    (hS : ConLeche.checkDeclsPure .verified (fueledOps .verified F) pinsP dsS =
-      .ok (streamEnv dsS))
-    (hrun : MixedRun pinsP ⟨mkFEnv (streamEnv dsS), recordMates rs.toArray⟩ rs Env.empty
-      (streamEnv rs)) :
-    ∀ c ∈ (streamEnv rs).consts, c.toConstantVal.type = .const falseName [] → False := by
-  obtain ⟨mp⟩ := mixed_model (pinsP := pinsP) V hS hrun
-  exact fun c hc hty => no_constant_of_False mp c hc hty
 
 end Models
 
