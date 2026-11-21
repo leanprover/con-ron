@@ -57,9 +57,4 @@ def PooledAcceptsJ (mode : CheckMode) (pins : List INatOpPinSet) (J : Option ISo
     (∀ w ∈ parts, w.Pairwise (· < ·)) ∧
     (∀ w ∈ parts, ∃ s'', checkJobList mode pins J I ds w s'.worker = .ok (.ok (), s''))
 
-/-- con-leche: none — `PooledAccepts` is `PooledAcceptsJ` without a solution. -/
-theorem pooledAccepts_eq_J (mode : CheckMode) (pins : List INatOpPinSet)
-    (ds : Array IDeclaration) (s : AState) (I : IStreamIndex) (s' : AState) :
-    PooledAccepts mode pins ds s I s' = PooledAcceptsJ mode pins none ds s I s' := rfl
-
 end ConRon.Arena

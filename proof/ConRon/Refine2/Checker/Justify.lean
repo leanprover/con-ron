@@ -525,19 +525,6 @@ theorem name_msg_tail_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
   lockstep
 
 open Lockstep in
-/-- `cone_go` with the twin's arguments as they stand in `justifyWhy`. -/
-@[lockstep] theorem cone_go_ls' {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) {sol : arena.justify.Solution} {J : ISolution}
-    (hJ : SolRel sol J) {fe : arena.env.IFEnv} {lfe : IFEnv} (hctx : CoreCtx pers fe lfe)
-    (depth fuel : Std.U64) {d f : Nat} (hd : absU depth = d) (hf : absU fuel = f)
-    {rm : ron.hashmap2.HashMap2 arena.handle.NIdx Bool}
-    {lm : Std.HashMap NIdx Bool} (hm : Lockstep.NMemoRel rm lm) (work : alloc.vec.Vec arena.handle.NIdx) :
-    LS pers ConeOut (arena.justify.cone_go pers st sol fe depth fuel rm work 0#usize) lst
-      (coneGo J lfe d f lm (List.map absNIdx work.val)) := by
-  subst hd hf
-  exact cone_go_ls hrel hinv hJ hctx depth fuel hm work
-
-open Lockstep in
 @[lockstep] theorem justify_why_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {sol : arena.justify.Solution} {J : ISolution}
     (hJ : SolRel sol J) {fe : arena.env.IFEnv} {lfe : IFEnv} (hctx : CoreCtx pers fe lfe)

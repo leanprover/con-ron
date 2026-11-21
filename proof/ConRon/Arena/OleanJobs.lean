@@ -65,8 +65,7 @@ def oleanJob (fs : OleanFs) (pk : OleanPins) (sp : Roots)
 
 /-- con-leche: ConLeche/Driver/CheckMain.lean:120-134 oleanJobRun
 **Job `t` of an `--olean` run with the solution `J`**: `oleanJob` with every record's check at
-`J` (the cited jobs' `justify`): a compared run's challenge.  `oleanJob` is it at `none`
-(`oleanJob_eq_J`). -/
+`J` (the cited jobs' `justify`): a compared run's challenge.  `oleanJob` is it at `none`. -/
 def oleanJobJ (fs : OleanFs) (pk : OleanPins) (sp : Roots)
     (values : Array ModRef) (mode : CheckMode) (pins : List INatOpPinSet) (J : Option ISolution)
     (I : IStreamIndex) (ds : Array IDeclaration) (c : ValueCache) (t : Nat) :
@@ -93,13 +92,6 @@ def oleanJobJ (fs : OleanFs) (pk : OleanPins) (sp : Roots)
       | .error err => .ok ((c, .error (err, t)), AState.abandoned)
     | none => finish plain
   | _ => finish plain
-
-/-- con-leche: none — `oleanJob` is `oleanJobJ` without a solution. -/
-theorem oleanJob_eq_J (fs : OleanFs) (pk : OleanPins) (sp : Roots)
-    (values : Array ModRef) (mode : CheckMode) (pins : List INatOpPinSet)
-    (I : IStreamIndex) (ds : Array IDeclaration) (c : ValueCache) (t : Nat) :
-    oleanJob fs pk sp values mode pins I ds c t = oleanJobJ fs pk sp values mode pins none I ds c t :=
-  rfl
 
 /-- con-leche: ConLeche/Frontend/CheckerIO.lean:461-484 parWorker
 **A worker's fold over the jobs it claimed** on an `--olean` run, on one state and
@@ -138,7 +130,9 @@ theorem checkOleanJobList_eq_J (fs : OleanFs) (pk : OleanPins) (sp : Roots)
   | [], _ => rfl
   | t :: rest, c => by
     funext s
-    simp only [checkOleanJobList, checkOleanJobListJ, oleanJob_eq_J,
+    simp only [checkOleanJobList, checkOleanJobListJ,
+      show oleanJob fs pk sp values mode pins I ds c t
+        = oleanJobJ fs pk sp values mode pins none I ds c t from rfl,
       checkOleanJobList_eq_J fs pk sp values mode pins I ds rest]
 
 /-- con-leche: ConLeche/Driver/CheckMain.lean:154-177 checkOleansG

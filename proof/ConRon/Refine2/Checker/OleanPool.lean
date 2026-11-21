@@ -296,25 +296,4 @@ theorem foldAllOk_oleanJobStepSol_refines {F : Type} {inst : frontend.olean.file
       rw [hx]
       exact h
 
-open ConRon.Refine2.Frontend.Olean in
-/-- **A worker's `--olean` fold ⊑ `checkOleanJobList`**, on a flat run (no solution). -/
-theorem foldAllOk_oleanJobStep_refines {F : Type} {inst : frontend.olean.files.OleanFs F}
-    {fsv : F} {fs : Arena.Frontend.Olean.OleanFs} {tier} {I : IStreamIndex}
-    {mode : kernel.env.CheckMode} {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-    {ds : alloc.vec.Vec arena.env.IDeclaration} {pk : frontend.olean.spec.OleanPins} {values : alloc.vec.Vec frontend.olean.records.ModRef}
-    {values' : Array Arena.Frontend.Olean.ModRef} {sp : frontend.olean.files.Roots}
-    (hfs : FsRel inst fsv fs) (hv : List.Forall₂ ModRefRel values.val values'.toList)
-    (htf : tier.frozen = true) (hI : StreamIndexRel tier.env I ∧ FrozenRel tier.env I)
-    (ks : List Nat) {st lst c c'}
-    (hidle : AIdle tier st lst) (hinv : AStateInv tier st) (hoff : lst.store.scratchOn = false)
-    (hc : VCRel c c')
-    (hf : FoldAllOk (oleanJobStep inst fsv tier mode pins ds pk values sp) (st, c) ks) :
-    (∀ k ∈ ks, k < ds.val.length) ∧
-    ∃ s'', checkOleanJobList fs (absPins pk) (absRoots sp) values'
-      (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I (absIDeclL ds).toArray ks c' lst
-      = .ok (.ok (), s'') := by
-  rw [checkOleanJobList_eq_J]
-  exact foldAllOk_oleanJobStepSol_refines (sol := none) (J := none) hfs hv trivial htf hI ks
-    hidle hinv hoff hc hf
-
 end ConRon.Refine2

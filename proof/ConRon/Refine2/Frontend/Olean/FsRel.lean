@@ -69,9 +69,4 @@ def absSearchPath (dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)) : List System.F
 def absRoots (sp : frontend.olean.files.Roots) : ConLeche.Frontend.Olean.Roots :=
   { path := absSearchPath sp.path, fallback := absSearchPath sp.fallback }
 
-/-- A lookup with no fallback is its search path's. -/
-theorem absRoots_nofallback (dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)) :
-    absRoots { path := dirs, fallback := alloc.vec.Vec.new _ } =
-      (absSearchPath dirs : ConLeche.Frontend.Olean.Roots) := rfl
-
 end ConRon.Refine2.Frontend.Olean

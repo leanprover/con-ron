@@ -317,18 +317,6 @@ theorem foldAllOk_jobStepSol_refines {tier} {I : IStreamIndex} {mode : kernel.en
         exact h
     · simp at hs1
 
-/-- **A worker's fold ⊑ `checkJobList`**, on a flat run (no solution). -/
-theorem foldAllOk_jobStep_refines {tier} {I : IStreamIndex} {mode : kernel.env.CheckMode}
-    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-    {ds : alloc.vec.Vec arena.env.IDeclaration}
-    (hI : StreamIndexRel tier.env I ∧ FrozenRel tier.env I) (htf : tier.frozen = true)
-    (ks : List Nat) {st lst} (hidle : AIdle tier st lst) (hinv : AStateInv tier st)
-    (hf : FoldAllOk (jobStep tier mode pins ds) st ks) :
-    (∀ k ∈ ks, k < ds.val.length) ∧
-    ∃ s'', checkJobList (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) none I
-      (absIDeclL ds).toArray ks lst = .ok (.ok (), s'') :=
-  foldAllOk_jobStepSol_refines (sol := none) (J := none) trivial hI htf ks hidle hinv hf
-
 /-- **`pool_accepts_sol_refines` — Theorem 2 at the check phase the binary runs, pool and all,
 with a solution**: an accept of the Aeneas model — the index build, the freeze, and every
 worker's fold of `run_job` at `sol` over its claims — implies the twin's `PooledAcceptsJ` at the
