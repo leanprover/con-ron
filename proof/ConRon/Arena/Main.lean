@@ -1006,14 +1006,14 @@ def scheduleMain (a : Args) (root : Name) (cmp : Option Name) : IO UInt8 := do
         IO.println l
       return 0
 
-/-- con-leche: ConLeche/Driver/Worker.lean:345-355 tagKind
+/-- con-leche: ConLeche/Driver/Worker.lean:346-356 tagKind
 A stored constant's kind, by its tag, for the messages. -/
 def tagKind : Nat → String
   | 0 => "axiom" | 1 => "definition" | 2 => "theorem" | 3 => "opaque constant"
   | 4 => "quotient constant" | 5 => "inductive type" | 6 => "constructor" | 7 => "recursor"
   | _ => "constant"
 
-/-- con-leche: ConLeche/Driver/Worker.lean:357-368 copyLine
+/-- con-leche: ConLeche/Driver/Worker.lean:358-369 copyLine
 **A copy, for the report**: a hole and the kind of what justifies it, or a constant the
 challenge restates, with the module it is read from. -/
 def copyLine (w : Modular.WorkerRead) (owner : Std.HashMap NIdx Nat) (d : IDeclaration) :
@@ -1034,7 +1034,7 @@ def copyLine (w : Modular.WorkerRead) (owner : Std.HashMap NIdx Nat) (d : IDecla
     pure s!"hole {nt} ({label}) justified by {h}'s {tagKind tag}"
   else pure s!"{Frontend.recKind d} {nt}: {h}'s {tagKind tag}"
 
-/-- con-leche: ConLeche/Driver/Worker.lean:370-412 checkModuleG
+/-- con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
 **What a worker's run gives**: its phases' failure (`read`), its jobs' (`jobs`, over the
 records `ds`), or the accept: the own records' count and the copies' lines. -/
 inductive WorkerVerdict where
@@ -1042,7 +1042,7 @@ inductive WorkerVerdict where
   | jobs (e : CheckError)
   | accepted (n : Nat) (copies : Array String) (hoisted : Array String)
 
-/-- con-leche: ConLeche/Driver/Worker.lean:370-412 checkModuleG
+/-- con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
 **The worker at module `m`** from fresh start values (`AState.init EStore.empty`): the reserved
 pins, the names, the pin walk, phases 1-4 (`workerRead`), the index over the context and the own
 records, the inferred flags, the own records' jobs from `start`; with `cmp`, the compare worker
@@ -1073,7 +1073,7 @@ def workerPipeline (sp : ConLeche.Frontend.Olean.Roots) (m : Name) (cmp : Option
         let lines ← cs.mapM (copyLine w owner)
         pure (.accepted w.own.size (if x.isEmpty then #[] else lines) hoisted)
 
-/-- con-leche: ConLeche/Driver/Worker.lean:370-412 checkModuleG
+/-- con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
 A worker's lines and exit code; `alone`: the process's one check, else its lines name it. -/
 def workerMain (sp : ConLeche.Frontend.Olean.Roots) (m : Name) (cmp : Option Name)
     (mode : CheckMode) (pins : List NatOpPinSet) (maxNatSize : Nat) (alone : Bool) :

@@ -105,36 +105,42 @@ def pinGround (pins : List INatOpPinSet) (c : NIdx) : AM (Array NIdx) := do
   let x ← groundStmts ({}, #[eq]) c
   pure (← pins.foldlM (fun x ps => groundVariant x ps c) x).2
 
-/-- con-leche: ConLeche/Driver/Worker.lean:68-85 ownRoots
+/-- con-leche: ConLeche/Driver/Worker.lean:68-86 ownRoots
+-- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.footprints_bridge, then delete this line
 `fp`: every name a loaded constant's fast path reads. -/
 def footprints (cs : Array CEntry) : AM (Std.HashSet NIdx) :=
   cs.foldlM (fun s c => do pure ((← pinFootprint c.c.name).foldl (fun s n => s.insert n) s)) {}
 
-/-- con-leche: ConLeche/Driver/Worker.lean:68-85 ownRoots
+/-- con-leche: ConLeche/Driver/Worker.lean:68-86 ownRoots
+-- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.pushUnpinned_bridge, then delete this line
 `xs.filter (fun x => ix.first.contains x || !fp.contains x)` pushed onto `out`. -/
 def pushUnpinned (out : Array NIdx) (ix : NameIndex) (fp : Std.HashSet NIdx) (xs : Array NIdx) :
     Array NIdx :=
   out ++ xs.filter fun x => ix.first.contains x || !fp.contains x
 
-/-- con-leche: ConLeche/Driver/Worker.lean:68-85 ownRoots
+/-- con-leche: ConLeche/Driver/Worker.lean:68-86 ownRoots
+-- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.pushLoaded_bridge, then delete this line
 `xs.filter ix.first.contains` pushed onto `out`. -/
 def pushLoaded (out : Array NIdx) (ix : NameIndex) (xs : Array NIdx) : Array NIdx :=
   out ++ xs.filter ix.first.contains
 
-/-- con-leche: ConLeche/Driver/Worker.lean:68-85 ownRoots
+/-- con-leche: ConLeche/Driver/Worker.lean:68-86 ownRoots
+-- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.recordsRoots_bridge, then delete this line
 What each own record reads, filtered (`pushUnpinned`). -/
 def recordsRoots (ix : NameIndex) (fp : Std.HashSet NIdx) (ds : Array IDeclaration) :
     AM (Array NIdx) :=
   ds.foldlM (fun out d => do pure (pushUnpinned out ix fp (← recordReads d).toArray)) #[]
 
-/-- con-leche: ConLeche/Driver/Worker.lean:68-85 ownRoots
+/-- con-leche: ConLeche/Driver/Worker.lean:68-86 ownRoots
+-- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.groundRoots_bridge, then delete this line
 The pin ground of each own constant, filtered (`pushLoaded`), onto `out`. -/
 def groundRoots (pins : List INatOpPinSet) (ix : NameIndex) (cs : Array CEntry) (out : Array NIdx) :
     AM (Array NIdx) :=
   cs.foldlM (fun out c => do
     if c.skipped then pure out else pure (pushLoaded out ix (← pinGround pins c.c.name))) out
 
-/-- con-leche: ConLeche/Driver/Worker.lean:68-85 ownRoots
+/-- con-leche: ConLeche/Driver/Worker.lean:68-86 ownRoots
+-- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.ownRoots_bridge, then delete this line
 **The reach's roots**: what each own record reads, what each own constant's load read, and the
 pin ground of each own certified operation that a loaded module holds.  `cs`: the load's
 constants. -/
@@ -145,21 +151,21 @@ def ownRoots (pins : List INatOpPinSet) (ix : NameIndex) (cs : Array CEntry)
   let out := cs.foldl (fun out c => if c.skipped then out else pushUnpinned out ix fp c.uses) out
   groundRoots pins ix cs out
 
-/-- con-leche: ConLeche/Driver/Worker.lean:87-94 ownUses
+/-- con-leche: ConLeche/Driver/Worker.lean:88-95 ownUses
 The index of a load's constants by name, the first of each. -/
 def ownUsesAt (cs : Array CEntry) : Std.HashMap NIdx Nat :=
   (cs.foldl (fun (acc : Std.HashMap NIdx Nat × Nat) c =>
     (if acc.1.contains c.c.name then acc.1 else acc.1.insert c.c.name acc.2, acc.2 + 1))
     ({}, 0)).1
 
-/-- con-leche: ConLeche/Driver/Worker.lean:87-94 ownUses
+/-- con-leche: ConLeche/Driver/Worker.lean:88-95 ownUses
 A theorem's load-read names: the first constant of its name's `uses`. -/
 def ownUsesThm (cs : Array CEntry) (at_ : Std.HashMap NIdx Nat) (n : NIdx) : Option (Array NIdx) :=
   match at_[n]? with
   | some i => (cs[i]?).map (·.uses)
   | none => none
 
-/-- con-leche: ConLeche/Driver/Worker.lean:87-94 ownUses
+/-- con-leche: ConLeche/Driver/Worker.lean:88-95 ownUses
 **What an own theorem's record mentions**, which its reference does not say: what the load
 read off the file (the Rust's `impl UsedConsts for OwnUses`). -/
 def ownUsesOf (cs : Array CEntry) (at_ : Std.HashMap NIdx Nat) (d : IDeclaration) :
@@ -171,17 +177,18 @@ def ownUsesOf (cs : Array CEntry) (at_ : Std.HashMap NIdx Nat) (d : IDeclaration
     | none => ConRon.Arena.Frontend.IDeclaration.usedConsts d
   | _ => ConRon.Arena.Frontend.IDeclaration.usedConsts d
 
-/-- con-leche: ConLeche/Driver/Worker.lean:96-98 ownNames
+/-- con-leche: ConLeche/Driver/Worker.lean:97-99 ownNames
 **A module's own names**: every constant of its private view. -/
 def ownNames (cs : Array CEntry) : Std.HashSet NIdx := cs.foldl (fun s c => s.insert c.c.name) {}
 
-/-- con-leche: ConLeche/Driver/Worker.lean:100-103 namesNodupGo
+/-- con-leche: ConLeche/Driver/Worker.lean:101-104 namesNodupGo
 **No name twice**, one hash set along the list. -/
 def namesNodupGo (s : Std.HashSet NIdx) : List NIdx → Bool × Std.HashSet NIdx
   | [] => (true, s)
   | n :: ns => if s.contains n then (false, s) else namesNodupGo (s.insert n) ns
 
-/-- con-leche: ConLeche/Driver/Worker.lean:300-343 workerRead
+/-- con-leche: ConLeche/Driver/Worker.lean:301-344 workerRead
+-- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.ctxNamesNodupGo_bridge, then delete this line
 `namesNodupGo {} (r.ctx.toList.flatMap Modular.declNames)`, record by record. -/
 def ctxNamesNodupGo (s : Std.HashSet NIdx) : List IDeclaration → AM Bool
   | [] => pure true
@@ -189,49 +196,52 @@ def ctxNamesNodupGo (s : Std.HashSet NIdx) : List IDeclaration → AM Bool
     let (ok, s) := namesNodupGo s (← declNames d)
     if ok then ctxNamesNodupGo s ds else pure false
 
-/-- con-leche: ConLeche/Driver/Worker.lean:300-343 workerRead
+/-- con-leche: ConLeche/Driver/Worker.lean:301-344 workerRead
+-- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.ctxNamesNodup_bridge, then delete this line
 The context's names distinct. -/
 def ctxNamesNodup (ctx : Array IDeclaration) : AM Bool := ctxNamesNodupGo {} ctx.toList
 
-/-- con-leche: ConLeche/Driver/Worker.lean:124-125 loadedRec
+/-- con-leche: ConLeche/Driver/Worker.lean:125-126 loadedRec
 `ns.any ix.first.contains`. -/
 def anyLoaded (ix : NameIndex) (ns : List NIdx) : Bool := ns.any ix.first.contains
 
-/-- con-leche: ConLeche/Driver/Worker.lean:124-125 loadedRec
+/-- con-leche: ConLeche/Driver/Worker.lean:125-126 loadedRec
 **A record some name of which a loaded module stores.** -/
 def loadedRec (ix : NameIndex) (d : IDeclaration) : AM Bool := do
   pure (anyLoaded ix (← declNames d))
 
-/-- con-leche: ConLeche/Driver/Worker.lean:127-135 ownRecs
+/-- con-leche: ConLeche/Driver/Worker.lean:128-136 ownRecs
 The emitted records some name of which is loaded (`want`), or none is. -/
 def recsLoaded (ix : NameIndex) (ds : Array IDeclaration) (want : Bool) : AM (Array IDeclaration) :=
   ds.foldlM (fun out d => do if (← loadedRec ix d) == want then pure (out.push d) else pure out) #[]
 
-/-- con-leche: ConLeche/Driver/Worker.lean:127-130 ownRecs
+/-- con-leche: ConLeche/Driver/Worker.lean:128-131 ownRecs
 **The own records** of a worker that adds the imports `x`, before the hoist. -/
 def ownRecs (x : Array ImportRec) (ix : NameIndex) (ds : Array IDeclaration) :
     AM (Array IDeclaration) :=
   if x.isEmpty then pure ds else recsLoaded ix ds false
 
-/-- con-leche: ConLeche/Driver/Worker.lean:132-135 copyRecs
+/-- con-leche: ConLeche/Driver/Worker.lean:133-136 copyRecs
 **The copies**: none, but at a compared challenge, the emitted records some name of which is
 loaded. -/
 def copyRecs (x : Array ImportRec) (ix : NameIndex) (ds : Array IDeclaration) :
     AM (Array IDeclaration) :=
   if x.isEmpty then pure #[] else recsLoaded ix ds true
 
-/-- con-leche: ConLeche/Driver/Worker.lean:137-141 ownNamesOf
+/-- con-leche: ConLeche/Driver/Worker.lean:138-142 ownNamesOf
 **The own names** of a worker that adds the imports `x`. -/
 def ownNamesOf (x : Array ImportRec) (ix : NameIndex) (cs : Array CEntry) : Std.HashSet NIdx :=
   if x.isEmpty then ownNames cs
   else cs.foldl (fun s c => if ix.first.contains c.c.name then s else s.insert c.c.name) {}
 
-/-- con-leche: ConLeche/Driver/Worker.lean:143-153 rootsAt
+/-- con-leche: ConLeche/Driver/Worker.lean:144-154 rootsAt
+-- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.unloadedConstants_bridge, then delete this line
 `l.constants.filter (!ix.first.contains ·.name)`. -/
 def unloadedConstants (ix : NameIndex) (cs : Array CEntry) : Array CEntry :=
   cs.filter fun c => !ix.first.contains c.c.name
 
-/-- con-leche: ConLeche/Driver/Worker.lean:143-153 rootsAt
+/-- con-leche: ConLeche/Driver/Worker.lean:144-154 rootsAt
+-- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.rootsAt_bridge, then delete this line
 **The reach's roots** of a worker that adds the imports `x`. -/
 def rootsAt (pins : List INatOpPinSet) (x : Array ImportRec) (ix : NameIndex) (cs : Array CEntry)
     (ds : Array IDeclaration) : AM (Array NIdx) := do
@@ -241,12 +251,12 @@ def rootsAt (pins : List INatOpPinSet) (x : Array ImportRec) (ix : NameIndex) (c
   let copies ← recsLoaded ix ds true
   copies.foldlM (fun out d => do pure (out ++ (← declNames d).toArray)) out
 
-/-- con-leche: ConLeche/Driver/Worker.lean:155-162 copyStmt?
+/-- con-leche: ConLeche/Driver/Worker.lean:156-163 copyStmt?
 `Expr.mentionsAnyConstC [sorryAxName] v`. -/
 def usesSorry (v : EIdx) : AM Bool := do
   mentionsAnyConst [← pinSorryAx] v
 
-/-- con-leche: ConLeche/Driver/Worker.lean:155-162 copyStmt?
+/-- con-leche: ConLeche/Driver/Worker.lean:156-163 copyStmt?
 **The statement a copy may be read by.** -/
 def copyStmt : IDeclaration → AM (Option IConstantVal)
   | .axiomDecl cv => pure (some cv)
@@ -255,7 +265,7 @@ def copyStmt : IDeclaration → AM (Option IConstantVal)
   | .thmDecl cv _ => pure (some cv)
   | _ => pure none
 
-/-- con-leche: ConLeche/Driver/Worker.lean:164-169 sameDefUpToLevels
+/-- con-leche: ConLeche/Driver/Worker.lean:165-170 sameDefUpToLevels
 **A definition of the challenge, the loaded one** up to the names of its level parameters. -/
 def sameDefUpToLevels (c c' : IConstantInfo) : AM Bool := do
   let ps := c.toConstantVal.levelParams
@@ -264,13 +274,13 @@ def sameDefUpToLevels (c c' : IConstantInfo) : AM Bool := do
   else if levelsRenaming ps ps' then pure ((← c'.atLps ps) == c)
   else pure false
 
-/-- con-leche: ConLeche/Driver/Worker.lean:171-174 copyRecEq
+/-- con-leche: ConLeche/Driver/Worker.lean:172-175 copyRecEq
 **Two blocks, the same record.** -/
 def copyRecEq : IDeclaration → IDeclaration → Bool
   | .indDecl b n, .indDecl b' n' => n == n' && b == b'
   | _, _ => false
 
-/-- con-leche: ConLeche/Driver/Worker.lean:176-188 blockReadB
+/-- con-leche: ConLeche/Driver/Worker.lean:177-189 blockReadB
 **A block the kernel's reader reads**, its constructors' names distinct and in the block's
 order; true for any other record. -/
 def blockReadB : IDeclaration → AM Bool
@@ -285,14 +295,14 @@ def blockReadB : IDeclaration → AM Bool
       | none => pure true
   | _ => pure true
 
-/-- con-leche: ConLeche/Driver/Worker.lean:190-194 ctxConst
+/-- con-leche: ConLeche/Driver/Worker.lean:191-195 ctxConst
 **The context's constants, one layer**: every constant of every context record pushed, in
 order, over the empty base. -/
 def ctxLayer (ctx : Array IDeclaration) : AM IFEnv :=
   ctx.foldlM (fun fe d => do pure ((← declConstants d).foldl IFEnv.push fe))
     ⟨⟨[], []⟩, {}, {}, {}, false, false⟩
 
-/-- con-leche: ConLeche/Driver/Worker.lean:196-206 copyReadsB
+/-- con-leche: ConLeche/Driver/Worker.lean:197-207 copyReadsB
 **A copied block's recursors read their ι equations off their own types**, against the
 context's constants `fe`; true for any other record. -/
 def copyReadsB (fe : IFEnv) : IDeclaration → AM Bool
@@ -302,23 +312,23 @@ def copyReadsB (fe : IFEnv) : IDeclaration → AM Bool
     | .ok p => recsRead fe (← blockRecs p p.recs)
   | _ => pure true
 
-/-- con-leche: ConLeche/Driver/Worker.lean:208-240 copyCheck
+/-- con-leche: ConLeche/Driver/Worker.lean:209-241 copyCheck
 `cs.find? (·.toConstantVal.name == n)`. -/
 def findNamed (cs : List IConstantInfo) (n : NIdx) : Option IConstantInfo := cs.find? (·.name == n)
 
-/-- con-leche: ConLeche/Driver/Worker.lean:208-240 copyCheck
+/-- con-leche: ConLeche/Driver/Worker.lean:209-241 copyCheck
 `(declConstants e).find? (·.toConstantVal.name == n)`. -/
 def findConstant (e : IDeclaration) (n : NIdx) : AM (Option IConstantInfo) := do
   pure (findNamed (← declConstants e) n)
 
-/-- con-leche: ConLeche/Driver/Worker.lean:208-240 copyCheck
+/-- con-leche: ConLeche/Driver/Worker.lean:209-241 copyCheck
 A copied block: the same record, read by the kernel's reader, its recursors reading. -/
 def copyIndOk (fe : IFEnv) (d e : IDeclaration) : AM Bool := do
   if !copyRecEq d e then return false
   if !(← blockReadB d) then return false
   copyReadsB fe d
 
-/-- con-leche: ConLeche/Driver/Worker.lean:208-240 copyCheck
+/-- con-leche: ConLeche/Driver/Worker.lean:209-241 copyCheck
 The comparison of a copy with the context's record `e` (at home `h`) that holds its name `n`. -/
 def copyAgainst (fe : IFEnv) (m src n : NIdx) (e : IDeclaration) (h : NIdx) (d : IDeclaration) :
     AM Unit := do
@@ -351,7 +361,7 @@ def copyAgainst (fe : IFEnv) (m src n : NIdx) (e : IDeclaration) (h : NIdx) (d :
       | some _ => fail (.invalid s!"module {← readName m} declares {← readName n}, which the \
           module {← readName src} it loads stores")
 
-/-- con-leche: ConLeche/Driver/Worker.lean:208-240 copyCheck
+/-- con-leche: ConLeche/Driver/Worker.lean:209-241 copyCheck
 **A copy against the loaded constants of its names.** -/
 def copyCheck (pk : OleanPins) (m : NIdx) (ld : HeaderLoads) (ix : NameIndex) (r : Reach)
     (owner : Std.HashMap NIdx Nat) (fe : IFEnv) (d : IDeclaration) : AM Unit := do
@@ -374,7 +384,7 @@ def copyCheck (pk : OleanPins) (m : NIdx) (ld : HeaderLoads) (ix : NameIndex) (r
     | some e => copyAgainst fe m src n e (r.homes.getD k pk.anon) d
     | none => fail (.internal s!"{← readName n}: the context does not hold the loaded constant")
 
-/-- con-leche: ConLeche/Driver/Worker.lean:242-248 isHoleRec
+/-- con-leche: ConLeche/Driver/Worker.lean:243-249 isHoleRec
 **A hole** (`uses`, what a theorem's value read off the file). -/
 def isHoleRec (uses : IDeclaration → AM (Array NIdx)) : IDeclaration → AM Bool
   | .axiomDecl cv => do pure !(← builtinAxiomName cv.name)
@@ -385,7 +395,7 @@ def isHoleRec (uses : IDeclaration → AM (Array NIdx)) : IDeclaration → AM Bo
     pure (us.contains (← pinSorryAx))
   | _ => pure false
 
-/-- con-leche: ConLeche/Driver/Worker.lean:250-257 ownHoleOk
+/-- con-leche: ConLeche/Driver/Worker.lean:251-258 ownHoleOk
 **A hole of the challenge's own records**: the solution does not fill it. -/
 def ownHoleOk (pk : OleanPins) (uses : IDeclaration → AM (Array NIdx)) (m : NIdx)
     (d : IDeclaration) : AM Unit := do
@@ -393,14 +403,14 @@ def ownHoleOk (pk : OleanPins) (uses : IDeclaration → AM (Array NIdx)) (m : NI
     fail (.invalid s!"{← readName ((recKey d).getD pk.anon)}: a hole of {← readName m} no loaded \
       module fills (the solution has no constant of this name)")
 
-/-- con-leche: ConLeche/Driver/Worker.lean:259-263 copiesOk
+/-- con-leche: ConLeche/Driver/Worker.lean:260-264 copiesOk
 Some record an inductive block. -/
 def anyInd (ds : Array IDeclaration) : Bool :=
   ds.any fun d => match d with
     | .indDecl .. => true
     | _ => false
 
-/-- con-leche: ConLeche/Driver/Worker.lean:259-263 copiesOk
+/-- con-leche: ConLeche/Driver/Worker.lean:260-264 copiesOk
 **Every copy against the loaded constants of its names**; the context's layer built only where
 a copy is an inductive block. -/
 def copiesOk (pk : OleanPins) (m : NIdx) (x : Array ImportRec) (wr : WorkerReads) (r : Reach)
@@ -410,14 +420,14 @@ def copiesOk (pk : OleanPins) (m : NIdx) (x : Array ImportRec) (wr : WorkerReads
   let fe ← if anyInd cs then ctxLayer r.ctx else pure ⟨⟨[], []⟩, {}, {}, {}, false, false⟩
   cs.toList.forM (copyCheck pk m wr.loads wr.index r owner fe)
 
-/-- con-leche: ConLeche/Driver/Worker.lean:265-269 ownHolesOk
+/-- con-leche: ConLeche/Driver/Worker.lean:266-270 ownHolesOk
 **No hole among the own records** of a compared challenge. -/
 def ownHolesOk (pk : OleanPins) (uses : IDeclaration → AM (Array NIdx)) (m : NIdx)
     (x : Array ImportRec) (ix : NameIndex) (ds : Array IDeclaration) : AM Unit := do
   if x.isEmpty then return
   (← recsLoaded ix ds false).toList.forM (ownHoleOk pk uses m)
 
-/-- con-leche: ConLeche/Driver/Worker.lean:271-289 WorkerRead
+/-- con-leche: ConLeche/Driver/Worker.lean:272-290 WorkerRead
 **What a worker has read and checked before its jobs.** -/
 structure WorkerRead where
   home : Loaded
@@ -431,7 +441,8 @@ structure WorkerRead where
   values : Array ModRef
   start : Nat
 
-/-- con-leche: ConLeche/Driver/Worker.lean:300-343 workerRead
+/-- con-leche: ConLeche/Driver/Worker.lean:301-344 workerRead
+-- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.workerReach_bridge, then delete this line
 Phase 4 and the hoist, over the load's constants `cs` and the emitted records `ds`. -/
 def workerReach (fs : OleanFs) (pk : OleanPins) (sp : Roots) (pins : List INatOpPinSet) (m : NIdx)
     (x : Array ImportRec) (wr : WorkerReads) (cs : Array CEntry) (ds : Array IDeclaration) :
@@ -447,7 +458,8 @@ def workerReach (fs : OleanFs) (pk : OleanPins) (sp : Roots) (pins : List INatOp
   let (own, hoisted) ← ConRon.Arena.Frontend.hoistNatOpGround uses recs
   pure (r, own, hoisted)
 
-/-- con-leche: ConLeche/Driver/Worker.lean:300-343 workerRead
+/-- con-leche: ConLeche/Driver/Worker.lean:301-344 workerRead
+-- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.workerRead_bridge, then delete this line
 **Phases 1–4 of the worker at module `m`**; `x` the imports a run adds to its header; `pins`
 the run's interned pin variants.  A failure carries the position of the record it names. -/
 def workerRead (fs : OleanFs) (sp : Roots) (pins : List INatOpPinSet) (m : NIdx)
@@ -467,7 +479,7 @@ def workerRead (fs : OleanFs) (sp : Roots) (pins : List INatOpPinSet) (m : NIdx)
                 reach := r, hoisted, pins := pk, values := #[⟨m, l.frontier⟩],
                 start := r.ctx.size })
 
-/-- con-leche: ConLeche/Driver/Worker.lean:370-412 checkModuleG
+/-- con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
 **The jobs' records**: the context's, then the own records. -/
 def workerDecls (w : WorkerRead) : Array IDeclaration := w.reach.ctx ++ w.own
 
