@@ -11,6 +11,8 @@ load order (`ReachEnvRel.fits`); a copy's fields fit (`FirstRel.fits`).
 -/
 import ConRon.Refine2.Modular.ReachRel
 import ConRon.Refine2.Frontend.Olean.Group
+import ConRon.Refine2.Checker.Axioms
+import ConRon.Refine2.Core.LS.Lits
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -2033,6 +2035,232 @@ theorem group_at_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : fronte
   refine (am_bind_ok hx6).trans ?_
   refine (am_bind_ok hx7).trans ?_
   rfl
+
+/-! ### A record read -/
+
+/-- What a record read answers: the caches, the record and its home. -/
+@[reducible] def RecR (p : arena.env.IDeclaration × arena.handle.NIdx) (c : frontend.modular.reach.ReachCache)
+    (X : ConRon.Arena.Modular.ReachCache × IDeclaration × NIdx) : Prop :=
+  ReachCacheRel c X.1 ∧ X.2.1 = absIDeclaration p.1 ∧ X.2.2 = absNIdx p.2
+
+/-- **`stmt_record`'s accept is `stmtRecord`'s.** -/
+theorem stmt_record_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
+    {env wr own E} (henv : ReachEnvRel env wr own E) {c C} (hc : ReachCacheRel c C)
+    {s : frontend.modular.reach.Spot} {cv : frontend.olean.spec.StmtRec} :
+    ACS pers RecR st lst (stmt_record inst fsv pk pers st sp wr c s cv)
+      (ConRon.Arena.Modular.stmtRecord fs (absPins pk) (absRoots sp) E C (absSpot s) (absStmtRec cv)) := by
+  intro hrel hinv a st' c' h
+  rw [stmt_record] at h
+  unfold ConRon.Arena.Modular.stmtRecord
+  peel h as hh, hhh
+  cases nidx_dup2_ok hhh
+  peel h as ⟨r, st1⟩, hq
+  cases r with
+  | Err e => simp at h
+  | Ok ops =>
+  obtain ⟨lst1, hx1, hrel1, hinv1⟩ := (reduce_op_names_refines hrel hinv hq).apply
+  peel h as b, hb
+  have eb := ConRon.Refine2.Lockstep.nidx_vec_contains_spec ops cv.name b hb
+  by_cases hb' : b = true
+  · rw [ite_eq_left hb'] at h
+    have hcon : (absNIdxL ops).contains (absNIdx cv.name) = true := by
+      rw [← hb']; rw [eb]; rfl
+    peel h as ⟨r1, st2, c1⟩, hq1
+    cases r1 with
+    | Err e => simp at h
+    | Ok p =>
+    obtain ⟨⟨C1, p'⟩, lst2, hx2, ⟨hc1, hp⟩, hrel2, hinv2⟩ :=
+      priv_spot_refines hfs henv hc hrel1 hinv1 p st2 c1 hq1
+    change (if p.pos.tag = 0#u64 then _ else _) = _ at h
+    by_cases h0 : p.pos.tag = 0#u64
+    · rw [ite_eq_left h0] at h
+      peel h as i, hi
+      have ei := axiom_of_eq hi
+      have e2 := Result.ok_injective h
+      simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e2
+      obtain ⟨rfl, rfl, rfl⟩ := e2
+      refine ⟨(C1, absIDeclaration i, absNIdx s.part.module), lst2, ?_, ⟨hc1, rfl, rfl⟩, hrel2, hinv2⟩
+      refine (am_bind_ok hx1).trans ?_
+      simp only [absStmtRec_name, hcon, Bool.not_true, Bool.false_eq_true, ↓reduceIte, pure_bind]
+      refine (am_bind_ok hx2).trans ?_
+      have : (p'.pos.tag == 0) = true := by rw [show p' = absSpot p from hp]; simp [h0]
+      simp only [this, Bool.true_or, ↓reduceIte, ei]
+      rfl
+    · rw [ite_eq_right h0] at h
+      by_cases h3 : p.pos.tag = 3#u64
+      · rw [ite_eq_left h3] at h
+        peel h as i, hi
+        have ei := axiom_of_eq hi
+        have e2 := Result.ok_injective h
+        simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e2
+        obtain ⟨rfl, rfl, rfl⟩ := e2
+        refine ⟨(C1, absIDeclaration i, absNIdx s.part.module), lst2, ?_, ⟨hc1, rfl, rfl⟩, hrel2, hinv2⟩
+        refine (am_bind_ok hx1).trans ?_
+        simp only [absStmtRec_name, hcon, Bool.not_true, Bool.false_eq_true, ↓reduceIte, pure_bind]
+        refine (am_bind_ok hx2).trans ?_
+        have : (p'.pos.tag == 3) = true := by rw [show p' = absSpot p from hp]; simp [h3]
+        simp only [this, Bool.or_true, ↓reduceIte, ei]
+        rfl
+      · rw [ite_eq_right h3] at h
+        repeat (peel h as _x, -)
+        simp at h
+  · rw [ite_eq_right hb'] at h
+    peel h as i, hi
+    have ei := axiom_of_eq hi
+    have e2 := Result.ok_injective h
+    simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e2
+    obtain ⟨rfl, rfl, rfl⟩ := e2
+    have hcon : (absNIdxL ops).contains (absNIdx cv.name) = false := by
+      have : b = false := by simpa using hb'
+      rw [← this, eb]; rfl
+    refine ⟨(C, absIDeclaration i, absNIdx s.part.module), lst1, ?_, ⟨hc, rfl, rfl⟩, hrel1, hinv1⟩
+    refine (am_bind_ok hx1).trans ?_
+    simp only [absStmtRec_name, hcon, Bool.not_false, ↓reduceIte, ei]
+    rfl
+
+/-- **`read_record`'s accept is `readRecord`'s.** -/
+theorem read_record_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
+    {env wr own E} (henv : ReachEnvRel env wr own E) {c C} (hc : ReachCacheRel c C)
+    {x : arena.handle.NIdx} :
+    ACS pers RecR st lst (read_record inst fsv pk pers st sp wr c x)
+      (ConRon.Arena.Modular.readRecord fs (absPins pk) (absRoots sp) E C (absNIdx x)) := by
+  intro hrel hinv a st' c' h
+  rw [read_record] at h
+  unfold ConRon.Arena.Modular.readRecord
+  peel h as o, ho
+  have eo := record_spot_eq henv.wr hc ho
+  cases o with
+  | none =>
+    repeat (peel h as _x, -)
+    simp at h
+  | some p =>
+  obtain ⟨s, completed⟩ := p
+  rw [← eo]
+  peel h as hh, hhh
+  cases nidx_dup2_ok hhh
+  by_cases hsk : s.pos.skipped = true
+  · rw [ite_eq_left hsk] at h
+    repeat (peel h as _x, -)
+    simp at h
+  · rw [ite_eq_right hsk] at h
+    have hsk' : s.pos.skipped = false := by simpa using hsk
+    peel h as ⟨r, st1, c1⟩, hq
+    cases r with
+    | Err e => simp at h
+    | Ok p1 =>
+    obtain ⟨cv, k⟩ := p1
+    obtain ⟨⟨C1, cv', k'⟩, lst1, hx1, ⟨hc1, hcv, hk⟩, hrel1, hinv1⟩ :=
+      stmt_at_refines hfs hc hrel hinv (cv, k) st1 c1 hq
+    peel h as o1, ho1
+    have eo1 := group_of_kind_eq hk ho1
+    cases o1 with
+    | some n =>
+      peel h as pk1, hpk1
+      obtain ⟨rfl, ek⟩ := priv_key_eq hpk1
+      peel h as ⟨r1, st2, c2⟩, hq2
+      cases r1 with
+      | Err e => simp at h
+      | Ok o2 =>
+      obtain ⟨⟨C2, o2'⟩, lst2, hx2, ⟨hc2, ho2⟩, hrel2, hinv2⟩ :=
+        group_at_refines hfs henv hc1 hrel1 hinv1 o2 st2 c2 hq2
+      cases o2 with
+      | none =>
+        repeat (peel h as _x, -)
+        simp at h
+      | some d =>
+      have e2 := Result.ok_injective h
+      simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e2
+      obtain ⟨rfl, rfl, rfl⟩ := e2
+      refine ⟨(C2, absIDeclaration d, absNIdx s.part.module), lst2, ?_, ⟨hc2, rfl, rfl⟩, hrel2, hinv2⟩
+      simp only [Option.map_some, absSpot, absNamePosition_skipped, hsk', Bool.false_eq_true, ↓reduceIte,
+        pure_bind]
+      refine (am_bind_ok hx1).trans ?_
+      simp only [← eo1, Option.map_some]
+      rw [← ek]
+      refine (am_bind_ok hx2).trans ?_
+      rw [show o2' = some (absIDeclaration d) from ho2]
+      rfl
+    | none =>
+    have hcv' : cv' = absStmtRec cv := hcv
+    subst hcv'
+    cases k <;> cases k' <;> simp only [KindNamesRel, KindRel] at hk
+    case Induct.induct => simp [ConRon.Arena.Modular.groupOfKind] at eo1
+    case Ctor.ctor => simp [ConRon.Arena.Modular.groupOfKind] at eo1
+    case Recur.recur => simp [ConRon.Arena.Modular.groupOfKind] at eo1
+    case Ax.ax =>
+      obtain ⟨b, lst2, hx2, hR, hrel2, hinv2⟩ := stmt_record_refines hfs henv hc1 hrel1 hinv1 a st' c' h
+      refine ⟨b, lst2, ?_, hR, hrel2, hinv2⟩
+      simp only [Option.map_some, absSpot, absNamePosition_skipped, hsk', Bool.false_eq_true, ↓reduceIte,
+        pure_bind]
+      refine (am_bind_ok hx1).trans ?_
+      exact hx2
+    case Thm.thm =>
+      obtain ⟨b, lst2, hx2, hR, hrel2, hinv2⟩ := stmt_record_refines hfs henv hc1 hrel1 hinv1 a st' c' h
+      refine ⟨b, lst2, ?_, hR, hrel2, hinv2⟩
+      simp only [Option.map_some, absSpot, absNamePosition_skipped, hsk', Bool.false_eq_true, ↓reduceIte,
+        pure_bind]
+      refine (am_bind_ok hx1).trans ?_
+      exact hx2
+    case Opaq.opaq =>
+      obtain ⟨b, lst2, hx2, hR, hrel2, hinv2⟩ := stmt_record_refines hfs henv hc1 hrel1 hinv1 a st' c' h
+      refine ⟨b, lst2, ?_, hR, hrel2, hinv2⟩
+      simp only [Option.map_some, absSpot, absNamePosition_skipped, hsk', Bool.false_eq_true, ↓reduceIte,
+        pure_bind]
+      refine (am_bind_ok hx1).trans ?_
+      exact hx2
+    case Defn.defn =>
+      cases completed with
+      | true =>
+        obtain ⟨b, lst2, hx2, hR, hrel2, hinv2⟩ := stmt_record_refines hfs henv hc1 hrel1 hinv1 a st' c' h
+        refine ⟨b, lst2, ?_, hR, hrel2, hinv2⟩
+        simp only [Option.map_some, absSpot, absNamePosition_skipped, hsk', Bool.false_eq_true, ↓reduceIte,
+          pure_bind]
+        refine (am_bind_ok hx1).trans ?_
+        simp only
+        refine (am_bind_ok hx2).trans ?_
+        rfl
+      | false =>
+        peel h as ⟨r1, st2, c2⟩, hq2
+        cases r1 with
+        | Err e => simp at h
+        | Ok e =>
+        obtain ⟨⟨C2, e'⟩, lst2, hx2, ⟨hc2, he⟩, hrel2, hinv2⟩ :=
+          part_entry_refines hfs hc1 hrel1 hinv1 e st2 c2 hq2
+        peel h as r2, hr2
+        cases r2 with
+        | Err e => simp at h
+        | Ok d =>
+        have e2 := Result.ok_injective h
+        simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e2
+        obtain ⟨rfl, rfl, rfl⟩ := e2
+        obtain ⟨lst3, hx3, hrel3, hinv3⟩ := record_of_entry_ok hrel2 hinv2 he hr2
+        refine ⟨(C2, absIDeclaration d, absNIdx s.part.module), lst3, ?_, ⟨hc2, rfl, rfl⟩, hrel3, hinv3⟩
+        simp only [Option.map_some, absSpot, absNamePosition_skipped, hsk', Bool.false_eq_true, ↓reduceIte,
+          pure_bind]
+        refine (am_bind_ok hx1).trans ?_
+        simp only
+        refine (am_bind_ok hx2).trans ?_
+        refine (am_bind_ok hx3).trans ?_
+        rfl
+    case Quot.quot =>
+      peel h as r1, hr1
+      cases r1 with
+      | Err e => simp at h
+      | Ok d =>
+      have e2 := Result.ok_injective h
+      simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e2
+      obtain ⟨rfl, rfl, rfl⟩ := e2
+      rename_i q q'
+      obtain ⟨lst2, hx2, hrel2, hinv2⟩ := record_of_entry_ok hrel1 hinv1
+        (c := { «name» := cv.name, level_params := cv.level_params, ty := cv.ty, kind := .Quot q })
+        (c' := ⟨absNIdx cv.name, cv.level_params.val.map absNIdx, absEIdx cv.ty, .quot q'⟩)
+        ⟨rfl, rfl, rfl, hk⟩ hr1
+      refine ⟨(C1, absIDeclaration d, absNIdx s.part.module), lst2, ?_, ⟨hc1, rfl, rfl⟩, hrel2, hinv2⟩
+      simp only [Option.map_some, absSpot, absNamePosition_skipped, hsk', Bool.false_eq_true, ↓reduceIte,
+        pure_bind]
+      refine (am_bind_ok hx1).trans ?_
+      refine (am_bind_ok hx2).trans ?_
+      rfl
 
 end reads
 
