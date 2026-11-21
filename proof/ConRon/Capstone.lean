@@ -11,6 +11,7 @@ import ConRon.Bridge.Inductives.Decl
 import ConLeche.MainTheorem
 import ConRon.Refine2.Frontend.Olean.ReadOleans
 import ConRon.Bridge.Compare.Stages
+import ConRon.Bridge.Compare.StagesOleans
 import ConRon.Refine2.Checker.Mates
 import ConRon.Refine2.Frontend.Compare
 
@@ -1055,6 +1056,148 @@ theorem rust_stages_compare
 
 end Compare
 
+section RustOleansCompare
+
+open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean
+
+/-- **The compared `--olean` run's Rust pipeline, walked into the twin**: `rust_stages_oleans`
+with the two names, the challenge's read (lenient, with its homes) and preparation at the
+prelude's copy, its holes (`hole_records_ls`), the solution's read (lenient) and preparation,
+its check phase, the challenge's side records, the solution and the challenge's check phase at
+it (`olean_pool_accepts_sol_refines`).  `hT2` is the reader's Theorem 2, as in
+`rust_stages_oleans`. -/
+theorem rust_stages_oleans_compare (hT2 : ReadOleansRefines)
+    {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+    {text : Slice Std.U8}
+    (hdec : kernel.pins_decode.decode text = ok (.Ok pins))
+    {pers : arena.store.PersTier} {est : arena.store.EStore}
+    (hfz : pers.frozen = false)
+    {st0 st1 st2 st4 st4h st5 st6 st7 st10 st11 : arena.monad.AState}
+    {pre : frontend.prepare.PreludeIx} {F : ConLeche.FS}
+    (hest : arena.store.EStore.empty = ok est)
+    (hst0 : arena.monad.AState.init est = ok st0)
+    (h1 : arena.pins.intern_reserved_pins pers st0 = ok (.Ok (), st1))
+    (h2 : frontend.prelude.builtin_prelude_e pers st1 = ok (.Ok pre, st2))
+    {c s : kernel.name.Name} {ch sh : arena.handle.NIdx} {stR1 stR : arena.monad.AState}
+    (hwfC : ConRon.Refine.NameWF c) (hwfS : ConRon.Refine.NameWF s)
+    (hnC : arena.monad.intern_name pers st2 c = ok (.Ok ch, stR1))
+    (hnS : arena.monad.intern_name pers stR1 s = ok (.Ok sh, stR))
+    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    (hsnap : SnapshotOf finst fsv F)
+    {cr sr : frontend.olean.files.Roots} {rootsC rootsS : alloc.vec.Vec arena.handle.NIdx}
+    (hrC : rootsC.val = [ch]) (hrS : rootsS.val = [sh])
+    {rdC rdS : frontend.olean.records.OleanRead} {store3 store5 : arena.store.EStore}
+    (h3 : frontend.olean.records.read_oleans finst fsv pers stR.store cr rootsC none true true
+      = ok (.Ok rdC, store3))
+    {preC : frontend.prepare.PreludeIx}
+    (hdup : frontend.prepare.prelude_ix_dup pre = ok preC)
+    {prepC : frontend.prepare.Prepared}
+    (h4 : frontend.prepare.prepare_d frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts pers { stR with store := store3 } preC rdC.decls rdC
+      = ok (.Ok prepC, st4))
+    {holed : alloc.vec.Vec arena.env.IDeclaration}
+    (hhole : frontend.compare.hole_records frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts rdC pers st4 prepC.decls 0#usize (alloc.vec.Vec.new _)
+      = ok (.Ok holed, st4h))
+    (h3S : frontend.olean.records.read_oleans finst fsv pers st4h.store sr rootsS none true false
+      = ok (.Ok rdS, store5))
+    {prepS : frontend.prepare.Prepared}
+    (h4S : frontend.prepare.prepare_d frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts pers { st4h with store := store5 } pre rdS.decls rdS
+      = ok (.Ok prepS, st5))
+    {maxNatSize : ron.nat.Nat} {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    (h5 : arena.checker.intern_all_pins pers st5 pins maxNatSize = ok (.Ok ipins, st6))
+    {ixS ixC : arena.stream_index.IStreamIndex}
+    (h6S : OleanPoolAccepts finst fsv pers st6 .Verified ipins prepS.decls rdS.pins rdS.values sr
+      ixS st7)
+    {recsC : alloc.vec.Vec arena.env.IDeclaration}
+    (hside : arena.justify.side_records pers st7 holed 0#usize (alloc.vec.Vec.new _) =
+      ok (.Ok recsC, st10))
+    {sol : arena.justify.Solution}
+    (hsol : arena.justify.solution_of ixS recsC = ok sol)
+    (h6 : OleanPoolAcceptsSol finst fsv pers st10 .Verified ipins recsC rdC.pins rdC.values cr
+      (some sol) ixC st11) :
+    ∃ (sA sB sB₁ sB₂ sC sD sD' sC₂ sD₂ sE sF sH sI : ConRon.Arena.AState)
+      (rdC' rdS' : ConRon.Arena.Frontend.Olean.OleanRead) (IS IC : ConRon.Arena.IStreamIndex),
+      ConRon.Arena.internReservedPins
+          (ConRon.Arena.AState.init ConRon.Arena.EStore.empty) = .ok ((), sA) ∧
+      ConRon.Arena.Frontend.builtinPreludeE sA = .ok (.ok (absPreludeIx pre), sB) ∧
+      ConRon.Arena.internName (ConRon.Refine.absName c) sB = .ok (absNIdx ch, sB₁) ∧
+      ConRon.Arena.internName (ConRon.Refine.absName s) sB₁ = .ok (absNIdx sh, sB₂) ∧
+      ConRon.Arena.Frontend.Olean.readOleans (ConRon.Bridge.Frontend.Olean.modelFs F)
+          (absRoots cr) #[absNIdx ch] none true true sB₂ = .ok (.ok rdC', sC) ∧
+      ConRon.Arena.Frontend.prepareD (absPreludeIx pre) rdC'.decls rdC'.usedOf sC
+          = .ok (absPrepared prepC, sD) ∧
+      ConRon.Arena.Frontend.holeRecordsGo rdC'.usedOf [] (absPrepared prepC).decls.toList sD
+          = .ok (absIDeclL holed, sD') ∧
+      ConRon.Arena.Frontend.Olean.readOleans (ConRon.Bridge.Frontend.Olean.modelFs F)
+          (absRoots sr) #[absNIdx sh] none true false sD' = .ok (.ok rdS', sC₂) ∧
+      ConRon.Arena.Frontend.prepareD (absPreludeIx pre) rdS'.decls rdS'.usedOf sC₂
+          = .ok (absPrepared prepS, sD₂) ∧
+      ConRon.Arena.internAllPins (ConRon.Refine.absPins pins)
+          (ConRon.Refine.Nat.toNat maxNatSize) sD₂
+          = .ok (absINatOpPinSetL ipins, sE) ∧
+      ConRon.Arena.PooledOleanAccepts (ConRon.Bridge.Frontend.Olean.modelFs F) rdS'.pins
+          (absRoots sr) rdS'.values .verified (absINatOpPinSetL ipins)
+          (absPrepared prepS).decls sE IS sF ∧
+      ConRon.Arena.sideRecordsGo [] (absIDeclL holed) sF = .ok (absIDeclL recsC, sH) ∧
+      ConRon.Arena.PooledOleanAcceptsJ (ConRon.Bridge.Frontend.Olean.modelFs F) rdC'.pins
+          (absRoots cr) rdC'.values .verified (absINatOpPinSetL ipins)
+          (some (ConRon.Arena.solutionOf IS (absIDeclL recsC))) (absIDeclL recsC).toArray
+          sH IC sI ∧
+      AStateRel₀ pers st10 sH := by
+  obtain ⟨hrel0, hinv0, -⟩ := init_rel (pers := pers) hfz hest hst0
+  obtain ⟨sA, hA, hrelA, hinvA⟩ :=
+    (intern_reserved_pins_refines hrel0 hinv0 h1).dest
+  obtain ⟨preL, sB, hB, hpreL, hrelB, hinvB⟩ :=
+    builtin_prelude_e_refines scanSpec hrelA hinvA h2
+  subst hpreL
+  -- the two names
+  obtain ⟨sB₁, hRC, hrelB₁, hinvB₁⟩ := (intern_name_run'₀ c hwfC hrelB hinvB hnC).1.apply
+  obtain ⟨sB₂, hRS, hrelB₂, hinvB₂⟩ := (intern_name_run'₀ s hwfS hrelB₁ hinvB₁ hnS).1.apply
+  have hfs := fsRel_of_snapshot hsnap
+  have hrootsC : absNIdxArr rootsC = #[absNIdx ch] := by simp [absNIdxArr, hrC]
+  have hrootsS : absNIdxArr rootsS = #[absNIdx sh] := by simp [absNIdxArr, hrS]
+  -- the challenge: its read, its preparation at the copy, its holes
+  obtain ⟨rdC', sC, hC, hrdC, hrelC, hinvC⟩ := hT2 hfs hrelB₂ hinvB₂ h3
+  rw [hrootsC] at hC
+  obtain ⟨sD, hD, hrelD, hinvD⟩ :=
+    (prepare_d_refines (olean_read_used_rel hrdC) hrelC hinvC h4).apply
+  have hdeclsC : absIDeclArr rdC.decls = rdC'.decls := by simp [absIDeclArr, hrdC.decls]
+  rw [hdeclsC, prelude_ix_dup_abs hdup] at hD
+  obtain ⟨holedL, sD', hH, hholed, hrelD', hinvD'⟩ :=
+    hole_records_ls (olean_read_used_rel hrdC) prepC.decls 0#usize st4 sD
+      (alloc.vec.Vec.new _) hrelD hinvD _ _ hhole
+  have hholed' : holedL = absIDeclL holed := hholed
+  subst hholed'
+  -- the solution: its read and preparation, the pins, its check phase
+  obtain ⟨rdS', sC₂, hCS, hrdS, hrelC₂, hinvC₂⟩ := hT2 hfs hrelD' hinvD' h3S
+  rw [hrootsS] at hCS
+  obtain ⟨sD₂, hDS, hrelD₂, hinvD₂⟩ :=
+    (prepare_d_refines (olean_read_used_rel hrdS) hrelC₂ hinvC₂ h4S).apply
+  have hdeclsS : absIDeclArr rdS.decls = rdS'.decls := by simp [absIDeclArr, hrdS.decls]
+  rw [hdeclsS] at hDS
+  obtain ⟨sE, hE, hrelE, hinvE⟩ :=
+    (intern_all_pins_refines hrelD₂ hinvD₂
+      (ConRon.Refine.PinsWF.decode_wf_refine2 hdec) h5).dest
+  obtain ⟨IS, sF, hF, hrelF, hIS⟩ :=
+    olean_pool_accepts_refines (values' := rdS'.values) hfs hrdS.values hrelE hinvE hfz h6S
+  rw [hrdS.pins] at hF
+  have hinvF : AStateInv pers st7 := by
+    obtain ⟨_, _, hB', -⟩ := h6S
+    exact (build_index_empty_refines hrelE hinvE hB').choose_spec.choose_spec.2.2.1
+  -- the challenge's side records, the solution, its check phase
+  obtain ⟨recsL, sH, hSd, hrecs, hrelH, hinvH⟩ :=
+    side_records_ls holed 0#usize st7 sF (alloc.vec.Vec.new _) hrelF hinvF _ _ hside
+  have hrecs' : recsL = absIDeclL recsC := hrecs
+  subst hrecs'
+  have hJ : OptSolRel (some sol) (some (ConRon.Arena.solutionOf IS (absIDeclL recsC))) :=
+    solution_of_rel hIS hsol
+  obtain ⟨IC, sI, hI, -, -, -⟩ :=
+    olean_pool_accepts_sol_refines (values' := rdC'.values) hJ hfs hrdC.values hrelH hinvH hfz h6
+  rw [hrdC.pins] at hI
+  exact ⟨sA, sB, sB₁, sB₂, sC, sD, sD', sC₂, sD₂, sE, sF, sH, sI, rdC', rdS', IS, IC, hA, hB,
+    hRC, hRS, hC, hD, hH, hCS, hDS, hE, hF, hSd, hI, hrelH⟩
+
+end RustOleansCompare
+
 section HeadlineCompare
 
 open ConRon.Refine2 ConRon.Refine2.Frontend
@@ -1193,6 +1336,329 @@ theorem no_False_compare (V : Type w) [ConLeche.SetTheory V]
 
 end HeadlineCompare
 
+/-! ## 4c. The compared `--olean` run: `--olean --compare -- C S`
+
+`compare_oleans` (`crates/con-ron/src/compare.rs`), the calls of `no_False_oleans` with the
+read replaced by the compared run's two:
+
+| premise | `compare_oleans`'s call |
+|---|---|
+| `hnC`, `hnS` | `monad::intern_name` on `C`, then on `S` |
+| `hsnap`, `h3` | `records::read_oleans` of `C`'s closure at the challenge's lookup `cr`, lenient, with its homes (`foreign_constant`, driver-side, then checks none of them is foreign) |
+| `hdup`, `h4` | `prelude_ix_dup`; `prepare::prepare_d` at the challenge's read |
+| `hhole` | `compare::hole_records`: each theorem whose file marks it a hole, the axiom of its statement |
+| `h3S`, `h4S` | `read_oleans` of `S`'s closure at the solution's lookup `sr`, lenient; its `prepare_d` |
+| `hpins`, `h5` | the pins, as §4 |
+| `h6S`, `h7S`, `h8S` | the solution's check phase (`olean_job` at `sol = None`); `thaw_tier` hands back `ixS` and `st7` |
+| `hside`, `hsol` | `justify::side_records`, `justify::solution_of(ixS, &recsC)` |
+| `h6`, `h7`, `h8` | the challenge's check phase, `olean_job` at `Some(&sol)` |
+
+As in §4, `hcl`, `hv`, `hmem`, `hk`, `hty` are upstream's specification of the files, here of
+the challenge's closure read through `cr`; the conclusion is about the challenge alone.  Both
+reads are at `constants = none`: a run with `--constant` is outside the theorems.  `hrC`/`hrS`
+say the driver's root vectors are the one interned name each. -/
+
+section HeadlineOleansCompare
+
+open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean
+
+/-- con-leche: ConLeche/MainTheorem.lean:88 main_compare_model — **A COMPARED `--olean` RUN
+WHOSE CHALLENGE'S CLOSURE HOLDS A THEOREM OF TYPE `False` IS REJECTED**: the binary's calls on
+`--olean --compare -- C S` (§4c's table) cannot all succeed when a module of `C`'s import
+closure, read by the specification through the challenge's lookup, holds a theorem whose type is
+`False`.  `hT2` is the reader's Theorem 2 (`ReadOleansRefines`).
+
+Composition only: `rust_stages_oleans_compare` (Theorem 2), `stagesOC_no_False` (Theorem 1 +
+con-leche). -/
+theorem no_False_oleans_compare_of (hT2 : ReadOleansRefines)
+    (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS}
+    {m : ConLeche.Name} {d : ConLeche.Frontend.Olean.ModDecoded}
+    {cc : ConLeche.Frontend.Olean.CEntryF ConLeche.Name ConLeche.Expr} {v : ConLeche.Expr}
+    {all : List ConLeche.Name} {c : kernel.name.Name} {cr : frontend.olean.files.Roots}
+    (hcl : ConLeche.Frontend.Olean.InClosure (absRoots cr) F #[ConRon.Refine.absName c] m)
+    (hv : ConLeche.Frontend.Olean.ViewOf (absRoots cr) F m d)
+    (hmem : cc ∈ d.constants) (hk : cc.kind = .thm v all)
+    (hty : cc.type = .const ConLeche.falseName [])
+    {st1 st2 st4 st4h st5 st6 st7 st10 st11 : arena.monad.AState}
+    (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+    {pre : frontend.prepare.PreludeIx}
+    (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
+    {s : kernel.name.Name} {ch sh : arena.handle.NIdx} {stR1 stR : arena.monad.AState}
+    (hwfC : ConRon.Refine.NameWF c) (hwfS : ConRon.Refine.NameWF s)
+    (hnC : arena.monad.intern_name emptyTier st2 c = ok (.Ok ch, stR1))
+    (hnS : arena.monad.intern_name emptyTier stR1 s = ok (.Ok sh, stR))
+    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    (hsnap : SnapshotOf finst fsv F)
+    {sr : frontend.olean.files.Roots} {rootsC rootsS : alloc.vec.Vec arena.handle.NIdx}
+    (hrC : rootsC.val = [ch]) (hrS : rootsS.val = [sh])
+    {rdC rdS : frontend.olean.records.OleanRead} {store3 store5 : arena.store.EStore}
+    (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store cr rootsC none true true
+      = ok (.Ok rdC, store3))
+    {preC : frontend.prepare.PreludeIx}
+    (hdup : frontend.prepare.prelude_ix_dup pre = ok preC)
+    {prepC : frontend.prepare.Prepared}
+    (h4 : frontend.prepare.prepare_d frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier { stR with store := store3 } preC rdC.decls rdC
+      = ok (.Ok prepC, st4))
+    {holed : alloc.vec.Vec arena.env.IDeclaration}
+    (hhole : frontend.compare.hole_records frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts rdC emptyTier st4 prepC.decls 0#usize (alloc.vec.Vec.new _)
+      = ok (.Ok holed, st4h))
+    (h3S : frontend.olean.records.read_oleans finst fsv emptyTier st4h.store sr rootsS none true false
+      = ok (.Ok rdS, store5))
+    {prepS : frontend.prepare.Prepared}
+    (h4S : frontend.prepare.prepare_d frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier { st4h with store := store5 } pre rdS.decls rdS
+      = ok (.Ok prepS, st5))
+    {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+    (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+    {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    {maxNatSize : ron.nat.Nat}
+    (h5 : arena.checker.intern_all_pins emptyTier st5 pins maxNatSize = ok (.Ok ipins, st6))
+    {ixS : arena.stream_index.IStreamIndex}
+    (h6S : (do
+        let e ← arena.stream_index.stream_index_empty
+        arena.stream_index.build_index emptyTier st6 e prepS.decls 0#usize) = ok (.Ok ixS, st7))
+    {tierS : arena.store.PersTier} {frozenS : arena.store.EStore}
+    (h7S : arena.checker.freeze_tier st7.store ixS = ok (tierS, frozenS))
+    (h8S : ParallelAll prepS.decls.length (oleanWorkerInit st7.pins)
+      (oleanJobStep finst fsv tierS .Verified ipins prepS.decls rdS.pins rdS.values sr))
+    {recsC : alloc.vec.Vec arena.env.IDeclaration}
+    (hside : arena.justify.side_records emptyTier st7 holed 0#usize (alloc.vec.Vec.new _) =
+      ok (.Ok recsC, st10))
+    {sol : arena.justify.Solution}
+    (hsol : arena.justify.solution_of ixS recsC = ok sol)
+    {ixC : arena.stream_index.IStreamIndex}
+    (h6 : (do
+        let e ← arena.stream_index.stream_index_empty
+        arena.stream_index.build_index emptyTier st10 e recsC 0#usize) = ok (.Ok ixC, st11))
+    {tierC : arena.store.PersTier} {frozenC : arena.store.EStore}
+    (h7 : arena.checker.freeze_tier st11.store ixC = ok (tierC, frozenC))
+    (h8 : ParallelAll recsC.length (oleanWorkerInit st11.pins)
+      (oleanJobStepSol finst fsv tierC .Verified ipins recsC rdC.pins rdC.values cr (some sol))) :
+    False := by
+  obtain ⟨est, hest, hst0⟩ := startState_init
+  have hkc : ConRon.Bridge.CoreSpec ConRon.Arena.checkFuel :=
+    ConRon.Bridge.CoreSpec.of_core
+  have hind : ConRon.Bridge.IndSpec :=
+    ConRon.Bridge.Inductives.indSpec_of_bridge
+  obtain ⟨sA, sB, sB₁, sB₂, sC, sD, sD', sC₂, sD₂, sE, sF, sH, sI, rdC', rdS', IS, IC, hA, hB,
+      hRC, hRS, hC, hD, hH, hCS, hDS, hE, hF, hSd, hI, hrelH⟩ :=
+    rust_stages_oleans_compare hT2 hpins rfl hest hst0 h1 h2 hwfC hwfS hnC hnS hsnap hrC hrS h3
+      hdup h4 hhole h3S h4S h5 (oleanPoolAccepts_intro h6S h7S h8S) hside hsol
+      (oleanPoolAcceptsSol_intro h6 h7 h8)
+  exact ConRon.Bridge.stagesOC_no_False V hkc hind rfl rfl (pins := ConRon.Refine.absPins pins)
+    hcl hv hmem hk hty hA hB hRC hRS hC hD hH hCS hDS hE hF hSd hI
+
+/-- con-leche: ConLeche/MainTheorem.lean:88 main_compare_model — **AN ACCEPTED COMPARED `--olean`
+RUN'S CHALLENGE HAS A MODEL**: the binary's calls on `--olean --compare -- C S` (§4c's table)
+accepting, the records the challenge's check phase checks, each theorem's reference replaced by
+a value (`RustDenotesFilled`), denote a stream whose environment has a model.  `hT2` as in
+`no_False_oleans_compare_of`.
+
+Composition only: `rust_stages_oleans_compare` (Theorem 2), `stagesOC_model` (Theorem 1 +
+con-leche). -/
+theorem model_exists_oleans_compare_of (hT2 : ReadOleansRefines)
+    (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS}
+    {st1 st2 st4 st4h st5 st6 st7 st10 st11 : arena.monad.AState}
+    (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+    {pre : frontend.prepare.PreludeIx}
+    (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
+    {c s : kernel.name.Name} {ch sh : arena.handle.NIdx} {stR1 stR : arena.monad.AState}
+    (hwfC : ConRon.Refine.NameWF c) (hwfS : ConRon.Refine.NameWF s)
+    (hnC : arena.monad.intern_name emptyTier st2 c = ok (.Ok ch, stR1))
+    (hnS : arena.monad.intern_name emptyTier stR1 s = ok (.Ok sh, stR))
+    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    (hsnap : SnapshotOf finst fsv F)
+    {cr sr : frontend.olean.files.Roots} {rootsC rootsS : alloc.vec.Vec arena.handle.NIdx}
+    (hrC : rootsC.val = [ch]) (hrS : rootsS.val = [sh])
+    {rdC rdS : frontend.olean.records.OleanRead} {store3 store5 : arena.store.EStore}
+    (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store cr rootsC none true true
+      = ok (.Ok rdC, store3))
+    {preC : frontend.prepare.PreludeIx}
+    (hdup : frontend.prepare.prelude_ix_dup pre = ok preC)
+    {prepC : frontend.prepare.Prepared}
+    (h4 : frontend.prepare.prepare_d frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier { stR with store := store3 } preC rdC.decls rdC
+      = ok (.Ok prepC, st4))
+    {holed : alloc.vec.Vec arena.env.IDeclaration}
+    (hhole : frontend.compare.hole_records frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts rdC emptyTier st4 prepC.decls 0#usize (alloc.vec.Vec.new _)
+      = ok (.Ok holed, st4h))
+    (h3S : frontend.olean.records.read_oleans finst fsv emptyTier st4h.store sr rootsS none true false
+      = ok (.Ok rdS, store5))
+    {prepS : frontend.prepare.Prepared}
+    (h4S : frontend.prepare.prepare_d frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier { st4h with store := store5 } pre rdS.decls rdS
+      = ok (.Ok prepS, st5))
+    {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+    (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+    {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    {maxNatSize : ron.nat.Nat}
+    (h5 : arena.checker.intern_all_pins emptyTier st5 pins maxNatSize = ok (.Ok ipins, st6))
+    {ixS : arena.stream_index.IStreamIndex}
+    (h6S : (do
+        let e ← arena.stream_index.stream_index_empty
+        arena.stream_index.build_index emptyTier st6 e prepS.decls 0#usize) = ok (.Ok ixS, st7))
+    {tierS : arena.store.PersTier} {frozenS : arena.store.EStore}
+    (h7S : arena.checker.freeze_tier st7.store ixS = ok (tierS, frozenS))
+    (h8S : ParallelAll prepS.decls.length (oleanWorkerInit st7.pins)
+      (oleanJobStep finst fsv tierS .Verified ipins prepS.decls rdS.pins rdS.values sr))
+    {recsC : alloc.vec.Vec arena.env.IDeclaration}
+    (hside : arena.justify.side_records emptyTier st7 holed 0#usize (alloc.vec.Vec.new _) =
+      ok (.Ok recsC, st10))
+    {sol : arena.justify.Solution}
+    (hsol : arena.justify.solution_of ixS recsC = ok sol)
+    {ixC : arena.stream_index.IStreamIndex}
+    (h6 : (do
+        let e ← arena.stream_index.stream_index_empty
+        arena.stream_index.build_index emptyTier st10 e recsC 0#usize) = ok (.Ok ixC, st11))
+    {tierC : arena.store.PersTier} {frozenC : arena.store.EStore}
+    (h7 : arena.checker.freeze_tier st11.store ixC = ok (tierC, frozenC))
+    (h8 : ParallelAll recsC.length (oleanWorkerInit st11.pins)
+      (oleanJobStepSol finst fsv tierC .Verified ipins recsC rdC.pins rdC.values cr (some sol))) :
+    ∃ env, RustDenotesFilled recsC st10 env ∧ Nonempty (ConLeche.Model V env) := by
+  obtain ⟨est, hest, hst0⟩ := startState_init
+  have hkc : ConRon.Bridge.CoreSpec ConRon.Arena.checkFuel :=
+    ConRon.Bridge.CoreSpec.of_core
+  have hind : ConRon.Bridge.IndSpec :=
+    ConRon.Bridge.Inductives.indSpec_of_bridge
+  obtain ⟨sA, sB, sB₁, sB₂, sC, sD, sD', sC₂, sD₂, sE, sF, sH, sI, rdC', rdS', IS, IC, hA, hB,
+      hRC, hRS, hC, hD, hH, hCS, hDS, hE, hF, hSd, hI, hrelH⟩ :=
+    rust_stages_oleans_compare hT2 hpins rfl hest hst0 h1 h2 hwfC hwfS hnC hnS hsnap hrC hrS h3
+      hdup h4 hhole h3S h4S h5 (oleanPoolAccepts_intro h6S h7S h8S) hside hsol
+      (oleanPoolAcceptsSol_intro h6 h7 h8)
+  obtain ⟨hwfH, dsP, val, hden, ⟨hmod⟩⟩ :=
+    ConRon.Bridge.stagesOC_model V hkc hind rfl rfl (pins := ConRon.Refine.absPins pins)
+      hA hB hRC hRS hC hD hH hCS hDS hE hF hSd hI
+  exact ⟨_, ⟨sH, dsP, val, hrelH.of₀ hwfH, hden, rfl⟩,
+    ⟨ConLeche.Model.Model.ofEnvModelM hmod⟩⟩
+
+/-- con-leche: ConLeche/MainTheorem.lean:88 main_compare_model — `no_False_oleans_compare_of`
+at the reader's Theorem 2, `read_oleans_refines`. -/
+theorem no_False_oleans_compare (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS}
+    {m : ConLeche.Name} {d : ConLeche.Frontend.Olean.ModDecoded}
+    {cc : ConLeche.Frontend.Olean.CEntryF ConLeche.Name ConLeche.Expr} {v : ConLeche.Expr}
+    {all : List ConLeche.Name} {c : kernel.name.Name} {cr : frontend.olean.files.Roots}
+    (hcl : ConLeche.Frontend.Olean.InClosure (absRoots cr) F #[ConRon.Refine.absName c] m)
+    (hv : ConLeche.Frontend.Olean.ViewOf (absRoots cr) F m d)
+    (hmem : cc ∈ d.constants) (hk : cc.kind = .thm v all)
+    (hty : cc.type = .const ConLeche.falseName [])
+    {st1 st2 st4 st4h st5 st6 st7 st10 st11 : arena.monad.AState}
+    (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+    {pre : frontend.prepare.PreludeIx}
+    (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
+    {s : kernel.name.Name} {ch sh : arena.handle.NIdx} {stR1 stR : arena.monad.AState}
+    (hwfC : ConRon.Refine.NameWF c) (hwfS : ConRon.Refine.NameWF s)
+    (hnC : arena.monad.intern_name emptyTier st2 c = ok (.Ok ch, stR1))
+    (hnS : arena.monad.intern_name emptyTier stR1 s = ok (.Ok sh, stR))
+    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    (hsnap : SnapshotOf finst fsv F)
+    {sr : frontend.olean.files.Roots} {rootsC rootsS : alloc.vec.Vec arena.handle.NIdx}
+    (hrC : rootsC.val = [ch]) (hrS : rootsS.val = [sh])
+    {rdC rdS : frontend.olean.records.OleanRead} {store3 store5 : arena.store.EStore}
+    (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store cr rootsC none true true
+      = ok (.Ok rdC, store3))
+    {preC : frontend.prepare.PreludeIx}
+    (hdup : frontend.prepare.prelude_ix_dup pre = ok preC)
+    {prepC : frontend.prepare.Prepared}
+    (h4 : frontend.prepare.prepare_d frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier { stR with store := store3 } preC rdC.decls rdC
+      = ok (.Ok prepC, st4))
+    {holed : alloc.vec.Vec arena.env.IDeclaration}
+    (hhole : frontend.compare.hole_records frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts rdC emptyTier st4 prepC.decls 0#usize (alloc.vec.Vec.new _)
+      = ok (.Ok holed, st4h))
+    (h3S : frontend.olean.records.read_oleans finst fsv emptyTier st4h.store sr rootsS none true false
+      = ok (.Ok rdS, store5))
+    {prepS : frontend.prepare.Prepared}
+    (h4S : frontend.prepare.prepare_d frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier { st4h with store := store5 } pre rdS.decls rdS
+      = ok (.Ok prepS, st5))
+    {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+    (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+    {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    {maxNatSize : ron.nat.Nat}
+    (h5 : arena.checker.intern_all_pins emptyTier st5 pins maxNatSize = ok (.Ok ipins, st6))
+    {ixS : arena.stream_index.IStreamIndex}
+    (h6S : (do
+        let e ← arena.stream_index.stream_index_empty
+        arena.stream_index.build_index emptyTier st6 e prepS.decls 0#usize) = ok (.Ok ixS, st7))
+    {tierS : arena.store.PersTier} {frozenS : arena.store.EStore}
+    (h7S : arena.checker.freeze_tier st7.store ixS = ok (tierS, frozenS))
+    (h8S : ParallelAll prepS.decls.length (oleanWorkerInit st7.pins)
+      (oleanJobStep finst fsv tierS .Verified ipins prepS.decls rdS.pins rdS.values sr))
+    {recsC : alloc.vec.Vec arena.env.IDeclaration}
+    (hside : arena.justify.side_records emptyTier st7 holed 0#usize (alloc.vec.Vec.new _) =
+      ok (.Ok recsC, st10))
+    {sol : arena.justify.Solution}
+    (hsol : arena.justify.solution_of ixS recsC = ok sol)
+    {ixC : arena.stream_index.IStreamIndex}
+    (h6 : (do
+        let e ← arena.stream_index.stream_index_empty
+        arena.stream_index.build_index emptyTier st10 e recsC 0#usize) = ok (.Ok ixC, st11))
+    {tierC : arena.store.PersTier} {frozenC : arena.store.EStore}
+    (h7 : arena.checker.freeze_tier st11.store ixC = ok (tierC, frozenC))
+    (h8 : ParallelAll recsC.length (oleanWorkerInit st11.pins)
+      (oleanJobStepSol finst fsv tierC .Verified ipins recsC rdC.pins rdC.values cr (some sol))) :
+    False :=
+  no_False_oleans_compare_of read_oleans_refines V hcl hv hmem hk hty h1 h2 hwfC hwfS hnC hnS
+    hsnap hrC hrS h3 hdup h4 hhole h3S h4S hpins h5 h6S h7S h8S hside hsol h6 h7 h8
+
+/-- con-leche: ConLeche/MainTheorem.lean:88 main_compare_model — `model_exists_oleans_compare_of`
+at the reader's Theorem 2, `read_oleans_refines`. -/
+theorem model_exists_oleans_compare (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS}
+    {st1 st2 st4 st4h st5 st6 st7 st10 st11 : arena.monad.AState}
+    (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+    {pre : frontend.prepare.PreludeIx}
+    (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
+    {c s : kernel.name.Name} {ch sh : arena.handle.NIdx} {stR1 stR : arena.monad.AState}
+    (hwfC : ConRon.Refine.NameWF c) (hwfS : ConRon.Refine.NameWF s)
+    (hnC : arena.monad.intern_name emptyTier st2 c = ok (.Ok ch, stR1))
+    (hnS : arena.monad.intern_name emptyTier stR1 s = ok (.Ok sh, stR))
+    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    (hsnap : SnapshotOf finst fsv F)
+    {cr sr : frontend.olean.files.Roots} {rootsC rootsS : alloc.vec.Vec arena.handle.NIdx}
+    (hrC : rootsC.val = [ch]) (hrS : rootsS.val = [sh])
+    {rdC rdS : frontend.olean.records.OleanRead} {store3 store5 : arena.store.EStore}
+    (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store cr rootsC none true true
+      = ok (.Ok rdC, store3))
+    {preC : frontend.prepare.PreludeIx}
+    (hdup : frontend.prepare.prelude_ix_dup pre = ok preC)
+    {prepC : frontend.prepare.Prepared}
+    (h4 : frontend.prepare.prepare_d frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier { stR with store := store3 } preC rdC.decls rdC
+      = ok (.Ok prepC, st4))
+    {holed : alloc.vec.Vec arena.env.IDeclaration}
+    (hhole : frontend.compare.hole_records frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts rdC emptyTier st4 prepC.decls 0#usize (alloc.vec.Vec.new _)
+      = ok (.Ok holed, st4h))
+    (h3S : frontend.olean.records.read_oleans finst fsv emptyTier st4h.store sr rootsS none true false
+      = ok (.Ok rdS, store5))
+    {prepS : frontend.prepare.Prepared}
+    (h4S : frontend.prepare.prepare_d frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier { st4h with store := store5 } pre rdS.decls rdS
+      = ok (.Ok prepS, st5))
+    {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+    (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+    {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    {maxNatSize : ron.nat.Nat}
+    (h5 : arena.checker.intern_all_pins emptyTier st5 pins maxNatSize = ok (.Ok ipins, st6))
+    {ixS : arena.stream_index.IStreamIndex}
+    (h6S : (do
+        let e ← arena.stream_index.stream_index_empty
+        arena.stream_index.build_index emptyTier st6 e prepS.decls 0#usize) = ok (.Ok ixS, st7))
+    {tierS : arena.store.PersTier} {frozenS : arena.store.EStore}
+    (h7S : arena.checker.freeze_tier st7.store ixS = ok (tierS, frozenS))
+    (h8S : ParallelAll prepS.decls.length (oleanWorkerInit st7.pins)
+      (oleanJobStep finst fsv tierS .Verified ipins prepS.decls rdS.pins rdS.values sr))
+    {recsC : alloc.vec.Vec arena.env.IDeclaration}
+    (hside : arena.justify.side_records emptyTier st7 holed 0#usize (alloc.vec.Vec.new _) =
+      ok (.Ok recsC, st10))
+    {sol : arena.justify.Solution}
+    (hsol : arena.justify.solution_of ixS recsC = ok sol)
+    {ixC : arena.stream_index.IStreamIndex}
+    (h6 : (do
+        let e ← arena.stream_index.stream_index_empty
+        arena.stream_index.build_index emptyTier st10 e recsC 0#usize) = ok (.Ok ixC, st11))
+    {tierC : arena.store.PersTier} {frozenC : arena.store.EStore}
+    (h7 : arena.checker.freeze_tier st11.store ixC = ok (tierC, frozenC))
+    (h8 : ParallelAll recsC.length (oleanWorkerInit st11.pins)
+      (oleanJobStepSol finst fsv tierC .Verified ipins recsC rdC.pins rdC.values cr (some sol))) :
+    ∃ env, RustDenotesFilled recsC st10 env ∧ Nonempty (ConLeche.Model V env) :=
+  model_exists_oleans_compare_of read_oleans_refines V h1 h2 hwfC hwfS hnC hnS hsnap hrC hrS h3
+    hdup h4 hhole h3S h4S hpins h5 h6S h7S h8S hside hsol h6 h7 h8
+
+end HeadlineOleansCompare
+
 /-! ## 5. The census
 
 `#print axioms` of the roots: con-leche's own three axioms and nothing else — no `sorryAx`, no
@@ -1235,5 +1701,11 @@ them. -/
 
 /-- info: 'ConRon.Capstone.no_False_compare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms no_False_compare
+
+/-- info: 'ConRon.Capstone.no_False_oleans_compare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms no_False_oleans_compare
+
+/-- info: 'ConRon.Capstone.model_exists_oleans_compare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms model_exists_oleans_compare
 
 end ConRon.Capstone
