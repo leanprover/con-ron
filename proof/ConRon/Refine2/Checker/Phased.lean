@@ -203,7 +203,7 @@ def jobStep (tier : arena.store.PersTier) (mode : kernel.env.CheckMode)
     Result ((core.result.Result Unit (kernel.core_types.CheckError × Std.U64)) ×
       arena.monad.AState) :=
   if h : k < 2 ^ UScalarTy.Usize.numBits then
-    arena.checker.run_job tier st mode pins ds
+    arena.checker.run_job tier st mode pins none ds
       (UScalar.cast .U64 (UScalar.ofNatCore (ty := .Usize) k h))
   else fail .panic
 
@@ -248,7 +248,7 @@ theorem foldAllOk_jobStep_refines {tier} {I : IStreamIndex} {mode : kernel.env.C
       AIdle tier st lst → AStateInv tier st →
       FoldAllOk (jobStep tier mode pins ds) st ks →
       (∀ k ∈ ks, k < ds.val.length) ∧
-      ∃ s'', checkJobList (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I
+      ∃ s'', checkJobList (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) none I
         (absIDeclL ds).toArray ks lst = .ok (.ok (), s'')
   | [], _, lst, _, _, _ => ⟨by simp, lst, rfl⟩
   | k :: ks, _, lst, hidle, hinv, ⟨_, hs1, hf⟩ => by
@@ -274,7 +274,7 @@ theorem foldAllOk_jobStep_refines {tier} {I : IStreamIndex} {mode : kernel.env.C
         · exact hlt
         · exact hall x hx
       · simp only [checkJobList]
-        rw [show runJob _ _ I _ k lst = .ok (.ok (), lst1) from hx]
+        rw [show runJob _ _ none I _ k lst = .ok (.ok (), lst1) from hx]
         exact h
     · simp at hs1
 
@@ -303,7 +303,7 @@ theorem pool_accepts_refines {pers st lst}
   obtain ⟨htier, -⟩ := freeze_tier_ok hfr
   subst htier
   have hwork : ∀ w ∈ parts, (∀ k ∈ w, k < ds.val.length) ∧
-      ∃ s'', checkJobList (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I
+      ∃ s'', checkJobList (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) none I
         (absIDeclL ds).toArray w lst'.worker = .ok (.ok (), s'') := by
     intro w hwm
     obtain ⟨-, ws, hws, hf⟩ := hw w hwm

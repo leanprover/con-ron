@@ -37,7 +37,7 @@ def oleanJobStep {F : Type} (inst : frontend.olean.files.OleanFs F) (fs : F)
     let ku : Std.U64 := UScalar.cast .U64 (UScalar.ofNatCore (ty := .Usize) k h)
     let plain : Result ((core.result.Result Unit (kernel.core_types.CheckError × Std.U64)) ×
         (arena.monad.AState × frontend.olean.records.ValueCache)) := do
-      let (r, st') ← arena.checker.run_job tier w.1 mode pins ds ku
+      let (r, st') ← arena.checker.run_job tier w.1 mode pins none ds ku
       ok (r, (st', w.2))
     match ds.val[k]? with
     | some (.ThmDecl cv v) => do
@@ -56,7 +56,7 @@ def oleanJobStep {F : Type} (inst : frontend.olean.files.OleanFs F) (fs : F)
         | .Ok e =>
           let cv' ← arena.env.i_constant_val_dup cv
           let (r', st3) ← arena.stream_index.record_check tier { st1 with store := ar } mode
-            pins ku (.ThmDecl cv' e)
+            pins none ku (.ThmDecl cv' e)
           let st4 ← arena.core.leave_record st3
           match r' with
           | .Ok () => ok (.Ok (), (st4, c))
@@ -120,11 +120,11 @@ theorem olean_job_step_refines {F : Type} {inst : frontend.olean.files.OleanFs F
   have hau : absU (UScalar.cast .U64 (UScalar.ofNatCore (ty := .Usize) k hk)) = k := hu
   -- the record as a plain job: `run_job` and the twin's `runJob`
   have hplain : (do
-        let (r, st'') ← arena.checker.run_job tier st mode pins ds
+        let (r, st'') ← arena.checker.run_job tier st mode pins none ds
           (UScalar.cast .U64 (UScalar.ofNatCore (ty := .Usize) k hk))
         ok (r, (st'', c)) : Result _) = ok (.Ok (), (st', c1)) →
       k < ds.val.length ∧ c1 = c ∧
-      ∃ lst', runJob (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I
+      ∃ lst', runJob (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) none I
           (absIDeclL ds).toArray k lst = .ok (.ok (), lst') ∧
         AIdle tier st' lst' ∧ AStateInv tier st' ∧ lst'.store.scratchOn = false := by
     intro h
@@ -139,9 +139,9 @@ theorem olean_job_step_refines {F : Type} {inst : frontend.olean.files.OleanFs F
       (absIDeclL ds).toArray[k]? = some (absIDeclaration d) := by
     intro d hd; simp [absIDeclL, hd]
   -- every route but the reference is the plain job
-  have hplainT : (∀ lst', runJob (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I
+  have hplainT : (∀ lst', runJob (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) none I
         (absIDeclL ds).toArray k lst = .ok (.ok (), lst') →
-      (match (match runJob (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I
+      (match (match runJob (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) none I
           (absIDeclL ds).toArray k lst with
         | .ok (r, s') => Except.ok (c', r, s')
         | .error e => .error e) with
@@ -235,7 +235,7 @@ theorem olean_job_step_refines {F : Type} {inst : frontend.olean.files.OleanFs F
                 show StateT.run (enterScratch >>= fun _ => _) lst = _
                 rw [StateT.run_bind, hx1]
                 exact hx2]
-            show (match (StateT.run (recordCheck _ _ I k _ >>= fun _ => dropScratch) lst2) with
+            show (match (StateT.run (recordCheck _ _ none I k _ >>= fun _ => dropScratch) lst2) with
               | .ok ((), s₂) => _
               | .error err => _) = _
             rw [StateT.run_bind, hx3]

@@ -45,8 +45,8 @@ theorem record_check_refines {tier st lst} {I : IStreamIndex}
     {k : Std.U64} {pd : arena.env.IDeclaration} {st'}
     (hrel : AStateRel₀ tier st lst) (hinv : AStateInv tier st) (hI : StreamIndexRel tier.env I ∧ FrozenRel tier.env I)
     (hk : k.val ≤ Std.Usize.max)
-    (hrun : arena.stream_index.record_check tier st mode pins k pd = ok (.Ok (), st')) :
-    ∃ lst', (recordCheck (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I (absU k)
+    (hrun : arena.stream_index.record_check tier st mode pins none k pd = ok (.Ok (), st')) :
+    ∃ lst', (recordCheck (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) none I (absU k)
         (absIDeclaration pd)).run lst = .ok ((), lst') ∧
       AStateRel₀ tier st' lst' ∧ AStateInv tier st' := by
   rw [arena.stream_index.record_check] at hrun
@@ -65,6 +65,7 @@ theorem record_check_refines {tier st lst} {I : IStreamIndex}
       obtain ⟨w, hw, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hfe := stream_index_view_rel hI.1 hI.2 hk hw
       obtain ⟨⟨r1, st2⟩, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      simp only [arena.justify.check_record] at h2
       have hS2 := check_decl_refines hrel1 hinv1 hfe.rel hfe.inv h2
       cases r1 with
       | Err e => cases Result.ok_injective hrun
@@ -72,7 +73,7 @@ theorem record_check_refines {tier st lst} {I : IStreamIndex}
         obtain ⟨-, rfl⟩ := Prod.mk.inj (Result.ok_injective hrun)
         obtain ⟨v, lst2, hx2, -, hrel2, hinv2⟩ := hS2
         refine ⟨lst2, ?_, hrel2, hinv2⟩
-        simp only [recordCheck, StateT.run_bind, hx1, except_ok_bind, id]
+        simp only [recordCheck, checkRecord, StateT.run_bind, hx1, except_ok_bind, id]
         simp only [↓reduceIte]
         rw [StateT.run_bind, hx2]
         rfl
@@ -84,8 +85,8 @@ theorem record_job_refines {tier st lst} {I : IStreamIndex}
     {k : Std.U64} {pd : arena.env.IDeclaration} {st'}
     (hidle : AIdle tier st lst) (hinv : AStateInv tier st) (htf : tier.frozen = true)
     (hI : StreamIndexRel tier.env I ∧ FrozenRel tier.env I) (hk : k.val ≤ Std.Usize.max)
-    (hrun : arena.stream_index.record_job tier st mode pins k pd = ok (.Ok (), st')) :
-    ∃ lst', (recordJob (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I (absU k)
+    (hrun : arena.stream_index.record_job tier st mode pins none k pd = ok (.Ok (), st')) :
+    ∃ lst', (recordJob (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) none I (absU k)
         (absIDeclaration pd)).run lst = .ok ((), lst') ∧
       AIdle tier st' lst' ∧ AStateInv tier st' ∧ lst'.store.scratchOn = false := by
   rw [arena.stream_index.record_job] at hrun
@@ -113,9 +114,9 @@ theorem run_job_refines {tier st lst} {I : IStreamIndex}
     {ds : alloc.vec.Vec arena.env.IDeclaration} {k : Std.U64} {st'}
     (hidle : AIdle tier st lst) (hinv : AStateInv tier st) (htf : tier.frozen = true)
     (hI : StreamIndexRel tier.env I ∧ FrozenRel tier.env I) (hk : k.val ≤ Std.Usize.max)
-    (hrun : arena.checker.run_job tier st mode pins ds k = ok (.Ok (), st')) :
+    (hrun : arena.checker.run_job tier st mode pins none ds k = ok (.Ok (), st')) :
     k.val < ds.val.length ∧
-    ∃ lst', runJob (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I
+    ∃ lst', runJob (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) none I
         (absIDeclL ds).toArray (absU k) lst = .ok (.ok (), lst') ∧
       AIdle tier st' lst' ∧ AStateInv tier st' ∧ lst'.store.scratchOn = false := by
   rw [arena.checker.run_job] at hrun
@@ -142,7 +143,7 @@ theorem run_job_refines {tier st lst} {I : IStreamIndex}
       have hget : (absIDeclL ds).toArray[absU k]? = some (absIDeclaration pd) := by
         simp [absIDeclL, absU, hpdv]
       simp only [runJob, hget]
-      rw [show recordJob _ _ I (absU k) (absIDeclaration pd) lst = .ok ((), lst1) from hx1]
+      rw [show recordJob _ _ none I (absU k) (absIDeclaration pd) lst = .ok ((), lst1) from hx1]
   · rw [ite_eq_right hb] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
