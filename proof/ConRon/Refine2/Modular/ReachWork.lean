@@ -719,4 +719,224 @@ theorem clash_partners_ok {pers st lst} {env : frontend.modular.reach.ReachEnv} 
   intro hrel hinv st' acc' hr
   simpa [Modular.clashPartners] using clash_partners_loop_ok hc ns st lst acc 0#usize hrel hinv st' acc' hr
 
+/-! ## Proof statuses -/
+
+/-- **`status_is` is `statusIs`.** -/
+theorem status_is_eq {p : frontend.modular.reach.ProofStatus} {yes : Bool} {o : Bool}
+    (h : status_is p yes = ok o) : o = Modular.statusIs (absProofStatus p) yes := by
+  cases p <;> cases Result.ok_injective h <;> simp [absProofStatus, Modular.statusIs]
+
+/-! ## The worklist's start -/
+
+/-- **`reach_log_init` is `ReachLog.init`.** -/
+theorem reach_log_init_rel {rs : alloc.vec.Vec arena.handle.NIdx} {l}
+    (h : reach_log_init rs = ok l) : ReachLogRel l (Modular.ReachLog.init (rs.val.map absNIdx)) := by
+  rw [reach_log_init] at h
+  peel h as m, hm
+  have hs : NSet m (∅ : Std.HashSet NIdx) := by
+    obtain ⟨hinv, -, hnone⟩ := ConRon.Refine.HashMap2.new_refines (HashableInst := hN) hm
+    exact ⟨hinv, fun k => by rw [hnone]; simp⟩
+  peel h as q, hq
+  obtain ⟨sp, seen, stack⟩ := q
+  have hp := push_names_eq hs (StackRel.empty absNIdx (alloc.vec.Vec.new arena.handle.NIdx)) hq
+  cases Result.ok_injective h
+  exact ⟨hp.1, hs, rfl, rfl, rfl, hp.2⟩
+
+/-! ## The read order's records -/
+
+/-- The twin's step of `inReadOrder`. -/
+def irStep (L : Modular.ReachLog) (acc : Array IDeclaration × Array NIdx) (j : Nat) :
+    Array IDeclaration × Array NIdx :=
+  match L.ctx[j]?, L.homes[j]? with
+  | some d, some h => (acc.1.push d, acc.2.push h)
+  | _, _ => acc
+
+theorem inReadOrder_eq (L : Modular.ReachLog) (o : Array Nat) :
+    Modular.inReadOrder L o = o.foldl (irStep L) (#[], #[]) := rfl
+
+theorem in_read_order_loop_eq (l : frontend.modular.reach.ReachLog) {L : Modular.ReachLog}
+    (hl : ReachLogRel l L) (o : alloc.vec.Vec Std.U64) (ho : ∀ j ∈ o.val, j.val ≤ Std.Usize.max)
+    (ctx : alloc.vec.Vec arena.env.IDeclaration) (homes : alloc.vec.Vec arena.handle.NIdx)
+    (i : Std.Usize) {r} (h : in_read_order_loop l o ctx homes i = ok r) :
+    (r.1.val.map absIDeclaration, r.2.val.map absNIdx) =
+      (let p := ((o.val.drop i.val).map (·.val)).foldl (irStep L)
+          ((ctx.val.map absIDeclaration).toArray, (homes.val.map absNIdx).toArray)
+       (p.1.toList, p.2.toList)) := by
+  rw [in_read_order_loop] at h
+  have hc := congrArg List.length hl.ctx
+  have hh := congrArg List.length hl.homes
+  simp only [List.length_map, Array.length_toList] at hc hh
+  by_cases hlt : i < alloc.vec.Vec.len o
+  · rw [ite_eq_left hlt] at h
+    have hi := lt_len hlt
+    peel h as x, hx
+    obtain ⟨_, rfl⟩ := vec_index_eq hx
+    have hfit := ho _ (List.getElem_mem hi)
+    peel h as j, hj
+    have ej : j.val = (o.val[i.val]).val := by rw [← Result.ok_injective hj]; exact cast_usize_val hfit
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, List.foldl_cons]
+    peel h as q, hq
+    obtain ⟨ctx1, homes1⟩ := q
+    peel h as i2, hi2
+    have hv2 := usize_succ_val hi2
+    have ih := in_read_order_loop_eq l hl o ho ctx1 homes1 i2 h
+    rw [hv2] at ih
+    rw [ih]
+    by_cases h1 : j < alloc.vec.Vec.len l.ctx
+    · rw [ite_eq_left h1] at hq
+      have h1' := lt_len h1
+      by_cases h2 : j < alloc.vec.Vec.len l.homes
+      · rw [ite_eq_left h2] at hq
+        have h2' := lt_len h2
+        peel hq as d, hd
+        obtain ⟨_, rfl⟩ := vec_index_eq hd
+        peel hq as d1, hd1
+        have ed := i_declaration_dup_abs hd1
+        peel hq as ctx2, hctx2
+        peel hq as n, hn
+        obtain ⟨_, rfl⟩ := vec_index_eq hn
+        simp only [nidx_dup2_eq, Aeneas.Std.bind_ok] at hq
+        peel hq as homes2, hhomes2
+        cases Result.ok_injective hq
+        have ec : L.ctx[(o.val[i.val]).val]? = some (absIDeclaration l.ctx.val[j.val]) := by
+          rw [← ej, ← Array.getElem?_toList, ← hl.ctx, List.getElem?_map, List.getElem?_eq_getElem h1']
+          rfl
+        have eh : L.homes[(o.val[i.val]).val]? = some (absNIdx l.homes.val[j.val]) := by
+          rw [← ej, ← Array.getElem?_toList, ← hl.homes, List.getElem?_map, List.getElem?_eq_getElem h2']
+          rfl
+        simp only [irStep, ec, eh, ConRon.Refine.vec_push_val hctx2, ConRon.Refine.vec_push_val hhomes2,
+          List.map_append, List.map_cons, List.map_nil, ed]
+        simp
+      · rw [ite_eq_right h2] at hq
+        cases Result.ok_injective hq
+        have eh : L.homes[(o.val[i.val]).val]? = none := by
+          rw [Array.getElem?_eq_none]; have := not_lt_len h2; omega
+        simp only [irStep, eh]
+        cases L.ctx[(o.val[i.val]).val]? <;> rfl
+    · rw [ite_eq_right h1] at hq
+      cases Result.ok_injective hq
+      have ec : L.ctx[(o.val[i.val]).val]? = none := by
+        rw [Array.getElem?_eq_none]; have := not_lt_len h1; omega
+      simp only [irStep, ec]
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    simp
+termination_by o.val.length - i.val
+decreasing_by have := lt_len hlt; omega
+
+/-- **`in_read_order` is `inReadOrder`**, at read-order positions that fit a `usize`. -/
+theorem in_read_order_eq {l : frontend.modular.reach.ReachLog} {L : Modular.ReachLog}
+    (hl : ReachLogRel l L) {o : alloc.vec.Vec Std.U64} (ho : ∀ j ∈ o.val, j.val ≤ Std.Usize.max) {r}
+    (h : in_read_order l o = ok r) :
+    r.1.val.map absIDeclaration = (Modular.inReadOrder L (o.val.map (·.val)).toArray).1.toList ∧
+      r.2.val.map absNIdx = (Modular.inReadOrder L (o.val.map (·.val)).toArray).2.toList := by
+  rw [in_read_order] at h
+  have := in_read_order_loop_eq l hl o ho _ _ 0#usize h
+  simp only [Prod.mk.injEq] at this
+  rw [inReadOrder_eq]
+  simpa [Array.foldl_toList, alloc.vec.Vec.with_capacity] using this
+
+/-! ## A clash's spots -/
+
+/-- A spot with its statement and kind, against the twin's. -/
+def SpotInfoRel (x : frontend.modular.reach.Spot × frontend.olean.spec.StmtRec ×
+      frontend.olean.spec.CKindF arena.handle.NIdx Unit)
+    (y : Modular.Spot × Arena.Frontend.Olean.StmtRec × ConLeche.Frontend.Olean.CKindF NIdx Unit) : Prop :=
+  absSpot x.1 = y.1 ∧ InfoRel x.2 y.2
+
+/-- The twin's spot of one clash copy. -/
+@[reducible] def clashSpotT (pk : Arena.Frontend.Olean.OleanPins) (W : Arena.Frontend.Olean.WorkerReads)
+    (y : ConLeche.Frontend.Olean.Copy × Arena.Frontend.Olean.StmtRec × ConLeche.Frontend.Olean.CKindF NIdx Unit) :
+    Option (Modular.Spot × Arena.Frontend.Olean.StmtRec × ConLeche.Frontend.Olean.CKindF NIdx Unit) :=
+  (W.index.at y.1).map fun q => ((⟨⟨W.loads.nameAt pk y.1.mod, W.loads.levelAt y.1.mod⟩, q⟩ : Modular.Spot), y.2.1, y.2.2)
+
+/-- **`clash_spot` is the twin's spot of a copy.** -/
+theorem clash_spot_eq {pk : frontend.olean.spec.OleanPins} {wr : frontend.olean.index.WorkerReads}
+    {W : Arena.Frontend.Olean.WorkerReads} (hw : WorkerReadsRel wr W)
+    {x : frontend.olean.index.Copy × frontend.olean.spec.StmtRec × frontend.olean.spec.CKindF arena.handle.NIdx Unit}
+    {y} (hx : CopyInfoRel x y) (hfit : CopyFits x.1) {o} (h : clash_spot pk wr x = ok o) :
+    Option.Rel SpotInfoRel o (clashSpotT (absPins pk) W y) := by
+  obtain ⟨c, sr, k⟩ := x
+  obtain ⟨cp, cv, k'⟩ := y
+  obtain ⟨hc, hs, hk⟩ := hx
+  simp only at hc hs hk hfit
+  subst hc hs
+  rw [clash_spot] at h
+  peel h as o1, ho1
+  have e1 := name_index_at_eq hw.index hfit ho1
+  rw [clashSpotT, ← e1]
+  cases o1 with
+  | none => cases Result.ok_injective h; exact .none
+  | some q =>
+    peel h as n, hn
+    have en := header_loads_name_at_eq (pk := pk) hw.loads hfit.1 hn
+    peel h as ol, hol
+    have el := header_loads_level_at_eq hw.loads hfit.1 hol
+    peel h as np, hnp
+    cases name_position_dup_ok hnp
+    peel h as sr1, hsr1
+    cases stmt_rec_dup_eq hsr1
+    peel h as k1, hk1
+    cases c_kind_names_dup_eq hk1
+    cases Result.ok_injective h
+    exact .some ⟨by simp [absSpot, absPartKey, en, el], rfl, hk⟩
+
+theorem clash_spots_loop_eq {pk : frontend.olean.spec.OleanPins} {wr : frontend.olean.index.WorkerReads}
+    {W : Arena.Frontend.Olean.WorkerReads} (hw : WorkerReadsRel wr W)
+    (v : alloc.vec.Vec (frontend.olean.index.Copy × frontend.olean.spec.StmtRec ×
+      frontend.olean.spec.CKindF arena.handle.NIdx Unit))
+    {V : List (ConLeche.Frontend.Olean.Copy × Arena.Frontend.Olean.StmtRec × ConLeche.Frontend.Olean.CKindF NIdx Unit)}
+    (hv : List.Forall₂ CopyInfoRel v.val V) (hfit : ∀ x ∈ v.val, CopyFits x.1)
+    (out : alloc.vec.Vec (frontend.modular.reach.Spot × frontend.olean.spec.StmtRec ×
+      frontend.olean.spec.CKindF arena.handle.NIdx Unit)) {O}
+    (hout : List.Forall₂ SpotInfoRel out.val O) (i : Std.Usize) {o}
+    (h : clash_spots_loop pk wr v out i = ok o) :
+    List.Forall₂ SpotInfoRel o.val (O ++ (V.drop i.val).filterMap (clashSpotT (absPins pk) W)) := by
+  have hlen := List.Forall₂.length_eq hv
+  rw [clash_spots_loop] at h
+  by_cases hlt : i < alloc.vec.Vec.len v
+  · rw [ite_eq_left hlt] at h
+    have hi := lt_len hlt
+    peel h as x, hx
+    obtain ⟨_, rfl⟩ := vec_index_eq hx
+    have hr : CopyInfoRel v.val[i.val] (V[i.val]'(by omega)) := List.forall₂_iff_get.mp hv |>.2 _ hi _
+    peel h as o1, ho1
+    have e1 := clash_spot_eq hw hr (hfit _ (List.getElem_mem hi)) ho1
+    rw [List.drop_eq_getElem_cons (by omega : i.val < V.length), List.filterMap_cons]
+    peel h as out1, hout1
+    peel h as i2, hi2
+    have hv2 := usize_succ_val hi2
+    generalize clashSpotT (absPins pk) W V[i.val] = t at e1 ⊢
+    cases e1 with
+    | none =>
+      cases Result.ok_injective hout1
+      have ih := clash_spots_loop_eq hw v hv hfit out hout i2 h
+      rw [hv2] at ih
+      simpa using ih
+    | some hab =>
+      rename_i a b
+      have hout' : List.Forall₂ SpotInfoRel out1.val (O ++ [b]) := by
+        rw [ConRon.Refine.vec_push_val hout1]
+        exact List.rel_append hout (List.Forall₂.cons hab .nil)
+      have ih := clash_spots_loop_eq hw v hv hfit out1 hout' i2 h
+      rw [hv2] at ih
+      simpa using ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (by have := not_lt_len hlt; omega)]
+    simpa using hout
+termination_by v.val.length - i.val
+decreasing_by all_goals (have := lt_len hlt; omega)
+
+/-- **`clash_spots` is `clashSpots`.** -/
+theorem clash_spots_eq {pk : frontend.olean.spec.OleanPins} {wr : frontend.olean.index.WorkerReads}
+    {env' : Modular.ReachEnv} (hw : WorkerReadsRel wr env'.wr)
+    {cl : frontend.olean.index.Clash} {cl' : Arena.Frontend.Olean.Clash} (hc : ClashRel cl cl')
+    (hfit : ∀ x ∈ cl.copies.val, CopyFits x.1) {o} (h : clash_spots pk wr cl = ok o) :
+    List.Forall₂ SpotInfoRel o.val (Modular.clashSpots (absPins pk) env' cl') := by
+  rw [clash_spots] at h
+  have := clash_spots_loop_eq hw cl.copies hc.copies hfit _ (O := []) (by exact List.Forall₂.nil) 0#usize h
+  simpa [Modular.clashSpots, clashSpotT] using this
+
 end ConRon.Refine2.Modular
