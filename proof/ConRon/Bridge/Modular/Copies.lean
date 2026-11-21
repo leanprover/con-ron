@@ -18,6 +18,7 @@ public import ConRon.Bridge.Checker.Install
 public import ConRon.Bridge.Compare.Justify
 public import ConRon.Bridge.Inductives.IotaRead
 public import ConRon.Bridge.Inductives.BlockShape
+public import ConRon.Bridge.Inductives.XFreeIota
 import ConRon.Bridge.Checker.Names
 import ConLeche.Verify.Cached.IndWalksC
 import ConLeche.Verify.Cached.IotaReadC
@@ -76,12 +77,6 @@ theorem CStep.of_rstep {s s' : AState} (hok : DriverOK s) (h : RStep s s') : CSt
 theorem CStep.of_pstep {s s' : AState} (hok : DriverOK s) (h : Inductives.PStep s s')
     (hsc : s'.store.scratchOn = s.store.scratchOn) : CStep s s' :=
   ⟨⟨hok.of_pstep h, h.ext, h.pins⟩, hsc⟩
-
-theorem ReachRel.ext {st st' : EStore} {r : ConRon.Arena.Modular.Reach}
-    {rC : ConLeche.Driver.Reach} (h : ReachRel st r rC) (hx : Ext st st') : ReachRel st' r rC :=
-  ⟨denoteDecls_ext hx _ _ h.ctx, ListRel.mono' (fun _ _ h => denoteN_ext h hx) h.homes,
-    ListRel.mono' (fun _ _ h => ⟨denoteN_ext h.1 hx, denoteN_ext h.2 hx⟩) h.completed,
-    h.searches, h.inferred⟩
 
 /-- con-leche: none — a record that is not an inductive block. -/
 @[expose] def NotInd (d : Declaration) : Prop := ∀ b n, d ≠ .indDecl b n
@@ -1117,7 +1112,7 @@ theorem copyReadsB_run {s s' : AState} {d : IDeclaration} {dC : Declaration} {b 
     (hl : LayerOK s.store fe (rC.ctx.toList.flatMap ConLeche.declConstants).reverse)
     (hnd : (rC.ctx.toList.flatMap ConLeche.Modular.declNames).Nodup)
     (h : ConRon.Arena.Modular.copyReadsB fe d s = .ok (b, s')) :
-    CStepW s s' ∧ (b = true →
+    CStep s s' ∧ (b = true →
       ConLeche.Driver.copyReadsB (ConLeche.Driver.ownerMap rC.ctx) rC dC = true) := by
   cases d with
   | indDecl block nP =>
@@ -1130,7 +1125,7 @@ theorem copyReadsB_run {s s' : AState} {d : IDeclaration} {dC : Declaration} {b 
     cases r with
     | error e =>
       obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
-      exact ⟨c1.toCStepW, fun h => nomatch h⟩
+      exact ⟨c1, fun h => nomatch h⟩
     | ok p =>
       obtain ⟨pC, hpC, hdp⟩ := hro
       have hrb : ConLeche.readBlock nP bC = .ok pC := by
@@ -1147,9 +1142,10 @@ theorem copyReadsB_run {s s' : AState} {d : IDeclaration} {dC : Declaration} {b 
       have ht0 : (driverFE s₂.pins).base.tbls = {} := rfl
       rw [recsRead_congr (layerFix_find hl₂ hb0)] at h4
       have hE := layerFix_ok hl₂ (driverFE_lits c2.ok.pins) hb0 ht0
+      have hsc3 := XFree.recsRead _ _ _ _ _ h4
       obtain ⟨c3o, c3x, c3p, hres⟩ := recsRead_bridge c2.ok hE hL h4
-      have c3 : CStepW s₂ s' := ⟨DriverOK.of_check c3o c3p, c3x, c3p⟩
-      refine ⟨c1.toCStepW.trans (c2.toCStepW.trans c3), fun hb => ?_⟩
+      have c3 : CStep s₂ s' := ⟨⟨DriverOK.of_check c3o c3p, c3x, c3p⟩, hsc3⟩
+      refine ⟨c1.trans (c2.trans c3), fun hb => ?_⟩
       have key := hres hb
       have hf : ConLeche.Driver.ctxConst (ConLeche.Driver.ownerMap rC.ctx) rC =
           (⟨(rC.ctx.toList.flatMap ConLeche.declConstants).reverse, []⟩ : Env).find? := by
@@ -1160,7 +1156,7 @@ theorem copyReadsB_run {s s' : AState} {d : IDeclaration} {dC : Declaration} {b 
   | _ =>
     simp only [ConRon.Arena.Modular.copyReadsB] at h
     obtain ⟨rfl, rfl⟩ := AM.pure_ok h
-    refine ⟨(CStep.refl hok).toCStepW, fun _ => ?_⟩
+    refine ⟨CStep.refl hok, fun _ => ?_⟩
     have hni := notInd_den hd (by intro b n h; cases h)
     cases dC <;> first | rfl | exact absurd rfl (hni _ _)
 
@@ -1375,7 +1371,7 @@ theorem copyIndOk_run {s s' : AState} {d e : IDeclaration} {dC eC : Declaration}
     (hl : LayerOK s.store fe (rC.ctx.toList.flatMap ConLeche.declConstants).reverse)
     (hnd : (rC.ctx.toList.flatMap ConLeche.Modular.declNames).Nodup)
     (h : ConRon.Arena.Modular.copyIndOk fe d e s = .ok (b, s')) :
-    CStepW s s' ∧ (b = true → (ConLeche.Driver.copyRecEq dC eC && ConLeche.Driver.blockReadB dC &&
+    CStep s s' ∧ (b = true → (ConLeche.Driver.copyRecEq dC eC && ConLeche.Driver.blockReadB dC &&
       ConLeche.Driver.copyReadsB (ConLeche.Driver.ownerMap rC.ctx) rC dC) = true) := by
   simp only [ConRon.Arena.Modular.copyIndOk] at h
   by_cases h1 : ConRon.Arena.Modular.copyRecEq d e = true
@@ -1386,16 +1382,16 @@ theorem copyIndOk_run {s s' : AState} {d e : IDeclaration} {dC eC : Declaration}
     obtain ⟨c1, hb1⟩ := blockReadB_run hok hd k1
     split at k2
     · obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
-      exact ⟨c1.toCStepW, fun h => nomatch h⟩
+      exact ⟨c1, fun h => nomatch h⟩
     · rename_i hb
       simp only [Bool.not_eq_true', Bool.not_eq_false] at hb
       peel_pure k2
       obtain ⟨c2, hb2⟩ := copyReadsB_run c1.ok (denoteDecl_ext c1.ext hd) (hl.ext c1.ext) hnd k2
-      exact ⟨c1.toCStepW.trans c2, fun hb' => by simp [hq, hb1 hb, hb2 hb']⟩
+      exact ⟨c1.trans c2, fun hb' => by simp [hq, hb1 hb, hb2 hb']⟩
   · simp only [Bool.not_eq_true] at h1
     simp only [h1, Bool.not_false, ↓reduceIte] at h
     obtain ⟨rfl, rfl⟩ := AM.pure_ok h
-    exact ⟨CStepW.refl hok, fun h => nomatch h⟩
+    exact ⟨CStep.refl hok, fun h => nomatch h⟩
 
 /-! ## One copy -/
 
@@ -1444,7 +1440,7 @@ theorem copyCheck_run {s s' : AState} {pk : ConRon.Arena.Frontend.Olean.OleanPin
     (hl : ¬ NotInd dC → LayerOK s.store fe (rC.ctx.toList.flatMap ConLeche.declConstants).reverse)
     (hnd : (rC.ctx.toList.flatMap ConLeche.Modular.declNames).Nodup)
     (h : ConRon.Arena.Modular.copyCheck pk m ld ix r owner fe d s = .ok ((), s')) :
-    CStepW s s' ∧ (NotInd dC → s'.store.scratchOn = s.store.scratchOn) ∧
+    CStep s s' ∧
       ConLeche.Driver.copyCheck mC ldC ixC rC (ConLeche.Driver.ownerMap rC.ctx) dC = .ok () := by
   have hw := nsWF_of_StateOK hok.state
   have hn := recKey_den hnu hd
@@ -1523,7 +1519,7 @@ theorem copyCheck_run {s s' : AState} {pk : ConRon.Arena.Frontend.Olean.OleanPin
       split at h
       · obtain ⟨-, rfl⟩ := AM.pure_ok h
         rename_i hbi
-        refine ⟨c47.toCStepW.trans c8, fun hn => absurd rfl (hn bC nP), ?_⟩
+        refine ⟨c47.trans c8, ?_⟩
         simp only [hb8 hbi, ↓reduceIte]
       no_accept h
     | _ =>
@@ -1550,8 +1546,7 @@ theorem copyCheck_run {s s' : AState} {pk : ConRon.Arena.Frontend.Olean.OleanPin
       split at h
       · obtain ⟨-, rfl⟩ := AM.pure_ok h
         rename_i hbi
-        refine ⟨(c47.trans (CStep.of_rstep c47.ok hr8)).toCStepW, fun _ =>
-          (c47.trans (CStep.of_rstep c47.ok hr8)).scr, ?_⟩
+        refine ⟨c47.trans (CStep.of_rstep c47.ok hr8), ?_⟩
         simp only [← hb8, hbi, ↓reduceIte]
       no_accept h
     | indDecl b nP =>
@@ -1565,7 +1560,7 @@ theorem copyCheck_run {s s' : AState} {pk : ConRon.Arena.Frontend.Olean.OleanPin
       split at h
       · obtain ⟨-, rfl⟩ := AM.pure_ok h
         rename_i hbi
-        refine ⟨c47.toCStepW.trans c8, fun hn => absurd rfl (hn bC nP), ?_⟩
+        refine ⟨c47.trans c8, ?_⟩
         simp only [hb8 hbi, ↓reduceIte]
       no_accept h
     | _ =>
@@ -1581,8 +1576,7 @@ theorem copyCheck_run {s s' : AState} {pk : ConRon.Arena.Frontend.Olean.OleanPin
     split at h
     · obtain ⟨-, rfl⟩ := AM.pure_ok h
       rename_i hbi
-      refine ⟨(c47.trans (CStep.of_rstep c47.ok hr8)).toCStepW, fun _ =>
-        (c47.trans (CStep.of_rstep c47.ok hr8)).scr, ?_⟩
+      refine ⟨c47.trans (CStep.of_rstep c47.ok hr8), ?_⟩
       simp only [← hb8, hbi, ↓reduceIte]
     no_accept h
 
@@ -1600,14 +1594,14 @@ theorem copyChecks_run {pk : ConRon.Arena.Frontend.Olean.OleanPins} {m : NIdx} {
       (∀ d ∈ L, (∀ b n, d ≠ .indDecl b n) ∨
         LayerOK s.store fe (rC.ctx.toList.flatMap ConLeche.declConstants).reverse) →
       L.forM (ConRon.Arena.Modular.copyCheck pk m ld ix r owner fe) s = .ok ((), s') →
-      CStepW s s' ∧ ((∀ d ∈ L, ∀ b n, d ≠ .indDecl b n) → s'.store.scratchOn = s.store.scratchOn) ∧
+      CStep s s' ∧
         LC.forM (ConLeche.Driver.copyCheck mC ldC ixC rC (ConLeche.Driver.ownerMap rC.ctx)) = .ok ()
   | [], LC, s, s', hok, _, hd, _, _, _, h => by
     simp only [denoteDecls, Option.some.injEq] at hd
     subst hd
     unfold List.forM at h
     obtain ⟨-, rfl⟩ := AM.pure_ok h
-    exact ⟨CStepW.refl hok, fun _ => rfl, rfl⟩
+    exact ⟨CStep.refl hok, rfl⟩
   | d :: L, LC, s, s', hok, hnu, hd, hr, how, hl, h => by
     simp only [denoteDecls] at hd
     cases h1 : Frontend.denoteDecl s.store d with
@@ -1625,7 +1619,7 @@ theorem copyChecks_run {pk : ConRon.Arena.Frontend.Olean.OleanPins} {m : NIdx} {
       rcases hl d (List.mem_cons_self ..) with hni | hlay
       · exact absurd (notInd_den h1 hni) hn
       · exact hlay
-    obtain ⟨c1, hsc1, hx1⟩ := copyCheck_run (mC := mC) (ldC := ldC) (ixC := ixC) hok hnu h1 hr how
+    obtain ⟨c1, hx1⟩ := copyCheck_run (mC := mC) (ldC := ldC) (ixC := ixC) hok hnu h1 hr how
       hl1 hnd k1
     have hl' : ∀ d ∈ L, (∀ b n, d ≠ .indDecl b n) ∨
         LayerOK s₁.store fe (rC.ctx.toList.flatMap ConLeche.declConstants).reverse := by
@@ -1633,19 +1627,17 @@ theorem copyChecks_run {pk : ConRon.Arena.Frontend.Olean.OleanPins} {m : NIdx} {
       rcases hl d' (List.mem_cons_of_mem _ hd') with h' | h'
       · exact .inl h'
       · exact .inr (h'.ext c1.ext)
-    obtain ⟨c2, hsc2, hx2⟩ := copyChecks_run hnd L xs c1.ok (hnu.ext c1.ext)
+    obtain ⟨c2, hx2⟩ := copyChecks_run hnd L xs c1.ok (hnu.ext c1.ext)
       (denoteDecls_ext c1.ext _ _ h2) (hr.ext c1.ext) (how.ext c1.ext (fun _ _ h => h)) hl' k2
-    refine ⟨c1.trans c2, fun hall => ?_, ?_⟩
-    · rw [hsc2 (fun d' hd' => hall d' (List.mem_cons_of_mem _ hd')),
-        hsc1 (notInd_den h1 (hall d (List.mem_cons_self ..)))]
-    · unfold List.forM
-      rw [hx1]
-      exact hx2
+    refine ⟨c1.trans c2, ?_⟩
+    unfold List.forM
+    rw [hx1]
+    exact hx2
 
 /-- con-leche: ConLeche/Driver/Worker.lean:259-263 copiesOk — **an accepting twin `copiesOk` is
 upstream's accept**, at the reads, the reach and the emitted records read back, the context's
-names distinct (upstream's `WorkerFacts.nodup`).  The scratch flag is unmoved where no copy is an
-inductive block (so at every worker that adds no import: it has no copy). -/
+names distinct (upstream's `WorkerFacts.nodup`); the driver's invariant kept, the store extended,
+the pins and the scratch flag unmoved (a copied block's recursors' reading too: `XFree.recsRead`). -/
 theorem copiesOk_run {s s' : AState} {pk : ConRon.Arena.Frontend.Olean.OleanPins}
     {m : NIdx} {mC : ConLeche.Name}
     {x : Array (ConLeche.Frontend.Olean.ImportF NIdx)} {xC : Array ConLeche.Frontend.Olean.ImportRec}
@@ -1657,9 +1649,7 @@ theorem copiesOk_run {s s' : AState} {pk : ConRon.Arena.Frontend.Olean.OleanPins
     (hds : denoteDeclArray s.store ds = some dsC)
     (hnd : (rC.ctx.toList.flatMap ConLeche.Modular.declNames).Nodup)
     (h : ConRon.Arena.Modular.copiesOk pk m x wr r ds s = .ok ((), s')) :
-    CStepW s s' ∧
-      (ConLeche.Driver.copyRecs xC wrC.index dsC = #[] → s'.store.scratchOn = s.store.scratchOn) ∧
-      ConLeche.Driver.copiesOk mC xC wrC rC dsC = .ok () := by
+    CStep s s' ∧ ConLeche.Driver.copiesOk mC xC wrC rC dsC = .ok () := by
   simp only [ConRon.Arena.Modular.copiesOk] at h
   have hb := AM.bind_ok h; clear h; obtain ⟨owner, s₁, g1, h⟩ := hb
   obtain ⟨c1, how⟩ := ownerMap_run hok hr.ctx g1
@@ -1680,21 +1670,11 @@ theorem copiesOk_run {s s' : AState} {pk : ConRon.Arena.Frontend.Olean.OleanPins
   rcases AM.ite_ok h with ⟨hany, h⟩ | ⟨hany, h⟩
   · have hb := AM.bind_ok h; clear h; obtain ⟨fe, s₃, g3, h⟩ := hb
     obtain ⟨c3, hl3⟩ := ctxLayer_run c2.ok hr2.ctx g3
-    obtain ⟨c4, -, hx4⟩ := copyChecks_run (mC := mC) (ldC := wrC.loads) (ixC := wrC.index) hnd
+    obtain ⟨c4, hx4⟩ := copyChecks_run (mC := mC) (ldC := wrC.loads) (ixC := wrC.index) hnd
       cs.toList _ c3.ok (hnu.ext (c1.ext.trans (c2.ext.trans c3.ext)))
       (denoteDecls_ext c3.ext _ _ hcsL) (hr2.ext c3.ext)
       (how.ext (c2.ext.trans c3.ext) (fun _ _ h => h)) (fun _ _ => .inr hl3) h
-    refine ⟨c1.toCStepW.trans (c2.toCStepW.trans (c3.toCStepW.trans c4)), fun hnil => ?_, hx4⟩
-    exfalso
-    rw [hnil] at hcsL
-    have : cs.toList = [] := by
-      cases hc : cs.toList with
-      | nil => rfl
-      | cons a l =>
-        rw [hc] at hcsL
-        simp only [denoteDecls] at hcsL
-        split at hcsL <;> simp at hcsL
-    simp [ConRon.Arena.Modular.anyInd, ← Array.any_toList, this] at hany
+    exact ⟨c1.trans (c2.trans (c3.trans c4)), hx4⟩
   · have hb := AM.bind_ok h; clear h; obtain ⟨fe, s₃, g3, h⟩ := hb
     obtain ⟨hfe, hs3⟩ := AM.pure_ok g3
     subst hfe
@@ -1705,10 +1685,9 @@ theorem copiesOk_run {s s' : AState} {pk : ConRon.Arena.Frontend.Olean.OleanPins
       apply hany
       rw [ConRon.Arena.Modular.anyInd, ← Array.any_toList, List.any_eq_true]
       exact ⟨_, hd, rfl⟩
-    obtain ⟨c4, hsc4, hx4⟩ := copyChecks_run (mC := mC) (ldC := wrC.loads) (ixC := wrC.index) hnd
+    obtain ⟨c4, hx4⟩ := copyChecks_run (mC := mC) (ldC := wrC.loads) (ixC := wrC.index) hnd
       cs.toList _ c2.ok (hnu.ext (c1.ext.trans c2.ext)) hcsL hr2
       (how.ext c2.ext (fun _ _ h => h)) (fun d hd => .inl (hni d hd)) h
-    exact ⟨c1.toCStepW.trans (c2.toCStepW.trans c4),
-      fun _ => by rw [hsc4 hni, c2.scr, c1.scr], hx4⟩
+    exact ⟨c1.trans (c2.trans c4), hx4⟩
 
 end ConRon.Bridge.Modular
