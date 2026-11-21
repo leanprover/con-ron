@@ -319,9 +319,9 @@ theorem sparseExprP_run {pk : OleanPins} {r : Region} {v : UInt64} {s s' : AStat
     | none => cases (AM.pure_ok h2).1
     | some m =>
       obtain ⟨hx, rfl⟩ := AM.pure_ok h2
-      obtain ⟨hst, hg, -, -⟩ := sGo_run c hok hpk (Or.inr (Or.inr (Or.inl rfl))) (SMGood.empty _ _)
+      obtain ⟨hst, hg, -, -⟩ := sparseGo_run c hok hpk (Or.inr (Or.inr (Or.inl rfl))) (SparseGood.empty _ _)
         (FrontierGood.empty _ _) h1
-      obtain ⟨e, h3, h4⟩ := lookup_good hg.exprs (FrontierGood.empty _ r).exprs hx.symm
+      obtain ⟨e, h3, h4⟩ := sparseLookup_good hg.exprs (FrontierGood.empty _ r).exprs hx.symm
       exact ⟨hst, e, h3, h4⟩
 
 /-- An expression read in `OptionT AM`, upstream's, read back. -/
@@ -836,5 +836,180 @@ theorem expoOfParts_run {pk : OleanPins} {r : Region} {pa ea : UInt64}
         · rename_i v a he
           exact absurd he (hkU v a)
         · simp [hx] <;> rfl
+
+/-! ## A read that does not answer, read back -/
+
+/-- con-leche: ConLeche/Frontend/Olean/Spec.lean:111-125 nameNode — the tail of a name that does
+not read. -/
+theorem nameTail_none {s s' : AState} {r : Region} {g t : Nat} {p : NIdx}
+    (hrun : ConRon.Arena.Frontend.Olean.nameTail r g t p s = .ok (none, s')) :
+    (t = 1 → r.strP g (r.fld g 1) = none) ∧ (t ≠ 1 → r.natP g (r.fld g 1) = none) := by
+  unfold ConRon.Arena.Frontend.Olean.nameTail at hrun
+  by_cases ht : t = 1
+  · subst ht
+    simp only [BEq.rfl, ↓reduceIte] at hrun
+    refine ⟨fun _ => ?_, fun h => absurd rfl h⟩
+    cases hs : r.strP g (r.fld g 1) with
+    | none => rfl
+    | some str =>
+      simp only [hs] at hrun
+      obtain ⟨y, s₁, -, hrest⟩ := AM.bind_ok hrun
+      cases (AM.pure_ok hrest).1
+  · have hb : (t == 1) = false := by simpa using ht
+    simp only [hb, Bool.false_eq_true, ↓reduceIte] at hrun
+    refine ⟨fun h => absurd h ht, fun _ => ?_⟩
+    cases hn : r.natP g (r.fld g 1) with
+    | none => rfl
+    | some i =>
+      simp only [hn] at hrun
+      obtain ⟨k, s₁, -, hrest⟩ := AM.bind_ok hrun
+      obtain ⟨y, s₂, -, hrest⟩ := AM.bind_ok hrest
+      cases (AM.pure_ok hrest).1
+
+/-- con-leche: ConLeche/Frontend/Olean/Spec.lean:211-213 nameAt — **a name that does not read
+for the twin does not for upstream**. -/
+theorem nameAt_none {r : Region} {pk : OleanPins} : ∀ (g : Nat) {s s' : AState},
+    ConRon.Arena.Frontend.Olean.nameAt pk r g s = .ok (none, s') →
+    ConLeche.Frontend.Olean.nameAt r g = none := by
+  intro g
+  induction g using Nat.strongRecOn with
+  | _ g ih =>
+    intro s s' hrun
+    rw [ConRon.Arena.Frontend.Olean.nameAt] at hrun
+    rw [ConLeche.Frontend.Olean.nameAt, ConLeche.Frontend.Olean.nameNode]
+    generalize hF : (if r.fits g = true then _ else _ : AM (Option NIdx)) = f at hrun
+    by_cases hf : r.fits g = true
+    · simp only [hf, ↓reduceIte] at hF ⊢
+      by_cases hc : ((r.tag g == 1 || r.tag g == 2) && r.nobjs g == 2) = true
+      · simp only [hc, ↓reduceIte] at hF
+        simp only [Bool.and_eq_true, Bool.or_eq_true, beq_iff_eq] at hc
+        obtain ⟨htt, hn⟩ := hc
+        -- the tail does not read: neither does upstream's
+        have htail : ∀ {y : NIdx} {t : AState},
+            ConRon.Arena.Frontend.Olean.nameTail r g (r.tag g) y t = .ok (none, s') →
+            (match r.tag g, r.nobjs g with
+              | 1, 2 => (do
+                  let p ← r.nameIn g (r.fld g 0) fun c _ => ConLeche.Frontend.Olean.nameAt r c
+                  let s ← r.strP g (r.fld g 1)
+                  pure (ConLeche.Name.str p s))
+              | 2, 2 => (do
+                  let p ← r.nameIn g (r.fld g 0) fun c _ => ConLeche.Frontend.Olean.nameAt r c
+                  let i ← r.natP g (r.fld g 1)
+                  pure (ConLeche.Name.num p i))
+              | _, _ => none) = none := by
+          intro y t htl
+          obtain ⟨h1, h2⟩ := nameTail_none htl
+          rcases htt with ht | ht
+          · simp [ht, hn, h1 ht]
+          · have : r.tag g ≠ 1 := by omega
+            simp [ht, hn, h2 this]
+        -- the prefix does not read: neither does upstream's
+        have hpre : r.nameIn g (r.fld g 0) (fun c _ => ConLeche.Frontend.Olean.nameAt r c) = none →
+            (match r.tag g, r.nobjs g with
+              | 1, 2 => (do
+                  let p ← r.nameIn g (r.fld g 0) fun c _ => ConLeche.Frontend.Olean.nameAt r c
+                  let s ← r.strP g (r.fld g 1)
+                  pure (ConLeche.Name.str p s))
+              | 2, 2 => (do
+                  let p ← r.nameIn g (r.fld g 0) fun c _ => ConLeche.Frontend.Olean.nameAt r c
+                  let i ← r.natP g (r.fld g 1)
+                  pure (ConLeche.Name.num p i))
+              | _, _ => none) = none := by
+          intro hq
+          rcases htt with ht | ht <;> simp [ht, hn, hq]
+        by_cases hv : (r.fld g 0 == 1) = true
+        · simp only [hv, ↓reduceIte] at hF
+          subst hF
+          exact htail hrun
+        · simp only [hv, Bool.false_eq_true, ↓reduceIte] at hF
+          have hv' : ¬ r.fld g 0 = 1 := by simpa using hv
+          split at hF
+          · rename_i heq
+            subst hF
+            apply hpre
+            simp only [ConLeche.Frontend.Olean.Region.nameIn, hv', beq_iff_eq, ↓reduceIte]
+            split
+            · rename_i c' heq'
+              rw [heq] at heq'
+              cases heq'
+            · rfl
+          · rename_i c heq
+            subst hF
+            obtain ⟨o, s₁, hat, hrest⟩ := AM.bind_ok hrun
+            cases o with
+            | none =>
+              have hc' := ih c (ConLeche.Frontend.Olean.Region.down_lt heq) hat
+              apply hpre
+              simp only [ConLeche.Frontend.Olean.Region.nameIn, hv', beq_iff_eq, ↓reduceIte]
+              split
+              · rename_i c' heq'
+                rw [heq] at heq'
+                cases heq'
+                exact hc'
+              · rfl
+            | some p => exact htail hrest
+      · simp only [hc, Bool.false_eq_true, ↓reduceIte] at hF
+        subst hF
+        simp only [Bool.and_eq_true, Bool.or_eq_true, beq_iff_eq, not_and, not_or] at hc
+        split
+        · rename_i h1 h2; exact absurd h2 (hc (.inl h1))
+        · rename_i h1 h2; exact absurd h2 (hc (.inr h1))
+        · rfl
+    · simp only [hf, Bool.false_eq_true, ↓reduceIte]
+
+/-- con-leche: ConLeche/Frontend/Olean/Spec.lean:231-236 nameP -/
+theorem nameP_none {r : Region} {pk : OleanPins} {v : UInt64} {s s' : AState}
+    (hrun : ConRon.Arena.Frontend.Olean.nameP pk r v s = .ok (none, s')) :
+    nameP r v = none := by
+  unfold ConRon.Arena.Frontend.Olean.nameP at hrun
+  unfold nameP
+  by_cases hv : (v == 1) = true
+  · simp only [hv, ↓reduceIte] at hrun
+    cases (AM.pure_ok hrun).1
+  · simp only [hv, Bool.false_eq_true, ↓reduceIte] at hrun ⊢
+    cases hl : r.loc v with
+    | none => rfl
+    | some c =>
+      simp only [hl] at hrun
+      exact nameAt_none c hrun
+
+/-- An `OptionT AM` bind that does not answer: its first action does not, or its second. -/
+theorem OT.bind_none {α β : Type} {x : OptionT AM α} {f : α → OptionT AM β} {s s' : AState}
+    (h : (x >>= f) s = .ok (none, s')) :
+    (∃ s₁, x s = .ok (none, s₁)) ∨ ∃ a s₁, x s = .ok (some a, s₁) ∧ f a s₁ = .ok (none, s') := by
+  have h' : (Bind.bind (m := AM) (x : AM (Option α)) (fun (o : Option α) => match o with
+      | some a => (f a : AM (Option β))
+      | none => (pure none : AM (Option β)))) s = .ok (none, s') := h
+  obtain ⟨o, s₁, hx, hrest⟩ := AM.bind_ok h'
+  cases o with
+  | none => exact .inl ⟨s₁, hx⟩
+  | some a => exact .inr ⟨a, s₁, hx, hrest⟩
+
+/-- `pure` in `OptionT AM` answers. -/
+theorem pure_some_ne {α : Type} {a : α} {s s' : AState}
+    (h : (pure a : OptionT AM α) s = .ok (none, s')) : False := by
+  have h' : (pure (some a) : AM (Option α)) s = .ok (none, s') := h
+  cases (AM.pure_ok h').1
+
+/-- A list read in `OptionT AM` that does not answer: neither does upstream's, each step
+answering as upstream's or not at all as upstream's. -/
+theorem optT_list_none {α β γ : Type} {pk : OleanPins} {den : EStore → β → Option γ}
+    {f : α → OptionT AM β} {g : α → Option γ}
+    (hstep : ∀ a s s' y, Ctx pk s → f a s = .ok (some y, s') →
+      ParseStep s s' ∧ ∃ z, g a = some z ∧ den s'.store y = some z)
+    (hnone : ∀ a s s', f a s = .ok (none, s') → g a = none) :
+    ∀ (l : List α) {s s' : AState}, Ctx pk s →
+      l.mapM f s = .ok (none, s') → l.mapM g = none
+  | [], s, s', _, h => by
+    simp only [List.mapM_nil] at h
+    exact (pure_some_ne h).elim
+  | x :: l, s, s', hctx, h => by
+    simp only [List.mapM_cons] at h ⊢
+    rcases OT.bind_none h with ⟨s₁, h1⟩ | ⟨a, s₁, h1, h2⟩
+    · simp [hnone x s s₁ h1]
+    · obtain ⟨hst, z, hz, -⟩ := hstep x s s₁ a hctx h1
+      rcases OT.bind_none h2 with ⟨s₂, h3⟩ | ⟨as, s₂, -, h4⟩
+      · simp [hz, optT_list_none hstep hnone l (hctx.step hst) h3]
+      · exact (pure_some_ne h4).elim
 
 end ConRon.Bridge.Modular.Home
