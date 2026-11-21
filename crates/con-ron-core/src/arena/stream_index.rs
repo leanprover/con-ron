@@ -177,8 +177,8 @@ pub fn stream_index_add(
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:64-66 buildIndex
 /// con-leche: ConLeche/Driver/CheckPool.lean:57-75 Jobs.build
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove stream_index::build_index_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:98-101 buildIndex` — **the frozen
+/// (con-leche's `Jobs` also holds a solution's index, `side`: `none` on this path, absent here.)
+/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:99-102 buildIndex` — **the frozen
 /// index of a stream**, the records folded in order from `i` on and the index
 /// frozen past the last (`stream_index_freeze`, con-leche's `Jobs.build`).  An
 /// `Err` is the store's own failure (a term the install builds could not be
@@ -226,7 +226,7 @@ pub fn stream_index_freeze(st: &AState, ix: IStreamIndex) -> Result<IStreamIndex
 }
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:82-93 FrozenIndex.view
-/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:103-110 IStreamIndex.view` — **the
+/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:104-111 IStreamIndex.view` — **the
 /// view of record `k`**: no constants or tables of its own, the frozen index
 /// visible below the record's first counter and its position, and its literal
 /// flags by one comparison each against the frozen thresholds (`env::from_le`).
@@ -240,8 +240,8 @@ pub fn stream_index_view(pers: &PersTier, k: u64) -> IFEnv {
 }
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:95-103 recordJob
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove stream_index::record_check_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:112-120 recordCheck` — what the
+/// The cited solution `J` is absent: `none` on this path, where `checkRecordC … none` is `checkDeclStepC`.
+/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:113-122 recordCheck` — what the
 /// fold's step asks of record `pd` at position `k`: the `And` pin, then the
 /// record's check at its view.  `record_job` is this in its bracket; an
 /// `--olean` run's job reads a theorem's value inside the same bracket first
@@ -265,8 +265,8 @@ pub fn record_check(
 }
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:95-103 recordJob
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove stream_index::record_job_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:122-130 recordJob` — **record `pd`'s
+/// The cited solution `J` is absent: it is `none` on this path (`checkRecordC … none` = `checkDeclStepC`).
+/// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:124-133 recordJob` — **record `pd`'s
 /// job, at position `k`**: `record_check` from fresh caches and an empty
 /// scratch tier (`enter_record`, the cited `checkDeclStepC`'s fresh `{}`), the
 /// tier emptied again after it on both paths.  Nothing the job builds outlives

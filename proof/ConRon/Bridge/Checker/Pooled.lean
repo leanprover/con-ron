@@ -166,7 +166,7 @@ records denote. -/
 @[expose] def PrefixOK (pinsP : List NatOpPinSet) (dsP : List Declaration) (k : Nat) : Prop :=
   ∃ F, ∀ F', F ≤ F' →
     (dsP.take k).foldlM (ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F') pinsP)
-      Env.empty = .ok (ConLeche.Cached.streamEnv (dsP.take k))
+      Env.empty = .ok (ConLeche.streamEnv (dsP.take k))
 
 /-- con-leche: ConLeche/Verify/Cached/BridgeCS4.lean:56 FueledM.up — `checkDecl` at a larger
 fuel. -/
@@ -190,14 +190,14 @@ theorem PrefixOK.step {pinsP : List NatOpPinSet} {dsP : List Declaration} {k : N
     (hpush : KernelPushes pinsP) (hk : k < dsP.length) (hP : PrefixOK pinsP dsP k)
     {F : Nat} {env' : Env}
     (hd : ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP
-      (ConLeche.Cached.streamEnv (dsP.take k)) dsP[k] = .ok env')
+      (ConLeche.streamEnv (dsP.take k)) dsP[k] = .ok env')
     (hnd : ((ConLeche.Cached.recsConsts (dsP.take k)).map (·.name)).Nodup) :
     PrefixOK pinsP dsP (k + 1) ∧
       ((ConLeche.Cached.recsConsts (dsP.take (k + 1))).map (·.name)).Nodup := by
   obtain ⟨F₀, hF₀⟩ := hP
   obtain ⟨henv', hndD, hfr⟩ := hpush hd
   have hsplit := take_succ_eq hk
-  have hstream : ConLeche.Cached.streamEnv (dsP.take (k + 1)) = env' := by
+  have hstream : ConLeche.streamEnv (dsP.take (k + 1)) = env' := by
     rw [henv', hsplit]
     show List.foldl _ _ _ = _
     rw [List.foldl_append]
@@ -213,7 +213,7 @@ theorem PrefixOK.step {pinsP : List NatOpPinSet} {dsP : List Declaration} {k : N
     subst hab
     obtain ⟨c, hc, rfl⟩ := List.mem_map.mp hb
     have hnone := hfr c hc
-    have hcons : (ConLeche.Cached.streamEnv (dsP.take k)).consts =
+    have hcons : (ConLeche.streamEnv (dsP.take k)).consts =
         (ConLeche.Cached.recsConsts (dsP.take k)).reverse := by
       simpa [Env.empty] using ConLeche.Cached.streamEnv_consts (dsP.take k) Env.empty
     obtain ⟨c', hc', hn⟩ := List.mem_map.mp ha
@@ -235,8 +235,8 @@ theorem view_foldOK
     (hpI : PersIFBase I.base) (hk : k < dsP.length) (hP : PrefixOK pinsP dsP k)
     (hnd : ((ConLeche.Cached.recsConsts (dsP.take k)).map (·.name)).Nodup)
     (hst : StateOK s) (hx : PExt s₁.store s.store)
-    (hc : CacheOK false (ConLeche.Cached.streamEnv (dsP.take k)) s) (hp : s.pins = s₁.pins) :
-    FoldOK (ConLeche.Cached.streamEnv (dsP.take k)) (I.view k) s := by
+    (hc : CacheOK false (ConLeche.streamEnv (dsP.take k)) s) (hp : s.pins = s₁.pins) :
+    FoldOK (ConLeche.streamEnv (dsP.take k)) (I.view k) s := by
   have hIj := hI.pmono hpI hx
   have hspec : ConLeche.Cached.IndexSpec (dsP.take k ++ dsP.drop k)
       (ConLeche.Cached.buildIndex dsP.toArray) := by
@@ -275,7 +275,7 @@ theorem job_spec
     (hjob : recordJob .verified pins I k ds[k] w = .ok ((), w')) :
     WorkerOK s₁ w' ∧ ∃ (env' : Env) (F : Nat),
       ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP
-        (ConLeche.Cached.streamEnv (dsP.take k)) dsP[k] = .ok env' := by
+        (ConLeche.streamEnv (dsP.take k)) dsP[k] = .ok env' := by
   -- the bracket
   simp only [recordJob, Bind.bind, StateT.bind, Except.bind] at hjob
   have henter : enterScratch w =
@@ -335,7 +335,7 @@ prefix's environment. -/
     ((ConLeche.Cached.recsConsts (dsP.take k)).map (·.name)).Nodup → Run k w w' →
     Inv w' ∧ ∃ (env' : Env) (F : Nat),
       ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP
-        (ConLeche.Cached.streamEnv (dsP.take k)) (dsP[k]'hk) = .ok env'
+        (ConLeche.streamEnv (dsP.take k)) (dsP[k]'hk) = .ok env'
 
 /-- con-leche: ConLeche/Frontend/CheckerIO.lean:396-419 parWorker — **a worker reaches each of
 its jobs from a worker's state**, provided every job it ran before is at a position whose prefix
@@ -377,7 +377,7 @@ theorem pooled_fold {σ : Type} {Inv : σ → Prop} {Run : Nat → σ → σ →
     (hinc : ∀ w ∈ parts, w.Pairwise (· < ·))
     (hacc : ∀ w ∈ parts, ∃ w₀, Inv w₀ ∧ JobChain Run w₀ w) :
     ∃ F, ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified F) pinsP dsP
-      = .ok (ConLeche.Cached.streamEnv dsP) := by
+      = .ok (ConLeche.streamEnv dsP) := by
   have main : ∀ k, k ≤ dsP.length → ∀ t ≤ k, PrefixOK pinsP dsP t ∧
       ((ConLeche.Cached.recsConsts (dsP.take t)).map (·.name)).Nodup := by
     intro k
@@ -474,7 +474,7 @@ theorem pooled_fold_records
     (hinc : ∀ w ∈ parts, w.Pairwise (· < ·))
     (hacc : ∀ w ∈ parts, ∃ s'', checkJobList .verified pins I ds w s₁.worker = .ok (.ok (), s'')) :
     ∃ F, ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified F) pinsP dsP
-      = .ok (ConLeche.Cached.streamEnv dsP) := by
+      = .ok (ConLeche.streamEnv dsP) := by
   refine pooled_fold (Inv := WorkerOK s₁) (Run := RecordRun pins I ds) ?_ ?_ hpush parts
     (fun t ht => hcov t (by omega)) hinc
     (fun w hw => ?_)

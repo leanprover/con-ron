@@ -382,7 +382,7 @@ theorem pooled_fold_oleans
       .verified pins I ds w {} s₁.worker = .ok (.ok (), s'')) :
     ∃ Fu, ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified Fu) pinsP
       (fillStream sp F valuesP dsP) =
-        .ok (ConLeche.Cached.streamEnv (fillStream sp F valuesP dsP)) := by
+        .ok (ConLeche.streamEnv (fillStream sp F valuesP dsP)) := by
   have hlenF : (fillStream sp F valuesP dsP).length = ds.size := by simp [fillStream, hlen]
   refine pooled_fold
     (Inv := fun w => WorkerOK s₁ w.1 ∧ Frontend.Olean.CacheOK sp F valuesP w.2)

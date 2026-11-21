@@ -175,7 +175,7 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
 /-! ## The spec fold -/
 
 /-- con-leche: ConLeche/Cached/Decls.lean:44-58 declStep
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove CheckDecl.checkDeclStep_bridge, then delete this line
+The cited solution `J` is absent: `none` on this path (`checkRecordC … none` = `checkDeclStepC`).
 con-leche: ConLeche/Kernel/CheckDecl.lean:182-186 checkDeclsPure
 **One record of the fold**: the `And` pin, then the record's check from a
 fresh memo state (`flushCaches`, an empty `Memos`: the cited `checkDeclStepC`'s
@@ -195,20 +195,21 @@ def checkDeclStep (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
   checkDecl mode pins fe d
 
 /-- con-leche: ConLeche/Cached/Decls.lean:105-108 checkDecls
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove CheckDecl.checkDeclsPureGo_bridge, then delete this line
+con-leche: ConLeche/Cached/Decls.lean:86-103 checkDeclsWith
 con-leche: ConLeche/Kernel/CheckDecl.lean:182-186 checkDeclsPure
-The fold over a list of records, one `checkDeclStep` each.  con-leche's
-`ds.foldlM (declStep mode pins)` takes a closure, which DESIGN §3.4 forbids, so
-the fold is an explicit list recursion. -/
+The fold over a list of records, one `checkDeclStep` each: `checkDeclsWith … none`
+(no solution, so `sideRecords none ds = ds`).  con-leche's
+`ds.foldlM (declStep mode pins)` takes a closure, which DESIGN §3.4 forbids, so the fold
+is an explicit list recursion. -/
 def checkDeclsPureGo (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv) :
     List IDeclaration → AM IFEnv
   | [] => pure fe
   | d :: ds => do checkDeclsPureGo mode pins (← checkDeclStep mode pins fe d) ds
 
 /-- con-leche: ConLeche/Cached/Decls.lean:105-108 checkDecls
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove CheckDecl.checkDeclsPure_bridge, then delete this line
+con-leche: ConLeche/Cached/Decls.lean:86-103 checkDeclsWith
 con-leche: ConLeche/Kernel/CheckDecl.lean:182-186 checkDeclsPure
-**The spec fold**: from the empty environment. -/
+**The spec fold**: from the empty environment, without a solution (`checkDecls`). -/
 def checkDeclsPure (mode : CheckMode) (pins : List INatOpPinSet)
     (ds : List IDeclaration) : AM IFEnv := do
   checkDeclsPureGo mode pins (← mkIFEnvLits IEnv.empty) ds

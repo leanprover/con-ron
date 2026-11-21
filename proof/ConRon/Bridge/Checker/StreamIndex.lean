@@ -156,15 +156,15 @@ theorem view_ok {s : AState} {I : IStreamIndex} {J : ConLeche.Cached.StreamIndex
     {pre rest : List Declaration} (hst : StateOK s) (hI : IndexDenotes s.store I J)
     (hJ : ConLeche.Cached.IndexSpec (pre ++ rest) J)
     (hnd : ((ConLeche.Cached.recsConsts pre).map (·.name)).Nodup) :
-    IFEnvOK (ConLeche.Cached.streamEnv pre) (I.view pre.length) s ∧
+    IFEnvOK (ConLeche.streamEnv pre) (I.view pre.length) s ∧
       TblGate (I.view pre.length) := by
   obtain ⟨rk, hrk⟩ := hst.wf
   have htw := ConLeche.Cached.viewTwin hJ rfl hnd
   -- con-leche's view against the prefix's environment
-  have hF : ∀ nm, (J.freeze.view pre.length).find? nm = (ConLeche.Cached.streamEnv pre).find? nm :=
+  have hF : ∀ nm, (J.freeze.view pre.length).find? nm = (ConLeche.streamEnv pre).find? nm :=
     fun nm => by rw [← htw.find, mkFEnv_find?]
   have hR : ∀ nm, (J.freeze.view pre.length).rawTable? nm =
-      (ConLeche.Cached.streamEnv pre).tables.find? (·.structName == nm) :=
+      (ConLeche.streamEnv pre).tables.find? (·.structName == nm) :=
     fun nm => by rw [← htw.raw, mkFEnv_rawTable?]
   have hc : I.firsts.getD pre.length I.next = J.firsts.getD pre.length J.next := by
     rw [hI.firsts, hI.next]
@@ -247,14 +247,14 @@ theorem view_ok {s : AState} {I : IStreamIndex} {J : ConLeche.Cached.StreamIndex
         rw [ite_eq_left hlt]
       · cases hf
   -- a stored table's structure is stored in the prefix's environment
-  have hstored : ∀ nm pt, (ConLeche.Cached.streamEnv pre).tables.find? (·.structName == nm)
-      = some pt → ((ConLeche.Cached.streamEnv pre).find? nm).isSome = true := by
+  have hstored : ∀ nm pt, (ConLeche.streamEnv pre).tables.find? (·.structName == nm)
+      = some pt → ((ConLeche.streamEnv pre).find? nm).isSome = true := by
     intro nm pt hf
     have hmem := List.mem_of_find?_eq_some hf
     have hn : pt.structName = nm := by simpa using List.find?_some hf
-    have htabs : (ConLeche.Cached.streamEnv pre).tables = (pre.flatMap declTables).reverse := by
+    have htabs : (ConLeche.streamEnv pre).tables = (pre.flatMap declTables).reverse := by
       simpa [Env.empty] using ConLeche.Cached.streamEnv_tables pre Env.empty
-    have hcons : (ConLeche.Cached.streamEnv pre).consts =
+    have hcons : (ConLeche.streamEnv pre).consts =
         (ConLeche.Cached.recsConsts pre).reverse := by
       simpa [Env.empty] using ConLeche.Cached.streamEnv_consts pre Env.empty
     rw [htabs, List.mem_reverse] at hmem

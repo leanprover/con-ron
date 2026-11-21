@@ -106,7 +106,7 @@ theorem Arena.pooledAccepts_bridge
     (hpd : ∀ x ∈ ds.toList, PersDecl x) (hden : denoteDecls s.store ds.toList = some dsP)
     (hrun : Arena.PooledAccepts .verified pins ds s I s') :
     ∃ F, ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified F) pinsP dsP
-      = .ok (ConLeche.Cached.streamEnv dsP) := by
+      = .ok (ConLeche.streamEnv dsP) := by
   obtain ⟨parts, hidx, hcov, -, hinc, hacc⟩ := hrun
   obtain ⟨hst', hx, hp', -, hI, hpI⟩ := buildIndex_run constsSpec tablesSpec hst hpersPins hoff hpd hden hidx
   have hx' := PExt.of_ext hx
@@ -143,7 +143,7 @@ theorem Arena.pooledOleanAccepts_bridge
       I s') :
     ∃ Fu, ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified Fu) pinsP
       (fillStream sp F valuesP dsP) =
-        .ok (ConLeche.Cached.streamEnv (fillStream sp F valuesP dsP)) := by
+        .ok (ConLeche.streamEnv (fillStream sp F valuesP dsP)) := by
   obtain ⟨parts, hidx, hcov, -, hinc, hacc⟩ := hrun
   obtain ⟨hst', hx, hp', -, hI, hpI⟩ := buildIndex_run constsSpec tablesSpec hst hpersPins hoff hpd hden hidx
   have hx' := PExt.of_ext hx

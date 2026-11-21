@@ -80,8 +80,8 @@ def IStreamIndex.freeze (I : IStreamIndex) : AM IStreamIndex := do
 
 /-- con-leche: ConLeche/Cached/StreamIndex.lean:64-66 buildIndex
 con-leche: ConLeche/Driver/CheckPool.lean:57-75 Jobs.build — **the frozen index of
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove StreamIndex.buildIndexGo_bridge, then delete this line
-a stream**, as an explicit list recursion (DESIGN §3.4 has no closures), frozen past
+a stream** (con-leche's `Jobs` also holds a solution's index, `none` on this path),
+as an explicit list recursion (DESIGN §3.4 has no closures), frozen past
 the last record (`IStreamIndex.freeze`, con-leche's `Jobs.build`).  A failure is the
 store's (a term could not be interned) or the pin table's, tagged with the position
 of the record whose reading failed (past the last for the freeze). -/
@@ -111,9 +111,9 @@ def IStreamIndex.view (I : IStreamIndex) (k : Nat) : IFEnv :=
     fromLe I.natFrom c, fromLe I.strFrom c⟩
 
 /-- con-leche: ConLeche/Cached/StreamIndex.lean:95-103 recordJob — what the fold's
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove StreamIndex.recordCheck_bridge, then delete this line
-step asks of record `pd` at position `k`: the `And` pin, then the record's check at
-its view.  `recordJob` is this in its bracket. -/
+step asks of record `pd` at position `k` (the cited solution `J` absent: `none` here):
+the `And` pin, then the record's check at its view (`checkRecordC … none` is
+`checkDeclStepC`).  `recordJob` is this in its bracket. -/
 def recordCheck (mode : CheckMode) (pins : List INatOpPinSet) (I : IStreamIndex)
     (k : Nat) (pd : IDeclaration) : AM Unit := do
   if ← andPinOk pd then
@@ -122,8 +122,8 @@ def recordCheck (mode : CheckMode) (pins : List INatOpPinSet) (I : IStreamIndex)
   else fail (.invalid "`And` must be the standard `And`")
 
 /-- con-leche: ConLeche/Cached/StreamIndex.lean:95-103 recordJob — **record `pd`'s
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove StreamIndex.recordJob_bridge, then delete this line
-job, at position `k`**: `recordCheck` from fresh memos and an empty scratch tier
+job, at position `k`** (the cited solution `J` is absent: `none` on this path):
+`recordCheck` from fresh memos and an empty scratch tier
 (the cited `checkDeclStepC`'s fresh `{}`), the tier dropped after it.  Nothing the
 job builds outlives it. -/
 def recordJob (mode : CheckMode) (pins : List INatOpPinSet) (I : IStreamIndex)
