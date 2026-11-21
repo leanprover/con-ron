@@ -1,18 +1,12 @@
 /-
 # `ConRon.Bridge.Modular.Home` — the worker's home, Theorem 1 (task #166)
 
-**The twin's home of a module is upstream's `WorkerFacts.home`** (`home_run`): the private part's
-files read off the snapshot (`readFiles`), the private view's load a load by the specification
-(`LoadOf 0 mC f lC`, `loadAt_runOf`), and the views' check upstream's accept
-(`checkViews mC f lC = .ok expo`).
-
-The twin checks the views over the views parsed whole (`parseAllViews`, then its `checkViews`
-over the parsed private view); upstream over the load.  So the proof reads the twin's parse as
-upstream's (`parseMany_run`, `parseAllViews_run`: each view `decodeAt`'s), and then what
-upstream's check asks of the parts over the load is the parse's: each part's flag, the server
-part's imports, the name tables (`decodeAt` checks them), and the exported level of each private
-constant (`expoOfParts_run`), the load's constants being the parse's but for a theorem's value,
-which upstream reads off the file where it compares one (`entryAt`).
+**The twin's home of a module is upstream's `WorkerFacts.home`** (`homeHyp_holds`): the private
+part's files read off the snapshot (`readFiles`), the private view's load a load by the
+specification (`LoadOf 0 mC f lC`, `loadView_run` over `loadAt_runOf`), and the views' check over
+the load upstream's accept (`checkViews_run`: each part's flag, the server part's imports, the name
+tables, and the exported level of each private constant, `expoOfParts_run`, a theorem's value read
+off the file where the check compares one, `entryAt_run`).
 
 Run style (simulations over `AM.bind_ok`), as `Bridge/Frontend/Olean/Closure.lean`.
 -/
