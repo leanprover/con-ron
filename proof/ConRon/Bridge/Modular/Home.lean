@@ -325,15 +325,6 @@ theorem sparseExprP_run {pk : OleanPins} {r : Region} {v : UInt64} {s s' : AStat
       obtain ⟨e, h3, h4⟩ := sparseLookup_good hg.exprs (FrontierGood.empty _ r).exprs hx.symm
       exact ⟨hst, e, h3, h4⟩
 
-/-- An expression read in `OptionT AM`, upstream's, read back. -/
-theorem exprs_run {pk : OleanPins} {fe : UInt64 → AM (Option EIdx)} {ge : UInt64 → Option Expr}
-    (hstep : ∀ a s s' y, Ctx pk s → fe a s = .ok (some y, s') →
-      ParseStep s s' ∧ ∃ z, ge a = some z ∧ denoteE s'.store y = some z)
-    (v : UInt64) {y : EIdx} {s s' : AState} (hctx : Ctx pk s)
-    (h : (OptionT.mk (fe v) : OptionT AM EIdx) s = .ok (some y, s')) :
-    ParseStep s s' ∧ ∃ z, ge v = some z ∧ denoteE s'.store y = some z :=
-  hstep v s s' y hctx h
-
 /-- con-leche: ConLeche/Frontend/Olean/Spec.lean:275-296 CKindF.mapM — **a kind read in
 `OptionT AM`**, upstream's, read back. -/
 theorem kindMap_run {pk : OleanPins} {fn : UInt64 → AM (Option NIdx)} {fe : UInt64 → AM (Option EIdx)}
