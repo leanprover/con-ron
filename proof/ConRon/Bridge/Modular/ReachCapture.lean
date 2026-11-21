@@ -370,4 +370,213 @@ theorem agreeCheck_run (hN : NeedsExprHyp) {pk : OleanPins} {F : FS} {sp : Roots
       exact listRel_append hc5.pending (.cons ⟨denoteN_ext hy hall.ext,
         denoteStmt_ext ((hst2.trans hst3).trans (hst4.trans hst5)).ext hd1⟩ .nil)
 
+/-! ## The capture check -/
+
+/-- con-leche: ConLeche/Driver/Reach.lean:480-486 inExported — **is `y` in module `m`'s
+exported part**, upstream's answer. -/
+theorem inExported_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
+    {m y : NIdx} {mC yC : ConLeche.Name} {level : OLeanLevel} {b : Bool} {s s' : AState}
+    (hctx : RCtx pk s) (he : EnvRel sp s.store env envC) (hc : CacheRel s.store c cC)
+    (hm : denoteN s.store.ns m = some mC) (hy : denoteN s.store.ns y = some yC)
+    (h : ConRon.Arena.Modular.inExported (modelFs F) pk sp env c m level y s = .ok ((c', b), s')) :
+    DStep s s' ∧ ∃ cC', ModelIO.Gives (ConLeche.Driver.inExported envC cC mC level yC) F
+        (cC', .ok b) ∧ CacheRel s'.store c' cC' := by
+  unfold ConRon.Arena.Modular.inExported at h
+  unfold ConLeche.Driver.inExported
+  by_cases hl : (level == .exported) = true
+  · simp only [hl, ↓reduceIte] at h ⊢
+    obtain ⟨hv, rfl⟩ := AM.pure_ok h
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨rfl, rfl⟩ := hv
+    exact ⟨DStep.refl hctx.ok hctx.off, cC, ModelIO.gives_pure _ _, hc⟩
+  simp only [hl, Bool.false_eq_true, ↓reduceIte, pure_bind] at h ⊢
+  obtain ⟨c₁, s₁, g1, k1⟩ := AM.bind_ok h
+  obtain ⟨hst1, cC₁, lC, l, hgl, hc1, hl1, hlr⟩ := lookOf_run hsp hctx he hc
+    (k := ⟨m, .exported⟩) (kC := ⟨mC, .exported⟩) ⟨hm, rfl⟩ g1
+  obtain ⟨o, s₂, g2, k2⟩ := AM.bind_ok k1
+  rw [lookAt_eq hl1] at g2
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok g2
+  obtain ⟨hv, rfl⟩ := AM.pure_ok k2
+  simp only [Prod.mk.injEq] at hv
+  obtain ⟨rfl, rfl⟩ := hv
+  refine ⟨hst1, cC₁, ?_, hc1⟩
+  refine hgl.bind ?_
+  have := hmrel_contains (nsWF_of_StateOK hst1.ok.state) hlr (denoteN_ext hy hst1.ext)
+  rw [Std.HashMap.contains_eq_isSome_getElem?] at this
+  rw [this]
+  exact ModelIO.gives_pure _ _
+
+/-- con-leche: ConLeche/Driver/Reach.lean:488-531 captureOne — whether `h`'s public-import
+closure holds the module at load position `i`, upstream's. -/
+theorem pubHas_eq {sp : Roots} {st : EStore} {env : ConRon.Arena.Modular.ReachEnv}
+    {envC : ConLeche.Driver.ReachEnv ModelIO} (he : EnvRel sp st env envC) {h : NIdx}
+    {hC : ConLeche.Name} (hh : denoteN st.ns h = some hC) (i : Nat) :
+    ConRon.Arena.Modular.pubHas env h i = (match envC.wr.loads.index[hC]? with
+      | some hi => ((envC.wr.pub[hi]?).map (·.has i)).getD false
+      | none => false) := by
+  unfold ConRon.Arena.Modular.pubHas
+  rw [he.wr.loads.index h hC hh, he.wr.pub]
+  rfl
+
+/-- con-leche: ConLeche/Driver/Reach.lean:488-531 captureOne — **a copy against the copy `h`'s
+view holds**: the located copy, then the agreement; upstream's, whatever its rejecting message. -/
+theorem captureAgainst_run (hN : NeedsExprHyp) {pk : OleanPins} {F : FS} {sp : Roots}
+    (hsp : sp.bare = sp)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
+    {h y : NIdx} {hC yC : ConLeche.Name} {s₁ : ConRon.Arena.Modular.Spot}
+    {s₁C : ConLeche.Driver.Spot} {s s' : AState} (bad : ConLeche.CheckError)
+    (hctx : RCtx pk s) (he : EnvRel sp s.store env envC) (hc : CacheRel s.store c cC)
+    (hh : denoteN s.store.ns h = some hC) (hy : denoteN s.store.ns y = some yC)
+    (h1 : SpotRel s.store s₁ s₁C)
+    (hrun : ConRon.Arena.Modular.captureAgainst (modelFs F) pk sp env c h y s₁ s = .ok (c', s')) :
+    DStep s s' ∧ ∃ cC', ModelIO.Gives (do
+        match ← ConLeche.Driver.locate envC cC hC yC with
+        | (c, .error e) => pure (c, .error e)
+        | (c, .ok none) => pure (c, .error bad)
+        | (c, .ok (some s₂)) => ConLeche.Driver.agreeCheck envC c hC yC s₁C s₂ :
+          ModelIO (ConLeche.Driver.ReachCache × Except ConLeche.CheckError Unit)) F (cC', .ok ()) ∧
+      CacheRel s'.store c' cC' := by
+  unfold ConRon.Arena.Modular.captureAgainst at hrun
+  obtain ⟨⟨c₁, o⟩, s₂, g1, k1⟩ := AM.bind_ok hrun
+  obtain ⟨hst1, cC₁, oC, hgo, hc1, ho⟩ := locate_run hsp hctx he hc hh hy g1
+  rcases optRel_cases ho with ⟨rfl, rfl⟩ | ⟨s₂', s₂C, rfl, rfl, hs2⟩
+  · am_never k1
+  have hctx1 := hctx.step hst1
+  obtain ⟨hst2, cC', hga, hc'⟩ := agreeCheck_run hN hsp hctx1 (he.ext hst1.ext hctx1.wf) hc1
+    (denoteN_ext hy hst1.ext) (h1.ext hst1.ext) hs2 k1
+  exact ⟨hst1.trans hst2, cC', hgo.bind hga, hc'⟩
+
+/-- con-leche: ConLeche/Driver/Reach.lean:488-531 captureOne — **the capture check of one read**
+`y` of a record of home `h`, and the completion of a name the index lacks: upstream's accept, the
+caches related after. -/
+theorem captureOne_run (hN : NeedsExprHyp) {pk : OleanPins} {F : FS} {sp : Roots}
+    (hsp : sp.bare = sp)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
+    {h y : NIdx} {hC yC : ConLeche.Name} {s s' : AState}
+    (hctx : RCtx pk s) (he : EnvRel sp s.store env envC) (hc : CacheRel s.store c cC)
+    (hh : denoteN s.store.ns h = some hC) (hy : denoteN s.store.ns y = some yC)
+    (hrun : ConRon.Arena.Modular.captureOne (modelFs F) pk sp env c h y s = .ok (c', s')) :
+    DStep s s' ∧ ∃ cC', ModelIO.Gives (ConLeche.Driver.captureOne envC cC hC yC) F (cC', .ok ()) ∧
+      CacheRel s'.store c' cC' := by
+  have hw := hctx.wf
+  unfold ConRon.Arena.Modular.captureOne at hrun
+  unfold ConLeche.Driver.captureOne
+  have hown := he.own.contains hw hy
+  by_cases ho : env.own.contains y = true
+  · simp only [ho, ↓reduceIte] at hrun
+    am_never hrun
+  simp only [ho, Bool.false_eq_true, ↓reduceIte, pure_bind] at hrun
+  have hoC : envC.own.contains yC = false := by rw [← hown]; simpa using ho
+  simp only [hoC, Bool.false_eq_true, ↓reduceIte]
+  rcases optRel_cases (importerSpot_rel hw hctx.nulls he hy) with ⟨g1, g2⟩ | ⟨⟨i, s₁⟩, ⟨iC, s₁C⟩, g1, g2, ⟨rfl, hs1⟩⟩
+  · -- no importer copy
+    rw [g1] at hrun
+    rw [g2]
+    dsimp only at hrun ⊢
+    have hloc := hc.located.get hw hy
+    rcases optRel_cases hloc with ⟨l1, l2⟩ | ⟨s₁, s₁C, l1, l2, hs1⟩
+    · -- not located: complete it
+      simp only [ConRon.Arena.Modular.locatedAt, l1] at hrun
+      simp only [l2]
+      obtain ⟨⟨c₁, o⟩, t₁, f1, r1⟩ := AM.bind_ok hrun
+      obtain ⟨hst1, cC₁, oC, hgo, hc1, horel⟩ := locate_run hsp hctx he hc hh hy f1
+      rcases optRel_cases horel with ⟨rfl, rfl⟩ | ⟨sp₁, spC, rfl, rfl, hsp1⟩
+      · am_never r1
+      have hctx1 := hctx.step hst1
+      obtain ⟨⟨c₂, p⟩, t₂, f2, r2⟩ := AM.bind_ok r1
+      obtain ⟨hst2, cC₂, pC, hgp, hc2, hp⟩ := privSpot_run hsp hctx1 (he.ext hst1.ext hctx1.wf) hc1
+        hsp1 f2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok r2
+      have hall := hst1.trans hst2
+      have hw2 := nsWF_of_StateOK hst2.ok.state
+      let cF : ConLeche.Driver.ReachCache :=
+        { cC₂ with located := cC₂.located.insert yC pC, completed := cC₂.completed.push (yC, hC) }
+      have hL := hc2.located.insert hw2 (denoteN_ext hy hall.ext) hp
+      refine ⟨hall, cF, ?_, { hc2 with located := hL, completed := ?_ }⟩
+      · refine hgo.bind ?_
+        refine hgp.bind ?_
+        exact ModelIO.gives_pure _ _
+      · show ListRel _ _ (cC₂.completed.push (yC, hC)).toList
+        simp only [Array.toList_push]
+        exact listRel_append hc2.completed (.cons ⟨denoteN_ext hy hall.ext, denoteN_ext hh hall.ext⟩ .nil)
+    · -- a located copy
+      simp only [ConRon.Arena.Modular.locatedAt, l1] at hrun
+      simp only [l2]
+      have hmods := nidx_beq_iff hw hs1.1.1 hh
+      by_cases hm : (s₁.part.mod == h) = true
+      · simp only [hm, ↓reduceIte] at hrun
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+        rw [hmods] at hm
+        simp only [hm, ↓reduceIte]
+        exact ⟨DStep.refl hctx.ok hctx.off, cC, ModelIO.gives_pure _ _, hc⟩
+      simp only [hm, Bool.false_eq_true, ↓reduceIte] at hrun
+      have hmC : (s₁C.part.mod == hC) = false := by rw [← hmods]; simpa using hm
+      simp only [hmC, Bool.false_eq_true, ↓reduceIte]
+      exact captureAgainst_run hN hsp _ hctx he hc hh hy hs1 hrun
+  · -- an importer copy
+    rw [g1] at hrun
+    rw [g2]
+    dsimp only at hrun ⊢
+    have hmods := nidx_beq_iff hw hs1.1.1 hh
+    by_cases hm : (s₁.part.mod == h) = true
+    · simp only [hm, ↓reduceIte] at hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      rw [hmods] at hm
+      simp only [hm, ↓reduceIte]
+      exact ⟨DStep.refl hctx.ok hctx.off, cC, ModelIO.gives_pure _ _, hc⟩
+    simp only [hm, Bool.false_eq_true, ↓reduceIte] at hrun
+    have hmC : (s₁C.part.mod == hC) = false := by rw [← hmods]; simpa using hm
+    simp only [hmC, Bool.false_eq_true, ↓reduceIte]
+    have hpb := pubHas_eq he hh i
+    have hfalse : ConRon.Arena.Modular.pubHas env h i = false →
+        DStep s s' ∧ ∃ cC', ModelIO.Gives (do
+          let short ← (pure (cC, .ok false) : ModelIO (ConLeche.Driver.ReachCache × Except ConLeche.CheckError Bool))
+          match short with
+          | (c, .error e) => pure (c, .error e)
+          | (c, .ok true) => pure (c, .ok ())
+          | (c, .ok false) => do
+            match ← ConLeche.Driver.locate envC c hC yC with
+            | (c, .error e) => pure (c, .error e)
+            | (c, .ok none) => pure (c, .error (.invalid s!"module {hC} reads {yC}, which its view does not hold"))
+            | (c, .ok (some s₂)) => ConLeche.Driver.agreeCheck envC c hC yC s₁C s₂) F (cC', .ok ()) ∧
+          CacheRel s'.store c' cC' := by
+      intro hp
+      simp only [hp, Bool.false_eq_true, ↓reduceIte] at hrun
+      obtain ⟨hst2, cC', hga, hc'⟩ := captureAgainst_run hN hsp
+        (.invalid s!"module {hC} reads {yC}, which its view does not hold") hctx he hc hh hy hs1 hrun
+      exact ⟨hst2, cC', (ModelIO.gives_pure _ _).bind hga, hc'⟩
+    rcases hix : envC.wr.loads.index[hC]? with _ | hi
+    · simp only [hix] at hpb
+      simp only [Bool.false_eq_true, ↓reduceIte]
+      exact hfalse hpb
+    simp only [hix] at hpb ⊢
+    by_cases hpX : ((envC.wr.pub[hi]?).map (·.has i)).getD false = true
+    · have hp : ConRon.Arena.Modular.pubHas env h i = true := hpb.trans hpX
+      simp only [hp, ↓reduceIte] at hrun
+      simp only [hpX, ↓reduceIte]
+      obtain ⟨⟨c₁, short⟩, t₁, f1, r1⟩ := AM.bind_ok hrun
+      rw [hs1.1.2] at f1
+      obtain ⟨hst1, cC₁, hgs, hc1⟩ := inExported_run hsp hctx he hc hs1.1.1 hy f1
+      cases short with
+      | true =>
+        simp only [↓reduceIte] at r1
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok r1
+        exact ⟨hst1, cC₁, hgs.bind (ModelIO.gives_pure _ _), hc1⟩
+      | false =>
+        simp only [Bool.false_eq_true, ↓reduceIte] at r1
+        have hctx1 := hctx.step hst1
+        obtain ⟨hst2, cC', hga, hc'⟩ := captureAgainst_run hN hsp
+          (.invalid s!"module {hC} reads {yC}, which its view does not hold") hctx1
+          (he.ext hst1.ext hctx1.wf) hc1 (denoteN_ext hh hst1.ext) (denoteN_ext hy hst1.ext)
+          (hs1.ext hst1.ext) r1
+        exact ⟨hst1.trans hst2, cC', hgs.bind hga, hc'⟩
+    · have hpX' : ((envC.wr.pub[hi]?).map (·.has i)).getD false = false := by simpa using hpX
+      have hp' : ConRon.Arena.Modular.pubHas env h i = false := hpb.trans hpX'
+      simp only [hpX', Bool.false_eq_true, ↓reduceIte]
+      exact hfalse hp'
+
 end ConRon.Bridge.Modular
