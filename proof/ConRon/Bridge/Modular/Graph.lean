@@ -204,6 +204,14 @@ theorem fail_not_ok {α : Type} {e : Arena.CheckError} {s s' : AState} {a : α} 
     ¬ (Arena.fail e : AM α) s = .ok (a, s') := by
   intro h; cases h
 
+theorem denoteImport_module {st : EStore} {i : ImportF NIdx} {z : ImportRec}
+    (h : denoteImport st i = some z) : denoteN st.ns i.module = some z.module := by
+  unfold denoteImport ImportF.mapM at h
+  obtain ⟨y, hy, h⟩ := ConLeche.Frontend.Olean.bind_some_left h
+  simp only [pure, Option.some.injEq] at h
+  subst h
+  exact hy
+
 /-- **A header read that answers** is upstream's header read on the snapshot, with the run's
 imports added. -/
 theorem hdrOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
@@ -230,14 +238,15 @@ theorem hdrOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
       exact fail_not_ok h4
     | false => exact fail_not_ok h3
 
-/-- A level's headers read in order: each a good node of its module. -/
+/-- A level's headers read in order: each a good node of its module, in the header closure
+`H` its module is in. -/
 theorem mapM_hdrOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
-    {cmp : Option (NIdx × NIdx)} {extra : ConLeche.Name → Array ImportRec} :
+    {cmp : Option (NIdx × NIdx)} {extra : ConLeche.Name → Array ImportRec} (H : ConLeche.Name → Prop) :
     ∀ (lvl : List NIdx) {rs : List Node} {s s' : AState}, Ctx pk s → ExtraRel s.store cmp extra →
-      (∀ m ∈ lvl, ∃ mn, denoteN s.store.ns m = some mn) →
+      (∀ m ∈ lvl, ∃ mn, denoteN s.store.ns m = some mn ∧ H mn) →
       lvl.mapM (hdrOf (modelFs F) pk sp cmp) s = .ok (rs, s') →
       ParseStep s s' ∧ rs.map (·.1) = lvl ∧
-        ∀ e ∈ rs, ∃ eC, NodeD s'.store e eC ∧ NodeOk sp F extra eC
+        ∀ e ∈ rs, ∃ eC, NodeD s'.store e eC ∧ NodeOk sp F extra eC ∧ H eC.1
   | [], rs, s, s', hctx, _, _, h => by
     simp only [List.mapM_nil] at h
     obtain ⟨hv, hs⟩ := AM.pure_ok h
@@ -249,17 +258,17 @@ theorem mapM_hdrOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = s
     obtain ⟨rs', s₂, h2, h⟩ := AM.bind_ok h
     obtain ⟨hv, hs⟩ := AM.pure_ok h
     subst hv hs
-    obtain ⟨mn, hmn⟩ := hd m List.mem_cons_self
-    obtain ⟨hst1, he1, eC, hD, -, hok⟩ := hdrOf_run hsp hctx hx hmn h1
-    obtain ⟨hst2, hmap, hall⟩ := mapM_hdrOf_run hsp lvl (hctx.step hst1) (hx.ext hst1.ext)
+    obtain ⟨mn, hmn, hH⟩ := hd m List.mem_cons_self
+    obtain ⟨hst1, he1, eC, hD, he, hok⟩ := hdrOf_run hsp hctx hx hmn h1
+    obtain ⟨hst2, hmap, hall⟩ := mapM_hdrOf_run hsp H lvl (hctx.step hst1) (hx.ext hst1.ext)
       (fun m' hm' => by
-        obtain ⟨n, hn⟩ := hd m' (List.mem_cons_of_mem _ hm')
-        exact ⟨n, denoteN_ext hn hst1.ext⟩) h2
+        obtain ⟨n, hn, hHn⟩ := hd m' (List.mem_cons_of_mem _ hm')
+        exact ⟨n, denoteN_ext hn hst1.ext, hHn⟩) h2
     refine ⟨hst1.trans hst2, by simp [he1, hmap], ?_⟩
     intro e' he'
     simp only [List.mem_cons] at he'
     rcases he' with rfl | he'
-    · exact ⟨eC, hD.ext hst2.ext, hok⟩
+    · exact ⟨eC, hD.ext hst2.ext, hok, he ▸ hH⟩
     · exact hall e' he'
 
 /-- The walk's next level: modules the level's imports name. -/
@@ -299,15 +308,19 @@ theorem expand_good (P : Node → Prop) (Q : NIdx → Prop) :
       rw [Array.foldl_toList] at this
       exact this
 
-/-- **Every module the walk returns is a good node.** -/
+/-- **Every module the walk returns is a good node**, in the header closure of `roots'` where
+the walk's level is and every added import's module is a root of it. -/
 theorem closureLevels_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
-    {cmp : Option (NIdx × NIdx)} {extra : ConLeche.Name → Array ImportRec} :
+    {cmp : Option (NIdx × NIdx)} {extra : ConLeche.Name → Array ImportRec} {roots' : List ConLeche.Name}
+    (hxr : ∀ m, ∀ i ∈ extra m, i.module ∈ roots') :
     ∀ (fuel : Nat) (lvl : List NIdx) (seen : Std.HashSet NIdx) (out C : Array Node) {s s' : AState},
       Ctx pk s → ExtraRel s.store cmp extra →
-      (∀ m ∈ lvl, ∃ mn, denoteN s.store.ns m = some mn) →
-      (∀ e ∈ out.toList, ∃ eC, NodeD s.store e eC ∧ NodeOk sp F extra eC) →
+      (∀ m ∈ lvl, ∃ mn, denoteN s.store.ns m = some mn ∧ ConLeche.Frontend.Olean.HdrClosure sp F roots' mn) →
+      (∀ e ∈ out.toList, ∃ eC, NodeD s.store e eC ∧ NodeOk sp F extra eC ∧
+        ConLeche.Frontend.Olean.HdrClosure sp F roots' eC.1) →
       closureLevels (modelFs F) pk sp cmp fuel lvl seen out s = .ok (C, s') →
-      ParseStep s s' ∧ ∀ e ∈ C.toList, ∃ eC, NodeD s'.store e eC ∧ NodeOk sp F extra eC
+      ParseStep s s' ∧ ∀ e ∈ C.toList, ∃ eC, NodeD s'.store e eC ∧ NodeOk sp F extra eC ∧
+        ConLeche.Frontend.Olean.HdrClosure sp F roots' eC.1
   | _, [], _, out, C, s, s', hctx, _, _, hout, h => by
     rw [closureLevels] at h
     obtain ⟨hv, hs⟩ := AM.pure_ok h
@@ -317,23 +330,24 @@ theorem closureLevels_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare 
   | fuel + 1, x :: xs, seen, out, C, s, s', hctx, hx, hd, hout, h => by
     rw [closureLevels] at h
     obtain ⟨rs, s₁, h1, h⟩ := AM.bind_ok h
-    obtain ⟨hst1, -, hrs⟩ := mapM_hdrOf_run hsp (x :: xs) hctx hx hd h1
-    have hw1 := nsWF_of_StateOK hst1.ok
-    let P : Node → Prop := fun e => ∃ eC, NodeD s₁.store e eC ∧ NodeOk sp F extra eC
-    let Q : NIdx → Prop := fun m => ∃ mn, denoteN s₁.store.ns m = some mn
+    obtain ⟨hst1, -, hrs⟩ := mapM_hdrOf_run hsp (ConLeche.Frontend.Olean.HdrClosure sp F roots')
+      (x :: xs) hctx hx hd h1
+    let P : Node → Prop := fun e => ∃ eC, NodeD s₁.store e eC ∧ NodeOk sp F extra eC ∧
+      ConLeche.Frontend.Olean.HdrClosure sp F roots' eC.1
+    let Q : NIdx → Prop := fun m => ∃ mn, denoteN s₁.store.ns m = some mn ∧
+      ConLeche.Frontend.Olean.HdrClosure sp F roots' mn
     have hE := expand_good P Q rs seen out #[]
       (fun e he => by
-        obtain ⟨eC, hD, hok⟩ := hrs e he
-        refine ⟨⟨eC, hD, hok⟩, fun i hi => ?_⟩
-        obtain ⟨z, hz, -⟩ := list_mapM_mem hD.2 (Array.mem_toList_iff.mpr hi)
-        unfold denoteImport ImportF.mapM at hz
-        obtain ⟨y, hy, -⟩ := ConLeche.Frontend.Olean.bind_some_left hz
-        exact ⟨y, hy⟩)
+        obtain ⟨eC, hD, hok, hH⟩ := hrs e he
+        refine ⟨⟨eC, hD, hok, hH⟩, fun i hi => ?_⟩
+        obtain ⟨z, hz, hzm⟩ := list_mapM_mem hD.2 (Array.mem_toList_iff.mpr hi)
+        exact ⟨z.module, denoteImport_module hz,
+          ConLeche.Frontend.Olean.HdrClosure.of_node hok hxr hH (Array.mem_toList_iff.mp hzm)⟩)
       (fun e he => by
-        obtain ⟨eC, hD, hok⟩ := hout e he
-        exact ⟨eC, hD.ext hst1.ext, hok⟩)
+        obtain ⟨eC, hD, hok, hH⟩ := hout e he
+        exact ⟨eC, hD.ext hst1.ext, hok, hH⟩)
       (by simp)
-    obtain ⟨hst2, hC⟩ := closureLevels_run hsp fuel _ _ _ C (hctx.step hst1) (hx.ext hst1.ext)
+    obtain ⟨hst2, hC⟩ := closureLevels_run hsp hxr fuel _ _ _ C (hctx.step hst1) (hx.ext hst1.ext)
       (fun m hm => hE.2 m (by simpa using hm)) hE.1 h
     exact ⟨hst1.trans hst2, hC⟩
 
@@ -399,14 +413,6 @@ theorem listRel_mono {α β : Type} {R R' : α → β → Prop} (h : ∀ a b, R 
   | _, _, .nil => .nil
   | _, _, .cons a b => .cons (h _ _ a) (listRel_mono h b)
 
-theorem denoteImport_module {st : EStore} {i : ImportF NIdx} {z : ImportRec}
-    (h : denoteImport st i = some z) : denoteN st.ns i.module = some z.module := by
-  unfold denoteImport ImportF.mapM at h
-  obtain ⟨y, hy, h⟩ := ConLeche.Frontend.Olean.bind_some_left h
-  simp only [pure, Option.some.injEq] at h
-  subst h
-  exact hy
-
 /-- A rank function on names, from one on the closure's handles. -/
 @[expose] def rankC (st : EStore) (C : List Node) (rk : NIdx → Option Nat) (n : ConLeche.Name) : Nat :=
   ((C.find? fun e => decide (denoteN st.ns e.1 = some n)).bind fun e => rk e.1).getD 0
@@ -430,23 +436,26 @@ closure as upstream's nodes `CC`, each module's imports what its header read ans
 snapshot with the run's added imports, every root a module of `CC`, and a rank function under
 which every import edge goes to a smaller rank, one-to-one on `CC`. -/
 theorem graphOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
-    {roots : List NIdx} {rootsC : List ConLeche.Name} {cmp : Option (NIdx × NIdx)}
+    {roots : List NIdx} {rootsC roots' : List ConLeche.Name} {cmp : Option (NIdx × NIdx)}
     {extra : ConLeche.Name → Array ImportRec} {C : Array Node} {s s' : AState}
     (hctx : Ctx pk s) (hx : ExtraRel s.store cmp extra) (hr : ListRel (NR s.store) roots rootsC)
+    (hrr : ∀ r ∈ rootsC, r ∈ roots') (hxr : ∀ m, ∀ i ∈ extra m, i.module ∈ roots')
     (h : graphOf (modelFs F) pk sp roots cmp s = .ok (C, s')) :
     ParseStep s s' ∧ ∃ CC : List ConLeche.Driver.Graph.Node, ListRel (NodeD s'.store) C.toList CC ∧
       ∃ rk : ConLeche.Name → Nat,
         (∀ e ∈ CC, NodeOk sp F extra e) ∧
         (∀ r ∈ rootsC, r ∈ CC.map (·.1)) ∧
         (∀ e ∈ CC, ∀ i ∈ e.2, i.module ∈ CC.map (·.1) ∧ rk i.module < rk e.1) ∧
-        (CC.map fun e => rk e.1).Nodup := by
+        (CC.map fun e => rk e.1).Nodup ∧
+        (∀ e ∈ CC, ConLeche.Frontend.Olean.HdrClosure sp F roots' e.1) := by
   unfold graphOf at h
   obtain ⟨C', s₁, h1, h⟩ := AM.bind_ok h
-  have hroots : ∀ m ∈ (dedup roots).1, ∃ mn, denoteN s.store.ns m = some mn := by
+  have hroots : ∀ m ∈ (dedup roots).1, ∃ mn, denoteN s.store.ns m = some mn ∧
+      ConLeche.Frontend.Olean.HdrClosure sp F roots' mn := by
     intro m hm
-    obtain ⟨mn, -, hmn⟩ := listRel_memL hr (dedup_mem m hm)
-    exact ⟨mn, hmn⟩
-  obtain ⟨hst1, hgood⟩ := closureLevels_run hsp _ _ _ _ C' hctx hx hroots (by simp) h1
+    obtain ⟨mn, hmn1, hmn⟩ := listRel_memL hr (dedup_mem m hm)
+    exact ⟨mn, hmn, .root (hrr mn hmn1)⟩
+  obtain ⟨hst1, hgood⟩ := closureLevels_run hsp hxr _ _ _ _ C' hctx hx hroots (by simp) h1
   -- the cycle and the verdict
   dsimp only at h
   cases hc : ConRon.Arena.Modular.cycleOf (depsOf (indexOf C') C')
@@ -475,10 +484,11 @@ theorem graphOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
   generalize hrk : rankOf (indexOf C) (ConRon.Arena.Modular.ranksOf C.size
     (ConRon.Arena.Modular.kahn (depsOf (indexOf C) C))) = rk at hv
   obtain ⟨v1, v2, v3, v4⟩ := verdict_none hv
-  obtain ⟨CC, hCC⟩ := listRel_choose (R := fun e eC => NodeD s'.store e eC ∧ NodeOk sp F extra eC) hgood
-  refine ⟨hst1, CC, listRel_mono (fun _ _ h => h.1) hCC, rankC s'.store C.toList rk, ?_, ?_, ?_, ?_⟩
+  obtain ⟨CC, hCC⟩ := listRel_choose (R := fun e eC => NodeD s'.store e eC ∧ NodeOk sp F extra eC ∧
+    ConLeche.Frontend.Olean.HdrClosure sp F roots' eC.1) hgood
+  refine ⟨hst1, CC, listRel_mono (fun _ _ h => h.1) hCC, rankC s'.store C.toList rk, ?_, ?_, ?_, ?_, ?_⟩
   · intro eC heC
-    obtain ⟨e, -, _, hok⟩ := listRel_memR hCC heC
+    obtain ⟨e, -, _, hok, -⟩ := listRel_memR hCC heC
     exact hok
   · intro rC hrC
     obtain ⟨r, hr1, hr2⟩ := listRel_memR hr hrC
@@ -502,7 +512,8 @@ theorem graphOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
   · have hmap : CC.map (fun e => rankC s'.store C.toList rk e.1) =
         C.toList.map (fun e => (rk e.1).getD 0) := by
       have : ∀ {l : List Node} {l' : List ConLeche.Driver.Graph.Node},
-          ListRel (fun e eC => NodeD s'.store e eC ∧ NodeOk sp F extra eC) l l' → (∀ e ∈ l, e ∈ C.toList) →
+          ListRel (fun e eC => NodeD s'.store e eC ∧ NodeOk sp F extra eC ∧
+            ConLeche.Frontend.Olean.HdrClosure sp F roots' eC.1) l l' → (∀ e ∈ l, e ∈ C.toList) →
           l'.map (fun e => rankC s'.store C.toList rk e.1) = l.map (fun e => (rk e.1).getD 0) := by
         intro l l' hl
         induction hl with
@@ -521,5 +532,8 @@ theorem graphOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
     obtain ⟨b, hb⟩ := Option.isSome_iff_exists.1 (v3 e' he')
     simp only [ha, hb, Option.getD_some] at heq
     rw [ha, hb, heq]
+  · intro eC heC
+    obtain ⟨e, -, _, -, hH⟩ := listRel_memR hCC heC
+    exact hH
 
 end ConRon.Bridge.Modular
