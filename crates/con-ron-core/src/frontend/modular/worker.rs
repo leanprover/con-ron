@@ -168,16 +168,22 @@ pub fn ground_stmts(pers: &PersTier, st: &mut AState, seen: &mut HashMap2<EIdx, 
     let mut out = acc;
     let mut i = 0usize;
     while i < stmts.len() {
-        match ground_go_all(pers, st, seen, out, &stmts[i].0) {
+        match ground_stmt(pers, st, seen, out, &stmts[i]) {
             Err(e) => return Err(e),
-            Ok(o) => match ground_go(pers, st, seen, o, &stmts[i].1) {
-                Err(e) => return Err(e),
-                Ok(o2) => out = o2,
-            },
+            Ok(o) => out = o,
         }
         i += 1;
     }
     Ok(out)
+}
+
+/// con-leche: ConLeche/Driver/Worker.lean:53-66 pinGround
+/// One statement: `go (st.1.foldl go x) st.2`.
+pub fn ground_stmt(pers: &PersTier, st: &AState, seen: &mut HashMap2<EIdx, bool>, acc: Vec<NIdx>, s: &(Vec<EIdx>, EIdx)) -> Result<Vec<NIdx>, CheckError> {
+    match ground_go_all(pers, st, seen, acc, &s.0) {
+        Err(e) => Err(e),
+        Ok(o) => ground_go(pers, st, seen, o, &s.1),
+    }
 }
 
 /// con-leche: ConLeche/Driver/Worker.lean:53-66 pinGround
@@ -310,15 +316,10 @@ pub fn own_roots(pers: &PersTier, st: &mut AState, pins: &Vec<INatOpPinSet>, ix:
         Err(e) => return Err(e),
         Ok(f) => f,
     };
-    let mut out: Vec<NIdx> = Vec::new();
-    let mut i = 0usize;
-    while i < ds.len() {
-        match reach::record_reads(pers, st, &ds[i]) {
-            Err(e) => return Err(e),
-            Ok(rs) => push_unpinned(&mut out, ix, &fp, &rs),
-        }
-        i += 1;
-    }
+    let mut out = match records_roots(pers, st, ix, &fp, ds) {
+        Err(e) => return Err(e),
+        Ok(o) => o,
+    };
     let mut k = 0usize;
     while k < cs.len() {
         if !lazy::c_entry_skipped(&cs[k]) {
@@ -326,6 +327,31 @@ pub fn own_roots(pers: &PersTier, st: &mut AState, pins: &Vec<INatOpPinSet>, ix:
         }
         k += 1;
     }
+    match ground_roots(pers, st, pins, ix, cs, out) {
+        Err(e) => Err(e),
+        Ok(o) => Ok(o),
+    }
+}
+
+/// con-leche: ConLeche/Driver/Worker.lean:68-85 ownRoots
+/// What each own record reads, filtered (`push_unpinned`).
+pub fn records_roots(pers: &PersTier, st: &mut AState, ix: &NameIndex, fp: &HashMap2<NIdx, bool>, ds: &Vec<IDeclaration>) -> Result<Vec<NIdx>, CheckError> {
+    let mut out: Vec<NIdx> = Vec::new();
+    let mut i = 0usize;
+    while i < ds.len() {
+        match reach::record_reads(pers, st, &ds[i]) {
+            Err(e) => return Err(e),
+            Ok(rs) => push_unpinned(&mut out, ix, fp, &rs),
+        }
+        i += 1;
+    }
+    Ok(out)
+}
+
+/// con-leche: ConLeche/Driver/Worker.lean:68-85 ownRoots
+/// The pin ground of each own constant, filtered (`push_loaded`), onto `out`.
+pub fn ground_roots(pers: &PersTier, st: &mut AState, pins: &Vec<INatOpPinSet>, ix: &NameIndex, cs: &Vec<CEntry>, out: Vec<NIdx>) -> Result<Vec<NIdx>, CheckError> {
+    let mut out = out;
     let mut j = 0usize;
     while j < cs.len() {
         if !lazy::c_entry_skipped(&cs[j]) {
@@ -746,17 +772,21 @@ pub fn copy_reads_b(pers: &PersTier, st: &mut AState, fe: &IFEnv, d: &IDeclarati
 pub fn find_constant(pers: &PersTier, st: &mut AState, e: &IDeclaration, n: &NIdx) -> Result<Option<IConstantInfo>, CheckError> {
     match install::decl_constants(pers, st, e) {
         Err(er) => Err(er),
-        Ok(cs) => {
-            let mut i = 0usize;
-            while i < cs.len() {
-                if env::i_constant_info_name(&cs[i]).eq2(n) {
-                    return Ok(Some(env::i_constant_info_dup(&cs[i])));
-                }
-                i += 1;
-            }
-            Ok(None)
-        }
+        Ok(cs) => Ok(find_named(&cs, n)),
     }
+}
+
+/// con-leche: ConLeche/Driver/Worker.lean:208-240 copyCheck
+/// `cs.find? (·.toConstantVal.name == n)`, copied.
+pub fn find_named(cs: &Vec<IConstantInfo>, n: &NIdx) -> Option<IConstantInfo> {
+    let mut i = 0usize;
+    while i < cs.len() {
+        if env::i_constant_info_name(&cs[i]).eq2(n) {
+            return Some(env::i_constant_info_dup(&cs[i]));
+        }
+        i += 1;
+    }
+    None
 }
 
 /// con-leche: ConLeche/Driver/Worker.lean:208-240 copyCheck

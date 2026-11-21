@@ -164,6 +164,11 @@ def declConstants : IDeclaration → AM (List IConstantInfo)
     | .ok p => blockConstants p
     | .error _ => pure []
 
+/-- con-leche: ConLeche/Modular.lean:94-95 declNames
+**The names a record installs**: its constants' (`declConstants`), in push order. -/
+def declNames (d : IDeclaration) : AM (List NIdx) := do
+  pure ((← declConstants d).map (·.name))
+
 /-- con-leche: ConLeche/Kernel/Install.lean:93-99 declTables
 con-leche: ConLeche/Cached/CheckerC.lean:57-63 declTablesC
 **The projection tables a declaration installs**: those of an inductive block
