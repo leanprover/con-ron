@@ -645,7 +645,7 @@ where
 /// con-leche: ConLeche/Driver/CheckMain.lean:120-134 oleanJobRun
 /// Lean twin: `proof/ConRon/Arena/OleanJobs.lean:27-63 oleanJob`; Theorem 2 reads this
 /// function as `Refine2/Checker/OleanPool.lean`'s `oleanJobStep`.  Upstream's
-/// `sp : Roots` (the closure's resolved roots) is the bare search path here
+/// `sp : Roots` (the closure's resolved roots) is the lookup without its map here
 /// (`files::find_module`'s note), and its jobs' `justify` the flat path's `none`.
 /// **One job of an `--olean` run**, from the module region the worker kept: a
 /// theorem whose value is still in its file (`.thmDecl cv (.bvar code)`, a
@@ -664,7 +664,7 @@ pub fn olean_job(
     ds: &Vec<IDeclaration>,
     pk: &con_ron_core::frontend::olean::spec::OleanPins,
     values: &Vec<con_ron_core::frontend::olean::records::ModRef>,
-    sp: &Vec<Vec<u32>>,
+    sp: &con_ron_core::frontend::olean::files::Roots,
     k: u64,
 ) -> Result<(), (CheckError, u64)> {
     let d = match ds.get(k as usize) {

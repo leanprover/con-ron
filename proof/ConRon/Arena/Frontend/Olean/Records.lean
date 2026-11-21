@@ -20,7 +20,7 @@ namespace ConRon.Arena.Frontend.Olean
 open ConLeche
 open ConLeche.Frontend
 open ConRon.Arena.Frontend
-open ConLeche.Frontend.Olean (Region refModule refLoc)
+open ConLeche.Frontend.Olean (Region refModule refLoc Roots)
 
 /-- con-leche: ConLeche/Frontend/Olean/Records.lean:51-59 declsGo
 `declsOf`'s walk: `k` the position of the first of `rs`. -/
@@ -50,6 +50,19 @@ def rootConstants (mg : Merged) : Option (Array NIdx) → AM (Array NIdx)
     | some c => do fail (.internal s!"the constant {← readName c} is not in the import closure")
     | none => pure cs
 
+/-- con-leche: ConLeche/Frontend/Olean/Records.lean:108-138 readOleansAt
+`constants.map (·.filter mg.map.contains)`: the named constants the closure holds
+(`lenient`). -/
+def heldConstants (mg : Merged) (constants : Option (Array NIdx)) : Option (Array NIdx) :=
+  constants.map (·.filter mg.map.contains)
+
+/-- con-leche: ConLeche/Frontend/Olean/Records.lean:76-81 homesOf
+**What a constant's merged copy is read under**: for every name the closure stores, the
+first module of the order storing it. -/
+def homesOf (ls : Array Loaded) : Std.HashMap NIdx NIdx :=
+  ls.foldl (fun h l => l.constants.foldl (fun h c =>
+    if h.contains c.c.name then h else h.insert c.c.name l.name) h) {}
+
 /-- con-leche: ConLeche/Frontend/Olean/Records.lean:83-86 ModRef
 What a theorem's check needs of a module of the closure's order. -/
 structure ModRef where
@@ -61,12 +74,14 @@ instance : Inhabited ModRef := ⟨⟨default, {}⟩⟩
 /-- con-leche: ConLeche/Frontend/Olean/Records.lean:90-100 OleanRead
 **What a read gives**: the records, a theorem's value as its reference; what its
 check needs to read it, by the reference's module; the merged constants, for what a
-value mentions; and the reader's pins (the Rust's note).  Upstream's `roots` (a cache,
-`findModule`) and `homes` (the `--compare` mode's, task #165) are not kept. -/
+value mentions; each constant's home (`homesOf`), where the read was asked for them, empty
+otherwise; and the reader's pins (the Rust's note).  Upstream's `roots` (a cache,
+`findModule`) is not kept. -/
 structure OleanRead where
   decls : Array IDeclaration
   values : Array ModRef
   merged : Merged
+  homes : Std.HashMap NIdx NIdx
   pins : OleanPins
 
 /-- con-leche: ConLeche/Frontend/Olean/Records.lean:102-106 OleanRead.thmUses
@@ -93,26 +108,29 @@ def modRefs (mg : Merged) : Merged × Array ModRef :=
    mg.ls.map fun l => ⟨l.name, l.frontier⟩)
 
 /-- con-leche: ConLeche/Frontend/Olean/Records.lean:108-138 readOleansAt
-**The whole read**: `readOleansAt` as the flat path calls it (`lenient` and `homes` false,
-the `--compare` mode's: task #165), on the bare search path (`findModule`'s note).  Load,
-merge, emit, build, the heartbeat saying each step.
-`constants` names the constants to start from; `none` is every constant of the
-closure.  A theorem's value is a reference. -/
-def readOleans (fs : OleanFs) (sp : List System.FilePath) (roots : Array NIdx)
-    (constants : Option (Array NIdx)) : AM (Except (CheckError × Nat) OleanRead) := do
+**The whole read, through a lookup**: load, merge, emit, build, the heartbeat saying each
+step.  `constants` names the constants to start from; `none` is every constant of the
+closure.  A theorem's value is a reference.  A compared run reads through a lookup with a
+fallback (`sp`), keeps the named constants the closure holds (`lenient`) and asks for the
+constants' homes (`homes`); the flat run passes `false` for both. -/
+def readOleans (fs : OleanFs) (sp : Roots) (roots : Array NIdx)
+    (constants : Option (Array NIdx)) (lenient homes : Bool) :
+    AM (Except (CheckError × Nat) OleanRead) := do
   let pk ← oleanPins
   let ls ← loadClosure fs pk sp roots
   let () := fs.readNotesSay s!"merging the constants of {ls.size} modules"
   let mg ← mergeAll pk ls
   let () := fs.readNotesSay s!"checking the blocks of {mg.order.size} constants"
   blocksOk pk mg
-  let cs ← rootConstants mg constants
+  let cs ← if lenient then rootConstants mg (heldConstants mg constants)
+    else rootConstants mg constants
   let () := fs.readNotesSay s!"emitting records from {cs.size} constants"
   match ← declsOf (← emitAll pk mg cs) with
   | .error e => pure (.error e)
   | .ok ds =>
+    let hs := if homes then homesOf mg.ls else {}
     let (mg, values) := modRefs mg
-    pure (.ok ⟨ds.decls, values, mg, pk⟩)
+    pure (.ok ⟨ds.decls, values, mg, hs, pk⟩)
 
 /-- con-leche: ConLeche/Frontend/Olean/Records.lean:142-147 ValueCache
 **What a worker keeps between its checks**: the region of the module it read last. -/
@@ -123,7 +141,7 @@ structure ValueCache where
 /-- con-leche: ConLeche/Frontend/Olean/Records.lean:149-164 regionFor
 The region of module `idx` (named `m`), from the cache or the files, with the cache
 to go on with: a failure empties it. -/
-def regionFor (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (m : NIdx) (idx : Nat)
+def regionFor (fs : OleanFs) (pk : OleanPins) (sp : Roots) (m : NIdx) (idx : Nat)
     (c : ValueCache) : AM (ValueCache × Except CheckError Region) := do
   match c.region with
   | some r => if c.idx == idx then return (c, .ok r) else readRegion
@@ -142,7 +160,7 @@ where
 /-- con-leche: ConLeche/Frontend/Olean/Records.lean:166-178 readValue
 **A theorem's value, from its reference's code**: the files of its module
 (`regionFor`), then the value, over the module's frontier (`frontierExpr`). -/
-def readValue (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (values : Array ModRef)
+def readValue (fs : OleanFs) (pk : OleanPins) (sp : Roots) (values : Array ModRef)
     (c : ValueCache) (code : Nat) : AM (ValueCache × Except CheckError EIdx) := do
   match values[refModule code]? with
   | none => pure (c, .error (.internal s!"a theorem's value in module {refModule code}, of {values.size}"))

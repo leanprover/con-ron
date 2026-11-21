@@ -416,7 +416,7 @@ fn reads_of_a_part_stay_files_through_the_trait() {
     let e = pers();
     let mut st = AState::empty();
     let pk = spec::olean_pins(&e, &mut st.store).ok().unwrap();
-    let sp = vec![cps(&lib)];
+    let sp = files::roots_of_path(vec![cps(&lib)]);
     let m = nm(&mut st, "TinyUse");
     let imps = files::module_imports(&StdFs, &pk, &e, &mut st.store, &sp, &m).ok().expect("the imports");
     assert_eq!(imps.len(), 1);
@@ -443,7 +443,7 @@ fn a_theorems_value_read_lazily_is_the_full_reads() {
     let e = pers();
     let mut st = AState::empty();
     let pk = spec::olean_pins(&e, &mut st.store).ok().unwrap();
-    let sp = vec![cps(&lib)];
+    let sp = files::roots_of_path(vec![cps(&lib)]);
     let mut thms = 0usize;
     for m in ["Tiny", "TinyUse", "ClashA", "ClashB", "TinyClassic"] {
         let f = files_of(&lib, m);

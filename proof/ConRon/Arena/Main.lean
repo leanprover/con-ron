@@ -397,13 +397,13 @@ def oleanPipeline (sp : List System.FilePath) (roots : Array Name) (constants : 
     let cs ← match constants with
       | none => pure none
       | some cs => pure (some (← cs.mapM internName))
-    match ← Frontend.Olean.readOleans stdFs sp rs cs with
+    match ← Frontend.Olean.readOleans stdFs (sp : ConLeche.Frontend.Olean.Roots) rs cs false false with
     | .error (e, n) => pure (.error (Frontend.atLine e n))
     | .ok rd =>
       let records := rd.decls.size
       let ds := (← Frontend.prepareD pre rd.decls rd.usedOf).decls
       let ipins ← internAllPins pins maxNatSize
-      match ← checkOleans stdFs rd.pins sp rd.values mode ipins ds with
+      match ← checkOleans stdFs rd.pins (sp : ConLeche.Frontend.Olean.Roots) rd.values mode ipins ds with
       | .error (e, n) => pure (.error (atDecl e n))
       | .ok _ => pure (.ok records)
 

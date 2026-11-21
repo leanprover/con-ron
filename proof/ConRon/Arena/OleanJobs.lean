@@ -23,6 +23,7 @@ namespace ConRon.Arena
 
 open ConLeche
 open ConRon.Arena.Frontend.Olean (OleanFs OleanPins ModRef ValueCache readValue)
+open ConLeche.Frontend.Olean (Roots)
 
 /-- con-leche: ConLeche/Driver/CheckMain.lean:120-134 oleanJobRun
 **Job `t` of an `--olean` run**, from the cache `c` the worker kept: a theorem
@@ -31,9 +32,9 @@ value (`readValue`), checks the record with it (`recordCheck`) and closes the
 bracket; any other record is `runJob`'s.  The read is inside the bracket, as the
 binary's (`driver::olean_job`), so what it interns is the job's.  A failure is
 tagged with the position and hands back the abandoned state (`AState.abandoned`'s
-note), with the cache. Upstream's `sp : Roots` (the closure's resolved roots) is the bare search path
+note), with the cache. Upstream's `sp : Roots` (the closure's resolved roots) is read without its map
 here (`findModule`'s note), and its jobs' `justify` the flat path's `none`. -/
-def oleanJob (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath)
+def oleanJob (fs : OleanFs) (pk : OleanPins) (sp : Roots)
     (values : Array ModRef) (mode : CheckMode) (pins : List INatOpPinSet)
     (I : IStreamIndex) (ds : Array IDeclaration) (c : ValueCache) (t : Nat) :
     AM (ValueCache × Except (CheckError × Nat) Unit) := fun s =>
@@ -65,7 +66,7 @@ def oleanJob (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath)
 /-- con-leche: ConLeche/Frontend/CheckerIO.lean:461-484 parWorker
 **A worker's fold over the jobs it claimed** on an `--olean` run, on one state and
 one cache, the first failure the answer (`PooledOleanAccepts`). -/
-def checkOleanJobList (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath)
+def checkOleanJobList (fs : OleanFs) (pk : OleanPins) (sp : Roots)
     (values : Array ModRef) (mode : CheckMode) (pins : List INatOpPinSet)
     (I : IStreamIndex) (ds : Array IDeclaration) :
     List Nat → ValueCache → AM (Except (CheckError × Nat) Unit)
@@ -80,7 +81,7 @@ def checkOleanJobList (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath
 **The check phase of an `--olean` run, as one worker runs it**: the index of the
 records, then every record's job in fold order, from the worker's state and the
 empty cache. -/
-def checkOleans (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath)
+def checkOleans (fs : OleanFs) (pk : OleanPins) (sp : Roots)
     (values : Array ModRef) (mode : CheckMode) (pins : List INatOpPinSet)
     (ds : Array IDeclaration) : AM (Except (CheckError × Nat) Unit) := fun s =>
   match buildIndex ds s with
@@ -94,7 +95,7 @@ def checkOleans (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath)
 positions covered by job lists, each in range and increasing, and each list accepted
 from the worker of the post-index state with the empty cache.  `PooledAccepts`
 over `oleanJob`. -/
-def PooledOleanAccepts (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath)
+def PooledOleanAccepts (fs : OleanFs) (pk : OleanPins) (sp : Roots)
     (values : Array ModRef) (mode : CheckMode) (pins : List INatOpPinSet)
     (ds : Array IDeclaration) (s : AState) (I : IStreamIndex) (s' : AState) : Prop :=
   ∃ (parts : List (List Nat)),

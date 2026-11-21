@@ -450,6 +450,42 @@ pub fn root_at<F: OleanFs>(fs: &F, sp: &Vec<Vec<u32>>, r: &Name) -> RootAt {
     }
 }
 
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:102-111 Roots
+/// **A search path and its fallback**: the directories, and the directories a
+/// root none of them holds is looked up on.  Only a compared solution has
+/// fallback directories (`--trusted-search-path`: the trusted path first, the
+/// search path after it); every other read has none.  Upstream's map of the
+/// roots resolved so far is not kept (`find_module`'s note).
+pub struct Roots {
+    pub path: Vec<Vec<u32>>,
+    pub fallback: Vec<Vec<u32>>,
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:113-114 _
+/// A search path with no fallback.
+pub fn roots_of_path(path: Vec<Vec<u32>>) -> Roots {
+    Roots { path, fallback: Vec::new() }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:144-148 lookNext
+/// The fallback's turn: where the path holds no directory of the root, the
+/// fallback's answer.
+pub fn look_next<F: OleanFs>(fs: &F, fallback: &Vec<Vec<u32>>, r: &Name, a: RootAt) -> RootAt {
+    match a {
+        RootAt::Missing => root_at(fs, fallback, r),
+        a => a,
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:150-154 lookAt
+/// **Where a root's modules are, on a path and its fallback**: on the path, and
+/// where no directory of it holds the root, on the fallback.  A root the path
+/// holds shadows the fallback's copy; the one-location rule holds on each of the
+/// two separately.
+pub fn look_at<F: OleanFs>(fs: &F, path: &Vec<Vec<u32>>, fallback: &Vec<Vec<u32>>, r: &Name) -> RootAt {
+    look_next(fs, fallback, r, root_at(fs, path, r))
+}
+
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:167-170 Located
 /// **Where a module's files are**: the search-path directory holding its root.
 pub struct Located {
@@ -501,17 +537,18 @@ pub fn located_of(mt: &Vec<u32>, rt: &Vec<u32>, a: RootAt) -> Result<Located, Ch
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:24-26 SearchPath
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:182-202 findModule
-/// **Find a module, as Lean does, strictly**: the one search-path directory
-/// holding its root, or why there is none.  Each read looks the root up:
-/// upstream's `Roots`, which resolves each root once per run, is a cache over
-/// one snapshot, where the lookup answers the same each time, and its
-/// `--trusted-search-path` fallback is the `--compare` mode's (task #165).
-pub fn find_module<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Vec<Vec<u32>>, m: &NIdx) -> Result<Located, CheckError> {
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:156-160 Roots.rootOf
+/// **Find a module, as Lean does, strictly**: the one directory holding its root,
+/// on the path or else on the fallback (`look_at`), or why there is none.  Each
+/// read looks the root up: upstream's `Roots` map, which resolves each root once
+/// per run, is a cache over one snapshot, where the lookup answers the same each
+/// time.
+pub fn find_module<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Roots, m: &NIdx) -> Result<Located, CheckError> {
     match env::read_name(pers, ar, m) {
         Err(e) => Err(e),
         Ok(n) => {
             let r = name_root(&n);
-            let a = root_at(fs, sp, &r);
+            let a = look_at(fs, &sp.path, &sp.fallback, &r);
             located_of(&name::render(&n), &name::render(&r), a)
         }
     }
@@ -695,7 +732,7 @@ pub fn read_imports_at<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:273-279 moduleImports
 /// **A module's imports**, off the start of its exported `.olean`, located on the
 /// search path.
-pub fn module_imports<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Vec<Vec<u32>>, m: &NIdx) -> Result<Vec<ImportRec>, CheckError> {
+pub fn module_imports<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Roots, m: &NIdx) -> Result<Vec<ImportRec>, CheckError> {
     match find_module(fs, pers, ar, sp, m) {
         Err(e) => Err(e),
         Ok(loc) => read_imports_at(fs, pk, pers, ar, &loc, m),
@@ -804,7 +841,7 @@ pub fn read_files_parts<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, m: &NI
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:327-333 readFiles
 /// **The files of a module a view reads**, located on the search path
 /// (`find_module`), then read at that location (`read_files_at`).
-pub fn read_files<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Vec<Vec<u32>>, m: &NIdx, level: &OLeanLevel) -> Result<ModFiles, CheckError> {
+pub fn read_files<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Roots, m: &NIdx, level: &OLeanLevel) -> Result<ModFiles, CheckError> {
     match find_module(fs, pers, ar, sp, m) {
         Err(e) => Err(e),
         Ok(loc) => read_files_at(fs, pers, ar, &loc, m, level),
@@ -813,7 +850,7 @@ pub fn read_files<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Vec<Vec
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:335-343 readView
 /// **One view of a module**, located on the search path.
-pub fn read_view<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Vec<Vec<u32>>, m: &NIdx, level: &OLeanLevel) -> Result<ModDecoded, CheckError> {
+pub fn read_view<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Roots, m: &NIdx, level: &OLeanLevel) -> Result<ModDecoded, CheckError> {
     match read_files(fs, pers, ar, sp, m, level) {
         Err(e) => Err(e),
         Ok(f) => match view::parse_view(pk, pers, ar, &f, level) {
@@ -843,7 +880,7 @@ pub fn first_bad_view(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, f: &ModF
 /// **All three views of a module, each parsed whole, and their check against
 /// each other** (`check_views`, over the views): for the tools that compare the
 /// views.
-pub fn read_all_views<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Vec<Vec<u32>>, m: &NIdx) -> Result<(AllViews, Vec<Expo>), CheckError> {
+pub fn read_all_views<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Roots, m: &NIdx) -> Result<(AllViews, Vec<Expo>), CheckError> {
     let f = match read_files(fs, pers, ar, sp, m, &OLeanLevel::Private) {
         Err(e) => return Err(e),
         Ok(f) => f,

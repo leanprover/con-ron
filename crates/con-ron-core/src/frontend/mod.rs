@@ -106,6 +106,7 @@
 //! what the refinement will be stated against.  Everything else in §3.4
 //! stands.
 
+pub mod compare;
 pub mod export_c;
 pub mod nat_decimal;
 pub mod nat_op_ground;
