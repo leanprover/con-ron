@@ -40,12 +40,12 @@ set_option autoImplicit false
 open ConLeche ConRon.Arena
 
 
-/-- con-leche: ConLeche/Verify/Cached/DeclPushes.lean:723 checkDeclStepC_pushes — the pure
+/-- con-leche: ConLeche/Verify/Cached/DeclPushes.lean:710 checkDeclStepC_pushes — the pure
 kernel's pushes and freshness, as `Pooled.lean` takes them. -/
 theorem kernelPushes (pinsP : List NatOpPinSet) : KernelPushes pinsP :=
   fun h => ⟨checkDecl_pushes h, checkDecl_fresh h⟩
 
-/-- con-leche: ConLeche/Cached/StreamIndex.lean:74-81 recordJob — **a record's check at its view
+/-- con-leche: ConLeche/Cached/StreamIndex.lean:95-104 recordJob — **a record's check at its view
 is con-leche's step**: the `And` pin moves the store and nothing the check reads
 (`andPinOk_run`), then the per-declaration bridge. -/
 theorem recordSpec {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
@@ -91,8 +91,8 @@ theorem denoteDecls_getElem {st : EStore} :
           obtain ⟨hj, hj'⟩ := hi j (by simpa using hi')
           exact ⟨by simpa using hj, hj'⟩
 
-/-- con-leche: ConLeche/Driver/CheckPool.lean:199-227 checkPool
-con-leche: ConLeche/Verify/Cached/StreamIndex.lean:488 checkDecls_of_jobs — **THEOREM 1 at the
+/-- con-leche: ConLeche/Driver/CheckPool.lean:211-239 checkPool
+con-leche: ConLeche/Verify/Cached/StreamIndex.lean:527 checkDecls_of_jobs — **THEOREM 1 at the
 check phase the driver runs**: from an accepting `Arena.PooledAccepts`, con-leche's pure fold
 `checkDeclsPure` accepts the denoted stream, at the environment its records denote.  Each
 prefix's environment is well formed by con-leche's model-free `foldlM_checkDecl_envWF`
@@ -106,7 +106,7 @@ theorem Arena.pooledAccepts_bridge
     (hpd : ∀ x ∈ ds.toList, PersDecl x) (hden : denoteDecls s.store ds.toList = some dsP)
     (hrun : Arena.PooledAccepts .verified pins ds s I s') :
     ∃ F, ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified F) pinsP dsP
-      = .ok (ConLeche.Cached.streamEnv dsP) := by
+      = .ok (ConLeche.streamEnv dsP) := by
   obtain ⟨parts, hidx, hcov, -, hinc, hacc⟩ := hrun
   obtain ⟨hst', hx, hp', -, hI, hpI⟩ := buildIndex_run constsSpec tablesSpec hst hpersPins hoff hpd hden hidx
   have hx' := PExt.of_ext hx
@@ -121,7 +121,7 @@ theorem Arena.pooledAccepts_bridge
 
 open ConRon.Arena.Frontend.Olean (OleanPins ModRef) in
 /-- con-leche: ConLeche/Driver/CheckMain.lean:152-170 checkOleansG
-con-leche: ConLeche/Verify/Cached/StreamIndex.lean:488 checkDecls_of_jobs — **THEOREM 1 at the
+con-leche: ConLeche/Verify/Cached/StreamIndex.lean:527 checkDecls_of_jobs — **THEOREM 1 at the
 check phase of an `--olean` run**: from an accepting `Arena.PooledOleanAccepts` on a snapshot
 `F`, con-leche's pure fold accepts the filled stream (`fillStream`: each theorem's reference
 replaced by the snapshot's value there), at the environment it denotes.  The reader's module
@@ -143,7 +143,7 @@ theorem Arena.pooledOleanAccepts_bridge
       I s') :
     ∃ Fu, ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified Fu) pinsP
       (fillStream sp F valuesP dsP) =
-        .ok (ConLeche.Cached.streamEnv (fillStream sp F valuesP dsP)) := by
+        .ok (ConLeche.streamEnv (fillStream sp F valuesP dsP)) := by
   obtain ⟨parts, hidx, hcov, -, hinc, hacc⟩ := hrun
   obtain ⟨hst', hx, hp', -, hI, hpI⟩ := buildIndex_run constsSpec tablesSpec hst hpersPins hoff hpd hden hidx
   have hx' := PExt.of_ext hx

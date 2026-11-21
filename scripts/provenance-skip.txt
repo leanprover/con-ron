@@ -331,6 +331,16 @@ ConLeche/Kernel/CoreDefs.lean strLitSupported Read only by `denote` and the proo
 ConLeche/Cached/Decls.lean declStep The spec fold's step: the binary runs every record's job at the stream index's view (`stream_index::record_job`), and the fold is the twin's statement shape (`Arena/CheckDecl.lean`).
 ConLeche/Cached/Decls.lean DeclsRun Proof-only: an accepting run of the spec fold.
 ConLeche/Cached/Decls.lean checkDecls As `declStep`.
+ConLeche/Cached/Decls.lean checkDeclsWith As `declStep`; on the flat path it runs at `justify = none` (`checkDecls`), which is what the twin's `checkDeclsPure` cites.
+ConLeche/Cached/Decls.lean checkChallenge the --compare mode: task #165
+ConLeche/Cached/Justify.lean * the --compare mode: task #165 (on the flat path `J = none`, and `checkRecordC … none` is `checkDeclStepC`, which the record check ports)
+ConLeche/Cached/Needs.lean * the --compare mode: task #165
+ConLeche/Cached/CheckerC.lean declNamesC the modular mode: task #166
+ConLeche/Cached/CheckerC.lean _root_.ConLeche.ConstantVal.atLpsC the --compare mode: task #165
+ConLeche/Cached/CheckerC.lean _root_.ConLeche.ConstantInfo.atLpsC the --compare mode: task #165
+ConLeche/Cached/CheckerC.lean streamEnvC Proof-only: `streamEnv` over the cached installer, for the modular proofs (task #166); nothing executed calls it.
+ConLeche/Kernel/Install.lean streamEnv Specification: the environment a list of records denotes, which Theorem 1 and the capstone state (`ConLeche.streamEnv`); nothing executed computes it.
+ConLeche/Kernel/Install.lean pinFootprint the modular mode: task #166
 ConLeche/Cached/ExprOpsC.lean hasLooseBVarBP The plain descent `hasLooseBVarBXP` carries its proof against; the port's specification is `Expr.hasLooseBVarB` itself.
 ConLeche/Cached/ExprOpsC.lean enterLBP The child step of `hasLooseBVarBXP`; the port's walk makes its cutoff and compound test itself (`arena::core::has_loose_bvar_b_go`).
 ConLeche/Cached/ExprOpsC.lean enterLIP The child step of `hasLooseBVarInXP`; the port's walk makes its cutoff and compound test itself (`arena::core::has_loose_bvar_in_go`).
