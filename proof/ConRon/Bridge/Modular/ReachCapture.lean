@@ -11,6 +11,7 @@ taken as a hypothesis here.  Run style, not `vcgen`.
 module
 
 public import ConRon.Bridge.Modular.ReachParts
+public import ConRon.Bridge.Modular.Roots
 
 public section
 
@@ -30,6 +31,12 @@ twin's walk from a fresh state against upstream's: the needs walk's Theorem 1. -
     DriverOK s → s.store.scratchOn = false → denoteE s.store e = some eC →
     ConRon.Arena.NeedsSt.empty.expr e s = .ok (x, s') →
     DStep s s' ∧ denoteNList s'.store.ns x.acc = some (ConLeche.Cached.needsGo {} #[] eC).2.toList
+
+/-- The needs walk of one expression is upstream's (`expr_exact`, `Roots.lean`). -/
+theorem needsExprHyp_holds : NeedsExprHyp := by
+  intro s s' e eC x hok hoff he h
+  obtain ⟨rfl, -, hx⟩ := expr_exact hok.state hok.pins (XRel.empty s.store) he h
+  exact ⟨DStep.refl hok hoff, hx⟩
 
 /-- con-leche: ConLeche/Driver/Reach.lean:376-382 ProofStatus — the twin's flag as upstream's. -/
 @[expose] def psC : ConRon.Arena.Modular.ProofStatus → ConLeche.Driver.ProofStatus
