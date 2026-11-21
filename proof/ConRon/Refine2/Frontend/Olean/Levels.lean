@@ -1029,4 +1029,236 @@ theorem mod_set_union_eq {s t : alloc.vec.Vec Std.U8} {o} (h : mod_set_union s t
 
 end ModSet
 
+/-! ## The public-import closures -/
+
+section Pub
+open ConLeche.Frontend.Olean (ModSet)
+
+/-- One import of `pubClosures`'s inner fold. -/
+def pubStep (ld : Arena.Frontend.Olean.HeaderLoads) (acc : _root_.Array ModSet) (s : ModSet)
+    (imp : ConLeche.Frontend.Olean.ImportF NIdx) : ModSet :=
+  if !imp.isExported then s else
+  match ld.index[imp.module]? with
+  | some j => if j < acc.size then s.union acc[j]! else s.add j
+  | none => s
+
+/-- One module of `pubClosures`'s outer fold. -/
+def pubAt (ld : Arena.Frontend.Olean.HeaderLoads) (acc : _root_.Array ModSet) (i : Nat) :
+    _root_.Array ModSet :=
+  acc.push (((ld.imports[i]?).getD #[]).foldl (pubStep ld acc) ((ModSet.empty ld.order.size).add i))
+
+theorem pubClosures_eq (ld : Arena.Frontend.Olean.HeaderLoads) :
+    Arena.Frontend.Olean.pubClosures ld =
+      (List.range ld.order.size).foldl (pubAt ld) (_root_.Array.mkEmpty ld.order.size) := rfl
+
+/-- The twin's load positions are positions of its order. -/
+abbrev IndexFits (ld : Arena.Frontend.Olean.HeaderLoads) : Prop :=
+  ∀ (m : NIdx) (j : Nat), ld.index[m]? = some j → j < ld.order.size
+
+theorem ofStateGo_index_lt (fm : _root_.Std.HashMap NIdx ConLeche.Frontend.Olean.LoadFlags) :
+    ∀ (ms : List NIdx) (i : Nat) im fl is (ix : _root_.Std.HashMap NIdx Nat),
+      (∀ (m : NIdx) (j : Nat), ix[m]? = some j → j < i) →
+      ∀ (m : NIdx) (j : Nat), (Arena.Frontend.Olean.HeaderLoads.ofStateGo fm ms i im fl is ix).2.2[m]? = some j →
+        j < i + ms.length := by
+  intro ms
+  induction ms with
+  | nil => intro i im fl is ix hix m j h; simpa using hix m j h
+  | cons x ms ih =>
+    intro i im fl is ix hix m j h
+    rw [Arena.Frontend.Olean.HeaderLoads.ofStateGo] at h
+    have := ih (i + 1) _ _ _ _ (fun m' j' h' => by
+      rw [_root_.Std.HashMap.getElem?_insert] at h'
+      split at h'
+      · cases h'; omega
+      · have := hix m' j' h'; omega) m j h
+    simp only [List.length_cons]; omega
+
+/-- **`HeaderLoads.ofState`'s positions fit its order.** -/
+theorem ofState_index_fits (st : Arena.Frontend.Olean.LvState) :
+    IndexFits (Arena.Frontend.Olean.HeaderLoads.ofState st) := by
+  intro m j h
+  have := ofStateGo_index_lt st.flags st.order.toList 0 st.imports #[] #[] {}
+    (fun m j h => by simp at h) m j h
+  simpa [Arena.Frontend.Olean.HeaderLoads.ofState] using this
+
+/-- The relation of the closures computed so far. -/
+abbrev AccA (acc : alloc.vec.Vec (alloc.vec.Vec Std.U8)) (A : _root_.Array ModSet) : Prop :=
+  acc.val.map absChunk = A.toList
+
+theorem order_fits {ld : frontend.olean.levels.HeaderLoads} {ld' : Arena.Frontend.Olean.HeaderLoads}
+    (hR : HeaderLoadsRel ld ld') : ld'.order.size = ld.order.val.length ∧ ld.order.val.length ≤ Std.Usize.max := by
+  refine ⟨?_, ld.order.property⟩
+  rw [← _root_.Array.length_toList, ← hR.order, List.length_map]
+
+/-- **`pub_closure_step` is `pubStep`.** -/
+theorem pub_closure_step_eq {ld : frontend.olean.levels.HeaderLoads} {ld' : Arena.Frontend.Olean.HeaderLoads}
+    (hR : HeaderLoadsRel ld ld') (hw : IndexFits ld')
+    {acc : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {A : _root_.Array ModSet} (ha : AccA acc A)
+    {s : alloc.vec.Vec Std.U8} {imp : frontend.olean.spec.ImportF arena.handle.NIdx} {o}
+    (h : pub_closure_step ld acc s imp = ok o) :
+    absChunk o = pubStep ld' A (absChunk s) (absImportF absNIdx imp) := by
+  rw [pub_closure_step] at h
+  unfold pubStep
+  by_cases he : imp.is_exported = true
+  · rw [ite_eq_left he] at h
+    simp only [absImportF, he, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+    peel h as r, hr
+    have er := hR.index.get_eq hr
+    rw [← er]
+    cases r with
+    | none => cases Result.ok_injective h; rfl
+    | some j =>
+      dsimp only at h ⊢
+      have hjl : j.val < ld.order.val.length := by
+        have := hw _ _ er.symm
+        rw [(order_fits hR).1] at this; exact this
+      have hjm : j.val ≤ Std.Usize.max := by have := (order_fits hR).2; omega
+      have hAs : A.size = acc.val.length := by
+        rw [← _root_.Array.length_toList, ← ha, List.length_map]
+      peel h as i, hi
+      have ei := cast_usize_fit hjm hi
+      by_cases hlt : i < alloc.vec.Vec.len acc
+      · rw [ite_eq_left hlt] at h
+        have hlt' : j.val < acc.val.length := by
+          have : i.val < (alloc.vec.Vec.len acc).val := hlt
+          rw [vec_len_val] at this; omega
+        simp only [Option.map_some, show j.val < A.size by omega, ↓reduceIte]
+        peel h as i2, hi2
+        have ei2 := cast_usize_fit hjm hi2
+        peel h as v, hv
+        obtain ⟨hb, rfl⟩ := vec_index_eq hv
+        rw [mod_set_union_eq h]
+        congr 1
+        have eA : A = (acc.val.map absChunk).toArray := by
+          apply _root_.Array.ext'; rw [← ha]
+        subst eA
+        simp [ei2, hlt']
+      · rw [ite_eq_right hlt] at h
+        have hlt' : ¬ j.val < acc.val.length := by
+          have : ¬ i.val < (alloc.vec.Vec.len acc).val := hlt
+          rw [vec_len_val] at this; omega
+        simp only [Option.map_some, show ¬ j.val < A.size by omega, ↓reduceIte]
+        exact mod_set_add_eq (by omega) h
+  · rw [ite_eq_right he] at h
+    cases Result.ok_injective h
+    have : imp.is_exported = false := by simpa using he
+    simp [absImportF, this]
+
+theorem pub_closure_at_loop_eq {ld : frontend.olean.levels.HeaderLoads}
+    {ld' : Arena.Frontend.Olean.HeaderLoads} (hR : HeaderLoadsRel ld ld') (hw : IndexFits ld')
+    {acc : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {A : _root_.Array ModSet} (ha : AccA acc A)
+    (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+    (s : alloc.vec.Vec Std.U8) (k : Std.Usize) {o}
+    (h : pub_closure_at_loop ld.order ld.flags ld.imports ld.index acc s imps k = ok o) :
+    absChunk o = ((imps.val.drop k.val).map (absImportF absNIdx)).foldl (pubStep ld' A) (absChunk s) := by
+  rw [pub_closure_at_loop] at h
+  by_cases hlt : k < alloc.vec.Vec.len imps
+  · rw [ite_eq_left hlt] at h
+    have hlt' : k.val < imps.val.length := by
+      have : k.val < (alloc.vec.Vec.len imps).val := hlt
+      rwa [vec_len_val] at this
+    peel h as x, hx
+    obtain ⟨_, rfl⟩ := vec_index_eq hx
+    peel h as s1, hs1
+    have e1 := pub_closure_step_eq hR hw ha hs1
+    peel h as k1, hk1
+    have hk1v : k1.val = k.val + 1 := by rw [ConRon.Refine.Nat.uadd_val hk1]; rfl
+    have ih := pub_closure_at_loop_eq hR hw ha imps s1 k1 h
+    rw [ih, hk1v, e1, List.drop_eq_getElem_cons hlt', List.map_cons, List.foldl_cons]
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have hle : imps.val.length ≤ k.val := by
+      have : ¬ k.val < (alloc.vec.Vec.len imps).val := hlt
+      rw [vec_len_val] at this; omega
+    rw [List.drop_of_length_le hle]; rfl
+termination_by imps.val.length - k.val
+decreasing_by
+  have : k.val < (alloc.vec.Vec.len imps).val := hlt
+  rw [vec_len_val] at this
+  omega
+
+/-- **`pub_closure_at` is one module of `pubClosures`.** -/
+theorem pub_closure_at_eq {ld : frontend.olean.levels.HeaderLoads}
+    {ld' : Arena.Frontend.Olean.HeaderLoads} (hR : HeaderLoadsRel ld ld') (hw : IndexFits ld')
+    {acc : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {A : _root_.Array ModSet} (ha : AccA acc A)
+    {i : Std.Usize} {o} (h : pub_closure_at ld acc i = ok o) :
+    absChunk o = ((ld'.imports[i.val]?).getD #[]).foldl (pubStep ld' A)
+      ((ModSet.empty ld'.order.size).add i.val) := by
+  rw [pub_closure_at] at h
+  obtain ⟨eo, hmax⟩ := order_fits hR
+  peel h as n, hn
+  have en : n.val = ld.order.val.length := by
+    simp only [lift, Result.ok.injEq] at hn
+    subst hn
+    rw [usize_cast_u64_val', vec_len_val]
+  peel h as v, hv
+  have ev := mod_set_empty_eq (by omega) hv
+  peel h as i2, hi2
+  have ei2 : i2.val = i.val := by
+    simp only [lift, Result.ok.injEq] at hi2
+    subst hi2
+    rw [usize_cast_u64_val']
+  peel h as s, hs
+  have es := mod_set_add_eq (by have := i.hBounds; rw [ei2]; scalar_tac) hs
+  rw [ev, en, ei2, ← eo] at es
+  have eI : ld'.imports[i.val]? = (ld.imports.val.map absImports)[i.val]? := by
+    rw [hR.imports]; simp
+  by_cases hlt : i < alloc.vec.Vec.len ld.imports
+  · rw [ite_eq_left hlt] at h
+    peel h as imps, himps
+    obtain ⟨hb, rfl⟩ := vec_index_eq himps
+    rw [pub_closure_at_loop_eq hR hw ha _ s _ h, eI, List.getElem?_map, List.getElem?_eq_getElem hb]
+    simp [absImports, es]
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have hle : ld.imports.val.length ≤ i.val := by
+      have : ¬ i.val < (alloc.vec.Vec.len ld.imports).val := hlt
+      rw [vec_len_val] at this; omega
+    rw [eI, List.getElem?_eq_none (by simpa using hle)]
+    simpa using es
+
+theorem pub_closures_loop_eq {ld : frontend.olean.levels.HeaderLoads}
+    {ld' : Arena.Frontend.Olean.HeaderLoads} (hR : HeaderLoadsRel ld ld') (hw : IndexFits ld')
+    (n : Std.Usize) (acc : alloc.vec.Vec (alloc.vec.Vec Std.U8)) {A : _root_.Array ModSet}
+    (ha : AccA acc A) (i : Std.Usize) {o}
+    (h : pub_closures_loop ld.order ld.flags ld.imports ld.index n acc i = ok o) :
+    AccA o ((List.range' i.val (n.val - i.val)).foldl (pubAt ld') A) := by
+  rw [pub_closures_loop] at h
+  by_cases hlt : i < n
+  · rw [ite_eq_left hlt] at h
+    have hlt' : i.val < n.val := hlt
+    peel h as s, hs
+    have es := pub_closure_at_eq hR hw ha hs
+    peel h as acc1, hacc1
+    peel h as i1, hi1
+    have hi1v : i1.val = i.val + 1 := by rw [ConRon.Refine.Nat.uadd_val hi1]; rfl
+    have ha1 : AccA acc1 (pubAt ld' A i.val) := by
+      show acc1.val.map absChunk = _
+      rw [ConRon.Refine.vec_push_val hacc1, List.map_append, ha, pubAt, List.map_singleton, es]
+      simp
+    have ih := pub_closures_loop_eq hR hw n acc1 ha1 i1 h
+    rw [hi1v] at ih
+    have e : n.val - i.val = (n.val - (i.val + 1)) + 1 := by omega
+    rw [e, List.range'_succ, List.foldl_cons]
+    exact ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have : n.val - i.val = 0 := by have : ¬ i.val < n.val := hlt; omega
+    rw [this]
+    exact ha
+termination_by n.val - i.val
+decreasing_by have : i.val < n.val := hlt; omega
+
+/-- **`pub_closures` is `pubClosures`**, on loads whose positions fit their order
+(`ofState_index_fits`). -/
+theorem pub_closures_eq {ld : frontend.olean.levels.HeaderLoads}
+    {ld' : Arena.Frontend.Olean.HeaderLoads} (hR : HeaderLoadsRel ld ld') (hw : IndexFits ld') {o}
+    (h : pub_closures ld = ok o) : AccA o (Arena.Frontend.Olean.pubClosures ld') := by
+  rw [pub_closures] at h
+  have := pub_closures_loop_eq hR hw _ _ (A := #[]) (by simp [AccA, alloc.vec.Vec.with_capacity]) _ h
+  rw [pubClosures_eq, List.range_eq_range', (order_fits hR).1]
+  simpa [vec_len_val] using this
+
+end Pub
+
 end ConRon.Refine2.Frontend.Olean
