@@ -1299,4 +1299,328 @@ theorem kahn_eq {deps : alloc.vec.Vec (alloc.vec.Vec Std.U64)} (hd : FitsD deps)
   simp only [vec_with_capacity_val, vec_new_val, List.map_nil, absNat] at e0
   rw [← e0]
 
+/-! ## `ranks_of` -/
+
+theorem u64_succ {k k1 : Std.U64} (h : k + 1#u64 = ok k1) : k1.val = k.val + 1 := by
+  rw [ConRon.Refine.Nat.uadd_val h]; rfl
+
+theorem ranks_of_loop0_eq (n : Std.U64) (rank : alloc.vec.Vec (Option Std.U64)) (k : Std.U64) {o}
+    (h : ranks_of_loop0 n rank k = ok o) :
+    o.val = rank.val ++ List.replicate (n.val - k.val) none := by
+  rw [ranks_of_loop0] at h
+  by_cases hlt : k < n
+  · rw [ite_eq_left hlt] at h
+    have hlt' : k.val < n.val := hlt
+    peel h as r1, hr1
+    peel h as k1, hk1
+    have ih := ranks_of_loop0_eq n r1 k1 h
+    rw [ih, ConRon.Refine.vec_push_val hr1, u64_succ hk1, List.append_assoc,
+      show n.val - k.val = (n.val - (k.val + 1)) + 1 by omega, List.replicate_succ]
+    rfl
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have : ¬ k.val < n.val := hlt
+    rw [show n.val - k.val = 0 by omega]; simp
+termination_by n.val - k.val
+decreasing_by have : k.val < n.val := hlt; rw [u64_succ hk1]; omega
+
+theorem ranks_of_loop1_eq (ord : alloc.vec.Vec Std.U64) (hord : FitsN ord) (rank : alloc.vec.Vec (Option Std.U64))
+    (t : Std.Usize) {o} (h : ranks_of_loop1 ord rank t = ok o) :
+    absRanks o = (List.range' t.val (ord.val.length - t.val)).foldl
+      (fun r t => r.set! ((absNat ord)[t]?.getD 0) (some t)) (absRanks rank) := by
+  rw [ranks_of_loop1] at h
+  by_cases hlt : t < alloc.vec.Vec.len ord
+  · rw [ite_eq_left hlt] at h
+    have hlt' := lt_len hlt
+    peel h as i1, hi1
+    obtain ⟨_hb, rfl⟩ := vec_index_eq hi1
+    peel h as p, hp
+    have hpv := cast_usize_val (hord _ (List.getElem_mem hlt')) hp
+    peel h as r1, hr1
+    peel h as t1, ht1
+    have ih := ranks_of_loop1_eq ord hord r1 t1 h
+    rw [usize_succ ht1] at ih
+    have eg : (absNat ord)[t.val]?.getD 0 = p.val := by simp [absNat, hlt', hpv]
+    have er : absRanks r1 = (absRanks rank).set! p.val (some t.val) := by
+      by_cases hpl : p < alloc.vec.Vec.len rank
+      · rw [ite_eq_left hpl] at hr1
+        peel hr1 as i3, hi3
+        have e3 := cast_u64_val hi3
+        peel hr1 as ⟨_, back⟩, hb
+        obtain ⟨_, _, rfl⟩ := index_mut_ok hb
+        cases Result.ok_injective hr1
+        show ((alloc.vec.Vec.set rank p (some i3)).val.map absOpt).toArray = _
+        rw [set_abs]; simp [e3]
+      · rw [ite_eq_right hpl] at hr1
+        cases Result.ok_injective hr1
+        rw [set!_oob]
+        have := not_lt_len hpl
+        simpa using this
+    rw [range'_cons hlt', List.foldl_cons, eg, ← er]
+    exact ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [range'_nil (not_lt_len hlt)]
+    rfl
+termination_by ord.val.length - t.val
+decreasing_by have := lt_len hlt; rw [usize_succ ht1]; omega
+
+/-- **`ranks_of` is `ranksOf`.** -/
+theorem ranks_of_eq {n : Std.U64} {ord : alloc.vec.Vec Std.U64} (hord : FitsN ord) {o}
+    (h : ranks_of n ord = ok o) : absRanks o = Modular.ranksOf n.val (absNat ord) := by
+  rw [ranks_of] at h
+  peel h as i, -
+  peel h as r1, hr1
+  have e0 := ranks_of_loop0_eq _ _ _ hr1
+  have e := ranks_of_loop1_eq ord hord r1 _ h
+  rw [e, Modular.ranksOf, List.range_eq_range']
+  simp only [show (0#usize : Std.Usize).val = 0 from rfl, Nat.sub_zero]
+  have es : (absNat ord).size = ord.val.length := by simp
+  rw [es]
+  congr 1
+  simp only [absRanks, e0]
+  simp
+
+/-! ## `done_of`, `cycle_start`, `cycle_next`, `cycle_step` -/
+
+/-- The marks, as the twin's. -/
+@[reducible] def absDone (v : alloc.vec.Vec Bool) : _root_.Array Bool := v.val.toArray
+
+theorem set_done (v : alloc.vec.Vec Bool) (j : Std.Usize) (y : Bool) :
+    (alloc.vec.Vec.set v j y).val.toArray = (v.val.toArray).set! j.val y := by
+  apply Array.toList_inj.mp
+  simp
+
+theorem done_of_loop0_eq (n : Std.Usize) (done : alloc.vec.Vec Bool) (k : Std.Usize) {o}
+    (h : done_of_loop0 n done k = ok o) :
+    o.val = done.val ++ List.replicate (n.val - k.val) false := by
+  rw [done_of_loop0] at h
+  by_cases hlt : k < n
+  · rw [ite_eq_left hlt] at h
+    have hlt' : k.val < n.val := hlt
+    peel h as d1, hd1
+    peel h as k1, hk1
+    have ih := done_of_loop0_eq n d1 k1 h
+    rw [ih, ConRon.Refine.vec_push_val hd1, usize_succ hk1, List.append_assoc,
+      show n.val - k.val = (n.val - (k.val + 1)) + 1 by omega, List.replicate_succ]
+    rfl
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have : ¬ k.val < n.val := hlt
+    rw [show n.val - k.val = 0 by omega]; simp
+termination_by n.val - k.val
+decreasing_by have : k.val < n.val := hlt; rw [usize_succ hk1]; omega
+
+theorem done_of_loop1_eq (ord : alloc.vec.Vec Std.U64) (hord : FitsN ord) (done : alloc.vec.Vec Bool)
+    (j : Std.Usize) {o} (h : done_of_loop1 ord done j = ok o) :
+    absDone o = ((ord.val.drop j.val).map (·.val)).foldl (fun d p => d.set! p true) (absDone done) := by
+  rw [done_of_loop1] at h
+  by_cases hlt : j < alloc.vec.Vec.len ord
+  · rw [ite_eq_left hlt] at h
+    have hlt' := lt_len hlt
+    peel h as i1, hi1
+    obtain ⟨_hb, rfl⟩ := vec_index_eq hi1
+    peel h as p, hp
+    have hpv := cast_usize_val (hord _ (List.getElem_mem hlt')) hp
+    peel h as d1, hd1
+    peel h as j1, hj1
+    have ih := done_of_loop1_eq ord hord d1 j1 h
+    rw [usize_succ hj1] at ih
+    have er : absDone d1 = (absDone done).set! p.val true := by
+      by_cases hpl : p < alloc.vec.Vec.len done
+      · rw [ite_eq_left hpl] at hd1
+        peel hd1 as ⟨_, back⟩, hb
+        obtain ⟨_, _, rfl⟩ := index_mut_ok hb
+        cases Result.ok_injective hd1
+        exact set_done done p true
+      · rw [ite_eq_right hpl] at hd1
+        cases Result.ok_injective hd1
+        rw [set!_oob]
+        exact not_lt_len hpl
+    rw [drop_cons_of_lt hlt', List.map_cons, List.foldl_cons, ← hpv, ← er]
+    exact ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    rfl
+termination_by ord.val.length - j.val
+decreasing_by have := lt_len hlt; rw [usize_succ hj1]; omega
+
+/-- **`done_of` is `doneOf`.** -/
+theorem done_of_eq {n : Std.Usize} {ord : alloc.vec.Vec Std.U64} (hord : FitsN ord) {o}
+    (h : done_of n ord = ok o) : absDone o = Modular.doneOf n.val (absNat ord) := by
+  rw [done_of] at h
+  peel h as d1, hd1
+  have e0 := done_of_loop0_eq _ _ _ hd1
+  have e := done_of_loop1_eq ord hord d1 _ h
+  rw [e, Modular.doneOf]
+  simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero, absDone, e0]
+  simp [absNat]
+
+theorem cycle_start_loop_eq (n : Std.Usize) (done : alloc.vec.Vec Bool) (k : Std.Usize) {o}
+    (h : cycle_start_loop n done k = ok o) :
+    o.map (·.val) = (List.range' k.val (n.val - k.val)).find? fun k => !((absDone done)[k]?.getD false) := by
+  rw [cycle_start_loop] at h
+  by_cases hlt : k < n
+  · rw [ite_eq_left hlt] at h
+    have hlt' : k.val < n.val := hlt
+    peel h as b, hb
+    obtain ⟨hb1, rfl⟩ := vec_index_eq hb
+    rw [range'_cons hlt', List.find?_cons]
+    have eg : (absDone done)[k.val]?.getD false = done.val[k.val] := by simp [hb1]
+    rw [eg]
+    by_cases cb : done.val[k.val] = true
+    · rw [ite_eq_left cb] at h
+      peel h as k1, hk1
+      have ih := cycle_start_loop_eq n done k1 h
+      rw [usize_succ hk1] at ih
+      rw [cb]; exact ih
+    · rw [ite_eq_right cb] at h
+      cases Result.ok_injective h
+      simp at cb; simp [cb]
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have : ¬ k.val < n.val := hlt
+    rw [range'_nil (by omega)]; rfl
+termination_by n.val - k.val
+decreasing_by rw [usize_succ hk1]; omega
+
+/-- **`cycle_start` is `cycleStart`.** -/
+theorem cycle_start_eq {n : Std.Usize} {done : alloc.vec.Vec Bool} {o}
+    (h : cycle_start n done = ok o) : o.map (·.val) = Modular.cycleStart n.val (absDone done) := by
+  have := cycle_start_loop_eq n done _ h
+  simpa [Modular.cycleStart, List.range_eq_range'] using this
+
+theorem cycle_next_loop_eq (done : alloc.vec.Vec Bool) (d : alloc.vec.Vec Std.U64) (hd : FitsN d)
+    (i : Std.Usize) {o} (h : cycle_next_loop done d i = ok o) :
+    o.map (·.val) = ((d.val.drop i.val).map (·.val)).find? fun y => !((absDone done)[y]?.getD false) := by
+  rw [cycle_next_loop] at h
+  by_cases hlt : i < alloc.vec.Vec.len d
+  · rw [ite_eq_left hlt] at h
+    have hlt' := lt_len hlt
+    peel h as i2, hi2
+    obtain ⟨_hb, rfl⟩ := vec_index_eq hi2
+    peel h as y, hy
+    have hyv := cast_usize_val (hd _ (List.getElem_mem hlt')) hy
+    rw [drop_cons_of_lt hlt', List.map_cons, List.find?_cons, ← hyv]
+    by_cases hyl : y < alloc.vec.Vec.len done
+    · rw [ite_eq_left hyl] at h
+      peel h as b, hb
+      obtain ⟨hb1, rfl⟩ := vec_index_eq hb
+      have eg : (absDone done)[y.val]?.getD false = done.val[y.val] := by simp [hb1]
+      rw [eg]
+      by_cases cb : done.val[y.val] = true
+      · rw [ite_eq_left cb] at h
+        peel h as i4, hi4
+        have ih := cycle_next_loop_eq done d hd i4 h
+        rw [usize_succ hi4] at ih
+        rw [cb]; exact ih
+      · rw [ite_eq_right cb] at h
+        cases Result.ok_injective h
+        simp at cb; simp [cb]
+    · rw [ite_eq_right hyl] at h
+      cases Result.ok_injective h
+      have : (absDone done)[y.val]? = none := by
+        have := not_lt_len hyl; simp; omega
+      simp [this]
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    rfl
+termination_by d.val.length - i.val
+decreasing_by have := lt_len hlt; rw [usize_succ hi4]; omega
+
+/-- **`cycle_next` is `cycleNext`.** -/
+theorem cycle_next_eq {deps : alloc.vec.Vec (alloc.vec.Vec Std.U64)} (hd : FitsD deps)
+    {done : alloc.vec.Vec Bool} {x : Std.Usize} {o} (h : cycle_next deps done x = ok o) :
+    o.map (·.val) = Modular.cycleNext (absDeps deps) (absDone done) x.val := by
+  rw [cycle_next] at h
+  simp only [Modular.cycleNext]
+  by_cases hlt : x < alloc.vec.Vec.len deps
+  · rw [ite_eq_left hlt] at h
+    have hlt' := lt_len hlt
+    peel h as d, hd1
+    obtain ⟨_hb, rfl⟩ := vec_index_eq hd1
+    have := cycle_next_loop_eq done _ (hd _ (List.getElem_mem hlt')) _ h
+    simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at this
+    rw [this]
+    simp [absDeps, hlt', absNat]
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have : (absDeps deps)[x.val]? = none := by
+      have := not_lt_len hlt; simp; omega
+    simp [this]
+
+/-- A step of the cycle's walk, as the twin's. -/
+def absCS : frontend.modular.graph.CycleStep → Modular.CycleStep
+  | .Repeat p => .repeat p.val
+  | .Next o => .next (o.map (·.val))
+
+/-- Every visit's place fits a `usize`. -/
+def FitsO (v : alloc.vec.Vec (Option Std.U64)) : Prop := ∀ p, some p ∈ v.val → p.val ≤ Std.Usize.max
+
+/-- **`cycle_step` is `cycleStep`.** -/
+theorem cycle_step_eq {deps : alloc.vec.Vec (alloc.vec.Vec Std.U64)} (hd : FitsD deps)
+    {done : alloc.vec.Vec Bool} {at_ : alloc.vec.Vec (Option Std.U64)} (hat : FitsO at_)
+    {path : alloc.vec.Vec Std.U64} {x : Std.Usize} {o}
+    (h : cycle_step deps done at_ path x = ok o) :
+    (absCS o.1, absRanks o.2.1, absNat o.2.2) =
+      Modular.cycleStep (absDeps deps) (absDone done) (absRanks at_) (absNat path) x.val ∧
+      FitsO o.2.1 ∧ ∀ p, o.1 = .Repeat p → p.val ≤ Std.Usize.max := by
+  rw [cycle_step] at h
+  simp only [Modular.cycleStep]
+  by_cases hlt : x < alloc.vec.Vec.len at_
+  · rw [ite_eq_left hlt] at h
+    have hlt' := lt_len hlt
+    peel h as o1, ho1
+    obtain ⟨_hb, rfl⟩ := vec_index_eq ho1
+    have eg : (absRanks at_)[x.val]? = some (absOpt at_.val[x.val]) := by simp [hlt']
+    rw [eg]
+    cases hx : at_.val[x.val] with
+    | some p =>
+      rw [hx] at h
+      cases Result.ok_injective h
+      have hp : p.val ≤ Std.Usize.max := hat p (by rw [← hx]; exact List.getElem_mem hlt')
+      exact ⟨rfl, hat, fun q hq => by cases hq; exact hp⟩
+    | none =>
+      rw [hx] at h
+      dsimp only at h
+      peel h as i2, hi2
+      have e2 := cast_u64_val hi2
+      peel h as ⟨_, back⟩, hb
+      obtain ⟨_, _, rfl⟩ := index_mut_ok hb
+      peel h as i3, hi3
+      have e3 := cast_u64_val hi3
+      peel h as path1, hp1
+      peel h as o2, ho2
+      have en := cycle_next_eq hd ho2
+      cases Result.ok_injective h
+      have ea : absRanks (alloc.vec.Vec.set at_ x (some i2)) =
+          (absRanks at_).set! x.val (some (absNat path).size) := by
+        show ((alloc.vec.Vec.set at_ x (some i2)).val.map absOpt).toArray = _
+        rw [set_abs]; simp [e2]
+      have ep : absNat path1 = (absNat path).push x.val := by
+        simp [ConRon.Refine.vec_push_val hp1, e3]
+      refine ⟨?_, ?_, fun q hq => by cases hq⟩
+      · simp only [absCS, en, ea, ep]
+        rfl
+      · intro q hq
+        rw [alloc.vec.Vec.set_val_eq] at hq
+        rcases List.mem_or_eq_of_mem_set hq with hq | hq
+        · exact hat q hq
+        · cases hq; rw [e2]; exact vec_len_le path
+  · rw [ite_eq_right hlt] at h
+    have : (absRanks at_)[x.val]? = none := by
+      have := not_lt_len hlt; simp; omega
+    rw [this]
+    dsimp only
+    peel h as i1, hi1
+    have e1 := cast_u64_val hi1
+    peel h as path1, hp1
+    peel h as o2, ho2
+    have en := cycle_next_eq hd ho2
+    cases Result.ok_injective h
+    refine ⟨?_, hat, fun q hq => by cases hq⟩
+    simp [absCS, en, ConRon.Refine.vec_push_val hp1, e1]
+
 end ConRon.Refine2.Modular
