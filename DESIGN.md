@@ -73720,6 +73720,8 @@ dependency cone; a DFS whose sibling steps are also frames), the per-code-point 
 `frontend/olean/lazy.rs`'s `value_roots_from` (per constant of a module), and
 `pins_decode::run_records` (per line of the embedded pin text: fixed, ~29 000).
 
+**Gates.**  `scripts/gates.sh`: all 16 OK; diff-e2e 773/773 agree.
+
 **Measured.**  `Init`, `--verified --jobs=1`, one run each: master a36070b8 165 795 355 774
 `instructions:u`, this branch 165 793 912 495 (−0.001 %); cycles 66.14 G / 66.47 G; peak RSS
 426 / 391 MB.  **GRH**, `--jobs=48 --progress=5% --compare -- challenge.ndjson solution.ndjson`
