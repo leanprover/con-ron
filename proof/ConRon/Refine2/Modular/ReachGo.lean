@@ -546,6 +546,64 @@ theorem clash_agree_one_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E
     cases hS
     exact ⟨C1, A, lst1, rfl, hc1, hA, hrel1, hinv1⟩
 
+theorem clash_agree_loop_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
+    (he : ReachEnvRel env wr own E) (cls : alloc.vec.Vec frontend.olean.index.Clash)
+    (hfit : ∀ cl ∈ cls.val, ∀ x ∈ cl.copies.val, CopyFits x.1)
+    (st : arena.monad.AState) (lst : AState) (c : frontend.modular.reach.ReachCache) (C : Modular.ReachCache)
+    (hc : ReachCacheRel c C) (acc : alloc.vec.Vec arena.handle.NIdx) (A : Array NIdx)
+    (hA : acc.val.map absNIdx = A.toList) (i : Std.Usize) (L : List Arena.Frontend.Olean.Clash)
+    (hL : List.Forall₂ ClashRel (cls.val.drop i.val) L) :
+    ACS pers (fun a c' b => ReachCacheRel c' b.1 ∧ a.val.map absNIdx = b.2.toList) st lst
+      (clash_agree_loop inst fsv pk pers st sp wr c cls acc i)
+      (Modular.clashAgree fs (absPins pk) (absRoots sp) E C L A) := by
+  intro hrel hinv a st' c' hr
+  rw [clash_agree_loop] at hr
+  by_cases hlt : i < alloc.vec.Vec.len cls
+  · rw [ite_eq_left hlt] at hr
+    have hi := lt_len hlt
+    rw [List.drop_eq_getElem_cons hi] at hL
+    cases hL with
+    | cons hxy hrest =>
+    rename_i y L'
+    peel hr as x, hx
+    obtain ⟨_, rfl⟩ := vec_index_eq hx
+    peel hr as q, hq
+    obtain ⟨r, st1, c1, acc1⟩ := q
+    cases r with
+    | Err e => cases Result.ok_injective hr
+    | Ok u =>
+    obtain ⟨C1, A1, lst1, hx1, hc1, hA1, hrel1, hinv1⟩ :=
+      clash_agree_one_ok hP he hc hxy (hfit _ (List.getElem_mem hi)) hA hrel hinv st1 c1 acc1 hq
+    peel hr as i2, hi2
+    have hv2 := usize_succ_val hi2
+    rw [← hv2] at hrest
+    obtain ⟨b2, lst2, hx2, hR, hrel2, hinv2⟩ :=
+      clash_agree_loop_ok hP he cls hfit st1 lst1 c1 C1 hc1 acc1 A1 hA1 i2 L' hrest hrel1 hinv1 a st' c' hr
+    refine ⟨b2, lst2, ?_, hR, hrel2, hinv2⟩
+    rw [Modular.clashAgree, am_bind_ok hx1]
+    exact hx2
+  · rw [ite_eq_right hlt] at hr
+    have e := Result.ok_injective hr
+    simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e
+    obtain ⟨rfl, rfl, rfl⟩ := e
+    rw [List.drop_of_length_le (not_lt_len hlt)] at hL
+    cases hL
+    exact ⟨(C, A), lst, rfl, ⟨hc, hA⟩, hrel, hinv⟩
+termination_by cls.val.length - i.val
+decreasing_by have := lt_len hlt; omega
+
+/-- **`clash_agree` is `clashAgree`**: the clash rule over the worker's clashes. -/
+theorem clash_agree_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
+    (he : ReachEnvRel env wr own E) (hfit : ClashesFit wr) {st lst}
+    {c : frontend.modular.reach.ReachCache} {C : Modular.ReachCache} (hc : ReachCacheRel c C) :
+    ACS pers (fun a c' b => ReachCacheRel c' b.1 ∧ a.val.map absNIdx = b.2.toList) st lst
+      (clash_agree inst fsv pk pers st sp wr c wr.clashes)
+      (Modular.clashAgree fs (absPins pk) (absRoots sp) E C E.wr.clashes.toList #[]) := by
+  intro hrel hinv a st' c' hr
+  rw [clash_agree] at hr
+  exact clash_agree_loop_ok hP he wr.clashes hfit st lst c C hc _ #[] rfl 0#usize _
+    (by simpa using he.wr.clashes) hrel hinv a st' c' hr
+
 end reads
 
 end ConRon.Refine2.Modular
