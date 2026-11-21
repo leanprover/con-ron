@@ -1406,14 +1406,9 @@ theorem nmapRel_len_le {V V' : Type} {A : V → V'} {m : ron.hashmap2.HashMap2 a
   rw [Std.HashMap.length_keys, List.length_map, List.length_map] at this
   exact this
 
-/-- **The read order's positions fit a `usize`** (they are positions of the records): the fact
-about sibling V's `read_order` the headline takes as a hypothesis. -/
-def ReadOrderFits (pers : arena.store.PersTier) : Prop :=
-  ∀ st ds rds o st', read_order pers st ds rds = ok (.Ok o, st') → ∀ j ∈ o.val, j.val ≤ Std.Usize.max
-
 /-- **Theorem 2 of the reach** (`AS` form, on the whole state): the Rust's `reach` accepting is
 the twin's `reach` accepting, with the `Reach` related (`pending` up to its messages). -/
-theorem reach_refines (hfs : FsRel inst fsv fs) (hRO : ReadOrderFits pers)
+theorem reach_refines (hfs : FsRel inst fsv fs)
     {m : arena.handle.NIdx} {wr : frontend.olean.index.WorkerReads} {W : Arena.Frontend.Olean.WorkerReads}
     (hw : WorkerReadsRel wr W) (hfit : IndexFits W.loads) (hcf : ClashesFit wr)
     {own : ron.hashmap2.HashMap2 arena.handle.NIdx Bool} {O : Std.HashSet NIdx} (ho : NSet own O)
@@ -1482,8 +1477,13 @@ theorem reach_refines (hfs : FsRel inst fsv fs) (hRO : ReadOrderFits pers)
   cases r3 with
   | Err e => cases Result.ok_injective hr
   | Ok o1 =>
-  have hfits := hRO _ _ _ _ _ hq3
   obtain ⟨O1, lst3, hx3, hO1, hrel3, hinv3⟩ := read_order_la hrel2 hinv2 l1.ctx l1.reads o1 st3 hq3
+  have hfits : ∀ j ∈ o1.val, j.val ≤ Std.Usize.max := by
+    intro j hj
+    have hlt := readOrder_lt _ _ lst2 _ hx3 j.val (by rw [hO1]; exact List.mem_map_of_mem hj)
+    have := vec_len_le_max l1.ctx
+    simp [absIDeclL] at hlt
+    omega
   have eC : L1.ctx = (absIDeclL l1.ctx).toArray := by
     apply Array.ext'; rw [← hl1.ctx]; rfl
   have eR : L1.reads = absRds l1.reads := by
@@ -1525,6 +1525,26 @@ theorem reach_refines (hfs : FsRel inst fsv fs) (hRO : ReadOrderFits pers)
     rfl
   · rw [einf, vec_len_val]
     exact List.Forall₂.length_eq hc2.pending
+
+/-- **What the reach needs of the worker's reads beyond `WorkerReadsRel`**: the positions the
+Rust reads back as `usize` fit one — the load positions (`IndexFits`, as `headerFixpoint` makes
+them) and the clashes' copies (`ClashesFit`, as the name index makes them). -/
+def ReachFits (wr : frontend.olean.index.WorkerReads) (wr' : Arena.Frontend.Olean.WorkerReads) : Prop :=
+  IndexFits wr'.loads ∧ ClashesFit wr
+
+/-- **Theorem 2 of the reach, in the worker's shape** (`ReachHyp` of `WorkerRead.lean`, with the
+one premise `ReachFits`). -/
+theorem reach_hyp (hfs : FsRel inst fsv fs) :
+    ∀ {st lst} (pk : frontend.olean.spec.OleanPins) (sp : frontend.olean.files.Roots)
+      (m : arena.handle.NIdx) {wr : frontend.olean.index.WorkerReads} {wr' : Arena.Frontend.Olean.WorkerReads}
+      {own : ron.hashmap2.HashMap2 arena.handle.NIdx Bool} {own' : Std.HashSet NIdx}
+      (roots : alloc.vec.Vec arena.handle.NIdx),
+      WorkerReadsRel wr wr' → ReachFits wr wr' → NSet own own' → AStateRel₀ pers st lst → AStateInv pers st →
+      LA pers ReachRel (reach inst fsv pk pers st sp m wr own roots) lst
+        (Modular.reach fs (absPins pk) (absRoots sp) (absNIdx m) wr' own' (ConRon.Refine2.Frontend.absNIdxArr roots)) :=
+  by
+  intro _ _ _ _ _ _ _ _ _ _ hw hf ho hrel hinv
+  exact reach_refines hfs hw hf.1 hf.2 ho hrel hinv
 
 end reads
 
