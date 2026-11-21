@@ -1,0 +1,554 @@
+/-
+# `ConRon.Refine2.Frontend.Olean.Index` — `olean/index.rs`: the worker's reads
+
+**Task #166, Theorem 2.**  The names a module's environment holds, against the twin's
+(`Arena/Frontend/Olean/Index.lean`).
+
+**The relations.**  A `Copy` is upstream's (`absCopy`); the name index is `NameIndexRel`: the
+parts abstracted, `first` an `NMapRel` (its copies fitting a `usize`, `CopyFits`), `more` as a
+list.  A `HashMap2` keyed by copies is a `Std.HashMap Copy` (`CMapRel`).  The store-free
+functions are equations; the reads claim their accept (`AS`).
+
+**`usize` casts.**  `index.rs` turns a copy's `u64` fields back into `usize` indices; a
+cast keeps the value when it fits a `usize`, which every copy the index makes does (it is a
+`usize` position, cast up): `CopyFits`, carried by `NameIndexRel`.
+-/
+import ConRon.Refine2.Frontend.Olean.Levels
+import ConRon.Refine2.Frontend.Olean.PartNames
+import ConRon.Arena.Frontend.Olean.Index
+
+open Aeneas Aeneas.Std Result
+open ConRon.Generated
+open frontend.olean.index
+
+attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
+
+namespace ConRon.Refine2.Frontend.Olean
+
+open ConRon.Arena
+open ConRon.Refine.HashMap2 (Inv toFun)
+open ConRon.Refine.HashMap (Eq2Fwd)
+
+/-! ## Casts -/
+
+/-- A `usize` cast up to a `u64` keeps its value. -/
+theorem cast_u64_val (x : Std.Usize) : (UScalar.cast .U64 x : Std.U64).val = x.val := by
+  refine Std.UScalar.cast_val_mod_pow_greater_numBits_eq _ _ ?_
+  rw [UScalarTy.Usize_numBits_eq, UScalarTy.U64_numBits_eq]
+  rcases System.Platform.numBits_eq with h | h <;> omega
+
+/-- A `u64` cast down to a `usize` keeps its value when it fits. -/
+theorem cast_usize_val {x : Std.U64} (h : x.val ≤ Std.Usize.max) :
+    (UScalar.cast .Usize x : Std.Usize).val = x.val := by
+  rw [Std.UScalar.cast_val_eq, Std.UScalarTy.Usize_numBits_eq]
+  refine Nat.mod_eq_of_lt ?_
+  have hmax : Std.Usize.max = 2 ^ System.Platform.numBits - 1 := by
+    simp only [Std.Usize.max, Std.Usize.numBits, Std.UScalarTy.Usize_numBits_eq]
+  have hpos : 0 < 2 ^ System.Platform.numBits := Nat.two_pow_pos _
+  omega
+
+theorem usize_le_max (x : Std.Usize) : x.val ≤ Std.Usize.max := by
+  have := x.hmax
+  simp only [Std.Usize.max, Std.Usize.numBits] at *
+  omega
+
+theorem vec_len_le_max {α : Type} (v : alloc.vec.Vec α) : v.val.length ≤ Std.Usize.max :=
+  v.property
+
+theorem lt_of_not_lt_len {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize}
+    (h : ¬ i < alloc.vec.Vec.len v) : v.val.length ≤ i.val := by
+  have : ¬ i.val < (alloc.vec.Vec.len v).val := h
+  rw [vec_len_val] at this; omega
+
+theorem lt_of_lt_len {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize}
+    (h : i < alloc.vec.Vec.len v) : i.val < v.val.length := by
+  have : i.val < (alloc.vec.Vec.len v).val := h
+  rwa [vec_len_val] at this
+
+theorem usize_succ {i j : Std.Usize} (h : i + 1#usize = ok j) : j.val = i.val + 1 := by
+  rw [ConRon.Refine.Nat.uadd_val h]; rfl
+
+/-! ## Copies -/
+
+deriving instance DecidableEq for frontend.olean.index.Copy
+
+/-- `index::Copy`, as upstream's. -/
+@[reducible] def absCopy (c : frontend.olean.index.Copy) : ConLeche.Frontend.Olean.Copy :=
+  ⟨c.module.val, c.pos.val⟩
+
+theorem absCopy_inj {a b : frontend.olean.index.Copy} (h : absCopy a = absCopy b) : a = b := by
+  obtain ⟨a1, a2⟩ := a
+  obtain ⟨b1, b2⟩ := b
+  simp only [absCopy, ConLeche.Frontend.Olean.Copy.mk.injEq] at h
+  rw [UScalar.eq_of_val_eq h.1, UScalar.eq_of_val_eq h.2]
+
+theorem copy_beq_iff (a b : ConLeche.Frontend.Olean.Copy) : (a == b) = true ↔ a = b := by
+  cases a; cases b
+  show (_ && _) = true ↔ _
+  simp
+
+instance : LawfulBEq ConLeche.Frontend.Olean.Copy where
+  eq_of_beq h := (copy_beq_iff _ _).1 h
+  rfl := (copy_beq_iff _ _).2 rfl
+
+/-- The hash of copies. -/
+abbrev hC := frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapHashable
+/-- The equality of copies. -/
+abbrev eC := frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapEq2
+
+/-- **`Copy`'s `eq2` is equality.** -/
+theorem copy_eq2 : Eq2Fwd eC (fun _ => True) := by
+  intro a b c _ _ h
+  obtain ⟨a1, a2⟩ := a
+  obtain ⟨b1, b2⟩ := b
+  change Copy.Insts.Con_ron_coreRonHashmapEq2.eq2 _ _ = ok c at h
+  rw [Copy.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
+  by_cases e : a1 = b1
+  · rw [ite_eq_left e] at h
+    cases Result.ok_injective h
+    subst e
+    by_cases e2 : a2 = b2 <;> simp [e2]
+  · rw [ite_eq_right e] at h
+    cases Result.ok_injective h
+    simp [e]
+
+/-- **`Copy`'s `dup2` is the identity.** -/
+theorem copy_dup2_ok {c x : frontend.olean.index.Copy}
+    (h : Copy.Insts.Con_ron_coreRonHashmapDup.dup2 c = ok x) : x = c :=
+  (Result.ok_injective (show ok c = ok x from h)).symm
+
+/-- A copy whose fields fit a `usize`. -/
+def CopyFits (c : frontend.olean.index.Copy) : Prop :=
+  c.module.val ≤ Std.Usize.max ∧ c.pos.val ≤ Std.Usize.max
+
+/-! ## Tables keyed by copies -/
+
+/-- **A `HashMap2` keyed by copies**, as a `Std.HashMap` of upstream's copies. -/
+structure CMapRel {V V' : Type} (A : V → V') (m : ron.hashmap2.HashMap2 frontend.olean.index.Copy V)
+    (s : _root_.Std.HashMap ConLeche.Frontend.Olean.Copy V') : Prop where
+  inv : Inv hC m
+  get : ∀ k, (toFun m k).map A = s[absCopy k]?
+
+section CMapRel
+variable {V V' : Type} {A : V → V'} {m : ron.hashmap2.HashMap2 frontend.olean.index.Copy V}
+  {s : _root_.Std.HashMap ConLeche.Frontend.Olean.Copy V'}
+
+theorem CMapRel.get_eq (h : CMapRel A m s) {k : frontend.olean.index.Copy} {o : Option V}
+    (hg : ron.hashmap2.HashMap2.get hC eC m k = ok o) : o.map A = s[absCopy k]? := by
+  rw [ConRon.Refine.HashMap2.get_refines_gen copy_eq2 h.inv (fun _ _ => trivial) trivial hg]
+  exact h.get k
+
+theorem CMapRel.insert (h : CMapRel A m s) {k : frontend.olean.index.Copy} {v : V} {old} {m'}
+    (hi : ron.hashmap2.HashMap2.insert hC eC m k v = ok (old, m')) :
+    CMapRel A m' (s.insert (absCopy k) (A v)) := by
+  obtain ⟨hinv, -, hupd, -⟩ := ConRon.Refine.HashMap2.insert_refines_gen copy_eq2
+    h.inv (fun _ _ => trivial) trivial hi
+  refine ⟨hinv, fun k1 => ?_⟩
+  rw [hupd, Function.update_apply, _root_.Std.HashMap.getElem?_insert]
+  by_cases hk : k1 = k
+  · subst hk; simp
+  · have hne : (absCopy k == absCopy k1) = false := by
+      simp only [beq_eq_false_iff_ne]
+      exact fun he => hk (absCopy_inj he).symm
+    rw [ite_eq_right hk, hne]
+    simpa using h.get k1
+
+theorem CMapRel.with_capacity {c : Std.Usize}
+    (hn : ron.hashmap2.HashMap2.with_capacity frontend.olean.index.Copy V c = ok m) :
+    CMapRel A m {} := by
+  obtain ⟨hinv, -, hnone⟩ := ConRon.Refine.HashMap2.with_capacity_refines (HashableInst := hC) hn
+  exact ⟨hinv, fun k => by rw [hnone]; simp⟩
+
+end CMapRel
+
+/-! ## The name index -/
+
+/-- A later copy, as the twin's. -/
+@[reducible] def absMore (p : arena.handle.NIdx × frontend.olean.index.Copy) :
+    NIdx × ConLeche.Frontend.Olean.Copy := (absNIdx p.1, absCopy p.2)
+
+/-- `first`: an `NMapRel` whose copies fit. -/
+structure FirstRel (m : ron.hashmap2.HashMap2 arena.handle.NIdx frontend.olean.index.Copy)
+    (s : _root_.Std.HashMap NIdx ConLeche.Frontend.Olean.Copy) : Prop where
+  rel : NMapRel absCopy m s
+  fits : ∀ k c, toFun m k = some c → CopyFits c
+
+/-- **`index::NameIndex` against the twin's.** -/
+structure NameIndexRel (ix : frontend.olean.index.NameIndex) (ix' : Arena.Frontend.Olean.NameIndex) :
+    Prop where
+  parts : ix.parts.val.map absNamePositions = ix'.parts.toList
+  first : FirstRel ix.first ix'.first
+  more : ix.more.val.map absMore = ix'.more.toList
+  fitsM : ∀ p ∈ ix.more.val, CopyFits p.2
+
+theorem FirstRel.get_eq {m s} (h : FirstRel m s) {k : arena.handle.NIdx} {o}
+    (hg : ron.hashmap2.HashMap2.get hN eN m k = ok o) :
+    o.map absCopy = s[absNIdx k]? ∧ ∀ c, o = some c → CopyFits c := by
+  have e := ConRon.Refine.HashMap2.get_refines_gen nidx_eq2 h.rel.inv (fun _ _ => trivial) trivial hg
+  refine ⟨by rw [e]; exact h.rel.get k, fun c hc => h.fits k c (by rw [← e]; exact hc)⟩
+
+theorem FirstRel.insert {m s} (h : FirstRel m s) {k : arena.handle.NIdx} {v} {old} {m'}
+    (hv : CopyFits v) (hi : ron.hashmap2.HashMap2.insert hN eN m k v = ok (old, m')) :
+    FirstRel m' (s.insert (absNIdx k) (absCopy v)) := by
+  obtain ⟨-, -, hupd, -⟩ := ConRon.Refine.HashMap2.insert_refines_gen nidx_eq2
+    h.rel.inv (fun _ _ => trivial) trivial hi
+  refine ⟨h.rel.insert hi, fun k1 c hc => ?_⟩
+  rw [hupd, Function.update_apply] at hc
+  by_cases hk : k1 = k
+  · rw [ite_eq_left hk] at hc; cases hc; exact hv
+  · rw [ite_eq_right hk] at hc; exact h.fits k1 c hc
+
+/-- **`name_index_at` is `NameIndex.at`**, at a copy that fits. -/
+theorem name_index_at_eq {ix ix'} (hix : NameIndexRel ix ix') {c : frontend.olean.index.Copy}
+    (hc : CopyFits c) {o} (h : name_index_at ix c = ok o) :
+    o.map absNamePosition = ix'.at (absCopy c) := by
+  rw [name_index_at] at h
+  peel h as m, hm
+  have em : m.val = c.module.val := by rw [← Result.ok_injective hm]; exact cast_usize_val hc.1
+  have hp : ix'.parts[c.module.val]? = (ix.parts.val[c.module.val]?).map absNamePositions := by
+    have := congrArg (·[c.module.val]?) hix.parts
+    simp only [List.getElem?_map] at this
+    rw [← Array.getElem?_toList]; exact this.symm
+  rw [Arena.Frontend.Olean.NameIndex.at, hp]
+  by_cases h1 : m < alloc.vec.Vec.len ix.parts
+  · rw [ite_eq_left h1] at h
+    have h1' := lt_of_lt_len h1
+    peel h as p, hpp
+    have ep : p.val = c.pos.val := by rw [← Result.ok_injective hpp]; exact cast_usize_val hc.2
+    peel h as np, hnp
+    obtain ⟨_, rfl⟩ := vec_index_eq hnp
+    simp only [← em, List.getElem?_eq_getElem h1', Option.map_some, Option.bind_some,
+      absNamePositions_consts_getElem?]
+    by_cases h2 : p < alloc.vec.Vec.len (ix.parts.val[m.val]).consts
+    · rw [ite_eq_left h2] at h
+      have h2' := lt_of_lt_len h2
+      peel h as q, hq
+      obtain ⟨_, rfl⟩ := vec_index_eq hq
+      cases Result.ok_injective h
+      simp [← ep, List.getElem?_eq_getElem h2']
+    · rw [ite_eq_right h2] at h
+      cases Result.ok_injective h
+      have := lt_of_not_lt_len h2
+      simp [← ep, List.getElem?_eq_none this]
+  · rw [ite_eq_right h1] at h
+    cases Result.ok_injective h
+    have := lt_of_not_lt_len h1
+    rw [em] at this
+    simp [List.getElem?_eq_none this]
+
+/-- **`name_index_loc` is `(ix.at c).map (·.loc)`.** -/
+theorem name_index_loc_eq {ix ix'} (hix : NameIndexRel ix ix') {c : frontend.olean.index.Copy}
+    (hc : CopyFits c) {o} (h : name_index_loc ix c = ok o) :
+    o.map (·.val) = (ix'.at (absCopy c)).map (·.loc) := by
+  rw [name_index_loc] at h
+  peel h as o1, h1
+  rw [← name_index_at_eq hix hc h1]
+  cases o1 <;> cases Result.ok_injective h <;> rfl
+
+/-! ### `name_index_of` -/
+
+/-- The twin's inner step of `nameIndexOf`. -/
+def nioInner (i : Nat) (acc : Std.HashMap NIdx ConLeche.Frontend.Olean.Copy ×
+    _root_.Array (NIdx × ConLeche.Frontend.Olean.Copy) × Nat) (q : Arena.Frontend.Olean.NamePosition) :
+    Std.HashMap NIdx ConLeche.Frontend.Olean.Copy × _root_.Array (NIdx × ConLeche.Frontend.Olean.Copy) × Nat :=
+  if acc.1.contains q.name then (acc.1, acc.2.1.push (q.name, ⟨i, acc.2.2⟩), acc.2.2 + 1)
+  else (acc.1.insert q.name ⟨i, acc.2.2⟩, acc.2.1, acc.2.2 + 1)
+
+/-- The twin's outer step of `nameIndexOf`. -/
+def nioOuter (acc : Std.HashMap NIdx ConLeche.Frontend.Olean.Copy ×
+    _root_.Array (NIdx × ConLeche.Frontend.Olean.Copy) × Nat) (p : Arena.Frontend.Olean.NamePositions) :
+    Std.HashMap NIdx ConLeche.Frontend.Olean.Copy × _root_.Array (NIdx × ConLeche.Frontend.Olean.Copy) × Nat :=
+  let r := p.consts.foldl (nioInner acc.2.2) (acc.1, acc.2.1, 0)
+  (r.1, r.2.1, acc.2.2 + 1)
+
+theorem nameIndexOf_eq (parts : _root_.Array Arena.Frontend.Olean.NamePositions) :
+    Arena.Frontend.Olean.nameIndexOf parts =
+      let r := parts.foldl nioOuter ({}, #[], 0)
+      { parts, first := r.1, more := r.2.1 } := rfl
+
+theorem name_index_of_loop1_loop0_eq (first : ron.hashmap2.HashMap2 arena.handle.NIdx frontend.olean.index.Copy)
+    (more : alloc.vec.Vec (arena.handle.NIdx × frontend.olean.index.Copy)) (i : Std.Usize)
+    (cs : alloc.vec.Vec frontend.olean.reads.NamePosition) (k : Std.Usize) {F M}
+    (hF : FirstRel first F) (hM : more.val.map absMore = M.toList) (hfM : ∀ p ∈ more.val, CopyFits p.2)
+    {o} (h : name_index_of_loop1_loop0 first more i cs k = ok o) :
+    let r := ((cs.val.drop k.val).map absNamePosition).foldl (nioInner i.val) (F, M, k.val)
+    FirstRel o.1 r.1 ∧ o.2.val.map absMore = r.2.1.toList ∧ ∀ p ∈ o.2.val, CopyFits p.2 := by
+  rw [name_index_of_loop1_loop0] at h
+  by_cases hlt : k < alloc.vec.Vec.len cs
+  · rw [ite_eq_left hlt] at h
+    have hk := lt_of_lt_len hlt
+    peel h as i2, hi2
+    cases Result.ok_injective hi2
+    peel h as i3, hi3
+    cases Result.ok_injective hi3
+    have fits : CopyFits ⟨UScalar.cast .U64 i, UScalar.cast .U64 k⟩ := by
+      simp only [CopyFits, cast_u64_val]; exact ⟨usize_le_max i, usize_le_max k⟩
+    have eabs : absCopy ⟨UScalar.cast .U64 i, UScalar.cast .U64 k⟩ = ⟨i.val, k.val⟩ := by
+      simp [absCopy]
+    peel h as np, hnp
+    obtain ⟨_, rfl⟩ := vec_index_eq hnp
+    peel h as b, hb
+    have eb := hF.rel.contains_eq hb
+    rw [List.drop_eq_getElem_cons hk, List.map_cons, List.foldl_cons]
+    peel h as q, hq
+    obtain ⟨first1, more1⟩ := q
+    peel h as k1, hk1
+    have ek1 := usize_succ hk1
+    by_cases cb : b = true
+    · rw [ite_eq_left cb] at hq
+      peel hq as n, hn
+      cases nidx_dup2_ok hn
+      peel hq as more2, hmore2
+      have e := Result.ok_injective hq
+      simp only [Prod.mk.injEq] at e
+      obtain ⟨e1, e2⟩ := e
+      subst e1 e2
+      have hM' : more2.val.map absMore = (M.push (absNIdx cs.val[k.val].name, ⟨i.val, k.val⟩)).toList := by
+        rw [ConRon.Refine.vec_push_val hmore2]; simp [hM, eabs]
+      have hfM' : ∀ p ∈ more2.val, CopyFits p.2 := by
+        rw [ConRon.Refine.vec_push_val hmore2]
+        intro p hp
+        rcases List.mem_append.mp hp with hp | hp
+        · exact hfM p hp
+        · rw [List.mem_singleton.mp hp]; exact fits
+      have ih := name_index_of_loop1_loop0_eq first more2 i cs k1 hF hM' hfM' h
+      rw [ek1] at ih
+      have : nioInner i.val (F, M, k.val) (absNamePosition cs.val[k.val]) =
+          (F, M.push (absNIdx cs.val[k.val].name, ⟨i.val, k.val⟩), k.val + 1) := by
+        simp [nioInner, ← eb, cb]
+      rw [this]; exact ih
+    · rw [ite_eq_right cb] at hq
+      peel hq as n, hn
+      cases nidx_dup2_ok hn
+      peel hq as q2, hq2
+      obtain ⟨old, first2⟩ := q2
+      have e := Result.ok_injective hq
+      simp only [Prod.mk.injEq] at e
+      obtain ⟨e1, e2⟩ := e
+      subst e1 e2
+      have hF' := hF.insert fits hq2
+      rw [eabs] at hF'
+      have ih := name_index_of_loop1_loop0_eq first2 more i cs k1 hF' hM hfM h
+      rw [ek1] at ih
+      have : nioInner i.val (F, M, k.val) (absNamePosition cs.val[k.val]) =
+          (F.insert (absNIdx cs.val[k.val].name) ⟨i.val, k.val⟩, M, k.val + 1) := by
+        have cb' : b = false := by simpa using cb
+        simp [nioInner, ← eb, cb']
+      rw [this]; exact ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (lt_of_not_lt_len hlt)]
+    exact ⟨hF, hM, hfM⟩
+termination_by cs.val.length - k.val
+decreasing_by
+  all_goals
+    have := lt_of_lt_len hlt
+    omega
+
+theorem name_index_of_loop1_eq (parts : alloc.vec.Vec frontend.olean.reads.NamePositions)
+    (first : ron.hashmap2.HashMap2 arena.handle.NIdx frontend.olean.index.Copy)
+    (more : alloc.vec.Vec (arena.handle.NIdx × frontend.olean.index.Copy)) (i : Std.Usize) {F M}
+    (hF : FirstRel first F) (hM : more.val.map absMore = M.toList) (hfM : ∀ p ∈ more.val, CopyFits p.2)
+    {o} (h : name_index_of_loop1 parts first more i = ok o) :
+    let r := ((parts.val.drop i.val).map absNamePositions).foldl nioOuter (F, M, i.val)
+    FirstRel o.1 r.1 ∧ o.2.val.map absMore = r.2.1.toList ∧ ∀ p ∈ o.2.val, CopyFits p.2 := by
+  rw [name_index_of_loop1] at h
+  by_cases hlt : i < alloc.vec.Vec.len parts
+  · rw [ite_eq_left hlt] at h
+    have hi := lt_of_lt_len hlt
+    peel h as np, hnp
+    obtain ⟨_, rfl⟩ := vec_index_eq hnp
+    peel h as q, hq
+    obtain ⟨first1, more1⟩ := q
+    peel h as i2, hi2
+    have ei2 := usize_succ hi2
+    obtain ⟨h1, h2, h3⟩ := name_index_of_loop1_loop0_eq first more i _ 0#usize hF hM hfM hq
+    have ih := name_index_of_loop1_eq parts first1 more1 i2 h1 h2 h3 h
+    rw [ei2] at ih
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, List.foldl_cons]
+    have e0 : (0#usize : Std.Usize).val = 0 := rfl
+    simp only [e0, List.drop_zero] at ih ⊢
+    have : nioOuter (F, M, i.val) (absNamePositions parts.val[i.val]) =
+        ((((parts.val[i.val]).consts.val.map absNamePosition).foldl (nioInner i.val) (F, M, 0)).1,
+         (((parts.val[i.val]).consts.val.map absNamePosition).foldl (nioInner i.val) (F, M, 0)).2.1,
+         i.val + 1) := by
+      simp [nioOuter, absNamePositions]
+    rw [this]; exact ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (lt_of_not_lt_len hlt)]
+    exact ⟨hF, hM, hfM⟩
+termination_by parts.val.length - i.val
+decreasing_by
+  have := lt_of_lt_len hlt
+  omega
+
+/-- **`name_index_of` is `nameIndexOf`.** -/
+theorem name_index_of_eq {parts : alloc.vec.Vec frontend.olean.reads.NamePositions} {ix}
+    (h : name_index_of parts = ok ix) :
+    NameIndexRel ix (Arena.Frontend.Olean.nameIndexOf (parts.val.map absNamePositions).toArray) := by
+  rw [name_index_of] at h
+  peel h as total, -
+  peel h as first, hfirst
+  peel h as q, hq
+  obtain ⟨first1, more⟩ := q
+  cases Result.ok_injective h
+  have hF : FirstRel first {} := ⟨NMapRel.with_capacity hfirst, fun k c hc => by
+    obtain ⟨-, -, hnone⟩ := ConRon.Refine.HashMap2.with_capacity_refines (HashableInst := hN) hfirst
+    rw [hnone] at hc; cases hc⟩
+  have e0 : (alloc.vec.Vec.new (arena.handle.NIdx × frontend.olean.index.Copy)).val = [] := rfl
+  obtain ⟨h1, h2, h3⟩ := name_index_of_loop1_eq parts first _ 0#usize hF
+    (M := #[]) (by rw [e0]; rfl) (by rw [e0]; simp) hq
+  rw [nameIndexOf_eq]
+  simp only [List.foldl_toArray] at *
+  exact ⟨by simp, h1, h2, h3⟩
+
+/-! ## Duplicates -/
+
+/-- **`stmt_rec_dup` is the identity.** -/
+theorem stmt_rec_dup_eq {s r : frontend.olean.spec.StmtRec} (h : stmt_rec_dup s = ok r) : r = s := by
+  rw [stmt_rec_dup] at h
+  peel h as n, hn
+  cases nidx_dup2_ok hn
+  peel h as v, hv
+  have := ConRon.Refine2.nidx_vec_dup_val hv
+  peel h as e, he
+  cases eidx_dup2_ok he
+  cases Result.ok_injective h
+  rw [alloc.vec.Vec.ext _ _ this]
+
+theorem c_kind_names_dup_loop_eq (rules rs : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × Unit))
+    (i : Std.Usize) {o} (h : c_kind_names_dup_loop rules rs i = ok o) :
+    o.val = rs.val ++ rules.val.drop i.val := by
+  rw [c_kind_names_dup_loop] at h
+  by_cases hlt : i < alloc.vec.Vec.len rules
+  · rw [ite_eq_left hlt] at h
+    have hi := lt_of_lt_len hlt
+    peel h as x, hx
+    obtain ⟨_, hxe⟩ := vec_index_eq hx
+    obtain ⟨n, j, u⟩ := x
+    peel h as n1, hn1
+    cases nidx_dup2_ok hn1
+    peel h as rs1, hrs1
+    peel h as i3, hi3
+    have ei3 := usize_succ hi3
+    have := c_kind_names_dup_loop_eq rules rs1 i3 h
+    rw [this, ConRon.Refine.vec_push_val hrs1, usize_succ hi3, List.drop_eq_getElem_cons hi, ← hxe]
+    simp
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (lt_of_not_lt_len hlt)]
+    simp
+termination_by rules.val.length - i.val
+decreasing_by
+  have := lt_of_lt_len hlt
+  omega
+
+/-- **`c_kind_names_dup` is the identity.** -/
+theorem c_kind_names_dup_eq {k r : frontend.olean.spec.CKindF arena.handle.NIdx Unit}
+    (h : c_kind_names_dup k = ok r) : r = k := by
+  cases k with
+  | Ax u => exact (Result.ok_injective h).symm
+  | Defn v hh s =>
+    rw [c_kind_names_dup] at h
+    peel h as hr, hhr
+    cases hints_dup_val hhr
+    peel h as v1, hv1
+    cases ConRon.Refine.Expr.str_copy_eq hv1
+    cases Result.ok_injective h
+    rfl
+  | Thm v all =>
+    rw [c_kind_names_dup] at h
+    peel h as v1, hv1
+    have := ConRon.Refine2.nidx_vec_dup_val hv1
+    cases Result.ok_injective h
+    rw [alloc.vec.Vec.ext _ _ this]
+  | Opaq v u => exact (Result.ok_injective h).symm
+  | Quot s =>
+    rw [c_kind_names_dup] at h
+    peel h as v1, hv1
+    cases ConRon.Refine.Expr.str_copy_eq hv1
+    cases Result.ok_injective h
+    rfl
+  | Induct np ni all cs nn ir iu irf =>
+    rw [c_kind_names_dup] at h
+    peel h as v1, hv1
+    peel h as v2, hv2
+    have e1 := ConRon.Refine2.nidx_vec_dup_val hv1
+    have e2 := ConRon.Refine2.nidx_vec_dup_val hv2
+    cases Result.ok_injective h
+    rw [alloc.vec.Vec.ext _ _ e1, alloc.vec.Vec.ext _ _ e2]
+  | Ctor ind ci np nf iu =>
+    rw [c_kind_names_dup] at h
+    peel h as n, hn
+    cases nidx_dup2_ok hn
+    cases Result.ok_injective h
+    rfl
+  | Recur all np ni nmo nmi rules k2 iu =>
+    rw [c_kind_names_dup] at h
+    peel h as rs1, hrs1
+    have e1 := c_kind_names_dup_loop_eq rules _ 0#usize hrs1
+    peel h as v1, hv1
+    have e2 := ConRon.Refine2.nidx_vec_dup_val hv1
+    cases Result.ok_injective h
+    have e0 : (alloc.vec.Vec.with_capacity (arena.handle.NIdx × Std.U64 × Unit)
+      (alloc.vec.Vec.len rules)).val = [] := rfl
+    rw [e0] at e1
+    rw [alloc.vec.Vec.ext _ _ e2, alloc.vec.Vec.ext rs1 rules (by simpa using e1)]
+
+/-! ## The header's loads, by position -/
+
+/-- **`header_loads_name_at` is `HeaderLoads.nameAt`**, at a position that fits. -/
+theorem header_loads_name_at_eq {pk : frontend.olean.spec.OleanPins} {ld ld'} (hld : HeaderLoadsRel ld ld')
+    {i : Std.U64} (hi : i.val ≤ Std.Usize.max) {n} (h : header_loads_name_at pk ld i = ok n) :
+    absNIdx n = ld'.nameAt (absPins pk) i.val := by
+  rw [header_loads_name_at] at h
+  peel h as k, hk
+  have ei : k.val = i.val := by rw [← Result.ok_injective hk]; exact cast_usize_val hi
+  have ho : ld'.order[i.val]? = (ld.order.val[i.val]?).map absNIdx := by
+    have := congrArg (·[i.val]?) hld.order
+    simp only [List.getElem?_map] at this
+    rw [← Array.getElem?_toList]; exact this.symm
+  rw [Arena.Frontend.Olean.HeaderLoads.nameAt, ho]
+  by_cases h1 : k < alloc.vec.Vec.len ld.order
+  · rw [ite_eq_left h1] at h
+    have h1' := lt_of_lt_len h1
+    rw [ei] at h1'
+    peel h as x, hx
+    obtain ⟨_, rfl⟩ := vec_index_eq hx
+    cases nidx_dup2_ok h
+    simp [ei, List.getElem?_eq_getElem h1']
+  · rw [ite_eq_right h1] at h
+    cases nidx_dup2_ok h
+    have := lt_of_not_lt_len h1
+    rw [ei] at this
+    simp [List.getElem?_eq_none this, absPins]
+
+/-- **`header_loads_level_at` is `HeaderLoads.levelAt`**, at a position that fits. -/
+theorem header_loads_level_at_eq {ld ld'} (hld : HeaderLoadsRel ld ld')
+    {i : Std.U64} (hi : i.val ≤ Std.Usize.max) {l} (h : header_loads_level_at ld i = ok l) :
+    absLevel l = ld'.levelAt i.val := by
+  rw [header_loads_level_at] at h
+  peel h as k, hk
+  have ei : k.val = i.val := by rw [← Result.ok_injective hk]; exact cast_usize_val hi
+  have ho : ld'.flags[i.val]? = (ld.flags.val[i.val]?).map absLoadFlags := by
+    have := congrArg (·[i.val]?) hld.flags
+    simp only [List.getElem?_map] at this
+    rw [← Array.getElem?_toList]; exact this.symm
+  rw [Arena.Frontend.Olean.HeaderLoads.levelAt, ho]
+  by_cases h1 : k < alloc.vec.Vec.len ld.flags
+  · rw [ite_eq_left h1] at h
+    have h1' := lt_of_lt_len h1
+    rw [ei] at h1'
+    peel h as x, hx
+    obtain ⟨_, rfl⟩ := vec_index_eq hx
+    rw [load_flags_level_eq h]
+    simp [ei, List.getElem?_eq_getElem h1']
+  · rw [ite_eq_right h1] at h
+    cases Result.ok_injective h
+    have := lt_of_not_lt_len h1
+    rw [ei] at this
+    simp [List.getElem?_eq_none this, absLevel]
+    rfl
+
+end ConRon.Refine2.Frontend.Olean
