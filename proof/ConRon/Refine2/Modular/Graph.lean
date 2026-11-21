@@ -295,4 +295,233 @@ theorem edge_ok_eq {pos p idx s} (hpos : NSet pos p) (hidx : IdxRel idx s)
     cases Result.ok_injective h
     rw [← eb]; simp at cb; rw [cb, Bool.false_and]
 
+/-! ## `names_of`, `dedup`, `index_of`, `deps_of` -/
+
+theorem drop_cons_of_lt {α : Type} {l : List α} {i : Nat} (hi : i < l.length) :
+    l.drop i = l[i] :: l.drop (i + 1) := List.drop_eq_getElem_cons hi
+
+theorem names_of_loop_eq (c : alloc.vec.Vec (arena.handle.NIdx ×
+      alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)))
+    {s : ron.hashmap2.HashMap2 arena.handle.NIdx Bool} {S : _root_.Std.HashSet NIdx} (hs : NSet s S)
+    (k : Std.Usize) {o} (h : names_of_loop c s k = ok o) :
+    NSet o (((c.val.drop k.val).map absNode).foldl (fun s e => s.insert e.1) S) := by
+  rw [names_of_loop] at h
+  by_cases hlt : k < alloc.vec.Vec.len c
+  · rw [ite_eq_left hlt] at h
+    peel h as ⟨n, v⟩, hp
+    obtain ⟨hi, he⟩ := vec_index_eq hp
+    peel h as n1, hn1
+    cases nidx_dup2_ok hn1
+    peel h as ⟨_, s1⟩, hs1
+    peel h as k1, hk1
+    have ih := names_of_loop_eq c (SetRel.insert nidx_eq2 absNIdx_inj hs hs1) k1 h
+    rw [usize_succ hk1] at ih
+    rw [drop_cons_of_lt hi, ← he]
+    exact ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    exact hs
+termination_by c.val.length - k.val
+decreasing_by have := lt_len hlt; rw [usize_succ hk1]; omega
+
+/-- **`names_of` is `namesOf`.** -/
+theorem names_of_eq {c : alloc.vec.Vec (arena.handle.NIdx ×
+      alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))} {o}
+    (h : names_of c = ok o) : NSet o (Modular.namesOf (absC c).toList) := by
+  rw [names_of] at h
+  peel h as s, hs
+  have := names_of_loop_eq c (nset_empty hs) _ h
+  simpa [Modular.namesOf] using this
+
+theorem dedup_loop_eq (xs : alloc.vec.Vec arena.handle.NIdx)
+    {s : ron.hashmap2.HashMap2 arena.handle.NIdx Bool} {S : _root_.Std.HashSet NIdx} (hs : NSet s S)
+    {acc : alloc.vec.Vec arena.handle.NIdx} (i : Std.Usize) {o}
+    (h : dedup_loop xs s acc i = ok o) :
+    let r := ((xs.val.drop i.val).map absNIdx).foldl (fun (sa : _root_.Std.HashSet NIdx × _root_.Array NIdx) x =>
+      if sa.1.contains x then (sa.1, sa.2) else (sa.1.insert x, sa.2.push x)) (S, (acc.val.map absNIdx).toArray)
+    o.1.val.map absNIdx = r.2.toList ∧ NSet o.2 r.1 := by
+  rw [dedup_loop] at h
+  by_cases hlt : i < alloc.vec.Vec.len xs
+  · rw [ite_eq_left hlt] at h
+    peel h as n, hn
+    obtain ⟨hi, rfl⟩ := vec_index_eq hn
+    peel h as b, hb
+    have eb := SetRel.contains_key nidx_eq2 hs hb
+    rw [drop_cons_of_lt hi, List.map_cons, List.foldl_cons]
+    peel h as ⟨s1, acc1⟩, hq
+    peel h as i2, hi2
+    by_cases cb : b = true
+    · rw [ite_eq_left cb] at hq
+      cases Result.ok_injective hq
+      have ih := dedup_loop_eq xs hs i2 h
+      rw [usize_succ hi2] at ih
+      rw [ite_eq_left (by rw [← eb]; exact cb)]
+      exact ih
+    · rw [ite_eq_right cb] at hq
+      peel hq as n1, hn1
+      cases nidx_dup2_ok hn1
+      peel hq as ⟨_, s2⟩, hs2
+      peel hq as n2, hn2
+      cases nidx_dup2_ok hn2
+      peel hq as acc2, hacc2
+      have ea : (acc2.val.map absNIdx).toArray = (acc.val.map absNIdx).toArray.push (absNIdx xs.val[i.val]) := by
+        rw [ConRon.Refine.vec_push_val hacc2]; simp
+      have hs2' := SetRel.insert nidx_eq2 absNIdx_inj hs hs2
+      cases Result.ok_injective hq
+      have ih := dedup_loop_eq xs hs2' i2 h
+      rw [usize_succ hi2] at ih
+      rw [ite_eq_right (by rw [← eb]; simpa using cb)]
+      rw [← ea]
+      exact ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    exact ⟨by simp, hs⟩
+termination_by xs.val.length - i.val
+decreasing_by all_goals (have := lt_len hlt; rw [usize_succ hi2]; omega)
+
+/-- **`dedup` is `dedup`.** -/
+theorem dedup_eq {xs : alloc.vec.Vec arena.handle.NIdx} {o} (h : dedup xs = ok o) :
+    o.1.val.map absNIdx = (Modular.dedup (xs.val.map absNIdx)).1 ∧
+      NSet o.2 (Modular.dedup (xs.val.map absNIdx)).2 := by
+  rw [dedup] at h
+  peel h as s, hs
+  have := dedup_loop_eq xs (nset_empty hs) (acc := alloc.vec.Vec.new _) _ h
+  simpa [Modular.dedup, vec_new_val] using this
+
+theorem index_of_loop_eq (c : alloc.vec.Vec (arena.handle.NIdx ×
+      alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)))
+    {idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64} {S : _root_.Std.HashMap NIdx Nat}
+    (hs : IdxRel idx S) (k : Std.Usize) {o} (h : index_of_loop c idx k = ok o) :
+    IdxRel o (((c.val.drop k.val).map absNode).foldl
+      (fun (acc : _root_.Std.HashMap NIdx Nat × Nat) e => (acc.1.insert e.1 acc.2, acc.2 + 1)) (S, k.val)).1 := by
+  rw [index_of_loop] at h
+  by_cases hlt : k < alloc.vec.Vec.len c
+  · rw [ite_eq_left hlt] at h
+    peel h as ⟨n, v⟩, hp
+    obtain ⟨hi, he⟩ := vec_index_eq hp
+    peel h as n1, hn1
+    cases nidx_dup2_ok hn1
+    peel h as i1, hi1
+    have hv := cast_u64_val hi1
+    peel h as ⟨_, idx1⟩, hidx1
+    peel h as k1, hk1
+    have ins := hs.insert (by rw [hv]; scalar_tac) hidx1
+    have ih := index_of_loop_eq c ins k1 h
+    rw [usize_succ hk1, hv] at ih
+    rw [drop_cons_of_lt hi, ← he]
+    exact ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    exact hs
+termination_by c.val.length - k.val
+decreasing_by have := lt_len hlt; rw [usize_succ hk1]; omega
+
+/-- **`index_of` is `indexOf`.** -/
+theorem index_of_eq {c : alloc.vec.Vec (arena.handle.NIdx ×
+      alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))} {o}
+    (h : index_of c = ok o) : IdxRel o (Modular.indexOf (absC c)) := by
+  rw [index_of] at h
+  peel h as s, hs
+  have := index_of_loop_eq c (IdxRel.empty hs) _ h
+  simpa [Modular.indexOf] using this
+
+theorem deps_of_loop0_loop0_eq {idx S} (hidx : IdxRel idx S)
+    (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+    {d : alloc.vec.Vec Std.U64} (hd : FitsN d) (i : Std.Usize) {o}
+    (h : deps_of_loop0_loop0 idx imps d i = ok o) :
+    o.val.map (·.val) = d.val.map (·.val) ++
+      ((imps.val.drop i.val).map absImp).filterMap (fun i => S[i.module]?) ∧ FitsN o := by
+  rw [deps_of_loop0_loop0] at h
+  by_cases hlt : i < alloc.vec.Vec.len imps
+  · rw [ite_eq_left hlt] at h
+    peel h as x, hx
+    obtain ⟨hi, rfl⟩ := vec_index_eq hx
+    peel h as o1, ho1
+    have e1 := idx_lookup_eq hidx ho1
+    rw [idx_lookup] at ho1
+    peel ho1 as o2, ho2
+    have hfit := (hidx.get_eq ho2).2
+    peel h as d1, hd1
+    peel h as i2, hi2
+    have hd1' : d1.val.map (·.val) = d.val.map (·.val) ++ (absOpt o1).toList ∧ FitsN d1 := by
+      cases o1 with
+      | none => cases Result.ok_injective hd1; simpa using hd
+      | some j =>
+        have hj : o2 = some j := by
+          cases o2 <;> cases Result.ok_injective ho1; rfl
+        have ev := ConRon.Refine.vec_push_val hd1
+        refine ⟨by simp [ev], fun x hx => ?_⟩
+        rw [ev] at hx
+        rcases List.mem_append.mp hx with hx | hx
+        · exact hd x hx
+        · simp at hx; rw [hx]; exact hfit j hj
+    have ih := deps_of_loop0_loop0_eq hidx imps hd1'.2 i2 h
+    rw [usize_succ hi2] at ih
+    refine ⟨?_, ih.2⟩
+    rw [ih.1, hd1'.1, drop_cons_of_lt hi, List.map_cons, List.filterMap_cons, List.append_assoc]
+    congr 1
+    simp only [absImp, absImportF] at e1 ⊢
+    rw [← e1]
+    cases o1 <;> rfl
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    exact ⟨by simp, hd⟩
+termination_by imps.val.length - i.val
+decreasing_by have := lt_len hlt; rw [usize_succ hi2]; omega
+
+theorem deps_of_loop0_eq {idx S} (hidx : IdxRel idx S)
+    (c : alloc.vec.Vec (arena.handle.NIdx ×
+      alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)))
+    {out : alloc.vec.Vec (alloc.vec.Vec Std.U64)} (hout : FitsD out) (k : Std.Usize) {o}
+    (h : deps_of_loop0 idx c out k = ok o) :
+    o.val.map absNat = out.val.map absNat ++
+      ((c.val.drop k.val).map absNode).map (fun e => e.2.filterMap fun i => S[i.module]?) ∧ FitsD o := by
+  rw [deps_of_loop0] at h
+  by_cases hlt : k < alloc.vec.Vec.len c
+  · rw [ite_eq_left hlt] at h
+    peel h as ⟨n, imps⟩, hp
+    obtain ⟨hi, he⟩ := vec_index_eq hp
+    peel h as d1, hd1
+    obtain ⟨e1, f1⟩ := deps_of_loop0_loop0_eq hidx imps (d := alloc.vec.Vec.with_capacity _ _)
+      (fun x hx => by simp at hx) _ hd1
+    peel h as out1, hout1
+    peel h as k1, hk1
+    have ev := ConRon.Refine.vec_push_val hout1
+    have hf1 : FitsD out1 := fun d hd => by
+      rw [ev] at hd
+      rcases List.mem_append.mp hd with hd | hd
+      · exact hout d hd
+      · simp at hd; subst hd; exact f1
+    have ih := deps_of_loop0_eq hidx c hf1 k1 h
+    rw [usize_succ hk1] at ih
+    refine ⟨?_, ih.2⟩
+    rw [ih.1, ev, drop_cons_of_lt hi, ← he]
+    simp only [List.map_append, List.map_cons, List.map_nil, List.append_assoc, List.singleton_append]
+    congr 2
+    simp only [vec_with_capacity_val, List.map_nil, List.nil_append] at e1
+    simp [absNat, e1, absImports]
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    exact ⟨by simp, hout⟩
+termination_by c.val.length - k.val
+decreasing_by have := lt_len hlt; rw [usize_succ hk1]; omega
+
+/-- **`deps_of` is `depsOf`**, every position fitting a `usize`. -/
+theorem deps_of_eq {idx S} (hidx : IdxRel idx S)
+    {c : alloc.vec.Vec (arena.handle.NIdx ×
+      alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))} {o}
+    (h : deps_of idx c = ok o) : absDeps o = Modular.depsOf S (absC c) ∧ FitsD o := by
+  rw [deps_of] at h
+  obtain ⟨e, f⟩ := deps_of_loop0_eq hidx c (out := alloc.vec.Vec.with_capacity _ _)
+    (fun x hx => by simp at hx) _ h
+  refine ⟨?_, f⟩
+  simp only [vec_with_capacity_val, List.map_nil, List.nil_append] at e
+  simp only [absDeps, e, Modular.depsOf, absC]
+  simp [List.map_map, Function.comp_def]
+
 end ConRon.Refine2.Modular
