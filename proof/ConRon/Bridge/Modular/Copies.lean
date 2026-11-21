@@ -4,7 +4,7 @@
 **An accepting twin `copiesOk` is upstream's `copiesOk` accepting the denoted values**
 (`copiesOk_run`), and the twin's `copyRecs` denotes upstream's (`copyRecs_run`).  The run style
 of `Bridge/Frontend/Olean/*` (one theorem per twin function, its state step `CStep`): the
-records' names through `constsD_run` (`declNames_run`), the owner map against upstream's
+records' names through `constsD_run` (`declNames_cstep`), the owner map against upstream's
 (`ownerMap_run`, `HMRel`), each copy's comparison through the existing tests' theorems
 (`sameCvUpToLevels_run`, `IConstantInfo.atLps_run`, `readBlock_run`, `recsRead_bridge`).  A copied
 block's recursors read against one layer of the context's constants (the twin's `ctxLayer`);
@@ -214,7 +214,7 @@ theorem denoteCIList_names {st : EStore} :
     simp only [List.map_cons, Frontend.denoteNList, hc, hn, denoteCIList_names h2]
 
 /-- con-leche: ConLeche/Modular.lean:98-99 declNames — **a record's names denote upstream's**. -/
-theorem declNames_run {s s' : AState} {d : IDeclaration} {dC : Declaration} {ns : List NIdx}
+theorem declNames_cstep {s s' : AState} {d : IDeclaration} {dC : Declaration} {ns : List NIdx}
     (hok : DriverOK s) (hd : Frontend.denoteDecl s.store d = some dC)
     (h : ConRon.Arena.Modular.declNames d s = .ok (ns, s')) :
     CStep s s' ∧ Frontend.denoteNList s'.store.ns ns = some (ConLeche.Modular.declNames dC) := by
@@ -315,7 +315,7 @@ theorem ownerMapGo_run :
     obtain ⟨acc, s₁, k1, k2⟩ := AM.bind_ok h
     obtain ⟨ns, s₂, k3, k4⟩ := AM.bind_ok k1
     obtain ⟨rfl, rfl⟩ := AM.pure_ok k4
-    obtain ⟨c1, hns⟩ := declNames_run hok h1 k3
+    obtain ⟨c1, hns⟩ := declNames_cstep hok h1 k3
     have hw := nsWF_of_StateOK c1.ok.state
     have hr₁ := insertAll_rel hw j ns _ hns (hr.ext c1.ext (fun _ _ h => h))
     obtain ⟨c2, hr₂⟩ := ownerMapGo_run ds xs (j + 1) _ _ c1.ok
@@ -382,7 +382,7 @@ theorem anyLoaded_eq {st : EStore} (hw : NStoreWF st.ns)
     rw [first_contains hw hix h1, ih]
 
 /-- con-leche: ConLeche/Driver/Worker.lean:124-125 loadedRec — **a copy test is upstream's**. -/
-theorem loadedRec_run {s s' : AState} {d : IDeclaration} {dC : Declaration} {b : Bool}
+theorem loadedRec_cstep {s s' : AState} {d : IDeclaration} {dC : Declaration} {b : Bool}
     {ix : ConRon.Arena.Frontend.Olean.NameIndex} {ixC : ConLeche.Frontend.Olean.NameIndex}
     (hok : DriverOK s)
     (hd : Frontend.denoteDecl s.store d = some dC) (hix : HMRel (· = ·) s.store ix.first ixC.first)
@@ -391,7 +391,7 @@ theorem loadedRec_run {s s' : AState} {d : IDeclaration} {dC : Declaration} {b :
   simp only [ConRon.Arena.Modular.loadedRec] at h
   obtain ⟨ns, s₁, h1, h2⟩ := AM.bind_ok h
   obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
-  obtain ⟨c1, hns⟩ := declNames_run hok hd h1
+  obtain ⟨c1, hns⟩ := declNames_cstep hok hd h1
   exact ⟨c1, anyLoaded_eq (nsWF_of_StateOK c1.ok.state) (hix.ext c1.ext (fun _ _ h => h)) ns _ hns⟩
 
 theorem denoteDecls_snoc {st : EStore} {d : IDeclaration} {x : Declaration}
@@ -444,7 +444,7 @@ theorem recsLoadedGo_run {ix : ConRon.Arena.Frontend.Olean.NameIndex}
     simp only [List.foldlM_cons] at h
     obtain ⟨out₁, s₁, k1, k2⟩ := AM.bind_ok h
     obtain ⟨b, s₂, k3, k4⟩ := AM.bind_ok k1
-    obtain ⟨c1, rfl⟩ := loadedRec_run hok h1 hix k3
+    obtain ⟨c1, rfl⟩ := loadedRec_cstep hok h1 hix k3
     have hd₁ := denoteDecl_ext c1.ext h1
     have ho₁ := denoteDecls_ext c1.ext _ _ ho
     have hix₁ := hix.ext c1.ext (fun _ _ h => h)
@@ -539,7 +539,7 @@ theorem namesNodupGo_of : ∀ {s : Std.HashSet ConLeche.Name} {ns : List ConLech
     simp only [Std.HashSet.contains_insert, Bool.or_eq_false_iff, beq_eq_false_iff_ne]
     refine ⟨fun he => (List.nodup_cons.1 hnd).1 (he ▸ hx), hs x (List.mem_cons_of_mem _ hx)⟩
 
-theorem denoteNList_mem {st : NStore} :
+theorem denoteNList_mem_c {st : NStore} :
     ∀ {ns : List NIdx} {xs : List ConLeche.Name}, Frontend.denoteNList st ns = some xs →
       ∀ x ∈ xs, ∃ n ∈ ns, denoteN st n = some x
   | [], xs, h, x, hx => by
@@ -557,10 +557,10 @@ theorem denoteNList_mem {st : NStore} :
     obtain rfl := (Option.some.inj h).symm
     rcases List.mem_cons.1 hx with rfl | hx
     · exact ⟨n, List.mem_cons_self .., h1⟩
-    · obtain ⟨m, hm, hd⟩ := denoteNList_mem h2 x hx
+    · obtain ⟨m, hm, hd⟩ := denoteNList_mem_c h2 x hx
       exact ⟨m, List.mem_cons_of_mem _ hm, hd⟩
 
-theorem denoteNList_nodup {st : NStore} (hw : NStoreWF st) :
+theorem denoteNList_nodup_c {st : NStore} (hw : NStoreWF st) :
     ∀ {ns : List NIdx} {xs : List ConLeche.Name}, Frontend.denoteNList st ns = some xs →
       ns.Nodup → xs.Nodup
   | [], xs, h, _ => by
@@ -576,8 +576,8 @@ theorem denoteNList_nodup {st : NStore} (hw : NStoreWF st) :
     | some ys =>
     rw [h1, h2] at h
     obtain rfl := (Option.some.inj h).symm
-    refine List.nodup_cons.2 ⟨fun hy => ?_, denoteNList_nodup hw h2 (List.nodup_cons.1 hnd).2⟩
-    obtain ⟨m, hm, hd⟩ := denoteNList_mem h2 y hy
+    refine List.nodup_cons.2 ⟨fun hy => ?_, denoteNList_nodup_c hw h2 (List.nodup_cons.1 hnd).2⟩
+    obtain ⟨m, hm, hd⟩ := denoteNList_mem_c h2 y hy
     have : m = n := denoteN_inj hw hd h1
     subst this
     exact (List.nodup_cons.1 hnd).1 hm
@@ -588,7 +588,7 @@ theorem namesNodupGo_run {st : NStore} (hw : NStoreWF st) {ns : List NIdx}
     {xs : List ConLeche.Name} (h : Frontend.denoteNList st ns = some xs)
     (hb : (ConRon.Arena.Modular.namesNodupGo {} ns).1 = true) :
     ConLeche.Driver.namesNodupGo {} xs = true :=
-  namesNodupGo_of (denoteNList_nodup hw h (namesNodupGo_tw hb).1) (fun _ _ => by simp)
+  namesNodupGo_of (denoteNList_nodup_c hw h (namesNodupGo_tw hb).1) (fun _ _ => by simp)
 
 /-! ## The block tests -/
 
