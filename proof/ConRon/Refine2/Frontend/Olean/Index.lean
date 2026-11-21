@@ -2321,4 +2321,271 @@ theorem read_infos_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : fron
 
 end reads
 
+/-! ## The loaded parts' names -/
+
+/-- `headerFixpoint` returns the loads of a fixpoint state. -/
+theorem headerFixpoint_ofState {fs pk sp b imps} {lst lst' : AState} {ld' : Arena.Frontend.Olean.HeaderLoads}
+    (h : (Arena.Frontend.Olean.headerFixpoint fs pk sp b imps).run lst = .ok (ld', lst')) :
+    ∃ s, ld' = Arena.Frontend.Olean.HeaderLoads.ofState s := by
+  unfold Arena.Frontend.Olean.headerFixpoint at h
+  rw [StateT.run_bind] at h
+  cases hr : (Arena.Frontend.Olean.levelsGo fs pk sp (!b) ConLeche.Frontend.Olean.closureFuel
+      (Arena.Frontend.Olean.LvWork.ofImports { importAll := true, isExported := b } imps) {}).run lst with
+  | error e => rw [hr] at h; cases h
+  | ok p =>
+    rw [hr] at h
+    obtain ⟨s, l⟩ := p
+    exact ⟨s, (Prod.mk.inj (Except.ok.inj h)).1.symm⟩
+
+theorem ofStateGo_flags_size (fm : Std.HashMap NIdx ConLeche.Frontend.Olean.LoadFlags) :
+    ∀ (ms : List NIdx) (i : Nat) im fl is ix,
+      (Arena.Frontend.Olean.HeaderLoads.ofStateGo fm ms i im fl is ix).1.size = fl.size + ms.length
+  | [], _, _, _, _, _ => by simp [Arena.Frontend.Olean.HeaderLoads.ofStateGo]
+  | m :: ms, i, im, fl, is, ix => by
+    rw [Arena.Frontend.Olean.HeaderLoads.ofStateGo, ofStateGo_flags_size fm ms]
+    simp; omega
+
+theorem ofState_sizes (s : Arena.Frontend.Olean.LvState) :
+    (Arena.Frontend.Olean.HeaderLoads.ofState s).order.size =
+      (Arena.Frontend.Olean.HeaderLoads.ofState s).flags.size := by
+  simp only [Arena.Frontend.Olean.HeaderLoads.ofState, ofStateGo_flags_size]
+  simp
+
+section reads
+variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
+
+/-- The twin's read of one loaded part. -/
+def partT (fs : Arena.Frontend.Olean.OleanFs) (pk : Arena.Frontend.Olean.OleanPins)
+    (sp : ConLeche.Frontend.Olean.Roots) (p : NIdx × ConLeche.Frontend.Olean.LoadFlags) :
+    AM Arena.Frontend.Olean.NamePositions :=
+  Arena.Frontend.Olean.readPartNames fs pk sp p.1 p.2.level
+
+theorem loaded_parts_loop_refines (hfs : FsRel inst fsv fs) {pk pers} {sp : frontend.olean.files.Roots}
+    {ld ld'} (hld : HeaderLoadsRel ld ld') (hsz : ld'.order.size = ld'.flags.size)
+    (parts : alloc.vec.Vec frontend.olean.reads.NamePositions) (i : Std.Usize)
+    (st : arena.monad.AState) (lst : AState) :
+    AS pers (fun o rs => o.val.map absNamePositions = parts.val.map absNamePositions ++ rs) st lst
+      (loaded_parts_loop inst fsv pk pers st.store sp ld.order ld.flags ld.imports ld.index parts i)
+      (((ld'.order.zip ld'.flags).toList.drop i.val).mapM (partT fs (absPins pk) (absRoots sp))) := by
+  intro hrel hinv a s' h
+  rw [loaded_parts_loop] at h
+  have ho := congrArg List.length hld.order
+  have hf := congrArg List.length hld.flags
+  simp only [List.length_map, Array.length_toList] at ho hf
+  by_cases hlt : i < alloc.vec.Vec.len ld.order
+  · rw [ite_eq_left hlt] at h
+    have hi := lt_of_lt_len hlt
+    peel h as n, hn
+    obtain ⟨_, rfl⟩ := vec_index_eq hn
+    peel h as i2, hi2
+    have ei2 : i2.val = i.val := by rw [← Result.ok_injective hi2, cast_u64_val]
+    peel h as ol, hol
+    have el := header_loads_level_at_eq (ld := ld) hld (by rw [ei2]; exact usize_le_max i) hol
+    peel h as q, hq
+    obtain ⟨r, ar1⟩ := q
+    cases r with
+    | Err e => cases Result.ok_injective h
+    | Ok p =>
+      obtain ⟨b, lst1, hx, hb, hrel1, hinv1⟩ :=
+        read_part_names_refines (m := ld.order.val[i.val]) (level := ol) hfs hrel hinv p ar1 hq
+      peel h as parts1, hparts1
+      peel h as i3, hi3
+      have ei3 := usize_succ hi3
+      obtain ⟨rs, lst2, hx2, hrs, hrel2, hinv2⟩ :=
+        loaded_parts_loop_refines hfs hld hsz parts1 i3 (withStore st ar1) lst1 hrel1 hinv1 a s' h
+      rw [ei3] at hx2
+      have hz : i.val < (ld'.order.zip ld'.flags).toList.length := by simp; omega
+      refine ⟨b :: rs, lst2, ?_, ?_, hrel2, hinv2⟩
+      · rw [List.drop_eq_getElem_cons hz, list_mapM_cons]
+        have e1 : (ld'.order.zip ld'.flags).toList[i.val] =
+            (absNIdx ld.order.val[i.val], (ld'.flags[i.val]'(by omega))) := by
+          simp only [Array.toList_zip, List.getElem_zip]
+          congr 1
+          have := congrArg (·[i.val]?) hld.order
+          simp only [List.getElem?_map, List.getElem?_eq_getElem hi, Option.map_some] at this
+          rw [Array.getElem_toList]
+          rw [Array.getElem?_toList, Array.getElem?_eq_getElem (by omega)] at this
+          exact (Option.some.inj this).symm
+        have e2 : absLevel ol = (ld'.flags[i.val]'(by omega)).level := by
+          rw [el, Arena.Frontend.Olean.HeaderLoads.levelAt, ei2, Array.getElem?_eq_getElem (by omega)]
+          rfl
+        rw [e1, partT]
+        simp only
+        rw [← e2, am_bind_ok hx, am_bind_ok hx2]
+        rfl
+      · show List.map _ _ = _
+        rw [hrs, ConRon.Refine.vec_push_val hparts1, hb]
+        simp
+  · rw [ite_eq_right hlt] at h
+    have e := Result.ok_injective h
+    simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e
+    obtain ⟨rfl, rfl⟩ := e
+    refine ⟨[], lst, ?_, by simp, hrel, hinv⟩
+    rw [List.drop_of_length_le (by have := lt_of_not_lt_len hlt; simp; omega)]
+    rfl
+termination_by ld.order.val.length - i.val
+decreasing_by
+  have := lt_of_lt_len hlt
+  omega
+
+/-- **`loaded_parts`' accept is the twin's `mapM`.** -/
+theorem loaded_parts_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
+    {ld ld'} (hld : HeaderLoadsRel ld ld') (hsz : ld'.order.size = ld'.flags.size) :
+    AS pers (fun o rs => o.val.map absNamePositions = rs) st lst
+      (loaded_parts inst fsv pk pers st.store sp ld)
+      ((ld'.order.zip ld'.flags).toList.mapM (partT fs (absPins pk) (absRoots sp))) := by
+  intro hrel hinv a s' h
+  rw [loaded_parts] at h
+  obtain ⟨rs, lst1, hx, hrs, hrel1, hinv1⟩ :=
+    loaded_parts_loop_refines hfs hld hsz _ 0#usize st lst hrel hinv a s' h
+  have e0 : (alloc.vec.Vec.with_capacity frontend.olean.reads.NamePositions (alloc.vec.Vec.len ld.order)).val = [] := rfl
+  rw [e0] at hrs
+  exact ⟨rs, lst1, by simpa using hx, by simpa using hrs, hrel1, hinv1⟩
+
+
+/-! ## The worker's reads -/
+
+/-- **`index::WorkerReads` against the twin's.** -/
+structure WorkerReadsRel (w : frontend.olean.index.WorkerReads) (w' : Arena.Frontend.Olean.WorkerReads) :
+    Prop where
+  own : absNamePositions w.own = w'.own
+  loads : HeaderLoadsRel w.loads w'.loads
+  pub : AccA w.pub_ w'.pub
+  index : NameIndexRel w.index w'.index
+  clashes : List.Forall₂ ClashRel w.clashes.val w'.clashes.toList
+
+/-- **Theorem 2 of the worker's reads**: `worker_reads`' accept is `workerReads`'. -/
+theorem worker_reads_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
+    {m : arena.handle.NIdx} {x : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)} :
+    AS pers WorkerReadsRel st lst (worker_reads inst fsv pk pers st.store sp m x)
+      (Arena.Frontend.Olean.workerReads fs (absPins pk) (absRoots sp) (absNIdx m) (absImports x)) := by
+  intro hrel hinv a s' h
+  rw [worker_reads] at h
+  -- the own part
+  peel h as q1, hq1
+  obtain ⟨r1, ar1⟩ := q1
+  cases r1 with
+  | Err e => cases Result.ok_injective h
+  | Ok o =>
+  obtain ⟨b0, lst1, hx1, hb0, hrel1, hinv1⟩ :=
+    read_part_names_refines (m := m) (level := .Private) hfs hrel hinv o ar1 hq1
+  peel h as own, hown
+  have eown := name_positions_with_imports_eq hown
+  rw [← hb0] at eown
+  -- the header fixpoint
+  peel h as q2, hq2
+  obtain ⟨r2, ar2⟩ := q2
+  cases r2 with
+  | Err e => cases Result.ok_injective h
+  | Ok ld =>
+  obtain ⟨ld', lst2, hx2, hld, hrel2, hinv2⟩ :=
+    header_fixpoint_refines (st := withStore st ar1) (is_module := own.header.is_module)
+      (imports := own.header.imports) (sp_dirs := sp) (pk := pk) hfs hrel1 hinv1 ld ar2 hq2
+  obtain ⟨s0, hs0⟩ := headerFixpoint_ofState hx2
+  have hsz : ld'.order.size = ld'.flags.size := by rw [hs0]; exact ofState_sizes s0
+  have hw : IndexFits ld' := by rw [hs0]; exact ofState_index_fits s0
+  -- the loaded parts
+  peel h as q3, hq3
+  obtain ⟨r3, ar3⟩ := q3
+  cases r3 with
+  | Err e => cases Result.ok_injective h
+  | Ok parts =>
+  obtain ⟨rs, lst3, hx3, hrs, hrel3, hinv3⟩ :=
+    loaded_parts_refines (st := withStore st ar2) hfs hld hsz hrel2 hinv2 parts ar3 hq3
+  peel h as ix, hixq
+  have hix := name_index_of_eq hixq
+  rw [hrs] at hix
+  -- the module system
+  peel h as r4, hr4
+  cases r4 with
+  | Err e => cases Result.ok_injective h
+  | Ok u4 =>
+  obtain ⟨_, lst4, hx4, -, hrel4, hinv4⟩ :=
+    imports_modules_ok_ok (st := withStore st ar3) (lst := lst3) m own.header.is_module hld hw hix
+      own.header.imports hrel3 hinv3 u4 hr4
+  -- the doubly held names and their statements
+  peel h as cc, hcc
+  obtain ⟨ecc, fcc⟩ := clash_copies_eq hix hcc
+  peel h as v, hv
+  have ev := all_copies_eq hv
+  have hvfit : ∀ c ∈ v.val, CopyFits c := by
+    intro c hc
+    rw [ev, List.mem_flatMap] at hc
+    obtain ⟨p, hp, hc⟩ := hc
+    exact fcc p hp c hc
+  peel h as q5, hq5
+  obtain ⟨r5, ar4⟩ := q5
+  cases r5 with
+  | Err e => cases Result.ok_injective h
+  | Ok infos =>
+  obtain ⟨I, lst5, hx5, hI, hrel5, hinv5⟩ :=
+    read_infos_refines (st := withStore st ar3) (lst := lst4) hfs hld hix hvfit hrel4 hinv4 infos ar4 hq5
+  peel h as clashes, hclashes
+  have hcl := clashes_of_eq hI hclashes
+  -- the heads
+  peel h as r6, hr6
+  cases r6 with
+  | Err e => cases Result.ok_injective h
+  | Ok heads =>
+  have hCL : List.Forall₂ ClashRel clashes.val
+      ((Arena.Frontend.Olean.clashCopies (Arena.Frontend.Olean.nameIndexOf rs.toArray)).map
+        (clashOfT I)).toList := by
+    rw [Array.toList_map, ← ecc, List.map_map]; exact hcl
+  obtain ⟨H, lst6, hx6, hH, hrel6, hinv6⟩ :=
+    (clash_heads_rel (st := withStore st ar4) (lst := lst5) (pers := pers) hix hCL).ca hrel5 hinv5 heads hr6
+  peel h as q7, hq7
+  obtain ⟨r7, ar5⟩ := q7
+  cases r7 with
+  | Err e => cases Result.ok_injective h
+  | Ok hinfos =>
+  obtain ⟨I2, lst7, hx7, hI2, hrel7, hinv7⟩ :=
+    read_infos_refines (st := withStore st ar4) (lst := lst6) hfs hld hix hH.2 hrel6 hinv6 hinfos ar5 hq7
+  peel h as ht, hht
+  have hTy := head_tys_rel (head_tys_of_eq hix hI2 hH.2 hht)
+  -- the clash rule and freshness
+  peel h as r8, hr8
+  cases r8 with
+  | Err e => cases Result.ok_injective h
+  | Ok u8 =>
+  obtain ⟨_, lst8, hx8, -, hrel8, hinv8⟩ :=
+    clashes_ok_ok (st := withStore st ar5) (lst := lst7) (ld := ld) (ld' := ld') pk hTy hCL hrel7 hinv7 u8 hr8
+  peel h as r9, hr9
+  cases r9 with
+  | Err e => cases Result.ok_injective h
+  | Ok u9 =>
+  obtain ⟨_, lst9, hx9, -, hrel9, hinv9⟩ :=
+    fresh_ok_ok (st := withStore st ar5) (lst := lst8) (ld := ld) pk m ld' hix own hrel8 hinv8 u9 hr9
+  peel h as pub, hpub
+  have hP := pub_closures_eq hld hw hpub
+  have e := Result.ok_injective h
+  simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e
+  obtain ⟨rfl, rfl⟩ := e
+  refine ⟨⟨absNamePositions own, ld', Arena.Frontend.Olean.pubClosures ld',
+      Arena.Frontend.Olean.nameIndexOf rs.toArray,
+      (Arena.Frontend.Olean.clashCopies (Arena.Frontend.Olean.nameIndexOf rs.toArray)).map
+        (clashOfT I)⟩, lst9, ?_, ⟨rfl, hld, hP, hix, hCL⟩, hrel9, hinv9⟩
+  unfold Arena.Frontend.Olean.workerReads
+  refine (am_bind_ok hx1).trans ?_
+  rw [← eown]
+  refine (am_bind_ok hx2).trans ?_
+  refine (am_bind_ok hx3).trans ?_
+  refine (am_bind_ok hx4).trans ?_
+  have ev' : (v.val.map absCopy).toArray =
+      (Arena.Frontend.Olean.clashCopies (Arena.Frontend.Olean.nameIndexOf rs.toArray)).flatMap (·.2) := by
+    apply Array.ext'
+    rw [Array.toList_flatMap, ← ecc, ev]
+    simp [List.map_flatMap, List.flatMap_map]
+  rw [ev'] at hx5
+  refine (am_bind_ok hx5).trans ?_
+  refine (am_bind_ok hx6).trans ?_
+  have eH : (heads.val.map absCopy).toArray = H := by
+    apply Array.ext'; simpa using hH.1
+  rw [eH] at hx7 hx8
+  refine (am_bind_ok hx7).trans ?_
+  refine (am_bind_ok hx8).trans ?_
+  refine (am_bind_ok hx9).trans ?_
+  rfl
+
+end reads
+
 end ConRon.Refine2.Frontend.Olean
