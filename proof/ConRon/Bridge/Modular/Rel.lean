@@ -101,4 +101,17 @@ structure ReachRel (st : EStore) (r : ConRon.Arena.Modular.Reach) (rC : ConLeche
   searches : r.searches = rC.searches
   inferred : r.inferred = rC.inferred
 
+/-- con-leche: ConLeche/Driver/Reach.lean:734-743 ReachLog — **the reach's logical state read
+back**: the name sets related, the records denoted, the homes, each record's reads and the stack
+denoted. -/
+structure ReachLogRel (st : EStore) (L : ConRon.Arena.Modular.ReachLog)
+    (LC : ConLeche.Driver.ReachLog) : Prop where
+  seen : SetRel st L.seen LC.seen
+  stored : SetRel st L.stored LC.stored
+  ctx : denoteDecls st L.ctx.toList = some LC.ctx.toList
+  homes : ListRel (NR st) L.homes.toList LC.homes.toList
+  reads : ListRel (fun (a : List NIdx) (b : List ConLeche.Name) => ListRel (NR st) a b)
+    L.reads.toList LC.reads.toList
+  stack : ListRel (NR st) L.stack LC.stack
+
 end ConRon.Bridge.Modular
