@@ -566,14 +566,19 @@ environment and a record across a `match`. -/
 
 /-- `checkDeclKind`'s `.indDecl` arm (`check_ind_decl`): the declared parameter
 count, then the one uniform route (`checkBlock`) at every block `readBlock`
-reads, the pinned basis blocks included, or the reader's reject. -/
+reads, the pinned basis blocks included, or the reader's reject; the ι reading
+rule (`blockReadsAt`) read before the block's check and acted on after it. -/
 def checkIndDeclArmSpec (mode : CheckMode) (fe : IFEnv)
     (block : List IConstantInfo) (nP : Nat) : AM IFEnv := do
   if !(← indParamsOk nP block) then
     fail (.invalid "number of parameters mismatch")
   else
     match ← readBlock nP block with
-    | .ok p => checkBlock mode fe block p
+    | .ok p => do
+      let (reads, fe₀) ← blockReadsAt fe p
+      let fe' ← checkBlock mode fe₀ block p
+      if reads then pure fe'
+      else fail (.invalid "the recursor's minor premise does not state the constructor's fields, indices and parameters as the constructor's type does")
     | .error e => fail e
 
 /-- `checkDecl`'s axiom arm past the `ofReduce*` test: the two standard

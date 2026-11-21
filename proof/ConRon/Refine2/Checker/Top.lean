@@ -33,6 +33,7 @@ import ConRon.Refine2.Checker.DeclCheck
 import ConRon.Refine2.Inductives.Abs
 import ConRon.Refine2.Checker.Basis
 import ConRon.Refine2.Inductives.Top
+import ConRon.Refine2.Inductives.IotaRead
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated

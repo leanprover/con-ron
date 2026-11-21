@@ -307,8 +307,8 @@ def lvlEq : Nat → EIdx → EIdx → AM Bool
   | 0, _, _ => fail (.internal "fuel exhausted: lvlEq")
   | fuel + 1, a, b => do
     if a == b then pure true
-    else if a.tag != b.tag then pure false
-    else if a.tag == ETag.sort then
+    else if a.tag == b.tag then
+    if a.tag == ETag.sort then
       match ← viewSort a, ← viewSort b with
       | some u, some v => do
         let lu ← readLevelM u
@@ -348,6 +348,7 @@ def lvlEq : Nat → EIdx → EIdx → AM Bool
           if i == i' then lvlEq fuel x y else pure false
         else pure false
       | _, _ => failDanglingE
+    else pure false
     else pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/IotaRead.lean:114-118 optParamName

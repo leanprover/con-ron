@@ -626,83 +626,85 @@ pub fn lvl_eq(pers: &PersTier, st: &mut AState, fuel: u64, a: &EIdx, b: &EIdx) -
         fail(CheckError::Internal(code_points(&M_FUEL_LVL_EQ)))
     } else if a.eq2(b) {
         Ok(true)
-    } else if a.tag() != b.tag() {
-        Ok(false)
-    } else if a.tag() == ETAG_SORT {
-        match (view_sort(pers, st, a), view_sort(pers, st, b)) {
-            (Some(u), Some(v)) => match read_level_m(pers, st, &u) {
-                Err(e) => Err(e),
-                Ok(lu) => match read_level_m(pers, st, &v) {
+    } else if a.tag() == b.tag() {
+        if a.tag() == ETAG_SORT {
+            match (view_sort(pers, st, a), view_sort(pers, st, b)) {
+                (Some(u), Some(v)) => match read_level_m(pers, st, &u) {
                     Err(e) => Err(e),
-                    Ok(lv) => Ok(match level::is_equiv(&lu, &lv) {
-                        Some(r) => r,
-                        None => false,
-                    }),
-                },
-            },
-            _ => fail_dangling_e(),
-        }
-    } else if a.tag() == ETAG_CONST {
-        match (view_const(pers, st, a), view_const(pers, st, b)) {
-            (Some((n, us)), Some((m, vs))) => {
-                if n.eq2(&m) {
-                    match read_levels_m(pers, st, &us) {
+                    Ok(lu) => match read_level_m(pers, st, &v) {
                         Err(e) => Err(e),
-                        Ok(lu) => match read_levels_m(pers, st, &vs) {
-                            Err(e) => Err(e),
-                            Ok(lv) => Ok(match level::is_equiv_list(&lu, &lv) {
-                                Some(r) => r,
-                                None => false,
-                            }),
-                        },
-                    }
-                } else {
-                    Ok(false)
-                }
+                        Ok(lv) => Ok(match level::is_equiv(&lu, &lv) {
+                            Some(r) => r,
+                            None => false,
+                        }),
+                    },
+                },
+                _ => fail_dangling_e(),
             }
-            _ => fail_dangling_e(),
-        }
-    } else if a.tag() == ETAG_APP {
-        match (view_app(pers, st, a), view_app(pers, st, b)) {
-            (Some((f, x)), Some((g, y))) => match lvl_eq(pers, st, fuel - 1, &f, &g) {
-                Err(e) => Err(e),
-                Ok(true) => lvl_eq(pers, st, fuel - 1, &x, &y),
-                Ok(false) => Ok(false),
-            },
-            _ => fail_dangling_e(),
-        }
-    } else if a.tag() == ETAG_LAM || a.tag() == ETAG_FORALL_E {
-        match (view_bind(pers, st, a), view_bind(pers, st, b)) {
-            (Some((t, x)), Some((t2, y))) => match lvl_eq(pers, st, fuel - 1, &t, &t2) {
-                Err(e) => Err(e),
-                Ok(true) => lvl_eq(pers, st, fuel - 1, &x, &y),
-                Ok(false) => Ok(false),
-            },
-            _ => fail_dangling_e(),
-        }
-    } else if a.tag() == ETAG_LET_E {
-        match (view_let(pers, st, a), view_let(pers, st, b)) {
-            (Some((t, v, x)), Some((t2, v2, y))) => match lvl_eq(pers, st, fuel - 1, &t, &t2) {
-                Err(e) => Err(e),
-                Ok(true) => match lvl_eq(pers, st, fuel - 1, &v, &v2) {
+        } else if a.tag() == ETAG_CONST {
+            match (view_const(pers, st, a), view_const(pers, st, b)) {
+                (Some((n, us)), Some((m, vs))) => {
+                    if n.eq2(&m) {
+                        match read_levels_m(pers, st, &us) {
+                            Err(e) => Err(e),
+                            Ok(lu) => match read_levels_m(pers, st, &vs) {
+                                Err(e) => Err(e),
+                                Ok(lv) => Ok(match level::is_equiv_list(&lu, &lv) {
+                                    Some(r) => r,
+                                    None => false,
+                                }),
+                            },
+                        }
+                    } else {
+                        Ok(false)
+                    }
+                }
+                _ => fail_dangling_e(),
+            }
+        } else if a.tag() == ETAG_APP {
+            match (view_app(pers, st, a), view_app(pers, st, b)) {
+                (Some((f, x)), Some((g, y))) => match lvl_eq(pers, st, fuel - 1, &f, &g) {
                     Err(e) => Err(e),
                     Ok(true) => lvl_eq(pers, st, fuel - 1, &x, &y),
                     Ok(false) => Ok(false),
                 },
-                Ok(false) => Ok(false),
-            },
-            _ => fail_dangling_e(),
-        }
-    } else if a.tag() == ETAG_PROJ {
-        match (view_proj(pers, st, a), view_proj(pers, st, b)) {
-            (Some((s, i, x)), Some((s2, i2, y))) => {
-                if s.eq2(&s2) && i == i2 {
-                    lvl_eq(pers, st, fuel - 1, &x, &y)
-                } else {
-                    Ok(false)
-                }
+                _ => fail_dangling_e(),
             }
-            _ => fail_dangling_e(),
+        } else if a.tag() == ETAG_LAM || a.tag() == ETAG_FORALL_E {
+            match (view_bind(pers, st, a), view_bind(pers, st, b)) {
+                (Some((t, x)), Some((t2, y))) => match lvl_eq(pers, st, fuel - 1, &t, &t2) {
+                    Err(e) => Err(e),
+                    Ok(true) => lvl_eq(pers, st, fuel - 1, &x, &y),
+                    Ok(false) => Ok(false),
+                },
+                _ => fail_dangling_e(),
+            }
+        } else if a.tag() == ETAG_LET_E {
+            match (view_let(pers, st, a), view_let(pers, st, b)) {
+                (Some((t, v, x)), Some((t2, v2, y))) => match lvl_eq(pers, st, fuel - 1, &t, &t2) {
+                    Err(e) => Err(e),
+                    Ok(true) => match lvl_eq(pers, st, fuel - 1, &v, &v2) {
+                        Err(e) => Err(e),
+                        Ok(true) => lvl_eq(pers, st, fuel - 1, &x, &y),
+                        Ok(false) => Ok(false),
+                    },
+                    Ok(false) => Ok(false),
+                },
+                _ => fail_dangling_e(),
+            }
+        } else if a.tag() == ETAG_PROJ {
+            match (view_proj(pers, st, a), view_proj(pers, st, b)) {
+                (Some((s, i, x)), Some((s2, i2, y))) => {
+                    if s.eq2(&s2) && i == i2 {
+                        lvl_eq(pers, st, fuel - 1, &x, &y)
+                    } else {
+                        Ok(false)
+                    }
+                }
+                _ => fail_dangling_e(),
+            }
+    } else {
+            Ok(false)
         }
     } else {
         Ok(false)
