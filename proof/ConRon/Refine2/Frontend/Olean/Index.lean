@@ -551,4 +551,157 @@ theorem header_loads_level_at_eq {ld ld'} (hld : HeaderLoadsRel ld ld')
     simp [List.getElem?_eq_none this, absLevel]
     rfl
 
+/-! ## The doubly held names -/
+
+theorem map_set_eq_modify {α β : Type} (A : α → β) (l : List α) (k : Nat) (x : α) (f : β → β)
+    (hk : k < l.length) (hx : A x = f (A l[k])) : (l.set k x).map A = (l.map A).modify k f := by
+  apply List.ext_getElem?
+  intro j
+  simp only [List.getElem?_map, List.getElem?_set, List.getElem?_modify]
+  by_cases e : k = j
+  · subst e; simp [hk, hx]
+  · simp [e]
+
+/-- **`first_or` is `(ix.first[n]?).getD c`.** -/
+theorem first_or_eq {ix ix'} (hix : NameIndexRel ix ix') {n : arena.handle.NIdx}
+    {c : frontend.olean.index.Copy} {r} (h : first_or ix n c = ok r) :
+    absCopy r = (ix'.first[absNIdx n]?).getD (absCopy c) ∧ (CopyFits c → CopyFits r) := by
+  rw [first_or] at h
+  peel h as o, ho
+  obtain ⟨e, hf⟩ := hix.first.get_eq ho
+  rw [← e]
+  cases o with
+  | none => cases copy_dup2_ok h; exact ⟨rfl, id⟩
+  | some f => cases copy_dup2_ok h; exact ⟨rfl, fun _ => hf _ rfl⟩
+
+/-- **`at_of` is `at[n]?`.** -/
+theorem at_of_eq {at_ : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64} {A : Std.HashMap NIdx Nat}
+    (ha : NMapRel (fun x : Std.U64 => x.val) at_ A) {n : arena.handle.NIdx} {o}
+    (h : at_of at_ n = ok o) :
+    o.map (·.val) = A[absNIdx n]? ∧ ∀ k, o = some k → toFun at_ n = some k := by
+  rw [at_of] at h
+  peel h as o1, h1
+  have e := ConRon.Refine.HashMap2.get_refines_gen nidx_eq2 ha.inv (fun _ _ => trivial) trivial h1
+  have hA := ha.get_eq h1
+  cases o1 with
+  | none => cases Result.ok_injective h; exact ⟨hA, fun _ h => by cases h⟩
+  | some k => cases Result.ok_injective h; exact ⟨hA, fun _ h => by rw [← e, h]⟩
+
+/-- A name's copies, as the twin's. -/
+@[reducible] def absCC (p : arena.handle.NIdx × alloc.vec.Vec frontend.olean.index.Copy) :
+    NIdx × _root_.Array ConLeche.Frontend.Olean.Copy := (absNIdx p.1, (p.2.val.map absCopy).toArray)
+
+/-- The twin's step of `clashCopies`. -/
+def ccStep (ix' : Arena.Frontend.Olean.NameIndex)
+    (acc : Std.HashMap NIdx Nat × _root_.Array (NIdx × _root_.Array ConLeche.Frontend.Olean.Copy))
+    (p : NIdx × ConLeche.Frontend.Olean.Copy) :
+    Std.HashMap NIdx Nat × _root_.Array (NIdx × _root_.Array ConLeche.Frontend.Olean.Copy) :=
+  match acc.1[p.1]? with
+  | some k => (acc.1, acc.2.modify k fun q => (q.1, q.2.push p.2))
+  | none => (acc.1.insert p.1 acc.2.size, acc.2.push (p.1, #[(ix'.first[p.1]?).getD p.2, p.2]))
+
+theorem clashCopies_eq (ix' : Arena.Frontend.Olean.NameIndex) :
+    Arena.Frontend.Olean.clashCopies ix' = (ix'.more.toList.foldl (ccStep ix') ({}, #[])).2 := by
+  rw [Arena.Frontend.Olean.clashCopies, ← Array.foldl_toList]
+  rfl
+
+/-- The lists of copies so far, and the table of their positions. -/
+structure CCRel (tb : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+    (ov : alloc.vec.Vec (arena.handle.NIdx × alloc.vec.Vec frontend.olean.index.Copy))
+    (A : Std.HashMap NIdx Nat) (O : _root_.Array (NIdx × _root_.Array ConLeche.Frontend.Olean.Copy)) :
+    Prop where
+  tbl : NMapRel (fun x : Std.U64 => x.val) tb A
+  lt : ∀ n k, toFun tb n = some k → k.val < ov.val.length
+  rel : ov.val.map absCC = O.toList
+  fits : ∀ p ∈ ov.val, ∀ c ∈ p.2.val, CopyFits c
+
+/-- **`clash_copies_step` is the twin's step.** -/
+theorem clash_copies_step_eq {ix ix'} (hix : NameIndexRel ix ix') {at_ out A O}
+    (hr : CCRel at_ out A O) {n : arena.handle.NIdx} {c : frontend.olean.index.Copy} (hc : CopyFits c)
+    {o} (h : clash_copies_step ix at_ out n c = ok o) :
+    CCRel o.1 o.2 (ccStep ix' (A, O) (absNIdx n, absCopy c)).1 (ccStep ix' (A, O) (absNIdx n, absCopy c)).2 := by
+  rw [clash_copies_step] at h
+  peel h as a, ha
+  obtain ⟨ea, ha'⟩ := at_of_eq hr.tbl ha
+  cases a with
+  | none =>
+    have eA : A[absNIdx n]? = none := by rw [← ea]; rfl
+    peel h as c1, hc1
+    obtain ⟨ec1, fc1⟩ := first_or_eq hix hc1
+    peel h as cs1, hcs1
+    peel h as c2, hc2
+    cases copy_dup2_ok hc2
+    peel h as cs2, hcs2
+    peel h as n1, hn1
+    cases nidx_dup2_ok hn1
+    peel h as i1, hi1
+    have ei1 : i1.val = out.val.length := by
+      rw [← Result.ok_injective hi1, cast_u64_val, vec_len_val]
+    peel h as q, hq
+    obtain ⟨old, at1⟩ := q
+    peel h as out1, hout1
+    cases Result.ok_injective h
+    have ecs : cs2.val = [c1, c] := by
+      rw [ConRon.Refine.vec_push_val hcs2, ConRon.Refine.vec_push_val hcs1]; rfl
+    have eO : O.size = out.val.length := by
+      rw [← Array.length_toList, ← hr.rel, List.length_map]
+    simp only [ccStep, eA]
+    obtain ⟨-, -, hupd, -⟩ := ConRon.Refine.HashMap2.insert_refines_gen nidx_eq2
+      hr.tbl.inv (fun _ _ => trivial) trivial hq
+    have hins := hr.tbl.insert hq
+    rw [ei1, ← eO] at hins
+    refine ⟨hins, fun n' k hk => ?_, ?_, ?_⟩
+    · rw [hupd, Function.update_apply] at hk
+      rw [ConRon.Refine.vec_push_val hout1, List.length_append]
+      by_cases e : n' = n
+      · rw [ite_eq_left e] at hk; cases hk; simp [ei1]
+      · rw [ite_eq_right e] at hk; have := hr.lt n' k hk; simp; omega
+    · rw [ConRon.Refine.vec_push_val hout1, List.map_append, hr.rel]
+      simp [absCC, ecs, ec1]
+    · rw [ConRon.Refine.vec_push_val hout1]
+      intro p hp c' hc'
+      rcases List.mem_append.mp hp with hp | hp
+      · exact hr.fits p hp c' hc'
+      · rw [List.mem_singleton.mp hp] at hc'
+        simp only [ecs, List.mem_cons, List.not_mem_nil, or_false] at hc'
+        rcases hc' with rfl | rfl
+        · exact fc1 hc
+        · exact hc
+  | some k =>
+    have hk := hr.lt n k (ha' k rfl)
+    have eA : A[absNIdx n]? = some k.val := by rw [← ea]; rfl
+    peel h as i, hi
+    have ei : i.val = k.val := by
+      rw [← Result.ok_injective hi]
+      exact cast_usize_val (by have := vec_len_le_max out; omega)
+    peel h as q, hq
+    obtain ⟨⟨n1, v⟩, back⟩ := q
+    have : Inhabited (arena.handle.NIdx × alloc.vec.Vec frontend.olean.index.Copy) :=
+      ⟨(n, alloc.vec.Vec.new _)⟩
+    obtain ⟨hlt, hx, rfl⟩ := ConRon.Refine.HashMap.vec_index_mut_eq hq
+    peel h as c1, hc1
+    cases copy_dup2_ok hc1
+    peel h as v1, hv1
+    cases Result.ok_injective h
+    have hk' : k.val < O.size := by
+      rw [← Array.length_toList, ← hr.rel, List.length_map]; exact hk
+    simp only [ccStep, eA]
+    have hlt' : i.val < out.val.length := hlt
+    have hxe : (n1, v) = out.val[i.val] := by rw [hx]; simp [hlt']
+    refine ⟨hr.tbl, fun n' k' hk' => ?_, ?_, ?_⟩
+    · rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hr.lt n' k' hk'
+    · rw [Array.toList_modify, ← hr.rel, alloc.vec.Vec.set_val_eq, ← ei]
+      apply map_set_eq_modify _ _ _ _ _ hlt'
+      rw [← hxe]
+      simp [ConRon.Refine.vec_push_val hv1]
+    · rw [alloc.vec.Vec.set_val_eq]
+      intro p hp c' hc'
+      rcases List.mem_or_eq_of_mem_set hp with hp | hp
+      · exact hr.fits p hp c' hc'
+      · subst hp
+        rw [ConRon.Refine.vec_push_val hv1] at hc'
+        rcases List.mem_append.mp hc' with hc' | hc'
+        · exact hr.fits _ (hxe ▸ List.getElem_mem hlt') c' hc'
+        · rw [List.mem_singleton.mp hc']; exact hc
+
 end ConRon.Refine2.Frontend.Olean
