@@ -525,4 +525,268 @@ theorem entryMapT_run {pk : OleanPins} {s₀ : AState} {fn : UInt64 → AM (Opti
     have e3 := denote_ext hdt hst4.ext
     simp [denoteEntry, CEntryF.mapM, e1, e2, e3, hdk, bind, Option.bind, pure]
 
+/-- con-leche: ConLeche/Frontend/Olean/Spec.lean:275-296 CKindF.mapM — a kind's names read
+with effects, its expressions left out, upstream's. -/
+theorem kindNamesT_run {pk : OleanPins} {s₀ : AState} {fn : UInt64 → AM (Option NIdx)}
+    {gn : UInt64 → Option ConLeche.Name}
+    (hn : ∀ a s s' y, Ctx pk s → Ext s₀.store s.store → fn a s = .ok (some y, s') →
+      ParseStep s s' ∧ ∃ z, gn a = some z ∧ denoteN s'.store.ns y = some z)
+    (kind : CKindF UInt64 UInt64) {k : CKindF NIdx Unit} {s s' : AState} (hctx : Ctx pk s)
+    (hx0 : Ext s₀.store s.store)
+    (h : (kind.mapM (m := OptionT AM) (fun v => OptionT.mk (fn v)) (fun _ => pure ())) s
+      = .ok (some k, s')) :
+    ParseStep s s' ∧ ∃ kC, kind.mapM gn (fun _ => some ()) = some kC ∧
+      denoteKindN s'.store k = some kC := by
+  have hdN : ∀ {st st' : EStore} {y : NIdx} {z : ConLeche.Name}, Ext st st' →
+      denoteN st.ns y = some z → denoteN st'.ns y = some z := fun hx hy => denoteN_ext hy hx
+  have hlist := fun (l : List UInt64) {ys : List NIdx} {s s' : AState} (hc : Ctx pk s)
+      (hx : Ext s₀.store s.store)
+      (h : l.mapM (m := OptionT AM) (fun v => OptionT.mk (fn v)) s = .ok (some ys, s')) =>
+    optT_list_runX (den := fun st => denoteN st.ns) (g := gn) hdN
+      (fun a s s' y hc hx h => hn a s s' y hc hx h) l hc hx h
+  cases kind with
+  | ax u =>
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h
+    exact ⟨ParseStep.refl hctx.ok, _, rfl, rfl⟩
+  | quot u =>
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h
+    exact ⟨ParseStep.refl hctx.ok, _, rfl, rfl⟩
+  | defn v hh sf =>
+    simp only [CKindF.mapM] at h
+    obtain ⟨a, s₁, h1, h2⟩ := OT.bind_ok h
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h1
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h2
+    exact ⟨ParseStep.refl hctx.ok, _, rfl, rfl⟩
+  | opaq v u =>
+    simp only [CKindF.mapM] at h
+    obtain ⟨a, s₁, h1, h2⟩ := OT.bind_ok h
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h1
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h2
+    exact ⟨ParseStep.refl hctx.ok, _, rfl, rfl⟩
+  | thm v all =>
+    simp only [CKindF.mapM] at h
+    obtain ⟨a, s₁, h1, h2⟩ := OT.bind_ok h
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h1
+    obtain ⟨ns, s₂, h3, h4⟩ := OT.bind_ok h2
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h4
+    obtain ⟨hst, zs, hz, hd⟩ := hlist all hctx hx0 h3
+    refine ⟨hst, .thm () zs, ?_, ?_⟩
+    · simp [CKindF.mapM, hz, bind, Option.bind, pure]
+    · simp [denoteKindN, CKindF.mapM, hd, bind, Option.bind, pure]
+  | induct np ni all cs nn ir iu irf =>
+    simp only [CKindF.mapM] at h
+    obtain ⟨as, s₁, h1, h2⟩ := OT.bind_ok h
+    obtain ⟨bs, s₂, h3, h4⟩ := OT.bind_ok h2
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h4
+    obtain ⟨hst1, zs, hz, hd⟩ := hlist all hctx hx0 h1
+    obtain ⟨hst2, ws, hw, hdw⟩ := hlist cs (hctx.step hst1) (hx0.trans hst1.ext) h3
+    refine ⟨hst1.trans hst2, .induct np ni zs ws nn ir iu irf, ?_, ?_⟩
+    · simp [CKindF.mapM, hz, hw, bind, Option.bind, pure]
+    · have hd' := mapM_denoteN_ext hst2.ext hd
+      simp [denoteKindN, CKindF.mapM, hd', hdw, bind, Option.bind, pure]
+  | ctor ind ci np nf iu =>
+    simp only [CKindF.mapM] at h
+    obtain ⟨a, s₁, h1, h2⟩ := OT.bind_ok h
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h2
+    obtain ⟨hst, z, hz, hd⟩ := hn ind s _ a hctx hx0 h1
+    refine ⟨hst, .ctor z ci np nf iu, ?_, ?_⟩
+    · simp [CKindF.mapM, hz, bind, Option.bind, pure]
+    · simp [denoteKindN, CKindF.mapM, hd, bind, Option.bind, pure]
+  | recur all np ni nmo nmi rules kk iu =>
+    rw [recur_mapM] at h ⊢
+    obtain ⟨as, s₁, h1, h2⟩ := OT.bind_ok h
+    obtain ⟨rs, s₂, h3, h4⟩ := OT.bind_ok h2
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h4
+    obtain ⟨hst1, zs, hz, hd⟩ := hlist all hctx hx0 h1
+    obtain ⟨hst2, ws, hw, hdw⟩ := optT_list_runX (pk := pk) (s₀ := s₀)
+      (den := fun st (x : NIdx × Nat × Unit) => do
+        let c ← denoteN st.ns x.1
+        let e ← (fun _ => some ()) x.2.2
+        pure (c, x.2.1, e))
+      (g := fun (x : UInt64 × Nat × UInt64) => do
+        let c ← gn x.1
+        let e ← (fun _ => some ()) x.2.2
+        pure (c, x.2.1, e))
+      (fun {st st' y z} hx hy => by
+        cases hn' : denoteN st.ns y.1 with
+        | none => simp [hn'] at hy
+        | some n => simp only [hn'] at hy; simp only [denoteN_ext hn' hx]; exact hy)
+      (fun x s s' y hc hx hrun => by
+        obtain ⟨a, s₁, h1, h2⟩ := OT.bind_ok hrun
+        obtain ⟨b, s₂, h3, h4⟩ := OT.bind_ok h2
+        obtain ⟨rfl, rfl⟩ := OT.pure_ok h3
+        obtain ⟨rfl, rfl⟩ := OT.pure_ok h4
+        obtain ⟨hst, z, hz, hd⟩ := hn x.1 s _ a hc hx h1
+        exact ⟨hst, (z, x.2.1, ()), by simp [hz], by simp [hd]⟩) rules (hctx.step hst1)
+        (hx0.trans hst1.ext) h3
+    refine ⟨hst1.trans hst2, .recur zs np ni nmo nmi ws kk iu, ?_, ?_⟩
+    · rw [hz, hw]; rfl
+    · have hd' := mapM_denoteN_ext hst2.ext hd
+      rw [denoteKindN, recur_mapM, hd', hdw]; rfl
+
+/-! ## A constant, a statement, several constants, read with a part's memo -/
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Present.lean:28 entryWith_spec — **a constant
+read with a good memo is the specification's** (`entryAt`), and the memo stays good. -/
+theorem entryWith_runR {pk : OleanPins} {r : Region} {m m' : SM} {c : Nat}
+    {e : CEntryF NIdx EIdx} {s s' : AState} (hctx : Ctx pk s) (hm : SMGood s.store r m)
+    (h : ConRon.Arena.Frontend.Olean.entryWith pk r m c s = .ok ((m', some e), s')) :
+    ParseStep s s' ∧ SMGood s'.store r m' ∧ ∃ eC, entryAt r c = some eC ∧
+      denoteEntry s'.store e = some eC := by
+  generalize hF : ConRon.Arena.Frontend.Olean.entryWith pk r m c = f at h
+  unfold ConRon.Arena.Frontend.Olean.entryWith at hF
+  split at hF
+  · subst hF; cases (AM.pure_ok h).1
+  · rename_i sk hsk
+    subst hF
+    obtain ⟨u, s₁, h1, h⟩ := AM.bind_ok h
+    rw [skelFits_run h1] at h
+    obtain ⟨m₁, s₂, h2, h⟩ := AM.bind_ok h
+    obtain ⟨hst2, hg2⟩ := memoRoots_runR hctx hm h2
+    obtain ⟨o, s₃, h3, h⟩ := AM.bind_ok h
+    obtain ⟨hv, rfl⟩ := AM.pure_ok h
+    cases hv
+    have hc2 := hctx.step hst2
+    obtain ⟨hst3, eC, heC, hde⟩ := entryMapT_run (s₀ := s₂) (gn := nameP r) (ge := exprP r)
+      (fun a s s' y hc hx h => memoName_runR hc (hg2.ext hx) h)
+      (fun a s s' y hc hx h => memoExpr_runR hc (hg2.ext hx) h) sk hc2 (Ext.refl _) h3
+    refine ⟨hst2.trans hst3, hg2.ext hst3.ext, eC, ?_, hde⟩
+    simp only [entryAt, hsk, Option.bind_eq_bind, Option.bind_some,
+      ConLeche.Frontend.Olean.sparseEntry_eq]
+    exact heC
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Present.lean:43 stmtWith_spec — **a statement
+and kind read with a good memo are the skeleton's** (`StmtSkel`), and the memo stays good. -/
+theorem stmtWith_runR {pk : OleanPins} {r : Region} {m m' : SM} {c : Nat}
+    {cv : ConRon.Arena.Frontend.Olean.StmtRec} {k : CKindF NIdx Unit} {s s' : AState}
+    (hctx : Ctx pk s) (hm : SMGood s.store r m)
+    (h : ConRon.Arena.Frontend.Olean.stmtWith pk r m c s = .ok ((m', some (cv, k)), s')) :
+    ParseStep s s' ∧ SMGood s'.store r m' ∧ ∃ cvC kC, ConLeche.Driver.StmtSkel r c cvC kC ∧
+      denoteStmt s'.store cv = some cvC ∧ denoteKindN s'.store k = some kC := by
+  generalize hF : ConRon.Arena.Frontend.Olean.stmtWith pk r m c = f at h
+  unfold ConRon.Arena.Frontend.Olean.stmtWith at hF
+  split at hF
+  · subst hF; cases (AM.pure_ok h).1
+  · rename_i sk hsk
+    subst hF
+    obtain ⟨u, s₁, h1, h⟩ := AM.bind_ok h
+    rw [skelFits_run h1] at h
+    obtain ⟨m₁, s₂, h2, h⟩ := AM.bind_ok h
+    obtain ⟨hst2, hg2⟩ := memoAddAll_runR (Or.inl rfl) _ hctx hm h2
+    obtain ⟨m₂, s₃, h3, h⟩ := AM.bind_ok h
+    obtain ⟨hst3, hg3⟩ := memoAdd_runR (Or.inr (Or.inr (Or.inl rfl))) (hctx.step hst2) hg2 h3
+    obtain ⟨o, s₄, h4, h⟩ := AM.bind_ok h
+    obtain ⟨hv, rfl⟩ := AM.pure_ok h
+    cases hv
+    have hc3 := (hctx.step hst2).step hst3
+    have hN := fun a s s' y hc (hx : Ext s₃.store (AState.store s)) h =>
+      memoName_runR (pk := pk) (r := r) (m := m') (v := a) (x := y) (s := s) (s' := s') hc (hg3.ext hx) h
+    have hE := fun a s s' y hc (hx : Ext s₃.store (AState.store s)) h =>
+      memoExpr_runR (pk := pk) (r := r) (m := m') (v := a) (x := y) (s := s) (s' := s') hc (hg3.ext hx) h
+    obtain ⟨n, t₁, g1, g⟩ := OT.bind_ok h4
+    obtain ⟨hst4, zn, hzn, hdn⟩ := hN _ _ _ _ hc3 (Ext.refl _) g1
+    obtain ⟨lps, t₂, g2, g⟩ := OT.bind_ok g
+    obtain ⟨hst5, zl, hzl, hdl⟩ := optT_list_runX (s₀ := s₃) (den := fun st => denoteN st.ns)
+      (g := nameP r) (fun hx hy => denoteN_ext hy hx) (fun a s s' y hc hx h => hN a s s' y hc hx h)
+      sk.levelParams (hc3.step hst4) hst4.ext g2
+    obtain ⟨ty, t₃, g3, g⟩ := OT.bind_ok g
+    obtain ⟨hst6, zt, hzt, hdt⟩ := hE _ _ _ _ ((hc3.step hst4).step hst5) (hst4.ext.trans hst5.ext) g3
+    obtain ⟨kk, t₄, g4, g⟩ := OT.bind_ok g
+    obtain ⟨hst7, zk, hzk, hdk⟩ := kindNamesT_run (s₀ := s₃)
+      (fun a s s' y hc hx h => hN a s s' y hc hx h) sk.kind
+      (((hc3.step hst4).step hst5).step hst6) ((hst4.ext.trans hst5.ext).trans hst6.ext) g4
+    obtain ⟨hv, rfl⟩ := OT.pure_ok g
+    cases hv
+    have hall := (((hst2.trans hst3).trans hst4).trans hst5).trans hst6 |>.trans hst7
+    refine ⟨hall, hg3.ext (((hst4.trans hst5).trans hst6).trans hst7).ext, ⟨zn, zl, zt⟩, zk,
+      ⟨sk, hsk, hzn, hzl, hzt, hzk⟩, ?_, hdk⟩
+    have e1 := denoteN_ext hdn ((hst5.trans hst6).trans hst7).ext
+    have e2 := mapM_denoteN_ext (hst6.trans hst7).ext hdl
+    have e3 := denote_ext hdt hst7.ext
+    simp [denoteStmt, e1, e2, e3, bind, Option.bind, pure]
+
+/-- con-leche: ConLeche/Verify/Driver/ReachFrom.lean:887 entriesWith_spec — several constants
+read with one good memo, each the specification's. -/
+theorem entriesWith_runR {pk : OleanPins} {r : Region} :
+    ∀ (ls : List Nat) {m m' : SM} {es : List (CEntryF NIdx EIdx)} {s s' : AState}, Ctx pk s →
+      SMGood s.store r m →
+      ConRon.Arena.Modular.entriesWith pk r m ls s = .ok ((m', some es), s') →
+      ParseStep s s' ∧ SMGood s'.store r m' ∧ ∃ esC, ls.mapM (entryAt r) = some esC ∧
+        es.mapM (denoteEntry s'.store) = some esC
+  | [], m, m', es, s, s', hctx, hm, h => by
+    rw [ConRon.Arena.Modular.entriesWith] at h
+    obtain ⟨hv, rfl⟩ := AM.pure_ok h
+    simp only [Prod.mk.injEq, Option.some.injEq] at hv
+    obtain ⟨rfl, rfl⟩ := hv
+    exact ⟨ParseStep.refl hctx.ok, hm, [], rfl, rfl⟩
+  | l :: ls, m, m', es, s, s', hctx, hm, h => by
+    rw [ConRon.Arena.Modular.entriesWith] at h
+    obtain ⟨⟨m₁, o⟩, s₁, h1, h⟩ := AM.bind_ok h
+    cases o with
+    | none => cases (AM.pure_ok h).1
+    | some e =>
+    obtain ⟨hst1, hg1, eC, heC, hde⟩ := entryWith_runR hctx hm h1
+    obtain ⟨⟨m₂, o'⟩, s₂, h2, h⟩ := AM.bind_ok h
+    cases o' with
+    | none => cases (AM.pure_ok h).1
+    | some es' =>
+    obtain ⟨hv, rfl⟩ := AM.pure_ok h
+    simp only [Prod.mk.injEq, Option.some.injEq] at hv
+    obtain ⟨rfl, rfl⟩ := hv
+    obtain ⟨hst2, hg2, esC, hes, hdes⟩ := entriesWith_runR ls (hctx.step hst1) hg1 h2
+    refine ⟨hst1.trans hst2, hg2, eC :: esC, ?_, ?_⟩
+    · simp only [List.mapM_cons, heC, hes]; rfl
+    · simp only [List.mapM_cons, denoteEntry_ext hst2.ext hde, hdes]; rfl
+
+/-! ## Upstream's reads with a good memo answer -/
+
+/-- con-leche: ConLeche/Frontend/Olean/Present.lean:26-30 entryWith — **upstream's read with a
+good memo gives the specification's constant**, the memo good after. -/
+theorem entryWith_complete {r : Region} {st : ConLeche.Frontend.Olean.SM} (hG : st.Good r) {c : Nat}
+    {e : CEntryF ConLeche.Name Expr} (he : entryAt r c = some e) :
+    ∃ st', ConLeche.Frontend.Olean.entryWith r st c = some (st', e) ∧ st'.Good r := by
+  simp only [entryAt] at he
+  obtain ⟨sk, hsk, he⟩ := bind_some_left he
+  rw [ConLeche.Frontend.Olean.sparseEntry_eq] at he
+  have hG' := ConLeche.Frontend.Olean.memoRoots_good hG sk
+  refine ⟨_, ?_, hG'⟩
+  simp only [ConLeche.Frontend.Olean.entryWith, hsk, Option.bind_eq_bind, Option.bind_some,
+    ConLeche.Frontend.Olean.memoName_eq hG', ConLeche.Frontend.Olean.memoExpr_eq hG', he]
+  rfl
+
+/-- con-leche: ConLeche/Frontend/Olean/Present.lean:32-42 stmtWith — **upstream's read with a
+good memo gives the skeleton's statement and kind**, the memo good after. -/
+theorem stmtWith_complete {r : Region} {st : ConLeche.Frontend.Olean.SM} (hG : st.Good r) {c : Nat}
+    {cv : ConstantVal} {k : CKindF ConLeche.Name Unit} (h : ConLeche.Driver.StmtSkel r c cv k) :
+    ∃ st', ConLeche.Frontend.Olean.stmtWith r st c = some (st', cv, k) ∧ st'.Good r := by
+  obtain ⟨sk, hsk, hn, hl, ht, hk⟩ := h
+  have hG' : (ConLeche.Frontend.Olean.memoAdd r kExpr
+      ((sk.name :: sk.levelParams).foldl (ConLeche.Frontend.Olean.memoAdd r kName) st)
+      sk.type).Good r :=
+    ConLeche.Frontend.Olean.memoAdd_good ConLeche.Frontend.Olean.isKind_expr
+      (ConLeche.Frontend.Olean.foldl_memoAdd_good ConLeche.Frontend.Olean.isKind_name _ _ hG) _
+  refine ⟨_, ?_, hG'⟩
+  simp only [ConLeche.Frontend.Olean.stmtWith, hsk, Option.bind_eq_bind, Option.bind_some,
+    ConLeche.Frontend.Olean.memoName_eq hG', ConLeche.Frontend.Olean.memoExpr_eq hG', hn, hl, ht, hk]
+  rfl
+
+theorem entriesWith_complete {r : Region} :
+    ∀ (ls : List Nat) {st : ConLeche.Frontend.Olean.SM} {es : List (CEntryF ConLeche.Name Expr)},
+      st.Good r → ls.mapM (entryAt r) = some es →
+      ∃ st', ConLeche.Driver.entriesWith r st ls = some (st', es) ∧ st'.Good r
+  | [], st, es, hG, h => by
+    simp only [List.mapM_nil, pure, Option.some.injEq] at h
+    subst h
+    exact ⟨st, rfl, hG⟩
+  | l :: ls, st, es, hG, h => by
+    simp only [List.mapM_cons] at h
+    obtain ⟨e, he, h⟩ := bind_some_left h
+    obtain ⟨es', hes, h⟩ := bind_some_left h
+    simp only [pure, Option.some.injEq] at h
+    subst h
+    obtain ⟨st₁, h1, hG1⟩ := entryWith_complete hG he
+    obtain ⟨st₂, h2, hG2⟩ := entriesWith_complete ls hG1 hes
+    refine ⟨st₂, ?_, hG2⟩
+    simp only [ConLeche.Driver.entriesWith, h1, h2, bind, Option.bind, pure]
+
 end ConRon.Bridge.Modular
