@@ -73803,3 +73803,10 @@ string through `str_hash`, `str_eq`, `str_copy`, `display_acc_chars`/`display_id
 (`justify.rs`'s `a_deep_cone`).  All eight pass on this branch in under a second together,
 and each overflowed its stack (`has overflowed its stack`, SIGABRT) with master's code and the
 same tests.
+
+**Gates.**  `scripts/gates.sh`: all 16 OK; diff-e2e 773/773 agree.
+
+**Measured.**  `Init`, `--verified --jobs=1` (`bench-baselines.sh --bin con-ron --export init
+--runs 1`), one run each, 57 919 / 57 919 accepted: master `398e2138` 165 800 014 049
+`instructions:u`, this branch 165 590 484 108 (−0.126 %); peak RSS 391 944 / 396 580 kB.
+Cycles (63.6 G / 88.4 G) are not comparable: the branch's run overlapped a gate's Lean build.
