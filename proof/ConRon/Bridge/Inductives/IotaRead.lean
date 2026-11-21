@@ -12,6 +12,8 @@ import ConRon.Bridge.SpecsL
 import ConRon.Bridge.GrindAttr
 import ConRon.Bridge.Core.Walks.PropRead
 import ConRon.Bridge.Core.Walks.IotaLeaves
+public import ConRon.Bridge.Inductives.BlockTail
+import ConRon.Bridge.Inductives.Install
 public import ConRon.Arena.Inductives.IotaRead
 public import ConLeche.Kernel.Inductives.IotaRead
 
@@ -121,5 +123,73 @@ theorem lvlEq_spec : ∀ (fuel : Nat) (s₀ : AState) (a b : EIdx),
     sym only [bridge_grind, lvlEq_eq, LvlEqA] =>
       vcgen [lvlEq, ih, Core.readLevelM_specC (eager := eager) (env := env) (fe := fe),
         Core.readLevelsM_specC (eager := eager) (env := env) (fe := fe)] <;> finish
+
+/-! ## The recursors' walk -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/IotaRead.lean:210-214 blockReadsOk —
+**THEOREM 1 for `recsRead`**: an accepting walk over the block's recursors,
+at an index that answers for `E`, is con-leche's `recReadsOk` at every one of
+them, at `E.find?`. -/
+theorem recsRead_bridge {env E : Env} {fe feR : IFEnv} {s s' : AState}
+    {recs : List IConstantInfo} {rs : List ConstantInfo} {b : Bool}
+    (hok : CheckOK false env fe s) (hE : IFEnvOK E feR s)
+    (hd : Frontend.denoteCIList s.store recs = some rs)
+    (hrun : recsRead feR recs s = .ok (b, s')) :
+    CheckOK false env fe s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
+      (b = true → rs.forM (recReadsOk E.find?) = .ok ()) := by
+  sorry
+
+/-! ## The block -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/IotaRead.lean:210-214 blockReadsOk —
+**THEOREM 1 for the ι reading rule at a block**: the twin pushes the block's
+constants onto the input index in place, walks the recursors there and undoes
+the pushes.  The index comes back answering as the input one; an accepting
+verdict is con-leche's `blockReadsOk` at the environment the block's install
+produces, whatever its tables (the rule reads constants only). -/
+theorem blockReadsAt_bridge {env : Env} {fe : IFEnv} {s s' : AState}
+    {p : Arena.BlockShape} {pP : ConLeche.BlockShape} {r : Bool × IFEnv}
+    (hok : CheckOK false env fe s) (hrel : EnvRel env fe s.store)
+    (hp : dShape s.store p = some pP)
+    (hrun : blockReadsAt fe p s = .ok (r, s')) :
+    CheckOK false env r.2 s' ∧ EnvRel env r.2 s'.store ∧ Ext s.store s'.store ∧
+      s'.pins = s.pins ∧
+      (r.1 = true → ∀ Q, blockReadsOk (env.pushDelta (blockConstants pP) Q).find? pP = .ok ()) := by
+  simp only [blockReadsAt] at hrun
+  obtain ⟨cs, s₁, h1, h2⟩ := AM.bind_ok hrun
+  obtain ⟨p1, -, hcs⟩ := blockConstants_run hok.state hok.pins hok.caches.readL hp h1
+  have c1 : CheckOK false env fe s₁ := CheckOK.monoF hok p1.ok p1.ext p1.cframe p1.pins
+  obtain ⟨recs, s₂, h3, h4⟩ := AM.bind_ok h2
+  obtain ⟨p2, -, hrecs⟩ := blockRecs_run p.recs pP.recs c1.state c1.pins
+    (dShape_ext p1.ext _ _ hp) (dRec_ext.list p1.ext _ _ (dShape_inv hp).2.1) h3
+  have c2 : CheckOK false env fe s₂ := CheckOK.monoF c1 p2.ok p2.ext p2.cframe p2.pins
+  have hcs₂ := denoteCIList_mono p2.ext _ _ hcs
+  have hrel₂ : EnvRel env fe s₂.store := hrel.mono (p1.ext.trans p2.ext)
+  have hE := BT.consBlockRecsTemp_ok c2.state cs _ fe env [] hcs₂ (hrel₂.ifenv) hrel₂.gate
+    hrel₂.stored
+  obtain ⟨news, hn, hpop⟩ := BT.consBlockRecsTemp_pop cs fe []
+  rw [List.nil_append] at hn
+  obtain ⟨ok, s₃, h5, h6⟩ := AM.bind_ok h4
+  obtain ⟨c3, x3, pn3, hok3⟩ := recsRead_bridge c2 hE hrecs h5
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok h6
+  have hfl : FlagsOK ((news.foldr (fun (x : NIdx × Option IConstantInfo) acc =>
+      acc.popTemp x.1 x.2) (Arena.consBlockRecsTemp cs fe []).1).setFlags fe.natLit fe.strLit) :=
+    (hrel₂.ienv s₂ rfl).flags.of_same (hpop.2.2.1 ▸ rfl)
+      (fun n => by rw [IFEnv.setFlags_find?]; exact hpop.find? n) rfl rfl
+  have hfeq : GR.FEq ((news.foldr (fun (x : NIdx × Option IConstantInfo) acc =>
+      acc.popTemp x.1 x.2) (Arena.consBlockRecsTemp cs fe []).1).setFlags fe.natLit fe.strLit) fe :=
+    hpop
+  have hrel₃ : EnvRel env _ s₃.store := BT.EnvRel.feq hfeq (hrel₂.mono x3) hfl
+  refine ⟨⟨c3.state, c3.caches, c3.pins, hrel₃.ifenv⟩, ?_, p1.ext.trans (p2.ext.trans x3),
+    by rw [pn3, p2.pins, p1.pins], ?_⟩
+  · rw [hn]; exact hrel₃
+  · intro hb Q
+    have key := hok3 hb
+    simp only [ConLeche.blockReadsOk]
+    have hfind : (env.pushDelta (ConLeche.blockConstants pP) Q).find? =
+        (⟨(ConLeche.blockConstants pP).reverse ++ env.consts, env.tables⟩ : Env).find? := by
+      funext n; simp [ConLeche.Env.pushDelta, ConLeche.Env.find?]
+    rw [hfind]
+    exact key
 
 end ConRon.Bridge.Inductives

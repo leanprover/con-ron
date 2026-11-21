@@ -17420,7 +17420,7 @@ def arena.inductives.iota_read.MISSING : Array Std.U32 7#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::iota_read::ann_witness]:
-    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 726:0-748:1
+    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 728:0-750:1
     Visibility: public -/
 def arena.inductives.iota_read.ann_witness
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -17467,7 +17467,7 @@ def arena.inductives.iota_read.ann_witness
   else ok (core.result.Result.Ok false, st)
 
 /-- [con_ron_core::arena::inductives::iota_read::ann_ident_body]:
-    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 793:0-847:1
+    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 795:0-849:1
     Visibility: public -/
 def arena.inductives.iota_read.ann_ident_body
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -17535,7 +17535,7 @@ def arena.inductives.iota_read.ann_ident_body
     else ok (core.result.Result.Ok false, st)
 
 /-- [con_ron_core::arena::inductives::iota_read::ann_ident_val]:
-    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 754:0-787:1
+    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 756:0-789:1
     Visibility: public -/
 def arena.inductives.iota_read.ann_ident_val
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -17588,7 +17588,7 @@ def arena.inductives.iota_read.ann_ident_val
   else ok (core.result.Result.Ok false, st)
 
 /-- [con_ron_core::arena::inductives::iota_read::ann_ident]:
-    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 852:0-857:1
+    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 854:0-859:1
     Visibility: public -/
 def arena.inductives.iota_read.ann_ident
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -17615,7 +17615,7 @@ def arena.inductives.iota_read.ann_ident
       ok (core.result.Result.Ok false, st)
 
 /-- [con_ron_core::arena::inductives::iota_read::top_name]:
-    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 715:0-720:1
+    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 717:0-722:1
     Visibility: public -/
 def arena.inductives.iota_read.top_name
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -18297,7 +18297,7 @@ def arena.inductives.iota_read.M_FUEL_LVL_EQ : Array Std.U32 21#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::iota_read::lvl_eq]:
-    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 624:0-710:1
+    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 624:0-712:1
     Visibility: public -/
 def arena.inductives.iota_read.lvl_eq
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -18318,9 +18318,8 @@ def arena.inductives.iota_read.lvl_eq
     else
       let i ← arena.handle.EIdx.tag a
       let i1 ← arena.handle.EIdx.tag b
-      if i != i1
-      then ok (core.result.Result.Ok false, st)
-      else
+      if i = i1
+      then
         if i = arena.handle.ETAG_SORT
         then
           let o ← arena.monad.view_sort pers st a
@@ -18521,10 +18520,11 @@ def arena.inductives.iota_read.lvl_eq
                             else ok (core.result.Result.Ok false, st)
                           else ok (core.result.Result.Ok false, st)
                     else ok (core.result.Result.Ok false, st)
+      else ok (core.result.Result.Ok false, st)
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::iota_read::ann_eq]:
-    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 863:0-945:1
+    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 865:0-947:1
     Visibility: public -/
 def arena.inductives.iota_read.ann_eq
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -18723,7 +18723,7 @@ def arena.inductives.iota_read.ann_eq
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::iota_read::list_ann_eq]:
-    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 967:0-986:1
+    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 969:0-988:1
     Visibility: public -/
 def arena.inductives.iota_read.list_ann_eq
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -18793,7 +18793,7 @@ def arena.inductives.iota_read.list_ann_eq
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::iota_read::params_ann_eq]:
-    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 993:0-1006:1
+    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 995:0-1008:1
     Visibility: public -/
 def arena.inductives.iota_read.params_ann_eq
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -18813,7 +18813,7 @@ def arena.inductives.iota_read.params_ann_eq
   | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::arena::inductives::iota_read::list_lvl_eq]:
-    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 950:0-962:1
+    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 952:0-964:1
     Visibility: public -/
 def arena.inductives.iota_read.list_lvl_eq
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -18883,7 +18883,7 @@ def arena.inductives.iota_read.list_lvl_eq
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::iota_read::iota_parts_rel]:
-    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 1012:0-1042:1
+    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 1014:0-1044:1
     Visibility: public -/
 def arena.inductives.iota_read.iota_parts_rel
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -20042,7 +20042,7 @@ def arena.inductives.iota_read.iota_parts_of_at
   else ok (core.result.Result.Ok none, st)
 
 /-- [con_ron_core::arena::inductives::iota_read::rule_reads]:
-    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 1049:0-1075:1
+    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 1051:0-1077:1
     Visibility: public -/
 def arena.inductives.iota_read.rule_reads
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -20094,7 +20094,7 @@ def arena.inductives.iota_read.rule_reads
     | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::inductives::iota_read::rules_read]:
-    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 1081:0-1101:1
+    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 1083:0-1103:1
     Visibility: public -/
 def arena.inductives.iota_read.rules_read
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -20388,7 +20388,7 @@ def arena.inductives.iota_read.iota_rec_of
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::inductives::iota_read::rec_reads]:
-    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 1107:0-1115:1
+    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 1109:0-1117:1
     Visibility: public -/
 def arena.inductives.iota_read.rec_reads
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -20413,7 +20413,7 @@ def arena.inductives.iota_read.rec_reads
     | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::inductives::iota_read::recs_read]:
-    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 1121:0-1131:1
+    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 1123:0-1133:1
     Visibility: public -/
 def arena.inductives.iota_read.recs_read
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -20714,7 +20714,7 @@ def arena.env.ifenv_set_flags
   ok { fe with «nat_lit», str_lit }
 
 /-- [con_ron_core::arena::inductives::iota_read::block_reads_at]:
-    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 1139:0-1164:1
+    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 1141:0-1166:1
     Visibility: public -/
 def arena.inductives.iota_read.block_reads_at
   (pers : arena.store.PersTier) (st : arena.monad.AState)

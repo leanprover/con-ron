@@ -619,7 +619,7 @@ pub fn iota_parts_at_body(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/IotaRead.lean:99-112 Expr.lvlEq
-/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:302-351 lvlEq` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:302-352 lvlEq` —
 /// **equal up to equivalent universe levels**.
 pub fn lvl_eq(pers: &PersTier, st: &mut AState, fuel: u64, a: &EIdx, b: &EIdx) -> Result<bool, CheckError> {
     if fuel == 0 {
@@ -712,7 +712,7 @@ pub fn lvl_eq(pers: &PersTier, st: &mut AState, fuel: u64, a: &EIdx, b: &EIdx) -
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/IotaRead.lean:114-118 optParamName
-/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:353-357 topName` — a
+/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:354-358 topName` — a
 /// top-level name, interned.
 pub fn top_name(pers: &PersTier, st: &mut AState, s: Vec<u32>) -> Result<NIdx, CheckError> {
     match intern_n_node(pers, st, NNodeView::Anonymous) {
@@ -722,7 +722,7 @@ pub fn top_name(pers: &PersTier, st: &mut AState, s: Vec<u32>) -> Result<NIdx, C
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/IotaRead.lean:120-127 annWitness
-/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:359-377 annWitness` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:360-378 annWitness` —
 /// **a type a stored constant inhabits**: `D` is a constant `n` at no levels
 /// and `n.missing` is stored at no levels with type `D`.
 pub fn ann_witness(pers: &PersTier, st: &mut AState, fe: &IFEnv, d: &EIdx) -> Result<bool, CheckError> {
@@ -750,7 +750,7 @@ pub fn ann_witness(pers: &PersTier, st: &mut AState, fe: &IFEnv, d: &EIdx) -> Re
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/IotaRead.lean:129-134 annIdentVal
-/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:409-428 annIdentVal` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:410-429 annIdentVal` —
 /// `fun (α : Sort p) => α` at arity 1, `fun (α : Sort p) (_ : D) => α` at
 /// arity 2 with `D` either `α` or a type a stored constant inhabits.
 pub fn ann_ident_val(
@@ -789,7 +789,7 @@ pub fn ann_ident_val(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/IotaRead.lean:129-134 annIdentVal
-/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:379-407 annIdentBody` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:380-408 annIdentBody` —
 /// the value's body under `fun (α : Sort p')`, at the definition's level
 /// parameter `p` (a split for the tail-call rule).
 pub fn ann_ident_body(
@@ -849,7 +849,7 @@ pub fn ann_ident_body(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/IotaRead.lean:136-145 annIdent
-/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:430-436 annIdent` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:431-437 annIdent` —
 /// **an annotation stored as the identity on its type argument**.
 pub fn ann_ident(pers: &PersTier, st: &mut AState, fe: &IFEnv, n: &NIdx, arity: u64) -> Result<bool, CheckError> {
     match env::ifenv_find(pers, fe, n) {
@@ -859,7 +859,7 @@ pub fn ann_ident(pers: &PersTier, st: &mut AState, fe: &IFEnv, n: &NIdx, arity: 
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/IotaRead.lean:147-158 annEq
-/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:438-481 annEq` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:439-482 annEq` —
 /// **`s` is `c` with type annotations consumed at its head**, up to
 /// equivalent levels.
 pub fn ann_eq(pers: &PersTier, st: &mut AState, fe: &IFEnv, fuel: u64, s: &EIdx, c: &EIdx) -> Result<bool, CheckError> {
@@ -947,7 +947,7 @@ pub fn ann_eq(pers: &PersTier, st: &mut AState, fe: &IFEnv, fuel: u64, s: &EIdx,
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/IotaRead.lean:160-164 listRel
-/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:483-489 listLvlEq` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:484-490 listLvlEq` —
 /// `listRel Expr.lvlEq`, from `i` on.
 pub fn list_lvl_eq(pers: &PersTier, st: &mut AState, a: &Vec<EIdx>, b: &Vec<EIdx>, i: usize) -> Result<bool, CheckError> {
     if i >= a.len() && i >= b.len() {
@@ -964,7 +964,7 @@ pub fn list_lvl_eq(pers: &PersTier, st: &mut AState, a: &Vec<EIdx>, b: &Vec<EIdx
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/IotaRead.lean:160-164 listRel
-/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:491-497 listAnnEq` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:492-498 listAnnEq` —
 /// `listRel (annEq find?)`, from `i` on.
 pub fn list_ann_eq(
     pers: &PersTier,
@@ -989,7 +989,7 @@ pub fn list_ann_eq(
 
 /// con-leche: ConLeche/Kernel/Inductives/IotaRead.lean:166-175 paramsAnnEq
 /// con-leche: ConLeche/Cached/IotaReadC.lean:49-56 paramsAnnEqC
-/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:499-508 paramsAnnEq` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:500-509 paramsAnnEq` —
 /// **a plain rule's parameters fit its constructor's** (`pd`, at the rule's
 /// levels).
 pub fn params_ann_eq(
@@ -1009,7 +1009,7 @@ pub fn params_ann_eq(
 
 /// con-leche: ConLeche/Kernel/Inductives/IotaRead.lean:177-185 iotaPartsRel
 /// con-leche: ConLeche/Cached/IotaReadC.lean:58-64 iotaPartsRelC
-/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:510-530 iotaPartsRel` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:511-531 iotaPartsRel` —
 /// **the two readings of a rule's parts are one**.
 pub fn iota_parts_rel(
     pers: &PersTier,
@@ -1045,7 +1045,7 @@ pub fn iota_parts_rel(
 
 /// con-leche: ConLeche/Kernel/Inductives/IotaRead.lean:187-196 ruleReadsB
 /// con-leche: ConLeche/Cached/IotaReadC.lean:66-74 ruleReadsBC
-/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:532-549 ruleReads` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:533-550 ruleReads` —
 /// **one rule reads**: its parts off the recursor's type are its parts
 /// through the constructor the index stores under the rule's name.
 pub fn rule_reads(
@@ -1078,7 +1078,7 @@ pub fn rule_reads(
 
 /// con-leche: ConLeche/Kernel/Inductives/IotaRead.lean:198-207 recReadsOk
 /// con-leche: ConLeche/Cached/IotaReadC.lean:76-84 recReadsOkC
-/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:551-559 rulesRead` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:552-560 rulesRead` —
 /// each rule from position `i` on reads.
 pub fn rules_read(
     pers: &PersTier,
@@ -1104,7 +1104,7 @@ pub fn rules_read(
 
 /// con-leche: ConLeche/Kernel/Inductives/IotaRead.lean:198-207 recReadsOk
 /// con-leche: ConLeche/Cached/IotaReadC.lean:76-84 recReadsOkC
-/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:561-570 recReads` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:562-571 recReads` —
 /// **the checker's rule, at one recursor**; any other constant reads.
 pub fn rec_reads(pers: &PersTier, st: &mut AState, fe: &IFEnv, ci: &IConstantInfo) -> Result<bool, CheckError> {
     match ci {
@@ -1118,7 +1118,7 @@ pub fn rec_reads(pers: &PersTier, st: &mut AState, fe: &IFEnv, ci: &IConstantInf
 
 /// con-leche: ConLeche/Kernel/Inductives/IotaRead.lean:209-213 blockReadsOk
 /// con-leche: ConLeche/Cached/IotaReadC.lean:86-89 blockReadsOkC
-/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:572-578 recsRead` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:573-579 recsRead` —
 /// every recursor of the list from `i` on reads.
 pub fn recs_read(pers: &PersTier, st: &mut AState, fe: &IFEnv, cs: &Vec<IConstantInfo>, i: usize) -> Result<bool, CheckError> {
     if i >= cs.len() {
@@ -1134,7 +1134,7 @@ pub fn recs_read(pers: &PersTier, st: &mut AState, fe: &IFEnv, cs: &Vec<IConstan
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
 /// con-leche: ConLeche/Cached/ParsedC.lean:106-126 checkIndDeclC
-/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:580-593 blockReadsAt` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:581-594 blockReadsAt` —
 /// **the checker's rule, at a block** (`blockReadsOk`): every recursor the
 /// block installs reads against the index `fe` with the block's constants
 /// pushed in place.  Answers the verdict and the index with the pushes undone.
