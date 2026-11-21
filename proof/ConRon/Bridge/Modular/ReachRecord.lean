@@ -303,4 +303,119 @@ theorem recBlocksAt_go {pk : OleanPins} {r : Region} :
       simp only [List.filter_cons, htC, ht, Bool.false_eq_true, ↓reduceIte]
       exact hks
 
+/-- `takePart` keeps the tables. -/
+theorem takePart_tables {pk : OleanPins} {F : FS} {sp : Roots} {c c' : ConRon.Arena.Modular.ReachCache}
+    {k : ConRon.Arena.Modular.PartKey} {r : Region} {st : SM} {s s' : AState}
+    (h : ConRon.Arena.Modular.takePart (modelFs F) pk sp c k s = .ok ((c', r, st), s')) :
+    c'.tables = c.tables := by
+  unfold ConRon.Arena.Modular.takePart at h
+  cases hp : c.parts[k]? with
+  | some p =>
+    obtain ⟨r', st'⟩ := p
+    rw [hp] at h
+    obtain ⟨hv, -⟩ := AM.pure_ok h
+    simp only [Prod.mk.injEq] at hv
+    rw [hv.1]
+  | none =>
+    rw [hp] at h
+    obtain ⟨mn, t₁, g1, k1⟩ := AM.bind_ok h
+    obtain ⟨fv, t₂, g2, k2⟩ := AM.bind_ok k1
+    cases hv : fv.viewRegion k.level with
+    | none => rw [hv] at k2; exfalso; am_never k2
+    | some ra =>
+      rw [hv] at k2
+      obtain ⟨hv, -⟩ := AM.pure_ok k2
+      simp only [Prod.mk.injEq] at hv
+      rw [← hv.1]
+
+theorem recBlocksAt_eq (r : Region) (t : ConLeche.Frontend.Olean.NamePositions) :
+    ConLeche.Driver.recBlocksAt r t =
+      (((t.consts.toList.filter (·.tag == 7)).map (·.loc)).mapM (rbReadC r)).map
+        (fun ks => ks.foldl rbStepC {}) := by
+  unfold ConLeche.Driver.recBlocksAt
+  rw [Array.toList_filter]
+  rfl
+
+/-- con-leche: ConLeche/Driver/Reach.lean:597-608 recBlocksOf — **a part's recursors by block,
+read once**: upstream's accept, the twin's cached map related to upstream's. -/
+theorem recBlocksOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
+    {k : ConRon.Arena.Modular.PartKey} {kC : ConLeche.Driver.PartKey} {s s' : AState}
+    (hctx : RCtx pk s) (he : EnvRel sp s.store env envC) (hc : CacheRel s.store c cC)
+    (hk : PKRel s.store k kC)
+    (h : ConRon.Arena.Modular.recBlocksOf (modelFs F) pk sp env c k s = .ok (c', s')) :
+    DStep s s' ∧ ∃ cC' mC m, ModelIO.Gives (ConLeche.Driver.recBlocksOf envC cC kC) F (cC', .ok mC) ∧
+      CacheRel s'.store c' cC' ∧ c'.recBlocks[k]? = some m ∧ HMRel (· = ·) s'.store m mC := by
+  have hw := hctx.wf
+  unfold ConRon.Arena.Modular.recBlocksOf at h
+  unfold ConLeche.Driver.recBlocksOf
+  have hrb := hc.recBlocks.get hw hk
+  by_cases h0 : c.recBlocks.contains k = true
+  · rw [ite_eq_left h0] at h
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h
+    rw [Std.HashMap.contains_eq_isSome_getElem?] at h0
+    rcases optRel_cases hrb with ⟨g1, -⟩ | ⟨m, mC, g1, g2, g3⟩
+    · rw [g1] at h0; cases h0
+    rw [g2]
+    exact ⟨DStep.refl hctx.ok hctx.off, cC, mC, m, ModelIO.gives_pure _ _, hc, g1, g3⟩
+  rw [ite_eq_right h0] at h
+  have hnone : cC.recBlocks[kC]? = none := by
+    rcases optRel_cases hrb with ⟨-, g2⟩ | ⟨m, mC, g1, -, -⟩
+    · exact g2
+    · exfalso; apply h0; rw [Std.HashMap.contains_eq_isSome_getElem?, g1]; rfl
+  rw [hnone]
+  dsimp only
+  obtain ⟨u0, s₀, h0', h⟩ := AM.bind_ok h
+  obtain ⟨-, hs0⟩ := AM.pure_ok h0'
+  subst s₀
+  -- the table
+  obtain ⟨c₁, s₁, h1, h⟩ := AM.bind_ok h
+  obtain ⟨hst1, cC₁, tC, t, hg1, hc1, htg, ht⟩ := tableOf_run hsp hctx he hc hk h1
+  have hctx1 := hctx.step hst1
+  -- the part
+  obtain ⟨tk, s₂, h2, h⟩ := AM.bind_ok h
+  obtain ⟨c₂, r, st⟩ := tk
+  have htab := takePart_tables h2
+  have htg2 : ConRon.Arena.Modular.tableGet env.wr c₂ k = some t := by
+    unfold ConRon.Arena.Modular.tableGet at htg ⊢; rw [htab]; exact htg
+  dsimp only at h
+  rw [htg2] at h
+  dsimp only at h
+  obtain ⟨res, s₃, h3, h⟩ := AM.bind_ok h
+  obtain ⟨cm, s₄, h4, h5⟩ := AM.bind_ok h
+  obtain ⟨c₃, m⟩ := cm
+  obtain ⟨hv, rfl⟩ := AM.pure_ok h5
+  subst hv
+  have h' : (do
+      let (c, r, st) ← ConRon.Arena.Modular.takePart (modelFs F) pk sp c₁ k
+      ConRon.Arena.Modular.putPart c k r (← (fun (r : Region) (st : SM) => (do
+        let res ← ConRon.Arena.Modular.recBlocksAt pk r {} t.consts.toList
+        pure (st, res) : AM (SM × Option (Std.HashMap NIdx (Array Nat))))) r st)) s₁ = .ok ((c₃, m), s') :=
+    AM.bind_of h2 (AM.bind_of (AM.bind_of h3 rfl) h4)
+  obtain ⟨hst2, cC₂, mC, hg2, hc2, hmr⟩ := partRead_run
+    (R := fun st (a : Std.HashMap NIdx (Array Nat)) (b : Std.HashMap ConLeche.Name (Array Nat)) =>
+      HMRel (· = ·) st a b)
+    (f := fun r st => (ConLeche.Driver.recBlocksAt r tC).map (st, ·))
+    (g := fun (r : Region) (st : SM) => (do
+        let res ← ConRon.Arena.Modular.recBlocksAt pk r {} t.consts.toList
+        pure (st, res) : AM (SM × Option (Std.HashMap NIdx (Array Nat)))))
+    (fun r m₀ m₁ a s₀ s₀' hx₀ hctx₀ hgood hrun => by
+      obtain ⟨res', s₀₁, k1, k2⟩ := AM.bind_ok hrun
+      obtain ⟨hv, rfl⟩ := AM.pure_ok k2
+      injection hv with e1 e2
+      subst e1 e2
+      obtain ⟨hst, ks, hks, hm⟩ := recBlocksAt_go (r := r) t.consts.toList hctx₀
+        (HMRel.empty _ _) (ListRel.mono' (fun _ _ q => q.ext hx₀) ht.consts) k1
+      refine ⟨hst, hgood.ext hst.ext, fun mC hG => ⟨mC, _, ?_, hG, hm⟩⟩
+      rw [recBlocksAt_eq, hks]; rfl)
+    hsp hctx1 (he.ext hst1.ext hctx1.wf) hc1 (hk.ext hst1.ext) (Ext.refl _) h'
+  have hw' := nsWF_of_StateOK hst2.ok.state
+  have hk' := (hk.ext hst1.ext).ext hst2.ext
+  refine ⟨hst1.trans hst2, { cC₂ with recBlocks := cC₂.recBlocks.insert kC mC }, mC, m,
+    hg1.bind (hg2.bind (ModelIO.gives_pure _ _)),
+    ⟨hc2.tables, hc2.looks, hc2.parts, hc2.recBlocks.insert hw' hk' hmr, hc2.views, hc2.located,
+      hc2.completed, hc2.pending, hc2.partners, hc2.searches⟩, ?_, hmr⟩
+  simp
+
 end ConRon.Bridge.Modular

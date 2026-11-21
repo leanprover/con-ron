@@ -48,8 +48,9 @@ upstream's `withPart` at a read `f` answering alike from any good memo. -/
 theorem partRead_run {α β : Type} {R : EStore → α → β → Prop}
     {g : Region → SM → AM (SM × Option α)}
     {f : Region → ConLeche.Frontend.Olean.SM → Option (ConLeche.Frontend.Olean.SM × β)}
-    {pk : OleanPins}
-    (hg : ∀ (r : Region) (m m' : SM) (a : α) (s s' : AState), Ctx pk s → SparseGood s.store r m →
+    {pk : OleanPins} {st₀ : EStore}
+    (hg : ∀ (r : Region) (m m' : SM) (a : α) (s s' : AState), Ext st₀ s.store → Ctx pk s →
+      SparseGood s.store r m →
       g r m s = .ok ((m', some a), s') →
       ParseStep s s' ∧ SparseGood s'.store r m' ∧ ∀ mC : ConLeche.Frontend.Olean.SM, mC.Good r →
         ∃ mC' b, f r mC = some (mC', b) ∧ mC'.Good r ∧ R s'.store a b)
@@ -58,7 +59,7 @@ theorem partRead_run {α β : Type} {R : EStore → α → β → Prop}
     {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
     {k : ConRon.Arena.Modular.PartKey} {kC : ConLeche.Driver.PartKey} {a : α} {s s' : AState}
     (hctx : RCtx pk s) (he : EnvRel sp s.store env envC) (hc : CacheRel s.store c cC)
-    (hk : PKRel s.store k kC)
+    (hk : PKRel s.store k kC) (hx₀ : Ext st₀ s.store)
     (h : (do
         let (c, r, st) ← ConRon.Arena.Modular.takePart (modelFs F) pk sp c k
         ConRon.Arena.Modular.putPart c k r (← g r st)) s = .ok ((c', a), s')) :
@@ -136,7 +137,7 @@ theorem partRead_run {α β : Type} {R : EStore → α → β → Prop}
             · cases hx
             · exact hc.parts.bwd xC b hx
   rw [hs1] at h2
-  obtain ⟨hst2, hg2, hf⟩ := hg r st m' a s s₂ hctx.ctx hst (by
+  obtain ⟨hst2, hg2, hf⟩ := hg r st m' a s s₂ hx₀ hctx.ctx hst (by
     -- the read's answer is `some`: `putPart` accepted
     cases o with
     | none =>
@@ -198,12 +199,12 @@ theorem stmtAt_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
         denoteKindN st a.2 = some b.2)
     (g := fun r st => ConRon.Arena.Frontend.Olean.stmtWith pk r st sp₀.pos.loc)
     (f := fun r st => ConLeche.Frontend.Olean.stmtWith r st spC.pos.loc)
-    (fun r m m' a s s' hc hm h => by
+    (fun r m m' a s s' _ hc hm h => by
       obtain ⟨cv, k⟩ := a
       obtain ⟨hst, hg, cvC, kC, hsk, hd1, hd2⟩ := stmtWith_runR hc hm h
       refine ⟨hst, hg, fun mC hG => ?_⟩
       obtain ⟨mC', hw, hG'⟩ := stmtWith_complete hG (hs.2.loc ▸ hsk)
-      exact ⟨mC', (cvC, kC), hw, hG', hd1, hd2⟩) hsp hctx he hc hs.1 h
+      exact ⟨mC', (cvC, kC), hw, hG', hd1, hd2⟩) hsp hctx he hc hs.1 (Ext.refl _) h
   exact ⟨hst, cC', cvC, kC, hg, hc', hR⟩
 
 /-- con-leche: ConLeche/Driver/Reach.lean:262-282 withPart — **one constant of a part**,
@@ -223,11 +224,11 @@ theorem partEntry_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp
   exact partRead_run (R := fun st (a : CEntryF NIdx EIdx) (b : CEntryF ConLeche.Name Expr) =>
       denoteEntry st a = some b)
     (g := fun r st => ConRon.Arena.Frontend.Olean.entryWith pk r st l)
-    (fun r m m' a s s' hc hm h => by
+    (fun r m m' a s s' _ hc hm h => by
       obtain ⟨hst, hg, eC, heC, hd⟩ := entryWith_runR hc hm h
       refine ⟨hst, hg, fun mC hG => ?_⟩
       obtain ⟨mC', hw, hG'⟩ := entryWith_complete hG heC
-      exact ⟨mC', eC, hw, hG', hd⟩) hsp hctx he hc hk h
+      exact ⟨mC', eC, hw, hG', hd⟩) hsp hctx he hc hk (Ext.refl _) h
 
 /-- con-leche: ConLeche/Driver/Reach.lean:262-282 withPart — **several constants of a part**,
 upstream's, read back. -/
@@ -246,11 +247,11 @@ theorem partEntries_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = 
   exact partRead_run (R := fun st (a : List (CEntryF NIdx EIdx)) (b : List (CEntryF ConLeche.Name Expr)) =>
       a.mapM (denoteEntry st) = some b)
     (g := fun r st => ConRon.Arena.Modular.entriesWith pk r st ls)
-    (fun r m m' a s s' hc hm h => by
+    (fun r m m' a s s' _ hc hm h => by
       obtain ⟨hst, hg, esC, hes, hd⟩ := entriesWith_runR ls hc hm h
       refine ⟨hst, hg, fun mC hG => ?_⟩
       obtain ⟨mC', hw, hG'⟩ := entriesWith_complete ls hG hes
-      exact ⟨mC', esC, hw, hG', hd⟩) hsp hctx he hc hk h
+      exact ⟨mC', esC, hw, hG', hd⟩) hsp hctx he hc hk (Ext.refl _) h
 
 /-! ## A part's region and table, one read of its files -/
 
