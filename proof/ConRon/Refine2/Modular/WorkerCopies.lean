@@ -905,18 +905,19 @@ theorem copies_ok_loop0_la {pers : arena.store.PersTier} {fe : arena.env.IFEnv} 
     (hl : frontend.olean.levels.HeaderLoads) (ni : frontend.olean.index.NameIndex)
     (v : alloc.vec.Vec arena.env.IDeclaration) (v1 : alloc.vec.Vec arena.handle.NIdx)
     (v2 : alloc.vec.Vec (arena.handle.NIdx × arena.handle.NIdx)) (i0 i1 : Std.U64)
+    (v3 : alloc.vec.Vec ((alloc.vec.Vec Std.U32) × arena.handle.NIdx × frontend.olean.spec.StmtRec))
     {r' : Modular.Reach} (hr : r'.ctx = absIDeclArr v)
     {owner : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64} {O : Std.HashMap NIdx Nat}
     (ho : IdxRel owner O) (ld' : Arena.Frontend.Olean.HeaderLoads)
     (ix' : Arena.Frontend.Olean.NameIndex) (cs : alloc.vec.Vec arena.env.IDeclaration) :
     ∀ (i : Std.Usize) st lst, AStateRel₀ pers st lst → AStateInv pers st →
-      LA pers (fun _ _ => True) (copies_ok_loop0 pk pers st m hl ni v v1 v2 i0 i1 owner cs fe i) lst
+      LA pers (fun _ _ => True) (copies_ok_loop0 pk pers st m hl ni v v1 v2 i0 i1 v3 owner cs fe i) lst
         (((cs.val.drop i.val).map absIDeclaration).forM
           (Modular.copyCheck (absPins pk) (absNIdx m) ld' ix' r' O lfe)) := by
   intro i
   refine cursor_induction (fun i : Std.Usize => i.val) cs.val.length
     (fun i (_ : Unit) => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
-      LA pers (fun _ _ => True) (copies_ok_loop0 pk pers st m hl ni v v1 v2 i0 i1 owner cs fe i) lst
+      LA pers (fun _ _ => True) (copies_ok_loop0 pk pers st m hl ni v v1 v2 i0 i1 v3 owner cs fe i) lst
         (((cs.val.drop i.val).map absIDeclaration).forM
           (Modular.copyCheck (absPins pk) (absNIdx m) ld' ix' r' O lfe))) ?_ ?_ i ()
   · intro i _ hn st lst hrel hinv
@@ -930,7 +931,7 @@ theorem copies_ok_loop0_la {pers : arena.store.PersTier} {fe : arena.env.IFEnv} 
     have ex := vec_index_some hx
     have hxe : cs.val[i.val] = x := (List.getElem?_eq_some_iff.mp ex).2
     rw [hxe]
-    refine LA.bind (copy_check_la hrel hinv hfe pk m hl ni ⟨v, v1, v2, i0, i1⟩ hr ho x ld' ix')
+    refine LA.bind (copy_check_la hrel hinv hfe pk m hl ni ⟨v, v1, v2, i0, i1, v3⟩ hr ho x ld' ix')
       (fun _ _ _ _ h => by simp at h) ?_
     rintro _ _ st1 lst1 _ hrel1 hinv1
     refine LA.rust fun i2 hi2 => ?_
@@ -944,18 +945,19 @@ theorem copies_ok_loop1_la {pers : arena.store.PersTier} {fe : arena.env.IFEnv} 
     (hl : frontend.olean.levels.HeaderLoads) (ni : frontend.olean.index.NameIndex)
     (v : alloc.vec.Vec arena.env.IDeclaration) (v1 : alloc.vec.Vec arena.handle.NIdx)
     (v2 : alloc.vec.Vec (arena.handle.NIdx × arena.handle.NIdx)) (i0 i1 : Std.U64)
+    (v3 : alloc.vec.Vec ((alloc.vec.Vec Std.U32) × arena.handle.NIdx × frontend.olean.spec.StmtRec))
     {r' : Modular.Reach} (hr : r'.ctx = absIDeclArr v)
     {owner : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64} {O : Std.HashMap NIdx Nat}
     (ho : IdxRel owner O) (ld' : Arena.Frontend.Olean.HeaderLoads)
     (ix' : Arena.Frontend.Olean.NameIndex) (cs : alloc.vec.Vec arena.env.IDeclaration) :
     ∀ (i : Std.Usize) st lst, AStateRel₀ pers st lst → AStateInv pers st →
-      LA pers (fun _ _ => True) (copies_ok_loop1 pk pers st m hl ni v v1 v2 i0 i1 owner cs fe i) lst
+      LA pers (fun _ _ => True) (copies_ok_loop1 pk pers st m hl ni v v1 v2 i0 i1 v3 owner cs fe i) lst
         (((cs.val.drop i.val).map absIDeclaration).forM
           (Modular.copyCheck (absPins pk) (absNIdx m) ld' ix' r' O lfe)) := by
   intro i
   refine cursor_induction (fun i : Std.Usize => i.val) cs.val.length
     (fun i (_ : Unit) => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
-      LA pers (fun _ _ => True) (copies_ok_loop1 pk pers st m hl ni v v1 v2 i0 i1 owner cs fe i) lst
+      LA pers (fun _ _ => True) (copies_ok_loop1 pk pers st m hl ni v v1 v2 i0 i1 v3 owner cs fe i) lst
         (((cs.val.drop i.val).map absIDeclaration).forM
           (Modular.copyCheck (absPins pk) (absNIdx m) ld' ix' r' O lfe))) ?_ ?_ i ()
   · intro i _ hn st lst hrel hinv
@@ -969,7 +971,7 @@ theorem copies_ok_loop1_la {pers : arena.store.PersTier} {fe : arena.env.IFEnv} 
     have ex := vec_index_some hx
     have hxe : cs.val[i.val] = x := (List.getElem?_eq_some_iff.mp ex).2
     rw [hxe]
-    refine LA.bind (copy_check_la hrel hinv hfe pk m hl ni ⟨v, v1, v2, i0, i1⟩ hr ho x ld' ix')
+    refine LA.bind (copy_check_la hrel hinv hfe pk m hl ni ⟨v, v1, v2, i0, i1, v3⟩ hr ho x ld' ix')
       (fun _ _ _ _ h => by simp at h) ?_
     rintro _ _ st1 lst1 _ hrel1 hinv1
     refine LA.rust fun i2 hi2 => ?_
@@ -991,7 +993,7 @@ theorem copies_ok_la {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : ASt
     (ds : alloc.vec.Vec arena.env.IDeclaration)
     (hom : ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LA pers IdxRel (frontend.modular.reach.owner_map pers st r.ctx) lst
-        (Modular.ownerMap r'.ctx))
+        (Modular.ownerMap r'.ctx.toList))
     (hcr : ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LA pers (fun a b => b = absIDeclArr a) (copy_recs pers st x wr.index ds) lst
         (Modular.copyRecs x' wr'.index (absIDeclArr ds))) :
@@ -1009,14 +1011,14 @@ theorem copies_ok_la {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : ASt
     refine LA.rust fun fe hfe0 => ?_
     have hfe := ifenv_layer00_rel hb hok hfe0
     have := copies_ok_loop1_la hfe pk m wr.loads wr.index r.ctx r.homes r.completed r.searches
-      r.inferred hr hO wr'.loads wr'.index c 0#usize st2 lst2 hrel2 hinv2
+      r.inferred r.pending hr hO wr'.loads wr'.index c 0#usize st2 lst2 hrel2 hinv2
     simpa [absIDeclArr] using this
   · simp only [eb, ↓reduceIte]
     rw [hr]
     refine LA.bind (LS.la (ctx_layer_ls hrel2 hinv2 hb hok r.ctx)) (fun _ _ _ _ h => by simp at h) ?_
     rintro fe lfe st3 lst3 hfe hrel3 hinv3
     have := copies_ok_loop0_la hfe pk m wr.loads wr.index r.ctx r.homes r.completed r.searches
-      r.inferred hr hO wr'.loads wr'.index c 0#usize st3 lst3 hrel3 hinv3
+      r.inferred r.pending hr hO wr'.loads wr'.index c 0#usize st3 lst3 hrel3 hinv3
     simpa [absIDeclArr] using this
 
 end ConRon.Refine2.Modular

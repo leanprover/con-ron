@@ -11,7 +11,7 @@ walk is a lockstep `LS`.
 **Hypotheses, not theorems.**  `reach::record_reads` is lane L2's (a stub): `records_roots`,
 `own_roots`, `roots_at` take its Theorem 2 as `RecordReadsRel`.  `view::parse_all_views` and
 `module::check_views` have no Theorem 2 yet: `home_of_refines` takes theirs as `hPV`, `hCV`.
-`install::decl_names` had none either; it is proved here (`decl_names_ls`).
+`reach::decl_names` (lane L2's) is proved here (`decl_names_ls`).
 -/
 import ConRon.Refine2.Frontend.Olean.Index
 import ConRon.Refine2.Frontend.Olean.Lazy
@@ -39,7 +39,8 @@ open ConRon.Arena
 open ConRon.Arena.Modular (unskipped pushUnpinned pushLoaded ownUsesAt ownUsesThm ownNames
   namesNodupGo anyLoaded ownNamesOf unloadedConstants groundGo groundGoAll groundStmt groundStmts
   groundVariant pinGround)
-open ConRon.Arena (pinFootprint declNames declConstants)
+open ConRon.Arena (pinFootprint declConstants)
+open ConRon.Arena.Modular (declNames)
 open ConRon.Arena.Modular (recordReads ownRoots recordsRoots groundRoots loadedRec recsLoaded ownRecs copyRecs
   rootsAt ctxNamesNodup ctxNamesNodupGo ownUsesOf ownRecords homeOf)
 open ConRon.Refine2.Frontend (UOut UOutS HSetRel used_consts_go_refines absNIdxArr_push)
@@ -1092,48 +1093,45 @@ theorem footprints_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AS
   rw [Arena.Modular.footprints, ← Array.foldlM_toList]
   exact this
 
-/-! ## A record's names (`install::decl_names`) -/
+/-! ## A record's names (`reach::decl_names`, lane L2's: its Theorem 2 here, for the worker) -/
 
-theorem constant_names_eq (cs : alloc.vec.Vec arena.env.IConstantInfo) (i : Std.Usize)
-    {out o} (h : arena.install.constant_names cs i out = ok o) :
+theorem decl_names_loop_eq (cs : alloc.vec.Vec arena.env.IConstantInfo) (i : Std.Usize)
+    {out o} (h : frontend.modular.reach.decl_names_loop cs out i = ok o) :
     o.val.map absNIdx = out.val.map absNIdx ++ ((cs.val.drop i.val).map absIConstantInfo).map (·.name) := by
-  rw [arena.install.constant_names] at h
-  by_cases hlt : i ≥ alloc.vec.Vec.len cs
+  rw [frontend.modular.reach.decl_names_loop] at h
+  by_cases hlt : i < alloc.vec.Vec.len cs
   · rw [ite_eq_left hlt] at h
-    cases Result.ok_injective h
-    rw [List.drop_of_length_le (by have : (alloc.vec.Vec.len cs).val ≤ i.val := hlt; rw [vec_len_val] at this; omega)]
-    simp
-  · rw [ite_eq_right hlt] at h
-    have hi : i.val < cs.val.length := by
-      have : ¬ (alloc.vec.Vec.len cs).val ≤ i.val := hlt; rw [vec_len_val] at this; omega
+    have hi : i.val < cs.val.length := lt_len hlt
     peel h as c, hc
     obtain ⟨_, rfl⟩ := vec_index_eq hc
     peel h as n, hn
     peel h as out1, hout1
     peel h as i2, hi2
-    have ih := constant_names_eq cs i2 h
+    have ih := decl_names_loop_eq cs i2 h
     rw [usize_succ hi2] at ih
     rw [ih, ConRon.Refine.vec_push_val hout1, List.map_append, List.map_singleton, i_constant_info_name_abs hn,
       List.append_assoc, List.singleton_append, ← List.map_cons, ← List.map_cons,
       ← List.drop_eq_getElem_cons hi]
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    simp
 termination_by cs.val.length - i.val
-decreasing_by
-  have : ¬ (alloc.vec.Vec.len cs).val ≤ i.val := hlt
-  rw [vec_len_val] at this; rw [usize_succ hi2]; omega
+decreasing_by have := lt_len hlt; rw [usize_succ hi2]; omega
 
 /-- **`decl_names` is `declNames`.** -/
 theorem decl_names_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (d : arena.env.IDeclaration) :
-    LS pers (fun a b => b = a.val.map absNIdx) (arena.install.decl_names pers st d) lst
+    LS pers (fun a b => b = a.val.map absNIdx) (frontend.modular.reach.decl_names pers st d) lst
       (declNames (absIDeclaration d)) := by
   intro o st' h
-  rw [arena.install.decl_names] at h
+  rw [frontend.modular.reach.decl_names] at h
   unfold declNames
   refine lout_bind (decl_constants_ls hrel hinv) h (by errarm) ?_
   rintro a b s lst1 rfl hrel1 hinv1 h
   obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases Result.ok_injective h
-  have := constant_names_eq a 0#usize hv1
+  have := decl_names_loop_eq a 0#usize hv1
   simp only [vec_with_capacity_val, List.map_nil, List.nil_append,
     show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at this
   refine lout_pure hrel1 hinv1 ?_
@@ -1145,13 +1143,13 @@ theorem decl_names_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AS
 Theorem 2 is expected to have, taken as a hypothesis. -/
 def RecordReadsRel (pers : arena.store.PersTier) : Prop :=
   ∀ {st lst} (d : arena.env.IDeclaration), AStateRel₀ pers st lst → AStateInv pers st →
-    LS pers (fun a b => b = absNIdxArr a) (frontend.modular.reach.record_reads pers st d) lst
+    LS pers (fun a b => b = a.val.map absNIdx) (frontend.modular.reach.record_reads pers st d) lst
       (recordReads (absIDeclaration d))
 
 /-- The twin's step of `recordsRoots`. -/
 def rrStep (ix : Arena.Frontend.Olean.NameIndex) (fp : _root_.Std.HashSet NIdx) (out : _root_.Array NIdx)
     (d : IDeclaration) : AM (_root_.Array NIdx) :=
-  pushUnpinned out ix fp <$> recordReads d
+  do pure (pushUnpinned out ix fp (← recordReads d).toArray)
 
 theorem records_roots_loop_ls {pers} (hRR : RecordReadsRel pers) {ix ix'} (hix : NameIndexRel ix ix')
     {fp : ron.hashmap2.HashMap2 arena.handle.NIdx Bool} {fp' : _root_.Std.HashSet NIdx} (hfp : NSet fp fp')
@@ -1167,7 +1165,7 @@ theorem records_roots_loop_ls {pers} (hRR : RecordReadsRel pers) {ix ix'} (hix :
     obtain ⟨hi, rfl⟩ := vec_index_eq hd
     rw [List.drop_eq_getElem_cons hi, List.map_cons, List.foldlM_cons]
     unfold rrStep
-    rw [← bind_pure_comp, bind_assoc]
+    rw [bind_assoc]
     refine lout_bind (hRR _ hrel hinv) h (by errarm) ?_
     rintro a b s1 lst1 rfl hrel1 hinv1 h
     simp only [pure_bind]
@@ -1175,8 +1173,6 @@ theorem records_roots_loop_ls {pers} (hRR : RecordReadsRel pers) {ix ix'} (hix :
     obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have ih := records_roots_loop_ls hRR hix hfp ds i2 hrel1 hinv1 _ _ h
     rw [usize_succ hi2, push_unpinned_eq hix hfp hout1] at ih
-    have e : (fun out d => pushUnpinned out ix' fp' <$> recordReads d) = rrStep ix' fp' := rfl
-    rw [e]
     exact ih
   · rw [ite_eq_right hlt] at h
     cases Result.ok_injective h
