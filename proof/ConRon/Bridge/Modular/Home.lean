@@ -597,4 +597,105 @@ theorem denoteEntry_inj {st : EStore} (hwf : StoreWF st) {a b : CEntryF NIdx EId
   rw [denN_inj hwf n n' _ h1 h1', mapM_inj (denN_inj hwf) h2 h2', denE_inj hwf t t' _ h3 h3',
     kind_inj hwf h4 h4']
 
+/-- `hintsEq` is equality. -/
+theorem hintsEq_iff (h h' : ConLeche.Frontend.HintsRec) :
+    ConLeche.Frontend.Olean.hintsEq h h' = true ↔ h = h' := by
+  cases h <;> cases h' <;> simp [ConLeche.Frontend.Olean.hintsEq]
+
+/-- The twin's `rulesEq` is equality. -/
+theorem rulesEqT_iff : ∀ (a b : List (NIdx × Nat × EIdx)),
+    ConRon.Arena.Frontend.Olean.rulesEq a b = true ↔ a = b
+  | [], [] => by simp [ConRon.Arena.Frontend.Olean.rulesEq]
+  | [], _ :: _ => by simp [ConRon.Arena.Frontend.Olean.rulesEq]
+  | _ :: _, [] => by simp [ConRon.Arena.Frontend.Olean.rulesEq]
+  | (x, y, z) :: as, (x', y', z') :: bs => by
+    simp [ConRon.Arena.Frontend.Olean.rulesEq, rulesEqT_iff as bs, and_assoc]
+
+/-- Upstream's `rulesEq` is equality. -/
+theorem rulesEqU_iff : ∀ (a b : List (Name × Nat × Expr)),
+    ConLeche.Frontend.Olean.rulesEq a b = true ↔ a = b
+  | [], [] => by simp [ConLeche.Frontend.Olean.rulesEq]
+  | [], _ :: _ => by simp [ConLeche.Frontend.Olean.rulesEq]
+  | _ :: _, [] => by simp [ConLeche.Frontend.Olean.rulesEq]
+  | (x, y, z) :: as, (x', y', z') :: bs => by
+    simp [ConLeche.Frontend.Olean.rulesEq, rulesEqU_iff as bs, and_assoc]
+
+/-- The twin's `entrySame` is equality. -/
+theorem entrySameT_iff (a b : CEntryF NIdx EIdx) :
+    ConRon.Arena.Frontend.Olean.entrySame a b = true ↔ a = b := by
+  rcases a with ⟨n, l, t, k⟩
+  rcases b with ⟨n', l', t', k'⟩
+  cases k <;> cases k' <;>
+    simp [ConRon.Arena.Frontend.Olean.entrySame, hintsEq_iff, rulesEqT_iff, and_assoc]
+
+/-- Upstream's `entrySame` is equality. -/
+theorem entrySameU_iff (a b : CEntryF Name Expr) :
+    ConLeche.Frontend.Olean.entrySame a b = true ↔ a = b := by
+  rcases a with ⟨n, l, t, k⟩
+  rcases b with ⟨n', l', t', k'⟩
+  cases k <;> cases k' <;>
+    simp [ConLeche.Frontend.Olean.entrySame, hintsEq_iff, rulesEqU_iff, and_assoc]
+
+/-- A constant's denotation, field by field. -/
+theorem denoteEntry_parts {st : EStore} {a : CEntryF NIdx EIdx} {z : CEntryF Name Expr}
+    (h : denoteEntry st a = some z) :
+    denoteN st.ns a.name = some z.name ∧ a.levelParams.mapM (denoteN st.ns) = some z.levelParams ∧
+      denoteE st a.type = some z.type ∧ a.kind.mapM (denoteN st.ns) (denoteE st) = some z.kind := by
+  rcases a with ⟨n, l, t, k⟩
+  simp only [denoteEntry, CEntryF.mapM] at h
+  obtain ⟨zn, h1, g⟩ := bind_some_left h
+  obtain ⟨zl, h2, g⟩ := bind_some_left g
+  obtain ⟨zt, h3, g⟩ := bind_some_left g
+  obtain ⟨zk, h4, g⟩ := bind_some_left g
+  simp only [pure, Option.some.injEq] at g
+  subst g
+  exact ⟨h1, h2, h3, h4⟩
+
+/-- Two handles compare as their denotations, at a well-formed store. -/
+theorem beq_den {α β : Type} [BEq α] [LawfulBEq α] [BEq β] [LawfulBEq β] {f : α → Option β}
+    (hf : ∀ a b z, f a = some z → f b = some z → a = b) {a b : α} {x y : β}
+    (ha : f a = some x) (hb : f b = some y) : (a == b) = (x == y) := by
+  rw [Bool.eq_iff_iff, beq_iff_eq, beq_iff_eq]
+  constructor
+  · rintro rfl; exact Option.some.inj (ha.symm.trans hb)
+  · rintro rfl; exact hf a b x ha hb
+
+/-- A list's `mapM` compares as its denotation. -/
+theorem beq_mapM {α β : Type} [BEq α] [LawfulBEq α] [BEq β] [LawfulBEq β] {f : α → Option β}
+    (hf : ∀ a b z, f a = some z → f b = some z → a = b) {a b : List α} {x y : List β}
+    (ha : a.mapM f = some x) (hb : b.mapM f = some y) : (a == b) = (x == y) := by
+  rw [Bool.eq_iff_iff, beq_iff_eq, beq_iff_eq]
+  constructor
+  · rintro rfl; exact Option.some.inj (ha.symm.trans hb)
+  · rintro rfl; exact mapM_inj hf ha hb
+
+/-- **`expoOf` reads back**: the twin's verdict on two handle constants is upstream's on their
+denotations, at a well-formed store. -/
+theorem expoOf_den {st : EStore} (hwf : StoreWF st) {a b : CEntryF NIdx EIdx}
+    {aC bC : CEntryF Name Expr} (ha : denoteEntry st a = some aC) (hb : denoteEntry st b = some bC) :
+    ConRon.Arena.Frontend.Olean.expoOf a b = ConLeche.Frontend.Olean.expoOf aC bC := by
+  have e1 : ConRon.Arena.Frontend.Olean.entrySame a b = ConLeche.Frontend.Olean.entrySame aC bC := by
+    rw [Bool.eq_iff_iff, entrySameT_iff, entrySameU_iff]
+    constructor
+    · rintro rfl; exact Option.some.inj (ha.symm.trans hb)
+    · rintro rfl; exact denoteEntry_inj hwf ha hb
+  obtain ⟨an, al, at', ak⟩ := denoteEntry_parts ha
+  obtain ⟨bn, bl, bt, bk⟩ := denoteEntry_parts hb
+  have e2 : (a.name == b.name) = (aC.name == bC.name) := beq_den (denN_inj hwf) an bn
+  have e3 : (a.levelParams == b.levelParams) = (aC.levelParams == bC.levelParams) :=
+    beq_mapM (denN_inj hwf) al bl
+  have e4 : (a.type == b.type) = (aC.type == bC.type) := beq_den (denE_inj hwf) at' bt
+  unfold ConRon.Arena.Frontend.Olean.expoOf ConLeche.Frontend.Olean.expoOf
+  rw [e1, e2, e3, e4]
+  rcases a with ⟨n1, l1, t1, k1⟩
+  rcases b with ⟨n2, l2, t2, k2⟩
+  rcases aC with ⟨n1', l1', t1', k1'⟩
+  rcases bC with ⟨n2', l2', t2', k2'⟩
+  simp only at ak bk ⊢
+  cases k1 <;> cases k2 <;> simp only [CKindF.mapM] at ak bk <;>
+    (repeat (first
+      | (obtain ⟨_, _, ak⟩ := bind_some_left ak)
+      | (obtain ⟨_, _, bk⟩ := bind_some_left bk))) <;>
+    simp only [pure, Option.some.injEq] at ak bk <;> subst ak bk <;> rfl
+
 end ConRon.Bridge.Modular.Home
