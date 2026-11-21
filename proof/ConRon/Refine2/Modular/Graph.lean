@@ -892,4 +892,171 @@ theorem verdict_eq {roots : alloc.vec.Vec arena.handle.NIdx}
         rw [cb]
         rfl
 
+/-! ## Arrays, read and written -/
+
+theorem range'_cons {k n : Nat} (h : k < n) : List.range' k (n - k) = k :: List.range' (k + 1) (n - (k + 1)) := by
+  rw [show n - k = (n - (k + 1)) + 1 by omega]; rfl
+
+theorem range'_nil {k n : Nat} (h : n ≤ k) : List.range' k (n - k) = [] := by
+  rw [show n - k = 0 by omega]; rfl
+
+theorem index_mut_ok {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize} {x : α} {f : α → alloc.vec.Vec α}
+    (h : alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice α) v i = ok (x, f)) :
+    ∃ hi : i.val < v.val.length, x = v.val[i.val] ∧ f = alloc.vec.Vec.set v i := by
+  obtain ⟨hx, hf⟩ := ConRon.Refine.ConsMap.vec_index_mut_iff.mp h
+  obtain ⟨hi, he⟩ := List.getElem?_eq_some_iff.mp hx
+  exact ⟨hi, he.symm, hf⟩
+
+theorem set_abs {α β : Type} (A : α → β) (v : alloc.vec.Vec α) (j : Std.Usize) (y : α) :
+    ((alloc.vec.Vec.set v j y).val.map A).toArray = ((v.val.map A).toArray).set! j.val (A y) := by
+  apply Array.toList_inj.mp
+  simp [List.map_set]
+
+theorem set!_oob {β : Type} (l : List β) (j : Nat) (y : β) (h : l.length ≤ j) :
+    l.toArray.set! j y = l.toArray := by
+  apply Array.toList_inj.mp
+  simp [List.set_eq_of_length_le h]
+
+theorem modify_abs {α β : Type} (A : α → β) (v : alloc.vec.Vec α) (j : Std.Usize) (y : α) (g : β → β)
+    (hj : j.val < v.val.length) (hy : A y = g (A v.val[j.val])) :
+    ((alloc.vec.Vec.set v j y).val.map A).toArray = ((v.val.map A).toArray).modify j.val g := by
+  apply Array.toList_inj.mp
+  rw [Array.toList_modify]
+  apply List.ext_getElem
+  · simp
+  · intro n h1 h2
+    simp only [List.getElem_map, List.getElem_modify]
+    simp [List.getElem_set]
+    split <;> simp_all
+
+theorem modify_oob {β : Type} (l : List β) (j : Nat) (g : β → β) (h : l.length ≤ j) :
+    l.toArray.modify j g = l.toArray := by
+  apply Array.toList_inj.mp
+  rw [Array.toList_modify, List.toList_toArray, List.modify_eq_self h]
+
+/-! ## `kahn_users` -/
+
+theorem kahn_users_loop0_eq (n : Std.Usize) (users : alloc.vec.Vec (alloc.vec.Vec Std.U64)) (k : Std.Usize) {o}
+    (h : kahn_users_loop0 n users k = ok o) :
+    o.val = users.val ++ List.replicate (n.val - k.val) (alloc.vec.Vec.new Std.U64) := by
+  rw [kahn_users_loop0] at h
+  by_cases hlt : k < n
+  · rw [ite_eq_left hlt] at h
+    peel h as u1, hu1
+    peel h as k1, hk1
+    have ih := kahn_users_loop0_eq n u1 k1 h
+    have hlt' : k.val < n.val := hlt
+    rw [ih, ConRon.Refine.vec_push_val hu1, usize_succ hk1, List.append_assoc,
+      show n.val - k.val = (n.val - (k.val + 1)) + 1 by omega, List.replicate_succ]
+    rfl
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have : ¬ k.val < n.val := hlt
+    rw [show n.val - k.val = 0 by omega]; simp
+termination_by n.val - k.val
+decreasing_by have : k.val < n.val := hlt; rw [usize_succ hk1]; omega
+
+theorem kahn_users_loop1_loop0_eq (users : alloc.vec.Vec (alloc.vec.Vec Std.U64)) (x : Std.Usize)
+    (d : alloc.vec.Vec Std.U64) (hd : FitsN d) (hu : FitsD users) (i : Std.Usize) {o}
+    (h : kahn_users_loop1_loop0 users x d i = ok o) :
+    absDeps o = ((d.val.drop i.val).map (·.val)).foldl (fun us j => us.modify j (·.push x.val)) (absDeps users) ∧
+      FitsD o := by
+  rw [kahn_users_loop1_loop0] at h
+  by_cases hlt : i < alloc.vec.Vec.len d
+  · rw [ite_eq_left hlt] at h
+    peel h as i2, hi2
+    obtain ⟨hi, rfl⟩ := vec_index_eq hi2
+    peel h as j, hj
+    have hjv := cast_usize_val (hd _ (List.getElem_mem hi)) hj
+    peel h as u1, hu1
+    peel h as i4, hi4
+    have ih0 : absDeps u1 = (absDeps users).modify d.val[i.val].val (·.push x.val) ∧ FitsD u1 := by
+      by_cases hjl : j < alloc.vec.Vec.len users
+      · rw [ite_eq_left hjl] at hu1
+        peel hu1 as ⟨v, back⟩, hv
+        obtain ⟨hjb, rfl, rfl⟩ := index_mut_ok hv
+        peel hu1 as i5, hi5
+        have hx := cast_u64_val hi5
+        peel hu1 as v1, hv1
+        cases Result.ok_injective hu1
+        have ev := ConRon.Refine.vec_push_val hv1
+        refine ⟨?_, ?_⟩
+        · rw [← hjv]
+          apply modify_abs absNat users j v1 _ hjb
+          simp [ev, hx]
+        · intro e he
+          rw [alloc.vec.Vec.set_val_eq] at he
+          rcases List.mem_or_eq_of_mem_set he with he | he
+          · exact hu e he
+          · subst he
+            intro z hz
+            rw [ev] at hz
+            rcases List.mem_append.mp hz with hz | hz
+            · exact hu _ (List.getElem_mem hjb) z hz
+            · simp at hz; rw [hz, hx]; scalar_tac
+      · rw [ite_eq_right hjl] at hu1
+        cases Result.ok_injective hu1
+        refine ⟨?_, hu⟩
+        rw [modify_oob]
+        have := not_lt_len hjl
+        simp only [List.length_map]; omega
+    have ih := kahn_users_loop1_loop0_eq u1 x d hd ih0.2 i4 h
+    rw [usize_succ hi4] at ih
+    rw [drop_cons_of_lt hi, List.map_cons, List.foldl_cons, ← ih0.1]
+    exact ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    exact ⟨rfl, hu⟩
+termination_by d.val.length - i.val
+decreasing_by have := lt_len hlt; rw [usize_succ hi4]; omega
+
+theorem kahn_users_loop1_eq (deps : alloc.vec.Vec (alloc.vec.Vec Std.U64)) (hd : FitsD deps) (n : Std.Usize)
+    (hn : n.val = deps.val.length) (users : alloc.vec.Vec (alloc.vec.Vec Std.U64)) (hu : FitsD users)
+    (x : Std.Usize) {o} (h : kahn_users_loop1 deps n users x = ok o) :
+    absDeps o = (List.range' x.val (n.val - x.val)).foldl (fun users x =>
+      ((absDeps deps)[x]?.getD #[]).foldl (fun users j => users.modify j (·.push x)) users) (absDeps users) ∧
+      FitsD o := by
+  rw [kahn_users_loop1] at h
+  by_cases hlt : x < n
+  · rw [ite_eq_left hlt] at h
+    have hlt' : x.val < n.val := hlt
+    peel h as d, hd1
+    obtain ⟨hi, rfl⟩ := vec_index_eq hd1
+    peel h as u1, hu1
+    obtain ⟨e1, f1⟩ := kahn_users_loop1_loop0_eq users x _ (hd _ (List.getElem_mem hi)) hu _ hu1
+    peel h as x1, hx1
+    have ih := kahn_users_loop1_eq deps hd n hn u1 f1 x1 h
+    rw [usize_succ hx1] at ih
+    rw [range'_cons hlt', List.foldl_cons]
+    have eg : (absDeps deps)[x.val]?.getD #[] = absNat deps.val[x.val] := by simp [absDeps, hi]
+    rw [eg]
+    simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at e1
+    rw [show (absNat deps.val[x.val]).foldl (fun users j => users.modify j (·.push x.val)) (absDeps users)
+      = absDeps u1 by rw [e1]; simp [absNat]]
+    exact ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have : ¬ x.val < n.val := hlt
+    rw [range'_nil (by omega)]
+    exact ⟨rfl, hu⟩
+termination_by n.val - x.val
+decreasing_by rw [usize_succ hx1]; omega
+
+/-- **`kahn_users` is `kahnUsers`.** -/
+theorem kahn_users_eq {deps : alloc.vec.Vec (alloc.vec.Vec Std.U64)} (hd : FitsD deps) {o}
+    (h : kahn_users deps = ok o) : absDeps o = Modular.kahnUsers (absDeps deps) ∧ FitsD o := by
+  rw [kahn_users] at h
+  peel h as u0, hu0
+  have e0 := kahn_users_loop0_eq _ _ _ hu0
+  have f0 : FitsD u0 := fun d hd' => by
+    rw [e0] at hd'; simp at hd'; rw [hd'.2]; intro z hz; simp at hz
+  obtain ⟨e, f⟩ := kahn_users_loop1_eq deps hd _ (vec_len_val deps) u0 f0 _ h
+  refine ⟨?_, f⟩
+  rw [e, Modular.kahnUsers, List.range_eq_range', vec_len_val]
+  congr 1
+  · simp only [absDeps, e0]
+    simp [absNat]
+  · simp
+
 end ConRon.Refine2.Modular
