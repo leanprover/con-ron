@@ -227,14 +227,14 @@ theorem stream_index_freeze_refines {pers st lst} {ix ix' : arena.stream_index.I
     · exact hnfv.symm
     · exact hsfv.symm
 
-/-- **`build_index` ⊑ `buildIndexGo`, accepting**: the records from cursor `i` on, each
-into the index, in order. -/
-theorem build_index_refines {pers} (ds : alloc.vec.Vec arena.env.IDeclaration) :
+/-- **`build_index`'s loop ⊑ `buildIndexGo`, accepting**: the records from cursor `i` on,
+each into the index, in order. -/
+theorem build_index_loop_refines {pers} (ds : alloc.vec.Vec arena.env.IDeclaration) :
     ∀ (m : Nat) {st lst} {ix ix' : arena.stream_index.IStreamIndex} {I : IStreamIndex}
       {i : Std.Usize} {st'} (k : Nat),
       ds.val.length - i.val = m →
       AStateRel₀ pers st lst → AStateInv pers st → StreamIndexRel ix I →
-      arena.stream_index.build_index pers st ix ds i = ok (.Ok ix', st') →
+      arena.stream_index.build_index_loop pers st ds ix i = ok (.Ok ix', st') →
       ∃ I' lst', buildIndexGo I k ((absIDeclL ds).drop i.val) lst = .ok (.ok I', lst') ∧
         AStateRel₀ pers st' lst' ∧ AStateInv pers st' ∧ StreamIndexRel ix' I' ∧
         FrozenRel ix' I' := by
@@ -242,7 +242,7 @@ theorem build_index_refines {pers} (ds : alloc.vec.Vec arena.env.IDeclaration) :
   induction m with
   | zero =>
     intro st lst ix ix' I i st' k hm hrel hinv hI hrun
-    rw [arena.stream_index.build_index.eq_def] at hrun
+    rw [arena.stream_index.build_index_loop.eq_def] at hrun
     rw [ite_eq_left (show i ≥ alloc.vec.Vec.len ds by scalar_tac)] at hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     cases r with
@@ -261,7 +261,7 @@ theorem build_index_refines {pers} (ds : alloc.vec.Vec arena.env.IDeclaration) :
       rw [show I.freeze lst = .ok (F, lst') from hF]
   | succ m ih =>
     intro st lst ix ix' I i st' k hm hrel hinv hI hrun
-    rw [arena.stream_index.build_index.eq_def] at hrun
+    rw [arena.stream_index.build_index_loop.eq_def] at hrun
     rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ds by scalar_tac)] at hrun
     have hlt : i.val < ds.val.length := by omega
     obtain ⟨pd, hpd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -289,6 +289,18 @@ theorem build_index_refines {pers} (ds : alloc.vec.Vec arena.env.IDeclaration) :
         | .error e => .ok (.error (e, k), lst)) = _
       rw [hx1]
       exact hx
+
+/-- **`build_index` ⊑ `buildIndexGo`, accepting**: its loop, from cursor `i`. -/
+theorem build_index_refines {pers} (ds : alloc.vec.Vec arena.env.IDeclaration) :
+    ∀ (m : Nat) {st lst} {ix ix' : arena.stream_index.IStreamIndex} {I : IStreamIndex}
+      {i : Std.Usize} {st'} (k : Nat),
+      ds.val.length - i.val = m →
+      AStateRel₀ pers st lst → AStateInv pers st → StreamIndexRel ix I →
+      arena.stream_index.build_index pers st ix ds i = ok (.Ok ix', st') →
+      ∃ I' lst', buildIndexGo I k ((absIDeclL ds).drop i.val) lst = .ok (.ok I', lst') ∧
+        AStateRel₀ pers st' lst' ∧ AStateInv pers st' ∧ StreamIndexRel ix' I' ∧
+        FrozenRel ix' I' :=
+  fun m => build_index_loop_refines ds m
 
 /-- **The driver's index build ⊑ `buildIndex`**: from the empty index. -/
 theorem build_index_empty_refines {pers st lst} {ds : alloc.vec.Vec arena.env.IDeclaration}

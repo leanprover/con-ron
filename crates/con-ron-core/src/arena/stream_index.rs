@@ -184,6 +184,11 @@ pub fn stream_index_add(
 /// interned) or an unfilled pin table, never a verdict about the stream; it
 /// carries the position of the record whose reading failed (past the last for
 /// the freeze), for the error line.  A solution's index (con-leche's `Jobs.side`) is the same build over the solution's records (`justify::solution_of`).
+///
+/// **A loop**, one iteration per record: the cited `foldlM` is a loop in Lean,
+/// and Rust does not promise to eliminate the tail call (a solution of 1.47 M
+/// records overflowed a 1 GiB stack, task #167).  Every exit is a `return`, so
+/// the extracted `build_index_loop` is the recursion one for one.
 pub fn build_index(
     pers: &PersTier,
     st: &mut AState,
@@ -191,15 +196,21 @@ pub fn build_index(
     ds: &Vec<IDeclaration>,
     i: usize,
 ) -> Result<IStreamIndex, (CheckError, u64)> {
-    if i >= ds.len() {
-        match stream_index_freeze(st, ix) {
-            Err(e) => Err((e, i as u64)),
-            Ok(fx) => Ok(fx),
+    let mut ix: IStreamIndex = ix;
+    let mut i: usize = i;
+    loop {
+        if i >= ds.len() {
+            return match stream_index_freeze(st, ix) {
+                Err(e) => Err((e, i as u64)),
+                Ok(fx) => Ok(fx),
+            };
         }
-    } else {
         match stream_index_add(pers, st, ix, &ds[i]) {
-            Err(e) => Err((e, i as u64)),
-            Ok(ix2) => build_index(pers, st, ix2, ds, i + 1),
+            Err(e) => return Err((e, i as u64)),
+            Ok(ix2) => {
+                ix = ix2;
+                i = i + 1;
+            }
         }
     }
 }

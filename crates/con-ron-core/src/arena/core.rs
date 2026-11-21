@@ -50,7 +50,7 @@
 //!    task #342 R2).  con-leche's `whnfCoreStep`/`whnfStep` return a
 //!    `WhnfStep` (`.done e` / `.cont e`) to a loop that iterates in constant
 //!    stack; the port's `whnf_core_loop` and `whnf_loop` are real `loop`s
-//!    (`// lint: allow`, DESIGN.md §3.4) over `WhnfStep`, because Rust has no
+//!    (DESIGN.md §3.4) over `WhnfStep`, because Rust has no
 //!    guaranteed tail call and a recursive loop would grow the native stack per
 //!    step — the very overflow R2 removed.  (The two lazy-delta loops,
 //!    `lazyDeltaReduction` and `lazyDeltaProjReduction`, recurse on their
@@ -7899,7 +7899,7 @@ pub fn push_cheap_key(safe: bool, b: bool, e: &EIdx, pend_c: Vec<EIdx>) -> Vec<E
 /// `whnf_core_loop`'s reason: a chain's keys are as many as its steps.
 pub fn whnf_core_store_keys(st: &mut AState, pend: &Vec<EIdx>, i: usize, v: &EIdx) {
     let mut j: usize = i;
-    loop { // lint: allow (task #119: constant native stack, DESIGN.md §3.4)
+    loop {
         if j >= pend.len() {
             return;
         }
@@ -7913,7 +7913,7 @@ pub fn whnf_core_store_keys(st: &mut AState, pend: &Vec<EIdx>, i: usize, v: &EId
 /// cheap keys `pend_c[i..]` map to `v` in the cheap mode's memo.
 pub fn whnf_core_store_cheap_keys(st: &mut AState, pend_c: &Vec<EIdx>, i: usize, v: &EIdx) {
     let mut j: usize = i;
-    loop { // lint: allow (task #119: constant native stack, DESIGN.md §3.4)
+    loop {
         if j >= pend_c.len() {
             return;
         }
@@ -8013,7 +8013,7 @@ pub fn whnf_core_loop(
     let mut cur: EIdx = e.dup2();
     let mut pend: Vec<EIdx> = Vec::new();
     let mut pend_c: Vec<EIdx> = Vec::new();
-    loop { // lint: allow (task #119: constant native stack, DESIGN.md §3.4)
+    loop {
         if k == 0 {
             return fail(CheckError::Internal(code_points(&M_FUEL_WHNF_CORE_LOOP)));
         }
@@ -8153,7 +8153,7 @@ pub fn whnf_loop(
 ) -> Result<EIdx, CheckError> {
     let mut k: u64 = n;
     let mut cur: EIdx = e.dup2();
-    loop { // lint: allow (task #119: constant native stack, DESIGN.md §3.4)
+    loop {
         if k == 0 {
             return fail(CheckError::Internal(code_points(&M_FUEL_WHNF_LOOP)));
         }

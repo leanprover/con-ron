@@ -362,7 +362,6 @@ pub fn lidx_vec_hash(us: &Vec<LIdx>) -> u64 {
 }
 
 /// con-leche: none — the index recursion behind `lidx_vec_hash`
-/// No loops (DESIGN.md §3.4).
 pub fn lidx_vec_hash_from(us: &Vec<LIdx>, i: usize, acc: u64) -> u64 {
     if i >= us.len() {
         acc
@@ -382,7 +381,6 @@ pub fn lidx_vec_eq(a: &Vec<LIdx>, b: &Vec<LIdx>) -> bool {
 }
 
 /// con-leche: none — the index recursion behind `lidx_vec_eq`
-/// No loops (DESIGN.md §3.4).
 pub fn lidx_vec_eq_from(a: &Vec<LIdx>, b: &Vec<LIdx>, i: usize) -> bool {
     if i >= a.len() {
         true
@@ -2317,7 +2315,7 @@ impl LsStore {
 
     /// con-leche: none — the index recursion behind `der_of_view`
     /// The Lean recurses on the list's tail; Rust carries the cursor, which
-    /// is `-loops-to-rec`'s own shape (DESIGN.md §3.4: no loops).
+    /// is `-loops-to-rec`'s own shape (DESIGN.md §3.4).
     pub fn der_of_view_from(&self, pers: &PersTier, v: &LsNodeView, i: usize) -> LDer {
         if i >= v.len() {
             LDer { hash: 13, has_param: false }

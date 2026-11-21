@@ -66,7 +66,6 @@ pub fn str_hash(s: &Vec<u32>) -> u64 {
 }
 
 /// con-leche: none — the tail-recursive fold behind `str_hash`; Lean has no counterpart
-/// No loops (DESIGN.md §3.4).
 pub fn str_hash_from(s: &Vec<u32>, i: usize, acc: u64) -> u64 {
     if i >= s.len() {
         acc
@@ -136,7 +135,6 @@ pub fn str_eq(a: &Vec<u32>, b: &Vec<u32>) -> bool {
 }
 
 /// con-leche: none — the index recursion behind `str_eq`
-/// No loops (DESIGN.md §3.4).
 pub fn str_eq_from(a: &Vec<u32>, b: &Vec<u32>, i: usize) -> bool {
     if i >= a.len() {
         true

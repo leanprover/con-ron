@@ -599,7 +599,8 @@ the justification route for a record that offers a statement. -/
 
 /-! ## The records a fold with a solution checks -/
 
-/-- `side_records` ⊑ `sideRecordsGo`, from the cursor on, onto `out`. -/
+/-- `side_records` ⊑ `sideRecordsGo`, from the cursor on, onto `out`: its loop
+(`side_records_loop`), one step per record. -/
 theorem side_records_ls {pers} (ds : alloc.vec.Vec arena.env.IDeclaration) :
     ∀ (i : Std.Usize) st lst (out : alloc.vec.Vec arena.env.IDeclaration),
       AStateRel₀ pers st lst → AStateInv pers st →
@@ -609,13 +610,13 @@ theorem side_records_ls {pers} (ds : alloc.vec.Vec arena.env.IDeclaration) :
   refine ls_cursor_acc ds absIDeclaration
     (fun (w : alloc.vec.Vec arena.env.IDeclaration) L =>
       sideRecordsGo (w.val.map absIDeclaration) L)
-    (fun st i w => arena.justify.side_records pers st ds i w) ?_ ?_
+    (fun st i w => arena.justify.side_records_loop pers st ds w i) ?_ ?_
   · intro st lst i w hn hrel hinv
-    rw [arena.justify.side_records.eq_def,
+    rw [arena.justify.side_records_loop.eq_def,
       ite_eq_left (show i ≥ alloc.vec.Vec.len ds by scalar_tac), sideRecordsGo]
     lockstep
   · intro st lst i w hi hrel hinv ih
-    rw [arena.justify.side_records.eq_def,
+    rw [arena.justify.side_records_loop.eq_def,
       ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ds by scalar_tac), sideRecordsGo]
     lockstep
 
