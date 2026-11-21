@@ -27,7 +27,6 @@ use con_ron_core::kernel::name::Name;
 use crate::render;
 
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:514-529 instCheckerIOIO
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove olean_fs::StdFs_refines, then delete this line
 /// **The binary's instance**: the runtime's calls.
 pub struct StdFs;
 
@@ -42,16 +41,19 @@ fn io_msg(p: &str, e: std::io::Error) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:514-529 instCheckerIOIO
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove olean_fs::impl OleanFs for StdFs_refines, then delete this line
 impl OleanFs for StdFs {
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
-    /// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove olean_fs::path_exists_refines, then delete this line
     fn path_exists(&self, p: &Vec<u32>) -> Result<bool, Vec<u32>> {
         Ok(std::path::Path::new(&path_of(p)).exists())
     }
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
+    /// `System.FilePath.isDir`: through symbolic links, `false` where the path
+    /// names nothing.
+    fn is_dir(&self, p: &Vec<u32>) -> Result<bool, Vec<u32>> {
+        Ok(std::path::Path::new(&path_of(p)).is_dir())
+    }
 
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
-    /// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove olean_fs::real_path_refines, then delete this line
     fn real_path(&self, p: &Vec<u32>) -> Result<Vec<u32>, Vec<u32>> {
         let s = path_of(p);
         match std::fs::canonicalize(&s) {
@@ -61,7 +63,6 @@ impl OleanFs for StdFs {
     }
 
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
-    /// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove olean_fs::read_bin_file_refines, then delete this line
     fn read_bin_file(&self, p: &Vec<u32>) -> Result<Vec<u8>, Vec<u32>> {
         let s = path_of(p);
         std::fs::read(&s).map_err(|e| io_msg(&s, e))
@@ -102,7 +103,6 @@ impl OleanFs for StdFs {
     }
 
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:514-529 instCheckerIOIO
-    /// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove olean_fs::file_size_refines, then delete this line
     fn file_size(&self, p: &Vec<u32>) -> Result<u64, Vec<u32>> {
         let s = path_of(p);
         let md = std::fs::metadata(&s).map_err(|e| io_msg(&s, e))?;
@@ -157,35 +157,33 @@ pub fn resident_set() -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:514-529 instCheckerIOIO
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove olean_fs::impl OleanFs for NotesFs_refines, then delete this line
 /// `StdFs`'s reads; the heartbeat's two actions print.
 impl OleanFs for NotesFs {
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
-    /// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove olean_fs::path_exists_refines, then delete this line
     fn path_exists(&self, p: &Vec<u32>) -> Result<bool, Vec<u32>> {
         StdFs.path_exists(p)
     }
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
+    fn is_dir(&self, p: &Vec<u32>) -> Result<bool, Vec<u32>> {
+        StdFs.is_dir(p)
+    }
 
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
-    /// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove olean_fs::real_path_refines, then delete this line
     fn real_path(&self, p: &Vec<u32>) -> Result<Vec<u32>, Vec<u32>> {
         StdFs.real_path(p)
     }
 
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
-    /// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove olean_fs::read_bin_file_refines, then delete this line
     fn read_bin_file(&self, p: &Vec<u32>) -> Result<Vec<u8>, Vec<u32>> {
         StdFs.read_bin_file(p)
     }
 
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
-    /// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove olean_fs::read_range_refines, then delete this line
     fn read_range(&self, p: &Vec<u32>, off: u64, len: u64) -> Result<Vec<u8>, Vec<u32>> {
         StdFs.read_range(p, off, len)
     }
 
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
-    /// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove olean_fs::file_size_refines, then delete this line
     fn file_size(&self, p: &Vec<u32>) -> Result<u64, Vec<u32>> {
         StdFs.file_size(p)
     }

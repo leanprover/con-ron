@@ -32,7 +32,7 @@ open ConLeche
 open ConLeche.Frontend.Olean (Located RootAt oneEach locatedOf modDir modFile hdrWalk HdrWalk dataStart
   OLeanLevel ModFiles Part Region moduleSkel Expo)
 
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:141-184 CheckerIO
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
 **The checker's file reads**: a failure is the operation's message; and the read's
 heartbeat (upstream's `ReadNotes`, task #484), two `liftIO` actions that change
 nothing a read returns: the unit, here. -/
@@ -75,14 +75,14 @@ def partOfBytes (path : String) (b : ByteArray) : Except CheckError Part :=
     | .ok p => .ok p
     | .error e => .error (toArenaError e)
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:118-121 holdsRoot
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:116-120 holdsRoot
 **Whether a directory holds a root**, as Lean asks it: a directory of the root's name, or a
 file of that name with `.olean`. -/
 def holdsRoot (fs : OleanFs) (r : Name) (d : System.FilePath) : Except String Bool := do
   if ← fs.isDir (modDir d r) then return true
   fs.pathExists (modFile d r "olean")
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:130-139 rootHits
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:127-138 rootHits
 **Where a root's modules are on the search path**: the directories holding the root; where two
 or more do, their real paths compared, so that a directory listed twice, or reached through a
 symbolic link, is one location. -/
@@ -96,14 +96,14 @@ def rootHits (fs : OleanFs) (sp : List System.FilePath) (r : Name) : Except Stri
     | [_] => return .dir d
     | locs => return .twice locs
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:141-142 rootAt
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:140-142 rootAt
 `rootHits`, a failed operation its answer's reason. -/
 def rootAt (fs : OleanFs) (sp : List System.FilePath) (r : Name) : RootAt :=
   match rootHits fs sp r with
   | .ok a => a
   | .error e => .failed e
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:200-202 findModule
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:182-202 findModule
 **Find a module, as Lean does, strictly**: the one search-path directory holding its root
 (`rootAt`), or why there is none (`locatedOf`).  Each read looks the root up: upstream's
 `Roots`, which resolves each root once per run (`Roots.resolve`), is a cache over one
@@ -114,7 +114,7 @@ def findModule (fs : OleanFs) (sp : List System.FilePath) (m : Name) : Except Ch
   | .ok l => .ok l
   | .error e => .error (toArenaError e)
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:207-219 oleanFailed
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:204-218 oleanFailed
 **Why a module's `.olean` cannot be read at its location**: it is not there, with or without
 parts beside it, or it is there and cannot be read.  A failed `pathExists` is its message. -/
 def oleanFailed (fs : OleanFs) (loc : Located) (m : Name) : CheckError :=
@@ -135,7 +135,7 @@ def oleanFailed (fs : OleanFs) (loc : Located) (m : Name) : CheckError :=
         .internal s!"module {m}: {" and ".intercalate (held.map (s!"{m}." ++ ·))} without \
           {m}.olean in {displayPathF loc.dir.toString}"
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:233-239 partFailed
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:232-238 partFailed
 Why a part of a module of the module system cannot be read at its location. -/
 def partFailed (fs : OleanFs) (loc : Located) (m : Name) (ext : String) : CheckError :=
   match fs.pathExists (modFile loc.dir m ext) with
@@ -144,8 +144,8 @@ def partFailed (fs : OleanFs) (loc : Located) (m : Name) (ext : String) : CheckE
   | .ok false => .internal s!"module {m}: a module of the module system without its {m}.{ext} \
       in {displayPathF loc.dir.toString}"
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:221-224 readPart
-con-leche: ConLeche/Frontend/Olean/Files.lean:228-231 readPartOr
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:220-224 readPart
+con-leche: ConLeche/Frontend/Olean/Files.lean:226-230 readPartOr
 **Read and validate one of a module's files**, `absent` saying why where it cannot be
 read. -/
 def readPartOr (fs : OleanFs) (p : System.FilePath) (absent : Unit → CheckError) :
@@ -193,7 +193,7 @@ def hdrFin (pk : OleanPins) (m : Name) (path : String) (acc : ByteArray) : AM (A
     | some imps => pure imps
     | none => fail (undecodable m)
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:263-273 readImportsAt
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:257-271 readImportsAt
 **A module's imports, read off the start of its exported `.olean`** at its location.  A file
 that cannot be read is `oleanFailed`'s error. -/
 def readImportsAt (fs : OleanFs) (pk : OleanPins) (loc : Located) (m : Name) :
@@ -206,7 +206,7 @@ def readImportsAt (fs : OleanFs) (pk : OleanPins) (loc : Located) (m : Name) :
     | .error _ => fail (oleanFailed fs loc m)
     | .ok acc => hdrFin pk m p.toString acc
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:275-280 moduleImports
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:273-279 moduleImports
 **A module's imports**, off the start of its exported `.olean`, located on the search
 path. -/
 def moduleImports (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (m : NIdx) :
@@ -216,7 +216,7 @@ def moduleImports (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (m
   | .error e => fail e
   | .ok loc => readImportsAt fs pk loc mn
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:287-297 outsideOrEscaping
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:281-295 outsideOrEscaping
 **An `M.olean` that is not a module of the module system, with a part beside it.**  Where
 `M.olean` does not read on its own, it is a malformed exported part (`.invalid`, exit 1): an
 exported part must not point into its `.olean.server` or `.olean.private`.  Otherwise it is a
@@ -237,7 +237,7 @@ def pathExistsE (fs : OleanFs) (p : System.FilePath) : Except CheckError Bool :=
   | .error e => .error (.internal e)
   | .ok b => .ok b
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:302-327 readFilesAt
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:297-325 readFilesAt
 **The files of a module a view reads at its location**, each validated.  A part beside a
 classic `.olean` is no part of it, and a module of the module system has all three: reading
 the parts a view needs says whether they are there, and a server view asks for the private
@@ -264,7 +264,7 @@ def readFilesAt (fs : OleanFs) (loc : Located) (m : Name) (level : OLeanLevel) :
     partFailed fs loc m "olean.private"
   return { exported := ex, server := some s, «private» := some p }
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:329-334 readFiles
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:327-333 readFiles
 **The files of a module a view reads**, located on the search path (`findModule`), then read
 at that location (`readFilesAt`). -/
 def readFiles (fs : OleanFs) (sp : List System.FilePath) (m : Name) (level : OLeanLevel) :
@@ -277,7 +277,7 @@ def readFiles (fs : OleanFs) (sp : List System.FilePath) (m : Name) (level : OLe
   | .ok a => pure a
   | .error e => fail e
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:336-344 readView
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:335-343 readView
 **One view of a module**, located on the search path. -/
 def readView (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (m : NIdx)
     (level : OLeanLevel) : AM ModDecoded := do
@@ -288,8 +288,8 @@ def readView (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (m : NI
   | none => fail (← viewError pk mn f level)
 
 /-- con-leche: ConLeche/Frontend/Olean/Files.lean:396-413 readAllViews
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Files.readAllViews_bridge, then delete this line
-**All three views of a module, checked against each other**: its home's read. -/
+**All three views of a module, each parsed whole, and their check against each other**
+(`checkViews`, over the views): for the tools that compare the views. -/
 def readAllViews (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (m : NIdx) :
     AM (AllViews × Array Expo) := do
   let mn ← readName m

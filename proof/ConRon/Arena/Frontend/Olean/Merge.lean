@@ -31,7 +31,6 @@ def Merged.get (mg : Merged) (n : NIdx) : Option CEntry :=
   | some (m, i) => (mg.ls[m]?).bind (·.constants[i]?)
 
 /-- con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Merge.isPropBody_bridge, then delete this line
 The result of a telescope. -/
 def isPropBody : Nat → EIdx → AM EIdx
   | 0, e => pure e
@@ -41,7 +40,6 @@ def isPropBody : Nat → EIdx → AM EIdx
     | _ => pure e
 
 /-- con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Merge.isPropHead_bridge, then delete this line
 The head constant of an application, and its argument count. -/
 def isPropHead : Nat → EIdx → Nat → AM (Option (NIdx × Nat))
   | 0, _, _ => pure none
@@ -52,7 +50,6 @@ def isPropHead : Nat → EIdx → Nat → AM (Option (NIdx × Nat))
     | _ => pure none
 
 /-- con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Merge.isPropDrop_bridge, then delete this line
 A telescope's result after `k` binders. -/
 def isPropDrop : Nat → EIdx → AM (Option EIdx)
   | 0, e => pure (some e)
@@ -62,7 +59,6 @@ def isPropDrop : Nat → EIdx → AM (Option EIdx)
     | _ => pure none
 
 /-- con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Merge.isPropCheap_bridge, then delete this line
 Lean's `isPropCheap`: the statement is a telescope over a constant applied to as many
 arguments as its own type has binders before a `Prop` result. -/
 def isPropCheap (pk : OleanPins) (mg : Merged) (ty : EIdx) : AM Bool := do
@@ -81,7 +77,6 @@ def isPropCheap (pk : OleanPins) (mg : Merged) (ty : EIdx) : AM Bool := do
         | _ => pure false
 
 /-- con-leche: ConLeche/Frontend/Olean/Merge.lean:61-63 subsumes
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Merge.subsumes_bridge, then delete this line
 `subsumesInfo`: may `c₁` stand for `c₂`? -/
 def subsumes (pk : OleanPins) (mg : Merged) (c₁ c₂ : CEntry) : AM Bool := do
   if c₁.c.name == c₂.c.name && c₁.c.type == c₂.c.type && c₁.c.levelParams == c₂.c.levelParams then

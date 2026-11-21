@@ -29,10 +29,11 @@ open ConLeche.Frontend.Olean (CEntryF CKindF closureFuel OLeanLevel)
 def outOfFuel {α : Type} : AM α := fail (.internal "the import closure's walk ran out of steps")
 
 /-- con-leche: ConLeche/Frontend/Olean/Closure.lean:22-52 closureGo
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Closure.closureGo_bridge, then delete this line
 **The import closure, in Lean's module order**: a module after everything it imports,
 by an explicit stack.  A module whose imports are being expanded is on the walk's
-current path, so an import of it is a cycle. -/
+current path, so an import of it is a cycle.  Each read looks its root up (`findModule`):
+upstream's resolved `Roots`, threaded through the walk and returned with the order, is not
+kept. -/
 def closureGo (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) :
     Nat → List (NIdx × Bool) → Std.HashSet NIdx → Std.HashSet NIdx → Array NIdx → AM (Array NIdx)
   | _, [], _, _, out => pure out
@@ -52,14 +53,12 @@ def closureGo (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) :
         closureGo fs pk sp fuel (kids ++ (m, true) :: rest) seen done out
 
 /-- con-leche: ConLeche/Frontend/Olean/Closure.lean:58-60 closureOrder
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Closure.closureOrder_bridge, then delete this line
 The closure's module order from the roots. -/
 def closureOrder (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (roots : Array NIdx) :
     AM (Array NIdx) :=
   closureGo fs pk sp closureFuel (roots.toList.map (·, false)) {} {} #[]
 
 /-- con-leche: ConLeche/Frontend/Olean/Closure.lean:64-76 loadModule
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Closure.loadModule_bridge, then delete this line
 **Load one module** for the merge, module `idx` of the `total` in the closure's order:
 its private view, its theorems' values left in the file (`loadView`). -/
 def loadModule (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (total : Nat)
@@ -72,14 +71,12 @@ def loadModule (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (tota
   pure r
 
 /-- con-leche: ConLeche/Frontend/Olean/Closure.lean:78-91 loadClosure
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Closure.loadAll_bridge, then delete this line
 `order.toList.zipIdx`, loaded in order, up to the first failure. -/
 def loadAll (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (order : Array NIdx) :
     AM (Array Loaded) :=
   (order.toList.zipIdx.mapM fun (m, i) => loadModule fs pk sp order.size m i).map List.toArray
 
 /-- con-leche: ConLeche/Frontend/Olean/Closure.lean:78-91 loadClosure
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Closure.loadClosure_bridge, then delete this line
 **The closure, loaded**: its modules in Lean's order, the heartbeat saying when the
 walk and the load start. -/
 def loadClosure (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (roots : Array NIdx) :
