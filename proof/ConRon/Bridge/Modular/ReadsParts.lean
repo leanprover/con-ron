@@ -207,7 +207,7 @@ theorem namePositionsAt_run {pk : OleanPins} {r : Region} {root : UInt64}
       have hnd' : (qs.map (·.name)).Nodup := (nodup_iff_of_mapM hw (names_mapM hrelq)).mp hnd
       have hdC : distinctGo (qs.map (·.name)) (Std.HashSet.emptyWithCapacity qs.length) = true :=
         (ConLeche.Frontend.Olean.distinctGo_iff _ _).mpr ⟨hnd', fun _ _ => by simp⟩
-      simp [hsk, hzs, hqs, hdC]
+      simp [hzs, hqs, hdC]
     · exact ⟨rfl, by simpa [ImpsD] using
         (mapM_denoteImport_ext' hst2.ext hds), by simpa using hrelq⟩
   · exact (none_not_some (show (pure none : AM (Option ConRon.Arena.Frontend.Olean.NamePositions)) s₂ =

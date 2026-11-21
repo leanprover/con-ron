@@ -280,7 +280,7 @@ theorem sGo_run {pk : OleanPins} {r : Region} {b : Frontier} :
       generalize hF : ConRon.Arena.Frontend.Olean.kidsGo pk r b g ((i, k', nil) :: fs) m = f at h
       rw [ConRon.Arena.Frontend.Olean.kidsGo] at hF
       by_cases hn : (nil && r.fld g i == 1) = true
-      · rw [if_pos hn] at hF
+      · rw [ite_eq_left hn] at hF
         subst hF
         obtain ⟨hst, hg, hkp, hall⟩ := ihf hok hpk hks' hm hb h
         refine ⟨hst, hg, hkp, fun i' k'' nil' c hmem hnn hd => ?_⟩
@@ -290,7 +290,7 @@ theorem sGo_run {pk : OleanPins} {r : Region} {b : Frontier} :
           simp only [Bool.and_eq_true, beq_iff_eq] at hn
           exact absurd hn hnn
         · exact hall i' k'' nil' c hmem hnn hd
-      · rw [if_neg hn] at hF
+      · rw [ite_eq_right hn] at hF
         split at hF
         · rename_i c hd
           subst hF
@@ -315,14 +315,14 @@ theorem sGo_run {pk : OleanPins} {r : Region} {b : Frontier} :
   generalize hF : ConRon.Arena.Frontend.Olean.sGo pk r b k g m = f at h
   rw [ConRon.Arena.Frontend.Olean.sGo] at hF
   by_cases hh : m.holds b k g = true
-  · rw [if_pos hh] at hF
+  · rw [ite_eq_left hh] at hF
     subst hF
     obtain ⟨hv, rfl⟩ := AM.pure_ok h
     cases hv
     exact ⟨ParseStep.refl hok, hm, hh, SMKeeps.refl _ _⟩
-  · rw [if_neg hh] at hF
+  · rw [ite_eq_right hh] at hF
     by_cases hf : r.fits g = true
-    · rw [if_pos hf] at hF
+    · rw [ite_eq_left hf] at hF
       split at hF
       · subst hF; cases (AM.pure_ok h).1
       · rename_i fs hfs
@@ -340,7 +340,7 @@ theorem sGo_run {pk : OleanPins} {r : Region} {b : Frontier} :
               cases hfs'
               exact hall i k' nil c hmem hnn hd) h2
           exact ⟨hst1.trans hst2, hg2, hh2, hkp1.trans hkp2⟩
-    · rw [if_neg hf] at hF
+    · rw [ite_eq_right hf] at hF
       subst hF
       cases (AM.pure_ok h).1
 
@@ -354,13 +354,13 @@ theorem sparseNameP_run {pk : OleanPins} {r : Region} {v : UInt64} {s s' : AStat
   unfold ConRon.Arena.Frontend.Olean.sparseNameP at hF
   unfold ConLeche.Frontend.Olean.nameP
   by_cases hv : (v == 1) = true
-  · rw [if_pos hv] at hF
+  · rw [ite_eq_left hv] at hF
     subst hF
     simp only [hv, ↓reduceIte]
     obtain ⟨hx, rfl⟩ := AM.pure_ok h
     cases hx
     exact ⟨ParseStep.refl hok, _, rfl, hpk.anon⟩
-  · rw [if_neg hv] at hF
+  · rw [ite_eq_right hv] at hF
     simp only [hv, Bool.false_eq_true, ↓reduceIte]
     split at hF
     · rename_i c hc

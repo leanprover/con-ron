@@ -389,20 +389,6 @@ pub fn read_stmts(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, f: &ModFiles
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/View.lean:162-167 readEntries
-/// **The constants at some positions of a view, read with one memo**
-/// (`entriesAt`): what they share is read once.
-pub fn read_entries(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, f: &ModFiles, level: &OLeanLevel, cs: &Vec<u64>) -> Result<Vec<CEntryF<NIdx, EIdx>>, RdErr> {
-    match mod_files_view_region(f, level) {
-        None => Err(RdErr::Bad),
-        Some((vb, _)) => {
-            let bs = view_bytes(f, &vb);
-            let r: Region = view_region_of(f, &vb);
-            reads::entries_at(pk, pers, ar, bs, &r, cs)
-        }
-    }
-}
-
 /// con-leche: ConLeche/Frontend/Olean/View.lean:169-174 readKinds
 /// **The kinds of the constants at some positions of a view**, their
 /// expressions left out (`kindNamesAt`).
