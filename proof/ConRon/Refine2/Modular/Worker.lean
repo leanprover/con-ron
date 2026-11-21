@@ -8,11 +8,11 @@ set `HashMap2<NIdx, bool>` is `NSet`, the load's index by name `IdxRel`, a load'
 pin ground's reader walks are `UOut`/`UOutS` (`nat_op_ground`'s shapes); every other state
 walk is a lockstep `LS`.
 
-**Hypotheses, not theorems.**  `reach::record_reads` is lane L2's, with no Theorem 2 yet: `records_roots`,
-`own_roots`, `roots_at` take its Theorem 2 as `RecordReadsRel`.  `view::parse_all_views` and
+**`reach::record_reads`** is lane L2's: `records_roots`, `own_roots`, `roots_at` take its Theorem 2
+as `RecordReadsRel`, which `recordReadsRel_holds` discharges.  `view::parse_all_views` and
 `module::check_views`: `home_of_refines` takes their Theorem 2 as `hPV`, `hCV`, and
 `home_of_refines'` discharges them (`AllViews.lean`, `CheckViews.lean`).
-`reach::decl_names` (lane L2's) is proved here (`decl_names_ls`).
+`reach::decl_names` (lane L2's): `decl_names_ls` (`ReachCheck.lean`).
 -/
 import ConRon.Refine2.Frontend.Olean.Index
 import ConRon.Refine2.Frontend.Olean.Lazy
@@ -28,6 +28,7 @@ import ConRon.Refine2.Modular.Graph
 import ConRon.Refine2.Frontend.Olean.Contract
 import ConRon.Refine2.Frontend.Olean.CheckViews
 import ConRon.Arena.Modular.Worker
+import ConRon.Refine2.Modular.ReachCheck
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -227,12 +228,6 @@ theorem push_loaded_eq {ix ix'} (hix : NameIndexRel ix ix')
   simp [pushLoaded, absNIdxArr, this]
 
 /-! ## `own_uses_of`, `own_uses_thm` -/
-
-theorem IdxRel.contains_eq {m s} (h : IdxRel m s) {k : arena.handle.NIdx} {b : Bool}
-    (hg : ron.hashmap2.HashMap2.contains_key hN eN m k = ok b) : b = s.contains (absNIdx k) := by
-  rw [ConRon.Refine.HashMap2.contains_key_refines_gen nidx_eq2 h.inv (fun _ _ => trivial) trivial hg,
-    _root_.Std.HashMap.contains_eq_isSome_getElem?, ← h.get k]
-  cases toFun m k <;> rfl
 
 /-- The twin's step of `ownUsesAt`. -/
 def ouStep (acc : _root_.Std.HashMap NIdx Nat × Nat) (c : Arena.Frontend.Olean.CEntry) :
@@ -1095,58 +1090,27 @@ theorem footprints_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AS
   rw [Arena.Modular.footprints, ← Array.foldlM_toList]
   exact this
 
-/-! ## A record's names (`reach::decl_names`, lane L2's: its Theorem 2 here, for the worker) -/
+/-! ## A record's names (`reach::decl_names`, lane L2's) -/
 
-theorem decl_names_loop_eq (cs : alloc.vec.Vec arena.env.IConstantInfo) (i : Std.Usize)
-    {out o} (h : frontend.modular.reach.decl_names_loop cs out i = ok o) :
-    o.val.map absNIdx = out.val.map absNIdx ++ ((cs.val.drop i.val).map absIConstantInfo).map (·.name) := by
-  rw [frontend.modular.reach.decl_names_loop] at h
-  by_cases hlt : i < alloc.vec.Vec.len cs
-  · rw [ite_eq_left hlt] at h
-    have hi : i.val < cs.val.length := lt_len hlt
-    peel h as c, hc
-    obtain ⟨_, rfl⟩ := vec_index_eq hc
-    peel h as n, hn
-    peel h as out1, hout1
-    peel h as i2, hi2
-    have ih := decl_names_loop_eq cs i2 h
-    rw [usize_succ hi2] at ih
-    rw [ih, ConRon.Refine.vec_push_val hout1, List.map_append, List.map_singleton, i_constant_info_name_abs hn,
-      List.append_assoc, List.singleton_append, ← List.map_cons, ← List.map_cons,
-      ← List.drop_eq_getElem_cons hi]
-  · rw [ite_eq_right hlt] at h
-    cases Result.ok_injective h
-    rw [List.drop_of_length_le (not_lt_len hlt)]
-    simp
-termination_by cs.val.length - i.val
-decreasing_by have := lt_len hlt; rw [usize_succ hi2]; omega
-
-/-- **`decl_names` is `declNames`.** -/
-theorem decl_names_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+/-- `decl_names_ls` (`ReachCheck.lean`) with its answer as a mapped list. -/
+theorem decl_names_ls' {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (d : arena.env.IDeclaration) :
     LS pers (fun a b => b = a.val.map absNIdx) (frontend.modular.reach.decl_names pers st d) lst
-      (declNames (absIDeclaration d)) := by
-  intro o st' h
-  rw [frontend.modular.reach.decl_names] at h
-  unfold declNames
-  refine lout_bind (decl_constants_ls hrel hinv) h (by errarm) ?_
-  rintro a b s lst1 rfl hrel1 hinv1 h
-  obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  cases Result.ok_injective h
-  have := decl_names_loop_eq a 0#usize hv1
-  simp only [vec_with_capacity_val, List.map_nil, List.nil_append,
-    show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at this
-  refine lout_pure hrel1 hinv1 ?_
-  simp [this]
+      (declNames (absIDeclaration d)) :=
+  decl_names_ls hrel hinv d
 
 /-! ## `records_roots`, `own_roots`, `ground_roots` -/
 
-/-- **`reach::record_reads` is `recordReads`** — lane L2's, with no Theorem 2 yet: the shape its
-Theorem 2 is expected to have, taken as a hypothesis. -/
+/-- **`reach::record_reads` is `recordReads`**, as the roots below take it (`record_reads_ls`,
+`ReachCheck.lean`, discharges it: `recordReadsRel_holds`). -/
 def RecordReadsRel (pers : arena.store.PersTier) : Prop :=
   ∀ {st lst} (d : arena.env.IDeclaration), AStateRel₀ pers st lst → AStateInv pers st →
     LS pers (fun a b => b = a.val.map absNIdx) (frontend.modular.reach.record_reads pers st d) lst
       (recordReads (absIDeclaration d))
+
+/-- **`RecordReadsRel` holds**: lane L2's `record_reads_ls`. -/
+theorem recordReadsRel_holds (pers : arena.store.PersTier) : RecordReadsRel pers :=
+  fun d hrel hinv => record_reads_ls hrel hinv d
 
 /-- The twin's step of `recordsRoots`. -/
 def rrStep (ix : Arena.Frontend.Olean.NameIndex) (fp : _root_.Std.HashSet NIdx) (out : _root_.Array NIdx)
@@ -1324,7 +1288,7 @@ theorem loaded_rec_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AS
   intro o st' h
   rw [loaded_rec] at h
   unfold loadedRec
-  refine lout_bind (decl_names_ls hrel hinv d) h (by errarm) ?_
+  refine lout_bind (decl_names_ls' hrel hinv d) h (by errarm) ?_
   rintro ns b s1 lst1 rfl hrel1 hinv1 h
   obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases Result.ok_injective h
@@ -1471,7 +1435,7 @@ theorem roots_at_loop0_ls {pers} (copies : alloc.vec.Vec arena.env.IDeclaration)
     rw [List.drop_eq_getElem_cons hi, List.map_cons, List.foldlM_cons]
     unfold raStep
     rw [bind_assoc]
-    refine lout_bind (decl_names_ls hrel hinv _) h (by errarm) ?_
+    refine lout_bind (decl_names_ls' hrel hinv _) h (by errarm) ?_
     rintro ns b s1 lst1 rfl hrel1 hinv1 h
     simp only [pure_bind]
     obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1533,7 +1497,7 @@ theorem ctx_names_nodup_loop_ls {pers} (ctx : alloc.vec.Vec arena.env.IDeclarati
     obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨hi, rfl⟩ := vec_index_eq hd
     rw [List.drop_eq_getElem_cons hi, List.map_cons, ctxNamesNodupGo]
-    refine lout_bind (decl_names_ls hrel hinv _) h (by errarm) ?_
+    refine lout_bind (decl_names_ls' hrel hinv _) h (by errarm) ?_
     rintro ns b s1 lst1 rfl hrel1 hinv1 h
     obtain ⟨⟨ok1, s2⟩, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨e1, e2⟩ := names_nodup_go_eq hs hn

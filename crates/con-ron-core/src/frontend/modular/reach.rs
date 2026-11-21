@@ -2194,13 +2194,16 @@ pub fn infer_one(pers: &PersTier, st: &mut AState, fe: &env::IFEnv, what: &Vec<u
 /// **The inferred flags**: every recorded statement a proposition over the
 /// part of the context below its name, at the frozen index of `ctx ++ own`
 /// (`pers`): the view of the first record storing the name, else of the first
-/// own record.  Each inference runs in its own bracket (`enter_record`,
-/// `leave_record`), as a job does.
+/// own record.  The owner map and each inference run in a bracket of their own
+/// (`enter_record`, `leave_record`), as a job does: the tier is frozen.
 pub fn infer_flags(pers: &PersTier, st: &mut AState, ctx: &Vec<IDeclaration>, pending: &Vec<(Vec<u32>, NIdx, StmtRec)>) -> Result<(), CheckError> {
     if pending.len() == 0 {
         return Ok(());
     }
-    let owner = match first_owner(pers, st, ctx) {
+    enter_record(st);
+    let ro = first_owner(pers, st, ctx);
+    leave_record(st);
+    let owner = match ro {
         Err(e) => return Err(e),
         Ok(m) => m,
     };
