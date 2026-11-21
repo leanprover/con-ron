@@ -23,6 +23,25 @@ open ConRon.Bridge.Frontend.Olean
 open ConRon.Arena.Frontend.Olean (OleanPins SM)
 open ConLeche.Frontend.Olean (Region Roots OLeanLevel ModFiles CEntryF CKindF entryAt)
 
+/-- A run that ends in a failure, after any reads: no accept. -/
+theorem AM.bind_fail_never {α β : Type} {x : AM α} {f : α → Arena.CheckError} {s s' : AState}
+    {b : β} (h : (x >>= fun a => fail (f a)) s = .ok (b, s')) : False := by
+  obtain ⟨_, _, _, h2⟩ := AM.bind_ok h
+  exact AM.fail_ok h2
+
+/-- A failure's message read name by name: no accept. -/
+macro "am_never " h:ident : tactic => `(tactic| first
+  | exact (AM.fail_ok $h).elim
+  | exact (AM.bind_fail_never $h).elim
+  | (obtain ⟨_, _, _, h'⟩ := AM.bind_ok $h
+     first
+     | exact (AM.fail_ok h').elim
+     | exact (AM.bind_fail_never h').elim
+     | (obtain ⟨_, _, _, h''⟩ := AM.bind_ok h'
+        first
+        | exact (AM.fail_ok h'').elim
+        | exact (AM.bind_fail_never h'').elim)))
+
 /-- con-leche: ConLeche/Driver/Reach.lean:262-282 withPart — **a read of a part with its
 memo**: the twin's `takePart`, a read `g` of the region with the memo, `putPart`, is
 upstream's `withPart` at a read `f` answering alike from any good memo. -/
@@ -232,5 +251,135 @@ theorem partEntries_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = 
       refine ⟨hst, hg, fun mC hG => ?_⟩
       obtain ⟨mC', hw, hG'⟩ := entriesWith_complete ls hG hes
       exact ⟨mC', esC, hw, hG', hd⟩) hsp hctx he hc hk h
+
+/-! ## A part's region and table, one read of its files -/
+
+/-- con-leche: ConLeche/Driver/Reach.lean:284-301 loadPart — **a part's region and table off one
+read of its files**: upstream's accept, the caches related after. -/
+theorem loadPart_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
+    {k : ConRon.Arena.Modular.PartKey} {kC : ConLeche.Driver.PartKey} {s s' : AState}
+    (hctx : RCtx pk s) (he : EnvRel sp s.store env envC) (hc : CacheRel s.store c cC)
+    (hk : PKRel s.store k kC)
+    (h : ConRon.Arena.Modular.loadPart (modelFs F) pk sp c k s = .ok (c', s')) :
+    DStep s s' ∧ ∃ cC', ModelIO.Gives (ConLeche.Driver.loadPart envC cC kC) F (cC', .ok ()) ∧
+      CacheRel s'.store c' cC' := by
+  have hw := hctx.wf
+  have hpc := hc.parts.contains hw hk
+  have htc := hc.tables.contains hw hk
+  unfold ConRon.Arena.Modular.loadPart at h
+  by_cases h1 : c.parts.contains k = true
+  · simp only [h1, ↓reduceIte] at h
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h
+    refine ⟨DStep.refl hctx.ok hctx.off, cC, ?_, hc⟩
+    unfold ConLeche.Driver.loadPart
+    simp only [← hpc, h1, ↓reduceIte]
+    exact ModelIO.gives_pure _ _
+  simp only [h1, Bool.false_eq_true, ↓reduceIte, pure_bind] at h
+  obtain ⟨mn, t₁, g1, k1⟩ := AM.bind_ok h
+  obtain ⟨e1, hmn⟩ := readName_run g1
+  rw [e1] at k1
+  obtain rfl : mn = kC.mod := Option.some.inj (hmn.symm.trans hk.1)
+  obtain ⟨fv, t₂, g2, k2⟩ := AM.bind_ok k1
+  cases hf : ConRon.Arena.Frontend.Olean.readFiles (modelFs F) sp kC.mod k.level with
+  | error e =>
+    simp only [hf, ConRon.Arena.Frontend.Olean.liftE] at g2; exact (AM.fail_ok g2).elim
+  | ok fv' =>
+  simp only [hf, ConRon.Arena.Frontend.Olean.liftE] at g2
+  obtain ⟨e2, e3⟩ := AM.pure_ok g2
+  subst e2
+  rw [e3] at k2
+  have hgf : ModelIO.Gives (envC.rd.files kC.mod kC.level) F (.ok fv) := by
+    rw [he.rd, ← hk.2]
+    exact readFiles_sim (roots_ok_of_bare hsp) rfl hf
+  rcases hv : fv.viewRegion k.level with _ | ⟨r, a⟩
+  · rw [hv] at k2
+    obtain ⟨_, _, _, g3⟩ := AM.bind_ok k2
+    exact (AM.fail_ok g3).elim
+  rw [hv] at k2
+  have hpkC : (cC.parts.contains kC) = false := by rw [← hpc]; simpa using h1
+  have hcP : CacheRel s.store { c with parts := c.parts.insert k (r, {}) }
+      { cC with parts := cC.parts.insert kC (r, {}) } :=
+    { hc with parts := hc.parts.insert hw hk ⟨rfl, SMGood.empty _ _,
+      ConLeche.Frontend.Olean.SM.good_empty _⟩ }
+  by_cases h2 : c.tables.contains k = true
+  · simp only [h2, ↓reduceIte] at k2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+    refine ⟨DStep.refl hctx.ok hctx.off, _, ?_, hcP⟩
+    unfold ConLeche.Driver.loadPart
+    simp only [hpkC, Bool.false_eq_true, ↓reduceIte]
+    refine hgf.bind ?_
+    simp only [← hk.2, hv, ← htc, h2, ↓reduceIte]
+    exact ModelIO.gives_pure _ _
+  simp only [h2, Bool.false_eq_true, ↓reduceIte] at k2
+  obtain ⟨o, t₃, g4, k3⟩ := AM.bind_ok k2
+  cases o with
+  | none =>
+    obtain ⟨_, _, _, g5⟩ := AM.bind_ok k3
+    exact (AM.fail_ok g5).elim
+  | some t =>
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
+  obtain ⟨hst, tC, htC, hrel⟩ := namePositionsAt_run hctx.ctx g4
+  have hds := DStep.of_parse hctx.ok hctx.off hst
+  have hcP' := hcP.ext hst.ext
+  have hT := hcP'.tables.insert (nsWF_of_StateOK hst.ok) (hk.ext hst.ext) hrel
+  refine ⟨hds, { cC with parts := cC.parts.insert kC (r, {}), tables := cC.tables.insert kC tC }, ?_,
+    { hcP' with tables := hT }⟩
+  unfold ConLeche.Driver.loadPart
+  simp only [hpkC, Bool.false_eq_true, ↓reduceIte]
+  refine hgf.bind ?_
+  have htC' : (cC.tables.contains kC) = false := by rw [← htc]; simpa using h2
+  simp only [← hk.2, hv, htC', Bool.false_eq_true, ↓reduceIte, htC]
+  exact ModelIO.gives_pure _ _
+
+/-! ## A copy in its module's private part -/
+
+/-- con-leche: ConLeche/Driver/Reach.lean:316-328 privSpot — **a copy in its module's private
+part**: upstream's, the caches related after. -/
+theorem privSpot_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
+    {sp₀ p : ConRon.Arena.Modular.Spot} {spC : ConLeche.Driver.Spot} {s s' : AState}
+    (hctx : RCtx pk s) (he : EnvRel sp s.store env envC) (hc : CacheRel s.store c cC)
+    (hs : SpotRel s.store sp₀ spC)
+    (h : ConRon.Arena.Modular.privSpot (modelFs F) pk sp env c sp₀ s = .ok ((c', p), s')) :
+    DStep s s' ∧ ∃ cC' pC, ModelIO.Gives (ConLeche.Driver.privSpot envC cC spC) F (cC', .ok pC) ∧
+      CacheRel s'.store c' cC' ∧ SpotRel s'.store p pC := by
+  unfold ConRon.Arena.Modular.privSpot at h
+  by_cases h1 : (sp₀.part.level == .private) = true
+  · simp only [h1, ↓reduceIte] at h
+    obtain ⟨hv, rfl⟩ := AM.pure_ok h
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨rfl, rfl⟩ := hv
+    refine ⟨DStep.refl hctx.ok hctx.off, cC, spC, ?_, hc, hs⟩
+    unfold ConLeche.Driver.privSpot
+    simp only [← hs.1.2, h1, ↓reduceIte]
+    exact ModelIO.gives_pure _ _
+  simp only [h1, Bool.false_eq_true, ↓reduceIte, pure_bind] at h
+  have hkp : PKRel s.store (ConRon.Arena.Modular.privKey sp₀.part.mod)
+      (⟨spC.part.mod, .private⟩ : ConLeche.Driver.PartKey) := ⟨hs.1.1, rfl⟩
+  obtain ⟨c₁, s₁, g1, k1⟩ := AM.bind_ok h
+  obtain ⟨hst1, cC₁, lC, l, hgl, hc1, hl, hlr⟩ := lookOf_run hsp hctx he hc hkp g1
+  obtain ⟨o, s₂, g2, k2⟩ := AM.bind_ok k1
+  rw [lookAt_eq hl] at g2
+  obtain ⟨ho, e2⟩ := AM.pure_ok g2
+  subst ho e2
+  have hw1 := nsWF_of_StateOK hst1.ok.state
+  have hq := hlr.get hw1 (denoteN_ext hs.2.name hst1.ext)
+  rcases optRel_cases hq with ⟨g4, -⟩ | ⟨q, qC, g4, g5, g6⟩
+  · rw [g4] at k2
+    am_never k2
+  rw [g4] at k2
+  obtain ⟨hv, rfl⟩ := AM.pure_ok k2
+  simp only [Prod.mk.injEq] at hv
+  obtain ⟨rfl, rfl⟩ := hv
+  refine ⟨hst1, cC₁, ⟨⟨spC.part.mod, .private⟩, qC⟩, ?_, hc1, ⟨hkp.ext hst1.ext, g6⟩⟩
+  unfold ConLeche.Driver.privSpot
+  have h1C : (spC.part.level == .private) = false := by rw [← hs.1.2]; simpa using h1
+  simp only [h1C, Bool.false_eq_true, ↓reduceIte]
+  refine hgl.bind ?_
+  simp only [g5]
+  exact ModelIO.gives_pure _ _
 
 end ConRon.Bridge.Modular
