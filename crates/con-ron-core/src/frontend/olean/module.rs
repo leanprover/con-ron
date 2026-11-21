@@ -9,13 +9,16 @@
 use crate::arena::env;
 use crate::arena::handle::{EIdx, NIdx};
 use crate::arena::store::{EStore, PersTier};
+use crate::frontend::olean::fast;
+use crate::frontend::olean::header;
+use crate::frontend::olean::lazy::{CEntry, Loaded};
 use crate::frontend::olean::reads;
 use crate::frontend::olean::region;
 use crate::frontend::olean::region::{Part, Region, RegionBuf};
 use crate::frontend::olean::spec;
-use crate::frontend::olean::spec::{CEntryF, CKindF, OleanPins, RdErr};
+use crate::frontend::olean::spec::{CEntryF, CKindF, ImportRec, OleanPins, RdErr};
 use crate::frontend::olean::view;
-use crate::frontend::olean::view::{AllViews, ModFiles};
+use crate::frontend::olean::view::ModFiles;
 use crate::frontend::scan_types::HintsRec;
 use crate::frontend::text;
 use crate::kernel::core_types;
@@ -276,7 +279,21 @@ pub fn expo_step(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r:
     if iu >= cs.len() {
         return msg_err({ const M: [u32; 26] = [109, 97, 108, 102, 111, 114, 109, 101, 100, 32, 112, 114, 105, 118, 97, 116, 101, 32, 99, 111, 110, 115, 116, 97, 110, 116]; crate::kernel::core_types::code_points(&M) });
     }
-    match expo_of(&cs[iu], &e) {
+    match &cs[iu].kind {
+        CKindF::Thm(_, _) => match reads::entry_at(pk, pers, ar, bs, r, priv_locs[iu]) {
+            Err(RdErr::Bad) => msg_err({ const M: [u32; 26] = [109, 97, 108, 102, 111, 114, 109, 101, 100, 32, 112, 114, 105, 118, 97, 116, 101, 32, 99, 111, 110, 115, 116, 97, 110, 116]; crate::kernel::core_types::code_points(&M) }),
+            Err(RdErr::Err(e)) => Err(ExpoErr::Err(e)),
+            Ok(pc) => expo_against(&pc, &e, en_text, iu, expo),
+        },
+        _ => expo_against(&cs[iu], &e, en_text, iu, expo),
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Module.lean:106-152 expoOfParts
+/// The private constant `pc` (a theorem decoded whole: the load leaves its value
+/// in the file) against the exported constant `e` of name `en_text`, at `iu`.
+pub fn expo_against(pc: &CEntryF<NIdx, EIdx>, e: &CEntryF<NIdx, EIdx>, en_text: Vec<u32>, iu: usize, expo: &mut Vec<Expo>) -> Result<(), ExpoErr> {
+    match expo_of(pc, e) {
         Some(x) => {
             expo[iu] = x;
             Ok(())
@@ -284,7 +301,7 @@ pub fn expo_step(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r:
         None => {
             let t = text::cat({ const M: [u32; 21] = [116, 104, 101, 32, 101, 120, 112, 111, 114, 116, 101, 100, 32, 118, 105, 101, 119, 32, 111, 102, 32]; crate::kernel::core_types::code_points(&M) }, &en_text);
             let t = text::cat(t, &{ const M: [u32; 46] = [32, 105, 115, 32, 110, 111, 116, 32, 97, 32, 114, 101, 102, 105, 110, 101, 109, 101, 110, 116, 32, 111, 102, 32, 105, 116, 115, 32, 112, 114, 105, 118, 97, 116, 101, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 40]; crate::kernel::core_types::code_points(&M) });
-            let t = text::cat(t, &kind_word(&cs[iu].kind));
+            let t = text::cat(t, &kind_word(&pc.kind));
             let t = text::cat(t, &{ const M: [u32; 3] = [32, 47, 32]; crate::kernel::core_types::code_points(&M) });
             let t = text::cat(t, &kind_word(&e.kind));
             msg_err(text::cat(t, &{ const M: [u32; 1] = [41]; crate::kernel::core_types::code_points(&M) }))
@@ -359,11 +376,56 @@ pub fn server_alone(r: &Region, ex: &Part, s: &Part) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Module.lean:156-190 checkViews
-/// The module-system arm of `checkViews`.  The views are parsed whole
-/// (`parse_all_views`), so what upstream asks of the parts over the load (each
-/// part's module-system flag, the server part's imports, the name tables, a
-/// theorem's private value) is the views'.
-pub fn check_views_module(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, m: &NIdx, f: &ModFiles, v: &AllViews, s: &Part, p: &Part) -> Result<Vec<Expo>, CheckError> {
+/// `(moduleSkel r a).any (·.isModule)`: the part at `a` is of a module of the
+/// module system.
+pub fn skel_is_module(bs: &[u8], r: &Region, a: u64) -> bool {
+    match spec::module_skel(bs, r, a) {
+        None => false,
+        Some(sk) => sk.is_module,
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Module.lean:156-190 checkViews
+/// The imports of the part at `a`: `(moduleSkel r a).bind fun sk =>
+/// sk.imports.mapM (ImportF.mapM (nameP r))`.
+pub fn skel_imports(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, a: u64) -> Result<Vec<ImportRec>, RdErr> {
+    match spec::module_skel(bs, r, a) {
+        None => Err(RdErr::Bad),
+        Some(sk) => fast::mod_skel_imports(&header::NamePRead, pk, pers, ar, bs, r, &sk),
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Module.lean:156-190 checkViews
+/// `importsPre f.exported.bytes == simps`: the server part's imports (`simps`,
+/// `None` where they do not read) are those at the start of its `.olean`.
+pub fn imports_agree(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, f: &ModFiles, simps: Option<Vec<ImportRec>>) -> Result<bool, CheckError> {
+    match header::imports_pre(pk, pers, ar, &f.exported.bytes) {
+        Err(RdErr::Err(e)) => Err(e),
+        Err(RdErr::Bad) => match simps {
+            None => Ok(true),
+            Some(_) => Ok(false),
+        },
+        Ok(pre) => match simps {
+            None => Ok(false),
+            Some(s) => Ok(spec::imports_beq(&pre, &s)),
+        },
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Module.lean:156-190 checkViews
+/// Whether the server part's imports, read in the region, are those at the start
+/// of its `.olean`.
+pub fn server_imports_ok(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, f: &ModFiles, a: u64) -> Result<bool, CheckError> {
+    match skel_imports(pk, pers, ar, bs, r, a) {
+        Err(RdErr::Err(e)) => Err(e),
+        Err(RdErr::Bad) => imports_agree(pk, pers, ar, f, None),
+        Ok(v) => imports_agree(pk, pers, ar, f, Some(v)),
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Module.lean:156-190 checkViews
+/// The module-system arm of `checkViews`, over the load's constants `cs`.
+pub fn check_views_module(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, m: &NIdx, f: &ModFiles, cs: &Vec<CEntryF<NIdx, EIdx>>, s: &Part, p: &Part) -> Result<Vec<Expo>, CheckError> {
     let b: RegionBuf = match region::region_of_parts3(&f.exported, s, p) {
         Err(e) => return Err(e),
         Ok(b) => b,
@@ -373,19 +435,34 @@ pub fn check_views_module(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, m: &
         let t = text::cat({ const M: [u32; 16] = [105, 116, 115, 32, 115, 101, 114, 118, 101, 114, 32, 112, 97, 114, 116, 32]; crate::kernel::core_types::code_points(&M) }, &mt);
         return Err(bad_view(pers, ar, m, text::cat(t, &{ const M: [u32; 93] = [46, 111, 108, 101, 97, 110, 46, 115, 101, 114, 118, 101, 114, 32, 112, 111, 105, 110, 116, 115, 32, 105, 110, 116, 111, 32, 105, 116, 115, 32, 46, 111, 108, 101, 97, 110, 46, 112, 114, 105, 118, 97, 116, 101, 58, 32, 116, 104, 101, 32, 115, 101, 114, 118, 101, 114, 32, 112, 97, 114, 116, 32, 109, 117, 115, 116, 32, 114, 101, 97, 100, 32, 119, 105, 116, 104, 32, 105, 116, 115, 32, 46, 111, 108, 101, 97, 110, 32, 97, 108, 111, 110, 101]; crate::kernel::core_types::code_points(&M) })));
     }
-    if !v.server.is_module {
+    if !skel_is_module(&b.bytes, &b.region, region::part_module_data_addr(s)) {
         return Err(bad_view(pers, ar, m, { const M: [u32; 77] = [116, 104, 101, 32, 115, 101, 114, 118, 101, 114, 32, 112, 97, 114, 116, 32, 105, 115, 32, 110, 111, 116, 32, 111, 102, 32, 97, 32, 109, 111, 100, 117, 108, 101, 32, 111, 102, 32, 116, 104, 101, 32, 109, 111, 100, 117, 108, 101, 32, 115, 121, 115, 116, 101, 109, 44, 32, 116, 104, 101, 32, 101, 120, 112, 111, 114, 116, 101, 100, 32, 112, 97, 114, 116, 32, 105, 115]; crate::kernel::core_types::code_points(&M) }));
     }
-    if !v.private_part.is_module {
+    if !skel_is_module(&b.bytes, &b.region, region::part_module_data_addr(p)) {
         return Err(bad_view(pers, ar, m, { const M: [u32; 78] = [116, 104, 101, 32, 112, 114, 105, 118, 97, 116, 101, 32, 112, 97, 114, 116, 32, 105, 115, 32, 110, 111, 116, 32, 111, 102, 32, 97, 32, 109, 111, 100, 117, 108, 101, 32, 111, 102, 32, 116, 104, 101, 32, 109, 111, 100, 117, 108, 101, 32, 115, 121, 115, 116, 101, 109, 44, 32, 116, 104, 101, 32, 101, 120, 112, 111, 114, 116, 101, 100, 32, 112, 97, 114, 116, 32, 105, 115]; crate::kernel::core_types::code_points(&M) }));
     }
+    match server_imports_ok(pk, pers, ar, &b.bytes, &b.region, f, region::part_module_data_addr(s)) {
+        Err(e) => return Err(e),
+        Ok(false) => return Err(bad_view(pers, ar, m, { const M: [u32; 66] = [116, 104, 101, 32, 115, 101, 114, 118, 101, 114, 32, 112, 97, 114, 116, 39, 115, 32, 105, 109, 112, 111, 114, 116, 115, 32, 97, 114, 101, 32, 110, 111, 116, 32, 116, 104, 111, 115, 101, 32, 97, 116, 32, 116, 104, 101, 32, 115, 116, 97, 114, 116, 32, 111, 102, 32, 105, 116, 115, 32, 46, 111, 108, 101, 97, 110]; crate::kernel::core_types::code_points(&M) })),
+        Ok(true) => {}
+    }
+    match spec::const_names_ok(pk, pers, ar, &b.bytes, &b.region, region::part_module_data_addr(&f.exported)) {
+        Err(e) => return Err(e),
+        Ok(false) => return Err(bad_view(pers, ar, m, { const M: [u32; 89] = [116, 104, 101, 32, 101, 120, 112, 111, 114, 116, 101, 100, 32, 112, 97, 114, 116, 39, 115, 32, 110, 97, 109, 101, 32, 116, 97, 98, 108, 101, 32, 40, 99, 111, 110, 115, 116, 78, 97, 109, 101, 115, 41, 32, 100, 111, 101, 115, 32, 110, 111, 116, 32, 108, 105, 115, 116, 32, 105, 116, 115, 32, 99, 111, 110, 115, 116, 97, 110, 116, 115, 39, 32, 110, 97, 109, 101, 115, 44, 32, 101, 97, 99, 104, 32, 111, 110, 99, 101]; crate::kernel::core_types::code_points(&M) })),
+        Ok(true) => {}
+    }
+    match spec::const_names_ok(pk, pers, ar, &b.bytes, &b.region, region::part_module_data_addr(s)) {
+        Err(e) => return Err(e),
+        Ok(false) => return Err(bad_view(pers, ar, m, { const M: [u32; 87] = [116, 104, 101, 32, 115, 101, 114, 118, 101, 114, 32, 112, 97, 114, 116, 39, 115, 32, 110, 97, 109, 101, 32, 116, 97, 98, 108, 101, 32, 40, 99, 111, 110, 115, 116, 78, 97, 109, 101, 115, 41, 32, 100, 111, 101, 115, 32, 110, 111, 116, 32, 108, 105, 115, 116, 32, 105, 116, 115, 32, 99, 111, 110, 115, 116, 97, 110, 116, 115, 39, 32, 110, 97, 109, 101, 115, 44, 32, 101, 97, 99, 104, 32, 111, 110, 99, 101]; crate::kernel::core_types::code_points(&M) })),
+        Ok(true) => {}
+    }
     let ap = region::part_module_data_addr(p);
-    let expo = match expo_of_parts(pk, pers, ar, &b.bytes, &b.region, ap, region::part_module_data_addr(&f.exported), &v.private_part.constants) {
+    let expo = match expo_of_parts(pk, pers, ar, &b.bytes, &b.region, ap, region::part_module_data_addr(&f.exported), cs) {
         Err(ExpoErr::Err(e)) => return Err(e),
         Err(ExpoErr::Msg(msg)) => Err(msg),
         Ok(x) => Ok(x),
     };
-    match expo_of_parts(pk, pers, ar, &b.bytes, &b.region, ap, region::part_module_data_addr(s), &v.private_part.constants) {
+    match expo_of_parts(pk, pers, ar, &b.bytes, &b.region, ap, region::part_module_data_addr(s), cs) {
         Err(ExpoErr::Err(e)) => Err(e),
         Err(ExpoErr::Msg(msg2)) => match expo {
             Err(msg) => Err(bad_view(pers, ar, m, text::cat({ const M: [u32; 19] = [116, 104, 101, 32, 101, 120, 112, 111, 114, 116, 101, 100, 32, 112, 97, 114, 116, 58, 32]; crate::kernel::core_types::code_points(&M) }, &msg))),
@@ -399,16 +476,30 @@ pub fn check_views_module(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, m: &
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Module.lean:156-190 checkViews
-/// **The views of a module against each other**: for each private constant, its
-/// exported level.  Every constant is `.same` in a classic module.
-pub fn check_views(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, m: &NIdx, f: &ModFiles, v: &AllViews) -> Result<Vec<Expo>, CheckError> {
+/// `l.constants.map (·.toCEntryF)`.
+pub fn loaded_entries(cs: &Vec<CEntry>) -> Vec<CEntryF<NIdx, EIdx>> {
+    let mut out: Vec<CEntryF<NIdx, EIdx>> = Vec::with_capacity(cs.len());
+    let mut i = 0usize;
+    while i < cs.len() {
+        out.push(view::c_entry_dup(&cs[i].c));
+        i += 1;
+    }
+    out
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Module.lean:156-190 checkViews
+/// **The views of a module against each other**, over its load `l`: for each
+/// private constant, its exported level.  Every constant is `.same` in a classic
+/// module.
+pub fn check_views(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, m: &NIdx, f: &ModFiles, l: &Loaded) -> Result<Vec<Expo>, CheckError> {
+    let cs = loaded_entries(&l.constants);
     match (&f.server, &f.private_part) {
         (Some(s), Some(p)) => {
             if !view::mod_files_is_module(f) {
-                return Ok(expo_fill(v.private_part.constants.len(), &Expo::Same));
+                return Ok(expo_fill(cs.len(), &Expo::Same));
             }
-            check_views_module(pk, pers, ar, m, f, v, s, p)
+            check_views_module(pk, pers, ar, m, f, &cs, s, p)
         }
-        _ => Ok(expo_fill(v.private_part.constants.len(), &Expo::Same)),
+        _ => Ok(expo_fill(cs.len(), &Expo::Same)),
     }
 }

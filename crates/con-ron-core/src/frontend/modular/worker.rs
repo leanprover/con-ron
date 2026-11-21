@@ -5,8 +5,7 @@
 //!
 //! 1. **The home** (`home_of`): `M`'s private view loaded (`lazy::load_view`,
 //!    its theorems' values left in the file) and its three parts checked against
-//!    each other (`module::check_views`, over the views parsed whole: con-ron's
-//!    `check_views` reads `AllViews`, where upstream's reads the load).
+//!    each other (`module::check_views`).
 //! 2. **The reads** (`index::worker_reads`): the header fixpoint, the name index
 //!    of every loaded part, Lean's clash rule, freshness of `M`'s names.
 //! 3. **The own records** (`own_records`): the loaded constants, unsafe and
@@ -82,23 +81,15 @@ use crate::ron::hashmap2::HashMap2;
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:385-394 homeOf
 /// **A module's home**: its private view loaded (`load_view`, at module index
-/// 0) and its three parts checked against each other (`check_views`, over the
-/// views parsed whole; a view that does not parse is `view_error`'s).
+/// 0) and its three parts checked against each other (`check_views`).
 pub fn home_of(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, m: &NIdx, f: &ModFiles) -> Result<(Loaded, Vec<Expo>), CheckError> {
     let l = match lazy::load_view(pk, pers, ar, 0, m, f) {
         Err(e) => return Err(e),
         Ok(l) => l,
     };
-    match view::parse_all_views(pk, pers, ar, f) {
-        Err(RdErr::Err(e)) => Err(e),
-        Err(RdErr::Bad) => match files::first_bad_view(pk, pers, ar, f) {
-            Err(e) => Err(e),
-            Ok(level) => Err(view::view_error(pk, pers, ar, m, f, &level)),
-        },
-        Ok(v) => match module::check_views(pk, pers, ar, m, f, &v) {
-            Err(e) => Err(e),
-            Ok(expo) => Ok((l, expo)),
-        },
+    match module::check_views(pk, pers, ar, m, f, &l) {
+        Err(e) => Err(e),
+        Ok(expo) => Ok((l, expo)),
     }
 }
 
