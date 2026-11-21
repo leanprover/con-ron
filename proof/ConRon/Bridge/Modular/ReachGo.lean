@@ -421,4 +421,169 @@ theorem reachGo_run (hRR : ReadRecordHyp) {pk : OleanPins} {F : FS} {sp : Roots}
             (he.ext hst1.ext hctx1.wf) hc1 hL1 hp1 hsz1 h
           exact ⟨hst1.trans hst2, hp2, hsz2, LC', cC', hstep k _ hg, hL', hc'⟩
 
+/-! ## The reach's fuel -/
+
+/-- An injective map from a list without repeats into another list: the first no longer. -/
+theorem length_le_of_inj {α β : Type} [BEq β] [LawfulBEq β] (f : α → Option β) :
+    ∀ {l : List α} {l₂ : List β}, l.Nodup →
+      (∀ a ∈ l, ∃ b ∈ l₂, f a = some b) →
+      (∀ a ∈ l, ∀ a' ∈ l, ∀ b, f a = some b → f a' = some b → a = a') →
+      l.length ≤ l₂.length
+  | [], _, _, _, _ => Nat.zero_le _
+  | a :: l, l₂, hnd, hm, hinj => by
+    obtain ⟨b, hb, hfb⟩ := hm a (List.mem_cons_self ..)
+    have hnd' := List.nodup_cons.1 hnd
+    have ih : l.length ≤ (l₂.erase b).length := by
+      refine length_le_of_inj f hnd'.2 (fun a' ha' => ?_) (fun x hx y hy => hinj x
+        (List.mem_cons_of_mem _ hx) y (List.mem_cons_of_mem _ hy))
+      obtain ⟨b', hb', hfb'⟩ := hm a' (List.mem_cons_of_mem _ ha')
+      refine ⟨b', (List.mem_erase_of_ne (fun he => ?_)).2 hb', hfb'⟩
+      subst he
+      have := hinj a (List.mem_cons_self ..) a' (List.mem_cons_of_mem _ ha') b' hfb hfb'
+      subst this
+      exact hnd'.1 ha'
+    rw [List.length_erase_of_mem hb] at ih
+    have : 0 < l₂.length := List.length_pos_of_mem hb
+    simp only [List.length_cons]
+    omega
+
+/-- **A map over handles has no more entries than the map over names it denotes.** -/
+theorem HMRel.size_le {α β : Type} {R : α → β → Prop} {st : EStore} (hw : NStoreWF st.ns)
+    {M : Std.HashMap NIdx α} {MC : Std.HashMap ConLeche.Name β} (h : HMRel R st M MC) :
+    M.size ≤ MC.size := by
+  rw [← Std.HashMap.length_keys, ← Std.HashMap.length_keys]
+  refine length_le_of_inj (denoteN st.ns) Std.HashMap.nodup_keys (fun a ha => ?_)
+    (fun a _ a' _ b h1 h2 => denoteN_inj hw h1 h2)
+  rw [Std.HashMap.mem_keys, Std.HashMap.mem_iff_isSome_getElem?] at ha
+  obtain ⟨v, hv⟩ := Option.isSome_iff_exists.1 ha
+  obtain ⟨n, b, hn, hb, -⟩ := h.fwd a v hv
+  refine ⟨n, ?_, hn⟩
+  rw [Std.HashMap.mem_keys, Std.HashMap.mem_iff_isSome_getElem?, hb]
+  rfl
+
+/-! ## The reach -/
+
+/-- The records the read order picks are records of the log. -/
+theorem inReadOrder_mem {L : ConRon.Arena.Modular.ReachLog} {o : Array Nat} :
+    ∀ d ∈ (ConRon.Arena.Modular.inReadOrder L o).1.toList, d ∈ L.ctx.toList := by
+  unfold ConRon.Arena.Modular.inReadOrder
+  rw [← Array.foldl_toList]
+  suffices ∀ (os : List Nat) (acc : Array IDeclaration × Array NIdx),
+      (∀ d ∈ acc.1.toList, d ∈ L.ctx.toList) →
+      ∀ d ∈ (os.foldl (fun (acc : Array IDeclaration × Array NIdx) j =>
+        match L.ctx[j]?, L.homes[j]? with
+        | some d, some h => (acc.1.push d, acc.2.push h)
+        | _, _ => acc) acc).1.toList, d ∈ L.ctx.toList from this _ _ (by simp)
+  intro os
+  induction os with
+  | nil => intro acc h; exact h
+  | cons j os ih =>
+    intro acc hacc
+    simp only [List.foldl_cons]
+    apply ih
+    split
+    · rename_i d h hd _
+      intro d' hd'
+      simp only [Array.toList_push, List.mem_append, List.mem_singleton] at hd'
+      rcases hd' with hd' | rfl
+      · exact hacc d' hd'
+      · exact Array.mem_toList_iff.mpr (Array.mem_of_getElem? hd)
+    · exact hacc
+
+/-- con-leche: ConLeche/Driver/Reach.lean:937-968 reachWith — **Theorem 1 of the reach, given
+the record read** (`ReadRecordHyp`): the twin's accept gives upstream's context, homes,
+completions and counts, its pending statements read back, and upstream's reach answering it under
+every flag inference accepting those statements. -/
+theorem reachRunHyp_holds' (hRR : ReadRecordHyp) : ReachRunHyp := by
+  intro pk F sp s s' m mC wr wrC own ownC roots rootsC r hsp hok hoff hpk hm hwr hkeys hown hroots h
+  have hctx : RCtx pk s := ⟨hok, hoff, hpk.nulls⟩
+  have hw := hctx.wf
+  unfold ConRon.Arena.Modular.reach at h
+  let envC : ConLeche.Driver.ReachEnv ModelIO :=
+    { rd := .ofPath sp, mod := mC, wr := wrC, own := ownC,
+      copies := ConLeche.Driver.clashCopiesOf wrC }
+  have he : EnvRel sp s.store { mod := m, wr, own, copies := ConRon.Arena.Modular.clashCopiesOf pk wr }
+      envC := ⟨rfl, hm, hwr, hkeys, hown, clashCopiesOf_rel hw hpk.nulls hwr⟩
+  -- the clash rule
+  obtain ⟨⟨c₁, extra⟩, s₁, h1, h⟩ := AM.bind_ok h
+  obtain ⟨hst1, cC₁, accC, hg1, hc1, hacc⟩ :=
+    clashAgree_run hsp hctx he (CacheRel.empty _) (by simpa using hwr.clashes) .nil h1
+  have hctx1 := hctx.step hst1
+  have hw1 := hctx1.wf
+  have he1 := he.ext hst1.ext hw1
+  -- the roots
+  have hrs : ListRel (NR s₁.store) (ConRon.Arena.Modular.reachRoots own roots extra)
+      ((rootsC ++ accC).toList.filter (!ownC.contains ·)) := by
+    unfold ConRon.Arena.Modular.reachRoots
+    refine listRel_filter (fun a b hab => by rw [(hown.ext hst1.ext).contains hw1 hab]) ?_
+    simp only [Array.toList_append]
+    exact listRel_append (ListRel.mono' (fun _ _ h => denoteN_ext h hst1.ext) hroots) hacc
+  cases hfind : (ConRon.Arena.Modular.reachRoots own roots extra).find? (!wr.index.first.contains ·) with
+  | some x =>
+    exfalso
+    simp only [hfind] at h
+    obtain ⟨_, _, _, ha⟩ := AM.bind_ok h
+    exact AM.fail_ok ha
+  | none =>
+  simp only [hfind] at h
+  have hfindC : ((rootsC ++ accC).toList.filter (!ownC.contains ·)).find?
+      (!wrC.index.first.contains ·) = none :=
+    find?_none_rel (fun a b hab => by
+      rw [HMRel.contains hw1 (hwr.index.first.ext' hst1.ext) hab]) hrs hfind
+  -- the worklist
+  obtain ⟨⟨L, c₂⟩, s₂, h2, h⟩ := AM.bind_ok h
+  have hfuel : wr.index.first.size + wr.index.more.size + (1 <<< 24) ≤
+      wrC.index.first.size + wrC.index.more.size + (1 <<< 24) := by
+    have h1' := HMRel.size_le hw1 (hwr.index.first.ext' hst1.ext)
+    have h2' : wr.index.more.size = wrC.index.more.size := by
+      simpa using listRel_length hwr.index.more
+    omega
+  obtain ⟨hst2, hpL, hszL, LC, cC₂, hg2, hL, hc2⟩ := reachGo_run hRR hsp _ _ hfuel hctx1 he1 hc1
+    (init_rel hw1 hrs) (by simp [ConRon.Arena.Modular.ReachLog.init]) (by simp [ConRon.Arena.Modular.ReachLog.init]) h2
+  have hctx2 := hctx1.step hst2
+  -- the read order
+  obtain ⟨o, s₃, h3, h⟩ := AM.bind_ok h
+  obtain ⟨hst3, ho⟩ := readOrder_run hctx2.ok hL.ctx hL.reads h3
+  have hlt := readOrder_lt ho
+  have hlenC : L.ctx.size = LC.ctx.size := by
+    simpa using denoteDecls_length hL.ctx
+  have hj : ∀ j ∈ o.toList, j < L.ctx.size ∧ j < L.homes.size := fun j hj => by
+    have := hlt j hj; omega
+  obtain ⟨hdc, hdh⟩ := inReadOrder_rel (hL.ext hst3.ext).ctx (hL.ext hst3.ext).homes hj
+  -- the validation
+  obtain ⟨u, s₄, h4, h⟩ := AM.bind_ok h
+  have hoff3 : s₃.store.scratchOn = false := by rw [hst3.scr]; exact hctx2.off
+  have hpctx : ∀ d ∈ (ConRon.Arena.Modular.inReadOrder L o).1.toList, PersDecl d :=
+    fun d hd => hpL d (inReadOrder_mem d hd)
+  obtain ⟨hst4, hoff4, hall⟩ := validateCtx_run hst3.ok hoff3 hpctx hdc h4
+  obtain ⟨hv, rfl⟩ := AM.pure_ok h
+  cases hv
+  have hx34 : Ext s₃.store s'.store := hst4.ext
+  have hx24 : Ext s₂.store s'.store := hst3.ext.trans hst4.ext
+  refine ⟨⟨hst4.ok, (hst1.ext.trans hst2.ext).trans hx24,
+      by rw [hst4.pins, hst3.pins, hst2.pins, hst1.pins], hoff4⟩, hpctx,
+    ⟨o.map (LC.ctx.getD · default), o.map (LC.homes.getD · default), cC₂.completed,
+      cC₂.searches, cC₂.pending.size⟩, cC₂.pending.toList, ?_, ?_, fun fl hfl => ?_⟩
+  · refine ⟨?_, ?_, ListRel.mono' (fun _ _ h => ⟨denoteN_ext h.1 hx24, denoteN_ext h.2 hx24⟩)
+      hc2.completed, hc2.searches, ?_⟩
+    · simpa [Array.getD_eq_getD_getElem?] using denoteDecls_ext hx34 _ _ hdc
+    · simpa [Array.getD_eq_getD_getElem?] using ListRel.mono' (fun _ _ h => denoteN_ext h hx34) hdh
+    · simpa using listRel_length hc2.pending
+  · exact ListRel.mono' (fun _ _ h => h.ext hx24) hc2.pending
+  · -- upstream's reach
+    refine ModelIO.Gives.canGive ?_
+    unfold ConLeche.Driver.reachWith
+    refine hg1.bind ?_
+    simp only
+    rw [hfindC]
+    simp only
+    refine hg2.bind ?_
+    simp only [ho]
+    have hallC : (o.map (LC.ctx.getD · default)).all ConLeche.Driver.recordOk = true := by
+      rw [← Array.all_toList]
+      simpa [Array.getD_eq_getD_getElem?] using hall
+    simp only [ConLeche.Driver.validateCtx, hallC, ↓reduceIte]
+    rw [show fl (o.map (LC.ctx.getD · default)).toList cC₂.pending.toList = .ok () from hfl]
+    exact ModelIO.gives_pure _ _
+
 end ConRon.Bridge.Modular
