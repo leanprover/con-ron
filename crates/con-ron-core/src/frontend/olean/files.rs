@@ -36,6 +36,7 @@ use crate::arena::handle::NIdx;
 use crate::arena::store::{EStore, PersTier};
 use crate::frontend::olean::header;
 use crate::frontend::olean::header::HdrWalk;
+use crate::frontend::olean::lazy;
 use crate::frontend::olean::module;
 use crate::frontend::olean::module::Expo;
 use crate::frontend::olean::reads::NamePositions;
@@ -907,9 +908,8 @@ pub fn first_bad_view(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, f: &ModF
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:396-413 readAllViews
-/// **All three views of a module, each parsed whole, and their check against
-/// each other** (`check_views`, over the views): for the tools that compare the
-/// views.
+/// **All three views of a module, each parsed whole, and the home's check of
+/// them** (`check_views` over the load): for the tools that compare the views.
 pub fn read_all_views<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Roots, m: &NIdx) -> Result<(AllViews, Vec<Expo>), CheckError> {
     let f = match read_files(fs, pers, ar, sp, m, &OLeanLevel::Private) {
         Err(e) => return Err(e),
@@ -921,9 +921,12 @@ pub fn read_all_views<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &
             Err(e) => Err(e),
             Ok(level) => Err(view::view_error(pk, pers, ar, m, &f, &level)),
         },
-        Ok(v) => match module::check_views(pk, pers, ar, m, &f, &v) {
+        Ok(v) => match lazy::load_view(pk, pers, ar, 0, m, &f) {
             Err(e) => Err(e),
-            Ok(expo) => Ok((v, expo)),
+            Ok(l) => match module::check_views(pk, pers, ar, m, &f, &l) {
+                Err(e) => Err(e),
+                Ok(expo) => Ok((v, expo)),
+            },
         },
     }
 }

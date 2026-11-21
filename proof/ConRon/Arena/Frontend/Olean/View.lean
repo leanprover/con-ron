@@ -109,14 +109,6 @@ def readStmts (pk : OleanPins) (f : ModFiles) (level : OLeanLevel) (cs : List Na
   | none => pure none
   | some (r, _) => stmtsAt pk r cs
 
-/-- con-leche: ConLeche/Frontend/Olean/View.lean:162-167 readEntries
-**The constants at some positions of a view, read with one memo** (`entriesAt`). -/
-def readEntries (pk : OleanPins) (f : ModFiles) (level : OLeanLevel) (cs : List Nat) :
-    AM (Option (List (CEntryF NIdx EIdx))) := do
-  match f.viewRegion level with
-  | none => pure none
-  | some (r, _) => entriesAt pk r cs
-
 /-- con-leche: ConLeche/Frontend/Olean/View.lean:169-174 readKinds
 **The kinds of the constants at some positions of a view**, their expressions left out. -/
 def readKinds (pk : OleanPins) (f : ModFiles) (level : OLeanLevel) (cs : List Nat) :
