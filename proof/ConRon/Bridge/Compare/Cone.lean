@@ -2,8 +2,8 @@
 # `ConRon.Bridge.Compare.Cone` — the twin's justification is con-leche's
 
 `Arena/Justify.lean`'s `justifyWhy` accepting a statement against the solution gives con-leche's
-`justifyWhy` accepting its denotation.  The twin's cone walk (`coneGo`, a recursion over a depth
-bound with con-leche's fuel and `seen`) is not compared with con-leche's walk step by step: its
+`justifyWhy` accepting its denotation.  The twin's cone walk (`coneGo`, con-leche's work list with its
+fuel and `seen`) is not compared with con-leche's walk step by step: its
 accept leaves a `seen` whose names form a **shared cone** (`ConeClosed`, every name the same
 constant in both indices, closed under what each reads, `coneGo_run`), and a shared cone covering
 what the type reads is con-leche's accept (`Compare/Model.lean`'s `justifyWhy_of_cone`).  So the
@@ -141,37 +141,25 @@ from its constant is named by a handle of `S`. -/
     ∀ c, env.find? nm = some c → ∀ m ∈ (ConLeche.Cached.entryNeeds JS.mates env.findTable? c).toList,
       ∃ h, S.contains h = true ∧ denoteN st.ns h = some m
 
-/-- con-leche: none — `ConeSeen` survives the store growing and `seen` growing. -/
-theorem ConeSeen.mono {env : Env} {JS : ConLeche.Cached.Solution} {st st' : EStore}
-    {S S' : Std.HashMap NIdx Bool} {x : NIdx} (h : ConeSeen env JS st S x) (hx : Ext st st')
-    (hS : ∀ y, S.contains y = true → S'.contains y = true) : ConeSeen env JS st' S' x := by
-  obtain ⟨nm, hn, hg, hc⟩ := h
-  refine ⟨nm, denoteN_ext hn hx, hg, fun c hc' m hm => ?_⟩
-  obtain ⟨y, hy, hyn⟩ := hc c hc' m hm
-  exact ⟨y, hS y hy, denoteN_ext hyn hx⟩
-
 /-- con-leche: ConLeche/Verify/Cached/Cone.lean:36 coneGo_none_gen — **the walk's accept, read**:
 an accepting walk leaves a `seen` holding the one it started from and every name of `work`, each
-of its new handles accepted (`ConeSeen`). -/
+of its new handles accepted (`ConeSeen`).  Induction on the fuel, and at each fuel on the work
+list: a name accepted spends one fuel and puts what it reads in front of the rest. -/
 theorem coneGo_run {env envS : Env} {fe : IFEnv} {J : ISolution}
     {matesU : Std.HashMap ConLeche.Name (Array ConLeche.Name)} :
-    ∀ (depth fuel : Nat) (seen : Std.HashMap NIdx Bool) (work : List NIdx) (s s' : AState)
+    ∀ (fuel : Nat) (seen : Std.HashMap NIdx Bool) (work : List NIdx) (s s' : AState)
       (f : Nat) (seen' : Std.HashMap NIdx Bool),
       CheckOK false env fe s → IFEnvOK envS (SolView J) s → MatesDen s.store J.mates matesU →
-      coneGo J fe depth fuel seen work s = .ok ((none, f, seen'), s') →
+      coneGo J fe fuel seen work s = .ok ((none, f, seen'), s') →
       RStep s s' ∧ (∀ x, seen.contains x = true → seen'.contains x = true) ∧
         (∀ x ∈ work, seen'.contains x = true) ∧
         ∀ x, seen'.contains x = true →
           seen.contains x = true ∨ ConeSeen env ⟨mkFEnv envS, matesU⟩ s'.store seen' x := by
-  intro depth
-  induction depth with
+  intro fuel
+  induction fuel with
   | zero =>
-    intro fuel seen work s s' f seen' _ _ _ h
-    simp only [coneGo] at h
-    exact absurd h (AM.Never.fail _ _ _ _)
-  | succ d ihd =>
-    intro fuel seen work
-    induction work generalizing fuel seen with
+    intro seen work
+    induction work generalizing seen with
     | nil =>
       intro s s' f seen' hck _ _ h
       simp only [coneGo] at h
@@ -183,55 +171,61 @@ theorem coneGo_run {env envS : Env} {fe : IFEnv} {J : ISolution}
     | cons n work ihw =>
       intro s s' f seen' hck hsol hm h
       simp only [coneGo] at h
-      rcases AM.ite_ok h with ⟨hs, k⟩ | ⟨hs, k⟩
-      · obtain ⟨hst, hsub, hwork, hnew⟩ := ihw fuel seen s s' f seen' hck hsol hm k
+      rcases AM.ite_ok h with ⟨hs, k⟩ | ⟨-, k⟩
+      · obtain ⟨hst, hsub, hwork, hnew⟩ := ihw seen s s' f seen' hck hsol hm k
         refine ⟨hst, hsub, fun x hx => ?_, hnew⟩
         rcases List.mem_cons.mp hx with rfl | hx
         · exact hsub x hs
         · exact hwork x hx
-      rcases AM.ite_ok k with ⟨-, k⟩ | ⟨-, k⟩
       · exact nomatch (Prod.mk.inj (Prod.mk.inj (Except.ok.inj k)).1).1
+  | succ d ihd =>
+    intro seen work
+    induction work generalizing seen with
+    | nil =>
+      intro s s' f seen' hck _ _ h
+      simp only [coneGo] at h
+      obtain ⟨h1, rfl⟩ := AM.pure_ok h
+      simp only [Prod.mk.injEq] at h1
+      obtain ⟨-, -, rfl⟩ := h1
+      exact ⟨RStep.refl hck.state hck.readOK, fun _ h => h,
+        fun _ h => absurd h List.not_mem_nil, fun _ h => Or.inl h⟩
+    | cons n work ihw =>
+      intro s s' f seen' hck hsol hm h
+      simp only [coneGo] at h
+      rcases AM.ite_ok h with ⟨hs, k⟩ | ⟨-, k⟩
+      · obtain ⟨hst, hsub, hwork, hnew⟩ := ihw seen s s' f seen' hck hsol hm k
+        refine ⟨hst, hsub, fun x hx => ?_, hnew⟩
+        rcases List.mem_cons.mp hx with rfl | hx
+        · exact hsub x hs
+        · exact hwork x hx
       obtain ⟨o, s₁, h1, k1⟩ := AM.bind_ok k
       cases o with
       | none => exact nomatch (Prod.mk.inj (Prod.mk.inj (Except.ok.inj k1)).1).1
       | some ns =>
         obtain ⟨hs1, nm, hn, hgood, hcov⟩ := coneEntry_run hck hsol hm h1
         simp only at k1
-        obtain ⟨⟨r, f₁, S₁⟩, s₂, h2, k2⟩ := AM.bind_ok k1
-        cases r with
-        | some m => exact nomatch (Prod.mk.inj (Prod.mk.inj (Except.ok.inj k2)).1).1
-        | none =>
-          simp only at k2
-          have hck₁ := hs1.checkOK hck
-          obtain ⟨hs2, hsub2, hwork2, hnew2⟩ := ihd (fuel - 1) (seen.insert n true) ns s₁ s₂
-            f₁ S₁ hck₁ (hsol.mono hs1.ext) (hm.mono hs1.ok.wf hs1.ext) h2
-          have hck₂ := hs2.checkOK hck₁
-          obtain ⟨hs3, hsub3, hwork3, hnew3⟩ := ihw f₁ S₁ s₂ s' f seen' hck₂
-            ((hsol.mono hs1.ext).mono hs2.ext) ((hm.mono hs1.ok.wf hs1.ext).mono hs2.ok.wf hs2.ext) k2
-          have hins : ∀ x, seen.contains x = true → (seen.insert n true).contains x = true :=
-            fun x hx => by rw [Std.HashMap.contains_insert]; simp [hx]
-          have hn_in : (seen.insert n true).contains n = true := by
-            rw [Std.HashMap.contains_insert]; simp
-          have hx23 := hs2.ext.trans hs3.ext
-          refine ⟨(hs1.trans hs2).trans hs3, fun x hx => hsub3 x (hsub2 x (hins x hx)),
-            fun x hx => ?_, fun x hx => ?_⟩
-          · rcases List.mem_cons.mp hx with rfl | hx
-            · exact hsub3 x (hsub2 x hn_in)
-            · exact hwork3 x hx
-          · rcases hnew3 x hx with hx | hx
-            · rcases hnew2 x hx with hx | hx
-              · rw [Std.HashMap.contains_insert] at hx
-                rcases Bool.or_eq_true_iff.mp hx with hx | hx
-                · -- `x` is `n`, accepted here
-                  obtain rfl : n = x := eq_of_beq hx
-                  right
-                  refine ⟨nm, denoteN_ext hn ((hs1.ext.trans hs2.ext).trans hs3.ext), hgood,
-                    fun c hc m hm => ?_⟩
-                  obtain ⟨y, hy, hyn⟩ := hcov c hc m hm
-                  exact ⟨y, hsub3 y (hwork2 y hy), denoteN_ext hyn hx23⟩
-                · exact .inl hx
-              · exact .inr (hx.mono hs3.ext hsub3)
-            · exact .inr hx
+        have hck₁ := hs1.checkOK hck
+        obtain ⟨hs2, hsub2, hwork2, hnew2⟩ := ihd (seen.insert n true) (ns ++ work) s₁ s'
+          f seen' hck₁ (hsol.mono hs1.ext) (hm.mono hs1.ok.wf hs1.ext) k1
+        have hins : ∀ x, seen.contains x = true → (seen.insert n true).contains x = true :=
+          fun x hx => by rw [Std.HashMap.contains_insert]; simp [hx]
+        have hn_in : (seen.insert n true).contains n = true := by
+          rw [Std.HashMap.contains_insert]; simp
+        refine ⟨hs1.trans hs2, fun x hx => hsub2 x (hins x hx), fun x hx => ?_, fun x hx => ?_⟩
+        · rcases List.mem_cons.mp hx with rfl | hx
+          · exact hsub2 x hn_in
+          · exact hwork2 x (List.mem_append_right _ hx)
+        · rcases hnew2 x hx with hx | hx
+          · rw [Std.HashMap.contains_insert] at hx
+            rcases Bool.or_eq_true_iff.mp hx with hx | hx
+            · -- `x` is `n`, accepted here
+              obtain rfl : n = x := eq_of_beq hx
+              right
+              refine ⟨nm, denoteN_ext hn (hs1.ext.trans hs2.ext), hgood, fun c hc m hm => ?_⟩
+              obtain ⟨y, hy, hyn⟩ := hcov c hc m hm
+              exact ⟨y, hwork2 y (List.mem_append_left _ hy), denoteN_ext hyn hs2.ext⟩
+            · exact .inl hx
+          · exact .inr hx
 
 /-! ## The justification -/
 
@@ -284,7 +278,7 @@ theorem justifyWhy_run {env envS : Env} {fe : IFEnv} {J : ISolution}
   simp only at k3
   obtain ⟨-, rfl⟩ := AM.pure_ok k3
   have hx12 := hs1.ext.trans hs2.ext
-  obtain ⟨hs3, -, hwork, hnew⟩ := coneGo_run _ _ _ _ s₂ s' f seen' hck₂
+  obtain ⟨hs3, -, hwork, hnew⟩ := coneGo_run _ _ _ s₂ s' f seen' hck₂
     ((hsol.mono hs1.ext).mono hs2.ext) ((hm.mono hs1.ok.wf hs1.ext).mono hs2.ok.wf hs2.ext) h3
   refine ⟨(hs1.trans hs2).trans hs3, ?_⟩
   let T : ConLeche.Name → Prop := fun nm => ∃ h, seen'.contains h = true ∧

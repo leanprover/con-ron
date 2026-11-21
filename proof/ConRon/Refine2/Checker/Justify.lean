@@ -438,69 +438,187 @@ abbrev ConeOut (a : Option arena.handle.NIdx × Std.U64 × ron.hashmap2.HashMap2
     (b : Option NIdx × Nat × Std.HashMap NIdx Bool) : Prop :=
   ∃ m', Lockstep.NMemoRel a.2.2 m' ∧ b = (a.1.map absNIdx, absU a.2.1, m')
 
-open Lockstep in
-/-- `cone_go` ⊑ `coneGo`: induction on the depth, and at each depth on the cursor. -/
-theorem cone_go_aux {pers} {sol : arena.justify.Solution} {J : ISolution} (hJ : SolRel sol J)
-    {fe : arena.env.IFEnv} {lfe : IFEnv} (hctx : CoreCtx pers fe lfe) (d : Nat) :
-    ∀ (depth : Std.U64), depth.val = d →
-    ∀ (work : alloc.vec.Vec arena.handle.NIdx) (i : Std.Usize) {st lst},
-      AStateRel₀ pers st lst → AStateInv pers st →
-      ∀ (fuel : Std.U64) {rm : ron.hashmap2.HashMap2 arena.handle.NIdx Bool}
-        {lm : Std.HashMap NIdx Bool}, Lockstep.NMemoRel rm lm →
-      LS pers ConeOut (arena.justify.cone_go pers st sol fe depth fuel rm work i) lst
-        (coneGo J lfe d (absU fuel) lm ((work.val.drop i.val).map absNIdx)) := by
-  induction d with
+/-! ## The cone walk's stack -/
+
+/-- **The cone walk's stack**: the vector up to its height, top last, against the twin's work
+list, head on top. -/
+def ConeStackRel (stk : alloc.vec.Vec arena.handle.NIdx) (h : Std.Usize) (l : List NIdx) : Prop :=
+  h.val ≤ stk.val.length ∧ (stk.val.take h.val).reverse.map absNIdx = l
+
+theorem cone_take_set_succ {α : Type} : ∀ (l : List α) (i : Nat) (x : α), i < l.length →
+    (l.set i x).take (i + 1) = l.take i ++ [x]
+  | [], _, _, h => absurd h (by simp)
+  | _ :: _, 0, _, _ => by simp
+  | a :: t, i + 1, x, h => by
+    simp only [List.set_cons_succ, List.take_succ_cons, List.cons_append]
+    rw [cone_take_set_succ t i x (by simpa using h)]
+
+/-- One name onto the stack: a slot overwritten below the vector's length, the vector grown at
+it. -/
+theorem cone_stack_put {stk stk1 : alloc.vec.Vec arena.handle.NIdx} {h h1 : Std.Usize}
+    {l : List NIdx} (hs : ConeStackRel stk h l) (x : arena.handle.NIdx)
+    (hstk : stk1.val = if h.val < stk.val.length then stk.val.set h.val x else stk.val ++ [x])
+    (hh : h1.val = h.val + 1) : ConeStackRel stk1 h1 (absNIdx x :: l) := by
+  obtain ⟨hle, hl⟩ := hs
+  split at hstk
+  · rename_i hlt
+    refine ⟨by rw [hstk, hh]; simp; omega, ?_⟩
+    rw [hstk, hh, cone_take_set_succ _ _ _ hlt]
+    simp [hl]
+  · have heq : h.val = stk.val.length := by omega
+    refine ⟨by rw [hstk, hh]; simp; omega, ?_⟩
+    rw [hstk, hh, heq]
+    rw [heq, List.take_length] at hl
+    simp [← hl]
+
+/-- `cone_push`'s loop: the first `K` names of `ns` onto the stack, the last first, so the
+twin's list grows by them in front. -/
+theorem cone_push_loop_rel (ns : alloc.vec.Vec arena.handle.NIdx) :
+    ∀ (K : Nat) (stk : alloc.vec.Vec arena.handle.NIdx) (h k : Std.Usize) (l : List NIdx)
+      {o : alloc.vec.Vec arena.handle.NIdx × Std.Usize},
+      k.val = K → K ≤ ns.val.length → ConeStackRel stk h l →
+      arena.justify.cone_push_loop ns stk h k = ok o →
+      ConeStackRel o.1 o.2 ((ns.val.take K).map absNIdx ++ l) := by
+  intro K
+  induction K with
   | zero =>
-    intro depth hd work i st lst hrel hinv fuel rm lm hm
-    rw [arena.justify.cone_go.eq_def, coneGo]
-    lockstep
-  | succ d ihd =>
-    intro depth hd work i
-    refine cursor_induction (fun i : Std.Usize => i.val) work.val.length
-      (fun i (_ : Unit) => ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
-        ∀ (fuel : Std.U64) {rm : ron.hashmap2.HashMap2 arena.handle.NIdx Bool}
-          {lm : Std.HashMap NIdx Bool}, Lockstep.NMemoRel rm lm →
-        LS pers ConeOut (arena.justify.cone_go pers st sol fe depth fuel rm work i) lst
-          (coneGo J lfe (d + 1) (absU fuel) lm ((work.val.drop i.val).map absNIdx))) ?_ ?_ i ()
-    · intro i _ hn st lst hrel hinv fuel rm lm hm
-      rw [arena.justify.cone_go.eq_def, List.drop_eq_nil_of_le hn, List.map_nil, coneGo]
-      rw [ite_eq_right (show ¬ depth = 0#u64 by scalar_tac),
-        ite_eq_left (show i ≥ alloc.vec.Vec.len work by scalar_tac)]
-      exact LS.pure ⟨lm, hm, rfl⟩ hrel hinv
-    · intro i _ hlt ihi st lst hrel hinv fuel rm lm hm
-      have ihi' : ∀ j : Std.Usize, j.val = i.val + 1 → ∀ {st lst}, AStateRel₀ pers st lst →
-          AStateInv pers st → ∀ (fuel : Std.U64) {rm : ron.hashmap2.HashMap2 arena.handle.NIdx Bool}
-            {lm : Std.HashMap NIdx Bool}, Lockstep.NMemoRel rm lm →
-          LS pers ConeOut (arena.justify.cone_go pers st sol fe depth fuel rm work j) lst
-            (coneGo J lfe (d + 1) (absU fuel) lm ((work.val.drop j.val).map absNIdx)) :=
-        fun j hj => ihi j () hj
-      clear ihi
-      have ihd' : ∀ (depth' : Std.U64), depth'.val = d →
-          ∀ (work' : alloc.vec.Vec arena.handle.NIdx) {st lst},
-          AStateRel₀ pers st lst → AStateInv pers st →
-          ∀ (fuel : Std.U64) {rm : ron.hashmap2.HashMap2 arena.handle.NIdx Bool}
-            {lm : Std.HashMap NIdx Bool}, Lockstep.NMemoRel rm lm →
-          LS pers ConeOut (arena.justify.cone_go pers st sol fe depth' fuel rm work' 0#usize) lst
-            (coneGo J lfe d (absU fuel) lm (work'.val.map absNIdx)) := by
-        intro depth' hd' work' st lst hrel hinv fuel rm lm hm
-        have := ihd depth' hd' work' 0#usize hrel hinv fuel hm
-        simpa using this
-      clear ihd
-      rw [arena.justify.cone_go.eq_def, List.drop_eq_getElem_cons hlt, List.map_cons, coneGo]
-      rw [ite_eq_right (show ¬ depth = 0#u64 by scalar_tac),
-        ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len work by scalar_tac)]
+    intro stk h k l o hk _ hs hrun
+    rw [arena.justify.cone_push_loop.eq_def, ite_eq_left (show k = 0#usize by scalar_tac)] at hrun
+    cases Result.ok_injective hrun
+    simpa using hs
+  | succ K ih =>
+    intro stk h k l o hk hK hs hrun
+    rw [arena.justify.cone_push_loop.eq_def, ite_eq_right (show ¬ k = 0#usize by scalar_tac)] at hrun
+    obtain ⟨k1, hk1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hk1v := ConRon.Refine.HashMap.uscalar_sub_eq hk1
+    have hone : (1#usize : Std.Usize).val = 1 := rfl
+    rw [hone] at hk1v
+    have hK1 : k1.val = K := by omega
+    have hlt : K < ns.val.length := by omega
+    obtain ⟨stk1, hstk1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨h1, hh1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hh1v := ConRon.Refine.Nat.uadd_val hh1
+    rw [hone] at hh1v
+    have hv : (alloc.vec.Vec.len stk).val = stk.val.length := by simp [alloc.vec.Vec.len]
+    have hput : stk1.val = if h.val < stk.val.length then stk.val.set h.val ns.val[K]
+        else stk.val ++ [ns.val[K]] := by
+      split at hstk1
+      · rename_i hlt'
+        rw [ite_eq_left (show h.val < stk.val.length by rw [← hv]; exact hlt')]
+        obtain ⟨x, hx, hstk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hstk1
+        obtain ⟨x1, hx1, hstk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hstk1
+        obtain ⟨q, hq, hstk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hstk1
+        obtain ⟨y, back⟩ := q
+        let _ : Inhabited arena.handle.NIdx := ⟨x⟩
+        obtain ⟨-, -, rfl⟩ := ConRon.Refine.HashMap.vec_index_mut_eq hq
+        cases Result.ok_injective hstk1
+        have e1 := dupId_nidx _ _ hx1
+        have e2 := ConRon.Refine.ExprOps.vec_index_getElem? hx
+        rw [hK1, List.getElem?_eq_getElem hlt] at e2
+        rw [alloc.vec.Vec.set_val_eq, e1, ← Option.some.inj e2]
+      · rename_i hge
+        rw [ite_eq_right (show ¬ h.val < stk.val.length from fun hc => hge (by rw [← hv] at hc; exact hc))]
+        obtain ⟨x, hx, hstk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hstk1
+        obtain ⟨x1, hx1, hstk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hstk1
+        have e1 := dupId_nidx _ _ hx1
+        have e2 := ConRon.Refine.ExprOps.vec_index_getElem? hx
+        rw [hK1, List.getElem?_eq_getElem hlt] at e2
+        rw [ConRon.Refine.vec_push_val hstk1, e1, ← Option.some.inj e2]
+    have hs1 := cone_stack_put hs ns.val[K] hput hh1v
+    have := ih stk1 h1 k1 _ hK1 (by omega) hs1 hrun
+    rwa [List.take_add_one, List.getElem?_eq_getElem hlt, Option.toList_some, List.map_append,
+      List.append_assoc]
+
+/-- **`cone_push`**: the cited `ns ++ work`, on the stack. -/
+theorem cone_push_rel {stk : alloc.vec.Vec arena.handle.NIdx} {h : Std.Usize} {l : List NIdx}
+    (hs : ConeStackRel stk h l) (ns : alloc.vec.Vec arena.handle.NIdx)
+    {o : alloc.vec.Vec arena.handle.NIdx × Std.Usize}
+    (hrun : arena.justify.cone_push stk h ns = ok o) :
+    ConeStackRel o.1 o.2 (absNIdxList ns ++ l) := by
+  have := cone_push_loop_rel ns ns.val.length stk h (alloc.vec.Vec.len ns) l
+    (by simp [alloc.vec.Vec.len]) le_rfl hs hrun
+  rwa [List.take_length] at this
+
+open Lockstep in
+/-- `cone_go`'s loop ⊑ `coneGo`: induction on the fuel, and at each fuel on the stack's
+height.  A name taken off the stack is the twin's head; a name accepted spends one fuel and
+pushes what it reads (`cone_push_rel`). -/
+theorem cone_go_loop_ls {pers} {sol : arena.justify.Solution} {J : ISolution} (hJ : SolRel sol J)
+    {fe : arena.env.IFEnv} {lfe : IFEnv} (hctx : CoreCtx pers fe lfe) :
+    ∀ (F : Nat) (fuel : Std.U64), fuel.val = F →
+    ∀ (H : Nat) (stk : alloc.vec.Vec arena.handle.NIdx) (h : Std.Usize) (W : List NIdx),
+      h.val = H → ConeStackRel stk h W →
+    ∀ {st lst} {rm : ron.hashmap2.HashMap2 arena.handle.NIdx Bool} {lm : Std.HashMap NIdx Bool},
+      AStateRel₀ pers st lst → AStateInv pers st → Lockstep.NMemoRel rm lm →
+      LS pers ConeOut (arena.justify.cone_go_loop pers st sol fe stk h fuel rm) lst
+        (coneGo J lfe F lm W) := by
+  intro F
+  induction F using Nat.strong_induction_on with
+  | _ F ihF =>
+  intro fuel hF H
+  induction H with
+  | zero =>
+    intro stk h W hh hs st lst rm lm hrel hinv hm
+    obtain ⟨-, hl⟩ := hs
+    rw [hh, List.take_zero, List.reverse_nil, List.map_nil] at hl
+    subst hl
+    rw [arena.justify.cone_go_loop.eq_def, ite_eq_left (show h = 0#usize by scalar_tac), coneGo]
+    exact LS.pure ⟨lm, hm, by simp [absU, hF]⟩ hrel hinv
+  | succ k ihH =>
+    intro stk h W hh hs st lst rm lm hrel hinv hm
+    obtain ⟨hle, hl⟩ := hs
+    have hlt : k < stk.val.length := by omega
+    obtain ⟨h1, hh1e, hh1v⟩ := ConRon.Refine.usize_sub_ok (i := h) (by omega)
+    have hb : h1.val < stk.length := by scalar_tac
+    obtain ⟨x, hx, hxv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec stk h1 hb)
+    have hrest : ConeStackRel stk h1 ((stk.val.take k).reverse.map absNIdx) :=
+      ⟨by omega, by rw [hh1v, hh]; rfl⟩
+    have hW : W = absNIdx x :: (stk.val.take k).reverse.map absNIdx := by
+      rw [← hl, hh, List.take_add_one, List.getElem?_eq_getElem hlt, Option.toList_some,
+        List.reverse_append]
+      have : stk.val[k] = x := by rw [hxv]; simp only [show h1.val = k by omega]
+      simp [this]
+    subst hW
+    have ihH' := fun {st lst} {rm} {lm} => ihH stk h1 _ (by omega) hrest (st := st) (lst := lst)
+      (rm := rm) (lm := lm)
+    clear ihH
+    rw [arena.justify.cone_go_loop.eq_def, ite_eq_right (show ¬ h = 0#usize by scalar_tac), hh1e]
+    simp only [bind_ok, alloc.vec.Vec.index_slice_index, hx]
+    rcases F with _ | f
+    · rw [coneGo]
       lockstep
+    · have ihF' : ∀ (fuel' : Std.U64), fuel'.val = f →
+          ∀ (stk' : alloc.vec.Vec arena.handle.NIdx) (h' : Std.Usize) (W' : List NIdx),
+            ConeStackRel stk' h' W' →
+          ∀ {st lst} {rm : ron.hashmap2.HashMap2 arena.handle.NIdx Bool}
+            {lm : Std.HashMap NIdx Bool},
+            AStateRel₀ pers st lst → AStateInv pers st → Lockstep.NMemoRel rm lm →
+            LS pers ConeOut (arena.justify.cone_go_loop pers st sol fe stk' h' fuel' rm) lst
+              (coneGo J lfe f lm W') :=
+        fun fuel' hf stk' h' W' hs' => ihF f (by omega) fuel' hf h'.val stk' h' W' rfl hs'
+      clear ihF
+      rw [coneGo]
+      lockstep
+      -- the name refused: the fuel unspent; the name accepted: the stack pushed (`cone_push_rel`)
+      all_goals first
+        | exact LS.pure ⟨_, hm, by simp [absU, hF]⟩ ‹_› ‹_›
+        | (refine ihF' _ ?_ _ _ _ (cone_push_rel hrest _ ‹_›) ‹_› ‹_› ‹_›; scalar_tac)
 
 open Lockstep in
 @[lockstep] theorem cone_go_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {sol : arena.justify.Solution} {J : ISolution}
     (hJ : SolRel sol J) {fe : arena.env.IFEnv} {lfe : IFEnv} (hctx : CoreCtx pers fe lfe)
-    (depth fuel : Std.U64) {rm : ron.hashmap2.HashMap2 arena.handle.NIdx Bool}
+    (fuel : Std.U64) {rm : ron.hashmap2.HashMap2 arena.handle.NIdx Bool}
     {lm : Std.HashMap NIdx Bool} (hm : Lockstep.NMemoRel rm lm) (work : alloc.vec.Vec arena.handle.NIdx) :
-    LS pers ConeOut (arena.justify.cone_go pers st sol fe depth fuel rm work 0#usize) lst
-      (coneGo J lfe (absU depth) (absU fuel) lm (absNIdxList work)) := by
-  have := cone_go_aux hJ hctx (absU depth) depth rfl work 0#usize hrel hinv fuel hm
-  simpa [absNIdxList] using this
+    LS pers ConeOut (arena.justify.cone_go pers st sol fe fuel rm work) lst
+      (coneGo J lfe (absU fuel) lm (absNIdxList work)) := by
+  intro o st' hrun
+  rw [arena.justify.cone_go] at hrun
+  obtain ⟨⟨stk0, h0⟩, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have h00 : ConeStackRel (alloc.vec.Vec.new arena.handle.NIdx) 0#usize [] := ⟨by simp, by simp⟩
+  have hs := cone_push_rel h00 work hp
+  rw [List.append_nil] at hs
+  exact cone_go_loop_ls hJ hctx _ fuel rfl _ stk0 h0 _ rfl hs hrel hinv hm o st' hrun
 
 /-! ## The justification -/
 
