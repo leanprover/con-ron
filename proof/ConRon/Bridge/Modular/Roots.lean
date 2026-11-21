@@ -274,8 +274,8 @@ theorem needsGo_exact {s : AState} (hok : StateOK s) (hp : PinsOK s) :
       refine compound _ _ (fun r' s'' h1 => ?_) hrest
       obtain ⟨p1, s₂, hg1, hr1⟩ := AM.bind_ok h1
       obtain ⟨sn1, ac1⟩ := p1
-      obtain ⟨rfl, hs1, ha1⟩ := ih hseen (by
-        simpa using denoteNList_snoc hacc hnn) hsub hg1
+      obtain ⟨rfl, hs1, ha1⟩ := ih (accP := accP.push nm) hseen (by
+        rw [Array.toList_push]; exact denoteNList_snoc hacc hnn) hsub hg1
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hr1
       exact ⟨rfl, hs1.insert he, ha1⟩
     | .app f a, hview =>
@@ -853,7 +853,7 @@ theorem pinGround_exact {s s' : AState} (hok : StateOK s) (hp : PinsOK s)
 /-! ## The reach's roots -/
 
 /-- con-leche: ConLeche/Driver/Worker.lean:68-85 ownRoots — upstream's `ownRoots` at a pin list
-`pinsC` (upstream's own fixes `natOpPinSets`: `ownRootsC_natOpPinSets`). -/
+`pinsC`, written out (delete at the re-pin to U's 6fa2f307e: `ownRootsC_eq`). -/
 @[expose] def ownRootsC (pinsC : List NatOpPinSet) (ix : ConLeche.Frontend.Olean.NameIndex)
     (l : ConLeche.Frontend.Olean.Loaded) (ds : Array Declaration) : Array ConLeche.Name :=
   let fp : Std.HashSet ConLeche.Name := l.constants.foldl
@@ -867,7 +867,7 @@ theorem pinGround_exact {s s' : AState} (hok : StateOK s) (hp : PinsOK s)
     ix.first.contains
 
 /-- con-leche: ConLeche/Driver/Worker.lean:143-153 rootsAt — upstream's `rootsAt` at a pin
-list `pinsC`. -/
+list `pinsC`, written out (delete at the re-pin to U's 6fa2f307e: `rootsAtC_eq`). -/
 @[expose] def rootsAtC (pinsC : List NatOpPinSet) (x : Array ConLeche.Frontend.Olean.ImportRec)
     (ix : ConLeche.Frontend.Olean.NameIndex) (l : ConLeche.Frontend.Olean.Loaded)
     (ds : Array Declaration) : Array ConLeche.Name :=
@@ -877,11 +877,16 @@ list `pinsC`. -/
       (ConLeche.Driver.ownRecs x ix ds) ++
     (ConLeche.Driver.copyRecs x ix ds).flatMap fun d => (ConLeche.Modular.declNames d).toArray
 
-/-- **The one place upstream's pins enter**: its `rootsAt` is `rootsAtC` at `natOpPinSets`. -/
-theorem rootsAtC_natOpPinSets (x : Array ConLeche.Frontend.Olean.ImportRec)
+/-- `ownRootsC` is upstream's `ownRoots` (delete at the re-pin to U's 6fa2f307e). -/
+theorem ownRootsC_eq (pinsC : List NatOpPinSet) (ix : ConLeche.Frontend.Olean.NameIndex)
+    (l : ConLeche.Frontend.Olean.Loaded) (ds : Array Declaration) :
+    ownRootsC pinsC ix l ds = ConLeche.Driver.ownRoots pinsC ix l ds := rfl
+
+/-- `rootsAtC` is upstream's `rootsAt` (delete at the re-pin to U's 6fa2f307e). -/
+theorem rootsAtC_eq (pinsC : List NatOpPinSet) (x : Array ConLeche.Frontend.Olean.ImportRec)
     (ix : ConLeche.Frontend.Olean.NameIndex) (l : ConLeche.Frontend.Olean.Loaded)
     (ds : Array Declaration) :
-    rootsAtC ConLeche.natOpPinSets x ix l ds = ConLeche.Driver.rootsAt x ix l ds := rfl
+    rootsAtC pinsC x ix l ds = ConLeche.Driver.rootsAt pinsC x ix l ds := rfl
 
 theorem denoteNList_filter {st : NStore} {p : NIdx → Bool} {q : ConLeche.Name → Bool}
     (hpq : ∀ x y, denoteN st x = some y → p x = q y) :
@@ -899,38 +904,48 @@ theorem denoteNList_filter {st : NStore} {p : NIdx → Bool} {q : ConLeche.Name 
       · exact denoteNList_filter hpq hys
     · cases h
 
-theorem footprints_go {s : AState} (hok : StateOK s) (hp : PinsOK s) :
-    ∀ (cs : List CEntry) (csC : List ConLeche.Frontend.Olean.CEntry) {t : Std.HashSet NIdx}
-      {tC : Std.HashSet ConLeche.Name} {r : Std.HashSet NIdx} {s' : AState},
-      ListRel (fun c cC => denoteCEntry s.store c = some cC) cs csC → SetRel s.store t tC →
+theorem setRel_foldl_insert {st : EStore} :
+    ∀ {fp : List NIdx} {L : List ConLeche.Name} {t : Std.HashSet NIdx} {tC : Std.HashSet ConLeche.Name},
+      denoteNList st.ns fp = some L → SetRel st t tC →
+      SetRel st (fp.foldl (fun s n => s.insert n) t) (L.foldl (fun s n => s.insert n) tC)
+  | [], L, t, tC, hfp, ht => by
+    simp only [denoteNList, Option.some.injEq] at hfp
+    subst hfp; exact ht
+  | a :: l, L, t, tC, hfp, ht => by
+    simp only [denoteNList] at hfp
+    split at hfp
+    · rename_i y ys hy hys
+      cases hfp
+      simp only [List.foldl_cons]
+      exact setRel_foldl_insert hys (ht.insert hy)
+    · cases hfp
+
+theorem footprints_go {s : AState} (hok : StateOK s) (hp : PinsOK s)
+    {cs : List CEntry} {csC : List ConLeche.Frontend.Olean.CEntry}
+    (hrel : ListRel (fun c cC => denoteCEntry s.store c = some cC) cs csC) :
+    ∀ {t : Std.HashSet NIdx} {tC : Std.HashSet ConLeche.Name} {r : Std.HashSet NIdx} {s' : AState},
+      SetRel s.store t tC →
       cs.foldlM (m := AM) (fun s c => do
         pure ((← Arena.pinFootprint c.c.name).foldl (fun s n => s.insert n) s)) t s = .ok (r, s') →
       s' = s ∧ SetRel s.store r (csC.foldl
-        (fun s c => (pinFootprint c.name).foldl (fun s n => s.insert n) s) tC)
-  | [], [], t, tC, r, s', _, ht, h => by
+        (fun s c => (pinFootprint c.name).foldl (fun s n => s.insert n) s) tC) := by
+  induction hrel with
+  | nil =>
+    intro t tC r s' ht h
     simp only [List.foldlM_nil] at h
     obtain ⟨rfl, rfl⟩ := AM.pure_ok h
     exact ⟨rfl, ht⟩
-  | c :: cs, cC :: csC, t, tC, r, s', .cons hc hr, ht, h => by
+  | @cons c cC cs csC hc _ ih =>
+    intro t tC r s' ht h
     simp only [List.foldlM_cons] at h
     obtain ⟨t1, s1, h1, h2⟩ := AM.bind_ok h
     obtain ⟨fp, s0, g0, g1⟩ := AM.bind_ok h1
-    obtain ⟨rfl, hfp⟩ := pinFootprint_exact hok hp (denoteCEntry_parts hc).1 g0
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok g1
-    refine footprints_go hok hp cs csC hr ?_ h2
-    generalize ConLeche.pinFootprint cC.name = L at hfp
-    clear h h1 h2 hr hc
-    induction fp generalizing t tC L with
-    | nil =>
-      simp only [denoteNList, Option.some.injEq] at hfp
-      subst hfp; exact ht
-    | cons a l ih =>
-      simp only [denoteNList] at hfp
-      split at hfp
-      · rename_i y ys hy hys
-        cases hfp
-        exact ih (ht.insert hy) _ hys
-      · cases hfp
+    obtain ⟨hs0, hfp⟩ := pinFootprint_exact hok hp (denoteCEntry_parts hc).1 g0
+    subst s0
+    obtain ⟨hv, hs1⟩ := AM.pure_ok g1
+    subst s1
+    subst hv
+    exact ih (setRel_foldl_insert hfp ht) h2
 
 theorem foldl_app_shift {α β : Type} (f : α → Array β) :
     ∀ (l : List α) (a : Array β),
@@ -948,6 +963,27 @@ theorem foldl_skip_eq {α β : Type} (p : α → Bool) (g : α → Array β) (l 
   congr 1
   funext acc x
   split <;> simp
+
+theorem foldl_append_toList {α β : Type} (f : α → Array β) :
+    ∀ (l : List α), (l.foldl (fun acc d => acc ++ f d) #[]).toList = (l.map fun x => (f x).toList).flatten
+  | [] => rfl
+  | x :: l => by
+    rw [List.foldl_cons, foldl_app_shift f l (#[] ++ f x), Array.toList_append, foldl_append_toList f l]
+    simp
+
+theorem flatten_map_eq_foldl {α β : Type} (f : α → Array β) (l : Array α) :
+    (l.map f).flatten = l.toList.foldl (fun acc d => acc ++ f d) #[] := by
+  apply Array.toList_inj.mp
+  rw [foldl_append_toList]
+  simp [Array.toList_flatten]
+
+theorem usesShift (l : List ConLeche.Frontend.Olean.CEntry) (A : Array ConLeche.Name) :
+    l.foldl (fun acc (c : ConLeche.Frontend.Olean.CEntry) =>
+      if c.skipped then acc else acc ++ c.uses.toArray) A =
+    A ++ l.foldl (fun acc (c : ConLeche.Frontend.Olean.CEntry) =>
+      if c.skipped then acc else acc ++ c.uses.toArray) #[] := by
+  rw [foldl_skip_eq, foldl_skip_eq]
+  exact foldl_app_shift _ l A
 
 /-- The roots' first filter at a name, read back. -/
 @[expose] def RootP (first : Std.HashMap NIdx Copy) (fp : Std.HashSet NIdx) (x : NIdx) : Bool :=
@@ -992,7 +1028,9 @@ theorem recordsRoots_go {ix : ConRon.Arena.Frontend.Olean.NameIndex} {fp : Std.H
       obtain ⟨o1, s1, h1, h2⟩ := AM.bind_ok h
       obtain ⟨ns, s0, g0, g1⟩ := AM.bind_ok h1
       obtain ⟨hst0, hns⟩ := recordReads_exact hok hoff (hp d (List.mem_cons_self ..)) hd g0
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok g1
+      obtain ⟨hv1, hs01⟩ := AM.pure_ok g1
+      subst s1
+      subst hv1
       have hw := nsWF_of_StateOK hst0.ok.state
       have hf' := hf.ext hst0.ext (fun _ _ h => h)
       have hfp' := hfp.ext hst0.ext
@@ -1005,7 +1043,7 @@ theorem recordsRoots_go {ix : ConRon.Arena.Frontend.Olean.NameIndex} {fp : Std.H
       obtain ⟨hst, hr⟩ := recordsRoots_go l _ (accU ++ ConLeche.Cached.recordReads dC) hst0.ok
         hst0.scratch hf' hfp' (fun x hx => hp x (List.mem_cons_of_mem _ hx))
         (denoteDecls_ext hst0.ext _ _ hls) ho1 h2
-      exact ⟨hst0.trans hst, by simpa using hr⟩
+      exact ⟨hst0.trans hst, hr⟩
     · cases hl
 
 theorem usesFold_go {st : EStore} (hw : NStoreWF st.ns) {ix : ConRon.Arena.Frontend.Olean.NameIndex}
@@ -1066,13 +1104,17 @@ theorem groundRoots_go {pins : List INatOpPinSet} {pinsC : List NatOpPinSet}
     rw [← denoteCEntry_skipped hc]
     by_cases hsk : c.skipped = true
     · rw [ite_eq_left hsk] at h1
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok h1
+      obtain ⟨hv1, hs01⟩ := AM.pure_ok h1
+      subst o1
+      subst s1
       rw [ite_eq_left hsk]
       exact groundRoots_go X cs out gAcc hok hp hpins hf hr ho h2
     · rw [ite_eq_right hsk] at h1
       obtain ⟨g, s0, g0, g1⟩ := AM.bind_ok h1
       obtain ⟨hst0, hg⟩ := pinGround_exact hok hp hpins (denoteCEntry_parts hc).1 g0
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok g1
+      obtain ⟨hv1, hs01⟩ := AM.pure_ok g1
+      subst o1
+      subst s1
       rw [ite_eq_right hsk]
       have hst0' := hst0.toParse'
       have hw := nsWF_of_StateOK hst0'.ok
@@ -1105,7 +1147,7 @@ theorem ownRoots_exact {s s' : AState} (hok : DriverOK s) (hoff : s.store.scratc
   obtain ⟨fp, s1, h1, k1⟩ := AM.bind_ok h
   unfold Arena.Modular.footprints at h1
   rw [← Array.foldlM_toList] at h1
-  obtain ⟨rfl, hfp⟩ := footprints_go hok.state hok.pins _ _ hcs (SetRel.empty _) h1
+  obtain ⟨rfl, hfp⟩ := footprints_go hok.state hok.pins hcs (SetRel.empty _) h1
   obtain ⟨out, s2, h2, k2⟩ := AM.bind_ok k1
   unfold Arena.Modular.recordsRoots at h2
   rw [← Array.foldlM_toList] at h2
@@ -1116,21 +1158,22 @@ theorem ownRoots_exact {s s' : AState} (hok : DriverOK s) (hoff : s.store.scratc
   have hfp2 := hfp.ext hst2.ext
   have hcs2 := ListRel.mono' (fun _ _ h => denoteCEntry_ext hst2.ext h) hcs
   have hout2 := usesFold_go hw2 hf2 hfp2 hcs2 out _ hout
-  rw [← Array.foldl_toList] at k2
+  dsimp only at k2
+  unfold Arena.Modular.groundRoots at k2
+  rw [← Array.foldlM_toList] at k2
   obtain ⟨hst3, hr⟩ := groundRoots_go (X := _) cs.toList _ #[] hst2.ok.state hst2.ok.pins
-    (PinsDenote.mono hst2.ext _ _ hpins) hf2 hcs2 (by simpa using hout2) (by
-      rw [← Array.foldlM_toList] at k2; exact k2)
+    (PinsDenote.mono hst2.ext _ _ hpins) hf2 hcs2 (by simpa using hout2) k2
   refine ⟨hst2.trans (DStep.of_parse hst2.ok hst2.scratch hst3), ?_⟩
   rw [hr]
+  congr 1
   unfold ownRootsC
-  simp only [Array.toList_append, Array.toList_filter, ← Array.foldl_toList]
-  congr 2
-  · congr 1
-    rw [foldl_skip_eq, foldl_skip_eq (g := fun c => c.uses.toArray)]
-    rw [foldl_app_shift (fun c : ConLeche.Frontend.Olean.CEntry =>
-        if c.skipped then #[] else c.uses.toArray) _
-        (List.foldl (fun acc d => acc ++ ConLeche.Cached.recordReads d) #[] dsC.toList)]
-    rfl
+  simp only [Array.toList_append, Array.toList_filter]
+  simp only [← Array.foldl_toList]
+  rw [usesShift]
+  simp only [Array.toList_append, List.filter_append, List.append_assoc]
+  have hRP : ∀ (f : Std.HashMap ConLeche.Name Copy) (fp : Std.HashSet ConLeche.Name),
+      RootPC f fp = fun x => f.contains x || !fp.contains x := fun _ _ => rfl
+  rw [hRP, flatten_map_eq_foldl]
 
 theorem copiesNames_go {s : AState} :
     ∀ (l : List IDeclaration) {lC : List Declaration} (out : Array NIdx) {X : List ConLeche.Name}
