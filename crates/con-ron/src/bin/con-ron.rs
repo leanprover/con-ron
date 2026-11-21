@@ -394,13 +394,6 @@ fn parse_args(argv: &[String]) -> Args {
     closed(a)
 }
 
-/// con-leche: none — the modes con-ron does not run
-/// A mode con-ron does not run, once con-leche's own usage checks have passed:
-/// a usage error (exit 3), never a silent run of another mode.
-fn unsupported(mode: &str) -> u8 {
-    usage_error(&format!("{} is not supported by con-ron yet", mode))
-}
-
 /// con-leche: none — `c == s` over the parsed module names (`Name`'s `BEq`)
 /// Two module names of the command line, the same module: compared as
 /// parsed, so `«A»` and `A` are one module.
@@ -457,6 +450,26 @@ fn check_graph_usage(a: &Args) -> u8 {
         a.search_path.iter().map(|d| con_ron::render::cps(d)).collect(),
     );
     con_ron::modular::check_graph(&sp, &roots)
+}
+
+/// con-leche: ConLeche/Driver/Dispatch.lean:63-87 runReq
+/// A worker's request off the command line: the module (a compared run's
+/// challenge), its solution (none: the module itself), the trusted path and the
+/// search path (`--module`'s lookup is the solution's: the trusted path, then the
+/// search path).
+fn cmp_request(a: &Args, c: con_ron_core::kernel::name::Name, s: Option<con_ron_core::kernel::name::Name>) -> con_ron::compare::CmpRequest {
+    let dirs = |v: &Vec<String>| -> Vec<Vec<u32>> { v.iter().map(|d| con_ron::render::cps(d)).collect() };
+    let s = match s {
+        Some(s) => s,
+        None => con_ron_core::kernel::name::dup(&c),
+    };
+    con_ron::compare::CmpRequest {
+        challenge: c,
+        solution: s,
+        trusted: dirs(&a.trusted_path),
+        path: dirs(&a.search_path),
+        constants: Vec::new(),
+    }
 }
 
 /// con-leche: ConLeche/Driver/Dispatch.lean:63-87 runReq
@@ -543,6 +556,11 @@ enum Run {
     Check(Input),
     CompareJson(String, String),
     CompareOleans(con_ron::compare::CmpRequest),
+    /// `--olean --module [--compare]`: the challenge's worker (with `true`, the
+    /// compare worker), every module read through the solution's lookup
+    Module(con_ron::compare::CmpRequest, bool),
+    /// `--olean --modular [--compare]`: every module of the closure, its worker each
+    Modular(con_ron::compare::CmpRequest, bool),
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:233-385 checkMainG
@@ -789,6 +807,8 @@ fn run(a: &Args, r: &Run) -> u8 {
         Run::Check(input) => check_main(a, input),
         Run::CompareJson(c, s) => exit_after_verdict(con_ron::compare::compare_json(&compare_opts(a, mode, mode_tag), c, s)),
         Run::CompareOleans(q) => exit_after_verdict(con_ron::compare::compare_oleans(&compare_opts(a, mode, mode_tag), q)),
+        Run::Module(q, cmp) => exit_after_verdict(con_ron::modular::module_main(&compare_opts(a, mode, mode_tag), q, *cmp)),
+        Run::Modular(q, cmp) => exit_after_verdict(con_ron::modular::modular_main(&compare_opts(a, mode, mode_tag), q, *cmp)),
     }
 }
 
@@ -915,12 +935,20 @@ fn run_main() -> u8 {
                          and no --constant",
                     );
                 }
-                if a.module {
-                    return unsupported("--olean --module --compare");
-                }
-                if a.modular {
-                    return unsupported("--olean --modular --compare");
-                }
+                if a.module || a.modular {
+                    let mut rs = req.roots;
+                    let s = rs.pop();
+                    let c = rs.pop();
+                    let q = match (c, s) {
+                        (Some(c), Some(s)) => cmp_request(&a, c, Some(s)),
+                        _ => return 3,
+                    };
+                    if a.module {
+                        Run::Module(q, true)
+                    } else {
+                        Run::Modular(q, true)
+                    }
+                } else {
                 let mut rs = req.roots;
                 let s = rs.pop();
                 let c = rs.pop();
@@ -928,7 +956,8 @@ fn run_main() -> u8 {
                     (Some(c), Some(s)) => con_ron::modular::schedule(&schedule_req(&a, c, Some(s))),
                     _ => 3,
                 };
-            }
+                }
+            } else {
             let dirs = |v: &Vec<String>| -> Vec<Vec<u32>> { v.iter().map(|d| con_ron::render::cps(d)).collect() };
             let mut roots = req.roots;
             let s = roots.pop();
@@ -942,6 +971,7 @@ fn run_main() -> u8 {
                     constants: req.constants,
                 }),
                 _ => return usage_error("--compare takes two module names, a challenge and its solution"),
+            }
             }
         } else {
         if !a.trusted_path.is_empty() && (!a.module || a.modular || a.scheduled) {
@@ -966,13 +996,21 @@ fn run_main() -> u8 {
                     "--modular takes one module name, and neither --constant nor --module",
                 );
             }
-            return unsupported("--olean --modular");
+            let mut rs = req.roots;
+            return match rs.pop() {
+                Some(m) => { let q = cmp_request(&a, m, None); run_on_thread(a, Run::Modular(q, false)) }
+                None => 3,
+            };
         }
         if a.module {
             if req.roots.len() != 1 || !a.constants.is_empty() {
                 return usage_error("--module takes one module name and no --constant");
             }
-            return unsupported("--olean --module");
+            let mut rs = req.roots;
+            return match rs.pop() {
+                Some(m) => { let q = cmp_request(&a, m, None); run_on_thread(a, Run::Module(q, false)) }
+                None => 3,
+            };
         }
         Run::Check(Input::Oleans(req))
         }
@@ -1028,6 +1066,13 @@ fn run_main() -> u8 {
         Run::Check(Input::Ndjson(a.files[0].clone()))
         }
     };
+    run_on_thread(a, input)
+}
+
+/// con-leche: Main.lean:56-103 main
+/// The run on its 1 GiB-stack checking thread (`driver::STACK_BYTES`): a
+/// panic on it is exit 3, never a verdict.
+fn run_on_thread(a: Args, input: Run) -> u8 {
     let h = std::thread::Builder::new()
         .stack_size(STACK_BYTES)
         .spawn(move || run(&a, &input));
