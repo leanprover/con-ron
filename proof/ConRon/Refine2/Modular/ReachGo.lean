@@ -853,6 +853,235 @@ theorem capture_one_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
       obtain ⟨-, rfl, rfl⟩ := e
       exact ⟨_, lst2, rfl, hc2.with_located_completed hq3 hv, hrel2, hinv2⟩
 
+/-! ## The names a record stores -/
+
+/-- **`stored_name_ok` is `storedNameOk`.** -/
+theorem stored_name_ok_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
+    (he : ReachEnvRel env wr own E) {st lst} {c : frontend.modular.reach.ReachCache} {C : Modular.ReachCache}
+    (hc : ReachCacheRel c C) (h n : arena.handle.NIdx) :
+    ACS pers (fun _ c' b => ReachCacheRel c' b) st lst
+      (stored_name_ok inst fsv pk pers st sp wr c h n)
+      (Modular.storedNameOk fs (absPins pk) (absRoots sp) E C (absNIdx h) (absNIdx n)) := by
+  intro hrel hinv a st' c' hr
+  rw [stored_name_ok] at hr
+  unfold Modular.storedNameOk
+  peel hr as o, ho
+  have eo := importer_spot_eq (pk := pk) he.wr ho
+  rw [← eo]
+  cases o with
+  | some p =>
+    obtain ⟨i, s1⟩ := p
+    dsimp only [Std.uncurry] at hr
+    simp only [Option.map_some]
+    peel hr as b1, hb1
+    have eb1 := nidx_eq2_eq hb1
+    by_cases c1 : b1 = true
+    · rw [ite_eq_left c1] at hr
+      have e := Result.ok_injective hr
+      simp only [Prod.mk.injEq] at e
+      obtain ⟨-, rfl, rfl⟩ := e
+      have hm : ((absSpot s1).part.mod == absNIdx h) = true := by rw [c1] at eb1; simpa using eb1.symm
+      simp only [hm, ↓reduceIte]
+      exact ⟨C, lst, rfl, hc, hrel, hinv⟩
+    · rw [ite_eq_right c1] at hr; err_peel hr
+  | none =>
+    simp only [Option.map_none]
+    peel hr as o1, ho1
+    have eo1 := located_at_eq hc ho1
+    rw [← eo1]
+    cases o1 with
+    | some s1 =>
+      simp only [Option.map_some]
+      peel hr as b1, hb1
+      have eb1 := nidx_eq2_eq hb1
+      by_cases c1 : b1 = true
+      · rw [ite_eq_left c1] at hr
+        have e := Result.ok_injective hr
+        simp only [Prod.mk.injEq] at e
+        obtain ⟨-, rfl, rfl⟩ := e
+        have hm : ((absSpot s1).part.mod == absNIdx h) = true := by rw [c1] at eb1; simpa using eb1.symm
+        simp only [hm, ↓reduceIte]
+        exact ⟨C, lst, rfl, hc, hrel, hinv⟩
+      · rw [ite_eq_right c1] at hr; err_peel hr
+    | none =>
+      simp only [Option.map_none]
+      peel hr as k, hk
+      obtain ⟨-, ek⟩ := priv_key_eq hk
+      peel hr as q, hq
+      obtain ⟨r, st1, c1⟩ := q
+      cases r with
+      | Err e => cases Result.ok_injective hr
+      | Ok u =>
+      obtain ⟨C1, lst1, hx1, hc1, hrel1, hinv1⟩ := hP.lookOf he st lst c C k hc hrel hinv u st1 c1 hq
+      rw [ek] at hx1
+      rw [am_bind_ok hx1]
+      peel hr as r1, hr1
+      cases r1 with
+      | Err e => cases Result.ok_injective hr
+      | Ok o2 =>
+      have hl := look_at_eq hc1 hr1 lst1
+      rw [ek] at hl
+      rw [am_bind_ok hl]
+      cases o2 with
+      | none => err_peel hr
+      | some q =>
+      simp only [nidx_dup2_eq, Aeneas.Std.bind_ok] at hr
+      peel hr as q3, hq3
+      obtain ⟨old, hm⟩ := q3
+      have e := Result.ok_injective hr
+      simp only [Prod.mk.injEq] at e
+      obtain ⟨-, rfl, rfl⟩ := e
+      have := hc1.with_located hq3
+      simp only [absSpot, ek] at this
+      exact ⟨_, lst1, rfl, this, hrel1, hinv1⟩
+
+theorem stored_names_ok_loop_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
+    (he : ReachEnvRel env wr own E) (h : arena.handle.NIdx) (ns : alloc.vec.Vec arena.handle.NIdx)
+    (st : arena.monad.AState) (lst : AState) (c : frontend.modular.reach.ReachCache) (C : Modular.ReachCache)
+    (hc : ReachCacheRel c C) (i : Std.Usize) :
+    ACS pers (fun _ c' b => ReachCacheRel c' b) st lst
+      (stored_names_ok_loop inst fsv pk pers st sp wr c h ns i)
+      (Modular.storedNamesOk fs (absPins pk) (absRoots sp) E (absNIdx h) C ((ns.val.drop i.val).map absNIdx)) := by
+  intro hrel hinv a st' c' hr
+  rw [stored_names_ok_loop] at hr
+  by_cases hlt : i < alloc.vec.Vec.len ns
+  · rw [ite_eq_left hlt] at hr
+    have hi := lt_len hlt
+    peel hr as x, hx
+    obtain ⟨_, rfl⟩ := vec_index_eq hx
+    peel hr as q, hq
+    obtain ⟨r, st1, c1⟩ := q
+    cases r with
+    | Err e => cases Result.ok_injective hr
+    | Ok u =>
+    obtain ⟨C1, lst1, hx1, hc1, hrel1, hinv1⟩ := stored_name_ok_ok hP he hc h _ hrel hinv u st1 c1 hq
+    peel hr as i2, hi2
+    have hv2 := usize_succ_val hi2
+    obtain ⟨b2, lst2, hx2, hR, hrel2, hinv2⟩ :=
+      stored_names_ok_loop_ok hP he h ns st1 lst1 c1 C1 hc1 i2 hrel1 hinv1 a st' c' hr
+    rw [hv2] at hx2
+    refine ⟨b2, lst2, ?_, hR, hrel2, hinv2⟩
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, Modular.storedNamesOk, am_bind_ok hx1]
+    exact hx2
+  · rw [ite_eq_right hlt] at hr
+    have e := Result.ok_injective hr
+    simp only [Prod.mk.injEq] at e
+    obtain ⟨-, rfl, rfl⟩ := e
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    exact ⟨C, lst, rfl, hc, hrel, hinv⟩
+termination_by ns.val.length - i.val
+decreasing_by have := lt_len hlt; omega
+
+/-- **`stored_names_ok` is `storedNamesOk`.** -/
+theorem stored_names_ok_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
+    (he : ReachEnvRel env wr own E) {st lst} {c : frontend.modular.reach.ReachCache} {C : Modular.ReachCache}
+    (hc : ReachCacheRel c C) (h : arena.handle.NIdx) (ns : alloc.vec.Vec arena.handle.NIdx) :
+    ACS pers (fun _ c' b => ReachCacheRel c' b) st lst
+      (stored_names_ok inst fsv pk pers st sp wr c h ns)
+      (Modular.storedNamesOk fs (absPins pk) (absRoots sp) E (absNIdx h) C (ns.val.map absNIdx)) := by
+  intro hrel hinv a st' c' hr
+  simpa using stored_names_ok_loop_ok hP he h ns st lst c C hc 0#usize hrel hinv a st' c' hr
+
+/-! ## Every read of a record, the partners' reads -/
+
+theorem capture_all_loop_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
+    (he : ReachEnvRel env wr own E) (h : arena.handle.NIdx) (ys : alloc.vec.Vec arena.handle.NIdx)
+    (st : arena.monad.AState) (lst : AState) (c : frontend.modular.reach.ReachCache) (C : Modular.ReachCache)
+    (hc : ReachCacheRel c C) (i : Std.Usize) :
+    ACS pers (fun _ c' b => ReachCacheRel c' b) st lst
+      (capture_all_loop inst fsv pk pers st sp wr own env c h ys i)
+      (Modular.captureAll fs (absPins pk) (absRoots sp) E (absNIdx h) C ((ys.val.drop i.val).map absNIdx)) := by
+  intro hrel hinv a st' c' hr
+  rw [capture_all_loop] at hr
+  by_cases hlt : i < alloc.vec.Vec.len ys
+  · rw [ite_eq_left hlt] at hr
+    have hi := lt_len hlt
+    peel hr as x, hx
+    obtain ⟨_, rfl⟩ := vec_index_eq hx
+    peel hr as q, hq
+    obtain ⟨r, st1, c1⟩ := q
+    cases r with
+    | Err e => cases Result.ok_injective hr
+    | Ok u =>
+    obtain ⟨C1, lst1, hx1, hc1, hrel1, hinv1⟩ := capture_one_ok hP he hc h _ hrel hinv u st1 c1 hq
+    peel hr as i2, hi2
+    have hv2 := usize_succ_val hi2
+    obtain ⟨b2, lst2, hx2, hR, hrel2, hinv2⟩ :=
+      capture_all_loop_ok hP he h ys st1 lst1 c1 C1 hc1 i2 hrel1 hinv1 a st' c' hr
+    rw [hv2] at hx2
+    refine ⟨b2, lst2, ?_, hR, hrel2, hinv2⟩
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, Modular.captureAll, am_bind_ok hx1]
+    exact hx2
+  · rw [ite_eq_right hlt] at hr
+    have e := Result.ok_injective hr
+    simp only [Prod.mk.injEq] at e
+    obtain ⟨-, rfl, rfl⟩ := e
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    exact ⟨C, lst, rfl, hc, hrel, hinv⟩
+termination_by ys.val.length - i.val
+decreasing_by have := lt_len hlt; omega
+
+/-- **`capture_all` is `captureAll`.** -/
+theorem capture_all_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
+    (he : ReachEnvRel env wr own E) {st lst} {c : frontend.modular.reach.ReachCache} {C : Modular.ReachCache}
+    (hc : ReachCacheRel c C) (h : arena.handle.NIdx) (ys : alloc.vec.Vec arena.handle.NIdx) :
+    ACS pers (fun _ c' b => ReachCacheRel c' b) st lst
+      (capture_all inst fsv pk pers st sp wr own env c h ys)
+      (Modular.captureAll fs (absPins pk) (absRoots sp) E (absNIdx h) C (ys.val.map absNIdx)) := by
+  intro hrel hinv a st' c' hr
+  simpa using capture_all_loop_ok hP he h ys st lst c C hc 0#usize hrel hinv a st' c' hr
+
+theorem capture_pairs_loop_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
+    (he : ReachEnvRel env wr own E) (ps : alloc.vec.Vec (arena.handle.NIdx × arena.handle.NIdx))
+    (st : arena.monad.AState) (lst : AState) (c : frontend.modular.reach.ReachCache) (C : Modular.ReachCache)
+    (hc : ReachCacheRel c C) (i : Std.Usize) :
+    ACS pers (fun _ c' b => ReachCacheRel c' b) st lst
+      (capture_pairs_loop inst fsv pk pers st sp wr own env c ps i)
+      (Modular.capturePairs fs (absPins pk) (absRoots sp) E C ((ps.val.drop i.val).map absNN)) := by
+  intro hrel hinv a st' c' hr
+  rw [capture_pairs_loop] at hr
+  by_cases hlt : i < alloc.vec.Vec.len ps
+  · rw [ite_eq_left hlt] at hr
+    have hi := lt_len hlt
+    peel hr as x, hx
+    obtain ⟨_, rfl⟩ := vec_index_eq hx
+    rw [List.drop_eq_getElem_cons hi, List.map_cons]
+    generalize ps.val[i.val] = xv at hr ⊢
+    obtain ⟨n, n1⟩ := xv
+    dsimp only [Std.uncurry] at hr
+    peel hr as q, hq
+    obtain ⟨r, st1, c1⟩ := q
+    cases r with
+    | Err e => cases Result.ok_injective hr
+    | Ok u =>
+    obtain ⟨C1, lst1, hx1, hc1, hrel1, hinv1⟩ := capture_one_ok hP he hc n n1 hrel hinv u st1 c1 hq
+    peel hr as i2, hi2
+    have hv2 := usize_succ_val hi2
+    obtain ⟨b2, lst2, hx2, hR, hrel2, hinv2⟩ :=
+      capture_pairs_loop_ok hP he ps st1 lst1 c1 C1 hc1 i2 hrel1 hinv1 a st' c' hr
+    rw [hv2] at hx2
+    refine ⟨b2, lst2, ?_, hR, hrel2, hinv2⟩
+    rw [Modular.capturePairs, am_bind_ok hx1]
+    exact hx2
+  · rw [ite_eq_right hlt] at hr
+    have e := Result.ok_injective hr
+    simp only [Prod.mk.injEq] at e
+    obtain ⟨-, rfl, rfl⟩ := e
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    exact ⟨C, lst, rfl, hc, hrel, hinv⟩
+termination_by ps.val.length - i.val
+decreasing_by have := lt_len hlt; omega
+
+/-- **`capture_pairs` is `capturePairs`.** -/
+theorem capture_pairs_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
+    (he : ReachEnvRel env wr own E) {st lst} {c : frontend.modular.reach.ReachCache} {C : Modular.ReachCache}
+    (hc : ReachCacheRel c C) (ps : alloc.vec.Vec (arena.handle.NIdx × arena.handle.NIdx)) :
+    ACS pers (fun _ c' b => ReachCacheRel c' b) st lst
+      (capture_pairs inst fsv pk pers st sp wr own env c ps)
+      (Modular.capturePairs fs (absPins pk) (absRoots sp) E C (ps.val.map absNN)) := by
+  intro hrel hinv a st' c' hr
+  simpa using capture_pairs_loop_ok hP he ps st lst c C hc 0#usize hrel hinv a st' c' hr
+
 end reads
 
 end ConRon.Refine2.Modular
