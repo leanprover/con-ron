@@ -12,6 +12,7 @@ module
 
 public import ConRon.Bridge.Modular.Index
 public import ConRon.Bridge.Frontend.Olean.MergeAll
+import ConRon.Bridge.Specs
 
 public section
 
@@ -175,8 +176,8 @@ theorem subsumesF_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hnu : Nul
     have hz12 := hzeq (hcmp ▸ hc)
     split at hF
     · -- two theorems
-      rename_i v a v' a' hk1' hk2'
-      subst hF hk1' hk2'
+      rename_i v a v' a'
+      subst hF
       simp only [denoteKindN, CKindF.mapM] at hk1 hk2
       obtain ⟨w, -, hk1⟩ := bind_some_left hk1
       obtain ⟨as, ha, hk1⟩ := bind_some_left hk1
@@ -189,8 +190,8 @@ theorem subsumesF_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hnu : Nul
       rw [nameList_beq hw ha ha']
       exact ⟨hs, id, fun hb hb' => by rw [hb] at hb'; cases hb'⟩
     · -- a theorem and an axiom
-      rename_i v a u hk1' hk2'
-      subst hF hk1' hk2'
+      rename_i v a u
+      subst hF
       simp only [denoteKindN, CKindF.mapM] at hk1 hk2
       obtain ⟨w, -, hk1⟩ := bind_some_left hk1
       obtain ⟨as, ha, hk1⟩ := bind_some_left hk1
@@ -203,8 +204,8 @@ theorem subsumesF_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hnu : Nul
       rw [nameList_beq hw ha hl]
       exact ⟨hs, id, fun hb hb' => by rw [hb] at hb'; cases hb'⟩
     · -- two axioms
-      rename_i u u' hk1' hk2'
-      subst hF hk1' hk2'
+      rename_i u u'
+      subst hF
       simp only [denoteKindN, CKindF.mapM, pure, Option.some.injEq] at hk1 hk2
       simp only [← hk1, ← hk2]
       by_cases hu : (u == u') = true
@@ -224,30 +225,27 @@ theorem subsumesF_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hnu : Nul
       subst hF
       obtain ⟨hv, hs⟩ := AM.pure_ok h
       subst hv
-      have htag1 := (ConLeche.Frontend.Olean.CKindF.mapM_tag hk1).1
-      have htag2 := (ConLeche.Frontend.Olean.CKindF.mapM_tag hk2).1
-      have hfalse : (match (generalizing := false) j1, j2 with
-          | .thm _ a₁, .thm _ a₂ => a₁ == a₂
-          | .thm _ a₁, .ax u₂ => a₁ == [z2.name] && !u₂
-          | .ax u₁, .ax u₂ => u₁ == u₂ && ConLeche.Frontend.Olean.isPropCheap headTyC z1.type
-          | _, _ => false) = false := by
-        cases j1 <;> cases j2 <;> first
-          | rfl
-          | (exfalso
-             rename_i a b c d
-             first
-              | (obtain ⟨v, x, e⟩ := tag_thm (k := k1) (by rw [htag1]; rfl)
-                 obtain ⟨v', x', e'⟩ := tag_thm (k := k2) (by rw [htag2]; rfl)
-                 exact h3 _ _ _ _ e e')
-              | (obtain ⟨v, x, e⟩ := tag_thm (k := k1) (by rw [htag1]; rfl)
-                 obtain ⟨u, e'⟩ := tag_ax (k := k2) (by rw [htag2]; rfl)
-                 exact h4 _ _ _ e e')
-              | (obtain ⟨u, e⟩ := tag_ax (k := k1) (by rw [htag1]; rfl)
-                 obtain ⟨u', e'⟩ := tag_ax (k := k2) (by rw [htag2]; rfl)
-                 exact h5 _ _ e e'))
       refine ⟨hs, fun hb => (by cases hb), fun _ hb => ?_⟩
-      rw [hfalse] at hb
-      cases hb
+      exfalso
+      have e1 := (ConLeche.Frontend.Olean.CKindF.mapM_tag hk1).1
+      have e2 := (ConLeche.Frontend.Olean.CKindF.mapM_tag hk2).1
+      cases j1 <;> cases j2 <;> simp at hb <;>
+        first
+        | (have f1 : k1.tag = 2 := e1
+           have f2 : k2.tag = 2 := e2
+           obtain ⟨v, x, e⟩ := tag_thm f1
+           obtain ⟨v', x', e'⟩ := tag_thm f2
+           exact h3 _ _ _ _ e e')
+        | (have f1 : k1.tag = 2 := e1
+           have f2 : k2.tag = 0 := e2
+           obtain ⟨v, x, e⟩ := tag_thm f1
+           obtain ⟨u, e'⟩ := tag_ax f2
+           exact h4 _ _ _ e e')
+        | (have f1 : k1.tag = 0 := e1
+           have f2 : k2.tag = 0 := e2
+           obtain ⟨u, e⟩ := tag_ax f1
+           obtain ⟨u', e'⟩ := tag_ax f2
+           exact h5 _ _ e e')
   · simp only [hc, Bool.false_eq_true, ↓reduceIte] at hF
     subst hF
     obtain ⟨hv, hs⟩ := AM.pure_ok h
@@ -264,9 +262,37 @@ theorem subsumesF_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hnu : Nul
     (y : Copy × ConstantVal × CKindF ConLeche.Name Unit) : Prop :=
   denoteStmt st x.2.1 = some y.2.1 ∧ denoteKindN st x.2.2 = some y.2.2
 
-theorem clashFold_run {pk : OleanPins} {ld : ConRon.Arena.Frontend.Olean.HeaderLoads}
-    {ldC : ConLeche.Frontend.Olean.HeaderLoads} {n : NIdx} {nC : ConLeche.Name}
-    {headTy : NIdx → Option EIdx} {headTyC : ConLeche.Name → Option Expr} :
+/-- The twin's step of the clash rule's fold, as its outcomes: the first test, and the second
+where the first said `false`. -/
+@[expose] def TwinStepOK {pk : OleanPins} (headTy : NIdx → Option EIdx)
+    (step : Copy × ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit →
+      Copy × ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit →
+      AM (Copy × ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit)) : Prop :=
+  ∀ c1 cv1 k1 c2 cv2 k2 s s' r, step (c2, cv2, k2) (c1, cv1, k1) s = .ok (r, s') →
+    ∃ b1 s₁, ConRon.Arena.Frontend.Olean.subsumesF pk headTy cv1 k1 cv2 k2 s = .ok (b1, s₁) ∧
+      ((b1 = true ∧ r = (c1, cv1, k1) ∧ s' = s₁) ∨
+       (b1 = false ∧ ∃ s₂, ConRon.Arena.Frontend.Olean.subsumesF pk headTy cv2 k2 cv1 k1 s₁ =
+          .ok (true, s₂) ∧ r = (c2, cv2, k2) ∧ s' = s₂))
+
+/-- Upstream's step of the clash rule's fold, as its outcomes. -/
+@[expose] def UpStepOK {ε : Type} (headTyC : ConLeche.Name → Option Expr)
+    (step : Copy × ConstantVal × CKindF ConLeche.Name Unit → Copy × ConstantVal × CKindF ConLeche.Name Unit →
+      Except ε (Copy × ConstantVal × CKindF ConLeche.Name Unit)) : Prop :=
+  ∀ c1 cv1 k1 c2 cv2 k2,
+    (ConLeche.Frontend.Olean.subsumesF headTyC cv1 k1 cv2 k2 = true →
+      step (c2, cv2, k2) (c1, cv1, k1) = .ok (c1, cv1, k1)) ∧
+    (ConLeche.Frontend.Olean.subsumesF headTyC cv1 k1 cv2 k2 = false →
+      ConLeche.Frontend.Olean.subsumesF headTyC cv2 k2 cv1 k1 = true →
+      step (c2, cv2, k2) (c1, cv1, k1) = .ok (c2, cv2, k2))
+
+theorem clashFold_run {pk : OleanPins} {headTy : NIdx → Option EIdx}
+    {headTyC : ConLeche.Name → Option Expr} {ε : Type}
+    {step : Copy × ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit →
+      Copy × ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit →
+      AM (Copy × ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit)}
+    {stepC : Copy × ConstantVal × CKindF ConLeche.Name Unit → Copy × ConstantVal × CKindF ConLeche.Name Unit →
+      Except ε (Copy × ConstantVal × CKindF ConLeche.Name Unit)}
+    (hT : TwinStepOK (pk := pk) headTy step) (hU : UpStepOK headTyC stepC) :
     ∀ {rest : List (Copy × ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit)}
       {restC : List (Copy × ConstantVal × CKindF ConLeche.Name Unit)} {s s' : AState}
       {kept : Copy × ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit}
@@ -274,25 +300,16 @@ theorem clashFold_run {pk : OleanPins} {ld : ConRon.Arena.Frontend.Olean.HeaderL
       {res : Copy × ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit},
       StateOK s → NullsRel s.store pk → HeadRel s.store headTy headTyC →
       ListRel (CopyInfoRel s.store) rest restC → KeptRel s.store kept keptC →
-      rest.foldlM (fun (kept : Copy × ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit) next => do
-        let (_, cv₁, k₁) := next
-        let (_, cv₂, k₂) := kept
-        if ← ConRon.Arena.Frontend.Olean.subsumesF pk headTy cv₁ k₁ cv₂ k₂ then pure next
-        else if ← ConRon.Arena.Frontend.Olean.subsumesF pk headTy cv₂ k₂ cv₁ k₁ then pure kept
-        else fail (.invalid s!"modules {← readName (ld.nameAt pk kept.1.mod)} and \
-          {← readName (ld.nameAt pk next.1.mod)} store different constants named \
-          {← readName n}, and both are loaded")) kept s = .ok (res, s') →
-      s' = s ∧ ∃ r, restC.foldlM (fun (kept : Copy × ConstantVal × CKindF ConLeche.Name Unit) next =>
-        let (_, cv₁, k₁) := next
-        let (_, cv₂, k₂) := kept
-        if ConLeche.Frontend.Olean.subsumesF headTyC cv₁ k₁ cv₂ k₂ then .ok next
-        else if ConLeche.Frontend.Olean.subsumesF headTyC cv₂ k₂ cv₁ k₁ then .ok kept
-        else .error (.invalid s!"modules {ldC.nameAt kept.1.mod} and {ldC.nameAt next.1.mod} \
-          store different constants named {nC}, and both are loaded")) keptC = .ok r
-  | [], [], s, s', kept, keptC, res, _, _, _, .nil, _, h => by
+      rest.foldlM step kept s = .ok (res, s') →
+      s' = s ∧ ∃ r, restC.foldlM stepC keptC = .ok r := by
+  intro rest restC s s' kept keptC res hok hnu hh hrel
+  induction hrel generalizing kept keptC with
+  | nil =>
+    intro _ h
     simp only [List.foldlM_nil] at h
     exact ⟨(AM.pure_ok h).2, keptC, rfl⟩
-  | next :: rest, nextC :: restC, s, s', kept, keptC, res, hok, hnu, hh, .cons hr t, hk, h => by
+  | @cons next nextC rest restC hr t ih =>
+    intro hk h
     obtain ⟨c1, cv1, k1⟩ := next
     obtain ⟨c2, cv2, k2⟩ := kept
     obtain ⟨d1, z1, j1⟩ := nextC
@@ -300,39 +317,29 @@ theorem clashFold_run {pk : OleanPins} {ld : ConRon.Arena.Frontend.Olean.HeaderL
     obtain ⟨-, hz1, hj1⟩ := hr
     obtain ⟨hz2, hj2⟩ := hk
     dsimp only at hz1 hj1 hz2 hj2
-    simp only [List.foldlM_cons] at h ⊢
-    obtain ⟨x, s₁, h1, h⟩ := AM.bind_ok h
-    obtain ⟨b1, s₂, hb1, hx⟩ := AM.bind_ok h1
+    rw [List.foldlM_cons] at h
+    rw [List.foldlM_cons]
+    obtain ⟨x, s₁, h1, hrest⟩ := AM.bind_ok h
+    obtain ⟨b1, s₂, hb1, hout⟩ := hT c1 cv1 k1 c2 cv2 k2 _ _ _ h1
     obtain ⟨rfl, hA, hA'⟩ := subsumesF_run hok hnu hh hz1 hz2 hj1 hj2 hb1
-    cases b1 with
-    | true =>
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok hx
-      have hC := hA rfl
-      simp only [hC, ↓reduceIte]
-      exact clashFold_run hok hnu hh t ⟨hz1, hj1⟩ h
-    | false =>
-      simp only [Bool.false_eq_true, ↓reduceIte] at hx
-      obtain ⟨b2, s₃, hb2, hx⟩ := AM.bind_ok hx
-      obtain ⟨rfl, hB, -⟩ := subsumesF_run hok hnu hh hz2 hz1 hj2 hj1 hb2
-      cases b2 with
+    rcases hout with ⟨rfl, rfl, rfl⟩ | ⟨rfl, s₃, hb2, rfl, rfl⟩
+    · rw [(hU d1 z1 j1 d2 z2 j2).1 (hA rfl)]
+      exact ih (kept := (c1, cv1, k1)) (keptC := (d1, z1, j1)) ⟨hz1, hj1⟩ hrest
+    · obtain ⟨rfl, hB, -⟩ := subsumesF_run hok hnu hh hz2 hz1 hj2 hj1 hb2
+      cases hu : ConLeche.Frontend.Olean.subsumesF headTyC z1 j1 z2 j2 with
       | true =>
-        obtain ⟨rfl, rfl⟩ := AM.pure_ok hx
-        have hC := hB rfl
-        cases hu : ConLeche.Frontend.Olean.subsumesF headTyC z1 j1 z2 j2 with
-        | true =>
-          -- upstream keeps the next copy: one constant with the kept one, read back
-          obtain ⟨rfl, rfl⟩ := hA' rfl hu
-          simp only [↓reduceIte]
-          exact clashFold_run hok hnu hh t ⟨hz2, hj2⟩ h
-        | false =>
-          simp only [Bool.false_eq_true, ↓reduceIte, hC]
-          exact clashFold_run hok hnu hh t ⟨hz2, hj2⟩ h
+        -- upstream keeps the next copy: one constant with the kept one, read back
+        obtain ⟨rfl, rfl⟩ := hA' rfl hu
+        rw [(hU d1 z1 j1 d2 z1 j1).1 hu]
+        exact ih (kept := (c2, cv2, k2)) (keptC := (d1, z1, j1)) ⟨hz2, hj2⟩ hrest
       | false =>
-        simp only [Bool.false_eq_true, ↓reduceIte] at hx
-        obtain ⟨_, _, -, hx⟩ := AM.bind_ok hx
-        obtain ⟨_, _, -, hx⟩ := AM.bind_ok hx
-        obtain ⟨_, _, -, hx⟩ := AM.bind_ok hx
-        exact (AM.fail_ok hx).elim
+        rw [(hU d1 z1 j1 d2 z2 j2).2 hu (hB rfl)]
+        exact ih (kept := (c2, cv2, k2)) (keptC := (d2, z2, j2)) ⟨hz2, hj2⟩ hrest
+
+theorem map_eq_ok {ε α β : Type} {x : Except ε α} {f : α → β} {b : β} (h : ∃ r, x = .ok r)
+    (hb : ∀ r, f r = b) : x.map f = .ok b := by
+  obtain ⟨r, rfl⟩ := h
+  simp only [Except.map, hb]
 
 /-- con-leche: ConLeche/Frontend/Olean/Index.lean:113-127 clashOk — **the twin's accept of one
 name's copies is upstream's**, at a head-type lookup that answers as upstream's. -/
@@ -357,10 +364,36 @@ theorem clashOk_run {pk : OleanPins} {ld : ConRon.Arena.Frontend.Olean.HeaderLoa
     dsimp only at h ⊢
     obtain ⟨res, s₁, h1, h2⟩ := AM.bind_ok h
     obtain ⟨-, rfl⟩ := AM.pure_ok h2
-    obtain ⟨rfl, r, hr'⟩ := clashFold_run (nC := clC.name) (ldC := ldC) hok hnu hh t
-      ⟨hr.2.1, hr.2.2⟩ h1
-    refine ⟨rfl, ?_⟩
-    rw [hr']
-    rfl
+    refine (fun (H : _ = _ ∧ ∃ r, List.foldlM _ _ _ = Except.ok r) =>
+      ⟨H.1, map_eq_ok H.2 (fun _ => rfl)⟩) (clashFold_run ?hT ?hU hok hnu hh t ⟨hr.2.1, hr.2.2⟩ h1)
+    case hT =>
+      intro c1 cv1 k1 c2 cv2 k2 s s' r hr
+      dsimp only at hr
+      obtain ⟨b1, s₁, hb1, hr⟩ := AM.bind_ok hr
+      refine ⟨b1, s₁, hb1, ?_⟩
+      cases b1 with
+      | true =>
+        simp only [↓reduceIte] at hr
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hr
+        exact .inl ⟨rfl, rfl, rfl⟩
+      | false =>
+        simp only [Bool.false_eq_true, ↓reduceIte] at hr
+        obtain ⟨b2, s₂, hb2, hr⟩ := AM.bind_ok hr
+        cases b2 with
+        | true =>
+          simp only [↓reduceIte] at hr
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok hr
+          exact .inr ⟨rfl, _, hb2, rfl, rfl⟩
+        | false =>
+          simp only [Bool.false_eq_true, ↓reduceIte] at hr
+          exfalso
+          repeat (first
+            | exact (AM.fail_ok hr).elim
+            | (obtain ⟨_, _, -, hr⟩ := AM.bind_ok hr))
+    case hU =>
+      intro c1 cv1 k1 c2 cv2 k2
+      refine ⟨fun h1 => ?_, fun h1 h2 => ?_⟩
+      · dsimp only; simp only [h1, ↓reduceIte]
+      · dsimp only; simp only [h1, h2, Bool.false_eq_true, ↓reduceIte]
 
 end ConRon.Bridge.Modular

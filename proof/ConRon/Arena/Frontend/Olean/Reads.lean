@@ -126,47 +126,6 @@ The two reads of `CEntryF.mapM (memoName r st) (memoExpr r st)`. -/
 def memoRead (pk : OleanPins) (r : Region) (st : SM) : PtrRead :=
   ⟨memoName pk r st, memoExpr pk r st⟩
 
-/-- con-leche: ConLeche/Frontend/Olean/Reads.lean:129-135 entriesAt
-The skeletons at some locations, each fitting a word (`skelFits`). -/
-def skelsAt (r : Region) : List Nat → AM (Option (List (CEntryF UInt64 UInt64)))
-  | [] => pure (some [])
-  | c :: cs => do
-    match constSkel r c with
-    | none => pure none
-    | some s =>
-      skelFits s
-      match ← skelsAt r cs with
-      | none => pure none
-      | some ss => pure (some (s :: ss))
-
-/-- con-leche: ConLeche/Frontend/Olean/Reads.lean:129-135 entriesAt
-`sks.mapM (CEntryF.mapM (memoName r st) (memoExpr r st))`. -/
-def entriesMap (rd : PtrRead) : List (CEntryF UInt64 UInt64) → AM (Option (List (CEntryF NIdx EIdx)))
-  | [] => pure (some [])
-  | s :: ss => do
-    match ← entryMap rd s with
-    | none => pure none
-    | some e =>
-      match ← entriesMap rd ss with
-      | none => pure none
-      | some es => pure (some (e :: es))
-
-/-- con-leche: ConLeche/Frontend/Olean/Reads.lean:129-135 entriesAt
-`sks.foldl (memoRoots r) {}`. -/
-def memoRootsAll (pk : OleanPins) (r : Region) : SM → List (CEntryF UInt64 UInt64) → AM SM
-  | st, [] => pure st
-  | st, s :: ss => do memoRootsAll pk r (← memoRoots pk r st s) ss
-
-/-- con-leche: ConLeche/Frontend/Olean/Reads.lean:129-135 entriesAt
-**The constants at some locations, read with one memo**: every root of every constant into
-the memo first (`memoRoots`), then each constant built from it. -/
-def entriesAt (pk : OleanPins) (r : Region) (cs : List Nat) : AM (Option (List (CEntryF NIdx EIdx))) := do
-  match ← skelsAt r cs with
-  | none => pure none
-  | some sks =>
-    let st ← memoRootsAll pk r {} sks
-    entriesMap (memoRead pk r st) sks
-
 /-- con-leche: ConLeche/Frontend/Olean/Reads.lean:137-142 kindNamesAt
 A kind's names read, its expressions left out (`s.kind.mapM rd (fun _ => some ())`). -/
 def kindNames (rd : PtrRead) (k : CKindF UInt64 UInt64) : AM (Option (CKindF NIdx Unit)) :=

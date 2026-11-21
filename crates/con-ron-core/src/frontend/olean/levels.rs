@@ -339,22 +339,6 @@ pub fn mod_set_union(s: Vec<u8>, t: &Vec<u8>) -> Vec<u8> {
     s
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Levels.lean:175-177 ModSet.card
-/// The number of positions in the set.
-pub fn mod_set_card(s: &Vec<u8>) -> u64 {
-    let mut n = 0u64;
-    let mut k = 0usize;
-    while k < s.len() {
-        let mut j = 0u8;
-        while j < 8 {
-            n += ((s[k] >> j) & 1) as u64;
-            j += 1;
-        }
-        k += 1;
-    }
-    n
-}
-
 /// con-leche: ConLeche/Frontend/Olean/Levels.lean:179-193 pubClosures
 /// One module's public-import closure, from those of the modules before it:
 /// itself, and every public import's closure (or the import itself, where it

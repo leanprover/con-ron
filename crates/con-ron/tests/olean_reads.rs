@@ -9,6 +9,7 @@ use con_ron::olean_fs::StdFs;
 use con_ron_core::arena::handle::{EIdx, NIdx};
 use con_ron_core::arena::monad::AState;
 use con_ron_core::arena::store::{ENodeView, LNodeView, NNodeView, PersTier};
+use con_ron_core::frontend::olean::lazy;
 use con_ron_core::frontend::olean::lazy::{CEntry, Loaded};
 use con_ron_core::frontend::olean::sparse;
 use con_ron_core::frontend::olean::files;
@@ -147,7 +148,8 @@ fn every_partial_read_is_its_part_and_each_view_the_one_memo_read() {
         let d = ok_or_panic(view::parse_view(&pk, &e, &mut st.store, &alone, &OLeanLevel::Exported), m);
         assert!(same_view(&d, &v.exported), "{}: the exported file alone", m);
         let mn = nm(&mut st, m);
-        assert!(module::check_views(&pk, &e, &mut st.store, &mn, &f, &v).is_ok(), "{}: checkViews", m);
+        let l = lazy::load_view(&pk, &e, &mut st.store, 0, &mn, &f).ok().unwrap();
+        assert!(module::check_views(&pk, &e, &mut st.store, &mn, &f, &l).is_ok(), "{}: checkViews", m);
         // the imports off every prefix the walk does not run off, up to the file
         for k in 0..(bytes.len() / 512 + 1) {
             let pre = &bytes[..std::cmp::min(k * 512, bytes.len())];

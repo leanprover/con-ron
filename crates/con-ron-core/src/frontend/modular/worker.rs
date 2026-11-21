@@ -5,8 +5,7 @@
 //!
 //! 1. **The home** (`home_of`): `M`'s private view loaded (`lazy::load_view`,
 //!    its theorems' values left in the file) and its three parts checked against
-//!    each other (`module::check_views`, over the views parsed whole: con-ron's
-//!    `check_views` reads `AllViews`, where upstream's reads the load).
+//!    each other (`module::check_views`).
 //! 2. **The reads** (`index::worker_reads`): the header fixpoint, the name index
 //!    of every loaded part, Lean's clash rule, freshness of `M`'s names.
 //! 3. **The own records** (`own_records`): the loaded constants, unsafe and
@@ -82,23 +81,15 @@ use crate::ron::hashmap2::HashMap2;
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:385-394 homeOf
 /// **A module's home**: its private view loaded (`load_view`, at module index
-/// 0) and its three parts checked against each other (`check_views`, over the
-/// views parsed whole; a view that does not parse is `view_error`'s).
+/// 0) and its three parts checked against each other (`check_views`).
 pub fn home_of(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, m: &NIdx, f: &ModFiles) -> Result<(Loaded, Vec<Expo>), CheckError> {
     let l = match lazy::load_view(pk, pers, ar, 0, m, f) {
         Err(e) => return Err(e),
         Ok(l) => l,
     };
-    match view::parse_all_views(pk, pers, ar, f) {
-        Err(RdErr::Err(e)) => Err(e),
-        Err(RdErr::Bad) => match files::first_bad_view(pk, pers, ar, f) {
-            Err(e) => Err(e),
-            Ok(level) => Err(view::view_error(pk, pers, ar, m, f, &level)),
-        },
-        Ok(v) => match module::check_views(pk, pers, ar, m, f, &v) {
-            Err(e) => Err(e),
-            Ok(expo) => Ok((l, expo)),
-        },
+    match module::check_views(pk, pers, ar, m, f, &l) {
+        Err(e) => Err(e),
+        Ok(expo) => Ok((l, expo)),
     }
 }
 
@@ -260,7 +251,6 @@ pub fn pin_ground(pers: &PersTier, st: &mut AState, pins: &Vec<INatOpPinSet>, c:
 }
 
 /// con-leche: ConLeche/Driver/Worker.lean:68-86 ownRoots
-/// con-leche: CHANGED since f61d522e — re-port, re-test, re-prove worker::footprints_refines, then delete this line
 /// `fp`: every name a loaded constant's fast path reads (`pin_footprint`).
 pub fn footprints(st: &mut AState, cs: &Vec<CEntry>) -> Result<HashMap2<NIdx, bool>, CheckError> {
     let mut s: HashMap2<NIdx, bool> = HashMap2::new();
@@ -282,7 +272,6 @@ pub fn footprints(st: &mut AState, cs: &Vec<CEntry>) -> Result<HashMap2<NIdx, bo
 }
 
 /// con-leche: ConLeche/Driver/Worker.lean:68-86 ownRoots
-/// con-leche: CHANGED since f61d522e — re-port, re-test, re-prove worker::push_unpinned_refines, then delete this line
 /// `xs.filter (fun x => ix.first.contains x || !fp.contains x)` pushed onto `out`.
 pub fn push_unpinned(out: &mut Vec<NIdx>, ix: &NameIndex, fp: &HashMap2<NIdx, bool>, xs: &Vec<NIdx>) {
     let mut i = 0usize;
@@ -295,7 +284,6 @@ pub fn push_unpinned(out: &mut Vec<NIdx>, ix: &NameIndex, fp: &HashMap2<NIdx, bo
 }
 
 /// con-leche: ConLeche/Driver/Worker.lean:68-86 ownRoots
-/// con-leche: CHANGED since f61d522e — re-port, re-test, re-prove worker::push_loaded_refines, then delete this line
 /// `xs.filter ix.first.contains` pushed onto `out`.
 pub fn push_loaded(out: &mut Vec<NIdx>, ix: &NameIndex, xs: &Vec<NIdx>) {
     let mut i = 0usize;
@@ -308,7 +296,6 @@ pub fn push_loaded(out: &mut Vec<NIdx>, ix: &NameIndex, xs: &Vec<NIdx>) {
 }
 
 /// con-leche: ConLeche/Driver/Worker.lean:68-86 ownRoots
-/// con-leche: CHANGED since f61d522e — re-port, re-test, re-prove worker::own_roots_refines, then delete this line
 /// **The reach's roots**: what each own record reads (`record_reads`), what
 /// each own constant's load read, and the pin ground of each own certified
 /// operation that a loaded module holds; an unsafe or partial own constant is
@@ -338,7 +325,6 @@ pub fn own_roots(pers: &PersTier, st: &mut AState, pins: &Vec<INatOpPinSet>, ix:
 }
 
 /// con-leche: ConLeche/Driver/Worker.lean:68-86 ownRoots
-/// con-leche: CHANGED since f61d522e — re-port, re-test, re-prove worker::records_roots_refines, then delete this line
 /// What each own record reads, filtered (`push_unpinned`).
 pub fn records_roots(pers: &PersTier, st: &mut AState, ix: &NameIndex, fp: &HashMap2<NIdx, bool>, ds: &Vec<IDeclaration>) -> Result<Vec<NIdx>, CheckError> {
     let mut out: Vec<NIdx> = Vec::new();
@@ -354,7 +340,6 @@ pub fn records_roots(pers: &PersTier, st: &mut AState, ix: &NameIndex, fp: &Hash
 }
 
 /// con-leche: ConLeche/Driver/Worker.lean:68-86 ownRoots
-/// con-leche: CHANGED since f61d522e — re-port, re-test, re-prove worker::ground_roots_refines, then delete this line
 /// The pin ground of each own constant, filtered (`push_loaded`), onto `out`.
 pub fn ground_roots(pers: &PersTier, st: &mut AState, pins: &Vec<INatOpPinSet>, ix: &NameIndex, cs: &Vec<CEntry>, out: Vec<NIdx>) -> Result<Vec<NIdx>, CheckError> {
     let mut out = out;
@@ -451,7 +436,6 @@ pub fn names_nodup_go(s: &mut HashMap2<NIdx, bool>, ns: &Vec<NIdx>, i: usize) ->
 }
 
 /// con-leche: ConLeche/Driver/Worker.lean:301-344 workerRead
-/// con-leche: CHANGED since f61d522e — re-port, re-test, re-prove worker::ctx_names_nodup_refines, then delete this line
 /// `namesNodupGo {} (r.ctx.toList.flatMap Modular.declNames)`.
 pub fn ctx_names_nodup(pers: &PersTier, st: &mut AState, ctx: &Vec<IDeclaration>) -> Result<bool, CheckError> {
     let mut s: HashMap2<NIdx, bool> = HashMap2::new();
@@ -554,7 +538,6 @@ pub fn own_names_of(x: &Vec<ImportRec>, ix: &NameIndex, cs: &Vec<CEntry>) -> Has
 }
 
 /// con-leche: ConLeche/Driver/Worker.lean:144-154 rootsAt
-/// con-leche: CHANGED since f61d522e — re-port, re-test, re-prove worker::unloaded_constants_refines, then delete this line
 /// `l.constants.filter (!ix.first.contains ·.name)`, copied.
 pub fn unloaded_constants(ix: &NameIndex, cs: &Vec<CEntry>) -> Vec<CEntry> {
     let mut out: Vec<CEntry> = Vec::new();
@@ -569,7 +552,6 @@ pub fn unloaded_constants(ix: &NameIndex, cs: &Vec<CEntry>) -> Vec<CEntry> {
 }
 
 /// con-leche: ConLeche/Driver/Worker.lean:144-154 rootsAt
-/// con-leche: CHANGED since f61d522e — re-port, re-test, re-prove worker::roots_at_refines, then delete this line
 /// **The reach's roots** of a worker that adds the imports `x`: what the own
 /// records read (`own_roots`); at a compared challenge, what the own records
 /// and the own constants read, and the copies' names.
@@ -1067,7 +1049,6 @@ pub struct WorkerRead {
 }
 
 /// con-leche: ConLeche/Driver/Worker.lean:301-344 workerRead
-/// con-leche: CHANGED since f61d522e — re-port, re-test, re-prove worker::home_values_refines, then delete this line
 /// The home's frontier, moved into the jobs' one value module.
 pub fn home_values(m: &NIdx, l: &mut Loaded) -> Vec<ModRef> {
     let fr = core::mem::replace(&mut l.frontier, sparse::frontier_empty());
@@ -1077,7 +1058,6 @@ pub fn home_values(m: &NIdx, l: &mut Loaded) -> Vec<ModRef> {
 }
 
 /// con-leche: ConLeche/Driver/Worker.lean:301-344 workerRead
-/// con-leche: CHANGED since f61d522e — re-port, re-test, re-prove worker::worker_read_refines, then delete this line
 /// **Phases 1–4 of the worker at module `m`** (module note); `x` the imports a
 /// run adds to its header (a compared challenge's solution: its own records are
 /// those no loaded module stores, `own_recs`, and its copies are checked
@@ -1121,7 +1101,6 @@ pub fn worker_read<F: OleanFs>(fs: &F, pers: &PersTier, st: &mut AState, sp: &fi
 }
 
 /// con-leche: ConLeche/Driver/Worker.lean:301-344 workerRead
-/// con-leche: CHANGED since f61d522e — re-port, re-test, re-prove worker::worker_reach_refines, then delete this line
 /// Phase 4 and the hoist, over the load's constants `cs` and the emitted
 /// records `ds`: the own holes, the reach, its names distinct, the copies, and
 /// the own records hoisted.
@@ -1160,7 +1139,6 @@ pub fn worker_reach<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mu
 }
 
 /// con-leche: ConLeche/Driver/Worker.lean:301-344 workerRead
-/// con-leche: CHANGED since f61d522e — re-port, re-test, re-prove worker::decls_dup_refines, then delete this line
 /// The emitted records, copied (`ownRecs` filters them; `emitted` keeps them).
 pub fn decls_dup(ds: &Vec<IDeclaration>) -> Vec<IDeclaration> {
     let mut out: Vec<IDeclaration> = Vec::with_capacity(ds.len());

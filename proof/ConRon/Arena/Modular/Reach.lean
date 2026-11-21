@@ -1077,14 +1077,12 @@ structure Reach where
   inferred : Nat
   pending : Array (String × NIdx × StmtRec)
 
-/-- con-leche: ConLeche/Driver/Reach.lean:970-974 reach
--- con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove Reach.reachRoots_bridge, then delete this line
+/-- con-leche: ConLeche/Driver/Reach.lean:937-968 reachWith
 The roots and the clashing names, the own names left out. -/
 def reachRoots (own : Std.HashSet NIdx) (roots extra : Array NIdx) : List NIdx :=
   (roots ++ extra).toList.filter (!own.contains ·)
 
-/-- con-leche: ConLeche/Driver/Reach.lean:970-974 reach
--- con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove Reach.inReadOrder_bridge, then delete this line
+/-- con-leche: ConLeche/Driver/Reach.lean:937-968 reachWith
 The records at the read order's positions, with their homes. -/
 def inReadOrder (L : ReachLog) (o : Array Nat) : Array IDeclaration × Array NIdx :=
   o.foldl (fun (acc : Array IDeclaration × Array NIdx) j =>
@@ -1092,9 +1090,9 @@ def inReadOrder (L : ReachLog) (o : Array Nat) : Array IDeclaration × Array NId
     | some d, some h => (acc.1.push d, acc.2.push h)
     | _, _ => acc) (#[], #[])
 
-/-- con-leche: ConLeche/Driver/Reach.lean:970-974 reach
--- con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove Reach.reach_bridge, then delete this line
-**The reach of module `m`** from the names its own records read. -/
+/-- con-leche: ConLeche/Driver/Reach.lean:937-968 reachWith
+**The reach of module `m`** from the names its own records read: upstream's `reachWith` up to
+its flags step, which is `inferFlags`, run after the worker's freeze. -/
 def reach (fs : OleanFs) (pk : OleanPins) (sp : Roots) (m : NIdx) (wr : WorkerReads)
     (own : Std.HashSet NIdx) (roots : Array NIdx) : AM Reach := do
   let env : ReachEnv := { mod := m, wr, own, copies := clashCopiesOf pk wr }

@@ -13,7 +13,8 @@ whichever group was read last.  Run style, not `vcgen`.
 module
 
 public import ConRon.Bridge.Modular.Clash
-import ConLeche.Verify.Driver.Clashes
+public import ConLeche.Verify.Driver.Clashes
+public import ConLeche.Verify.Driver.ReachFrom
 public import ConRon.Bridge.Modular.Graph
 
 public section
@@ -27,10 +28,24 @@ open ConRon.Bridge.Frontend.Olean
 open ConRon.Arena.Frontend.Olean (OleanPins)
 open ConLeche.Frontend.Olean (CEntryF CKindF bind_some_left Copy Roots OLeanLevel ModFiles)
 
+/-- con-leche: none — the loads' order and flags read back: what reading the copies needs. -/
+structure LoadsOF (st : EStore) (ld : ConRon.Arena.Frontend.Olean.HeaderLoads)
+    (ldC : ConLeche.Frontend.Olean.HeaderLoads) : Prop where
+  order : ListRel (NR st) ld.order.toList ldC.order.toList
+  flags : ld.flags = ldC.flags
+
+theorem LoadsOF.ext {st st' : EStore} (hx : Ext st st') {ld : ConRon.Arena.Frontend.Olean.HeaderLoads}
+    {ldC : ConLeche.Frontend.Olean.HeaderLoads} (h : LoadsOF st ld ldC) : LoadsOF st' ld ldC :=
+  ⟨NR_list_ext hx h.order, h.flags⟩
+
+theorem loadsOF_of {st : EStore} {ld : ConRon.Arena.Frontend.Olean.HeaderLoads}
+    {ldC : ConLeche.Frontend.Olean.HeaderLoads} (h : LoadsRel st ld ldC) : LoadsOF st ld ldC :=
+  ⟨h.order, h.flags⟩
+
 /-- The loads' name at a position, read back. -/
 theorem nameAt_den {pk : OleanPins} {st : EStore} (hnu : NullsRel st pk)
     {ld : ConRon.Arena.Frontend.Olean.HeaderLoads} {ldC : ConLeche.Frontend.Olean.HeaderLoads}
-    (h : LoadsRel st ld ldC) (i : Nat) :
+    (h : LoadsOF st ld ldC) (i : Nat) :
     denoteN st.ns (ld.nameAt pk i) = some (ldC.nameAt i) := by
   unfold ConRon.Arena.Frontend.Olean.HeaderLoads.nameAt ConLeche.Frontend.Olean.HeaderLoads.nameAt
   rw [← Array.getElem?_toList, ← Array.getElem?_toList]
@@ -87,9 +102,7 @@ theorem mapM_length {α β : Type} {f : α → Option β} :
 theorem denoteStmt_ext {st st' : EStore} (hx : Ext st st') {c : ConRon.Arena.Frontend.Olean.StmtRec}
     {z : ConstantVal} (h : denoteStmt st c = some z) : denoteStmt st' c = some z := by
   obtain ⟨h1, h2, h3⟩ := denoteStmt_parts h
-  simp only [denoteStmt, denoteN_ext h1 hx, mapM_denoteN_ext hx h2, denote_ext h3 hx,
-    Option.bind_eq_bind, Option.some_bind]
-  rcases z with ⟨a, b, c⟩; rfl
+  simp [denoteStmt, denoteN_ext h1 hx, mapM_denoteN_ext hx h2, denote_ext h3 hx]
 
 theorem CopyInfoRel.ext {st st' : EStore} (hx : Ext st st')
     {x : Copy × ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit}
@@ -104,14 +117,13 @@ theorem readInfosOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = 
     {ix : ConRon.Arena.Frontend.Olean.NameIndex} {ixC : ConLeche.Frontend.Olean.NameIndex}
     {i : Nat} {cs : Array Copy}
     {arr : Array (Copy × ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit)} {s s' : AState}
-    (hctx : Ctx pk s) (hld : LoadsRel s.store ld ldC) (hix : IndexRel s.store ix ixC)
+    (hctx : Ctx pk s) (hld : LoadsOF s.store ld ldC) (hix : IndexRel s.store ix ixC)
     (h : ConRon.Arena.Frontend.Olean.readInfosOf (modelFs F) pk sp ld ix i cs s = .ok (arr, s')) :
     ParseStep s s' ∧ ∃ arrC, ModelIO.Gives (ConLeche.Frontend.Olean.readInfosOf
         (.ofPath sp) ldC ixC (i, cs) : ModelIO _) F (.ok arrC) ∧
       ListRel (CopyInfoRel s'.store) arr.toList arrC.toList := by
   unfold ConRon.Arena.Frontend.Olean.readInfosOf at h
-  dsimp only at h
-  obtain ⟨mn, s₁, h1, h⟩ := AM.bind_ok h
+  obtain ⟨mn, s₁, h1, hA⟩ := AM.bind_ok h
   obtain ⟨rfl, hd⟩ := readName_run h1
   have hmn : mn = ldC.nameAt i := Option.some.inj (hd.symm.trans (nameAt_den hctx.nulls hld i))
   subst hmn
@@ -120,25 +132,26 @@ theorem readInfosOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = 
   have hlocs : (cs.toList.filterMap fun c => (ix.at c).map (·.loc)) =
       cs.toList.filterMap fun c => (ixC.at c).map (·.loc) := by
     congr 1; funext c; exact at_loc hix c
-  obtain ⟨fv, s₂, h2, h⟩ := AM.bind_ok h
+  obtain ⟨fv, s₂, h2, hB⟩ := AM.bind_ok hA
   cases hf : ConRon.Arena.Frontend.Olean.readFiles (modelFs F) sp (ldC.nameAt i) (ld.levelAt i) with
   | error e => rw [hf] at h2; exact (AM.fail_ok h2).elim
   | ok f =>
   rw [hf] at h2
   obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
-  obtain ⟨o1, s₃, h3, h⟩ := AM.bind_ok h
+  obtain ⟨o1, s₃, h3, hC⟩ := AM.bind_ok hB
   cases o1 with
-  | none => exact (AM.fail_ok h).elim
+  | none => exact (AM.fail_ok hC).elim
   | some ss =>
-  obtain ⟨o2, s₄, h4, h⟩ := AM.bind_ok h
+  obtain ⟨o2, s₄, h4, hD⟩ := AM.bind_ok hC
   cases o2 with
-  | none => exact (AM.fail_ok h).elim
+  | none => exact (AM.fail_ok hD).elim
   | some ks =>
   obtain ⟨hst3, ssC, hss, hds⟩ := readStmts_run hctx h3
   obtain ⟨hst4, ksC, hks, hdk⟩ := readKinds_run (hctx.step hst3) h4
-  split at h
-  · rename_i hlen
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok h
+  dsimp only at hD
+  by_cases hlen : (ss.length == cs.size && ks.length == cs.size) = true
+  · rw [ite_eq_left hlen] at hD
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hD
     refine ⟨hst3.trans hst4, cs.zip (ssC.zip ksC).toArray, ?_, ?_⟩
     · unfold ConLeche.Frontend.Olean.readInfosOf
       dsimp only
@@ -150,30 +163,31 @@ theorem readInfosOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = 
       have hl2 := mapM_length hdk
       simp only [Bool.and_eq_true, beq_iff_eq] at hlen
       have : (ssC.length == cs.size && ksC.length == cs.size) = true := by
-        simp [← hl1, ← hl2, hlen.1, hlen.2]
+        simp only [Bool.and_eq_true, beq_iff_eq]; exact ⟨hl1.trans hlen.1, hl2.trans hlen.2⟩
       simp only [this, ↓reduceIte]
       exact ModelIO.gives_pure _ _
     · rw [Array.toList_zip, Array.toList_zip]
-      simp only [List.toArray_toList]
       have := listRel_zip_info (cs := cs.toList) (list_mono (fun _ _ hy => denoteStmt_ext hst4.ext hy) _ hds) hdk
       simpa using this
-  · exact (AM.fail_ok h).elim
+  · rw [ite_eq_right hlen] at hD
+    exact (AM.fail_ok hD).elim
 
 /-! ## The groups -/
 
 /-- The twin's buckets: each the module's copies, in order. -/
 theorem buckets_fold (top : Nat) :
-    ∀ (l : List Copy) (b : Array (Array Copy)), b.size = top → (∀ c ∈ l, c.mod < top) →
+    ∀ (l : List Copy) (b : Array (Array Copy)) (hs : b.size = top), (∀ c ∈ l, c.mod < top) →
       ∀ (L : List Copy), (∀ k (hk : k < top), (b[k]'(by omega)).toList = L.filter (·.mod == k)) →
       (l.foldl (fun (b : Array (Array Copy)) c => b.modify c.mod (·.push c)) b).size = top ∧
-      ∀ k (hk : k < top), ((l.foldl (fun (b : Array (Array Copy)) c => b.modify c.mod (·.push c)) b)[k]?)
+      ∀ k, k < top → ((l.foldl (fun (b : Array (Array Copy)) c => b.modify c.mod (·.push c)) b)[k]?)
         = some ((L ++ l).filter (·.mod == k)).toArray
   | [], b, hs, _, L, hb => by
     refine ⟨hs, fun k hk => ?_⟩
     simp only [List.foldl_nil, List.append_nil]
     rw [Array.getElem?_eq_getElem (by omega)]
     congr 1
-    rw [← hb k hk]; simp
+    apply Array.ext'
+    rw [hb k hk]
   | c :: l, b, hs, hl, L, hb => by
     rw [List.foldl_cons]
     have := buckets_fold top l (b.modify c.mod (·.push c)) (by simp [hs])
@@ -226,7 +240,7 @@ theorem byModule_mem {cs : Array Copy} {i : Nat} {g : Array Copy}
   rw [hget k hk] at hm
   simp only [List.nil_append, Option.some.injEq] at hm
   subst hm
-  exact ⟨by simp, hpos⟩
+  exact ⟨by simp, by simpa using hpos⟩
 
 /-- Upstream's groups: a module's copies, in order, when it has some. -/
 theorem bmStep_get :
@@ -235,14 +249,14 @@ theorem bmStep_get :
         match m[i]? with
         | none => if l.filter (·.mod == i) = [] then none else some (l.filter (·.mod == i)).toArray
         | some a => some (a ++ (l.filter (·.mod == i)).toArray)
-  | [], m, i => by cases m[i]? <;> simp
+  | [], m, i => by cases h : m[i]? <;> simp [h]
   | c :: l, m, i => by
     rw [List.foldl_cons, bmStep_get l _ i]
     simp only [ConLeche.Driver.bmStep, Std.HashMap.getElem?_alter]
     by_cases he : c.mod = i
     · subst he
       simp only [BEq.rfl, ↓reduceIte, List.filter_cons]
-      cases m[c.mod]? <;> simp
+      cases hm : m[c.mod]? <;> simp
     · have : (c.mod == i) = false := by simpa using he
       simp only [this, Bool.false_eq_true, ↓reduceIte, List.filter_cons]
 
@@ -281,7 +295,7 @@ theorem byModule_sub {cs : Array Copy} {x : Nat × Array Copy}
     simp only [List.mem_filter, beq_iff_eq] at hc
     exact hc.2 ▸ htop c hc.1
   simp only [Array.mem_map, Array.mem_filter, Prod.exists, Prod.mk.injEq]
-  refine ⟨g, i, ⟨?_, h2⟩, rfl, rfl⟩
+  refine ⟨g, i, ⟨?_, by simpa using h2⟩, rfl, rfl⟩
   rw [Array.mem_zipIdx_iff_getElem?]
   dsimp only
   rw [hget i hi]
@@ -340,8 +354,8 @@ theorem insFold {V : Type} :
         · exact hh
 
 theorem mapExcept_gives {α β ε : Type} {F : FS} {f : α → ModelIO (Except ε β)} :
-    ∀ (l : List α), (∀ x ∈ l, ∃ y, (f x).Gives F (.ok y)) →
-      ∃ ys, (ConLeche.mapExcept f l : ModelIO _).Gives F (.ok ys)
+    ∀ (l : List α), (∀ x ∈ l, ∃ y, (f x).Gives F (Except.ok y)) →
+      ∃ ys, (ConLeche.mapExcept f l : ModelIO (Except ε (List β))).Gives F (Except.ok ys)
   | [], _ => ⟨[], ModelIO.gives_pure _ _⟩
   | x :: l, h => by
     obtain ⟨y, hy⟩ := h x List.mem_cons_self
@@ -383,11 +397,13 @@ theorem groups_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
     {ix : ConRon.Arena.Frontend.Olean.NameIndex} {ixC : ConLeche.Frontend.Olean.NameIndex} :
     ∀ (l : List (Nat × Array Copy))
       {rs : List (Array (Copy × ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit))}
-      {s s' : AState}, Ctx pk s → LoadsRel s.store ld ldC → IndexRel s.store ix ixC →
-      l.mapM (fun (x : Nat × Array Copy) => match x with
+      {s s' : AState}, Ctx pk s → LoadsOF s.store ld ldC → IndexRel s.store ix ixC →
+      l.mapM (m := AM) (fun (x : Nat × Array Copy) => match x with
         | (i, cs) => ConRon.Arena.Frontend.Olean.readInfosOf (modelFs F) pk sp ld ix i cs) s
         = .ok (rs, s') →
-      ParseStep s s' ∧ rs.length = l.length ∧ ∀ j x arr, l[j]? = some x → rs[j]? = some arr →
+      ParseStep s s' ∧ rs.length = l.length ∧ ∀ (j : Nat) (x : Nat × Array Copy)
+        (arr : Array (Copy × ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit)),
+        l[j]? = some x → rs[j]? = some arr →
         ∃ arrC, ModelIO.Gives (ConLeche.Frontend.Olean.readInfosOf (.ofPath sp) ldC ixC x :
           ModelIO _) F (.ok arrC) ∧ ListRel (CopyInfoRel s'.store) arr.toList arrC.toList
   | [], rs, s, s', hctx, _, _, h => by
@@ -401,7 +417,7 @@ theorem groups_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
     obtain ⟨rfl, rfl⟩ := AM.pure_ok h
     obtain ⟨hst1, arrC, hg, hr⟩ := readInfosOf_run hsp hctx hld hix h1
     obtain ⟨hst2, hlen, hall⟩ := groups_run hsp l (hctx.step hst1) (hld.ext hst1.ext)
-      (hix.ext hst1.ext) h2
+      (hix.ext' hst1.ext) h2
     refine ⟨hst1.trans hst2, by simp [hlen], fun j x a hx ha => ?_⟩
     cases j with
     | zero =>
@@ -428,7 +444,9 @@ theorem entry_group {F : FS} {sp : Roots} {st : EStore} {ldC : ConLeche.Frontend
     {ixC : ConLeche.Frontend.Olean.NameIndex} {l : List (Nat × Array Copy)}
     {rs : List (Array (Copy × ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit))}
     (hlen : rs.length = l.length)
-    (hall : ∀ j x arr, l[j]? = some x → rs[j]? = some arr →
+    (hall : ∀ (j : Nat) (x : Nat × Array Copy)
+      (arr : Array (Copy × ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit)),
+      l[j]? = some x → rs[j]? = some arr →
       ∃ arrC, ModelIO.Gives (ConLeche.Frontend.Olean.readInfosOf (.ofPath sp) ldC ixC x :
         ModelIO _) F (.ok arrC) ∧ ListRel (CopyInfoRel st) arr.toList arrC.toList)
     {r : Array (Copy × ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit)} (hr : r ∈ rs)
@@ -455,18 +473,23 @@ theorem readInfos_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp
     {ix : ConRon.Arena.Frontend.Olean.NameIndex} {ixC : ConLeche.Frontend.Olean.NameIndex}
     {cs : Array Copy}
     {infos : Std.HashMap Copy (ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit)}
-    {s s' : AState} (hctx : Ctx pk s) (hld : LoadsRel s.store ld ldC) (hix : IndexRel s.store ix ixC)
+    {s s' : AState} (hctx : Ctx pk s) (hld : LoadsOF s.store ld ldC) (hix : IndexRel s.store ix ixC)
     (h : ConRon.Arena.Frontend.Olean.readInfos (modelFs F) pk sp ld ix cs s = .ok (infos, s')) :
     ParseStep s s' ∧ ∃ infosC, ModelIO.Gives (ConLeche.Frontend.Olean.readInfos (.ofPath sp) ldC ixC
         1 cs : ModelIO _) F (.ok infosC) ∧ InfosRel s'.store cs infos infosC := by
   unfold ConRon.Arena.Frontend.Olean.readInfos at h
   obtain ⟨rs, s₁, h1, h2⟩ := AM.bind_ok h
-  obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
+  obtain ⟨hinf, hs⟩ := AM.pure_ok h2
+  subst hs
+  have hinf' : infos = rs.foldl (fun m r => r.foldl (fun m
+      (x : Copy × ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit) => m.insert x.1 x.2) m) {} := by
+    rw [hinf]
+  subst hinf'
   obtain ⟨hst, hlen, hall⟩ := groups_run hsp _ hctx hld hix h1
   -- each upstream group is a twin group
   have hgr : ∀ x ∈ (ConLeche.Frontend.Olean.byModule cs).toList, ∃ arr arrC,
       arr ∈ rs ∧ ModelIO.Gives (ConLeche.Frontend.Olean.readInfosOf (.ofPath sp) ldC ixC x :
-        ModelIO _) F (.ok arrC) ∧ ListRel (CopyInfoRel s₁.store) arr.toList arrC.toList := by
+        ModelIO _) F (.ok arrC) ∧ ListRel (CopyInfoRel s'.store) arr.toList arrC.toList := by
     intro x hx
     have hx' := byModule_sub (Array.mem_toList_iff.mp hx)
     obtain ⟨j, hj, hjx⟩ := List.getElem_of_mem (Array.mem_toList_iff.mpr hx')
@@ -488,7 +511,7 @@ theorem readInfos_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp
   obtain ⟨u1, u2⟩ := ConLeche.Driver.readInfos_ok hgives.canGive
   refine ⟨hst, infosC, hgives, ⟨fun c v hv => ?_, fun c hc => ?_⟩⟩
   · -- an entry of the twin's map: an entry of a group read, a requested copy
-    obtain ⟨⟨r, hr, hm⟩ | hm, -⟩ := (infosFold rs {}).1 c v hv
+    rcases (infosFold rs {}).1 c v hv with ⟨r, hr, hm⟩ | hm
     · obtain ⟨x, arrC, ⟨hxl, -⟩, -, hc⟩ := entry_group hlen hall hr hm
       have := (byModule_mem (Array.mem_toList_iff.mp hxl)).1
       rw [this] at hc
@@ -505,7 +528,7 @@ theorem readInfos_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp
     obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp ((infosFold rs {}).2 c
       (.inl ⟨arr, harr, x.2, by rw [show c = x.1 from hxr.1.symm]; exact hx⟩))
     refine ⟨v, w, hv, hw, ?_⟩
-    obtain ⟨⟨r', hr', hm⟩ | hm, -⟩ := (infosFold rs {}).1 c v hv
+    rcases (infosFold rs {}).1 c v hv with ⟨r', hr', hm⟩ | hm
     · obtain ⟨⟨i', g'⟩, arrC', ⟨hxl', hg'⟩, hrel', hc'⟩ := entry_group hlen hall hr' hm
       obtain ⟨y, hy, hyr⟩ := listRel_memL hrel' hm
       obtain ⟨ok1, -⟩ := ConLeche.Driver.readInfosOf_ok (i := i') (cs := g')
