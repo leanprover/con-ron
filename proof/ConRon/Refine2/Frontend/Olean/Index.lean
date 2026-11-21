@@ -1035,10 +1035,6 @@ theorem part_is_module_eq {ix ix'} (hix : NameIndexRel ix ix') {k : Std.U64} (hk
     rw [ei] at this
     simp [List.getElem?_eq_none this]
 
-/-- The positions of `HeaderLoads.index` fit a `usize`. -/
-def IndexFits (ld : frontend.olean.levels.HeaderLoads) : Prop :=
-  ∀ n k, toFun ld.index n = some k → k.val ≤ Std.Usize.max
-
 /-- The twin's `importsModulesOk` test of an import. -/
 def classicT (ld' : Arena.Frontend.Olean.HeaderLoads) (ix' : Arena.Frontend.Olean.NameIndex)
     (i : ConLeche.Frontend.Olean.ImportF NIdx) : Bool :=
@@ -1047,13 +1043,12 @@ def classicT (ld' : Arena.Frontend.Olean.HeaderLoads) (ix' : Arena.Frontend.Olea
   | none => false
 
 /-- **`classic_import` is the twin's test.** -/
-theorem classic_import_eq {ld ld' ix ix'} (hld : HeaderLoadsRel ld ld') (hfit : IndexFits ld)
+theorem classic_import_eq {ld ld' ix ix'} (hld : HeaderLoadsRel ld ld') (hw : IndexFits ld')
     (hix : NameIndexRel ix ix') {i : frontend.olean.spec.ImportF arena.handle.NIdx} {b}
     (h : classic_import ld ix i = ok b) : b = classicT ld' ix' (absImportF absNIdx i) := by
   rw [classic_import] at h
   peel h as o, ho
   have e := hld.index.get_eq ho
-  have e2 := ConRon.Refine.HashMap2.get_refines_gen nidx_eq2 hld.index.inv (fun _ _ => trivial) trivial ho
   rw [classicT]
   simp only [absImportF]
   rw [← e]
@@ -1062,10 +1057,15 @@ theorem classic_import_eq {ld ld' ix ix'} (hld : HeaderLoadsRel ld ld') (hfit : 
   | some k =>
     peel h as b1, hb1
     cases Result.ok_injective h
-    rw [part_is_module_eq hix (hfit _ _ (by rw [← e2])) hb1]
+    have hk : k.val ≤ Std.Usize.max := by
+      have e3 : ld'.index[absNIdx i.module]? = some k.val := by rw [← e]; rfl
+      have := hw _ _ e3
+      have := order_fits hld
+      omega
+    rw [part_is_module_eq hix hk hb1]
     simp
 
-theorem first_classic_loop_none {ld ld' ix ix'} (hld : HeaderLoadsRel ld ld') (hfit : IndexFits ld)
+theorem first_classic_loop_none {ld ld' ix ix'} (hld : HeaderLoadsRel ld ld') (hw : IndexFits ld')
     (hix : NameIndexRel ix ix') (imports : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
     (i : Std.Usize) (h : first_classic_loop ld ix imports i = ok none) :
     ∀ x ∈ (imports.val.drop i.val).map (absImportF absNIdx), classicT ld' ix' x = false := by
@@ -1076,13 +1076,13 @@ theorem first_classic_loop_none {ld ld' ix ix'} (hld : HeaderLoadsRel ld ld') (h
     peel h as x, hx
     obtain ⟨_, rfl⟩ := vec_index_eq hx
     peel h as b, hb
-    have eb := classic_import_eq hld hfit hix hb
+    have eb := classic_import_eq hld hw hix hb
     by_cases cb : b = true
     · rw [ite_eq_left cb] at h; exact absurd (Result.ok_injective h) (by simp)
     · rw [ite_eq_right cb] at h
       peel h as i2, hi2
       have ei2 := usize_succ hi2
-      have ih := first_classic_loop_none hld hfit hix imports i2 h
+      have ih := first_classic_loop_none hld hw hix imports i2 h
       rw [usize_succ hi2] at ih
       rw [List.drop_eq_getElem_cons hi, List.map_cons]
       intro q hq
@@ -1098,11 +1098,11 @@ decreasing_by
   omega
 
 /-- **`first_classic`'s `None` is `find?`'s `none`.** -/
-theorem first_classic_none {ld ld' ix ix'} (hld : HeaderLoadsRel ld ld') (hfit : IndexFits ld)
+theorem first_classic_none {ld ld' ix ix'} (hld : HeaderLoadsRel ld ld') (hw : IndexFits ld')
     (hix : NameIndexRel ix ix') {imports : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)}
     (h : first_classic ld ix imports = ok none) :
     (absImports imports).find? (classicT ld' ix') = none := by
-  have := first_classic_loop_none hld hfit hix imports 0#usize h
+  have := first_classic_loop_none hld hw hix imports 0#usize h
   rw [Array.find?_eq_none]
   intro q hq
   simpa using this q (by simpa using hq)
@@ -1160,5 +1160,294 @@ theorem name_positions_with_imports_eq {own : frontend.olean.reads.NamePositions
       simpa [absImports] using this
     rw [hne]
     simp [absNamePositions, absModHeader, absImports, e]
+
+/-! ## Copies by module -/
+
+/-- The twin's `max` step of `byModule`. -/
+def bmTop (t : Nat) (c : ConLeche.Frontend.Olean.Copy) : Nat := max t (c.mod + 1)
+
+/-- The twin's bucket step of `byModule`. -/
+def bmPush (b : _root_.Array (_root_.Array ConLeche.Frontend.Olean.Copy)) (c : ConLeche.Frontend.Olean.Copy) :
+    _root_.Array (_root_.Array ConLeche.Frontend.Olean.Copy) := b.modify c.mod (·.push c)
+
+/-- A bucket, as the twin's. -/
+@[reducible] def absB (v : alloc.vec.Vec frontend.olean.index.Copy) : _root_.Array ConLeche.Frontend.Olean.Copy :=
+  (v.val.map absCopy).toArray
+
+/-- A module's copies, as the twin's. -/
+@[reducible] def absBM (p : Std.U64 × alloc.vec.Vec frontend.olean.index.Copy) :
+    Nat × _root_.Array ConLeche.Frontend.Olean.Copy := (p.1.val, absB p.2)
+
+theorem byModule_eq (cs : _root_.Array ConLeche.Frontend.Olean.Copy) :
+    Arena.Frontend.Olean.byModule cs =
+      ((cs.toList.foldl bmPush (Array.replicate (cs.toList.foldl bmTop 0) #[])).zipIdx.filter
+        (·.1.size > 0)).map (fun p => (p.2, p.1)) := by
+  rw [Arena.Frontend.Olean.byModule, ← Array.foldl_toList, ← Array.foldl_toList]
+  rfl
+
+theorem bmTop_le (l : List ConLeche.Frontend.Olean.Copy) (t : Nat) : t ≤ l.foldl bmTop t := by
+  induction l generalizing t with
+  | nil => simp
+  | cons c l ih => simp only [List.foldl_cons]; exact Nat.le_trans (Nat.le_max_left _ _) (ih _)
+
+theorem bmTop_gt (l : List ConLeche.Frontend.Olean.Copy) (t : Nat) :
+    ∀ c ∈ l, c.mod < l.foldl bmTop t := by
+  induction l generalizing t with
+  | nil => simp
+  | cons c l ih =>
+    intro c' hc
+    simp only [List.foldl_cons]
+    rcases List.mem_cons.mp hc with rfl | hc
+    · exact Nat.lt_of_lt_of_le (by simp [bmTop]) (bmTop_le l _)
+    · exact ih _ c' hc
+
+theorem by_module_loop0_eq (cs : alloc.vec.Vec frontend.olean.index.Copy) (top : Std.U64) (i : Std.Usize)
+    {o} (h : by_module_loop0 cs top i = ok o) :
+    o.val = ((cs.val.drop i.val).map absCopy).foldl bmTop top.val := by
+  rw [by_module_loop0] at h
+  by_cases hlt : i < alloc.vec.Vec.len cs
+  · rw [ite_eq_left hlt] at h
+    have hi := lt_of_lt_len hlt
+    peel h as c, hc
+    obtain ⟨_, rfl⟩ := vec_index_eq hc
+    peel h as i2, hi2
+    have ei2 := ConRon.Refine.Nat.uadd_val hi2
+    peel h as top1, htop1
+    peel h as i3, hi3
+    have ei3 := usize_succ hi3
+    have ih := by_module_loop0_eq cs top1 i3 h
+    rw [ih, ei3, List.drop_eq_getElem_cons hi, List.map_cons, List.foldl_cons]
+    congr 1
+    simp only [bmTop]
+    by_cases g : i2 > top
+    · rw [ite_eq_left g] at htop1
+      have := ConRon.Refine.Nat.uadd_val htop1
+      have g' : top.val < i2.val := g
+      rw [this]; simp at ei2 this ⊢; omega
+    · rw [ite_eq_right g] at htop1
+      cases Result.ok_injective htop1
+      have g' : ¬ top.val < i2.val := g
+      simp at ei2; omega
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (lt_of_not_lt_len hlt)]
+    rfl
+termination_by cs.val.length - i.val
+decreasing_by
+  have := lt_of_lt_len hlt
+  omega
+
+theorem by_module_loop1_eq (top : Std.U64) (buckets : alloc.vec.Vec (alloc.vec.Vec frontend.olean.index.Copy))
+    (b : Std.U64) {o} (h : by_module_loop1 top buckets b = ok o) :
+    o.val = buckets.val ++ List.replicate (top.val - b.val) (alloc.vec.Vec.new _) := by
+  rw [by_module_loop1] at h
+  by_cases hlt : b < top
+  · rw [ite_eq_left hlt] at h
+    have hlt' : b.val < top.val := hlt
+    peel h as buckets1, hb1
+    peel h as b1, hbb1
+    have eb1 := ConRon.Refine.Nat.uadd_val hbb1
+    have ih := by_module_loop1_eq top buckets1 b1 h
+    rw [ih, ConRon.Refine.vec_push_val hb1, eb1]
+    have : top.val - b.val = (top.val - (b.val + (1#u64 : Std.U64).val)) + 1 := by simp; omega
+    rw [this, List.replicate_succ]
+    simp
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have hlt' : ¬ b.val < top.val := hlt
+    rw [show top.val - b.val = 0 by omega]
+    simp
+termination_by top.val - b.val
+decreasing_by
+  have := ConRon.Refine.Nat.uadd_val hbb1
+  simp at this
+  omega
+
+theorem by_module_loop2_eq (cs : alloc.vec.Vec frontend.olean.index.Copy)
+    (buckets : alloc.vec.Vec (alloc.vec.Vec frontend.olean.index.Copy)) (j : Std.Usize)
+    (hlen : ∀ c ∈ cs.val, c.module.val < buckets.val.length)
+    (hfit : ∀ v ∈ buckets.val, ∀ c ∈ v.val, CopyFits c) (hcs : ∀ c ∈ cs.val, CopyFits c)
+    {o} (h : by_module_loop2 cs buckets j = ok o) :
+    o.val.map absB = (((cs.val.drop j.val).map absCopy).foldl bmPush (buckets.val.map absB).toArray).toList ∧
+      ∀ v ∈ o.val, ∀ c ∈ v.val, CopyFits c := by
+  rw [by_module_loop2] at h
+  by_cases hlt : j < alloc.vec.Vec.len cs
+  · rw [ite_eq_left hlt] at h
+    have hj := lt_of_lt_len hlt
+    peel h as c, hc
+    obtain ⟨_, rfl⟩ := vec_index_eq hc
+    have hcm := hlen _ (List.getElem_mem hj)
+    peel h as i1, hi1
+    have ei1 : i1.val = (cs.val[j.val]).module.val := by
+      rw [← Result.ok_injective hi1]
+      exact cast_usize_val (by have := vec_len_le_max buckets; omega)
+    peel h as q, hq
+    obtain ⟨v, back⟩ := q
+    have : Inhabited (alloc.vec.Vec frontend.olean.index.Copy) := ⟨alloc.vec.Vec.new _⟩
+    obtain ⟨hlt1, hv, rfl⟩ := ConRon.Refine.HashMap.vec_index_mut_eq hq
+    peel h as c1, hc1
+    cases copy_dup2_ok hc1
+    peel h as v1, hv1
+    peel h as j1, hj1
+    have ej1 := usize_succ hj1
+    have hlt1' : i1.val < buckets.val.length := hlt1
+    have hve : v = buckets.val[i1.val] := by rw [hv]; simp [hlt1']
+    have hlen' : ∀ c ∈ cs.val, c.module.val < (alloc.vec.Vec.set buckets i1 v1).val.length := by
+      rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen
+    have hfit' : ∀ w ∈ (alloc.vec.Vec.set buckets i1 v1).val, ∀ c ∈ w.val, CopyFits c := by
+      rw [alloc.vec.Vec.set_val_eq]
+      intro w hw c' hc'
+      rcases List.mem_or_eq_of_mem_set hw with hw | rfl
+      · exact hfit w hw c' hc'
+      · rw [ConRon.Refine.vec_push_val hv1] at hc'
+        rcases List.mem_append.mp hc' with hc' | hc'
+        · exact hfit _ (hve ▸ List.getElem_mem hlt1') c' hc'
+        · rw [List.mem_singleton.mp hc']; exact hcs _ (List.getElem_mem hj)
+    have ih := by_module_loop2_eq cs _ j1 hlen' hfit' hcs h
+    rw [ej1] at ih
+    refine ⟨?_, ih.2⟩
+    rw [ih.1, List.drop_eq_getElem_cons hj, List.map_cons, List.foldl_cons]
+    congr 2
+    apply Array.ext'
+    rw [alloc.vec.Vec.set_val_eq, bmPush, Array.toList_modify, List.toList_toArray]
+    simp only [absCopy]
+    rw [← ei1]
+    apply map_set_eq_modify _ _ _ _ _ hlt1'
+    simp [absB, ConRon.Refine.vec_push_val hv1, ei1, hve]
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (lt_of_not_lt_len hlt)]
+    exact ⟨by simp, hfit⟩
+termination_by cs.val.length - j.val
+decreasing_by
+  have := lt_of_lt_len hlt
+  omega
+
+theorem by_module_loop3_eq (buckets : alloc.vec.Vec (alloc.vec.Vec frontend.olean.index.Copy))
+    (out : alloc.vec.Vec (Std.U64 × alloc.vec.Vec frontend.olean.index.Copy)) (k : Std.Usize)
+    (hfit : ∀ v ∈ buckets.val, ∀ c ∈ v.val, CopyFits c)
+    (hout : ∀ p ∈ out.val, p.1.val ≤ Std.Usize.max ∧ ∀ c ∈ p.2.val, CopyFits c)
+    {o} (h : by_module_loop3 buckets out k = ok o) :
+    o.val.map absBM = out.val.map absBM ++ ((((buckets.val.drop k.val).map absB).zipIdx k.val).filter
+        (·.1.size > 0)).map (fun p => (p.2, p.1)) ∧
+      ∀ p ∈ o.val, p.1.val ≤ Std.Usize.max ∧ ∀ c ∈ p.2.val, CopyFits c := by
+  rw [by_module_loop3] at h
+  by_cases hlt : k < alloc.vec.Vec.len buckets
+  · rw [ite_eq_left hlt] at h
+    have hk := lt_of_lt_len hlt
+    peel h as v, hv
+    obtain ⟨_, rfl⟩ := vec_index_eq hv
+    peel h as q, hq
+    obtain ⟨buckets1, out1⟩ := q
+    peel h as k1, hk1
+    have ek1 := usize_succ hk1
+    have hdrop : buckets1.val.drop (k.val + 1) = buckets.val.drop (k.val + 1) ∧
+        buckets1.val.length = buckets.val.length ∧
+        (∀ v ∈ buckets1.val, ∀ c ∈ v.val, CopyFits c) ∧
+        out1.val.map absBM = out.val.map absBM ++
+          ((([absB buckets.val[k.val]].zipIdx k.val).filter (·.1.size > 0)).map (fun p => (p.2, p.1))) ∧
+        ∀ p ∈ out1.val, p.1.val ≤ Std.Usize.max ∧ ∀ c ∈ p.2.val, CopyFits c := by
+      by_cases g : alloc.vec.Vec.len buckets.val[k.val] > 0#usize
+      · rw [ite_eq_left g] at hq
+        have g' : 0 < buckets.val[k.val].val.length := by
+          have : (0#usize : Std.Usize).val < (alloc.vec.Vec.len buckets.val[k.val]).val := g
+          rw [vec_len_val] at this; simpa using this
+        peel hq as i2, hi2
+        have ei2 : i2.val = k.val := by rw [← Result.ok_injective hi2, cast_u64_val]
+        peel hq as r, hr
+        obtain ⟨v1, back⟩ := r
+        have : Inhabited (alloc.vec.Vec frontend.olean.index.Copy) := ⟨alloc.vec.Vec.new _⟩
+        obtain ⟨-, hv1, rfl⟩ := ConRon.Refine.HashMap.vec_index_mut_eq hr
+        have hv1' : v1 = buckets.val[k.val] := by rw [hv1]; simp [hk]
+        subst hv1'
+        simp only [core.mem.replace] at hq
+        peel hq as out2, hout2
+        have e := Result.ok_injective hq
+        simp only [Prod.mk.injEq] at e
+        obtain ⟨e1, e2⟩ := e
+        subst e1 e2
+        refine ⟨?_, ?_, ?_, ?_, ?_⟩
+        · rw [alloc.vec.Vec.set_val_eq, List.drop_set_of_lt]; omega
+        · rw [alloc.vec.Vec.set_val_eq, List.length_set]
+        · rw [alloc.vec.Vec.set_val_eq]
+          intro w hw c' hc'
+          rcases List.mem_or_eq_of_mem_set hw with hw | rfl
+          · exact hfit w hw c' hc'
+          · cases hc'
+        · rw [ConRon.Refine.vec_push_val hout2]
+          simp [List.zipIdx_cons, ei2, g']
+        · rw [ConRon.Refine.vec_push_val hout2]
+          intro p hp
+          rcases List.mem_append.mp hp with hp | hp
+          · exact hout p hp
+          · rw [List.mem_singleton.mp hp]
+            exact ⟨by rw [ei2]; exact usize_le_max k, hfit _ (List.getElem_mem hk)⟩
+      · rw [ite_eq_right g] at hq
+        have e := Result.ok_injective hq
+        simp only [Prod.mk.injEq] at e
+        obtain ⟨e1, e2⟩ := e
+        subst e1 e2
+        have g' : buckets.val[k.val].val.length = 0 := by
+          have : ¬ (0#usize : Std.Usize).val < (alloc.vec.Vec.len buckets.val[k.val]).val := g
+          rw [vec_len_val] at this; exact Nat.eq_zero_of_not_pos (by simpa using this)
+        refine ⟨rfl, rfl, hfit, ?_, hout⟩
+        simp [List.zipIdx_cons, g']
+    obtain ⟨hd, hl1, hf1, ho1, hp1⟩ := hdrop
+    have ih := by_module_loop3_eq buckets1 out1 k1 hf1 hp1 h
+    rw [ek1, hd] at ih
+    refine ⟨?_, ih.2⟩
+    rw [ih.1, ho1, List.drop_eq_getElem_cons hk, List.map_cons, List.zipIdx_cons]
+    simp [List.filter_cons]
+    split <;> simp
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (lt_of_not_lt_len hlt)]
+    exact ⟨by simp, hout⟩
+termination_by buckets.val.length - k.val
+decreasing_by
+  have := lt_of_lt_len hlt
+  rw [hl1]
+  omega
+
+
+/-- **`by_module` is `byModule`**, its positions fitting a `usize` and its copies the input's. -/
+theorem by_module_eq {cs : alloc.vec.Vec frontend.olean.index.Copy} (hcs : ∀ c ∈ cs.val, CopyFits c)
+    {o} (h : by_module cs = ok o) :
+    o.val.map absBM = (Arena.Frontend.Olean.byModule (cs.val.map absCopy).toArray).toList ∧
+      ∀ p ∈ o.val, p.1.val ≤ Std.Usize.max ∧ ∀ c ∈ p.2.val, CopyFits c := by
+  rw [by_module] at h
+  peel h as top, htop
+  have et := by_module_loop0_eq cs 0#u64 0#usize htop
+  peel h as i, -
+  peel h as b1, hb1
+  have eb1 := by_module_loop1_eq top _ 0#u64 hb1
+  have e0 : (alloc.vec.Vec.with_capacity (alloc.vec.Vec frontend.olean.index.Copy) i).val = [] := rfl
+  rw [e0, List.nil_append] at eb1
+  have ez : (0#u64 : Std.U64).val = 0 := rfl
+  rw [ez, Nat.sub_zero] at eb1
+  have hlen : ∀ c ∈ cs.val, c.module.val < b1.val.length := by
+    intro c hc
+    rw [eb1, List.length_replicate, et]
+    exact bmTop_gt _ _ (absCopy c) (List.mem_map_of_mem hc)
+  have hfit : ∀ v ∈ b1.val, ∀ c ∈ v.val, CopyFits c := by
+    intro v hv c hc
+    rw [eb1] at hv
+    rw [List.eq_of_mem_replicate hv] at hc
+    cases hc
+  peel h as b2, hb2
+  obtain ⟨e2, f2⟩ := by_module_loop2_eq cs b1 0#usize hlen hfit hcs hb2
+  have e3 := by_module_loop3_eq b2 _ 0#usize f2 (by intro p hp; cases hp) h
+  refine ⟨?_, e3.2⟩
+  have z : (0#usize : Std.Usize).val = 0 := rfl
+  have er : (b1.val.map absB).toArray = Array.replicate top.val #[] := by
+    apply Array.ext'; rw [eb1]; simp [absB]
+  rw [er, z, List.drop_zero] at e2
+  rw [z, ez, List.drop_zero] at et
+  rw [et] at e2
+  rw [e3.1, byModule_eq, z, List.drop_zero]
+  have e4 : (alloc.vec.Vec.new (Std.U64 × alloc.vec.Vec frontend.olean.index.Copy)).val = [] := rfl
+  rw [e4, List.toList_toArray]
+  simp only [Array.toList_map, Array.toList_filter, Array.toList_zipIdx, ← e2, List.map_nil,
+    List.nil_append]
 
 end ConRon.Refine2.Frontend.Olean
