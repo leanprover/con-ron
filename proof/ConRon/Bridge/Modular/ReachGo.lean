@@ -31,8 +31,8 @@ the record persistent. -/
     {envC : ConLeche.Driver.ReachEnv ModelIO} {c c' : ConRon.Arena.Modular.ReachCache}
     {cC : ConLeche.Driver.ReachCache} {x : NIdx} {xC : ConLeche.Name} {s s' : AState}
     {d : IDeclaration} {h : NIdx},
-    sp.bare = sp → RCtx pk s → EnvRel sp s.store env envC → CacheRel s.store c cC →
-    denoteN s.store.ns x = some xC →
+    sp.bare = sp → RCtx pk s → PinsRel s.store pk → EnvRel sp s.store env envC →
+    CacheRel s.store c cC → denoteN s.store.ns x = some xC →
     ConRon.Arena.Modular.readRecord (modelFs F) pk sp env c x s = .ok ((c', d, h), s') →
     DStep s s' ∧ PersDecl d ∧ ∃ cC' dC hC,
       ModelIO.Gives (ConLeche.Driver.readRecord envC cC xC) F (cC', .ok (dC, hC)) ∧
@@ -165,7 +165,8 @@ theorem reachRead_run (hRR : ReadRecordHyp) {pk : OleanPins} {F : FS} {sp : Root
     {LC : ConLeche.Driver.ReachLog} {c c' : ConRon.Arena.Modular.ReachCache}
     {cC : ConLeche.Driver.ReachCache} {x : NIdx} {xC : ConLeche.Name}
     {restC : List ConLeche.Name} {s s' : AState}
-    (hctx : RCtx pk s) (he : EnvRel sp s.store env envC) (hc : CacheRel s.store c cC)
+    (hctx : RCtx pk s) (hpk : PinsRel s.store pk) (he : EnvRel sp s.store env envC)
+    (hc : CacheRel s.store c cC)
     (hL : ReachLogRel s.store L { LC with stack := restC }) (hst : LC.stack = xC :: restC)
     (hx : denoteN s.store.ns x = some xC) (hpL : ∀ d ∈ L.ctx.toList, PersDecl d)
     (hsz : L.homes.size = L.ctx.size)
@@ -197,7 +198,7 @@ theorem reachRead_run (hRR : ReadRecordHyp) {pk : OleanPins} {F : FS} {sp : Root
   subst s₀
   -- the record
   obtain ⟨⟨c₁, d, hh⟩, s₁, h1, h⟩ := AM.bind_ok h
-  obtain ⟨hst1, hpd, cC₁, dC, hC, hg1, hc1, hd1, hh1⟩ := hRR hsp hctx he hc hx h1
+  obtain ⟨hst1, hpd, cC₁, dC, hC, hg1, hc1, hd1, hh1⟩ := hRR hsp hctx hpk he hc hx h1
   have hctx1 := hctx.step hst1
   have hw1 := hctx1.wf
   -- its names
@@ -361,14 +362,14 @@ theorem reachGo_run (hRR : ReadRecordHyp) {pk : OleanPins} {F : FS} {sp : Roots}
     {envC : ConLeche.Driver.ReachEnv ModelIO} :
     ∀ (fuel : Nat) {L L' : ConRon.Arena.Modular.ReachLog} {LC : ConLeche.Driver.ReachLog}
       {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache} {s s' : AState}
-      (fuelC : Nat), fuel ≤ fuelC → RCtx pk s → EnvRel sp s.store env envC →
+      (fuelC : Nat), fuel ≤ fuelC → RCtx pk s → PinsRel s.store pk → EnvRel sp s.store env envC →
       CacheRel s.store c cC → ReachLogRel s.store L LC → (∀ d ∈ L.ctx.toList, PersDecl d) →
       L.homes.size = L.ctx.size →
       ConRon.Arena.Modular.reachGo (modelFs F) pk sp env fuel L c s = .ok ((L', c'), s') →
       DStep s s' ∧ (∀ d ∈ L'.ctx.toList, PersDecl d) ∧ L'.homes.size = L'.ctx.size ∧ ∃ LC' cC',
         ModelIO.Gives (ConLeche.Driver.reachGo envC fuelC LC cC) F (.ok (LC', cC')) ∧
         ReachLogRel s'.store L' LC' ∧ CacheRel s'.store c' cC'
-  | fuel, L, L', LC, c, c', cC, s, s', fuelC, hle, hctx, he, hc, hL, hpL, hsz, h => by
+  | fuel, L, L', LC, c, c', cC, s, s', fuelC, hle, hctx, hpk, he, hc, hL, hpL, hsz, h => by
     have hpe : c.partners.isEmpty = cC.partners.isEmpty := by
       have hsz : c.partners.size = cC.partners.size := by simpa using listRel_length hc.partners
       unfold Array.isEmpty
@@ -398,7 +399,7 @@ theorem reachGo_run (hRR : ReadRecordHyp) {pk : OleanPins} {F : FS} {sp : Roots}
           have hctx1 := hctx.step hst1
           obtain ⟨k, rfl⟩ : ∃ k, fuelC = k + 1 := ⟨fuelC - 1, by omega⟩
           obtain ⟨hst2, hp2, hsz2, LC', cC', hg, hL', hc'⟩ := reachGo_run hRR hsp f k (by omega) hctx1
-            (he.ext hst1.ext hctx1.wf) hc1 hL1 (by rw [hctxL]; exact hpL) (by rw [hctxL, hhomL]; exact hsz) h
+            (hpk.ext hst1.ext) (he.ext hst1.ext hctx1.wf) hc1 hL1 (by rw [hctxL]; exact hpL) (by rw [hctxL, hhomL]; exact hsz) h
           exact ⟨hst1.trans hst2, hp2, hsz2, LC', cC', hstep k _ hg, hL', hc'⟩
     · rw [hLs] at hrs
       generalize hq : LC.stack = lsC at hrs
@@ -414,11 +415,11 @@ theorem reachGo_run (hRR : ReadRecordHyp) {pk : OleanPins} {F : FS} {sp : Roots}
           have hL0 : ReachLogRel s.store { L with stack := rest } { LC with stack := restC } :=
             ⟨hL.seen, hL.stored, hL.ctx, hL.homes, hL.reads, hrest⟩
           obtain ⟨hst1, hp1, hsz1, LC₁, cC₁, hL1, hc1, hstep⟩ :=
-            reachRead_run hRR hsp hctx he hc hL0 hq hx hpL hsz h1
+            reachRead_run hRR hsp hctx hpk he hc hL0 hq hx hpL hsz h1
           have hctx1 := hctx.step hst1
           obtain ⟨k, rfl⟩ : ∃ k, fuelC = k + 1 := ⟨fuelC - 1, by omega⟩
           obtain ⟨hst2, hp2, hsz2, LC', cC', hg, hL', hc'⟩ := reachGo_run hRR hsp f k (by omega) hctx1
-            (he.ext hst1.ext hctx1.wf) hc1 hL1 hp1 hsz1 h
+            (hpk.ext hst1.ext) (he.ext hst1.ext hctx1.wf) hc1 hL1 hp1 hsz1 h
           exact ⟨hst1.trans hst2, hp2, hsz2, LC', cC', hstep k _ hg, hL', hc'⟩
 
 /-! ## The reach's fuel -/
@@ -538,7 +539,7 @@ theorem reachRunHyp_holds' (hRR : ReadRecordHyp) : ReachRunHyp := by
     have h2' : wr.index.more.size = wrC.index.more.size := by
       simpa using listRel_length hwr.index.more
     omega
-  obtain ⟨hst2, hpL, hszL, LC, cC₂, hg2, hL, hc2⟩ := reachGo_run hRR hsp _ _ hfuel hctx1 he1 hc1
+  obtain ⟨hst2, hpL, hszL, LC, cC₂, hg2, hL, hc2⟩ := reachGo_run hRR hsp _ _ hfuel hctx1 (hpk.ext hst1.ext) he1 hc1
     (init_rel hw1 hrs) (by simp [ConRon.Arena.Modular.ReachLog.init]) (by simp [ConRon.Arena.Modular.ReachLog.init]) h2
   have hctx2 := hctx1.step hst2
   -- the read order
@@ -585,5 +586,15 @@ theorem reachRunHyp_holds' (hRR : ReadRecordHyp) : ReachRunHyp := by
     simp only [ConLeche.Driver.validateCtx, hallC, ↓reduceIte]
     rw [show fl (o.map (LC.ctx.getD · default)).toList cC₂.pending.toList = .ok () from hfl]
     exact ModelIO.gives_pure _ _
+
+
+/-- con-leche: ConLeche/Driver/Reach.lean:693-729 readRecord — **the record read at `x`**
+(`readRecord_run`). -/
+theorem readRecordHyp_holds : ReadRecordHyp :=
+  fun hsp hctx hpk he hc hx h => readRecord_run hsp hctx hpk he hc hx h
+
+/-- con-leche: ConLeche/Driver/Reach.lean:937-968 reachWith — **Theorem 1 of the reach**: the twin's
+reach is upstream's under every flag inference accepting its pending statements. -/
+theorem reachRunHyp_holds : ReachRunHyp := reachRunHyp_holds' readRecordHyp_holds
 
 end ConRon.Bridge.Modular
