@@ -254,4 +254,275 @@ theorem memoAdd_runR {pk : OleanPins} {r : Region} {k : UInt8} (hk : IsKind k) {
     obtain ⟨rfl, rfl⟩ := AM.pure_ok h
     exact ⟨ParseStep.refl hctx.ok, hm⟩
 
+theorem memoAddAll_runR {pk : OleanPins} {r : Region} {k : UInt8} (hk : IsKind k) :
+    ∀ (vs : List UInt64) {m m' : SM} {s s' : AState}, Ctx pk s → SMGood s.store r m →
+      ConRon.Arena.Frontend.Olean.memoAddAll pk r k m vs s = .ok (m', s') →
+      ParseStep s s' ∧ SMGood s'.store r m'
+  | [], m, m', s, s', hctx, hm, h => by
+    rw [ConRon.Arena.Frontend.Olean.memoAddAll] at h
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h
+    exact ⟨ParseStep.refl hctx.ok, hm⟩
+  | v :: vs, m, m', s, s', hctx, hm, h => by
+    rw [ConRon.Arena.Frontend.Olean.memoAddAll] at h
+    obtain ⟨m₁, s₁, h1, h2⟩ := AM.bind_ok h
+    obtain ⟨hst1, hg1⟩ := memoAdd_runR hk hctx hm h1
+    obtain ⟨hst2, hg2⟩ := memoAddAll_runR hk vs (hctx.step hst1) hg1 h2
+    exact ⟨hst1.trans hst2, hg2⟩
+
+theorem memoRoots_runR {pk : OleanPins} {r : Region} {m m' : SM} {sk : CEntryF UInt64 UInt64}
+    {s s' : AState} (hctx : Ctx pk s) (hm : SMGood s.store r m)
+    (h : ConRon.Arena.Frontend.Olean.memoRoots pk r m sk s = .ok (m', s')) :
+    ParseStep s s' ∧ SMGood s'.store r m' := by
+  unfold ConRon.Arena.Frontend.Olean.memoRoots at h
+  obtain ⟨m₁, s₁, h1, h2⟩ := AM.bind_ok h
+  obtain ⟨hst1, hg1⟩ := memoAddAll_runR (Or.inl rfl) _ hctx hm h1
+  obtain ⟨hst2, hg2⟩ := memoAddAll_runR (Or.inr (Or.inr (Or.inl rfl))) _ (hctx.step hst1) hg1 h2
+  exact ⟨hst1.trans hst2, hg2⟩
+
+/-! ## Reads off the memo -/
+
+theorem memoName_runR {pk : OleanPins} {r : Region} {m : SM} {v : UInt64} {x : NIdx}
+    {s s' : AState} (hctx : Ctx pk s) (hm : SMGood s.store r m)
+    (h : ConRon.Arena.Frontend.Olean.memoName pk r m v s = .ok (some x, s')) :
+    ParseStep s s' ∧ ∃ n, nameP r v = some n ∧ denoteN s'.store.ns x = some n := by
+  generalize hF : ConRon.Arena.Frontend.Olean.memoName pk r m v = f at h
+  unfold ConRon.Arena.Frontend.Olean.memoName at hF
+  by_cases hv : (v == 1) = true
+  · rw [ite_eq_left_of_eq_true _ _ (eq_true hv)] at hF
+    subst hF
+    obtain ⟨hx, rfl⟩ := AM.pure_ok h
+    cases hx
+    exact ⟨ParseStep.refl hctx.ok, .anonymous, by simp [nameP, hv], hctx.nulls.anon⟩
+  · rw [ite_eq_right_of_eq_false _ _ (eq_false hv)] at hF
+    split at hF
+    · rename_i c hc
+      split at hF
+      · rename_i n hn
+        subst hF
+        obtain ⟨hx, rfl⟩ := AM.pure_ok h
+        cases hx
+        obtain ⟨z, hz, hd⟩ := hm.names c x hn
+        refine ⟨ParseStep.refl hctx.ok, z, ?_, hd⟩
+        simp only [nameP, hv, Bool.false_eq_true, ↓reduceIte, hc]
+        exact hz
+      · subst hF
+        exact sparseNameP_run hctx.ok hctx.nulls h
+    · subst hF
+      cases (AM.pure_ok h).1
+
+theorem frontierExpr_runR {pk : OleanPins} {r : Region} {c : Nat} {e : EIdx} {s s' : AState}
+    (hctx : Ctx pk s)
+    (h : ConRon.Arena.Frontend.Olean.frontierExpr pk r {} c s = .ok (some e, s')) :
+    ParseStep s s' ∧ ∃ x, exprAt r c = some x ∧ denoteE s'.store e = some x := by
+  unfold ConRon.Arena.Frontend.Olean.frontierExpr at h
+  obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok h
+  cases o with
+  | none => cases (AM.pure_ok h2).1
+  | some sm =>
+  obtain ⟨hv, rfl⟩ := AM.pure_ok h2
+  obtain ⟨hst, hG, -, -⟩ := sGo_run c hctx.ok hctx.nulls (Or.inr (Or.inr (Or.inl rfl)))
+    (SMGood.empty _ r) (FrontierGood.empty _ _) h1
+  exact ⟨hst, lookup_good hG.exprs (FrontierGood.empty _ r).exprs hv.symm⟩
+
+theorem memoExpr_runR {pk : OleanPins} {r : Region} {m : SM} {v : UInt64} {x : EIdx}
+    {s s' : AState} (hctx : Ctx pk s) (hm : SMGood s.store r m)
+    (h : ConRon.Arena.Frontend.Olean.memoExpr pk r m v s = .ok (some x, s')) :
+    ParseStep s s' ∧ ∃ e, exprP r v = some e ∧ denoteE s'.store x = some e := by
+  generalize hF : ConRon.Arena.Frontend.Olean.memoExpr pk r m v = f at h
+  unfold ConRon.Arena.Frontend.Olean.memoExpr at hF
+  split at hF
+  · rename_i c hc
+    split at hF
+    · rename_i e he
+      subst hF
+      obtain ⟨hx, rfl⟩ := AM.pure_ok h
+      cases hx
+      obtain ⟨z, hz, hd⟩ := hm.exprs c x he
+      exact ⟨ParseStep.refl hctx.ok, z, by simp only [exprP, hc]; exact hz, hd⟩
+    · subst hF
+      unfold ConRon.Arena.Frontend.Olean.sparseExprP at h
+      rw [hc] at h
+      obtain ⟨hst, z, hz, hd⟩ := frontierExpr_runR hctx h
+      exact ⟨hst, z, by simp only [exprP, hc]; exact hz, hd⟩
+  · subst hF
+    cases (AM.pure_ok h).1
+
+/-! ## A constant's every pointer, read with effects -/
+
+theorem optT_list_runX {α β γ : Type} {pk : OleanPins} {s₀ : AState} {den : EStore → β → Option γ}
+    {f : α → OptionT AM β} {g : α → Option γ}
+    (hden : ∀ {st st' : EStore} {y : β} {z : γ}, Ext st st' → den st y = some z → den st' y = some z)
+    (hstep : ∀ a s s' y, Ctx pk s → Ext s₀.store s.store → f a s = .ok (some y, s') →
+      ParseStep s s' ∧ ∃ z, g a = some z ∧ den s'.store y = some z) :
+    ∀ (l : List α) {ys : List β} {s s' : AState}, Ctx pk s → Ext s₀.store s.store →
+      l.mapM f s = .ok (some ys, s') →
+      ParseStep s s' ∧ ∃ zs, l.mapM g = some zs ∧ ys.mapM (den s'.store) = some zs := by
+  intro l
+  induction l with
+  | nil =>
+    intro ys s s' hctx _ h
+    simp only [List.mapM_nil] at h
+    obtain ⟨hv, hs⟩ := AM.pure_ok h
+    cases hv
+    subst hs
+    exact ⟨ParseStep.refl hctx.ok, [], rfl, rfl⟩
+  | cons x l ih =>
+    intro ys s s' hctx hx0 h
+    simp only [List.mapM_cons] at h
+    obtain ⟨y, s₁, h1, h⟩ := OT.bind_ok h
+    obtain ⟨ys', s₂, h2, h⟩ := OT.bind_ok h
+    obtain ⟨hv, hs⟩ := AM.pure_ok h
+    cases hv
+    subst hs
+    obtain ⟨hst1, z, hz, hd⟩ := hstep x s s₁ y hctx hx0 h1
+    obtain ⟨hst2, zs, hzs, hds⟩ := ih (hctx.step hst1) (hx0.trans hst1.ext) h2
+    refine ⟨hst1.trans hst2, z :: zs, ?_, ?_⟩
+    · simp only [List.mapM_cons, hz, hzs]; rfl
+    · simp only [List.mapM_cons, hden hst2.ext hd, hds]; rfl
+
+/-- con-leche: ConLeche/Frontend/Olean/Spec.lean:275-296 CKindF.mapM — a kind read pointer by
+pointer, with effects, upstream's. -/
+theorem kindMapT_run {pk : OleanPins} {s₀ : AState} {fn : UInt64 → AM (Option NIdx)}
+    {fe : UInt64 → AM (Option EIdx)} {gn : UInt64 → Option ConLeche.Name} {ge : UInt64 → Option Expr}
+    (hn : ∀ a s s' y, Ctx pk s → Ext s₀.store s.store → fn a s = .ok (some y, s') →
+      ParseStep s s' ∧ ∃ z, gn a = some z ∧ denoteN s'.store.ns y = some z)
+    (he : ∀ a s s' y, Ctx pk s → Ext s₀.store s.store → fe a s = .ok (some y, s') →
+      ParseStep s s' ∧ ∃ z, ge a = some z ∧ denoteE s'.store y = some z)
+    (kind : CKindF UInt64 UInt64) {k : CKindF NIdx EIdx} {s s' : AState} (hctx : Ctx pk s)
+    (hx0 : Ext s₀.store s.store)
+    (h : (kind.mapM (m := OptionT AM) (fun v => OptionT.mk (fn v)) (fun v => OptionT.mk (fe v))) s
+      = .ok (some k, s')) :
+    ParseStep s s' ∧ ∃ kC, kind.mapM gn ge = some kC ∧
+      k.mapM (denoteN s'.store.ns) (denoteE s'.store) = some kC := by
+  have hdN : ∀ {st st' : EStore} {y : NIdx} {z : ConLeche.Name}, Ext st st' →
+      denoteN st.ns y = some z → denoteN st'.ns y = some z := fun hx hy => denoteN_ext hy hx
+  have hlist := fun (l : List UInt64) {ys : List NIdx} {s s' : AState} (hc : Ctx pk s)
+      (hx : Ext s₀.store s.store)
+      (h : l.mapM (m := OptionT AM) (fun v => OptionT.mk (fn v)) s = .ok (some ys, s')) =>
+    optT_list_runX (den := fun st => denoteN st.ns) (g := gn) hdN
+      (fun a s s' y hc hx h => hn a s s' y hc hx h) l hc hx h
+  cases kind with
+  | ax u =>
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h
+    exact ⟨ParseStep.refl hctx.ok, _, rfl, rfl⟩
+  | quot u =>
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h
+    exact ⟨ParseStep.refl hctx.ok, _, rfl, rfl⟩
+  | defn v hh sf =>
+    simp only [CKindF.mapM] at h
+    obtain ⟨a, s₁, h1, h2⟩ := OT.bind_ok h
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h2
+    obtain ⟨hst, z, hz, hd⟩ := he v s _ a hctx hx0 h1
+    exact ⟨hst, .defn z hh sf, by simp [CKindF.mapM, hz, bind, Option.bind, pure],
+      by simp [CKindF.mapM, hd, bind, Option.bind, pure]⟩
+  | opaq v u =>
+    simp only [CKindF.mapM] at h
+    obtain ⟨a, s₁, h1, h2⟩ := OT.bind_ok h
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h2
+    obtain ⟨hst, z, hz, hd⟩ := he v s _ a hctx hx0 h1
+    exact ⟨hst, .opaq z u, by simp [CKindF.mapM, hz, bind, Option.bind, pure],
+      by simp [CKindF.mapM, hd, bind, Option.bind, pure]⟩
+  | thm v all =>
+    simp only [CKindF.mapM] at h
+    obtain ⟨a, s₁, h1, h2⟩ := OT.bind_ok h
+    obtain ⟨ns, s₂, h3, h4⟩ := OT.bind_ok h2
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h4
+    obtain ⟨hst1, z, hz, hd⟩ := he v s _ a hctx hx0 h1
+    obtain ⟨hst2, zs, hzs, hds⟩ := hlist all (hctx.step hst1) (hx0.trans hst1.ext) h3
+    refine ⟨hst1.trans hst2, .thm z zs, ?_, ?_⟩
+    · simp [CKindF.mapM, hz, hzs, bind, Option.bind, pure]
+    · simp [CKindF.mapM, denote_ext hd hst2.ext, hds, bind, Option.bind, pure]
+  | induct np ni all cs nn ir iu irf =>
+    simp only [CKindF.mapM] at h
+    obtain ⟨as, s₁, h1, h2⟩ := OT.bind_ok h
+    obtain ⟨bs, s₂, h3, h4⟩ := OT.bind_ok h2
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h4
+    obtain ⟨hst1, zs, hz, hd⟩ := hlist all hctx hx0 h1
+    obtain ⟨hst2, ws, hw, hdw⟩ := hlist cs (hctx.step hst1) (hx0.trans hst1.ext) h3
+    refine ⟨hst1.trans hst2, .induct np ni zs ws nn ir iu irf, ?_, ?_⟩
+    · simp [CKindF.mapM, hz, hw, bind, Option.bind, pure]
+    · simp [CKindF.mapM, mapM_denoteN_ext hst2.ext hd, hdw, bind, Option.bind, pure]
+  | ctor ind ci np nf iu =>
+    simp only [CKindF.mapM] at h
+    obtain ⟨a, s₁, h1, h2⟩ := OT.bind_ok h
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h2
+    obtain ⟨hst, z, hz, hd⟩ := hn ind s _ a hctx hx0 h1
+    exact ⟨hst, .ctor z ci np nf iu, by simp [CKindF.mapM, hz, bind, Option.bind, pure],
+      by simp [CKindF.mapM, hd, bind, Option.bind, pure]⟩
+  | recur all np ni nmo nmi rules kk iu =>
+    rw [recur_mapM] at h ⊢
+    obtain ⟨as, s₁, h1, h2⟩ := OT.bind_ok h
+    obtain ⟨rs, s₂, h3, h4⟩ := OT.bind_ok h2
+    obtain ⟨rfl, rfl⟩ := OT.pure_ok h4
+    obtain ⟨hst1, zs, hz, hd⟩ := hlist all hctx hx0 h1
+    obtain ⟨hst2, ws, hw, hdw⟩ := optT_list_runX (pk := pk) (s₀ := s₀)
+      (den := fun st (x : NIdx × Nat × EIdx) => do
+        let c ← denoteN st.ns x.1
+        let e ← denoteE st x.2.2
+        pure (c, x.2.1, e))
+      (g := fun (x : UInt64 × Nat × UInt64) => do
+        let c ← gn x.1
+        let e ← ge x.2.2
+        pure (c, x.2.1, e))
+      (fun {st st' y z} hx hy => by
+        cases hn' : denoteN st.ns y.1 with
+        | none => simp [hn'] at hy
+        | some n =>
+          cases he' : denoteE st y.2.2 with
+          | none => simp [hn', he'] at hy
+          | some e =>
+            simp only [hn', he'] at hy
+            simp only [denoteN_ext hn' hx, denote_ext he' hx]
+            exact hy)
+      (fun x s s' y hc hx hrun => by
+        obtain ⟨a, s₁, h1, h2⟩ := OT.bind_ok hrun
+        obtain ⟨b, s₂, h3, h4⟩ := OT.bind_ok h2
+        obtain ⟨rfl, rfl⟩ := OT.pure_ok h4
+        obtain ⟨hst1, z, hz, hd⟩ := hn x.1 s _ a hc hx h1
+        obtain ⟨hst2, w, hw, hdw⟩ := he x.2.2 s₁ _ b (hc.step hst1) (hx.trans hst1.ext) h3
+        exact ⟨hst1.trans hst2, (z, x.2.1, w), by simp [hz, hw],
+          by simp [denoteN_ext hd hst2.ext, hdw]⟩) rules (hctx.step hst1) (hx0.trans hst1.ext) h3
+    refine ⟨hst1.trans hst2, .recur zs np ni nmo nmi ws kk iu, ?_, ?_⟩
+    · rw [hz, hw]; rfl
+    · rw [recur_mapM, mapM_denoteN_ext hst2.ext hd, hdw]; rfl
+
+/-- con-leche: ConLeche/Frontend/Olean/Spec.lean:298-305 CEntryF.mapM — **a constant read
+pointer by pointer, with effects**, each name and expression upstream's: the constant is
+upstream's, read back. -/
+theorem entryMapT_run {pk : OleanPins} {s₀ : AState} {fn : UInt64 → AM (Option NIdx)}
+    {fe : UInt64 → AM (Option EIdx)} {gn : UInt64 → Option ConLeche.Name} {ge : UInt64 → Option Expr}
+    (hn : ∀ a s s' y, Ctx pk s → Ext s₀.store s.store → fn a s = .ok (some y, s') →
+      ParseStep s s' ∧ ∃ z, gn a = some z ∧ denoteN s'.store.ns y = some z)
+    (he : ∀ a s s' y, Ctx pk s → Ext s₀.store s.store → fe a s = .ok (some y, s') →
+      ParseStep s s' ∧ ∃ z, ge a = some z ∧ denoteE s'.store y = some z)
+    (c : CEntryF UInt64 UInt64) {e : CEntryF NIdx EIdx} {s s' : AState} (hctx : Ctx pk s)
+    (hx0 : Ext s₀.store s.store)
+    (h : (c.mapM (m := OptionT AM) (fun v => OptionT.mk (fn v)) (fun v => OptionT.mk (fe v))) s
+      = .ok (some e, s')) :
+    ParseStep s s' ∧ ∃ eC, c.mapM gn ge = some eC ∧ denoteEntry s'.store e = some eC := by
+  have hdN : ∀ {st st' : EStore} {y : NIdx} {z : ConLeche.Name}, Ext st st' →
+      denoteN st.ns y = some z → denoteN st'.ns y = some z := fun hx hy => denoteN_ext hy hx
+  rcases c with ⟨name, lps, type, kind⟩
+  simp only [CEntryF.mapM] at h
+  obtain ⟨n, s₁, h1, h⟩ := OT.bind_ok h
+  obtain ⟨ls, s₂, h2, h⟩ := OT.bind_ok h
+  obtain ⟨t, s₃, h3, h⟩ := OT.bind_ok h
+  obtain ⟨k, s₄, h4, h⟩ := OT.bind_ok h
+  obtain ⟨rfl, rfl⟩ := OT.pure_ok h
+  obtain ⟨hst1, zn, hzn, hdn⟩ := hn name s s₁ n hctx hx0 h1
+  have hc1 := hctx.step hst1
+  obtain ⟨hst2, zl, hzl, hdl⟩ := optT_list_runX (den := fun st => denoteN st.ns) (g := gn) hdN
+    (fun a s s' y hc hx h => hn a s s' y hc hx h) lps hc1 (hx0.trans hst1.ext) h2
+  have hc2 := hc1.step hst2
+  obtain ⟨hst3, zt, hzt, hdt⟩ := he type s₂ s₃ t hc2 ((hx0.trans hst1.ext).trans hst2.ext) h3
+  have hc3 := hc2.step hst3
+  have hx3 := ((hx0.trans hst1.ext).trans hst2.ext).trans hst3.ext
+  obtain ⟨hst4, zk, hzk, hdk⟩ := kindMapT_run hn he kind hc3 hx3 h4
+  refine ⟨((hst1.trans hst2).trans hst3).trans hst4, ⟨zn, zl, zt, zk⟩, ?_, ?_⟩
+  · simp [CEntryF.mapM, hzn, hzl, hzt, hzk, bind, Option.bind, pure]
+  · have e1 := denoteN_ext hdn ((hst2.trans hst3).trans hst4).ext
+    have e2 := mapM_denoteN_ext (hst3.trans hst4).ext hdl
+    have e3 := denote_ext hdt hst4.ext
+    simp [denoteEntry, CEntryF.mapM, e1, e2, e3, hdk, bind, Option.bind, pure]
+
 end ConRon.Bridge.Modular
