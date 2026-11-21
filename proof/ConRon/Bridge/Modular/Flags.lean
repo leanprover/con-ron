@@ -18,6 +18,7 @@ module
 public import ConRon.Bridge.Modular.ReachValid
 public import ConRon.Bridge.Checker.Pooled
 public import ConLeche.Verify.Driver.PropPart
+import ConRon.Bridge.Stages
 import ConRon.Bridge.Checker.DeclVal
 import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.Specs
@@ -300,5 +301,104 @@ theorem view_foldOK'
       persPins := hpersPins.mono hp
       coh := ⟨fun _ => rfl, fun _ => rfl⟩
       gate := hgate }
+
+/-! ## The statements, each in its bracket -/
+
+/-- A statement denoting on a closed store denotes past a persistent extension. -/
+theorem denoteStmt_pext {st st' : EStore} (hwf : StoreWF st) (hoff : st.scratchOn = false)
+    (hx : PExt st st') {cv : ConRon.Arena.Frontend.Olean.StmtRec} {c : ConstantVal}
+    (h : denoteStmt st cv = some c) : denoteStmt st' cv = some c := by
+  obtain ⟨hl, ht, hn⟩ := denoteStmt_parts h
+  have hl' := denoteNList_pext hx _ _ (Frontend.PersNList_of_denote hwf hoff hl) hl
+  have hn' := denoteN_pext hx (Frontend.PersN_of_denote hwf hoff hn) hn
+  have ht' := denoteE_pext hx (Frontend.PersE_of_denote hwf hoff ht) ht
+  rw [denoteNList_eq_mapM] at hl'
+  simp [denoteStmt, hn', hl', ht']
+
+/-- A driver's state with empty caches at the run's pins is a `DriverOK` one. -/
+theorem driverOK_of_worker {s₁ w : AState} (hpinsOK : PinsOK s₁) (hpersPins : PersPins s₁)
+    (hw : WorkerOK s₁ w) : DriverOK w :=
+  DriverOK.start hw.state (hpinsOK.pmono hpersPins hw.pext hw.pins) (CacheOK.of_empty hw.caches)
+
+section Infer
+
+variable {s₁ : AState} {I : IStreamIndex} {ctxC ownC : List Declaration}
+  (hk : CoreSpec Arena.checkFuel)
+  (hpinsOK : PinsOK s₁) (hpersPins : PersPins s₁) (hwf₁ : StoreWF s₁.store)
+  (hoff₁ : s₁.store.scratchOn = false)
+  (hI : IndexDenotes s₁.store I (ConLeche.Cached.buildIndex (ctxC ++ ownC).toArray))
+  (hpI : PersIFBase I.base)
+  (hpre : ∀ k ≤ ctxC.length, ConLeche.EnvWF (ConLeche.streamEnv (ctxC.take k)) ∧
+    ((ConLeche.Cached.recsConsts (ctxC.take k)).map (·.name)).Nodup)
+include hk hpinsOK hpersPins hwf₁ hoff₁ hI hpI hpre
+
+/-- con-leche: ConLeche/Driver/Reach.lean:850-865 inferFlags — **the recorded statements,
+each inferred in its own bracket** at the view of the part of the context below its name: each
+resolves and is `TypeIsProp` there, and the worker's state stays a worker's. -/
+theorem inferAll_run {owner : Std.HashMap NIdx Nat} {n : Nat}
+    (hpos : ∀ (y : NIdx) (yC : ConLeche.Name), denoteN s₁.store.ns y = some yC →
+      ConRon.Arena.Modular.partPos owner n y =
+        ctxC.findIdx (fun d => (ConLeche.Modular.declNames d).contains yC)) :
+    ∀ {ps : List (String × NIdx × ConRon.Arena.Frontend.Olean.StmtRec)}
+      {psC : List (String × ConLeche.Name × ConstantVal)} {w w' : AState},
+      WorkerOK s₁ w → ListRel (PendRel s₁.store) ps psC →
+      ConRon.Arena.Modular.inferAll I owner n ps w = .ok ((), w') →
+      WorkerOK s₁ w' ∧ ∀ p ∈ psC,
+        p.2.2.type.constsResolve (streamEnv (ConLeche.Driver.ctxPart ctxC p.2.1)) = true ∧
+        ConLeche.Modular.TypeIsProp .verified (streamEnv (ConLeche.Driver.ctxPart ctxC p.2.1))
+          p.2.2.type
+  | [], psC, w, w', hw, hps, h => by
+    cases hps
+    simp only [ConRon.Arena.Modular.inferAll] at h
+    obtain ⟨-, rfl⟩ := AM.pure_ok h
+    exact ⟨hw, fun _ h => nomatch h⟩
+  | (what, y, cv) :: ps, _, w, w', hw, .cons (b := (what', yC, cvC)) ⟨hy, hcv⟩ hps, h => by
+    simp only at hy hcv
+    simp only [ConRon.Arena.Modular.inferAll, Bind.bind, StateT.bind, Except.bind] at h
+    have henter : enterScratch w =
+        .ok ((), AState.mk w.store.enableScratch Memos.empty w.caches w.pins) := rfl
+    generalize hsj : AState.mk w.store.enableScratch Memos.empty w.caches w.pins = sj at henter
+    rw [henter] at h
+    simp only at h
+    generalize hk' : ConRon.Arena.Modular.partPos owner n y = k at h
+    have hkk : k = ctxC.findIdx (fun d => (ConLeche.Modular.declNames d).contains yC) := by
+      rw [← hk', hpos y yC hy]
+    have hkle : k ≤ ctxC.length := by rw [hkk]; exact List.findIdx_le_length
+    have htake : (ctxC ++ ownC).take k = ctxC.take k := List.take_append_of_le_length hkle
+    cases hone : ConRon.Arena.Modular.inferOne (I.view k) what y cv sj with
+    | error e => rw [hone] at h; exact nomatch h
+    | ok r =>
+      obtain ⟨u, s'⟩ := r
+      rw [hone] at h
+      simp only at h
+      have hdrop : dropScratch s' =
+          .ok ((), AState.mk s'.store.dropScratch s'.memos Caches.empty s'.pins) := rfl
+      rw [hdrop] at h
+      simp only at h
+      have hxj : PExt s₁.store sj.store := by
+        rw [← hsj]; exact hw.pext.trans (PExt.enterScratch hw.state.wf)
+      have hstj : StateOK sj := by rw [← hsj]; exact ⟨EStore.enableScratch_wf hw.state.wf⟩
+      have hpj : sj.pins = s₁.pins := by rw [← hsj]; exact hw.pins
+      have hcj : sj.caches = Caches.empty := by rw [← hsj]; exact hw.caches
+      obtain ⟨hwfk, hndk⟩ := hpre k hkle
+      have hok := view_foldOK' (dsP := ctxC ++ ownC) hpinsOK hpersPins hI hpI
+        (Nat.le_trans hkle (by simp)) (by rw [htake]; exact hwfk) (by rw [htake]; exact hndk) hstj hxj
+        (CacheOK.of_empty hcj) hpj
+      rw [htake] at hok
+      obtain ⟨hck', hx', hp', hres, hprop⟩ :=
+        inferOne_run hk hok (denoteStmt_pext hwf₁ hoff₁ hxj hcv) (by cases u; exact hone)
+      have hw2 : WorkerOK s₁ (AState.mk s'.store.dropScratch s'.memos Caches.empty s'.pins) :=
+        { state := ⟨EStore.dropScratch_wf hck'.state.wf⟩
+          pext := (hxj.trans (PExt.of_ext hx')).trans (PExt.dropScratch hck'.state.wf)
+          caches := rfl
+          pins := hp'.trans hpj }
+      obtain ⟨hw', hrest⟩ := inferAll_run hpos hw2 hps h
+      refine ⟨hw', fun p hp => ?_⟩
+      rcases List.mem_cons.mp hp with rfl | hp
+      · simp only [ConLeche.Driver.ctxPart, ← hkk]
+        exact ⟨hres, hprop⟩
+      · exact hrest p hp
+
+end Infer
 
 end ConRon.Bridge.Modular
