@@ -118,7 +118,8 @@ pub fn pins_dup(p: &Pins) -> Pins {
     }
 }
 
-/// con-leche: ConLeche/Driver/CheckPool.lean:199-227 checkPool
+/// con-leche: ConLeche/Driver/CheckPool.lean:211-239 checkPool
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove checker::worker_state_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:64-71 AState.worker` — the twin's
 /// worker reads the persistent tier where it is.
 /// **A worker's start state** (the cited `init`): the empty store, FROZEN
@@ -134,7 +135,8 @@ pub fn worker_state(pins: &Pins) -> AState {
     st
 }
 
-/// con-leche: ConLeche/Driver/CheckPool.lean:116-123 runAt
+/// con-leche: ConLeche/Driver/CheckPool.lean:127-134 runAt
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove checker::run_job_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:73-83 runJob` — **job `k`, run**: the
 /// record's job at its position (`stream_index::record_job`), a failure tagged
 /// with that position.  A position past the records is an internal error, never

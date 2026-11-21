@@ -238,9 +238,12 @@ def unresolvedConstsErrorL (strOk : Bool) (where_ : String) (e : EIdx) :
 
 /-! ## The per-declaration constant check -/
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:101-123 checkConstantVal
-con-leche: ConLeche/Kernel/DeclCheck.lean:218-238 checkConstantValF
-con-leche: ConLeche/Cached/IndPass.lean:36-58 checkConstantValC
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:101-130 checkConstantVal
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove CheckerBase.checkConstantVal_bridge, then delete this line
+con-leche: ConLeche/Kernel/DeclCheck.lean:218-243 checkConstantValF
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove CheckerBase.checkConstantVal_bridge, then delete this line
+con-leche: ConLeche/Cached/IndPass.lean:36-63 checkConstantValC
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove CheckerBase.checkConstantVal_bridge, then delete this line
 Checks common to all declarations: fresh name, a certified
 operation's name only at a definition (`allowOp`, the cited default `false`,
 spelled at every call as the Rust must), a literal's name only at its shape,
@@ -273,7 +276,7 @@ def checkConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
 
 /-! ## The strategy-independent helpers -/
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:125-131 unwrapOr — unwrap an
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:132-138 unwrapOr — unwrap an
 optional value or fail with the given error. -/
 def unwrapOr {α : Type} (o : Option α) (err : CheckError) : AM α :=
   match o with

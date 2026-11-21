@@ -512,7 +512,7 @@ pub fn i_constant_info_name(c: &IConstantInfo) -> NIdx {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:439-446 Declaration.names
+/// con-leche: ConLeche/Kernel/Env.lean:444-451 Declaration.names
 /// Lean twin: `proof/ConRon/Arena/Env.lean:180-186 IDeclaration.names` — the
 /// names a declaration record declares; `prepare::prelude_key`'s lookup and
 /// the ground hoist's name index read it.
@@ -527,7 +527,7 @@ pub fn i_declaration_names(d: &IDeclaration) -> Vec<NIdx> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:439-446 Declaration.names
+/// con-leche: ConLeche/Kernel/Env.lean:444-451 Declaration.names
 /// The cited `[cv.name]`, as a function: §3.4 has no `vec!`.
 pub fn i_declaration_one_name(cv: &IConstantVal) -> Vec<NIdx> {
     let mut out: Vec<NIdx> = Vec::with_capacity(1);
@@ -535,7 +535,7 @@ pub fn i_declaration_one_name(cv: &IConstantVal) -> Vec<NIdx> {
     out
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:439-446 Declaration.names
+/// con-leche: ConLeche/Kernel/Env.lean:444-451 Declaration.names
 /// The cited `block.map (·.name)`, as the index recursion of task #3.
 pub fn i_constant_info_names_from(
     block: &Vec<IConstantInfo>,
@@ -555,7 +555,7 @@ pub fn i_constant_info_names_from(
 // The environment (`Env.lean:278-337` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:450-462 Env
+/// con-leche: ConLeche/Kernel/Env.lean:455-467 Env
 /// Lean twin: `proof/ConRon/Arena/Env.lean:190-199 IEnv` — the global
 /// environment: the constants accepted so far and the structures' projection
 /// tables.  Names are unique (the checker rejects duplicates), so the order is
@@ -570,7 +570,7 @@ pub struct IEnv {
     pub tables: Vec<IProjTable>,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:466-467 Env.empty
+/// con-leche: ConLeche/Kernel/Env.lean:471-472 Env.empty
 /// Lean twin: `proof/ConRon/Arena/Env.lean:201-203 IEnv.empty` — the empty
 /// environment; the starting point of every checker run.
 pub fn i_env_empty() -> IEnv {

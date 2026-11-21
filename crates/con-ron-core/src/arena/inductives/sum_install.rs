@@ -127,7 +127,7 @@ pub const M_CTOR_IDX: [u32; 50] = [
 // The type former's stage
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:33-38 checkSumTele
+/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:34-39 checkSumTele
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:31-43 checkSumTele`
 /// — the type former's TELESCOPE: `n` Π binders ending in a sort (the block's
 /// check puts a former at its telescope, `reduceMember`).  Returns the former
@@ -169,8 +169,8 @@ pub fn eidx_contains(xs: &Vec<EIdx>, x: &EIdx, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:40-64 checkStructFieldSortsI
-/// con-leche: ConLeche/Cached/IndPositivity.lean:497-513 checkStructFieldSortsIC
+/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:41-65 checkStructFieldSortsI
+/// con-leche: ConLeche/Cached/IndPositivity.lean:505-521 checkStructFieldSortsIC
 /// con-leche: ConLeche/Cached/IndBlock.lean:127-142 checkStructFieldSortsC
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:47-70 checkStructFieldSortsI`
 /// — every field's domain has a sort over the opened constructor telescope,
@@ -221,8 +221,8 @@ pub fn check_struct_field_sorts_i(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:40-64 checkStructFieldSortsI
-/// con-leche: ConLeche/Cached/IndPositivity.lean:497-513 checkStructFieldSortsIC
+/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:41-65 checkStructFieldSortsI
+/// con-leche: ConLeche/Cached/IndPositivity.lean:505-521 checkStructFieldSortsIC
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:47-70 checkStructFieldSortsI`
 /// — one field's universe bound: official's `leq` against the family's sort at
 /// a non-propositional family, and the large eliminator's escape hatch
@@ -274,7 +274,7 @@ pub fn field_sort_bound(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:66-107 checkSumCtor
+/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:67-108 checkSumCtor
 /// con-leche: ConLeche/Cached/IndBlock.lean:144-170 checkSumCtorC
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:89-129 checkSumCtor`
 /// — stage 2, one constructor's type: the ordinary constant check, the
@@ -319,7 +319,7 @@ pub fn check_sum_ctor(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:66-107 checkSumCtor
+/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:67-108 checkSumCtor
 /// con-leche: ConLeche/Cached/IndBlock.lean:144-170 checkSumCtorC
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:89-129 checkSumCtor`
 /// — the opened frames: the constructor's parameters against the former's, the
@@ -373,7 +373,7 @@ pub fn check_sum_ctor_frames(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:66-107 checkSumCtor
+/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:67-108 checkSumCtor
 /// con-leche: ConLeche/Cached/IndBlock.lean:144-170 checkSumCtorC
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:89-129 checkSumCtor`
 /// — the opened residual is the family at the opened parameter variables
@@ -428,7 +428,7 @@ pub fn check_sum_ctor_resid(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:66-107 checkSumCtor
+/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:67-108 checkSumCtor
 /// con-leche: ConLeche/Cached/IndBlock.lean:144-170 checkSumCtorC
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:89-129 checkSumCtor`
 /// — the field domains and the index expressions resolve BEFORE the block, and
@@ -461,7 +461,7 @@ pub fn check_sum_ctor_sorts(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:66-107 checkSumCtor
+/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:67-108 checkSumCtor
 /// con-leche: ConLeche/Cached/IndBlock.lean:144-170 checkSumCtorC
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:89-129 checkSumCtor`
 /// — every field domain resolves at the PRE-BLOCK environment.
@@ -486,7 +486,7 @@ pub fn field_doms_resolve(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:66-107 checkSumCtor
+/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:67-108 checkSumCtor
 /// con-leche: ConLeche/Cached/IndBlock.lean:144-170 checkSumCtorC
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:89-129 checkSumCtor`
 /// — the index expressions never mention the block.
@@ -509,7 +509,7 @@ pub fn idx_args_resolve(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:109-117 checkSumCtors
+/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:110-118 checkSumCtors
 /// con-leche: ConLeche/Cached/IndBlock.lean:172-179 checkSumCtorsC
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:131-141 checkSumCtors`
 /// — stage 2, all constructors' types from `i` on, at the environment holding
@@ -548,7 +548,7 @@ pub fn check_sum_ctors(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:119-125 consSumCtors
+/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:120-126 consSumCtors
 /// con-leche: ConLeche/Cached/IndBlock.lean:37-40 consSumCtorsF
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:143-151 consSumCtors`
 /// — the constructors' conses, in order (the first constructor deepest), each
@@ -565,7 +565,7 @@ pub fn cons_sum_ctors(pers: &PersTier, n_p: u64, t: &NIdx, ctors: &Vec<(IConstan
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:127-133 sumRules
+/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:128-134 sumRules
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:153-159 sumRules`
 /// — the stored rules from `i` on: constructor `j`'s with the generated
 /// right-hand side `j`, `.plain` (the major is the family at the recursor's

@@ -50,22 +50,27 @@ use crate::kernel::expr;
 use crate::kernel::name;
 use crate::kernel::name::Name;
 
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::OleanFs_refines, then delete this line
 /// **The checker's file reads**: the operations of upstream's class the reader
 /// uses, and the read's heartbeat, two of the `liftIO` actions upstream hands
 /// the class.  A failure is the operation's message.  The class's worker map
 /// (`parMapWorkers`) is the check pool's, in `crates/con-ron`.
 pub trait OleanFs {
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
+    /// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::path_exists_refines, then delete this line
     /// whether the path names something (a file, a directory)
     fn path_exists(&self, p: &Vec<u32>) -> Result<bool, Vec<u32>>;
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
+    /// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::real_path_refines, then delete this line
     /// the path with every symbolic link resolved, absolute
     fn real_path(&self, p: &Vec<u32>) -> Result<Vec<u32>, Vec<u32>>;
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
+    /// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::read_bin_file_refines, then delete this line
     /// a regular file's bytes
     fn read_bin_file(&self, p: &Vec<u32>) -> Result<Vec<u8>, Vec<u32>>;
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
+    /// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::read_range_refines, then delete this line
     /// a positional read: the bytes from `off` up to `off + len` or the end of
     /// the file, whichever comes first.  Deviation: the class opens a handle
     /// (`openRead`) and reads it forward (`read`), since Lean's handles have no
@@ -73,7 +78,8 @@ pub trait OleanFs {
     /// state, and the reads `foldReads` makes, at `0, csz, 2·csz, …`, are the
     /// handle's in order.
     fn read_range(&self, p: &Vec<u32>, off: u64, len: u64) -> Result<Vec<u8>, Vec<u32>>;
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
+    /// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::file_size_refines, then delete this line
     /// the size of a regular file in bytes
     fn file_size(&self, p: &Vec<u32>) -> Result<u64, Vec<u32>>;
     /// con-leche: ConLeche/Frontend/Olean/Progress.lean:42-48 ReadNotes.say
@@ -133,8 +139,10 @@ pub fn path_add_extension(p: &Vec<u32>, ext: &Vec<u32>) -> Vec<u32> {
     text::cat(out, ext)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:28-34 modFile.comps
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:28-34 modFile
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:45-47 modFile.comps
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::mod_file_refines, then delete this line
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:45-47 modFile
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::mod_file_refines, then delete this line
 /// The file a module's level is stored in.
 pub fn mod_file(pers: &PersTier, ar: &EStore, dir: &Vec<u32>, m: &NIdx, ext: &Vec<u32>) -> Result<Vec<u32>, CheckError> {
     match env::read_name(pers, ar, m) {
@@ -156,7 +164,7 @@ pub fn mod_file(pers: &PersTier, ar: &EStore, dir: &Vec<u32>, m: &NIdx, ext: &Ve
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:36-38 NameScan
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:49-51 NameScan
 /// Where the scan of a name is.
 pub enum NameScan {
     Start,
@@ -192,7 +200,7 @@ pub fn digits_value(cur: &Vec<u32>) -> u64 {
     v
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:40-43 Name.pushPlain
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:53-56 Name.pushPlain
 /// A component as written without an escape: at `nums`, one of digits alone is a
 /// number, as Lean's name literals read it.
 pub fn name_push_plain(n: Name, cur: Vec<u32>, nums: bool) -> Name {
@@ -203,7 +211,7 @@ pub fn name_push_plain(n: Name, cur: Vec<u32>, nums: bool) -> Name {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:45-62 scanName
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:58-75 scanName
 /// The scan of a name, one character at a time.
 pub fn scan_name_go(nums: bool, s: &Vec<u32>) -> Option<(Name, NameScan, Vec<u32>)> {
     let mut n: Name = name::anonymous();
@@ -260,7 +268,7 @@ pub fn scan_name_go(nums: bool, s: &Vec<u32>) -> Option<(Name, NameScan, Vec<u32
     Some((n, st, cur))
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:45-62 scanName
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:58-75 scanName
 /// The scan's end: where it stopped says whether that is a name.
 pub fn scan_name(nums: bool, s: &Vec<u32>) -> Option<Name> {
     match scan_name_go(nums, s) {
@@ -273,19 +281,20 @@ pub fn scan_name(nums: bool, s: &Vec<u32>) -> Option<Name> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:64-70 parseModName
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:77-83 parseModName
 /// **A module name as the command line spells it**.
 pub fn parse_mod_name(s: &Vec<u32>) -> Option<Name> {
     scan_name(false, s)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:72-75 parseConstName
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:85-88 parseConstName
 /// **A constant's name as the command line spells it**.
 pub fn parse_const_name(s: &Vec<u32>) -> Option<Name> {
     scan_name(true, s)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:77-82 Located
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:167-170 Located
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::Located_refines, then delete this line
 /// **Where a module's files are**.
 pub struct Located {
     pub dir: Vec<u32>,
@@ -294,6 +303,7 @@ pub struct Located {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:84-85 partExts
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::part_ext_refines, then delete this line
 /// The three files of a module, by extension.
 pub fn part_ext(i: usize) -> Vec<u32> {
     if i == 0 {
@@ -306,13 +316,15 @@ pub fn part_ext(i: usize) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:87-96 locateIn
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::Hit_refines, then delete this line
 /// One directory's answer: the real paths of the module's three files.
 pub struct Hit {
     pub dir: Vec<u32>,
     pub files: Vec<Option<Vec<u32>>>,
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:139-160 findModule
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:182-202 findModule
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::LocErr_refines, then delete this line
 /// How `locateHits` fails: the file system's message, or the store's readback.
 pub enum LocErr {
     Fs(Vec<u32>),
@@ -320,6 +332,7 @@ pub enum LocErr {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:87-96 locateIn
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::locate_in_refines, then delete this line
 /// The real paths of a module's three files in one directory, `None` where absent.
 pub fn locate_in<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, m: &NIdx, d: &Vec<u32>) -> Result<Hit, LocErr> {
     let mut files: Vec<Option<Vec<u32>>> = Vec::with_capacity(3);
@@ -335,6 +348,7 @@ pub fn locate_in<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, m: &NIdx, d: 
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:87-96 locateIn
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::locate_file_refines, then delete this line
 /// The real path of file `i`, `None` where absent.
 pub fn locate_file<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, m: &NIdx, d: &Vec<u32>, i: usize) -> Result<Option<Vec<u32>>, LocErr> {
     match mod_file(pers, ar, d, m, &part_ext(i)) {
@@ -351,6 +365,7 @@ pub fn locate_file<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, m: &NIdx, d
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:98-103 locateHits
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::hit_holds_any_refines, then delete this line
 /// `h.2.any (·.isSome)`.
 pub fn hit_holds_any(h: &Hit) -> bool {
     let mut i = 0usize;
@@ -364,6 +379,7 @@ pub fn hit_holds_any(h: &Hit) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:98-103 locateHits
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::file_some_refines, then delete this line
 /// `Option.isSome`.
 pub fn file_some(o: &Option<Vec<u32>>) -> bool {
     match o {
@@ -373,6 +389,7 @@ pub fn file_some(o: &Option<Vec<u32>>) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:98-103 locateHits
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::locate_hits_refines, then delete this line
 /// **The search path's directories holding any of module `m`'s files**, in order.
 pub fn locate_hits<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Vec<Vec<u32>>, m: &NIdx) -> Result<Vec<Hit>, LocErr> {
     let mut out: Vec<Hit> = Vec::new();
@@ -388,6 +405,7 @@ pub fn locate_hits<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Vec<Ve
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:98-103 locateHits
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::hits_add_refines, then delete this line
 /// `hs.filter fun h => h.2.any (·.isSome)`, one element.
 pub fn hits_add(out: Vec<Hit>, h: Hit) -> Vec<Hit> {
     let mut out = out;
@@ -422,6 +440,7 @@ pub fn file_opt_eq(a: &Option<Vec<u32>>, b: &Option<Vec<u32>>) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::hit_seen_refines, then delete this line
 /// `acc.any (·.2 == h.2)`.
 pub fn hit_seen(hits: &Vec<Hit>, locs: &Vec<usize>, h: &Hit) -> bool {
     let mut i = 0usize;
@@ -435,6 +454,7 @@ pub fn hit_seen(hits: &Vec<Hit>, locs: &Vec<usize>, h: &Hit) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::hit_locations_refines, then delete this line
 /// The locations: the directories up to real paths, first spelling kept, as
 /// positions in `hits`.
 pub fn hit_locations(hits: &Vec<Hit>) -> Vec<usize> {
@@ -450,6 +470,7 @@ pub fn hit_locations(hits: &Vec<Hit>) -> Vec<usize> {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::file_differs_from_refines, then delete this line
 /// `rs.any (· != r)`, for location `a`'s file `f` against the locations'.
 pub fn file_differs_from(hits: &Vec<Hit>, locs: &Vec<usize>, f: usize, x: &Vec<u32>) -> bool {
     let mut b = 0usize;
@@ -463,6 +484,7 @@ pub fn file_differs_from(hits: &Vec<Hit>, locs: &Vec<usize>, f: usize, x: &Vec<u
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::file_other_refines, then delete this line
 /// A present file that is not `x`.
 pub fn file_other(o: &Option<Vec<u32>>, x: &Vec<u32>) -> bool {
     match o {
@@ -472,6 +494,7 @@ pub fn file_other(o: &Option<Vec<u32>>, x: &Vec<u32>) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::file_twice_at_refines, then delete this line
 /// `rs.any fun r => rs.any (· != r)`: file `f` has two real paths.
 pub fn file_twice_at(hits: &Vec<Hit>, locs: &Vec<usize>, f: usize) -> bool {
     let mut a = 0usize;
@@ -485,6 +508,7 @@ pub fn file_twice_at(hits: &Vec<Hit>, locs: &Vec<usize>, f: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::file_at_differs_refines, then delete this line
 /// Location `a`'s file `f`, against the other locations'.
 pub fn file_at_differs(hits: &Vec<Hit>, locs: &Vec<usize>, f: usize, a: usize) -> bool {
     match &hits[locs[a]].files[f] {
@@ -494,6 +518,7 @@ pub fn file_at_differs(hits: &Vec<Hit>, locs: &Vec<usize>, f: usize, a: usize) -
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::file_twice_refines, then delete this line
 /// `(List.range 3).any …`: one of the files with two real paths.
 pub fn file_twice(hits: &Vec<Hit>, locs: &Vec<usize>) -> bool {
     let mut f = 0usize;
@@ -507,6 +532,7 @@ pub fn file_twice(hits: &Vec<Hit>, locs: &Vec<usize>) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::locs_dirs_refines, then delete this line
 /// `", ".intercalate (xs.toList.map (·.1.toString))`.
 pub fn locs_dirs(hits: &Vec<Hit>, locs: &Vec<usize>) -> Vec<u32> {
     let mut out: Vec<u32> = Vec::new();
@@ -522,6 +548,7 @@ pub fn locs_dirs(hits: &Vec<Hit>, locs: &Vec<usize>) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::loc_desc_refines, then delete this line
 /// `desc`: what one location holds.
 pub fn loc_desc(mt: &Vec<u32>, h: &Hit) -> Vec<u32> {
     let mut out: Vec<u32> = Vec::new();
@@ -544,6 +571,7 @@ pub fn loc_desc(mt: &Vec<u32>, h: &Hit) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::locs_desc_refines, then delete this line
 /// `"; ".intercalate (locs.toList.map desc)`.
 pub fn locs_desc(mt: &Vec<u32>, hits: &Vec<Hit>, locs: &Vec<usize>) -> Vec<u32> {
     let mut out: Vec<u32> = Vec::new();
@@ -559,6 +587,7 @@ pub fn locs_desc(mt: &Vec<u32>, hits: &Vec<Hit>, locs: &Vec<usize>) -> Vec<u32> 
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::locate_of_refines, then delete this line
 /// **The module's location from the directories holding its files**, or why there
 /// is none.
 pub fn locate_of(mt: &Vec<u32>, hits: &Vec<Hit>) -> Result<Located, CheckError> {
@@ -581,6 +610,7 @@ pub fn locate_of(mt: &Vec<u32>, hits: &Vec<Hit>) -> Result<Located, CheckError> 
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::parts_held_refines, then delete this line
 /// `" and ".intercalate held`: the parts held without their `.olean`.
 pub fn parts_held(mt: &Vec<u32>, has_s: bool, has_p: bool) -> Vec<u32> {
     if has_s && has_p {
@@ -595,6 +625,7 @@ pub fn parts_held(mt: &Vec<u32>, has_s: bool, has_p: bool) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::located_at_refines, then delete this line
 /// The one location's verdict: it holds the `.olean`, or the parts stand alone.
 pub fn located_at(mt: &Vec<u32>, pre: Vec<u32>, h0: &Hit) -> Result<Located, CheckError> {
     let has_o = file_some(&h0.files[0]);
@@ -613,7 +644,8 @@ pub fn located_at(mt: &Vec<u32>, pre: Vec<u32>, h0: &Hit) -> Result<Located, Che
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:24-26 SearchPath
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:139-160 findModule
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:182-202 findModule
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::find_module_refines, then delete this line
 /// **Find a module, strictly.**
 pub fn find_module<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Vec<Vec<u32>>, m: &NIdx) -> Result<Located, CheckError> {
     let mt = view::name_text(pers, ar, m);
@@ -628,7 +660,7 @@ pub fn find_module<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Vec<Ve
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:162-166 readPart
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:220-224 readPart
 /// Read and validate one file.
 pub fn read_part<F: OleanFs>(fs: &F, p: &Vec<u32>) -> Result<Part, CheckError> {
     match fs.read_bin_file(p) {
@@ -637,12 +669,12 @@ pub fn read_part<F: OleanFs>(fs: &F, p: &Vec<u32>) -> Result<Part, CheckError> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:168-170 hdrChunk
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:240-242 hdrChunk
 /// The header read's chunk size.
 pub const HDR_CHUNK: u64 = 4096;
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:181-183 hdrFin
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:172-179 hdrStep
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:253-255 hdrFin
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:244-251 hdrStep
 /// The header validated and the imports decoded from the bytes read.
 pub fn hdr_fin(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, path: &Vec<u32>, acc: Vec<u8>) -> Result<Vec<ImportRec>, RdErr> {
     match region::part_of_bytes(path, acc) {
@@ -651,7 +683,7 @@ pub fn hdr_fin(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, path: &Vec<u32>
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:172-179 hdrStep
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:244-251 hdrStep
 /// `hdrWalk acc dataStart` ran off the bytes read.
 pub fn hdr_short(acc: &Vec<u8>) -> bool {
     match header::hdr_walk(acc, region::DATA_START) {
@@ -660,7 +692,7 @@ pub fn hdr_short(acc: &Vec<u8>) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:171-186 foldReads
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:188-203 foldReads
 /// The reads of the header: forward in `HDR_CHUNK` reads until the walk to the
 /// imports array is inside what was read, or the end of the file.
 pub fn read_hdr_bytes<F: OleanFs>(fs: &F, p: &Vec<u32>, size: u64) -> Result<Vec<u8>, CheckError> {
@@ -678,9 +710,10 @@ pub fn read_hdr_bytes<F: OleanFs>(fs: &F, p: &Vec<u32>, size: u64) -> Result<Vec
     Ok(acc)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:185-197 readImportsAt
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:188-198 foldChunks
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:171-186 foldReads
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:257-271 readImportsAt
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::read_imports_at_refines, then delete this line
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:205-215 foldChunks
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:188-203 foldReads
 /// **A module's imports, read off the start of its exported `.olean`** at its
 /// location: the file read forward in `HDR_CHUNK` reads until the walk to the
 /// imports array is inside what was read.
@@ -704,7 +737,8 @@ pub fn read_imports_at<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: 
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:199-205 moduleImports
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:273-279 moduleImports
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::module_imports_refines, then delete this line
 /// **A module's imports**, off the start of its exported `.olean`, located on the
 /// search path.
 pub fn module_imports<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Vec<Vec<u32>>, m: &NIdx) -> Result<Vec<ImportRec>, CheckError> {
@@ -714,7 +748,8 @@ pub fn module_imports<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:207-236 readFiles
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:327-333 readFiles
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::missing_part_refines, then delete this line
 /// `module {m}: a module of the module system without its {m}.{ext} in {dir}`.
 pub fn missing_part(pers: &PersTier, ar: &EStore, m: &NIdx, mt: &Vec<u32>, ext: &Vec<u32>, dir: &Vec<u32>) -> CheckError {
     let t = text::cat({ const M: [u32; 42] = [97, 32, 109, 111, 100, 117, 108, 101, 32, 111, 102, 32, 116, 104, 101, 32, 109, 111, 100, 117, 108, 101, 32, 115, 121, 115, 116, 101, 109, 32, 119, 105, 116, 104, 111, 117, 116, 32, 105, 116, 115, 32]; crate::kernel::core_types::code_points(&M) }, mt);
@@ -723,7 +758,8 @@ pub fn missing_part(pers: &PersTier, ar: &EStore, m: &NIdx, mt: &Vec<u32>, ext: 
     module::bad_module(pers, ar, m, text::cat(t, &region::display_path(dir)))
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:207-236 readFiles
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:327-333 readFiles
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::read_files_refines, then delete this line
 /// **The files of a module a view reads**, each validated, located on the search
 /// path.  A part beside a classic `.olean` is no part of it, and a module of the
 /// module system has all three.
@@ -770,7 +806,8 @@ pub fn read_files<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Vec<Vec
     read_files_parts(fs, pers, ar, m, &loc, f, level)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:207-236 readFiles
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:327-333 readFiles
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::read_files_parts_refines, then delete this line
 /// The rest of `readFiles`: the server part, and the private part unless the
 /// level stops short of it.
 pub fn read_files_parts<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, m: &NIdx, loc: &Located, f: ModFiles, level: &OLeanLevel) -> Result<ModFiles, CheckError> {
@@ -796,7 +833,8 @@ pub fn read_files_parts<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, m: &NI
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:238-246 readView
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:335-343 readView
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::read_view_refines, then delete this line
 /// **One view of a module**, located on the search path.
 pub fn read_view<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Vec<Vec<u32>>, m: &NIdx, level: &OLeanLevel) -> Result<ModDecoded, CheckError> {
     match read_files(fs, pers, ar, sp, m, level) {
@@ -809,7 +847,8 @@ pub fn read_view<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut E
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:248-261 readAllViews
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:396-413 readAllViews
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::first_bad_view_refines, then delete this line
 /// `([.exported, .server].find? fun l => (parseView f l).isNone).getD .private`.
 pub fn first_bad_view(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, f: &ModFiles) -> Result<OLeanLevel, CheckError> {
     match view::parse_view(pk, pers, ar, f, &OLeanLevel::Exported) {
@@ -824,7 +863,8 @@ pub fn first_bad_view(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, f: &ModF
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:248-261 readAllViews
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:396-413 readAllViews
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove files::read_all_views_refines, then delete this line
 /// **All three views of a module, checked against each other**: its home's read.
 pub fn read_all_views<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Vec<Vec<u32>>, m: &NIdx) -> Result<(AllViews, Vec<Expo>), CheckError> {
     let f = match read_files(fs, pers, ar, sp, m, &OLeanLevel::Private) {

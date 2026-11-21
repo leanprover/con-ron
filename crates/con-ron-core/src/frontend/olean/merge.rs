@@ -26,7 +26,7 @@ use crate::ron::hashmap::Dup;
 use crate::ron::hashmap::Eq2;
 use crate::ron::hashmap2::HashMap2;
 
-/// con-leche: ConLeche/Frontend/Olean/Merge.lean:54-57 Merged
+/// con-leche: ConLeche/Frontend/Olean/Merge.lean:65-68 Merged
 /// The merged constants and the order they were first stored in.
 pub struct Merged {
     pub ls: Vec<Loaded>,
@@ -34,7 +34,7 @@ pub struct Merged {
     pub order: Vec<NIdx>,
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Merge.lean:54-57 Merged
+/// con-leche: ConLeche/Frontend/Olean/Merge.lean:65-68 Merged
 /// `mg.map[n]?`.
 pub fn mg_get<'a>(mg: &'a Merged, n: &NIdx) -> Option<&'a CEntry> {
     match mg.map.get(n) {
@@ -43,13 +43,14 @@ pub fn mg_get<'a>(mg: &'a Merged, n: &NIdx) -> Option<&'a CEntry> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Merge.lean:54-57 Merged
+/// con-leche: ConLeche/Frontend/Olean/Merge.lean:65-68 Merged
 /// `mg.map.contains n`.
 pub fn mg_has(mg: &Merged, n: &NIdx) -> bool {
     mg.map.contains_key(n)
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap.body
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove merge::is_prop_body_refines, then delete this line
 /// The result of a telescope.
 pub fn is_prop_body(pers: &PersTier, ar: &EStore, ty: &EIdx) -> Result<EIdx, CheckError> {
     let mut e: EIdx = ty.dup2();
@@ -66,6 +67,7 @@ pub fn is_prop_body(pers: &PersTier, ar: &EStore, ty: &EIdx) -> Result<EIdx, Che
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap.head
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove merge::is_prop_head_refines, then delete this line
 /// The head constant of an application, and its argument count.
 pub fn is_prop_head(pers: &PersTier, ar: &EStore, e: &EIdx) -> Result<Option<(NIdx, u64)>, CheckError> {
     let mut x: EIdx = e.dup2();
@@ -87,6 +89,7 @@ pub fn is_prop_head(pers: &PersTier, ar: &EStore, e: &EIdx) -> Result<Option<(NI
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap.drop
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove merge::is_prop_drop_refines, then delete this line
 /// A telescope's result after `k` binders.
 pub fn is_prop_drop(pers: &PersTier, ar: &EStore, e: &EIdx, k: u64) -> Result<Option<EIdx>, CheckError> {
     let mut x: EIdx = e.dup2();
@@ -103,6 +106,7 @@ pub fn is_prop_drop(pers: &PersTier, ar: &EStore, e: &EIdx, k: u64) -> Result<Op
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove merge::is_prop_tail_refines, then delete this line
 /// The end of `isPropCheap`: the head's type after `k` binders is `Prop`.
 pub fn is_prop_tail(pk: &OleanPins, pers: &PersTier, ar: &EStore, ty: &EIdx, k: u64) -> Result<bool, CheckError> {
     match is_prop_drop(pers, ar, ty, k) {
@@ -117,6 +121,7 @@ pub fn is_prop_tail(pk: &OleanPins, pers: &PersTier, ar: &EStore, ty: &EIdx, k: 
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove merge::is_prop_cheap_refines, then delete this line
 /// Lean's `isPropCheap`: the statement is a telescope over a constant applied to
 /// as many arguments as its own type has binders before a `Prop` result.
 pub fn is_prop_cheap(pk: &OleanPins, pers: &PersTier, ar: &EStore, mg: &Merged, ty: &EIdx) -> Result<bool, CheckError> {
@@ -134,7 +139,8 @@ pub fn is_prop_cheap(pk: &OleanPins, pers: &PersTier, ar: &EStore, mg: &Merged, 
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Merge.lean:45-52 subsumes
+/// con-leche: ConLeche/Frontend/Olean/Merge.lean:61-63 subsumes
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove merge::subsumes_refines, then delete this line
 /// `subsumesInfo`: may `c₁` stand for `c₂`?
 pub fn subsumes(pk: &OleanPins, pers: &PersTier, ar: &EStore, mg: &Merged, c1: &CEntry, c2: &CEntry) -> Result<bool, CheckError> {
     if !(c1.c.name.eq2(&c2.c.name) && c1.c.ty.eq2(&c2.c.ty) && module::nidx_list_eq(&c1.c.level_params, &c2.c.level_params)) {
@@ -154,7 +160,7 @@ pub fn subsumes(pk: &OleanPins, pers: &PersTier, ar: &EStore, mg: &Merged, c1: &
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Merge.lean:59-70 mergeEntry
+/// con-leche: ConLeche/Frontend/Olean/Merge.lean:70-81 mergeEntry
 /// **Merge one constant**, the `i`-th of module `m`.
 pub fn merge_entry(pk: &OleanPins, pers: &PersTier, ar: &EStore, mg: &mut Merged, m: usize, i: usize) -> Result<(), CheckError> {
     let n: NIdx = mg.ls[m].constants[i].c.name.dup2();
@@ -184,7 +190,7 @@ pub fn merge_entry(pk: &OleanPins, pers: &PersTier, ar: &EStore, mg: &mut Merged
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Merge.lean:59-70 mergeEntry
+/// con-leche: ConLeche/Frontend/Olean/Merge.lean:70-81 mergeEntry
 /// Two modules store different constants of one name.
 pub fn merge_conflict(pers: &PersTier, ar: &EStore, n: &NIdx) -> Result<(), CheckError> {
     match env::read_name(pers, ar, n) {
@@ -196,7 +202,7 @@ pub fn merge_conflict(pers: &PersTier, ar: &EStore, n: &NIdx) -> Result<(), Chec
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Merge.lean:72-73 mergeAll
+/// con-leche: ConLeche/Frontend/Olean/Merge.lean:83-84 mergeAll
 /// `l.constants.foldlM mergeEntry mg`, the constants of module `m`.
 pub fn merge_module(pk: &OleanPins, pers: &PersTier, ar: &EStore, mg: &mut Merged, m: usize) -> Result<(), CheckError> {
     let n = mg.ls[m].constants.len();
@@ -211,7 +217,7 @@ pub fn merge_module(pk: &OleanPins, pers: &PersTier, ar: &EStore, mg: &mut Merge
     Ok(())
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Merge.lean:72-73 mergeAll
+/// con-leche: ConLeche/Frontend/Olean/Merge.lean:83-84 mergeAll
 /// The closure's constants merged.
 pub fn merge_all(pk: &OleanPins, pers: &PersTier, ar: &EStore, ls: Vec<Loaded>) -> Result<Merged, CheckError> {
     let n = ls.len();

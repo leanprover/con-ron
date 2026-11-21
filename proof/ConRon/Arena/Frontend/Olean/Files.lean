@@ -32,7 +32,8 @@ open ConLeche
 open ConLeche.Frontend.Olean (Located modFile partExts locateOf hdrWalk HdrWalk dataStart OLeanLevel ModFiles Part
   Expo)
 
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Files.OleanFs_bridge, then delete this line
 **The checker's file reads**: a failure is the operation's message; and the read's
 heartbeat (upstream's `ReadNotes`, task #484), two `liftIO` actions that change
 nothing a read returns: the unit, here. -/
@@ -74,6 +75,7 @@ def partOfBytes (path : String) (b : ByteArray) : Except CheckError Part :=
     | .error e => .error (toArenaError e)
 
 /-- con-leche: ConLeche/Frontend/Olean/Files.lean:87-96 locateIn
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Files.locateIn_bridge, then delete this line
 The real paths of a module's three files in one directory, `none` where absent. -/
 def locateIn (fs : OleanFs) (m : Name) (d : System.FilePath) :
     Except String (System.FilePath × List (Option String)) := do
@@ -85,13 +87,15 @@ def locateIn (fs : OleanFs) (m : Name) (d : System.FilePath) :
   return (d, files)
 
 /-- con-leche: ConLeche/Frontend/Olean/Files.lean:98-103 locateHits
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Files.locateHits_bridge, then delete this line
 **The search path's directories holding any of module `m`'s files**, in order. -/
 def locateHits (fs : OleanFs) (sp : List System.FilePath) (m : Name) :
     Except String (Array (System.FilePath × List (Option String))) := do
   let hs ← sp.mapM (locateIn fs m)
   return (hs.filter fun h => h.2.any (·.isSome)).toArray
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:139-160 findModule
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:182-202 findModule
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Files.findModule_bridge, then delete this line
 **Find a module, strictly.** -/
 def findModule (fs : OleanFs) (sp : List System.FilePath) (m : Name) : Except CheckError Located :=
   match locateHits fs sp m with
@@ -101,25 +105,25 @@ def findModule (fs : OleanFs) (sp : List System.FilePath) (m : Name) : Except Ch
     | .error e => .error (toArenaError e)
   | .error e => .error (.internal s!"module {m}: locating its files: {e}")
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:162-166 readPart
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:220-224 readPart
 Read and validate one file. -/
 def readPart (fs : OleanFs) (p : System.FilePath) : Except CheckError Part :=
   match fs.readBinFile p with
   | .error e => .error (.internal e)
   | .ok b => partOfBytes p.toString b
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:172-179 hdrStep
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:244-251 hdrStep
 `hdrWalk acc dataStart` ran off the bytes read. -/
 def hdrShort (acc : ByteArray) : Bool :=
   match hdrWalk acc dataStart with
   | .short => true
   | _ => false
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:168-170 hdrChunk
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:240-242 hdrChunk
 The header read's chunk size, as a number (upstream's is a `USize`). -/
 def hdrChunkN : Nat := 4096
 
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:171-186 foldReads
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:188-203 foldReads
 The reads of the header: forward in `hdrChunk` reads until the walk to the imports
 array is inside what was read, or the end of the file. -/
 def readHdrBytes (fs : OleanFs) (p : System.FilePath) (size : Nat) (off : Nat) (acc : ByteArray) :
@@ -137,7 +141,7 @@ decreasing_by
   simp only [hdrChunkN]
   omega
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:181-183 hdrFin
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:253-255 hdrFin
 The header validated and the imports decoded from the bytes read. -/
 def hdrFin (pk : OleanPins) (m : Name) (path : String) (acc : ByteArray) : AM (Array ImportRec) := do
   match partOfBytes path acc with
@@ -147,7 +151,8 @@ def hdrFin (pk : OleanPins) (m : Name) (path : String) (acc : ByteArray) : AM (A
     | some imps => pure imps
     | none => fail (undecodable m)
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:185-197 readImportsAt
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:257-271 readImportsAt
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Files.readImportsAt_bridge, then delete this line
 **A module's imports, read off the start of its exported `.olean`** at its location. -/
 def readImportsAt (fs : OleanFs) (pk : OleanPins) (loc : Located) (m : Name) :
     AM (Array ImportRec) := do
@@ -159,7 +164,8 @@ def readImportsAt (fs : OleanFs) (pk : OleanPins) (loc : Located) (m : Name) :
     | .error e => fail e
     | .ok acc => hdrFin pk m p.toString acc
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:199-205 moduleImports
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:273-279 moduleImports
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Files.moduleImports_bridge, then delete this line
 **A module's imports**, off the start of its exported `.olean`, located on the search
 path. -/
 def moduleImports (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (m : NIdx) :
@@ -169,7 +175,8 @@ def moduleImports (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (m
   | .error e => fail e
   | .ok loc => readImportsAt fs pk loc mn
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:207-236 readFiles
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:327-333 readFiles
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Files.readFiles_bridge, then delete this line
 **The files of a module a view reads**, each validated, located on the search path.
 A part beside a classic `.olean` is no part of it, and a module of the module system
 has all three. -/
@@ -199,7 +206,8 @@ def readFiles (fs : OleanFs) (sp : List System.FilePath) (m : Name) (level : OLe
   | .ok a => pure a
   | .error e => fail e
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:238-246 readView
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:335-343 readView
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Files.readView_bridge, then delete this line
 **One view of a module**, located on the search path. -/
 def readView (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (m : NIdx)
     (level : OLeanLevel) : AM ModDecoded := do
@@ -209,7 +217,8 @@ def readView (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (m : NI
   | some d => pure d
   | none => fail (← viewError pk mn f level)
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:248-261 readAllViews
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:396-413 readAllViews
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Files.readAllViews_bridge, then delete this line
 **All three views of a module, checked against each other**: its home's read. -/
 def readAllViews (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (m : NIdx) :
     AM (AllViews × Array Expo) := do

@@ -30,7 +30,8 @@ jobs increase: Theorem 1 inducts in fold order, and a job's start state is reach
 through the jobs its worker ran before it, whose specifications need the fold up
 to their own, smaller, positions. -/
 
-/-- con-leche: ConLeche/Driver/CheckPool.lean:199-227 checkPool — **the pooled
+/-- con-leche: ConLeche/Driver/CheckPool.lean:211-239 checkPool — **the pooled
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Pooled.PooledAccepts_bridge, then delete this line
 check, accepted**: the index of `ds` built from `s`, ending in `s'`; and `parts`,
 one job list per worker, each drawn from the positions of `ds`, together covering
 them, each strictly increasing (the pool claims off one monotone counter), each accepted by `checkJobList` from `s'.worker`.  The twin of the Rust's

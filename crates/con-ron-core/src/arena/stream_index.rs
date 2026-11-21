@@ -176,7 +176,8 @@ pub fn stream_index_add(
 }
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:64-66 buildIndex
-/// con-leche: ConLeche/Driver/CheckPool.lean:66-70 Jobs.build
+/// con-leche: ConLeche/Driver/CheckPool.lean:57-75 Jobs.build
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove stream_index::build_index_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:98-101 buildIndex` — **the frozen
 /// index of a stream**, the records folded in order from `i` on and the index
 /// frozen past the last (`stream_index_freeze`, con-leche's `Jobs.build`).  An
@@ -224,7 +225,7 @@ pub fn stream_index_freeze(st: &AState, ix: IStreamIndex) -> Result<IStreamIndex
     }
 }
 
-/// con-leche: ConLeche/Cached/StreamIndex.lean:82-96 FrozenIndex.view
+/// con-leche: ConLeche/Cached/StreamIndex.lean:82-93 FrozenIndex.view
 /// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:103-110 IStreamIndex.view` — **the
 /// view of record `k`**: no constants or tables of its own, the frozen index
 /// visible below the record's first counter and its position, and its literal
@@ -238,7 +239,8 @@ pub fn stream_index_view(pers: &PersTier, k: u64) -> IFEnv {
     ifenv_layer(c, k, from_le(pers.env.nat_from, c), from_le(pers.env.str_from, c))
 }
 
-/// con-leche: ConLeche/Cached/StreamIndex.lean:95-102 recordJob
+/// con-leche: ConLeche/Cached/StreamIndex.lean:95-103 recordJob
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove stream_index::record_check_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:112-120 recordCheck` — what the
 /// fold's step asks of record `pd` at position `k`: the `And` pin, then the
 /// record's check at its view.  `record_job` is this in its bracket; an
@@ -262,7 +264,8 @@ pub fn record_check(
     }
 }
 
-/// con-leche: ConLeche/Cached/StreamIndex.lean:95-102 recordJob
+/// con-leche: ConLeche/Cached/StreamIndex.lean:95-103 recordJob
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove stream_index::record_job_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StreamIndex.lean:122-130 recordJob` — **record `pd`'s
 /// job, at position `k`**: `record_check` from fresh caches and an empty
 /// scratch tier (`enter_record`, the cited `checkDeclStepC`'s fresh `{}`), the

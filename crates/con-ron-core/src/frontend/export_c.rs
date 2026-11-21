@@ -188,7 +188,7 @@ pub fn store_fuel(pers: &PersTier, ar: &EStore) -> u64 {
 // The direct parse state (`ExportC.lean:88-128` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:56-60 StateD
+/// con-leche: ConLeche/Frontend/ExportC.lean:57-61 StateD
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:94-107 StateD` — the
 /// direct parse state: stream-index-keyed tables of HANDLES (a table hit is
 /// the same shared node, named by its handle) and the parsed declarations as
@@ -206,7 +206,7 @@ pub struct StateD {
     pub decls: Vec<IDeclaration>,
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:511-513 StateD.init
+/// con-leche: ConLeche/Frontend/ExportC.lean:506-508 StateD.init
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:492-501 StateD.init` —
 /// the initial parse state.  Over handles it INTERNS: index 0 of the name
 /// table is the format's implicit `Name.anonymous` and index 0 of the level
@@ -234,7 +234,7 @@ pub fn state_d_init(pers: &PersTier, ar: &mut EStore) -> Result<StateD, CheckErr
 // Booking a pushed record (`ExportC.lean:65-72` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:66-70 pushDecl
+/// con-leche: ConLeche/Frontend/ExportC.lean:67-71 pushDecl
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:109-115 pushDecl` —
 /// one parsed record, appended: the decoder keeps the file's records in the
 /// file's order.  What used to sit here — the constants-and-heights
@@ -248,7 +248,7 @@ pub fn push_decl(st: &mut StateD, d: IDeclaration) {
 // The table reads (`ExportC.lean:165-198` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:72-75 StateD.name
+/// con-leche: ConLeche/Frontend/ExportC.lean:73-76 StateD.name
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:117-122 StateD.name`
 pub fn st_name(st: &StateD, i: u64) -> Result<NIdx, LineErr> {
     match id_table_get(&st.names, i) {
@@ -266,7 +266,7 @@ pub fn st_name(st: &StateD, i: u64) -> Result<NIdx, LineErr> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:77-80 StateD.level
+/// con-leche: ConLeche/Frontend/ExportC.lean:78-81 StateD.level
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:124-129 StateD.level`
 pub fn st_level(st: &StateD, i: u64) -> Result<LIdx, LineErr> {
     match id_table_get(&st.levels, i) {
@@ -284,7 +284,7 @@ pub fn st_level(st: &StateD, i: u64) -> Result<LIdx, LineErr> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:82-85 StateD.expr
+/// con-leche: ConLeche/Frontend/ExportC.lean:83-86 StateD.expr
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:131-136 StateD.expr`
 pub fn st_expr(st: &StateD, i: u64) -> Result<EIdx, LineErr> {
     match id_table_get(&st.exprs, i) {
@@ -334,7 +334,7 @@ pub fn st_levels(st: &StateD, is: &Vec<u64>) -> Result<Vec<LIdx>, LineErr> {
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:82-85 StateD.expr
+/// con-leche: ConLeche/Frontend/ExportC.lean:83-86 StateD.expr
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:138-142 getDeclD` —
 /// declaration-level expression lookup: the table read.  (The frontend
 /// tree-size budget that used to sit here was retired at con-leche's task
@@ -347,7 +347,7 @@ pub fn get_decl_d(st: &StateD, i: u64) -> Result<EIdx, LineErr> {
 // The rebinding test (`ExportC.lean:202-222` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:174-176 reboundError
+/// con-leche: ConLeche/Frontend/ExportC.lean:175-177 reboundError
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:146-149 reboundError`
 /// — the rebinding error, named once.  `what` is one of three
 /// `const [u32; N]` literals at the call sites, con-leche's
@@ -367,7 +367,7 @@ pub fn rebound_error(what: &[u32], i: u64) -> Vec<u32> {
     text::cat(s, &core_types::code_points(&B_BOUND))
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:178-187 StateD.freshName
+/// con-leche: ConLeche/Frontend/ExportC.lean:179-188 StateD.freshName
 /// con-leche: ConLeche/Frontend/Scan/Types.lean:352-361 IdTable.bound
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:151-156 StateD.freshName`
 /// — every table entry is bound once: a line that binds an index a previous
@@ -389,7 +389,7 @@ pub fn st_fresh_name(st: &StateD, i: u64) -> Result<(), LineErr> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:188-189 StateD.freshLevel
+/// con-leche: ConLeche/Frontend/ExportC.lean:189-190 StateD.freshLevel
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:158-161 StateD.freshLevel`
 pub fn st_fresh_level(st: &StateD, i: u64) -> Result<(), LineErr> {
     match id_table_get(&st.levels, i) {
@@ -403,7 +403,7 @@ pub fn st_fresh_level(st: &StateD, i: u64) -> Result<(), LineErr> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:190-191 StateD.freshExpr
+/// con-leche: ConLeche/Frontend/ExportC.lean:191-192 StateD.freshExpr
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:163-166 StateD.freshExpr`
 pub fn st_fresh_expr(st: &StateD, i: u64) -> Result<(), LineErr> {
     match id_table_get(&st.exprs, i) {
@@ -421,8 +421,8 @@ pub fn st_fresh_expr(st: &StateD, i: u64) -> Result<(), LineErr> {
 // Table entries (`ExportC.lean:228-282` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:195-199 parseNameEntryD
-/// con-leche: ConLeche/Frontend/ExportC.lean:115-119 nameOfF
+/// con-leche: ConLeche/Frontend/ExportC.lean:196-200 parseNameEntryD
+/// con-leche: ConLeche/Frontend/ExportC.lean:116-120 nameOfF
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:170-182 parseNameEntryD`
 /// — a name-table entry: the node is INTERNED and the table records its
 /// handle.  The parent index is resolved before the freshness test, as in the
@@ -459,7 +459,7 @@ pub fn parse_name_entry_d(
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:201-205 parseLevelEntryD
+/// con-leche: ConLeche/Frontend/ExportC.lean:202-206 parseLevelEntryD
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:184-193 parseLevelEntryD`
 /// — a level-table entry, interned.
 pub fn parse_level_entry_d(
@@ -486,7 +486,7 @@ pub fn parse_level_entry_d(
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:121-127 levelOfF
+/// con-leche: ConLeche/Frontend/ExportC.lean:122-128 levelOfF
 /// The node-view half of `parse_level_entry_d`: the view built from the
 /// children's table handles.  Split out so the entry point is a `match` chain
 /// with no `?` (§3.4), as con-ron-core's `parse_level_rec_d` is.
@@ -517,7 +517,7 @@ pub fn parse_level_rec_d(st: &StateD, r: &LevelRec) -> Result<LNodeView, LineErr
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:207-211 parseExprEntryD
+/// con-leche: ConLeche/Frontend/ExportC.lean:208-212 parseExprEntryD
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:195-226 parseExprEntryD`
 /// — an expression-table entry: the node is interned from the children's
 /// HANDLES, and the packed derived word `Expr.data` computes is computed by
@@ -545,7 +545,7 @@ pub fn parse_expr_entry_d(
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:129-156 exprOfF
+/// con-leche: ConLeche/Frontend/ExportC.lean:130-157 exprOfF
 /// The value half of `parse_expr_entry_d` (see `parse_level_rec_d`), which
 /// here INTERNS rather than returning a view: a `const` node's universe
 /// arguments are one `LsIdx` of their own (`intern_levels`), which is what
@@ -656,7 +656,7 @@ pub fn parse_expr_rec_d(
 // Declaration records (`ExportC.lean:288-404` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:215-221 cvOfF
+/// con-leche: ConLeche/Frontend/ExportC.lean:216-222 cvOfF
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:230-237 parseCVD` — a
 /// declaration's common data; the type stays a handle.  Pure in the store: it
 /// is three table reads and nothing is interned.
@@ -678,7 +678,7 @@ pub fn parse_cv_d(st: &StateD, cv: &CVRec) -> Result<IConstantVal, LineErr> {
 }
 
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:223-229 indPiTeleLen
+/// con-leche: ConLeche/Frontend/ExportC.lean:224-230 indPiTeleLen
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:239-248 indPiTeleLen`
 /// — the syntactic Π-telescope length of a declared type: official counts a
 /// constructor's binders by walking `is_pi` without reducing, and the count
@@ -708,7 +708,7 @@ pub fn ind_pi_tele_len(pers: &PersTier, ar: &EStore, fuel: u64, h: &EIdx) -> Res
     merr(core_types::code_points(&M_FUEL_TELE))
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:231-233 ruleOfF
+/// con-leche: ConLeche/Frontend/ExportC.lean:232-234 ruleOfF
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:250-254 parseRuleD` —
 /// one recursor rule of an inductive record, resolved.  The install-computed
 /// fields carry con-leche's own parse placeholders.
@@ -722,7 +722,7 @@ pub fn parse_rule_d(st: &StateD, ru: &RuleRec) -> Result<IRecRule, LineErr> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:231-233 ruleOfF
+/// con-leche: ConLeche/Frontend/ExportC.lean:232-234 ruleOfF
 /// A recursor record's whole rule list (`r.rules.mapM (parseRuleD st)`).
 pub fn parse_rules_d(st: &StateD, rus: &Vec<RuleRec>) -> Result<Vec<IRecRule>, LineErr> {
     let mut out: Vec<IRecRule> = Vec::with_capacity(rus.len());
@@ -772,7 +772,7 @@ pub fn ind_ctor_rec_dup(c: &IndCtorRec) -> IndCtorRec {
 // `validateIndD` (`ExportC.lean:419-516` of the twin) and its pieces
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// The cited `tys.any (·.isUnsafe)`.
 pub fn any_ty_unsafe(tys: &Vec<IndTypeRec>) -> bool {
     let n = tys.len();
@@ -786,7 +786,7 @@ pub fn any_ty_unsafe(tys: &Vec<IndTypeRec>) -> bool {
     false
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// The cited `tys.any (·.numNested != 0)`.
 pub fn any_ty_nested(tys: &Vec<IndTypeRec>) -> bool {
     let n = tys.len();
@@ -800,7 +800,7 @@ pub fn any_ty_nested(tys: &Vec<IndTypeRec>) -> bool {
     false
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// The cited `nPs.all (· == nPd)`.
 pub fn all_num_params(tys: &Vec<IndTypeRec>, n_pd: u64) -> bool {
     let n = tys.len();
@@ -814,7 +814,7 @@ pub fn all_num_params(tys: &Vec<IndTypeRec>, n_pd: u64) -> bool {
     true
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// The cited `tys.mapM fun t => st.name t.cv.name`.
 pub fn ty_names_of(st: &StateD, tys: &Vec<IndTypeRec>) -> Result<Vec<NIdx>, LineErr> {
     let mut out: Vec<NIdx> = Vec::with_capacity(tys.len());
@@ -830,7 +830,7 @@ pub fn ty_names_of(st: &StateD, tys: &Vec<IndTypeRec>) -> Result<Vec<NIdx>, Line
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// The cited `tys.mapM fun t => getDeclD st t.cv.type`.
 pub fn ty_types_of(st: &StateD, tys: &Vec<IndTypeRec>) -> Result<Vec<EIdx>, LineErr> {
     let mut out: Vec<EIdx> = Vec::with_capacity(tys.len());
@@ -846,7 +846,7 @@ pub fn ty_types_of(st: &StateD, tys: &Vec<IndTypeRec>) -> Result<Vec<EIdx>, Line
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// The cited `tys.mapM fun t => t.ctors.mapM st.name`.
 pub fn listed_ctors_of(
     st: &StateD,
@@ -865,7 +865,7 @@ pub fn listed_ctors_of(
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// The cited `cts.mapM fun c => st.name c.cv.name`.
 pub fn ctor_names_of(st: &StateD, cts: &Vec<IndCtorRec>) -> Result<Vec<NIdx>, LineErr> {
     let mut out: Vec<NIdx> = Vec::with_capacity(cts.len());
@@ -881,7 +881,7 @@ pub fn ctor_names_of(st: &StateD, cts: &Vec<IndCtorRec>) -> Result<Vec<NIdx>, Li
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// The cited `listed.flatten`.
 pub fn flatten_listed(listed: &Vec<Vec<NIdx>>) -> Vec<NIdx> {
     let mut out: Vec<NIdx> = Vec::new();
@@ -899,7 +899,7 @@ pub fn flatten_listed(listed: &Vec<Vec<NIdx>>) -> Vec<NIdx> {
     out
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// The cited `flat.Nodup`, decided: does the flattened constructor list repeat
 /// a name?  A handle-keyed set pass, as `con_ron_core::frontend::export_c`'s
 /// is (a `HashMap<_, bool>`), and not the quadratic scan: Aeneas answers
@@ -920,7 +920,7 @@ pub fn names_have_dup(flat: &Vec<NIdx>) -> bool {
     false
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// The cited `ctorNames.foldl … ({}, 0)`: the constructor records by name,
 /// **LAST record wins** — the cited fold's `Std.HashMap.insert` overwrites,
 /// and task #87's refinement of `validateIndD` found that the difference is
@@ -937,7 +937,7 @@ pub fn ctor_index_of(ns: &Vec<NIdx>) -> HashMap<NIdx, u64> {
     m
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// `"No such constructor {n}"`.
 pub fn no_such_ctor_error(n: &Vec<u32>) -> Vec<u32> {
     const A_NOSUCH: [u32; 20] = [
@@ -947,7 +947,7 @@ pub fn no_such_ctor_error(n: &Vec<u32>) -> Vec<u32> {
     text::cat(core_types::code_points(&A_NOSUCH), n)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// `"the inductive block lists {a} constructors and carries {b} constructor
 /// records"`.
 pub fn ctor_count_error(a: u64, b: u64) -> Vec<u32> {
@@ -971,7 +971,7 @@ pub fn ctor_count_error(a: u64, b: u64) -> Vec<u32> {
     text::cat3(s, &text::u64_str(b), &core_types::code_points(&C_LISTS))
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// `"constructor {n} declares cidx {ci}; it is constructor {j} of {t}"`.
 pub fn cidx_error(n: &Vec<u32>, ci: u64, j: u64, t: &Vec<u32>) -> Vec<u32> {
     const A_CTOR: [u32; 12] = [
@@ -1000,7 +1000,7 @@ pub fn cidx_error(n: &Vec<u32>, ci: u64, j: u64, t: &Vec<u32>) -> Vec<u32> {
     text::cat3(s, &core_types::code_points(&E_OF), t)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// `"constructor {n} declares induct {iw}; it is a constructor of {t}"`.
 pub fn induct_error(n: &Vec<u32>, iw: &Vec<u32>, t: &Vec<u32>) -> Vec<u32> {
     const A_CTOR: [u32; 12] = [
@@ -1025,7 +1025,7 @@ pub fn induct_error(n: &Vec<u32>, iw: &Vec<u32>, t: &Vec<u32>) -> Vec<u32> {
     text::cat3(s, &core_types::code_points(&D_CTOROF), t)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// `"constructor {n} declares {f} fields at {p} parameters; its type has {b}
 /// binders"`.
 pub fn fields_error(n: &Vec<u32>, f: u64, p: u64, b: u64) -> Vec<u32> {
@@ -1067,7 +1067,7 @@ pub fn show_name(pers: &PersTier, ar: &EStore, h: &NIdx) -> Result<Vec<u32>, Lin
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// One constructor record, validated against the block's own declarations:
 /// the redundant `cidx` and `induct` fields and the declared `numFields`.
 pub fn check_one_ctor(
@@ -1142,7 +1142,7 @@ pub fn check_one_ctor(
     Ok(())
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// One type former's constructors, in the order the type record LISTS them,
 /// each with that type `t`, its `induct`: the inner `for` of the twin's
 /// reordering, with the accumulator passed by value.
@@ -1188,7 +1188,7 @@ pub fn order_type_ctors(
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// **The constructors IN THE BLOCK'S OWN ORDER**, `types[].ctors` in type
 /// order: a record array in another order is the same block, and the recursor
 /// generated from it is the same one; each with the type that lists it, its
@@ -1228,7 +1228,7 @@ pub fn order_block_ctors(
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// `"recursor {rn} declares {a} parameters; the block declares {b}"`.
 pub fn rec_params_error(rn: &Vec<u32>, a: u64, b: u64) -> Vec<u32> {
     const A_REC: [u32; 9] = [
@@ -1250,7 +1250,7 @@ pub fn rec_params_error(rn: &Vec<u32>, a: u64, b: u64) -> Vec<u32> {
     text::cat(s, &text::u64_str(b))
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// `"recursor {rn} declares {a} motives; the block has {b} inductive types"`.
 pub fn rec_motives_error(rn: &Vec<u32>, a: u64, b: u64) -> Vec<u32> {
     const A_REC: [u32; 9] = [
@@ -1275,7 +1275,7 @@ pub fn rec_motives_error(rn: &Vec<u32>, a: u64, b: u64) -> Vec<u32> {
     text::cat3(s, &text::u64_str(b), &core_types::code_points(&D_INDTYPES))
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// `"recursor {rn} declares {a} minor premises; the block has {b}
 /// constructors"`.
 pub fn rec_minors_error(rn: &Vec<u32>, a: u64, b: u64) -> Vec<u32> {
@@ -1301,7 +1301,7 @@ pub fn rec_minors_error(rn: &Vec<u32>, a: u64, b: u64) -> Vec<u32> {
     text::cat3(s, &text::u64_str(b), &core_types::code_points(&D_CTORS))
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// `"recursor {rn} declares {a} indices; {t} has {b} at {p} parameters"`.
 pub fn rec_indices_error(rn: &Vec<u32>, a: u64, t: &Vec<u32>, b: u64, p: u64) -> Vec<u32> {
     const A_REC: [u32; 9] = [
@@ -1333,7 +1333,7 @@ pub fn rec_indices_error(rn: &Vec<u32>, a: u64, t: &Vec<u32>, b: u64, p: u64) ->
     text::cat3(s, &text::u64_str(p), &core_types::code_points(&F_PARAMS))
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// `numIndices` of `T.rec` is what is left of `T`'s own telescope once the
 /// parameters are peeled; unreadable at a former declared at a definition, and
 /// then not checked.
@@ -1381,7 +1381,7 @@ pub fn check_rec_indices(
     Ok(())
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// One recursor record: the counts the GENERATED recursor carries.  Its K flag
 /// is the record's own, which the fold's check compares with the block.
 pub fn check_one_rec(
@@ -1434,7 +1434,7 @@ pub fn check_one_rec(
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// Every recursor record of the block.  NOT run at a NESTED block — the kernel
 /// specialises a nested block into a mutual one with a mimic type per nested
 /// occurrence, and the recursors it generates are the SPECIALISED block's.
@@ -1465,7 +1465,7 @@ pub fn check_rec_records(
     Ok(())
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:235-373 validateIndF
+/// con-leche: ConLeche/Frontend/ExportC.lean:236-374 validateIndF
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:256-354 validateIndD`
 /// — **an inductive record, VALIDATED**: the half of the record's processing
 /// that reads the state and changes nothing.  Every guard, every verdict and
@@ -1564,7 +1564,7 @@ pub fn validate_ind_d(
 // `installIndD` (`ExportC.lean:368-391` of the twin) and its pieces
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:375-392 indBlockOfF
+/// con-leche: ConLeche/Frontend/ExportC.lean:376-393 indBlockOfF
 /// The cited `types ++ ctors ++ recs`: the block's `IConstantInfo`s, built in
 /// three loops each of which is its own function.
 pub fn ind_block_of(
@@ -1582,7 +1582,7 @@ pub fn ind_block_of(
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:375-392 indBlockOfF
+/// con-leche: ConLeche/Frontend/ExportC.lean:376-393 indBlockOfF
 /// The cited `tys.mapM`.
 pub fn ind_block_types(
     st: &StateD,
@@ -1602,7 +1602,7 @@ pub fn ind_block_types(
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:375-392 indBlockOfF
+/// con-leche: ConLeche/Frontend/ExportC.lean:376-393 indBlockOfF
 /// The cited `cts.mapM`: each constructor with the type that lists it as its
 /// `induct`.
 pub fn ind_block_ctors(
@@ -1624,7 +1624,7 @@ pub fn ind_block_ctors(
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:375-392 indBlockOfF
+/// con-leche: ConLeche/Frontend/ExportC.lean:376-393 indBlockOfF
 /// The cited `rcs.mapM`.
 pub fn ind_block_recs(
     st: &StateD,
@@ -1655,8 +1655,8 @@ pub fn ind_block_recs(
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:375-392 indBlockOfF
-/// con-leche: ConLeche/Frontend/ExportC.lean:452-457 processLineCoreD
+/// con-leche: ConLeche/Frontend/ExportC.lean:376-393 indBlockOfF
+/// con-leche: ConLeche/Frontend/ExportC.lean:453-458 processLineCoreD
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:356-381 installIndD` —
 /// **an inductive record, INSTALLED**: the block's constants, pushed as one
 /// `IndDecl`.  Every change to the state a validated inductive record makes
@@ -1689,7 +1689,7 @@ pub fn install_ind_d(
 // The line (`ExportC.lean:577-655` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:394-446 declOfF
+/// con-leche: ConLeche/Frontend/ExportC.lean:395-447 declOfF
 /// `"definition with safety {Display.str s}"`.
 pub fn safety_error(s: &Vec<u32>) -> Vec<u32> {
     const A_SAFETY: [u32; 23] = [
@@ -1699,7 +1699,7 @@ pub fn safety_error(s: &Vec<u32>) -> Vec<u32> {
     text::cat(core_types::code_points(&A_SAFETY), &name::display_str(s))
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:394-446 declOfF
+/// con-leche: ConLeche/Frontend/ExportC.lean:395-447 declOfF
 /// `"unknown quotient kind {Display.str k}"`.
 pub fn quot_kind_error(k: &Vec<u32>) -> Vec<u32> {
     const A_QUOTKIND: [u32; 22] = [
@@ -1709,7 +1709,7 @@ pub fn quot_kind_error(k: &Vec<u32>) -> Vec<u32> {
     text::cat(core_types::code_points(&A_QUOTKIND), &name::display_str(k))
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:394-446 declOfF
+/// con-leche: ConLeche/Frontend/ExportC.lean:395-447 declOfF
 /// The `#QUOT` record's `kind` word, as the kernel's `QuotKind`.
 pub fn quot_kind_of(k: &Vec<u32>) -> Option<QuotKind> {
     const K_TYPE: [u32; 4] = [
@@ -1737,8 +1737,8 @@ pub fn quot_kind_of(k: &Vec<u32>) -> Option<QuotKind> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:452-457 processLineCoreD
-/// con-leche: ConLeche/Frontend/ExportC.lean:394-446 declOfF
+/// con-leche: ConLeche/Frontend/ExportC.lean:453-458 processLineCoreD
+/// con-leche: ConLeche/Frontend/ExportC.lean:395-447 declOfF
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:383-433 processLineCoreD`
 /// — the record's own semantics: the declaration kinds, producing
 /// `IDeclaration` records.  Every branch, guard and error string is
@@ -1845,7 +1845,7 @@ pub fn process_line_core_d(
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:459-466 applyDeclD
+/// con-leche: ConLeche/Frontend/ExportC.lean:460-467 applyDeclD
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:435-440 applyDeclD` —
 /// a declaration record.  `sorryAx` is the FOLD's: the parse forwards every
 /// declaration record, the `sorryAx` axiom record included.
@@ -1853,7 +1853,7 @@ pub fn apply_decl_d(pers: &PersTier, ar: &EStore, st: &mut StateD, d: &DeclRec) 
     process_line_core_d(pers, ar, st, d)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:468-479 applyRecord
+/// con-leche: ConLeche/Frontend/ExportC.lean:469-480 applyRecord
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:442-455 applyRecord` —
 /// **one record applied** to the parse state.  The scanned record is
 /// con-leche's own (`Scan/Fast.lean`, reused); what this does with it is
@@ -1870,7 +1870,7 @@ pub fn apply_record(pers: &PersTier, ar: &mut AState, st: &mut StateD, r: &LineR
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:481-489 LineRec.placed
+/// con-leche: ConLeche/Frontend/ExportC.lean:482-490 LineRec.placed
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:457-464 lineRecPlaced` —
 /// **where a line may stand**: the format's first line is its `meta` header
 /// (`first`), and every later line is a record — the header only first, every
@@ -1883,7 +1883,7 @@ pub fn line_rec_placed(first: bool, r: &LineRec) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:491-495 LineRec.misplaced
+/// con-leche: ConLeche/Frontend/ExportC.lean:492-496 LineRec.misplaced
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:466-471 lineRecMisplaced` —
 /// what a line that stands where it may not is told.
 pub fn line_rec_misplaced(r: &LineRec) -> Vec<u32> {
@@ -1910,7 +1910,7 @@ pub fn line_rec_misplaced(r: &LineRec) -> Vec<u32> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:497-501 applyLine
+/// con-leche: ConLeche/Frontend/ExportC.lean:498-502 applyLine
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:473-479 applyLine` —
 /// **THE SEMANTIC LAYER**: one scanned line, after `line_no` lines, applied to
 /// the parse state if it stands where it may.
@@ -1926,7 +1926,7 @@ pub fn apply_line(pers: &PersTier, ar: &mut AState, st: &mut StateD, r: &LineRec
 // The line feed and the drivers (`ExportC.lean:663-836` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:505-509 ParseResultD
+/// con-leche: ConLeche/Frontend/ParseResult.lean:25-29 ParseResultD
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:483-490 ParseResultD`
 /// — the direct parse result: the declarations over handles.  No arena
 /// conversion: the handles already point into the persistent tier the fold
@@ -1938,14 +1938,14 @@ pub struct ParseResultD {
     pub decls: Vec<IDeclaration>,
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:529-530 ParseResultD.ofState
+/// con-leche: ConLeche/Frontend/ExportC.lean:524-525 ParseResultD.ofState
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:503-506 ParseResultD.ofState`
 /// — the result: the file's records, in the file's order.
 pub fn parse_result_of_state(st: StateD) -> ParseResultD {
     ParseResultD { decls: st.decls }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:533-544 applyFinalLine
+/// con-leche: ConLeche/Frontend/ExportC.lean:528-539 applyFinalLine
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:508-520 applyFinalLine`
 /// — scan and apply the LAST line of a stream, the one no newline ends,
 /// after `line_no` lines.  A syntactic failure is reported at its offset in
@@ -1975,7 +1975,7 @@ pub fn apply_final_line(
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:546-580 feedChunk
+/// con-leche: ConLeche/Frontend/ExportC.lean:541-575 feedChunk
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:522-551 feedChunk` —
 /// every COMPLETE line of the chunk from `i`, applied in order: the line count
 /// and where the incomplete tail begins.  A line a chunk cut in half is told
@@ -2034,7 +2034,7 @@ pub fn feed_chunk(
     Ok((line_no, i))
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:582-583 chunkSize
+/// con-leche: ConLeche/Frontend/ExportC.lean:577-578 chunkSize
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:553-555 chunkSize` — how
 /// many bytes the streaming driver asks for at a time.
 pub const CHUNK_SIZE: usize = 4 * 1024 * 1024;
@@ -2044,7 +2044,7 @@ pub const CHUNK_SIZE: usize = 4 * 1024 * 1024;
 /// `1 << 64` does not fit the type it bounds.
 pub const USIZE_SIZE: u128 = 1u128 << usize::BITS;
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:585-593 sizeError
+/// con-leche: ConLeche/Frontend/ExportC.lean:580-588 sizeError
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:557-561 sizeError` —
 /// **THE SIZE GUARD**: the byte reader addresses its buffer by machine word,
 /// so an input of `USize.size` bytes or more is refused before any of it is
@@ -2062,7 +2062,7 @@ pub fn size_error() -> (CheckError, u64) {
     )
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:595-607 parseBytes
+/// con-leche: ConLeche/Frontend/ExportC.lean:590-602 parseBytes
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:563-576 parseBytes` —
 /// **wholesale direct parse of a byte buffer**: the whole input fed at once,
 /// then the last line.  The specification the streaming parse is proved equal
@@ -2081,7 +2081,7 @@ pub fn parse_bytes(pers: &PersTier, ar: &mut AState, b: &[u8]) -> Result<ParseRe
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:595-607 parseBytes
+/// con-leche: ConLeche/Frontend/ExportC.lean:590-602 parseBytes
 /// The cited tail of `parseBytes`: the last line, the one no newline ends.
 pub fn parse_bytes_final(
     pers: &PersTier,
@@ -2101,7 +2101,7 @@ pub fn parse_bytes_final(
     Ok(parse_result_of_state(st))
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:627-637 chunkStep
+/// con-leche: ConLeche/Frontend/ExportC.lean:622-632 chunkStep
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:578-590 chunkStep` —
 /// **one chunk of the stream, applied**: the carried incomplete tail is put in
 /// front of the new bytes, every complete line of the buffer is fed, and the
@@ -2136,7 +2136,7 @@ pub fn chunk_step(
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:637-644 chunkFinish
+/// con-leche: ConLeche/Frontend/ExportC.lean:632-639 chunkFinish
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:592-599 chunkFinish` —
 /// the end of the stream: the carried tail, if any, is its last line.
 pub fn chunk_finish(
@@ -2156,7 +2156,7 @@ pub fn chunk_finish(
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:652-671 parseChunks
+/// con-leche: ConLeche/Frontend/ExportC.lean:641-660 parseChunks
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:601-615 parseChunksGo`
 /// — **THE STREAMING PARSE, PURELY**: `chunk_step` folded over a list of
 /// chunks, `chunk_finish` at its end — what the driver's read loop does with
@@ -2193,7 +2193,7 @@ pub fn parse_chunks(
     chunk_finish(pers, ar, st, &carry[..], line_no)
 }
 
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:188-198 foldChunks
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:205-215 foldChunks
 /// **Where the reader loop's bytes come from** (task #97-P5-Driver): the one
 /// input seam of the parse, declared here and implemented in the driver over a
 /// file handle.  `foldChunks` reads through a handle too (the class's
@@ -2204,7 +2204,7 @@ pub fn parse_chunks(
 /// (`Refine2/Frontend/Source.lean`'s `ReadsAs`), which is the one thing about
 /// the input the binary trusts.
 pub trait ChunkSource {
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:188-198 foldChunks
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:205-215 foldChunks
     /// The next buffer of the input, read strictly forward, never seeked:
     /// EMPTY exactly at the end of the input.  A source whose read fails
     /// answers empty too and keeps the failure for its owner, who reports it
@@ -2212,7 +2212,7 @@ pub trait ChunkSource {
     fn next_chunk(&mut self) -> Vec<u8>;
 }
 
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:188-198 foldChunks
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:205-215 foldChunks
 /// Lean twin: none — the reads have no model; `Refine2/Frontend/Source.lean`'s
 /// `parse_source_eq` makes this `parse_chunks` over the chunks read.
 /// **THE READER LOOP**, moved here from the driver by task #97-P5-Driver:

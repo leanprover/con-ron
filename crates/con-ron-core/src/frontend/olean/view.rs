@@ -397,7 +397,7 @@ pub fn name_text(pers: &PersTier, ar: &EStore, m: &NIdx) -> Vec<u32> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/View.lean:164-167 undecodable
+/// con-leche: ConLeche/Frontend/Olean/View.lean:178-181 undecodable
 /// The module's files do not decode.
 pub fn undecodable(pers: &PersTier, ar: &EStore, m: &NIdx) -> CheckError {
     let t = text::cat({ const M: [u32; 7] = [109, 111, 100, 117, 108, 101, 32]; crate::kernel::core_types::code_points(&M) }, &name_text(pers, ar, m));
@@ -414,7 +414,7 @@ pub fn level_repr(level: &OLeanLevel) -> Vec<u32> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/View.lean:169-181 viewError
+/// con-leche: ConLeche/Frontend/Olean/View.lean:183-195 viewError
 /// Why a view does not read.
 pub fn view_error(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, m: &NIdx, f: &ModFiles, level: &OLeanLevel) -> CheckError {
     let pre = text::cat({ const M: [u32; 7] = [109, 111, 100, 117, 108, 101, 32]; crate::kernel::core_types::code_points(&M) }, &name_text(pers, ar, m));

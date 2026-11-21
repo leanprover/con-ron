@@ -326,7 +326,8 @@ pub fn mc_probe(memo: &HashMap<EIdx, bool>, k: &EIdx) -> Option<bool> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:119-133 Expr.mentionsAnyConst
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1155-1169 Expr.mentionsAnyConst
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove struct_parts::mentions_const_go_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1795-1839 mentionsAnyConstXP
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:148-190 mentionsConstGo`
 /// — does the constant `T` occur in `e`?  `mentionsAnyConst [T]`, the one

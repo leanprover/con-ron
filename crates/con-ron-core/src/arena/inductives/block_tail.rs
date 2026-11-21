@@ -103,7 +103,7 @@ pub struct BlockPass {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:44-62 checkBlockPass
-/// con-leche: ConLeche/Cached/CheckerC.lean:187-201 checkBlockPassS
+/// con-leche: ConLeche/Cached/CheckerC.lean:216-230 checkBlockPassS
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:64-83 checkBlockPass` — **one
 /// pass over the formers, the constructors and the classes** at the block's
 /// `is_rec` verdict: the formers (and the flush entering the environment
@@ -130,7 +130,7 @@ pub fn check_block_pass(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:44-62 checkBlockPass
-/// con-leche: ConLeche/Cached/CheckerC.lean:187-201 checkBlockPassS
+/// con-leche: ConLeche/Cached/CheckerC.lean:216-230 checkBlockPassS
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:64-83 checkBlockPass` — the
 /// walk's context, the classes, the root frame and the seeds.
 pub fn check_block_pass_classes(
@@ -170,7 +170,7 @@ pub fn check_block_pass_classes(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:64-77 checkBlockRec
-/// con-leche: ConLeche/Cached/CheckerC.lean:203-223 checkBlockTailS
+/// con-leche: ConLeche/Cached/CheckerC.lean:232-252 checkBlockTailS
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:85-94 checkBlockRec` — **the
 /// installer's recursor stage**: the GENERATED recursor stage at the
 /// constructors' environment, on the stream's own recursor family (the raw
@@ -194,7 +194,7 @@ pub fn check_block_rec(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:79-90 consBlockRecsT
-/// con-leche: ConLeche/Cached/CheckerC.lean:203-223 checkBlockTailS
+/// con-leche: ConLeche/Cached/CheckerC.lean:232-252 checkBlockTailS
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:96-108 consBlockRecsTemp` — **the
 /// checked family consed, at its majors, TEMPORARILY**: the records
 /// `rec_check::block_rec_infos_tf` built (each recursor with its rules at ITS
@@ -242,7 +242,7 @@ pub fn check_block_tables(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:100-112 checkBlockTail
-/// con-leche: ConLeche/Cached/CheckerC.lean:203-223 checkBlockTailS
+/// con-leche: ConLeche/Cached/CheckerC.lean:232-252 checkBlockTailS
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:120-146 checkBlockTail` —
 /// **the stream's recursors against the generated ones**: the K flags, then
 /// the generated family pushed at its majors, a flush entering it, the
@@ -285,7 +285,7 @@ pub fn check_block_tail_stream(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:100-112 checkBlockTail
-/// con-leche: ConLeche/Cached/CheckerC.lean:203-223 checkBlockTailS
+/// con-leche: ConLeche/Cached/CheckerC.lean:232-252 checkBlockTailS
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:120-146 checkBlockTail` — **the
 /// checks after the pass**: the index binders' sorts, the constructors consed
 /// (and the flush entering that environment), the generated recursors, the
@@ -352,7 +352,7 @@ pub fn declined_at_definition(st: &AState) -> Result<Vec<NIdx>, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:124-136 reduceMember
-/// con-leche: ConLeche/Cached/CheckerC.lean:225-236 reduceMemberS
+/// con-leche: ConLeche/Cached/CheckerC.lean:254-265 reduceMemberS
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:156-173 reduceMember` — **a
 /// member's former at its telescope**, official's `whnf` loop where the
 /// declared type does not show it: the declared type checked, reduced, and
@@ -382,7 +382,7 @@ pub fn reduce_member(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:124-136 reduceMember
-/// con-leche: ConLeche/Cached/CheckerC.lean:225-236 reduceMemberS
+/// con-leche: ConLeche/Cached/CheckerC.lean:254-265 reduceMemberS
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:156-173 reduceMember` — the inner
 /// `do` block: the constant check, the reduct (`reducedFormer`) and the
 /// definitional comparison of the two types.
@@ -413,7 +413,7 @@ pub fn reduce_member_checked(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:138-145 reduceMembers
-/// con-leche: ConLeche/Cached/CheckerC.lean:238-245 reduceMembersS
+/// con-leche: ConLeche/Cached/CheckerC.lean:267-274 reduceMembersS
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:175-185 reduceMembers` — the members
 /// from `i` on, each at its telescope, a flush before each (the cached
 /// twin's).
@@ -443,7 +443,7 @@ pub fn reduce_members(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:147-163 checkBlock
-/// con-leche: ConLeche/Cached/CheckerC.lean:247-259 checkBlockKS
+/// con-leche: ConLeche/Cached/CheckerC.lean:276-288 checkBlockKS
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:187-217 checkBlock` — **check
 /// an inductive block and install it**: the distinct names, no member at a
 /// `Bool` constructor's name, each former reduced to its telescope once
@@ -483,7 +483,7 @@ pub fn check_block(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:147-163 checkBlock
-/// con-leche: ConLeche/Cached/CheckerC.lean:247-259 checkBlockKS
+/// con-leche: ConLeche/Cached/CheckerC.lean:276-288 checkBlockKS
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:187-217 checkBlock` — after the
 /// name checks: the members reduced, the flush, the pass, the projection
 /// tables read off the block once (an internal error where a constructor is

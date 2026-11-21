@@ -1875,7 +1875,7 @@ pub fn domains_resolve(
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:421-440 classRuleCheck
 /// con-leche: ConLeche/Cached/IndRec.lean:378-398 classRuleCheckC
-/// con-leche: ConLeche/Cached/CheckerC.lean:159-185 sharedOpsRuleR
+/// con-leche: ConLeche/Cached/CheckerC.lean:188-214 sharedOpsRuleR
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:608-638 classRuleCheck` — **the
 /// check of a generated rule**: closed, its level parameters the recursor's,
 /// resolving and typed at the rule-less recursors' environment `fe`
@@ -2140,7 +2140,7 @@ pub fn class_n_pc_of(pers: &PersTier, p: &BlockShape, fe: &IFEnv, i_name: &NIdx)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:496-501 classSeeds
-/// con-leche: ConLeche/Cached/IndPositivity.lean:549-553 classSeedsC
+/// con-leche: ConLeche/Cached/IndPositivity.lean:557-561 classSeedsC
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:698-710 classSeeds` — the seeds:
 /// every OUTSIDE class in the positivity check's representation, in order.
 pub fn class_seeds(

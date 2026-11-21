@@ -16,14 +16,14 @@ namespace ConRon.Arena.Frontend.Olean
 open ConLeche
 open ConLeche.Frontend.Olean (CEntryF CKindF closureFuel)
 
-/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:54-57 Merged
+/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:65-68 Merged
 The merged constants and the order they were first stored in. -/
 structure Merged where
   ls : Array Loaded
   map : Std.HashMap NIdx (Nat × Nat) := {}
   order : Array NIdx := #[]
 
-/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:54-57 Merged
+/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:65-68 Merged
 `mg.map[n]?`. -/
 def Merged.get (mg : Merged) (n : NIdx) : Option CEntry :=
   match mg.map[n]? with
@@ -31,6 +31,7 @@ def Merged.get (mg : Merged) (n : NIdx) : Option CEntry :=
   | some (m, i) => (mg.ls[m]?).bind (·.constants[i]?)
 
 /-- con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Merge.isPropBody_bridge, then delete this line
 The result of a telescope. -/
 def isPropBody : Nat → EIdx → AM EIdx
   | 0, e => pure e
@@ -40,6 +41,7 @@ def isPropBody : Nat → EIdx → AM EIdx
     | _ => pure e
 
 /-- con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Merge.isPropHead_bridge, then delete this line
 The head constant of an application, and its argument count. -/
 def isPropHead : Nat → EIdx → Nat → AM (Option (NIdx × Nat))
   | 0, _, _ => pure none
@@ -50,6 +52,7 @@ def isPropHead : Nat → EIdx → Nat → AM (Option (NIdx × Nat))
     | _ => pure none
 
 /-- con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Merge.isPropDrop_bridge, then delete this line
 A telescope's result after `k` binders. -/
 def isPropDrop : Nat → EIdx → AM (Option EIdx)
   | 0, e => pure (some e)
@@ -59,6 +62,7 @@ def isPropDrop : Nat → EIdx → AM (Option EIdx)
     | _ => pure none
 
 /-- con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Merge.isPropCheap_bridge, then delete this line
 Lean's `isPropCheap`: the statement is a telescope over a constant applied to as many
 arguments as its own type has binders before a `Prop` result. -/
 def isPropCheap (pk : OleanPins) (mg : Merged) (ty : EIdx) : AM Bool := do
@@ -76,7 +80,8 @@ def isPropCheap (pk : OleanPins) (mg : Merged) (ty : EIdx) : AM Bool := do
         | .sort u => pure (u == pk.zero)
         | _ => pure false
 
-/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:45-52 subsumes
+/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:61-63 subsumes
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Merge.subsumes_bridge, then delete this line
 `subsumesInfo`: may `c₁` stand for `c₂`? -/
 def subsumes (pk : OleanPins) (mg : Merged) (c₁ c₂ : CEntry) : AM Bool := do
   if c₁.c.name == c₂.c.name && c₁.c.type == c₂.c.type && c₁.c.levelParams == c₂.c.levelParams then
@@ -88,7 +93,7 @@ def subsumes (pk : OleanPins) (mg : Merged) (c₁ c₂ : CEntry) : AM Bool := do
     | _, _ => pure false
   else pure false
 
-/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:59-70 mergeEntry
+/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:70-81 mergeEntry
 **Merge one constant**, the `i`-th of module `m`, `c`. -/
 def mergeEntry (pk : OleanPins) (mg : Merged) (m i : Nat) (c : CEntry) : AM Merged := do
   match mg.get c.c.name with
@@ -100,7 +105,7 @@ def mergeEntry (pk : OleanPins) (mg : Merged) (m i : Nat) (c : CEntry) : AM Merg
     else if ← subsumes pk mg prev c then pure mg
     else fail (.invalid s!"two modules store different constants named {← readName c.c.name}")
 
-/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:72-73 mergeAll
+/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:83-84 mergeAll
 The closure's constants merged. -/
 def mergeAll (pk : OleanPins) (ls : Array Loaded) : AM Merged := do
   let mut mg : Merged := { ls }

@@ -50,7 +50,7 @@ def rootConstants (mg : Merged) : Option (Array NIdx) → AM (Array NIdx)
     | some c => do fail (.internal s!"the constant {← readName c} is not in the import closure")
     | none => pure cs
 
-/-- con-leche: ConLeche/Frontend/Olean/Records.lean:76-79 ModRef
+/-- con-leche: ConLeche/Frontend/Olean/Records.lean:83-86 ModRef
 What a theorem's check needs of a module of the closure's order. -/
 structure ModRef where
   name : NIdx
@@ -58,7 +58,7 @@ structure ModRef where
 
 instance : Inhabited ModRef := ⟨⟨default, {}⟩⟩
 
-/-- con-leche: ConLeche/Frontend/Olean/Records.lean:83-89 OleanRead
+/-- con-leche: ConLeche/Frontend/Olean/Records.lean:90-96 OleanRead
 **What a read gives**: the records, a theorem's value as its reference; what its
 check needs to read it, by the reference's module; the merged constants, for what a
 value mentions; and the reader's pins (the Rust's note). -/
@@ -68,7 +68,7 @@ structure OleanRead where
   merged : Merged
   pins : OleanPins
 
-/-- con-leche: ConLeche/Frontend/Olean/Records.lean:91-95 OleanRead.thmUses
+/-- con-leche: ConLeche/Frontend/Olean/Records.lean:102-106 OleanRead.thmUses
 **What a theorem's record mentions**, which its reference does not say: what the
 load read off the file.  `none` for any other record. -/
 def OleanRead.thmUses (rd : OleanRead) : IDeclaration → Option (Array NIdx)
@@ -85,6 +85,7 @@ def OleanRead.usedOf (rd : OleanRead) (d : IDeclaration) : AM (Array NIdx) :=
   | none => ConRon.Arena.Frontend.IDeclaration.usedConsts d
 
 /-- con-leche: ConLeche/Frontend/Olean/Records.lean:97-122 readOleans
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Records.modRefs_bridge, then delete this line
 The frontiers, out of the loaded modules (the Rust moves them): `ls.map fun l =>
 ⟨l.name, l.frontier⟩`. -/
 def modRefs (mg : Merged) : Merged × Array ModRef :=
@@ -92,6 +93,7 @@ def modRefs (mg : Merged) : Merged × Array ModRef :=
    mg.ls.map fun l => ⟨l.name, l.frontier⟩)
 
 /-- con-leche: ConLeche/Frontend/Olean/Records.lean:97-122 readOleans
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Records.readOleans_bridge, then delete this line
 **The whole read**: load, merge, emit, build, the heartbeat saying each step.
 `constants` names the constants to start from; `none` is every constant of the
 closure.  A theorem's value is a reference. -/
@@ -111,13 +113,14 @@ def readOleans (fs : OleanFs) (sp : List System.FilePath) (roots : Array NIdx)
     let (mg, values) := modRefs mg
     pure (.ok ⟨ds.decls, values, mg, pk⟩)
 
-/-- con-leche: ConLeche/Frontend/Olean/Records.lean:126-131 ValueCache
+/-- con-leche: ConLeche/Frontend/Olean/Records.lean:142-147 ValueCache
 **What a worker keeps between its checks**: the region of the module it read last. -/
 structure ValueCache where
   idx : Nat := 0
   region : Option Region := none
 
-/-- con-leche: ConLeche/Frontend/Olean/Records.lean:133-148 regionFor
+/-- con-leche: ConLeche/Frontend/Olean/Records.lean:149-164 regionFor
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Records.regionFor_bridge, then delete this line
 The region of module `idx` (named `m`), from the cache or the files, with the cache
 to go on with: a failure empties it. -/
 def regionFor (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (m : NIdx) (idx : Nat)
@@ -126,7 +129,8 @@ def regionFor (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (m : N
   | some r => if c.idx == idx then return (c, .ok r) else readRegion
   | none => readRegion
 where
-  /-- con-leche: ConLeche/Frontend/Olean/Records.lean:133-148 regionFor -/
+  /-- con-leche: ConLeche/Frontend/Olean/Records.lean:149-164 regionFor -/
+  -- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Records.readValue_bridge, then delete this line
   readRegion : AM (ValueCache × Except CheckError Region) := do
     let mn ← readName m
     match readFiles fs sp mn .private with
@@ -136,7 +140,8 @@ where
       | none => pure ({}, .error (← viewError pk mn f .private))
       | some (r, _) => pure ({ idx, region := some r }, .ok r)
 
-/-- con-leche: ConLeche/Frontend/Olean/Records.lean:150-162 readValue
+/-- con-leche: ConLeche/Frontend/Olean/Records.lean:166-178 readValue
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Records.readValue_bridge, then delete this line
 **A theorem's value, from its reference's code**: the files of its module
 (`regionFor`), then the value, over the module's frontier (`frontierExpr`). -/
 def readValue (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath) (values : Array ModRef)

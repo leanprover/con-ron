@@ -130,14 +130,14 @@ pub fn root_constants(pers: &PersTier, ar: &EStore, mg: &Merged, constants: &Opt
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Records.lean:76-79 ModRef
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:83-86 ModRef
 /// What a theorem's check needs of a module of the closure's order.
 pub struct ModRef {
     pub name: NIdx,
     pub frontier: Frontier,
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Records.lean:83-89 OleanRead
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:90-96 OleanRead
 /// **What a read gives**: the records, a theorem's value as its reference; what
 /// its check needs to read it, by the reference's module; the merged constants,
 /// for what a value mentions; and the reader's pins (module note).
@@ -148,7 +148,7 @@ pub struct OleanRead {
     pub pins: spec::OleanPins,
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Records.lean:91-95 OleanRead.thmUses
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:102-106 OleanRead.thmUses
 /// **What a theorem's record mentions**, which its reference does not say: what
 /// the load read off the file.  `None` for any other record.
 pub fn olean_read_thm_uses(rd: &OleanRead, d: &IDeclaration) -> Option<Vec<NIdx>> {
@@ -176,6 +176,7 @@ impl UsedConsts for OleanRead {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Records.lean:97-122 readOleans
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove records::mod_refs_refines, then delete this line
 /// The frontiers, moved out of the loaded modules: `ls.map fun l => ⟨l.name,
 /// l.frontier⟩` (module note).
 pub fn mod_refs(mg: &mut Merged) -> Vec<ModRef> {
@@ -190,6 +191,7 @@ pub fn mod_refs(mg: &mut Merged) -> Vec<ModRef> {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Records.lean:97-122 readOleans
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove records::read_oleans_refines, then delete this line
 /// **The whole read**: load, merge, emit, build, the heartbeat saying each step
 /// (`OleanFs::read_notes_say`).  `constants` names the constants to start from,
 /// as lean4export's arguments after `--` do; `None` is every constant of the
@@ -231,7 +233,7 @@ pub fn read_oleans<F: OleanFs>(fs: &F, pers: &PersTier, ar: &mut EStore, sp: &Ve
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Records.lean:126-131 ValueCache
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:142-147 ValueCache
 /// **What a worker keeps between its checks**: the region of the module it read
 /// last, with its bytes.  One per worker of the check pool.
 pub struct ValueCache {
@@ -239,13 +241,14 @@ pub struct ValueCache {
     pub region: Option<RegionBuf>,
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Records.lean:126-131 ValueCache
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:142-147 ValueCache
 /// The empty cache (the structure's defaults): a worker's initial state.
 pub fn value_cache_empty() -> ValueCache {
     ValueCache { idx: 0, region: None }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Records.lean:133-148 regionFor
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:149-164 regionFor
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove records::owned_view_refines, then delete this line
 /// `f.viewRegion .private`, owned: the bytes moved out of the files.
 pub fn owned_view(f: ModFiles, vb: ViewBytes) -> RegionBuf {
     match vb {
@@ -257,7 +260,8 @@ pub fn owned_view(f: ModFiles, vb: ViewBytes) -> RegionBuf {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Records.lean:133-148 regionFor
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:149-164 regionFor
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove records::region_for_refines, then delete this line
 /// The region of module `idx` (named `m`), from the cache or the files, the
 /// cache left to go on with: a failure empties it.
 pub fn region_for<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Vec<Vec<u32>>, m: &NIdx, idx: u64, c: &mut ValueCache) -> Result<(), CheckError> {
@@ -287,7 +291,8 @@ pub fn region_for<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar:
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Records.lean:150-162 readValue
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:166-178 readValue
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove records::read_value_refines, then delete this line
 /// **A theorem's value, from its reference's code**: the files of its module
 /// (`region_for`, the worker's cache `c`), then the value, over the module's
 /// frontier (`sparse::frontier_expr`), interned into `ar`: a worker's store,
@@ -312,7 +317,8 @@ pub fn read_value<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar:
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Records.lean:164-171 fillRecord
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:180-187 fillRecord
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove records::fill_record_refines, then delete this line
 /// A record with its theorem's value read, if it is a theorem's whose value is a
 /// reference.
 pub fn fill_record<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Vec<Vec<u32>>, values: &Vec<ModRef>, c: &mut ValueCache, d: &IDeclaration) -> Result<IDeclaration, CheckError> {
@@ -328,7 +334,8 @@ pub fn fill_record<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Records.lean:173-180 fillRecords
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:189-196 fillRecords
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove records::fill_records_refines, then delete this line
 /// `fillRecord` of each record, in order, one cache.
 pub fn fill_records<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Vec<Vec<u32>>, values: &Vec<ModRef>, ds: &Vec<IDeclaration>) -> Result<Vec<IDeclaration>, CheckError> {
     let mut c = value_cache_empty();
@@ -344,7 +351,8 @@ pub fn fill_records<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, a
     Ok(acc)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Records.lean:182-192 readOleansFull
+/// con-leche: ConLeche/Frontend/Olean/Records.lean:198-208 readOleansFull
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove records::read_oleans_full_refines, then delete this line
 /// **The records with every theorem's value read**, for the tools that compare
 /// them: the checker itself reads a value in its check.
 pub fn read_oleans_full<F: OleanFs>(fs: &F, pers: &PersTier, ar: &mut EStore, sp: &Vec<Vec<u32>>, roots: &Vec<NIdx>, constants: &Option<Vec<NIdx>>) -> Result<Vec<IDeclaration>, (CheckError, u64)> {

@@ -616,7 +616,8 @@ pub fn unresolved_consts_error_l(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:91-97 unresolvedConstsErrorL
 /// con-leche: ConLeche/Cached/IndPass.lean:23-30 unresolvedConstsErrorLC
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:218-238 checkConstantValF
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:218-243 checkConstantValF
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove checker_base::unresolved_consts_fail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:224-237 unresolvedConstsErrorL`
 /// — the failing arm every front door spells: `throw (unresolvedConstsErrorL
 /// (fe.strLit) where_ e)`.
@@ -636,9 +637,12 @@ pub fn unresolved_consts_fail<T>(
 // The per-declaration constant check (`CheckerBase.lean:321-354`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:101-123 checkConstantVal
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:218-238 checkConstantValF
-/// con-leche: ConLeche/Cached/IndPass.lean:36-58 checkConstantValC
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:101-130 checkConstantVal
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:218-243 checkConstantValF
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
+/// con-leche: ConLeche/Cached/IndPass.lean:36-63 checkConstantValC
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:241-272 checkConstantVal` — checks
 /// common to all declarations: fresh name, a certified
 /// operation's name only at a definition (`allow_op`, the cited default
@@ -673,8 +677,10 @@ pub fn check_constant_val(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:101-123 checkConstantVal
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:218-238 checkConstantValF
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:101-130 checkConstantVal
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove checker_base::check_constant_val_guards_refines, then delete this line
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:218-243 checkConstantValF
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove checker_base::check_constant_val_guards_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:241-272 checkConstantVal` — the
 /// guards on the declaration's NAME, in the twin's order: fresh, not a
 /// certified operation's name unless `allow_op`.
@@ -712,8 +718,10 @@ pub fn check_constant_val_guards(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:101-123 checkConstantVal
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:218-238 checkConstantValF
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:101-130 checkConstantVal
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove checker_base::check_constant_val_guards_rest_refines, then delete this line
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:218-243 checkConstantValF
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove checker_base::check_constant_val_guards_rest_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:241-272 checkConstantVal` — the
 /// four guards past the name tests: a literal's name only at its shape
 /// (`litShapeOk (.axiomInfo cv)`), distinct universe parameters, no loose bound
@@ -754,8 +762,10 @@ pub fn check_constant_val_guards_rest(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:101-123 checkConstantVal
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:218-238 checkConstantValF
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:101-130 checkConstantVal
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove checker_base::check_constant_val_tail_refines, then delete this line
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:218-243 checkConstantValF
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove checker_base::check_constant_val_tail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:241-272 checkConstantVal` — the two
 /// guards on the declared type: its universe parameters are declared, and its
 /// constants resolve (else `unresolvedConstsErrorL`'s verdict).
@@ -790,7 +800,7 @@ pub fn check_constant_val_tail(
 // The strategy-independent helpers (`CheckerBase.lean:356-543`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:125-131 unwrapOr
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:132-138 unwrapOr
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:276-281 unwrapOr` — unwrap
 /// an optional value or fail with the given error.
 pub fn unwrap_or<T>(o: Option<T>, err: CheckError) -> Result<T, CheckError> {

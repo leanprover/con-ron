@@ -134,7 +134,8 @@ materialises as one buffer.  It is
 driver reads as con-leche's does. -/
 def chunkSize : USize := Frontend.chunkSize
 
-/-- con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+/-- con-leche: ConLeche/Driver/CheckMain.lean:233-385 checkMainG
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Main.runPipelineHead_bridge, then delete this line
 **THE SEAM** (DESIGN.md §8.4): the whole checker, from the input's chunks
 to the verdict.
 
@@ -168,7 +169,8 @@ def runPipelineHead :
   | .error e => pure (.error e)
   | .ok pre => pure (.ok (pre, ← Frontend.StateD.init))
 
-/-- con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+/-- con-leche: ConLeche/Driver/CheckMain.lean:233-385 checkMainG
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Main.runPipelineTail_bridge, then delete this line
 The pipeline AFTER the parse: `preparePrelude`, then **the check**: the
 stream's index and every record's job (`checkStream`), then the verdict number.  Shared verbatim by the pure seam and by the
 driver's interleaved loop, which is what makes the two the same computation.
@@ -260,7 +262,7 @@ def msSecs (ms : Nat) : String :=
   let c := (ms % 1000) / 10
   s!"{s}.{if c < 10 then "0" else ""}{c}"
 
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:188-198 foldChunks
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:205-215 foldChunks
 **THE READ LOOP**: the handle read strictly forward, 4 MiB at a time, each
 buffer fed to `Frontend.chunkStep` and then dropped; the first empty read is
 its end of file and `Frontend.chunkFinish` closes the stream.  Never seeked,
@@ -297,7 +299,8 @@ partial def readFold (h : IO.FS.Handle)
     | .ok (.ok (st, carry, lineNo, total), s) =>
       readFold h st carry lineNo total (chunks + 1) s
 
-/-- con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+/-- con-leche: ConLeche/Driver/CheckMain.lean:233-385 checkMainG
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Main.runPipelineIO_bridge, then delete this line
 **THE SEAM, DRIVEN FROM A HANDLE**: `runPipelineHead`, then `readFold` in
 place of the pure seam's `parseChunksGo`, then `runPipelineTail` — the same
 three steps `runPipeline` runs, with the input never held whole.  The chunk
@@ -324,7 +327,7 @@ def runPipelineIO (h : IO.FS.Handle) (mode : CheckMode)
       | .error e => pure (.error e, chunks, tParse, 0)
       | .ok (v, s') => pure (v, chunks, tParse, s'.store.persCount)
 
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:371-377 openReadIO
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:400-406 openReadIO
 The reader's positional read at `IO`: the file opened by upstream's `openReadIO`
 (a regular file, or an exception), its first `off` bytes read and dropped, then
 up to `len` bytes, each read repeated until it has them or the file ends.
@@ -342,7 +345,8 @@ partial def readRangeIO (p : System.FilePath) (off len : Nat) : IO ByteArray := 
   if skipped.size < off then return .empty
   go len .empty
 
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:485-499 instCheckerIOIO
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:514-529 instCheckerIOIO
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Main.stdFsImpl_bridge, then delete this line
 The binary's file operations, as the pure functions the reader takes: `IO` run where
 it is asked, outside every theorem (`Frontend/Olean/Files.lean`'s note). -/
 unsafe def stdFsImpl : Frontend.Olean.OleanFs where
@@ -367,12 +371,14 @@ unsafe def stdFsImpl : Frontend.Olean.OleanFs where
     | .ok b => pure (.ok b)
     | .error e => pure (.error (toString e))
 
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:485-499 instCheckerIOIO
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:514-529 instCheckerIOIO
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Main.stdFs_bridge, then delete this line
 The binary's file operations, opaque to the logic. -/
 @[implemented_by stdFsImpl]
 opaque stdFs : Frontend.Olean.OleanFs
 
 /-- con-leche: ConLeche/Driver/CheckMain.lean:87-98 readInputG
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Main.oleanPipeline_bridge, then delete this line
 **The seam on the `.olean` path**: the head of the pipeline, the reader in place of
 the chunks' fold, then the tail as the binary runs it on this path: the preparation
 with what a record mentions read off the load (`OleanRead.usedOf`), the pins, and the
@@ -401,7 +407,8 @@ def oleanPipeline (sp : List System.FilePath) (roots : Array Name) (constants : 
       | .error (e, n) => pure (.error (atDecl e n))
       | .ok _ => pure (.ok records)
 
-/-- con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+/-- con-leche: ConLeche/Driver/CheckMain.lean:233-385 checkMainG
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Main.checkMainOlean_bridge, then delete this line
 The driver on the `.olean` path. -/
 def checkMainOlean (sp : List System.FilePath) (roots : Array Name) (constants : Option (Array Name))
     (mode : CheckMode) (pins : List NatOpPinSet) (maxNatSize : Nat) : IO UInt8 := do
@@ -421,18 +428,20 @@ def checkMainOlean (sp : List System.FilePath) (roots : Array Name) (constants :
     IO.eprintln s!"con-ron-lean: {e.message} ({modeTag}) t={msSecs (now - t0)}s"
     return e.exitCode
 
-/-- con-leche: ConLeche/Driver/Cli.lean:116-120 synopsis
+/-- con-leche: ConLeche/Driver/Cli.lean:116-132 synopsis
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Main.synopsis_bridge, then delete this line
 The invocation forms, printed on their own when there are no arguments. -/
 def synopsis : String := String.intercalate "\n" [
   "Usage:",
   "  con-ron-lean [OPTIONS] [--] FILE.ndjson",
   "  con-ron-lean [OPTIONS] --olean --search-path=DIRS [--] MODULE..."]
 
-/-- con-leche: ConLeche/Driver/Cli.lean:122-123 tryHelp
+/-- con-leche: ConLeche/Driver/Cli.lean:134-135 tryHelp
 The line after a usage error. -/
 def tryHelp : String := "Try 'con-ron-lean --help' for more information."
 
-/-- con-leche: ConLeche/Driver/Cli.lean:125-155 helpText
+/-- con-leche: ConLeche/Driver/Cli.lean:137-260 helpText
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Main.helpText_bridge, then delete this line
 The `--help` text: con-leche's, with this binary's name, its one flag of its own
 (`--no-pins`) and con-ron's documentation.  `--jobs` is accepted and validated,
 and this binary checks on one worker whatever it says. -/
@@ -467,7 +476,8 @@ def helpText : String := String.intercalate "\n" [
   "Documentation:",
   "  README.md and OVERVIEW.md of the con-ron repository"]
 
-/-- con-leche: ConLeche/Driver/Cli.lean:157-175 Args
+/-- con-leche: ConLeche/Driver/Cli.lean:262-303 Args
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Main.Args_bridge, then delete this line
 The parsed command line.  `progress = .off` is "no flag given"; `jobs = none`
 is "no flag given", one worker per hardware thread. -/
 structure Args where
@@ -486,7 +496,8 @@ structure Args where
   files : Array String := #[]
   bad : Option String := none
 
-/-- con-leche: ConLeche/Driver/Cli.lean:191-229 parseArgs
+/-- con-leche: ConLeche/Driver/Cli.lean:326-377 parseArgs
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Main.parseArgs_bridge, then delete this line
 The argument parse, clause for clause: the mode flags in either order with
 the heartbeat, `=`-carrying spellings after the bare ones, an unknown
 `-`-leading word a usage error, everything else a file. -/
@@ -523,7 +534,7 @@ def parseArgs : List String → Args → Args
       { a with bad := some s!"unknown option {Display.str s}" }
     else parseArgs rest { a with files := a.files.push s }
 
-/-- con-leche: ConLeche/Driver/Cli.lean:177-180 helpWanted
+/-- con-leche: ConLeche/Driver/Cli.lean:305-308 helpWanted
 `--help` before any `--`: after a `--` every argument is a file, whatever it is
 called. -/
 def helpWanted (args : List String) : Bool :=
@@ -538,7 +549,8 @@ con-leche prints it.  The Rust driver's `render::display_path`. -/
 def displayPath (s : String) : String :=
   if s.any fun c => c == '\\' || c == '"' || Display.unsafeChar c then Display.str s else s
 
-/-- con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+/-- con-leche: ConLeche/Driver/CheckMain.lean:233-385 checkMainG
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Main.checkMain_bridge, then delete this line
 The driver, which `main` calls in process: read the chunks, run the seam,
 print the verdict.  Every VERDICT line names the mode — a `--trusted` run,
 the unverified lane, must never be mistaken for a `--verified` one in a
@@ -580,7 +592,8 @@ def checkMain (file : String) (mode : CheckMode) (pins : List NatOpPinSet)
     return e.exitCode
 
 /-- con-leche: Main.lean:56-103 main
-con-leche: ConLeche/Driver/Cli.lean:239-324 runArgs
+con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
+-- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Main.main_bridge, then delete this line
 `--help` before any `--` prints the help on stdout and exits 0, reading
 nothing.  A bad flag prints its message and a pointer to `--help` on stderr
 and exits 3; no arguments prints the invocation forms and the pointer; more than

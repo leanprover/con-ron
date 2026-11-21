@@ -36,7 +36,7 @@ use crate::kernel::core_types::CheckError;
 use crate::ron::hashmap::Dup;
 use crate::ron::hashmap2::HashMap2;
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:52-54 closureFuel
+/// con-leche: ConLeche/Frontend/Olean/Closure.lean:54-56 closureFuel
 /// The walks' step bound: far beyond any closure.
 pub const CLOSURE_FUEL: u64 = 1 << 40;
 
@@ -45,7 +45,8 @@ pub fn out_of_fuel<T>() -> Result<T, CheckError> {
     Err(core_types::internal({ const M: [u32; 42] = [116, 104, 101, 32, 105, 109, 112, 111, 114, 116, 32, 99, 108, 111, 115, 117, 114, 101, 39, 115, 32, 119, 97, 108, 107, 32, 114, 97, 110, 32, 111, 117, 116, 32, 111, 102, 32, 115, 116, 101, 112, 115]; crate::kernel::core_types::code_points(&M) }))
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:23-50 closureGo
+/// con-leche: ConLeche/Frontend/Olean/Closure.lean:22-52 closureGo
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove closure::import_on_path_refines, then delete this line
 /// The cycle check of `closureGo`: the first import of `m` on the walk's current
 /// path, if any.
 pub fn import_on_path<'a>(imps: &'a Vec<ImportRec>, seen: &HashMap2<NIdx, bool>, done: &HashMap2<NIdx, bool>) -> Option<&'a NIdx> {
@@ -60,7 +61,8 @@ pub fn import_on_path<'a>(imps: &'a Vec<ImportRec>, seen: &HashMap2<NIdx, bool>,
     None
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:23-50 closureGo
+/// con-leche: ConLeche/Frontend/Olean/Closure.lean:22-52 closureGo
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove closure::walk_push_refines, then delete this line
 /// Push onto the walk's stack with its top at `sp`; the new top.
 pub fn walk_push(stack: &mut Vec<(NIdx, bool)>, sp: usize, x: (NIdx, bool)) -> usize {
     if sp < stack.len() {
@@ -71,7 +73,8 @@ pub fn walk_push(stack: &mut Vec<(NIdx, bool)>, sp: usize, x: (NIdx, bool)) -> u
     sp + 1
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:23-50 closureGo
+/// con-leche: ConLeche/Frontend/Olean/Closure.lean:22-52 closureGo
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove closure::walk_expand_refines, then delete this line
 /// `kids ++ (m, true) :: rest`, onto the stack; the new top.
 pub fn walk_expand(stack: &mut Vec<(NIdx, bool)>, sp: usize, m: &NIdx, imps: &Vec<ImportRec>, seen: &HashMap2<NIdx, bool>) -> usize {
     let mut s = walk_push(stack, sp, (m.dup2(), true));
@@ -85,7 +88,8 @@ pub fn walk_expand(stack: &mut Vec<(NIdx, bool)>, sp: usize, m: &NIdx, imps: &Ve
     s
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:23-50 closureGo
+/// con-leche: ConLeche/Frontend/Olean/Closure.lean:22-52 closureGo
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove closure::closure_go_refines, then delete this line
 /// **The import closure, in Lean's module order**: a module after everything it
 /// imports, a depth-first post-order, by an explicit stack.  A module whose imports
 /// are being expanded is on the walk's current path, so an import of it is a cycle.
@@ -126,7 +130,8 @@ pub fn closure_go<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut 
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:56-58 closureOrder
+/// con-leche: ConLeche/Frontend/Olean/Closure.lean:58-60 closureOrder
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove closure::closure_order_refines, then delete this line
 /// The closure's module order from the roots.
 pub fn closure_order<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp_dirs: &Vec<Vec<u32>>, roots: &Vec<NIdx>) -> Result<Vec<NIdx>, CheckError> {
     let mut stack: Vec<(NIdx, bool)> = Vec::with_capacity(roots.len());
@@ -139,7 +144,8 @@ pub fn closure_order<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &m
     closure_go(fs, pk, pers, ar, sp_dirs, stack, sp)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:62-74 loadModule
+/// con-leche: ConLeche/Frontend/Olean/Closure.lean:64-76 loadModule
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove closure::load_module_refines, then delete this line
 /// **Load one module** for the merge, module `idx` of the `total` in the
 /// closure's order: its private view, what Lean's own import outside the module
 /// system and lean4export load, its theorems' values left in the file
@@ -159,7 +165,8 @@ pub fn load_module<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:76-88 loadClosure
+/// con-leche: ConLeche/Frontend/Olean/Closure.lean:78-91 loadClosure
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove closure::load_all_refines, then delete this line
 /// `order.toList.zipIdx`, loaded in order, up to the first failure.
 pub fn load_all<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp_dirs: &Vec<Vec<u32>>, order: &Vec<NIdx>) -> Result<Vec<Loaded>, CheckError> {
     let mut out: Vec<Loaded> = Vec::with_capacity(order.len());
@@ -175,7 +182,8 @@ pub fn load_all<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut ES
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Closure.lean:76-88 loadClosure
+/// con-leche: ConLeche/Frontend/Olean/Closure.lean:78-91 loadClosure
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove closure::load_closure_refines, then delete this line
 /// **The closure, loaded**: its modules in Lean's order (module note on
 /// `parMapExcept`), the heartbeat saying when the walk and the load start.
 pub fn load_closure<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp_dirs: &Vec<Vec<u32>>, roots: &Vec<NIdx>) -> Result<Vec<Loaded>, CheckError> {

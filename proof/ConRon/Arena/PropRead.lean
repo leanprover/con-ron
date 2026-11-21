@@ -46,7 +46,7 @@ open ConLeche
 
 /-! ## The syntactic telescope readers -/
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:40-46 Expr.peelPis — the
+/-- con-leche: ConLeche/Kernel/PropRead.lean:39-45 Expr.peelPis — the
 residual after peeling `k` *syntactic* ∀ binders, whatever their domains.
 Structural on `k`, so no fuel. -/
 def peelPis : Nat → EIdx → AM (Option EIdx)
@@ -60,7 +60,7 @@ def peelPis : Nat → EIdx → AM (Option EIdx)
       | some (_, b) => peelPis k b
     else pure none
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:48-53 Expr.binderDom — the
+/-- con-leche: ConLeche/Kernel/PropRead.lean:47-52 Expr.binderDom — the
 domain of the `k`-th syntactic ∀ binder (`0` = outermost) of a telescope,
 unsubstituted.  Structural on `k`. -/
 def binderDom : Nat → EIdx → AM (Option EIdx)
@@ -77,7 +77,7 @@ def binderDom : Nat → EIdx → AM (Option EIdx)
       | some (_, b) => binderDom k b
     else pure none
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:55-58 Expr.numArgs — the number
+/-- con-leche: ConLeche/Kernel/PropRead.lean:54-57 Expr.numArgs — the number
 of arguments of an application spine.  A spine walk, hence fuel. -/
 def numArgs : Nat → EIdx → AM Nat
   | 0, _ => fail (.internal "fuel exhausted: numArgs")
@@ -92,7 +92,7 @@ def numArgs : Nat → EIdx → AM Nat
         pure (n + 1)
     else pure 0
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:62-68 residualPW — the
+/-- con-leche: ConLeche/Kernel/PropRead.lean:61-67 residualPW — the
 zero-ness datum of the sort of a *residual type*.  The level is read back
 and `Level.zeronessOf` is con-leche's own (deviation 3). -/
 def residualPW : Option EIdx → AM (Option PropWhen)
@@ -110,7 +110,7 @@ def residualPW : Option EIdx → AM (Option PropWhen)
 
 /-! ## Identity-like wrappers -/
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:70-76 lamProj? — the body of a
+/-- con-leche: ConLeche/Kernel/PropRead.lean:69-75 lamProj? — the body of a
 λ-telescope that is a single bound variable: `some (k, j)` for
 `fun x₁ … x_k => x_{k-j}`.  A walk down the λ chain, hence fuel. -/
 def lamProj? : Nat → Nat → EIdx → AM (Option (Nat × Nat))
@@ -126,7 +126,7 @@ def lamProj? : Nat → Nat → EIdx → AM (Option (Nat × Nat))
       | some j => pure (if j < k then some (k, j) else none)
     else pure none
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:78-96 unwrapIdDefs — unfold an
+/-- con-leche: ConLeche/Kernel/PropRead.lean:77-95 unwrapIdDefs — unfold an
 identity-like wrapper (a definition whose value is `fun x₁ … x_k => x_i`,
 e.g. `outParam`) at the head of a residual type, `n` times at most;
 definitional (δ then β).  Structural on `n`; the walks inside run at the
@@ -151,7 +151,7 @@ def unwrapIdDefs (fe : IFEnv) (fuel : Nat) : Nat → EIdx → AM EIdx
         | _ => pure e
     else pure e
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:98-105 peelPisW —
+/-- con-leche: ConLeche/Kernel/PropRead.lean:97-104 peelPisW —
 `peelPis` through identity-like wrappers (`outParam (α → Sort u)`).
 Structural on `k`. -/
 def peelPisW (fe : IFEnv) (fuel : Nat) : Nat → EIdx → AM (Option EIdx)
@@ -187,7 +187,7 @@ def substPWAt (lps : List NIdx) (us : LsIdx) (pw : PropWhen) :
     pure (some (Level.substPW ks vs pw))
   | _ => pure (some pw)
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:107-130 headTypePW — the datum of
+/-- con-leche: ConLeche/Kernel/PropRead.lean:106-129 headTypePW — the datum of
 a type-former application's *head* at `n` arguments: a constant head reads its
 stored type (level-instantiated), an fvar head its declared type, a `bvar`
 head (inside the ∀ telescope `root`, `d` binders deep) its binder's domain;
@@ -222,7 +222,7 @@ def headTypePW (fe : IFEnv) (fuel : Nat) (root : EIdx) (d : Nat) (h : EIdx)
     else pure none
   | _ => pure none
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:132-139 typeSortPWGo — the walk
+/-- con-leche: ConLeche/Kernel/PropRead.lean:131-138 typeSortPWGo — the walk
 of `typeSortPW`: peel the ∀ telescope (a ∀'s prop-ness is its codomain's),
 counting the binders, then read the residual's head.  A walk down the
 telescope, hence fuel. -/
@@ -240,12 +240,12 @@ def typeSortPWGo (fe : IFEnv) (root : EIdx) : Nat → EIdx → Nat →
       let n ← numArgs fuel R
       headTypePW fe fuel root d fn n
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:141-149 typeSortPW — the
+/-- con-leche: ConLeche/Kernel/PropRead.lean:140-148 typeSortPW — the
 zero-ness datum of the sort of the *type* `T` ("is `T` a proposition?"). -/
 def typeSortPW (fe : IFEnv) (fuel : Nat) (T : EIdx) : AM (Option PropWhen) :=
   typeSortPWGo fe T fuel T 0
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:151-181 headProofPW — the datum
+/-- con-leche: ConLeche/Kernel/PropRead.lean:150-180 headProofPW — the datum
 of a term's *head* (any arity): a constant head answers from its stored type,
 an fvar head from its declared type; sorts, ∀s and literals are never proofs;
 a projection answers "not a proof" off its field's stored type when that is
@@ -278,7 +278,7 @@ def headProofPW (fe : IFEnv) (fuel : Nat) (h : EIdx) : AM (Option PropWhen) := d
     | none => pure none
   | _ => pure none
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:183-195 proofPW — the zero-ness
+/-- con-leche: ConLeche/Kernel/PropRead.lean:182-194 proofPW — the zero-ness
 datum of the sort of the *type* of `a` ("is `a` a proof?"): a λ answers from
 its body, a `let` from its body, an application from its function, anything
 else from its head.  A walk, hence fuel. -/
@@ -303,7 +303,7 @@ def proofPW (fe : IFEnv) : Nat → EIdx → AM (Option PropWhen)
 
 /-! ## The two arms -/
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:203-209 notProofFast —
+/-- con-leche: ConLeche/Kernel/PropRead.lean:202-208 notProofFast —
 **definitely not a proof**: the datum is known and is not always-zero.
 Refusing the proof-irrelevance shortcut is always sound. -/
 def notProofFast (fe : IFEnv) (fuel : Nat) (a : EIdx) : AM Bool := do
@@ -311,7 +311,7 @@ def notProofFast (fe : IFEnv) (fuel : Nat) (a : EIdx) : AM Bool := do
   | some pw => pure !pw.isProp
   | none => pure false
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:211-217 isProofFast —
+/-- con-leche: ConLeche/Kernel/PropRead.lean:210-216 isProofFast —
 **definitely a proof**: the datum is known and always-zero (con-leche's
 `prf_of_isProofFast`). -/
 def isProofFast (fe : IFEnv) (fuel : Nat) (a : EIdx) : AM Bool := do

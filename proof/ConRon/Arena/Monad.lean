@@ -765,12 +765,12 @@ level-LIST substitution. -/
   let s := { s with memos := { s.memos with instLPLsC := ∅ } }
   set { s with memos := { s.memos with instLPLsC := mp.insert h r } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:152-176 bvarBoundGo — probe the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:153-177 bvarBoundGo — probe the
 loose-bvar-bound memo. -/
 @[inline] def bvarBGet (k : EIdx) : AM (Option Nat) := do
   let s ← get; pure s.memos.bvarBC[k]?
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:152-176 bvarBoundGo — record a
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:153-177 bvarBoundGo — record a
 loose-bvar bound. -/
 @[noinline] def bvarBSet (k : EIdx) (r : Nat) : AM Unit := do
   let s ← get
@@ -778,18 +778,18 @@ loose-bvar bound. -/
   let s := { s with memos := { s.memos with bvarBC := ∅ } }
   set { s with memos := { s.memos with bvarBC := mp.insert k r } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:178-179 bvarBoundMemo — drop the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:179-180 bvarBoundMemo — drop the
 loose-bvar-bound memo. -/
 @[noinline] def bvarBClear : AM Unit := do
   let s ← get
   set { s with memos := { s.memos with bvarBC := ∅ } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:181-206 fvarRangeGo — probe the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:182-207 fvarRangeGo — probe the
 fvar-range memo. -/
 @[inline] def fvarBGet (k : EIdx) : AM (Option Nat) := do
   let s ← get; pure s.memos.fvarBC[k]?
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:181-206 fvarRangeGo — record an
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:182-207 fvarRangeGo — record an
 fvar range. -/
 @[noinline] def fvarBSet (k : EIdx) (r : Nat) : AM Unit := do
   let s ← get
@@ -797,7 +797,7 @@ fvar range. -/
   let s := { s with memos := { s.memos with fvarBC := ∅ } }
   set { s with memos := { s.memos with fvarBC := mp.insert k r } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:208-209 fvarRangeMemo — drop the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:209-210 fvarRangeMemo — drop the
 fvar-range memo. -/
 @[noinline] def fvarBClear : AM Unit := do
   let s ← get

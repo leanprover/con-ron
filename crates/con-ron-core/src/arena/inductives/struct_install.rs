@@ -78,7 +78,7 @@ pub const M_TBL_TAKEN: [u32; 22] = [
 // The binder-domain walk (`StructInstall.lean:25-40` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:31-50 checkStructDomsAt
+/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:30-49 checkStructDomsAt
 /// con-leche: ConLeche/Cached/IndBlock.lean:117-125 checkStructDomsAtC
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:27-41 checkStructDomsAt`
 /// — the reference kernels' binder-domain comparisons, run binder by binder
@@ -141,7 +141,7 @@ pub fn check_struct_doms_at(
 // The projection table (`StructInstall.lean:42-72` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-74 checkStructProjTable
+/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:51-73 checkStructProjTable
 /// con-leche: ConLeche/Cached/IndTail.lean:195-203 checkStructProjTableC
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:43-65 checkStructProjTable`
 /// — stage 5: **the projection table's checks** (con-leche's task #175 S1),
@@ -172,7 +172,7 @@ pub fn check_struct_proj_table(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-74 checkStructProjTable
+/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:51-73 checkStructProjTable
 /// con-leche: ConLeche/Cached/IndTail.lean:195-203 checkStructProjTableC
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:43-65 checkStructProjTable`
 /// — the bodies' scoping, validated once at insertion: fvar-free, level

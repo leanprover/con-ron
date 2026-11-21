@@ -240,14 +240,16 @@ pub fn lookup<T: Dup>(m: &HashMap2<u64, T>, t: &Table<T>, c: u64) -> Option<T> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:159-177 SM.buildIn
+/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:159-182 SM.buildIn
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove sparse::SMIn_refines, then delete this line
 /// The memo over a frontier, as the node functions' `sub` (`lookup` per kind).
 pub struct SMIn<'a> {
     pub st: &'a SM,
     pub b: &'a Frontier,
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:159-177 SM.buildIn
+/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:159-182 SM.buildIn
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove sparse::impl<'a> Sub for SMIn<'a>_refines, then delete this line
 impl<'a> Sub for SMIn<'a> {
     /// con-leche: ConLeche/Frontend/Olean/Sparse.lean:153-157 lookup
     fn sub_name(&self, c: u64) -> Option<NIdx> {
@@ -270,7 +272,8 @@ impl<'a> Sub for SMIn<'a> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:159-177 SM.buildIn
+/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:159-182 SM.buildIn
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove sparse::sm_build_in_refines, then delete this line
 /// **The object at `g`, read as kind `k`**, by the specification's node function,
 /// its kids' values from the memo or the frontier, and added to the memo.
 pub fn sm_build_in(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, b: &Frontier, k: u8, g: u64, st: &mut SM) -> Result<(), RdErr> {
@@ -309,7 +312,8 @@ pub fn sm_build_in(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], 
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:184-197 sGo
+/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:189-205 sGo
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove sparse::s_go_refines, then delete this line
 /// **The object at `g` read as kind `k`, into the memo**: nothing to do if the
 /// memo or the frontier holds it; else its kids, then the object itself.
 pub fn s_go(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, b: &Frontier, k: u8, g: u64, st: &mut SM) -> Result<(), RdErr> {
@@ -328,7 +332,8 @@ pub fn s_go(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Reg
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:199-214 kidsGo
+/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:207-223 kidsGo
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove sparse::kids_go_refines, then delete this line
 /// The kids the fields `fs` from position `i` of the object at `g` lead to, into
 /// the memo.
 pub fn kids_go(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, b: &Frontier, g: u64, fs: &Vec<(u64, u8, bool)>, i: usize, st: &mut SM) -> Result<(), RdErr> {
@@ -349,7 +354,8 @@ pub fn kids_go(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:219-221 frontierExpr
+/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:228-232 frontierExpr
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove sparse::frontier_expr_refines, then delete this line
 /// **The `Expr` at location `c`**, read with a memo of its own over a frontier.
 pub fn frontier_expr(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, b: &Frontier, c: u64) -> Result<EIdx, RdErr> {
     let mut st: SM = sm_empty();
@@ -362,7 +368,8 @@ pub fn frontier_expr(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8]
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:223-228 sparseNameP
+/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:234-242 sparseNameP
+/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove sparse::sparse_name_p_refines, then delete this line
 /// **The `Name` a pointer stands for**, read sparsely.
 pub fn sparse_name_p(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, v: u64) -> Result<NIdx, RdErr> {
     if v == 1 {
@@ -384,7 +391,7 @@ pub fn sparse_name_p(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8]
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:230-234 sparseExprP
+/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:244-248 sparseExprP
 /// **The `Expr` a pointer stands for**, read sparsely.
 pub fn sparse_expr_p(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, v: u64) -> Result<EIdx, RdErr> {
     match region::region_loc(r, v) {
@@ -393,24 +400,24 @@ pub fn sparse_expr_p(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8]
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:236-239 sparseEntry
+/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:250-253 sparseEntry
 /// The two reads of `sparseEntry`, as a pointer read.
 pub struct SparseRead;
 
-/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:236-239 sparseEntry
+/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:250-253 sparseEntry
 impl PtrRead for SparseRead {
-    /// con-leche: ConLeche/Frontend/Olean/Sparse.lean:236-239 sparseEntry
+    /// con-leche: ConLeche/Frontend/Olean/Sparse.lean:250-253 sparseEntry
     fn rd_name(&self, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, v: u64) -> Result<NIdx, RdErr> {
         sparse_name_p(pk, pers, ar, bs, r, v)
     }
 
-    /// con-leche: ConLeche/Frontend/Olean/Sparse.lean:236-239 sparseEntry
+    /// con-leche: ConLeche/Frontend/Olean/Sparse.lean:250-253 sparseEntry
     fn rd_expr(&self, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, v: u64) -> Result<EIdx, RdErr> {
         sparse_expr_p(pk, pers, ar, bs, r, v)
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:236-239 sparseEntry
+/// con-leche: ConLeche/Frontend/Olean/Sparse.lean:250-253 sparseEntry
 /// **A constant's names and expressions, read sparsely**: each root with a memo
 /// of its own.
 pub fn sparse_entry(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, sk: &CEntryF<u64, u64>) -> Result<CEntryF<NIdx, EIdx>, RdErr> {
