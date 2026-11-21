@@ -2095,6 +2095,93 @@ theorem closure_levels_loop_ok (hfs : FsRel inst fsv fs) (f : Nat) (st : arena.m
 termination_by f
 decreasing_by omega
 
+/-- **`closure_levels`'s accept is `closureLevels`** at upstream's fuel. -/
+theorem closure_levels_refines (hfs : FsRel inst fsv fs) {st : arena.monad.AState} {lst : AState}
+    {lvl : alloc.vec.Vec arena.handle.NIdx} {seen : ron.hashmap2.HashMap2 arena.handle.NIdx Bool}
+    {out : alloc.vec.Vec (arena.handle.NIdx × alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))}
+    {S : _root_.Std.HashSet NIdx} (hs : NSet seen S) :
+    AS pers (fun o C => absC o = C) st lst
+      (closure_levels inst fsv pk pers st.store sp cmp lvl seen out)
+      (Modular.closureLevels fs (absPins pk) (absRoots sp) (absCmp cmp) ConLeche.Driver.Graph.levelFuel
+        (lvl.val.map absNIdx) S (absC out)) := by
+  intro hrel hinv a s' h
+  rw [closure_levels] at h
+  peel h as fuel, hfuel
+  exact closure_levels_loop_ok hfs _ st lst lvl seen out fuel (level_fuel_val hfuel) hs hrel hinv a s' h
+
+/-- **`graph_of`'s accept is `graphOf`**: the closure, its graph checked. -/
+theorem graph_of_refines (hfs : FsRel inst fsv fs) {st : arena.monad.AState} {lst : AState}
+    {roots : alloc.vec.Vec arena.handle.NIdx} :
+    AS pers (fun c C => absC c = C) st lst
+      (graph_of inst fsv pk pers st.store sp roots cmp)
+      (Modular.graphOf fs (absPins pk) (absRoots sp) (roots.val.map absNIdx) (absCmp cmp)) := by
+  intro hrel hinv a s' h
+  rw [graph_of] at h
+  peel h as ⟨lvl, seen⟩, hd
+  obtain ⟨el, es⟩ := dedup_eq hd
+  peel h as ⟨r, ar1⟩, hq
+  cases r with
+  | Err e => cases Result.ok_injective h
+  | Ok c =>
+    obtain ⟨C, lst1, hx, hR, hrel1, hinv1⟩ := closure_levels_refines (cmp := cmp) hfs es hrel hinv _ _ hq
+    dsimp only at h
+    peel h as idx, hidx
+    have eidx := index_of_eq hidx
+    peel h as deps, hdeps
+    obtain ⟨edeps, fdeps⟩ := deps_of_eq eidx hdeps
+    peel h as ord, hord
+    obtain ⟨eord, ford⟩ := kahn_eq fdeps hord
+    peel h as cy, hcy
+    have ecy := cycle_of_eq fdeps ford hcy
+    cases cy with
+    | some _ =>
+      dsimp only at h
+      peel h as _s, -
+      peel h as _v, -
+      peel h as _v1, -
+      peel h as _t, -
+      peel h as _ce, -
+      cases Result.ok_injective h
+    | none =>
+      dsimp only at h
+      peel h as i1, hi1
+      have ei1 := cast_u64_val hi1
+      peel h as v, hv
+      have ev := ranks_of_eq ford hv
+      peel h as o1, ho1
+      have eo1 := verdict_eq eidx ho1
+      cases o1 with
+      | some _ =>
+        dsimp only at h
+        peel h as _ce, -
+        cases Result.ok_injective h
+      | none =>
+        dsimp only at h
+        cases Result.ok_injective h
+        refine ⟨C, lst1, ?_, hR, hrel1, hinv1⟩
+        subst hR
+        rw [edeps] at ecy eord
+        rw [eord] at ecy ev
+        simp only [absRk] at eo1
+        rw [ev, ei1] at eo1
+        have esz : (alloc.vec.Vec.len a).val = (absC a).size := by simp
+        rw [esz] at eo1
+        have e0 : absC (alloc.vec.Vec.new (arena.handle.NIdx ×
+            alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))) = #[] := by simp
+        rw [e0] at hx
+        simp only at el
+        rw [el] at hx
+        unfold Modular.graphOf
+        generalize Modular.dedup (roots.val.map absNIdx) = dd at hx
+        obtain ⟨L, T⟩ := dd
+        dsimp only at hx ⊢
+        rw [am_bind_ok hx]
+        simp only [Option.map_none] at ecy eo1
+        rw [← ecy]
+        dsimp only
+        rw [← eo1]
+        rfl
+
 end io
 
 end ConRon.Refine2.Modular
