@@ -451,4 +451,150 @@ theorem parseAllViews_run {pk : OleanPins} {f : ModFiles}
       simp only [ConLeche.Frontend.Olean.parseAllViews, hm, Bool.false_eq_true, ↓reduceIte, hdC]
       rfl
 
+/-! ## A constant compared, read back -/
+
+/-- A `mapM` of an injective partial function is injective. -/
+theorem mapM_inj {α β : Type} {f : α → Option β}
+    (hf : ∀ a b z, f a = some z → f b = some z → a = b) :
+    ∀ {l l' : List α} {zs : List β}, l.mapM f = some zs → l'.mapM f = some zs → l = l'
+  | [], [], _, _, _ => rfl
+  | [], b :: l', zs, h1, h2 => by
+    simp only [List.mapM_nil, pure, Option.some.injEq] at h1
+    subst h1
+    simp only [List.mapM_cons] at h2
+    obtain ⟨_, _, g⟩ := bind_some_left h2
+    obtain ⟨_, _, g'⟩ := bind_some_left g
+    cases g'
+  | a :: l, [], zs, h1, h2 => by
+    simp only [List.mapM_nil, pure, Option.some.injEq] at h2
+    subst h2
+    simp only [List.mapM_cons] at h1
+    obtain ⟨_, _, g⟩ := bind_some_left h1
+    obtain ⟨_, _, g'⟩ := bind_some_left g
+    cases g'
+  | a :: l, b :: l', zs, h1, h2 => by
+    simp only [List.mapM_cons] at h1 h2
+    obtain ⟨x, hx, g1⟩ := bind_some_left h1
+    obtain ⟨xs, hxs, g2⟩ := bind_some_left g1
+    obtain ⟨y, hy, g3⟩ := bind_some_left h2
+    obtain ⟨ys, hys, g4⟩ := bind_some_left g3
+    simp only [pure, Option.some.injEq] at g2 g4
+    subst g2
+    simp only [List.cons.injEq] at g4
+    obtain ⟨rfl, rfl⟩ := g4
+    rw [hf a b _ hx hy, mapM_inj hf hxs hys]
+
+/-- `denoteN` at a well-formed store, as `mapM_inj` asks. -/
+theorem denN_inj {st : EStore} (hwf : StoreWF st) :
+    ∀ (a b : NIdx) (z : ConLeche.Name), denoteN st.ns a = some z → denoteN st.ns b = some z → a = b := by
+  intro a b z ha hb
+  obtain ⟨rk, hrk⟩ := hwf
+  exact ConRon.Arena.denoteN_inj hrk.nsWF ha hb
+
+/-- `denoteE` at a well-formed store, as `mapM_inj` asks. -/
+theorem denE_inj {st : EStore} (hwf : StoreWF st) :
+    ∀ (a b : EIdx) (z : Expr), denoteE st a = some z → denoteE st b = some z → a = b :=
+  fun _ _ _ ha hb => ConRon.Arena.denoteE_inj hwf ha hb
+
+/-- A kind's denotation keeps its constructor. -/
+theorem kind_tag {st : EStore} {k : CKindF NIdx EIdx} {z : CKindF Name Expr}
+    (h : k.mapM (denoteN st.ns) (denoteE st) = some z) : z.tag = k.tag := by
+  cases k <;> simp only [CKindF.mapM] at h
+  all_goals first
+    | (simp only [pure, Option.some.injEq] at h; subst h; rfl)
+    | (obtain ⟨_, _, g⟩ := bind_some_left h
+       first
+         | (simp only [pure, Option.some.injEq] at g; subst g; rfl)
+         | (obtain ⟨_, _, g'⟩ := bind_some_left g
+            simp only [pure, Option.some.injEq] at g'; subst g'; rfl))
+
+/-- A recursor rule's denotation is injective. -/
+theorem rule_inj {st : EStore} (hwf : StoreWF st) :
+    ∀ (a b : NIdx × Nat × EIdx) (z : Name × Nat × Expr),
+      (do let c ← denoteN st.ns a.1; let e ← denoteE st a.2.2; pure (c, a.2.1, e)) = some z →
+      (do let c ← denoteN st.ns b.1; let e ← denoteE st b.2.2; pure (c, b.2.1, e)) = some z →
+      a = b := by
+  rintro ⟨c, m, e⟩ ⟨c', m', e'⟩ z ha hb
+  obtain ⟨x1, g1, ha⟩ := bind_some_left ha
+  obtain ⟨x2, g2, ha⟩ := bind_some_left ha
+  obtain ⟨y1, g1', hb⟩ := bind_some_left hb
+  obtain ⟨y2, g2', hb⟩ := bind_some_left hb
+  simp only [pure, Option.some.injEq] at ha hb
+  subst ha
+  simp only [Prod.mk.injEq] at hb
+  obtain ⟨rfl, rfl, rfl⟩ := hb
+  rw [denN_inj hwf c c' _ g1 g1', denE_inj hwf e e' _ g2 g2']
+
+/-- **A kind's denotation is injective** at a well-formed store. -/
+theorem kind_inj {st : EStore} (hwf : StoreWF st) {k k' : CKindF NIdx EIdx} {z : CKindF Name Expr}
+    (h : k.mapM (denoteN st.ns) (denoteE st) = some z)
+    (h' : k'.mapM (denoteN st.ns) (denoteE st) = some z) : k = k' := by
+  have hN := denN_inj hwf
+  have hE := denE_inj hwf
+  have ht : k.tag = k'.tag := (kind_tag h).symm.trans (kind_tag h')
+  cases k <;> cases k' <;> (try simp [CKindF.tag] at ht) <;>
+    simp only [CKindF.mapM] at h h'
+  case ax.ax u u' =>
+    simp only [pure, Option.some.injEq] at h h'; subst h; cases h'; rfl
+  case quot.quot u u' =>
+    simp only [pure, Option.some.injEq] at h h'; subst h; cases h'; rfl
+  case defn.defn v hs sf v' hs' sf' =>
+    obtain ⟨x, hx, g⟩ := bind_some_left h
+    obtain ⟨y, hy, g'⟩ := bind_some_left h'
+    simp only [pure, Option.some.injEq] at g g'; subst g; cases g'
+    rw [hE v v' _ hx hy]
+  case opaq.opaq v u v' u' =>
+    obtain ⟨x, hx, g⟩ := bind_some_left h
+    obtain ⟨y, hy, g'⟩ := bind_some_left h'
+    simp only [pure, Option.some.injEq] at g g'; subst g; cases g'
+    rw [hE v v' _ hx hy]
+  case thm.thm v all v' all' =>
+    obtain ⟨x, hx, g⟩ := bind_some_left h
+    obtain ⟨xs, hxs, g1⟩ := bind_some_left g
+    obtain ⟨y, hy, g'⟩ := bind_some_left h'
+    obtain ⟨ys, hys, g1'⟩ := bind_some_left g'
+    simp only [pure, Option.some.injEq] at g1 g1'; subst g1; cases g1'
+    rw [hE v v' _ hx hy, mapM_inj hN hxs hys]
+  case induct.induct np ni all cs nn ir iu irf np' ni' all' cs' nn' ir' iu' irf' =>
+    obtain ⟨x, hx, g⟩ := bind_some_left h
+    obtain ⟨xs, hxs, g1⟩ := bind_some_left g
+    obtain ⟨y, hy, g'⟩ := bind_some_left h'
+    obtain ⟨ys, hys, g1'⟩ := bind_some_left g'
+    simp only [pure, Option.some.injEq] at g1 g1'; subst g1; cases g1'
+    rw [mapM_inj hN hx hy, mapM_inj hN hxs hys]
+  case ctor.ctor ind ci np nf iu ind' ci' np' nf' iu' =>
+    obtain ⟨x, hx, g⟩ := bind_some_left h
+    obtain ⟨y, hy, g'⟩ := bind_some_left h'
+    simp only [pure, Option.some.injEq] at g g'; subst g; cases g'
+    rw [hN ind ind' _ hx hy]
+  case recur.recur all np ni nmo nmi rules kk iu all' np' ni' nmo' nmi' rules' kk' iu' =>
+    obtain ⟨x, hx, g⟩ := bind_some_left h
+    obtain ⟨xs, hxs, g1⟩ := bind_some_left g
+    obtain ⟨y, hy, g'⟩ := bind_some_left h'
+    obtain ⟨ys, hys, g1'⟩ := bind_some_left g'
+    simp only [pure, Option.some.injEq] at g1 g1'; subst g1; cases g1'
+    rw [mapM_inj hN hx hy, mapM_inj (rule_inj hwf) hxs hys]
+
+/-- **A constant's denotation is injective** at a well-formed store. -/
+theorem denoteEntry_inj {st : EStore} (hwf : StoreWF st) {a b : CEntryF NIdx EIdx}
+    {z : CEntryF Name Expr} (ha : denoteEntry st a = some z) (hb : denoteEntry st b = some z) :
+    a = b := by
+  rcases a with ⟨n, l, t, k⟩
+  rcases b with ⟨n', l', t', k'⟩
+  simp only [denoteEntry, CEntryF.mapM] at ha hb
+  obtain ⟨zn, h1, ga⟩ := bind_some_left ha
+  obtain ⟨zl, h2, ga⟩ := bind_some_left ga
+  obtain ⟨zt, h3, ga⟩ := bind_some_left ga
+  obtain ⟨zk, h4, ga⟩ := bind_some_left ga
+  obtain ⟨zn', h1', gb⟩ := bind_some_left hb
+  obtain ⟨zl', h2', gb⟩ := bind_some_left gb
+  obtain ⟨zt', h3', gb⟩ := bind_some_left gb
+  obtain ⟨zk', h4', gb⟩ := bind_some_left gb
+  simp only [pure, Option.some.injEq] at ga gb
+  subst ga
+  simp only [CEntryF.mk.injEq] at gb
+  obtain ⟨rfl, rfl, rfl, rfl⟩ := gb
+  rw [denN_inj hwf n n' _ h1 h1', mapM_inj (denN_inj hwf) h2 h2', denE_inj hwf t t' _ h3 h3',
+    kind_inj hwf h4 h4']
+
 end ConRon.Bridge.Modular.Home
