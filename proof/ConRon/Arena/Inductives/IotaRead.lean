@@ -75,13 +75,15 @@ def motiveLevel? (pre : List EIdx) (nIdx : Nat) (body : EIdx) : AM (Option LIdx)
     match ← viewBVar hd with
     | none => failDanglingE
     | some k =>
-      if nIdx + 1 ≤ k ∧ k < nIdx + 1 + pre.length then do
-        let d ← exprGetD pre (pre.length - 1 - (k - (nIdx + 1)))
-        let r ← piResult coreWalkFuel d
-        if r.tag == ETag.sort then
-          match ← viewSort r with
-          | none => failDanglingE
-          | some u => pure (some u)
+      if nIdx + 1 ≤ k then
+        if k < nIdx + 1 + pre.length then do
+          let d ← exprGetD pre (pre.length - 1 - (k - (nIdx + 1)))
+          let r ← piResult coreWalkFuel d
+          if r.tag == ETag.sort then
+            match ← viewSort r with
+            | none => failDanglingE
+            | some u => pure (some u)
+          else pure none
         else pure none
       else pure none
   else pure none
@@ -272,8 +274,11 @@ def iotaPartsAtBody (cnP mI rP : Nat) (rl : IRecRule) (lvls : LsIdx) (params pd 
   | some (fieldDoms, concl) => do
     let args ← getAppArgs coreWalkFuel concl
     let indices := args.drop cnP
-    if params.length = cnP ∧ rP ≤ mI ∧ indices.length = mI - rP then
-      pure (some (⟨fieldDoms, indices, lvls, params⟩, pd))
+    if params.length = cnP then
+      if rP ≤ mI then
+        if indices.length = mI - rP then pure (some (⟨fieldDoms, indices, lvls, params⟩, pd))
+        else pure none
+      else pure none
     else pure none
 
 /-- con-leche: ConLeche/Kernel/Inductives/IotaRead.lean:70-82 iotaPartsAt
@@ -339,7 +344,9 @@ def lvlEq : Nat → EIdx → EIdx → AM Bool
     else if a.tag == ETag.proj then
       match ← viewProj a, ← viewProj b with
       | some (s, i, x), some (s', i', y) => do
-        if s == s' && i == i' then lvlEq fuel x y else pure false
+        if s == s' then
+          if i == i' then lvlEq fuel x y else pure false
+        else pure false
       | _, _ => failDanglingE
     else pure false
 
@@ -362,7 +369,8 @@ def annWitness (fe : IFEnv) (D : EIdx) : AM Bool := do
         let m ← internNNode (.str n "missing")
         match fe.find? m with
         | some c =>
-          pure (c.toConstantVal.type == D && c.toConstantVal.levelParams.isEmpty)
+          if c.toConstantVal.type == D then pure (c.toConstantVal.levelParams.length == 0)
+          else pure false
         | none => pure false
       | some _ => pure false
       | none => failDanglingLs
@@ -377,7 +385,7 @@ def annIdentBody (fe : IFEnv) (p p' : NIdx) (arity : Nat) (b : EIdx) : AM Bool :
     if b.tag == ETag.bvar then
       match ← viewBVar b with
       | none => failDanglingE
-      | some j => pure (j == 0 && p == p')
+      | some j => if j == 0 then pure (p == p') else pure false
     else pure false
   else if arity == 2 then
     if b.tag == ETag.lam then
@@ -388,9 +396,11 @@ def annIdentBody (fe : IFEnv) (p p' : NIdx) (arity : Nat) (b : EIdx) : AM Bool :
           match ← viewBVar c with
           | none => failDanglingE
           | some j =>
-            if j == 1 && p == p' then do
-              let z ← internBVarE 0
-              if D == z then pure true else annWitness fe D
+            if j == 1 then
+              if p == p' then do
+                let z ← internBVarE 0
+                if D == z then pure true else annWitness fe D
+              else pure false
             else pure false
         else pure false
     else pure false
@@ -505,14 +515,18 @@ or — in a plain rule whose parameters fit the constructor's — up to consumed
 annotations as well. -/
 def iotaPartsRel (fe : IFEnv) (cnP : Nat) (cv : IConstantVal) (rl : IRecRule)
     (p' p : IIotaParts) (pd : List EIdx) : AM Bool := do
-  if p'.idx == p.idx && p'.us == p.us && p'.params == p.params then
-    if ← listLvlEq p'.fieldDoms p.fieldDoms then pure true
-    else
-      match rl.fire with
-      | .plain =>
-        if ← paramsAnnEq fe cnP cv pd then listAnnEq fe p'.fieldDoms p.fieldDoms
-        else pure false
-      | _ => pure false
+  if p'.idx == p.idx then
+    if p'.us == p.us then
+      if p'.params == p.params then
+        if ← listLvlEq p'.fieldDoms p.fieldDoms then pure true
+        else
+          match rl.fire with
+          | .plain =>
+            if ← paramsAnnEq fe cnP cv pd then listAnnEq fe p'.fieldDoms p.fieldDoms
+            else pure false
+          | _ => pure false
+      else pure false
+    else pure false
   else pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/IotaRead.lean:187-196 ruleReadsB
