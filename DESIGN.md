@@ -73735,3 +73735,71 @@ declarations accepted) (--verified)` and the five `theorem … justified by the 
 36.050 T on the same pair, so the loop costs nothing measurable.  The resident size of the
 checking thread's stack is not separable from mimalloc's 1 GiB segments in `smaps`, so it is
 not reported.
+
+### Task #169 — the cone walk, the string walks and the value roots as loops (2026-11-21, Opus)
+
+**Why.**  Task #168's survey listed the recursions left whose depth grows with the INPUT, not
+with a declaration's shape: the cone walk of `--compare` (the solution's dependency cone), the
+per-code-point string walks (a string literal or a name component of a million characters is
+one frame per character), and the olean reader's per-constant `value_roots_from`.  Each is a
+loop now, so no input overflows a stack.
+
+**What became a loop.**
+* `arena::justify::cone_go` — con-leche's `coneGo` is a work list (`entryNeeds ci ++ work`);
+  the port had made it a recursion (a name's needs walked to the end before the rest), with a
+  `depth` bound and an internal error `fuel exhausted: coneGo` past it, because "the Aeneas
+  subset cannot pop a `Vec`".  That is still so (Aeneas `1dc8ad31` models no `Vec::pop` and
+  no `truncate`), so the work list is a **stack: a vector with its height** (`stk`, `h`, the
+  next name at `stk[h - 1]`), as `frontend/olean/emit.rs`'s walk has it: a pop is `h - 1`
+  and a read, and `cone_push` puts a name's needs on it last first (a slot below the length
+  overwritten, the vector grown at it).  The visit order, the fuel (one per name compared)
+  and `seen` are con-leche's.  `depth` and `M_FUEL_CONE` are gone, and `cone_go` lost its
+  `depth` and cursor parameters (`justify_why` is its one caller).
+* `kernel::name::str_hash_from`, `str_eq_from`, `display_acc_chars_from`,
+  `display_acc_escaped_from`, `display_id_rest_from`, `kernel::expr::str_copy_from` — the
+  index walks over a string's code points, each a `loop` whose every exit is a `return`, the
+  function keeping its signature (`foo` the `@[reducible]` wrapper of `foo_loop`).  Left as
+  they are: `display_hex_from` (at most eight digits), `render_from` (a name's components),
+  `core_types::code_points_from` (constants), `rec_check::cps_append` (a numeral's digits),
+  `core_k::nat_to_dec_go` (twenty digits), `pins_decode`'s walks (the embedded pin text).
+* `arena::core::str_lit_cons_spine` — the cited `foldr`, so not a tail call: the loop runs
+  from the last code point down to the cursor, consing each character's cell onto the spine
+  so far.  It interns exactly what the twin's recursion does, in its order (the innermost
+  cell first).
+* `frontend::olean::lazy::value_roots_from` — one iteration per constant of a module.
+
+**The twin.**  `Arena/Justify.lean`'s `coneGo` is now con-leche's shape — the work list, the
+fuel, `seen`, `ns ++ work`, `termination_by (fuel, work.length)` — in place of the depth-bounded
+recursion.  The brief preferred keeping the twin and proving the loop against it; that would
+have needed the Rust loop to keep a depth per stack entry (the twin's recursion fails at
+depth 0, even on an empty list, and a worklist has no depth), i.e. to keep a deviation from
+upstream that only the old recursion ever needed.  The other twins are unchanged.
+
+**The proofs.**
+* Theorem 1: `Bridge/Compare/Cone.lean`'s `coneGo_run` (the walk's accept leaves a `seen`
+  closed under what each name reads) is re-proved over the work list — induction on the fuel
+  and at each fuel on the list, simpler than the depth/cursor double induction it replaces.
+  `justifyWhy_run` and `justifyWhy_of_cone` are unchanged; `ConeSeen.mono`, which only the
+  old proof used, is gone (the dead-census gate found it).
+* Theorem 2: `ConeStackRel stk h l` (`h ≤ len`, the vector up to `h` reversed is the twin's
+  list — the representation `EmitWalk.lean`'s `WorkStackRel` is), `cone_push_rel` (by
+  `cone_push_loop_rel`, induction on the names left), and `cone_go_loop_ls` by strong
+  induction on the fuel and at each fuel induction on the height; `lockstep` zips each step,
+  and the two leaves it leaves (the refused name's fuel, the accepted name's push into the
+  induction hypothesis) are closed by hand.  `str_lit_cons_spine_ls` keeps its statement:
+  a twin-side `spineOnto` (`strLitConsSpine` onto any tail, `strLitConsSpine_eq_spineOnto`,
+  `spineOnto_snoc`) is what the loop computes, `str_lit_cons_spine_loop_aux` by induction on
+  `k - i`.  `Refine/Name.lean`'s `str_eq_from_*` and `Refine/Expr.lean`'s `str_copy_from_val`
+  are stated over the `_loop`s; `value_roots_val` instantiates `append_loop0` with the loop.
+* **No statement changed**: Theorem 1, Theorem 2's headline and every capstone are as
+  before.  No capstone premise names a converted function; `cone_go`'s Aeneas signature
+  changed (no `depth`, no cursor), and only `justify_why` and `cone_go_ls` name it.
+
+**Stack tests** (one per walk, each on a thread with a 1 MiB stack): a million-code-point
+string through `str_hash`, `str_eq`, `str_copy`, `display_acc_chars`/`display_id_shaped` and
+`display_acc_escaped`; a 200 000-character literal through `str_lit_cons_spine`; a module of
+2²⁰ theorem skeletons through `value_roots`; and a cone 50 000 names deep
+(`A(k+1) : Type := Ak`, the axiom `a : A50000 → Prop`) through the whole `--compare` route
+(`justify.rs`'s `a_deep_cone`).  All eight pass on this branch in under a second together,
+and each overflowed its stack (`has overflowed its stack`, SIGABRT) with master's code and the
+same tests.

@@ -141,15 +141,6 @@ from its constant is named by a handle of `S`. -/
     ∀ c, env.find? nm = some c → ∀ m ∈ (ConLeche.Cached.entryNeeds JS.mates env.findTable? c).toList,
       ∃ h, S.contains h = true ∧ denoteN st.ns h = some m
 
-/-- con-leche: none — `ConeSeen` survives the store growing and `seen` growing. -/
-theorem ConeSeen.mono {env : Env} {JS : ConLeche.Cached.Solution} {st st' : EStore}
-    {S S' : Std.HashMap NIdx Bool} {x : NIdx} (h : ConeSeen env JS st S x) (hx : Ext st st')
-    (hS : ∀ y, S.contains y = true → S'.contains y = true) : ConeSeen env JS st' S' x := by
-  obtain ⟨nm, hn, hg, hc⟩ := h
-  refine ⟨nm, denoteN_ext hn hx, hg, fun c hc' m hm => ?_⟩
-  obtain ⟨y, hy, hyn⟩ := hc c hc' m hm
-  exact ⟨y, hS y hy, denoteN_ext hyn hx⟩
-
 /-- con-leche: ConLeche/Verify/Cached/Cone.lean:36 coneGo_none_gen — **the walk's accept, read**:
 an accepting walk leaves a `seen` holding the one it started from and every name of `work`, each
 of its new handles accepted (`ConeSeen`).  Induction on the fuel, and at each fuel on the work
