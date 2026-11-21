@@ -22,7 +22,10 @@ public import ConRon.Bridge.Modular.Flags
 public import ConRon.Bridge.Modular.ReachTail
 public import ConRon.Bridge.Checker.PoolFrom
 public import ConLeche.Verify.Driver.Worker
+public import ConRon.Bridge.Stages
+public import ConRon.Bridge.Checker.Pins
 import ConLeche.Verify.Driver.Reach
+import ConRon.Bridge.Specs
 import ConLeche.Verify.Driver.PropPart
 import all ConLeche.Verify.Cached.StreamIndex
 
@@ -345,5 +348,40 @@ theorem workerAccepted_run (hk : CoreSpec Arena.checkFuel) (hind : IndSpec) (hH 
   exact ⟨wC, ⟨⟨f, hgf.canGive, hload, hviews⟩, hw.reads, hw.emitted,
     ⟨soundFlags, soundFlags_ok, hw.reach _ hfl⟩, hw.nodup, hw.own,
     by rw [hw.values]; exact ConLeche.Driver.cacheOK_empty, hw.copies⟩, hpure⟩
+
+/-- con-leche: ConLeche/Verify/Driver/Worker.lean:238-249 WorkerAccepted — **a worker run at the
+twin, from its start state, is upstream's accepted worker**: the reserved pins, the module's name
+(and under `--compare` the solution's) interned, the pins interned (before the worker, which reads
+them for the roots' pin ground), phases 1–4, the check phase from `start` and the inferred flags.
+`hx`: the imports the run adds, read back from the interned names. -/
+theorem workerStage_run (hk : CoreSpec Arena.checkFuel) (hind : IndSpec) (hH : HomeHyp)
+    (hR : ReachRunHyp) {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {names : List ConLeche.Name} {hs : List NIdx} {m : NIdx} {mC : ConLeche.Name}
+    {pinsC : List NatOpPinSet} {maxNatSize : Nat} {pins : List INatOpPinSet}
+    {x : Array (ImportF NIdx)} {xC : Array ImportRec} {w : ConRon.Arena.Modular.WorkerRead}
+    {sA sB sC sD sE w₁ : AState} {I : IStreamIndex}
+    (hA : internReservedPins (AState.init EStore.empty) = .ok ((), sA))
+    (hN : (mC :: names).mapM ConRon.Arena.internName sA = .ok (m :: hs, sB))
+    (hx : ListRel (NR sB.store) (m :: hs) (mC :: names) → ImpsD sB.store x xC)
+    (hE : internAllPins pinsC maxNatSize sB = .ok (pins, sC))
+    (hW : ConRon.Arena.Modular.workerRead (modelFs F) sp pins m x sC = .ok (.ok w, sD))
+    (hP : Arena.PooledOleanAcceptsFromJ (modelFs F) w.pins sp w.values .verified pins none w.start
+      (ConRon.Arena.Modular.workerDecls w) sD I sE)
+    (hI : ConRon.Arena.Modular.inferFlags I w.reach.ctx w.reach.pending sE.worker = .ok ((), w₁)) :
+    ConLeche.Driver.WorkerAccepted pinsC sp F mC 1 xC := by
+  have hok0 : StateOK (AState.init EStore.empty) := ⟨EStore.empty_wf⟩
+  have hc0 : (AState.init EStore.empty).caches = Caches.empty := rfl
+  obtain ⟨hokA, -, hpinsA, hppA, hoffA, -, hcachesA⟩ := internReservedPins_run hok0 rfl hA
+  obtain ⟨hstB, hnr⟩ := internNames_run hokA hoffA (mC :: names) hN
+  have hoffB : sB.store.scratchOn = false := by rw [hstB.scratch]; exact hoffA
+  obtain ⟨hokC, hxC, hpinsC, hppC, hipins, hpps, hoffC, hcachesC, -⟩ :=
+    internAllPins_run hstB.ok (hpinsA.mono hstB.ext hstB.pins) (hppA.mono hstB.pins) hoffB hE
+  have hdC : DriverOK sC := DriverOK.start hokC hpinsC
+    (((CacheOK.of_empty (s := sA) (by rw [hcachesA]; exact hc0)).monoF hstB.ext hstB.cframe).mono
+      hxC hcachesC)
+  have hm : denoteN sC.store.ns m = some mC := by
+    cases hnr with
+    | cons h1 _ => exact denoteN_ext h1 hxC
+  exact workerAccepted_run hk hind hH hR hsp hdC hoffC hppC hpps hipins hm ((hx hnr).ext hxC) hW hP hI
 
 end ConRon.Bridge.Modular
