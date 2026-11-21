@@ -554,4 +554,160 @@ theorem recBlocksOf_looks {pk : OleanPins} {F : FS} {sp : Roots} {env : ConRon.A
   subst hv
   exact e3.trans (e2.trans e1)
 
+/-- A constant read back: its kind's names and expressions, read back. -/
+theorem denoteEntry_kind {st : EStore} {c : CEntryF NIdx EIdx} {cC : CEntryF ConLeche.Name Expr}
+    (h : denoteEntry st c = some cC) :
+    c.kind.mapM (denoteN st.ns) (denoteE st) = some cC.kind := by
+  simp only [denoteEntry, ConLeche.Frontend.Olean.CEntryF.mapM] at h
+  obtain ⟨a, _, h⟩ := bind_some_left h
+  obtain ⟨b, _, h⟩ := bind_some_left h
+  obtain ⟨t, _, h⟩ := bind_some_left h
+  obtain ⟨k, hk, h⟩ := bind_some_left h
+  simp only [pure, Option.some.injEq] at h
+  subst h
+  exact hk
+
+/-- An inductive type's kind read back: its members and constructors. -/
+theorem kind_induct_rel {st : EStore} {k : CKindF NIdx EIdx} {kC : CKindF ConLeche.Name Expr}
+    (h : k.mapM (denoteN st.ns) (denoteE st) = some kC) {np ni nn : Nat} {all cs : List NIdx}
+    {ir iu irf : Bool} (hk : k = .induct np ni all cs nn ir iu irf) :
+    ∃ allC csC, kC = .induct np ni allC csC nn ir iu irf ∧ all.mapM (denoteN st.ns) = some allC ∧
+      cs.mapM (denoteN st.ns) = some csC := by
+  subst hk
+  simp only [ConLeche.Frontend.Olean.CKindF.mapM] at h
+  obtain ⟨allC, ha, h⟩ := bind_some_left h
+  obtain ⟨csC, hc, h⟩ := bind_some_left h
+  simp only [pure, Option.some.injEq] at h
+  exact ⟨allC, csC, h.symm, ha, hc⟩
+
+/-- The locations of some names in a lookup, upstream's. -/
+theorem lookLocs_rel {st : EStore} (hw : NStoreWF st.ns)
+    {l : Std.HashMap NIdx ConRon.Arena.Frontend.Olean.NamePosition}
+    {lC : Std.HashMap ConLeche.Name ConLeche.Frontend.Olean.NamePosition}
+    (hl : HMRel (NPRel st) st l lC) :
+    ∀ {ns : List NIdx} {nsC : List ConLeche.Name}, ListRel (NR st) ns nsC →
+      (ns.mapM fun n => (l[n]?).map (·.loc)) = (nsC.mapM (lC[·]?)).map (·.map (·.loc))
+  | [], [], .nil => rfl
+  | n :: ns, nC :: nsC, .cons hn hr => by
+    have ih := lookLocs_rel hw hl hr
+    rcases optRel_cases (hl.get hw hn) with ⟨g1, g2⟩ | ⟨q, qC, g1, g2, g3⟩
+    · simp [g1, g2]
+    · simp only [List.mapM_cons, g1, g2, ih, Option.map_some, Option.bind_eq_bind]
+      cases nsC.mapM (lC[·]?) <;> simp [g3.loc]
+
+/-- The constructors a group's types list, read back. -/
+theorem groupCtorNames_rel {st : EStore} :
+    ∀ {tys : List (CEntryF NIdx EIdx)} {tysC : List (CEntryF ConLeche.Name Expr)},
+      tys.mapM (denoteEntry st) = some tysC →
+      (ConRon.Arena.Modular.groupCtorNames tys).mapM (denoteN st.ns) =
+        some (ConLeche.Driver.groupCtorNames tysC)
+  | [], tysC, h => by
+    simp only [List.mapM_nil, pure, Option.some.injEq] at h
+    subst h; rfl
+  | t :: tys, tysC, h => by
+    simp only [List.mapM_cons] at h
+    obtain ⟨tC, ht, h⟩ := bind_some_left h
+    obtain ⟨tysC', hts, h⟩ := bind_some_left h
+    simp only [pure, Option.some.injEq] at h
+    subst h
+    have ih := groupCtorNames_rel hts
+    have hk := denoteEntry_kind ht
+    simp only [ConRon.Arena.Modular.groupCtorNames, ConLeche.Driver.groupCtorNames,
+      List.flatMap_cons] at ih ⊢
+    rw [List.mapM_append, ih]
+    generalize tC.kind = kC at hk
+    cases hkk : t.kind with
+    | induct np ni all cs nn ir iu irf =>
+      obtain ⟨allC, csC, rfl, -, hc⟩ := kind_induct_rel hk hkk
+      simp [hc]
+    | ax u => rw [hkk] at hk; simp [ConLeche.Frontend.Olean.CKindF.mapM, pure] at hk; subst hk; simp
+    | defn v hh sf =>
+      rw [hkk] at hk; simp only [ConLeche.Frontend.Olean.CKindF.mapM] at hk
+      obtain ⟨_, _, hk⟩ := bind_some_left hk; simp only [pure, Option.some.injEq] at hk; subst hk; simp
+    | thm v al =>
+      rw [hkk] at hk; simp only [ConLeche.Frontend.Olean.CKindF.mapM] at hk
+      obtain ⟨_, _, hk⟩ := bind_some_left hk; obtain ⟨_, _, hk⟩ := bind_some_left hk
+      simp only [pure, Option.some.injEq] at hk; subst hk; simp
+    | opaq v u =>
+      rw [hkk] at hk; simp only [ConLeche.Frontend.Olean.CKindF.mapM] at hk
+      obtain ⟨_, _, hk⟩ := bind_some_left hk; simp only [pure, Option.some.injEq] at hk; subst hk; simp
+    | quot q => rw [hkk] at hk; simp [ConLeche.Frontend.Olean.CKindF.mapM, pure] at hk; subst hk; simp
+    | ctor ind ci np nf iu =>
+      rw [hkk] at hk; simp only [ConLeche.Frontend.Olean.CKindF.mapM] at hk
+      obtain ⟨_, _, hk⟩ := bind_some_left hk; simp only [pure, Option.some.injEq] at hk; subst hk; simp
+    | recur al np ni nmo nmi rules k iu =>
+      rw [hkk] at hk; simp only [ConLeche.Frontend.Olean.CKindF.mapM] at hk
+      obtain ⟨_, _, hk⟩ := bind_some_left hk; obtain ⟨_, _, hk⟩ := bind_some_left hk
+      simp only [pure, Option.some.injEq] at hk; subst hk; simp
+
+/-- A filter of related lists by related tests. -/
+theorem filter_mapM_rel {st : EStore} {p : CEntryF NIdx EIdx → Bool}
+    {pC : CEntryF ConLeche.Name Expr → Bool}
+    (hp : ∀ e eC, denoteEntry st e = some eC → p e = pC eC) :
+    ∀ {rest : List (CEntryF NIdx EIdx)} {restC : List (CEntryF ConLeche.Name Expr)},
+      rest.mapM (denoteEntry st) = some restC →
+      (rest.filter p).mapM (denoteEntry st) = some (restC.filter pC)
+  | [], restC, h => by
+    simp only [List.mapM_nil, pure, Option.some.injEq] at h
+    subst h; rfl
+  | e :: rest, restC, h => by
+    simp only [List.mapM_cons] at h
+    obtain ⟨eC, he, h⟩ := bind_some_left h
+    obtain ⟨restC', hr, h⟩ := bind_some_left h
+    simp only [pure, Option.some.injEq] at h
+    subst h
+    have ih := filter_mapM_rel hp hr
+    have hpe := hp e eC he
+    cases hb : p e with
+    | true =>
+      rw [hb] at hpe
+      simp only [List.filter_cons, hb, ← hpe, ↓reduceIte, List.mapM_cons, he, ih]
+      rfl
+    | false =>
+      rw [hb] at hpe
+      simp only [List.filter_cons, hb, ← hpe, Bool.false_eq_true, ↓reduceIte, ih]
+
+/-- A constant kept among a group's rest, alike. -/
+theorem groupKeeps_rel {st : EStore} (hw : NStoreWF st.ns) {all : List NIdx}
+    {allC : List ConLeche.Name} (ha : all.mapM (denoteN st.ns) = some allC)
+    {e : CEntryF NIdx EIdx} {eC : CEntryF ConLeche.Name Expr} (he : denoteEntry st e = some eC) :
+    ConRon.Arena.Modular.groupKeeps e all = (match eC.kind with
+        | .recur all' .. => all' == allC
+        | _ => true) := by
+  have hk := denoteEntry_kind he
+  unfold ConRon.Arena.Modular.groupKeeps
+  generalize eC.kind = kC at hk
+  cases hkk : e.kind with
+  | recur al np ni nmo nmi rules k iu =>
+    rw [hkk] at hk; simp only [ConLeche.Frontend.Olean.CKindF.mapM] at hk
+    obtain ⟨alC, hal, hk⟩ := bind_some_left hk; obtain ⟨_, _, hk⟩ := bind_some_left hk
+    simp only [pure, Option.some.injEq] at hk; subst hk
+    exact nameList_beq hw hal ha
+  | _ =>
+    rw [hkk] at hk
+    simp only [ConLeche.Frontend.Olean.CKindF.mapM] at hk
+    first
+    | (simp only [pure, Option.some.injEq] at hk; subst hk; rfl)
+    | (obtain ⟨_, _, hk⟩ := bind_some_left hk
+       first
+       | (simp only [pure, Option.some.injEq] at hk; subst hk; rfl)
+       | (obtain ⟨_, _, hk⟩ := bind_some_left hk
+          simp only [pure, Option.some.injEq] at hk; subst hk; rfl))
+
+/-- A group's recursors' locations, upstream's. -/
+theorem groupRecLocs_eq {st : EStore} (hw : NStoreWF st.ns) {m : Std.HashMap NIdx (Array Nat)}
+    {mC : Std.HashMap ConLeche.Name (Array Nat)} (hm : HMRel (· = ·) st m mC) {all : List NIdx}
+    {allC : List ConLeche.Name} (ha : all.mapM (denoteN st.ns) = some allC) :
+    ConRon.Arena.Modular.groupRecLocs m all = ConLeche.Driver.groupRecLocs mC allC := by
+  unfold ConRon.Arena.Modular.groupRecLocs ConLeche.Driver.groupRecLocs
+  cases all with
+  | nil => simp only [List.mapM_nil, pure, Option.some.injEq] at ha; subst ha; rfl
+  | cons a as =>
+    simp only [List.mapM_cons] at ha
+    obtain ⟨aC, haC, ha⟩ := bind_some_left ha
+    obtain ⟨_, _, ha⟩ := bind_some_left ha
+    simp only [pure, Option.some.injEq] at ha
+    subst ha
+    simp [HMRel.get_eq hw hm haC]
+
 end ConRon.Bridge.Modular
