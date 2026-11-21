@@ -394,7 +394,7 @@ pub fn reduce_member_checked(
     ms: &MemberShape,
     n_p: u64,
 ) -> Result<MemberShape, CheckError> {
-    match checker_base::check_constant_val(pers, st, mode, fe, &ms.cv_t, false) {
+    match checker_base::check_constant_val(pers, st, mode, fe, &ms.cv_t, false, false, false) {
         Err(e) => Err(e),
         Ok(()) => match positivity::reduced_former(pers, st, mode, fe, &ms.cv_t, n_p + ms.n_idx) {
             Err(e) => Err(e),

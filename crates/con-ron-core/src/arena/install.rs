@@ -138,7 +138,6 @@ pub fn block_ctors_group(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1171-1174 Expr.dropVars
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove install::expr_drop_vars_refines, then delete this line
 /// con-leche: ConLeche/Cached/CheckerC.lean:73-77 Expr.dropVarsC
 /// **`n` variables below a term's own, which do not occur in it, dropped**:
 /// each instantiated at `Sort 0`.
@@ -160,7 +159,6 @@ pub fn expr_drop_vars(pers: &PersTier, st: &mut AState, n: u64, e: EIdx) -> Resu
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1171-1174 Expr.dropVars
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove install::drop_vars_all_refines, then delete this line
 /// con-leche: ConLeche/Cached/CheckerC.lean:73-77 Expr.dropVarsC
 /// `xs.map (Expr.dropVars n)`, from `i` on.
 pub fn drop_vars_all(

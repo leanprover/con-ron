@@ -43,7 +43,6 @@ open ConLeche
 con-leche: ConLeche/Kernel/DeclCheck.lean:87-117 stdAxiomOkF
 con-leche: ConLeche/Kernel/TrustAxioms.lean:174-184 ofReduceAxOk
 con-leche: ConLeche/Kernel/Checker.lean:295-308 divModEnvGuard
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove DeclCheck.eqStored_bridge, then delete this line
 The `(fe.find? eqName).isSome` the three guards share: the environment holds
 `Eq` only ever as a copy of its pin (at the stream's level-parameter names), so
 presence is the whole test. -/
@@ -160,16 +159,6 @@ def reducePinGuard (fe : IFEnv) (c : NIdx) : AM Bool := do
   else if ← hasFvarFast coreWalkFuel p then pure false
   else if !(← allLevelParamsDefined [] p) then pure false
   else constsResolveFFast fe p
-
-/-- con-leche: none — `(natOpDeps c).all (natOpStoredOk fe)`, as an explicit
-list recursion (DESIGN §3.4 forbids the closure `List.all` takes).  con-leche's
-`natOpGuard` has the WEAKER dependency test (`Arena/Core.lean`'s
-`natOpDepsStored`: stored as a level-monomorphic definition); this is the
-stronger one `divModEnvGuard` asks for, which pins the type too. -/
-def natOpStoredOkAll (fe : IFEnv) : List NIdx → AM Bool
-  | [] => pure true
-  | n :: ns => do
-    if ← natOpStoredOk fe n then natOpStoredOkAll fe ns else pure false
 
 /-! `lps.map .param` as an interned universe-argument list — the spelling of
 "the constant at its own level parameters", which every model statement below
@@ -531,7 +520,6 @@ def divModCertGuard (fe : IFEnv) (c : NIdx) (annVal : EIdx)
   else constsResolveFFast fe (← substConst0 c annVal coreWalkFuel eqE)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:295-308 divModEnvGuard
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove DeclCheck.boolCtorTyped_bridge, then delete this line
 One `Bool` constructor's clause: is `n` stored with the type `Bool` itself?  The
 lookup first, then the stored type, then `Bool` interned: the Rust's order
 (`bool_ctor_typed`).  The twin used to intern `.const Bool []` once, BEFORE
@@ -547,16 +535,13 @@ def boolCtorTyped (fe2 : IFEnv) (n : NIdx) : AM Bool := do
   | none => pure false
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:295-308 divModEnvGuard
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove DeclCheck.divModEnvGuard_bridge, then delete this line
 con-leche: ConLeche/Kernel/DeclCheck.lean:160-169 divModEnvGuardF
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove DeclCheck.divModEnvGuard_bridge, then delete this line
 Environment prerequisites of a certified `Nat.div`/`Nat.mod`: dependency
-guard, pinned dependencies, the pinned `Eq` basis, and the `Bool` constructors
-stored at the type `Bool` itself. -/
+guard, the operation's own pinned type, the pinned `Eq` basis, and the `Bool`
+constructors stored at the type `Bool` itself. -/
 def divModEnvGuard (fe2 : IFEnv) (c : NIdx) : AM Bool := do
   if !(← natOpGuard fe2 c) then pure false else do
-    let deps ← natOpDeps c
-    if !(← natOpStoredOkAll fe2 deps) then pure false else do
+    if !(← natOpStoredOk fe2 c) then pure false else do
       if !(← eqStored fe2) then pure false else do
         if !(← boolCtorTyped fe2 (← boolTrueName)) then pure false
         else boolCtorTyped fe2 (← boolFalseName)

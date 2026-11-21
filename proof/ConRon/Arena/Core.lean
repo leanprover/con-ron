@@ -1185,19 +1185,17 @@ def natBinOpResult (op : NatBinOp) (a b : Nat) : AM (Option EIdx) := do
   | .shiftRight => do let x ← internE (.lit (.natVal (Nat.shiftRight a b))); pure (some x)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:611-638 natOpGuard — the dependency
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Core.natOpDepsStored_bridge, then delete this line
-half of the guard.  con-leche writes `(natOpDeps c).all (fun n => …)`;
-DESIGN §3.4's rule for a `List` walk is a named helper, so this is one. -/
+half of the guard: every dependency stored, of any kind.  con-leche writes
+`(natOpDeps c).all (fun n => (env.find? n).isSome)`; DESIGN §3.4's rule for a
+`List` walk is a named helper, so this is one. -/
 def natOpDepsStored (fe : IFEnv) : List NIdx → AM Bool
   | [] => pure true
   | n :: ns =>
     match fe.find? n with
-    | some (.defnInfo cv _ _) =>
-      if cv.levelParams.isEmpty then natOpDepsStored fe ns else pure false
-    | _ => pure false
+    | some _ => natOpDepsStored fe ns
+    | none => pure false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:611-638 natOpGuard — a stored
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Core.boolCtorOk_bridge, then delete this line
 `Bool` constructor's conjunct, `ci.toConstantVal.levelParams.isEmpty &&
 ci.toConstantVal.type == .const boolName []`: level-free, at the type `Bool`
 itself (con-leche's task #342).  The `&&` short-circuits as con-leche's does;
@@ -1210,11 +1208,9 @@ def boolCtorOk (ci : IConstantInfo) : AM Bool := do
   else pure false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:611-638 natOpGuard
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Core.natOpGuard_bridge, then delete this line
 con-leche: ConLeche/Kernel/FEnv.lean:438-451 natOpGuardF
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Core.natOpGuard_bridge, then delete this line
-Stored-constant guards for op `c`: the `Nat` basis, every dependency stored
-as a definition, and (for the `Bool`-valued ops and the `ble`-guarded
+Stored-constant guards for op `c`: the `Nat` basis, every dependency stored,
+and (for the `Bool`-valued ops and the `ble`-guarded
 `div`/`mod`) the `Bool` constructors stored, level-free, at the type `Bool`
 itself (`boolCtorOk`). -/
 def natOpGuard (fe : IFEnv) (c : NIdx) : AM Bool := do
