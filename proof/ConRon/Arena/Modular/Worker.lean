@@ -46,7 +46,7 @@ def homeOf (pk : OleanPins) (m : NIdx) (f : ConLeche.Frontend.Olean.ModFiles) : 
         | some _ => pure OLeanLevel.private
     fail (← viewError pk mn f level)
   | some v =>
-    let expo ← checkViews pk (← readName m) f v
+    let expo ← checkViews pk m f v
     pure (l, expo)
 
 /-- con-leche: ConLeche/Driver/Worker.lean:44-51 ownRecords
