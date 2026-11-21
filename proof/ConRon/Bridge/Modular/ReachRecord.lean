@@ -258,4 +258,49 @@ theorem recBlocksAdd_rel {st : EStore} (hw : NStoreWF st.ns) {m : Std.HashMap NI
     simp only [CKindF.mapM] at hk; obtain ⟨_, _, hk⟩ := bind_some_left hk
     simp only [pure, Option.some.injEq] at hk; subst hk; exact hm
 
+/-- upstream's read of one recursor's kind (`recBlocksAt`'s `mapM`). -/
+@[expose] def rbReadC (r : Region) (l : Nat) : Option (Nat × CKindF ConLeche.Name Unit) :=
+  (ConLeche.Frontend.Olean.kindNamesAt r l).map (l, ·)
+
+/-- con-leche: ConLeche/Driver/Reach.lean:588-595 recBlocksAt — the twin's walk of a part's
+positions, from any accumulated map: upstream's kinds read, folded onto the related map. -/
+theorem recBlocksAt_go {pk : OleanPins} {r : Region} :
+    ∀ (qs : List ConRon.Arena.Frontend.Olean.NamePosition)
+      {qsC : List ConLeche.Frontend.Olean.NamePosition}
+      {m m' : Std.HashMap NIdx (Array Nat)} {mC : Std.HashMap ConLeche.Name (Array Nat)}
+      {s s' : AState}, Ctx pk s → HMRel (· = ·) s.store m mC → ListRel (NPRel s.store) qs qsC →
+      ConRon.Arena.Modular.recBlocksAt pk r m qs s = .ok (some m', s') →
+      ParseStep s s' ∧ ∃ ks, ((qsC.filter (·.tag == 7)).map (·.loc)).mapM (rbReadC r) = some ks ∧
+        HMRel (· = ·) s'.store m' (ks.foldl rbStepC mC)
+  | [], _, m, m', mC, s, s', hctx, hm, .nil, h => by
+    rw [ConRon.Arena.Modular.recBlocksAt] at h
+    obtain ⟨hv, rfl⟩ := AM.pure_ok h
+    cases hv
+    exact ⟨ParseStep.refl hctx.ok, [], rfl, hm⟩
+  | q :: qs, _, m, m', mC, s, s', hctx, hm, .cons hq hqs, h => by
+    rename_i qC qsC
+    rw [ConRon.Arena.Modular.recBlocksAt] at h
+    have htC : (qC.tag == 7) = (q.tag == 7) := by rw [hq.tag]
+    by_cases ht : (q.tag == 7) = true
+    · rw [ite_eq_left ht] at h
+      obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok h
+      rcases o with _ | k
+      · obtain ⟨hv, -⟩ := AM.pure_ok h2; cases hv
+      dsimp only at h2
+      obtain ⟨hst1, kC, hkC, hk⟩ := kindNamesAt_run hctx (hq.loc ▸ h1)
+      have hw1 := nsWF_of_StateOK hst1.ok
+      have hm1 := recBlocksAdd_rel hw1 (hm.ext hst1.ext (fun _ _ h => h)) q.loc hk
+      obtain ⟨hst2, ks, hks, hm2⟩ := recBlocksAt_go qs (hctx.step hst1) hm1
+        (ListRel.mono' (fun _ _ h => h.ext hst1.ext) hqs) h2
+      refine ⟨hst1.trans hst2, (q.loc, kC) :: ks, ?_, ?_⟩
+      · simp only [List.filter_cons, htC, ht, ↓reduceIte, List.map_cons, List.mapM_cons, rbReadC]
+        rw [hkC, hks, hq.loc]; rfl
+      · simpa [List.foldl_cons] using hm2
+    · rw [ite_eq_right ht] at h
+      obtain ⟨hst, ks, hks, hm'⟩ := recBlocksAt_go qs hctx hm hqs h
+      refine ⟨hst, ks, ?_, hm'⟩
+      simp only [Bool.not_eq_true] at ht
+      simp only [List.filter_cons, htC, ht, Bool.false_eq_true, ↓reduceIte]
+      exact hks
+
 end ConRon.Bridge.Modular
