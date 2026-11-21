@@ -9,7 +9,7 @@
 //! Conventions, as in `name.rs`: `Level`s are `P` trees with the
 //! `@[computed_field] hashData` stored in the node; arguments come in by
 //! shared reference and results go out owned; Lean's `List` becomes `Vec`
-//! walked by an index (DESIGN.md §3.3, §3.4 — no loops).
+//! walked by an index (DESIGN.md §3.3).
 //!
 //! `leqCore`'s `diff : Int` becomes `i64`: it only ever moves by one per
 //! `succ` peeled off a level, so overflow means a pathological input and, in

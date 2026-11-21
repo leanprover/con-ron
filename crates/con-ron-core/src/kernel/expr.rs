@@ -9,7 +9,7 @@
 //! whose node stores the `@[computed_field] data` word, written by the smart
 //! constructors below and by nothing else (DESIGN.md §3.2); arguments come in
 //! by shared reference and results go out owned; Lean's `List` is a `Vec`
-//! walked by an index (§3.3, §3.4 — no loops); the `Nat` indices con-leche
+//! walked by an index (§3.3); the `Nat` indices con-leche
 //! never lets grow (`bvar i`, `fvar idx`, `proj i`) are `u64` (§3.3).
 //!
 //! Two naming notes.  `const` is a Rust keyword, so the `.const` smart
@@ -690,8 +690,7 @@ pub fn probe_hit(m: &BeqMap, key: u64, a: &Expr, b: &Expr) -> bool {
 /// con-leche: ConLeche/Kernel/Expr.lean:980-995 Expr.probeHit
 /// The index recursion behind `probe_hit`: the bucket's candidates, each
 /// verified by `ptr_eq` on both components (task #38 — con-leche's single
-/// entry per key is its addresses' doing, see `BeqMap`).  No loops
-/// (DESIGN.md §3.4).  A bucket holds proved-equal pairs only, so the first
+/// entry per key is its addresses' doing, see `BeqMap`).  A bucket holds proved-equal pairs only, so the first
 /// candidate whose two components are *these* two objects answers; the scan
 /// is over pairs whose hash words collide with theirs, of which a real
 /// comparison has a handful.
@@ -731,7 +730,7 @@ pub fn levels_beq(ls: &Vec<Level>, rs: &Vec<Level>) -> bool {
 }
 
 /// con-leche: none — the index recursion behind `levels_beq`
-/// Lean's `List.beq` over `BEq Level`; no loops (DESIGN.md §3.4).
+/// Lean's `List.beq` over `BEq Level`.
 pub fn levels_beq_from(ls: &Vec<Level>, rs: &Vec<Level>, i: usize) -> bool {
     if i >= ls.len() {
         true
