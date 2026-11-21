@@ -524,7 +524,8 @@ theorem loadView_run {pk : OleanPins} {m : NIdx} {mn : ConLeche.Name} {f : ModFi
     {l : ConRon.Arena.Frontend.Olean.Loaded} {s s' : AState}
     (hctx : Ctx pk s) (hp : PinsRel s.store pk) (hm : denoteN s.store.ns m = some mn)
     (h : ConRon.Arena.Frontend.Olean.loadView pk 0 m f s = .ok (l, s')) :
-    ParseStep s s' ∧ ∃ lC, LoadedRel s'.store l lC ∧ ConLeche.Driver.LoadOf 0 mn f lC := by
+    ParseStep s s' ∧ FrontGoodAt s'.store f l.frontier ∧
+      ∃ lC, LoadedRel s'.store l lC ∧ ConLeche.Driver.LoadOf 0 mn f lC := by
   unfold ConRon.Arena.Frontend.Olean.loadView at h
   obtain ⟨o, s₄, h7, h8⟩ := AM.bind_ok h
   cases o with
@@ -536,10 +537,10 @@ theorem loadView_run {pk : OleanPins} {m : NIdx} {mn : ConLeche.Name} {f : ModFi
   obtain ⟨hv, hs⟩ := AM.pure_ok h8
   cases hv
   subst hs
-  obtain ⟨hst, -, lC, hrel, hn, -, hfr, r, a, sk, skels, hvr, hcno, hsk, hskels, hal, imports,
+  obtain ⟨hst, hfg, lC, hrel, hn, -, hfr, r, a, sk, skels, hvr, hcno, hsk, hskels, hal, imports,
     himps, hpre⟩ := loadAt_runOf hctx hp hm h7
   obtain ⟨hl, hk⟩ := listRel_getElem hal
-  refine ⟨hst, lC, hrel, ⟨r, a, sk, skels, hvr, hcno, hsk, hskels, hn, ?_, lazyOf_of_rel hal⟩,
+  refine ⟨hst, hfg, lC, hrel, ⟨r, a, sk, skels, hvr, hcno, hsk, hskels, hn, ?_, lazyOf_of_rel hal⟩,
     ⟨r, a, sk, skels, hvr, hsk, hskels, by simpa using hl, fun j hj => ?_⟩,
     r, a, sk, imports, hvr, hsk, himps, hpre⟩
   · rw [hfr]; exact ConLeche.Frontend.Olean.Frontier.good_empty r
@@ -1237,5 +1238,176 @@ theorem serverImportsOk_run {pk : OleanPins} {r : Region} {f : ModFiles} {a : UI
   refine ⟨hst1.trans hst2, ?_⟩
   rw [hzs, hws, imports_den_eq hdz (list_mono (fun _ _ hy => denoteImport_ext hst2.ext hy) _ hdw)]
   simp
+
+/-! ## The views against each other -/
+
+/-- The load's constants, read back. -/
+theorem loadedEntries_den {st : EStore} :
+    ∀ {l : List ConRon.Arena.Frontend.Olean.CEntry} {lC : List ConLeche.Frontend.Olean.CEntry},
+      l.mapM (denoteCEntry st) = some lC →
+      (l.map (·.c)).mapM (denoteEntry st) = some (lC.map (·.toCEntryF))
+  | [], lC, h => by
+    simp only [List.mapM_nil, pure, Option.some.injEq] at h
+    subst h; rfl
+  | x :: l, lC, h => by
+    simp only [List.mapM_cons] at h
+    obtain ⟨z, hz, g⟩ := bind_some_left h
+    obtain ⟨zs, hzs, g⟩ := bind_some_left g
+    simp only [pure, Option.some.injEq] at g
+    subst g
+    unfold denoteCEntry at hz
+    obtain ⟨e, he, hz⟩ := bind_some_left hz
+    obtain ⟨u, -, hz⟩ := bind_some_left hz
+    simp only [pure, Option.some.injEq] at hz
+    subst hz
+    simp only [List.map_cons, List.mapM_cons, he, loadedEntries_den hzs]
+    rfl
+
+/-- A failing branch of the twin: a few reads, then `fail`. -/
+theorem fail_tail {α β γ δ : Type} {x : AM α} {y : α → AM β} {e : β → Arena.CheckError}
+    {k : γ → AM δ} {s s' : AState} {r : δ}
+    (h : (x >>= fun a => y a >>= fun b => (fail (e b) : AM γ) >>= k) s = .ok (r, s')) : False := by
+  obtain ⟨_, _, _, h1⟩ := AM.bind_ok h
+  obtain ⟨_, _, _, h2⟩ := AM.bind_ok h1
+  obtain ⟨_, _, h3, _⟩ := AM.bind_ok h2
+  exact AM.fail_ok h3
+
+/-- A failing branch of the twin: a read, then `fail`. -/
+theorem fail_tail1 {β γ δ : Type} {y : AM β} {e : β → Arena.CheckError}
+    {k : γ → AM δ} {s s' : AState} {r : δ}
+    (h : (y >>= fun b => (fail (e b) : AM γ) >>= k) s = .ok (r, s')) : False := by
+  obtain ⟨_, _, _, h2⟩ := AM.bind_ok h
+  obtain ⟨_, _, h3, _⟩ := AM.bind_ok h2
+  exact AM.fail_ok h3
+
+/-- A `pure` first step of the twin. -/
+theorem pure_seq_ok {α β : Type} {a : α} {f : α → AM β} {s : AState}
+    {r : Except Arena.CheckError (β × AState)} (h : ((pure a : AM α) >>= f) s = r) : f a s = r := h
+
+/-- A failing last branch of the twin: a read, then `fail`. -/
+theorem fail_tail0 {β γ : Type} {y : AM β} {e : β → Arena.CheckError} {s s' : AState} {r : γ}
+    (h : (y >>= fun b => (fail (e b) : AM γ)) s = .ok (r, s')) : False := by
+  obtain ⟨_, _, _, h2⟩ := AM.bind_ok h
+  exact AM.fail_ok h2
+
+/-- A constant array over two arrays of one size. -/
+theorem map_const_eq {α β γ : Type} {a : Array α} {b : Array β} (x : γ) (h : a.size = b.size) :
+    a.map (fun _ => x) = b.map (fun _ => x) := by
+  apply Array.ext
+  · simp [h]
+  · intro i _ _; simp
+
+/-- con-leche: ConLeche/Frontend/Olean/Module.lean:156-190 checkViews — **the twin's check of a
+module's views, over its load, is upstream's**, at the load read back. -/
+theorem checkViews_run {pk : OleanPins} {m : NIdx} {mC : Name} {f : ModFiles}
+    {l : ConRon.Arena.Frontend.Olean.Loaded} {lC : ConLeche.Frontend.Olean.Loaded}
+    {expo : Array Expo} {s s' : AState} {pre : Array ImportRec} (hctx : Ctx pk s)
+    (hl : LoadedRel s.store l lC)
+    (hpre : ConLeche.Frontend.Olean.importsPre f.exported.bytes = some pre)
+    (h : ConRon.Arena.Frontend.Olean.checkViews pk m f l s = .ok (expo, s')) :
+    ParseStep s s' ∧ ConLeche.Frontend.Olean.checkViews mC f lC = .ok expo := by
+  have hcs : (ConRon.Arena.Frontend.Olean.loadedEntries l.constants).toList.mapM
+      (denoteEntry s.store) = some (lC.constants.map (·.toCEntryF)).toList := by
+    simpa [ConRon.Arena.Frontend.Olean.loadedEntries] using loadedEntries_den hl.constants
+  have hsz : (ConRon.Arena.Frontend.Olean.loadedEntries l.constants).size =
+      (lC.constants.map (·.toCEntryF)).size := by
+    have := (mapM_getElem hcs).1
+    simpa using this.symm
+  unfold ConRon.Arena.Frontend.Olean.checkViews at h
+  unfold ConLeche.Frontend.Olean.checkViews
+  obtain ⟨ex, fs, fp⟩ := f
+  cases fs with
+  | none =>
+    simp only at h
+    obtain ⟨hv, rfl⟩ := AM.pure_ok h
+    subst hv
+    refine ⟨ParseStep.refl hctx.ok, ?_⟩
+    simp only
+    rw [map_const_eq Expo.same hsz]
+    rfl
+  | some sv =>
+  cases fp with
+  | none =>
+    simp only at h
+    obtain ⟨hv, rfl⟩ := AM.pure_ok h
+    subst hv
+    refine ⟨ParseStep.refl hctx.ok, ?_⟩
+    simp only
+    rw [map_const_eq Expo.same hsz]
+    rfl
+  | some pv =>
+  simp only at h
+  cases hm : ModFiles.isModule ⟨ex, some sv, some pv⟩ with
+  | false =>
+    simp only [hm, Bool.false_eq_true, ↓reduceIte] at h
+    obtain ⟨hv, rfl⟩ := AM.pure_ok h
+    subst hv
+    refine ⟨ParseStep.refl hctx.ok, ?_⟩
+    simp only [Bool.false_eq_true, ↓reduceIte]
+    rw [map_const_eq Expo.same hsz]
+    rfl
+  | true =>
+  simp only [hm, ↓reduceIte] at h
+  replace h := pure_seq_ok h
+  cases hr : ConLeche.Frontend.Olean.Region.ofParts #[ex, sv, pv] with
+  | error e =>
+    simp only [hr] at h
+    exact absurd h (fun h' => AM.fail_ok h')
+  | ok r =>
+  simp only [hr] at h
+  rcases ite_ok_cases h with ⟨hloc, h⟩ | ⟨-, h⟩
+  rotate_left
+  · exact (fail_tail h).elim
+  replace h := pure_seq_ok h
+  rcases ite_ok_cases h with ⟨hS, h⟩ | ⟨-, h⟩
+  rotate_left
+  · exact (fail_tail1 h).elim
+  replace h := pure_seq_ok h
+  rcases ite_ok_cases h with ⟨hP, h⟩ | ⟨-, h⟩
+  rotate_left
+  · exact (fail_tail1 h).elim
+  replace h := pure_seq_ok h
+  obtain ⟨b1, s₁, h1, h⟩ := AM.bind_ok h
+  cases b1 with
+  | false => exact (fail_tail1 h).elim
+  | true =>
+  simp only [↓reduceIte] at h
+  replace h := pure_seq_ok h
+  obtain ⟨hst1, himps⟩ := serverImportsOk_run hctx hpre h1
+  obtain ⟨b2, s₂, h2, h⟩ := AM.bind_ok h
+  cases b2 with
+  | false => exact (fail_tail1 h).elim
+  | true =>
+  simp only [↓reduceIte] at h
+  replace h := pure_seq_ok h
+  obtain ⟨hst2, hcn1⟩ := constNamesOk_run (hctx.step hst1) h2
+  obtain ⟨b3, s₃, h3, h⟩ := AM.bind_ok h
+  cases b3 with
+  | false => exact (fail_tail1 h).elim
+  | true =>
+  simp only [↓reduceIte] at h
+  replace h := pure_seq_ok h
+  have hst12 := hst1.trans hst2
+  obtain ⟨hst3, hcn2⟩ := constNamesOk_run (hctx.step hst12) h3
+  have hst123 := hst12.trans hst3
+  obtain ⟨e1, s₄, h4, h⟩ := AM.bind_ok h
+  obtain ⟨e2, s₅, h5, h⟩ := AM.bind_ok h
+  have hcs3 := list_mono (fun _ _ hy => denoteEntry_ext hst123.ext hy) _ hcs
+  cases e1 with
+  | error msg => exact (fail_tail0 h).elim
+  | ok ex1 =>
+  cases e2 with
+  | error msg => exact (fail_tail0 h).elim
+  | ok ex2 =>
+  obtain ⟨hv, rfl⟩ := AM.pure_ok h
+  subst hv
+  obtain ⟨hst4, hU1⟩ := expoOfParts_run (hctx.step hst123) hcs3 h4
+  obtain ⟨hst5, hU2⟩ := expoOfParts_run (hctx.step (hst123.trans hst4))
+    (list_mono (fun _ _ hy => denoteEntry_ext hst4.ext hy) _ hcs3) h5
+  refine ⟨(hst123.trans hst4).trans hst5, ?_⟩
+  unfold ConRon.Arena.Frontend.Olean.skelIsModule at hS hP
+  unfold simpsOf at himps
+  simp [hr, hloc, hS, hP, himps, hcn1, hcn2, hU1, hU2, bind, Except.bind]
+  rfl
 
 end ConRon.Bridge.Modular.Home
