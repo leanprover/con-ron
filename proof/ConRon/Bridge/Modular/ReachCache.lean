@@ -297,4 +297,225 @@ theorem denoteStmt_extR {st st' : EStore} (hx : Ext st st') {c : ConRon.Arena.Fr
   simp only [denoteStmt, denoteN_ext h1 hx, mapM_denoteN_ext hx h2, denote_ext h3 hx]
   rcases z with ⟨a, b, c⟩; rfl
 
+/-! ## The reach's environment and caches -/
+
+/-- con-leche: ConLeche/Driver/Reach.lean:174-185 ReachEnv — a clashing name's copies read back. -/
+@[expose] def CopiesRel (st : EStore) (a : Array (NIdx × ConRon.Arena.Frontend.Olean.StmtRec))
+    (b : Array (ConLeche.Name × ConstantVal)) : Prop :=
+  ListRel (fun x y => denoteN st.ns x.1 = some y.1 ∧ denoteStmt st x.2 = some y.2) a.toList b.toList
+
+/-- con-leche: none — a pair of names read back. -/
+@[expose] def NN (st : EStore) (a : NIdx × NIdx) (b : ConLeche.Name × ConLeche.Name) : Prop :=
+  denoteN st.ns a.1 = some b.1 ∧ denoteN st.ns a.2 = some b.2
+
+/-- con-leche: ConLeche/Driver/Reach.lean:174-185 ReachEnv — **the reach's environment read
+back**: upstream's reads are the search path's, the module, the reads, the own names and the
+clashes' copies denoted. -/
+structure EnvRel (sp : Roots) (st : EStore) (env : ConRon.Arena.Modular.ReachEnv)
+    (envC : ConLeche.Driver.ReachEnv ModelIO) : Prop where
+  rd : envC.rd = .ofPath sp
+  mod : denoteN st.ns env.mod = some envC.mod
+  wr : WorkerReadsRel st env.wr envC.wr
+  keys : LoadKeys env.wr.loads envC.wr.loads
+  own : SetRel st env.own envC.own
+  copies : HMRel (CopiesRel st) st env.copies envC.copies
+
+/-- con-leche: ConLeche/Driver/Reach.lean:187-211 ReachCache — **the reach's caches read back**,
+entry for entry: tables, lookups, the regions (each memo good at its region on both sides),
+recursor maps, views, located copies; the completions, pending statements and partners in
+order; the count of searches. -/
+structure CacheRel (st : EStore) (c : ConRon.Arena.Modular.ReachCache)
+    (cC : ConLeche.Driver.ReachCache) : Prop where
+  tables : MRel (NPsRel st) st c.tables cC.tables
+  looks : MRel (HMRel (NPRel st) st) st c.looks cC.looks
+  parts : MRel (fun (p : Region × SM) (q : Region × ConLeche.Frontend.Olean.SM) =>
+    p.1 = q.1 ∧ SMGood st p.1 p.2 ∧ q.2.Good q.1) st c.parts cC.parts
+  recBlocks : MRel (HMRel (· = ·) st) st c.recBlocks cC.recBlocks
+  views : HMRel (HMRel (SpotRel st) st) st c.views cC.views
+  located : HMRel (SpotRel st) st c.located cC.located
+  completed : ListRel (NN st) c.completed.toList cC.completed.toList
+  pending : ListRel (PendRel st) c.pending.toList cC.pending.toList
+  partners : ListRel (NN st) c.partners.toList cC.partners.toList
+  searches : c.searches = cC.searches
+
+theorem CacheRel.empty (st : EStore) : CacheRel st {} {} :=
+  ⟨MRel.empty _ _, MRel.empty _ _, MRel.empty _ _, MRel.empty _ _, HMRel.empty _ _,
+    HMRel.empty _ _, .nil, .nil, .nil, rfl⟩
+
+theorem NN.ext {st st' : EStore} (hx : Ext st st') {a : NIdx × NIdx}
+    {b : ConLeche.Name × ConLeche.Name} (h : NN st a b) : NN st' a b :=
+  ⟨denoteN_ext h.1 hx, denoteN_ext h.2 hx⟩
+
+theorem PendRel.ext {st st' : EStore} (hx : Ext st st')
+    {a : String × NIdx × ConRon.Arena.Frontend.Olean.StmtRec} {b : String × ConLeche.Name × ConstantVal}
+    (h : PendRel st a b) : PendRel st' a b :=
+  ⟨denoteN_ext h.1 hx, denoteStmt_extR hx h.2⟩
+
+theorem CacheRel.ext {st st' : EStore} (hx : Ext st st') {c : ConRon.Arena.Modular.ReachCache}
+    {cC : ConLeche.Driver.ReachCache} (h : CacheRel st c cC) : CacheRel st' c cC :=
+  ⟨h.tables.ext hx (fun _ _ h => h.ext hx), h.looks.ext hx (fun _ _ h => h.ext hx (fun _ _ h => h.ext hx)),
+    h.parts.ext hx (fun _ _ h => ⟨h.1, h.2.1.ext hx, h.2.2⟩),
+    h.recBlocks.ext hx (fun _ _ h => h.ext hx (fun _ _ h => h)),
+    h.views.ext hx (fun _ _ h => h.ext hx (fun _ _ h => h.ext hx)),
+    h.located.ext hx (fun _ _ h => h.ext hx),
+    ListRel.mono' (fun _ _ h => h.ext hx) h.completed, ListRel.mono' (fun _ _ h => h.ext hx) h.pending,
+    ListRel.mono' (fun _ _ h => h.ext hx) h.partners, h.searches⟩
+
+/-! ## The reads' relations at a larger store -/
+
+theorem IndexRel.extR {st st' : EStore} {ix : ConRon.Arena.Frontend.Olean.NameIndex}
+    {ixC : ConLeche.Frontend.Olean.NameIndex} (h : IndexRel st ix ixC) (hx : Ext st st') :
+    IndexRel st' ix ixC :=
+  ⟨listRel_ext (fun _ _ hp => hp.ext hx) h.parts, h.first.ext hx (fun _ _ h => h),
+    listRel_ext (fun _ _ hq => ⟨denoteN_ext hq.1 hx, hq.2⟩) h.more⟩
+
+theorem ClashRel.extR {st st' : EStore} (hx : Ext st st') {cl : ConRon.Arena.Frontend.Olean.Clash}
+    {clC : ConLeche.Frontend.Olean.Clash} (h : ClashRel st cl clC) : ClashRel st' cl clC :=
+  ⟨denoteN_ext h.name hx, listRel_ext (fun _ _ hc => ⟨hc.1, denoteStmt_extR hx hc.2.1,
+    denoteKindN_ext hx hc.2.2⟩) h.copies⟩
+
+theorem WorkerReadsRel.extR {st st' : EStore} (hx : Ext st st') (hw' : NStoreWF st'.ns)
+    {wr : ConRon.Arena.Frontend.Olean.WorkerReads} {wrC : ConLeche.Frontend.Olean.WorkerReads}
+    (h : WorkerReadsRel st wr wrC) (hk : LoadKeys wr.loads wrC.loads) : WorkerReadsRel st' wr wrC :=
+  ⟨h.own.ext hx, loadsRel_extR hx hw' h.loads hk, h.pub, h.index.extR hx,
+    listRel_ext (fun _ _ hc => hc.extR hx) h.clashes⟩
+
+theorem EnvRel.ext {sp : Roots} {st st' : EStore} (hx : Ext st st') (hw' : NStoreWF st'.ns)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    (h : EnvRel sp st env envC) : EnvRel sp st' env envC :=
+  ⟨h.rd, denoteN_ext h.mod hx, h.wr.extR hx hw' h.keys, h.keys, h.own.ext hx,
+    h.copies.ext hx (fun _ _ h => ListRel.mono' (fun _ _ h => ⟨denoteN_ext h.1 hx,
+      denoteStmt_extR hx h.2⟩) h)⟩
+
+/-! ## A part's name table -/
+
+/-- con-leche: ConLeche/Driver/Reach.lean:229-247 tableOf — upstream's index branch of
+`tableOf`: the table of the part where its module is loaded at that level. -/
+@[expose] def indexTableC (wr : ConLeche.Frontend.Olean.WorkerReads) (k : ConLeche.Driver.PartKey) :
+    Option ConLeche.Frontend.Olean.NamePositions :=
+  match wr.loads.index[k.mod]? with
+  | some i => if ((wr.loads.flags[i]?).getD default).level == k.level then wr.index.parts[i]? else none
+  | none => none
+
+theorem indexTable_rel {st : EStore} {wr : ConRon.Arena.Frontend.Olean.WorkerReads}
+    {wrC : ConLeche.Frontend.Olean.WorkerReads} (h : WorkerReadsRel st wr wrC)
+    {k : ConRon.Arena.Modular.PartKey} {kC : ConLeche.Driver.PartKey} (hk : PKRel st k kC) :
+    Option.Rel (NPsRel st) (ConRon.Arena.Modular.indexTable wr k) (indexTableC wrC kC) := by
+  unfold ConRon.Arena.Modular.indexTable indexTableC
+  rw [h.loads.index k.mod kC.mod hk.1]
+  cases wrC.loads.index[kC.mod]? with
+  | none => exact .none
+  | some i =>
+    simp only [ConRon.Arena.Frontend.Olean.HeaderLoads.levelAt, h.loads.flags, hk.2]
+    split
+    · have := listRel_getElem? h.index.parts i
+      simpa [Array.getElem?_toList] using this
+    · exact .none
+
+/-- con-leche: ConLeche/Driver/Reach.lean:229-247 tableOf — upstream's `tableOf`, the cache
+missed. -/
+theorem tableOfC_miss {envC : ConLeche.Driver.ReachEnv ModelIO} {cC : ConLeche.Driver.ReachCache}
+    {kC : ConLeche.Driver.PartKey} (hm : cC.tables[kC]? = none) :
+    ConLeche.Driver.tableOf envC cC kC = (match indexTableC envC.wr kC with
+      | some t => pure (cC, .ok t)
+      | none => do
+        match ← envC.rd.names (kC.mod, kC.level) with
+        | .error e => pure (cC, .error e)
+        | .ok t => pure ({ cC with tables := cC.tables.insert kC t }, .ok t)) := by
+  unfold ConLeche.Driver.tableOf indexTableC
+  simp only [hm]
+  rcases hi : envC.wr.loads.index[kC.mod]? with _ | i
+  · rfl
+  · by_cases hl : (((envC.wr.loads.flags[i]?).getD default).level == kC.level) = true
+    · simp only [hl, ↓reduceIte]
+      rcases hp : envC.wr.index.parts[i]? with _ | t <;> rfl
+    · simp only [hl, Bool.false_eq_true, ↓reduceIte]
+      rfl
+
+/-- con-leche: none — **the reach's reading context**: the driver's invariant, no scratch tier
+open, the reader's pins denoted. -/
+structure RCtx (pk : OleanPins) (s : AState) : Prop where
+  ok : DriverOK s
+  off : s.store.scratchOn = false
+  nulls : NullsRel s.store pk
+
+theorem RCtx.ctx {pk : OleanPins} {s : AState} (h : RCtx pk s) : Ctx pk s :=
+  ⟨h.ok.state, h.off, h.nulls⟩
+
+theorem RCtx.step {pk : OleanPins} {s s' : AState} (h : RCtx pk s) (hst : DStep s s') : RCtx pk s' :=
+  ⟨hst.ok, hst.scratch, h.nulls.ext hst.ext⟩
+
+theorem RCtx.wf {pk : OleanPins} {s : AState} (h : RCtx pk s) : NStoreWF s.store.ns :=
+  nsWF_of_StateOK h.ok.state
+
+/-- con-leche: ConLeche/Driver/Reach.lean:229-247 tableOf — **a part's name table**: the twin's
+answer (`tableGet` after `tableOf`) is upstream's, the caches related after. -/
+theorem tableOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
+    {k : ConRon.Arena.Modular.PartKey} {kC : ConLeche.Driver.PartKey} {s s' : AState}
+    (hctx : RCtx pk s) (he : EnvRel sp s.store env envC) (hc : CacheRel s.store c cC)
+    (hk : PKRel s.store k kC)
+    (h : ConRon.Arena.Modular.tableOf (modelFs F) pk sp env c k s = .ok (c', s')) :
+    DStep s s' ∧ ∃ cC' tC t, ModelIO.Gives (ConLeche.Driver.tableOf envC cC kC) F (cC', .ok tC) ∧
+      CacheRel s'.store c' cC' ∧ ConRon.Arena.Modular.tableGet env.wr c' k = some t ∧
+      NPsRel s'.store t tC := by
+  have hw := hctx.wf
+  unfold ConRon.Arena.Modular.tableOf at h
+  have htab := hc.tables.get hw hk
+  by_cases h1 : c.tables.contains k = true
+  · simp only [h1, ↓reduceIte] at h
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h
+    rw [Std.HashMap.contains_eq_isSome_getElem?] at h1
+    rcases optRel_cases htab with ⟨g1, -⟩ | ⟨t, tC, g1, g2, g3⟩
+    · rw [g1] at h1; cases h1
+    refine ⟨DStep.refl hctx.ok hctx.off, cC, tC, t, ?_, hc, ?_, g3⟩
+    · unfold ConLeche.Driver.tableOf
+      simp only [g2]
+      exact ModelIO.gives_pure _ _
+    · simp [ConRon.Arena.Modular.tableGet, g1]
+  simp only [h1, Bool.false_eq_true, ↓reduceIte] at h
+  have hmiss : c.tables[k]? = none := by
+    rw [Std.HashMap.contains_eq_isSome_getElem?] at h1
+    cases hh : c.tables[k]? with
+    | none => rfl
+    | some _ => rw [hh] at h1; exact absurd rfl h1
+  have hmissC : cC.tables[kC]? = none := by
+    rw [hmiss] at htab
+    rcases optRel_cases htab with ⟨-, g⟩ | ⟨a, b, g, -, -⟩
+    · exact g
+    · cases g
+  have hix := indexTable_rel he.wr hk
+  rw [tableOfC_miss hmissC]
+  by_cases h2 : (ConRon.Arena.Modular.indexTable env.wr k).isSome = true
+  · simp only [h2, ↓reduceIte] at h
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h
+    rcases optRel_cases hix with ⟨g1, -⟩ | ⟨t, tC, g1, g2, g3⟩
+    · rw [g1] at h2; cases h2
+    refine ⟨DStep.refl hctx.ok hctx.off, cC, tC, t, ?_, hc, ?_, g3⟩
+    · simp only [g2]; exact ModelIO.gives_pure _ _
+    · simp [ConRon.Arena.Modular.tableGet, hmiss, g1]
+  simp only [h2, Bool.false_eq_true, ↓reduceIte] at h
+  have hnone : ConRon.Arena.Modular.indexTable env.wr k = none := by
+    cases hh : ConRon.Arena.Modular.indexTable env.wr k with
+    | none => rfl
+    | some _ => rw [hh] at h2; exact absurd rfl h2
+  have hnoneC : indexTableC envC.wr kC = none := by
+    rw [hnone] at hix
+    rcases optRel_cases hix with ⟨-, g⟩ | ⟨a, b, g, -, -⟩
+    · exact g
+    · cases g
+  simp only [pure_bind] at h
+  obtain ⟨t, s₁, h3, h4⟩ := AM.bind_ok h
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
+  obtain ⟨hst, tC, hg, hrel⟩ := readPartNames_run (roots_ok_of_bare hsp) rfl hctx.ctx hk.1 h3
+  have hds := DStep.of_parse hctx.ok hctx.off hst
+  refine ⟨hds, { cC with tables := cC.tables.insert kC tC }, tC, t, ?_, ?_, ?_, hrel⟩
+  · simp only [hnoneC, he.rd]
+    rw [← hk.2]
+    exact hg.bind (ModelIO.gives_pure _ _)
+  · have hc' := hc.ext hst.ext
+    exact { hc' with tables := hc'.tables.insert (nsWF_of_StateOK hst.ok) (hk.ext hst.ext) hrel }
+  · simp [ConRon.Arena.Modular.tableGet]
+
 end ConRon.Bridge.Modular
