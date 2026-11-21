@@ -510,7 +510,7 @@ pub fn schedule(q: &ScheduleReq) -> u8 {
 // ---------------------------------------------------------------------------
 // `--module` and `--modular`: the worker
 
-/// con-leche: ConLeche/Driver/Worker.lean:345-355 tagKind
+/// con-leche: ConLeche/Driver/Worker.lean:346-356 tagKind
 /// A stored constant's kind, by its tag (`CKindF.tag`), for the messages.
 pub fn tag_kind(t: u64) -> &'static str {
     match t {
@@ -531,7 +531,7 @@ fn text(s: &[u32]) -> String {
     s.iter().filter_map(|c| char::from_u32(*c)).collect()
 }
 
-/// con-leche: ConLeche/Driver/Worker.lean:357-368 copyLine
+/// con-leche: ConLeche/Driver/Worker.lean:358-369 copyLine
 /// **A copy, for the report** (`--compare`'s worker): a hole and the kind of what
 /// justifies it, or a constant the challenge restates, with the module it is read
 /// from.
@@ -569,7 +569,7 @@ fn copy_line(pers: &PersTier, st: &mut AState, w: &WorkerRead, owner: &HashMap2<
     }
 }
 
-/// con-leche: ConLeche/Driver/Worker.lean:370-412 checkModuleG
+/// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
 /// **The worker at module `m`**, from fresh start values: phases 1-4
 /// (`worker::worker_read`, every read through `sp`), then the own records' jobs
 /// over the index of the context and the own records, and the verdict.  `alone`:

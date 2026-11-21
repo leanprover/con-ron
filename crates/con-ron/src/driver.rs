@@ -610,7 +610,7 @@ where
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:154-177 checkOleansG
-/// con-leche: ConLeche/Driver/Worker.lean:370-412 checkModuleG
+/// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
 /// **The check phase from `start`** (a module's worker, task #166): the index
 /// over every record of `ds` from 0 (the context's records `ds[..start]` visible
 /// to every job), the frozen tier, `after_freeze` on it (a worker's inferred
@@ -648,8 +648,11 @@ where
     // a value every worker reads.  `st` keeps its (empty) store, its tables
     // moved out, so the observer can still read a label back through the tier.
     let tier: PersTier = checker::freeze_tier(&mut st.store, ix);
-    // What runs on the frozen tier before the jobs (a module's inferred flags).
-    if let Err(e) = after_freeze(&tier, st) {
+    // What runs on the frozen tier before the jobs (a module's inferred flags), on
+    // a worker's state: the driver's store has no tables left, and a term the
+    // inference interns must go to a scratch tier over the frozen one, as a job's.
+    let mut fws: AState = checker::worker_state(&st.pins);
+    if let Err(e) = after_freeze(&tier, &mut fws) {
         let _ = checker::thaw_tier(&mut st.store, tier);
         return Err((e, start as u64));
     }

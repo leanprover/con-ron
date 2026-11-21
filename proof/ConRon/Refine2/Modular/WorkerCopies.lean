@@ -28,6 +28,7 @@ import ConRon.Refine2.Checker.Install
 import ConRon.Refine2.Frontend.Olean.Index
 import ConRon.Refine2.Modular.Graph
 import ConRon.Arena.Modular.Worker
+import ConRon.Refine2.Modular.ReachCheck
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -551,13 +552,6 @@ open Lockstep in
 reads names out of the store; the twin's message reads them back (`readName`), which declines a
 dangling handle at a different kind.  So these claim their accept only: the Rust's `Ok` is a run
 of the twin in related states, and an `Err` claims nothing (`LS.la` from the lockstep shape). -/
-
-/-- **The accept of a state-threading Rust check.** -/
-def LA {α β : Type} (pers : arena.store.PersTier) (R : α → β → Prop)
-    (m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState))
-    (lst : AState) (x : AM β) : Prop :=
-  ∀ a st', m = ok (.Ok a, st') →
-    ∃ b lst', x.run lst = .ok (b, lst') ∧ R a b ∧ AStateRel₀ pers st' lst' ∧ AStateInv pers st'
 
 section LA
 variable {α β α₁ β₁ γ : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
