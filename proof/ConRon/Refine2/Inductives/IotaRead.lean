@@ -377,7 +377,7 @@ theorem lvl_eq_aux (n : Nat) :
   | succ m ih =>
     intro pers st lst fuel a b hn hrel hinv
     rw [arena.inductives.iota_read.lvl_eq, lvlEq]
-    sorry -- TEMP until re-extraction
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem lvl_eq_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
