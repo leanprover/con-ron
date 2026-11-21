@@ -83,3 +83,4 @@ public import ConRon.Bridge.Inductives
 public import ConRon.Bridge.Frontend
 public import ConRon.Bridge.Axioms
 public import ConRon.Bridge.Compare.Model
+public import ConRon.Bridge.Compare.Needs
