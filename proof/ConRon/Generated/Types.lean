@@ -1812,14 +1812,14 @@ structure frontend.olean.spec.OleanPins where
   n_quot_ind : arena.handle.NIdx
 
 /-- [con_ron_core::frontend::olean::files::Roots]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 460:0-463:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 461:0-464:1
     Visibility: public -/
 structure frontend.olean.files.Roots where
   path : alloc.vec.Vec (alloc.vec.Vec Std.U32)
   fallback : alloc.vec.Vec (alloc.vec.Vec Std.U32)
 
 /-- Trait declaration: [con_ron_core::frontend::olean::files::OleanFs]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 61:0-93:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 62:0-94:1
     Visibility: public -/
 structure frontend.olean.files.OleanFs (Self : Type _) where
   path_exists : Self → alloc.vec.Vec Std.U32 → Result (core.result.Result
@@ -1916,13 +1916,13 @@ structure frontend.olean.spec.PtrRead (Self : Type _) where
 def frontend.olean.header.NamePRead := Unit
 
 /-- [con_ron_core::frontend::olean::files::Located]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 492:0-494:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 493:0-495:1
     Visibility: public -/
 structure frontend.olean.files.Located where
   dir : alloc.vec.Vec Std.U32
 
 /-- [con_ron_core::frontend::olean::files::RootAt]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 324:0-333:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 325:0-334:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.olean.files.RootAt where
@@ -2324,16 +2324,8 @@ structure frontend.modular.reach.Reach where
   pending : alloc.vec.Vec ((alloc.vec.Vec Std.U32) × arena.handle.NIdx ×
     frontend.olean.spec.StmtRec)
 
-/-- [con_ron_core::frontend::olean::view::AllViews]
-    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 180:0-184:1
-    Visibility: public -/
-structure frontend.olean.view.AllViews where
-  exported : frontend.olean.spec.ModDecoded
-  server : frontend.olean.spec.ModDecoded
-  private_part : frontend.olean.spec.ModDecoded
-
 /-- [con_ron_core::frontend::olean::module::Expo]
-    Source: 'crates/con-ron-core/src/frontend/olean/module.rs', lines 30:0-34:1
+    Source: 'crates/con-ron-core/src/frontend/olean/module.rs', lines 33:0-37:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.olean.module.Expo where
@@ -2342,7 +2334,7 @@ inductive frontend.olean.module.Expo where
 | Absent : frontend.olean.module.Expo
 
 /-- [con_ron_core::frontend::olean::module::ExpoErr]
-    Source: 'crates/con-ron-core/src/frontend/olean/module.rs', lines 186:0-189:1
+    Source: 'crates/con-ron-core/src/frontend/olean/module.rs', lines 189:0-192:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.olean.module.ExpoErr where
@@ -2364,7 +2356,7 @@ inductive frontend.olean.emit.Work where
   frontend.olean.emit.Work
 
 /-- [con_ron_core::frontend::modular::worker::OwnUses]
-    Source: 'crates/con-ron-core/src/frontend/modular/worker.rs', lines 372:0-375:1
+    Source: 'crates/con-ron-core/src/frontend/modular/worker.rs', lines 363:0-366:1
     Visibility: public -/
 structure frontend.modular.worker.OwnUses where
   cs : alloc.vec.Vec frontend.olean.lazy.CEntry
@@ -2378,7 +2370,7 @@ structure frontend.olean.records.ModRef where
   frontier : frontend.olean.sparse.Frontier
 
 /-- [con_ron_core::frontend::modular::worker::WorkerRead]
-    Source: 'crates/con-ron-core/src/frontend/modular/worker.rs', lines 1036:0-1058:1
+    Source: 'crates/con-ron-core/src/frontend/modular/worker.rs', lines 1027:0-1049:1
     Visibility: public -/
 structure frontend.modular.worker.WorkerRead where
   home : frontend.olean.lazy.Loaded
@@ -2411,7 +2403,7 @@ structure frontend.olean.index.HeadTys where
 def frontend.nat_op_ground.DeclUsedConsts := Unit
 
 /-- [con_ron_core::frontend::olean::files::NameScan]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 194:0-199:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 195:0-200:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.olean.files.NameScan where
@@ -2419,6 +2411,14 @@ inductive frontend.olean.files.NameScan where
 | Plain : frontend.olean.files.NameScan
 | Esc : frontend.olean.files.NameScan
 | Closed : frontend.olean.files.NameScan
+
+/-- [con_ron_core::frontend::olean::view::AllViews]
+    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 180:0-184:1
+    Visibility: public -/
+structure frontend.olean.view.AllViews where
+  exported : frontend.olean.spec.ModDecoded
+  server : frontend.olean.spec.ModDecoded
+  private_part : frontend.olean.spec.ModDecoded
 
 /-- [con_ron_core::frontend::pace::Pace]
     Source: 'crates/con-ron-core/src/frontend/pace.rs', lines 19:0-24:1

@@ -9,9 +9,9 @@ pin ground's reader walks are `UOut`/`UOutS` (`nat_op_ground`'s shapes); every o
 walk is a lockstep `LS`.
 
 **Hypotheses, not theorems.**  `reach::record_reads` is lane L2's, with no Theorem 2 yet: `records_roots`,
-`own_roots`, `roots_at` take its Theorem 2 as `RecordReadsRel`.  `view::parse_all_views` and
-`module::check_views`: `home_of_refines` takes their Theorem 2 as `hPV`, `hCV`, and
-`home_of_refines'` discharges them (`AllViews.lean`, `CheckViews.lean`).
+`own_roots`, `roots_at` take its Theorem 2 as `RecordReadsRel`.  `module::check_views` over the
+load (`check_views_refines`, with `loaded_entries`) is here; its module-system arm is
+`CheckViews.lean`'s.
 `reach::decl_names` (lane L2's) is proved here (`decl_names_ls`).
 -/
 import ConRon.Refine2.Frontend.Olean.Index
@@ -125,6 +125,99 @@ theorem unskipped_rel {cs : alloc.vec.Vec frontend.olean.lazy.CEntry}
   have := unskipped_loop_rel cs hcs 0#usize (out := alloc.vec.Vec.new _) (O := [])
     (by rw [vec_new_val]; exact .nil) h
   simpa [Arena.Modular.unskipped, Array.toList_filter] using this
+
+/-! ## `module::loaded_entries`, `module::check_views` -/
+
+theorem loaded_entries_loop_rel (cs : alloc.vec.Vec frontend.olean.lazy.CEntry)
+    {L : List Arena.Frontend.Olean.CEntry} (hcs : List.Forall₂ CEntryRel cs.val L)
+    (i : Std.Usize) {out : alloc.vec.Vec (frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx)}
+    {O : List (ConLeche.Frontend.Olean.CEntryF NIdx EIdx)}
+    (hout : List.Forall₂ ERel out.val O) {o}
+    (h : frontend.olean.module.loaded_entries_loop cs out i = ok o) :
+    List.Forall₂ ERel o.val (O ++ (L.drop i.val).map (·.c)) := by
+  rw [frontend.olean.module.loaded_entries_loop] at h
+  by_cases hlt : i < alloc.vec.Vec.len cs
+  · rw [ite_eq_left hlt] at h
+    peel h as c, hc
+    obtain ⟨hi, rfl⟩ := vec_index_eq hc
+    obtain ⟨hi', hR, hd⟩ := forall₂_drop_cons hcs hi
+    peel h as c1, hc1
+    cases view_c_entry_dup_eq hc1
+    peel h as out1, hout1
+    peel h as i2, hi2
+    rw [hd, List.map_cons, List.append_cons]
+    have ih := loaded_entries_loop_rel cs hcs i2
+      (by rw [ConRon.Refine.vec_push_val hout1]; exact forall₂_snoc hout hR.1) h
+    rw [usize_succ hi2] at ih
+    exact ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [drop_of_not_lt hcs (not_lt_len hlt)]
+    simpa using hout
+termination_by cs.val.length - i.val
+decreasing_by have := lt_len hlt; rw [usize_succ hi2]; omega
+
+/-- **`loaded_entries` is `loadedEntries`.** -/
+theorem loaded_entries_rel {cs : alloc.vec.Vec frontend.olean.lazy.CEntry}
+    {cs' : _root_.Array Arena.Frontend.Olean.CEntry} (hcs : List.Forall₂ CEntryRel cs.val cs'.toList)
+    {o} (h : frontend.olean.module.loaded_entries cs = ok o) :
+    List.Forall₂ ERel o.val (Arena.Frontend.Olean.loadedEntries cs').toList := by
+  have := loaded_entries_loop_rel cs hcs 0#usize (out := alloc.vec.Vec.with_capacity _ _) (O := [])
+    (by simp) h
+  simpa [Arena.Frontend.Olean.loadedEntries] using this
+
+/-- **`check_views`' accept is `checkViews`'**, over related loads. -/
+theorem check_views_refines {pk pers st lst} {m : arena.handle.NIdx} {f l}
+    {f' : ConLeche.Frontend.Olean.ModFiles} {l' : Arena.Frontend.Olean.Loaded}
+    (hf : ModFilesRel f f') (hl : LoadedRel l l') :
+    AS pers ExpoRel st lst (frontend.olean.module.check_views pk pers st.store m f l)
+      (Arena.Frontend.Olean.checkViews (absPins pk) (absNIdx m) f' l') := by
+  intro hrel hinv a s1 h
+  rw [frontend.olean.module.check_views] at h
+  peel h as cs, hcs0
+  have hcs := loaded_entries_rel hl.constants hcs0
+  have es := hf.server
+  have ep := hf.private
+  cases hs : f.server with
+  | none =>
+    rw [hs] at h es
+    dsimp only at h
+    peel h as r, hr
+    obtain ⟨h3, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+    cases h3
+    unfold Arena.Frontend.Olean.checkViews
+    simp only [es, Option.map_none]
+    exact ⟨_, lst, rfl, expo_same hcs hr, hrel, hinv⟩
+  | some s =>
+    rw [hs] at h es
+    dsimp only at h
+    cases hp : f.private_part with
+    | none =>
+      rw [hp] at h ep
+      dsimp only at h
+      peel h as r, hr
+      obtain ⟨h3, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+      cases h3
+      unfold Arena.Frontend.Olean.checkViews
+      simp only [es, ep, Option.map_none, Option.map_some]
+      exact ⟨_, lst, rfl, expo_same hcs hr, hrel, hinv⟩
+    | some p =>
+      rw [hp] at h ep
+      dsimp only at h
+      peel h as b, hb
+      have e := mod_files_is_module_eq hf hb
+      cases b with
+      | true =>
+        rw [ite_eq_left rfl] at h
+        exact check_views_module_refines hf hcs hs hp (es.trans rfl) (ep.trans rfl) e.symm hrel hinv a s1 h
+      | false =>
+        rw [ite_eq_right (by simp)] at h
+        peel h as r, hr
+        obtain ⟨h3, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+        cases h3
+        unfold Arena.Frontend.Olean.checkViews
+        simp only [es, ep, Option.map_some, ← e]
+        exact ⟨_, lst, rfl, expo_same hcs hr, hrel, hinv⟩
 
 /-! ## `push_unpinned`, `push_loaded` -/
 
@@ -1648,19 +1741,12 @@ theorem own_records_refines {pk : frontend.olean.spec.OleanPins} {pers st lst}
   rw [hPR.decls]
   rfl
 
-/-- **`home_of`'s accept is `homeOf`'s**, given the Theorem 2 of the two reads `parse_all_views`
-and `check_views`: the private view loaded, its parts checked. -/
-theorem home_of_refines {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
+/-- **`home_of`'s accept is `homeOf`'s**: the private view loaded (`load_view`), its parts
+checked against each other over the load (`check_views`). -/
+theorem home_of_refines' {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
     {m : arena.handle.NIdx} {f : frontend.olean.view.ModFiles} {f' : ConLeche.Frontend.Olean.ModFiles}
-    (hf : ModFilesRel f f') {VR : frontend.olean.view.AllViews → Arena.Frontend.Olean.AllViews → Prop}
-    {ER : alloc.vec.Vec frontend.olean.module.Expo → _root_.Array ConLeche.Frontend.Olean.Expo → Prop}
-    (hPV : ∀ st lst, AR pers VR st lst (frontend.olean.view.parse_all_views pk pers st.store f)
-      (Arena.Frontend.Olean.parseAllViews (absPins pk) f'))
-    (hCV : ∀ st lst v v', VR v v' → AS pers ER st lst
-      (frontend.olean.module.check_views pk pers st.store m f v)
-      (Arena.Frontend.Olean.checkViews (absPins pk) (absNIdx m) f' v'))
-    {st lst} :
-    AS pers (fun a b => LoadedRel a.1 b.1 ∧ ER a.2 b.2) st lst (home_of pk pers st.store m f)
+    (hf : ModFilesRel f f') {st lst} :
+    AS pers (fun a b => LoadedRel a.1 b.1 ∧ ExpoRel a.2 b.2) st lst (home_of pk pers st.store m f)
       (homeOf (absPins pk) (absNIdx m) f') := by
   intro hrel hinv a s' h
   rw [home_of] at h
@@ -1669,43 +1755,18 @@ theorem home_of_refines {pk : frontend.olean.spec.OleanPins} {pers : arena.store
   | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
   | Ok l =>
   obtain ⟨l', lst1, hx1, hL, hrel1, hinv1⟩ := load_view_refines hf hrel hinv l ar1 h1
-  obtain ⟨⟨r1, ar2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  cases r1 with
-  | Err re =>
-    cases re with
-    | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
-    | Bad =>
-      obtain ⟨⟨r2, ar3⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      cases r2 with
-      | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
-      | Ok lv =>
-        obtain ⟨⟨ce, ar4⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        cases (Prod.mk.inj (Result.ok_injective h)).1
-  | Ok v =>
-  obtain ⟨v', lst2, hx2, hV, hrel2, hinv2⟩ := hPV _ _ hrel1 hinv1 v ar2 h2
   obtain ⟨⟨r2, ar3⟩, h3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases r2 with
   | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
   | Ok expo =>
   obtain ⟨h4, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
   cases h4
-  obtain ⟨e', lst3, hx3, hE, hrel3, hinv3⟩ := hCV _ _ v v' hV hrel2 hinv2 expo ar3 h3
+  obtain ⟨e', lst3, hx3, hE, hrel3, hinv3⟩ :=
+    check_views_refines (st := withStore st ar1) hf hL hrel1 hinv1 expo ar3 h3
   refine ⟨(l', e'), lst3, ?_, ⟨hL, hE⟩, hrel3, hinv3⟩
   have hx1' : (Arena.Frontend.Olean.loadView (absPins pk) 0 (absNIdx m) f').run lst = .ok (l', lst1) := hx1
   unfold homeOf
-  rw [am_bind_ok hx1', am_bind_ok hx2]
-  simp only
-  rw [am_bind_ok hx3]
+  rw [am_bind_ok hx1', am_bind_ok hx3]
   rfl
-
-/-- **`home_of`'s accept is `homeOf`'s**: `home_of_refines` with the Theorem 2 of
-`parse_all_views` and `check_views` (`AllViews`, `CheckViews`). -/
-theorem home_of_refines' {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
-    {m : arena.handle.NIdx} {f : frontend.olean.view.ModFiles} {f' : ConLeche.Frontend.Olean.ModFiles}
-    (hf : ModFilesRel f f') {st lst} :
-    AS pers (fun a b => LoadedRel a.1 b.1 ∧ ExpoRel a.2 b.2) st lst (home_of pk pers st.store m f)
-      (homeOf (absPins pk) (absNIdx m) f') :=
-  home_of_refines hf (fun _ _ => (parse_all_views_refines hf).ar)
-    (fun _ _ _ _ hv => check_views_refines hf hv)
 
 end ConRon.Refine2.Modular

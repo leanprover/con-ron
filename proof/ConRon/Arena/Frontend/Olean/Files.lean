@@ -324,8 +324,8 @@ def readPartNames (fs : OleanFs) (pk : OleanPins) (sp : Roots) (m : NIdx) (level
   | .ok loc => readPartNamesAt fs pk loc mn level
 
 /-- con-leche: ConLeche/Frontend/Olean/Files.lean:396-413 readAllViews
-**All three views of a module, each parsed whole, and their check against each other**
-(`checkViews`, over the views): for the tools that compare the views. -/
+**All three views of a module, each parsed whole, and the home's check of them**
+(`checkViews` over the load): for the tools that compare the views. -/
 def readAllViews (fs : OleanFs) (pk : OleanPins) (sp : Roots) (m : NIdx) :
     AM (AllViews × Array Expo) := do
   let mn ← readName m
@@ -341,7 +341,8 @@ def readAllViews (fs : OleanFs) (pk : OleanPins) (sp : Roots) (m : NIdx) :
         | some _ => pure OLeanLevel.private
     fail (← viewError pk mn f level)
   | some v =>
-    let expo ← checkViews pk m f v
+    let l ← loadView pk 0 m f
+    let expo ← checkViews pk m f l
     pure (v, expo)
 
 end ConRon.Arena.Frontend.Olean

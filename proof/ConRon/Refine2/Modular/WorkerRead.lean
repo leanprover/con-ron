@@ -9,7 +9,7 @@ failure carries a position, so its claim is stated out, `WorkerReadAccept`).
 **Hypotheses, not theorems.**  Lane L2's `reach::record_reads`, `reach::owner_map` and
 `reach::reach` have no Theorem 2 yet: their expected shapes are `RecordReadsRel` (in
 `Modular/Worker.lean`), `OwnerMapRel` and `ReachHyp` (here), taken as premises.
-The home is `home_of_refines'` (`parse_all_views`, `check_views` with their Theorem 2).  `copies_ok`'s
+The home is `home_of_refines'` (`load_view`, `check_views` with their Theorem 2).  `copies_ok`'s
 claim is over a tier whose frozen base is empty (`hb`, `hok`), passed through too.
 -/
 import ConRon.Refine2.Modular.Worker
