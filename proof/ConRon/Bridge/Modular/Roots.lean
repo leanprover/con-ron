@@ -203,21 +203,17 @@ theorem needsGo_exact {s : AState} (hok : StateOK s) (hp : PinsOK s) :
     obtain ⟨hs1, hview⟩ := view_run hv
     rw [hs1] at hrest
     have hcont := hseen.contains hwf he
-    -- a compound node: the memo's test, then the children, then the node recorded
-    have compound : ∀ (body : AM (Std.HashMap EIdx Bool × List NIdx))
-        (bodyP : Std.HashSet Expr × Array ConLeche.Name),
-        (∀ {r'} {s''}, body s = .ok (r', s'') → s'' = s ∧ NSeen s.store r'.1 bodyP.1 ∧
-          denoteNList s.store.ns r'.2 = some bodyP.2.toList) →
+    -- a compound node: the memo's test, then the children and the node recorded (`rest`)
+    have compound : ∀ (rest : AM (Std.HashMap EIdx Bool × List NIdx))
+        (resP : Std.HashSet Expr × Array ConLeche.Name),
+        (∀ (r' : Std.HashMap EIdx Bool × List NIdx) (s'' : AState), rest s = .ok (r', s'') →
+          s'' = s ∧ NSeen s.store r'.1 resP.1 ∧ denoteNList s.store.ns r'.2 = some resP.2.toList) →
         (match seen[h]? with
           | some _ => pure (seen, acc)
-          | none => do
-            let (a, b) ← body
-            pure (a.insert h true, b) : AM _) s = .ok (r, s') →
-        s' = s ∧ NSeen s.store r.1 (if seenP.contains e then (seenP, accP) else
-            (bodyP.1.insert e, bodyP.2)).1 ∧
-          denoteNList s.store.ns r.2 = some (if seenP.contains e then (seenP, accP) else
-            (bodyP.1.insert e, bodyP.2)).2.toList := by
-      intro body bodyP hbody hm
+          | none => rest : AM _) s = .ok (r, s') →
+        s' = s ∧ NSeen s.store r.1 (if seenP.contains e then (seenP, accP) else resP).1 ∧
+          denoteNList s.store.ns r.2 = some (if seenP.contains e then (seenP, accP) else resP).2.toList := by
+      intro rest resP hbody hm
       cases hsh : seen[h]? with
       | some b =>
         rw [hsh] at hm
@@ -233,11 +229,7 @@ theorem needsGo_exact {s : AState} (hok : StateOK s) (hp : PinsOK s) :
           rw [Std.HashMap.contains_eq_isSome_getElem?, hsh]; rfl
         rw [hcont] at hc
         simp only [hc, Bool.false_eq_true, ↓reduceIte]
-        obtain ⟨p, s₂, h1, h2⟩ := AM.bind_ok hm
-        obtain ⟨a, b⟩ := p
-        obtain ⟨rfl, hs1, ha1⟩ := hbody h1
-        obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
-        exact ⟨rfl, hs1.insert he, ha1⟩
+        exact hbody _ _ hm
     match v, hview with
     | .const m us, hview =>
       obtain ⟨mP, ls, rfl, hm, -⟩ := denote_const_inv hwf hview he
@@ -267,49 +259,80 @@ theorem needsGo_exact {s : AState} (hok : StateOK s) (hp : PinsOK s) :
       exact ⟨by trivial, hseen, ha⟩
     | .fvar k ty, hview =>
       obtain ⟨t, rfl, hdt⟩ := denote_fvar_inv hwf hview he
+      try simp only [] at hrest
       simp only [ConLeche.Cached.needsGo]
-      exact compound _ _ (fun h1 => ih hseen hacc hdt h1) hrest
+      refine compound _ _ (fun r' s'' h1 => ?_) hrest
+      obtain ⟨p1, s₂, hg1, hr1⟩ := AM.bind_ok h1
+      obtain ⟨sn1, ac1⟩ := p1
+      obtain ⟨rfl, hs1, ha1⟩ := ih hseen hacc hdt hg1
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hr1
+      exact ⟨rfl, hs1.insert he, ha1⟩
     | .proj nn i sub, hview =>
       obtain ⟨nm, es, rfl, hnn, hsub⟩ := denote_proj_inv hwf hview he
+      simp only [] at hrest
       simp only [ConLeche.Cached.needsGo]
-      exact compound _ _ (fun h1 => ih hseen (by
-        simp only [Array.toList_push]
-        exact denoteNList_snoc hacc hnn) hsub h1) hrest
+      refine compound _ _ (fun r' s'' h1 => ?_) hrest
+      obtain ⟨p1, s₂, hg1, hr1⟩ := AM.bind_ok h1
+      obtain ⟨sn1, ac1⟩ := p1
+      obtain ⟨rfl, hs1, ha1⟩ := ih hseen (by
+        simpa using denoteNList_snoc hacc hnn) hsub hg1
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hr1
+      exact ⟨rfl, hs1.insert he, ha1⟩
     | .app f a, hview =>
       obtain ⟨ef, ea, rfl, hf, ha⟩ := denote_app_inv hwf hview he
+      simp only [] at hrest
       simp only [ConLeche.Cached.needsGo]
-      refine compound _ _ (fun h1 => ?_) hrest
+      refine compound _ _ (fun r' s'' h1 => ?_) hrest
       obtain ⟨p1, s₂, hg1, hr1⟩ := AM.bind_ok h1
       obtain ⟨sn1, ac1⟩ := p1
       obtain ⟨rfl, hs1, ha1⟩ := ih hseen hacc hf hg1
-      exact ih hs1 ha1 ha hr1
+      obtain ⟨p2, s₃, hg2, hr2⟩ := AM.bind_ok hr1
+      obtain ⟨sn2, ac2⟩ := p2
+      obtain ⟨rfl, hs2, ha2⟩ := ih hs1 ha1 ha hg2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hr2
+      exact ⟨rfl, hs2.insert he, ha2⟩
     | .lam ty body, hview =>
-      obtain ⟨et, eb, rfl, hf, ha⟩ := denote_lam_inv hwf hview he
+      obtain ⟨ef, ea, rfl, hf, ha⟩ := denote_lam_inv hwf hview he
+      simp only [] at hrest
       simp only [ConLeche.Cached.needsGo]
-      refine compound _ _ (fun h1 => ?_) hrest
+      refine compound _ _ (fun r' s'' h1 => ?_) hrest
       obtain ⟨p1, s₂, hg1, hr1⟩ := AM.bind_ok h1
       obtain ⟨sn1, ac1⟩ := p1
       obtain ⟨rfl, hs1, ha1⟩ := ih hseen hacc hf hg1
-      exact ih hs1 ha1 ha hr1
+      obtain ⟨p2, s₃, hg2, hr2⟩ := AM.bind_ok hr1
+      obtain ⟨sn2, ac2⟩ := p2
+      obtain ⟨rfl, hs2, ha2⟩ := ih hs1 ha1 ha hg2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hr2
+      exact ⟨rfl, hs2.insert he, ha2⟩
     | .forallE ty body, hview =>
-      obtain ⟨et, eb, rfl, hf, ha⟩ := denote_forallE_inv hwf hview he
+      obtain ⟨ef, ea, rfl, hf, ha⟩ := denote_forallE_inv hwf hview he
+      simp only [] at hrest
       simp only [ConLeche.Cached.needsGo]
-      refine compound _ _ (fun h1 => ?_) hrest
+      refine compound _ _ (fun r' s'' h1 => ?_) hrest
       obtain ⟨p1, s₂, hg1, hr1⟩ := AM.bind_ok h1
       obtain ⟨sn1, ac1⟩ := p1
       obtain ⟨rfl, hs1, ha1⟩ := ih hseen hacc hf hg1
-      exact ih hs1 ha1 ha hr1
+      obtain ⟨p2, s₃, hg2, hr2⟩ := AM.bind_ok hr1
+      obtain ⟨sn2, ac2⟩ := p2
+      obtain ⟨rfl, hs2, ha2⟩ := ih hs1 ha1 ha hg2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hr2
+      exact ⟨rfl, hs2.insert he, ha2⟩
     | .letE ty w body, hview =>
       obtain ⟨et, ew, eb, rfl, h1d, h2d, h3d⟩ := denote_letE_inv hwf hview he
+      simp only [] at hrest
       simp only [ConLeche.Cached.needsGo]
-      refine compound _ _ (fun h1 => ?_) hrest
+      refine compound _ _ (fun r' s'' h1 => ?_) hrest
       obtain ⟨p1, s₂, hg1, hr1⟩ := AM.bind_ok h1
       obtain ⟨sn1, ac1⟩ := p1
       obtain ⟨rfl, hs1, ha1⟩ := ih hseen hacc h1d hg1
       obtain ⟨p2, s₃, hg2, hr2⟩ := AM.bind_ok hr1
       obtain ⟨sn2, ac2⟩ := p2
       obtain ⟨rfl, hs2, ha2⟩ := ih hs1 ha1 h2d hg2
-      exact ih hs2 ha2 h3d hr2
+      obtain ⟨p3, s₄, hg3, hr3⟩ := AM.bind_ok hr2
+      obtain ⟨sn3, ac3⟩ := p3
+      obtain ⟨rfl, hs3, ha3⟩ := ih hs2 ha2 h3d hg3
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hr3
+      exact ⟨rfl, hs3.insert he, ha3⟩
 
 /-- con-leche: ConLeche/Cached/Needs.lean:74-75 NeedsSt.expr — exactly. -/
 theorem expr_exact {s s' : AState} (hok : StateOK s) (hp : PinsOK s) {x y : Arena.NeedsSt}
@@ -800,11 +823,14 @@ theorem pinGround_exact {s s' : AState} (hok : StateOK s) (hp : PinsOK s)
   obtain ⟨rfl, d0⟩ := natDivModNames_run hp g0
   have hc := denoteNL_contains hok.wf d0 hn
   unfold ConLeche.Driver.pinGround
+  dsimp only at k1
   by_cases hb : dms.contains c = true
-  · rw [ite_eq_right (by simp [hb])] at k1
+  · rw [ite_eq_right (by rw [hb]; decide)] at k1
     rw [hc] at hb
-    rw [ite_eq_right (by simp [hb])]
-    obtain ⟨eq, s1, g1, k2⟩ := AM.bind_ok k1
+    rw [ite_eq_right (by rw [hb]; decide)]
+    obtain ⟨u0, s1', g0', k1'⟩ := AM.bind_ok k1
+    obtain ⟨-, rfl⟩ := AM.pure_ok g0'
+    obtain ⟨eq, s1, g1, k2⟩ := AM.bind_ok k1'
     obtain ⟨rfl, deq⟩ := pinAt_run (x := ConLeche.eqName) hp (by rfl) g1
     obtain ⟨x, s2, g2, k3⟩ := AM.bind_ok k2
     simp only [Arena.Modular.groundStmts] at g2
@@ -818,9 +844,9 @@ theorem pinGround_exact {s s' : AState} (hok : StateOK s) (hp : PinsOK s)
       pins pinsC o1 (PinsDenote.mono hst3.ext _ _ hpins) g5
     obtain ⟨rfl, rfl⟩ := AM.pure_ok k4
     exact ⟨hst3, o2.2⟩
-  · rw [ite_eq_left (by simpa using hb)] at k1
+  · rw [ite_eq_left (by simp only [Bool.not_eq_true] at hb; rw [hb]; rfl)] at k1
     rw [hc] at hb
-    rw [ite_eq_left (by simpa using hb)]
+    rw [ite_eq_left (by simp only [Bool.not_eq_true] at hb; rw [hb]; rfl)]
     obtain ⟨rfl, rfl⟩ := AM.pure_ok k1
     exact ⟨IStepS.refl hok, rfl⟩
 
