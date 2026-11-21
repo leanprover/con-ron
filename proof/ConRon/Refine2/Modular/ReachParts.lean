@@ -794,4 +794,72 @@ theorem axiom_of_eq {cv : frontend.olean.spec.StmtRec} {d} (h : axiom_of cv = ok
   cases Result.ok_injective h
   rfl
 
+/-! ## The parts' reads -/
+
+section reads
+variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
+
+/-- The caches alone, as an `ACS` answer. -/
+@[reducible] def CR (_ : Unit) (c : frontend.modular.reach.ReachCache) (C : ConRon.Arena.Modular.ReachCache) :
+    Prop := ReachCacheRel c C
+
+/-- **`table_of`'s accept is `tableOf`'s.** -/
+theorem table_of_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
+    {env wr own E} (henv : ReachEnvRel env wr own E) {c C} (hc : ReachCacheRel c C)
+    {k : frontend.modular.reach.PartKey} :
+    ACS pers CR st lst (table_of inst fsv pk pers st sp wr c k)
+      (ConRon.Arena.Modular.tableOf fs (absPins pk) (absRoots sp) E C (absPartKey k)) := by
+  intro hrel hinv a st' c' h
+  rw [table_of] at h
+  peel h as b, hb
+  have eb := hc.tables.contains_eq hb
+  unfold ConRon.Arena.Modular.tableOf
+  by_cases hb' : b = true
+  · rw [ite_eq_left hb'] at h
+    simp only [ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨-, rfl, rfl⟩ := h
+    refine ⟨C, lst, ?_, hc, hrel, hinv⟩
+    rw [← eb, hb']
+    rfl
+  · rw [ite_eq_right hb'] at h
+    have hb0 : C.tables.contains (absPartKey k) = false := by rw [← eb]; simpa using hb'
+    peel h as o, ho
+    have eo := index_table_eq henv.wr henv.fits ho
+    dsimp only at h
+    cases o with
+    | some t0 =>
+      have hs : core.option.Option.is_some (some t0) = true := rfl
+      rw [ite_eq_left hs] at h
+      simp only [ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨-, rfl, rfl⟩ := h
+      refine ⟨C, lst, ?_, hc, hrel, hinv⟩
+      rw [hb0, ← eo]
+      rfl
+    | none =>
+      have hs : ¬ (core.option.Option.is_some (none : Option frontend.olean.reads.NamePositions) = true) := by
+        simp [core.option.Option.is_some]
+      rw [ite_eq_right hs] at h
+      peel h as q, hq
+      obtain ⟨r, e⟩ := q
+      cases r with
+      | Err e1 => simp at h
+      | Ok t =>
+        obtain ⟨tb, lst1, hx, htb, hrel1, hinv1⟩ := read_part_names_refines hfs hrel hinv t e hq
+        peel h as pk1, hpk1
+        cases partKey_dup2_ok hpk1
+        peel h as q2, hq2
+        obtain ⟨_, hm⟩ := q2
+        have e2 := Result.ok_injective h
+        simp only [Prod.mk.injEq] at e2
+        obtain ⟨-, rfl, rfl⟩ := e2
+        have htab := hc.tables.insert (v' := absNamePositions t) rfl hq2
+        refine ⟨{ C with tables := C.tables.insert (absPartKey k) (absNamePositions t) }, lst1, ?_,
+          { hc with tables := htab }, hrel1, hinv1⟩
+        rw [hb0, ← eo]
+        simp only [Bool.false_eq_true, ↓reduceIte, Option.map_none, Option.isSome_none, pure_bind]
+        rw [am_bind_ok hx, htb]
+        rfl
+
+end reads
+
 end ConRon.Refine2.Modular
