@@ -15,6 +15,9 @@ cast keeps the value when it fits a `usize`, which every copy the index makes do
 -/
 import ConRon.Refine2.Frontend.Olean.Levels
 import ConRon.Refine2.Frontend.Olean.PartNames
+import ConRon.Refine2.Frontend.Olean.MergeF
+import ConRon.Refine2.Frontend.Olean.Stmts
+import ConRon.Refine2.Frontend.Olean.ReadKinds
 import ConRon.Arena.Frontend.Olean.Index
 
 open Aeneas Aeneas.Std Result
@@ -28,6 +31,7 @@ namespace ConRon.Refine2.Frontend.Olean
 open ConRon.Arena
 open ConRon.Refine.HashMap2 (Inv toFun)
 open ConRon.Refine.HashMap (Eq2Fwd)
+open Arena.Frontend.Olean (isPropCheapHeadOf)
 
 /-! ## Casts -/
 
@@ -1449,5 +1453,263 @@ theorem by_module_eq {cs : alloc.vec.Vec frontend.olean.index.Copy} (hcs : ∀ c
   rw [e4, List.toList_toArray]
   simp only [Array.toList_map, Array.toList_filter, Array.toList_zipIdx, ← e2, List.map_nil,
     List.nil_append]
+
+/-! ## `isPropCheap`'s head types -/
+
+/-- The twin's step of `headTysOf`. -/
+def htStep (ix' : Arena.Frontend.Olean.NameIndex)
+    (I : Std.HashMap ConLeche.Frontend.Olean.Copy
+      (Arena.Frontend.Olean.StmtRec × ConLeche.Frontend.Olean.CKindF NIdx Unit))
+    (m : Std.HashMap NIdx EIdx) (c : ConLeche.Frontend.Olean.Copy) : Std.HashMap NIdx EIdx :=
+  match ix'.at c with
+  | none => m
+  | some q =>
+    match (ix'.first[q.name]?).bind (I[·]?) with
+    | some x => m.insert q.name x.1.type
+    | none => m
+
+theorem headTysOf_eq (ix' : Arena.Frontend.Olean.NameIndex) I (heads : _root_.Array ConLeche.Frontend.Olean.Copy) :
+    Arena.Frontend.Olean.headTysOf ix' I heads = heads.toList.foldl (htStep ix' I) {} := by
+  rw [Arena.Frontend.Olean.headTysOf, ← Array.foldl_toList]
+  rfl
+
+/-- **`head_ty_step` is the twin's step.** -/
+theorem head_ty_step_eq {ix ix'} (hix : NameIndexRel ix ix') {infos I} (hI : CMapRel InfoRel infos I)
+    {m M} (hm : NMapRel absEIdx m M) {c : frontend.olean.index.Copy} (hc : CopyFits c) {o}
+    (h : head_ty_step ix infos m c = ok o) : NMapRel absEIdx o (htStep ix' I M (absCopy c)) := by
+  rw [head_ty_step] at h
+  peel h as q, hq
+  have eq := name_index_at_eq hix hc hq
+  rw [htStep, ← eq]
+  cases q with
+  | none => cases Result.ok_injective h; exact hm
+  | some q =>
+    simp only [Option.map_some]
+    peel h as f, hf
+    obtain ⟨ef, ff⟩ := hix.first.get_eq hf
+    simp only [absNamePosition_name, ← ef]
+    cases f with
+    | none => cases Result.ok_injective h; exact hm
+    | some f =>
+      simp only [Option.map_some, Option.bind_some]
+      peel h as x, hx
+      have ex := hI.get_eq hx
+      generalize I[absCopy f]? = y at ex ⊢
+      cases ex with
+      | none => cases Result.ok_injective h; exact hm
+      | some hr =>
+        rename_i a b
+        obtain ⟨sr, k⟩ := a
+        peel h as n, hn
+        cases nidx_dup2_ok hn
+        peel h as e, he
+        cases eidx_dup2_ok he
+        peel h as r, hr2
+        obtain ⟨old, m1⟩ := r
+        cases Result.ok_injective h
+        have := hm.insert hr2
+        have eb : b.1.type = absEIdx sr.ty := by rw [← hr.1]; rfl
+        simp only [eb]
+        exact this
+
+theorem head_tys_of_loop_eq {ix ix'} (hix : NameIndexRel ix ix') {infos I} (hI : CMapRel InfoRel infos I)
+    (heads : alloc.vec.Vec frontend.olean.index.Copy) (hfit : ∀ c ∈ heads.val, CopyFits c)
+    (m : ron.hashmap2.HashMap2 arena.handle.NIdx arena.handle.EIdx) {M} (hm : NMapRel absEIdx m M)
+    (i : Std.Usize) {o} (h : head_tys_of_loop ix infos heads m i = ok o) :
+    NMapRel absEIdx o (((heads.val.drop i.val).map absCopy).foldl (htStep ix' I) M) := by
+  rw [head_tys_of_loop] at h
+  by_cases hlt : i < alloc.vec.Vec.len heads
+  · rw [ite_eq_left hlt] at h
+    have hi := lt_of_lt_len hlt
+    peel h as c, hc
+    obtain ⟨_, rfl⟩ := vec_index_eq hc
+    peel h as m1, hm1
+    have hs := head_ty_step_eq hix hI hm (hfit _ (List.getElem_mem hi)) hm1
+    peel h as i2, hi2
+    have ei2 := usize_succ hi2
+    have ih := head_tys_of_loop_eq hix hI heads hfit m1 hs i2 h
+    rw [ei2] at ih
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, List.foldl_cons]
+    exact ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (lt_of_not_lt_len hlt)]
+    exact hm
+termination_by heads.val.length - i.val
+decreasing_by
+  have := lt_of_lt_len hlt
+  omega
+
+/-- **`head_tys_of` is `headTysOf`.** -/
+theorem head_tys_of_eq {ix ix'} (hix : NameIndexRel ix ix') {infos I} (hI : CMapRel InfoRel infos I)
+    {heads : alloc.vec.Vec frontend.olean.index.Copy} (hfit : ∀ c ∈ heads.val, CopyFits c) {o}
+    (h : head_tys_of ix infos heads = ok o) :
+    NMapRel absEIdx o.m (Arena.Frontend.Olean.headTysOf ix' I (heads.val.map absCopy).toArray) := by
+  rw [head_tys_of] at h
+  peel h as m, hm
+  peel h as m1, hm1
+  cases Result.ok_injective h
+  have := head_tys_of_loop_eq hix hI heads hfit m (NMapRel.with_capacity hm) 0#usize hm1
+  rw [headTysOf_eq]
+  simpa using this
+
+/-- **`HeadTys` answers the twin's table.** -/
+theorem head_tys_rel {h : frontend.olean.index.HeadTys} {M : Std.HashMap NIdx EIdx}
+    (hm : NMapRel absEIdx h.m M) :
+    HeadTyRel HeadTys.Insts.Con_ron_coreFrontendOleanMergeHeadTy h (M[·]?) := by
+  intro n o hn
+  change HeadTys.Insts.Con_ron_coreFrontendOleanMergeHeadTy.head_ty h n = ok o at hn
+  rw [HeadTys.Insts.Con_ron_coreFrontendOleanMergeHeadTy.head_ty] at hn
+  peel hn as o1, h1
+  have e := hm.get_eq h1
+  show M[absNIdx n]? = _
+  rw [← e]
+  cases o1 with
+  | none => cases Result.ok_injective hn; rfl
+  | some t =>
+    peel hn as t1, ht1
+    cases eidx_dup2_ok ht1
+    cases Result.ok_injective hn
+    rfl
+
+/-! ## The heads of the axiom clashes -/
+
+/-- The twin's step of `clashHeads`. -/
+def chStep (ix' : Arena.Frontend.Olean.NameIndex) (acc : _root_.Array ConLeche.Frontend.Olean.Copy)
+    (cl : Arena.Frontend.Olean.Clash) : AM (_root_.Array ConLeche.Frontend.Olean.Copy) := do
+  match cl.copies[0]? with
+  | some (_, cv, ConLeche.Frontend.Olean.CKindF.ax _) =>
+    match (← isPropCheapHeadOf cv.type).bind (ix'.first[·]?) with
+    | some c => pure (acc.push c)
+    | none => pure acc
+  | _ => pure acc
+
+theorem clashHeads_eq (ix' : Arena.Frontend.Olean.NameIndex) (clashes : _root_.Array Arena.Frontend.Olean.Clash) :
+    Arena.Frontend.Olean.clashHeads ix' clashes = clashes.toList.foldlM (chStep ix') #[] := by
+  rw [Arena.Frontend.Olean.clashHeads, Array.foldlM_toList]
+  rfl
+
+/-- The heads so far, against the twin's. -/
+def HeadsRel (acc : alloc.vec.Vec frontend.olean.index.Copy) (A : _root_.Array ConLeche.Frontend.Olean.Copy) :
+    Prop :=
+  acc.val.map absCopy = A.toList ∧ ∀ c ∈ acc.val, CopyFits c
+
+/-- One clash's head onto the heads so far. -/
+def HeadStepRel (acc : alloc.vec.Vec frontend.olean.index.Copy) (o : Option frontend.olean.index.Copy)
+    (A : _root_.Array ConLeche.Frontend.Olean.Copy) : Prop :=
+  (match o with | none => acc.val | some c => acc.val ++ [c]).map absCopy = A.toList ∧
+    ∀ c, o = some c → CopyFits c
+
+theorem forall₂_length' {α β : Type} {R : α → β → Prop} {l : List α} {l' : List β}
+    (h : List.Forall₂ R l l') : l.length = l'.length := List.Forall₂.length_eq h
+
+/-- **`clash_head` is the twin's step**, onto any heads so far. -/
+theorem clash_head_rel {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    {ix ix'} (hix : NameIndexRel ix ix') {cl : frontend.olean.index.Clash} {cl' : Arena.Frontend.Olean.Clash}
+    (hcl : ClashRel cl cl') {acc A} (hA : HeadsRel acc A) :
+    CR pers (HeadStepRel acc) st lst (clash_head pers st.store ix cl) (chStep ix' A cl') := by
+  rw [clash_head, chStep]
+  have hlen := forall₂_length' hcl.copies
+  by_cases h0 : alloc.vec.Vec.len cl.copies = 0#usize
+  · rw [ite_eq_left h0]
+    have : cl.copies.val.length = 0 := by
+      have := congrArg (·.val) h0; simpa [vec_len_val] using this
+    have e : cl'.copies[0]? = none := by
+      rw [← Array.getElem?_toList, List.getElem?_eq_none (by omega)]
+    rw [e]
+    exact CR.pure ⟨by simpa using hA.1, fun _ h => by cases h⟩
+  · rw [ite_eq_right h0]
+    have hpos : 0 < cl.copies.val.length := by
+      rcases Nat.eq_zero_or_pos cl.copies.val.length with hz | hp
+      · exact absurd (UScalar.eq_of_val_eq (by rw [vec_len_val, hz]; rfl)) h0
+      · exact hp
+    obtain ⟨y, hy, hr⟩ := forall₂_getElem? hcl.copies (List.getElem?_eq_getElem hpos)
+    have e : cl'.copies[0]? = some y := by rw [← Array.getElem?_toList]; exact hy
+    rw [e]
+    refine CR.pure_step fun x hx => ?_
+    obtain ⟨_, hxe⟩ := vec_index_eq hx
+    have hxe' : x = cl.copies.val[0] := hxe
+    rw [← hxe'] at hr
+    obtain ⟨c0, sr, cf⟩ := x
+    dsimp only [Std.uncurry]
+    obtain ⟨c0', cv, k'⟩ := y
+    obtain ⟨-, hs, hk⟩ := hr
+    simp only at hs hk
+    have nonax : ∀ (r : Result (core.result.Result (Option frontend.olean.index.Copy) kernel.core_types.CheckError)),
+        r = ok (.Ok none) → CR pers (HeadStepRel acc) st lst r (pure A : AM _) := by
+      intro r hr; rw [hr]; exact CR.pure ⟨by simpa using hA.1, fun _ h => by cases h⟩
+    cases cf <;> cases k'
+    case Ax.ax u u' =>
+      rw [← hs]
+      refine CR.bind (is_prop_cheap_head_of_rel sr.ty) (fun _ => rfl) fun o o' lst1 ho => ?_
+      cases ho
+      cases o with
+      | none => exact CR.pure ⟨by simpa using hA.1, fun _ h => by cases h⟩
+      | some n =>
+        refine CR.pure_step fun f hf => ?_
+        obtain ⟨ef, ff⟩ := hix.first.get_eq hf
+        simp only [Option.map_some, Option.bind_some, ← ef]
+        cases f with
+        | none => exact CR.pure ⟨by simpa using hA.1, fun _ h => by cases h⟩
+        | some f =>
+          refine CR.pure_step fun f1 hf1 => ?_
+          cases copy_dup2_ok hf1
+          exact CR.pure ⟨by simp [hA.1], fun c h => by cases h; exact ff f rfl⟩
+    all_goals first | exact (hk : False).elim | exact nonax _ rfl
+
+
+theorem clash_heads_loop_rel {pers : arena.store.PersTier} {ix ix'} (hix : NameIndexRel ix ix')
+    (clashes : alloc.vec.Vec frontend.olean.index.Clash) {CL : List Arena.Frontend.Olean.Clash}
+    (hcl : List.Forall₂ ClashRel clashes.val CL)
+    (acc : alloc.vec.Vec frontend.olean.index.Copy) (i : Std.Usize) {A} (hA : HeadsRel acc A)
+    (st : arena.monad.AState) (lst : AState) :
+    CR pers HeadsRel st lst (clash_heads_loop pers st.store ix clashes acc i)
+      ((CL.drop i.val).foldlM (chStep ix') A) := by
+  rw [clash_heads_loop]
+  have hlen := forall₂_length' hcl
+  by_cases hlt : i < alloc.vec.Vec.len clashes
+  · rw [ite_eq_left hlt]
+    have hi := lt_of_lt_len hlt
+    refine CR.pure_step fun c hc => ?_
+    obtain ⟨_, rfl⟩ := vec_index_eq hc
+    obtain ⟨y, hy, hr⟩ := forall₂_getElem? hcl (List.getElem?_eq_getElem hi)
+    have hi' : i.val < CL.length := by omega
+    have hye : CL[i.val] = y := by rw [List.getElem?_eq_getElem hi'] at hy; exact Option.some.inj hy
+    rw [List.drop_eq_getElem_cons hi', List.foldlM_cons, hye]
+    refine CR.bind (clash_head_rel hix hr hA) (fun _ => rfl) fun o A' lst1 ho => ?_
+    refine CR.pure_step fun acc1 hacc1 => ?_
+    have hA1 : HeadsRel acc1 A' := by
+      cases o with
+      | none => cases Result.ok_injective hacc1; exact ⟨by simpa using ho.1, hA.2⟩
+      | some c1 =>
+        refine ⟨?_, ?_⟩
+        · rw [ConRon.Refine.vec_push_val hacc1]; simpa using ho.1
+        · rw [ConRon.Refine.vec_push_val hacc1]
+          intro c' hc'
+          rcases List.mem_append.mp hc' with hc' | hc'
+          · exact hA.2 c' hc'
+          · rw [List.mem_singleton.mp hc']; exact ho.2 c1 rfl
+    refine CR.pure_step fun i2 hi2 => ?_
+    have ei2 := usize_succ hi2
+    have ih := clash_heads_loop_rel (pers := pers) hix clashes hcl acc1 i2 hA1 st lst1
+    rw [ei2] at ih
+    exact ih
+  · rw [ite_eq_right hlt]
+    rw [List.drop_of_length_le (by have := lt_of_not_lt_len hlt; omega)]
+    exact CR.pure hA
+termination_by clashes.val.length - i.val
+decreasing_by
+  have := lt_of_lt_len hlt
+  omega
+
+/-- **`clash_heads` is `clashHeads`.** -/
+theorem clash_heads_rel {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    {ix ix'} (hix : NameIndexRel ix ix') {clashes : alloc.vec.Vec frontend.olean.index.Clash}
+    {CL : _root_.Array Arena.Frontend.Olean.Clash} (hcl : List.Forall₂ ClashRel clashes.val CL.toList) :
+    CR pers HeadsRel st lst (clash_heads pers st.store ix clashes) (Arena.Frontend.Olean.clashHeads ix' CL) := by
+  rw [clashHeads_eq]
+  have e0 : (alloc.vec.Vec.new frontend.olean.index.Copy).val = [] := rfl
+  simpa using clash_heads_loop_rel hix clashes hcl _ 0#usize (A := #[])
+    ⟨by rw [e0]; rfl, fun c hc => by rw [e0] at hc; cases hc⟩ st lst
 
 end ConRon.Refine2.Frontend.Olean
