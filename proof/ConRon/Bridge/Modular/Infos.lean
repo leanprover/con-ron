@@ -150,7 +150,7 @@ theorem readInfosOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = 
   obtain ⟨hst4, ksC, hks, hdk⟩ := readKinds_run (hctx.step hst3) h4
   dsimp only at hD
   by_cases hlen : (ss.length == cs.size && ks.length == cs.size) = true
-  · rw [if_pos hlen] at hD
+  · rw [ite_eq_left hlen] at hD
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hD
     refine ⟨hst3.trans hst4, cs.zip (ssC.zip ksC).toArray, ?_, ?_⟩
     · unfold ConLeche.Frontend.Olean.readInfosOf
@@ -169,7 +169,7 @@ theorem readInfosOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = 
     · rw [Array.toList_zip, Array.toList_zip]
       have := listRel_zip_info (cs := cs.toList) (list_mono (fun _ _ hy => denoteStmt_ext hst4.ext hy) _ hds) hdk
       simpa using this
-  · rw [if_neg hlen] at hD
+  · rw [ite_eq_right hlen] at hD
     exact (AM.fail_ok hD).elim
 
 /-! ## The groups -/
@@ -179,7 +179,7 @@ theorem buckets_fold (top : Nat) :
     ∀ (l : List Copy) (b : Array (Array Copy)) (hs : b.size = top), (∀ c ∈ l, c.mod < top) →
       ∀ (L : List Copy), (∀ k (hk : k < top), (b[k]'(by omega)).toList = L.filter (·.mod == k)) →
       (l.foldl (fun (b : Array (Array Copy)) c => b.modify c.mod (·.push c)) b).size = top ∧
-      ∀ k (hk : k < top), ((l.foldl (fun (b : Array (Array Copy)) c => b.modify c.mod (·.push c)) b)[k]?)
+      ∀ k, k < top → ((l.foldl (fun (b : Array (Array Copy)) c => b.modify c.mod (·.push c)) b)[k]?)
         = some ((L ++ l).filter (·.mod == k)).toArray
   | [], b, hs, _, L, hb => by
     refine ⟨hs, fun k hk => ?_⟩
@@ -256,7 +256,7 @@ theorem bmStep_get :
     by_cases he : c.mod = i
     · subst he
       simp only [BEq.rfl, ↓reduceIte, List.filter_cons]
-      cases hm : m[c.mod]? <;> simp [hm]
+      cases hm : m[c.mod]? <;> simp
     · have : (c.mod == i) = false := by simpa using he
       simp only [this, Bool.false_eq_true, ↓reduceIte, List.filter_cons]
 

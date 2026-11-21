@@ -251,7 +251,7 @@ theorem CCInv.step {st : EStore} (hw : NStoreWF st.ns) {first : Std.HashMap NIdx
         simp only [Option.map_some, Option.some.injEq] at hb
         subst hb
         refine ⟨n, hn', hd, ?_⟩
-        simp [Std.HashMap.getElem?_alter, hm']
+        simp [hm']
       · rename_i hkj
         obtain ⟨q, hq, hdq, hmq⟩ := hi.row j b hb
         refine ⟨q, hq, hdq, ?_⟩
@@ -320,7 +320,7 @@ theorem CCInv.step {st : EStore} (hw : NStoreWF st.ns) {first : Std.HashMap NIdx
         simp only [Option.some.injEq] at hb
         subst hb
         refine ⟨n, by simp [hi.size], hd, ?_⟩
-        simp [Std.HashMap.getElem?_alter, hget, hfirst]
+        simp [hget, hfirst]
       · obtain ⟨q, hq, hdq, hmq⟩ := hi.row j b hb
         refine ⟨q, by rw [Array.getElem?_push]; simp [show ¬ j = order.size by
           rw [← hi.size]; exact fun e => by subst e; simp at hb]; exact hq, hdq, ?_⟩
@@ -475,7 +475,7 @@ theorem importsModulesOk_run {st : EStore} {m : NIdx} {mC : ConLeche.Name} {isM 
     {ix : ConRon.Arena.Frontend.Olean.NameIndex} {ixC : ConLeche.Frontend.Olean.NameIndex}
     {imps : Array (ConLeche.Frontend.Olean.ImportF NIdx)} {impsC : Array ConLeche.Frontend.Olean.ImportRec}
     (hld : LoadsRel st ld ldC) (hix : IndexRel st ix ixC) (hi : ImpsD st imps impsC)
-    {s s' : AState} (hst : s.store = st)
+    {s s' : AState}
     (h : ConRon.Arena.Frontend.Olean.importsModulesOk m isM ld ix imps s = .ok ((), s')) :
     s' = s ∧ ConLeche.Frontend.Olean.importsModulesOk mC isM ldC ixC impsC = .ok () := by
   unfold ConLeche.Frontend.Olean.importsModulesOk
