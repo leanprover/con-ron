@@ -721,6 +721,138 @@ theorem capture_against_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E
   rw [am_bind_ok hx1]
   exact hx2
 
+/-- **`capture_one` is `captureOne`**: the capture check of one read, and the completion of a name
+the index lacks. -/
+theorem capture_one_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
+    (he : ReachEnvRel env wr own E) {st lst} {c : frontend.modular.reach.ReachCache} {C : Modular.ReachCache}
+    (hc : ReachCacheRel c C) (h y : arena.handle.NIdx) :
+    ACS pers (fun _ c' b => ReachCacheRel c' b) st lst
+      (capture_one inst fsv pk pers st sp wr own env c h y)
+      (Modular.captureOne fs (absPins pk) (absRoots sp) E C (absNIdx h) (absNIdx y)) := by
+  intro hrel hinv a st' c' hr
+  rw [capture_one] at hr
+  peel hr as b, hb
+  have eb := SetRel.contains_key nidx_eq2 he.own hb
+  by_cases cb : b = true
+  · rw [ite_eq_left cb] at hr; err_peel hr
+  rw [ite_eq_right cb] at hr
+  have hown : E.own.contains (absNIdx y) = false := by rw [← eb]; simpa using cb
+  unfold Modular.captureOne
+  simp only [hown, Bool.false_eq_true, ↓reduceIte]
+  peel hr as o, ho
+  have eo := importer_spot_eq (pk := pk) he.wr ho
+  rw [← eo]
+  cases o with
+  | some p =>
+    obtain ⟨i, s1⟩ := p
+    have hif := importer_spot_fits he.wr ho
+    dsimp only [Std.uncurry] at hr
+    simp only [Option.map_some]
+    peel hr as b1, hb1
+    have eb1 := nidx_eq2_eq hb1
+    by_cases c1 : b1 = true
+    · rw [ite_eq_left c1] at hr
+      have e := Result.ok_injective hr
+      simp only [Prod.mk.injEq] at e
+      obtain ⟨-, rfl, rfl⟩ := e
+      have hm : ((absSpot s1).part.mod == absNIdx h) = true := by rw [c1] at eb1; simpa using eb1.symm
+      simp only [hm, ↓reduceIte]
+      exact ⟨C, lst, rfl, hc, hrel, hinv⟩
+    rw [ite_eq_right c1] at hr
+    have hm : ((absSpot s1).part.mod == absNIdx h) = false := by
+      have : b1 = false := by simpa using c1
+      rw [this] at eb1; simpa using eb1.symm
+    simp only [hm, Bool.false_eq_true, ↓reduceIte, pure_bind]
+    peel hr as b2, hb2
+    have eb2 := pub_has_eq he.wr he.fits (env := E) rfl hif hb2
+    by_cases c2 : b2 = true
+    · rw [ite_eq_left c2] at hr
+      have hp : Modular.pubHas E (absNIdx h) i.val = true := by rw [← eb2]; exact c2
+      simp only [hp, ↓reduceIte]
+      peel hr as q, hq
+      obtain ⟨r, st1, c1'⟩ := q
+      cases r with
+      | Err e => cases Result.ok_injective hr
+      | Ok b3 =>
+      obtain ⟨⟨C1, b3'⟩, lst1, hx1, ⟨hc1, hb3⟩, hrel1, hinv1⟩ :=
+        in_exported_ok hP he hc s1.part.module s1.part.level y hrel hinv b3 st1 c1' hq
+      simp only at hb3
+      subst hb3
+      rw [am_bind_ok hx1]
+      dsimp only [Std.uncurry] at hr
+      by_cases c3 : b3 = true
+      · rw [ite_eq_left c3] at hr
+        have e := Result.ok_injective hr
+        simp only [Prod.mk.injEq] at e
+        obtain ⟨-, rfl, rfl⟩ := e
+        simp only [c3, ↓reduceIte]
+        exact ⟨C1, lst1, rfl, hc1, hrel1, hinv1⟩
+      · rw [ite_eq_right c3] at hr
+        have c3' : b3 = false := by simpa using c3
+        simp only [c3', Bool.false_eq_true, ↓reduceIte]
+        exact capture_against_ok hP he hc1 h y s1 hrel1 hinv1 a st' c' hr
+    · rw [ite_eq_right c2] at hr
+      have hp : Modular.pubHas E (absNIdx h) i.val = false := by rw [← eb2]; simpa using c2
+      simp only [hp, Bool.false_eq_true, ↓reduceIte]
+      exact capture_against_ok hP he hc h y s1 hrel hinv a st' c' hr
+  | none =>
+    simp only [Option.map_none]
+    peel hr as o1, ho1
+    have eo1 := located_at_eq hc ho1
+    rw [← eo1]
+    cases o1 with
+    | some s1 =>
+      simp only [Option.map_some]
+      peel hr as b1, hb1
+      have eb1 := nidx_eq2_eq hb1
+      by_cases c1 : b1 = true
+      · rw [ite_eq_left c1] at hr
+        have e := Result.ok_injective hr
+        simp only [Prod.mk.injEq] at e
+        obtain ⟨-, rfl, rfl⟩ := e
+        have hm : ((absSpot s1).part.mod == absNIdx h) = true := by rw [c1] at eb1; simpa using eb1.symm
+        simp only [hm, ↓reduceIte]
+        exact ⟨C, lst, rfl, hc, hrel, hinv⟩
+      rw [ite_eq_right c1] at hr
+      have hm : ((absSpot s1).part.mod == absNIdx h) = false := by
+        have : b1 = false := by simpa using c1
+        rw [this] at eb1; simpa using eb1.symm
+      simp only [hm, Bool.false_eq_true, ↓reduceIte, pure_bind]
+      exact capture_against_ok hP he hc h y s1 hrel hinv a st' c' hr
+    | none =>
+      simp only [Option.map_none, pure_bind]
+      peel hr as q, hq
+      obtain ⟨r, st1, c1⟩ := q
+      cases r with
+      | Err e => cases Result.ok_injective hr
+      | Ok o2 =>
+      obtain ⟨⟨C1, o2'⟩, lst1, hx1, ⟨hc1, ho2⟩, hrel1, hinv1⟩ := hP.locate he st lst c C h y hc hrel hinv o2 st1 c1 hq
+      simp only at ho2
+      subst ho2
+      rw [am_bind_ok hx1]
+      cases o2 with
+      | none => err_peel hr
+      | some s =>
+      peel hr as q2, hq2
+      obtain ⟨r2, st2, c2⟩ := q2
+      cases r2 with
+      | Err e => cases Result.ok_injective hr
+      | Ok p =>
+      obtain ⟨⟨C2, p'⟩, lst2, hx2, ⟨hc2, hp'⟩, hrel2, hinv2⟩ :=
+        hP.privSpot he st1 lst1 c1 C1 s hc1 hrel1 hinv1 p st2 c2 hq2
+      simp only at hp'
+      subst hp'
+      simp only [Option.map_some]
+      rw [am_bind_ok hx2]
+      simp only [nidx_dup2_eq, Aeneas.Std.bind_ok] at hr
+      peel hr as q3, hq3
+      obtain ⟨old, hm⟩ := q3
+      peel hr as v, hv
+      have e := Result.ok_injective hr
+      simp only [Prod.mk.injEq] at e
+      obtain ⟨-, rfl, rfl⟩ := e
+      exact ⟨_, lst2, rfl, hc2.with_located_completed hq3 hv, hrel2, hinv2⟩
+
 end reads
 
 end ConRon.Refine2.Modular
