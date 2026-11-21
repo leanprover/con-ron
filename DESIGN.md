@@ -73497,3 +73497,102 @@ Cycles from the spike's paired runs (quiet machine): gf3 21.56 G → 12.89 G (�
 loaded machine, `Init` included, and are not comparable.  Verdicts unchanged (gf3 364,
 `Init` 57 919 accepted).  After both changes, what tail sharing could still remove is
 the `pred` path's one copy and one hash of 44.7 M limbs, ~1–2 % of gf3.
+
+### Task #164 — con-leche sync cd2eceab → 11d8ff13: the flat checker's new rejects, modules located by their root (2026-11-21, Opus)
+
+con-leche goes from `cd2eceab` to **`11d8ff13`** (646 commits, toolchain unchanged at v4.36.0):
+upstream's `compare` branch landed on master, bringing modular checking (`--modular`,
+`--module`, `--check-graph`, `--schedule*`), challenge/solution comparison (`--compare`, JSON
+and `.olean`, `--trusted-search-path`) and the theorems about the input.  Most of the 53 663
+inserted lines of executed tiers are those modes and their proofs.  **This sync ports what
+changed in the FLAT checker** (JSON stream and `--olean`); the new modes are their own tasks:
+`--compare` #165, modular checking #166.  Until then con-ron reads every flag con-leche reads,
+makes con-leche's usage checks in its order with its messages, and answers a mode it does not
+port with `<mode> is not supported by con-ron yet`, exit 3 (OVERVIEW §2.1/§2.2).  Their
+upstream declarations are skip-listed with the task that ports them.
+
+Four lanes on disjoint files (worktrees off the bump branch, every heavy command through a
+three-slot `flock`), integrated by fast-forward in
+the order they finished: D, K, O, I.
+
+| upstream | what it did | here |
+|---|---|---|
+| #622 | the **ι reading rule**: after `checkBlock`, each installed recursor's minor premises must read its constructor's fields, indices, levels and parameters, up to `Level.isEquiv` (`Expr.lvlEq`) and consumed annotations (`annEq`: `optParam`/`autoParam`/`outParam`/`semiOutParam` stored as the identity) — `Kernel/Inductives/IotaRead.lean`, `IotaEq.lean`, cached `Cached/IotaReadC.lean` | **ported** (lane I): `arena/inductives/iota_read.rs` from `check_ind_decl`; twin `Arena/Inductives/IotaRead.lean`; T2 `Refine2/Inductives/IotaRead.lean`; T1 `Bridge/Inductives/IotaRead.lean` |
+| #501 | **reserved names**: only an opaque may mention `Lean.reduceBool`/`reduceNat`, only an axiom `sorryAx` (`checkConstantVal`'s `allowReduce`/`allowSorry`, `sorryAxNameAt`) | **ported** (lane K): `check_constant_val(…, allow_op, allow_reduce, allow_sorry)`, `check_constant_val_reserved`; defn `T,F,F`, thm `F,F,F`, opaque `F,T,F`, axiom `F,F,T`, the four inductive sites `F,F,F` |
+| #462 | a certified operation's dependency only has to be **stored**; the install pins only the operation's own type (`natOpStoredOk env2 cv.name`) | **ported** (lane K): `nat_op_deps_stored`, the structural gate and `div_mod_env_guard`; `nat_op_stored_ok_all` deleted |
+| #443 | `nestFrame` types **every group member** at the key (`familyKeyChecks`), not only the head | **ported** (lane K): `family_key_checks`; `nest_frame_at` gone |
+| #511, #509 | a module is **located by its root**, as Lean does: a root in two search-path directories with different real paths, or in none, or a module missing from its root's directory, is exit 3; the split-parts check (`locateIn`, `locateHits`, `locateOf`, `partExts`) is gone; `CheckerIO.isDir` | **ported** (lane O): `files.rs` root lookup + `find_module`; the old check deleted all the way down; `OleanFs::is_dir` |
+| #621 | an exported part that does not read on its own region is `.invalid` (exit 1, was a misleading 3): `outsideOrEscaping`; read failures as "… cannot be read" (`oleanFailed`/`partFailed`) | **ported** (lane O) |
+| #619 | the fold threads `J : Option Solution` (`checkDecls = checkDeclsWith … none`; `checkRecordC … none = checkDeclStepC`); `Cached/Justify.lean`, `Needs.lean` | flat path: **citation only** (lane D) — the fold keeps no parameter, each citation says `J` is `none` here; the rest is #165 |
+| #444, #565, #508 | axioms merged as Lean merges them (`subsumes` → `subsumesF`, same rule); the sparse part memo consumed once; `readOleans` → `readOleansAt` | **citation only** (lane O): con-ron's sparse reader already updates its memo in place; `readOleansAt` at `lenient`/`homes` false |
+| moves | `mentionsAnyConst`, `dropVars` → `Kernel/ExprOps.lean`; `Cached.streamEnv` → `ConLeche.streamEnv` (`Kernel/Install.lean`) | citations; the capstones' `RustDenotes` names `ConLeche.streamEnv dsP` (same definition) |
+
+**The ι reading rule, where it reads.**  Upstream reads the environment `checkBlockKS` installs
+(the block's constants pushed in place).  con-ron's `check_block` consumes its index and returns
+one whose formers are the reduced ones, which is not that environment; so the rule runs
+**before** it, on the input index with the block's constants pushed temporarily (and popped),
+and its verdict is applied **after** it: a block that fails both gets `checkBlock`'s verdict, as
+upstream.  The recursor's frame, its minors and the major's levels and parameters are read once
+per recursor rather than once per rule; annotation names are interned and compared by handle;
+the answer is a `Bool` with a constant message.  `checkBlock_bridge` now also states which
+environment the block installs, which is where Theorem 1 reads the rule.  Cost: +0.23–0.26 %
+`instructions:u` on the three inductive-heaviest e2e fixtures (`stored_rec_outparam`,
+`nat_divmod_ok`, `k_skip_omega_closed`); `Init` accepts all 57 919 with both binaries, so the
+rule rejects no recursor there.
+
+**Modules by their root: no `Roots` cache.**  Upstream resolves each root once per run and
+threads the table through the closure walk and `OleanRead`; con-ron looks the root up at each
+read.  On one snapshot the lookup always answers the same (upstream's `Roots.Ok`,
+`findModule_rev`, which Theorem 1 goes through: `findModule_simR`), so no verdict changes; the
+cost is a few file-system calls per module, still fewer than master's split-parts check made
+(`--olean -- Init`: 178.64 G → 178.39 G `instructions:u`, −0.14 %).  A cache would thread
+through `OleanRead` and the pool's jobs and change the capstone's `h8`: left until a profile
+asks for it.
+
+**Statement changes.**  `no_False_oleans`/`model_exists_oleans`: `SnapshotOf` (`hsnap`) gains
+`is_dir : ∀ {p q}, PathRel p q → ∀ b, inst.is_dir fsv p = ok (.Ok b) → b = F.dir q`; `PathRel`
+(`FsRel.lean`) has three cases (`mod_file_of`/`modFile`, `mod_dir_of`/`modDir`, a search-path
+directory as given); `h3` is unchanged, `InClosure`/`ViewOf` take the bare `absSearchPath dirs`.
+The JSON capstones change only by the `streamEnv` name.  No other headline statement moved;
+internal bridge lemmas take the three `checkConstantVal` flags and state
+`natOpGuard … && natOpStoredOk env2 nm`.
+
+**Findings.**  `update --auto`: 301 findings (263 `changed`, 27 `deleted`, 9 `moved-changed`,
+2 `moved-doc` deleted mechanically) and 859 citations merely moved.  **0 markers at the end**;
+coverage 1138/1190 at the old pin, 1138/1264 at the start, **1172/1224** at the end (52
+uncovered either way); skips 165 → 205, each with its reason (`--compare`: task #165; the
+modular mode: task #166; the IsModel specification, not executed: `Level.eval`, `iotaEqMk`,
+`iotaEqOf`, `iotaEqAt`).
+
+**Fixtures.**  diff-e2e with master's binary at the new pin: 755 agree, 18 differ
+(`stored_type_dom_redex`, `reduce_name_def`, `reduce_name_thm`, `sorry_name_def`, 14
+`--compare` pairs).  The branch: **759 agree, 0 differ, 14 NOT PORTED (task #165)** — a new
+named category of `diff-e2e`, which also runs con-leche's new argument rows
+(`<exit> --compare -- C S`) and mirrors two `E2E_TIMEOUT` entries it had missed
+(`strict_succ_counter`, `lit_hash_low_bits`); the command-line gate 15/15.  `diff-olean.sh`
+now runs upstream's committed `tests/olean/lib` (its `build.sh` no longer rebuilds at 4.36:
+`stand/CxZ` fails on "unknown module prefix `CxX1`"): against master's binary the branch fixes 7
+cases (the six root-in-two-directories / missing-file cases and #621's escaping export) and adds
+none; what still differs is the unported modes (`--compare`, `--module`, `--modular`,
+`--schedule*`, the graph check, olean-compare's `--home`/`--reads`/`--reach`) or a flat case's
+re-run in one of them.
+
+**Measure** (`bump-con-leche.sh measure`, `Init`, con-ron, one worker; both accept 57 919):
+
+| binary | instructions:u | cycles:u |
+|---|---:|---:|
+| master `7eff100f` | 165 753 758 305 | 63 127 333 988 |
+| this branch `80db3fd9` | **165 795 933 867** (+0.025 %) | 62 947 607 295 |
+
+Peak RSS 427 / 428 MB.
+
+**Procedure.**  `provenance.py update` without `--old` must not be run inside a bump: it diffs
+from the COMMITTED pin, re-adds every `CHANGED` marker and moves the already relocated citations
+a second time (lane K hit it, two lanes reverted its effects); fix citations by hand, twin
+anchors with `scripts/twin-lines.py update`.
+
+**Left.**  #165 `--compare` (`Justify`, `Needs`, `J` threaded through the fold; JSON and
+`.olean`), #166 modular checking (graph, per-module worker, `--modular`); the term-mode walks of
+`Bridge/Inductives/IotaRead.lean` (`annEq`, `annIdentBody`, `annIdentVal`, `annWitness`,
+`listLvlEq`, `isMinorAt`) are candidates for the `sym => vcgen <;> finish` shape; a `Roots`
+cache if a profile asks.
