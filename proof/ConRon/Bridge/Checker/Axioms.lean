@@ -37,7 +37,7 @@ import ConRon.Bridge.Checker.Names
 import ConRon.Bridge.Checker.Canon
 import ConRon.Bridge.Specs
 import ConRon.Bridge.Checker.TypePins
-import ConRon.Bridge.Checker.Pushes
+import ConLeche.Verify.Cached.PureRun
 
 public section
 
@@ -385,8 +385,8 @@ hypotheses of the statement. -/
 #print axioms internAllPins_run
 
 -- the fold's children (each prints the three standard axioms)
-#print axioms checkDecl_pushes
-#print axioms checkDecl_fresh
+#print axioms ConLeche.Cached.checkDecl_pushes
+#print axioms ConLeche.Cached.checkDecl_fresh
 #print axioms denoteN_default_of_pinNames
 #print axioms internPinSets_run
 -- `installStep_split`'s bracket; it reaches `Arena.checkDecl_wfProj` through

@@ -14,6 +14,8 @@ import ConRon.Bridge.Compare.Stages
 import ConRon.Bridge.Compare.StagesOleans
 import ConRon.Refine2.Checker.Mates
 import ConRon.Refine2.Frontend.Compare
+import ConRon.Bridge.Modular.Stages
+import ConRon.Refine2.Modular.Graph
 
 /-!
 # `ConRon.Capstone` — THE COMPOSITION: Theorem 2 ∘ Theorem 1 ∘ con-leche
@@ -1661,6 +1663,54 @@ theorem model_exists_oleans_compare (V : Type w) [ConLeche.SetTheory V] {F : Con
     hdup h4 hhole h3S h4S hpins h5 h6S h7S h8S hside hsol h6 h7 h8
 
 end HeadlineOleansCompare
+
+/-! ## 6. The modular runs: `--check-graph`, `--olean --module`, `--olean --modular`
+
+Upstream's modular theorem (`ConLeche/MainTheorem.lean` `main_modular`, `main_modular_one`) is over
+the graph check and one worker per module of the headers' closure; its proof assembles the
+worker's accepts into an accepted run over the closure (`Driver.Compose.closure_sees_isModel`).
+The driver (`crates/con-ron/src/modular.rs`) runs each call below from fresh start values; the
+premises are its calls, marked `ConRon.Capstone:` there. -/
+
+section RustModular
+
+open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean
+
+/-- **The graph check at the Rust** (`modular::check_graph`, and `--modular`'s first step): the
+reserved pins, the reader's pins, the roots interned and `graph::graph_of` with no import added,
+on a snapshot `F`, give upstream's `checkGraphG_ok` facts: the closure `CC` of upstream's nodes,
+each module's imports its header's, the roots in it, a one-to-one rank decreasing along every
+import, every module in the headers' closure of the roots.  Theorem 2 (`graph_of_refines`) then
+Theorem 1 (`graphStage_run`). -/
+theorem rust_graph {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    {F : ConLeche.FS} (hsnap : SnapshotOf finst fsv F)
+    {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {names : List kernel.name.Name}
+    {st1 stR : arena.monad.AState} {store2 store3 : arena.store.EStore}
+    {pk : frontend.olean.spec.OleanPins} {roots : alloc.vec.Vec arena.handle.NIdx}
+    {c : alloc.vec.Vec (arena.handle.NIdx × alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))}
+    (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+    (hpk : frontend.olean.spec.olean_pins emptyTier st1.store = ok (.Ok pk, store2))
+    (hroots : InternRoots emptyTier { st1 with store := store2 } names roots.val stR)
+    (hgraph : frontend.modular.graph.graph_of finst fsv pk emptyTier stR.store
+      ⟨dirs, alloc.vec.Vec.new _⟩ roots none = ok (.Ok c, store3)) :
+    ∃ (CC : List ConLeche.Driver.Graph.Node) (rk : ConLeche.Name → Nat),
+      (∀ e ∈ CC, ConLeche.ModelIO.CanGive
+        (ConLeche.Frontend.Olean.moduleImports (absSearchPath dirs) e.1) F (.ok e.2)) ∧
+      (∀ r ∈ names.map ConRon.Refine.absName, r ∈ CC.map (·.1)) ∧
+      (∀ e ∈ CC, ∀ i ∈ e.2, i.module ∈ CC.map (·.1) ∧ rk i.module < rk e.1) ∧
+      (CC.map fun e => rk e.1).Nodup ∧
+      (∀ e ∈ CC, ConLeche.Frontend.Olean.HdrClosure (absSearchPath dirs) F
+        (names.map ConRon.Refine.absName) e.1) := by
+  obtain ⟨est, hest, hst0⟩ := startState_init
+  obtain ⟨hrel0, hinv0, -⟩ := init_rel (pers := emptyTier) rfl hest hst0
+  obtain ⟨sA, hA, hrelA, hinvA⟩ := (intern_reserved_pins_refines hrel0 hinv0 h1).dest
+  obtain ⟨pk', sB, hB, rfl, hrelB, hinvB⟩ := olean_pins_refines hrelA hinvA _ _ hpk
+  obtain ⟨sC, hC, hrelC, hinvC⟩ := internRoots_refines names roots.val hroots hrelB hinvB
+  obtain ⟨C, sD, hD, rfl, -, -⟩ :=
+    ConRon.Refine2.Modular.graph_of_refines (fsRel_of_snapshot hsnap) hrelC hinvC _ _ hgraph
+  exact ConRon.Bridge.Modular.graphStage_run rfl hA hB hC hD
+
+end RustModular
 
 /-! ## 5. The census
 

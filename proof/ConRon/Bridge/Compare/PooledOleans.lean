@@ -214,7 +214,7 @@ theorem oleanJobJ_spec
       simp only [ConLeche.Cached.fillDecl, fillRef, valueOf_eq hva]
     have hxr : PExt s₁.store sr.store := hxj.trans (PExt.of_ext hps.ext)
     obtain ⟨hrunP, hnd⟩ := hP
-    have hok := view_foldOK_wf hpinsOK hpersPins hI' hpI hkF
+    have hok := view_foldOK hpinsOK hpersPins hI' hpI hkF
       (hrunP.envWF ConLeche.Semantics.EnvWF.empty) hnd hps.ok hxr
       ((CacheOK.of_empty hcj).monoF hps.ext hps.cframe) (hps.pins.trans hpj)
     have hpinsr := PinsDenote.pmono hxr pins pinsP hpp hpins

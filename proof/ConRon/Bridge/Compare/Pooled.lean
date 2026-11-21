@@ -63,111 +63,12 @@ theorem MixedPrefix.step {pinsP : List NatOpPinSet} {JS : ConLeche.Cached.Soluti
     MixedPrefix pinsP JS dsP (k + 1) := by
   obtain ⟨hrun, hnd⟩ := hP
   obtain ⟨henv', hndD, hfr⟩ := hd.pushes
-  have hsplit := take_succ_eq hk
-  have hstream : ConLeche.streamEnv (dsP.take (k + 1)) = env' := by
-    rw [henv', hsplit]
-    show List.foldl _ _ _ = _
-    rw [List.foldl_append]
-    rfl
-  refine ⟨?_, ?_⟩
-  · rw [hstream, hsplit]
-    exact hrun.snoc hd
-  · rw [hsplit, ConLeche.Cached.recsConsts_snoc, List.map_append, List.nodup_append]
-    refine ⟨hnd, hndD, ?_⟩
-    intro a ha b hb hab
-    subst hab
-    obtain ⟨c, hc, rfl⟩ := List.mem_map.mp hb
-    have hnone := hfr c hc
-    have hcons : (ConLeche.streamEnv (dsP.take k)).consts =
-        (ConLeche.Cached.recsConsts (dsP.take k)).reverse := by
-      simpa [Env.empty] using ConLeche.Cached.streamEnv_consts (dsP.take k) Env.empty
-    obtain ⟨c', hc', hn⟩ := List.mem_map.mp ha
-    unfold Env.find? at hnone
-    rw [hcons] at hnone
-    have := List.find?_eq_none.mp hnone c' (List.mem_reverse.mpr hc')
-    simp [hn] at this
-
-/-! ## The pool, at any prefix predicate -/
-
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:461-484 parWorker — `worker_reaches` at a prefix
-predicate `P`: a worker reaches each of its jobs from a worker's state, provided every position
-below it satisfies `P`. -/
-theorem worker_reachesP {σ : Type} {Inv : σ → Prop} {Run : Nat → σ → σ → Prop}
-    {P : Nat → Prop} (hspec : ∀ {k : Nat} {w w' : σ}, Inv w → P k → Run k w w' → Inv w')
-    {k : Nat} (hbelow : ∀ t < k, P t) :
-    ∀ (l : List Nat) (w : σ), Inv w → l.Pairwise (· < ·) → k ∈ l →
-      JobChain Run w l → ∃ wk wk', Inv wk ∧ Run k wk wk' := by
-  intro l
-  induction l with
-  | nil => intro _ _ _ hm; exact absurd hm (by simp)
-  | cons t rest ih =>
-    intro w hw hpw hm hc
-    cases hc with
-    | cons hr hrest =>
-      rcases List.mem_cons.mp hm with rfl | hm'
-      · exact ⟨w, _, hw, hr⟩
-      · have hlt : t < k := (List.pairwise_cons.mp hpw).1 k hm'
-        exact ih _ (hspec hw (hbelow t hlt) hr) (List.pairwise_cons.mp hpw).2 hm' hrest
-
-/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:527 checkDecls_of_jobs — `pooled_fold` at a
-prefix predicate `P`: job lists covering the positions below `N`, each increasing, each run from
-a worker's state by a step whose accept at a position satisfying `P` extends it, give `P` at
-every position up to `N`. -/
-theorem pooled_foldP {σ : Type} {Inv : σ → Prop} {Run : Nat → σ → σ → Prop} {N : Nat}
-    {P : Nat → Prop} (h0 : P 0)
-    (hspec : ∀ {k : Nat} {w w' : σ}, k < N → Inv w → P k → Run k w w' → Inv w' ∧ P (k + 1))
-    (hrange : ∀ {t : Nat} {w w' : σ}, Run t w w' → t < N) (parts : List (List Nat))
-    (hcov : ∀ t < N, ∃ w ∈ parts, t ∈ w) (hinc : ∀ w ∈ parts, w.Pairwise (· < ·))
-    (hacc : ∀ w ∈ parts, ∃ w₀, Inv w₀ ∧ JobChain Run w₀ w) : P N := by
-  have hinv : ∀ {k : Nat} {w w' : σ}, Inv w → P k → Run k w w' → Inv w' :=
-    fun hw hP hr => (hspec (hrange hr) hw hP hr).1
-  have main : ∀ k, k ≤ N → ∀ t ≤ k, P t := by
-    intro k
-    induction k with
-    | zero => intro _ t ht; obtain rfl : t = 0 := by omega
-              exact h0
-    | succ k ih =>
-      intro hk t ht
-      rcases Nat.lt_or_ge t (k + 1) with htk | htk
-      · exact ih (by omega) t (by omega)
-      obtain rfl : t = k + 1 := by omega
-      have hks : k < N := by omega
-      obtain ⟨wl, hwl, hkw⟩ := hcov k hks
-      obtain ⟨w₀, hw₀, hch⟩ := hacc wl hwl
-      obtain ⟨wk, wk', hwk, hrun⟩ := worker_reachesP (Inv := Inv) (Run := Run) (P := P) hinv
-        (fun t ht => ih (by omega) t (by omega)) wl w₀ hw₀ (hinc wl hwl) hkw hch
-      exact (hspec hks hwk (ih (by omega) k (Nat.le_refl _)) hrun).2
-  exact main N (Nat.le_refl _) N (Nat.le_refl _)
+  obtain ⟨hstream, hnd'⟩ := prefix_step hk henv' hndD hfr hnd
+  refine ⟨?_, hnd'⟩
+  rw [hstream, take_succ_eq hk]
+  exact hrun.snoc hd
 
 /-! ## One job, with a solution -/
-
-/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:461 jobs_run_from — `view_foldOK` from the
-prefix environment's well-formedness. -/
-theorem view_foldOK_wf
-    {dsP : List Declaration} {I : IStreamIndex} {s₁ s : AState}
-    {k : Nat} (hpinsOK : PinsOK s₁) (hpersPins : PersPins s₁)
-    (hI : IndexDenotes s₁.store I (ConLeche.Cached.buildIndex dsP.toArray))
-    (hpI : PersIFBase I.base) (hk : k < dsP.length)
-    (hwf : ConLeche.EnvWF (ConLeche.streamEnv (dsP.take k)))
-    (hnd : ((ConLeche.Cached.recsConsts (dsP.take k)).map (·.name)).Nodup)
-    (hst : StateOK s) (hx : PExt s₁.store s.store)
-    (hc : CacheOK false (ConLeche.streamEnv (dsP.take k)) s) (hp : s.pins = s₁.pins) :
-    FoldOK (ConLeche.streamEnv (dsP.take k)) (I.view k) s := by
-  have hIj := hI.pmono hpI hx
-  have hspec : ConLeche.Cached.IndexSpec (dsP.take k ++ dsP.drop k)
-      (ConLeche.Cached.buildIndex dsP.toArray) := by
-    rw [List.take_append_drop]
-    simpa using ConLeche.Cached.buildIndex_spec dsP.toArray
-  have hlen : (dsP.take k).length = k := by simp; omega
-  obtain ⟨hienv, hgate⟩ := view_ok hst hIj hspec hnd
-  rw [hlen] at hienv hgate
-  exact
-    { check := ⟨hst, hc, hpinsOK.pmono hpersPins hx hp, hienv⟩
-      envWF := hwf
-      tblShape := fun t ht => by simp [IStreamIndex.view] at ht
-      persPins := hpersPins.mono hp
-      coh := ⟨fun _ => rfl, fun _ => rfl⟩
-      gate := hgate }
 
 /-- con-leche: ConLeche/Cached/Justify.lean:144-146 solutionOf — **the solution at a job's state**:
 its index, built from `dsS` and persistent, read through its view past its last record, denotes
@@ -233,7 +134,7 @@ theorem job_specC
     have hpj : sj.pins = s₁.pins := by rw [← hsj]; exact hw.pins
     have hcj : sj.caches = Caches.empty := by rw [← hsj]; exact hw.caches
     obtain ⟨hrunP, hnd⟩ := hP
-    have hok := view_foldOK_wf hpinsOK hpersPins hI hpI hk'
+    have hok := view_foldOK hpinsOK hpersPins hI hpI hk'
       (hrunP.envWF ConLeche.Semantics.EnvWF.empty) hnd hstj hxj (CacheOK.of_empty hcj) hpj
     have hpinsj := PinsDenote.pmono hxj pins pinsP hpp hpins
     have hdj := denoteDecl_pext hxj (hpd _ (Array.getElem_mem_toList hk)) hdk
