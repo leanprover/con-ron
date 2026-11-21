@@ -66,6 +66,31 @@ structure PartsSpec (inst : frontend.olean.files.OleanFs F) (fsv : F) (fs : Aren
       (read_record inst fsv pk pers st sp wr c x)
       (Modular.readRecord fs (absPins pk) (absRoots sp) E C (absNIdx x))
 
+theorem ACS.mono {α β : Type} {pers : arena.store.PersTier}
+    {R R' : α → frontend.modular.reach.ReachCache → β → Prop} {st lst m} {x : AM β}
+    (h : ACS pers R st lst m x) (hR : ∀ a c b, R a c b → R' a c b) : ACS pers R' st lst m x := by
+  intro hrel hinv a st' c' hm
+  obtain ⟨b, lst', hx, hr, h1, h2⟩ := h hrel hinv a st' c' hm
+  exact ⟨b, lst', hx, hR _ _ _ hr, h1, h2⟩
+
+/-- **The parts' reads, from sibling P's `ReachParts`.** -/
+theorem partsSpec_of (hfs : FsRel inst fsv fs) : PartsSpec inst fsv fs pk pers sp where
+  stmtAt st lst _ _ s hc :=
+    (stmt_at_refines (st := st) (lst := lst) (pk := pk) (pers := pers) (sp := sp) (s := s) hfs hc).mono
+      fun _ _ _ ⟨h1, h2, h3⟩ => ⟨h1, h2.symm, h3⟩
+  privSpot he st lst _ _ s hc :=
+    (priv_spot_refines (st := st) (lst := lst) (pk := pk) (sp := sp) (s := s) hfs he hc).mono
+      fun _ _ _ ⟨h1, h2⟩ => ⟨h1, h2.symm⟩
+  locate he st lst _ _ h y hc :=
+    (locate_refines (st := st) (lst := lst) (pk := pk) (sp := sp) (hm := h) (y := y) hfs he hc).mono
+      fun _ _ _ ⟨h1, h2⟩ => ⟨h1, h2.symm⟩
+  lookOf he st lst _ _ k hc :=
+    (look_of_refines (st := st) (lst := lst) (pk := pk) (sp := sp) (k := k) hfs he hc).mono
+      fun _ _ _ h1 => h1
+  readRecord he st lst _ _ x hc :=
+    (read_record_refines (st := st) (lst := lst) (pk := pk) (sp := sp) (x := x) hfs he hc).mono
+      fun _ _ _ ⟨h1, h2, h3⟩ => ⟨h1, h2.symm, h3.symm⟩
+
 /-! ## Small facts -/
 
 theorem nidx_eq2_eq {a b : arena.handle.NIdx} {o : Bool}
