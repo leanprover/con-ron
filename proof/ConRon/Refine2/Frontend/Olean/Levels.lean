@@ -772,4 +772,261 @@ theorem header_fixpoint_refines (hfs : FsRel inst fsv fs) {st : arena.monad.ASta
 
 end walk
 
+/-! ## The `ModSet` operations -/
+
+section ModSet
+open ConLeche.Frontend.Olean (ModSet)
+
+theorem absChunk_size' (s : alloc.vec.Vec Std.U8) : (absChunk s).size = s.val.length := by
+  simp [absChunk, ByteArray.size]
+
+theorem absChunk_get! (s : alloc.vec.Vec Std.U8) (k : Nat) :
+    (absChunk s).get! k = if h : k < s.val.length then absByte s.val[k] else 0 := by
+  simp only [absChunk, ByteArray.get!]
+  split
+  · next h => simp [h]
+  · next h => simp [h]; rfl
+
+theorem absChunk_set (s : alloc.vec.Vec Std.U8) (k : Std.Usize) (x : Std.U8) :
+    absChunk (alloc.vec.Vec.set s k x) = (absChunk s).set! k.val (absByte x) := by
+  simp [absChunk, ByteArray.set!, alloc.vec.Vec.set, List.map_set]
+
+theorem cast_usize_fit {x : Std.U64} {b : Std.Usize} (hx : x.val ≤ Std.Usize.max)
+    (h : lift (UScalar.cast .Usize x) = (ok b : Result Std.Usize)) : b.val = x.val := by
+  rw [← ConRon.Refine.ExprOps.u64_cast_usize_val hx]
+  exact congrArg Aeneas.Std.UScalar.val (Result.ok_injective h).symm
+
+theorem cast_u8_lt8 {x : Std.U64} {b : Std.U8} (hx : x.val < 8)
+    (h : lift (UScalar.cast .U8 x) = (ok b : Result Std.U8)) : b.val = x.val := by
+  simp only [lift, Result.ok.injEq] at h
+  subst h
+  rw [UScalar.cast_val_eq]
+  apply Nat.mod_eq_of_lt
+  have : (2 : Nat) ^ UScalarTy.U8.numBits = 256 := rfl
+  omega
+
+theorem shr_val {x y z : Std.U8} (hy : y.val < 8) (h : x >>> y = ok z) : z.val = x.val >>> y.val := by
+  have := UScalar.ShiftRight_spec x y (by simpa using hy)
+  rw [h, Aeneas.Std.WP.spec_ok] at this
+  exact this.1
+
+theorem shl_val {x y z : Std.U8} (hy : y.val < 8) (h : x <<< y = ok z) :
+    z.val = (x.val <<< y.val) % 256 := by
+  have := UScalar.ShiftLeft_spec x y 256 (by simpa using hy) (by simp [U8.size, U8.numBits])
+  rw [h, Aeneas.Std.WP.spec_ok] at this
+  exact this.1
+
+/-- **`mod_set_has` is `ModSet.has`**, at a position whose byte index fits a `usize`. -/
+theorem mod_set_has_eq {s : alloc.vec.Vec Std.U8} {i : Std.U64} {o : Bool}
+    (hi : i.val / 8 ≤ Std.Usize.max) (h : mod_set_has s i = ok o) :
+    o = ModSet.has (absChunk s) i.val := by
+  rw [mod_set_has] at h
+  peel h as i1, hi1
+  have e1 : i1.val = i.val / 8 := ConRon.Refine.Nat.udiv_val hi1
+  peel h as b, hb
+  have eb : b.val = i.val / 8 := by rw [cast_usize_fit (by omega) hb, e1]
+  unfold ModSet.has
+  rw [absChunk_get!]
+  by_cases hlt : b < alloc.vec.Vec.len s
+  · rw [ite_eq_left hlt] at h
+    have hlt' : i.val / 8 < s.val.length := by
+      have : b.val < (alloc.vec.Vec.len s).val := hlt
+      rw [vec_len_val] at this; omega
+    simp only [hlt', ↓reduceDIte]
+    peel h as i3, hi3
+    obtain ⟨_, rfl⟩ := vec_index_eq hi3
+    peel h as i4, hi4
+    have e4 : i4.val = i.val % 8 := ConRon.Refine.Nat.urem_val hi4
+    peel h as i5, hi5
+    have e5 : i5.val = i.val % 8 := by rw [cast_u8_lt8 (by omega) hi5, e4]
+    peel h as i6, hi6
+    have e6 := shr_val (by omega) hi6
+    peel h as i7, hi7
+    simp only [lift, Result.ok.injEq] at hi7
+    subst hi7
+    cases Result.ok_injective h
+    simp only [eb] at e6
+    have key : ∀ (u : Std.U8) (c : UInt8), u.val = c.toNat → (decide (u = 1#u8) = (c == 1)) := by
+      intro u c hu
+      by_cases hc : c = 1
+      · subst hc
+        have : u = 1#u8 := UScalar.eq_of_val_eq (by rw [hu]; rfl)
+        simp [this]
+      · have : u ≠ 1#u8 := fun he => hc (UInt8.toNat_inj.mp (by rw [← hu, he]; rfl))
+        simp [this, hc]
+    apply key
+    rw [UScalar.val_and, UInt8.toNat_and, UInt8.toNat_shiftRight, absByte_toNat, e6, e5]
+    have l1 : (1#u8 : Std.U8).val = 1 := by decide
+    rw [l1]
+    simp
+  · rw [ite_eq_right hlt] at h
+    have hlt' : ¬ i.val / 8 < s.val.length := by
+      have : ¬ b.val < (alloc.vec.Vec.len s).val := hlt
+      rw [vec_len_val] at this; omega
+    simp only [hlt', ↓reduceDIte]
+    cases Result.ok_injective h
+    have z : ∀ j : UInt8, ((0 : UInt8) >>> j &&& 1 == 1) = false := by decide
+    rw [z]
+
+theorem absByte_shl1 {i6 : Std.U8} {j : Nat} (hj : j < 8) (e : i6.val = (1 <<< j) % 256) :
+    absByte i6 = (1 : UInt8) <<< j.toUInt8 := by
+  apply UInt8.toNat_inj.mp
+  rw [absByte_toNat, e, UInt8.toNat_shiftLeft]
+  simp [Nat.mod_eq_of_lt (show j < 256 by omega), Nat.mod_eq_of_lt hj]
+
+/-- **`mod_set_add` is `ModSet.add`**, at a position whose byte index fits a `usize`. -/
+theorem mod_set_add_eq {s : alloc.vec.Vec Std.U8} {i : Std.U64} {o}
+    (hi : i.val / 8 ≤ Std.Usize.max) (h : mod_set_add s i = ok o) :
+    absChunk o = ModSet.add (absChunk s) i.val := by
+  rw [mod_set_add] at h
+  peel h as i1, hi1
+  have e1 : i1.val = i.val / 8 := ConRon.Refine.Nat.udiv_val hi1
+  peel h as b, hb
+  have eb : b.val = i.val / 8 := by rw [cast_usize_fit (by omega) hb, e1]
+  unfold ModSet.add
+  rw [absChunk_size']
+  by_cases hlt : b < alloc.vec.Vec.len s
+  · rw [ite_eq_left hlt] at h
+    have hlt' : i.val / 8 < s.val.length := by
+      have : b.val < (alloc.vec.Vec.len s).val := hlt
+      rw [vec_len_val] at this; omega
+    simp only [hlt', ↓reduceIte]
+    peel h as i3, hi3
+    obtain ⟨_, rfl⟩ := vec_index_eq hi3
+    peel h as i4, hi4
+    have e4 : i4.val = i.val % 8 := ConRon.Refine.Nat.urem_val hi4
+    peel h as i5, hi5
+    have e5 : i5.val = i.val % 8 := by rw [cast_u8_lt8 (by omega) hi5, e4]
+    peel h as i6, hi6
+    have e6 := shl_val (by omega) hi6
+    peel h as p, hp
+    obtain ⟨_, back⟩ := p
+    obtain ⟨-, -, rfl⟩ := ConRon.Refine.HashMap.vec_index_mut_eq hp
+    peel h as i7, hi7
+    simp only [lift, Result.ok.injEq] at hi7
+    subst hi7
+    cases Result.ok_injective h
+    rw [absChunk_set, absByte_or, absByte_shl1 (i6 := i6) (j := i.val % 8) (by omega) (by rw [e6, e5]; rfl), absChunk_get!]
+    simp only [eb, hlt', ↓reduceDIte]
+  · rw [ite_eq_right hlt] at h
+    have hlt' : ¬ i.val / 8 < s.val.length := by
+      have : ¬ b.val < (alloc.vec.Vec.len s).val := hlt
+      rw [vec_len_val] at this; omega
+    simp only [hlt', ↓reduceIte]
+    cases Result.ok_injective h
+    rfl
+
+theorem mod_set_empty_loop_eq (k : Std.Usize) (s : alloc.vec.Vec Std.U8) (i : Std.Usize)
+    (hs : s.val = List.replicate i.val 0#u8) (hi : i.val ≤ k.val) {o}
+    (h : mod_set_empty_loop k s i = ok o) : o.val = List.replicate k.val 0#u8 := by
+  rw [mod_set_empty_loop] at h
+  by_cases hlt : i < k
+  · rw [ite_eq_left hlt] at h
+    have hlt' : i.val < k.val := hlt
+    peel h as s1, hs1
+    peel h as i1, hi1
+    have hi1v : i1.val = i.val + 1 := by rw [ConRon.Refine.Nat.uadd_val hi1]; rfl
+    refine mod_set_empty_loop_eq k s1 i1 ?_ (by omega) h
+    rw [ConRon.Refine.vec_push_val hs1, hs, hi1v, List.replicate_succ']
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have : i.val = k.val := by have : ¬ i.val < k.val := hlt; omega
+    rw [hs, this]
+termination_by k.val - i.val
+decreasing_by have : i.val < k.val := hlt; omega
+
+/-- **`mod_set_empty` is `ModSet.empty`**, over a size whose bytes fit a `usize`. -/
+theorem mod_set_empty_eq {n : Std.U64} {o} (hn : (n.val + 7) / 8 ≤ Std.Usize.max)
+    (h : mod_set_empty n = ok o) : absChunk o = ModSet.empty n.val := by
+  rw [mod_set_empty] at h
+  peel h as i, hi
+  have ei : i.val = n.val + 7 := by rw [ConRon.Refine.Nat.uadd_val hi]; rfl
+  peel h as i1, hi1
+  have e1 : i1.val = i.val / 8 := ConRon.Refine.Nat.udiv_val hi1
+  peel h as k, hk
+  have ek : k.val = (n.val + 7) / 8 := by rw [cast_usize_fit (by omega) hk, e1, ei]
+  have := mod_set_empty_loop_eq k _ 0#usize (by simp [alloc.vec.Vec.with_capacity]) (by simp) h
+  unfold ModSet.empty
+  simp only [absChunk, this, ek, List.map_replicate]
+  rfl
+
+theorem bytearray_set!_oob {b : ByteArray} {k : Nat} {v : UInt8} (hk : b.size ≤ k) : b.set! k v = b := by
+  obtain ⟨arr⟩ := b
+  simp only [ByteArray.set!, ByteArray.size] at *
+  congr 1
+  simp [Array.set!, Array.setIfInBounds, show ¬ k < arr.size by omega]
+
+theorem nat_fold_congr {α : Type} {n m : Nat} (g : Nat → α → α) (S : α) (h : n = m) :
+    Nat.fold n (fun i _ x => g i x) S = Nat.fold m (fun i _ x => g i x) S := by
+  subst h; rfl
+
+/-- One step of `ModSet.union`. -/
+@[reducible] def unionStep (T : ByteArray) (j : Nat) (x : ByteArray) : ByteArray :=
+  x.set! j (x.get! j ||| T.get! j)
+
+theorem mod_set_union_loop_eq (t s : alloc.vec.Vec Std.U8) (k : Std.Usize) (S : ByteArray)
+    (hk : k.val ≤ t.val.length)
+    (hs : absChunk s = Nat.fold k.val (fun j _ x => unionStep (absChunk t) j x) S) {o}
+    (h : mod_set_union_loop t s k = ok o) :
+    absChunk o = Nat.fold t.val.length (fun j _ x => unionStep (absChunk t) j x) S := by
+  rw [mod_set_union_loop] at h
+  by_cases hlt : k < alloc.vec.Vec.len t
+  · rw [ite_eq_left hlt] at h
+    have hlt' : k.val < t.val.length := by
+      have : k.val < (alloc.vec.Vec.len t).val := hlt
+      rwa [vec_len_val] at this
+    peel h as s1, hs1
+    peel h as k1, hk1
+    have hk1v : k1.val = k.val + 1 := by rw [ConRon.Refine.Nat.uadd_val hk1]; rfl
+    refine mod_set_union_loop_eq t s1 k1 S (by omega) ?_ h
+    rw [hk1v, Nat.fold_succ, ← hs]
+    show absChunk s1 = unionStep (absChunk t) k.val (absChunk s)
+    by_cases hls : k < alloc.vec.Vec.len s
+    · rw [ite_eq_left hls] at hs1
+      have hls' : k.val < s.val.length := by
+        have : k.val < (alloc.vec.Vec.len s).val := hls
+        rwa [vec_len_val] at this
+      peel hs1 as i2, hi2
+      obtain ⟨_, rfl⟩ := vec_index_eq hi2
+      peel hs1 as i3, hi3
+      obtain ⟨_, rfl⟩ := vec_index_eq hi3
+      peel hs1 as p, hp
+      obtain ⟨_, back⟩ := p
+      obtain ⟨-, -, rfl⟩ := ConRon.Refine.HashMap.vec_index_mut_eq hp
+      peel hs1 as i4, hi4
+      simp only [lift, Result.ok.injEq] at hi4
+      subst hi4
+      cases Result.ok_injective hs1
+      rw [absChunk_set, absByte_or, unionStep, absChunk_get!, absChunk_get!]
+      simp only [hls', hlt', ↓reduceDIte]
+    · rw [ite_eq_right hls] at hs1
+      cases Result.ok_injective hs1
+      have hls' : s.val.length ≤ k.val := by
+        have : ¬ k.val < (alloc.vec.Vec.len s).val := hls
+        rw [vec_len_val] at this; omega
+      rw [unionStep, bytearray_set!_oob (by rw [absChunk_size']; exact hls')]
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have : k.val = t.val.length := by
+      have : ¬ k.val < (alloc.vec.Vec.len t).val := hlt
+      rw [vec_len_val] at this; omega
+    rw [hs]
+    exact nat_fold_congr _ _ this
+termination_by t.val.length - k.val
+decreasing_by
+  have : k.val < (alloc.vec.Vec.len t).val := hlt
+  rw [vec_len_val] at this
+  omega
+
+/-- **`mod_set_union` is `ModSet.union`.** -/
+theorem mod_set_union_eq {s t : alloc.vec.Vec Std.U8} {o} (h : mod_set_union s t = ok o) :
+    absChunk o = ModSet.union (absChunk s) (absChunk t) := by
+  rw [mod_set_union] at h
+  have := mod_set_union_loop_eq t s 0#usize (absChunk s) (Nat.zero_le _) rfl h
+  rw [this]
+  unfold ModSet.union
+  exact nat_fold_congr (unionStep (absChunk t)) _ (absChunk_size' t).symm
+
+end ModSet
+
 end ConRon.Refine2.Frontend.Olean
