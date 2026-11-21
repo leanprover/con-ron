@@ -2030,6 +2030,71 @@ theorem level_hdrs_refines (hfs : FsRel inst fsv fs) {st : arena.monad.AState} {
   have := level_hdrs_loop_ok hfs lvl st lst _ _ (acc := []) (by simp) hrel hinv a s' h
   simpa using this
 
+theorem level_fuel_val {x : Std.U64} (h : LEVEL_FUEL = ok x) : x.val = ConLeche.Driver.Graph.levelFuel := by
+  rw [LEVEL_FUEL] at h
+  have := (ConRon.Refine.Nat.ushiftLeftI_val h).2
+  rw [this]; decide
+
+theorem closure_levels_loop_ok (hfs : FsRel inst fsv fs) (f : Nat) (st : arena.monad.AState) (lst : AState)
+    (lvl : alloc.vec.Vec arena.handle.NIdx) (seen : ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
+    (out : alloc.vec.Vec (arena.handle.NIdx × alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)))
+    (fuel : Std.U64) (hf : fuel.val = f) {S : _root_.Std.HashSet NIdx} (hs : NSet seen S) :
+    AS pers (fun o C => absC o = C) st lst
+      (closure_levels_loop inst fsv pk pers st.store sp cmp lvl seen out fuel)
+      (Modular.closureLevels fs (absPins pk) (absRoots sp) (absCmp cmp) f (lvl.val.map absNIdx) S (absC out)) := by
+  intro hrel hinv a s' h
+  rw [closure_levels_loop] at h
+  by_cases hp : alloc.vec.Vec.len lvl > 0#usize
+  swap
+  · rw [ite_eq_right hp] at h
+    obtain ⟨h1, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+    cases h1
+    have : ¬ (0#usize : Std.Usize).val < (alloc.vec.Vec.len lvl).val := hp
+    have e : lvl.val = [] := by
+      rw [vec_len_val] at this; exact List.eq_nil_of_length_eq_zero (by simpa using this)
+    rw [e]
+    exact ⟨_, lst, by rw [List.map_nil, Modular.closureLevels]; rfl, rfl, hrel, hinv⟩
+  rw [ite_eq_left hp] at h
+  have hp' : 0 < lvl.val.length := by
+    have : (0#usize : Std.Usize).val < (alloc.vec.Vec.len lvl).val := hp
+    rw [vec_len_val] at this; simpa using this
+  obtain ⟨x, xs, hl⟩ : ∃ x xs, lvl.val.map absNIdx = x :: xs := by
+    cases hc : lvl.val with
+    | nil => rw [hc] at hp'; simp at hp'
+    | cons y ys => exact ⟨_, _, rfl⟩
+  by_cases h0 : fuel = 0#u64
+  · rw [ite_eq_left h0] at h
+    peel h as _s, -
+    peel h as _v, -
+    peel h as _ce, -
+    cases Result.ok_injective h
+  rw [ite_eq_right h0] at h
+  peel h as fuel1, hfuel1
+  have hfv : fuel1.val = f - 1 := by rw [fuel_pred hfuel1, hf]
+  have hfp : f ≠ 0 := by
+    intro hz; apply h0; apply UScalar.eq_of_val_eq; rw [hf, hz]; rfl
+  obtain ⟨f', rfl⟩ : ∃ f', f = f' + 1 := ⟨f - 1, by omega⟩
+  peel h as ⟨r, ar1⟩, hq
+  cases r with
+  | Err e => cases Result.ok_injective h
+  | Ok rs =>
+    obtain ⟨ys, lst1, hx, hR, hrel1, hinv1⟩ := level_hdrs_refines (cmp := cmp) hfs hrel hinv _ _ hq
+    peel h as ⟨seen1, out1, next⟩, hexp
+    obtain ⟨e1, e2, e3⟩ := expand_eq pk hs hexp
+    have ih := closure_levels_loop_ok hfs f' (withStore st ar1) lst1 next seen1 out1 fuel1 (by rw [hfv]; rfl)
+      e1 hrel1 hinv1 a s' h
+    rw [hl, Modular.closureLevels]
+    rw [← hl, am_bind_ok hx]
+    simp only [← hR] at e2 e3 e1 ⊢
+    have en : (absNs (alloc.vec.Vec.new arena.handle.NIdx)) = #[] := by simp
+    rw [en] at e2 e3 e1 ih
+    rw [← e2, ← e3]
+    have et : (absNs next).toList = next.val.map absNIdx := by simp
+    rw [et]
+    exact ih
+termination_by f
+decreasing_by omega
+
 end io
 
 end ConRon.Refine2.Modular
