@@ -1,3 +1,18 @@
+/-
+# `ConRon.Refine2.Modular.Worker` — `modular/worker.rs`: the own records and the roots
+
+**Task #166, Theorem 2.**  The worker's functions up to the reach, against their twins
+(`Arena/Modular/Worker.lean`).  The store-free ones are equations under the abstraction (a name
+set `HashMap2<NIdx, bool>` is `NSet`, the load's index by name `IdxRel`, a load's constants
+`List.Forall₂ CEntryRel`); `home_of` and `own_records` claim their accept (`AS`-style); the
+pin ground's reader walks are `UOut`/`UOutS` (`nat_op_ground`'s shapes); every other state
+walk is a lockstep `LS`.
+
+**Hypotheses, not theorems.**  `reach::record_reads` is lane L2's (a stub): `records_roots`,
+`own_roots`, `roots_at` take its Theorem 2 as `RecordReadsRel`.  `view::parse_all_views` and
+`module::check_views` have no Theorem 2 yet: `home_of_refines` takes theirs as `hPV`, `hCV`.
+`install::decl_names` had none either; it is proved here (`decl_names_ls`).
+-/
 import ConRon.Refine2.Frontend.Olean.Index
 import ConRon.Refine2.Frontend.Olean.Lazy
 import ConRon.Refine2.Frontend.Olean.EmitWalk
@@ -1301,5 +1316,388 @@ theorem own_roots_ls {pers st lst} (hRR : RecordReadsRel pers) (hrel : AStateRel
   have hG := ground_roots_ls hrel2 hinv2 pins hix hcs out _ _ hr2
   rw [eo, Array.foldl_toList] at hG
   cases r2 <;> (obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h); exact hG)
+
+/-! ## The records some name of which is loaded -/
+
+/-- **`loaded_rec` is `loadedRec`.** -/
+theorem loaded_rec_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {ix ix'} (hix : NameIndexRel ix ix') (d : arena.env.IDeclaration) :
+    LS pers (fun a b => b = a) (loaded_rec pers st ix d) lst (loadedRec ix' (absIDeclaration d)) := by
+  intro o st' h
+  rw [loaded_rec] at h
+  unfold loadedRec
+  refine lout_bind (decl_names_ls hrel hinv d) h (by errarm) ?_
+  rintro ns b s1 lst1 rfl hrel1 hinv1 h
+  obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  exact lout_pure hrel1 hinv1 (any_loaded_eq hix hb).symm
+
+/-- The twin's step of `recsLoaded`. -/
+def rlStep (ix : Arena.Frontend.Olean.NameIndex) (want : Bool) (out : _root_.Array IDeclaration)
+    (d : IDeclaration) : AM (_root_.Array IDeclaration) := do
+  if (← loadedRec ix d) == want then pure (out.push d) else pure out
+
+theorem recs_loaded_loop_ls {pers} {ix ix'} (hix : NameIndexRel ix ix')
+    (ds : alloc.vec.Vec arena.env.IDeclaration) (want : Bool) (i : Std.Usize) {st lst out}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absIDeclArr a) (recs_loaded_loop pers st ix ds want out i) lst
+      (((ds.val.drop i.val).map absIDeclaration).foldlM (rlStep ix' want) (absIDeclArr out)) := by
+  intro o st' h
+  rw [recs_loaded_loop] at h
+  by_cases hlt : i < alloc.vec.Vec.len ds
+  · rw [ite_eq_left hlt] at h
+    obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hi, rfl⟩ := vec_index_eq hd
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, List.foldlM_cons]
+    unfold rlStep
+    rw [bind_assoc]
+    refine lout_bind (loaded_rec_ls hrel hinv hix _) h (by errarm) ?_
+    rintro b b' s1 lst1 hbb hrel1 hinv1 h
+    rw [hbb]
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have ih := recs_loaded_loop_ls hix ds want i2 hrel1 hinv1 _ _ h
+    rw [usize_succ hi2] at ih
+    by_cases cw : b = want
+    · rw [ite_eq_left cw] at hout1
+      obtain ⟨d1, hd1, hout1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hout1
+      rw [ite_eq_left (by simp [cw]), pure_bind]
+      have e : absIDeclArr out1 = (absIDeclArr out).push (absIDeclaration ds.val[i.val]) := by
+        simp [absIDeclArr, ConRon.Refine.vec_push_val hout1, i_declaration_dup_abs hd1]
+      rw [← e]
+      exact ih
+    · rw [ite_eq_right cw] at hout1
+      cases Result.ok_injective hout1
+      rw [ite_eq_right (by simp [cw]), pure_bind]
+      exact ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    exact lout_pure hrel hinv rfl
+termination_by ds.val.length - i.val
+decreasing_by have := lt_len hlt; rw [usize_succ hi2]; omega
+
+/-- **`recs_loaded` is `recsLoaded`.** -/
+theorem recs_loaded_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {ix ix'} (hix : NameIndexRel ix ix') (ds : alloc.vec.Vec arena.env.IDeclaration) (want : Bool) :
+    LS pers (fun a b => b = absIDeclArr a) (recs_loaded pers st ix ds want) lst
+      (recsLoaded ix' (absIDeclArr ds) want) := by
+  have := recs_loaded_loop_ls hix ds want 0#usize (out := alloc.vec.Vec.new _) hrel hinv
+  simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at this
+  rw [recsLoaded, ← Array.foldlM_toList]
+  exact this
+
+theorem len_zero_iff {α β : Type} {x : alloc.vec.Vec α} {x' : _root_.Array β}
+    (hx : x.val.length = x'.size) : alloc.vec.Vec.len x = 0#usize ↔ x'.isEmpty = true := by
+  rw [Array.isEmpty_iff_size_eq_zero, ← hx]
+  constructor
+  · intro h
+    have := congrArg Std.UScalar.val h
+    rw [vec_len_val] at this
+    exact this
+  · intro h
+    have : (alloc.vec.Vec.len x).val = 0 := by rw [vec_len_val, h]
+    scalar_tac
+
+/-- **`own_recs` is `ownRecs`.** -/
+theorem own_recs_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {x : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)}
+    {x' : _root_.Array Arena.Frontend.Olean.ImportRec} (hx : x.val.length = x'.size)
+    {ix ix'} (hix : NameIndexRel ix ix') (ds : alloc.vec.Vec arena.env.IDeclaration) :
+    LS pers (fun a b => b = absIDeclArr a) (own_recs pers st x ix ds) lst
+      (ownRecs x' ix' (absIDeclArr ds)) := by
+  rw [own_recs, ownRecs]
+  by_cases h0 : alloc.vec.Vec.len x = 0#usize
+  · rw [ite_eq_left h0, ite_eq_left ((len_zero_iff hx).mp h0)]
+    intro o st' h
+    cases Result.ok_injective h
+    exact lout_pure hrel hinv rfl
+  · rw [ite_eq_right h0, ite_eq_right (fun e => h0 ((len_zero_iff hx).mpr e))]
+    exact recs_loaded_ls hrel hinv hix ds false
+
+/-- **`copy_recs` is `copyRecs`.** -/
+theorem copy_recs_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {x : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)}
+    {x' : _root_.Array Arena.Frontend.Olean.ImportRec} (hx : x.val.length = x'.size)
+    {ix ix'} (hix : NameIndexRel ix ix') (ds : alloc.vec.Vec arena.env.IDeclaration) :
+    LS pers (fun a b => b = absIDeclArr a) (copy_recs pers st x ix ds) lst
+      (copyRecs x' ix' (absIDeclArr ds)) := by
+  rw [copy_recs, copyRecs]
+  by_cases h0 : alloc.vec.Vec.len x = 0#usize
+  · rw [ite_eq_left h0, ite_eq_left ((len_zero_iff hx).mp h0)]
+    intro o st' h
+    cases Result.ok_injective h
+    exact lout_pure hrel hinv rfl
+  · rw [ite_eq_right h0, ite_eq_right (fun e => h0 ((len_zero_iff hx).mpr e))]
+    exact recs_loaded_ls hrel hinv hix ds true
+
+/-! ## `roots_at` -/
+
+theorem roots_at_loop0_loop0_eq (ns : alloc.vec.Vec arena.handle.NIdx) (k : Std.Usize) {out o}
+    (h : roots_at_loop0_loop0 out ns k = ok o) :
+    o.val.map absNIdx = out.val.map absNIdx ++ (ns.val.drop k.val).map absNIdx := by
+  rw [roots_at_loop0_loop0] at h
+  by_cases hlt : k < alloc.vec.Vec.len ns
+  · rw [ite_eq_left hlt] at h
+    peel h as n, hn
+    obtain ⟨hi, rfl⟩ := vec_index_eq hn
+    peel h as n1, hn1
+    cases nidx_dup2_ok hn1
+    peel h as out1, hout1
+    peel h as k1, hk1
+    have ih := roots_at_loop0_loop0_eq ns k1 h
+    rw [usize_succ hk1] at ih
+    rw [ih, ConRon.Refine.vec_push_val hout1, List.map_append, List.map_singleton,
+      List.append_assoc, List.singleton_append, ← List.map_cons, ← List.drop_eq_getElem_cons hi]
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    simp
+termination_by ns.val.length - k.val
+decreasing_by have := lt_len hlt; rw [usize_succ hk1]; omega
+
+/-- The twin's step of `rootsAt`'s copies. -/
+def raStep (out : _root_.Array NIdx) (d : IDeclaration) : AM (_root_.Array NIdx) := do
+  pure (out ++ (← declNames d).toArray)
+
+theorem roots_at_loop0_ls {pers} (copies : alloc.vec.Vec arena.env.IDeclaration) (i : Std.Usize)
+    {st lst out} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdxArr a) (roots_at_loop0 pers st out copies i) lst
+      (((copies.val.drop i.val).map absIDeclaration).foldlM raStep (absNIdxArr out)) := by
+  intro o st' h
+  rw [roots_at_loop0] at h
+  by_cases hlt : i < alloc.vec.Vec.len copies
+  · rw [ite_eq_left hlt] at h
+    obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hi, rfl⟩ := vec_index_eq hd
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, List.foldlM_cons]
+    unfold raStep
+    rw [bind_assoc]
+    refine lout_bind (decl_names_ls hrel hinv _) h (by errarm) ?_
+    rintro ns b s1 lst1 rfl hrel1 hinv1 h
+    simp only [pure_bind]
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have ih := roots_at_loop0_ls copies i3 hrel1 hinv1 _ _ h
+    have e1 := roots_at_loop0_loop0_eq ns 0#usize hout1
+    simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at e1
+    have e : absNIdxArr out1 = absNIdxArr out ++ (ns.val.map absNIdx).toArray := by
+      apply Array.ext'; simp [ConRon.Refine2.Frontend.absNIdxArr, e1]
+    rw [usize_succ hi3, e] at ih
+    exact ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    exact lout_pure hrel hinv rfl
+termination_by copies.val.length - i.val
+decreasing_by have := lt_len hlt; rw [usize_succ hi3]; omega
+
+/-- **`roots_at` is `rootsAt`**, given `record_reads`'s Theorem 2. -/
+theorem roots_at_ls {pers st lst} (hRR : RecordReadsRel pers) (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
+    {x : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)}
+    {x' : _root_.Array Arena.Frontend.Olean.ImportRec} (hx : x.val.length = x'.size)
+    {ix ix'} (hix : NameIndexRel ix ix') {cs : alloc.vec.Vec frontend.olean.lazy.CEntry}
+    {cs' : _root_.Array Arena.Frontend.Olean.CEntry} (hcs : List.Forall₂ CEntryRel cs.val cs'.toList)
+    (ds : alloc.vec.Vec arena.env.IDeclaration) :
+    LS pers (fun a b => b = absNIdxArr a) (roots_at pers st pins x ix cs ds) lst
+      (rootsAt (absINatOpPinSetL pins) x' ix' cs' (absIDeclArr ds)) := by
+  rw [roots_at, rootsAt]
+  by_cases h0 : alloc.vec.Vec.len x = 0#usize
+  · rw [ite_eq_left h0, ite_eq_left ((len_zero_iff hx).mp h0), bind_pure]
+    exact own_roots_ls hRR hrel hinv pins hix hcs ds
+  · rw [ite_eq_right h0, ite_eq_right (fun e => h0 ((len_zero_iff hx).mpr e))]
+    simp only [pure_bind]
+    intro o st' h
+    refine lout_bind (recs_loaded_ls hrel hinv hix ds false) h (by errarm) ?_
+    rintro own b s1 lst1 rfl hrel1 hinv1 h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hv' := unloaded_constants_rel hix hcs hv
+    refine lout_bind (own_roots_ls hRR hrel1 hinv1 pins hix hv' own) h (by errarm) ?_
+    rintro out b s2 lst2 rfl hrel2 hinv2 h
+    refine lout_bind (recs_loaded_ls hrel2 hinv2 hix ds true) h (by errarm) ?_
+    rintro copies b s3 lst3 rfl hrel3 hinv3 h
+    have := roots_at_loop0_ls copies 0#usize (out := out) hrel3 hinv3 _ _ h
+    simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at this
+    rw [← Array.foldlM_toList]
+    exact this
+
+/-! ## The context's names distinct -/
+
+theorem ctx_names_nodup_loop_ls {pers} (ctx : alloc.vec.Vec arena.env.IDeclaration) (i : Std.Usize)
+    {st lst s S} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hs : NSet s S) :
+    LS pers (fun a b => b = a) (ctx_names_nodup_loop pers st ctx s i) lst
+      (ctxNamesNodupGo S ((ctx.val.drop i.val).map absIDeclaration)) := by
+  intro o st' h
+  rw [ctx_names_nodup_loop] at h
+  by_cases hlt : i < alloc.vec.Vec.len ctx
+  · rw [ite_eq_left hlt] at h
+    obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hi, rfl⟩ := vec_index_eq hd
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, ctxNamesNodupGo]
+    refine lout_bind (decl_names_ls hrel hinv _) h (by errarm) ?_
+    rintro ns b s1 lst1 rfl hrel1 hinv1 h
+    obtain ⟨⟨ok1, s2⟩, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨e1, e2⟩ := names_nodup_go_eq hs hn
+    simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at e1 e2
+    rcases hp : namesNodupGo S (ns.val.map absNIdx) with ⟨ok', S'⟩
+    rw [hp] at e1 e2
+    simp only at e1 e2
+    subst e1
+    change (if ok1 = true then _ else _) = _ at h
+    change LOut pers (fun a b => b = a) o st' (StateT.run (if ok1 = true then
+      ctxNamesNodupGo S' ((ctx.val.drop (i.val + 1)).map absIDeclaration) else pure false) lst1)
+    by_cases cb : ok1 = true
+    · rw [ite_eq_left cb] at h
+      rw [ite_eq_left cb]
+      obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have ih := ctx_names_nodup_loop_ls ctx i3 hrel1 hinv1 e2 _ _ h
+      rw [usize_succ hi3] at ih
+      exact ih
+    · rw [ite_eq_right cb] at h
+      rw [ite_eq_right cb]
+      cases Result.ok_injective h
+      exact lout_pure hrel1 hinv1 (by simp at cb; simp)
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt), List.map_nil, ctxNamesNodupGo]
+    exact lout_pure hrel hinv rfl
+termination_by ctx.val.length - i.val
+decreasing_by have := lt_len hlt; rw [usize_succ hi3]; omega
+
+/-- **`ctx_names_nodup` is `ctxNamesNodup`.** -/
+theorem ctx_names_nodup_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (ctx : alloc.vec.Vec arena.env.IDeclaration) :
+    LS pers (fun a b => b = a) (ctx_names_nodup pers st ctx) lst (ctxNamesNodup (absIDeclArr ctx)) := by
+  intro o st' h
+  rw [ctx_names_nodup] at h
+  obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have := ctx_names_nodup_loop_ls ctx 0#usize hrel hinv (nset_empty hs) _ _ h
+  simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at this
+  simpa [ctxNamesNodup, absIDeclArr] using this
+
+/-! ## `OwnUses` as the hoist's `UsedConsts` -/
+
+/-- **The worker's `UsedConsts` instance is `ownUsesOf`**: a theorem the load indexes reads what
+the load read; any other record, its `usedConsts`. -/
+theorem own_uses_used_rel {u cs' at'} (hu : OwnUsesRel u cs' at') (pers : arena.store.PersTier) :
+    ConRon.Refine2.Frontend.UsedRel
+      frontend.modular.worker.OwnUses.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts u
+      (ownUsesOf cs' at') pers := by
+  intro rst lst d o hrel hinv h
+  have base : ∀ {o}, frontend.nat_op_ground.decl_used_consts pers rst d = ok o →
+      Sim₀ absNIdxArr pers lst o (ConRon.Arena.Frontend.IDeclaration.usedConsts (absIDeclaration d)) :=
+    fun h => ConRon.Refine2.Frontend.decl_used_consts_refines hrel hinv h
+  simp only [OwnUses.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts.used_consts] at h
+  cases d with
+  | ThmDecl cv v =>
+    obtain ⟨ou, hou, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have e := own_uses_thm_eq hu hou
+    simp only [absIDeclaration, ownUsesOf]
+    cases ou with
+    | none =>
+      have e' : ownUsesThm cs' at' (absIConstantVal cv).name = none := by
+        simp only [absIConstantVal]; rw [← e]; rfl
+      rw [e']
+      exact base h
+    | some w =>
+      have e' : ownUsesThm cs' at' (absIConstantVal cv).name = some (absNIdxArr w) := by
+        simp only [absIConstantVal]; rw [← e]; rfl
+      rw [e']
+      cases Result.ok_injective h
+      exact ⟨lst, rfl, hrel, hinv⟩
+  | AxiomDecl cv => exact base h
+  | DefnDecl cv v hint => exact base h
+  | OpaqueDecl cv v => exact base h
+  | IndDecl b n => exact base h
+  | QuotDecl k cv => exact base h
+
+/-! ## The own records and the home -/
+
+/-- **`own_records`' accept is `ownRecords`'**: the loaded constants, unsafe and partial ones left
+out, their groups checked, emitted, read back. -/
+theorem own_records_refines {pk : frontend.olean.spec.OleanPins} {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {l : frontend.olean.lazy.Loaded} {l' : Arena.Frontend.Olean.Loaded} (hl : LoadedRel l l') {o ar'}
+    (h : own_records pk pers st.store l = ok (.Ok o, ar')) :
+    ∃ lst', (ownRecords (absPins pk) l').run lst = .ok (.ok (absIDeclArr o), lst') ∧ ar' = st.store ∧
+      AStateRel₀ pers st lst' ∧ AStateInv pers st := by
+  rw [own_records] at h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨mg, hmg, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hM := merged_of_list_rel (unskipped_rel hl.constants hv) hmg
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+  | Ok u =>
+  obtain ⟨b, hB, -⟩ := blocks_ok_pr hM _ hr lst
+  obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r1 with
+  | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+  | Ok em =>
+  obtain ⟨lem, hE, hER⟩ := emit_all_rel hM hM.order _ hr1 lst
+  obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r2 with
+  | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+  | Ok p =>
+  obtain ⟨h1, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+  cases h1
+  obtain ⟨w, lst', hD, hPR, hrel', hinv'⟩ := decls_of_rel hrel hinv hER hr2
+  refine ⟨lst', ?_, rfl, hrel', hinv'⟩
+  unfold ownRecords
+  rw [am_bind_ok hB, am_bind_ok hE, am_bind_ok hD]
+  show (pure (Except.ok w.decls) : AM _).run lst' = _
+  rw [hPR.decls]
+  rfl
+
+/-- **`home_of`'s accept is `homeOf`'s**, given the Theorem 2 of the two reads `parse_all_views`
+and `check_views` (neither has one yet): the private view loaded, its parts checked. -/
+theorem home_of_refines {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
+    {m : arena.handle.NIdx} {f : frontend.olean.view.ModFiles} {f' : ConLeche.Frontend.Olean.ModFiles}
+    (hf : ModFilesRel f f') {VR : frontend.olean.view.AllViews → Arena.Frontend.Olean.AllViews → Prop}
+    {ER : alloc.vec.Vec frontend.olean.module.Expo → _root_.Array ConLeche.Frontend.Olean.Expo → Prop}
+    (hPV : ∀ st lst, AR pers VR st lst (frontend.olean.view.parse_all_views pk pers st.store f)
+      (Arena.Frontend.Olean.parseAllViews (absPins pk) f'))
+    (hCV : ∀ st lst v v', VR v v' → AS pers ER st lst
+      (frontend.olean.module.check_views pk pers st.store m f v)
+      (do Arena.Frontend.Olean.checkViews (absPins pk) (← readName (absNIdx m)) f' v'))
+    {st lst} :
+    AS pers (fun a b => LoadedRel a.1 b.1 ∧ ER a.2 b.2) st lst (home_of pk pers st.store m f)
+      (homeOf (absPins pk) (absNIdx m) f') := by
+  intro hrel hinv a s' h
+  rw [home_of] at h
+  obtain ⟨⟨r, ar1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+  | Ok l =>
+  obtain ⟨l', lst1, hx1, hL, hrel1, hinv1⟩ := load_view_refines hf hrel hinv l ar1 h1
+  obtain ⟨⟨r1, ar2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r1 with
+  | Err re =>
+    cases re with
+    | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+    | Bad =>
+      obtain ⟨⟨r2, ar3⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      cases r2 with
+      | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+      | Ok lv =>
+        obtain ⟨⟨ce, ar4⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        cases (Prod.mk.inj (Result.ok_injective h)).1
+  | Ok v =>
+  obtain ⟨v', lst2, hx2, hV, hrel2, hinv2⟩ := hPV _ _ hrel1 hinv1 v ar2 h2
+  obtain ⟨⟨r2, ar3⟩, h3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r2 with
+  | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+  | Ok expo =>
+  obtain ⟨h4, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+  cases h4
+  obtain ⟨e', lst3, hx3, hE, hrel3, hinv3⟩ := hCV _ _ v v' hV hrel2 hinv2 expo ar3 h3
+  refine ⟨(l', e'), lst3, ?_, ⟨hL, hE⟩, hrel3, hinv3⟩
+  have hx1' : (Arena.Frontend.Olean.loadView (absPins pk) 0 (absNIdx m) f').run lst = .ok (l', lst1) := hx1
+  unfold homeOf
+  rw [am_bind_ok hx1', am_bind_ok hx2]
+  simp only
+  rw [← bind_assoc, am_bind_ok hx3]
+  rfl
 
 end ConRon.Refine2.Modular

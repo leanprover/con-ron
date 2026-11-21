@@ -30,12 +30,13 @@ open ConLeche.Frontend.Olean (Expo OLeanLevel Roots)
 
 /-- con-leche: ConLeche/Frontend/Olean/Files.lean:385-394 homeOf
 **A module's home**: its private view loaded (`loadView` at module index 0) and its three
-parts checked against each other (`checkViews`, over the views parsed whole). -/
+parts checked against each other (`checkViews`, over the views parsed whole).  The module's
+name is read where the Rust reads it: by the check and by the failure. -/
 def homeOf (pk : OleanPins) (m : NIdx) (f : ConLeche.Frontend.Olean.ModFiles) : AM (Loaded × Array Expo) := do
   let l ← loadView pk 0 m f
-  let mn ← readName m
   match ← parseAllViews pk f with
   | none =>
+    let mn ← readName m
     let level ←
       match ← parseView pk f .exported with
       | none => pure OLeanLevel.exported
@@ -45,7 +46,7 @@ def homeOf (pk : OleanPins) (m : NIdx) (f : ConLeche.Frontend.Olean.ModFiles) : 
         | some _ => pure OLeanLevel.private
     fail (← viewError pk mn f level)
   | some v =>
-    let expo ← checkViews pk mn f v
+    let expo ← checkViews pk (← readName m) f v
     pure (l, expo)
 
 /-- con-leche: ConLeche/Driver/Worker.lean:44-51 ownRecords
