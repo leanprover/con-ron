@@ -401,4 +401,173 @@ theorem inferAll_run {owner : Std.HashMap NIdx Nat} {n : Nat}
 
 end Infer
 
+/-! ## The owner map, and the whole inference -/
+
+/-- One record's names inserted where absent: related maps stay related. -/
+theorem insertFirst_rel {st : EStore} (hw : NStoreWF st.ns) (j : Nat) :
+    ∀ (ns : List NIdx) (xs : List ConLeche.Name) {M : Std.HashMap NIdx Nat}
+      {MC : Std.HashMap ConLeche.Name Nat}, Frontend.denoteNList st.ns ns = some xs →
+      HMRel (· = ·) st M MC →
+      HMRel (· = ·) st (ns.foldl (fun m n => if m.contains n then m else m.insert n j) M)
+        (xs.foldl (fun m y => if m.contains y then m else m.insert y j) MC)
+  | [], xs, M, MC, h, hr => by
+    simp only [Frontend.denoteNList, Option.some.injEq] at h
+    subst h; exact hr
+  | n :: ns, xs, M, MC, h, hr => by
+    simp only [Frontend.denoteNList] at h
+    cases h1 : denoteN st.ns n with
+    | none => rw [h1] at h; simp at h
+    | some x =>
+    cases h2 : Frontend.denoteNList st.ns ns with
+    | none => rw [h1, h2] at h; simp at h
+    | some xs' =>
+    rw [h1, h2] at h
+    obtain rfl := (Option.some.inj h).symm
+    have hc : M.contains n = MC.contains x := by
+      rw [Std.HashMap.contains_eq_isSome_getElem?, Std.HashMap.contains_eq_isSome_getElem?,
+        hr.get_eq hw h1]
+    simp only [List.foldl_cons, hc]
+    split
+    · exact insertFirst_rel hw j ns xs' h2 hr
+    · exact insertFirst_rel hw j ns xs' h2 (hr.insert hw h1 rfl)
+
+theorem firstOwnerGo_run :
+    ∀ (ds : List IDeclaration) (dsC : List Declaration) (j : Nat)
+      (M : Std.HashMap NIdx Nat) (MC : Std.HashMap ConLeche.Name Nat)
+      {s s' : AState} {r : Std.HashMap NIdx Nat × Nat},
+      DriverOK s →
+      denoteDecls s.store ds = some dsC → HMRel (· = ·) s.store M MC →
+      ds.foldlM (m := AM) (fun (acc : Std.HashMap NIdx Nat × Nat) d => do
+        let ns ← ConRon.Arena.Modular.declNames d
+        pure (ns.foldl (fun m n => if m.contains n then m else m.insert n acc.2) acc.1,
+          acc.2 + 1)) (M, j) s = .ok (r, s') →
+      CStep s s' ∧ HMRel (· = ·) s'.store r.1 (firstOwnerC dsC j MC)
+  | [], dsC, j, M, MC, s, s', r, hok, hd, hr, h => by
+    simp only [denoteDecls, Option.some.injEq] at hd
+    subst hd
+    simp only [List.foldlM_nil] at h
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h
+    exact ⟨CStep.refl hok, hr⟩
+  | d :: ds, dsC, j, M, MC, s, s', r, hok, hd, hr, h => by
+    simp only [denoteDecls] at hd
+    cases h1 : Frontend.denoteDecl s.store d with
+    | none => rw [h1] at hd; simp at hd
+    | some x =>
+    cases h2 : denoteDecls s.store ds with
+    | none => rw [h1, h2] at hd; simp at hd
+    | some xs =>
+    rw [h1, h2] at hd
+    obtain rfl := (Option.some.inj hd).symm
+    simp only [List.foldlM_cons] at h
+    obtain ⟨acc, s₁, k1, k2⟩ := AM.bind_ok h
+    obtain ⟨ns, s₂, k3, k4⟩ := AM.bind_ok k1
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok k4
+    obtain ⟨c1, hns⟩ := declNames_run hok h1 k3
+    have hw := nsWF_of_StateOK c1.ok.state
+    have hr₁ := insertFirst_rel hw j ns _ hns (hr.ext c1.ext (fun _ _ h => h))
+    obtain ⟨c2, hr₂⟩ := firstOwnerGo_run ds xs (j + 1) _ _ c1.ok
+      (denoteDecls_ext c1.ext _ _ h2) hr₁ k2
+    exact ⟨c1.trans c2, hr₂⟩
+
+theorem firstOwner_run {s s' : AState} {ds : List IDeclaration} {dsC : List Declaration}
+    {M : Std.HashMap NIdx Nat} (hok : DriverOK s) (hd : denoteDecls s.store ds = some dsC)
+    (h : ConRon.Arena.Modular.firstOwner ds s = .ok (M, s')) :
+    CStep s s' ∧ HMRel (· = ·) s'.store M (firstOwnerC dsC 0 {}) := by
+  simp only [ConRon.Arena.Modular.firstOwner] at h
+  obtain ⟨r, s₁, h1, h2⟩ := AM.bind_ok h
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
+  exact firstOwnerGo_run ds dsC 0 {} {} hok hd (HMRel.empty _ _) h1
+
+theorem denoteDecls_pext' {st st' : EStore} (hx : PExt st st') :
+    ∀ {ds : List IDeclaration} {dsC : List Declaration}, (∀ d ∈ ds, PersDecl d) →
+      denoteDecls st ds = some dsC → denoteDecls st' ds = some dsC
+  | [], dsC, _, h => h
+  | d :: ds, dsC, hp, h => by
+    simp only [denoteDecls] at h ⊢
+    cases h1 : Frontend.denoteDecl st d with
+    | none => rw [h1] at h; simp at h
+    | some x =>
+    cases h2 : denoteDecls st ds with
+    | none => rw [h1, h2] at h; simp at h
+    | some xs =>
+    rw [h1, h2] at h
+    rw [denoteDecl_pext hx (hp d (List.mem_cons_self ..)) h1,
+      denoteDecls_pext' hx (fun d hd => hp d (List.mem_cons_of_mem _ hd)) h2]
+    exact h
+
+/-- con-leche: ConLeche/Driver/Reach.lean:850-865 inferFlags — **THEOREM 1 OF THE INFERRED
+FLAGS**: the twin's inference accepting, from a worker's state at the frozen index `I` of the
+context's records followed by the own records, is `soundFlags` accepting the denoted context and
+statements — the inference con-ron supplies to upstream's `WorkerFacts.reach`, sound by
+`soundFlags_ok`.  `s₁` is the driver's state the index was built from (`buildIndex_run`'s);
+`hpre`, every prefix of the context well formed with distinct names, is upstream's `worker_ctx`
+of the context. -/
+theorem inferFlags_run {s₁ : AState} {I : IStreamIndex} {ctxC ownC : List Declaration}
+    (hk : CoreSpec Arena.checkFuel)
+    (hpinsOK : PinsOK s₁) (hpersPins : PersPins s₁) (hwf₁ : StoreWF s₁.store)
+    (hoff₁ : s₁.store.scratchOn = false)
+    (hI : IndexDenotes s₁.store I (ConLeche.Cached.buildIndex (ctxC ++ ownC).toArray))
+    (hpI : PersIFBase I.base)
+    (hpre : ∀ k ≤ ctxC.length, ConLeche.EnvWF (ConLeche.streamEnv (ctxC.take k)) ∧
+      ((ConLeche.Cached.recsConsts (ctxC.take k)).map (·.name)).Nodup)
+    {ctx : Array IDeclaration} (hpd : ∀ d ∈ ctx.toList, PersDecl d)
+    (hctx : denoteDecls s₁.store ctx.toList = some ctxC)
+    {pending : Array (String × NIdx × ConRon.Arena.Frontend.Olean.StmtRec)}
+    {pendC : List (String × ConLeche.Name × ConstantVal)}
+    (hpend : ListRel (PendRel s₁.store) pending.toList pendC)
+    {w w' : AState} (hw : WorkerOK s₁ w)
+    (h : ConRon.Arena.Modular.inferFlags I ctx pending w = .ok ((), w')) :
+    WorkerOK s₁ w' ∧ soundFlags ctxC pendC = .ok () := by
+  unfold ConRon.Arena.Modular.inferFlags at h
+  by_cases he : pending.isEmpty = true
+  · simp only [he, ↓reduceIte] at h
+    obtain ⟨-, rfl⟩ := AM.pure_ok h
+    have : pending.toList = [] := by simpa using he
+    rw [this] at hpend
+    cases hpend
+    exact ⟨hw, soundFlags_of (fun _ h => nomatch h)⟩
+  simp only [he, Bool.false_eq_true, ↓reduceIte, pure_bind] at h
+  simp only [Bind.bind, StateT.bind, Except.bind] at h
+  have henter : enterScratch w =
+      .ok ((), AState.mk w.store.enableScratch Memos.empty w.caches w.pins) := rfl
+  generalize hsj : AState.mk w.store.enableScratch Memos.empty w.caches w.pins = sj at henter
+  rw [henter] at h
+  simp only at h
+  have hxj : PExt s₁.store sj.store := by
+    rw [← hsj]; exact hw.pext.trans (PExt.enterScratch hw.state.wf)
+  have hwj : WorkerOK s₁ sj :=
+    { state := by rw [← hsj]; exact ⟨EStore.enableScratch_wf hw.state.wf⟩
+      pext := hxj
+      caches := by rw [← hsj]; exact hw.caches
+      pins := by rw [← hsj]; exact hw.pins }
+  cases hfo : ConRon.Arena.Modular.firstOwner ctx.toList sj with
+  | error e => rw [hfo] at h; exact nomatch h
+  | ok r =>
+    obtain ⟨owner, s'⟩ := r
+    rw [hfo] at h
+    simp only at h
+    obtain ⟨c1, hown⟩ := firstOwner_run (driverOK_of_worker hpinsOK hpersPins hwj)
+      (denoteDecls_pext' hxj hpd hctx) hfo
+    have hdrop : dropScratch s' =
+        .ok ((), AState.mk s'.store.dropScratch s'.memos Caches.empty s'.pins) := rfl
+    rw [hdrop] at h
+    simp only at h
+    have hw2 : WorkerOK s₁ (AState.mk s'.store.dropScratch s'.memos Caches.empty s'.pins) :=
+      { state := ⟨EStore.dropScratch_wf c1.ok.state.wf⟩
+        pext := (hxj.trans (PExt.of_ext c1.ext)).trans (PExt.dropScratch c1.ok.state.wf)
+        caches := rfl
+        pins := c1.pins.trans hwj.pins }
+    have hlen : ctx.size = ctxC.length := by simpa using denoteDecls_length hctx
+    have hpos : ∀ (y : NIdx) (yC : ConLeche.Name), denoteN s₁.store.ns y = some yC →
+        ConRon.Arena.Modular.partPos owner ctx.size y =
+          ctxC.findIdx (fun d => (ConLeche.Modular.declNames d).contains yC) := by
+      intro y yC hy
+      have hy' : denoteN s'.store.ns y = some yC :=
+        denoteN_ext (denoteN_pext hxj (Frontend.PersN_of_denote hwf₁ hoff₁ hy) hy) c1.ext
+      simp only [ConRon.Arena.Modular.partPos]
+      rw [hown.get_eq (nsWF_of_StateOK c1.ok.state) hy', hlen, firstOwnerC_getD]
+    obtain ⟨hw', hall⟩ := inferAll_run hk hpinsOK hpersPins hwf₁ hoff₁ hI hpI hpre hpos hw2
+      hpend h
+    exact ⟨hw', soundFlags_of hall⟩
+
 end ConRon.Bridge.Modular
