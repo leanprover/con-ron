@@ -13,7 +13,7 @@ The assembly, one theorem per step:
 | the index denotes con-leche's | `Bridge/Checker/Index.lean`'s `buildIndex_run` (with `constsSpec`, `tablesSpec`) |
 | every job passing is the fold | `Bridge/Checker/Pooled.lean`'s `pooled_fold` |
 | a record's check is the fold's step | `recordSpec`: `Arena.checkDecl_bridge` and the `And` pin's frame |
-| the step pushes what the record says | `Bridge/Checker/Pushes.lean`'s `checkDecl_pushes`, `checkDecl_fresh` |
+| the step pushes what the record says | con-leche's `checkDecl_pushes`, `checkDecl_fresh` (`Verify/Cached/PureRun.lean`) |
 
 `Arena.pooledOleanAccepts_bridge` is the same on an `--olean` run (`Arena.PooledOleanAccepts`):
 the fold accepts the FILLED stream, every theorem's reference replaced by the value its job
@@ -26,7 +26,7 @@ public import ConRon.Bridge.Checker.PooledOleans
 public import ConRon.Bridge.Checker.Index
 import ConRon.Bridge.Checker.Fold
 public import ConRon.Bridge.Checker.Hyp
-import ConRon.Bridge.Checker.Pushes
+import ConLeche.Verify.Cached.PureRun
 import ConRon.Bridge.Checker.Basis
 import ConRon.Bridge.Checker.Install
 import ConRon.Bridge.Frontend.Rel
@@ -43,7 +43,7 @@ open ConLeche ConRon.Arena
 /-- con-leche: ConLeche/Verify/Cached/DeclPushes.lean:710 checkDeclStepC_pushes — the pure
 kernel's pushes and freshness, as `Pooled.lean` takes them. -/
 theorem kernelPushes (pinsP : List NatOpPinSet) : KernelPushes pinsP :=
-  fun h => ⟨checkDecl_pushes h, checkDecl_fresh h⟩
+  fun h => ⟨ConLeche.Cached.checkDecl_pushes h, ConLeche.Cached.checkDecl_fresh h⟩
 
 /-- con-leche: ConLeche/Cached/StreamIndex.lean:95-104 recordJob — **a record's check at its view
 is con-leche's step**: the `And` pin moves the store and nothing the check reads

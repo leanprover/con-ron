@@ -258,7 +258,7 @@ check at the input index and acted on after it).  `checkDeclKind`'s
 arm) — **THE INDUCTIVES TIER'S THEOREM, as this tier's hypothesis**.
 
 What the route's environment becomes is not a clause: con-leche's `checkDecl`
-pushes what the declaration says (`Bridge/Checker/Pushes.lean`), the job's
+pushes what the declaration says (con-leche's `checkDecl_pushes`, `Verify/Cached/PureRun.lean`), the job's
 environment is dropped with its scratch tier, and the next record checks at
 its own view of the stream's index.  No fold theorem reads `IndSpec`; they pass
 it down to `checkDeclKind_bridge_ind`, and `Bridge/Inductives/Decl.lean`'s
