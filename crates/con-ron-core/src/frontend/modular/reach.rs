@@ -92,7 +92,7 @@ use crate::ron::hashmap2::HashMap2;
 // What a record reads
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Driver/Reach.lean:91-95 recordReads
+/// con-leche: ConLeche/Driver/Reach.lean:90-94 recordReads
 /// The constants' laws' names, in order.
 pub fn record_reads_consts(pers: &PersTier, st: &mut AState, x: NeedsSt, cs: &Vec<IConstantInfo>) -> Result<NeedsSt, CheckError> {
     let mut x = x;
@@ -107,7 +107,7 @@ pub fn record_reads_consts(pers: &PersTier, st: &mut AState, x: NeedsSt, cs: &Ve
     Ok(x)
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:91-95 recordReads
+/// con-leche: ConLeche/Driver/Reach.lean:90-94 recordReads
 /// The tables' names, in order.
 pub fn record_reads_tables(pers: &PersTier, st: &mut AState, x: NeedsSt, ts: &Vec<IProjTable>) -> Result<NeedsSt, CheckError> {
     let mut x = x;
@@ -122,7 +122,7 @@ pub fn record_reads_tables(pers: &PersTier, st: &mut AState, x: NeedsSt, ts: &Ve
     Ok(x)
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:91-95 recordReads
+/// con-leche: ConLeche/Driver/Reach.lean:90-94 recordReads
 /// **What a record reads**: its constants' laws' names and its tables', each
 /// expression's DAG walked once.
 pub fn record_reads(pers: &PersTier, st: &mut AState, d: &IDeclaration) -> Result<Vec<NIdx>, CheckError> {
@@ -143,7 +143,7 @@ pub fn record_reads(pers: &PersTier, st: &mut AState, d: &IDeclaration) -> Resul
     }
 }
 
-/// con-leche: ConLeche/Modular.lean:95-96 declNames
+/// con-leche: ConLeche/Modular.lean:98-99 declNames
 /// **The names a record installs**: its constants' names.
 pub fn decl_names(pers: &PersTier, st: &mut AState, d: &IDeclaration) -> Result<Vec<NIdx>, CheckError> {
     match decl_constants(pers, st, d) {
@@ -164,7 +164,7 @@ pub fn decl_names(pers: &PersTier, st: &mut AState, d: &IDeclaration) -> Result<
 // The validation of a record
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Driver/Reach.lean:105-108 exprOk
+/// con-leche: ConLeche/Driver/Reach.lean:104-107 exprOk
 /// **An expression's syntactic clauses**: no free variable, no loose bound
 /// variable at or past `k`, every level parameter among `lps`.
 pub fn expr_ok(pers: &PersTier, st: &mut AState, lps: &Vec<NIdx>, k: u64, e: &EIdx) -> Result<bool, CheckError> {
@@ -179,7 +179,7 @@ pub fn expr_ok(pers: &PersTier, st: &mut AState, lps: &Vec<NIdx>, k: u64, e: &EI
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:110-123 nestedOk
+/// con-leche: ConLeche/Driver/Reach.lean:109-122 nestedOk
 /// `lvls.all (·.allParamsDefined lps)`, at the parameters read back.
 pub fn levels_defined(pers: &PersTier, st: &mut AState, ps: &Vec<name::Name>, lvls: &Vec<LIdx>) -> Result<bool, CheckError> {
     let mut i = 0usize;
@@ -197,7 +197,7 @@ pub fn levels_defined(pers: &PersTier, st: &mut AState, ps: &Vec<name::Name>, lv
     Ok(true)
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:110-123 nestedOk
+/// con-leche: ConLeche/Driver/Reach.lean:109-122 nestedOk
 /// `es.all (exprOk lps k)`.
 pub fn exprs_ok(pers: &PersTier, st: &mut AState, lps: &Vec<NIdx>, k: u64, es: &Vec<EIdx>) -> Result<bool, CheckError> {
     let mut i = 0usize;
@@ -212,7 +212,7 @@ pub fn exprs_ok(pers: &PersTier, st: &mut AState, lps: &Vec<NIdx>, k: u64, es: &
     Ok(true)
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:110-123 nestedOk
+/// con-leche: ConLeche/Driver/Reach.lean:109-122 nestedOk
 /// **A nested rule's datum reads off its recursor's type**: the major's domain
 /// is the class's inductive at the rule's levels, applied to the pins lifted
 /// past the index binders and then to the index variables (the kernel's
@@ -243,7 +243,7 @@ pub fn nested_ok(pers: &PersTier, st: &mut AState, lps: &Vec<NIdx>, ty: &EIdx, m
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:125-131 ruleOk
+/// con-leche: ConLeche/Driver/Reach.lean:124-130 ruleOk
 /// A recursor rule's clauses: its right-hand side, what it binds, and its datum
 /// if nested.
 pub fn rule_ok(pers: &PersTier, st: &mut AState, lps: &Vec<NIdx>, ty: &EIdx, m_i: u64, r_p: u64, r: &IRecRule) -> Result<bool, CheckError> {
@@ -267,7 +267,7 @@ pub fn rule_ok(pers: &PersTier, st: &mut AState, lps: &Vec<NIdx>, ty: &EIdx, m_i
     nested_ok(pers, st, lps, ty, m_i, r_p, &r.fire)
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:140-148 constOk
+/// con-leche: ConLeche/Driver/Reach.lean:139-147 constOk
 /// `rules.all (ruleOk lps ty mI rP)`.
 pub fn rules_ok(pers: &PersTier, st: &mut AState, lps: &Vec<NIdx>, ty: &EIdx, m_i: u64, r_p: u64, rules: &Vec<IRecRule>) -> Result<bool, CheckError> {
     let mut i = 0usize;
@@ -282,7 +282,7 @@ pub fn rules_ok(pers: &PersTier, st: &mut AState, lps: &Vec<NIdx>, ty: &EIdx, m_
     Ok(true)
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:133-138 ctorHeadOk
+/// con-leche: ConLeche/Driver/Reach.lean:132-137 ctorHeadOk
 /// **A constructor's stored family is the one its type concludes in**.
 pub fn ctor_head_ok(pers: &PersTier, st: &mut AState, cv: &IConstantVal, induct: &NIdx) -> Result<bool, CheckError> {
     match expr_ops::pi_result(pers, st, CORE_WALK_FUEL, &cv.ty) {
@@ -303,7 +303,7 @@ pub fn ctor_head_ok(pers: &PersTier, st: &mut AState, cv: &IConstantVal, induct:
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:140-148 constOk
+/// con-leche: ConLeche/Driver/Reach.lean:139-147 constOk
 /// **A constant's syntactic clauses**: its type; a definition's value; a
 /// recursor's rules; a constructor's family.
 pub fn const_ok(pers: &PersTier, st: &mut AState, c: &IConstantInfo) -> Result<bool, CheckError> {
@@ -329,7 +329,7 @@ pub fn const_ok(pers: &PersTier, st: &mut AState, c: &IConstantInfo) -> Result<b
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:150-153 tableOk
+/// con-leche: ConLeche/Driver/Reach.lean:149-152 tableOk
 /// **A table's syntactic clauses**: one body per field, each scoped at the
 /// parameters and the subject.
 pub fn table_ok(pers: &PersTier, st: &mut AState, t: &IProjTable) -> Result<bool, CheckError> {
@@ -342,7 +342,7 @@ pub fn table_ok(pers: &PersTier, st: &mut AState, t: &IProjTable) -> Result<bool
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:155-158 recordOk
+/// con-leche: ConLeche/Driver/Reach.lean:154-157 recordOk
 /// `(declConstants d).all (fun c => constOk c && litShapeOk c)`.
 pub fn consts_ok(pers: &PersTier, st: &mut AState, cs: &Vec<IConstantInfo>) -> Result<bool, CheckError> {
     let mut i = 0usize;
@@ -362,7 +362,7 @@ pub fn consts_ok(pers: &PersTier, st: &mut AState, cs: &Vec<IConstantInfo>) -> R
     Ok(true)
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:155-158 recordOk
+/// con-leche: ConLeche/Driver/Reach.lean:154-157 recordOk
 /// `(declTables d).all tableOk`.
 pub fn tables_ok(pers: &PersTier, st: &mut AState, ts: &Vec<IProjTable>) -> Result<bool, CheckError> {
     let mut i = 0usize;
@@ -377,7 +377,7 @@ pub fn tables_ok(pers: &PersTier, st: &mut AState, ts: &Vec<IProjTable>) -> Resu
     Ok(true)
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:155-158 recordOk
+/// con-leche: ConLeche/Driver/Reach.lean:154-157 recordOk
 /// **A record validated**: every constant it installs and every table, with the
 /// shape a literal's name asks.
 pub fn record_ok(pers: &PersTier, st: &mut AState, d: &IDeclaration) -> Result<bool, CheckError> {
@@ -398,14 +398,14 @@ pub fn record_ok(pers: &PersTier, st: &mut AState, d: &IDeclaration) -> Result<b
 // The reach's reads
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Driver/Reach.lean:164-168 PartKey
+/// con-leche: ConLeche/Driver/Reach.lean:163-167 PartKey
 /// **A part of a view**: a module and a level.
 pub struct PartKey {
     pub module: NIdx,
     pub level: OLeanLevel,
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:164-168 PartKey
+/// con-leche: ConLeche/Driver/Reach.lean:163-167 PartKey
 /// `OLeanLevel`'s derived `Hashable`'s word: the constructor's index.
 pub fn level_index(l: &OLeanLevel) -> u64 {
     match l {
@@ -415,7 +415,7 @@ pub fn level_index(l: &OLeanLevel) -> u64 {
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:164-168 PartKey
+/// con-leche: ConLeche/Driver/Reach.lean:163-167 PartKey
 /// A level, copied.
 pub fn level_dup(l: &OLeanLevel) -> OLeanLevel {
     match l {
@@ -425,40 +425,40 @@ pub fn level_dup(l: &OLeanLevel) -> OLeanLevel {
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:164-168 PartKey
+/// con-leche: ConLeche/Driver/Reach.lean:163-167 PartKey
 /// The derived `Hashable`: `mixHash` over the fields.
 impl Hashable for PartKey {
-    /// con-leche: ConLeche/Driver/Reach.lean:164-168 PartKey
+    /// con-leche: ConLeche/Driver/Reach.lean:163-167 PartKey
     fn hash64(&self) -> u64 {
         name::mix_hash(self.module.hash64(), name::nat_hash(level_index(&self.level)))
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:164-168 PartKey
+/// con-leche: ConLeche/Driver/Reach.lean:163-167 PartKey
 /// The derived `BEq`.
 impl Eq2 for PartKey {
-    /// con-leche: ConLeche/Driver/Reach.lean:164-168 PartKey
+    /// con-leche: ConLeche/Driver/Reach.lean:163-167 PartKey
     fn eq2(&self, other: &PartKey) -> bool {
         self.module.eq2(&other.module) && level_index(&self.level) == level_index(&other.level)
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:164-168 PartKey
+/// con-leche: ConLeche/Driver/Reach.lean:163-167 PartKey
 /// A part key, copied.
 impl Dup for PartKey {
-    /// con-leche: ConLeche/Driver/Reach.lean:164-168 PartKey
+    /// con-leche: ConLeche/Driver/Reach.lean:163-167 PartKey
     fn dup2(&self) -> PartKey {
         PartKey { module: self.module.dup2(), level: level_dup(&self.level) }
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:164-168 PartKey
+/// con-leche: ConLeche/Driver/Reach.lean:163-167 PartKey
 /// The key of a module's private part.
 pub fn priv_key(m: &NIdx) -> PartKey {
     PartKey { module: m.dup2(), level: OLeanLevel::Private }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:170-173 Spot
+/// con-leche: ConLeche/Driver/Reach.lean:169-172 Spot
 /// **A copy of a name**: the part holding it and its name position there.
 pub struct Spot {
     pub part: PartKey,
@@ -471,13 +471,13 @@ pub fn name_position_dup(q: &NamePosition) -> NamePosition {
     NamePosition { loc: q.loc, name: q.name.dup2(), tag: q.tag, skipped: q.skipped }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:170-173 Spot
+/// con-leche: ConLeche/Driver/Reach.lean:169-172 Spot
 /// A spot, copied.
 pub fn spot_dup(s: &Spot) -> Spot {
     Spot { part: s.part.dup2(), pos: name_position_dup(&s.pos) }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:175-186 ReachEnv
+/// con-leche: ConLeche/Driver/Reach.lean:174-185 ReachEnv
 /// What the reach reads its records with, fixed for the run: the module whose
 /// context it is and every copy of each clashing name with its module and
 /// statement.  Upstream's `wr` and `own` are parameters of their own beside it
@@ -488,7 +488,7 @@ pub struct ReachEnv {
     pub copies: HashMap2<NIdx, Vec<(NIdx, StmtRec)>>,
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:188-212 ReachCache
+/// con-leche: ConLeche/Driver/Reach.lean:187-211 ReachCache
 /// A part's files, its view's bytes and region, and its memo (upstream's
 /// `Region × SM`; the region's bytes are `view::view_bytes(files, vb)`).
 pub struct PartRead {
@@ -498,7 +498,7 @@ pub struct PartRead {
     pub memo: SM,
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:188-212 ReachCache
+/// con-leche: ConLeche/Driver/Reach.lean:187-211 ReachCache
 /// **The reach's caches**: what it has read of the files.
 pub struct ReachCache {
     /// name tables of parts read so far (beside the index's)
@@ -523,7 +523,7 @@ pub struct ReachCache {
     pub searches: u64,
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:188-212 ReachCache
+/// con-leche: ConLeche/Driver/Reach.lean:187-211 ReachCache
 /// The empty caches (upstream's `{}`).
 pub fn reach_cache_empty() -> ReachCache {
     ReachCache {
@@ -540,7 +540,7 @@ pub fn reach_cache_empty() -> ReachCache {
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:214-217 viewKeys
+/// con-leche: ConLeche/Driver/Reach.lean:213-216 viewKeys
 /// **The parts of module `h`'s view**, in order: `h`'s own private part, then
 /// the parts its header fixpoint `ld` loads, in its order.
 pub fn view_keys(h: &NIdx, ld: &HeaderLoads) -> Vec<PartKey> {
@@ -554,7 +554,7 @@ pub fn view_keys(h: &NIdx, ld: &HeaderLoads) -> Vec<PartKey> {
     out
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:219-223 viewStep
+/// con-leche: ConLeche/Driver/Reach.lean:218-222 viewStep
 /// **One part's names into a view**, the first copy of each name kept.
 pub fn view_step(v: &mut HashMap2<NIdx, Spot>, k: &PartKey, t: &NamePositions) {
     let mut i = 0usize;
@@ -570,7 +570,7 @@ pub fn view_step(v: &mut HashMap2<NIdx, Spot>, k: &PartKey, t: &NamePositions) {
 // The parts
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Driver/Reach.lean:230-248 tableOf
+/// con-leche: ConLeche/Driver/Reach.lean:229-247 tableOf
 /// The index's table of a part: where the module is loaded at that level.
 pub fn index_table<'a>(wr: &'a WorkerReads, k: &PartKey) -> Option<&'a NamePositions> {
     match wr.loads.index.get(&k.module) {
@@ -590,7 +590,7 @@ pub fn index_table<'a>(wr: &'a WorkerReads, k: &PartKey) -> Option<&'a NamePosit
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:230-248 tableOf
+/// con-leche: ConLeche/Driver/Reach.lean:229-247 tableOf
 /// **A part's name table, where it is**: read so far, else the index's.
 pub fn table_get<'a>(wr: &'a WorkerReads, c: &'a ReachCache, k: &PartKey) -> Option<&'a NamePositions> {
     match c.tables.get(k) {
@@ -605,7 +605,7 @@ pub fn cache_lost() -> CheckError {
     core_types::internal({ const M: [u32; 29] = [116, 104, 101, 32, 114, 101, 97, 99, 104, 32, 108, 111, 115, 116, 32, 97, 32, 99, 97, 99, 104, 101, 100, 32, 116, 97, 98, 108, 101]; core_types::code_points(&M) })
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:230-248 tableOf
+/// con-leche: ConLeche/Driver/Reach.lean:229-247 tableOf
 /// **A part's name table**: the index's where the module is loaded at that
 /// level, else read once (`table_get` reads it).
 pub fn table_of<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, wr: &WorkerReads, c: &mut ReachCache, k: &PartKey) -> Result<(), CheckError> {
@@ -624,7 +624,7 @@ pub fn table_of<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AS
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:250-261 lookOf
+/// con-leche: ConLeche/Driver/Reach.lean:249-260 lookOf
 /// A table's lookup: each name's position, the last copy of a name kept.
 pub fn look_build(t: &NamePositions) -> HashMap2<NIdx, NamePosition> {
     let mut l: HashMap2<NIdx, NamePosition> = HashMap2::with_capacity(t.consts.len());
@@ -636,7 +636,7 @@ pub fn look_build(t: &NamePositions) -> HashMap2<NIdx, NamePosition> {
     l
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:250-261 lookOf
+/// con-leche: ConLeche/Driver/Reach.lean:249-260 lookOf
 /// **A part's name lookup**, built once (`ReachCache::looks` holds it).
 pub fn look_of<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, wr: &WorkerReads, c: &mut ReachCache, k: &PartKey) -> Result<(), CheckError> {
     if c.looks.contains_key(k) {
@@ -654,7 +654,7 @@ pub fn look_of<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut ASt
     Ok(())
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:250-261 lookOf
+/// con-leche: ConLeche/Driver/Reach.lean:249-260 lookOf
 /// A name's position in a part's cached lookup.
 pub fn look_at(c: &ReachCache, k: &PartKey, n: &NIdx) -> Result<Option<NamePosition>, CheckError> {
     match c.looks.get(k) {
@@ -666,7 +666,7 @@ pub fn look_at(c: &ReachCache, k: &PartKey, n: &NIdx) -> Result<Option<NamePosit
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:263-283 withPart
+/// con-leche: ConLeche/Driver/Reach.lean:262-282 withPart
 /// **A part taken out of the caches for a read** (upstream's `withPart` up to
 /// the read): its files read once, its region cut, an empty memo.
 pub fn take_part<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, c: &mut ReachCache, k: &PartKey) -> Result<PartRead, CheckError> {
@@ -685,7 +685,7 @@ pub fn take_part<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut A
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:263-283 withPart
+/// con-leche: ConLeche/Driver/Reach.lean:262-282 withPart
 /// **A part put back after a read**: with its memo where the read went
 /// through; with an empty memo, and the failure, where it did not.
 pub fn put_part<T>(pers: &PersTier, st: &AState, c: &mut ReachCache, k: &PartKey, p: PartRead, r: Result<T, RdErr>) -> Result<T, CheckError> {
@@ -704,7 +704,7 @@ pub fn put_part<T>(pers: &PersTier, st: &AState, c: &mut ReachCache, k: &PartKey
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:285-302 loadPart
+/// con-leche: ConLeche/Driver/Reach.lean:284-301 loadPart
 /// **A part's region and name table off one read of its files**: the region
 /// kept with an empty memo, the table the region's, kept where none is yet.
 /// Nothing is read where the region is kept already.
@@ -737,7 +737,7 @@ pub fn load_part<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut A
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:304-310 entriesWith
+/// con-leche: ConLeche/Driver/Reach.lean:303-309 entriesWith
 /// Several constants with one memo (`entryWith`, in order).
 pub fn entries_with(pk: &OleanPins, pers: &PersTier, st: &mut AState, bs: &[u8], r: &Region, m: &mut SM, ls: &Vec<u64>) -> Result<Vec<CEntryF<NIdx, EIdx>>, RdErr> {
     let mut out: Vec<CEntryF<NIdx, EIdx>> = Vec::with_capacity(ls.len());
@@ -752,7 +752,7 @@ pub fn entries_with(pk: &OleanPins, pers: &PersTier, st: &mut AState, bs: &[u8],
     Ok(out)
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:263-283 withPart
+/// con-leche: ConLeche/Driver/Reach.lean:262-282 withPart
 /// `withPart env c k fun r st => entryWith r st l`.
 pub fn part_entry<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, c: &mut ReachCache, k: &PartKey, l: u64) -> Result<CEntryF<NIdx, EIdx>, CheckError> {
     let mut p = match take_part(fs, pk, pers, st, sp, c, k) {
@@ -763,7 +763,7 @@ pub fn part_entry<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut 
     put_part(pers, st, c, k, p, r)
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:263-283 withPart
+/// con-leche: ConLeche/Driver/Reach.lean:262-282 withPart
 /// `withPart env c k fun r st => entriesWith r st ls`.
 pub fn part_entries<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, c: &mut ReachCache, k: &PartKey, ls: &Vec<u64>) -> Result<Vec<CEntryF<NIdx, EIdx>>, CheckError> {
     let mut p = match take_part(fs, pk, pers, st, sp, c, k) {
@@ -774,7 +774,7 @@ pub fn part_entries<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mu
     put_part(pers, st, c, k, p, r)
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:312-315 stmtAt
+/// con-leche: ConLeche/Driver/Reach.lean:311-314 stmtAt
 /// **A copy's statement and kind** (the kind's expressions left out).
 pub fn stmt_at<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, c: &mut ReachCache, s: &Spot) -> Result<(StmtRec, CKindF<NIdx, ()>), CheckError> {
     let mut p = match take_part(fs, pk, pers, st, sp, c, &s.part) {
@@ -785,7 +785,7 @@ pub fn stmt_at<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut ASt
     put_part(pers, st, c, &s.part, p, r)
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:317-329 privSpot
+/// con-leche: ConLeche/Driver/Reach.lean:316-328 privSpot
 /// **A copy in a module's private part**: itself, or the private part's
 /// constant of its name.
 pub fn priv_spot<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, wr: &WorkerReads, c: &mut ReachCache, s: &Spot) -> Result<Spot, CheckError> {
@@ -813,7 +813,7 @@ pub fn priv_spot<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut A
 // A home's view, and a search in it
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Driver/Reach.lean:333-341 viewAdd
+/// con-leche: ConLeche/Driver/Reach.lean:332-340 viewAdd
 /// One part's names into a view.
 pub fn view_add_one<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, wr: &WorkerReads, c: &mut ReachCache, v: &mut HashMap2<NIdx, Spot>, k: &PartKey) -> Result<(), CheckError> {
     match table_of(fs, pk, pers, st, sp, wr, c, k) {
@@ -829,7 +829,7 @@ pub fn view_add_one<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mu
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:333-341 viewAdd
+/// con-leche: ConLeche/Driver/Reach.lean:332-340 viewAdd
 /// The names of some parts into a view, the first copy kept.
 pub fn view_add<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, wr: &WorkerReads, c: &mut ReachCache, v: &mut HashMap2<NIdx, Spot>, ks: &Vec<PartKey>) -> Result<(), CheckError> {
     let mut i = 0usize;
@@ -843,7 +843,7 @@ pub fn view_add<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AS
     Ok(())
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:343-358 viewOf
+/// con-leche: ConLeche/Driver/Reach.lean:342-357 viewOf
 /// The header fixpoint of module `h`'s own private part.
 pub fn home_loads<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, wr: &WorkerReads, c: &ReachCache, k: &PartKey) -> Result<HeaderLoads, CheckError> {
     match table_get(wr, c, k) {
@@ -852,7 +852,7 @@ pub fn home_loads<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut 
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:343-358 viewOf
+/// con-leche: ConLeche/Driver/Reach.lean:342-357 viewOf
 /// **Module `h`'s view, by name**: `h`'s own private part, then the parts
 /// `h`'s header fixpoint loads, in its order, the first copy of each name.
 /// Built once per home (`ReachCache::views` holds it).
@@ -878,7 +878,7 @@ pub fn view_of<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut ASt
     Ok(())
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:360-365 locate
+/// con-leche: ConLeche/Driver/Reach.lean:359-364 locate
 /// A name in a home's cached view.
 pub fn view_at(c: &ReachCache, h: &NIdx, y: &NIdx) -> Result<Option<Spot>, CheckError> {
     match c.views.get(h) {
@@ -890,7 +890,7 @@ pub fn view_at(c: &ReachCache, h: &NIdx, y: &NIdx) -> Result<Option<Spot>, Check
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:360-365 locate
+/// con-leche: ConLeche/Driver/Reach.lean:359-364 locate
 /// **`y` located in `h`'s view.**
 pub fn locate<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, wr: &WorkerReads, c: &mut ReachCache, h: &NIdx, y: &NIdx) -> Result<Option<Spot>, CheckError> {
     match view_of(fs, pk, pers, st, sp, wr, c, h) {
@@ -901,7 +901,7 @@ pub fn locate<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut ASta
     view_at(c, h, y)
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:367-373 importerSpot
+/// con-leche: ConLeche/Driver/Reach.lean:366-372 importerSpot
 /// **The importer's copy of a loaded name**: its module's position in the load
 /// order and the copy.
 pub fn importer_spot(pk: &OleanPins, wr: &WorkerReads, y: &NIdx) -> Option<(u64, Spot)> {
@@ -921,7 +921,7 @@ pub fn importer_spot(pk: &OleanPins, wr: &WorkerReads, y: &NIdx) -> Option<(u64,
 // Agreement
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Driver/Reach.lean:377-383 ProofStatus
+/// con-leche: ConLeche/Driver/Reach.lean:376-382 ProofStatus
 /// **Is a copy a proof**: `yes`, `no`, or decided by inferring that its
 /// statement is a proposition.
 pub enum ProofStatus {
@@ -930,7 +930,7 @@ pub enum ProofStatus {
     Infer,
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:385-403 proofStatus
+/// con-leche: ConLeche/Driver/Reach.lean:384-402 proofStatus
 /// **A copy's proof flag**: a theorem is a proof; a definition, opaque
 /// constant or axiom is one if its type is a proposition; an exported axiom is
 /// what its home's private part declares there.
@@ -960,7 +960,7 @@ pub fn proof_status<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mu
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:405-407 partnerReads
+/// con-leche: ConLeche/Driver/Reach.lean:404-406 partnerReads
 /// The names a statement reads, each paired with a home, onto `acc`.
 pub fn partner_reads(pers: &PersTier, st: &mut AState, acc: &mut Vec<(NIdx, NIdx)>, h: &NIdx, ty: &EIdx) -> Result<(), CheckError> {
     match needs_expr(pers, st, needs_st_empty(), ty) {
@@ -976,7 +976,7 @@ pub fn partner_reads(pers: &PersTier, st: &mut AState, acc: &mut Vec<(NIdx, NIdx
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:409-441 agreeCheck
+/// con-leche: ConLeche/Driver/Reach.lean:408-440 agreeCheck
 /// `s!"name capture at {y}, read by module {h}"`.
 pub fn capture_what(pers: &PersTier, st: &AState, h: &NIdx, y: &NIdx) -> Vec<u32> {
     let t = text::cat({ const M: [u32; 16] = [110, 97, 109, 101, 32, 99, 97, 112, 116, 117, 114, 101, 32, 97, 116, 32]; core_types::code_points(&M) }, &view::name_text(pers, &st.store, y));
@@ -984,7 +984,7 @@ pub fn capture_what(pers: &PersTier, st: &AState, h: &NIdx, y: &NIdx) -> Vec<u32
     text::cat(t, &view::name_text(pers, &st.store, h))
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:409-441 agreeCheck
+/// con-leche: ConLeche/Driver/Reach.lean:408-440 agreeCheck
 /// The copies of `y` of two modules are not one constant.
 pub fn agree_bad(pers: &PersTier, st: &AState, h: &NIdx, y: &NIdx, m1: &NIdx, m2: &NIdx) -> CheckError {
     let t = text::cat(capture_what(pers, st, h, y), &{ const M: [u32; 16] = [58, 32, 116, 104, 101, 32, 99, 111, 112, 105, 101, 115, 32, 111, 102, 32]; core_types::code_points(&M) });
@@ -996,7 +996,7 @@ pub fn agree_bad(pers: &PersTier, st: &AState, h: &NIdx, y: &NIdx, m1: &NIdx, m2
     core_types::invalid(text::cat(t, &{ const M: [u32; 55] = [32, 97, 114, 101, 32, 110, 111, 116, 32, 111, 110, 101, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 40, 110, 111, 116, 32, 116, 119, 111, 32, 112, 114, 111, 111, 102, 115, 32, 111, 102, 32, 111, 110, 101, 32, 115, 116, 97, 116, 101, 109, 101, 110, 116, 41]; core_types::code_points(&M) }))
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:409-441 agreeCheck
+/// con-leche: ConLeche/Driver/Reach.lean:408-440 agreeCheck
 /// Whether a status is `no`, `yes`.
 pub fn status_is(p: &ProofStatus, yes: bool) -> bool {
     match p {
@@ -1006,7 +1006,7 @@ pub fn status_is(p: &ProofStatus, yes: bool) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:409-441 agreeCheck
+/// con-leche: ConLeche/Driver/Reach.lean:408-440 agreeCheck
 /// **Two copies of `y` agree**, the context's `s1` and `s2` of home `h`'s
 /// view: one module, or both proofs of one statement (one of them a theorem,
 /// or else an inference recorded with the statement), whose names `s2`'s
@@ -1056,7 +1056,7 @@ pub fn agree_check<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut
     Ok(())
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:443-477 clashAgree
+/// con-leche: ConLeche/Driver/Reach.lean:442-476 clashAgree
 /// A clash's copies the index locates, as spots with their statements and
 /// kinds.
 pub fn clash_spots(pk: &OleanPins, wr: &WorkerReads, cl: &Clash) -> Vec<(Spot, StmtRec, CKindF<NIdx, ()>)> {
@@ -1072,7 +1072,7 @@ pub fn clash_spots(pk: &OleanPins, wr: &WorkerReads, cl: &Clash) -> Vec<(Spot, S
     out
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:443-477 clashAgree
+/// con-leche: ConLeche/Driver/Reach.lean:442-476 clashAgree
 /// One copy of a clash as a spot with its statement and kind, where the index
 /// locates it.
 pub fn clash_spot(pk: &OleanPins, wr: &WorkerReads, x: &(index::Copy, StmtRec, CKindF<NIdx, ()>)) -> Option<(Spot, StmtRec, CKindF<NIdx, ()>)> {
@@ -1085,7 +1085,7 @@ pub fn clash_spot(pk: &OleanPins, wr: &WorkerReads, x: &(index::Copy, StmtRec, C
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:443-477 clashAgree
+/// con-leche: ConLeche/Driver/Reach.lean:442-476 clashAgree
 /// `statuses`: each spot's proof flag, in order; whether one is `no`, one
 /// `yes` (upstream's `ps.contains`).
 pub fn clash_statuses<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, wr: &WorkerReads, c: &mut ReachCache, spots: &Vec<(Spot, StmtRec, CKindF<NIdx, ()>)>) -> Result<(bool, bool), CheckError> {
@@ -1109,7 +1109,7 @@ pub fn clash_statuses<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &
     Ok((no, yes))
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:443-477 clashAgree
+/// con-leche: ConLeche/Driver/Reach.lean:442-476 clashAgree
 /// `s!"{spots.map (·.1.part.mod)}"`: the modules, Lean's list rendering.
 pub fn spots_text(pers: &PersTier, st: &AState, spots: &Vec<(Spot, StmtRec, CKindF<NIdx, ()>)>) -> Vec<u32> {
     let mut t = { const M: [u32; 1] = [91]; core_types::code_points(&M) };
@@ -1124,7 +1124,7 @@ pub fn spots_text(pers: &PersTier, st: &AState, spots: &Vec<(Spot, StmtRec, CKin
     text::cat(t, &{ const M: [u32; 1] = [93]; core_types::code_points(&M) })
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:443-477 clashAgree
+/// con-leche: ConLeche/Driver/Reach.lean:442-476 clashAgree
 /// One clash: its copies must be proofs of one statement; its name onto `acc`.
 pub fn clash_agree_one<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, wr: &WorkerReads, c: &mut ReachCache, cl: &Clash, acc: &mut Vec<NIdx>) -> Result<(), CheckError> {
     let spots = clash_spots(pk, wr, cl);
@@ -1150,7 +1150,7 @@ pub fn clash_agree_one<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: 
     Ok(())
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:443-477 clashAgree
+/// con-leche: ConLeche/Driver/Reach.lean:442-476 clashAgree
 /// **The clash rule**: the copies of every name two loaded modules hold must be
 /// proofs of one statement, one of them a theorem or the statement inferred to
 /// be a proposition.  Every clashing name is returned, to be reached.
@@ -1171,7 +1171,7 @@ pub fn clash_agree<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut
 // The capture check
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Driver/Reach.lean:481-487 inExported
+/// con-leche: ConLeche/Driver/Reach.lean:480-486 inExported
 /// **Is `y` in module `m`'s exported part** (`m` loaded at `level`).
 pub fn in_exported<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, wr: &WorkerReads, c: &mut ReachCache, m: &NIdx, lvl: &OLeanLevel, y: &NIdx) -> Result<bool, CheckError> {
     if level_index(lvl) == 0 {
@@ -1188,7 +1188,7 @@ pub fn in_exported<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:489-532 captureOne
+/// con-leche: ConLeche/Driver/Reach.lean:488-531 captureOne
 /// Whether `h`'s public-import closure holds the module at load position `i`.
 pub fn pub_has(wr: &WorkerReads, h: &NIdx, i: u64) -> bool {
     match wr.loads.index.get(h) {
@@ -1204,7 +1204,7 @@ pub fn pub_has(wr: &WorkerReads, h: &NIdx, i: u64) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:489-532 captureOne
+/// con-leche: ConLeche/Driver/Reach.lean:488-531 captureOne
 /// `module {h} reads {y}, which {what}`.
 pub fn reads_which(pers: &PersTier, st: &AState, h: &NIdx, y: &NIdx, what: Vec<u32>) -> CheckError {
     let t = text::cat({ const M: [u32; 7] = [109, 111, 100, 117, 108, 101, 32]; core_types::code_points(&M) }, &view::name_text(pers, &st.store, h));
@@ -1214,7 +1214,7 @@ pub fn reads_which(pers: &PersTier, st: &AState, h: &NIdx, y: &NIdx, what: Vec<u
     core_types::invalid(text::cat(t, &what))
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:489-532 captureOne
+/// con-leche: ConLeche/Driver/Reach.lean:488-531 captureOne
 /// A located or loaded copy `s1` of `y` against the copy `h`'s view holds.
 pub fn capture_against<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, wr: &WorkerReads, c: &mut ReachCache, h: &NIdx, y: &NIdx, s1: &Spot) -> Result<(), CheckError> {
     match locate(fs, pk, pers, st, sp, wr, c, h, y) {
@@ -1224,7 +1224,7 @@ pub fn capture_against<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: 
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:489-532 captureOne
+/// con-leche: ConLeche/Driver/Reach.lean:488-531 captureOne
 /// **The capture check of one read** `y` of a record of home `h`, and the
 /// completion of a name the index lacks.
 pub fn capture_one<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, wr: &WorkerReads, own: &HashMap2<NIdx, bool>, env: &ReachEnv, c: &mut ReachCache, h: &NIdx, y: &NIdx) -> Result<(), CheckError> {
@@ -1277,7 +1277,7 @@ pub fn capture_one<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:489-532 captureOne
+/// con-leche: ConLeche/Driver/Reach.lean:488-531 captureOne
 /// A name's located copy, copied.
 pub fn located_at(c: &ReachCache, y: &NIdx) -> Option<Spot> {
     match c.located.get(y) {
@@ -1286,7 +1286,7 @@ pub fn located_at(c: &ReachCache, y: &NIdx) -> Option<Spot> {
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:534-559 storedNamesOk
+/// con-leche: ConLeche/Driver/Reach.lean:533-558 storedNamesOk
 /// `a record read from module {h} stores {n}, which the context reads from
 /// module {k}`.
 pub fn stored_bad(pers: &PersTier, st: &AState, h: &NIdx, n: &NIdx, k: &NIdx) -> CheckError {
@@ -1297,7 +1297,7 @@ pub fn stored_bad(pers: &PersTier, st: &AState, h: &NIdx, n: &NIdx, k: &NIdx) ->
     core_types::invalid(text::cat(t, &view::name_text(pers, &st.store, k)))
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:534-559 storedNamesOk
+/// con-leche: ConLeche/Driver/Reach.lean:533-558 storedNamesOk
 /// One name a record of home `h` stores, against the importer's copies.
 pub fn stored_name_ok<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, wr: &WorkerReads, c: &mut ReachCache, h: &NIdx, n: &NIdx) -> Result<(), CheckError> {
     match importer_spot(pk, wr, n) {
@@ -1340,7 +1340,7 @@ pub fn stored_name_ok<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:534-559 storedNamesOk
+/// con-leche: ConLeche/Driver/Reach.lean:533-558 storedNamesOk
 /// **The names a record stores, against the importer's copies**: each has no
 /// importer copy or one of `h`, and no located copy or one of `h`; one with
 /// neither is located at `h`'s private part.
@@ -1356,7 +1356,7 @@ pub fn stored_names_ok<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: 
     Ok(())
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:561-567 clashPartners
+/// con-leche: ConLeche/Driver/Reach.lean:560-566 clashPartners
 /// One stored name's copies, if it clashes, each statement's names as reads of
 /// the copy's module.
 pub fn clash_partners_one(pers: &PersTier, st: &mut AState, env: &ReachEnv, acc: &mut Vec<(NIdx, NIdx)>, n: &NIdx) -> Result<(), CheckError> {
@@ -1366,7 +1366,7 @@ pub fn clash_partners_one(pers: &PersTier, st: &mut AState, env: &ReachEnv, acc:
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:561-567 clashPartners
+/// con-leche: ConLeche/Driver/Reach.lean:560-566 clashPartners
 /// `cs.foldl (fun acc (k, cv) => acc ++ partnerReads k cv.type) acc`.
 pub fn copies_partners(pers: &PersTier, st: &mut AState, acc: &mut Vec<(NIdx, NIdx)>, cs: &Vec<(NIdx, StmtRec)>) -> Result<(), CheckError> {
     let mut i = 0usize;
@@ -1380,7 +1380,7 @@ pub fn copies_partners(pers: &PersTier, st: &mut AState, acc: &mut Vec<(NIdx, NI
     Ok(())
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:561-567 clashPartners
+/// con-leche: ConLeche/Driver/Reach.lean:560-566 clashPartners
 /// **Every copy of a clashing name the context stores**, its statement's names
 /// each as a read of the copy's module, onto `acc`.
 pub fn clash_partners(pers: &PersTier, st: &mut AState, env: &ReachEnv, acc: &mut Vec<(NIdx, NIdx)>, ns: &Vec<NIdx>) -> Result<(), CheckError> {
@@ -1395,7 +1395,7 @@ pub fn clash_partners(pers: &PersTier, st: &mut AState, env: &ReachEnv, acc: &mu
     Ok(())
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:569-576 captureAll
+/// con-leche: ConLeche/Driver/Reach.lean:568-575 captureAll
 /// The capture check of every read of a record.
 pub fn capture_all<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, wr: &WorkerReads, own: &HashMap2<NIdx, bool>, env: &ReachEnv, c: &mut ReachCache, h: &NIdx, ys: &Vec<NIdx>) -> Result<(), CheckError> {
     let mut i = 0usize;
@@ -1409,7 +1409,7 @@ pub fn capture_all<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut
     Ok(())
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:578-585 capturePairs
+/// con-leche: ConLeche/Driver/Reach.lean:577-584 capturePairs
 /// **The partners' reads checked**: each name capture-checked as a read of its
 /// home.
 pub fn capture_pairs<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, wr: &WorkerReads, own: &HashMap2<NIdx, bool>, env: &ReachEnv, c: &mut ReachCache, ps: &Vec<(NIdx, NIdx)>) -> Result<(), CheckError> {
@@ -1428,7 +1428,7 @@ pub fn capture_pairs<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &m
 // A record read
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Driver/Reach.lean:589-596 recBlocksAt
+/// con-leche: ConLeche/Driver/Reach.lean:588-595 recBlocksAt
 /// One recursor's location onto the block of its first member.
 pub fn rec_blocks_add(m: &mut HashMap2<NIdx, Vec<u64>>, l: u64, k: &CKindF<NIdx, ()>) {
     match k {
@@ -1446,7 +1446,7 @@ pub fn rec_blocks_add(m: &mut HashMap2<NIdx, Vec<u64>>, l: u64, k: &CKindF<NIdx,
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:589-596 recBlocksAt
+/// con-leche: ConLeche/Driver/Reach.lean:588-595 recBlocksAt
 /// **A part's recursors' locations by their block's first member**, in the
 /// part's order: `t` its name table, `r` its region.
 pub fn rec_blocks_at(pk: &OleanPins, pers: &PersTier, st: &mut AState, bs: &[u8], r: &Region, t: &NamePositions) -> Result<HashMap2<NIdx, Vec<u64>>, RdErr> {
@@ -1464,7 +1464,7 @@ pub fn rec_blocks_at(pk: &OleanPins, pers: &PersTier, st: &mut AState, bs: &[u8]
     Ok(m)
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:598-609 recBlocksOf
+/// con-leche: ConLeche/Driver/Reach.lean:597-608 recBlocksOf
 /// `recBlocksAt` at a part taken out, its table where it is.
 pub fn rec_blocks_read(pk: &OleanPins, pers: &PersTier, st: &mut AState, wr: &WorkerReads, c: &ReachCache, k: &PartKey, p: &PartRead) -> Result<HashMap2<NIdx, Vec<u64>>, RdErr> {
     match table_get(wr, c, k) {
@@ -1473,7 +1473,7 @@ pub fn rec_blocks_read(pk: &OleanPins, pers: &PersTier, st: &mut AState, wr: &Wo
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:598-609 recBlocksOf
+/// con-leche: ConLeche/Driver/Reach.lean:597-608 recBlocksOf
 /// A part's recursors' locations by their block's first member, read once
 /// (`ReachCache::rec_blocks` holds them).
 pub fn rec_blocks_of<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, wr: &WorkerReads, c: &mut ReachCache, k: &PartKey) -> Result<(), CheckError> {
@@ -1498,7 +1498,7 @@ pub fn rec_blocks_of<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &m
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:611-615 groupCtorNames
+/// con-leche: ConLeche/Driver/Reach.lean:610-614 groupCtorNames
 /// The constructors a group's types list.
 pub fn group_ctor_names(tys: &Vec<CEntryF<NIdx, EIdx>>) -> Vec<NIdx> {
     let mut out: Vec<NIdx> = Vec::new();
@@ -1519,7 +1519,7 @@ pub fn group_ctor_names(tys: &Vec<CEntryF<NIdx, EIdx>>) -> Vec<NIdx> {
     out
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:617-619 groupRecLocs
+/// con-leche: ConLeche/Driver/Reach.lean:616-618 groupRecLocs
 /// The locations of a group's recursors in a part, by its first member.
 pub fn group_rec_locs(rb: &HashMap2<NIdx, Vec<u64>>, all: &Vec<NIdx>) -> Vec<u64> {
     if all.len() == 0 {
@@ -1539,7 +1539,7 @@ pub fn group_rec_locs(rb: &HashMap2<NIdx, Vec<u64>>, all: &Vec<NIdx>) -> Vec<u64
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:621-628 groupMerged
+/// con-leche: ConLeche/Driver/Reach.lean:620-627 groupMerged
 /// Whether a constant is kept among a group's rest: a recursor of the block
 /// `all`, or not a recursor.
 pub fn group_keeps(e: &CEntryF<NIdx, EIdx>, all: &Vec<NIdx>) -> bool {
@@ -1549,7 +1549,7 @@ pub fn group_keeps(e: &CEntryF<NIdx, EIdx>, all: &Vec<NIdx>) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:621-628 groupMerged
+/// con-leche: ConLeche/Driver/Reach.lean:620-627 groupMerged
 /// A group's constants as a merge: `n`'s type, the types, the constructors and
 /// the recursors of the block `all` among `rest`.
 pub fn group_merged(pk: &OleanPins, t: CEntryF<NIdx, EIdx>, tys: &Vec<CEntryF<NIdx, EIdx>>, rest: &Vec<CEntryF<NIdx, EIdx>>, all: &Vec<NIdx>) -> Merged {
@@ -1570,7 +1570,7 @@ pub fn group_merged(pk: &OleanPins, t: CEntryF<NIdx, EIdx>, tys: &Vec<CEntryF<NI
     group::merged_of_list(pk, &cs)
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:630-668 groupAt
+/// con-leche: ConLeche/Driver/Reach.lean:629-667 groupAt
 /// The locations of some names in a part's lookup, `none` where one is
 /// missing (`ns.mapM (look[·]?)`).
 pub fn look_locs(c: &ReachCache, k: &PartKey, ns: &Vec<NIdx>) -> Result<Option<Vec<u64>>, CheckError> {
@@ -1580,7 +1580,7 @@ pub fn look_locs(c: &ReachCache, k: &PartKey, ns: &Vec<NIdx>) -> Result<Option<V
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:630-668 groupAt
+/// con-leche: ConLeche/Driver/Reach.lean:629-667 groupAt
 /// `ns.mapM (look[·]?)` over one lookup.
 pub fn look_locs_in(l: &HashMap2<NIdx, NamePosition>, ns: &Vec<NIdx>) -> Option<Vec<u64>> {
     let mut out: Vec<u64> = Vec::with_capacity(ns.len());
@@ -1595,7 +1595,7 @@ pub fn look_locs_in(l: &HashMap2<NIdx, NamePosition>, ns: &Vec<NIdx>) -> Option<
     Some(out)
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:630-668 groupAt
+/// con-leche: ConLeche/Driver/Reach.lean:629-667 groupAt
 /// A name's location in a lookup.
 pub fn look_loc(l: &HashMap2<NIdx, NamePosition>, n: &NIdx) -> Option<u64> {
     match l.get(n) {
@@ -1604,7 +1604,7 @@ pub fn look_loc(l: &HashMap2<NIdx, NamePosition>, n: &NIdx) -> Option<u64> {
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:630-668 groupAt
+/// con-leche: ConLeche/Driver/Reach.lean:629-667 groupAt
 /// A group's recursors' locations in a cached part.
 pub fn rec_locs_at(c: &ReachCache, k: &PartKey, all: &Vec<NIdx>) -> Result<Vec<u64>, CheckError> {
     match c.rec_blocks.get(k) {
@@ -1613,7 +1613,7 @@ pub fn rec_locs_at(c: &ReachCache, k: &PartKey, all: &Vec<NIdx>) -> Result<Vec<u
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:630-668 groupAt
+/// con-leche: ConLeche/Driver/Reach.lean:629-667 groupAt
 /// **Type `n`'s group, read from one part**: `None` where the part lacks one of
 /// its members or constructors.  The part's files are read once, for its table
 /// and its region (`load_part`).
@@ -1684,7 +1684,7 @@ pub fn group_at<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AS
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:670-677 groupOfKind
+/// con-leche: ConLeche/Driver/Reach.lean:669-676 groupOfKind
 /// The type whose group presents a copy of `x` of kind `k`: `x` itself, a
 /// constructor's type, a recursor's block's first member (`x` itself for a
 /// recursor of no block); none for any other kind.
@@ -1703,13 +1703,13 @@ pub fn group_of_kind(x: &NIdx, k: &CKindF<NIdx, ()>) -> Option<NIdx> {
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:679-692 stmtRecord
+/// con-leche: ConLeche/Driver/Reach.lean:678-691 stmtRecord
 /// A statement as an axiom's record.
 pub fn axiom_of(cv: StmtRec) -> IDeclaration {
     IDeclaration::AxiomDecl(IConstantVal { name: cv.name, level_params: cv.level_params, ty: cv.ty })
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:679-692 stmtRecord
+/// con-leche: ConLeche/Driver/Reach.lean:678-691 stmtRecord
 /// **A copy presented as its statement** (`.axiomDecl cv`).  At a
 /// compiler-trust name only where its home's private part declares an opaque
 /// constant or an axiom there.
@@ -1737,7 +1737,7 @@ pub fn stmt_record<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:694-730 readRecord
+/// con-leche: ConLeche/Driver/Reach.lean:693-729 readRecord
 /// The copy presenting `x`: the importer's, else a completion's located copy
 /// (`true`).
 pub fn record_spot(pk: &OleanPins, wr: &WorkerReads, c: &ReachCache, x: &NIdx) -> Option<(Spot, bool)> {
@@ -1750,7 +1750,7 @@ pub fn record_spot(pk: &OleanPins, wr: &WorkerReads, c: &ReachCache, x: &NIdx) -
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:694-730 readRecord
+/// con-leche: ConLeche/Driver/Reach.lean:693-729 readRecord
 /// **The record presenting `x`, and its home**: read at the importer's copy,
 /// or at a completion's located copy as a statement.
 pub fn read_record<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, wr: &WorkerReads, c: &mut ReachCache, x: &NIdx) -> Result<(IDeclaration, NIdx), CheckError> {
@@ -1812,7 +1812,7 @@ pub fn read_record<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut
 // The worklist
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Driver/Reach.lean:736-745 ReachLog
+/// con-leche: ConLeche/Driver/Reach.lean:735-744 ReachLog
 /// **The reach's logical state**: the names pushed so far, the names the
 /// context's records install, the records, their homes and what each reads,
 /// the names still to read (`stack` up to its height `sp`, the top last).
@@ -1826,7 +1826,7 @@ pub struct ReachLog {
     pub sp: usize,
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:747-753 pushNames
+/// con-leche: ConLeche/Driver/Reach.lean:746-752 pushNames
 /// One name onto the stack at height `sp`.
 pub fn stack_push(stack: &mut Vec<NIdx>, sp: usize, y: &NIdx) -> usize {
     if sp < stack.len() {
@@ -1837,7 +1837,7 @@ pub fn stack_push(stack: &mut Vec<NIdx>, sp: usize, y: &NIdx) -> usize {
     sp + 1
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:747-753 pushNames
+/// con-leche: ConLeche/Driver/Reach.lean:746-752 pushNames
 /// Push the names not seen yet.
 pub fn push_names(seen: &mut HashMap2<NIdx, bool>, stack: &mut Vec<NIdx>, sp: usize, ys: &Vec<NIdx>) -> usize {
     let mut sp = sp;
@@ -1852,7 +1852,7 @@ pub fn push_names(seen: &mut HashMap2<NIdx, bool>, stack: &mut Vec<NIdx>, sp: us
     sp
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:747-753 pushNames
+/// con-leche: ConLeche/Driver/Reach.lean:746-752 pushNames
 /// The second names of some pairs (`ps.map (·.2)`).
 pub fn pair_seconds(ps: &Vec<(NIdx, NIdx)>) -> Vec<NIdx> {
     let mut out: Vec<NIdx> = Vec::with_capacity(ps.len());
@@ -1864,7 +1864,7 @@ pub fn pair_seconds(ps: &Vec<(NIdx, NIdx)>) -> Vec<NIdx> {
     out
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:755-759 ReachLog.add
+/// con-leche: ConLeche/Driver/Reach.lean:754-758 ReachLog.add
 /// Some names into a set.
 pub fn set_add_all(s: &mut HashMap2<NIdx, bool>, ns: &Vec<NIdx>) {
     let mut i = 0usize;
@@ -1874,7 +1874,7 @@ pub fn set_add_all(s: &mut HashMap2<NIdx, bool>, ns: &Vec<NIdx>) {
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:755-759 ReachLog.add
+/// con-leche: ConLeche/Driver/Reach.lean:754-758 ReachLog.add
 /// **A record added**: its names `ns` stored, what it reads (`rd`) pushed.
 pub fn reach_log_add(l: &mut ReachLog, d: IDeclaration, h: NIdx, ns: &Vec<NIdx>, rd: Vec<NIdx>) {
     l.sp = push_names(&mut l.seen, &mut l.stack, l.sp, &rd);
@@ -1884,7 +1884,7 @@ pub fn reach_log_add(l: &mut ReachLog, d: IDeclaration, h: NIdx, ns: &Vec<NIdx>,
     l.reads.push(rd);
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:761-764 ReachLog.init
+/// con-leche: ConLeche/Driver/Reach.lean:760-763 ReachLog.init
 /// **The worklist's start**: the roots pushed, nothing read.
 pub fn reach_log_init(rs: &Vec<NIdx>) -> ReachLog {
     let mut l = ReachLog { seen: HashMap2::new(), stored: HashMap2::new(), ctx: Vec::new(), homes: Vec::new(), reads: Vec::new(), stack: Vec::new(), sp: 0 };
@@ -1892,7 +1892,7 @@ pub fn reach_log_init(rs: &Vec<NIdx>) -> ReachLog {
     l
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:766-777 missingError
+/// con-leche: ConLeche/Driver/Reach.lean:765-776 missingError
 /// Why the record read for `x` does not store it (`ns`: its names).
 pub fn missing_error(pers: &PersTier, st: &mut AState, d: &IDeclaration, ns: &Vec<NIdx>, x: &NIdx, h: &NIdx) -> CheckError {
     let xs = view::name_text(pers, &st.store, x);
@@ -1921,7 +1921,7 @@ pub fn missing_error(pers: &PersTier, st: &mut AState, d: &IDeclaration, ns: &Ve
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:779-783 clashCopiesOf
+/// con-leche: ConLeche/Driver/Reach.lean:778-782 clashCopiesOf
 /// **The copies of every name two loaded modules hold**, by name: each copy's
 /// module and statement.
 pub fn clash_copies_of(pk: &OleanPins, wr: &WorkerReads) -> HashMap2<NIdx, Vec<(NIdx, StmtRec)>> {
@@ -1934,7 +1934,7 @@ pub fn clash_copies_of(pk: &OleanPins, wr: &WorkerReads) -> HashMap2<NIdx, Vec<(
     m
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:779-783 clashCopiesOf
+/// con-leche: ConLeche/Driver/Reach.lean:778-782 clashCopiesOf
 /// One clash's copies: each copy's module and statement.
 pub fn clash_copy_list(pk: &OleanPins, wr: &WorkerReads, cl: &Clash) -> Vec<(NIdx, StmtRec)> {
     let mut out: Vec<(NIdx, StmtRec)> = Vec::with_capacity(cl.copies.len());
@@ -1946,7 +1946,7 @@ pub fn clash_copy_list(pk: &OleanPins, wr: &WorkerReads, cl: &Clash) -> Vec<(NId
     out
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:785-788 inRecord
+/// con-leche: ConLeche/Driver/Reach.lean:784-787 inRecord
 /// A failed read of the record of `x`, read from `h`, names the record.
 pub fn in_record(pers: &PersTier, st: &AState, x: &NIdx, h: &NIdx, e: CheckError) -> CheckError {
     match e {
@@ -1961,7 +1961,7 @@ pub fn in_record(pers: &PersTier, st: &AState, x: &NIdx, h: &NIdx, e: CheckError
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:790-827 reachGo
+/// con-leche: ConLeche/Driver/Reach.lean:789-826 reachGo
 /// Whether a record stores a name already stored.
 pub fn any_stored(stored: &HashMap2<NIdx, bool>, ns: &Vec<NIdx>) -> bool {
     let mut i = 0usize;
@@ -1974,7 +1974,7 @@ pub fn any_stored(stored: &HashMap2<NIdx, bool>, ns: &Vec<NIdx>) -> bool {
     false
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:790-827 reachGo
+/// con-leche: ConLeche/Driver/Reach.lean:789-826 reachGo
 /// The worklist's step at an empty stack: the partners' reads recorded so far
 /// capture-checked and pushed.
 pub fn reach_partners<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, wr: &WorkerReads, own: &HashMap2<NIdx, bool>, env: &ReachEnv, l: &mut ReachLog, c: &mut ReachCache) -> Result<(), CheckError> {
@@ -1987,7 +1987,7 @@ pub fn reach_partners<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &
     Ok(())
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:790-827 reachGo
+/// con-leche: ConLeche/Driver/Reach.lean:789-826 reachGo
 /// The worklist's step at a name `x` popped: its record read, checked and
 /// added, unless a record stores it already.
 pub fn reach_read<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, wr: &WorkerReads, own: &HashMap2<NIdx, bool>, env: &ReachEnv, l: &mut ReachLog, c: &mut ReachCache, x: &NIdx) -> Result<(), CheckError> {
@@ -2027,13 +2027,13 @@ pub fn reach_read<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut 
     clash_partners(pers, st, env, &mut c.partners, &ns)
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:790-827 reachGo
+/// con-leche: ConLeche/Driver/Reach.lean:789-826 reachGo
 /// `"the reach ran out of steps"`.
 pub fn reach_out_of_steps() -> CheckError {
     core_types::internal({ const M: [u32; 26] = [116, 104, 101, 32, 114, 101, 97, 99, 104, 32, 114, 97, 110, 32, 111, 117, 116, 32, 111, 102, 32, 115, 116, 101, 112, 115]; core_types::code_points(&M) })
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:790-827 reachGo
+/// con-leche: ConLeche/Driver/Reach.lean:789-826 reachGo
 /// **The reach's worklist**: a name popped and read, or at an empty stack the
 /// partners' reads checked, until both are empty; each step spends one fuel.
 pub fn reach_go<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, wr: &WorkerReads, own: &HashMap2<NIdx, bool>, env: &ReachEnv, l: &mut ReachLog, c: &mut ReachCache, fuel: u64) -> Result<(), CheckError> {
@@ -2064,7 +2064,7 @@ pub fn reach_go<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AS
 // The validation and the flags
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Driver/Reach.lean:831-838 validateCtx
+/// con-leche: ConLeche/Driver/Reach.lean:830-837 validateCtx
 /// **Every context record validated** (`record_ok`), the first failure named.
 pub fn validate_ctx(pers: &PersTier, st: &mut AState, ds: &Vec<IDeclaration>, hs: &Vec<NIdx>) -> Result<(), CheckError> {
     let mut i = 0usize;
@@ -2079,7 +2079,7 @@ pub fn validate_ctx(pers: &PersTier, st: &mut AState, ds: &Vec<IDeclaration>, hs
     Ok(())
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:831-838 validateCtx
+/// con-leche: ConLeche/Driver/Reach.lean:830-837 validateCtx
 /// The malformed record at position `i` named, with its home.
 pub fn validate_bad(pers: &PersTier, st: &mut AState, d: &IDeclaration, hs: &Vec<NIdx>, i: usize) -> CheckError {
     if i >= hs.len() {
@@ -2096,7 +2096,7 @@ pub fn validate_bad(pers: &PersTier, st: &mut AState, d: &IDeclaration, hs: &Vec
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:840-844 typeIsPropC
+/// con-leche: ConLeche/Driver/Reach.lean:839-843 typeIsPropC
 /// **Is a statement's type a proposition**, by the kernel's inference at `fe`
 /// (verified mode).
 pub fn type_is_prop_c(pers: &PersTier, st: &mut AState, fe: &env::IFEnv, cv: &StmtRec) -> Result<bool, CheckError> {
@@ -2115,7 +2115,7 @@ pub fn type_is_prop_c(pers: &PersTier, st: &mut AState, fe: &env::IFEnv, cv: &St
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:846-849 ctxPart
+/// con-leche: ConLeche/Driver/Reach.lean:845-848 ctxPart
 /// **Each context name's first record**, by its position: the view of that
 /// position is the part of the context below the name.
 pub fn first_owner(pers: &PersTier, st: &mut AState, ds: &Vec<IDeclaration>) -> Result<HashMap2<NIdx, u64>, CheckError> {
@@ -2131,7 +2131,7 @@ pub fn first_owner(pers: &PersTier, st: &mut AState, ds: &Vec<IDeclaration>) -> 
     Ok(m)
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:846-849 ctxPart
+/// con-leche: ConLeche/Driver/Reach.lean:845-848 ctxPart
 /// A record's names into the first-owner map, a name owned already kept.
 pub fn first_owner_add(m: &mut HashMap2<NIdx, u64>, ns: &Vec<NIdx>, j: u64) {
     let mut i = 0usize;
@@ -2143,7 +2143,7 @@ pub fn first_owner_add(m: &mut HashMap2<NIdx, u64>, ns: &Vec<NIdx>, j: u64) {
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:846-849 ctxPart
+/// con-leche: ConLeche/Driver/Reach.lean:845-848 ctxPart
 /// The position whose view is the part of the context below `y`.
 pub fn part_pos(m: &HashMap2<NIdx, u64>, n: u64, y: &NIdx) -> u64 {
     match m.get(y) {
@@ -2163,7 +2163,7 @@ pub fn cps_dup(a: &Vec<u32>) -> Vec<u32> {
     out
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:851-866 inferFlags
+/// con-leche: ConLeche/Driver/Reach.lean:850-865 inferFlags
 /// One recorded statement inferred, in its record's bracket: its names stored
 /// before it, its type a proposition.
 pub fn infer_one(pers: &PersTier, st: &mut AState, fe: &env::IFEnv, what: &Vec<u32>, y: &NIdx, cv: &StmtRec) -> Result<(), CheckError> {
@@ -2190,7 +2190,7 @@ pub fn infer_one(pers: &PersTier, st: &mut AState, fe: &env::IFEnv, what: &Vec<u
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:851-866 inferFlags
+/// con-leche: ConLeche/Driver/Reach.lean:850-865 inferFlags
 /// **The inferred flags**: every recorded statement a proposition over the
 /// part of the context below its name, at the frozen index of `ctx ++ own`
 /// (`pers`): the view of the first record storing the name, else of the first
@@ -2224,7 +2224,7 @@ pub fn infer_flags(pers: &PersTier, st: &mut AState, ctx: &Vec<IDeclaration>, pe
 // The read order
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Driver/Reach.lean:870-873 ownerMap
+/// con-leche: ConLeche/Driver/Reach.lean:869-872 ownerMap
 /// One record's names into the owner map, at position `j`.
 pub fn owner_add(m: &mut HashMap2<NIdx, u64>, ns: &Vec<NIdx>, j: u64) {
     let mut i = 0usize;
@@ -2234,7 +2234,7 @@ pub fn owner_add(m: &mut HashMap2<NIdx, u64>, ns: &Vec<NIdx>, j: u64) {
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:870-873 ownerMap
+/// con-leche: ConLeche/Driver/Reach.lean:869-872 ownerMap
 /// **Each context name's record**, by its position (the last record storing a
 /// name kept).
 pub fn owner_map(pers: &PersTier, st: &mut AState, ds: &Vec<IDeclaration>) -> Result<HashMap2<NIdx, u64>, CheckError> {
@@ -2250,7 +2250,7 @@ pub fn owner_map(pers: &PersTier, st: &mut AState, ds: &Vec<IDeclaration>) -> Re
     Ok(m)
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:875-878 SortSt
+/// con-leche: ConLeche/Driver/Reach.lean:874-877 SortSt
 /// **The read order's state**: the positions placed so far, in order, and as
 /// a set.
 pub struct SortSt {
@@ -2258,13 +2258,13 @@ pub struct SortSt {
     pub placed: HashMap2<u64, bool>,
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:880-902 sortVisit
+/// con-leche: ConLeche/Driver/Reach.lean:879-901 sortVisit
 /// `"the read order ran out of steps"`.
 pub fn sort_out_of_steps() -> CheckError {
     core_types::internal({ const M: [u32; 31] = [116, 104, 101, 32, 114, 101, 97, 100, 32, 111, 114, 100, 101, 114, 32, 114, 97, 110, 32, 111, 117, 116, 32, 111, 102, 32, 115, 116, 101, 112, 115]; core_types::code_points(&M) })
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:880-902 sortVisit
+/// con-leche: ConLeche/Driver/Reach.lean:879-901 sortVisit
 /// The records at positions `i` and `j` read each other through `y`.
 pub fn sort_cycle(pers: &PersTier, st: &mut AState, ds: &Vec<IDeclaration>, i: u64, j: u64, y: &NIdx) -> CheckError {
     let a = if (i as usize) < ds.len() {
@@ -2288,7 +2288,7 @@ pub fn sort_cycle(pers: &PersTier, st: &mut AState, ds: &Vec<IDeclaration>, i: u
     core_types::invalid(text::cat3(t, &view::name_text(pers, &st.store, y), &{ const M: [u32; 1] = [41]; core_types::code_points(&M) }))
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:880-902 sortVisit
+/// con-leche: ConLeche/Driver/Reach.lean:879-901 sortVisit
 /// One read `y` of record `i`: stored by `i` itself or a placed record, else
 /// its record placed first, unless on the walk's path.
 pub fn sort_visit_one(pers: &PersTier, st: &mut AState, ds: &Vec<IDeclaration>, rds: &Vec<Vec<NIdx>>, owner: &HashMap2<NIdx, u64>, fuel: u64, i: u64, path: &mut HashMap2<u64, bool>, y: &NIdx, ss: &mut SortSt) -> Result<(), CheckError> {
@@ -2315,7 +2315,7 @@ pub fn sort_visit_one(pers: &PersTier, st: &mut AState, ds: &Vec<IDeclaration>, 
     r
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:880-902 sortVisit
+/// con-leche: ConLeche/Driver/Reach.lean:879-901 sortVisit
 /// **The record at position `i` placed after its reads** `ys` still to place
 /// (a post-order walk): a cycle among the records' reads is malformed input.
 /// `fuel` bounds the walk's depth.  The path is `&mut`, each record taken off
@@ -2337,7 +2337,7 @@ pub fn sort_visit(pers: &PersTier, st: &mut AState, ds: &Vec<IDeclaration>, rds:
     Ok(())
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:904-913 sortFrom
+/// con-leche: ConLeche/Driver/Reach.lean:903-912 sortFrom
 /// Record `i` placed, each after its reads, unless placed already.
 pub fn sort_from_one(pers: &PersTier, st: &mut AState, ds: &Vec<IDeclaration>, rds: &Vec<Vec<NIdx>>, owner: &HashMap2<NIdx, u64>, fuel: u64, i: u64, ss: &mut SortSt) -> Result<(), CheckError> {
     if ss.placed.contains_key(&i) {
@@ -2352,7 +2352,7 @@ pub fn sort_from_one(pers: &PersTier, st: &mut AState, ds: &Vec<IDeclaration>, r
     }
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:904-913 sortFrom
+/// con-leche: ConLeche/Driver/Reach.lean:903-912 sortFrom
 /// Every record placed, in position order, each after its reads.
 pub fn sort_from(pers: &PersTier, st: &mut AState, ds: &Vec<IDeclaration>, rds: &Vec<Vec<NIdx>>, owner: &HashMap2<NIdx, u64>, fuel: u64, ss: &mut SortSt) -> Result<(), CheckError> {
     let mut i = 0usize;
@@ -2366,7 +2366,7 @@ pub fn sort_from(pers: &PersTier, st: &mut AState, ds: &Vec<IDeclaration>, rds: 
     Ok(())
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:915-919 readOrder
+/// con-leche: ConLeche/Driver/Reach.lean:914-918 readOrder
 /// **The context's records in read order**: their positions, each record after
 /// the records storing what it reads (`rds`); a cycle among their reads is
 /// malformed input.
@@ -2386,7 +2386,7 @@ pub fn read_order(pers: &PersTier, st: &mut AState, ds: &Vec<IDeclaration>, rds:
 // The reach
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Driver/Reach.lean:923-930 Reach
+/// con-leche: ConLeche/Driver/Reach.lean:922-929 Reach
 /// **What the reach gives**: the context's records with their homes, the
 /// completed names with the homes that located them, its counts, and the
 /// statements whose inference `infer_flags` runs after the freeze.
@@ -2399,7 +2399,8 @@ pub struct Reach {
     pub pending: Vec<(Vec<u32>, NIdx, StmtRec)>,
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:932-961 reach
+/// con-leche: ConLeche/Driver/Reach.lean:970-974 reach
+/// con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove reach::reach_roots_refines, then delete this line
 /// The roots and the clashing names, the own names left out.
 pub fn reach_roots(own: &HashMap2<NIdx, bool>, roots: &Vec<NIdx>, extra: &Vec<NIdx>) -> Vec<NIdx> {
     let mut out: Vec<NIdx> = Vec::with_capacity(roots.len() + extra.len());
@@ -2420,7 +2421,8 @@ pub fn reach_roots(own: &HashMap2<NIdx, bool>, roots: &Vec<NIdx>, extra: &Vec<NI
     out
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:932-961 reach
+/// con-leche: ConLeche/Driver/Reach.lean:970-974 reach
+/// con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove reach::first_unloaded_refines, then delete this line
 /// The first root no loaded module holds.
 pub fn first_unloaded(wr: &WorkerReads, rs: &Vec<NIdx>) -> Option<usize> {
     let mut i = 0usize;
@@ -2433,7 +2435,8 @@ pub fn first_unloaded(wr: &WorkerReads, rs: &Vec<NIdx>) -> Option<usize> {
     None
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:932-961 reach
+/// con-leche: ConLeche/Driver/Reach.lean:970-974 reach
+/// con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove reach::in_read_order_refines, then delete this line
 /// The records at the read order's positions, with their homes.
 pub fn in_read_order(l: &ReachLog, o: &Vec<u64>) -> (Vec<IDeclaration>, Vec<NIdx>) {
     let mut ctx: Vec<IDeclaration> = Vec::with_capacity(o.len());
@@ -2450,7 +2453,8 @@ pub fn in_read_order(l: &ReachLog, o: &Vec<u64>) -> (Vec<IDeclaration>, Vec<NIdx
     (ctx, homes)
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:932-961 reach
+/// con-leche: ConLeche/Driver/Reach.lean:970-974 reach
+/// con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove reach::reach_refines, then delete this line
 /// **The reach of module `m`** from the names its own records read (`roots`):
 /// the clash rule's keys, the worklist, the read order, the context's
 /// validation.  The inferred flags are `infer_flags`'s, after the freeze.

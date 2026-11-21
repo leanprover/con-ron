@@ -298,16 +298,16 @@ pub fn read_infos<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut 
     Ok(m)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Index.lean:178-226 workerReads
+/// con-leche: ConLeche/Frontend/Olean/Index.lean:194-242 workerReads
 /// **`isPropCheap`'s `headTy` at the clash rule**: by name, the type of its
 /// first copy, among the statements read of the heads (`head_tys_of`).
 pub struct HeadTys {
     pub m: HashMap2<NIdx, EIdx>,
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Index.lean:178-226 workerReads
+/// con-leche: ConLeche/Frontend/Olean/Index.lean:194-242 workerReads
 impl merge::HeadTy for HeadTys {
-    /// con-leche: ConLeche/Frontend/Olean/Index.lean:178-226 workerReads
+    /// con-leche: ConLeche/Frontend/Olean/Index.lean:194-242 workerReads
     fn head_ty(&self, n: &NIdx) -> Option<EIdx> {
         match self.m.get(n) {
             None => None,
@@ -316,7 +316,7 @@ impl merge::HeadTy for HeadTys {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Index.lean:178-226 workerReads
+/// con-leche: ConLeche/Frontend/Olean/Index.lean:194-242 workerReads
 /// One head's type, by its name: `headTy n = (ix.first[n]?).bind fun c =>
 /// (hinfos[c]?).map (·.1.type)`, at the name of a head `c`, which is a first
 /// copy.
@@ -335,7 +335,7 @@ pub fn head_ty_step(ix: &NameIndex, infos: &HashMap2<Copy, (StmtRec, CKindF<NIdx
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Index.lean:178-226 workerReads
+/// con-leche: ConLeche/Frontend/Olean/Index.lean:194-242 workerReads
 /// `headTy` as a table over the heads' names.
 pub fn head_tys_of(ix: &NameIndex, infos: &HashMap2<Copy, (StmtRec, CKindF<NIdx, ()>)>, heads: &Vec<Copy>) -> HeadTys {
     let mut m: HashMap2<NIdx, EIdx> = HashMap2::with_capacity(heads.len());
@@ -488,7 +488,8 @@ pub struct WorkerReads {
     pub clashes: Vec<Clash>,
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Index.lean:163-169 clashCopies
+/// con-leche: ConLeche/Frontend/Olean/Index.lean:179-185 clashCopies
+/// con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove index::clash_copies_refines, then delete this line
 /// **The doubly held names, each with all its copies**, in the load order
 /// (module note: the names in the order of their second copy).
 pub fn clash_copies(ix: &NameIndex) -> Vec<(NIdx, Vec<Copy>)> {
@@ -502,7 +503,8 @@ pub fn clash_copies(ix: &NameIndex) -> Vec<(NIdx, Vec<Copy>)> {
     out
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Index.lean:163-169 clashCopies
+/// con-leche: ConLeche/Frontend/Olean/Index.lean:179-185 clashCopies
+/// con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove index::clash_copies_step_refines, then delete this line
 /// One later copy `c` of `n`: onto its name's entry, or a new entry with the
 /// first copy and it.
 pub fn clash_copies_step(ix: &NameIndex, at: &mut HashMap2<NIdx, u64>, out: &mut Vec<(NIdx, Vec<Copy>)>, n: &NIdx, c: &Copy) {
@@ -518,7 +520,8 @@ pub fn clash_copies_step(ix: &NameIndex, at: &mut HashMap2<NIdx, u64>, out: &mut
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Index.lean:163-169 clashCopies
+/// con-leche: ConLeche/Frontend/Olean/Index.lean:179-185 clashCopies
+/// con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove index::at_of_refines, then delete this line
 /// A name's entry in the list so far.
 pub fn at_of(at: &HashMap2<NIdx, u64>, n: &NIdx) -> Option<u64> {
     match at.get(n) {
@@ -527,7 +530,8 @@ pub fn at_of(at: &HashMap2<NIdx, u64>, n: &NIdx) -> Option<u64> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Index.lean:163-169 clashCopies
+/// con-leche: ConLeche/Frontend/Olean/Index.lean:179-185 clashCopies
+/// con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove index::first_or_refines, then delete this line
 /// `(ix.first[n]?).getD c`.
 pub fn first_or(ix: &NameIndex, n: &NIdx, c: &Copy) -> Copy {
     match ix.first.get(n) {
@@ -536,7 +540,7 @@ pub fn first_or(ix: &NameIndex, n: &NIdx, c: &Copy) -> Copy {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Index.lean:171-176 NamePositions.withImports
+/// con-leche: ConLeche/Frontend/Olean/Index.lean:187-192 NamePositions.withImports
 /// **A worker's own part with imports added** (a compared challenge's): the
 /// header's imports followed by `x`, and no constant of its own.  Without
 /// imports to add, the part itself.
@@ -554,7 +558,7 @@ pub fn name_positions_with_imports(own: NamePositions, x: &Vec<ImportRec>) -> Na
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Index.lean:178-226 workerReads
+/// con-leche: ConLeche/Frontend/Olean/Index.lean:194-242 workerReads
 /// The loaded parts' name tables, in the load order.
 pub fn loaded_parts<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, ld: &HeaderLoads) -> Result<Vec<NamePositions>, CheckError> {
     let mut parts: Vec<NamePositions> = Vec::with_capacity(ld.order.len());
@@ -569,7 +573,7 @@ pub fn loaded_parts<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mu
     Ok(parts)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Index.lean:178-226 workerReads
+/// con-leche: ConLeche/Frontend/Olean/Index.lean:194-242 workerReads
 /// `(infos[c]?).map fun (s, k) => (c, s, k)`.
 pub fn info_of(infos: &HashMap2<Copy, (StmtRec, CKindF<NIdx, ()>)>, c: &Copy) -> Option<(Copy, StmtRec, CKindF<NIdx, ()>)> {
     match infos.get(c) {
@@ -578,7 +582,7 @@ pub fn info_of(infos: &HashMap2<Copy, (StmtRec, CKindF<NIdx, ()>)>, c: &Copy) ->
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Index.lean:178-226 workerReads
+/// con-leche: ConLeche/Frontend/Olean/Index.lean:194-242 workerReads
 /// Every name's copies, read: each with its statement and kind.
 pub fn clashes_of(cc: Vec<(NIdx, Vec<Copy>)>, infos: &HashMap2<Copy, (StmtRec, CKindF<NIdx, ()>)>) -> Vec<Clash> {
     let mut out: Vec<Clash> = Vec::with_capacity(cc.len());
@@ -600,7 +604,7 @@ pub fn clashes_of(cc: Vec<(NIdx, Vec<Copy>)>, infos: &HashMap2<Copy, (StmtRec, C
     out
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Index.lean:178-226 workerReads
+/// con-leche: ConLeche/Frontend/Olean/Index.lean:194-242 workerReads
 /// The heads `isPropCheap` asks the type of, at the axiom/axiom pairs: of each
 /// clash whose first copy is an axiom, its type's head's first copy.
 pub fn clash_heads(pers: &PersTier, ar: &EStore, ix: &NameIndex, clashes: &Vec<Clash>) -> Result<Vec<Copy>, CheckError> {
@@ -617,7 +621,7 @@ pub fn clash_heads(pers: &PersTier, ar: &EStore, ix: &NameIndex, clashes: &Vec<C
     Ok(acc)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Index.lean:178-226 workerReads
+/// con-leche: ConLeche/Frontend/Olean/Index.lean:194-242 workerReads
 /// The head of one clash: of a clash whose first copy is an axiom, its type's
 /// head's first copy.
 pub fn clash_head(pers: &PersTier, ar: &EStore, ix: &NameIndex, cl: &Clash) -> Result<Option<Copy>, CheckError> {
@@ -637,7 +641,7 @@ pub fn clash_head(pers: &PersTier, ar: &EStore, ix: &NameIndex, cl: &Clash) -> R
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Index.lean:178-226 workerReads
+/// con-leche: ConLeche/Frontend/Olean/Index.lean:194-242 workerReads
 /// The clash rule over every clash, in order.
 pub fn clashes_ok(pk: &OleanPins, pers: &PersTier, ar: &EStore, ld: &HeaderLoads, h: &HeadTys, clashes: &Vec<Clash>) -> Result<(), CheckError> {
     let mut i = 0usize;
@@ -651,7 +655,7 @@ pub fn clashes_ok(pk: &OleanPins, pers: &PersTier, ar: &EStore, ld: &HeaderLoads
     Ok(())
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Index.lean:178-226 workerReads
+/// con-leche: ConLeche/Frontend/Olean/Index.lean:194-242 workerReads
 /// `cc.flatMap (·.2)`.
 pub fn all_copies(cc: &Vec<(NIdx, Vec<Copy>)>) -> Vec<Copy> {
     let mut out: Vec<Copy> = Vec::new();
@@ -667,7 +671,7 @@ pub fn all_copies(cc: &Vec<(NIdx, Vec<Copy>)>) -> Vec<Copy> {
     out
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Index.lean:178-226 workerReads
+/// con-leche: ConLeche/Frontend/Olean/Index.lean:194-242 workerReads
 /// **Phases 1 and 2 of a worker at module `m`**: its own part's header and
 /// names; the header fixpoint; each loaded module's public-import closure; the
 /// name index of the loaded parts; Lean's refusal of a classic import from a

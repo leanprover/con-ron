@@ -90,7 +90,7 @@ def readInfos (fs : OleanFs) (pk : OleanPins) (sp : Roots) (ld : HeaderLoads) (i
   let rs ← (byModule cs).toList.mapM fun (i, cs) => readInfosOf fs pk sp ld ix i cs
   pure (rs.foldl (fun m r => r.foldl (fun m (c, s, k) => m.insert c (s, k)) m) {})
 
-/-- con-leche: ConLeche/Frontend/Olean/Index.lean:178-226 workerReads
+/-- con-leche: ConLeche/Frontend/Olean/Index.lean:194-242 workerReads
 **`isPropCheap`'s `headTy` at the clash rule**, as a table over the heads' names: a head `c`'s
 name, the type of its name's first copy among the statements read (upstream's
 `fun n => (ix.first[n]?).bind fun c => (hinfos[c]?).map (·.1.type)`, at the names of the heads). -/
@@ -152,7 +152,8 @@ structure WorkerReads where
   index : NameIndex
   clashes : Array Clash
 
-/-- con-leche: ConLeche/Frontend/Olean/Index.lean:163-169 clashCopies
+/-- con-leche: ConLeche/Frontend/Olean/Index.lean:179-185 clashCopies
+-- con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove Index.clashCopies_bridge, then delete this line
 **The doubly held names, each with all its copies**, in the load order of their second copy. -/
 def clashCopies (ix : NameIndex) : Array (NIdx × Array Copy) :=
   (ix.more.foldl (fun (acc : Std.HashMap NIdx Nat × Array (NIdx × Array Copy)) (n, c) =>
@@ -161,14 +162,14 @@ def clashCopies (ix : NameIndex) : Array (NIdx × Array Copy) :=
     | some k => (at_, out.modify k fun (n', cs) => (n', cs.push c))
     | none => (at_.insert n out.size, out.push (n, #[(ix.first[n]?).getD c, c]))) ({}, #[])).2
 
-/-- con-leche: ConLeche/Frontend/Olean/Index.lean:171-176 NamePositions.withImports
+/-- con-leche: ConLeche/Frontend/Olean/Index.lean:187-192 NamePositions.withImports
 **A worker's own part with imports added**: the header's imports followed by `x`, and no
 constant of its own.  Without imports to add, the part itself. -/
 def NamePositions.withImports (own : NamePositions) (x : Array ImportRec) : NamePositions :=
   if x.isEmpty then own
   else { header := { own.header with imports := own.header.imports ++ x }, consts := #[] }
 
-/-- con-leche: ConLeche/Frontend/Olean/Index.lean:178-226 workerReads
+/-- con-leche: ConLeche/Frontend/Olean/Index.lean:194-242 workerReads
 The heads `isPropCheap` asks the type of, at the axiom/axiom pairs. -/
 def clashHeads (ix : NameIndex) (clashes : Array Clash) : AM (Array Copy) :=
   clashes.foldlM (fun (acc : Array Copy) cl => do
@@ -179,7 +180,7 @@ def clashHeads (ix : NameIndex) (clashes : Array Clash) : AM (Array Copy) :=
       | none => pure acc
     | _ => pure acc) #[]
 
-/-- con-leche: ConLeche/Frontend/Olean/Index.lean:178-226 workerReads
+/-- con-leche: ConLeche/Frontend/Olean/Index.lean:194-242 workerReads
 **Phases 1 and 2 of a worker at module `m`**: its own part's header and names; the header
 fixpoint; each loaded module's public-import closure; the name index of the loaded parts;
 Lean's refusal of a classic import from a module, the clash rule over every loaded name and

@@ -29,19 +29,19 @@ deriving instance Hashable for ConLeche.Frontend.Olean.OLeanLevel
 
 /-! ## What a record reads -/
 
-/-- con-leche: ConLeche/Driver/Reach.lean:91-95 recordReads
+/-- con-leche: ConLeche/Driver/Reach.lean:90-94 recordReads
 The constants' laws' names, in order. -/
 def recordReadsConsts : NeedsSt → List IConstantInfo → AM NeedsSt
   | x, [] => pure x
   | x, c :: cs => do recordReadsConsts (← x.const c) cs
 
-/-- con-leche: ConLeche/Driver/Reach.lean:91-95 recordReads
+/-- con-leche: ConLeche/Driver/Reach.lean:90-94 recordReads
 The tables' names, in order. -/
 def recordReadsTables : NeedsSt → List IProjTable → AM NeedsSt
   | x, [] => pure x
   | x, t :: ts => do recordReadsTables (← x.table t) ts
 
-/-- con-leche: ConLeche/Driver/Reach.lean:91-95 recordReads
+/-- con-leche: ConLeche/Driver/Reach.lean:90-94 recordReads
 **What a record reads**: its constants' laws' names and its tables'. -/
 def recordReads (d : IDeclaration) : AM (List NIdx) := do
   let cs ← declConstants d
@@ -50,21 +50,21 @@ def recordReads (d : IDeclaration) : AM (List NIdx) := do
   let x ← recordReadsTables x ts
   pure x.acc
 
-/-- con-leche: ConLeche/Modular.lean:95-96 declNames
+/-- con-leche: ConLeche/Modular.lean:98-99 declNames
 **The names a record installs**: its constants' names. -/
 def declNames (d : IDeclaration) : AM (List NIdx) := do
   pure ((← declConstants d).map (·.name))
 
 /-! ## The validation of a record -/
 
-/-- con-leche: ConLeche/Driver/Reach.lean:105-108 exprOk
+/-- con-leche: ConLeche/Driver/Reach.lean:104-107 exprOk
 **An expression's syntactic clauses**. -/
 def exprOk (lps : List NIdx) (k : Nat) (e : EIdx) : AM Bool := do
   if ← hasFvarFast coreWalkFuel e then return false
   if !(← looseBVarsBoundedFast coreWalkFuel k e) then return false
   allLevelParamsDefined lps e
 
-/-- con-leche: ConLeche/Driver/Reach.lean:110-123 nestedOk
+/-- con-leche: ConLeche/Driver/Reach.lean:109-122 nestedOk
 `lvls.all (·.allParamsDefined lps)`. -/
 def levelsDefined (ps : List Name) : List LIdx → AM Bool
   | [] => pure true
@@ -73,7 +73,7 @@ def levelsDefined (ps : List Name) : List LIdx → AM Bool
     if !u.allParamsDefined ps then return false
     levelsDefined ps ls
 
-/-- con-leche: ConLeche/Driver/Reach.lean:110-123 nestedOk
+/-- con-leche: ConLeche/Driver/Reach.lean:109-122 nestedOk
 `es.all (exprOk lps k)`. -/
 def exprsOk (lps : List NIdx) (k : Nat) : List EIdx → AM Bool
   | [] => pure true
@@ -81,7 +81,7 @@ def exprsOk (lps : List NIdx) (k : Nat) : List EIdx → AM Bool
     if !(← exprOk lps k e) then return false
     exprsOk lps k es
 
-/-- con-leche: ConLeche/Driver/Reach.lean:110-123 nestedOk
+/-- con-leche: ConLeche/Driver/Reach.lean:109-122 nestedOk
 **A nested rule's datum reads off its recursor's type** (`streamNestedOk`'s match). -/
 def nestedOk (lps : List NIdx) (ty : EIdx) (mI rP : Nat) (fire : IRecRuleFire) : AM Bool := do
   match fire with
@@ -93,7 +93,7 @@ def nestedOk (lps : List NIdx) (ty : EIdx) (mI rP : Nat) (fire : IRecRuleFire) :
     streamNestedOk ty mI rP fire
   | _ => pure true
 
-/-- con-leche: ConLeche/Driver/Reach.lean:125-131 ruleOk
+/-- con-leche: ConLeche/Driver/Reach.lean:124-130 ruleOk
 A recursor rule's clauses. -/
 def ruleOk (lps : List NIdx) (ty : EIdx) (mI rP : Nat) (r : IRecRule) : AM Bool := do
   if !(← exprOk lps 0 r.rhs) then return false
@@ -103,7 +103,7 @@ def ruleOk (lps : List NIdx) (ty : EIdx) (mI rP : Nat) (r : IRecRule) : AM Bool 
   | none => pure false
   | some _ => nestedOk lps ty mI rP r.fire
 
-/-- con-leche: ConLeche/Driver/Reach.lean:140-148 constOk
+/-- con-leche: ConLeche/Driver/Reach.lean:139-147 constOk
 `rules.all (ruleOk lps ty mI rP)`. -/
 def rulesOk (lps : List NIdx) (ty : EIdx) (mI rP : Nat) : List IRecRule → AM Bool
   | [] => pure true
@@ -111,7 +111,7 @@ def rulesOk (lps : List NIdx) (ty : EIdx) (mI rP : Nat) : List IRecRule → AM B
     if !(← ruleOk lps ty mI rP r) then return false
     rulesOk lps ty mI rP rs
 
-/-- con-leche: ConLeche/Driver/Reach.lean:133-138 ctorHeadOk
+/-- con-leche: ConLeche/Driver/Reach.lean:132-137 ctorHeadOk
 **A constructor's stored family is the one its type concludes in**. -/
 def ctorHeadOk (cv : IConstantVal) (induct : NIdx) : AM Bool := do
   let b ← piResult coreWalkFuel cv.type
@@ -122,7 +122,7 @@ def ctorHeadOk (cv : IConstantVal) (induct : NIdx) : AM Bool := do
     | some t => pure (t == induct)
   else pure false
 
-/-- con-leche: ConLeche/Driver/Reach.lean:140-148 constOk
+/-- con-leche: ConLeche/Driver/Reach.lean:139-147 constOk
 **A constant's syntactic clauses**. -/
 def constOk : IConstantInfo → AM Bool
   | .defnInfo cv v _ => do
@@ -138,14 +138,14 @@ def constOk : IConstantInfo → AM Bool
   | .thmInfo cv => exprOk cv.levelParams 0 cv.type
   | .indInfo cv _ => exprOk cv.levelParams 0 cv.type
 
-/-- con-leche: ConLeche/Driver/Reach.lean:150-153 tableOk
+/-- con-leche: ConLeche/Driver/Reach.lean:149-152 tableOk
 **A table's syntactic clauses**. -/
 def tableOk (t : IProjTable) : AM Bool := do
   if t.bodies.size != t.numFields then return false
   if t.numParams + 1 ≥ 2 ^ 64 then return false
   exprsOk t.levelParams (t.numParams + 1) t.bodies.toList
 
-/-- con-leche: ConLeche/Driver/Reach.lean:155-158 recordOk
+/-- con-leche: ConLeche/Driver/Reach.lean:154-157 recordOk
 `(declConstants d).all (fun c => constOk c && litShapeOk c)`. -/
 def constsOk : List IConstantInfo → AM Bool
   | [] => pure true
@@ -154,7 +154,7 @@ def constsOk : List IConstantInfo → AM Bool
     if !(← litShapeOk c) then return false
     constsOk cs
 
-/-- con-leche: ConLeche/Driver/Reach.lean:155-158 recordOk
+/-- con-leche: ConLeche/Driver/Reach.lean:154-157 recordOk
 `(declTables d).all tableOk`. -/
 def tablesOk : List IProjTable → AM Bool
   | [] => pure true
@@ -162,7 +162,7 @@ def tablesOk : List IProjTable → AM Bool
     if !(← tableOk t) then return false
     tablesOk ts
 
-/-- con-leche: ConLeche/Driver/Reach.lean:155-158 recordOk
+/-- con-leche: ConLeche/Driver/Reach.lean:154-157 recordOk
 **A record validated**. -/
 def recordOk (d : IDeclaration) : AM Bool := do
   let cs ← declConstants d
@@ -171,24 +171,24 @@ def recordOk (d : IDeclaration) : AM Bool := do
 
 /-! ## The reach's reads -/
 
-/-- con-leche: ConLeche/Driver/Reach.lean:164-168 PartKey
+/-- con-leche: ConLeche/Driver/Reach.lean:163-167 PartKey
 **A part of a view**: a module and a level. -/
 structure PartKey where
   mod : NIdx
   level : OLeanLevel
   deriving BEq, Hashable
 
-/-- con-leche: ConLeche/Driver/Reach.lean:164-168 PartKey
+/-- con-leche: ConLeche/Driver/Reach.lean:163-167 PartKey
 The key of a module's private part. -/
 def privKey (m : NIdx) : PartKey := ⟨m, .private⟩
 
-/-- con-leche: ConLeche/Driver/Reach.lean:170-173 Spot
+/-- con-leche: ConLeche/Driver/Reach.lean:169-172 Spot
 **A copy of a name**: the part holding it and its name position there. -/
 structure Spot where
   part : PartKey
   pos : NamePosition
 
-/-- con-leche: ConLeche/Driver/Reach.lean:175-186 ReachEnv
+/-- con-leche: ConLeche/Driver/Reach.lean:174-185 ReachEnv
 What the reach reads its records with, fixed for the run. -/
 structure ReachEnv where
   mod : NIdx
@@ -196,7 +196,7 @@ structure ReachEnv where
   own : Std.HashSet NIdx
   copies : Std.HashMap NIdx (Array (NIdx × StmtRec))
 
-/-- con-leche: ConLeche/Driver/Reach.lean:188-212 ReachCache
+/-- con-leche: ConLeche/Driver/Reach.lean:187-211 ReachCache
 **The reach's caches**: what it has read of the files. -/
 structure ReachCache where
   tables : Std.HashMap PartKey NamePositions := {}
@@ -210,12 +210,12 @@ structure ReachCache where
   partners : Array (NIdx × NIdx) := #[]
   searches : Nat := 0
 
-/-- con-leche: ConLeche/Driver/Reach.lean:214-217 viewKeys
+/-- con-leche: ConLeche/Driver/Reach.lean:213-216 viewKeys
 **The parts of module `h`'s view**, in order. -/
 def viewKeys (h : NIdx) (ld : HeaderLoads) : List PartKey :=
   privKey h :: (ld.order.zip ld.flags).toList.map fun (m, fl) => ⟨m, fl.level⟩
 
-/-- con-leche: ConLeche/Driver/Reach.lean:219-223 viewStep
+/-- con-leche: ConLeche/Driver/Reach.lean:218-222 viewStep
 **One part's names into a view**, the first copy of each name kept. -/
 def viewStep (v : Std.HashMap NIdx Spot) (k : PartKey) (t : NamePositions) : Std.HashMap NIdx Spot :=
   t.consts.foldl (fun (v : Std.HashMap NIdx Spot) q =>
@@ -223,14 +223,14 @@ def viewStep (v : Std.HashMap NIdx Spot) (k : PartKey) (t : NamePositions) : Std
 
 /-! ## The parts -/
 
-/-- con-leche: ConLeche/Driver/Reach.lean:230-248 tableOf
+/-- con-leche: ConLeche/Driver/Reach.lean:229-247 tableOf
 The index's table of a part: where the module is loaded at that level. -/
 def indexTable (wr : WorkerReads) (k : PartKey) : Option NamePositions :=
   match wr.loads.index[k.mod]? with
   | none => none
   | some i => if wr.loads.levelAt i == k.level then wr.index.parts[i]? else none
 
-/-- con-leche: ConLeche/Driver/Reach.lean:230-248 tableOf
+/-- con-leche: ConLeche/Driver/Reach.lean:229-247 tableOf
 **A part's name table, where it is**. -/
 def tableGet (wr : WorkerReads) (c : ReachCache) (k : PartKey) : Option NamePositions :=
   match c.tables[k]? with
@@ -240,7 +240,7 @@ def tableGet (wr : WorkerReads) (c : ReachCache) (k : PartKey) : Option NamePosi
 /-- con-leche: none — an internal failure: a cache entry the reach just made sure of is not there -/
 def cacheLost : CheckError := .internal "the reach lost a cached table"
 
-/-- con-leche: ConLeche/Driver/Reach.lean:230-248 tableOf
+/-- con-leche: ConLeche/Driver/Reach.lean:229-247 tableOf
 **A part's name table**: the index's, else read once. -/
 def tableOf (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : ReachCache) (k : PartKey) :
     AM ReachCache := do
@@ -249,12 +249,12 @@ def tableOf (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : R
   let t ← readPartNames fs pk sp k.mod k.level
   pure { c with tables := c.tables.insert k t }
 
-/-- con-leche: ConLeche/Driver/Reach.lean:250-261 lookOf
+/-- con-leche: ConLeche/Driver/Reach.lean:249-260 lookOf
 A table's lookup. -/
 def lookBuild (t : NamePositions) : Std.HashMap NIdx NamePosition :=
   t.consts.foldl (fun (l : Std.HashMap NIdx NamePosition) q => l.insert q.name q) {}
 
-/-- con-leche: ConLeche/Driver/Reach.lean:250-261 lookOf
+/-- con-leche: ConLeche/Driver/Reach.lean:249-260 lookOf
 **A part's name lookup**, built once. -/
 def lookOf (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : ReachCache) (k : PartKey) :
     AM ReachCache := do
@@ -264,14 +264,14 @@ def lookOf (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : Re
   | none => fail cacheLost
   | some t => pure { c with looks := c.looks.insert k (lookBuild t) }
 
-/-- con-leche: ConLeche/Driver/Reach.lean:250-261 lookOf
+/-- con-leche: ConLeche/Driver/Reach.lean:249-260 lookOf
 A name's position in a part's cached lookup. -/
 def lookAt (c : ReachCache) (k : PartKey) (n : NIdx) : AM (Option NamePosition) :=
   match c.looks[k]? with
   | none => fail cacheLost
   | some l => pure l[n]?
 
-/-- con-leche: ConLeche/Driver/Reach.lean:263-283 withPart
+/-- con-leche: ConLeche/Driver/Reach.lean:262-282 withPart
 **A part taken out of the caches for a read**. -/
 def takePart (fs : OleanFs) (pk : OleanPins) (sp : Roots) (c : ReachCache) (k : PartKey) :
     AM (ReachCache × Region × SM) := do
@@ -284,7 +284,7 @@ def takePart (fs : OleanFs) (pk : OleanPins) (sp : Roots) (c : ReachCache) (k : 
     | none => fail (← viewError pk mn f k.level)
     | some (r, _) => pure (c, r, {})
 
-/-- con-leche: ConLeche/Driver/Reach.lean:263-283 withPart
+/-- con-leche: ConLeche/Driver/Reach.lean:262-282 withPart
 **A part put back after a read**: its memo where the read went through, an empty memo where
 it did not. -/
 def putPart {α : Type} (c : ReachCache) (k : PartKey) (r : Region) (res : SM × Option α) :
@@ -293,7 +293,7 @@ def putPart {α : Type} (c : ReachCache) (k : PartKey) (r : Region) (res : SM ×
   | (st, some a) => pure ({ c with parts := c.parts.insert k (r, st) }, a)
   | (_, none) => fail (undecodable (← readName k.mod))
 
-/-- con-leche: ConLeche/Driver/Reach.lean:285-302 loadPart
+/-- con-leche: ConLeche/Driver/Reach.lean:284-301 loadPart
 **A part's region and name table off one read of its files**. -/
 def loadPart (fs : OleanFs) (pk : OleanPins) (sp : Roots) (c : ReachCache) (k : PartKey) :
     AM ReachCache := do
@@ -308,7 +308,7 @@ def loadPart (fs : OleanFs) (pk : OleanPins) (sp : Roots) (c : ReachCache) (k : 
     | none => fail (← viewError pk mn f k.level)
     | some t => pure { c with parts := c.parts.insert k (r, {}), tables := c.tables.insert k t }
 
-/-- con-leche: ConLeche/Driver/Reach.lean:304-310 entriesWith
+/-- con-leche: ConLeche/Driver/Reach.lean:303-309 entriesWith
 Several constants with one memo (`entryWith`, in order). -/
 def entriesWith (pk : OleanPins) (r : Region) : SM → List Nat → AM (SM × Option (List (CEntryF NIdx EIdx)))
   | st, [] => pure (st, some [])
@@ -320,28 +320,28 @@ def entriesWith (pk : OleanPins) (r : Region) : SM → List Nat → AM (SM × Op
       | (st, none) => pure (st, none)
       | (st, some es) => pure (st, some (e :: es))
 
-/-- con-leche: ConLeche/Driver/Reach.lean:263-283 withPart
+/-- con-leche: ConLeche/Driver/Reach.lean:262-282 withPart
 `withPart env c k fun r st => entryWith r st l`. -/
 def partEntry (fs : OleanFs) (pk : OleanPins) (sp : Roots) (c : ReachCache) (k : PartKey) (l : Nat) :
     AM (ReachCache × CEntryF NIdx EIdx) := do
   let (c, r, st) ← takePart fs pk sp c k
   putPart c k r (← entryWith pk r st l)
 
-/-- con-leche: ConLeche/Driver/Reach.lean:263-283 withPart
+/-- con-leche: ConLeche/Driver/Reach.lean:262-282 withPart
 `withPart env c k fun r st => entriesWith r st ls`. -/
 def partEntries (fs : OleanFs) (pk : OleanPins) (sp : Roots) (c : ReachCache) (k : PartKey) (ls : List Nat) :
     AM (ReachCache × List (CEntryF NIdx EIdx)) := do
   let (c, r, st) ← takePart fs pk sp c k
   putPart c k r (← entriesWith pk r st ls)
 
-/-- con-leche: ConLeche/Driver/Reach.lean:312-315 stmtAt
+/-- con-leche: ConLeche/Driver/Reach.lean:311-314 stmtAt
 **A copy's statement and kind**. -/
 def stmtAt (fs : OleanFs) (pk : OleanPins) (sp : Roots) (c : ReachCache) (s : Spot) :
     AM (ReachCache × StmtRec × CKindF NIdx Unit) := do
   let (c, r, st) ← takePart fs pk sp c s.part
   putPart c s.part r (← stmtWith pk r st s.pos.loc)
 
-/-- con-leche: ConLeche/Driver/Reach.lean:317-329 privSpot
+/-- con-leche: ConLeche/Driver/Reach.lean:316-328 privSpot
 **A copy in a module's private part**. -/
 def privSpot (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : ReachCache) (s : Spot) :
     AM (ReachCache × Spot) := do
@@ -355,7 +355,7 @@ def privSpot (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : 
 
 /-! ## A home's view, and a search in it -/
 
-/-- con-leche: ConLeche/Driver/Reach.lean:333-341 viewAdd
+/-- con-leche: ConLeche/Driver/Reach.lean:332-340 viewAdd
 One part's names into a view. -/
 def viewAddOne (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : ReachCache)
     (v : Std.HashMap NIdx Spot) (k : PartKey) : AM (ReachCache × Std.HashMap NIdx Spot) := do
@@ -364,7 +364,7 @@ def viewAddOne (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c 
   | none => fail cacheLost
   | some t => pure (c, viewStep v k t)
 
-/-- con-leche: ConLeche/Driver/Reach.lean:333-341 viewAdd
+/-- con-leche: ConLeche/Driver/Reach.lean:332-340 viewAdd
 The names of some parts into a view, the first copy kept. -/
 def viewAdd (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) :
     ReachCache → Std.HashMap NIdx Spot → List PartKey → AM (ReachCache × Std.HashMap NIdx Spot)
@@ -373,7 +373,7 @@ def viewAdd (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) :
     let (c, v) ← viewAddOne fs pk sp env c v k
     viewAdd fs pk sp env c v ks
 
-/-- con-leche: ConLeche/Driver/Reach.lean:343-358 viewOf
+/-- con-leche: ConLeche/Driver/Reach.lean:342-357 viewOf
 The header fixpoint of module `h`'s own private part. -/
 def homeLoads (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : ReachCache)
     (k : PartKey) : AM HeaderLoads :=
@@ -381,7 +381,7 @@ def homeLoads (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c :
   | none => fail cacheLost
   | some own => headerFixpoint fs pk sp own.header.isModule own.header.imports
 
-/-- con-leche: ConLeche/Driver/Reach.lean:343-358 viewOf
+/-- con-leche: ConLeche/Driver/Reach.lean:342-357 viewOf
 **Module `h`'s view, by name**, built once per home. -/
 def viewOf (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : ReachCache) (h : NIdx) :
     AM ReachCache := do
@@ -392,14 +392,14 @@ def viewOf (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : Re
   let (c, v) ← viewAdd fs pk sp env c {} (viewKeys h ld)
   pure { c with views := c.views.insert h v }
 
-/-- con-leche: ConLeche/Driver/Reach.lean:360-365 locate
+/-- con-leche: ConLeche/Driver/Reach.lean:359-364 locate
 A name in a home's cached view. -/
 def viewAt (c : ReachCache) (h y : NIdx) : AM (Option Spot) :=
   match c.views[h]? with
   | none => fail cacheLost
   | some v => pure v[y]?
 
-/-- con-leche: ConLeche/Driver/Reach.lean:360-365 locate
+/-- con-leche: ConLeche/Driver/Reach.lean:359-364 locate
 **`y` located in `h`'s view.** -/
 def locate (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : ReachCache) (h y : NIdx) :
     AM (ReachCache × Option Spot) := do
@@ -407,7 +407,7 @@ def locate (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : Re
   let c := { c with searches := c.searches + 1 }
   pure (c, ← viewAt c h y)
 
-/-- con-leche: ConLeche/Driver/Reach.lean:367-373 importerSpot
+/-- con-leche: ConLeche/Driver/Reach.lean:366-372 importerSpot
 **The importer's copy of a loaded name**. -/
 def importerSpot (pk : OleanPins) (env : ReachEnv) (y : NIdx) : Option (Nat × Spot) := do
   let cp ← env.wr.index.first[y]?
@@ -417,7 +417,7 @@ def importerSpot (pk : OleanPins) (env : ReachEnv) (y : NIdx) : Option (Nat × S
 
 /-! ## Agreement -/
 
-/-- con-leche: ConLeche/Driver/Reach.lean:377-383 ProofStatus
+/-- con-leche: ConLeche/Driver/Reach.lean:376-382 ProofStatus
 **Is a copy a proof**. -/
 inductive ProofStatus where
   | yes
@@ -425,7 +425,7 @@ inductive ProofStatus where
   | infer
   deriving BEq
 
-/-- con-leche: ConLeche/Driver/Reach.lean:385-403 proofStatus
+/-- con-leche: ConLeche/Driver/Reach.lean:384-402 proofStatus
 **A copy's proof flag**. -/
 def proofStatus (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : ReachCache)
     (s : Spot) (k : CKindF NIdx Unit) : AM (ReachCache × ProofStatus) := do
@@ -441,24 +441,24 @@ def proofStatus (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c
     else pure (c, .no)
   | _ => pure (c, .no)
 
-/-- con-leche: ConLeche/Driver/Reach.lean:405-407 partnerReads
+/-- con-leche: ConLeche/Driver/Reach.lean:404-406 partnerReads
 The names a statement reads, each paired with a home, onto `acc`. -/
 def partnerReads (acc : Array (NIdx × NIdx)) (h : NIdx) (ty : EIdx) : AM (Array (NIdx × NIdx)) := do
   let x ← NeedsSt.empty.expr ty
   pure (x.acc.foldl (fun acc y => acc.push (h, y)) acc)
 
-/-- con-leche: ConLeche/Driver/Reach.lean:409-441 agreeCheck
+/-- con-leche: ConLeche/Driver/Reach.lean:408-440 agreeCheck
 `s!"name capture at {y}, read by module {h}"`. -/
 def captureWhat (h y : NIdx) : AM String := do
   pure s!"name capture at {← readName y}, read by module {← readName h}"
 
-/-- con-leche: ConLeche/Driver/Reach.lean:409-441 agreeCheck
+/-- con-leche: ConLeche/Driver/Reach.lean:408-440 agreeCheck
 The copies of `y` of two modules are not one constant. -/
 def agreeBad (h y m₁ m₂ : NIdx) : AM CheckError := do
   pure (.invalid s!"{← captureWhat h y}: the copies of {← readName y} of modules \
     {← readName m₁} and {← readName m₂} are not one constant (not two proofs of one statement)")
 
-/-- con-leche: ConLeche/Driver/Reach.lean:409-441 agreeCheck
+/-- con-leche: ConLeche/Driver/Reach.lean:408-440 agreeCheck
 Whether a status is `no` (`yes := false`) or `yes`. -/
 def statusIs (p : ProofStatus) (yes : Bool) : Bool :=
   match p with
@@ -466,7 +466,7 @@ def statusIs (p : ProofStatus) (yes : Bool) : Bool :=
   | .no => !yes
   | .infer => false
 
-/-- con-leche: ConLeche/Driver/Reach.lean:409-441 agreeCheck
+/-- con-leche: ConLeche/Driver/Reach.lean:408-440 agreeCheck
 **Two copies of `y` agree**. -/
 def agreeCheck (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : ReachCache)
     (h y : NIdx) (s₁ s₂ : Spot) : AM ReachCache := do
@@ -486,14 +486,14 @@ def agreeCheck (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c 
     pure { c with pending := c.pending.push (← captureWhat h y, y, cv₁) }
   else pure c
 
-/-- con-leche: ConLeche/Driver/Reach.lean:443-477 clashAgree
+/-- con-leche: ConLeche/Driver/Reach.lean:442-476 clashAgree
 A clash's copies the index locates, as spots with their statements and kinds. -/
 def clashSpots (pk : OleanPins) (env : ReachEnv) (cl : Clash) : List (Spot × StmtRec × CKindF NIdx Unit) :=
   let ld := env.wr.loads
   cl.copies.toList.filterMap fun (cp, cv, k) =>
     (env.wr.index.at cp).map fun q => ((⟨⟨ld.nameAt pk cp.mod, ld.levelAt cp.mod⟩, q⟩ : Spot), cv, k)
 
-/-- con-leche: ConLeche/Driver/Reach.lean:443-477 clashAgree
+/-- con-leche: ConLeche/Driver/Reach.lean:442-476 clashAgree
 `statuses`: whether one spot is `no`, one `yes`. -/
 def clashStatuses (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) :
     ReachCache → Bool → Bool → List (Spot × StmtRec × CKindF NIdx Unit) → AM (ReachCache × Bool × Bool)
@@ -502,7 +502,7 @@ def clashStatuses (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) 
     let (c, p) ← proofStatus fs pk sp env c s k
     clashStatuses fs pk sp env c (no || statusIs p false) (yes || statusIs p true) rest
 
-/-- con-leche: ConLeche/Driver/Reach.lean:443-477 clashAgree
+/-- con-leche: ConLeche/Driver/Reach.lean:442-476 clashAgree
 One clash: its copies must be proofs of one statement; its name onto `acc`. -/
 def clashAgreeOne (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : ReachCache)
     (cl : Clash) (acc : Array NIdx) : AM (ReachCache × Array NIdx) := do
@@ -519,7 +519,7 @@ def clashAgreeOne (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) 
     pure ({ c with pending := c.pending.push (why, cl.name, cv) }, acc.push cl.name)
   | [] => pure (c, acc)
 
-/-- con-leche: ConLeche/Driver/Reach.lean:443-477 clashAgree
+/-- con-leche: ConLeche/Driver/Reach.lean:442-476 clashAgree
 **The clash rule**; every clashing name returned, to be reached. -/
 def clashAgree (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) :
     ReachCache → List Clash → Array NIdx → AM (ReachCache × Array NIdx)
@@ -530,7 +530,7 @@ def clashAgree (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) :
 
 /-! ## The capture check -/
 
-/-- con-leche: ConLeche/Driver/Reach.lean:481-487 inExported
+/-- con-leche: ConLeche/Driver/Reach.lean:480-486 inExported
 **Is `y` in module `m`'s exported part** (`m` loaded at `level`). -/
 def inExported (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : ReachCache)
     (m : NIdx) (level : OLeanLevel) (y : NIdx) : AM (ReachCache × Bool) := do
@@ -539,19 +539,19 @@ def inExported (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c 
   let c ← lookOf fs pk sp env c k
   pure (c, (← lookAt c k y).isSome)
 
-/-- con-leche: ConLeche/Driver/Reach.lean:489-532 captureOne
+/-- con-leche: ConLeche/Driver/Reach.lean:488-531 captureOne
 Whether `h`'s public-import closure holds the module at load position `i`. -/
 def pubHas (env : ReachEnv) (h : NIdx) (i : Nat) : Bool :=
   match env.wr.loads.index[h]? with
   | some hi => ((env.wr.pub[hi]?).map (·.has i)).getD false
   | none => false
 
-/-- con-leche: ConLeche/Driver/Reach.lean:489-532 captureOne
+/-- con-leche: ConLeche/Driver/Reach.lean:488-531 captureOne
 `module {h} reads {y}, which {what}`. -/
 def readsWhich (h y : NIdx) (what : String) : AM CheckError := do
   pure (.invalid s!"module {← readName h} reads {← readName y}, which {what}")
 
-/-- con-leche: ConLeche/Driver/Reach.lean:489-532 captureOne
+/-- con-leche: ConLeche/Driver/Reach.lean:488-531 captureOne
 A located or loaded copy `s₁` of `y` against the copy `h`'s view holds. -/
 def captureAgainst (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : ReachCache)
     (h y : NIdx) (s₁ : Spot) : AM ReachCache := do
@@ -559,11 +559,11 @@ def captureAgainst (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv)
   | (_, none) => fail (← readsWhich h y "its view does not hold")
   | (c, some s₂) => agreeCheck fs pk sp env c h y s₁ s₂
 
-/-- con-leche: ConLeche/Driver/Reach.lean:489-532 captureOne
+/-- con-leche: ConLeche/Driver/Reach.lean:488-531 captureOne
 A name's located copy. -/
 def locatedAt (c : ReachCache) (y : NIdx) : Option Spot := c.located[y]?
 
-/-- con-leche: ConLeche/Driver/Reach.lean:489-532 captureOne
+/-- con-leche: ConLeche/Driver/Reach.lean:488-531 captureOne
 **The capture check of one read** `y` of a record of home `h`, and the completion of a name the
 index lacks. -/
 def captureOne (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : ReachCache)
@@ -590,13 +590,13 @@ def captureOne (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c 
         let (c, p) ← privSpot fs pk sp env c s
         pure { c with located := c.located.insert y p, completed := c.completed.push (y, h) }
 
-/-- con-leche: ConLeche/Driver/Reach.lean:534-559 storedNamesOk
+/-- con-leche: ConLeche/Driver/Reach.lean:533-558 storedNamesOk
 `a record read from module {h} stores {n}, which the context reads from module {k}`. -/
 def storedBad (h n k : NIdx) : AM CheckError := do
   pure (.invalid s!"a record read from module {← readName h} stores {← readName n}, which the \
     context reads from module {← readName k}")
 
-/-- con-leche: ConLeche/Driver/Reach.lean:534-559 storedNamesOk
+/-- con-leche: ConLeche/Driver/Reach.lean:533-558 storedNamesOk
 One name a record of home `h` stores, against the importer's copies. -/
 def storedNameOk (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : ReachCache)
     (h n : NIdx) : AM ReachCache := do
@@ -613,7 +613,7 @@ def storedNameOk (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (
       | none => fail (.invalid s!"module {← readName h}: a record of its private part stores \
           {← readName n}, which its private part does not hold")
 
-/-- con-leche: ConLeche/Driver/Reach.lean:534-559 storedNamesOk
+/-- con-leche: ConLeche/Driver/Reach.lean:533-558 storedNamesOk
 **The names a record stores, against the importer's copies**. -/
 def storedNamesOk (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (h : NIdx) :
     ReachCache → List NIdx → AM ReachCache
@@ -622,7 +622,7 @@ def storedNamesOk (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) 
     let c ← storedNameOk fs pk sp env c h n
     storedNamesOk fs pk sp env h c ns
 
-/-- con-leche: ConLeche/Driver/Reach.lean:561-567 clashPartners
+/-- con-leche: ConLeche/Driver/Reach.lean:560-566 clashPartners
 One stored name's copies, if it clashes, each statement's names as reads of the copy's
 module. -/
 def clashPartnersOne (env : ReachEnv) (acc : Array (NIdx × NIdx)) (n : NIdx) : AM (Array (NIdx × NIdx)) :=
@@ -630,12 +630,12 @@ def clashPartnersOne (env : ReachEnv) (acc : Array (NIdx × NIdx)) (n : NIdx) : 
   | none => pure acc
   | some cs => cs.toList.foldlM (fun acc (k, cv) => partnerReads acc k cv.type) acc
 
-/-- con-leche: ConLeche/Driver/Reach.lean:561-567 clashPartners
+/-- con-leche: ConLeche/Driver/Reach.lean:560-566 clashPartners
 **Every copy of a clashing name the context stores**, onto `acc`. -/
 def clashPartners (env : ReachEnv) (acc : Array (NIdx × NIdx)) (ns : List NIdx) : AM (Array (NIdx × NIdx)) :=
   ns.foldlM (clashPartnersOne env) acc
 
-/-- con-leche: ConLeche/Driver/Reach.lean:569-576 captureAll
+/-- con-leche: ConLeche/Driver/Reach.lean:568-575 captureAll
 The capture check of every read of a record. -/
 def captureAll (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (h : NIdx) :
     ReachCache → List NIdx → AM ReachCache
@@ -644,7 +644,7 @@ def captureAll (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (h 
     let c ← captureOne fs pk sp env c h y
     captureAll fs pk sp env h c ys
 
-/-- con-leche: ConLeche/Driver/Reach.lean:578-585 capturePairs
+/-- con-leche: ConLeche/Driver/Reach.lean:577-584 capturePairs
 **The partners' reads checked**. -/
 def capturePairs (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) :
     ReachCache → List (NIdx × NIdx) → AM ReachCache
@@ -655,7 +655,7 @@ def capturePairs (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) :
 
 /-! ## A record read -/
 
-/-- con-leche: ConLeche/Driver/Reach.lean:589-596 recBlocksAt
+/-- con-leche: ConLeche/Driver/Reach.lean:588-595 recBlocksAt
 One recursor's location onto the block of its first member. -/
 def recBlocksAdd (m : Std.HashMap NIdx (Array Nat)) (l : Nat) (k : CKindF NIdx Unit) :
     Std.HashMap NIdx (Array Nat) :=
@@ -663,7 +663,7 @@ def recBlocksAdd (m : Std.HashMap NIdx (Array Nat)) (l : Nat) (k : CKindF NIdx U
   | .recur (a :: _) .. => m.insert a (((m[a]?).getD #[]).push l)
   | _ => m
 
-/-- con-leche: ConLeche/Driver/Reach.lean:589-596 recBlocksAt
+/-- con-leche: ConLeche/Driver/Reach.lean:588-595 recBlocksAt
 **A part's recursors' locations by their block's first member**, in the part's order. -/
 def recBlocksAt (pk : OleanPins) (r : Region) :
     Std.HashMap NIdx (Array Nat) → List NamePosition → AM (Option (Std.HashMap NIdx (Array Nat)))
@@ -675,7 +675,7 @@ def recBlocksAt (pk : OleanPins) (r : Region) :
       | some k => recBlocksAt pk r (recBlocksAdd m q.loc k) qs
     else recBlocksAt pk r m qs
 
-/-- con-leche: ConLeche/Driver/Reach.lean:598-609 recBlocksOf
+/-- con-leche: ConLeche/Driver/Reach.lean:597-608 recBlocksOf
 A part's recursors' locations by their block's first member, read once. -/
 def recBlocksOf (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : ReachCache)
     (k : PartKey) : AM ReachCache := do
@@ -688,46 +688,46 @@ def recBlocksOf (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c
   let (c, m) ← putPart c k r (st, res)
   pure { c with recBlocks := c.recBlocks.insert k m }
 
-/-- con-leche: ConLeche/Driver/Reach.lean:611-615 groupCtorNames
+/-- con-leche: ConLeche/Driver/Reach.lean:610-614 groupCtorNames
 The constructors a group's types list. -/
 def groupCtorNames (tys : List (CEntryF NIdx EIdx)) : List NIdx :=
   tys.flatMap fun t => match t.kind with
     | .induct _ _ _ cs .. => cs
     | _ => []
 
-/-- con-leche: ConLeche/Driver/Reach.lean:617-619 groupRecLocs
+/-- con-leche: ConLeche/Driver/Reach.lean:616-618 groupRecLocs
 The locations of a group's recursors in a part, by its first member. -/
 def groupRecLocs (rb : Std.HashMap NIdx (Array Nat)) (all : List NIdx) : List Nat :=
   ((all.head?.bind (rb[·]?)).getD #[]).toList
 
-/-- con-leche: ConLeche/Driver/Reach.lean:621-628 groupMerged
+/-- con-leche: ConLeche/Driver/Reach.lean:620-627 groupMerged
 Whether a constant is kept among a group's rest. -/
 def groupKeeps (e : CEntryF NIdx EIdx) (all : List NIdx) : Bool :=
   match e.kind with
   | .recur all' .. => all' == all
   | _ => true
 
-/-- con-leche: ConLeche/Driver/Reach.lean:621-628 groupMerged
+/-- con-leche: ConLeche/Driver/Reach.lean:620-627 groupMerged
 A group's constants as a merge. -/
 def groupMerged (pk : OleanPins) (t : CEntryF NIdx EIdx) (tys rest : List (CEntryF NIdx EIdx))
     (all : List NIdx) : Merged :=
   mergedOfList pk ((t :: tys ++ rest.filter (groupKeeps · all)).map (fun c => { c })).toArray
 
-/-- con-leche: ConLeche/Driver/Reach.lean:630-668 groupAt
+/-- con-leche: ConLeche/Driver/Reach.lean:629-667 groupAt
 The locations of some names in a part's lookup, `none` where one is missing. -/
 def lookLocs (c : ReachCache) (k : PartKey) (ns : List NIdx) : AM (Option (List Nat)) :=
   match c.looks[k]? with
   | none => fail cacheLost
   | some l => pure (ns.mapM fun n => (l[n]?).map (·.loc))
 
-/-- con-leche: ConLeche/Driver/Reach.lean:630-668 groupAt
+/-- con-leche: ConLeche/Driver/Reach.lean:629-667 groupAt
 A group's recursors' locations in a cached part. -/
 def recLocsAt (c : ReachCache) (k : PartKey) (all : List NIdx) : AM (List Nat) :=
   match c.recBlocks[k]? with
   | none => fail cacheLost
   | some rb => pure (groupRecLocs rb all)
 
-/-- con-leche: ConLeche/Driver/Reach.lean:630-668 groupAt
+/-- con-leche: ConLeche/Driver/Reach.lean:629-667 groupAt
 **Type `n`'s group, read from one part**: `none` where the part lacks a member or a
 constructor. -/
 def groupAt (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : ReachCache)
@@ -748,7 +748,7 @@ def groupAt (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : R
   let d ← groupRecord pk (groupMerged pk t tys rest all) n
   pure (c, some d)
 
-/-- con-leche: ConLeche/Driver/Reach.lean:670-677 groupOfKind
+/-- con-leche: ConLeche/Driver/Reach.lean:669-676 groupOfKind
 The type whose group presents a copy of `x` of kind `k`. -/
 def groupOfKind (x : NIdx) : CKindF NIdx Unit → Option NIdx
   | .induct .. => some x
@@ -756,11 +756,11 @@ def groupOfKind (x : NIdx) : CKindF NIdx Unit → Option NIdx
   | .recur all .. => some (all.headD x)
   | _ => none
 
-/-- con-leche: ConLeche/Driver/Reach.lean:679-692 stmtRecord
+/-- con-leche: ConLeche/Driver/Reach.lean:678-691 stmtRecord
 A statement as an axiom's record. -/
 def axiomOf (cv : StmtRec) : IDeclaration := .axiomDecl ⟨cv.name, cv.levelParams, cv.type⟩
 
-/-- con-leche: ConLeche/Driver/Reach.lean:679-692 stmtRecord
+/-- con-leche: ConLeche/Driver/Reach.lean:678-691 stmtRecord
 **A copy presented as its statement**. -/
 def stmtRecord (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : ReachCache)
     (s : Spot) (cv : StmtRec) : AM (ReachCache × IDeclaration × NIdx) := do
@@ -772,14 +772,14 @@ def stmtRecord (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c 
   else fail (.invalid s!"module {← readName h} declares {← readName cv.name}, a compiler-trust \
     name, as neither an opaque constant nor an axiom")
 
-/-- con-leche: ConLeche/Driver/Reach.lean:694-730 readRecord
+/-- con-leche: ConLeche/Driver/Reach.lean:693-729 readRecord
 The copy presenting `x`: the importer's, else a completion's located copy (`true`). -/
 def recordSpot (pk : OleanPins) (env : ReachEnv) (c : ReachCache) (x : NIdx) : Option (Spot × Bool) :=
   match importerSpot pk env x with
   | some (_, s) => some (s, false)
   | none => (locatedAt c x).map (·, true)
 
-/-- con-leche: ConLeche/Driver/Reach.lean:694-730 readRecord
+/-- con-leche: ConLeche/Driver/Reach.lean:693-729 readRecord
 **The record presenting `x`, and its home**. -/
 def readRecord (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c : ReachCache)
     (x : NIdx) : AM (ReachCache × IDeclaration × NIdx) := do
@@ -807,7 +807,7 @@ def readRecord (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (c 
 
 /-! ## The worklist -/
 
-/-- con-leche: ConLeche/Driver/Reach.lean:736-745 ReachLog
+/-- con-leche: ConLeche/Driver/Reach.lean:735-744 ReachLog
 **The reach's logical state**; the stack's top first. -/
 structure ReachLog where
   seen : Std.HashSet NIdx
@@ -817,7 +817,7 @@ structure ReachLog where
   reads : Array (List NIdx)
   stack : List NIdx
 
-/-- con-leche: ConLeche/Driver/Reach.lean:747-753 pushNames
+/-- con-leche: ConLeche/Driver/Reach.lean:746-752 pushNames
 Push the names not seen yet. -/
 def pushNames (seen : Std.HashSet NIdx) (stack : List NIdx) : List NIdx → Std.HashSet NIdx × List NIdx
   | [] => (seen, stack)
@@ -825,20 +825,20 @@ def pushNames (seen : Std.HashSet NIdx) (stack : List NIdx) : List NIdx → Std.
     if seen.contains y then pushNames seen stack ys
     else pushNames (seen.insert y) (y :: stack) ys
 
-/-- con-leche: ConLeche/Driver/Reach.lean:755-759 ReachLog.add
+/-- con-leche: ConLeche/Driver/Reach.lean:754-758 ReachLog.add
 **A record added**: its names `ns` stored, what it reads (`rd`) pushed. -/
 def ReachLog.add (L : ReachLog) (d : IDeclaration) (h : NIdx) (ns rd : List NIdx) : ReachLog :=
   let (seen, stack) := pushNames L.seen L.stack rd
   { seen, stored := ns.foldl (fun s n => s.insert n) L.stored,
     ctx := L.ctx.push d, homes := L.homes.push h, reads := L.reads.push rd, stack }
 
-/-- con-leche: ConLeche/Driver/Reach.lean:761-764 ReachLog.init
+/-- con-leche: ConLeche/Driver/Reach.lean:760-763 ReachLog.init
 **The worklist's start**. -/
 def ReachLog.init (rs : List NIdx) : ReachLog :=
   let p := pushNames {} [] rs
   { seen := p.1, stored := {}, ctx := #[], homes := #[], reads := #[], stack := p.2 }
 
-/-- con-leche: ConLeche/Driver/Reach.lean:766-777 missingError
+/-- con-leche: ConLeche/Driver/Reach.lean:765-776 missingError
 Why the record read for `x` does not store it (`ns`: its names). -/
 def missingError (d : IDeclaration) (ns : List NIdx) (x h : NIdx) : AM CheckError := do
   let xs ← readName x
@@ -854,13 +854,13 @@ def missingError (d : IDeclaration) (ns : List NIdx) (x h : NIdx) : AM CheckErro
     else pure (.invalid s!"the record read for {xs} from {hs} does not declare it")
   | _ => pure (.invalid s!"the record read for {xs} from {hs} does not declare it")
 
-/-- con-leche: ConLeche/Driver/Reach.lean:779-783 clashCopiesOf
+/-- con-leche: ConLeche/Driver/Reach.lean:778-782 clashCopiesOf
 **The copies of every name two loaded modules hold**, by name. -/
 def clashCopiesOf (pk : OleanPins) (wr : WorkerReads) : Std.HashMap NIdx (Array (NIdx × StmtRec)) :=
   wr.clashes.foldl (fun m cl =>
     m.insert cl.name (cl.copies.map fun (cp, cv, _) => (wr.loads.nameAt pk cp.mod, cv))) {}
 
-/-- con-leche: ConLeche/Driver/Reach.lean:785-788 inRecord
+/-- con-leche: ConLeche/Driver/Reach.lean:784-787 inRecord
 A failed read of the record of `x`, read from `h`, names the record. -/
 def inRecord (x h : NIdx) : CheckError → AM CheckError
   | .invalid m => do pure (.invalid s!"the record of {← readName x}, read from {← readName h}: {m}")
@@ -872,11 +872,11 @@ def catchE {α : Type} (x : AM α) : AM (Except CheckError α) := fun s =>
   | .ok (a, s') => .ok (.ok a, s')
   | .error e => .ok (.error e, s)
 
-/-- con-leche: ConLeche/Driver/Reach.lean:790-827 reachGo
+/-- con-leche: ConLeche/Driver/Reach.lean:789-826 reachGo
 Whether a record stores a name already stored. -/
 def anyStored (stored : Std.HashSet NIdx) (ns : List NIdx) : Bool := ns.any stored.contains
 
-/-- con-leche: ConLeche/Driver/Reach.lean:790-827 reachGo
+/-- con-leche: ConLeche/Driver/Reach.lean:789-826 reachGo
 The worklist's step at an empty stack: the partners' reads checked and pushed. -/
 def reachPartners (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (L : ReachLog)
     (c : ReachCache) : AM (ReachLog × ReachCache) := do
@@ -885,7 +885,7 @@ def reachPartners (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) 
   let (seen, stack) := pushNames L.seen [] (ps.map (·.2))
   pure ({ L with seen, stack }, c)
 
-/-- con-leche: ConLeche/Driver/Reach.lean:790-827 reachGo
+/-- con-leche: ConLeche/Driver/Reach.lean:789-826 reachGo
 The worklist's step at a name `x` popped (`L.stack` already without it). -/
 def reachRead (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (L : ReachLog)
     (c : ReachCache) (x : NIdx) : AM (ReachLog × ReachCache) := do
@@ -903,7 +903,7 @@ def reachRead (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) (L :
   let L := L.add d h ns rd
   pure (L, { c with partners := ← clashPartners env c.partners ns })
 
-/-- con-leche: ConLeche/Driver/Reach.lean:790-827 reachGo
+/-- con-leche: ConLeche/Driver/Reach.lean:789-826 reachGo
 **The reach's worklist**; each step spends one fuel. -/
 def reachGo (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) :
     Nat → ReachLog → ReachCache → AM (ReachLog × ReachCache)
@@ -925,7 +925,7 @@ def reachGo (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) :
 
 /-! ## The validation and the flags -/
 
-/-- con-leche: ConLeche/Driver/Reach.lean:831-838 validateCtx
+/-- con-leche: ConLeche/Driver/Reach.lean:830-837 validateCtx
 The malformed record named, with its home. -/
 def validateBad (d : IDeclaration) (h : Option NIdx) : AM CheckError := do
   match h with
@@ -935,7 +935,7 @@ def validateBad (d : IDeclaration) (h : Option NIdx) : AM CheckError := do
       loose bound variable, an undeclared universe parameter, a nested rule's datum, a table's \
       bodies or a literal's shape)")
 
-/-- con-leche: ConLeche/Driver/Reach.lean:831-838 validateCtx
+/-- con-leche: ConLeche/Driver/Reach.lean:830-837 validateCtx
 **Every context record validated**, the first failure named. -/
 def validateCtx (ds : List IDeclaration) (hs : Array NIdx) (i : Nat) : AM Unit :=
   match ds with
@@ -944,7 +944,7 @@ def validateCtx (ds : List IDeclaration) (hs : Array NIdx) (i : Nat) : AM Unit :
     if ← recordOk d then validateCtx ds hs (i + 1)
     else fail (← validateBad d hs[i]?)
 
-/-- con-leche: ConLeche/Driver/Reach.lean:840-844 typeIsPropC
+/-- con-leche: ConLeche/Driver/Reach.lean:839-843 typeIsPropC
 **Is a statement's type a proposition**, by the kernel's inference at `fe`. -/
 def typeIsPropC (fe : IFEnv) (cv : StmtRec) : AM Bool := do
   let jsty ← inferTypeCore .verified fe checkFuel 0 cv.type
@@ -952,7 +952,7 @@ def typeIsPropC (fe : IFEnv) (cv : StmtRec) : AM Bool := do
   let z ← zeroLevel
   liftFueled "level comparison" (← lvlEq? u z)
 
-/-- con-leche: ConLeche/Driver/Reach.lean:846-849 ctxPart
+/-- con-leche: ConLeche/Driver/Reach.lean:845-848 ctxPart
 **Each context name's first record**, by its position. -/
 def firstOwner (ds : List IDeclaration) : AM (Std.HashMap NIdx Nat) := do
   let (m, _) ← ds.foldlM (fun (acc : Std.HashMap NIdx Nat × Nat) d => do
@@ -961,11 +961,11 @@ def firstOwner (ds : List IDeclaration) : AM (Std.HashMap NIdx Nat) := do
     ({}, 0)
   pure m
 
-/-- con-leche: ConLeche/Driver/Reach.lean:846-849 ctxPart
+/-- con-leche: ConLeche/Driver/Reach.lean:845-848 ctxPart
 The position whose view is the part of the context below `y`. -/
 def partPos (m : Std.HashMap NIdx Nat) (n : Nat) (y : NIdx) : Nat := m[y]?.getD n
 
-/-- con-leche: ConLeche/Driver/Reach.lean:851-866 inferFlags
+/-- con-leche: ConLeche/Driver/Reach.lean:850-865 inferFlags
 One recorded statement inferred. -/
 def inferOne (fe : IFEnv) (what : String) (y : NIdx) (cv : StmtRec) : AM Unit := do
   let ok ← if ← exprOk cv.levelParams 0 cv.type then constsResolveFFast fe cv.type else pure false
@@ -975,7 +975,7 @@ def inferOne (fe : IFEnv) (what : String) (y : NIdx) (cv : StmtRec) : AM Unit :=
   else fail (.invalid s!"{what}: the copies of {← readName y} of two modules are not one constant \
     (its type is not a proposition)")
 
-/-- con-leche: ConLeche/Driver/Reach.lean:851-866 inferFlags
+/-- con-leche: ConLeche/Driver/Reach.lean:850-865 inferFlags
 The recorded statements inferred, each in its own bracket. -/
 def inferAll (I : IStreamIndex) (owner : Std.HashMap NIdx Nat) (n : Nat) :
     List (String × NIdx × StmtRec) → AM Unit
@@ -986,7 +986,7 @@ def inferAll (I : IStreamIndex) (owner : Std.HashMap NIdx Nat) (n : Nat) :
     dropScratch
     inferAll I owner n rest
 
-/-- con-leche: ConLeche/Driver/Reach.lean:851-866 inferFlags
+/-- con-leche: ConLeche/Driver/Reach.lean:850-865 inferFlags
 **The inferred flags**, at the frozen index `I` of `ctx ++ own`. -/
 def inferFlags (I : IStreamIndex) (ctx : Array IDeclaration) (pending : Array (String × NIdx × StmtRec)) :
     AM Unit := do
@@ -996,7 +996,7 @@ def inferFlags (I : IStreamIndex) (ctx : Array IDeclaration) (pending : Array (S
 
 /-! ## The read order -/
 
-/-- con-leche: ConLeche/Driver/Reach.lean:870-873 ownerMap
+/-- con-leche: ConLeche/Driver/Reach.lean:869-872 ownerMap
 **Each context name's record**, by its position (the last record kept). -/
 def ownerMap (ds : List IDeclaration) : AM (Std.HashMap NIdx Nat) := do
   let (m, _) ← ds.foldlM (fun (acc : Std.HashMap NIdx Nat × Nat) d => do
@@ -1004,13 +1004,13 @@ def ownerMap (ds : List IDeclaration) : AM (Std.HashMap NIdx Nat) := do
     pure (ns.foldl (fun m n => m.insert n acc.2) acc.1, acc.2 + 1)) ({}, 0)
   pure m
 
-/-- con-leche: ConLeche/Driver/Reach.lean:875-878 SortSt
+/-- con-leche: ConLeche/Driver/Reach.lean:874-877 SortSt
 **The read order's state**. -/
 structure SortSt where
   order : Array Nat := #[]
   placed : Std.HashSet Nat := {}
 
-/-- con-leche: ConLeche/Driver/Reach.lean:880-902 sortVisit
+/-- con-leche: ConLeche/Driver/Reach.lean:879-901 sortVisit
 The records at positions `i` and `j` read each other through `y`. -/
 def sortCycle (ds : Array IDeclaration) (i j : Nat) (y : NIdx) : AM CheckError := do
   let a ← match ds[i]? with | some d => declLabel d | none => pure ""
@@ -1018,7 +1018,7 @@ def sortCycle (ds : Array IDeclaration) (i j : Nat) (y : NIdx) : AM CheckError :
   pure (.invalid s!"the context records {a} and {b} read each other (through {← readName y})")
 
 mutual
-/-- con-leche: ConLeche/Driver/Reach.lean:880-902 sortVisit
+/-- con-leche: ConLeche/Driver/Reach.lean:879-901 sortVisit
 **The record at position `i` placed after its reads** `ys` (a post-order walk). -/
 def sortVisit (ds : Array IDeclaration) (rds : Array (List NIdx)) (owner : Std.HashMap NIdx Nat) :
     Nat → Nat → Std.HashSet Nat → List NIdx → SortSt → AM SortSt
@@ -1027,7 +1027,7 @@ def sortVisit (ds : Array IDeclaration) (rds : Array (List NIdx)) (owner : Std.H
     let st ← sortVisitList ds rds owner fuel i path ys st
     pure { order := st.order.push i, placed := st.placed.insert i }
 
-/-- con-leche: ConLeche/Driver/Reach.lean:880-902 sortVisit
+/-- con-leche: ConLeche/Driver/Reach.lean:879-901 sortVisit
 The reads of record `i`, in order, at depth fuel `fuel + 1`. -/
 def sortVisitList (ds : Array IDeclaration) (rds : Array (List NIdx)) (owner : Std.HashMap NIdx Nat)
     (fuel i : Nat) (path : Std.HashSet Nat) : List NIdx → SortSt → AM SortSt
@@ -1043,7 +1043,7 @@ def sortVisitList (ds : Array IDeclaration) (rds : Array (List NIdx)) (owner : S
         sortVisitList ds rds owner fuel i path ys st
 end
 
-/-- con-leche: ConLeche/Driver/Reach.lean:904-913 sortFrom
+/-- con-leche: ConLeche/Driver/Reach.lean:903-912 sortFrom
 Every record placed, in position order, each after its reads. -/
 def sortFrom (ds : Array IDeclaration) (rds : Array (List NIdx)) (owner : Std.HashMap NIdx Nat)
     (fuel : Nat) : List Nat → SortSt → AM SortSt
@@ -1053,7 +1053,7 @@ def sortFrom (ds : Array IDeclaration) (rds : Array (List NIdx)) (owner : Std.Ha
     let st ← sortVisit ds rds owner fuel i (({} : Std.HashSet Nat).insert i) (rds.getD i []) st
     sortFrom ds rds owner fuel is st
 
-/-- con-leche: ConLeche/Driver/Reach.lean:915-919 readOrder
+/-- con-leche: ConLeche/Driver/Reach.lean:914-918 readOrder
 **The context's records in read order**. -/
 def readOrder (ds : Array IDeclaration) (rds : Array (List NIdx)) : AM (Array Nat) := do
   let owner ← ownerMap ds.toList
@@ -1061,7 +1061,7 @@ def readOrder (ds : Array IDeclaration) (rds : Array (List NIdx)) : AM (Array Na
 
 /-! ## The reach -/
 
-/-- con-leche: ConLeche/Driver/Reach.lean:923-930 Reach
+/-- con-leche: ConLeche/Driver/Reach.lean:922-929 Reach
 **What the reach gives**: the context's records with their homes, the completed names with
 the homes that located them, its counts, and the statements `inferFlags` infers. -/
 structure Reach where
@@ -1072,12 +1072,14 @@ structure Reach where
   inferred : Nat
   pending : Array (String × NIdx × StmtRec)
 
-/-- con-leche: ConLeche/Driver/Reach.lean:932-961 reach
+/-- con-leche: ConLeche/Driver/Reach.lean:970-974 reach
+-- con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove Reach.reachRoots_bridge, then delete this line
 The roots and the clashing names, the own names left out. -/
 def reachRoots (own : Std.HashSet NIdx) (roots extra : Array NIdx) : List NIdx :=
   (roots ++ extra).toList.filter (!own.contains ·)
 
-/-- con-leche: ConLeche/Driver/Reach.lean:932-961 reach
+/-- con-leche: ConLeche/Driver/Reach.lean:970-974 reach
+-- con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove Reach.inReadOrder_bridge, then delete this line
 The records at the read order's positions, with their homes. -/
 def inReadOrder (L : ReachLog) (o : Array Nat) : Array IDeclaration × Array NIdx :=
   o.foldl (fun (acc : Array IDeclaration × Array NIdx) j =>
@@ -1085,7 +1087,8 @@ def inReadOrder (L : ReachLog) (o : Array Nat) : Array IDeclaration × Array NId
     | some d, some h => (acc.1.push d, acc.2.push h)
     | _, _ => acc) (#[], #[])
 
-/-- con-leche: ConLeche/Driver/Reach.lean:932-961 reach
+/-- con-leche: ConLeche/Driver/Reach.lean:970-974 reach
+-- con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove Reach.reach_bridge, then delete this line
 **The reach of module `m`** from the names its own records read. -/
 def reach (fs : OleanFs) (pk : OleanPins) (sp : Roots) (m : NIdx) (wr : WorkerReads)
     (own : Std.HashSet NIdx) (roots : Array NIdx) : AM Reach := do
