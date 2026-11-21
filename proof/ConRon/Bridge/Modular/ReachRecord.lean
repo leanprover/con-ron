@@ -14,6 +14,9 @@ public import ConRon.Arena.Frontend.Olean.Group
 public import ConRon.Arena.Frontend.Olean.Present
 public import ConLeche.Frontend.Olean.Group
 public import ConLeche.Frontend.Olean.Present
+import ConRon.Bridge.Checker.Base
+import ConRon.Bridge.Checker.Names
+import ConRon.Bridge.Grind
 
 public section
 
@@ -969,5 +972,88 @@ theorem groupAt_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
     obtain ⟨_, _, _, g2'⟩ := AM.bind_ok g1'
     obtain ⟨_, _, g3', _⟩ := AM.bind_ok g2'
     exact AM.fail_ok g3'
+
+/-! ## A copy as its statement, and the record presenting a name -/
+
+/-- A statement's parts read back. -/
+theorem denoteStmt_rr {st : EStore} {cv : ConRon.Arena.Frontend.Olean.StmtRec} {cvC : ConstantVal}
+    (h : denoteStmt st cv = some cvC) :
+    denoteN st.ns cv.name = some cvC.name ∧ cv.levelParams.mapM (denoteN st.ns) = some cvC.levelParams ∧
+      denoteE st cv.type = some cvC.type := by
+  simp only [denoteStmt] at h
+  obtain ⟨a, ha, h⟩ := bind_some_left h
+  obtain ⟨b, hb, h⟩ := bind_some_left h
+  obtain ⟨c, hc, h⟩ := bind_some_left h
+  simp only [pure, Option.some.injEq] at h
+  subst h
+  exact ⟨ha, hb, hc⟩
+
+/-- A statement as an axiom's record, read back. -/
+theorem axiomOf_den {st : EStore} {cv : ConRon.Arena.Frontend.Olean.StmtRec} {cvC : ConstantVal}
+    (h : denoteStmt st cv = some cvC) :
+    Frontend.denoteDecl st (ConRon.Arena.Modular.axiomOf cv) = some (.axiomDecl cvC) := by
+  obtain ⟨h1, h2, h3⟩ := denoteStmt_rr h
+  simp only [ConRon.Arena.Modular.axiomOf, Frontend.denoteDecl, Frontend.denoteCV, h1,
+    denoteNList_eq_mapM, h2, h3, Option.map_some]
+
+/-- con-leche: ConLeche/Driver/Reach.lean:678-691 stmtRecord — **a copy presented as its
+statement, upstream's**. -/
+theorem stmtRecord_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
+    {sp₀ : ConRon.Arena.Modular.Spot} {spC : ConLeche.Driver.Spot}
+    {cv : ConRon.Arena.Frontend.Olean.StmtRec} {cvC : ConstantVal}
+    {d : IDeclaration} {hh : NIdx} {s s' : AState}
+    (hctx : RCtx pk s) (he : EnvRel sp s.store env envC) (hc : CacheRel s.store c cC)
+    (hs : SpotRel s.store sp₀ spC) (hcv : denoteStmt s.store cv = some cvC)
+    (h : ConRon.Arena.Modular.stmtRecord (modelFs F) pk sp env c sp₀ cv s = .ok ((c', d, hh), s')) :
+    DStep s s' ∧ PersDecl d ∧ ∃ cC' dC hC,
+      ModelIO.Gives (ConLeche.Driver.stmtRecord envC cC spC cvC) F (cC', .ok (dC, hC)) ∧
+      CacheRel s'.store c' cC' ∧ Frontend.denoteDecl s'.store d = some dC ∧
+      denoteN s'.store.ns hh = some hC := by
+  unfold ConRon.Arena.Modular.stmtRecord at h
+  unfold ConLeche.Driver.stmtRecord
+  obtain ⟨ns, s₁, h1, hA⟩ := AM.bind_ok h
+  obtain ⟨hs1, hns⟩ := reduceOpNames_run hctx.ok.pins h1
+  subst s₁
+  have hcont : ns.contains cv.name = ConLeche.reduceOpNames.contains cvC.name :=
+    denoteNList_contains hctx.ok.state.wf ns ConLeche.reduceOpNames
+      (denoteNL_toList ns ConLeche.reduceOpNames hns) cv.name cvC.name (denoteStmt_rr hcv).1
+  have hax := axiomOf_den hcv
+  have hpax := PersDecl_of_denote hctx.ok.state.wf hctx.off hax
+  by_cases hop : ns.contains cv.name = true
+  · rw [ite_eq_right (by simpa using hop)] at hA
+    obtain ⟨u, s₂, h2, hB⟩ := AM.bind_ok hA
+    obtain ⟨-, hs2⟩ := AM.pure_ok h2
+    subst s₂
+    obtain ⟨cp, s₃, h3, hC⟩ := AM.bind_ok hB
+    obtain ⟨c₁, p⟩ := cp
+    obtain ⟨hst3, cC₁, pC, hg3, hc3, hp3⟩ := privSpot_run hsp hctx he hc hs h3
+    have hopC : ConLeche.reduceOpNames.contains cvC.name = true := hcont ▸ hop
+    dsimp only at hC
+    by_cases htag : (p.pos.tag == 0 || p.pos.tag == 3) = true
+    · rw [ite_eq_left htag] at hC
+      obtain ⟨hv, rfl⟩ := AM.pure_ok hC
+      simp only [Prod.mk.injEq] at hv
+      obtain ⟨rfl, rfl, rfl⟩ := hv
+      refine ⟨hst3, hpax, cC₁, .axiomDecl cvC, spC.part.mod, ?_, hc3,
+        Frontend.denoteDecl_ext hst3.ext hax, denoteN_ext hs.1.1 hst3.ext⟩
+      rw [ite_eq_right (by simpa using hopC)]
+      refine hg3.bind ?_
+      dsimp only
+      rw [ite_eq_left (by rw [← hp3.2.tag]; exact htag)]
+      exact ModelIO.gives_pure _ _
+    · rw [ite_eq_right htag] at hC
+      exfalso; am_never hC
+  · rw [ite_eq_left (by simpa using hop)] at hA
+    obtain ⟨hv, rfl⟩ := AM.pure_ok hA
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨rfl, rfl, rfl⟩ := hv
+    have hopC : ConLeche.reduceOpNames.contains cvC.name = false := by
+      rw [← hcont]; simpa using hop
+    refine ⟨DStep.refl hctx.ok hctx.off, hpax, cC, .axiomDecl cvC, spC.part.mod, ?_, hc, hax,
+      hs.1.1⟩
+    rw [ite_eq_left (by simpa using hopC)]
+    exact ModelIO.gives_pure _ _
 
 end ConRon.Bridge.Modular
