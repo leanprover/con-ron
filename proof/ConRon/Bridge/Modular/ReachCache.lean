@@ -518,4 +518,86 @@ theorem tableOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
     exact { hc' with tables := hc'.tables.insert (nsWF_of_StateOK hst.ok) (hk.ext hst.ext) hrel }
   · simp [ConRon.Arena.Modular.tableGet]
 
+/-! ## A part's name lookup -/
+
+theorem lookFold_rel {st : EStore} (hw : NStoreWF st.ns) :
+    ∀ {qs : List ConRon.Arena.Frontend.Olean.NamePosition}
+      {qsC : List ConLeche.Frontend.Olean.NamePosition}
+      {l : Std.HashMap NIdx ConRon.Arena.Frontend.Olean.NamePosition}
+      {lC : Std.HashMap ConLeche.Name ConLeche.Frontend.Olean.NamePosition},
+      ListRel (NPRel st) qs qsC → HMRel (NPRel st) st l lC →
+      HMRel (NPRel st) st (qs.foldl (fun l q => l.insert q.name q) l)
+        (qsC.foldl (fun l q => l.insert q.name q) lC)
+  | [], [], _, _, .nil, h => h
+  | _ :: _, _ :: _, _, _, .cons hq hqs, h => by
+    simp only [List.foldl_cons]
+    exact lookFold_rel hw hqs (h.insert hw hq.name hq)
+
+/-- con-leche: ConLeche/Driver/Reach.lean:249-260 lookOf — a table's lookup, upstream's. -/
+theorem lookBuild_rel {st : EStore} (hw : NStoreWF st.ns)
+    {t : ConRon.Arena.Frontend.Olean.NamePositions} {tC : ConLeche.Frontend.Olean.NamePositions}
+    (h : NPsRel st t tC) :
+    HMRel (NPRel st) st (ConRon.Arena.Modular.lookBuild t)
+      (tC.consts.foldl (fun (l : Std.HashMap ConLeche.Name ConLeche.Frontend.Olean.NamePosition) q =>
+        l.insert q.name q) (Std.HashMap.emptyWithCapacity tC.consts.size)) := by
+  unfold ConRon.Arena.Modular.lookBuild
+  rw [← Array.foldl_toList, ← Array.foldl_toList]
+  refine lookFold_rel hw h.consts ⟨fun _ _ h => by simp at h, fun _ _ h => ?_⟩
+  simp [Std.HashMap.getElem?_emptyWithCapacity] at h
+
+/-- con-leche: ConLeche/Driver/Reach.lean:249-260 lookOf — **a part's name lookup**: the twin's
+cached lookup after `lookOf` is upstream's answer. -/
+theorem lookOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
+    {k : ConRon.Arena.Modular.PartKey} {kC : ConLeche.Driver.PartKey} {s s' : AState}
+    (hctx : RCtx pk s) (he : EnvRel sp s.store env envC) (hc : CacheRel s.store c cC)
+    (hk : PKRel s.store k kC)
+    (h : ConRon.Arena.Modular.lookOf (modelFs F) pk sp env c k s = .ok (c', s')) :
+    DStep s s' ∧ ∃ cC' lC l, ModelIO.Gives (ConLeche.Driver.lookOf envC cC kC) F (cC', .ok lC) ∧
+      CacheRel s'.store c' cC' ∧ c'.looks[k]? = some l ∧ HMRel (NPRel s'.store) s'.store l lC := by
+  have hw := hctx.wf
+  unfold ConRon.Arena.Modular.lookOf at h
+  have hlk := hc.looks.get hw hk
+  by_cases h1 : c.looks.contains k = true
+  · simp only [h1, ↓reduceIte] at h
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h
+    rw [Std.HashMap.contains_eq_isSome_getElem?] at h1
+    rcases optRel_cases hlk with ⟨g1, -⟩ | ⟨l, lC, g1, g2, g3⟩
+    · rw [g1] at h1; cases h1
+    refine ⟨DStep.refl hctx.ok hctx.off, cC, lC, l, ?_, hc, g1, g3⟩
+    unfold ConLeche.Driver.lookOf
+    simp only [g2]
+    exact ModelIO.gives_pure _ _
+  simp only [h1, Bool.false_eq_true, ↓reduceIte] at h
+  have hmissC : cC.looks[kC]? = none := by
+    have hm : c.looks[k]? = none := by
+      rw [Std.HashMap.contains_eq_isSome_getElem?] at h1
+      cases hh : c.looks[k]? with
+      | none => rfl
+      | some _ => rw [hh] at h1; exact absurd rfl h1
+    rw [hm] at hlk
+    rcases optRel_cases hlk with ⟨-, g⟩ | ⟨a, b, g, -, -⟩
+    · exact g
+    · cases g
+  simp only [pure_bind] at h
+  obtain ⟨c₁, s₁, h2, h3⟩ := AM.bind_ok h
+  obtain ⟨hst1, cC₁, tC, t, hg, hc1, ht, htr⟩ := tableOf_run hsp hctx he hc hk h2
+  rw [ht] at h3
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok h3
+  have hw1 := nsWF_of_StateOK hst1.ok.state
+  refine ⟨hst1, { cC₁ with looks := cC₁.looks.insert kC _ }, _, ConRon.Arena.Modular.lookBuild t,
+    ?_, { hc1 with looks := hc1.looks.insert hw1 (hk.ext hst1.ext) (lookBuild_rel hw1 htr) }, by simp,
+    lookBuild_rel hw1 htr⟩
+  unfold ConLeche.Driver.lookOf
+  simp only [hmissC]
+  exact hg.bind (ModelIO.gives_pure _ _)
+
+/-- con-leche: ConLeche/Driver/Reach.lean:249-260 lookOf — a name in a related lookup. -/
+theorem lookAt_eq {st : EStore} {c : ConRon.Arena.Modular.ReachCache}
+    {k : ConRon.Arena.Modular.PartKey} {l : Std.HashMap NIdx ConRon.Arena.Frontend.Olean.NamePosition}
+    (hl : c.looks[k]? = some l) (n : NIdx) {s : AState} :
+    ConRon.Arena.Modular.lookAt c k n s = .ok (l[n]?, s) := by
+  simp [ConRon.Arena.Modular.lookAt, hl]; rfl
+
 end ConRon.Bridge.Modular
