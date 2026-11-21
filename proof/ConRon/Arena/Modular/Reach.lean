@@ -994,7 +994,9 @@ def inferAll (I : IStreamIndex) (owner : Std.HashMap NIdx Nat) (n : Nat) :
 def inferFlags (I : IStreamIndex) (ctx : Array IDeclaration) (pending : Array (String × NIdx × StmtRec)) :
     AM Unit := do
   if pending.isEmpty then return ()
+  enterScratch
   let owner ← firstOwner ctx.toList
+  dropScratch
   inferAll I owner ctx.size pending.toList
 
 /-! ## The read order -/

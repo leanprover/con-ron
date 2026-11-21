@@ -2306,14 +2306,14 @@ structure frontend.modular.reach.ReachLog where
   sp : Std.Usize
 
 /-- [con_ron_core::frontend::modular::reach::SortSt]
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2256:0-2259:1
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2259:0-2262:1
     Visibility: public -/
 structure frontend.modular.reach.SortSt where
   order : alloc.vec.Vec Std.U64
   placed : ron.hashmap2.HashMap2 Std.U64 Bool
 
 /-- [con_ron_core::frontend::modular::reach::Reach]
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2393:0-2400:1
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2396:0-2403:1
     Visibility: public -/
 structure frontend.modular.reach.Reach where
   ctx : alloc.vec.Vec arena.env.IDeclaration
