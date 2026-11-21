@@ -12,6 +12,7 @@ against one layer of every context constant (`ctxLayer`, upstream's `ctxConst`).
 module
 
 public import ConRon.Arena.Modular.Reach
+public import ConRon.Arena.Frontend.NatOpGround
 public import ConRon.Arena.Frontend.Olean.Records
 public import ConRon.Arena.Frontend.Olean.Group
 public import ConRon.Arena.Frontend.Olean.Module
@@ -124,7 +125,7 @@ def pushLoaded (out : Array NIdx) (ix : NameIndex) (xs : Array NIdx) : Array NId
 What each own record reads, filtered (`pushUnpinned`). -/
 def recordsRoots (ix : NameIndex) (fp : Std.HashSet NIdx) (ds : Array IDeclaration) :
     AM (Array NIdx) :=
-  ds.foldlM (fun out d => do pure (pushUnpinned out ix fp (← recordReads d))) #[]
+  ds.foldlM (fun out d => do pure (pushUnpinned out ix fp (← recordReads d).toArray)) #[]
 
 /-- con-leche: ConLeche/Driver/Worker.lean:68-85 ownRoots
 The pin ground of each own constant, filtered (`pushLoaded`), onto `out`. -/
@@ -404,7 +405,7 @@ def anyInd (ds : Array IDeclaration) : Bool :=
 a copy is an inductive block. -/
 def copiesOk (pk : OleanPins) (m : NIdx) (x : Array ImportRec) (wr : WorkerReads) (r : Reach)
     (ds : Array IDeclaration) : AM Unit := do
-  let owner ← ownerMap r.ctx
+  let owner ← ownerMap r.ctx.toList
   let cs ← copyRecs x wr.index ds
   let fe ← if anyInd cs then ctxLayer r.ctx else pure ⟨⟨[], []⟩, {}, {}, {}, false, false⟩
   cs.toList.forM (copyCheck pk m wr.loads wr.index r owner fe)

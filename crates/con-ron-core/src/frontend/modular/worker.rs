@@ -450,7 +450,7 @@ pub fn ctx_names_nodup(pers: &PersTier, st: &mut AState, ctx: &Vec<IDeclaration>
     let mut s: HashMap2<NIdx, bool> = HashMap2::new();
     let mut i = 0usize;
     while i < ctx.len() {
-        match install::decl_names(pers, st, &ctx[i]) {
+        match reach::decl_names(pers, st, &ctx[i]) {
             Err(e) => return Err(e),
             Ok(ns) => {
                 if !names_nodup_go(&mut s, &ns, 0) {
@@ -466,7 +466,7 @@ pub fn ctx_names_nodup(pers: &PersTier, st: &mut AState, ctx: &Vec<IDeclaration>
 /// con-leche: ConLeche/Driver/Worker.lean:124-125 loadedRec
 /// **A record some name of which a loaded module stores.**
 pub fn loaded_rec(pers: &PersTier, st: &mut AState, ix: &NameIndex, d: &IDeclaration) -> Result<bool, CheckError> {
-    match install::decl_names(pers, st, d) {
+    match reach::decl_names(pers, st, d) {
         Err(e) => Err(e),
         Ok(ns) => Ok(any_loaded(ix, &ns)),
     }
@@ -583,7 +583,7 @@ pub fn roots_at(pers: &PersTier, st: &mut AState, pins: &Vec<INatOpPinSet>, x: &
     };
     let mut i = 0usize;
     while i < copies.len() {
-        match install::decl_names(pers, st, &copies[i]) {
+        match reach::decl_names(pers, st, &copies[i]) {
             Err(e) => return Err(e),
             Ok(ns) => {
                 let mut k = 0usize;
