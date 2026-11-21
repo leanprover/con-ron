@@ -24,14 +24,15 @@ namespace ConRon.Arena
 open ConLeche
 open ConRon.Arena.Frontend.Olean (OleanFs OleanPins ModRef ValueCache readValue)
 
-/-- con-leche: ConLeche/Driver/CheckMain.lean:120-133 oleanJobRun
+/-- con-leche: ConLeche/Driver/CheckMain.lean:120-134 oleanJobRun
 **Job `t` of an `--olean` run**, from the cache `c` the worker kept: a theorem
 whose value is a reference opens the job's bracket (`enterScratch`), reads the
 value (`readValue`), checks the record with it (`recordCheck`) and closes the
 bracket; any other record is `runJob`'s.  The read is inside the bracket, as the
 binary's (`driver::olean_job`), so what it interns is the job's.  A failure is
 tagged with the position and hands back the abandoned state (`AState.abandoned`'s
-note), with the cache. -/
+note), with the cache. Upstream's `sp : Roots` (the closure's resolved roots) is the bare search path
+here (`findModule`'s note), and its jobs' `justify` the flat path's `none`. -/
 def oleanJob (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath)
     (values : Array ModRef) (mode : CheckMode) (pins : List INatOpPinSet)
     (I : IStreamIndex) (ds : Array IDeclaration) (c : ValueCache) (t : Nat) :
@@ -61,7 +62,7 @@ def oleanJob (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath)
     | none => finish plain
   | _ => finish plain
 
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:432-455 parWorker
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:461-484 parWorker
 **A worker's fold over the jobs it claimed** on an `--olean` run, on one state and
 one cache, the first failure the answer (`PooledOleanAccepts`). -/
 def checkOleanJobList (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath)
@@ -75,7 +76,7 @@ def checkOleanJobList (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath
     | .ok ((_, .error e), s') => .ok (.error e, s')
     | .error e => .error e
 
-/-- con-leche: ConLeche/Driver/CheckMain.lean:152-169 checkOleansG
+/-- con-leche: ConLeche/Driver/CheckMain.lean:154-177 checkOleansG
 **The check phase of an `--olean` run, as one worker runs it**: the index of the
 records, then every record's job in fold order, from the worker's state and the
 empty cache. -/
@@ -88,7 +89,7 @@ def checkOleans (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath)
   | .ok (.error e, s₁) => .ok (.error e, s₁)
   | .error e => .error e
 
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:457-486 parMapWorkersIO
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:486-512 parMapWorkersIO
 **The pool's accept on an `--olean` run**: the index built from `s`, the stream's
 positions covered by job lists, each in range and increasing, and each list accepted
 from the worker of the post-index state with the empty cache.  `PooledAccepts`

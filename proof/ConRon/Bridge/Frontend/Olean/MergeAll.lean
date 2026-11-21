@@ -72,7 +72,8 @@ theorem isPropCheap_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hnu : N
     {mg : Merged} {mgC : ConLeche.Frontend.Olean.Merged} (hm : MergedRel s.store mg mgC)
     {ty : EIdx} {tyC : Expr} (hty : denoteE s.store ty = some tyC) {b : Bool} {s' : AState}
     (h : isPropCheap pk mg ty s = .ok (b, s')) :
-    s' = s ∧ (b = true → ConLeche.Frontend.Olean.isPropCheap mgC.map tyC = true) := by
+    s' = s ∧ (b = true → ConLeche.Frontend.Olean.isPropCheap
+      (fun n => (mgC.map[n]?).map (·.type)) tyC = true) := by
   unfold isPropCheap at h
   obtain ⟨x, s₁, h1, h⟩ := AM.bind_ok h
   obtain ⟨hs1, xC, hx, hbd⟩ := isPropBody_run hok _ hty h1
@@ -133,7 +134,7 @@ theorem isPropCheap_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hnu : N
         subst hyC
         unfold ConLeche.Frontend.Olean.isPropCheap
         rw [hbd, hbody, hhead]
-        simp only [hdC, hdrop]
+        simp only [hdC, Option.map_some, hdrop]
 
 /-! ## `subsumes` -/
 
@@ -159,11 +160,11 @@ theorem tag_thm {N E : Type} {k : CKindF N E} (h : k.tag = 2) : ∃ v a, k = .th
 theorem tag_ax {N E : Type} {k : CKindF N E} (h : k.tag = 0) : ∃ u, k = .ax u := by
   cases k <;> simp_all [CKindF.tag]
 
-/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:45-52 subsumes — the tags upstream's kinds
+/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:61-63 subsumes — the tags upstream's kinds
 compare at. -/
 theorem kindsArm_false {z1 z2 : ConLeche.Frontend.Olean.CKind} {n : ConLeche.Name}
     (h : ¬ ((z1.tag = 2 ∧ z2.tag = 2) ∨ (z1.tag = 2 ∧ z2.tag = 0) ∨ (z1.tag = 0 ∧ z2.tag = 0)))
-    {m : Std.HashMap ConLeche.Name ConLeche.Frontend.Olean.CEntry} {t : Expr} :
+    {m : ConLeche.Name → Option Expr} {t : Expr} :
     (match (generalizing := false) z1, z2 with
       | .thm _ a₁, .thm _ a₂ => a₁ == a₂
       | .thm _ a₁, .ax u₂ => a₁ == [n] && !u₂
@@ -175,7 +176,23 @@ theorem kindsArm_false {z1 z2 : ConLeche.Frontend.Olean.CKind} {n : ConLeche.Nam
     | exact (h (.inr (.inl ⟨rfl, rfl⟩))).elim
     | exact (h (.inr (.inr ⟨rfl, rfl⟩))).elim
 
-/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:45-52 subsumes — **the twin's `true` is
+/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:61-63 subsumes — upstream's `subsumes`,
+`subsumesF` over the merge's map, unfolded. -/
+theorem subsumes_eq (m : Std.HashMap ConLeche.Name ConLeche.Frontend.Olean.CEntry)
+    (z1 z2 : ConLeche.Frontend.Olean.CEntry) :
+    ConLeche.Frontend.Olean.subsumes m z1 z2 =
+      (z1.name == z2.name && z1.type == z2.type && z1.levelParams == z2.levelParams &&
+        match z1.kind, z2.kind with
+        | .thm _ a₁, .thm _ a₂ => a₁ == a₂
+        | .thm _ a₁, .ax u₂ => a₁ == [z2.name] && !u₂
+        | .ax u₁, .ax u₂ => u₁ == u₂ &&
+            ConLeche.Frontend.Olean.isPropCheap (fun n => (m[n]?).map (·.type)) z1.type
+        | _, _ => false) := by
+  unfold ConLeche.Frontend.Olean.subsumes ConLeche.Frontend.Olean.subsumesF
+  simp only [ConLeche.Frontend.Olean.CEntryF.stmt]
+  cases z1.kind <;> cases z2.kind <;> rfl
+
+/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:61-63 subsumes — **the twin's `true` is
 upstream's, and upstream may say `true` to a twin's `false` only at two axioms of one type**, where
 the twin's own test answered `false`. -/
 theorem subsumes_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hnu : NullsRel s.store pk)
@@ -234,7 +251,7 @@ theorem subsumes_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hnu : Null
     rw [e1, e2, e3]
   generalize hF : subsumes pk mg c1 c2 = f at h
   unfold subsumes at hF
-  unfold ConLeche.Frontend.Olean.subsumes
+  rw [subsumes_eq]
   rw [← hcmp]
   by_cases hc : (c1.c.name == c2.c.name && c1.c.type == c2.c.type && c1.c.levelParams == c2.c.levelParams) = true
   · simp only [hc, ↓reduceIte, Bool.true_and] at hF ⊢
@@ -303,7 +320,7 @@ theorem subsumes_run {pk : OleanPins} {s : AState} (hok : StateOK s) (hnu : Null
       subst hF
       obtain ⟨hv, hs⟩ := AM.pure_ok h
       subst hv
-      have hfalse := kindsArm_false (z1 := z1.kind) (z2 := z2.kind) (n := z2.name) (m := mgC.map)
+      have hfalse := kindsArm_false (z1 := z1.kind) (z2 := z2.kind) (n := z2.name) (m := fun n => (mgC.map[n]?).map (·.type))
         (t := z1.type) (by
           rw [← htag1, ← htag2]
           rintro (⟨a, b⟩ | ⟨a, b⟩ | ⟨a, b⟩)

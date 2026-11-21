@@ -109,13 +109,13 @@ def readStmts (pk : OleanPins) (f : ModFiles) (level : OLeanLevel) (cs : List Na
   | none => pure none
   | some (r, _) => stmtsAt pk r cs
 
-/-- con-leche: ConLeche/Frontend/Olean/View.lean:164-167 undecodable
+/-- con-leche: ConLeche/Frontend/Olean/View.lean:178-181 undecodable
 The module's files do not decode. -/
 def undecodable (m : Name) : CheckError :=
   .internal s!"module {m}: malformed .olean data (an object of the wrong shape, or a \
     pointer that does not point below its object)"
 
-/-- con-leche: ConLeche/Frontend/Olean/View.lean:169-181 viewError
+/-- con-leche: ConLeche/Frontend/Olean/View.lean:183-195 viewError
 Why a view does not read. -/
 def viewError (pk : OleanPins) (m : Name) (f : ModFiles) (level : OLeanLevel) : AM CheckError := do
   match f.viewRegion level with

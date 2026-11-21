@@ -145,7 +145,7 @@ def structProjBodies (T : NIdx) (nP nF : Nat) (cty : EIdx) :
 
 /-! ## `mentionsConst` — `mentionsAnyConst` at one name -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:119-133 Expr.mentionsAnyConst
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1155-1169 Expr.mentionsAnyConst
 con-leche: ConLeche/Cached/ExprOpsC.lean:1795-1839 mentionsAnyConstXP
 Does the constant `T` occur in `e`?  `mentionsAnyConst [T]`, the one name
 the `sorryAx` test asks: a syntactic walk (`fvar` annotations included; a

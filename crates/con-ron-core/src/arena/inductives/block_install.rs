@@ -320,7 +320,7 @@ pub fn check_block_tele(
     n_p: u64,
     ms: &MemberShape,
 ) -> Result<(IConstantVal, LIdx), CheckError> {
-    match checker_base::check_constant_val(pers, st, mode, fe, &ms.cv_t, false) {
+    match checker_base::check_constant_val(pers, st, mode, fe, &ms.cv_t, false, false, false) {
         Err(e) => Err(e),
         Ok(()) => match sum_install::check_sum_tele(pers, st, n_p + ms.n_idx, &ms.cv_t) {
             Err(e) => Err(e),
@@ -619,7 +619,7 @@ pub fn check_block_ctors(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:226-248 checkAbsCtorSorts
-/// con-leche: ConLeche/Cached/IndPositivity.lean:515-528 checkAbsCtorSortsC
+/// con-leche: ConLeche/Cached/IndPositivity.lean:523-536 checkAbsCtorSortsC
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:228-248 checkAbsCtorSorts` —
 /// **the fields' universes at the holes**: each constructor's positivity
 /// normal form within the block's level parameters (internal), its fields
@@ -676,7 +676,7 @@ pub fn check_abs_ctor_sorts(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:250-256 checkAbsCtorSortsAll
-/// con-leche: ConLeche/Cached/IndPositivity.lean:530-536 checkAbsCtorSortsAllC
+/// con-leche: ConLeche/Cached/IndPositivity.lean:538-544 checkAbsCtorSortsAllC
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:250-259 checkAbsCtorSortsAll`
 /// — `checkAbsCtorSorts` on every member's constructors from `i` on; the
 /// block's `isEquiv sort 0 == some true` read once.
@@ -703,7 +703,7 @@ pub fn check_abs_ctor_sorts_all(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:258-271 blockNestCtx
-/// con-leche: ConLeche/Cached/IndPositivity.lean:538-547 blockNestCtxC
+/// con-leche: ConLeche/Cached/IndPositivity.lean:546-555 blockNestCtxC
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:261-274 blockNestCtx` — **the
 /// walk's context** of a block: the canonical parameter variables are the
 /// first former's opened telescope, with the members' holes.  con-leche's
@@ -762,7 +762,7 @@ pub fn split_kinds(os: &Vec<(Vec<NestFieldKind>, EIdx)>, i: usize, out: Vec<Vec<
 }
 
 /// con-leche: none — a `List NestFieldKind` copy; Lean shares the list
-/// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:418-426 NestFieldKind`.
+/// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:429-437 NestFieldKind`.
 pub fn kinds_dup(ks: &Vec<NestFieldKind>, i: usize, out: Vec<NestFieldKind>) -> Vec<NestFieldKind> {
     if i >= ks.len() {
         out
@@ -774,7 +774,7 @@ pub fn kinds_dup(ks: &Vec<NestFieldKind>, i: usize, out: Vec<NestFieldKind>) -> 
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:277-292 checkBlockPositivity
-/// con-leche: ConLeche/Cached/IndPositivity.lean:555-563 checkBlockPositivityC
+/// con-leche: ConLeche/Cached/IndPositivity.lean:563-571 checkBlockPositivityC
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:282-298 checkBlockPositivity`
 /// — **the block's positivity, on its stored constructors**, at the walk's
 /// context: official's uniform-occurrence check, the root frame from the

@@ -37,7 +37,7 @@ use crate::arena::core::{
     bool_false_name, bool_name, bool_true_name, const_e, ensure_sort_core,
     infer_type_core, is_def_eq_core, lift_fueled, lvl_eq, nat_add_name, nat_ap1, nat_ap2,
     nat_ble_name, nat_div_name, nat_gcd_name, nat_land_name, nat_lor_name, nat_mod_name,
-    nat_mul_name, nat_op_deps, nat_op_guard, nat_op_stored_ok, nat_shift_left_name,
+    nat_mul_name, nat_op_guard, nat_op_stored_ok, nat_shift_left_name,
     nat_shift_right_name, nat_sub_name, nat_xor_name, subst_const0, subst_const_all,
     zero_level, CHECK_FUEL, CORE_WALK_FUEL,
 };
@@ -718,7 +718,7 @@ pub fn of_reduce_ax_ok_rest(
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:195-199 reducePinGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:154-158 reducePinGuardF
-/// con-leche: ConLeche/Cached/ParsedC.lean:217-221 reducePinGuardC
+/// con-leche: ConLeche/Cached/ParsedC.lean:221-225 reducePinGuardC
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:152-161 reducePinGuard` —
 /// syntactic guards on the generated reduce pin (checked once).
 pub fn reduce_pin_guard(
@@ -788,40 +788,12 @@ pub fn ground_guards_rest(
     }
 }
 
-/// con-leche: none — `(natOpDeps c).all (natOpStoredOk fe)`
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:163-171 natOpStoredOkAll` —
-/// an explicit list recursion (DESIGN.md §3.4 forbids the closure `List.all`
-/// takes).  con-leche's `natOpGuard` has the WEAKER dependency test; this is
-/// the stronger one `divModEnvGuard` asks for, which pins the type too.
-pub fn nat_op_stored_ok_all(
-    pers: &PersTier,
-    st: &mut AState,
-    fe: &IFEnv,
-    ns: &Vec<NIdx>,
-    i: usize,
-) -> Result<bool, CheckError> {
-    if i >= ns.len() {
-        Ok(true)
-    } else {
-        match nat_op_stored_ok(pers, st, fe, &ns[i]) {
-            Err(e) => Err(e),
-            Ok(ok) => {
-                if ok {
-                    nat_op_stored_ok_all(pers, st, fe, ns, i + 1)
-                } else {
-                    Ok(false)
-                }
-            }
-        }
-    }
-}
-
 // ---------------------------------------------------------------------------
 // The `Nat.div`/`Nat.mod` pin variants (`DeclCheck.lean:170-199` of the twin)
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Checker.lean:113-125 divModDeclPin
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:184-195 divModDeclPin` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:174-185 divModDeclPin` — the
 /// pinned defining expression of a pin-certified WF-recursive op in one pin
 /// variant.  con-leche's `c = natDivName` chain is a handle comparison here.
 pub fn div_mod_decl_pin(
@@ -844,7 +816,7 @@ pub fn div_mod_decl_pin(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:113-125 divModDeclPin
 /// con-leche: ConLeche/Kernel/Checker.lean:127-137 divModCertProofs
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:184-195 divModDeclPin` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:174-185 divModDeclPin` — the
 /// twin's seven-way `if c == …` chain, once: both `divModDeclPin` and
 /// `divModCertProofs` walk it, and over handles each test interns a name.
 /// `7` is the `else` arm, `Nat.mod`.
@@ -929,7 +901,7 @@ pub fn div_mod_slot_2(st: &mut AState, c: &NIdx) -> Result<u64, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:127-137 divModCertProofs
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:197-208 divModCertProofs` —
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:187-198 divModCertProofs` —
 /// the certificate proof terms of a pin-certified WF-recursive op in one pin
 /// variant, one per statement of `divModCertStmts`.
 pub fn div_mod_cert_proofs(
@@ -951,7 +923,7 @@ pub fn div_mod_cert_proofs(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:139-151 divModTypePins
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:210-222 divModTypePins` — the type
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:200-212 divModTypePins` — the type
 /// pins of a pin-certified WF-recursive op in one pin variant: the constants
 /// its certificates use whose types differ between supported toolchains, each
 /// with its type in this variant's toolchain.  Borrowed from the variant, not
@@ -976,7 +948,7 @@ pub fn div_mod_type_pins<'a>(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:153-160 typePinStored
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:182-186 typePinStoredF
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:224-233 typePinStored` — the stored
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:214-223 typePinStored` — the stored
 /// type a type pin is compared against: the constant's type in the
 /// environment.  An absent constant gives `Sort 0`, which nothing is compared
 /// against: the guard (`div_mod_pin_guard`) requires every type-pinned
@@ -1001,7 +973,7 @@ pub fn type_pin_stored(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:242-252 eqAt1` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:232-242 eqAt1` — the
 /// statements' `Eq.{1} τ a b` former.
 pub fn eq_at1(
     pers: &PersTier,
@@ -1027,7 +999,7 @@ pub fn eq_at1(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:242-252 eqAt1` — the three
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:232-242 eqAt1` — the three
 /// applications, past the universe argument.
 pub fn eq_at1_app(
     pers: &PersTier,
@@ -1053,7 +1025,7 @@ pub fn eq_at1_app(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:254-259 natOne` — the numeral
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:244-249 natOne` — the numeral
 /// `1` as `Nat.succ Nat.zero`.
 pub fn nat_one(pers: &PersTier, st: &mut AState) -> Result<EIdx, CheckError> {
     match pin_nat_succ(st) {
@@ -1069,7 +1041,7 @@ pub fn nat_one(pers: &PersTier, st: &mut AState) -> Result<EIdx, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:261-265 natVar` — the open
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:251-255 natVar` — the open
 /// statements' variables `x := fvar 0`, `y := fvar 1` at `Nat`.
 pub fn nat_var(pers: &PersTier, st: &mut AState, i: u64) -> Result<EIdx, CheckError> {
     match pin_nat(st) {
@@ -1082,7 +1054,7 @@ pub fn nat_var(pers: &PersTier, st: &mut AState, i: u64) -> Result<EIdx, CheckEr
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` —
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` —
 /// the twenty `let`s the twin's `do` block opens with, as one record.  Over
 /// handles each of them interns, and the seven branches below read exactly as
 /// the twin's; this is task #97-P4c's `NatEqCtx` treatment of
@@ -1112,7 +1084,7 @@ pub struct CertCtx {
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` — the
 /// first half of the twin's opening `let`s: the types, the variables and the
 /// two `Bool` constructors.
 pub fn cert_ctx(pers: &PersTier, st: &mut AState) -> Result<CertCtx, CheckError> {
@@ -1135,7 +1107,7 @@ pub fn cert_ctx(pers: &PersTier, st: &mut AState) -> Result<CertCtx, CheckError>
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` — the
 /// `Bool` constants and the numerals `0` and `2`.
 pub fn cert_ctx_bool(
     pers: &PersTier,
@@ -1173,7 +1145,7 @@ pub fn cert_ctx_bool(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` — the
 /// numerals and the eleven operation names.
 pub fn cert_ctx_nums(
     pers: &PersTier,
@@ -1205,7 +1177,7 @@ pub fn cert_ctx_nums(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` — the
 /// eleven operation names, in the twin's order.
 pub fn cert_ctx_names(
     st: &mut AState,
@@ -1245,7 +1217,7 @@ pub fn cert_ctx_names(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` — the
 /// last five names, and the record.
 #[allow(clippy::too_many_arguments)]
 pub fn cert_ctx_names_rest(
@@ -1337,7 +1309,7 @@ pub fn cert_push(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` — the
 /// twin's `eqAt1 boolTy (← natAp2 bleN a b) r`, the guard shape all seven
 /// branches are written with.
 pub fn cert_guard(
@@ -1358,7 +1330,7 @@ pub fn cert_guard(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` — the
 /// twin's `eqAt1 natTy (← natAp2 c x y) rhs`, the characteristic equation all
 /// seven branches are written with.
 pub fn cert_eq(
@@ -1380,7 +1352,7 @@ pub fn cert_eq(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` — the
 /// bitwise branches' `op2 (div2 x two) (div2 y two)`, written three times in
 /// the twin.
 pub fn cert_halves(
@@ -1400,7 +1372,7 @@ pub fn cert_halves(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` —
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` —
 /// **the pinned characterization statements** of a pin-certified WF-recursive
 /// op, in *open* form over `x := fvar 0`, `y := fvar 1` (the hypotheses become
 /// `fvar 2, fvar 3`): per certificate, the list of hypothesis types and the
@@ -1418,7 +1390,7 @@ pub fn div_mod_cert_stmts(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` — the
 /// seven-way branch, in the twin's order.
 pub fn div_mod_cert_stmts_at(
     pers: &PersTier,
@@ -1444,7 +1416,7 @@ pub fn div_mod_cert_stmts_at(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` —
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` —
 /// `gcd`: `1 ≤ x → gcd x y = gcd (y % x) x`, `x = 0 → gcd x y = y`.
 pub fn cert_gcd(
     pers: &PersTier,
@@ -1486,7 +1458,7 @@ pub fn cert_gcd(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` —
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` —
 /// `1 ≤ y → x <<< y = (2*x) <<< (y-1)`, `y = 0 → x <<< y = x`.
 pub fn cert_shift_left(
     pers: &PersTier,
@@ -1523,7 +1495,7 @@ pub fn cert_shift_left(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` — the
 /// `pure [([h1], e1), ([h2], e2)]` the six non-`div`/`mod` branches end with.
 pub fn cert_two_eqs(
     pers: &PersTier,
@@ -1549,7 +1521,7 @@ pub fn cert_two_eqs(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` —
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` —
 /// `1 ≤ y → x >>> y = (x >>> (y-1)) / 2`, `y = 0 → x >>> y = x`.
 pub fn cert_shift_right(
     pers: &PersTier,
@@ -1586,7 +1558,7 @@ pub fn cert_shift_right(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` —
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` —
 /// `1 ≤ x → x &&& y = 2*((x/2) &&& (y/2)) + (x%2)*(y%2)`, `x = 0 → … = 0`.
 pub fn cert_land(
     pers: &PersTier,
@@ -1634,7 +1606,7 @@ pub fn cert_land(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` —
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` —
 /// `1 ≤ x → x ||| y = 2*((x/2) ||| (y/2)) + (x%2 + y%2 - (x%2)*(y%2))`,
 /// `x = 0 → x ||| y = y`.
 pub fn cert_lor(
@@ -1663,7 +1635,7 @@ pub fn cert_lor(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` — the
 /// `lor` branch's right-hand side.
 pub fn cert_lor_rhs(
     pers: &PersTier,
@@ -1705,7 +1677,7 @@ pub fn cert_lor_rhs(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` —
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` —
 /// `1 ≤ x → x ^^^ y = 2*((x/2) ^^^ (y/2)) + (x%2 + y%2) % 2`,
 /// `x = 0 → x ^^^ y = y`.
 pub fn cert_xor(
@@ -1734,7 +1706,7 @@ pub fn cert_xor(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` — the
 /// `xor` branch's right-hand side.
 pub fn cert_xor_rhs(
     pers: &PersTier,
@@ -1772,7 +1744,7 @@ pub fn cert_xor_rhs(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` — the
 /// twin's `else` branch, `Nat.div` and `Nat.mod`: three certificates, with
 /// `recRhs`/`baseRhs` as the twin's two locals.
 pub fn cert_div_mod(
@@ -1795,7 +1767,7 @@ pub fn cert_div_mod(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` — the
 /// twin's `recRhs`: `Nat.succ (c (x - y) y)` for `Nat.div`, `c (x - y) y` for
 /// `Nat.mod`.
 pub fn cert_rec_rhs(
@@ -1824,7 +1796,7 @@ pub fn cert_rec_rhs(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` — the
 /// `div`/`mod` branch's four guards and three certificates.
 pub fn cert_div_mod_guards(
     pers: &PersTier,
@@ -1859,7 +1831,7 @@ pub fn cert_div_mod_guards(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:162-240 divModCertStmts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:466-478 divModCertStmts` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:456-468 divModCertStmts` — the
 /// twin's `pure [([h1, h2], e1), ([h3], e2), ([h4], e2)]`.
 #[allow(clippy::too_many_arguments)]
 pub fn cert_div_mod_eqs(
@@ -1892,7 +1864,7 @@ pub fn cert_div_mod_eqs(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Checker.lean:242-255 divModCertApplied
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:480-498 divModCertApplied` —
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:470-488 divModCertApplied` —
 /// the vendored proof applied to the statement's free variables (`x`, `y`,
 /// then one `fvar` per hypothesis, carrying the hypothesis *type* as its
 /// annotation — the checker's implicit local context).
@@ -1918,7 +1890,7 @@ pub fn div_mod_cert_applied(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:242-255 divModCertApplied
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:480-498 divModCertApplied` —
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:470-488 divModCertApplied` —
 /// the twin's three-way `match hyps with | [h1] | [h1, h2] | _`.
 pub fn div_mod_cert_applied_hyps(
     pers: &PersTier,
@@ -1948,7 +1920,7 @@ pub fn div_mod_cert_applied_hyps(
 }
 
 /// con-leche: none — `hyps.map (Expr.substConst0 c annVal)`
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:500-507 substConst0List` — an
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:490-497 substConst0List` — an
 /// explicit list recursion (§3.4 forbids the closure).
 pub fn subst_const0_list(
     pers: &PersTier,
@@ -1974,7 +1946,7 @@ pub fn subst_const0_list(
 }
 
 /// con-leche: none — `(hyps.map …).all (fun h => h.constsResolveF fe)`
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:509-514 constsResolveAll` — an
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:499-504 constsResolveAll` — an
 /// explicit list recursion.
 pub fn consts_resolve_all(
     pers: &PersTier,
@@ -2001,7 +1973,7 @@ pub fn consts_resolve_all(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:257-268 divModCertGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:171-180 divModCertGuardF
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:516-530 divModCertGuard` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:506-520 divModCertGuard` — the
 /// syntactic guards of one certificate check: the substituted proof is closed,
 /// level-monomorphic and resolving, and the substituted statement components
 /// resolve.
@@ -2031,7 +2003,7 @@ pub fn div_mod_cert_guard(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:257-268 divModCertGuard
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:516-530 divModCertGuard` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:506-520 divModCertGuard` — the
 /// two statement-component guards, past the proof's four.
 pub fn div_mod_cert_guard_rest(
     pers: &PersTier,
@@ -2062,10 +2034,10 @@ pub fn div_mod_cert_guard_rest(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:295-308 divModEnvGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:160-169 divModEnvGuardF
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:547-558 divModEnvGuard` —
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:537-547 divModEnvGuard` —
 /// environment prerequisites of a certified `Nat.div`/`Nat.mod`: dependency
-/// guard, pinned dependencies, the pinned `Eq` basis, and the `Bool`
-/// constructors stored at the type `Bool` itself.
+/// guard, the operation's own pinned type, the pinned `Eq` basis, and the
+/// `Bool` constructors stored at the type `Bool` itself.
 pub fn div_mod_env_guard(
     pers: &PersTier,
     st: &mut AState,
@@ -2078,18 +2050,15 @@ pub fn div_mod_env_guard(
             if !g {
                 Ok(false)
             } else {
-                match nat_op_deps(st, c) {
+                match nat_op_stored_ok(pers, st, fe2, c) {
                     Err(e) => Err(e),
-                    Ok(deps) => match nat_op_stored_ok_all(pers, st, fe2, &deps, 0) {
-                        Err(e) => Err(e),
-                        Ok(d) => {
-                            if !d {
-                                Ok(false)
-                            } else {
-                                div_mod_env_guard_rest(pers, st, fe2)
-                            }
+                    Ok(d) => {
+                        if !d {
+                            Ok(false)
+                        } else {
+                            div_mod_env_guard_rest(pers, st, fe2)
                         }
-                    },
+                    }
                 }
             }
         }
@@ -2097,7 +2066,7 @@ pub fn div_mod_env_guard(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:295-308 divModEnvGuard
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:547-558 divModEnvGuard` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:537-547 divModEnvGuard` — the
 /// pinned `Eq` basis and the two `Bool` constructors.
 pub fn div_mod_env_guard_rest(
     pers: &PersTier,
@@ -2132,7 +2101,7 @@ pub fn div_mod_env_guard_rest(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:295-308 divModEnvGuard
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:547-558 divModEnvGuard` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:537-547 divModEnvGuard` — the
 /// twin's `(← ci.toConstantVal).type != boolTy`, which it spells twice: the
 /// guards' `true`/`false` must inhabit the `Bool` value semantically.
 pub fn bool_ctor_typed(
@@ -2161,8 +2130,8 @@ pub fn bool_ctor_typed(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:310-320 divModPinGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:188-195 divModPinGuardF
-/// con-leche: ConLeche/Cached/ParsedC.lean:147-154 divModPinGuardC
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:596-606 divModPinGuard` — syntactic
+/// con-leche: ConLeche/Cached/ParsedC.lean:151-158 divModPinGuardC
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:585-595 divModPinGuard` — syntactic
 /// guards on one variant's pin (generated; checked once rather
 /// than proven about the blob), and on its type pins: each type-pinned
 /// constant stored with a closed type, each pinned type closed over constants
@@ -2194,8 +2163,8 @@ pub fn div_mod_pin_guard(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:310-320 divModPinGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:188-195 divModPinGuardF
-/// con-leche: ConLeche/Cached/ParsedC.lean:147-154 divModPinGuardC
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:585-594 typePinsGuard` — the cited
+/// con-leche: ConLeche/Cached/ParsedC.lean:151-158 divModPinGuardC
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:574-583 typePinsGuard` — the cited
 /// `(divModTypePins ps c).all fun p => …` as a cursor recursion (DESIGN.md
 /// §3.4 forbids the closure `List.all` takes).
 pub fn type_pins_guard(
@@ -2223,8 +2192,8 @@ pub fn type_pins_guard(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:310-320 divModPinGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:188-195 divModPinGuardF
-/// con-leche: ConLeche/Cached/ParsedC.lean:147-154 divModPinGuardC
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:571-583 typePinGuard` — one type
+/// con-leche: ConLeche/Cached/ParsedC.lean:151-158 divModPinGuardC
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:560-572 typePinGuard` — one type
 /// pin's guard, the `List.all` closure's body: the constant stored, its
 /// stored type free of free variables, the pinned type closed, free of free
 /// variables and resolving.
@@ -2274,7 +2243,7 @@ pub fn type_pin_guard(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:322-329 divModCertsGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:197-201 divModCertsGuardF
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:608-620 divModCertsGuardGo` —
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:597-609 divModCertsGuardGo` —
 /// all of one variant's certificates' syntactic guards at once, `zip`ped with
 /// the statements.  A `zip` stops at the shorter list, which is why the bound
 /// is the minimum (the twin's two `[]` clauses are both `true`).
@@ -2315,7 +2284,7 @@ pub fn div_mod_certs_guard_go(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:322-329 divModCertsGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:197-201 divModCertsGuardF
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:622-628 divModCertsGuard` —
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:611-617 divModCertsGuard` —
 /// the statements and the variant's proofs, zipped.
 pub fn div_mod_certs_guard(
     pers: &PersTier,
@@ -2335,8 +2304,8 @@ pub fn div_mod_certs_guard(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:270-293 checkDivModCerts
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:246-260 checkDivModCertsF
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:630-651 checkDivModCerts` —
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:251-265 checkDivModCertsF
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:619-640 checkDivModCerts` —
 /// check the pinned certificates of op `c`: per certificate, the vendored
 /// proof (with the op's self-references replaced by the stored value
 /// — the checks run in the *pre-insertion* environment) is applied to free
@@ -2375,7 +2344,7 @@ pub fn check_div_mod_certs(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:270-293 checkDivModCerts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:630-651 checkDivModCerts` —
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:619-640 checkDivModCerts` —
 /// one certificate, past its guard: the substituted proof applied, then
 /// inferred and compared.
 #[allow(clippy::too_many_arguments)]
@@ -2405,7 +2374,7 @@ pub fn check_div_mod_cert_at(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:270-293 checkDivModCerts
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:630-651 checkDivModCerts` —
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:619-640 checkDivModCerts` —
 /// the inference and the comparison, then the next certificate.
 #[allow(clippy::too_many_arguments)]
 pub fn check_div_mod_cert_tail(
@@ -2439,9 +2408,9 @@ pub fn check_div_mod_cert_tail(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:331-339 checkTypePins
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:262-269 checkTypePinsF
-/// con-leche: ConLeche/Cached/ParsedC.lean:156-162 checkTypePinsC
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:653-663 checkTypePins` — the type
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:267-274 checkTypePinsF
+/// con-leche: ConLeche/Cached/ParsedC.lean:160-166 checkTypePinsC
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:642-652 checkTypePins` — the type
 /// pins: each type-pinned constant's stored type against the variant's pinned
 /// one, by definitional equality; the cited list recursion as a cursor.
 #[allow(clippy::too_many_arguments)]
@@ -2475,8 +2444,8 @@ pub fn check_type_pins(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:341-368 checkDivModPinAt
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:271-281 checkDivModPinAtF
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:678-689 checkDivModPinAt` — **one pin
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:276-286 checkDivModPinAtF
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:667-678 checkDivModPinAt` — **one pin
 /// variant's attempt**: the variant's type pins (`check_type_pins`), then the
 /// stored value against the variant's pin by definitional equality, and on a
 /// match the variant's certificates.  `true` = matched; `false` = a type pin
@@ -2507,8 +2476,8 @@ pub fn check_div_mod_pin_at(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:341-368 checkDivModPinAt
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:271-281 checkDivModPinAtF
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:665-676 checkDivModPinValue` — the
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:276-286 checkDivModPinAtF
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:654-665 checkDivModPinValue` — the
 /// attempt past its type pins: the value pin, and on a match the
 /// certificates.
 #[allow(clippy::too_many_arguments)]
@@ -2537,7 +2506,7 @@ pub fn check_div_mod_pin_value(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:341-368 checkDivModPinAt
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:665-676 checkDivModPinValue`'s tail —
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:654-665 checkDivModPinValue`'s tail —
 /// the certificates, past the pin comparison.
 pub fn check_div_mod_pin_certs(
     pers: &PersTier,
@@ -2560,9 +2529,9 @@ pub fn check_div_mod_pin_certs(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:376-396 checkDivModPinLoop
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:283-298 checkDivModPinLoopF
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:288-303 checkDivModPinLoopF
 /// con-leche: ConLeche/Kernel/Checker.lean:370-374 divModAttemptReason
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:697-725 checkDivModPinLoop` — **the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:686-714 checkDivModPinLoop` — **the
 /// variant loop**: the first variant whose guards pass and whose attempt
 /// succeeds enables the fast path; every other outcome moves on to the next
 /// variant, and when none is left the stream DECLINES.  Every step is a
@@ -2616,8 +2585,8 @@ pub fn check_div_mod_pin_loop(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:376-396 checkDivModPinLoop
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:283-298 checkDivModPinLoopF
-/// Lean twin: the inner `if` of `proof/ConRon/Arena/DeclCheck.lean:697-725
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:288-303 checkDivModPinLoopF
+/// Lean twin: the inner `if` of `proof/ConRon/Arena/DeclCheck.lean:686-714
 /// checkDivModPinLoop` — the loop's step at a variant whose guards passed:
 /// the attempt, then the loop's tail call on `false`.
 #[allow(clippy::too_many_arguments)]
@@ -2644,8 +2613,8 @@ pub fn check_div_mod_pin_try(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:398-424 checkDivModPin
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:300-310 checkDivModPinF
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:739-756 checkDivModPin` — the
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:305-315 checkDivModPinF
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:728-745 checkDivModPin` — the
 /// pin-certified operations' gate: the environment guards and the stored value
 /// at `fe2`, the environment with the definition, then the variant loop at
 /// `fe`, the one without it.  The variant list is its parameter (con-leche's
@@ -2677,8 +2646,8 @@ pub fn check_div_mod_pin(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:398-424 checkDivModPin
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:300-310 checkDivModPinF
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:739-756 checkDivModPin` — the two reads
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:305-315 checkDivModPinF
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:728-745 checkDivModPin` — the two reads
 /// at `fe2`: `divModEnvGuardF fe2 c`, then the stored definition's value.
 pub fn check_div_mod_pin_at_fe2(
     pers: &PersTier,
@@ -2702,7 +2671,7 @@ pub fn check_div_mod_pin_at_fe2(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:398-424 checkDivModPin
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:739-756 checkDivModPin` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:728-745 checkDivModPin` — the
 /// twin's `match fe2.find? c with | some (.defnInfo _ value' _)`: the stored
 /// definition's value, COPIED before the state is taken mutably (task #14's
 /// rule).
@@ -2714,9 +2683,9 @@ pub fn defn_value(pers: &PersTier, fe: &IFEnv, c: &NIdx) -> Option<EIdx> {
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:426-461 checkReducePin
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:312-331 checkReducePinF
-/// con-leche: ConLeche/Cached/ParsedC.lean:223-241 checkReducePinC
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:785-805 checkReducePin` — the
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:317-336 checkReducePinF
+/// con-leche: ConLeche/Cached/ParsedC.lean:227-245 checkReducePinC
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:774-794 checkReducePin` — the
 /// `Lean.reduceNat`/`Lean.reduceBool` gate, after the ordinary opaque check:
 /// the stored constant carries the pinned type (at `fe2`, the environment with
 /// it), the witness value is definitionally equal to the build-time pin, and
@@ -2753,7 +2722,7 @@ pub fn check_reduce_pin(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:426-461 checkReducePin
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:785-805 checkReducePin` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:774-794 checkReducePin` — the
 /// body at `fe`, the environment without the opaque: the element guard, the pin's own syntactic
 /// guards, the definitional comparison of the witness against the pin, and the
 /// identity certificate.
@@ -2789,7 +2758,7 @@ pub fn check_reduce_pin_pre(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:426-461 checkReducePin
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:785-805 checkReducePin` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:774-794 checkReducePin` — the
 /// witness and the pin, compared.
 pub fn check_reduce_pin_value(
     pers: &PersTier,
@@ -2815,7 +2784,7 @@ pub fn check_reduce_pin_value(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:426-461 checkReducePin
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:785-805 checkReducePin` — the
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:774-794 checkReducePin` — the
 /// identity certificate: `valA x ≡ x` at depth 1 over `reduceCertVar`.
 pub fn check_reduce_identity(
     pers: &PersTier,
@@ -2848,7 +2817,7 @@ pub fn check_reduce_identity(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Checker.lean:103-111 certifyNatEqs
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:809-818 certifyNatEqs` —
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:798-807 certifyNatEqs` —
 /// certify a list of recurrence equations by definitional equality (at depth 2:
 /// the equations' variables are `fvar 0`/`fvar 1`).
 pub fn certify_nat_eqs(
@@ -2876,7 +2845,7 @@ pub fn certify_nat_eqs(
 }
 
 /// con-leche: none — `(natOpEquations 0 c).map fun eq => (substConst0 …, substConst0 …)`
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:820-828 substConst0Pairs` — an
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:809-817 substConst0Pairs` — an
 /// explicit list recursion.
 pub fn subst_const0_pairs(
     pers: &PersTier,
@@ -2971,8 +2940,8 @@ pub const M_QUOT_PREDS: [u32; 41] = [
 /// con-leche: ConLeche/Kernel/Checker.lean:30-47 checkDefnVal
 /// con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
 /// con-leche: ConLeche/Kernel/Checker.lean:80-102 checkOpaqueVal
-/// con-leche: ConLeche/Cached/ParsedC.lean:38-55 checkDefnValCI
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:832-848 valueGuards` — the value's
+/// con-leche: ConLeche/Cached/ParsedC.lean:37-54 checkDefnValCI
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:821-837 valueGuards` — the value's
 /// syntactic guards the three value checks spell alike (no loose bound
 /// variable, no free variable, declared universe parameters, resolving
 /// constants), spelled once here.
@@ -3007,7 +2976,7 @@ pub fn value_guards(
 /// con-leche: ConLeche/Kernel/Checker.lean:30-47 checkDefnVal
 /// con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
 /// con-leche: ConLeche/Kernel/Checker.lean:80-102 checkOpaqueVal
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:832-848 valueGuards` — the two guards
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:821-837 valueGuards` — the two guards
 /// past the scope tests: the level-parameter and the resolution guard (else
 /// `unresolvedConstsErrorL`'s verdict).
 pub fn value_guards_tail(
@@ -3039,8 +3008,8 @@ pub fn value_guards_tail(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:30-47 checkDefnVal
-/// con-leche: ConLeche/Cached/ParsedC.lean:38-55 checkDefnValCI
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:850-863 checkDefnVal` — check a `def`
+/// con-leche: ConLeche/Cached/ParsedC.lean:37-54 checkDefnValCI
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:839-852 checkDefnVal` — check a `def`
 /// declaration's value against its checked constant, returning the record to
 /// install, unpushed (the cached twin's shape: the caller certifies the pinned
 /// operations against the environment with and without it, then pushes).  The
@@ -3078,8 +3047,8 @@ pub fn check_defn_val(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
-/// con-leche: ConLeche/Cached/ParsedC.lean:57-77 checkThmValCI
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:865-883 checkThmVal` — check a
+/// con-leche: ConLeche/Cached/ParsedC.lean:56-76 checkThmValCI
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:854-872 checkThmVal` — check a
 /// `theorem` declaration's value against its checked constant (whose type must
 /// additionally be a proposition), returning the record to install, unpushed.
 /// **A theorem is stored by its statement only** (`thmInfo` carries no value):
@@ -3117,8 +3086,8 @@ pub fn check_thm_val(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
-/// con-leche: ConLeche/Cached/ParsedC.lean:57-77 checkThmValCI
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:865-883 checkThmVal` — the witness
+/// con-leche: ConLeche/Cached/ParsedC.lean:56-76 checkThmValCI
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:854-872 checkThmVal` — the witness
 /// half: the value's guards, its inferred type against the statement, and the
 /// record `.thmInfo cv` — the statement only.
 pub fn check_thm_val_witness(
@@ -3148,8 +3117,8 @@ pub fn check_thm_val_witness(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:80-102 checkOpaqueVal
-/// con-leche: ConLeche/Cached/ParsedC.lean:79-95 checkOpaqueValCI
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:885-897 checkOpaqueVal` — check an
+/// con-leche: ConLeche/Cached/ParsedC.lean:78-94 checkOpaqueValCI
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:874-886 checkOpaqueVal` — check an
 /// `opaque` declaration's value against its checked constant: exactly the
 /// theorem check without the is-a-proposition requirement, returning the record
 /// to install, unpushed.  It is an `axiomInfo` — the checked value is a
@@ -3185,8 +3154,8 @@ pub fn check_opaque_val(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Checker.lean:24-28 installBasisDecl
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:240-244 installBasisDeclF
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:901-908 installBasisDecl` — install one
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:245-249 installBasisDeclF
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:890-897 installBasisDecl` — install one
 /// pinned basis declaration (duplicate-checked), returning the pushed index.
 pub fn install_basis_decl(
     pers: &PersTier,
@@ -3201,8 +3170,8 @@ pub fn install_basis_decl(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:463-474 checkQuotRecord
-/// con-leche: ConLeche/Cached/ParsedC.lean:97-105 checkQuotRecordC
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:910-922 checkQuotRecord` — **a quotient
+/// con-leche: ConLeche/Cached/ParsedC.lean:96-104 checkQuotRecordC
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:899-911 checkQuotRecord` — **a quotient
 /// record's check and install**: compared with its slot's pin, the slots it
 /// needs stored, and installed at its own names.  A record that does not match
 /// is a quotient this checker positively does not support.

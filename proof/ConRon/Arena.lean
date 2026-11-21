@@ -52,6 +52,7 @@ public import ConRon.Arena.Inductives.BlockRec
 public import ConRon.Arena.Inductives.ClassRead
 public import ConRon.Arena.Inductives.BlockInstall
 public import ConRon.Arena.Inductives.RecCheck
+public import ConRon.Arena.Inductives.IotaRead
 public import ConRon.Arena.Inductives.GenRec
 public import ConRon.Arena.Inductives.StreamRecs
 public import ConRon.Arena.Inductives.BlockTail

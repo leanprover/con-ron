@@ -249,7 +249,7 @@ def instantiate1ArmBVar (v : EIdx) (h : EIdx) (d : Nat) : AM EIdx := do
 
 mutual
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:23-39 instantiate1
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:24-40 instantiate1
 con-leche: ConLeche/Cached/ExprOpsC.lean:453-484 instantiate1XP
 Replace `bvar d` by `v`, lowering loose `bvar`s above `d` by one.  The
 derived-word cutoff comes first (`bvarB ≤ d`, read off the packed word in
@@ -392,7 +392,7 @@ replacement with a *shorter* list and the memo is keyed for the outer one. -/
 
 mutual
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:531-575 instantiateList
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:532-576 instantiateList
 con-leche: ConLeche/Cached/ExprOpsC.lean:639-667 instantiateRevP — the
 unmemoized bulk instantiation of the range `vs[n - k:n]`, read from its end
 (`instantiateRevP vs n e k d`).  con-leche's termination measure is
@@ -422,7 +422,7 @@ def instantiateList (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx) (d : N
       else pure h
 termination_by (fuel, 0)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:531-575 instantiateList — the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:532-576 instantiateList — the
 `app` arm. -/
 def instListArmApp (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -434,7 +434,7 @@ def instListArmApp (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx) (d : Na
     internAppE f' a'
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:531-575 instantiateList — the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:532-576 instantiateList — the
 binder arm. -/
 def instListArmBind (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -446,7 +446,7 @@ def instListArmBind (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx) (d : N
     internBindE h.tag t b
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:531-575 instantiateList — the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:532-576 instantiateList — the
 `letE` arm. -/
 def instListArmLet (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -459,7 +459,7 @@ def instListArmLet (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx) (d : Na
     internLetEE t w b
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:531-575 instantiateList — the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:532-576 instantiateList — the
 `proj` arm. -/
 def instListArmProj (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -470,7 +470,7 @@ def instListArmProj (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx) (d : N
     internProjE sn i u
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:531-575 instantiateList — the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:532-576 instantiateList — the
 `bvar` arm, which is the one that recurses with a SHORTER range. -/
 def instListArmBVar (vs : Array EIdx) (n k : Nat) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -669,7 +669,7 @@ def instantiateListFast (fuel : Nat) (e : EIdx) (vs : Array EIdx) (d : Nat := 0)
 
 mutual
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:671-691 liftLooseBVars
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:672-692 liftLooseBVars
 con-leche: ConLeche/Cached/ExprOpsC.lean:293-323 liftLooseBVarsXP
 Bump every loose bound variable `≥ cutoff` by `amount`.  This is the
 DISPATCHER (arms split per DESIGN §8.6's ruling of 2026-09-22).  A leaf arm
@@ -815,7 +815,7 @@ def liftLooseBVarsFast (fuel amount c : Nat) (e : EIdx) : AM EIdx := do
 
 mutual
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:716-723 sizeB — the binder
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:717-724 sizeB — the binder
 node count, `fvar` annotations NOT descended into.  The dispatcher (arms
 split per DESIGN §8.6's ruling of 2026-09-22); the five leaf kinds are one
 expression and stay here. -/
@@ -831,7 +831,7 @@ def sizeB (fuel : Nat) (h : EIdx) : AM Nat :=
     | .proj _ _ sub => sizeBArmProj fuel sub
 termination_by (fuel, 0)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:716-723 sizeB — the `app`
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:717-724 sizeB — the `app`
 arm. -/
 def sizeBArmApp (fuel : Nat) (f a : EIdx) : AM Nat := do
   let x ← sizeB fuel f
@@ -839,7 +839,7 @@ def sizeBArmApp (fuel : Nat) (f a : EIdx) : AM Nat := do
   pure (x + y + 1)
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:716-723 sizeB — the binder
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:717-724 sizeB — the binder
 arm (`lam` and `forallE` share it, as they do in con-leche). -/
 def sizeBArmBind (fuel : Nat) (ty body : EIdx) : AM Nat := do
   let x ← sizeB fuel ty
@@ -847,7 +847,7 @@ def sizeBArmBind (fuel : Nat) (ty body : EIdx) : AM Nat := do
   pure (x + y + 1)
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:716-723 sizeB — the `letE`
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:717-724 sizeB — the `letE`
 arm. -/
 def sizeBArmLet (fuel : Nat) (ty val body : EIdx) : AM Nat := do
   let x ← sizeB fuel ty
@@ -856,7 +856,7 @@ def sizeBArmLet (fuel : Nat) (ty val body : EIdx) : AM Nat := do
   pure (x + y + z + 1)
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:716-723 sizeB — the `proj`
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:717-724 sizeB — the `proj`
 arm. -/
 def sizeBArmProj (fuel : Nat) (sub : EIdx) : AM Nat := do
   let x ← sizeB fuel sub
@@ -867,7 +867,7 @@ end
 
 mutual
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:796-808 fvarLeaves — all reachable
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:797-809 fvarLeaves — all reachable
 `fvar` leaves, hereditarily through their annotations.  The dispatcher (arms
 split per DESIGN §8.6's ruling of 2026-09-22). -/
 def fvarLeaves (fuel : Nat) (h : EIdx) : AM (List (Nat × EIdx)) :=
@@ -883,7 +883,7 @@ def fvarLeaves (fuel : Nat) (h : EIdx) : AM (List (Nat × EIdx)) :=
     | .bvar _ | .sort _ | .const _ _ | .lit _ => pure []
 termination_by (fuel, 0)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:796-808 fvarLeaves — the `fvar`
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:797-809 fvarLeaves — the `fvar`
 arm: the leaf itself, then its annotation. -/
 def fvarLeavesArmFVar (fuel : Nat) (idx : Nat) (ty : EIdx) :
     AM (List (Nat × EIdx)) := do
@@ -891,7 +891,7 @@ def fvarLeavesArmFVar (fuel : Nat) (idx : Nat) (ty : EIdx) :
   pure ((idx, ty) :: rest)
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:796-808 fvarLeaves — the `app`
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:797-809 fvarLeaves — the `app`
 arm. -/
 def fvarLeavesArmApp (fuel : Nat) (f a : EIdx) : AM (List (Nat × EIdx)) := do
   let x ← fvarLeaves fuel f
@@ -899,7 +899,7 @@ def fvarLeavesArmApp (fuel : Nat) (f a : EIdx) : AM (List (Nat × EIdx)) := do
   pure (x ++ y)
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:796-808 fvarLeaves — the binder
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:797-809 fvarLeaves — the binder
 arm. -/
 def fvarLeavesArmBind (fuel : Nat) (ty b : EIdx) : AM (List (Nat × EIdx)) := do
   let x ← fvarLeaves fuel ty
@@ -907,7 +907,7 @@ def fvarLeavesArmBind (fuel : Nat) (ty b : EIdx) : AM (List (Nat × EIdx)) := do
   pure (x ++ y)
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:796-808 fvarLeaves — the `letE`
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:797-809 fvarLeaves — the `letE`
 arm. -/
 def fvarLeavesArmLet (fuel : Nat) (t v b : EIdx) : AM (List (Nat × EIdx)) := do
   let x ← fvarLeaves fuel t
@@ -1276,11 +1276,11 @@ def leafGuard (fuel : Nat) (fab base : EIdx) : AM Bool := do
 
 Each is a single `view` and a test: no recursion, no fuel. -/
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:835-838 isForallE — is the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:836-839 isForallE — is the
 expression a ∀?  A tag read off the handle word. -/
 @[inline] def isForallE (h : EIdx) : Bool := h.tag == ETag.forallE
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:840-845 binderPair? — two λs
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:841-846 binderPair? — two λs
 (`lam`) or two ∀s (`!lam`): their domains and bodies (the descent of the
 binder-telescope comparison, `defeqBinders`).  The tags first, then the two
 binder projections. -/
@@ -1297,7 +1297,7 @@ def binderPair? (lam : Bool) (a b : EIdx) : AM (Option (EIdx × EIdx × EIdx × 
 
 /-! ## Application spines -/
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:847-850 getAppFn — the head of an
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:848-851 getAppFn — the head of an
 application spine. -/
 def getAppFn : Nat → EIdx → AM EIdx
   | 0, _ => fail (.internal "fuel exhausted: getAppFn")
@@ -1308,7 +1308,7 @@ def getAppFn : Nat → EIdx → AM EIdx
       | some (f, _) => getAppFn fuel f
     else pure h
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:852-855 getAppArgs — the arguments
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:853-856 getAppArgs — the arguments
 of an application spine, outermost last. -/
 def getAppArgs : Nat → EIdx → AM (List EIdx)
   | 0, _ => fail (.internal "fuel exhausted: getAppArgs")
@@ -1321,7 +1321,7 @@ def getAppArgs : Nat → EIdx → AM (List EIdx)
         pure (as ++ [a])
     else pure []
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:857-860 mkAppN — apply to a list
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:858-861 mkAppN — apply to a list
 of arguments.  Structural on the list, so no fuel. -/
 def mkAppN (f : EIdx) : List EIdx → AM EIdx
   | [] => pure f
@@ -1329,7 +1329,7 @@ def mkAppN (f : EIdx) : List EIdx → AM EIdx
     let g ← internE (.app f a)
     mkAppN g as
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:857-860 mkAppN — apply to the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:858-861 mkAppN — apply to the
 entries of a push-order array from `i` on, which is what the batched β and the
 spine walks hold.  §3.4's standing `List`-as-cursor deviation, at an
 `Array`. -/
@@ -1343,7 +1343,7 @@ decreasing_by omega
 
 /-! ## Telescopes -/
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:862-868 lamBody — the body under
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:863-869 lamBody — the body under
 `k` leading λs (where there are fewer, under all of them).  The recursion is
 structural on `k`, so no fuel. -/
 def lamBody : Nat → EIdx → AM EIdx
@@ -1355,7 +1355,7 @@ def lamBody : Nat → EIdx → AM EIdx
       | some (_, b) => lamBody k b
     else pure h
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:870-876 stripLams — strip `k`
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:871-877 stripLams — strip `k`
 leading λs.  The recursion is structural on `k`, so no fuel. -/
 def stripLams : Nat → EIdx → AM (Option (List EIdx × EIdx))
   | 0, h => pure (some ([], h))
@@ -1370,7 +1370,7 @@ def stripLams : Nat → EIdx → AM (Option (List EIdx × EIdx))
         | none => pure none
     else pure none
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:878-884 stripPis — strip `k`
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:879-885 stripPis — strip `k`
 leading `∀`s. -/
 def stripPis : Nat → EIdx → AM (Option (List EIdx × EIdx))
   | 0, h => pure (some ([], h))
@@ -1385,7 +1385,7 @@ def stripPis : Nat → EIdx → AM (Option (List EIdx × EIdx))
         | none => pure none
     else pure none
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:886-890 piResult — the body of a
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:887-891 piResult — the body of a
 syntactic `∀`-telescope. -/
 def piResult : Nat → EIdx → AM EIdx
   | 0, _ => fail (.internal "fuel exhausted: piResult")
@@ -1397,7 +1397,7 @@ def piResult : Nat → EIdx → AM EIdx
       | some (_, b) => piResult fuel b
     else pure h
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:910-915 fvarTypeD — the type
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:911-916 fvarTypeD — the type
 annotation of a free-variable leaf (the expression itself otherwise). -/
 def fvarTypeD (h : EIdx) : AM EIdx := do
   -- tag first, then the annotation projection (task #97-T2-LOCKSTEP, D1)
@@ -1407,7 +1407,7 @@ def fvarTypeD (h : EIdx) : AM EIdx := do
     | some ty => pure ty
   else pure h
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:917-925 instSpine — instantiate
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:918-926 instSpine — instantiate
 a telescope-context expression at an argument spine. -/
 def instSpine (fuel : Nat) : List EIdx → Nat → EIdx → AM EIdx
   | [], _, e => pure e
@@ -1424,8 +1424,8 @@ that walk is memoized exactly as con-leche's is. -/
 
 mutual
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:77-87 Expr.bvarBound
-con-leche: ConLeche/Kernel/ExprOps.lean:152-176 bvarBoundGo
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:78-88 Expr.bvarBound
+con-leche: ConLeche/Kernel/ExprOps.lean:153-177 bvarBoundGo
 The memoized exact loose-bvar bound.  con-leche's `bvarBound` is the pure
 specification and `bvarBoundGo` the memoized walk; the arena has one
 function.  The memo is probed for every node, leaves included, as con-leche
@@ -1451,7 +1451,7 @@ def bvarBoundGo (fuel : Nat) (h : EIdx) : AM Nat :=
       pure r
 termination_by (fuel, 0)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:152-176 bvarBoundGo — the `app`
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:153-177 bvarBoundGo — the `app`
 arm. -/
 def bvarBoundArmApp (fuel : Nat) (f a : EIdx) : AM Nat := do
   let x ← bvarBoundGo fuel f
@@ -1459,7 +1459,7 @@ def bvarBoundArmApp (fuel : Nat) (f a : EIdx) : AM Nat := do
   pure (max x y)
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:152-176 bvarBoundGo — the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:153-177 bvarBoundGo — the
 binder arm: the body's bound loses the binder it crossed. -/
 def bvarBoundArmBind (fuel : Nat) (ty body : EIdx) : AM Nat := do
   let x ← bvarBoundGo fuel ty
@@ -1467,7 +1467,7 @@ def bvarBoundArmBind (fuel : Nat) (ty body : EIdx) : AM Nat := do
   pure (max x (y - 1))
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:152-176 bvarBoundGo — the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:153-177 bvarBoundGo — the
 `letE` arm. -/
 def bvarBoundArmLet (fuel : Nat) (ty val body : EIdx) : AM Nat := do
   let x ← bvarBoundGo fuel ty
@@ -1501,7 +1501,7 @@ theorem bvarBoundGo_succ (fuel : Nat) (h : EIdx) :
         bvarBSet h r
         pure r) := by
   rw [bvarBoundGo]
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:178-179 bvarBoundMemo — the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:179-180 bvarBoundMemo — the
 top-level entry of the memoized walk. -/
 def bvarBoundMemo (fuel : Nat) (e : EIdx) : AM Nat := do
   bvarBClear
@@ -1511,8 +1511,8 @@ def bvarBoundMemo (fuel : Nat) (e : EIdx) : AM Nat := do
 
 mutual
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:96-107 Expr.fvarRange
-con-leche: ConLeche/Kernel/ExprOps.lean:181-206 fvarRangeGo
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:97-108 Expr.fvarRange
+con-leche: ConLeche/Kernel/ExprOps.lean:182-207 fvarRangeGo
 The memoized exact fvar range (`fvar` annotations are not descended into,
 matching the abstraction traversals).  The dispatcher (arms split per DESIGN
 §8.6's ruling of 2026-09-22). -/
@@ -1535,7 +1535,7 @@ def fvarRangeGo (fuel : Nat) (h : EIdx) : AM Nat :=
       pure r
 termination_by (fuel, 0)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:181-206 fvarRangeGo — the `app`
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:182-207 fvarRangeGo — the `app`
 arm. -/
 def fvarRangeArmApp (fuel : Nat) (f a : EIdx) : AM Nat := do
   let x ← fvarRangeGo fuel f
@@ -1543,7 +1543,7 @@ def fvarRangeArmApp (fuel : Nat) (f a : EIdx) : AM Nat := do
   pure (max x y)
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:181-206 fvarRangeGo — the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:182-207 fvarRangeGo — the
 binder arm; unlike `bvarBound` the cursor does not move. -/
 def fvarRangeArmBind (fuel : Nat) (ty body : EIdx) : AM Nat := do
   let x ← fvarRangeGo fuel ty
@@ -1551,7 +1551,7 @@ def fvarRangeArmBind (fuel : Nat) (ty body : EIdx) : AM Nat := do
   pure (max x y)
 termination_by (fuel, 1)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:181-206 fvarRangeGo — the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:182-207 fvarRangeGo — the
 `letE` arm. -/
 def fvarRangeArmLet (fuel : Nat) (ty val body : EIdx) : AM Nat := do
   let x ← fvarRangeGo fuel ty
@@ -1585,7 +1585,7 @@ theorem fvarRangeGo_succ (fuel : Nat) (h : EIdx) :
         fvarBSet h r
         pure r) := by
   rw [fvarRangeGo]
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:208-209 fvarRangeMemo — the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:209-210 fvarRangeMemo — the
 top-level entry of the memoized walk. -/
 def fvarRangeMemo (fuel : Nat) (e : EIdx) : AM Nat := do
   fvarBClear
@@ -1593,7 +1593,7 @@ def fvarRangeMemo (fuel : Nat) (e : EIdx) : AM Nat := do
   fvarBClear
   pure r
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:211-216 bvarB — **the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:212-217 bvarB — **the
 loose-bvar bound the checker reads**: the packed field, or — on the saturated
 branch alone — the exact memoized recomputation.  `==` on `Nat`, so the `==`
 inventory's line 1432 is not a handle comparison. -/
@@ -1602,7 +1602,7 @@ def bvarB (fuel : Nat) (e : EIdx) : AM Nat := do
   let r := (bvarOfData der).toNat
   if r == satRange then bvarBoundMemo fuel e else pure r
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:218-223 fvarB — **the fvar range
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:219-224 fvarB — **the fvar range
 the checker reads**: the packed field, or the exact memoized recomputation on
 the saturated branch. -/
 def fvarB (fuel : Nat) (e : EIdx) : AM Nat := do
@@ -1610,13 +1610,13 @@ def fvarB (fuel : Nat) (e : EIdx) : AM Nat := do
   let r := (fvarOfData der).toNat
   if r == satRange then fvarRangeMemo fuel e else pure r
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:492-493 hasFvarFast — the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:493-494 hasFvarFast — the
 executed `hasFvar`: the fvar-range field read. -/
 def hasFvarFast (fuel : Nat) (e : EIdx) : AM Bool := do
   let r ← fvarB fuel e
   pure (r != 0)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:501-502 looseBVarsBoundedFast —
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:502-503 looseBVarsBoundedFast —
 the executed `looseBVarsBounded`: the loose-bvar field read. -/
 def looseBVarsBoundedFast (fuel k : Nat) (e : EIdx) : AM Bool := do
   let r ← bvarB fuel e
@@ -1636,7 +1636,7 @@ def abstract1ArmFVar (d : Nat) (h : EIdx) (k : Nat) : AM EIdx := do
 
 mutual
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:735-751 abstract1
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:736-752 abstract1
 con-leche: ConLeche/Cached/ExprOpsC.lean:826-856 abstract1XP
 Close a binder body: replace `fvar d …` leaves by `bvar k`, bumping `k` under
 binders.  `fvar` annotations are not descended into.  The dispatcher (arms
@@ -1925,7 +1925,7 @@ the two have separate memo tables.  `vs` is in PUSH order, as
 
 mutual
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:940-960 instantiateLift
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:941-961 instantiateLift
 con-leche: ConLeche/Cached/ExprOpsC.lean:383-414 instantiateLiftXP
 Replace `bvar (d + j)` by value `j` lifted past the `d` binders crossed, and
 lower the variables above the values by their count, with con-leche's own

@@ -114,7 +114,7 @@ One member's type former: the constant check, official's telescope loop and
 the result sort, without the environment cons. -/
 def checkBlockTele (mode : CheckMode) (fe : IFEnv) (nP : Nat) (ms : MemberShape) :
     AM (IConstantVal × LIdx) := do
-  checkConstantVal mode fe ms.cvT false
+  checkConstantVal mode fe ms.cvT false false false
   let (cvTa, s) ← checkSumTele (nP + ms.nIdx) ms.cvT
   match ← stripPis (nP + ms.nIdx) cvTa.type with
   | none => fail (.internal "direct sum: type former telescope")
@@ -226,7 +226,7 @@ def checkBlockCtors (mode : CheckMode) (fe₀ fe : IFEnv) (p : BlockShape) :
     checkBlockCtors mode fe₀ fe p rest
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:226-248 checkAbsCtorSorts
-con-leche: ConLeche/Cached/IndPositivity.lean:515-528 checkAbsCtorSortsC
+con-leche: ConLeche/Cached/IndPositivity.lean:523-536 checkAbsCtorSortsC
 **The fields' universes at the holes**: each constructor's positivity normal
 form within the block's level parameters (internal), its fields opened above
 the holes and their sorts bounded by the block's (the root's line of
@@ -248,7 +248,7 @@ def checkAbsCtorSorts (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (isProp : 
   | _, _ => pure ()
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:250-256 checkAbsCtorSortsAll
-con-leche: ConLeche/Cached/IndPositivity.lean:530-536 checkAbsCtorSortsAllC
+con-leche: ConLeche/Cached/IndPositivity.lean:538-544 checkAbsCtorSortsAllC
 `checkAbsCtorSorts` on every member's constructors; the block's
 `isEquiv sort 0 == some true` read once. -/
 def checkAbsCtorSortsAll (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (isProp : Bool) :
@@ -259,7 +259,7 @@ def checkAbsCtorSortsAll (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (isProp
   | _, _ => pure ()
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:258-271 blockNestCtx
-con-leche: ConLeche/Cached/IndPositivity.lean:538-547 blockNestCtxC
+con-leche: ConLeche/Cached/IndPositivity.lean:546-555 blockNestCtxC
 **The walk's context** of a block: the canonical parameter variables are the
 first former's opened telescope, with the members' holes. -/
 def blockNestCtx (p : BlockShape) : AM (NestCtx × List EIdx) := do
@@ -280,7 +280,7 @@ def nestOutKinds (outs : List (List (List NestFieldKind × EIdx))) :
   outs.map (·.map (·.1))
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:277-292 checkBlockPositivity
-con-leche: ConLeche/Cached/IndPositivity.lean:555-563 checkBlockPositivityC
+con-leche: ConLeche/Cached/IndPositivity.lean:563-571 checkBlockPositivityC
 **The block's positivity, on its stored constructors**, at the walk's context:
 official's uniform-occurrence check, the root frame from the empty state, the
 fields' universes at the holes.  Returns the root frame's outputs (each

@@ -131,7 +131,7 @@ theorem stages_model (V : Type w) [ConLeche.SetTheory V]
     (hE : internAllPins pins maxNatSize sD = .ok (ipins, sE))
     (hF : Arena.PooledAccepts .verified ipins ds sE I sF) :
     StoreWF sF.store ∧ ∃ dsP, denoteDecls sF.store ds.toList = some dsP ∧
-      Nonempty (ConLeche.Model.EnvModelM V (ConLeche.Cached.streamEnv dsP)) := by
+      Nonempty (ConLeche.Model.EnvModelM V (ConLeche.streamEnv dsP)) := by
   obtain ⟨hoff, hst, hpp, hipins, hpps, hpd, rc, preC, hclR, hden⟩ :=
     stages_frame hA hB hC hD hE
   obtain ⟨F', hpure⟩ :=
@@ -314,7 +314,7 @@ theorem stagesO_model (V : Type w) [ConLeche.SetTheory V]
       prep.decls sE I sF) :
     StoreWF sF.store ∧ ∃ (dsP : List Declaration) (val : Nat → Expr), denoteDecls sF.store prep.decls.toList = some dsP ∧
       Nonempty (ConLeche.Model.EnvModelM V
-        (ConLeche.Cached.streamEnv (dsP.map (ConLeche.Cached.fillDecl (fillRef val))))) := by
+        (ConLeche.streamEnv (dsP.map (ConLeche.Cached.fillDecl (fillRef val))))) := by
   obtain ⟨hoff, hst, hpp, hipins, hpps, hpd, hwfC, hoffC, hxC, hnu, valuesP, dsR, preC, usedC,
     hvals, hden, -⟩ := stagesO_frame hA hB hR hC hD hE
   obtain ⟨Fu, hpure⟩ := Arena.pooledOleanAccepts_bridge hk hind hst hoff hpp hpps hipins hpd

@@ -151,7 +151,7 @@ def ofReduceAxOk (fe : IFEnv) (cv : IConstantVal) : AM Bool := do
 
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:195-199 reducePinGuard
 con-leche: ConLeche/Kernel/DeclCheck.lean:154-158 reducePinGuardF
-con-leche: ConLeche/Cached/ParsedC.lean:217-221 reducePinGuardC
+con-leche: ConLeche/Cached/ParsedC.lean:221-225 reducePinGuardC
 Syntactic guards on the generated reduce pin (checked once). -/
 def reducePinGuard (fe : IFEnv) (c : NIdx) : AM Bool := do
   let p ← reduceDeclPin c
@@ -159,16 +159,6 @@ def reducePinGuard (fe : IFEnv) (c : NIdx) : AM Bool := do
   else if ← hasFvarFast coreWalkFuel p then pure false
   else if !(← allLevelParamsDefined [] p) then pure false
   else constsResolveFFast fe p
-
-/-- con-leche: none — `(natOpDeps c).all (natOpStoredOk fe)`, as an explicit
-list recursion (DESIGN §3.4 forbids the closure `List.all` takes).  con-leche's
-`natOpGuard` has the WEAKER dependency test (`Arena/Core.lean`'s
-`natOpDepsStored`: stored as a level-monomorphic definition); this is the
-stronger one `divModEnvGuard` asks for, which pins the type too. -/
-def natOpStoredOkAll (fe : IFEnv) : List NIdx → AM Bool
-  | [] => pure true
-  | n :: ns => do
-    if ← natOpStoredOk fe n then natOpStoredOkAll fe ns else pure false
 
 /-! `lps.map .param` as an interned universe-argument list — the spelling of
 "the constant at its own level parameters", which every model statement below
@@ -547,19 +537,18 @@ def boolCtorTyped (fe2 : IFEnv) (n : NIdx) : AM Bool := do
 /-- con-leche: ConLeche/Kernel/Checker.lean:295-308 divModEnvGuard
 con-leche: ConLeche/Kernel/DeclCheck.lean:160-169 divModEnvGuardF
 Environment prerequisites of a certified `Nat.div`/`Nat.mod`: dependency
-guard, pinned dependencies, the pinned `Eq` basis, and the `Bool` constructors
-stored at the type `Bool` itself. -/
+guard, the operation's own pinned type, the pinned `Eq` basis, and the `Bool`
+constructors stored at the type `Bool` itself. -/
 def divModEnvGuard (fe2 : IFEnv) (c : NIdx) : AM Bool := do
   if !(← natOpGuard fe2 c) then pure false else do
-    let deps ← natOpDeps c
-    if !(← natOpStoredOkAll fe2 deps) then pure false else do
+    if !(← natOpStoredOk fe2 c) then pure false else do
       if !(← eqStored fe2) then pure false else do
         if !(← boolCtorTyped fe2 (← boolTrueName)) then pure false
         else boolCtorTyped fe2 (← boolFalseName)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:310-320 divModPinGuard
 con-leche: ConLeche/Kernel/DeclCheck.lean:188-195 divModPinGuardF
-con-leche: ConLeche/Cached/ParsedC.lean:147-154 divModPinGuardC
+con-leche: ConLeche/Cached/ParsedC.lean:151-158 divModPinGuardC
 The pin's four ground guards — closed, free-variable-free, level-monomorphic
 and resolving — the first four clauses of `divModPinGuard`. -/
 def groundGuards (fe : IFEnv) (p : EIdx) : AM Bool := do
@@ -570,7 +559,7 @@ def groundGuards (fe : IFEnv) (p : EIdx) : AM Bool := do
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:310-320 divModPinGuard
 con-leche: ConLeche/Kernel/DeclCheck.lean:188-195 divModPinGuardF
-con-leche: ConLeche/Cached/ParsedC.lean:147-154 divModPinGuardC
+con-leche: ConLeche/Cached/ParsedC.lean:151-158 divModPinGuardC
 One type pin's guard, the body of `divModPinGuard`'s `List.all` closure: the
 constant stored, its stored type free of free variables, the pinned type
 closed, free of free variables and resolving. -/
@@ -584,7 +573,7 @@ def typePinGuard (fe : IFEnv) (n : NIdx) (ty : EIdx) : AM Bool := do
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:310-320 divModPinGuard
 con-leche: ConLeche/Kernel/DeclCheck.lean:188-195 divModPinGuardF
-con-leche: ConLeche/Cached/ParsedC.lean:147-154 divModPinGuardC
+con-leche: ConLeche/Cached/ParsedC.lean:151-158 divModPinGuardC
 `(divModTypePins ps c).all fun p => …` as a list recursion (DESIGN §3.4
 forbids the closure). -/
 def typePinsGuard (fe : IFEnv) : List (NIdx × EIdx) → AM Bool
@@ -595,7 +584,7 @@ def typePinsGuard (fe : IFEnv) : List (NIdx × EIdx) → AM Bool
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:310-320 divModPinGuard
 con-leche: ConLeche/Kernel/DeclCheck.lean:188-195 divModPinGuardF
-con-leche: ConLeche/Cached/ParsedC.lean:147-154 divModPinGuardC
+con-leche: ConLeche/Cached/ParsedC.lean:151-158 divModPinGuardC
 Syntactic guards on one variant's pin (generated; checked once at install
 rather than proven about the blob), and on its type pins: each type-pinned
 constant stored with a closed type, each pinned type closed over constants
@@ -628,7 +617,7 @@ def divModCertsGuard (ps : INatOpPinSet) (fe : IFEnv) (c : NIdx)
   divModCertsGuardGo fe c annVal (← divModCertStmts c) (← divModCertProofs ps c)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:270-293 checkDivModCerts
-con-leche: ConLeche/Kernel/DeclCheck.lean:246-260 checkDivModCertsF
+con-leche: ConLeche/Kernel/DeclCheck.lean:251-265 checkDivModCertsF
 Check the pinned certificates of op `c`: per certificate, the vendored proof
 (with the op's self-references replaced by the stored value — the
 checks run in the *pre-insertion* environment) is applied to free variables
@@ -651,8 +640,8 @@ def checkDivModCerts (mode : CheckMode) (fe : IFEnv) (c : NIdx)
   | _, _ => pure false
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:331-339 checkTypePins
-con-leche: ConLeche/Kernel/DeclCheck.lean:262-269 checkTypePinsF
-con-leche: ConLeche/Cached/ParsedC.lean:156-162 checkTypePinsC
+con-leche: ConLeche/Kernel/DeclCheck.lean:267-274 checkTypePinsF
+con-leche: ConLeche/Cached/ParsedC.lean:160-166 checkTypePinsC
 The type pins: each type-pinned constant's stored type against the variant's
 pinned one, by definitional equality. -/
 def checkTypePins (mode : CheckMode) (fe : IFEnv) : List (NIdx × EIdx) → AM Bool
@@ -663,7 +652,7 @@ def checkTypePins (mode : CheckMode) (fe : IFEnv) : List (NIdx × EIdx) → AM B
     else pure false
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:341-368 checkDivModPinAt
-con-leche: ConLeche/Kernel/DeclCheck.lean:271-281 checkDivModPinAtF
+con-leche: ConLeche/Kernel/DeclCheck.lean:276-286 checkDivModPinAtF
 The attempt past its type pins: the stored value against the variant's pin
 by definitional equality, and on a match the variant's certificates. -/
 def checkDivModPinValue (mode : CheckMode) (fe : IFEnv) (c : NIdx)
@@ -676,7 +665,7 @@ def checkDivModPinValue (mode : CheckMode) (fe : IFEnv) (c : NIdx)
   else pure false
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:341-368 checkDivModPinAt
-con-leche: ConLeche/Kernel/DeclCheck.lean:271-281 checkDivModPinAtF
+con-leche: ConLeche/Kernel/DeclCheck.lean:276-286 checkDivModPinAtF
 **One pin variant's attempt**: the variant's type pins (`checkTypePins`),
 then the value pin and the certificates (`checkDivModPinValue`).  `true` =
 matched; `false` = a type pin or the pin is not definitionally equal, or a
@@ -695,7 +684,7 @@ def divModAttemptReason (ps : INatOpPinSet) : String :=
     a certificate failed"
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:376-396 checkDivModPinLoop
-con-leche: ConLeche/Kernel/DeclCheck.lean:283-298 checkDivModPinLoopF
+con-leche: ConLeche/Kernel/DeclCheck.lean:288-303 checkDivModPinLoopF
 **The variant loop**: the first variant whose guards pass and whose attempt
 succeeds enables the fast path; every other outcome moves on to the next
 variant, and when none is left the stream DECLINES with the per-variant
@@ -725,7 +714,7 @@ def checkDivModPinLoop (mode : CheckMode) (fe : IFEnv) (c : NIdx)
           absent"])
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:398-424 checkDivModPin
-con-leche: ConLeche/Kernel/DeclCheck.lean:300-310 checkDivModPinF
+con-leche: ConLeche/Kernel/DeclCheck.lean:305-315 checkDivModPinF
 The two reads at `fe2`, the environment with the definition:
 `divModEnvGuardF fe2 c`, then the stored definition's value. -/
 def checkDivModPinAtFe2 (fe2 : IFEnv) (c : NIdx) : AM EIdx := do
@@ -737,7 +726,7 @@ def checkDivModPinAtFe2 (fe2 : IFEnv) (c : NIdx) : AM EIdx := do
     "unsupported Nat.div/mod environment")
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:398-424 checkDivModPin
-con-leche: ConLeche/Kernel/DeclCheck.lean:300-310 checkDivModPinF
+con-leche: ConLeche/Kernel/DeclCheck.lean:305-315 checkDivModPinF
 The pin-certified operations' gate: the environment guards and the stored
 value at `fe2`, then the variant loop at `fe`, the environment without the
 definition.  The variant list is its parameter (con-leche's task #304).
@@ -756,8 +745,8 @@ def checkDivModPin (mode : CheckMode) (pins : List INatOpPinSet)
   pure fe
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:426-461 checkReducePin
-con-leche: ConLeche/Kernel/DeclCheck.lean:312-331 checkReducePinF
-con-leche: ConLeche/Cached/ParsedC.lean:223-241 checkReducePinC
+con-leche: ConLeche/Kernel/DeclCheck.lean:317-336 checkReducePinF
+con-leche: ConLeche/Cached/ParsedC.lean:227-245 checkReducePinC
 The body at `fe`, the environment without the opaque: the element guard, the
 pin's own syntactic guards, the definitional comparison of the witness
 against the pin, and the identity certificate. -/
@@ -783,8 +772,8 @@ def checkReducePinPre (mode : CheckMode) (fe : IFEnv) (c : NIdx)
     "unsupported compiler-trust opaque declaration")
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:426-461 checkReducePin
-con-leche: ConLeche/Kernel/DeclCheck.lean:312-331 checkReducePinF
-con-leche: ConLeche/Cached/ParsedC.lean:223-241 checkReducePinC
+con-leche: ConLeche/Kernel/DeclCheck.lean:317-336 checkReducePinF
+con-leche: ConLeche/Cached/ParsedC.lean:227-245 checkReducePinC
 The `Lean.reduceNat`/`Lean.reduceBool` gate, after the ordinary opaque check:
 the stored constant carries the pinned type (at `fe2`, the environment with
 it), then `checkReducePinPre` at `fe`.  The two guards short-circuit, as the
@@ -832,7 +821,7 @@ def substConst0Pairs (n : NIdx) (r : EIdx) : List (EIdx × EIdx) → AM (List (E
 /-- con-leche: ConLeche/Kernel/Checker.lean:30-47 checkDefnVal
 con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
 con-leche: ConLeche/Kernel/Checker.lean:80-102 checkOpaqueVal
-con-leche: ConLeche/Cached/ParsedC.lean:38-55 checkDefnValCI
+con-leche: ConLeche/Cached/ParsedC.lean:37-54 checkDefnValCI
 The value's syntactic guards the three value checks spell alike (no loose
 bound variable, no free variable, declared universe parameters, resolving
 constants), spelled once here. -/
@@ -848,7 +837,7 @@ def valueGuards (fe : IFEnv) (cv : IConstantVal) (value : EIdx) : AM Unit := do
     fail (← unresolvedConstsErrorL fe.strLit "value" value)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:30-47 checkDefnVal
-con-leche: ConLeche/Cached/ParsedC.lean:38-55 checkDefnValCI
+con-leche: ConLeche/Cached/ParsedC.lean:37-54 checkDefnValCI
 Check a `def` declaration's value against its checked constant, returning the
 record to install, unpushed (the cached twin's shape: the caller certifies the
 pinned operations against the environment with and without it, then pushes).
@@ -863,7 +852,7 @@ def checkDefnVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
   pure (.defnInfo cv value hint)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
-con-leche: ConLeche/Cached/ParsedC.lean:57-77 checkThmValCI
+con-leche: ConLeche/Cached/ParsedC.lean:56-76 checkThmValCI
 Check a `theorem` declaration's value against its checked constant (whose
 type must additionally be a proposition), returning the record to install,
 unpushed.  **A theorem is stored by its statement only**: the checked value is
@@ -883,7 +872,7 @@ def checkThmVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
   pure (.thmInfo cv)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:80-102 checkOpaqueVal
-con-leche: ConLeche/Cached/ParsedC.lean:79-95 checkOpaqueValCI
+con-leche: ConLeche/Cached/ParsedC.lean:78-94 checkOpaqueValCI
 Check an `opaque` declaration's value against its checked constant: exactly
 the theorem check without the is-a-proposition requirement, returning the
 record to install, unpushed.  It is an `axiomInfo` — the checked value is a
@@ -899,7 +888,7 @@ def checkOpaqueVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
 /-! ## The quotient records -/
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:24-28 installBasisDecl
-con-leche: ConLeche/Kernel/DeclCheck.lean:240-244 installBasisDeclF
+con-leche: ConLeche/Kernel/DeclCheck.lean:245-249 installBasisDeclF
 Install one pinned basis declaration (duplicate-checked), returning the
 pushed index. -/
 def installBasisDecl (fe : IFEnv) (ci : IConstantInfo) : AM IFEnv := do
@@ -908,7 +897,7 @@ def installBasisDecl (fe : IFEnv) (ci : IConstantInfo) : AM IFEnv := do
   pure (fe.push ci)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:463-474 checkQuotRecord
-con-leche: ConLeche/Cached/ParsedC.lean:97-105 checkQuotRecordC
+con-leche: ConLeche/Cached/ParsedC.lean:96-104 checkQuotRecordC
 **A quotient record's check and install**: compared with its slot's pin, the
 slots it needs stored, and installed at its own names.  A record that does not
 match is a quotient this checker positively does not support. -/

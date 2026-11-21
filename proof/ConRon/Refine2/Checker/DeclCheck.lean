@@ -1220,55 +1220,7 @@ theorem nat_op_guard_aux {pers st lst} {rf lf}
   simp only [ite_bor]
   lockstep
 
-open Lockstep in
-theorem nat_op_stored_ok_all_aux (n : Nat) :
-    ∀ {pers st lst} {rf lf}
-      (ns : alloc.vec.Vec arena.handle.NIdx) (i : Std.Usize),
-      ns.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
-      IFEnvRelI pers rf lf →
-      LS pers (fun a b => b = id a)
-        (arena.decl_check.nat_op_stored_ok_all pers st rf ns i) lst
-        (natOpStoredOkAll lf (absNIdxLFrom ns i)) := by
-  induction n with
-  | zero =>
-    intro pers st lst rf lf ns i hn hrel hinv hfe
-    rw [arena.decl_check.nat_op_stored_ok_all, absNIdxLFrom_nil' ns i (by omega),
-      natOpStoredOkAll]
-    have hl := alloc.vec.Vec.len_val ns
-    rw [ite_eq_left (by scalar_tac)]
-    exact LS.pure rfl hrel hinv
-  | succ k ih =>
-    intro pers st lst rf lf ns i hn hrel hinv hfe
-    rw [arena.decl_check.nat_op_stored_ok_all, absNIdxLFrom_cons' ns i (by omega),
-      natOpStoredOkAll]
-    have hl := alloc.vec.Vec.len_val ns
-    rw [ite_eq_right (by scalar_tac)]
-    refine LSP.bind (vec_index_spec _ _) fun p ⟨_, hp⟩ => ?_
-    subst hp
-    simp only [absNIdxLFrom] at ih
-    lockstep
-
 end NatReaders
-
-/-- `nat_op_stored_ok_all` ⊑ `natOpStoredOkAll` at the cursor. -/
-theorem nat_op_stored_ok_all_refines {pers st lst} {rf lf}
-    {ns : alloc.vec.Vec arena.handle.NIdx} {i : Std.Usize} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel pers rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.decl_check.nat_op_stored_ok_all pers st rf ns i = ok o) :
-    Sim₀ id pers lst o
-      (natOpStoredOkAll lf (absNIdxLFrom ns i)) :=
-  Lockstep.LS.toSim₀ (nat_op_stored_ok_all_aux _ ns i rfl hrel hinv ⟨hfe, hfinv⟩) hrun
-
-open Lockstep in
-@[lockstep] theorem nat_op_stored_ok_all_ls {pers st lst} {rf lf}
-    {ns : alloc.vec.Vec arena.handle.NIdx} {i : Std.Usize}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers rf lf) :
-    LS pers (fun a b => b = id a)
-      (arena.decl_check.nat_op_stored_ok_all pers st rf ns i) lst
-      (natOpStoredOkAll lf (absNIdxLFrom ns i)) :=
-  LS.ofSim₀ fun _ h => nat_op_stored_ok_all_refines hrel hinv hfe.rel hfe.inv h
 
 /-- `arena::core::nat_op_guard` ⊑ `natOpGuard` — the structural pin gate's
 stored-constant guard.  The function is `arena::core`'s; no tier had stated

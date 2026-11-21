@@ -145,7 +145,7 @@ pub fn is_one_kind(u: &Level) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:211-219 levelHasParam
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1018-1024 Level.hasParam
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1019-1025 Level.hasParam
 /// `levelHasParam`.  The second citation is the same recurrence written as
 /// the *spec* function `Level.hasParam` in `ExprOps.lean`; the cited file's
 /// `levelHasParam_eq` (`:2524-2527`) is the equation between them, so one

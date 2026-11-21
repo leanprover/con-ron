@@ -26,7 +26,7 @@ use crate::ron::hashmap::Dup;
 use crate::ron::hashmap::Eq2;
 use crate::ron::hashmap2::HashMap2;
 
-/// con-leche: ConLeche/Frontend/Olean/Merge.lean:54-57 Merged
+/// con-leche: ConLeche/Frontend/Olean/Merge.lean:65-68 Merged
 /// The merged constants and the order they were first stored in.
 pub struct Merged {
     pub ls: Vec<Loaded>,
@@ -34,7 +34,7 @@ pub struct Merged {
     pub order: Vec<NIdx>,
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Merge.lean:54-57 Merged
+/// con-leche: ConLeche/Frontend/Olean/Merge.lean:65-68 Merged
 /// `mg.map[n]?`.
 pub fn mg_get<'a>(mg: &'a Merged, n: &NIdx) -> Option<&'a CEntry> {
     match mg.map.get(n) {
@@ -43,7 +43,7 @@ pub fn mg_get<'a>(mg: &'a Merged, n: &NIdx) -> Option<&'a CEntry> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Merge.lean:54-57 Merged
+/// con-leche: ConLeche/Frontend/Olean/Merge.lean:65-68 Merged
 /// `mg.map.contains n`.
 pub fn mg_has(mg: &Merged, n: &NIdx) -> bool {
     mg.map.contains_key(n)
@@ -134,7 +134,7 @@ pub fn is_prop_cheap(pk: &OleanPins, pers: &PersTier, ar: &EStore, mg: &Merged, 
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Merge.lean:45-52 subsumes
+/// con-leche: ConLeche/Frontend/Olean/Merge.lean:61-63 subsumes
 /// `subsumesInfo`: may `c₁` stand for `c₂`?
 pub fn subsumes(pk: &OleanPins, pers: &PersTier, ar: &EStore, mg: &Merged, c1: &CEntry, c2: &CEntry) -> Result<bool, CheckError> {
     if !(c1.c.name.eq2(&c2.c.name) && c1.c.ty.eq2(&c2.c.ty) && module::nidx_list_eq(&c1.c.level_params, &c2.c.level_params)) {
@@ -154,7 +154,7 @@ pub fn subsumes(pk: &OleanPins, pers: &PersTier, ar: &EStore, mg: &Merged, c1: &
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Merge.lean:59-70 mergeEntry
+/// con-leche: ConLeche/Frontend/Olean/Merge.lean:70-81 mergeEntry
 /// **Merge one constant**, the `i`-th of module `m`.
 pub fn merge_entry(pk: &OleanPins, pers: &PersTier, ar: &EStore, mg: &mut Merged, m: usize, i: usize) -> Result<(), CheckError> {
     let n: NIdx = mg.ls[m].constants[i].c.name.dup2();
@@ -184,7 +184,7 @@ pub fn merge_entry(pk: &OleanPins, pers: &PersTier, ar: &EStore, mg: &mut Merged
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Merge.lean:59-70 mergeEntry
+/// con-leche: ConLeche/Frontend/Olean/Merge.lean:70-81 mergeEntry
 /// Two modules store different constants of one name.
 pub fn merge_conflict(pers: &PersTier, ar: &EStore, n: &NIdx) -> Result<(), CheckError> {
     match env::read_name(pers, ar, n) {
@@ -196,7 +196,7 @@ pub fn merge_conflict(pers: &PersTier, ar: &EStore, n: &NIdx) -> Result<(), Chec
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Merge.lean:72-73 mergeAll
+/// con-leche: ConLeche/Frontend/Olean/Merge.lean:83-84 mergeAll
 /// `l.constants.foldlM mergeEntry mg`, the constants of module `m`.
 pub fn merge_module(pk: &OleanPins, pers: &PersTier, ar: &EStore, mg: &mut Merged, m: usize) -> Result<(), CheckError> {
     let n = mg.ls[m].constants.len();
@@ -211,7 +211,7 @@ pub fn merge_module(pk: &OleanPins, pers: &PersTier, ar: &EStore, mg: &mut Merge
     Ok(())
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Merge.lean:72-73 mergeAll
+/// con-leche: ConLeche/Frontend/Olean/Merge.lean:83-84 mergeAll
 /// The closure's constants merged.
 pub fn merge_all(pk: &OleanPins, pers: &PersTier, ar: &EStore, ls: Vec<Loaded>) -> Result<Merged, CheckError> {
     let n = ls.len();

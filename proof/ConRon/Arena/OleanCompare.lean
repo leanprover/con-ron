@@ -19,7 +19,7 @@ namespace ConRon.Arena.OleanCompare
 open ConLeche
 open ConRon.Arena.Frontend.Olean
 
-/-- con-leche: OleanCompare.lean:120-123 viewsEq
+/-- con-leche: OleanCompare.lean:139-142 viewsEq
 A view's constants by the checker's equality. -/
 def viewsEq (a b : ModDecoded) : Bool :=
   a.isModule == b.isModule && a.imports == b.imports && a.constants.size == b.constants.size &&
@@ -39,7 +39,7 @@ def agree (pk : OleanPins) (f : ConLeche.Frontend.Olean.ModFiles) (d : ModDecode
   let some ss ← readStmts pk f level (l.consts.toList.map (·.loc)) | return false
   return ss == d.constants.toList.map entryStmt
 
-/-- con-leche: OleanCompare.lean:126-143 runViews
+/-- con-leche: OleanCompare.lean:145-162 runViews
 `--views`: every module of the closure, as one `AM`. -/
 def viewsGo (sp : List System.FilePath) (roots : Array Name) : AM (Except String Nat) := do
   let pk ← oleanPins
@@ -56,7 +56,7 @@ def viewsGo (sp : List System.FilePath) (roots : Array Name) : AM (Except String
         return .error s!"module {← readName m}: the {repr level} reads of a part differ from the view"
   pure (.ok order.size)
 
-/-- con-leche: OleanCompare.lean:152-206 main
+/-- con-leche: OleanCompare.lean:253-329 main
 The command line. -/
 def main (args : List String) : IO UInt8 := do
   match args with

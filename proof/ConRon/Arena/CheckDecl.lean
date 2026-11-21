@@ -26,6 +26,7 @@ the pinned basis blocks too).
 module
 
 public import ConRon.Arena.Inductives.BlockTail
+public import ConRon.Arena.Inductives.IotaRead
 public import ConRon.Arena.DeclCheck
 public import ConRon.Arena.Basis
 
@@ -37,23 +38,22 @@ open ConLeche
 
 /-! ## One declaration -/
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
-con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
+con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
 The `.defnDecl` arm's structural-`Nat` gate, its reads at `fe2` (the
-environment with the definition): `natOpGuard` and the dependencies' storage,
-then the stored value. -/
+environment with the definition): `natOpGuard` and the operation's own pinned
+type (`natOpStoredOk`), then the stored value. -/
 def checkStructuralNatPinAtFe2 (fe2 : IFEnv) (n : NIdx) : AM EIdx := do
   let g ← natOpGuard fe2 n
-  let deps ← natOpDeps n
-  let d ← natOpStoredOkAll fe2 deps
+  let d ← natOpStoredOk fe2 n
   unless g && d do
     fail (.notImplemented "nonstandard structural Nat operation environment")
   match fe2.find? n with
   | some (.defnInfo _ value' _) => pure value'
   | _ => fail (.internal "structural Nat operation not stored")
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
-con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
+con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
 **The structural-`Nat` gate**: the reads at `fe2`, then `certifyNatEqs` at `fe`,
 the environment without the definition, over the equations with the
 operation's self-references substituted.  Certifying with the definition
@@ -71,8 +71,8 @@ def checkStructuralNatPin (mode : CheckMode) (fe : IFEnv) (ci : IConstantInfo)
     fail (.notImplemented "nonstandard structural Nat operation")
   pure fe
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind
-con-leche: ConLeche/Cached/ParsedC.lean:243-315 checkDeclKindC
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
+con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
 **A declaration's own checks**, by its kind, extending the environment on
 success.  A value arm checks the value returning the record unpushed, runs its
 pinned gates, and pushes last.  A block under a pinned basis block's names
@@ -81,7 +81,7 @@ def checkDeclKind (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     (d : IDeclaration) : AM IFEnv := do
   match d with
   | .defnDecl cv value hint => do
-    checkConstantVal mode fe cv true
+    checkConstantVal mode fe cv true false false
     let ci ← checkDefnVal mode fe cv value hint
     let fe ← if (← natOpNames).contains cv.name then checkStructuralNatPin mode fe ci cv.name
       else pure fe
@@ -89,11 +89,11 @@ def checkDeclKind (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
       else pure fe
     pure (fe.push ci)
   | .thmDecl cv value => do
-    checkConstantVal mode fe cv false
+    checkConstantVal mode fe cv false false false
     let ci ← checkThmVal mode fe cv value
     pure (fe.push ci)
   | .opaqueDecl cv value => do
-    checkConstantVal mode fe cv false
+    checkConstantVal mode fe cv false true false
     let ci ← checkOpaqueVal mode fe cv value
     let fe ← if (← reduceOpNames).contains cv.name then checkReducePin mode fe ci cv.name value
       else pure fe
@@ -104,7 +104,7 @@ def checkDeclKind (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     -- name is a reserved basis name: this record IS the package's.
     if cv.name == (← pinQuotSound) then checkQuotRecord fe .sound cv
     else do
-      checkConstantVal mode fe cv false
+      checkConstantVal mode fe cv false false true
       if ← stdAxiomOk fe cv then
         pure (fe.push (.axiomInfo cv))
       else if cv.name == (← trustCompilerName) then
@@ -142,17 +142,23 @@ def checkDeclKind (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     -- one-sided), then ONE ROUTE: the uniform route takes every block
     -- `readBlock` reads, at any number of members, nested ones and the pinned
     -- basis blocks included; any other block is rejected with the reason
-    -- `readBlock` gives.
+    -- `readBlock` gives.  Then the recursors' ι equations read off their own
+    -- types (`blockReadsOk`), at the input index with the block's constants
+    -- pushed in place, decided after the block's check (`blockReadsAt`).
     if !(← indParamsOk nP block) then
       fail (.invalid "number of parameters mismatch")
     else
       match ← readBlock nP block with
-      | .ok p => checkBlock mode fe block p
+      | .ok p => do
+        let (reads, fe₀) ← blockReadsAt fe p
+        let fe' ← checkBlock mode fe₀ block p
+        if reads then pure fe'
+        else fail (.invalid "the recursor's minor premise does not state the constructor's fields, indices and parameters as the constructor's type does")
       | .error e => fail e
   | .quotDecl k cv => checkQuotRecord fe k cv
 
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:166-174 checkDecl
-con-leche: ConLeche/Cached/ParsedC.lean:317-323 checkDeclC
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:172-180 checkDecl
+con-leche: ConLeche/Cached/ParsedC.lean:320-326 checkDeclC
 **Check a single declaration**: its own checks (`checkDeclKind`), then the
 reserved names' (`basisNamesOk`), which justify the model's fixed meanings of
 the basis names.  The per-declaration caches are flushed between the two (the
@@ -169,7 +175,8 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
 /-! ## The spec fold -/
 
 /-- con-leche: ConLeche/Cached/Decls.lean:44-58 declStep
-con-leche: ConLeche/Kernel/CheckDecl.lean:176-180 checkDeclsPure
+The cited solution `J` is absent: `none` on this path (`checkRecordC … none` = `checkDeclStepC`).
+con-leche: ConLeche/Kernel/CheckDecl.lean:182-186 checkDeclsPure
 **One record of the fold**: the `And` pin, then the record's check from a
 fresh memo state (`flushCaches`, an empty `Memos`: the cited `checkDeclStepC`'s
 `{}`).  The scratch tier stays OFF, so what the record pushes is persistent and
@@ -187,19 +194,22 @@ def checkDeclStep (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
   set { s with memos := Memos.empty }
   checkDecl mode pins fe d
 
-/-- con-leche: ConLeche/Cached/Decls.lean:83-92 checkDecls
-con-leche: ConLeche/Kernel/CheckDecl.lean:176-180 checkDeclsPure
-The fold over a list of records, one `checkDeclStep` each.  con-leche's
-`ds.foldlM (declStep mode pins)` takes a closure, which DESIGN §3.4 forbids, so
-the fold is an explicit list recursion. -/
+/-- con-leche: ConLeche/Cached/Decls.lean:105-108 checkDecls
+con-leche: ConLeche/Cached/Decls.lean:86-103 checkDeclsWith
+con-leche: ConLeche/Kernel/CheckDecl.lean:182-186 checkDeclsPure
+The fold over a list of records, one `checkDeclStep` each: `checkDeclsWith … none`
+(no solution, so `sideRecords none ds = ds`).  con-leche's
+`ds.foldlM (declStep mode pins)` takes a closure, which DESIGN §3.4 forbids, so the fold
+is an explicit list recursion. -/
 def checkDeclsPureGo (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv) :
     List IDeclaration → AM IFEnv
   | [] => pure fe
   | d :: ds => do checkDeclsPureGo mode pins (← checkDeclStep mode pins fe d) ds
 
-/-- con-leche: ConLeche/Cached/Decls.lean:83-92 checkDecls
-con-leche: ConLeche/Kernel/CheckDecl.lean:176-180 checkDeclsPure
-**The spec fold**: from the empty environment. -/
+/-- con-leche: ConLeche/Cached/Decls.lean:105-108 checkDecls
+con-leche: ConLeche/Cached/Decls.lean:86-103 checkDeclsWith
+con-leche: ConLeche/Kernel/CheckDecl.lean:182-186 checkDeclsPure
+**The spec fold**: from the empty environment, without a solution (`checkDecls`). -/
 def checkDeclsPure (mode : CheckMode) (pins : List INatOpPinSet)
     (ds : List IDeclaration) : AM IFEnv := do
   checkDeclsPureGo mode pins (← mkIFEnvLits IEnv.empty) ds

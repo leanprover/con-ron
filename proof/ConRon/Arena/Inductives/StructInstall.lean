@@ -24,7 +24,7 @@ namespace ConRon.Arena
 
 open ConLeche
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:31-50 checkStructDomsAt
+/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:30-49 checkStructDomsAt
 con-leche: ConLeche/Cached/IndBlock.lean:117-125 checkStructDomsAtC
 The reference kernels' binder-domain comparisons, run binder by binder **at
 its own frame**: the `j`-th opened variable's annotation against the `j`-th
@@ -40,7 +40,7 @@ def checkStructDomsAt (mode : CheckMode) (fe : IFEnv) (off : Nat)
       fail (.notImplemented "direct structure: binder domain mismatch")
     checkStructDomsAt mode fe off fvs doms j
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-74 checkStructProjTable
+/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:51-73 checkStructProjTable
 con-leche: ConLeche/Cached/IndTail.lean:195-203 checkStructProjTableC
 Stage 5: **the projection table's checks** (task #175 S1), at the table the
 block installs (`Arena/Install.lean`'s `blockTables`): its bodies' scoping at

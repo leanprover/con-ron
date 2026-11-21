@@ -177,7 +177,7 @@ def IConstantInfo.name : IConstantInfo → NIdx
   | .axiomInfo v | .defnInfo v _ _ | .thmInfo v => v.name
   | .indInfo v _ | .ctorInfo v _ _ _ | .recInfo v _ _ _ _ => v.name
 
-/-- con-leche: ConLeche/Kernel/Env.lean:439-446 Declaration.names — the names a
+/-- con-leche: ConLeche/Kernel/Env.lean:444-451 Declaration.names — the names a
 declaration record declares; `preparePrelude`'s lookup and the ground hoist's
 name index read it. -/
 def IDeclaration.names : IDeclaration → List NIdx
@@ -187,7 +187,7 @@ def IDeclaration.names : IDeclaration → List NIdx
 
 /-! ## The environment -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:450-462 Env — the global environment:
+/-- con-leche: ConLeche/Kernel/Env.lean:455-467 Env — the global environment:
 the constants accepted so far and the structures' projection tables, each list
 newest first.  Names are unique (the checker rejects duplicates), so the order
 is irrelevant for lookup; so are the tables' structure names.  The tables are
@@ -198,7 +198,7 @@ structure IEnv where
   tables : List IProjTable
   deriving Inhabited
 
-/-- con-leche: ConLeche/Kernel/Env.lean:466-467 Env.empty — the empty
+/-- con-leche: ConLeche/Kernel/Env.lean:471-472 Env.empty — the empty
 environment; the starting point of every checker run. -/
 def IEnv.empty : IEnv := ⟨[], []⟩
 

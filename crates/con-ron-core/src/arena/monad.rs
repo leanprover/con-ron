@@ -1411,7 +1411,7 @@ pub fn inst_lp_ls_set(st: &mut AState, h: LsIdx, r: &LsIdx) {
     st.memos.inst_lp_ls_c.insert(h, r.dup2());
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:152-176 bvarBoundGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:153-177 bvarBoundGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:768-771 bvarBGet` — probe the
 /// loose-bvar-bound memo.
 pub fn bvar_b_get(st: &AState, k: &EIdx) -> Option<u64> {
@@ -1421,21 +1421,21 @@ pub fn bvar_b_get(st: &AState, k: &EIdx) -> Option<u64> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:152-176 bvarBoundGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:153-177 bvarBoundGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:773-779 bvarBSet` — record a
 /// loose-bvar bound.
 pub fn bvar_b_set(st: &mut AState, k: EIdx, r: u64) {
     st.memos.bvar_b_c.insert(k, r);
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:178-179 bvarBoundMemo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:179-180 bvarBoundMemo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:781-785 bvarBClear` — drop the
 /// loose-bvar-bound memo.
 pub fn bvar_b_clear(st: &mut AState) {
     reset_map(&mut st.memos.bvar_b_c)
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:181-206 fvarRangeGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:182-207 fvarRangeGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:787-790 fvarBGet` — probe the
 /// fvar-range memo.
 pub fn fvar_b_get(st: &AState, k: &EIdx) -> Option<u64> {
@@ -1445,14 +1445,14 @@ pub fn fvar_b_get(st: &AState, k: &EIdx) -> Option<u64> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:181-206 fvarRangeGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:182-207 fvarRangeGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:792-798 fvarBSet` — record an
 /// fvar range.
 pub fn fvar_b_set(st: &mut AState, k: EIdx, r: u64) {
     st.memos.fvar_b_c.insert(k, r);
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:208-209 fvarRangeMemo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:209-210 fvarRangeMemo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:800-804 fvarBClear` — drop the
 /// fvar-range memo.
 pub fn fvar_b_clear(st: &mut AState) {

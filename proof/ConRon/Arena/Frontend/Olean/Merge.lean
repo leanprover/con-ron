@@ -16,14 +16,14 @@ namespace ConRon.Arena.Frontend.Olean
 open ConLeche
 open ConLeche.Frontend.Olean (CEntryF CKindF closureFuel)
 
-/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:54-57 Merged
+/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:65-68 Merged
 The merged constants and the order they were first stored in. -/
 structure Merged where
   ls : Array Loaded
   map : Std.HashMap NIdx (Nat × Nat) := {}
   order : Array NIdx := #[]
 
-/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:54-57 Merged
+/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:65-68 Merged
 `mg.map[n]?`. -/
 def Merged.get (mg : Merged) (n : NIdx) : Option CEntry :=
   match mg.map[n]? with
@@ -76,7 +76,7 @@ def isPropCheap (pk : OleanPins) (mg : Merged) (ty : EIdx) : AM Bool := do
         | .sort u => pure (u == pk.zero)
         | _ => pure false
 
-/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:45-52 subsumes
+/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:61-63 subsumes
 `subsumesInfo`: may `c₁` stand for `c₂`? -/
 def subsumes (pk : OleanPins) (mg : Merged) (c₁ c₂ : CEntry) : AM Bool := do
   if c₁.c.name == c₂.c.name && c₁.c.type == c₂.c.type && c₁.c.levelParams == c₂.c.levelParams then
@@ -88,7 +88,7 @@ def subsumes (pk : OleanPins) (mg : Merged) (c₁ c₂ : CEntry) : AM Bool := do
     | _, _ => pure false
   else pure false
 
-/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:59-70 mergeEntry
+/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:70-81 mergeEntry
 **Merge one constant**, the `i`-th of module `m`, `c`. -/
 def mergeEntry (pk : OleanPins) (mg : Merged) (m i : Nat) (c : CEntry) : AM Merged := do
   match mg.get c.c.name with
@@ -100,7 +100,7 @@ def mergeEntry (pk : OleanPins) (mg : Merged) (m i : Nat) (c : CEntry) : AM Merg
     else if ← subsumes pk mg prev c then pure mg
     else fail (.invalid s!"two modules store different constants named {← readName c.c.name}")
 
-/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:72-73 mergeAll
+/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:83-84 mergeAll
 The closure's constants merged. -/
 def mergeAll (pk : OleanPins) (ls : Array Loaded) : AM Merged := do
   let mut mg : Merged := { ls }

@@ -60,7 +60,7 @@ Does the read hold the object at `g` as kind `k`: its memo or the frontier. -/
 @[inline] def SM.holds (st : SM) (b : Frontier) (k : UInt8) (g : Nat) : Bool :=
   st.has k g || b.has k g
 
-/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:159-177 SM.buildIn
+/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:159-182 SM.buildIn
 The memo over a frontier as the node functions' `sub` (upstream's `lookup`, per
 kind; the Rust's `SMIn`). -/
 @[inline] def SM.subIn (st : SM) (b : Frontier) : Sub where
@@ -69,7 +69,7 @@ kind; the Rust's `SMIn`). -/
   levels c := lookup st.lists b.lists c
   expr c := lookup st.exprs b.exprs c
 
-/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:159-177 SM.buildIn
+/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:159-182 SM.buildIn
 **The object at `g`, read as kind `k`**, by the node function, its kids' values from
 the memo or the frontier, and added to the memo. -/
 def SM.buildIn (pk : OleanPins) (r : Region) (b : Frontier) (k : UInt8) (g : Nat) (st : SM) :
@@ -85,7 +85,7 @@ def SM.buildIn (pk : OleanPins) (r : Region) (b : Frontier) (k : UInt8) (g : Nat
 
 set_option linter.unusedVariables false in
 mutual
-/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:184-197 sGo
+/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:189-205 sGo
 **The object at `g` read as kind `k`, into the memo**: nothing to do if the memo or
 the frontier holds it; else its kids, then the object itself. -/
 def sGo (pk : OleanPins) (r : Region) (b : Frontier) (k : UInt8) (g : Nat) (st : SM) :
@@ -101,7 +101,7 @@ def sGo (pk : OleanPins) (r : Region) (b : Frontier) (k : UInt8) (g : Nat) (st :
   else pure none
 termination_by (g, 1, 0)
 
-/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:199-214 kidsGo
+/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:207-223 kidsGo
 The kids the fields `fs` of the object at `g` lead to, into the memo. -/
 def kidsGo (pk : OleanPins) (r : Region) (b : Frontier) (g : Nat) :
     List (Nat × UInt8 × Bool) → SM → AM (Option SM)
@@ -121,14 +121,14 @@ decreasing_by
     | (apply Prod.Lex.left; exact ConLeche.Frontend.Olean.Region.down_lt hd)
 end
 
-/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:219-221 frontierExpr
+/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:228-232 frontierExpr
 **The `Expr` at location `c`**, read with a memo of its own over a frontier. -/
 def frontierExpr (pk : OleanPins) (r : Region) (b : Frontier) (c : Nat) : AM (Option EIdx) := do
   match ← sGo pk r b kExpr c {} with
   | some st => pure (lookup st.exprs b.exprs c)
   | none => pure none
 
-/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:223-228 sparseNameP
+/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:234-242 sparseNameP
 **The `Name` a pointer stands for**, read sparsely. -/
 def sparseNameP (pk : OleanPins) (r : Region) (v : UInt64) : AM (Option NIdx) := do
   if v == 1 then pure (some pk.anon)
@@ -139,14 +139,14 @@ def sparseNameP (pk : OleanPins) (r : Region) (v : UInt64) : AM (Option NIdx) :=
       | none => pure none
     | none => pure none
 
-/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:230-234 sparseExprP
+/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:244-248 sparseExprP
 **The `Expr` a pointer stands for**, read sparsely. -/
 def sparseExprP (pk : OleanPins) (r : Region) (v : UInt64) : AM (Option EIdx) := do
   match r.loc v with
   | some c => frontierExpr pk r {} c
   | none => pure none
 
-/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:236-239 sparseEntry
+/-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:250-253 sparseEntry
 **A constant's names and expressions, read sparsely**: each root with a memo of its
 own. -/
 def sparseEntry (pk : OleanPins) (r : Region) (sk : CEntryF UInt64 UInt64) :

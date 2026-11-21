@@ -238,14 +238,20 @@ theorem CoreSpec.of_core :
 `.indDecl` arm) — **the inductive route, named**: `Arena/CheckDecl.lean`'s
 `checkDeclKind` arm, verbatim: the declared parameter count, then con-leche's
 uniform inductive route at every block `readBlock` reads, the reader's reject
-at any other.  `checkDeclKind`'s `.indDecl` arm unfolds to it by `rfl`. -/
+at any other, and the ι reading rule (`blockReadsAt`, read before the block's
+check at the input index and acted on after it).  `checkDeclKind`'s
+`.indDecl` arm unfolds to it by `rfl`. -/
 @[expose] def checkIndRoute (fe : IFEnv) (block : List IConstantInfo)
     (nP : Nat) : AM IFEnv := do
   if !(← indParamsOk nP block) then
     fail (.invalid "number of parameters mismatch")
   else
     match ← readBlock nP block with
-    | .ok p => checkBlock .verified fe block p
+    | .ok p => do
+      let (reads, fe₀) ← blockReadsAt fe p
+      let fe' ← checkBlock .verified fe₀ block p
+      if reads then pure fe'
+      else fail (.invalid "the recursor's minor premise does not state the constructor's fields, indices and parameters as the constructor's type does")
     | .error e => fail e
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind (the `.indDecl`

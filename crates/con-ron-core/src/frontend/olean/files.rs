@@ -40,6 +40,7 @@ use crate::frontend::olean::module;
 use crate::frontend::olean::module::Expo;
 use crate::frontend::olean::region;
 use crate::frontend::olean::region::Part;
+use crate::frontend::olean::spec;
 use crate::frontend::olean::spec::{ImportRec, ModDecoded, OleanPins, RdErr};
 use crate::frontend::olean::view;
 use crate::frontend::olean::view::{AllViews, ModFiles, OLeanLevel};
@@ -49,23 +50,27 @@ use crate::kernel::core_types::CheckError;
 use crate::kernel::expr;
 use crate::kernel::name;
 use crate::kernel::name::Name;
+use crate::kernel::name::NameKind;
 
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
 /// **The checker's file reads**: the operations of upstream's class the reader
 /// uses, and the read's heartbeat, two of the `liftIO` actions upstream hands
 /// the class.  A failure is the operation's message.  The class's worker map
 /// (`parMapWorkers`) is the check pool's, in `crates/con-ron`.
 pub trait OleanFs {
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
     /// whether the path names something (a file, a directory)
     fn path_exists(&self, p: &Vec<u32>) -> Result<bool, Vec<u32>>;
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
+    /// whether the path names a directory (through symbolic links)
+    fn is_dir(&self, p: &Vec<u32>) -> Result<bool, Vec<u32>>;
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
     /// the path with every symbolic link resolved, absolute
     fn real_path(&self, p: &Vec<u32>) -> Result<Vec<u32>, Vec<u32>>;
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
     /// a regular file's bytes
     fn read_bin_file(&self, p: &Vec<u32>) -> Result<Vec<u8>, Vec<u32>>;
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
     /// a positional read: the bytes from `off` up to `off + len` or the end of
     /// the file, whichever comes first.  Deviation: the class opens a handle
     /// (`openRead`) and reads it forward (`read`), since Lean's handles have no
@@ -73,7 +78,7 @@ pub trait OleanFs {
     /// state, and the reads `foldReads` makes, at `0, csz, 2·csz, …`, are the
     /// handle's in order.
     fn read_range(&self, p: &Vec<u32>, off: u64, len: u64) -> Result<Vec<u8>, Vec<u32>>;
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
     /// the size of a regular file in bytes
     fn file_size(&self, p: &Vec<u32>) -> Result<u64, Vec<u32>>;
     /// con-leche: ConLeche/Frontend/Olean/Progress.lean:42-48 ReadNotes.say
@@ -133,30 +138,57 @@ pub fn path_add_extension(p: &Vec<u32>, ext: &Vec<u32>) -> Vec<u32> {
     text::cat(out, ext)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:28-34 modFile.comps
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:28-34 modFile
-/// The file a module's level is stored in.
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:28-35 modDir
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:28-35 modDir.comps
+/// A module's path below a directory, without an extension: its components as
+/// directories.
+pub fn mod_dir_of(dir: &Vec<u32>, n: &Name) -> Vec<u32> {
+    let cs = name::component_list(n, Vec::new());
+    let mut path = expr::str_copy(dir);
+    let mut k = cs.len();
+    while k > 0 {
+        k -= 1;
+        let comp: Vec<u32> = match &cs[k] {
+            name::NameComponent::Str(s) => expr::str_copy(s),
+            name::NameComponent::Num(i) => text::u64_str(*i),
+        };
+        path = path_join(&path, &comp);
+    }
+    path
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:45-47 modFile
+/// The file a module's level is stored in, for a name.
+pub fn mod_file_of(dir: &Vec<u32>, n: &Name, ext: &Vec<u32>) -> Vec<u32> {
+    path_add_extension(&mod_dir_of(dir, n), ext)
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:45-47 modFile
+/// The file a module's level is stored in, the module a handle.
 pub fn mod_file(pers: &PersTier, ar: &EStore, dir: &Vec<u32>, m: &NIdx, ext: &Vec<u32>) -> Result<Vec<u32>, CheckError> {
     match env::read_name(pers, ar, m) {
         Err(e) => Err(e),
-        Ok(n) => {
-            let cs = name::component_list(&n, Vec::new());
-            let mut path = expr::str_copy(dir);
-            let mut k = cs.len();
-            while k > 0 {
-                k -= 1;
-                let comp: Vec<u32> = match &cs[k] {
-                    name::NameComponent::Str(s) => expr::str_copy(s),
-                    name::NameComponent::Num(i) => text::u64_str(*i),
-                };
-                path = path_join(&path, &comp);
-            }
-            Ok(path_add_extension(&path, ext))
-        }
+        Ok(n) => Ok(mod_file_of(dir, &n, ext)),
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:36-38 NameScan
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:37-43 Name.root
+/// **A module name's root**: its first component.
+pub fn name_root(n: &Name) -> Name {
+    match &n.0.kind {
+        NameKind::Anonymous => name::anonymous(),
+        NameKind::Str(p, s) => match &p.0.kind {
+            NameKind::Anonymous => name::mk_str(name::anonymous(), expr::str_copy(s)),
+            _ => name_root(p),
+        },
+        NameKind::Num(p, k) => match &p.0.kind {
+            NameKind::Anonymous => name::mk_num(name::anonymous(), *k),
+            _ => name_root(p),
+        },
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:49-51 NameScan
 /// Where the scan of a name is.
 pub enum NameScan {
     Start,
@@ -192,7 +224,7 @@ pub fn digits_value(cur: &Vec<u32>) -> u64 {
     v
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:40-43 Name.pushPlain
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:53-56 Name.pushPlain
 /// A component as written without an escape: at `nums`, one of digits alone is a
 /// number, as Lean's name literals read it.
 pub fn name_push_plain(n: Name, cur: Vec<u32>, nums: bool) -> Name {
@@ -203,7 +235,7 @@ pub fn name_push_plain(n: Name, cur: Vec<u32>, nums: bool) -> Name {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:45-62 scanName
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:58-75 scanName
 /// The scan of a name, one character at a time.
 pub fn scan_name_go(nums: bool, s: &Vec<u32>) -> Option<(Name, NameScan, Vec<u32>)> {
     let mut n: Name = name::anonymous();
@@ -260,7 +292,7 @@ pub fn scan_name_go(nums: bool, s: &Vec<u32>) -> Option<(Name, NameScan, Vec<u32
     Some((n, st, cur))
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:45-62 scanName
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:58-75 scanName
 /// The scan's end: where it stopped says whether that is a name.
 pub fn scan_name(nums: bool, s: &Vec<u32>) -> Option<Name> {
     match scan_name_go(nums, s) {
@@ -273,138 +305,80 @@ pub fn scan_name(nums: bool, s: &Vec<u32>) -> Option<Name> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:64-70 parseModName
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:77-83 parseModName
 /// **A module name as the command line spells it**.
 pub fn parse_mod_name(s: &Vec<u32>) -> Option<Name> {
     scan_name(false, s)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:72-75 parseConstName
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:85-88 parseConstName
 /// **A constant's name as the command line spells it**.
 pub fn parse_const_name(s: &Vec<u32>) -> Option<Name> {
     scan_name(true, s)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:77-82 Located
-/// **Where a module's files are**.
-pub struct Located {
-    pub dir: Vec<u32>,
-    pub has_server: bool,
-    pub has_private: bool,
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:90-100 RootAt
+/// **Where a root's modules are**: the one search-path directory holding the root,
+/// or why there is none.
+pub enum RootAt {
+    /// the directory holding it
+    Dir(Vec<u32>),
+    /// no directory holds it
+    Missing,
+    /// directories in two or more locations hold it, these (the first spelling of each)
+    Twice(Vec<Vec<u32>>),
+    /// a failed operation while looking, its message
+    Failed(Vec<u32>),
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:84-85 partExts
-/// The three files of a module, by extension.
-pub fn part_ext(i: usize) -> Vec<u32> {
-    if i == 0 {
-        { const M: [u32; 5] = [111, 108, 101, 97, 110]; crate::kernel::core_types::code_points(&M) }
-    } else if i == 1 {
-        { const M: [u32; 12] = [111, 108, 101, 97, 110, 46, 115, 101, 114, 118, 101, 114]; crate::kernel::core_types::code_points(&M) }
-    } else {
-        { const M: [u32; 13] = [111, 108, 101, 97, 110, 46, 112, 114, 105, 118, 97, 116, 101]; crate::kernel::core_types::code_points(&M) }
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:116-120 holdsRoot
+/// **Whether a directory holds a root**, as Lean asks it: a directory of the
+/// root's name, or a file of that name with `.olean`.
+pub fn holds_root<F: OleanFs>(fs: &F, r: &Name, d: &Vec<u32>) -> Result<bool, Vec<u32>> {
+    match fs.is_dir(&mod_dir_of(d, r)) {
+        Err(e) => Err(e),
+        Ok(true) => Ok(true),
+        Ok(false) => fs.path_exists(&mod_file_of(d, r, &{ const M: [u32; 5] = [111, 108, 101, 97, 110]; crate::kernel::core_types::code_points(&M) })),
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:87-96 locateIn
-/// One directory's answer: the real paths of the module's three files.
-pub struct Hit {
-    pub dir: Vec<u32>,
-    pub files: Vec<Option<Vec<u32>>>,
-}
-
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:139-160 findModule
-/// How `locateHits` fails: the file system's message, or the store's readback.
-pub enum LocErr {
-    Fs(Vec<u32>),
-    Err(CheckError),
-}
-
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:87-96 locateIn
-/// The real paths of a module's three files in one directory, `None` where absent.
-pub fn locate_in<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, m: &NIdx, d: &Vec<u32>) -> Result<Hit, LocErr> {
-    let mut files: Vec<Option<Vec<u32>>> = Vec::with_capacity(3);
-    let mut i = 0usize;
-    while i < 3 {
-        match locate_file(fs, pers, ar, m, d, i) {
-            Err(e) => return Err(e),
-            Ok(x) => files.push(x),
-        }
-        i += 1;
-    }
-    Ok(Hit { dir: expr::str_copy(d), files })
-}
-
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:87-96 locateIn
-/// The real path of file `i`, `None` where absent.
-pub fn locate_file<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, m: &NIdx, d: &Vec<u32>, i: usize) -> Result<Option<Vec<u32>>, LocErr> {
-    match mod_file(pers, ar, d, m, &part_ext(i)) {
-        Err(e) => Err(LocErr::Err(e)),
-        Ok(p) => match fs.path_exists(&p) {
-            Err(e) => Err(LocErr::Fs(e)),
-            Ok(false) => Ok(None),
-            Ok(true) => match fs.real_path(&p) {
-                Err(e) => Err(LocErr::Fs(e)),
-                Ok(rp) => Ok(Some(rp)),
-            },
-        },
-    }
-}
-
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:98-103 locateHits
-/// `h.2.any (·.isSome)`.
-pub fn hit_holds_any(h: &Hit) -> bool {
-    let mut i = 0usize;
-    while i < h.files.len() {
-        if file_some(&h.files[i]) {
-            return true;
-        }
-        i += 1;
-    }
-    false
-}
-
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:98-103 locateHits
-/// `Option.isSome`.
-pub fn file_some(o: &Option<Vec<u32>>) -> bool {
-    match o {
-        Some(_) => true,
-        None => false,
-    }
-}
-
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:98-103 locateHits
-/// **The search path's directories holding any of module `m`'s files**, in order.
-pub fn locate_hits<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Vec<Vec<u32>>, m: &NIdx) -> Result<Vec<Hit>, LocErr> {
-    let mut out: Vec<Hit> = Vec::new();
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:127-138 rootHits
+/// The directories holding the root, in search-path order (`held`, filtered).
+pub fn root_dirs<F: OleanFs>(fs: &F, sp: &Vec<Vec<u32>>, r: &Name) -> Result<Vec<Vec<u32>>, Vec<u32>> {
+    let mut out: Vec<Vec<u32>> = Vec::new();
     let mut i = 0usize;
     while i < sp.len() {
-        match locate_in(fs, pers, ar, m, &sp[i]) {
+        match holds_root(fs, r, &sp[i]) {
             Err(e) => return Err(e),
-            Ok(h) => out = hits_add(out, h),
+            Ok(true) => out.push(expr::str_copy(&sp[i])),
+            Ok(false) => {}
         }
         i += 1;
     }
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:98-103 locateHits
-/// `hs.filter fun h => h.2.any (·.isSome)`, one element.
-pub fn hits_add(out: Vec<Hit>, h: Hit) -> Vec<Hit> {
-    let mut out = out;
-    if hit_holds_any(&h) {
-        out.push(h);
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:127-138 rootHits
+/// The real path of each directory holding the root, in order.
+pub fn real_paths<F: OleanFs>(fs: &F, hits: &Vec<Vec<u32>>) -> Result<Vec<Vec<u32>>, Vec<u32>> {
+    let mut out: Vec<Vec<u32>> = Vec::with_capacity(hits.len());
+    let mut i = 0usize;
+    while i < hits.len() {
+        match fs.real_path(&hits[i]) {
+            Err(e) => return Err(e),
+            Ok(rp) => out.push(rp),
+        }
+        i += 1;
     }
-    out
+    Ok(out)
 }
 
-/// con-leche: none — `List (Option String)`'s `==`
-pub fn file_lists_eq(a: &Vec<Option<Vec<u32>>>, b: &Vec<Option<Vec<u32>>>) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-    let mut i = 0usize;
-    while i < a.len() {
-        if !file_opt_eq(&a[i], &b[i]) {
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:122-125 oneEach
+/// Every real path is the first's: `oneEach` keeps one directory.
+pub fn all_same(reals: &Vec<Vec<u32>>) -> bool {
+    let mut i = 1usize;
+    while i < reals.len() {
+        if !name::str_eq(&reals[i], &reals[0]) {
             return false;
         }
         i += 1;
@@ -412,237 +386,250 @@ pub fn file_lists_eq(a: &Vec<Option<Vec<u32>>>, b: &Vec<Option<Vec<u32>>>) -> bo
     true
 }
 
-/// con-leche: none — `Option String`'s `==`
-pub fn file_opt_eq(a: &Option<Vec<u32>>, b: &Option<Vec<u32>>) -> bool {
-    match (a, b) {
-        (None, None) => true,
-        (Some(x), Some(y)) => name::str_eq(x, y),
-        _ => false,
-    }
-}
-
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
-/// `acc.any (·.2 == h.2)`.
-pub fn hit_seen(hits: &Vec<Hit>, locs: &Vec<usize>, h: &Hit) -> bool {
-    let mut i = 0usize;
-    while i < locs.len() {
-        if file_lists_eq(&hits[locs[i]].files, &h.files) {
-            return true;
-        }
-        i += 1;
-    }
-    false
-}
-
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
-/// The locations: the directories up to real paths, first spelling kept, as
-/// positions in `hits`.
-pub fn hit_locations(hits: &Vec<Hit>) -> Vec<usize> {
-    let mut locs: Vec<usize> = Vec::new();
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:122-125 oneEach
+/// The directories, one for each location: real paths compared, the first
+/// spelling kept.
+pub fn one_each(hits: &Vec<Vec<u32>>, reals: &Vec<Vec<u32>>) -> Vec<Vec<u32>> {
+    let mut out: Vec<Vec<u32>> = Vec::new();
     let mut i = 0usize;
     while i < hits.len() {
-        if !hit_seen(hits, &locs, &hits[i]) {
-            locs.push(i);
+        if !real_seen(reals, i) {
+            out.push(expr::str_copy(&hits[i]));
         }
         i += 1;
     }
-    locs
+    out
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
-/// `rs.any (· != r)`, for location `a`'s file `f` against the locations'.
-pub fn file_differs_from(hits: &Vec<Hit>, locs: &Vec<usize>, f: usize, x: &Vec<u32>) -> bool {
-    let mut b = 0usize;
-    while b < locs.len() {
-        if file_other(&hits[locs[b]].files[f], x) {
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:122-125 oneEach
+/// `acc.any (·.2 == d.2)`: an earlier directory has the real path of the `i`th.
+pub fn real_seen(reals: &Vec<Vec<u32>>, i: usize) -> bool {
+    let mut j = 0usize;
+    while j < i {
+        if name::str_eq(&reals[j], &reals[i]) {
             return true;
         }
-        b += 1;
+        j += 1;
     }
     false
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
-/// A present file that is not `x`.
-pub fn file_other(o: &Option<Vec<u32>>, x: &Vec<u32>) -> bool {
-    match o {
-        Some(y) => !name::str_eq(x, y),
-        None => false,
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:127-138 rootHits
+/// **Where a root's modules are on the search path**: the directories holding
+/// the root; where two or more do, their real paths compared, so that a
+/// directory listed twice, or reached through a symbolic link, is one location.
+pub fn root_hits<F: OleanFs>(fs: &F, sp: &Vec<Vec<u32>>, r: &Name) -> Result<RootAt, Vec<u32>> {
+    let hits = match root_dirs(fs, sp, r) {
+        Err(e) => return Err(e),
+        Ok(h) => h,
+    };
+    if hits.len() == 0 {
+        return Ok(RootAt::Missing);
     }
-}
-
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
-/// `rs.any fun r => rs.any (· != r)`: file `f` has two real paths.
-pub fn file_twice_at(hits: &Vec<Hit>, locs: &Vec<usize>, f: usize) -> bool {
-    let mut a = 0usize;
-    while a < locs.len() {
-        if file_at_differs(hits, locs, f, a) {
-            return true;
+    if hits.len() == 1 {
+        return Ok(RootAt::Dir(expr::str_copy(&hits[0])));
+    }
+    match real_paths(fs, &hits) {
+        Err(e) => Err(e),
+        Ok(reals) => {
+            if all_same(&reals) {
+                Ok(RootAt::Dir(expr::str_copy(&hits[0])))
+            } else {
+                Ok(RootAt::Twice(one_each(&hits, &reals)))
+            }
         }
-        a += 1;
-    }
-    false
-}
-
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
-/// Location `a`'s file `f`, against the other locations'.
-pub fn file_at_differs(hits: &Vec<Hit>, locs: &Vec<usize>, f: usize, a: usize) -> bool {
-    match &hits[locs[a]].files[f] {
-        Some(x) => file_differs_from(hits, locs, f, x),
-        None => false,
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
-/// `(List.range 3).any …`: one of the files with two real paths.
-pub fn file_twice(hits: &Vec<Hit>, locs: &Vec<usize>) -> bool {
-    let mut f = 0usize;
-    while f < 3 {
-        if file_twice_at(hits, locs, f) {
-            return true;
-        }
-        f += 1;
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:140-142 rootAt
+/// `root_hits`, a failed operation its answer's reason.
+pub fn root_at<F: OleanFs>(fs: &F, sp: &Vec<Vec<u32>>, r: &Name) -> RootAt {
+    match root_hits(fs, sp, r) {
+        Ok(a) => a,
+        Err(e) => RootAt::Failed(e),
     }
-    false
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
-/// `", ".intercalate (xs.toList.map (·.1.toString))`.
-pub fn locs_dirs(hits: &Vec<Hit>, locs: &Vec<usize>) -> Vec<u32> {
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:167-170 Located
+/// **Where a module's files are**: the search-path directory holding its root.
+pub struct Located {
+    pub dir: Vec<u32>,
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:172-180 locatedOf
+/// `", ".intercalate (ds.map toString)`.
+pub fn dirs_text(ds: &Vec<Vec<u32>>) -> Vec<u32> {
     let mut out: Vec<u32> = Vec::new();
     let mut i = 0usize;
-    while i < locs.len() {
+    while i < ds.len() {
         if i > 0 {
             out = text::cat(out, &{ const M: [u32; 2] = [44, 32]; crate::kernel::core_types::code_points(&M) });
         }
-        out = text::cat(out, &region::display_path(&hits[locs[i]].dir));
+        out = text::cat(out, &region::display_path(&ds[i]));
         i += 1;
     }
     out
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
-/// `desc`: what one location holds.
-pub fn loc_desc(mt: &Vec<u32>, h: &Hit) -> Vec<u32> {
-    let mut out: Vec<u32> = Vec::new();
-    let mut first = true;
-    let mut i = 0usize;
-    while i < h.files.len() {
-        if file_some(&h.files[i]) {
-            if !first {
-                out = text::cat(out, &{ const M: [u32; 2] = [44, 32]; crate::kernel::core_types::code_points(&M) });
-            }
-            first = false;
-            out = text::cat(out, mt);
-            out = text::cat(out, &{ const M: [u32; 1] = [46]; crate::kernel::core_types::code_points(&M) });
-            out = text::cat(out, &part_ext(i));
-        }
-        i += 1;
-    }
-    out = text::cat(out, &{ const M: [u32; 4] = [32, 105, 110, 32]; crate::kernel::core_types::code_points(&M) });
-    text::cat(out, &region::display_path(&h.dir))
-}
-
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
-/// `"; ".intercalate (locs.toList.map desc)`.
-pub fn locs_desc(mt: &Vec<u32>, hits: &Vec<Hit>, locs: &Vec<usize>) -> Vec<u32> {
-    let mut out: Vec<u32> = Vec::new();
-    let mut i = 0usize;
-    while i < locs.len() {
-        if i > 0 {
-            out = text::cat(out, &{ const M: [u32; 2] = [59, 32]; crate::kernel::core_types::code_points(&M) });
-        }
-        out = text::cat(out, &loc_desc(mt, &hits[locs[i]]));
-        i += 1;
-    }
-    out
-}
-
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
-/// **The module's location from the directories holding its files**, or why there
-/// is none.
-pub fn locate_of(mt: &Vec<u32>, hits: &Vec<Hit>) -> Result<Located, CheckError> {
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:172-180 locatedOf
+/// **The module's location from where its root is**, or why there is none; `mt`
+/// and `rt` are the module's and the root's names, as text.
+pub fn located_of(mt: &Vec<u32>, rt: &Vec<u32>, a: RootAt) -> Result<Located, CheckError> {
     let pre = text::cat({ const M: [u32; 7] = [109, 111, 100, 117, 108, 101, 32]; crate::kernel::core_types::code_points(&M) }, mt);
-    if hits.len() == 0 {
-        return Err(core_types::internal(text::cat(pre, &{ const M: [u32; 30] = [58, 32, 110, 111, 32, 46, 111, 108, 101, 97, 110, 32, 111, 110, 32, 116, 104, 101, 32, 115, 101, 97, 114, 99, 104, 32, 112, 97, 116, 104]; crate::kernel::core_types::code_points(&M) })));
-    }
-    let locs = hit_locations(hits);
-    if locs.len() > 1 {
-        if file_twice(hits, &locs) {
-            let t = text::cat(pre, &{ const M: [u32; 62] = [58, 32, 105, 116, 115, 32, 102, 105, 108, 101, 115, 32, 97, 114, 101, 32, 105, 110, 32, 109, 111, 114, 101, 32, 116, 104, 97, 110, 32, 111, 110, 101, 32, 108, 111, 99, 97, 116, 105, 111, 110, 32, 111, 110, 32, 116, 104, 101, 32, 115, 101, 97, 114, 99, 104, 32, 112, 97, 116, 104, 32, 40]; crate::kernel::core_types::code_points(&M) });
-            let t = text::cat(t, &locs_dirs(hits, &locs));
-            return Err(core_types::internal(text::cat(t, &{ const M: [u32; 45] = [41, 59, 32, 116, 104, 101, 32, 115, 101, 97, 114, 99, 104, 32, 112, 97, 116, 104, 32, 109, 117, 115, 116, 32, 104, 111, 108, 100, 32, 101, 97, 99, 104, 32, 109, 111, 100, 117, 108, 101, 32, 111, 110, 99, 101]; crate::kernel::core_types::code_points(&M) })));
+    match a {
+        RootAt::Dir(d) => Ok(Located { dir: d }),
+        RootAt::Missing => {
+            let t = text::cat(pre, &{ const M: [u32; 57] = [58, 32, 110, 111, 32, 46, 111, 108, 101, 97, 110, 32, 111, 110, 32, 116, 104, 101, 32, 115, 101, 97, 114, 99, 104, 32, 112, 97, 116, 104, 32, 40, 110, 111, 32, 100, 105, 114, 101, 99, 116, 111, 114, 121, 32, 111, 102, 32, 105, 116, 32, 104, 111, 108, 100, 115, 32]; crate::kernel::core_types::code_points(&M) });
+            let t = text::cat(t, rt);
+            let t = text::cat(t, &{ const M: [u32; 4] = [32, 111, 114, 32]; crate::kernel::core_types::code_points(&M) });
+            let t = text::cat(t, rt);
+            Err(core_types::internal(text::cat(t, &{ const M: [u32; 7] = [46, 111, 108, 101, 97, 110, 41]; crate::kernel::core_types::code_points(&M) })))
         }
-        let t = text::cat(pre, &{ const M: [u32; 42] = [58, 32, 105, 116, 115, 32, 112, 97, 114, 116, 115, 32, 97, 114, 101, 32, 115, 112, 108, 105, 116, 32, 97, 99, 114, 111, 115, 115, 32, 100, 105, 114, 101, 99, 116, 111, 114, 105, 101, 115, 32, 40]; crate::kernel::core_types::code_points(&M) });
-        let t = text::cat(t, &locs_desc(mt, hits, &locs));
-        return Err(core_types::internal(text::cat(t, &{ const M: [u32; 44] = [41, 59, 32, 97, 32, 109, 111, 100, 117, 108, 101, 39, 115, 32, 102, 105, 108, 101, 115, 32, 109, 117, 115, 116, 32, 98, 101, 32, 105, 110, 32, 111, 110, 101, 32, 100, 105, 114, 101, 99, 116, 111, 114, 121]; crate::kernel::core_types::code_points(&M) })));
-    }
-    located_at(mt, pre, &hits[0])
-}
-
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
-/// `" and ".intercalate held`: the parts held without their `.olean`.
-pub fn parts_held(mt: &Vec<u32>, has_s: bool, has_p: bool) -> Vec<u32> {
-    if has_s && has_p {
-        let t = text::cat(expr::str_copy(mt), &{ const M: [u32; 18] = [46, 111, 108, 101, 97, 110, 46, 115, 101, 114, 118, 101, 114, 32, 97, 110, 100, 32]; crate::kernel::core_types::code_points(&M) });
-        let t = text::cat(t, mt);
-        text::cat(t, &{ const M: [u32; 14] = [46, 111, 108, 101, 97, 110, 46, 112, 114, 105, 118, 97, 116, 101]; crate::kernel::core_types::code_points(&M) })
-    } else if has_s {
-        text::cat(expr::str_copy(mt), &{ const M: [u32; 13] = [46, 111, 108, 101, 97, 110, 46, 115, 101, 114, 118, 101, 114]; crate::kernel::core_types::code_points(&M) })
-    } else {
-        text::cat(expr::str_copy(mt), &{ const M: [u32; 14] = [46, 111, 108, 101, 97, 110, 46, 112, 114, 105, 118, 97, 116, 101]; crate::kernel::core_types::code_points(&M) })
-    }
-}
-
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:105-137 locateOf
-/// The one location's verdict: it holds the `.olean`, or the parts stand alone.
-pub fn located_at(mt: &Vec<u32>, pre: Vec<u32>, h0: &Hit) -> Result<Located, CheckError> {
-    let has_o = file_some(&h0.files[0]);
-    let has_s = file_some(&h0.files[1]);
-    let has_p = file_some(&h0.files[2]);
-    if has_o {
-        Ok(Located { dir: expr::str_copy(&h0.dir), has_server: has_s, has_private: has_p })
-    } else {
-        let t = text::cat(pre, &{ const M: [u32; 2] = [58, 32]; crate::kernel::core_types::code_points(&M) });
-        let t = text::cat(t, &parts_held(mt, has_s, has_p));
-        let t = text::cat(t, &{ const M: [u32; 9] = [32, 119, 105, 116, 104, 111, 117, 116, 32]; crate::kernel::core_types::code_points(&M) });
-        let t = text::cat(t, mt);
-        let t = text::cat(t, &{ const M: [u32; 10] = [46, 111, 108, 101, 97, 110, 32, 105, 110, 32]; crate::kernel::core_types::code_points(&M) });
-        Err(core_types::internal(text::cat(t, &region::display_path(&h0.dir))))
-    }
-}
-
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:24-26 SearchPath
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:139-160 findModule
-/// **Find a module, strictly.**
-pub fn find_module<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Vec<Vec<u32>>, m: &NIdx) -> Result<Located, CheckError> {
-    let mt = view::name_text(pers, ar, m);
-    match locate_hits(fs, pers, ar, sp, m) {
-        Ok(hits) => locate_of(&mt, &hits),
-        Err(LocErr::Err(e)) => Err(e),
-        Err(LocErr::Fs(e)) => {
-            let t = text::cat({ const M: [u32; 7] = [109, 111, 100, 117, 108, 101, 32]; crate::kernel::core_types::code_points(&M) }, &mt);
-            let t = text::cat(t, &{ const M: [u32; 22] = [58, 32, 108, 111, 99, 97, 116, 105, 110, 103, 32, 105, 116, 115, 32, 102, 105, 108, 101, 115, 58, 32]; crate::kernel::core_types::code_points(&M) });
+        RootAt::Twice(ds) => {
+            let t = text::cat(pre, &{ const M: [u32; 11] = [58, 32, 105, 116, 115, 32, 114, 111, 111, 116, 32]; crate::kernel::core_types::code_points(&M) });
+            let t = text::cat(t, rt);
+            let t = text::cat(t, &{ const M: [u32; 50] = [32, 105, 115, 32, 105, 110, 32, 109, 111, 114, 101, 32, 116, 104, 97, 110, 32, 111, 110, 101, 32, 108, 111, 99, 97, 116, 105, 111, 110, 32, 111, 110, 32, 116, 104, 101, 32, 115, 101, 97, 114, 99, 104, 32, 112, 97, 116, 104, 32, 40]; crate::kernel::core_types::code_points(&M) });
+            let t = text::cat(t, &dirs_text(&ds));
+            Err(core_types::internal(text::cat(t, &{ const M: [u32; 43] = [41, 59, 32, 116, 104, 101, 32, 115, 101, 97, 114, 99, 104, 32, 112, 97, 116, 104, 32, 109, 117, 115, 116, 32, 104, 111, 108, 100, 32, 101, 97, 99, 104, 32, 114, 111, 111, 116, 32, 111, 110, 99, 101]; crate::kernel::core_types::code_points(&M) })))
+        }
+        RootAt::Failed(e) => {
+            let t = text::cat(pre, &{ const M: [u32; 22] = [58, 32, 108, 111, 99, 97, 116, 105, 110, 103, 32, 105, 116, 115, 32, 102, 105, 108, 101, 115, 58, 32]; crate::kernel::core_types::code_points(&M) });
             Err(core_types::internal(text::cat(t, &e)))
         }
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:162-166 readPart
-/// Read and validate one file.
-pub fn read_part<F: OleanFs>(fs: &F, p: &Vec<u32>) -> Result<Part, CheckError> {
-    match fs.read_bin_file(p) {
-        Err(e) => Err(core_types::internal(e)),
-        Ok(b) => region::part_of_bytes(p, b),
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:24-26 SearchPath
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:182-202 findModule
+/// **Find a module, as Lean does, strictly**: the one search-path directory
+/// holding its root, or why there is none.  Each read looks the root up:
+/// upstream's `Roots`, which resolves each root once per run, is a cache over
+/// one snapshot, where the lookup answers the same each time, and its
+/// `--trusted-search-path` fallback is the `--compare` mode's (task #165).
+pub fn find_module<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Vec<Vec<u32>>, m: &NIdx) -> Result<Located, CheckError> {
+    match env::read_name(pers, ar, m) {
+        Err(e) => Err(e),
+        Ok(n) => {
+            let r = name_root(&n);
+            let a = root_at(fs, sp, &r);
+            located_of(&name::render(&n), &name::render(&r), a)
+        }
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:168-170 hdrChunk
+/// con-leche: none — `a ++ "." ++ ext`, a part's file name
+pub fn part_name(mt: &Vec<u32>, ext: &Vec<u32>) -> Vec<u32> {
+    let t = text::cat(expr::str_copy(mt), &{ const M: [u32; 1] = [46]; crate::kernel::core_types::code_points(&M) });
+    text::cat(t, ext)
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:204-218 oleanFailed
+/// **Why a module's `.olean` cannot be read at its location**: it is not there,
+/// with or without parts beside it, or it is there and cannot be read.  A failed
+/// `path_exists` is its message.
+pub fn olean_failed<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, loc: &Located, m: &NIdx) -> CheckError {
+    let p_o = match mod_file(pers, ar, &loc.dir, m, &{ const M: [u32; 5] = [111, 108, 101, 97, 110]; crate::kernel::core_types::code_points(&M) }) {
+        Err(e) => return e,
+        Ok(p) => p,
+    };
+    let mt = view::name_text(pers, ar, m);
+    match fs.path_exists(&p_o) {
+        Err(e) => return core_types::internal(e),
+        Ok(true) => {
+            let t = text::cat(region::display_path(&p_o), &{ const M: [u32; 15] = [32, 99, 97, 110, 110, 111, 116, 32, 98, 101, 32, 114, 101, 97, 100]; crate::kernel::core_types::code_points(&M) });
+            return module::bad_module(pers, ar, m, t);
+        }
+        Ok(false) => {}
+    }
+    let has_s = match path_exists_at(fs, pers, ar, loc, m, &{ const M: [u32; 12] = [111, 108, 101, 97, 110, 46, 115, 101, 114, 118, 101, 114]; crate::kernel::core_types::code_points(&M) }) {
+        Err(e) => return e,
+        Ok(b) => b,
+    };
+    let has_p = match path_exists_at(fs, pers, ar, loc, m, &{ const M: [u32; 13] = [111, 108, 101, 97, 110, 46, 112, 114, 105, 118, 97, 116, 101]; crate::kernel::core_types::code_points(&M) }) {
+        Err(e) => return e,
+        Ok(b) => b,
+    };
+    if !has_s && !has_p {
+        let t = text::cat({ const M: [u32; 3] = [110, 111, 32]; crate::kernel::core_types::code_points(&M) }, &mt);
+        let t = text::cat(t, &{ const M: [u32; 10] = [46, 111, 108, 101, 97, 110, 32, 105, 110, 32]; crate::kernel::core_types::code_points(&M) });
+        let t = text::cat(t, &region::display_path(&loc.dir));
+        let t = text::cat(t, &{ const M: [u32; 45] = [44, 32, 116, 104, 101, 32, 115, 101, 97, 114, 99, 104, 45, 112, 97, 116, 104, 32, 100, 105, 114, 101, 99, 116, 111, 114, 121, 32, 104, 111, 108, 100, 105, 110, 103, 32, 105, 116, 115, 32, 114, 111, 111, 116, 32]; crate::kernel::core_types::code_points(&M) });
+        let rt = match env::read_name(pers, ar, m) {
+            Ok(n) => name::render(&name_root(&n)),
+            Err(_) => { const M: [u32; 1] = [63]; crate::kernel::core_types::code_points(&M) },
+        };
+        return module::bad_module(pers, ar, m, text::cat(t, &rt));
+    }
+    let held = if has_s && has_p {
+        let t = text::cat(part_name(&mt, &{ const M: [u32; 12] = [111, 108, 101, 97, 110, 46, 115, 101, 114, 118, 101, 114]; crate::kernel::core_types::code_points(&M) }), &{ const M: [u32; 5] = [32, 97, 110, 100, 32]; crate::kernel::core_types::code_points(&M) });
+        text::cat(t, &part_name(&mt, &{ const M: [u32; 13] = [111, 108, 101, 97, 110, 46, 112, 114, 105, 118, 97, 116, 101]; crate::kernel::core_types::code_points(&M) }))
+    } else if has_s {
+        part_name(&mt, &{ const M: [u32; 12] = [111, 108, 101, 97, 110, 46, 115, 101, 114, 118, 101, 114]; crate::kernel::core_types::code_points(&M) })
+    } else {
+        part_name(&mt, &{ const M: [u32; 13] = [111, 108, 101, 97, 110, 46, 112, 114, 105, 118, 97, 116, 101]; crate::kernel::core_types::code_points(&M) })
+    };
+    let t = text::cat(held, &{ const M: [u32; 9] = [32, 119, 105, 116, 104, 111, 117, 116, 32]; crate::kernel::core_types::code_points(&M) });
+    let t = text::cat(t, &mt);
+    let t = text::cat(t, &{ const M: [u32; 10] = [46, 111, 108, 101, 97, 110, 32, 105, 110, 32]; crate::kernel::core_types::code_points(&M) });
+    module::bad_module(pers, ar, m, text::cat(t, &region::display_path(&loc.dir)))
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:232-238 partFailed
+/// Why a part of a module of the module system cannot be read at its location.
+pub fn part_failed<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, loc: &Located, m: &NIdx, ext: &Vec<u32>) -> CheckError {
+    let p = match mod_file(pers, ar, &loc.dir, m, ext) {
+        Err(e) => return e,
+        Ok(p) => p,
+    };
+    match fs.path_exists(&p) {
+        Err(e) => core_types::internal(e),
+        Ok(true) => module::bad_module(pers, ar, m, text::cat(region::display_path(&p), &{ const M: [u32; 15] = [32, 99, 97, 110, 110, 111, 116, 32, 98, 101, 32, 114, 101, 97, 100]; crate::kernel::core_types::code_points(&M) })),
+        Ok(false) => {
+            let mt = view::name_text(pers, ar, m);
+            missing_part(pers, ar, m, &mt, &part_name(&{ const M: [u32; 0] = []; crate::kernel::core_types::code_points(&M) }, ext), &loc.dir)
+        }
+    }
+}
+
+/// con-leche: none — `pathExists` of a module's file at its location, a failure its
+/// message
+pub fn path_exists_at<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, loc: &Located, m: &NIdx, ext: &Vec<u32>) -> Result<bool, CheckError> {
+    match mod_file(pers, ar, &loc.dir, m, ext) {
+        Err(e) => Err(e),
+        Ok(p) => match fs.path_exists(&p) {
+            Err(e) => Err(core_types::internal(e)),
+            Ok(b) => Ok(b),
+        },
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:220-224 readPart
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:226-230 readPartOr
+/// **Read and validate one of a module's files** at its location: `ext`'s, a file
+/// that cannot be read `olean_failed`'s error (`olean`) or `part_failed`'s.
+pub fn read_part_at<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, loc: &Located, m: &NIdx, ext: &Vec<u32>, olean: bool) -> Result<Part, CheckError> {
+    let p = match mod_file(pers, ar, &loc.dir, m, ext) {
+        Err(e) => return Err(e),
+        Ok(p) => p,
+    };
+    match fs.read_bin_file(&p) {
+        Err(_) => {
+            if olean {
+                Err(olean_failed(fs, pers, ar, loc, m))
+            } else {
+                Err(part_failed(fs, pers, ar, loc, m, ext))
+            }
+        }
+        Ok(b) => region::part_of_bytes(&p, b),
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:240-242 hdrChunk
 /// The header read's chunk size.
 pub const HDR_CHUNK: u64 = 4096;
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:181-183 hdrFin
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:172-179 hdrStep
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:253-255 hdrFin
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:244-251 hdrStep
 /// The header validated and the imports decoded from the bytes read.
 pub fn hdr_fin(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, path: &Vec<u32>, acc: Vec<u8>) -> Result<Vec<ImportRec>, RdErr> {
     match region::part_of_bytes(path, acc) {
@@ -651,7 +638,7 @@ pub fn hdr_fin(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, path: &Vec<u32>
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:172-179 hdrStep
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:244-251 hdrStep
 /// `hdrWalk acc dataStart` ran off the bytes read.
 pub fn hdr_short(acc: &Vec<u8>) -> bool {
     match header::hdr_walk(acc, region::DATA_START) {
@@ -660,7 +647,7 @@ pub fn hdr_short(acc: &Vec<u8>) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:171-186 foldReads
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:188-203 foldReads
 /// The reads of the header: forward in `HDR_CHUNK` reads until the walk to the
 /// imports array is inside what was read, or the end of the file.
 pub fn read_hdr_bytes<F: OleanFs>(fs: &F, p: &Vec<u32>, size: u64) -> Result<Vec<u8>, CheckError> {
@@ -678,23 +665,24 @@ pub fn read_hdr_bytes<F: OleanFs>(fs: &F, p: &Vec<u32>, size: u64) -> Result<Vec
     Ok(acc)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:185-197 readImportsAt
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:188-198 foldChunks
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:171-186 foldReads
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:257-271 readImportsAt
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:205-215 foldChunks
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:188-203 foldReads
 /// **A module's imports, read off the start of its exported `.olean`** at its
 /// location: the file read forward in `HDR_CHUNK` reads until the walk to the
-/// imports array is inside what was read.
+/// imports array is inside what was read.  A file that cannot be read is
+/// `olean_failed`'s error.
 pub fn read_imports_at<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, loc: &Located, m: &NIdx) -> Result<Vec<ImportRec>, CheckError> {
     let p = match mod_file(pers, ar, &loc.dir, m, &{ const M: [u32; 5] = [111, 108, 101, 97, 110]; crate::kernel::core_types::code_points(&M) }) {
         Err(e) => return Err(e),
         Ok(p) => p,
     };
     let size = match fs.file_size(&p) {
-        Err(e) => return Err(core_types::internal(e)),
+        Err(_) => return Err(olean_failed(fs, pers, ar, loc, m)),
         Ok(s) => s,
     };
     let acc: Vec<u8> = match read_hdr_bytes(fs, &p, size) {
-        Err(e) => return Err(e),
+        Err(_) => return Err(olean_failed(fs, pers, ar, loc, m)),
         Ok(acc) => acc,
     };
     match hdr_fin(pk, pers, ar, &p, acc) {
@@ -704,7 +692,7 @@ pub fn read_imports_at<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: 
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:199-205 moduleImports
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:273-279 moduleImports
 /// **A module's imports**, off the start of its exported `.olean`, located on the
 /// search path.
 pub fn module_imports<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Vec<Vec<u32>>, m: &NIdx) -> Result<Vec<ImportRec>, CheckError> {
@@ -714,7 +702,7 @@ pub fn module_imports<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:207-236 readFiles
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:297-325 readFilesAt
 /// `module {m}: a module of the module system without its {m}.{ext} in {dir}`.
 pub fn missing_part(pers: &PersTier, ar: &EStore, m: &NIdx, mt: &Vec<u32>, ext: &Vec<u32>, dir: &Vec<u32>) -> CheckError {
     let t = text::cat({ const M: [u32; 42] = [97, 32, 109, 111, 100, 117, 108, 101, 32, 111, 102, 32, 116, 104, 101, 32, 109, 111, 100, 117, 108, 101, 32, 115, 121, 115, 116, 101, 109, 32, 119, 105, 116, 104, 111, 117, 116, 32, 105, 116, 115, 32]; crate::kernel::core_types::code_points(&M) }, mt);
@@ -723,21 +711,44 @@ pub fn missing_part(pers: &PersTier, ar: &EStore, m: &NIdx, mt: &Vec<u32>, ext: 
     module::bad_module(pers, ar, m, text::cat(t, &region::display_path(dir)))
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:207-236 readFiles
-/// **The files of a module a view reads**, each validated, located on the search
-/// path.  A part beside a classic `.olean` is no part of it, and a module of the
-/// module system has all three.
-pub fn read_files<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Vec<Vec<u32>>, m: &NIdx, level: &OLeanLevel) -> Result<ModFiles, CheckError> {
-    let loc = match find_module(fs, pers, ar, sp, m) {
-        Err(e) => return Err(e),
-        Ok(l) => l,
-    };
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:281-295 outsideOrEscaping
+/// **An `M.olean` that is not a module of the module system, with a part beside
+/// it.**  Where `M.olean` does not read on its own, it is a malformed exported
+/// part (`.invalid`, exit 1): an exported part must not point into its
+/// `.olean.server` or `.olean.private`.  Otherwise it is a module outside the
+/// module system with a stray part beside it.
+pub fn outside_or_escaping(pers: &PersTier, ar: &EStore, loc: &Located, m: &NIdx, ex: &Part, has_private: bool) -> CheckError {
     let mt = view::name_text(pers, ar, m);
-    let p_o = match mod_file(pers, ar, &loc.dir, m, &{ const M: [u32; 5] = [111, 108, 101, 97, 110]; crate::kernel::core_types::code_points(&M) }) {
-        Err(e) => return Err(e),
-        Ok(p) => p,
-    };
-    let ex = match read_part(fs, &p_o) {
+    let r = region::region_single(ex);
+    match spec::module_skel(&ex.bytes, &r, region::part_module_data_addr(ex)) {
+        None => {
+            let t = text::cat({ const M: [u32; 7] = [109, 111, 100, 117, 108, 101, 32]; crate::kernel::core_types::code_points(&M) }, &mt);
+            let t = text::cat(t, &{ const M: [u32; 20] = [58, 32, 105, 116, 115, 32, 101, 120, 112, 111, 114, 116, 101, 100, 32, 112, 97, 114, 116, 32]; crate::kernel::core_types::code_points(&M) });
+            let t = text::cat(t, &mt);
+            let t = text::cat(t, &{ const M: [u32; 129] = [46, 111, 108, 101, 97, 110, 32, 100, 111, 101, 115, 32, 110, 111, 116, 32, 114, 101, 97, 100, 32, 111, 110, 32, 105, 116, 115, 32, 111, 119, 110, 32, 40, 97, 110, 32, 101, 120, 112, 111, 114, 116, 101, 100, 32, 112, 97, 114, 116, 32, 109, 117, 115, 116, 32, 110, 111, 116, 32, 112, 111, 105, 110, 116, 32, 111, 117, 116, 115, 105, 100, 101, 32, 105, 116, 115, 32, 102, 105, 108, 101, 44, 32, 105, 110, 116, 111, 32, 105, 116, 115, 32, 46, 111, 108, 101, 97, 110, 46, 115, 101, 114, 118, 101, 114, 32, 111, 114, 32, 46, 111, 108, 101, 97, 110, 46, 112, 114, 105, 118, 97, 116, 101, 41, 44, 32, 105, 110, 32]; crate::kernel::core_types::code_points(&M) });
+            core_types::invalid(text::cat(t, &region::display_path(&loc.dir)))
+        }
+        Some(_) => {
+            let t = text::cat({ const M: [u32; 40] = [97, 32, 109, 111, 100, 117, 108, 101, 32, 111, 117, 116, 115, 105, 100, 101, 32, 116, 104, 101, 32, 109, 111, 100, 117, 108, 101, 32, 115, 121, 115, 116, 101, 109, 32, 40, 105, 116, 115, 32]; crate::kernel::core_types::code_points(&M) }, &mt);
+            let t = text::cat(t, &{ const M: [u32; 14] = [46, 111, 108, 101, 97, 110, 41, 44, 32, 119, 105, 116, 104, 32]; crate::kernel::core_types::code_points(&M) });
+            let t = if has_private {
+                text::cat(t, &part_name(&mt, &{ const M: [u32; 13] = [111, 108, 101, 97, 110, 46, 112, 114, 105, 118, 97, 116, 101]; crate::kernel::core_types::code_points(&M) }))
+            } else {
+                text::cat(t, &part_name(&mt, &{ const M: [u32; 12] = [111, 108, 101, 97, 110, 46, 115, 101, 114, 118, 101, 114]; crate::kernel::core_types::code_points(&M) }))
+            };
+            let t = text::cat(t, &{ const M: [u32; 14] = [32, 98, 101, 115, 105, 100, 101, 32, 105, 116, 32, 105, 110, 32]; crate::kernel::core_types::code_points(&M) });
+            module::bad_module(pers, ar, m, text::cat(t, &region::display_path(&loc.dir)))
+        }
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:297-325 readFilesAt
+/// **The files of a module a view reads at its location**, each validated.  A
+/// part beside a classic `.olean` is no part of it, and a module of the module
+/// system has all three: reading the parts a view needs says whether they are
+/// there, and a server view asks for the private part's existence besides.
+pub fn read_files_at<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, loc: &Located, m: &NIdx, level: &OLeanLevel) -> Result<ModFiles, CheckError> {
+    let ex = match read_part_at(fs, pers, ar, loc, m, &{ const M: [u32; 5] = [111, 108, 101, 97, 110]; crate::kernel::core_types::code_points(&M) }, true) {
         Err(e) => return Err(e),
         Ok(p) => p,
     };
@@ -747,56 +758,60 @@ pub fn read_files<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Vec<Vec
     }
     let f = ModFiles { exported: ex, server: None, private_part: None };
     if !view::mod_files_is_module(&f) {
-        if loc.has_server || loc.has_private {
-            let t = text::cat({ const M: [u32; 40] = [97, 32, 109, 111, 100, 117, 108, 101, 32, 111, 117, 116, 115, 105, 100, 101, 32, 116, 104, 101, 32, 109, 111, 100, 117, 108, 101, 32, 115, 121, 115, 116, 101, 109, 32, 40, 105, 116, 115, 32]; crate::kernel::core_types::code_points(&M) }, &mt);
-            let t = text::cat(t, &{ const M: [u32; 14] = [46, 111, 108, 101, 97, 110, 41, 44, 32, 119, 105, 116, 104, 32]; crate::kernel::core_types::code_points(&M) });
-            let t = text::cat(t, &mt);
-            let t = if loc.has_private {
-                text::cat(t, &{ const M: [u32; 14] = [46, 111, 108, 101, 97, 110, 46, 112, 114, 105, 118, 97, 116, 101]; crate::kernel::core_types::code_points(&M) })
-            } else {
-                text::cat(t, &{ const M: [u32; 13] = [46, 111, 108, 101, 97, 110, 46, 115, 101, 114, 118, 101, 114]; crate::kernel::core_types::code_points(&M) })
-            };
-            let t = text::cat(t, &{ const M: [u32; 14] = [32, 98, 101, 115, 105, 100, 101, 32, 105, 116, 32, 105, 110, 32]; crate::kernel::core_types::code_points(&M) });
-            return Err(module::bad_module(pers, ar, m, text::cat(t, &region::display_path(&loc.dir))));
+        let has_s = match path_exists_at(fs, pers, ar, loc, m, &{ const M: [u32; 12] = [111, 108, 101, 97, 110, 46, 115, 101, 114, 118, 101, 114]; crate::kernel::core_types::code_points(&M) }) {
+            Err(e) => return Err(e),
+            Ok(b) => b,
+        };
+        let has_p = match path_exists_at(fs, pers, ar, loc, m, &{ const M: [u32; 13] = [111, 108, 101, 97, 110, 46, 112, 114, 105, 118, 97, 116, 101]; crate::kernel::core_types::code_points(&M) }) {
+            Err(e) => return Err(e),
+            Ok(b) => b,
+        };
+        if has_s || has_p {
+            return Err(outside_or_escaping(pers, ar, loc, m, &f.exported, has_p));
         }
         return Ok(f);
     }
-    if !loc.has_server {
-        return Err(missing_part(pers, ar, m, &mt, &{ const M: [u32; 13] = [46, 111, 108, 101, 97, 110, 46, 115, 101, 114, 118, 101, 114]; crate::kernel::core_types::code_points(&M) }, &loc.dir));
-    }
-    if !loc.has_private {
-        return Err(missing_part(pers, ar, m, &mt, &{ const M: [u32; 14] = [46, 111, 108, 101, 97, 110, 46, 112, 114, 105, 118, 97, 116, 101]; crate::kernel::core_types::code_points(&M) }, &loc.dir));
-    }
-    read_files_parts(fs, pers, ar, m, &loc, f, level)
+    read_files_parts(fs, pers, ar, m, loc, f, level)
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:207-236 readFiles
-/// The rest of `readFiles`: the server part, and the private part unless the
-/// level stops short of it.
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:297-325 readFilesAt
+/// The rest of `readFilesAt`: the server part, then the private part's existence
+/// at the server level, or the private part.
 pub fn read_files_parts<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, m: &NIdx, loc: &Located, f: ModFiles, level: &OLeanLevel) -> Result<ModFiles, CheckError> {
-    let p_s = match mod_file(pers, ar, &loc.dir, m, &{ const M: [u32; 12] = [111, 108, 101, 97, 110, 46, 115, 101, 114, 118, 101, 114]; crate::kernel::core_types::code_points(&M) }) {
-        Err(e) => return Err(e),
-        Ok(p) => p,
-    };
-    let s = match read_part(fs, &p_s) {
+    let s = match read_part_at(fs, pers, ar, loc, m, &{ const M: [u32; 12] = [111, 108, 101, 97, 110, 46, 115, 101, 114, 118, 101, 114]; crate::kernel::core_types::code_points(&M) }, false) {
         Err(e) => return Err(e),
         Ok(p) => p,
     };
     match level {
-        OLeanLevel::Server => return Ok(ModFiles { exported: f.exported, server: Some(s), private_part: None }),
+        OLeanLevel::Server => {
+            return match path_exists_at(fs, pers, ar, loc, m, &{ const M: [u32; 13] = [111, 108, 101, 97, 110, 46, 112, 114, 105, 118, 97, 116, 101]; crate::kernel::core_types::code_points(&M) }) {
+                Err(e) => Err(e),
+                Ok(true) => Ok(ModFiles { exported: f.exported, server: Some(s), private_part: None }),
+                Ok(false) => {
+                    let mt = view::name_text(pers, ar, m);
+                    Err(missing_part(pers, ar, m, &mt, &{ const M: [u32; 14] = [46, 111, 108, 101, 97, 110, 46, 112, 114, 105, 118, 97, 116, 101]; crate::kernel::core_types::code_points(&M) }, &loc.dir))
+                }
+            };
+        }
         _ => {}
     }
-    let p_p = match mod_file(pers, ar, &loc.dir, m, &{ const M: [u32; 13] = [111, 108, 101, 97, 110, 46, 112, 114, 105, 118, 97, 116, 101]; crate::kernel::core_types::code_points(&M) }) {
-        Err(e) => return Err(e),
-        Ok(p) => p,
-    };
-    match read_part(fs, &p_p) {
+    match read_part_at(fs, pers, ar, loc, m, &{ const M: [u32; 13] = [111, 108, 101, 97, 110, 46, 112, 114, 105, 118, 97, 116, 101]; crate::kernel::core_types::code_points(&M) }, false) {
         Err(e) => Err(e),
         Ok(p) => Ok(ModFiles { exported: f.exported, server: Some(s), private_part: Some(p) }),
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:238-246 readView
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:327-333 readFiles
+/// **The files of a module a view reads**, located on the search path
+/// (`find_module`), then read at that location (`read_files_at`).
+pub fn read_files<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Vec<Vec<u32>>, m: &NIdx, level: &OLeanLevel) -> Result<ModFiles, CheckError> {
+    match find_module(fs, pers, ar, sp, m) {
+        Err(e) => Err(e),
+        Ok(loc) => read_files_at(fs, pers, ar, &loc, m, level),
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:335-343 readView
 /// **One view of a module**, located on the search path.
 pub fn read_view<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Vec<Vec<u32>>, m: &NIdx, level: &OLeanLevel) -> Result<ModDecoded, CheckError> {
     match read_files(fs, pers, ar, sp, m, level) {
@@ -809,7 +824,7 @@ pub fn read_view<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut E
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:248-261 readAllViews
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:396-413 readAllViews
 /// `([.exported, .server].find? fun l => (parseView f l).isNone).getD .private`.
 pub fn first_bad_view(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, f: &ModFiles) -> Result<OLeanLevel, CheckError> {
     match view::parse_view(pk, pers, ar, f, &OLeanLevel::Exported) {
@@ -824,8 +839,10 @@ pub fn first_bad_view(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, f: &ModF
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Files.lean:248-261 readAllViews
-/// **All three views of a module, checked against each other**: its home's read.
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:396-413 readAllViews
+/// **All three views of a module, each parsed whole, and their check against
+/// each other** (`check_views`, over the views): for the tools that compare the
+/// views.
 pub fn read_all_views<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Vec<Vec<u32>>, m: &NIdx) -> Result<(AllViews, Vec<Expo>), CheckError> {
     let f = match read_files(fs, pers, ar, sp, m, &OLeanLevel::Private) {
         Err(e) => return Err(e),

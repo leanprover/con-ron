@@ -18,8 +18,8 @@
 #                  tests/olean-compare.sh), by `_tmp/lean4export`'s exporter
 #
 # **Nothing of the shared con-leche checkout is written.**  The sources and the script
-# are copied to `_tmp/diff-olean-<key>/`, where upstream's `tests/olean/build.sh`
-# compiles the fixtures with the toolchain's own `lean`, and the table runs there with
+# are copied to `_tmp/diff-olean-<key>/`, where upstream's committed fixtures
+# (`tests/olean/lib`; else `tests/olean/build.sh` compiles them with the toolchain's own `lean`), and the table runs there with
 # `lake build olean-compare` taken out.  Keyed by checkout, like every scratch.
 set -u
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -59,7 +59,11 @@ if [ ! -f "$W/.pin" ] || [ "$(cat "$W/.pin")" != "$PIN" ]; then
   cp "$CL/tests/olean.sh" "$W/tests/olean.sh"
   cp "$CL/tests/mode/split_good.ndjson" "$W/tests/mode/"
   cp "$root/proof/lean-toolchain" "$W/lean-toolchain"
-  ( cd "$W" && bash tests/olean/build.sh > build.log 2>&1 ) || { echo "diff-olean: the fixtures' build failed, $W/build.log" >&2; exit 2; }
+  # the fixtures are committed upstream (`tests/olean/lib`, task #511 on): their build is
+  # upstream's regeneration step, not the gate's; build them only where they are not there
+  if [ ! -d "$W/tests/olean/lib" ]; then
+    ( cd "$W" && bash tests/olean/build.sh > build.log 2>&1 ) || { echo "diff-olean: the fixtures' build failed, $W/build.log" >&2; exit 2; }
+  fi
   # the table's own build of olean-compare is this script's: the tool is passed in
   sed -i -e 's/^lake build olean-compare >\/dev\/null || exit 3$/true/' \
     -e 's/timeout 60 "\$BIN"/timeout "${CASE_T:-60}" "$BIN"/' "$W/tests/olean.sh"

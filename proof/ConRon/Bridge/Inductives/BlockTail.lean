@@ -700,7 +700,8 @@ theorem checkBlock_bridge (hk : CoreSpec Arena.checkFuel)
     (hb : Frontend.denoteCIList s.store block = some b) (hp : dShape s.store p₀ = some p₀P)
     (hd : ∀ ms ∈ p₀P.members, ms.declared = ms.cvT)
     (hrun : Arena.checkBlock .verified fe block p₀ s = .ok (fe', s')) :
-    IndOut s s' (∃ env', FOk (ConLeche.checkBlock (fueledOpsM .verified) env b p₀P) env') := by
+    IndOut s s' (∃ env', FOk (ConLeche.checkBlock (fueledOpsM .verified) env b p₀P) env' ∧
+      ∃ Q, env' = env.pushDelta (ConLeche.blockConstants p₀P) Q) := by
   simp only [Arena.checkBlock] at hrun
   -- the distinct names
   have hnC := nameNodup_spec hok.state.wf _ _ (dCtors_names (BlockShape.allCtors_spec hp))
@@ -791,7 +792,7 @@ theorem checkBlock_bridge (hk : CoreSpec Arena.checkFuel)
   have hi := ((c1.toInst.trans i2).trans (p3.toInst.trans (i4.trans p41.toInst))).trans
     (i5.trans p6.toInst)
   refine ⟨hi.state, hi.ext, hi.pins,
-    ⟨env.pushDelta (ConLeche.blockConstants p₀P) QP, ?_⟩⟩
+    ⟨env.pushDelta (ConLeche.blockConstants p₀P) QP, ?_, QP, rfl⟩⟩
   unfold ConLeche.checkBlock
   rw [ite_eq_left hnd, ite_eq_left hbool, hQP]
   dsimp only

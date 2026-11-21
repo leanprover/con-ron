@@ -134,7 +134,7 @@ materialises as one buffer.  It is
 driver reads as con-leche's does. -/
 def chunkSize : USize := Frontend.chunkSize
 
-/-- con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+/-- con-leche: ConLeche/Driver/CheckMain.lean:233-385 checkMainG
 **THE SEAM** (DESIGN.md §8.4): the whole checker, from the input's chunks
 to the verdict.
 
@@ -168,7 +168,9 @@ def runPipelineHead :
   | .error e => pure (.error e)
   | .ok pre => pure (.ok (pre, ← Frontend.StateD.init))
 
-/-- con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+/-- con-leche: ConLeche/Driver/CheckMain.lean:233-385 checkMainG
+con-leche's `checkMainG` runs its check at `justify = none` (`checkDeclsIO … J rfl`) and
+its verdict with `who = ""` on this path: neither is a parameter here.
 The pipeline AFTER the parse: `preparePrelude`, then **the check**: the
 stream's index and every record's job (`checkStream`), then the verdict number.  Shared verbatim by the pure seam and by the
 driver's interleaved loop, which is what makes the two the same computation.
@@ -260,7 +262,7 @@ def msSecs (ms : Nat) : String :=
   let c := (ms % 1000) / 10
   s!"{s}.{if c < 10 then "0" else ""}{c}"
 
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:188-198 foldChunks
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:205-215 foldChunks
 **THE READ LOOP**: the handle read strictly forward, 4 MiB at a time, each
 buffer fed to `Frontend.chunkStep` and then dropped; the first empty read is
 its end of file and `Frontend.chunkFinish` closes the stream.  Never seeked,
@@ -297,7 +299,7 @@ partial def readFold (h : IO.FS.Handle)
     | .ok (.ok (st, carry, lineNo, total), s) =>
       readFold h st carry lineNo total (chunks + 1) s
 
-/-- con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+/-- con-leche: ConLeche/Driver/CheckMain.lean:233-385 checkMainG
 **THE SEAM, DRIVEN FROM A HANDLE**: `runPipelineHead`, then `readFold` in
 place of the pure seam's `parseChunksGo`, then `runPipelineTail` — the same
 three steps `runPipeline` runs, with the input never held whole.  The chunk
@@ -324,7 +326,7 @@ def runPipelineIO (h : IO.FS.Handle) (mode : CheckMode)
       | .error e => pure (.error e, chunks, tParse, 0)
       | .ok (v, s') => pure (v, chunks, tParse, s'.store.persCount)
 
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:371-377 openReadIO
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:400-406 openReadIO
 The reader's positional read at `IO`: the file opened by upstream's `openReadIO`
 (a regular file, or an exception), its first `off` bytes read and dropped, then
 up to `len` bytes, each read repeated until it has them or the file ends.
@@ -342,12 +344,16 @@ partial def readRangeIO (p : System.FilePath) (off len : Nat) : IO ByteArray := 
   if skipped.size < off then return .empty
   go len .empty
 
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:485-499 instCheckerIOIO
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:514-529 instCheckerIOIO
 The binary's file operations, as the pure functions the reader takes: `IO` run where
 it is asked, outside every theorem (`Frontend/Olean/Files.lean`'s note). -/
 unsafe def stdFsImpl : Frontend.Olean.OleanFs where
   pathExists p := unsafeBaseIO do
     match ← (p.pathExists : IO Bool).toBaseIO with
+    | .ok b => pure (.ok b)
+    | .error e => pure (.error (toString e))
+  isDir p := unsafeBaseIO do
+    match ← (p.isDir : IO Bool).toBaseIO with
     | .ok b => pure (.ok b)
     | .error e => pure (.error (toString e))
   realPath p := unsafeBaseIO do
@@ -367,7 +373,7 @@ unsafe def stdFsImpl : Frontend.Olean.OleanFs where
     | .ok b => pure (.ok b)
     | .error e => pure (.error (toString e))
 
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:485-499 instCheckerIOIO
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:514-529 instCheckerIOIO
 The binary's file operations, opaque to the logic. -/
 @[implemented_by stdFsImpl]
 opaque stdFs : Frontend.Olean.OleanFs
@@ -401,7 +407,7 @@ def oleanPipeline (sp : List System.FilePath) (roots : Array Name) (constants : 
       | .error (e, n) => pure (.error (atDecl e n))
       | .ok _ => pure (.ok records)
 
-/-- con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+/-- con-leche: ConLeche/Driver/CheckMain.lean:233-385 checkMainG
 The driver on the `.olean` path. -/
 def checkMainOlean (sp : List System.FilePath) (roots : Array Name) (constants : Option (Array Name))
     (mode : CheckMode) (pins : List NatOpPinSet) (maxNatSize : Nat) : IO UInt8 := do
@@ -421,20 +427,23 @@ def checkMainOlean (sp : List System.FilePath) (roots : Array Name) (constants :
     IO.eprintln s!"con-ron-lean: {e.message} ({modeTag}) t={msSecs (now - t0)}s"
     return e.exitCode
 
-/-- con-leche: ConLeche/Driver/Cli.lean:116-120 synopsis
-The invocation forms, printed on their own when there are no arguments. -/
+/-- con-leche: ConLeche/Driver/Cli.lean:116-132 synopsis
+The invocation forms, printed on their own when there are no arguments.  con-leche's forms
+of the modes this binary does not run (`--compare`, `--check-graph`, `--module`, `--modular`,
+`--schedule`) are not here (`helpText`). -/
 def synopsis : String := String.intercalate "\n" [
   "Usage:",
   "  con-ron-lean [OPTIONS] [--] FILE.ndjson",
   "  con-ron-lean [OPTIONS] --olean --search-path=DIRS [--] MODULE..."]
 
-/-- con-leche: ConLeche/Driver/Cli.lean:122-123 tryHelp
+/-- con-leche: ConLeche/Driver/Cli.lean:134-135 tryHelp
 The line after a usage error. -/
 def tryHelp : String := "Try 'con-ron-lean --help' for more information."
 
-/-- con-leche: ConLeche/Driver/Cli.lean:125-155 helpText
+/-- con-leche: ConLeche/Driver/Cli.lean:137-260 helpText
 The `--help` text: con-leche's, with this binary's name, its one flag of its own
-(`--no-pins`) and con-ron's documentation.  `--jobs` is accepted and validated,
+(`--no-pins`) and con-ron's documentation; con-leche's options of the modes this binary does
+not run are listed by name, as usage errors (`unsupported`).  `--jobs` is accepted and validated,
 and this binary checks on one worker whatever it says. -/
 def helpText : String := String.intercalate "\n" [
   "Check Lean declarations from a lean4export file or from .olean modules.",
@@ -458,6 +467,10 @@ def helpText : String := String.intercalate "\n" [
   "  --search-path=DIRS  Colon-separated .olean directories; repeatable",
   "  --constant=NAME     Check only NAME and what it mentions; repeatable",
   "",
+  "con-leche's other modes, not run by con-ron yet (a usage error, exit 3):",
+  "  --compare, --trusted-search-path=DIRS, --check-graph, --module,",
+  "  --modular, --schedule[-OPT=V], --worker-stack-size=SIZE",
+  "",
   "Exit status:",
   "  0  accepted",
   "  1  rejected: a declaration is invalid",
@@ -467,7 +480,7 @@ def helpText : String := String.intercalate "\n" [
   "Documentation:",
   "  README.md and OVERVIEW.md of the con-ron repository"]
 
-/-- con-leche: ConLeche/Driver/Cli.lean:157-175 Args
+/-- con-leche: ConLeche/Driver/Cli.lean:262-303 Args
 The parsed command line.  `progress = .off` is "no flag given"; `jobs = none`
 is "no flag given", one worker per hardware thread. -/
 structure Args where
@@ -483,21 +496,61 @@ structure Args where
   searchPath : List System.FilePath := []
   /-- `--constant=NAME`: with `--olean`, the constants to start from. -/
   constants : Array String := #[]
+  /-- `--check-graph` (a mode this binary does not run: `unsupported`). -/
+  checkGraph : Bool := false
+  /-- `--module` (not run here). -/
+  module : Bool := false
+  /-- `--modular` (not run here). -/
+  modular : Bool := false
+  /-- some `--schedule[-OPT=VALUE]` flag was given (not run here; the values are not read, so
+  they are not kept) -/
+  scheduled : Bool := false
+  /-- `--compare` (not run here). -/
+  compare : Bool := false
+  /-- `--trusted-search-path=DIR:DIR…` (read only by the modes not run here). -/
+  trustedPath : List System.FilePath := []
+  /-- `--worker-stack-size=SIZE` was given, with a valid size (a `--schedule` worker's, so only
+  that it was given is kept) -/
+  workerStack : Bool := false
   files : Array String := #[]
   bad : Option String := none
 
-/-- con-leche: ConLeche/Driver/Cli.lean:191-229 parseArgs
+/-- con-leche: ConLeche/Driver/Cli.lean:319-324 Args.closed
+The arguments once all are read: `--worker-stack-size` without `--schedule` is a usage error
+(no other run starts a worker). -/
+def Args.closed (a : Args) : Args :=
+  if a.workerStack && !a.scheduled then
+    { a with bad := some "--worker-stack-size takes --schedule" }
+  else a
+
+/-- con-leche: ConLeche/Driver/Schedule/Worker.lean:81-93 parseSize
+Whether `v` is a `--worker-stack-size=` value the cited `parseArgs` takes: a POSITIVE size
+with a unit, `K`, `M`, `G` or `T` (either case).  The size itself is a `--schedule` worker's,
+which this binary does not run, so it is not kept. -/
+def sizePositive (v : String) : Bool :=
+  let unit : Bool := match v.back with
+    | 'K' | 'k' | 'M' | 'm' | 'G' | 'g' | 'T' | 't' => true
+    | _ => false
+  match unit, (v.dropEnd 1).toString.toNat? with
+  | true, some (_ + 1) => true
+  | _, _ => false
+
+/-- con-leche: ConLeche/Driver/Cli.lean:326-377 parseArgs
 The argument parse, clause for clause: the mode flags in either order with
 the heartbeat, `=`-carrying spellings after the bare ones, an unknown
 `-`-leading word a usage error, everything else a file. -/
 def parseArgs : List String → Args → Args
-  | [], a => a
-  | "--" :: rest, a => { a with files := a.files ++ rest.toArray }
+  | [], a => a.closed
+  | "--" :: rest, a => { a with files := a.files ++ rest.toArray }.closed
   | "--verified" :: rest, a => parseArgs rest { a with mode := .verified }
   | "--trusted" :: rest, a => parseArgs rest { a with mode := .trusted }
   | "--progress" :: rest, a => parseArgs rest { a with progress := .every 1 }
   | "--no-pins" :: rest, a => parseArgs rest { a with noPins := true }
   | "--olean" :: rest, a => parseArgs rest { a with olean := true }
+  | "--check-graph" :: rest, a => parseArgs rest { a with checkGraph := true }
+  | "--module" :: rest, a => parseArgs rest { a with module := true }
+  | "--modular" :: rest, a => parseArgs rest { a with modular := true }
+  | "--compare" :: rest, a => parseArgs rest { a with compare := true }
   | s :: rest, a =>
     if s.startsWith "--progress=" then
       match progressPace (s.drop "--progress=".length).toString with
@@ -519,11 +572,22 @@ def parseArgs : List String → Args → Args
     else if s.startsWith "--search-path=" then
       parseArgs rest { a with searchPath := a.searchPath ++
         (((s.drop "--search-path=".length).toString.splitOn ":").filter (· != "")).map System.FilePath.mk }
+    else if s.startsWith "--trusted-search-path=" then
+      let v := (s.drop "--trusted-search-path=".length).toString
+      parseArgs rest { a with trustedPath := a.trustedPath ++
+        ((v.splitOn ":").filter (· != "")).map System.FilePath.mk }
+    else if s.startsWith "--schedule" then
+      parseArgs rest { a with scheduled := true }
+    else if s.startsWith "--worker-stack-size=" then
+      let v := (s.drop "--worker-stack-size=".length).toString
+      if sizePositive v then parseArgs rest { a with workerStack := true }
+      else { a with bad := some s!"--worker-stack-size takes a size with a unit, K, M, G or T \
+        (e.g. 8G), got {Display.str v}" }
     else if s.startsWith "-" then
       { a with bad := some s!"unknown option {Display.str s}" }
     else parseArgs rest { a with files := a.files.push s }
 
-/-- con-leche: ConLeche/Driver/Cli.lean:177-180 helpWanted
+/-- con-leche: ConLeche/Driver/Cli.lean:305-308 helpWanted
 `--help` before any `--`: after a `--` every argument is a file, whatever it is
 called. -/
 def helpWanted (args : List String) : Bool :=
@@ -538,12 +602,13 @@ con-leche prints it.  The Rust driver's `render::display_path`. -/
 def displayPath (s : String) : String :=
   if s.any fun c => c == '\\' || c == '"' || Display.unsafeChar c then Display.str s else s
 
-/-- con-leche: ConLeche/Driver/CheckMain.lean:224-376 checkMainG
+/-- con-leche: ConLeche/Driver/CheckMain.lean:233-385 checkMainG
 The driver, which `main` calls in process: read the chunks, run the seam,
 print the verdict.  Every VERDICT line names the mode — a `--trusted` run,
 the unverified lane, must never be mistaken for a `--verified` one in a
 log, whatever it says — and what the heartbeat prints between the steps
-touches no verdict, which is why there is one path and not two. -/
+touches no verdict, which is why there is one path and not two.  The cited check runs at
+`justify = none` and its verdict at `who = ""`: no solution and no module prefix here. -/
 def checkMain (file : String) (mode : CheckMode) (pins : List NatOpPinSet)
     (maxNatSize : Nat) (pace : Pace) : IO UInt8 := do
   let t0 ← IO.monoMsNow
@@ -579,8 +644,42 @@ def checkMain (file : String) (mode : CheckMode) (pins : List NatOpPinSet)
     IO.eprintln s!"con-ron-lean: {e.message} ({modeTag}) t={msSecs (now - t0)}s"
     return e.exitCode
 
+/-- con-leche: none — a usage error's two lines (con-leche writes them out at each site of
+`runArgs`): the message, then the pointer to `--help`; exit 3. -/
+def usageError (msg : String) : IO UInt8 := do
+  IO.eprintln s!"con-ron-lean: {msg}"
+  IO.eprintln tryHelp
+  return 3
+
+/-- con-leche: none — the modes con-ron does not run
+A mode this binary does not run, once con-leche's own usage checks have passed: a usage error
+(exit 3), never a silent run of another mode. -/
+def unsupported (mode : String) : IO UInt8 :=
+  usageError s!"{mode} is not supported by con-ron yet"
+
+/-- con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
+`--check-graph`'s usage checks, con-leche's in its order; a command line that passes them is a
+mode this binary does not run (`unsupported`). -/
+def checkGraphUsage (a : Args) : IO UInt8 := do
+  if a.olean || a.module || !a.constants.isEmpty || (!a.trustedPath.isEmpty && !a.compare) then
+    return ← usageError "--check-graph takes none of --olean, --module and --constant, and \
+      --trusted-search-path only with --compare"
+  if a.files.isEmpty || (a.searchPath.isEmpty && a.trustedPath.isEmpty) then
+    return ← usageError "--check-graph takes one or more module names and a --search-path=DIRS"
+  if let some m := a.files.find? (fun f => (Frontend.Olean.parseModName f).isNone) then
+    return ← usageError s!"not a module name: {Display.str m}"
+  if a.compare then
+    match (a.files.filterMap Frontend.Olean.parseModName).toList with
+    | [c, s] =>
+      if c == s then
+        return ← usageError "--compare takes two different modules, a challenge and its solution"
+      return ← unsupported "--check-graph --compare"
+    | _ => return ← usageError "--check-graph --compare takes two module names, a challenge and \
+        its solution"
+  unsupported "--check-graph"
+
 /-- con-leche: Main.lean:56-103 main
-con-leche: ConLeche/Driver/Cli.lean:239-324 runArgs
+con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
 `--help` before any `--` prints the help on stdout and exits 0, reading
 nothing.  A bad flag prints its message and a pointer to `--help` on stderr
 and exits 3; no arguments prints the invocation forms and the pointer; more than
@@ -595,8 +694,10 @@ def main (args : List String) : IO UInt8 := do
     IO.eprintln tryHelp
     return 3
   let pins := if a.noPins then [] else ConLeche.natOpPinSets
+  if a.checkGraph then
+    return ← checkGraphUsage a
   if a.olean then
-    if a.files.isEmpty || a.searchPath.isEmpty then
+    if a.files.isEmpty || (a.searchPath.isEmpty && a.trustedPath.isEmpty) then
       IO.eprintln "con-ron-lean: --olean takes one or more module names and a \
         --search-path=DIRS"
       IO.eprintln tryHelp
@@ -609,13 +710,51 @@ def main (args : List String) : IO UInt8 := do
       IO.eprintln s!"con-ron-lean: not a constant's name: {Display.str c}"
       IO.eprintln tryHelp
       return 3
+    let roots := a.files.filterMap Frontend.Olean.parseModName
+    if a.compare then
+      match roots.toList with
+      | [c, s] =>
+        if c == s then
+          return ← usageError "--compare takes two different modules, a challenge and its solution"
+        if (a.module || a.modular || a.scheduled) && (!a.constants.isEmpty ||
+            (a.module && a.scheduled) || (a.modular && (a.module || a.scheduled))) then
+          return ← usageError "--compare with --module, --modular or --schedule takes one of \
+            them, and no --constant"
+        return ← unsupported "--olean --compare"
+      | _ => return ← usageError "--compare takes two module names, a challenge and its solution"
+    if !a.trustedPath.isEmpty && (!a.module || a.modular || a.scheduled) then
+      return ← usageError "--trusted-search-path takes --compare or --module"
+    if a.scheduled then
+      if roots.size != 1 || !a.constants.isEmpty || a.module || a.modular then
+        return ← usageError "--schedule takes one module name, and none of --constant, --module \
+          and --modular"
+      return ← unsupported "--olean --schedule"
+    if a.modular then
+      if roots.size != 1 || !a.constants.isEmpty || a.module then
+        return ← usageError "--modular takes one module name, and neither --constant nor --module"
+      return ← unsupported "--olean --modular"
+    if a.module then
+      if roots.size != 1 || !a.constants.isEmpty then
+        return ← usageError "--module takes one module name and no --constant"
+      return ← unsupported "--olean --module"
     let cs := if a.constants.isEmpty then none
       else some (a.constants.filterMap Frontend.Olean.parseConstName)
-    return ← checkMainOlean a.searchPath (a.files.filterMap Frontend.Olean.parseModName) cs a.mode pins a.maxNatSize
-  if !a.searchPath.isEmpty || !a.constants.isEmpty then
-    IO.eprintln "con-ron-lean: --search-path and --constant take --olean"
-    IO.eprintln tryHelp
-    return 3
+    return ← checkMainOlean a.searchPath roots cs a.mode pins a.maxNatSize
+  if a.compare then
+    if !a.searchPath.isEmpty || !a.constants.isEmpty || a.module || a.modular || a.scheduled ||
+        !a.trustedPath.isEmpty then
+      return ← usageError "--compare on two lean4export files takes none of --search-path, \
+        --trusted-search-path, --constant, --module, --modular and --schedule (they take --olean)"
+    match a.files.toList with
+    | [c, s] =>
+      if c == s then
+        return ← usageError "--compare takes two different files, a challenge and its solution"
+      return ← unsupported "--compare"
+    | _ => return ← usageError "--compare takes two files, a challenge and its solution"
+  if !a.searchPath.isEmpty || !a.constants.isEmpty || a.module || a.modular || a.scheduled ||
+      !a.trustedPath.isEmpty then
+    return ← usageError "--search-path, --trusted-search-path, --constant, --module, --modular \
+      and --schedule take --olean"
   match a.files.toList with
   | [file] =>
     checkMain file a.mode pins a.maxNatSize a.progress

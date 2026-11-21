@@ -65,7 +65,7 @@ its member's name (`consBlockCtors`). -/
 def blockCtors (p : BlockShape) : List IConstantInfo :=
   p.ctorGroups.flatMap fun g => g.2.map fun c => .ctorInfo c.1 p.nP c.2 g.1
 
-/-- con-leche: ConLeche/Kernel/Install.lean:35-38 Expr.dropVars
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1171-1174 Expr.dropVars
 **`n` variables below a term's own, which do not occur in it, dropped**: each
 instantiated at `Sort 0`. -/
 def exprDropVars : Nat → EIdx → AM EIdx
@@ -74,7 +74,7 @@ def exprDropVars : Nat → EIdx → AM EIdx
     let s0 ← internSortE (← zeroLevel)
     exprDropVars n (← instantiate1Fast coreWalkFuel e s0 0)
 
-/-- con-leche: ConLeche/Kernel/Install.lean:40-55 recFire
+/-- con-leche: ConLeche/Kernel/Install.lean:35-50 recFire
 **How a recursor's rules fire**: `.plain` at a member major; at a major
 outside the block, `.nested` at the levels and parameters of the major's
 container.  Those are read off the major's domain, whose arguments end in the
@@ -103,7 +103,7 @@ def recFire (p : BlockShape) (rc : RecShape) : AM IRecRuleFire := do
           else pure .plain
       else pure .plain
 
-/-- con-leche: ConLeche/Kernel/Install.lean:57-62 blockRecs
+/-- con-leche: ConLeche/Kernel/Install.lean:52-57 blockRecs
 **The recursors**, in block order: each record with its rules' firing mode. -/
 def blockRecs (p : BlockShape) : List RecShape → AM (List IConstantInfo)
   | [] => pure []
@@ -113,7 +113,7 @@ def blockRecs (p : BlockShape) : List RecShape → AM (List IConstantInfo)
       .recInfo rc.cvR rc.mI rc.rP rc.isK (rc.rules.map ({ · with fire := f }))
     pure (r :: (← blockRecs p rest))
 
-/-- con-leche: ConLeche/Kernel/Install.lean:64-75 blockTables
+/-- con-leche: ConLeche/Kernel/Install.lean:59-70 blockTables
 con-leche: ConLeche/Cached/CheckerC.lean:43-55 blockTablesC
 **The projection tables**, in block order: one per structure-like member, its
 bodies read off its constructor's type (`structProjBodies`).  `none` where a
@@ -131,7 +131,7 @@ def blockTables (p : BlockShape) : List MemberShape → AM (Option (List IProjTa
       | none => pure none
     | none => blockTables p rest
 
-/-- con-leche: ConLeche/Kernel/Install.lean:77-80 blockConstants
+/-- con-leche: ConLeche/Kernel/Install.lean:72-75 blockConstants
 con-leche: ConLeche/Cached/CheckerC.lean:99-102 blockConstantsC
 **The block's constants**, in push order: the formers (at official's `is_rec`,
 `blockIsRec`), the constructors, the recursors. -/
@@ -140,7 +140,7 @@ def blockConstants (p : BlockShape) : AM (List IConstantInfo) := do
   let fs ← blockFormers p isRec
   pure (fs ++ blockCtors p ++ (← blockRecs p p.recs))
 
-/-- con-leche: ConLeche/Kernel/Install.lean:82-96 declConstants
+/-- con-leche: ConLeche/Kernel/Install.lean:77-91 declConstants
 The `.axiomDecl` arm: `Quot.sound` installs its pin at the record's names,
 `sorryAx` nothing, any other axiom itself. -/
 def declConstantsAxiom (cv : IConstantVal) : AM (List IConstantInfo) := do
@@ -148,7 +148,7 @@ def declConstantsAxiom (cv : IConstantVal) : AM (List IConstantInfo) := do
   else if cv.name == (← pinSorryAx) then pure []
   else pure [.axiomInfo cv]
 
-/-- con-leche: ConLeche/Kernel/Install.lean:82-96 declConstants
+/-- con-leche: ConLeche/Kernel/Install.lean:77-91 declConstants
 con-leche: ConLeche/Cached/CheckerC.lean:104-118 declConstantsC
 **The constants a declaration installs**, in push order.  A block `readBlock`
 cannot read installs nothing (its check rejects it), and `sorryAx` nothing
@@ -164,7 +164,7 @@ def declConstants : IDeclaration → AM (List IConstantInfo)
     | .ok p => blockConstants p
     | .error _ => pure []
 
-/-- con-leche: ConLeche/Kernel/Install.lean:98-104 declTables
+/-- con-leche: ConLeche/Kernel/Install.lean:93-99 declTables
 con-leche: ConLeche/Cached/CheckerC.lean:57-63 declTablesC
 **The projection tables a declaration installs**: those of an inductive block
 `readBlock` reads (none where a constructor is too short for them). -/

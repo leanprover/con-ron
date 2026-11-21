@@ -945,6 +945,50 @@ theorem familyKeyCheck_specF (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
   | _ =>
     exact absurd hrun (fun h => AM.fail_ok h)
 
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:131-143 familyKeyChecks
+**A group at a key, typed**: `familyKeyCheck_specF` at every name of the list. -/
+theorem familyKeyChecks_specF (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
+    (d : Nat) (us : LsIdx) (usP : List Level) (ds : List EIdx) (dsP : List Expr)
+    (hwds : ∀ a ∈ dsP, Expr.WScoped d a) :
+    ∀ (cs : List NIdx) (csP : List ConLeche.Name),
+      CSpecF env fe (fun st => Frontend.denoteNList st.ns cs = some csP ∧
+          denoteLs st.lss us = some usP ∧ Frontend.denoteEList st ds = some dsP)
+        (Arena.familyKeyChecks .verified fe d us ds cs)
+        (fun _ _ _ => True)
+        (ConLeche.familyKeyChecks (fueledOpsM .verified) env env.find? d usP dsP csP) := by
+  intro cs
+  induction cs with
+  | nil =>
+    intro csP s₀ s' r hok hpre hrun
+    obtain ⟨hcs, -, -⟩ := hpre
+    simp only [Frontend.denoteNList, Option.some.injEq] at hcs
+    subst hcs
+    simp only [Arena.familyKeyChecks] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨CoreStep.refl hok, (), trivial, by unfold ConLeche.familyKeyChecks; exact FOk.pure _⟩
+  | cons c cs ih =>
+    intro csP s₀ s' r hok hpre hrun
+    obtain ⟨hcs, hus, hds⟩ := hpre
+    simp only [Frontend.denoteNList] at hcs
+    cases hc : denoteN s₀.store.ns c with
+    | none => rw [hc] at hcs; simp at hcs
+    | some cP =>
+    cases hcs' : Frontend.denoteNList s₀.store.ns cs with
+    | none => rw [hc, hcs'] at hcs; simp at hcs
+    | some csP' =>
+    rw [hc, hcs'] at hcs
+    obtain rfl := (Option.some.inj hcs).symm
+    simp only [Arena.familyKeyChecks] at hrun
+    obtain ⟨u, s₁, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨c1, _, _, hF1⟩ := familyKeyCheck_specF hk henv d c cP us usP ds dsP hwds
+      _ s₁ u hok ⟨hc, hus, hds⟩ k1
+    obtain ⟨c2, _, _, hF2⟩ := ih csP' _ s' r c1.ok
+      ⟨denoteNListE_ext c1.ext _ _ hcs', denoteLs_ext hus c1.ext,
+        denoteEList_ext c1.ext _ _ hds⟩ z1
+    refine ⟨c1.trans c2, (), trivial, ?_⟩
+    unfold ConLeche.familyKeyChecks
+    exact FOk.bind hF1 hF2
+
 end FamilyTele
 
 section InstType
@@ -2010,16 +2054,12 @@ theorem mapIdx_blind {α β : Type} (f : α → β) (l : List α) :
   apply List.ext_getElem <;> simp
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1327-1351 nestFrame —
-the twin's frame with its head's name as one bind (the `do` elaborator puts
-the continuation in a join point). -/
+the twin's frame as one `do` block, unfolded. -/
 theorem nestFrame_eq (mode : CheckMode) (fe : IFEnv) (ctx : Arena.NestCtx) (fuel : Nat)
     (prog : List Arena.NestHole) (hi : Nat) (us : LsIdx) (ds : List EIdx) (nPc : Nat)
     (grp : List (NIdx × EIdx)) (ns : Arena.NestState) :
     Arena.nestFrame mode fe ctx fuel prog hi us ds nPc grp ns = (do
-      let hn ← (match grp with
-        | [] => internNNode .anonymous
-        | (c, _) :: _ => pure c : AM NIdx)
-      Arena.familyKeyCheck mode fe hi hn us ds
+      Arena.familyKeyChecks mode fe hi us ds (grp.map (·.1))
       let fr ← grp.mapM fun (x : NIdx × EIdx) => (do
         let q ← Arena.piBinders Arena.coreWalkFuel x.2
         pure ({ key := ⟨x.1, us, ds⟩, base := hi, nIdx := q.1.length } : Arena.NestHole))
@@ -2031,7 +2071,6 @@ theorem nestFrame_eq (mode : CheckMode) (fe : IFEnv) (ctx : Arena.NestCtx) (fuel
         names holes ctors ns []
       pure ns2) := by
   rw [Arena.nestFrame.eq_def]
-  cases grp <;> rfl
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1327-1351 nestFrame
 **A container frame** (con-leche's `nestFrameS_sim`): the instantiation typed
@@ -2057,42 +2096,10 @@ theorem nestFrame_spec (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
   obtain ⟨hctx, hprog, hus, hds', hgrp, hns⟩ := hp
   obtain ⟨-, -, hfind, -, -, -⟩ := dCtx_fields hctx
   rw [nestFrame_eq] at hrun
-  -- the head's name
-  obtain ⟨hn, s₁, h1, h2⟩ := AM.bind_ok hrun
-  have hhn : PStep s₀ s₁ ∧ denoteN s₁.store.ns hn = some (grpP.headD default).1 := by
-    cases grp with
-    | nil =>
-      simp only [dGrp, List.mapM_nil, Option.pure_def, Option.some.injEq] at hgrp
-      subst hgrp
-      dsimp only at h1
-      obtain ⟨p, hd⟩ := internNNode_run hok.state
-        (by intro c hc; simp [NNodeView.children] at hc) h1
-      exact ⟨p, by rw [hd]; rfl⟩
-    | cons x grp' =>
-      dsimp only at h1
-      obtain ⟨hr, hs⟩ := AM.pure_ok h1
-      subst hr
-      rw [hs]
-      simp only [dGrp, List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at hgrp
-      cases hx : dGE s₀.store x with
-      | none => rw [hx] at hgrp; simp at hgrp
-      | some y =>
-      cases hxs : grp'.mapM (dGE s₀.store) with
-      | none => rw [hx, hxs] at hgrp; simp at hgrp
-      | some ys =>
-      rw [hx, hxs] at hgrp
-      simp only [Option.bind_some, Option.some.injEq] at hgrp
-      subst hgrp
-      simp only [dGE, Option.bind_eq_some_iff, Option.map_eq_some_iff] at hx
-      obtain ⟨cP, hcP, tyP, htyP, rfl⟩ := hx
-      exact ⟨PStep.refl hok.state, hcP⟩
-  obtain ⟨p1, hhn'⟩ := hhn
-  have c1 := p1.toCore hok
-  -- the family at the key, typed
-  obtain ⟨u3, s₃, h3, h4⟩ := AM.bind_ok h2
-  obtain ⟨c3', _, _, hFty⟩ := familyKeyCheck_specF hk henv hi hn (grpP.headD default).1 us usP
-    ds dsP hds _ s₃ u3 c1.ok ⟨hhn', denoteLs_ext hus p1.ext, denoteEList_ext p1.ext _ _ hds'⟩ h3
-  have c3 := c1.trans c3'
+  -- every group-mate's family at the key, typed
+  obtain ⟨u3, s₃, h3, h4⟩ := AM.bind_ok hrun
+  obtain ⟨c3, _, _, hFty⟩ := familyKeyChecks_specF hk henv hi us usP ds dsP hds
+    (grp.map (·.1)) (grpP.map (·.1)) _ s₃ u3 hok ⟨dGrp_names hgrp, hus, hds'⟩ h3
   -- the frame's stack entries
   obtain ⟨fr, s₄, h7, h8⟩ := AM.bind_ok h4
   obtain ⟨p4, hfr⟩ := frameEntries_run hi (fun c ty => rfl) grp grpP s₃ s₄ fr c3.ok.state

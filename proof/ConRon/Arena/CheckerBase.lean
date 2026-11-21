@@ -21,6 +21,7 @@ constant check and the strategy-independent helpers the install paths share.
 module
 
 public import ConRon.Arena.Inductives.StructParts
+public import ConRon.Arena.TrustAxioms
 
 @[expose] public section
 
@@ -238,23 +239,30 @@ def unresolvedConstsErrorL (strOk : Bool) (where_ : String) (e : EIdx) :
 
 /-! ## The per-declaration constant check -/
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:101-123 checkConstantVal
-con-leche: ConLeche/Kernel/DeclCheck.lean:218-238 checkConstantValF
-con-leche: ConLeche/Cached/IndPass.lean:36-58 checkConstantValC
-Checks common to all declarations: fresh name, a certified
-operation's name only at a definition (`allowOp`, the cited default `false`,
-spelled at every call as the Rust must), a literal's name only at its shape,
-well-formed universe parameters, and a type that is a type and mentions only
-declared parameters.  Returns nothing: the constant is stored as declared.
-The messages drop con-leche's interpolated name (§3.1), except the certified
-operation's, which names it as upstream's does (upstream's `.olean` gate reads
-it): the name read back from the store. -/
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:101-130 checkConstantVal
+con-leche: ConLeche/Kernel/DeclCheck.lean:218-243 checkConstantValF
+con-leche: ConLeche/Cached/IndPass.lean:36-63 checkConstantValC
+con-leche: ConLeche/Kernel/Basis/Names.lean:120-122 sorryAxNameAt
+Checks common to all declarations: fresh name, a certified operation's name
+only at a definition (`allowOp`), a compiler-trust name (`reduceOpNames`) only
+at an opaque constant (`allowReduce`), `sorryAx`'s only at an axiom
+(`allowSorry`; `sorryAxNameAt` is a handle comparison with its pin) — the three
+flags' cited default `false` spelled at every call as the Rust must — a
+literal's name only at its shape, well-formed universe parameters, and a type
+that is a type and mentions only declared parameters.  Returns nothing: the
+constant is stored as declared.  The messages drop con-leche's interpolated
+name (§3.1), except the certified operation's, which names it as upstream's
+does (upstream's `.olean` gate reads it): the name read back from the store. -/
 def checkConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
-    (allowOp : Bool) : AM Unit := do
+    (allowOp allowReduce allowSorry : Bool) : AM Unit := do
   if (fe.find? cv.name).isSome then
     fail (.invalid "duplicate declaration")
   if (← natOpName cv.name) && !allowOp then
     fail (.invalid s!"a certified Nat operation's name, not a definition: {← readName cv.name}")
+  if (← reduceOpNames).contains cv.name && !allowReduce then
+    fail (.invalid "a compiler-trust name, not an opaque constant")
+  if cv.name == (← pinSorryAx) && !allowSorry then
+    fail (.invalid "the tolerated axiom's name, not an axiom")
   unless ← litShapeOk (.axiomInfo cv) do
     fail (.notImplemented "a declaration at a literal's name with another shape")
   unless nameNodup cv.levelParams do
@@ -273,7 +281,7 @@ def checkConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
 
 /-! ## The strategy-independent helpers -/
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:125-131 unwrapOr — unwrap an
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:132-138 unwrapOr — unwrap an
 optional value or fail with the given error. -/
 def unwrapOr {α : Type} (o : Option α) (err : CheckError) : AM α :=
   match o with

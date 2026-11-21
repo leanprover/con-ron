@@ -16,13 +16,13 @@ namespace ConRon.Arena.Frontend.Olean
 open ConLeche
 open ConLeche.Frontend.Olean (Region CEntryF CKindF OLeanLevel ModFiles Expo hintsEq constSkel moduleSkel Part)
 
-/-- con-leche: ConLeche/Frontend/Olean/Module.lean:46-49 rulesEq -/
+/-- con-leche: ConLeche/Frontend/Olean/Module.lean:56-59 rulesEq -/
 def rulesEq : List (NIdx × Nat × EIdx) → List (NIdx × Nat × EIdx) → Bool
   | [], [] => true
   | (a, b, c) :: xs, (a', b', c') :: ys => a == a' && b == b' && c == c' && rulesEq xs ys
   | _, _ => false
 
-/-- con-leche: ConLeche/Frontend/Olean/Module.lean:51-67 entrySame
+/-- con-leche: ConLeche/Frontend/Olean/Module.lean:61-77 entrySame
 Structural equality of two stored constants. -/
 def entrySame (a b : CEntryF NIdx EIdx) : Bool :=
   a.name == b.name && a.levelParams == b.levelParams && a.type == b.type &&
@@ -40,7 +40,7 @@ def entrySame (a b : CEntryF NIdx EIdx) : Bool :=
     a == a' && b == b' && c == c' && d == d' && e == e' && rulesEq f f' && g == g' && h == h'
   | _, _ => false
 
-/-- con-leche: ConLeche/Frontend/Olean/Module.lean:69-78 kindWord
+/-- con-leche: ConLeche/Frontend/Olean/Module.lean:79-88 kindWord
 A stored constant's kind, for messages. -/
 def kindWord : CKindF NIdx EIdx → String
   | .ax u => s!"axiom{if u then " (unsafe)" else ""}"
@@ -52,7 +52,7 @@ def kindWord : CKindF NIdx EIdx → String
   | .ctor .. => "constructor"
   | .recur .. => "recursor"
 
-/-- con-leche: ConLeche/Frontend/Olean/Module.lean:80-94 expoOf
+/-- con-leche: ConLeche/Frontend/Olean/Module.lean:90-104 expoOf
 **The exported level of one private constant**, given the exported part's constant
 of that name; `none` is a constant the exported part does not refine. -/
 def expoOf (priv ex : CEntryF NIdx EIdx) : Option Expo :=
@@ -65,7 +65,7 @@ def expoOf (priv ex : CEntryF NIdx EIdx) : Option Expo :=
     | _, _ => none
   else none
 
-/-- con-leche: ConLeche/Frontend/Olean/Module.lean:96-136 expoOfParts
+/-- con-leche: ConLeche/Frontend/Olean/Module.lean:106-152 expoOfParts
 The two failures of `expoOfParts`: its message (`Except String`), and `AM`'s own. -/
 def expoStep (pk : OleanPins) (r : Region) (privIdx : Std.HashMap NIdx Nat) (privLocs : Array Nat)
     (cs : Array (CEntryF NIdx EIdx)) (expo : Array Expo) (c : Nat) :
@@ -92,7 +92,7 @@ def expoStep (pk : OleanPins) (r : Region) (privIdx : Std.HashMap NIdx Nat) (pri
       pure (.error s!"the exported view of {enName} is not a refinement of its private \
         constant ({kindWord pc.kind} / {kindWord e.kind})")
 
-/-- con-leche: ConLeche/Frontend/Olean/Module.lean:96-136 expoOfParts
+/-- con-leche: ConLeche/Frontend/Olean/Module.lean:106-152 expoOfParts
 The `for c in skE.consts` of `expoOfParts`. -/
 def expoLoop (pk : OleanPins) (r : Region) (privLoc : Std.HashMap Nat Nat)
     (privIdx : Std.HashMap NIdx Nat) (privLocs : Array Nat) (cs : Array (CEntryF NIdx EIdx)) :
@@ -106,7 +106,7 @@ def expoLoop (pk : OleanPins) (r : Region) (privLoc : Std.HashMap Nat Nat)
       | .error m => pure (.error m)
       | .ok expo => expoLoop pk r privLoc privIdx privLocs cs rest expo
 
-/-- con-leche: ConLeche/Frontend/Olean/Module.lean:96-136 expoOfParts
+/-- con-leche: ConLeche/Frontend/Olean/Module.lean:106-152 expoOfParts
 **The exported level of a module's private constants**. -/
 def expoOfParts (pk : OleanPins) (r : Region) (privAddr expAddr : UInt64)
     (cs : Array (CEntryF NIdx EIdx)) : AM (Except String (Array Expo)) := do
@@ -119,17 +119,23 @@ def expoOfParts (pk : OleanPins) (r : Region) (privAddr expAddr : UInt64)
     cs.size.fold (init := {}) fun i _ acc => acc.insert cs[i].name i
   expoLoop pk r privLoc privIdx privLocs cs skE.consts (cs.map fun _ => .absent)
 
-/-- con-leche: ConLeche/Frontend/Olean/Module.lean:140-159 checkViews
+/-- con-leche: ConLeche/Frontend/Olean/Module.lean:156-190 checkViews
 **The views of a module against each other**: for each private constant, its
-exported level.  Every constant is `.same` in a classic module. -/
+exported level.  Every constant is `.same` in a classic module.  A mismatch is a malformed
+file at its home (`.invalid`).  The views are parsed whole (`parseAllViews`), so what upstream
+asks of the parts over the load (each part's module-system flag, the server part's imports,
+the name tables, a theorem's private value) is the views'. -/
 def checkViews (pk : OleanPins) (m : Name) (f : ModFiles) (v : AllViews) : AM (Array Expo) := do
-  let bad (what : String) : CheckError := .internal s!"module {m}: {what}"
+  let bad (what : String) : CheckError := .invalid s!"module {m}: {what}"
   match f.server, f.private with
   | some s, some p =>
     unless f.isModule do return v.private.constants.map fun _ => .same
     match Region.ofParts #[f.exported, s, p] with
     | .error e => fail (toArenaError e)
     | .ok r =>
+      unless (r.loc s.moduleDataAddr).all (· < f.exported.bytes.size + s.bytes.size) do
+        fail (bad s!"its server part {m}.olean.server points into its .olean.private: the \
+          server part must read with its .olean alone")
       unless v.server.isModule do
         fail (bad "the server part is not of a module of the module system, the exported part is")
       unless v.private.isModule do

@@ -607,7 +607,7 @@ def classRecTysOk (mode : CheckMode) (fe : IFEnv) (g : ClassGen) (k : Nat) :
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:421-440 classRuleCheck
 con-leche: ConLeche/Cached/IndRec.lean:378-398 classRuleCheckC
-con-leche: ConLeche/Cached/CheckerC.lean:159-185 sharedOpsRuleR
+con-leche: ConLeche/Cached/CheckerC.lean:188-214 sharedOpsRuleR
 **The check of a generated rule**: closed, its level parameters the
 recursor's, resolving and typed at the rule-less recursors' environment `feR`
 (`sharedOpsRuleR`'s flush leaving the inference), its λ-telescope `n` long, its
@@ -683,7 +683,7 @@ The stream's recursor constants, checked (`checkConstantValF`). -/
 def classStreamRecs (mode : CheckMode) (fe : IFEnv) : List RecShape → AM (List IConstantVal)
   | [] => pure []
   | rc :: rcs => do
-    checkConstantVal mode fe rc.cvR false
+    checkConstantVal mode fe rc.cvR false false false
     let cvs ← classStreamRecs mode fe rcs
     pure (rc.cvR :: cvs)
 
@@ -696,7 +696,7 @@ def classKeyCanon (params : List EIdx) (k : ClassKey) : AM ClassKey := do
   pure { k with ds := ds }
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:496-501 classSeeds
-con-leche: ConLeche/Cached/IndPositivity.lean:549-553 classSeedsC
+con-leche: ConLeche/Cached/IndPositivity.lean:557-561 classSeedsC
 The seeds: every OUTSIDE class in the positivity check's representation
 (`nestSeedOf`), in order. -/
 def classSeeds (ctx : NestCtx) (holes : List EIdx) : List TargetMajor → AM (List (NestKey × Nat))

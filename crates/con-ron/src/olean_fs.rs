@@ -26,7 +26,7 @@ use con_ron_core::kernel::name::Name;
 
 use crate::render;
 
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:485-499 instCheckerIOIO
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:514-529 instCheckerIOIO
 /// **The binary's instance**: the runtime's calls.
 pub struct StdFs;
 
@@ -40,14 +40,20 @@ fn io_msg(p: &str, e: std::io::Error) -> Vec<u32> {
     render::cps(&format!("{}: {}", render::display_path(p), e))
 }
 
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:485-499 instCheckerIOIO
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:514-529 instCheckerIOIO
 impl OleanFs for StdFs {
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
     fn path_exists(&self, p: &Vec<u32>) -> Result<bool, Vec<u32>> {
         Ok(std::path::Path::new(&path_of(p)).exists())
     }
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
+    /// `System.FilePath.isDir`: through symbolic links, `false` where the path
+    /// names nothing.
+    fn is_dir(&self, p: &Vec<u32>) -> Result<bool, Vec<u32>> {
+        Ok(std::path::Path::new(&path_of(p)).is_dir())
+    }
 
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
     fn real_path(&self, p: &Vec<u32>) -> Result<Vec<u32>, Vec<u32>> {
         let s = path_of(p);
         match std::fs::canonicalize(&s) {
@@ -56,13 +62,13 @@ impl OleanFs for StdFs {
         }
     }
 
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
     fn read_bin_file(&self, p: &Vec<u32>) -> Result<Vec<u8>, Vec<u32>> {
         let s = path_of(p);
         std::fs::read(&s).map_err(|e| io_msg(&s, e))
     }
 
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:371-377 openReadIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:400-406 openReadIO
     /// A positional read: the bytes from `off` up to `off + len` or the end of the
     /// file.  The path must name a regular file, as `openReadIO` checks; then a
     /// seek to `off` and forward reads on a handle of this call's own, so no other
@@ -96,7 +102,7 @@ impl OleanFs for StdFs {
         Ok(buf)
     }
 
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:485-499 instCheckerIOIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:514-529 instCheckerIOIO
     fn file_size(&self, p: &Vec<u32>) -> Result<u64, Vec<u32>> {
         let s = path_of(p);
         let md = std::fs::metadata(&s).map_err(|e| io_msg(&s, e))?;
@@ -150,30 +156,34 @@ pub fn resident_set() -> Vec<u32> {
     Vec::new()
 }
 
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:485-499 instCheckerIOIO
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:514-529 instCheckerIOIO
 /// `StdFs`'s reads; the heartbeat's two actions print.
 impl OleanFs for NotesFs {
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
     fn path_exists(&self, p: &Vec<u32>) -> Result<bool, Vec<u32>> {
         StdFs.path_exists(p)
     }
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
+    fn is_dir(&self, p: &Vec<u32>) -> Result<bool, Vec<u32>> {
+        StdFs.is_dir(p)
+    }
 
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
     fn real_path(&self, p: &Vec<u32>) -> Result<Vec<u32>, Vec<u32>> {
         StdFs.real_path(p)
     }
 
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
     fn read_bin_file(&self, p: &Vec<u32>) -> Result<Vec<u8>, Vec<u32>> {
         StdFs.read_bin_file(p)
     }
 
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
     fn read_range(&self, p: &Vec<u32>, off: u64, len: u64) -> Result<Vec<u8>, Vec<u32>> {
         StdFs.read_range(p, off, len)
     }
 
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:122-167 CheckerIO
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
     fn file_size(&self, p: &Vec<u32>) -> Result<u64, Vec<u32>> {
         StdFs.file_size(p)
     }
@@ -233,9 +243,9 @@ pub struct OleanRequest {
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:64-67 Input.label
-/// con-leche: ConLeche/Driver/Cli.lean:239-324 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
 impl OleanRequest {
-    /// con-leche: ConLeche/Driver/Cli.lean:239-324 runArgs
+    /// con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
     /// The names of the command line, or the usage error.
     pub fn new(search_path: &[String], modules: &[String], constants: &[String]) -> Result<OleanRequest, String> {
         let mut roots: Vec<Name> = Vec::new();
@@ -288,7 +298,7 @@ impl OleanRequest {
 /// The input's declaration records, by the `.olean` reader: a theorem's value a
 /// reference, with what its check needs to read it (`OleanRead.values`,
 /// `OleanRead.pins`).  The `read:` lines at `pace`, timed from the read's start
-/// (`ReadNotes.new` is the first thing `readOleans` does).
+/// (`ReadNotes.new` is the first thing `readOleansAt` does).
 pub fn read_request(pers: &PersTier, st: &mut AState, req: &OleanRequest, pace: &Pace) -> Result<OleanRead, (CheckError, u64)> {
     let (roots, cs) = match req.intern(pers, st) {
         Ok(p) => p,

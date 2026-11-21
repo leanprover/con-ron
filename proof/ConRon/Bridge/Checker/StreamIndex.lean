@@ -35,7 +35,7 @@ open ConLeche ConRon.Arena
 
 /-! ## The relation -/
 
-/-- con-leche: ConLeche/Cached/StreamIndex.lean:38-43 StreamIndex — **the twin's index denotes
+/-- con-leche: ConLeche/Cached/StreamIndex.lean:38-44 StreamIndex — **the twin's index denotes
 con-leche's**: the same record positions and next counter; each map's entries answer the other's
 through the denotation, at the same counter or record position; every table well shaped. -/
 structure IndexDenotes (st : EStore) (I : IStreamIndex) (J : ConLeche.Cached.StreamIndex) :
@@ -99,7 +99,7 @@ theorem IndexDenotes.pmono {st st' : EStore} {I : IStreamIndex} {J : ConLeche.Ca
 
 /-! ## What a view reads -/
 
-/-- con-leche: ConLeche/Cached/StreamIndex.lean:82-96 FrozenIndex.view — the twin's view finds
+/-- con-leche: ConLeche/Cached/StreamIndex.lean:82-93 FrozenIndex.view — the twin's view finds
 in the frozen layer, below the record's first counter. -/
 theorem IStreamIndex.view_find? (I : IStreamIndex) (k : Nat) (n : NIdx) :
     (I.view k).find? n = match I.base.idx[n]? with
@@ -111,7 +111,7 @@ theorem IStreamIndex.view_find? (I : IStreamIndex) (k : Nat) (n : NIdx) :
   | none => rfl
   | some p => obtain ⟨c, ci⟩ := p; rfl
 
-/-- con-leche: ConLeche/Cached/StreamIndex.lean:82-96 FrozenIndex.view — the twin's view's raw
+/-- con-leche: ConLeche/Cached/StreamIndex.lean:82-93 FrozenIndex.view — the twin's view's raw
 table lookup reads the frozen layer, below the record's position. -/
 theorem IStreamIndex.view_rawTable? (I : IStreamIndex) (k : Nat) (n : NIdx) :
     (I.view k).rawTable? n = match I.base.tbls[n]? with
@@ -122,7 +122,7 @@ theorem IStreamIndex.view_rawTable? (I : IStreamIndex) (k : Nat) (n : NIdx) :
   | none => rfl
   | some p => obtain ⟨r, t⟩ := p; rfl
 
-/-- con-leche: ConLeche/Cached/StreamIndex.lean:82-96 FrozenIndex.view — con-leche's view, the
+/-- con-leche: ConLeche/Cached/StreamIndex.lean:82-93 FrozenIndex.view — con-leche's view, the
 same shape. -/
 theorem cachedView_find? (J : ConLeche.Cached.StreamIndex) (k : Nat) (nm : ConLeche.Name) :
     (J.freeze.view k).find? nm = match J.base.idx[nm]? with
@@ -134,7 +134,7 @@ theorem cachedView_find? (J : ConLeche.Cached.StreamIndex) (k : Nat) (nm : ConLe
   | none => rfl
   | some p => obtain ⟨c, ci⟩ := p; rfl
 
-/-- con-leche: ConLeche/Cached/StreamIndex.lean:82-96 FrozenIndex.view — con-leche's view's raw
+/-- con-leche: ConLeche/Cached/StreamIndex.lean:82-93 FrozenIndex.view — con-leche's view's raw
 table lookup. -/
 theorem cachedView_rawTable? (J : ConLeche.Cached.StreamIndex) (k : Nat) (nm : ConLeche.Name) :
     (J.freeze.view k).rawTable? nm = match J.base.tbls[nm]? with
@@ -148,7 +148,7 @@ theorem cachedView_rawTable? (J : ConLeche.Cached.StreamIndex) (k : Nat) (nm : C
 
 /-! ## A view is the fold's environment -/
 
-/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:420 viewTwin — **the view of a position
+/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:439 viewTwin — **the view of a position
 answers as the environment of the records before it**, once those records' names are distinct:
 `IFEnvOK` at `streamEnv pre`, and no table without its structure.  con-leche's `viewTwin` makes
 its own view the prefix's index; this moves the two lookups across `IndexDenotes`. -/
@@ -156,15 +156,15 @@ theorem view_ok {s : AState} {I : IStreamIndex} {J : ConLeche.Cached.StreamIndex
     {pre rest : List Declaration} (hst : StateOK s) (hI : IndexDenotes s.store I J)
     (hJ : ConLeche.Cached.IndexSpec (pre ++ rest) J)
     (hnd : ((ConLeche.Cached.recsConsts pre).map (·.name)).Nodup) :
-    IFEnvOK (ConLeche.Cached.streamEnv pre) (I.view pre.length) s ∧
+    IFEnvOK (ConLeche.streamEnv pre) (I.view pre.length) s ∧
       TblGate (I.view pre.length) := by
   obtain ⟨rk, hrk⟩ := hst.wf
   have htw := ConLeche.Cached.viewTwin hJ rfl hnd
   -- con-leche's view against the prefix's environment
-  have hF : ∀ nm, (J.freeze.view pre.length).find? nm = (ConLeche.Cached.streamEnv pre).find? nm :=
+  have hF : ∀ nm, (J.freeze.view pre.length).find? nm = (ConLeche.streamEnv pre).find? nm :=
     fun nm => by rw [← htw.find, mkFEnv_find?]
   have hR : ∀ nm, (J.freeze.view pre.length).rawTable? nm =
-      (ConLeche.Cached.streamEnv pre).tables.find? (·.structName == nm) :=
+      (ConLeche.streamEnv pre).tables.find? (·.structName == nm) :=
     fun nm => by rw [← htw.raw, mkFEnv_rawTable?]
   have hc : I.firsts.getD pre.length I.next = J.firsts.getD pre.length J.next := by
     rw [hI.firsts, hI.next]
@@ -247,14 +247,14 @@ theorem view_ok {s : AState} {I : IStreamIndex} {J : ConLeche.Cached.StreamIndex
         rw [ite_eq_left hlt]
       · cases hf
   -- a stored table's structure is stored in the prefix's environment
-  have hstored : ∀ nm pt, (ConLeche.Cached.streamEnv pre).tables.find? (·.structName == nm)
-      = some pt → ((ConLeche.Cached.streamEnv pre).find? nm).isSome = true := by
+  have hstored : ∀ nm pt, (ConLeche.streamEnv pre).tables.find? (·.structName == nm)
+      = some pt → ((ConLeche.streamEnv pre).find? nm).isSome = true := by
     intro nm pt hf
     have hmem := List.mem_of_find?_eq_some hf
     have hn : pt.structName = nm := by simpa using List.find?_some hf
-    have htabs : (ConLeche.Cached.streamEnv pre).tables = (pre.flatMap declTables).reverse := by
+    have htabs : (ConLeche.streamEnv pre).tables = (pre.flatMap declTables).reverse := by
       simpa [Env.empty] using ConLeche.Cached.streamEnv_tables pre Env.empty
-    have hcons : (ConLeche.Cached.streamEnv pre).consts =
+    have hcons : (ConLeche.streamEnv pre).consts =
         (ConLeche.Cached.recsConsts pre).reverse := by
       simpa [Env.empty] using ConLeche.Cached.streamEnv_consts pre Env.empty
     rw [htabs, List.mem_reverse] at hmem
