@@ -524,4 +524,270 @@ theorem deps_of_eq {idx S} (hidx : IdxRel idx S)
   simp only [absDeps, e, Modular.depsOf, absC]
   simp [List.map_map, Function.comp_def]
 
+/-! ## The verdict's searches -/
+
+/-- The twin's rank function of two tables. -/
+@[reducible] def absRk (S : _root_.Std.HashMap NIdx Nat) (rank : alloc.vec.Vec (Option Std.U64)) :
+    NIdx → Option Nat :=
+  Modular.rankOf S (absRanks rank)
+
+theorem first_missing_root_loop_eq {pos P} (hpos : NSet pos P) (roots : alloc.vec.Vec arena.handle.NIdx)
+    (r : Std.Usize) {o} (h : first_missing_root_loop pos roots r = ok o) :
+    (o.bind fun r => roots.val[r.val]?).map absNIdx =
+      ((roots.val.drop r.val).map absNIdx).find? (!P.contains ·) := by
+  rw [first_missing_root_loop] at h
+  by_cases hlt : r < alloc.vec.Vec.len roots
+  · rw [ite_eq_left hlt] at h
+    peel h as n, hn
+    obtain ⟨hi, rfl⟩ := vec_index_eq hn
+    peel h as b, hb
+    have eb := SetRel.contains_key nidx_eq2 hpos hb
+    rw [drop_cons_of_lt hi, List.map_cons, List.find?_cons]
+    by_cases cb : b = true
+    · rw [ite_eq_left cb] at h
+      peel h as r1, hr1
+      have ih := first_missing_root_loop_eq hpos roots r1 h
+      rw [usize_succ hr1] at ih
+      rw [← eb, cb]
+      exact ih
+    · rw [ite_eq_right cb] at h
+      cases Result.ok_injective h
+      rw [← eb]
+      simp at cb
+      simp [cb, hi]
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    rfl
+termination_by roots.val.length - r.val
+decreasing_by have := lt_len hlt; rw [usize_succ hr1]; omega
+
+theorem first_unranked_loop_eq {idx S} (hidx : IdxRel idx S)
+    (c : alloc.vec.Vec (arena.handle.NIdx ×
+      alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)))
+    (rank : alloc.vec.Vec (Option Std.U64)) (k : Std.Usize) {o}
+    (h : first_unranked_loop c idx rank k = ok o) :
+    (o.bind fun k => c.val[k.val]?).map absNode =
+      ((c.val.drop k.val).map absNode).find? (fun e => (absRk S rank e.1).isNone) := by
+  rw [first_unranked_loop] at h
+  by_cases hlt : k < alloc.vec.Vec.len c
+  · rw [ite_eq_left hlt] at h
+    peel h as ⟨n, v⟩, hp
+    obtain ⟨hi, he⟩ := vec_index_eq hp
+    peel h as o1, ho1
+    have e1 : absOpt o1 = absRk S rank (absNIdx n) := rank_of_eq hidx ho1
+    rw [drop_cons_of_lt hi, List.map_cons, List.find?_cons, ← he]
+    rw [← e1]
+    simp only [core.option.Option.is_none] at h
+    cases o1 with
+    | none =>
+      simp only [Option.isNone_none, ↓reduceIte] at h
+      cases Result.ok_injective h
+      simp [hi, ← he]
+    | some x =>
+      simp only [Option.isNone_some, Bool.false_eq_true, ↓reduceIte] at h
+      peel h as k1, hk1
+      have ih := first_unranked_loop_eq hidx c rank k1 h
+      rw [usize_succ hk1] at ih
+      simpa using ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    rfl
+termination_by c.val.length - k.val
+decreasing_by have := lt_len hlt; rw [usize_succ hk1]; omega
+
+theorem bad_edge_loop_eq {pos P idx S} (hpos : NSet pos P) (hidx : IdxRel idx S)
+    (rank : alloc.vec.Vec (Option Std.U64)) (m : arena.handle.NIdx)
+    (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)) (i : Std.Usize) {o}
+    (h : bad_edge_loop pos idx rank m imps i = ok o) :
+    (o.bind fun i => imps.val[i.val]?).map absImp =
+      ((imps.val.drop i.val).map absImp).find? (!Modular.edgeOk P (absRk S rank) (absNIdx m) ·) ∧
+      ∀ j, o = some j → j.val < imps.val.length := by
+  rw [bad_edge_loop] at h
+  by_cases hlt : i < alloc.vec.Vec.len imps
+  · rw [ite_eq_left hlt] at h
+    peel h as x, hx
+    obtain ⟨hi, rfl⟩ := vec_index_eq hx
+    peel h as b, hb
+    have eb := edge_ok_eq hpos hidx hb
+    rw [drop_cons_of_lt hi, List.map_cons, List.find?_cons, ← eb]
+    by_cases cb : b = true
+    · rw [ite_eq_left cb] at h
+      peel h as i2, hi2
+      have ih := bad_edge_loop_eq hpos hidx rank m imps i2 h
+      rw [usize_succ hi2] at ih
+      rw [cb]
+      exact ⟨ih.1, ih.2⟩
+    · rw [ite_eq_right cb] at h
+      cases Result.ok_injective h
+      simp at cb
+      exact ⟨by simp [cb, hi], fun j hj => by cases hj; exact hi⟩
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    exact ⟨rfl, fun _ h => by cases h⟩
+termination_by imps.val.length - i.val
+decreasing_by have := lt_len hlt; rw [usize_succ hi2]; omega
+
+theorem find_not_none {α : Type} {q : α → Bool} {l : List α} :
+    l.find? (fun x => !q x) = none ↔ l.all q = true := by
+  simp [List.find?_eq_none, List.all_eq_true]
+
+/-- The twin's edge fault of a node. -/
+@[reducible] def edgeFault (P : _root_.Std.HashSet NIdx) (rk : NIdx → Option Nat) (e : Node) :
+    NIdx × Option NIdx :=
+  (e.1, (e.2.find? (!Modular.edgeOk P rk e.1 ·)).map (·.module))
+
+theorem first_bad_node_loop_eq {pos P idx S} (hpos : NSet pos P) (hidx : IdxRel idx S)
+    (rank : alloc.vec.Vec (Option Std.U64))
+    (c : alloc.vec.Vec (arena.handle.NIdx ×
+      alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))) (k : Std.Usize) {o}
+    (h : first_bad_node_loop pos idx rank c k = ok o) :
+    (o.bind fun p => c.val[p.1.val]?.bind fun e => e.2.val[p.2.val]?.map fun i => (e.1, i)).map
+        (fun q => (absNIdx q.1, some (absNIdx q.2.module))) =
+      (((c.val.drop k.val).map absNode).find? (fun e => !e.2.all (Modular.edgeOk P (absRk S rank) e.1))).map
+        (edgeFault P (absRk S rank)) := by
+  rw [first_bad_node_loop] at h
+  by_cases hlt : k < alloc.vec.Vec.len c
+  · rw [ite_eq_left hlt] at h
+    peel h as ⟨n, v⟩, hp
+    obtain ⟨hi, he⟩ := vec_index_eq hp
+    peel h as o1, ho1
+    obtain ⟨e1, hb1⟩ := bad_edge_loop_eq hpos hidx rank n v _ ho1
+    simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at e1
+    rw [drop_cons_of_lt hi, List.map_cons, List.find?_cons, ← he]
+    have ea : (absNode (n, v)).2.toList = v.val.map absImp := by simp
+    cases o1 with
+    | none =>
+      dsimp only at h
+      peel h as k1, hk1
+      have ih := first_bad_node_loop_eq hpos hidx rank c k1 h
+      rw [usize_succ hk1] at ih
+      have hall : (absNode (n, v)).2.all (Modular.edgeOk P (absRk S rank) (absNode (n, v)).1) = true := by
+        rw [← Array.all_toList, ea]
+        exact find_not_none.mp e1.symm
+      rw [hall]
+      exact ih
+    | some i =>
+      dsimp only at h
+      cases Result.ok_injective h
+      simp only [Option.bind_some] at e1
+      cases hv : v.val[i.val]? with
+      | none => rw [List.getElem?_eq_none_iff] at hv; have := hb1 i rfl; omega
+      | some x =>
+        rw [hv] at e1
+        have hall : (absNode (n, v)).2.all (Modular.edgeOk P (absRk S rank) (absNode (n, v)).1) = false := by
+          rw [← Array.all_toList, ea]
+          cases hq : (v.val.map absImp).all (Modular.edgeOk P (absRk S rank) (absNIdx n))
+          · rfl
+          · rw [← find_not_none] at hq; rw [hq] at e1; simp at e1
+        rw [hall]
+        have ef : (absNode (n, v)).2.find? (!Modular.edgeOk P (absRk S rank) (absNode (n, v)).1 ·) =
+            some (absImp x) := by
+          rw [← Array.find?_toList, ea]; exact e1.symm
+        simp [edgeFault, ef, hi, ← he, hv, absImportF]
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    rfl
+termination_by c.val.length - k.val
+decreasing_by have := lt_len hlt; rw [usize_succ hk1]; omega
+
+/-! ## `ranks_distinct` -/
+
+/-- The ranks' hash. -/
+abbrev hW := U64.Insts.Con_ron_coreRonHashmapHashable
+/-- The ranks' equality. -/
+abbrev eW := U64.Insts.Con_ron_coreRonHashmapEq2
+
+/-- **The ranks met**: the table of the present ones and the flag of the missing one, as upstream's
+set of optional ranks. -/
+structure SeenRel (m : ron.hashmap2.HashMap2 Std.U64 Bool) (none_seen : Bool)
+    (T : _root_.Std.HashSet (Option Nat)) : Prop where
+  inv : Inv hW m
+  mem : ∀ r, (toFun m r).isSome = T.contains (some r.val)
+  none : none_seen = T.contains none
+
+theorem ranks_distinct_loop_eq {idx S} (hidx : IdxRel idx S)
+    (c : alloc.vec.Vec (arena.handle.NIdx ×
+      alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)))
+    (rank : alloc.vec.Vec (Option Std.U64)) {seen none_seen T} (hT : SeenRel seen none_seen T)
+    (k : Std.Usize) {o} (h : ranks_distinct_loop c idx rank seen none_seen k = ok o) :
+    o = ConLeche.Frontend.Olean.distinctGo (((c.val.drop k.val).map absNode).map fun e => absRk S rank e.1) T := by
+  rw [ranks_distinct_loop] at h
+  by_cases hlt : k < alloc.vec.Vec.len c
+  · rw [ite_eq_left hlt] at h
+    peel h as ⟨n, v⟩, hp
+    obtain ⟨hi, he⟩ := vec_index_eq hp
+    peel h as o1, ho1
+    have e1 : absOpt o1 = absRk S rank (absNIdx n) := rank_of_eq hidx ho1
+    rw [drop_cons_of_lt hi, List.map_cons, List.map_cons, ← he]
+    rw [← e1, ConLeche.Frontend.Olean.distinctGo]
+    simp only [_root_.Std.HashSet.containsThenInsert_fst, _root_.Std.HashSet.containsThenInsert_snd]
+    cases o1 with
+    | none =>
+      dsimp only at h
+      simp only [absOpt, Option.map_none]
+      rw [← hT.none]
+      cases none_seen with
+      | true => cases Result.ok_injective h; rfl
+      | false =>
+        simp only [Bool.false_eq_true, ↓reduceIte] at h
+        peel h as k1, hk1
+        have hT' : SeenRel seen true (T.insert none) := by
+          refine ⟨hT.inv, fun r => ?_, by simp⟩
+          rw [_root_.Std.HashSet.contains_insert, hT.mem r]; simp
+        have ih := ranks_distinct_loop_eq hidx c rank hT' k1 h
+        rw [usize_succ hk1] at ih
+        simpa using ih
+    | some r =>
+      dsimp only at h
+      peel h as b, hb
+      have eb := ConRon.Refine.HashMap2.contains_key_refines_gen (P := fun _ => True)
+        ConRon.Refine2.Frontend.u64Eq2Fwd hT.inv (fun _ _ => trivial) trivial hb
+      rw [hT.mem r] at eb
+      simp only [absOpt, Option.map_some]
+      rw [← eb]
+      cases b with
+      | true => cases Result.ok_injective h; rfl
+      | false =>
+        simp only [Bool.false_eq_true, ↓reduceIte] at h
+        peel h as ⟨_, seen1⟩, hs1
+        peel h as k1, hk1
+        obtain ⟨hinv, -, hupd, -⟩ := ConRon.Refine.HashMap2.insert_refines_gen (P := fun _ => True)
+          ConRon.Refine2.Frontend.u64Eq2Fwd hT.inv (fun _ _ => trivial) trivial hs1
+        have hT' : SeenRel seen1 none_seen (T.insert (some r.val)) := by
+          refine ⟨hinv, fun r1 => ?_, ?_⟩
+          · rw [hupd, Function.update_apply, _root_.Std.HashSet.contains_insert]
+            by_cases hr : r1 = r
+            · subst hr; simp
+            · have hne : (some r.val == some r1.val) = false := by
+                simp only [beq_eq_false_iff_ne, ne_eq, Option.some.injEq]
+                exact fun he => hr (UScalar.eq_of_val_eq he.symm)
+              rw [ite_eq_right hr, hne, Bool.false_or]
+              exact hT.mem r1
+          · rw [_root_.Std.HashSet.contains_insert, hT.none]; simp
+        have ih := ranks_distinct_loop_eq hidx c rank hT' k1 h
+        rw [usize_succ hk1] at ih
+        simpa using ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    rfl
+termination_by c.val.length - k.val
+decreasing_by all_goals (have := lt_len hlt; rw [usize_succ hk1]; omega)
+
+/-- **`ranks_distinct` is `distinctGo` on the ranks.** -/
+theorem ranks_distinct_eq {idx S} (hidx : IdxRel idx S)
+    {c : alloc.vec.Vec (arena.handle.NIdx ×
+      alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))}
+    {rank : alloc.vec.Vec (Option Std.U64)} {o} (h : ranks_distinct c idx rank = ok o) :
+    o = ConLeche.Frontend.Olean.distinctGo ((absC c).toList.map fun e => absRk S rank e.1) {} := by
+  rw [ranks_distinct] at h
+  peel h as seen, hseen
+  obtain ⟨hinv, -, hnone⟩ := ConRon.Refine.HashMap2.new_refines (HashableInst := hW) hseen
+  have := ranks_distinct_loop_eq hidx c rank (T := {}) ⟨hinv, fun r => by rw [hnone]; simp, by simp⟩ _ h
+  simpa using this
+
 end ConRon.Refine2.Modular
