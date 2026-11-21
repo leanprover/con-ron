@@ -1381,6 +1381,151 @@ theorem reach_go_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
       (Modular.reachGo fs (absPins pk) (absRoots sp) E fuel.val L C) :=
   reach_go_loop_ok hP he fuel st lst l L hl c C hc
 
+/-! ## The reach -/
+
+/-- A `HashMap2` keyed by names holds no more keys than the twin's map. -/
+theorem nmapRel_len_le {V V' : Type} {A : V → V'} {m : ron.hashmap2.HashMap2 arena.handle.NIdx V}
+    {s : Std.HashMap NIdx V'} (h : NMapRel A m s) {n : Std.Usize}
+    (hl : ron.hashmap2.HashMap2.len m = ok n) : n.val ≤ s.size := by
+  rw [(ConRon.Refine.HashMap2.len_refines h.inv hl).1]
+  have hnd : (((ConRon.Refine.HashMap2.sl_v m).map Prod.fst).map absNIdx).Nodup :=
+    h.inv.nodup.map absNIdx_inj
+  have hsub : ((ConRon.Refine.HashMap2.sl_v m).map Prod.fst).map absNIdx ⊆ s.keys := by
+    intro x hx
+    simp only [List.mem_map] at hx
+    obtain ⟨k, ⟨p, hp, rfl⟩, rfl⟩ := hx
+    have hne : toFun m p.1 ≠ none := by
+      rw [toFun, Ne, ConRon.Refine.HashMap.lookupK_eq_none_iff]
+      simpa using ⟨p.2, hp⟩
+    have hg := h.get p.1
+    rw [Std.HashMap.mem_keys, Std.HashMap.mem_iff_isSome_getElem?, ← hg]
+    cases ht : toFun m p.1 with
+    | none => exact absurd ht hne
+    | some v => rfl
+  have := (hnd.subperm hsub).length_le
+  rw [Std.HashMap.length_keys, List.length_map, List.length_map] at this
+  exact this
+
+/-- **The read order's positions fit a `usize`** (they are positions of the records): the fact
+about sibling V's `read_order` the headline takes as a hypothesis. -/
+def ReadOrderFits (pers : arena.store.PersTier) : Prop :=
+  ∀ st ds rds o st', read_order pers st ds rds = ok (.Ok o, st') → ∀ j ∈ o.val, j.val ≤ Std.Usize.max
+
+/-- **Theorem 2 of the reach** (`AS` form, on the whole state): the Rust's `reach` accepting is
+the twin's `reach` accepting, with the `Reach` related (`pending` up to its messages). -/
+theorem reach_refines (hfs : FsRel inst fsv fs) (hRO : ReadOrderFits pers)
+    {m : arena.handle.NIdx} {wr : frontend.olean.index.WorkerReads} {W : Arena.Frontend.Olean.WorkerReads}
+    (hw : WorkerReadsRel wr W) (hfit : IndexFits W.loads) (hcf : ClashesFit wr)
+    {own : ron.hashmap2.HashMap2 arena.handle.NIdx Bool} {O : Std.HashSet NIdx} (ho : NSet own O)
+    {roots : alloc.vec.Vec arena.handle.NIdx} {st lst} :
+    AStateRel₀ pers st lst → AStateInv pers st →
+      LA pers ReachRel (reach inst fsv pk pers st sp m wr own roots) lst
+        (Modular.reach fs (absPins pk) (absRoots sp) (absNIdx m) W O (roots.val.map absNIdx).toArray) := by
+  intro hrel hinv a st' hr
+  have hP : PartsSpec inst fsv fs pk pers sp := partsSpec_of hfs
+  rw [reach] at hr
+  simp only [nidx_dup2_eq, Aeneas.Std.bind_ok] at hr
+  peel hr as hm, hhm
+  have hcop := clash_copies_of_eq (pk := pk) hw hcf hhm
+  let E : Modular.ReachEnv := { mod := absNIdx m, wr := W, own := O, copies := Modular.clashCopiesOf (absPins pk) W }
+  have he : ReachEnvRel { module := m, copies := hm } wr own E := ⟨rfl, hw, hfit, ho, hcop⟩
+  peel hr as c, hc0
+  have hc := reach_cache_empty_rel hc0
+  peel hr as q1, hq1
+  obtain ⟨r1, st1, c1⟩ := q1
+  cases r1 with
+  | Err e => cases Result.ok_injective hr
+  | Ok x =>
+  obtain ⟨⟨C1, X⟩, lst1, hx1, ⟨hc1, hX⟩, hrel1, hinv1⟩ := clash_agree_ok hP he hcf hc hrel hinv x st1 c1 hq1
+  peel hr as rs, hrs
+  have ers := reach_roots_eq ho hrs
+  peel hr as o, hoo
+  obtain ⟨-, eo⟩ := first_unloaded_eq hw.index.first hoo
+  cases o with
+  | some i => err_peel hr
+  | none =>
+  peel hr as l, hl0
+  have hl := reach_log_init_rel hl0
+  peel hr as n1, hn1
+  have en1 := nmapRel_len_le hw.index.first.rel hn1
+  peel hr as i1, hi1
+  have ei1 := cast_u64_val hi1
+  peel hr as i3, hi3
+  have ei3 := cast_u64_val hi3
+  peel hr as i4, hi4
+  have ei4 := ConRon.Refine.Nat.uadd_val hi4
+  peel hr as i5, hi5
+  have ei5 : i5.val = 2 ^ 24 := by
+    have := (ConRon.Refine.Nat.ushiftLeftI_val hi5).2
+    rw [this]; decide
+  peel hr as fuel, hfuel
+  have efuel := ConRon.Refine.Nat.uadd_val hfuel
+  have hmore : W.index.more.size = wr.index.more.val.length := by
+    rw [← Array.length_toList, ← hw.index.more, List.length_map]
+  have hle : fuel.val ≤ W.index.first.size + W.index.more.size + (1 <<< 24) := by
+    have h24 : (1 <<< 24 : Nat) = 2 ^ 24 := by decide
+    rw [h24, hmore]
+    have : (alloc.vec.Vec.len wr.index.more).val = wr.index.more.val.length := vec_len_val _
+    omega
+  peel hr as q2, hq2
+  obtain ⟨r2, st2, l1, c2⟩ := q2
+  cases r2 with
+  | Err e => cases Result.ok_injective hr
+  | Ok u =>
+  obtain ⟨⟨L1, C2⟩, lst2, hx2, hl1, hc2, hrel2, hinv2⟩ :=
+    reach_go_ok hP he hl hc1 fuel hrel1 hinv1 st2 l1 c2 hq2
+  have hx2' := reachGo_mono fs (absPins pk) (absRoots sp) E fuel.val
+    (W.index.first.size + W.index.more.size + (1 <<< 24) - fuel.val) _ _ _ _ hx2
+  rw [Nat.add_sub_cancel' hle] at hx2'
+  peel hr as q3, hq3
+  obtain ⟨r3, st3⟩ := q3
+  cases r3 with
+  | Err e => cases Result.ok_injective hr
+  | Ok o1 =>
+  have hfits := hRO _ _ _ _ _ hq3
+  obtain ⟨O1, lst3, hx3, hO1, hrel3, hinv3⟩ := read_order_la hrel2 hinv2 l1.ctx l1.reads o1 st3 hq3
+  have eC : L1.ctx = (absIDeclL l1.ctx).toArray := by
+    apply Array.ext'; rw [← hl1.ctx]; rfl
+  have eR : L1.reads = absRds l1.reads := by
+    apply Array.ext'; rw [← hl1.reads]; simp [absRds]
+  peel hr as q4, hq4
+  obtain ⟨ctx, homes⟩ := q4
+  obtain ⟨ectx, ehomes⟩ := in_read_order_eq hl1 hfits hq4
+  have eO1 : O1 = (o1.val.map (·.val)).toArray := by apply Array.ext'; rw [hO1]
+  dsimp only [Std.uncurry] at hr
+  peel hr as q5, hq5
+  obtain ⟨r5, st4⟩ := q5
+  cases r5 with
+  | Err e => cases Result.ok_injective hr
+  | Ok u5 =>
+  obtain ⟨_, lst4, hx4, -, hrel4, hinv4⟩ := validate_ctx_la hrel3 hinv3 ctx homes u5 st4 hq5
+  peel hr as inf, hinf
+  have einf := cast_u64_val hinf
+  have e := Result.ok_injective hr
+  simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e
+  obtain ⟨rfl, rfl⟩ := e
+  refine ⟨(⟨(Modular.inReadOrder L1 O1).1, (Modular.inReadOrder L1 O1).2, C2.completed, C2.searches,
+      C2.pending.size, C2.pending⟩ : Modular.Reach), lst4, ?_,
+    ⟨(by rw [eO1]; exact ectx), (by rw [eO1]; exact ehomes), hc2.completed, hc2.searches, ?_, hc2.pending⟩,
+    hrel4, hinv4⟩
+  · unfold Modular.reach
+    rw [am_bind_ok hx1]
+    dsimp only
+    have eX : X = (x.val.map absNIdx).toArray := by apply Array.ext'; rw [← hX]
+    have eo' : (rs.val.map absNIdx).find? (!W.index.first.contains ·) = none := by rw [← eo]; rfl
+    rw [eX, ← ers, eo']
+    dsimp only
+    rw [am_bind_ok hx2']
+    dsimp only
+    rw [eC, eR, am_bind_ok hx3]
+    have ev1 : (Modular.inReadOrder L1 O1).1.toList = absIDeclL ctx := by rw [eO1, ← ectx]; rfl
+    have ev2 : (Modular.inReadOrder L1 O1).2 = (homes.val.map absNIdx).toArray := by
+      apply Array.ext'; rw [eO1, ← ehomes]
+    rw [ev1, ev2, am_bind_ok hx4]
+    rfl
+  · rw [einf, vec_len_val]
+    exact List.Forall₂.length_eq hc2.pending
+
 end reads
 
 end ConRon.Refine2.Modular
