@@ -16,6 +16,7 @@ public import ConRon.Arena.Frontend.Olean.Present
 public import ConRon.Arena.Needs
 public import ConRon.Arena.Justify
 public import ConRon.Arena.Inductives.StreamRecs
+public import ConRon.Arena.Frontend.Compare
 
 @[expose] public section
 
@@ -448,9 +449,11 @@ def partnerReads (acc : Array (NIdx × NIdx)) (h : NIdx) (ty : EIdx) : AM (Array
   pure (x.acc.foldl (fun acc y => acc.push (h, y)) acc)
 
 /-- con-leche: ConLeche/Driver/Reach.lean:409-441 agreeCheck
-`s!"name capture at {y}, read by module {h}"`. -/
+`s!"name capture at {y}, read by module {h}"`, the names as the Rust's `name_text` renders
+them (`nameText`: `?` for a dangling handle), so the message of a recorded statement cannot
+fail. -/
 def captureWhat (h y : NIdx) : AM String := do
-  pure s!"name capture at {← readName y}, read by module {← readName h}"
+  pure s!"name capture at {← Frontend.nameText y}, read by module {← Frontend.nameText h}"
 
 /-- con-leche: ConLeche/Driver/Reach.lean:409-441 agreeCheck
 The copies of `y` of two modules are not one constant. -/
@@ -515,7 +518,7 @@ def clashAgreeOne (fs : OleanFs) (pk : OleanPins) (sp : Roots) (env : ReachEnv) 
   if yes then return (c, acc.push cl.name)
   match spots with
   | (_, cv, _) :: _ =>
-    let why := s!"two loaded modules store {← readName cl.name}"
+    let why := s!"two loaded modules store {← Frontend.nameText cl.name}"
     pure ({ c with pending := c.pending.push (why, cl.name, cv) }, acc.push cl.name)
   | [] => pure (c, acc)
 
