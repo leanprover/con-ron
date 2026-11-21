@@ -5,36 +5,17 @@
 # or its text changed: re-read the paragraph that cites it, fix the link
 # or the prose, then regenerate.
 
-== con-leche/ConLeche/MainTheorem.lean#L96-L124
-    96  /-- **The main theorem.**  Every environment the checker accepts has a
-    97  model in every set theory — at every `Nat.div`/`Nat.mod` pin list, so
-    98  consistency does not depend on which variants the install gate is
-    99  handed (the empty list included: under it every stream that declares
-   100  `Nat.div` declines).  The shipped binary runs the fold at
-   101  `natOpPinSets`. -/
-   102  theorem model_exists (V : Type w) [SetTheory V]
-   103      (pins : List NatOpPinSet) (maxNatSize : Nat) (ds : Array Declaration) (env : Env)
-   104      (accepted : checkDecls .verified pins maxNatSize ds = .ok env) :
-   105      Nonempty (Model V env) := by
-   106    obtain ⟨m⟩ := Cached.checkDecls_sound (V := V) accepted
-   107    exact ⟨Model.Model.ofEnvModelM m⟩
-   108  
-   109  open Frontend in
-   110  /-- **The main corollary.**  A file declaring a theorem of type `False`
-   111  in the shape `jsonWithTheoremFalse` describes is rejected: the parse
-   112  reads the template's four lines into a theorem record of type `False`,
-   113  the preparation keeps the record, and a stream holding it is never
-   114  accepted.  At every pin list, as the main theorem: the shipped binary
-   115  runs the fold at `natOpPinSets`. -/
-   116  theorem no_False_declaration (V : Type w) [SetTheory V]
-   117      (pins : List NatOpPinSet) (maxNatSize : Nat) (chunks : List ByteArray)
-   118      (h : jsonWithTheoremFalse chunks) :
-   119      ∃ e, (do
-   120        let pre ← builtinPreludeE
-   121        let r ← parseChunks chunks
-   122        let ds := preparePrelude pre r.decls
-   123        checkDecls .verified pins maxNatSize ds) = .error e := by
-   124    refine Except.exists_error_of_not_ok fun env hacc => ?_
+== con-leche/ConLeche/Model/PureChecker.lean#L30-L39
+    30  /-- **Every stream the checker accepts has a model in every set theory.** -/
+    31  theorem model_exists (V : Type w) [SetTheory V]
+    32      (pins : List NatOpPinSet) (maxNatSize : Nat) (ds : Array Declaration)
+    33      (accepted : (checkDecls .verified pins maxNatSize ds).isOk) :
+    34      ∃ model, IsModel V model (· ∈ constantsOf ds.toList) := by
+    35    cases h : checkDecls .verified pins maxNatSize ds with
+    36    | error e => rw [h] at accepted; cases accepted
+    37    | ok env =>
+    38      obtain ⟨m⟩ := Cached.checkDecls_sound (V := V) h
+    39      exact ⟨_, isModel_of_envModelM m (Cached.checkDecls_recordsStored h)⟩
 
 == con-leche/ConLeche/Verify/Cached/MainC.lean#L33-L39
     33  /-- **Acceptance**: what the fold accepts carries the model. -/
@@ -45,62 +26,62 @@
     38    obtain ⟨n, fe, r, rfl⟩ := checkDecls_run .verified h
     39    exact (declsRun_model (V := V) r rfl ConLeche.Model.EnvModelOk.empty).nonempty
 
-== proof/ConRon/Capstone.lean#L571-L596
-   571  theorem model_exists (V : Type w) [ConLeche.SetTheory V]
-   572      {st1 st2 st3 st4 st5 st6 : arena.monad.AState}
-   573      (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
-   574      {pre : frontend.prepare.PreludeIx}
-   575      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
-   576      {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
-   577      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
-   578      (hreads : ReadsAs sinst src chunks.val)
-   579      {r : frontend.export_c.ParseResultD}
-   580      (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
-   581      {prepared : frontend.prepare.Prepared}
-   582      (h4 : frontend.prepare.prepare_d frontend.nat_op_ground.DeclUsedConsts.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier st3 pre r.decls () = ok (.Ok prepared, st4))
-   583      {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
-   584      (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
-   585      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-   586      {maxNatSize : ron.nat.Nat}
-   587      (h5 : arena.checker.intern_all_pins emptyTier st4 pins maxNatSize = ok (.Ok ipins, st5))
-   588      {ix : arena.stream_index.IStreamIndex}
-   589      (h6 : (do
-   590          let e ← arena.stream_index.stream_index_empty
-   591          arena.stream_index.build_index emptyTier st5 e prepared.decls 0#usize) = ok (.Ok ix, st6))
-   592      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
-   593      (h7 : arena.checker.freeze_tier st6.store ix = ok (tier, frozen))
-   594      (h8 : ParallelAll prepared.decls.length (arena.checker.worker_state st6.pins)
-   595        (jobStep tier .Verified ipins prepared.decls)) :
-   596      ∃ env, RustDenotes prepared.decls st6 env ∧ Nonempty (ConLeche.Model V env) := by
+== proof/ConRon/Capstone.lean#L575-L600
+   575  theorem model_exists (V : Type w) [ConLeche.SetTheory V]
+   576      {st1 st2 st3 st4 st5 st6 : arena.monad.AState}
+   577      (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+   578      {pre : frontend.prepare.PreludeIx}
+   579      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
+   580      {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
+   581      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
+   582      (hreads : ReadsAs sinst src chunks.val)
+   583      {r : frontend.export_c.ParseResultD}
+   584      (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
+   585      {prepared : frontend.prepare.Prepared}
+   586      (h4 : frontend.prepare.prepare_d frontend.nat_op_ground.DeclUsedConsts.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier st3 pre r.decls () = ok (.Ok prepared, st4))
+   587      {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+   588      (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+   589      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+   590      {maxNatSize : ron.nat.Nat}
+   591      (h5 : arena.checker.intern_all_pins emptyTier st4 pins maxNatSize = ok (.Ok ipins, st5))
+   592      {ix : arena.stream_index.IStreamIndex}
+   593      (h6 : (do
+   594          let e ← arena.stream_index.stream_index_empty
+   595          arena.stream_index.build_index emptyTier st5 e prepared.decls 0#usize) = ok (.Ok ix, st6))
+   596      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
+   597      (h7 : arena.checker.freeze_tier st6.store ix = ok (tier, frozen))
+   598      (h8 : ParallelAll prepared.decls.length (arena.checker.worker_state st6.pins)
+   599        (jobStep tier .Verified ipins prepared.decls)) :
+   600      ∃ env, RustDenotes prepared.decls st6 env ∧ Nonempty (ConLeche.Model V env) := by
 
-== proof/ConRon/Capstone.lean#L619-L645
-   619  theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
-   620      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
-   621      (hfalse : ConLeche.jsonWithTheoremFalse (absChunks chunks))
-   622      {st1 st2 st3 st4 st5 st6 : arena.monad.AState}
-   623      (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
-   624      {pre : frontend.prepare.PreludeIx}
-   625      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
-   626      {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
-   627      (hreads : ReadsAs sinst src chunks.val)
-   628      {r : frontend.export_c.ParseResultD}
-   629      (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
-   630      {prepared : frontend.prepare.Prepared}
-   631      (h4 : frontend.prepare.prepare_d frontend.nat_op_ground.DeclUsedConsts.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier st3 pre r.decls () = ok (.Ok prepared, st4))
-   632      {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
-   633      (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
-   634      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-   635      {maxNatSize : ron.nat.Nat}
-   636      (h5 : arena.checker.intern_all_pins emptyTier st4 pins maxNatSize = ok (.Ok ipins, st5))
-   637      {ix : arena.stream_index.IStreamIndex}
-   638      (h6 : (do
-   639          let e ← arena.stream_index.stream_index_empty
-   640          arena.stream_index.build_index emptyTier st5 e prepared.decls 0#usize) = ok (.Ok ix, st6))
-   641      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
-   642      (h7 : arena.checker.freeze_tier st6.store ix = ok (tier, frozen))
-   643      (h8 : ParallelAll prepared.decls.length (arena.checker.worker_state st6.pins)
-   644        (jobStep tier .Verified ipins prepared.decls)) :
-   645      False := by
+== proof/ConRon/Capstone.lean#L623-L649
+   623  theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+   624      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
+   625      (hfalse : ConLeche.jsonWithTheoremFalse (absChunks chunks))
+   626      {st1 st2 st3 st4 st5 st6 : arena.monad.AState}
+   627      (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+   628      {pre : frontend.prepare.PreludeIx}
+   629      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
+   630      {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
+   631      (hreads : ReadsAs sinst src chunks.val)
+   632      {r : frontend.export_c.ParseResultD}
+   633      (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
+   634      {prepared : frontend.prepare.Prepared}
+   635      (h4 : frontend.prepare.prepare_d frontend.nat_op_ground.DeclUsedConsts.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier st3 pre r.decls () = ok (.Ok prepared, st4))
+   636      {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+   637      (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+   638      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+   639      {maxNatSize : ron.nat.Nat}
+   640      (h5 : arena.checker.intern_all_pins emptyTier st4 pins maxNatSize = ok (.Ok ipins, st5))
+   641      {ix : arena.stream_index.IStreamIndex}
+   642      (h6 : (do
+   643          let e ← arena.stream_index.stream_index_empty
+   644          arena.stream_index.build_index emptyTier st5 e prepared.decls 0#usize) = ok (.Ok ix, st6))
+   645      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
+   646      (h7 : arena.checker.freeze_tier st6.store ix = ok (tier, frozen))
+   647      (h8 : ParallelAll prepared.decls.length (arena.checker.worker_state st6.pins)
+   648        (jobStep tier .Verified ipins prepared.decls)) :
+   649      False := by
 
 == crates/con-ron-core/src/arena/handle.rs#L4-L13
      4  //! One 32-bit word per handle, in one of two shapes.  The top bit is the tier
@@ -316,88 +297,88 @@
     84  `PINS_TEXT`.
     85  -/
 
-== proof/ConRon/Capstone.lean#L924-L940
-   924  /-- info: 'ConRon.Capstone.model_exists' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-   925  #guard_msgs in #print axioms model_exists
-   926  
-   927  /-- info: 'ConRon.Capstone.no_False_declaration' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-   928  #guard_msgs in #print axioms no_False_declaration
-   929  
-   930  /-- info: 'ConRon.Capstone.model_exists_embedded' depends on axioms: [propext,
-   931   Classical.choice,
-   932   Quot.sound,
-   933   kernel.pins_text.PINS_TEXT._native.decide.ax_1] -/
-   934  #guard_msgs in #print axioms model_exists_embedded
-   935  
-   936  /-- info: 'ConRon.Capstone.no_False_declaration_embedded' depends on axioms: [propext,
-   937   Classical.choice,
-   938   Quot.sound,
-   939   kernel.pins_text.PINS_TEXT._native.decide.ax_1] -/
-   940  #guard_msgs in #print axioms no_False_declaration_embedded
+== proof/ConRon/Capstone.lean#L928-L944
+   928  /-- info: 'ConRon.Capstone.model_exists' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+   929  #guard_msgs in #print axioms model_exists
+   930  
+   931  /-- info: 'ConRon.Capstone.no_False_declaration' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+   932  #guard_msgs in #print axioms no_False_declaration
+   933  
+   934  /-- info: 'ConRon.Capstone.model_exists_embedded' depends on axioms: [propext,
+   935   Classical.choice,
+   936   Quot.sound,
+   937   kernel.pins_text.PINS_TEXT._native.decide.ax_1] -/
+   938  #guard_msgs in #print axioms model_exists_embedded
+   939  
+   940  /-- info: 'ConRon.Capstone.no_False_declaration_embedded' depends on axioms: [propext,
+   941   Classical.choice,
+   942   Quot.sound,
+   943   kernel.pins_text.PINS_TEXT._native.decide.ax_1] -/
+   944  #guard_msgs in #print axioms no_False_declaration_embedded
 
-== proof/ConRon/Capstone.lean#L619-L645
-   619  theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
-   620      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
-   621      (hfalse : ConLeche.jsonWithTheoremFalse (absChunks chunks))
-   622      {st1 st2 st3 st4 st5 st6 : arena.monad.AState}
-   623      (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
-   624      {pre : frontend.prepare.PreludeIx}
-   625      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
-   626      {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
-   627      (hreads : ReadsAs sinst src chunks.val)
-   628      {r : frontend.export_c.ParseResultD}
-   629      (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
-   630      {prepared : frontend.prepare.Prepared}
-   631      (h4 : frontend.prepare.prepare_d frontend.nat_op_ground.DeclUsedConsts.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier st3 pre r.decls () = ok (.Ok prepared, st4))
-   632      {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
-   633      (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
-   634      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-   635      {maxNatSize : ron.nat.Nat}
-   636      (h5 : arena.checker.intern_all_pins emptyTier st4 pins maxNatSize = ok (.Ok ipins, st5))
-   637      {ix : arena.stream_index.IStreamIndex}
-   638      (h6 : (do
-   639          let e ← arena.stream_index.stream_index_empty
-   640          arena.stream_index.build_index emptyTier st5 e prepared.decls 0#usize) = ok (.Ok ix, st6))
-   641      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
-   642      (h7 : arena.checker.freeze_tier st6.store ix = ok (tier, frozen))
-   643      (h8 : ParallelAll prepared.decls.length (arena.checker.worker_state st6.pins)
-   644        (jobStep tier .Verified ipins prepared.decls)) :
-   645      False := by
+== proof/ConRon/Capstone.lean#L623-L649
+   623  theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+   624      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
+   625      (hfalse : ConLeche.jsonWithTheoremFalse (absChunks chunks))
+   626      {st1 st2 st3 st4 st5 st6 : arena.monad.AState}
+   627      (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+   628      {pre : frontend.prepare.PreludeIx}
+   629      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
+   630      {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
+   631      (hreads : ReadsAs sinst src chunks.val)
+   632      {r : frontend.export_c.ParseResultD}
+   633      (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
+   634      {prepared : frontend.prepare.Prepared}
+   635      (h4 : frontend.prepare.prepare_d frontend.nat_op_ground.DeclUsedConsts.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier st3 pre r.decls () = ok (.Ok prepared, st4))
+   636      {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+   637      (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+   638      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+   639      {maxNatSize : ron.nat.Nat}
+   640      (h5 : arena.checker.intern_all_pins emptyTier st4 pins maxNatSize = ok (.Ok ipins, st5))
+   641      {ix : arena.stream_index.IStreamIndex}
+   642      (h6 : (do
+   643          let e ← arena.stream_index.stream_index_empty
+   644          arena.stream_index.build_index emptyTier st5 e prepared.decls 0#usize) = ok (.Ok ix, st6))
+   645      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
+   646      (h7 : arena.checker.freeze_tier st6.store ix = ok (tier, frozen))
+   647      (h8 : ParallelAll prepared.decls.length (arena.checker.worker_state st6.pins)
+   648        (jobStep tier .Verified ipins prepared.decls)) :
+   649      False := by
 
-== proof/ConRon/Capstone.lean#L571-L596
-   571  theorem model_exists (V : Type w) [ConLeche.SetTheory V]
-   572      {st1 st2 st3 st4 st5 st6 : arena.monad.AState}
-   573      (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
-   574      {pre : frontend.prepare.PreludeIx}
-   575      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
-   576      {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
-   577      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
-   578      (hreads : ReadsAs sinst src chunks.val)
-   579      {r : frontend.export_c.ParseResultD}
-   580      (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
-   581      {prepared : frontend.prepare.Prepared}
-   582      (h4 : frontend.prepare.prepare_d frontend.nat_op_ground.DeclUsedConsts.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier st3 pre r.decls () = ok (.Ok prepared, st4))
-   583      {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
-   584      (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
-   585      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-   586      {maxNatSize : ron.nat.Nat}
-   587      (h5 : arena.checker.intern_all_pins emptyTier st4 pins maxNatSize = ok (.Ok ipins, st5))
-   588      {ix : arena.stream_index.IStreamIndex}
-   589      (h6 : (do
-   590          let e ← arena.stream_index.stream_index_empty
-   591          arena.stream_index.build_index emptyTier st5 e prepared.decls 0#usize) = ok (.Ok ix, st6))
-   592      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
-   593      (h7 : arena.checker.freeze_tier st6.store ix = ok (tier, frozen))
-   594      (h8 : ParallelAll prepared.decls.length (arena.checker.worker_state st6.pins)
-   595        (jobStep tier .Verified ipins prepared.decls)) :
-   596      ∃ env, RustDenotes prepared.decls st6 env ∧ Nonempty (ConLeche.Model V env) := by
+== proof/ConRon/Capstone.lean#L575-L600
+   575  theorem model_exists (V : Type w) [ConLeche.SetTheory V]
+   576      {st1 st2 st3 st4 st5 st6 : arena.monad.AState}
+   577      (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+   578      {pre : frontend.prepare.PreludeIx}
+   579      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
+   580      {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
+   581      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
+   582      (hreads : ReadsAs sinst src chunks.val)
+   583      {r : frontend.export_c.ParseResultD}
+   584      (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
+   585      {prepared : frontend.prepare.Prepared}
+   586      (h4 : frontend.prepare.prepare_d frontend.nat_op_ground.DeclUsedConsts.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier st3 pre r.decls () = ok (.Ok prepared, st4))
+   587      {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+   588      (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+   589      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+   590      {maxNatSize : ron.nat.Nat}
+   591      (h5 : arena.checker.intern_all_pins emptyTier st4 pins maxNatSize = ok (.Ok ipins, st5))
+   592      {ix : arena.stream_index.IStreamIndex}
+   593      (h6 : (do
+   594          let e ← arena.stream_index.stream_index_empty
+   595          arena.stream_index.build_index emptyTier st5 e prepared.decls 0#usize) = ok (.Ok ix, st6))
+   596      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
+   597      (h7 : arena.checker.freeze_tier st6.store ix = ok (tier, frozen))
+   598      (h8 : ParallelAll prepared.decls.length (arena.checker.worker_state st6.pins)
+   599        (jobStep tier .Verified ipins prepared.decls)) :
+   600      ∃ env, RustDenotes prepared.decls st6 env ∧ Nonempty (ConLeche.Model V env) := by
 
-== proof/ConRon/Capstone.lean#L462-L466
-   462  def RustDenotes (ds : alloc.vec.Vec arena.env.IDeclaration) (st : arena.monad.AState)
-   463      (env : ConLeche.Env) : Prop :=
-   464    ∃ (lst : ConRon.Arena.AState) (dsP : List ConLeche.Declaration),
-   465      AStateRel emptyTier st lst ∧ ConRon.Bridge.denoteDecls lst.store (absIDeclL ds) = some dsP ∧
-   466        env = ConLeche.streamEnv dsP
+== proof/ConRon/Capstone.lean#L466-L470
+   466  def RustDenotes (ds : alloc.vec.Vec arena.env.IDeclaration) (st : arena.monad.AState)
+   467      (env : ConLeche.Env) : Prop :=
+   468    ∃ (lst : ConRon.Arena.AState) (dsP : List ConLeche.Declaration),
+   469      AStateRel emptyTier st lst ∧ ConRon.Bridge.denoteDecls lst.store (absIDeclL ds) = some dsP ∧
+   470        env = ConLeche.streamEnv dsP
 
 == crates/con-ron/src/bin/con-ron.rs#L462-L480
    462      // check phase freezes the store's tier, the index with it, into a
@@ -427,92 +408,93 @@
     37    | src, c :: cs => c.val ≠ [] ∧
     38        ∃ src', inst.next_chunk src = ok (c, src') ∧ ReadsAs inst src' cs
 
-== proof/ConRon/Capstone.lean#L837-L874
-   837  theorem no_False_oleans (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS}
-   838      {m : ConLeche.Name} {d : ConLeche.Frontend.Olean.ModDecoded}
-   839      {c : ConLeche.Frontend.Olean.CEntryF ConLeche.Name ConLeche.Expr} {v : ConLeche.Expr}
-   840      {all : List ConLeche.Name}
-   841      {names : List kernel.name.Name} {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
-   842      (hcl : ConLeche.Frontend.Olean.InClosure (ConRon.Refine2.Frontend.Olean.absSearchPath dirs) F
-   843        (names.map ConRon.Refine.absName).toArray m)
-   844      (hv : ConLeche.Frontend.Olean.ViewOf (ConRon.Refine2.Frontend.Olean.absSearchPath dirs) F m d)
-   845      (hmem : c ∈ d.constants) (hk : c.kind = .thm v all)
-   846      (hty : c.type = .const ConLeche.falseName [])
-   847      {st1 st2 stR st4 st5 st6 : arena.monad.AState}
-   848      (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
-   849      {pre : frontend.prepare.PreludeIx}
-   850      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
-   851      {roots : alloc.vec.Vec arena.handle.NIdx}
-   852      (hroots : InternRoots emptyTier st2 names roots.val stR)
-   853      {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
-   854      (hsnap : SnapshotOf finst fsv F)
-   855      {rd : frontend.olean.records.OleanRead} {store3 : arena.store.EStore}
-   856      (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store dirs roots none
-   857        = ok (.Ok rd, store3))
-   858      {prepared : frontend.prepare.Prepared}
-   859      (h4 : frontend.prepare.prepare_d frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier { stR with store := store3 } pre rd.decls rd
-   860        = ok (.Ok prepared, st4))
-   861      {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
-   862      (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
-   863      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-   864      {maxNatSize : ron.nat.Nat}
-   865      (h5 : arena.checker.intern_all_pins emptyTier st4 pins maxNatSize = ok (.Ok ipins, st5))
-   866      {ix : arena.stream_index.IStreamIndex}
-   867      (h6 : (do
-   868          let e ← arena.stream_index.stream_index_empty
-   869          arena.stream_index.build_index emptyTier st5 e prepared.decls 0#usize) = ok (.Ok ix, st6))
-   870      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
-   871      (h7 : arena.checker.freeze_tier st6.store ix = ok (tier, frozen))
-   872      (h8 : ParallelAll prepared.decls.length (oleanWorkerInit st6.pins)
-   873        (oleanJobStep finst fsv tier .Verified ipins prepared.decls rd.pins rd.values dirs)) :
-   874      False :=
+== proof/ConRon/Capstone.lean#L841-L878
+   841  theorem no_False_oleans (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS}
+   842      {m : ConLeche.Name} {d : ConLeche.Frontend.Olean.ModDecoded}
+   843      {c : ConLeche.Frontend.Olean.CEntryF ConLeche.Name ConLeche.Expr} {v : ConLeche.Expr}
+   844      {all : List ConLeche.Name}
+   845      {names : List kernel.name.Name} {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
+   846      (hcl : ConLeche.Frontend.Olean.InClosure (ConRon.Refine2.Frontend.Olean.absSearchPath dirs) F
+   847        (names.map ConRon.Refine.absName).toArray m)
+   848      (hv : ConLeche.Frontend.Olean.ViewOf (ConRon.Refine2.Frontend.Olean.absSearchPath dirs) F m d)
+   849      (hmem : c ∈ d.constants) (hk : c.kind = .thm v all)
+   850      (hty : c.type = .const ConLeche.falseName [])
+   851      {st1 st2 stR st4 st5 st6 : arena.monad.AState}
+   852      (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+   853      {pre : frontend.prepare.PreludeIx}
+   854      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
+   855      {roots : alloc.vec.Vec arena.handle.NIdx}
+   856      (hroots : InternRoots emptyTier st2 names roots.val stR)
+   857      {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+   858      (hsnap : SnapshotOf finst fsv F)
+   859      {rd : frontend.olean.records.OleanRead} {store3 : arena.store.EStore}
+   860      (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store dirs roots none
+   861        = ok (.Ok rd, store3))
+   862      {prepared : frontend.prepare.Prepared}
+   863      (h4 : frontend.prepare.prepare_d frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier { stR with store := store3 } pre rd.decls rd
+   864        = ok (.Ok prepared, st4))
+   865      {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+   866      (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+   867      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+   868      {maxNatSize : ron.nat.Nat}
+   869      (h5 : arena.checker.intern_all_pins emptyTier st4 pins maxNatSize = ok (.Ok ipins, st5))
+   870      {ix : arena.stream_index.IStreamIndex}
+   871      (h6 : (do
+   872          let e ← arena.stream_index.stream_index_empty
+   873          arena.stream_index.build_index emptyTier st5 e prepared.decls 0#usize) = ok (.Ok ix, st6))
+   874      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
+   875      (h7 : arena.checker.freeze_tier st6.store ix = ok (tier, frozen))
+   876      (h8 : ParallelAll prepared.decls.length (oleanWorkerInit st6.pins)
+   877        (oleanJobStep finst fsv tier .Verified ipins prepared.decls rd.pins rd.values dirs)) :
+   878      False :=
 
-== proof/ConRon/Capstone.lean#L883-L912
-   883  theorem model_exists_oleans (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS}
-   884      {names : List kernel.name.Name} {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
-   885      {st1 st2 stR st4 st5 st6 : arena.monad.AState}
-   886      (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
-   887      {pre : frontend.prepare.PreludeIx}
-   888      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
-   889      {roots : alloc.vec.Vec arena.handle.NIdx}
-   890      (hroots : InternRoots emptyTier st2 names roots.val stR)
-   891      {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
-   892      (hsnap : SnapshotOf finst fsv F)
-   893      {rd : frontend.olean.records.OleanRead} {store3 : arena.store.EStore}
-   894      (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store dirs roots none
-   895        = ok (.Ok rd, store3))
-   896      {prepared : frontend.prepare.Prepared}
-   897      (h4 : frontend.prepare.prepare_d frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier { stR with store := store3 } pre rd.decls rd
-   898        = ok (.Ok prepared, st4))
-   899      {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
-   900      (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
-   901      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-   902      {maxNatSize : ron.nat.Nat}
-   903      (h5 : arena.checker.intern_all_pins emptyTier st4 pins maxNatSize = ok (.Ok ipins, st5))
-   904      {ix : arena.stream_index.IStreamIndex}
-   905      (h6 : (do
-   906          let e ← arena.stream_index.stream_index_empty
-   907          arena.stream_index.build_index emptyTier st5 e prepared.decls 0#usize) = ok (.Ok ix, st6))
-   908      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
-   909      (h7 : arena.checker.freeze_tier st6.store ix = ok (tier, frozen))
-   910      (h8 : ParallelAll prepared.decls.length (oleanWorkerInit st6.pins)
-   911        (oleanJobStep finst fsv tier .Verified ipins prepared.decls rd.pins rd.values dirs)) :
-   912      ∃ env, RustDenotesFilled prepared.decls st6 env ∧ Nonempty (ConLeche.Model V env) :=
+== proof/ConRon/Capstone.lean#L887-L916
+   887  theorem model_exists_oleans (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS}
+   888      {names : List kernel.name.Name} {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
+   889      {st1 st2 stR st4 st5 st6 : arena.monad.AState}
+   890      (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+   891      {pre : frontend.prepare.PreludeIx}
+   892      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
+   893      {roots : alloc.vec.Vec arena.handle.NIdx}
+   894      (hroots : InternRoots emptyTier st2 names roots.val stR)
+   895      {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+   896      (hsnap : SnapshotOf finst fsv F)
+   897      {rd : frontend.olean.records.OleanRead} {store3 : arena.store.EStore}
+   898      (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store dirs roots none
+   899        = ok (.Ok rd, store3))
+   900      {prepared : frontend.prepare.Prepared}
+   901      (h4 : frontend.prepare.prepare_d frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier { stR with store := store3 } pre rd.decls rd
+   902        = ok (.Ok prepared, st4))
+   903      {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+   904      (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+   905      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+   906      {maxNatSize : ron.nat.Nat}
+   907      (h5 : arena.checker.intern_all_pins emptyTier st4 pins maxNatSize = ok (.Ok ipins, st5))
+   908      {ix : arena.stream_index.IStreamIndex}
+   909      (h6 : (do
+   910          let e ← arena.stream_index.stream_index_empty
+   911          arena.stream_index.build_index emptyTier st5 e prepared.decls 0#usize) = ok (.Ok ix, st6))
+   912      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
+   913      (h7 : arena.checker.freeze_tier st6.store ix = ok (tier, frozen))
+   914      (h8 : ParallelAll prepared.decls.length (oleanWorkerInit st6.pins)
+   915        (oleanJobStep finst fsv tier .Verified ipins prepared.decls rd.pins rd.values dirs)) :
+   916      ∃ env, RustDenotesFilled prepared.decls st6 env ∧ Nonempty (ConLeche.Model V env) :=
 
-== proof/ConRon/Capstone.lean#L186-L198
+== proof/ConRon/Capstone.lean#L186-L199
    186  structure SnapshotOf {Fs : Type} (inst : frontend.olean.files.OleanFs Fs) (fsv : Fs)
    187      (F : ConLeche.FS) : Prop where
    188    path_exists : ∀ {p q}, PathRel p q → ∀ b, inst.path_exists fsv p = ok (.Ok b) →
    189      b = (F.real q).isSome
-   190    real_path : ∀ {p q}, PathRel p q → ∀ r, inst.real_path fsv p = ok (.Ok r) →
-   191      F.real q = some ⟨ConRon.Refine.absString r⟩ ∧ ConRon.Refine.StrWF r
-   192    read_bin_file : ∀ {p q}, PathRel p q → ∀ b, inst.read_bin_file fsv p = ok (.Ok b) →
-   193      F.file q = some (absBytes (alloc.vec.Vec.deref b))
-   194    read_range : ∀ {p q}, PathRel p q → ∀ off len b, inst.read_range fsv p off len = ok (.Ok b) →
-   195      ∃ whole, F.file q = some whole ∧ absBytes (alloc.vec.Vec.deref b) =
-   196        whole.extract off.val (min (off.val + len.val) whole.size)
-   197    file_size : ∀ {p q}, PathRel p q → ∀ s, inst.file_size fsv p = ok (.Ok s) →
-   198      ∃ whole, F.file q = some whole ∧ s.val = whole.size
+   190    is_dir : ∀ {p q}, PathRel p q → ∀ b, inst.is_dir fsv p = ok (.Ok b) → b = F.dir q
+   191    real_path : ∀ {p q}, PathRel p q → ∀ r, inst.real_path fsv p = ok (.Ok r) →
+   192      F.real q = some ⟨ConRon.Refine.absString r⟩ ∧ ConRon.Refine.StrWF r
+   193    read_bin_file : ∀ {p q}, PathRel p q → ∀ b, inst.read_bin_file fsv p = ok (.Ok b) →
+   194      F.file q = some (absBytes (alloc.vec.Vec.deref b))
+   195    read_range : ∀ {p q}, PathRel p q → ∀ off len b, inst.read_range fsv p off len = ok (.Ok b) →
+   196      ∃ whole, F.file q = some whole ∧ absBytes (alloc.vec.Vec.deref b) =
+   197        whole.extract off.val (min (off.val + len.val) whole.size)
+   198    file_size : ∀ {p q}, PathRel p q → ∀ s, inst.file_size fsv p = ok (.Ok s) →
+   199      ∃ whole, F.file q = some whole ∧ s.val = whole.size
 
 == crates/con-ron-core/src/arena/monad.rs#L298-L320
    298  
@@ -768,27 +750,27 @@
   1125  theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
   1126      (hi : denoteE st i = some x) (hj : denoteE st j = some x) : i = j := by
 
-== crates/con-ron-core/src/arena/core.rs#L12062-L12081
- 12062  /// con-leche: none — **a job's bracket, closed** (DESIGN.md §8.3)
- 12063  /// Lean twin: `proof/ConRon/Arena/Core.lean:4578-4586 dropScratch` —
- 12064  /// the twin's `dropScratch` on a store that STAYS frozen (task #98-FREEZE): the
- 12065  /// caches flushed and the scratch tiers emptied, the flag untouched.  A
- 12066  /// worker's store is frozen for its whole life, so between two jobs it is
- 12067  /// frozen with an empty scratch tier where the twin's is scratch-off; nothing
- 12068  /// is interned there.
- 12069  pub fn leave_record(st: &mut AState) {
- 12070      flush_caches(st);
- 12071      st.store.clear_scratch();
- 12072  }
- 12073  
- 12074  /// con-leche: none — **a job's bracket, opened** (DESIGN.md §8.3)
- 12075  /// Lean twin: `proof/ConRon/Arena/Core.lean:4588-4595 enterScratch` —
- 12076  /// the twin's `enterScratch` on an already frozen store (task #98-FREEZE): the
- 12077  /// memos cleared and the scratch tiers emptied, the flag untouched.
- 12078  pub fn enter_record(st: &mut AState) {
- 12079      st.memos.reset();
- 12080      st.store.clear_scratch();
- 12081  }
+== crates/con-ron-core/src/arena/core.rs#L12051-L12070
+ 12051  /// con-leche: none — **a job's bracket, closed** (DESIGN.md §8.3)
+ 12052  /// Lean twin: `proof/ConRon/Arena/Core.lean:4578-4586 dropScratch` —
+ 12053  /// the twin's `dropScratch` on a store that STAYS frozen (task #98-FREEZE): the
+ 12054  /// caches flushed and the scratch tiers emptied, the flag untouched.  A
+ 12055  /// worker's store is frozen for its whole life, so between two jobs it is
+ 12056  /// frozen with an empty scratch tier where the twin's is scratch-off; nothing
+ 12057  /// is interned there.
+ 12058  pub fn leave_record(st: &mut AState) {
+ 12059      flush_caches(st);
+ 12060      st.store.clear_scratch();
+ 12061  }
+ 12062  
+ 12063  /// con-leche: none — **a job's bracket, opened** (DESIGN.md §8.3)
+ 12064  /// Lean twin: `proof/ConRon/Arena/Core.lean:4588-4595 enterScratch` —
+ 12065  /// the twin's `enterScratch` on an already frozen store (task #98-FREEZE): the
+ 12066  /// memos cleared and the scratch tiers emptied, the flag untouched.
+ 12067  pub fn enter_record(st: &mut AState) {
+ 12068      st.memos.reset();
+ 12069      st.store.clear_scratch();
+ 12070  }
 
 == crates/con-ron-core/src/arena/checker.rs#L65-L88
     65  /// con-leche: none — the phase boundary, which con-leche has no tier to make
@@ -1599,49 +1581,49 @@
     29  //! | `prepare` | `Arena/Frontend/Prepare.lean` | `Frontend/Prepare.lean` |
     30  //! | `prelude` | `Arena/Frontend/Prelude.lean` | `Frontend/Prelude.lean` |
 
-== crates/con-ron/src/driver.rs#L1002-L1043
-  1002          let mut buf: Vec<u8> = vec![0u8; self.chunk];
-  1003          match read_up_to(self.h, &mut buf) {
-  1004              Ok(n) => {
-  1005                  buf.truncate(n);
-  1006                  if n > 0 {
-  1007                      self.chunks += 1;
-  1008                  }
-  1009                  buf
-  1010              }
-  1011              Err(e) => {
-  1012                  self.err = Some(e);
-  1013                  Vec::new()
-  1014              }
-  1015          }
-  1016      }
-  1017  }
-  1018  
-  1019  /// con-leche: ConLeche/Frontend/CheckerIO.lean:205-215 foldChunks
-  1020  /// Streaming direct parse off an open reader, into the persistent tier of
-  1021  /// `ar`: the VERIFIED reader loop `export_c::parse_source` over the handle
-  1022  /// (task #97-P5-Driver moved the loop into the core; what is left here is
-  1023  /// the reads).  The chunk count comes back for the heartbeat, as the Lean
-  1024  /// twin's `readFold` returns it.
-  1025  pub fn parse_export_handle_d<R: Read>(
-  1026      pers: &PersTier,
-  1027      ar: &mut AState,
-  1028      h: &mut R,
-  1029      chunk: usize,
-  1030  ) -> std::io::Result<(Result<ParseResultD, (CheckError, u64)>, u64)> {
-  1031      let mut src = HandleSource { h, chunk, chunks: 0, err: None };
-  1032      let r = export_c::parse_source(pers, ar, &mut src);
-  1033      match src.err {
-  1034          Some(e) => Err(e),
-  1035          None => Ok((r, src.chunks)),
-  1036      }
-  1037  }
-  1038  
-  1039  /// con-leche: ConLeche/Driver/StreamParse.lean:114-125 parseStreamG
-  1040  /// con-leche: ConLeche/Frontend/CheckerIO.lean:514-529 instCheckerIOIO
-  1041  /// Streaming direct parse of a file.  The input must be a regular file, and
-  1042  /// that is decided before it is opened, as the class's `fileSize` decides it:
-  1043  /// opening a FIFO with no writer would block.  con-leche goes on with its
+== crates/con-ron/src/driver.rs#L1003-L1044
+  1003          let mut buf: Vec<u8> = vec![0u8; self.chunk];
+  1004          match read_up_to(self.h, &mut buf) {
+  1005              Ok(n) => {
+  1006                  buf.truncate(n);
+  1007                  if n > 0 {
+  1008                      self.chunks += 1;
+  1009                  }
+  1010                  buf
+  1011              }
+  1012              Err(e) => {
+  1013                  self.err = Some(e);
+  1014                  Vec::new()
+  1015              }
+  1016          }
+  1017      }
+  1018  }
+  1019  
+  1020  /// con-leche: ConLeche/Frontend/CheckerIO.lean:205-215 foldChunks
+  1021  /// Streaming direct parse off an open reader, into the persistent tier of
+  1022  /// `ar`: the VERIFIED reader loop `export_c::parse_source` over the handle
+  1023  /// (task #97-P5-Driver moved the loop into the core; what is left here is
+  1024  /// the reads).  The chunk count comes back for the heartbeat, as the Lean
+  1025  /// twin's `readFold` returns it.
+  1026  pub fn parse_export_handle_d<R: Read>(
+  1027      pers: &PersTier,
+  1028      ar: &mut AState,
+  1029      h: &mut R,
+  1030      chunk: usize,
+  1031  ) -> std::io::Result<(Result<ParseResultD, (CheckError, u64)>, u64)> {
+  1032      let mut src = HandleSource { h, chunk, chunks: 0, err: None };
+  1033      let r = export_c::parse_source(pers, ar, &mut src);
+  1034      match src.err {
+  1035          Some(e) => Err(e),
+  1036          None => Ok((r, src.chunks)),
+  1037      }
+  1038  }
+  1039  
+  1040  /// con-leche: ConLeche/Driver/StreamParse.lean:114-125 parseStreamG
+  1041  /// con-leche: ConLeche/Frontend/CheckerIO.lean:514-529 instCheckerIOIO
+  1042  /// Streaming direct parse of a file.  The input must be a regular file, and
+  1043  /// that is decided before it is opened, as the class's `fileSize` decides it:
+  1044  /// opening a FIFO with no writer would block.  con-leche goes on with its
 
 == crates/con-ron-core/src/arena/stream_index.rs#L178-L205
    178  /// con-leche: ConLeche/Cached/StreamIndex.lean:64-66 buildIndex
@@ -1673,45 +1655,45 @@
    204      }
    205  }
 
-== crates/con-ron-core/src/arena/install.rs#L364-L401
-   364  /// con-leche: ConLeche/Kernel/Install.lean:77-91 declConstants
-   365  /// con-leche: ConLeche/Cached/CheckerC.lean:104-118 declConstantsC
-   366  /// **The constants a declaration installs**, in push order.  A block
-   367  /// `readBlock` cannot read installs nothing (its check rejects it), and
-   368  /// `sorryAx` nothing (any use of it declines).
-   369  pub fn decl_constants(pers: &PersTier, st: &mut AState, pd: &IDeclaration) -> Result<Vec<IConstantInfo>, CheckError> {
-   370      match pd {
-   371          IDeclaration::DefnDecl(cv, value, hint) => {
-   372              let mut o: Vec<IConstantInfo> = Vec::new();
-   373              o.push(IConstantInfo::DefnInfo(env::i_constant_val_dup(cv), value.dup2(), reducibility_hint_dup(hint)));
-   374              Ok(o)
-   375          }
-   376          IDeclaration::ThmDecl(cv, _) => {
-   377              let mut o: Vec<IConstantInfo> = Vec::new();
-   378              o.push(IConstantInfo::ThmInfo(env::i_constant_val_dup(cv)));
-   379              Ok(o)
-   380          }
-   381          IDeclaration::OpaqueDecl(cv, _) => {
-   382              let mut o: Vec<IConstantInfo> = Vec::new();
-   383              o.push(IConstantInfo::AxiomInfo(env::i_constant_val_dup(cv)));
-   384              Ok(o)
-   385          }
-   386          IDeclaration::AxiomDecl(cv) => decl_constants_axiom(pers, st, cv),
-   387          IDeclaration::QuotDecl(k, cv) => match basis::quot_at(pers, st, k, cv) {
-   388              Err(e) => Err(e),
-   389              Ok(ci) => {
-   390                  let mut o: Vec<IConstantInfo> = Vec::new();
-   391                  o.push(ci);
-   392                  Ok(o)
-   393              }
-   394          },
-   395          IDeclaration::IndDecl(block, n_p) => match block_shape::read_block(pers, st, *n_p, block) {
-   396              Err(e) => Err(e),
-   397              Ok(Ok(p)) => block_constants(pers, st, &p),
-   398              Ok(Err(_)) => Ok(Vec::new()),
-   399          },
-   400      }
-   401  }
+== crates/con-ron-core/src/arena/install.rs#L362-L399
+   362  /// con-leche: ConLeche/Kernel/Install.lean:77-91 declConstants
+   363  /// con-leche: ConLeche/Cached/CheckerC.lean:104-118 declConstantsC
+   364  /// **The constants a declaration installs**, in push order.  A block
+   365  /// `readBlock` cannot read installs nothing (its check rejects it), and
+   366  /// `sorryAx` nothing (any use of it declines).
+   367  pub fn decl_constants(pers: &PersTier, st: &mut AState, pd: &IDeclaration) -> Result<Vec<IConstantInfo>, CheckError> {
+   368      match pd {
+   369          IDeclaration::DefnDecl(cv, value, hint) => {
+   370              let mut o: Vec<IConstantInfo> = Vec::new();
+   371              o.push(IConstantInfo::DefnInfo(env::i_constant_val_dup(cv), value.dup2(), reducibility_hint_dup(hint)));
+   372              Ok(o)
+   373          }
+   374          IDeclaration::ThmDecl(cv, _) => {
+   375              let mut o: Vec<IConstantInfo> = Vec::new();
+   376              o.push(IConstantInfo::ThmInfo(env::i_constant_val_dup(cv)));
+   377              Ok(o)
+   378          }
+   379          IDeclaration::OpaqueDecl(cv, _) => {
+   380              let mut o: Vec<IConstantInfo> = Vec::new();
+   381              o.push(IConstantInfo::AxiomInfo(env::i_constant_val_dup(cv)));
+   382              Ok(o)
+   383          }
+   384          IDeclaration::AxiomDecl(cv) => decl_constants_axiom(pers, st, cv),
+   385          IDeclaration::QuotDecl(k, cv) => match basis::quot_at(pers, st, k, cv) {
+   386              Err(e) => Err(e),
+   387              Ok(ci) => {
+   388                  let mut o: Vec<IConstantInfo> = Vec::new();
+   389                  o.push(ci);
+   390                  Ok(o)
+   391              }
+   392          },
+   393          IDeclaration::IndDecl(block, n_p) => match block_shape::read_block(pers, st, *n_p, block) {
+   394              Err(e) => Err(e),
+   395              Ok(Ok(p)) => block_constants(pers, st, &p),
+   396              Ok(Err(_)) => Ok(Vec::new()),
+   397          },
+   398      }
+   399  }
 
 == crates/con-ron-core/src/arena/stream_index.rs#L265-L283
    265  /// con-leche: ConLeche/Cached/StreamIndex.lean:95-103 recordJob
@@ -1734,58 +1716,58 @@
    282      r
    283  }
 
-== crates/con-ron/src/driver.rs#L674-L724
-   674          // a theorem's value is a reference only if its handle is a `bvar`: the store's
-   675          // projection reads the bvar table at the handle's slot whatever its tag
-   676          IDeclaration::ThmDecl(_, v) if v.tag() == con_ron_core::arena::handle::ETAG_BVAR => {
-   677              w.store.view_bvar(tier, v)
-   678          }
-   679          _ => None,
-   680      };
-   681      match (code, d) {
-   682          (Some(code), IDeclaration::ThmDecl(cv, _)) => {
-   683              con_ron_core::arena::core::enter_record(w);
-   684              let r = match con_ron_core::frontend::olean::records::read_value(
-   685                  &crate::olean_fs::StdFs,
-   686                  pk,
-   687                  tier,
-   688                  &mut w.store,
-   689                  sp,
-   690                  values,
-   691                  cache,
-   692                  code,
-   693              ) {
-   694                  Err(e) => Err((e, k)),
-   695                  Ok(v) => {
-   696                      let pd = IDeclaration::ThmDecl(ienv::i_constant_val_dup(cv), v);
-   697                      match stream_index::record_check(tier, w, mode, pins, k, &pd) {
-   698                          Err(e) => Err((e, k)),
-   699                          Ok(()) => Ok(()),
-   700                      }
-   701                  }
-   702              };
-   703              con_ron_core::arena::core::leave_record(w);
-   704              r
-   705          }
-   706          _ => checker::run_job(tier, w, mode, pins, ds, k),
-   707      }
-   708  }
-   709  
-   710  // ---------------------------------------------------------------------------
-   711  // The progress heartbeat (`--progress[=N|P%|Ss]`)
-   712  // ---------------------------------------------------------------------------
-   713  
-   714  /// con-leche: ConLeche/Driver/Run.lean:26-30 beat
-   715  /// con-leche: ConLeche/Driver/CheckPool.lean:106-125 checkHeartbeat
-   716  /// **The heartbeat**, con-leche's line shapes with `con-ron: ` for the prefix:
-   717  ///
-   718  /// ```text
-   719  /// con-ron: reading <label>
-   720  /// con-ron: parse done: <N> fold records — … t=<s>s (parse <s>s)
-   721  /// con-ron: checking: <N> declarations on <W> workers t=<s>s
-   722  /// con-ron: check <n> (<p>%)[ <decl>] t=<s>s
-   723  /// con-ron: check done: <N> declarations t=<s>s (check <s>s)
-   724  /// con-ron: done: parse <p>s, check <c>s, <W> worker[s] t=<s>s
+== crates/con-ron/src/driver.rs#L675-L725
+   675          // a theorem's value is a reference only if its handle is a `bvar`: the store's
+   676          // projection reads the bvar table at the handle's slot whatever its tag
+   677          IDeclaration::ThmDecl(_, v) if v.tag() == con_ron_core::arena::handle::ETAG_BVAR => {
+   678              w.store.view_bvar(tier, v)
+   679          }
+   680          _ => None,
+   681      };
+   682      match (code, d) {
+   683          (Some(code), IDeclaration::ThmDecl(cv, _)) => {
+   684              con_ron_core::arena::core::enter_record(w);
+   685              let r = match con_ron_core::frontend::olean::records::read_value(
+   686                  &crate::olean_fs::StdFs,
+   687                  pk,
+   688                  tier,
+   689                  &mut w.store,
+   690                  sp,
+   691                  values,
+   692                  cache,
+   693                  code,
+   694              ) {
+   695                  Err(e) => Err((e, k)),
+   696                  Ok(v) => {
+   697                      let pd = IDeclaration::ThmDecl(ienv::i_constant_val_dup(cv), v);
+   698                      match stream_index::record_check(tier, w, mode, pins, k, &pd) {
+   699                          Err(e) => Err((e, k)),
+   700                          Ok(()) => Ok(()),
+   701                      }
+   702                  }
+   703              };
+   704              con_ron_core::arena::core::leave_record(w);
+   705              r
+   706          }
+   707          _ => checker::run_job(tier, w, mode, pins, ds, k),
+   708      }
+   709  }
+   710  
+   711  // ---------------------------------------------------------------------------
+   712  // The progress heartbeat (`--progress[=N|P%|Ss]`)
+   713  // ---------------------------------------------------------------------------
+   714  
+   715  /// con-leche: ConLeche/Driver/Run.lean:26-30 beat
+   716  /// con-leche: ConLeche/Driver/CheckPool.lean:106-125 checkHeartbeat
+   717  /// **The heartbeat**, con-leche's line shapes with `con-ron: ` for the prefix:
+   718  ///
+   719  /// ```text
+   720  /// con-ron: reading <label>
+   721  /// con-ron: parse done: <N> fold records — … t=<s>s (parse <s>s)
+   722  /// con-ron: checking: <N> declarations on <W> workers t=<s>s
+   723  /// con-ron: check <n> (<p>%)[ <decl>] t=<s>s
+   724  /// con-ron: check done: <N> declarations t=<s>s (check <s>s)
+   725  /// con-ron: done: parse <p>s, check <c>s, <W> worker[s] t=<s>s
 
 == crates/con-ron/src/driver.rs#L581-L643
    581  /// con-leche: ConLeche/Driver/CheckMain.lean:233-385 checkMainG
@@ -2063,8 +2045,8 @@
    121      DeclOut pinsP env d s s' := by
 
 == proof/ConRon/Bridge/Checker/Pool.lean#L94-L109
-    94  /-- con-leche: ConLeche/Driver/CheckPool.lean:199-227 checkPool
-    95  con-leche: ConLeche/Verify/Cached/StreamIndex.lean:488 checkDecls_of_jobs — **THEOREM 1 at the
+    94  /-- con-leche: ConLeche/Driver/CheckPool.lean:211-239 checkPool
+    95  con-leche: ConLeche/Verify/Cached/StreamIndex.lean:527 checkDecls_of_jobs — **THEOREM 1 at the
     96  check phase the driver runs**: from an accepting `Arena.PooledAccepts`, con-leche's pure fold
     97  `checkDeclsPure` accepts the denoted stream, at the environment its records denote.  Each
     98  prefix's environment is well formed by con-leche's model-free `foldlM_checkDecl_envWF`
