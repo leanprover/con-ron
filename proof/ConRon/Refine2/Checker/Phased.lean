@@ -263,7 +263,7 @@ theorem foldAllOk_jobStep_refines {tier} {I : IStreamIndex} {mode : kernel.env.C
           rw [← UScalar.max_USize_eq, UScalar.max_def]
         have h3 := Nat.one_le_two_pow (n := UScalarTy.Usize.numBits)
         rw [hu, h2]; omega
-      obtain ⟨hlt, lst1, hx, hidle1, hinv1, -⟩ := run_job_refines hidle hinv htf hI hkU (J := none) trivial hs1
+      obtain ⟨hlt, lst1, hx, hidle1, hinv1, -⟩ := run_job_refines hidle hinv htf hI hkU (sol := none) (J := none) trivial hs1
       rw [hu] at hlt
       have hau : absU (UScalar.cast .U64 (UScalar.ofNatCore (ty := .Usize) k hk)) = k := hu
       rw [hau] at hx
