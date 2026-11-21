@@ -85,10 +85,11 @@ use con_ron_core::arena::store::PersTier;
 // reproduced.
 
 /// con-leche: ConLeche/Driver/Cli.lean:116-132 synopsis
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove con-ron::SYNOPSIS_refines, then delete this line
 /// The invocation forms, printed on their own when there are no arguments.
 /// `--pins`/`--no-pins` are the port's own testing flags (`driver::pins_for_run`)
 /// and are not in con-leche's synopsis; they are in the help text's options.
+/// con-leche's forms for `--compare`, `--check-graph`, `--module`, `--modular`
+/// and `--schedule` are not here: con-ron does not run those modes (`HELP_TAIL`).
 const SYNOPSIS: &str = "\
 Usage:
   con-ron [OPTIONS] [--] FILE.ndjson
@@ -99,7 +100,6 @@ Usage:
 const TRY_HELP: &str = "Try 'con-ron --help' for more information.";
 
 /// con-leche: ConLeche/Driver/Cli.lean:137-260 helpText
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove con-ron::HELP_HEAD_refines, then delete this line
 /// The `--help` text: con-leche's, with this binary's name, the port's two
 /// testing flags, and con-ron's documentation.  DESIGN.md §3.1: message
 /// strings need not match.
@@ -108,8 +108,9 @@ Check Lean declarations from a lean4export file or from .olean modules.
 ";
 
 /// con-leche: ConLeche/Driver/Cli.lean:137-260 helpText
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove con-ron::HELP_TAIL_refines, then delete this line
-/// The rest of the `--help` text, after the synopsis.
+/// The rest of the `--help` text, after the synopsis.  con-leche's options of
+/// the modes con-ron does not run are listed by name, as usage errors
+/// (`unsupported`), in place of their descriptions.
 const HELP_TAIL: &str = "\
 Options:
   --verified          Check in the mode the soundness theorem covers (default)
@@ -130,6 +131,10 @@ Options:
   --search-path=DIRS  Colon-separated .olean directories; repeatable
   --constant=NAME     Check only NAME and what it mentions; repeatable
 
+con-leche's other modes, not run by con-ron yet (a usage error, exit 3):
+  --compare, --trusted-search-path=DIRS, --check-graph, --module,
+  --modular, --schedule[-OPT=V], --worker-stack-size=SIZE
+
 Exit status:
   0  accepted
   1  rejected: a declaration is invalid
@@ -148,7 +153,6 @@ fn usage_error(msg: &str) -> u8 {
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:262-303 Args
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove con-ron::Args_refines, then delete this line
 /// What the command line asked for — `con-ron`'s `Args`, field for field, so
 /// that a script written against one binary reads against the other.
 struct Args {
@@ -166,11 +170,37 @@ struct Args {
     search_path: Vec<String>,
     /// `--constant=NAME`: with `--olean`, the constants to start from.
     constants: Vec<String>,
+    /// `--check-graph` (a mode con-ron does not run: `unsupported`).
+    check_graph: bool,
+    /// `--module` (not run by con-ron).
+    module: bool,
+    /// `--modular` (not run by con-ron).
+    modular: bool,
+    /// some `--schedule[-OPT=VALUE]` flag was given (not run by con-ron; its
+    /// values are not read, so they are not kept).
+    scheduled: bool,
+    /// `--compare` (not run by con-ron).
+    compare: bool,
+    /// `--trusted-search-path=DIR:DIR...` (read only by the modes con-ron does
+    /// not run, so only whether it was given is used).
+    trusted_path: Vec<String>,
+    /// `--worker-stack-size=SIZE` was given, with a valid size (the value is a
+    /// `--schedule` worker's, so only that it was given is kept).
+    worker_stack: bool,
     bad: Option<String>,
 }
 
+/// con-leche: ConLeche/Driver/Cli.lean:319-324 Args.closed
+/// The arguments once all are read: `--worker-stack-size` without
+/// `--schedule` is a usage error (no other run starts a worker).
+fn closed(mut a: Args) -> Args {
+    if a.worker_stack && !a.scheduled && a.bad.is_none() {
+        a.bad = Some("--worker-stack-size takes --schedule".to_string());
+    }
+    a
+}
+
 /// con-leche: ConLeche/Driver/Cli.lean:326-377 parseArgs
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove con-ron::parse_args_refines, then delete this line
 /// The argument parse, clause for clause as `con-ron`'s: the mode flags in
 /// either order with the heartbeat, `=`-carrying spellings after the bare
 /// ones, an unknown `-`-leading word a usage error, everything else a file.
@@ -189,6 +219,13 @@ fn parse_args(argv: &[String]) -> Args {
         olean: false,
         search_path: Vec::new(),
         constants: Vec::new(),
+        check_graph: false,
+        module: false,
+        modular: false,
+        scheduled: false,
+        compare: false,
+        trusted_path: Vec::new(),
+        worker_stack: false,
         bad: None,
     };
     let mut i = 0usize;
@@ -204,13 +241,17 @@ fn parse_args(argv: &[String]) -> Args {
             // The end of the options: every argument after it is a file.
             "--" => {
                 a.files.extend(argv[i + 1..].iter().cloned());
-                return a;
+                return closed(a);
             }
             "--verified" => a.verified = true,
             "--trusted" => a.verified = false,
             "--progress" => a.progress = Pace::Every(1),
             "--no-pins" => a.no_pins = true,
             "--olean" => a.olean = true,
+            "--check-graph" => a.check_graph = true,
+            "--module" => a.module = true,
+            "--modular" => a.modular = true,
+            "--compare" => a.compare = true,
             "--pins" => {
                 i += 1;
                 if i >= argv.len() {
@@ -248,6 +289,24 @@ fn parse_args(argv: &[String]) -> Args {
                 } else if let Some(v) = s.strip_prefix("--search-path=") {
                     a.search_path
                         .extend(v.split(':').filter(|d| !d.is_empty()).map(|d| d.to_string()));
+                } else if let Some(v) = s.strip_prefix("--trusted-search-path=") {
+                    a.trusted_path
+                        .extend(v.split(':').filter(|d| !d.is_empty()).map(|d| d.to_string()));
+                } else if s.starts_with("--schedule") {
+                    a.scheduled = true;
+                } else if let Some(v) = s.strip_prefix("--worker-stack-size=") {
+                    if con_ron::driver::size_positive(v) {
+                        a.worker_stack = true;
+                    } else {
+                        bad(
+                            format!(
+                                "--worker-stack-size takes a size with a unit, K, M, G or T \
+                                 (e.g. 8G), got {}",
+                                con_ron::render::display_str(v)
+                            ),
+                            &mut a,
+                        );
+                    }
                 } else if s.starts_with('-') {
                     bad(
                         format!("unknown option {}", con_ron::render::display_str(s)),
@@ -260,7 +319,57 @@ fn parse_args(argv: &[String]) -> Args {
         }
         i += 1;
     }
-    a
+    closed(a)
+}
+
+/// con-leche: none — the modes con-ron does not run
+/// A mode con-ron does not run, once con-leche's own usage checks have passed:
+/// a usage error (exit 3), never a silent run of another mode.
+fn unsupported(mode: &str) -> u8 {
+    usage_error(&format!("{} is not supported by con-ron yet", mode))
+}
+
+/// con-leche: none — `c == s` over the parsed module names (`Name`'s `BEq`)
+/// Two module names of the command line, the same module: compared as
+/// parsed, so `«A»` and `A` are one module.
+fn same_module(a: &con_ron_core::kernel::name::Name, b: &con_ron_core::kernel::name::Name) -> bool {
+    con_ron::render::name_str(a) == con_ron::render::name_str(b)
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
+/// `--check-graph`'s usage checks, con-leche's in its order; a command line
+/// that passes them is a mode con-ron does not run (`unsupported`).
+fn check_graph_usage(a: &Args) -> u8 {
+    if a.olean || a.module || !a.constants.is_empty() || (!a.trusted_path.is_empty() && !a.compare) {
+        return usage_error(
+            "--check-graph takes none of --olean, --module and --constant, and \
+             --trusted-search-path only with --compare",
+        );
+    }
+    if a.files.is_empty() || (a.search_path.is_empty() && a.trusted_path.is_empty()) {
+        return usage_error("--check-graph takes one or more module names and a --search-path=DIRS");
+    }
+    let mut roots = Vec::new();
+    for f in &a.files {
+        match con_ron_core::frontend::olean::files::parse_mod_name(&con_ron::render::cps(f)) {
+            Some(n) => roots.push(n),
+            None => {
+                return usage_error(&format!("not a module name: {}", con_ron::render::display_str(f)))
+            }
+        }
+    }
+    if a.compare {
+        if roots.len() != 2 {
+            return usage_error(
+                "--check-graph --compare takes two module names, a challenge and its solution",
+            );
+        }
+        if same_module(&roots[0], &roots[1]) {
+            return usage_error("--compare takes two different modules, a challenge and its solution");
+        }
+        return unsupported("--check-graph --compare");
+    }
+    unsupported("--check-graph")
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:305-308 helpWanted
@@ -324,9 +433,7 @@ enum Input {
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:233-385 checkMainG
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove con-ron::check_main_refines, then delete this line
 /// con-leche: ConLeche/Driver/CheckMain.lean:87-98 readInputG
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove con-ron::check_main_refines, then delete this line
 /// The driver's front matter: the prelude, the streaming parse, the
 /// preparation, the pin walk, the receipts, then the index, the check phase
 /// and the verdict.
@@ -589,7 +696,6 @@ fn exit_after_verdict(code: u8) -> ! {
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove con-ron::main_refines, then delete this line
 /// con-leche: Main.lean:56-103 main
 /// The entry point.  The checker runs IN THIS PROCESS: it spawns no copy of
 /// itself, and the whole run — parse, preparation, pin walk, fold — is on one
@@ -605,8 +711,10 @@ fn main() -> ! {
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove con-ron::run_main_refines, then delete this line
-/// The run up to its exit code, for every path but the verdict's.
+/// The run up to its exit code, for every path but the verdict's: `--help`,
+/// the parse, and con-leche's usage checks in its order, the modes con-ron does
+/// not run a usage error of their own (`unsupported`) where con-leche's checks
+/// pass.
 fn run_main() -> u8 {
     let argv: Vec<String> = std::env::args().skip(1).collect();
     if help_wanted(&argv) {
@@ -630,19 +738,108 @@ fn run_main() -> u8 {
     if let Some(msg) = &a.bad {
         return usage_error(msg);
     }
+    if a.check_graph {
+        return check_graph_usage(&a);
+    }
     let input: Input = if a.olean {
         // `--olean`: the arguments are root modules, read with their import
         // closure along the search path, module names as Lean spells them.
-        if a.files.is_empty() || a.search_path.is_empty() {
+        if a.files.is_empty() || (a.search_path.is_empty() && a.trusted_path.is_empty()) {
             return usage_error("--olean takes one or more module names and a --search-path=DIRS");
         }
-        match con_ron::olean_fs::OleanRequest::new(&a.search_path, &a.files, &a.constants) {
+        let req = match con_ron::olean_fs::OleanRequest::new(&a.search_path, &a.files, &a.constants) {
             Err(msg) => return usage_error(&msg),
-            Ok(req) => Input::Oleans(req),
+            Ok(req) => req,
+        };
+        if a.compare {
+            // `--compare`: a challenge and its solution, alone or as one module
+            // of a modular run — con-leche's usage checks, then the mode.
+            if req.roots.len() != 2 {
+                return usage_error("--compare takes two module names, a challenge and its solution");
+            }
+            if same_module(&req.roots[0], &req.roots[1]) {
+                return usage_error(
+                    "--compare takes two different modules, a challenge and its solution",
+                );
+            }
+            if a.module || a.modular || a.scheduled {
+                if !a.constants.is_empty()
+                    || (a.module && a.scheduled)
+                    || (a.modular && (a.module || a.scheduled))
+                {
+                    return usage_error(
+                        "--compare with --module, --modular or --schedule takes one of them, \
+                         and no --constant",
+                    );
+                }
+            }
+            return unsupported("--olean --compare");
         }
+        if !a.trusted_path.is_empty() && (!a.module || a.modular || a.scheduled) {
+            return usage_error("--trusted-search-path takes --compare or --module");
+        }
+        if a.scheduled {
+            if req.roots.len() != 1 || !a.constants.is_empty() || a.module || a.modular {
+                return usage_error(
+                    "--schedule takes one module name, and none of --constant, --module and \
+                     --modular",
+                );
+            }
+            return unsupported("--olean --schedule");
+        }
+        if a.modular {
+            if req.roots.len() != 1 || !a.constants.is_empty() || a.module {
+                return usage_error(
+                    "--modular takes one module name, and neither --constant nor --module",
+                );
+            }
+            return unsupported("--olean --modular");
+        }
+        if a.module {
+            if req.roots.len() != 1 || !a.constants.is_empty() {
+                return usage_error("--module takes one module name and no --constant");
+            }
+            return unsupported("--olean --module");
+        }
+        Input::Oleans(req)
     } else {
-        if !a.search_path.is_empty() || !a.constants.is_empty() {
-            return usage_error("--search-path and --constant take --olean");
+        if a.compare {
+            // `--compare` on two lean4export files: con-leche's usage checks,
+            // then the mode.
+            if !a.search_path.is_empty()
+                || !a.constants.is_empty()
+                || a.module
+                || a.modular
+                || a.scheduled
+                || !a.trusted_path.is_empty()
+            {
+                return usage_error(
+                    "--compare on two lean4export files takes none of --search-path, \
+                     --trusted-search-path, --constant, --module, --modular and --schedule \
+                     (they take --olean)",
+                );
+            }
+            if a.files.len() != 2 {
+                return usage_error("--compare takes two files, a challenge and its solution");
+            }
+            if a.files[0] == a.files[1] {
+                return usage_error(
+                    "--compare takes two different files, a challenge and its solution",
+                );
+            }
+            return unsupported("--compare");
+        }
+        if !a.search_path.is_empty()
+            || !a.constants.is_empty()
+            || a.module
+            || a.modular
+            || a.scheduled
+            || !a.trusted_path.is_empty()
+        {
+            return usage_error(
+                "--search-path, --trusted-search-path, --constant, --module, --modular and \
+                 --schedule take --olean",
+            );
         }
         match a.files.len() {
             1 => (),
