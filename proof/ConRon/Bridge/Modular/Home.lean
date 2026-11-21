@@ -957,8 +957,7 @@ theorem foldIdx_get {α β : Type} [BEq α] [Hashable α] [LawfulBEq α] [BEq β
       (∀ i (h1 : i < n) (h2 : i < m), kT i h1 = x ↔ kU i h2 = y) →
       (n.fold (fun i h (acc : Std.HashMap α Nat) => acc.insert (kT i h) i) {})[x]? =
         (m.fold (fun i h (acc : Std.HashMap β Nat) => acc.insert (kU i h) i) {})[y]? := by
-  intro n m hnm
-  cases hnm
+  rintro n m rfl
   induction n with
   | zero => intro _ _ _; simp
   | succ n ih =>
@@ -993,32 +992,33 @@ theorem mapM_getElem {α β : Type} {f : α → Option β} :
     | succ j => exact hk j (by simpa using hj)
 
 /-- con-leche: ConLeche/Frontend/Olean/Module.lean:106-152 expoOfParts — **the twin's loop over
-the exported constants is upstream's `for`**, step by step. -/
+the exported constants is upstream's `for`**, step by step, every step from a state `s₀` moved
+to. -/
 theorem expoLoop_run {pk : OleanPins} {r : Region} {privLoc : Std.HashMap Nat Nat}
     {privIdx : Std.HashMap NIdx Nat} {privLocs : Array Nat} {cs : Array (CEntryF NIdx EIdx)}
-    {f : Nat → Array Expo → Except String (ForInStep (Array Expo))} :
+    {f : Nat → Array Expo → Except String (ForInStep (Array Expo))} {s₀ : AState} :
     ∀ (l : List Nat),
       (∀ c ∈ l, ∀ i expo, privLoc[c]? = some i → f c expo = .ok (.yield (expo.set! i .same))) →
-      (∀ c ∈ l, privLoc[c]? = none → ∀ expo s s₁ expo₁, Ctx pk s →
+      (∀ c ∈ l, privLoc[c]? = none → ∀ expo s s₁ expo₁, ParseStep s₀ s →
         ConRon.Arena.Frontend.Olean.expoStep pk r privIdx privLocs cs expo c s =
           .ok (.ok expo₁, s₁) → ParseStep s s₁ ∧ f c expo = .ok (.yield expo₁)) →
-      ∀ expo {s s' : AState} {e : Array Expo}, Ctx pk s →
+      ∀ expo {s s' : AState} {e : Array Expo}, ParseStep s₀ s →
         ConRon.Arena.Frontend.Olean.expoLoop pk r privLoc privIdx privLocs cs l expo s =
           .ok (.ok e, s') →
         ParseStep s s' ∧ forIn l expo f = .ok e
-  | [], _, _, expo, s, s', e, hctx, h => by
+  | [], _, _, expo, s, s', e, h0, h => by
     rw [ConRon.Arena.Frontend.Olean.expoLoop] at h
     obtain ⟨hv, rfl⟩ := AM.pure_ok h
     cases hv
-    exact ⟨ParseStep.refl hctx.ok, rfl⟩
-  | c :: l, hsame, hstep, expo, s, s', e, hctx, h => by
+    exact ⟨ParseStep.refl h0.ok, rfl⟩
+  | c :: l, hsame, hstep, expo, s, s', e, h0, h => by
     rw [ConRon.Arena.Frontend.Olean.expoLoop] at h
     rw [List.forIn_cons]
     cases hp : privLoc[c]? with
     | some i =>
       simp only [hp] at h
       obtain ⟨hst, hl⟩ := expoLoop_run l (fun c' hc' => hsame c' (List.mem_cons_of_mem _ hc'))
-        (fun c' hc' => hstep c' (List.mem_cons_of_mem _ hc')) _ hctx h
+        (fun c' hc' => hstep c' (List.mem_cons_of_mem _ hc')) _ h0 h
       refine ⟨hst, ?_⟩
       rw [hsame c List.mem_cons_self i expo hp]
       exact hl
@@ -1029,11 +1029,176 @@ theorem expoLoop_run {pk : OleanPins} {r : Region} {privLoc : Std.HashMap Nat Na
       | error m => cases (AM.pure_ok h2).1
       | ok expo₁ =>
         simp only at h2
-        obtain ⟨hst1, hf⟩ := hstep c List.mem_cons_self hp expo s s₁ expo₁ hctx h1
+        obtain ⟨hst1, hf⟩ := hstep c List.mem_cons_self hp expo s s₁ expo₁ h0 h1
         obtain ⟨hst2, hl⟩ := expoLoop_run l (fun c' hc' => hsame c' (List.mem_cons_of_mem _ hc'))
-          (fun c' hc' => hstep c' (List.mem_cons_of_mem _ hc')) _ (hctx.step hst1) h2
+          (fun c' hc' => hstep c' (List.mem_cons_of_mem _ hc')) _ (h0.trans hst1) h2
         refine ⟨hst1.trans hst2, ?_⟩
         rw [hf]
         exact hl
+
+/-- `expoLoop_run`, the `for`'s value bound and returned, as upstream's `do` has it. -/
+theorem expoLoop_run' {pk : OleanPins} {r : Region} {privLoc : Std.HashMap Nat Nat}
+    {privIdx : Std.HashMap NIdx Nat} {privLocs : Array Nat} {cs : Array (CEntryF NIdx EIdx)}
+    {l : List Nat} {expo : Array Expo} {s s' : AState} {e : Array Expo}
+    {f : Nat → Array Expo → Except String (ForInStep (Array Expo))} (hctx : StateOK s)
+    (h : ConRon.Arena.Frontend.Olean.expoLoop pk r privLoc privIdx privLocs cs l expo s =
+      .ok (.ok e, s'))
+    (hsame : ∀ c ∈ l, ∀ i expo, privLoc[c]? = some i → f c expo = .ok (.yield (expo.set! i .same)))
+    (hstep : ∀ c ∈ l, privLoc[c]? = none → ∀ expo s₁ s₂ expo₁, ParseStep s s₁ →
+      ConRon.Arena.Frontend.Olean.expoStep pk r privIdx privLocs cs expo c s₁ =
+        .ok (.ok expo₁, s₂) → ParseStep s₁ s₂ ∧ f c expo = .ok (.yield expo₁)) :
+    ParseStep s s' ∧ (forIn l expo f >>= fun x => pure x) = .ok e := by
+  obtain ⟨hst, hf⟩ := expoLoop_run (s₀ := s) l hsame hstep expo (ParseStep.refl hctx) h
+  exact ⟨hst, by rw [hf]; rfl⟩
+
+/-- An `if` of the twin that answers, by its condition. -/
+theorem ite_ok_cases {α : Type} {c : Prop} [Decidable c] {A B : AM α} {s : AState}
+    {r : Except Arena.CheckError (α × AState)} (h : (if c then A else B) s = r) :
+    (c ∧ A s = r) ∨ (¬c ∧ B s = r) := by
+  by_cases hc : c
+  · exact .inl ⟨hc, by simpa [hc] using h⟩
+  · exact .inr ⟨hc, by simpa [hc] using h⟩
+
+/-- An `if` of upstream's, by its condition. -/
+theorem ite_goal {α : Type} {c : Prop} [Decidable c] {A B r : α} (h1 : c → A = r)
+    (h2 : ¬c → B = r) : (if c then A else B) = r := by
+  by_cases hc : c
+  · simp [hc, h1 hc]
+  · simp [hc, h2 hc]
+
+/-- A theorem's kind, or not. -/
+theorem kind_thm_or {N E : Type} (k : CKindF N E) : (∃ v a, k = .thm v a) ∨ ∀ v a, k ≠ .thm v a := by
+  cases k <;> simp
+
+/-- con-leche: ConLeche/Frontend/Olean/Module.lean:106-152 expoOfParts — **the twin's exported
+level of the private constants is upstream's**, over the parse's private constants (`csT`, read
+back as `D`) where upstream reads the load's (`csU`): the same names, and the same constants
+but for a theorem's value, which upstream reads off the file (`entryAt`) where it compares one. -/
+theorem expoOfParts_run {pk : OleanPins} {r : Region} {pa ea : UInt64}
+    {csT : Array (CEntryF NIdx EIdx)} {csU D : Array (CEntryF Name Expr)} {skP : ModSkel}
+    {s s' : AState} {expo : Array Expo} (hctx : Ctx pk s) (hP : moduleSkel r pa = some skP)
+    (hcs : csT.toList.mapM (denoteEntry s.store) = some D.toList) (hsz : csU.size = D.size)
+    (hnm : ∀ i (h1 : i < csU.size) (h2 : i < D.size), csU[i].name = D[i].name)
+    (hthm : ∀ i (h1 : i < csU.size) (h2 : i < D.size) v a, csU[i].kind = .thm v a →
+      (skP.consts.toArray[i]?).bind (ConLeche.Frontend.Olean.entryAt r) = some D[i])
+    (hnon : ∀ i (h1 : i < csU.size) (h2 : i < D.size), (∀ v a, csU[i].kind ≠ .thm v a) →
+      csU[i] = D[i])
+    (h : ConRon.Arena.Frontend.Olean.expoOfParts pk r pa ea csT s = .ok (.ok expo, s')) :
+    ParseStep s s' ∧ ConLeche.Frontend.Olean.expoOfParts r pa ea csU = .ok expo := by
+  obtain ⟨hlT, hgT⟩ := mapM_getElem hcs
+  have hszT : csT.size = D.size := by simpa using hlT.symm
+  unfold ConRon.Arena.Frontend.Olean.expoOfParts at h
+  simp only [hP] at h
+  cases hE : moduleSkel r ea with
+  | none => simp only [hE] at h; cases (AM.pure_ok h).1
+  | some skE =>
+  simp only [hE] at h
+  unfold ConLeche.Frontend.Olean.expoOfParts
+  simp only [hP, hE]
+  have hmap : csU.map (fun _ => Expo.absent) = csT.map (fun _ => Expo.absent) := by
+    apply Array.ext
+    · simp [hsz, hszT]
+    · intro i _ _; simp
+  rw [hmap]
+  refine expoLoop_run' hctx.ok h ?_ ?_
+  · intro c _ i expo hp
+    simp only [hp]
+    rfl
+  · intro c _ hpl expo s0 s1 expo1 hst0 hrun
+    have hctx0 : Ctx pk s0 := hctx.step hst0
+    simp only [hpl]
+    unfold ConRon.Arena.Frontend.Olean.expoStep at hrun
+    cases hse : constSkel r c with
+    | none => simp only [hse] at hrun; cases (AM.pure_ok hrun).1
+    | some se =>
+    simp only [hse] at hrun ⊢
+    obtain ⟨o, s₁, h1, hA⟩ := AM.bind_ok hrun
+    cases o with
+    | none => cases (AM.pure_ok hA).1
+    | some en =>
+    obtain ⟨hst1, enC, henC, hden⟩ := nameP_run hctx0.ok hctx0.nulls h1
+    simp only [henC]
+    obtain ⟨enName, s₂, h2, hB⟩ := AM.bind_ok hA
+    obtain ⟨hs2, -⟩ := readName_run h2
+    rw [hs2] at hB
+    have hctx1 : Ctx pk s₁ := hctx0.step hst1
+    have hx1 : Ext s.store s₁.store := (hst0.trans hst1).ext
+    -- the private constant of the exported one's name
+    cases hi : (csT.size.fold (fun i h (acc : Std.HashMap NIdx Nat) => acc.insert csT[i].name i)
+        {})[en]? with
+    | none => simp only [hi] at hB; cases (AM.pure_ok hB).1
+    | some i =>
+    have hiU : (csU.size.fold (fun i h (acc : Std.HashMap Name Nat) => acc.insert csU[i].name i)
+        {})[enC]? = some i := by
+      rw [← hi]
+      symm
+      refine foldIdx_get _ _ (hszT.trans hsz.symm) _ _ (fun j h1 h2 => ?_)
+      have hj : j < D.size := by omega
+      have hdj := hgT j (by simpa using h1)
+      simp only [Array.getElem_toList] at hdj
+      have hdj' := denoteEntry_ext hx1 hdj
+      have hn := (denoteEntry_parts hdj').1
+      rw [hnm j h2 hj]
+      constructor
+      · rintro rfl
+        exact Option.some.inj (hn.symm.trans hden)
+      · intro he
+        rw [he] at hn
+        exact denN_inj hctx1.ok.wf _ _ _ hn hden
+    simp only [hi] at hB
+    simp only [hiU]
+    cases hsp : (skP.consts.toArray[i]?).bind (constSkel r) with
+    | none => simp only [hsp] at hB; cases (AM.pure_ok hB).1
+    | some sp =>
+    simp only [hsp] at hB ⊢
+    rcases ite_ok_cases hB with ⟨hc, hB⟩ | ⟨hc, hB⟩
+    · obtain ⟨hv, rfl⟩ := AM.pure_ok hB
+      cases hv
+      refine ⟨hst1, ite_goal (fun _ => rfl) (fun hu => ?_)⟩
+      exfalso
+      revert hc hu
+      cases se.kind <;> cases sp.kind <;> simp
+    · obtain ⟨o, s₃, h3, hC⟩ := AM.bind_ok hB
+      cases o with
+      | none => cases (AM.pure_ok hC).1
+      | some e =>
+      obtain ⟨hst3, eC, heC, hde⟩ := entryAt_run hctx1 h3
+      simp only at hC
+      cases hpc : csT[i]? with
+      | none => simp only [hpc] at hC; cases (AM.pure_ok hC).1
+      | some pc =>
+      simp only [hpc] at hC
+      obtain ⟨hiT, rfl⟩ := Array.getElem?_eq_some_iff.mp hpc
+      have hiD : i < D.size := by omega
+      have hiU' : i < csU.size := by omega
+      have hdi := hgT i (by simpa using hiT)
+      simp only [Array.getElem_toList] at hdi
+      have hdi' := denoteEntry_ext (hx1.trans hst3.ext) hdi
+      have hexpo := expoOf_den (hctx1.step hst3).ok.wf hdi' hde
+      cases hx : ConLeche.Frontend.Olean.expoOf D[i] eC with
+      | none =>
+        rw [hx] at hexpo
+        simp only [hexpo] at hC
+        cases (AM.pure_ok hC).1
+      | some x =>
+      rw [hx] at hexpo
+      simp only [hexpo] at hC
+      obtain ⟨hv, rfl⟩ := AM.pure_ok hC
+      cases hv
+      refine ⟨hst1.trans hst3, ite_goal (fun hu => ?_) (fun _ => ?_)⟩
+      · exfalso
+        revert hc hu
+        cases se.kind <;> cases sp.kind <;> simp
+      · simp only [heC]
+        rw [getElem!_pos csU i hiU']
+        rcases kind_thm_or csU[i].kind with ⟨v, a, hk⟩ | hk
+        · simp only [hk, hthm i hiU' hiD v a hk]
+          simp [hx] <;> rfl
+        · rw [hnon i hiU' hiD hk]
+          have hk' : ∀ v a, D[i].kind ≠ .thm v a := fun v a he => hk v a (by rw [hnon i hiU' hiD hk]; exact he)
+          split
+          · rename_i v a he
+            exact absurd he (hk' v a)
+          · simp [hx] <;> rfl
 
 end ConRon.Bridge.Modular.Home
