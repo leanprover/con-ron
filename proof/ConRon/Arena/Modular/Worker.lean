@@ -106,33 +106,28 @@ def pinGround (pins : List INatOpPinSet) (c : NIdx) : AM (Array NIdx) := do
   pure (← pins.foldlM (fun x ps => groundVariant x ps c) x).2
 
 /-- con-leche: ConLeche/Driver/Worker.lean:68-86 ownRoots
--- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.footprints_bridge, then delete this line
 `fp`: every name a loaded constant's fast path reads. -/
 def footprints (cs : Array CEntry) : AM (Std.HashSet NIdx) :=
   cs.foldlM (fun s c => do pure ((← pinFootprint c.c.name).foldl (fun s n => s.insert n) s)) {}
 
 /-- con-leche: ConLeche/Driver/Worker.lean:68-86 ownRoots
--- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.pushUnpinned_bridge, then delete this line
 `xs.filter (fun x => ix.first.contains x || !fp.contains x)` pushed onto `out`. -/
 def pushUnpinned (out : Array NIdx) (ix : NameIndex) (fp : Std.HashSet NIdx) (xs : Array NIdx) :
     Array NIdx :=
   out ++ xs.filter fun x => ix.first.contains x || !fp.contains x
 
 /-- con-leche: ConLeche/Driver/Worker.lean:68-86 ownRoots
--- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.pushLoaded_bridge, then delete this line
 `xs.filter ix.first.contains` pushed onto `out`. -/
 def pushLoaded (out : Array NIdx) (ix : NameIndex) (xs : Array NIdx) : Array NIdx :=
   out ++ xs.filter ix.first.contains
 
 /-- con-leche: ConLeche/Driver/Worker.lean:68-86 ownRoots
--- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.recordsRoots_bridge, then delete this line
 What each own record reads, filtered (`pushUnpinned`). -/
 def recordsRoots (ix : NameIndex) (fp : Std.HashSet NIdx) (ds : Array IDeclaration) :
     AM (Array NIdx) :=
   ds.foldlM (fun out d => do pure (pushUnpinned out ix fp (← recordReads d).toArray)) #[]
 
 /-- con-leche: ConLeche/Driver/Worker.lean:68-86 ownRoots
--- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.groundRoots_bridge, then delete this line
 The pin ground of each own constant, filtered (`pushLoaded`), onto `out`. -/
 def groundRoots (pins : List INatOpPinSet) (ix : NameIndex) (cs : Array CEntry) (out : Array NIdx) :
     AM (Array NIdx) :=
@@ -140,7 +135,6 @@ def groundRoots (pins : List INatOpPinSet) (ix : NameIndex) (cs : Array CEntry) 
     if c.skipped then pure out else pure (pushLoaded out ix (← pinGround pins c.c.name))) out
 
 /-- con-leche: ConLeche/Driver/Worker.lean:68-86 ownRoots
--- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.ownRoots_bridge, then delete this line
 **The reach's roots**: what each own record reads, what each own constant's load read, and the
 pin ground of each own certified operation that a loaded module holds.  `cs`: the load's
 constants. -/
@@ -188,7 +182,6 @@ def namesNodupGo (s : Std.HashSet NIdx) : List NIdx → Bool × Std.HashSet NIdx
   | n :: ns => if s.contains n then (false, s) else namesNodupGo (s.insert n) ns
 
 /-- con-leche: ConLeche/Driver/Worker.lean:301-344 workerRead
--- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.ctxNamesNodupGo_bridge, then delete this line
 `namesNodupGo {} (r.ctx.toList.flatMap Modular.declNames)`, record by record. -/
 def ctxNamesNodupGo (s : Std.HashSet NIdx) : List IDeclaration → AM Bool
   | [] => pure true
@@ -197,7 +190,6 @@ def ctxNamesNodupGo (s : Std.HashSet NIdx) : List IDeclaration → AM Bool
     if ok then ctxNamesNodupGo s ds else pure false
 
 /-- con-leche: ConLeche/Driver/Worker.lean:301-344 workerRead
--- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.ctxNamesNodup_bridge, then delete this line
 The context's names distinct. -/
 def ctxNamesNodup (ctx : Array IDeclaration) : AM Bool := ctxNamesNodupGo {} ctx.toList
 
@@ -235,13 +227,11 @@ def ownNamesOf (x : Array ImportRec) (ix : NameIndex) (cs : Array CEntry) : Std.
   else cs.foldl (fun s c => if ix.first.contains c.c.name then s else s.insert c.c.name) {}
 
 /-- con-leche: ConLeche/Driver/Worker.lean:144-154 rootsAt
--- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.unloadedConstants_bridge, then delete this line
 `l.constants.filter (!ix.first.contains ·.name)`. -/
 def unloadedConstants (ix : NameIndex) (cs : Array CEntry) : Array CEntry :=
   cs.filter fun c => !ix.first.contains c.c.name
 
 /-- con-leche: ConLeche/Driver/Worker.lean:144-154 rootsAt
--- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.rootsAt_bridge, then delete this line
 **The reach's roots** of a worker that adds the imports `x`. -/
 def rootsAt (pins : List INatOpPinSet) (x : Array ImportRec) (ix : NameIndex) (cs : Array CEntry)
     (ds : Array IDeclaration) : AM (Array NIdx) := do
@@ -442,7 +432,6 @@ structure WorkerRead where
   start : Nat
 
 /-- con-leche: ConLeche/Driver/Worker.lean:301-344 workerRead
--- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.workerReach_bridge, then delete this line
 Phase 4 and the hoist, over the load's constants `cs` and the emitted records `ds`. -/
 def workerReach (fs : OleanFs) (pk : OleanPins) (sp : Roots) (pins : List INatOpPinSet) (m : NIdx)
     (x : Array ImportRec) (wr : WorkerReads) (cs : Array CEntry) (ds : Array IDeclaration) :
@@ -459,7 +448,6 @@ def workerReach (fs : OleanFs) (pk : OleanPins) (sp : Roots) (pins : List INatOp
   pure (r, own, hoisted)
 
 /-- con-leche: ConLeche/Driver/Worker.lean:301-344 workerRead
--- con-leche: CHANGED since f61d522e — re-port, re-test, re-prove Worker.workerRead_bridge, then delete this line
 **Phases 1–4 of the worker at module `m`**; `x` the imports a run adds to its header; `pins`
 the run's interned pin variants.  A failure carries the position of the record it names. -/
 def workerRead (fs : OleanFs) (sp : Roots) (pins : List INatOpPinSet) (m : NIdx)

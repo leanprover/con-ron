@@ -2402,8 +2402,7 @@ pub struct Reach {
     pub pending: Vec<(Vec<u32>, NIdx, StmtRec)>,
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:970-974 reach
-/// con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove reach::reach_roots_refines, then delete this line
+/// con-leche: ConLeche/Driver/Reach.lean:937-968 reachWith
 /// The roots and the clashing names, the own names left out.
 pub fn reach_roots(own: &HashMap2<NIdx, bool>, roots: &Vec<NIdx>, extra: &Vec<NIdx>) -> Vec<NIdx> {
     let mut out: Vec<NIdx> = Vec::with_capacity(roots.len() + extra.len());
@@ -2424,8 +2423,7 @@ pub fn reach_roots(own: &HashMap2<NIdx, bool>, roots: &Vec<NIdx>, extra: &Vec<NI
     out
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:970-974 reach
-/// con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove reach::first_unloaded_refines, then delete this line
+/// con-leche: ConLeche/Driver/Reach.lean:937-968 reachWith
 /// The first root no loaded module holds.
 pub fn first_unloaded(wr: &WorkerReads, rs: &Vec<NIdx>) -> Option<usize> {
     let mut i = 0usize;
@@ -2438,8 +2436,7 @@ pub fn first_unloaded(wr: &WorkerReads, rs: &Vec<NIdx>) -> Option<usize> {
     None
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:970-974 reach
-/// con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove reach::in_read_order_refines, then delete this line
+/// con-leche: ConLeche/Driver/Reach.lean:937-968 reachWith
 /// The records at the read order's positions, with their homes.
 pub fn in_read_order(l: &ReachLog, o: &Vec<u64>) -> (Vec<IDeclaration>, Vec<NIdx>) {
     let mut ctx: Vec<IDeclaration> = Vec::with_capacity(o.len());
@@ -2456,8 +2453,7 @@ pub fn in_read_order(l: &ReachLog, o: &Vec<u64>) -> (Vec<IDeclaration>, Vec<NIdx
     (ctx, homes)
 }
 
-/// con-leche: ConLeche/Driver/Reach.lean:970-974 reach
-/// con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove reach::reach_refines, then delete this line
+/// con-leche: ConLeche/Driver/Reach.lean:937-968 reachWith
 /// **The reach of module `m`** from the names its own records read (`roots`):
 /// the clash rule's keys, the worklist, the read order, the context's
 /// validation.  The inferred flags are `infer_flags`'s, after the freeze.
