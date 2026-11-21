@@ -22,6 +22,9 @@ public import ConRon.Bridge.Modular.Flags
 public import ConRon.Bridge.Modular.ReachTail
 public import ConRon.Bridge.Checker.PoolFrom
 public import ConLeche.Verify.Driver.Worker
+import ConLeche.Verify.Driver.Reach
+import ConLeche.Verify.Driver.PropPart
+import all ConLeche.Verify.Cached.StreamIndex
 
 public section
 
@@ -270,5 +273,77 @@ theorem workerRead_run (hH : HomeHyp) (hR : ReachRunHyp) {F : FS} {sp : Roots} (
     hown, hpctx, hpown, (hpk.ext (hst4.ext.trans hx4_15)).nulls, ?_⟩
   · have := denoteDecls_length hrr.ctx
     simpa using this
+
+/-- The names of a list of records, as the consts of their records. -/
+theorem recsConsts_names (ds : List Declaration) :
+    (ConLeche.Cached.recsConsts ds).map (·.name) = ds.flatMap ConLeche.Modular.declNames := by
+  simp only [ConLeche.Cached.recsConsts, List.map_flatMap]
+  rfl
+
+/-- con-leche: ConLeche/Verify/Driver/Worker.lean:238-249 WorkerAccepted — **an accepted worker
+at the twin is upstream's accepted worker**: phases 1–4 (`workerRead_run`), the check phase of the
+own records from `start` (`Arena.pooledOleanAcceptsFrom_bridge`, the pure run from the context's
+environment), the inferred flags on a fresh worker at the frozen index (`inferFlags_run`, whose
+accept is `soundFlags`', a sound inference). -/
+theorem workerAccepted_run (hk : CoreSpec Arena.checkFuel) (hind : IndSpec) (hH : HomeHyp)
+    (hR : ReachRunHyp) {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {pins : List INatOpPinSet} {pinsC : List NatOpPinSet} {m : NIdx} {mC : ConLeche.Name}
+    {x : Array (ImportF NIdx)} {xC : Array ImportRec} {w : ConRon.Arena.Modular.WorkerRead}
+    {s s' sE w₁ : AState} {I : IStreamIndex} (hok : DriverOK s) (hoff : s.store.scratchOn = false)
+    (hpp : PersPins s) (hpps : PersPinSets pins) (hpins : PinsDenote s.store pins pinsC)
+    (hm : denoteN s.store.ns m = some mC) (hx : ImpsD s.store x xC)
+    (h : ConRon.Arena.Modular.workerRead (modelFs F) sp pins m x s = .ok (.ok w, s'))
+    (hP : Arena.PooledOleanAcceptsFromJ (modelFs F) w.pins sp w.values .verified pins none w.start
+      (ConRon.Arena.Modular.workerDecls w) s' I sE)
+    (hI : ConRon.Arena.Modular.inferFlags I w.reach.ctx w.reach.pending sE.worker = .ok ((), w₁)) :
+    ConLeche.Driver.WorkerAccepted pinsC sp F mC 1 xC := by
+  obtain ⟨hst, wC, pendC, hw⟩ := workerRead_run hH hR hsp hok hoff hpins hm hx h
+  have hpp' : PersPins s' := hpp.mono hst.pins
+  have hpins' : PinsDenote s'.store pins pinsC := hpins.mono hst.ext
+  have hctx : denoteDecls s'.store w.reach.ctx.toList = some wC.reach.ctx.toList := hw.reachRel.ctx
+  have hown : denoteDecls s'.store w.own.toList = some wC.own.toList := denoteDeclArray_iff.mp hw.ownRel
+  have hden : denoteDecls s'.store (ConRon.Arena.Modular.workerDecls w).toList =
+      some (wC.reach.ctx.toList ++ wC.own.toList) := by
+    simp only [ConRon.Arena.Modular.workerDecls, Array.toList_append]
+    exact denoteDecls_append hctx hown
+  have hpd : ∀ d ∈ (ConRon.Arena.Modular.workerDecls w).toList, PersDecl d := by
+    intro d hd
+    simp only [ConRon.Arena.Modular.workerDecls, Array.toList_append, List.mem_append] at hd
+    rcases hd with hd | hd
+    · exact hw.persCtx d hd
+    · exact hw.persOwn d (Array.mem_toList_iff.mp hd)
+  -- the context, from the reach under any inference (the trivial one)
+  obtain ⟨_, _, hr0⟩ := hw.reach (fun _ _ => .ok ()) rfl
+  obtain ⟨hord, -, -, hwfC, -⟩ := ConLeche.Driver.reach_ok hr0
+  have hndC : ((ConLeche.Cached.recsConsts wC.reach.ctx.toList).map (·.name)).Nodup := by
+    rw [recsConsts_names]; exact hw.nodup
+  -- the inferred flags, at the frozen index
+  have hP' := hP
+  obtain ⟨parts, hbuild, -⟩ := hP
+  obtain ⟨hokE, hxE, hpinsE, hoffE, hIE, hpIE⟩ :=
+    buildIndex_run constsSpec tablesSpec hst.ok hpp' hst.scratch hpd hden hbuild
+  have hpre : ∀ k ≤ wC.reach.ctx.toList.length,
+      ConLeche.EnvWF (ConLeche.streamEnv (wC.reach.ctx.toList.take k)) ∧
+        ((ConLeche.Cached.recsConsts (wC.reach.ctx.toList.take k)).map (·.name)).Nodup := by
+    intro k _
+    refine ⟨ConLeche.Driver.envWF_prefix hord hwfC, ?_⟩
+    rw [recsConsts_names]
+    have hn := hw.nodup
+    rw [← List.take_append_drop k wC.reach.ctx.toList, List.flatMap_append] at hn
+    exact (List.nodup_append.mp hn).1
+  obtain ⟨-, hfl⟩ := inferFlags_run hk hokE.pins (hpp'.mono hpinsE) hokE.state.wf hoffE hIE hpIE hpre
+    hw.persCtx (denoteDecls_ext hxE _ _ hctx)
+    (listRel_ext (fun _ _ hq => ⟨denoteN_ext hq.1 hxE, denoteStmt_ext hxE hq.2⟩) hw.pend)
+    (WorkerOK.start hokE.state) hI
+  -- the own records, from the context's environment
+  obtain ⟨f, hgf, hload, hviews, hvals⟩ := hw.home
+  have hstart : w.start = wC.reach.ctx.toList.length := by rw [hw.start]; simp
+  rw [hstart] at hP'
+  have hpure := Arena.pooledOleanAcceptsFrom_bridge (ctxC := wC.reach.ctx.toList)
+    (ownC := wC.own.toList) (s₀ := s') hk hind hst.ok hst.scratch hpp' hpps hpins' hpd hden
+    hst.ok.state.wf hst.scratch (PExt.of_ext (Ext.refl _)) hvals hw.nulls hsp hwfC hndC hP'
+  exact ⟨wC, ⟨⟨f, hgf.canGive, hload, hviews⟩, hw.reads, hw.emitted,
+    ⟨soundFlags, soundFlags_ok, hw.reach _ hfl⟩, hw.nodup, hw.own,
+    by rw [hw.values]; exact ConLeche.Driver.cacheOK_empty, hw.copies⟩, hpure⟩
 
 end ConRon.Bridge.Modular
