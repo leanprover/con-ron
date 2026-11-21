@@ -72,9 +72,7 @@ def checkStructuralNatPin (mode : CheckMode) (fe : IFEnv) (ci : IConstantInfo)
   pure fe
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove CheckDecl.checkDeclKind_bridge, then delete this line
 con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove CheckDecl.checkDeclKind_bridge, then delete this line
 **A declaration's own checks**, by its kind, extending the environment on
 success.  A value arm checks the value returning the record unpushed, runs its
 pinned gates, and pushes last.  A block under a pinned basis block's names

@@ -1059,6 +1059,24 @@ inductive kernel.prop_when.PropWhen where
 | Never : kernel.prop_when.PropWhen
 | IfAllZero : alloc.vec.Vec kernel.name.Name → kernel.prop_when.PropWhen
 
+/-- [con_ron_core::arena::inductives::iota_read::IIotaParts]
+    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 366:0-371:1
+    Visibility: public -/
+structure arena.inductives.iota_read.IIotaParts where
+  field_doms : alloc.vec.Vec arena.handle.EIdx
+  idx : alloc.vec.Vec arena.handle.EIdx
+  us : arena.handle.LsIdx
+  params : alloc.vec.Vec arena.handle.EIdx
+
+/-- [con_ron_core::arena::inductives::iota_read::IotaRec]
+    Source: 'crates/con-ron-core/src/arena/inductives/iota_read.rs', lines 278:0-283:1
+    Visibility: public -/
+structure arena.inductives.iota_read.IotaRec where
+  pre : alloc.vec.Vec arena.handle.EIdx
+  minors : alloc.vec.Vec Std.U64
+  us : arena.handle.LsIdx
+  params : alloc.vec.Vec arena.handle.EIdx
+
 /-- Trait declaration: [con_ron_core::kernel::prop_when::NameToPw]
     Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 104:0-108:1
     Visibility: public -/
