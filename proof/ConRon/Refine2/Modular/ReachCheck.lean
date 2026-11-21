@@ -5,8 +5,19 @@
 (`Arena/Modular/Reach.lean`), in the arena's lockstep shape (`LS`): what a record reads
 (`record_reads`), the names it installs (`decl_names`), the syntactic validation of a record
 (`expr_ok` … `record_ok`, `validate_ctx`), the read order (`owner_map`, `sort_visit`,
-`sort_from`, `read_order`) and the inferred flags (`infer_one`, `infer_flags`), which run at the
-worker's frozen index as a job does (`record_job_refines`).
+`sort_from`, `read_order`) and the inferred flags (`infer_one`, `infer_flags`' loop), which run
+at the worker's frozen index as a job does (`record_job_refines`).
+
+The record reads, the validation clauses and the owner maps are full lockstep (`LS`, both
+outcomes).  `validate_ctx`, `infer_one`, `infer_flags`' loop and the read order claim their
+accept only (`LA`, or between idle workers for the flags): their failures carry messages the
+twin builds with `readName`, which can fail at another kind.  The read order touches neither
+state on an accept, so it is related as data (`SortRel`, `USet`).
+
+`infer_flags` itself has no lemma here: it computes `first_owner` on the idle frozen worker
+OUTSIDE a bracket, where the Rust's state corresponds to the twin's with its scratch enabled
+(`AIdle`), not to the twin's own state, so no lockstep lemma applies to that call; the loop
+after it (`infer_flags_loop_la`) is related bracket by bracket.
 
 Each Rust `while` loop over a `Vec` is its own Aeneas `_loop`; its lemma is by induction on the
 distance to the end, against the twin's structural recursion on the list from the cursor
@@ -1093,6 +1104,140 @@ theorem sort_visit_aux (hown : IdxRel owner s) (g : Nat) :
     refine ⟨h1, h2, S', ?_, h3⟩
     simpa [Modular.sortVisit] using hx
 
+/-- **`sort_from_one` ⊑ `sortFrom`'s step, accepting**: record `i` placed, each after its
+reads, unless placed already. -/
+theorem sort_from_one_aux (hown : IdxRel owner s) {st lst} {fuel i : Std.U64} {ss S st1 ss1}
+    (hi : i.val ≤ Std.Usize.max) (hS : SortRel ss S)
+    (h : sort_from_one pers st ds rds owner fuel i ss = ok (.Ok (), st1, ss1)) :
+    st1 = st ∧ ∃ S1, SortRel ss1 S1 ∧ ∀ rest,
+      (Modular.sortFrom D (absRds rds) s fuel.val (i.val :: rest) S).run lst =
+        (Modular.sortFrom D (absRds rds) s fuel.val rest S1).run lst := by
+  rw [sort_from_one] at h
+  obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hbv := hS.placed.contains_eq hb
+  cases b with
+  | true =>
+    rw [ite_eq_left rfl] at h
+    obtain ⟨-, rfl, rfl⟩ : _ ∧ st1 = st ∧ ss1 = ss := by
+      have := Result.ok_injective h; simp only [Prod.mk.injEq] at this
+      exact ⟨this.1, this.2.1.symm, this.2.2.symm⟩
+    refine ⟨rfl, S, hS, fun rest => ?_⟩
+    simp only [Modular.sortFrom, ← hbv, ↓reduceIte]
+  | false =>
+    rw [ite_eq_right (by simp)] at h
+    obtain ⟨p0, hp0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨⟨old, path1⟩, hins, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hp1 := (USet.empty hp0).insert hins
+    obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hi1v := cast_usize_val hi hi1
+    have hwalk : ∃ v : alloc.vec.Vec arena.handle.NIdx, (absRds rds).getD i.val [] =
+        v.val.map absNIdx ∧ ∃ path2,
+        sort_visit pers st ds rds owner fuel i path1 v ss = ok (.Ok (), st1, path2, ss1) := by
+      by_cases hlt : i1 < alloc.vec.Vec.len rds
+      · rw [ite_eq_left hlt] at h
+        obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi3v := cast_usize_val hi hi3
+        obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hvv := vec_index_some hv
+        obtain ⟨⟨r, st2, path2, ss2⟩, hsv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨rfl, rfl, rfl⟩ : r = .Ok () ∧ st2 = st1 ∧ ss2 = ss1 := by
+          have := Result.ok_injective h; simp only [Prod.mk.injEq] at this
+          exact ⟨this.1, this.2.1, this.2.2⟩
+        refine ⟨v, ?_, path2, hsv⟩
+        rw [hi3v] at hvv; exact absRds_getD_some hvv
+      · rw [ite_eq_right hlt] at h
+        obtain ⟨⟨r, st2, path2, ss2⟩, hsv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨rfl, rfl, rfl⟩ : r = .Ok () ∧ st2 = st1 ∧ ss2 = ss1 := by
+          have := Result.ok_injective h; simp only [Prod.mk.injEq] at this
+          exact ⟨this.1, this.2.1, this.2.2⟩
+        refine ⟨alloc.vec.Vec.new _, ?_, path2, hsv⟩
+        rw [vec_new_val, absRds_getD_ge (by have := not_lt_len hlt; omega)]; rfl
+    obtain ⟨v, hgv, path2, hsv⟩ := hwalk
+    obtain ⟨rfl, -, S1, hx, hS1⟩ := sort_visit_aux (lst := lst) D ds rds hown _ rfl hp1 hS hsv
+    refine ⟨rfl, S1, hS1, fun rest => ?_⟩
+    simp only [Modular.sortFrom, ← hbv, Bool.false_eq_true, ↓reduceIte]
+    rw [StateT.run_bind, hgv, hx]
+    rfl
+
+/-- **`sort_from`'s loop ⊑ `sortFrom`, accepting**: every record from `i` on placed. -/
+theorem sort_from_loop_aux (hown : IdxRel owner s) {fuel : Std.U64} (n : Nat) :
+    ∀ {st lst} {i : Std.Usize} {ss S st' ss'}, ds.val.length - i.val = n → SortRel ss S →
+      sort_from_loop pers st ds rds owner fuel ss i = ok (.Ok (), st', ss') →
+      st' = st ∧ ∃ S', (Modular.sortFrom D (absRds rds) s fuel.val
+        (List.range' i.val (ds.val.length - i.val)) S).run lst = .ok (S', lst) ∧ SortRel ss' S' := by
+  induction n with
+  | zero =>
+    intro st lst i ss S st' ss' hn hS h
+    rw [sort_from_loop, ite_eq_right (by scalar_tac)] at h
+    obtain ⟨-, rfl, rfl⟩ : _ ∧ st' = st ∧ ss' = ss := by
+      have := Result.ok_injective h; simp only [Prod.mk.injEq] at this
+      exact ⟨this.1, this.2.1.symm, this.2.2.symm⟩
+    refine ⟨rfl, S, ?_, hS⟩
+    rw [hn]; rfl
+  | succ n ih =>
+    intro st lst i ss S st' ss' hn hS h
+    rw [sort_from_loop, ite_eq_left (by scalar_tac)] at h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hi2v := lift_cast_u64_of_usize i i2 hi2
+    obtain ⟨⟨r, st1, ss1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases r with
+    | Err e => err_contra h
+    | Ok u =>
+      cases u
+      obtain ⟨hst1, S1, hS1, hstep⟩ :=
+        sort_from_one_aux (lst := lst) D ds rds hown (by rw [hi2v]; scalar_tac) hS h1
+      rw [hst1] at h
+      obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi3v := ConRon.Refine.Nat.uadd_val hi3
+      simp at hi3v
+      obtain ⟨rfl, S', hx, hS'⟩ := ih (i := i3) (by omega) hS1 h
+      refine ⟨rfl, S', ?_, hS'⟩
+      rw [hn, List.range'_succ, ← hi2v, hstep, hi2v, ← hi3v]
+      have e : ds.val.length - i3.val = n := by omega
+      simpa only [e] using hx
+
 end sort
+
+/-- **`read_order` ⊑ `readOrder`, accepting**: the context's records in read order, each
+after the records storing what it reads. -/
+theorem read_order_la {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (ds : alloc.vec.Vec arena.env.IDeclaration) (rds : alloc.vec.Vec (alloc.vec.Vec arena.handle.NIdx)) :
+    LA pers (fun a b => b.toList = a.val.map (·.val)) (read_order pers st ds rds) lst
+      (Modular.readOrder (absIDeclL ds).toArray (absRds rds)) := by
+  intro a st' h
+  rw [read_order] at h
+  obtain ⟨⟨r, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have H := owner_map_ls hrel hinv ds _ _ h1
+  cases r with
+  | Err e => err_contra h
+  | Ok m =>
+    obtain ⟨s, lst1, hx1, hown, hrel1, hinv1⟩ := H
+    obtain ⟨hm, hhm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hi1v := lift_cast_u64_of_usize _ i1 hi1
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hi2v := ConRon.Refine.Nat.uadd_val hi2
+    obtain ⟨⟨r1, st2, ss⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases r1 with
+    | Err e => err_contra h
+    | Ok u =>
+      obtain ⟨rfl, rfl⟩ : a = ss.order ∧ st' = st2 := by
+        have := Result.ok_injective h; simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at this
+        exact ⟨this.1.symm, this.2.symm⟩
+      have hS0 : SortRel { order := alloc.vec.Vec.new Std.U64, placed := hm } {} :=
+        ⟨rfl, USet.empty hhm⟩
+      obtain ⟨rfl, S', hx, hS'⟩ := sort_from_loop_aux (lst := lst1) (absIDeclL ds).toArray ds rds
+        hown _ (i := 0#usize) rfl hS0 h2
+      refine ⟨S'.order, lst1, ?_, hS'.order.symm, hrel1, hinv1⟩
+      have hlen : (alloc.vec.Vec.len ds).val = ds.val.length := by simp [alloc.vec.Vec.len]
+      rw [hi2v, hi1v, hlen] at hx
+      simp only [Modular.readOrder, StateT.run_bind, hx1, except_ok_bind]
+      have e1 : (1#u64 : Std.U64).val = 1 := rfl
+      have e0 : (0#usize : Std.Usize).val = 0 := rfl
+      rw [e1, e0, Nat.sub_zero] at hx
+      simp only [absIDeclL] at hx ⊢
+      rw [List.range_eq_range', List.size_toArray, List.length_map]
+      rw [hx]
+      rfl
 
 end ConRon.Refine2.Modular
