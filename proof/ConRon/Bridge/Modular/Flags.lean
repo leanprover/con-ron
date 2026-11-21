@@ -195,7 +195,7 @@ theorem typeIsPropC_run {env : Env} {fe : IFEnv} {cv : ConRon.Arena.Frontend.Ole
     ConLeche.ensureSortCore_mono (Nat.le_max_right _ _) hFb, ?_⟩
   rw [← hod, hbb]
 
-theorem denoteStmt_parts {st : EStore} {cv : ConRon.Arena.Frontend.Olean.StmtRec} {c : ConstantVal}
+theorem denoteStmt_parts3 {st : EStore} {cv : ConRon.Arena.Frontend.Olean.StmtRec} {c : ConstantVal}
     (h : denoteStmt st cv = some c) :
     Frontend.denoteNList st.ns cv.levelParams = some c.levelParams ∧
       denoteE st cv.type = some c.type ∧ denoteN st.ns cv.name = some c.name := by
@@ -216,7 +216,7 @@ theorem inferOne_run {env : Env} {fe : IFEnv} {what : String} {y : NIdx}
     (h : ConRon.Arena.Modular.inferOne fe what y cv s = .ok ((), s')) :
     CheckOK false env fe s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
       c.type.constsResolve env = true ∧ ConLeche.Modular.TypeIsProp .verified env c.type := by
-  obtain ⟨hl, ht, -⟩ := denoteStmt_parts hcv
+  obtain ⟨hl, ht, -⟩ := denoteStmt_parts3 hcv
   unfold ConRon.Arena.Modular.inferOne at h
   generalize hE : ConRon.Arena.Modular.exprOk cv.levelParams 0 cv.type = E at h
   generalize hR : ConRon.Arena.constsResolveFFast fe cv.type = R at h
@@ -308,7 +308,7 @@ theorem view_foldOK'
 theorem denoteStmt_pext {st st' : EStore} (hwf : StoreWF st) (hoff : st.scratchOn = false)
     (hx : PExt st st') {cv : ConRon.Arena.Frontend.Olean.StmtRec} {c : ConstantVal}
     (h : denoteStmt st cv = some c) : denoteStmt st' cv = some c := by
-  obtain ⟨hl, ht, hn⟩ := denoteStmt_parts h
+  obtain ⟨hl, ht, hn⟩ := denoteStmt_parts3 h
   have hl' := denoteNList_pext hx _ _ (Frontend.PersNList_of_denote hwf hoff hl) hl
   have hn' := denoteN_pext hx (Frontend.PersN_of_denote hwf hoff hn) hn
   have ht' := denoteE_pext hx (Frontend.PersE_of_denote hwf hoff ht) ht
@@ -462,7 +462,7 @@ theorem firstOwnerGo_run :
     obtain ⟨acc, s₁, k1, k2⟩ := AM.bind_ok h
     obtain ⟨ns, s₂, k3, k4⟩ := AM.bind_ok k1
     obtain ⟨rfl, rfl⟩ := AM.pure_ok k4
-    obtain ⟨c1, hns⟩ := declNames_run hok h1 k3
+    obtain ⟨c1, hns⟩ := declNames_cstep hok h1 k3
     have hw := nsWF_of_StateOK c1.ok.state
     have hr₁ := insertFirst_rel hw j ns _ hns (hr.ext c1.ext (fun _ _ h => h))
     obtain ⟨c2, hr₂⟩ := firstOwnerGo_run ds xs (j + 1) _ _ c1.ok
