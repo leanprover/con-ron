@@ -28,6 +28,7 @@ public import ConLeche.Frontend.Olean.Module
 import ConLeche.Verify.Frontend.Olean.Equiv
 import ConLeche.Verify.Frontend.Olean.Reads
 import ConLeche.Verify.Frontend.Olean.View
+import ConLeche.Verify.OleanInput
 
 public section
 
@@ -1200,5 +1201,146 @@ theorem expoOfParts_run {pk : OleanPins} {r : Region} {pa ea : UInt64}
           · rename_i v a he
             exact absurd he (hk' v a)
           · simp [hx] <;> rfl
+
+/-! ## What upstream's check asks of the parts, off the parse -/
+
+/-- What a decoded view holds of its module skeleton. -/
+theorem decodeAt_facts {r : Region} {a : UInt64} {d : ConLeche.Frontend.Olean.ModDecoded}
+    (h : decodeAt r a = some d) :
+    ConLeche.Frontend.Olean.constNamesOk r a = true ∧ ∃ sk, moduleSkel r a = some sk ∧
+      sk.isModule = d.isModule ∧ sk.imports.mapM (ImportF.mapM (nameP r)) = some d.imports.toList ∧
+      sk.consts.mapM (constSpec r) = some d.constants.toList := by
+  unfold decodeAt at h
+  cases hc : ConLeche.Frontend.Olean.constNamesOk r a with
+  | false => simp [hc] at h
+  | true =>
+    refine ⟨rfl, ?_⟩
+    simp only [hc, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at h
+    obtain ⟨u, -, h⟩ := bind_some_left h
+    obtain ⟨sk, hsk, h⟩ := bind_some_left h
+    obtain ⟨imps, himps, h⟩ := bind_some_left h
+    obtain ⟨cs, hcs, h⟩ := bind_some_left h
+    simp only [pure, Option.some.injEq] at h
+    subst h
+    exact ⟨sk, hsk, rfl, by simpa using himps, by simpa using hcs⟩
+
+/-- **The private view the parse gives is the private view's `decodeAt`**, at its region. -/
+theorem private_spec {f : ModFiles} {vC : ConLeche.Frontend.Olean.AllViews} {r : Region}
+    {a : UInt64} (hpav : ConLeche.Frontend.Olean.parseAllViews f = some vC)
+    (hvr : f.viewRegion .private = some (r, a)) : decodeAt r a = some vC.private := by
+  rw [ConLeche.Frontend.Olean.parseAllViews_eq] at hpav
+  obtain ⟨e, -, hpav⟩ := bind_some_left hpav
+  obtain ⟨s', -, hpav⟩ := bind_some_left hpav
+  obtain ⟨p, hp, hpav⟩ := bind_some_left hpav
+  simp only [pure, Option.some.injEq] at hpav
+  subst hpav
+  rw [ConLeche.Frontend.Olean.decodeModuleSpec_at hvr] at hp
+  obtain ⟨d, hd, hchk⟩ := bind_some_left hp
+  unfold ConLeche.Frontend.Olean.viewChk at hchk
+  split at hchk
+  · cases hchk; exact hd
+  · cases hchk
+
+/-- **The load against the parse**, at the private view's region: the same constants, named
+alike, but for a theorem's value (the parse's read off the file, `entryAt`). -/
+theorem load_rel {f : ModFiles} {mn : Name} {lC : ConLeche.Frontend.Olean.Loaded}
+    {vC : ConLeche.Frontend.Olean.AllViews} (hl : ConLeche.Driver.LoadOf 0 mn f lC)
+    (hpav : ConLeche.Frontend.Olean.parseAllViews f = some vC) :
+    ∃ r a skP, f.viewRegion .private = some (r, a) ∧ moduleSkel r a = some skP ∧
+      (lC.constants.map (·.toCEntryF)).size = vC.private.constants.size ∧
+      (∀ i (h1 : i < (lC.constants.map (·.toCEntryF)).size) (h2 : i < vC.private.constants.size),
+        (lC.constants.map (·.toCEntryF))[i].name = vC.private.constants[i].name) ∧
+      (∀ i (h1 : i < (lC.constants.map (·.toCEntryF)).size) (h2 : i < vC.private.constants.size) v a,
+        (lC.constants.map (·.toCEntryF))[i].kind = .thm v a →
+        (skP.consts.toArray[i]?).bind (ConLeche.Frontend.Olean.entryAt r) = some vC.private.constants[i]) ∧
+      (∀ i (h1 : i < (lC.constants.map (·.toCEntryF)).size) (h2 : i < vC.private.constants.size),
+        (∀ v a, (lC.constants.map (·.toCEntryF))[i].kind ≠ .thm v a) →
+        (lC.constants.map (·.toCEntryF))[i] = vC.private.constants[i]) := by
+  obtain ⟨-, ⟨r, a, sk, skels, hvr, hsk, hskels, hl', hal⟩, -⟩ := hl
+  have hdec := private_spec hpav hvr
+  obtain ⟨-, sk', hsk', -, -, hspec⟩ := decodeAt_facts hdec
+  rw [hsk] at hsk'
+  cases hsk'
+  obtain ⟨hlS, hgS⟩ := mapM_getElem hskels
+  obtain ⟨hlD, hgD⟩ := mapM_getElem hspec
+  have hszD : vC.private.constants.size = sk.consts.length := by simpa using hlD
+  have hszS : skels.length = sk.consts.length := hlS
+  -- one position
+  have pos : ∀ i (hi : i < sk.consts.length),
+      ∃ (h1 : i < skels.length) (h2 : i < lC.constants.size) (h3 : i < vC.private.constants.size),
+        skels[i].mapM (nameP r) (exprP r) = some vC.private.constants[i] ∧
+        ConLeche.Frontend.Olean.lazyEntry (nameP r) (exprP r) r 0 skels[i] =
+          some lC.constants[i].toCEntryF ∧
+        ConLeche.Frontend.Olean.entryAt r sk.consts[i] = some vC.private.constants[i] := by
+    intro i hi
+    have h1 : i < skels.length := by omega
+    have h2 : i < lC.constants.size := by omega
+    have h3 : i < vC.private.constants.size := by omega
+    refine ⟨h1, h2, h3, ?_, ?_, ?_⟩
+    · have hs := hgS i hi
+      have hd := hgD i hi
+      simp only [constSpec, hs, bind, Option.bind] at hd
+      simpa using hd
+    · exact hal i h1
+    · rw [ConLeche.Frontend.Olean.entryAt_eq]
+      have hd := hgD i hi
+      simpa using hd
+  refine ⟨r, a, sk, hvr, hsk, by simp [hszD]; omega, ?_, ?_, ?_⟩
+  · intro i h1 h2
+    obtain ⟨_, _, _, hc, he, -⟩ := pos i (by omega)
+    simp only [Array.getElem_map]
+    exact (ConLeche.Frontend.Olean.lazyEntry_of_spec hc he).1
+  · intro i h1 h2 v a _
+    obtain ⟨_, _, _, -, -, he⟩ := pos i (by omega)
+    simp [he]
+  · intro i h1 h2 hk
+    obtain ⟨_, _, _, hc, he, -⟩ := pos i (by omega)
+    simp only [Array.getElem_map] at hk ⊢
+    refine ConLeche.Frontend.Olean.lazyEntry_eq_of_spec hc he (fun ht => ?_)
+    obtain ⟨v, a', hv⟩ := tag_thm ht
+    obtain ⟨_, _, _, _, hk', -, -⟩ := (ConLeche.Frontend.Olean.lazyEntry_of_spec hc he).2.2.2 v a' hv
+    exact hk _ _ hk'
+
+/-- The module arm of the parse: each view `decodeAt`'s, all three at the files' region, the
+server's imports those at the start of `M.olean`. -/
+theorem module_facts {ex sv pv : ConLeche.Frontend.Olean.Part} {vC : ConLeche.Frontend.Olean.AllViews}
+    {r3 : Region} (hm : ModFiles.isModule ⟨ex, some sv, some pv⟩ = true)
+    (hpav : ConLeche.Frontend.Olean.parseAllViews ⟨ex, some sv, some pv⟩ = some vC)
+    (hr3 : ConLeche.Frontend.Olean.Region.ofParts #[ex, sv, pv] = .ok r3) :
+    decodeAt r3 ex.moduleDataAddr = some vC.exported ∧ decodeAt r3 sv.moduleDataAddr = some vC.server ∧
+      decodeAt r3 pv.moduleDataAddr = some vC.private ∧
+      ConLeche.Frontend.Olean.importsPre ex.bytes = some vC.server.imports := by
+  rw [ConLeche.Frontend.Olean.parseAllViews_parts hm] at hpav
+  split at hpav
+  · split at hpav
+    · cases hpav
+    · split at hpav
+      · rw [hr3] at hpav
+        simp only at hpav
+        rw [ConLeche.Frontend.Olean.parseMany_eq] at hpav
+        split at hpav
+        · rename_i de ds dp hpm
+          split at hpav
+          · rename_i hall
+            cases hpav
+            simp only [List.mapM_cons, List.mapM_nil] at hpm
+            obtain ⟨x1, h1, hpm⟩ := bind_some_left hpm
+            obtain ⟨xs1, hpm1, hpm⟩ := bind_some_left hpm
+            simp only [pure, Option.some.injEq] at hpm
+            obtain ⟨x2, h2, hpm1⟩ := bind_some_left hpm1
+            obtain ⟨xs2, hpm2, hpm1⟩ := bind_some_left hpm1
+            simp only [pure, Option.some.injEq] at hpm1
+            obtain ⟨x3, h3, hpm2⟩ := bind_some_left hpm2
+            obtain ⟨xs3, hpm3, hpm2⟩ := bind_some_left hpm2
+            simp only [pure, Option.some.injEq] at hpm2 hpm3
+            subst hpm3 hpm2 hpm1
+            simp only [List.cons.injEq] at hpm
+            obtain ⟨rfl, rfl, rfl, -⟩ := hpm
+            simp only [Bool.and_eq_true, beq_iff_eq] at hall
+            exact ⟨h1, h2, h3, hall.1.2⟩
+          · cases hpav
+        · cases hpav
+      · cases hpav
+  · cases hpav
 
 end ConRon.Bridge.Modular.Home
