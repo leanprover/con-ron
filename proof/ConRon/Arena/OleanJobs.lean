@@ -38,7 +38,7 @@ def oleanJob (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath)
     (I : IStreamIndex) (ds : Array IDeclaration) (c : ValueCache) (t : Nat) :
     AM (ValueCache × Except (CheckError × Nat) Unit) := fun s =>
   let plain : Except CheckError (ValueCache × Except (CheckError × Nat) Unit × AState) :=
-    match runJob mode pins I ds t s with
+    match runJob mode pins none I ds t s with
     | .ok (r, s') => .ok (c, r, s')
     | .error e => .error e
   let finish (x : Except CheckError (ValueCache × Except (CheckError × Nat) Unit × AState)) :
@@ -54,7 +54,7 @@ def oleanJob (fs : OleanFs) (pk : OleanPins) (sp : List System.FilePath)
     | some code =>
       match (do enterScratch; readValue fs pk sp values c code) s with
       | .ok ((c', .ok e), s₁) =>
-        match (do recordCheck mode pins I t (.thmDecl cv e); dropScratch) s₁ with
+        match (do recordCheck mode pins none I t (.thmDecl cv e); dropScratch) s₁ with
         | .ok ((), s₂) => .ok ((c', .ok ()), s₂)
         | .error err => .ok ((c', .error (err, t)), AState.abandoned)
       | .ok ((c', .error err), _) => .ok ((c', .error (err, t)), AState.abandoned)

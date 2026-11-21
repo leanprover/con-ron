@@ -43,6 +43,6 @@ def PooledAccepts (mode : CheckMode) (pins : List INatOpPinSet)
     (∀ t < ds.size, ∃ w ∈ parts, t ∈ w) ∧
     (∀ w ∈ parts, ∀ t ∈ w, t < ds.size) ∧
     (∀ w ∈ parts, w.Pairwise (· < ·)) ∧
-    (∀ w ∈ parts, ∃ s'', checkJobList mode pins I ds w s'.worker = .ok (.ok (), s''))
+    (∀ w ∈ parts, ∃ s'', checkJobList mode pins none I ds w s'.worker = .ok (.ok (), s''))
 
 end ConRon.Arena

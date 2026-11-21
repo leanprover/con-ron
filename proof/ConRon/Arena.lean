@@ -59,6 +59,8 @@ public import ConRon.Arena.Inductives.BlockTail
 public import ConRon.Arena.CheckDecl
 public import ConRon.Arena.Install
 public import ConRon.Arena.StreamIndex
+public import ConRon.Arena.Needs
+public import ConRon.Arena.Justify
 public import ConRon.Arena.InductivesTest
 public import ConRon.Arena.Checker
 public import ConRon.Arena.CheckerTest

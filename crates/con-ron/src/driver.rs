@@ -574,7 +574,7 @@ pub fn check_decls_driver<O: PhaseObserver + Send>(
     obs: &mut O,
 ) -> Result<(), (CheckError, u64)> {
     check_decls_driver_with(pers, st, ds, jobs, obs, || (), |tier, w, _x, k| {
-        checker::run_job(tier, w, mode, pins, ds, k)
+        checker::run_job(tier, w, mode, pins, None, ds, k)
     })
 }
 
@@ -669,7 +669,7 @@ pub fn olean_job(
 ) -> Result<(), (CheckError, u64)> {
     let d = match ds.get(k as usize) {
         Some(d) => d,
-        None => return checker::run_job(tier, w, mode, pins, ds, k),
+        None => return checker::run_job(tier, w, mode, pins, None, ds, k),
     };
     let code: Option<u64> = match d {
         // a theorem's value is a reference only if its handle is a `bvar`: the store's
@@ -695,7 +695,7 @@ pub fn olean_job(
                 Err(e) => Err((e, k)),
                 Ok(v) => {
                     let pd = IDeclaration::ThmDecl(ienv::i_constant_val_dup(cv), v);
-                    match stream_index::record_check(tier, w, mode, pins, k, &pd) {
+                    match stream_index::record_check(tier, w, mode, pins, None, k, &pd) {
                         Err(e) => Err((e, k)),
                         Ok(()) => Ok(()),
                     }
@@ -704,7 +704,7 @@ pub fn olean_job(
             con_ron_core::arena::core::leave_record(w);
             r
         }
-        _ => checker::run_job(tier, w, mode, pins, ds, k),
+        _ => checker::run_job(tier, w, mode, pins, None, ds, k),
     }
 }
 

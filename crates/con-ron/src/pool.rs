@@ -337,7 +337,7 @@ mod tests {
             ds.len(),
             workers,
             || checker::worker_state(pins),
-            |w: &mut AState, k| checker::run_job(pers, w, mode, &np, ds, k as u64),
+            |w: &mut AState, k| checker::run_job(pers, w, mode, &np, None, ds, k as u64),
             |w: &AState, k| {
                 if heartbeat {
                     let n = done.fetch_add(1, Ordering::Relaxed) + 1;
@@ -511,7 +511,7 @@ mod tests {
         if i >= ds.len() {
             Ok(())
         } else {
-            match checker::run_job(pers, st, mode, &np, ds, i as u64) {
+            match checker::run_job(pers, st, mode, &np, None, ds, i as u64) {
                 Err(e) => Err(e),
                 Ok(()) => run_job_list(pers, st, mode, ds, i + 1),
             }

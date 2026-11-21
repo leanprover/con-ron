@@ -12,7 +12,9 @@ view, so its check fails with "duplicate declaration", in fold order.
 
 A record's **job** is its check at the view of its position (`IStreamIndex.view`):
 the index with everything from that record on hidden.  The jobs read the frozen
-index and their own record, so they run independently of one another.
+index and their own record, so they run independently of one another.  The job
+itself (`recordCheck`, `recordJob`) is in `Arena/Justify.lean`, since it reads a
+solution's index there.
 
 **Interning.**  What a record installs is a function of the record, but in the
 arena a function that builds terms interns them, so `buildIndex` is an `AM` action.
@@ -80,7 +82,8 @@ def IStreamIndex.freeze (I : IStreamIndex) : AM IStreamIndex := do
 
 /-- con-leche: ConLeche/Cached/StreamIndex.lean:64-66 buildIndex
 con-leche: ConLeche/Driver/CheckPool.lean:57-75 Jobs.build — **the frozen index of
-a stream** (con-leche's `Jobs` also holds a solution's index, `none` on this path),
+a stream** (con-leche's `Jobs` also holds a solution's index: the same build over the
+solution's records, `solutionOf`),
 as an explicit list recursion (DESIGN §3.4 has no closures), frozen past
 the last record (`IStreamIndex.freeze`, con-leche's `Jobs.build`).  A failure is the
 store's (a term could not be interned) or the pin table's, tagged with the position
@@ -109,27 +112,5 @@ def IStreamIndex.view (I : IStreamIndex) (k : Nat) : IFEnv :=
   let c := I.firsts.getD k I.next
   ⟨⟨[], []⟩, {}, { I.base with below := c, belowRec := k }, {},
     fromLe I.natFrom c, fromLe I.strFrom c⟩
-
-/-- con-leche: ConLeche/Cached/StreamIndex.lean:95-103 recordJob — what the fold's
-step asks of record `pd` at position `k` (the cited solution `J` absent: `none` here):
-the `And` pin, then the record's check at its view (`checkRecordC … none` is
-`checkDeclStepC`).  `recordJob` is this in its bracket. -/
-def recordCheck (mode : CheckMode) (pins : List INatOpPinSet) (I : IStreamIndex)
-    (k : Nat) (pd : IDeclaration) : AM Unit := do
-  if ← andPinOk pd then
-    let _ ← checkDecl mode pins (I.view k) pd
-    pure ()
-  else fail (.invalid "`And` must be the standard `And`")
-
-/-- con-leche: ConLeche/Cached/StreamIndex.lean:95-103 recordJob — **record `pd`'s
-job, at position `k`** (the cited solution `J` is absent: `none` on this path):
-`recordCheck` from fresh memos and an empty scratch tier
-(the cited `checkDeclStepC`'s fresh `{}`), the tier dropped after it.  Nothing the
-job builds outlives it. -/
-def recordJob (mode : CheckMode) (pins : List INatOpPinSet) (I : IStreamIndex)
-    (k : Nat) (pd : IDeclaration) : AM Unit := do
-  enterScratch
-  recordCheck mode pins I k pd
-  dropScratch
 
 end ConRon.Arena
