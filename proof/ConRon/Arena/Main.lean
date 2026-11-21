@@ -4,6 +4,8 @@ public import ConRon.Arena.Frontend.Prelude
 public import ConRon.Arena.Frontend.Olean.Records
 public import ConRon.Arena.OleanJobs
 public import ConRon.Arena.Frontend.Compare
+public import ConRon.Arena.Modular.Graph
+public import ConLeche.Driver.Schedule.Run
 public import ConLeche.Kernel.NatOpPins
 public import ConLeche.Frontend.Pace
 
@@ -429,15 +431,18 @@ def checkMainOlean (sp : List System.FilePath) (roots : Array Name) (constants :
     return e.exitCode
 
 /-- con-leche: ConLeche/Driver/Cli.lean:116-132 synopsis
-The invocation forms, printed on their own when there are no arguments.  con-leche's forms
-of the modes this binary does not run (`--check-graph`, `--module`, `--modular`, `--schedule`)
-are not here (`helpText`). -/
+The invocation forms, printed on their own when there are no arguments.  Of `--schedule` only
+`--schedule-commands` is run (`helpText`). -/
 def synopsis : String := String.intercalate "\n" [
   "Usage:",
   "  con-ron-lean [OPTIONS] [--] FILE.ndjson",
   "  con-ron-lean [OPTIONS] --compare [--] CHALLENGE.ndjson SOLUTION.ndjson",
   "  con-ron-lean [OPTIONS] --olean --search-path=DIRS [--] MODULE...",
+  "  con-ron-lean [OPTIONS] --check-graph --search-path=DIRS [--] MODULE...",
+  "  con-ron-lean [OPTIONS] --olean --schedule-commands --search-path=DIRS [--] MODULE",
   "  con-ron-lean [OPTIONS] --olean --compare [--trusted-search-path=DIRS]",
+  "               --search-path=DIRS [--] CHALLENGE SOLUTION",
+  "  con-ron-lean [OPTIONS] --check-graph --compare [--trusted-search-path=DIRS]",
   "               --search-path=DIRS [--] CHALLENGE SOLUTION"]
 
 /-- con-leche: ConLeche/Driver/Cli.lean:134-135 tryHelp
@@ -480,9 +485,19 @@ def helpText : String := String.intercalate "\n" [
   "                      With --compare: where CHALLENGE is read, and where",
   "                      SOLUTION is read first; colon-separated; repeatable",
   "",
+  "  --check-graph       Check only that the modules' import graph is acyclic",
+  "                      and that every import is on the search path",
+  "  --schedule-commands Start nothing; print the commands that check MODULE's",
+  "                      closure, shell-quoted: the --check-graph run, then one",
+  "                      --module run per module (for xargs or parallel)",
+  "  --schedule-order=ORDER, --worker-stack-size=SIZE",
+  "                      With --schedule-commands: the order of the printed",
+  "                      modules (shuffled or graph); each worker line's",
+  "                      LEAN_STACK_SIZE_KB",
+  "",
   "con-leche's other modes, not run by con-ron yet (a usage error, exit 3):",
-  "  --check-graph, --module, --modular, --schedule[-OPT=V],",
-  "  --worker-stack-size=SIZE, and --compare with any of them",
+  "  --module, --modular, --schedule (use --schedule-commands with xargs or",
+  "  parallel instead), and --compare with --module or --modular",
   "",
   "Exit status:",
   "  0  accepted",
@@ -515,17 +530,21 @@ structure Args where
   module : Bool := false
   /-- `--modular` (not run here). -/
   modular : Bool := false
-  /-- some `--schedule[-OPT=VALUE]` flag was given (not run here; the values are not read, so
-  they are not kept) -/
+  /-- the values after `--schedule` of every `--schedule[-OPT=VALUE]` flag, `""` for the bare
+  flag -/
+  schedule : Array String := #[]
+  /-- some `--schedule` flag was given -/
   scheduled : Bool := false
   /-- `--compare`: the two arguments are a challenge and its solution. -/
   compare : Bool := false
   /-- `--trusted-search-path=DIR:DIR…`: with `--compare`, where the challenge is read, and where
   the solution is read first. -/
   trustedPath : List System.FilePath := []
-  /-- `--worker-stack-size=SIZE` was given, with a valid size (a `--schedule` worker's, so only
-  that it was given is kept) -/
+  /-- `--worker-stack-size=SIZE` was given, with a valid size -/
   workerStack : Bool := false
+  /-- its value in KiB, which `--schedule-commands` prints as each worker's
+  `LEAN_STACK_SIZE_KB` -/
+  workerStackKb : Option Nat := none
   files : Array String := #[]
   bad : Option String := none
 
@@ -591,10 +610,13 @@ def parseArgs : List String → Args → Args
       parseArgs rest { a with trustedPath := a.trustedPath ++
         ((v.splitOn ":").filter (· != "")).map System.FilePath.mk }
     else if s.startsWith "--schedule" then
-      parseArgs rest { a with scheduled := true }
+      parseArgs rest { a with schedule := a.schedule.push (s.drop "--schedule".length).toString,
+                              scheduled := true }
     else if s.startsWith "--worker-stack-size=" then
       let v := (s.drop "--worker-stack-size=".length).toString
-      if sizePositive v then parseArgs rest { a with workerStack := true }
+      if sizePositive v then
+        parseArgs rest { a with workerStack := true,
+                                workerStackKb := ConLeche.Driver.Schedule.parseSize v }
       else { a with bad := some s!"--worker-stack-size takes a size with a unit, K, M, G or T \
         (e.g. 8G), got {Display.str v}" }
     else if s.startsWith "-" then
@@ -889,9 +911,102 @@ A mode this binary does not run, once con-leche's own usage checks have passed: 
 def unsupported (mode : String) : IO UInt8 :=
   usageError s!"{mode} is not supported by con-ron yet"
 
+/-- con-leche: ConLeche/Driver/Graph.lean:240-251 checkGraphG
+A graph walk's line and exit code: the accept line on stdout, or the error's on stderr. -/
+def graphVerdictIO : Except CheckError (Array Modular.Node) → IO UInt8
+  | .error e => do
+    IO.eprintln s!"con-ron-lean: graph: {e.message}"
+    return e.exitCode
+  | .ok C => do
+    IO.println s!"con-ron-lean: graph: acyclic: {C.size} modules, \
+      {C.foldl (· + ·.2.size) 0} import edges"
+    return 0
+
+/-- con-leche: ConLeche/Driver/CompareModule.lean:36-47 chalWalk
+**The challenge's closure through the trusted path alone** (`--trusted-search-path`, its verdict
+only): where a module of it is not there, why (invalid where the search path holds it); none
+where the walk succeeds or no trusted path is given. -/
+def chalWalk (trusted path : List System.FilePath) (pk : Frontend.Olean.OleanPins) (c : NIdx) :
+    AM (Option CheckError) := fun s =>
+  if trusted.isEmpty then .ok (none, s) else
+  let sr : ConLeche.Frontend.Olean.Roots := { path := trusted, fallback := path }
+  match Modular.graphOf stdFs pk { path := trusted } [c] none s with
+  | .ok (_, s') => .ok (none, s')
+  | .error e =>
+    match fallbackOnly trusted sr c s with
+    | .ok (some why, s') => .ok (some (.invalid why), s')
+    | _ => .ok (some e, s)
+
+/-- con-leche: ConLeche/Driver/Dispatch.lean:63-87 runReq
+con-leche: ConLeche/Driver/CompareModule.lean:61-71 checkGraphCmpG
+**The graph check** (`--check-graph`): the roots' closure, its graph checked (`graphOf`); with
+`cmp` (a challenge, the one root, and its solution) the challenge's closure through the trusted
+path first (`chalWalk`), then both closures through the solution's lookup, the solution added to
+the challenge's header. -/
+def graphPipeline (trusted path : List System.FilePath) (roots : List Name) (cmp : Option Name) :
+    AM (Array Modular.Node) := do
+  internReservedPins
+  let pk ← Frontend.Olean.oleanPins
+  let rs ← roots.mapM internName
+  match cmp, rs with
+  | some s, [c] =>
+    let sh ← internName s
+    if let some e ← chalWalk trusted path pk c then fail e
+    let sr : ConLeche.Frontend.Olean.Roots :=
+      if trusted.isEmpty then { path := path } else { path := trusted, fallback := path }
+    Modular.graphOf stdFs pk sr [c] (some (c, sh))
+  | _, _ => Modular.graphOf stdFs pk { path := path } rs none
+
+/-- con-leche: ConLeche/Driver/Schedule.lean:56-111 scheduleG
+con-leche: ConLeche/Driver/Schedule/Run.lean:637-647 printCommands
+**`--schedule[-OPT=V]`**: the settings read (upstream's `Opts.parse`); without
+`--schedule-commands` the scheduler, which this binary does not run (a usage error); with it the
+root's closure by the graph check and the commands that check it, on stdout, the modules in the
+start order (upstream's `commandLines`, `shuffle`, `workerArgs`). -/
+def scheduleMain (a : Args) (root : Name) (cmp : Option Name) : IO UInt8 := do
+  if let .percent _ := a.progress then
+    IO.eprintln "con-ron-lean: --schedule takes --progress=N (milliseconds) or --progress=Ss, \
+      not a percentage"
+    return 3
+  match ConLeche.Driver.Schedule.Opts.parse a.schedule.toList { stackKb := a.workerStackKb } with
+  | .error msg =>
+    IO.eprintln s!"con-ron-lean: {msg}"
+    return 3
+  | .ok o =>
+    if !o.commands then
+      return ← unsupported (if cmp.isSome then "--olean --schedule --compare" else "--olean --schedule")
+    let tp := if cmp.isSome then a.trustedPath else []
+    let run : AM (Array Name) := do
+      let C ← graphPipeline tp a.searchPath [root] cmp
+      C.mapM fun e => fun s => match denoteN s.store.ns e.1 with
+        | some n => .ok (n, s)
+        | none => .error (.internal "a module of the closure does not denote")
+    match run.run (AState.init EStore.empty) with
+    | .error e =>
+      IO.eprintln s!"con-ron-lean: graph: {e.message}"
+      return e.exitCode
+    | .ok (mods, _) =>
+      let dirs := ":".intercalate (a.searchPath.map toString)
+      let paths := if cmp.isSome then
+          #["--trusted-search-path=" ++ ":".intercalate (tp.map toString), "--search-path=" ++ dirs]
+        else ConLeche.Driver.Schedule.pathArgs "" dirs
+      let args (m : Name) : Array String :=
+        match cmp with
+        | some s => if m == root then ConLeche.Driver.Schedule.cmpWorkerArgs a.mode a.maxNatSize
+            paths a.jobs root s
+          else ConLeche.Driver.Schedule.workerArgs a.mode a.maxNatSize paths a.jobs m
+        | none => ConLeche.Driver.Schedule.workerArgs a.mode a.maxNatSize paths a.jobs m
+      let app ← IO.appPath
+      let order := if o.shuffled then ConLeche.Driver.Schedule.shuffle
+          ConLeche.Driver.Schedule.spell mods.toList else mods.toList
+      for l in ConLeche.Driver.Schedule.commandLines app.toString paths root cmp order args
+          o.stackKb do
+        IO.println l
+      return 0
+
 /-- con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
-`--check-graph`'s usage checks, con-leche's in its order; a command line that passes them is a
-mode this binary does not run (`unsupported`). -/
+`--check-graph`'s usage checks, con-leche's in its order, then the graph check
+(`graphPipeline`). -/
 def checkGraphUsage (a : Args) : IO UInt8 := do
   if a.olean || a.module || !a.constants.isEmpty || (!a.trustedPath.isEmpty && !a.compare) then
     return ← usageError "--check-graph takes none of --olean, --module and --constant, and \
@@ -905,10 +1020,12 @@ def checkGraphUsage (a : Args) : IO UInt8 := do
     | [c, s] =>
       if c == s then
         return ← usageError "--compare takes two different modules, a challenge and its solution"
-      return ← unsupported "--check-graph --compare"
+      return ← graphVerdictIO ((graphPipeline a.trustedPath a.searchPath [c] (some s)).run
+        (AState.init EStore.empty) |>.map (·.1))
     | _ => return ← usageError "--check-graph --compare takes two module names, a challenge and \
         its solution"
-  unsupported "--check-graph"
+  graphVerdictIO ((graphPipeline [] a.searchPath (a.files.filterMap
+    Frontend.Olean.parseModName).toList none).run (AState.init EStore.empty) |>.map (·.1))
 
 /-- con-leche: Main.lean:56-103 main
 con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
@@ -955,7 +1072,7 @@ def main (args : List String) : IO UInt8 := do
               them, and no --constant"
           if a.module then return ← unsupported "--olean --module --compare"
           if a.modular then return ← unsupported "--olean --modular --compare"
-          return ← unsupported "--olean --schedule --compare"
+          return ← scheduleMain a c (some s)
         let cs := if a.constants.isEmpty then none
           else some (a.constants.filterMap Frontend.Olean.parseConstName)
         return ← compareOleanMain a.trustedPath a.searchPath c s cs a.mode pins a.maxNatSize
@@ -966,7 +1083,7 @@ def main (args : List String) : IO UInt8 := do
       if roots.size != 1 || !a.constants.isEmpty || a.module || a.modular then
         return ← usageError "--schedule takes one module name, and none of --constant, --module \
           and --modular"
-      return ← unsupported "--olean --schedule"
+      return ← scheduleMain a roots[0]! none
     if a.modular then
       if roots.size != 1 || !a.constants.isEmpty || a.module then
         return ← usageError "--modular takes one module name, and neither --constant nor --module"
