@@ -1,8 +1,10 @@
 /-
 # `ConRon.Arena.Modular.Graph` — the import graph of a closure, checked (task #166)
 
-The twin of `frontend/modular/graph.rs`.  `kahn`, `ranksOf`, `cycleOf` and `rankLt` are
-upstream's own: arrays of numbers.  The closure's names are handles; a rank function is two
+The twin of `frontend/modular/graph.rs`.  `rankLt` is upstream's own.  `kahn`, `ranksOf` and
+`cycleOf` are the Rust's loops, written as folds and recursions over arrays of numbers: what is
+proved of the check is the validation (`verdict`), which reads neither (Theorem 1,
+`Bridge/Modular/Graph.lean`), so they need not be upstream's definitions.  The closure's names are handles; a rank function is two
 tables (`indexOf`, `ranksOf`) read by `rankOf`, as upstream's `rankOf idx rank` is.  The imports
 a run adds are the pair `cmp` (challenge, solution), `none` for none.  Headers are read in order
 (`parMapExcept` is the sequential map); no `Roots` cache.
@@ -19,7 +21,7 @@ namespace ConRon.Arena.Modular
 open ConLeche
 open ConRon.Arena.Frontend.Olean
 open ConLeche.Frontend.Olean (Roots RootAt modFile)
-open ConLeche.Driver.Graph (kahn ranksOf cycleOf rankLt)
+open ConLeche.Driver.Graph (rankLt)
 
 /-- con-leche: ConLeche/Driver/Graph.lean:33-34 Node
 A module of the closure: its name and its imports, off its header. -/
@@ -112,6 +114,107 @@ def indexOf (C : Array Node) : Std.HashMap NIdx Nat :=
 Each module's imports, by position (an import outside the closure left out). -/
 def depsOf (idx : Std.HashMap NIdx Nat) (C : Array Node) : Array (Array Nat) :=
   C.map fun e => e.2.filterMap fun i => idx[i.module]?
+
+/-- con-leche: ConLeche/Driver/Graph.lean:122-146 kahn
+`users`: each position's importers, an importer once per edge. -/
+def kahnUsers (deps : Array (Array Nat)) : Array (Array Nat) :=
+  (List.range deps.size).foldl (fun users x =>
+    (deps[x]?.getD #[]).foldl (fun users j => users.modify j (·.push x)) users)
+    (Array.replicate deps.size #[])
+
+/-- con-leche: ConLeche/Driver/Graph.lean:122-146 kahn
+The worklist's start: each position's number of import edges, and the positions with none. -/
+def kahnStart (deps : Array (Array Nat)) : Array Nat × Array Nat :=
+  (List.range deps.size).foldl (fun (acc : Array Nat × Array Nat) k =>
+    let d := deps[k]?.getD #[]
+    (acc.1.push d.size, if d.size == 0 then acc.2.push k else acc.2)) (#[], #[])
+
+/-- con-leche: ConLeche/Driver/Graph.lean:122-146 kahn
+One release: an importer `y` of the module taken waits on one edge less, and is queued when it
+waits on none. -/
+def kahnRelease (acc : Array Nat × Array Nat) (y : Nat) : Array Nat × Array Nat :=
+  let (wait, q) := acc
+  if y < wait.size then
+    let w := wait[y]!
+    (if w > 0 then wait.set! y (w - 1) else wait, if w == 1 then q.push y else q)
+  else (wait, q)
+
+/-- con-leche: ConLeche/Driver/Graph.lean:122-146 kahn
+The worklist from position `i` of the queue, at most `t` more steps. -/
+def kahnGo (users : Array (Array Nat)) : Nat → Nat → Array Nat → Array Nat → Array Nat
+  | 0, _, _, q => q
+  | t + 1, i, wait, q =>
+    if h : i < q.size then
+      let (wait, q) := (users[q[i]]?.getD #[]).foldl kahnRelease (wait, q)
+      kahnGo users t (i + 1) wait q
+    else q
+
+/-- con-leche: ConLeche/Driver/Graph.lean:122-146 kahn
+**Kahn's worklist**: the positions in an order where each comes after everything it imports; on
+a cyclic graph, the part of it that waits on no cycle. -/
+def kahn (deps : Array (Array Nat)) : Array Nat :=
+  let (wait, q) := kahnStart deps
+  kahnGo (kahnUsers deps) deps.size 0 wait q
+
+/-- con-leche: ConLeche/Driver/Graph.lean:148-153 ranksOf
+**The ranks**: a position's place in the order, `none` for a position the order lacks. -/
+def ranksOf (n : Nat) (ord : Array Nat) : Array (Option Nat) :=
+  (List.range ord.size).foldl (fun r t => r.set! (ord[t]?.getD 0) (some t)) (Array.replicate n none)
+
+/-- con-leche: ConLeche/Driver/Graph.lean:159-180 cycleOf
+The positions `ord` lists, marked. -/
+def doneOf (n : Nat) (ord : Array Nat) : Array Bool :=
+  ord.foldl (fun d p => d.set! p true) (Array.replicate n false)
+
+/-- con-leche: ConLeche/Driver/Graph.lean:159-180 cycleOf
+The first position the order lacks. -/
+def cycleStart (n : Nat) (done : Array Bool) : Option Nat :=
+  (List.range n).find? fun k => !(done[k]?.getD false)
+
+/-- con-leche: ConLeche/Driver/Graph.lean:159-180 cycleOf
+The first import of `x` outside the order. -/
+def cycleNext (deps : Array (Array Nat)) (done : Array Bool) (x : Nat) : Option Nat :=
+  (deps[x]?.getD #[]).find? fun y => !(done[y]?.getD false)
+
+/-- con-leche: ConLeche/Driver/Graph.lean:159-180 cycleOf
+One step of the walk at `x`: a repeat (its first visit's place on the path), or `x` on the path
+and the next module. -/
+inductive CycleStep where
+  | repeat (p : Nat)
+  | next (y : Option Nat)
+
+/-- con-leche: ConLeche/Driver/Graph.lean:159-180 cycleOf
+`if let some p := at?[x]! then … ; at? := at?.set! x (some path.size); path := path.push x`. -/
+def cycleStep (deps : Array (Array Nat)) (done : Array Bool) (at_ : Array (Option Nat))
+    (path : Array Nat) (x : Nat) : CycleStep × Array (Option Nat) × Array Nat :=
+  match at_[x]? with
+  | some (some p) => (.repeat p, at_, path)
+  | some none => (.next (cycleNext deps done x), at_.set! x (some path.size), path.push x)
+  | none => (.next (cycleNext deps done x), at_, path.push x)
+
+/-- con-leche: ConLeche/Driver/Graph.lean:159-180 cycleOf
+The walk, at most `t` steps: the repeat's place, and the path. -/
+def cycleWalk (deps : Array (Array Nat)) (done : Array Bool) :
+    Nat → Array (Option Nat) → Array Nat → Nat → Option Nat × Array Nat
+  | 0, _, path, _ => (none, path)
+  | t + 1, at_, path, x =>
+    match cycleStep deps done at_ path x with
+    | (.repeat p, _, path) => (some p, path)
+    | (.next (some y), at_, path) => cycleWalk deps done t at_ path y
+    | (.next none, _, path) => (none, path)
+
+/-- con-leche: ConLeche/Driver/Graph.lean:159-180 cycleOf
+**A cycle**, given the order: from the first module outside it, an import outside it, until a
+module repeats; the modules from its first visit on, in import order. -/
+def cycleOf (deps : Array (Array Nat)) (ord : Array Nat) : Option (List Nat) :=
+  let n := deps.size
+  let done := doneOf n ord
+  match cycleStart n done with
+  | none => none
+  | some s =>
+    match cycleWalk deps done (n + 1) (Array.replicate n none) #[] s with
+    | (some p, path) => some (path.extract p path.size).toList
+    | (none, path) => some path.toList
 
 /-- con-leche: ConLeche/Driver/Graph.lean:155-157 rankOf
 A module's rank, by name. -/

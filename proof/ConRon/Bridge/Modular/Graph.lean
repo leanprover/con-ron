@@ -449,8 +449,8 @@ theorem graphOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
   obtain ⟨hst1, hgood⟩ := closureLevels_run hsp _ _ _ _ C' hctx hx hroots (by simp) h1
   -- the cycle and the verdict
   dsimp only at h
-  cases hc : ConLeche.Driver.Graph.cycleOf (depsOf (indexOf C') C')
-      (ConLeche.Driver.Graph.kahn (depsOf (indexOf C') C')) with
+  cases hc : ConRon.Arena.Modular.cycleOf (depsOf (indexOf C') C')
+      (ConRon.Arena.Modular.kahn (depsOf (indexOf C') C')) with
   | some cyc =>
     exfalso
     rw [hc] at h
@@ -459,8 +459,8 @@ theorem graphOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
     exact fail_not_ok h''
   | none =>
   rw [hc] at h
-  cases hv : verdict roots C'.toList (rankOf (indexOf C') (ConLeche.Driver.Graph.ranksOf C'.size
-      (ConLeche.Driver.Graph.kahn (depsOf (indexOf C') C')))) with
+  cases hv : verdict roots C'.toList (rankOf (indexOf C') (ConRon.Arena.Modular.ranksOf C'.size
+      (ConRon.Arena.Modular.kahn (depsOf (indexOf C') C')))) with
   | some f =>
     exfalso
     simp only [hv] at h
@@ -472,8 +472,8 @@ theorem graphOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
   obtain ⟨hv', hs⟩ := AM.pure_ok h
   subst hv' hs
   have hw := nsWF_of_StateOK hst1.ok
-  generalize hrk : rankOf (indexOf C) (ConLeche.Driver.Graph.ranksOf C.size
-    (ConLeche.Driver.Graph.kahn (depsOf (indexOf C) C))) = rk at hv
+  generalize hrk : rankOf (indexOf C) (ConRon.Arena.Modular.ranksOf C.size
+    (ConRon.Arena.Modular.kahn (depsOf (indexOf C) C))) = rk at hv
   obtain ⟨v1, v2, v3, v4⟩ := verdict_none hv
   obtain ⟨CC, hCC⟩ := listRel_choose (R := fun e eC => NodeD s'.store e eC ∧ NodeOk sp F extra eC) hgood
   refine ⟨hst1, CC, listRel_mono (fun _ _ h => h.1) hCC, rankC s'.store C.toList rk, ?_, ?_, ?_, ?_⟩

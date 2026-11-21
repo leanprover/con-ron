@@ -72836,13 +72836,13 @@ def frontend.compare.first_foreign
   frontend.compare.first_foreign_loop homes challenge cs 0#usize
 
 /-- [con_ron_core::frontend::olean::view::name_text::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 396:20-396:45 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 424:20-424:45 -/
 @[global_simps, irreducible]
 def frontend.olean.view.name_text.M : Array Std.U32 1#usize :=
   Array.make 1#usize [ 63#u32 ]
 
 /-- [con_ron_core::frontend::olean::view::name_text]:
-    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 393:0-398:1
+    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 421:0-426:1
     Visibility: public -/
 def frontend.olean.view.name_text
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -86902,1167 +86902,669 @@ def frontend.export_c.parse_source
   | core.result.Result.Err e1 =>
     ok (core.result.Result.Err (e1, 0#u64), { ar with store := e }, src)
 
-/-- [con_ron_core::frontend::nat_op_ground::M_FUEL_USED_CONSTS]
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 66:0-69:2
+/-- [con_ron_core::frontend::modular::graph::solution_import]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 45:0-47:1
     Visibility: public -/
-@[global_simps, irreducible]
-def frontend.nat_op_ground.M_FUEL_USED_CONSTS : Array Std.U32 26#usize :=
-  Array.make 26#usize [
-    102#u32, 117#u32, 101#u32, 108#u32, 32#u32, 101#u32, 120#u32, 104#u32,
-    97#u32, 117#u32, 115#u32, 116#u32, 101#u32, 100#u32, 58#u32, 32#u32,
-    117#u32, 115#u32, 101#u32, 100#u32, 67#u32, 111#u32, 110#u32, 115#u32,
-    116#u32, 115#u32
-    ]
-
-/-- [con_ron_core::frontend::nat_op_ground::seen_has]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 78:0-83:1
-    Visibility: public -/
-def frontend.nat_op_ground.seen_has
-  (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool) (e : arena.handle.EIdx)
-  :
-  Result Bool
+def frontend.modular.graph.solution_import
+  (s : arena.handle.NIdx) :
+  Result (frontend.olean.spec.ImportF arena.handle.NIdx)
   := do
-  let o ←
-    ron.hashmap2.HashMap2.get
-      arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable
-      arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2 seen e
-  match o with
-  | none => ok false
-  | some _ => ok true
+  let n ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 s
+  ok
+    { module := n, import_all := true, is_exported := false, is_meta := false }
 
-mutual
-
-/-- [con_ron_core::frontend::nat_op_ground::used_consts_go]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 88:0-104:1
+/-- [con_ron_core::frontend::modular::graph::cmp_extra]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 53:0-64:1
     Visibility: public -/
-def frontend.nat_op_ground.used_consts_go
-  (pers : arena.store.PersTier) (st : arena.monad.AState)
-  (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
-  (acc : alloc.vec.Vec arena.handle.NIdx) (fuel : Std.U64)
-  (e : arena.handle.EIdx) :
-  Result ((core.result.Result (alloc.vec.Vec arena.handle.NIdx)
-    kernel.core_types.CheckError) × (ron.hashmap2.HashMap2 arena.handle.EIdx
-    Bool))
+def frontend.modular.graph.cmp_extra
+  (cmp : Option (arena.handle.NIdx × arena.handle.NIdx))
+  (m : arena.handle.NIdx) :
+  Result (alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
   := do
-  if fuel = 0#u64
-  then
-    let s ← lift (Array.to_slice frontend.nat_op_ground.M_FUEL_USED_CONSTS)
-    let v ← kernel.core_types.code_points s
-    let r ←
-      arena.monad.fail (alloc.vec.Vec arena.handle.NIdx)
-        (kernel.core_types.CheckError.Internal v)
-    ok (r, seen)
-  else
-    let b ← frontend.nat_op_ground.seen_has seen e
+  match cmp with
+  | none =>
+    ok (alloc.vec.Vec.new (frontend.olean.spec.ImportF arena.handle.NIdx))
+  | some p =>
+    let (c, s) := p
+    let b ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 m c
     if b
-    then ok (core.result.Result.Ok acc, seen)
+    then
+      let «if» ← frontend.modular.graph.solution_import s
+      alloc.vec.Vec.push (alloc.vec.Vec.new (frontend.olean.spec.ImportF
+        arena.handle.NIdx)) «if»
+    else ok (alloc.vec.Vec.new (frontend.olean.spec.ImportF arena.handle.NIdx))
+
+/-- [con_ron_core::frontend::olean::files::path_join::M]
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 101:54-101:79 -/
+@[global_simps, irreducible]
+def frontend.olean.files.path_join.M : Array Std.U32 1#usize :=
+  Array.make 1#usize [ 47#u32 ]
+
+/-- [con_ron_core::frontend::olean::files::path_join]:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 97:0-105:1
+    Visibility: public -/
+def frontend.olean.files.path_join
+  (p : alloc.vec.Vec Std.U32) (sub : alloc.vec.Vec Std.U32) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let i := alloc.vec.Vec.len sub
+  if i > 0#usize
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) sub
+        0#usize
+    if i1 = 47#u32
+    then kernel.expr.str_copy sub
     else
-      let e1 ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 e
-      let (_, seen1) ←
-        ron.hashmap2.HashMap2.insert
-          arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable
-          arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2 seen e1 true
-      let i ← fuel - 1#u64
-      frontend.nat_op_ground.used_consts_node pers st seen1 acc i e
-partial_fixpoint
+      let v ← kernel.expr.str_copy p
+      let s ← lift (Array.to_slice frontend.olean.files.path_join.M)
+      let v1 ← kernel.core_types.code_points s
+      let out ← frontend.text.cat v v1
+      frontend.text.cat out sub
+  else
+    let v ← kernel.expr.str_copy p
+    let s ← lift (Array.to_slice frontend.olean.files.path_join.M)
+    let v1 ← kernel.core_types.code_points s
+    let out ← frontend.text.cat v v1
+    frontend.text.cat out sub
 
-/-- [con_ron_core::frontend::nat_op_ground::used_consts_node]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 109:0-140:1
-    Visibility: public -/
-def frontend.nat_op_ground.used_consts_node
-  (pers : arena.store.PersTier) (st : arena.monad.AState)
-  (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
-  (acc : alloc.vec.Vec arena.handle.NIdx) (fuel : Std.U64)
-  (e : arena.handle.EIdx) :
-  Result ((core.result.Result (alloc.vec.Vec arena.handle.NIdx)
-    kernel.core_types.CheckError) × (ron.hashmap2.HashMap2 arena.handle.EIdx
-    Bool))
-  := do
-  let r ← arena.monad.view pers st e
-  match r with
-  | core.result.Result.Ok ev =>
-    match ev with
-    | arena.store.ENodeView.BVar _ => ok (core.result.Result.Ok acc, seen)
-    | arena.store.ENodeView.FVar _ ty =>
-      frontend.nat_op_ground.used_consts_go pers st seen acc fuel ty
-    | arena.store.ENodeView.Sort _ => ok (core.result.Result.Ok acc, seen)
-    | arena.store.ENodeView.Const n _ =>
-      let acc1 ← alloc.vec.Vec.push acc n
-      ok (core.result.Result.Ok acc1, seen)
-    | arena.store.ENodeView.App f a =>
-      frontend.nat_op_ground.used_consts_two pers st seen acc fuel f a
-    | arena.store.ENodeView.Lam ty b =>
-      frontend.nat_op_ground.used_consts_two pers st seen acc fuel ty b
-    | arena.store.ENodeView.ForallE ty b =>
-      frontend.nat_op_ground.used_consts_two pers st seen acc fuel ty b
-    | arena.store.ENodeView.LetE ty v b =>
-      let (r1, seen1) ←
-        frontend.nat_op_ground.used_consts_two pers st seen acc fuel ty v
-      match r1 with
-      | core.result.Result.Ok a2 =>
-        frontend.nat_op_ground.used_consts_go pers st seen1 a2 fuel b
-      | core.result.Result.Err _ => ok (r1, seen1)
-    | arena.store.ENodeView.Lit _ => ok (core.result.Result.Ok acc, seen)
-    | arena.store.ENodeView.Proj sn _ x =>
-      let acc1 ← alloc.vec.Vec.push acc sn
-      frontend.nat_op_ground.used_consts_go pers st seen acc1 fuel x
-  | core.result.Result.Err er => ok (core.result.Result.Err er, seen)
-partial_fixpoint
-
-/-- [con_ron_core::frontend::nat_op_ground::used_consts_two]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 144:0-157:1
-    Visibility: public -/
-def frontend.nat_op_ground.used_consts_two
-  (pers : arena.store.PersTier) (st : arena.monad.AState)
-  (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
-  (acc : alloc.vec.Vec arena.handle.NIdx) (fuel : Std.U64)
-  (a : arena.handle.EIdx) (b : arena.handle.EIdx) :
-  Result ((core.result.Result (alloc.vec.Vec arena.handle.NIdx)
-    kernel.core_types.CheckError) × (ron.hashmap2.HashMap2 arena.handle.EIdx
-    Bool))
-  := do
-  let (r, seen1) ←
-    frontend.nat_op_ground.used_consts_go pers st seen acc fuel a
-  match r with
-  | core.result.Result.Ok a2 =>
-    frontend.nat_op_ground.used_consts_go pers st seen1 a2 fuel b
-  | core.result.Result.Err _ => ok (r, seen1)
-partial_fixpoint
-
-end
-
-/-- [con_ron_core::frontend::nat_op_ground::used_consts_rules]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 172:4-182:1
+/-- [con_ron_core::frontend::olean::files::mod_dir_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 150:4-157:5
     Visibility: public -/
 @[rust_loop]
-def frontend.nat_op_ground.used_consts_rules_loop
-  (pers : arena.store.PersTier) (st : arena.monad.AState)
-  (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
-  (rules : alloc.vec.Vec arena.env.IRecRule)
-  (out : alloc.vec.Vec arena.handle.NIdx) (n : Std.Usize) (i : Std.Usize) :
-  Result ((core.result.Result (alloc.vec.Vec arena.handle.NIdx)
-    kernel.core_types.CheckError) × (ron.hashmap2.HashMap2 arena.handle.EIdx
-    Bool))
+def frontend.olean.files.mod_dir_of_loop
+  (cs : alloc.vec.Vec kernel.name.NameComponent) (path : alloc.vec.Vec Std.U32)
+  (k : Std.Usize) :
+  Result (alloc.vec.Vec Std.U32)
   := do
-  if i < n
+  if k > 0#usize
   then
-    let ir ←
+    let k1 ← k - 1#usize
+    let nc ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        arena.env.IRecRule) rules i
-    let (r, seen1) ←
-      frontend.nat_op_ground.used_consts_go pers st seen out
-        arena.core.CORE_WALK_FUEL ir.rhs
-    match r with
-    | core.result.Result.Ok a2 =>
-      let i1 ← i + 1#usize
-      frontend.nat_op_ground.used_consts_rules_loop pers st seen1 rules a2 n i1
-    | core.result.Result.Err _ => ok (r, seen1)
-  else ok (core.result.Result.Ok out, seen)
+        kernel.name.NameComponent) cs k1
+    let comp ←
+      match nc with
+      | kernel.name.NameComponent.Str s => kernel.expr.str_copy s
+      | kernel.name.NameComponent.Num i => frontend.text.u64_str i
+    let path1 ← frontend.olean.files.path_join path comp
+    frontend.olean.files.mod_dir_of_loop cs path1 k1
+  else ok path
 partial_fixpoint
 
-/-- [con_ron_core::frontend::nat_op_ground::used_consts_rules]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 162:0-182:1
+/-- [con_ron_core::frontend::olean::files::mod_dir_of]:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 146:0-159:1
     Visibility: public -/
-def frontend.nat_op_ground.used_consts_rules
-  (pers : arena.store.PersTier) (st : arena.monad.AState)
-  (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
-  (acc : alloc.vec.Vec arena.handle.NIdx)
-  (rules : alloc.vec.Vec arena.env.IRecRule) :
-  Result ((core.result.Result (alloc.vec.Vec arena.handle.NIdx)
-    kernel.core_types.CheckError) × (ron.hashmap2.HashMap2 arena.handle.EIdx
-    Bool))
+def frontend.olean.files.mod_dir_of
+  (dir : alloc.vec.Vec Std.U32) (n : kernel.name.Name) :
+  Result (alloc.vec.Vec Std.U32)
   := do
-  let n := alloc.vec.Vec.len rules
-  frontend.nat_op_ground.used_consts_rules_loop pers st seen rules acc n
-    0#usize
+  let cs ←
+    kernel.name.component_list n (alloc.vec.Vec.new kernel.name.NameComponent)
+  let path ← kernel.expr.str_copy dir
+  let k := alloc.vec.Vec.len cs
+  frontend.olean.files.mod_dir_of_loop cs path k
 
-/-- [con_ron_core::frontend::nat_op_ground::used_consts_block]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 198:4-221:1
+/-- [con_ron_core::frontend::olean::files::path_add_extension]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 114:4-119:5
     Visibility: public -/
 @[rust_loop]
-def frontend.nat_op_ground.used_consts_block_loop
-  (pers : arena.store.PersTier) (st : arena.monad.AState)
-  (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
-  (block : alloc.vec.Vec arena.env.IConstantInfo)
-  (out : alloc.vec.Vec arena.handle.NIdx) (n : Std.Usize) (i : Std.Usize) :
-  Result ((core.result.Result (alloc.vec.Vec arena.handle.NIdx)
-    kernel.core_types.CheckError) × (ron.hashmap2.HashMap2 arena.handle.EIdx
-    Bool))
+def frontend.olean.files.path_add_extension_loop0
+  (p : alloc.vec.Vec Std.U32) (sep : Std.Usize) (found : Bool) :
+  Result (Std.Usize × Bool)
   := do
-  if i < n
+  if sep > 0#usize
   then
-    let ii ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        arena.env.IConstantInfo) block i
-    let ci ← arena.env.i_constant_info_dup ii
-    let iv ← arena.env.i_constant_info_to_constant_val ci
-    let (r, seen1) ←
-      frontend.nat_op_ground.used_consts_go pers st seen out
-        arena.core.CORE_WALK_FUEL iv.ty
-    match r with
-    | core.result.Result.Ok a2 =>
-      match ii with
-      | arena.env.IConstantInfo.AxiomInfo _ =>
-        let i1 ← i + 1#usize
-        frontend.nat_op_ground.used_consts_block_loop pers st seen1 block a2 n
-          i1
-      | arena.env.IConstantInfo.DefnInfo _ _ _ =>
-        let i1 ← i + 1#usize
-        frontend.nat_op_ground.used_consts_block_loop pers st seen1 block a2 n
-          i1
-      | arena.env.IConstantInfo.ThmInfo _ =>
-        let i1 ← i + 1#usize
-        frontend.nat_op_ground.used_consts_block_loop pers st seen1 block a2 n
-          i1
-      | arena.env.IConstantInfo.IndInfo _ _ =>
-        let i1 ← i + 1#usize
-        frontend.nat_op_ground.used_consts_block_loop pers st seen1 block a2 n
-          i1
-      | arena.env.IConstantInfo.CtorInfo _ _ _ _ =>
-        let i1 ← i + 1#usize
-        frontend.nat_op_ground.used_consts_block_loop pers st seen1 block a2 n
-          i1
-      | arena.env.IConstantInfo.RecInfo _ _ _ _ rules =>
-        let (r1, seen2) ←
-          frontend.nat_op_ground.used_consts_rules pers st seen1 a2 rules
-        match r1 with
-        | core.result.Result.Ok a3 =>
-          let i1 ← i + 1#usize
-          frontend.nat_op_ground.used_consts_block_loop pers st seen2 block a3
-            n i1
-        | core.result.Result.Err _ => ok (r1, seen2)
-    | core.result.Result.Err _ => ok (r, seen1)
-  else ok (core.result.Result.Ok out, seen)
+    if found
+    then ok (sep, found)
+    else
+      let sep1 ← sep - 1#usize
+      let i ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) p
+          sep1
+      if i = 47#u32
+      then frontend.olean.files.path_add_extension_loop0 p sep1 true
+      else frontend.olean.files.path_add_extension_loop0 p sep1 found
+  else ok (sep, found)
 partial_fixpoint
 
-/-- [con_ron_core::frontend::nat_op_ground::used_consts_block]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 188:0-221:1
-    Visibility: public -/
-def frontend.nat_op_ground.used_consts_block
-  (pers : arena.store.PersTier) (st : arena.monad.AState)
-  (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
-  (acc : alloc.vec.Vec arena.handle.NIdx)
-  (block : alloc.vec.Vec arena.env.IConstantInfo) :
-  Result ((core.result.Result (alloc.vec.Vec arena.handle.NIdx)
-    kernel.core_types.CheckError) × arena.monad.AState ×
-    (ron.hashmap2.HashMap2 arena.handle.EIdx Bool))
-  := do
-  let n := alloc.vec.Vec.len block
-  let (r, seen1) ←
-    frontend.nat_op_ground.used_consts_block_loop pers st seen block acc n
-      0#usize
-  ok (r, st, seen1)
-
-/-- [con_ron_core::frontend::nat_op_ground::decl_used_consts_value]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 253:0-264:1
-    Visibility: public -/
-def frontend.nat_op_ground.decl_used_consts_value
-  (pers : arena.store.PersTier) (st : arena.monad.AState)
-  (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
-  (ty : arena.handle.EIdx) (v : arena.handle.EIdx) :
-  Result ((core.result.Result (alloc.vec.Vec arena.handle.NIdx)
-    kernel.core_types.CheckError) × (ron.hashmap2.HashMap2 arena.handle.EIdx
-    Bool))
-  := do
-  let (r, seen1) ←
-    frontend.nat_op_ground.used_consts_go pers st seen (alloc.vec.Vec.new
-      arena.handle.NIdx) arena.core.CORE_WALK_FUEL ty
-  match r with
-  | core.result.Result.Ok acc =>
-    frontend.nat_op_ground.used_consts_go pers st seen1 acc
-      arena.core.CORE_WALK_FUEL v
-  | core.result.Result.Err _ => ok (r, seen1)
-
-/-- [con_ron_core::frontend::nat_op_ground::decl_used_consts]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 227:0-247:1
-    Visibility: public -/
-def frontend.nat_op_ground.decl_used_consts
-  (pers : arena.store.PersTier) (st : arena.monad.AState)
-  (d : arena.env.IDeclaration) :
-  Result ((core.result.Result (alloc.vec.Vec arena.handle.NIdx)
-    kernel.core_types.CheckError) × arena.monad.AState)
-  := do
-  let seen ← ron.hashmap2.HashMap2.new arena.handle.EIdx Bool
-  match d with
-  | arena.env.IDeclaration.AxiomDecl cv =>
-    let (r, _) ←
-      frontend.nat_op_ground.used_consts_go pers st seen (alloc.vec.Vec.new
-        arena.handle.NIdx) arena.core.CORE_WALK_FUEL cv.ty
-    ok (r, st)
-  | arena.env.IDeclaration.DefnDecl cv v _ =>
-    let (r, _) ←
-      frontend.nat_op_ground.decl_used_consts_value pers st seen cv.ty v
-    ok (r, st)
-  | arena.env.IDeclaration.ThmDecl cv v =>
-    let (r, _) ←
-      frontend.nat_op_ground.decl_used_consts_value pers st seen cv.ty v
-    ok (r, st)
-  | arena.env.IDeclaration.OpaqueDecl cv v =>
-    let (r, _) ←
-      frontend.nat_op_ground.decl_used_consts_value pers st seen cv.ty v
-    ok (r, st)
-  | arena.env.IDeclaration.IndDecl block _ =>
-    let (r, st1, _) ←
-      frontend.nat_op_ground.used_consts_block pers st seen (alloc.vec.Vec.new
-        arena.handle.NIdx) block
-    ok (r, st1)
-  | arena.env.IDeclaration.QuotDecl _ _ =>
-    ok (core.result.Result.Ok (alloc.vec.Vec.new arena.handle.NIdx), st)
-
-/-- [con_ron_core::frontend::nat_op_ground::{impl con_ron_core::frontend::nat_op_ground::UsedConsts for con_ron_core::frontend::nat_op_ground::DeclUsedConsts}::used_consts]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 284:4-286:5
-    Visibility: public -/
-def
-  frontend.nat_op_ground.DeclUsedConsts.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts.used_consts
-  (self : frontend.nat_op_ground.DeclUsedConsts) (pers : arena.store.PersTier)
-  (st : arena.monad.AState) (d : arena.env.IDeclaration) :
-  Result ((core.result.Result (alloc.vec.Vec arena.handle.NIdx)
-    kernel.core_types.CheckError) × arena.monad.AState)
-  := do
-  frontend.nat_op_ground.decl_used_consts pers st d
-
-/-- Trait implementation: [con_ron_core::frontend::nat_op_ground::{impl con_ron_core::frontend::nat_op_ground::UsedConsts for con_ron_core::frontend::nat_op_ground::DeclUsedConsts}]
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 282:0-287:1 -/
-@[reducible]
-def
-  frontend.nat_op_ground.DeclUsedConsts.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts
-  : frontend.nat_op_ground.UsedConsts frontend.nat_op_ground.DeclUsedConsts
-  := {
-  used_consts :=
-    frontend.nat_op_ground.DeclUsedConsts.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts.used_consts
-}
-
-/-- [con_ron_core::frontend::nat_op_ground::nidx_contains]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 320:4-327:1
+/-- [con_ron_core::frontend::olean::files::path_add_extension]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 132:4-135:5
     Visibility: public -/
 @[rust_loop]
-def frontend.nat_op_ground.nidx_contains_loop
-  (ns : alloc.vec.Vec arena.handle.NIdx) (n : arena.handle.NIdx)
-  (m : Std.Usize) (i : Std.Usize) :
+def frontend.olean.files.path_add_extension_loop1
+  (p : alloc.vec.Vec Std.U32) (out : alloc.vec.Vec Std.U32) (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let i1 := alloc.vec.Vec.len p
+  if i < i1
+  then
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) p i
+    let out1 ← alloc.vec.Vec.push out i2
+    let i3 ← i + 1#usize
+    frontend.olean.files.path_add_extension_loop1 p out1 i3
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::files::path_add_extension]:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 111:0-140:1
+    Visibility: public -/
+def frontend.olean.files.path_add_extension
+  (p : alloc.vec.Vec Std.U32) (ext : alloc.vec.Vec Std.U32) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let sep := alloc.vec.Vec.len p
+  let (sep1, found) ←
+    frontend.olean.files.path_add_extension_loop0 p sep false
+  let start ← if found
+                then sep1 + 1#usize
+                else ok 0#usize
+  let i := alloc.vec.Vec.len p
+  let n ← i - start
+  let is_dot ←
+    if n = 1#usize
+    then
+      do
+      let i1 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) p
+          start
+      ok (i1 = 46#u32)
+    else ok false
+  let is_dotdot ←
+    if n = 2#usize
+    then
+      do
+      let i1 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) p
+          start
+      if i1 = 46#u32
+      then
+        let i2 ← start + 1#usize
+        let i3 ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) p
+            i2
+        ok (i3 = 46#u32)
+      else ok false
+    else ok false
+  if n = 0#usize
+  then kernel.expr.str_copy p
+  else
+    if is_dot
+    then kernel.expr.str_copy p
+    else
+      if is_dotdot
+      then kernel.expr.str_copy p
+      else
+        let i1 := alloc.vec.Vec.len p
+        let i2 := alloc.vec.Vec.len ext
+        let i3 ← i1 + i2
+        let i4 ← i3 + 2#usize
+        let out := alloc.vec.Vec.with_capacity Std.U32 i4
+        let out1 ←
+          if found
+          then if sep1 = 0#usize
+               then alloc.vec.Vec.push out 47#u32
+               else ok out
+          else ok out
+        let out2 ←
+          frontend.olean.files.path_add_extension_loop1 p out1 0#usize
+        let i5 := alloc.vec.Vec.len ext
+        let out3 ←
+          if i5 > 0#usize
+          then alloc.vec.Vec.push out2 46#u32
+          else ok out2
+        frontend.text.cat out3 ext
+
+/-- [con_ron_core::frontend::olean::files::mod_file_of]:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 163:0-165:1
+    Visibility: public -/
+def frontend.olean.files.mod_file_of
+  (dir : alloc.vec.Vec Std.U32) (n : kernel.name.Name)
+  (ext : alloc.vec.Vec Std.U32) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let v ← frontend.olean.files.mod_dir_of dir n
+  frontend.olean.files.path_add_extension v ext
+
+/-- [con_ron_core::frontend::modular::graph::file_at]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 68:0-73:1
+    Visibility: public -/
+def frontend.modular.graph.file_at
+  {F : Type _} (oleanfilesOleanFsInst : frontend.olean.files.OleanFs F)
+  (fs : F) (d : alloc.vec.Vec Std.U32) (n : kernel.name.Name)
+  (ext : alloc.vec.Vec Std.U32) :
+  Result (core.result.Result Bool kernel.core_types.CheckError)
+  := do
+  let v ← frontend.olean.files.mod_file_of d n ext
+  let r ← oleanfilesOleanFsInst.path_exists fs v
+  match r with
+  | core.result.Result.Ok b => ok (core.result.Result.Ok b)
+  | core.result.Result.Err e =>
+    let ce ← kernel.core_types.internal e
+    ok (core.result.Result.Err ce)
+
+/-- [con_ron_core::frontend::olean::files::real_seen]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 409:4-416:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.files.real_seen_loop
+  (reals : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (i : Std.Usize)
+  (j : Std.Usize) :
   Result Bool
   := do
-  if i < m
+  if j < i
   then
-    let n1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        arena.handle.NIdx) ns i
-    let b ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 n1 n
+    let v ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        Std.U32)) reals j
+    let v1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        Std.U32)) reals i
+    let b ← kernel.name.str_eq v v1
     if b
     then ok true
-    else
-      let i1 ← i + 1#usize
-      frontend.nat_op_ground.nidx_contains_loop ns n m i1
+    else let j1 ← j + 1#usize
+         frontend.olean.files.real_seen_loop reals i j1
   else ok false
 partial_fixpoint
 
-/-- [con_ron_core::frontend::nat_op_ground::nidx_contains]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 317:0-327:1
-    Visibility: public -/
-def frontend.nat_op_ground.nidx_contains
-  (ns : alloc.vec.Vec arena.handle.NIdx) (n : arena.handle.NIdx) :
-  Result Bool
-  := do
-  let m := alloc.vec.Vec.len ns
-  frontend.nat_op_ground.nidx_contains_loop ns n m 0#usize
-
-/-- [con_ron_core::frontend::nat_op_ground::is_nat_op_record]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 293:0-313:1
-    Visibility: public -/
-def frontend.nat_op_ground.is_nat_op_record
-  (st : arena.monad.AState) (d : arena.env.IDeclaration) :
-  Result ((core.result.Result (Option arena.handle.NIdx)
-    kernel.core_types.CheckError) × arena.monad.AState)
-  := do
-  match d with
-  | arena.env.IDeclaration.AxiomDecl _ => ok (core.result.Result.Ok none, st)
-  | arena.env.IDeclaration.DefnDecl cv _ _ =>
-    let (r, st1) ← arena.core.nat_div_mod_names st
-    match r with
-    | core.result.Result.Ok ds =>
-      let (r1, st2) ← arena.core.nat_op_names st1
-      match r1 with
-      | core.result.Result.Ok ns =>
-        let b ← frontend.nat_op_ground.nidx_contains ds cv.name
-        if b
-        then
-          let n ←
-            arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 cv.name
-          ok (core.result.Result.Ok (some n), st2)
-        else
-          let b1 ← frontend.nat_op_ground.nidx_contains ns cv.name
-          if b1
-          then
-            let n ←
-              arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 cv.name
-            ok (core.result.Result.Ok (some n), st2)
-          else ok (core.result.Result.Ok none, st2)
-      | core.result.Result.Err e => ok (core.result.Result.Err e, st2)
-    | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
-  | arena.env.IDeclaration.ThmDecl _ _ => ok (core.result.Result.Ok none, st)
-  | arena.env.IDeclaration.OpaqueDecl _ _ =>
-    ok (core.result.Result.Ok none, st)
-  | arena.env.IDeclaration.IndDecl _ _ => ok (core.result.Result.Ok none, st)
-  | arena.env.IDeclaration.QuotDecl _ _ => ok (core.result.Result.Ok none, st)
-
-/-- [con_ron_core::frontend::nat_op_ground::hoist_name_index]: loop 1:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 345:8-350:9
-    Visibility: public -/
-@[rust_loop]
-def frontend.nat_op_ground.hoist_name_index_loop0_loop0
-  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64) (i : Std.Usize)
-  (ns : alloc.vec.Vec arena.handle.NIdx) (m : Std.Usize) (j : Std.Usize) :
-  Result (ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
-  := do
-  if j < m
-  then
-    let n ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        arena.handle.NIdx) ns j
-    let b ←
-      ron.hashmap2.HashMap2.contains_key
-        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
-        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 idx n
-    let idx1 ←
-      if b
-      then ok idx
-      else
-        do
-        let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
-        let i1 ← lift (UScalar.cast .U64 i)
-        let (_, idx2) ←
-          ron.hashmap2.HashMap2.insert
-            arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
-            arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 idx n1 i1
-        ok idx2
-    let j1 ← j + 1#usize
-    frontend.nat_op_ground.hoist_name_index_loop0_loop0 idx1 i ns m j1
-  else ok idx
-partial_fixpoint
-
-/-- [con_ron_core::frontend::nat_op_ground::hoist_name_index]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 341:4-352:5
-    Visibility: public -/
-@[rust_loop]
-def frontend.nat_op_ground.hoist_name_index_loop0
-  (ds : alloc.vec.Vec arena.env.IDeclaration)
-  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64) (n : Std.Usize)
-  (i : Std.Usize) :
-  Result (ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
-  := do
-  if i < n
-  then
-    let i1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        arena.env.IDeclaration) ds i
-    let ns ← arena.env.i_declaration_names i1
-    let m := alloc.vec.Vec.len ns
-    let idx1 ←
-      frontend.nat_op_ground.hoist_name_index_loop0_loop0 idx i ns m 0#usize
-    let i2 ← i + 1#usize
-    frontend.nat_op_ground.hoist_name_index_loop0 ds idx1 n i2
-  else ok idx
-partial_fixpoint
-
-/-- [con_ron_core::frontend::nat_op_ground::hoist_name_index]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 337:0-354:1
-    Visibility: public -/
-def frontend.nat_op_ground.hoist_name_index
-  (ds : alloc.vec.Vec arena.env.IDeclaration) :
-  Result (ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
-  := do
-  let idx ← ron.hashmap2.HashMap2.new arena.handle.NIdx Std.U64
-  let n := alloc.vec.Vec.len ds
-  frontend.nat_op_ground.hoist_name_index_loop0 ds idx n 0#usize
-
-/-- [con_ron_core::frontend::nat_op_ground::idx_get]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 360:0-365:1
-    Visibility: public -/
-def frontend.nat_op_ground.idx_get
-  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
-  (n : arena.handle.NIdx) :
-  Result (Option Std.U64)
-  := do
-  let o ←
-    ron.hashmap2.HashMap2.get
-      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
-      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 idx n
-  match o with
-  | none => ok none
-  | some _ => ok o
-
-/-- [con_ron_core::frontend::nat_op_ground::target_done]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 370:0-375:1
-    Visibility: public -/
-def frontend.nat_op_ground.target_done
-  (target : ron.hashmap2.HashMap2 Std.U64 Std.U64) (k : Std.U64) (i : Std.U64)
-  :
-  Result Bool
-  := do
-  let o ←
-    ron.hashmap2.HashMap2.get U64.Insts.Con_ron_coreRonHashmapHashable
-      U64.Insts.Con_ron_coreRonHashmapEq2 target k
-  match o with
-  | none => ok false
-  | some t => ok (t <= i)
-
-/-- [con_ron_core::frontend::nat_op_ground::stack_push_u64]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 416:0-424:1
-    Visibility: public -/
-def frontend.nat_op_ground.stack_push_u64
-  (stack : alloc.vec.Vec Std.U64) (sp : Std.Usize) (x : Std.U64) :
-  Result ((alloc.vec.Vec Std.U64) × Std.Usize)
-  := do
-  let i := alloc.vec.Vec.len stack
-  let stack1 ←
-    if sp < i
-    then
-      do
-      let (_, index_mut_back) ←
-        alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
-          stack sp
-      ok (index_mut_back x)
-    else alloc.vec.Vec.push stack x
-  let i1 ← sp + 1#usize
-  ok (stack1, i1)
-
-/-- [con_ron_core::frontend::nat_op_ground::hoist_push_deps]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 393:4-405:5
-    Visibility: public -/
-@[rust_loop]
-def frontend.nat_op_ground.hoist_push_deps_loop
-  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
-  (used : alloc.vec.Vec arena.handle.NIdx) (i : Std.U64) (k : Std.U64)
-  (stack : alloc.vec.Vec Std.U64) (sp : Std.Usize) (n : Std.Usize)
-  (u : Std.Usize) :
-  Result ((alloc.vec.Vec Std.U64) × Std.Usize)
-  := do
-  if u < n
-  then
-    let n1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        arena.handle.NIdx) used u
-    let o ← frontend.nat_op_ground.idx_get idx n1
-    let (stack1, sp1) ←
-      match o with
-      | none => ok (stack, sp)
-      | some m =>
-        if m > i
-        then
-          if m != k
-          then frontend.nat_op_ground.stack_push_u64 stack sp m
-          else ok (stack, sp)
-        else ok (stack, sp)
-    let u1 ← u + 1#usize
-    frontend.nat_op_ground.hoist_push_deps_loop idx used i k stack1 sp1 n u1
-  else ok (stack, sp)
-partial_fixpoint
-
-/-- [con_ron_core::frontend::nat_op_ground::hoist_push_deps]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 381:0-407:1
-    Visibility: public -/
-def frontend.nat_op_ground.hoist_push_deps
-  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
-  (used : alloc.vec.Vec arena.handle.NIdx) (stack : alloc.vec.Vec Std.U64)
-  (sp : Std.Usize) (i : Std.U64) (k : Std.U64) :
-  Result ((alloc.vec.Vec Std.U64) × Std.Usize)
-  := do
-  let n := alloc.vec.Vec.len used
-  frontend.nat_op_ground.hoist_push_deps_loop idx used i k stack sp n 0#usize
-
-/-- [con_ron_core::frontend::nat_op_ground::hoist_close]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 447:4-464:1
-    Visibility: public -/
-@[rust_loop]
-def frontend.nat_op_ground.hoist_close_loop
-  {U : Type _} (UsedConstsInst : frontend.nat_op_ground.UsedConsts U)
-  (pers : arena.store.PersTier) (st : arena.monad.AState) (used_of : U)
-  (ds : alloc.vec.Vec arena.env.IDeclaration)
-  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64) (i : Std.U64)
-  (target : ron.hashmap2.HashMap2 Std.U64 Std.U64)
-  (stack : alloc.vec.Vec Std.U64) (sp : Std.Usize) :
-  Result ((core.result.Result (ron.hashmap2.HashMap2 Std.U64 Std.U64)
-    kernel.core_types.CheckError) × arena.monad.AState)
-  := do
-  if sp > 0#usize
-  then
-    let sp1 ← sp - 1#usize
-    let k ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) stack
-        sp1
-    let b ← frontend.nat_op_ground.target_done target k i
-    if b
-    then
-      frontend.nat_op_ground.hoist_close_loop UsedConstsInst pers st used_of ds
-        idx i target stack sp1
-    else
-      let (_, target1) ←
-        ron.hashmap2.HashMap2.insert U64.Insts.Con_ron_coreRonHashmapHashable
-          U64.Insts.Con_ron_coreRonHashmapEq2 target k i
-      let i1 ← lift (UScalar.cast .Usize k)
-      let i2 ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-          arena.env.IDeclaration) ds i1
-      let d ← arena.env.i_declaration_dup i2
-      let (r, st1) ← UsedConstsInst.used_consts used_of pers st d
-      match r with
-      | core.result.Result.Ok used =>
-        let (stack1, sp2) ←
-          frontend.nat_op_ground.hoist_push_deps idx used stack sp1 i k
-        frontend.nat_op_ground.hoist_close_loop UsedConstsInst pers st1 used_of
-          ds idx i target1 stack1 sp2
-      | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
-  else ok (core.result.Result.Ok target, st)
-partial_fixpoint
-
-/-- [con_ron_core::frontend::nat_op_ground::hoist_close]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 433:0-464:1
-    Visibility: public -/
-def frontend.nat_op_ground.hoist_close
-  {U : Type _} (UsedConstsInst : frontend.nat_op_ground.UsedConsts U)
-  (pers : arena.store.PersTier) (st : arena.monad.AState) (used_of : U)
-  (ds : alloc.vec.Vec arena.env.IDeclaration)
-  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
-  (target : ron.hashmap2.HashMap2 Std.U64 Std.U64) (j : Std.U64) (i : Std.U64)
-  :
-  Result ((core.result.Result (ron.hashmap2.HashMap2 Std.U64 Std.U64)
-    kernel.core_types.CheckError) × arena.monad.AState)
-  := do
-  let stack ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U64) j
-  frontend.nat_op_ground.hoist_close_loop UsedConstsInst pers st used_of ds idx
-    i target stack 1#usize
-
-/-- [con_ron_core::frontend::nat_op_ground::hoist_targets_at]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 487:4-504:1
-    Visibility: public -/
-@[rust_loop]
-def frontend.nat_op_ground.hoist_targets_at_loop
-  {U : Type _} (UsedConstsInst : frontend.nat_op_ground.UsedConsts U)
-  (pers : arena.store.PersTier) (st : arena.monad.AState) (used_of : U)
-  (ds : alloc.vec.Vec arena.env.IDeclaration)
-  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64) (i : Std.U64)
-  (target : ron.hashmap2.HashMap2 Std.U64 Std.U64)
-  (gs : alloc.vec.Vec arena.handle.NIdx) (m : Std.Usize) (k : Std.Usize) :
-  Result ((core.result.Result (ron.hashmap2.HashMap2 Std.U64 Std.U64)
-    kernel.core_types.CheckError) × arena.monad.AState)
-  := do
-  if k < m
-  then
-    let n ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        arena.handle.NIdx) gs k
-    let o ← frontend.nat_op_ground.idx_get idx n
-    match o with
-    | none =>
-      let k1 ← k + 1#usize
-      frontend.nat_op_ground.hoist_targets_at_loop UsedConstsInst pers st
-        used_of ds idx i target gs m k1
-    | some j =>
-      if j > i
-      then
-        let (r, st1) ←
-          frontend.nat_op_ground.hoist_close UsedConstsInst pers st used_of ds
-            idx target j i
-        match r with
-        | core.result.Result.Ok t =>
-          let k1 ← k + 1#usize
-          frontend.nat_op_ground.hoist_targets_at_loop UsedConstsInst pers st1
-            used_of ds idx i t gs m k1
-        | core.result.Result.Err _ => ok (r, st1)
-      else
-        let k1 ← k + 1#usize
-        frontend.nat_op_ground.hoist_targets_at_loop UsedConstsInst pers st
-          used_of ds idx i target gs m k1
-  else ok (core.result.Result.Ok target, st)
-partial_fixpoint
-
-/-- [con_ron_core::frontend::nat_op_ground::hoist_targets_at]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 470:0-504:1
-    Visibility: public -/
-def frontend.nat_op_ground.hoist_targets_at
-  {U : Type _} (UsedConstsInst : frontend.nat_op_ground.UsedConsts U)
-  (pers : arena.store.PersTier) (st : arena.monad.AState) (used_of : U)
-  (ds : alloc.vec.Vec arena.env.IDeclaration)
-  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
-  (target : ron.hashmap2.HashMap2 Std.U64 Std.U64) (c : arena.handle.NIdx)
-  (i : Std.U64) :
-  Result ((core.result.Result (ron.hashmap2.HashMap2 Std.U64 Std.U64)
-    kernel.core_types.CheckError) × arena.monad.AState)
-  := do
-  let (r, st1) ← arena.core.nat_op_deps st c
-  match r with
-  | core.result.Result.Ok v =>
-    let m := alloc.vec.Vec.len v
-    frontend.nat_op_ground.hoist_targets_at_loop UsedConstsInst pers st1
-      used_of ds idx i target v m 0#usize
-  | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
-
-/-- [con_ron_core::frontend::nat_op_ground::hoist_targets]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 522:4-537:1
-    Visibility: public -/
-@[rust_loop]
-def frontend.nat_op_ground.hoist_targets_loop
-  {U : Type _} (UsedConstsInst : frontend.nat_op_ground.UsedConsts U)
-  (pers : arena.store.PersTier) (st : arena.monad.AState) (used_of : U)
-  (ds : alloc.vec.Vec arena.env.IDeclaration)
-  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
-  (target : ron.hashmap2.HashMap2 Std.U64 Std.U64) (n : Std.Usize)
-  (i : Std.Usize) :
-  Result ((core.result.Result (ron.hashmap2.HashMap2 Std.U64 Std.U64)
-    kernel.core_types.CheckError) × arena.monad.AState)
-  := do
-  if i < n
-  then
-    let i1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        arena.env.IDeclaration) ds i
-    let d ← arena.env.i_declaration_dup i1
-    let (r, st1) ← frontend.nat_op_ground.is_nat_op_record st d
-    match r with
-    | core.result.Result.Ok o =>
-      match o with
-      | none =>
-        let i2 ← i + 1#usize
-        frontend.nat_op_ground.hoist_targets_loop UsedConstsInst pers st1
-          used_of ds idx target n i2
-      | some c =>
-        let i2 ← lift (UScalar.cast .U64 i)
-        let (r1, st2) ←
-          frontend.nat_op_ground.hoist_targets_at UsedConstsInst pers st1
-            used_of ds idx target c i2
-        match r1 with
-        | core.result.Result.Ok t =>
-          let i3 ← i + 1#usize
-          frontend.nat_op_ground.hoist_targets_loop UsedConstsInst pers st2
-            used_of ds idx t n i3
-        | core.result.Result.Err _ => ok (r1, st2)
-    | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
-  else ok (core.result.Result.Ok target, st)
-partial_fixpoint
-
-/-- [con_ron_core::frontend::nat_op_ground::hoist_targets]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 512:0-537:1
-    Visibility: public -/
-def frontend.nat_op_ground.hoist_targets
-  {U : Type _} (UsedConstsInst : frontend.nat_op_ground.UsedConsts U)
-  (pers : arena.store.PersTier) (st : arena.monad.AState) (used_of : U)
-  (ds : alloc.vec.Vec arena.env.IDeclaration) :
-  Result ((core.result.Result (ron.hashmap2.HashMap2 Std.U64 Std.U64)
-    kernel.core_types.CheckError) × arena.monad.AState)
-  := do
-  let idx ← frontend.nat_op_ground.hoist_name_index ds
-  let target ← ron.hashmap2.HashMap2.new Std.U64 Std.U64
-  let n := alloc.vec.Vec.len ds
-  frontend.nat_op_ground.hoist_targets_loop UsedConstsInst pers st used_of ds
-    idx target n 0#usize
-
-/-- [con_ron_core::frontend::nat_op_ground::hoist_moved_idxs]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 551:4-556:5
-    Visibility: public -/
-@[rust_loop]
-def frontend.nat_op_ground.hoist_moved_idxs_loop
-  (n : Std.Usize) (target : ron.hashmap2.HashMap2 Std.U64 Std.U64)
-  (out : alloc.vec.Vec Std.U64) (k : Std.Usize) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  if k < n
-  then
-    let i ← lift (UScalar.cast .U64 k)
-    let b ←
-      ron.hashmap2.HashMap2.contains_key
-        U64.Insts.Con_ron_coreRonHashmapHashable
-        U64.Insts.Con_ron_coreRonHashmapEq2 target i
-    let out1 ←
-      if b
-      then do
-           let i1 ← lift (UScalar.cast .U64 k)
-           alloc.vec.Vec.push out i1
-      else ok out
-    let k1 ← k + 1#usize
-    frontend.nat_op_ground.hoist_moved_idxs_loop n target out1 k1
-  else ok out
-partial_fixpoint
-
-/-- [con_ron_core::frontend::nat_op_ground::hoist_moved_idxs]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 548:0-558:1
+/-- [con_ron_core::frontend::olean::files::real_seen]:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 407:0-416:1
     Visibility: public -/
 @[reducible]
-def frontend.nat_op_ground.hoist_moved_idxs
-  (n : Std.Usize) (target : ron.hashmap2.HashMap2 Std.U64 Std.U64) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  frontend.nat_op_ground.hoist_moved_idxs_loop n target (alloc.vec.Vec.new
-    Std.U64) 0#usize
-
-/-- [con_ron_core::frontend::nat_op_ground::target_is]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 563:0-568:1
-    Visibility: public -/
-def frontend.nat_op_ground.target_is
-  (target : ron.hashmap2.HashMap2 Std.U64 Std.U64) (k : Std.U64) (t : Std.U64)
-  :
+def frontend.olean.files.real_seen
+  (reals : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (i : Std.Usize) :
   Result Bool
   := do
-  let o ←
-    ron.hashmap2.HashMap2.get U64.Insts.Con_ron_coreRonHashmapHashable
-      U64.Insts.Con_ron_coreRonHashmapEq2 target k
-  match o with
-  | none => ok false
-  | some tt => ok (tt = t)
+  frontend.olean.files.real_seen_loop reals i 0#usize
 
-/-- [con_ron_core::frontend::nat_op_ground::hoist_order]: loop 1:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 583:8-588:9
+/-- [con_ron_core::frontend::olean::files::one_each]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 396:4-401:5
     Visibility: public -/
 @[rust_loop]
-def frontend.nat_op_ground.hoist_order_loop0_loop0
-  (target : ron.hashmap2.HashMap2 Std.U64 Std.U64)
-  (moved : alloc.vec.Vec Std.U64) (order : alloc.vec.Vec Std.U64)
-  (t : Std.Usize) (m : Std.Usize) (a : Std.Usize) :
-  Result (alloc.vec.Vec Std.U64)
+def frontend.olean.files.one_each_loop
+  (hits : alloc.vec.Vec (alloc.vec.Vec Std.U32))
+  (reals : alloc.vec.Vec (alloc.vec.Vec Std.U32))
+  (out : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (i : Std.Usize) :
+  Result (alloc.vec.Vec (alloc.vec.Vec Std.U32))
   := do
-  if a < m
-  then
-    let i ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) moved
-        a
-    let i1 ← lift (UScalar.cast .U64 t)
-    let b ← frontend.nat_op_ground.target_is target i i1
-    let order1 ← if b
-                   then alloc.vec.Vec.push order i
-                   else ok order
-    let a1 ← a + 1#usize
-    frontend.nat_op_ground.hoist_order_loop0_loop0 target moved order1 t m a1
-  else ok order
-partial_fixpoint
-
-/-- [con_ron_core::frontend::nat_op_ground::hoist_order]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 580:4-593:5
-    Visibility: public -/
-@[rust_loop]
-def frontend.nat_op_ground.hoist_order_loop0
-  (n : Std.Usize) (target : ron.hashmap2.HashMap2 Std.U64 Std.U64)
-  (moved : alloc.vec.Vec Std.U64) (order : alloc.vec.Vec Std.U64)
-  (t : Std.Usize) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  if t < n
-  then
-    let m := alloc.vec.Vec.len moved
-    let order1 ←
-      frontend.nat_op_ground.hoist_order_loop0_loop0 target moved order t m
-        0#usize
-    let i ← lift (UScalar.cast .U64 t)
-    let b ←
-      ron.hashmap2.HashMap2.contains_key
-        U64.Insts.Con_ron_coreRonHashmapHashable
-        U64.Insts.Con_ron_coreRonHashmapEq2 target i
-    let order2 ←
-      if b
-      then ok order1
-      else
-        do
-        let i1 ← lift (UScalar.cast .U64 t)
-        alloc.vec.Vec.push order1 i1
-    let t1 ← t + 1#usize
-    frontend.nat_op_ground.hoist_order_loop0 n target moved order2 t1
-  else ok order
-partial_fixpoint
-
-/-- [con_ron_core::frontend::nat_op_ground::hoist_order]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 577:0-595:1
-    Visibility: public -/
-def frontend.nat_op_ground.hoist_order
-  (n : Std.Usize) (target : ron.hashmap2.HashMap2 Std.U64 Std.U64)
-  (moved : alloc.vec.Vec Std.U64) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  let order := alloc.vec.Vec.with_capacity Std.U64 n
-  frontend.nat_op_ground.hoist_order_loop0 n target moved order 0#usize
-
-/-- [con_ron_core::frontend::nat_op_ground::hoist_reorder]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 605:4-608:5
-    Visibility: public -/
-@[rust_loop]
-def frontend.nat_op_ground.hoist_reorder_loop
-  (ds : alloc.vec.Vec arena.env.IDeclaration) (order : alloc.vec.Vec Std.U64)
-  (n : Std.Usize) (out : alloc.vec.Vec arena.env.IDeclaration) (i : Std.Usize)
-  :
-  Result (alloc.vec.Vec arena.env.IDeclaration)
-  := do
-  if i < n
-  then
-    let i1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) order
-        i
-    let i2 ← lift (UScalar.cast .Usize i1)
-    let i3 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        arena.env.IDeclaration) ds i2
-    let i4 ← arena.env.i_declaration_dup i3
-    let out1 ← alloc.vec.Vec.push out i4
-    let i5 ← i + 1#usize
-    frontend.nat_op_ground.hoist_reorder_loop ds order n out1 i5
-  else ok out
-partial_fixpoint
-
-/-- [con_ron_core::frontend::nat_op_ground::hoist_reorder]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 601:0-610:1
-    Visibility: public -/
-def frontend.nat_op_ground.hoist_reorder
-  (ds : alloc.vec.Vec arena.env.IDeclaration) (order : alloc.vec.Vec Std.U64) :
-  Result (alloc.vec.Vec arena.env.IDeclaration)
-  := do
-  let n := alloc.vec.Vec.len order
-  let out := alloc.vec.Vec.with_capacity arena.env.IDeclaration n
-  frontend.nat_op_ground.hoist_reorder_loop ds order n out 0#usize
-
-/-- [con_ron_core::frontend::nat_op_ground::hoist_moved_names]: loop 1:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 623:8-626:9
-    Visibility: public -/
-@[rust_loop]
-def frontend.nat_op_ground.hoist_moved_names_loop0_loop0
-  (out : alloc.vec.Vec arena.handle.NIdx)
-  (ns : alloc.vec.Vec arena.handle.NIdx) (m : Std.Usize) (j : Std.Usize) :
-  Result (alloc.vec.Vec arena.handle.NIdx)
-  := do
-  if j < m
-  then
-    let n ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        arena.handle.NIdx) ns j
-    let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
-    let out1 ← alloc.vec.Vec.push out n1
-    let j1 ← j + 1#usize
-    frontend.nat_op_ground.hoist_moved_names_loop0_loop0 out1 ns m j1
-  else ok out
-partial_fixpoint
-
-/-- [con_ron_core::frontend::nat_op_ground::hoist_moved_names]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 619:4-628:5
-    Visibility: public -/
-@[rust_loop]
-def frontend.nat_op_ground.hoist_moved_names_loop0
-  (ds : alloc.vec.Vec arena.env.IDeclaration) (moved : alloc.vec.Vec Std.U64)
-  (out : alloc.vec.Vec arena.handle.NIdx) (n : Std.Usize) (a : Std.Usize) :
-  Result (alloc.vec.Vec arena.handle.NIdx)
-  := do
-  if a < n
-  then
-    let i ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) moved
-        a
-    let i1 ← lift (UScalar.cast .Usize i)
-    let i2 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        arena.env.IDeclaration) ds i1
-    let ns ← arena.env.i_declaration_names i2
-    let m := alloc.vec.Vec.len ns
-    let out1 ←
-      frontend.nat_op_ground.hoist_moved_names_loop0_loop0 out ns m 0#usize
-    let a1 ← a + 1#usize
-    frontend.nat_op_ground.hoist_moved_names_loop0 ds moved out1 n a1
-  else ok out
-partial_fixpoint
-
-/-- [con_ron_core::frontend::nat_op_ground::hoist_moved_names]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 615:0-630:1
-    Visibility: public -/
-def frontend.nat_op_ground.hoist_moved_names
-  (ds : alloc.vec.Vec arena.env.IDeclaration) (moved : alloc.vec.Vec Std.U64) :
-  Result (alloc.vec.Vec arena.handle.NIdx)
-  := do
-  let n := alloc.vec.Vec.len moved
-  frontend.nat_op_ground.hoist_moved_names_loop0 ds moved (alloc.vec.Vec.new
-    arena.handle.NIdx) n 0#usize
-
-/-- [con_ron_core::frontend::nat_op_ground::apply_hoist]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 636:0-645:1
-    Visibility: public -/
-def frontend.nat_op_ground.apply_hoist
-  (ds : alloc.vec.Vec arena.env.IDeclaration)
-  (target : ron.hashmap2.HashMap2 Std.U64 Std.U64) :
-  Result ((alloc.vec.Vec arena.env.IDeclaration) × (alloc.vec.Vec
-    arena.handle.NIdx))
-  := do
-  let i := alloc.vec.Vec.len ds
-  let moved ← frontend.nat_op_ground.hoist_moved_idxs i target
-  let i1 := alloc.vec.Vec.len ds
-  let order ← frontend.nat_op_ground.hoist_order i1 target moved
-  let out ← frontend.nat_op_ground.hoist_reorder ds order
-  let names ← frontend.nat_op_ground.hoist_moved_names ds moved
-  ok (out, names)
-
-/-- [con_ron_core::frontend::nat_op_ground::hoist_nat_op_ground]:
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 652:0-668:1
-    Visibility: public -/
-def frontend.nat_op_ground.hoist_nat_op_ground
-  {U : Type _} (UsedConstsInst : frontend.nat_op_ground.UsedConsts U)
-  (pers : arena.store.PersTier) (st : arena.monad.AState) (used_of : U)
-  (ds : alloc.vec.Vec arena.env.IDeclaration) :
-  Result ((core.result.Result ((alloc.vec.Vec arena.env.IDeclaration) ×
-    (alloc.vec.Vec arena.handle.NIdx)) kernel.core_types.CheckError) ×
-    arena.monad.AState)
-  := do
-  let (r, st1) ←
-    frontend.nat_op_ground.hoist_targets UsedConstsInst pers st used_of ds
-  match r with
-  | core.result.Result.Ok target =>
-    let i ← ron.hashmap2.HashMap2.len target
-    if i = 0#usize
-    then
-      ok (core.result.Result.Ok (ds, alloc.vec.Vec.new arena.handle.NIdx), st1)
-    else
-      let p ← frontend.nat_op_ground.apply_hoist ds target
-      ok (core.result.Result.Ok p, st1)
-  | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
-
-/-- [con_ron_core::frontend::olean::closure::CLOSURE_FUEL]
-    Source: 'crates/con-ron-core/src/frontend/olean/closure.rs', lines 41:0-41:38
-    Visibility: public -/
-@[global_simps, irreducible]
-def frontend.olean.closure.CLOSURE_FUEL : Result Std.U64 := 1#u64 <<< 40#i32
-
-/-- [con_ron_core::frontend::olean::closure::out_of_fuel::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/closure.rs', lines 45:31-45:252 -/
-@[global_simps, irreducible]
-def frontend.olean.closure.out_of_fuel.M : Array Std.U32 42#usize :=
-  Array.make 42#usize [
-    116#u32, 104#u32, 101#u32, 32#u32, 105#u32, 109#u32, 112#u32, 111#u32,
-    114#u32, 116#u32, 32#u32, 99#u32, 108#u32, 111#u32, 115#u32, 117#u32,
-    114#u32, 101#u32, 39#u32, 115#u32, 32#u32, 119#u32, 97#u32, 108#u32,
-    107#u32, 32#u32, 114#u32, 97#u32, 110#u32, 32#u32, 111#u32, 117#u32,
-    116#u32, 32#u32, 111#u32, 102#u32, 32#u32, 115#u32, 116#u32, 101#u32,
-    112#u32, 115#u32
-    ]
-
-/-- [con_ron_core::frontend::olean::closure::out_of_fuel]:
-    Source: 'crates/con-ron-core/src/frontend/olean/closure.rs', lines 44:0-46:1
-    Visibility: public -/
-def frontend.olean.closure.out_of_fuel
-  (T : Type _) :
-  Result (core.result.Result T kernel.core_types.CheckError)
-  := do
-  let s ← lift (Array.to_slice frontend.olean.closure.out_of_fuel.M)
-  let v ← kernel.core_types.code_points s
-  let ce ← kernel.core_types.internal v
-  ok (core.result.Result.Err ce)
-
-/-- [con_ron_core::frontend::olean::closure::import_on_path]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/closure.rs', lines 53:4-61:1
-    Visibility: public -/
-@[rust_loop]
-def frontend.olean.closure.import_on_path_loop
-  (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
-  (seen : ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
-  (done1 : ron.hashmap2.HashMap2 arena.handle.NIdx Bool) (i : Std.Usize) :
-  Result (Option arena.handle.NIdx)
-  := do
-  let i1 := alloc.vec.Vec.len imps
+  let i1 := alloc.vec.Vec.len hits
   if i < i1
   then
-    let «if» ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        (frontend.olean.spec.ImportF arena.handle.NIdx)) imps i
-    let b ←
-      ron.hashmap2.HashMap2.contains_key
-        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
-        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 seen «if».module
-    if b
-    then
-      let b1 ←
-        ron.hashmap2.HashMap2.contains_key
-          arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
-          arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 done1 «if».module
-      if b1
-      then
-        let i2 ← i + 1#usize
-        frontend.olean.closure.import_on_path_loop imps seen done1 i2
-      else ok (some «if».module)
-    else
-      let i2 ← i + 1#usize
-      frontend.olean.closure.import_on_path_loop imps seen done1 i2
-  else ok none
+    let b ← frontend.olean.files.real_seen reals i
+    let out1 ←
+      if b
+      then ok out
+      else
+        do
+        let v ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            (alloc.vec.Vec Std.U32)) hits i
+        let v1 ← kernel.expr.str_copy v
+        alloc.vec.Vec.push out v1
+    let i2 ← i + 1#usize
+    frontend.olean.files.one_each_loop hits reals out1 i2
+  else ok out
 partial_fixpoint
 
-/-- [con_ron_core::frontend::olean::closure::import_on_path]:
-    Source: 'crates/con-ron-core/src/frontend/olean/closure.rs', lines 51:0-61:1
+/-- [con_ron_core::frontend::olean::files::one_each]:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 393:0-403:1
     Visibility: public -/
 @[reducible]
-def frontend.olean.closure.import_on_path
-  (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
-  (seen : ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
-  (done1 : ron.hashmap2.HashMap2 arena.handle.NIdx Bool) :
-  Result (Option arena.handle.NIdx)
+def frontend.olean.files.one_each
+  (hits : alloc.vec.Vec (alloc.vec.Vec Std.U32))
+  (reals : alloc.vec.Vec (alloc.vec.Vec Std.U32)) :
+  Result (alloc.vec.Vec (alloc.vec.Vec Std.U32))
   := do
-  frontend.olean.closure.import_on_path_loop imps seen done1 0#usize
+  frontend.olean.files.one_each_loop hits reals (alloc.vec.Vec.new
+    (alloc.vec.Vec Std.U32)) 0#usize
 
-/-- [con_ron_core::frontend::olean::closure::walk_push]:
-    Source: 'crates/con-ron-core/src/frontend/olean/closure.rs', lines 65:0-72:1
-    Visibility: public -/
-def frontend.olean.closure.walk_push
-  (stack : alloc.vec.Vec (arena.handle.NIdx × Bool)) (sp : Std.Usize)
-  (x : (arena.handle.NIdx × Bool)) :
-  Result (Std.Usize × (alloc.vec.Vec (arena.handle.NIdx × Bool)))
-  := do
-  let i := alloc.vec.Vec.len stack
-  let stack1 ←
-    if sp < i
-    then
-      do
-      let (_, index_mut_back) ←
-        alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
-          (arena.handle.NIdx × Bool)) stack sp
-      ok (index_mut_back x)
-    else alloc.vec.Vec.push stack x
-  let i1 ← sp + 1#usize
-  ok (i1, stack1)
-
-/-- [con_ron_core::frontend::olean::closure::walk_expand]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/closure.rs', lines 79:4-84:5
+/-- [con_ron_core::frontend::olean::files::all_same]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 381:4-388:1
     Visibility: public -/
 @[rust_loop]
-def frontend.olean.closure.walk_expand_loop
-  (stack : alloc.vec.Vec (arena.handle.NIdx × Bool))
-  (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
-  (seen : ron.hashmap2.HashMap2 arena.handle.NIdx Bool) (s : Std.Usize)
-  (i : Std.Usize) :
-  Result (Std.Usize × (alloc.vec.Vec (arena.handle.NIdx × Bool)))
+def frontend.olean.files.all_same_loop
+  (reals : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (i : Std.Usize) :
+  Result Bool
   := do
-  if i > 0#usize
+  let i1 := alloc.vec.Vec.len reals
+  if i < i1
   then
-    let i1 ← i - 1#usize
-    let «if» ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        (frontend.olean.spec.ImportF arena.handle.NIdx)) imps i1
-    let b ←
-      ron.hashmap2.HashMap2.contains_key
-        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
-        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 seen «if».module
+    let v ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        Std.U32)) reals i
+    let v1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        Std.U32)) reals 0#usize
+    let b ← kernel.name.str_eq v v1
     if b
-    then frontend.olean.closure.walk_expand_loop stack imps seen s i1
-    else
-      let n ←
-        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 «if».module
-      let (s1, stack1) ← frontend.olean.closure.walk_push stack s (n, false)
-      frontend.olean.closure.walk_expand_loop stack1 imps seen s1 i1
-  else ok (s, stack)
+    then let i2 ← i + 1#usize
+         frontend.olean.files.all_same_loop reals i2
+    else ok false
+  else ok true
 partial_fixpoint
 
-/-- [con_ron_core::frontend::olean::closure::walk_expand]:
-    Source: 'crates/con-ron-core/src/frontend/olean/closure.rs', lines 76:0-86:1
+/-- [con_ron_core::frontend::olean::files::all_same]:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 379:0-388:1
     Visibility: public -/
-def frontend.olean.closure.walk_expand
-  (stack : alloc.vec.Vec (arena.handle.NIdx × Bool)) (sp : Std.Usize)
-  (m : arena.handle.NIdx)
-  (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
-  (seen : ron.hashmap2.HashMap2 arena.handle.NIdx Bool) :
-  Result (Std.Usize × (alloc.vec.Vec (arena.handle.NIdx × Bool)))
+@[reducible]
+def frontend.olean.files.all_same
+  (reals : alloc.vec.Vec (alloc.vec.Vec Std.U32)) : Result Bool := do
+  frontend.olean.files.all_same_loop reals 1#usize
+
+/-- [con_ron_core::frontend::olean::files::real_paths]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 367:4-375:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.files.real_paths_loop
+  {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
+  (hits : alloc.vec.Vec (alloc.vec.Vec Std.U32))
+  (out : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (i : Std.Usize) :
+  Result (core.result.Result (alloc.vec.Vec (alloc.vec.Vec Std.U32))
+    (alloc.vec.Vec Std.U32))
   := do
-  let n ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 m
-  let (s, stack1) ← frontend.olean.closure.walk_push stack sp (n, true)
-  let i := alloc.vec.Vec.len imps
-  frontend.olean.closure.walk_expand_loop stack1 imps seen s i
+  let i1 := alloc.vec.Vec.len hits
+  if i < i1
+  then
+    let v ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        Std.U32)) hits i
+    let r ← OleanFsInst.real_path fs v
+    match r with
+    | core.result.Result.Ok rp =>
+      let out1 ← alloc.vec.Vec.push out rp
+      let i2 ← i + 1#usize
+      frontend.olean.files.real_paths_loop OleanFsInst fs hits out1 i2
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok out)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::files::real_paths]:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 364:0-375:1
+    Visibility: public -/
+def frontend.olean.files.real_paths
+  {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
+  (hits : alloc.vec.Vec (alloc.vec.Vec Std.U32)) :
+  Result (core.result.Result (alloc.vec.Vec (alloc.vec.Vec Std.U32))
+    (alloc.vec.Vec Std.U32))
+  := do
+  let i := alloc.vec.Vec.len hits
+  let out := alloc.vec.Vec.with_capacity (alloc.vec.Vec Std.U32) i
+  frontend.olean.files.real_paths_loop OleanFsInst fs hits out 0#usize
+
+/-- [con_ron_core::frontend::olean::files::holds_root::M]
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 342:58-342:103 -/
+@[global_simps, irreducible]
+def frontend.olean.files.holds_root.M : Array Std.U32 5#usize :=
+  Array.make 5#usize [ 111#u32, 108#u32, 101#u32, 97#u32, 110#u32 ]
+
+/-- [con_ron_core::frontend::olean::files::holds_root]:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 338:0-344:1
+    Visibility: public -/
+def frontend.olean.files.holds_root
+  {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
+  (r : kernel.name.Name) (d : alloc.vec.Vec Std.U32) :
+  Result (core.result.Result Bool (alloc.vec.Vec Std.U32))
+  := do
+  let v ← frontend.olean.files.mod_dir_of d r
+  let r1 ← OleanFsInst.is_dir fs v
+  match r1 with
+  | core.result.Result.Ok b =>
+    if b
+    then ok r1
+    else
+      let s ← lift (Array.to_slice frontend.olean.files.holds_root.M)
+      let v1 ← kernel.core_types.code_points s
+      let v2 ← frontend.olean.files.mod_file_of d r v1
+      OleanFsInst.path_exists fs v2
+  | core.result.Result.Err _ => ok r1
+
+/-- [con_ron_core::frontend::olean::files::root_dirs]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 351:4-360:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.files.root_dirs_loop
+  {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
+  (sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (r : kernel.name.Name)
+  (out : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (i : Std.Usize) :
+  Result (core.result.Result (alloc.vec.Vec (alloc.vec.Vec Std.U32))
+    (alloc.vec.Vec Std.U32))
+  := do
+  let i1 := alloc.vec.Vec.len sp
+  if i < i1
+  then
+    let v ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        Std.U32)) sp i
+    let r1 ← frontend.olean.files.holds_root OleanFsInst fs r v
+    match r1 with
+    | core.result.Result.Ok b =>
+      let out1 ←
+        if b
+        then do
+             let v1 ← kernel.expr.str_copy v
+             alloc.vec.Vec.push out v1
+        else ok out
+      let i2 ← i + 1#usize
+      frontend.olean.files.root_dirs_loop OleanFsInst fs sp r out1 i2
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok out)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::files::root_dirs]:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 348:0-360:1
+    Visibility: public -/
+@[reducible]
+def frontend.olean.files.root_dirs
+  {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
+  (sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (r : kernel.name.Name) :
+  Result (core.result.Result (alloc.vec.Vec (alloc.vec.Vec Std.U32))
+    (alloc.vec.Vec Std.U32))
+  := do
+  frontend.olean.files.root_dirs_loop OleanFsInst fs sp r (alloc.vec.Vec.new
+    (alloc.vec.Vec Std.U32)) 0#usize
+
+/-- [con_ron_core::frontend::olean::files::root_hits]:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 422:0-443:1
+    Visibility: public -/
+def frontend.olean.files.root_hits
+  {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
+  (sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (r : kernel.name.Name) :
+  Result (core.result.Result frontend.olean.files.RootAt (alloc.vec.Vec
+    Std.U32))
+  := do
+  let r1 ← frontend.olean.files.root_dirs OleanFsInst fs sp r
+  match r1 with
+  | core.result.Result.Ok h =>
+    let i := alloc.vec.Vec.len h
+    if i = 0#usize
+    then ok (core.result.Result.Ok frontend.olean.files.RootAt.Missing)
+    else
+      let i1 := alloc.vec.Vec.len h
+      if i1 = 1#usize
+      then
+        let v ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            (alloc.vec.Vec Std.U32)) h 0#usize
+        let v1 ← kernel.expr.str_copy v
+        ok (core.result.Result.Ok (frontend.olean.files.RootAt.Dir v1))
+      else
+        let r2 ← frontend.olean.files.real_paths OleanFsInst fs h
+        match r2 with
+        | core.result.Result.Ok reals =>
+          let b ← frontend.olean.files.all_same reals
+          if b
+          then
+            let v ←
+              alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                (alloc.vec.Vec Std.U32)) h 0#usize
+            let v1 ← kernel.expr.str_copy v
+            ok (core.result.Result.Ok (frontend.olean.files.RootAt.Dir v1))
+          else
+            let v ← frontend.olean.files.one_each h reals
+            ok (core.result.Result.Ok (frontend.olean.files.RootAt.Twice v))
+        | core.result.Result.Err e => ok (core.result.Result.Err e)
+  | core.result.Result.Err e => ok (core.result.Result.Err e)
+
+/-- [con_ron_core::frontend::olean::files::root_at]:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 447:0-452:1
+    Visibility: public -/
+def frontend.olean.files.root_at
+  {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
+  (sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (r : kernel.name.Name) :
+  Result frontend.olean.files.RootAt
+  := do
+  let r1 ← frontend.olean.files.root_hits OleanFsInst fs sp r
+  match r1 with
+  | core.result.Result.Ok a => ok a
+  | core.result.Result.Err e => ok (frontend.olean.files.RootAt.Failed e)
+
+/-- [con_ron_core::frontend::olean::files::look_next]:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 474:0-479:1
+    Visibility: public -/
+def frontend.olean.files.look_next
+  {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
+  (fallback : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (r : kernel.name.Name)
+  (a : frontend.olean.files.RootAt) :
+  Result frontend.olean.files.RootAt
+  := do
+  match a with
+  | frontend.olean.files.RootAt.Dir _ => ok a
+  | frontend.olean.files.RootAt.Missing =>
+    frontend.olean.files.root_at OleanFsInst fs fallback r
+  | frontend.olean.files.RootAt.Twice _ => ok a
+  | frontend.olean.files.RootAt.Failed _ => ok a
+
+/-- [con_ron_core::frontend::olean::files::look_at]:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 486:0-488:1
+    Visibility: public -/
+def frontend.olean.files.look_at
+  {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
+  (path : alloc.vec.Vec (alloc.vec.Vec Std.U32))
+  (fallback : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (r : kernel.name.Name) :
+  Result frontend.olean.files.RootAt
+  := do
+  let ra ← frontend.olean.files.root_at OleanFsInst fs path r
+  frontend.olean.files.look_next OleanFsInst fs fallback r ra
+
+/-- [con_ron_core::frontend::olean::files::name_root]:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 178:0-190:1
+    Visibility: public -/
+def frontend.olean.files.name_root
+  (n : kernel.name.Name) : Result kernel.name.Name := do
+  let nn ←
+    alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref alloc.alloc.Global n._0
+  match nn.kind with
+  | kernel.name.NameKind.Anonymous => kernel.name.anonymous
+  | kernel.name.NameKind.Str p s =>
+    let nn1 ←
+      alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref alloc.alloc.Global p._0
+    match nn1.kind with
+    | kernel.name.NameKind.Anonymous =>
+      let n1 ← kernel.name.anonymous
+      let v ← kernel.expr.str_copy s
+      kernel.name.mk_str n1 v
+    | kernel.name.NameKind.Str _ _ => frontend.olean.files.name_root p
+    | kernel.name.NameKind.Num _ _ => frontend.olean.files.name_root p
+  | kernel.name.NameKind.Num p k =>
+    let nn1 ←
+      alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref alloc.alloc.Global p._0
+    match nn1.kind with
+    | kernel.name.NameKind.Anonymous =>
+      let n1 ← kernel.name.anonymous
+      kernel.name.mk_num n1 k
+    | kernel.name.NameKind.Str _ _ => frontend.olean.files.name_root p
+    | kernel.name.NameKind.Num _ _ => frontend.olean.files.name_root p
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::missing_on::M#2]
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 98:41-98:125 -/
+@[global_simps, irreducible]
+def frontend.modular.graph.missing_on.M_2 : Array Std.U32 13#usize :=
+  Array.make 13#usize [
+    111#u32, 108#u32, 101#u32, 97#u32, 110#u32, 46#u32, 112#u32, 114#u32,
+    105#u32, 118#u32, 97#u32, 116#u32, 101#u32
+    ]
+
+/-- [con_ron_core::frontend::modular::graph::missing_on::M#1]
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 93:41-93:121 -/
+@[global_simps, irreducible]
+def frontend.modular.graph.missing_on.M_1 : Array Std.U32 12#usize :=
+  Array.make 12#usize [
+    111#u32, 108#u32, 101#u32, 97#u32, 110#u32, 46#u32, 115#u32, 101#u32,
+    114#u32, 118#u32, 101#u32, 114#u32
+    ]
+
+/-- [con_ron_core::frontend::modular::graph::missing_on::M]
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 88:41-88:86 -/
+@[global_simps, irreducible]
+def frontend.modular.graph.missing_on.M : Array Std.U32 5#usize :=
+  Array.make 5#usize [ 111#u32, 108#u32, 101#u32, 97#u32, 110#u32 ]
+
+/-- [con_ron_core::frontend::modular::graph::missing_on]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 80:0-105:1
+    Visibility: public -/
+def frontend.modular.graph.missing_on
+  {F : Type _} (oleanfilesOleanFsInst : frontend.olean.files.OleanFs F)
+  (fs : F) (pers : arena.store.PersTier) (ar : arena.store.EStore)
+  (sp : frontend.olean.files.Roots) (m : arena.handle.NIdx) :
+  Result (core.result.Result Bool kernel.core_types.CheckError)
+  := do
+  let r ← arena.env.read_name pers ar m
+  match r with
+  | core.result.Result.Ok n =>
+    let n1 ← frontend.olean.files.name_root n
+    let ra ←
+      frontend.olean.files.look_at oleanfilesOleanFsInst fs sp.path sp.fallback
+        n1
+    match ra with
+    | frontend.olean.files.RootAt.Dir d =>
+      let s ← lift (Array.to_slice frontend.modular.graph.missing_on.M)
+      let v ← kernel.core_types.code_points s
+      let r1 ← frontend.modular.graph.file_at oleanfilesOleanFsInst fs d n v
+      match r1 with
+      | core.result.Result.Ok b =>
+        if b
+        then ok (core.result.Result.Ok false)
+        else
+          let s1 ←
+            lift (Array.to_slice frontend.modular.graph.missing_on.M_1)
+          let v1 ← kernel.core_types.code_points s1
+          let r2 ←
+            frontend.modular.graph.file_at oleanfilesOleanFsInst fs d n v1
+          match r2 with
+          | core.result.Result.Ok b1 =>
+            if b1
+            then ok r1
+            else
+              let s2 ←
+                lift (Array.to_slice frontend.modular.graph.missing_on.M_2)
+              let v2 ← kernel.core_types.code_points s2
+              let r3 ←
+                frontend.modular.graph.file_at oleanfilesOleanFsInst fs d n v2
+              match r3 with
+              | core.result.Result.Ok b2 => ok (core.result.Result.Ok (¬ b2))
+              | core.result.Result.Err _ => ok r3
+          | core.result.Result.Err _ => ok r2
+      | core.result.Result.Err _ => ok r1
+    | frontend.olean.files.RootAt.Missing => ok (core.result.Result.Ok true)
+    | frontend.olean.files.RootAt.Twice _ => ok (core.result.Result.Ok false)
+    | frontend.olean.files.RootAt.Failed _ => ok (core.result.Result.Ok false)
+  | core.result.Result.Err e => ok (core.result.Result.Err e)
+
+/-- [con_ron_core::frontend::olean::levels::import_rec_dup]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 82:0-84:1
+    Visibility: public -/
+def frontend.olean.levels.import_rec_dup
+  (i : frontend.olean.spec.ImportF arena.handle.NIdx) :
+  Result (frontend.olean.spec.ImportF arena.handle.NIdx)
+  := do
+  let n ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 i.module
+  ok { i with module := n }
 
 /-- [con_ron_core::frontend::olean::view::undecodable::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 404:41-404:552 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 432:41-432:552 -/
 @[global_simps, irreducible]
 def frontend.olean.view.undecodable.M_1 : Array Std.U32 105#usize :=
   Array.make 105#usize [
@@ -88082,7 +87584,7 @@ def frontend.olean.view.undecodable.M_1 : Array Std.U32 105#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::view::undecodable::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 403:24-403:79 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 431:24-431:79 -/
 @[global_simps, irreducible]
 def frontend.olean.view.undecodable.M : Array Std.U32 7#usize :=
   Array.make 7#usize [
@@ -88090,7 +87592,7 @@ def frontend.olean.view.undecodable.M : Array Std.U32 7#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::view::undecodable]:
-    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 402:0-405:1
+    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 430:0-433:1
     Visibility: public -/
 def frontend.olean.view.undecodable
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -88107,7 +87609,7 @@ def frontend.olean.view.undecodable
   kernel.core_types.internal v3
 
 /-- [con_ron_core::frontend::olean::files::read_imports_at::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 713:53-713:98 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 714:53-714:98 -/
 @[global_simps, irreducible]
 def frontend.olean.files.read_imports_at.M : Array Std.U32 5#usize :=
   Array.make 5#usize [ 111#u32, 108#u32, 101#u32, 97#u32, 110#u32 ]
@@ -88327,7 +87829,7 @@ def frontend.olean.header.hdr_walk
   frontend.olean.header.hdr_walk_loop b g size
 
 /-- [con_ron_core::frontend::olean::files::hdr_short]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 680:0-685:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 681:0-686:1
     Visibility: public -/
 def frontend.olean.files.hdr_short
   (acc : alloc.vec.Vec Std.U8) : Result Bool := do
@@ -88339,13 +87841,13 @@ def frontend.olean.files.hdr_short
   | frontend.olean.header.HdrWalk.Bad => ok false
 
 /-- [con_ron_core::frontend::olean::files::HDR_CHUNK]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 666:0-666:32
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 667:0-667:32
     Visibility: public -/
 @[global_simps, irreducible]
 def frontend.olean.files.HDR_CHUNK : Std.U64 := 4096#u64
 
 /-- [con_ron_core::frontend::olean::files::read_hdr_bytes]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 694:4-703:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 695:4-704:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.files.read_hdr_bytes_loop
@@ -88381,7 +87883,7 @@ def frontend.olean.files.read_hdr_bytes_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::files::read_hdr_bytes]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 690:0-703:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 691:0-704:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.files.read_hdr_bytes
@@ -89640,7 +89142,7 @@ def frontend.olean.header.imports_pre
     ok (core.result.Result.Err frontend.olean.spec.RdErr.Bad, ar)
 
 /-- [con_ron_core::frontend::olean::files::hdr_fin]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 671:0-676:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 672:0-677:1
     Visibility: public -/
 def frontend.olean.files.hdr_fin
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -89689,201 +89191,8 @@ def frontend.olean.module.bad_module
   let v3 ← frontend.text.cat t1 what
   kernel.core_types.internal v3
 
-/-- [con_ron_core::frontend::olean::files::path_join::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 100:54-100:79 -/
-@[global_simps, irreducible]
-def frontend.olean.files.path_join.M : Array Std.U32 1#usize :=
-  Array.make 1#usize [ 47#u32 ]
-
-/-- [con_ron_core::frontend::olean::files::path_join]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 96:0-104:1
-    Visibility: public -/
-def frontend.olean.files.path_join
-  (p : alloc.vec.Vec Std.U32) (sub : alloc.vec.Vec Std.U32) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  let i := alloc.vec.Vec.len sub
-  if i > 0#usize
-  then
-    let i1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) sub
-        0#usize
-    if i1 = 47#u32
-    then kernel.expr.str_copy sub
-    else
-      let v ← kernel.expr.str_copy p
-      let s ← lift (Array.to_slice frontend.olean.files.path_join.M)
-      let v1 ← kernel.core_types.code_points s
-      let out ← frontend.text.cat v v1
-      frontend.text.cat out sub
-  else
-    let v ← kernel.expr.str_copy p
-    let s ← lift (Array.to_slice frontend.olean.files.path_join.M)
-    let v1 ← kernel.core_types.code_points s
-    let out ← frontend.text.cat v v1
-    frontend.text.cat out sub
-
-/-- [con_ron_core::frontend::olean::files::mod_dir_of]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 149:4-156:5
-    Visibility: public -/
-@[rust_loop]
-def frontend.olean.files.mod_dir_of_loop
-  (cs : alloc.vec.Vec kernel.name.NameComponent) (path : alloc.vec.Vec Std.U32)
-  (k : Std.Usize) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  if k > 0#usize
-  then
-    let k1 ← k - 1#usize
-    let nc ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.name.NameComponent) cs k1
-    let comp ←
-      match nc with
-      | kernel.name.NameComponent.Str s => kernel.expr.str_copy s
-      | kernel.name.NameComponent.Num i => frontend.text.u64_str i
-    let path1 ← frontend.olean.files.path_join path comp
-    frontend.olean.files.mod_dir_of_loop cs path1 k1
-  else ok path
-partial_fixpoint
-
-/-- [con_ron_core::frontend::olean::files::mod_dir_of]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 145:0-158:1
-    Visibility: public -/
-def frontend.olean.files.mod_dir_of
-  (dir : alloc.vec.Vec Std.U32) (n : kernel.name.Name) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  let cs ←
-    kernel.name.component_list n (alloc.vec.Vec.new kernel.name.NameComponent)
-  let path ← kernel.expr.str_copy dir
-  let k := alloc.vec.Vec.len cs
-  frontend.olean.files.mod_dir_of_loop cs path k
-
-/-- [con_ron_core::frontend::olean::files::path_add_extension]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 113:4-118:5
-    Visibility: public -/
-@[rust_loop]
-def frontend.olean.files.path_add_extension_loop0
-  (p : alloc.vec.Vec Std.U32) (sep : Std.Usize) (found : Bool) :
-  Result (Std.Usize × Bool)
-  := do
-  if sep > 0#usize
-  then
-    if found
-    then ok (sep, found)
-    else
-      let sep1 ← sep - 1#usize
-      let i ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) p
-          sep1
-      if i = 47#u32
-      then frontend.olean.files.path_add_extension_loop0 p sep1 true
-      else frontend.olean.files.path_add_extension_loop0 p sep1 found
-  else ok (sep, found)
-partial_fixpoint
-
-/-- [con_ron_core::frontend::olean::files::path_add_extension]: loop 1:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 131:4-134:5
-    Visibility: public -/
-@[rust_loop]
-def frontend.olean.files.path_add_extension_loop1
-  (p : alloc.vec.Vec Std.U32) (out : alloc.vec.Vec Std.U32) (i : Std.Usize) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  let i1 := alloc.vec.Vec.len p
-  if i < i1
-  then
-    let i2 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) p i
-    let out1 ← alloc.vec.Vec.push out i2
-    let i3 ← i + 1#usize
-    frontend.olean.files.path_add_extension_loop1 p out1 i3
-  else ok out
-partial_fixpoint
-
-/-- [con_ron_core::frontend::olean::files::path_add_extension]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 110:0-139:1
-    Visibility: public -/
-def frontend.olean.files.path_add_extension
-  (p : alloc.vec.Vec Std.U32) (ext : alloc.vec.Vec Std.U32) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  let sep := alloc.vec.Vec.len p
-  let (sep1, found) ←
-    frontend.olean.files.path_add_extension_loop0 p sep false
-  let start ← if found
-                then sep1 + 1#usize
-                else ok 0#usize
-  let i := alloc.vec.Vec.len p
-  let n ← i - start
-  let is_dot ←
-    if n = 1#usize
-    then
-      do
-      let i1 ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) p
-          start
-      ok (i1 = 46#u32)
-    else ok false
-  let is_dotdot ←
-    if n = 2#usize
-    then
-      do
-      let i1 ←
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) p
-          start
-      if i1 = 46#u32
-      then
-        let i2 ← start + 1#usize
-        let i3 ←
-          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) p
-            i2
-        ok (i3 = 46#u32)
-      else ok false
-    else ok false
-  if n = 0#usize
-  then kernel.expr.str_copy p
-  else
-    if is_dot
-    then kernel.expr.str_copy p
-    else
-      if is_dotdot
-      then kernel.expr.str_copy p
-      else
-        let i1 := alloc.vec.Vec.len p
-        let i2 := alloc.vec.Vec.len ext
-        let i3 ← i1 + i2
-        let i4 ← i3 + 2#usize
-        let out := alloc.vec.Vec.with_capacity Std.U32 i4
-        let out1 ←
-          if found
-          then if sep1 = 0#usize
-               then alloc.vec.Vec.push out 47#u32
-               else ok out
-          else ok out
-        let out2 ←
-          frontend.olean.files.path_add_extension_loop1 p out1 0#usize
-        let i5 := alloc.vec.Vec.len ext
-        let out3 ←
-          if i5 > 0#usize
-          then alloc.vec.Vec.push out2 46#u32
-          else ok out2
-        frontend.text.cat out3 ext
-
-/-- [con_ron_core::frontend::olean::files::mod_file_of]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 162:0-164:1
-    Visibility: public -/
-def frontend.olean.files.mod_file_of
-  (dir : alloc.vec.Vec Std.U32) (n : kernel.name.Name)
-  (ext : alloc.vec.Vec Std.U32) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  let v ← frontend.olean.files.mod_dir_of dir n
-  frontend.olean.files.path_add_extension v ext
-
 /-- [con_ron_core::frontend::olean::files::mod_file]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 168:0-173:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 169:0-174:1
     Visibility: public -/
 def frontend.olean.files.mod_file
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -89900,7 +89209,7 @@ def frontend.olean.files.mod_file
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::frontend::olean::files::path_exists_at]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 633:0-641:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 634:0-642:1
     Visibility: public -/
 def frontend.olean.files.path_exists_at
   {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -89921,7 +89230,7 @@ def frontend.olean.files.path_exists_at
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::frontend::olean::files::olean_failed::M#14]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 610:28-610:96 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 611:28-611:96 -/
 @[global_simps, irreducible]
 def frontend.olean.files.olean_failed.M_14 : Array Std.U32 10#usize :=
   Array.make 10#usize [
@@ -89930,7 +89239,7 @@ def frontend.olean.files.olean_failed.M_14 : Array Std.U32 10#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::olean_failed::M#13]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 608:31-608:95 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 609:31-609:95 -/
 @[global_simps, irreducible]
 def frontend.olean.files.olean_failed.M_13 : Array Std.U32 9#usize :=
   Array.make 9#usize [
@@ -89939,7 +89248,7 @@ def frontend.olean.files.olean_failed.M_13 : Array Std.U32 9#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::olean_failed::M#12]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 606:26-606:110 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 607:26-607:110 -/
 @[global_simps, irreducible]
 def frontend.olean.files.olean_failed.M_12 : Array Std.U32 13#usize :=
   Array.make 13#usize [
@@ -89948,7 +89257,7 @@ def frontend.olean.files.olean_failed.M_12 : Array Std.U32 13#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::olean_failed::M#11]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 604:26-604:106 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 605:26-605:106 -/
 @[global_simps, irreducible]
 def frontend.olean.files.olean_failed.M_11 : Array Std.U32 12#usize :=
   Array.make 12#usize [
@@ -89957,7 +89266,7 @@ def frontend.olean.files.olean_failed.M_11 : Array Std.U32 12#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::olean_failed::M#10]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 602:40-602:124 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 603:40-603:124 -/
 @[global_simps, irreducible]
 def frontend.olean.files.olean_failed.M_10 : Array Std.U32 13#usize :=
   Array.make 13#usize [
@@ -89966,13 +89275,13 @@ def frontend.olean.files.olean_failed.M_10 : Array Std.U32 13#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::olean_failed::M#9]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 601:175-601:218 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 602:175-602:218 -/
 @[global_simps, irreducible]
 def frontend.olean.files.olean_failed.M_9 : Array Std.U32 5#usize :=
   Array.make 5#usize [ 32#u32, 97#u32, 110#u32, 100#u32, 32#u32 ]
 
 /-- [con_ron_core::frontend::olean::files::olean_failed::M#8]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 601:44-601:124 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 602:44-602:124 -/
 @[global_simps, irreducible]
 def frontend.olean.files.olean_failed.M_8 : Array Std.U32 12#usize :=
   Array.make 12#usize [
@@ -89981,13 +89290,13 @@ def frontend.olean.files.olean_failed.M_8 : Array Std.U32 12#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::olean_failed::M#7]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 596:24-596:49 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 597:24-597:49 -/
 @[global_simps, irreducible]
 def frontend.olean.files.olean_failed.M_7 : Array Std.U32 1#usize :=
   Array.make 1#usize [ 63#u32 ]
 
 /-- [con_ron_core::frontend::olean::files::olean_failed::M#6]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 593:32-593:266 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 594:32-594:266 -/
 @[global_simps, irreducible]
 def frontend.olean.files.olean_failed.M_6 : Array Std.U32 45#usize :=
   Array.make 45#usize [
@@ -90000,7 +89309,7 @@ def frontend.olean.files.olean_failed.M_6 : Array Std.U32 45#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::olean_failed::M#5]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 591:32-591:100 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 592:32-592:100 -/
 @[global_simps, irreducible]
 def frontend.olean.files.olean_failed.M_5 : Array Std.U32 10#usize :=
   Array.make 10#usize [
@@ -90009,13 +89318,13 @@ def frontend.olean.files.olean_failed.M_5 : Array Std.U32 10#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::olean_failed::M#4]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 590:28-590:63 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 591:28-591:63 -/
 @[global_simps, irreducible]
 def frontend.olean.files.olean_failed.M_4 : Array Std.U32 3#usize :=
   Array.make 3#usize [ 110#u32, 111#u32, 32#u32 ]
 
 /-- [con_ron_core::frontend::olean::files::olean_failed::M#3]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 585:62-585:146 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 586:62-586:146 -/
 @[global_simps, irreducible]
 def frontend.olean.files.olean_failed.M_3 : Array Std.U32 13#usize :=
   Array.make 13#usize [
@@ -90024,7 +89333,7 @@ def frontend.olean.files.olean_failed.M_3 : Array Std.U32 13#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::olean_failed::M#2]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 581:62-581:142 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 582:62-582:142 -/
 @[global_simps, irreducible]
 def frontend.olean.files.olean_failed.M_2 : Array Std.U32 12#usize :=
   Array.make 12#usize [
@@ -90033,7 +89342,7 @@ def frontend.olean.files.olean_failed.M_2 : Array Std.U32 12#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::olean_failed::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 576:61-576:151 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 577:61-577:151 -/
 @[global_simps, irreducible]
 def frontend.olean.files.olean_failed.M_1 : Array Std.U32 15#usize :=
   Array.make 15#usize [
@@ -90042,19 +89351,19 @@ def frontend.olean.files.olean_failed.M_1 : Array Std.U32 15#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::olean_failed::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 568:55-568:100 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 569:55-569:100 -/
 @[global_simps, irreducible]
 def frontend.olean.files.olean_failed.M : Array Std.U32 5#usize :=
   Array.make 5#usize [ 111#u32, 108#u32, 101#u32, 97#u32, 110#u32 ]
 
 /-- [con_ron_core::frontend::olean::files::part_name::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 559:45-559:70 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 560:45-560:70 -/
 @[global_simps, irreducible]
 def frontend.olean.files.part_name.M : Array Std.U32 1#usize :=
   Array.make 1#usize [ 46#u32 ]
 
 /-- [con_ron_core::frontend::olean::files::part_name]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 558:0-561:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 559:0-562:1
     Visibility: public -/
 def frontend.olean.files.part_name
   (mt : alloc.vec.Vec Std.U32) (ext : alloc.vec.Vec Std.U32) :
@@ -90066,38 +89375,8 @@ def frontend.olean.files.part_name
   let t ← frontend.text.cat v v1
   frontend.text.cat t ext
 
-/-- [con_ron_core::frontend::olean::files::name_root]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 177:0-189:1
-    Visibility: public -/
-def frontend.olean.files.name_root
-  (n : kernel.name.Name) : Result kernel.name.Name := do
-  let nn ←
-    alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref alloc.alloc.Global n._0
-  match nn.kind with
-  | kernel.name.NameKind.Anonymous => kernel.name.anonymous
-  | kernel.name.NameKind.Str p s =>
-    let nn1 ←
-      alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref alloc.alloc.Global p._0
-    match nn1.kind with
-    | kernel.name.NameKind.Anonymous =>
-      let n1 ← kernel.name.anonymous
-      let v ← kernel.expr.str_copy s
-      kernel.name.mk_str n1 v
-    | kernel.name.NameKind.Str _ _ => frontend.olean.files.name_root p
-    | kernel.name.NameKind.Num _ _ => frontend.olean.files.name_root p
-  | kernel.name.NameKind.Num p k =>
-    let nn1 ←
-      alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref alloc.alloc.Global p._0
-    match nn1.kind with
-    | kernel.name.NameKind.Anonymous =>
-      let n1 ← kernel.name.anonymous
-      kernel.name.mk_num n1 k
-    | kernel.name.NameKind.Str _ _ => frontend.olean.files.name_root p
-    | kernel.name.NameKind.Num _ _ => frontend.olean.files.name_root p
-partial_fixpoint
-
 /-- [con_ron_core::frontend::olean::files::olean_failed]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 567:0-612:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 568:0-613:1
     Visibility: public -/
 def frontend.olean.files.olean_failed
   {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -90308,7 +89587,7 @@ def frontend.olean.files.olean_failed
   | core.result.Result.Err e => ok e
 
 /-- [con_ron_core::frontend::olean::files::read_imports_at]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 712:0-730:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 713:0-731:1
     Visibility: public -/
 def frontend.olean.files.read_imports_at
   {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -90349,7 +89628,7 @@ def frontend.olean.files.read_imports_at
   | core.result.Result.Err e => ok (core.result.Result.Err e, ar)
 
 /-- [con_ron_core::frontend::olean::files::located_of::M#7]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 532:38-532:162 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 533:38-533:162 -/
 @[global_simps, irreducible]
 def frontend.olean.files.located_of.M_7 : Array Std.U32 22#usize :=
   Array.make 22#usize [
@@ -90359,7 +89638,7 @@ def frontend.olean.files.located_of.M_7 : Array Std.U32 22#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::located_of::M#6]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 529:53-529:274 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 530:53-530:274 -/
 @[global_simps, irreducible]
 def frontend.olean.files.located_of.M_6 : Array Std.U32 43#usize :=
   Array.make 43#usize [
@@ -90372,7 +89651,7 @@ def frontend.olean.files.located_of.M_6 : Array Std.U32 43#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::located_of::M#5]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 527:36-527:290 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 528:36-528:290 -/
 @[global_simps, irreducible]
 def frontend.olean.files.located_of.M_5 : Array Std.U32 50#usize :=
   Array.make 50#usize [
@@ -90386,7 +89665,7 @@ def frontend.olean.files.located_of.M_5 : Array Std.U32 50#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::located_of::M#4]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 525:38-525:111 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 526:38-526:111 -/
 @[global_simps, irreducible]
 def frontend.olean.files.located_of.M_4 : Array Std.U32 11#usize :=
   Array.make 11#usize [
@@ -90395,7 +89674,7 @@ def frontend.olean.files.located_of.M_4 : Array Std.U32 11#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::located_of::M#3]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 522:53-522:106 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 523:53-523:106 -/
 @[global_simps, irreducible]
 def frontend.olean.files.located_of.M_3 : Array Std.U32 7#usize :=
   Array.make 7#usize [
@@ -90403,13 +89682,13 @@ def frontend.olean.files.located_of.M_3 : Array Std.U32 7#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::located_of::M#2]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 520:36-520:75 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 521:36-521:75 -/
 @[global_simps, irreducible]
 def frontend.olean.files.located_of.M_2 : Array Std.U32 4#usize :=
   Array.make 4#usize [ 32#u32, 111#u32, 114#u32, 32#u32 ]
 
 /-- [con_ron_core::frontend::olean::files::located_of::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 518:38-518:325 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 519:38-519:325 -/
 @[global_simps, irreducible]
 def frontend.olean.files.located_of.M_1 : Array Std.U32 57#usize :=
   Array.make 57#usize [
@@ -90424,7 +89703,7 @@ def frontend.olean.files.located_of.M_1 : Array Std.U32 57#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::located_of::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 514:26-514:81 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 515:26-515:81 -/
 @[global_simps, irreducible]
 def frontend.olean.files.located_of.M : Array Std.U32 7#usize :=
   Array.make 7#usize [
@@ -90432,13 +89711,13 @@ def frontend.olean.files.located_of.M : Array Std.U32 7#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::dirs_text::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 502:36-502:65 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 503:36-503:65 -/
 @[global_simps, irreducible]
 def frontend.olean.files.dirs_text.M : Array Std.U32 2#usize :=
   Array.make 2#usize [ 44#u32, 32#u32 ]
 
 /-- [con_ron_core::frontend::olean::files::dirs_text]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 500:4-506:5
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 501:4-507:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.files.dirs_text_loop
@@ -90468,7 +89747,7 @@ def frontend.olean.files.dirs_text_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::files::dirs_text]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 497:0-508:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 498:0-509:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.files.dirs_text
@@ -90478,7 +89757,7 @@ def frontend.olean.files.dirs_text
   frontend.olean.files.dirs_text_loop ds (alloc.vec.Vec.new Std.U32) 0#usize
 
 /-- [con_ron_core::frontend::olean::files::located_of]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 513:0-536:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 514:0-537:1
     Visibility: public -/
 def frontend.olean.files.located_of
   (mt : alloc.vec.Vec Std.U32) (rt : alloc.vec.Vec Std.U32)
@@ -90529,312 +89808,8 @@ def frontend.olean.files.located_of
     let ce ← kernel.core_types.internal v2
     ok (core.result.Result.Err ce)
 
-/-- [con_ron_core::frontend::olean::files::real_seen]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 408:4-415:1
-    Visibility: public -/
-@[rust_loop]
-def frontend.olean.files.real_seen_loop
-  (reals : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (i : Std.Usize)
-  (j : Std.Usize) :
-  Result Bool
-  := do
-  if j < i
-  then
-    let v ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
-        Std.U32)) reals j
-    let v1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
-        Std.U32)) reals i
-    let b ← kernel.name.str_eq v v1
-    if b
-    then ok true
-    else let j1 ← j + 1#usize
-         frontend.olean.files.real_seen_loop reals i j1
-  else ok false
-partial_fixpoint
-
-/-- [con_ron_core::frontend::olean::files::real_seen]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 406:0-415:1
-    Visibility: public -/
-@[reducible]
-def frontend.olean.files.real_seen
-  (reals : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (i : Std.Usize) :
-  Result Bool
-  := do
-  frontend.olean.files.real_seen_loop reals i 0#usize
-
-/-- [con_ron_core::frontend::olean::files::one_each]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 395:4-400:5
-    Visibility: public -/
-@[rust_loop]
-def frontend.olean.files.one_each_loop
-  (hits : alloc.vec.Vec (alloc.vec.Vec Std.U32))
-  (reals : alloc.vec.Vec (alloc.vec.Vec Std.U32))
-  (out : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (i : Std.Usize) :
-  Result (alloc.vec.Vec (alloc.vec.Vec Std.U32))
-  := do
-  let i1 := alloc.vec.Vec.len hits
-  if i < i1
-  then
-    let b ← frontend.olean.files.real_seen reals i
-    let out1 ←
-      if b
-      then ok out
-      else
-        do
-        let v ←
-          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-            (alloc.vec.Vec Std.U32)) hits i
-        let v1 ← kernel.expr.str_copy v
-        alloc.vec.Vec.push out v1
-    let i2 ← i + 1#usize
-    frontend.olean.files.one_each_loop hits reals out1 i2
-  else ok out
-partial_fixpoint
-
-/-- [con_ron_core::frontend::olean::files::one_each]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 392:0-402:1
-    Visibility: public -/
-@[reducible]
-def frontend.olean.files.one_each
-  (hits : alloc.vec.Vec (alloc.vec.Vec Std.U32))
-  (reals : alloc.vec.Vec (alloc.vec.Vec Std.U32)) :
-  Result (alloc.vec.Vec (alloc.vec.Vec Std.U32))
-  := do
-  frontend.olean.files.one_each_loop hits reals (alloc.vec.Vec.new
-    (alloc.vec.Vec Std.U32)) 0#usize
-
-/-- [con_ron_core::frontend::olean::files::all_same]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 380:4-387:1
-    Visibility: public -/
-@[rust_loop]
-def frontend.olean.files.all_same_loop
-  (reals : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (i : Std.Usize) :
-  Result Bool
-  := do
-  let i1 := alloc.vec.Vec.len reals
-  if i < i1
-  then
-    let v ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
-        Std.U32)) reals i
-    let v1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
-        Std.U32)) reals 0#usize
-    let b ← kernel.name.str_eq v v1
-    if b
-    then let i2 ← i + 1#usize
-         frontend.olean.files.all_same_loop reals i2
-    else ok false
-  else ok true
-partial_fixpoint
-
-/-- [con_ron_core::frontend::olean::files::all_same]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 378:0-387:1
-    Visibility: public -/
-@[reducible]
-def frontend.olean.files.all_same
-  (reals : alloc.vec.Vec (alloc.vec.Vec Std.U32)) : Result Bool := do
-  frontend.olean.files.all_same_loop reals 1#usize
-
-/-- [con_ron_core::frontend::olean::files::real_paths]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 366:4-374:1
-    Visibility: public -/
-@[rust_loop]
-def frontend.olean.files.real_paths_loop
-  {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
-  (hits : alloc.vec.Vec (alloc.vec.Vec Std.U32))
-  (out : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (i : Std.Usize) :
-  Result (core.result.Result (alloc.vec.Vec (alloc.vec.Vec Std.U32))
-    (alloc.vec.Vec Std.U32))
-  := do
-  let i1 := alloc.vec.Vec.len hits
-  if i < i1
-  then
-    let v ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
-        Std.U32)) hits i
-    let r ← OleanFsInst.real_path fs v
-    match r with
-    | core.result.Result.Ok rp =>
-      let out1 ← alloc.vec.Vec.push out rp
-      let i2 ← i + 1#usize
-      frontend.olean.files.real_paths_loop OleanFsInst fs hits out1 i2
-    | core.result.Result.Err e => ok (core.result.Result.Err e)
-  else ok (core.result.Result.Ok out)
-partial_fixpoint
-
-/-- [con_ron_core::frontend::olean::files::real_paths]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 363:0-374:1
-    Visibility: public -/
-def frontend.olean.files.real_paths
-  {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
-  (hits : alloc.vec.Vec (alloc.vec.Vec Std.U32)) :
-  Result (core.result.Result (alloc.vec.Vec (alloc.vec.Vec Std.U32))
-    (alloc.vec.Vec Std.U32))
-  := do
-  let i := alloc.vec.Vec.len hits
-  let out := alloc.vec.Vec.with_capacity (alloc.vec.Vec Std.U32) i
-  frontend.olean.files.real_paths_loop OleanFsInst fs hits out 0#usize
-
-/-- [con_ron_core::frontend::olean::files::holds_root::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 341:58-341:103 -/
-@[global_simps, irreducible]
-def frontend.olean.files.holds_root.M : Array Std.U32 5#usize :=
-  Array.make 5#usize [ 111#u32, 108#u32, 101#u32, 97#u32, 110#u32 ]
-
-/-- [con_ron_core::frontend::olean::files::holds_root]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 337:0-343:1
-    Visibility: public -/
-def frontend.olean.files.holds_root
-  {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
-  (r : kernel.name.Name) (d : alloc.vec.Vec Std.U32) :
-  Result (core.result.Result Bool (alloc.vec.Vec Std.U32))
-  := do
-  let v ← frontend.olean.files.mod_dir_of d r
-  let r1 ← OleanFsInst.is_dir fs v
-  match r1 with
-  | core.result.Result.Ok b =>
-    if b
-    then ok r1
-    else
-      let s ← lift (Array.to_slice frontend.olean.files.holds_root.M)
-      let v1 ← kernel.core_types.code_points s
-      let v2 ← frontend.olean.files.mod_file_of d r v1
-      OleanFsInst.path_exists fs v2
-  | core.result.Result.Err _ => ok r1
-
-/-- [con_ron_core::frontend::olean::files::root_dirs]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 350:4-359:1
-    Visibility: public -/
-@[rust_loop]
-def frontend.olean.files.root_dirs_loop
-  {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
-  (sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (r : kernel.name.Name)
-  (out : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (i : Std.Usize) :
-  Result (core.result.Result (alloc.vec.Vec (alloc.vec.Vec Std.U32))
-    (alloc.vec.Vec Std.U32))
-  := do
-  let i1 := alloc.vec.Vec.len sp
-  if i < i1
-  then
-    let v ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
-        Std.U32)) sp i
-    let r1 ← frontend.olean.files.holds_root OleanFsInst fs r v
-    match r1 with
-    | core.result.Result.Ok b =>
-      let out1 ←
-        if b
-        then do
-             let v1 ← kernel.expr.str_copy v
-             alloc.vec.Vec.push out v1
-        else ok out
-      let i2 ← i + 1#usize
-      frontend.olean.files.root_dirs_loop OleanFsInst fs sp r out1 i2
-    | core.result.Result.Err e => ok (core.result.Result.Err e)
-  else ok (core.result.Result.Ok out)
-partial_fixpoint
-
-/-- [con_ron_core::frontend::olean::files::root_dirs]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 347:0-359:1
-    Visibility: public -/
-@[reducible]
-def frontend.olean.files.root_dirs
-  {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
-  (sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (r : kernel.name.Name) :
-  Result (core.result.Result (alloc.vec.Vec (alloc.vec.Vec Std.U32))
-    (alloc.vec.Vec Std.U32))
-  := do
-  frontend.olean.files.root_dirs_loop OleanFsInst fs sp r (alloc.vec.Vec.new
-    (alloc.vec.Vec Std.U32)) 0#usize
-
-/-- [con_ron_core::frontend::olean::files::root_hits]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 421:0-442:1
-    Visibility: public -/
-def frontend.olean.files.root_hits
-  {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
-  (sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (r : kernel.name.Name) :
-  Result (core.result.Result frontend.olean.files.RootAt (alloc.vec.Vec
-    Std.U32))
-  := do
-  let r1 ← frontend.olean.files.root_dirs OleanFsInst fs sp r
-  match r1 with
-  | core.result.Result.Ok h =>
-    let i := alloc.vec.Vec.len h
-    if i = 0#usize
-    then ok (core.result.Result.Ok frontend.olean.files.RootAt.Missing)
-    else
-      let i1 := alloc.vec.Vec.len h
-      if i1 = 1#usize
-      then
-        let v ←
-          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-            (alloc.vec.Vec Std.U32)) h 0#usize
-        let v1 ← kernel.expr.str_copy v
-        ok (core.result.Result.Ok (frontend.olean.files.RootAt.Dir v1))
-      else
-        let r2 ← frontend.olean.files.real_paths OleanFsInst fs h
-        match r2 with
-        | core.result.Result.Ok reals =>
-          let b ← frontend.olean.files.all_same reals
-          if b
-          then
-            let v ←
-              alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-                (alloc.vec.Vec Std.U32)) h 0#usize
-            let v1 ← kernel.expr.str_copy v
-            ok (core.result.Result.Ok (frontend.olean.files.RootAt.Dir v1))
-          else
-            let v ← frontend.olean.files.one_each h reals
-            ok (core.result.Result.Ok (frontend.olean.files.RootAt.Twice v))
-        | core.result.Result.Err e => ok (core.result.Result.Err e)
-  | core.result.Result.Err e => ok (core.result.Result.Err e)
-
-/-- [con_ron_core::frontend::olean::files::root_at]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 446:0-451:1
-    Visibility: public -/
-def frontend.olean.files.root_at
-  {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
-  (sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (r : kernel.name.Name) :
-  Result frontend.olean.files.RootAt
-  := do
-  let r1 ← frontend.olean.files.root_hits OleanFsInst fs sp r
-  match r1 with
-  | core.result.Result.Ok a => ok a
-  | core.result.Result.Err e => ok (frontend.olean.files.RootAt.Failed e)
-
-/-- [con_ron_core::frontend::olean::files::look_next]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 473:0-478:1
-    Visibility: public -/
-def frontend.olean.files.look_next
-  {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
-  (fallback : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (r : kernel.name.Name)
-  (a : frontend.olean.files.RootAt) :
-  Result frontend.olean.files.RootAt
-  := do
-  match a with
-  | frontend.olean.files.RootAt.Dir _ => ok a
-  | frontend.olean.files.RootAt.Missing =>
-    frontend.olean.files.root_at OleanFsInst fs fallback r
-  | frontend.olean.files.RootAt.Twice _ => ok a
-  | frontend.olean.files.RootAt.Failed _ => ok a
-
-/-- [con_ron_core::frontend::olean::files::look_at]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 485:0-487:1
-    Visibility: public -/
-def frontend.olean.files.look_at
-  {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
-  (path : alloc.vec.Vec (alloc.vec.Vec Std.U32))
-  (fallback : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (r : kernel.name.Name) :
-  Result frontend.olean.files.RootAt
-  := do
-  let ra ← frontend.olean.files.root_at OleanFsInst fs path r
-  frontend.olean.files.look_next OleanFsInst fs fallback r ra
-
 /-- [con_ron_core::frontend::olean::files::find_module]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 546:0-555:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 547:0-556:1
     Visibility: public -/
 def frontend.olean.files.find_module
   {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -90855,7 +89830,7 @@ def frontend.olean.files.find_module
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::frontend::olean::files::module_imports]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 735:0-740:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 736:0-741:1
     Visibility: public -/
 def frontend.olean.files.module_imports
   {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -90870,6 +89845,2937 @@ def frontend.olean.files.module_imports
   | core.result.Result.Ok loc =>
     frontend.olean.files.read_imports_at OleanFsInst fs pk pers ar loc m
   | core.result.Result.Err e => ok (core.result.Result.Err e, ar)
+
+/-- [con_ron_core::frontend::modular::graph::hdr_of::M#1]
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 127:56-127:216 -/
+@[global_simps, irreducible]
+def frontend.modular.graph.hdr_of.M_1 : Array Std.U32 30#usize :=
+  Array.make 30#usize [
+    58#u32, 32#u32, 110#u32, 111#u32, 32#u32, 46#u32, 111#u32, 108#u32,
+    101#u32, 97#u32, 110#u32, 32#u32, 111#u32, 110#u32, 32#u32, 116#u32,
+    104#u32, 101#u32, 32#u32, 115#u32, 101#u32, 97#u32, 114#u32, 99#u32,
+    104#u32, 32#u32, 112#u32, 97#u32, 116#u32, 104#u32
+    ]
+
+/-- [con_ron_core::frontend::modular::graph::hdr_of::M]
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 126:36-126:91 -/
+@[global_simps, irreducible]
+def frontend.modular.graph.hdr_of.M : Array Std.U32 7#usize :=
+  Array.make 7#usize [
+    109#u32, 111#u32, 100#u32, 117#u32, 108#u32, 101#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::modular::graph::hdr_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 117:12-120:13
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.hdr_of_loop
+  (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+  (x : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+  := do
+  let i1 := alloc.vec.Vec.len x
+  if i < i1
+  then
+    let «if» ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (frontend.olean.spec.ImportF arena.handle.NIdx)) x i
+    let if1 ← frontend.olean.levels.import_rec_dup «if»
+    let imps1 ← alloc.vec.Vec.push imps if1
+    let i2 ← i + 1#usize
+    frontend.modular.graph.hdr_of_loop imps1 x i2
+  else ok imps
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::hdr_of]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 111:0-132:1
+    Visibility: public -/
+def frontend.modular.graph.hdr_of
+  {F : Type _} (oleanfilesOleanFsInst : frontend.olean.files.OleanFs F)
+  (fs : F) (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (sp : frontend.olean.files.Roots)
+  (cmp : Option (arena.handle.NIdx × arena.handle.NIdx))
+  (m : arena.handle.NIdx) :
+  Result ((core.result.Result (arena.handle.NIdx × (alloc.vec.Vec
+    (frontend.olean.spec.ImportF arena.handle.NIdx)))
+    kernel.core_types.CheckError) × arena.store.EStore)
+  := do
+  let (r, ar1) ←
+    frontend.olean.files.module_imports oleanfilesOleanFsInst fs pk pers ar sp
+      m
+  match r with
+  | core.result.Result.Ok imps =>
+    let x ← frontend.modular.graph.cmp_extra cmp m
+    let imps1 ← frontend.modular.graph.hdr_of_loop imps x 0#usize
+    let n ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 m
+    ok (core.result.Result.Ok (n, imps1), ar1)
+  | core.result.Result.Err e =>
+    let r1 ←
+      frontend.modular.graph.missing_on oleanfilesOleanFsInst fs pers ar1 sp m
+    match r1 with
+    | core.result.Result.Ok b =>
+      if b
+      then
+        let s ← lift (Array.to_slice frontend.modular.graph.hdr_of.M)
+        let v ← kernel.core_types.code_points s
+        let v1 ← frontend.olean.view.name_text pers ar1 m
+        let t ← frontend.text.cat v v1
+        let s1 ← lift (Array.to_slice frontend.modular.graph.hdr_of.M_1)
+        let v2 ← kernel.core_types.code_points s1
+        let v3 ← frontend.text.cat t v2
+        let ce ← kernel.core_types.invalid v3
+        ok (core.result.Result.Err ce, ar1)
+      else ok (core.result.Result.Err e, ar1)
+    | core.result.Result.Err e2 => ok (core.result.Result.Err e2, ar1)
+
+/-- [con_ron_core::frontend::modular::graph::expand]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 143:8-149:9
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.expand_loop0_loop0
+  (seen : ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
+  (next : alloc.vec.Vec arena.handle.NIdx)
+  (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+  (k : Std.Usize) :
+  Result ((ron.hashmap2.HashMap2 arena.handle.NIdx Bool) × (alloc.vec.Vec
+    arena.handle.NIdx))
+  := do
+  let i := alloc.vec.Vec.len imps
+  if k < i
+  then
+    let «if» ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (frontend.olean.spec.ImportF arena.handle.NIdx)) imps k
+    let b ←
+      ron.hashmap2.HashMap2.contains_key
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 seen «if».module
+    let (seen1, next1) ←
+      if b
+      then ok (seen, next)
+      else
+        do
+        let n ←
+          arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 «if».module
+        let (_, seen2) ←
+          ron.hashmap2.HashMap2.insert
+            arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+            arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 seen n true
+        let n1 ←
+          arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 «if».module
+        let next2 ← alloc.vec.Vec.push next n1
+        ok (seen2, next2)
+    let k1 ← k + 1#usize
+    frontend.modular.graph.expand_loop0_loop0 seen1 next1 imps k1
+  else ok (seen, next)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::expand]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 140:4-152:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.expand_loop0
+  (pk : frontend.olean.spec.OleanPins)
+  (seen : ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
+  (out : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx))))
+  (next : alloc.vec.Vec arena.handle.NIdx)
+  (rs : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx)))) (i : Std.Usize) :
+  Result ((ron.hashmap2.HashMap2 arena.handle.NIdx Bool) × (alloc.vec.Vec
+    (arena.handle.NIdx × (alloc.vec.Vec (frontend.olean.spec.ImportF
+    arena.handle.NIdx)))) × (alloc.vec.Vec arena.handle.NIdx))
+  := do
+  let i1 := alloc.vec.Vec.len rs
+  if i < i1
+  then
+    let (_, imps) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (arena.handle.NIdx × (alloc.vec.Vec (frontend.olean.spec.ImportF
+        arena.handle.NIdx)))) rs i
+    let (seen1, next1) ←
+      frontend.modular.graph.expand_loop0_loop0 seen next imps 0#usize
+    let (p, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+        (arena.handle.NIdx × (alloc.vec.Vec (frontend.olean.spec.ImportF
+        arena.handle.NIdx)))) rs i
+    let n ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 pk.anon
+    let (p1, p2) :=
+      core.mem.replace p (n, alloc.vec.Vec.new (frontend.olean.spec.ImportF
+        arena.handle.NIdx))
+    let out1 ← alloc.vec.Vec.push out p1
+    let i2 ← i + 1#usize
+    let rs1 := index_mut_back p2
+    frontend.modular.graph.expand_loop0 pk seen1 out1 next1 rs1 i2
+  else ok (seen, out, next)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::expand]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 137:0-153:1
+    Visibility: public -/
+@[reducible]
+def frontend.modular.graph.expand
+  (pk : frontend.olean.spec.OleanPins)
+  (seen : ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
+  (out : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx))))
+  (next : alloc.vec.Vec arena.handle.NIdx)
+  (rs : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx)))) :
+  Result ((ron.hashmap2.HashMap2 arena.handle.NIdx Bool) × (alloc.vec.Vec
+    (arena.handle.NIdx × (alloc.vec.Vec (frontend.olean.spec.ImportF
+    arena.handle.NIdx)))) × (alloc.vec.Vec arena.handle.NIdx))
+  := do
+  frontend.modular.graph.expand_loop0 pk seen out next rs 0#usize
+
+/-- [con_ron_core::frontend::modular::graph::LEVEL_FUEL]
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 157:0-157:36
+    Visibility: public -/
+@[global_simps, irreducible]
+def frontend.modular.graph.LEVEL_FUEL : Result Std.U64 := 1#u64 <<< 40#i32
+
+/-- [con_ron_core::frontend::modular::graph::level_hdrs]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 164:4-172:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.level_hdrs_loop
+  {F : Type _} (oleanfilesOleanFsInst : frontend.olean.files.OleanFs F)
+  (fs : F) (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (sp : frontend.olean.files.Roots)
+  (cmp : Option (arena.handle.NIdx × arena.handle.NIdx))
+  (lvl : alloc.vec.Vec arena.handle.NIdx)
+  (rs : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx)))) (i : Std.Usize) :
+  Result ((core.result.Result (alloc.vec.Vec (arena.handle.NIdx ×
+    (alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))))
+    kernel.core_types.CheckError) × arena.store.EStore)
+  := do
+  let i1 := alloc.vec.Vec.len lvl
+  if i < i1
+  then
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.handle.NIdx) lvl i
+    let (r, ar1) ←
+      frontend.modular.graph.hdr_of oleanfilesOleanFsInst fs pk pers ar sp cmp
+        n
+    match r with
+    | core.result.Result.Ok r1 =>
+      let rs1 ← alloc.vec.Vec.push rs r1
+      let i2 ← i + 1#usize
+      frontend.modular.graph.level_hdrs_loop oleanfilesOleanFsInst fs pk pers
+        ar1 sp cmp lvl rs1 i2
+    | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
+  else ok (core.result.Result.Ok rs, ar)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::level_hdrs]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 161:0-172:1
+    Visibility: public -/
+def frontend.modular.graph.level_hdrs
+  {F : Type _} (oleanfilesOleanFsInst : frontend.olean.files.OleanFs F)
+  (fs : F) (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (sp : frontend.olean.files.Roots)
+  (cmp : Option (arena.handle.NIdx × arena.handle.NIdx))
+  (lvl : alloc.vec.Vec arena.handle.NIdx) :
+  Result ((core.result.Result (alloc.vec.Vec (arena.handle.NIdx ×
+    (alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))))
+    kernel.core_types.CheckError) × arena.store.EStore)
+  := do
+  let i := alloc.vec.Vec.len lvl
+  let rs :=
+    alloc.vec.Vec.with_capacity (arena.handle.NIdx × (alloc.vec.Vec
+      (frontend.olean.spec.ImportF arena.handle.NIdx))) i
+  frontend.modular.graph.level_hdrs_loop oleanfilesOleanFsInst fs pk pers ar sp
+    cmp lvl rs 0#usize
+
+/-- [con_ron_core::frontend::modular::graph::closure_levels::M]
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 185:46-185:233 -/
+@[global_simps, irreducible]
+def frontend.modular.graph.closure_levels.M : Array Std.U32 35#usize :=
+  Array.make 35#usize [
+    116#u32, 104#u32, 101#u32, 32#u32, 99#u32, 108#u32, 111#u32, 115#u32,
+    117#u32, 114#u32, 101#u32, 39#u32, 115#u32, 32#u32, 119#u32, 97#u32,
+    108#u32, 107#u32, 32#u32, 114#u32, 97#u32, 110#u32, 32#u32, 111#u32,
+    117#u32, 116#u32, 32#u32, 111#u32, 102#u32, 32#u32, 115#u32, 116#u32,
+    101#u32, 112#u32, 115#u32
+    ]
+
+/-- [con_ron_core::frontend::modular::graph::closure_levels]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 183:4-198:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.closure_levels_loop
+  {F : Type _} (oleanfilesOleanFsInst : frontend.olean.files.OleanFs F)
+  (fs : F) (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (sp : frontend.olean.files.Roots)
+  (cmp : Option (arena.handle.NIdx × arena.handle.NIdx))
+  (lvl : alloc.vec.Vec arena.handle.NIdx)
+  (seen : ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
+  (out : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx)))) (fuel : Std.U64) :
+  Result ((core.result.Result (alloc.vec.Vec (arena.handle.NIdx ×
+    (alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))))
+    kernel.core_types.CheckError) × arena.store.EStore)
+  := do
+  let i := alloc.vec.Vec.len lvl
+  if i > 0#usize
+  then
+    if fuel = 0#u64
+    then
+      let s ← lift (Array.to_slice frontend.modular.graph.closure_levels.M)
+      let v ← kernel.core_types.code_points s
+      let ce ← kernel.core_types.internal v
+      ok (core.result.Result.Err ce, ar)
+    else
+      let fuel1 ← fuel - 1#u64
+      let (r, ar1) ←
+        frontend.modular.graph.level_hdrs oleanfilesOleanFsInst fs pk pers ar
+          sp cmp lvl
+      match r with
+      | core.result.Result.Ok rs =>
+        let (seen1, out1, next) ←
+          frontend.modular.graph.expand pk seen out (alloc.vec.Vec.new
+            arena.handle.NIdx) rs
+        frontend.modular.graph.closure_levels_loop oleanfilesOleanFsInst fs pk
+          pers ar1 sp cmp next seen1 out1 fuel1
+      | core.result.Result.Err _ => ok (r, ar1)
+  else ok (core.result.Result.Ok out, ar)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::closure_levels]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 178:0-198:1
+    Visibility: public -/
+def frontend.modular.graph.closure_levels
+  {F : Type _} (oleanfilesOleanFsInst : frontend.olean.files.OleanFs F)
+  (fs : F) (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (sp : frontend.olean.files.Roots)
+  (cmp : Option (arena.handle.NIdx × arena.handle.NIdx))
+  (lvl : alloc.vec.Vec arena.handle.NIdx)
+  (seen : ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
+  (out : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx)))) :
+  Result ((core.result.Result (alloc.vec.Vec (arena.handle.NIdx ×
+    (alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))))
+    kernel.core_types.CheckError) × arena.store.EStore)
+  := do
+  let fuel ← frontend.modular.graph.LEVEL_FUEL
+  frontend.modular.graph.closure_levels_loop oleanfilesOleanFsInst fs pk pers
+    ar sp cmp lvl seen out fuel
+
+/-- [con_ron_core::frontend::modular::graph::dedup]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 206:4-212:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.dedup_loop
+  (xs : alloc.vec.Vec arena.handle.NIdx)
+  (s : ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
+  (acc : alloc.vec.Vec arena.handle.NIdx) (i : Std.Usize) :
+  Result ((alloc.vec.Vec arena.handle.NIdx) × (ron.hashmap2.HashMap2
+    arena.handle.NIdx Bool))
+  := do
+  let i1 := alloc.vec.Vec.len xs
+  if i < i1
+  then
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.handle.NIdx) xs i
+    let b ←
+      ron.hashmap2.HashMap2.contains_key
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 s n
+    let (s1, acc1) ←
+      if b
+      then ok (s, acc)
+      else
+        do
+        let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
+        let (_, s2) ←
+          ron.hashmap2.HashMap2.insert
+            arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+            arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 s n1 true
+        let n2 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
+        let acc2 ← alloc.vec.Vec.push acc n2
+        ok (s2, acc2)
+    let i2 ← i + 1#usize
+    frontend.modular.graph.dedup_loop xs s1 acc1 i2
+  else ok (acc, s)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::dedup]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 202:0-214:1
+    Visibility: public -/
+def frontend.modular.graph.dedup
+  (xs : alloc.vec.Vec arena.handle.NIdx) :
+  Result ((alloc.vec.Vec arena.handle.NIdx) × (ron.hashmap2.HashMap2
+    arena.handle.NIdx Bool))
+  := do
+  let s ← ron.hashmap2.HashMap2.new arena.handle.NIdx Bool
+  frontend.modular.graph.dedup_loop xs s (alloc.vec.Vec.new arena.handle.NIdx)
+    0#usize
+
+/-- [con_ron_core::frontend::modular::graph::index_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 221:4-224:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.index_of_loop
+  (c : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx))))
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64) (k : Std.Usize) :
+  Result (ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  := do
+  let i := alloc.vec.Vec.len c
+  if k < i
+  then
+    let (n, _) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (arena.handle.NIdx × (alloc.vec.Vec (frontend.olean.spec.ImportF
+        arena.handle.NIdx)))) c k
+    let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
+    let i1 ← lift (UScalar.cast .U64 k)
+    let (_, idx1) ←
+      ron.hashmap2.HashMap2.insert
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 idx n1 i1
+    let k1 ← k + 1#usize
+    frontend.modular.graph.index_of_loop c idx1 k1
+  else ok idx
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::index_of]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 218:0-226:1
+    Visibility: public -/
+def frontend.modular.graph.index_of
+  (c : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx)))) :
+  Result (ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  := do
+  let idx ← ron.hashmap2.HashMap2.new arena.handle.NIdx Std.U64
+  frontend.modular.graph.index_of_loop c idx 0#usize
+
+/-- [con_ron_core::frontend::modular::graph::idx_lookup]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 230:0-235:1
+    Visibility: public -/
+def frontend.modular.graph.idx_lookup
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (m : arena.handle.NIdx) :
+  Result (Option Std.U64)
+  := do
+  let o ←
+    ron.hashmap2.HashMap2.get
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 idx m
+  match o with
+  | none => ok none
+  | some _ => ok o
+
+/-- [con_ron_core::frontend::modular::graph::deps_of]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 247:8-253:9
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.deps_of_loop0_loop0
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+  (d : alloc.vec.Vec Std.U64) (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  let i1 := alloc.vec.Vec.len imps
+  if i < i1
+  then
+    let «if» ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (frontend.olean.spec.ImportF arena.handle.NIdx)) imps i
+    let o ← frontend.modular.graph.idx_lookup idx «if».module
+    let d1 ← match o with
+               | none => ok d
+               | some j => alloc.vec.Vec.push d j
+    let i2 ← i + 1#usize
+    frontend.modular.graph.deps_of_loop0_loop0 idx imps d1 i2
+  else ok d
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::deps_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 243:4-256:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.deps_of_loop0
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (c : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx))))
+  (out : alloc.vec.Vec (alloc.vec.Vec Std.U64)) (k : Std.Usize) :
+  Result (alloc.vec.Vec (alloc.vec.Vec Std.U64))
+  := do
+  let i := alloc.vec.Vec.len c
+  if k < i
+  then
+    let (_, imps) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (arena.handle.NIdx × (alloc.vec.Vec (frontend.olean.spec.ImportF
+        arena.handle.NIdx)))) c k
+    let i1 := alloc.vec.Vec.len imps
+    let d := alloc.vec.Vec.with_capacity Std.U64 i1
+    let d1 ← frontend.modular.graph.deps_of_loop0_loop0 idx imps d 0#usize
+    let out1 ← alloc.vec.Vec.push out d1
+    let k1 ← k + 1#usize
+    frontend.modular.graph.deps_of_loop0 idx c out1 k1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::deps_of]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 240:0-258:1
+    Visibility: public -/
+def frontend.modular.graph.deps_of
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (c : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx)))) :
+  Result (alloc.vec.Vec (alloc.vec.Vec Std.U64))
+  := do
+  let i := alloc.vec.Vec.len c
+  let out := alloc.vec.Vec.with_capacity (alloc.vec.Vec Std.U64) i
+  frontend.modular.graph.deps_of_loop0 idx c out 0#usize
+
+/-- [con_ron_core::frontend::modular::graph::kahn_users]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 266:4-269:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.kahn_users_loop0
+  (n : Std.Usize) (users : alloc.vec.Vec (alloc.vec.Vec Std.U64))
+  (k : Std.Usize) :
+  Result (alloc.vec.Vec (alloc.vec.Vec Std.U64))
+  := do
+  if k < n
+  then
+    let users1 ← alloc.vec.Vec.push users (alloc.vec.Vec.new Std.U64)
+    let k1 ← k + 1#usize
+    frontend.modular.graph.kahn_users_loop0 n users1 k1
+  else ok users
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::kahn_users]: loop 2:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 274:8-280:9
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.kahn_users_loop1_loop0
+  (users : alloc.vec.Vec (alloc.vec.Vec Std.U64)) (x : Std.Usize)
+  (d : alloc.vec.Vec Std.U64) (i : Std.Usize) :
+  Result (alloc.vec.Vec (alloc.vec.Vec Std.U64))
+  := do
+  let i1 := alloc.vec.Vec.len d
+  if i < i1
+  then
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) d i
+    let j ← lift (UScalar.cast .Usize i2)
+    let i3 := alloc.vec.Vec.len users
+    let users1 ←
+      if j < i3
+      then
+        do
+        let (v, index_mut_back) ←
+          alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+            (alloc.vec.Vec Std.U64)) users j
+        let i4 ← lift (UScalar.cast .U64 x)
+        let v1 ← alloc.vec.Vec.push v i4
+        ok (index_mut_back v1)
+      else ok users
+    let i4 ← i + 1#usize
+    frontend.modular.graph.kahn_users_loop1_loop0 users1 x d i4
+  else ok users
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::kahn_users]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 271:4-282:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.kahn_users_loop1
+  (deps : alloc.vec.Vec (alloc.vec.Vec Std.U64)) (n : Std.Usize)
+  (users : alloc.vec.Vec (alloc.vec.Vec Std.U64)) (x : Std.Usize) :
+  Result (alloc.vec.Vec (alloc.vec.Vec Std.U64))
+  := do
+  if x < n
+  then
+    let d ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        Std.U64)) deps x
+    let users1 ←
+      frontend.modular.graph.kahn_users_loop1_loop0 users x d 0#usize
+    let x1 ← x + 1#usize
+    frontend.modular.graph.kahn_users_loop1 deps n users1 x1
+  else ok users
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::kahn_users]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 262:0-284:1
+    Visibility: public -/
+def frontend.modular.graph.kahn_users
+  (deps : alloc.vec.Vec (alloc.vec.Vec Std.U64)) :
+  Result (alloc.vec.Vec (alloc.vec.Vec Std.U64))
+  := do
+  let n := alloc.vec.Vec.len deps
+  let users := alloc.vec.Vec.with_capacity (alloc.vec.Vec Std.U64) n
+  let users1 ← frontend.modular.graph.kahn_users_loop0 n users 0#usize
+  frontend.modular.graph.kahn_users_loop1 deps n users1 0#usize
+
+/-- [con_ron_core::frontend::modular::graph::kahn]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 296:4-302:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.kahn_loop0
+  (deps : alloc.vec.Vec (alloc.vec.Vec Std.U64)) (n : Std.Usize)
+  (wait : alloc.vec.Vec Std.U64) (q : alloc.vec.Vec Std.U64) (k : Std.Usize) :
+  Result ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64))
+  := do
+  if k < n
+  then
+    let v ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        Std.U64)) deps k
+    let i := alloc.vec.Vec.len v
+    let i1 ← lift (UScalar.cast .U64 i)
+    let wait1 ← alloc.vec.Vec.push wait i1
+    let i2 := alloc.vec.Vec.len v
+    let q1 ←
+      if i2 = 0#usize
+      then do
+           let i3 ← lift (UScalar.cast .U64 k)
+           alloc.vec.Vec.push q i3
+      else ok q
+    let k1 ← k + 1#usize
+    frontend.modular.graph.kahn_loop0 deps n wait1 q1 k1
+  else ok (wait, q)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::kahn]: loop 2:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 310:12-322:13
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.kahn_loop1_loop0
+  (wait : alloc.vec.Vec Std.U64) (q : alloc.vec.Vec Std.U64)
+  (us : alloc.vec.Vec Std.U64) (u : Std.Usize) :
+  Result ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64))
+  := do
+  let i := alloc.vec.Vec.len us
+  if u < i
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) us u
+    let y ← lift (UScalar.cast .Usize i1)
+    let i2 := alloc.vec.Vec.len wait
+    let (wait1, q1) ←
+      if y < i2
+      then
+        do
+        let w ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64)
+            wait y
+        let wait2 ←
+          if w > 0#u64
+          then
+            do
+            let i3 ← w - 1#u64
+            let (_, index_mut_back) ←
+              alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+                Std.U64) wait y
+            ok (index_mut_back i3)
+          else ok wait
+        let v ← if w = 1#u64
+                  then alloc.vec.Vec.push q i1
+                  else ok q
+        ok (wait2, v)
+      else ok (wait, q)
+    let u1 ← u + 1#usize
+    frontend.modular.graph.kahn_loop1_loop0 wait1 q1 us u1
+  else ok (wait, q)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::kahn]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 305:4-326:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.kahn_loop1
+  (n : Std.Usize) (users : alloc.vec.Vec (alloc.vec.Vec Std.U64))
+  (wait : alloc.vec.Vec Std.U64) (q : alloc.vec.Vec Std.U64) (i : Std.Usize)
+  (t : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  if t < n
+  then
+    let i1 := alloc.vec.Vec.len q
+    if i < i1
+    then
+      let i2 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) q i
+      let x ← lift (UScalar.cast .Usize i2)
+      let i3 := alloc.vec.Vec.len users
+      if x < i3
+      then
+        let us ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            (alloc.vec.Vec Std.U64)) users x
+        let (wait1, q1) ←
+          frontend.modular.graph.kahn_loop1_loop0 wait q us 0#usize
+        let i4 ← i + 1#usize
+        let t1 ← t + 1#usize
+        frontend.modular.graph.kahn_loop1 n users wait1 q1 i4 t1
+      else
+        let i4 ← i + 1#usize
+        let t1 ← t + 1#usize
+        frontend.modular.graph.kahn_loop1 n users wait q i4 t1
+    else ok q
+  else ok q
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::kahn]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 290:0-328:1
+    Visibility: public -/
+def frontend.modular.graph.kahn
+  (deps : alloc.vec.Vec (alloc.vec.Vec Std.U64)) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  let n := alloc.vec.Vec.len deps
+  let users ← frontend.modular.graph.kahn_users deps
+  let wait := alloc.vec.Vec.with_capacity Std.U64 n
+  let (wait1, q) ←
+    frontend.modular.graph.kahn_loop0 deps n wait (alloc.vec.Vec.new Std.U64)
+      0#usize
+  frontend.modular.graph.kahn_loop1 n users wait1 q 0#usize 0#usize
+
+/-- [con_ron_core::frontend::modular::graph::ranks_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 336:4-339:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.ranks_of_loop0
+  (n : Std.U64) (rank : alloc.vec.Vec (Option Std.U64)) (k : Std.U64) :
+  Result (alloc.vec.Vec (Option Std.U64))
+  := do
+  if k < n
+  then
+    let rank1 ← alloc.vec.Vec.push rank none
+    let k1 ← k + 1#u64
+    frontend.modular.graph.ranks_of_loop0 n rank1 k1
+  else ok rank
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::ranks_of]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 341:4-347:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.ranks_of_loop1
+  (ord : alloc.vec.Vec Std.U64) (rank : alloc.vec.Vec (Option Std.U64))
+  (t : Std.Usize) :
+  Result (alloc.vec.Vec (Option Std.U64))
+  := do
+  let i := alloc.vec.Vec.len ord
+  if t < i
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) ord t
+    let p ← lift (UScalar.cast .Usize i1)
+    let i2 := alloc.vec.Vec.len rank
+    let rank1 ←
+      if p < i2
+      then
+        do
+        let i3 ← lift (UScalar.cast .U64 t)
+        let (_, index_mut_back) ←
+          alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+            (Option Std.U64)) rank p
+        ok (index_mut_back (some i3))
+      else ok rank
+    let t1 ← t + 1#usize
+    frontend.modular.graph.ranks_of_loop1 ord rank1 t1
+  else ok rank
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::ranks_of]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 333:0-349:1
+    Visibility: public -/
+def frontend.modular.graph.ranks_of
+  (n : Std.U64) (ord : alloc.vec.Vec Std.U64) :
+  Result (alloc.vec.Vec (Option Std.U64))
+  := do
+  let i ← lift (UScalar.cast .Usize n)
+  let rank := alloc.vec.Vec.with_capacity (Option Std.U64) i
+  let rank1 ← frontend.modular.graph.ranks_of_loop0 n rank 0#u64
+  frontend.modular.graph.ranks_of_loop1 ord rank1 0#usize
+
+/-- [con_ron_core::frontend::modular::graph::rank_of]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 353:0-368:1
+    Visibility: public -/
+def frontend.modular.graph.rank_of
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (rank : alloc.vec.Vec (Option Std.U64)) (m : arena.handle.NIdx) :
+  Result (Option Std.U64)
+  := do
+  let o ←
+    ron.hashmap2.HashMap2.get
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 idx m
+  match o with
+  | none => ok none
+  | some k =>
+    let i ← lift (UScalar.cast .Usize k)
+    let i1 := alloc.vec.Vec.len rank
+    if i < i1
+    then
+      let o1 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Option
+          Std.U64)) rank i
+      match o1 with
+      | none => ok none
+      | some _ => ok o1
+    else ok none
+
+/-- [con_ron_core::frontend::modular::graph::cycle_start]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 374:4-381:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.cycle_start_loop
+  (n : Std.Usize) (done1 : alloc.vec.Vec Bool) (k : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  if k < n
+  then
+    let b ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Bool) done1 k
+    if b
+    then
+      let k1 ← k + 1#usize
+      frontend.modular.graph.cycle_start_loop n done1 k1
+    else ok (some k)
+  else ok none
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::cycle_start]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 372:0-381:1
+    Visibility: public -/
+@[reducible]
+def frontend.modular.graph.cycle_start
+  (n : Std.Usize) (done1 : alloc.vec.Vec Bool) :
+  Result (Option Std.Usize)
+  := do
+  frontend.modular.graph.cycle_start_loop n done1 0#usize
+
+/-- [con_ron_core::frontend::modular::graph::cycle_next]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 389:8-398:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.cycle_next_loop
+  (done1 : alloc.vec.Vec Bool) (d : alloc.vec.Vec Std.U64) (i : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  let i1 := alloc.vec.Vec.len d
+  if i < i1
+  then
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) d i
+    let y ← lift (UScalar.cast .Usize i2)
+    let i3 := alloc.vec.Vec.len done1
+    if y < i3
+    then
+      let b ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Bool) done1
+          y
+      if b
+      then
+        let i4 ← i + 1#usize
+        frontend.modular.graph.cycle_next_loop done1 d i4
+      else ok (some y)
+    else ok (some y)
+  else ok none
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::cycle_next]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 385:0-398:1
+    Visibility: public -/
+def frontend.modular.graph.cycle_next
+  (deps : alloc.vec.Vec (alloc.vec.Vec Std.U64)) (done1 : alloc.vec.Vec Bool)
+  (x : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  let i := alloc.vec.Vec.len deps
+  if x < i
+  then
+    let d ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        Std.U64)) deps x
+    frontend.modular.graph.cycle_next_loop done1 d 0#usize
+  else ok none
+
+/-- [con_ron_core::frontend::modular::graph::cycle_step]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 412:0-422:1
+    Visibility: public -/
+def frontend.modular.graph.cycle_step
+  (deps : alloc.vec.Vec (alloc.vec.Vec Std.U64)) (done1 : alloc.vec.Vec Bool)
+  («at» : alloc.vec.Vec (Option Std.U64)) (path : alloc.vec.Vec Std.U64)
+  (x : Std.Usize) :
+  Result (frontend.modular.graph.CycleStep × (alloc.vec.Vec (Option Std.U64))
+    × (alloc.vec.Vec Std.U64))
+  := do
+  let i := alloc.vec.Vec.len «at»
+  if x < i
+  then
+    let o ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Option
+        Std.U64)) «at» x
+    match o with
+    | none =>
+      let i1 := alloc.vec.Vec.len path
+      let i2 ← lift (UScalar.cast .U64 i1)
+      let (_, index_mut_back) ←
+        alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice (Option
+          Std.U64)) «at» x
+      let i3 ← lift (UScalar.cast .U64 x)
+      let path1 ← alloc.vec.Vec.push path i3
+      let o1 ← frontend.modular.graph.cycle_next deps done1 x
+      let at1 := index_mut_back (some i2)
+      ok (frontend.modular.graph.CycleStep.Next o1, at1, path1)
+    | some p => ok (frontend.modular.graph.CycleStep.Repeat p, «at», path)
+  else
+    let i1 ← lift (UScalar.cast .U64 x)
+    let path1 ← alloc.vec.Vec.push path i1
+    let o ← frontend.modular.graph.cycle_next deps done1 x
+    ok (frontend.modular.graph.CycleStep.Next o, «at», path1)
+
+/-- [con_ron_core::frontend::modular::graph::done_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 429:4-432:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.done_of_loop0
+  (n : Std.Usize) (done1 : alloc.vec.Vec Bool) (k : Std.Usize) :
+  Result (alloc.vec.Vec Bool)
+  := do
+  if k < n
+  then
+    let done2 ← alloc.vec.Vec.push done1 false
+    let k1 ← k + 1#usize
+    frontend.modular.graph.done_of_loop0 n done2 k1
+  else ok done1
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::done_of]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 434:4-440:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.done_of_loop1
+  (ord : alloc.vec.Vec Std.U64) (done1 : alloc.vec.Vec Bool) (j : Std.Usize) :
+  Result (alloc.vec.Vec Bool)
+  := do
+  let i := alloc.vec.Vec.len ord
+  if j < i
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) ord j
+    let p ← lift (UScalar.cast .Usize i1)
+    let i2 := alloc.vec.Vec.len done1
+    let done2 ←
+      if p < i2
+      then
+        do
+        let (_, index_mut_back) ←
+          alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Bool)
+            done1 p
+        ok (index_mut_back true)
+      else ok done1
+    let j1 ← j + 1#usize
+    frontend.modular.graph.done_of_loop1 ord done2 j1
+  else ok done1
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::done_of]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 426:0-442:1
+    Visibility: public -/
+def frontend.modular.graph.done_of
+  (n : Std.Usize) (ord : alloc.vec.Vec Std.U64) :
+  Result (alloc.vec.Vec Bool)
+  := do
+  let done1 := alloc.vec.Vec.with_capacity Bool n
+  let done2 ← frontend.modular.graph.done_of_loop0 n done1 0#usize
+  frontend.modular.graph.done_of_loop1 ord done2 0#usize
+
+/-- [con_ron_core::frontend::modular::graph::path_from]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 489:4-492:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.path_from_loop
+  (path : alloc.vec.Vec Std.U64) (out : alloc.vec.Vec Std.U64) (i : Std.Usize)
+  :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  let i1 := alloc.vec.Vec.len path
+  if i < i1
+  then
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) path
+        i
+    let out1 ← alloc.vec.Vec.push out i2
+    let i3 ← i + 1#usize
+    frontend.modular.graph.path_from_loop path out1 i3
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::path_from]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 486:0-494:1
+    Visibility: public -/
+@[reducible]
+def frontend.modular.graph.path_from
+  (path : alloc.vec.Vec Std.U64) (p : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  frontend.modular.graph.path_from_loop path (alloc.vec.Vec.new Std.U64) p
+
+/-- [con_ron_core::frontend::modular::graph::cycle_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 457:12-460:13
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.cycle_of_loop0
+  (n : Std.Usize) («at» : alloc.vec.Vec (Option Std.U64)) (a : Std.Usize) :
+  Result (alloc.vec.Vec (Option Std.U64))
+  := do
+  if a < n
+  then
+    let at1 ← alloc.vec.Vec.push «at» none
+    let a1 ← a + 1#usize
+    frontend.modular.graph.cycle_of_loop0 n at1 a1
+  else ok «at»
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::cycle_of]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 465:12-475:13
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.cycle_of_loop1
+  (deps : alloc.vec.Vec (alloc.vec.Vec Std.U64)) (n : Std.Usize)
+  (done1 : alloc.vec.Vec Bool) (path : alloc.vec.Vec Std.U64)
+  («at» : alloc.vec.Vec (Option Std.U64)) (x : Std.Usize)
+  (rep : Option Std.U64) (fin : Bool) (t : Std.Usize) :
+  Result ((alloc.vec.Vec Std.U64) × (Option Std.U64))
+  := do
+  let i ← n + 1#usize
+  if t < i
+  then
+    if fin
+    then ok (path, rep)
+    else
+      let (cs, at1, path1) ←
+        frontend.modular.graph.cycle_step deps done1 «at» path x
+      let (x1, rep1, fin1, at2, path2) ←
+        match cs with
+        | frontend.modular.graph.CycleStep.Repeat p =>
+          ok (x, some p, true, at1, path1)
+        | frontend.modular.graph.CycleStep.Next o =>
+          do
+          let (i1, b) ←
+            match o with
+            | none => ok (x, true)
+            | some y => ok (y, fin)
+          ok (i1, rep, b, at1, path1)
+      let t1 ← t + 1#usize
+      frontend.modular.graph.cycle_of_loop1 deps n done1 path2 at2 x1 rep1 fin1
+        t1
+  else ok (path, rep)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::cycle_of]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 448:0-482:1
+    Visibility: public -/
+def frontend.modular.graph.cycle_of
+  (deps : alloc.vec.Vec (alloc.vec.Vec Std.U64)) (ord : alloc.vec.Vec Std.U64)
+  :
+  Result (Option (alloc.vec.Vec Std.U64))
+  := do
+  let n := alloc.vec.Vec.len deps
+  let done1 ← frontend.modular.graph.done_of n ord
+  let o ← frontend.modular.graph.cycle_start n done1
+  match o with
+  | none => ok none
+  | some s =>
+    let «at» := alloc.vec.Vec.with_capacity (Option Std.U64) n
+    let at1 ← frontend.modular.graph.cycle_of_loop0 n «at» 0#usize
+    let (path, rep) ←
+      frontend.modular.graph.cycle_of_loop1 deps n done1 (alloc.vec.Vec.new
+        Std.U64) at1 s none false 0#usize
+    match rep with
+    | none => ok (some path)
+    | some p =>
+      let i ← lift (UScalar.cast .Usize p)
+      let v ← frontend.modular.graph.path_from path i
+      ok (some v)
+
+/-- [con_ron_core::frontend::modular::graph::names_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 501:4-504:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.names_of_loop
+  (c : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx))))
+  (s : ron.hashmap2.HashMap2 arena.handle.NIdx Bool) (k : Std.Usize) :
+  Result (ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
+  := do
+  let i := alloc.vec.Vec.len c
+  if k < i
+  then
+    let (n, _) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (arena.handle.NIdx × (alloc.vec.Vec (frontend.olean.spec.ImportF
+        arena.handle.NIdx)))) c k
+    let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
+    let (_, s1) ←
+      ron.hashmap2.HashMap2.insert
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 s n1 true
+    let k1 ← k + 1#usize
+    frontend.modular.graph.names_of_loop c s1 k1
+  else ok s
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::names_of]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 498:0-506:1
+    Visibility: public -/
+def frontend.modular.graph.names_of
+  (c : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx)))) :
+  Result (ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
+  := do
+  let s ← ron.hashmap2.HashMap2.new arena.handle.NIdx Bool
+  frontend.modular.graph.names_of_loop c s 0#usize
+
+/-- [con_ron_core::frontend::modular::graph::rank_lt]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 510:0-515:1
+    Visibility: public -/
+def frontend.modular.graph.rank_lt
+  (a : Option Std.U64) (b : Option Std.U64) : Result Bool := do
+  match a with
+  | none => ok false
+  | some x => match b with
+              | none => ok false
+              | some y => ok (x < y)
+
+/-- [con_ron_core::frontend::modular::graph::edge_ok]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 519:0-521:1
+    Visibility: public -/
+def frontend.modular.graph.edge_ok
+  (pos : ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (rank : alloc.vec.Vec (Option Std.U64)) (m : arena.handle.NIdx)
+  (i : frontend.olean.spec.ImportF arena.handle.NIdx) :
+  Result Bool
+  := do
+  let b ←
+    ron.hashmap2.HashMap2.contains_key
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 pos i.module
+  if b
+  then
+    let o ← frontend.modular.graph.rank_of idx rank i.module
+    let o1 ← frontend.modular.graph.rank_of idx rank m
+    frontend.modular.graph.rank_lt o o1
+  else ok false
+
+/-- [con_ron_core::frontend::modular::graph::bad_edge]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 527:4-534:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.bad_edge_loop
+  (pos : ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (rank : alloc.vec.Vec (Option Std.U64)) (m : arena.handle.NIdx)
+  (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+  (i : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  let i1 := alloc.vec.Vec.len imps
+  if i < i1
+  then
+    let «if» ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (frontend.olean.spec.ImportF arena.handle.NIdx)) imps i
+    let b ← frontend.modular.graph.edge_ok pos idx rank m «if»
+    if b
+    then
+      let i2 ← i + 1#usize
+      frontend.modular.graph.bad_edge_loop pos idx rank m imps i2
+    else ok (some i)
+  else ok none
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::bad_edge]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 525:0-534:1
+    Visibility: public -/
+@[reducible]
+def frontend.modular.graph.bad_edge
+  (pos : ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (rank : alloc.vec.Vec (Option Std.U64)) (m : arena.handle.NIdx)
+  (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)) :
+  Result (Option Std.Usize)
+  := do
+  frontend.modular.graph.bad_edge_loop pos idx rank m imps 0#usize
+
+/-- [con_ron_core::frontend::modular::graph::ranks_distinct]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 543:4-561:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.ranks_distinct_loop
+  (c : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx))))
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (rank : alloc.vec.Vec (Option Std.U64))
+  (seen : ron.hashmap2.HashMap2 Std.U64 Bool) (none_seen : Bool)
+  (k : Std.Usize) :
+  Result Bool
+  := do
+  let i := alloc.vec.Vec.len c
+  if k < i
+  then
+    let (n, _) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (arena.handle.NIdx × (alloc.vec.Vec (frontend.olean.spec.ImportF
+        arena.handle.NIdx)))) c k
+    let o ← frontend.modular.graph.rank_of idx rank n
+    match o with
+    | none =>
+      if none_seen
+      then ok false
+      else
+        let k1 ← k + 1#usize
+        frontend.modular.graph.ranks_distinct_loop c idx rank seen true k1
+    | some r =>
+      let b ←
+        ron.hashmap2.HashMap2.contains_key
+          U64.Insts.Con_ron_coreRonHashmapHashable
+          U64.Insts.Con_ron_coreRonHashmapEq2 seen r
+      if b
+      then ok false
+      else
+        let (_, seen1) ←
+          ron.hashmap2.HashMap2.insert U64.Insts.Con_ron_coreRonHashmapHashable
+            U64.Insts.Con_ron_coreRonHashmapEq2 seen r true
+        let k1 ← k + 1#usize
+        frontend.modular.graph.ranks_distinct_loop c idx rank seen1 none_seen
+          k1
+  else ok true
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::ranks_distinct]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 539:0-561:1
+    Visibility: public -/
+def frontend.modular.graph.ranks_distinct
+  (c : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx))))
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (rank : alloc.vec.Vec (Option Std.U64)) :
+  Result Bool
+  := do
+  let seen ← ron.hashmap2.HashMap2.new Std.U64 Bool
+  frontend.modular.graph.ranks_distinct_loop c idx rank seen false 0#usize
+
+/-- [con_ron_core::frontend::modular::graph::first_missing_root]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 567:4-574:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.first_missing_root_loop
+  (pos : ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
+  (roots : alloc.vec.Vec arena.handle.NIdx) (r : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  let i := alloc.vec.Vec.len roots
+  if r < i
+  then
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.handle.NIdx) roots r
+    let b ←
+      ron.hashmap2.HashMap2.contains_key
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 pos n
+    if b
+    then
+      let r1 ← r + 1#usize
+      frontend.modular.graph.first_missing_root_loop pos roots r1
+    else ok (some r)
+  else ok none
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::first_missing_root]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 565:0-574:1
+    Visibility: public -/
+@[reducible]
+def frontend.modular.graph.first_missing_root
+  (pos : ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
+  (roots : alloc.vec.Vec arena.handle.NIdx) :
+  Result (Option Std.Usize)
+  := do
+  frontend.modular.graph.first_missing_root_loop pos roots 0#usize
+
+/-- [con_ron_core::frontend::modular::graph::first_unranked]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 580:4-587:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.first_unranked_loop
+  (c : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx))))
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (rank : alloc.vec.Vec (Option Std.U64)) (k : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  let i := alloc.vec.Vec.len c
+  if k < i
+  then
+    let (n, _) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (arena.handle.NIdx × (alloc.vec.Vec (frontend.olean.spec.ImportF
+        arena.handle.NIdx)))) c k
+    let o ← frontend.modular.graph.rank_of idx rank n
+    let b := core.option.Option.is_none o
+    if b
+    then ok (some k)
+    else
+      let k1 ← k + 1#usize
+      frontend.modular.graph.first_unranked_loop c idx rank k1
+  else ok none
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::first_unranked]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 578:0-587:1
+    Visibility: public -/
+@[reducible]
+def frontend.modular.graph.first_unranked
+  (c : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx))))
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (rank : alloc.vec.Vec (Option Std.U64)) :
+  Result (Option Std.Usize)
+  := do
+  frontend.modular.graph.first_unranked_loop c idx rank 0#usize
+
+/-- [con_ron_core::frontend::modular::graph::first_bad_node]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 594:4-602:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.first_bad_node_loop
+  (pos : ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (rank : alloc.vec.Vec (Option Std.U64))
+  (c : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx)))) (e : Std.Usize) :
+  Result (Option (Std.Usize × Std.Usize))
+  := do
+  let i := alloc.vec.Vec.len c
+  if e < i
+  then
+    let (n, v) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (arena.handle.NIdx × (alloc.vec.Vec (frontend.olean.spec.ImportF
+        arena.handle.NIdx)))) c e
+    let o ← frontend.modular.graph.bad_edge pos idx rank n v
+    match o with
+    | none =>
+      let e1 ← e + 1#usize
+      frontend.modular.graph.first_bad_node_loop pos idx rank c e1
+    | some i1 => ok (some (e, i1))
+  else ok none
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::first_bad_node]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 592:0-602:1
+    Visibility: public -/
+@[reducible]
+def frontend.modular.graph.first_bad_node
+  (pos : ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (rank : alloc.vec.Vec (Option Std.U64))
+  (c : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx)))) :
+  Result (Option (Std.Usize × Std.Usize))
+  := do
+  frontend.modular.graph.first_bad_node_loop pos idx rank c 0#usize
+
+/-- [con_ron_core::frontend::modular::graph::verdict]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 621:0-638:1
+    Visibility: public -/
+def frontend.modular.graph.verdict
+  (roots : alloc.vec.Vec arena.handle.NIdx)
+  (c : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx))))
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (rank : alloc.vec.Vec (Option Std.U64)) :
+  Result (Option frontend.modular.graph.Fault)
+  := do
+  let pos ← frontend.modular.graph.names_of c
+  let o ← frontend.modular.graph.first_missing_root pos roots
+  match o with
+  | none =>
+    let o1 ← frontend.modular.graph.first_unranked c idx rank
+    match o1 with
+    | none =>
+      let b ← frontend.modular.graph.ranks_distinct c idx rank
+      if b
+      then
+        let o2 ← frontend.modular.graph.first_bad_node pos idx rank c
+        match o2 with
+        | none => ok none
+        | some p =>
+          let (e, i) := p
+          let (n, v) ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+              (arena.handle.NIdx × (alloc.vec.Vec (frontend.olean.spec.ImportF
+              arena.handle.NIdx)))) c e
+          let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
+          let «if» ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+              (frontend.olean.spec.ImportF arena.handle.NIdx)) v i
+          let n2 ←
+            arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2
+              «if».module
+          ok (some (frontend.modular.graph.Fault.Edge n1 (some n2)))
+      else ok (some frontend.modular.graph.Fault.Twice)
+    | some k =>
+      let (n, _) ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          (arena.handle.NIdx × (alloc.vec.Vec (frontend.olean.spec.ImportF
+          arena.handle.NIdx)))) c k
+      let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
+      ok (some (frontend.modular.graph.Fault.Unranked n1))
+  | some r =>
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.handle.NIdx) roots r
+    let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
+    ok (some (frontend.modular.graph.Fault.Root n1))
+
+/-- [con_ron_core::frontend::modular::graph::fault_error::M#8]
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 659:150-659:312 -/
+@[global_simps, irreducible]
+def frontend.modular.graph.fault_error.M_8 : Array Std.U32 30#usize :=
+  Array.make 30#usize [
+    32#u32, 100#u32, 111#u32, 101#u32, 115#u32, 32#u32, 110#u32, 111#u32,
+    116#u32, 32#u32, 103#u32, 111#u32, 32#u32, 116#u32, 111#u32, 32#u32,
+    97#u32, 32#u32, 115#u32, 109#u32, 97#u32, 108#u32, 108#u32, 101#u32,
+    114#u32, 32#u32, 114#u32, 97#u32, 110#u32, 107#u32
+    ]
+
+/-- [con_ron_core::frontend::modular::graph::fault_error::M#7]
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 659:59-659:94 -/
+@[global_simps, irreducible]
+def frontend.modular.graph.fault_error.M_7 : Array Std.U32 3#usize :=
+  Array.make 3#usize [ 32#u32, 8594#u32, 32#u32 ]
+
+/-- [con_ron_core::frontend::modular::graph::fault_error::M#6]
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 657:26-657:100 -/
+@[global_simps, irreducible]
+def frontend.modular.graph.fault_error.M_6 : Array Std.U32 11#usize :=
+  Array.make 11#usize [
+    91#u32, 97#u32, 110#u32, 111#u32, 110#u32, 121#u32, 109#u32, 111#u32,
+    117#u32, 115#u32, 93#u32
+    ]
+
+/-- [con_ron_core::frontend::modular::graph::fault_error::M#5]
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 654:32-654:107 -/
+@[global_simps, irreducible]
+def frontend.modular.graph.fault_error.M_5 : Array Std.U32 11#usize :=
+  Array.make 11#usize [
+    116#u32, 104#u32, 101#u32, 32#u32, 105#u32, 109#u32, 112#u32, 111#u32,
+    114#u32, 116#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::modular::graph::fault_error::M#4]
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 652:47-652:282 -/
+@[global_simps, irreducible]
+def frontend.modular.graph.fault_error.M_4 : Array Std.U32 45#usize :=
+  Array.make 45#usize [
+    116#u32, 119#u32, 111#u32, 32#u32, 109#u32, 111#u32, 100#u32, 117#u32,
+    108#u32, 101#u32, 115#u32, 32#u32, 111#u32, 102#u32, 32#u32, 116#u32,
+    104#u32, 101#u32, 32#u32, 99#u32, 108#u32, 111#u32, 115#u32, 117#u32,
+    114#u32, 101#u32, 32#u32, 104#u32, 97#u32, 118#u32, 101#u32, 32#u32,
+    116#u32, 104#u32, 101#u32, 32#u32, 115#u32, 97#u32, 109#u32, 101#u32,
+    32#u32, 114#u32, 97#u32, 110#u32, 107#u32
+    ]
+
+/-- [con_ron_core::frontend::modular::graph::fault_error::M#3]
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 650:49-650:197 -/
+@[global_simps, irreducible]
+def frontend.modular.graph.fault_error.M_3 : Array Std.U32 27#usize :=
+  Array.make 27#usize [
+    32#u32, 111#u32, 102#u32, 32#u32, 116#u32, 104#u32, 101#u32, 32#u32,
+    99#u32, 108#u32, 111#u32, 115#u32, 117#u32, 114#u32, 101#u32, 32#u32,
+    104#u32, 97#u32, 115#u32, 32#u32, 110#u32, 111#u32, 32#u32, 114#u32,
+    97#u32, 110#u32, 107#u32
+    ]
+
+/-- [con_ron_core::frontend::modular::graph::fault_error::M#2]
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 649:32-649:107 -/
+@[global_simps, irreducible]
+def frontend.modular.graph.fault_error.M_2 : Array Std.U32 11#usize :=
+  Array.make 11#usize [
+    116#u32, 104#u32, 101#u32, 32#u32, 109#u32, 111#u32, 100#u32, 117#u32,
+    108#u32, 101#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::modular::graph::fault_error::M#1]
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 646:49-646:175 -/
+@[global_simps, irreducible]
+def frontend.modular.graph.fault_error.M_1 : Array Std.U32 22#usize :=
+  Array.make 22#usize [
+    32#u32, 105#u32, 115#u32, 32#u32, 110#u32, 111#u32, 116#u32, 32#u32,
+    105#u32, 110#u32, 32#u32, 116#u32, 104#u32, 101#u32, 32#u32, 99#u32,
+    108#u32, 111#u32, 115#u32, 117#u32, 114#u32, 101#u32
+    ]
+
+/-- [con_ron_core::frontend::modular::graph::fault_error::M]
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 645:32-645:96 -/
+@[global_simps, irreducible]
+def frontend.modular.graph.fault_error.M : Array Std.U32 9#usize :=
+  Array.make 9#usize [
+    116#u32, 104#u32, 101#u32, 32#u32, 114#u32, 111#u32, 111#u32, 116#u32,
+    32#u32
+    ]
+
+/-- [con_ron_core::frontend::modular::graph::fault_error]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 642:0-662:1
+    Visibility: public -/
+def frontend.modular.graph.fault_error
+  (pers : arena.store.PersTier) (ar : arena.store.EStore)
+  (f : frontend.modular.graph.Fault) :
+  Result kernel.core_types.CheckError
+  := do
+  match f with
+  | frontend.modular.graph.Fault.Root r =>
+    let s ← lift (Array.to_slice frontend.modular.graph.fault_error.M)
+    let v ← kernel.core_types.code_points s
+    let v1 ← frontend.olean.view.name_text pers ar r
+    let t ← frontend.text.cat v v1
+    let s1 ← lift (Array.to_slice frontend.modular.graph.fault_error.M_1)
+    let v2 ← kernel.core_types.code_points s1
+    let v3 ← frontend.text.cat t v2
+    kernel.core_types.internal v3
+  | frontend.modular.graph.Fault.Unranked m =>
+    let s ← lift (Array.to_slice frontend.modular.graph.fault_error.M_2)
+    let v ← kernel.core_types.code_points s
+    let v1 ← frontend.olean.view.name_text pers ar m
+    let t ← frontend.text.cat v v1
+    let s1 ← lift (Array.to_slice frontend.modular.graph.fault_error.M_3)
+    let v2 ← kernel.core_types.code_points s1
+    let v3 ← frontend.text.cat t v2
+    kernel.core_types.internal v3
+  | frontend.modular.graph.Fault.Twice =>
+    let s ← lift (Array.to_slice frontend.modular.graph.fault_error.M_4)
+    let v ← kernel.core_types.code_points s
+    kernel.core_types.internal v
+  | frontend.modular.graph.Fault.Edge m i =>
+    let s ← lift (Array.to_slice frontend.modular.graph.fault_error.M_5)
+    let v ← kernel.core_types.code_points s
+    let v1 ← frontend.olean.view.name_text pers ar m
+    let t ← frontend.text.cat v v1
+    let it ←
+      match i with
+      | none =>
+        do
+        let s1 ← lift (Array.to_slice frontend.modular.graph.fault_error.M_6)
+        kernel.core_types.code_points s1
+      | some i1 => frontend.olean.view.name_text pers ar i1
+    let s1 ← lift (Array.to_slice frontend.modular.graph.fault_error.M_7)
+    let v2 ← kernel.core_types.code_points s1
+    let v3 ← frontend.text.cat3 t v2 it
+    let s2 ← lift (Array.to_slice frontend.modular.graph.fault_error.M_8)
+    let v4 ← kernel.core_types.code_points s2
+    let v5 ← frontend.text.cat v3 v4
+    kernel.core_types.invalid v5
+
+/-- [con_ron_core::frontend::modular::graph::cycle_msg::M#1]
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 678:36-678:110 -/
+@[global_simps, irreducible]
+def frontend.modular.graph.cycle_msg.M_1 : Array Std.U32 11#usize :=
+  Array.make 11#usize [
+    91#u32, 97#u32, 110#u32, 111#u32, 110#u32, 121#u32, 109#u32, 111#u32,
+    117#u32, 115#u32, 93#u32
+    ]
+
+/-- [con_ron_core::frontend::modular::graph::cycle_msg::M]
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 673:36-673:71 -/
+@[global_simps, irreducible]
+def frontend.modular.graph.cycle_msg.M : Array Std.U32 3#usize :=
+  Array.make 3#usize [ 32#u32, 8594#u32, 32#u32 ]
+
+/-- [con_ron_core::frontend::modular::graph::cycle_msg]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 670:4-681:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.modular.graph.cycle_msg_loop
+  (pers : arena.store.PersTier) (ar : arena.store.EStore)
+  (c : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx))))
+  (cyc : alloc.vec.Vec Std.U64) (out : alloc.vec.Vec Std.U32) (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let i1 := alloc.vec.Vec.len cyc
+  let i2 ← i1 + 1#usize
+  if i < i2
+  then
+    let i3 := alloc.vec.Vec.len cyc
+    if i3 > 0#usize
+    then
+      let i4 := alloc.vec.Vec.len cyc
+      let k ←
+        if i < i4
+        then
+          do
+          let i5 ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64)
+              cyc i
+          ok (UScalar.cast .Usize i5)
+        else
+          do
+          let i5 ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64)
+              cyc 0#usize
+          ok (UScalar.cast .Usize i5)
+      let out1 ←
+        if i > 0#usize
+        then
+          do
+          let s ← lift (Array.to_slice frontend.modular.graph.cycle_msg.M)
+          let v ← kernel.core_types.code_points s
+          frontend.text.cat out v
+        else ok out
+      let i5 := alloc.vec.Vec.len c
+      let out2 ←
+        if k < i5
+        then
+          do
+          let (n, _) ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+              (arena.handle.NIdx × (alloc.vec.Vec (frontend.olean.spec.ImportF
+              arena.handle.NIdx)))) c k
+          let v ← frontend.olean.view.name_text pers ar n
+          frontend.text.cat out1 v
+        else
+          do
+          let s ← lift (Array.to_slice frontend.modular.graph.cycle_msg.M_1)
+          let v ← kernel.core_types.code_points s
+          frontend.text.cat out1 v
+      let i6 ← i + 1#usize
+      frontend.modular.graph.cycle_msg_loop pers ar c cyc out2 i6
+    else ok out
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::modular::graph::cycle_msg]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 667:0-683:1
+    Visibility: public -/
+@[reducible]
+def frontend.modular.graph.cycle_msg
+  (pers : arena.store.PersTier) (ar : arena.store.EStore)
+  (c : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx))))
+  (cyc : alloc.vec.Vec Std.U64) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  frontend.modular.graph.cycle_msg_loop pers ar c cyc (alloc.vec.Vec.new
+    Std.U32) 0#usize
+
+/-- [con_ron_core::frontend::modular::graph::graph_of::M]
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 700:32-700:119 -/
+@[global_simps, irreducible]
+def frontend.modular.graph.graph_of.M : Array Std.U32 14#usize :=
+  Array.make 14#usize [
+    105#u32, 109#u32, 112#u32, 111#u32, 114#u32, 116#u32, 32#u32, 99#u32,
+    121#u32, 99#u32, 108#u32, 101#u32, 58#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::modular::graph::graph_of]:
+    Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 689:0-709:1
+    Visibility: public -/
+def frontend.modular.graph.graph_of
+  {F : Type _} (oleanfilesOleanFsInst : frontend.olean.files.OleanFs F)
+  (fs : F) (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (sp : frontend.olean.files.Roots)
+  (roots : alloc.vec.Vec arena.handle.NIdx)
+  (cmp : Option (arena.handle.NIdx × arena.handle.NIdx)) :
+  Result ((core.result.Result (alloc.vec.Vec (arena.handle.NIdx ×
+    (alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))))
+    kernel.core_types.CheckError) × arena.store.EStore)
+  := do
+  let (lvl, seen) ← frontend.modular.graph.dedup roots
+  let (r, ar1) ←
+    frontend.modular.graph.closure_levels oleanfilesOleanFsInst fs pk pers ar
+      sp cmp lvl seen (alloc.vec.Vec.new (arena.handle.NIdx × (alloc.vec.Vec
+      (frontend.olean.spec.ImportF arena.handle.NIdx))))
+  match r with
+  | core.result.Result.Ok c =>
+    let idx ← frontend.modular.graph.index_of c
+    let deps ← frontend.modular.graph.deps_of idx c
+    let ord ← frontend.modular.graph.kahn deps
+    let o ← frontend.modular.graph.cycle_of deps ord
+    match o with
+    | none =>
+      let i := alloc.vec.Vec.len c
+      let i1 ← lift (UScalar.cast .U64 i)
+      let v ← frontend.modular.graph.ranks_of i1 ord
+      let o1 ← frontend.modular.graph.verdict roots c idx v
+      match o1 with
+      | none => ok (r, ar1)
+      | some f =>
+        let ce ← frontend.modular.graph.fault_error pers ar1 f
+        ok (core.result.Result.Err ce, ar1)
+    | some cyc =>
+      let s ← lift (Array.to_slice frontend.modular.graph.graph_of.M)
+      let v ← kernel.core_types.code_points s
+      let v1 ← frontend.modular.graph.cycle_msg pers ar1 c cyc
+      let t ← frontend.text.cat v v1
+      let ce ← kernel.core_types.invalid t
+      ok (core.result.Result.Err ce, ar1)
+  | core.result.Result.Err _ => ok (r, ar1)
+
+/-- [con_ron_core::frontend::modular::reach::level_index]:
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 23:0-29:1
+    Visibility: public -/
+def frontend.modular.reach.level_index
+  (l : frontend.olean.view.OLeanLevel) : Result Std.U64 := do
+  match l with
+  | frontend.olean.view.OLeanLevel.Exported => ok 0#u64
+  | frontend.olean.view.OLeanLevel.Server => ok 1#u64
+  | frontend.olean.view.OLeanLevel.Private => ok 2#u64
+
+/-- [con_ron_core::frontend::modular::reach::level_dup]:
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 33:0-39:1
+    Visibility: public -/
+def frontend.modular.reach.level_dup
+  (l : frontend.olean.view.OLeanLevel) :
+  Result frontend.olean.view.OLeanLevel
+  := do
+  match l with
+  | frontend.olean.view.OLeanLevel.Exported =>
+    ok frontend.olean.view.OLeanLevel.Exported
+  | frontend.olean.view.OLeanLevel.Server =>
+    ok frontend.olean.view.OLeanLevel.Server
+  | frontend.olean.view.OLeanLevel.Private =>
+    ok frontend.olean.view.OLeanLevel.Private
+
+/-- [con_ron_core::frontend::modular::reach::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::frontend::modular::reach::PartKey}::hash64]:
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 45:4-47:5
+    Visibility: public -/
+def frontend.modular.reach.PartKey.Insts.Con_ron_coreRonHashmapHashable.hash64
+  (self : frontend.modular.reach.PartKey) : Result Std.U64 := do
+  let i ←
+    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable.hash64 self.module
+  let i1 ← frontend.modular.reach.level_index self.level
+  let i2 ← kernel.name.nat_hash i1
+  kernel.name.mix_hash i i2
+
+/-- Trait implementation: [con_ron_core::frontend::modular::reach::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::frontend::modular::reach::PartKey}]
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 43:0-48:1 -/
+@[reducible]
+def frontend.modular.reach.PartKey.Insts.Con_ron_coreRonHashmapHashable :
+  ron.hashmap.Hashable frontend.modular.reach.PartKey := {
+  hash64 :=
+    frontend.modular.reach.PartKey.Insts.Con_ron_coreRonHashmapHashable.hash64
+}
+
+/-- [con_ron_core::frontend::modular::reach::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::frontend::modular::reach::PartKey}::eq2]:
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 54:4-56:5
+    Visibility: public -/
+def frontend.modular.reach.PartKey.Insts.Con_ron_coreRonHashmapEq2.eq2
+  (self : frontend.modular.reach.PartKey)
+  (other : frontend.modular.reach.PartKey) :
+  Result Bool
+  := do
+  let b ←
+    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 self.module
+      other.module
+  if b
+  then
+    let i ← frontend.modular.reach.level_index self.level
+    let i1 ← frontend.modular.reach.level_index other.level
+    ok (i = i1)
+  else ok false
+
+/-- Trait implementation: [con_ron_core::frontend::modular::reach::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::frontend::modular::reach::PartKey}]
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 52:0-57:1 -/
+@[reducible]
+def frontend.modular.reach.PartKey.Insts.Con_ron_coreRonHashmapEq2 :
+  ron.hashmap.Eq2 frontend.modular.reach.PartKey := {
+  eq2 := frontend.modular.reach.PartKey.Insts.Con_ron_coreRonHashmapEq2.eq2
+}
+
+/-- [con_ron_core::frontend::modular::reach::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::frontend::modular::reach::PartKey}::dup2]:
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 63:4-65:5
+    Visibility: public -/
+def frontend.modular.reach.PartKey.Insts.Con_ron_coreRonHashmapDup.dup2
+  (self : frontend.modular.reach.PartKey) :
+  Result frontend.modular.reach.PartKey
+  := do
+  let n ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 self.module
+  let ol ← frontend.modular.reach.level_dup self.level
+  ok { module := n, level := ol }
+
+/-- Trait implementation: [con_ron_core::frontend::modular::reach::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::frontend::modular::reach::PartKey}]
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 61:0-66:1 -/
+@[reducible]
+def frontend.modular.reach.PartKey.Insts.Con_ron_coreRonHashmapDup :
+  ron.hashmap.Dup frontend.modular.reach.PartKey := {
+  dup2 := frontend.modular.reach.PartKey.Insts.Con_ron_coreRonHashmapDup.dup2
+}
+
+/-- [con_ron_core::frontend::nat_op_ground::M_FUEL_USED_CONSTS]
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 66:0-69:2
+    Visibility: public -/
+@[global_simps, irreducible]
+def frontend.nat_op_ground.M_FUEL_USED_CONSTS : Array Std.U32 26#usize :=
+  Array.make 26#usize [
+    102#u32, 117#u32, 101#u32, 108#u32, 32#u32, 101#u32, 120#u32, 104#u32,
+    97#u32, 117#u32, 115#u32, 116#u32, 101#u32, 100#u32, 58#u32, 32#u32,
+    117#u32, 115#u32, 101#u32, 100#u32, 67#u32, 111#u32, 110#u32, 115#u32,
+    116#u32, 115#u32
+    ]
+
+/-- [con_ron_core::frontend::nat_op_ground::seen_has]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 78:0-83:1
+    Visibility: public -/
+def frontend.nat_op_ground.seen_has
+  (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool) (e : arena.handle.EIdx)
+  :
+  Result Bool
+  := do
+  let o ←
+    ron.hashmap2.HashMap2.get
+      arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable
+      arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2 seen e
+  match o with
+  | none => ok false
+  | some _ => ok true
+
+mutual
+
+/-- [con_ron_core::frontend::nat_op_ground::used_consts_go]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 88:0-104:1
+    Visibility: public -/
+def frontend.nat_op_ground.used_consts_go
+  (pers : arena.store.PersTier) (st : arena.monad.AState)
+  (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+  (acc : alloc.vec.Vec arena.handle.NIdx) (fuel : Std.U64)
+  (e : arena.handle.EIdx) :
+  Result ((core.result.Result (alloc.vec.Vec arena.handle.NIdx)
+    kernel.core_types.CheckError) × (ron.hashmap2.HashMap2 arena.handle.EIdx
+    Bool))
+  := do
+  if fuel = 0#u64
+  then
+    let s ← lift (Array.to_slice frontend.nat_op_ground.M_FUEL_USED_CONSTS)
+    let v ← kernel.core_types.code_points s
+    let r ←
+      arena.monad.fail (alloc.vec.Vec arena.handle.NIdx)
+        (kernel.core_types.CheckError.Internal v)
+    ok (r, seen)
+  else
+    let b ← frontend.nat_op_ground.seen_has seen e
+    if b
+    then ok (core.result.Result.Ok acc, seen)
+    else
+      let e1 ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 e
+      let (_, seen1) ←
+        ron.hashmap2.HashMap2.insert
+          arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable
+          arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2 seen e1 true
+      let i ← fuel - 1#u64
+      frontend.nat_op_ground.used_consts_node pers st seen1 acc i e
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::used_consts_node]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 109:0-140:1
+    Visibility: public -/
+def frontend.nat_op_ground.used_consts_node
+  (pers : arena.store.PersTier) (st : arena.monad.AState)
+  (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+  (acc : alloc.vec.Vec arena.handle.NIdx) (fuel : Std.U64)
+  (e : arena.handle.EIdx) :
+  Result ((core.result.Result (alloc.vec.Vec arena.handle.NIdx)
+    kernel.core_types.CheckError) × (ron.hashmap2.HashMap2 arena.handle.EIdx
+    Bool))
+  := do
+  let r ← arena.monad.view pers st e
+  match r with
+  | core.result.Result.Ok ev =>
+    match ev with
+    | arena.store.ENodeView.BVar _ => ok (core.result.Result.Ok acc, seen)
+    | arena.store.ENodeView.FVar _ ty =>
+      frontend.nat_op_ground.used_consts_go pers st seen acc fuel ty
+    | arena.store.ENodeView.Sort _ => ok (core.result.Result.Ok acc, seen)
+    | arena.store.ENodeView.Const n _ =>
+      let acc1 ← alloc.vec.Vec.push acc n
+      ok (core.result.Result.Ok acc1, seen)
+    | arena.store.ENodeView.App f a =>
+      frontend.nat_op_ground.used_consts_two pers st seen acc fuel f a
+    | arena.store.ENodeView.Lam ty b =>
+      frontend.nat_op_ground.used_consts_two pers st seen acc fuel ty b
+    | arena.store.ENodeView.ForallE ty b =>
+      frontend.nat_op_ground.used_consts_two pers st seen acc fuel ty b
+    | arena.store.ENodeView.LetE ty v b =>
+      let (r1, seen1) ←
+        frontend.nat_op_ground.used_consts_two pers st seen acc fuel ty v
+      match r1 with
+      | core.result.Result.Ok a2 =>
+        frontend.nat_op_ground.used_consts_go pers st seen1 a2 fuel b
+      | core.result.Result.Err _ => ok (r1, seen1)
+    | arena.store.ENodeView.Lit _ => ok (core.result.Result.Ok acc, seen)
+    | arena.store.ENodeView.Proj sn _ x =>
+      let acc1 ← alloc.vec.Vec.push acc sn
+      frontend.nat_op_ground.used_consts_go pers st seen acc1 fuel x
+  | core.result.Result.Err er => ok (core.result.Result.Err er, seen)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::used_consts_two]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 144:0-157:1
+    Visibility: public -/
+def frontend.nat_op_ground.used_consts_two
+  (pers : arena.store.PersTier) (st : arena.monad.AState)
+  (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+  (acc : alloc.vec.Vec arena.handle.NIdx) (fuel : Std.U64)
+  (a : arena.handle.EIdx) (b : arena.handle.EIdx) :
+  Result ((core.result.Result (alloc.vec.Vec arena.handle.NIdx)
+    kernel.core_types.CheckError) × (ron.hashmap2.HashMap2 arena.handle.EIdx
+    Bool))
+  := do
+  let (r, seen1) ←
+    frontend.nat_op_ground.used_consts_go pers st seen acc fuel a
+  match r with
+  | core.result.Result.Ok a2 =>
+    frontend.nat_op_ground.used_consts_go pers st seen1 a2 fuel b
+  | core.result.Result.Err _ => ok (r, seen1)
+partial_fixpoint
+
+end
+
+/-- [con_ron_core::frontend::nat_op_ground::used_consts_rules]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 172:4-182:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.used_consts_rules_loop
+  (pers : arena.store.PersTier) (st : arena.monad.AState)
+  (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+  (rules : alloc.vec.Vec arena.env.IRecRule)
+  (out : alloc.vec.Vec arena.handle.NIdx) (n : Std.Usize) (i : Std.Usize) :
+  Result ((core.result.Result (alloc.vec.Vec arena.handle.NIdx)
+    kernel.core_types.CheckError) × (ron.hashmap2.HashMap2 arena.handle.EIdx
+    Bool))
+  := do
+  if i < n
+  then
+    let ir ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.env.IRecRule) rules i
+    let (r, seen1) ←
+      frontend.nat_op_ground.used_consts_go pers st seen out
+        arena.core.CORE_WALK_FUEL ir.rhs
+    match r with
+    | core.result.Result.Ok a2 =>
+      let i1 ← i + 1#usize
+      frontend.nat_op_ground.used_consts_rules_loop pers st seen1 rules a2 n i1
+    | core.result.Result.Err _ => ok (r, seen1)
+  else ok (core.result.Result.Ok out, seen)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::used_consts_rules]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 162:0-182:1
+    Visibility: public -/
+def frontend.nat_op_ground.used_consts_rules
+  (pers : arena.store.PersTier) (st : arena.monad.AState)
+  (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+  (acc : alloc.vec.Vec arena.handle.NIdx)
+  (rules : alloc.vec.Vec arena.env.IRecRule) :
+  Result ((core.result.Result (alloc.vec.Vec arena.handle.NIdx)
+    kernel.core_types.CheckError) × (ron.hashmap2.HashMap2 arena.handle.EIdx
+    Bool))
+  := do
+  let n := alloc.vec.Vec.len rules
+  frontend.nat_op_ground.used_consts_rules_loop pers st seen rules acc n
+    0#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::used_consts_block]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 198:4-221:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.used_consts_block_loop
+  (pers : arena.store.PersTier) (st : arena.monad.AState)
+  (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+  (block : alloc.vec.Vec arena.env.IConstantInfo)
+  (out : alloc.vec.Vec arena.handle.NIdx) (n : Std.Usize) (i : Std.Usize) :
+  Result ((core.result.Result (alloc.vec.Vec arena.handle.NIdx)
+    kernel.core_types.CheckError) × (ron.hashmap2.HashMap2 arena.handle.EIdx
+    Bool))
+  := do
+  if i < n
+  then
+    let ii ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.env.IConstantInfo) block i
+    let ci ← arena.env.i_constant_info_dup ii
+    let iv ← arena.env.i_constant_info_to_constant_val ci
+    let (r, seen1) ←
+      frontend.nat_op_ground.used_consts_go pers st seen out
+        arena.core.CORE_WALK_FUEL iv.ty
+    match r with
+    | core.result.Result.Ok a2 =>
+      match ii with
+      | arena.env.IConstantInfo.AxiomInfo _ =>
+        let i1 ← i + 1#usize
+        frontend.nat_op_ground.used_consts_block_loop pers st seen1 block a2 n
+          i1
+      | arena.env.IConstantInfo.DefnInfo _ _ _ =>
+        let i1 ← i + 1#usize
+        frontend.nat_op_ground.used_consts_block_loop pers st seen1 block a2 n
+          i1
+      | arena.env.IConstantInfo.ThmInfo _ =>
+        let i1 ← i + 1#usize
+        frontend.nat_op_ground.used_consts_block_loop pers st seen1 block a2 n
+          i1
+      | arena.env.IConstantInfo.IndInfo _ _ =>
+        let i1 ← i + 1#usize
+        frontend.nat_op_ground.used_consts_block_loop pers st seen1 block a2 n
+          i1
+      | arena.env.IConstantInfo.CtorInfo _ _ _ _ =>
+        let i1 ← i + 1#usize
+        frontend.nat_op_ground.used_consts_block_loop pers st seen1 block a2 n
+          i1
+      | arena.env.IConstantInfo.RecInfo _ _ _ _ rules =>
+        let (r1, seen2) ←
+          frontend.nat_op_ground.used_consts_rules pers st seen1 a2 rules
+        match r1 with
+        | core.result.Result.Ok a3 =>
+          let i1 ← i + 1#usize
+          frontend.nat_op_ground.used_consts_block_loop pers st seen2 block a3
+            n i1
+        | core.result.Result.Err _ => ok (r1, seen2)
+    | core.result.Result.Err _ => ok (r, seen1)
+  else ok (core.result.Result.Ok out, seen)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::used_consts_block]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 188:0-221:1
+    Visibility: public -/
+def frontend.nat_op_ground.used_consts_block
+  (pers : arena.store.PersTier) (st : arena.monad.AState)
+  (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+  (acc : alloc.vec.Vec arena.handle.NIdx)
+  (block : alloc.vec.Vec arena.env.IConstantInfo) :
+  Result ((core.result.Result (alloc.vec.Vec arena.handle.NIdx)
+    kernel.core_types.CheckError) × arena.monad.AState ×
+    (ron.hashmap2.HashMap2 arena.handle.EIdx Bool))
+  := do
+  let n := alloc.vec.Vec.len block
+  let (r, seen1) ←
+    frontend.nat_op_ground.used_consts_block_loop pers st seen block acc n
+      0#usize
+  ok (r, st, seen1)
+
+/-- [con_ron_core::frontend::nat_op_ground::decl_used_consts_value]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 253:0-264:1
+    Visibility: public -/
+def frontend.nat_op_ground.decl_used_consts_value
+  (pers : arena.store.PersTier) (st : arena.monad.AState)
+  (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+  (ty : arena.handle.EIdx) (v : arena.handle.EIdx) :
+  Result ((core.result.Result (alloc.vec.Vec arena.handle.NIdx)
+    kernel.core_types.CheckError) × (ron.hashmap2.HashMap2 arena.handle.EIdx
+    Bool))
+  := do
+  let (r, seen1) ←
+    frontend.nat_op_ground.used_consts_go pers st seen (alloc.vec.Vec.new
+      arena.handle.NIdx) arena.core.CORE_WALK_FUEL ty
+  match r with
+  | core.result.Result.Ok acc =>
+    frontend.nat_op_ground.used_consts_go pers st seen1 acc
+      arena.core.CORE_WALK_FUEL v
+  | core.result.Result.Err _ => ok (r, seen1)
+
+/-- [con_ron_core::frontend::nat_op_ground::decl_used_consts]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 227:0-247:1
+    Visibility: public -/
+def frontend.nat_op_ground.decl_used_consts
+  (pers : arena.store.PersTier) (st : arena.monad.AState)
+  (d : arena.env.IDeclaration) :
+  Result ((core.result.Result (alloc.vec.Vec arena.handle.NIdx)
+    kernel.core_types.CheckError) × arena.monad.AState)
+  := do
+  let seen ← ron.hashmap2.HashMap2.new arena.handle.EIdx Bool
+  match d with
+  | arena.env.IDeclaration.AxiomDecl cv =>
+    let (r, _) ←
+      frontend.nat_op_ground.used_consts_go pers st seen (alloc.vec.Vec.new
+        arena.handle.NIdx) arena.core.CORE_WALK_FUEL cv.ty
+    ok (r, st)
+  | arena.env.IDeclaration.DefnDecl cv v _ =>
+    let (r, _) ←
+      frontend.nat_op_ground.decl_used_consts_value pers st seen cv.ty v
+    ok (r, st)
+  | arena.env.IDeclaration.ThmDecl cv v =>
+    let (r, _) ←
+      frontend.nat_op_ground.decl_used_consts_value pers st seen cv.ty v
+    ok (r, st)
+  | arena.env.IDeclaration.OpaqueDecl cv v =>
+    let (r, _) ←
+      frontend.nat_op_ground.decl_used_consts_value pers st seen cv.ty v
+    ok (r, st)
+  | arena.env.IDeclaration.IndDecl block _ =>
+    let (r, st1, _) ←
+      frontend.nat_op_ground.used_consts_block pers st seen (alloc.vec.Vec.new
+        arena.handle.NIdx) block
+    ok (r, st1)
+  | arena.env.IDeclaration.QuotDecl _ _ =>
+    ok (core.result.Result.Ok (alloc.vec.Vec.new arena.handle.NIdx), st)
+
+/-- [con_ron_core::frontend::nat_op_ground::{impl con_ron_core::frontend::nat_op_ground::UsedConsts for con_ron_core::frontend::nat_op_ground::DeclUsedConsts}::used_consts]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 284:4-286:5
+    Visibility: public -/
+def
+  frontend.nat_op_ground.DeclUsedConsts.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts.used_consts
+  (self : frontend.nat_op_ground.DeclUsedConsts) (pers : arena.store.PersTier)
+  (st : arena.monad.AState) (d : arena.env.IDeclaration) :
+  Result ((core.result.Result (alloc.vec.Vec arena.handle.NIdx)
+    kernel.core_types.CheckError) × arena.monad.AState)
+  := do
+  frontend.nat_op_ground.decl_used_consts pers st d
+
+/-- Trait implementation: [con_ron_core::frontend::nat_op_ground::{impl con_ron_core::frontend::nat_op_ground::UsedConsts for con_ron_core::frontend::nat_op_ground::DeclUsedConsts}]
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 282:0-287:1 -/
+@[reducible]
+def
+  frontend.nat_op_ground.DeclUsedConsts.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts
+  : frontend.nat_op_ground.UsedConsts frontend.nat_op_ground.DeclUsedConsts
+  := {
+  used_consts :=
+    frontend.nat_op_ground.DeclUsedConsts.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts.used_consts
+}
+
+/-- [con_ron_core::frontend::nat_op_ground::nidx_contains]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 320:4-327:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.nidx_contains_loop
+  (ns : alloc.vec.Vec arena.handle.NIdx) (n : arena.handle.NIdx)
+  (m : Std.Usize) (i : Std.Usize) :
+  Result Bool
+  := do
+  if i < m
+  then
+    let n1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.handle.NIdx) ns i
+    let b ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 n1 n
+    if b
+    then ok true
+    else
+      let i1 ← i + 1#usize
+      frontend.nat_op_ground.nidx_contains_loop ns n m i1
+  else ok false
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::nidx_contains]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 317:0-327:1
+    Visibility: public -/
+def frontend.nat_op_ground.nidx_contains
+  (ns : alloc.vec.Vec arena.handle.NIdx) (n : arena.handle.NIdx) :
+  Result Bool
+  := do
+  let m := alloc.vec.Vec.len ns
+  frontend.nat_op_ground.nidx_contains_loop ns n m 0#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::is_nat_op_record]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 293:0-313:1
+    Visibility: public -/
+def frontend.nat_op_ground.is_nat_op_record
+  (st : arena.monad.AState) (d : arena.env.IDeclaration) :
+  Result ((core.result.Result (Option arena.handle.NIdx)
+    kernel.core_types.CheckError) × arena.monad.AState)
+  := do
+  match d with
+  | arena.env.IDeclaration.AxiomDecl _ => ok (core.result.Result.Ok none, st)
+  | arena.env.IDeclaration.DefnDecl cv _ _ =>
+    let (r, st1) ← arena.core.nat_div_mod_names st
+    match r with
+    | core.result.Result.Ok ds =>
+      let (r1, st2) ← arena.core.nat_op_names st1
+      match r1 with
+      | core.result.Result.Ok ns =>
+        let b ← frontend.nat_op_ground.nidx_contains ds cv.name
+        if b
+        then
+          let n ←
+            arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 cv.name
+          ok (core.result.Result.Ok (some n), st2)
+        else
+          let b1 ← frontend.nat_op_ground.nidx_contains ns cv.name
+          if b1
+          then
+            let n ←
+              arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 cv.name
+            ok (core.result.Result.Ok (some n), st2)
+          else ok (core.result.Result.Ok none, st2)
+      | core.result.Result.Err e => ok (core.result.Result.Err e, st2)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
+  | arena.env.IDeclaration.ThmDecl _ _ => ok (core.result.Result.Ok none, st)
+  | arena.env.IDeclaration.OpaqueDecl _ _ =>
+    ok (core.result.Result.Ok none, st)
+  | arena.env.IDeclaration.IndDecl _ _ => ok (core.result.Result.Ok none, st)
+  | arena.env.IDeclaration.QuotDecl _ _ => ok (core.result.Result.Ok none, st)
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_name_index]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 345:8-350:9
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_name_index_loop0_loop0
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64) (i : Std.Usize)
+  (ns : alloc.vec.Vec arena.handle.NIdx) (m : Std.Usize) (j : Std.Usize) :
+  Result (ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  := do
+  if j < m
+  then
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.handle.NIdx) ns j
+    let b ←
+      ron.hashmap2.HashMap2.contains_key
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 idx n
+    let idx1 ←
+      if b
+      then ok idx
+      else
+        do
+        let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
+        let i1 ← lift (UScalar.cast .U64 i)
+        let (_, idx2) ←
+          ron.hashmap2.HashMap2.insert
+            arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+            arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 idx n1 i1
+        ok idx2
+    let j1 ← j + 1#usize
+    frontend.nat_op_ground.hoist_name_index_loop0_loop0 idx1 i ns m j1
+  else ok idx
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_name_index]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 341:4-352:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_name_index_loop0
+  (ds : alloc.vec.Vec arena.env.IDeclaration)
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result (ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  := do
+  if i < n
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.env.IDeclaration) ds i
+    let ns ← arena.env.i_declaration_names i1
+    let m := alloc.vec.Vec.len ns
+    let idx1 ←
+      frontend.nat_op_ground.hoist_name_index_loop0_loop0 idx i ns m 0#usize
+    let i2 ← i + 1#usize
+    frontend.nat_op_ground.hoist_name_index_loop0 ds idx1 n i2
+  else ok idx
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_name_index]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 337:0-354:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_name_index
+  (ds : alloc.vec.Vec arena.env.IDeclaration) :
+  Result (ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  := do
+  let idx ← ron.hashmap2.HashMap2.new arena.handle.NIdx Std.U64
+  let n := alloc.vec.Vec.len ds
+  frontend.nat_op_ground.hoist_name_index_loop0 ds idx n 0#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::idx_get]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 360:0-365:1
+    Visibility: public -/
+def frontend.nat_op_ground.idx_get
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (n : arena.handle.NIdx) :
+  Result (Option Std.U64)
+  := do
+  let o ←
+    ron.hashmap2.HashMap2.get
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 idx n
+  match o with
+  | none => ok none
+  | some _ => ok o
+
+/-- [con_ron_core::frontend::nat_op_ground::target_done]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 370:0-375:1
+    Visibility: public -/
+def frontend.nat_op_ground.target_done
+  (target : ron.hashmap2.HashMap2 Std.U64 Std.U64) (k : Std.U64) (i : Std.U64)
+  :
+  Result Bool
+  := do
+  let o ←
+    ron.hashmap2.HashMap2.get U64.Insts.Con_ron_coreRonHashmapHashable
+      U64.Insts.Con_ron_coreRonHashmapEq2 target k
+  match o with
+  | none => ok false
+  | some t => ok (t <= i)
+
+/-- [con_ron_core::frontend::nat_op_ground::stack_push_u64]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 416:0-424:1
+    Visibility: public -/
+def frontend.nat_op_ground.stack_push_u64
+  (stack : alloc.vec.Vec Std.U64) (sp : Std.Usize) (x : Std.U64) :
+  Result ((alloc.vec.Vec Std.U64) × Std.Usize)
+  := do
+  let i := alloc.vec.Vec.len stack
+  let stack1 ←
+    if sp < i
+    then
+      do
+      let (_, index_mut_back) ←
+        alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+          stack sp
+      ok (index_mut_back x)
+    else alloc.vec.Vec.push stack x
+  let i1 ← sp + 1#usize
+  ok (stack1, i1)
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_push_deps]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 393:4-405:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_push_deps_loop
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (used : alloc.vec.Vec arena.handle.NIdx) (i : Std.U64) (k : Std.U64)
+  (stack : alloc.vec.Vec Std.U64) (sp : Std.Usize) (n : Std.Usize)
+  (u : Std.Usize) :
+  Result ((alloc.vec.Vec Std.U64) × Std.Usize)
+  := do
+  if u < n
+  then
+    let n1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.handle.NIdx) used u
+    let o ← frontend.nat_op_ground.idx_get idx n1
+    let (stack1, sp1) ←
+      match o with
+      | none => ok (stack, sp)
+      | some m =>
+        if m > i
+        then
+          if m != k
+          then frontend.nat_op_ground.stack_push_u64 stack sp m
+          else ok (stack, sp)
+        else ok (stack, sp)
+    let u1 ← u + 1#usize
+    frontend.nat_op_ground.hoist_push_deps_loop idx used i k stack1 sp1 n u1
+  else ok (stack, sp)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_push_deps]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 381:0-407:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_push_deps
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (used : alloc.vec.Vec arena.handle.NIdx) (stack : alloc.vec.Vec Std.U64)
+  (sp : Std.Usize) (i : Std.U64) (k : Std.U64) :
+  Result ((alloc.vec.Vec Std.U64) × Std.Usize)
+  := do
+  let n := alloc.vec.Vec.len used
+  frontend.nat_op_ground.hoist_push_deps_loop idx used i k stack sp n 0#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_close]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 447:4-464:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_close_loop
+  {U : Type _} (UsedConstsInst : frontend.nat_op_ground.UsedConsts U)
+  (pers : arena.store.PersTier) (st : arena.monad.AState) (used_of : U)
+  (ds : alloc.vec.Vec arena.env.IDeclaration)
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64) (i : Std.U64)
+  (target : ron.hashmap2.HashMap2 Std.U64 Std.U64)
+  (stack : alloc.vec.Vec Std.U64) (sp : Std.Usize) :
+  Result ((core.result.Result (ron.hashmap2.HashMap2 Std.U64 Std.U64)
+    kernel.core_types.CheckError) × arena.monad.AState)
+  := do
+  if sp > 0#usize
+  then
+    let sp1 ← sp - 1#usize
+    let k ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) stack
+        sp1
+    let b ← frontend.nat_op_ground.target_done target k i
+    if b
+    then
+      frontend.nat_op_ground.hoist_close_loop UsedConstsInst pers st used_of ds
+        idx i target stack sp1
+    else
+      let (_, target1) ←
+        ron.hashmap2.HashMap2.insert U64.Insts.Con_ron_coreRonHashmapHashable
+          U64.Insts.Con_ron_coreRonHashmapEq2 target k i
+      let i1 ← lift (UScalar.cast .Usize k)
+      let i2 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          arena.env.IDeclaration) ds i1
+      let d ← arena.env.i_declaration_dup i2
+      let (r, st1) ← UsedConstsInst.used_consts used_of pers st d
+      match r with
+      | core.result.Result.Ok used =>
+        let (stack1, sp2) ←
+          frontend.nat_op_ground.hoist_push_deps idx used stack sp1 i k
+        frontend.nat_op_ground.hoist_close_loop UsedConstsInst pers st1 used_of
+          ds idx i target1 stack1 sp2
+      | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
+  else ok (core.result.Result.Ok target, st)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_close]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 433:0-464:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_close
+  {U : Type _} (UsedConstsInst : frontend.nat_op_ground.UsedConsts U)
+  (pers : arena.store.PersTier) (st : arena.monad.AState) (used_of : U)
+  (ds : alloc.vec.Vec arena.env.IDeclaration)
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (target : ron.hashmap2.HashMap2 Std.U64 Std.U64) (j : Std.U64) (i : Std.U64)
+  :
+  Result ((core.result.Result (ron.hashmap2.HashMap2 Std.U64 Std.U64)
+    kernel.core_types.CheckError) × arena.monad.AState)
+  := do
+  let stack ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U64) j
+  frontend.nat_op_ground.hoist_close_loop UsedConstsInst pers st used_of ds idx
+    i target stack 1#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_targets_at]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 487:4-504:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_targets_at_loop
+  {U : Type _} (UsedConstsInst : frontend.nat_op_ground.UsedConsts U)
+  (pers : arena.store.PersTier) (st : arena.monad.AState) (used_of : U)
+  (ds : alloc.vec.Vec arena.env.IDeclaration)
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64) (i : Std.U64)
+  (target : ron.hashmap2.HashMap2 Std.U64 Std.U64)
+  (gs : alloc.vec.Vec arena.handle.NIdx) (m : Std.Usize) (k : Std.Usize) :
+  Result ((core.result.Result (ron.hashmap2.HashMap2 Std.U64 Std.U64)
+    kernel.core_types.CheckError) × arena.monad.AState)
+  := do
+  if k < m
+  then
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.handle.NIdx) gs k
+    let o ← frontend.nat_op_ground.idx_get idx n
+    match o with
+    | none =>
+      let k1 ← k + 1#usize
+      frontend.nat_op_ground.hoist_targets_at_loop UsedConstsInst pers st
+        used_of ds idx i target gs m k1
+    | some j =>
+      if j > i
+      then
+        let (r, st1) ←
+          frontend.nat_op_ground.hoist_close UsedConstsInst pers st used_of ds
+            idx target j i
+        match r with
+        | core.result.Result.Ok t =>
+          let k1 ← k + 1#usize
+          frontend.nat_op_ground.hoist_targets_at_loop UsedConstsInst pers st1
+            used_of ds idx i t gs m k1
+        | core.result.Result.Err _ => ok (r, st1)
+      else
+        let k1 ← k + 1#usize
+        frontend.nat_op_ground.hoist_targets_at_loop UsedConstsInst pers st
+          used_of ds idx i target gs m k1
+  else ok (core.result.Result.Ok target, st)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_targets_at]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 470:0-504:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_targets_at
+  {U : Type _} (UsedConstsInst : frontend.nat_op_ground.UsedConsts U)
+  (pers : arena.store.PersTier) (st : arena.monad.AState) (used_of : U)
+  (ds : alloc.vec.Vec arena.env.IDeclaration)
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (target : ron.hashmap2.HashMap2 Std.U64 Std.U64) (c : arena.handle.NIdx)
+  (i : Std.U64) :
+  Result ((core.result.Result (ron.hashmap2.HashMap2 Std.U64 Std.U64)
+    kernel.core_types.CheckError) × arena.monad.AState)
+  := do
+  let (r, st1) ← arena.core.nat_op_deps st c
+  match r with
+  | core.result.Result.Ok v =>
+    let m := alloc.vec.Vec.len v
+    frontend.nat_op_ground.hoist_targets_at_loop UsedConstsInst pers st1
+      used_of ds idx i target v m 0#usize
+  | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_targets]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 522:4-537:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_targets_loop
+  {U : Type _} (UsedConstsInst : frontend.nat_op_ground.UsedConsts U)
+  (pers : arena.store.PersTier) (st : arena.monad.AState) (used_of : U)
+  (ds : alloc.vec.Vec arena.env.IDeclaration)
+  (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (target : ron.hashmap2.HashMap2 Std.U64 Std.U64) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result ((core.result.Result (ron.hashmap2.HashMap2 Std.U64 Std.U64)
+    kernel.core_types.CheckError) × arena.monad.AState)
+  := do
+  if i < n
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.env.IDeclaration) ds i
+    let d ← arena.env.i_declaration_dup i1
+    let (r, st1) ← frontend.nat_op_ground.is_nat_op_record st d
+    match r with
+    | core.result.Result.Ok o =>
+      match o with
+      | none =>
+        let i2 ← i + 1#usize
+        frontend.nat_op_ground.hoist_targets_loop UsedConstsInst pers st1
+          used_of ds idx target n i2
+      | some c =>
+        let i2 ← lift (UScalar.cast .U64 i)
+        let (r1, st2) ←
+          frontend.nat_op_ground.hoist_targets_at UsedConstsInst pers st1
+            used_of ds idx target c i2
+        match r1 with
+        | core.result.Result.Ok t =>
+          let i3 ← i + 1#usize
+          frontend.nat_op_ground.hoist_targets_loop UsedConstsInst pers st2
+            used_of ds idx t n i3
+        | core.result.Result.Err _ => ok (r1, st2)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
+  else ok (core.result.Result.Ok target, st)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_targets]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 512:0-537:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_targets
+  {U : Type _} (UsedConstsInst : frontend.nat_op_ground.UsedConsts U)
+  (pers : arena.store.PersTier) (st : arena.monad.AState) (used_of : U)
+  (ds : alloc.vec.Vec arena.env.IDeclaration) :
+  Result ((core.result.Result (ron.hashmap2.HashMap2 Std.U64 Std.U64)
+    kernel.core_types.CheckError) × arena.monad.AState)
+  := do
+  let idx ← frontend.nat_op_ground.hoist_name_index ds
+  let target ← ron.hashmap2.HashMap2.new Std.U64 Std.U64
+  let n := alloc.vec.Vec.len ds
+  frontend.nat_op_ground.hoist_targets_loop UsedConstsInst pers st used_of ds
+    idx target n 0#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_moved_idxs]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 551:4-556:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_moved_idxs_loop
+  (n : Std.Usize) (target : ron.hashmap2.HashMap2 Std.U64 Std.U64)
+  (out : alloc.vec.Vec Std.U64) (k : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  if k < n
+  then
+    let i ← lift (UScalar.cast .U64 k)
+    let b ←
+      ron.hashmap2.HashMap2.contains_key
+        U64.Insts.Con_ron_coreRonHashmapHashable
+        U64.Insts.Con_ron_coreRonHashmapEq2 target i
+    let out1 ←
+      if b
+      then do
+           let i1 ← lift (UScalar.cast .U64 k)
+           alloc.vec.Vec.push out i1
+      else ok out
+    let k1 ← k + 1#usize
+    frontend.nat_op_ground.hoist_moved_idxs_loop n target out1 k1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_moved_idxs]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 548:0-558:1
+    Visibility: public -/
+@[reducible]
+def frontend.nat_op_ground.hoist_moved_idxs
+  (n : Std.Usize) (target : ron.hashmap2.HashMap2 Std.U64 Std.U64) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  frontend.nat_op_ground.hoist_moved_idxs_loop n target (alloc.vec.Vec.new
+    Std.U64) 0#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::target_is]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 563:0-568:1
+    Visibility: public -/
+def frontend.nat_op_ground.target_is
+  (target : ron.hashmap2.HashMap2 Std.U64 Std.U64) (k : Std.U64) (t : Std.U64)
+  :
+  Result Bool
+  := do
+  let o ←
+    ron.hashmap2.HashMap2.get U64.Insts.Con_ron_coreRonHashmapHashable
+      U64.Insts.Con_ron_coreRonHashmapEq2 target k
+  match o with
+  | none => ok false
+  | some tt => ok (tt = t)
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_order]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 583:8-588:9
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_order_loop0_loop0
+  (target : ron.hashmap2.HashMap2 Std.U64 Std.U64)
+  (moved : alloc.vec.Vec Std.U64) (order : alloc.vec.Vec Std.U64)
+  (t : Std.Usize) (m : Std.Usize) (a : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  if a < m
+  then
+    let i ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) moved
+        a
+    let i1 ← lift (UScalar.cast .U64 t)
+    let b ← frontend.nat_op_ground.target_is target i i1
+    let order1 ← if b
+                   then alloc.vec.Vec.push order i
+                   else ok order
+    let a1 ← a + 1#usize
+    frontend.nat_op_ground.hoist_order_loop0_loop0 target moved order1 t m a1
+  else ok order
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_order]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 580:4-593:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_order_loop0
+  (n : Std.Usize) (target : ron.hashmap2.HashMap2 Std.U64 Std.U64)
+  (moved : alloc.vec.Vec Std.U64) (order : alloc.vec.Vec Std.U64)
+  (t : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  if t < n
+  then
+    let m := alloc.vec.Vec.len moved
+    let order1 ←
+      frontend.nat_op_ground.hoist_order_loop0_loop0 target moved order t m
+        0#usize
+    let i ← lift (UScalar.cast .U64 t)
+    let b ←
+      ron.hashmap2.HashMap2.contains_key
+        U64.Insts.Con_ron_coreRonHashmapHashable
+        U64.Insts.Con_ron_coreRonHashmapEq2 target i
+    let order2 ←
+      if b
+      then ok order1
+      else
+        do
+        let i1 ← lift (UScalar.cast .U64 t)
+        alloc.vec.Vec.push order1 i1
+    let t1 ← t + 1#usize
+    frontend.nat_op_ground.hoist_order_loop0 n target moved order2 t1
+  else ok order
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_order]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 577:0-595:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_order
+  (n : Std.Usize) (target : ron.hashmap2.HashMap2 Std.U64 Std.U64)
+  (moved : alloc.vec.Vec Std.U64) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  let order := alloc.vec.Vec.with_capacity Std.U64 n
+  frontend.nat_op_ground.hoist_order_loop0 n target moved order 0#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_reorder]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 605:4-608:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_reorder_loop
+  (ds : alloc.vec.Vec arena.env.IDeclaration) (order : alloc.vec.Vec Std.U64)
+  (n : Std.Usize) (out : alloc.vec.Vec arena.env.IDeclaration) (i : Std.Usize)
+  :
+  Result (alloc.vec.Vec arena.env.IDeclaration)
+  := do
+  if i < n
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) order
+        i
+    let i2 ← lift (UScalar.cast .Usize i1)
+    let i3 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.env.IDeclaration) ds i2
+    let i4 ← arena.env.i_declaration_dup i3
+    let out1 ← alloc.vec.Vec.push out i4
+    let i5 ← i + 1#usize
+    frontend.nat_op_ground.hoist_reorder_loop ds order n out1 i5
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_reorder]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 601:0-610:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_reorder
+  (ds : alloc.vec.Vec arena.env.IDeclaration) (order : alloc.vec.Vec Std.U64) :
+  Result (alloc.vec.Vec arena.env.IDeclaration)
+  := do
+  let n := alloc.vec.Vec.len order
+  let out := alloc.vec.Vec.with_capacity arena.env.IDeclaration n
+  frontend.nat_op_ground.hoist_reorder_loop ds order n out 0#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_moved_names]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 623:8-626:9
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_moved_names_loop0_loop0
+  (out : alloc.vec.Vec arena.handle.NIdx)
+  (ns : alloc.vec.Vec arena.handle.NIdx) (m : Std.Usize) (j : Std.Usize) :
+  Result (alloc.vec.Vec arena.handle.NIdx)
+  := do
+  if j < m
+  then
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.handle.NIdx) ns j
+    let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
+    let out1 ← alloc.vec.Vec.push out n1
+    let j1 ← j + 1#usize
+    frontend.nat_op_ground.hoist_moved_names_loop0_loop0 out1 ns m j1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_moved_names]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 619:4-628:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_moved_names_loop0
+  (ds : alloc.vec.Vec arena.env.IDeclaration) (moved : alloc.vec.Vec Std.U64)
+  (out : alloc.vec.Vec arena.handle.NIdx) (n : Std.Usize) (a : Std.Usize) :
+  Result (alloc.vec.Vec arena.handle.NIdx)
+  := do
+  if a < n
+  then
+    let i ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) moved
+        a
+    let i1 ← lift (UScalar.cast .Usize i)
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.env.IDeclaration) ds i1
+    let ns ← arena.env.i_declaration_names i2
+    let m := alloc.vec.Vec.len ns
+    let out1 ←
+      frontend.nat_op_ground.hoist_moved_names_loop0_loop0 out ns m 0#usize
+    let a1 ← a + 1#usize
+    frontend.nat_op_ground.hoist_moved_names_loop0 ds moved out1 n a1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_moved_names]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 615:0-630:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_moved_names
+  (ds : alloc.vec.Vec arena.env.IDeclaration) (moved : alloc.vec.Vec Std.U64) :
+  Result (alloc.vec.Vec arena.handle.NIdx)
+  := do
+  let n := alloc.vec.Vec.len moved
+  frontend.nat_op_ground.hoist_moved_names_loop0 ds moved (alloc.vec.Vec.new
+    arena.handle.NIdx) n 0#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::apply_hoist]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 636:0-645:1
+    Visibility: public -/
+def frontend.nat_op_ground.apply_hoist
+  (ds : alloc.vec.Vec arena.env.IDeclaration)
+  (target : ron.hashmap2.HashMap2 Std.U64 Std.U64) :
+  Result ((alloc.vec.Vec arena.env.IDeclaration) × (alloc.vec.Vec
+    arena.handle.NIdx))
+  := do
+  let i := alloc.vec.Vec.len ds
+  let moved ← frontend.nat_op_ground.hoist_moved_idxs i target
+  let i1 := alloc.vec.Vec.len ds
+  let order ← frontend.nat_op_ground.hoist_order i1 target moved
+  let out ← frontend.nat_op_ground.hoist_reorder ds order
+  let names ← frontend.nat_op_ground.hoist_moved_names ds moved
+  ok (out, names)
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_nat_op_ground]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 652:0-668:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_nat_op_ground
+  {U : Type _} (UsedConstsInst : frontend.nat_op_ground.UsedConsts U)
+  (pers : arena.store.PersTier) (st : arena.monad.AState) (used_of : U)
+  (ds : alloc.vec.Vec arena.env.IDeclaration) :
+  Result ((core.result.Result ((alloc.vec.Vec arena.env.IDeclaration) ×
+    (alloc.vec.Vec arena.handle.NIdx)) kernel.core_types.CheckError) ×
+    arena.monad.AState)
+  := do
+  let (r, st1) ←
+    frontend.nat_op_ground.hoist_targets UsedConstsInst pers st used_of ds
+  match r with
+  | core.result.Result.Ok target =>
+    let i ← ron.hashmap2.HashMap2.len target
+    if i = 0#usize
+    then
+      ok (core.result.Result.Ok (ds, alloc.vec.Vec.new arena.handle.NIdx), st1)
+    else
+      let p ← frontend.nat_op_ground.apply_hoist ds target
+      ok (core.result.Result.Ok p, st1)
+  | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
+
+/-- [con_ron_core::frontend::olean::closure::CLOSURE_FUEL]
+    Source: 'crates/con-ron-core/src/frontend/olean/closure.rs', lines 41:0-41:38
+    Visibility: public -/
+@[global_simps, irreducible]
+def frontend.olean.closure.CLOSURE_FUEL : Result Std.U64 := 1#u64 <<< 40#i32
+
+/-- [con_ron_core::frontend::olean::closure::out_of_fuel::M]
+    Source: 'crates/con-ron-core/src/frontend/olean/closure.rs', lines 45:31-45:252 -/
+@[global_simps, irreducible]
+def frontend.olean.closure.out_of_fuel.M : Array Std.U32 42#usize :=
+  Array.make 42#usize [
+    116#u32, 104#u32, 101#u32, 32#u32, 105#u32, 109#u32, 112#u32, 111#u32,
+    114#u32, 116#u32, 32#u32, 99#u32, 108#u32, 111#u32, 115#u32, 117#u32,
+    114#u32, 101#u32, 39#u32, 115#u32, 32#u32, 119#u32, 97#u32, 108#u32,
+    107#u32, 32#u32, 114#u32, 97#u32, 110#u32, 32#u32, 111#u32, 117#u32,
+    116#u32, 32#u32, 111#u32, 102#u32, 32#u32, 115#u32, 116#u32, 101#u32,
+    112#u32, 115#u32
+    ]
+
+/-- [con_ron_core::frontend::olean::closure::out_of_fuel]:
+    Source: 'crates/con-ron-core/src/frontend/olean/closure.rs', lines 44:0-46:1
+    Visibility: public -/
+def frontend.olean.closure.out_of_fuel
+  (T : Type _) :
+  Result (core.result.Result T kernel.core_types.CheckError)
+  := do
+  let s ← lift (Array.to_slice frontend.olean.closure.out_of_fuel.M)
+  let v ← kernel.core_types.code_points s
+  let ce ← kernel.core_types.internal v
+  ok (core.result.Result.Err ce)
+
+/-- [con_ron_core::frontend::olean::closure::import_on_path]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/closure.rs', lines 53:4-61:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.closure.import_on_path_loop
+  (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+  (seen : ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
+  (done1 : ron.hashmap2.HashMap2 arena.handle.NIdx Bool) (i : Std.Usize) :
+  Result (Option arena.handle.NIdx)
+  := do
+  let i1 := alloc.vec.Vec.len imps
+  if i < i1
+  then
+    let «if» ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (frontend.olean.spec.ImportF arena.handle.NIdx)) imps i
+    let b ←
+      ron.hashmap2.HashMap2.contains_key
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 seen «if».module
+    if b
+    then
+      let b1 ←
+        ron.hashmap2.HashMap2.contains_key
+          arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+          arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 done1 «if».module
+      if b1
+      then
+        let i2 ← i + 1#usize
+        frontend.olean.closure.import_on_path_loop imps seen done1 i2
+      else ok (some «if».module)
+    else
+      let i2 ← i + 1#usize
+      frontend.olean.closure.import_on_path_loop imps seen done1 i2
+  else ok none
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::closure::import_on_path]:
+    Source: 'crates/con-ron-core/src/frontend/olean/closure.rs', lines 51:0-61:1
+    Visibility: public -/
+@[reducible]
+def frontend.olean.closure.import_on_path
+  (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+  (seen : ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
+  (done1 : ron.hashmap2.HashMap2 arena.handle.NIdx Bool) :
+  Result (Option arena.handle.NIdx)
+  := do
+  frontend.olean.closure.import_on_path_loop imps seen done1 0#usize
+
+/-- [con_ron_core::frontend::olean::closure::walk_push]:
+    Source: 'crates/con-ron-core/src/frontend/olean/closure.rs', lines 65:0-72:1
+    Visibility: public -/
+def frontend.olean.closure.walk_push
+  (stack : alloc.vec.Vec (arena.handle.NIdx × Bool)) (sp : Std.Usize)
+  (x : (arena.handle.NIdx × Bool)) :
+  Result (Std.Usize × (alloc.vec.Vec (arena.handle.NIdx × Bool)))
+  := do
+  let i := alloc.vec.Vec.len stack
+  let stack1 ←
+    if sp < i
+    then
+      do
+      let (_, index_mut_back) ←
+        alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+          (arena.handle.NIdx × Bool)) stack sp
+      ok (index_mut_back x)
+    else alloc.vec.Vec.push stack x
+  let i1 ← sp + 1#usize
+  ok (i1, stack1)
+
+/-- [con_ron_core::frontend::olean::closure::walk_expand]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/closure.rs', lines 79:4-84:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.closure.walk_expand_loop
+  (stack : alloc.vec.Vec (arena.handle.NIdx × Bool))
+  (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+  (seen : ron.hashmap2.HashMap2 arena.handle.NIdx Bool) (s : Std.Usize)
+  (i : Std.Usize) :
+  Result (Std.Usize × (alloc.vec.Vec (arena.handle.NIdx × Bool)))
+  := do
+  if i > 0#usize
+  then
+    let i1 ← i - 1#usize
+    let «if» ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (frontend.olean.spec.ImportF arena.handle.NIdx)) imps i1
+    let b ←
+      ron.hashmap2.HashMap2.contains_key
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 seen «if».module
+    if b
+    then frontend.olean.closure.walk_expand_loop stack imps seen s i1
+    else
+      let n ←
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 «if».module
+      let (s1, stack1) ← frontend.olean.closure.walk_push stack s (n, false)
+      frontend.olean.closure.walk_expand_loop stack1 imps seen s1 i1
+  else ok (s, stack)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::closure::walk_expand]:
+    Source: 'crates/con-ron-core/src/frontend/olean/closure.rs', lines 76:0-86:1
+    Visibility: public -/
+def frontend.olean.closure.walk_expand
+  (stack : alloc.vec.Vec (arena.handle.NIdx × Bool)) (sp : Std.Usize)
+  (m : arena.handle.NIdx)
+  (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+  (seen : ron.hashmap2.HashMap2 arena.handle.NIdx Bool) :
+  Result (Std.Usize × (alloc.vec.Vec (arena.handle.NIdx × Bool)))
+  := do
+  let n ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 m
+  let (s, stack1) ← frontend.olean.closure.walk_push stack sp (n, true)
+  let i := alloc.vec.Vec.len imps
+  frontend.olean.closure.walk_expand_loop stack1 imps seen s i
 
 /-- [con_ron_core::frontend::olean::closure::closure_go::M#1]
     Source: 'crates/con-ron-core/src/frontend/olean/closure.rs', lines 119:52-119:116 -/
@@ -91031,7 +92937,7 @@ def frontend.olean.closure.closure_order
     stack1 sp
 
 /-- [con_ron_core::frontend::olean::view::view_error::M#5]
-    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 437:61-437:345 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 465:61-465:345 -/
 @[global_simps, irreducible]
 def frontend.olean.view.view_error.M_5 : Array Std.U32 56#usize :=
   Array.make 56#usize [
@@ -91045,13 +92951,13 @@ def frontend.olean.view.view_error.M_5 : Array Std.U32 56#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::view::view_error::M#4]
-    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 435:50-435:98 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 463:50-463:98 -/
 @[global_simps, irreducible]
 def frontend.olean.view.view_error.M_4 : Array Std.U32 6#usize :=
   Array.make 6#usize [ 58#u32, 32#u32, 116#u32, 104#u32, 101#u32, 32#u32 ]
 
 /-- [con_ron_core::frontend::olean::view::view_error::M#3]
-    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 431:57-431:434 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 459:57-459:434 -/
 @[global_simps, irreducible]
 def frontend.olean.view.view_error.M_3 : Array Std.U32 77#usize :=
   Array.make 77#usize [
@@ -91068,13 +92974,13 @@ def frontend.olean.view.view_error.M_3 : Array Std.U32 77#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::view::view_error::M#2]
-    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 429:46-429:94 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 457:46-457:94 -/
 @[global_simps, irreducible]
 def frontend.olean.view.view_error.M_2 : Array Std.U32 6#usize :=
   Array.make 6#usize [ 58#u32, 32#u32, 116#u32, 104#u32, 101#u32, 32#u32 ]
 
 /-- [con_ron_core::frontend::olean::view::view_error::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 422:55-422:255 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 450:55-450:255 -/
 @[global_simps, irreducible]
 def frontend.olean.view.view_error.M_1 : Array Std.U32 38#usize :=
   Array.make 38#usize [
@@ -91086,7 +92992,7 @@ def frontend.olean.view.view_error.M_1 : Array Std.U32 38#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::view::view_error::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 420:26-420:81 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 448:26-448:81 -/
 @[global_simps, irreducible]
 def frontend.olean.view.view_error.M : Array Std.U32 7#usize :=
   Array.make 7#usize [
@@ -91094,7 +93000,7 @@ def frontend.olean.view.view_error.M : Array Std.U32 7#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::view::level_repr::M#2]
-    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 413:33-413:250 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 441:33-441:250 -/
 @[global_simps, irreducible]
 def frontend.olean.view.level_repr.M_2 : Array Std.U32 42#usize :=
   Array.make 42#usize [
@@ -91107,7 +93013,7 @@ def frontend.olean.view.level_repr.M_2 : Array Std.U32 42#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::view::level_repr::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 412:32-412:245 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 440:32-440:245 -/
 @[global_simps, irreducible]
 def frontend.olean.view.level_repr.M_1 : Array Std.U32 41#usize :=
   Array.make 41#usize [
@@ -91119,7 +93025,7 @@ def frontend.olean.view.level_repr.M_1 : Array Std.U32 41#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::view::level_repr::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 411:34-411:257 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 439:34-439:257 -/
 @[global_simps, irreducible]
 def frontend.olean.view.level_repr.M : Array Std.U32 43#usize :=
   Array.make 43#usize [
@@ -91132,7 +93038,7 @@ def frontend.olean.view.level_repr.M : Array Std.U32 43#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::view::level_repr]:
-    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 409:0-415:1
+    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 437:0-443:1
     Visibility: public -/
 def frontend.olean.view.level_repr
   (level : frontend.olean.view.OLeanLevel) :
@@ -94637,7 +96543,7 @@ def frontend.olean.fast.parse_at
   | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
 
 /-- [con_ron_core::frontend::olean::view::view_error]:
-    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 419:0-445:1
+    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 447:0-473:1
     Visibility: public -/
 def frontend.olean.view.view_error
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -108113,7 +110019,7 @@ def frontend.olean.lazy.load_view
     | frontend.olean.spec.RdErr.Err e => ok (core.result.Result.Err e, ar1)
 
 /-- [con_ron_core::frontend::olean::files::read_files_parts::M#3]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 835:48-835:132 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 836:48-836:132 -/
 @[global_simps, irreducible]
 def frontend.olean.files.read_files_parts.M_3 : Array Std.U32 13#usize :=
   Array.make 13#usize [
@@ -108122,7 +110028,7 @@ def frontend.olean.files.read_files_parts.M_3 : Array Std.U32 13#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::read_files_parts::M#2]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 829:58-829:146 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 830:58-830:146 -/
 @[global_simps, irreducible]
 def frontend.olean.files.read_files_parts.M_2 : Array Std.U32 14#usize :=
   Array.make 14#usize [
@@ -108131,7 +110037,7 @@ def frontend.olean.files.read_files_parts.M_2 : Array Std.U32 14#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::read_files_parts::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 824:65-824:149 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 825:65-825:149 -/
 @[global_simps, irreducible]
 def frontend.olean.files.read_files_parts.M_1 : Array Std.U32 13#usize :=
   Array.make 13#usize [
@@ -108140,7 +110046,7 @@ def frontend.olean.files.read_files_parts.M_1 : Array Std.U32 13#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::read_files_parts::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 818:56-818:136 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 819:56-819:136 -/
 @[global_simps, irreducible]
 def frontend.olean.files.read_files_parts.M : Array Std.U32 12#usize :=
   Array.make 12#usize [
@@ -108149,13 +110055,13 @@ def frontend.olean.files.read_files_parts.M : Array Std.U32 12#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::missing_part::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 747:28-747:67 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 748:28-748:67 -/
 @[global_simps, irreducible]
 def frontend.olean.files.missing_part.M_1 : Array Std.U32 4#usize :=
   Array.make 4#usize [ 32#u32, 105#u32, 110#u32, 32#u32 ]
 
 /-- [con_ron_core::frontend::olean::files::missing_part::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 745:24-745:247 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 746:24-746:247 -/
 @[global_simps, irreducible]
 def frontend.olean.files.missing_part.M : Array Std.U32 42#usize :=
   Array.make 42#usize [
@@ -108168,7 +110074,7 @@ def frontend.olean.files.missing_part.M : Array Std.U32 42#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::missing_part]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 744:0-749:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 745:0-750:1
     Visibility: public -/
 def frontend.olean.files.missing_part
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -108188,13 +110094,13 @@ def frontend.olean.files.missing_part
   frontend.olean.module.bad_module pers ar m v3
 
 /-- [con_ron_core::frontend::olean::files::part_failed::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 626:57-626:80 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 627:57-627:80 -/
 @[global_simps, irreducible]
 def frontend.olean.files.part_failed.M_1 : Array Std.U32 0#usize :=
   Std.Array.empty Std.U32
 
 /-- [con_ron_core::frontend::olean::files::part_failed::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 623:91-623:181 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 624:91-624:181 -/
 @[global_simps, irreducible]
 def frontend.olean.files.part_failed.M : Array Std.U32 15#usize :=
   Array.make 15#usize [
@@ -108203,7 +110109,7 @@ def frontend.olean.files.part_failed.M : Array Std.U32 15#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::part_failed]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 616:0-629:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 617:0-630:1
     Visibility: public -/
 def frontend.olean.files.part_failed
   {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -108235,7 +110141,7 @@ def frontend.olean.files.part_failed
   | core.result.Result.Err e => ok e
 
 /-- [con_ron_core::frontend::olean::files::read_part_at]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 647:0-662:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 648:0-663:1
     Visibility: public -/
 def frontend.olean.files.read_part_at
   {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -108264,7 +110170,7 @@ def frontend.olean.files.read_part_at
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::frontend::olean::files::read_files_parts]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 817:0-839:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 818:0-840:1
     Visibility: public -/
 def frontend.olean.files.read_files_parts
   {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -108326,7 +110232,7 @@ def frontend.olean.files.read_files_parts
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::frontend::olean::files::read_files_at::M#2]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 802:66-802:150 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 803:66-803:150 -/
 @[global_simps, irreducible]
 def frontend.olean.files.read_files_at.M_2 : Array Std.U32 13#usize :=
   Array.make 13#usize [
@@ -108335,7 +110241,7 @@ def frontend.olean.files.read_files_at.M_2 : Array Std.U32 13#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::read_files_at::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 798:66-798:146 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 799:66-799:146 -/
 @[global_simps, irreducible]
 def frontend.olean.files.read_files_at.M_1 : Array Std.U32 12#usize :=
   Array.make 12#usize [
@@ -108344,13 +110250,13 @@ def frontend.olean.files.read_files_at.M_1 : Array Std.U32 12#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::read_files_at::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 788:57-788:102 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 789:57-789:102 -/
 @[global_simps, irreducible]
 def frontend.olean.files.read_files_at.M : Array Std.U32 5#usize :=
   Array.make 5#usize [ 111#u32, 108#u32, 101#u32, 97#u32, 110#u32 ]
 
 /-- [con_ron_core::frontend::olean::files::outside_or_escaping::M#7]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 776:36-776:123 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 777:36-777:123 -/
 @[global_simps, irreducible]
 def frontend.olean.files.outside_or_escaping.M_7 : Array Std.U32 14#usize :=
   Array.make 14#usize [
@@ -108359,7 +110265,7 @@ def frontend.olean.files.outside_or_escaping.M_7 : Array Std.U32 14#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::outside_or_escaping::M#6]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 774:48-774:128 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 775:48-775:128 -/
 @[global_simps, irreducible]
 def frontend.olean.files.outside_or_escaping.M_6 : Array Std.U32 12#usize :=
   Array.make 12#usize [
@@ -108368,7 +110274,7 @@ def frontend.olean.files.outside_or_escaping.M_6 : Array Std.U32 12#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::outside_or_escaping::M#5]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 772:48-772:132 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 773:48-773:132 -/
 @[global_simps, irreducible]
 def frontend.olean.files.outside_or_escaping.M_5 : Array Std.U32 13#usize :=
   Array.make 13#usize [
@@ -108377,7 +110283,7 @@ def frontend.olean.files.outside_or_escaping.M_5 : Array Std.U32 13#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::outside_or_escaping::M#4]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 770:36-770:122 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 771:36-771:122 -/
 @[global_simps, irreducible]
 def frontend.olean.files.outside_or_escaping.M_4 : Array Std.U32 14#usize :=
   Array.make 14#usize [
@@ -108386,7 +110292,7 @@ def frontend.olean.files.outside_or_escaping.M_4 : Array Std.U32 14#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::outside_or_escaping::M#3]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 769:32-769:245 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 770:32-770:245 -/
 @[global_simps, irreducible]
 def frontend.olean.files.outside_or_escaping.M_3 : Array Std.U32 40#usize :=
   Array.make 40#usize [
@@ -108398,7 +110304,7 @@ def frontend.olean.files.outside_or_escaping.M_3 : Array Std.U32 40#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::outside_or_escaping::M#2]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 765:36-765:666 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 766:36-766:666 -/
 @[global_simps, irreducible]
 def frontend.olean.files.outside_or_escaping.M_2 : Array Std.U32 129#usize :=
   Array.make 129#usize [
@@ -108421,7 +110327,7 @@ def frontend.olean.files.outside_or_escaping.M_2 : Array Std.U32 129#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::outside_or_escaping::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 763:36-763:152 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 764:36-764:152 -/
 @[global_simps, irreducible]
 def frontend.olean.files.outside_or_escaping.M_1 : Array Std.U32 20#usize :=
   Array.make 20#usize [
@@ -108431,7 +110337,7 @@ def frontend.olean.files.outside_or_escaping.M_1 : Array Std.U32 20#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::outside_or_escaping::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 762:32-762:87 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 763:32-763:87 -/
 @[global_simps, irreducible]
 def frontend.olean.files.outside_or_escaping.M : Array Std.U32 7#usize :=
   Array.make 7#usize [
@@ -108439,7 +110345,7 @@ def frontend.olean.files.outside_or_escaping.M : Array Std.U32 7#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::files::outside_or_escaping]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 757:0-780:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 758:0-781:1
     Visibility: public -/
 def frontend.olean.files.outside_or_escaping
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -108503,7 +110409,7 @@ def frontend.olean.files.outside_or_escaping
     frontend.olean.module.bad_module pers ar m v4
 
 /-- [con_ron_core::frontend::olean::files::read_files_at]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 787:0-812:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 788:0-813:1
     Visibility: public -/
 def frontend.olean.files.read_files_at
   {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -108604,7 +110510,7 @@ def frontend.olean.files.read_files_at
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::frontend::olean::files::read_files]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 844:0-849:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 845:0-850:1
     Visibility: public -/
 def frontend.olean.files.read_files
   {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -109679,13 +111585,13 @@ def frontend.olean.emit.visit_step
     ok (i, stack1, st1)
 
 /-- [con_ron_core::frontend::olean::reads::c_kind_skipped::S_SAFE]
-    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 20:4-20:49 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 22:4-22:49 -/
 @[global_simps, irreducible]
 def frontend.olean.reads.c_kind_skipped.S_SAFE : Array Std.U32 4#usize :=
   Array.make 4#usize [ 115#u32, 97#u32, 102#u32, 101#u32 ]
 
 /-- [con_ron_core::frontend::olean::reads::c_kind_skipped]:
-    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 19:0-31:1
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 21:0-33:1
     Visibility: public -/
 def frontend.olean.reads.c_kind_skipped
   {N : Type _} {E : Type _} (k : frontend.olean.spec.CKindF N E) :
@@ -110777,7 +112683,7 @@ def frontend.olean.emit.block_step_recur
         ok (core.result.Result.Err ce)
 
 /-- [con_ron_core::frontend::olean::reads::c_kind_tag]:
-    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 35:0-46:1
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 37:0-48:1
     Visibility: public -/
 def frontend.olean.reads.c_kind_tag
   {N : Type _} {E : Type _} (k : frontend.olean.spec.CKindF N E) :
@@ -111107,7 +113013,7 @@ def frontend.olean.fast.stmts_fast
   | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
 
 /-- [con_ron_core::frontend::olean::files::all_digits]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 203:4-210:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 204:4-211:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.files.all_digits_loop
@@ -111128,7 +113034,7 @@ def frontend.olean.files.all_digits_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::files::all_digits]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 201:0-210:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 202:0-211:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.files.all_digits
@@ -111136,7 +113042,7 @@ def frontend.olean.files.all_digits
   frontend.olean.files.all_digits_loop cur 0#usize
 
 /-- [con_ron_core::frontend::olean::files::digits_value]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 216:4-225:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 217:4-226:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.files.digits_value_loop
@@ -111163,7 +113069,7 @@ def frontend.olean.files.digits_value_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::files::digits_value]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 213:0-225:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 214:0-226:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.files.digits_value
@@ -111171,7 +113077,7 @@ def frontend.olean.files.digits_value
   frontend.olean.files.digits_value_loop cur 0#u64 0#usize
 
 /-- [con_ron_core::frontend::olean::files::name_push_plain]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 230:0-236:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 231:0-237:1
     Visibility: public -/
 def frontend.olean.files.name_push_plain
   (n : kernel.name.Name) (cur : alloc.vec.Vec Std.U32) (nums : Bool) :
@@ -111192,7 +113098,7 @@ def frontend.olean.files.name_push_plain
   else kernel.name.mk_str n cur
 
 /-- [con_ron_core::frontend::olean::files::scan_name_go]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 245:4-293:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 246:4-294:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.files.scan_name_go_loop
@@ -111264,7 +113170,7 @@ def frontend.olean.files.scan_name_go_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::files::scan_name_go]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 240:0-293:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 241:0-294:1
     Visibility: public -/
 def frontend.olean.files.scan_name_go
   (nums : Bool) (s : alloc.vec.Vec Std.U32) :
@@ -111276,7 +113182,7 @@ def frontend.olean.files.scan_name_go
     frontend.olean.files.NameScan.Start (alloc.vec.Vec.new Std.U32) 0#usize
 
 /-- [con_ron_core::frontend::olean::files::scan_name]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 297:0-306:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 298:0-307:1
     Visibility: public -/
 def frontend.olean.files.scan_name
   (nums : Bool) (s : alloc.vec.Vec Std.U32) :
@@ -111296,21 +113202,21 @@ def frontend.olean.files.scan_name
     | frontend.olean.files.NameScan.Closed => ok (some n)
 
 /-- [con_ron_core::frontend::olean::files::parse_mod_name]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 310:0-312:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 311:0-313:1
     Visibility: public -/
 def frontend.olean.files.parse_mod_name
   (s : alloc.vec.Vec Std.U32) : Result (Option kernel.name.Name) := do
   frontend.olean.files.scan_name false s
 
 /-- [con_ron_core::frontend::olean::files::parse_const_name]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 316:0-318:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 317:0-319:1
     Visibility: public -/
 def frontend.olean.files.parse_const_name
   (s : alloc.vec.Vec Std.U32) : Result (Option kernel.name.Name) := do
   frontend.olean.files.scan_name true s
 
 /-- [con_ron_core::frontend::olean::files::roots_of_path]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 466:0-468:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 467:0-469:1
     Visibility: public -/
 def frontend.olean.files.roots_of_path
   (path : alloc.vec.Vec (alloc.vec.Vec Std.U32)) :
@@ -111366,7 +113272,7 @@ def frontend.olean.view.parse_view
     | core.result.Result.Err _ => ok (r1, ar1)
 
 /-- [con_ron_core::frontend::olean::files::read_view]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 853:0-862:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 854:0-863:1
     Visibility: public -/
 def frontend.olean.files.read_view
   {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -111390,8 +113296,273 @@ def frontend.olean.files.read_view
       | frontend.olean.spec.RdErr.Err e => ok (core.result.Result.Err e, ar1)
   | core.result.Result.Err e => ok (core.result.Result.Err e, ar)
 
+/-- [con_ron_core::frontend::olean::reads::imports_named]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 120:4-128:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.reads.imports_named_loop
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region)
+  (imports : alloc.vec.Vec (frontend.olean.spec.ImportF Std.U64))
+  (out : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+  (i : Std.Usize) :
+  Result ((core.result.Result (alloc.vec.Vec (frontend.olean.spec.ImportF
+    arena.handle.NIdx)) frontend.olean.spec.RdErr) × arena.store.EStore)
+  := do
+  let i1 := alloc.vec.Vec.len imports
+  if i < i1
+  then
+    let «if» ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (frontend.olean.spec.ImportF Std.U64)) imports i
+    let (r1, ar1) ←
+      frontend.olean.spec.import_map
+        frontend.olean.header.NamePRead.Insts.Con_ron_coreFrontendOleanSpecPtrRead
+        () pk pers ar bs r «if»
+    match r1 with
+    | core.result.Result.Ok x =>
+      let out1 ← alloc.vec.Vec.push out x
+      let i2 ← i + 1#usize
+      frontend.olean.reads.imports_named_loop pk pers ar1 bs r imports out1 i2
+    | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
+  else ok (core.result.Result.Ok out, ar)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::reads::imports_named]:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 117:0-128:1
+    Visibility: public -/
+def frontend.olean.reads.imports_named
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region)
+  (imports : alloc.vec.Vec (frontend.olean.spec.ImportF Std.U64)) :
+  Result ((core.result.Result (alloc.vec.Vec (frontend.olean.spec.ImportF
+    arena.handle.NIdx)) frontend.olean.spec.RdErr) × arena.store.EStore)
+  := do
+  let i := alloc.vec.Vec.len imports
+  let out :=
+    alloc.vec.Vec.with_capacity (frontend.olean.spec.ImportF arena.handle.NIdx)
+      i
+  frontend.olean.reads.imports_named_loop pk pers ar bs r imports out 0#usize
+
+/-- [con_ron_core::frontend::olean::reads::name_position]:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 90:0-98:1
+    Visibility: public -/
+def frontend.olean.reads.name_position
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region) (c : Std.U64) :
+  Result ((core.result.Result frontend.olean.reads.NamePosition
+    frontend.olean.spec.RdErr) × arena.store.EStore)
+  := do
+  let o ← frontend.olean.spec.const_skel bs r c
+  match o with
+  | none => ok (core.result.Result.Err frontend.olean.spec.RdErr.Bad, ar)
+  | some s =>
+    let (r1, ar1) ← frontend.olean.spec.name_p pk pers ar bs r s.name
+    match r1 with
+    | core.result.Result.Ok n =>
+      let i ← frontend.olean.reads.c_kind_tag s.kind
+      let b ← frontend.olean.reads.c_kind_skipped s.kind
+      ok (core.result.Result.Ok
+        { loc := c, «name» := n, tag := i, skipped := b }, ar1)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
+
+/-- [con_ron_core::frontend::olean::reads::name_positions_go]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 105:4-113:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.reads.name_positions_go_loop
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region) (consts : alloc.vec.Vec Std.U64)
+  (out : alloc.vec.Vec frontend.olean.reads.NamePosition) (i : Std.Usize) :
+  Result ((core.result.Result (alloc.vec.Vec frontend.olean.reads.NamePosition)
+    frontend.olean.spec.RdErr) × arena.store.EStore)
+  := do
+  let i1 := alloc.vec.Vec.len consts
+  if i < i1
+  then
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        consts i
+    let (r1, ar1) ← frontend.olean.reads.name_position pk pers ar bs r i2
+    match r1 with
+    | core.result.Result.Ok p =>
+      let out1 ← alloc.vec.Vec.push out p
+      let i3 ← i + 1#usize
+      frontend.olean.reads.name_positions_go_loop pk pers ar1 bs r consts out1
+        i3
+    | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
+  else ok (core.result.Result.Ok out, ar)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::reads::name_positions_go]:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 102:0-113:1
+    Visibility: public -/
+def frontend.olean.reads.name_positions_go
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region) (consts : alloc.vec.Vec Std.U64) :
+  Result ((core.result.Result (alloc.vec.Vec frontend.olean.reads.NamePosition)
+    frontend.olean.spec.RdErr) × arena.store.EStore)
+  := do
+  let i := alloc.vec.Vec.len consts
+  let out := alloc.vec.Vec.with_capacity frontend.olean.reads.NamePosition i
+  frontend.olean.reads.name_positions_go_loop pk pers ar bs r consts out
+    0#usize
+
+/-- [con_ron_core::frontend::olean::reads::distinct_go]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 55:4-63:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.reads.distinct_go_loop
+  (cs : alloc.vec.Vec frontend.olean.reads.NamePosition)
+  (s : ron.hashmap2.HashMap2 arena.handle.NIdx Bool) (i : Std.Usize) :
+  Result Bool
+  := do
+  let i1 := alloc.vec.Vec.len cs
+  if i < i1
+  then
+    let np ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.olean.reads.NamePosition) cs i
+    let b ←
+      ron.hashmap2.HashMap2.contains_key
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 s np.name
+    if b
+    then ok false
+    else
+      let n ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 np.name
+      let (_, s1) ←
+        ron.hashmap2.HashMap2.insert
+          arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+          arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 s n true
+      let i2 ← i + 1#usize
+      frontend.olean.reads.distinct_go_loop cs s1 i2
+  else ok true
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::reads::distinct_go]:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 52:0-63:1
+    Visibility: public -/
+def frontend.olean.reads.distinct_go
+  (cs : alloc.vec.Vec frontend.olean.reads.NamePosition) : Result Bool := do
+  let i := alloc.vec.Vec.len cs
+  let s ← ron.hashmap2.HashMap2.with_capacity arena.handle.NIdx Bool i
+  frontend.olean.reads.distinct_go_loop cs s 0#usize
+
+/-- [con_ron_core::frontend::olean::reads::name_positions_at]:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 133:0-150:1
+    Visibility: public -/
+def frontend.olean.reads.name_positions_at
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region) (root : Std.U64) :
+  Result ((core.result.Result frontend.olean.reads.NamePositions
+    frontend.olean.spec.RdErr) × arena.store.EStore)
+  := do
+  let o ← frontend.olean.spec.module_skel bs r root
+  match o with
+  | none => ok (core.result.Result.Err frontend.olean.spec.RdErr.Bad, ar)
+  | some sk =>
+    let (r1, ar1) ←
+      frontend.olean.reads.imports_named pk pers ar bs r sk.imports
+    match r1 with
+    | core.result.Result.Ok imports =>
+      let (r2, ar2) ←
+        frontend.olean.reads.name_positions_go pk pers ar1 bs r sk.consts
+      match r2 with
+      | core.result.Result.Ok cs =>
+        let b ← frontend.olean.reads.distinct_go cs
+        if b
+        then
+          ok (core.result.Result.Ok
+            { header := { is_module := sk.is_module, imports }, consts := cs },
+            ar2)
+        else ok (core.result.Result.Err frontend.olean.spec.RdErr.Bad, ar2)
+      | core.result.Result.Err e => ok (core.result.Result.Err e, ar2)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
+
+/-- [con_ron_core::frontend::olean::view::read_name_positions]:
+    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 355:0-364:1
+    Visibility: public -/
+def frontend.olean.view.read_name_positions
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (f : frontend.olean.view.ModFiles)
+  (level : frontend.olean.view.OLeanLevel) :
+  Result ((core.result.Result frontend.olean.reads.NamePositions
+    frontend.olean.spec.RdErr) × arena.store.EStore)
+  := do
+  let o ← frontend.olean.view.mod_files_view_region f level
+  match o with
+  | none => ok (core.result.Result.Err frontend.olean.spec.RdErr.Bad, ar)
+  | some p =>
+    let (vb, a) := p
+    let bs ← frontend.olean.view.view_bytes f vb
+    let r ← frontend.olean.view.view_region_of f vb
+    frontend.olean.reads.name_positions_at pk pers ar bs r a
+
+/-- [con_ron_core::frontend::olean::files::names_of]:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 868:0-874:1
+    Visibility: public -/
+def frontend.olean.files.names_of
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (m : arena.handle.NIdx)
+  (f : frontend.olean.view.ModFiles) (level : frontend.olean.view.OLeanLevel) :
+  Result ((core.result.Result frontend.olean.reads.NamePositions
+    kernel.core_types.CheckError) × arena.store.EStore)
+  := do
+  let (r, ar1) ← frontend.olean.view.read_name_positions pk pers ar f level
+  match r with
+  | core.result.Result.Ok ps => ok (core.result.Result.Ok ps, ar1)
+  | core.result.Result.Err re =>
+    match re with
+    | frontend.olean.spec.RdErr.Bad =>
+      let (ce, ar2) ← frontend.olean.view.view_error pk pers ar1 m f level
+      ok (core.result.Result.Err ce, ar2)
+    | frontend.olean.spec.RdErr.Err e => ok (core.result.Result.Err e, ar1)
+
+/-- [con_ron_core::frontend::olean::files::read_part_names_at]:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 878:0-883:1
+    Visibility: public -/
+def frontend.olean.files.read_part_names_at
+  {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (loc : frontend.olean.files.Located)
+  (m : arena.handle.NIdx) (level : frontend.olean.view.OLeanLevel) :
+  Result ((core.result.Result frontend.olean.reads.NamePositions
+    kernel.core_types.CheckError) × arena.store.EStore)
+  := do
+  let r ←
+    frontend.olean.files.read_files_at OleanFsInst fs pers ar loc m level
+  match r with
+  | core.result.Result.Ok f =>
+    frontend.olean.files.names_of pk pers ar m f level
+  | core.result.Result.Err e => ok (core.result.Result.Err e, ar)
+
+/-- [con_ron_core::frontend::olean::files::read_part_names]:
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 887:0-892:1
+    Visibility: public -/
+def frontend.olean.files.read_part_names
+  {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (sp : frontend.olean.files.Roots)
+  (m : arena.handle.NIdx) (level : frontend.olean.view.OLeanLevel) :
+  Result ((core.result.Result frontend.olean.reads.NamePositions
+    kernel.core_types.CheckError) × arena.store.EStore)
+  := do
+  let r ← frontend.olean.files.find_module OleanFsInst fs pers ar sp m
+  match r with
+  | core.result.Result.Ok loc =>
+    frontend.olean.files.read_part_names_at OleanFsInst fs pk pers ar loc m
+      level
+  | core.result.Result.Err e => ok (core.result.Result.Err e, ar)
+
 /-- [con_ron_core::frontend::olean::files::first_bad_view]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 866:0-877:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 896:0-907:1
     Visibility: public -/
 def frontend.olean.files.first_bad_view
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -112375,7 +114546,7 @@ def frontend.olean.sparse.sparse_entry
     () pk pers ar bs r sk
 
 /-- [con_ron_core::frontend::olean::reads::entry_at]:
-    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 152:0-160:1
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 154:0-162:1
     Visibility: public -/
 def frontend.olean.reads.entry_at
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -113613,7 +115784,7 @@ def frontend.olean.module.check_views
         ok (core.result.Result.Ok v1, ar)
 
 /-- [con_ron_core::frontend::olean::files::read_all_views]:
-    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 883:0-899:1
+    Source: 'crates/con-ron-core/src/frontend/olean/files.rs', lines 913:0-929:1
     Visibility: public -/
 def frontend.olean.files.read_all_views
   {F : Type _} (OleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -113649,110 +115820,1515 @@ def frontend.olean.files.read_all_views
       | frontend.olean.spec.RdErr.Err e => ok (core.result.Result.Err e, ar1)
   | core.result.Result.Err e => ok (core.result.Result.Err e, ar)
 
-/-- [con_ron_core::frontend::olean::lazy::ref_module]:
-    Source: 'crates/con-ron-core/src/frontend/olean/lazy.rs', lines 300:0-302:1
+/-- [con_ron_core::frontend::olean::group::c_entry_dup]:
+    Source: 'crates/con-ron-core/src/frontend/olean/group.rs', lines 64:0-66:1
     Visibility: public -/
-def frontend.olean.lazy.ref_module (code : Std.U64) : Result Std.U64 := do
-  let i ← frontend.olean.lazy.REF_BASE
-  code % i
+def frontend.olean.group.c_entry_dup
+  (c : frontend.olean.lazy.CEntry) : Result frontend.olean.lazy.CEntry := do
+  let cf ← frontend.olean.view.c_entry_dup c.c
+  let v ← arena.env.nidx_vec_dup c.uses
+  ok { c := cf, uses := v }
 
-/-- [con_ron_core::frontend::olean::lazy::ref_loc]:
-    Source: 'crates/con-ron-core/src/frontend/olean/lazy.rs', lines 306:0-308:1
-    Visibility: public -/
-def frontend.olean.lazy.ref_loc (code : Std.U64) : Result Std.U64 := do
-  let i ← frontend.olean.lazy.REF_BASE
-  code / i
-
-/-- [con_ron_core::frontend::olean::merge::is_prop_body]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 57:4-66:1
+/-- [con_ron_core::frontend::olean::group::merged_of_list]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/group.rs', lines 48:4-56:5
     Visibility: public -/
 @[rust_loop]
-def frontend.olean.merge.is_prop_body_loop
-  (pers : arena.store.PersTier) (ar : arena.store.EStore)
-  (e : arena.handle.EIdx) (fuel : Std.U64) :
-  Result (core.result.Result arena.handle.EIdx kernel.core_types.CheckError)
+def frontend.olean.group.merged_of_list_loop
+  (cs : alloc.vec.Vec frontend.olean.lazy.CEntry)
+  (map : ron.hashmap2.HashMap2 arena.handle.NIdx (Std.Usize × Std.Usize))
+  (order : alloc.vec.Vec arena.handle.NIdx)
+  (kept : alloc.vec.Vec frontend.olean.lazy.CEntry) (i : Std.Usize) :
+  Result ((ron.hashmap2.HashMap2 arena.handle.NIdx (Std.Usize × Std.Usize)) ×
+    (alloc.vec.Vec arena.handle.NIdx) × (alloc.vec.Vec
+    frontend.olean.lazy.CEntry))
   := do
-  if fuel > 0#u64
+  let i1 := alloc.vec.Vec.len cs
+  if i < i1
   then
-    let fuel1 ← fuel - 1#u64
-    let o ← arena.store.EStore.view ar pers e
-    match o with
-    | none => arena.monad.fail_dangling_e arena.handle.EIdx
-    | some ev =>
-      match ev with
-      | arena.store.ENodeView.BVar _ => ok (core.result.Result.Ok e)
-      | arena.store.ENodeView.FVar _ _ => ok (core.result.Result.Ok e)
-      | arena.store.ENodeView.Sort _ => ok (core.result.Result.Ok e)
-      | arena.store.ENodeView.Const _ _ => ok (core.result.Result.Ok e)
-      | arena.store.ENodeView.App _ _ => ok (core.result.Result.Ok e)
-      | arena.store.ENodeView.Lam _ _ => ok (core.result.Result.Ok e)
-      | arena.store.ENodeView.ForallE _ b =>
-        frontend.olean.merge.is_prop_body_loop pers ar b fuel1
-      | arena.store.ENodeView.LetE _ _ _ => ok (core.result.Result.Ok e)
-      | arena.store.ENodeView.Lit _ => ok (core.result.Result.Ok e)
-      | arena.store.ENodeView.Proj _ _ _ => ok (core.result.Result.Ok e)
-  else ok (core.result.Result.Ok e)
+    let c ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.olean.lazy.CEntry) cs i
+    let n ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 c.c.name
+    let b ←
+      ron.hashmap2.HashMap2.contains_key
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 map n
+    let (map1, order1, kept1) ←
+      if b
+      then ok (map, order, kept)
+      else
+        do
+        let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
+        let i2 := alloc.vec.Vec.len kept
+        let (_, map2) ←
+          ron.hashmap2.HashMap2.insert
+            arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+            arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 map n1 (0#usize,
+            i2)
+        let order2 ← alloc.vec.Vec.push order n
+        let c1 ← frontend.olean.group.c_entry_dup c
+        let kept2 ← alloc.vec.Vec.push kept c1
+        ok (map2, order2, kept2)
+    let i2 ← i + 1#usize
+    frontend.olean.group.merged_of_list_loop cs map1 order1 kept1 i2
+  else ok (map, order, kept)
 partial_fixpoint
 
-/-- [con_ron_core::frontend::olean::merge::is_prop_body]:
-    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 54:0-66:1
+/-- [con_ron_core::frontend::olean::group::merged_of_list]:
+    Source: 'crates/con-ron-core/src/frontend/olean/group.rs', lines 43:0-60:1
     Visibility: public -/
-def frontend.olean.merge.is_prop_body
-  (pers : arena.store.PersTier) (ar : arena.store.EStore)
-  (ty : arena.handle.EIdx) :
-  Result (core.result.Result arena.handle.EIdx kernel.core_types.CheckError)
+def frontend.olean.group.merged_of_list
+  (pk : frontend.olean.spec.OleanPins)
+  (cs : alloc.vec.Vec frontend.olean.lazy.CEntry) :
+  Result frontend.olean.merge.Merged
   := do
-  let e ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 ty
-  let fuel ← frontend.olean.closure.CLOSURE_FUEL
-  frontend.olean.merge.is_prop_body_loop pers ar e fuel
+  let i := alloc.vec.Vec.len cs
+  let map ←
+    ron.hashmap2.HashMap2.with_capacity arena.handle.NIdx (Std.Usize ×
+      Std.Usize) i
+  let i1 := alloc.vec.Vec.len cs
+  let order := alloc.vec.Vec.with_capacity arena.handle.NIdx i1
+  let i2 := alloc.vec.Vec.len cs
+  let kept := alloc.vec.Vec.with_capacity frontend.olean.lazy.CEntry i2
+  let (map1, order1, kept1) ←
+    frontend.olean.group.merged_of_list_loop cs map order kept 0#usize
+  let ls := alloc.vec.Vec.with_capacity frontend.olean.lazy.Loaded 1#usize
+  let n ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 pk.anon
+  let f ← frontend.olean.sparse.frontier_empty
+  let ls1 ←
+    alloc.vec.Vec.push ls ({ «name» := n, constants := kept1, frontier := f }
+      : frontend.olean.lazy.Loaded)
+  ok { ls := ls1, map := map1, order := order1 }
 
-/-- [con_ron_core::frontend::olean::merge::is_prop_head]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 74:4-87:1
+/-- [con_ron_core::frontend::olean::group::group_parts]:
+    Source: 'crates/con-ron-core/src/frontend/olean/group.rs', lines 72:0-85:1
+    Visibility: public -/
+def frontend.olean.group.group_parts
+  (mg : frontend.olean.merge.Merged) (n : arena.handle.NIdx) :
+  Result (Option ((alloc.vec.Vec arena.handle.NIdx) × (alloc.vec.Vec
+    arena.handle.NIdx) × (alloc.vec.Vec arena.handle.NIdx)))
+  := do
+  let o ← frontend.olean.merge.mg_get mg n
+  match o with
+  | none => ok none
+  | some c =>
+    match c.c.kind with
+    | frontend.olean.spec.CKindF.Ax _ => ok none
+    | frontend.olean.spec.CKindF.Defn _ _ _ => ok none
+    | frontend.olean.spec.CKindF.Thm _ _ => ok none
+    | frontend.olean.spec.CKindF.Opaq _ _ => ok none
+    | frontend.olean.spec.CKindF.Quot _ => ok none
+    | frontend.olean.spec.CKindF.Induct _ _ all _ _ _ _ _ =>
+      let tys ← frontend.olean.emit.block_tys mg all
+      let ctors ← frontend.olean.emit.block_ctors mg tys
+      let hm ← frontend.olean.emit.rec_map_of mg
+      let recs ← frontend.olean.emit.block_recs mg hm n
+      ok (some (tys, ctors, recs))
+    | frontend.olean.spec.CKindF.Ctor _ _ _ _ _ => ok none
+    | frontend.olean.spec.CKindF.Recur _ _ _ _ _ _ _ _ => ok none
+
+/-- [con_ron_core::frontend::olean::group::group_emit]:
+    Source: 'crates/con-ron-core/src/frontend/olean/group.rs', lines 89:0-93:1
+    Visibility: public -/
+def frontend.olean.group.group_emit
+  (mg : frontend.olean.merge.Merged) (tys : alloc.vec.Vec arena.handle.NIdx)
+  (ctors : alloc.vec.Vec arena.handle.NIdx)
+  (recs : alloc.vec.Vec arena.handle.NIdx) :
+  Result frontend.olean.emit.Emit
+  := do
+  let hm ← ron.hashmap2.HashMap2.new arena.handle.NIdx Bool
+  frontend.olean.emit.emit_block
+    {
+      visited := hm,
+      names := (alloc.vec.Vec.new arena.handle.NIdx),
+      exprs := (alloc.vec.Vec.new arena.handle.EIdx),
+      out := (alloc.vec.Vec.new frontend.scan_types.DeclRec)
+    } mg tys ctors recs
+
+/-- [con_ron_core::frontend::olean::group::block_steps]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/group.rs', lines 99:4-107:1
     Visibility: public -/
 @[rust_loop]
-def frontend.olean.merge.is_prop_head_loop
-  (pers : arena.store.PersTier) (ar : arena.store.EStore)
-  (x : arena.handle.EIdx) (k : Std.U64) (fuel : Std.U64) :
-  Result (core.result.Result (Option (arena.handle.NIdx × Std.U64))
-    kernel.core_types.CheckError)
+def frontend.olean.group.block_steps_loop
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (mg : frontend.olean.merge.Merged)
+  (ns : alloc.vec.Vec arena.handle.NIdx) (i : Std.Usize) :
+  Result (core.result.Result Unit kernel.core_types.CheckError)
   := do
-  if fuel > 0#u64
+  let i1 := alloc.vec.Vec.len ns
+  if i < i1
   then
-    let fuel1 ← fuel - 1#u64
-    let o ← arena.store.EStore.view ar pers x
-    match o with
-    | none =>
-      arena.monad.fail_dangling_e (Option (arena.handle.NIdx × Std.U64))
-    | some ev =>
-      match ev with
-      | arena.store.ENodeView.BVar _ => ok (core.result.Result.Ok none)
-      | arena.store.ENodeView.FVar _ _ => ok (core.result.Result.Ok none)
-      | arena.store.ENodeView.Sort _ => ok (core.result.Result.Ok none)
-      | arena.store.ENodeView.Const n _ =>
-        ok (core.result.Result.Ok (some (n, k)))
-      | arena.store.ENodeView.App f _ =>
-        let k1 ← k + 1#u64
-        frontend.olean.merge.is_prop_head_loop pers ar f k1 fuel1
-      | arena.store.ENodeView.Lam _ _ => ok (core.result.Result.Ok none)
-      | arena.store.ENodeView.ForallE _ _ => ok (core.result.Result.Ok none)
-      | arena.store.ENodeView.LetE _ _ _ => ok (core.result.Result.Ok none)
-      | arena.store.ENodeView.Lit _ => ok (core.result.Result.Ok none)
-      | arena.store.ENodeView.Proj _ _ _ => ok (core.result.Result.Ok none)
-  else ok (core.result.Result.Ok none)
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.handle.NIdx) ns i
+    let r ← frontend.olean.emit.block_step pk pers ar mg n
+    match r with
+    | core.result.Result.Ok _ =>
+      let i2 ← i + 1#usize
+      frontend.olean.group.block_steps_loop pk pers ar mg ns i2
+    | core.result.Result.Err _ => ok r
+  else ok (core.result.Result.Ok ())
 partial_fixpoint
 
-/-- [con_ron_core::frontend::olean::merge::is_prop_head]:
-    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 70:0-87:1
+/-- [con_ron_core::frontend::olean::group::block_steps]:
+    Source: 'crates/con-ron-core/src/frontend/olean/group.rs', lines 97:0-107:1
     Visibility: public -/
-def frontend.olean.merge.is_prop_head
+@[reducible]
+def frontend.olean.group.block_steps
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (mg : frontend.olean.merge.Merged)
+  (ns : alloc.vec.Vec arena.handle.NIdx) :
+  Result (core.result.Result Unit kernel.core_types.CheckError)
+  := do
+  frontend.olean.group.block_steps_loop pk pers ar mg ns 0#usize
+
+/-- [con_ron_core::frontend::olean::group::group_bad::M#1]
+    Source: 'crates/con-ron-core/src/frontend/olean/group.rs', lines 113:42-113:71 -/
+@[global_simps, irreducible]
+def frontend.olean.group.group_bad.M_1 : Array Std.U32 2#usize :=
+  Array.make 2#usize [ 58#u32, 32#u32 ]
+
+/-- [con_ron_core::frontend::olean::group::group_bad::M]
+    Source: 'crates/con-ron-core/src/frontend/olean/group.rs', lines 112:24-112:156 -/
+@[global_simps, irreducible]
+def frontend.olean.group.group_bad.M : Array Std.U32 23#usize :=
+  Array.make 23#usize [
+    116#u32, 104#u32, 101#u32, 32#u32, 105#u32, 110#u32, 100#u32, 117#u32,
+    99#u32, 116#u32, 105#u32, 118#u32, 101#u32, 32#u32, 103#u32, 114#u32,
+    111#u32, 117#u32, 112#u32, 32#u32, 111#u32, 102#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::olean::group::group_bad]:
+    Source: 'crates/con-ron-core/src/frontend/olean/group.rs', lines 111:0-114:1
+    Visibility: public -/
+def frontend.olean.group.group_bad
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
-  (e : arena.handle.EIdx) :
-  Result (core.result.Result (Option (arena.handle.NIdx × Std.U64))
+  (n : arena.handle.NIdx) (what : alloc.vec.Vec Std.U32) :
+  Result kernel.core_types.CheckError
+  := do
+  let s ← lift (Array.to_slice frontend.olean.group.group_bad.M)
+  let v ← kernel.core_types.code_points s
+  let v1 ← frontend.olean.view.name_text pers ar n
+  let t ← frontend.text.cat v v1
+  let s1 ← lift (Array.to_slice frontend.olean.group.group_bad.M_1)
+  let v2 ← kernel.core_types.code_points s1
+  let v3 ← frontend.text.cat3 t v2 what
+  kernel.core_types.internal v3
+
+/-- [con_ron_core::frontend::olean::records::decls_go]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 77:4-85:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.records.decls_go_loop
+  (pers : arena.store.PersTier) (ar : arena.store.EStore)
+  (st : frontend.export_c.StateD)
+  (out : alloc.vec.Vec frontend.scan_types.DeclRec) (k : Std.Usize) :
+  Result ((core.result.Result Unit (kernel.core_types.CheckError × Std.U64))
+    × frontend.export_c.StateD)
+  := do
+  let i := alloc.vec.Vec.len out
+  if k < i
+  then
+    let dr ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.scan_types.DeclRec) out k
+    let (r, st1) ← frontend.export_c.process_line_core_d pers ar st dr
+    match r with
+    | core.result.Result.Ok _ =>
+      let k1 ← k + 1#usize
+      frontend.olean.records.decls_go_loop pers ar st1 out k1
+    | core.result.Result.Err e =>
+      let i1 ← lift (UScalar.cast .U64 k)
+      let p ← frontend.export_c.line_err_to_check e i1
+      ok (core.result.Result.Err p, st1)
+  else ok (core.result.Result.Ok (), st)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::records::decls_go]:
+    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 75:0-85:1
+    Visibility: public -/
+@[reducible]
+def frontend.olean.records.decls_go
+  (pers : arena.store.PersTier) (ar : arena.store.EStore)
+  (st : frontend.export_c.StateD)
+  (out : alloc.vec.Vec frontend.scan_types.DeclRec) :
+  Result ((core.result.Result Unit (kernel.core_types.CheckError × Std.U64))
+    × frontend.export_c.StateD)
+  := do
+  frontend.olean.records.decls_go_loop pers ar st out 0#usize
+
+/-- [con_ron_core::frontend::olean::records::table_of]:
+    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 69:0-71:1
+    Visibility: public -/
+def frontend.olean.records.table_of
+  {T : Type _} (dense : alloc.vec.Vec T) :
+  Result (frontend.scan_types.IdTable T)
+  := do
+  let hm ← ron.hashmap.HashMap.new Std.U64 T
+  ok { dense, sparse := hm }
+
+/-- [con_ron_core::frontend::olean::records::decls_of]:
+    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 91:0-102:1
+    Visibility: public -/
+def frontend.olean.records.decls_of
+  (pers : arena.store.PersTier) (ar : arena.store.EStore)
+  (em : frontend.olean.emit.Emit) :
+  Result (core.result.Result frontend.export_c.ParseResultD
+    (kernel.core_types.CheckError × Std.U64))
+  := do
+  let it ← frontend.olean.records.table_of em.names
+  let it1 ← frontend.scan_types.id_table_empty arena.handle.LIdx
+  let it2 ← frontend.olean.records.table_of em.exprs
+  let (r, st) ←
+    frontend.olean.records.decls_go pers ar
+      {
+        names := it,
+        levels := it1,
+        exprs := it2,
+        decls := (alloc.vec.Vec.new arena.env.IDeclaration)
+      } em.out
+  match r with
+  | core.result.Result.Ok _ =>
+    let prd ← frontend.export_c.parse_result_of_state st
+    ok (core.result.Result.Ok prd)
+  | core.result.Result.Err e => ok (core.result.Result.Err e)
+
+/-- [con_ron_core::frontend::olean::group::group_record::M#2]
+    Source: 'crates/con-ron-core/src/frontend/olean/group.rs', lines 150:107-150:166 -/
+@[global_simps, irreducible]
+def frontend.olean.group.group_record.M_2 : Array Std.U32 8#usize :=
+  Array.make 8#usize [
+    32#u32, 114#u32, 101#u32, 99#u32, 111#u32, 114#u32, 100#u32, 115#u32
+    ]
+
+/-- [con_ron_core::frontend::olean::group::group_record::M#1]
+    Source: 'crates/con-ron-core/src/frontend/olean/group.rs', lines 148:58-148:122 -/
+@[global_simps, irreducible]
+def frontend.olean.group.group_record.M_1 : Array Std.U32 9#usize :=
+  Array.make 9#usize [
+    110#u32, 111#u32, 32#u32, 114#u32, 101#u32, 99#u32, 111#u32, 114#u32,
+    100#u32
+    ]
+
+/-- [con_ron_core::frontend::olean::group::group_record::M]
+    Source: 'crates/con-ron-core/src/frontend/olean/group.rs', lines 121:87-121:256 -/
+@[global_simps, irreducible]
+def frontend.olean.group.group_record.M : Array Std.U32 31#usize :=
+  Array.make 31#usize [
+    32#u32, 105#u32, 115#u32, 32#u32, 110#u32, 111#u32, 116#u32, 32#u32,
+    97#u32, 32#u32, 115#u32, 116#u32, 111#u32, 114#u32, 101#u32, 100#u32,
+    32#u32, 105#u32, 110#u32, 100#u32, 117#u32, 99#u32, 116#u32, 105#u32,
+    118#u32, 101#u32, 32#u32, 116#u32, 121#u32, 112#u32, 101#u32
+    ]
+
+/-- [con_ron_core::frontend::olean::group::group_record]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/group.rs', lines 126:12-129:13
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.group.group_record_loop0
+  (tys : alloc.vec.Vec arena.handle.NIdx)
+  (ns : alloc.vec.Vec arena.handle.NIdx) (i : Std.Usize) :
+  Result (alloc.vec.Vec arena.handle.NIdx)
+  := do
+  let i1 := alloc.vec.Vec.len tys
+  if i < i1
+  then
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.handle.NIdx) tys i
+    let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
+    let ns1 ← alloc.vec.Vec.push ns n1
+    let i2 ← i + 1#usize
+    frontend.olean.group.group_record_loop0 tys ns1 i2
+  else ok ns
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::group::group_record]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/olean/group.rs', lines 131:12-134:13
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.group.group_record_loop1
+  (ctors : alloc.vec.Vec arena.handle.NIdx)
+  (ns : alloc.vec.Vec arena.handle.NIdx) (j : Std.Usize) :
+  Result (alloc.vec.Vec arena.handle.NIdx)
+  := do
+  let i := alloc.vec.Vec.len ctors
+  if j < i
+  then
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.handle.NIdx) ctors j
+    let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
+    let ns1 ← alloc.vec.Vec.push ns n1
+    let j1 ← j + 1#usize
+    frontend.olean.group.group_record_loop1 ctors ns1 j1
+  else ok ns
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::group::group_record]: loop 2:
+    Source: 'crates/con-ron-core/src/frontend/olean/group.rs', lines 136:12-139:13
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.group.group_record_loop2
+  (recs : alloc.vec.Vec arena.handle.NIdx)
+  (ns : alloc.vec.Vec arena.handle.NIdx) (k : Std.Usize) :
+  Result (alloc.vec.Vec arena.handle.NIdx)
+  := do
+  let i := alloc.vec.Vec.len recs
+  if k < i
+  then
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.handle.NIdx) recs k
+    let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
+    let ns1 ← alloc.vec.Vec.push ns n1
+    let k1 ← k + 1#usize
+    frontend.olean.group.group_record_loop2 recs ns1 k1
+  else ok ns
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::group::group_record]:
+    Source: 'crates/con-ron-core/src/frontend/olean/group.rs', lines 119:0-157:1
+    Visibility: public -/
+def frontend.olean.group.group_record
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (mg : frontend.olean.merge.Merged)
+  (n : arena.handle.NIdx) :
+  Result (core.result.Result arena.env.IDeclaration
     kernel.core_types.CheckError)
   := do
-  let x ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 e
-  let fuel ← frontend.olean.closure.CLOSURE_FUEL
-  frontend.olean.merge.is_prop_head_loop pers ar x 0#u64 fuel
+  let o ← frontend.olean.group.group_parts mg n
+  match o with
+  | none =>
+    let v ← frontend.olean.view.name_text pers ar n
+    let s ← lift (Array.to_slice frontend.olean.group.group_record.M)
+    let v1 ← kernel.core_types.code_points s
+    let v2 ← frontend.text.cat v v1
+    let ce ← frontend.olean.group.group_bad pers ar n v2
+    ok (core.result.Result.Err ce)
+  | some t =>
+    let (tys, ctors, recs) := t
+    let i := alloc.vec.Vec.len tys
+    let i1 ← 1#usize + i
+    let i2 := alloc.vec.Vec.len ctors
+    let i3 ← i1 + i2
+    let i4 := alloc.vec.Vec.len recs
+    let i5 ← i3 + i4
+    let ns := alloc.vec.Vec.with_capacity arena.handle.NIdx i5
+    let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
+    let ns1 ← alloc.vec.Vec.push ns n1
+    let ns2 ← frontend.olean.group.group_record_loop0 tys ns1 0#usize
+    let ns3 ← frontend.olean.group.group_record_loop1 ctors ns2 0#usize
+    let ns4 ← frontend.olean.group.group_record_loop2 recs ns3 0#usize
+    let r ← frontend.olean.group.block_steps pk pers ar mg ns4
+    match r with
+    | core.result.Result.Ok _ =>
+      let e ← frontend.olean.group.group_emit mg tys ctors recs
+      let r1 ← frontend.olean.records.decls_of pers ar e
+      match r1 with
+      | core.result.Result.Ok pr =>
+        let i6 := alloc.vec.Vec.len pr.decls
+        if i6 = 1#usize
+        then
+          let i7 ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+              arena.env.IDeclaration) pr.decls 0#usize
+          let i8 ← arena.env.i_declaration_dup i7
+          ok (core.result.Result.Ok i8)
+        else
+          let i7 := alloc.vec.Vec.len pr.decls
+          if i7 = 0#usize
+          then
+            let s ←
+              lift (Array.to_slice frontend.olean.group.group_record.M_1)
+            let v ← kernel.core_types.code_points s
+            let ce ← frontend.olean.group.group_bad pers ar n v
+            ok (core.result.Result.Err ce)
+          else
+            let i8 := alloc.vec.Vec.len pr.decls
+            let i9 ← lift (UScalar.cast .U64 i8)
+            let v ← frontend.text.u64_str i9
+            let s ←
+              lift (Array.to_slice frontend.olean.group.group_record.M_2)
+            let v1 ← kernel.core_types.code_points s
+            let v2 ← frontend.text.cat v v1
+            let ce ← frontend.olean.group.group_bad pers ar n v2
+            ok (core.result.Result.Err ce)
+      | core.result.Result.Err p =>
+        let (e1, _) := p
+        ok (core.result.Result.Err e1)
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+
+/-- [con_ron_core::frontend::olean::index::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::frontend::olean::index::Copy}::hash64]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 54:4-56:5
+    Visibility: public -/
+def frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapHashable.hash64
+  (self : frontend.olean.index.Copy) : Result Std.U64 := do
+  let i ← kernel.name.nat_hash self.module
+  let i1 ← kernel.name.nat_hash self.pos
+  kernel.name.mix_hash i i1
+
+/-- Trait implementation: [con_ron_core::frontend::olean::index::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::frontend::olean::index::Copy}]
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 52:0-57:1 -/
+@[reducible]
+def frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapHashable :
+  ron.hashmap.Hashable frontend.olean.index.Copy := {
+  hash64 :=
+    frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapHashable.hash64
+}
+
+/-- [con_ron_core::frontend::olean::index::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::frontend::olean::index::Copy}::eq2]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 63:4-65:5
+    Visibility: public -/
+def frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapEq2.eq2
+  (self : frontend.olean.index.Copy) (other : frontend.olean.index.Copy) :
+  Result Bool
+  := do
+  if self.module = other.module
+  then ok (self.pos = other.pos)
+  else ok false
+
+/-- Trait implementation: [con_ron_core::frontend::olean::index::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::frontend::olean::index::Copy}]
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 61:0-66:1 -/
+@[reducible]
+def frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
+  frontend.olean.index.Copy := {
+  eq2 := frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapEq2.eq2
+}
+
+/-- [con_ron_core::frontend::olean::index::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::frontend::olean::index::Copy}::dup2]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 72:4-74:5
+    Visibility: public -/
+def frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapDup.dup2
+  (self : frontend.olean.index.Copy) : Result frontend.olean.index.Copy := do
+  ok self
+
+/-- Trait implementation: [con_ron_core::frontend::olean::index::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::frontend::olean::index::Copy}]
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 70:0-75:1 -/
+@[reducible]
+def frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
+  frontend.olean.index.Copy := {
+  dup2 := frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapDup.dup2
+}
+
+/-- [con_ron_core::frontend::olean::index::name_index_at]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 90:0-102:1
+    Visibility: public -/
+def frontend.olean.index.name_index_at
+  (ix : frontend.olean.index.NameIndex) (c : frontend.olean.index.Copy) :
+  Result (Option frontend.olean.reads.NamePosition)
+  := do
+  let m ← lift (UScalar.cast .Usize c.module)
+  let i := alloc.vec.Vec.len ix.parts
+  if m < i
+  then
+    let p ← lift (UScalar.cast .Usize c.pos)
+    let np ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.olean.reads.NamePositions) ix.parts m
+    let i1 := alloc.vec.Vec.len np.consts
+    if p < i1
+    then
+      let np1 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          frontend.olean.reads.NamePosition) np.consts p
+      ok (some np1)
+    else ok none
+  else ok none
+
+/-- [con_ron_core::frontend::olean::index::name_index_loc]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 106:0-111:1
+    Visibility: public -/
+def frontend.olean.index.name_index_loc
+  (ix : frontend.olean.index.NameIndex) (c : frontend.olean.index.Copy) :
+  Result (Option Std.U64)
+  := do
+  let o ← frontend.olean.index.name_index_at ix c
+  match o with
+  | none => ok none
+  | some q => ok (some q.loc)
+
+/-- [con_ron_core::frontend::olean::index::name_index_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 118:4-121:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.name_index_of_loop0
+  (parts : alloc.vec.Vec frontend.olean.reads.NamePositions)
+  (total : Std.Usize) (j : Std.Usize) :
+  Result Std.Usize
+  := do
+  let i := alloc.vec.Vec.len parts
+  if j < i
+  then
+    let np ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.olean.reads.NamePositions) parts j
+    let i1 := alloc.vec.Vec.len np.consts
+    let total1 ← total + i1
+    let j1 ← j + 1#usize
+    frontend.olean.index.name_index_of_loop0 parts total1 j1
+  else ok total
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::name_index_of]: loop 2:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 128:8-136:9
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.name_index_of_loop1_loop0
+  (first : ron.hashmap2.HashMap2 arena.handle.NIdx frontend.olean.index.Copy)
+  (more : alloc.vec.Vec (arena.handle.NIdx × frontend.olean.index.Copy))
+  (i : Std.Usize) (cs : alloc.vec.Vec frontend.olean.reads.NamePosition)
+  (k : Std.Usize) :
+  Result ((ron.hashmap2.HashMap2 arena.handle.NIdx frontend.olean.index.Copy)
+    × (alloc.vec.Vec (arena.handle.NIdx × frontend.olean.index.Copy)))
+  := do
+  let i1 := alloc.vec.Vec.len cs
+  if k < i1
+  then
+    let i2 ← lift (UScalar.cast .U64 i)
+    let i3 ← lift (UScalar.cast .U64 k)
+    let np ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.olean.reads.NamePosition) cs k
+    let b ←
+      ron.hashmap2.HashMap2.contains_key
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 first np.name
+    let (first1, more1) ←
+      if b
+      then
+        do
+        let n ←
+          arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 np.name
+        let more2 ←
+          alloc.vec.Vec.push more (n, ({ module := i2, pos := i3 } :
+            frontend.olean.index.Copy))
+        ok (first, more2)
+      else
+        do
+        let n ←
+          arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 np.name
+        let (_, first2) ←
+          ron.hashmap2.HashMap2.insert
+            arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+            arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 first n
+            ({ module := i2, pos := i3 } : frontend.olean.index.Copy)
+        ok (first2, more)
+    let k1 ← k + 1#usize
+    frontend.olean.index.name_index_of_loop1_loop0 first1 more1 i cs k1
+  else ok (first, more)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::name_index_of]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 125:4-138:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.name_index_of_loop1
+  (parts : alloc.vec.Vec frontend.olean.reads.NamePositions)
+  (first : ron.hashmap2.HashMap2 arena.handle.NIdx frontend.olean.index.Copy)
+  (more : alloc.vec.Vec (arena.handle.NIdx × frontend.olean.index.Copy))
+  (i : Std.Usize) :
+  Result ((ron.hashmap2.HashMap2 arena.handle.NIdx frontend.olean.index.Copy)
+    × (alloc.vec.Vec (arena.handle.NIdx × frontend.olean.index.Copy)))
+  := do
+  let i1 := alloc.vec.Vec.len parts
+  if i < i1
+  then
+    let np ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.olean.reads.NamePositions) parts i
+    let (first1, more1) ←
+      frontend.olean.index.name_index_of_loop1_loop0 first more i np.consts
+        0#usize
+    let i2 ← i + 1#usize
+    frontend.olean.index.name_index_of_loop1 parts first1 more1 i2
+  else ok (first, more)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::name_index_of]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 115:0-140:1
+    Visibility: public -/
+def frontend.olean.index.name_index_of
+  (parts : alloc.vec.Vec frontend.olean.reads.NamePositions) :
+  Result frontend.olean.index.NameIndex
+  := do
+  let total ← frontend.olean.index.name_index_of_loop0 parts 0#usize 0#usize
+  let first ←
+    ron.hashmap2.HashMap2.with_capacity arena.handle.NIdx
+      frontend.olean.index.Copy total
+  let (first1, more) ←
+    frontend.olean.index.name_index_of_loop1 parts first (alloc.vec.Vec.new
+      (arena.handle.NIdx × frontend.olean.index.Copy)) 0#usize
+  ok { parts, first := first1, more }
+
+/-- [con_ron_core::frontend::olean::index::stmt_rec_dup]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 152:0-154:1
+    Visibility: public -/
+def frontend.olean.index.stmt_rec_dup
+  (s : frontend.olean.spec.StmtRec) : Result frontend.olean.spec.StmtRec := do
+  let n ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 s.name
+  let v ← arena.env.nidx_vec_dup s.level_params
+  let e ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 s.ty
+  ok { «name» := n, level_params := v, ty := e }
+
+/-- [con_ron_core::frontend::olean::index::c_kind_names_dup]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 172:12-175:13
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.c_kind_names_dup_loop
+  (rules : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × Unit))
+  (rs : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × Unit)) (i : Std.Usize) :
+  Result (alloc.vec.Vec (arena.handle.NIdx × Std.U64 × Unit))
+  := do
+  let i1 := alloc.vec.Vec.len rules
+  if i < i1
+  then
+    let (n, i2, _) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (arena.handle.NIdx × Std.U64 × Unit)) rules i
+    let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
+    let rs1 ← alloc.vec.Vec.push rs (n1, i2, ())
+    let i3 ← i + 1#usize
+    frontend.olean.index.c_kind_names_dup_loop rules rs1 i3
+  else ok rs
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::c_kind_names_dup]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 158:0-179:1
+    Visibility: public -/
+def frontend.olean.index.c_kind_names_dup
+  (k : frontend.olean.spec.CKindF arena.handle.NIdx Unit) :
+  Result (frontend.olean.spec.CKindF arena.handle.NIdx Unit)
+  := do
+  match k with
+  | frontend.olean.spec.CKindF.Ax _ => ok k
+  | frontend.olean.spec.CKindF.Defn _ h s =>
+    let hr ← frontend.olean.spec.hints_dup h
+    let v ← kernel.expr.str_copy s
+    ok (frontend.olean.spec.CKindF.Defn () hr v)
+  | frontend.olean.spec.CKindF.Thm _ all =>
+    let v ← arena.env.nidx_vec_dup all
+    ok (frontend.olean.spec.CKindF.Thm () v)
+  | frontend.olean.spec.CKindF.Opaq _ u =>
+    ok (frontend.olean.spec.CKindF.Opaq () u)
+  | frontend.olean.spec.CKindF.Quot s =>
+    let v ← kernel.expr.str_copy s
+    ok (frontend.olean.spec.CKindF.Quot v)
+  | frontend.olean.spec.CKindF.Induct np ni all cs nn ir iu irf =>
+    let v ← arena.env.nidx_vec_dup all
+    let v1 ← arena.env.nidx_vec_dup cs
+    ok (frontend.olean.spec.CKindF.Induct np ni v v1 nn ir iu irf)
+  | frontend.olean.spec.CKindF.Ctor ind ci np nf iu =>
+    let n ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 ind
+    ok (frontend.olean.spec.CKindF.Ctor n ci np nf iu)
+  | frontend.olean.spec.CKindF.Recur all np ni nmo nmi rules k2 iu =>
+    let i := alloc.vec.Vec.len rules
+    let rs :=
+      alloc.vec.Vec.with_capacity (arena.handle.NIdx × Std.U64 × Unit) i
+    let rs1 ← frontend.olean.index.c_kind_names_dup_loop rules rs 0#usize
+    let v ← arena.env.nidx_vec_dup all
+    ok (frontend.olean.spec.CKindF.Recur v np ni nmo nmi rs1 k2 iu)
+
+/-- [con_ron_core::frontend::olean::index::header_loads_name_at]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 183:0-190:1
+    Visibility: public -/
+def frontend.olean.index.header_loads_name_at
+  (pk : frontend.olean.spec.OleanPins) (ld : frontend.olean.levels.HeaderLoads)
+  (i : Std.U64) :
+  Result arena.handle.NIdx
+  := do
+  let k ← lift (UScalar.cast .Usize i)
+  let i1 := alloc.vec.Vec.len ld.order
+  if k < i1
+  then
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.handle.NIdx) ld.order k
+    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
+  else arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 pk.anon
+
+/-- [con_ron_core::frontend::olean::levels::load_flags_level]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 54:0-60:1
+    Visibility: public -/
+def frontend.olean.levels.load_flags_level
+  (l : frontend.olean.levels.LoadFlags) :
+  Result frontend.olean.view.OLeanLevel
+  := do
+  if l.import_all
+  then ok frontend.olean.view.OLeanLevel.Private
+  else ok frontend.olean.view.OLeanLevel.Exported
+
+/-- [con_ron_core::frontend::olean::index::header_loads_level_at]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 195:0-202:1
+    Visibility: public -/
+def frontend.olean.index.header_loads_level_at
+  (ld : frontend.olean.levels.HeaderLoads) (i : Std.U64) :
+  Result frontend.olean.view.OLeanLevel
+  := do
+  let k ← lift (UScalar.cast .Usize i)
+  let i1 := alloc.vec.Vec.len ld.flags
+  if k < i1
+  then
+    let lf ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.olean.levels.LoadFlags) ld.flags k
+    frontend.olean.levels.load_flags_level lf
+  else ok frontend.olean.view.OLeanLevel.Exported
+
+/-- [con_ron_core::frontend::olean::reads::rule_names]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 371:4-379:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.reads.rule_names_loop
+  {R : Type _} (specPtrReadInst : frontend.olean.spec.PtrRead R) (rd : R)
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region)
+  (rs : alloc.vec.Vec (Std.U64 × Std.U64 × Std.U64))
+  (out : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × Unit)) (i : Std.Usize)
+  :
+  Result ((core.result.Result (alloc.vec.Vec (arena.handle.NIdx × Std.U64 ×
+    Unit)) frontend.olean.spec.RdErr) × arena.store.EStore)
+  := do
+  let i1 := alloc.vec.Vec.len rs
+  if i < i1
+  then
+    let (i2, i3, _) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Std.U64 ×
+        Std.U64 × Std.U64)) rs i
+    let (r1, ar1) ← specPtrReadInst.rd_name rd pk pers ar bs r i2
+    match r1 with
+    | core.result.Result.Ok n =>
+      let out1 ← alloc.vec.Vec.push out (n, i3, ())
+      let i4 ← i + 1#usize
+      frontend.olean.reads.rule_names_loop specPtrReadInst rd pk pers ar1 bs r
+        rs out1 i4
+    | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
+  else ok (core.result.Result.Ok out, ar)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::reads::rule_names]:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 368:0-379:1
+    Visibility: public -/
+def frontend.olean.reads.rule_names
+  {R : Type _} (specPtrReadInst : frontend.olean.spec.PtrRead R) (rd : R)
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region)
+  (rs : alloc.vec.Vec (Std.U64 × Std.U64 × Std.U64)) :
+  Result ((core.result.Result (alloc.vec.Vec (arena.handle.NIdx × Std.U64 ×
+    Unit)) frontend.olean.spec.RdErr) × arena.store.EStore)
+  := do
+  let i := alloc.vec.Vec.len rs
+  let out :=
+    alloc.vec.Vec.with_capacity (arena.handle.NIdx × Std.U64 × Unit) i
+  frontend.olean.reads.rule_names_loop specPtrReadInst rd pk pers ar bs r rs
+    out 0#usize
+
+/-- [con_ron_core::frontend::olean::reads::c_kind_names]:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 334:0-363:1
+    Visibility: public -/
+def frontend.olean.reads.c_kind_names
+  {R : Type _} (specPtrReadInst : frontend.olean.spec.PtrRead R) (rd : R)
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region)
+  (k : frontend.olean.spec.CKindF Std.U64 Std.U64) :
+  Result ((core.result.Result (frontend.olean.spec.CKindF arena.handle.NIdx
+    Unit) frontend.olean.spec.RdErr) × arena.store.EStore)
+  := do
+  match k with
+  | frontend.olean.spec.CKindF.Ax u =>
+    ok (core.result.Result.Ok (frontend.olean.spec.CKindF.Ax u), ar)
+  | frontend.olean.spec.CKindF.Defn _ h s =>
+    let hr ← frontend.olean.spec.hints_dup h
+    let v ← kernel.expr.str_copy s
+    ok (core.result.Result.Ok (frontend.olean.spec.CKindF.Defn () hr v), ar)
+  | frontend.olean.spec.CKindF.Thm _ all =>
+    let (r1, ar1) ←
+      frontend.olean.spec.names_map specPtrReadInst rd pk pers ar bs r all
+    match r1 with
+    | core.result.Result.Ok a =>
+      ok (core.result.Result.Ok (frontend.olean.spec.CKindF.Thm () a), ar1)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
+  | frontend.olean.spec.CKindF.Opaq _ u =>
+    ok (core.result.Result.Ok (frontend.olean.spec.CKindF.Opaq () u), ar)
+  | frontend.olean.spec.CKindF.Quot s =>
+    let v ← kernel.expr.str_copy s
+    ok (core.result.Result.Ok (frontend.olean.spec.CKindF.Quot v), ar)
+  | frontend.olean.spec.CKindF.Induct np ni all cs nn ir iu irf =>
+    let (r1, ar1) ←
+      frontend.olean.spec.names_map specPtrReadInst rd pk pers ar bs r all
+    match r1 with
+    | core.result.Result.Ok a =>
+      let (r2, ar2) ←
+        frontend.olean.spec.names_map specPtrReadInst rd pk pers ar1 bs r cs
+      match r2 with
+      | core.result.Result.Ok c =>
+        ok (core.result.Result.Ok (frontend.olean.spec.CKindF.Induct np ni a c
+          nn ir iu irf), ar2)
+      | core.result.Result.Err e => ok (core.result.Result.Err e, ar2)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
+  | frontend.olean.spec.CKindF.Ctor ind ci np nf iu =>
+    let (r1, ar1) ← specPtrReadInst.rd_name rd pk pers ar bs r ind
+    match r1 with
+    | core.result.Result.Ok i =>
+      ok (core.result.Result.Ok (frontend.olean.spec.CKindF.Ctor i ci np nf
+        iu), ar1)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
+  | frontend.olean.spec.CKindF.Recur all np ni nmo nmi rules k2 iu =>
+    let (r1, ar1) ←
+      frontend.olean.spec.names_map specPtrReadInst rd pk pers ar bs r all
+    match r1 with
+    | core.result.Result.Ok a =>
+      let (r2, ar2) ←
+        frontend.olean.reads.rule_names specPtrReadInst rd pk pers ar1 bs r
+          rules
+      match r2 with
+      | core.result.Result.Ok rs =>
+        ok (core.result.Result.Ok (frontend.olean.spec.CKindF.Recur a np ni nmo
+          nmi rs k2 iu), ar2)
+      | core.result.Result.Err e => ok (core.result.Result.Err e, ar2)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
+
+/-- [con_ron_core::frontend::olean::reads::kind_names_at]:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 384:0-392:1
+    Visibility: public -/
+def frontend.olean.reads.kind_names_at
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region) (c : Std.U64) :
+  Result ((core.result.Result (frontend.olean.spec.CKindF arena.handle.NIdx
+    Unit) frontend.olean.spec.RdErr) × arena.store.EStore)
+  := do
+  let o ← frontend.olean.spec.const_skel bs r c
+  match o with
+  | none => ok (core.result.Result.Err frontend.olean.spec.RdErr.Bad, ar)
+  | some s =>
+    let r1 ← frontend.olean.spec.skel_fits s
+    match r1 with
+    | core.result.Result.Ok _ =>
+      frontend.olean.reads.c_kind_names
+        frontend.olean.sparse.SparseRead.Insts.Con_ron_coreFrontendOleanSpecPtrRead
+        () pk pers ar bs r s.kind
+    | core.result.Result.Err e => ok (core.result.Result.Err e, ar)
+
+/-- [con_ron_core::frontend::olean::reads::kinds_at]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 399:4-407:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.reads.kinds_at_loop
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region) (cs : alloc.vec.Vec Std.U64)
+  (out : alloc.vec.Vec (frontend.olean.spec.CKindF arena.handle.NIdx Unit))
+  (i : Std.Usize) :
+  Result ((core.result.Result (alloc.vec.Vec (frontend.olean.spec.CKindF
+    arena.handle.NIdx Unit)) frontend.olean.spec.RdErr) × arena.store.EStore)
+  := do
+  let i1 := alloc.vec.Vec.len cs
+  if i < i1
+  then
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) cs i
+    let (r1, ar1) ← frontend.olean.reads.kind_names_at pk pers ar bs r i2
+    match r1 with
+    | core.result.Result.Ok k =>
+      let out1 ← alloc.vec.Vec.push out k
+      let i3 ← i + 1#usize
+      frontend.olean.reads.kinds_at_loop pk pers ar1 bs r cs out1 i3
+    | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
+  else ok (core.result.Result.Ok out, ar)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::reads::kinds_at]:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 396:0-407:1
+    Visibility: public -/
+def frontend.olean.reads.kinds_at
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region) (cs : alloc.vec.Vec Std.U64) :
+  Result ((core.result.Result (alloc.vec.Vec (frontend.olean.spec.CKindF
+    arena.handle.NIdx Unit)) frontend.olean.spec.RdErr) × arena.store.EStore)
+  := do
+  let i := alloc.vec.Vec.len cs
+  let out :=
+    alloc.vec.Vec.with_capacity (frontend.olean.spec.CKindF arena.handle.NIdx
+      Unit) i
+  frontend.olean.reads.kinds_at_loop pk pers ar bs r cs out 0#usize
+
+/-- [con_ron_core::frontend::olean::view::read_kinds]:
+    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 409:0-418:1
+    Visibility: public -/
+def frontend.olean.view.read_kinds
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (f : frontend.olean.view.ModFiles)
+  (level : frontend.olean.view.OLeanLevel) (cs : alloc.vec.Vec Std.U64) :
+  Result ((core.result.Result (alloc.vec.Vec (frontend.olean.spec.CKindF
+    arena.handle.NIdx Unit)) frontend.olean.spec.RdErr) × arena.store.EStore)
+  := do
+  let o ← frontend.olean.view.mod_files_view_region f level
+  match o with
+  | none => ok (core.result.Result.Err frontend.olean.spec.RdErr.Bad, ar)
+  | some p =>
+    let (vb, _) := p
+    let bs ← frontend.olean.view.view_bytes f vb
+    let r ← frontend.olean.view.view_region_of f vb
+    frontend.olean.reads.kinds_at pk pers ar bs r cs
+
+/-- [con_ron_core::frontend::olean::reads::stmts_at]:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 166:0-171:1
+    Visibility: public -/
+def frontend.olean.reads.stmts_at
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region) (cs : alloc.vec.Vec Std.U64) :
+  Result ((core.result.Result (alloc.vec.Vec frontend.olean.spec.StmtRec)
+    frontend.olean.spec.RdErr) × arena.store.EStore)
+  := do
+  let r1 ← frontend.olean.fast.consts_skel bs r cs
+  match r1 with
+  | core.result.Result.Ok sks =>
+    frontend.olean.fast.stmts_fast pk pers ar bs r sks
+  | core.result.Result.Err e => ok (core.result.Result.Err e, ar)
+
+/-- [con_ron_core::frontend::olean::view::read_stmts]:
+    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 381:0-390:1
+    Visibility: public -/
+def frontend.olean.view.read_stmts
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (f : frontend.olean.view.ModFiles)
+  (level : frontend.olean.view.OLeanLevel) (cs : alloc.vec.Vec Std.U64) :
+  Result ((core.result.Result (alloc.vec.Vec frontend.olean.spec.StmtRec)
+    frontend.olean.spec.RdErr) × arena.store.EStore)
+  := do
+  let o ← frontend.olean.view.mod_files_view_region f level
+  match o with
+  | none => ok (core.result.Result.Err frontend.olean.spec.RdErr.Bad, ar)
+  | some p =>
+    let (vb, _) := p
+    let bs ← frontend.olean.view.view_bytes f vb
+    let r ← frontend.olean.view.view_region_of f vb
+    frontend.olean.reads.stmts_at pk pers ar bs r cs
+
+/-- [con_ron_core::frontend::olean::index::read_infos_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 211:4-217:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.read_infos_of_loop0
+  (ix : frontend.olean.index.NameIndex)
+  (cs : alloc.vec.Vec frontend.olean.index.Copy) (locs : alloc.vec.Vec Std.U64)
+  (j : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  let i := alloc.vec.Vec.len cs
+  if j < i
+  then
+    let c ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.olean.index.Copy) cs j
+    let o ← frontend.olean.index.name_index_loc ix c
+    let locs1 ←
+      match o with
+      | none => ok locs
+      | some l => alloc.vec.Vec.push locs l
+    let j1 ← j + 1#usize
+    frontend.olean.index.read_infos_of_loop0 ix cs locs1 j1
+  else ok locs
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::read_infos_of]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 237:4-240:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.read_infos_of_loop1
+  (cs : alloc.vec.Vec frontend.olean.index.Copy)
+  (ss : alloc.vec.Vec frontend.olean.spec.StmtRec)
+  (ks : alloc.vec.Vec (frontend.olean.spec.CKindF arena.handle.NIdx Unit))
+  (out : alloc.vec.Vec (frontend.olean.index.Copy ×
+  frontend.olean.spec.StmtRec × (frontend.olean.spec.CKindF arena.handle.NIdx
+  Unit))) (k : Std.Usize) :
+  Result (alloc.vec.Vec (frontend.olean.index.Copy ×
+    frontend.olean.spec.StmtRec × (frontend.olean.spec.CKindF
+    arena.handle.NIdx Unit)))
+  := do
+  let i := alloc.vec.Vec.len cs
+  if k < i
+  then
+    let c ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.olean.index.Copy) cs k
+    let c1 ← frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapDup.dup2 c
+    let sr ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.olean.spec.StmtRec) ss k
+    let sr1 ← frontend.olean.index.stmt_rec_dup sr
+    let cf ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (frontend.olean.spec.CKindF arena.handle.NIdx Unit)) ks k
+    let cf1 ← frontend.olean.index.c_kind_names_dup cf
+    let out1 ← alloc.vec.Vec.push out (c1, sr1, cf1)
+    let k1 ← k + 1#usize
+    frontend.olean.index.read_infos_of_loop1 cs ss ks out1 k1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::read_infos_of]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 206:0-242:1
+    Visibility: public -/
+def frontend.olean.index.read_infos_of
+  {F : Type _} (filesOleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (sp : frontend.olean.files.Roots)
+  (ld : frontend.olean.levels.HeaderLoads)
+  (ix : frontend.olean.index.NameIndex) (i : Std.U64)
+  (cs : alloc.vec.Vec frontend.olean.index.Copy) :
+  Result ((core.result.Result (alloc.vec.Vec (frontend.olean.index.Copy ×
+    frontend.olean.spec.StmtRec × (frontend.olean.spec.CKindF
+    arena.handle.NIdx Unit))) kernel.core_types.CheckError) ×
+    arena.store.EStore)
+  := do
+  let m ← frontend.olean.index.header_loads_name_at pk ld i
+  let level ← frontend.olean.index.header_loads_level_at ld i
+  let i1 := alloc.vec.Vec.len cs
+  let locs := alloc.vec.Vec.with_capacity Std.U64 i1
+  let locs1 ← frontend.olean.index.read_infos_of_loop0 ix cs locs 0#usize
+  let r ←
+    frontend.olean.files.read_files filesOleanFsInst fs pers ar sp m level
+  match r with
+  | core.result.Result.Ok f =>
+    let (r1, ar1) ← frontend.olean.view.read_stmts pk pers ar f level locs1
+    match r1 with
+    | core.result.Result.Ok ss =>
+      let (r2, ar2) ←
+        frontend.olean.view.read_kinds pk pers ar1 f level locs1
+      match r2 with
+      | core.result.Result.Ok ks =>
+        let i2 := alloc.vec.Vec.len ss
+        let i3 := alloc.vec.Vec.len cs
+        if i2 != i3
+        then
+          let ce ← frontend.olean.view.undecodable pers ar2 m
+          ok (core.result.Result.Err ce, ar2)
+        else
+          let i4 := alloc.vec.Vec.len ks
+          let i5 := alloc.vec.Vec.len cs
+          if i4 != i5
+          then
+            let ce ← frontend.olean.view.undecodable pers ar2 m
+            ok (core.result.Result.Err ce, ar2)
+          else
+            let i6 := alloc.vec.Vec.len cs
+            let out :=
+              alloc.vec.Vec.with_capacity (frontend.olean.index.Copy ×
+                frontend.olean.spec.StmtRec × (frontend.olean.spec.CKindF
+                arena.handle.NIdx Unit)) i6
+            let out1 ←
+              frontend.olean.index.read_infos_of_loop1 cs ss ks out 0#usize
+            ok (core.result.Result.Ok out1, ar2)
+      | core.result.Result.Err re =>
+        match re with
+        | frontend.olean.spec.RdErr.Bad =>
+          let ce ← frontend.olean.view.undecodable pers ar2 m
+          ok (core.result.Result.Err ce, ar2)
+        | frontend.olean.spec.RdErr.Err e => ok (core.result.Result.Err e, ar2)
+    | core.result.Result.Err re =>
+      match re with
+      | frontend.olean.spec.RdErr.Bad =>
+        let ce ← frontend.olean.view.undecodable pers ar1 m
+        ok (core.result.Result.Err ce, ar1)
+      | frontend.olean.spec.RdErr.Err e => ok (core.result.Result.Err e, ar1)
+  | core.result.Result.Err e => ok (core.result.Result.Err e, ar)
+
+/-- [con_ron_core::frontend::olean::index::by_module]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 250:4-255:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.by_module_loop0
+  (cs : alloc.vec.Vec frontend.olean.index.Copy) (top : Std.U64)
+  (i : Std.Usize) :
+  Result Std.U64
+  := do
+  let i1 := alloc.vec.Vec.len cs
+  if i < i1
+  then
+    let c ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.olean.index.Copy) cs i
+    let i2 ← c.module + 1#u64
+    let top1 ← if i2 > top
+                 then c.module + 1#u64
+                 else ok top
+    let i3 ← i + 1#usize
+    frontend.olean.index.by_module_loop0 cs top1 i3
+  else ok top
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::by_module]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 258:4-261:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.by_module_loop1
+  (top : Std.U64)
+  (buckets : alloc.vec.Vec (alloc.vec.Vec frontend.olean.index.Copy))
+  (b : Std.U64) :
+  Result (alloc.vec.Vec (alloc.vec.Vec frontend.olean.index.Copy))
+  := do
+  if b < top
+  then
+    let buckets1 ←
+      alloc.vec.Vec.push buckets (alloc.vec.Vec.new frontend.olean.index.Copy)
+    let b1 ← b + 1#u64
+    frontend.olean.index.by_module_loop1 top buckets1 b1
+  else ok buckets
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::by_module]: loop 2:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 263:4-266:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.by_module_loop2
+  (cs : alloc.vec.Vec frontend.olean.index.Copy)
+  (buckets : alloc.vec.Vec (alloc.vec.Vec frontend.olean.index.Copy))
+  (j : Std.Usize) :
+  Result (alloc.vec.Vec (alloc.vec.Vec frontend.olean.index.Copy))
+  := do
+  let i := alloc.vec.Vec.len cs
+  if j < i
+  then
+    let c ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.olean.index.Copy) cs j
+    let i1 ← lift (UScalar.cast .Usize c.module)
+    let (v, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+        (alloc.vec.Vec frontend.olean.index.Copy)) buckets i1
+    let c1 ← frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapDup.dup2 c
+    let v1 ← alloc.vec.Vec.push v c1
+    let j1 ← j + 1#usize
+    let buckets1 := index_mut_back v1
+    frontend.olean.index.by_module_loop2 cs buckets1 j1
+  else ok buckets
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::by_module]: loop 3:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 269:4-274:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.by_module_loop3
+  (buckets : alloc.vec.Vec (alloc.vec.Vec frontend.olean.index.Copy))
+  (out : alloc.vec.Vec (Std.U64 × (alloc.vec.Vec frontend.olean.index.Copy)))
+  (k : Std.Usize) :
+  Result (alloc.vec.Vec (Std.U64 × (alloc.vec.Vec frontend.olean.index.Copy)))
+  := do
+  let i := alloc.vec.Vec.len buckets
+  if k < i
+  then
+    let v ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        frontend.olean.index.Copy)) buckets k
+    let i1 := alloc.vec.Vec.len v
+    let (buckets1, out1) ←
+      if i1 > 0#usize
+      then
+        do
+        let i2 ← lift (UScalar.cast .U64 k)
+        let (v1, index_mut_back) ←
+          alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+            (alloc.vec.Vec frontend.olean.index.Copy)) buckets k
+        let (v2, v3) :=
+          core.mem.replace v1 (alloc.vec.Vec.new frontend.olean.index.Copy)
+        let out2 ← alloc.vec.Vec.push out (i2, v2)
+        let buckets2 := index_mut_back v3
+        ok (buckets2, out2)
+      else ok (buckets, out)
+    let k1 ← k + 1#usize
+    frontend.olean.index.by_module_loop3 buckets1 out1 k1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::by_module]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 247:0-276:1
+    Visibility: public -/
+def frontend.olean.index.by_module
+  (cs : alloc.vec.Vec frontend.olean.index.Copy) :
+  Result (alloc.vec.Vec (Std.U64 × (alloc.vec.Vec frontend.olean.index.Copy)))
+  := do
+  let top ← frontend.olean.index.by_module_loop0 cs 0#u64 0#usize
+  let i ← lift (UScalar.cast .Usize top)
+  let buckets :=
+    alloc.vec.Vec.with_capacity (alloc.vec.Vec frontend.olean.index.Copy) i
+  let buckets1 ← frontend.olean.index.by_module_loop1 top buckets 0#u64
+  let buckets2 ← frontend.olean.index.by_module_loop2 cs buckets1 0#usize
+  frontend.olean.index.by_module_loop3 buckets2 (alloc.vec.Vec.new (Std.U64 ×
+    (alloc.vec.Vec frontend.olean.index.Copy))) 0#usize
+
+/-- [con_ron_core::frontend::olean::index::read_infos]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 290:16-293:17
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.read_infos_loop0_loop0
+  (m : ron.hashmap2.HashMap2 frontend.olean.index.Copy
+  (frontend.olean.spec.StmtRec × (frontend.olean.spec.CKindF arena.handle.NIdx
+  Unit)))
+  (r : alloc.vec.Vec (frontend.olean.index.Copy × frontend.olean.spec.StmtRec
+  × (frontend.olean.spec.CKindF arena.handle.NIdx Unit))) (k : Std.Usize) :
+  Result (ron.hashmap2.HashMap2 frontend.olean.index.Copy
+    (frontend.olean.spec.StmtRec × (frontend.olean.spec.CKindF
+    arena.handle.NIdx Unit)))
+  := do
+  let i := alloc.vec.Vec.len r
+  if k < i
+  then
+    let (c, sr, cf) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (frontend.olean.index.Copy × frontend.olean.spec.StmtRec ×
+        (frontend.olean.spec.CKindF arena.handle.NIdx Unit))) r k
+    let c1 ← frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapDup.dup2 c
+    let sr1 ← frontend.olean.index.stmt_rec_dup sr
+    let cf1 ← frontend.olean.index.c_kind_names_dup cf
+    let (_, m1) ←
+      ron.hashmap2.HashMap2.insert
+        frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapHashable
+        frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapEq2 m c1 (sr1,
+        cf1)
+    let k1 ← k + 1#usize
+    frontend.olean.index.read_infos_loop0_loop0 m1 r k1
+  else ok m
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::read_infos]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 285:4-299:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.read_infos_loop0
+  {F : Type _} (filesOleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (sp : frontend.olean.files.Roots)
+  (ld : frontend.olean.levels.HeaderLoads)
+  (ix : frontend.olean.index.NameIndex)
+  (groups : alloc.vec.Vec (Std.U64 × (alloc.vec.Vec
+  frontend.olean.index.Copy)))
+  (m : ron.hashmap2.HashMap2 frontend.olean.index.Copy
+  (frontend.olean.spec.StmtRec × (frontend.olean.spec.CKindF arena.handle.NIdx
+  Unit))) (i : Std.Usize) :
+  Result ((core.result.Result (ron.hashmap2.HashMap2 frontend.olean.index.Copy
+    (frontend.olean.spec.StmtRec × (frontend.olean.spec.CKindF
+    arena.handle.NIdx Unit))) kernel.core_types.CheckError) ×
+    arena.store.EStore)
+  := do
+  let i1 := alloc.vec.Vec.len groups
+  if i < i1
+  then
+    let (i2, v) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Std.U64 ×
+        (alloc.vec.Vec frontend.olean.index.Copy))) groups i
+    let (r, ar1) ←
+      frontend.olean.index.read_infos_of filesOleanFsInst fs pk pers ar sp ld
+        ix i2 v
+    match r with
+    | core.result.Result.Ok r1 =>
+      let m1 ← frontend.olean.index.read_infos_loop0_loop0 m r1 0#usize
+      let i3 ← i + 1#usize
+      frontend.olean.index.read_infos_loop0 filesOleanFsInst fs pk pers ar1 sp
+        ld ix groups m1 i3
+    | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
+  else ok (core.result.Result.Ok m, ar)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::read_infos]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 281:0-299:1
+    Visibility: public -/
+def frontend.olean.index.read_infos
+  {F : Type _} (filesOleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (sp : frontend.olean.files.Roots)
+  (ld : frontend.olean.levels.HeaderLoads)
+  (ix : frontend.olean.index.NameIndex)
+  (cs : alloc.vec.Vec frontend.olean.index.Copy) :
+  Result ((core.result.Result (ron.hashmap2.HashMap2 frontend.olean.index.Copy
+    (frontend.olean.spec.StmtRec × (frontend.olean.spec.CKindF
+    arena.handle.NIdx Unit))) kernel.core_types.CheckError) ×
+    arena.store.EStore)
+  := do
+  let groups ← frontend.olean.index.by_module cs
+  let i := alloc.vec.Vec.len cs
+  let m ←
+    ron.hashmap2.HashMap2.with_capacity frontend.olean.index.Copy
+      (frontend.olean.spec.StmtRec × (frontend.olean.spec.CKindF
+      arena.handle.NIdx Unit)) i
+  frontend.olean.index.read_infos_loop0 filesOleanFsInst fs pk pers ar sp ld ix
+    groups m 0#usize
+
+/-- [con_ron_core::frontend::olean::index::{impl con_ron_core::frontend::olean::merge::HeadTy for con_ron_core::frontend::olean::index::HeadTys}::head_ty]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 311:4-316:5
+    Visibility: public -/
+def
+  frontend.olean.index.HeadTys.Insts.Con_ron_coreFrontendOleanMergeHeadTy.head_ty
+  (self : frontend.olean.index.HeadTys) (n : arena.handle.NIdx) :
+  Result (Option arena.handle.EIdx)
+  := do
+  let o ←
+    ron.hashmap2.HashMap2.get
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 self.m n
+  match o with
+  | none => ok none
+  | some t =>
+    let e ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 t
+    ok (some e)
+
+/-- Trait implementation: [con_ron_core::frontend::olean::index::{impl con_ron_core::frontend::olean::merge::HeadTy for con_ron_core::frontend::olean::index::HeadTys}]
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 309:0-317:1 -/
+@[reducible]
+def frontend.olean.index.HeadTys.Insts.Con_ron_coreFrontendOleanMergeHeadTy :
+  frontend.olean.merge.HeadTy frontend.olean.index.HeadTys := {
+  head_ty :=
+    frontend.olean.index.HeadTys.Insts.Con_ron_coreFrontendOleanMergeHeadTy.head_ty
+}
+
+/-- [con_ron_core::frontend::olean::index::head_ty_step]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 323:0-336:1
+    Visibility: public -/
+def frontend.olean.index.head_ty_step
+  (ix : frontend.olean.index.NameIndex)
+  (infos : ron.hashmap2.HashMap2 frontend.olean.index.Copy
+  (frontend.olean.spec.StmtRec × (frontend.olean.spec.CKindF arena.handle.NIdx
+  Unit))) (m : ron.hashmap2.HashMap2 arena.handle.NIdx arena.handle.EIdx)
+  (c : frontend.olean.index.Copy) :
+  Result (ron.hashmap2.HashMap2 arena.handle.NIdx arena.handle.EIdx)
+  := do
+  let o ← frontend.olean.index.name_index_at ix c
+  match o with
+  | none => ok m
+  | some q =>
+    let o1 ←
+      ron.hashmap2.HashMap2.get
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 ix.first q.name
+    match o1 with
+    | none => ok m
+    | some f =>
+      let o2 ←
+        ron.hashmap2.HashMap2.get
+          frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapHashable
+          frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapEq2 infos f
+      match o2 with
+      | none => ok m
+      | some x =>
+        let n ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 q.name
+        let (sr, _) := x
+        let e ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 sr.ty
+        let (_, m1) ←
+          ron.hashmap2.HashMap2.insert
+            arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+            arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 m n e
+        ok m1
+
+/-- [con_ron_core::frontend::olean::index::head_tys_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 343:4-346:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.head_tys_of_loop
+  (ix : frontend.olean.index.NameIndex)
+  (infos : ron.hashmap2.HashMap2 frontend.olean.index.Copy
+  (frontend.olean.spec.StmtRec × (frontend.olean.spec.CKindF arena.handle.NIdx
+  Unit))) (heads : alloc.vec.Vec frontend.olean.index.Copy)
+  (m : ron.hashmap2.HashMap2 arena.handle.NIdx arena.handle.EIdx)
+  (i : Std.Usize) :
+  Result (ron.hashmap2.HashMap2 arena.handle.NIdx arena.handle.EIdx)
+  := do
+  let i1 := alloc.vec.Vec.len heads
+  if i < i1
+  then
+    let c ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.olean.index.Copy) heads i
+    let m1 ← frontend.olean.index.head_ty_step ix infos m c
+    let i2 ← i + 1#usize
+    frontend.olean.index.head_tys_of_loop ix infos heads m1 i2
+  else ok m
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::head_tys_of]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 340:0-348:1
+    Visibility: public -/
+def frontend.olean.index.head_tys_of
+  (ix : frontend.olean.index.NameIndex)
+  (infos : ron.hashmap2.HashMap2 frontend.olean.index.Copy
+  (frontend.olean.spec.StmtRec × (frontend.olean.spec.CKindF arena.handle.NIdx
+  Unit))) (heads : alloc.vec.Vec frontend.olean.index.Copy) :
+  Result frontend.olean.index.HeadTys
+  := do
+  let i := alloc.vec.Vec.len heads
+  let m ←
+    ron.hashmap2.HashMap2.with_capacity arena.handle.NIdx arena.handle.EIdx i
+  let m1 ← frontend.olean.index.head_tys_of_loop ix infos heads m 0#usize
+  ok { m := m1 }
+
+/-- [con_ron_core::frontend::olean::index::clash_reject::M#3]
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 356:40-356:158 -/
+@[global_simps, irreducible]
+def frontend.olean.index.clash_reject.M_3 : Array Std.U32 21#usize :=
+  Array.make 21#usize [
+    44#u32, 32#u32, 97#u32, 110#u32, 100#u32, 32#u32, 98#u32, 111#u32, 116#u32,
+    104#u32, 32#u32, 97#u32, 114#u32, 101#u32, 32#u32, 108#u32, 111#u32,
+    97#u32, 100#u32, 101#u32, 100#u32
+    ]
+
+/-- [con_ron_core::frontend::olean::index::clash_reject::M#2]
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 355:29-355:208 -/
+@[global_simps, irreducible]
+def frontend.olean.index.clash_reject.M_2 : Array Std.U32 33#usize :=
+  Array.make 33#usize [
+    32#u32, 115#u32, 116#u32, 111#u32, 114#u32, 101#u32, 32#u32, 100#u32,
+    105#u32, 102#u32, 102#u32, 101#u32, 114#u32, 101#u32, 110#u32, 116#u32,
+    32#u32, 99#u32, 111#u32, 110#u32, 115#u32, 116#u32, 97#u32, 110#u32,
+    116#u32, 115#u32, 32#u32, 110#u32, 97#u32, 109#u32, 101#u32, 100#u32,
+    32#u32
+    ]
+
+/-- [con_ron_core::frontend::olean::index::clash_reject::M#1]
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 354:29-354:72 -/
+@[global_simps, irreducible]
+def frontend.olean.index.clash_reject.M_1 : Array Std.U32 5#usize :=
+  Array.make 5#usize [ 32#u32, 97#u32, 110#u32, 100#u32, 32#u32 ]
+
+/-- [con_ron_core::frontend::olean::index::clash_reject::M]
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 353:24-353:84 -/
+@[global_simps, irreducible]
+def frontend.olean.index.clash_reject.M : Array Std.U32 8#usize :=
+  Array.make 8#usize [
+    109#u32, 111#u32, 100#u32, 117#u32, 108#u32, 101#u32, 115#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::olean::index::clash_reject]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 352:0-357:1
+    Visibility: public -/
+def frontend.olean.index.clash_reject
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (ld : frontend.olean.levels.HeaderLoads)
+  (a : Std.U64) (b : Std.U64) (n : arena.handle.NIdx) :
+  Result kernel.core_types.CheckError
+  := do
+  let s ← lift (Array.to_slice frontend.olean.index.clash_reject.M)
+  let v ← kernel.core_types.code_points s
+  let n1 ← frontend.olean.index.header_loads_name_at pk ld a
+  let v1 ← frontend.olean.view.name_text pers ar n1
+  let t ← frontend.text.cat v v1
+  let s1 ← lift (Array.to_slice frontend.olean.index.clash_reject.M_1)
+  let v2 ← kernel.core_types.code_points s1
+  let n2 ← frontend.olean.index.header_loads_name_at pk ld b
+  let v3 ← frontend.olean.view.name_text pers ar n2
+  let t1 ← frontend.text.cat3 t v2 v3
+  let s2 ← lift (Array.to_slice frontend.olean.index.clash_reject.M_2)
+  let v4 ← kernel.core_types.code_points s2
+  let v5 ← frontend.olean.view.name_text pers ar n
+  let t2 ← frontend.text.cat3 t1 v4 v5
+  let s3 ← lift (Array.to_slice frontend.olean.index.clash_reject.M_3)
+  let v6 ← kernel.core_types.code_points s3
+  let v7 ← frontend.text.cat t2 v6
+  kernel.core_types.invalid v7
 
 /-- [con_ron_core::frontend::olean::merge::is_prop_drop]: loop 0:
     Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 94:4-103:1
@@ -113832,6 +117408,2013 @@ def frontend.olean.merge.is_prop_tail
         | arena.store.ENodeView.Proj _ _ _ => ok (core.result.Result.Ok false)
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
+/-- [con_ron_core::frontend::olean::merge::is_prop_head]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 74:4-87:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.merge.is_prop_head_loop
+  (pers : arena.store.PersTier) (ar : arena.store.EStore)
+  (x : arena.handle.EIdx) (k : Std.U64) (fuel : Std.U64) :
+  Result (core.result.Result (Option (arena.handle.NIdx × Std.U64))
+    kernel.core_types.CheckError)
+  := do
+  if fuel > 0#u64
+  then
+    let fuel1 ← fuel - 1#u64
+    let o ← arena.store.EStore.view ar pers x
+    match o with
+    | none =>
+      arena.monad.fail_dangling_e (Option (arena.handle.NIdx × Std.U64))
+    | some ev =>
+      match ev with
+      | arena.store.ENodeView.BVar _ => ok (core.result.Result.Ok none)
+      | arena.store.ENodeView.FVar _ _ => ok (core.result.Result.Ok none)
+      | arena.store.ENodeView.Sort _ => ok (core.result.Result.Ok none)
+      | arena.store.ENodeView.Const n _ =>
+        ok (core.result.Result.Ok (some (n, k)))
+      | arena.store.ENodeView.App f _ =>
+        let k1 ← k + 1#u64
+        frontend.olean.merge.is_prop_head_loop pers ar f k1 fuel1
+      | arena.store.ENodeView.Lam _ _ => ok (core.result.Result.Ok none)
+      | arena.store.ENodeView.ForallE _ _ => ok (core.result.Result.Ok none)
+      | arena.store.ENodeView.LetE _ _ _ => ok (core.result.Result.Ok none)
+      | arena.store.ENodeView.Lit _ => ok (core.result.Result.Ok none)
+      | arena.store.ENodeView.Proj _ _ _ => ok (core.result.Result.Ok none)
+  else ok (core.result.Result.Ok none)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::merge::is_prop_head]:
+    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 70:0-87:1
+    Visibility: public -/
+def frontend.olean.merge.is_prop_head
+  (pers : arena.store.PersTier) (ar : arena.store.EStore)
+  (e : arena.handle.EIdx) :
+  Result (core.result.Result (Option (arena.handle.NIdx × Std.U64))
+    kernel.core_types.CheckError)
+  := do
+  let x ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 e
+  let fuel ← frontend.olean.closure.CLOSURE_FUEL
+  frontend.olean.merge.is_prop_head_loop pers ar x 0#u64 fuel
+
+/-- [con_ron_core::frontend::olean::merge::is_prop_body]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 57:4-66:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.merge.is_prop_body_loop
+  (pers : arena.store.PersTier) (ar : arena.store.EStore)
+  (e : arena.handle.EIdx) (fuel : Std.U64) :
+  Result (core.result.Result arena.handle.EIdx kernel.core_types.CheckError)
+  := do
+  if fuel > 0#u64
+  then
+    let fuel1 ← fuel - 1#u64
+    let o ← arena.store.EStore.view ar pers e
+    match o with
+    | none => arena.monad.fail_dangling_e arena.handle.EIdx
+    | some ev =>
+      match ev with
+      | arena.store.ENodeView.BVar _ => ok (core.result.Result.Ok e)
+      | arena.store.ENodeView.FVar _ _ => ok (core.result.Result.Ok e)
+      | arena.store.ENodeView.Sort _ => ok (core.result.Result.Ok e)
+      | arena.store.ENodeView.Const _ _ => ok (core.result.Result.Ok e)
+      | arena.store.ENodeView.App _ _ => ok (core.result.Result.Ok e)
+      | arena.store.ENodeView.Lam _ _ => ok (core.result.Result.Ok e)
+      | arena.store.ENodeView.ForallE _ b =>
+        frontend.olean.merge.is_prop_body_loop pers ar b fuel1
+      | arena.store.ENodeView.LetE _ _ _ => ok (core.result.Result.Ok e)
+      | arena.store.ENodeView.Lit _ => ok (core.result.Result.Ok e)
+      | arena.store.ENodeView.Proj _ _ _ => ok (core.result.Result.Ok e)
+  else ok (core.result.Result.Ok e)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::merge::is_prop_body]:
+    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 54:0-66:1
+    Visibility: public -/
+def frontend.olean.merge.is_prop_body
+  (pers : arena.store.PersTier) (ar : arena.store.EStore)
+  (ty : arena.handle.EIdx) :
+  Result (core.result.Result arena.handle.EIdx kernel.core_types.CheckError)
+  := do
+  let e ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 ty
+  let fuel ← frontend.olean.closure.CLOSURE_FUEL
+  frontend.olean.merge.is_prop_body_loop pers ar e fuel
+
+/-- [con_ron_core::frontend::olean::merge::is_prop_cheap_f]:
+    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 146:0-159:1
+    Visibility: public -/
+def frontend.olean.merge.is_prop_cheap_f
+  {H : Type _} (HeadTyInst : frontend.olean.merge.HeadTy H)
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (h : H) (ty : arena.handle.EIdx) :
+  Result (core.result.Result Bool kernel.core_types.CheckError)
+  := do
+  let r ← frontend.olean.merge.is_prop_body pers ar ty
+  match r with
+  | core.result.Result.Ok b =>
+    let r1 ← frontend.olean.merge.is_prop_head pers ar b
+    match r1 with
+    | core.result.Result.Ok o =>
+      match o with
+      | none => ok (core.result.Result.Ok false)
+      | some p =>
+        let (n, k) := p
+        let o1 ← HeadTyInst.head_ty h n
+        match o1 with
+        | none => ok (core.result.Result.Ok false)
+        | some t => frontend.olean.merge.is_prop_tail pk pers ar t k
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  | core.result.Result.Err e => ok (core.result.Result.Err e)
+
+/-- [con_ron_core::frontend::olean::merge::subsumes_f]:
+    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 178:0-194:1
+    Visibility: public -/
+def frontend.olean.merge.subsumes_f
+  {H : Type _} {E1 : Type _} {E2 : Type _} (HeadTyInst :
+  frontend.olean.merge.HeadTy H) (pk : frontend.olean.spec.OleanPins)
+  (pers : arena.store.PersTier) (ar : arena.store.EStore) (h : H)
+  (cv1 : frontend.olean.spec.StmtRec)
+  (k1 : frontend.olean.spec.CKindF arena.handle.NIdx E1)
+  (cv2 : frontend.olean.spec.StmtRec)
+  (k2 : frontend.olean.spec.CKindF arena.handle.NIdx E2) :
+  Result (core.result.Result Bool kernel.core_types.CheckError)
+  := do
+  let b ←
+    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 cv1.name cv2.name
+  if b
+  then
+    let b1 ←
+      arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 cv1.ty cv2.ty
+    if b1
+    then
+      let b2 ←
+        frontend.olean.module.nidx_list_eq cv1.level_params cv2.level_params
+      if b2
+      then
+        match k1 with
+        | frontend.olean.spec.CKindF.Ax u1 =>
+          match k2 with
+          | frontend.olean.spec.CKindF.Ax u2 =>
+            if u1 = u2
+            then
+              frontend.olean.merge.is_prop_cheap_f HeadTyInst pk pers ar h
+                cv1.ty
+            else ok (core.result.Result.Ok false)
+          | frontend.olean.spec.CKindF.Defn _ _ _ =>
+            ok (core.result.Result.Ok false)
+          | frontend.olean.spec.CKindF.Thm _ _ =>
+            ok (core.result.Result.Ok false)
+          | frontend.olean.spec.CKindF.Opaq _ _ =>
+            ok (core.result.Result.Ok false)
+          | frontend.olean.spec.CKindF.Quot _ =>
+            ok (core.result.Result.Ok false)
+          | frontend.olean.spec.CKindF.Induct _ _ _ _ _ _ _ _ =>
+            ok (core.result.Result.Ok false)
+          | frontend.olean.spec.CKindF.Ctor _ _ _ _ _ =>
+            ok (core.result.Result.Ok false)
+          | frontend.olean.spec.CKindF.Recur _ _ _ _ _ _ _ _ =>
+            ok (core.result.Result.Ok false)
+        | frontend.olean.spec.CKindF.Defn _ _ _ =>
+          ok (core.result.Result.Ok false)
+        | frontend.olean.spec.CKindF.Thm _ a1 =>
+          match k2 with
+          | frontend.olean.spec.CKindF.Ax u2 =>
+            let i := alloc.vec.Vec.len a1
+            if i = 1#usize
+            then
+              let n ←
+                alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                  arena.handle.NIdx) a1 0#usize
+              let b3 ←
+                arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 n
+                  cv2.name
+              if b3
+              then ok (core.result.Result.Ok (¬ u2))
+              else ok (core.result.Result.Ok false)
+            else ok (core.result.Result.Ok false)
+          | frontend.olean.spec.CKindF.Defn _ _ _ =>
+            ok (core.result.Result.Ok false)
+          | frontend.olean.spec.CKindF.Thm _ a2 =>
+            let b3 ← frontend.olean.module.nidx_list_eq a1 a2
+            ok (core.result.Result.Ok b3)
+          | frontend.olean.spec.CKindF.Opaq _ _ =>
+            ok (core.result.Result.Ok false)
+          | frontend.olean.spec.CKindF.Quot _ =>
+            ok (core.result.Result.Ok false)
+          | frontend.olean.spec.CKindF.Induct _ _ _ _ _ _ _ _ =>
+            ok (core.result.Result.Ok false)
+          | frontend.olean.spec.CKindF.Ctor _ _ _ _ _ =>
+            ok (core.result.Result.Ok false)
+          | frontend.olean.spec.CKindF.Recur _ _ _ _ _ _ _ _ =>
+            ok (core.result.Result.Ok false)
+        | frontend.olean.spec.CKindF.Opaq _ _ =>
+          ok (core.result.Result.Ok false)
+        | frontend.olean.spec.CKindF.Quot _ => ok (core.result.Result.Ok false)
+        | frontend.olean.spec.CKindF.Induct _ _ _ _ _ _ _ _ =>
+          ok (core.result.Result.Ok false)
+        | frontend.olean.spec.CKindF.Ctor _ _ _ _ _ =>
+          ok (core.result.Result.Ok false)
+        | frontend.olean.spec.CKindF.Recur _ _ _ _ _ _ _ _ =>
+          ok (core.result.Result.Ok false)
+      else ok (core.result.Result.Ok false)
+    else ok (core.result.Result.Ok false)
+  else ok (core.result.Result.Ok false)
+
+/-- [con_ron_core::frontend::olean::index::clash_step]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 379:0-391:1
+    Visibility: public -/
+def frontend.olean.index.clash_step
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (ld : frontend.olean.levels.HeaderLoads)
+  (h : frontend.olean.index.HeadTys) (c : frontend.olean.index.Clash)
+  (kept : Std.Usize) (i : Std.Usize) :
+  Result (core.result.Result Std.Usize kernel.core_types.CheckError)
+  := do
+  let next ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+      (frontend.olean.index.Copy × frontend.olean.spec.StmtRec ×
+      (frontend.olean.spec.CKindF arena.handle.NIdx Unit))) c.copies i
+  let kp ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+      (frontend.olean.index.Copy × frontend.olean.spec.StmtRec ×
+      (frontend.olean.spec.CKindF arena.handle.NIdx Unit))) c.copies kept
+  let (c1, sr, cf) := next
+  let (c2, sr1, cf1) := kp
+  let r ←
+    frontend.olean.merge.subsumes_f
+      frontend.olean.index.HeadTys.Insts.Con_ron_coreFrontendOleanMergeHeadTy
+      pk pers ar h sr cf sr1 cf1
+  match r with
+  | core.result.Result.Ok b =>
+    if b
+    then ok (core.result.Result.Ok i)
+    else
+      let r1 ←
+        frontend.olean.merge.subsumes_f
+          frontend.olean.index.HeadTys.Insts.Con_ron_coreFrontendOleanMergeHeadTy
+          pk pers ar h sr1 cf1 sr cf
+      match r1 with
+      | core.result.Result.Ok b1 =>
+        if b1
+        then ok (core.result.Result.Ok kept)
+        else
+          let ce ←
+            frontend.olean.index.clash_reject pk pers ar ld c2.module 
+              c1.module c.name
+          ok (core.result.Result.Err ce)
+      | core.result.Result.Err e => ok (core.result.Result.Err e)
+  | core.result.Result.Err e => ok (core.result.Result.Err e)
+
+/-- [con_ron_core::frontend::olean::index::clash_ok]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 366:4-374:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.clash_ok_loop
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (ld : frontend.olean.levels.HeaderLoads)
+  (h : frontend.olean.index.HeadTys) (c : frontend.olean.index.Clash)
+  (kept : Std.Usize) (i : Std.Usize) :
+  Result (core.result.Result Unit kernel.core_types.CheckError)
+  := do
+  let i1 := alloc.vec.Vec.len c.copies
+  if i < i1
+  then
+    let r ← frontend.olean.index.clash_step pk pers ar ld h c kept i
+    match r with
+    | core.result.Result.Ok k =>
+      let i2 ← i + 1#usize
+      frontend.olean.index.clash_ok_loop pk pers ar ld h c k i2
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok ())
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::clash_ok]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 363:0-374:1
+    Visibility: public -/
+@[reducible]
+def frontend.olean.index.clash_ok
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (ld : frontend.olean.levels.HeaderLoads)
+  (h : frontend.olean.index.HeadTys) (c : frontend.olean.index.Clash) :
+  Result (core.result.Result Unit kernel.core_types.CheckError)
+  := do
+  frontend.olean.index.clash_ok_loop pk pers ar ld h c 0#usize 1#usize
+
+/-- [con_ron_core::frontend::olean::index::first_loaded]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 416:4-423:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.first_loaded_loop
+  (ix : frontend.olean.index.NameIndex)
+  (own : frontend.olean.reads.NamePositions) (i : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  let i1 := alloc.vec.Vec.len own.consts
+  if i < i1
+  then
+    let np ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.olean.reads.NamePosition) own.consts i
+    let b ←
+      ron.hashmap2.HashMap2.contains_key
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 ix.first np.name
+    if b
+    then ok (some i)
+    else
+      let i2 ← i + 1#usize
+      frontend.olean.index.first_loaded_loop ix own i2
+  else ok none
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::first_loaded]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 414:0-423:1
+    Visibility: public -/
+@[reducible]
+def frontend.olean.index.first_loaded
+  (ix : frontend.olean.index.NameIndex)
+  (own : frontend.olean.reads.NamePositions) :
+  Result (Option Std.Usize)
+  := do
+  frontend.olean.index.first_loaded_loop ix own 0#usize
+
+/-- [con_ron_core::frontend::olean::index::fresh_ok::M#3]
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 407:52-407:150 -/
+@[global_simps, irreducible]
+def frontend.olean.index.fresh_ok.M_3 : Array Std.U32 16#usize :=
+  Array.make 16#usize [
+    32#u32, 105#u32, 116#u32, 32#u32, 108#u32, 111#u32, 97#u32, 100#u32,
+    115#u32, 32#u32, 115#u32, 116#u32, 111#u32, 114#u32, 101#u32, 115#u32
+    ]
+
+/-- [con_ron_core::frontend::olean::index::fresh_ok::M#2]
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 406:37-406:148 -/
+@[global_simps, irreducible]
+def frontend.olean.index.fresh_ok.M_2 : Array Std.U32 19#usize :=
+  Array.make 19#usize [
+    44#u32, 32#u32, 119#u32, 104#u32, 105#u32, 99#u32, 104#u32, 32#u32,
+    116#u32, 104#u32, 101#u32, 32#u32, 109#u32, 111#u32, 100#u32, 117#u32,
+    108#u32, 101#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::olean::index::fresh_ok::M#1]
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 405:37-405:105 -/
+@[global_simps, irreducible]
+def frontend.olean.index.fresh_ok.M_1 : Array Std.U32 10#usize :=
+  Array.make 10#usize [
+    32#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32, 101#u32,
+    115#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::olean::index::fresh_ok::M]
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 404:32-404:87 -/
+@[global_simps, irreducible]
+def frontend.olean.index.fresh_ok.M : Array Std.U32 7#usize :=
+  Array.make 7#usize [
+    109#u32, 111#u32, 100#u32, 117#u32, 108#u32, 101#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::olean::index::fresh_ok]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 395:0-410:1
+    Visibility: public -/
+def frontend.olean.index.fresh_ok
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (m : arena.handle.NIdx)
+  (ld : frontend.olean.levels.HeaderLoads)
+  (ix : frontend.olean.index.NameIndex)
+  (own : frontend.olean.reads.NamePositions) :
+  Result (core.result.Result Unit kernel.core_types.CheckError)
+  := do
+  let o ← frontend.olean.index.first_loaded ix own
+  match o with
+  | none => ok (core.result.Result.Ok ())
+  | some i =>
+    let q ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.olean.reads.NamePosition) own.consts i
+    let o1 ←
+      ron.hashmap2.HashMap2.get
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 ix.first q.name
+    let src ←
+      match o1 with
+      | none => arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 pk.anon
+      | some c => frontend.olean.index.header_loads_name_at pk ld c.module
+    let s ← lift (Array.to_slice frontend.olean.index.fresh_ok.M)
+    let v ← kernel.core_types.code_points s
+    let v1 ← frontend.olean.view.name_text pers ar m
+    let t ← frontend.text.cat v v1
+    let s1 ← lift (Array.to_slice frontend.olean.index.fresh_ok.M_1)
+    let v2 ← kernel.core_types.code_points s1
+    let v3 ← frontend.olean.view.name_text pers ar q.name
+    let t1 ← frontend.text.cat3 t v2 v3
+    let s2 ← lift (Array.to_slice frontend.olean.index.fresh_ok.M_2)
+    let v4 ← kernel.core_types.code_points s2
+    let v5 ← frontend.olean.view.name_text pers ar src
+    let t2 ← frontend.text.cat3 t1 v4 v5
+    let s3 ← lift (Array.to_slice frontend.olean.index.fresh_ok.M_3)
+    let v6 ← kernel.core_types.code_points s3
+    let v7 ← frontend.text.cat t2 v6
+    let ce ← kernel.core_types.invalid v7
+    ok (core.result.Result.Err ce)
+
+/-- [con_ron_core::frontend::olean::index::part_is_module]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 428:0-435:1
+    Visibility: public -/
+def frontend.olean.index.part_is_module
+  (ix : frontend.olean.index.NameIndex) (k : Std.U64) : Result Bool := do
+  let i ← lift (UScalar.cast .Usize k)
+  let i1 := alloc.vec.Vec.len ix.parts
+  if i < i1
+  then
+    let np ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.olean.reads.NamePositions) ix.parts i
+    ok np.header.is_module
+  else ok false
+
+/-- [con_ron_core::frontend::olean::index::classic_import]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 456:0-461:1
+    Visibility: public -/
+def frontend.olean.index.classic_import
+  (ld : frontend.olean.levels.HeaderLoads)
+  (ix : frontend.olean.index.NameIndex)
+  (i : frontend.olean.spec.ImportF arena.handle.NIdx) :
+  Result Bool
+  := do
+  let o ←
+    ron.hashmap2.HashMap2.get
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 ld.index i.module
+  match o with
+  | none => ok false
+  | some k => let b ← frontend.olean.index.part_is_module ix k
+              ok (¬ b)
+
+/-- [con_ron_core::frontend::olean::index::first_classic]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 467:4-474:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.first_classic_loop
+  (ld : frontend.olean.levels.HeaderLoads)
+  (ix : frontend.olean.index.NameIndex)
+  (imports : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+  (i : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  let i1 := alloc.vec.Vec.len imports
+  if i < i1
+  then
+    let «if» ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (frontend.olean.spec.ImportF arena.handle.NIdx)) imports i
+    let b ← frontend.olean.index.classic_import ld ix «if»
+    if b
+    then ok (some i)
+    else
+      let i2 ← i + 1#usize
+      frontend.olean.index.first_classic_loop ld ix imports i2
+  else ok none
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::first_classic]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 465:0-474:1
+    Visibility: public -/
+@[reducible]
+def frontend.olean.index.first_classic
+  (ld : frontend.olean.levels.HeaderLoads)
+  (ix : frontend.olean.index.NameIndex)
+  (imports : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)) :
+  Result (Option Std.Usize)
+  := do
+  frontend.olean.index.first_classic_loop ld ix imports 0#usize
+
+/-- [con_ron_core::frontend::olean::index::imports_modules_ok::M#2]
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 449:52-449:139 -/
+@[global_simps, irreducible]
+def frontend.olean.index.imports_modules_ok.M_2 : Array Std.U32 14#usize :=
+  Array.make 14#usize [
+    44#u32, 32#u32, 119#u32, 104#u32, 105#u32, 99#u32, 104#u32, 32#u32,
+    105#u32, 115#u32, 32#u32, 110#u32, 111#u32, 116#u32
+    ]
+
+/-- [con_ron_core::frontend::olean::index::imports_modules_ok::M#1]
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 448:37-448:203 -/
+@[global_simps, irreducible]
+def frontend.olean.index.imports_modules_ok.M_1 : Array Std.U32 30#usize :=
+  Array.make 30#usize [
+    32#u32, 111#u32, 102#u32, 32#u32, 116#u32, 104#u32, 101#u32, 32#u32,
+    109#u32, 111#u32, 100#u32, 117#u32, 108#u32, 101#u32, 32#u32, 115#u32,
+    121#u32, 115#u32, 116#u32, 101#u32, 109#u32, 32#u32, 105#u32, 109#u32,
+    112#u32, 111#u32, 114#u32, 116#u32, 115#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::olean::index::imports_modules_ok::M]
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 447:32-447:87 -/
+@[global_simps, irreducible]
+def frontend.olean.index.imports_modules_ok.M : Array Std.U32 7#usize :=
+  Array.make 7#usize [
+    109#u32, 111#u32, 100#u32, 117#u32, 108#u32, 101#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::olean::index::imports_modules_ok]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 440:0-452:1
+    Visibility: public -/
+def frontend.olean.index.imports_modules_ok
+  (pers : arena.store.PersTier) (ar : arena.store.EStore)
+  (m : arena.handle.NIdx) (is_module : Bool)
+  (ld : frontend.olean.levels.HeaderLoads)
+  (ix : frontend.olean.index.NameIndex)
+  (imports : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)) :
+  Result (core.result.Result Unit kernel.core_types.CheckError)
+  := do
+  if is_module
+  then
+    let o ← frontend.olean.index.first_classic ld ix imports
+    match o with
+    | none => ok (core.result.Result.Ok ())
+    | some i =>
+      let s ← lift (Array.to_slice frontend.olean.index.imports_modules_ok.M)
+      let v ← kernel.core_types.code_points s
+      let v1 ← frontend.olean.view.name_text pers ar m
+      let t ← frontend.text.cat v v1
+      let s1 ←
+        lift (Array.to_slice frontend.olean.index.imports_modules_ok.M_1)
+      let v2 ← kernel.core_types.code_points s1
+      let «if» ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          (frontend.olean.spec.ImportF arena.handle.NIdx)) imports i
+      let v3 ← frontend.olean.view.name_text pers ar «if».module
+      let t1 ← frontend.text.cat3 t v2 v3
+      let s2 ←
+        lift (Array.to_slice frontend.olean.index.imports_modules_ok.M_2)
+      let v4 ← kernel.core_types.code_points s2
+      let v5 ← frontend.text.cat t1 v4
+      let ce ← kernel.core_types.invalid v5
+      ok (core.result.Result.Err ce)
+  else ok (core.result.Result.Ok ())
+
+/-- [con_ron_core::frontend::olean::index::first_or]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 532:0-537:1
+    Visibility: public -/
+def frontend.olean.index.first_or
+  (ix : frontend.olean.index.NameIndex) (n : arena.handle.NIdx)
+  (c : frontend.olean.index.Copy) :
+  Result frontend.olean.index.Copy
+  := do
+  let o ←
+    ron.hashmap2.HashMap2.get
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 ix.first n
+  match o with
+  | none => frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapDup.dup2 c
+  | some f => frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapDup.dup2 f
+
+/-- [con_ron_core::frontend::olean::index::at_of]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 523:0-528:1
+    Visibility: public -/
+def frontend.olean.index.at_of
+  («at» : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (n : arena.handle.NIdx) :
+  Result (Option Std.U64)
+  := do
+  let o ←
+    ron.hashmap2.HashMap2.get
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 «at» n
+  match o with
+  | none => ok none
+  | some _ => ok o
+
+/-- [con_ron_core::frontend::olean::index::clash_copies_step]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 508:0-519:1
+    Visibility: public -/
+def frontend.olean.index.clash_copies_step
+  (ix : frontend.olean.index.NameIndex)
+  («at» : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (out : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  frontend.olean.index.Copy))) (n : arena.handle.NIdx)
+  (c : frontend.olean.index.Copy) :
+  Result ((ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64) × (alloc.vec.Vec
+    (arena.handle.NIdx × (alloc.vec.Vec frontend.olean.index.Copy))))
+  := do
+  let o ← frontend.olean.index.at_of «at» n
+  match o with
+  | none =>
+    let cs := alloc.vec.Vec.with_capacity frontend.olean.index.Copy 2#usize
+    let c1 ← frontend.olean.index.first_or ix n c
+    let cs1 ← alloc.vec.Vec.push cs c1
+    let c2 ← frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapDup.dup2 c
+    let cs2 ← alloc.vec.Vec.push cs1 c2
+    let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
+    let i := alloc.vec.Vec.len out
+    let i1 ← lift (UScalar.cast .U64 i)
+    let (_, at1) ←
+      ron.hashmap2.HashMap2.insert
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 «at» n1 i1
+    let out1 ← alloc.vec.Vec.push out (n1, cs2)
+    ok (at1, out1)
+  | some k =>
+    let i ← lift (UScalar.cast .Usize k)
+    let ((n1, v), index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+        (arena.handle.NIdx × (alloc.vec.Vec frontend.olean.index.Copy))) out i
+    let c1 ← frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapDup.dup2 c
+    let v1 ← alloc.vec.Vec.push v c1
+    let out1 := index_mut_back (n1, v1)
+    ok («at», out1)
+
+/-- [con_ron_core::frontend::olean::index::clash_copies]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 498:4-501:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.clash_copies_loop
+  (ix : frontend.olean.index.NameIndex)
+  («at» : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (out : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  frontend.olean.index.Copy))) (i : Std.Usize) :
+  Result (alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+    frontend.olean.index.Copy)))
+  := do
+  let i1 := alloc.vec.Vec.len ix.more
+  if i < i1
+  then
+    let (n, c) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (arena.handle.NIdx × frontend.olean.index.Copy)) ix.more i
+    let (at1, out1) ←
+      frontend.olean.index.clash_copies_step ix «at» out n c
+    let i2 ← i + 1#usize
+    frontend.olean.index.clash_copies_loop ix at1 out1 i2
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::clash_copies]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 494:0-503:1
+    Visibility: public -/
+def frontend.olean.index.clash_copies
+  (ix : frontend.olean.index.NameIndex) :
+  Result (alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+    frontend.olean.index.Copy)))
+  := do
+  let «at» ← ron.hashmap2.HashMap2.new arena.handle.NIdx Std.U64
+  frontend.olean.index.clash_copies_loop ix «at» (alloc.vec.Vec.new
+    (arena.handle.NIdx × (alloc.vec.Vec frontend.olean.index.Copy))) 0#usize
+
+/-- [con_ron_core::frontend::olean::index::name_positions_with_imports]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 549:8-552:9
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.name_positions_with_imports_loop
+  (x : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+  (imports : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+  := do
+  let i1 := alloc.vec.Vec.len x
+  if i < i1
+  then
+    let «if» ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (frontend.olean.spec.ImportF arena.handle.NIdx)) x i
+    let if1 ← frontend.olean.levels.import_rec_dup «if»
+    let imports1 ← alloc.vec.Vec.push imports if1
+    let i2 ← i + 1#usize
+    frontend.olean.index.name_positions_with_imports_loop x imports1 i2
+  else ok imports
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::name_positions_with_imports]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 543:0-555:1
+    Visibility: public -/
+def frontend.olean.index.name_positions_with_imports
+  (own : frontend.olean.reads.NamePositions)
+  (x : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)) :
+  Result frontend.olean.reads.NamePositions
+  := do
+  let i := alloc.vec.Vec.len x
+  if i = 0#usize
+  then ok own
+  else
+    let imports ←
+      frontend.olean.index.name_positions_with_imports_loop x
+        own.header.imports 0#usize
+    ok
+      {
+        header := { own.header with imports },
+        consts := (alloc.vec.Vec.new frontend.olean.reads.NamePosition)
+      }
+
+/-- [con_ron_core::frontend::olean::index::loaded_parts]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 562:4-570:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.loaded_parts_loop
+  {F : Type _} (filesOleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (sp : frontend.olean.files.Roots)
+  (v : alloc.vec.Vec arena.handle.NIdx)
+  (v1 : alloc.vec.Vec frontend.olean.levels.LoadFlags)
+  (v2 : alloc.vec.Vec (alloc.vec.Vec (frontend.olean.spec.ImportF
+  arena.handle.NIdx))) (hm : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (parts : alloc.vec.Vec frontend.olean.reads.NamePositions) (i : Std.Usize) :
+  Result ((core.result.Result (alloc.vec.Vec
+    frontend.olean.reads.NamePositions) kernel.core_types.CheckError) ×
+    arena.store.EStore)
+  := do
+  let i1 := alloc.vec.Vec.len v
+  if i < i1
+  then
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.handle.NIdx) v i
+    let i2 ← lift (UScalar.cast .U64 i)
+    let ol ←
+      frontend.olean.index.header_loads_level_at
+        { order := v, flags := v1, imports := v2, index := hm } i2
+    let (r, ar1) ←
+      frontend.olean.files.read_part_names filesOleanFsInst fs pk pers ar sp n
+        ol
+    match r with
+    | core.result.Result.Ok p =>
+      let parts1 ← alloc.vec.Vec.push parts p
+      let i3 ← i + 1#usize
+      frontend.olean.index.loaded_parts_loop filesOleanFsInst fs pk pers ar1 sp
+        v v1 v2 hm parts1 i3
+    | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
+  else ok (core.result.Result.Ok parts, ar)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::loaded_parts]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 559:0-570:1
+    Visibility: public -/
+def frontend.olean.index.loaded_parts
+  {F : Type _} (filesOleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (sp : frontend.olean.files.Roots)
+  (ld : frontend.olean.levels.HeaderLoads) :
+  Result ((core.result.Result (alloc.vec.Vec
+    frontend.olean.reads.NamePositions) kernel.core_types.CheckError) ×
+    arena.store.EStore)
+  := do
+  let i := alloc.vec.Vec.len ld.order
+  let parts := alloc.vec.Vec.with_capacity frontend.olean.reads.NamePositions i
+  frontend.olean.index.loaded_parts_loop filesOleanFsInst fs pk pers ar sp
+    ld.order ld.flags ld.imports ld.index parts 0#usize
+
+/-- [con_ron_core::frontend::olean::index::info_of]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 574:0-579:1
+    Visibility: public -/
+def frontend.olean.index.info_of
+  (infos : ron.hashmap2.HashMap2 frontend.olean.index.Copy
+  (frontend.olean.spec.StmtRec × (frontend.olean.spec.CKindF arena.handle.NIdx
+  Unit))) (c : frontend.olean.index.Copy) :
+  Result (Option (frontend.olean.index.Copy × frontend.olean.spec.StmtRec ×
+    (frontend.olean.spec.CKindF arena.handle.NIdx Unit)))
+  := do
+  let o ←
+    ron.hashmap2.HashMap2.get
+      frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapHashable
+      frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapEq2 infos c
+  match o with
+  | none => ok none
+  | some x =>
+    let c1 ← frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapDup.dup2 c
+    let (sr, cf) := x
+    let sr1 ← frontend.olean.index.stmt_rec_dup sr
+    let cf1 ← frontend.olean.index.c_kind_names_dup cf
+    ok (some (c1, sr1, cf1))
+
+/-- [con_ron_core::frontend::olean::index::clashes_of]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 590:8-596:9
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.clashes_of_loop0_loop0
+  (infos : ron.hashmap2.HashMap2 frontend.olean.index.Copy
+  (frontend.olean.spec.StmtRec × (frontend.olean.spec.CKindF arena.handle.NIdx
+  Unit))) (cs : alloc.vec.Vec frontend.olean.index.Copy)
+  (copies : alloc.vec.Vec (frontend.olean.index.Copy ×
+  frontend.olean.spec.StmtRec × (frontend.olean.spec.CKindF arena.handle.NIdx
+  Unit))) (k : Std.Usize) :
+  Result (alloc.vec.Vec (frontend.olean.index.Copy ×
+    frontend.olean.spec.StmtRec × (frontend.olean.spec.CKindF
+    arena.handle.NIdx Unit)))
+  := do
+  let i := alloc.vec.Vec.len cs
+  if k < i
+  then
+    let c ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.olean.index.Copy) cs k
+    let o ← frontend.olean.index.info_of infos c
+    let copies1 ←
+      match o with
+      | none => ok copies
+      | some x => alloc.vec.Vec.push copies x
+    let k1 ← k + 1#usize
+    frontend.olean.index.clashes_of_loop0_loop0 infos cs copies1 k1
+  else ok copies
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::clashes_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 586:4-599:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.clashes_of_loop0
+  (cc : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  frontend.olean.index.Copy)))
+  (infos : ron.hashmap2.HashMap2 frontend.olean.index.Copy
+  (frontend.olean.spec.StmtRec × (frontend.olean.spec.CKindF arena.handle.NIdx
+  Unit))) (out : alloc.vec.Vec frontend.olean.index.Clash) (i : Std.Usize) :
+  Result (alloc.vec.Vec frontend.olean.index.Clash)
+  := do
+  let i1 := alloc.vec.Vec.len cc
+  if i < i1
+  then
+    let (_, cs) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (arena.handle.NIdx × (alloc.vec.Vec frontend.olean.index.Copy))) cc i
+    let i2 := alloc.vec.Vec.len cs
+    let copies :=
+      alloc.vec.Vec.with_capacity (frontend.olean.index.Copy ×
+        frontend.olean.spec.StmtRec × (frontend.olean.spec.CKindF
+        arena.handle.NIdx Unit)) i2
+    let copies1 ←
+      frontend.olean.index.clashes_of_loop0_loop0 infos cs copies 0#usize
+    let (n, _) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (arena.handle.NIdx × (alloc.vec.Vec frontend.olean.index.Copy))) cc i
+    let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
+    let out1 ←
+      alloc.vec.Vec.push out ({ «name» := n1, copies := copies1 } :
+        frontend.olean.index.Clash)
+    let i3 ← i + 1#usize
+    frontend.olean.index.clashes_of_loop0 cc infos out1 i3
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::clashes_of]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 583:0-601:1
+    Visibility: public -/
+def frontend.olean.index.clashes_of
+  (cc : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  frontend.olean.index.Copy)))
+  (infos : ron.hashmap2.HashMap2 frontend.olean.index.Copy
+  (frontend.olean.spec.StmtRec × (frontend.olean.spec.CKindF arena.handle.NIdx
+  Unit))) :
+  Result (alloc.vec.Vec frontend.olean.index.Clash)
+  := do
+  let i := alloc.vec.Vec.len cc
+  let out := alloc.vec.Vec.with_capacity frontend.olean.index.Clash i
+  frontend.olean.index.clashes_of_loop0 cc infos out 0#usize
+
+/-- [con_ron_core::frontend::olean::merge::is_prop_cheap_head_of]:
+    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 163:0-172:1
+    Visibility: public -/
+def frontend.olean.merge.is_prop_cheap_head_of
+  (pers : arena.store.PersTier) (ar : arena.store.EStore)
+  (ty : arena.handle.EIdx) :
+  Result (core.result.Result (Option arena.handle.NIdx)
+    kernel.core_types.CheckError)
+  := do
+  let r ← frontend.olean.merge.is_prop_body pers ar ty
+  match r with
+  | core.result.Result.Ok b =>
+    let r1 ← frontend.olean.merge.is_prop_head pers ar b
+    match r1 with
+    | core.result.Result.Ok o =>
+      match o with
+      | none => ok (core.result.Result.Ok none)
+      | some p => let (n, _) := p
+                  ok (core.result.Result.Ok (some n))
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  | core.result.Result.Err e => ok (core.result.Result.Err e)
+
+/-- [con_ron_core::frontend::olean::index::clash_head]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 623:0-638:1
+    Visibility: public -/
+def frontend.olean.index.clash_head
+  (pers : arena.store.PersTier) (ar : arena.store.EStore)
+  (ix : frontend.olean.index.NameIndex) (cl : frontend.olean.index.Clash) :
+  Result (core.result.Result (Option frontend.olean.index.Copy)
+    kernel.core_types.CheckError)
+  := do
+  let i := alloc.vec.Vec.len cl.copies
+  if i = 0#usize
+  then ok (core.result.Result.Ok none)
+  else
+    let (_, sr, cf) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (frontend.olean.index.Copy × frontend.olean.spec.StmtRec ×
+        (frontend.olean.spec.CKindF arena.handle.NIdx Unit))) cl.copies 0#usize
+    match cf with
+    | frontend.olean.spec.CKindF.Ax _ =>
+      let r ← frontend.olean.merge.is_prop_cheap_head_of pers ar sr.ty
+      match r with
+      | core.result.Result.Ok o =>
+        match o with
+        | none => ok (core.result.Result.Ok none)
+        | some n =>
+          let o1 ←
+            ron.hashmap2.HashMap2.get
+              arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+              arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 ix.first n
+          match o1 with
+          | none => ok (core.result.Result.Ok none)
+          | some c =>
+            let c1 ←
+              frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapDup.dup2 c
+            ok (core.result.Result.Ok (some c1))
+      | core.result.Result.Err e => ok (core.result.Result.Err e)
+    | frontend.olean.spec.CKindF.Defn _ _ _ => ok (core.result.Result.Ok none)
+    | frontend.olean.spec.CKindF.Thm _ _ => ok (core.result.Result.Ok none)
+    | frontend.olean.spec.CKindF.Opaq _ _ => ok (core.result.Result.Ok none)
+    | frontend.olean.spec.CKindF.Quot _ => ok (core.result.Result.Ok none)
+    | frontend.olean.spec.CKindF.Induct _ _ _ _ _ _ _ _ =>
+      ok (core.result.Result.Ok none)
+    | frontend.olean.spec.CKindF.Ctor _ _ _ _ _ =>
+      ok (core.result.Result.Ok none)
+    | frontend.olean.spec.CKindF.Recur _ _ _ _ _ _ _ _ =>
+      ok (core.result.Result.Ok none)
+
+/-- [con_ron_core::frontend::olean::index::clash_heads]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 609:4-618:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.clash_heads_loop
+  (pers : arena.store.PersTier) (ar : arena.store.EStore)
+  (ix : frontend.olean.index.NameIndex)
+  (clashes : alloc.vec.Vec frontend.olean.index.Clash)
+  (acc : alloc.vec.Vec frontend.olean.index.Copy) (i : Std.Usize) :
+  Result (core.result.Result (alloc.vec.Vec frontend.olean.index.Copy)
+    kernel.core_types.CheckError)
+  := do
+  let i1 := alloc.vec.Vec.len clashes
+  if i < i1
+  then
+    let c ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.olean.index.Clash) clashes i
+    let r ← frontend.olean.index.clash_head pers ar ix c
+    match r with
+    | core.result.Result.Ok o =>
+      let acc1 ←
+        match o with
+        | none => ok acc
+        | some c1 => alloc.vec.Vec.push acc c1
+      let i2 ← i + 1#usize
+      frontend.olean.index.clash_heads_loop pers ar ix clashes acc1 i2
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok acc)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::clash_heads]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 606:0-618:1
+    Visibility: public -/
+@[reducible]
+def frontend.olean.index.clash_heads
+  (pers : arena.store.PersTier) (ar : arena.store.EStore)
+  (ix : frontend.olean.index.NameIndex)
+  (clashes : alloc.vec.Vec frontend.olean.index.Clash) :
+  Result (core.result.Result (alloc.vec.Vec frontend.olean.index.Copy)
+    kernel.core_types.CheckError)
+  := do
+  frontend.olean.index.clash_heads_loop pers ar ix clashes (alloc.vec.Vec.new
+    frontend.olean.index.Copy) 0#usize
+
+/-- [con_ron_core::frontend::olean::index::clashes_ok]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 644:4-652:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.clashes_ok_loop
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (ld : frontend.olean.levels.HeaderLoads)
+  (h : frontend.olean.index.HeadTys)
+  (clashes : alloc.vec.Vec frontend.olean.index.Clash) (i : Std.Usize) :
+  Result (core.result.Result Unit kernel.core_types.CheckError)
+  := do
+  let i1 := alloc.vec.Vec.len clashes
+  if i < i1
+  then
+    let c ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.olean.index.Clash) clashes i
+    let r ← frontend.olean.index.clash_ok pk pers ar ld h c
+    match r with
+    | core.result.Result.Ok _ =>
+      let i2 ← i + 1#usize
+      frontend.olean.index.clashes_ok_loop pk pers ar ld h clashes i2
+    | core.result.Result.Err _ => ok r
+  else ok (core.result.Result.Ok ())
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::clashes_ok]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 642:0-652:1
+    Visibility: public -/
+@[reducible]
+def frontend.olean.index.clashes_ok
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (ld : frontend.olean.levels.HeaderLoads)
+  (h : frontend.olean.index.HeadTys)
+  (clashes : alloc.vec.Vec frontend.olean.index.Clash) :
+  Result (core.result.Result Unit kernel.core_types.CheckError)
+  := do
+  frontend.olean.index.clashes_ok_loop pk pers ar ld h clashes 0#usize
+
+/-- [con_ron_core::frontend::olean::index::all_copies]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 661:8-664:9
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.all_copies_loop0_loop0
+  (cc : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  frontend.olean.index.Copy))) (out : alloc.vec.Vec frontend.olean.index.Copy)
+  (i : Std.Usize) (k : Std.Usize) :
+  Result (alloc.vec.Vec frontend.olean.index.Copy)
+  := do
+  let (_, v) ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+      (arena.handle.NIdx × (alloc.vec.Vec frontend.olean.index.Copy))) cc i
+  let i1 := alloc.vec.Vec.len v
+  if k < i1
+  then
+    let c ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.olean.index.Copy) v k
+    let c1 ← frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapDup.dup2 c
+    let out1 ← alloc.vec.Vec.push out c1
+    let k1 ← k + 1#usize
+    frontend.olean.index.all_copies_loop0_loop0 cc out1 i k1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::all_copies]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 659:4-666:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.index.all_copies_loop0
+  (cc : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  frontend.olean.index.Copy))) (out : alloc.vec.Vec frontend.olean.index.Copy)
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec frontend.olean.index.Copy)
+  := do
+  let i1 := alloc.vec.Vec.len cc
+  if i < i1
+  then
+    let out1 ← frontend.olean.index.all_copies_loop0_loop0 cc out i 0#usize
+    let i2 ← i + 1#usize
+    frontend.olean.index.all_copies_loop0 cc out1 i2
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::index::all_copies]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 656:0-668:1
+    Visibility: public -/
+@[reducible]
+def frontend.olean.index.all_copies
+  (cc : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
+  frontend.olean.index.Copy))) :
+  Result (alloc.vec.Vec frontend.olean.index.Copy)
+  := do
+  frontend.olean.index.all_copies_loop0 cc (alloc.vec.Vec.new
+    frontend.olean.index.Copy) 0#usize
+
+/-- [con_ron_core::frontend::olean::levels::mod_set_union]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 333:4-338:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.levels.mod_set_union_loop
+  (t : alloc.vec.Vec Std.U8) (s : alloc.vec.Vec Std.U8) (k : Std.Usize) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let i := alloc.vec.Vec.len t
+  if k < i
+  then
+    let i1 := alloc.vec.Vec.len s
+    let s1 ←
+      if k < i1
+      then
+        do
+        let i2 ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U8) s
+            k
+        let i3 ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U8) t
+            k
+        let (_, index_mut_back) ←
+          alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+            Std.U8) s k
+        let i4 ← lift (i2 ||| i3)
+        ok (index_mut_back i4)
+      else ok s
+    let k1 ← k + 1#usize
+    frontend.olean.levels.mod_set_union_loop t s1 k1
+  else ok s
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::levels::mod_set_union]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 330:0-340:1
+    Visibility: public -/
+@[reducible]
+def frontend.olean.levels.mod_set_union
+  (s : alloc.vec.Vec Std.U8) (t : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  frontend.olean.levels.mod_set_union_loop t s 0#usize
+
+/-- [con_ron_core::frontend::olean::levels::mod_set_add]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 319:0-326:1
+    Visibility: public -/
+def frontend.olean.levels.mod_set_add
+  (s : alloc.vec.Vec Std.U8) (i : Std.U64) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let i1 ← i / 8#u64
+  let b ← lift (UScalar.cast .Usize i1)
+  let i2 := alloc.vec.Vec.len s
+  if b < i2
+  then
+    let i3 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U8) s b
+    let i4 ← i % 8#u64
+    let i5 ← lift (UScalar.cast .U8 i4)
+    let i6 ← 1#u8 <<< i5
+    let (_, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U8) s
+        b
+    let i7 ← lift (i3 ||| i6)
+    ok (index_mut_back i7)
+  else ok s
+
+/-- [con_ron_core::frontend::olean::levels::pub_closure_step]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 379:0-393:1
+    Visibility: public -/
+def frontend.olean.levels.pub_closure_step
+  (ld : frontend.olean.levels.HeaderLoads)
+  (acc : alloc.vec.Vec (alloc.vec.Vec Std.U8)) (s : alloc.vec.Vec Std.U8)
+  (imp : frontend.olean.spec.ImportF arena.handle.NIdx) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  if imp.is_exported
+  then
+    let o ←
+      ron.hashmap2.HashMap2.get
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 ld.index imp.module
+    match o with
+    | none => ok s
+    | some j =>
+      let i ← lift (UScalar.cast .Usize j)
+      let i1 := alloc.vec.Vec.len acc
+      if i < i1
+      then
+        let i2 ← lift (UScalar.cast .Usize j)
+        let v ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            (alloc.vec.Vec Std.U8)) acc i2
+        frontend.olean.levels.mod_set_union s v
+      else frontend.olean.levels.mod_set_add s j
+  else ok s
+
+/-- [con_ron_core::frontend::olean::levels::mod_set_empty]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 299:4-302:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.levels.mod_set_empty_loop
+  (k : Std.Usize) (s : alloc.vec.Vec Std.U8) (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  if i < k
+  then
+    let s1 ← alloc.vec.Vec.push s 0#u8
+    let i1 ← i + 1#usize
+    frontend.olean.levels.mod_set_empty_loop k s1 i1
+  else ok s
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::levels::mod_set_empty]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 295:0-304:1
+    Visibility: public -/
+def frontend.olean.levels.mod_set_empty
+  (n : Std.U64) : Result (alloc.vec.Vec Std.U8) := do
+  let i ← n + 7#u64
+  let i1 ← i / 8#u64
+  let k ← lift (UScalar.cast .Usize i1)
+  let s := alloc.vec.Vec.with_capacity Std.U8 k
+  frontend.olean.levels.mod_set_empty_loop k s 0#usize
+
+/-- [con_ron_core::frontend::olean::levels::pub_closure_at]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 368:8-371:9
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.levels.pub_closure_at_loop
+  (v : alloc.vec.Vec arena.handle.NIdx)
+  (v1 : alloc.vec.Vec frontend.olean.levels.LoadFlags)
+  (v2 : alloc.vec.Vec (alloc.vec.Vec (frontend.olean.spec.ImportF
+  arena.handle.NIdx))) (hm : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (acc : alloc.vec.Vec (alloc.vec.Vec Std.U8)) (s : alloc.vec.Vec Std.U8)
+  (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+  (k : Std.Usize) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let i := alloc.vec.Vec.len imps
+  if k < i
+  then
+    let «if» ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (frontend.olean.spec.ImportF arena.handle.NIdx)) imps k
+    let s1 ←
+      frontend.olean.levels.pub_closure_step
+        { order := v, flags := v1, imports := v2, index := hm } acc s «if»
+    let k1 ← k + 1#usize
+    frontend.olean.levels.pub_closure_at_loop v v1 v2 hm acc s1 imps k1
+  else ok s
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::levels::pub_closure_at]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 362:0-374:1
+    Visibility: public -/
+def frontend.olean.levels.pub_closure_at
+  (ld : frontend.olean.levels.HeaderLoads)
+  (acc : alloc.vec.Vec (alloc.vec.Vec Std.U8)) (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let i1 := alloc.vec.Vec.len ld.order
+  let n ← lift (UScalar.cast .U64 i1)
+  let v ← frontend.olean.levels.mod_set_empty n
+  let i2 ← lift (UScalar.cast .U64 i)
+  let s ← frontend.olean.levels.mod_set_add v i2
+  let i3 := alloc.vec.Vec.len ld.imports
+  if i < i3
+  then
+    let imps ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        (frontend.olean.spec.ImportF arena.handle.NIdx))) ld.imports i
+    frontend.olean.levels.pub_closure_at_loop ld.order ld.flags ld.imports
+      ld.index acc s imps 0#usize
+  else ok s
+
+/-- [con_ron_core::frontend::olean::levels::pub_closures]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 404:4-408:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.levels.pub_closures_loop
+  (v : alloc.vec.Vec arena.handle.NIdx)
+  (v1 : alloc.vec.Vec frontend.olean.levels.LoadFlags)
+  (v2 : alloc.vec.Vec (alloc.vec.Vec (frontend.olean.spec.ImportF
+  arena.handle.NIdx))) (hm : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+  (n : Std.Usize) (acc : alloc.vec.Vec (alloc.vec.Vec Std.U8)) (i : Std.Usize)
+  :
+  Result (alloc.vec.Vec (alloc.vec.Vec Std.U8))
+  := do
+  if i < n
+  then
+    let s ←
+      frontend.olean.levels.pub_closure_at
+        { order := v, flags := v1, imports := v2, index := hm } acc i
+    let acc1 ← alloc.vec.Vec.push acc s
+    let i1 ← i + 1#usize
+    frontend.olean.levels.pub_closures_loop v v1 v2 hm n acc1 i1
+  else ok acc
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::levels::pub_closures]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 400:0-410:1
+    Visibility: public -/
+def frontend.olean.levels.pub_closures
+  (ld : frontend.olean.levels.HeaderLoads) :
+  Result (alloc.vec.Vec (alloc.vec.Vec Std.U8))
+  := do
+  let n := alloc.vec.Vec.len ld.order
+  let acc := alloc.vec.Vec.with_capacity (alloc.vec.Vec Std.U8) n
+  frontend.olean.levels.pub_closures_loop ld.order ld.flags ld.imports 
+    ld.index n acc 0#usize
+
+/-- [con_ron_core::frontend::olean::levels::imports_out]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 272:0-277:1
+    Visibility: public -/
+def frontend.olean.levels.imports_out
+  (imports : ron.hashmap2.HashMap2 arena.handle.NIdx (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx))) (m : arena.handle.NIdx) :
+  Result ((alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)) ×
+    (ron.hashmap2.HashMap2 arena.handle.NIdx (alloc.vec.Vec
+    (frontend.olean.spec.ImportF arena.handle.NIdx))))
+  := do
+  let (o, imports1) ←
+    ron.hashmap2.HashMap2.remove
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 imports m
+  match o with
+  | none =>
+    ok (alloc.vec.Vec.new (frontend.olean.spec.ImportF arena.handle.NIdx),
+      imports1)
+  | some is => ok (is, imports1)
+
+/-- [con_ron_core::frontend::olean::levels::load_flags_dup]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 42:0-44:1
+    Visibility: public -/
+def frontend.olean.levels.load_flags_dup
+  (l : frontend.olean.levels.LoadFlags) :
+  Result frontend.olean.levels.LoadFlags
+  := do
+  ok l
+
+/-- [con_ron_core::frontend::olean::levels::flags_at]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 262:0-267:1
+    Visibility: public -/
+def frontend.olean.levels.flags_at
+  (flags : ron.hashmap2.HashMap2 arena.handle.NIdx
+  frontend.olean.levels.LoadFlags) (m : arena.handle.NIdx) :
+  Result frontend.olean.levels.LoadFlags
+  := do
+  let o ←
+    ron.hashmap2.HashMap2.get
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 flags m
+  match o with
+  | none => ok { import_all := false, is_exported := false }
+  | some fl => frontend.olean.levels.load_flags_dup fl
+
+/-- [con_ron_core::frontend::olean::levels::header_loads_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 250:4-256:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.levels.header_loads_of_loop
+  (hm : ron.hashmap2.HashMap2 arena.handle.NIdx
+  frontend.olean.levels.LoadFlags) (v : alloc.vec.Vec arena.handle.NIdx)
+  (hm1 : ron.hashmap2.HashMap2 arena.handle.NIdx (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx))) (n : Std.Usize)
+  (flags : alloc.vec.Vec frontend.olean.levels.LoadFlags)
+  (imports : alloc.vec.Vec (alloc.vec.Vec (frontend.olean.spec.ImportF
+  arena.handle.NIdx)))
+  (index : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64) (i : Std.Usize) :
+  Result ((alloc.vec.Vec frontend.olean.levels.LoadFlags) × (alloc.vec.Vec
+    (alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))) ×
+    (ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64))
+  := do
+  if i < n
+  then
+    let n1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.handle.NIdx) v i
+    let m ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n1
+    let lf ← frontend.olean.levels.flags_at hm m
+    let flags1 ← alloc.vec.Vec.push flags lf
+    let (v1, hm2) ← frontend.olean.levels.imports_out hm1 m
+    let imports1 ← alloc.vec.Vec.push imports v1
+    let i1 ← lift (UScalar.cast .U64 i)
+    let (_, index1) ←
+      ron.hashmap2.HashMap2.insert
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 index m i1
+    let i2 ← i + 1#usize
+    frontend.olean.levels.header_loads_of_loop hm v hm2 n flags1 imports1
+      index1 i2
+  else ok (flags, imports, index)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::levels::header_loads_of]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 243:0-258:1
+    Visibility: public -/
+def frontend.olean.levels.header_loads_of
+  (st : frontend.olean.levels.LvState) :
+  Result frontend.olean.levels.HeaderLoads
+  := do
+  let n := alloc.vec.Vec.len st.order
+  let flags := alloc.vec.Vec.with_capacity frontend.olean.levels.LoadFlags n
+  let imports :=
+    alloc.vec.Vec.with_capacity (alloc.vec.Vec (frontend.olean.spec.ImportF
+      arena.handle.NIdx)) n
+  let index ← ron.hashmap2.HashMap2.with_capacity arena.handle.NIdx Std.U64 n
+  let (flags1, imports1, index1) ←
+    frontend.olean.levels.header_loads_of_loop st.flags st.order st.imports n
+      flags imports index 0#usize
+  ok
+    { order := st.order, flags := flags1, imports := imports1, index := index1
+    }
+
+/-- [con_ron_core::frontend::olean::levels::lv_push]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 107:0-114:1
+    Visibility: public -/
+def frontend.olean.levels.lv_push
+  (stack : alloc.vec.Vec frontend.olean.levels.LvWork) (sp : Std.Usize)
+  (x : frontend.olean.levels.LvWork) :
+  Result (Std.Usize × (alloc.vec.Vec frontend.olean.levels.LvWork))
+  := do
+  let i := alloc.vec.Vec.len stack
+  let stack1 ←
+    if sp < i
+    then
+      do
+      let (_, index_mut_back) ←
+        alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+          frontend.olean.levels.LvWork) stack sp
+      ok (index_mut_back x)
+    else alloc.vec.Vec.push stack x
+  let i1 ← sp + 1#usize
+  ok (i1, stack1)
+
+/-- [con_ron_core::frontend::olean::levels::lv_push_imports]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 122:4-125:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.levels.lv_push_imports_loop
+  (stack : alloc.vec.Vec frontend.olean.levels.LvWork)
+  (fl : frontend.olean.levels.LoadFlags)
+  (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+  (s : Std.Usize) (i : Std.Usize) :
+  Result (Std.Usize × (alloc.vec.Vec frontend.olean.levels.LvWork))
+  := do
+  if i > 0#usize
+  then
+    let i1 ← i - 1#usize
+    let lf ← frontend.olean.levels.load_flags_dup fl
+    let «if» ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (frontend.olean.spec.ImportF arena.handle.NIdx)) imps i1
+    let if1 ← frontend.olean.levels.import_rec_dup «if»
+    let (s1, stack1) ←
+      frontend.olean.levels.lv_push stack s (frontend.olean.levels.LvWork.Imp
+        lf if1)
+    frontend.olean.levels.lv_push_imports_loop stack1 fl imps s1 i1
+  else ok (s, stack)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::levels::lv_push_imports]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 119:0-127:1
+    Visibility: public -/
+def frontend.olean.levels.lv_push_imports
+  (stack : alloc.vec.Vec frontend.olean.levels.LvWork) (sp : Std.Usize)
+  (fl : frontend.olean.levels.LoadFlags)
+  (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)) :
+  Result (Std.Usize × (alloc.vec.Vec frontend.olean.levels.LvWork))
+  := do
+  let i := alloc.vec.Vec.len imps
+  frontend.olean.levels.lv_push_imports_loop stack fl imps sp i
+
+/-- [con_ron_core::frontend::olean::levels::levels_again]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 162:0-167:1
+    Visibility: public -/
+def frontend.olean.levels.levels_again
+  (stack : alloc.vec.Vec frontend.olean.levels.LvWork) (sp : Std.Usize)
+  (imports : ron.hashmap2.HashMap2 arena.handle.NIdx (alloc.vec.Vec
+  (frontend.olean.spec.ImportF arena.handle.NIdx)))
+  (fl : frontend.olean.levels.LoadFlags) (m : arena.handle.NIdx) :
+  Result (Std.Usize × (alloc.vec.Vec frontend.olean.levels.LvWork))
+  := do
+  let o ←
+    ron.hashmap2.HashMap2.get
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 imports m
+  match o with
+  | none => ok (sp, stack)
+  | some is => frontend.olean.levels.lv_push_imports stack sp fl is
+
+/-- [con_ron_core::frontend::olean::levels::load_flags_beq]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 48:0-50:1
+    Visibility: public -/
+def frontend.olean.levels.load_flags_beq
+  (a : frontend.olean.levels.LoadFlags) (b : frontend.olean.levels.LoadFlags) :
+  Result Bool
+  := do
+  if a.import_all = b.import_all
+  then ok (a.is_exported = b.is_exported)
+  else ok false
+
+/-- [con_ron_core::frontend::olean::levels::levels_join]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 145:0-157:1
+    Visibility: public -/
+def frontend.olean.levels.levels_join
+  (flags : ron.hashmap2.HashMap2 arena.handle.NIdx
+  frontend.olean.levels.LoadFlags) (fl : frontend.olean.levels.LoadFlags)
+  (m : arena.handle.NIdx) :
+  Result (Option frontend.olean.levels.LoadFlags)
+  := do
+  let o ←
+    ron.hashmap2.HashMap2.get
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 flags m
+  match o with
+  | none => ok none
+  | some old =>
+    let (old1, b) ←
+      if fl.import_all
+      then ok (old, true)
+      else ok (old, old.import_all)
+    let (old2, b1) ←
+      if fl.is_exported
+      then ok (old1, true)
+      else ok (old1, old1.is_exported)
+    let b2 ←
+      frontend.olean.levels.load_flags_beq
+        { import_all := b, is_exported := b1 } old2
+    if b2
+    then ok none
+    else ok (some { import_all := b, is_exported := b1 })
+
+/-- [con_ron_core::frontend::olean::levels::levels_cycle::M#1]
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 139:41-139:148 -/
+@[global_simps, irreducible]
+def frontend.olean.levels.levels_cycle.M_1 : Array Std.U32 18#usize :=
+  Array.make 18#usize [
+    32#u32, 105#u32, 115#u32, 32#u32, 105#u32, 109#u32, 112#u32, 111#u32,
+    114#u32, 116#u32, 101#u32, 100#u32, 32#u32, 98#u32, 121#u32, 32#u32,
+    105#u32, 116#u32
+    ]
+
+/-- [con_ron_core::frontend::olean::levels::levels_cycle::M]
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 138:24-138:202 -/
+@[global_simps, irreducible]
+def frontend.olean.levels.levels_cycle.M : Array Std.U32 33#usize :=
+  Array.make 33#usize [
+    105#u32, 109#u32, 112#u32, 111#u32, 114#u32, 116#u32, 32#u32, 99#u32,
+    121#u32, 99#u32, 108#u32, 101#u32, 58#u32, 32#u32, 97#u32, 32#u32, 109#u32,
+    111#u32, 100#u32, 117#u32, 108#u32, 101#u32, 32#u32, 105#u32, 109#u32,
+    112#u32, 111#u32, 114#u32, 116#u32, 105#u32, 110#u32, 103#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::olean::levels::levels_cycle]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 137:0-140:1
+    Visibility: public -/
+def frontend.olean.levels.levels_cycle
+  (pers : arena.store.PersTier) (ar : arena.store.EStore)
+  (m : arena.handle.NIdx) :
+  Result kernel.core_types.CheckError
+  := do
+  let s ← lift (Array.to_slice frontend.olean.levels.levels_cycle.M)
+  let v ← kernel.core_types.code_points s
+  let v1 ← frontend.olean.view.name_text pers ar m
+  let t ← frontend.text.cat v v1
+  let s1 ← lift (Array.to_slice frontend.olean.levels.levels_cycle.M_1)
+  let v2 ← kernel.core_types.code_points s1
+  let v3 ← frontend.text.cat t v2
+  kernel.core_types.internal v3
+
+/-- [con_ron_core::frontend::olean::levels::levels_out_of_fuel::M]
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 132:31-132:225 -/
+@[global_simps, irreducible]
+def frontend.olean.levels.levels_out_of_fuel.M : Array Std.U32 36#usize :=
+  Array.make 36#usize [
+    116#u32, 104#u32, 101#u32, 32#u32, 104#u32, 101#u32, 97#u32, 100#u32,
+    101#u32, 114#u32, 32#u32, 102#u32, 105#u32, 120#u32, 112#u32, 111#u32,
+    105#u32, 110#u32, 116#u32, 32#u32, 114#u32, 97#u32, 110#u32, 32#u32,
+    111#u32, 117#u32, 116#u32, 32#u32, 111#u32, 102#u32, 32#u32, 115#u32,
+    116#u32, 101#u32, 112#u32, 115#u32
+    ]
+
+/-- [con_ron_core::frontend::olean::levels::levels_out_of_fuel]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 131:0-133:1
+    Visibility: public -/
+def frontend.olean.levels.levels_out_of_fuel
+  (T : Type _) :
+  Result (core.result.Result T kernel.core_types.CheckError)
+  := do
+  let s ← lift (Array.to_slice frontend.olean.levels.levels_out_of_fuel.M)
+  let v ← kernel.core_types.code_points s
+  let ce ← kernel.core_types.internal v
+  ok (core.result.Result.Err ce)
+
+/-- [con_ron_core::frontend::olean::levels::lv_work_dup]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 73:0-78:1
+    Visibility: public -/
+def frontend.olean.levels.lv_work_dup
+  (w : frontend.olean.levels.LvWork) :
+  Result frontend.olean.levels.LvWork
+  := do
+  match w with
+  | frontend.olean.levels.LvWork.Imp pf i =>
+    let lf ← frontend.olean.levels.load_flags_dup pf
+    let «if» ← frontend.olean.levels.import_rec_dup i
+    ok (frontend.olean.levels.LvWork.Imp lf «if»)
+  | frontend.olean.levels.LvWork.Done m fl =>
+    let n ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 m
+    let lf ← frontend.olean.levels.load_flags_dup fl
+    ok (frontend.olean.levels.LvWork.Done n lf)
+
+/-- [con_ron_core::frontend::olean::levels::levels_go]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 182:4-224:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.levels.levels_go_loop
+  {F : Type _} (filesOleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (sp_dirs : frontend.olean.files.Roots)
+  (g_priv : Bool) (stack : alloc.vec.Vec frontend.olean.levels.LvWork)
+  (sp : Std.Usize) (st : frontend.olean.levels.LvState) (fuel : Std.U64) :
+  Result ((core.result.Result frontend.olean.levels.LvState
+    kernel.core_types.CheckError) × arena.store.EStore)
+  := do
+  if sp > 0#usize
+  then
+    if fuel = 0#u64
+    then
+      let r ←
+        frontend.olean.levels.levels_out_of_fuel frontend.olean.levels.LvState
+      ok (r, ar)
+    else
+      let fuel1 ← fuel - 1#u64
+      let sp1 ← sp - 1#usize
+      let lw ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          frontend.olean.levels.LvWork) stack sp1
+      let lw1 ← frontend.olean.levels.lv_work_dup lw
+      match lw1 with
+      | frontend.olean.levels.LvWork.Imp pf i =>
+        if i.is_exported
+        then
+          let (pf1, b) ←
+            if g_priv
+            then ok (pf, true)
+            else
+              do
+              let b1 ← if pf.import_all
+                         then ok i.import_all
+                         else ok false
+              ok (pf, b1)
+          let b1 ← if pf1.is_exported
+                     then ok i.is_exported
+                     else ok false
+          let b2 ←
+            ron.hashmap2.HashMap2.contains_key
+              arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+              arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 st.flags
+              i.module
+          if b2
+          then
+            let o ←
+              frontend.olean.levels.levels_join st.flags
+                { import_all := b, is_exported := b1 } i.module
+            match o with
+            | none =>
+              frontend.olean.levels.levels_go_loop filesOleanFsInst fs pk pers
+                ar sp_dirs g_priv stack sp1 st fuel1
+            | some fl2 =>
+              let (sp2, stack1) ←
+                frontend.olean.levels.levels_again stack sp1 st.imports fl2
+                  i.module
+              let (_, hm) ←
+                ron.hashmap2.HashMap2.insert
+                  arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+                  arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 st.flags
+                  i.module fl2
+              frontend.olean.levels.levels_go_loop filesOleanFsInst fs pk pers
+                ar sp_dirs g_priv stack1 sp2 { st with flags := hm } fuel1
+          else
+            let b3 ←
+              ron.hashmap2.HashMap2.contains_key
+                arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+                arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 st.open
+                i.module
+            if b3
+            then
+              let ce ← frontend.olean.levels.levels_cycle pers ar i.module
+              ok (core.result.Result.Err ce, ar)
+            else
+              let (r, ar1) ←
+                frontend.olean.files.module_imports filesOleanFsInst fs pk pers
+                  ar sp_dirs i.module
+              match r with
+              | core.result.Result.Ok is =>
+                let n ←
+                  arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2
+                    i.module
+                let lf ←
+                  frontend.olean.levels.load_flags_dup
+                    { import_all := b, is_exported := b1 }
+                let (sp2, stack1) ←
+                  frontend.olean.levels.lv_push stack sp1
+                    (frontend.olean.levels.LvWork.Done n lf)
+                let (sp3, stack2) ←
+                  frontend.olean.levels.lv_push_imports stack1 sp2
+                    { import_all := b, is_exported := b1 } is
+                let (_, hm) ←
+                  ron.hashmap2.HashMap2.insert
+                    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+                    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 
+                    st.open n true
+                let (_, hm1) ←
+                  ron.hashmap2.HashMap2.insert
+                    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+                    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2
+                    st.imports i.module is
+                frontend.olean.levels.levels_go_loop filesOleanFsInst fs pk
+                  pers ar1 sp_dirs g_priv stack2 sp3
+                  { st with «open» := hm, imports := hm1 } fuel1
+              | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
+        else
+          if pf.import_all
+          then
+            let b ←
+              if g_priv
+              then ok true
+              else if pf.import_all
+                   then ok i.import_all
+                   else ok false
+            let b1 ← if pf.is_exported
+                       then ok i.is_exported
+                       else ok false
+            let b2 ←
+              ron.hashmap2.HashMap2.contains_key
+                arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+                arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 st.flags
+                i.module
+            if b2
+            then
+              let o ←
+                frontend.olean.levels.levels_join st.flags
+                  { import_all := b, is_exported := b1 } i.module
+              match o with
+              | none =>
+                frontend.olean.levels.levels_go_loop filesOleanFsInst fs pk
+                  pers ar sp_dirs g_priv stack sp1 st fuel1
+              | some fl2 =>
+                let (sp2, stack1) ←
+                  frontend.olean.levels.levels_again stack sp1 st.imports fl2
+                    i.module
+                let (_, hm) ←
+                  ron.hashmap2.HashMap2.insert
+                    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+                    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 
+                    st.flags i.module fl2
+                frontend.olean.levels.levels_go_loop filesOleanFsInst fs pk
+                  pers ar sp_dirs g_priv stack1 sp2 { st with flags := hm }
+                  fuel1
+            else
+              let b3 ←
+                ron.hashmap2.HashMap2.contains_key
+                  arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+                  arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 st.open
+                  i.module
+              if b3
+              then
+                let ce ← frontend.olean.levels.levels_cycle pers ar i.module
+                ok (core.result.Result.Err ce, ar)
+              else
+                let (r, ar1) ←
+                  frontend.olean.files.module_imports filesOleanFsInst fs pk
+                    pers ar sp_dirs i.module
+                match r with
+                | core.result.Result.Ok is =>
+                  let n ←
+                    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2
+                      i.module
+                  let lf ←
+                    frontend.olean.levels.load_flags_dup
+                      { import_all := b, is_exported := b1 }
+                  let (sp2, stack1) ←
+                    frontend.olean.levels.lv_push stack sp1
+                      (frontend.olean.levels.LvWork.Done n lf)
+                  let (sp3, stack2) ←
+                    frontend.olean.levels.lv_push_imports stack1 sp2
+                      { import_all := b, is_exported := b1 } is
+                  let (_, hm) ←
+                    ron.hashmap2.HashMap2.insert
+                      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+                      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 
+                      st.open n true
+                  let (_, hm1) ←
+                    ron.hashmap2.HashMap2.insert
+                      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+                      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2
+                      st.imports i.module is
+                  frontend.olean.levels.levels_go_loop filesOleanFsInst fs pk
+                    pers ar1 sp_dirs g_priv stack2 sp3
+                    { st with «open» := hm, imports := hm1 } fuel1
+                | core.result.Result.Err e =>
+                  ok (core.result.Result.Err e, ar1)
+          else
+            frontend.olean.levels.levels_go_loop filesOleanFsInst fs pk pers ar
+              sp_dirs g_priv stack sp1 st fuel1
+      | frontend.olean.levels.LvWork.Done m fl =>
+        let n ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 m
+        let (_, hm) ←
+          ron.hashmap2.HashMap2.insert
+            arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+            arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 st.flags n fl
+        let (_, hm1) ←
+          ron.hashmap2.HashMap2.remove
+            arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+            arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 st.open m
+        let v ← alloc.vec.Vec.push st.order m
+        frontend.olean.levels.levels_go_loop filesOleanFsInst fs pk pers ar
+          sp_dirs g_priv stack sp1
+          { st with flags := hm, «open» := hm1, order := v } fuel1
+  else ok (core.result.Result.Ok st, ar)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::levels::levels_go]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 177:0-224:1
+    Visibility: public -/
+def frontend.olean.levels.levels_go
+  {F : Type _} (filesOleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (sp_dirs : frontend.olean.files.Roots)
+  (g_priv : Bool) (stack : alloc.vec.Vec frontend.olean.levels.LvWork)
+  (top : Std.Usize) (st : frontend.olean.levels.LvState) :
+  Result ((core.result.Result frontend.olean.levels.LvState
+    kernel.core_types.CheckError) × arena.store.EStore)
+  := do
+  let fuel ← frontend.olean.closure.CLOSURE_FUEL
+  frontend.olean.levels.levels_go_loop filesOleanFsInst fs pk pers ar sp_dirs
+    g_priv stack top st fuel
+
+/-- [con_ron_core::frontend::olean::levels::lv_state_empty]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 101:0-103:1
+    Visibility: public -/
+def frontend.olean.levels.lv_state_empty
+  : Result frontend.olean.levels.LvState := do
+  let hm ←
+    ron.hashmap2.HashMap2.new arena.handle.NIdx frontend.olean.levels.LoadFlags
+  let hm1 ← ron.hashmap2.HashMap2.new arena.handle.NIdx Bool
+  let hm2 ←
+    ron.hashmap2.HashMap2.new arena.handle.NIdx (alloc.vec.Vec
+      (frontend.olean.spec.ImportF arena.handle.NIdx))
+  ok
+    {
+      flags := hm,
+      «open» := hm1,
+      order := (alloc.vec.Vec.new arena.handle.NIdx),
+      imports := hm2
+    }
+
+/-- [con_ron_core::frontend::olean::levels::header_fixpoint]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 283:0-291:1
+    Visibility: public -/
+def frontend.olean.levels.header_fixpoint
+  {F : Type _} (filesOleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (sp_dirs : frontend.olean.files.Roots)
+  (is_module : Bool)
+  (imports : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)) :
+  Result ((core.result.Result frontend.olean.levels.HeaderLoads
+    kernel.core_types.CheckError) × arena.store.EStore)
+  := do
+  let i := alloc.vec.Vec.len imports
+  let stack := alloc.vec.Vec.with_capacity frontend.olean.levels.LvWork i
+  let (sp, stack1) ←
+    frontend.olean.levels.lv_push_imports stack 0#usize
+      { import_all := true, is_exported := is_module } imports
+  let ls ← frontend.olean.levels.lv_state_empty
+  let (r, ar1) ←
+    frontend.olean.levels.levels_go filesOleanFsInst fs pk pers ar sp_dirs (¬
+      is_module) stack1 sp ls
+  match r with
+  | core.result.Result.Ok st =>
+    let hl ← frontend.olean.levels.header_loads_of st
+    ok (core.result.Result.Ok hl, ar1)
+  | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
+
+/-- [con_ron_core::frontend::olean::index::worker_reads]:
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 677:0-718:1
+    Visibility: public -/
+def frontend.olean.index.worker_reads
+  {F : Type _} (filesOleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (sp : frontend.olean.files.Roots)
+  (m : arena.handle.NIdx)
+  (x : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)) :
+  Result ((core.result.Result frontend.olean.index.WorkerReads
+    kernel.core_types.CheckError) × arena.store.EStore)
+  := do
+  let (r, ar1) ←
+    frontend.olean.files.read_part_names filesOleanFsInst fs pk pers ar sp m
+      frontend.olean.view.OLeanLevel.Private
+  match r with
+  | core.result.Result.Ok o =>
+    let own ← frontend.olean.index.name_positions_with_imports o x
+    let (r1, ar2) ←
+      frontend.olean.levels.header_fixpoint filesOleanFsInst fs pk pers ar1 sp
+        own.header.is_module own.header.imports
+    match r1 with
+    | core.result.Result.Ok ld =>
+      let (r2, ar3) ←
+        frontend.olean.index.loaded_parts filesOleanFsInst fs pk pers ar2 sp ld
+      match r2 with
+      | core.result.Result.Ok parts =>
+        let ix ← frontend.olean.index.name_index_of parts
+        let r3 ←
+          frontend.olean.index.imports_modules_ok pers ar3 m
+            own.header.is_module ld ix own.header.imports
+        match r3 with
+        | core.result.Result.Ok _ =>
+          let cc ← frontend.olean.index.clash_copies ix
+          let v ← frontend.olean.index.all_copies cc
+          let (r4, ar4) ←
+            frontend.olean.index.read_infos filesOleanFsInst fs pk pers ar3 sp
+              ld ix v
+          match r4 with
+          | core.result.Result.Ok i =>
+            let clashes ← frontend.olean.index.clashes_of cc i
+            let r5 ← frontend.olean.index.clash_heads pers ar4 ix clashes
+            match r5 with
+            | core.result.Result.Ok h =>
+              let (r6, ar5) ←
+                frontend.olean.index.read_infos filesOleanFsInst fs pk pers ar4
+                  sp ld ix h
+              match r6 with
+              | core.result.Result.Ok i1 =>
+                let ht ← frontend.olean.index.head_tys_of ix i1 h
+                let r7 ←
+                  frontend.olean.index.clashes_ok pk pers ar5 ld ht clashes
+                match r7 with
+                | core.result.Result.Ok _ =>
+                  let r8 ←
+                    frontend.olean.index.fresh_ok pk pers ar5 m ld ix own
+                  match r8 with
+                  | core.result.Result.Ok _ =>
+                    let pub_ ← frontend.olean.levels.pub_closures ld
+                    ok (core.result.Result.Ok
+                      { own, loads := ld, pub_, index := ix, clashes }, ar5)
+                  | core.result.Result.Err e =>
+                    ok (core.result.Result.Err e, ar5)
+                | core.result.Result.Err e =>
+                  ok (core.result.Result.Err e, ar5)
+              | core.result.Result.Err e => ok (core.result.Result.Err e, ar5)
+            | core.result.Result.Err e => ok (core.result.Result.Err e, ar4)
+          | core.result.Result.Err e => ok (core.result.Result.Err e, ar4)
+        | core.result.Result.Err e => ok (core.result.Result.Err e, ar3)
+      | core.result.Result.Err e => ok (core.result.Result.Err e, ar3)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, ar2)
+  | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
+
+/-- [con_ron_core::frontend::olean::lazy::ref_module]:
+    Source: 'crates/con-ron-core/src/frontend/olean/lazy.rs', lines 300:0-302:1
+    Visibility: public -/
+def frontend.olean.lazy.ref_module (code : Std.U64) : Result Std.U64 := do
+  let i ← frontend.olean.lazy.REF_BASE
+  code % i
+
+/-- [con_ron_core::frontend::olean::lazy::ref_loc]:
+    Source: 'crates/con-ron-core/src/frontend/olean/lazy.rs', lines 306:0-308:1
+    Visibility: public -/
+def frontend.olean.lazy.ref_loc (code : Std.U64) : Result Std.U64 := do
+  let i ← frontend.olean.lazy.REF_BASE
+  code / i
+
+/-- [con_ron_core::frontend::olean::levels::mod_set_has]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 308:0-315:1
+    Visibility: public -/
+def frontend.olean.levels.mod_set_has
+  (s : alloc.vec.Vec Std.U8) (i : Std.U64) : Result Bool := do
+  let i1 ← i / 8#u64
+  let b ← lift (UScalar.cast .Usize i1)
+  let i2 := alloc.vec.Vec.len s
+  if b < i2
+  then
+    let i3 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U8) s b
+    let i4 ← i % 8#u64
+    let i5 ← lift (UScalar.cast .U8 i4)
+    let i6 ← i3 >>> i5
+    let i7 ← lift (i6 &&& 1#u8)
+    ok (i7 = 1#u8)
+  else ok false
+
+/-- [con_ron_core::frontend::olean::levels::mod_set_card]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 349:8-352:9
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.levels.mod_set_card_loop0_loop0
+  (s : alloc.vec.Vec Std.U8) (n : Std.U64) (k : Std.Usize) (j : Std.U8) :
+  Result Std.U64
+  := do
+  if j < 8#u8
+  then
+    let i ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U8) s k
+    let i1 ← i >>> j
+    let i2 ← lift (i1 &&& 1#u8)
+    let i3 ← lift (UScalar.cast .U64 i2)
+    let n1 ← n + i3
+    let j1 ← j + 1#u8
+    frontend.olean.levels.mod_set_card_loop0_loop0 s n1 k j1
+  else ok n
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::levels::mod_set_card]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 347:4-354:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.levels.mod_set_card_loop0
+  (s : alloc.vec.Vec Std.U8) (n : Std.U64) (k : Std.Usize) :
+  Result Std.U64
+  := do
+  let i := alloc.vec.Vec.len s
+  if k < i
+  then
+    let n1 ← frontend.olean.levels.mod_set_card_loop0_loop0 s n k 0#u8
+    let k1 ← k + 1#usize
+    frontend.olean.levels.mod_set_card_loop0 s n1 k1
+  else ok n
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::levels::mod_set_card]:
+    Source: 'crates/con-ron-core/src/frontend/olean/levels.rs', lines 344:0-356:1
+    Visibility: public -/
+@[reducible]
+def frontend.olean.levels.mod_set_card
+  (s : alloc.vec.Vec Std.U8) : Result Std.U64 := do
+  frontend.olean.levels.mod_set_card_loop0 s 0#u64 0#usize
+
 /-- [con_ron_core::frontend::olean::merge::is_prop_cheap]:
     Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 122:0-135:1
     Visibility: public -/
@@ -113859,7 +119442,7 @@ def frontend.olean.merge.is_prop_cheap
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::frontend::olean::merge::subsumes]:
-    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 139:0-155:1
+    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 198:0-214:1
     Visibility: public -/
 def frontend.olean.merge.subsumes
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -113947,7 +119530,7 @@ def frontend.olean.merge.subsumes
   else ok (core.result.Result.Ok false)
 
 /-- [con_ron_core::frontend::olean::merge::merge_conflict::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 193:32-193:265 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 252:32-252:265 -/
 @[global_simps, irreducible]
 def frontend.olean.merge.merge_conflict.M : Array Std.U32 44#usize :=
   Array.make 44#usize [
@@ -113960,7 +119543,7 @@ def frontend.olean.merge.merge_conflict.M : Array Std.U32 44#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::merge::merge_conflict]:
-    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 189:0-197:1
+    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 248:0-256:1
     Visibility: public -/
 def frontend.olean.merge.merge_conflict
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -113979,7 +119562,7 @@ def frontend.olean.merge.merge_conflict
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::frontend::olean::merge::merge_entry]:
-    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 159:0-185:1
+    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 218:0-244:1
     Visibility: public -/
 def frontend.olean.merge.merge_entry
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -114032,7 +119615,7 @@ def frontend.olean.merge.merge_entry
     | core.result.Result.Err e => ok (core.result.Result.Err e, mg)
 
 /-- [con_ron_core::frontend::olean::merge::merge_module]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 204:4-212:1
+    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 263:4-271:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.merge.merge_module_loop
@@ -114054,7 +119637,7 @@ def frontend.olean.merge.merge_module_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::merge::merge_module]:
-    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 201:0-212:1
+    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 260:0-271:1
     Visibility: public -/
 def frontend.olean.merge.merge_module
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -114070,7 +119653,7 @@ def frontend.olean.merge.merge_module
   frontend.olean.merge.merge_module_loop pk pers ar mg m n 0#usize
 
 /-- [con_ron_core::frontend::olean::merge::merge_all]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 220:4-228:1
+    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 279:4-287:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.merge.merge_all_loop
@@ -114092,7 +119675,7 @@ def frontend.olean.merge.merge_all_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::merge::merge_all]:
-    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 216:0-228:1
+    Source: 'crates/con-ron-core/src/frontend/olean/merge.rs', lines 275:0-287:1
     Visibility: public -/
 def frontend.olean.merge.merge_all
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -114105,6 +119688,376 @@ def frontend.olean.merge.merge_all
     ron.hashmap2.HashMap2.new arena.handle.NIdx (Std.Usize × Std.Usize)
   frontend.olean.merge.merge_all_loop pk pers ar n
     { ls, map := hm, order := (alloc.vec.Vec.new arena.handle.NIdx) } 0#usize
+
+/-- [con_ron_core::frontend::olean::reads::memo_expr]:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 237:0-245:1
+    Visibility: public -/
+def frontend.olean.reads.memo_expr
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region) (st : frontend.olean.sparse.SM)
+  (v : Std.U64) :
+  Result ((core.result.Result arena.handle.EIdx frontend.olean.spec.RdErr) ×
+    arena.store.EStore)
+  := do
+  let o ← frontend.olean.region.region_loc r v
+  match o with
+  | none => ok (core.result.Result.Err frontend.olean.spec.RdErr.Bad, ar)
+  | some c =>
+    let o1 ←
+      ron.hashmap2.HashMap2.get U64.Insts.Con_ron_coreRonHashmapHashable
+        U64.Insts.Con_ron_coreRonHashmapEq2 st.exprs c
+    match o1 with
+    | none => frontend.olean.sparse.sparse_expr_p pk pers ar bs r v
+    | some e =>
+      let e1 ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 e
+      ok (core.result.Result.Ok e1, ar)
+
+/-- [con_ron_core::frontend::olean::reads::{impl con_ron_core::frontend::olean::spec::PtrRead for con_ron_core::frontend::olean::reads::MemoRead<'a>}::rd_expr]:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 262:4-264:5
+    Visibility: public -/
+def
+  frontend.olean.reads.MemoRead.Insts.Con_ron_coreFrontendOleanSpecPtrRead.rd_expr
+  (self : frontend.olean.reads.MemoRead) (pk : frontend.olean.spec.OleanPins)
+  (pers : arena.store.PersTier) (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region) (v : Std.U64) :
+  Result ((core.result.Result arena.handle.EIdx frontend.olean.spec.RdErr) ×
+    arena.store.EStore)
+  := do
+  frontend.olean.reads.memo_expr pk pers ar bs r self.st v
+
+/-- [con_ron_core::frontend::olean::reads::memo_name]:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 222:0-233:1
+    Visibility: public -/
+def frontend.olean.reads.memo_name
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region) (st : frontend.olean.sparse.SM)
+  (v : Std.U64) :
+  Result ((core.result.Result arena.handle.NIdx frontend.olean.spec.RdErr) ×
+    arena.store.EStore)
+  := do
+  if v = 1#u64
+  then
+    let n ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 pk.anon
+    ok (core.result.Result.Ok n, ar)
+  else
+    let o ← frontend.olean.region.region_loc r v
+    match o with
+    | none => ok (core.result.Result.Err frontend.olean.spec.RdErr.Bad, ar)
+    | some c =>
+      let o1 ←
+        ron.hashmap2.HashMap2.get U64.Insts.Con_ron_coreRonHashmapHashable
+          U64.Insts.Con_ron_coreRonHashmapEq2 st.names c
+      match o1 with
+      | none => frontend.olean.sparse.sparse_name_p pk pers ar bs r v
+      | some n =>
+        let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
+        ok (core.result.Result.Ok n1, ar)
+
+/-- [con_ron_core::frontend::olean::reads::{impl con_ron_core::frontend::olean::spec::PtrRead for con_ron_core::frontend::olean::reads::MemoRead<'a>}::rd_name]:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 257:4-259:5
+    Visibility: public -/
+def
+  frontend.olean.reads.MemoRead.Insts.Con_ron_coreFrontendOleanSpecPtrRead.rd_name
+  (self : frontend.olean.reads.MemoRead) (pk : frontend.olean.spec.OleanPins)
+  (pers : arena.store.PersTier) (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region) (v : Std.U64) :
+  Result ((core.result.Result arena.handle.NIdx frontend.olean.spec.RdErr) ×
+    arena.store.EStore)
+  := do
+  frontend.olean.reads.memo_name pk pers ar bs r self.st v
+
+/-- Trait implementation: [con_ron_core::frontend::olean::reads::{impl con_ron_core::frontend::olean::spec::PtrRead for con_ron_core::frontend::olean::reads::MemoRead<'a>}]
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 255:0-265:1 -/
+@[reducible]
+def frontend.olean.reads.MemoRead.Insts.Con_ron_coreFrontendOleanSpecPtrRead :
+  frontend.olean.spec.PtrRead frontend.olean.reads.MemoRead := {
+  rd_name :=
+    frontend.olean.reads.MemoRead.Insts.Con_ron_coreFrontendOleanSpecPtrRead.rd_name
+  rd_expr :=
+    frontend.olean.reads.MemoRead.Insts.Con_ron_coreFrontendOleanSpecPtrRead.rd_expr
+}
+
+/-- [con_ron_core::frontend::olean::reads::memo_add]:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 178:0-190:1
+    Visibility: public -/
+def frontend.olean.reads.memo_add
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region) (k : Std.U8)
+  (st : frontend.olean.sparse.SM) (v : Std.U64) :
+  Result ((core.result.Result Unit kernel.core_types.CheckError) ×
+    arena.store.EStore × frontend.olean.sparse.SM)
+  := do
+  let o ← frontend.olean.region.region_loc r v
+  match o with
+  | none => ok (core.result.Result.Ok (), ar, st)
+  | some c =>
+    let f ← frontend.olean.sparse.frontier_empty
+    let (r1, ar1, st1) ← frontend.olean.sparse.s_go pk pers ar bs r f k c st
+    match r1 with
+    | core.result.Result.Ok _ => ok (core.result.Result.Ok (), ar1, st1)
+    | core.result.Result.Err re =>
+      match re with
+      | frontend.olean.spec.RdErr.Bad =>
+        let st2 ← frontend.olean.sparse.sm_empty
+        ok (core.result.Result.Ok (), ar1, st2)
+      | frontend.olean.spec.RdErr.Err e =>
+        ok (core.result.Result.Err e, ar1, st1)
+
+/-- [con_ron_core::frontend::olean::reads::memo_add_all]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 196:4-204:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.olean.reads.memo_add_all_loop
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region) (k : Std.U8)
+  (st : frontend.olean.sparse.SM) (vs : alloc.vec.Vec Std.U64) (i : Std.Usize)
+  :
+  Result ((core.result.Result Unit kernel.core_types.CheckError) ×
+    arena.store.EStore × frontend.olean.sparse.SM)
+  := do
+  let i1 := alloc.vec.Vec.len vs
+  if i < i1
+  then
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) vs i
+    let (r1, ar1, st1) ←
+      frontend.olean.reads.memo_add pk pers ar bs r k st i2
+    match r1 with
+    | core.result.Result.Ok _ =>
+      let i3 ← i + 1#usize
+      frontend.olean.reads.memo_add_all_loop pk pers ar1 bs r k st1 vs i3
+    | core.result.Result.Err _ => ok (r1, ar1, st1)
+  else ok (core.result.Result.Ok (), ar, st)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::olean::reads::memo_add_all]:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 194:0-204:1
+    Visibility: public -/
+@[reducible]
+def frontend.olean.reads.memo_add_all
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region) (k : Std.U8)
+  (st : frontend.olean.sparse.SM) (vs : alloc.vec.Vec Std.U64) :
+  Result ((core.result.Result Unit kernel.core_types.CheckError) ×
+    arena.store.EStore × frontend.olean.sparse.SM)
+  := do
+  frontend.olean.reads.memo_add_all_loop pk pers ar bs r k st vs 0#usize
+
+/-- [con_ron_core::frontend::olean::reads::memo_roots]:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 209:0-218:1
+    Visibility: public -/
+def frontend.olean.reads.memo_roots
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region) (st : frontend.olean.sparse.SM)
+  (sk : frontend.olean.spec.CEntryF Std.U64 Std.U64) :
+  Result ((core.result.Result Unit kernel.core_types.CheckError) ×
+    arena.store.EStore × frontend.olean.sparse.SM)
+  := do
+  let names ←
+    frontend.olean.fast.c_entry_names sk (alloc.vec.Vec.new Std.U64)
+  let exprs ←
+    frontend.olean.fast.c_entry_exprs sk (alloc.vec.Vec.new Std.U64)
+  let (r1, ar1, st1) ←
+    frontend.olean.reads.memo_add_all pk pers ar bs r
+      frontend.olean.fast.K_NAME st names
+  match r1 with
+  | core.result.Result.Ok _ =>
+    frontend.olean.reads.memo_add_all pk pers ar1 bs r
+      frontend.olean.fast.K_EXPR st1 exprs
+  | core.result.Result.Err _ => ok (r1, ar1, st1)
+
+/-- [con_ron_core::frontend::olean::present::entry_with]:
+    Source: 'crates/con-ron-core/src/frontend/olean/present.rs', lines 37:0-48:1
+    Visibility: public -/
+def frontend.olean.present.entry_with
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region) (st : frontend.olean.sparse.SM)
+  (c : Std.U64) :
+  Result ((core.result.Result (frontend.olean.spec.CEntryF arena.handle.NIdx
+    arena.handle.EIdx) frontend.olean.spec.RdErr) × arena.store.EStore ×
+    frontend.olean.sparse.SM)
+  := do
+  let o ← frontend.olean.spec.const_skel bs r c
+  match o with
+  | none => ok (core.result.Result.Err frontend.olean.spec.RdErr.Bad, ar, st)
+  | some sk =>
+    let r1 ← frontend.olean.spec.skel_fits sk
+    match r1 with
+    | core.result.Result.Ok _ =>
+      let (r2, ar1, st1) ←
+        frontend.olean.reads.memo_roots pk pers ar bs r st sk
+      match r2 with
+      | core.result.Result.Ok _ =>
+        let (r3, ar2) ←
+          frontend.olean.spec.c_entry_map
+            frontend.olean.reads.MemoRead.Insts.Con_ron_coreFrontendOleanSpecPtrRead
+            { st := st1 } pk pers ar1 bs r sk
+        ok (r3, ar2, st1)
+      | core.result.Result.Err e =>
+        ok (core.result.Result.Err (frontend.olean.spec.RdErr.Err e), ar1, st1)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, ar, st)
+
+/-- [con_ron_core::frontend::olean::present::stmt_roots]:
+    Source: 'crates/con-ron-core/src/frontend/olean/present.rs', lines 53:0-61:1
+    Visibility: public -/
+def frontend.olean.present.stmt_roots
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region) (st : frontend.olean.sparse.SM)
+  (sk : frontend.olean.spec.CEntryF Std.U64 Std.U64) :
+  Result ((core.result.Result Unit kernel.core_types.CheckError) ×
+    arena.store.EStore × frontend.olean.sparse.SM)
+  := do
+  let i := alloc.vec.Vec.len sk.level_params
+  let i1 ← 1#usize + i
+  let names := alloc.vec.Vec.with_capacity Std.U64 i1
+  let names1 ← alloc.vec.Vec.push names sk.name
+  let names2 ← frontend.olean.fast.push_all sk.level_params names1
+  let (r1, ar1, st1) ←
+    frontend.olean.reads.memo_add_all pk pers ar bs r
+      frontend.olean.fast.K_NAME st names2
+  match r1 with
+  | core.result.Result.Ok _ =>
+    frontend.olean.reads.memo_add pk pers ar1 bs r frontend.olean.fast.K_EXPR
+      st1 sk.ty
+  | core.result.Result.Err _ => ok (r1, ar1, st1)
+
+/-- [con_ron_core::frontend::olean::present::stmt_with]:
+    Source: 'crates/con-ron-core/src/frontend/olean/present.rs', lines 67:0-97:1
+    Visibility: public -/
+def frontend.olean.present.stmt_with
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region) (st : frontend.olean.sparse.SM)
+  (c : Std.U64) :
+  Result ((core.result.Result (frontend.olean.spec.StmtRec ×
+    (frontend.olean.spec.CKindF arena.handle.NIdx Unit))
+    frontend.olean.spec.RdErr) × arena.store.EStore ×
+    frontend.olean.sparse.SM)
+  := do
+  let o ← frontend.olean.spec.const_skel bs r c
+  match o with
+  | none => ok (core.result.Result.Err frontend.olean.spec.RdErr.Bad, ar, st)
+  | some sk =>
+    let r1 ← frontend.olean.spec.skel_fits sk
+    match r1 with
+    | core.result.Result.Ok _ =>
+      let (r2, ar1, st1) ←
+        frontend.olean.present.stmt_roots pk pers ar bs r st sk
+      match r2 with
+      | core.result.Result.Ok _ =>
+        let (r3, ar2) ←
+          frontend.olean.reads.memo_name pk pers ar1 bs r st1 sk.name
+        match r3 with
+        | core.result.Result.Ok n =>
+          let (r4, ar3) ←
+            frontend.olean.spec.names_map
+              frontend.olean.reads.MemoRead.Insts.Con_ron_coreFrontendOleanSpecPtrRead
+              { st := st1 } pk pers ar2 bs r sk.level_params
+          match r4 with
+          | core.result.Result.Ok l =>
+            let (r5, ar4) ←
+              frontend.olean.reads.memo_expr pk pers ar3 bs r st1 sk.ty
+            match r5 with
+            | core.result.Result.Ok t =>
+              let (r6, ar5) ←
+                frontend.olean.reads.c_kind_names
+                  frontend.olean.reads.MemoRead.Insts.Con_ron_coreFrontendOleanSpecPtrRead
+                  { st := st1 } pk pers ar4 bs r sk.kind
+              match r6 with
+              | core.result.Result.Ok k =>
+                ok (core.result.Result.Ok
+                  ({ «name» := n, level_params := l, ty := t }, k), ar5, st1)
+              | core.result.Result.Err e =>
+                ok (core.result.Result.Err e, ar5, st1)
+            | core.result.Result.Err e =>
+              ok (core.result.Result.Err e, ar4, st1)
+          | core.result.Result.Err e => ok (core.result.Result.Err e, ar3, st1)
+        | core.result.Result.Err e => ok (core.result.Result.Err e, ar2, st1)
+      | core.result.Result.Err e =>
+        ok (core.result.Result.Err (frontend.olean.spec.RdErr.Err e), ar1, st1)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, ar, st)
+
+/-- [con_ron_core::frontend::olean::present::record_of_entry::M#2]
+    Source: 'crates/con-ron-core/src/frontend/olean/present.rs', lines 113:186-113:245 -/
+@[global_simps, irreducible]
+def frontend.olean.present.record_of_entry.M_2 : Array Std.U32 8#usize :=
+  Array.make 8#usize [
+    32#u32, 114#u32, 101#u32, 99#u32, 111#u32, 114#u32, 100#u32, 115#u32
+    ]
+
+/-- [con_ron_core::frontend::olean::present::record_of_entry::M#1]
+    Source: 'crates/con-ron-core/src/frontend/olean/present.rs', lines 113:58-113:87 -/
+@[global_simps, irreducible]
+def frontend.olean.present.record_of_entry.M_1 : Array Std.U32 2#usize :=
+  Array.make 2#usize [ 58#u32, 32#u32 ]
+
+/-- [con_ron_core::frontend::olean::present::record_of_entry::M]
+    Source: 'crates/con-ron-core/src/frontend/olean/present.rs', lines 112:36-112:119 -/
+@[global_simps, irreducible]
+def frontend.olean.present.record_of_entry.M : Array Std.U32 13#usize :=
+  Array.make 13#usize [
+    116#u32, 104#u32, 101#u32, 32#u32, 99#u32, 111#u32, 110#u32, 115#u32,
+    116#u32, 97#u32, 110#u32, 116#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::olean::present::record_of_entry]:
+    Source: 'crates/con-ron-core/src/frontend/olean/present.rs', lines 102:0-117:1
+    Visibility: public -/
+def frontend.olean.present.record_of_entry
+  (pers : arena.store.PersTier) (ar : arena.store.EStore)
+  (c : frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx) :
+  Result (core.result.Result arena.env.IDeclaration
+    kernel.core_types.CheckError)
+  := do
+  let hm ← ron.hashmap2.HashMap2.new arena.handle.NIdx Bool
+  let nm ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 c.name
+  let em ←
+    frontend.olean.emit.emit_one
+      {
+        visited := hm,
+        names := (alloc.vec.Vec.new arena.handle.NIdx),
+        exprs := (alloc.vec.Vec.new arena.handle.EIdx),
+        out := (alloc.vec.Vec.new frontend.scan_types.DeclRec)
+      } { c, uses := (alloc.vec.Vec.new arena.handle.NIdx) }
+  let r ← frontend.olean.records.decls_of pers ar em
+  match r with
+  | core.result.Result.Ok pr =>
+    let i := alloc.vec.Vec.len pr.decls
+    if i = 1#usize
+    then
+      let i1 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          arena.env.IDeclaration) pr.decls 0#usize
+      let i2 ← arena.env.i_declaration_dup i1
+      ok (core.result.Result.Ok i2)
+    else
+      let s ← lift (Array.to_slice frontend.olean.present.record_of_entry.M)
+      let v ← kernel.core_types.code_points s
+      let v1 ← frontend.olean.view.name_text pers ar nm
+      let t ← frontend.text.cat v v1
+      let s1 ←
+        lift (Array.to_slice frontend.olean.present.record_of_entry.M_1)
+      let v2 ← kernel.core_types.code_points s1
+      let i1 := alloc.vec.Vec.len pr.decls
+      let i2 ← lift (UScalar.cast .U64 i1)
+      let v3 ← frontend.text.u64_str i2
+      let s2 ←
+        lift (Array.to_slice frontend.olean.present.record_of_entry.M_2)
+      let v4 ← kernel.core_types.code_points s2
+      let v5 ← frontend.text.cat v3 v4
+      let v6 ← frontend.text.cat3 t v2 v5
+      let ce ← kernel.core_types.internal v6
+      ok (core.result.Result.Err ce)
+  | core.result.Result.Err p => let (e, _) := p
+                                ok (core.result.Result.Err e)
 
 /-- [con_ron_core::frontend::pace::sat_mul]:
     Source: 'crates/con-ron-core/src/frontend/pace.rs', lines 58:0-64:1
@@ -114329,289 +120282,173 @@ def frontend.olean.progress.module_loaded_text
   let v6 ← kernel.core_types.code_points s8
   frontend.text.cat s7 v6
 
-/-- [con_ron_core::frontend::olean::reads::distinct_go]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 53:4-61:1
+/-- [con_ron_core::frontend::olean::reads::skels_at]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 272:4-283:1
     Visibility: public -/
 @[rust_loop]
-def frontend.olean.reads.distinct_go_loop
-  (cs : alloc.vec.Vec frontend.olean.reads.NamePosition)
-  (s : ron.hashmap2.HashMap2 arena.handle.NIdx Bool) (i : Std.Usize) :
-  Result Bool
+def frontend.olean.reads.skels_at_loop
+  (bs : Slice Std.U8) (r : frontend.olean.region.Region)
+  (cs : alloc.vec.Vec Std.U64)
+  (out : alloc.vec.Vec (frontend.olean.spec.CEntryF Std.U64 Std.U64))
+  (i : Std.Usize) :
+  Result (core.result.Result (alloc.vec.Vec (frontend.olean.spec.CEntryF
+    Std.U64 Std.U64)) frontend.olean.spec.RdErr)
   := do
   let i1 := alloc.vec.Vec.len cs
   if i < i1
   then
-    let np ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        frontend.olean.reads.NamePosition) cs i
-    let b ←
-      ron.hashmap2.HashMap2.contains_key
-        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
-        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 s np.name
-    if b
-    then ok false
-    else
-      let n ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 np.name
-      let (_, s1) ←
-        ron.hashmap2.HashMap2.insert
-          arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
-          arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 s n true
-      let i2 ← i + 1#usize
-      frontend.olean.reads.distinct_go_loop cs s1 i2
-  else ok true
-partial_fixpoint
-
-/-- [con_ron_core::frontend::olean::reads::distinct_go]:
-    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 50:0-61:1
-    Visibility: public -/
-def frontend.olean.reads.distinct_go
-  (cs : alloc.vec.Vec frontend.olean.reads.NamePosition) : Result Bool := do
-  let i := alloc.vec.Vec.len cs
-  let s ← ron.hashmap2.HashMap2.with_capacity arena.handle.NIdx Bool i
-  frontend.olean.reads.distinct_go_loop cs s 0#usize
-
-/-- [con_ron_core::frontend::olean::reads::name_position]:
-    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 88:0-96:1
-    Visibility: public -/
-def frontend.olean.reads.name_position
-  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
-  (ar : arena.store.EStore) (bs : Slice Std.U8)
-  (r : frontend.olean.region.Region) (c : Std.U64) :
-  Result ((core.result.Result frontend.olean.reads.NamePosition
-    frontend.olean.spec.RdErr) × arena.store.EStore)
-  := do
-  let o ← frontend.olean.spec.const_skel bs r c
-  match o with
-  | none => ok (core.result.Result.Err frontend.olean.spec.RdErr.Bad, ar)
-  | some s =>
-    let (r1, ar1) ← frontend.olean.spec.name_p pk pers ar bs r s.name
-    match r1 with
-    | core.result.Result.Ok n =>
-      let i ← frontend.olean.reads.c_kind_tag s.kind
-      let b ← frontend.olean.reads.c_kind_skipped s.kind
-      ok (core.result.Result.Ok
-        { loc := c, «name» := n, tag := i, skipped := b }, ar1)
-    | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
-
-/-- [con_ron_core::frontend::olean::reads::name_positions_go]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 103:4-111:1
-    Visibility: public -/
-@[rust_loop]
-def frontend.olean.reads.name_positions_go_loop
-  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
-  (ar : arena.store.EStore) (bs : Slice Std.U8)
-  (r : frontend.olean.region.Region) (consts : alloc.vec.Vec Std.U64)
-  (out : alloc.vec.Vec frontend.olean.reads.NamePosition) (i : Std.Usize) :
-  Result ((core.result.Result (alloc.vec.Vec frontend.olean.reads.NamePosition)
-    frontend.olean.spec.RdErr) × arena.store.EStore)
-  := do
-  let i1 := alloc.vec.Vec.len consts
-  if i < i1
-  then
     let i2 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64)
-        consts i
-    let (r1, ar1) ← frontend.olean.reads.name_position pk pers ar bs r i2
-    match r1 with
-    | core.result.Result.Ok p =>
-      let out1 ← alloc.vec.Vec.push out p
-      let i3 ← i + 1#usize
-      frontend.olean.reads.name_positions_go_loop pk pers ar1 bs r consts out1
-        i3
-    | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
-  else ok (core.result.Result.Ok out, ar)
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) cs i
+    let o ← frontend.olean.spec.const_skel bs r i2
+    match o with
+    | none => ok (core.result.Result.Err frontend.olean.spec.RdErr.Bad)
+    | some s =>
+      let r1 ← frontend.olean.spec.skel_fits s
+      match r1 with
+      | core.result.Result.Ok _ =>
+        let out1 ← alloc.vec.Vec.push out s
+        let i3 ← i + 1#usize
+        frontend.olean.reads.skels_at_loop bs r cs out1 i3
+      | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok out)
 partial_fixpoint
 
-/-- [con_ron_core::frontend::olean::reads::name_positions_go]:
-    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 100:0-111:1
+/-- [con_ron_core::frontend::olean::reads::skels_at]:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 269:0-283:1
     Visibility: public -/
-def frontend.olean.reads.name_positions_go
-  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
-  (ar : arena.store.EStore) (bs : Slice Std.U8)
-  (r : frontend.olean.region.Region) (consts : alloc.vec.Vec Std.U64) :
-  Result ((core.result.Result (alloc.vec.Vec frontend.olean.reads.NamePosition)
-    frontend.olean.spec.RdErr) × arena.store.EStore)
+def frontend.olean.reads.skels_at
+  (bs : Slice Std.U8) (r : frontend.olean.region.Region)
+  (cs : alloc.vec.Vec Std.U64) :
+  Result (core.result.Result (alloc.vec.Vec (frontend.olean.spec.CEntryF
+    Std.U64 Std.U64)) frontend.olean.spec.RdErr)
   := do
-  let i := alloc.vec.Vec.len consts
-  let out := alloc.vec.Vec.with_capacity frontend.olean.reads.NamePosition i
-  frontend.olean.reads.name_positions_go_loop pk pers ar bs r consts out
-    0#usize
+  let i := alloc.vec.Vec.len cs
+  let out :=
+    alloc.vec.Vec.with_capacity (frontend.olean.spec.CEntryF Std.U64 Std.U64) i
+  frontend.olean.reads.skels_at_loop bs r cs out 0#usize
 
-/-- [con_ron_core::frontend::olean::reads::imports_named]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 118:4-126:1
+/-- [con_ron_core::frontend::olean::reads::entries_map]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 321:4-329:1
     Visibility: public -/
 @[rust_loop]
-def frontend.olean.reads.imports_named_loop
+def frontend.olean.reads.entries_map_loop
+  {R : Type _} (specPtrReadInst : frontend.olean.spec.PtrRead R) (rd : R)
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
   (ar : arena.store.EStore) (bs : Slice Std.U8)
   (r : frontend.olean.region.Region)
-  (imports : alloc.vec.Vec (frontend.olean.spec.ImportF Std.U64))
-  (out : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
-  (i : Std.Usize) :
-  Result ((core.result.Result (alloc.vec.Vec (frontend.olean.spec.ImportF
-    arena.handle.NIdx)) frontend.olean.spec.RdErr) × arena.store.EStore)
+  (sks : alloc.vec.Vec (frontend.olean.spec.CEntryF Std.U64 Std.U64))
+  (out : alloc.vec.Vec (frontend.olean.spec.CEntryF arena.handle.NIdx
+  arena.handle.EIdx)) (j : Std.Usize) :
+  Result ((core.result.Result (alloc.vec.Vec (frontend.olean.spec.CEntryF
+    arena.handle.NIdx arena.handle.EIdx)) frontend.olean.spec.RdErr) ×
+    arena.store.EStore)
   := do
-  let i1 := alloc.vec.Vec.len imports
-  if i < i1
+  let i := alloc.vec.Vec.len sks
+  if j < i
   then
-    let «if» ←
+    let cf ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        (frontend.olean.spec.ImportF Std.U64)) imports i
+        (frontend.olean.spec.CEntryF Std.U64 Std.U64)) sks j
     let (r1, ar1) ←
-      frontend.olean.spec.import_map
-        frontend.olean.header.NamePRead.Insts.Con_ron_coreFrontendOleanSpecPtrRead
-        () pk pers ar bs r «if»
+      frontend.olean.spec.c_entry_map specPtrReadInst rd pk pers ar bs r cf
     match r1 with
-    | core.result.Result.Ok x =>
-      let out1 ← alloc.vec.Vec.push out x
-      let i2 ← i + 1#usize
-      frontend.olean.reads.imports_named_loop pk pers ar1 bs r imports out1 i2
+    | core.result.Result.Ok c =>
+      let out1 ← alloc.vec.Vec.push out c
+      let j1 ← j + 1#usize
+      frontend.olean.reads.entries_map_loop specPtrReadInst rd pk pers ar1 bs r
+        sks out1 j1
     | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
   else ok (core.result.Result.Ok out, ar)
 partial_fixpoint
 
-/-- [con_ron_core::frontend::olean::reads::imports_named]:
-    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 115:0-126:1
+/-- [con_ron_core::frontend::olean::reads::entries_map]:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 318:0-329:1
     Visibility: public -/
-def frontend.olean.reads.imports_named
+def frontend.olean.reads.entries_map
+  {R : Type _} (specPtrReadInst : frontend.olean.spec.PtrRead R) (rd : R)
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
   (ar : arena.store.EStore) (bs : Slice Std.U8)
   (r : frontend.olean.region.Region)
-  (imports : alloc.vec.Vec (frontend.olean.spec.ImportF Std.U64)) :
-  Result ((core.result.Result (alloc.vec.Vec (frontend.olean.spec.ImportF
-    arena.handle.NIdx)) frontend.olean.spec.RdErr) × arena.store.EStore)
+  (sks : alloc.vec.Vec (frontend.olean.spec.CEntryF Std.U64 Std.U64)) :
+  Result ((core.result.Result (alloc.vec.Vec (frontend.olean.spec.CEntryF
+    arena.handle.NIdx arena.handle.EIdx)) frontend.olean.spec.RdErr) ×
+    arena.store.EStore)
   := do
-  let i := alloc.vec.Vec.len imports
+  let i := alloc.vec.Vec.len sks
   let out :=
-    alloc.vec.Vec.with_capacity (frontend.olean.spec.ImportF arena.handle.NIdx)
-      i
-  frontend.olean.reads.imports_named_loop pk pers ar bs r imports out 0#usize
+    alloc.vec.Vec.with_capacity (frontend.olean.spec.CEntryF arena.handle.NIdx
+      arena.handle.EIdx) i
+  frontend.olean.reads.entries_map_loop specPtrReadInst rd pk pers ar bs r sks
+    out 0#usize
 
-/-- [con_ron_core::frontend::olean::reads::name_positions_at]:
-    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 131:0-148:1
+/-- [con_ron_core::frontend::olean::reads::memo_roots_all]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 306:4-314:1
     Visibility: public -/
-def frontend.olean.reads.name_positions_at
+@[rust_loop]
+def frontend.olean.reads.memo_roots_all_loop
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
   (ar : arena.store.EStore) (bs : Slice Std.U8)
-  (r : frontend.olean.region.Region) (root : Std.U64) :
-  Result ((core.result.Result frontend.olean.reads.NamePositions
-    frontend.olean.spec.RdErr) × arena.store.EStore)
+  (r : frontend.olean.region.Region) (st : frontend.olean.sparse.SM)
+  (sks : alloc.vec.Vec (frontend.olean.spec.CEntryF Std.U64 Std.U64))
+  (i : Std.Usize) :
+  Result ((core.result.Result Unit kernel.core_types.CheckError) ×
+    arena.store.EStore × frontend.olean.sparse.SM)
   := do
-  let o ← frontend.olean.spec.module_skel bs r root
-  match o with
-  | none => ok (core.result.Result.Err frontend.olean.spec.RdErr.Bad, ar)
-  | some sk =>
-    let (r1, ar1) ←
-      frontend.olean.reads.imports_named pk pers ar bs r sk.imports
+  let i1 := alloc.vec.Vec.len sks
+  if i < i1
+  then
+    let cf ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (frontend.olean.spec.CEntryF Std.U64 Std.U64)) sks i
+    let (r1, ar1, st1) ←
+      frontend.olean.reads.memo_roots pk pers ar bs r st cf
     match r1 with
-    | core.result.Result.Ok imports =>
-      let (r2, ar2) ←
-        frontend.olean.reads.name_positions_go pk pers ar1 bs r sk.consts
-      match r2 with
-      | core.result.Result.Ok cs =>
-        let b ← frontend.olean.reads.distinct_go cs
-        if b
-        then
-          ok (core.result.Result.Ok
-            { header := { is_module := sk.is_module, imports }, consts := cs },
-            ar2)
-        else ok (core.result.Result.Err frontend.olean.spec.RdErr.Bad, ar2)
-      | core.result.Result.Err e => ok (core.result.Result.Err e, ar2)
-    | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
+    | core.result.Result.Ok _ =>
+      let i2 ← i + 1#usize
+      frontend.olean.reads.memo_roots_all_loop pk pers ar1 bs r st1 sks i2
+    | core.result.Result.Err _ => ok (r1, ar1, st1)
+  else ok (core.result.Result.Ok (), ar, st)
+partial_fixpoint
 
-/-- [con_ron_core::frontend::olean::reads::stmts_at]:
-    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 164:0-169:1
+/-- [con_ron_core::frontend::olean::reads::memo_roots_all]:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 304:0-314:1
     Visibility: public -/
-def frontend.olean.reads.stmts_at
+@[reducible]
+def frontend.olean.reads.memo_roots_all
+  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
+  (ar : arena.store.EStore) (bs : Slice Std.U8)
+  (r : frontend.olean.region.Region) (st : frontend.olean.sparse.SM)
+  (sks : alloc.vec.Vec (frontend.olean.spec.CEntryF Std.U64 Std.U64)) :
+  Result ((core.result.Result Unit kernel.core_types.CheckError) ×
+    arena.store.EStore × frontend.olean.sparse.SM)
+  := do
+  frontend.olean.reads.memo_roots_all_loop pk pers ar bs r st sks 0#usize
+
+/-- [con_ron_core::frontend::olean::reads::entries_at]:
+    Source: 'crates/con-ron-core/src/frontend/olean/reads.rs', lines 289:0-300:1
+    Visibility: public -/
+def frontend.olean.reads.entries_at
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
   (ar : arena.store.EStore) (bs : Slice Std.U8)
   (r : frontend.olean.region.Region) (cs : alloc.vec.Vec Std.U64) :
-  Result ((core.result.Result (alloc.vec.Vec frontend.olean.spec.StmtRec)
-    frontend.olean.spec.RdErr) × arena.store.EStore)
+  Result ((core.result.Result (alloc.vec.Vec (frontend.olean.spec.CEntryF
+    arena.handle.NIdx arena.handle.EIdx)) frontend.olean.spec.RdErr) ×
+    arena.store.EStore)
   := do
-  let r1 ← frontend.olean.fast.consts_skel bs r cs
+  let r1 ← frontend.olean.reads.skels_at bs r cs
   match r1 with
   | core.result.Result.Ok sks =>
-    frontend.olean.fast.stmts_fast pk pers ar bs r sks
-  | core.result.Result.Err e => ok (core.result.Result.Err e, ar)
-
-/-- [con_ron_core::frontend::olean::records::table_of]:
-    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 69:0-71:1
-    Visibility: public -/
-def frontend.olean.records.table_of
-  {T : Type _} (dense : alloc.vec.Vec T) :
-  Result (frontend.scan_types.IdTable T)
-  := do
-  let hm ← ron.hashmap.HashMap.new Std.U64 T
-  ok { dense, sparse := hm }
-
-/-- [con_ron_core::frontend::olean::records::decls_go]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 77:4-85:1
-    Visibility: public -/
-@[rust_loop]
-def frontend.olean.records.decls_go_loop
-  (pers : arena.store.PersTier) (ar : arena.store.EStore)
-  (st : frontend.export_c.StateD)
-  (out : alloc.vec.Vec frontend.scan_types.DeclRec) (k : Std.Usize) :
-  Result ((core.result.Result Unit (kernel.core_types.CheckError × Std.U64))
-    × frontend.export_c.StateD)
-  := do
-  let i := alloc.vec.Vec.len out
-  if k < i
-  then
-    let dr ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        frontend.scan_types.DeclRec) out k
-    let (r, st1) ← frontend.export_c.process_line_core_d pers ar st dr
-    match r with
+    let st ← frontend.olean.sparse.sm_empty
+    let (r2, ar1, st1) ←
+      frontend.olean.reads.memo_roots_all pk pers ar bs r st sks
+    match r2 with
     | core.result.Result.Ok _ =>
-      let k1 ← k + 1#usize
-      frontend.olean.records.decls_go_loop pers ar st1 out k1
+      frontend.olean.reads.entries_map
+        frontend.olean.reads.MemoRead.Insts.Con_ron_coreFrontendOleanSpecPtrRead
+        { st := st1 } pk pers ar1 bs r sks
     | core.result.Result.Err e =>
-      let i1 ← lift (UScalar.cast .U64 k)
-      let p ← frontend.export_c.line_err_to_check e i1
-      ok (core.result.Result.Err p, st1)
-  else ok (core.result.Result.Ok (), st)
-partial_fixpoint
-
-/-- [con_ron_core::frontend::olean::records::decls_go]:
-    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 75:0-85:1
-    Visibility: public -/
-@[reducible]
-def frontend.olean.records.decls_go
-  (pers : arena.store.PersTier) (ar : arena.store.EStore)
-  (st : frontend.export_c.StateD)
-  (out : alloc.vec.Vec frontend.scan_types.DeclRec) :
-  Result ((core.result.Result Unit (kernel.core_types.CheckError × Std.U64))
-    × frontend.export_c.StateD)
-  := do
-  frontend.olean.records.decls_go_loop pers ar st out 0#usize
-
-/-- [con_ron_core::frontend::olean::records::decls_of]:
-    Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 91:0-102:1
-    Visibility: public -/
-def frontend.olean.records.decls_of
-  (pers : arena.store.PersTier) (ar : arena.store.EStore)
-  (em : frontend.olean.emit.Emit) :
-  Result (core.result.Result frontend.export_c.ParseResultD
-    (kernel.core_types.CheckError × Std.U64))
-  := do
-  let it ← frontend.olean.records.table_of em.names
-  let it1 ← frontend.scan_types.id_table_empty arena.handle.LIdx
-  let it2 ← frontend.olean.records.table_of em.exprs
-  let (r, st) ←
-    frontend.olean.records.decls_go pers ar
-      {
-        names := it,
-        levels := it1,
-        exprs := it2,
-        decls := (alloc.vec.Vec.new arena.env.IDeclaration)
-      } em.out
-  match r with
-  | core.result.Result.Ok _ =>
-    let prd ← frontend.export_c.parse_result_of_state st
-    ok (core.result.Result.Ok prd)
-  | core.result.Result.Err e => ok (core.result.Result.Err e)
+      ok (core.result.Result.Err (frontend.olean.spec.RdErr.Err e), ar1)
+  | core.result.Result.Err e => ok (core.result.Result.Err e, ar)
 
 /-- [con_ron_core::frontend::olean::records::first_absent]: loop 0:
     Source: 'crates/con-ron-core/src/frontend/olean/records.rs', lines 108:4-115:1
@@ -115551,25 +121388,6 @@ def frontend.olean.view.mod_files_up_to
   | frontend.olean.view.OLeanLevel.Server => ok { f with private_part := none }
   | frontend.olean.view.OLeanLevel.Private => ok f
 
-/-- [con_ron_core::frontend::olean::view::read_name_positions]:
-    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 355:0-364:1
-    Visibility: public -/
-def frontend.olean.view.read_name_positions
-  (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
-  (ar : arena.store.EStore) (f : frontend.olean.view.ModFiles)
-  (level : frontend.olean.view.OLeanLevel) :
-  Result ((core.result.Result frontend.olean.reads.NamePositions
-    frontend.olean.spec.RdErr) × arena.store.EStore)
-  := do
-  let o ← frontend.olean.view.mod_files_view_region f level
-  match o with
-  | none => ok (core.result.Result.Err frontend.olean.spec.RdErr.Bad, ar)
-  | some p =>
-    let (vb, a) := p
-    let bs ← frontend.olean.view.view_bytes f vb
-    let r ← frontend.olean.view.view_region_of f vb
-    frontend.olean.reads.name_positions_at pk pers ar bs r a
-
 /-- [con_ron_core::frontend::olean::view::read_entry]:
     Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 368:0-377:1
     Visibility: public -/
@@ -115589,15 +121407,16 @@ def frontend.olean.view.read_entry
     let r ← frontend.olean.view.view_region_of f vb
     frontend.olean.reads.entry_at pk pers ar bs r c
 
-/-- [con_ron_core::frontend::olean::view::read_stmts]:
-    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 381:0-390:1
+/-- [con_ron_core::frontend::olean::view::read_entries]:
+    Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 395:0-404:1
     Visibility: public -/
-def frontend.olean.view.read_stmts
+def frontend.olean.view.read_entries
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
   (ar : arena.store.EStore) (f : frontend.olean.view.ModFiles)
   (level : frontend.olean.view.OLeanLevel) (cs : alloc.vec.Vec Std.U64) :
-  Result ((core.result.Result (alloc.vec.Vec frontend.olean.spec.StmtRec)
-    frontend.olean.spec.RdErr) × arena.store.EStore)
+  Result ((core.result.Result (alloc.vec.Vec (frontend.olean.spec.CEntryF
+    arena.handle.NIdx arena.handle.EIdx)) frontend.olean.spec.RdErr) ×
+    arena.store.EStore)
   := do
   let o ← frontend.olean.view.mod_files_view_region f level
   match o with
@@ -115606,7 +121425,7 @@ def frontend.olean.view.read_stmts
     let (vb, _) := p
     let bs ← frontend.olean.view.view_bytes f vb
     let r ← frontend.olean.view.view_region_of f vb
-    frontend.olean.reads.stmts_at pk pers ar bs r cs
+    frontend.olean.reads.entries_at pk pers ar bs r cs
 
 /-- [con_ron_core::frontend::pace::pace_dup]:
     Source: 'crates/con-ron-core/src/frontend/pace.rs', lines 28:0-35:1

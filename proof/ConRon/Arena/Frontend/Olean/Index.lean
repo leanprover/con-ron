@@ -91,10 +91,18 @@ def readInfos (fs : OleanFs) (pk : OleanPins) (sp : Roots) (ld : HeaderLoads) (i
   pure (rs.foldl (fun m r => r.foldl (fun m (c, s, k) => m.insert c (s, k)) m) {})
 
 /-- con-leche: ConLeche/Frontend/Olean/Index.lean:178-226 workerReads
-`isPropCheap`'s `headTy` at the clash rule: a name's first copy's type, among the heads' statements. -/
-def clashHeadTy (ix : NameIndex) (infos : Std.HashMap Copy (StmtRec × CKindF NIdx Unit)) (n : NIdx) :
-    Option EIdx :=
-  (ix.first[n]?).bind fun c => (infos[c]?).map (·.1.type)
+**`isPropCheap`'s `headTy` at the clash rule**, as a table over the heads' names: a head `c`'s
+name, the type of its name's first copy among the statements read (upstream's
+`fun n => (ix.first[n]?).bind fun c => (hinfos[c]?).map (·.1.type)`, at the names of the heads). -/
+def headTysOf (ix : NameIndex) (infos : Std.HashMap Copy (StmtRec × CKindF NIdx Unit)) (heads : Array Copy) :
+    Std.HashMap NIdx EIdx :=
+  heads.foldl (fun m c =>
+    match ix.at c with
+    | none => m
+    | some q =>
+      match (ix.first[q.name]?).bind (infos[·]?) with
+      | some x => m.insert q.name x.1.type
+      | none => m) {}
 
 /-- con-leche: ConLeche/Frontend/Olean/Index.lean:113-127 clashOk
 **Lean's clash rule over one name's copies**, in the load order. -/
@@ -189,7 +197,8 @@ def workerReads (fs : OleanFs) (pk : OleanPins) (sp : Roots) (m : NIdx) (x : Arr
     { name := n, copies := cs.filterMap fun c => (infos[c]?).map fun (s, k) => (c, s, k) }
   let heads ← clashHeads ix clashes
   let hinfos ← readInfos fs pk sp ld ix heads
-  clashes.toList.forM (clashOk pk ld (clashHeadTy ix hinfos))
+  let headTys := headTysOf ix hinfos heads
+  clashes.toList.forM (clashOk pk ld (headTys[·]?))
   freshOk pk m ld ix own
   pure { own, loads := ld, pub := pubClosures ld, index := ix, clashes }
 
