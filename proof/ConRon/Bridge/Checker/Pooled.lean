@@ -115,7 +115,7 @@ theorem PinsDenote.pmono {st st' : EStore} (hx : PExt st st') :
 
 /-! ## The per-record facts this module takes -/
 
-/-- con-leche: ConLeche/Cached/StreamIndex.lean:74-81 recordJob — **a record's check at a view,
+/-- con-leche: ConLeche/Cached/StreamIndex.lean:95-104 recordJob — **a record's check at a view,
 bridged**: from the invariant at the view, the record's check (the `And` pin, then `checkDecl`)
 accepting leaves the store invariant, an append and the pins, and con-leche's pure `checkDecl`
 accepts the denoted record at the environment the view stands for.  `Bridge/Checker/Pool.lean`
@@ -130,8 +130,8 @@ proves it from `Arena.checkDecl_bridge`. -/
       ∃ env' F,
         ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP env d = .ok env'
 
-/-- con-leche: ConLeche/Verify/Cached/DeclPushes.lean:723 checkDeclStepC_pushes
-con-leche: ConLeche/Verify/Cached/PushChain.lean:44 PushChain — **an accepted step pushes what
+/-- con-leche: ConLeche/Verify/Cached/DeclPushes.lean:710 checkDeclStepC_pushes
+con-leche: ConLeche/Verify/Cached/PushChain.lean:48 PushChain — **an accepted step pushes what
 the record says, at fresh names**, for con-leche's pure `checkDecl`.  `Bridge/Checker/Pushes.lean`
 proves it. -/
 @[expose] def KernelPushes (pinsP : List NatOpPinSet) : Prop :=
@@ -142,7 +142,7 @@ proves it. -/
 
 /-! ## A worker's state -/
 
-/-- con-leche: ConLeche/Driver/CheckPool.lean:199-227 checkPool — **what a worker's state keeps
+/-- con-leche: ConLeche/Driver/CheckPool.lean:211-239 checkPool — **what a worker's state keeps
 between two jobs**: the store invariant, the store a persistent extension of the driver's, the
 caches flushed, the driver's pins. -/
 structure WorkerOK (s₁ w : AState) : Prop where
@@ -160,7 +160,7 @@ theorem WorkerOK.start {s₁ : AState} (hst : StateOK s₁) : WorkerOK s₁ s₁
 
 /-! ## The fold's prefix -/
 
-/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:441 jobs_run — **the prefix of length `k`
+/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:461 jobs_run_from — **the prefix of length `k`
 accepted**: con-leche's pure fold accepts it at every fuel from some on, with the environment its
 records denote. -/
 @[expose] def PrefixOK (pinsP : List NatOpPinSet) (dsP : List Declaration) (k : Nat) : Prop :=
@@ -177,13 +177,13 @@ theorem checkDecl_up {pinsP : List NatOpPinSet} {F F' : Nat} (hle : F ≤ F') {e
   rw [← ConLeche.checkDecl_datF] at h ⊢
   exact ConLeche.Cached.FueledM.up hle h
 
-/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:155 recsConsts_snoc — a prefix one longer. -/
+/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:156 recsConsts_snoc — a prefix one longer. -/
 theorem take_succ_eq {α : Type} {l : List α} {k : Nat} (hk : k < l.length) :
     l.take (k + 1) = l.take k ++ [l[k]] := by
   rw [List.take_add_one, List.getElem?_eq_getElem hk]
   rfl
 
-/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:441 jobs_run — **the step**: the prefix of
+/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:461 jobs_run_from — **the step**: the prefix of
 length `k` accepted and the record at `k` accepted at its environment give the prefix of length
 `k + 1`, and the names so far stay distinct. -/
 theorem PrefixOK.step {pinsP : List NatOpPinSet} {dsP : List Declaration} {k : Nat}
@@ -224,7 +224,7 @@ theorem PrefixOK.step {pinsP : List NatOpPinSet} {dsP : List Declaration} {k : N
 
 /-! ## One job -/
 
-/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:441 jobs_run — **the invariant at a
+/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:461 jobs_run_from — **the invariant at a
 view**: at a position whose prefix the fold has accepted with distinct names, any state whose store
 persistently extends the driver's, with caches sound at the prefix's environment and the driver's
 pins, holds `FoldOK` at the view of that position. -/
@@ -256,7 +256,7 @@ theorem view_foldOK
       gate := hgate }
 
 
-/-- con-leche: ConLeche/Cached/StreamIndex.lean:74-81 recordJob — **one job, from a worker's
+/-- con-leche: ConLeche/Cached/StreamIndex.lean:95-104 recordJob — **one job, from a worker's
 state**: at a position whose prefix the fold has accepted with distinct names, record `k`'s job
 accepting leaves a worker's state and con-leche's `checkDecl` accepting the record at the
 prefix's environment. -/
@@ -318,14 +318,14 @@ The fold over a worker's claims, abstracted: a worker's state `σ` (the arena st
 accept is the fold's step at its position (`JobSpecAt`); the stream's step is `recordJob`
 (`job_spec`), an `--olean` run's is `Arena/OleanJobs.lean`'s `oleanJob`. -/
 
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:396-419 parWorker — a worker's claims, run in
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:461-484 parWorker — a worker's claims, run in
 order from `σ`, every step accepted. -/
 inductive JobChain {σ : Type} (Run : Nat → σ → σ → Prop) : σ → List Nat → Prop
   | nil (w : σ) : JobChain Run w []
   | cons {t : Nat} {w w' : σ} {l : List Nat} : Run t w w' → JobChain Run w' l →
       JobChain Run w (t :: l)
 
-/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:441 jobs_run — **what a step must give**:
+/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:461 jobs_run_from — **what a step must give**:
 from a worker's state, at a position whose prefix the fold has accepted with distinct names, an
 accepted job leaves a worker's state and con-leche's `checkDecl` accepting the record at the
 prefix's environment. -/
@@ -337,7 +337,7 @@ prefix's environment. -/
       ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP
         (ConLeche.streamEnv (dsP.take k)) (dsP[k]'hk) = .ok env'
 
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:396-419 parWorker — **a worker reaches each of
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:461-484 parWorker — **a worker reaches each of
 its jobs from a worker's state**, provided every job it ran before is at a position whose prefix
 the fold has accepted with distinct names: the claims increase, so those are the positions below
 the job's. -/
@@ -365,7 +365,7 @@ theorem worker_reaches {σ : Type} {Inv : σ → Prop} {Run : Nat → σ → σ 
 
 /-! ## The pool -/
 
-/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:488 checkDecls_of_jobs — **every job
+/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:527 checkDecls_of_jobs — **every job
 passing is an accept of con-leche's fold**, at the stream the records denote: job lists covering
 the positions, each increasing, each run from a worker's state by a step whose accept is the
 fold's step at its position. -/
@@ -412,13 +412,13 @@ theorem pooled_fold {σ : Type} {Inv : σ → Prop} {Run : Nat → σ → σ →
 
 /-! ## The stream's jobs -/
 
-/-- con-leche: ConLeche/Cached/StreamIndex.lean:74-81 recordJob — the stream's step: record
+/-- con-leche: ConLeche/Cached/StreamIndex.lean:95-104 recordJob — the stream's step: record
 `k`'s job, at a position of the records. -/
 @[expose] def RecordRun (pins : List INatOpPinSet) (I : IStreamIndex) (ds : Array IDeclaration)
     (k : Nat) (w w' : AState) : Prop :=
   ∃ hk : k < ds.size, recordJob .verified pins I k ds[k] w = .ok ((), w')
 
-/-- con-leche: ConLeche/Frontend/CheckerIO.lean:396-419 parWorker — a worker's accepted list is
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:461-484 parWorker — a worker's accepted list is
 a chain of record jobs. -/
 theorem checkJobList_chain {pins : List INatOpPinSet} {I : IStreamIndex}
     {ds : Array IDeclaration} :
@@ -456,7 +456,7 @@ theorem checkJobList_chain {pins : List INatOpPinSet} {I : IStreamIndex}
             obtain ⟨ht, rfl⟩ := Array.getElem?_eq_some_iff.mp hdt
             exact .cons ⟨ht, by cases u'; exact hj⟩ (ih _ w'' hl)
 
-/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:488 checkDecls_of_jobs — **the stream's
+/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:527 checkDecls_of_jobs — **the stream's
 pool**: every record job passing is an accept of con-leche's fold, from an index that denotes
 con-leche's index of the denoted stream. -/
 theorem pooled_fold_records
