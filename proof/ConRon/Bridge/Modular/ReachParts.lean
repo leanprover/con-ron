@@ -49,9 +49,9 @@ theorem partRead_run {α β : Type} {R : EStore → α → β → Prop}
     {g : Region → SM → AM (SM × Option α)}
     {f : Region → ConLeche.Frontend.Olean.SM → Option (ConLeche.Frontend.Olean.SM × β)}
     {pk : OleanPins}
-    (hg : ∀ (r : Region) (m m' : SM) (a : α) (s s' : AState), Ctx pk s → SMGood s.store r m →
+    (hg : ∀ (r : Region) (m m' : SM) (a : α) (s s' : AState), Ctx pk s → SparseGood s.store r m →
       g r m s = .ok ((m', some a), s') →
-      ParseStep s s' ∧ SMGood s'.store r m' ∧ ∀ mC : ConLeche.Frontend.Olean.SM, mC.Good r →
+      ParseStep s s' ∧ SparseGood s'.store r m' ∧ ∀ mC : ConLeche.Frontend.Olean.SM, mC.Good r →
         ∃ mC' b, f r mC = some (mC', b) ∧ mC'.Good r ∧ R s'.store a b)
     {F : FS} {sp : Roots} (hsp : sp.bare = sp)
     {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
@@ -72,7 +72,7 @@ theorem partRead_run {α β : Type} {R : EStore → α → β → Prop}
       (cC.parts[kC]? = some (r, stC) ∨ (cC.parts[kC]? = none ∧ stC = {} ∧ ∃ fv a',
         ModelIO.Gives (envC.rd.files kC.mod kC.level) F (.ok fv) ∧
         fv.viewRegion kC.level = some (r, a'))) ∧
-      SMGood s.store r st ∧ stC.Good r ∧
+      SparseGood s.store r st ∧ stC.Good r ∧
       CacheRel s.store c₁ { cC with parts := cC.parts.erase kC } := by
     have hp := hc.parts.get hw hk
     generalize hT : ConRon.Arena.Modular.takePart (modelFs F) pk sp c k = tk at h1
@@ -118,7 +118,7 @@ theorem partRead_run {α β : Type} {R : EStore → α → β → Prop}
           · exact g
           · cases g
         obtain rfl : mn = kC.mod := Option.some.inj (hmn.symm.trans hk.1)
-        refine ⟨{}, .inr ⟨hpC, rfl, fv, a', ?_, hk.2 ▸ hv⟩, SMGood.empty _ _,
+        refine ⟨{}, .inr ⟨hpC, rfl, fv, a', ?_, hk.2 ▸ hv⟩, SparseGood.empty _ _,
           ConLeche.Frontend.Olean.SM.good_empty _, ?_⟩
         · rw [he.rd, ← hk.2]
           exact readFiles_sim (roots_ok_of_bare hsp) rfl hf
@@ -301,7 +301,7 @@ theorem loadPart_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
   have hpkC : (cC.parts.contains kC) = false := by rw [← hpc]; simpa using h1
   have hcP : CacheRel s.store { c with parts := c.parts.insert k (r, {}) }
       { cC with parts := cC.parts.insert kC (r, {}) } :=
-    { hc with parts := hc.parts.insert hw hk ⟨rfl, SMGood.empty _ _,
+    { hc with parts := hc.parts.insert hw hk ⟨rfl, SparseGood.empty _ _,
       ConLeche.Frontend.Olean.SM.good_empty _⟩ }
   by_cases h2 : c.tables.contains k = true
   · simp only [h2, ↓reduceIte] at k2

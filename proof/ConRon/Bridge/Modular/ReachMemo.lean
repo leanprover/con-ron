@@ -3,7 +3,7 @@
 
 The reach reads a part's constants with one memo per part (`entryWith`, `stmtWith`,
 `entriesWith`, `Arena/Frontend/Olean/Present.lean`).  A memo whose every handle denotes the
-specification's value at its location (`SMGood`) stays so under the twin's root reads
+specification's value at its location (`SparseGood`) stays so under the twin's root reads
 (`memoAdd_runR`, `memoRoots_runR`), and every read off it is the specification's
 (`memoName_runR`, `memoExpr_runR`): so a constant read is `entryAt`'s, a statement read is the
 skeleton's (`StmtSkel`).  Upstream's reads with a good memo answer the same
@@ -157,14 +157,14 @@ theorem buildIn_none {pk : OleanPins} {r : Region} {b : ConRon.Arena.Frontend.Ol
 kids before the failure is interned soundly. -/
 theorem sGo_none {pk : OleanPins} {r : Region} {b : ConRon.Arena.Frontend.Olean.Frontier} :
     ∀ (g : Nat) {k : UInt8} {m : SM} {s s' : AState}, StateOK s → NullsRel s.store pk →
-      IsKind k → SMGood s.store r m → FrontierGood s.store r b →
+      IsKind k → SparseGood s.store r m → FrontierGood s.store r b →
       ConRon.Arena.Frontend.Olean.sGo pk r b k g m s = .ok (none, s') → ParseStep s s' := by
   intro g
   induction g using Nat.strongRecOn with
   | _ g ih =>
   intro k m s s' hok hpk hk hm hb h
   have hkids : ∀ (fs : List (Nat × UInt8 × Bool)) {m : SM} {s s' : AState} {o : Option SM},
-      StateOK s → NullsRel s.store pk → (∀ f ∈ fs, IsKind f.2.1) → SMGood s.store r m →
+      StateOK s → NullsRel s.store pk → (∀ f ∈ fs, IsKind f.2.1) → SparseGood s.store r m →
       FrontierGood s.store r b →
       ConRon.Arena.Frontend.Olean.kidsGo pk r b g fs m s = .ok (o, s') → ParseStep s s' := by
     intro fs
@@ -195,7 +195,7 @@ theorem sGo_none {pk : OleanPins} {r : Region} {b : ConRon.Arena.Frontend.Olean.
             obtain ⟨-, rfl⟩ := AM.pure_ok h2
             exact ih c (ConLeche.Frontend.Olean.Region.down_lt hd) hok hpk hk' hm hb h1
           | some m₁ =>
-            obtain ⟨hst1, hg1, -, -⟩ := sGo_run c hok hpk hk' hm hb h1
+            obtain ⟨hst1, hg1, -, -⟩ := sparseGo_run c hok hpk hk' hm hb h1
             exact hst1.trans (ihf hst1.ok (hpk.ext hst1.ext) hks' hg1 (hb.ext hst1.ext) h2)
         · subst hF
           obtain ⟨-, rfl⟩ := AM.pure_ok h
@@ -233,9 +233,9 @@ theorem sGo_none {pk : OleanPins} {r : Region} {b : ConRon.Arena.Frontend.Olean.
 /-! ## The memo's roots -/
 
 theorem memoAdd_runR {pk : OleanPins} {r : Region} {k : UInt8} (hk : IsKind k) {m m' : SM}
-    {v : UInt64} {s s' : AState} (hctx : Ctx pk s) (hm : SMGood s.store r m)
+    {v : UInt64} {s s' : AState} (hctx : Ctx pk s) (hm : SparseGood s.store r m)
     (h : ConRon.Arena.Frontend.Olean.memoAdd pk r k m v s = .ok (m', s')) :
-    ParseStep s s' ∧ SMGood s'.store r m' := by
+    ParseStep s s' ∧ SparseGood s'.store r m' := by
   generalize hF : ConRon.Arena.Frontend.Olean.memoAdd pk r k m v = f at h
   unfold ConRon.Arena.Frontend.Olean.memoAdd at hF
   split at hF
@@ -245,19 +245,19 @@ theorem memoAdd_runR {pk : OleanPins} {r : Region} {k : UInt8} (hk : IsKind k) {
     cases o with
     | none =>
       obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
-      exact ⟨sGo_none c hctx.ok hctx.nulls hk hm (FrontierGood.empty _ _) h1, SMGood.empty _ _⟩
+      exact ⟨sGo_none c hctx.ok hctx.nulls hk hm (FrontierGood.empty _ _) h1, SparseGood.empty _ _⟩
     | some m₁ =>
       obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
-      obtain ⟨hst, hg, -, -⟩ := sGo_run c hctx.ok hctx.nulls hk hm (FrontierGood.empty _ _) h1
+      obtain ⟨hst, hg, -, -⟩ := sparseGo_run c hctx.ok hctx.nulls hk hm (FrontierGood.empty _ _) h1
       exact ⟨hst, hg⟩
   · subst hF
     obtain ⟨rfl, rfl⟩ := AM.pure_ok h
     exact ⟨ParseStep.refl hctx.ok, hm⟩
 
 theorem memoAddAll_runR {pk : OleanPins} {r : Region} {k : UInt8} (hk : IsKind k) :
-    ∀ (vs : List UInt64) {m m' : SM} {s s' : AState}, Ctx pk s → SMGood s.store r m →
+    ∀ (vs : List UInt64) {m m' : SM} {s s' : AState}, Ctx pk s → SparseGood s.store r m →
       ConRon.Arena.Frontend.Olean.memoAddAll pk r k m vs s = .ok (m', s') →
-      ParseStep s s' ∧ SMGood s'.store r m'
+      ParseStep s s' ∧ SparseGood s'.store r m'
   | [], m, m', s, s', hctx, hm, h => by
     rw [ConRon.Arena.Frontend.Olean.memoAddAll] at h
     obtain ⟨rfl, rfl⟩ := AM.pure_ok h
@@ -270,9 +270,9 @@ theorem memoAddAll_runR {pk : OleanPins} {r : Region} {k : UInt8} (hk : IsKind k
     exact ⟨hst1.trans hst2, hg2⟩
 
 theorem memoRoots_runR {pk : OleanPins} {r : Region} {m m' : SM} {sk : CEntryF UInt64 UInt64}
-    {s s' : AState} (hctx : Ctx pk s) (hm : SMGood s.store r m)
+    {s s' : AState} (hctx : Ctx pk s) (hm : SparseGood s.store r m)
     (h : ConRon.Arena.Frontend.Olean.memoRoots pk r m sk s = .ok (m', s')) :
-    ParseStep s s' ∧ SMGood s'.store r m' := by
+    ParseStep s s' ∧ SparseGood s'.store r m' := by
   unfold ConRon.Arena.Frontend.Olean.memoRoots at h
   obtain ⟨m₁, s₁, h1, h2⟩ := AM.bind_ok h
   obtain ⟨hst1, hg1⟩ := memoAddAll_runR (Or.inl rfl) _ hctx hm h1
@@ -282,7 +282,7 @@ theorem memoRoots_runR {pk : OleanPins} {r : Region} {m m' : SM} {sk : CEntryF U
 /-! ## Reads off the memo -/
 
 theorem memoName_runR {pk : OleanPins} {r : Region} {m : SM} {v : UInt64} {x : NIdx}
-    {s s' : AState} (hctx : Ctx pk s) (hm : SMGood s.store r m)
+    {s s' : AState} (hctx : Ctx pk s) (hm : SparseGood s.store r m)
     (h : ConRon.Arena.Frontend.Olean.memoName pk r m v s = .ok (some x, s')) :
     ParseStep s s' ∧ ∃ n, nameP r v = some n ∧ denoteN s'.store.ns x = some n := by
   generalize hF : ConRon.Arena.Frontend.Olean.memoName pk r m v = f at h
@@ -320,12 +320,12 @@ theorem frontierExpr_runR {pk : OleanPins} {r : Region} {c : Nat} {e : EIdx} {s 
   | none => cases (AM.pure_ok h2).1
   | some sm =>
   obtain ⟨hv, rfl⟩ := AM.pure_ok h2
-  obtain ⟨hst, hG, -, -⟩ := sGo_run c hctx.ok hctx.nulls (Or.inr (Or.inr (Or.inl rfl)))
-    (SMGood.empty _ r) (FrontierGood.empty _ _) h1
-  exact ⟨hst, lookup_good hG.exprs (FrontierGood.empty _ r).exprs hv.symm⟩
+  obtain ⟨hst, hG, -, -⟩ := sparseGo_run c hctx.ok hctx.nulls (Or.inr (Or.inr (Or.inl rfl)))
+    (SparseGood.empty _ r) (FrontierGood.empty _ _) h1
+  exact ⟨hst, sparseLookup_good hG.exprs (FrontierGood.empty _ r).exprs hv.symm⟩
 
 theorem memoExpr_runR {pk : OleanPins} {r : Region} {m : SM} {v : UInt64} {x : EIdx}
-    {s s' : AState} (hctx : Ctx pk s) (hm : SMGood s.store r m)
+    {s s' : AState} (hctx : Ctx pk s) (hm : SparseGood s.store r m)
     (h : ConRon.Arena.Frontend.Olean.memoExpr pk r m v s = .ok (some x, s')) :
     ParseStep s s' ∧ ∃ e, exprP r v = some e ∧ denoteE s'.store x = some e := by
   generalize hF : ConRon.Arena.Frontend.Olean.memoExpr pk r m v = f at h
@@ -629,9 +629,9 @@ theorem kindNamesT_run {pk : OleanPins} {s₀ : AState} {fn : UInt64 → AM (Opt
 /-- con-leche: ConLeche/Verify/Frontend/Olean/Present.lean:28 entryWith_spec — **a constant
 read with a good memo is the specification's** (`entryAt`), and the memo stays good. -/
 theorem entryWith_runR {pk : OleanPins} {r : Region} {m m' : SM} {c : Nat}
-    {e : CEntryF NIdx EIdx} {s s' : AState} (hctx : Ctx pk s) (hm : SMGood s.store r m)
+    {e : CEntryF NIdx EIdx} {s s' : AState} (hctx : Ctx pk s) (hm : SparseGood s.store r m)
     (h : ConRon.Arena.Frontend.Olean.entryWith pk r m c s = .ok ((m', some e), s')) :
-    ParseStep s s' ∧ SMGood s'.store r m' ∧ ∃ eC, entryAt r c = some eC ∧
+    ParseStep s s' ∧ SparseGood s'.store r m' ∧ ∃ eC, entryAt r c = some eC ∧
       denoteEntry s'.store e = some eC := by
   generalize hF : ConRon.Arena.Frontend.Olean.entryWith pk r m c = f at h
   unfold ConRon.Arena.Frontend.Olean.entryWith at hF
@@ -659,9 +659,9 @@ theorem entryWith_runR {pk : OleanPins} {r : Region} {m m' : SM} {c : Nat}
 and kind read with a good memo are the skeleton's** (`StmtSkel`), and the memo stays good. -/
 theorem stmtWith_runR {pk : OleanPins} {r : Region} {m m' : SM} {c : Nat}
     {cv : ConRon.Arena.Frontend.Olean.StmtRec} {k : CKindF NIdx Unit} {s s' : AState}
-    (hctx : Ctx pk s) (hm : SMGood s.store r m)
+    (hctx : Ctx pk s) (hm : SparseGood s.store r m)
     (h : ConRon.Arena.Frontend.Olean.stmtWith pk r m c s = .ok ((m', some (cv, k)), s')) :
-    ParseStep s s' ∧ SMGood s'.store r m' ∧ ∃ cvC kC, ConLeche.Driver.StmtSkel r c cvC kC ∧
+    ParseStep s s' ∧ SparseGood s'.store r m' ∧ ∃ cvC kC, ConLeche.Driver.StmtSkel r c cvC kC ∧
       denoteStmt s'.store cv = some cvC ∧ denoteKindN s'.store k = some kC := by
   generalize hF : ConRon.Arena.Frontend.Olean.stmtWith pk r m c = f at h
   unfold ConRon.Arena.Frontend.Olean.stmtWith at hF
@@ -709,9 +709,9 @@ theorem stmtWith_runR {pk : OleanPins} {r : Region} {m m' : SM} {c : Nat}
 read with one good memo, each the specification's. -/
 theorem entriesWith_runR {pk : OleanPins} {r : Region} :
     ∀ (ls : List Nat) {m m' : SM} {es : List (CEntryF NIdx EIdx)} {s s' : AState}, Ctx pk s →
-      SMGood s.store r m →
+      SparseGood s.store r m →
       ConRon.Arena.Modular.entriesWith pk r m ls s = .ok ((m', some es), s') →
-      ParseStep s s' ∧ SMGood s'.store r m' ∧ ∃ esC, ls.mapM (entryAt r) = some esC ∧
+      ParseStep s s' ∧ SparseGood s'.store r m' ∧ ∃ esC, ls.mapM (entryAt r) = some esC ∧
         es.mapM (denoteEntry s'.store) = some esC
   | [], m, m', es, s, s', hctx, hm, h => by
     rw [ConRon.Arena.Modular.entriesWith] at h

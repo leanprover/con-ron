@@ -6,7 +6,7 @@ The reach's caches over handles against upstream's over names: a map keyed by pa
 of upstream's, key for key: every lookup of the twin hits where upstream's does, so the caches
 are related entry by entry (`CacheRel`) and every read of a part answers as upstream's.  The
 regions' memos are related through the snapshot's values only: the twin's memo good
-(`SMGood`), upstream's good (`SM.Good`), at the same region.
+(`SparseGood`), upstream's good (`SM.Good`), at the same region.
 
 A simulation in the run style (`Bridge/Frontend/Olean/Closure.lean`'s), not a `vcgen` walk.
 -/
@@ -215,7 +215,7 @@ structure CacheRel (st : EStore) (c : ConRon.Arena.Modular.ReachCache)
   tables : MRel (NPsRel st) st c.tables cC.tables
   looks : MRel (HMRel (NPRel st) st) st c.looks cC.looks
   parts : MRel (fun (p : Region × SM) (q : Region × ConLeche.Frontend.Olean.SM) =>
-    p.1 = q.1 ∧ SMGood st p.1 p.2 ∧ q.2.Good q.1) st c.parts cC.parts
+    p.1 = q.1 ∧ SparseGood st p.1 p.2 ∧ q.2.Good q.1) st c.parts cC.parts
   recBlocks : MRel (HMRel (· = ·) st) st c.recBlocks cC.recBlocks
   views : HMRel (HMRel (SpotRel st) st) st c.views cC.views
   located : HMRel (SpotRel st) st c.located cC.located
