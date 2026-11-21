@@ -885,4 +885,155 @@ theorem entryAt_run {pk : OleanPins} {r : Region} {c : Nat} {e : CEntryF NIdx EI
       (fun a s s' y hctx hrun => sparseExprP_run hctx.ok hctx.nulls hrun) sk hctx h2
     exact ⟨hst, z, by simpa [bind, Option.bind] using hz, hd⟩
 
+/-! ## The load -/
+
+/-- A lazy load related position by position is a lazy load. -/
+theorem lazyOf_of_rel {r : Region} {i : Nat} :
+    ∀ {ss : List (CEntryF UInt64 UInt64)} {es : List ConLeche.Frontend.Olean.CEntry},
+      ListRel (fun sk e => ConLeche.Frontend.Olean.lazyEntry (nameP r) (exprP r) r i sk =
+        some e.toCEntryF) ss es → ConLeche.Frontend.Olean.LazyOf r i ss es
+  | [], [], .nil => ⟨by simp, by simp⟩
+  | _ :: _, _ :: _, .cons hh ht =>
+    let ih := lazyOf_of_rel ht
+    ⟨fun s0 hs0 => by
+      rcases List.mem_cons.mp hs0 with rfl | hs0
+      · exact ⟨_, List.mem_cons_self, hh⟩
+      · obtain ⟨x, hx, h⟩ := ih.of_skel s0 hs0
+        exact ⟨x, List.mem_cons_of_mem _ hx, h⟩,
+     fun e0 he0 => by
+      rcases List.mem_cons.mp he0 with rfl | he0
+      · exact ⟨_, List.mem_cons_self, hh⟩
+      · obtain ⟨x, hx, h⟩ := ih.to_skel e0 he0
+        exact ⟨x, List.mem_cons_of_mem _ hx, h⟩⟩
+
+/-- A relation position by position, at each position. -/
+theorem listRel_getElem {α β : Type} {R : α → β → Prop} :
+    ∀ {l : List α} {l' : List β}, ListRel R l l' →
+      ∃ hl : l'.length = l.length, ∀ (j : Nat) (hj : j < l.length), R l[j] (l'[j]'(hl ▸ hj))
+  | [], [], .nil => ⟨rfl, fun _ hj => absurd hj (Nat.not_lt_zero _)⟩
+  | _ :: _, _ :: _, .cons hh ht => by
+    obtain ⟨hl, hk⟩ := listRel_getElem ht
+    refine ⟨by simp [hl], fun j hj => ?_⟩
+    cases j with
+    | zero => exact hh
+    | succ j => exact hk j (by simpa using hj)
+
+/-- con-leche: ConLeche/Verify/Driver/Loads.lean:950 loadAt_loadOf — **the twin's load of the
+home is a load by the specification** (`LoadOf`). -/
+theorem loadView_run {pk : OleanPins} {m : NIdx} {mn : ConLeche.Name} {f : ModFiles}
+    {l : ConRon.Arena.Frontend.Olean.Loaded} {s s' : AState}
+    (hctx : Ctx pk s) (hp : PinsRel s.store pk) (hm : denoteN s.store.ns m = some mn)
+    (h : ConRon.Arena.Frontend.Olean.loadView pk 0 m f s = .ok (l, s')) :
+    ParseStep s s' ∧ ∃ lC, LoadedRel s'.store l lC ∧ ConLeche.Driver.LoadOf 0 mn f lC := by
+  unfold ConRon.Arena.Frontend.Olean.loadView at h
+  obtain ⟨o, s₄, h7, h8⟩ := AM.bind_ok h
+  cases o with
+  | none =>
+    obtain ⟨e, s₅, -, h9⟩ := AM.bind_ok h8
+    obtain ⟨e', s₆, -, h10⟩ := AM.bind_ok h9
+    exact absurd (AM.fail_ok h10) (by simp)
+  | some l'' =>
+  obtain ⟨hv, hs⟩ := AM.pure_ok h8
+  cases hv
+  subst hs
+  obtain ⟨hst, -, lC, hrel, hn, -, hfr, r, a, sk, skels, hvr, hcno, hsk, hskels, hal, imports,
+    himps, hpre⟩ := loadAt_runOf hctx hp hm h7
+  obtain ⟨hl, hk⟩ := listRel_getElem hal
+  refine ⟨hst, lC, hrel, ⟨r, a, sk, skels, hvr, hcno, hsk, hskels, hn, ?_, lazyOf_of_rel hal⟩,
+    ⟨r, a, sk, skels, hvr, hsk, hskels, by simpa using hl, fun j hj => ?_⟩,
+    r, a, sk, imports, hvr, hsk, himps, hpre⟩
+  · rw [hfr]; exact ConLeche.Frontend.Olean.Frontier.good_empty r
+  · have := hk j hj
+    simpa using this
+
+/-! ## The exported level of the private constants -/
+
+open ConLeche.Frontend.Olean (Expo)
+
+/-- Two position indexes built over the same positions answer alike at keys that agree. -/
+theorem foldIdx_get {α β : Type} [BEq α] [Hashable α] [LawfulBEq α] [BEq β] [Hashable β]
+    [LawfulBEq β] {x : α} {y : β} :
+    ∀ (n m : Nat) (hnm : n = m) (kT : (i : Nat) → i < n → α) (kU : (i : Nat) → i < m → β),
+      (∀ i (h1 : i < n) (h2 : i < m), kT i h1 = x ↔ kU i h2 = y) →
+      (n.fold (fun i h (acc : Std.HashMap α Nat) => acc.insert (kT i h) i) {})[x]? =
+        (m.fold (fun i h (acc : Std.HashMap β Nat) => acc.insert (kU i h) i) {})[y]? := by
+  intro n m hnm
+  cases hnm
+  induction n with
+  | zero => intro _ _ _; simp
+  | succ n ih =>
+    intro kT kU hk
+    rw [Nat.fold_succ, Nat.fold_succ, Std.HashMap.getElem?_insert, Std.HashMap.getElem?_insert]
+    have e := hk n (by omega) (by omega)
+    by_cases h1 : kT n (by omega) = x
+    · have h2 := e.mp h1
+      simp [h1, h2]
+    · have h2 : ¬ kU n (by omega) = y := fun h => h1 (e.mpr h)
+      simp only [beq_iff_eq, h1, h2, ↓reduceIte]
+      exact ih _ _ (fun i a b => hk i (by omega) (by omega))
+
+/-- An array's `mapM`, at each position. -/
+theorem mapM_getElem {α β : Type} {f : α → Option β} :
+    ∀ {l : List α} {zs : List β}, l.mapM f = some zs →
+      ∃ hl : zs.length = l.length, ∀ (j : Nat) (hj : j < l.length), f l[j] = some (zs[j]'(hl ▸ hj))
+  | [], zs, h => by
+    simp only [List.mapM_nil, pure, Option.some.injEq] at h
+    subst h
+    exact ⟨rfl, fun _ hj => absurd hj (Nat.not_lt_zero _)⟩
+  | a :: l, zs, h => by
+    simp only [List.mapM_cons] at h
+    obtain ⟨z, hz, g⟩ := bind_some_left h
+    obtain ⟨zs', hzs, g⟩ := bind_some_left g
+    simp only [pure, Option.some.injEq] at g
+    subst g
+    obtain ⟨hl, hk⟩ := mapM_getElem hzs
+    refine ⟨by simp [hl], fun j hj => ?_⟩
+    cases j with
+    | zero => exact hz
+    | succ j => exact hk j (by simpa using hj)
+
+/-- con-leche: ConLeche/Frontend/Olean/Module.lean:106-152 expoOfParts — **the twin's loop over
+the exported constants is upstream's `for`**, step by step. -/
+theorem expoLoop_run {pk : OleanPins} {r : Region} {privLoc : Std.HashMap Nat Nat}
+    {privIdx : Std.HashMap NIdx Nat} {privLocs : Array Nat} {cs : Array (CEntryF NIdx EIdx)}
+    {f : Nat → Array Expo → Except String (ForInStep (Array Expo))} :
+    ∀ (l : List Nat),
+      (∀ c ∈ l, ∀ i expo, privLoc[c]? = some i → f c expo = .ok (.yield (expo.set! i .same))) →
+      (∀ c ∈ l, privLoc[c]? = none → ∀ expo s s₁ expo₁, Ctx pk s →
+        ConRon.Arena.Frontend.Olean.expoStep pk r privIdx privLocs cs expo c s =
+          .ok (.ok expo₁, s₁) → ParseStep s s₁ ∧ f c expo = .ok (.yield expo₁)) →
+      ∀ expo {s s' : AState} {e : Array Expo}, Ctx pk s →
+        ConRon.Arena.Frontend.Olean.expoLoop pk r privLoc privIdx privLocs cs l expo s =
+          .ok (.ok e, s') →
+        ParseStep s s' ∧ forIn l expo f = .ok e
+  | [], _, _, expo, s, s', e, hctx, h => by
+    rw [ConRon.Arena.Frontend.Olean.expoLoop] at h
+    obtain ⟨hv, rfl⟩ := AM.pure_ok h
+    cases hv
+    exact ⟨ParseStep.refl hctx.ok, rfl⟩
+  | c :: l, hsame, hstep, expo, s, s', e, hctx, h => by
+    rw [ConRon.Arena.Frontend.Olean.expoLoop] at h
+    rw [List.forIn_cons]
+    cases hp : privLoc[c]? with
+    | some i =>
+      simp only [hp] at h
+      obtain ⟨hst, hl⟩ := expoLoop_run l (fun c' hc' => hsame c' (List.mem_cons_of_mem _ hc'))
+        (fun c' hc' => hstep c' (List.mem_cons_of_mem _ hc')) _ hctx h
+      refine ⟨hst, ?_⟩
+      rw [hsame c List.mem_cons_self i expo hp]
+      exact hl
+    | none =>
+      simp only [hp] at h
+      obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok h
+      cases o with
+      | error m => cases (AM.pure_ok h2).1
+      | ok expo₁ =>
+        simp only at h2
+        obtain ⟨hst1, hf⟩ := hstep c List.mem_cons_self hp expo s s₁ expo₁ hctx h1
+        obtain ⟨hst2, hl⟩ := expoLoop_run l (fun c' hc' => hsame c' (List.mem_cons_of_mem _ hc'))
+          (fun c' hc' => hstep c' (List.mem_cons_of_mem _ hc')) _ (hctx.step hst1) h2
+        refine ⟨hst1.trans hst2, ?_⟩
+        rw [hf]
+        exact hl
+
 end ConRon.Bridge.Modular.Home
