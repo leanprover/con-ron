@@ -4,12 +4,17 @@
 **Task #166, Theorem 2.**  `entry_with`, `stmt_roots`, `stmt_with`: a read with the part's memo,
 which the twin threads through its answer (`AM (SM × Option β)`) and the Rust through `&mut`.
 `MRS` is `RS` with the memos related by `SMRel` in every outcome but a thrown error.
+`record_of_entry` claims its accept: the records' error channel (`SimStreamRel`) admits the scan's
+overflow, which no twin run mirrors.
 -/
 import ConRon.Refine2.Frontend.Olean.ReadsMemo
+import ConRon.Refine2.Frontend.Olean.EmitWalk
+import ConRon.Refine2.Frontend.Olean.Records
+import ConRon.Refine2.Frontend.Olean.Files
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
-open frontend.olean.present (entry_with stmt_roots stmt_with)
+open frontend.olean.present (entry_with stmt_roots stmt_with record_of_entry)
 open frontend.olean.fast (K_NAME K_EXPR)
 
 attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
@@ -19,7 +24,7 @@ namespace ConRon.Refine2.Frontend.Olean
 open ConRon.Arena
 open ConLeche.Frontend.Olean (CEntryF CKindF)
 open Arena.Frontend.Olean (entryWith stmtWith memoAdd memoAddAll memoRoots memoRead entryMap
-  kindNames)
+  kindNames recordOfEntry)
 
 /-! ## `MRS`: a read with the part's memo -/
 
@@ -253,5 +258,48 @@ theorem stmt_with_refines {pk bs r pers st lst} {d : frontend.olean.sparse.SM} {
   have e : b2 = a2.val.map absNIdx := hR2.symm
   subst e
   exact MRS.some ⟨rfl, hR4⟩ h1
+
+/-! ## A constant's record -/
+
+/-- **`record_of_entry`'s accept is `recordOfEntry`.** -/
+theorem record_of_entry_ok {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {c : frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx} {c' : CEntryF NIdx EIdx}
+    (hc : EntryRel absNIdx absEIdx ValRel c c') {d : arena.env.IDeclaration}
+    (h : record_of_entry pers st.store c = ok (.Ok d)) :
+    ∃ lst', (recordOfEntry c').run lst = .ok (absIDeclaration d, lst') ∧
+      AStateRel₀ pers st lst' ∧ AStateInv pers st := by
+  rw [record_of_entry] at h
+  peel h as hm, hhm
+  peel h as nm, -
+  peel h as em, hem
+  have he := emit_one_rel (emit_new_rel hhm) (c' := { c := c' }) ⟨hc, by simp [alloc.vec.Vec.new]⟩ hem
+  peel h as r, hr
+  have hD := decls_of_rel hrel hinv he hr
+  cases r with
+  | Err p => cases Result.ok_injective h
+  | Ok pr =>
+    obtain ⟨v, lst', hx, hv, hrel', hinv'⟩ := hD
+    dsimp only at h
+    by_cases hl : alloc.vec.Vec.len pr.decls = 1#usize
+    · rw [ite_eq_left hl] at h
+      peel h as i1, hi1
+      peel h as i2, hi2
+      cases Result.ok_injective h
+      refine ⟨lst', ?_, hrel', hinv'⟩
+      have hl' : pr.decls.val.length = 1 := by
+        have := congrArg UScalar.val hl
+        simpa [alloc.vec.Vec.len] using this
+      obtain ⟨x, hx1⟩ := List.length_eq_one_iff.mp hl'
+      have hi := ConRon.Refine.ExprOps.vec_index_getElem? hi1
+      rw [hx1] at hi
+      cases (by simpa using hi : x = i1)
+      have ev : v.decls.toList = [absIDeclaration i1] := by
+        rw [hv.decls, absIDeclArr, hx1]; rfl
+      rw [recordOfEntry, am_bind_ok hx]
+      simp only [ev, i_declaration_dup_abs hi2]
+      rfl
+    · rw [ite_eq_right hl] at h
+      exact absurd h (not_ok_of_err (by err_any))
 
 end ConRon.Refine2.Frontend.Olean
