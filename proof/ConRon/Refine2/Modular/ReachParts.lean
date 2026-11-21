@@ -1097,6 +1097,268 @@ theorem stmt_at_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : fronten
   rw [show r' = absRegion bs p.region from er]
   exact (am_bind_ok hx2).trans rfl
 
+/-- `level_index` is `2` at the private level only. -/
+theorem level_index_two {l : frontend.olean.view.OLeanLevel} {i : Std.U64}
+    (h : frontend.modular.reach.level_index l = ok i) :
+    (i = 2#u64) = (absLevel l = OLeanLevel.private) := by
+  cases l <;> cases Result.ok_injective h <;> simp [absLevel]
+
+/-- **`priv_spot`'s accept is `privSpot`'s.** -/
+theorem priv_spot_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
+    {env wr own E} (henv : ReachEnvRel env wr own E) {c C} (hc : ReachCacheRel c C)
+    {s : frontend.modular.reach.Spot} :
+    ACS pers (fun s c X => ReachCacheRel c X.1 ∧ X.2 = absSpot s) st lst
+      (priv_spot inst fsv pk pers st sp wr c s)
+      (ConRon.Arena.Modular.privSpot fs (absPins pk) (absRoots sp) E C (absSpot s)) := by
+  intro hrel hinv a st' c' h
+  rw [priv_spot] at h
+  peel h as i, hi
+  have ei := level_index_two hi
+  unfold ConRon.Arena.Modular.privSpot
+  by_cases h2 : i = 2#u64
+  · rw [ite_eq_left h2] at h
+    peel h as s1, hs1
+    cases spot_dup_ok hs1
+    have e2 := Result.ok_injective h
+    simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e2
+    obtain ⟨rfl, rfl, rfl⟩ := e2
+    refine ⟨(C, absSpot s), lst, ?_, ⟨hc, rfl⟩, hrel, hinv⟩
+    have : absLevel s.part.level = OLeanLevel.private := by rw [← ei]; exact h2
+    simp only [absSpot, absPartKey, this, beq_self_eq_true, ↓reduceIte]
+    rfl
+  · rw [ite_eq_right h2] at h
+    have hne : (absLevel s.part.level == OLeanLevel.private) = false := by
+      simp only [beq_eq_false_iff_ne]
+      exact fun he => h2 (by rw [ei]; exact he)
+    peel h as k, hk
+    obtain ⟨rfl, ek⟩ := priv_key_eq hk
+    peel h as q, hq
+    obtain ⟨r, st1, c1⟩ := q
+    cases r with
+    | Err e => simp at h
+    | Ok u =>
+      obtain ⟨C1, lst1, hx, hc1, hrel1, hinv1⟩ := look_of_refines hfs henv hc hrel hinv u st1 c1 hq
+      peel h as r1, hr1
+      cases r1 with
+      | Err e => simp at h
+      | Ok o =>
+        have hl := look_at_eq hc1 hr1 lst1
+        cases o with
+        | none =>
+          dsimp only at h
+          repeat (peel h as _x, -)
+          simp at h
+        | some q =>
+          have e2 := Result.ok_injective h
+          simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e2
+          obtain ⟨rfl, rfl, rfl⟩ := e2
+          refine ⟨(C1, ⟨absPartKey ⟨s.part.module, .Private⟩, absNamePosition q⟩), lst1, ?_,
+            ⟨hc1, rfl⟩, hrel1, hinv1⟩
+          simp only [hne, Bool.false_eq_true, ↓reduceIte, pure_bind]
+          rw [← ek, am_bind_ok hx]
+          refine (am_bind_ok hl).trans ?_
+          rfl
+
+/-- **`view_add_one`'s accept is `viewAddOne`'s.** -/
+theorem view_add_one_ok (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
+    {env wr own E} (henv : ReachEnvRel env wr own E) {c C} (hc : ReachCacheRel c C)
+    {v V} (hv : NMapRel absSpot v V) {k : frontend.modular.reach.PartKey}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) {st' c' v'}
+    (h : view_add_one inst fsv pk pers st sp wr c v k = ok (.Ok (), st', c', v')) :
+    ∃ C' V' lst', (ConRon.Arena.Modular.viewAddOne fs (absPins pk) (absRoots sp) E C V
+        (absPartKey k)).run lst = .ok ((C', V'), lst') ∧ ReachCacheRel c' C' ∧ NMapRel absSpot v' V' ∧
+      AStateRel₀ pers st' lst' ∧ AStateInv pers st' := by
+  rw [view_add_one] at h
+  peel h as q, hq
+  obtain ⟨r, st1, c1⟩ := q
+  cases r with
+  | Err e => simp at h
+  | Ok u =>
+    obtain ⟨C1, lst1, hx, hc1, hrel1, hinv1⟩ := table_of_refines hfs henv hc hrel hinv u st1 c1 hq
+    peel h as o, ho
+    have eo := table_get_eq henv.wr henv.fits hc1 ho
+    cases o with
+    | none =>
+      peel h as ce, -
+      simp at h
+    | some t =>
+      peel h as v1, hv1
+      have e2 := Result.ok_injective h
+      simp only [Prod.mk.injEq] at e2
+      obtain ⟨-, rfl, rfl, rfl⟩ := e2
+      refine ⟨C1, _, lst1, ?_, hc1, view_step_rel hv hv1, hrel1, hinv1⟩
+      unfold ConRon.Arena.Modular.viewAddOne
+      rw [am_bind_ok hx, ← eo]
+      rfl
+
+theorem view_add_loop_ok (hfs : FsRel inst fsv fs) {pk pers} {sp : frontend.olean.files.Roots}
+    {env wr own E} (henv : ReachEnvRel env wr own E) (ks : alloc.vec.Vec frontend.modular.reach.PartKey)
+    (st : arena.monad.AState) (lst : AState) (c : frontend.modular.reach.ReachCache)
+    (C : ConRon.Arena.Modular.ReachCache) (v : ron.hashmap2.HashMap2 arena.handle.NIdx frontend.modular.reach.Spot)
+    (V : _root_.Std.HashMap NIdx ConRon.Arena.Modular.Spot) (i : Std.Usize)
+    (hc : ReachCacheRel c C) (hv : NMapRel absSpot v V)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) {st' c' v'}
+    (h : view_add_loop inst fsv pk pers st sp wr c v ks i = ok (.Ok (), st', c', v')) :
+    ∃ C' V' lst', (ConRon.Arena.Modular.viewAdd fs (absPins pk) (absRoots sp) E C V
+        ((ks.val.drop i.val).map absPartKey)).run lst = .ok ((C', V'), lst') ∧ ReachCacheRel c' C' ∧
+      NMapRel absSpot v' V' ∧ AStateRel₀ pers st' lst' ∧ AStateInv pers st' := by
+  rw [view_add_loop] at h
+  by_cases h1 : i < alloc.vec.Vec.len ks
+  · rw [ite_eq_left h1] at h
+    have hi := lt_of_lt_len h1
+    peel h as k, hk
+    obtain ⟨_, rfl⟩ := vec_index_eq hk
+    peel h as q, hq
+    obtain ⟨r, st1, c1, v1⟩ := q
+    cases r with
+    | Err e => simp at h
+    | Ok u =>
+      obtain ⟨C1, V1, lst1, hx, hc1, hv1, hrel1, hinv1⟩ := view_add_one_ok hfs henv hc hv hrel hinv hq
+      peel h as i2, hi2
+      obtain ⟨C2, V2, lst2, hx2, hc2, hv2, hrel2, hinv2⟩ :=
+        view_add_loop_ok hfs henv ks st1 lst1 c1 C1 v1 V1 i2 hc1 hv1 hrel1 hinv1 h
+      refine ⟨C2, V2, lst2, ?_, hc2, hv2, hrel2, hinv2⟩
+      rw [List.drop_eq_getElem_cons hi, List.map_cons, ConRon.Arena.Modular.viewAdd, am_bind_ok hx]
+      rw [usize_succ hi2] at hx2
+      exact hx2
+  · rw [ite_eq_right h1] at h
+    have e2 := Result.ok_injective h
+    simp only [Prod.mk.injEq] at e2
+    obtain ⟨-, rfl, rfl, rfl⟩ := e2
+    refine ⟨C, V, lst, ?_, hc, hv, hrel, hinv⟩
+    rw [List.drop_of_length_le (lt_of_not_lt_len h1)]
+    rfl
+termination_by ks.val.length - i.val
+decreasing_by
+  have := lt_of_lt_len h1
+  have := usize_succ hi2
+  omega
+
+/-- **`view_add`'s accept is `viewAdd`'s.** -/
+theorem view_add_ok (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
+    {env wr own E} (henv : ReachEnvRel env wr own E) {c C} (hc : ReachCacheRel c C)
+    {v V} (hv : NMapRel absSpot v V) {ks : alloc.vec.Vec frontend.modular.reach.PartKey}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) {st' c' v'}
+    (h : view_add inst fsv pk pers st sp wr c v ks = ok (.Ok (), st', c', v')) :
+    ∃ C' V' lst', (ConRon.Arena.Modular.viewAdd fs (absPins pk) (absRoots sp) E C V
+        (ks.val.map absPartKey)).run lst = .ok ((C', V'), lst') ∧ ReachCacheRel c' C' ∧
+      NMapRel absSpot v' V' ∧ AStateRel₀ pers st' lst' ∧ AStateInv pers st' := by
+  rw [view_add] at h
+  simpa using view_add_loop_ok hfs henv ks st lst c C v V 0#usize hc hv hrel hinv h
+
+/-- **`home_loads`' accept is `homeLoads`'.** -/
+theorem home_loads_ok (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
+    {env wr own E} (henv : ReachEnvRel env wr own E) {c C} (hc : ReachCacheRel c C)
+    {k : frontend.modular.reach.PartKey} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {ld st'} (h : home_loads inst fsv pk pers st sp wr c k = ok (.Ok ld, st')) :
+    ∃ ld' lst', (ConRon.Arena.Modular.homeLoads fs (absPins pk) (absRoots sp) E C (absPartKey k)).run lst =
+        .ok (ld', lst') ∧ HeaderLoadsRel ld ld' ∧ AStateRel₀ pers st' lst' ∧ AStateInv pers st' := by
+  rw [home_loads] at h
+  peel h as o, ho
+  have eo := table_get_eq henv.wr henv.fits hc ho
+  cases o with
+  | none =>
+    peel h as ce, -
+    simp at h
+  | some t =>
+    peel h as q, hq
+    obtain ⟨r, e⟩ := q
+    have e2 := Result.ok_injective h
+    simp only [Prod.mk.injEq] at e2
+    obtain ⟨rfl, rfl⟩ := e2
+    obtain ⟨ld', lst1, hx, hld, hrel1, hinv1⟩ := header_fixpoint_refines hfs hrel hinv ld e hq
+    refine ⟨ld', lst1, ?_, hld, hrel1, hinv1⟩
+    unfold ConRon.Arena.Modular.homeLoads
+    rw [← eo]
+    exact hx
+
+/-- **`view_of`'s accept is `viewOf`'s.** -/
+theorem view_of_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
+    {env wr own E} (henv : ReachEnvRel env wr own E) {c C} (hc : ReachCacheRel c C)
+    {hm : arena.handle.NIdx} :
+    ACS pers CR st lst (view_of inst fsv pk pers st sp wr c hm)
+      (ConRon.Arena.Modular.viewOf fs (absPins pk) (absRoots sp) E C (absNIdx hm)) := by
+  intro hrel hinv a st' c' h
+  rw [view_of] at h
+  peel h as b, hb
+  have eb := hc.views.contains_eq hb
+  unfold ConRon.Arena.Modular.viewOf
+  by_cases hb' : b = true
+  · rw [ite_eq_left hb'] at h
+    simp only [ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨-, rfl, rfl⟩ := h
+    refine ⟨C, lst, ?_, hc, hrel, hinv⟩
+    rw [← eb, hb']
+    rfl
+  · rw [ite_eq_right hb'] at h
+    have hb0 : C.views.contains (absNIdx hm) = false := by rw [← eb]; simpa using hb'
+    peel h as k, hk
+    obtain ⟨rfl, ek⟩ := priv_key_eq hk
+    peel h as q, hq
+    obtain ⟨r, st1, c1⟩ := q
+    cases r with
+    | Err e => simp at h
+    | Ok u =>
+      obtain ⟨C1, lst1, hx, hc1, hrel1, hinv1⟩ := table_of_refines hfs henv hc hrel hinv u st1 c1 hq
+      peel h as q2, hq2
+      obtain ⟨r1, st2⟩ := q2
+      cases r1 with
+      | Err e => simp at h
+      | Ok ld =>
+        obtain ⟨ld', lst2, hx2, hld, hrel2, hinv2⟩ := home_loads_ok hfs henv hc1 hrel1 hinv1 hq2
+        peel h as v, hv
+        peel h as v1, hv1
+        have ek1 := view_keys_eq hld hv1
+        peel h as q3, hq3
+        obtain ⟨r2, st3, c2, v2⟩ := q3
+        cases r2 with
+        | Err e => simp at h
+        | Ok u2 =>
+          obtain ⟨C2, V2, lst3, hx3, hc2, hv2, hrel3, hinv3⟩ :=
+            view_add_ok hfs henv hc1 (NMapRel.new (A := absSpot) hv) hrel2 hinv2 hq3
+          peel h as n, hn
+          cases nidx_dup2_ok hn
+          peel h as q4, hq4
+          obtain ⟨_, hmv⟩ := q4
+          have e2 := Result.ok_injective h
+          simp only [Prod.mk.injEq] at e2
+          obtain ⟨-, rfl, rfl⟩ := e2
+          refine ⟨{ C2 with views := C2.views.insert (absNIdx hm) V2 }, lst3, ?_,
+            { hc2 with views := hc2.views.insert hv2 hq4 }, hrel3, hinv3⟩
+          rw [hb0]
+          simp only [Bool.false_eq_true, ↓reduceIte, pure_bind]
+          rw [← ek, am_bind_ok hx, am_bind_ok hx2, ← ek1, am_bind_ok hx3]
+          rfl
+
+/-- **`locate`'s accept is `locate`'s.** -/
+theorem locate_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
+    {env wr own E} (henv : ReachEnvRel env wr own E) {c C} (hc : ReachCacheRel c C)
+    {hm y : arena.handle.NIdx} :
+    ACS pers (fun o c X => ReachCacheRel c X.1 ∧ X.2 = o.map absSpot) st lst
+      (locate inst fsv pk pers st sp wr c hm y)
+      (ConRon.Arena.Modular.locate fs (absPins pk) (absRoots sp) E C (absNIdx hm) (absNIdx y)) := by
+  intro hrel hinv a st' c' h
+  rw [locate] at h
+  peel h as q, hq
+  obtain ⟨r, st1, c1⟩ := q
+  cases r with
+  | Err e => simp at h
+  | Ok u =>
+    obtain ⟨C1, lst1, hx, hc1, hrel1, hinv1⟩ := view_of_refines hfs henv hc hrel hinv u st1 c1 hq
+    peel h as i, hi
+    peel h as r1, hr1
+    have e2 := Result.ok_injective h
+    simp only [Prod.mk.injEq] at e2
+    obtain ⟨rfl, rfl, rfl⟩ := e2
+    have hc2 : ReachCacheRel { c1 with searches := i } { C1 with searches := C1.searches + 1 } :=
+      { hc1 with searches := by rw [ConRon.Refine.Nat.uadd_val hi, hc1.searches]; rfl }
+    have hl := view_at_eq hc2 hr1 lst1
+    refine ⟨({ C1 with searches := C1.searches + 1 }, a.map absSpot), lst1, ?_, ⟨hc2, rfl⟩, hrel1, hinv1⟩
+    unfold ConRon.Arena.Modular.locate
+    rw [am_bind_ok hx]
+    refine (am_bind_ok hl).trans ?_
+    rfl
+
 end reads
 
 end ConRon.Refine2.Modular
