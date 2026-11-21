@@ -105714,7 +105714,7 @@ def frontend.modular.reach.infer_one
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::frontend::modular::reach::infer_flags]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2209:4-2221:1
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2212:4-2224:1
     Visibility: public -/
 @[rust_loop]
 def frontend.modular.reach.infer_flags_loop
@@ -105747,7 +105747,7 @@ def frontend.modular.reach.infer_flags_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::modular::reach::infer_flags]:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2199:0-2221:1
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2199:0-2224:1
     Visibility: public -/
 def frontend.modular.reach.infer_flags
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -105761,16 +105761,18 @@ def frontend.modular.reach.infer_flags
   if i = 0#usize
   then ok (core.result.Result.Ok (), st)
   else
-    let (r, st1) ← frontend.modular.reach.first_owner pers st ctx
-    match r with
+    let st1 ← arena.core.enter_record st
+    let (ro, st2) ← frontend.modular.reach.first_owner pers st1 ctx
+    let st3 ← arena.core.leave_record st2
+    match ro with
     | core.result.Result.Ok m =>
       let i1 := alloc.vec.Vec.len ctx
       let n ← lift (UScalar.cast .U64 i1)
-      frontend.modular.reach.infer_flags_loop pers st1 pending m n 0#usize
-    | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
+      frontend.modular.reach.infer_flags_loop pers st3 pending m n 0#usize
+    | core.result.Result.Err e => ok (core.result.Result.Err e, st3)
 
 /-- [con_ron_core::frontend::modular::reach::owner_add]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2231:4-2234:5
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2234:4-2237:5
     Visibility: public -/
 @[rust_loop]
 def frontend.modular.reach.owner_add_loop
@@ -105795,7 +105797,7 @@ def frontend.modular.reach.owner_add_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::modular::reach::owner_add]:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2229:0-2235:1
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2232:0-2238:1
     Visibility: public -/
 @[reducible]
 def frontend.modular.reach.owner_add
@@ -105806,7 +105808,7 @@ def frontend.modular.reach.owner_add
   frontend.modular.reach.owner_add_loop m ns j 0#usize
 
 /-- [con_ron_core::frontend::modular::reach::owner_map]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2243:4-2251:1
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2246:4-2254:1
     Visibility: public -/
 @[rust_loop]
 def frontend.modular.reach.owner_map_loop
@@ -105834,7 +105836,7 @@ def frontend.modular.reach.owner_map_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::modular::reach::owner_map]:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2240:0-2251:1
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2243:0-2254:1
     Visibility: public -/
 def frontend.modular.reach.owner_map
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -105846,7 +105848,7 @@ def frontend.modular.reach.owner_map
   frontend.modular.reach.owner_map_loop pers st ds m 0#usize
 
 /-- [con_ron_core::frontend::modular::reach::sort_out_of_steps::M]
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2264:27-2264:196 -/
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2267:27-2267:196 -/
 @[global_simps, irreducible]
 def frontend.modular.reach.sort_out_of_steps.M : Array Std.U32 31#usize :=
   Array.make 31#usize [
@@ -105857,7 +105859,7 @@ def frontend.modular.reach.sort_out_of_steps.M : Array Std.U32 31#usize :=
     ]
 
 /-- [con_ron_core::frontend::modular::reach::sort_out_of_steps]:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2263:0-2265:1
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2266:0-2268:1
     Visibility: public -/
 def frontend.modular.reach.sort_out_of_steps
   : Result kernel.core_types.CheckError := do
@@ -105866,13 +105868,13 @@ def frontend.modular.reach.sort_out_of_steps
   kernel.core_types.internal v
 
 /-- [con_ron_core::frontend::modular::reach::sort_cycle::M#3]
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2288:79-2288:104 -/
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2291:79-2291:104 -/
 @[global_simps, irreducible]
 def frontend.modular.reach.sort_cycle.M_3 : Array Std.U32 1#usize :=
   Array.make 1#usize [ 41#u32 ]
 
 /-- [con_ron_core::frontend::modular::reach::sort_cycle::M#2]
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2287:33-2287:176 -/
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2290:33-2290:176 -/
 @[global_simps, irreducible]
 def frontend.modular.reach.sort_cycle.M_2 : Array Std.U32 26#usize :=
   Array.make 26#usize [
@@ -105883,13 +105885,13 @@ def frontend.modular.reach.sort_cycle.M_2 : Array Std.U32 26#usize :=
     ]
 
 /-- [con_ron_core::frontend::modular::reach::sort_cycle::M#1]
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2286:181-2286:224 -/
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2289:181-2289:224 -/
 @[global_simps, irreducible]
 def frontend.modular.reach.sort_cycle.M_1 : Array Std.U32 5#usize :=
   Array.make 5#usize [ 32#u32, 97#u32, 110#u32, 100#u32, 32#u32 ]
 
 /-- [con_ron_core::frontend::modular::reach::sort_cycle::M]
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2286:25-2286:142 -/
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2289:25-2289:142 -/
 @[global_simps, irreducible]
 def frontend.modular.reach.sort_cycle.M : Array Std.U32 20#usize :=
   Array.make 20#usize [
@@ -105899,7 +105901,7 @@ def frontend.modular.reach.sort_cycle.M : Array Std.U32 20#usize :=
     ]
 
 /-- [con_ron_core::frontend::modular::reach::sort_cycle]:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2269:0-2289:1
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2272:0-2292:1
     Visibility: public -/
 def frontend.modular.reach.sort_cycle
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -106007,7 +106009,7 @@ def frontend.modular.reach.sort_cycle
       ok (e, st)
 
 /-- [con_ron_core::frontend::modular::reach::sort_visit_one::M#1]
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2298:60-2298:233 -/
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2301:60-2301:233 -/
 @[global_simps, irreducible]
 def frontend.modular.reach.sort_visit_one.M_1 : Array Std.U32 32#usize :=
   Array.make 32#usize [
@@ -106018,7 +106020,7 @@ def frontend.modular.reach.sort_visit_one.M_1 : Array Std.U32 32#usize :=
     ]
 
 /-- [con_ron_core::frontend::modular::reach::sort_visit_one::M]
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2297:32-2297:161 -/
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2300:32-2300:161 -/
 @[global_simps, irreducible]
 def frontend.modular.reach.sort_visit_one.M : Array Std.U32 23#usize :=
   Array.make 23#usize [
@@ -106030,7 +106032,7 @@ def frontend.modular.reach.sort_visit_one.M : Array Std.U32 23#usize :=
 mutual
 
 /-- [con_ron_core::frontend::modular::reach::sort_visit_one]:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2294:0-2316:1
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2297:0-2319:1
     Visibility: public -/
 def frontend.modular.reach.sort_visit_one
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -106112,7 +106114,7 @@ def frontend.modular.reach.sort_visit_one
 partial_fixpoint
 
 /-- [con_ron_core::frontend::modular::reach::sort_visit]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2328:4-2338:1
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2331:4-2341:1
     Visibility: public -/
 @[rust_loop]
 def frontend.modular.reach.sort_visit_loop
@@ -106151,7 +106153,7 @@ def frontend.modular.reach.sort_visit_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::modular::reach::sort_visit]:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2323:0-2338:1
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2326:0-2341:1
     Visibility: public -/
 def frontend.modular.reach.sort_visit
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -106176,7 +106178,7 @@ partial_fixpoint
 end
 
 /-- [con_ron_core::frontend::modular::reach::sort_from_one]:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2342:0-2353:1
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2345:0-2356:1
     Visibility: public -/
 def frontend.modular.reach.sort_from_one
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -106216,7 +106218,7 @@ def frontend.modular.reach.sort_from_one
       ok (r, st1, ss1)
 
 /-- [con_ron_core::frontend::modular::reach::sort_from]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2359:4-2367:1
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2362:4-2370:1
     Visibility: public -/
 @[rust_loop]
 def frontend.modular.reach.sort_from_loop
@@ -106243,7 +106245,7 @@ def frontend.modular.reach.sort_from_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::modular::reach::sort_from]:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2357:0-2367:1
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2360:0-2370:1
     Visibility: public -/
 @[reducible]
 def frontend.modular.reach.sort_from
@@ -106258,7 +106260,7 @@ def frontend.modular.reach.sort_from
   frontend.modular.reach.sort_from_loop pers st ds rds owner fuel ss 0#usize
 
 /-- [con_ron_core::frontend::modular::reach::read_order]:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2373:0-2383:1
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2376:0-2386:1
     Visibility: public -/
 def frontend.modular.reach.read_order
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -106283,7 +106285,7 @@ def frontend.modular.reach.read_order
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::frontend::modular::reach::reach_roots]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2407:4-2412:5
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2410:4-2415:5
     Visibility: public -/
 @[rust_loop]
 def frontend.modular.reach.reach_roots_loop0
@@ -106315,7 +106317,7 @@ def frontend.modular.reach.reach_roots_loop0
 partial_fixpoint
 
 /-- [con_ron_core::frontend::modular::reach::reach_roots]: loop 1:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2414:4-2419:5
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2417:4-2422:5
     Visibility: public -/
 @[rust_loop]
 def frontend.modular.reach.reach_roots_loop1
@@ -106347,7 +106349,7 @@ def frontend.modular.reach.reach_roots_loop1
 partial_fixpoint
 
 /-- [con_ron_core::frontend::modular::reach::reach_roots]:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2404:0-2421:1
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2407:0-2424:1
     Visibility: public -/
 def frontend.modular.reach.reach_roots
   (own : ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
@@ -106363,7 +106365,7 @@ def frontend.modular.reach.reach_roots
   frontend.modular.reach.reach_roots_loop1 own extra out1 0#usize
 
 /-- [con_ron_core::frontend::modular::reach::first_unloaded]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2427:4-2434:1
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2430:4-2437:1
     Visibility: public -/
 @[rust_loop]
 def frontend.modular.reach.first_unloaded_loop
@@ -106390,7 +106392,7 @@ def frontend.modular.reach.first_unloaded_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::modular::reach::first_unloaded]:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2425:0-2434:1
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2428:0-2437:1
     Visibility: public -/
 @[reducible]
 def frontend.modular.reach.first_unloaded
@@ -106401,7 +106403,7 @@ def frontend.modular.reach.first_unloaded
   frontend.modular.reach.first_unloaded_loop wr rs 0#usize
 
 /-- [con_ron_core::frontend::modular::reach::in_read_order]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2442:4-2449:5
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2445:4-2452:5
     Visibility: public -/
 @[rust_loop]
 def frontend.modular.reach.in_read_order_loop
@@ -106444,7 +106446,7 @@ def frontend.modular.reach.in_read_order_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::modular::reach::in_read_order]:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2438:0-2451:1
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2441:0-2454:1
     Visibility: public -/
 def frontend.modular.reach.in_read_order
   (l : frontend.modular.reach.ReachLog) (o : alloc.vec.Vec Std.U64) :
@@ -106458,7 +106460,7 @@ def frontend.modular.reach.in_read_order
   frontend.modular.reach.in_read_order_loop l o ctx homes 0#usize
 
 /-- [con_ron_core::frontend::modular::reach::reach::M]
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2466:65-2466:202 -/
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2469:65-2469:202 -/
 @[global_simps, irreducible]
 def frontend.modular.reach.reach.M : Array Std.U32 24#usize :=
   Array.make 24#usize [
@@ -106468,7 +106470,7 @@ def frontend.modular.reach.reach.M : Array Std.U32 24#usize :=
     ]
 
 /-- [con_ron_core::frontend::modular::reach::reach]:
-    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2457:0-2486:1
+    Source: 'crates/con-ron-core/src/frontend/modular/reach.rs', lines 2460:0-2489:1
     Visibility: public -/
 def frontend.modular.reach.reach
   {F : Type _} (oleanfilesOleanFsInst : frontend.olean.files.OleanFs F)
