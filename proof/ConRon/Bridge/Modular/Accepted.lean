@@ -45,7 +45,7 @@ the private files read and the private view loaded and checked give upstream's l
 @[expose] def HomeHyp : Prop :=
   ∀ {pk : OleanPins} {F : FS} {sp : Roots} {s s₁ s' : AState} {m : NIdx} {mC : ConLeche.Name}
     {f : ConLeche.Frontend.Olean.ModFiles} {l : Loaded} {expo : Array Expo},
-    sp.bare = sp → Ctx pk s → denoteN s.store.ns m = some mC →
+    sp.bare = sp → Ctx pk s → PinsRel s.store pk → denoteN s.store.ns m = some mC →
     ConRon.Arena.Frontend.Olean.liftE
       (ConRon.Arena.Frontend.Olean.readFiles (modelFs F) sp mC .private) s = .ok (f, s₁) →
     ConRon.Arena.Modular.homeOf pk m f s₁ = .ok ((l, expo), s') →
