@@ -154,4 +154,108 @@ theorem recordOfEntry_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scra
   | [], h2, _ => exfalso; am_never h2
   | _ :: _ :: _, h2, _ => exfalso; am_never h2
 
+/-! ## A part's recursors by block -/
+
+theorem AM.bind_of {α β : Type} {x : AM α} {f : α → AM β} {s s₁ s' : AState} {a : α} {b : β}
+    (h1 : x s = .ok (a, s₁)) (h2 : f a s₁ = .ok (b, s')) : (x >>= f) s = .ok (b, s') := by
+  rw [AM.bind_apply, h1]; exact h2
+
+/-- upstream's step of `recBlocksAt`'s fold. -/
+@[expose] def rbStepC (m : Std.HashMap ConLeche.Name (Array Nat)) (x : Nat × CKindF ConLeche.Name Unit) :
+    Std.HashMap ConLeche.Name (Array Nat) :=
+  match x with
+  | (l, k) => match k with
+    | .recur (a :: _) .. => m.alter a fun | none => some #[l] | some xs => some (xs.push l)
+    | _ => m
+
+theorem recBlocksAdd_rel {st : EStore} (hw : NStoreWF st.ns) {m : Std.HashMap NIdx (Array Nat)}
+    {mC : Std.HashMap ConLeche.Name (Array Nat)} (hm : HMRel (· = ·) st m mC) (l : Nat)
+    {k : CKindF NIdx Unit} {kC : CKindF ConLeche.Name Unit} (hk : denoteKindN st k = some kC) :
+    HMRel (· = ·) st (ConRon.Arena.Modular.recBlocksAdd m l k) (rbStepC mC (l, kC)) := by
+  unfold denoteKindN at hk
+  cases k with
+  | recur all np ni nmo nmi rules kk iu =>
+    simp only [CKindF.mapM] at hk
+    obtain ⟨allC, hall, hk⟩ := bind_some_left hk
+    obtain ⟨rulesC, -, hk⟩ := bind_some_left hk
+    simp only [pure, Option.some.injEq] at hk
+    subst hk
+    cases all with
+    | nil =>
+      simp only [List.mapM_nil, pure, Option.some.injEq] at hall
+      subst hall
+      exact hm
+    | cons a as =>
+      simp only [List.mapM_cons] at hall
+      obtain ⟨aC, ha, hall⟩ := bind_some_left hall
+      obtain ⟨asC, -, hall⟩ := bind_some_left hall
+      simp only [pure, Option.some.injEq] at hall
+      subst hall
+      simp only [ConRon.Arena.Modular.recBlocksAdd, rbStepC]
+      have hget := hm.get_eq hw ha
+      constructor
+      · intro x v hx
+        rw [Std.HashMap.getElem?_insert] at hx
+        by_cases hxa : (a == x) = true
+        · rw [ite_eq_left hxa] at hx
+          cases hx
+          have hxa' : a = x := eq_of_beq hxa
+          subst hxa'
+          refine ⟨aC, _, ha, ?_, rfl⟩
+          rw [Std.HashMap.getElem?_alter, ite_eq_left (beq_self_eq_true aC), ← hget]
+          cases m[a]? <;> rfl
+        · rw [ite_eq_right hxa] at hx
+          obtain ⟨n, b, h1, h2, h3⟩ := hm.fwd x v hx
+          refine ⟨n, b, h1, ?_, h3⟩
+          rw [Std.HashMap.getElem?_alter]
+          have : (aC == n) = false := by
+            cases hb : (aC == n)
+            · rfl
+            · exfalso; apply hxa
+              have := eq_of_beq hb; subst this
+              exact beq_iff_eq.mpr (denoteN_inj hw ha h1)
+          rw [ite_eq_right (by simp [this])]
+          exact h2
+      · intro n b hn
+        rw [Std.HashMap.getElem?_alter] at hn
+        by_cases hna : (aC == n) = true
+        · rw [ite_eq_left hna] at hn
+          have : aC = n := eq_of_beq hna
+          subst this
+          refine ⟨a, _, ha, by rw [Std.HashMap.getElem?_insert, ite_eq_left (beq_self_eq_true a)], ?_⟩
+          rw [hget]
+          revert hn
+          cases mC[aC]? <;> intro hn <;> cases hn <;> rfl
+        · rw [ite_eq_right hna] at hn
+          obtain ⟨x, v, h1, h2, h3⟩ := hm.bwd n b hn
+          refine ⟨x, v, h1, ?_, h3⟩
+          rw [Std.HashMap.getElem?_insert]
+          have : (a == x) = false := by
+            cases hb : (a == x)
+            · rfl
+            · exfalso; apply hna
+              have := eq_of_beq hb; subst this
+              rw [ha] at h1; cases h1; exact beq_self_eq_true _
+          rw [ite_eq_right (by simp [this])]
+          exact h2
+  | ax _ => simp only [CKindF.mapM, pure, Option.some.injEq] at hk; subst hk; exact hm
+  | defn _ _ _ =>
+    simp only [CKindF.mapM] at hk; obtain ⟨_, _, hk⟩ := bind_some_left hk
+    simp only [pure, Option.some.injEq] at hk; subst hk; exact hm
+  | thm _ _ =>
+    simp only [CKindF.mapM] at hk; obtain ⟨_, _, hk⟩ := bind_some_left hk
+    obtain ⟨_, _, hk⟩ := bind_some_left hk
+    simp only [pure, Option.some.injEq] at hk; subst hk; exact hm
+  | opaq _ _ =>
+    simp only [CKindF.mapM] at hk; obtain ⟨_, _, hk⟩ := bind_some_left hk
+    simp only [pure, Option.some.injEq] at hk; subst hk; exact hm
+  | quot _ => simp only [CKindF.mapM, pure, Option.some.injEq] at hk; subst hk; exact hm
+  | induct _ _ _ _ _ _ _ _ =>
+    simp only [CKindF.mapM] at hk; obtain ⟨_, _, hk⟩ := bind_some_left hk
+    obtain ⟨_, _, hk⟩ := bind_some_left hk
+    simp only [pure, Option.some.injEq] at hk; subst hk; exact hm
+  | ctor _ _ _ _ _ =>
+    simp only [CKindF.mapM] at hk; obtain ⟨_, _, hk⟩ := bind_some_left hk
+    simp only [pure, Option.some.injEq] at hk; subst hk; exact hm
+
 end ConRon.Bridge.Modular
