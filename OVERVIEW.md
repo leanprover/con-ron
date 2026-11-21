@@ -466,6 +466,47 @@ none`, so a run with `--constant` is outside the theorems; the driver's own
 rejections (a foreign `--constant`, a solution whose closure holds the
 challenge) end the run before the theorems' calls and claim nothing.
 
+### 3.5 The modular runs
+
+`--check-graph`, `--olean --module` and `--olean --modular` check a closure
+module by module, as con-leche's modular theorem (`main_modular`,
+`main_modular_one`) states it.  The graph check (`modular::check_graph`)
+reads the headers of the roots' closure and checks the import graph acyclic;
+each module's worker (`modular::check_module`, one process per module under
+`--olean --module`, all of them in one process under `--olean --modular`,
+each from fresh start values) reads what Lean loads for the module, its own
+records and the context the reach takes from the loaded modules, and checks
+the own records against the context.
+[`model_modular`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean)
+takes one premise per call of the graph check and, for every module of the
+headers' closure, one per call of its worker, all on one snapshot `F` of the
+files (`SnapshotOf`), and concludes con-leche's family of models over the
+files: every module of the closure of the root, by the specification
+(`InClosure`), has a model of its constants (`moduleConstants`), and the
+models agree on what the modules see of each other (`Sees`).  Its proof is
+Theorem 2 per call, Theorem 1 of the graph (`graphStage_run`) and of each
+worker (`workerStage_run`: the twin's accepted worker is con-leche's
+`WorkerAccepted`), and con-leche's `closure_sees_isModel`.
+
+The worker's Theorem 1 relates each of its phases to con-leche's: the home
+(`homeHyp_holds`, con-leche's `LoadOf` and `checkViews`), the reads
+(`workerReads_run`), the own records, the roots and the holes, the reach
+(`ReachRunHyp`), the copies, and the check phase from `start`
+(`pooledOleanAcceptsFrom_bridge`: a `PureRun` of the own records from the
+context's environment).  The reach's flags are inferred after the worker's
+freeze, on the frozen index (`inferFlags_run`); con-leche states its reach
+over any sound inference (`reachWith`, `FlagsOk`), and con-ron's is the
+classical `soundFlags`, whose accept is what the twin's inference
+establishes.
+
+`--modular --compare` and `--module --compare` check a challenge `C` with
+its solution `S` loaded whole (`import all S` added to `C`'s header):
+`model_modular_compare` and `no_False_modular_compare` take the compared
+graph check's calls, a plain worker's at every module but `C` and the
+compare worker's at `C`, and conclude con-leche's `compare_sees_isModel` and
+`compare_no_False` about the challenge's closure through its own
+directories.
+
 ## 4. The expression representation
 
 The checker's state is one value,

@@ -2264,4 +2264,13 @@ them. -/
 /-- info: 'ConRon.Capstone.model_exists_oleans_compare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms model_exists_oleans_compare
 
+/-- info: 'ConRon.Capstone.model_modular_of' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms model_modular_of
+
+/-- info: 'ConRon.Capstone.model_modular_compare_of' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms model_modular_compare_of
+
+/-- info: 'ConRon.Capstone.no_False_modular_compare_of' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms no_False_modular_compare_of
+
 end ConRon.Capstone
