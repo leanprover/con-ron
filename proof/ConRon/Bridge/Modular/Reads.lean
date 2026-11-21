@@ -470,7 +470,7 @@ theorem workerReads_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = 
     (hm : denoteN s.store.ns m = some mC) (hx : ImpsD s.store x xC)
     (h : ConRon.Arena.Frontend.Olean.workerReads (modelFs F) pk sp m x s = .ok (wr, s')) :
     ParseStep s s' ∧ ∃ wrC, ModelIO.Gives (ConLeche.Frontend.Olean.workerReads (.ofPath sp) mC 1 xC :
-        ModelIO _) F (.ok wrC) ∧ WorkerReadsRel s'.store wr wrC := by
+        ModelIO _) F (.ok wrC) ∧ WorkerReadsRel s'.store wr wrC ∧ LoadsKeys wr.loads wrC.loads := by
   unfold ConRon.Arena.Frontend.Olean.workerReads at h
   -- the own part
   obtain ⟨own0, s₁, h1, hA⟩ := AM.bind_ok h
@@ -527,7 +527,7 @@ theorem workerReads_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = 
       ((ConLeche.Frontend.Olean.clashCopies (ConLeche.Frontend.Olean.nameIndexOf
         partsC.toArray)).map fun (x : ConLeche.Name × Array Copy) => match x with
           | (n, cs) => (ConLeche.Frontend.Olean.Clash.mk n (cs.filterMap fun c =>
-              (infosC[c]?).map fun (s, k) => (c, s, k)))), ?_, ?_⟩⟩
+              (infosC[c]?).map fun (s, k) => (c, s, k)))), ?_, ?_, hkeys⟩⟩
   rotate_left
   · exact ⟨hown.ext (hst2.trans (hst3.trans (hst5.trans hst7))).ext,
       hld3.ext' (hst5.trans hst7).ext hw7 hkeys, pubClosures_eq hld3, hix7,
