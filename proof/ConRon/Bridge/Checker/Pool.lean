@@ -51,7 +51,7 @@ is con-leche's step**: the `And` pin moves the store and nothing the check reads
 theorem recordSpec {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
     (hk : CoreSpec Arena.checkFuel) (hind : IndSpec) : RecordSpec pins pinsP := by
   intro env I k pd d s s' hok hpins hd hrun
-  simp only [recordCheck] at hrun
+  simp only [recordCheck, checkRecord] at hrun
   obtain ⟨b, s₁, ha, k1⟩ := AM.bind_ok hrun
   obtain ⟨hst₁, hx₁, hc₁, hp₁⟩ := andPinOk_run hok.check.state hok.check.pins hd ha
   rcases AM.ite_ok k1 with ⟨-, k2⟩ | ⟨-, k2⟩

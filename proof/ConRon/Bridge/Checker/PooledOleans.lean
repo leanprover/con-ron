@@ -125,18 +125,18 @@ theorem oleanJob_ok {fs : ConRon.Arena.Frontend.Olean.OleanFs}
     {I : IStreamIndex} {ds : Array IDeclaration} {c c' : ValueCache} {t : Nat}
     {s s' : AState} (ht : t < ds.size)
     (h : oleanJob fs pk sp values .verified pins I ds c t s = .ok ((c', .ok ()), s')) :
-    (c' = c ∧ recordJob .verified pins I t ds[t] s = .ok ((), s') ∧
+    (c' = c ∧ recordJob .verified pins none I t ds[t] s = .ok ((), s') ∧
       ∀ cv v, ds[t] = .thmDecl cv v →
         (if v.tag == ETag.bvar then s.store.viewBVar v else none) = none) ∨
     ∃ cv v code e s₁, ds[t] = .thmDecl cv v ∧
       (if v.tag == ETag.bvar then s.store.viewBVar v else none) = some code ∧
       (do enterScratch; readValue fs pk sp values c code) s = .ok ((c', .ok e), s₁) ∧
-      (do recordCheck .verified pins I t (.thmDecl cv e); dropScratch) s₁ = .ok ((), s') := by
-  have plain : (match runJob .verified pins I ds t s with
+      (do recordCheck .verified pins none I t (.thmDecl cv e); dropScratch) s₁ = .ok ((), s') := by
+  have plain : (match runJob .verified pins none I ds t s with
         | .ok (r, s'') => (.ok (c, r, s'') :
             Except Arena.CheckError (ValueCache × Except (Arena.CheckError × Nat) Unit × AState))
         | .error e => .error e) = .ok (c', .ok (), s') →
-      c' = c ∧ recordJob .verified pins I t ds[t] s = .ok ((), s') := by
+      c' = c ∧ recordJob .verified pins none I t ds[t] s = .ok ((), s') := by
     intro hp
     unfold runJob at hp
     rw [Array.getElem?_eq_getElem ht] at hp
@@ -305,7 +305,7 @@ theorem oleanJob_spec
     have hpinsr := PinsDenote.pmono hxr pins pinsP hpp hpins
     have hdr : Frontend.denoteDecl sr.store (.thmDecl cv e) = some (.thmDecl cv' x') := by
       simp only [Frontend.denoteDecl, denoteCV_pext hxr hpk.1 hcv, hx']
-    cases hrc : recordCheck .verified pins I k (.thmDecl cv e) sr with
+    cases hrc : recordCheck .verified pins none I k (.thmDecl cv e) sr with
     | error err => rw [hrc] at hcheck; exact nomatch hcheck
     | ok r =>
       obtain ⟨u, s'⟩ := r

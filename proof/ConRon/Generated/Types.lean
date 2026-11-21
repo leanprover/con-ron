@@ -1415,6 +1415,21 @@ structure arena.decl_check.CertCtx where
   lor_n : arena.handle.NIdx
   xor_n : arena.handle.NIdx
 
+/-- [con_ron_core::arena::needs::NeedsSt]
+    Source: 'crates/con-ron-core/src/arena/needs.rs', lines 45:0-48:1
+    Visibility: public -/
+structure arena.needs.NeedsSt where
+  seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool
+  acc : alloc.vec.Vec arena.handle.NIdx
+
+/-- [con_ron_core::arena::justify::Solution]
+    Source: 'crates/con-ron-core/src/arena/justify.rs', lines 398:0-401:1
+    Visibility: public -/
+structure arena.justify.Solution where
+  ix : arena.stream_index.IStreamIndex
+  mates : ron.hashmap2.HashMap2 arena.handle.NIdx (alloc.vec.Vec
+    arena.handle.NIdx)
+
 /-- [con_ron_core::kernel::nat_op_pins::NatOpPinSet]
     Source: 'crates/con-ron-core/src/kernel/nat_op_pins.rs', lines 54:0-80:1
     Visibility: public -/

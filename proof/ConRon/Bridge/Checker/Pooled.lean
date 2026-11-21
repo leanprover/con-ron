@@ -125,7 +125,7 @@ proves it from `Arena.checkDecl_bridge`. -/
     {s s' : AState},
     FoldOK env (I.view k) s → PinsDenote s.store pins pinsP →
     Frontend.denoteDecl s.store pd = some d →
-    recordCheck .verified pins I k pd s = .ok ((), s') →
+    recordCheck .verified pins none I k pd s = .ok ((), s') →
     StateOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
       ∃ env' F,
         ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP env d = .ok env'
@@ -272,7 +272,7 @@ theorem job_spec
     (hw : WorkerOK s₁ w) (hk : k < ds.size) (hk' : k < dsP.length)
     (hdk : Frontend.denoteDecl s₁.store ds[k] = some dsP[k]) (hP : PrefixOK pinsP dsP k)
     (hnd : ((ConLeche.Cached.recsConsts (dsP.take k)).map (·.name)).Nodup)
-    (hjob : recordJob .verified pins I k ds[k] w = .ok ((), w')) :
+    (hjob : recordJob .verified pins none I k ds[k] w = .ok ((), w')) :
     WorkerOK s₁ w' ∧ ∃ (env' : Env) (F : Nat),
       ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pinsP
         (ConLeche.streamEnv (dsP.take k)) dsP[k] = .ok env' := by
@@ -283,7 +283,7 @@ theorem job_spec
   generalize hsj : AState.mk w.store.enableScratch Memos.empty w.caches w.pins = sj at henter
   rw [henter] at hjob
   simp only at hjob
-  cases hrc : recordCheck .verified pins I k ds[k] sj with
+  cases hrc : recordCheck .verified pins none I k ds[k] sj with
   | error e => rw [hrc] at hjob; exact nomatch hjob
   | ok r =>
     obtain ⟨u, s'⟩ := r
@@ -416,14 +416,14 @@ theorem pooled_fold {σ : Type} {Inv : σ → Prop} {Run : Nat → σ → σ →
 `k`'s job, at a position of the records. -/
 @[expose] def RecordRun (pins : List INatOpPinSet) (I : IStreamIndex) (ds : Array IDeclaration)
     (k : Nat) (w w' : AState) : Prop :=
-  ∃ hk : k < ds.size, recordJob .verified pins I k ds[k] w = .ok ((), w')
+  ∃ hk : k < ds.size, recordJob .verified pins none I k ds[k] w = .ok ((), w')
 
 /-- con-leche: ConLeche/Frontend/CheckerIO.lean:461-484 parWorker — a worker's accepted list is
 a chain of record jobs. -/
 theorem checkJobList_chain {pins : List INatOpPinSet} {I : IStreamIndex}
     {ds : Array IDeclaration} :
     ∀ (l : List Nat) (w w'' : AState),
-      checkJobList .verified pins I ds l w = .ok (.ok (), w'') →
+      checkJobList .verified pins none I ds l w = .ok (.ok (), w'') →
       JobChain (RecordRun pins I ds) w l := by
   intro l
   induction l with
@@ -431,7 +431,7 @@ theorem checkJobList_chain {pins : List INatOpPinSet} {I : IStreamIndex}
   | cons t rest ih =>
     intro w w'' hl
     simp only [checkJobList] at hl
-    cases hr : runJob .verified pins I ds t w with
+    cases hr : runJob .verified pins none I ds t w with
     | error e => rw [hr] at hl; exact nomatch hl
     | ok r =>
       obtain ⟨res, w₁⟩ := r
@@ -446,7 +446,7 @@ theorem checkJobList_chain {pins : List INatOpPinSet} {I : IStreamIndex}
         | some dt =>
           rw [hdt] at hr
           simp only at hr
-          cases hj : recordJob .verified pins I t dt w with
+          cases hj : recordJob .verified pins none I t dt w with
           | error e => rw [hj] at hr; simp at hr
           | ok q =>
             obtain ⟨u', w₁'⟩ := q
@@ -472,7 +472,7 @@ theorem pooled_fold_records
     (hpI : PersIFBase I.base) (parts : List (List Nat))
     (hcov : ∀ t < ds.size, ∃ w ∈ parts, t ∈ w)
     (hinc : ∀ w ∈ parts, w.Pairwise (· < ·))
-    (hacc : ∀ w ∈ parts, ∃ s'', checkJobList .verified pins I ds w s₁.worker = .ok (.ok (), s'')) :
+    (hacc : ∀ w ∈ parts, ∃ s'', checkJobList .verified pins none I ds w s₁.worker = .ok (.ok (), s'')) :
     ∃ F, ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified F) pinsP dsP
       = .ok (ConLeche.streamEnv dsP) := by
   refine pooled_fold (Inv := WorkerOK s₁) (Run := RecordRun pins I ds) ?_ ?_ hpush parts

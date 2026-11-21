@@ -401,6 +401,17 @@ pub struct Solution {
 }
 
 /// con-leche: ConLeche/Cached/Justify.lean:135-142 recordMates
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:157-164 matesInsert` — the cited
+/// `m.getD b.name #[]`, copied, split off so that the lookup's loan ends here
+/// (extraction rule 5).
+pub fn mates_get(m: &HashMap<NIdx, Vec<NIdx>>, b: &NIdx) -> Vec<NIdx> {
+    match m.get(b) {
+        Some(v) => nidx_vec_dup(v),
+        None => Vec::new(),
+    }
+}
+
+/// con-leche: ConLeche/Cached/Justify.lean:135-142 recordMates
 /// Lean twin: `proof/ConRon/Arena/Justify.lean:157-164 matesInsert` — one block's
 /// members from cursor `j`, each mapped to what it had and the block's names
 /// `ns`.
@@ -414,10 +425,7 @@ pub fn mates_insert(
         m
     } else {
         let b: NIdx = i_constant_info_name(&block[j]);
-        let prev: Vec<NIdx> = match m.get(&b) {
-            Some(v) => nidx_vec_dup(v),
-            None => Vec::new(),
-        };
+        let prev: Vec<NIdx> = mates_get(&m, &b);
         let k: usize = ns.len();
         let v: Vec<NIdx> = nidx_append(prev, ns, 0, k);
         let mut m = m;
@@ -545,6 +553,17 @@ pub fn rec_names_of(
 }
 
 /// con-leche: ConLeche/Cached/Justify.lean:148-161 entryNeeds
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:208-227 entryNeeds` — the cited
+/// `x.names (mates.getD n #[]).toList`, split off so that the lookup's loan
+/// ends here (extraction rule 5).
+pub fn needs_mates(mates: &HashMap<NIdx, Vec<NIdx>>, n: &NIdx, x: NeedsSt) -> NeedsSt {
+    match mates.get(n) {
+        Some(ms) => needs_names(x, ms),
+        None => x,
+    }
+}
+
+/// con-leche: ConLeche/Cached/Justify.lean:148-161 entryNeeds
 /// Lean twin: `proof/ConRon/Arena/Justify.lean:208-227 entryNeeds` — **what the
 /// justification follows from a constant**: its laws' names, a type former's
 /// constructors and its block's recursors, its record's mates, and the names of
@@ -573,10 +592,7 @@ pub fn entry_needs(
                 Err(e) => Err(e),
                 Ok(x2) => {
                     let n: NIdx = i_constant_info_name(ci);
-                    let x3: NeedsSt = match mates.get(&n) {
-                        Some(ms) => needs_names(x2, ms),
-                        None => x2,
-                    };
+                    let x3: NeedsSt = needs_mates(mates, &n, x2);
                     match ifenv_find_table(pers, fe, &n) {
                         Some(t) => match needs_table(pers, st, x3, t) {
                             Err(e) => Err(e),
