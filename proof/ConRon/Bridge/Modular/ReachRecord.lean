@@ -667,15 +667,20 @@ theorem filter_mapM_rel {st : EStore} {p : CEntryF NIdx EIdx → Bool}
       rw [hb] at hpe
       simp only [List.filter_cons, hb, ← hpe, Bool.false_eq_true, ↓reduceIte, ih]
 
+/-- con-leche: ConLeche/Driver/Reach.lean:620-627 groupMerged — the test keeping a constant among
+a group's rest. -/
+@[expose] def recKeepC (allC : List ConLeche.Name) (e : CEntryF ConLeche.Name Expr) : Bool :=
+  match e.kind with
+  | .recur all' .. => all' == allC
+  | _ => true
+
 /-- A constant kept among a group's rest, alike. -/
 theorem groupKeeps_rel {st : EStore} (hw : NStoreWF st.ns) {all : List NIdx}
     {allC : List ConLeche.Name} (ha : all.mapM (denoteN st.ns) = some allC)
     {e : CEntryF NIdx EIdx} {eC : CEntryF ConLeche.Name Expr} (he : denoteEntry st e = some eC) :
-    ConRon.Arena.Modular.groupKeeps e all = (match eC.kind with
-        | .recur all' .. => all' == allC
-        | _ => true) := by
+    ConRon.Arena.Modular.groupKeeps e all = recKeepC allC eC := by
   have hk := denoteEntry_kind he
-  unfold ConRon.Arena.Modular.groupKeeps
+  unfold ConRon.Arena.Modular.groupKeeps recKeepC
   generalize eC.kind = kC at hk
   cases hkk : e.kind with
   | recur al np ni nmo nmi rules k iu =>
@@ -709,5 +714,260 @@ theorem groupRecLocs_eq {st : EStore} (hw : NStoreWF st.ns) {m : Std.HashMap NId
     simp only [pure, Option.some.injEq] at ha
     subst ha
     simp [HMRel.get_eq hw hm haC]
+
+/-- A list of constants read back, as the merge's entries. -/
+theorem entries_cr {st : EStore} :
+    ∀ {es : List (CEntryF NIdx EIdx)} {esC : List (CEntryF ConLeche.Name Expr)},
+      es.mapM (denoteEntry st) = some esC →
+      ListRel (fun c cC => denoteCEntry st c = some cC) (es.map fun c => { c })
+        (esC.map ConLeche.Frontend.Olean.CEntry.ofF)
+  | [], esC, h => by
+    simp only [List.mapM_nil, pure, Option.some.injEq] at h
+    subst h; exact .nil
+  | e :: es, esC, h => by
+    simp only [List.mapM_cons] at h
+    obtain ⟨eC, he, h⟩ := bind_some_left h
+    obtain ⟨esC', hr, h⟩ := bind_some_left h
+    simp only [pure, Option.some.injEq] at h
+    subst h
+    refine .cons ?_ (entries_cr hr)
+    simp only [denoteCEntry, he]
+    rfl
+
+/-- con-leche: ConLeche/Driver/Reach.lean:620-627 groupMerged — **a group's merge, upstream's**. -/
+theorem groupMerged_rel {st : EStore} (hw : NStoreWF st.ns) (pk : OleanPins)
+    {t : CEntryF NIdx EIdx} {tC : CEntryF ConLeche.Name Expr} (ht : denoteEntry st t = some tC)
+    {tys rest : List (CEntryF NIdx EIdx)} {tysC restC : List (CEntryF ConLeche.Name Expr)}
+    (hty : tys.mapM (denoteEntry st) = some tysC) (hr : rest.mapM (denoteEntry st) = some restC)
+    {all : List NIdx} {allC : List ConLeche.Name} (ha : all.mapM (denoteN st.ns) = some allC) :
+    WalkCtx st (ConRon.Arena.Modular.groupMerged pk t tys rest all)
+      (ConLeche.Driver.groupMerged tC tysC restC allC) := by
+  have heq : ConLeche.Driver.groupMerged tC tysC restC allC =
+      ConLeche.Frontend.Olean.mergedOfList
+        ((tC :: tysC ++ restC.filter (recKeepC allC)).map ConLeche.Frontend.Olean.CEntry.ofF) := rfl
+  rw [heq]
+  unfold ConRon.Arena.Modular.groupMerged
+  have hf := filter_mapM_rel (fun e eC he => groupKeeps_rel hw ha he) hr
+  have hall : (t :: tys ++ rest.filter (ConRon.Arena.Modular.groupKeeps · all)).mapM (denoteEntry st) =
+      some (tC :: tysC ++ restC.filter (recKeepC allC)) := by
+    simp only [List.cons_append, List.mapM_cons, ht, List.mapM_append, hty, hf]
+    rfl
+  exact mergedOfList_rel hw pk (by simpa using entries_cr hall)
+
+/-- con-leche: ConLeche/Driver/Reach.lean:629-667 groupAt — **type `n`'s group read from one
+part, upstream's**: the caches related after, the record (where the part holds the group) read
+back, persistent. -/
+theorem groupAt_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
+    {k : ConRon.Arena.Modular.PartKey} {kC : ConLeche.Driver.PartKey} {n : NIdx} {nC : ConLeche.Name}
+    {od : Option IDeclaration} {s s' : AState}
+    (hctx : RCtx pk s) (hpk : PinsRel s.store pk) (he : EnvRel sp s.store env envC)
+    (hc : CacheRel s.store c cC) (hk : PKRel s.store k kC) (hn : denoteN s.store.ns n = some nC)
+    (h : ConRon.Arena.Modular.groupAt (modelFs F) pk sp env c k n s = .ok ((c', od), s')) :
+    DStep s s' ∧ ∃ cC' odC, ModelIO.Gives (ConLeche.Driver.groupAt envC cC kC nC) F (cC', .ok odC) ∧
+      CacheRel s'.store c' cC' ∧
+      Option.Rel (fun d dC => Frontend.denoteDecl s'.store d = some dC ∧ PersDecl d) od odC := by
+  unfold ConRon.Arena.Modular.groupAt at h
+  unfold ConLeche.Driver.groupAt
+  -- the part
+  obtain ⟨c₁, s₁, h1, hA⟩ := AM.bind_ok h
+  obtain ⟨hst1, cC₁, hg1, hc1⟩ := loadPart_run hsp hctx he hc hk h1
+  have hctx1 := hctx.step hst1
+  have he1 := he.ext hst1.ext hctx1.wf
+  -- its lookup
+  obtain ⟨c₂, s₂, h2, hB⟩ := AM.bind_ok hA
+  obtain ⟨hst2, cC₂, lC, l, hg2, hc2, hl2, hlr⟩ := lookOf_run hsp hctx1 he1 hc1 (hk.ext hst1.ext) h2
+  have hctx2 := hctx1.step hst2
+  have hw2 := hctx2.wf
+  have hx12 := hst1.ext.trans hst2.ext
+  obtain ⟨oq, s₃, h3, hC⟩ := AM.bind_ok hB
+  rw [lookAt_eq hl2] at h3
+  obtain ⟨hoq, hs3⟩ := AM.pure_ok h3
+  subst hoq; subst s₃
+  have hq := hlr.get hw2 (denoteN_ext hn hx12)
+  rcases optRel_cases hq with ⟨g1, g2⟩ | ⟨q, qC, g1, g2, g3⟩
+  · -- not in the part
+    rw [g1] at hC
+    obtain ⟨hv, rfl⟩ := AM.pure_ok hC
+    cases hv
+    refine ⟨hst1.trans hst2, cC₂, none, ?_, hc2, .none⟩
+    refine hg1.bind (hg2.bind ?_)
+    simp only [g2]
+    exact ModelIO.gives_pure _ _
+  rw [g1] at hC
+  dsimp only at hC
+  -- the type's constant
+  have he2 := he1.ext hst2.ext hw2
+  have hk2 := (hk.ext hst1.ext).ext hst2.ext
+  obtain ⟨ct, s₄, h4, hD⟩ := AM.bind_ok hC
+  obtain ⟨c₃, t⟩ := ct
+  obtain ⟨hst4, cC₃, tC, hg4, hc4, htC⟩ := partEntry_run hsp hctx2 he2 hc2 hk2 h4
+  have hkeep4 := partEntry_keeps h4
+  have hctx4 := hctx2.step hst4
+  have hw4 := hctx4.wf
+  have hk4 := hk2.ext hst4.ext
+  have he4 := he2.ext hst4.ext hw4
+  dsimp only at hD
+  have hlr4 : HMRel (NPRel s₄.store) s₄.store l lC := hlr.ext hst4.ext (fun _ _ q => q.ext hst4.ext)
+  have hl4 : c₃.looks[k]? = some l := by rw [hkeep4.1]; exact hl2
+  have hx14 := hx12.trans hst4.ext
+  cases hkt : t.kind with
+  | induct np ni all cs nn ir iu irf =>
+    rw [hkt] at hD
+    obtain ⟨allC, csC, hkC, hall, -⟩ := kind_induct_rel (denoteEntry_kind htC) hkt
+    obtain ⟨y, s₅, h5, hE⟩ := AM.bind_ok hD
+    obtain ⟨hy, hs5⟩ := AM.pure_ok h5
+    subst hy; subst s₅
+    obtain ⟨om, s₆, h6, hF⟩ := AM.bind_ok hE
+    simp only [ConRon.Arena.Modular.lookLocs, hl4] at h6
+    obtain ⟨hom, hs6⟩ := AM.pure_ok h6
+    subst hom; subst s₆
+    have hlocs := lookLocs_rel hw4 hlr4 (listRel_of_mapM hall)
+    rw [hlocs] at hF
+    -- the upstream run up to the type's members
+    have hupA : ∀ v, ModelIO.Gives (match allC.mapM (lC[·]?) with
+          | none => pure (cC₃, .ok none)
+          | some mqs => (do
+            match ← ConLeche.Driver.withPart envC cC₃ kC fun r st =>
+                ConLeche.Driver.entriesWith r st (mqs.map (·.loc)) with
+            | (c, .error e) => pure (c, .error e)
+            | (c, .ok tys) =>
+              match (ConLeche.Driver.groupCtorNames tys).mapM (lC[·]?) with
+              | none => pure (c, .ok none)
+              | some cqs =>
+                match ← ConLeche.Driver.recBlocksOf envC c kC with
+                | (c, .error e) => pure (c, .error e)
+                | (c, .ok rb) =>
+                  match ← ConLeche.Driver.withPart envC c kC fun r st =>
+                      ConLeche.Driver.entriesWith r st (cqs.map (·.loc) ++
+                        ConLeche.Driver.groupRecLocs rb allC) with
+                  | (c, .error e) => pure (c, .error e)
+                  | (c, .ok rest) =>
+                    match ConLeche.Frontend.Olean.groupRecord
+                        (ConLeche.Driver.groupMerged tC tys rest allC) nC with
+                    | .ok d => pure (c, .ok (some d))
+                    | .error e => pure (c, .error e) : ModelIO _)) F v →
+        ModelIO.Gives (ConLeche.Driver.groupAt envC cC kC nC) F v := by
+      intro v hv
+      unfold ConLeche.Driver.groupAt
+      refine hg1.bind (hg2.bind ?_)
+      simp only [g2]
+      rw [← g3.loc]
+      refine hg4.bind ?_
+      simp only [hkC]
+      exact hv
+    have hst14 : DStep s s₄ := hst1.trans (hst2.trans hst4)
+    cases hmq : allC.mapM (lC[·]?) with
+    | none =>
+      rw [hmq] at hF
+      obtain ⟨hv, rfl⟩ := AM.pure_ok hF
+      cases hv
+      refine ⟨hst14, cC₃, none, hupA _ ?_, hc4, .none⟩
+      simp only [hmq]
+      exact ModelIO.gives_pure _ _
+    | some mqsC =>
+    rw [hmq] at hF
+    try dsimp only at hF
+    -- the members
+    obtain ⟨ce, s₇, h7, hG⟩ := AM.bind_ok hF
+    obtain ⟨c₄, tys⟩ := ce
+    obtain ⟨hst7, cC₄, tysC, hg7, hc7, htys⟩ := partEntries_run hsp hctx4 he4 hc4 hk4 h7
+    have hkeep7 := partEntries_keeps h7
+    have hctx7 := hctx4.step hst7
+    have hw7 := hctx7.wf
+    have hk7 := hk4.ext hst7.ext
+    have he7 := he4.ext hst7.ext hw7
+    have hlr7 : HMRel (NPRel s₇.store) s₇.store l lC := hlr4.ext hst7.ext (fun _ _ q => q.ext hst7.ext)
+    have hl7 : c₄.looks[k]? = some l := by rw [hkeep7.1]; exact hl4
+    try dsimp only at hG
+    obtain ⟨oc, s₈, h8, hH⟩ := AM.bind_ok hG
+    simp only [ConRon.Arena.Modular.lookLocs, hl7] at h8
+    obtain ⟨hoc, hs8⟩ := AM.pure_ok h8
+    subst hoc; subst s₈
+    rw [lookLocs_rel hw7 hlr7 (listRel_of_mapM (groupCtorNames_rel htys))] at hH
+    have hupB : ∀ v, ModelIO.Gives (match (ConLeche.Driver.groupCtorNames tysC).mapM (lC[·]?) with
+          | none => pure (cC₄, .ok none)
+          | some cqs => (do
+                match ← ConLeche.Driver.recBlocksOf envC cC₄ kC with
+                | (c, .error e) => pure (c, .error e)
+                | (c, .ok rb) =>
+                  match ← ConLeche.Driver.withPart envC c kC fun r st =>
+                      ConLeche.Driver.entriesWith r st (cqs.map (·.loc) ++
+                        ConLeche.Driver.groupRecLocs rb allC) with
+                  | (c, .error e) => pure (c, .error e)
+                  | (c, .ok rest) =>
+                    match ConLeche.Frontend.Olean.groupRecord
+                        (ConLeche.Driver.groupMerged tC tysC rest allC) nC with
+                    | .ok d => pure (c, .ok (some d))
+                    | .error e => pure (c, .error e) : ModelIO _)) F v →
+        ModelIO.Gives (ConLeche.Driver.groupAt envC cC kC nC) F v := by
+      intro v hv
+      refine hupA _ ?_
+      simp only [hmq]
+      rw [← (show (mqsC.map (·.loc)) = _ from rfl)]
+      refine hg7.bind ?_
+      exact hv
+    have hst17 : DStep s s₇ := hst14.trans hst7
+    cases hcq : (ConLeche.Driver.groupCtorNames tysC).mapM (lC[·]?) with
+    | none =>
+      rw [hcq] at hH
+      obtain ⟨hv, rfl⟩ := AM.pure_ok hH
+      cases hv
+      refine ⟨hst17, cC₄, none, hupB _ ?_, hc7, .none⟩
+      simp only [hcq]
+      exact ModelIO.gives_pure _ _
+    | some cqsC =>
+    rw [hcq] at hH
+    try dsimp only at hH
+    -- the recursors' blocks
+    obtain ⟨c₅, s₉, h9, hI⟩ := AM.bind_ok hH
+    obtain ⟨hst9, cC₅, mC, m, hg9, hc9, hrb9, hmr⟩ := recBlocksOf_run hsp hctx7 he7 hc7 hk7 h9
+    have hctx9 := hctx7.step hst9
+    have hw9 := hctx9.wf
+    have hk9 := hk7.ext hst9.ext
+    have he9 := he7.ext hst9.ext hw9
+    obtain ⟨rl, s₁₀, h10, hJ⟩ := AM.bind_ok hI
+    simp only [ConRon.Arena.Modular.recLocsAt, hrb9] at h10
+    obtain ⟨hrl, hs10⟩ := AM.pure_ok h10
+    subst hrl; subst s₁₀
+    have hall9 : y.mapM (denoteN s₉.store.ns) = some allC :=
+      mapM_denoteN_ext (hst7.ext.trans hst9.ext) hall
+    rw [groupRecLocs_eq hw9 hmr hall9] at hJ
+    -- the rest
+    obtain ⟨cr, s₁₁, h11, hK⟩ := AM.bind_ok hJ
+    obtain ⟨c₆, rest⟩ := cr
+    obtain ⟨hst11, cC₆, restC, hg11, hc11, hrest⟩ := partEntries_run hsp hctx9 he9 hc9 hk9 h11
+    have hctx11 := hctx9.step hst11
+    have hw11 := hctx11.wf
+    try dsimp only at hK
+    obtain ⟨d, s₁₂, h12, hL⟩ := AM.bind_ok hK
+    obtain ⟨hv, hs⟩ := AM.pure_ok hL
+    cases hv
+    subst hs
+    have hx9_11 := hst11.ext
+    have hx4_11 := ((hst7.ext.trans hst9.ext).trans hst11.ext)
+    obtain ⟨hst12, hpd, dC, hgd, hdd⟩ := groupRecord_run hctx11.ok.state hctx11.off hctx11.ok.pins
+      (groupMerged_rel hw11 pk (denoteEntry_ext hx4_11 htC)
+        (list_mono (fun x y hxy => denoteEntry_ext (hst9.ext.trans hst11.ext) hxy) tys htys) hrest
+        (mapM_denoteN_ext hst11.ext hall9))
+      (hpk.ext (((hst1.ext.trans hst2.ext).trans hst4.ext).trans hx4_11))
+      (denoteN_ext hn (((hst1.ext.trans hst2.ext).trans hst4.ext).trans hx4_11)) h12
+    refine ⟨hst17.trans (hst9.trans (hst11.trans (DStep.of_parse hctx11.ok hctx11.off hst12))),
+      cC₆, some dC, hupB _ ?_, hc11.ext hst12.ext, .some ⟨hdd, hpd⟩⟩
+    simp only [hcq]
+    refine hg9.bind ?_
+    simp only
+    refine hg11.bind ?_
+    dsimp only
+    rw [hgd]
+    exact ModelIO.gives_pure _ _
+  | _ =>
+    exfalso
+    rw [hkt] at hD
+    obtain ⟨_, _, _, g1'⟩ := AM.bind_ok hD
+    obtain ⟨_, _, _, g2'⟩ := AM.bind_ok g1'
+    obtain ⟨_, _, g3', _⟩ := AM.bind_ok g2'
+    exact AM.fail_ok g3'
 
 end ConRon.Bridge.Modular
