@@ -695,10 +695,10 @@ theorem groupKeeps_rel {st : EStore} (hw : NStoreWF st.ns) {all : List NIdx}
     rw [hkk] at hk
     simp only [ConLeche.Frontend.Olean.CKindF.mapM] at hk
     first
-    | (simp only [pure, Option.some.injEq] at hk; subst hk; rfl)
+    | (simp only [pure] at hk; injection hk with hk; subst hk; rfl)
     | (obtain ⟨_, _, hk⟩ := bind_some_left hk
        first
-       | (simp only [pure, Option.some.injEq] at hk; subst hk; rfl)
+       | (simp only [pure] at hk; injection hk with hk; subst hk; rfl)
        | (obtain ⟨_, _, hk⟩ := bind_some_left hk
           simp only [pure, Option.some.injEq] at hk; subst hk; rfl))
 
@@ -1055,5 +1055,579 @@ theorem stmtRecord_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = s
       hs.1.1⟩
     rw [ite_eq_left (by simpa using hopC)]
     exact ModelIO.gives_pure _ _
+
+/-- The type whose group presents a copy, upstream's. -/
+theorem groupOfKind_rel {st : EStore} {x : NIdx} {xC : ConLeche.Name} (hx : denoteN st.ns x = some xC)
+    {k : CKindF NIdx Unit} {kC : CKindF ConLeche.Name Unit} (hk : denoteKindN st k = some kC) :
+    Option.Rel (fun a b => denoteN st.ns a = some b)
+      (ConRon.Arena.Modular.groupOfKind x k) (ConLeche.Driver.groupOfKind xC kC) := by
+  unfold denoteKindN at hk
+  cases k with
+  | induct np ni all cs nn ir iu irf =>
+    simp only [ConLeche.Frontend.Olean.CKindF.mapM] at hk
+    obtain ⟨_, _, hk⟩ := bind_some_left hk; obtain ⟨_, _, hk⟩ := bind_some_left hk
+    simp only [pure, Option.some.injEq] at hk; subst hk
+    exact .some hx
+  | ctor ind ci np nf iu =>
+    simp only [ConLeche.Frontend.Olean.CKindF.mapM] at hk
+    obtain ⟨indC, hi, hk⟩ := bind_some_left hk
+    simp only [pure, Option.some.injEq] at hk; subst hk
+    exact .some hi
+  | recur all np ni nmo nmi rules kk iu =>
+    simp only [ConLeche.Frontend.Olean.CKindF.mapM] at hk
+    obtain ⟨allC, ha, hk⟩ := bind_some_left hk; obtain ⟨_, _, hk⟩ := bind_some_left hk
+    simp only [pure, Option.some.injEq] at hk; subst hk
+    simp only [ConRon.Arena.Modular.groupOfKind, ConLeche.Driver.groupOfKind]
+    refine .some ?_
+    cases all with
+    | nil => simp only [List.mapM_nil, pure, Option.some.injEq] at ha; subst ha; exact hx
+    | cons a as =>
+      simp only [List.mapM_cons] at ha
+      obtain ⟨aC, haC, ha⟩ := bind_some_left ha; obtain ⟨_, _, ha⟩ := bind_some_left ha
+      simp only [pure, Option.some.injEq] at ha; subst ha
+      exact haC
+  | ax u =>
+    simp only [ConLeche.Frontend.Olean.CKindF.mapM, pure, Option.some.injEq] at hk; subst hk; exact .none
+  | defn v hh sf =>
+    simp only [ConLeche.Frontend.Olean.CKindF.mapM] at hk
+    obtain ⟨_, _, hk⟩ := bind_some_left hk; simp only [pure, Option.some.injEq] at hk; subst hk
+    exact .none
+  | thm v al =>
+    simp only [ConLeche.Frontend.Olean.CKindF.mapM] at hk
+    obtain ⟨_, _, hk⟩ := bind_some_left hk; obtain ⟨_, _, hk⟩ := bind_some_left hk
+    simp only [pure, Option.some.injEq] at hk; subst hk; exact .none
+  | opaq v u =>
+    simp only [ConLeche.Frontend.Olean.CKindF.mapM] at hk
+    obtain ⟨_, _, hk⟩ := bind_some_left hk; simp only [pure, Option.some.injEq] at hk; subst hk
+    exact .none
+  | quot q =>
+    simp only [ConLeche.Frontend.Olean.CKindF.mapM, pure, Option.some.injEq] at hk; subst hk; exact .none
+
+/-- The copy presenting a name, upstream's. -/
+theorem recordSpot_rel {st : EStore} (hw : NStoreWF st.ns) {pk : OleanPins} (hp : NullsRel st pk)
+    {sp : Roots} {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    (he : EnvRel sp st env envC) {c : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
+    (hc : CacheRel st c cC) {x : NIdx} {xC : ConLeche.Name} (hx : denoteN st.ns x = some xC) :
+    Option.Rel (fun (a : ConRon.Arena.Modular.Spot × Bool) (b : ConLeche.Driver.Spot × Bool) =>
+        SpotRel st a.1 b.1 ∧ a.2 = b.2)
+      (ConRon.Arena.Modular.recordSpot pk env c x)
+      (match ConLeche.Driver.importerSpot envC xC with
+        | some (_, s) => some (s, false)
+        | none => (cC.located[xC]?).map (·, true)) := by
+  unfold ConRon.Arena.Modular.recordSpot
+  rcases optRel_cases (importerSpot_rel hw hp he hx) with ⟨g1, g2⟩ | ⟨a, b, g1, g2, g3⟩
+  · rw [g1, g2]
+    simp only [ConRon.Arena.Modular.locatedAt]
+    rcases optRel_cases (hc.located.get hw hx) with ⟨h1, h2⟩ | ⟨q, qC, h1, h2, h3⟩
+    · rw [h1, h2]; exact .none
+    · rw [h1, h2]; exact .some ⟨h3, rfl⟩
+  · rw [g1, g2]
+    exact .some ⟨g3.2, rfl⟩
+
+/-- A failure whose message reads two names: no accept. -/
+theorem fail2_never {β : Type} {a b : NIdx} {f : ConLeche.Name → ConLeche.Name → Arena.CheckError}
+    {s s' : AState} {r : β}
+    (h : (readName a >>= fun x => readName b >>= fun y => (fail (f x y) : AM β)) s = .ok (r, s')) :
+    False := by
+  obtain ⟨x, s1, h1, h⟩ := AM.bind_ok h
+  obtain ⟨y, s2, h2, h⟩ := AM.bind_ok h
+  exact AM.fail_ok h
+
+/-- con-leche: ConLeche/Driver/Reach.lean:693-729 readRecord — **the record presenting `x`, and its
+home, upstream's**: the caches related after, the record read back and persistent, its home
+denoted. -/
+theorem readRecord_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
+    {x : NIdx} {xC : ConLeche.Name} {s s' : AState} {d : IDeclaration} {h : NIdx}
+    (hctx : RCtx pk s) (hpk : PinsRel s.store pk) (he : EnvRel sp s.store env envC)
+    (hc : CacheRel s.store c cC) (hx : denoteN s.store.ns x = some xC)
+    (hr : ConRon.Arena.Modular.readRecord (modelFs F) pk sp env c x s = .ok ((c', d, h), s')) :
+    DStep s s' ∧ PersDecl d ∧ ∃ cC' dC hC,
+      ModelIO.Gives (ConLeche.Driver.readRecord envC cC xC) F (cC', .ok (dC, hC)) ∧
+      CacheRel s'.store c' cC' ∧ Frontend.denoteDecl s'.store d = some dC ∧
+      denoteN s'.store.ns h = some hC := by
+  have hw := hctx.wf
+  unfold ConRon.Arena.Modular.readRecord at hr
+  unfold ConLeche.Driver.readRecord
+  have hI := importerSpot_rel hw hctx.nulls he hx
+  cases hrsT : ConRon.Arena.Modular.recordSpot pk env c x with
+  | none =>
+    rw [hrsT] at hr
+    exfalso
+    obtain ⟨_, _, _, g⟩ := AM.bind_ok hr
+    exact AM.fail_ok g
+  | some sc =>
+  obtain ⟨sp₀, comp⟩ := sc
+  rw [hrsT] at hr
+  dsimp only at hr
+  unfold ConRon.Arena.Modular.recordSpot at hrsT
+  cases hiC : ConLeche.Driver.importerSpot envC xC with
+  | some p =>
+    rcases optRel_cases hI with ⟨-, g⟩ | ⟨a, b, g1, g2, g3⟩
+    · rw [g] at hiC; cases hiC
+    rw [g2] at hiC
+    cases hiC
+    rw [g1] at hrsT
+    simp only [Option.some.injEq, Prod.mk.injEq] at hrsT
+    obtain ⟨ha, hcomp⟩ := hrsT
+    have hsr := g3.2
+    rw [ha] at hsr
+    subst hcomp
+    simp only
+    generalize p.2 = spC at hsr ⊢
+    -- not unsafe or partial
+    have hsk : sp₀.pos.skipped = spC.pos.skipped := hsr.2.skipped
+    cases hskT : sp₀.pos.skipped with
+    | true =>
+      rw [hskT] at hr
+      exfalso
+      obtain ⟨_, _, _, g1⟩ := AM.bind_ok hr
+      obtain ⟨_, _, _, g2⟩ := AM.bind_ok g1
+      first
+      | exact AM.fail_ok g2
+      | (obtain ⟨_, _, g3, _⟩ := AM.bind_ok g2; exact AM.fail_ok g3)
+    | false =>
+    rw [hskT] at hr
+    rw [← hsk, hskT]
+    simp only [Bool.false_eq_true, ↓reduceIte] at hr ⊢
+    obtain ⟨u0, s₀, h0, hA⟩ := AM.bind_ok hr
+    obtain ⟨-, hs0⟩ := AM.pure_ok h0
+    subst s₀
+    -- its statement and kind
+    obtain ⟨cs, s₁, h1, hB⟩ := AM.bind_ok hA
+    obtain ⟨c₁, cv, k⟩ := cs
+    obtain ⟨hst1, cC₁, cvC, kC, hg1, hc1, hcv, hk⟩ := stmtAt_run hsp hctx he hc hsr h1
+    have hctx1 := hctx.step hst1
+    have hw1 := hctx1.wf
+    have he1 := he.ext hst1.ext hw1
+    have hpk1 := hpk.ext hst1.ext
+    have hsr1 := hsr.ext hst1.ext
+    have hx1 := denoteN_ext hx hst1.ext
+    have hh1 : denoteN s₁.store.ns sp₀.part.mod = some spC.part.mod := hsr1.1.1
+    dsimp only at hB
+    have hgk := groupOfKind_rel hx1 hk
+    cases hgT : ConRon.Arena.Modular.groupOfKind x k with
+    | some n =>
+      rw [hgT] at hB hgk
+      rcases optRel_cases hgk with ⟨g1, -⟩ | ⟨a, nC, g1, g2, g3⟩
+      · cases g1
+      cases g1
+      dsimp only at hB
+      obtain ⟨cd, s₂, h2, hC⟩ := AM.bind_ok hB
+      obtain ⟨c₂, od⟩ := cd
+      obtain ⟨hst2, cC₂, odC, hg2, hc2, hod⟩ := groupAt_run (k := ConRon.Arena.Modular.privKey sp₀.part.mod) (kC := ⟨spC.part.mod, .private⟩) hsp hctx1
+        hpk1 he1 hc1 ⟨hh1, rfl⟩ g3 h2
+      cases od with
+      | none => exfalso; dsimp only at hC; am_never hC
+      | some d' =>
+      dsimp only at hC
+      obtain ⟨hv, rfl⟩ := AM.pure_ok hC
+      simp only [Prod.mk.injEq] at hv
+      obtain ⟨rfl, rfl, rfl⟩ := hv
+      rcases optRel_cases hod with ⟨g4, -⟩ | ⟨d'', dC, g4, g5, g6⟩
+      · cases g4
+      cases g4
+      refine ⟨hst1.trans hst2, g6.2, cC₂, dC, spC.part.mod, ?_, hc2, g6.1,
+        denoteN_ext hh1 hst2.ext⟩
+      refine hg1.bind ?_
+      dsimp only
+      rw [g2]
+      dsimp only
+      refine hg2.bind ?_
+      rw [g5]
+      exact ModelIO.gives_pure _ _
+    | none =>
+    rw [hgT] at hB hgk
+    have g2 : ConLeche.Driver.groupOfKind xC kC = none := by
+      rcases optRel_cases hgk with ⟨-, g⟩ | ⟨a, nC, g1, -, -⟩
+      · exact g
+      · cases g1
+    dsimp only at hB
+    have hst1d := hst1
+    cases hkT : k with
+    | induct np ni all cs nn ir iu irf => rw [hkT] at hgT; simp [ConRon.Arena.Modular.groupOfKind] at hgT
+    | ctor ind ci np nf iu => rw [hkT] at hgT; simp [ConRon.Arena.Modular.groupOfKind] at hgT
+    | recur all np ni nmo nmi rules kk iu => rw [hkT] at hgT; simp [ConRon.Arena.Modular.groupOfKind] at hgT
+    | quot q =>
+      rw [hkT] at hB hk
+      simp only [denoteKindN, ConLeche.Frontend.Olean.CKindF.mapM, pure, Option.some.injEq] at hk
+      subst hk
+      dsimp only at hB
+      obtain ⟨d', s₂, h2, hC⟩ := AM.bind_ok hB
+      obtain ⟨hv, rfl⟩ := AM.pure_ok hC
+      simp only [Prod.mk.injEq] at hv
+      obtain ⟨rfl, rfl, rfl⟩ := hv
+      obtain ⟨hn1, hl1, ht1⟩ := denoteStmt_rr hcv
+      have hent : denoteEntry s₁.store ⟨cv.name, cv.levelParams, cv.type, .quot q⟩ =
+          some ⟨cvC.name, cvC.levelParams, cvC.type, .quot q⟩ := by
+        simp only [denoteEntry, ConLeche.Frontend.Olean.CEntryF.mapM, hn1, hl1, ht1,
+          ConLeche.Frontend.Olean.CKindF.mapM]
+        rfl
+      obtain ⟨hst2, hpd, dC, hgd, hdd⟩ := recordOfEntry_run hctx1.ok.state hctx1.off hctx1.ok.pins hent h2
+      refine ⟨hst1.trans (DStep.of_parse hctx1.ok hctx1.off hst2), hpd, cC₁, dC, spC.part.mod, ?_,
+        hc1.ext hst2.ext, hdd, denoteN_ext hh1 hst2.ext⟩
+      refine hg1.bind ?_
+      dsimp only
+      rw [g2]
+      dsimp only
+      rw [hgd]
+      exact ModelIO.gives_pure _ _
+    | defn v hints sf =>
+      rw [hkT] at hB hk
+      simp only [denoteKindN, ConLeche.Frontend.Olean.CKindF.mapM] at hk
+      obtain ⟨u, -, hk⟩ := bind_some_left hk
+      simp only [pure, Option.some.injEq] at hk
+      subst hk
+      dsimp only at hB
+      first
+      | try simp only [↓reduceIte] at hB
+        obtain ⟨r1, s₂, h2, hC⟩ := AM.bind_ok hB
+        obtain ⟨hv, rfl⟩ := AM.pure_ok hC
+        subst hv
+        obtain ⟨hst2, hpd, cC₂, dC, hC', hg2, hc2, hdd, hhd⟩ := stmtRecord_run hsp hctx1 he1 hc1 hsr1 hcv h2
+        refine ⟨hst1.trans hst2, hpd, cC₂, dC, hC', ?_, hc2, hdd, hhd⟩
+        refine hg1.bind ?_
+        dsimp only
+        rw [g2]
+        dsimp only
+        try simp only [↓reduceIte]
+        exact hg2
+      | try simp only [Bool.false_eq_true, ↓reduceIte] at hB
+        obtain ⟨u0, s₀, h0, hC⟩ := AM.bind_ok hB
+        obtain ⟨-, hs0⟩ := AM.pure_ok h0
+        subst s₀
+        obtain ⟨ce, s₂, h2, hD⟩ := AM.bind_ok hC
+        obtain ⟨c₂, e⟩ := ce
+        obtain ⟨hst2, cC₂, eC, hg2, hc2, he2⟩ := partEntry_run hsp hctx1 he1 hc1 hsr1.1 h2
+        have hctx2 := hctx1.step hst2
+        dsimp only at hD
+        obtain ⟨d', s₃, h3, hE⟩ := AM.bind_ok hD
+        obtain ⟨hv, rfl⟩ := AM.pure_ok hE
+        simp only [Prod.mk.injEq] at hv
+        obtain ⟨rfl, rfl, rfl⟩ := hv
+        obtain ⟨hst3, hpd, dC, hgd, hdd⟩ := recordOfEntry_run hctx2.ok.state hctx2.off hctx2.ok.pins he2 h3
+        refine ⟨hst1.trans (hst2.trans (DStep.of_parse hctx2.ok hctx2.off hst3)), hpd, cC₂, dC,
+          spC.part.mod, ?_, hc2.ext hst3.ext, hdd, denoteN_ext (denoteN_ext hh1 hst2.ext) hst3.ext⟩
+        refine hg1.bind ?_
+        dsimp only
+        rw [g2]
+        dsimp only
+        try simp only [Bool.false_eq_true, ↓reduceIte]
+        rw [← hsr1.2.loc]
+        refine hg2.bind ?_
+        dsimp only
+        rw [hgd]
+        exact ModelIO.gives_pure _ _
+    | ax u =>
+        rw [hkT] at hB hk
+        have hkC : (match kC with
+            | .defn .. => true
+            | .quot _ => true
+            | _ => false) = false := by
+          revert hk; unfold denoteKindN
+          intro hk
+          first
+          | (simp only [ConLeche.Frontend.Olean.CKindF.mapM, pure] at hk; injection hk with hk; subst hk; rfl)
+          | (simp only [ConLeche.Frontend.Olean.CKindF.mapM] at hk
+             obtain ⟨_, _, hk⟩ := bind_some_left hk
+             first
+             | (simp only [pure] at hk; injection hk with hk; subst hk; rfl)
+             | (obtain ⟨_, _, hk⟩ := bind_some_left hk
+                simp only [pure] at hk; injection hk with hk; subst hk; rfl))
+        dsimp only at hB
+        obtain ⟨hst2, hpd, cC₂, dC, hC', hg2, hc2, hdd, hhd⟩ := stmtRecord_run hsp hctx1 he1 hc1 hsr1 hcv hB
+        refine ⟨hst1.trans hst2, hpd, cC₂, dC, hC', ?_, hc2, hdd, hhd⟩
+        refine hg1.bind ?_
+        dsimp only
+        rw [g2]
+        dsimp only
+        revert hkC
+        cases kC <;> intro hkC <;> first | exact hg2 | cases hkC
+    | thm v al =>
+        rw [hkT] at hB hk
+        have hkC : (match kC with
+            | .defn .. => true
+            | .quot _ => true
+            | _ => false) = false := by
+          revert hk; unfold denoteKindN
+          intro hk
+          first
+          | (simp only [ConLeche.Frontend.Olean.CKindF.mapM, pure] at hk; injection hk with hk; subst hk; rfl)
+          | (simp only [ConLeche.Frontend.Olean.CKindF.mapM] at hk
+             obtain ⟨_, _, hk⟩ := bind_some_left hk
+             first
+             | (simp only [pure] at hk; injection hk with hk; subst hk; rfl)
+             | (obtain ⟨_, _, hk⟩ := bind_some_left hk
+                simp only [pure] at hk; injection hk with hk; subst hk; rfl))
+        dsimp only at hB
+        obtain ⟨hst2, hpd, cC₂, dC, hC', hg2, hc2, hdd, hhd⟩ := stmtRecord_run hsp hctx1 he1 hc1 hsr1 hcv hB
+        refine ⟨hst1.trans hst2, hpd, cC₂, dC, hC', ?_, hc2, hdd, hhd⟩
+        refine hg1.bind ?_
+        dsimp only
+        rw [g2]
+        dsimp only
+        revert hkC
+        cases kC <;> intro hkC <;> first | exact hg2 | cases hkC
+    | opaq v u =>
+        rw [hkT] at hB hk
+        have hkC : (match kC with
+            | .defn .. => true
+            | .quot _ => true
+            | _ => false) = false := by
+          revert hk; unfold denoteKindN
+          intro hk
+          first
+          | (simp only [ConLeche.Frontend.Olean.CKindF.mapM, pure] at hk; injection hk with hk; subst hk; rfl)
+          | (simp only [ConLeche.Frontend.Olean.CKindF.mapM] at hk
+             obtain ⟨_, _, hk⟩ := bind_some_left hk
+             first
+             | (simp only [pure] at hk; injection hk with hk; subst hk; rfl)
+             | (obtain ⟨_, _, hk⟩ := bind_some_left hk
+                simp only [pure] at hk; injection hk with hk; subst hk; rfl))
+        dsimp only at hB
+        obtain ⟨hst2, hpd, cC₂, dC, hC', hg2, hc2, hdd, hhd⟩ := stmtRecord_run hsp hctx1 he1 hc1 hsr1 hcv hB
+        refine ⟨hst1.trans hst2, hpd, cC₂, dC, hC', ?_, hc2, hdd, hhd⟩
+        refine hg1.bind ?_
+        dsimp only
+        rw [g2]
+        dsimp only
+        revert hkC
+        cases kC <;> intro hkC <;> first | exact hg2 | cases hkC
+  | none =>
+    have g : ConRon.Arena.Modular.importerSpot pk env x = none := by
+      rcases optRel_cases hI with ⟨g, -⟩ | ⟨a, b, g1, g2, g3⟩
+      · exact g
+      · rw [g2] at hiC; cases hiC
+    rw [g] at hrsT
+    simp only [ConRon.Arena.Modular.locatedAt] at hrsT
+    rcases optRel_cases (hc.located.get hw hx) with ⟨h1, -⟩ | ⟨q, qC, h1, h2, h3⟩
+    · rw [h1] at hrsT; cases hrsT
+    rw [h1] at hrsT
+    simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq] at hrsT
+    obtain ⟨ha, hcomp⟩ := hrsT
+    rw [ha] at h3
+    subst hcomp
+    simp only [h2, Option.map_some]
+    generalize qC = spC at h3 ⊢
+    have hsr := h3
+    -- not unsafe or partial
+    have hsk : sp₀.pos.skipped = spC.pos.skipped := hsr.2.skipped
+    cases hskT : sp₀.pos.skipped with
+    | true =>
+      rw [hskT] at hr
+      exfalso
+      obtain ⟨_, _, _, g1⟩ := AM.bind_ok hr
+      obtain ⟨_, _, _, g2⟩ := AM.bind_ok g1
+      first
+      | exact AM.fail_ok g2
+      | (obtain ⟨_, _, g3, _⟩ := AM.bind_ok g2; exact AM.fail_ok g3)
+    | false =>
+    rw [hskT] at hr
+    rw [← hsk, hskT]
+    simp only [Bool.false_eq_true, ↓reduceIte] at hr ⊢
+    obtain ⟨u0, s₀, h0, hA⟩ := AM.bind_ok hr
+    obtain ⟨-, hs0⟩ := AM.pure_ok h0
+    subst s₀
+    -- its statement and kind
+    obtain ⟨cs, s₁, h1, hB⟩ := AM.bind_ok hA
+    obtain ⟨c₁, cv, k⟩ := cs
+    obtain ⟨hst1, cC₁, cvC, kC, hg1, hc1, hcv, hk⟩ := stmtAt_run hsp hctx he hc hsr h1
+    have hctx1 := hctx.step hst1
+    have hw1 := hctx1.wf
+    have he1 := he.ext hst1.ext hw1
+    have hpk1 := hpk.ext hst1.ext
+    have hsr1 := hsr.ext hst1.ext
+    have hx1 := denoteN_ext hx hst1.ext
+    have hh1 : denoteN s₁.store.ns sp₀.part.mod = some spC.part.mod := hsr1.1.1
+    dsimp only at hB
+    have hgk := groupOfKind_rel hx1 hk
+    cases hgT : ConRon.Arena.Modular.groupOfKind x k with
+    | some n =>
+      rw [hgT] at hB hgk
+      rcases optRel_cases hgk with ⟨g1, -⟩ | ⟨a, nC, g1, g2, g3⟩
+      · cases g1
+      cases g1
+      dsimp only at hB
+      obtain ⟨cd, s₂, h2, hC⟩ := AM.bind_ok hB
+      obtain ⟨c₂, od⟩ := cd
+      obtain ⟨hst2, cC₂, odC, hg2, hc2, hod⟩ := groupAt_run (k := ConRon.Arena.Modular.privKey sp₀.part.mod) (kC := ⟨spC.part.mod, .private⟩) hsp hctx1
+        hpk1 he1 hc1 ⟨hh1, rfl⟩ g3 h2
+      cases od with
+      | none => exfalso; dsimp only at hC; am_never hC
+      | some d' =>
+      dsimp only at hC
+      obtain ⟨hv, rfl⟩ := AM.pure_ok hC
+      simp only [Prod.mk.injEq] at hv
+      obtain ⟨rfl, rfl, rfl⟩ := hv
+      rcases optRel_cases hod with ⟨g4, -⟩ | ⟨d'', dC, g4, g5, g6⟩
+      · cases g4
+      cases g4
+      refine ⟨hst1.trans hst2, g6.2, cC₂, dC, spC.part.mod, ?_, hc2, g6.1,
+        denoteN_ext hh1 hst2.ext⟩
+      refine hg1.bind ?_
+      dsimp only
+      rw [g2]
+      dsimp only
+      refine hg2.bind ?_
+      rw [g5]
+      exact ModelIO.gives_pure _ _
+    | none =>
+    rw [hgT] at hB hgk
+    have g2 : ConLeche.Driver.groupOfKind xC kC = none := by
+      rcases optRel_cases hgk with ⟨-, g⟩ | ⟨a, nC, g1, -, -⟩
+      · exact g
+      · cases g1
+    dsimp only at hB
+    have hst1d := hst1
+    cases hkT : k with
+    | induct np ni all cs nn ir iu irf => rw [hkT] at hgT; simp [ConRon.Arena.Modular.groupOfKind] at hgT
+    | ctor ind ci np nf iu => rw [hkT] at hgT; simp [ConRon.Arena.Modular.groupOfKind] at hgT
+    | recur all np ni nmo nmi rules kk iu => rw [hkT] at hgT; simp [ConRon.Arena.Modular.groupOfKind] at hgT
+    | quot q =>
+      rw [hkT] at hB hk
+      simp only [denoteKindN, ConLeche.Frontend.Olean.CKindF.mapM, pure, Option.some.injEq] at hk
+      subst hk
+      dsimp only at hB
+      obtain ⟨d', s₂, h2, hC⟩ := AM.bind_ok hB
+      obtain ⟨hv, rfl⟩ := AM.pure_ok hC
+      simp only [Prod.mk.injEq] at hv
+      obtain ⟨rfl, rfl, rfl⟩ := hv
+      obtain ⟨hn1, hl1, ht1⟩ := denoteStmt_rr hcv
+      have hent : denoteEntry s₁.store ⟨cv.name, cv.levelParams, cv.type, .quot q⟩ =
+          some ⟨cvC.name, cvC.levelParams, cvC.type, .quot q⟩ := by
+        simp only [denoteEntry, ConLeche.Frontend.Olean.CEntryF.mapM, hn1, hl1, ht1,
+          ConLeche.Frontend.Olean.CKindF.mapM]
+        rfl
+      obtain ⟨hst2, hpd, dC, hgd, hdd⟩ := recordOfEntry_run hctx1.ok.state hctx1.off hctx1.ok.pins hent h2
+      refine ⟨hst1.trans (DStep.of_parse hctx1.ok hctx1.off hst2), hpd, cC₁, dC, spC.part.mod, ?_,
+        hc1.ext hst2.ext, hdd, denoteN_ext hh1 hst2.ext⟩
+      refine hg1.bind ?_
+      dsimp only
+      rw [g2]
+      dsimp only
+      rw [hgd]
+      exact ModelIO.gives_pure _ _
+    | defn v hints sf =>
+      rw [hkT] at hB hk
+      simp only [denoteKindN, ConLeche.Frontend.Olean.CKindF.mapM] at hk
+      obtain ⟨u, -, hk⟩ := bind_some_left hk
+      simp only [pure, Option.some.injEq] at hk
+      subst hk
+      dsimp only at hB
+      first
+      | try simp only [↓reduceIte] at hB
+        obtain ⟨r1, s₂, h2, hC⟩ := AM.bind_ok hB
+        obtain ⟨hv, rfl⟩ := AM.pure_ok hC
+        subst hv
+        obtain ⟨hst2, hpd, cC₂, dC, hC', hg2, hc2, hdd, hhd⟩ := stmtRecord_run hsp hctx1 he1 hc1 hsr1 hcv h2
+        refine ⟨hst1.trans hst2, hpd, cC₂, dC, hC', ?_, hc2, hdd, hhd⟩
+        refine hg1.bind ?_
+        dsimp only
+        rw [g2]
+        dsimp only
+        try simp only [↓reduceIte]
+        exact hg2
+      | try simp only [Bool.false_eq_true, ↓reduceIte] at hB
+        obtain ⟨u0, s₀, h0, hC⟩ := AM.bind_ok hB
+        obtain ⟨-, hs0⟩ := AM.pure_ok h0
+        subst s₀
+        obtain ⟨ce, s₂, h2, hD⟩ := AM.bind_ok hC
+        obtain ⟨c₂, e⟩ := ce
+        obtain ⟨hst2, cC₂, eC, hg2, hc2, he2⟩ := partEntry_run hsp hctx1 he1 hc1 hsr1.1 h2
+        have hctx2 := hctx1.step hst2
+        dsimp only at hD
+        obtain ⟨d', s₃, h3, hE⟩ := AM.bind_ok hD
+        obtain ⟨hv, rfl⟩ := AM.pure_ok hE
+        simp only [Prod.mk.injEq] at hv
+        obtain ⟨rfl, rfl, rfl⟩ := hv
+        obtain ⟨hst3, hpd, dC, hgd, hdd⟩ := recordOfEntry_run hctx2.ok.state hctx2.off hctx2.ok.pins he2 h3
+        refine ⟨hst1.trans (hst2.trans (DStep.of_parse hctx2.ok hctx2.off hst3)), hpd, cC₂, dC,
+          spC.part.mod, ?_, hc2.ext hst3.ext, hdd, denoteN_ext (denoteN_ext hh1 hst2.ext) hst3.ext⟩
+        refine hg1.bind ?_
+        dsimp only
+        rw [g2]
+        dsimp only
+        try simp only [Bool.false_eq_true, ↓reduceIte]
+        rw [← hsr1.2.loc]
+        refine hg2.bind ?_
+        dsimp only
+        rw [hgd]
+        exact ModelIO.gives_pure _ _
+    | ax u =>
+        rw [hkT] at hB hk
+        have hkC : (match kC with
+            | .defn .. => true
+            | .quot _ => true
+            | _ => false) = false := by
+          revert hk; unfold denoteKindN
+          intro hk
+          first
+          | (simp only [ConLeche.Frontend.Olean.CKindF.mapM, pure] at hk; injection hk with hk; subst hk; rfl)
+          | (simp only [ConLeche.Frontend.Olean.CKindF.mapM] at hk
+             obtain ⟨_, _, hk⟩ := bind_some_left hk
+             first
+             | (simp only [pure] at hk; injection hk with hk; subst hk; rfl)
+             | (obtain ⟨_, _, hk⟩ := bind_some_left hk
+                simp only [pure] at hk; injection hk with hk; subst hk; rfl))
+        dsimp only at hB
+        obtain ⟨hst2, hpd, cC₂, dC, hC', hg2, hc2, hdd, hhd⟩ := stmtRecord_run hsp hctx1 he1 hc1 hsr1 hcv hB
+        refine ⟨hst1.trans hst2, hpd, cC₂, dC, hC', ?_, hc2, hdd, hhd⟩
+        refine hg1.bind ?_
+        dsimp only
+        rw [g2]
+        dsimp only
+        revert hkC
+        cases kC <;> intro hkC <;> first | exact hg2 | cases hkC
+    | thm v al =>
+        rw [hkT] at hB hk
+        have hkC : (match kC with
+            | .defn .. => true
+            | .quot _ => true
+            | _ => false) = false := by
+          revert hk; unfold denoteKindN
+          intro hk
+          first
+          | (simp only [ConLeche.Frontend.Olean.CKindF.mapM, pure] at hk; injection hk with hk; subst hk; rfl)
+          | (simp only [ConLeche.Frontend.Olean.CKindF.mapM] at hk
+             obtain ⟨_, _, hk⟩ := bind_some_left hk
+             first
+             | (simp only [pure] at hk; injection hk with hk; subst hk; rfl)
+             | (obtain ⟨_, _, hk⟩ := bind_some_left hk
+                simp only [pure] at hk; injection hk with hk; subst hk; rfl))
+        dsimp only at hB
+        obtain ⟨hst2, hpd, cC₂, dC, hC', hg2, hc2, hdd, hhd⟩ := stmtRecord_run hsp hctx1 he1 hc1 hsr1 hcv hB
+        refine ⟨hst1.trans hst2, hpd, cC₂, dC, hC', ?_, hc2, hdd, hhd⟩
+        refine hg1.bind ?_
+        dsimp only
+        rw [g2]
+        dsimp only
+        revert hkC
+        cases kC <;> intro hkC <;> first | exact hg2 | cases hkC
+    | opaq v u =>
+        rw [hkT] at hB hk
+        have hkC : (match kC with
+            | .defn .. => true
+            | .quot _ => true
+            | _ => false) = false := by
+          revert hk; unfold denoteKindN
+          intro hk
+          first
+          | (simp only [ConLeche.Frontend.Olean.CKindF.mapM, pure] at hk; injection hk with hk; subst hk; rfl)
+          | (simp only [ConLeche.Frontend.Olean.CKindF.mapM] at hk
+             obtain ⟨_, _, hk⟩ := bind_some_left hk
+             first
+             | (simp only [pure] at hk; injection hk with hk; subst hk; rfl)
+             | (obtain ⟨_, _, hk⟩ := bind_some_left hk
+                simp only [pure] at hk; injection hk with hk; subst hk; rfl))
+        dsimp only at hB
+        obtain ⟨hst2, hpd, cC₂, dC, hC', hg2, hc2, hdd, hhd⟩ := stmtRecord_run hsp hctx1 he1 hc1 hsr1 hcv hB
+        refine ⟨hst1.trans hst2, hpd, cC₂, dC, hC', ?_, hc2, hdd, hhd⟩
+        refine hg1.bind ?_
+        dsimp only
+        rw [g2]
+        dsimp only
+        revert hkC
+        cases kC <;> intro hkC <;> first | exact hg2 | cases hkC
 
 end ConRon.Bridge.Modular
