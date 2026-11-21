@@ -1777,4 +1777,108 @@ theorem cycle_of_eq {deps : alloc.vec.Vec (alloc.vec.Vec Std.U64)} (hd : FitsD d
       rw [hiv] at ep
       rw [← ep]
 
+/-! ## `expand` -/
+
+/-- Handles, as the twin's. -/
+@[reducible] def absNs (v : alloc.vec.Vec arena.handle.NIdx) : _root_.Array NIdx := (v.val.map absNIdx).toArray
+
+theorem expand_loop0_loop0_eq {seen : ron.hashmap2.HashMap2 arena.handle.NIdx Bool} {S : _root_.Std.HashSet NIdx}
+    (hs : NSet seen S) (next : alloc.vec.Vec arena.handle.NIdx)
+    (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)) (k : Std.Usize) {o}
+    (h : expand_loop0_loop0 seen next imps k = ok o) :
+    let r := ((imps.val.drop k.val).map absImp).foldl (fun (sn : _root_.Std.HashSet NIdx × _root_.Array NIdx) i =>
+      if sn.1.contains i.module then (sn.1, sn.2) else (sn.1.insert i.module, sn.2.push i.module))
+      (S, absNs next)
+    NSet o.1 r.1 ∧ absNs o.2 = r.2 := by
+  rw [expand_loop0_loop0] at h
+  by_cases hlt : k < alloc.vec.Vec.len imps
+  · rw [ite_eq_left hlt] at h
+    have hlt' := lt_len hlt
+    peel h as x, hx
+    obtain ⟨_hb, rfl⟩ := vec_index_eq hx
+    peel h as b, hb
+    have eb := SetRel.contains_key nidx_eq2 hs hb
+    rw [drop_cons_of_lt hlt', List.map_cons, List.foldl_cons]
+    peel h as ⟨s1, n1⟩, hq
+    peel h as k1, hk1
+    by_cases cb : b = true
+    · rw [ite_eq_left cb] at hq
+      cases Result.ok_injective hq
+      have ih := expand_loop0_loop0_eq hs next imps k1 h
+      rw [usize_succ hk1] at ih
+      rw [ite_eq_left (by rw [eb] at cb; exact cb)]
+      exact ih
+    · rw [ite_eq_right cb] at hq
+      peel hq as d1, hd1
+      cases nidx_dup2_ok hd1
+      peel hq as ⟨_, s2⟩, hs2
+      peel hq as d2, hd2
+      cases nidx_dup2_ok hd2
+      peel hq as n2, hn2
+      have ea : absNs n2 = (absNs next).push (absNIdx imps.val[k.val].module) := by
+        simp [absNs, ConRon.Refine.vec_push_val hn2]
+      have hs2' := SetRel.insert nidx_eq2 absNIdx_inj hs hs2
+      cases Result.ok_injective hq
+      have ih := expand_loop0_loop0_eq hs2' _ imps k1 h
+      rw [usize_succ hk1] at ih
+      rw [ite_eq_right (by rw [eb] at cb; simpa [absImp, absImportF] using cb)]
+      simp only [absImp, absImportF] at ih ⊢
+      rw [← ea]
+      exact ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    exact ⟨hs, rfl⟩
+termination_by imps.val.length - k.val
+decreasing_by all_goals (have := lt_len hlt; rw [usize_succ hk1]; omega)
+
+theorem expand_loop0_eq (pk : frontend.olean.spec.OleanPins)
+    {seen : ron.hashmap2.HashMap2 arena.handle.NIdx Bool} {S : _root_.Std.HashSet NIdx} (hs : NSet seen S)
+    (out : alloc.vec.Vec (arena.handle.NIdx × alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)))
+    (next : alloc.vec.Vec arena.handle.NIdx)
+    (rs : alloc.vec.Vec (arena.handle.NIdx × alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)))
+    (i : Std.Usize) {o} (h : expand_loop0 pk seen out next rs i = ok o) :
+    let r := Modular.expand S (absC out) (absNs next) ((rs.val.drop i.val).map absNode)
+    NSet o.1 r.1 ∧ absC o.2.1 = r.2.1 ∧ absNs o.2.2 = r.2.2 := by
+  rw [expand_loop0] at h
+  by_cases hlt : i < alloc.vec.Vec.len rs
+  · rw [ite_eq_left hlt] at h
+    have hlt' := lt_len hlt
+    peel h as ⟨n0, imps⟩, hp
+    obtain ⟨_hb, he⟩ := vec_index_eq hp
+    peel h as ⟨seen1, next1⟩, hq
+    obtain ⟨e1, e2⟩ := expand_loop0_loop0_eq hs next imps _ hq
+    peel h as ⟨p, back⟩, hb
+    obtain ⟨_hb2, rfl, rfl⟩ := index_mut_ok hb
+    peel h as n, hn
+    peel h as out1, ho1
+    peel h as i2, hi2
+    simp only at h
+    have ih := expand_loop0_eq pk e1 out1 next1 _ i2 h
+    rw [usize_succ hi2] at ih
+    have hd : (alloc.vec.Vec.set rs i (n, alloc.vec.Vec.new _)).val.drop (i.val + 1) = rs.val.drop (i.val + 1) := by
+      rw [alloc.vec.Vec.set_val_eq]; simp [List.drop_set]
+    rw [hd] at ih
+    have eo : absC out1 = (absC out).push (absNode (n0, imps)) := by
+      simp [absC, ConRon.Refine.vec_push_val ho1, ← he]
+    rw [eo] at ih
+    simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at e1 e2
+    rw [drop_cons_of_lt hlt', List.map_cons, ← he]
+    simp only [Modular.expand]
+    have ei : (absImports imps).foldl (fun (sn : _root_.Std.HashSet NIdx × _root_.Array NIdx) i =>
+        if sn.1.contains i.module then (sn.1, sn.2) else (sn.1.insert i.module, sn.2.push i.module))
+        (S, absNs next) = ((imps.val.map absImp).foldl (fun (sn : _root_.Std.HashSet NIdx × _root_.Array NIdx) i =>
+        if sn.1.contains i.module then (sn.1, sn.2) else (sn.1.insert i.module, sn.2.push i.module))
+        (S, absNs next)) := by
+      rw [← Array.foldl_toList]
+    rw [ei]
+    rw [← e2]
+    exact ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    exact ⟨hs, rfl, rfl⟩
+termination_by rs.val.length - i.val
+decreasing_by have := lt_len hlt; rw [usize_succ hi2]; simp; omega
+
 end ConRon.Refine2.Modular
