@@ -120,13 +120,19 @@ def expoOfParts (pk : OleanPins) (r : Region) (privAddr expAddr : UInt64)
   expoLoop pk r privLoc privIdx privLocs cs skE.consts (cs.map fun _ => .absent)
 
 /-- con-leche: ConLeche/Frontend/Olean/Module.lean:156-190 checkViews
+`module {m}: {what}`, a malformed file at its home (`.invalid`); the module's name is a handle,
+read for the message. -/
+def badView (m : NIdx) (what : String) : AM CheckError := do
+  pure (.invalid s!"module {← readName m}: {what}")
+
+/-- con-leche: ConLeche/Frontend/Olean/Module.lean:156-190 checkViews
 **The views of a module against each other**: for each private constant, its
 exported level.  Every constant is `.same` in a classic module.  A mismatch is a malformed
 file at its home (`.invalid`).  The views are parsed whole (`parseAllViews`), so what upstream
 asks of the parts over the load (each part's module-system flag, the server part's imports,
-the name tables, a theorem's private value) is the views'. -/
-def checkViews (pk : OleanPins) (m : Name) (f : ModFiles) (v : AllViews) : AM (Array Expo) := do
-  let bad (what : String) : CheckError := .invalid s!"module {m}: {what}"
+the name tables, a theorem's private value) is the views'.  The module is a handle, its name
+read only for a message (`badView`). -/
+def checkViews (pk : OleanPins) (m : NIdx) (f : ModFiles) (v : AllViews) : AM (Array Expo) := do
   match f.server, f.private with
   | some s, some p =>
     unless f.isModule do return v.private.constants.map fun _ => .same
@@ -134,19 +140,22 @@ def checkViews (pk : OleanPins) (m : Name) (f : ModFiles) (v : AllViews) : AM (A
     | .error e => fail (toArenaError e)
     | .ok r =>
       unless (r.loc s.moduleDataAddr).all (· < f.exported.bytes.size + s.bytes.size) do
-        fail (bad s!"its server part {m}.olean.server points into its .olean.private: the \
-          server part must read with its .olean alone")
+        let mn ← readName m
+        fail (← badView m s!"its server part {mn}.olean.server points into its .olean.private: \
+          the server part must read with its .olean alone")
       unless v.server.isModule do
-        fail (bad "the server part is not of a module of the module system, the exported part is")
+        fail (← badView m
+          "the server part is not of a module of the module system, the exported part is")
       unless v.private.isModule do
-        fail (bad "the private part is not of a module of the module system, the exported part is")
+        fail (← badView m
+          "the private part is not of a module of the module system, the exported part is")
       let exp := f.exported.moduleDataAddr
       let e1 ← expoOfParts pk r p.moduleDataAddr exp v.private.constants
       let e2 ← expoOfParts pk r p.moduleDataAddr s.moduleDataAddr v.private.constants
       match e1, e2 with
       | .ok expo, .ok _ => pure expo
-      | .error msg, _ => fail (bad s!"the exported part: {msg}")
-      | _, .error msg => fail (bad s!"the server part: {msg}")
+      | .error msg, _ => fail (← badView m s!"the exported part: {msg}")
+      | _, .error msg => fail (← badView m s!"the server part: {msg}")
   | _, _ => pure (v.private.constants.map fun _ => .same)
 
 end ConRon.Arena.Frontend.Olean
