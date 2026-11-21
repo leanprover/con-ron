@@ -1881,4 +1881,155 @@ theorem expand_loop0_eq (pk : frontend.olean.spec.OleanPins)
 termination_by rs.val.length - i.val
 decreasing_by have := lt_len hlt; rw [usize_succ hi2]; simp; omega
 
+/-- **`expand` is `expand`.** -/
+theorem expand_eq (pk : frontend.olean.spec.OleanPins)
+    {seen : ron.hashmap2.HashMap2 arena.handle.NIdx Bool} {S : _root_.Std.HashSet NIdx} (hs : NSet seen S)
+    {out : alloc.vec.Vec (arena.handle.NIdx × alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))}
+    {next : alloc.vec.Vec arena.handle.NIdx}
+    {rs : alloc.vec.Vec (arena.handle.NIdx × alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))}
+    {o} (h : expand pk seen out next rs = ok o) :
+    let r := Modular.expand S (absC out) (absNs next) (rs.val.map absNode)
+    NSet o.1 r.1 ∧ absC o.2.1 = r.2.1 ∧ absNs o.2.2 = r.2.2 := by
+  have := expand_loop0_eq pk hs out next rs _ h
+  simpa using this
+
+/-! ## The header reads -/
+
+theorem hdr_of_loop_eq (imps x : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+    (i : Std.Usize) {o} (h : hdr_of_loop imps x i = ok o) : o.val = imps.val ++ x.val.drop i.val := by
+  rw [hdr_of_loop] at h
+  by_cases hlt : i < alloc.vec.Vec.len x
+  · rw [ite_eq_left hlt] at h
+    have hlt' := lt_len hlt
+    peel h as y, hy
+    obtain ⟨_hb, rfl⟩ := vec_index_eq hy
+    peel h as y1, hy1
+    cases import_rec_dup_ok hy1
+    peel h as imps1, hi1
+    peel h as i2, hi2
+    have ih := hdr_of_loop_eq imps1 x i2 h
+    rw [usize_succ hi2, ConRon.Refine.vec_push_val hi1] at ih
+    rw [ih, drop_cons_of_lt hlt']
+    simp
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    simp
+termination_by x.val.length - i.val
+decreasing_by have := lt_len hlt; rw [usize_succ hi2]; omega
+
+theorem catchAt_ok {α : Type} {x : AM α} {lst lst1 : AState} {b : α} (hx : x.run lst = .ok (b, lst1)) :
+    (Modular.AM.catchAt x).run lst = .ok (.ok b, lst1) := by
+  have : x lst = .ok (b, lst1) := hx
+  show (match x lst with
+    | .ok (a, s') => Except.ok (Except.ok a, s')
+    | .error e => .ok (.error e, lst)) = _
+  rw [this]
+
+section io
+
+variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
+  {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier} {sp : frontend.olean.files.Roots}
+  {cmp : Option (arena.handle.NIdx × arena.handle.NIdx)}
+
+/-- **`hdr_of`'s accept is `hdrOf`.** -/
+theorem hdr_of_refines (hfs : FsRel inst fsv fs) {st : arena.monad.AState} {lst : AState}
+    {m : arena.handle.NIdx} :
+    AS pers (EqA absNode) st lst (hdr_of inst fsv pk pers st.store sp cmp m)
+      (Modular.hdrOf fs (absPins pk) (absRoots sp) (absCmp cmp) (absNIdx m)) := by
+  intro hrel hinv a s' h
+  rw [hdr_of] at h
+  peel h as ⟨r, ar1⟩, hr
+  cases r with
+  | Err e =>
+    peel h as r1, -
+    cases r1 with
+    | Err e2 => cases Result.ok_injective h
+    | Ok b =>
+      dsimp only at h
+      cases b with
+      | false => cases Result.ok_injective h
+      | true =>
+        simp only [↓reduceIte] at h
+        peel h as _s, -
+        peel h as _v, -
+        peel h as _v1, -
+        peel h as _t, -
+        peel h as _s1, -
+        peel h as _v2, -
+        peel h as _v3, -
+        peel h as _ce, -
+        cases Result.ok_injective h
+  | Ok imps =>
+    obtain ⟨b1, lst1, hx, hR, hrel1, hinv1⟩ := module_imports_refines (st := st) (lst := lst) (sp := sp)
+      (m := m) hfs hrel hinv _ _ hr
+    cases show b1 = absImports imps from hR
+    peel h as x, hx1
+    have ex := cmp_extra_eq hx1
+    peel h as imps1, hi1
+    have ei := hdr_of_loop_eq imps x _ hi1
+    peel h as n, hn
+    cases nidx_dup2_ok hn
+    cases Result.ok_injective h
+    refine ⟨(absNIdx m, absImports imps ++ Modular.cmpExtra (absCmp cmp) (absNIdx m)), lst1, ?_, ?_, hrel1, hinv1⟩
+    · show ((Modular.AM.catchAt _) >>= _).run lst = _
+      rw [am_bind_ok (catchAt_ok hx)]
+      rfl
+    · show _ = (absNIdx m, absImports imps1)
+      rw [← ex]
+      simp [absImports, ei]
+
+theorem level_hdrs_loop_ok (hfs : FsRel inst fsv fs) (lvl : alloc.vec.Vec arena.handle.NIdx)
+    (st : arena.monad.AState) (lst : AState)
+    (rs : alloc.vec.Vec (arena.handle.NIdx × alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)))
+    (i : Std.Usize) {acc : List Node} (ho : rs.val.map absNode = acc) :
+    AS pers (fun (o : alloc.vec.Vec (arena.handle.NIdx × alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)))
+        (ys : List Node) => o.val.map absNode = acc ++ ys) st lst
+      (level_hdrs_loop inst fsv pk pers st.store sp cmp lvl rs i)
+      (((lvl.val.drop i.val).map absNIdx).mapM (Modular.hdrOf fs (absPins pk) (absRoots sp) (absCmp cmp))) := by
+  intro hrel hinv a s' h
+  rw [level_hdrs_loop] at h
+  by_cases hlt : i < alloc.vec.Vec.len lvl
+  · rw [ite_eq_left hlt] at h
+    have hlt' := lt_len hlt
+    peel h as n, hn
+    obtain ⟨_hb, rfl⟩ := vec_index_eq hn
+    peel h as ⟨r, ar1⟩, hq
+    cases r with
+    | Err e => cases Result.ok_injective h
+    | Ok r1 =>
+      obtain ⟨b, lst1, hx, hR, hrel1, hinv1⟩ := hdr_of_refines hfs hrel hinv _ _ hq
+      peel h as rs1, hrs1
+      peel h as i2, hi2
+      have ho' : rs1.val.map absNode = acc ++ [b] := by
+        rw [ConRon.Refine.vec_push_val hrs1, List.map_append, ho, hR]; rfl
+      obtain ⟨ys, lst2, hys, hF, hrel2, hinv2⟩ :=
+        level_hdrs_loop_ok hfs lvl (withStore st ar1) lst1 rs1 i2 ho' hrel1 hinv1 a s' h
+      rw [usize_succ hi2] at hys
+      refine ⟨b :: ys, lst2, ?_, by simpa using hF, hrel2, hinv2⟩
+      rw [drop_cons_of_lt hlt', List.map_cons, List.mapM_cons]
+      rw [am_bind_ok hx, am_bind_ok hys]
+      rfl
+  · rw [ite_eq_right hlt] at h
+    obtain ⟨h1, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+    cases h1
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    exact ⟨[], lst, rfl, by simpa using ho, hrel, hinv⟩
+termination_by lvl.val.length - i.val
+decreasing_by rw [usize_succ hi2]; omega
+
+/-- **`level_hdrs`'s accept is the level's headers, read in order.** -/
+theorem level_hdrs_refines (hfs : FsRel inst fsv fs) {st : arena.monad.AState} {lst : AState}
+    {lvl : alloc.vec.Vec arena.handle.NIdx} :
+    AS pers (fun (o : alloc.vec.Vec (arena.handle.NIdx × alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)))
+        (ys : List Node) => o.val.map absNode = ys) st lst
+      (level_hdrs inst fsv pk pers st.store sp cmp lvl)
+      ((lvl.val.map absNIdx).mapM (Modular.hdrOf fs (absPins pk) (absRoots sp) (absCmp cmp))) := by
+  intro hrel hinv a s' h
+  rw [level_hdrs] at h
+  have := level_hdrs_loop_ok hfs lvl st lst _ _ (acc := []) (by simp) hrel hinv a s' h
+  simpa using this
+
+end io
+
 end ConRon.Refine2.Modular
