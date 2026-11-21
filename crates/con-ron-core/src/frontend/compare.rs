@@ -67,7 +67,7 @@ pub fn rec_kind(d: &IDeclaration) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Driver/Compare.lean:63-70 holeRecord
-/// Lean twin: `proof/ConRon/Arena/Frontend/Compare.lean:41-52 holeRecord` — **a theorem
+/// Lean twin: `proof/ConRon/Arena/Frontend/Compare.lean:41-53 holeRecord` — **a theorem
 /// read as the hole it is** (`--olean --compare`): a theorem whose file says its
 /// value uses `sorryAx` (`u`, the read's used constants: `OleanRead`'s
 /// `UsedConsts`) is the axiom of its statement; a theorem at a built-in axiom's
@@ -96,7 +96,7 @@ pub fn hole_record<U: UsedConsts>(u: &U, pers: &PersTier, st: &mut AState, d: &I
 }
 
 /// con-leche: ConLeche/Driver/Compare.lean:132-138 chalRecords
-/// Lean twin: `proof/ConRon/Arena/Frontend/Compare.lean:54-61 holeRecordsGo` — the cited
+/// Lean twin: `proof/ConRon/Arena/Frontend/Compare.lean:55-62 holeRecordsGo` — the cited
 /// `recs.map (holeRecord uses)`: every record from cursor `i` through
 /// [`hole_record`], onto `out`.
 pub fn hole_records<U: UsedConsts>(
