@@ -193,19 +193,30 @@ the whole of the pool's trust.  The driver instantiates it with two calls into t
 verified crate, `init := worker_state pins` and `step := fun st k => run_job tier st mode
 pins ds (k as u64)` (`jobStep`). -/
 
-/-- **The driver's `step` closure**, `|w, k| checker::run_job(&tier, w, &mode, &ipins, ds,
-k as u64)` (`crates/con-ron/src/driver.rs` `check_decls_driver`), as the Aeneas model
+/-- **The driver's `step` closure**, `|w, k| checker::run_job(&tier, w, &mode, &ipins, sol,
+ds, k as u64)` (`crates/con-ron/src/driver.rs` `check_decls_driver`), as the Aeneas model
 reads it: `run_job` at the `usize` index cast up to a `u64`.  The pool's indices are
-`usize`s, so a `Nat` past one is a panic. -/
-def jobStep (tier : arena.store.PersTier) (mode : kernel.env.CheckMode)
+`usize`s, so a `Nat` past one is a panic.  `sol` is a compared run's solution, `None` on a
+flat run (`jobStep`). -/
+def jobStepSol (tier : arena.store.PersTier) (mode : kernel.env.CheckMode)
     (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
+    (sol : Option arena.justify.Solution)
     (ds : alloc.vec.Vec arena.env.IDeclaration) (st : arena.monad.AState) (k : Nat) :
     Result ((core.result.Result Unit (kernel.core_types.CheckError × Std.U64)) ×
       arena.monad.AState) :=
   if h : k < 2 ^ UScalarTy.Usize.numBits then
-    arena.checker.run_job tier st mode pins none ds
+    arena.checker.run_job tier st mode pins sol ds
       (UScalar.cast .U64 (UScalar.ofNatCore (ty := .Usize) k h))
   else fail .panic
+
+/-- **The flat run's `step` closure**: `jobStepSol` with no solution. -/
+def jobStep (tier : arena.store.PersTier) (mode : kernel.env.CheckMode)
+    (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
+    (ds : alloc.vec.Vec arena.env.IDeclaration) :
+    arena.monad.AState → Nat →
+      Result ((core.result.Result Unit (kernel.core_types.CheckError × Std.U64)) ×
+        arena.monad.AState) :=
+  jobStepSol tier mode pins none ds
 
 /-- con-leche: ConLeche/Driver/CheckPool.lean:236-269 checkPool — **the driver's check
 phase, accepted** (`crates/con-ron/src/driver.rs` `check_decls_driver`, one conjunct per
@@ -224,6 +235,33 @@ def PoolAccepts (pers : arena.store.PersTier) (st : arena.monad.AState)
     arena.checker.freeze_tier st'.store ix = ok (tier, est) ∧
     ParallelAll ds.length (arena.checker.worker_state st'.pins) (jobStep tier mode pins ds)
 
+/-- con-leche: ConLeche/Driver/CheckPool.lean:236-269 checkPool — **the driver's check phase
+with a solution, accepted**: `PoolAccepts` with every job at `sol` (a compared run's challenge,
+`Some(&sol)`; the solution's own phase is `PoolAccepts`). -/
+def PoolAcceptsSol (pers : arena.store.PersTier) (st : arena.monad.AState)
+    (mode : kernel.env.CheckMode)
+    (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
+    (sol : Option arena.justify.Solution)
+    (ds : alloc.vec.Vec arena.env.IDeclaration)
+    (ix : arena.stream_index.IStreamIndex) (st' : arena.monad.AState) : Prop :=
+  ∃ (tier : arena.store.PersTier) (est : arena.store.EStore),
+    arena.stream_index.build_index pers st ixEmpty ds 0#usize = ok (.Ok ix, st') ∧
+    arena.checker.freeze_tier st'.store ix = ok (tier, est) ∧
+    ParallelAll ds.length (arena.checker.worker_state st'.pins) (jobStepSol tier mode pins sol ds)
+
+/-- `PoolAcceptsSol` from one premise per call of the driver. -/
+theorem poolAcceptsSol_intro {pers st mode pins sol ds ix st'}
+    {tier : arena.store.PersTier} {est : arena.store.EStore}
+    (hI : (do
+        let e ← arena.stream_index.stream_index_empty
+        arena.stream_index.build_index pers st e ds 0#usize) = ok (.Ok ix, st'))
+    (hF : arena.checker.freeze_tier st'.store ix = ok (tier, est))
+    (hB : ParallelAll ds.length (arena.checker.worker_state st'.pins)
+      (jobStepSol tier mode pins sol ds)) :
+    PoolAcceptsSol pers st mode pins sol ds ix st' := by
+  rw [stream_index_empty_eq, bind_ok] at hI
+  exact ⟨tier, est, hI, hF, hB⟩
+
 /-- `PoolAccepts` from one premise per call of the driver — the shape the headlines state
 it in: the index build from `stream_index_empty()`, the freeze, the pool. -/
 theorem poolAccepts_intro {pers st mode pins ds ix st'}
@@ -239,20 +277,21 @@ theorem poolAccepts_intro {pers st mode pins ds ix st'}
   exact ⟨tier, est, hI, hF, hB⟩
 
 /-- **A worker's fold ⊑ `checkJobList`**: each claimed index is a record position, and the
-worker's jobs, from its one idle state, are the twin's. -/
-theorem foldAllOk_jobStep_refines {tier} {I : IStreamIndex} {mode : kernel.env.CheckMode}
+worker's jobs, from its one idle state, are the twin's, at the related solution. -/
+theorem foldAllOk_jobStepSol_refines {tier} {I : IStreamIndex} {mode : kernel.env.CheckMode}
     {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
     {ds : alloc.vec.Vec arena.env.IDeclaration}
+    {sol : Option arena.justify.Solution} {J : Option ISolution} (hJ : OptSolRel sol J)
     (hI : StreamIndexRel tier.env I ∧ FrozenRel tier.env I) (htf : tier.frozen = true) :
     ∀ (ks : List Nat) {st lst},
       AIdle tier st lst → AStateInv tier st →
-      FoldAllOk (jobStep tier mode pins ds) st ks →
+      FoldAllOk (jobStepSol tier mode pins sol ds) st ks →
       (∀ k ∈ ks, k < ds.val.length) ∧
-      ∃ s'', checkJobList (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) none I
+      ∃ s'', checkJobList (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) J I
         (absIDeclL ds).toArray ks lst = .ok (.ok (), s'')
   | [], _, lst, _, _, _ => ⟨by simp, lst, rfl⟩
   | k :: ks, _, lst, hidle, hinv, ⟨_, hs1, hf⟩ => by
-    unfold jobStep at hs1
+    unfold jobStepSol at hs1
     split at hs1
     · rename_i hk
       have hu : (UScalar.cast .U64 (UScalar.ofNatCore (ty := .Usize) k hk)).val = k := by
@@ -263,31 +302,75 @@ theorem foldAllOk_jobStep_refines {tier} {I : IStreamIndex} {mode : kernel.env.C
           rw [← UScalar.max_USize_eq, UScalar.max_def]
         have h3 := Nat.one_le_two_pow (n := UScalarTy.Usize.numBits)
         rw [hu, h2]; omega
-      obtain ⟨hlt, lst1, hx, hidle1, hinv1, -⟩ := run_job_refines hidle hinv htf hI hkU (sol := none) (J := none) trivial hs1
+      obtain ⟨hlt, lst1, hx, hidle1, hinv1, -⟩ := run_job_refines hidle hinv htf hI hkU hJ hs1
       rw [hu] at hlt
       have hau : absU (UScalar.cast .U64 (UScalar.ofNatCore (ty := .Usize) k hk)) = k := hu
       rw [hau] at hx
-      obtain ⟨hall, s'', h⟩ := foldAllOk_jobStep_refines hI htf ks hidle1 hinv1 hf
+      obtain ⟨hall, s'', h⟩ := foldAllOk_jobStepSol_refines hJ hI htf ks hidle1 hinv1 hf
       refine ⟨?_, s'', ?_⟩
       · intro x hx
         rcases List.mem_cons.mp hx with rfl | hx
         · exact hlt
         · exact hall x hx
       · simp only [checkJobList]
-        rw [show runJob _ _ none I _ k lst = .ok (.ok (), lst1) from hx]
+        rw [show runJob _ _ J I _ k lst = .ok (.ok (), lst1) from hx]
         exact h
     · simp at hs1
+
+/-- **A worker's fold ⊑ `checkJobList`**, on a flat run (no solution). -/
+theorem foldAllOk_jobStep_refines {tier} {I : IStreamIndex} {mode : kernel.env.CheckMode}
+    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    {ds : alloc.vec.Vec arena.env.IDeclaration}
+    (hI : StreamIndexRel tier.env I ∧ FrozenRel tier.env I) (htf : tier.frozen = true)
+    (ks : List Nat) {st lst} (hidle : AIdle tier st lst) (hinv : AStateInv tier st)
+    (hf : FoldAllOk (jobStep tier mode pins ds) st ks) :
+    (∀ k ∈ ks, k < ds.val.length) ∧
+    ∃ s'', checkJobList (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) none I
+      (absIDeclL ds).toArray ks lst = .ok (.ok (), s'') :=
+  foldAllOk_jobStepSol_refines (sol := none) (J := none) trivial hI htf ks hidle hinv hf
+
+/-- **`pool_accepts_sol_refines` — Theorem 2 at the check phase the binary runs, pool and all,
+with a solution**: an accept of the Aeneas model — the index build, the freeze, and every
+worker's fold of `run_job` at `sol` over its claims — implies the twin's `PooledAcceptsJ` at the
+related solution `J`, from the related state, the indexes related, ending in a related state.
+
+Lockstep hypotheses (`AStateRel₀` and `AStateInv`, nothing about the twin).  Each worker
+is related on its own: `worker_state_rel` puts its fresh state against `lst'.worker`, and
+`foldAllOk_jobStepSol_refines` walks that worker's list. -/
+theorem pool_accepts_sol_refines {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    {sol : Option arena.justify.Solution} {J : Option ISolution} (hJ : OptSolRel sol J)
+    {ds : alloc.vec.Vec arena.env.IDeclaration} {ix st'}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpers : pers.frozen = false)
+    (hpool : PoolAcceptsSol pers st mode pins sol ds ix st') :
+    ∃ I lst', PooledAcceptsJ (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) J
+        (absIDeclL ds).toArray lst I lst' ∧
+      AStateRel₀ pers st' lst' ∧ AStateInv pers st' ∧ StreamIndexRel ix I := by
+  obtain ⟨tier, est, hB, hfr, parts, hcov, hw⟩ := hpool
+  obtain ⟨I, lst', hx, hrel1, hinv1, hI, hF⟩ := build_index_empty_refines hrel hinv hB
+  obtain ⟨htier, -⟩ := freeze_tier_ok hfr
+  subst htier
+  have hwork : ∀ w ∈ parts, (∀ k ∈ w, k < ds.val.length) ∧
+      ∃ s'', checkJobList (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) J I
+        (absIDeclL ds).toArray w lst'.worker = .ok (.ok (), s'') := by
+    intro w hwm
+    obtain ⟨-, ws, hws, hf⟩ := hw w hwm
+    obtain ⟨hrelW, hinvW⟩ := worker_state_rel ix hrel1 hinv1 hpers hws
+    exact foldAllOk_jobStepSol_refines hJ ⟨hI, hF⟩ rfl w hrelW hinvW hf
+  refine ⟨I, lst', ⟨parts, hx, fun t ht => ?_, fun w hw' t ht => ?_,
+    fun w hw' => (hw w hw').1, fun w hw' => (hwork w hw').2⟩, hrel1, hinv1, hI⟩
+  · exact hcov t (by simpa [absIDeclL] using ht)
+  · simpa [absIDeclL] using (hwork w hw').1 t ht
 
 /-- **`pool_accepts_refines` — Theorem 2 at the check phase the binary runs, pool and all**
 (tasks #97-P5-POOL, #141, #143).
 
 *An accept of the Aeneas model — the index build, the freeze, and every worker's fold of
 `run_job` over its claims — implies the twin's `PooledAccepts` from the related state,
-the indexes related, ending in a related state.*
-
-Lockstep hypotheses (`AStateRel₀` and `AStateInv`, nothing about the twin).  Each worker
-is related on its own: `worker_state_rel` puts its fresh state against `lst'.worker`, and
-`foldAllOk_jobStep_refines` walks that worker's list. -/
+the indexes related, ending in a related state.*  `pool_accepts_sol_refines` with no
+solution. -/
 theorem pool_accepts_refines {pers st lst}
     {mode : kernel.env.CheckMode}
     {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
@@ -298,21 +381,9 @@ theorem pool_accepts_refines {pers st lst}
     ∃ I lst', PooledAccepts (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
         (absIDeclL ds).toArray lst I lst' ∧
       AStateRel₀ pers st' lst' ∧ StreamIndexRel ix I := by
-  obtain ⟨tier, est, hB, hfr, parts, hcov, hw⟩ := hpool
-  obtain ⟨I, lst', hx, hrel1, hinv1, hI, hF⟩ := build_index_empty_refines hrel hinv hB
-  obtain ⟨htier, -⟩ := freeze_tier_ok hfr
-  subst htier
-  have hwork : ∀ w ∈ parts, (∀ k ∈ w, k < ds.val.length) ∧
-      ∃ s'', checkJobList (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) none I
-        (absIDeclL ds).toArray w lst'.worker = .ok (.ok (), s'') := by
-    intro w hwm
-    obtain ⟨-, ws, hws, hf⟩ := hw w hwm
-    obtain ⟨hrelW, hinvW⟩ := worker_state_rel ix hrel1 hinv1 hpers hws
-    exact foldAllOk_jobStep_refines ⟨hI, hF⟩ rfl w hrelW hinvW hf
-  refine ⟨I, lst', ⟨parts, hx, fun t ht => ?_, fun w hw' t ht => ?_,
-    fun w hw' => (hw w hw').1, fun w hw' => (hwork w hw').2⟩, hrel1, hI⟩
-  · exact hcov t (by simpa [absIDeclL] using ht)
-  · simpa [absIDeclL] using (hwork w hw').1 t ht
+  obtain ⟨I, lst', h, h1, -, h3⟩ :=
+    pool_accepts_sol_refines (sol := none) (J := none) trivial hrel hinv hpers hpool
+  exact ⟨I, lst', h, h1, h3⟩
 
 /-! ## The `--olean` check phase -/
 
@@ -346,12 +417,85 @@ theorem oleanPoolAccepts_intro {F : Type} {inst : frontend.olean.files.OleanFs F
   rw [stream_index_empty_eq, bind_ok] at hI
   exact ⟨tier, est, hI, hF, hB⟩
 
+/-- con-leche: ConLeche/Driver/CheckMain.lean:152-170 checkOleansG — **the driver's check
+phase on an `--olean` run with a solution, accepted**: `OleanPoolAccepts` with every job at
+`sol` (a compared run's challenge closure). -/
+def OleanPoolAcceptsSol {F : Type} (inst : frontend.olean.files.OleanFs F) (fs : F)
+    (pers : arena.store.PersTier) (st : arena.monad.AState) (mode : kernel.env.CheckMode)
+    (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
+    (ds : alloc.vec.Vec arena.env.IDeclaration) (pk : frontend.olean.spec.OleanPins) (values : alloc.vec.Vec frontend.olean.records.ModRef)
+    (sp : frontend.olean.files.Roots) (sol : Option arena.justify.Solution)
+    (ix : arena.stream_index.IStreamIndex) (st' : arena.monad.AState) : Prop :=
+  ∃ (tier : arena.store.PersTier) (est : arena.store.EStore),
+    arena.stream_index.build_index pers st ixEmpty ds 0#usize = ok (.Ok ix, st') ∧
+    arena.checker.freeze_tier st'.store ix = ok (tier, est) ∧
+    ParallelAll ds.length (oleanWorkerInit st'.pins)
+      (oleanJobStepSol inst fs tier mode pins ds pk values sp sol)
+
+/-- `OleanPoolAcceptsSol` from one premise per call of the driver. -/
+theorem oleanPoolAcceptsSol_intro {F : Type} {inst : frontend.olean.files.OleanFs F} {fs : F}
+    {pers st mode pins ds pk values sp sol ix st'}
+    {tier : arena.store.PersTier} {est : arena.store.EStore}
+    (hI : (do
+        let e ← arena.stream_index.stream_index_empty
+        arena.stream_index.build_index pers st e ds 0#usize) = ok (.Ok ix, st'))
+    (hF : arena.checker.freeze_tier st'.store ix = ok (tier, est))
+    (hB : ParallelAll ds.length (oleanWorkerInit st'.pins)
+      (oleanJobStepSol inst fs tier mode pins ds pk values sp sol)) :
+    OleanPoolAcceptsSol inst fs pers st mode pins ds pk values sp sol ix st' := by
+  rw [stream_index_empty_eq, bind_ok] at hI
+  exact ⟨tier, est, hI, hF, hB⟩
+
+open ConRon.Refine2.Frontend.Olean in
+/-- **`olean_pool_accepts_sol_refines` — Theorem 2 at the check phase of an `--olean` run, with
+a solution**: an accept of the Aeneas model, the index, the freeze and every worker's fold of
+the binary's `olean_job` at `sol` over its claims, implies the twin's `PooledOleanAcceptsJ` at
+the related solution `J`, from the related state, at the reader's related module references
+(`hv`) and pins, on a record of the file system answering as the binary's (`FsRel`). -/
+theorem olean_pool_accepts_sol_refines {F : Type} {inst : frontend.olean.files.OleanFs F}
+    {fsv : F} {fs : Arena.Frontend.Olean.OleanFs} {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    {ds : alloc.vec.Vec arena.env.IDeclaration} {pk : frontend.olean.spec.OleanPins} {values : alloc.vec.Vec frontend.olean.records.ModRef}
+    {values' : Array Arena.Frontend.Olean.ModRef} {sp : frontend.olean.files.Roots}
+    {sol : Option arena.justify.Solution} {J : Option ISolution} (hJ : OptSolRel sol J)
+    {ix st'}
+    (hfs : FsRel inst fsv fs) (hv : List.Forall₂ ModRefRel values.val values'.toList)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpers : pers.frozen = false)
+    (hpool : OleanPoolAcceptsSol inst fsv pers st mode pins ds pk values sp sol ix st') :
+    ∃ I lst', PooledOleanAcceptsJ fs (absPins pk) (absRoots sp) values'
+        (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) J (absIDeclL ds).toArray lst I lst' ∧
+      AStateRel₀ pers st' lst' ∧ AStateInv pers st' ∧ StreamIndexRel ix I := by
+  obtain ⟨tier, est, hB, hfr, parts, hcov, hw⟩ := hpool
+  obtain ⟨I, lst', hx, hrel1, hinv1, hI, hF⟩ := build_index_empty_refines hrel hinv hB
+  obtain ⟨htier, -⟩ := freeze_tier_ok hfr
+  subst htier
+  have hwork : ∀ w ∈ parts, (∀ k ∈ w, k < ds.val.length) ∧
+      ∃ s'', checkOleanJobListJ fs (absPins pk) (absRoots sp) values'
+        (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) J I (absIDeclL ds).toArray w {}
+        lst'.worker = .ok (.ok (), s'') := by
+    intro w hwm
+    obtain ⟨-, ws, hws, hf⟩ := hw w hwm
+    rw [oleanWorkerInit] at hws
+    obtain ⟨w0, hw0, hws⟩ := ConRon.Refine.bind_eq_ok_iff.mp hws
+    obtain ⟨c0, hc0, hws⟩ := ConRon.Refine.bind_eq_ok_iff.mp hws
+    obtain rfl := (Result.ok_injective hws).symm
+    obtain ⟨hrelW, hinvW⟩ := worker_state_rel ix hrel1 hinv1 hpers hw0
+    exact foldAllOk_oleanJobStepSol_refines hfs hv hJ rfl ⟨hI, hF⟩ w hrelW hinvW rfl
+      (value_cache_empty_rel hc0) hf
+  refine ⟨I, lst', ⟨parts, hx, fun t ht => ?_, fun w hw' t ht => ?_,
+    fun w hw' => (hw w hw').1, fun w hw' => (hwork w hw').2⟩, hrel1, hinv1, hI⟩
+  · exact hcov t (by simpa [absIDeclL] using ht)
+  · simpa [absIDeclL] using (hwork w hw').1 t ht
+
 open ConRon.Refine2.Frontend.Olean in
 /-- **`olean_pool_accepts_refines` — Theorem 2 at the check phase of an `--olean` run**:
 an accept of the Aeneas model, the index, the freeze and every worker's fold of the
 binary's `olean_job` over its claims, implies the twin's `PooledOleanAccepts` from the
 related state, at the reader's related module references (`hv`: `OleanReadRel.values`)
-and pins, on a record of the file system answering as the binary's (`FsRel`). -/
+and pins, on a record of the file system answering as the binary's (`FsRel`).
+`olean_pool_accepts_sol_refines` with no solution. -/
 theorem olean_pool_accepts_refines {F : Type} {inst : frontend.olean.files.OleanFs F}
     {fsv : F} {fs : Arena.Frontend.Olean.OleanFs} {pers st lst}
     {mode : kernel.env.CheckMode}
@@ -366,32 +510,20 @@ theorem olean_pool_accepts_refines {F : Type} {inst : frontend.olean.files.Olean
     ∃ I lst', PooledOleanAccepts fs (absPins pk) (absRoots sp) values'
         (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) (absIDeclL ds).toArray lst I lst' ∧
       AStateRel₀ pers st' lst' ∧ StreamIndexRel ix I := by
-  obtain ⟨tier, est, hB, hfr, parts, hcov, hw⟩ := hpool
-  obtain ⟨I, lst', hx, hrel1, hinv1, hI, hF⟩ := build_index_empty_refines hrel hinv hB
-  obtain ⟨htier, -⟩ := freeze_tier_ok hfr
-  subst htier
-  have hwork : ∀ w ∈ parts, (∀ k ∈ w, k < ds.val.length) ∧
-      ∃ s'', checkOleanJobList fs (absPins pk) (absRoots sp) values'
-        (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I (absIDeclL ds).toArray w {}
-        lst'.worker = .ok (.ok (), s'') := by
-    intro w hwm
-    obtain ⟨-, ws, hws, hf⟩ := hw w hwm
-    rw [oleanWorkerInit] at hws
-    obtain ⟨w0, hw0, hws⟩ := ConRon.Refine.bind_eq_ok_iff.mp hws
-    obtain ⟨c0, hc0, hws⟩ := ConRon.Refine.bind_eq_ok_iff.mp hws
-    obtain rfl := (Result.ok_injective hws).symm
-    obtain ⟨hrelW, hinvW⟩ := worker_state_rel ix hrel1 hinv1 hpers hw0
-    exact foldAllOk_oleanJobStep_refines hfs hv rfl ⟨hI, hF⟩ w hrelW hinvW rfl
-      (value_cache_empty_rel hc0) hf
-  refine ⟨I, lst', ⟨parts, hx, fun t ht => ?_, fun w hw' t ht => ?_,
-    fun w hw' => (hw w hw').1, fun w hw' => (hwork w hw').2⟩, hrel1, hI⟩
-  · exact hcov t (by simpa [absIDeclL] using ht)
-  · simpa [absIDeclL] using (hwork w hw').1 t ht
+  obtain ⟨I, lst', h, h1, -, h3⟩ :=
+    olean_pool_accepts_sol_refines (sol := none) (J := none) trivial hfs hv hrel hinv hpers hpool
+  exact ⟨I, lst', by rw [pooledOleanAccepts_eq_J]; exact h, h1, h3⟩
 
 /-- info: 'ConRon.Refine2.olean_pool_accepts_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms olean_pool_accepts_refines
 
 /-- info: 'ConRon.Refine2.pool_accepts_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms pool_accepts_refines
+
+/-- info: 'ConRon.Refine2.olean_pool_accepts_sol_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms olean_pool_accepts_sol_refines
+
+/-- info: 'ConRon.Refine2.pool_accepts_sol_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pool_accepts_sol_refines
 
 end ConRon.Refine2
