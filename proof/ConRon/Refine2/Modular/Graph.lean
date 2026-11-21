@@ -1059,4 +1059,244 @@ theorem kahn_users_eq {deps : alloc.vec.Vec (alloc.vec.Vec Std.U64)} (hd : FitsD
     simp [absNat]
   · simp
 
+/-! ## `kahn` -/
+
+theorem kahn_loop0_eq (deps : alloc.vec.Vec (alloc.vec.Vec Std.U64)) (n : Std.Usize)
+    (hn : n.val = deps.val.length) (wait q : alloc.vec.Vec Std.U64) (hq : FitsN q) (k : Std.Usize) {o}
+    (h : kahn_loop0 deps n wait q k = ok o) :
+    (absNat o.1, absNat o.2) = (List.range' k.val (n.val - k.val)).foldl
+      (fun (acc : _root_.Array Nat × _root_.Array Nat) k =>
+        let d := (absDeps deps)[k]?.getD #[]
+        (acc.1.push d.size, if d.size == 0 then acc.2.push k else acc.2)) (absNat wait, absNat q) ∧
+      FitsN o.2 := by
+  rw [kahn_loop0] at h
+  by_cases hlt : k < n
+  · rw [ite_eq_left hlt] at h
+    have hlt' : k.val < n.val := hlt
+    peel h as v, hv
+    obtain ⟨hi, rfl⟩ := vec_index_eq hv
+    peel h as i1, hi1
+    have e1 := cast_u64_val hi1
+    peel h as wait1, hw1
+    peel h as q1, hq1
+    peel h as k1, hk1
+    have eq1 : absNat q1 = (if (absNat deps.val[k.val]).size == 0 then (absNat q).push k.val else absNat q) ∧
+        FitsN q1 := by
+      by_cases h0 : alloc.vec.Vec.len deps.val[k.val] = 0#usize
+      · rw [ite_eq_left h0] at hq1
+        have hl : deps.val[k.val].val.length = 0 := by
+          have := congrArg (·.val) h0; simpa [vec_len_val] using this
+        peel hq1 as i3, hi3
+        have e3 := cast_u64_val hi3
+        have ev := ConRon.Refine.vec_push_val hq1
+        refine ⟨by simp [absNat, hl, ev, e3], fun z hz => ?_⟩
+        rw [ev] at hz
+        rcases List.mem_append.mp hz with hz | hz
+        · exact hq z hz
+        · simp at hz; rw [hz, e3]; scalar_tac
+      · rw [ite_eq_right h0] at hq1
+        cases Result.ok_injective hq1
+        have hl : deps.val[k.val].val.length ≠ 0 := by
+          intro hc; apply h0; apply UScalar.eq_of_val_eq; simpa [vec_len_val] using hc
+        exact ⟨by simp [absNat, hl], hq⟩
+    obtain ⟨ih, f⟩ := kahn_loop0_eq deps n hn wait1 q1 eq1.2 k1 h
+    rw [usize_succ hk1] at ih
+    refine ⟨?_, f⟩
+    rw [ih, range'_cons hlt', List.foldl_cons]
+    congr 1
+    have eg : (absDeps deps)[k.val]?.getD #[] = absNat deps.val[k.val] := by simp [absDeps, hi]
+    simp only [eg]
+    rw [← eq1.1]
+    congr 1
+    simp [ConRon.Refine.vec_push_val hw1, e1, absNat]
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have : ¬ k.val < n.val := hlt
+    rw [range'_nil (by omega)]
+    exact ⟨rfl, hq⟩
+termination_by n.val - k.val
+decreasing_by have : k.val < n.val := hlt; rw [usize_succ hk1]; omega
+
+theorem kahn_release_eq {wait q : alloc.vec.Vec Std.U64} (hq : FitsN q) {i1 : Std.U64} {y : Std.Usize}
+    (hy : y.val = i1.val) {o}
+    (h : (if y < alloc.vec.Vec.len wait then do
+        let w ← alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) wait y
+        let wait2 ← if w > 0#u64 then do
+            let i3 ← w - 1#u64
+            let (_, index_mut_back) ← alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64) wait y
+            ok (index_mut_back i3)
+          else ok wait
+        let v ← if w = 1#u64 then alloc.vec.Vec.push q i1 else ok q
+        ok (wait2, v)
+      else ok (wait, q)) = ok o) (hi1 : i1.val ≤ Std.Usize.max) :
+    (absNat o.1, absNat o.2) = Modular.kahnRelease (absNat wait, absNat q) i1.val ∧ FitsN o.2 := by
+  simp only [Modular.kahnRelease]
+  by_cases hlt : y < alloc.vec.Vec.len wait
+  · rw [ite_eq_left hlt] at h
+    have hl := lt_len hlt
+    rw [hy] at hl
+    have hs : i1.val < (absNat wait).size := by simpa using hl
+    rw [ite_eq_left hs]
+    peel h as w, hw
+    obtain ⟨hwi, rfl⟩ := vec_index_eq hw
+    peel h as wait2, hw2
+    peel h as v, hv
+    cases Result.ok_injective h
+    have ew : (absNat wait)[i1.val]! = wait.val[y.val].val := by
+      rw [getElem!_pos (absNat wait) i1.val hs]; simp [absNat, hy]
+    rw [ew]
+    refine ⟨?_, ?_⟩
+    · congr 1
+      · by_cases hp : wait.val[y.val] > 0#u64
+        · rw [ite_eq_left hp] at hw2
+          have hp' : wait.val[y.val].val > 0 := hp
+          rw [ite_eq_left hp']
+          peel hw2 as i3, hi3
+          peel hw2 as ⟨_, back⟩, hb
+          obtain ⟨-, -, rfl⟩ := index_mut_ok hb
+          cases Result.ok_injective hw2
+          have e3 := ConRon.Refine.HashMap.uscalar_sub_eq hi3
+          show ((alloc.vec.Vec.set wait y i3).val.map (·.val)).toArray = _
+          rw [set_abs, ← hy, e3]
+          rfl
+        · rw [ite_eq_right hp] at hw2
+          cases Result.ok_injective hw2
+          have hp' : ¬ wait.val[y.val].val > 0 := hp
+          rw [ite_eq_right hp']
+      · by_cases h1 : wait.val[y.val] = 1#u64
+        · rw [ite_eq_left h1] at hv
+          have h1' : (wait.val[y.val].val == 1) = true := by simp [h1]
+          rw [ite_eq_left h1']
+          simp [ConRon.Refine.vec_push_val hv, absNat]
+        · rw [ite_eq_right h1] at hv
+          cases Result.ok_injective hv
+          have h1' : ¬ (wait.val[y.val].val == 1) = true := by
+            intro hc; apply h1; apply UScalar.eq_of_val_eq; simpa using hc
+          rw [ite_eq_right h1']
+    · by_cases h1 : wait.val[y.val] = 1#u64
+      · rw [ite_eq_left h1] at hv
+        intro z hz
+        rw [ConRon.Refine.vec_push_val hv] at hz
+        rcases List.mem_append.mp hz with hz | hz
+        · exact hq z hz
+        · simp at hz; rw [hz]; exact hi1
+      · rw [ite_eq_right h1] at hv
+        cases Result.ok_injective hv
+        exact hq
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have hl := not_lt_len hlt
+    rw [hy] at hl
+    have hs : ¬ i1.val < (absNat wait).size := by simpa using hl
+    rw [ite_eq_right hs]
+    exact ⟨rfl, hq⟩
+
+theorem kahn_loop1_loop0_eq (wait q us : alloc.vec.Vec Std.U64) (hq : FitsN q) (hus : FitsN us)
+    (u : Std.Usize) {o} (h : kahn_loop1_loop0 wait q us u = ok o) :
+    (absNat o.1, absNat o.2) = ((us.val.drop u.val).map (·.val)).foldl Modular.kahnRelease (absNat wait, absNat q) ∧
+      FitsN o.2 := by
+  rw [kahn_loop1_loop0] at h
+  by_cases hlt : u < alloc.vec.Vec.len us
+  · rw [ite_eq_left hlt] at h
+    peel h as i1, hi1
+    obtain ⟨hi, rfl⟩ := vec_index_eq hi1
+    have hf := hus _ (List.getElem_mem hi)
+    peel h as y, hy
+    have hyv := cast_usize_val hf hy
+    peel h as ⟨wait1, q1⟩, hq1
+    peel h as u1, hu1
+    obtain ⟨e1, f1⟩ := kahn_release_eq hq hyv hq1 hf
+    obtain ⟨ih, f⟩ := kahn_loop1_loop0_eq wait1 q1 us f1 hus u1 h
+    rw [usize_succ hu1] at ih
+    refine ⟨?_, f⟩
+    rw [ih, drop_cons_of_lt hi, List.map_cons, List.foldl_cons, ← e1]
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    exact ⟨rfl, hq⟩
+termination_by us.val.length - u.val
+decreasing_by have := lt_len hlt; rw [usize_succ hu1]; omega
+
+theorem kahn_loop1_eq (n : Std.Usize) (users : alloc.vec.Vec (alloc.vec.Vec Std.U64)) (hu : FitsD users)
+    (wait q : alloc.vec.Vec Std.U64) (hq : FitsN q) (i t : Std.Usize) {o}
+    (h : kahn_loop1 n users wait q i t = ok o) :
+    absNat o = Modular.kahnGo (absDeps users) (n.val - t.val) i.val (absNat wait) (absNat q) ∧ FitsN o := by
+  rw [kahn_loop1] at h
+  by_cases hlt : t < n
+  · rw [ite_eq_left hlt] at h
+    have hlt' : t.val < n.val := hlt
+    rw [show n.val - t.val = (n.val - (t.val + 1)) + 1 by omega, Modular.kahnGo]
+    by_cases hi : i < alloc.vec.Vec.len q
+    · rw [ite_eq_left hi] at h
+      have hi' := lt_len hi
+      have hs : i.val < (absNat q).size := by simpa using hi'
+      simp only [hs, ↓reduceDIte]
+      peel h as i2, hi2
+      obtain ⟨_hb, rfl⟩ := vec_index_eq hi2
+      peel h as x, hx
+      have hxv := cast_usize_val (hq _ (List.getElem_mem hi')) hx
+      have eq : (absNat q)[i.val] = q.val[i.val].val := by simp [absNat]
+      simp only [eq]
+      by_cases hxl : x < alloc.vec.Vec.len users
+      · rw [ite_eq_left hxl] at h
+        have hxl' := lt_len hxl
+        peel h as us, hus
+        obtain ⟨_hb2, rfl⟩ := vec_index_eq hus
+        peel h as ⟨wait1, q1⟩, hq1
+        obtain ⟨e1, f1⟩ := kahn_loop1_loop0_eq wait q _ hq (hu _ (List.getElem_mem hxl')) _ hq1
+        simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at e1
+        peel h as i4, hi4
+        peel h as t1, ht1
+        obtain ⟨ih, f⟩ := kahn_loop1_eq n users hu wait1 q1 f1 i4 t1 h
+        rw [usize_succ hi4, usize_succ ht1] at ih
+        refine ⟨?_, f⟩
+        have eg : (absDeps users)[q.val[i.val].val]?.getD #[] = absNat users.val[x.val] := by
+          rw [← hxv]; simp [absDeps, hxl']
+        rw [eg, ih]
+        have : (absNat users.val[x.val]).foldl Modular.kahnRelease (absNat wait, absNat q) =
+            (absNat wait1, absNat q1) := by rw [e1]; simp [absNat]
+        rw [this]
+      · rw [ite_eq_right hxl] at h
+        peel h as i4, hi4
+        peel h as t1, ht1
+        obtain ⟨ih, f⟩ := kahn_loop1_eq n users hu wait q hq i4 t1 h
+        rw [usize_succ hi4, usize_succ ht1] at ih
+        refine ⟨?_, f⟩
+        have eg : (absDeps users)[q.val[i.val].val]?.getD #[] = #[] := by
+          have := not_lt_len hxl
+          rw [hxv] at this
+          rw [Array.getElem?_eq_none (by simpa using this)]
+          rfl
+        rw [eg, ih]
+        rfl
+    · rw [ite_eq_right hi] at h
+      cases Result.ok_injective h
+      have hs : ¬ i.val < (absNat q).size := by simpa using not_lt_len hi
+      simp only [hs, ↓reduceDIte]
+      exact ⟨trivial, hq⟩
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have : ¬ t.val < n.val := hlt
+    rw [show n.val - t.val = 0 by omega, Modular.kahnGo]
+    exact ⟨rfl, hq⟩
+termination_by n.val - t.val
+decreasing_by all_goals (rw [usize_succ ht1]; omega)
+
+/-- **`kahn` is `kahn`**, every position of the order fitting a `usize`. -/
+theorem kahn_eq {deps : alloc.vec.Vec (alloc.vec.Vec Std.U64)} (hd : FitsD deps) {o}
+    (h : kahn deps = ok o) : absNat o = Modular.kahn (absDeps deps) ∧ FitsN o := by
+  rw [kahn] at h
+  peel h as users, hus
+  obtain ⟨eu, fu⟩ := kahn_users_eq hd hus
+  peel h as ⟨wait1, q⟩, hq
+  obtain ⟨e0, f0⟩ := kahn_loop0_eq deps _ (vec_len_val deps) _ _ (fun z hz => by simp at hz) _ hq
+  obtain ⟨e, f⟩ := kahn_loop1_eq _ users fu wait1 q f0 _ _ h
+  refine ⟨?_, f⟩
+  rw [e, Modular.kahn, Modular.kahnStart, ← eu, List.range_eq_range']
+  simp only [show (0#usize : Std.Usize).val = 0 from rfl, Nat.sub_zero, vec_len_val] at e0 ⊢
+  have es : (absDeps deps).size = deps.val.length := by simp
+  rw [es]
+  simp only [vec_with_capacity_val, vec_new_val, List.map_nil, absNat] at e0
+  rw [← e0]
+
 end ConRon.Refine2.Modular
