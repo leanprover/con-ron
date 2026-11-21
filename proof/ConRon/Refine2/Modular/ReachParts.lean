@@ -1505,6 +1505,353 @@ theorem locate_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend
     refine (am_bind_ok hl).trans ?_
     rfl
 
+/-- **`entries_with`'s loop accepts as `entriesWith`** on what is left of the locations. -/
+theorem entries_with_loop_ok {pk pers bs r} (hr : RegionFits bs r) (ls : alloc.vec.Vec Std.U64)
+    (st : arena.monad.AState) (lst : AState) (m : frontend.olean.sparse.SM) (t : TSM)
+    (out : alloc.vec.Vec (frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx))
+    (i : Std.Usize) (hm : SMRel m t) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {v st' m'} (h : entries_with_loop pk pers st bs r m ls out i = ok (.Ok v, st', m')) :
+    ∃ t' es lst', (ConRon.Arena.Modular.entriesWith (absPins pk) (absRegion bs r) t
+        ((ls.val.drop i.val).map (·.val))).run lst = .ok ((t', some es), lst') ∧
+      (∃ rest, v.val = out.val ++ rest ∧ List.Forall₂ (EntryRel absNIdx absEIdx ValRel) rest es) ∧
+      SMRel m' t' ∧ AStateRel₀ pers st' lst' ∧ AStateInv pers st' := by
+  rw [entries_with_loop] at h
+  by_cases h1 : i < alloc.vec.Vec.len ls
+  · rw [ite_eq_left h1] at h
+    have hi := lt_of_lt_len h1
+    peel h as l0, hl0
+    obtain ⟨_, rfl⟩ := vec_index_eq hl0
+    peel h as q, hq
+    obtain ⟨r1, e, m1⟩ := q
+    have hM := entry_with_refines (pk := pk) (c := ls.val[i.val]) hr hm hrel hinv r1 e m1 hq
+    cases r1 with
+    | Err e1 => simp at h
+    | Ok e1 =>
+      obtain ⟨t1, b, lst1, hx, hR, hd, hrel1, hinv1⟩ := hM
+      peel h as out1, hout1
+      peel h as i3, hi3
+      obtain ⟨t', es, lst', hx2, ⟨rest, hv, hF⟩, hm', hrel', hinv'⟩ :=
+        entries_with_loop_ok hr ls _ lst1 m1 t1 out1 i3 hd hrel1 hinv1 h
+      refine ⟨t', b :: es, lst', ?_, ⟨e1 :: rest, ?_, List.Forall₂.cons hR hF⟩, hm', hrel', hinv'⟩
+      · rw [List.drop_eq_getElem_cons hi, List.map_cons, ConRon.Arena.Modular.entriesWith,
+          am_bind_ok hx]
+        rw [usize_succ hi3] at hx2
+        dsimp only
+        rw [am_bind_ok hx2]
+        rfl
+      · rw [hv, ConRon.Refine.vec_push_val hout1]
+        simp
+  · rw [ite_eq_right h1] at h
+    have e2 := Result.ok_injective h
+    simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e2
+    obtain ⟨rfl, rfl, rfl⟩ := e2
+    refine ⟨t, [], lst, ?_, ⟨[], by simp, List.Forall₂.nil⟩, hm, hrel, hinv⟩
+    rw [List.drop_of_length_le (lt_of_not_lt_len h1)]
+    rfl
+termination_by ls.val.length - i.val
+decreasing_by
+  have := lt_of_lt_len h1
+  have := usize_succ hi3
+  omega
+
+/-- **`entries_with` accepts as `entriesWith`.** -/
+theorem entries_with_ok {pk pers bs r} (hr : RegionFits bs r) {ls : alloc.vec.Vec Std.U64}
+    {st : arena.monad.AState} {lst : AState} {m : frontend.olean.sparse.SM} {t : TSM}
+    (hm : SMRel m t) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {v st' m'} (h : entries_with pk pers st bs r m ls = ok (.Ok v, st', m')) :
+    ∃ t' es lst', (ConRon.Arena.Modular.entriesWith (absPins pk) (absRegion bs r) t
+        (ls.val.map (·.val))).run lst = .ok ((t', some es), lst') ∧
+      List.Forall₂ (EntryRel absNIdx absEIdx ValRel) v.val es ∧
+      SMRel m' t' ∧ AStateRel₀ pers st' lst' ∧ AStateInv pers st' := by
+  rw [entries_with] at h
+  obtain ⟨t', es, lst', hx, ⟨rest, hv, hF⟩, hm', hrel', hinv'⟩ :=
+    entries_with_loop_ok hr ls st lst m t _ 0#usize hm hrel hinv h
+  refine ⟨t', es, lst', by simpa using hx, ?_, hm', hrel', hinv'⟩
+  rw [hv]
+  simpa [alloc.vec.Vec.with_capacity] using hF
+
+/-- **`part_entries`' accept is `partEntries`'.** -/
+theorem part_entries_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
+    {c C} (hc : ReachCacheRel c C) {k : frontend.modular.reach.PartKey} {ls : alloc.vec.Vec Std.U64} :
+    ACS pers (fun v c X => ReachCacheRel c X.1 ∧ List.Forall₂ (EntryRel absNIdx absEIdx ValRel) v.val X.2)
+      st lst (part_entries inst fsv pk pers st sp c k ls)
+      (ConRon.Arena.Modular.partEntries fs (absPins pk) (absRoots sp) C (absPartKey k)
+        (ls.val.map (·.val))) := by
+  intro hrel hinv a st' c' h
+  rw [part_entries] at h
+  peel h as q, hq
+  obtain ⟨r, st1, c1⟩ := q
+  cases r with
+  | Err e => simp at h
+  | Ok p =>
+  obtain ⟨⟨C1, r', sm⟩, lst1, hx, ⟨hc1, hp⟩, hrel1, hinv1⟩ := take_part_refines hfs hc hrel hinv p st1 c1 hq
+  peel h as bs, hbs
+  obtain ⟨er, hfit⟩ := hp.region bs hbs
+  peel h as q2, hq2
+  obtain ⟨r1, st2, s1⟩ := q2
+  peel h as q3, hq3
+  obtain ⟨r2, c2⟩ := q3
+  have e3 := Result.ok_injective h
+  simp only [Prod.mk.injEq] at e3
+  obtain ⟨rfl, rfl, rfl⟩ := e3
+  cases put_part_inv hq3
+  obtain ⟨t, es, lst2, hx2, hR, hd, hrel2, hinv2⟩ := entries_with_ok hfit hp.memo hrel1 hinv1 hq2
+  obtain ⟨-, hc2⟩ := put_part_rel hc1
+    (show PartReadRel { p with memo := s1 } (r', t) from ⟨hp.region, hd⟩) hq3
+  refine ⟨({ C1 with parts := C1.parts.insert (absPartKey k) (r', t) }, es), lst2, ?_, ⟨hc2, hR⟩,
+    hrel2, hinv2⟩
+  unfold ConRon.Arena.Modular.partEntries
+  rw [am_bind_ok hx]
+  dsimp only
+  rw [show r' = absRegion bs p.region from er]
+  exact (am_bind_ok hx2).trans rfl
+
+/-! ### Recursor blocks, read -/
+
+theorem rec_blocks_at_loop_ok {pk pers bs r} (hr : RegionFits bs r) (t : frontend.olean.reads.NamePositions)
+    (st : arena.monad.AState) (lst : AState)
+    (m : ron.hashmap2.HashMap2 arena.handle.NIdx (alloc.vec.Vec Std.U64))
+    (M : _root_.Std.HashMap NIdx (_root_.Array Nat)) (i : Std.Usize) (hm : NMapRel absLocs m M)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) {m' st'}
+    (h : rec_blocks_at_loop pk pers st bs r t m i = ok (.Ok m', st')) :
+    ∃ M' lst', (ConRon.Arena.Modular.recBlocksAt (absPins pk) (absRegion bs r) M
+        ((t.consts.val.drop i.val).map absNamePosition)).run lst = .ok (some M', lst') ∧
+      NMapRel absLocs m' M' ∧ AStateRel₀ pers st' lst' ∧ AStateInv pers st' := by
+  rw [rec_blocks_at_loop] at h
+  by_cases h1 : i < alloc.vec.Vec.len t.consts
+  · rw [ite_eq_left h1] at h
+    have hi := lt_of_lt_len h1
+    peel h as np, hnp
+    obtain ⟨_, rfl⟩ := vec_index_eq hnp
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, ConRon.Arena.Modular.recBlocksAt]
+    by_cases h7 : (t.consts.val[i.val]).tag = 7#u64
+    · rw [ite_eq_left h7] at h
+      have h7' : ((absNamePosition t.consts.val[i.val]).tag == 7) = true := by
+        simp [h7]
+      peel h as q, hq
+      obtain ⟨r1, e⟩ := q
+      have hK := kind_names_at_refines (pk := pk) (c := t.consts.val[i.val].loc) hr hrel hinv r1 e hq
+      cases r1 with
+      | Err e1 => simp at h
+      | Ok k =>
+        obtain ⟨k', lst1, hx, hk, hrel1, hinv1⟩ := hK
+        peel h as m1, hm1
+        peel h as i2, hi2
+        obtain ⟨M', lst', hx2, hm', hrel', hinv'⟩ :=
+          rec_blocks_at_loop_ok hr t _ lst1 m1 _ i2 (rec_blocks_add_rel hm hk hm1) hrel1 hinv1 h
+        refine ⟨M', lst', ?_, hm', hrel', hinv'⟩
+        rw [usize_succ hi2] at hx2
+        simp only [h7', ↓reduceIte]
+        refine (am_bind_ok hx).trans ?_
+        exact hx2
+    · rw [ite_eq_right h7] at h
+      have h7' : ((absNamePosition t.consts.val[i.val]).tag == 7) = false := by
+        simp only [absNamePosition_tag, beq_eq_false_iff_ne]
+        exact fun he => h7 (UScalar.eq_of_val_eq he)
+      peel h as i2, hi2
+      obtain ⟨M', lst', hx2, hm', hrel', hinv'⟩ :=
+        rec_blocks_at_loop_ok hr t st lst m M i2 hm hrel hinv h
+      refine ⟨M', lst', ?_, hm', hrel', hinv'⟩
+      rw [usize_succ hi2] at hx2
+      simp only [h7', Bool.false_eq_true, ↓reduceIte]
+      exact hx2
+  · rw [ite_eq_right h1] at h
+    have e2 := Result.ok_injective h
+    simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e2
+    obtain ⟨rfl, rfl⟩ := e2
+    refine ⟨M, lst, ?_, hm, hrel, hinv⟩
+    rw [List.drop_of_length_le (lt_of_not_lt_len h1)]
+    rfl
+termination_by t.consts.val.length - i.val
+decreasing_by
+  all_goals
+    have := lt_of_lt_len h1
+    have := usize_succ hi2
+    omega
+
+/-- **`rec_blocks_at` accepts as `recBlocksAt`.** -/
+theorem rec_blocks_at_ok {pk pers bs r} (hr : RegionFits bs r) {t : frontend.olean.reads.NamePositions}
+    {st : arena.monad.AState} {lst : AState} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {m' st'} (h : rec_blocks_at pk pers st bs r t = ok (.Ok m', st')) :
+    ∃ M' lst', (ConRon.Arena.Modular.recBlocksAt (absPins pk) (absRegion bs r) {}
+        (absNamePositions t).consts.toList).run lst = .ok (some M', lst') ∧
+      NMapRel absLocs m' M' ∧ AStateRel₀ pers st' lst' ∧ AStateInv pers st' := by
+  rw [rec_blocks_at] at h
+  peel h as m, hm
+  have := rec_blocks_at_loop_ok hr t st lst m {} 0#usize (NMapRel.new hm) hrel hinv h
+  simpa [absNamePositions] using this
+
+/-- **`rec_blocks_of`'s accept is `recBlocksOf`'s.** -/
+theorem rec_blocks_of_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
+    {env wr own E} (henv : ReachEnvRel env wr own E) {c C} (hc : ReachCacheRel c C)
+    {k : frontend.modular.reach.PartKey} :
+    ACS pers CR st lst (rec_blocks_of inst fsv pk pers st sp wr c k)
+      (ConRon.Arena.Modular.recBlocksOf fs (absPins pk) (absRoots sp) E C (absPartKey k)) := by
+  intro hrel hinv a st' c' h
+  rw [rec_blocks_of] at h
+  peel h as b, hb
+  have eb := hc.recBlocks.contains_eq hb
+  unfold ConRon.Arena.Modular.recBlocksOf
+  by_cases hb' : b = true
+  · rw [ite_eq_left hb'] at h
+    simp only [ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨-, rfl, rfl⟩ := h
+    refine ⟨C, lst, ?_, hc, hrel, hinv⟩
+    rw [← eb, hb']
+    rfl
+  · rw [ite_eq_right hb'] at h
+    have hb0 : C.recBlocks.contains (absPartKey k) = false := by rw [← eb]; simpa using hb'
+    peel h as q, hq
+    obtain ⟨r, st1, c1⟩ := q
+    cases r with
+    | Err e => simp at h
+    | Ok u =>
+    obtain ⟨C1, lst1, hx, hc1, hrel1, hinv1⟩ := table_of_refines hfs henv hc hrel hinv u st1 c1 hq
+    peel h as q2, hq2
+    obtain ⟨r1, st2, c2⟩ := q2
+    cases r1 with
+    | Err e => simp at h
+    | Ok p =>
+    obtain ⟨⟨C2, r', sm⟩, lst2, hx2, ⟨hc2, hp⟩, hrel2, hinv2⟩ :=
+      take_part_refines hfs hc1 hrel1 hinv1 p st2 c2 hq2
+    peel h as q3, hq3
+    obtain ⟨r2, st3⟩ := q3
+    peel h as q4, hq4
+    obtain ⟨r3, c3⟩ := q4
+    cases r3 with
+    | Err e => simp at h
+    | Ok m =>
+    cases put_part_inv hq4
+    obtain ⟨-, hc3⟩ := put_part_rel hc2 hp hq4
+    -- the read of the blocks
+    rw [rec_blocks_read] at hq3
+    peel hq3 as o, ho
+    have eo := table_get_eq henv.wr henv.fits hc2 ho
+    cases o with
+    | none =>
+      peel hq3 as ce, -
+      simp at hq3
+    | some t =>
+    peel hq3 as bs, hbs
+    obtain ⟨er, hfit⟩ := hp.region bs hbs
+    obtain ⟨M, lst3, hx3, hM, hrel3, hinv3⟩ := rec_blocks_at_ok hfit hrel2 hinv2 hq3
+    peel h as pk1, hpk1
+    cases partKey_dup2_ok hpk1
+    peel h as q5, hq5
+    obtain ⟨_, hm5⟩ := q5
+    have e5 := Result.ok_injective h
+    simp only [Prod.mk.injEq] at e5
+    obtain ⟨-, rfl, rfl⟩ := e5
+    refine ⟨{ C2 with parts := C2.parts.insert (absPartKey k) (r', sm), recBlocks := C2.recBlocks.insert (absPartKey k) M }, lst3, ?_,
+      { hc3 with recBlocks := hc3.recBlocks.insert hM hq5 }, hrel3, hinv3⟩
+    rw [hb0]
+    simp only [Bool.false_eq_true, ↓reduceIte, pure_bind]
+    refine (am_bind_ok hx).trans ?_
+    refine (am_bind_ok hx2).trans ?_
+    simp only [← eo, Option.map_some]
+    rw [show r' = absRegion bs p.region from er]
+    refine (am_bind_ok hx3).trans ?_
+    rfl
+
+/-- **`load_part`'s accept is `loadPart`'s.** -/
+theorem load_part_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
+    {c C} (hc : ReachCacheRel c C) {k : frontend.modular.reach.PartKey} :
+    ACS pers CR st lst (load_part inst fsv pk pers st sp c k)
+      (ConRon.Arena.Modular.loadPart fs (absPins pk) (absRoots sp) C (absPartKey k)) := by
+  intro hrel hinv a st' c' h
+  rw [load_part] at h
+  peel h as b, hb
+  have eb := hc.parts.contains_eq hb
+  unfold ConRon.Arena.Modular.loadPart
+  by_cases hb' : b = true
+  · rw [ite_eq_left hb'] at h
+    simp only [ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨-, rfl, rfl⟩ := h
+    refine ⟨C, lst, ?_, hc, hrel, hinv⟩
+    rw [← eb, hb']
+    rfl
+  · rw [ite_eq_right hb'] at h
+    have hb0 : C.parts.contains (absPartKey k) = false := by rw [← eb]; simpa using hb'
+    peel h as r, hr
+    cases r with
+    | Err e => simp at h
+    | Ok f =>
+    obtain ⟨mn, f', hf, hrun⟩ := part_files_ok hfs hrel hr
+    peel h as o1, ho1
+    have hv := mod_files_view_region_eq hf ho1
+    cases o1 with
+    | none =>
+      peel h as ⟨ce, e⟩, -
+      simp at h
+    | some vbp =>
+    obtain ⟨vb, ad⟩ := vbp
+    peel h as r1, hr1
+    obtain ⟨bs, hbs⟩ := view_bytes_ok f vb
+    obtain ⟨ey, hfit⟩ := hv bs r1 hbs hr1
+    have hpr : ∀ {sm}, frontend.olean.sparse.sm_empty = ok sm →
+        PartReadRel { files := f, vb, region := r1, memo := sm } (absRegion bs r1, {}) :=
+      fun hsm => ⟨fun bs' hbs' => by rw [hbs] at hbs'; cases Result.ok_injective hbs'; exact ⟨rfl, hfit⟩,
+        sm_empty_rel hsm⟩
+    peel h as b1, hb1
+    have eb1 := hc.tables.contains_eq hb1
+    by_cases hb1' : b1 = true
+    · rw [ite_eq_left hb1'] at h
+      peel h as pk1, hpk1
+      cases partKey_dup2_ok hpk1
+      peel h as sm, hsm
+      peel h as q, hq
+      obtain ⟨_, hm⟩ := q
+      have e2 := Result.ok_injective h
+      simp only [Prod.mk.injEq] at e2
+      obtain ⟨-, rfl, rfl⟩ := e2
+      refine ⟨{ C with parts := C.parts.insert (absPartKey k) (absRegion bs r1, {}) }, lst, ?_,
+        { hc with parts := hc.parts.insert (hpr hsm) hq }, hrel, hinv⟩
+      rw [hb0]
+      simp only [Bool.false_eq_true, ↓reduceIte, pure_bind]
+      refine (hrun _).trans ?_
+      rw [ey]
+      dsimp only
+      rw [← eb1, hb1']
+      rfl
+    · rw [ite_eq_right hb1'] at h
+      have hb10 : C.tables.contains (absPartKey k) = false := by rw [← eb1]; simpa using hb1'
+      peel h as bs2, hbs2
+      rw [hbs] at hbs2
+      cases Result.ok_injective hbs2
+      peel h as q, hq
+      obtain ⟨r2, e⟩ := q
+      have hN := name_positions_at_refines (pk := pk) (root := ad) hfit hrel hinv r2 e hq
+      cases r2 with
+      | Err e2 =>
+        cases e2 with
+        | Bad => peel h as ⟨ce, e'⟩, -; simp at h
+        | Err e3 => simp at h
+      | Ok t =>
+      obtain ⟨t', lst1, hx1, ht, hrel1, hinv1⟩ := hN
+      peel h as pk1, hpk1
+      cases partKey_dup2_ok hpk1
+      peel h as sm, hsm
+      peel h as q2, hq2
+      obtain ⟨_, hm⟩ := q2
+      peel h as q3, hq3
+      obtain ⟨_, hm3⟩ := q3
+      have e2 := Result.ok_injective h
+      simp only [Prod.mk.injEq] at e2
+      obtain ⟨-, rfl, rfl⟩ := e2
+      have hP := hc.parts.insert (hpr hsm) hq2
+      have hT := hc.tables.insert (v' := absNamePositions t) rfl hq3
+      refine ⟨{ C with parts := C.parts.insert (absPartKey k) (absRegion bs r1, {}), tables := C.tables.insert (absPartKey k) (absNamePositions t) }, lst1, ?_,
+        { hc with parts := hP, tables := hT }, hrel1, hinv1⟩
+      rw [hb0]
+      simp only [Bool.false_eq_true, ↓reduceIte, pure_bind]
+      refine (hrun _).trans ?_
+      rw [ey]
+      dsimp only
+      rw [hb10]
+      simp only [Bool.false_eq_true, ↓reduceIte]
+      rw [am_bind_ok hx1, ht]
+      rfl
+
 end reads
 
 end ConRon.Refine2.Modular
