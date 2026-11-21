@@ -586,4 +586,53 @@ theorem captureOne_run (hN : NeedsExprHyp) {pk : OleanPins} {F : FS} {sp : Roots
       simp only [hpX', Bool.false_eq_true, ↓reduceIte]
       exact hfalse hp'
 
+/-- con-leche: ConLeche/Driver/Reach.lean:568-575 captureAll — **the capture check of every
+read of a record**, upstream's accept. -/
+theorem captureAll_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    {h : NIdx} {hC : ConLeche.Name} :
+    ∀ (ys : List NIdx) {ysC : List ConLeche.Name}
+      {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache} {s s' : AState},
+      RCtx pk s → EnvRel sp s.store env envC → CacheRel s.store c cC →
+      denoteN s.store.ns h = some hC → ListRel (NR s.store) ys ysC →
+      ConRon.Arena.Modular.captureAll (modelFs F) pk sp env h c ys s = .ok (c', s') →
+      DStep s s' ∧ ∃ cC', ModelIO.Gives (ConLeche.Driver.captureAll envC hC cC ysC) F (cC', .ok ()) ∧
+        CacheRel s'.store c' cC'
+  | [], _, c, c', cC, s, s', hctx, _, hc, _, .nil, hrun => by
+    rw [ConRon.Arena.Modular.captureAll] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨DStep.refl hctx.ok hctx.off, cC, ModelIO.gives_pure _ _, hc⟩
+  | y :: ys, _, c, c', cC, s, s', hctx, he, hc, hh, .cons hy hys, hrun => by
+    rw [ConRon.Arena.Modular.captureAll] at hrun
+    obtain ⟨c₁, s₁, g1, k1⟩ := AM.bind_ok hrun
+    obtain ⟨hst1, cC₁, hg1, hc1⟩ := captureOne_run needsExprHyp_holds hsp hctx he hc hh hy g1
+    have hctx1 := hctx.step hst1
+    obtain ⟨hst2, cC', hg2, hc'⟩ := captureAll_run hsp ys hctx1 (he.ext hst1.ext hctx1.wf) hc1
+      (denoteN_ext hh hst1.ext) (ListRel.mono' (fun _ _ h => denoteN_ext h hst1.ext) hys) k1
+    exact ⟨hst1.trans hst2, cC', by rw [ConLeche.Driver.captureAll]; exact hg1.bind hg2, hc'⟩
+
+/-- con-leche: ConLeche/Driver/Reach.lean:577-584 capturePairs — **the partners' reads
+checked**, upstream's accept. -/
+theorem capturePairs_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO} :
+    ∀ (ps : List (NIdx × NIdx)) {psC : List (ConLeche.Name × ConLeche.Name)}
+      {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache} {s s' : AState},
+      RCtx pk s → EnvRel sp s.store env envC → CacheRel s.store c cC →
+      ListRel (NN s.store) ps psC →
+      ConRon.Arena.Modular.capturePairs (modelFs F) pk sp env c ps s = .ok (c', s') →
+      DStep s s' ∧ ∃ cC', ModelIO.Gives (ConLeche.Driver.capturePairs envC cC psC) F (cC', .ok ()) ∧
+        CacheRel s'.store c' cC'
+  | [], _, c, c', cC, s, s', hctx, _, hc, .nil, hrun => by
+    rw [ConRon.Arena.Modular.capturePairs] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨DStep.refl hctx.ok hctx.off, cC, ModelIO.gives_pure _ _, hc⟩
+  | (h, y) :: ps, _, c, c', cC, s, s', hctx, he, hc, .cons hp hps, hrun => by
+    rw [ConRon.Arena.Modular.capturePairs] at hrun
+    obtain ⟨c₁, s₁, g1, k1⟩ := AM.bind_ok hrun
+    obtain ⟨hst1, cC₁, hg1, hc1⟩ := captureOne_run needsExprHyp_holds hsp hctx he hc hp.1 hp.2 g1
+    have hctx1 := hctx.step hst1
+    obtain ⟨hst2, cC', hg2, hc'⟩ := capturePairs_run hsp ps hctx1 (he.ext hst1.ext hctx1.wf) hc1
+      (ListRel.mono' (fun _ _ h => h.ext hst1.ext) hps) k1
+    exact ⟨hst1.trans hst2, cC', by rw [ConLeche.Driver.capturePairs]; exact hg1.bind hg2, hc'⟩
+
 end ConRon.Bridge.Modular
