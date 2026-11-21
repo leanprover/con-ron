@@ -762,14 +762,14 @@ end MemoWalks
 hypothesis: that walk's statement (`mentions_const_ls`) is
 `Refine2/Inductives/StructParts.lean`'s, a module ABOVE this one (the
 Inductives tier imports the checker's base), so it cannot be named here. -/
-theorem unresolved_consts_error_of {pers st lst} {e : arena.handle.EIdx} {o}
+theorem unresolved_consts_error_of {pers st lst} {e : arena.handle.EIdx} {rw : alloc.vec.Vec Std.U32} {o}
     {w : String}
     (hM : ∀ {st lst} (t : arena.handle.NIdx), AStateRel₀ pers st lst → AStateInv pers st →
       Lockstep.LS pers (fun a b => b = id a)
         (arena.inductives.struct_parts.mentions_const pers st t e) lst
         (mentionsConst (absNIdx t) (absEIdx e)))
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.checker_base.unresolved_consts_error pers st e = ok o) :
+    (hrun : arena.checker_base.unresolved_consts_error pers st rw e = ok o) :
     SimRel₀ (fun r v => absAErrKind r = lAErrKind v) pers lst o
       (unresolvedConstsError w (absEIdx e)) := by
   have hS : ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
@@ -786,22 +786,22 @@ DECLINES (`notImplemented`) and anything else REJECTS (`invalid`), and the
 claim is that the two agree on WHICH — messages are never compared
 (DESIGN §3.1).  `unresolved_consts_error_of` at `mentions_const_ls`
 (`Checker/Leaves.lean`, moved down from `Inductives/StructParts.lean`). -/
-theorem unresolved_consts_error_refines {pers st lst} {e : arena.handle.EIdx} {o}
+theorem unresolved_consts_error_refines {pers st lst} {e : arena.handle.EIdx} {rw : alloc.vec.Vec Std.U32} {o}
     {w : String}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.checker_base.unresolved_consts_error pers st e = ok o) :
+    (hrun : arena.checker_base.unresolved_consts_error pers st rw e = ok o) :
     SimRel₀ (fun r v => absAErrKind r = lAErrKind v) pers lst o
       (unresolvedConstsError w (absEIdx e)) :=
   unresolved_consts_error_of (fun _ hrel hinv => mentions_const_ls hrel hinv) hrel hinv hrun
 
 open Lockstep in
 @[lockstep] theorem unresolved_consts_error_ls {pers st lst}
-    {e : arena.handle.EIdx}
+    {e : arena.handle.EIdx} {rw : alloc.vec.Vec Std.U32}
     {w : String}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) :
     LS pers (fun r v => absAErrKind r = lAErrKind v)
-      (arena.checker_base.unresolved_consts_error pers st e) lst
+      (arena.checker_base.unresolved_consts_error pers st rw e) lst
       (unresolvedConstsError w (absEIdx e)) :=
   LS.ofSimRel₀ fun _ h => unresolved_consts_error_refines hrel hinv h
 
@@ -846,10 +846,10 @@ open Lockstep in
 /-- `unresolved_consts_error_l` ⊑ `unresolvedConstsErrorL` — the string-literal
 guard (at a fresh memo) ahead of `unresolved_consts_error`, at the kind. -/
 @[lockstep] theorem unresolved_consts_error_l_ls {pers st lst}
-    {e : arena.handle.EIdx} {strOk : Bool} {w : String}
+    {e : arena.handle.EIdx} {rw : alloc.vec.Vec Std.U32} {strOk : Bool} {w : String}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun r v => absAErrKind r = lAErrKind v)
-      (arena.checker_base.unresolved_consts_error_l pers st strOk e) lst
+      (arena.checker_base.unresolved_consts_error_l pers st strOk rw e) lst
       (unresolvedConstsErrorL strOk w (absEIdx e)) := by
   rw [arena.checker_base.unresolved_consts_error_l, unresolvedConstsErrorL]
   lockstep
@@ -858,10 +858,10 @@ open Lockstep in
 /-- `unresolved_consts_fail` ⊑ `throw (unresolvedConstsErrorL fe.strLit where_ e)` — the
 failing arm every front door spells. -/
 @[lockstep] theorem unresolved_consts_fail_ls {α β : Type} {R : α → β → Prop}
-    {pers st lst} {rf lf} {e : arena.handle.EIdx} {w : String}
+    {pers st lst} {rf lf} {e : arena.handle.EIdx} {rw : alloc.vec.Vec Std.U32} {w : String}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx pers rf lf) :
-    LS pers R (arena.checker_base.unresolved_consts_fail α pers st rf e) lst
+    LS pers R (arena.checker_base.unresolved_consts_fail α pers st rf rw e) lst
       (unresolvedConstsFailSpec (α := β) lf w (absEIdx e)) := by
   rw [arena.checker_base.unresolved_consts_fail, unresolvedConstsFailSpec, hctx.strLit]
   lockstep

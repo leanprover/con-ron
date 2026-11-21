@@ -23,13 +23,14 @@ namespace ConRon.Refine2
 open ConRon.Arena
 
 /-- **The driver's `--olean` step closure**, `|tier, w, c, k| driver::olean_job(tier, w,
-c, &mode, &ipins, ds, pk, values, sp, k as u64)`, as the Aeneas model of each call reads it, over
-the worker's state and cache.  The file system is the reader's (`fs` at instance `inst`). -/
-def oleanJobStep {F : Type} (inst : frontend.olean.files.OleanFs F) (fs : F)
+c, &mode, &ipins, ds, pk, values, sp, sol, k as u64)`, as the Aeneas model of each call reads it,
+over the worker's state and cache.  The file system is the reader's (`fs` at instance `inst`);
+`sol` a compared run's solution (`oleanJobStep`: none). -/
+def oleanJobStepSol {F : Type} (inst : frontend.olean.files.OleanFs F) (fs : F)
     (tier : arena.store.PersTier) (mode : kernel.env.CheckMode)
     (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
     (ds : alloc.vec.Vec arena.env.IDeclaration) (pk : frontend.olean.spec.OleanPins) (values : alloc.vec.Vec frontend.olean.records.ModRef)
-    (sp : alloc.vec.Vec (alloc.vec.Vec Std.U32))
+    (sp : frontend.olean.files.Roots) (sol : Option arena.justify.Solution)
     (w : arena.monad.AState × frontend.olean.records.ValueCache) (k : Nat) :
     Result ((core.result.Result Unit (kernel.core_types.CheckError × Std.U64)) ×
       (arena.monad.AState × frontend.olean.records.ValueCache)) :=
@@ -37,7 +38,7 @@ def oleanJobStep {F : Type} (inst : frontend.olean.files.OleanFs F) (fs : F)
     let ku : Std.U64 := UScalar.cast .U64 (UScalar.ofNatCore (ty := .Usize) k h)
     let plain : Result ((core.result.Result Unit (kernel.core_types.CheckError × Std.U64)) ×
         (arena.monad.AState × frontend.olean.records.ValueCache)) := do
-      let (r, st') ← arena.checker.run_job tier w.1 mode pins ds ku
+      let (r, st') ← arena.checker.run_job tier w.1 mode pins sol ds ku
       ok (r, (st', w.2))
     match ds.val[k]? with
     | some (.ThmDecl cv v) => do
@@ -56,7 +57,7 @@ def oleanJobStep {F : Type} (inst : frontend.olean.files.OleanFs F) (fs : F)
         | .Ok e =>
           let cv' ← arena.env.i_constant_val_dup cv
           let (r', st3) ← arena.stream_index.record_check tier { st1 with store := ar } mode
-            pins ku (.ThmDecl cv' e)
+            pins sol ku (.ThmDecl cv' e)
           let st4 ← arena.core.leave_record st3
           match r' with
           | .Ok () => ok (.Ok (), (st4, c))
@@ -64,6 +65,17 @@ def oleanJobStep {F : Type} (inst : frontend.olean.files.OleanFs F) (fs : F)
       | none => plain
     | _ => plain
   else fail .panic
+
+/-- **The flat `--olean` run's step closure**: `oleanJobStepSol` with no solution. -/
+def oleanJobStep {F : Type} (inst : frontend.olean.files.OleanFs F) (fs : F)
+    (tier : arena.store.PersTier) (mode : kernel.env.CheckMode)
+    (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
+    (ds : alloc.vec.Vec arena.env.IDeclaration) (pk : frontend.olean.spec.OleanPins) (values : alloc.vec.Vec frontend.olean.records.ModRef)
+    (sp : frontend.olean.files.Roots) :
+    arena.monad.AState × frontend.olean.records.ValueCache → Nat →
+    Result ((core.result.Result Unit (kernel.core_types.CheckError × Std.U64)) ×
+      (arena.monad.AState × frontend.olean.records.ValueCache)) :=
+  oleanJobStepSol inst fs tier mode pins ds pk values sp none
 
 /-- **The driver's `--olean` init closure**, `|| (checker::worker_state(&st.pins),
 value_cache_empty())`. -/
@@ -86,26 +98,28 @@ theorem viewBVar_enableScratch {s : EStore} (hoff : s.scratchOn = false) (v : EI
   · simp [hp, hoff, ETables.getBVar, ETables.empty, Tbl.empty, Tbl.node?]
 
 open ConRon.Refine2.Frontend.Olean in
-/-- **`oleanJobStep` ⊑ `oleanJob`, accepting**, between two idle workers: a theorem
-whose value is a reference reads it in its bracket and is checked with it, any other
-record is `run_job_refines`'.  The caches are related (`VCRel`). -/
-theorem olean_job_step_refines {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F}
+/-- **`oleanJobStepSol` ⊑ `oleanJobJ`, accepting**, between two idle workers, at a related
+solution: a theorem whose value is a reference reads it in its bracket and is checked with it,
+any other record is `run_job_refines`'.  The caches are related (`VCRel`). -/
+theorem olean_job_step_sol_refines {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F}
     {fs : Arena.Frontend.Olean.OleanFs} {tier} {I : IStreamIndex}
     {mode : kernel.env.CheckMode} {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
     {ds : alloc.vec.Vec arena.env.IDeclaration} {pk : frontend.olean.spec.OleanPins} {values : alloc.vec.Vec frontend.olean.records.ModRef}
     {values' : Array Arena.Frontend.Olean.ModRef}
-    {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {k : Nat}
+    {sp : frontend.olean.files.Roots} {k : Nat}
+    {sol : Option arena.justify.Solution} {J : Option ISolution} (hJ : OptSolRel sol J)
     {st lst c c' st' c1}
     (hfs : FsRel inst fsv fs) (hv : List.Forall₂ ModRefRel values.val values'.toList)
     (hidle : AIdle tier st lst) (hinv : AStateInv tier st) (hoff : lst.store.scratchOn = false)
     (htf : tier.frozen = true) (hI : StreamIndexRel tier.env I ∧ FrozenRel tier.env I) (hc : VCRel c c')
-    (hrun : oleanJobStep inst fsv tier mode pins ds pk values sp (st, c) k = ok (.Ok (), (st', c1))) :
+    (hrun : oleanJobStepSol inst fsv tier mode pins ds pk values sp sol (st, c) k
+      = ok (.Ok (), (st', c1))) :
     k < ds.val.length ∧
-    ∃ c1' lst', oleanJob fs (absPins pk) (absSearchPath sp) values'
-        (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I (absIDeclL ds).toArray c' k lst
+    ∃ c1' lst', oleanJobJ fs (absPins pk) (absRoots sp) values'
+        (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) J I (absIDeclL ds).toArray c' k lst
         = .ok ((c1', .ok ()), lst') ∧
       VCRel c1 c1' ∧ AIdle tier st' lst' ∧ AStateInv tier st' ∧ lst'.store.scratchOn = false := by
-  unfold oleanJobStep at hrun
+  unfold oleanJobStepSol at hrun
   split at hrun
   case isFalse => simp at hrun
   rename_i hk
@@ -120,18 +134,18 @@ theorem olean_job_step_refines {F : Type} {inst : frontend.olean.files.OleanFs F
   have hau : absU (UScalar.cast .U64 (UScalar.ofNatCore (ty := .Usize) k hk)) = k := hu
   -- the record as a plain job: `run_job` and the twin's `runJob`
   have hplain : (do
-        let (r, st'') ← arena.checker.run_job tier st mode pins ds
+        let (r, st'') ← arena.checker.run_job tier st mode pins sol ds
           (UScalar.cast .U64 (UScalar.ofNatCore (ty := .Usize) k hk))
         ok (r, (st'', c)) : Result _) = ok (.Ok (), (st', c1)) →
       k < ds.val.length ∧ c1 = c ∧
-      ∃ lst', runJob (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I
+      ∃ lst', runJob (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) J I
           (absIDeclL ds).toArray k lst = .ok (.ok (), lst') ∧
         AIdle tier st' lst' ∧ AStateInv tier st' ∧ lst'.store.scratchOn = false := by
     intro h
     obtain ⟨⟨r, st''⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨rfl, rfl, rfl⟩ : r = .Ok () ∧ st'' = st' ∧ c = c1 := by
       have := Result.ok_injective h; simp only [Prod.mk.injEq] at this; exact ⟨this.1, this.2.1, this.2.2⟩
-    obtain ⟨hlt, lst', hx, hrest⟩ := run_job_refines hidle hinv htf hI hkU h1
+    obtain ⟨hlt, lst', hx, hrest⟩ := run_job_refines hidle hinv htf hI hkU hJ h1
     rw [hu] at hlt
     rw [hau] at hx
     exact ⟨hlt, rfl, lst', hx, hrest⟩
@@ -139,9 +153,9 @@ theorem olean_job_step_refines {F : Type} {inst : frontend.olean.files.OleanFs F
       (absIDeclL ds).toArray[k]? = some (absIDeclaration d) := by
     intro d hd; simp [absIDeclL, hd]
   -- every route but the reference is the plain job
-  have hplainT : (∀ lst', runJob (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I
+  have hplainT : (∀ lst', runJob (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) J I
         (absIDeclL ds).toArray k lst = .ok (.ok (), lst') →
-      (match (match runJob (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I
+      (match (match runJob (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) J I
           (absIDeclL ds).toArray k lst with
         | .ok (r, s') => Except.ok (c', r, s')
         | .error e => .error e) with
@@ -153,7 +167,7 @@ theorem olean_job_step_refines {F : Type} {inst : frontend.olean.files.OleanFs F
     obtain ⟨hlt, rfl, lst', hx, hidle', hinv', hoff'⟩ := hplain hrun
     refine ⟨hlt, c', lst', ?_, hc, hidle', hinv', hoff'⟩
     have hn : (absIDeclL ds).toArray[k]? = none := by simp [absIDeclL, hd]
-    simp only [oleanJob, hn]
+    simp only [oleanJobJ, hn]
     exact hplainT lst' hx
   · cases d with
     | ThmDecl cv v =>
@@ -189,7 +203,7 @@ theorem olean_job_step_refines {F : Type} {inst : frontend.olean.files.OleanFs F
       | none =>
         obtain ⟨hlt, rfl, lst', hx, hidle', hinv', hoff'⟩ := hplain hrun
         refine ⟨hlt, c', lst', ?_, hc, hidle', hinv', hoff'⟩
-        simp only [oleanJob, hgT, absIDeclaration, hcodeT, Option.map_none]
+        simp only [oleanJobJ, hgT, absIDeclaration, hcodeT, Option.map_none]
         exact hplainT lst' hx
       | some code =>
         simp only at hrun
@@ -215,7 +229,7 @@ theorem olean_job_step_refines {F : Type} {inst : frontend.olean.files.OleanFs F
               have := Result.ok_injective hrun
               simp only [Prod.mk.injEq] at this
               exact ⟨rfl, this.2.1, this.2.2⟩
-            obtain ⟨lst3, hx3, hrel3, hinv3⟩ := record_check_refines hrel2 hinv2 hI hkU h3
+            obtain ⟨lst3, hx3, hrel3, hinv3⟩ := record_check_refines hJ hrel2 hinv2 hI hkU h3
             obtain ⟨lst4, hx4, hidle4, hinv4⟩ := leave_record_rel hrel3 hinv3 htf h4
             have hoff4 : lst4.store.scratchOn = false := by
               have h' : (dropScratch : AM Unit).run lst3
@@ -229,13 +243,13 @@ theorem olean_job_step_refines {F : Type} {inst : frontend.olean.files.OleanFs F
             have hpd : absIDeclaration (.ThmDecl cv' e) = .thmDecl (absIConstantVal cv) (absEIdx e) := by
               simp only [absIDeclaration, i_constant_val_dup_abs hcv']
             rw [hpd, hau] at hx3
-            simp only [oleanJob, hgT, absIDeclaration, hcodeT, Option.map_some]
-            rw [show (enterScratch >>= fun _ => Arena.Frontend.Olean.readValue fs (absPins pk) (absSearchPath sp)
+            simp only [oleanJobJ, hgT, absIDeclaration, hcodeT, Option.map_some]
+            rw [show (enterScratch >>= fun _ => Arena.Frontend.Olean.readValue fs (absPins pk) (absRoots sp)
                   values' c' (absU code) : AM _) lst = .ok ((c2', .ok (absEIdx e)), lst2) by
                 show StateT.run (enterScratch >>= fun _ => _) lst = _
                 rw [StateT.run_bind, hx1]
                 exact hx2]
-            show (match (StateT.run (recordCheck _ _ I k _ >>= fun _ => dropScratch) lst2) with
+            show (match (StateT.run (recordCheck _ _ J I k _ >>= fun _ => dropScratch) lst2) with
               | .ok ((), s₂) => _
               | .error err => _) = _
             rw [StateT.run_bind, hx3]
@@ -245,38 +259,40 @@ theorem olean_job_step_refines {F : Type} {inst : frontend.olean.files.OleanFs F
       simp only [hd] at hrun
       obtain ⟨hlt, rfl, lst', hx, hidle', hinv', hoff'⟩ := hplain hrun
       refine ⟨hlt, c', lst', ?_, hc, hidle', hinv', hoff'⟩
-      simp only [oleanJob, hgetT _ hd, absIDeclaration]
+      simp only [oleanJobJ, hgetT _ hd, absIDeclaration]
       exact hplainT lst' hx
 
 open ConRon.Refine2.Frontend.Olean in
-/-- **A worker's `--olean` fold ⊑ `checkOleanJobList`**: each claimed index is a record
-position, and the worker's jobs, from one idle state and a related cache, are the twin's. -/
-theorem foldAllOk_oleanJobStep_refines {F : Type} {inst : frontend.olean.files.OleanFs F}
+/-- **A worker's `--olean` fold ⊑ `checkOleanJobListJ`**: each claimed index is a record
+position, and the worker's jobs, from one idle state and a related cache, are the twin's, at a
+related solution. -/
+theorem foldAllOk_oleanJobStepSol_refines {F : Type} {inst : frontend.olean.files.OleanFs F}
     {fsv : F} {fs : Arena.Frontend.Olean.OleanFs} {tier} {I : IStreamIndex}
     {mode : kernel.env.CheckMode} {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
     {ds : alloc.vec.Vec arena.env.IDeclaration} {pk : frontend.olean.spec.OleanPins} {values : alloc.vec.Vec frontend.olean.records.ModRef}
-    {values' : Array Arena.Frontend.Olean.ModRef} {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
+    {values' : Array Arena.Frontend.Olean.ModRef} {sp : frontend.olean.files.Roots}
     (hfs : FsRel inst fsv fs) (hv : List.Forall₂ ModRefRel values.val values'.toList)
+    {sol : Option arena.justify.Solution} {J : Option ISolution} (hJ : OptSolRel sol J)
     (htf : tier.frozen = true) (hI : StreamIndexRel tier.env I ∧ FrozenRel tier.env I) :
     ∀ (ks : List Nat) {st lst c c'},
       AIdle tier st lst → AStateInv tier st → lst.store.scratchOn = false → VCRel c c' →
-      FoldAllOk (oleanJobStep inst fsv tier mode pins ds pk values sp) (st, c) ks →
+      FoldAllOk (oleanJobStepSol inst fsv tier mode pins ds pk values sp sol) (st, c) ks →
       (∀ k ∈ ks, k < ds.val.length) ∧
-      ∃ s'', checkOleanJobList fs (absPins pk) (absSearchPath sp) values'
-        (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I (absIDeclL ds).toArray ks c' lst
+      ∃ s'', checkOleanJobListJ fs (absPins pk) (absRoots sp) values'
+        (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) J I (absIDeclL ds).toArray ks c' lst
         = .ok (.ok (), s'')
   | [], _, lst, _, _, _, _, _, _, _ => ⟨by simp, lst, rfl⟩
   | k :: ks, _, lst, _, _, hidle, hinv, hoff, hc, ⟨⟨st1, c1⟩, hs1, hf⟩ => by
     obtain ⟨hlt, c1', lst1, hx, hc1, hidle1, hinv1, hoff1⟩ :=
-      olean_job_step_refines hfs hv hidle hinv hoff htf hI hc hs1
+      olean_job_step_sol_refines hJ hfs hv hidle hinv hoff htf hI hc hs1
     obtain ⟨hall, s'', h⟩ :=
-      foldAllOk_oleanJobStep_refines hfs hv htf hI ks hidle1 hinv1 hoff1 hc1 hf
+      foldAllOk_oleanJobStepSol_refines hfs hv hJ htf hI ks hidle1 hinv1 hoff1 hc1 hf
     refine ⟨?_, s'', ?_⟩
     · intro x hx
       rcases List.mem_cons.mp hx with rfl | hx
       · exact hlt
       · exact hall x hx
-    · simp only [checkOleanJobList]
+    · simp only [checkOleanJobListJ]
       rw [hx]
       exact h
 

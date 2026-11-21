@@ -1,7 +1,8 @@
 # scripts/dead-census-allow.txt — owners (or modules) `scripts/dead-census.py
 # --check` accepts as dead, one per line, the reason after a TAB.  Every one
 # is used WITHOUT a term-level reference (the census's documented blind
-# spots) or is tooling that no target builds.
+# spots), is tooling that no target builds, or is the twin of a Rust item
+# `scripts/dead-rust-allow.txt` keeps on purpose.
 ConRon.Generated.FunsExternal_Template	Aeneas's hole template for the opaque functions, never built by design; read by scripts/holes.sh
 ConRon.Generated.TypesExternal_Template	Aeneas's hole template for the opaque types, never built by design; read by scripts/holes.sh
 _private.ConRon.Arena.PersistentRun.0.ConRon.Arena.failRun	rfl lemma in `simp only [failRun]` of Arena/PersistentRun.lean
@@ -173,3 +174,4 @@ ConRon.Refine2.Lockstep.LSS	the `@[lockstep]` attribute dispatches on this name 
 ConRon.Refine2.Lockstep.LSS.bind	as ConRon.Refine2.Lockstep.LSS
 ConRon.Refine2.Lockstep.absIIndCaps_neverZero	rfl `lockstep_simp` row `Core/LS/Defeq.lean`'s `ctor_target_ls` needs (the capability record's never-zero flag through the abstraction); simp leaves no trace
 ConRon.Refine.Nat.nat_lor_eq	rfl lemma in `simp only` sets of Refine/Nat.lean (the `Nat.lor` ↔ `|||` bridge of the shift and bitwise proofs)
+ConRon.Arena.Frontend.recKind	the twin of `rec_kind` (frontend/compare.rs), which dead-rust-allow.txt keeps for the modular compare worker (task #166); no driver of the twin reads it yet

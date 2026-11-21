@@ -77,10 +77,10 @@ example {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers s
 
 /-- `unresolved_consts_error` at a fixed subject, through the generic
 `unresolved_consts_error_ls` (free `w`). -/
-example {pers st lst} {e : arena.handle.EIdx}
+example {pers st lst} {e : arena.handle.EIdx} {rw : alloc.vec.Vec Std.U32}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun r v => absAErrKind r = lAErrKind v)
-      (arena.checker_base.unresolved_consts_error pers st e) lst
+      (arena.checker_base.unresolved_consts_error pers st rw e) lst
       (unresolvedConstsError "value" (absEIdx e)) := by
   lockstep
 
@@ -127,10 +127,10 @@ theorem value_guards_tail_refines' {pers st lst} {rf lf}
 
 /-- The twin's last line is an `if` bound to `pure` (`(if c then a else b) >>=
 pure`); the Rust has already decided `c` and steps a bind. -/
-example {pers st lst} {e : arena.handle.EIdx} {b : Bool} (hb : b = true)
+example {pers st lst} {e : arena.handle.EIdx} {rw : alloc.vec.Vec Std.U32} {b : Bool} (hb : b = true)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun r v => absAErrKind r = lAErrKind v)
-      (Std.bind (arena.checker_base.unresolved_consts_error pers st e) fun p => ok p) lst
+      (Std.bind (arena.checker_base.unresolved_consts_error pers st rw e) fun p => ok p) lst
       ((if b then unresolvedConstsError "value" (absEIdx e)
         else unresolvedConstsError "type" (absEIdx e)) >>= fun r => pure r) := by
   lockstep
@@ -139,10 +139,10 @@ example {pers st lst} {e : arena.handle.EIdx} {b : Bool} (hb : b = true)
 a state bind whose partner is inside the branch (the Checker Base/Top lane's
 `unresolved_consts_error` and axiom-arm gates): the `if` is decided from the
 context, not taken whole as the partner (`twin_bind_pure` skips an `if`). -/
-example {pers st lst} {e : arena.handle.EIdx} {b : Bool} (hb : ¬ b = true)
+example {pers st lst} {e : arena.handle.EIdx} {rw : alloc.vec.Vec Std.U32} {b : Bool} (hb : ¬ b = true)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun r v => absAErrKind r = lAErrKind v)
-      (Std.bind (arena.checker_base.unresolved_consts_error pers st e) fun p => ok p) lst
+      (Std.bind (arena.checker_base.unresolved_consts_error pers st rw e) fun p => ok p) lst
       (if b then (pure (.invalid "a") : AM Arena.CheckError)
         else unresolvedConstsError "type" (absEIdx e)) := by
   lockstep
@@ -151,10 +151,10 @@ set_option lockstep.twinSplit true in
 /-- The twin tests `c` where the Rust does not test at all (both branches are
 the same operation): with `lockstep.twinSplit` the twin `if` is split and each
 branch zips (by default the zip stops there, §7). -/
-example {pers st lst} {e : arena.handle.EIdx} {b : Bool}
+example {pers st lst} {e : arena.handle.EIdx} {rw : alloc.vec.Vec Std.U32} {b : Bool}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun r v => absAErrKind r = lAErrKind v)
-      (Std.bind (arena.checker_base.unresolved_consts_error pers st e) fun p => ok p) lst
+      (Std.bind (arena.checker_base.unresolved_consts_error pers st rw e) fun p => ok p) lst
       (if b then unresolvedConstsError "value" (absEIdx e)
         else unresolvedConstsError "type" (absEIdx e)) := by
   lockstep
@@ -166,13 +166,13 @@ example {pers st lst} {e : arena.handle.EIdx} {b : Bool}
 -- with the goals it cannot move, inside the heartbeat budget.
 #guard_msgs (drop warning) in
 set_option maxHeartbeats 20000 in
-example {pers st lst} {e : arena.handle.EIdx} {b : Bool}
+example {pers st lst} {e : arena.handle.EIdx} {rw : alloc.vec.Vec Std.U32} {b : Bool}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hG : LS pers (fun r v => absAErrKind r = lAErrKind v)
-      (Std.bind (arena.checker_base.unresolved_consts_error pers st e) fun p => ok p) lst
+      (Std.bind (arena.checker_base.unresolved_consts_error pers st rw e) fun p => ok p) lst
       (if b then (pure (.invalid "a") : AM Arena.CheckError) else pure (.invalid "b"))) :
     LS pers (fun r v => absAErrKind r = lAErrKind v)
-      (Std.bind (arena.checker_base.unresolved_consts_error pers st e) fun p => ok p) lst
+      (Std.bind (arena.checker_base.unresolved_consts_error pers st rw e) fun p => ok p) lst
       (if b then (pure (.invalid "a") : AM Arena.CheckError) else pure (.invalid "b")) := by
   in_scratch (clear hG; lockstep; fail_if_success done)
   exact hG
@@ -541,10 +541,10 @@ goal is not, so the first bind rule met the nested block; the lane began each
 case with `simp only [bind_assoc]`.  The block is now tried whole (a proof may
 group the twin to be one Rust callee's partner: `Checker/Base.lean`'s
 `check_proj_rule_wf`) and then flattened (`LS.twin_assoc`). -/
-example {pers st lst} {e : arena.handle.EIdx}
+example {pers st lst} {e : arena.handle.EIdx} {rw : alloc.vec.Vec Std.U32}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun r v => absAErrKind r = lAErrKind v)
-      (Std.bind (arena.checker_base.unresolved_consts_error pers st e) fun p => ok p) lst
+      (Std.bind (arena.checker_base.unresolved_consts_error pers st rw e) fun p => ok p) lst
       ((do let r ← unresolvedConstsError "value" (absEIdx e); pure r) >>= fun q => pure q) := by
   lockstep
 
@@ -562,13 +562,13 @@ closes by unfolding it). -/
 @[reducible] def msgTwin {α : Type} (_s : String) (x : AM α) : AM α := x
 
 set_option linter.unusedVariables false in
-example {pers st lst} {e : arena.handle.EIdx} (hfalse : False)
+example {pers st lst} {e : arena.handle.EIdx} {rw : alloc.vec.Vec Std.U32} (hfalse : False)
     (hf : ∀ (s : String), LS pers (fun r v => absAErrKind r = lAErrKind v)
-      (arena.checker_base.unresolved_consts_error pers st e) lst
+      (arena.checker_base.unresolved_consts_error pers st rw e) lst
       (msgTwin s (unresolvedConstsError "value" (absEIdx e))))
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun r v => absAErrKind r = lAErrKind v)
-      (arena.checker_base.unresolved_consts_error pers st e) lst
+      (arena.checker_base.unresolved_consts_error pers st rw e) lst
       (unresolvedConstsError "value" (absEIdx e)) := by
   lockstep
 

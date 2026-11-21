@@ -324,7 +324,7 @@ theorem checkConstantVal_bridge {env : Env}
   obtain ⟨rs, sR, gR, rR⟩ := AM.bind_ok rO2
   obtain ⟨hsR, hrs⟩ := reduceOpNames_run hck1.pins gR
   subst sR
-  obtain ⟨hred, rR2⟩ := AM.dguard_ok AM.Never.fail_any rR
+  obtain ⟨hred, rR2⟩ := AM.dguard_ok (AM.Never.bind fun _ => AM.Never.fail_any) rR
   replace rR2 := AM.pure_bind_ok rR2
   have hredP : (ConLeche.reduceOpNames.contains c.name && !allowReduce) = false := by
     rw [← denoteNList_contains hck1.state.wf rs ConLeche.reduceOpNames
@@ -336,7 +336,7 @@ theorem checkConstantVal_bridge {env : Env}
   obtain ⟨sa, sQ, gQ, rQ⟩ := AM.bind_ok rR2
   obtain ⟨hsQ, hsa⟩ := pinAt_run (x := ConLeche.sorryAxName) hck1.pins rfl gQ
   subst sQ
-  obtain ⟨hsor, rO2⟩ := AM.dguard_ok AM.Never.fail_any rQ
+  obtain ⟨hsor, rO2⟩ := AM.dguard_ok (AM.Never.bind fun _ => AM.Never.fail_any) rQ
   replace rO2 := AM.pure_bind_ok rO2
   have hsorP : (ConLeche.sorryAxNameAt c.name && !allowSorry) = false := by
     have hiff := beq_handle_iff hck1.state.wf hnm1 hsa
@@ -435,7 +435,7 @@ theorem checkConstantVal_bridge {env : Env}
   obtain ⟨h9st, h9c, h9p, h9r⟩ :=
     constsResolveFFast_run hck8 hty8 g9r
   obtain ⟨hcr, r15⟩ := AM.dunless_ok
-    (AM.Never.bind fun _ => AM.Never.fail_any) r14
+    (AM.Never.bind fun _ => AM.Never.bind fun _ => AM.Never.fail_any) r14
   replace r15 := AM.pure_bind_ok r15
   have hcrP : c.type.constsResolve env = true := by rw [← h9r]; exact hcr
   have hck9 : CheckOK false env fe s9 :=

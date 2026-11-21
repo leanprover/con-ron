@@ -28,7 +28,7 @@ the tier boundary.
 -/
 module
 
-public import ConRon.Arena.StreamIndex
+public import ConRon.Arena.Justify
 
 @[expose] public section
 
@@ -73,27 +73,28 @@ def AState.worker (s : AState) : AState :=
            caches := Caches.empty }
 
 /-- con-leche: ConLeche/Driver/CheckPool.lean:127-134 runAt — **job `t`, run**: the
-record's job at its position (the cited solution `J.side` absent: `none` here),
-the error tagged with that position.  A position past
+record's job at its position, with the solution `J` (the cited `J.side`; `none`
+on a flat run), the error tagged with that position.  A position past
 the records is an internal error, never a verdict. -/
-def runJob (mode : CheckMode) (pins : List INatOpPinSet) (I : IStreamIndex)
-    (ds : Array IDeclaration) (t : Nat) : AM (Except (CheckError × Nat) Unit) := fun s =>
+def runJob (mode : CheckMode) (pins : List INatOpPinSet) (J : Option ISolution)
+    (I : IStreamIndex) (ds : Array IDeclaration) (t : Nat) :
+    AM (Except (CheckError × Nat) Unit) := fun s =>
   match ds[t]? with
   | some d =>
-    match recordJob mode pins I t d s with
+    match recordJob mode pins J I t d s with
     | .ok ((), s') => .ok (.ok (), s')
     | .error e => .ok (.error (e, t), AState.abandoned)
   | none => .ok (.error (.internal "check phase: no job", t), AState.abandoned)
 
 /-- con-leche: ConLeche/Frontend/CheckerIO.lean:461-484 parWorker — **a worker's
 fold over the jobs it claimed**, on one state, the first failure the answer
-(`PooledAccepts`, `Arena/Pooled.lean`). -/
-def checkJobList (mode : CheckMode) (pins : List INatOpPinSet) (I : IStreamIndex)
-    (ds : Array IDeclaration) : List Nat → AM (Except (CheckError × Nat) Unit)
+(`PooledAccepts`, `Arena/Pooled.lean`), with the solution `J` if any. -/
+def checkJobList (mode : CheckMode) (pins : List INatOpPinSet) (J : Option ISolution)
+    (I : IStreamIndex) (ds : Array IDeclaration) : List Nat → AM (Except (CheckError × Nat) Unit)
   | [] => pure (.ok ())
   | t :: rest => fun s =>
-    match runJob mode pins I ds t s with
-    | .ok (.ok (), s') => checkJobList mode pins I ds rest s'
+    match runJob mode pins J I ds t s with
+    | .ok (.ok (), s') => checkJobList mode pins J I ds rest s'
     | .ok (.error e, s') => .ok (.error e, s')
     | .error e => .error e
 
@@ -105,7 +106,7 @@ POSITION in the fold. -/
 def checkStream (mode : CheckMode) (pins : List INatOpPinSet)
     (ds : Array IDeclaration) : AM (Except (CheckError × Nat) Unit) := fun s =>
   match buildIndex ds s with
-  | .ok (.ok I, s₁) => checkJobList mode pins I ds (List.range ds.size) s₁.worker
+  | .ok (.ok I, s₁) => checkJobList mode pins none I ds (List.range ds.size) s₁.worker
   | .ok (.error e, s₁) => .ok (.error e, s₁)
   | .error e => .error e
 

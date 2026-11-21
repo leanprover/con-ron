@@ -68,6 +68,27 @@ pub struct PreludeIx {
     pub decls: Vec<IDeclaration>,
 }
 
+/// con-leche: none — the record copy (`env::i_declaration_dup`), for a value Lean shares
+/// Lean twin: none — the copy is the identity there (`Refine2`'s `prelude_ix_dup_abs`).
+/// The prelude's records from cursor `i`, copied onto `out`: a compared run
+/// prepares two streams, and `prepare_d` takes the prelude by value.
+pub fn prelude_decls_dup(ds: &Vec<IDeclaration>, i: usize, out: Vec<IDeclaration>) -> Vec<IDeclaration> {
+    if i >= ds.len() {
+        out
+    } else {
+        let mut out = out;
+        out.push(env::i_declaration_dup(&ds[i]));
+        prelude_decls_dup(ds, i + 1, out)
+    }
+}
+
+/// con-leche: none — the record copy (`env::i_declaration_dup`), for a value Lean shares
+/// Lean twin: none — the copy is the identity there (`Refine2`'s `prelude_ix_dup_abs`).
+/// A copy of the prelude, for a second `prepare_d`.
+pub fn prelude_ix_dup(pre: &PreludeIx) -> PreludeIx {
+    PreludeIx { decls: prelude_decls_dup(&pre.decls, 0, Vec::new()) }
+}
+
 
 
 /// con-leche: ConLeche/Frontend/Prepare.lean:89-92 preludeKey

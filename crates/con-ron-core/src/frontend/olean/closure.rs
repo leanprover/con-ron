@@ -88,10 +88,10 @@ pub fn walk_expand(stack: &mut Vec<(NIdx, bool)>, sp: usize, m: &NIdx, imps: &Ve
 /// con-leche: ConLeche/Frontend/Olean/Closure.lean:22-52 closureGo
 /// **The import closure, in Lean's module order**: a module after everything it
 /// imports, a depth-first post-order, by an explicit stack.  Each read looks its
-/// root up (`files::find_module`): upstream's resolved `Roots`, threaded through
+/// root up (`files::find_module`): upstream's map of resolved roots, threaded through
 /// the walk and returned with the order, is not kept.  A module whose imports
 /// are being expanded is on the walk's current path, so an import of it is a cycle.
-pub fn closure_go<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp_dirs: &Vec<Vec<u32>>, stack: Vec<(NIdx, bool)>, top: usize) -> Result<Vec<NIdx>, CheckError> {
+pub fn closure_go<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp_dirs: &files::Roots, stack: Vec<(NIdx, bool)>, top: usize) -> Result<Vec<NIdx>, CheckError> {
     let mut stack = stack;
     let mut sp = top;
     let mut fuel = CLOSURE_FUEL;
@@ -130,7 +130,7 @@ pub fn closure_go<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut 
 
 /// con-leche: ConLeche/Frontend/Olean/Closure.lean:58-60 closureOrder
 /// The closure's module order from the roots.
-pub fn closure_order<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp_dirs: &Vec<Vec<u32>>, roots: &Vec<NIdx>) -> Result<Vec<NIdx>, CheckError> {
+pub fn closure_order<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp_dirs: &files::Roots, roots: &Vec<NIdx>) -> Result<Vec<NIdx>, CheckError> {
     let mut stack: Vec<(NIdx, bool)> = Vec::with_capacity(roots.len());
     let mut sp = 0usize;
     let mut i = roots.len();
@@ -146,7 +146,7 @@ pub fn closure_order<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &m
 /// closure's order: its private view, what Lean's own import outside the module
 /// system and lean4export load, its theorems' values left in the file
 /// (`lazy::load_view`).
-pub fn load_module<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp_dirs: &Vec<Vec<u32>>, total: u64, m: &NIdx, idx: u64) -> Result<Loaded, CheckError> {
+pub fn load_module<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp_dirs: &files::Roots, total: u64, m: &NIdx, idx: u64) -> Result<Loaded, CheckError> {
     match files::read_files(fs, pers, ar, sp_dirs, m, &OLeanLevel::Private) {
         Err(e) => Err(e),
         Ok(f) => {
@@ -163,7 +163,7 @@ pub fn load_module<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut
 
 /// con-leche: ConLeche/Frontend/Olean/Closure.lean:78-91 loadClosure
 /// `order.toList.zipIdx`, loaded in order, up to the first failure.
-pub fn load_all<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp_dirs: &Vec<Vec<u32>>, order: &Vec<NIdx>) -> Result<Vec<Loaded>, CheckError> {
+pub fn load_all<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp_dirs: &files::Roots, order: &Vec<NIdx>) -> Result<Vec<Loaded>, CheckError> {
     let mut out: Vec<Loaded> = Vec::with_capacity(order.len());
     let total = order.len() as u64;
     let mut i = 0usize;
@@ -180,7 +180,7 @@ pub fn load_all<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut ES
 /// con-leche: ConLeche/Frontend/Olean/Closure.lean:78-91 loadClosure
 /// **The closure, loaded**: its modules in Lean's order (module note on
 /// `parMapExcept`), the heartbeat saying when the walk and the load start.
-pub fn load_closure<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp_dirs: &Vec<Vec<u32>>, roots: &Vec<NIdx>) -> Result<Vec<Loaded>, CheckError> {
+pub fn load_closure<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp_dirs: &files::Roots, roots: &Vec<NIdx>) -> Result<Vec<Loaded>, CheckError> {
     fs.read_notes_say(&{ const M: [u32; 26] = [116, 114, 97, 99, 105, 110, 103, 32, 116, 104, 101, 32, 105, 109, 112, 111, 114, 116, 32, 99, 108, 111, 115, 117, 114, 101]; crate::kernel::core_types::code_points(&M) });
     match closure_order(fs, pk, pers, ar, sp_dirs, roots) {
         Err(e) => Err(e),

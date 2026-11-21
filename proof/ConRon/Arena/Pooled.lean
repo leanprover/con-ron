@@ -43,6 +43,18 @@ def PooledAccepts (mode : CheckMode) (pins : List INatOpPinSet)
     (∀ t < ds.size, ∃ w ∈ parts, t ∈ w) ∧
     (∀ w ∈ parts, ∀ t ∈ w, t < ds.size) ∧
     (∀ w ∈ parts, w.Pairwise (· < ·)) ∧
-    (∀ w ∈ parts, ∃ s'', checkJobList mode pins I ds w s'.worker = .ok (.ok (), s''))
+    (∀ w ∈ parts, ∃ s'', checkJobList mode pins none I ds w s'.worker = .ok (.ok (), s''))
+
+/-- con-leche: ConLeche/Driver/CheckPool.lean:211-239 checkPool — **the pooled check with a
+solution, accepted**: `PooledAccepts` with every job at the solution `J` (the cited `Jobs ds
+justify`, `J.side`): a compared run's challenge, checked with its solution. -/
+def PooledAcceptsJ (mode : CheckMode) (pins : List INatOpPinSet) (J : Option ISolution)
+    (ds : Array IDeclaration) (s : AState) (I : IStreamIndex) (s' : AState) : Prop :=
+  ∃ (parts : List (List Nat)),
+    buildIndex ds s = .ok (.ok I, s') ∧
+    (∀ t < ds.size, ∃ w ∈ parts, t ∈ w) ∧
+    (∀ w ∈ parts, ∀ t ∈ w, t < ds.size) ∧
+    (∀ w ∈ parts, w.Pairwise (· < ·)) ∧
+    (∀ w ∈ parts, ∃ s'', checkJobList mode pins J I ds w s'.worker = .ok (.ok (), s''))
 
 end ConRon.Arena

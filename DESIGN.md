@@ -73596,3 +73596,77 @@ anchors with `scripts/twin-lines.py update`.
 `Bridge/Inductives/IotaRead.lean` (`annEq`, `annIdentBody`, `annIdentVal`, `annWitness`,
 `listLvlEq`, `isMinorAt`) are candidates for the `sym => vcgen <;> finish` shape; a `Roots`
 cache if a profile asks.
+
+### Task #165 — `--compare`: a challenge checked with its axioms justified by a solution (2026-11-21, Opus)
+
+con-leche's `--compare` (upstream #607, #619, #627 at the pin `11d8ff13`) checks a challenge
+with every axiom other than the built-in ones, and every declaration whose value uses `sorryAx`
+(a **hole**, read as the axiom of its statement), justified by a **solution**: a second input,
+checked as usual, holding a constant of the same name and the same statement up to a positional
+renaming of level parameters, whose type reads only constants that are the same in both, closed
+under reads (the cone).  con-ron now runs it in both reading modes — `--compare -- C S` on two
+lean4export files and `--olean --compare [--trusted-search-path=DIRS] --search-path=DIRS -- C S`
+on two modules — with con-leche's usage checks, messages and verdict lines.  The modular modes
+(`--modular --compare`, the challenge as one more module) are task #166.
+
+**The design: one store, two indices.**  Both inputs are read and prepared into ONE store.  The
+solution's check is exactly the flat run's (`build_index` → `freeze_tier` → pool with no
+solution), after which `thaw_tier` hands back its index; the challenge's records then pass
+`side_records` (holes become the axioms of their statements), its index is built in the thawed
+store, `solution_of` pairs the solution's index with the challenge's record mates, and the
+challenge's pool runs with `Some(&sol)`.  Hash-consing turns upstream's structural comparisons
+(`copyB`, `refinesB`, `ProjTable.beqP`) into handle comparisons, modulo the level renaming
+(`atLpsC`).  `run_job`/`record_job` take `Option<&Solution>`; at `None` the fold is the flat
+one, by `rfl` in the twin, and costs what it cost (`Init` +0.00002 % `instructions:u`).  On
+`--olean` a theorem's hole is decided from what its file says its value uses (`hole_records`,
+right after the challenge's `prepare_d`, earlier than upstream, same records), so the challenge's
+merged constants can be freed before the solution is read.
+
+| part | where |
+|---|---|
+| the justification (`Justify.lean`, `Needs.lean`) | `arena/justify.rs`, `arena/needs.rs`; twin `Arena/Justify.lean`, `Arena/Needs.lean`; T2 `Refine2/Checker/{Justify,Needs,Mates}.lean`, the job lemmas at any related solution (`OptSolRel`) |
+| the olean reads (`Roots.fallback`, `readOleansAt` `lenient`/`homes`, `recKey`, `foreignConstant`, `holeRecord`) | `frontend/olean/files.rs` (`Roots { path, fallback }`, no cache), `records.rs`, `frontend/compare.rs`; twin, T2, T1 |
+| the driver | `crates/con-ron/src/compare.rs`, each verified call marked `// ConRon.Capstone: <premise>` |
+| Theorem 1 | `Bridge/Compare/**` (12 files) |
+| the capstones | `Capstone.lean` §4b/§4c: `model_exists_compare`, `no_False_compare`, `model_exists_oleans_compare`, `no_False_oleans_compare` (+ `_of` forms), census-pinned at propext, Classical.choice, Quot.sound |
+
+**Theorem 1 across two folds.**  con-ron's Theorem 1 relates the twin to upstream's PURE fold
+(`checkDecl`); upstream proves comparison sound over its CACHED fold and has no lemma from a pure
+accept to a cached one.  The bridge is a con-ron-side **mixed run** (`Bridge/Compare/Model.lean`):
+each challenge record is either a pure `checkDecl` step or the justified route, stated exactly
+as upstream's `checkRecordC_justified_run` concludes it; upstream's per-step lemmas
+(`justStep`, `sharedStep`, `declStep_agrees`, the renaming lemmas) then apply unchanged, and only
+the folds are restated once (`sideFoldM`, `pureFold_proofs`, `mixed_model`).  The twin's cone
+walk has another fuel bound (the solution's constant count + 1; Theorem 2 cannot read a hash-map
+size) and is never related to upstream's walk step by step: its accept yields a closed cone of
+shared names, and `justifyWhy_of_cone` (the converse of upstream's `justifyWhy_cone`) gives
+upstream's accept at upstream's own fuel.  The needs walks are related at set level (the twin
+collects a superset of upstream's names), so the handle-keyed and the `Expr`-keyed memos never
+have to agree list for list.  These proofs are in the Checker tier's run style (one inversion
+per bind): `vcgen` on `builtinAxiomName` left goals `grind` did not close.
+
+**The statements.**  The conclusions are about the CHALLENGE only, in the existing capstones'
+form, `∃ env, RustDenotes recsC st10 env ∧ Nonempty (Model V env)` (`RustDenotesFilled` on
+`--olean`), `recsC` the challenge's checked records (its prepared records with every hole an
+axiom); the solution's run is premises like any other calls.  Not upstream's `IsModel` form: it
+needs `RecordsStored` of the pure fold, which the flat capstones do not have either.  The thaw is
+not a premise (`freeze_tier_ok`).  Both `.olean` reads are at `constants = none`: a run with
+`--constant` is outside the theorems, as for the flat `--olean` capstones; the driver's early
+exits (a foreign `--constant`, a solution whose closure holds the challenge) are not stated.
+
+**Fixtures.**  diff-e2e **773/773 agree** (the NOT PORTED category of #164 is gone);
+diff-olean: every non-modular `--compare` case of upstream's `tests/olean.sh` table agrees,
+nothing regressed against master.  Against con-leche's own binary, 26 of the 48 compare cases
+print identical lines, the rest differ in the verdict word, one pin-detail text and the binary's
+name.
+
+**Messages.**  The reserved-name rejections of #164 (`check_constant_val_reserved`) now end in `: <name>`, and the unresolved-constant message carries its slot text (`type of <name>`, `value of <name>`, the inductive callers' labels) as upstream's does: upstream's `tests/olean.sh` greps two of them, which now pass.  `dead-census`: 13 unused lemmas the lanes left were deleted (the `--constant` selection's proofs among them: no capstone states it; the Rust and twins stay), `recKind` allowlisted (the modular worker reads it, #166).
+
+**Measure.**  Upstream's self-compare, `--olean --compare ConLeche.Challenge
+ConLeche.MainTheorem`, `--jobs=4` (con-leche's oleans and binary built in a private scratch
+copy): both accept 95 586 declarations with 15 justified by a solution of 257 344, the lines byte
+for byte; con-ron **1.050 T** `instructions:u` (0.419 T cycles, peak RSS 1.37 GiB, under
+`ulimit -v 8000000`), con-leche 1.903 T (0.776 T cycles).
+
+**Left.**  Names in the inductive callers' messages ("generated rule of …", "the recursor …'s rule for …"), which no upstream grep reads; `--olean --compare` under `--constant` in the theorems (`readOleans_run` at
+`some cs`); optionally an `IsModel`-form conclusion; the modular modes (#166).

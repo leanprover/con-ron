@@ -17,6 +17,8 @@
 //! | `check_decl` | `proof/ConRon/Arena/CheckDecl.lean` |
 //! | `install` | `proof/ConRon/Arena/Install.lean` |
 //! | `stream_index` | `proof/ConRon/Arena/StreamIndex.lean` |
+//! | `needs` | `proof/ConRon/Arena/Needs.lean` |
+//! | `justify` | `proof/ConRon/Arena/Justify.lean` |
 //!
 //! `Denote.lean`, `WF.lean` and `WFProofs.lean` have no Rust counterpart and
 //! never will: they are the arena's own verification (DESIGN.md §8.6's P2a,
@@ -47,3 +49,5 @@ pub mod decl_check;
 pub mod inductives;
 pub mod checker;
 pub mod check_decl;
+pub mod needs;
+pub mod justify;

@@ -333,14 +333,9 @@ ConLeche/Cached/Decls.lean DeclsRun Proof-only: an accepting run of the spec fol
 ConLeche/Cached/Decls.lean checkDecls As `declStep`.
 ConLeche/Cached/Decls.lean checkDeclsWith As `declStep`; on the flat path it runs at `justify = none` (`checkDecls`), which is what the twin's `checkDeclsPure` cites.
 ConLeche/Cached/Decls.lean checkChallenge the --compare mode: task #165
-ConLeche/Cached/Justify.lean * the --compare mode: task #165 (on the flat path `J = none`, and `checkRecordC … none` is `checkDeclStepC`, which the record check ports)
-ConLeche/Cached/Needs.lean * the --compare mode: task #165
 ConLeche/Cached/CheckerC.lean declNamesC the modular mode: task #166
-ConLeche/Cached/CheckerC.lean _root_.ConLeche.ConstantVal.atLpsC the --compare mode: task #165
-ConLeche/Cached/CheckerC.lean _root_.ConLeche.ConstantInfo.atLpsC the --compare mode: task #165
 ConLeche/Cached/CheckerC.lean streamEnvC Proof-only: `streamEnv` over the cached installer, for the modular proofs (task #166); nothing executed calls it.
 ConLeche/Kernel/Install.lean streamEnv Specification: the environment a list of records denotes, which Theorem 1 and the capstone state (`ConLeche.streamEnv`); nothing executed computes it.
-ConLeche/Kernel/Install.lean pinFootprint the modular mode: task #166
 ConLeche/Cached/ExprOpsC.lean hasLooseBVarBP The plain descent `hasLooseBVarBXP` carries its proof against; the port's specification is `Expr.hasLooseBVarB` itself.
 ConLeche/Cached/ExprOpsC.lean enterLBP The child step of `hasLooseBVarBXP`; the port's walk makes its cutoff and compound test itself (`arena::core::has_loose_bvar_b_go`).
 ConLeche/Cached/ExprOpsC.lean enterLIP The child step of `hasLooseBVarInXP`; the port's walk makes its cutoff and compound test itself (`arena::core::has_loose_bvar_in_go`).
@@ -365,7 +360,6 @@ ConLeche/Kernel/Expr.lean natHash Lean runtime engineering (task #161, upstream 
 ConLeche/Kernel/Expr.lean natHashWordBound Lean runtime engineering (task #161, upstream #598): the `@[noinline]` constant `2^64` that keeps `natHash` from re-parsing a decimal literal (lean4#16007); con-ron has no `natHash` (see that skip).
 ConLeche/Kernel/NatHash.lean natBigHash Lean runtime engineering (task #161, upstream #598): the vendored C `lean_nat_big_hash` behind `natHash`, because Lean has no word access to a big `Nat`; con-ron's bignum is a `Vec<u64>` of limbs, read directly by `nat::hash64` (see the `natHash` skip).
 ConLeche/Kernel/ExprOps.lean usesSorry the --compare mode: task #165 (its executed reader is `Cached/Justify.lean`; `IsModel.lean`'s use is specification only; the flat checker's `sorryAx` test is `unresolvedConstsError`'s `mentionsAnyConst [sorryAxName]`, ported as `struct_parts::mentions_const`).
-ConLeche/Kernel/Env.lean isStmtKind the --compare mode: task #165 (read only by `Cached/Justify.lean` and `Modular.lean`).
 ConLeche/Kernel/Level.lean eval The IsModel specification, not executed (task #164, upstream #622): a level's value under an assignment, which `Level.isEquiv`'s soundness and the model's grading read; the checker decides levels by `isEquiv` (`iota_read::lvl_eq`).
 ConLeche/Kernel/Inductives/IotaEq.lean iotaEqMk The IsModel specification, not executed (task #164, upstream #622): the ι equation built from its parts; the ι reading rule (`iota_read`) compares the parts and never builds the equation.
 ConLeche/Kernel/Inductives/IotaEq.lean iotaEqOf The IsModel specification, not executed (task #164, upstream #622): the statement's ι equation, `iotaEqMk` at `iotaPartsOf`'s parts; the rule reads the parts (`iota_read::iota_rec_of`, `iota_parts_of_at`).

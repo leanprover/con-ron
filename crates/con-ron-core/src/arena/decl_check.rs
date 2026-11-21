@@ -2996,7 +2996,16 @@ pub fn value_guards_tail(
                     Err(e) => Err(e),
                     Ok(r) => {
                         if !r {
-                            unresolved_consts_fail(pers, st, fe, value)
+                            match crate::arena::monad::read_name(pers, st, &cv.name) {
+                                Err(e) => Err(e),
+                                Ok(n) => {
+                                    let w: Vec<u32> = crate::frontend::text::cat(
+                                        code_points(&crate::arena::checker_base::M_W_VALUE_OF),
+                                        &crate::kernel::name::render(&n),
+                                    );
+                                    unresolved_consts_fail(pers, st, fe, &w, value)
+                                }
+                            }
                         } else {
                             Ok(())
                         }

@@ -237,7 +237,7 @@ impl OleanFs for NotesFs {
 /// What `--olean` asked for, the names parsed: a usage error is reported before
 /// anything is read.
 pub struct OleanRequest {
-    pub search_path: Vec<Vec<u32>>,
+    pub search_path: files::Roots,
     pub roots: Vec<Name>,
     pub constants: Vec<Name>,
 }
@@ -263,7 +263,7 @@ impl OleanRequest {
             }
         }
         Ok(OleanRequest {
-            search_path: search_path.iter().map(|d| render::cps(d)).collect(),
+            search_path: files::roots_of_path(search_path.iter().map(|d| render::cps(d)).collect()),
             roots,
             constants: cs,
         })
@@ -305,5 +305,5 @@ pub fn read_request(pers: &PersTier, st: &mut AState, req: &OleanRequest, pace: 
         Err(e) => return Err((e, 0)),
     };
     let fs = read_notes_new(pace);
-    records::read_oleans(&fs, pers, &mut st.store, &req.search_path, &roots, &cs)
+    records::read_oleans(&fs, pers, &mut st.store, &req.search_path, &roots, &cs, false, false)
 }

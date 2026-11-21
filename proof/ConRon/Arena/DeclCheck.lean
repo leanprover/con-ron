@@ -834,7 +834,7 @@ def valueGuards (fe : IFEnv) (cv : IConstantVal) (value : EIdx) : AM Unit := do
     fail (.invalid
       "undeclared universe parameter in value")
   unless ← constsResolveFFast fe value do
-    fail (← unresolvedConstsErrorL fe.strLit "value" value)
+    fail (← unresolvedConstsErrorL fe.strLit s!"value of {← readName cv.name}" value)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:30-47 checkDefnVal
 con-leche: ConLeche/Cached/ParsedC.lean:37-54 checkDefnValCI

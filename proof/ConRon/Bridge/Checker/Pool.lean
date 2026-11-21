@@ -51,7 +51,7 @@ is con-leche's step**: the `And` pin moves the store and nothing the check reads
 theorem recordSpec {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
     (hk : CoreSpec Arena.checkFuel) (hind : IndSpec) : RecordSpec pins pinsP := by
   intro env I k pd d s s' hok hpins hd hrun
-  simp only [recordCheck] at hrun
+  simp only [recordCheck, checkRecord] at hrun
   obtain ⟨b, s₁, ha, k1⟩ := AM.bind_ok hrun
   obtain ⟨hst₁, hx₁, hc₁, hp₁⟩ := andPinOk_run hok.check.state hok.check.pins hd ha
   rcases AM.ite_ok k1 with ⟨-, k2⟩ | ⟨-, k2⟩
@@ -130,7 +130,7 @@ persistently extends. -/
 theorem Arena.pooledOleanAccepts_bridge
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
     {ds : Array IDeclaration} {dsP : List Declaration} {s₀ s s' : AState} {I : IStreamIndex}
-    {F : FS} {pk : OleanPins} {sp : ConLeche.Frontend.Olean.SearchPath}
+    {F : FS} {pk : OleanPins} {sp : ConLeche.Frontend.Olean.Roots}
     {values : Array ModRef} {valuesP : Array ConLeche.Frontend.Olean.ModRef}
     (hk : CoreSpec Arena.checkFuel) (hind : IndSpec)
     (hst : DriverOK s) (hoff : s.store.scratchOn = false)
@@ -138,7 +138,7 @@ theorem Arena.pooledOleanAccepts_bridge
     (hpd : ∀ x ∈ ds.toList, PersDecl x) (hden : denoteDecls s.store ds.toList = some dsP)
     (hwf₀ : StoreWF s₀.store) (hoff₀ : s₀.store.scratchOn = false) (hx₀ : PExt s₀.store s.store)
     (hv₀ : Frontend.Olean.ValuesRel sp F s₀.store values valuesP)
-    (hnu₀ : Frontend.Olean.NullsRel s₀.store pk)
+    (hnu₀ : Frontend.Olean.NullsRel s₀.store pk) (hsp : sp.bare = sp)
     (hrun : Arena.PooledOleanAccepts (Frontend.Olean.modelFs F) pk sp values .verified pins ds s
       I s') :
     ∃ Fu, ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified Fu) pinsP
@@ -154,7 +154,7 @@ theorem Arena.pooledOleanAccepts_bridge
     exact ⟨hi', Frontend.denoteDecl_ext hx (by simpa using h)⟩
   exact pooled_fold_oleans (recordSpec hk hind) (kernelPushes pinsP) hpp hst'.state
     (hst.pins.pmono hpersPins hx' hp') (hpersPins.mono hp') (PinsDenote.mono hx pins pinsP hpins)
-    hpd (by simpa using hlen) hden' hI hpI hwf₀ hoff₀ (hx₀.trans hx') hv₀ hnu₀ parts hcov hinc
+    hpd (by simpa using hlen) hden' hI hpI hwf₀ hoff₀ (hx₀.trans hx') hv₀ hnu₀ hsp parts hcov hinc
     hacc
 
 end ConRon.Bridge

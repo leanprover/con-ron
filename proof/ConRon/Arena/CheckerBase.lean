@@ -251,8 +251,10 @@ flags' cited default `false` spelled at every call as the Rust must — a
 literal's name only at its shape, well-formed universe parameters, and a type
 that is a type and mentions only declared parameters.  Returns nothing: the
 constant is stored as declared.  The messages drop con-leche's interpolated
-name (§3.1), except the certified operation's, which names it as upstream's
-does (upstream's `.olean` gate reads it): the name read back from the store. -/
+name (§3.1), except the reserved names' (a certified operation's, a
+compiler-trust name, `sorryAx`'s) and the unresolved type's slot, which name it
+as upstream's do (upstream's `.olean` gate reads them): the name read back from
+the store. -/
 def checkConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
     (allowOp allowReduce allowSorry : Bool) : AM Unit := do
   if (fe.find? cv.name).isSome then
@@ -260,9 +262,9 @@ def checkConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
   if (← natOpName cv.name) && !allowOp then
     fail (.invalid s!"a certified Nat operation's name, not a definition: {← readName cv.name}")
   if (← reduceOpNames).contains cv.name && !allowReduce then
-    fail (.invalid "a compiler-trust name, not an opaque constant")
+    fail (.invalid s!"a compiler-trust name, not an opaque constant: {← readName cv.name}")
   if cv.name == (← pinSorryAx) && !allowSorry then
-    fail (.invalid "the tolerated axiom's name, not an axiom")
+    fail (.invalid s!"the tolerated axiom's name, not an axiom: {← readName cv.name}")
   unless ← litShapeOk (.axiomInfo cv) do
     fail (.notImplemented "a declaration at a literal's name with another shape")
   unless nameNodup cv.levelParams do
@@ -275,7 +277,7 @@ def checkConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
     fail (.invalid
       "undeclared universe parameter in type")
   unless ← constsResolveFFast fe cv.type do
-    fail (← unresolvedConstsErrorL fe.strLit "type" cv.type)
+    fail (← unresolvedConstsErrorL fe.strLit s!"type of {← readName cv.name}" cv.type)
   let stype ← inferTypeCore mode fe checkFuel 0 cv.type
   let _u ← ensureSortCore mode fe checkFuel 0 stype
 

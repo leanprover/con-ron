@@ -505,11 +505,98 @@ theorem located_of_ok {mt rt : alloc.vec.Vec Std.U32} {a : RootAt} {l : Located}
   | Twice ds => exact absurd h (not_ok_of_err (by err_any))
   | Failed e => exact absurd h (not_ok_of_err (by err_any))
 
+/-- **`root_hits`' `Missing` is the twin's `rootHits`'.** -/
+theorem root_hits_missing {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {r : kernel.name.Name}
+    (hfs : FsRel inst fsv fs) (h : root_hits inst fsv sp r = ok (.Ok .Missing)) :
+    rootHits fs (absSearchPath sp) (absName r) = .ok .missing := by
+  rw [root_hits] at h
+  peel h as r1, hr1
+  cases r1 with
+  | Err e => cases Result.ok_injective h
+  | Ok hits =>
+    obtain ⟨held, hh, e⟩ := root_dirs_loop_ok hfs _ _ hr1
+    simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at hh
+    have e' : (held.filter (·.2)).map (·.1) = hits.val.map absDir := by rw [e]; rfl
+    dsimp only at h
+    have hR : rootHits fs (absSearchPath sp) (absName r) =
+        (match (held.filter (·.2)).map (·.1) with
+          | [] => .ok .missing
+          | [d] => .ok (.dir d)
+          | hits@(d :: _) => do
+            match ConLeche.Frontend.Olean.oneEach (← hits.mapM (realStep fs)) with
+            | [_] => return .dir d
+            | locs => return .twice locs) := by
+      simp only [rootHits, hh]
+      rfl
+    rw [hR, e']
+    by_cases h0 : alloc.vec.Vec.len hits = 0#usize
+    · have he : hits.val = [] := by
+        have := congrArg UScalar.val h0
+        rw [vec_len_val] at this
+        exact List.eq_nil_of_length_eq_zero (by simpa using this)
+      rw [he]
+      rfl
+    rw [ite_eq_right h0] at h
+    by_cases h1 : alloc.vec.Vec.len hits = 1#usize
+    · rw [ite_eq_left h1] at h
+      peel h as v, -
+      peel h as v1, -
+      cases Result.ok_injective h
+    rw [ite_eq_right h1] at h
+    peel h as r2, -
+    cases r2 with
+    | Err e => cases Result.ok_injective h
+    | Ok reals =>
+      dsimp only at h
+      peel h as b, -
+      by_cases hc : b = true
+      · rw [ite_eq_left hc] at h
+        peel h as v, -
+        peel h as v1, -
+        cases Result.ok_injective h
+      · rw [ite_eq_right hc] at h
+        peel h as v, -
+        cases Result.ok_injective h
+
+/-- **`root_at`'s `Missing` is the twin's `rootAt`'.** -/
+theorem root_at_missing {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {r : kernel.name.Name}
+    (hfs : FsRel inst fsv fs) (h : root_at inst fsv sp r = ok .Missing) :
+    rootAt fs (absSearchPath sp) (absName r) = .missing := by
+  rw [root_at] at h
+  peel h as r1, hr1
+  cases r1 with
+  | Ok a =>
+    cases Result.ok_injective h
+    simp only [rootAt, root_hits_missing hfs hr1]
+  | Err e => cases Result.ok_injective h
+
+/-- **`look_at`'s directory is the twin's `lookAt`'**: the path's, or where the path holds no
+directory of the root, the fallback's. -/
+theorem look_at_ok {path fallback : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {r : kernel.name.Name}
+    {d : alloc.vec.Vec Std.U32} (hfs : FsRel inst fsv fs)
+    (h : look_at inst fsv path fallback r = ok (.Dir d)) :
+    Arena.Frontend.Olean.lookAt fs (absSearchPath path) (absSearchPath fallback) (absName r) =
+      .dir (absDir d) := by
+  rw [look_at] at h
+  peel h as a, ha
+  rw [look_next.eq_def] at h
+  simp only [Arena.Frontend.Olean.lookAt]
+  cases a with
+  | Dir d' =>
+    cases Result.ok_injective h
+    rw [root_at_ok hfs ha]
+    rfl
+  | Missing =>
+    rw [root_at_missing hfs ha]
+    exact root_at_ok hfs h
+  | Twice ds => cases Result.ok_injective h
+  | Failed e => cases Result.ok_injective h
+
 /-- **`find_module`'s accept is the twin's `findModule`.** -/
-theorem find_module_ok {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {l} (hfs : FsRel inst fsv fs)
+theorem find_module_ok {sp : frontend.olean.files.Roots} {l} (hfs : FsRel inst fsv fs)
     (hn : arena.env.read_name pers ar m = ok (.Ok n))
     (h : find_module inst fsv pers ar sp m = ok (.Ok l)) :
-    findModule fs (absSearchPath sp) (absName n) = .ok (absLocated l) := by
+    findModule fs (absRoots sp) (absName n) = .ok (absLocated l) := by
   rw [find_module] at h
   peel h as r, hr
   rw [hn] at hr
@@ -521,9 +608,9 @@ theorem find_module_ok {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {l} (hfs : F
   peel h as v1, -
   have e1 := located_of_ok h
   subst e1
-  have e2 := root_at_ok hfs ha
+  have e2 := look_at_ok hfs ha
   rw [name_root_eq _ hr1] at e2
-  simp only [findModule, e2, ConLeche.Frontend.Olean.locatedOf]
+  simp only [findModule, absRoots, e2, ConLeche.Frontend.Olean.locatedOf]
   rfl
 
 /-- **`read_part_at`'s accept is the twin's `readPartOr`**, whatever the failure's reason, and

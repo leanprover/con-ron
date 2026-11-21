@@ -193,11 +193,11 @@ theorem find_none_rel {st : EStore} (hw : NStoreWF st.ns) {a aC b bC}
 
 /-- con-leche: ConLeche/Verify/Frontend/Olean/Closure.lean:105 closureGo_ok — **the twin's walk
 is what upstream's gives**, the same step for step. -/
-theorem closureGo_run {pk : OleanPins} {F : FS} {sp : SearchPath} :
+theorem closureGo_run {pk : OleanPins} {F : FS} {sp : ConLeche.Frontend.Olean.Roots} :
     ∀ (fuel : Nat) (stack : List (NIdx × Bool)) (seen done : Std.HashSet NIdx) (out outF : Array NIdx)
       (stackC : List (ConLeche.Name × Bool)) (seenC doneC : Std.HashSet ConLeche.Name)
       (outC : Array ConLeche.Name) (R : ConLeche.Frontend.Olean.Roots) {s s' : AState}, R.Ok F →
-      R.bare = (sp : ConLeche.Frontend.Olean.Roots) → Ctx pk s →
+      R.bare = sp.bare → Ctx pk s →
       ListRel (StackR s.store) stack stackC → SetRel s.store seen seenC → SetRel s.store done doneC →
       ListRel (NR s.store) out.toList outC.toList →
       closureGo (modelFs F) pk sp fuel stack seen done out s = .ok (outF, s') →
@@ -958,9 +958,9 @@ theorem loadAt_run {pk : OleanPins} {i : Nat} {m : NIdx} {mn : ConLeche.Name}
     r, a, sk, skels, hvr, hsk, hskels, by simpa using hlazy⟩
 
 /-- con-leche: ConLeche/Frontend/Olean/Closure.lean:62-74 loadModule -/
-theorem loadModule_run {pk : OleanPins} {F : FS} {sp : SearchPath} {total : Nat} {m : NIdx}
+theorem loadModule_run {pk : OleanPins} {F : FS} {sp : ConLeche.Frontend.Olean.Roots} {total : Nat} {m : NIdx}
     {mn : ConLeche.Name} {idx : Nat} {l : ConRon.Arena.Frontend.Olean.Loaded} {s s' : AState}
-    (hctx : Ctx pk s) (hp : PinsRel s.store pk) (hm : denoteN s.store.ns m = some mn)
+    (hsp : sp.bare = sp) (hctx : Ctx pk s) (hp : PinsRel s.store pk) (hm : denoteN s.store.ns m = some mn)
     (h : ConRon.Arena.Frontend.Olean.loadModule (modelFs F) pk sp total m idx s = .ok (l, s')) :
     ParseStep s s' ∧ ∃ lC f, LoadedRel s'.store l lC ∧ lC.name = mn ∧
       ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp mn .private : ModelIO _) F (.ok f) ∧
@@ -997,7 +997,7 @@ theorem loadModule_run {pk : OleanPins} {F : FS} {sp : SearchPath} {total : Nat}
   cases hv
   rw [← hs] at h7
   obtain ⟨hst, hfg, lC, hrel, hn, hspec⟩ := loadAt_run hctx hp hm h7
-  exact ⟨hst, lC, f, hrel, hn, readFiles_sim (ConLeche.Frontend.Olean.Roots.ok_coe F sp) rfl hrf, hspec, hfg⟩
+  exact ⟨hst, lC, f, hrel, hn, readFiles_sim (roots_ok_of_bare hsp) rfl hrf, hspec, hfg⟩
 
 /-! ## The closure -/
 
@@ -1008,15 +1008,15 @@ theorem rootsStack_rel {st : EStore} :
   | _, _, .cons a b => .cons ⟨a, rfl⟩ (rootsStack_rel b)
 
 /-- con-leche: ConLeche/Frontend/Olean/Closure.lean:58-60 closureOrder -/
-theorem closureOrder_run {pk : OleanPins} {F : FS} {sp : SearchPath} {roots order : Array NIdx}
-    {rootsC : Array ConLeche.Name} {s s' : AState} (hctx : Ctx pk s)
+theorem closureOrder_run {pk : OleanPins} {F : FS} {sp : ConLeche.Frontend.Olean.Roots} {roots order : Array NIdx}
+    {rootsC : Array ConLeche.Name} {s s' : AState} (hsp : sp.bare = sp) (hctx : Ctx pk s)
     (hr : ListRel (NR s.store) roots.toList rootsC.toList)
     (h : ConRon.Arena.Frontend.Olean.closureOrder (modelFs F) pk sp roots s = .ok (order, s')) :
     ParseStep s s' ∧ ∃ (orderC : Array ConLeche.Name) (R' : ConLeche.Frontend.Olean.Roots),
-      ModelIO.Gives (ConLeche.Frontend.Olean.closureOrder (sp : ConLeche.Frontend.Olean.Roots) rootsC :
+      ModelIO.Gives (ConLeche.Frontend.Olean.closureOrder sp rootsC :
         ModelIO _) F (.ok (orderC, R')) ∧
       ListRel (NR s'.store) order.toList orderC.toList :=
-  closureGo_run _ _ _ _ _ _ _ _ _ _ _ (ConLeche.Frontend.Olean.Roots.ok_coe F sp) rfl hctx
+  closureGo_run _ _ _ _ _ _ _ _ _ _ _ (roots_ok_of_bare hsp) rfl hctx
     (rootsStack_rel hr) (SetRel.empty _) (SetRel.empty _) .nil h
 
 /-- Two related lists, numbered alike. -/
@@ -1028,19 +1028,19 @@ theorem listRel_zipIdx {α β : Type} {R : α → β → Prop} :
 
 /-- con-leche: ConLeche/Frontend/Olean/Records.lean:76-79 ModRef — a loaded module's frontier is
 good on the region of its files on the snapshot. -/
-@[expose] def ModFront (sp : SearchPath) (F : FS) (st : EStore)
+@[expose] def ModFront (sp : ConLeche.Frontend.Olean.Roots) (F : FS) (st : EStore)
     (l : ConRon.Arena.Frontend.Olean.Loaded) (lC : ConLeche.Frontend.Olean.Loaded) : Prop :=
   ∃ f, ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp lC.name .private : ModelIO _) F (.ok f) ∧
     FrontGoodAt st f l.frontier
 
-theorem ModFront.ext {sp : SearchPath} {F : FS} {st st' : EStore}
+theorem ModFront.ext {sp : ConLeche.Frontend.Olean.Roots} {F : FS} {st st' : EStore}
     {l : ConRon.Arena.Frontend.Olean.Loaded} {lC : ConLeche.Frontend.Olean.Loaded}
     (h : ModFront sp F st l lC) (hx : Ext st st') : ModFront sp F st' l lC :=
   let ⟨f, h1, h2⟩ := h
   ⟨f, h1, h2.ext hx⟩
 
 /-- The modules of the order, loaded, each at its position. -/
-theorem loadAll_go {pk : OleanPins} {F : FS} {sp : SearchPath} {total : Nat} :
+theorem loadAll_go {pk : OleanPins} {F : FS} {sp : ConLeche.Frontend.Olean.Roots} {total : Nat} (hsp : sp.bare = sp) :
     ∀ (l : List (NIdx × Nat)) {ns : List (ConLeche.Name × Nat)}
       {ys : List ConRon.Arena.Frontend.Olean.Loaded} {s s' : AState}, Ctx pk s →
       PinsRel s.store pk → ListRel (fun a b => NR s.store a.1 b.1 ∧ a.2 = b.2) l ns →
@@ -1067,8 +1067,8 @@ theorem loadAll_go {pk : OleanPins} {F : FS} {sp : SearchPath} {total : Nat} :
       obtain ⟨hv, hs⟩ := AM.pure_ok h
       cases hv
       subst hs
-      obtain ⟨hst1, lC, f, hd, hn, hf, hspec, hfg⟩ := loadModule_run hctx hp hm h1
-      obtain ⟨hst2, lsC, hR, hF, hmap, hall⟩ := loadAll_go l (hctx.step hst1) (hp.ext hst1.ext)
+      obtain ⟨hst1, lC, f, hd, hn, hf, hspec, hfg⟩ := loadModule_run hsp hctx hp hm h1
+      obtain ⟨hst2, lsC, hR, hF, hmap, hall⟩ := loadAll_go hsp l (hctx.step hst1) (hp.ext hst1.ext)
         (ListRel.mono' (fun a b hab => ⟨denoteN_ext hab.1 hst1.ext, hab.2⟩) hrest) h2
       refine ⟨hst1.trans hst2, lC :: lsC, .cons (hd.ext hst2.ext) hR,
         .cons ⟨f, by rw [hn]; exact hf, hfg.ext hst2.ext⟩ hF, ?_, ?_⟩
@@ -1085,14 +1085,14 @@ theorem loadAll_go {pk : OleanPins} {F : FS} {sp : SearchPath} {total : Nat} :
 /-- con-leche: ConLeche/Frontend/Olean/Closure.lean:76-88 loadClosure — **the closure,
 loaded, on the snapshot**: the walk's order is upstream's, and each module is its files'
 private view, loaded (`LoadSpec`) at its position in the order. -/
-theorem loadClosure_run {pk : OleanPins} {F : FS} {sp : SearchPath} {roots : Array NIdx}
+theorem loadClosure_run {pk : OleanPins} {F : FS} {sp : ConLeche.Frontend.Olean.Roots} {roots : Array NIdx}
     {rootsC : Array ConLeche.Name} {ls : Array ConRon.Arena.Frontend.Olean.Loaded} {s s' : AState}
-    (hctx : Ctx pk s) (hp : PinsRel s.store pk)
+    (hsp : sp.bare = sp) (hctx : Ctx pk s) (hp : PinsRel s.store pk)
     (hr : ListRel (NR s.store) roots.toList rootsC.toList)
     (h : ConRon.Arena.Frontend.Olean.loadClosure (modelFs F) pk sp roots s = .ok (ls, s')) :
     ParseStep s s' ∧ ∃ (orderC : Array ConLeche.Name) (R' : ConLeche.Frontend.Olean.Roots)
       (lsC : List ConLeche.Frontend.Olean.Loaded),
-      ModelIO.Gives (ConLeche.Frontend.Olean.closureOrder (sp : ConLeche.Frontend.Olean.Roots) rootsC :
+      ModelIO.Gives (ConLeche.Frontend.Olean.closureOrder sp rootsC :
         ModelIO _) F (.ok (orderC, R')) ∧
       ListRel (LoadedRel s'.store) ls.toList lsC ∧ ListRel (ModFront sp F s'.store) ls.toList lsC ∧
       lsC.map (·.name) = orderC.toList ∧ ∀ lC ∈ lsC, ∃ i f, (lC.name, i) ∈ orderC.toList.zipIdx ∧
@@ -1100,7 +1100,7 @@ theorem loadClosure_run {pk : OleanPins} {F : FS} {sp : SearchPath} {roots : Arr
         LoadSpec f i lC := by
   unfold ConRon.Arena.Frontend.Olean.loadClosure at h
   obtain ⟨order, s₁, h1, h⟩ := AM.bind_ok h
-  obtain ⟨hst1, orderC, R', hC, hR⟩ := closureOrder_run hctx hr h1
+  obtain ⟨hst1, orderC, R', hC, hR⟩ := closureOrder_run hsp hctx hr h1
   unfold ConRon.Arena.Frontend.Olean.loadAll at h
   simp only [StateT.map] at h
   cases h2 : (order.toList.zipIdx.mapM fun (p : NIdx × Nat) =>
@@ -1112,7 +1112,7 @@ theorem loadClosure_run {pk : OleanPins} {F : FS} {sp : SearchPath} {roots : Arr
   obtain ⟨ys, s₂⟩ := p
   rw [h2] at h
   cases h
-  obtain ⟨hst2, lsC, hL, hF, hmap, hall⟩ := loadAll_go _ (hctx.step hst1) (hp.ext hst1.ext)
+  obtain ⟨hst2, lsC, hL, hF, hmap, hall⟩ := loadAll_go hsp _ (hctx.step hst1) (hp.ext hst1.ext)
     (listRel_zipIdx hR 0) h2
   refine ⟨hst1.trans hst2, orderC, R', lsC, hC, by simpa using hL, by simpa using hF, ?_, hall⟩
   rw [hmap]
