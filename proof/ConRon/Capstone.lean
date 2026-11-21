@@ -187,6 +187,7 @@ structure SnapshotOf {Fs : Type} (inst : frontend.olean.files.OleanFs Fs) (fsv :
     (F : ConLeche.FS) : Prop where
   path_exists : ∀ {p q}, PathRel p q → ∀ b, inst.path_exists fsv p = ok (.Ok b) →
     b = (F.real q).isSome
+  is_dir : ∀ {p q}, PathRel p q → ∀ b, inst.is_dir fsv p = ok (.Ok b) → b = F.dir q
   real_path : ∀ {p q}, PathRel p q → ∀ r, inst.real_path fsv p = ok (.Ok r) →
     F.real q = some ⟨ConRon.Refine.absString r⟩ ∧ ConRon.Refine.StrWF r
   read_bin_file : ∀ {p q}, PathRel p q → ∀ b, inst.read_bin_file fsv p = ok (.Ok b) →
@@ -203,6 +204,9 @@ theorem fsRel_of_snapshot {Fs : Type} {inst : frontend.olean.files.OleanFs Fs} {
     FsRel inst fsv (ConRon.Bridge.Frontend.Olean.modelFs F) where
   pathExists := fun hp b hb => by
     rw [h.path_exists hp b hb]
+    rfl
+  isDir := fun hp b hb => by
+    rw [h.is_dir hp b hb]
     rfl
   realPath := fun hp r hr => by
     obtain ⟨h1, h2⟩ := h.real_path hp r hr

@@ -194,6 +194,58 @@ theorem findModule_simR {F : FS} {sp : SearchPath} {R : Roots} (hR : R.Ok F)
   rw [← hb] at o
   exact ConLeche.Frontend.Olean.findModule_ok (ConLeche.Frontend.Olean.findModule_rev hR o)
 
+/-- **Resolving a root the twin finds**: the map, with it resolved, read off the snapshot. -/
+theorem resolve_sim {F : FS} {sp : SearchPath} {R : Roots} (hR : R.Ok F)
+    (hb : R.bare = (sp : Roots)) {m : ConLeche.Name} {l : Located}
+    (h : Arena.Frontend.Olean.findModule (modelFs F) sp m = .ok l) :
+    ∃ R1, ModelIO.Gives (R.resolve m : ModelIO Roots) F R1 ∧ R1.Ok F ∧ R1.bare = (sp : Roots) := by
+  have hp : R.path = sp := congrArg Roots.path hb
+  have hf : R.fallback = [] := congrArg Roots.fallback hb
+  unfold Arena.Frontend.Olean.findModule at h
+  split at h
+  · rename_i l' hl
+    unfold Arena.Frontend.Olean.rootAt at hl
+    split at hl
+    · rename_i a ha
+      have hd : ∃ d, a = .dir d := by
+        cases a <;> simp [ConLeche.Frontend.Olean.locatedOf] at hl ⊢
+      obtain ⟨d, rfl⟩ := hd
+      have hg : ModelIO.Gives (ConLeche.Frontend.Olean.lookAt R.path R.fallback m.root :
+          ModelIO RootAt) F (.dir d) := by
+        rw [hp, hf]
+        unfold ConLeche.Frontend.Olean.lookAt
+        exact (rootHits_sim ha).tryCatch.bind (ModelIO.gives_pure _ _)
+      have hres : ∃ R1, ModelIO.Gives (R.resolve m : ModelIO Roots) F R1 := by
+        unfold ConLeche.Frontend.Olean.Roots.resolve
+        by_cases hc : R.map.contains m.root = true
+        · exact ⟨R, by simp only [hc, ↓reduceIte]; exact ModelIO.gives_pure _ _⟩
+        · refine ⟨{ R with map := R.map.insert m.root (.dir d) }, ?_⟩
+          simp only [hc, Bool.false_eq_true, ↓reduceIte]
+          exact hg.bind (ModelIO.gives_pure _ _)
+      obtain ⟨R1, hR1⟩ := hres
+      obtain ⟨hs', o⟩ := hR1.outcome #[]
+      obtain ⟨hok, hbare⟩ := ConLeche.Frontend.Olean.Roots.resolve_ok hR o
+      exact ⟨R1, hR1, hok, hbare.trans hb⟩
+    · simp [ConLeche.Frontend.Olean.locatedOf] at hl
+  · cases h
+
+/-- The twin's accepting imports read found the module. -/
+theorem moduleImports_found {pk : OleanPins} {F : FS} {sp : SearchPath} {m : NIdx}
+    {mn : ConLeche.Name} {xs : Array (ImportF NIdx)} {s s' : AState}
+    (hm : denoteN s.store.ns m = some mn)
+    (h : Arena.Frontend.Olean.moduleImports (modelFs F) pk sp m s = .ok (xs, s')) :
+    ∃ l, Arena.Frontend.Olean.findModule (modelFs F) sp mn = .ok l := by
+  unfold Arena.Frontend.Olean.moduleImports at h
+  obtain ⟨mn', s₁, h1, h2⟩ := AM.bind_ok h
+  obtain ⟨hs1, hd1⟩ := readName_run h1
+  have hmn : mn' = mn := Option.some.inj (hd1.symm.trans (hs1 ▸ hm))
+  subst hmn
+  cases hfm : Arena.Frontend.Olean.findModule (modelFs F) sp mn' with
+  | error e =>
+    simp only [hfm] at h2
+    cases h2
+  | ok loc => exact ⟨loc, rfl⟩
+
 /-! ## One file -/
 
 /-- con-leche: ConLeche/Frontend/Olean/Region.lean:103-119 Part.ofBytes — the path is the
