@@ -96,6 +96,14 @@ upstream's**: a name with a home is a handle with a home, both ways, the homes d
 theorem HomesDen.empty (ns : NStore) : HomesDen ns {} {} :=
   ⟨fun _ _ h => by simp at h, fun _ _ h => by simp at h⟩
 
+theorem HomesDen.ext {st st' : EStore} {h : Std.HashMap NIdx NIdx}
+    {hC : Std.HashMap ConLeche.Name ConLeche.Name} (hd : HomesDen st.ns h hC) (hx : Ext st st') :
+    HomesDen st'.ns h hC :=
+  ⟨fun n m hn => let ⟨nC, mC, h1, h2, h3⟩ := hd.1 n m hn
+      ⟨nC, mC, denoteN_ext h1 hx, denoteN_ext h2 hx, h3⟩,
+   fun nC mC hn => let ⟨n, m, h1, h2, h3⟩ := hd.2 nC mC hn
+      ⟨n, m, denoteN_ext h1 hx, h2, denoteN_ext h3 hx⟩⟩
+
 theorem HomesDen.contains {ns : NStore} (hwf : NStoreWF ns) {h : Std.HashMap NIdx NIdx}
     {hC : Std.HashMap ConLeche.Name ConLeche.Name} (hd : HomesDen ns h hC) {n : NIdx}
     {nC : ConLeche.Name} (hn : denoteN ns n = some nC) : h.contains n = hC.contains nC := by

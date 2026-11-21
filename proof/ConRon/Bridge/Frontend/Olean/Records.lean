@@ -22,6 +22,7 @@ public import ConLeche.Frontend.Olean.Records
 public import ConLeche.Verify.Frontend.Olean.Files
 public import ConLeche.Verify.Frontend.Olean.Emit
 public import ConRon.Bridge.Frontend.Prepare
+public import ConRon.Bridge.Frontend.Compare
 
 public section
 
@@ -415,13 +416,21 @@ theorem readOleans_run {F : FS} {sp : Roots} {roots : Array NIdx}
         {v : Expr} {all : List ConLeche.Name}, InClosure sp F rootsC m → ViewOf sp F m d →
         c ∈ d.constants → c.kind = .thm v all →
         ∃ code, Declaration.thmDecl ⟨c.name, c.levelParams, c.type⟩ (.bvar code) ∈ ds) ∧
-      ∀ {cv : ConstantVal} {code : Nat} {x : Expr}, Declaration.thmDecl cv (.bvar code) ∈ ds →
+      (∀ {cv : ConstantVal} {code : Nat} {x : Expr}, Declaration.thmDecl cv (.bvar code) ∈ ds →
         ConLeche.Frontend.Olean.ValueAt sp F valuesP code x →
         ∃ md f r a sk loc c all, valuesP[ConLeche.Frontend.Olean.refModule code]? = some md ∧
           ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp md.name .private : ModelIO _) F (.ok f) ∧
           f.viewRegion .private = some (r, a) ∧ ConLeche.Frontend.Olean.moduleSkel r a = some sk ∧
           loc ∈ sk.consts ∧ ConLeche.Frontend.Olean.constSpec r loc = some c ∧ c.kind = .thm x all ∧
-          cv = ⟨c.name, c.levelParams, c.type⟩ := by
+          cv = ⟨c.name, c.levelParams, c.type⟩) ∧
+      ∃ (orderC : Array ConLeche.Name) (R' : Roots) (lsC : List ConLeche.Frontend.Olean.Loaded),
+        ModelIO.Gives (ConLeche.Frontend.Olean.closureOrder sp rootsC : ModelIO _) F
+          (.ok (orderC, R')) ∧ lsC.map (·.name) = orderC.toList ∧
+        (∀ lC ∈ lsC, ∃ i f, (lC.name, i) ∈ orderC.toList.zipIdx ∧
+          ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp lC.name .private : ModelIO _) F
+            (.ok f) ∧ LoadSpec f i lC) ∧
+        HomesDen s'.store.ns rd.homes
+          (if homes then ConLeche.Frontend.Olean.homesOf lsC.toArray else {}) := by
   unfold ConRon.Arena.Frontend.Olean.readOleans at h
   obtain ⟨pk, s₁, h1, h⟩ := AM.bind_ok h
   obtain ⟨hst1, hp1⟩ := oleanPins_run hok hoff h1
@@ -462,7 +471,7 @@ theorem readOleans_run {F : FS} {sp : Roots} {roots : Array NIdx}
   refine ⟨(hst1.trans hst2).trans hst3, hpers, hp2.ext hst3.ext,
     ⟨usedOfC mgC, UsedRel.mono hst3.ext (usedRel_usedOf hmr.strip)⟩,
     (lsC.map fun l => (⟨l.name, l.frontier⟩ : ConLeche.Frontend.Olean.ModRef)).toArray, ds, ?_, hden,
-    ?_, fun hd hv => filled_of hnames hloads hm hds hd hv⟩
+    ?_, fun hd hv => filled_of hnames hloads hm hds hd hv, orderC, R', lsC, ho, hnames, hloads, ?_⟩
   · have := valuesRel_of_loads (ListRel.mono' (fun _ _ h => h.ext hst3.ext) hlsR)
       (ListRel.mono' (fun _ _ h => ModFront.ext h hst3.ext) hfront) (sp := sp) (F := F)
     simp only [ValuesRel, hmls]
@@ -516,5 +525,10 @@ theorem readOleans_run {F : FS} {sp : Roots} {roots : Array NIdx}
   obtain ⟨-, g0, -, -, hw, -⟩ := ConLeche.Frontend.Olean.lazyEntry_thm hent0 hk5
   rw [hw] at this
   exact ⟨_, this⟩
+  -- the homes
+  cases homes with
+  | true =>
+    exact (homesOf_denote (nsWF_of_StateOK hctx2.ok) (by rw [hmls]; exact hlsR)).ext hst3.ext
+  | false => exact HomesDen.empty _
 
 end ConRon.Bridge.Frontend.Olean
