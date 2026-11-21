@@ -10,7 +10,7 @@ failure carries a position, so its claim is stated out, `WorkerReadAccept`).
 `reach::reach` as the shapes `RecordReadsRel` (in `Modular/Worker.lean`), `OwnerMapRel` and
 `ReachHyp` (here); `recordReadsRel_holds`, `ownerMapRel_holds` and `reachHyp_holds` prove them,
 and `worker_read_refines` takes none.
-The home is `home_of_refines'` (`parse_all_views`, `check_views` with their Theorem 2).  `copies_ok`'s
+The home is `home_of_refines'` (`load_view`, `check_views` with their Theorem 2).  `copies_ok`'s
 claim is over a tier whose frozen base is empty (`hb`, `hok`), passed through too.
 -/
 import ConRon.Refine2.Modular.Worker
