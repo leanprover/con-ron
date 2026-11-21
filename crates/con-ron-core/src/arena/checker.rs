@@ -119,7 +119,6 @@ pub fn pins_dup(p: &Pins) -> Pins {
 }
 
 /// con-leche: ConLeche/Driver/CheckPool.lean:211-239 checkPool
-/// (The cited `Jobs ds justify` has `justify = none` on this path: no solution here.)
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:65-73 AState.worker` — the twin's
 /// worker reads the persistent tier where it is.
 /// **A worker's start state** (the cited `init`): the empty store, FROZEN
@@ -128,7 +127,7 @@ pub fn pins_dup(p: &Pins) -> Pins {
 /// fresh memos and caches; and a copy of the pins, the run's maximum `Nat` size
 /// among them (con-leche's `checkPool mode maxNatSize`, which hands it to every
 /// job's fresh state through `runAt` and `recordJob`).  The store stays frozen for
-/// the worker's life: `record_job` only empties its scratch tier.
+/// the worker's life: `record_job` only empties its scratch tier.  (The cited `Jobs ds justify` has `justify = none` on this path: no solution here.)
 pub fn worker_state(pins: &Pins) -> AState {
     let mut st = AState::init(EStore::empty_frozen());
     st.pins = pins_dup(pins);
@@ -136,11 +135,10 @@ pub fn worker_state(pins: &Pins) -> AState {
 }
 
 /// con-leche: ConLeche/Driver/CheckPool.lean:127-134 runAt
-/// The cited `J.side`, a solution's index, is absent: `none` on this path.
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:75-86 runJob` — **job `k`, run**: the
 /// record's job at its position (`stream_index::record_job`), a failure tagged
 /// with that position.  A position past the records is an internal error, never
-/// a verdict.
+/// a verdict.  The cited `J.side`, a solution's index, is absent: `none` on this path.
 pub fn run_job(
     pers: &PersTier,
     st: &mut AState,
