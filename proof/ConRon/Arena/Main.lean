@@ -354,6 +354,10 @@ unsafe def stdFsImpl : Frontend.Olean.OleanFs where
     match ← (p.pathExists : IO Bool).toBaseIO with
     | .ok b => pure (.ok b)
     | .error e => pure (.error (toString e))
+  isDir p := unsafeBaseIO do
+    match ← (p.isDir : IO Bool).toBaseIO with
+    | .ok b => pure (.ok b)
+    | .error e => pure (.error (toString e))
   realPath p := unsafeBaseIO do
     match ← (IO.FS.realPath p : IO _).toBaseIO with
     | .ok b => pure (.ok b)
