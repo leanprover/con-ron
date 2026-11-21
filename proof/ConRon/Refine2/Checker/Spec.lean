@@ -77,9 +77,9 @@ only at an axiom, then the guards past them. -/
 def checkConstantValReservedSpec (cv : IConstantVal) (allowReduce allowSorry : Bool) :
     AM Unit := do
   if (← reduceOpNames).contains cv.name && !allowReduce then
-    fail (.invalid "a compiler-trust name, not an opaque constant")
+    fail (.invalid s!"a compiler-trust name, not an opaque constant: {← readName cv.name}")
   if cv.name == (← pinSorryAx) && !allowSorry then
-    fail (.invalid "the tolerated axiom's name, not an axiom")
+    fail (.invalid s!"the tolerated axiom's name, not an axiom: {← readName cv.name}")
   checkConstantValGuardsRestSpec cv
 
 /-- The SYNTACTIC guards, in the twin's order: `checkConstantVal` clauses 1-8. -/
@@ -103,7 +103,7 @@ def checkConstantValTailSpec (fe : IFEnv) (cv : IConstantVal) : AM Unit :=
     if d then
       constsResolveFFast fe cv.type >>= fun r =>
         if r then pure ()
-        else unresolvedConstsFailSpec fe "type" cv.type
+        else readName cv.name >>= fun n => unresolvedConstsFailSpec fe s!"type of {n}" cv.type
     else fail (.invalid "undeclared universe parameter in type")
 
 /-- `valueGuards`' tail past the two scope tests (the Rust's `value_guards_tail`). -/
@@ -112,7 +112,7 @@ def valueGuardsTailSpec (fe : IFEnv) (cv : IConstantVal) (value : EIdx) : AM Uni
     if d then
       constsResolveFFast fe value >>= fun r =>
         if r then pure ()
-        else unresolvedConstsFailSpec fe "value" value
+        else readName cv.name >>= fun n => unresolvedConstsFailSpec fe s!"value of {n}" value
     else fail (.invalid "undeclared universe parameter in value")
 
 /-! ## `indParamsOk`'s per-member test -/

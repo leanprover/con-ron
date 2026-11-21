@@ -86,6 +86,19 @@ pub const M_GEN_SHORT: [u32; 59] = [
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"the type of the recursor"`, as code points (the slot `unresolved_consts_error` names).
+pub const M_W_REC_TYPE: [u32; 24] = [
+    116, 104, 101, 32, 116, 121, 112, 101, 32, 111, 102, 32, 116, 104, 101, 32, 114, 101, 99, 117,
+    114, 115, 111, 114,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"the recursor's rule"`, as code points (the slot `unresolved_consts_error` names).
+pub const M_W_REC_RULE: [u32; 19] = [
+    116, 104, 101, 32, 114, 101, 99, 117, 114, 115, 111, 114, 39, 115, 32, 114, 117, 108, 101,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `the type of the recursor  is not closed`, as code points.
 pub const M_TY_OPEN: [u32; 39] = [
     116, 104, 101, 32, 116, 121, 112, 101, 32, 111, 102, 32, 116, 104, 101, 32, 114, 101, 99, 117,
@@ -305,7 +318,7 @@ pub fn rec_ty_check(
             Ok(false) => fail(core_types::invalid(code_points(&M_TY_ULP))),
             Ok(true) => match checker_base::consts_resolve_f_fast(pers, st, fe, s) {
                 Err(e) => Err(e),
-                Ok(false) => match checker_base::unresolved_consts_error(pers, st, s) {
+                Ok(false) => match checker_base::unresolved_consts_error(pers, st, &code_points(&M_W_REC_TYPE), s) {
                     Err(e) => Err(e),
                     Ok(er) => fail(er),
                 },
@@ -350,7 +363,7 @@ pub fn rule_agree(
             Ok(false) => fail(core_types::invalid(code_points(&M_RULE_ULP))),
             Ok(true) => match checker_base::consts_resolve_f_fast(pers, st, fe, s) {
                 Err(e) => Err(e),
-                Ok(false) => match checker_base::unresolved_consts_error(pers, st, s) {
+                Ok(false) => match checker_base::unresolved_consts_error(pers, st, &code_points(&M_W_REC_RULE), s) {
                     Err(e) => Err(e),
                     Ok(er) => fail(er),
                 },

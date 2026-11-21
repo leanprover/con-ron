@@ -63,6 +63,25 @@ use crate::ron::hashmap::{Dup, Eq2};
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"type of"`, as code points (the slot `unresolved_consts_error` names).
+pub const M_W_GEN_TYPE: [u32; 7] = [
+    116, 121, 112, 101, 32, 111, 102,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"generated rule of"`, as code points (the slot `unresolved_consts_error` names).
+pub const M_W_GEN_RULE: [u32; 17] = [
+    103, 101, 110, 101, 114, 97, 116, 101, 100, 32, 114, 117, 108, 101, 32, 111, 102,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"the domains of a generated rule of"`, as code points (the slot `unresolved_consts_error` names).
+pub const M_W_GEN_DOMS: [u32; 34] = [
+    116, 104, 101, 32, 100, 111, 109, 97, 105, 110, 115, 32, 111, 102, 32, 97, 32, 103, 101, 110,
+    101, 114, 97, 116, 101, 100, 32, 114, 117, 108, 101, 32, 111, 102,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `a declaration at a literal's name with another shape ()`, as code points.
 pub const M_LIT_SHAPE: [u32; 55] = [
     97, 32, 100, 101, 99, 108, 97, 114, 97, 116, 105, 111, 110, 32, 97, 116, 32, 97, 32, 108,
@@ -1705,7 +1724,7 @@ pub fn class_const_ok_type(
                     Ok(false) => fail(core_types::invalid(code_points(&M_UNDECL))),
                     Ok(true) => match checker_base::consts_resolve_f_fast(pers, st, fe, &cv.ty) {
                         Err(e) => Err(e),
-                        Ok(false) => match checker_base::unresolved_consts_error(pers, st, &cv.ty) {
+                        Ok(false) => match checker_base::unresolved_consts_error(pers, st, &code_points(&M_W_GEN_TYPE), &cv.ty) {
                             Err(e) => Err(e),
                             Ok(er) => fail(er),
                         },
@@ -1904,7 +1923,7 @@ pub fn class_rule_check(
                 Ok(false) => fail(core_types::internal(code_points(&M_RULE_ULP))),
                 Ok(true) => match checker_base::consts_resolve_f_fast(pers, st, fe, gen) {
                     Err(e) => Err(e),
-                    Ok(false) => match checker_base::unresolved_consts_error(pers, st, gen) {
+                    Ok(false) => match checker_base::unresolved_consts_error(pers, st, &code_points(&M_W_GEN_RULE), gen) {
                         Err(e) => Err(e),
                         Ok(er) => fail(er),
                     },
@@ -1940,7 +1959,7 @@ pub fn class_rule_check_tail(
         Ok(None) => fail(core_types::internal(code_points(&M_RULE_TELE))),
         Ok(Some((rbs, _))) => match domains_resolve(pers, st, fe, pushed, &rbs, 0) {
             Err(e) => Err(e),
-            Ok(false) => match checker_base::unresolved_consts_error(pers, st, gen) {
+            Ok(false) => match checker_base::unresolved_consts_error(pers, st, &code_points(&M_W_GEN_DOMS), gen) {
                 Err(e) => Err(e),
                 Ok(er) => fail(er),
             },

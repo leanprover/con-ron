@@ -34,8 +34,7 @@
 
 use crate::arena::core::{
     consts_resolve, ensure_sort_core, infer_type_core, lit_shape_ok, nat_op_name,
-    CHECK_FUEL, CORE_WALK_FUEL, M_SORRY, M_STR,
-    M_UNKNOWN_CONST,
+    CHECK_FUEL, CORE_WALK_FUEL, M_STR,
 };
 use crate::arena::core_state::take_walk_memo;
 use crate::arena::env::{i_constant_val_dup, ifenv_find, nidx_vec_contains, IConstantInfo, IConstantVal, IFEnv};
@@ -62,7 +61,8 @@ use crate::arena::store::PersTier;
 // ---------------------------------------------------------------------------
 // The messages of this module's declines (con-ron-core's own spellings, so
 // that a differential test can compare error text; §3.1 — a message need not
-// match a theorem — and the twin's interpolated names are dropped)
+// match a theorem — and the twin's interpolated names are dropped, except in
+// the reserved-name and unresolved-constant messages, which read them back)
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
@@ -128,7 +128,7 @@ pub const M_LIT_SHAPE: [u32; 52] = [
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"a compiler-trust name, not an opaque constant"`, as code points (the cited message with the name dropped).
+/// `"a compiler-trust name, not an opaque constant"`, as code points (the cited message's prefix: the name follows it).
 pub const M_REDUCE_NAME: [u32; 45] = [
     97, 32, 99, 111, 109, 112, 105, 108, 101, 114, 45, 116, 114, 117, 115, 116, 32, 110, 97, 109,
     101, 44, 32, 110, 111, 116, 32, 97, 110, 32, 111, 112, 97, 113, 117, 101, 32, 99, 111, 110,
@@ -136,10 +136,35 @@ pub const M_REDUCE_NAME: [u32; 45] = [
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"the tolerated axiom's name, not an axiom"`, as code points (the cited message with the name dropped).
+/// `"the tolerated axiom's name, not an axiom"`, as code points (the cited message's prefix: the name follows it).
 pub const M_SORRY_NAME: [u32; 40] = [
     116, 104, 101, 32, 116, 111, 108, 101, 114, 97, 116, 101, 100, 32, 97, 120, 105, 111, 109, 39,
     115, 32, 110, 97, 109, 101, 44, 32, 110, 111, 116, 32, 97, 110, 32, 97, 120, 105, 111, 109,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"use of the sorryAx axiom in "`, as code points (the cited message's prefix: the slot `where_` follows it).
+pub const M_SORRY_IN: [u32; 28] = [
+    117, 115, 101, 32, 111, 102, 32, 116, 104, 101, 32, 115, 111, 114, 114, 121, 65, 120, 32, 97,
+    120, 105, 111, 109, 32, 105, 110, 32,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"unknown constant in "`, as code points (the cited message's prefix: the slot `where_` follows it).
+pub const M_UNKNOWN_CONST_IN: [u32; 20] = [
+    117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"type of "`, as code points (the slot of a declared type, the constant's name following it).
+pub const M_W_TYPE_OF: [u32; 8] = [
+    116, 121, 112, 101, 32, 111, 102, 32,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"value of "`, as code points (the slot of a value, the constant's name following it).
+pub const M_W_VALUE_OF: [u32; 9] = [
+    118, 97, 108, 117, 101, 32, 111, 102, 32,
 ];
 
 // ---------------------------------------------------------------------------
@@ -504,11 +529,12 @@ pub fn fvar_type_ds(
 /// mentions `sorryAx` DECLINES (the axiom is tolerated as a declaration and
 /// installs nothing, so a use of it is a positively detected unsupported
 /// feature); anything else is an unknown constant and REJECTS.  Monadic here
-/// because the walk reads the store; the twin's `where_ : String` argument only
-/// names the slot in the message, and §3.1 drops the interpolation.
+/// because the walk reads the store; `where_` names the slot in the message, as
+/// the twin's does (e.g. `"value of foo"`).
 pub fn unresolved_consts_error(
     pers: &PersTier,
     st: &mut AState,
+    where_: &Vec<u32>,
     e: &EIdx,
 ) -> Result<CheckError, CheckError>  {
     match pin_sorry_ax(st) {
@@ -517,9 +543,9 @@ pub fn unresolved_consts_error(
             Err(err) => Err(err),
             Ok(r) => {
                 if r {
-                    Ok(CheckError::NotImplemented(code_points(&M_SORRY)))
+                    Ok(CheckError::NotImplemented(crate::frontend::text::cat(code_points(&M_SORRY_IN), where_)))
                 } else {
-                    Ok(CheckError::Invalid(code_points(&M_UNKNOWN_CONST)))
+                    Ok(CheckError::Invalid(crate::frontend::text::cat(code_points(&M_UNKNOWN_CONST_IN), where_)))
                 }
             }
         },
@@ -610,11 +636,13 @@ pub fn has_str_lit_two(
 /// — `unresolved_consts_error` with a string-literal guard ahead of it: a
 /// string literal is DECLINED here, before resolution, when the String support
 /// declarations are not yet present (con-leche task #342 L-CK: the guard the
-/// annotate pass used to run).  `str_ok` is the caller's `strLitStored`.
+/// annotate pass used to run).  `str_ok` is the caller's `strLitStored`,
+/// `where_` the slot the message names.
 pub fn unresolved_consts_error_l(
     pers: &PersTier,
     st: &mut AState,
     str_ok: bool,
+    where_: &Vec<u32>,
     e: &EIdx,
 ) -> Result<CheckError, CheckError> {
     let lit: Result<bool, CheckError> = if str_ok {
@@ -626,7 +654,7 @@ pub fn unresolved_consts_error_l(
     match lit {
         Err(err) => Err(err),
         Ok(true) => Ok(CheckError::NotImplemented(code_points(&M_STR))),
-        Ok(false) => unresolved_consts_error(pers, st, e),
+        Ok(false) => unresolved_consts_error(pers, st, where_, e),
     }
 }
 
@@ -640,9 +668,10 @@ pub fn unresolved_consts_fail<T>(
     pers: &PersTier,
     st: &mut AState,
     fe: &IFEnv,
+    where_: &Vec<u32>,
     e: &EIdx,
 ) -> Result<T, CheckError> {
-    match unresolved_consts_error_l(pers, st, fe.str_lit, e) {
+    match unresolved_consts_error_l(pers, st, fe.str_lit, where_, e) {
         Err(err) => Err(err),
         Ok(err) => fail(err),
     }
@@ -655,7 +684,7 @@ pub fn unresolved_consts_fail<T>(
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:101-130 checkConstantVal
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:218-243 checkConstantValF
 /// con-leche: ConLeche/Cached/IndPass.lean:36-63 checkConstantValC
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-280 checkConstantVal` — checks
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-282 checkConstantVal` — checks
 /// common to all declarations: fresh name, a certified operation's name only at
 /// a definition (`allow_op`), a compiler-trust name (`Lean.reduceNat`,
 /// `Lean.reduceBool`) only at an opaque constant (`allow_reduce`), `sorryAx`
@@ -694,7 +723,7 @@ pub fn check_constant_val(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:101-130 checkConstantVal
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:218-243 checkConstantValF
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-280 checkConstantVal` — the
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-282 checkConstantVal` — the
 /// guards on the declaration's NAME, in the twin's order: fresh, not a
 /// certified operation's name unless `allow_op`, then the reserved names
 /// (`check_constant_val_reserved`).
@@ -737,7 +766,7 @@ pub fn check_constant_val_guards(
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:101-130 checkConstantVal
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:218-243 checkConstantValF
 /// con-leche: ConLeche/Kernel/Basis/Names.lean:120-122 sorryAxNameAt
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-280 checkConstantVal` — the
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-282 checkConstantVal` — the
 /// reserved names: a compiler-trust name (`reduceOpNames`) only at an opaque
 /// constant (`allow_reduce`), `sorryAx`'s (`sorryAxNameAt`, a handle comparison
 /// with its pin) only at an axiom (`allow_sorry`); then the guards past the
@@ -753,13 +782,35 @@ pub fn check_constant_val_reserved(
         Err(e) => Err(e),
         Ok(rs) => {
             if nidx_vec_contains(&rs, &cv.name) && !allow_reduce {
-                fail(CheckError::Invalid(code_points(&M_REDUCE_NAME)))
+                match crate::arena::monad::read_name(pers, st, &cv.name) {
+                    Err(e) => Err(e),
+                    Ok(n) => {
+                        let mut m: Vec<u32> = code_points(&M_REDUCE_NAME);
+                        m.push(58);
+                        m.push(32);
+                        fail(CheckError::Invalid(crate::frontend::text::cat(
+                            m,
+                            &crate::kernel::name::render(&n),
+                        )))
+                    }
+                }
             } else {
                 match pin_sorry_ax(st) {
                     Err(e) => Err(e),
                     Ok(sa) => {
                         if cv.name.eq2(&sa) && !allow_sorry {
-                            fail(CheckError::Invalid(code_points(&M_SORRY_NAME)))
+                            match crate::arena::monad::read_name(pers, st, &cv.name) {
+                                Err(e) => Err(e),
+                                Ok(n) => {
+                                    let mut m: Vec<u32> = code_points(&M_SORRY_NAME);
+                                    m.push(58);
+                                    m.push(32);
+                                    fail(CheckError::Invalid(crate::frontend::text::cat(
+                                        m,
+                                        &crate::kernel::name::render(&n),
+                                    )))
+                                }
+                            }
                         } else {
                             check_constant_val_guards_rest(pers, st, cv)
                         }
@@ -772,7 +823,7 @@ pub fn check_constant_val_reserved(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:101-130 checkConstantVal
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:218-243 checkConstantValF
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-280 checkConstantVal` — the
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-282 checkConstantVal` — the
 /// four guards past the name tests: a literal's name only at its shape
 /// (`litShapeOk (.axiomInfo cv)`), distinct universe parameters, no loose bound
 /// and no free variable in the type.
@@ -814,7 +865,7 @@ pub fn check_constant_val_guards_rest(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:101-130 checkConstantVal
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:218-243 checkConstantValF
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-280 checkConstantVal` — the two
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:242-282 checkConstantVal` — the two
 /// guards on the declared type: its universe parameters are declared, and its
 /// constants resolve (else `unresolvedConstsErrorL`'s verdict).
 pub fn check_constant_val_tail(
@@ -833,7 +884,16 @@ pub fn check_constant_val_tail(
                     Err(e) => Err(e),
                     Ok(r) => {
                         if !r {
-                            unresolved_consts_fail(pers, st, fe, &cv.ty)
+                            match crate::arena::monad::read_name(pers, st, &cv.name) {
+                                Err(e) => Err(e),
+                                Ok(n) => {
+                                    let w: Vec<u32> = crate::frontend::text::cat(
+                                        code_points(&M_W_TYPE_OF),
+                                        &crate::kernel::name::render(&n),
+                                    );
+                                    unresolved_consts_fail(pers, st, fe, &w, &cv.ty)
+                                }
+                            }
                         } else {
                             Ok(())
                         }
@@ -849,7 +909,7 @@ pub fn check_constant_val_tail(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:132-138 unwrapOr
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:284-289 unwrapOr` — unwrap
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:286-291 unwrapOr` — unwrap
 /// an optional value or fail with the given error.
 pub fn unwrap_or<T>(o: Option<T>, err: CheckError) -> Result<T, CheckError> {
     match o {
@@ -870,7 +930,7 @@ pub fn unwrap_or<T>(o: Option<T>, err: CheckError) -> Result<T, CheckError> {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:392-425 indParamsOk
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:296-309 indParamsOk` —
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:298-311 indParamsOk` —
 /// **the stream's declared parameter count, checked as official checks it**
 /// (con-leche's task #228).  Both halves are one-sided on purpose: `false`
 /// means official rejects.
@@ -898,7 +958,7 @@ pub fn ind_params_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:392-425 indParamsOk
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:296-309 indParamsOk` — one
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:298-311 indParamsOk` — one
 /// member's test: a type former's Π-telescope is at least `nP` long, a
 /// constructor's own parameter count is exactly `nP`, and everything else
 /// passes.

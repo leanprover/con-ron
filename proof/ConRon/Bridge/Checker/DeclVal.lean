@@ -193,7 +193,7 @@ theorem valueGuards_bridge {env : Env} {fe : IFEnv}
   obtain ⟨h9st, h9c, h9p, h9r⟩ :=
     constsResolveFFast_run hck8 hv8 g9r
   obtain ⟨hcr, r15⟩ := AM.dunless_ok
-    (AM.Never.bind fun _ => AM.Never.fail _) r14
+    (AM.Never.bind fun _ => AM.Never.bind fun _ => AM.Never.fail _) r14
   have hcrP : x.constsResolve env = true := by rw [← h9r]; exact hcr
   have hck9 : CheckOK false env fe s9 :=
     hck8.mono ⟨by rw [h9st]; exact hck8.state.wf⟩ (by rw [h9st]; exact Ext.refl _)
