@@ -17,6 +17,7 @@ import ConRon.Refine2.Frontend.Compare
 import ConRon.Bridge.Modular.Stages
 import ConRon.Refine2.Modular.Graph
 import ConRon.Bridge.Modular.Home
+import ConRon.Bridge.Modular.ReachGo
 import ConRon.Refine2.Modular.WorkerRead
 import ConRon.Refine2.Modular.ReachCheck
 import ConRon.Refine2.Checker.PoolFrom
@@ -2213,6 +2214,202 @@ theorem no_False_modular_compare_of (hR : ConRon.Bridge.Modular.ReachRunHyp)
   rw [hsr] at good hhdr acc
   exact ConLeche.Driver.Compose.compare_no_False V Cg rk good hC edges inj hhdr acc hcl hci hty
 
+/-- con-leche: ConLeche/MainTheorem.lean:109 main_modular — `model_modular_of` at Theorem 1 of the
+reach (`reachRunHyp_holds`): **an accepted modular check has a family of models**, its premises
+the calls of the graph check and of every module's worker alone. -/
+theorem model_modular (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : frontend.olean.files.OleanFs Fs}
+    {fsv : Fs} {F : ConLeche.FS} (hsnap : SnapshotOf finst fsv F)
+    {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {rName : kernel.name.Name}
+    {g1 gR : arena.monad.AState} {gstore2 gstore3 : arena.store.EStore}
+    {pk : frontend.olean.spec.OleanPins} {groots : alloc.vec.Vec arena.handle.NIdx}
+    {c : alloc.vec.Vec (arena.handle.NIdx × alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))}
+    (h1g : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), g1))
+    (hpk : frontend.olean.spec.olean_pins emptyTier g1.store = ok (.Ok pk, gstore2))
+    (hroots : InternRoots emptyTier { g1 with store := gstore2 } [rName] groots.val gR)
+    (hgraph : frontend.modular.graph.graph_of finst fsv pk emptyTier gR.store
+      ⟨dirs, alloc.vec.Vec.new _⟩ groots none = ok (.Ok c, gstore3))
+    {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+    (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+    (hwork : ∀ m', ConLeche.Frontend.Olean.HdrClosure (absSearchPath dirs) F
+        [ConRon.Refine.absName rName] m' →
+      ∃ (mName : kernel.name.Name), ConRon.Refine.absName mName = m' ∧
+      ∃ (st1 st2 st3 st4 st5 : arena.monad.AState) (m : arena.handle.NIdx)
+        (ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet) (maxNatSize : ron.nat.Nat)
+        (w : frontend.modular.worker.WorkerRead) (ds : alloc.vec.Vec arena.env.IDeclaration)
+        (ix : arena.stream_index.IStreamIndex) (tier : arena.store.PersTier)
+        (frozen : arena.store.EStore) (ws ws' : arena.monad.AState),
+        arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1) ∧
+        InternRoots emptyTier st1 [mName] [m] st2 ∧
+        arena.checker.intern_all_pins emptyTier st2 pins maxNatSize = ok (.Ok ipins, st3) ∧
+        frontend.modular.worker.worker_read finst fsv emptyTier st3 ⟨dirs, alloc.vec.Vec.new _⟩
+          ipins m (alloc.vec.Vec.new _) = ok (.Ok w, st4) ∧
+        frontend.modular.worker.worker_decls w = ok ds ∧
+        (do
+          let e ← arena.stream_index.stream_index_empty
+          arena.stream_index.build_index emptyTier st4 e ds 0#usize) = ok (.Ok ix, st5) ∧
+        arena.checker.freeze_tier st5.store ix = ok (tier, frozen) ∧
+        arena.checker.worker_state st5.pins = ok ws ∧
+        frontend.modular.reach.infer_flags tier ws w.reach.ctx w.reach.pending = ok (.Ok (), ws') ∧
+        ParallelAll (ds.length - w.start.val) (oleanWorkerInit st5.pins)
+          (fun c k => oleanJobStepSol finst fsv tier .Verified ipins ds w.pins w.values
+            ⟨dirs, alloc.vec.Vec.new _⟩ none c (w.start.val + k))) :
+    ∃ model : ConLeche.Name → (ConLeche.Name → List Nat → V),
+      (∀ m, ConLeche.Frontend.Olean.InClosure (absSearchPath dirs) F #[ConRon.Refine.absName rName] m →
+        ConLeche.IsModel V (model m) (ConLeche.Frontend.Olean.moduleConstants (absSearchPath dirs) F m)) ∧
+      (∀ m n m', ConLeche.Frontend.Olean.InClosure (absSearchPath dirs) F #[ConRon.Refine.absName rName] m →
+        ConLeche.Frontend.Olean.Sees (absSearchPath dirs) F m n m' → model m n = model m' n) :=
+  model_modular_of ConRon.Bridge.Modular.reachRunHyp_holds V hsnap h1g hpk hroots hgraph hpins hwork
+
+/-- con-leche: ConLeche/MainTheorem.lean:143 main_modular_compare — `model_modular_compare_of`
+at Theorem 1 of the reach: **an accepted modular comparison's challenge closure has a family of
+models**. -/
+theorem model_modular_compare (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : frontend.olean.files.OleanFs Fs}
+    {fsv : Fs} {F : ConLeche.FS} (hsnap : SnapshotOf finst fsv F)
+    {tdirs ddirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {cName sName : kernel.name.Name}
+    {spR : frontend.olean.files.Roots}
+    (hsr : absRoots spR = (⟨ConRon.Refine.absName cName, ConRon.Refine.absName sName,
+      absSearchPath tdirs, absSearchPath ddirs, none⟩ : ConLeche.Driver.CmpReq).solRoots)
+    {g1 gR : arena.monad.AState} {gstore2 gstore3 : arena.store.EStore}
+    {pk : frontend.olean.spec.OleanPins} {gc gs : arena.handle.NIdx}
+    {groots : alloc.vec.Vec arena.handle.NIdx} (hgr : groots.val = [gc])
+    {cg : alloc.vec.Vec (arena.handle.NIdx × alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))}
+    (h1g : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), g1))
+    (hpk : frontend.olean.spec.olean_pins emptyTier g1.store = ok (.Ok pk, gstore2))
+    (hroots : InternRoots emptyTier { g1 with store := gstore2 } [cName, sName] [gc, gs] gR)
+    (hgraph : frontend.modular.graph.graph_of finst fsv pk emptyTier gR.store spR groots
+      (some (gc, gs)) = ok (.Ok cg, gstore3))
+    {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+    (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+    (hwork : ∀ m', ConLeche.Frontend.Olean.HdrClosure (absRoots spR) F
+        [ConRon.Refine.absName cName, ConRon.Refine.absName sName] m' →
+      m' ≠ ConRon.Refine.absName cName →
+      ∃ (mName : kernel.name.Name), ConRon.Refine.absName mName = m' ∧
+      ∃ (m : arena.handle.NIdx) (st1 st2 st3 st4 st5 : arena.monad.AState) (ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
+        (maxNatSize : ron.nat.Nat) (w : frontend.modular.worker.WorkerRead)
+        (ds : alloc.vec.Vec arena.env.IDeclaration) (ix : arena.stream_index.IStreamIndex)
+        (tier : arena.store.PersTier) (frozen : arena.store.EStore) (ws ws' : arena.monad.AState),
+        arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1) ∧
+        InternRoots emptyTier st1 [mName] [m] st2 ∧
+        arena.checker.intern_all_pins emptyTier st2 pins maxNatSize = ok (.Ok ipins, st3) ∧
+        frontend.modular.worker.worker_read finst fsv emptyTier st3 spR ipins m (alloc.vec.Vec.new _) = ok (.Ok w, st4) ∧
+        frontend.modular.worker.worker_decls w = ok ds ∧
+        (do
+          let e ← arena.stream_index.stream_index_empty
+          arena.stream_index.build_index emptyTier st4 e ds 0#usize) = ok (.Ok ix, st5) ∧
+        arena.checker.freeze_tier st5.store ix = ok (tier, frozen) ∧
+        arena.checker.worker_state st5.pins = ok ws ∧
+        frontend.modular.reach.infer_flags tier ws w.reach.ctx w.reach.pending = ok (.Ok (), ws') ∧
+        ParallelAll (ds.length - w.start.val) (oleanWorkerInit st5.pins)
+          (fun c k => oleanJobStepSol finst fsv tier .Verified ipins ds w.pins w.values
+            spR none c (w.start.val + k)))
+    (hcmp : ∃ (c sH : arena.handle.NIdx) (xi : frontend.olean.spec.ImportF arena.handle.NIdx)
+        (x : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)) (st1 st2 st3 st4 st5 : arena.monad.AState) (ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
+        (maxNatSize : ron.nat.Nat) (w : frontend.modular.worker.WorkerRead)
+        (ds : alloc.vec.Vec arena.env.IDeclaration) (ix : arena.stream_index.IStreamIndex)
+        (tier : arena.store.PersTier) (frozen : arena.store.EStore) (ws ws' : arena.monad.AState),
+        arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1) ∧
+        InternRoots emptyTier st1 [cName, sName] [c, sH] st2 ∧
+        frontend.modular.graph.solution_import sH = ok xi ∧ x.val = [xi] ∧
+        arena.checker.intern_all_pins emptyTier st2 pins maxNatSize = ok (.Ok ipins, st3) ∧
+        frontend.modular.worker.worker_read finst fsv emptyTier st3 spR ipins c x = ok (.Ok w, st4) ∧
+        frontend.modular.worker.worker_decls w = ok ds ∧
+        (do
+          let e ← arena.stream_index.stream_index_empty
+          arena.stream_index.build_index emptyTier st4 e ds 0#usize) = ok (.Ok ix, st5) ∧
+        arena.checker.freeze_tier st5.store ix = ok (tier, frozen) ∧
+        arena.checker.worker_state st5.pins = ok ws ∧
+        frontend.modular.reach.infer_flags tier ws w.reach.ctx w.reach.pending = ok (.Ok (), ws') ∧
+        ParallelAll (ds.length - w.start.val) (oleanWorkerInit st5.pins)
+          (fun c k => oleanJobStepSol finst fsv tier .Verified ipins ds w.pins w.values
+            spR none c (w.start.val + k))) :
+    ∀ fs', ConLeche.FS.AgreeUnder (ConLeche.Driver.trustedOr (absSearchPath tdirs) (absSearchPath ddirs))
+        F fs' →
+      ∃ model : ConLeche.Name → (ConLeche.Name → List Nat → V),
+        (∀ m, ConLeche.Frontend.Olean.InClosure
+            (ConLeche.Driver.trustedOr (absSearchPath tdirs) (absSearchPath ddirs) : ConLeche.Frontend.Olean.Roots)
+            fs' #[ConRon.Refine.absName cName] m →
+          ConLeche.IsModel V (model m) (ConLeche.Frontend.Olean.moduleConstants
+            (ConLeche.Driver.trustedOr (absSearchPath tdirs) (absSearchPath ddirs) : ConLeche.Frontend.Olean.Roots) fs' m)) ∧
+        (∀ m n m', ConLeche.Frontend.Olean.InClosure
+            (ConLeche.Driver.trustedOr (absSearchPath tdirs) (absSearchPath ddirs) : ConLeche.Frontend.Olean.Roots)
+            fs' #[ConRon.Refine.absName cName] m →
+          ConLeche.Frontend.Olean.Sees
+            (ConLeche.Driver.trustedOr (absSearchPath tdirs) (absSearchPath ddirs) : ConLeche.Frontend.Olean.Roots)
+            fs' m n m' → model m n = model m' n) :=
+  model_modular_compare_of ConRon.Bridge.Modular.reachRunHyp_holds V hsnap hsr hgr h1g hpk hroots hgraph hpins hwork hcmp
+
+/-- con-leche: ConLeche/MainTheorem.lean:183 main_modular_compare_no_False —
+`no_False_modular_compare_of` at Theorem 1 of the reach: **no accepted modular comparison's
+challenge module holds a constant of type `False`**. -/
+theorem no_False_modular_compare (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : frontend.olean.files.OleanFs Fs}
+    {fsv : Fs} {F : ConLeche.FS} (hsnap : SnapshotOf finst fsv F)
+    {tdirs ddirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {cName sName : kernel.name.Name}
+    {spR : frontend.olean.files.Roots}
+    (hsr : absRoots spR = (⟨ConRon.Refine.absName cName, ConRon.Refine.absName sName,
+      absSearchPath tdirs, absSearchPath ddirs, none⟩ : ConLeche.Driver.CmpReq).solRoots)
+    {g1 gR : arena.monad.AState} {gstore2 gstore3 : arena.store.EStore}
+    {pk : frontend.olean.spec.OleanPins} {gc gs : arena.handle.NIdx}
+    {groots : alloc.vec.Vec arena.handle.NIdx} (hgr : groots.val = [gc])
+    {cg : alloc.vec.Vec (arena.handle.NIdx × alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))}
+    (h1g : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), g1))
+    (hpk : frontend.olean.spec.olean_pins emptyTier g1.store = ok (.Ok pk, gstore2))
+    (hroots : InternRoots emptyTier { g1 with store := gstore2 } [cName, sName] [gc, gs] gR)
+    (hgraph : frontend.modular.graph.graph_of finst fsv pk emptyTier gR.store spR groots
+      (some (gc, gs)) = ok (.Ok cg, gstore3))
+    {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+    (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+    (hwork : ∀ m', ConLeche.Frontend.Olean.HdrClosure (absRoots spR) F
+        [ConRon.Refine.absName cName, ConRon.Refine.absName sName] m' →
+      m' ≠ ConRon.Refine.absName cName →
+      ∃ (mName : kernel.name.Name), ConRon.Refine.absName mName = m' ∧
+      ∃ (m : arena.handle.NIdx) (st1 st2 st3 st4 st5 : arena.monad.AState) (ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
+        (maxNatSize : ron.nat.Nat) (w : frontend.modular.worker.WorkerRead)
+        (ds : alloc.vec.Vec arena.env.IDeclaration) (ix : arena.stream_index.IStreamIndex)
+        (tier : arena.store.PersTier) (frozen : arena.store.EStore) (ws ws' : arena.monad.AState),
+        arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1) ∧
+        InternRoots emptyTier st1 [mName] [m] st2 ∧
+        arena.checker.intern_all_pins emptyTier st2 pins maxNatSize = ok (.Ok ipins, st3) ∧
+        frontend.modular.worker.worker_read finst fsv emptyTier st3 spR ipins m (alloc.vec.Vec.new _) = ok (.Ok w, st4) ∧
+        frontend.modular.worker.worker_decls w = ok ds ∧
+        (do
+          let e ← arena.stream_index.stream_index_empty
+          arena.stream_index.build_index emptyTier st4 e ds 0#usize) = ok (.Ok ix, st5) ∧
+        arena.checker.freeze_tier st5.store ix = ok (tier, frozen) ∧
+        arena.checker.worker_state st5.pins = ok ws ∧
+        frontend.modular.reach.infer_flags tier ws w.reach.ctx w.reach.pending = ok (.Ok (), ws') ∧
+        ParallelAll (ds.length - w.start.val) (oleanWorkerInit st5.pins)
+          (fun c k => oleanJobStepSol finst fsv tier .Verified ipins ds w.pins w.values
+            spR none c (w.start.val + k)))
+    (hcmp : ∃ (c sH : arena.handle.NIdx) (xi : frontend.olean.spec.ImportF arena.handle.NIdx)
+        (x : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)) (st1 st2 st3 st4 st5 : arena.monad.AState) (ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
+        (maxNatSize : ron.nat.Nat) (w : frontend.modular.worker.WorkerRead)
+        (ds : alloc.vec.Vec arena.env.IDeclaration) (ix : arena.stream_index.IStreamIndex)
+        (tier : arena.store.PersTier) (frozen : arena.store.EStore) (ws ws' : arena.monad.AState),
+        arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1) ∧
+        InternRoots emptyTier st1 [cName, sName] [c, sH] st2 ∧
+        frontend.modular.graph.solution_import sH = ok xi ∧ x.val = [xi] ∧
+        arena.checker.intern_all_pins emptyTier st2 pins maxNatSize = ok (.Ok ipins, st3) ∧
+        frontend.modular.worker.worker_read finst fsv emptyTier st3 spR ipins c x = ok (.Ok w, st4) ∧
+        frontend.modular.worker.worker_decls w = ok ds ∧
+        (do
+          let e ← arena.stream_index.stream_index_empty
+          arena.stream_index.build_index emptyTier st4 e ds 0#usize) = ok (.Ok ix, st5) ∧
+        arena.checker.freeze_tier st5.store ix = ok (tier, frozen) ∧
+        arena.checker.worker_state st5.pins = ok ws ∧
+        frontend.modular.reach.infer_flags tier ws w.reach.ctx w.reach.pending = ok (.Ok (), ws') ∧
+        ParallelAll (ds.length - w.start.val) (oleanWorkerInit st5.pins)
+          (fun c k => oleanJobStepSol finst fsv tier .Verified ipins ds w.pins w.values
+            spR none c (w.start.val + k)))
+    {m : ConLeche.Name} {ci : ConLeche.ConstantInfo}
+    (hcl : ConLeche.Frontend.Olean.InClosure
+      (ConLeche.Driver.trustedOr (absSearchPath tdirs) (absSearchPath ddirs) : ConLeche.Frontend.Olean.Roots)
+      F #[ConRon.Refine.absName cName] m)
+    (hci : ConLeche.Frontend.Olean.InModulePart
+      (ConLeche.Driver.trustedOr (absSearchPath tdirs) (absSearchPath ddirs) : ConLeche.Frontend.Olean.Roots)
+      F m .private ci)
+    (hty : ci.type = .const ConLeche.falseName []) : False :=
+  no_False_modular_compare_of ConRon.Bridge.Modular.reachRunHyp_holds V hsnap hsr hgr h1g hpk hroots hgraph hpins hwork hcmp hcl hci hty
+
 end RustModular
 
 /-! ## 5. The census
@@ -2272,5 +2469,14 @@ them. -/
 
 /-- info: 'ConRon.Capstone.no_False_modular_compare_of' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms no_False_modular_compare_of
+
+/-- info: 'ConRon.Capstone.model_modular' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms model_modular
+
+/-- info: 'ConRon.Capstone.model_modular_compare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms model_modular_compare
+
+/-- info: 'ConRon.Capstone.no_False_modular_compare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms no_False_modular_compare
 
 end ConRon.Capstone
