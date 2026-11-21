@@ -432,6 +432,28 @@ pub fn decl_constants_axiom(pers: &PersTier, st: &mut AState, cv: &IConstantVal)
     }
 }
 
+/// con-leche: ConLeche/Modular.lean:94-95 declNames
+/// **The names a record installs**: its constants' (`decl_constants`), in push
+/// order.
+pub fn decl_names(pers: &PersTier, st: &mut AState, d: &IDeclaration) -> Result<Vec<NIdx>, CheckError> {
+    match decl_constants(pers, st, d) {
+        Err(e) => Err(e),
+        Ok(cs) => Ok(constant_names(&cs, 0, Vec::with_capacity(cs.len()))),
+    }
+}
+
+/// con-leche: ConLeche/Modular.lean:94-95 declNames
+/// `cs.map (·.toConstantVal.name)`, from `i` on.
+pub fn constant_names(cs: &Vec<IConstantInfo>, i: usize, out: Vec<NIdx>) -> Vec<NIdx> {
+    if i >= cs.len() {
+        out
+    } else {
+        let mut out = out;
+        out.push(env::i_constant_info_name(&cs[i]));
+        constant_names(cs, i + 1, out)
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Install.lean:93-99 declTables
 /// con-leche: ConLeche/Cached/CheckerC.lean:57-63 declTablesC
 /// **The projection tables a declaration installs**: those of an inductive
