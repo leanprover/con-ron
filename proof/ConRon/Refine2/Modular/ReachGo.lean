@@ -187,6 +187,194 @@ theorem proof_status_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
     obtain ⟨rfl, rfl, rfl⟩ := e
     exact ⟨_, lst, rfl, ⟨hc, rfl⟩, hrel, hinv⟩
 
+/-! ## The caches' lists -/
+
+theorem ReachCacheRel.with_partners {c : frontend.modular.reach.ReachCache} {C : Modular.ReachCache}
+    (hc : ReachCacheRel c C) {v : alloc.vec.Vec (arena.handle.NIdx × arena.handle.NIdx)}
+    {A : Array (NIdx × NIdx)} (hv : v.val.map absNN = A.toList) :
+    ReachCacheRel { c with partners := v } { C with partners := A } :=
+  ⟨hc.tables, hc.looks, hc.parts, hc.recBlocks, hc.views, hc.located, hc.completed, hc.pending, hv,
+    hc.searches⟩
+
+theorem ReachCacheRel.push_pending {c : frontend.modular.reach.ReachCache} {C : Modular.ReachCache}
+    (hc : ReachCacheRel c C) {x y} (hx : PendingRel x y) {v} (hv : alloc.vec.Vec.push c.pending x = ok v) :
+    ReachCacheRel { c with pending := v } { C with pending := C.pending.push y } := by
+  refine ⟨hc.tables, hc.looks, hc.parts, hc.recBlocks, hc.views, hc.located, hc.completed, ?_,
+    hc.partners, hc.searches⟩
+  rw [ConRon.Refine.vec_push_val hv, Array.toList_push]
+  exact List.rel_append hc.pending (List.Forall₂.cons hx .nil)
+
+/-- A Rust tail that only fails. -/
+macro "err_peel" h:ident : tactic => `(tactic| (repeat (peel $h:ident as _, _)) <;> cases Result.ok_injective $h:ident)
+
+/-! ## Two copies agree -/
+
+/-- **`agree_check` is `agreeCheck`.** -/
+theorem agree_check_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
+    (he : ReachEnvRel env wr own E) {st lst} {c : frontend.modular.reach.ReachCache} {C : Modular.ReachCache}
+    (hc : ReachCacheRel c C) (h y : arena.handle.NIdx) (s1 s2 : frontend.modular.reach.Spot) :
+    ACS pers (fun _ c' b => ReachCacheRel c' b) st lst
+      (agree_check inst fsv pk pers st sp wr c h y s1 s2)
+      (Modular.agreeCheck fs (absPins pk) (absRoots sp) E C (absNIdx h) (absNIdx y) (absSpot s1) (absSpot s2)) := by
+  intro hrel hinv a st' c' hr
+  rw [agree_check] at hr
+  peel hr as b, hb
+  have eb := nidx_eq2_eq hb
+  unfold Modular.agreeCheck
+  by_cases cb : b = true
+  · rw [ite_eq_left cb] at hr
+    have e := Result.ok_injective hr
+    simp only [Prod.mk.injEq] at e
+    obtain ⟨-, rfl, rfl⟩ := e
+    have hm : ((absSpot s1).part.mod == (absSpot s2).part.mod) = true := by
+      rw [cb] at eb; simpa using eb.symm
+    simp only [hm, ↓reduceIte]
+    exact ⟨C, lst, rfl, hc, hrel, hinv⟩
+  · rw [ite_eq_right cb] at hr
+    have hm : ((absSpot s1).part.mod == (absSpot s2).part.mod) = false := by
+      have : b = false := by simpa using cb
+      rw [this] at eb; simpa using eb.symm
+    by_cases cs : s2.pos.skipped = true
+    · rw [ite_eq_left cs] at hr
+      err_peel hr
+    · rw [ite_eq_right cs] at hr
+      have hs' : (absNamePosition s2.pos).skipped = false := by simpa [absNamePosition] using cs
+      peel hr as q1, hq1
+      obtain ⟨r1, st1, c1⟩ := q1
+      cases r1 with
+      | Err e => cases Result.ok_injective hr
+      | Ok p1 =>
+      obtain ⟨⟨C1, cv1', k1'⟩, lst1, hx1, ⟨hc1, hcv1, hk1⟩, hrel1, hinv1⟩ :=
+        hP.stmtAt st lst c C s1 hc hrel hinv p1 st1 c1 hq1
+      obtain ⟨cv1, k1⟩ := p1
+      simp only at hcv1 hk1
+      subst hcv1
+      dsimp only [Std.uncurry] at hr
+      peel hr as q2, hq2
+      obtain ⟨r2, st2, c2⟩ := q2
+      cases r2 with
+      | Err e => cases Result.ok_injective hr
+      | Ok p2 =>
+      obtain ⟨⟨C2, cv2', k2'⟩, lst2, hx2, ⟨hc2, hcv2, hk2⟩, hrel2, hinv2⟩ :=
+        hP.stmtAt st1 lst1 c1 C1 s2 hc1 hrel1 hinv1 p2 st2 c2 hq2
+      obtain ⟨cv2, k2⟩ := p2
+      simp only at hcv2 hk2
+      subst hcv2
+      dsimp only [Std.uncurry] at hr
+      peel hr as b1, hb1
+      have eb1 := nidx_list_eq_abs hb1
+      by_cases c1' : b1 = true
+      swap
+      · rw [ite_eq_right c1'] at hr; err_peel hr
+      rw [ite_eq_left c1'] at hr
+      peel hr as b2, hb2
+      have eb2 := eidx_eq2_eq hb2
+      by_cases c2' : b2 = true
+      swap
+      · rw [ite_eq_right c2'] at hr; err_peel hr
+      rw [ite_eq_left c2'] at hr
+      have hlp : ((absStmtRec cv1).levelParams == (absStmtRec cv2).levelParams &&
+          (absStmtRec cv1).type == (absStmtRec cv2).type) = true := by
+        rw [c1'] at eb1; rw [c2'] at eb2
+        simp only [absStmtRec_levelParams, absStmtRec_type, ← eb1, ← eb2, Bool.and_self]
+      peel hr as q3, hq3
+      obtain ⟨r3, st3, c3⟩ := q3
+      cases r3 with
+      | Err e => cases Result.ok_injective hr
+      | Ok p3 =>
+      obtain ⟨⟨C3, ps1⟩, lst3, hx3, ⟨hc3, hps1⟩, hrel3, hinv3⟩ :=
+        proof_status_ok hP he hc2 s1 hk1 hrel2 hinv2 p3 st3 c3 hq3
+      simp only at hps1
+      subst hps1
+      dsimp only [Std.uncurry] at hr
+      peel hr as q4, hq4
+      obtain ⟨r4, st4, c4⟩ := q4
+      cases r4 with
+      | Err e => cases Result.ok_injective hr
+      | Ok p4 =>
+      obtain ⟨⟨C4, ps2⟩, lst4, hx4, ⟨hc4, hps2⟩, hrel4, hinv4⟩ :=
+        proof_status_ok hP he hc3 s2 hk2 hrel3 hinv3 p4 st4 c4 hq4
+      simp only at hps2
+      subst hps2
+      dsimp only [Std.uncurry] at hr
+      peel hr as b3, hb3
+      have eb3 := status_is_eq hb3
+      by_cases c3' : b3 = true
+      · rw [ite_eq_left c3'] at hr; err_peel hr
+      rw [ite_eq_right c3'] at hr
+      peel hr as b4, hb4
+      have eb4 := status_is_eq hb4
+      by_cases c4' : b4 = true
+      · rw [ite_eq_left c4'] at hr; err_peel hr
+      rw [ite_eq_right c4'] at hr
+      have hno : (Modular.statusIs (absProofStatus p3) false || Modular.statusIs (absProofStatus p4) false) = false := by
+        rw [← eb3, ← eb4]; simp_all
+      peel hr as q5, hq5
+      obtain ⟨r5, st5, v⟩ := q5
+      cases r5 with
+      | Err e => cases Result.ok_injective hr
+      | Ok u =>
+      obtain ⟨A5, lst5, hx5, hA5, hrel5, hinv5⟩ :=
+        partner_reads_ok c4.partners s2.part.module cv2.ty hrel4 hinv4 st5 v hq5
+      have eP : (c4.partners.val.map absNN).toArray = C4.partners := by rw [hc4.partners]
+      rw [eP] at hx5
+      have hc5 := hc4.with_partners hA5
+      -- the twin's run up to the partners' reads
+      simp only [hm, hs', Bool.false_eq_true, ↓reduceIte, pure_bind]
+      rw [am_bind_ok hx1]
+      dsimp only
+      rw [am_bind_ok hx2]
+      dsimp only
+      simp only [hlp, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+      rw [am_bind_ok hx3]
+      dsimp only
+      rw [am_bind_ok hx4]
+      dsimp only
+      simp only [hno, Bool.false_eq_true, ↓reduceIte]
+      beta_reduce at hx5
+      rw [absStmtRec_type, am_bind_ok hx5]
+      peel hr as b5, hb5
+      have eb5 := status_is_eq hb5
+      by_cases c5 : b5 = true
+      · rw [ite_eq_left c5] at hr
+        have e := Result.ok_injective hr
+        simp only [Prod.mk.injEq] at e
+        obtain ⟨-, rfl, rfl⟩ := e
+        have hy : (Modular.statusIs (absProofStatus p3) true || Modular.statusIs (absProofStatus p4) true) = true := by
+          rw [← eb5, c5]; rfl
+        refine ⟨{ C4 with partners := A5 }, lst5, ?_, hc5, hrel5, hinv5⟩
+        simp only [hy, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+        rfl
+      · rw [ite_eq_right c5] at hr
+        peel hr as b6, hb6
+        have eb6 := status_is_eq hb6
+        by_cases c6 : b6 = true
+        · rw [ite_eq_left c6] at hr
+          have e := Result.ok_injective hr
+          simp only [Prod.mk.injEq] at e
+          obtain ⟨-, rfl, rfl⟩ := e
+          have hy : (Modular.statusIs (absProofStatus p3) true || Modular.statusIs (absProofStatus p4) true) = true := by
+            rw [← eb5, ← eb6, c6]; simp
+          refine ⟨{ C4 with partners := A5 }, lst5, ?_, hc5, hrel5, hinv5⟩
+          simp only [hy, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+          rfl
+        · rw [ite_eq_right c6] at hr
+          have hy : (Modular.statusIs (absProofStatus p3) true || Modular.statusIs (absProofStatus p4) true) = false := by
+            rw [← eb5, ← eb6]; simp_all
+          peel hr as w, -
+          simp only [nidx_dup2_eq, Aeneas.Std.bind_ok] at hr
+          peel hr as v1, hv1
+          have e := Result.ok_injective hr
+          simp only [Prod.mk.injEq] at e
+          obtain ⟨-, rfl, rfl⟩ := e
+          obtain ⟨t, ht⟩ := captureWhat_run (absNIdx h) (absNIdx y) lst5
+          refine ⟨{ { C4 with partners := A5 } with
+              pending := C4.pending.push (t, absNIdx y, absStmtRec cv1) }, lst5, ?_,
+            hc5.push_pending (x := (w, y, cv1)) ⟨rfl, rfl⟩ hv1, hrel5, hinv5⟩
+          simp only [hy, Bool.not_false, ↓reduceIte]
+          rw [am_bind_ok ht]
+          rfl
+
 end reads
 
 end ConRon.Refine2.Modular
