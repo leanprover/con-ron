@@ -21,6 +21,7 @@ module
 public import ConRon.Bridge.Modular.Rel
 public import ConRon.Bridge.Frontend.Olean.Sparse
 public import ConRon.Bridge.Modular.ReadsParts
+public import ConRon.Bridge.Modular.Accepted
 public import ConRon.Bridge.Frontend.Olean.Parse
 public import ConRon.Bridge.Frontend.Olean.Closure
 public import ConRon.Bridge.Frontend.Olean.MergeAll
@@ -1409,5 +1410,32 @@ theorem checkViews_run {pk : OleanPins} {m : NIdx} {mC : Name} {f : ModFiles}
   unfold simpsOf at himps
   simp [hr, hloc, hS, hP, himps, hcn1, hcn2, hU1, hU2, bind, Except.bind]
   rfl
+
+/-! ## The home -/
+
+/-- con-leche: ConLeche/Verify/Driver/Worker.lean WorkerFacts.home — **the worker's home at the
+twin is upstream's**: the private part's files read off the snapshot, their private view a load
+by the specification (`LoadOf`), its views' check upstream's accept, the load read back, its
+frontier good on the files' region. -/
+theorem homeHyp_holds : HomeHyp := by
+  intro pk F sp s s₁ s' m mC f l expo hsp hctx hpins hm hrf hhome
+  cases hr : ConRon.Arena.Frontend.Olean.readFiles (modelFs F) sp mC .private with
+  | error e =>
+    simp only [hr, ConRon.Arena.Frontend.Olean.liftE] at hrf
+    exact (AM.fail_ok hrf).elim
+  | ok f' =>
+  simp only [hr, ConRon.Arena.Frontend.Olean.liftE] at hrf
+  obtain ⟨hv, rfl⟩ := AM.pure_ok hrf
+  subst hv
+  have hgives := readFiles_sim (roots_ok_of_bare hsp) rfl hr
+  unfold ConRon.Arena.Modular.homeOf at hhome
+  obtain ⟨l', s₂, h1, hA⟩ := AM.bind_ok hhome
+  obtain ⟨expo', s₃, h2, hB⟩ := AM.bind_ok hA
+  obtain ⟨hv, rfl⟩ := AM.pure_ok hB
+  cases hv
+  obtain ⟨hst1, hfg, lC, hrel, hload⟩ := loadView_run hctx hpins hm h1
+  obtain ⟨-, -, ⟨r, a, sk, imports, -, -, -, hpre⟩⟩ := id hload
+  obtain ⟨hst2, hcv⟩ := checkViews_run (mC := mC) (hctx.step hst1) hrel hpre h2
+  exact ⟨hst1.trans hst2, lC, expo, hgives, hload, hcv, hrel.ext hst2.ext, hfg.ext hst2.ext⟩
 
 end ConRon.Bridge.Modular.Home
