@@ -15,7 +15,7 @@ twins (`Arena/Modular/Worker.lean`).
 * The checks whose rejects name records (`copy_against`, `copy_check`, `own_hole_ok`,
   `own_holes_ok`, `copies_ok`) claim their accept only (`LA`): the twin's message reads the names
   back with `readName`, which declines a dangling handle at another kind.  `copies_ok` takes the
-  accepts of `reach::owner_map` (lane L2's STUB) and `copy_recs`, `own_holes_ok` that of
+  accepts of `reach::owner_map` (lane L2's, no Theorem 2 yet) and `copy_recs`, `own_holes_ok` that of
   `recs_loaded` (lane L3-H1's), as hypotheses.
 * `copy_msg` only builds a reject: no theorem.
 -/
@@ -981,7 +981,7 @@ theorem copies_ok_loop1_la {pers : arena.store.PersTier} {fe : arena.env.IFEnv} 
 
 
 /-- **`copies_ok`'s accept is `copiesOk`'s**, over a tier whose frozen base is empty, from the
-accepts of the context's owner table (`owner_map`, lane L2's STUB: `hom`, an `IdxRel`) and of
+accepts of the context's owner table (`owner_map`, lane L2's, no Theorem 2 yet: `hom`, an `IdxRel`) and of
 the copies' selection (`copy_recs`, lane L3-H1's: `hcr`).  The worker's reads only name a
 reject, so the twin's are any. -/
 theorem copies_ok_la {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)

@@ -8,7 +8,7 @@ set `HashMap2<NIdx, bool>` is `NSet`, the load's index by name `IdxRel`, a load'
 pin ground's reader walks are `UOut`/`UOutS` (`nat_op_ground`'s shapes); every other state
 walk is a lockstep `LS`.
 
-**Hypotheses, not theorems.**  `reach::record_reads` is lane L2's (a stub): `records_roots`,
+**Hypotheses, not theorems.**  `reach::record_reads` is lane L2's, with no Theorem 2 yet: `records_roots`,
 `own_roots`, `roots_at` take its Theorem 2 as `RecordReadsRel`.  `view::parse_all_views` and
 `module::check_views` have no Theorem 2 yet: `home_of_refines` takes theirs as `hPV`, `hCV`.
 `reach::decl_names` (lane L2's) is proved here (`decl_names_ls`).
@@ -1139,7 +1139,7 @@ theorem decl_names_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AS
 
 /-! ## `records_roots`, `own_roots`, `ground_roots` -/
 
-/-- **`reach::record_reads` is `recordReads`** — lane L2's (a STUB here): the shape its
+/-- **`reach::record_reads` is `recordReads`** — lane L2's, with no Theorem 2 yet: the shape its
 Theorem 2 is expected to have, taken as a hypothesis. -/
 def RecordReadsRel (pers : arena.store.PersTier) : Prop :=
   ∀ {st lst} (d : arena.env.IDeclaration), AStateRel₀ pers st lst → AStateInv pers st →
