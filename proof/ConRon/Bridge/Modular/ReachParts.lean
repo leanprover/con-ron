@@ -528,7 +528,7 @@ theorem viewOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
   unfold ConRon.Arena.Modular.homeLoads at g2
   rw [ht] at g2
   have hctx1 := hctx.step hst1
-  obtain ⟨hst2, ldC, hgl, hlr, -⟩ := headerFixpoint_givesR hsp hctx1.ctx htr.imports g2
+  obtain ⟨hst2, ldC, hgl, hlr, -⟩ := headerFixpoint_gives hsp hctx1.ctx htr.imports g2
   have hds2 := DStep.of_parse hctx1.ok hctx1.off hst2
   have hctx2 := hctx1.step hds2
   have hw2 := hctx2.wf

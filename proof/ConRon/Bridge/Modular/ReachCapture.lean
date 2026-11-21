@@ -87,4 +87,115 @@ theorem importerSpot_rel {st : EStore} (hw : NStoreWF st.ns) {pk : OleanPins} (h
       refine .some ⟨rfl, ⟨nameAt_rel hp he.wr.loads cp.mod, ?_⟩, g3⟩
       simp [ConRon.Arena.Frontend.Olean.HeaderLoads.levelAt, he.wr.loads.flags]
 
+/-! ## A copy's proof flag -/
+
+theorem tagStatus_eq (n : Nat) :
+    psC (if n == 2 then .yes else if n == 0 || n == 1 || n == 3 then .infer else .no) =
+      (match n with
+        | 2 => .yes
+        | 0 | 1 | 3 => .infer
+        | _ => .no) := by
+  rcases n with _ | _ | _ | _ | n <;> simp [psC]
+  omega
+
+/-- con-leche: ConLeche/Driver/Reach.lean:384-402 proofStatus — **a copy's proof flag**,
+upstream's. -/
+theorem proofStatus_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
+    {sp₀ : ConRon.Arena.Modular.Spot} {spC : ConLeche.Driver.Spot}
+    {k : CKindF NIdx Unit} {kC : CKindF ConLeche.Name Unit} {p : ConRon.Arena.Modular.ProofStatus}
+    {s s' : AState}
+    (hctx : RCtx pk s) (he : EnvRel sp s.store env envC) (hc : CacheRel s.store c cC)
+    (hs : SpotRel s.store sp₀ spC) (hk : denoteKindN s.store k = some kC)
+    (h : ConRon.Arena.Modular.proofStatus (modelFs F) pk sp env c sp₀ k s = .ok ((c', p), s')) :
+    DStep s s' ∧ ∃ cC', ModelIO.Gives (ConLeche.Driver.proofStatus envC cC spC kC) F
+        (cC', .ok (psC p)) ∧ CacheRel s'.store c' cC' := by
+  have refl : ∀ {q : ConRon.Arena.Modular.ProofStatus},
+      (pure (c, q) : AM _) s = .ok ((c', p), s') → c' = c ∧ p = q ∧ s' = s := by
+    intro q hq
+    obtain ⟨hv, rfl⟩ := AM.pure_ok hq
+    simp only [Prod.mk.injEq] at hv
+    exact ⟨hv.1, hv.2, rfl⟩
+  unfold ConRon.Arena.Modular.proofStatus at h
+  unfold ConLeche.Driver.proofStatus
+  cases k with
+  | thm v all =>
+    simp only [denoteKindN, CKindF.mapM] at hk
+    obtain ⟨as, -, hk⟩ := ConLeche.Frontend.Olean.bind_some_left hk
+    cases hk
+    obtain ⟨rfl, rfl, rfl⟩ := refl h
+    exact ⟨DStep.refl hctx.ok hctx.off, cC, ModelIO.gives_pure _ _, hc⟩
+  | defn v hh sf =>
+    simp only [denoteKindN, CKindF.mapM] at hk
+    cases hk
+    obtain ⟨rfl, rfl, rfl⟩ := refl h
+    exact ⟨DStep.refl hctx.ok hctx.off, cC, ModelIO.gives_pure _ _, hc⟩
+  | opaq v u =>
+    simp only [denoteKindN, CKindF.mapM] at hk
+    cases hk
+    obtain ⟨rfl, rfl, rfl⟩ := refl h
+    exact ⟨DStep.refl hctx.ok hctx.off, cC, ModelIO.gives_pure _ _, hc⟩
+  | ax u =>
+    simp only [denoteKindN, CKindF.mapM] at hk
+    cases hk
+    have hlev : (sp₀.part.level == .private) = (spC.part.level == .private) := by rw [hs.1.2]
+    by_cases h1 : (sp₀.part.level == .private) = true
+    · simp only [h1, ↓reduceIte] at h
+      obtain ⟨rfl, rfl, rfl⟩ := refl h
+      rw [hlev] at h1
+      refine ⟨DStep.refl hctx.ok hctx.off, cC, ?_, hc⟩
+      simp only [h1, ↓reduceIte]
+      exact ModelIO.gives_pure _ _
+    simp only [h1, Bool.false_eq_true, ↓reduceIte, pure_bind] at h
+    obtain ⟨⟨c₁, q⟩, s₁, g1, k1⟩ := AM.bind_ok h
+    obtain ⟨hst1, cC₁, qC, hgq, hc1, hq⟩ := privSpot_run hsp hctx he hc hs g1
+    have h1C : (spC.part.level == .private) = false := by rw [← hlev]; simpa using h1
+    have htag := hq.2.tag
+    have key : ∀ x, (x : AM (ConRon.Arena.Modular.ReachCache × ConRon.Arena.Modular.ProofStatus)) =
+        pure (c₁, if q.pos.tag == 2 then .yes else if q.pos.tag == 0 || q.pos.tag == 1 ||
+          q.pos.tag == 3 then .infer else .no) → x s₁ = .ok ((c', p), s') →
+        c' = c₁ ∧ psC p = (match qC.pos.tag with | 2 => .yes | 0 | 1 | 3 => .infer | _ => .no) ∧
+          s' = s₁ := by
+      intro x hx hrun
+      rw [hx] at hrun
+      obtain ⟨hv, rfl⟩ := AM.pure_ok hrun
+      simp only [Prod.mk.injEq] at hv
+      obtain ⟨rfl, rfl⟩ := hv
+      exact ⟨rfl, by rw [tagStatus_eq, htag], rfl⟩
+    obtain ⟨rfl, hps, rfl⟩ := key _ (by
+      by_cases t2 : q.pos.tag == 2 <;> simp only [t2, ↓reduceIte] <;>
+        by_cases t0 : (q.pos.tag == 0 || q.pos.tag == 1 || q.pos.tag == 3) <;>
+          simp [t0]) k1
+    refine ⟨hst1, cC₁, ?_, hc1⟩
+    simp only [h1C, Bool.false_eq_true, ↓reduceIte]
+    refine hgq.bind ?_
+    rw [hps]
+    exact ModelIO.gives_pure _ _
+  | quot q =>
+    simp only [denoteKindN, CKindF.mapM] at hk
+    cases hk
+    obtain ⟨rfl, rfl, rfl⟩ := refl h
+    exact ⟨DStep.refl hctx.ok hctx.off, cC, ModelIO.gives_pure _ _, hc⟩
+  | induct np ni all cs nn ir iu irf =>
+    simp only [denoteKindN, CKindF.mapM] at hk
+    obtain ⟨_, -, hk⟩ := ConLeche.Frontend.Olean.bind_some_left hk
+    obtain ⟨_, -, hk⟩ := ConLeche.Frontend.Olean.bind_some_left hk
+    cases hk
+    obtain ⟨rfl, rfl, rfl⟩ := refl h
+    exact ⟨DStep.refl hctx.ok hctx.off, cC, ModelIO.gives_pure _ _, hc⟩
+  | ctor ind ci np nf iu =>
+    simp only [denoteKindN, CKindF.mapM] at hk
+    obtain ⟨_, -, hk⟩ := ConLeche.Frontend.Olean.bind_some_left hk
+    cases hk
+    obtain ⟨rfl, rfl, rfl⟩ := refl h
+    exact ⟨DStep.refl hctx.ok hctx.off, cC, ModelIO.gives_pure _ _, hc⟩
+  | recur all np ni nmo nmi rules kk iu =>
+    rw [denoteKindN, recur_mapM] at hk
+    obtain ⟨_, -, hk⟩ := ConLeche.Frontend.Olean.bind_some_left hk
+    obtain ⟨_, -, hk⟩ := ConLeche.Frontend.Olean.bind_some_left hk
+    cases hk
+    obtain ⟨rfl, rfl, rfl⟩ := refl h
+    exact ⟨DStep.refl hctx.ok hctx.off, cC, ModelIO.gives_pure _ _, hc⟩
+
 end ConRon.Bridge.Modular

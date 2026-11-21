@@ -13,6 +13,7 @@ A simulation in the run style (`Bridge/Frontend/Olean/Closure.lean`'s), not a `v
 module
 
 public import ConRon.Bridge.Modular.Rel
+public import ConRon.Bridge.Modular.Reads
 public import ConRon.Bridge.Modular.Graph
 public import ConRon.Bridge.Modular.ReadsParts
 public import ConRon.Bridge.Modular.Worker
@@ -182,121 +183,6 @@ theorem MRel.erase {α β : Type} {R : α → β → Prop} {st : EStore} (hw : N
       have hx : ¬ k = x := fun hx => he (hk.func (hx ▸ h1))
       exact ⟨x, a', h1, by simp [Std.HashMap.getElem?_erase, hx, h2], h3⟩
 
-/-! ## Shared pieces (copies of L6a's, to be deduplicated when its files build) -/
-
-/-- con-leche: none — **the loads' indices hold only the loaded modules**, on both sides: what
-makes the loads' relation survive the store's growth (`LoadsRel.ext'`). -/
-@[expose] def LoadKeys (ld : ConRon.Arena.Frontend.Olean.HeaderLoads)
-    (ldC : ConLeche.Frontend.Olean.HeaderLoads) : Prop :=
-  (∀ (h : NIdx) (k : Nat), ld.index[h]? = some k → h ∈ ld.order.toList) ∧
-    (∀ (n : ConLeche.Name) (k : Nat), ldC.index[n]? = some k → ldC.order[k]? = some n)
-
-theorem foldIdx_keysR :
-    ∀ (l : List NIdx) (M : Std.HashMap NIdx Nat) (i : Nat) (h : NIdx) (j : Nat),
-      (l.foldl (fun (acc : Std.HashMap NIdx Nat × Nat) m => (acc.1.insert m acc.2, acc.2 + 1))
-        (M, i)).1[h]? = some j → h ∈ l ∨ (M[h]?).isSome = true
-  | [], M, i, h, j, hj => .inr (by simp at hj; simp [hj])
-  | m :: l, M, i, h, j, hj => by
-    rw [List.foldl_cons] at hj
-    rcases foldIdx_keysR l _ _ h j hj with hh | hh
-    · exact .inl (List.mem_cons_of_mem _ hh)
-    · rw [Std.HashMap.getElem?_insert] at hh
-      split at hh
-      · rename_i he
-        obtain rfl := eq_of_beq he
-        exact .inl List.mem_cons_self
-      · exact .inr hh
-
-/-- The loads' relation at a larger store. -/
-theorem loadsRel_extR {st st' : EStore} (hx : Ext st st') (hw' : NStoreWF st'.ns)
-    {ld : ConRon.Arena.Frontend.Olean.HeaderLoads} {ldC : ConLeche.Frontend.Olean.HeaderLoads}
-    (h : LoadsRel st ld ldC) (hk : LoadKeys ld ldC) : LoadsRel st' ld ldC := by
-  refine ⟨NR_list_ext hx h.order, h.flags,
-    listRel_ext (fun _ _ hi => ImpsD.ext hx hi) h.imports, fun a n hd => ?_⟩
-  rcases hdo : denoteN st.ns a with _ | n₀
-  · have h1 : ld.index[a]? = none := by
-      cases hi : ld.index[a]? with
-      | none => rfl
-      | some k =>
-        obtain ⟨b, -, hab⟩ := listRel_memL h.order (hk.1 a k hi)
-        have hab' : denoteN st.ns a = some b := hab
-        rw [hdo] at hab'; cases hab'
-    have h2 : ldC.index[n]? = none := by
-      cases hi : ldC.index[n]? with
-      | none => rfl
-      | some k =>
-        have ho := hk.2 n k hi
-        rcases optRel_cases (listRel_getElem? h.order k) with ⟨g1, g2⟩ | ⟨b₁, c₁, g1, g2, g3⟩
-        · rw [Array.getElem?_toList] at g2; rw [ho] at g2; cases g2
-        · rw [Array.getElem?_toList] at g2; rw [ho] at g2; cases g2
-          have g3' : denoteN st.ns b₁ = some n := g3
-          have := denoteN_inj hw' (denoteN_ext g3' hx) hd
-          subst this
-          rw [hdo] at g3'; cases g3'
-    rw [h1, h2]
-  · have := denoteN_ext hdo hx
-    rw [hd] at this
-    cases this
-    exact h.index a _ hdo
-
-/-- con-leche: ConLeche/Verify/Driver/Loads.lean:669 headerFixpoint_sound — `headerFixpoint_run`,
-upstream's run given from any open handles. -/
-theorem headerFixpoint_givesR {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
-    {isM : Bool} {imps : Array (ImportF NIdx)} {impsC : Array ImportRec}
-    {ld : ConRon.Arena.Frontend.Olean.HeaderLoads} {s s' : AState} (hctx : Ctx pk s)
-    (hi : imps.toList.mapM (denoteImport s.store) = some impsC.toList)
-    (h : ConRon.Arena.Frontend.Olean.headerFixpoint (modelFs F) pk sp isM imps s = .ok (ld, s')) :
-    ParseStep s s' ∧ ∃ ldC, ModelIO.Gives
-      (ConLeche.Frontend.Olean.headerFixpoint (ConLeche.Frontend.Olean.moduleImports sp) isM impsC :
-        ModelIO _) F (.ok ldC) ∧ LoadsRel s'.store ld ldC ∧ LoadKeys ld ldC := by
-  unfold ConRon.Arena.Frontend.Olean.headerFixpoint at h
-  obtain ⟨x, s₁, h1, h2⟩ := AM.bind_ok h
-  obtain ⟨hv, hs⟩ := AM.pure_ok h2
-  subst hv hs
-  obtain ⟨hst, xC, hG, hR⟩ := levelsGo_run hsp _ _ _ _ _ {} hctx (ofImports_rel _ hi)
-    ⟨HMRel.empty _ _, SetRel.empty _, .nil, HMRel.empty _ _⟩ h1
-  have hC : ModelIO.Gives
-      (ConLeche.Frontend.Olean.headerFixpoint (ConLeche.Frontend.Olean.moduleImports sp) isM impsC :
-        ModelIO _) F (.ok
-      { order := xC.order, flags := xC.order.map fun m => (xC.flags[m]?).getD default,
-        imports := xC.order.map fun m => (xC.imports[m]?).getD #[],
-        index := xC.order.foldl (fun (acc : Std.HashMap ConLeche.Name Nat × Nat) m =>
-          (acc.1.insert m acc.2, acc.2 + 1)) ({}, 0) |>.1 }) := by
-    unfold ConLeche.Frontend.Olean.headerFixpoint
-    dsimp only
-    refine hG.bind ?_
-    exact ModelIO.gives_pure _ _
-  obtain ⟨-, -, hnd, -, hkC⟩ := ConLeche.Driver.headerFixpoint_sound hC.canGive
-  refine ⟨hst, _, hC, ofState_rel (nsWF_of_StateOK hst.ok) hR hnd, fun h k hk => ?_, hkC⟩
-  have := ofStateGo_index x.flags x.order.toList 0 x.imports #[] #[] {}
-  unfold ConRon.Arena.Frontend.Olean.HeaderLoads.ofState at hk ⊢
-  generalize ConRon.Arena.Frontend.Olean.HeaderLoads.ofStateGo x.flags x.order.toList 0 x.imports
-    #[] #[] {} = r at this hk
-  obtain ⟨fl, is, ix⟩ := r
-  simp only at this hk ⊢
-  subst this
-  rcases foldIdx_keysR _ _ _ _ _ hk with h | h
-  · exact h
-  · simp at h
-
-theorem denoteStmt_partsR {st : EStore} {c : ConRon.Arena.Frontend.Olean.StmtRec} {z : ConstantVal}
-    (h : denoteStmt st c = some z) :
-    denoteN st.ns c.name = some z.name ∧ c.levelParams.mapM (denoteN st.ns) = some z.levelParams ∧
-      denoteE st c.type = some z.type := by
-  simp only [denoteStmt] at h
-  obtain ⟨a, ha, h⟩ := bind_some_left h
-  obtain ⟨b, hb, h⟩ := bind_some_left h
-  obtain ⟨c', hc, h⟩ := bind_some_left h
-  simp only [pure, Option.some.injEq] at h
-  subst h
-  exact ⟨ha, hb, hc⟩
-
-theorem denoteStmt_extR {st st' : EStore} (hx : Ext st st') {c : ConRon.Arena.Frontend.Olean.StmtRec}
-    {z : ConstantVal} (h : denoteStmt st c = some z) : denoteStmt st' c = some z := by
-  obtain ⟨h1, h2, h3⟩ := denoteStmt_partsR h
-  simp only [denoteStmt, denoteN_ext h1 hx, mapM_denoteN_ext hx h2, denote_ext h3 hx]
-  rcases z with ⟨a, b, c⟩; rfl
-
 /-! ## The reach's environment and caches -/
 
 /-- con-leche: ConLeche/Driver/Reach.lean:174-185 ReachEnv — a clashing name's copies read back. -/
@@ -316,7 +202,7 @@ structure EnvRel (sp : Roots) (st : EStore) (env : ConRon.Arena.Modular.ReachEnv
   rd : envC.rd = .ofPath sp
   mod : denoteN st.ns env.mod = some envC.mod
   wr : WorkerReadsRel st env.wr envC.wr
-  keys : LoadKeys env.wr.loads envC.wr.loads
+  keys : LoadsKeys env.wr.loads envC.wr.loads
   own : SetRel st env.own envC.own
   copies : HMRel (CopiesRel st) st env.copies envC.copies
 
@@ -349,7 +235,7 @@ theorem NN.ext {st st' : EStore} (hx : Ext st st') {a : NIdx × NIdx}
 theorem PendRel.ext {st st' : EStore} (hx : Ext st st')
     {a : String × NIdx × ConRon.Arena.Frontend.Olean.StmtRec} {b : String × ConLeche.Name × ConstantVal}
     (h : PendRel st a b) : PendRel st' a b :=
-  ⟨denoteN_ext h.1 hx, denoteStmt_extR hx h.2⟩
+  ⟨denoteN_ext h.1 hx, denoteStmt_ext hx h.2⟩
 
 theorem CacheRel.ext {st st' : EStore} (hx : Ext st st') {c : ConRon.Arena.Modular.ReachCache}
     {cC : ConLeche.Driver.ReachCache} (h : CacheRel st c cC) : CacheRel st' c cC :=
@@ -363,29 +249,18 @@ theorem CacheRel.ext {st st' : EStore} (hx : Ext st st') {c : ConRon.Arena.Modul
 
 /-! ## The reads' relations at a larger store -/
 
-theorem IndexRel.extR {st st' : EStore} {ix : ConRon.Arena.Frontend.Olean.NameIndex}
-    {ixC : ConLeche.Frontend.Olean.NameIndex} (h : IndexRel st ix ixC) (hx : Ext st st') :
-    IndexRel st' ix ixC :=
-  ⟨listRel_ext (fun _ _ hp => hp.ext hx) h.parts, h.first.ext hx (fun _ _ h => h),
-    listRel_ext (fun _ _ hq => ⟨denoteN_ext hq.1 hx, hq.2⟩) h.more⟩
-
-theorem ClashRel.extR {st st' : EStore} (hx : Ext st st') {cl : ConRon.Arena.Frontend.Olean.Clash}
-    {clC : ConLeche.Frontend.Olean.Clash} (h : ClashRel st cl clC) : ClashRel st' cl clC :=
-  ⟨denoteN_ext h.name hx, listRel_ext (fun _ _ hc => ⟨hc.1, denoteStmt_extR hx hc.2.1,
-    denoteKindN_ext hx hc.2.2⟩) h.copies⟩
-
 theorem WorkerReadsRel.extR {st st' : EStore} (hx : Ext st st') (hw' : NStoreWF st'.ns)
     {wr : ConRon.Arena.Frontend.Olean.WorkerReads} {wrC : ConLeche.Frontend.Olean.WorkerReads}
-    (h : WorkerReadsRel st wr wrC) (hk : LoadKeys wr.loads wrC.loads) : WorkerReadsRel st' wr wrC :=
-  ⟨h.own.ext hx, loadsRel_extR hx hw' h.loads hk, h.pub, h.index.extR hx,
-    listRel_ext (fun _ _ hc => hc.extR hx) h.clashes⟩
+    (h : WorkerReadsRel st wr wrC) (hk : LoadsKeys wr.loads wrC.loads) : WorkerReadsRel st' wr wrC :=
+  ⟨h.own.ext hx, ConRon.Bridge.Frontend.Olean.LoadsRel.ext' hx hw' h.loads hk, h.pub, h.index.ext' hx,
+    listRel_ext (fun _ _ hc => hc.ext hx) h.clashes⟩
 
 theorem EnvRel.ext {sp : Roots} {st st' : EStore} (hx : Ext st st') (hw' : NStoreWF st'.ns)
     {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
     (h : EnvRel sp st env envC) : EnvRel sp st' env envC :=
   ⟨h.rd, denoteN_ext h.mod hx, h.wr.extR hx hw' h.keys, h.keys, h.own.ext hx,
     h.copies.ext hx (fun _ _ h => ListRel.mono' (fun _ _ h => ⟨denoteN_ext h.1 hx,
-      denoteStmt_extR hx h.2⟩) h)⟩
+      denoteStmt_ext hx h.2⟩) h)⟩
 
 /-! ## A part's name table -/
 
