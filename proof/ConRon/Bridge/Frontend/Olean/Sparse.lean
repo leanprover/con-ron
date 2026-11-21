@@ -2,7 +2,7 @@
 # `ConRon.Bridge.Frontend.Olean.Sparse` — the sparse decoder, Theorem 1 (task #166)
 
 **A memo whose every value denotes the specification's at its location stays so** under the
-twin's sparse read `sGo` (`sGo_run`), and the read holds what it was asked for.  `SMGood` is the
+twin's sparse read `sGo` (`sparseGo_run`), and the read holds what it was asked for.  `SparseGood` is the
 invariant: per kind, a memo's handle denotes `nameAt`/`levelAt`/`levelsAt`/`exprAt` at its
 location; the frontier is `FrontierGood` (`Bridge/Frontend/Olean/Closure.lean`).  Each object is
 built by its node function over the memo (`nameNode_run` …, `Bridge/Frontend/Olean/Nodes.lean`),
@@ -30,18 +30,18 @@ open ConLeche.Frontend.Olean (Region Kid kName kLevel kLevels kExpr kidTable nam
 
 /-- con-leche: ConLeche/Verify/Frontend/Olean/Sparse.lean:81 SM.Good — **a memo of handles that
 denote the specification's values** at their locations. -/
-structure SMGood (st : EStore) (r : Region) (m : SM) : Prop where
+structure SparseGood (st : EStore) (r : Region) (m : SM) : Prop where
   names : ∀ c x, m.names[c]? = some x → ∃ n, nameAt r c = some n ∧ denoteN st.ns x = some n
   levels : ∀ c x, m.levels[c]? = some x → ∃ u, levelAt r c = some u ∧ denoteL st.ls x = some u
   lists : ∀ c x, m.lists[c]? = some x → ∃ us, levelsAt r c = some us ∧ denoteLs st.lss x = some us
   exprs : ∀ c x, m.exprs[c]? = some x → ∃ e, exprAt r c = some e ∧ denoteE st x = some e
 
-theorem SMGood.empty (st : EStore) (r : Region) : SMGood st r {} :=
+theorem SparseGood.empty (st : EStore) (r : Region) : SparseGood st r {} :=
   ⟨fun _ _ h => by simp at h, fun _ _ h => by simp at h, fun _ _ h => by simp at h,
     fun _ _ h => by simp at h⟩
 
-theorem SMGood.ext {st st' : EStore} {r : Region} {m : SM} (h : SMGood st r m) (hx : Ext st st') :
-    SMGood st' r m :=
+theorem SparseGood.ext {st st' : EStore} {r : Region} {m : SM} (h : SparseGood st r m) (hx : Ext st st') :
+    SparseGood st' r m :=
   ⟨fun c x hc => let ⟨n, a, b⟩ := h.names c x hc; ⟨n, a, denoteN_ext b hx⟩,
    fun c x hc => let ⟨n, a, b⟩ := h.levels c x hc; ⟨n, a, denoteL_ext b hx⟩,
    fun c x hc => let ⟨n, a, b⟩ := h.lists c x hc; ⟨n, a, denoteLs_ext b hx⟩,
@@ -49,7 +49,7 @@ theorem SMGood.ext {st st' : EStore} {r : Region} {m : SM} (h : SMGood st r m) (
 
 /-! ## Lookups -/
 
-theorem lookup_good {α : Type} {m : Std.HashMap Nat α} {t : ConLeche.Frontend.Olean.Table α}
+theorem sparseLookup_good {α : Type} {m : Std.HashMap Nat α} {t : ConLeche.Frontend.Olean.Table α}
     {P : Nat → α → Prop} (hm : ∀ c x, m[c]? = some x → P c x) (ht : TableRel P t) {c : Nat}
     {x : α} (h : lookup m t c = some x) : P c x := by
   unfold lookup at h
@@ -71,7 +71,7 @@ theorem lookup_isSome {α : Type} {m : Std.HashMap Nat α} {t : ConLeche.Fronten
     · exact h
 
 /-- The memo over the frontier as a node's `sub` denotes at every location it answers. -/
-theorem subIn_good {st : EStore} {r : Region} {m : SM} {b : Frontier} (hm : SMGood st r m)
+theorem subIn_good {st : EStore} {r : Region} {m : SM} {b : Frontier} (hm : SparseGood st r m)
     (hb : FrontierGood st r b) (k : UInt8) (g : Nat)
     (hk : ∀ k' c, Kid r k g k' c → m.holds b k' c = true) :
     SubRel st r k g (m.subIn b) (fun c _ => exprAt r c) (fun c _ => nameAt r c)
@@ -86,22 +86,22 @@ theorem subIn_good {st : EStore} {r : Region} {m : SM} {b : Frontier} (hm : SMGo
   · have hh := hk _ _ hc
     simp only [SM.holds, SM.has, Frontier.has, ↓reduceIte] at hh
     obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp (lookup_isSome (Bool.or_eq_true _ _ ▸ hh))
-    obtain ⟨n, h1, h2⟩ := lookup_good hm.names hb.names hx
+    obtain ⟨n, h1, h2⟩ := sparseLookup_good hm.names hb.names hx
     exact ⟨x, n, hx, h2, h1⟩
   · have hh := hk _ _ hc
     simp only [SM.holds, SM.has, Frontier.has, hne1.symm, ↓reduceIte] at hh
     obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp (lookup_isSome (Bool.or_eq_true _ _ ▸ hh))
-    obtain ⟨n, h1, h2⟩ := lookup_good hm.levels hb.levels hx
+    obtain ⟨n, h1, h2⟩ := sparseLookup_good hm.levels hb.levels hx
     exact ⟨x, n, hx, h2, h1⟩
   · have hh := hk _ _ hc
     simp only [SM.holds, SM.has, Frontier.has, hne2.symm, hne3.symm, ↓reduceIte] at hh
     obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp (lookup_isSome (Bool.or_eq_true _ _ ▸ hh))
-    obtain ⟨n, h1, h2⟩ := lookup_good hm.lists hb.lists hx
+    obtain ⟨n, h1, h2⟩ := sparseLookup_good hm.lists hb.lists hx
     exact ⟨x, n, hx, h2, h1⟩
   · have hh := hk _ _ hc
     simp only [SM.holds, SM.has, Frontier.has, hne4, hne5, hne6, ↓reduceIte] at hh
     obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp (lookup_isSome (Bool.or_eq_true _ _ ▸ hh))
-    obtain ⟨n, h1, h2⟩ := lookup_good hm.exprs hb.exprs hx
+    obtain ⟨n, h1, h2⟩ := sparseLookup_good hm.exprs hb.exprs hx
     exact ⟨x, n, hx, h2, h1⟩
 
 /-! ## The walk -/
@@ -184,12 +184,12 @@ theorem getElem?_insert_good {α : Type} {m : Std.HashMap Nat α} {g : Nat} {v :
 
 /-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:159-182 SM.buildIn — **the object built over a
 memo holding its kids is the specification's**, added to the memo. -/
-theorem buildIn_run {pk : OleanPins} {r : Region} {b : Frontier} {k : UInt8} {g : Nat} {m m' : SM}
+theorem sparseBuildIn_run {pk : OleanPins} {r : Region} {b : Frontier} {k : UInt8} {g : Nat} {m m' : SM}
     {s s' : AState} (hok : StateOK s) (hpk : NullsRel s.store pk) (hk : IsKind k)
-    (hm : SMGood s.store r m) (hb : FrontierGood s.store r b)
+    (hm : SparseGood s.store r m) (hb : FrontierGood s.store r b)
     (hkids : ∀ k' c, Kid r k g k' c → m.holds b k' c = true)
     (h : ConRon.Arena.Frontend.Olean.SM.buildIn pk r b k g m s = .ok (some m', s')) :
-    ParseStep s s' ∧ SMGood s'.store r m' ∧ m'.holds b k g = true ∧ SMKeeps b m m' := by
+    ParseStep s s' ∧ SparseGood s'.store r m' ∧ m'.holds b k g = true ∧ SMKeeps b m m' := by
   have hsub := subIn_good hm hb k g hkids
   unfold ConRon.Arena.Frontend.Olean.SM.buildIn at h
   rcases hk with rfl | rfl | rfl | rfl
@@ -247,21 +247,21 @@ theorem buildIn_run {pk : OleanPins} {r : Region} {b : Frontier} {k : UInt8} {g 
 
 /-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:189-223 sGo — **the sparse read keeps the
 memo good and holds what it read**, with everything it held before. -/
-theorem sGo_run {pk : OleanPins} {r : Region} {b : Frontier} :
+theorem sparseGo_run {pk : OleanPins} {r : Region} {b : Frontier} :
     ∀ (g : Nat) {k : UInt8} {m m' : SM} {s s' : AState}, StateOK s → NullsRel s.store pk →
-      IsKind k → SMGood s.store r m → FrontierGood s.store r b →
+      IsKind k → SparseGood s.store r m → FrontierGood s.store r b →
       ConRon.Arena.Frontend.Olean.sGo pk r b k g m s = .ok (some m', s') →
-      ParseStep s s' ∧ SMGood s'.store r m' ∧ m'.holds b k g = true ∧ SMKeeps b m m' := by
+      ParseStep s s' ∧ SparseGood s'.store r m' ∧ m'.holds b k g = true ∧ SMKeeps b m m' := by
   intro g
   induction g using Nat.strongRecOn with
   | _ g ih =>
   intro k m m' s s' hok hpk hk hm hb h
   -- the kid walk over the fields `fs` of the object at `g`
   have hkids : ∀ (fs : List (Nat × UInt8 × Bool)) {m m' : SM} {s s' : AState}, StateOK s →
-      NullsRel s.store pk → (∀ f ∈ fs, IsKind f.2.1) → SMGood s.store r m →
+      NullsRel s.store pk → (∀ f ∈ fs, IsKind f.2.1) → SparseGood s.store r m →
       FrontierGood s.store r b →
       ConRon.Arena.Frontend.Olean.kidsGo pk r b g fs m s = .ok (some m', s') →
-      ParseStep s s' ∧ SMGood s'.store r m' ∧ SMKeeps b m m' ∧
+      ParseStep s s' ∧ SparseGood s'.store r m' ∧ SMKeeps b m m' ∧
         ∀ i k' nil c, (i, k', nil) ∈ fs → ¬(nil = true ∧ r.fld g i = 1) →
           r.down g (r.fld g i) = some c → m'.holds b k' c = true := by
     intro fs
@@ -333,7 +333,7 @@ theorem sGo_run {pk : OleanPins} {r : Region} {b : Frontier} :
         | some m₁ =>
           obtain ⟨hst1, hg1, hkp1, hall⟩ := hkids fs hok hpk
             (fun f hf' => ConLeche.Frontend.Olean.kidTable_kinds hfs f hf') hm hb h1
-          obtain ⟨hst2, hg2, hh2, hkp2⟩ := buildIn_run hst1.ok (hpk.ext hst1.ext) hk hg1
+          obtain ⟨hst2, hg2, hh2, hkp2⟩ := sparseBuildIn_run hst1.ok (hpk.ext hst1.ext) hk hg1
             (hb.ext hst1.ext) (fun k' c hkid => by
               obtain ⟨-, fs', hfs', i, nil, hmem, hnn, hd⟩ := hkid
               rw [hfs] at hfs'
@@ -371,9 +371,9 @@ theorem sparseNameP_run {pk : OleanPins} {r : Region} {v : UInt64} {s s' : AStat
       | none => cases (AM.pure_ok h2).1
       | some m =>
         obtain ⟨hx, rfl⟩ := AM.pure_ok h2
-        obtain ⟨hst, hg, hh, -⟩ := sGo_run c hok hpk (Or.inl rfl) (SMGood.empty _ _)
+        obtain ⟨hst, hg, hh, -⟩ := sparseGo_run c hok hpk (Or.inl rfl) (SparseGood.empty _ _)
           (FrontierGood.empty _ _) h1
-        obtain ⟨n, h3, h4⟩ := lookup_good hg.names (FrontierGood.empty _ r).names hx.symm
+        obtain ⟨n, h3, h4⟩ := sparseLookup_good hg.names (FrontierGood.empty _ r).names hx.symm
         exact ⟨hst, n, h3, h4⟩
     · subst hF
       cases (AM.pure_ok h).1
