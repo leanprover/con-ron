@@ -13,8 +13,8 @@ stated over its CACHED fold (`DeclsRun`), but every step of it is a pure fact on
 `checkDeclStepC_run`/`checkRecordC_justified_run` have run.  So the per-step lemmas are reused as
 they are (`justStep`, `sharedStep`, `declStep_agrees`, `new_thm_prop`, `new_proof_leaf`, the
 renaming and its copy), and the three folds over them are restated here, over the pure fold and
-the mixed run: `pureFold_proofs` (`declsRun_proofs`), `sideFoldM` (`sideFold`) and `mixed_model`
-(`solution_envModel_run`).
+the mixed run: `sideFoldM` (`sideFold`) and `mixed_model` (`solution_envModel_run`); the pure
+fold's is upstream's `pureRun_proofs` at `PureRun.of_foldlM`.
 
 `justifyWhy_of_cone` is `justifyWhy_cone`'s converse: a shared cone covering what the type reads
 makes the walk accept at con-leche's fuel.  The twin's walk is related to the cone, not to
@@ -31,7 +31,7 @@ public import ConLeche.Model.Solution.Fold
 public import ConLeche.Model.Modular.Step
 public import ConLeche.Model.Capstone
 public import ConLeche.Model.Fold
-public import ConRon.Bridge.Checker.Pushes
+public import ConLeche.Verify.Cached.PureRun
 import ConLeche.Model.Solution
 import ConLeche.Model.Solution.Justified
 import ConLeche.Model.Modular.Valid
@@ -330,89 +330,6 @@ section Models
 
 variable {V : Type w} [SetTheory V]
 
-/-- con-leche: ConLeche/Verify/Cached/PushChain.lean:631 declsRun_chain — the pure fold is a
-fresh chain. -/
-theorem pureFold_chain {F : Nat} :
-    ∀ (ds : List Declaration) {E₀ E E' : Env},
-      ds.foldlM (ConLeche.checkDecl .verified (fueledOps .verified F) pinsP) E = .ok E' →
-      PushChain E₀ (mkFEnv E) → PushChain E₀ (mkFEnv E')
-  | [], _, _, _, h, hp => by
-    simp only [List.foldlM, pure, Except.pure, Except.ok.injEq] at h
-    exact h ▸ hp
-  | pd :: ds, _, E, _, h, hp => by
-    simp only [List.foldlM, Bind.bind, Except.bind] at h
-    cases hF : ConLeche.checkDecl .verified (fueledOps .verified F) pinsP E pd with
-    | error e => rw [hF] at h; exact nomatch h
-    | ok E₁ =>
-      rw [hF] at h
-      obtain ⟨hnd, hfr⟩ := checkDecl_fresh hF
-      have hp₁ := pushChain_step hp hnd hfr
-      rw [← checkDecl_pushes hF] at hp₁
-      exact pureFold_chain ds h hp₁
-
-/-- con-leche: ConLeche/Model/Modular/Step.lean:159 declsRun_proofs — **records installed on a
-model keep its leaves and make every proof's leaf the canonical proof**, over the PURE fold:
-con-leche's cached step's `checkDeclStepC_run` replaced by the step itself, its push chain by
-`checkDecl_pushes`/`checkDecl_fresh` (`pushChain_step`). -/
-theorem pureFold_proofs {F : Nat} :
-    ∀ (ds : List Declaration) {E E' : Env},
-      ds.foldlM (ConLeche.checkDecl .verified (fueledOps .verified F) pinsP) E = .ok E' →
-      ∀ mp : EnvModelM V E, LfpCover mp [] → NatFacts E → ProofLeaves V E mp.base2.acval →
-      ∃ mp' : EnvModelM V E',
-        (∀ n, (E.find? n).isSome = true → mp'.base2.acval n = mp.base2.acval n) ∧
-        LfpCover mp' [] ∧ NatFacts E' ∧ ProofLeaves V E' mp'.base2.acval
-  | [], _, _, h, mp, hcov, hN, hPL => by
-    simp only [List.foldlM, pure, Except.pure, Except.ok.injEq] at h
-    subst h
-    exact ⟨mp, fun _ _ => rfl, hcov, hN, hPL⟩
-  | pd :: ds, E, _, h, mp, hcov, hN, hPL => by
-    simp only [List.foldlM, Bind.bind, Except.bind] at h
-    cases hF : ConLeche.checkDecl .verified (fueledOps .verified F) pinsP E pd with
-    | error e => rw [hF] at h; exact nomatch h
-    | ok E₁ =>
-      rw [hF] at h
-      have henv : EnvWF E := mp.base2.wf
-      have hrunD := checkDeclRun_ofEnvFactsK hF
-      obtain ⟨⟨mp₁, hleaf₁, hcov₁, hPL₁⟩, hN₁⟩ := declStep_agrees mp hcov hN hrunD
-      have he₁ := checkDecl_pushes hF
-      obtain ⟨hnd, hfr⟩ := checkDecl_fresh hF
-      have hch : PushChain E (mkFEnv E₁) := by
-        rw [he₁]; exact pushChain_step (PushChain.refl E) hnd hfr
-      have hold : ∀ n, (E.find? n).isSome = true → E₁.find? n = E.find? n :=
-        fun n h => pushChain_find_old hch h
-      -- every proof's leaf, after the record
-      have hPLn : ProofLeaves V E₁ mp₁.base2.acval := by
-        intro n ci hf hk
-        by_cases hold' : (E.find? n).isSome = true
-        · have hf' : E.find? n = some ci := (hold n hold') ▸ hf
-          have hr : ci.toConstantVal.type.constsResolve E = true :=
-            (henv.consts ci (ConLeche.Env.find?_mem hf')).2.2.1
-          obtain ⟨h1, h2⟩ := hPL n ci hf' hk
-          refine ⟨fun ht => SemPropType.of_denote
-            (fun ψ => pushChain_denote_old hch hleaf₁ hr ψ) (h1 ht), fun h => ?_⟩
-          rw [hleaf₁ n hold']
-          exact h2 (SemPropType.of_denote
-            (fun ψ => (pushChain_denote_old hch hleaf₁ hr ψ).symm) h)
-        · have hnew : E.find? n = none := by
-            cases h : E.find? n with
-            | none => rfl
-            | some _ => rw [h] at hold'; exact absurd rfl hold'
-          have hmem : ∀ c ∈ E₁.consts, c ∉ E.consts → c ∈ declConstants pd := by
-            intro c hc hnc
-            rw [he₁] at hc
-            simp only [Env.pushDelta, List.mem_append, List.mem_reverse] at hc
-            exact hc.resolve_right hnc
-          refine ⟨fun ⟨cv, h⟩ => ?_, fun hc => ?_⟩
-          · subst h
-            exact new_thm_prop hrunD hch rfl hmem mp hleaf₁ hf hnew
-          by_cases hqs : n = quotSoundName
-          · subst hqs; exact quotSound_leaf mp₁ hf
-          exact new_proof_leaf hrunD hch rfl hmem hleaf₁ hPL₁ hf hnew hk hqs hc
-      obtain ⟨mp', hleaf', hcov', hN', hPL'⟩ := pureFold_proofs ds h mp₁ hcov₁ hN₁ hPLn
-      have hst : ∀ n, (E.find? n).isSome = true → (E₁.find? n).isSome = true := fun n h => by
-        rw [hold n h]; exact h
-      exact ⟨mp', fun n hn => (hleaf' n (hst n hn)).trans (hleaf₁ n hn), hcov', hN', hPL'⟩
-
 /-- con-leche: ConLeche/Model/Solution/Fold.lean:98 sideFold — **the input's fold, with the
 solution**, over the mixed run: a justified record's step is `justStep` at the justified arm's
 facts (con-leche's `checkRecordC_justified_run`'s conclusion, which the arm is), any other record's
@@ -542,7 +459,7 @@ theorem sideFoldM {envS Ef : Env} (hJ : JS.idx = mkFEnv envS)
 
 /-- con-leche: ConLeche/Model/Solution.lean:37 solution_envModel_run — **a challenge's mixed run,
 with an accepted solution, carries a model**: the solution's accept is the PURE fold
-(`pureFold_proofs` in place of `declsRun_proofs` over `checkDecls_run`), the challenge's the mixed
+(`pureRun_proofs` at `PureRun.of_foldlM`), the challenge's the mixed
 run (`sideFoldM` in place of `sideFold`); the renaming and its copy as con-leche's. -/
 theorem mixed_model (V : Type w) [SetTheory V] {F : Nat} {dsS rs : List Declaration}
     (hS : ConLeche.checkDeclsPure .verified (fueledOps .verified F) pinsP dsS =
@@ -553,10 +470,10 @@ theorem mixed_model (V : Type w) [SetTheory V] {F : Nat} {dsS rs : List Declarat
   have hS' : dsS.foldlM (ConLeche.checkDecl .verified (fueledOps .verified F) pinsP) Env.empty =
       .ok (streamEnv dsS) := hS
   -- the solution's model
-  obtain ⟨mS₀, -, hcovS₀, hNS₀, hPLS₀⟩ := pureFold_proofs (V := V) dsS hS'
+  obtain ⟨mS₀, -, hcovS₀, hNS₀, hPLS₀⟩ := pureRun_proofs (V := V) (PureRun.of_foldlM dsS hS')
     (EnvModelM.empty V) lfpCover_empty (EnvModelOk.empty (V := V)).2 (ProofLeaves.empty (V := V) _)
   have hndS : NodupNames (streamEnv dsS) :=
-    (pureFold_chain dsS hS' (PushChain.refl Env.empty)).2.2.1 List.nodup_nil
+    ((PureRun.of_foldlM dsS hS').chain (PushChain.refl Env.empty)).2.2.1 List.nodup_nil
   have htS : ∀ t ∈ (streamEnv dsS).tables, (streamEnv dsS).findTable? t.structName = some t ∧
       ∃ cv caps, (streamEnv dsS).find? t.structName = some (.indInfo cv caps) :=
     fun t ht => stream_tables_mem hndS ht
