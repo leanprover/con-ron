@@ -29,6 +29,61 @@ open ConLeche.Frontend.Olean (CEntryF CKindF bind_some_left Copy Roots OLeanLeve
 
 /-! ## The header fixpoint, as a `Gives` -/
 
+/-- con-leche: none — **the loads' indices hold only the loaded modules**, on both sides: what
+makes the loads' relation survive the store's growth (`LoadsRel.ext'`). -/
+@[expose] def LoadsKeys (ld : ConRon.Arena.Frontend.Olean.HeaderLoads)
+    (ldC : ConLeche.Frontend.Olean.HeaderLoads) : Prop :=
+  (∀ h k, ld.index[h]? = some k → h ∈ ld.order.toList) ∧
+    (∀ n k, ldC.index[n]? = some k → ldC.order[k]? = some n)
+
+theorem foldIdx_keys :
+    ∀ (l : List NIdx) (M : Std.HashMap NIdx Nat) (i : Nat) (h : NIdx) (j : Nat),
+      (l.foldl (fun (acc : Std.HashMap NIdx Nat × Nat) m => (acc.1.insert m acc.2, acc.2 + 1))
+        (M, i)).1[h]? = some j → h ∈ l ∨ (M[h]?).isSome = true
+  | [], M, i, h, j, hj => .inr (by simp at hj; simp [hj])
+  | m :: l, M, i, h, j, hj => by
+    rw [List.foldl_cons] at hj
+    rcases foldIdx_keys l _ _ h j hj with hh | hh
+    · exact .inl (List.mem_cons_of_mem _ hh)
+    · rw [Std.HashMap.getElem?_insert] at hh
+      split at hh
+      · rename_i he
+        obtain rfl := eq_of_beq he
+        exact .inl List.mem_cons_self
+      · exact .inr hh
+
+/-- The loads' relation at a larger store. -/
+theorem _root_.ConRon.Bridge.Frontend.Olean.LoadsRel.ext' {st st' : EStore} (hx : Ext st st') (hw' : NStoreWF st'.ns)
+    {ld : ConRon.Arena.Frontend.Olean.HeaderLoads} {ldC : ConLeche.Frontend.Olean.HeaderLoads}
+    (h : LoadsRel st ld ldC) (hk : LoadsKeys ld ldC) : LoadsRel st' ld ldC := by
+  refine ⟨NR_list_ext hx h.order, h.flags,
+    listRel_ext (fun _ _ hi => ImpsD.ext hx hi) h.imports, fun a n hd => ?_⟩
+  cases hdo : denoteN st.ns a with
+  | some n' =>
+    have := denoteN_ext hdo hx
+    rw [hd] at this
+    cases this
+    exact h.index a n' hdo
+  | none =>
+    have h1 : ld.index[a]? = none := by
+      cases hi : ld.index[a]? with
+      | none => rfl
+      | some k =>
+        obtain ⟨b, -, hab⟩ := listRel_memL h.order (hk.1 a k hi)
+        rw [hdo] at hab; cases hab
+    have h2 : ldC.index[n]? = none := by
+      cases hi : ldC.index[n]? with
+      | none => rfl
+      | some k =>
+        have ho := hk.2 n k hi
+        rcases optRel_cases (listRel_getElem? h.order k) with ⟨g1, g2⟩ | ⟨b, c, g1, g2, g3⟩
+        · rw [Array.getElem?_toList] at g2; rw [ho] at g2; cases g2
+        · rw [Array.getElem?_toList] at g2; rw [ho] at g2; cases g2
+          have := denoteN_inj hw' (denoteN_ext g3 hx) hd
+          subst this
+          rw [hdo] at g3; cases g3
+    rw [h1, h2]
+
 /-- con-leche: ConLeche/Verify/Driver/Loads.lean:669 headerFixpoint_sound — `headerFixpoint_run`,
 upstream's run given from any open handles. -/
 theorem headerFixpoint_gives {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
@@ -38,7 +93,7 @@ theorem headerFixpoint_gives {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.ba
     (h : ConRon.Arena.Frontend.Olean.headerFixpoint (modelFs F) pk sp isM imps s = .ok (ld, s')) :
     ParseStep s s' ∧ ∃ ldC, ModelIO.Gives
       (ConLeche.Frontend.Olean.headerFixpoint (ConLeche.Frontend.Olean.moduleImports sp) isM impsC :
-        ModelIO _) F (.ok ldC) ∧ LoadsRel s'.store ld ldC := by
+        ModelIO _) F (.ok ldC) ∧ LoadsRel s'.store ld ldC ∧ LoadsKeys ld ldC := by
   unfold ConRon.Arena.Frontend.Olean.headerFixpoint at h
   obtain ⟨x, s₁, h1, h2⟩ := AM.bind_ok h
   obtain ⟨hv, hs⟩ := AM.pure_ok h2
@@ -56,8 +111,18 @@ theorem headerFixpoint_gives {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.ba
     dsimp only
     refine hG.bind ?_
     exact ModelIO.gives_pure _ _
-  obtain ⟨-, -, hnd, -, -⟩ := ConLeche.Driver.headerFixpoint_sound hC.canGive
-  exact ⟨hst, _, hC, ofState_rel (nsWF_of_StateOK hst.ok) hR hnd⟩
+  obtain ⟨-, -, hnd, -, hkC⟩ := ConLeche.Driver.headerFixpoint_sound hC.canGive
+  refine ⟨hst, _, hC, ofState_rel (nsWF_of_StateOK hst.ok) hR hnd, fun h k hk => ?_, hkC⟩
+  have := ofStateGo_index x.flags x.order.toList 0 x.imports #[] #[] {}
+  unfold ConRon.Arena.Frontend.Olean.HeaderLoads.ofState at hk ⊢
+  generalize ConRon.Arena.Frontend.Olean.HeaderLoads.ofStateGo x.flags x.order.toList 0 x.imports
+    #[] #[] {} = r at this hk
+  obtain ⟨fl, is, ix⟩ := r
+  simp only at this hk ⊢
+  subst this
+  rcases foldIdx_keys _ _ _ _ _ hk with h | h
+  · exact h
+  · simp at h
 
 /-! ## The parts -/
 
@@ -367,7 +432,7 @@ theorem workerReads_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = 
   have hown := withImports_rel hr1 (hx.ext hst1.ext)
   -- the header fixpoint
   obtain ⟨ld, s₂, h2, h⟩ := AM.bind_ok h
-  obtain ⟨hst2, ldC, hg2, hld⟩ := headerFixpoint_gives hsp hctx1 hown.imports h2
+  obtain ⟨hst2, ldC, hg2, hld, hkeys⟩ := headerFixpoint_gives hsp hctx1 hown.imports h2
   have hctx2 := hctx1.step hst2
   rw [hown.isModule] at hg2
   -- the loaded parts
@@ -375,7 +440,7 @@ theorem workerReads_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = 
   obtain ⟨hst3, partsC, hg3, hr3⟩ := parts_run hsp _ _ hctx2 (order_flags_rel hld) h3
   have hctx3 := hctx2.step hst3
   have hw3 := nsWF_of_StateOK hctx3.ok
-  have hld3 := hld.ext hst3.ext
+  have hld3 := hld.ext' hst3.ext hw3 hkeys
   have hix := nameIndexOf_rel hw3 (ps := parts.toArray) (psC := partsC.toArray) (by simpa using hr3)
   -- the imports' module system
   obtain ⟨u, s₄, h4, h⟩ := AM.bind_ok h
@@ -393,7 +458,8 @@ theorem workerReads_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = 
   rw [← Array.foldlM_toList] at h6
   obtain ⟨rfl, hheads⟩ := clashHeads_run hctx5.ok (hix.ext' hst5.ext) _ _ #[] hcl h6
   obtain ⟨hinfos, s₇, h7, h⟩ := AM.bind_ok h
-  obtain ⟨hst7, hinfosC, hg7, hi7⟩ := readInfos_run hsp hctx5 (hld3.ext hst5.ext)
+  obtain ⟨hst7, hinfosC, hg7, hi7⟩ := readInfos_run hsp hctx5
+    (hld3.ext' hst5.ext (nsWF_of_StateOK hctx5.ok) hkeys)
     (hix.ext' hst5.ext) h7
   have hctx7 := hctx5.step hst7
   have hw7 := nsWF_of_StateOK hctx7.ok
@@ -408,7 +474,7 @@ theorem workerReads_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = 
   obtain ⟨rfl, rfl⟩ := AM.pure_ok h
   have hst := hst1.trans (hst2.trans (hst3.trans (hst5.trans hst7)))
   refine ⟨hst, _, ?_, ⟨hown.ext (hst2.trans (hst3.trans (hst5.trans hst7))).ext,
-    hld3.ext (hst5.trans hst7).ext, pubClosures_eq hld3, hix7,
+    hld3.ext' (hst5.trans hst7).ext hw7 hkeys, pubClosures_eq hld3, hix7,
     listRel_ext (fun _ _ hq => hq.ext hst7.ext) hcl⟩⟩
   -- upstream's run, step by step
   unfold ConLeche.Frontend.Olean.workerReads

@@ -30,27 +30,79 @@ theorem foldl_rel {α β γ δ : Type} {R : α → β → Prop} {S : γ → δ �
   | _, _, .nil, _, _, h => h
   | _, _, .cons hr t, x, y, h => foldl_rel hstep t _ _ (hstep _ _ x y hr h)
 
-theorem HMRel.empty' {α : Type} (st : EStore) (n : Nat) :
+theorem _root_.ConRon.Bridge.Frontend.Olean.HMRel.empty' {α : Type} (st : EStore) (n : Nat) :
     HMRel (· = ·) st ({} : Std.HashMap NIdx α)
       (Std.HashMap.emptyWithCapacity n : Std.HashMap ConLeche.Name α) :=
   ⟨fun _ _ h => by simp at h, fun _ _ h => by simp at h⟩
 
 /-- A membership test answers alike. -/
-theorem HMRel.contains_eq {α β : Type} {R : α → β → Prop} {st : EStore} (hw : NStoreWF st.ns)
+theorem _root_.ConRon.Bridge.Frontend.Olean.HMRel.contains_eq {α β : Type} {R : α → β → Prop} {st : EStore} (hw : NStoreWF st.ns)
     {M : Std.HashMap NIdx α} {MC : Std.HashMap ConLeche.Name β} (h : HMRel R st M MC) {x : NIdx}
     {n : ConLeche.Name} (hd : denoteN st.ns x = some n) : M.contains x = MC.contains n := by
   rw [Std.HashMap.contains_eq_isSome_getElem?, Std.HashMap.contains_eq_isSome_getElem?]
   rcases optRel_cases (h.get hw hd) with ⟨h1, h2⟩ | ⟨a, b, h1, h2, -⟩
-  · rw [h1, h2]
-  · rw [h1, h2]; rfl
+  · simp [h1, h2]
+  · simp [h1, h2]
 
-theorem HMRel.ext' {α β : Type} {R : α → β → Prop} {st st' : EStore} {M : Std.HashMap NIdx α}
+theorem _root_.ConRon.Bridge.Frontend.Olean.HMRel.ext' {α β : Type} {R : α → β → Prop} {st st' : EStore} {M : Std.HashMap NIdx α}
     {MC : Std.HashMap ConLeche.Name β} (h : HMRel R st M MC) (hx : Ext st st') : HMRel R st' M MC :=
   h.ext hx (fun _ _ h => h)
+
+theorem IndexRel.ext' {st st' : EStore} {ix : ConRon.Arena.Frontend.Olean.NameIndex}
+    {ixC : ConLeche.Frontend.Olean.NameIndex} (h : IndexRel st ix ixC) (hx : Ext st st') :
+    IndexRel st' ix ixC :=
+  ⟨listRel_ext (fun _ _ hp => hp.ext hx) h.parts, h.first.ext' hx,
+    listRel_ext (fun _ _ hq => ⟨denoteN_ext hq.1 hx, hq.2⟩) h.more⟩
 
 /-- con-leche: none — one later copy read back. -/
 @[expose] def MoreR (st : EStore) (a : NIdx × Copy) (b : ConLeche.Name × Copy) : Prop :=
   denoteN st.ns a.1 = some b.1 ∧ a.2 = b.2
+
+/-- con-leche: ConLeche/Frontend/Olean/Index.lean:55-66 nameIndexOf — the twin's inner step. -/
+@[expose] def twinIxInner (i : Nat) (acc : Std.HashMap NIdx Copy × Array (NIdx × Copy) × Nat)
+    (q : ConRon.Arena.Frontend.Olean.NamePosition) : Std.HashMap NIdx Copy × Array (NIdx × Copy) × Nat :=
+  if acc.1.contains q.name then (acc.1, acc.2.1.push (q.name, ⟨i, acc.2.2⟩), acc.2.2 + 1)
+  else (acc.1.insert q.name ⟨i, acc.2.2⟩, acc.2.1, acc.2.2 + 1)
+
+/-- con-leche: ConLeche/Frontend/Olean/Index.lean:55-66 nameIndexOf — the twin's outer step. -/
+@[expose] def twinIxOuter (acc : Std.HashMap NIdx Copy × Array (NIdx × Copy) × Nat)
+    (p : ConRon.Arena.Frontend.Olean.NamePositions) : Std.HashMap NIdx Copy × Array (NIdx × Copy) × Nat :=
+  let r := p.consts.toList.foldl (twinIxInner acc.2.2) (acc.1, acc.2.1, 0)
+  (r.1, r.2.1, acc.2.2 + 1)
+
+/-- con-leche: ConLeche/Frontend/Olean/Index.lean:55-66 nameIndexOf — upstream's inner step. -/
+@[expose] def upIxInner (i : Nat)
+    (acc : Std.HashMap ConLeche.Name Copy × Array (ConLeche.Name × Copy) × Nat)
+    (q : ConLeche.Frontend.Olean.NamePosition) :
+    Std.HashMap ConLeche.Name Copy × Array (ConLeche.Name × Copy) × Nat :=
+  match acc.1[q.name]? with
+  | none => (acc.1.insert q.name ⟨i, acc.2.2⟩, acc.2.1, acc.2.2 + 1)
+  | some _ => (acc.1, acc.2.1.push (q.name, ⟨i, acc.2.2⟩), acc.2.2 + 1)
+
+/-- con-leche: ConLeche/Frontend/Olean/Index.lean:55-66 nameIndexOf — upstream's outer step. -/
+@[expose] def upIxOuter (acc : Std.HashMap ConLeche.Name Copy × Array (ConLeche.Name × Copy) × Nat)
+    (p : ConLeche.Frontend.Olean.NamePositions) :
+    Std.HashMap ConLeche.Name Copy × Array (ConLeche.Name × Copy) × Nat :=
+  let r := p.consts.toList.foldl (upIxInner acc.2.2) (acc.1, acc.2.1, 0)
+  (r.1, r.2.1, acc.2.2 + 1)
+
+theorem nameIndexOf_eq (ps : Array ConRon.Arena.Frontend.Olean.NamePositions) :
+    ConRon.Arena.Frontend.Olean.nameIndexOf ps =
+      { parts := ps, first := (ps.toList.foldl twinIxOuter ({}, #[], 0)).1,
+        more := (ps.toList.foldl twinIxOuter ({}, #[], 0)).2.1 } := by
+  unfold ConRon.Arena.Frontend.Olean.nameIndexOf
+  simp only [← Array.foldl_toList]
+  rfl
+
+theorem nameIndexOf_eqC (ps : Array ConLeche.Frontend.Olean.NamePositions) :
+    ConLeche.Frontend.Olean.nameIndexOf ps =
+      { parts := ps, first := (ps.toList.foldl upIxOuter
+          (Std.HashMap.emptyWithCapacity (ps.toList.foldl (fun n p => n + p.consts.size) 0), #[], 0)).1,
+        more := (ps.toList.foldl upIxOuter
+          (Std.HashMap.emptyWithCapacity (ps.toList.foldl (fun n p => n + p.consts.size) 0), #[], 0)).2.1 } := by
+  unfold ConLeche.Frontend.Olean.nameIndexOf
+  simp only [← Array.foldl_toList]
+  rfl
 
 /-- con-leche: ConLeche/Frontend/Olean/Index.lean:55-66 nameIndexOf — **the twin's index of some
 name positions is upstream's**, read back. -/
@@ -60,50 +112,39 @@ theorem nameIndexOf_rel {st : EStore} (hw : NStoreWF st.ns)
     (h : ListRel (NPsRel st) ps.toList psC.toList) :
     IndexRel st (ConRon.Arena.Frontend.Olean.nameIndexOf ps)
       (ConLeche.Frontend.Olean.nameIndexOf psC) := by
-  unfold ConRon.Arena.Frontend.Olean.nameIndexOf ConLeche.Frontend.Olean.nameIndexOf
-  rw [← Array.foldl_toList, ← Array.foldl_toList]
-  -- the state of the outer fold
+  rw [nameIndexOf_eq, nameIndexOf_eqC]
   let S : Std.HashMap NIdx Copy × Array (NIdx × Copy) × Nat →
       Std.HashMap ConLeche.Name Copy × Array (ConLeche.Name × Copy) × Nat → Prop :=
     fun x y => HMRel (· = ·) st x.1 y.1 ∧ ListRel (MoreR st) x.2.1.toList y.2.1.toList ∧ x.2.2 = y.2.2
-  have hfold := foldl_rel (S := S) (fun p pC x y hp hxy => by
-      obtain ⟨first, more, i⟩ := x
-      obtain ⟨firstC, moreC, iC⟩ := y
+  have hfold := foldl_rel (S := S) (f := twinIxOuter) (g := upIxOuter) (fun p pC x y hp hxy => by
       obtain ⟨h1, h2, h3⟩ := hxy
-      dsimp only at h3
-      subst h3
-      dsimp only
-      rw [← Array.foldl_toList, ← Array.foldl_toList]
-      have hin := foldl_rel (S := S) (fun q qC x y hq hxy => by
-          obtain ⟨first, more, k⟩ := x
-          obtain ⟨firstC, moreC, kC⟩ := y
-          obtain ⟨h1, h2, h3⟩ := hxy
-          dsimp only at h3
-          subst h3
-          dsimp only
-          have hc := h1.contains_eq hw hq.name
-          cases hfc : firstC[qC.name]? with
+      have hin := foldl_rel (S := S) (f := twinIxInner x.2.2) (g := upIxInner y.2.2)
+        (fun q qC a b hq hab => by
+          obtain ⟨g1, g2, g3⟩ := hab
+          have hc := g1.contains_eq hw hq.name
+          unfold twinIxInner upIxInner
+          cases hfc : b.1[qC.name]? with
           | none =>
-            have : first.contains q.name = false := by
+            have : a.1.contains q.name = false := by
               rw [hc, Std.HashMap.contains_eq_isSome_getElem?, hfc]; rfl
             simp only [this, Bool.false_eq_true, ↓reduceIte]
-            exact ⟨h1.insert hw hq.name rfl, h2, rfl⟩
+            exact ⟨g1.insert hw hq.name (by rw [h3, g3]), g2, by simp [g3]⟩
           | some _ =>
-            have : first.contains q.name = true := by
+            have : a.1.contains q.name = true := by
               rw [hc, Std.HashMap.contains_eq_isSome_getElem?, hfc]; rfl
             simp only [this, ↓reduceIte]
-            refine ⟨h1, ?_, rfl⟩
-            simpa using listRel_append h2 (.cons ⟨hq.name, rfl⟩ .nil))
-        hp.consts (first, more, 0) (firstC, moreC, 0) ⟨h1, h2, rfl⟩
-      exact ⟨hin.1, hin.2.1, rfl⟩) h ({}, #[], 0) (Std.HashMap.emptyWithCapacity _, #[], 0)
-      ⟨HMRel.empty' st _, .nil, rfl⟩
+            refine ⟨g1, ?_, by simp [g3]⟩
+            simpa [h3, g3] using listRel_append g2 (.cons ⟨hq.name, rfl⟩ .nil))
+        hp.consts (x.1, x.2.1, 0) (y.1, y.2.1, 0) ⟨h1, h2, rfl⟩
+      exact ⟨hin.1, hin.2.1, by simp [twinIxOuter, upIxOuter, h3]⟩) h ({}, #[], 0)
+      (Std.HashMap.emptyWithCapacity _, #[], 0) ⟨HMRel.empty' st _, .nil, rfl⟩
   exact ⟨h, hfold.1, hfold.2.1⟩
 
 /-! ## The doubly held names -/
 
 theorem listRel_of_getElem? {α β : Type} {R : α → β → Prop} :
     ∀ {l : List α} {l' : List β}, l.length = l'.length →
-      (∀ j a b, l[j]? = some a → l'[j]? = some b → R a b) → ListRel R l l'
+      (∀ (j : Nat) (a : α) (b : β), l[j]? = some a → l'[j]? = some b → R a b) → ListRel R l l'
   | [], [], _, _ => .nil
   | [], _ :: _, h, _ => by simp at h
   | _ :: _, [], h, _ => by simp at h
@@ -131,12 +172,12 @@ order with their copies in the table, and the twin's index of its list is the li
 structure CCInv (st : EStore) (at_ : Std.HashMap NIdx Nat) (out : Array (NIdx × Array Copy))
     (m : Std.HashMap ConLeche.Name (Array Copy)) (order : Array ConLeche.Name) : Prop where
   size : out.size = order.size
-  row : ∀ j a, out[j]? = some a → ∃ n, order[j]? = some n ∧ denoteN st.ns a.1 = some n ∧
-    m[n]? = some a.2
+  row : ∀ (j : Nat) (a : NIdx × Array Copy), out[j]? = some a → ∃ n, order[j]? = some n ∧
+    denoteN st.ns a.1 = some n ∧ m[n]? = some a.2
   nodup : order.toList.Nodup
   table : ∀ n, m.contains n = true → n ∈ order.toList
-  atRow : ∀ h k, at_[h]? = some k → ∃ a, out[k]? = some a ∧ a.1 = h
-  atAll : ∀ j a, out[j]? = some a → at_[a.1]? = some j
+  atRow : ∀ (h : NIdx) (k : Nat), at_[h]? = some k → ∃ a, out[k]? = some a ∧ a.1 = h
+  atAll : ∀ (j : Nat) (a : NIdx × Array Copy), out[j]? = some a → at_[a.1]? = some j
 
 theorem CCInv.empty (st : EStore) : CCInv st {} #[] {} #[] :=
   ⟨rfl, fun _ _ h => by simp at h, List.nodup_nil, fun _ h => by simp at h,
@@ -146,21 +187,17 @@ theorem CCInv.step {st : EStore} (hw : NStoreWF st.ns) {first : Std.HashMap NIdx
     {firstC : Std.HashMap ConLeche.Name Copy} (hf : HMRel (· = ·) st first firstC)
     {at_ : Std.HashMap NIdx Nat} {out : Array (NIdx × Array Copy)}
     {m : Std.HashMap ConLeche.Name (Array Copy)} {order : Array ConLeche.Name}
-    (hi : CCInv st at_ out m order) {x : NIdx × Copy} {y : ConLeche.Name × Copy}
-    (hxy : MoreR st x y) :
+    (hi : CCInv st at_ out m order) {h : NIdx} {n : ConLeche.Name} {c : Copy}
+    (hd : denoteN st.ns h = some n) :
     CCInv st
-      (match at_[x.1]? with
+      (match at_[h]? with
         | some _ => at_
-        | none => at_.insert x.1 out.size)
-      (match at_[x.1]? with
-        | some k => out.modify k fun (p : NIdx × Array Copy) => (p.1, p.2.push x.2)
-        | none => out.push (x.1, #[(first[x.1]?).getD x.2, x.2]))
-      (ConLeche.Frontend.Olean.ccStep firstC m y)
-      (if m.contains y.1 then order else order.push y.1) := by
-  obtain ⟨h, c⟩ := x
-  obtain ⟨n, c'⟩ := y
-  obtain ⟨hd, rfl⟩ := hxy
-  dsimp only at hd ⊢
+        | none => at_.insert h out.size)
+      (match at_[h]? with
+        | some k => out.modify k fun (p : NIdx × Array Copy) => (p.1, p.2.push c)
+        | none => out.push (h, #[(first[h]?).getD c, c]))
+      (ConLeche.Frontend.Olean.ccStep firstC m (n, c))
+      (if m.contains n then order else order.push n) := by
   unfold ConLeche.Frontend.Olean.ccStep
   dsimp only
   cases hat : at_[h]? with
@@ -341,7 +378,9 @@ theorem clashCopies_rel {st : EStore} (hw : NStoreWF st.ns)
     (fun x y acc accC hxy hacc => by
       obtain ⟨at_, out⟩ := acc
       obtain ⟨n, c⟩ := x
-      have := CCInv.step hw h.first hacc (x := (n, c)) hxy
+      obtain ⟨nC, c'⟩ := y
+      obtain ⟨hd, rfl⟩ := hxy
+      have := CCInv.step (c := c) hw h.first hacc hd
       unfold ConLeche.Frontend.Olean.ccOrderStep
       unfold twinCC
       dsimp only at this ⊢
@@ -389,14 +428,12 @@ theorem find?_none_rel {α β : Type} {R : α → β → Prop} {p : α → Bool}
     (hpq : ∀ a b, R a b → p a = q b) :
     ∀ {l : List α} {l' : List β}, ListRel R l l' → l.find? p = none → l'.find? q = none
   | _, _, .nil, _ => rfl
-  | _, _, .cons hr t, h => by
-    simp only [List.find?_cons] at h ⊢
+  | _, _, @ListRel.cons _ _ _ a b _ _ hr t, h => by
+    rw [List.find?_cons] at h ⊢
     rw [← hpq _ _ hr]
-    split at h
-    · cases h
-    · rename_i hn
-      simp only [hn]
-      exact find?_none_rel hpq t h
+    cases hpa : p a with
+    | true => rw [hpa] at h; cases h
+    | false => exact find?_none_rel hpq t (by simpa [hpa] using h)
 
 /-- con-leche: ConLeche/Frontend/Olean/Index.lean:137-146 importsModulesOk — **the twin's accept
 is upstream's**, at loads, an index and imports read back. -/
@@ -408,17 +445,22 @@ theorem importsModulesOk_run {st : EStore} {m : NIdx} {mC : ConLeche.Name} {isM 
     {s s' : AState} (hst : s.store = st)
     (h : ConRon.Arena.Frontend.Olean.importsModulesOk m isM ld ix imps s = .ok ((), s')) :
     s' = s ∧ ConLeche.Frontend.Olean.importsModulesOk mC isM ldC ixC impsC = .ok () := by
-  unfold ConRon.Arena.Frontend.Olean.importsModulesOk at h
   unfold ConLeche.Frontend.Olean.importsModulesOk
   cases isM with
-  | false => exact ⟨(AM.pure_ok h).2, rfl⟩
+  | false =>
+    unfold ConRon.Arena.Frontend.Olean.importsModulesOk at h
+    exact ⟨(AM.pure_ok h).2, rfl⟩
   | true =>
-  simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte] at h ⊢
-  split at h
-  · obtain ⟨e, s₁, -, h⟩ := AM.bind_ok h
+  generalize hP : ConRon.Arena.Frontend.Olean.importsModulesOk m true ld ix imps = P at h
+  unfold ConRon.Arena.Frontend.Olean.importsModulesOk at hP
+  simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hP ⊢
+  split at hP
+  · subst hP
+    obtain ⟨e, s₁, -, h⟩ := AM.bind_ok h
     obtain ⟨e', s₂, -, h⟩ := AM.bind_ok h
     exact (AM.fail_ok h).elim
   · rename_i hf
+    subst hP
     refine ⟨(AM.pure_ok h).2, ?_⟩
     have hparts : ∀ k, (ix.parts[k]?).any (·.header.isModule) = (ixC.parts[k]?).any (·.header.isModule) := by
       intro k
@@ -452,10 +494,12 @@ theorem freshOk_run {pk : ConRon.Arena.Frontend.Olean.OleanPins} {st : EStore} (
     (hix : IndexRel st ix ixC) (ho : NPsRel st own ownC) {s s' : AState}
     (h : ConRon.Arena.Frontend.Olean.freshOk pk m ld ix own s = .ok ((), s')) :
     s' = s ∧ ConLeche.Frontend.Olean.freshOk mC ldC ixC ownC = .ok () := by
-  unfold ConRon.Arena.Frontend.Olean.freshOk at h
+  generalize hP : ConRon.Arena.Frontend.Olean.freshOk pk m ld ix own = P at h
+  unfold ConRon.Arena.Frontend.Olean.freshOk at hP
   unfold ConLeche.Frontend.Olean.freshOk
-  split at h
+  split at hP
   · rename_i hf
+    subst hP
     refine ⟨(AM.pure_ok h).2, ?_⟩
     have hnone := find?_none_rel (R := NPRel st)
       (p := fun (q : ConRon.Arena.Frontend.Olean.NamePosition) => ix.first.contains q.name)
@@ -463,7 +507,8 @@ theorem freshOk_run {pk : ConRon.Arena.Frontend.Olean.OleanPins} {st : EStore} (
       (fun q qC hq => hix.first.contains_eq hw hq.name)
       ho.consts (by rw [← Array.find?_toList] at hf; exact hf)
     rw [← Array.find?_toList, hnone]
-  · obtain ⟨a, s₁, -, h⟩ := AM.bind_ok h
+  · subst hP
+    obtain ⟨a, s₁, -, h⟩ := AM.bind_ok h
     obtain ⟨b, s₂, -, h⟩ := AM.bind_ok h
     obtain ⟨c, s₃, -, h⟩ := AM.bind_ok h
     exact (AM.fail_ok h).elim

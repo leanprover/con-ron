@@ -14,6 +14,7 @@ module
 
 public import ConRon.Bridge.Modular.ReadsParts
 public import ConRon.Bridge.Frontend.Olean.MergeAll
+import ConRon.Bridge.Specs
 
 public section
 
@@ -57,6 +58,30 @@ theorem denoteEAux_le {st : EStore} {f : Nat} {e : EIdx} {eC : Expr}
     (h : denoteEAux st f e = some eC) (hf : f ≤ st.nodeCount + 1) : denoteE st e = some eC :=
   denoteEAux_mono st f _ e eC hf h
 
+/-- con-leche: none — an expression's constructor. -/
+@[expose] def eTag : Expr → Nat
+  | .bvar _ => 0 | .fvar _ _ => 1 | .sort _ => 2 | .const _ _ => 3 | .app _ _ => 4
+  | .lam _ _ => 5 | .forallE _ _ => 6 | .letE _ _ _ => 7 | .lit _ => 8 | .proj _ _ _ => 9
+
+/-- con-leche: none — a node's constructor. -/
+@[expose] def vTag : ENodeView → Nat
+  | .bvar _ => 0 | .fvar _ _ => 1 | .sort _ => 2 | .const _ _ => 3 | .app _ _ => 4
+  | .lam _ _ => 5 | .forallE _ _ => 6 | .letE _ _ _ => 7 | .lit _ => 8 | .proj _ _ _ => 9
+
+/-- The readback keeps the node's constructor. -/
+theorem denoteEAux_tag {st : EStore} {f : Nat} {e : EIdx} {eC : Expr} {v : ENodeView}
+    (h : denoteEAux st (f + 1) e = some eC) (hv : st.view e = some v) : eTag eC = vTag v := by
+  simp only [denoteEAux, hv, Option.bind_some] at h
+  cases v <;> simp only [opt2_eq_some_iff, opt3_eq_some_iff, Option.map_eq_some_iff,
+    Option.some.injEq] at h <;> grind [eTag, vTag]
+
+theorem body_self {e : Expr} (h : eTag e ≠ 6) : ConLeche.Frontend.Olean.isPropCheap.body e = e := by
+  cases e <;> simp_all [eTag, ConLeche.Frontend.Olean.isPropCheap.body]
+
+theorem head_none {e : Expr} {k : Nat} (h1 : eTag e ≠ 3) (h2 : eTag e ≠ 4) :
+    ConLeche.Frontend.Olean.isPropCheap.head e k = none := by
+  cases e <;> simp_all [eTag, ConLeche.Frontend.Olean.isPropCheap.head]
+
 /-- con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap — **at fuel above the
 readback's, the twin's telescope is upstream's** body. -/
 theorem isPropBody_exact {s : AState} (hok : StateOK s) :
@@ -70,50 +95,17 @@ theorem isPropBody_exact {s : AState} (hok : StateOK s) :
     obtain ⟨v, s₁, h1, h⟩ := AM.bind_ok h
     obtain ⟨hs1, hv⟩ := view_run h1
     subst hs1
-    have hd' := hd
-    simp only [denoteEAux, hv, Option.bind_some] at hd'
+    have htag := denoteEAux_tag hd hv
     cases v with
     | forallE t x =>
-      simp only [opt2_eq_some_iff] at hd'
+      have hd' := hd
+      simp only [denoteEAux, hv, Option.bind_some, opt2_eq_some_iff] at hd'
       obtain ⟨tC, xC, -, hx, rfl⟩ := hd'
       obtain ⟨f', hf', hb⟩ := isPropBody_exact hok f fuel hx (by omega) h
       exact ⟨f', by omega, by simpa [ConLeche.Frontend.Olean.isPropCheap.body] using hb⟩
-    | bvar _ =>
+    | _ =>
       obtain ⟨rfl, -⟩ := AM.pure_ok h
-      simp only [Option.some.injEq] at hd'; subst hd'
-      exact ⟨f + 1, le_refl _, by simpa [ConLeche.Frontend.Olean.isPropCheap.body] using hd⟩
-    | fvar _ _ =>
-      obtain ⟨rfl, -⟩ := AM.pure_ok h
-      refine ⟨f + 1, le_refl _, ?_⟩
-      rw [hd]; cases eC <;> simp_all [ConLeche.Frontend.Olean.isPropCheap.body, Option.map]
-    | sort _ =>
-      obtain ⟨rfl, -⟩ := AM.pure_ok h
-      refine ⟨f + 1, le_refl _, ?_⟩
-      rw [hd]; cases eC <;> simp_all [ConLeche.Frontend.Olean.isPropCheap.body, Option.map]
-    | const _ _ =>
-      obtain ⟨rfl, -⟩ := AM.pure_ok h
-      refine ⟨f + 1, le_refl _, ?_⟩
-      rw [hd]; cases eC <;> simp_all [ConLeche.Frontend.Olean.isPropCheap.body, opt2_eq_some_iff]
-    | app _ _ =>
-      obtain ⟨rfl, -⟩ := AM.pure_ok h
-      refine ⟨f + 1, le_refl _, ?_⟩
-      rw [hd]; cases eC <;> simp_all [ConLeche.Frontend.Olean.isPropCheap.body, opt2_eq_some_iff]
-    | lam _ _ =>
-      obtain ⟨rfl, -⟩ := AM.pure_ok h
-      refine ⟨f + 1, le_refl _, ?_⟩
-      rw [hd]; cases eC <;> simp_all [ConLeche.Frontend.Olean.isPropCheap.body, opt2_eq_some_iff]
-    | letE _ _ _ =>
-      obtain ⟨rfl, -⟩ := AM.pure_ok h
-      refine ⟨f + 1, le_refl _, ?_⟩
-      rw [hd]; cases eC <;> simp_all [ConLeche.Frontend.Olean.isPropCheap.body, opt3_eq_some_iff]
-    | lit _ =>
-      obtain ⟨rfl, -⟩ := AM.pure_ok h
-      refine ⟨f + 1, le_refl _, ?_⟩
-      rw [hd]; cases eC <;> simp_all [ConLeche.Frontend.Olean.isPropCheap.body]
-    | proj _ _ _ =>
-      obtain ⟨rfl, -⟩ := AM.pure_ok h
-      refine ⟨f + 1, le_refl _, ?_⟩
-      rw [hd]; cases eC <;> simp_all [ConLeche.Frontend.Olean.isPropCheap.body, opt2_eq_some_iff]
+      exact ⟨f + 1, Nat.le_refl _, by rw [body_self (by rw [htag]; simp [vTag])]; exact hd⟩
 
 /-- con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap — **at fuel above the
 readback's, the twin finds no head only where upstream finds none.** -/
@@ -128,23 +120,15 @@ theorem isPropHead_exact {s : AState} (hok : StateOK s) :
     obtain ⟨v, s₁, h1, h⟩ := AM.bind_ok h
     obtain ⟨hs1, hv⟩ := view_run h1
     subst hs1
-    simp only [denoteEAux, hv, Option.bind_some] at hd
+    have htag := denoteEAux_tag hd hv
     cases v with
     | app g a =>
-      simp only [opt2_eq_some_iff] at hd
+      simp only [denoteEAux, hv, Option.bind_some, opt2_eq_some_iff] at hd
       obtain ⟨gC, aC, hg, -, rfl⟩ := hd
       have := isPropHead_exact hok f fuel hg (by omega) h
       simpa [ConLeche.Frontend.Olean.isPropCheap.head] using this
     | const _ _ => cases (AM.pure_ok h).1
-    | bvar _ =>
-      simp only [Option.some.injEq] at hd; subst hd; rfl
-    | fvar _ _ => cases eC <;> simp_all [ConLeche.Frontend.Olean.isPropCheap.head, Option.map]
-    | sort _ => cases eC <;> simp_all [ConLeche.Frontend.Olean.isPropCheap.head, Option.map]
-    | lam _ _ => cases eC <;> simp_all [ConLeche.Frontend.Olean.isPropCheap.head, opt2_eq_some_iff]
-    | forallE _ _ => cases eC <;> simp_all [ConLeche.Frontend.Olean.isPropCheap.head, opt2_eq_some_iff]
-    | letE _ _ _ => cases eC <;> simp_all [ConLeche.Frontend.Olean.isPropCheap.head, opt3_eq_some_iff]
-    | lit _ => simp only [Option.some.injEq] at hd; subst hd; rfl
-    | proj _ _ _ => cases eC <;> simp_all [ConLeche.Frontend.Olean.isPropCheap.head, opt2_eq_some_iff]
+    | _ => exact head_none (by rw [htag]; simp [vTag]) (by rw [htag]; simp [vTag])
 
 /-- con-leche: ConLeche/Frontend/Olean/Merge.lean:45-47 isPropCheap.headOf — **the twin's head of
 a statement is upstream's**, read back. -/
@@ -155,23 +139,23 @@ theorem isPropCheapHeadOf_run {s : AState} (hok : StateOK s) {ty : EIdx} {tyC : 
       (ConLeche.Frontend.Olean.isPropCheap.headOf tyC) := by
   have hfuel := nodeCount_lt_closureFuel hok.wf
   unfold ConRon.Arena.Frontend.Olean.isPropCheapHeadOf at h
-  obtain ⟨b, s₁, h1, h⟩ := AM.bind_ok h
-  obtain ⟨hs1, bC, hb, hbd⟩ := isPropBody_run hok _ hty h1
+  obtain ⟨b, s₁, hA, hB⟩ := AM.bind_ok h
+  obtain ⟨hs1, bC, hb, -⟩ := isPropBody_run hok _ hty hA
   subst hs1
-  obtain ⟨f', hf', hbe⟩ := isPropBody_exact hok _ _ hty hfuel h1
+  obtain ⟨f', hf', hbe⟩ := isPropBody_exact hok _ _ hty hfuel hA
   have hbC : bC = ConLeche.Frontend.Olean.isPropCheap.body tyC :=
     Option.some.inj (hb.symm.trans (denoteEAux_le hbe (by omega)))
   subst hbC
-  obtain ⟨o', s₂, h2, h⟩ := AM.bind_ok h
-  have hs2 := isPropHead_state _ h2
+  obtain ⟨o', s₂, hC, hD⟩ := AM.bind_ok hB
+  have hs2 := isPropHead_state _ hC
   subst hs2
   unfold ConLeche.Frontend.Olean.isPropCheap.headOf
   rcases o' with _ | ⟨n, k⟩
-  · obtain ⟨rfl, rfl⟩ := AM.pure_ok h
-    have := isPropHead_exact hok f' _ hbe (by omega) h2
-    rw [this]; exact .none
-  · obtain ⟨rfl, rfl⟩ := AM.pure_ok h
-    obtain ⟨-, -, nC, hn, hhead⟩ := isPropHead_run hok _ hb h2
-    rw [hhead]; exact .some hn
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok hD
+    have := isPropHead_exact hok f' _ hbe (by omega) hC
+    rw [this]; exact ⟨rfl, .none⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok hD
+    obtain ⟨-, -, nC, hn, hhead⟩ := isPropHead_run hok _ hb hC
+    rw [hhead]; exact ⟨rfl, .some hn⟩
 
 end ConRon.Bridge.Modular
