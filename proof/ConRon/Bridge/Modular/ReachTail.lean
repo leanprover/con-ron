@@ -11,6 +11,7 @@ module
 
 public import ConRon.Bridge.Modular.Copies
 public import ConRon.Bridge.Modular.Graph
+public import ConRon.Bridge.Frontend.Olean.Records
 
 public section
 
@@ -239,5 +240,186 @@ theorem readOrder_run {s s' : AState} {ds : Array IDeclaration} {dsC : Array Dec
   simp only [ConLeche.Driver.readOrder, ← hsz]
   rw [show (({} : ConLeche.Driver.SortSt)) = sortC {} from rfl, e]
   rfl
+
+/-! ## The read order's positions are records' -/
+
+/-- Upstream's owner map along the records from position `j`: every value a position below
+`j + l.length`, or the start map's. -/
+theorem omGo_lt : ∀ (l : List Declaration) (j : Nat) (m : Std.HashMap ConLeche.Name Nat)
+    (y : ConLeche.Name) (v : Nat), (omGo l j m)[y]? = some v → v < j + l.length ∨ m[y]? = some v
+  | [], j, m, y, v, h => .inr h
+  | d :: l, j, m, y, v, h => by
+    rcases omGo_lt l (j + 1) _ y v h with h | h
+    · exact .inl (by simp at h ⊢; omega)
+    · have key : ∀ (ns : List ConLeche.Name) (m : Std.HashMap ConLeche.Name Nat),
+          (ns.foldl (fun m y => m.insert y j) m)[y]? = some v → v = j ∨ m[y]? = some v := by
+        intro ns
+        induction ns with
+        | nil => exact fun m h => .inr h
+        | cons n ns ih =>
+          intro m h
+          rcases ih _ h with h | h
+          · exact .inl h
+          · rw [Std.HashMap.getElem?_insert] at h
+            split at h
+            · exact .inl (Option.some.inj h).symm
+            · exact .inr h
+      rcases key _ m h with h | h
+      · exact .inl (by simp; omega)
+      · exact .inr h
+
+theorem ownerMap_lt {ds : Array Declaration} {y : ConLeche.Name} {v : Nat}
+    (h : (ConLeche.Driver.ownerMap ds)[y]? = some v) : v < ds.size := by
+  rw [ownerMap_eq] at h
+  rcases omGo_lt ds.toList 0 {} y v h with h | h
+  · simpa using h
+  · simp at h
+
+theorem sortVisit_lt {ds : Array Declaration} {rds : Array (List ConLeche.Name)}
+    {owner : Std.HashMap ConLeche.Name Nat} {n : Nat}
+    (hown : ∀ (y : ConLeche.Name) (v : Nat), owner[y]? = some v → v < n) :
+    ∀ (fuel i : Nat) (path : Std.HashSet Nat) (ys : List ConLeche.Name)
+      (st st' : ConLeche.Driver.SortSt), i < n → (∀ x ∈ st.order.toList, x < n) →
+      ConLeche.Driver.sortVisit ds rds owner fuel i path ys st = .ok st' →
+      ∀ x ∈ st'.order.toList, x < n
+  | 0, _, _, _, _, _, _, _, h => by rw [ConLeche.Driver.sortVisit] at h; cases h
+  | fuel + 1, i, path, [], st, st', hi, hst, h => by
+    rw [ConLeche.Driver.sortVisit] at h
+    cases h
+    intro x hx
+    simp only [Array.toList_push, List.mem_append, List.mem_singleton] at hx
+    rcases hx with hx | rfl
+    · exact hst x hx
+    · exact hi
+  | fuel + 1, i, path, y :: ys, st, st', hi, hst, h => by
+    rw [ConLeche.Driver.sortVisit] at h
+    split at h
+    · cases h
+    · next j hj =>
+      split at h
+      · exact sortVisit_lt hown (fuel + 1) i path ys st st' hi hst h
+      · split at h
+        · cases h
+        · split at h
+          · cases h
+          · next st₁ h₁ =>
+            exact sortVisit_lt hown (fuel + 1) i path ys st₁ st' hi
+              (sortVisit_lt hown fuel j _ _ st st₁ (hown y j hj) hst h₁) h
+termination_by fuel _ _ ys => (fuel, ys.length)
+
+theorem sortFrom_lt {ds : Array Declaration} {rds : Array (List ConLeche.Name)}
+    {owner : Std.HashMap ConLeche.Name Nat} {n fuel : Nat}
+    (hown : ∀ (y : ConLeche.Name) (v : Nat), owner[y]? = some v → v < n) :
+    ∀ (is : List Nat) (st st' : ConLeche.Driver.SortSt), (∀ i ∈ is, i < n) →
+      (∀ x ∈ st.order.toList, x < n) →
+      ConLeche.Driver.sortFrom ds rds owner fuel is st = .ok st' → ∀ x ∈ st'.order.toList, x < n
+  | [], st, st', _, hst, h => by rw [ConLeche.Driver.sortFrom] at h; cases h; exact hst
+  | i :: is, st, st', his, hst, h => by
+    rw [ConLeche.Driver.sortFrom] at h
+    split at h
+    · exact sortFrom_lt hown is st st' (fun i hi => his i (List.mem_cons_of_mem _ hi)) hst h
+    · split at h
+      · cases h
+      · next st₁ h₁ =>
+        exact sortFrom_lt hown is st₁ st' (fun i hi => his i (List.mem_cons_of_mem _ hi))
+          (sortVisit_lt hown fuel i _ _ st st₁ (his i (List.mem_cons_self ..)) hst h₁) h
+
+/-- con-leche: ConLeche/Driver/Reach.lean:914-918 readOrder — **every position of the read
+order is a record's.** -/
+theorem readOrder_lt {ds : Array Declaration} {rds : Array (List ConLeche.Name)} {o : Array Nat}
+    (h : ConLeche.Driver.readOrder ds rds = .ok o) : ∀ j ∈ o.toList, j < ds.size := by
+  unfold ConLeche.Driver.readOrder at h
+  cases hs : ConLeche.Driver.sortFrom ds rds (ConLeche.Driver.ownerMap ds) (ds.size + 1)
+      (List.range ds.size) {} with
+  | error e => rw [hs] at h; cases h
+  | ok st =>
+    rw [hs] at h
+    cases h
+    exact sortFrom_lt (fun y v hv => ownerMap_lt hv) _ {} st (fun i hi => List.mem_range.mp hi)
+      (by simp) hs
+
+/-! ## The records in read order -/
+
+theorem listRel_append' {α β : Type} {R : α → β → Prop} :
+    ∀ {a : List α} {b : List β} {c : List α} {d : List β}, ListRel R a b → ListRel R c d →
+      ListRel R (a ++ c) (b ++ d)
+  | _, _, _, _, .nil, h => h
+  | _, _, _, _, .cons x h1, h2 => .cons x (listRel_append' h1 h2)
+
+theorem inReadOrder_go {st : EStore} {ctx : Array IDeclaration} {ctxC : Array Declaration}
+    {homes : Array NIdx} {homesC : Array ConLeche.Name}
+    (f : Array IDeclaration × Array NIdx → Nat → Array IDeclaration × Array NIdx)
+    (hf : ∀ acc j d h, ctx[j]? = some d → homes[j]? = some h → f acc j = (acc.1.push d, acc.2.push h))
+    (hc : denoteDecls st ctx.toList = some ctxC.toList)
+    (hh : ListRel (NR st) homes.toList homesC.toList) :
+    ∀ (o : List Nat) (a : Array IDeclaration × Array NIdx) (aC : List Declaration)
+      (bC : List ConLeche.Name),
+      (∀ j ∈ o, j < ctx.size ∧ j < homes.size) →
+      denoteDecls st a.1.toList = some aC → ListRel (NR st) a.2.toList bC →
+      denoteDecls st (o.foldl f a).1.toList = some (aC ++ o.map (fun j => ctxC[j]?.getD default)) ∧
+        ListRel (NR st) (o.foldl f a).2.toList (bC ++ o.map (fun j => homesC[j]?.getD default))
+  | [], a, aC, bC, _, h1, h2 => by simpa using ⟨h1, h2⟩
+  | j :: o, a, aC, bC, hj, h1, h2 => by
+    obtain ⟨hj1, hj2⟩ := hj j (List.mem_cons_self ..)
+    have hc' : ctx[j]? = some ctx[j] := Array.getElem?_eq_getElem hj1
+    have hh' : homes[j]? = some homes[j] := Array.getElem?_eq_getElem hj2
+    obtain ⟨dC, hdC, hd⟩ := denoteDecls_get hc (k := j) (e := ctx[j])
+      (by rw [Array.getElem?_toList]; exact hc')
+    have hgc : ctxC[j]?.getD default = dC := by
+      rw [← Array.getElem?_toList, hdC]; rfl
+    obtain ⟨hjC, hr⟩ := listRel_get hh (i := j) (by simpa using hj2)
+    have hgh : homesC[j]?.getD default = homesC.toList[j] := by
+      rw [← Array.getElem?_toList, List.getElem?_eq_getElem hjC]; rfl
+    rw [List.foldl_cons, hf a j _ _ hc' hh']
+    have := inReadOrder_go f hf hc hh o (a.1.push ctx[j], a.2.push homes[j]) (aC ++ [dC])
+      (bC ++ [homesC.toList[j]]) (fun k hk => hj k (List.mem_cons_of_mem _ hk))
+      (by simpa using denoteDecls_snoc hd h1)
+      (by simpa using listRel_append' h2 (.cons (by simpa using hr) .nil))
+    simpa [hgc, hgh] using this
+
+/-- con-leche: ConLeche/Driver/Reach.lean:958-959 reachWith — **the records and homes in read
+order**: at positions every one a record's, the twin's `inReadOrder` is upstream's maps. -/
+theorem inReadOrder_rel {st : EStore} {L : ConRon.Arena.Modular.ReachLog}
+    {ctxC : Array Declaration} {homesC : Array ConLeche.Name} {o : Array Nat}
+    (hc : denoteDecls st L.ctx.toList = some ctxC.toList)
+    (hh : ListRel (NR st) L.homes.toList homesC.toList)
+    (hj : ∀ j ∈ o.toList, j < L.ctx.size ∧ j < L.homes.size) :
+    denoteDecls st (ConRon.Arena.Modular.inReadOrder L o).1.toList =
+        some (o.map (fun j => ctxC[j]?.getD default)).toList ∧
+      ListRel (NR st) (ConRon.Arena.Modular.inReadOrder L o).2.toList
+        (o.map (fun j => homesC[j]?.getD default)).toList := by
+  unfold ConRon.Arena.Modular.inReadOrder
+  rw [← Array.foldl_toList, Array.toList_map, Array.toList_map]
+  refine inReadOrder_go _ ?_ hc hh o.toList (#[], #[]) [] [] hj rfl .nil
+  intro acc j d h h1 h2
+  simp only [h1, h2]
+
+/-! ## The read order in the reach's shapes -/
+
+theorem listRel_of_denoteNList {st : EStore} {a : List NIdx} {b : List ConLeche.Name}
+    (h : Frontend.denoteNList st.ns a = some b) : ListRel (NR st) a b := by
+  rw [denoteNList_eq_mapM] at h
+  exact listRel_of_mapM h
+
+/-- con-leche: ConLeche/Driver/Reach.lean:914-918 readOrder — `readOrder_run` and
+`readOrder_lt`, the reads given as `denoteNList` equations and the records as lists. -/
+theorem readOrder_run' {s s' : AState} {ds : Array IDeclaration} {rds : Array (List NIdx)}
+    {dsC : List Declaration} {rdsC : List (List ConLeche.Name)} {o : Array Nat}
+    (hok : DriverOK s) (hd : denoteDecls s.store ds.toList = some dsC)
+    (hr : ListRel (fun (a : List NIdx) (b : List ConLeche.Name) =>
+      Frontend.denoteNList s.store.ns a = some b) rds.toList rdsC)
+    (h : ConRon.Arena.Modular.readOrder ds rds s = .ok (o, s')) :
+    CStep s s' ∧ ConLeche.Driver.readOrder dsC.toArray rdsC.toArray = .ok o ∧
+      ∀ j ∈ o.toList, j < ds.size := by
+  have hd' : denoteDecls s.store ds.toList = some dsC.toArray.toList := by simpa using hd
+  have hr' : ListRel (fun (a : List NIdx) (b : List ConLeche.Name) => ListRel (NR s.store) a b)
+      rds.toList rdsC.toArray.toList := by
+    simpa using ListRel.mono' (fun a b h => listRel_of_denoteNList h) hr
+  obtain ⟨c, e⟩ := readOrder_run hok hd' hr' h
+  refine ⟨c, e, fun j hj => ?_⟩
+  have := readOrder_lt e j hj
+  have hl := denoteDecls_length hd
+  simp at this hl ⊢
+  omega
 
 end ConRon.Bridge.Modular
