@@ -24,6 +24,8 @@ In dependency order:
 * `Bridge/Checker/Pooled.lean`, `PooledOleans.lean` — every job passing is con-leche's fold
   accepting, the stream's records and an `--olean` run's;
 * `Bridge/Checker/Pool.lean` — **`Arena.pooledAccepts_bridge`**, the theorem the capstone uses;
+* `Bridge/Checker/PoolFrom.lean` — **`Arena.pooledOleanAcceptsFrom_bridge`**: a modular worker's
+  own jobs passing are a `PureRun` from its context;
 * `Bridge/Checker/Axioms.lean` — the trust census.
 -/
 module
@@ -48,6 +50,7 @@ public import ConRon.Bridge.Checker.Install
 public import ConRon.Bridge.Checker.Pooled
 public import ConRon.Bridge.Checker.PooledOleans
 public import ConRon.Bridge.Checker.Pool
+public import ConRon.Bridge.Checker.PoolFrom
 public import ConRon.Bridge.Checker.Axioms
 
 public section
