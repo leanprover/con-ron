@@ -155,39 +155,67 @@ theorem rootHits_sim {F : FS} {sp : SearchPath} {r : ConLeche.Name} {a : RootAt}
     generalize ConLeche.Frontend.Olean.oneEach rs = o at h4 ⊢
     rcases o with _ | ⟨x, _ | ⟨y, o⟩⟩ <;> (cases h4; exact ModelIO.gives_pure _ _)
 
+/-- **The twin's root lookup on one search path, where no operation failed, is upstream's.** -/
+theorem rootAt_sim {F : FS} {sp : SearchPath} {r : ConLeche.Name} {a : RootAt}
+    (h : Arena.Frontend.Olean.rootAt (modelFs F) sp r = a) (ha : ∀ e, a ≠ .failed e) :
+    ModelIO.Gives (ConLeche.Frontend.Olean.rootAt sp r : ModelIO RootAt) F a := by
+  unfold Arena.Frontend.Olean.rootAt at h
+  split at h
+  · rename_i a' ha'
+    subst h
+    exact (rootHits_sim ha').tryCatch
+  · exact absurd h.symm (ha _)
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Roots.lean:226 lookAt_ok — **a directory the
+twin's lookup on a path and its fallback finds is upstream's `lookAt`'s**. -/
+theorem lookAt_sim {F : FS} {path fallback : SearchPath} {r : ConLeche.Name}
+    {d : System.FilePath}
+    (h : Arena.Frontend.Olean.lookAt (modelFs F) path fallback r = .dir d) :
+    ModelIO.Gives (ConLeche.Frontend.Olean.lookAt path fallback r : ModelIO RootAt) F (.dir d) := by
+  unfold Arena.Frontend.Olean.lookAt at h
+  unfold ConLeche.Frontend.Olean.lookAt
+  generalize ha : Arena.Frontend.Olean.rootAt (modelFs F) path r = a at h
+  cases a with
+  | dir d' =>
+    cases h
+    exact (rootAt_sim ha (by simp)).bind (ModelIO.gives_pure _ _)
+  | missing =>
+    exact (rootAt_sim ha (by simp)).bind (rootAt_sim h (by simp))
+  | twice ds => cases h
+  | failed e => cases h
+
 /-- con-leche: ConLeche/Verify/Frontend/Olean/Roots.lean:361 findModule_ok — **a module the twin
-finds on the snapshot is found by upstream's lookup on the bare search path**. -/
-theorem findModule_sim {F : FS} {sp : SearchPath} {m : ConLeche.Name} {l : Located}
+finds on the snapshot is found by upstream's lookup with no root resolved**. -/
+theorem findModule_sim {F : FS} {sp : Roots} {m : ConLeche.Name} {l : Located}
     (h : Arena.Frontend.Olean.findModule (modelFs F) sp m = .ok l) :
-    ModelIO.Gives (ConLeche.Frontend.Olean.findModule (sp : Roots) m : ModelIO _) F (.ok l) := by
+    ModelIO.Gives (ConLeche.Frontend.Olean.findModule sp.bare m : ModelIO _) F (.ok l) := by
   unfold Arena.Frontend.Olean.findModule at h
   unfold ConLeche.Frontend.Olean.findModule
   split at h
   · rename_i l' hl
     cases h
-    unfold Arena.Frontend.Olean.rootAt at hl
-    split at hl
-    · rename_i a ha
-      have hg := rootHits_sim ha
-      have hd : ∃ d, a = .dir d := by
-        cases a <;> simp [ConLeche.Frontend.Olean.locatedOf] at hl ⊢
-      obtain ⟨d, rfl⟩ := hd
-      rw [← hl]
-      refine ModelIO.Gives.map ?_
-      simp only [ConLeche.Frontend.Olean.Roots.rootOf, ConLeche.Frontend.Olean.lookAt]
-      have e0 : ((sp : Roots).map[m.root]? : Option RootAt) = none := by
-        show (({} : Std.HashMap ConLeche.Name RootAt)[m.root]?) = none
-        simp
-      rw [e0]
-      refine hg.tryCatch.bind ?_
-      exact ModelIO.gives_pure _ _
-    · simp [ConLeche.Frontend.Olean.locatedOf] at hl
+    generalize ha : Arena.Frontend.Olean.lookAt (modelFs F) sp.path sp.fallback m.root = a at hl
+    have hd : ∃ d, a = .dir d := by
+      cases a <;> simp [ConLeche.Frontend.Olean.locatedOf] at hl ⊢
+    obtain ⟨d, rfl⟩ := hd
+    rw [← hl]
+    refine ModelIO.Gives.map ?_
+    simp only [ConLeche.Frontend.Olean.Roots.rootOf]
+    have e0 : (sp.bare.map[m.root]? : Option RootAt) = none := by
+      show (({} : Std.HashMap ConLeche.Name RootAt)[m.root]?) = none
+      simp
+    rw [e0]
+    exact lookAt_sim ha
   · cases h
 
+/-- A lookup with no root resolved is read off every snapshot. -/
+theorem roots_ok_of_bare {F : FS} {sp : Roots} (h : sp.bare = sp) : sp.Ok F :=
+  h ▸ ConLeche.Frontend.Olean.Roots.ok_bare F sp
+
 /-- **A module the twin finds is found through any lookup read off the snapshot** whose
-search path is the twin's (`Roots.Ok`, upstream's `findModule_rev`). -/
-theorem findModule_simR {F : FS} {sp : SearchPath} {R : Roots} (hR : R.Ok F)
-    (hb : R.bare = (sp : Roots)) {m : ConLeche.Name} {l : Located}
+directories are the twin's (`Roots.Ok`, upstream's `findModule_rev`). -/
+theorem findModule_simR {F : FS} {sp : Roots} {R : Roots} (hR : R.Ok F)
+    (hb : R.bare = sp.bare) {m : ConLeche.Name} {l : Located}
     (h : Arena.Frontend.Olean.findModule (modelFs F) sp m = .ok l) :
     ModelIO.Gives (ConLeche.Frontend.Olean.findModule R m : ModelIO _) F (.ok l) := by
   obtain ⟨hs', o⟩ := (findModule_sim h).outcome #[]
@@ -195,42 +223,39 @@ theorem findModule_simR {F : FS} {sp : SearchPath} {R : Roots} (hR : R.Ok F)
   exact ConLeche.Frontend.Olean.findModule_ok (ConLeche.Frontend.Olean.findModule_rev hR o)
 
 /-- **Resolving a root the twin finds**: the map, with it resolved, read off the snapshot. -/
-theorem resolve_sim {F : FS} {sp : SearchPath} {R : Roots} (hR : R.Ok F)
-    (hb : R.bare = (sp : Roots)) {m : ConLeche.Name} {l : Located}
+theorem resolve_sim {F : FS} {sp : Roots} {R : Roots} (hR : R.Ok F)
+    (hb : R.bare = sp.bare) {m : ConLeche.Name} {l : Located}
     (h : Arena.Frontend.Olean.findModule (modelFs F) sp m = .ok l) :
-    ∃ R1, ModelIO.Gives (R.resolve m : ModelIO Roots) F R1 ∧ R1.Ok F ∧ R1.bare = (sp : Roots) := by
-  have hp : R.path = sp := congrArg Roots.path hb
-  have hf : R.fallback = [] := congrArg Roots.fallback hb
+    ∃ R1, ModelIO.Gives (R.resolve m : ModelIO Roots) F R1 ∧ R1.Ok F ∧ R1.bare = sp.bare := by
+  have hp : R.path = sp.path := show R.bare.path = sp.bare.path from congrArg Roots.path hb
+  have hf : R.fallback = sp.fallback :=
+    show R.bare.fallback = sp.bare.fallback from congrArg Roots.fallback hb
   unfold Arena.Frontend.Olean.findModule at h
   split at h
   · rename_i l' hl
-    unfold Arena.Frontend.Olean.rootAt at hl
-    split at hl
-    · rename_i a ha
-      have hd : ∃ d, a = .dir d := by
-        cases a <;> simp [ConLeche.Frontend.Olean.locatedOf] at hl ⊢
-      obtain ⟨d, rfl⟩ := hd
-      have hg : ModelIO.Gives (ConLeche.Frontend.Olean.lookAt R.path R.fallback m.root :
-          ModelIO RootAt) F (.dir d) := by
-        rw [hp, hf]
-        unfold ConLeche.Frontend.Olean.lookAt
-        exact (rootHits_sim ha).tryCatch.bind (ModelIO.gives_pure _ _)
-      have hres : ∃ R1, ModelIO.Gives (R.resolve m : ModelIO Roots) F R1 := by
-        unfold ConLeche.Frontend.Olean.Roots.resolve
-        by_cases hc : R.map.contains m.root = true
-        · exact ⟨R, by simp only [hc, ↓reduceIte]; exact ModelIO.gives_pure _ _⟩
-        · refine ⟨{ R with map := R.map.insert m.root (.dir d) }, ?_⟩
-          simp only [hc, Bool.false_eq_true, ↓reduceIte]
-          exact hg.bind (ModelIO.gives_pure _ _)
-      obtain ⟨R1, hR1⟩ := hres
-      obtain ⟨hs', o⟩ := hR1.outcome #[]
-      obtain ⟨hok, hbare⟩ := ConLeche.Frontend.Olean.Roots.resolve_ok hR o
-      exact ⟨R1, hR1, hok, hbare.trans hb⟩
-    · simp [ConLeche.Frontend.Olean.locatedOf] at hl
+    generalize ha : Arena.Frontend.Olean.lookAt (modelFs F) sp.path sp.fallback m.root = a at hl
+    have hd : ∃ d, a = .dir d := by
+      cases a <;> simp [ConLeche.Frontend.Olean.locatedOf] at hl ⊢
+    obtain ⟨d, rfl⟩ := hd
+    have hg : ModelIO.Gives (ConLeche.Frontend.Olean.lookAt R.path R.fallback m.root :
+        ModelIO RootAt) F (.dir d) := by
+      rw [hp, hf]
+      exact lookAt_sim ha
+    have hres : ∃ R1, ModelIO.Gives (R.resolve m : ModelIO Roots) F R1 := by
+      unfold ConLeche.Frontend.Olean.Roots.resolve
+      by_cases hc : R.map.contains m.root = true
+      · exact ⟨R, by simp only [hc, ↓reduceIte]; exact ModelIO.gives_pure _ _⟩
+      · refine ⟨{ R with map := R.map.insert m.root (.dir d) }, ?_⟩
+        simp only [hc, Bool.false_eq_true, ↓reduceIte]
+        exact hg.bind (ModelIO.gives_pure _ _)
+    obtain ⟨R1, hR1⟩ := hres
+    obtain ⟨hs', o⟩ := hR1.outcome #[]
+    obtain ⟨hok, hbare⟩ := ConLeche.Frontend.Olean.Roots.resolve_ok hR o
+    exact ⟨R1, hR1, hok, hbare.trans hb⟩
   · cases h
 
 /-- The twin's accepting imports read found the module. -/
-theorem moduleImports_found {pk : OleanPins} {F : FS} {sp : SearchPath} {m : NIdx}
+theorem moduleImports_found {pk : OleanPins} {F : FS} {sp : Roots} {m : NIdx}
     {mn : ConLeche.Name} {xs : Array (ImportF NIdx)} {s s' : AState}
     (hm : denoteN s.store.ns m = some mn)
     (h : Arena.Frontend.Olean.moduleImports (modelFs F) pk sp m s = .ok (xs, s')) :
@@ -400,8 +425,8 @@ theorem readImportsAt_run {pk : OleanPins} {F : FS} {loc : Located} {m : ConLech
           exact ModelIO.gives_pure _ _
 
 /-- con-leche: ConLeche/Frontend/Olean/Files.lean:274-280 moduleImports -/
-theorem moduleImports_run {pk : OleanPins} {F : FS} {sp : SearchPath} {R : Roots} (hR : R.Ok F)
-    (hb : R.bare = (sp : Roots)) {m : NIdx}
+theorem moduleImports_run {pk : OleanPins} {F : FS} {sp : Roots} {R : Roots} (hR : R.Ok F)
+    (hb : R.bare = sp.bare) {m : NIdx}
     {mn : ConLeche.Name} {xs : Array (ImportF NIdx)} {s s' : AState}
     (hm : denoteN s.store.ns m = some mn) (hctx : Ctx pk s)
     (h : Arena.Frontend.Olean.moduleImports (modelFs F) pk sp m s = .ok (xs, s')) :
@@ -476,9 +501,9 @@ theorem readFilesAt_sim {F : FS} {loc : Located} {m : ConLeche.Name} {level : OL
         exact (readPartOr_sim h4).bind (ModelIO.gives_pure _ _)
 
 /-- con-leche: ConLeche/Frontend/Olean/Files.lean:327-332 readFiles — through any lookup read
-off the snapshot whose search path is the twin's. -/
-theorem readFiles_sim {F : FS} {sp : SearchPath} {R : Roots} (hR : R.Ok F)
-    (hb : R.bare = (sp : Roots)) {m : ConLeche.Name} {level : OLeanLevel}
+off the snapshot whose directories are the twin's. -/
+theorem readFiles_sim {F : FS} {sp : Roots} {R : Roots} (hR : R.Ok F)
+    (hb : R.bare = sp.bare) {m : ConLeche.Name} {level : OLeanLevel}
     {f : ModFiles} (h : Arena.Frontend.Olean.readFiles (modelFs F) sp m level = .ok f) :
     ModelIO.Gives (ConLeche.Frontend.Olean.readFiles R m level : ModelIO _) F (.ok f) := by
   unfold Arena.Frontend.Olean.readFiles at h

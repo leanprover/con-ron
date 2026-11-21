@@ -351,21 +351,21 @@ theorem frontierExpr_run {pk : OleanPins} {r : Region} {b : Frontier} {c : Nat} 
 
 /-- con-leche: ConLeche/Frontend/Olean/Records.lean:126-131 ValueCache — **a cached region is the
 region of the files of the module it is cached for**, by upstream's values. -/
-@[expose] def CacheOK (sp : SearchPath) (F : FS) (valuesP : Array ConLeche.Frontend.Olean.ModRef)
+@[expose] def CacheOK (sp : ConLeche.Frontend.Olean.Roots) (F : FS) (valuesP : Array ConLeche.Frontend.Olean.ModRef)
     (c : ValueCache) : Prop :=
   ∀ r, c.region = some r → ∃ mdP f a, valuesP[c.idx]? = some mdP ∧
     ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp mdP.name .private : ModelIO _) F (.ok f) ∧
     f.viewRegion .private = some (r, a)
 
-theorem CacheOK.empty (sp : SearchPath) (F : FS) (valuesP : Array ConLeche.Frontend.Olean.ModRef) :
+theorem CacheOK.empty (sp : ConLeche.Frontend.Olean.Roots) (F : FS) (valuesP : Array ConLeche.Frontend.Olean.ModRef) :
     CacheOK sp F valuesP {} := fun r h => by cases h
 
 /-- con-leche: ConLeche/Frontend/Olean/Records.lean:133-148 regionFor — the read of a module's
 region off its files: the files are the snapshot's, and the cache it leaves is good. -/
-theorem readRegion_run {F : FS} {pk : OleanPins} {sp : SearchPath} {m : NIdx} {idx : Nat}
+theorem readRegion_run {F : FS} {pk : OleanPins} {sp : ConLeche.Frontend.Olean.Roots} {m : NIdx} {idx : Nat}
     {valuesP : Array ConLeche.Frontend.Olean.ModRef} {mdP : ConLeche.Frontend.Olean.ModRef}
-    {c' : ValueCache} {r : Region} {s s' : AState} (hm : denoteN s.store.ns m = some mdP.name)
-    (hidx : valuesP[idx]? = some mdP)
+    {c' : ValueCache} {r : Region} {s s' : AState} (hsp : sp.bare = sp)
+    (hm : denoteN s.store.ns m = some mdP.name) (hidx : valuesP[idx]? = some mdP)
     (h : ConRon.Arena.Frontend.Olean.regionFor.readRegion (modelFs F) pk sp m idx s =
       .ok ((c', .ok r), s')) :
     s' = s ∧ CacheOK sp F valuesP c' ∧ ∃ f a,
@@ -393,17 +393,18 @@ theorem readRegion_run {F : FS} {pk : OleanPins} {sp : SearchPath} {m : NIdx} {i
   obtain ⟨hv', rfl⟩ := AM.pure_ok h2
   simp only [Prod.mk.injEq, Except.ok.injEq] at hv'
   obtain ⟨rfl, rfl⟩ := hv'
-  refine ⟨rfl, fun r' hr' => ?_, f, a0, readFiles_sim (ConLeche.Frontend.Olean.Roots.ok_coe F sp) rfl hrf, hv⟩
+  refine ⟨rfl, fun r' hr' => ?_, f, a0, readFiles_sim (roots_ok_of_bare hsp) rfl hrf, hv⟩
   simp only [Option.some.injEq] at hr'
   subst hr'
-  exact ⟨mdP, f, a0, hidx, readFiles_sim (ConLeche.Frontend.Olean.Roots.ok_coe F sp) rfl hrf, hv⟩
+  exact ⟨mdP, f, a0, hidx, readFiles_sim (roots_ok_of_bare hsp) rfl hrf, hv⟩
 
 /-- con-leche: ConLeche/Frontend/Olean/Records.lean:133-148 regionFor — **the region of module
 `idx`, from the cache or the files**: the files of the module upstream's values name at `idx`. -/
-theorem regionFor_run {F : FS} {pk : OleanPins} {sp : SearchPath} {m : NIdx} {idx : Nat}
+theorem regionFor_run {F : FS} {pk : OleanPins} {sp : ConLeche.Frontend.Olean.Roots} {m : NIdx} {idx : Nat}
     {valuesP : Array ConLeche.Frontend.Olean.ModRef} {mdP : ConLeche.Frontend.Olean.ModRef}
-    {c c' : ValueCache} {r : Region} {s s' : AState} (hm : denoteN s.store.ns m = some mdP.name)
-    (hidx : valuesP[idx]? = some mdP) (hc : CacheOK sp F valuesP c)
+    {c c' : ValueCache} {r : Region} {s s' : AState} (hsp : sp.bare = sp)
+    (hm : denoteN s.store.ns m = some mdP.name) (hidx : valuesP[idx]? = some mdP)
+    (hc : CacheOK sp F valuesP c)
     (h : ConRon.Arena.Frontend.Olean.regionFor (modelFs F) pk sp m idx c s = .ok ((c', .ok r), s')) :
     s' = s ∧ CacheOK sp F valuesP c' ∧ ∃ f a,
       ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp mdP.name .private : ModelIO _) F (.ok f) ∧
@@ -412,7 +413,7 @@ theorem regionFor_run {F : FS} {pk : OleanPins} {sp : SearchPath} {m : NIdx} {id
   cases hr : c.region with
   | none =>
     rw [hr] at h
-    exact readRegion_run hm hidx h
+    exact readRegion_run hsp hm hidx h
   | some r0 =>
     rw [hr] at h
     simp only [] at h
@@ -426,7 +427,7 @@ theorem regionFor_run {F : FS} {pk : OleanPins} {sp : SearchPath} {m : NIdx} {id
       cases h1
       exact ⟨rfl, hc, f, a, h2, h3⟩
     · rw [ite_eq_right hi] at h
-      exact readRegion_run hm hidx h
+      exact readRegion_run hsp hm hidx h
 
 /-! ## A theorem's value -/
 
@@ -443,10 +444,11 @@ THEOREM'S VALUE**: where the twin's read of the value at a reference's code answ
 record `modelFs F` of a snapshot, its handle denotes the value upstream's `ValueAt` names, on
 upstream's values `valuesP` (`readOleans_run`'s); the state moves as a parse step does, whatever
 the scratch flag, and the cache stays good. -/
-theorem readValue_run {F : FS} {pk : OleanPins} {sp : SearchPath}
+theorem readValue_run {F : FS} {pk : OleanPins} {sp : ConLeche.Frontend.Olean.Roots}
     {values : Array ModRef} {valuesP : Array ConLeche.Frontend.Olean.ModRef}
     {c c' : ValueCache} {code : Nat} {e : EIdx} {s s' : AState}
-    (hok : StateOK s) (hnu : NullsRel s.store pk) (hv : ValuesRel sp F s.store values valuesP)
+    (hsp : sp.bare = sp) (hok : StateOK s) (hnu : NullsRel s.store pk)
+    (hv : ValuesRel sp F s.store values valuesP)
     (hc : CacheOK sp F valuesP c)
     (h : ConRon.Arena.Frontend.Olean.readValue (modelFs F) pk sp values c code s =
       .ok ((c', .ok e), s')) :
@@ -464,7 +466,7 @@ theorem readValue_run {F : FS} {pk : OleanPins} {sp : SearchPath}
   obtain ⟨p, s₁, h1, h2⟩ := AM.bind_ok h
   obtain ⟨c1, _ | r⟩ := p
   · cases (AM.pure_ok h2).1
-  obtain ⟨rfl, hc1, f', a, hf', hreg⟩ := regionFor_run hname hmdP hc h1
+  obtain ⟨rfl, hc1, f', a, hf', hreg⟩ := regionFor_run hsp hname hmdP hc h1
   obtain rfl := ConLeche.Frontend.Olean.readFiles_unique hf.canGive hf'.canGive
   rw [hreg0] at hreg
   cases hreg
@@ -498,7 +500,7 @@ theorem FrontierGood.pmono {st st' : EStore} {r : Region} {b : Frontier} (hwf : 
 
 /-- con-leche: none — `ValuesRel` on a worker's store: the names and the frontiers' handles
 denote on the closed store of the read, so they are persistent. -/
-theorem ValuesRel.pmono {sp : SearchPath} {F : FS} {st st' : EStore}
+theorem ValuesRel.pmono {sp : ConLeche.Frontend.Olean.Roots} {F : FS} {st st' : EStore}
     {values : Array ModRef} {valuesP : Array ConLeche.Frontend.Olean.ModRef}
     (hwf : StoreWF st) (hoff : st.scratchOn = false) (h : ValuesRel sp F st values valuesP)
     (hx : PExt st st') : ValuesRel sp F st' values valuesP :=

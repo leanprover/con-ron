@@ -288,10 +288,10 @@ theorem read_imports_at_ok {pk : frontend.olean.spec.OleanPins} {pers : arena.st
 
 /-- **`module_imports`'s accept is the twin's `moduleImports`.** -/
 theorem module_imports_refines {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
-    {st : arena.monad.AState} {lst : AState} {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
+    {st : arena.monad.AState} {lst : AState} {sp : frontend.olean.files.Roots}
     {m : arena.handle.NIdx} (hfs : FsRel inst fsv fs) :
     AS pers (EqA absImports) st lst (module_imports inst fsv pk pers st.store sp m)
-      (Arena.Frontend.Olean.moduleImports fs (absPins pk) (absSearchPath sp) (absNIdx m)) := by
+      (Arena.Frontend.Olean.moduleImports fs (absPins pk) (absRoots sp) (absNIdx m)) := by
   intro hrel hinv a s' h
   rw [module_imports] at h
   peel h as r, hr
@@ -572,10 +572,10 @@ theorem read_files_name {sp level o} (h : read_files inst fsv pers ar sp m level
   | Ok l => exact read_files_at_name h
 
 /-- **`read_files`' accept is the twin's `readFiles`.** -/
-theorem read_files_refines {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {level o}
+theorem read_files_refines {sp : frontend.olean.files.Roots} {level o}
     (hfs : FsRel inst fsv fs) (hn : arena.env.read_name pers ar m = ok (.Ok n))
     (h : read_files inst fsv pers ar sp m level = ok (.Ok o)) :
-    ∃ f', Arena.Frontend.Olean.readFiles fs (absSearchPath sp) (absName n) (absLevel level) = .ok f' ∧
+    ∃ f', Arena.Frontend.Olean.readFiles fs (absRoots sp) (absName n) (absLevel level) = .ok f' ∧
       ModFilesRel o f' := by
   rw [read_files] at h
   peel h as r, hr

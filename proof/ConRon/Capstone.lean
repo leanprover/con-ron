@@ -275,13 +275,13 @@ theorem rust_stages_oleans (hT2 : ReadOleansRefines)
     {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs} {F : ConLeche.FS}
     (hsnap : SnapshotOf finst fsv F)
     {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {store3 : arena.store.EStore}
-    (h3 : frontend.olean.records.read_oleans finst fsv pers stR.store dirs roots none
+    (h3 : frontend.olean.records.read_oleans finst fsv pers stR.store ⟨dirs, alloc.vec.Vec.new _⟩ roots none false false
       = ok (.Ok rd, store3))
     (h4 : frontend.prepare.prepare_d frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts pers { stR with store := store3 } pre rd.decls rd
       = ok (.Ok prepared, st4))
     {maxNatSize : ron.nat.Nat}
     (h5 : arena.checker.intern_all_pins pers st4 pins maxNatSize = ok (.Ok ipins, st5))
-    (h6 : OleanPoolAccepts finst fsv pers st5 .Verified ipins prepared.decls rd.pins rd.values dirs ix st6) :
+    (h6 : OleanPoolAccepts finst fsv pers st5 .Verified ipins prepared.decls rd.pins rd.values ⟨dirs, alloc.vec.Vec.new _⟩ ix st6) :
     ∃ (sA sB sB' sC sD sE sF : ConRon.Arena.AState) (rd' : ConRon.Arena.Frontend.Olean.OleanRead)
       (I : ConRon.Arena.IStreamIndex),
       ConRon.Arena.internReservedPins
@@ -290,7 +290,7 @@ theorem rust_stages_oleans (hT2 : ReadOleansRefines)
       (names.map ConRon.Refine.absName).mapM ConRon.Arena.internName sB
           = .ok (roots.val.map absNIdx, sB') ∧
       ConRon.Arena.Frontend.Olean.readOleans (ConRon.Bridge.Frontend.Olean.modelFs F)
-          (absSearchPath dirs) (roots.val.map absNIdx).toArray none sB' = .ok (.ok rd', sC) ∧
+          (absSearchPath dirs) (roots.val.map absNIdx).toArray none false false sB' = .ok (.ok rd', sC) ∧
       ConRon.Arena.Frontend.prepareD (absPreludeIx pre) rd'.decls rd'.usedOf sC
           = .ok (absPrepared prepared, sD) ∧
       ConRon.Arena.internAllPins (ConRon.Refine.absPins pins)
@@ -751,7 +751,7 @@ theorem no_False_oleans_of (hT2 : ReadOleansRefines)
     {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
     (hsnap : SnapshotOf finst fsv F)
     {rd : frontend.olean.records.OleanRead} {store3 : arena.store.EStore}
-    (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store dirs roots none
+    (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store ⟨dirs, alloc.vec.Vec.new _⟩ roots none false false
       = ok (.Ok rd, store3))
     {prepared : frontend.prepare.Prepared}
     (h4 : frontend.prepare.prepare_d frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier { stR with store := store3 } pre rd.decls rd
@@ -768,7 +768,7 @@ theorem no_False_oleans_of (hT2 : ReadOleansRefines)
     {tier : arena.store.PersTier} {frozen : arena.store.EStore}
     (h7 : arena.checker.freeze_tier st6.store ix = ok (tier, frozen))
     (h8 : ParallelAll prepared.decls.length (oleanWorkerInit st6.pins)
-      (oleanJobStep finst fsv tier .Verified ipins prepared.decls rd.pins rd.values dirs)) :
+      (oleanJobStep finst fsv tier .Verified ipins prepared.decls rd.pins rd.values ⟨dirs, alloc.vec.Vec.new _⟩)) :
     False := by
   obtain ⟨est, hest, hst0⟩ := startState_init
   have hkc : ConRon.Bridge.CoreSpec ConRon.Arena.checkFuel :=
@@ -798,7 +798,7 @@ theorem model_exists_oleans_of (hT2 : ReadOleansRefines)
     {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
     (hsnap : SnapshotOf finst fsv F)
     {rd : frontend.olean.records.OleanRead} {store3 : arena.store.EStore}
-    (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store dirs roots none
+    (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store ⟨dirs, alloc.vec.Vec.new _⟩ roots none false false
       = ok (.Ok rd, store3))
     {prepared : frontend.prepare.Prepared}
     (h4 : frontend.prepare.prepare_d frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier { stR with store := store3 } pre rd.decls rd
@@ -815,7 +815,7 @@ theorem model_exists_oleans_of (hT2 : ReadOleansRefines)
     {tier : arena.store.PersTier} {frozen : arena.store.EStore}
     (h7 : arena.checker.freeze_tier st6.store ix = ok (tier, frozen))
     (h8 : ParallelAll prepared.decls.length (oleanWorkerInit st6.pins)
-      (oleanJobStep finst fsv tier .Verified ipins prepared.decls rd.pins rd.values dirs)) :
+      (oleanJobStep finst fsv tier .Verified ipins prepared.decls rd.pins rd.values ⟨dirs, alloc.vec.Vec.new _⟩)) :
     ∃ env, RustDenotesFilled prepared.decls st6 env ∧ Nonempty (ConLeche.Model V env) := by
   obtain ⟨est, hest, hst0⟩ := startState_init
   have hkc : ConRon.Bridge.CoreSpec ConRon.Arena.checkFuel :=
@@ -857,7 +857,7 @@ theorem no_False_oleans (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS}
     {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
     (hsnap : SnapshotOf finst fsv F)
     {rd : frontend.olean.records.OleanRead} {store3 : arena.store.EStore}
-    (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store dirs roots none
+    (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store ⟨dirs, alloc.vec.Vec.new _⟩ roots none false false
       = ok (.Ok rd, store3))
     {prepared : frontend.prepare.Prepared}
     (h4 : frontend.prepare.prepare_d frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier { stR with store := store3 } pre rd.decls rd
@@ -874,7 +874,7 @@ theorem no_False_oleans (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS}
     {tier : arena.store.PersTier} {frozen : arena.store.EStore}
     (h7 : arena.checker.freeze_tier st6.store ix = ok (tier, frozen))
     (h8 : ParallelAll prepared.decls.length (oleanWorkerInit st6.pins)
-      (oleanJobStep finst fsv tier .Verified ipins prepared.decls rd.pins rd.values dirs)) :
+      (oleanJobStep finst fsv tier .Verified ipins prepared.decls rd.pins rd.values ⟨dirs, alloc.vec.Vec.new _⟩)) :
     False :=
   no_False_oleans_of read_oleans_refines V hcl hv hmem hk hty h1 h2 hroots hsnap h3 h4 hpins
     h5 h6 h7 h8
@@ -895,7 +895,7 @@ theorem model_exists_oleans (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS
     {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
     (hsnap : SnapshotOf finst fsv F)
     {rd : frontend.olean.records.OleanRead} {store3 : arena.store.EStore}
-    (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store dirs roots none
+    (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store ⟨dirs, alloc.vec.Vec.new _⟩ roots none false false
       = ok (.Ok rd, store3))
     {prepared : frontend.prepare.Prepared}
     (h4 : frontend.prepare.prepare_d frontend.olean.records.OleanRead.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier { stR with store := store3 } pre rd.decls rd
@@ -912,7 +912,7 @@ theorem model_exists_oleans (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS
     {tier : arena.store.PersTier} {frozen : arena.store.EStore}
     (h7 : arena.checker.freeze_tier st6.store ix = ok (tier, frozen))
     (h8 : ParallelAll prepared.decls.length (oleanWorkerInit st6.pins)
-      (oleanJobStep finst fsv tier .Verified ipins prepared.decls rd.pins rd.values dirs)) :
+      (oleanJobStep finst fsv tier .Verified ipins prepared.decls rd.pins rd.values ⟨dirs, alloc.vec.Vec.new _⟩)) :
     ∃ env, RustDenotesFilled prepared.decls st6 env ∧ Nonempty (ConLeche.Model V env) :=
   model_exists_oleans_of read_oleans_refines V h1 h2 hroots hsnap h3 h4 hpins h5 h6 h7 h8
 

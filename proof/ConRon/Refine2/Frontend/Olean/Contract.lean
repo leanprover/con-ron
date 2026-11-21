@@ -28,26 +28,37 @@ structure ModRefRel (m : frontend.olean.records.ModRef) (m' : Arena.Frontend.Ole
   «name» : absNIdx m.name = m'.name
   frontier : FrontierRel m.frontier m'.frontier
 
+/-- **The constants' homes against the twin's**: the same home at every name, a map the
+store's hashing reads. -/
+structure HomesRel (h : ron.hashmap2.HashMap2 arena.handle.NIdx arena.handle.NIdx)
+    (h' : Std.HashMap ConRon.Arena.NIdx ConRon.Arena.NIdx) : Prop where
+  map : ConRon.Refine.HashMap2.RelOn anyN h h' absNIdx absNIdx
+  inv : ConRon.Refine.HashMap2.Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable h
+
 /-- **`records::OleanRead` against the twin's**: the records, the modules' references, the
-merged constants and the reader's pins. -/
+merged constants, the constants' homes and the reader's pins. -/
 structure OleanReadRel (rd : frontend.olean.records.OleanRead)
     (rd' : Arena.Frontend.Olean.OleanRead) : Prop where
   decls : rd.decls.val.map absIDeclaration = rd'.decls.toList
   values : List.Forall₂ ModRefRel rd.values.val rd'.values.toList
   merged : MergedRel rd.merged rd'.merged
+  homes : HomesRel rd.homes rd'.homes
   pins : absPins rd.pins = rd'.pins
 
 /-- **Theorem 2 at the reader, as the capstone takes it.**  `read_oleans` is the store's, and the
-rest of the state stands still around it. -/
+rest of the state stands still around it: at any lookup (`absRoots`), named constants, and
+`lenient`/`homes` flags. -/
 def ReadOleansRefines : Prop :=
   ∀ {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
     {pers : arena.store.PersTier} {rst : arena.monad.AState} {lst : ConRon.Arena.AState}
-    {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {roots : alloc.vec.Vec arena.handle.NIdx}
+    {sp : frontend.olean.files.Roots} {roots : alloc.vec.Vec arena.handle.NIdx}
+    {cs : Option (alloc.vec.Vec arena.handle.NIdx)} {lenient homes : Bool}
     {rd : frontend.olean.records.OleanRead} {ar' : arena.store.EStore},
     FsRel inst fsv fs → AStateRel₀ pers rst lst → AStateInv pers rst →
-    frontend.olean.records.read_oleans inst fsv pers rst.store dirs roots none = ok (.Ok rd, ar') →
-    ∃ rd' lst', Arena.Frontend.Olean.readOleans fs (absSearchPath dirs) (absNIdxArr roots) none lst
-        = .ok (.ok rd', lst') ∧ OleanReadRel rd rd' ∧
+    frontend.olean.records.read_oleans inst fsv pers rst.store sp roots cs lenient homes =
+      ok (.Ok rd, ar') →
+    ∃ rd' lst', Arena.Frontend.Olean.readOleans fs (absRoots sp) (absNIdxArr roots)
+        (cs.map absNIdxArr) lenient homes lst = .ok (.ok rd', lst') ∧ OleanReadRel rd rd' ∧
       AStateRel₀ pers { rst with store := ar' } lst' ∧ AStateInv pers { rst with store := ar' }
 
 end ConRon.Refine2.Frontend.Olean

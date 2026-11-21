@@ -324,7 +324,7 @@ def OleanPoolAccepts {F : Type} (inst : frontend.olean.files.OleanFs F) (fs : F)
     (pers : arena.store.PersTier) (st : arena.monad.AState) (mode : kernel.env.CheckMode)
     (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
     (ds : alloc.vec.Vec arena.env.IDeclaration) (pk : frontend.olean.spec.OleanPins) (values : alloc.vec.Vec frontend.olean.records.ModRef)
-    (sp : alloc.vec.Vec (alloc.vec.Vec Std.U32))
+    (sp : frontend.olean.files.Roots)
     (ix : arena.stream_index.IStreamIndex) (st' : arena.monad.AState) : Prop :=
   ∃ (tier : arena.store.PersTier) (est : arena.store.EStore),
     arena.stream_index.build_index pers st ixEmpty ds 0#usize = ok (.Ok ix, st') ∧
@@ -357,13 +357,13 @@ theorem olean_pool_accepts_refines {F : Type} {inst : frontend.olean.files.Olean
     {mode : kernel.env.CheckMode}
     {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
     {ds : alloc.vec.Vec arena.env.IDeclaration} {pk : frontend.olean.spec.OleanPins} {values : alloc.vec.Vec frontend.olean.records.ModRef}
-    {values' : Array Arena.Frontend.Olean.ModRef} {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
+    {values' : Array Arena.Frontend.Olean.ModRef} {sp : frontend.olean.files.Roots}
     {ix st'}
     (hfs : FsRel inst fsv fs) (hv : List.Forall₂ ModRefRel values.val values'.toList)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hpers : pers.frozen = false)
     (hpool : OleanPoolAccepts inst fsv pers st mode pins ds pk values sp ix st') :
-    ∃ I lst', PooledOleanAccepts fs (absPins pk) (absSearchPath sp) values'
+    ∃ I lst', PooledOleanAccepts fs (absPins pk) (absRoots sp) values'
         (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) (absIDeclL ds).toArray lst I lst' ∧
       AStateRel₀ pers st' lst' ∧ StreamIndexRel ix I := by
   obtain ⟨tier, est, hB, hfr, parts, hcov, hw⟩ := hpool
@@ -371,7 +371,7 @@ theorem olean_pool_accepts_refines {F : Type} {inst : frontend.olean.files.Olean
   obtain ⟨htier, -⟩ := freeze_tier_ok hfr
   subst htier
   have hwork : ∀ w ∈ parts, (∀ k ∈ w, k < ds.val.length) ∧
-      ∃ s'', checkOleanJobList fs (absPins pk) (absSearchPath sp) values'
+      ∃ s'', checkOleanJobList fs (absPins pk) (absRoots sp) values'
         (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I (absIDeclL ds).toArray w {}
         lst'.worker = .ok (.ok (), s'') := by
     intro w hwm

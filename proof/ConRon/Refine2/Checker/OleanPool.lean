@@ -29,7 +29,7 @@ def oleanJobStep {F : Type} (inst : frontend.olean.files.OleanFs F) (fs : F)
     (tier : arena.store.PersTier) (mode : kernel.env.CheckMode)
     (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
     (ds : alloc.vec.Vec arena.env.IDeclaration) (pk : frontend.olean.spec.OleanPins) (values : alloc.vec.Vec frontend.olean.records.ModRef)
-    (sp : alloc.vec.Vec (alloc.vec.Vec Std.U32))
+    (sp : frontend.olean.files.Roots)
     (w : arena.monad.AState × frontend.olean.records.ValueCache) (k : Nat) :
     Result ((core.result.Result Unit (kernel.core_types.CheckError × Std.U64)) ×
       (arena.monad.AState × frontend.olean.records.ValueCache)) :=
@@ -94,14 +94,14 @@ theorem olean_job_step_refines {F : Type} {inst : frontend.olean.files.OleanFs F
     {mode : kernel.env.CheckMode} {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
     {ds : alloc.vec.Vec arena.env.IDeclaration} {pk : frontend.olean.spec.OleanPins} {values : alloc.vec.Vec frontend.olean.records.ModRef}
     {values' : Array Arena.Frontend.Olean.ModRef}
-    {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {k : Nat}
+    {sp : frontend.olean.files.Roots} {k : Nat}
     {st lst c c' st' c1}
     (hfs : FsRel inst fsv fs) (hv : List.Forall₂ ModRefRel values.val values'.toList)
     (hidle : AIdle tier st lst) (hinv : AStateInv tier st) (hoff : lst.store.scratchOn = false)
     (htf : tier.frozen = true) (hI : StreamIndexRel tier.env I ∧ FrozenRel tier.env I) (hc : VCRel c c')
     (hrun : oleanJobStep inst fsv tier mode pins ds pk values sp (st, c) k = ok (.Ok (), (st', c1))) :
     k < ds.val.length ∧
-    ∃ c1' lst', oleanJob fs (absPins pk) (absSearchPath sp) values'
+    ∃ c1' lst', oleanJob fs (absPins pk) (absRoots sp) values'
         (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I (absIDeclL ds).toArray c' k lst
         = .ok ((c1', .ok ()), lst') ∧
       VCRel c1 c1' ∧ AIdle tier st' lst' ∧ AStateInv tier st' ∧ lst'.store.scratchOn = false := by
@@ -230,7 +230,7 @@ theorem olean_job_step_refines {F : Type} {inst : frontend.olean.files.OleanFs F
               simp only [absIDeclaration, i_constant_val_dup_abs hcv']
             rw [hpd, hau] at hx3
             simp only [oleanJob, hgT, absIDeclaration, hcodeT, Option.map_some]
-            rw [show (enterScratch >>= fun _ => Arena.Frontend.Olean.readValue fs (absPins pk) (absSearchPath sp)
+            rw [show (enterScratch >>= fun _ => Arena.Frontend.Olean.readValue fs (absPins pk) (absRoots sp)
                   values' c' (absU code) : AM _) lst = .ok ((c2', .ok (absEIdx e)), lst2) by
                 show StateT.run (enterScratch >>= fun _ => _) lst = _
                 rw [StateT.run_bind, hx1]
@@ -255,14 +255,14 @@ theorem foldAllOk_oleanJobStep_refines {F : Type} {inst : frontend.olean.files.O
     {fsv : F} {fs : Arena.Frontend.Olean.OleanFs} {tier} {I : IStreamIndex}
     {mode : kernel.env.CheckMode} {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
     {ds : alloc.vec.Vec arena.env.IDeclaration} {pk : frontend.olean.spec.OleanPins} {values : alloc.vec.Vec frontend.olean.records.ModRef}
-    {values' : Array Arena.Frontend.Olean.ModRef} {sp : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
+    {values' : Array Arena.Frontend.Olean.ModRef} {sp : frontend.olean.files.Roots}
     (hfs : FsRel inst fsv fs) (hv : List.Forall₂ ModRefRel values.val values'.toList)
     (htf : tier.frozen = true) (hI : StreamIndexRel tier.env I ∧ FrozenRel tier.env I) :
     ∀ (ks : List Nat) {st lst c c'},
       AIdle tier st lst → AStateInv tier st → lst.store.scratchOn = false → VCRel c c' →
       FoldAllOk (oleanJobStep inst fsv tier mode pins ds pk values sp) (st, c) ks →
       (∀ k ∈ ks, k < ds.val.length) ∧
-      ∃ s'', checkOleanJobList fs (absPins pk) (absSearchPath sp) values'
+      ∃ s'', checkOleanJobList fs (absPins pk) (absRoots sp) values'
         (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) I (absIDeclL ds).toArray ks c' lst
         = .ok (.ok (), s'')
   | [], _, lst, _, _, _, _, _, _, _ => ⟨by simp, lst, rfl⟩

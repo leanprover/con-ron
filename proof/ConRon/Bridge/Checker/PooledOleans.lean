@@ -100,13 +100,13 @@ reference, replaced by the value at that reference. -/
 
 /-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:758 ValueAt — **the value at a
 reference** in the snapshot, where there is one (`ValueAt.unique`). -/
-noncomputable def valueOf (sp : ConLeche.Frontend.Olean.SearchPath) (F : FS) (valuesP : Array ConLeche.Frontend.Olean.ModRef)
+noncomputable def valueOf (sp : ConLeche.Frontend.Olean.Roots) (F : FS) (valuesP : Array ConLeche.Frontend.Olean.ModRef)
     (code : Nat) : Expr :=
   open Classical in
   if h : ∃ x, ConLeche.Frontend.Olean.ValueAt sp F valuesP code x then Classical.choose h
   else .bvar code
 
-theorem valueOf_eq {sp : ConLeche.Frontend.Olean.SearchPath} {F : FS} {valuesP : Array ConLeche.Frontend.Olean.ModRef}
+theorem valueOf_eq {sp : ConLeche.Frontend.Olean.Roots} {F : FS} {valuesP : Array ConLeche.Frontend.Olean.ModRef}
     {code : Nat} {x : Expr} (h : ConLeche.Frontend.Olean.ValueAt sp F valuesP code x) :
     valueOf sp F valuesP code = x := by
   have hex : ∃ x, ConLeche.Frontend.Olean.ValueAt sp F valuesP code x := ⟨x, h⟩
@@ -197,7 +197,7 @@ from a worker's state and cache, accepted. -/
 
 /-- con-leche: ConLeche/Verify/Cached/Fill.lean:21 fillDecl — the filled stream: every
 reference replaced by the snapshot's value there. -/
-@[expose] noncomputable def fillStream (sp : ConLeche.Frontend.Olean.SearchPath) (F : FS)
+@[expose] noncomputable def fillStream (sp : ConLeche.Frontend.Olean.Roots) (F : FS)
     (valuesP : Array ConLeche.Frontend.Olean.ModRef) (dsP : List Declaration) : List Declaration :=
   dsP.map (ConLeche.Cached.fillDecl (fillRef (valueOf sp F valuesP)))
 
@@ -209,7 +209,7 @@ theorem fillRef_of_not_bvar {val : Nat → Expr} {x : Expr} (h : ∀ n, x ≠ .b
 is the fold's step at the filled record**. -/
 theorem oleanJob_spec
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {F : FS}
-    {pk : ConRon.Arena.Frontend.Olean.OleanPins} {sp : ConLeche.Frontend.Olean.SearchPath}
+    {pk : ConRon.Arena.Frontend.Olean.OleanPins} {sp : ConLeche.Frontend.Olean.Roots}
     {values : Array ConRon.Arena.Frontend.Olean.ModRef}
     {valuesP : Array ConLeche.Frontend.Olean.ModRef}
     {ds : Array IDeclaration} {dsP : List Declaration} {I : IStreamIndex} {s₀ s₁ : AState}
@@ -222,7 +222,7 @@ theorem oleanJob_spec
     (hpI : PersIFBase I.base)
     (hwf₀ : StoreWF s₀.store) (hoff₀ : s₀.store.scratchOn = false) (hx₀ : PExt s₀.store s₁.store)
     (hv₀ : Frontend.Olean.ValuesRel sp F s₀.store values valuesP)
-    (hnu₀ : Frontend.Olean.NullsRel s₀.store pk) :
+    (hnu₀ : Frontend.Olean.NullsRel s₀.store pk) (hsp : sp.bare = sp) :
     JobSpecAt (fun w => WorkerOK s₁ w.1 ∧ Frontend.Olean.CacheOK sp F valuesP w.2)
       (OleanRun (Frontend.Olean.modelFs F) pk sp values pins I ds) pinsP
       (fillStream sp F valuesP dsP) := by
@@ -293,7 +293,7 @@ theorem oleanJob_spec
     have hpj : sj.pins = s₁.pins := by rw [← hsj]; exact hw.1.pins
     have hcj : sj.caches = Caches.empty := by rw [← hsj]; exact hw.1.caches
     have hx₀j := hx₀.trans hxj
-    obtain ⟨hps, hc', x', hx', hva⟩ := Frontend.Olean.readValue_run hstj
+    obtain ⟨hps, hc', x', hx', hva⟩ := Frontend.Olean.readValue_run hsp hstj
       (hnu₀.pmono hwf₀ hoff₀ hx₀j) (hv₀.pmono hwf₀ hoff₀ hx₀j) hw.2 hread
     have hdF : (fillStream sp F valuesP dsP)[k]'hkF = .thmDecl cv' x' := by
       rw [hFk, hdP, hxb]
@@ -361,7 +361,7 @@ theorem checkOleanJobList_chain {fs : ConRon.Arena.Frontend.Olean.OleanFs}
 stream, from an index that denotes con-leche's index of the records as read. -/
 theorem pooled_fold_oleans
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {F : FS}
-    {pk : ConRon.Arena.Frontend.Olean.OleanPins} {sp : ConLeche.Frontend.Olean.SearchPath}
+    {pk : ConRon.Arena.Frontend.Olean.OleanPins} {sp : ConLeche.Frontend.Olean.Roots}
     {values : Array ConRon.Arena.Frontend.Olean.ModRef}
     {valuesP : Array ConLeche.Frontend.Olean.ModRef}
     {ds : Array IDeclaration} {dsP : List Declaration} {I : IStreamIndex} {s₀ s₁ : AState}
@@ -375,7 +375,7 @@ theorem pooled_fold_oleans
     (hpI : PersIFBase I.base)
     (hwf₀ : StoreWF s₀.store) (hoff₀ : s₀.store.scratchOn = false) (hx₀ : PExt s₀.store s₁.store)
     (hv₀ : Frontend.Olean.ValuesRel sp F s₀.store values valuesP)
-    (hnu₀ : Frontend.Olean.NullsRel s₀.store pk) (parts : List (List Nat))
+    (hnu₀ : Frontend.Olean.NullsRel s₀.store pk) (hsp : sp.bare = sp) (parts : List (List Nat))
     (hcov : ∀ t < ds.size, ∃ w ∈ parts, t ∈ w)
     (hinc : ∀ w ∈ parts, w.Pairwise (· < ·))
     (hacc : ∀ w ∈ parts, ∃ s'', checkOleanJobList (Frontend.Olean.modelFs F) pk sp values
@@ -387,7 +387,7 @@ theorem pooled_fold_oleans
   refine pooled_fold
     (Inv := fun w => WorkerOK s₁ w.1 ∧ Frontend.Olean.CacheOK sp F valuesP w.2)
     (Run := OleanRun (Frontend.Olean.modelFs F) pk sp values pins I ds)
-    (oleanJob_spec hrec hpp hpinsOK hpersPins hpins hpd hden hI hpI hwf₀ hoff₀ hx₀ hv₀ hnu₀)
+    (oleanJob_spec hrec hpp hpinsOK hpersPins hpins hpd hden hI hpI hwf₀ hoff₀ hx₀ hv₀ hnu₀ hsp)
     ?_ hpush parts (fun t ht => hcov t (by omega)) hinc (fun w hw => ?_)
   · intro t w w' hr
     obtain ⟨hk, -⟩ := hr

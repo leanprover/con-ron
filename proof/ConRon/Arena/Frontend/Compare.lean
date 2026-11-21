@@ -9,6 +9,7 @@ compared by handle.
 -/
 module
 
+public import ConRon.Arena.Env
 public import ConRon.Arena.Monad
 
 @[expose] public section
@@ -48,14 +49,18 @@ def nameText (h : NIdx) : AM String := do
   | none => pure "?"
 
 /-- con-leche: ConLeche/Driver/Compare.lean:103-110 foreignConstant
+`(← r.constants).find? (homes[·]? != some r.challenge)`: the first named constant that is no
+declaration of the challenge module. -/
+def foreignOf (constants : Option (Array NIdx)) (challenge : NIdx)
+    (homes : Std.HashMap NIdx NIdx) : Option NIdx :=
+  constants.bind (·.find? (foreignAt homes challenge))
+
+/-- con-leche: ConLeche/Driver/Compare.lean:103-110 foreignConstant
 **A `--constant` name that is no declaration of the challenge module**, and why; `homes` the
 challenge closure's (`homesOf`). -/
 def foreignConstant (constants : Option (Array NIdx)) (challenge : NIdx)
     (homes : Std.HashMap NIdx NIdx) : AM (Option String) :=
-  match constants with
-  | none => pure none
-  | some cs =>
-    match cs.find? (foreignAt homes challenge) with
+    match foreignOf constants challenge homes with
     | none => pure none
     | some c => do
       let t := s!"--constant={← nameText c}: not a declaration of the challenge module \
