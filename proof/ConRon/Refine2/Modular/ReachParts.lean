@@ -10,6 +10,7 @@ reach a file read claim their accept (`ACS`, `AS`).  The cache lookups the twin 
 load order (`ReachEnvRel.fits`); a copy's fields fit (`FirstRel.fits`).
 -/
 import ConRon.Refine2.Modular.ReachRel
+import ConRon.Refine2.Frontend.Olean.Group
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -793,6 +794,151 @@ theorem axiom_of_eq {cv : frontend.olean.spec.StmtRec} {d} (h : axiom_of cv = ok
   rw [axiom_of] at h
   cases Result.ok_injective h
   rfl
+
+/-! ## A group's merge -/
+
+/-- Whether the Rust keeps a constant among a group's rest, as a value. -/
+def rKeeps (all : alloc.vec.Vec arena.handle.NIdx)
+    (e : frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx) : Bool :=
+  match e.kind with
+  | .Recur all2 _ _ _ _ _ _ _ => all2.val.map absNIdx == all.val.map absNIdx
+  | _ => true
+
+theorem group_keeps_r {e : frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx}
+    {all : alloc.vec.Vec arena.handle.NIdx} {b} (h : group_keeps e all = ok b) : b = rKeeps all e := by
+  rw [group_keeps] at h
+  unfold rKeeps
+  generalize e.kind = ek at h ⊢
+  cases ek <;> first | exact (Result.ok_injective h).symm | exact nidx_list_eq_abs h
+
+theorem rKeeps_eq {e : frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx}
+    {e' : CEntryF NIdx EIdx} (he : EntryRel absNIdx absEIdx ValRel e e')
+    (all : alloc.vec.Vec arena.handle.NIdx) :
+    rKeeps all e = ConRon.Arena.Modular.groupKeeps e' (all.val.map absNIdx) := by
+  have hk := he.kind
+  unfold rKeeps ConRon.Arena.Modular.groupKeeps
+  generalize e.kind = ek at hk ⊢
+  generalize e'.kind = ek' at hk ⊢
+  cases ek <;> cases ek' <;> simp only [KindRel] at hk <;> first | rfl | simp only [← hk.1]
+
+/-- A constant as a merge's entry, no uses. -/
+@[reducible] def mkCE (e : frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx) :
+    frontend.olean.lazy.CEntry :=
+  { c := e, uses := alloc.vec.Vec.new arena.handle.NIdx }
+
+theorem mkCE_rel {e : frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx}
+    {e' : CEntryF NIdx EIdx} (he : EntryRel absNIdx absEIdx ValRel e e') :
+    CEntryRel (mkCE e) { c := e' } :=
+  ⟨he, by simp [alloc.vec.Vec.new]⟩
+
+theorem group_merged_loop0_eq
+    (tys : alloc.vec.Vec (frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx))
+    (cs : alloc.vec.Vec frontend.olean.lazy.CEntry) (i : Std.Usize) {o}
+    (h : group_merged_loop0 tys cs i = ok o) : o.val = cs.val ++ (tys.val.drop i.val).map mkCE := by
+  rw [group_merged_loop0] at h
+  by_cases h1 : i < alloc.vec.Vec.len tys
+  · rw [ite_eq_left h1] at h
+    have hi := lt_of_lt_len h1
+    peel h as cf, hcf
+    obtain ⟨_, rfl⟩ := vec_index_eq hcf
+    peel h as cf1, hcf1
+    cases view_c_entry_dup_eq hcf1
+    peel h as cs1, hcs1
+    peel h as i2, hi2
+    rw [group_merged_loop0_eq tys cs1 i2 h, ConRon.Refine.vec_push_val hcs1, usize_succ hi2,
+      List.drop_eq_getElem_cons hi]
+    simp only [List.map_cons, List.append_assoc, List.singleton_append]
+  · rw [ite_eq_right h1] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (lt_of_not_lt_len h1)]
+    simp
+termination_by tys.val.length - i.val
+decreasing_by
+  have := lt_of_lt_len h1
+  have := usize_succ hi2
+  omega
+
+theorem group_merged_loop1_eq
+    (rest : alloc.vec.Vec (frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx))
+    (all : alloc.vec.Vec arena.handle.NIdx) (cs : alloc.vec.Vec frontend.olean.lazy.CEntry) (j : Std.Usize)
+    {o} (h : group_merged_loop1 rest all cs j = ok o) :
+    o.val = cs.val ++ ((rest.val.drop j.val).filter (rKeeps all)).map mkCE := by
+  rw [group_merged_loop1] at h
+  by_cases h1 : j < alloc.vec.Vec.len rest
+  · rw [ite_eq_left h1] at h
+    have hi := lt_of_lt_len h1
+    peel h as cf, hcf
+    obtain ⟨_, rfl⟩ := vec_index_eq hcf
+    peel h as b, hb
+    have eb := group_keeps_r hb
+    peel h as cs1, hcs1
+    peel h as j1, hj1
+    rw [group_merged_loop1_eq rest all cs1 j1 h, usize_succ hj1, List.drop_eq_getElem_cons hi,
+      List.filter_cons, ← eb]
+    by_cases hb' : b = true
+    · rw [ite_eq_left hb'] at hcs1
+      peel hcs1 as cf1, hcf1
+      cases view_c_entry_dup_eq hcf1
+      rw [ConRon.Refine.vec_push_val hcs1]
+      simp [hb']
+    · rw [ite_eq_right hb'] at hcs1
+      cases Result.ok_injective hcs1
+      simp [hb']
+  · rw [ite_eq_right h1] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (lt_of_not_lt_len h1)]
+    simp
+termination_by rest.val.length - j.val
+decreasing_by
+  have := lt_of_lt_len h1
+  have := usize_succ hj1
+  omega
+
+theorem forall₂_filter_keeps
+    {l : List (frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx)}
+    {l' : List (CEntryF NIdx EIdx)} (h : List.Forall₂ (EntryRel absNIdx absEIdx ValRel) l l')
+    (all : alloc.vec.Vec arena.handle.NIdx) :
+    List.Forall₂ (EntryRel absNIdx absEIdx ValRel) (l.filter (rKeeps all))
+      (l'.filter (ConRon.Arena.Modular.groupKeeps · (all.val.map absNIdx))) := by
+  induction h with
+  | nil => exact List.Forall₂.nil
+  | @cons a b _ _ he _ ih =>
+    rw [List.filter_cons, List.filter_cons, rKeeps_eq he all]
+    split
+    · exact List.Forall₂.cons he ih
+    · exact ih
+
+theorem forall₂_mkCE
+    {l : List (frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx)}
+    {l' : List (CEntryF NIdx EIdx)} (h : List.Forall₂ (EntryRel absNIdx absEIdx ValRel) l l') :
+    List.Forall₂ CEntryRel (l.map mkCE) (l'.map fun c => ({ c } : Arena.Frontend.Olean.CEntry)) := by
+  induction h with
+  | nil => exact List.Forall₂.nil
+  | cons he _ ih => exact List.Forall₂.cons (mkCE_rel he) ih
+
+/-- **`group_merged` is `groupMerged`.** -/
+theorem group_merged_rel {pk : frontend.olean.spec.OleanPins}
+    {t : frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx} {t' : CEntryF NIdx EIdx}
+    (ht : EntryRel absNIdx absEIdx ValRel t t')
+    {tys rest : alloc.vec.Vec (frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx)}
+    {tys' rest' : List (CEntryF NIdx EIdx)}
+    (htys : List.Forall₂ (EntryRel absNIdx absEIdx ValRel) tys.val tys')
+    (hrest : List.Forall₂ (EntryRel absNIdx absEIdx ValRel) rest.val rest')
+    {all : alloc.vec.Vec arena.handle.NIdx} {mg} (h : group_merged pk t tys rest all = ok mg) :
+    MergedRel mg (ConRon.Arena.Modular.groupMerged (absPins pk) t' tys' rest' (all.val.map absNIdx)) := by
+  rw [group_merged] at h
+  peel h as i1, -
+  peel h as i3, -
+  peel h as cs1, hcs1
+  peel h as cs2, hcs2
+  peel h as cs3, hcs3
+  refine merged_of_list_rel ?_ h
+  rw [group_merged_loop1_eq _ _ _ _ hcs3, group_merged_loop0_eq _ _ _ hcs2, ConRon.Refine.vec_push_val hcs1]
+  simp only [alloc.vec.Vec.with_capacity, List.map_cons, List.map_append, List.cons_append]
+  refine List.Forall₂.cons (mkCE_rel ht) ?_
+  have e0 : ((0#usize : Std.Usize).val) = 0 := rfl
+  rw [e0, List.drop_zero, List.drop_zero]
+  exact List.rel_append (forall₂_mkCE htys) (forall₂_mkCE (forall₂_filter_keeps hrest all))
 
 /-! ## The parts' reads -/
 
