@@ -316,25 +316,4 @@ theorem read_kinds_refines {pk pers st lst} {f : frontend.olean.view.ModFiles}
     rw [e]
     exact kinds_at_refines hfit st lst
 
-/-- **`read_entry` is `readEntry`.** -/
-theorem read_entry_refines {pk pers st lst} {f : frontend.olean.view.ModFiles}
-    {f' : ConLeche.Frontend.Olean.ModFiles} (hf : ModFilesRel f f')
-    {level : frontend.olean.view.OLeanLevel} {c : Std.U64} :
-    RS pers (EntryRel absNIdx absEIdx ValRel) st lst (read_entry pk pers st.store f level c)
-      (readEntry (absPins pk) f' (absLevel level) c.val) := by
-  rw [read_entry, readEntry]
-  refine RS.pure_step fun o ho => ?_
-  have hv := mod_files_view_region_eq hf ho
-  cases o with
-  | none =>
-    rw [show f'.viewRegion (absLevel level) = none from hv]
-    exact RS.none
-  | some p =>
-    obtain ⟨vb, a⟩ := p
-    dsimp only
-    refine RS.pure_step fun bs hbs => RS.pure_step fun r hr => ?_
-    obtain ⟨e, hfit⟩ := hv bs r hbs hr
-    rw [e]
-    exact entry_at_refines hfit
-
 end ConRon.Refine2.Frontend.Olean

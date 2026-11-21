@@ -644,11 +644,6 @@ def LA {α β : Type} (pers : arena.store.PersTier) (R : α → β → Prop)
   ∀ a st', m = ok (.Ok a, st') →
     ∃ b lst', x.run lst = .ok (b, lst') ∧ R a b ∧ AStateRel₀ pers st' lst' ∧ AStateInv pers st'
 
-theorem LS.toLA {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
-    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
-    {lst : AState} {x : AM β} (h : LS pers R m lst x) : LA pers R m lst x :=
-  fun _ _ hm => h _ _ hm
-
 /-! ## The validation of the context -/
 
 theorem validate_ctx_loop_aux {pers : arena.store.PersTier} (ds : alloc.vec.Vec arena.env.IDeclaration)
@@ -714,36 +709,6 @@ theorem validate_ctx_la {pers st lst} (hrel : AStateRel₀ pers st lst)
   rw [type_is_prop_c, Modular.typeIsPropC]
   simp only [Frontend.Olean.absStmtRec]
   lockstep
-
-/-- **`cps_dup` copies.** -/
-theorem cps_dup_loop_eq (a : alloc.vec.Vec Std.U32) :
-    ∀ (n : Nat) (out : alloc.vec.Vec Std.U32) (i : Std.Usize) {r},
-      a.val.length - i.val = n → cps_dup_loop a out i = ok r → r.val = out.val ++ a.val.drop i.val := by
-  intro n
-  induction n with
-  | zero =>
-    intro out i r hn h
-    rw [cps_dup_loop, ite_eq_right (by scalar_tac)] at h
-    cases Result.ok_injective h
-    rw [List.drop_eq_nil_of_le (by omega)]; simp
-  | succ m ih =>
-    intro out i r hn h
-    rw [cps_dup_loop, ite_eq_left (by scalar_tac)] at h
-    have hi : i.val < a.val.length := by omega
-    obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨_, hxv⟩ := ExprOps.vecIndexAt hx
-    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hout1v : out1.val = out.val ++ [x] := ConRon.Refine.vec_push_val hout1
-    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hi2v := ConRon.Refine.Nat.uadd_val hi2
-    simp at hi2v
-    rw [ih out1 i2 (by omega) h, hout1v, hi2v, List.drop_eq_getElem_cons hi, hxv]
-    simp
-
-theorem cps_dup_eq (a : alloc.vec.Vec Std.U32) {r} (h : cps_dup a = ok r) : r.val = a.val := by
-  rw [cps_dup] at h
-  simpa [alloc.vec.Vec.with_capacity] using cps_dup_loop_eq a _ _ 0#usize rfl h
-
 
 /-- **`infer_one` ⊑ `inferOne`, accepting**: a recorded statement's names stored before it,
 its type a proposition.  The message `what` is not related. -/

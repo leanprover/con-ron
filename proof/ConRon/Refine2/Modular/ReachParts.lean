@@ -640,21 +640,6 @@ theorem group_rec_locs_eq {rb : ron.hashmap2.HashMap2 arena.handle.NIdx (alloc.v
       rw [group_rec_locs_loop_eq _ _ _ h]
       simp [alloc.vec.Vec.with_capacity, absLocs]
 
-/-- **`group_keeps` is `groupKeeps`.** -/
-theorem group_keeps_eq {e : frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx}
-    {e' : CEntryF NIdx EIdx} (he : EntryRel absNIdx absEIdx ValRel e e')
-    {all : alloc.vec.Vec arena.handle.NIdx} {b} (h : group_keeps e all = ok b) :
-    b = ConRon.Arena.Modular.groupKeeps e' (all.val.map absNIdx) := by
-  rw [group_keeps] at h
-  have hk := he.kind
-  rw [ConRon.Arena.Modular.groupKeeps]
-  generalize e.kind = ek at h hk
-  generalize e'.kind = ek' at hk ⊢
-  cases ek <;> cases ek' <;> simp only [KindRel] at hk
-  all_goals first
-    | exact (Result.ok_injective h).symm
-    | rw [nidx_list_eq_abs h, hk.1]
-
 /-! ## Lookups of several names -/
 
 /-- **`look_loc` is a lookup's location.** -/

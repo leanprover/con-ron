@@ -856,26 +856,6 @@ theorem lazyEntries_run {pk : OleanPins} {r : Region} {st : DS} {i : Nat}
         · obtain ⟨x, hx, h⟩ := hlazy.to_skel e0 he0
           exact ⟨x, List.mem_cons_of_mem _ hx, h⟩
 
-/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:279-297 loadAt — the imports' check moves the
-state as a read does. -/
-theorem loadImports_run {pk : OleanPins} {r : Region} {st : DS} {sk : ModSkel}
-    {f : ConLeche.Frontend.Olean.ModFiles} {s s' : AState} (hctx : Ctx pk s)
-    (h : ConRon.Arena.Frontend.Olean.loadImports pk r st sk f s = .ok (true, s')) :
-    ParseStep s s' := by
-  generalize hF : ConRon.Arena.Frontend.Olean.loadImports pk r st sk f = fn at h
-  unfold ConRon.Arena.Frontend.Olean.loadImports at hF
-  split at hF
-  · subst hF
-    obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok h
-    cases o with
-    | none => cases (AM.pure_ok h2).1
-    | some pre =>
-      obtain ⟨-, hs⟩ := AM.pure_ok h2
-      subst hs
-      exact (importsPre_run hctx h1).1
-  · subst hF
-    cases (AM.pure_ok h).1
-
 /-- con-leche: ConLeche/Verify/Driver/Loads.lean:900 loadAt_imports — the imports' check, read
 back: the skeleton's imports by `nameP` are those at the start of `M.olean`. -/
 theorem loadImports_runOf {pk : OleanPins} {r : Region} {st : DS} {sk : ModSkel}

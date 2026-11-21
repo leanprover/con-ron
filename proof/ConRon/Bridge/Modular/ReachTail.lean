@@ -397,32 +397,6 @@ theorem inReadOrder_rel {st : EStore} {L : ConRon.Arena.Modular.ReachLog}
 
 /-! ## The read order in the reach's shapes -/
 
-theorem listRel_of_denoteNList {st : EStore} {a : List NIdx} {b : List ConLeche.Name}
-    (h : Frontend.denoteNList st.ns a = some b) : ListRel (NR st) a b := by
-  rw [denoteNList_eq_mapM] at h
-  exact listRel_of_mapM h
-
-/-- con-leche: ConLeche/Driver/Reach.lean:914-918 readOrder — `readOrder_run` and
-`readOrder_lt`, the reads given as `denoteNList` equations and the records as lists. -/
-theorem readOrder_run' {s s' : AState} {ds : Array IDeclaration} {rds : Array (List NIdx)}
-    {dsC : List Declaration} {rdsC : List (List ConLeche.Name)} {o : Array Nat}
-    (hok : DriverOK s) (hd : denoteDecls s.store ds.toList = some dsC)
-    (hr : ListRel (fun (a : List NIdx) (b : List ConLeche.Name) =>
-      Frontend.denoteNList s.store.ns a = some b) rds.toList rdsC)
-    (h : ConRon.Arena.Modular.readOrder ds rds s = .ok (o, s')) :
-    CStep s s' ∧ ConLeche.Driver.readOrder dsC.toArray rdsC.toArray = .ok o ∧
-      ∀ j ∈ o.toList, j < ds.size := by
-  have hd' : denoteDecls s.store ds.toList = some dsC.toArray.toList := by simpa using hd
-  have hr' : ListRel (fun (a : List NIdx) (b : List ConLeche.Name) => ListRel (NR s.store) a b)
-      rds.toList rdsC.toArray.toList := by
-    simpa using ListRel.mono' (fun a b h => listRel_of_denoteNList h) hr
-  obtain ⟨c, e⟩ := readOrder_run hok hd' hr' h
-  refine ⟨c, e, fun j hj => ?_⟩
-  have := readOrder_lt e j hj
-  have hl := denoteDecls_length hd
-  simp at this hl ⊢
-  omega
-
 /-! ## The clashes' copies by name -/
 
 /-- A module's name for messages, read back (`HeaderLoads.nameAt`). -/

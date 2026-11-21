@@ -1529,9 +1529,4 @@ theorem reach_refines (hfs : FsRel inst fsv fs)
 
 end reads
 
-/-- **The reach's pending statements are `infer_flags`' input**: `ReachRel.pending` (`PendingRel`)
-is `infer_flags_la`'s premise (`PendRel`), the same relation. -/
-theorem ReachRel.pendRel {r : frontend.modular.reach.Reach} {r' : ConRon.Arena.Modular.Reach}
-    (h : ReachRel r r') : List.Forall₂ PendRel r.pending.val r'.pending.toList := h.pending
-
 end ConRon.Refine2.Modular

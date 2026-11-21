@@ -2,14 +2,13 @@
 # `ConRon.Bridge.Frontend.Olean.Levels` — the header fixpoint, Theorem 1 (task #166)
 
 **An accepting twin run of `headerFixpoint` is upstream's run on the snapshot, denoted**
-(`headerFixpoint_run`): the worklist `levelsGo` is upstream's step for step, over handles.  The
+(`levelsGo_run`; `Bridge/Modular/Reads.lean`'s `headerFixpoint_gives` is the whole fixpoint): the
+worklist `levelsGo` is upstream's step for step, over handles.  The
 state relation (`StRel`) is upstream's state read back: the flags and the imports by module
 (`HMRel`, a map over handles against one over names), the open set (`SetRel`), the order
 (`ListRel`); each header read is `moduleImports_run`'s upstream read at the search path itself
 (`roots_ok_of_bare`).  The result is related by `LoadsRel`, under which the public-import
-closures are equal (`pubClosures_eq`); upstream's `headerFixpoint_sound` and
-`headerFixpoint_complete` then speak of the twin's loads (`headerFixpoint_run_sound`,
-`headerFixpoint_run_complete`).
+closures are equal (`pubClosures_eq`).
 
 This is a simulation in `closureGo_run`'s run style (`Bridge/Frontend/Olean/Closure.lean`), not a
 `sym … vcgen … finish` walk proof over `bridge_grind`.
@@ -361,15 +360,6 @@ theorem listRel_getElem? {α β : Type} {R : α → β → Prop} :
     simp only [List.getElem?_cons_succ]
     exact listRel_getElem? b k
 
-theorem listRel_memR' {α β : Type} {R : α → β → Prop} :
-    ∀ {l : List α} {lC : List β}, ListRel R l lC → ∀ {b : β}, b ∈ lC → ∃ a ∈ l, R a b
-  | _, _, .nil, _, hb => by simp at hb
-  | _, _, .cons a h, _, hb => by
-    rcases List.mem_cons.1 hb with rfl | hb
-    · exact ⟨_, List.mem_cons_self, a⟩
-    · obtain ⟨x, hx, hr⟩ := listRel_memR' h hb
-      exact ⟨x, List.mem_cons_of_mem _ hx, hr⟩
-
 /-- con-leche: ConLeche/Frontend/Olean/Levels.lean:124-153 headerFixpoint — the index fold, related. -/
 theorem indexFold_rel {st : EStore} (hw : NStoreWF st.ns) :
     ∀ {l : List NIdx} {lC : List ConLeche.Name}, ListRel (NR st) l lC →
@@ -467,36 +457,6 @@ theorem ofState_rel {st : EStore} (hw : NStoreWF st.ns) {x : LvState}
     rw [← Array.foldl_toList]
     exact indexFold_rel hw h.order _ _ _ (fun _ _ _ => by simp) a n hd
 
-/-- con-leche: ConLeche/Verify/Driver/Loads.lean:669 headerFixpoint_sound — **an accepting twin
-run of the header fixpoint is upstream's run on the snapshot, denoted**. -/
-theorem headerFixpoint_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
-    {isM : Bool} {imps : Array (ImportF NIdx)} {impsC : Array ImportRec} {ld : HeaderLoads}
-    {s s' : AState} (hctx : Ctx pk s)
-    (hi : imps.toList.mapM (denoteImport s.store) = some impsC.toList)
-    (h : headerFixpoint (modelFs F) pk sp isM imps s = .ok (ld, s')) :
-    ParseStep s s' ∧ ∃ ldC, ModelIO.CanGive
-      (ConLeche.Frontend.Olean.headerFixpoint (ConLeche.Frontend.Olean.moduleImports sp) isM impsC :
-        ModelIO _) F (.ok ldC) ∧ LoadsRel s'.store ld ldC := by
-  unfold headerFixpoint at h
-  obtain ⟨x, s₁, h1, h2⟩ := AM.bind_ok h
-  obtain ⟨hv, hs⟩ := AM.pure_ok h2
-  subst hv hs
-  obtain ⟨hst, xC, hG, hR⟩ := levelsGo_run hsp _ _ _ _ _ {} hctx (ofImports_rel _ hi)
-    ⟨HMRel.empty _ _, SetRel.empty _, .nil, HMRel.empty _ _⟩ h1
-  have hC : ModelIO.CanGive
-      (ConLeche.Frontend.Olean.headerFixpoint (ConLeche.Frontend.Olean.moduleImports sp) isM impsC :
-        ModelIO _) F (.ok
-      { order := xC.order, flags := xC.order.map fun m => (xC.flags[m]?).getD default,
-        imports := xC.order.map fun m => (xC.imports[m]?).getD #[],
-        index := xC.order.foldl (fun (acc : Std.HashMap ConLeche.Name Nat × Nat) m =>
-          (acc.1.insert m acc.2, acc.2 + 1)) ({}, 0) |>.1 }) := by
-    unfold ConLeche.Frontend.Olean.headerFixpoint
-    dsimp only
-    refine (hG.bind ?_).canGive
-    exact ModelIO.gives_pure _ _
-  obtain ⟨-, -, hnd, -, -⟩ := ConLeche.Driver.headerFixpoint_sound hC
-  exact ⟨hst, _, hC, ofState_rel (nsWF_of_StateOK hst.ok) hR hnd⟩
-
 /-! ## The public-import closures -/
 
 /-- con-leche: ConLeche/Frontend/Olean/Levels.lean:179-193 pubClosures — **the twin's
@@ -522,51 +482,5 @@ theorem pubClosures_eq {st : EStore} {ld : HeaderLoads} {ldC : ConLeche.Frontend
     rfl
 
 /-! ## Upstream's facts, of the twin's loads -/
-
-/-- con-leche: ConLeche/Verify/Driver/Loads.lean:669 headerFixpoint_sound — **what the twin's
-header fixpoint loads**: its order without duplicates; each loaded handle denotes a module reached
-from the root's imports, at its position in the index, with the imports its header read answers. -/
-theorem headerFixpoint_run_sound {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
-    {isM : Bool} {imps : Array (ImportF NIdx)} {impsC : Array ImportRec} {ld : HeaderLoads}
-    {s s' : AState} (hctx : Ctx pk s)
-    (hi : imps.toList.mapM (denoteImport s.store) = some impsC.toList)
-    (h : headerFixpoint (modelFs F) pk sp isM imps s = .ok (ld, s')) :
-    ld.order.toList.Nodup ∧ ∀ (k : Nat) (x : NIdx), ld.order[k]? = some x →
-      ∃ m, denoteN s'.store.ns x = some m ∧ ConLeche.Driver.ImpReach sp F impsC m ∧
-        ld.index[x]? = some k ∧ ∀ is, ld.imports[k]? = some is →
-          ∃ isC, ImpsD s'.store is isC ∧
-            ModelIO.CanGive (ConLeche.Frontend.Olean.moduleImports sp m) F (.ok isC) := by
-  obtain ⟨hst, ldC, hC, hL⟩ := headerFixpoint_run hsp hctx hi h
-  have hw := nsWF_of_StateOK hst.ok
-  obtain ⟨-, -, hnd, hk, -⟩ := ConLeche.Driver.headerFixpoint_sound hC
-  refine ⟨(ListRel.nodup_iff_denoteN hw hL.order).2 hnd, fun k x hx => ?_⟩
-  have ho := listRel_getElem? hL.order k
-  rw [Array.getElem?_toList, Array.getElem?_toList, hx] at ho
-  rcases optRel_cases ho with ⟨h1, -⟩ | ⟨_, m, h1, h2, h3⟩
-  · cases h1
-  · cases h1
-    obtain ⟨hr, hix, himp⟩ := hk k m h2
-    refine ⟨m, h3, hr, by rw [hL.index _ _ h3, hix], fun is his => ?_⟩
-    have hi' := listRel_getElem? hL.imports k
-    rw [Array.getElem?_toList, Array.getElem?_toList, his] at hi'
-    rcases optRel_cases hi' with ⟨h4, -⟩ | ⟨_, isC, h4, h5, h6⟩
-    · cases h4
-    · cases h4
-      exact ⟨isC, h6, himp isC h5⟩
-
-/-- con-leche: ConLeche/Verify/Driver/Loads.lean:711 headerFixpoint_complete — **the twin's header
-fixpoint loads every module a path of public imports leads to from one of the root's imports**. -/
-theorem headerFixpoint_run_complete {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
-    {isM : Bool} {imps : Array (ImportF NIdx)} {impsC : Array ImportRec} {ld : HeaderLoads}
-    {s s' : AState} (hctx : Ctx pk s)
-    (hi : imps.toList.mapM (denoteImport s.store) = some impsC.toList)
-    (h : headerFixpoint (modelFs F) pk sp isM imps s = .ok (ld, s'))
-    {i : ImportRec} (hi0 : i ∈ impsC) {m : ConLeche.Name}
-    (hm : ConLeche.Driver.PubReach sp F i.module m) :
-    ∃ x ∈ ld.order, denoteN s'.store.ns x = some m := by
-  obtain ⟨-, ldC, hC, hL⟩ := headerFixpoint_run hsp hctx hi h
-  have hmC := ConLeche.Driver.headerFixpoint_complete hC hi0 hm
-  obtain ⟨x, hx, hd⟩ := listRel_memR' hL.order (Array.mem_toList_iff.2 hmC)
-  exact ⟨x, Array.mem_toList_iff.1 hx, hd⟩
 
 end ConRon.Bridge.Frontend.Olean

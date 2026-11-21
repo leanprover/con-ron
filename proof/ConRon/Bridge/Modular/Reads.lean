@@ -3,7 +3,7 @@
 
 **An accepting twin run of `workerReads` is upstream's run on the snapshot, read back**
 (`workerReads_run`): the own part's names (`readPartNames_run`), the header fixpoint
-(`headerFixpoint_gives`, `Levels.lean`'s `headerFixpoint_run` as a `Gives`), every loaded part's
+(`headerFixpoint_gives`, over `Levels.lean`'s `levelsGo_run`), every loaded part's
 names, the name index (`nameIndexOf_rel`), Lean's refusal of a classic import from a module, the
 doubly held names (`clashCopies_rel`), their copies' statements (`readInfos_run`), the clash
 rule's heads (exactly upstream's, `isPropCheapHeadOf_run`), their statements, the clash rule over
@@ -85,8 +85,8 @@ theorem _root_.ConRon.Bridge.Frontend.Olean.LoadsRel.ext' {st st' : EStore} (hx 
           rw [hdo] at g3'; cases g3'
     rw [h1, h2]
 
-/-- con-leche: ConLeche/Verify/Driver/Loads.lean:669 headerFixpoint_sound — `headerFixpoint_run`,
-upstream's run given from any open handles. -/
+/-- con-leche: ConLeche/Verify/Driver/Loads.lean:669 headerFixpoint_sound — **the header fixpoint at
+the twin is upstream's run**, given from any open handles. -/
 theorem headerFixpoint_gives {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
     {isM : Bool} {imps : Array (ImportF NIdx)} {impsC : Array ImportRec}
     {ld : ConRon.Arena.Frontend.Olean.HeaderLoads} {s s' : AState} (hctx : Ctx pk s)

@@ -674,31 +674,6 @@ theorem listBeqBy_refl {α : Type} {f : α → α → Bool} (hf : ∀ a, f a a =
   | [] => rfl
   | a :: l => by simp [ConLeche.listBeqBy, hf a, listBeqBy_refl hf l]
 
-theorem denoteCIList_inj {st : EStore} (hwf : StoreWF st) :
-    ∀ {l l' : List IConstantInfo} {cs : List ConstantInfo}, Frontend.denoteCIList st l = some cs →
-      Frontend.denoteCIList st l' = some cs → l = l'
-  | [], [], _, _, _ => rfl
-  | [], _ :: _, cs, h, h' => by
-    simp only [Frontend.denoteCIList, Option.some.injEq] at h
-    subst h
-    simp only [Frontend.denoteCIList] at h'
-    split at h' <;> simp at h'
-  | _ :: _, [], cs, h, h' => by
-    simp only [Frontend.denoteCIList, Option.some.injEq] at h'
-    subst h'
-    simp only [Frontend.denoteCIList] at h
-    split at h <;> simp at h
-  | c :: l, c' :: l', cs, h, h' => by
-    simp only [Frontend.denoteCIList] at h h'
-    split at h <;> try simp at h
-    rename_i x xs hx hxs
-    split at h' <;> try simp at h'
-    rename_i y ys hy hys
-    obtain ⟨rfl, rfl⟩ := h
-    simp only [List.cons.injEq] at h'
-    obtain ⟨rfl, rfl⟩ := h'
-    rw [denoteCI_inj hwf hx hy, denoteCIList_inj hwf hxs hys]
-
 /-- con-leche: ConLeche/Driver/Worker.lean:171-174 copyRecEq — **an accepting twin test is
 upstream's**: equal handles denote equal records. -/
 theorem copyRecEq_run {st : EStore} {d e : IDeclaration} {dC eC : Declaration}
@@ -1418,12 +1393,6 @@ theorem denoteDecls_get {st : EStore} :
     | succ k =>
       simp only [List.getElem?_cons_succ] at hk ⊢
       exact denoteDecls_get h2 hk
-
-/-- A failing branch gives no accept. -/
-theorem fail_bind_ok {α β : Type} {e : ConRon.Arena.CheckError} {f : α → AM β} {s s' : AState}
-    {b : β} (h : ((fail e : AM α) >>= f) s = .ok (b, s')) : False := by
-  obtain ⟨a, s₁, h1, -⟩ := AM.bind_ok h
-  exact AM.fail_ok h1
 
 /-- con-leche: ConLeche/Driver/Worker.lean:208-240 copyCheck — **an accepting twin check of one
 copy is upstream's accept**; the scratch flag is unmoved but at a copied block (whose recursors'

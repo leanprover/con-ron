@@ -94,39 +94,14 @@ theorem NSeen.insert {st : EStore} {seen : Std.HashMap EIdx Bool} {seenP : Std.H
       subst hhk; rw [he]; rfl
     · exact hs.dom k h2
 
-theorem NSeen.mono {st st' : EStore} {seen : Std.HashMap EIdx Bool} {seenP : Std.HashSet Expr}
-    (hs : NSeen st seen seenP) (hx : Ext st st') : NSeen st' seen seenP where
-  fwd := by
-    intro k ek hk hc
-    obtain ⟨e₀, he₀⟩ := Option.isSome_iff_exists.mp (hs.dom k hc)
-    have hq : e₀ = ek := Option.some.inj ((denote_ext he₀ hx).symm.trans hk)
-    have hr := hs.fwd k e₀ he₀ hc
-    rwa [hq] at hr
-  bwd := by
-    intro eP hc
-    obtain ⟨k, hk, hdk⟩ := hs.bwd eP hc
-    exact ⟨k, hk, denote_ext hdk hx⟩
-  dom := by
-    intro h hc
-    obtain ⟨e₀, he₀⟩ := Option.isSome_iff_exists.mp (hs.dom h hc)
-    rw [denote_ext he₀ hx]; rfl
-
 /-- con-leche: none — **the walk's state read back**: the memo, and the names so far. -/
 @[expose] def XRel (st : EStore) (x : Arena.NeedsSt) (xP : ConLeche.Cached.NeedsSt) : Prop :=
   NSeen st x.seen xP.1 ∧ denoteNList st.ns x.acc = some xP.2.toList
-
-theorem XRel.mono {st st' : EStore} {x : Arena.NeedsSt} {xP : ConLeche.Cached.NeedsSt}
-    (h : XRel st x xP) (hx : Ext st st') : XRel st' x xP :=
-  ⟨h.1.mono hx, denoteNList_ext hx.lss.ls.ns _ _ h.2⟩
 
 theorem XRel.empty (st : EStore) : XRel st Arena.NeedsSt.empty ({}, #[]) :=
   ⟨NSeen.empty st, rfl⟩
 
 /-! ## Names -/
-
-theorem denoteNList_of_denoteNL' {st : EStore} :
-    ∀ {hs : List NIdx} {xs : List ConLeche.Name}, denoteNL st hs xs → denoteNList st.ns hs = some xs :=
-  fun {hs xs} h => denoteNL_toList hs xs h
 
 theorem denoteNL_append {st : EStore} :
     ∀ {a b : List NIdx} {A B : List ConLeche.Name}, denoteNL st a A → denoteNL st b B →
@@ -687,11 +662,6 @@ theorem recordReads_exact {s s' : AState} (hok : DriverOK s) (hoff : s.store.scr
 @[expose] def GRel (st : EStore) (x : Std.HashSet EIdx × Array NIdx)
     (xP : Std.HashSet Expr × Array ConLeche.Name) : Prop :=
   UCSeen st x.1 xP.1 ∧ denoteNList st.ns x.2.toList = some xP.2.toList
-
-theorem GRel.mono {st st' : EStore} {x : Std.HashSet EIdx × Array NIdx}
-    {xP : Std.HashSet Expr × Array ConLeche.Name} (h : GRel st x xP) (hx : Ext st st') :
-    GRel st' x xP :=
-  ⟨h.1.mono hx, denoteNList_ext hx.lss.ls.ns _ _ h.2⟩
 
 /-- upstream's step of the ground walk. -/
 @[expose] def goC (x : Std.HashSet Expr × Array ConLeche.Name) (e : Expr) :

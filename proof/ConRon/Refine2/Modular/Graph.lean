@@ -698,9 +698,6 @@ decreasing_by have := lt_len hlt; rw [usize_succ hk1]; omega
 
 /-- The ranks' hash. -/
 abbrev hW := U64.Insts.Con_ron_coreRonHashmapHashable
-/-- The ranks' equality. -/
-abbrev eW := U64.Insts.Con_ron_coreRonHashmapEq2
-
 /-- **The ranks met**: the table of the present ones and the flag of the missing one, as upstream's
 set of optional ranks. -/
 structure SeenRel (m : ron.hashmap2.HashMap2 Std.U64 Bool) (none_seen : Bool)

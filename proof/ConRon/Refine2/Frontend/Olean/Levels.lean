@@ -1259,21 +1259,6 @@ theorem pub_closures_eq {ld : frontend.olean.levels.HeaderLoads}
   rw [pubClosures_eq, List.range_eq_range', (order_fits hR).1]
   simpa [vec_len_val] using this
 
-/-- **`headerFixpoint`'s loads fit their order**, for `pub_closures_eq`. -/
-theorem headerFixpoint_fits {fs : Arena.Frontend.Olean.OleanFs} {pk : Arena.Frontend.Olean.OleanPins}
-    {sp : ConLeche.Frontend.Olean.Roots} {im : Bool}
-    {imps : _root_.Array (ConLeche.Frontend.Olean.ImportF NIdx)} {lst lst' : AState} {b}
-    (hx : (Arena.Frontend.Olean.headerFixpoint fs pk sp im imps).run lst = .ok (b, lst')) :
-    IndexFits b := by
-  rw [Arena.Frontend.Olean.headerFixpoint, StateT.run_bind] at hx
-  generalize (Arena.Frontend.Olean.levelsGo fs pk sp (!im) ConLeche.Frontend.Olean.closureFuel
-    (Arena.Frontend.Olean.LvWork.ofImports { importAll := true, isExported := im } imps) {}).run lst = r at hx
-  cases r with
-  | error e => cases hx
-  | ok p =>
-    cases hx
-    exact ofState_index_fits _
-
 end Pub
 
 end ConRon.Refine2.Frontend.Olean

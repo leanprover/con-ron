@@ -465,20 +465,6 @@ theorem putPart_keeps {α : Type} {c c' : ConRon.Arena.Modular.ReachCache}
     exact ⟨rfl, rfl⟩
   | none => exfalso; am_never h
 
-/-- A read of a part keeps the lookups and the recursor blocks. -/
-theorem partRead_keeps {α : Type} {pk : OleanPins} {F : FS} {sp : Roots}
-    {g : Region → SM → AM (SM × Option α)} {c c' : ConRon.Arena.Modular.ReachCache}
-    {k : ConRon.Arena.Modular.PartKey} {a : α} {s s' : AState}
-    (h : (do
-        let (c, r, st) ← ConRon.Arena.Modular.takePart (modelFs F) pk sp c k
-        ConRon.Arena.Modular.putPart c k r (← g r st)) s = .ok ((c', a), s')) :
-    c'.looks = c.looks ∧ c'.recBlocks = c.recBlocks := by
-  obtain ⟨⟨c₁, r, st⟩, s₁, h1, h⟩ := AM.bind_ok h
-  obtain ⟨res, s₂, h2, h3⟩ := AM.bind_ok h
-  obtain ⟨e1, e2⟩ := takePart_keeps h1
-  obtain ⟨e3, e4⟩ := putPart_keeps h3
-  exact ⟨e3.trans e1, e4.trans e2⟩
-
 theorem partEntry_keeps {pk : OleanPins} {F : FS} {sp : Roots} {c c' : ConRon.Arena.Modular.ReachCache}
     {k : ConRon.Arena.Modular.PartKey} {l : Nat} {e : CEntryF NIdx EIdx} {s s' : AState}
     (h : ConRon.Arena.Modular.partEntry (modelFs F) pk sp c k l s = .ok ((c', e), s')) :
@@ -500,62 +486,6 @@ theorem partEntries_keeps {pk : OleanPins} {F : FS} {sp : Roots} {c c' : ConRon.
   obtain ⟨e1, e2⟩ := takePart_keeps h1
   obtain ⟨e3, e4⟩ := putPart_keeps h3
   exact ⟨e3.trans e1, e4.trans e2⟩
-
-/-- `tableOf` keeps the lookups. -/
-theorem tableOf_looks {pk : OleanPins} {F : FS} {sp : Roots} {env : ConRon.Arena.Modular.ReachEnv}
-    {c c' : ConRon.Arena.Modular.ReachCache} {k : ConRon.Arena.Modular.PartKey} {s s' : AState}
-    (h : ConRon.Arena.Modular.tableOf (modelFs F) pk sp env c k s = .ok (c', s')) :
-    c'.looks = c.looks := by
-  unfold ConRon.Arena.Modular.tableOf at h
-  by_cases h1 : c.tables.contains k = true
-  · rw [ite_eq_left h1] at h; obtain ⟨rfl, -⟩ := AM.pure_ok h; rfl
-  rw [ite_eq_right h1] at h
-  obtain ⟨u, s₀, h0, h⟩ := AM.bind_ok h
-  obtain ⟨-, hs⟩ := AM.pure_ok h0
-  subst s₀
-  by_cases h2 : (ConRon.Arena.Modular.indexTable env.wr k).isSome = true
-  · rw [ite_eq_left h2] at h; obtain ⟨rfl, -⟩ := AM.pure_ok h; rfl
-  rw [ite_eq_right h2] at h
-  obtain ⟨u, s₀, h0, h⟩ := AM.bind_ok h
-  obtain ⟨-, hs⟩ := AM.pure_ok h0
-  subst s₀
-  obtain ⟨t, s₁, h1', h⟩ := AM.bind_ok h
-  obtain ⟨rfl, -⟩ := AM.pure_ok h
-  rfl
-
-/-- `recBlocksOf` keeps the lookups. -/
-theorem recBlocksOf_looks {pk : OleanPins} {F : FS} {sp : Roots} {env : ConRon.Arena.Modular.ReachEnv}
-    {c c' : ConRon.Arena.Modular.ReachCache} {k : ConRon.Arena.Modular.PartKey} {s s' : AState}
-    (h : ConRon.Arena.Modular.recBlocksOf (modelFs F) pk sp env c k s = .ok (c', s')) :
-    c'.looks = c.looks := by
-  unfold ConRon.Arena.Modular.recBlocksOf at h
-  by_cases h0 : c.recBlocks.contains k = true
-  · rw [ite_eq_left h0] at h; obtain ⟨rfl, -⟩ := AM.pure_ok h; rfl
-  rw [ite_eq_right h0] at h
-  obtain ⟨u0, s₀, h0', h⟩ := AM.bind_ok h
-  obtain ⟨-, hs0⟩ := AM.pure_ok h0'
-  subst s₀
-  obtain ⟨c₁, s₁, h1, h⟩ := AM.bind_ok h
-  have e1 := tableOf_looks h1
-  obtain ⟨tk, s₂, h2, h⟩ := AM.bind_ok h
-  obtain ⟨c₂, r, st⟩ := tk
-  have e2 := (takePart_keeps h2).1
-  dsimp only at h
-  cases htg : ConRon.Arena.Modular.tableGet env.wr c₂ k with
-  | none =>
-    rw [htg] at h; exfalso
-    obtain ⟨_, _, h', _⟩ := AM.bind_ok h
-    exact AM.fail_ok h'
-  | some t =>
-  rw [htg] at h
-  dsimp only at h
-  obtain ⟨res, s₃, h3, h⟩ := AM.bind_ok h
-  obtain ⟨cm, s₄, h4, h5⟩ := AM.bind_ok h
-  obtain ⟨c₃, m⟩ := cm
-  have e3 := (putPart_keeps h4).1
-  obtain ⟨hv, -⟩ := AM.pure_ok h5
-  subst hv
-  exact e3.trans (e2.trans e1)
 
 /-- A constant read back: its kind's names and expressions, read back. -/
 theorem denoteEntry_kind {st : EStore} {c : CEntryF NIdx EIdx} {cC : CEntryF ConLeche.Name Expr}
@@ -1102,36 +1032,6 @@ theorem groupOfKind_rel {st : EStore} {x : NIdx} {xC : ConLeche.Name} (hx : deno
     exact .none
   | quot q =>
     simp only [ConLeche.Frontend.Olean.CKindF.mapM, pure, Option.some.injEq] at hk; subst hk; exact .none
-
-/-- The copy presenting a name, upstream's. -/
-theorem recordSpot_rel {st : EStore} (hw : NStoreWF st.ns) {pk : OleanPins} (hp : NullsRel st pk)
-    {sp : Roots} {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
-    (he : EnvRel sp st env envC) {c : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
-    (hc : CacheRel st c cC) {x : NIdx} {xC : ConLeche.Name} (hx : denoteN st.ns x = some xC) :
-    Option.Rel (fun (a : ConRon.Arena.Modular.Spot × Bool) (b : ConLeche.Driver.Spot × Bool) =>
-        SpotRel st a.1 b.1 ∧ a.2 = b.2)
-      (ConRon.Arena.Modular.recordSpot pk env c x)
-      (match ConLeche.Driver.importerSpot envC xC with
-        | some (_, s) => some (s, false)
-        | none => (cC.located[xC]?).map (·, true)) := by
-  unfold ConRon.Arena.Modular.recordSpot
-  rcases optRel_cases (importerSpot_rel hw hp he hx) with ⟨g1, g2⟩ | ⟨a, b, g1, g2, g3⟩
-  · rw [g1, g2]
-    simp only [ConRon.Arena.Modular.locatedAt]
-    rcases optRel_cases (hc.located.get hw hx) with ⟨h1, h2⟩ | ⟨q, qC, h1, h2, h3⟩
-    · rw [h1, h2]; exact .none
-    · rw [h1, h2]; exact .some ⟨h3, rfl⟩
-  · rw [g1, g2]
-    exact .some ⟨g3.2, rfl⟩
-
-/-- A failure whose message reads two names: no accept. -/
-theorem fail2_never {β : Type} {a b : NIdx} {f : ConLeche.Name → ConLeche.Name → Arena.CheckError}
-    {s s' : AState} {r : β}
-    (h : (readName a >>= fun x => readName b >>= fun y => (fail (f x y) : AM β)) s = .ok (r, s')) :
-    False := by
-  obtain ⟨x, s1, h1, h⟩ := AM.bind_ok h
-  obtain ⟨y, s2, h2, h⟩ := AM.bind_ok h
-  exact AM.fail_ok h
 
 /-- con-leche: ConLeche/Driver/Reach.lean:693-729 readRecord — **the record presenting `x`, and its
 home, upstream's**: the caches related after, the record read back and persistent, its home

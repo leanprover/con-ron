@@ -189,8 +189,7 @@ theorem pooledOleanAccepts_eq_J (fs : OleanFs) (pk : OleanPins) (sp : Roots)
 /-- con-leche: ConLeche/Driver/CheckMain.lean:154-177 checkOleansG
 **The pool's accept on an `--olean` run's jobs from position `start` on**, with the solution
 `J`: `PooledOleanAcceptsJ` with only the jobs `start ≤ t < ds.size` claimed (upstream's
-`List.range' start n`): a module's worker checks its own records, after its context's.
-`start = 0` is `PooledOleanAcceptsJ` (`pooledOleanAcceptsFromJ_zero`). -/
+`List.range' start n`): a module's worker checks its own records, after its context's. -/
 def PooledOleanAcceptsFromJ (fs : OleanFs) (pk : OleanPins) (sp : Roots)
     (values : Array ModRef) (mode : CheckMode) (pins : List INatOpPinSet) (J : Option ISolution)
     (start : Nat) (ds : Array IDeclaration) (s : AState) (I : IStreamIndex) (s' : AState) : Prop :=
@@ -201,19 +200,5 @@ def PooledOleanAcceptsFromJ (fs : OleanFs) (pk : OleanPins) (sp : Roots)
     (∀ w ∈ parts, w.Pairwise (· < ·)) ∧
     (∀ w ∈ parts, ∃ s'', checkOleanJobListJ fs pk sp values mode pins J I ds w {} s'.worker
       = .ok (.ok (), s''))
-
-/-- con-leche: none — the jobs from position 0 on are all the jobs. -/
-theorem pooledOleanAcceptsFromJ_zero (fs : OleanFs) (pk : OleanPins) (sp : Roots)
-    (values : Array ModRef) (mode : CheckMode) (pins : List INatOpPinSet) (J : Option ISolution)
-    (ds : Array IDeclaration) (s : AState) (I : IStreamIndex) (s' : AState) :
-    PooledOleanAcceptsFromJ fs pk sp values mode pins J 0 ds s I s'
-      ↔ PooledOleanAcceptsJ fs pk sp values mode pins J ds s I s' := by
-  constructor
-  · rintro ⟨parts, h1, h2, h3, h4, h5⟩
-    exact ⟨parts, h1, fun t ht => h2 t (Nat.zero_le _) ht, fun w hw t ht => (h3 w hw t ht).2,
-      h4, h5⟩
-  · rintro ⟨parts, h1, h2, h3, h4, h5⟩
-    exact ⟨parts, h1, fun t _ ht => h2 t ht, fun w hw t ht => ⟨Nat.zero_le _, h3 w hw t ht⟩,
-      h4, h5⟩
 
 end ConRon.Arena

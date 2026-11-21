@@ -24,11 +24,6 @@ open ConLeche ConRon.Arena ConRon.Bridge
 
 /-! ## Runs that leave the store alone -/
 
-/-- con-leche: none — a run whose answer state has the store it started with. -/
-theorem XFree.of_store {α : Type} {c : AM α}
-    (h : ∀ (s s' : AState) (r : α), c s = .ok (r, s') → s'.store = s.store) : XFree c :=
-  fun s s' r hr => by rw [h s s' r hr]
-
 theorem XFree.failDanglingE' {α : Type} : XFree (failDanglingE : AM α) := XFree.fail _
 theorem XFree.failDanglingLs {α : Type} : XFree (failDanglingLs : AM α) := XFree.fail _
 
@@ -316,9 +311,6 @@ theorem XFree.internLevels (us : List Level) : XFree (Arena.internLevels us) := 
 theorem XFree.internAppE (f a : EIdx) : XFree (Arena.internAppE f a) := XFree.internE _
 theorem XFree.internLetEE (ty v b : EIdx) : XFree (Arena.internLetEE ty v b) := XFree.internE _
 theorem XFree.internProjE (n : NIdx) (i : Nat) (e : EIdx) : XFree (Arena.internProjE n i e) :=
-  XFree.internE _
-theorem XFree.internFVarE (i : Nat) (t : EIdx) : XFree (Arena.internFVarE i t) := XFree.internE _
-theorem XFree.internConstE (n : NIdx) (us : LsIdx) : XFree (Arena.internConstE n us) :=
   XFree.internE _
 theorem XFree.internBindE (tag : UInt32) (ty b : EIdx) : XFree (Arena.internBindE tag ty b) := by
   unfold Arena.internBindE

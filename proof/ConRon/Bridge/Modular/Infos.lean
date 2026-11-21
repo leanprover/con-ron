@@ -315,13 +315,6 @@ structure InfosRel (st : EStore) (cs : Array Copy)
   rel : ∀ c ∈ cs.toList, ∃ v w, infos[c]? = some v ∧ infosC[c]? = some w ∧
     denoteStmt st v.1 = some w.1 ∧ denoteKindN st v.2 = some w.2
 
-theorem InfosRel.ext {st st' : EStore} (hx : Ext st st') {cs : Array Copy}
-    {infos : Std.HashMap Copy (ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit)}
-    {infosC : Std.HashMap Copy (ConstantVal × CKindF ConLeche.Name Unit)}
-    (h : InfosRel st cs infos infosC) : InfosRel st' cs infos infosC :=
-  ⟨h.dom, fun c hc => let ⟨v, w, h1, h2, h3, h4⟩ := h.rel c hc
-    ⟨v, w, h1, h2, denoteStmt_ext hx h3, denoteKindN_ext hx h4⟩⟩
-
 /-- The infos' insert, over any values. -/
 theorem insFold {V : Type} :
     ∀ (L : List (Copy × V)) (m : Std.HashMap Copy V),

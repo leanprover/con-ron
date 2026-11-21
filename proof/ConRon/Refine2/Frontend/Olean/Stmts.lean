@@ -30,10 +30,6 @@ open Arena.Frontend.Olean (runPasses stmtsFast stmtsAt readStmts constsSkel)
 /-- A pure `Option`, at `OptionT AM`. -/
 def liftO {α : Type} (o : Option α) : OptionT AM α := OptionT.mk (pure o)
 
-theorem liftO_bind {α β : Type} (o : Option α) (g : α → Option β) :
-    liftO (o >>= g) = (liftO o >>= fun a => liftO (g a)) := by
-  cases o <;> rfl
-
 theorem liftO_mapM {α β : Type} (f : α → Option β) :
     ∀ l : List α, (l.mapM (m := OptionT AM) fun x => liftO (f x)) = liftO (l.mapM f)
   | [] => rfl

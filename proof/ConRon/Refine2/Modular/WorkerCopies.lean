@@ -490,11 +490,6 @@ theorem ifenv_layer00_rel {pers : arena.store.PersTier} (hb : BaseRel pers.env {
     rw [hn.2.2 n] at hs'; cases hs'
 
 open Lockstep in
-@[lockstep] theorem ifenv_layer00_spec {pers : arena.store.PersTier} (hb : BaseRel pers.env {})
-    (hok : BaseOK pers) :
-    LSP (arena.env.ifenv_layer 0#u64 0#u64 false false) (fun r => IFEnvRelI pers r emptyLayer) :=
-  fun _ h => ifenv_layer00_rel hb hok h
-
 /-- The twin's step of `ctxLayer`. -/
 def ctxStep (fe : IFEnv) (d : IDeclaration) : AM IFEnv := do
   pure ((← declConstants d).foldl IFEnv.push fe)
@@ -580,13 +575,6 @@ theorem LA.rust {f : Result γ}
   intro a st' hm
   obtain ⟨v, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
   exact h v h1 a st' h2
-
-/-- A twin-only step whose run is known. -/
-theorem LA.twin {m} {lst lst1 : AState} {x : AM β₁} {g : β₁ → AM β} {b : β₁}
-    (hx : x.run lst = .ok (b, lst1)) (h : LA pers R m lst1 (g b)) : LA pers R m lst (x >>= g) := by
-  intro a st' hm
-  obtain ⟨c, lst2, h1, h2⟩ := h a st' hm
-  exact ⟨c, lst2, by rw [Lockstep.run_bind_ok hx]; exact h1, h2⟩
 
 open Lockstep in
 /-- **The bind of a stateful Rust callee** against the twin's. -/
