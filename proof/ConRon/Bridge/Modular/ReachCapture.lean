@@ -41,7 +41,7 @@ twin's walk from a fresh state against upstream's: the needs walk's Theorem 1. -
 
 /-- con-leche: ConLeche/Frontend/Olean/Index.lean:110-111 HeaderLoads.nameAt — a module's
 name for messages, read back. -/
-theorem nameAt_rel {st : EStore} {pk : OleanPins} (hp : NullsRel st pk)
+theorem loadsNameAt_rel {st : EStore} {pk : OleanPins} (hp : NullsRel st pk)
     {ld : ConRon.Arena.Frontend.Olean.HeaderLoads} {ldC : ConLeche.Frontend.Olean.HeaderLoads}
     (hl : LoadsRel st ld ldC) (i : Nat) :
     denoteN st.ns (ld.nameAt pk i) = some (ldC.nameAt i) := by
@@ -84,7 +84,7 @@ theorem importerSpot_rel {st : EStore} (hw : NStoreWF st.ns) {pk : OleanPins} (h
     rcases optRel_cases (indexAt_rel he.wr.index cp) with ⟨g1, g2⟩ | ⟨q, qC, g1, g2, g3⟩
     · rw [g1, g2]; exact .none
     · rw [g1, g2]
-      refine .some ⟨rfl, ⟨nameAt_rel hp he.wr.loads cp.mod, ?_⟩, g3⟩
+      refine .some ⟨rfl, ⟨loadsNameAt_rel hp he.wr.loads cp.mod, ?_⟩, g3⟩
       simp [ConRon.Arena.Frontend.Olean.HeaderLoads.levelAt, he.wr.loads.flags]
 
 /-! ## A copy's proof flag -/
