@@ -143,7 +143,7 @@ def refinesB (ci ci' : IConstantInfo) : AM Bool := do
         if rs.contains ci'.toConstantVal.name then pure false
         else copyB (.axiomInfo ci'.toConstantVal) ci
       else pure false
-    | _ => pure false
+    | .defnInfo .. | .thmInfo .. | .indInfo .. | .ctorInfo .. | .recInfo .. => pure false
 
 /-! ## The solution -/
 

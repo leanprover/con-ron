@@ -280,4 +280,69 @@ open Lockstep in
     (try subst h) <;> (try rfl)
   exact (i_proj_table_beq_spec _ _ _ h)
 
+/-! ## Which records offer a statement -/
+
+open Lockstep in
+@[lockstep] theorem i_declaration_dup_spec (d : arena.env.IDeclaration) :
+    LSP (arena.env.i_declaration_dup d) (fun o => absIDeclaration o = absIDeclaration d) :=
+  fun _ h => i_declaration_dup_abs h
+
+open Lockstep in
+@[lockstep] theorem builtin_axiom_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n : arena.handle.NIdx) :
+    LS pers (fun a b => b = a) (arena.justify.builtin_axiom_name st n) lst
+      (builtinAxiomName (absNIdx n)) := by
+  rw [arena.justify.builtin_axiom_name, builtinAxiomName]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem justifiable_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (pd : arena.env.IDeclaration) :
+    LS pers (fun a b => b = a.map absIConstantVal) (arena.justify.justifiable st pd) lst
+      (justifiable (absIDeclaration pd)) := by
+  cases pd <;> rw [arena.justify.justifiable.eq_def] <;> simp only [absIDeclaration, justifiable] <;>
+    lockstep
+
+open Lockstep in
+@[lockstep] theorem side_record_val_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (d : arena.env.IDeclaration) (cv : arena.env.IConstantVal)
+    (v : arena.handle.EIdx) :
+    LS pers (fun a b => b = absIDeclaration a) (arena.justify.side_record_val pers st d cv v) lst
+      (sideRecordVal (absIDeclaration d) (absIConstantVal cv) (absEIdx v)) := by
+  rw [arena.justify.side_record_val, sideRecordVal]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem side_record_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (d : arena.env.IDeclaration) :
+    LS pers (fun a b => b = absIDeclaration a) (arena.justify.side_record pers st d) lst
+      (sideRecord (absIDeclaration d)) := by
+  cases d <;> rw [arena.justify.side_record.eq_def] <;> simp only [absIDeclaration, sideRecord] <;>
+    lockstep
+
+/-! ## The comparison -/
+
+open Lockstep in
+@[lockstep] theorem same_cv_up_to_levels_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (cv cv2 : arena.env.IConstantVal) :
+    LS pers (fun a b => b = a) (arena.justify.same_cv_up_to_levels pers st cv cv2) lst
+      (sameCvUpToLevels (absIConstantVal cv) (absIConstantVal cv2)) := by
+  rw [arena.justify.same_cv_up_to_levels, sameCvUpToLevels]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem copy_b_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ci2 ci : arena.env.IConstantInfo) :
+    LS pers (fun a b => b = a) (arena.justify.copy_b pers st ci2 ci) lst
+      (copyB (absIConstantInfo ci2) (absIConstantInfo ci)) := by
+  rw [arena.justify.copy_b, copyB]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem refines_b_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ci ci2 : arena.env.IConstantInfo) :
+    LS pers (fun a b => b = a) (arena.justify.refines_b pers st ci ci2) lst
+      (refinesB (absIConstantInfo ci) (absIConstantInfo ci2)) := by
+  cases ci <;> rw [arena.justify.refines_b, refinesB.eq_def] <;> simp only [absIConstantInfo] <;> lockstep
+
 end ConRon.Refine2
