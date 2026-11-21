@@ -131,8 +131,8 @@ theorem denoteNList_of_denoteNL' {st : EStore} :
 theorem denoteNL_append {st : EStore} :
     ∀ {a b : List NIdx} {A B : List ConLeche.Name}, denoteNL st a A → denoteNL st b B →
       denoteNL st (a ++ b) (A ++ B)
-  | [], b, [], B, _, hb => hb
-  | x :: a, b, y :: A, B, ⟨h1, h2⟩, hb => ⟨h1, denoteNL_append h2 hb⟩
+  | [], _, [], _, _, hb => hb
+  | _ :: _, _, _ :: _, _, ⟨h1, h2⟩, hb => ⟨h1, denoteNL_append h2 hb⟩
   | [], _, _ :: _, _, h, _ => h.elim
   | _ :: _, _, [], _, h, _ => h.elim
 
@@ -852,42 +852,6 @@ theorem pinGround_exact {s s' : AState} (hok : StateOK s) (hp : PinsOK s)
 
 /-! ## The reach's roots -/
 
-/-- con-leche: ConLeche/Driver/Worker.lean:68-85 ownRoots — upstream's `ownRoots` at a pin list
-`pinsC`, written out (delete at the re-pin to U's 6fa2f307e: `ownRootsC_eq`). -/
-@[expose] def ownRootsC (pinsC : List NatOpPinSet) (ix : ConLeche.Frontend.Olean.NameIndex)
-    (l : ConLeche.Frontend.Olean.Loaded) (ds : Array Declaration) : Array ConLeche.Name :=
-  let fp : Std.HashSet ConLeche.Name := l.constants.foldl
-    (fun s c => (pinFootprint c.name).foldl (fun s n => s.insert n) s) {}
-  (ds.foldl (fun acc d => acc ++ ConLeche.Cached.recordReads d) #[] ++
-    l.constants.foldl (fun acc (c : ConLeche.Frontend.Olean.CEntry) =>
-      if c.skipped then acc else acc ++ c.uses.toArray) #[]).filter
-    (fun x => ix.first.contains x || !fp.contains x) ++
-  (l.constants.foldl (fun acc (c : ConLeche.Frontend.Olean.CEntry) =>
-      if c.skipped then acc else acc ++ ConLeche.Driver.pinGround pinsC c.name) #[]).filter
-    ix.first.contains
-
-/-- con-leche: ConLeche/Driver/Worker.lean:143-153 rootsAt — upstream's `rootsAt` at a pin
-list `pinsC`, written out (delete at the re-pin to U's 6fa2f307e: `rootsAtC_eq`). -/
-@[expose] def rootsAtC (pinsC : List NatOpPinSet) (x : Array ConLeche.Frontend.Olean.ImportRec)
-    (ix : ConLeche.Frontend.Olean.NameIndex) (l : ConLeche.Frontend.Olean.Loaded)
-    (ds : Array Declaration) : Array ConLeche.Name :=
-  if x.isEmpty then ownRootsC pinsC ix l ds
-  else
-    ownRootsC pinsC ix { l with constants := l.constants.filter (!ix.first.contains ·.name) }
-      (ConLeche.Driver.ownRecs x ix ds) ++
-    (ConLeche.Driver.copyRecs x ix ds).flatMap fun d => (ConLeche.Modular.declNames d).toArray
-
-/-- `ownRootsC` is upstream's `ownRoots` (delete at the re-pin to U's 6fa2f307e). -/
-theorem ownRootsC_eq (pinsC : List NatOpPinSet) (ix : ConLeche.Frontend.Olean.NameIndex)
-    (l : ConLeche.Frontend.Olean.Loaded) (ds : Array Declaration) :
-    ownRootsC pinsC ix l ds = ConLeche.Driver.ownRoots pinsC ix l ds := rfl
-
-/-- `rootsAtC` is upstream's `rootsAt` (delete at the re-pin to U's 6fa2f307e). -/
-theorem rootsAtC_eq (pinsC : List NatOpPinSet) (x : Array ConLeche.Frontend.Olean.ImportRec)
-    (ix : ConLeche.Frontend.Olean.NameIndex) (l : ConLeche.Frontend.Olean.Loaded)
-    (ds : Array Declaration) :
-    rootsAtC pinsC x ix l ds = ConLeche.Driver.rootsAt pinsC x ix l ds := rfl
-
 theorem denoteNList_filter {st : NStore} {p : NIdx → Bool} {q : ConLeche.Name → Bool}
     (hpq : ∀ x y, denoteN st x = some y → p x = q y) :
     ∀ {xs : List NIdx} {ys : List ConLeche.Name}, denoteNList st xs = some ys →
@@ -975,7 +939,7 @@ theorem flatten_map_eq_foldl {α β : Type} (f : α → Array β) (l : Array α)
     (l.map f).flatten = l.toList.foldl (fun acc d => acc ++ f d) #[] := by
   apply Array.toList_inj.mp
   rw [foldl_append_toList]
-  simp [Array.toList_flatten]
+  simp [Array.toList_flatten, Function.comp_def]
 
 theorem usesShift (l : List ConLeche.Frontend.Olean.CEntry) (A : Array ConLeche.Name) :
     l.foldl (fun acc (c : ConLeche.Frontend.Olean.CEntry) =>
@@ -1141,7 +1105,7 @@ theorem ownRoots_exact {s s' : AState} (hok : DriverOK s) (hoff : s.store.scratc
     {ds : Array IDeclaration} {dsC : Array Declaration} (hp : PersDecls ds)
     (hd : denoteDeclArray s.store ds = some dsC) {r : Array NIdx}
     (h : Arena.Modular.ownRoots pins ix cs ds s = .ok (r, s')) :
-    DStep s s' ∧ denoteNList s'.store.ns r.toList = some (ownRootsC pinsC ixC lC dsC).toList := by
+    DStep s s' ∧ denoteNList s'.store.ns r.toList = some (ConLeche.Driver.ownRoots pinsC ixC lC dsC).toList := by
   have hw := nsWF_of_StateOK hok.state
   unfold Arena.Modular.ownRoots at h
   obtain ⟨fp, s1, h1, k1⟩ := AM.bind_ok h
@@ -1166,7 +1130,7 @@ theorem ownRoots_exact {s s' : AState} (hok : DriverOK s) (hoff : s.store.scratc
   refine ⟨hst2.trans (DStep.of_parse hst2.ok hst2.scratch hst3), ?_⟩
   rw [hr]
   congr 1
-  unfold ownRootsC
+  unfold ConLeche.Driver.ownRoots
   simp only [Array.toList_append, Array.toList_filter]
   simp only [← Array.foldl_toList]
   rw [usesShift]
@@ -1202,7 +1166,9 @@ theorem copiesNames_go {s : AState} :
       obtain ⟨rfl, rfl⟩ := AM.pure_ok g1
       obtain ⟨hst, hr⟩ := copiesNames_go l (out ++ ns.toArray) hst0.ok hst0.scratch
         (fun x hx => hp x (List.mem_cons_of_mem _ hx)) (denoteDecls_ext hst0.ext _ _ hls)
-        (by simpa using denoteNList_append' (denoteNList_ext hst0.ext.lss.ls.ns _ _ ho) hns) h2
+        (X := X ++ ConLeche.Modular.declNames dC)
+        (by rw [Array.toList_append, List.toList_toArray]
+            exact denoteNList_append' (denoteNList_ext hst0.ext.lss.ls.ns _ _ ho) hns) h2
       exact ⟨hst0.trans hst, by simpa [List.flatMap_cons, List.append_assoc] using hr⟩
     · cases hl
 
@@ -1217,17 +1183,20 @@ theorem rootsAt_exact {s s' : AState} (hok : DriverOK s) (hoff : s.store.scratch
     {ds : Array IDeclaration} {dsC : Array Declaration} (hp : PersDecls ds)
     (hd : denoteDeclArray s.store ds = some dsC) {r : Array NIdx}
     (h : Arena.Modular.rootsAt pins x ix l.constants ds s = .ok (r, s')) :
-    DStep s s' ∧ denoteNList s'.store.ns r.toList = some (rootsAtC pinsC xC ixC lC dsC).toList := by
+    DStep s s' ∧ denoteNList s'.store.ns r.toList = some (ConLeche.Driver.rootsAt pinsC xC ixC lC dsC).toList := by
   have hw := nsWF_of_StateOK hok.state
   have hcs := listRel_of_mapM hl.constants
   unfold Arena.Modular.rootsAt at h
-  unfold rootsAtC
+  unfold ConLeche.Driver.rootsAt
   rw [← (ImpsD.isEmpty hx)]
   by_cases he : x.isEmpty = true
   · rw [ite_eq_left he] at h ⊢
     simp only [bind_pure] at h
     exact ownRoots_exact hok hoff hpins hf hcs hp hd h
   · rw [ite_eq_right he] at h ⊢
+    obtain ⟨u0, s0, g0, h⟩ := AM.bind_ok h
+    obtain ⟨-, hs00⟩ := AM.pure_ok g0
+    subst s0
     obtain ⟨own, s1, h1, k1⟩ := AM.bind_ok h
     unfold Arena.Modular.recsLoaded at h1
     rw [← Array.foldlM_toList] at h1
@@ -1241,9 +1210,7 @@ theorem rootsAt_exact {s s' : AState} (hok : DriverOK s) (hoff : s.store.scratch
       rw [hr1, Array.toList_filter]
       simp only [List.nil_append]
       congr 1
-      apply List.filter_congr
-      intro d _
-      cases ConLeche.Driver.loadedRec ixC d <;> rfl
+      try (apply List.filter_congr; intro d _; cases ConLeche.Driver.loadedRec ixC d <;> rfl)
     have hf1 := hf.ext hst1.ext (fun _ _ h => h)
     have hcsU : ListRel (fun c cC => denoteCEntry s1.store c = some cC)
         (Arena.Modular.unloadedConstants ix l.constants).toList
@@ -1270,9 +1237,7 @@ theorem rootsAt_exact {s s' : AState} (hok : DriverOK s) (hoff : s.store.scratch
     unfold ConLeche.Driver.copyRecs
     rw [ite_eq_right (by rw [← (ImpsD.isEmpty hx)]; exact he)]
     simp only [Array.toList_append, Array.toList_flatMap, Array.toList_filter, List.nil_append]
-    congr 2
-    rw [List.flatMap_eq_foldl]
-    sorry
+    try congr 2
 
 /-! ## The holes of a compared challenge's own records -/
 
@@ -1291,7 +1256,8 @@ theorem isHoleRec_run {st0 : EStore} {uses : IDeclaration → AM (Array NIdx)}
     intro v vP b s' hv h
     simp only [Arena.Modular.usesSorry] at h
     obtain ⟨n, s1, h1, h2⟩ := AM.bind_ok h
-    obtain ⟨rfl, hn⟩ := pinAt_run hp pinNames_eq_sorryAxName h1
+    obtain ⟨hs1, hn⟩ := pinAt_run hp pinNames_eq_sorryAxName h1
+    subst s1
     have hss : s' = s := by
       simp only [Arena.mentionsAnyConst] at h2
       obtain ⟨q, s2, g1, g2⟩ := AM.bind_ok h2
@@ -1301,7 +1267,7 @@ theorem isHoleRec_run {st0 : EStore} {uses : IDeclaration → AM (Array NIdx)}
       ⟨by simp [ConRon.Arena.Frontend.denoteNList, hn], hv⟩ h2
     subst hss
     refine ⟨ParseStep.refl hok, ?_⟩
-    rw [ConLeche.Cached.mentionsAnyConstC_spec]
+    rw [ConLeche.Expr.mentionsAnyConstC_spec]
     exact hr
   cases d with
   | axiomDecl cv =>
@@ -1333,8 +1299,11 @@ theorem isHoleRec_run {st0 : EStore} {uses : IDeclaration → AM (Array NIdx)}
     obtain ⟨us, s1, h1, h2⟩ := AM.bind_ok h
     obtain ⟨hst1, hus⟩ := hU hx hok hoff hd h1
     obtain ⟨n, s2, h3, h4⟩ := AM.bind_ok h2
-    obtain ⟨rfl, hn⟩ := pinAt_run (hp.mono hst1.ext hst1.pins) pinNames_eq_sorryAxName h3
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
+    obtain ⟨hs2, hn⟩ := pinAt_run (hp.mono hst1.ext hst1.pins) pinNames_eq_sorryAxName h3
+    subst s2
+    obtain ⟨hb, hs'⟩ := AM.pure_ok h4
+    subst s'
+    subst hb
     refine ⟨hst1, ?_⟩
     have hdC : ∃ cvP vP, dC = .thmDecl cvP vP := by
       simp only [ConRon.Arena.Frontend.denoteDecl] at hd
@@ -1343,19 +1312,21 @@ theorem isHoleRec_run {st0 : EStore} {uses : IDeclaration → AM (Array NIdx)}
       · cases hd
     obtain ⟨cvP, vP, rfl⟩ := hdC
     simp only [ConLeche.Driver.isHoleRec]
-    rw [Array.contains_def, Array.contains_def]
-    sorry
+    rw [← Array.contains_toList, ← Array.contains_toList]
+    exact ConRon.Bridge.Frontend.denoteNList_contains hst1.ok.wf hn _ _ hus
   | quotDecl k cv =>
-    simp only [ConRon.Arena.Frontend.denoteDecl] at hd
-    split at hd <;> simp at hd
-    subst hd
+    obtain ⟨cvP, rfl⟩ : ∃ cvP, dC = .quotDecl k cvP := by
+      simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
+      obtain ⟨cvP, -, rfl⟩ := hd
+      exact ⟨cvP, rfl⟩
     simp only [Arena.Modular.isHoleRec] at h
     obtain ⟨rfl, rfl⟩ := AM.pure_ok h
     exact ⟨ParseStep.refl hok, rfl⟩
   | indDecl block nP =>
-    simp only [ConRon.Arena.Frontend.denoteDecl] at hd
-    split at hd <;> simp at hd
-    subst hd
+    obtain ⟨b', rfl⟩ : ∃ b', dC = .indDecl b' nP := by
+      simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
+      obtain ⟨b', -, rfl⟩ := hd
+      exact ⟨b', rfl⟩
     simp only [Arena.Modular.isHoleRec] at h
     obtain ⟨rfl, rfl⟩ := AM.pure_ok h
     exact ⟨ParseStep.refl hok, rfl⟩
@@ -1368,10 +1339,9 @@ theorem ownHoles_go {st0 : EStore} {uses : IDeclaration → AM (Array NIdx)}
       denoteDecls s.store l = some lC →
       l.forM (Arena.Modular.ownHoleOk pk uses m) s = .ok ((), s') →
       DStep s s' ∧ lC.forM (ConLeche.Driver.ownHoleOk mC usesC) = .ok ()
-  | [], lC, s, s', _, hok, _, hl, h => by
+  | [], lC, s, s', _, hok, hoff, hl, h => by
     simp only [denoteDecls, Option.some.injEq] at hl
     subst hl
-    simp only [List.forM_nil] at h
     obtain ⟨-, rfl⟩ := AM.pure_ok h
     exact ⟨DStep.refl hok hoff, rfl⟩
   | d :: l, lC, s, s', hx, hok, hoff, hl, h => by
@@ -1379,7 +1349,6 @@ theorem ownHoles_go {st0 : EStore} {uses : IDeclaration → AM (Array NIdx)}
     split at hl
     · rename_i dC lC' hd hls
       cases hl
-      simp only [List.forM_cons] at h
       obtain ⟨u, s1, h1, h2⟩ := AM.bind_ok h
       simp only [Arena.Modular.ownHoleOk] at h1
       obtain ⟨b, s0, g0, g1⟩ := AM.bind_ok h1
@@ -1397,8 +1366,8 @@ theorem ownHoles_go {st0 : EStore} {uses : IDeclaration → AM (Array NIdx)}
         obtain ⟨hst, hr⟩ := ownHoles_go hU l (hx.trans hst0'.ext) hst0'.ok hst0'.scratch
           (denoteDecls_ext hst0'.ext _ _ hls) h2
         refine ⟨hst0'.trans hst, ?_⟩
-        simp only [List.forM_cons, ConLeche.Driver.ownHoleOk, ← hb, Bool.false_eq_true,
-          ↓reduceIte]
+        show (do ConLeche.Driver.ownHoleOk mC usesC dC; lC'.forM (ConLeche.Driver.ownHoleOk mC usesC)) = .ok ()
+        simp only [ConLeche.Driver.ownHoleOk, ← hb, Bool.false_eq_true, ↓reduceIte]
         exact hr
     · cases hl
 
@@ -1423,6 +1392,9 @@ theorem ownHolesOk_run {s s' : AState} (hok : DriverOK s) (hoff : s.store.scratc
     obtain ⟨-, rfl⟩ := AM.pure_ok h
     exact ⟨DStep.refl hok hoff, rfl⟩
   · rw [ite_eq_right he] at h ⊢
+    obtain ⟨u0, s0, g0, h⟩ := AM.bind_ok h
+    obtain ⟨-, hs00⟩ := AM.pure_ok g0
+    subst s0
     obtain ⟨own, s1, h1, h2⟩ := AM.bind_ok h
     have h1' : Arena.Modular.ownRecs x ix ds s = .ok (own, s1) := by
       unfold Arena.Modular.ownRecs; rw [ite_eq_right he]; exact h1

@@ -612,7 +612,7 @@ theorem ownUses_thm_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratc
     obtain ⟨u, hu, hab⟩ := ConLeche.Frontend.Olean.bind_some_left hab
     simp only [pure, Option.some.injEq] at hab
     subst hab
-    simp only [Option.map_some, Option.getD_some, toArray_toSubarray_toList]
+    simp only [toArray_toSubarray_toList]
     rw [denoteNList_eq_mapM]
     exact hu
 
