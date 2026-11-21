@@ -202,4 +202,574 @@ theorem lv_work_dup_eq {w o : frontend.olean.levels.LvWork} (h : lv_work_dup w =
     cases load_flags_dup_eq hlf
     exact (Result.ok_injective h).symm
 
+/-! ## The worklist -/
+
+/-- **`lv_push`**: the step on top. -/
+theorem lv_push_eq {stack : alloc.vec.Vec frontend.olean.levels.LvWork} {sp : Std.Usize}
+    {l : List Arena.Frontend.Olean.LvWork} {x i st1} (h : StackRel absLvWork stack sp l)
+    (hr : lv_push stack sp x = ok (i, st1)) : StackRel absLvWork st1 i (absLvWork x :: l) := by
+  rw [lv_push] at hr
+  peel hr as t, ht
+  peel hr as i1, hi1
+  cases Result.ok_injective hr
+  exact h.push ht hi1
+
+theorem lv_push_imports_loop_eq (fl : frontend.olean.levels.LoadFlags)
+    (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+    (stack : alloc.vec.Vec frontend.olean.levels.LvWork) (s i : Std.Usize)
+    {l : List Arena.Frontend.Olean.LvWork} (hl : StackRel absLvWork stack s l) {o}
+    (h : lv_push_imports_loop stack fl imps s i = ok o) :
+    StackRel absLvWork o.2 o.1 ((imps.val.take i.val).map (fun x => absLvWork (.Imp fl x)) ++ l) := by
+  rw [lv_push_imports_loop] at h
+  by_cases hp : i > 0#usize
+  · rw [ite_eq_left hp] at h
+    peel h as i1, hi1
+    have hv := ConRon.Refine.HashMap.uscalar_sub_eq hi1
+    have l1 : (1#usize : Std.Usize).val = 1 := by decide
+    rw [l1] at hv
+    have hp' : (0#usize : Std.Usize).val < i.val := hp
+    have l0 : (0#usize : Std.Usize).val = 0 := by decide
+    rw [l0] at hp'
+    have e : i.val = i1.val + 1 := by omega
+    peel h as lf, hlf
+    cases load_flags_dup_eq hlf
+    peel h as x, hx
+    obtain ⟨hb, rfl⟩ := vec_index_eq hx
+    peel h as y, hy
+    cases import_rec_dup_eq hy
+    peel h as q, hq
+    obtain ⟨s1, st1⟩ := q
+    have := lv_push_imports_loop_eq fl imps st1 s1 i1 (lv_push_eq hl hq) h
+    rw [e, List.take_succ_eq_append_getElem hb, List.map_append, List.append_assoc]
+    exact this
+  · rw [ite_eq_right hp] at h
+    cases Result.ok_injective h
+    have : ¬ (0#usize : Std.Usize).val < i.val := hp
+    have e : i.val = 0 := by simpa using this
+    rw [e]
+    simpa using hl
+termination_by i.val
+decreasing_by omega
+
+theorem ofImports_abs (fl : frontend.olean.levels.LoadFlags)
+    (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)) :
+    imps.val.map (fun x => absLvWork (.Imp fl x)) =
+      Arena.Frontend.Olean.LvWork.ofImports (absLoadFlags fl) (absImports imps) := by
+  simp [Arena.Frontend.Olean.LvWork.ofImports, absLvWork, Function.comp_def]
+
+/-- **`lv_push_imports` is `LvWork.ofImports fl imps ++ rest`.** -/
+theorem lv_push_imports_eq {stack : alloc.vec.Vec frontend.olean.levels.LvWork} {sp : Std.Usize}
+    {fl : frontend.olean.levels.LoadFlags}
+    {imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)}
+    {l : List Arena.Frontend.Olean.LvWork} (hl : StackRel absLvWork stack sp l) {o}
+    (h : lv_push_imports stack sp fl imps = ok o) :
+    StackRel absLvWork o.2 o.1
+      (Arena.Frontend.Olean.LvWork.ofImports (absLoadFlags fl) (absImports imps) ++ l) := by
+  rw [lv_push_imports] at h
+  have := lv_push_imports_loop_eq fl imps stack sp _ hl h
+  rwa [vec_len_val, List.take_length, ofImports_abs] at this
+
+/-- **`levels_again`**: a met module's imports, at the joined flags, on top. -/
+theorem levels_again_eq {stack : alloc.vec.Vec frontend.olean.levels.LvWork} {sp : Std.Usize}
+    {imports : ron.hashmap2.HashMap2 arena.handle.NIdx
+      (alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))}
+    {im : _root_.Std.HashMap NIdx (_root_.Array (ConLeche.Frontend.Olean.ImportF NIdx))}
+    (hi : NMapRel absImports imports im) {fl : frontend.olean.levels.LoadFlags} {m : arena.handle.NIdx}
+    {l : List Arena.Frontend.Olean.LvWork} (hl : StackRel absLvWork stack sp l) {o}
+    (h : levels_again stack sp imports fl m = ok o) :
+    StackRel absLvWork o.2 o.1 (match im[absNIdx m]? with
+      | some is => Arena.Frontend.Olean.LvWork.ofImports (absLoadFlags fl) is ++ l
+      | none => l) := by
+  rw [levels_again] at h
+  peel h as r, hr
+  have er := hi.get_eq hr
+  cases r with
+  | none =>
+    rw [← er]
+    cases Result.ok_injective h
+    exact hl
+  | some is =>
+    rw [← er]
+    exact lv_push_imports_eq hl h
+
+/-- The join of a placed module's flags with new ones, where they grow. -/
+def joinF (old? : Option ConLeche.Frontend.Olean.LoadFlags) (fl : ConLeche.Frontend.Olean.LoadFlags) :
+    Option ConLeche.Frontend.Olean.LoadFlags :=
+  match old? with
+  | none => none
+  | some old =>
+    let fl' : ConLeche.Frontend.Olean.LoadFlags :=
+      { importAll := fl.importAll || old.importAll, isExported := fl.isExported || old.isExported }
+    if fl' == old then none else some fl'
+
+/-- **`levels_join` is `joinF`.** -/
+theorem levels_join_eq {flags : ron.hashmap2.HashMap2 arena.handle.NIdx frontend.olean.levels.LoadFlags}
+    {F : _root_.Std.HashMap NIdx ConLeche.Frontend.Olean.LoadFlags} (hF : NMapRel absLoadFlags flags F)
+    {fl : frontend.olean.levels.LoadFlags} {m : arena.handle.NIdx} {o}
+    (h : levels_join flags fl m = ok o) :
+    o.map absLoadFlags = joinF F[absNIdx m]? (absLoadFlags fl) := by
+  rw [levels_join] at h
+  peel h as r, hr
+  have er := hF.get_eq hr
+  rw [← er]
+  cases r with
+  | none => cases Result.ok_injective h; rfl
+  | some old =>
+    dsimp only at h
+    peel h as q1, hq1
+    obtain ⟨old1, b⟩ := q1
+    have e1 : old1 = old ∧ b = (fl.import_all || old.import_all) := by
+      clear h; revert hq1
+      cases fl.import_all <;> intro hq <;> simp only [Bool.false_eq_true, ↓reduceIte] at hq <;>
+        obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hq) <;> simp
+    obtain ⟨rfl, rfl⟩ := e1
+    peel h as q2, hq2
+    obtain ⟨old2, b1⟩ := q2
+    have e2 : old2 = old1 ∧ b1 = (fl.is_exported || old1.is_exported) := by
+      clear h; revert hq2
+      cases fl.is_exported <;> intro hq <;> simp only [Bool.false_eq_true, ↓reduceIte] at hq <;>
+        obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hq) <;> simp
+    obtain ⟨rfl, rfl⟩ := e2
+    peel h as b2, hb2
+    have eb := load_flags_beq_eq hb2
+    simp only [Option.map_some, joinF]
+    by_cases cb : b2 = true
+    · rw [ite_eq_left cb] at h
+      cases Result.ok_injective h
+      rw [← eb, cb]; rfl
+    · rw [ite_eq_right cb] at h
+      cases Result.ok_injective h
+      have : b2 = false := by simpa using cb
+      rw [← eb, this]; rfl
+
+/-! ## The twin's worklist -/
+
+section twin
+open Arena.Frontend.Olean (levelsGo levelsJoin)
+variable {fs : Arena.Frontend.Olean.OleanFs} {pk : Arena.Frontend.Olean.OleanPins} {sp : ConLeche.Frontend.Olean.Roots}
+  {gp : Bool} {f : Nat} {rest : List Arena.Frontend.Olean.LvWork} {st : Arena.Frontend.Olean.LvState}
+
+theorem levelsJoin_eq {fl : ConLeche.Frontend.Olean.LoadFlags} {m : NIdx} :
+    levelsJoin st fl m rest = match joinF st.flags[m]? fl with
+      | none => (rest, st)
+      | some fl' => (match st.imports[m]? with
+          | some is => Arena.Frontend.Olean.LvWork.ofImports fl' is ++ rest
+          | none => rest, { st with flags := st.flags.insert m fl' }) := by
+  unfold levelsJoin joinF
+  cases st.flags[m]? with
+  | none => rfl
+  | some old =>
+    dsimp only
+    split
+    · rfl
+    · cases st.imports[m]? <;> rfl
+
+theorem lgo_nil {s : Arena.Frontend.Olean.LvState} : levelsGo fs pk sp gp f [] s = pure s := by
+  cases f <;> rw [levelsGo]
+
+theorem lgo_done {m fl} :
+    levelsGo fs pk sp gp (f + 1) (.done m fl :: rest) st =
+      levelsGo fs pk sp gp f rest
+        { st with flags := st.flags.insert m fl, open_ := st.open_.erase m, order := st.order.push m } := by
+  rw [levelsGo]
+
+theorem lgo_skip {pf i} (hg : (i.isExported || pf.importAll) = false) :
+    levelsGo fs pk sp gp (f + 1) (.imp pf i :: rest) st = levelsGo fs pk sp gp f rest st := by
+  rw [levelsGo, hg]; rfl
+
+theorem lgo_join {pf i fl} (hg : (i.isExported || pf.importAll) = true)
+    (hfl : fl = ⟨gp || (pf.importAll && i.importAll), pf.isExported && i.isExported⟩)
+    (hc : st.flags.contains i.module = true) :
+    levelsGo fs pk sp gp (f + 1) (.imp pf i :: rest) st =
+      levelsGo fs pk sp gp f (levelsJoin st fl i.module rest).1 (levelsJoin st fl i.module rest).2 := by
+  subst hfl
+  rw [levelsGo, hg]
+  simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte, hc]
+
+theorem lgo_new {pf i fl} {lst lst1 : AState} {is}
+    (hg : (i.isExported || pf.importAll) = true)
+    (hfl : fl = ⟨gp || (pf.importAll && i.importAll), pf.isExported && i.isExported⟩)
+    (hc : st.flags.contains i.module = false)
+    (ho : st.open_.contains i.module = false)
+    (hx : (Arena.Frontend.Olean.moduleImports fs pk sp i.module).run lst = .ok (is, lst1)) :
+    (levelsGo fs pk sp gp (f + 1) (.imp pf i :: rest) st).run lst =
+      (levelsGo fs pk sp gp f (Arena.Frontend.Olean.LvWork.ofImports fl is ++ .done i.module fl :: rest)
+        { st with open_ := st.open_.insert i.module, imports := st.imports.insert i.module is }).run lst1 := by
+  subst hfl
+  rw [levelsGo, hg]
+  simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte, hc, ho]
+  exact am_bind_ok hx
+
+end twin
+
+/-! ## `levels_go` -/
+
+section walk
+
+variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
+  {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
+  {sp_dirs : frontend.olean.files.Roots}
+
+/-- **`levels_go`'s loop against `levelsGo`.** -/
+theorem levels_go_loop_ok (hfs : FsRel inst fsv fs) (gp : Bool)
+    (f : Nat) (st : arena.monad.AState) (lst : AState) (stack : alloc.vec.Vec frontend.olean.levels.LvWork)
+    (sp : Std.Usize) (fuel : Std.U64) (s : frontend.olean.levels.LvState)
+    (l : List Arena.Frontend.Olean.LvWork) (s' : Arena.Frontend.Olean.LvState)
+    (hf : fuel.val = f) (hl : StackRel absLvWork stack sp l) (hs : LvStateRel s s') :
+    AS pers LvStateRel st lst (levels_go_loop inst fsv pk pers st.store sp_dirs gp stack sp s fuel)
+      (Arena.Frontend.Olean.levelsGo fs (absPins pk) (absRoots sp_dirs) gp f l s') := by
+  intro hrel hinv a s2 h
+  rw [levels_go_loop] at h
+  by_cases hsp : sp > 0#usize
+  swap
+  · rw [ite_eq_right hsp] at h
+    obtain ⟨h1, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+    cases h1
+    have hnil := hl.nil_of_zero hsp
+    subst hnil
+    rw [lgo_nil]
+    exact ⟨s', lst, rfl, hs, hrel, hinv⟩
+  rw [ite_eq_left hsp] at h
+  by_cases h0 : fuel = 0#u64
+  · rw [ite_eq_left h0] at h
+    peel h as r0, hr0
+    rw [levels_out_of_fuel] at hr0
+    peel hr0 as s0, -
+    peel hr0 as v0, -
+    peel hr0 as ce, -
+    cases Result.ok_injective hr0
+    cases (Prod.mk.inj (Result.ok_injective h)).1
+  rw [ite_eq_right h0] at h
+  peel h as fuel1, hfuel1
+  peel h as sp1, hsp1
+  peel h as lw, hlw
+  peel h as lw1, hlw1
+  cases lv_work_dup_eq hlw1
+  obtain ⟨hi, l', rfl, hl'⟩ := hl.pop hsp hsp1
+  obtain ⟨hi', he⟩ := vec_index_eq hlw
+  rw [← he]
+  have hfv : fuel1.val = f - 1 := by
+    rw [ConRon.Refine.HashMap.uscalar_sub_eq hfuel1, hf]; rfl
+  have hfp : f ≠ 0 := by
+    intro hz
+    apply h0
+    apply UScalar.eq_of_val_eq
+    rw [hf, hz]; rfl
+  obtain ⟨f', rfl⟩ : ∃ f', f = f' + 1 := ⟨f - 1, by omega⟩
+  have hfv' : fuel1.val = f' := by rw [hfv]; rfl
+  cases lw with
+  | Done m fl =>
+    dsimp only at h
+    peel h as n, hn
+    cases nidx_dup2_ok hn
+    peel h as p, hp
+    obtain ⟨_, hm⟩ := p
+    peel h as p2, hp2
+    obtain ⟨_, hm1⟩ := p2
+    peel h as v, hv
+    have ho' : OutA v (s'.order.push (absNIdx m)) := by
+      show v.val.map absNIdx = _
+      rw [ConRon.Refine.vec_push_val hv, List.map_append, hs.order]
+      simp
+    rw [absLvWork, lgo_done]
+    exact levels_go_loop_ok hfs gp f' st lst stack sp1 fuel1
+      { flags := hm, «open» := hm1, order := v, imports := s.imports } l'
+      { s' with flags := s'.flags.insert (absNIdx m) (absLoadFlags fl), open_ := s'.open_.erase (absNIdx m),
+                order := s'.order.push (absNIdx m) } hfv' hl'
+      ⟨hs.flags.insert hp, NSet.remove hs.open_ hp2, ho', hs.imports⟩ hrel hinv a s2 h
+  | Imp pf i =>
+    dsimp only at h
+    by_cases hskip : (i.is_exported || pf.import_all) = false
+    · have e1 : i.is_exported = false := by simp_all
+      have e2 : pf.import_all = false := by simp_all
+      simp only [e1, e2, Bool.false_eq_true, ↓reduceIte] at h
+      rw [absLvWork, lgo_skip (by simpa [absImportF] using hskip)]
+      exact levels_go_loop_ok hfs gp f' st lst stack sp1 fuel1 s l' s' hfv' hl' hs hrel hinv a s2 h
+    have hg : ((absImportF absNIdx i).isExported || (absLoadFlags pf).importAll) = true := by
+      cases h1 : i.is_exported <;> cases h2 : pf.import_all <;> simp_all [absImportF]
+    by_cases hie : i.is_exported = true
+    on_goal 1 =>
+      rw [ite_eq_left hie] at h
+      peel h as q, hq
+      obtain ⟨pf1, b⟩ := q
+      have eq : pf1 = pf ∧ b = (gp || (pf.import_all && i.import_all)) := by
+        clear h; revert hq
+        cases gp <;> cases pf.import_all <;> intro hq <;> simp at hq <;>
+          obtain ⟨rfl, rfl⟩ := hq <;> simp
+      obtain ⟨hpf, eb⟩ := eq
+      rw [hpf] at h
+      peel h as b1, hb1
+      have eb1 : b1 = (pf.is_exported && i.is_exported) := by
+        clear h; revert hb1
+        cases pf.is_exported <;> intro hq <;> simp only [Bool.false_eq_true, ↓reduceIte] at hq <;>
+          cases Result.ok_injective hq <;> simp
+    on_goal 2 =>
+      rw [ite_eq_right hie] at h
+      have hpa : pf.import_all = true := by simp_all
+      rw [ite_eq_left hpa] at h
+      peel h as b, hb
+      peel h as b1, hb1
+      have eb : b = (gp || (pf.import_all && i.import_all)) := by
+        clear h; revert hb
+        cases gp <;> intro hq <;> simp only [Bool.false_eq_true, ↓reduceIte, hpa] at hq <;>
+          cases Result.ok_injective hq <;> simp [hpa]
+      have eb1 : b1 = (pf.is_exported && i.is_exported) := by
+        clear h; revert hb1
+        cases pf.is_exported <;> intro hq <;> simp only [Bool.false_eq_true, ↓reduceIte] at hq <;>
+          cases Result.ok_injective hq <;> simp
+    all_goals
+      have hfl : absLoadFlags { import_all := b, is_exported := b1 } =
+          ⟨gp || ((absLoadFlags pf).importAll && (absImportF absNIdx i).importAll),
+            (absLoadFlags pf).isExported && (absImportF absNIdx i).isExported⟩ := by
+        subst eb eb1; rfl
+      peel h as b2, hb2
+      have eb2 := hs.flags.contains_eq hb2
+      by_cases cb : b2 = true
+      · rw [ite_eq_left cb] at h
+        peel h as o, ho
+        have eo := levels_join_eq hs.flags ho
+        have hc : s'.flags.contains (absNIdx i.module) = true := by rw [← eb2]; exact cb
+        rw [absLvWork, lgo_join hg hfl hc, levelsJoin_eq]
+        dsimp only [absImportF]
+        rw [← eo]
+        cases o with
+        | none =>
+          dsimp only at h
+          exact levels_go_loop_ok hfs gp f' st lst stack sp1 fuel1 s l' s' hfv' hl' hs hrel hinv a s2 h
+        | some fl2 =>
+          dsimp only at h
+          peel h as q1, hq1
+          obtain ⟨sp2, stack1⟩ := q1
+          peel h as q2, hq2
+          obtain ⟨_, hm⟩ := q2
+          have hS := levels_again_eq hs.imports hl' hq1
+          exact levels_go_loop_ok hfs gp f' st lst stack1 sp2 fuel1 { s with flags := hm } _
+            { s' with flags := s'.flags.insert (absNIdx i.module) (absLoadFlags fl2) } hfv' hS
+            ⟨hs.flags.insert hq2, hs.open_, hs.order, hs.imports⟩ hrel hinv a s2 h
+      · rw [ite_eq_right cb] at h
+        have hc : s'.flags.contains (absNIdx i.module) = false := by
+          rw [← eb2]; simpa using cb
+        peel h as b3, hb3
+        have eb3 := SetRel.contains_key nidx_eq2 hs.open_ hb3
+        by_cases cb3 : b3 = true
+        · rw [ite_eq_left cb3] at h
+          peel h as ce, -
+          cases (Prod.mk.inj (Result.ok_injective h)).1
+        rw [ite_eq_right cb3] at h
+        have ho : s'.open_.contains (absNIdx i.module) = false := by
+          rw [← eb3]; simpa using cb3
+        peel h as p, hp
+        obtain ⟨r, ar1⟩ := p
+        cases r with
+        | Err x =>
+          cases (Prod.mk.inj (Result.ok_injective h)).1
+        | Ok imps =>
+          obtain ⟨b4, lst1, hx, hR, hrel1, hinv1⟩ := module_imports_refines (st := st) (lst := lst)
+            (sp := sp_dirs) hfs hrel hinv _ _ hp
+          cases show b4 = absImports imps from hR
+          peel h as n, hn
+          cases nidx_dup2_ok hn
+          peel h as lf, hlf
+          cases load_flags_dup_eq hlf
+          peel h as q1, hq1
+          obtain ⟨sp2, stack1⟩ := q1
+          peel h as q2, hq2
+          obtain ⟨sp3, stack2⟩ := q2
+          peel h as q3, hq3
+          obtain ⟨_, hm⟩ := q3
+          peel h as q4, hq4
+          obtain ⟨_, hm1⟩ := q4
+          have hS := lv_push_imports_eq (lv_push_eq hl' hq1) hq2
+          rw [absLvWork, lgo_new hg hfl hc ho hx]
+          exact levels_go_loop_ok hfs gp f' (withStore st ar1) lst1 stack2 sp3 fuel1
+            { s with «open» := hm, imports := hm1 } _
+            { s' with open_ := s'.open_.insert (absNIdx i.module),
+                      imports := s'.imports.insert (absNIdx i.module) (absImports imps) } hfv' hS
+            ⟨hs.flags, SetRel.insert nidx_eq2 absNIdx_inj hs.open_ hq3, hs.order, hs.imports.insert hq4⟩
+            hrel1 hinv1 a s2 h
+termination_by f
+decreasing_by all_goals omega
+
+/-- **`levels_go`'s accept is `levelsGo`**, at the closure's fuel. -/
+theorem levels_go_refines (hfs : FsRel inst fsv fs) (gp : Bool) {st : arena.monad.AState} {lst : AState}
+    {stack : alloc.vec.Vec frontend.olean.levels.LvWork} {top : Std.Usize}
+    {l : List Arena.Frontend.Olean.LvWork} {s : frontend.olean.levels.LvState}
+    {s' : Arena.Frontend.Olean.LvState} (hl : StackRel absLvWork stack top l) (hs : LvStateRel s s') :
+    AS pers LvStateRel st lst (levels_go inst fsv pk pers st.store sp_dirs gp stack top s)
+      (Arena.Frontend.Olean.levelsGo fs (absPins pk) (absRoots sp_dirs) gp
+        ConLeche.Frontend.Olean.closureFuel l s') := by
+  intro hrel hinv a s2 h
+  rw [levels_go] at h
+  peel h as fuel, hfuel
+  exact levels_go_loop_ok hfs gp _ st lst stack top fuel s l s' (closure_fuel_val hfuel) hl hs
+    hrel hinv a s2 h
+
+end walk
+
+/-! ## `header_fixpoint` -/
+
+/-- `lv_state_empty` is the empty state. -/
+theorem lv_state_empty_rel {o} (h : lv_state_empty = ok o) : LvStateRel o {} := by
+  rw [lv_state_empty] at h
+  peel h as h1, hh1
+  peel h as h2, hh2
+  peel h as h3, hh3
+  cases Result.ok_injective h
+  exact ⟨NMapRel.new hh1, nset_empty hh2, by simp [OutA, alloc.vec.Vec.new], NMapRel.new hh3⟩
+
+/-- **`flags_at` is `(flags[m]?).getD default`.** -/
+theorem flags_at_eq {flags : ron.hashmap2.HashMap2 arena.handle.NIdx frontend.olean.levels.LoadFlags}
+    {F : _root_.Std.HashMap NIdx ConLeche.Frontend.Olean.LoadFlags} (hF : NMapRel absLoadFlags flags F)
+    {m : arena.handle.NIdx} {o} (h : flags_at flags m = ok o) :
+    absLoadFlags o = (F[absNIdx m]?).getD default := by
+  rw [flags_at] at h
+  peel h as r, hr
+  rw [← hF.get_eq hr]
+  cases r with
+  | none => cases Result.ok_injective h; rfl
+  | some fl =>
+    dsimp only at h
+    cases load_flags_dup_eq h
+    rfl
+
+/-- **`imports_out` is `(imports[m]?).getD #[]`**, the entry erased. -/
+theorem imports_out_eq {im : ron.hashmap2.HashMap2 arena.handle.NIdx
+      (alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))}
+    {I : _root_.Std.HashMap NIdx (_root_.Array (ConLeche.Frontend.Olean.ImportF NIdx))}
+    (hI : NMapRel absImports im I) {m : arena.handle.NIdx} {v im'}
+    (h : imports_out im m = ok (v, im')) :
+    absImports v = (I[absNIdx m]?).getD #[] ∧ NMapRel absImports im' (I.erase (absNIdx m)) := by
+  rw [imports_out] at h
+  peel h as q, hq
+  obtain ⟨r, im1⟩ := q
+  obtain ⟨e, hrel⟩ := hI.remove hq
+  rw [← e]
+  cases r with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+    exact ⟨by simp [absImports, alloc.vec.Vec.new], hrel⟩
+  | some is =>
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+    exact ⟨rfl, hrel⟩
+
+theorem header_loads_of_loop_eq
+    (hm : ron.hashmap2.HashMap2 arena.handle.NIdx frontend.olean.levels.LoadFlags)
+    (v : alloc.vec.Vec arena.handle.NIdx) (n : Std.Usize) (hn : n.val = v.val.length)
+    {F : _root_.Std.HashMap NIdx ConLeche.Frontend.Olean.LoadFlags} (hF : NMapRel absLoadFlags hm F)
+    (i : Std.Usize)
+    (hm1 : ron.hashmap2.HashMap2 arena.handle.NIdx
+      (alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)))
+    (flags : alloc.vec.Vec frontend.olean.levels.LoadFlags)
+    (imports : alloc.vec.Vec (alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)))
+    (index : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+    {I : _root_.Std.HashMap NIdx (_root_.Array (ConLeche.Frontend.Olean.ImportF NIdx))}
+    {fl : _root_.Array ConLeche.Frontend.Olean.LoadFlags}
+    {is : _root_.Array (_root_.Array (ConLeche.Frontend.Olean.ImportF NIdx))}
+    {ix : _root_.Std.HashMap NIdx Nat}
+    (hI : NMapRel absImports hm1 I) (hfl : flags.val.map absLoadFlags = fl.toList)
+    (his : imports.val.map absImports = is.toList) (hix : NMapRel (fun x : Std.U64 => x.val) index ix)
+    {o} (h : header_loads_of_loop hm v hm1 n flags imports index i = ok o) :
+    o.1.val.map absLoadFlags =
+        (Arena.Frontend.Olean.HeaderLoads.ofStateGo F ((v.val.drop i.val).map absNIdx) i.val I fl is ix).1.toList ∧
+      o.2.1.val.map absImports =
+        (Arena.Frontend.Olean.HeaderLoads.ofStateGo F ((v.val.drop i.val).map absNIdx) i.val I fl is ix).2.1.toList ∧
+      NMapRel (fun x : Std.U64 => x.val) o.2.2
+        (Arena.Frontend.Olean.HeaderLoads.ofStateGo F ((v.val.drop i.val).map absNIdx) i.val I fl is ix).2.2 := by
+  rw [header_loads_of_loop] at h
+  by_cases hlt : i < n
+  · rw [ite_eq_left hlt] at h
+    have hlt' : i.val < v.val.length := by have : i.val < n.val := hlt; omega
+    peel h as x, hx
+    obtain ⟨hb, rfl⟩ := vec_index_eq hx
+    peel h as m, hm'
+    cases nidx_dup2_ok hm'
+    peel h as lf, hlf
+    have elf := flags_at_eq hF hlf
+    peel h as flags1, hflags1
+    peel h as q, hq
+    obtain ⟨v1, hm2⟩ := q
+    obtain ⟨ev1, hI2⟩ := imports_out_eq hI hq
+    peel h as imports1, himports1
+    peel h as i1, hi1
+    have hi1v : i1.val = i.val := by
+      simp only [lift, Result.ok.injEq] at hi1
+      subst hi1
+      rw [usize_cast_u64_val']
+    peel h as q2, hq2
+    obtain ⟨_, index1⟩ := q2
+    peel h as i2, hi2
+    have hi2v : i2.val = i.val + 1 := by rw [ConRon.Refine.Nat.uadd_val hi2]; rfl
+    have ih := header_loads_of_loop_eq hm v n hn hF i2 hm2 flags1 imports1 index1 hI2
+      (fl := fl.push ((F[absNIdx v.val[i.val]]?).getD default))
+      (is := is.push ((I[absNIdx v.val[i.val]]?).getD #[]))
+      (ix := ix.insert (absNIdx v.val[i.val]) i.val)
+      (by rw [ConRon.Refine.vec_push_val hflags1, List.map_append, hfl, List.map_singleton, elf]; simp)
+      (by rw [ConRon.Refine.vec_push_val himports1, List.map_append, his, List.map_singleton, ev1]; simp)
+      (by have := hix.insert hq2; rwa [hi1v] at this) h
+    rw [hi2v] at ih
+    rw [List.drop_eq_getElem_cons hlt', List.map_cons, Arena.Frontend.Olean.HeaderLoads.ofStateGo]
+    exact ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have hle : v.val.length ≤ i.val := by have : ¬ i.val < n.val := hlt; omega
+    rw [List.drop_of_length_le hle, List.map_nil, Arena.Frontend.Olean.HeaderLoads.ofStateGo]
+    exact ⟨hfl, his, hix⟩
+termination_by v.val.length - i.val
+decreasing_by
+  have : i.val < n.val := hlt
+  omega
+
+/-- **`header_loads_of` is `HeaderLoads.ofState`.** -/
+theorem header_loads_of_eq {st : frontend.olean.levels.LvState} {st' : Arena.Frontend.Olean.LvState}
+    (hs : LvStateRel st st') {o} (h : header_loads_of st = ok o) :
+    HeaderLoadsRel o (Arena.Frontend.Olean.HeaderLoads.ofState st') := by
+  rw [header_loads_of] at h
+  peel h as index, hindex
+  peel h as q, hq
+  obtain ⟨flags1, imports1, index1⟩ := q
+  cases Result.ok_injective h
+  have := header_loads_of_loop_eq st.flags st.order _ (vec_len_val _) hs.flags _ st.imports _ _ index
+    hs.imports (fl := #[]) (is := #[]) (ix := {}) (by simp [alloc.vec.Vec.with_capacity])
+    (by simp [alloc.vec.Vec.with_capacity]) (NMapRel.with_capacity hindex) hq
+  simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero, hs.order] at this
+  obtain ⟨e1, e2, e3⟩ := this
+  exact ⟨hs.order, e1, e2, e3⟩
+
+section walk
+
+variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
+  {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
+  {sp_dirs : frontend.olean.files.Roots}
+
+/-- **`header_fixpoint`'s accept is `headerFixpoint`.** -/
+theorem header_fixpoint_refines (hfs : FsRel inst fsv fs) {st : arena.monad.AState} {lst : AState}
+    {is_module : Bool} {imports : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)} :
+    AS pers HeaderLoadsRel st lst (header_fixpoint inst fsv pk pers st.store sp_dirs is_module imports)
+      (Arena.Frontend.Olean.headerFixpoint fs (absPins pk) (absRoots sp_dirs) is_module
+        (absImports imports)) := by
+  intro hrel hinv a s2 h
+  rw [header_fixpoint] at h
+  peel h as q, hq
+  obtain ⟨sp, stack1⟩ := q
+  have hS := lv_push_imports_eq (StackRel.empty absLvWork _) hq
+  rw [List.append_nil] at hS
+  peel h as ls, hls
+  peel h as q2, hq2
+  obtain ⟨r, ar1⟩ := q2
+  cases r with
+  | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+  | Ok st1 =>
+    peel h as hl, hhl
+    obtain ⟨h1, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+    cases h1
+    have eg : (decide ¬is_module = true) = !is_module := by cases is_module <;> rfl
+    rw [eg] at hq2
+    obtain ⟨b, lst1, hx, hR, hrel1, hinv1⟩ :=
+      levels_go_refines (st := st) (lst := lst) hfs (!is_module) hS (lv_state_empty_rel hls) hrel hinv _ _ hq2
+    refine ⟨_, lst1, ?_, header_loads_of_eq hR hhl, hrel1, hinv1⟩
+    rw [Arena.Frontend.Olean.headerFixpoint]
+    exact am_bind_ok hx
+
+end walk
+
 end ConRon.Refine2.Frontend.Olean
