@@ -66014,7 +66014,7 @@ def arena.monad.AState.init
   ok { store := st, memos := m, caches := c, pins := p }
 
 /-- [con_ron_core::arena::checker::worker_state]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 132:0-136:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 131:0-135:1
     Visibility: public -/
 def arena.checker.worker_state
   (pins : arena.pins.Pins) : Result arena.monad.AState := do
@@ -66075,7 +66075,7 @@ def arena.env.from_le (k : Option Std.U64) (c : Std.U64) : Result Bool := do
   | some k1 => ok (k1 <= c)
 
 /-- [con_ron_core::arena::stream_index::stream_index_view]:
-    Source: 'crates/con-ron-core/src/arena/stream_index.rs', lines 233:0-240:1
+    Source: 'crates/con-ron-core/src/arena/stream_index.rs', lines 232:0-239:1
     Visibility: public -/
 def arena.stream_index.stream_index_view
   (pers : arena.store.PersTier) (k : Std.U64) : Result arena.env.IFEnv := do
@@ -66094,7 +66094,7 @@ def arena.stream_index.stream_index_view
   arena.env.ifenv_layer c k b b1
 
 /-- [con_ron_core::arena::stream_index::record_check]:
-    Source: 'crates/con-ron-core/src/arena/stream_index.rs', lines 249:0-265:1
+    Source: 'crates/con-ron-core/src/arena/stream_index.rs', lines 247:0-263:1
     Visibility: public -/
 def arena.stream_index.record_check
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -66205,7 +66205,7 @@ def arena.core.leave_record
   ok { st1 with store := e }
 
 /-- [con_ron_core::arena::stream_index::record_job]:
-    Source: 'crates/con-ron-core/src/arena/stream_index.rs', lines 274:0-286:1
+    Source: 'crates/con-ron-core/src/arena/stream_index.rs', lines 271:0-283:1
     Visibility: public -/
 def arena.stream_index.record_job
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -66221,7 +66221,7 @@ def arena.stream_index.record_job
   ok (r, st3)
 
 /-- [con_ron_core::arena::checker::run_job]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 144:0-160:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 142:0-158:1
     Visibility: public -/
 def arena.checker.run_job
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -66558,7 +66558,7 @@ def arena.nat_op_pin_set.intern_pin_sets
 partial_fixpoint
 
 /-- [con_ron_core::arena::checker::intern_all_names]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 319:0-339:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 317:0-337:1
     Visibility: public -/
 def arena.checker.intern_all_names
   (st : arena.monad.AState) :
@@ -66591,7 +66591,7 @@ def arena.checker.intern_all_names
   | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::arena::checker::intern_all_reduce_pins]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 293:0-314:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 291:0-312:1
     Visibility: public -/
 def arena.checker.intern_all_reduce_pins
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -66624,7 +66624,7 @@ def arena.checker.intern_all_reduce_pins
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::intern_all_trust_pins]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 274:0-288:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 272:0-286:1
     Visibility: public -/
 def arena.checker.intern_all_trust_pins
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -66650,7 +66650,7 @@ def arena.checker.intern_all_trust_pins
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::intern_all_axiom_pins_rest]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 255:0-269:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 253:0-267:1
     Visibility: public -/
 def arena.checker.intern_all_axiom_pins_rest
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -66676,7 +66676,7 @@ def arena.checker.intern_all_axiom_pins_rest
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::intern_all_axiom_pins]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 236:0-250:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 234:0-248:1
     Visibility: public -/
 def arena.checker.intern_all_axiom_pins
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -66702,7 +66702,7 @@ def arena.checker.intern_all_axiom_pins
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::all_basis_kinds]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 223:0-231:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 221:0-229:1
     Visibility: public -/
 def arena.checker.all_basis_kinds
   : Result (alloc.vec.Vec kernel.env.BasisKind) := do
@@ -66714,7 +66714,7 @@ def arena.checker.all_basis_kinds
   alloc.vec.Vec.push ks4 kernel.env.BasisKind.QuotK
 
 /-- [con_ron_core::arena::checker::intern_all_basis]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 208:0-218:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 206:0-216:1
     Visibility: public -/
 def arena.checker.intern_all_basis
   (pers : arena.store.PersTier) (st : arena.monad.AState) (i : Std.Usize) :
@@ -66738,7 +66738,7 @@ def arena.checker.intern_all_basis
 partial_fixpoint
 
 /-- [con_ron_core::arena::checker::intern_all_pins]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 184:0-201:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 182:0-199:1
     Visibility: public -/
 def arena.checker.intern_all_pins
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -68947,7 +68947,7 @@ def arena.stream_index.stream_index_add
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::stream_index::stream_index_freeze]:
-    Source: 'crates/con-ron-core/src/arena/stream_index.rs', lines 213:0-226:1
+    Source: 'crates/con-ron-core/src/arena/stream_index.rs', lines 212:0-225:1
     Visibility: public -/
 def arena.stream_index.stream_index_freeze
   (st : arena.monad.AState) (ix : arena.stream_index.IStreamIndex) :
@@ -68963,7 +68963,7 @@ def arena.stream_index.stream_index_freeze
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::arena::stream_index::build_index]:
-    Source: 'crates/con-ron-core/src/arena/stream_index.rs', lines 188:0-206:1
+    Source: 'crates/con-ron-core/src/arena/stream_index.rs', lines 187:0-205:1
     Visibility: public -/
 def arena.stream_index.build_index
   (pers : arena.store.PersTier) (st : arena.monad.AState)
