@@ -23,6 +23,7 @@ public import ConRon.Bridge.Frontend.Olean.Sparse
 public import ConRon.Bridge.Modular.ReadsParts
 public import ConRon.Bridge.Frontend.Olean.Parse
 public import ConRon.Bridge.Frontend.Olean.Closure
+public import ConRon.Bridge.Frontend.Olean.MergeAll
 public import ConLeche.Verify.Driver.Loads
 public import ConLeche.Frontend.Olean.Module
 import ConLeche.Verify.Frontend.Olean.Equiv
@@ -42,256 +43,7 @@ open ConRon.Arena.Frontend.Olean (OleanPins DS)
 open ConLeche.Frontend.Olean (Region CEntryF CKindF ImportF ImportRec Roots OLeanLevel ModFiles
   ModSkel constSkel moduleSkel nameP exprP decodeAt constSpec bind_some_left)
 
-/-! ## A decoded view read back -/
-
-/-- con-leche: ConLeche/Frontend/Olean/Spec.lean:437-440 ModDecoded — a decoded view read back:
-its flag, its imports and its constants denoted. -/
-structure DecRel (st : EStore) (d : ConRon.Arena.Frontend.Olean.ModDecoded)
-    (dC : ConLeche.Frontend.Olean.ModDecoded) : Prop where
-  isModule : d.isModule = dC.isModule
-  imports : d.imports.toList.mapM (denoteImport st) = some dC.imports.toList
-  constants : d.constants.toList.mapM (denoteEntry st) = some dC.constants.toList
-
-theorem DecRel.ext {st st' : EStore} (hx : Ext st st') {d : ConRon.Arena.Frontend.Olean.ModDecoded}
-    {dC : ConLeche.Frontend.Olean.ModDecoded} (h : DecRel st d dC) : DecRel st' d dC :=
-  ⟨h.isModule, list_mono (fun _ _ hy => denoteImport_ext hx hy) _ h.imports,
-    list_mono (fun _ _ hy => denoteEntry_ext hx hy) _ h.constants⟩
-
-/-! ## The passes' parse -/
-
-/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:327-337 parseMany — `addrs.all (constNamesOk r)`. -/
-theorem allConstNamesOk_run {pk : OleanPins} {r : Region} :
-    ∀ (addrs : List UInt64) {s s' : AState}, Ctx pk s →
-      ConRon.Arena.Frontend.Olean.allConstNamesOk pk r addrs s = .ok (true, s') →
-      ParseStep s s' ∧ addrs.all (ConLeche.Frontend.Olean.constNamesOk r) = true
-  | [], s, s', hctx, h => by
-    rw [ConRon.Arena.Frontend.Olean.allConstNamesOk] at h
-    obtain ⟨-, rfl⟩ := AM.pure_ok h
-    exact ⟨ParseStep.refl hctx.ok, rfl⟩
-  | a :: as, s, s', hctx, h => by
-    rw [ConRon.Arena.Frontend.Olean.allConstNamesOk] at h
-    obtain ⟨b, s₁, h1, h2⟩ := AM.bind_ok h
-    cases b with
-    | false => cases (AM.pure_ok h2).1
-    | true =>
-      simp only [↓reduceIte] at h2
-      obtain ⟨hst1, ha⟩ := constNamesOk_run hctx h1
-      obtain ⟨hst2, has⟩ := allConstNamesOk_run as (hctx.step hst1) h2
-      exact ⟨hst1.trans hst2, by simp [ha, has]⟩
-
-/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:327-337 parseMany — each address's module
-skeleton and its constants' skeletons. -/
-theorem manySkels_run {r : Region} :
-    ∀ (addrs : List UInt64) {ms : List (ModSkel × List (CEntryF UInt64 UInt64))} {s s' : AState},
-      ConRon.Arena.Frontend.Olean.manySkels r addrs s = .ok (some ms, s') →
-      s' = s ∧ ListRel (fun a (p : ModSkel × List (CEntryF UInt64 UInt64)) =>
-        moduleSkel r a = some p.1 ∧ p.1.consts.mapM (constSkel r) = some p.2) addrs ms
-  | [], ms, s, s', h => by
-    rw [ConRon.Arena.Frontend.Olean.manySkels] at h
-    obtain ⟨hv, hs⟩ := AM.pure_ok h
-    cases hv
-    exact ⟨hs, .nil⟩
-  | a :: as, ms, s, s', h => by
-    rw [ConRon.Arena.Frontend.Olean.manySkels] at h
-    cases hsk : moduleSkel r a with
-    | none =>
-      simp only [hsk] at h
-      cases (AM.pure_ok h).1
-    | some sk =>
-      simp only [hsk] at h
-      obtain ⟨o, s₁, h1, h⟩ := AM.bind_ok h
-      cases o with
-      | none => cases (AM.pure_ok h).1
-      | some cs =>
-        have h' : (ConRon.Arena.Frontend.Olean.manySkels r as >>=
-            fun (o : Option (List (ModSkel × List (CEntryF UInt64 UInt64)))) =>
-              (match o with
-                | none => pure none
-                | some rest => pure (some ((sk, cs) :: rest)) :
-                AM (Option (List (ModSkel × List (CEntryF UInt64 UInt64)))))) s₁ =
-            .ok (some ms, s') := h
-        obtain ⟨hs1, hcs⟩ := constsSkel_run _ h1
-        subst hs1
-        obtain ⟨o', s₂, h2, h⟩ := AM.bind_ok h'
-        cases o' with
-        | none => cases (AM.pure_ok h).1
-        | some rest =>
-          obtain ⟨hv, hs⟩ := AM.pure_ok h
-          cases hv
-          subst hs
-          obtain ⟨hs2, hrest⟩ := manySkels_run as h2
-          exact ⟨hs2, .cons ⟨hsk, hcs⟩ hrest⟩
-
-/-- A constant read off the memo is a pure read of it. -/
-theorem entryMap_pr (pk : OleanPins) (r : Region) (st : DS) (c : CEntryF UInt64 UInt64) :
-    PR (OptionT.mk (ConRon.Arena.Frontend.Olean.entryMap (DS.read pk r st) c))
-      (c.mapM (st.nameOf pk r) (st.exprOf r)) :=
-  PR.entryMap (fn := fun v => OptionT.mk ((DS.read pk r st).rdName v))
-    (fe := fun v => OptionT.mk ((DS.read pk r st).rdExpr v)) (fun _ _ => rfl) (fun _ _ => rfl) c
-
-/-- `ModSkel.read` over the memo is a pure read of it. -/
-theorem modSkelRead_pr (pk : OleanPins) (r : Region) (st : DS) (sk : ModSkel)
-    (cs : List (CEntryF UInt64 UInt64)) :
-    PR (OptionT.mk (ConRon.Arena.Frontend.Olean.ModSkel.read (DS.read pk r st) sk cs))
-      ((sk.imports.mapM fun i => i.mapM (st.nameOf pk r)) >>= fun imports =>
-        (cs.mapM fun c => c.mapM (st.nameOf pk r) (st.exprOf r)) >>= fun constants =>
-          some (⟨sk.isModule, imports.toArray, constants.toArray⟩ :
-            ConRon.Arena.Frontend.Olean.ModDecoded)) := by
-  have himp : ∀ i : ImportF UInt64, PR (i.mapM (m := OptionT AM)
-      fun v => OptionT.mk ((DS.read pk r st).rdName v)) (i.mapM (st.nameOf pk r)) :=
-    fun i => (show PR (OptionT.mk ((DS.read pk r st).rdName i.module)) (st.nameOf pk r i.module)
-      from fun _ => rfl).bind fun _ => PR.pure _
-  exact (PR.mapM himp sk.imports).bind fun _ =>
-    (PR.mapM (entryMap_pr pk r st) cs).bind fun _ => PR.pure _
-
-/-- The specification's constants of some skeletons: each `constSpec`. -/
-theorem mapM_constSpec {r : Region} :
-    ∀ {ls : List Nat} {sks : List (CEntryF UInt64 UInt64)} {cs : List (CEntryF Name Expr)},
-      ls.mapM (constSkel r) = some sks → sks.mapM (fun c => c.mapM (nameP r) (exprP r)) = some cs →
-      ls.mapM (constSpec r) = some cs
-  | [], sks, cs, h1, h2 => by
-    simp only [List.mapM_nil, pure, Option.some.injEq] at h1
-    subst h1
-    simpa using h2
-  | l :: ls, sks, cs, h1, h2 => by
-    simp only [List.mapM_cons] at h1
-    obtain ⟨sk, hsk, h1⟩ := bind_some_left h1
-    obtain ⟨sks', hsks, h1⟩ := bind_some_left h1
-    simp only [pure, Option.some.injEq] at h1
-    subst h1
-    simp only [List.mapM_cons] at h2
-    obtain ⟨c, hc, h2⟩ := bind_some_left h2
-    obtain ⟨cs', hcs, h2⟩ := bind_some_left h2
-    simp only [pure, Option.some.injEq] at h2
-    subst h2
-    simp only [List.mapM_cons, constSpec, hsk, mapM_constSpec hsks hcs]
-    simp only [bind, Option.bind, hc]
-    rfl
-
-/-- con-leche: ConLeche/Verify/Frontend/Olean/Equiv.lean:393 parseMany_eq — **the twin's parse of
-some views is each one's `decodeAt`, read back.** -/
-theorem parseMany_run {pk : OleanPins} {r : Region} {addrs : List UInt64}
-    {ds : List ConRon.Arena.Frontend.Olean.ModDecoded} {s s' : AState} (hctx : Ctx pk s)
-    (h : ConRon.Arena.Frontend.Olean.parseMany pk r addrs s = .ok (some ds, s')) :
-    ParseStep s s' ∧ ∃ dsC, addrs.mapM (decodeAt r) = some dsC ∧
-      ListRel (DecRel s'.store) ds dsC := by
-  unfold ConRon.Arena.Frontend.Olean.parseMany at h
-  obtain ⟨b, s₁, h1, hA⟩ := AM.bind_ok h
-  cases b with
-  | false =>
-    simp only [Bool.false_eq_true, ↓reduceIte] at hA
-    cases (AM.pure_ok hA).1
-  | true =>
-  simp only [↓reduceIte, pure_bind] at hA
-  obtain ⟨hst1, hall⟩ := allConstNamesOk_run addrs hctx h1
-  obtain ⟨o, s₂, h2, hB⟩ := AM.bind_ok hA
-  cases o with
-  | none => cases (AM.pure_ok hB).1
-  | some ms =>
-  obtain ⟨hs2, hms⟩ := manySkels_run addrs h2
-  subst hs2
-  obtain ⟨o, s₃, h3, hC⟩ := AM.bind_ok hB
-  cases o with
-  | none => cases (AM.pure_ok hC).1
-  | some st =>
-  unfold ConRon.Arena.Frontend.Olean.runPasses at h3
-  obtain ⟨o', s₄, h4, h5⟩ := AM.bind_ok h3
-  rcases o' with _ | ⟨nm, mk, st'⟩
-  · cases (AM.pure_ok h5).1
-  obtain ⟨hv, hs⟩ := AM.pure_ok h5
-  cases hv
-  subst hs
-  obtain ⟨hst3, hN, hE, -⟩ := runMarked_run (hctx.step hst1) h4
-  -- the reads off the memo are pure
-  have hpr := PR.mapM (f := fun p : ModSkel × List (CEntryF UInt64 UInt64) =>
-      OptionT.mk (ConRon.Arena.Frontend.Olean.ModSkel.read (DS.read pk r st) p.1 p.2))
-    (fun p => modSkelRead_pr pk r st p.1 p.2) ms
-  have h' := hpr s₃
-  have hh : (ms.mapM (m := OptionT AM) fun p =>
-      OptionT.mk (ConRon.Arena.Frontend.Olean.ModSkel.read (DS.read pk r st) p.1 p.2)).run s₃ =
-      .ok (some ds, s') := hC
-  rw [OptionT.run, h'] at hh
-  injection hh with hh
-  simp only [Prod.mk.injEq] at hh
-  obtain ⟨hds, rfl⟩ := hh
-  refine ⟨hst1.trans hst3, ?_⟩
-  -- each module, by the specification
-  have key : ∀ (as : List UInt64) (ps : List (ModSkel × List (CEntryF UInt64 UInt64)))
-      (ds : List ConRon.Arena.Frontend.Olean.ModDecoded),
-      (∀ p ∈ ps, p ∈ ms) → (∀ a ∈ as, a ∈ addrs) →
-      ListRel (fun a (p : ModSkel × List (CEntryF UInt64 UInt64)) =>
-        moduleSkel r a = some p.1 ∧ p.1.consts.mapM (constSkel r) = some p.2) as ps →
-      ps.mapM (fun p => (p.1.imports.mapM fun i => i.mapM (st.nameOf pk r)) >>= fun imports =>
-        (p.2.mapM fun c => c.mapM (st.nameOf pk r) (st.exprOf r)) >>= fun constants =>
-          some (⟨p.1.isModule, imports.toArray, constants.toArray⟩ :
-            ConRon.Arena.Frontend.Olean.ModDecoded)) = some ds →
-      ∃ dsC, as.mapM (decodeAt r) = some dsC ∧ ListRel (DecRel s₃.store) ds dsC := by
-    intro as ps ds hps has h2 hm
-    induction h2 generalizing ds with
-    | nil =>
-      simp only [List.mapM_nil, pure, Option.some.injEq] at hm
-      subst hm
-      exact ⟨[], rfl, .nil⟩
-    | @cons a p as ps hap _ ih =>
-      simp only [List.mapM_cons] at hm
-      obtain ⟨d, hd, hm⟩ := bind_some_left hm
-      obtain ⟨ds', hds', hm⟩ := bind_some_left hm
-      simp only [pure, Option.some.injEq] at hm
-      subst hm
-      obtain ⟨imps, himps, hd⟩ := bind_some_left hd
-      obtain ⟨cs, hcs, hd⟩ := bind_some_left hd
-      simp only [Option.some.injEq] at hd
-      subst hd
-      have hpm : p ∈ ms := hps p (by simp)
-      have ham : a ∈ addrs := has a (by simp)
-      -- the names and expressions of this module's roots
-      have hNp : ∀ x, (x ∈ p.1.imports.map (·.module) ∨ ∃ c ∈ p.2, x ∈ c.names) →
-          ∀ y, st.nameOf pk r x = some y → ∃ z, nameP r x = some z ∧ denoteN s₃.store.ns y = some z := by
-        intro x hx y hy
-        refine hN x ?_ y hy
-        rcases hx with hx | ⟨c, hc, hx⟩
-        · exact List.mem_append_left _ (List.mem_flatMap.mpr ⟨p.1, List.mem_map_of_mem hpm, hx⟩)
-        · exact List.mem_append_right _ (List.mem_flatMap.mpr ⟨c,
-            List.mem_flatten.mpr ⟨p.2, List.mem_map_of_mem hpm, hc⟩, hx⟩)
-      have hEp : ∀ c ∈ p.2, ∀ x ∈ c.exprs, ∀ y, st.exprOf r x = some y →
-          ∃ z, exprP r x = some z ∧ denoteE s₃.store y = some z := by
-        intro c hc x hx y hy
-        exact hE x (List.mem_flatMap.mpr ⟨c, List.mem_flatten.mpr ⟨p.2, List.mem_map_of_mem hpm, hc⟩,
-          hx⟩) y hy
-      obtain ⟨impsC, himpsC, hdimps⟩ := list_sim (g := ImportF.mapM (nameP r))
-        (d := denoteImport s₃.store) p.1.imports himps (fun i hi y hy => by
-          simp only [ImportF.mapM, bind, Option.bind] at hy
-          cases hmn : st.nameOf pk r i.module with
-          | none => rw [hmn] at hy; cases hy
-          | some x =>
-            rw [hmn] at hy
-            cases hy
-            obtain ⟨z, hz, hdz⟩ := hNp i.module (.inl (List.mem_map_of_mem hi)) x hmn
-            refine ⟨{ i with module := z }, ?_, ?_⟩
-            · simp only [ImportF.mapM, hz]; rfl
-            · simp only [denoteImport, ImportF.mapM, hdz]; rfl)
-      obtain ⟨csC, hcsC, hdcs⟩ := list_sim (g := fun c => c.mapM (nameP r) (exprP r))
-        (d := denoteEntry s₃.store) p.2 hcs (fun c hc y hy => by
-          obtain ⟨z, hz, hdz⟩ := entry_sim (fnC := nameP r) (feC := exprP r)
-            (dn := denoteN s₃.store.ns) (de := denoteE s₃.store) c hy
-            (fun x hx => hNp x (.inr ⟨c, hc, hx⟩)) (hEp c hc)
-          exact ⟨z, hz, hdz⟩)
-      obtain ⟨dsC, hdsC, hrel⟩ := ih ds' (fun q hq => hps q (List.mem_cons_of_mem _ hq))
-        (fun b hb => has b (List.mem_cons_of_mem _ hb)) hds'
-      have hcn : ConLeche.Frontend.Olean.constNamesOk r a = true := by
-        have := List.all_eq_true.mp hall a ham
-        exact this
-      refine ⟨⟨p.1.isModule, impsC.toArray, csC.toArray⟩ :: dsC, ?_, .cons ⟨rfl, ?_, ?_⟩ hrel⟩
-      · simp only [List.mapM_cons, hdsC]
-        have hdec : decodeAt r a = some ⟨p.1.isModule, impsC.toArray, csC.toArray⟩ := by
-          simp [decodeAt, hcn, hap.1, himpsC, mapM_constSpec hap.2 hcsC, bind, Option.bind]
-        rw [hdec]
-        rfl
-      · simpa using hdimps
-      · simpa using hdcs
-  exact key addrs ms ds (fun p hp => hp) (fun a ha => ha) hms hds
-
-/-! ## The views -/
+/-! ## Imports read back -/
 
 /-- Two arrays read back off one array of import handles are one. -/
 theorem imports_den_eq {st : EStore} {a : Array (ImportF NIdx)} {zs ws : Array ImportRec}
@@ -299,159 +51,6 @@ theorem imports_den_eq {st : EStore} {a : Array (ImportF NIdx)} {zs ws : Array I
     (h2 : a.toList.mapM (denoteImport st) = some ws.toList) : zs = ws := by
   rw [h1] at h2
   exact Array.toList_inj.mp (Option.some.inj h2)
-
-/-- con-leche: ConLeche/Frontend/Olean/Fast.lean:339-343 parseAt -/
-theorem parseAt_run {pk : OleanPins} {r : Region} {a : UInt64}
-    {d : ConRon.Arena.Frontend.Olean.ModDecoded} {s s' : AState} (hctx : Ctx pk s)
-    (h : ConRon.Arena.Frontend.Olean.parseAt pk r a s = .ok (some d, s')) :
-    ParseStep s s' ∧ ∃ dC, ConLeche.Frontend.Olean.parseAt r a = some dC ∧ DecRel s'.store d dC := by
-  unfold ConRon.Arena.Frontend.Olean.parseAt at h
-  obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok h
-  split at h2
-  · rename_i _ d'
-    obtain ⟨hv, rfl⟩ := AM.pure_ok h2
-    cases hv
-    obtain ⟨hst, dsC, hdec, hrel⟩ := parseMany_run hctx h1
-    cases hrel with
-    | cons hd hrest =>
-      cases hrest
-      refine ⟨hst, _, ?_, hd⟩
-      unfold ConLeche.Frontend.Olean.parseAt
-      rw [ConLeche.Frontend.Olean.parseMany_eq, hdec]
-  · cases (AM.pure_ok h2).1
-
-/-- con-leche: ConLeche/Frontend/Olean/View.lean:87-92 parseView — the check against the start of
-`M.olean`. -/
-theorem checkImportsPre_run {pk : OleanPins} {f : ModFiles}
-    {d d' : ConRon.Arena.Frontend.Olean.ModDecoded} {dC : ConLeche.Frontend.Olean.ModDecoded}
-    {s s' : AState} (hctx : Ctx pk s) (hd : DecRel s.store d dC)
-    (h : ConRon.Arena.Frontend.Olean.checkImportsPre pk f d s = .ok (some d', s')) :
-    ParseStep s s' ∧ d' = d ∧
-      ConLeche.Frontend.Olean.importsPre f.exported.bytes = some dC.imports := by
-  unfold ConRon.Arena.Frontend.Olean.checkImportsPre at h
-  obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok h
-  cases o with
-  | none => cases (AM.pure_ok h2).1
-  | some pre =>
-    simp only at h2
-    split at h2
-    · rename_i he
-      obtain ⟨hv, rfl⟩ := AM.pure_ok h2
-      cases hv
-      obtain ⟨hst, zs, hzs, hdz⟩ := importsPre_run hctx h1
-      have he' : pre = d.imports := by simpa using he
-      subst he'
-      refine ⟨hst, rfl, ?_⟩
-      rw [hzs, imports_den_eq hdz (list_mono (fun _ _ hy => denoteImport_ext hst.ext hy) _ hd.imports)]
-    · cases (AM.pure_ok h2).1
-
-/-- con-leche: ConLeche/Verify/Frontend/Olean/View.lean:27 parseView_eq_spec — **one view of the
-twin's is upstream's**. -/
-theorem parseView_run {pk : OleanPins} {f : ModFiles} {level : OLeanLevel}
-    {d : ConRon.Arena.Frontend.Olean.ModDecoded} {s s' : AState} (hctx : Ctx pk s)
-    (h : ConRon.Arena.Frontend.Olean.parseView pk f level s = .ok (some d, s')) :
-    ParseStep s s' ∧ ∃ dC, ConLeche.Frontend.Olean.parseView f level = some dC ∧
-      DecRel s'.store d dC := by
-  unfold ConRon.Arena.Frontend.Olean.parseView at h
-  cases hvr : f.viewRegion level with
-  | none => simp only [hvr] at h; cases (AM.pure_ok h).1
-  | some ra =>
-    obtain ⟨r, a⟩ := ra
-    simp only [hvr] at h
-    obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok h
-    cases o with
-    | none => cases (AM.pure_ok h2).1
-    | some d₁ =>
-      simp only at h2
-      obtain ⟨hst1, dC, hdC, hrel⟩ := parseAt_run hctx h1
-      obtain ⟨hst2, rfl, hpre⟩ := checkImportsPre_run (hctx.step hst1) hrel h2
-      refine ⟨hst1.trans hst2, dC, ?_, hrel.ext hst2.ext⟩
-      simp [ConLeche.Frontend.Olean.parseView, hvr, hdC, hpre, bind, Option.bind]
-
-/-- con-leche: ConLeche/Frontend/Olean/View.lean:94-98 AllViews — the three views read back. -/
-structure AllRel (st : EStore) (v : ConRon.Arena.Frontend.Olean.AllViews)
-    (vC : ConLeche.Frontend.Olean.AllViews) : Prop where
-  exported : DecRel st v.exported vC.exported
-  server : DecRel st v.server vC.server
-  «private» : DecRel st v.private vC.private
-
-/-- con-leche: ConLeche/Verify/Frontend/Olean/View.lean:85 parseAllViews_eq — **the twin's three
-views are upstream's**. -/
-theorem parseAllViews_run {pk : OleanPins} {f : ModFiles}
-    {v : ConRon.Arena.Frontend.Olean.AllViews} {s s' : AState} (hctx : Ctx pk s)
-    (h : ConRon.Arena.Frontend.Olean.parseAllViews pk f s = .ok (some v, s')) :
-    ParseStep s s' ∧ ∃ vC, ConLeche.Frontend.Olean.parseAllViews f = some vC ∧
-      AllRel s'.store v vC := by
-  unfold ConRon.Arena.Frontend.Olean.parseAllViews at h
-  by_cases hm : f.isModule = true
-  · simp only [hm, ↓reduceIte] at h
-    obtain ⟨ex, fs, fp⟩ := f
-    cases fs with
-    | none => cases (AM.pure_ok h).1
-    | some sv =>
-    cases fp with
-    | none => cases (AM.pure_ok h).1
-    | some pv =>
-    simp only at h
-    unfold ConRon.Arena.Frontend.Olean.parseAllViewsModule at h
-    rw [ConLeche.Frontend.Olean.parseAllViews_parts hm]
-    simp only at h ⊢
-    by_cases L1 : ((Region.single ex).loc ex.moduleDataAddr).isSome = true
-    · simp only [L1, ↓reduceIte, pure_bind] at h ⊢
-      cases hr2 : Region.ofParts #[ex, sv] with
-      | error e => simp only [hr2] at h; cases (AM.pure_ok h).1
-      | ok r2 =>
-      simp only [hr2] at h ⊢
-      by_cases L2 : (r2.loc sv.moduleDataAddr).isSome = true
-      · simp only [L2, ↓reduceIte] at h ⊢
-        cases hr3 : Region.ofParts #[ex, sv, pv] with
-        | error e => simp only [hr3] at h; cases (AM.pure_ok h).1
-        | ok r =>
-        simp only [hr3] at h ⊢
-        obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok h
-        split at h2
-        · rename_i _ de ds dp
-          obtain ⟨hst1, dsC, hdec, hrel⟩ := parseMany_run hctx h1
-          obtain ⟨o', s₂, h3, h4⟩ := AM.bind_ok h2
-          cases o' with
-          | none => cases (AM.pure_ok h4).1
-          | some pre =>
-          simp only at h4
-          split at h4
-          · rename_i hall
-            obtain ⟨hv, rfl⟩ := AM.pure_ok h4
-            cases hv
-            obtain ⟨deC, dsC', dpC, rfl, hde, hds, hdp⟩ : ∃ a b c, dsC = [a, b, c] ∧
-                DecRel s₁.store de a ∧ DecRel s₁.store ds b ∧ DecRel s₁.store dp c := by
-              rcases hrel with _ | ⟨h1', _ | ⟨h2', _ | ⟨h3', _ | _⟩⟩⟩
-              exact ⟨_, _, _, rfl, h1', h2', h3'⟩
-            obtain ⟨hst3, zs, hzs, hdz⟩ := importsPre_run (hctx.step hst1) h3
-            simp only [Bool.and_eq_true, beq_iff_eq] at hall
-            obtain ⟨⟨e1, e2⟩, e3⟩ := hall
-            have hx := hst3.ext
-            have z1 := imports_den_eq hdz (e1 ▸ list_mono (fun _ _ hy => denoteImport_ext hx hy) _ hde.imports)
-            have z2 := imports_den_eq hdz (e2 ▸ list_mono (fun _ _ hy => denoteImport_ext hx hy) _ hds.imports)
-            have z3 := imports_den_eq hdz (e3 ▸ list_mono (fun _ _ hy => denoteImport_ext hx hy) _ hdp.imports)
-            refine ⟨hst1.trans hst3, ⟨deC, dsC', dpC⟩, ?_, ⟨hde.ext hx, hds.ext hx, hdp.ext hx⟩⟩
-            rw [ConLeche.Frontend.Olean.parseMany_eq, hdec]
-            simp [hzs, ← z1, ← z2, ← z3]
-          · cases (AM.pure_ok h4).1
-        · cases (AM.pure_ok h2).1
-      · simp only [L2] at h
-        cases (AM.pure_ok h).1
-    · simp only [L1] at h
-      cases (AM.pure_ok h).1
-  · simp only [hm, Bool.false_eq_true, ↓reduceIte] at h
-    obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok h
-    cases o with
-    | none => cases (AM.pure_ok h2).1
-    | some d =>
-      obtain ⟨hv, rfl⟩ := AM.pure_ok h2
-      cases hv
-      obtain ⟨hst, dC, hdC, hrel⟩ := parseView_run hctx h1
-      refine ⟨hst, ⟨dC, dC, dC⟩, ?_, ⟨hrel, hrel, hrel⟩⟩
-      simp only [ConLeche.Frontend.Olean.parseAllViews, hm, Bool.false_eq_true, ↓reduceIte, hdC]
-      rfl
 
 /-! ## A constant compared, read back -/
 
@@ -954,7 +553,7 @@ open ConLeche.Frontend.Olean (Expo)
 /-- Two position indexes built over the same positions answer alike at keys that agree. -/
 theorem foldIdx_get {α β : Type} [BEq α] [Hashable α] [LawfulBEq α] [BEq β] [Hashable β]
     [LawfulBEq β] {x : α} {y : β} :
-    ∀ (n m : Nat) (hnm : n = m) (kT : (i : Nat) → i < n → α) (kU : (i : Nat) → i < m → β),
+    ∀ (n m : Nat) (_ : n = m) (kT : (i : Nat) → i < n → α) (kU : (i : Nat) → i < m → β),
       (∀ i (h1 : i < n) (h2 : i < m), kT i h1 = x ↔ kU i h2 = y) →
       (n.fold (fun i h (acc : Std.HashMap α Nat) => acc.insert (kT i h) i) {})[x]? =
         (m.fold (fun i h (acc : Std.HashMap β Nat) => acc.insert (kU i h) i) {})[y]? := by
@@ -1071,24 +670,25 @@ theorem ite_goal {α : Type} {c : Prop} [Decidable c] {A B r : α} (h1 : c → A
 theorem kind_thm_or {N E : Type} (k : CKindF N E) : (∃ v a, k = .thm v a) ∨ ∀ v a, k ≠ .thm v a := by
   cases k <;> simp
 
+/-- A constant read back is a theorem exactly where its denotation is. -/
+theorem den_thm_iff {st : EStore} {a : CEntryF NIdx EIdx} {aC : CEntryF Name Expr}
+    (h : denoteEntry st a = some aC) : a.kind.tag = aC.kind.tag :=
+  (kind_tag (denoteEntry_parts h).2.2.2).symm
+
 /-- con-leche: ConLeche/Frontend/Olean/Module.lean:106-152 expoOfParts — **the twin's exported
-level of the private constants is upstream's**, over the parse's private constants (`csT`, read
-back as `D`) where upstream reads the load's (`csU`): the same names, and the same constants
-but for a theorem's value, which upstream reads off the file (`entryAt`) where it compares one. -/
+level of the private constants is upstream's**, over the load's constants read back. -/
 theorem expoOfParts_run {pk : OleanPins} {r : Region} {pa ea : UInt64}
-    {csT : Array (CEntryF NIdx EIdx)} {csU D : Array (CEntryF Name Expr)} {skP : ModSkel}
-    {s s' : AState} {expo : Array Expo} (hctx : Ctx pk s) (hP : moduleSkel r pa = some skP)
-    (hcs : csT.toList.mapM (denoteEntry s.store) = some D.toList) (hsz : csU.size = D.size)
-    (hnm : ∀ i (h1 : i < csU.size) (h2 : i < D.size), csU[i].name = D[i].name)
-    (hthm : ∀ i (h1 : i < csU.size) (h2 : i < D.size) v a, csU[i].kind = .thm v a →
-      (skP.consts.toArray[i]?).bind (ConLeche.Frontend.Olean.entryAt r) = some D[i])
-    (hnon : ∀ i (h1 : i < csU.size) (h2 : i < D.size), (∀ v a, csU[i].kind ≠ .thm v a) →
-      csU[i] = D[i])
+    {csT : Array (CEntryF NIdx EIdx)} {csU : Array (CEntryF Name Expr)}
+    {s s' : AState} {expo : Array Expo} (hctx : Ctx pk s)
+    (hcs : csT.toList.mapM (denoteEntry s.store) = some csU.toList)
     (h : ConRon.Arena.Frontend.Olean.expoOfParts pk r pa ea csT s = .ok (.ok expo, s')) :
     ParseStep s s' ∧ ConLeche.Frontend.Olean.expoOfParts r pa ea csU = .ok expo := by
   obtain ⟨hlT, hgT⟩ := mapM_getElem hcs
-  have hszT : csT.size = D.size := by simpa using hlT.symm
+  have hszT : csT.size = csU.size := by simpa using hlT.symm
   unfold ConRon.Arena.Frontend.Olean.expoOfParts at h
+  cases hP : moduleSkel r pa with
+  | none => simp only [hP] at h; cases (AM.pure_ok h).1
+  | some skP =>
   simp only [hP] at h
   cases hE : moduleSkel r ea with
   | none => simp only [hE] at h; cases (AM.pure_ok h).1
@@ -1098,7 +698,7 @@ theorem expoOfParts_run {pk : OleanPins} {r : Region} {pa ea : UInt64}
   simp only [hP, hE]
   have hmap : csU.map (fun _ => Expo.absent) = csT.map (fun _ => Expo.absent) := by
     apply Array.ext
-    · simp [hsz, hszT]
+    · simp [hszT]
     · intro i _ _; simp
   rw [hmap]
   refine expoLoop_run' hctx.ok h ?_ ?_
@@ -1133,13 +733,10 @@ theorem expoOfParts_run {pk : OleanPins} {r : Region} {pa ea : UInt64}
         {})[enC]? = some i := by
       rw [← hi]
       symm
-      refine foldIdx_get _ _ (hszT.trans hsz.symm) _ _ (fun j h1 h2 => ?_)
-      have hj : j < D.size := by omega
+      refine foldIdx_get _ _ hszT _ _ (fun j h1 h2 => ?_)
       have hdj := hgT j (by simpa using h1)
       simp only [Array.getElem_toList] at hdj
-      have hdj' := denoteEntry_ext hx1 hdj
-      have hn := (denoteEntry_parts hdj').1
-      rw [hnm j h2 hj]
+      have hn := (denoteEntry_parts (denoteEntry_ext hx1 hdj)).1
       constructor
       · rintro rfl
         exact Option.some.inj (hn.symm.trans hden)
@@ -1152,6 +749,7 @@ theorem expoOfParts_run {pk : OleanPins} {r : Region} {pa ea : UInt64}
     | none => simp only [hsp] at hB; cases (AM.pure_ok hB).1
     | some sp =>
     simp only [hsp] at hB ⊢
+    obtain ⟨loc, hloc, -⟩ := bind_some_left hsp
     rcases ite_ok_cases hB with ⟨hc, hB⟩ | ⟨hc, hB⟩
     · obtain ⟨hv, rfl⟩ := AM.pure_ok hB
       cases hv
@@ -1170,177 +768,73 @@ theorem expoOfParts_run {pk : OleanPins} {r : Region} {pa ea : UInt64}
       | some pc =>
       simp only [hpc] at hC
       obtain ⟨hiT, rfl⟩ := Array.getElem?_eq_some_iff.mp hpc
-      have hiD : i < D.size := by omega
       have hiU' : i < csU.size := by omega
       have hdi := hgT i (by simpa using hiT)
       simp only [Array.getElem_toList] at hdi
-      have hdi' := denoteEntry_ext (hx1.trans hst3.ext) hdi
-      have hexpo := expoOf_den (hctx1.step hst3).ok.wf hdi' hde
-      cases hx : ConLeche.Frontend.Olean.expoOf D[i] eC with
-      | none =>
-        rw [hx] at hexpo
-        simp only [hexpo] at hC
-        cases (AM.pure_ok hC).1
-      | some x =>
-      rw [hx] at hexpo
-      simp only [hexpo] at hC
-      obtain ⟨hv, rfl⟩ := AM.pure_ok hC
-      cases hv
-      refine ⟨hst1.trans hst3, ite_goal (fun hu => ?_) (fun _ => ?_)⟩
-      · exfalso
-        revert hc hu
-        cases se.kind <;> cases sp.kind <;> simp
-      · simp only [heC]
+      have hctx3 : Ctx pk s₃ := hctx1.step hst3
+      have htag := den_thm_iff hdi
+      have hlocs : skP.consts.toArray[i]! = loc := by
+        rw [getElem!_pos skP.consts.toArray i (Array.getElem?_eq_some_iff.mp hloc).1]
+        exact (Array.getElem?_eq_some_iff.mp hloc).2
+      rcases kind_thm_or csT[i].kind with ⟨v, a, hk⟩ | hk
+      · -- a theorem: its whole constant read off the file
+        rw [hk] at hC htag
+        obtain ⟨v', a', hkU⟩ := tag_thm htag.symm
+        simp only at hC
+        obtain ⟨o, s₄, h4, hD⟩ := AM.bind_ok hC
+        cases o with
+        | none => cases (AM.pure_ok hD).1
+        | some pc2 =>
+        simp only at hD
+        rw [hlocs] at h4
+        obtain ⟨hst4, pc2C, hpc2C, hdpc2⟩ := entryAt_run hctx3 h4
+        have hexpo := expoOf_den (hctx3.step hst4).ok.wf hdpc2 (denoteEntry_ext hst4.ext hde)
+        unfold ConRon.Arena.Frontend.Olean.expoAgainst at hD
+        rw [hexpo] at hD
+        cases hx : ConLeche.Frontend.Olean.expoOf pc2C eC with
+        | none => rw [hx] at hD; cases (AM.pure_ok hD).1
+        | some x =>
+        rw [hx] at hD
+        obtain ⟨hv, rfl⟩ := AM.pure_ok hD
+        cases hv
+        refine ⟨(hst1.trans hst3).trans hst4, ?_⟩
+        refine ite_goal (fun hu => ?_) (fun _ => ?_)
+        · exfalso
+          revert hc hu
+          cases se.kind <;> cases sp.kind <;> simp
+        simp only [heC]
         rw [getElem!_pos csU i hiU']
-        rcases kind_thm_or csU[i].kind with ⟨v, a, hk⟩ | hk
-        · simp only [hk, hthm i hiU' hiD v a hk]
-          simp [hx] <;> rfl
-        · rw [hnon i hiU' hiD hk]
-          have hk' : ∀ v a, D[i].kind ≠ .thm v a := fun v a he => hk v a (by rw [hnon i hiU' hiD hk]; exact he)
-          split
-          · rename_i v a he
-            exact absurd he (hk' v a)
-          · simp [hx] <;> rfl
-
-/-! ## What upstream's check asks of the parts, off the parse -/
-
-/-- What a decoded view holds of its module skeleton. -/
-theorem decodeAt_facts {r : Region} {a : UInt64} {d : ConLeche.Frontend.Olean.ModDecoded}
-    (h : decodeAt r a = some d) :
-    ConLeche.Frontend.Olean.constNamesOk r a = true ∧ ∃ sk, moduleSkel r a = some sk ∧
-      sk.isModule = d.isModule ∧ sk.imports.mapM (ImportF.mapM (nameP r)) = some d.imports.toList ∧
-      sk.consts.mapM (constSpec r) = some d.constants.toList := by
-  unfold decodeAt at h
-  cases hc : ConLeche.Frontend.Olean.constNamesOk r a with
-  | false => simp [hc] at h
-  | true =>
-    refine ⟨rfl, ?_⟩
-    simp only [hc, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at h
-    obtain ⟨u, -, h⟩ := bind_some_left h
-    obtain ⟨sk, hsk, h⟩ := bind_some_left h
-    obtain ⟨imps, himps, h⟩ := bind_some_left h
-    obtain ⟨cs, hcs, h⟩ := bind_some_left h
-    simp only [pure, Option.some.injEq] at h
-    subst h
-    exact ⟨sk, hsk, rfl, by simpa using himps, by simpa using hcs⟩
-
-/-- **The private view the parse gives is the private view's `decodeAt`**, at its region. -/
-theorem private_spec {f : ModFiles} {vC : ConLeche.Frontend.Olean.AllViews} {r : Region}
-    {a : UInt64} (hpav : ConLeche.Frontend.Olean.parseAllViews f = some vC)
-    (hvr : f.viewRegion .private = some (r, a)) : decodeAt r a = some vC.private := by
-  rw [ConLeche.Frontend.Olean.parseAllViews_eq] at hpav
-  obtain ⟨e, -, hpav⟩ := bind_some_left hpav
-  obtain ⟨s', -, hpav⟩ := bind_some_left hpav
-  obtain ⟨p, hp, hpav⟩ := bind_some_left hpav
-  simp only [pure, Option.some.injEq] at hpav
-  subst hpav
-  rw [ConLeche.Frontend.Olean.decodeModuleSpec_at hvr] at hp
-  obtain ⟨d, hd, hchk⟩ := bind_some_left hp
-  unfold ConLeche.Frontend.Olean.viewChk at hchk
-  split at hchk
-  · cases hchk; exact hd
-  · cases hchk
-
-/-- **The load against the parse**, at the private view's region: the same constants, named
-alike, but for a theorem's value (the parse's read off the file, `entryAt`). -/
-theorem load_rel {f : ModFiles} {mn : Name} {lC : ConLeche.Frontend.Olean.Loaded}
-    {vC : ConLeche.Frontend.Olean.AllViews} (hl : ConLeche.Driver.LoadOf 0 mn f lC)
-    (hpav : ConLeche.Frontend.Olean.parseAllViews f = some vC) :
-    ∃ r a skP, f.viewRegion .private = some (r, a) ∧ moduleSkel r a = some skP ∧
-      (lC.constants.map (·.toCEntryF)).size = vC.private.constants.size ∧
-      (∀ i (h1 : i < (lC.constants.map (·.toCEntryF)).size) (h2 : i < vC.private.constants.size),
-        (lC.constants.map (·.toCEntryF))[i].name = vC.private.constants[i].name) ∧
-      (∀ i (h1 : i < (lC.constants.map (·.toCEntryF)).size) (h2 : i < vC.private.constants.size) v a,
-        (lC.constants.map (·.toCEntryF))[i].kind = .thm v a →
-        (skP.consts.toArray[i]?).bind (ConLeche.Frontend.Olean.entryAt r) = some vC.private.constants[i]) ∧
-      (∀ i (h1 : i < (lC.constants.map (·.toCEntryF)).size) (h2 : i < vC.private.constants.size),
-        (∀ v a, (lC.constants.map (·.toCEntryF))[i].kind ≠ .thm v a) →
-        (lC.constants.map (·.toCEntryF))[i] = vC.private.constants[i]) := by
-  obtain ⟨-, ⟨r, a, sk, skels, hvr, hsk, hskels, hl', hal⟩, -⟩ := hl
-  have hdec := private_spec hpav hvr
-  obtain ⟨-, sk', hsk', -, -, hspec⟩ := decodeAt_facts hdec
-  rw [hsk] at hsk'
-  cases hsk'
-  obtain ⟨hlS, hgS⟩ := mapM_getElem hskels
-  obtain ⟨hlD, hgD⟩ := mapM_getElem hspec
-  have hszD : vC.private.constants.size = sk.consts.length := by simpa using hlD
-  have hszS : skels.length = sk.consts.length := hlS
-  -- one position
-  have pos : ∀ i (hi : i < sk.consts.length),
-      ∃ (h1 : i < skels.length) (h2 : i < lC.constants.size) (h3 : i < vC.private.constants.size),
-        skels[i].mapM (nameP r) (exprP r) = some vC.private.constants[i] ∧
-        ConLeche.Frontend.Olean.lazyEntry (nameP r) (exprP r) r 0 skels[i] =
-          some lC.constants[i].toCEntryF ∧
-        ConLeche.Frontend.Olean.entryAt r sk.consts[i] = some vC.private.constants[i] := by
-    intro i hi
-    have h1 : i < skels.length := by omega
-    have h2 : i < lC.constants.size := by omega
-    have h3 : i < vC.private.constants.size := by omega
-    refine ⟨h1, h2, h3, ?_, ?_, ?_⟩
-    · have hs := hgS i hi
-      have hd := hgD i hi
-      simp only [constSpec, hs, bind, Option.bind] at hd
-      simpa using hd
-    · exact hal i h1
-    · rw [ConLeche.Frontend.Olean.entryAt_eq]
-      have hd := hgD i hi
-      simpa using hd
-  refine ⟨r, a, sk, hvr, hsk, by simp [hszD]; omega, ?_, ?_, ?_⟩
-  · intro i h1 h2
-    obtain ⟨_, _, _, hc, he, -⟩ := pos i (by omega)
-    simp only [Array.getElem_map]
-    exact (ConLeche.Frontend.Olean.lazyEntry_of_spec hc he).1
-  · intro i h1 h2 v a _
-    obtain ⟨_, _, _, -, -, he⟩ := pos i (by omega)
-    simp [he]
-  · intro i h1 h2 hk
-    obtain ⟨_, _, _, hc, he, -⟩ := pos i (by omega)
-    simp only [Array.getElem_map] at hk ⊢
-    refine ConLeche.Frontend.Olean.lazyEntry_eq_of_spec hc he (fun ht => ?_)
-    obtain ⟨v, a', hv⟩ := tag_thm ht
-    obtain ⟨_, _, _, _, hk', -, -⟩ := (ConLeche.Frontend.Olean.lazyEntry_of_spec hc he).2.2.2 v a' hv
-    exact hk _ _ hk'
-
-/-- The module arm of the parse: each view `decodeAt`'s, all three at the files' region, the
-server's imports those at the start of `M.olean`. -/
-theorem module_facts {ex sv pv : ConLeche.Frontend.Olean.Part} {vC : ConLeche.Frontend.Olean.AllViews}
-    {r3 : Region} (hm : ModFiles.isModule ⟨ex, some sv, some pv⟩ = true)
-    (hpav : ConLeche.Frontend.Olean.parseAllViews ⟨ex, some sv, some pv⟩ = some vC)
-    (hr3 : ConLeche.Frontend.Olean.Region.ofParts #[ex, sv, pv] = .ok r3) :
-    decodeAt r3 ex.moduleDataAddr = some vC.exported ∧ decodeAt r3 sv.moduleDataAddr = some vC.server ∧
-      decodeAt r3 pv.moduleDataAddr = some vC.private ∧
-      ConLeche.Frontend.Olean.importsPre ex.bytes = some vC.server.imports := by
-  rw [ConLeche.Frontend.Olean.parseAllViews_parts hm] at hpav
-  split at hpav
-  · split at hpav
-    · cases hpav
-    · split at hpav
-      · rw [hr3] at hpav
-        simp only at hpav
-        rw [ConLeche.Frontend.Olean.parseMany_eq] at hpav
-        split at hpav
-        · rename_i de ds dp hpm
-          split at hpav
-          · rename_i hall
-            cases hpav
-            simp only [List.mapM_cons, List.mapM_nil] at hpm
-            obtain ⟨x1, h1, hpm⟩ := bind_some_left hpm
-            obtain ⟨xs1, hpm1, hpm⟩ := bind_some_left hpm
-            simp only [pure, Option.some.injEq] at hpm
-            obtain ⟨x2, h2, hpm1⟩ := bind_some_left hpm1
-            obtain ⟨xs2, hpm2, hpm1⟩ := bind_some_left hpm1
-            simp only [pure, Option.some.injEq] at hpm1
-            obtain ⟨x3, h3, hpm2⟩ := bind_some_left hpm2
-            obtain ⟨xs3, hpm3, hpm2⟩ := bind_some_left hpm2
-            simp only [pure, Option.some.injEq] at hpm2 hpm3
-            subst hpm3 hpm2 hpm1
-            simp only [List.cons.injEq] at hpm
-            obtain ⟨rfl, rfl, rfl, -⟩ := hpm
-            simp only [Bool.and_eq_true, beq_iff_eq] at hall
-            exact ⟨h1, h2, h3, hall.1.2⟩
-          · cases hpav
-        · cases hpav
-      · cases hpav
-  · cases hpav
+        simp only [hkU, hloc, Option.bind, hpc2C]
+        simp [hx] <;> rfl
+      · -- any other constant: the load's
+        have hkU : ∀ v a, csU[i].kind ≠ .thm v a := by
+          intro v a he
+          rw [he] at htag
+          obtain ⟨v', a', hv⟩ := tag_thm htag
+          exact hk v' a' hv
+        replace hC : (pure (ConRon.Arena.Frontend.Olean.expoAgainst csT[i] e enName i expo) :
+            AM _) s₃ = .ok (.ok expo1, s1) := by
+          cases hkk : csT[i].kind <;> simp only [hkk] at hC
+          all_goals first | exact hC | exact absurd hkk (hk _ _)
+        have hexpo := expoOf_den hctx3.ok.wf (denoteEntry_ext (hx1.trans hst3.ext) hdi) hde
+        unfold ConRon.Arena.Frontend.Olean.expoAgainst at hC
+        rw [hexpo] at hC
+        cases hx : ConLeche.Frontend.Olean.expoOf csU[i] eC with
+        | none => rw [hx] at hC; cases (AM.pure_ok hC).1
+        | some x =>
+        rw [hx] at hC
+        obtain ⟨hv, rfl⟩ := AM.pure_ok hC
+        cases hv
+        refine ⟨hst1.trans hst3, ?_⟩
+        refine ite_goal (fun hu => ?_) (fun _ => ?_)
+        · exfalso
+          revert hc hu
+          cases se.kind <;> cases sp.kind <;> simp
+        simp only [heC]
+        rw [getElem!_pos csU i hiU']
+        split
+        · rename_i v a he
+          exact absurd he (hkU v a)
+        · simp [hx] <;> rfl
 
 end ConRon.Bridge.Modular.Home
