@@ -543,7 +543,7 @@ theorem lookBuild_rel {st : EStore} (hw : NStoreWF st.ns)
   unfold ConRon.Arena.Modular.lookBuild
   rw [← Array.foldl_toList, ← Array.foldl_toList]
   refine lookFold_rel hw h.consts ⟨fun _ _ h => by simp at h, fun _ _ h => ?_⟩
-  simp [Std.HashMap.getElem?_emptyWithCapacity] at h
+  simp at h
 
 /-- con-leche: ConLeche/Driver/Reach.lean:249-260 lookOf — **a part's name lookup**: the twin's
 cached lookup after `lookOf` is upstream's answer. -/
@@ -594,7 +594,7 @@ theorem lookOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
   exact hg.bind (ModelIO.gives_pure _ _)
 
 /-- con-leche: ConLeche/Driver/Reach.lean:249-260 lookOf — a name in a related lookup. -/
-theorem lookAt_eq {st : EStore} {c : ConRon.Arena.Modular.ReachCache}
+theorem lookAt_eq {c : ConRon.Arena.Modular.ReachCache}
     {k : ConRon.Arena.Modular.PartKey} {l : Std.HashMap NIdx ConRon.Arena.Frontend.Olean.NamePosition}
     (hl : c.looks[k]? = some l) (n : NIdx) {s : AState} :
     ConRon.Arena.Modular.lookAt c k n s = .ok (l[n]?, s) := by
