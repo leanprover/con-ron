@@ -68,6 +68,7 @@ use std::time::Instant;
 use con_ron_core::arena::checker;
 use con_ron_core::arena::env as ienv;
 use con_ron_core::arena::env::IDeclaration;
+use con_ron_core::arena::justify::Solution;
 use con_ron_core::arena::stream_index;
 use con_ron_core::arena::stream_index::IStreamIndex;
 use con_ron_core::frontend::pace::{pace_due_count, pace_on, pace_trace, Pace};
@@ -562,19 +563,23 @@ pub fn pool_verdict(r: Result<(), ParallelError<(CheckError, u64)>>) -> Result<(
 /// nothing but a scratch tier, their caches and a copy of the pin handles.
 ///
 /// con-leche's `Jobs`, `checkDeclsIO` and `checkPool` also carry a solution's
-/// environment and index (`justify`, `J.side`): `none` on this path, so absent
-/// here, and the fold the run concludes is `checkDecls` (`checkDeclsWith … none`).
+/// environment and index (`justify`, `J.side`): `sol`, `None` on a flat run, whose
+/// fold is `checkDecls` (`checkDeclsWith … none`), and on a compared run's
+/// challenge the solution (`crate::compare`).  On `Ok` the answer is the thawed
+/// index, which a compared run's solution keeps (`justify::solution_of`).
+#[allow(clippy::too_many_arguments)]
 pub fn check_decls_driver<O: PhaseObserver + Send>(
     pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
+    sol: Option<&Solution>,
     ds: &Vec<IDeclaration>,
     jobs: u64,
     obs: &mut O,
-) -> Result<(), (CheckError, u64)> {
+) -> Result<IStreamIndex, (CheckError, u64)> {
     check_decls_driver_with(pers, st, ds, jobs, obs, || (), |tier, w, _x, k| {
-        checker::run_job(tier, w, mode, pins, None, ds, k)
+        checker::run_job(tier, w, mode, pins, sol, ds, k)
     })
 }
 
@@ -595,7 +600,7 @@ pub fn check_decls_driver_with<O, X, I, J>(
     obs: &mut O,
     init_x: I,
     job: J,
-) -> Result<(), (CheckError, u64)>
+) -> Result<IStreamIndex, (CheckError, u64)>
 where
     O: PhaseObserver + Send,
     I: Fn() -> X + Sync,
@@ -633,20 +638,24 @@ where
     // declaration label, the failing record's name — reads a handle back out of
     // `st`, and a state left frozen over a tier that has gone out of scope
     // answers `None` to every one of them.
-    let _ix: IStreamIndex = checker::thaw_tier(&mut st.store, tier);
+    let ix: IStreamIndex = checker::thaw_tier(&mut st.store, tier);
     let v = pool_verdict(r);
     obs.check_done(m, match &v {
         Err((_, pos)) => Some(*pos),
         Ok(()) => None,
     });
-    v
+    match v {
+        Ok(()) => Ok(ix),
+        Err(e) => Err(e),
+    }
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:120-134 oleanJobRun
 /// Lean twin: `proof/ConRon/Arena/OleanJobs.lean:28-64 oleanJob`; Theorem 2 reads this
 /// function as `Refine2/Checker/OleanPool.lean`'s `oleanJobStep`.  Upstream's
 /// `sp : Roots` (the closure's resolved roots) is the lookup without its map here
-/// (`files::find_module`'s note), and its jobs' `justify` the flat path's `none`.
+/// (`files::find_module`'s note), and its jobs' `justify` is `sol` (`None` on a flat
+/// run, the solution on a compared run's challenge).
 /// **One job of an `--olean` run**, from the module region the worker kept: a
 /// theorem whose value is still in its file (`.thmDecl cv (.bvar code)`, a
 /// reference) reads it into the worker's scratch tier and is checked with it in
@@ -665,11 +674,12 @@ pub fn olean_job(
     pk: &con_ron_core::frontend::olean::spec::OleanPins,
     values: &Vec<con_ron_core::frontend::olean::records::ModRef>,
     sp: &con_ron_core::frontend::olean::files::Roots,
+    sol: Option<&Solution>,
     k: u64,
 ) -> Result<(), (CheckError, u64)> {
     let d = match ds.get(k as usize) {
         Some(d) => d,
-        None => return checker::run_job(tier, w, mode, pins, None, ds, k),
+        None => return checker::run_job(tier, w, mode, pins, sol, ds, k),
     };
     let code: Option<u64> = match d {
         // a theorem's value is a reference only if its handle is a `bvar`: the store's
@@ -695,7 +705,7 @@ pub fn olean_job(
                 Err(e) => Err((e, k)),
                 Ok(v) => {
                     let pd = IDeclaration::ThmDecl(ienv::i_constant_val_dup(cv), v);
-                    match stream_index::record_check(tier, w, mode, pins, None, k, &pd) {
+                    match stream_index::record_check(tier, w, mode, pins, sol, k, &pd) {
                         Err(e) => Err((e, k)),
                         Ok(()) => Ok(()),
                     }
@@ -704,7 +714,7 @@ pub fn olean_job(
             con_ron_core::arena::core::leave_record(w);
             r
         }
-        _ => checker::run_job(tier, w, mode, pins, None, ds, k),
+        _ => checker::run_job(tier, w, mode, pins, sol, ds, k),
     }
 }
 
@@ -936,7 +946,11 @@ pub fn verdict_accept(records: u64, mode_tag: &str) -> u8 {
 /// `i` is the fold position and is NOT the file's record index (the prepared
 /// list starts with the prelude's records); the declaration NAME on the line
 /// is the portable handle.  con-leche's own generated-`_model`-record owner
-/// naming is gone with the modeller (task #105).  The cited `who` is `""` here.
+/// naming is gone with the modeller (task #105).  The cited `who` is a compared
+/// run's prefix for its solution's failure (`the solution S: `), `""` elsewhere;
+/// after a `who` the error reads as con-leche renders it (`error_text`), so the
+/// line says the solution's verdict in con-leche's words.
+#[allow(clippy::too_many_arguments)]
 pub fn verdict_failure(
     pers: &PersTier,
     ar: &EStore,
@@ -945,21 +959,39 @@ pub fn verdict_failure(
     i: u64,
     mode_tag: &str,
     t0: Instant,
+    who: &str,
 ) -> u8 {
     let code = exit_code(e);
     let loc = match ds.get(i as usize) {
         None => format!(" [at fold position {}]", i),
         Some(d) => format!(" [at {}, fold position {}]", decl_label(pers, ar, d), i),
     };
+    let what = if who.is_empty() {
+        message(e)
+    } else {
+        format!("{}{}", who, error_text(e))
+    };
     eprintln!(
         "con-ron: {}: {}{} ({}) t={}s",
         verdict_word(code),
-        message(e),
+        what,
         loc,
         mode_tag,
         ms_secs(t0.elapsed().as_millis())
     );
     code
+}
+
+/// con-leche: ConLeche/Kernel/Error.lean:36-40 _
+/// A `CheckError` as con-leche prints it: its kind's words, then the payload.  The
+/// port's fourth constructor reads `native: …`.
+pub fn error_text(e: &CheckError) -> String {
+    match e {
+        CheckError::NotImplemented(_) => format!("not implemented yet: {}", message(e)),
+        CheckError::Invalid(_) => format!("invalid: {}", message(e)),
+        CheckError::Internal(_) => format!("internal error: {}", message(e)),
+        CheckError::Native(_) => format!("native: {}", message(e)),
+    }
 }
 
 // ---------------------------------------------------------------------------

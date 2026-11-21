@@ -63,6 +63,44 @@ def oleanJob (fs : OleanFs) (pk : OleanPins) (sp : Roots)
     | none => finish plain
   | _ => finish plain
 
+/-- con-leche: ConLeche/Driver/CheckMain.lean:120-134 oleanJobRun
+**Job `t` of an `--olean` run with the solution `J`**: `oleanJob` with every record's check at
+`J` (the cited jobs' `justify`): a compared run's challenge.  `oleanJob` is it at `none`
+(`oleanJob_eq_J`). -/
+def oleanJobJ (fs : OleanFs) (pk : OleanPins) (sp : Roots)
+    (values : Array ModRef) (mode : CheckMode) (pins : List INatOpPinSet) (J : Option ISolution)
+    (I : IStreamIndex) (ds : Array IDeclaration) (c : ValueCache) (t : Nat) :
+    AM (ValueCache × Except (CheckError × Nat) Unit) := fun s =>
+  let plain : Except CheckError (ValueCache × Except (CheckError × Nat) Unit × AState) :=
+    match runJob mode pins J I ds t s with
+    | .ok (r, s') => .ok (c, r, s')
+    | .error e => .error e
+  let finish (x : Except CheckError (ValueCache × Except (CheckError × Nat) Unit × AState)) :
+      Except CheckError ((ValueCache × Except (CheckError × Nat) Unit) × AState) :=
+    match x with
+    | .ok (c', r, s') => .ok ((c', r), s')
+    | .error e => .error e
+  match ds[t]? with
+  | some (.thmDecl cv v) =>
+    match (if v.tag == ETag.bvar then s.store.viewBVar v else none) with
+    | some code =>
+      match (do enterScratch; readValue fs pk sp values c code) s with
+      | .ok ((c', .ok e), s₁) =>
+        match (do recordCheck mode pins J I t (.thmDecl cv e); dropScratch) s₁ with
+        | .ok ((), s₂) => .ok ((c', .ok ()), s₂)
+        | .error err => .ok ((c', .error (err, t)), AState.abandoned)
+      | .ok ((c', .error err), _) => .ok ((c', .error (err, t)), AState.abandoned)
+      | .error err => .ok ((c, .error (err, t)), AState.abandoned)
+    | none => finish plain
+  | _ => finish plain
+
+/-- con-leche: none — `oleanJob` is `oleanJobJ` without a solution. -/
+theorem oleanJob_eq_J (fs : OleanFs) (pk : OleanPins) (sp : Roots)
+    (values : Array ModRef) (mode : CheckMode) (pins : List INatOpPinSet)
+    (I : IStreamIndex) (ds : Array IDeclaration) (c : ValueCache) (t : Nat) :
+    oleanJob fs pk sp values mode pins I ds c t = oleanJobJ fs pk sp values mode pins none I ds c t :=
+  rfl
+
 /-- con-leche: ConLeche/Frontend/CheckerIO.lean:461-484 parWorker
 **A worker's fold over the jobs it claimed** on an `--olean` run, on one state and
 one cache, the first failure the answer (`PooledOleanAccepts`). -/
@@ -76,6 +114,32 @@ def checkOleanJobList (fs : OleanFs) (pk : OleanPins) (sp : Roots)
     | .ok ((c', .ok ()), s') => checkOleanJobList fs pk sp values mode pins I ds rest c' s'
     | .ok ((_, .error e), s') => .ok (.error e, s')
     | .error e => .error e
+
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:461-484 parWorker
+**A worker's fold over the jobs it claimed** on an `--olean` run, with the solution `J`. -/
+def checkOleanJobListJ (fs : OleanFs) (pk : OleanPins) (sp : Roots)
+    (values : Array ModRef) (mode : CheckMode) (pins : List INatOpPinSet) (J : Option ISolution)
+    (I : IStreamIndex) (ds : Array IDeclaration) :
+    List Nat → ValueCache → AM (Except (CheckError × Nat) Unit)
+  | [], _ => pure (.ok ())
+  | t :: rest, c => fun s =>
+    match oleanJobJ fs pk sp values mode pins J I ds c t s with
+    | .ok ((c', .ok ()), s') => checkOleanJobListJ fs pk sp values mode pins J I ds rest c' s'
+    | .ok ((_, .error e), s') => .ok (.error e, s')
+    | .error e => .error e
+
+/-- con-leche: none — `checkOleanJobList` is `checkOleanJobListJ` without a solution. -/
+theorem checkOleanJobList_eq_J (fs : OleanFs) (pk : OleanPins) (sp : Roots)
+    (values : Array ModRef) (mode : CheckMode) (pins : List INatOpPinSet)
+    (I : IStreamIndex) (ds : Array IDeclaration) :
+    ∀ (ks : List Nat) (c : ValueCache),
+      checkOleanJobList fs pk sp values mode pins I ds ks c
+        = checkOleanJobListJ fs pk sp values mode pins none I ds ks c
+  | [], _ => rfl
+  | t :: rest, c => by
+    funext s
+    simp only [checkOleanJobList, checkOleanJobListJ, oleanJob_eq_J,
+      checkOleanJobList_eq_J fs pk sp values mode pins I ds rest]
 
 /-- con-leche: ConLeche/Driver/CheckMain.lean:154-177 checkOleansG
 **The check phase of an `--olean` run, as one worker runs it**: the index of the
@@ -105,5 +169,27 @@ def PooledOleanAccepts (fs : OleanFs) (pk : OleanPins) (sp : Roots)
     (∀ w ∈ parts, w.Pairwise (· < ·)) ∧
     (∀ w ∈ parts, ∃ s'', checkOleanJobList fs pk sp values mode pins I ds w {} s'.worker
       = .ok (.ok (), s''))
+
+/-- con-leche: ConLeche/Frontend/CheckerIO.lean:486-512 parMapWorkersIO
+**The pool's accept on an `--olean` run with the solution `J`**: `PooledOleanAccepts` over
+`oleanJobJ` (a compared run's challenge closure). -/
+def PooledOleanAcceptsJ (fs : OleanFs) (pk : OleanPins) (sp : Roots)
+    (values : Array ModRef) (mode : CheckMode) (pins : List INatOpPinSet) (J : Option ISolution)
+    (ds : Array IDeclaration) (s : AState) (I : IStreamIndex) (s' : AState) : Prop :=
+  ∃ (parts : List (List Nat)),
+    buildIndex ds s = .ok (.ok I, s') ∧
+    (∀ t < ds.size, ∃ w ∈ parts, t ∈ w) ∧
+    (∀ w ∈ parts, ∀ t ∈ w, t < ds.size) ∧
+    (∀ w ∈ parts, w.Pairwise (· < ·)) ∧
+    (∀ w ∈ parts, ∃ s'', checkOleanJobListJ fs pk sp values mode pins J I ds w {} s'.worker
+      = .ok (.ok (), s''))
+
+/-- con-leche: none — `PooledOleanAccepts` is `PooledOleanAcceptsJ` without a solution. -/
+theorem pooledOleanAccepts_eq_J (fs : OleanFs) (pk : OleanPins) (sp : Roots)
+    (values : Array ModRef) (mode : CheckMode) (pins : List INatOpPinSet)
+    (ds : Array IDeclaration) (s : AState) (I : IStreamIndex) (s' : AState) :
+    PooledOleanAccepts fs pk sp values mode pins ds s I s'
+      = PooledOleanAcceptsJ fs pk sp values mode pins none ds s I s' := by
+  simp only [PooledOleanAccepts, PooledOleanAcceptsJ, checkOleanJobList_eq_J]
 
 end ConRon.Arena

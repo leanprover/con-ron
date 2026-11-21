@@ -1460,6 +1460,14 @@ structure kernel.nat_op_pins.NatOpPinSet where
   shift_left_type_pins : alloc.vec.Vec (kernel.name.Name × kernel.expr.Expr)
   shift_right_type_pins : alloc.vec.Vec (kernel.name.Name × kernel.expr.Expr)
 
+/-- Trait declaration: [con_ron_core::frontend::nat_op_ground::UsedConsts]
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 271:0-275:1
+    Visibility: public -/
+structure frontend.nat_op_ground.UsedConsts (Self : Type _) where
+  used_consts : Self → arena.store.PersTier → arena.monad.AState →
+    arena.env.IDeclaration → Result ((core.result.Result (alloc.vec.Vec
+    arena.handle.NIdx) kernel.core_types.CheckError) × arena.monad.AState)
+
 /-- [con_ron_core::frontend::types::RecordVerdict]
     Source: 'crates/con-ron-core/src/frontend/types.rs', lines 41:0-44:1
     Visibility: public -/
@@ -1777,14 +1785,6 @@ inductive frontend.scan_fast.Member where
     Visibility: public -/
 structure frontend.export_c.ChunkSource (Self : Type _) where
   next_chunk : Self → Result ((alloc.vec.Vec Std.U8) × Self)
-
-/-- Trait declaration: [con_ron_core::frontend::nat_op_ground::UsedConsts]
-    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 271:0-275:1
-    Visibility: public -/
-structure frontend.nat_op_ground.UsedConsts (Self : Type _) where
-  used_consts : Self → arena.store.PersTier → arena.monad.AState →
-    arena.env.IDeclaration → Result ((core.result.Result (alloc.vec.Vec
-    arena.handle.NIdx) kernel.core_types.CheckError) × arena.monad.AState)
 
 /-- [con_ron_core::frontend::nat_op_ground::DeclUsedConsts]
     Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 279:0-279:26
@@ -2225,7 +2225,7 @@ structure frontend.prepare.PreludeIx where
   decls : alloc.vec.Vec arena.env.IDeclaration
 
 /-- [con_ron_core::frontend::prepare::Prepared]
-    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 222:0-230:1
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 243:0-251:1
     Visibility: public -/
 structure frontend.prepare.Prepared where
   decls : alloc.vec.Vec arena.env.IDeclaration
