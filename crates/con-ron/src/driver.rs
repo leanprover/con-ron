@@ -606,29 +606,64 @@ where
     I: Fn() -> X + Sync,
     J: Fn(&PersTier, &mut AState, &mut X, u64) -> Result<(), (CheckError, u64)> + Sync,
 {
+    check_decls_driver_from(pers, st, ds, 0, jobs, obs, |_t: &PersTier, _w: &mut AState| Ok(()), init_x, job)
+}
+
+/// con-leche: ConLeche/Driver/CheckMain.lean:154-177 checkOleansG
+/// con-leche: ConLeche/Driver/Worker.lean:370-412 checkModuleG
+/// **The check phase from `start`** (a module's worker, task #166): the index
+/// over every record of `ds` from 0 (the context's records `ds[..start]` visible
+/// to every job), the frozen tier, `after_freeze` on it (a worker's inferred
+/// flags, `modular::reach::infer_flags`, which read the frozen environment),
+/// then the jobs at positions `start..ds.len()` alone on the pool.  At
+/// `start = 0` and a no-op `after_freeze` it is `check_decls_driver_with`.
+#[allow(clippy::too_many_arguments)]
+pub fn check_decls_driver_from<O, X, A, I, J>(
+    pers: &PersTier,
+    st: &mut AState,
+    ds: &Vec<IDeclaration>,
+    start: usize,
+    jobs: u64,
+    obs: &mut O,
+    after_freeze: A,
+    init_x: I,
+    job: J,
+) -> Result<IStreamIndex, (CheckError, u64)>
+where
+    O: PhaseObserver + Send,
+    A: FnOnce(&PersTier, &mut AState) -> Result<(), CheckError>,
+    I: Fn() -> X + Sync,
+    J: Fn(&PersTier, &mut AState, &mut X, u64) -> Result<(), (CheckError, u64)> + Sync,
+{
     // THE INDEX (the last step of the parse phase): every record's constants and
     // tables, a name's first entry winning, read off the records alone.
     obs.index_starts();
     let ix: IStreamIndex = stream_index::build_index(pers, st, stream_index::stream_index_empty(), ds, 0)?;
     obs.parse_done(pers, &st.store, ds.len());
     let m = ds.len();
-    let workers = workers_for(jobs, m);
-    obs.check_starts(m, workers);
+    let n = m.saturating_sub(start);
+    let workers = workers_for(jobs, n);
+    obs.check_starts(n, workers);
     // THE BOUNDARY: the persistent tier and the index leave the state and become
     // a value every worker reads.  `st` keeps its (empty) store, its tables
     // moved out, so the observer can still read a label back through the tier.
     let tier: PersTier = checker::freeze_tier(&mut st.store, ix);
-    // THE CHECK PHASE: the job at every record, on `workers` threads, each
-    // folding it over the jobs it claims on ONE `worker_state` — the verdict and
-    // the record a rejection names are the one-worker walk's at every `--jobs`.
+    // What runs on the frozen tier before the jobs (a module's inferred flags).
+    if let Err(e) = after_freeze(&tier, st) {
+        let _ = checker::thaw_tier(&mut st.store, tier);
+        return Err((e, start as u64));
+    }
+    // THE CHECK PHASE: the job at every record from `start`, on `workers` threads,
+    // each folding it over the jobs it claims on ONE `worker_state` — the verdict
+    // and the record a rejection names are the one-worker walk's at every `--jobs`.
     let heartbeat = obs.wants_check_lines();
     let lock: Mutex<(usize, &mut O)> = Mutex::new((0, obs));
     let r = parallel_all(
-        m,
+        n,
         workers,
         || (checker::worker_state(&st.pins), init_x()),
-        |w: &mut (AState, X), k| job(&tier, &mut w.0, &mut w.1, k as u64),
-        |w: &(AState, X), k| check_line(heartbeat, &lock, &tier, &w.0, m, ds, k),
+        |w: &mut (AState, X), k| job(&tier, &mut w.0, &mut w.1, (start + k) as u64),
+        |w: &(AState, X), k| check_line(heartbeat, &lock, &tier, &w.0, n, ds, start + k),
     );
     let obs: &mut O = match lock.into_inner() {
         Ok((_, o)) => o,
@@ -640,7 +675,7 @@ where
     // answers `None` to every one of them.
     let ix: IStreamIndex = checker::thaw_tier(&mut st.store, tier);
     let v = pool_verdict(r);
-    obs.check_done(m, match &v {
+    obs.check_done(n, match &v {
         Err((_, pos)) => Some(*pos),
         Ok(()) => None,
     });
