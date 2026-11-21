@@ -14,6 +14,7 @@ claim is over a tier whose frozen base is empty (`hb`, `hok`), passed through to
 -/
 import ConRon.Refine2.Modular.Worker
 import ConRon.Refine2.Modular.WorkerCopies
+import ConRon.Refine2.Modular.ReachRel
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -30,22 +31,16 @@ open ConRon.Refine2.Frontend (absNIdxArr absIDeclArr)
 
 /-! ## Lane L2's reach, as hypotheses -/
 
-/-- **`reach::Reach` against the twin's**, field by field. -/
-structure ReachRel (r : frontend.modular.reach.Reach) (r' : Modular.Reach) : Prop where
-  ctx : r'.ctx = absIDeclArr r.ctx
-  homes : r'.homes = absNIdxArr r.homes
-  completed : r'.completed = (r.completed.val.map fun p => (absNIdx p.1, absNIdx p.2)).toArray
-  searches : r'.searches = r.searches.val
-  inferred : r'.inferred = r.inferred.val
-  pending : r'.pending =
-    (r.pending.val.map fun p => (ConRon.Refine.absString p.1, absNIdx p.2.1, absStmtRec p.2.2)).toArray
-
 /-- **`reach::owner_map` is `ownerMap`** — lane L2's: the shape its Theorem 2 is expected to
 have, taken as a hypothesis. -/
 def OwnerMapRel (pers : arena.store.PersTier) : Prop :=
   ∀ {st lst} (ds : alloc.vec.Vec arena.env.IDeclaration), AStateRel₀ pers st lst → AStateInv pers st →
     LS pers IdxRel (frontend.modular.reach.owner_map pers st ds) lst
       (Modular.ownerMap (absIDeclArr ds).toList)
+
+/-- **`OwnerMapRel` holds**: lane L2's `owner_map_ls`. -/
+theorem ownerMapRel_holds (pers : arena.store.PersTier) : OwnerMapRel pers :=
+  fun ds hrel hinv => owner_map_ls hrel hinv ds
 
 /-- **`reach::reach`'s accept is `reach`'s** — lane L2's: the shape its Theorem 2 is expected
 to have (its rejects name records, so an accept), taken as a hypothesis. -/
