@@ -8,6 +8,7 @@ own bound (`solution_find_eq`), so `ifenv_find_base_abs` reads it.
 -/
 import ConRon.Refine2.Checker.Needs
 import ConRon.Refine2.Checker.StreamIndex
+import ConRon.Refine2.Inductives.BlockShape
 import ConRon.Arena.Justify
 
 open Aeneas Aeneas.Std Result
@@ -344,5 +345,92 @@ open Lockstep in
     LS pers (fun a b => b = a) (arena.justify.refines_b pers st ci ci2) lst
       (refinesB (absIConstantInfo ci) (absIConstantInfo ci2)) := by
   cases ci <;> rw [arena.justify.refines_b, refinesB.eq_def] <;> simp only [absIConstantInfo] <;> lockstep
+
+/-! ## The cone -/
+
+/-- `rec_names_of` ⊑ `recNames`, from the cursor on, onto `out`. -/
+theorem rec_names_of_ls {pers} (all : alloc.vec.Vec arena.handle.NIdx) :
+    ∀ (i : Std.Usize) st lst (out : alloc.vec.Vec arena.handle.NIdx),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = absNIdxL a)
+        (arena.justify.rec_names_of pers st all i out) lst
+        (recNames (absNIdxL out) ((all.val.drop i.val).map absNIdx)) := by
+  refine ls_cursor_acc all absNIdx
+    (fun (w : alloc.vec.Vec arena.handle.NIdx) L => recNames (absNIdxL w) L)
+    (fun st i w => arena.justify.rec_names_of pers st all i w) ?_ ?_
+  · intro st lst i w hn hrel hinv
+    rw [arena.justify.rec_names_of.eq_def,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len all by scalar_tac), recNames]
+    lockstep
+  · intro st lst i w hi hrel hinv ih
+    rw [arena.justify.rec_names_of.eq_def,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len all by scalar_tac), recNames]
+    lockstep
+
+open Lockstep in
+@[lockstep] theorem rec_names_of_ls0 {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (all : alloc.vec.Vec arena.handle.NIdx) :
+    LS pers (fun a b => b = absNIdxL a)
+      (arena.justify.rec_names_of pers st all 0#usize (alloc.vec.Vec.new _)) lst
+      (recNames [] (absNIdxList all)) := by
+  have h := rec_names_of_ls (pers := pers) all 0#usize st lst (alloc.vec.Vec.new _) hrel hinv
+  simp only [Lockstep.usize_zero_val', List.drop_zero, absNIdxL, Lockstep.vec_new_val',
+    List.map_nil] at h
+  exact h
+
+/-- The mates map's lookup. -/
+theorem mates_get_abs {m : ron.hashmap2.HashMap2 arena.handle.NIdx (alloc.vec.Vec arena.handle.NIdx)}
+    {lm : Std.HashMap NIdx (List NIdx)}
+    (hrel : ConRon.Refine.HashMap2.RelOn (fun _ => True) m lm absNIdx absNIdxList)
+    (hinv : ConRon.Refine.HashMap2.Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable m)
+    {k : arena.handle.NIdx} {o}
+    (h : ron.hashmap2.HashMap2.get arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+      arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 m k = ok o) :
+    o.map absNIdxList = lm[absNIdx k]? := by
+  rw [ConRon.Refine.HashMap2.get_refines_wf nidx_eq2 hinv ConRon.Refine.HashMap2.KeysOk_true
+    trivial h]
+  exact hrel k trivial
+
+open Lockstep in
+/-- `needs_mates` ⊑ the cited `x.names (mates.getD n #[])`, as the twin's `match`. -/
+@[lockstep] theorem needs_mates_spec {sol : arena.justify.Solution} {J : ISolution}
+    (hJ : SolRel sol J) (n : arena.handle.NIdx) (x : arena.needs.NeedsSt) {y : NeedsSt}
+    (hy : NSRel x y) :
+    LSP (arena.justify.needs_mates sol.mates n x)
+      (fun a => NSRel a (match J.mates[absNIdx n]? with
+        | some ms => y.names ms
+        | none => y)) := by
+  intro a h
+  rw [arena.justify.needs_mates] at h
+  obtain ⟨o, ho, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hg := mates_get_abs hJ.mates hJ.matesInv ho
+  cases o with
+  | none =>
+    rw [← hg]; cases Result.ok_injective h; exact hy
+  | some ms =>
+    rw [← hg]
+    exact needs_names_spec x ms hy a h
+
+open Lockstep in
+@[lockstep] theorem entry_needs_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {sol : arena.justify.Solution} {J : ISolution}
+    (hJ : SolRel sol J) {fe : arena.env.IFEnv} {lfe : IFEnv} (hctx : CoreCtx pers fe lfe)
+    (ci : arena.env.IConstantInfo) :
+    LS pers (fun a b => b = absNIdxList a) (arena.justify.entry_needs pers st sol.mates fe ci) lst
+      (entryNeeds J.mates lfe (absIConstantInfo ci)) := by
+  rw [arena.justify.entry_needs, entryNeeds]
+  cases ci <;> simp only [absIConstantInfo] <;> lockstep
+  -- the answer: the walk's names, its state related by `NSRel`
+  all_goals exact LS.pure (NSRel.acc (by assumption)) ‹_› ‹_›
+
+open Lockstep in
+@[lockstep] theorem cone_entry_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {sol : arena.justify.Solution} {J : ISolution}
+    (hJ : SolRel sol J) {fe : arena.env.IFEnv} {lfe : IFEnv} (hctx : CoreCtx pers fe lfe)
+    (n : arena.handle.NIdx) :
+    LS pers (fun a b => b = a.map absNIdxList) (arena.justify.cone_entry pers st sol fe n) lst
+      (coneEntry J lfe (absNIdx n)) := by
+  rw [arena.justify.cone_entry, coneEntry]
+  lockstep
 
 end ConRon.Refine2

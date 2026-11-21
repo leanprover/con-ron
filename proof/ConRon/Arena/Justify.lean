@@ -61,14 +61,13 @@ def sideRecord (d : IDeclaration) : AM IDeclaration :=
   | _ => pure d
 
 /-- con-leche: ConLeche/Cached/Justify.lean:63-67 sideRecords — **the records a fold with a
-solution checks**: every record through `sideRecord`.  The cited `none` arm is the flat path,
+solution checks**: every record through `sideRecord`, onto `out`.  The cited `none` arm is the flat path,
 which does not call this. -/
-def sideRecordsGo : List IDeclaration → AM (List IDeclaration)
-  | [] => pure []
+def sideRecordsGo (out : List IDeclaration) : List IDeclaration → AM (List IDeclaration)
+  | [] => pure out
   | d :: ds => do
     let d' ← sideRecord d
-    let ds' ← sideRecordsGo ds
-    pure (d' :: ds')
+    sideRecordsGo (out ++ [d']) ds
 
 /-- con-leche: ConLeche/Cached/Justify.lean:69-77 justifiable — **the statement a record offers to
 a solution**: an axiom's, other than a built-in one's, and not at a certified `Nat` operation's or
@@ -197,13 +196,12 @@ def ISolution.findTable? (J : ISolution) (n : NIdx) : Option IProjTable :=
 /-! ## The cone -/
 
 /-- con-leche: ConLeche/Cached/Justify.lean:148-161 entryNeeds — `caps.all.map (·.str "rec")`,
-interned. -/
-def recNames : List NIdx → AM (List NIdx)
-  | [] => pure []
+interned, onto `out`. -/
+def recNames (out : List NIdx) : List NIdx → AM (List NIdx)
+  | [] => pure out
   | m :: ms => do
     let n ← internNNode (.str m "rec")
-    let rest ← recNames ms
-    pure (n :: rest)
+    recNames (out ++ [n]) ms
 
 /-- con-leche: ConLeche/Cached/Justify.lean:148-161 entryNeeds — **what the justification follows
 from a constant**: its laws' names, a type former's constructors and its block's recursors, its
@@ -214,7 +212,7 @@ def entryNeeds (mates : Std.HashMap NIdx (List NIdx)) (fe : IFEnv) (ci : IConsta
   let x2 ← match ci with
     | .indInfo _ caps => do
       let x1 := x0.names caps.ctors
-      let rn ← recNames caps.all
+      let rn ← recNames [] caps.all
       pure (x1.names rn)
     | _ => pure x0
   let x3 := match mates[ci.name]? with
