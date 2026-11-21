@@ -3,7 +3,8 @@
 
 **Task #166, Theorem 2.**  The abstraction of a module's name positions (`reads.rs`'s
 `ModHeader`, `NamePosition`, `NamePositions`) to the twin's (`Arena/Frontend/Olean/Reads.lean`),
-and the projections of the abstraction.
+and the projections of the abstraction; `spec::StmtRec` as the twin's `StmtRec`, and a kind with
+its expressions left out (`CKindF<NIdx, ()>`) against the twin's (`KindNamesRel`).
 -/
 import ConRon.Refine2.Frontend.Olean.View
 import ConRon.Arena.Frontend.Olean.Reads
@@ -52,5 +53,23 @@ theorem absNamePositions_consts_getElem? (p : frontend.olean.reads.NamePositions
 @[simp] theorem absNamePositions_consts_size (p : frontend.olean.reads.NamePositions) :
     (absNamePositions p).consts.size = p.consts.val.length := by
   simp
+
+/-! ## A statement, a kind's names -/
+
+/-- `spec::StmtRec`, as the twin's. -/
+def absStmtRec (c : frontend.olean.spec.StmtRec) : Arena.Frontend.Olean.StmtRec :=
+  ⟨absNIdx c.name, c.level_params.val.map absNIdx, absEIdx c.ty⟩
+
+@[simp] theorem absStmtRec_name (c : frontend.olean.spec.StmtRec) :
+    (absStmtRec c).name = absNIdx c.name := rfl
+@[simp] theorem absStmtRec_levelParams (c : frontend.olean.spec.StmtRec) :
+    (absStmtRec c).levelParams = c.level_params.val.map absNIdx := rfl
+@[simp] theorem absStmtRec_type (c : frontend.olean.spec.StmtRec) :
+    (absStmtRec c).type = absEIdx c.ty := rfl
+
+/-- **A kind with its expressions left out**, against the twin's. -/
+abbrev KindNamesRel : frontend.olean.spec.CKindF arena.handle.NIdx Unit →
+    ConLeche.Frontend.Olean.CKindF NIdx Unit → Prop :=
+  KindRel absNIdx (fun _ => ()) ValRel
 
 end ConRon.Refine2.Frontend.Olean
