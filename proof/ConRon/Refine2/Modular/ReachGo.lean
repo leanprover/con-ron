@@ -604,6 +604,123 @@ theorem clash_agree_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
   exact clash_agree_loop_ok hP he wr.clashes hfit st lst c C hc _ #[] rfl 0#usize _
     (by simpa using he.wr.clashes) hrel hinv a st' c' hr
 
+/-! ## The capture check -/
+
+theorem absLevel_exported {l : frontend.olean.view.OLeanLevel} {i : Std.U64}
+    (h : level_index l = ok i) : (i = 0#u64) ↔ (absLevel l = .exported) := by
+  have := level_index_val h
+  cases l <;> simp only [levelIdx] at this <;> simp only [absLevel] <;> constructor <;> intro hh <;>
+    first | trivial | (apply UScalar.eq_of_val_eq; simp [this]) | (subst hh; simp at this)
+
+theorem ReachCacheRel.with_located {c : frontend.modular.reach.ReachCache} {C : Modular.ReachCache}
+    (hc : ReachCacheRel c C) {y : arena.handle.NIdx} {p : frontend.modular.reach.Spot} {old m'}
+    (hi : ron.hashmap2.HashMap2.insert hN eN c.located y p = ok (old, m')) :
+    ReachCacheRel { c with located := m' } { C with located := C.located.insert (absNIdx y) (absSpot p) } :=
+  ⟨hc.tables, hc.looks, hc.parts, hc.recBlocks, hc.views, hc.located.insert hi, hc.completed, hc.pending,
+    hc.partners, hc.searches⟩
+
+theorem ReachCacheRel.with_located_completed {c : frontend.modular.reach.ReachCache} {C : Modular.ReachCache}
+    (hc : ReachCacheRel c C) {y h : arena.handle.NIdx} {p : frontend.modular.reach.Spot} {old m'}
+    (hi : ron.hashmap2.HashMap2.insert hN eN c.located y p = ok (old, m')) {v}
+    (hv : alloc.vec.Vec.push c.completed (y, h) = ok v) :
+    ReachCacheRel { c with located := m', completed := v }
+      { C with located := C.located.insert (absNIdx y) (absSpot p),
+               completed := C.completed.push (absNIdx y, absNIdx h) } := by
+  refine ⟨hc.tables, hc.looks, hc.parts, hc.recBlocks, hc.views, hc.located.insert hi, ?_, hc.pending,
+    hc.partners, hc.searches⟩
+  rw [ConRon.Refine.vec_push_val hv, Array.toList_push, List.map_append, hc.completed]
+  rfl
+
+/-- An importer's copy's load position fits a `usize`. -/
+theorem importer_spot_fits {wr : frontend.olean.index.WorkerReads} {W : Arena.Frontend.Olean.WorkerReads}
+    (hw : WorkerReadsRel wr W) {y : arena.handle.NIdx} {i : Std.U64} {s : frontend.modular.reach.Spot}
+    (h : importer_spot pk wr y = ok (some (i, s))) : i.val ≤ Std.Usize.max := by
+  rw [importer_spot] at h
+  peel h as o0, ho0
+  obtain ⟨-, hfit⟩ := hw.index.first.get_eq ho0
+  cases o0 with
+  | none => cases Result.ok_injective h
+  | some cp =>
+    have hcf := hfit cp rfl
+    peel h as o1, -
+    cases o1 with
+    | none => cases Result.ok_injective h
+    | some q =>
+      peel h as _, -
+      peel h as _, -
+      peel h as _, -
+      cases Result.ok_injective h
+      exact hcf.1
+
+/-- **`in_exported` is `inExported`.** -/
+theorem in_exported_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
+    (he : ReachEnvRel env wr own E) {st lst} {c : frontend.modular.reach.ReachCache} {C : Modular.ReachCache}
+    (hc : ReachCacheRel c C) (m : arena.handle.NIdx) (lvl : frontend.olean.view.OLeanLevel) (y : arena.handle.NIdx) :
+    ACS pers (fun a c' b => ReachCacheRel c' b.1 ∧ a = b.2) st lst
+      (in_exported inst fsv pk pers st sp wr c m lvl y)
+      (Modular.inExported fs (absPins pk) (absRoots sp) E C (absNIdx m) (absLevel lvl) (absNIdx y)) := by
+  intro hrel hinv a st' c' hr
+  rw [in_exported] at hr
+  peel hr as i, hi
+  have ei := absLevel_exported hi
+  unfold Modular.inExported
+  by_cases c0 : i = 0#u64
+  · rw [ite_eq_left c0] at hr
+    have e := Result.ok_injective hr
+    simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e
+    obtain ⟨rfl, rfl, rfl⟩ := e
+    simp only [ei.mp c0, beq_self_eq_true, ↓reduceIte]
+    exact ⟨(C, true), lst, rfl, ⟨hc, rfl⟩, hrel, hinv⟩
+  · rw [ite_eq_right c0] at hr
+    have hne : (absLevel lvl == .exported) = false := by
+      simpa using fun e => c0 (ei.mpr e)
+    simp only [hne, Bool.false_eq_true, ↓reduceIte, pure_bind]
+    simp only [nidx_dup2_eq, Aeneas.Std.bind_ok] at hr
+    peel hr as q, hq
+    obtain ⟨r, st1, c1⟩ := q
+    cases r with
+    | Err e => cases Result.ok_injective hr
+    | Ok u =>
+    obtain ⟨C1, lst1, hx1, hc1, hrel1, hinv1⟩ := hP.lookOf he st lst c C _ hc hrel hinv u st1 c1 hq
+    peel hr as r1, hr1
+    cases r1 with
+    | Err e => cases Result.ok_injective hr
+    | Ok o =>
+    have hl := look_at_eq hc1 hr1 lst1
+    have e := Result.ok_injective hr
+    simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e
+    obtain ⟨rfl, rfl, rfl⟩ := e
+    refine ⟨(C1, (o.map absNamePosition).isSome), lst1, ?_, ⟨hc1, by cases o <;> rfl⟩, hrel1, hinv1⟩
+    simp only [absPartKey, absLevel] at hl hx1
+    rw [am_bind_ok hx1, am_bind_ok hl]
+    rfl
+
+/-- **`capture_against` is `captureAgainst`.** -/
+theorem capture_against_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
+    (he : ReachEnvRel env wr own E) {st lst} {c : frontend.modular.reach.ReachCache} {C : Modular.ReachCache}
+    (hc : ReachCacheRel c C) (h y : arena.handle.NIdx) (s1 : frontend.modular.reach.Spot) :
+    ACS pers (fun _ c' b => ReachCacheRel c' b) st lst
+      (capture_against inst fsv pk pers st sp wr c h y s1)
+      (Modular.captureAgainst fs (absPins pk) (absRoots sp) E C (absNIdx h) (absNIdx y) (absSpot s1)) := by
+  intro hrel hinv a st' c' hr
+  rw [capture_against] at hr
+  peel hr as q, hq
+  obtain ⟨r, st1, c1⟩ := q
+  cases r with
+  | Err e => cases Result.ok_injective hr
+  | Ok o =>
+  obtain ⟨⟨C1, o'⟩, lst1, hx1, ⟨hc1, ho⟩, hrel1, hinv1⟩ := hP.locate he st lst c C h y hc hrel hinv o st1 c1 hq
+  simp only at ho
+  subst ho
+  cases o with
+  | none => err_peel hr
+  | some s2 =>
+  obtain ⟨b, lst2, hx2, hb, hrel2, hinv2⟩ := agree_check_ok hP he hc1 h y s1 s2 hrel1 hinv1 a st' c' hr
+  refine ⟨b, lst2, ?_, hb, hrel2, hinv2⟩
+  unfold Modular.captureAgainst
+  rw [am_bind_ok hx1]
+  exact hx2
+
 end reads
 
 end ConRon.Refine2.Modular
