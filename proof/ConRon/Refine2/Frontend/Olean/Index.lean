@@ -1994,4 +1994,331 @@ theorem imports_modules_ok_ok {pers : arena.store.PersTier} {st : arena.monad.AS
       repeat (peel hm as _, _)
       cases Result.ok_injective hm
 
+/-! ## The copies' statements, read -/
+
+theorem read_infos_of_loop0_eq {ix ix'} (hix : NameIndexRel ix ix')
+    (cs : alloc.vec.Vec frontend.olean.index.Copy) (hcs : ∀ c ∈ cs.val, CopyFits c)
+    (locs : alloc.vec.Vec Std.U64) (j : Std.Usize) {o} (h : read_infos_of_loop0 ix cs locs j = ok o) :
+    o.val.map (·.val) = locs.val.map (·.val) ++
+      ((cs.val.drop j.val).map absCopy).filterMap fun c => (ix'.at c).map (·.loc) := by
+  rw [read_infos_of_loop0] at h
+  by_cases hlt : j < alloc.vec.Vec.len cs
+  · rw [ite_eq_left hlt] at h
+    have hj := lt_of_lt_len hlt
+    peel h as c, hc
+    obtain ⟨_, rfl⟩ := vec_index_eq hc
+    peel h as l, hl
+    have el := name_index_loc_eq hix (hcs _ (List.getElem_mem hj)) hl
+    peel h as locs1, hlocs1
+    peel h as j1, hj1
+    have ej1 := usize_succ hj1
+    have ih := read_infos_of_loop0_eq hix cs hcs locs1 j1 h
+    rw [ih, ej1, List.drop_eq_getElem_cons hj, List.map_cons, List.filterMap_cons, ← el]
+    cases l with
+    | none => cases Result.ok_injective hlocs1; simp
+    | some l => rw [ConRon.Refine.vec_push_val hlocs1]; simp
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (lt_of_not_lt_len hlt)]
+    simp
+termination_by cs.val.length - j.val
+decreasing_by
+  have := lt_of_lt_len hlt
+  omega
+
+theorem read_infos_of_loop1_eq (cs : alloc.vec.Vec frontend.olean.index.Copy)
+    (ss : alloc.vec.Vec frontend.olean.spec.StmtRec)
+    (ks : alloc.vec.Vec (frontend.olean.spec.CKindF arena.handle.NIdx Unit)) (out : alloc.vec.Vec _)
+    (k : Std.Usize) {o} (h : read_infos_of_loop1 cs ss ks out k = ok o) :
+    o.val = out.val ++ ((cs.val.zip (ss.val.zip ks.val)).drop k.val) := by
+  rw [read_infos_of_loop1] at h
+  by_cases hlt : k < alloc.vec.Vec.len cs
+  · rw [ite_eq_left hlt] at h
+    have hk := lt_of_lt_len hlt
+    peel h as c, hc
+    obtain ⟨_, rfl⟩ := vec_index_eq hc
+    peel h as c1, hc1
+    cases copy_dup2_ok hc1
+    peel h as sr, hsr
+    obtain ⟨hks, rfl⟩ := vec_index_eq hsr
+    peel h as sr1, hsr1
+    cases stmt_rec_dup_eq hsr1
+    peel h as cf, hcf
+    obtain ⟨hkk, rfl⟩ := vec_index_eq hcf
+    peel h as cf1, hcf1
+    cases c_kind_names_dup_eq hcf1
+    peel h as out1, hout1
+    peel h as k1, hk1
+    have ek1 := usize_succ hk1
+    have ih := read_infos_of_loop1_eq cs ss ks out1 k1 h
+    have hz : k.val < (cs.val.zip (ss.val.zip ks.val)).length := by simp; omega
+    rw [ih, ek1, ConRon.Refine.vec_push_val hout1, List.drop_eq_getElem_cons hz]
+    simp
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (by have := lt_of_not_lt_len hlt; simp; omega)]
+    simp
+termination_by cs.val.length - k.val
+decreasing_by
+  have := lt_of_lt_len hlt
+  omega
+
+theorem forall₂_zip_infos : ∀ (cs : List frontend.olean.index.Copy) (ss : List frontend.olean.spec.StmtRec)
+    (ks : List (frontend.olean.spec.CKindF arena.handle.NIdx Unit)) (b : List Arena.Frontend.Olean.StmtRec)
+    (bk : List (ConLeche.Frontend.Olean.CKindF NIdx Unit)),
+    List.Forall₂ (EqA absStmtRec) ss b → List.Forall₂ KindNamesRel ks bk →
+    List.Forall₂ CopyInfoRel (cs.zip (ss.zip ks)) ((cs.map absCopy).zip (b.zip bk))
+  | [], _, _, _, _, _, _ => by simp
+  | _ :: _, [], _, _, _, hb, _ => by cases hb; simp
+  | _ :: _, _ :: _, [], _, _, hb, hk => by cases hb; cases hk; simp
+  | c :: cs, s :: ss, k :: ks, _, _, hb, hk => by
+    cases hb with
+    | cons hs hb =>
+      cases hk with
+      | cons hk1 hk =>
+        simp only [List.zip_cons_cons, List.map_cons]
+        exact .cons ⟨rfl, hs.symm, hk1⟩ (forall₂_zip_infos cs ss ks _ _ hb hk)
+
+
+/-- The twin's insertion of one read copy. -/
+def insStep (m : Std.HashMap ConLeche.Frontend.Olean.Copy
+      (Arena.Frontend.Olean.StmtRec × ConLeche.Frontend.Olean.CKindF NIdx Unit))
+    (x : ConLeche.Frontend.Olean.Copy × Arena.Frontend.Olean.StmtRec × ConLeche.Frontend.Olean.CKindF NIdx Unit) :
+    Std.HashMap ConLeche.Frontend.Olean.Copy
+      (Arena.Frontend.Olean.StmtRec × ConLeche.Frontend.Olean.CKindF NIdx Unit) :=
+  m.insert x.1 (x.2.1, x.2.2)
+
+/-- The twin's insertion of one module's read copies. -/
+def insAll (m : Std.HashMap ConLeche.Frontend.Olean.Copy
+      (Arena.Frontend.Olean.StmtRec × ConLeche.Frontend.Olean.CKindF NIdx Unit))
+    (r : _root_.Array (ConLeche.Frontend.Olean.Copy × Arena.Frontend.Olean.StmtRec ×
+      ConLeche.Frontend.Olean.CKindF NIdx Unit)) :
+    Std.HashMap ConLeche.Frontend.Olean.Copy
+      (Arena.Frontend.Olean.StmtRec × ConLeche.Frontend.Olean.CKindF NIdx Unit) :=
+  r.toList.foldl insStep m
+
+theorem readInfos_eq (fs pk sp ld ix) (cs : _root_.Array ConLeche.Frontend.Olean.Copy) :
+    Arena.Frontend.Olean.readInfos fs pk sp ld ix cs =
+      (do let rs ← (Arena.Frontend.Olean.byModule cs).toList.mapM
+            (fun p => Arena.Frontend.Olean.readInfosOf fs pk sp ld ix p.1 p.2)
+          Pure.pure (rs.foldl insAll {})) := by
+  simp only [Arena.Frontend.Olean.readInfos, ← Array.foldl_toList]
+  rfl
+
+theorem read_infos_loop0_loop0_eq
+    (m : ron.hashmap2.HashMap2 frontend.olean.index.Copy
+      (frontend.olean.spec.StmtRec × frontend.olean.spec.CKindF arena.handle.NIdx Unit)) {M}
+    (hm : CMapRel InfoRel m M) (r : alloc.vec.Vec _) {R} (hr : List.Forall₂ CopyInfoRel r.val R)
+    (k : Std.Usize) {o} (h : read_infos_loop0_loop0 m r k = ok o) :
+    CMapRel InfoRel o ((R.drop k.val).foldl insStep M) := by
+  rw [read_infos_loop0_loop0] at h
+  have hlen := forall₂_length' hr
+  by_cases hlt : k < alloc.vec.Vec.len r
+  · rw [ite_eq_left hlt] at h
+    have hk := lt_of_lt_len hlt
+    peel h as x, hx
+    obtain ⟨_, hxe⟩ := vec_index_eq hx
+    obtain ⟨y, hy, hxy⟩ := forall₂_getElem? hr (List.getElem?_eq_getElem hk)
+    have hk' : k.val < R.length := by omega
+    have ey : R[k.val] = y := by rw [List.getElem?_eq_getElem hk'] at hy; exact Option.some.inj hy
+    rw [← hxe] at hxy
+    obtain ⟨c, sr, cf⟩ := x
+    dsimp only [Std.uncurry] at h
+    peel h as c1, hc1
+    cases copy_dup2_ok hc1
+    peel h as sr1, hsr1
+    cases stmt_rec_dup_eq hsr1
+    peel h as cf1, hcf1
+    cases c_kind_names_dup_eq hcf1
+    peel h as q, hq
+    obtain ⟨old, m1⟩ := q
+    peel h as k1, hk1
+    have ek1 := usize_succ hk1
+    obtain ⟨y1, y2, y3⟩ := y
+    obtain ⟨e1, e2⟩ := hxy
+    simp only at e1
+    have hm1 := hm.insert (v' := (y2, y3)) e2 hq
+    have ih := read_infos_loop0_loop0_eq m1 hm1 r hr k1 h
+    rw [ek1] at ih
+    rw [List.drop_eq_getElem_cons hk', List.foldl_cons, ey]
+    simpa [insStep, e1] using ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (by have := lt_of_not_lt_len hlt; omega)]
+    exact hm
+termination_by r.val.length - k.val
+decreasing_by
+  have := lt_of_lt_len hlt
+  omega
+
+theorem list_mapM_cons {m : Type → Type} [Monad m] [LawfulMonad m] {α β : Type} (a : α) (l : List α) (f : α → m β) :
+    (a :: l).mapM f = (do let b ← f a; let bs ← l.mapM f; Pure.pure (b :: bs)) := by
+  simp [List.mapM_cons]
+
+section reads
+variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
+
+/-- **`read_infos_of`'s accept is `readInfosOf`'s.** -/
+theorem read_infos_of_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
+    {ld ld'} (hld : HeaderLoadsRel ld ld') {ix ix'} (hix : NameIndexRel ix ix') {i : Std.U64}
+    (hi : i.val ≤ Std.Usize.max) {cs : alloc.vec.Vec frontend.olean.index.Copy}
+    (hcs : ∀ c ∈ cs.val, CopyFits c) :
+    AS pers (fun v A => List.Forall₂ CopyInfoRel v.val A.toList) st lst
+      (read_infos_of inst fsv pk pers st.store sp ld ix i cs)
+      (Arena.Frontend.Olean.readInfosOf fs (absPins pk) (absRoots sp) ld' ix' i.val
+        (cs.val.map absCopy).toArray) := by
+  intro hrel hinv a s' h
+  rw [read_infos_of] at h
+  peel h as m, hm
+  have em := header_loads_name_at_eq hld hi hm
+  peel h as level, hlevel
+  have el := header_loads_level_at_eq hld hi hlevel
+  peel h as locs1, hlocs1
+  have elocs := read_infos_of_loop0_eq hix cs hcs _ 0#usize hlocs1
+  have e0 : (alloc.vec.Vec.with_capacity Std.U64 (alloc.vec.Vec.len cs)).val = [] := rfl
+  rw [e0] at elocs
+  have z : (0#usize : Std.Usize).val = 0 := rfl
+  simp only [List.map_nil, List.nil_append, z, List.drop_zero] at elocs
+  peel h as r, hr
+  cases r with
+  | Err e => cases Result.ok_injective h
+  | Ok f =>
+    obtain ⟨n, hn⟩ := read_files_name hr
+    obtain ⟨f', hf', hfr⟩ := read_files_refines hfs hn hr
+    peel h as q1, hq1
+    obtain ⟨r1, ar1⟩ := q1
+    have hs := read_stmts_refines hfr (level := level) (cs := locs1) hrel hinv r1 ar1 hq1
+    cases r1 with
+    | Err re => cases re <;> (repeat (peel h as _, _)) <;> cases Result.ok_injective h
+    | Ok ss =>
+      obtain ⟨b, lst1, hx1, hb, hrel1, hinv1⟩ := hs
+      peel h as q2, hq2
+      obtain ⟨r2, ar2⟩ := q2
+      have hk := read_kinds_refines (st := withStore st ar1) hfr (level := level) (cs := locs1)
+        hrel1 hinv1 r2 ar2 hq2
+      cases r2 with
+      | Err re => cases re <;> (repeat (peel h as _, _)) <;> cases Result.ok_injective h
+      | Ok ks =>
+        obtain ⟨bk, lst2, hx2, hbk, hrel2, hinv2⟩ := hk
+        have ls := forall₂_length' hb
+        have lk := forall₂_length' hbk
+        dsimp only [Std.uncurry] at h
+        by_cases c1 : (alloc.vec.Vec.len ss != alloc.vec.Vec.len cs) = true
+        · rw [ite_eq_left c1] at h
+          repeat (peel h as _, _)
+          cases Result.ok_injective h
+        · rw [ite_eq_right c1] at h
+          by_cases c2 : (alloc.vec.Vec.len ks != alloc.vec.Vec.len cs) = true
+          · rw [ite_eq_left c2] at h
+            repeat (peel h as _, _)
+            cases Result.ok_injective h
+          · rw [ite_eq_right c2] at h
+            peel h as out1, hout1
+            have e := Result.ok_injective h
+            simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e
+            obtain ⟨rfl, rfl⟩ := e
+            have eo := read_infos_of_loop1_eq cs ss ks _ 0#usize hout1
+            have e0' : (alloc.vec.Vec.with_capacity (frontend.olean.index.Copy × frontend.olean.spec.StmtRec ×
+              frontend.olean.spec.CKindF arena.handle.NIdx Unit) (alloc.vec.Vec.len cs)).val = [] := rfl
+            rw [e0'] at eo
+            simp only [List.nil_append, z, List.drop_zero] at eo
+            have hss : ss.val.length = cs.val.length := by
+              have : ¬ ((alloc.vec.Vec.len ss).val ≠ (alloc.vec.Vec.len cs).val) := by
+                intro hne; exact c1 (by simpa [bne_iff_ne] using fun h => hne (congrArg _ h))
+              simp only [vec_len_val] at this; omega
+            have hks : ks.val.length = cs.val.length := by
+              have : ¬ ((alloc.vec.Vec.len ks).val ≠ (alloc.vec.Vec.len cs).val) := by
+                intro hne; exact c2 (by simpa [bne_iff_ne] using fun h => hne (congrArg _ h))
+              simp only [vec_len_val] at this; omega
+            refine ⟨((cs.val.map absCopy).zip (b.zip bk)).toArray, lst2, ?_, ?_, hrel2, hinv2⟩
+            · simp only [Arena.Frontend.Olean.readInfosOf]
+              rw [← em, ← el, am_bind_ok (read_name_run hrel hn)]
+              simp only [hf', Arena.Frontend.Olean.liftE, ← elocs]
+              rw [pure_bind, am_bind_ok hx1]
+              simp only []
+              rw [am_bind_ok hx2]
+              have c3 : (b.length == (cs.val.map absCopy).toArray.size && bk.length == (cs.val.map absCopy).toArray.size) = true := by
+                simp; omega
+              simp only [c3, ↓reduceIte]
+              simp
+              rfl
+            · show List.Forall₂ _ _ _
+              rw [eo]
+              simpa using forall₂_zip_infos cs.val ss.val ks.val b bk hb hbk
+
+
+theorem read_infos_loop0_refines (hfs : FsRel inst fsv fs) {pk pers} {sp : frontend.olean.files.Roots}
+    {ld ld'} (hld : HeaderLoadsRel ld ld') {ix ix'} (hix : NameIndexRel ix ix')
+    (groups : alloc.vec.Vec (Std.U64 × alloc.vec.Vec frontend.olean.index.Copy))
+    (hfit : ∀ p ∈ groups.val, p.1.val ≤ Std.Usize.max ∧ ∀ c ∈ p.2.val, CopyFits c)
+    (m : ron.hashmap2.HashMap2 frontend.olean.index.Copy
+      (frontend.olean.spec.StmtRec × frontend.olean.spec.CKindF arena.handle.NIdx Unit)) {M}
+    (hm : CMapRel InfoRel m M) (i : Std.Usize) (st : arena.monad.AState) (lst : AState) :
+    AS pers (fun o rs => CMapRel InfoRel o (rs.foldl insAll M)) st lst
+      (read_infos_loop0 inst fsv pk pers st.store sp ld ix groups m i)
+      (((groups.val.map absBM).drop i.val).mapM
+        (fun p => Arena.Frontend.Olean.readInfosOf fs (absPins pk) (absRoots sp) ld' ix' p.1 p.2)) := by
+  intro hrel hinv a s' h
+  rw [read_infos_loop0] at h
+  by_cases hlt : i < alloc.vec.Vec.len groups
+  · rw [ite_eq_left hlt] at h
+    have hi := lt_of_lt_len hlt
+    peel h as g, hg
+    obtain ⟨_, hge⟩ := vec_index_eq hg
+    have hgf := hfit g (by rw [hge]; exact List.getElem_mem hi)
+    obtain ⟨i2, v⟩ := g
+    dsimp only [Std.uncurry] at h
+    peel h as q, hq
+    obtain ⟨r, ar1⟩ := q
+    cases r with
+    | Err e => cases Result.ok_injective h
+    | Ok r1 =>
+      obtain ⟨b, lst1, hx, hb, hrel1, hinv1⟩ :=
+        read_infos_of_refines hfs hld hix hgf.1 hgf.2 hrel hinv r1 ar1 hq
+      peel h as m1, hm1
+      have hm1' := read_infos_loop0_loop0_eq m hm r1 hb 0#usize hm1
+      peel h as i3, hi3
+      have ei3 := usize_succ hi3
+      obtain ⟨rs, lst2, hx2, hrs, hrel2, hinv2⟩ :=
+        read_infos_loop0_refines hfs hld hix groups hfit m1 hm1' i3 (withStore st ar1) lst1 hrel1 hinv1 a s' h
+      rw [ei3] at hx2
+      refine ⟨b :: rs, lst2, ?_, ?_, hrel2, hinv2⟩
+      · rw [List.drop_eq_getElem_cons (by simpa using hi), list_mapM_cons, List.getElem_map, ← hge]
+        rw [am_bind_ok hx]
+        rw [am_bind_ok hx2]
+        rfl
+      · simpa [insAll] using hrs
+  · rw [ite_eq_right hlt] at h
+    have e := Result.ok_injective h
+    simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e
+    obtain ⟨rfl, rfl⟩ := e
+    refine ⟨[], lst, ?_, by simpa using hm, hrel, hinv⟩
+    rw [List.drop_of_length_le (by have := lt_of_not_lt_len hlt; simpa using this)]
+    rfl
+termination_by groups.val.length - i.val
+decreasing_by
+  have := lt_of_lt_len hlt
+  omega
+
+/-- **`read_infos`'s accept is `readInfos`'.** -/
+theorem read_infos_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
+    {ld ld'} (hld : HeaderLoadsRel ld ld') {ix ix'} (hix : NameIndexRel ix ix')
+    {cs : alloc.vec.Vec frontend.olean.index.Copy} (hcs : ∀ c ∈ cs.val, CopyFits c) :
+    AS pers (CMapRel InfoRel) st lst (read_infos inst fsv pk pers st.store sp ld ix cs)
+      (Arena.Frontend.Olean.readInfos fs (absPins pk) (absRoots sp) ld' ix' (cs.val.map absCopy).toArray) := by
+  intro hrel hinv a s' h
+  rw [read_infos] at h
+  peel h as groups, hgroups
+  obtain ⟨eg, fg⟩ := by_module_eq hcs hgroups
+  peel h as m, hm
+  obtain ⟨rs, lst1, hx, hrs, hrel1, hinv1⟩ :=
+    read_infos_loop0_refines hfs hld hix groups fg m (M := {}) (CMapRel.with_capacity hm) 0#usize st lst
+      hrel hinv a s' h
+  refine ⟨_, lst1, ?_, hrs, hrel1, hinv1⟩
+  rw [readInfos_eq, ← eg]
+  rw [am_bind_ok (by simpa using hx)]
+  rfl
+
+end reads
+
 end ConRon.Refine2.Frontend.Olean
