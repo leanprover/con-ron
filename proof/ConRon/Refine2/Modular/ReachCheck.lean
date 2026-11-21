@@ -14,10 +14,8 @@ accept only (`LA`, or between idle workers for the flags): their failures carry 
 twin builds with `readName`, which can fail at another kind.  The read order touches neither
 state on an accept, so it is related as data (`SortRel`, `USet`).
 
-`infer_flags` itself has no lemma here: it computes `first_owner` on the idle frozen worker
-OUTSIDE a bracket, where the Rust's state corresponds to the twin's with its scratch enabled
-(`AIdle`), not to the twin's own state, so no lockstep lemma applies to that call; the loop
-after it (`infer_flags_loop_la`) is related bracket by bracket.
+`infer_flags` (`infer_flags_la`) reads the owner map in a bracket of its own, then infers each
+statement in its own bracket (`infer_flags_loop_la`): between two idle workers, as a job.
 
 Each Rust `while` loop over a `Vec` is its own Aeneas `_loop`; its lemma is by induction on the
 distance to the end, against the twin's structural recursion on the list from the cursor
@@ -862,6 +860,62 @@ theorem infer_flags_loop_la {tier : arena.store.PersTier} {I : IStreamIndex}
       rw [hview] at hx2
       simp only [Modular.inferAll, StateT.run_bind, hx1, except_ok_bind, hx2, hx3, hx4]
 
+
+/-- **`infer_flags` ⊑ `inferFlags`, accepting**, between two idle workers at the frozen index
+`I`: the owner map read in a bracket of its own, then each recorded statement inferred in its
+own bracket at the view of the part of the context below its name. -/
+theorem infer_flags_la {tier st lst} {I : IStreamIndex}
+    (hidle : AIdle tier st lst) (hinv : AStateInv tier st) (htf : tier.frozen = true)
+    (hI : StreamIndexRel tier.env I ∧ FrozenRel tier.env I)
+    {ctx : alloc.vec.Vec arena.env.IDeclaration}
+    {pending : alloc.vec.Vec (alloc.vec.Vec Std.U32 × arena.handle.NIdx × frontend.olean.spec.StmtRec)}
+    {P : _root_.Array (String × NIdx × Arena.Frontend.Olean.StmtRec)}
+    (hP : List.Forall₂ PendRel pending.val P.toList) {st'}
+    (hrun : infer_flags tier st ctx pending = ok (.Ok (), st')) :
+    ∃ lst', (Modular.inferFlags I (absIDeclL ctx).toArray P).run lst = .ok ((), lst') ∧
+      AIdle tier st' lst' ∧ AStateInv tier st' := by
+  have hlen : P.size = pending.val.length := by
+    rw [← _root_.Array.length_toList]; exact hP.length_eq.symm
+  rw [infer_flags] at hrun
+  by_cases h0 : alloc.vec.Vec.len pending = 0#usize
+  · rw [ite_eq_left h0] at hrun
+    obtain ⟨-, rfl⟩ := Prod.mk.inj (Result.ok_injective hrun)
+    have hl : pending.val.length = 0 := by
+      have := congrArg UScalar.val h0; simpa [alloc.vec.Vec.len] using this
+    have hE : P.isEmpty = true := by
+      rw [_root_.Array.isEmpty_iff_size_eq_zero, hlen, hl]
+    refine ⟨lst, ?_, hidle, hinv⟩
+    simp only [Modular.inferFlags, hE]
+    rfl
+  · rw [ite_eq_right h0] at hrun
+    have hl : pending.val.length ≠ 0 := by
+      intro h; apply h0; apply UScalar.eq_of_val_eq; simpa [alloc.vec.Vec.len] using h
+    have hE : P.isEmpty = false := by
+      rw [Bool.eq_false_iff, ne_eq, _root_.Array.isEmpty_iff_size_eq_zero, hlen]; exact hl
+    obtain ⟨st1, hst1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := (enter_record_sim hidle hinv hst1).apply
+    obtain ⟨⟨ro, st2⟩, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have H := first_owner_ls hrel1 hinv1 ctx _ _ h2
+    obtain ⟨st3, hst3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    cases ro with
+    | Err e => err_contra hrun
+    | Ok m =>
+      obtain ⟨s, lst2, hx2, hown, hrel2, hinv2⟩ := H
+      obtain ⟨lst3, hx3, hidle3, hinv3⟩ := leave_record_rel hrel2 hinv2 htf hst3
+      obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hnv := lift_cast_u64_of_usize _ n hn
+      have hlenc : (alloc.vec.Vec.len ctx).val = ctx.val.length := by simp [alloc.vec.Vec.len]
+      obtain ⟨lst4, hx4, hidle4, hinv4⟩ :=
+        infer_flags_loop_la htf hI hown (by rw [hnv]; scalar_tac) pending _ (i := 0#usize) rfl
+          (by simpa using hP) hidle3 hinv3 st' hrun
+      refine ⟨lst4, ?_, hidle4, hinv4⟩
+      have hsz : ((absIDeclL ctx).toArray).size = n.val := by
+        rw [hnv, hlenc]; simp [absIDeclL]
+      simp only [Modular.inferFlags, hE, Bool.false_eq_true, ↓reduceIte]
+      rw [StateT.run_bind, show StateT.run (pure PUnit.unit : AM PUnit) lst = .ok (PUnit.unit, lst)
+        from rfl, except_ok_bind, StateT.run_bind, hx1, except_ok_bind, StateT.run_bind,
+        List.toList_toArray, hx2, except_ok_bind, StateT.run_bind, hx3, except_ok_bind, hsz]
+      exact hx4
 
 /-! ## The read order
 
