@@ -122,4 +122,92 @@ theorem storedNamesOk_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare 
       (denoteN_ext hh hst1.ext) (ListRel.mono' (fun _ _ h => denoteN_ext h hst1.ext) hns) k1
     exact ⟨hst1.trans hst2, cC', hstep _ hg2, hc'⟩
 
+/-! ## The clash rule -/
+
+theorem listRel_filterMap {α β γ δ : Type} {R : α → β → Prop} {S : γ → δ → Prop}
+    {f : α → Option γ} {g : β → Option δ} (hfg : ∀ a b, R a b → Option.Rel S (f a) (g b)) :
+    ∀ {l : List α} {lC : List β}, ListRel R l lC → ListRel S (l.filterMap f) (lC.filterMap g)
+  | [], [], .nil => .nil
+  | a :: l, b :: lC, .cons hab hl => by
+    have ih := listRel_filterMap hfg hl
+    rcases optRel_cases (hfg a b hab) with ⟨h1, h2⟩ | ⟨x, y, h1, h2, h3⟩
+    · simp only [List.filterMap_cons, h1, h2]; exact ih
+    · simp only [List.filterMap_cons, h1, h2]; exact .cons h3 ih
+
+/-- con-leche: none — one spot of a clash, with its statement and kind, read back. -/
+@[expose] def SpotInfoRel (st : EStore)
+    (a : ConRon.Arena.Modular.Spot × ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit)
+    (b : ConLeche.Driver.Spot × ConstantVal × CKindF ConLeche.Name Unit) : Prop :=
+  SpotRel st a.1 b.1 ∧ denoteStmt st a.2.1 = some b.2.1 ∧ denoteKindN st a.2.2 = some b.2.2
+
+/-- The upstream spots of a clash (`clashAgree`'s `spots`). -/
+@[expose] def clashSpotsC (envC : ConLeche.Driver.ReachEnv ModelIO) (cl : ConLeche.Frontend.Olean.Clash) :
+    List (ConLeche.Driver.Spot × ConstantVal × CKindF ConLeche.Name Unit) :=
+  cl.copies.toList.filterMap fun (cp, cv, k) =>
+    (envC.wr.index.at cp).map fun q =>
+      ((⟨⟨envC.wr.loads.nameAt cp.mod, ((envC.wr.loads.flags[cp.mod]?).getD default).level⟩, q⟩ :
+        ConLeche.Driver.Spot), cv, k)
+
+theorem clashSpots_rel {st : EStore} {pk : OleanPins} (hp : NullsRel st pk) {sp : Roots}
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    (he : EnvRel sp st env envC) {cl : ConRon.Arena.Frontend.Olean.Clash}
+    {clC : ConLeche.Frontend.Olean.Clash} (hcl : ClashRel st cl clC) :
+    ListRel (SpotInfoRel st) (ConRon.Arena.Modular.clashSpots pk env cl) (clashSpotsC envC clC) := by
+  unfold ConRon.Arena.Modular.clashSpots clashSpotsC
+  refine listRel_filterMap (fun a b hab => ?_) hcl.copies
+  obtain ⟨cp, cv, k⟩ := a
+  obtain ⟨cpC, cvC, kC⟩ := b
+  obtain ⟨h1, h2, h3⟩ := hab
+  dsimp only at h1 h2 h3 ⊢
+  subst h1
+  rcases optRel_cases (indexAt_rel he.wr.index cp) with ⟨g1, g2⟩ | ⟨q, qC, g1, g2, g3⟩
+  · rw [g1, g2]; exact .none
+  · rw [g1, g2]
+    refine .some ⟨⟨⟨loadsNameAt_rel hp he.wr.loads cp.mod, ?_⟩, g3⟩, h2, h3⟩
+    simp only [ConRon.Arena.Frontend.Olean.HeaderLoads.levelAt, he.wr.loads.flags]
+
+/-- con-leche: ConLeche/Driver/Reach.lean:470-476 clashAgree.statuses — **the copies' proof
+statuses**: the twin's two flags are whether upstream's list holds `no`, `yes`. -/
+theorem clashStatuses_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    {xs : List (ConRon.Arena.Modular.Spot × ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit)}
+    {xsC : List (ConLeche.Driver.Spot × ConstantVal × CKindF ConLeche.Name Unit)}
+    {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
+    {no yes no' yes' : Bool} {acc : List ConLeche.Driver.ProofStatus} {s s' : AState}
+    (hctx : RCtx pk s) (he : EnvRel sp s.store env envC) (hc : CacheRel s.store c cC)
+    (hxs : ListRel (SpotInfoRel s.store) xs xsC) (hno : no = acc.contains .no)
+    (hyes : yes = acc.contains .yes)
+    (hrun : ConRon.Arena.Modular.clashStatuses (modelFs F) pk sp env c no yes xs s =
+      .ok ((c', no', yes'), s')) :
+    DStep s s' ∧ ∃ cC' ps, ModelIO.Gives (ConLeche.Driver.clashAgree.statuses envC cC xsC acc) F
+      (cC', .ok ps) ∧ CacheRel s'.store c' cC' ∧ no' = ps.contains .no ∧ yes' = ps.contains .yes := by
+  induction xs generalizing xsC c cC no yes acc s with
+  | nil =>
+    cases hxs
+    rw [ConRon.Arena.Modular.clashStatuses] at hrun
+    obtain ⟨hv, rfl⟩ := AM.pure_ok hrun
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨rfl, rfl, rfl⟩ := hv
+    exact ⟨DStep.refl hctx.ok hctx.off, cC, acc,
+      by rw [ConLeche.Driver.clashAgree.statuses]; exact ModelIO.gives_pure _ _, hc, hno, hyes⟩
+  | cons a xs ih =>
+    cases hxs with
+    | @cons _ b _ xsC hx hxs =>
+    obtain ⟨sq, cv, k⟩ := a
+    obtain ⟨sqC, cvC, kC⟩ := b
+    rw [ConRon.Arena.Modular.clashStatuses] at hrun
+    obtain ⟨cp, s₁, g1, k1⟩ := AM.bind_ok hrun
+    obtain ⟨c₁, p⟩ := cp
+    obtain ⟨hst1, cC₁, hg1, hc1⟩ := proofStatus_run hsp hctx he hc hx.1 hx.2.2 g1
+    have hctx1 := hctx.step hst1
+    have hxs1 : ListRel (SpotInfoRel s₁.store) xs xsC := ListRel.mono' (fun _ _ h =>
+      ⟨h.1.ext hst1.ext, denoteStmt_ext hst1.ext h.2.1, denoteKindN_ext hst1.ext h.2.2⟩) hxs
+    obtain ⟨hst2, cC', ps, hg2, hc', hn', hy'⟩ := ih hctx1 (he.ext hst1.ext hctx1.wf) hc1 hxs1
+      (acc := psC p :: acc)
+      (by rw [statusIs_no, hno]; cases p <;> simp only [List.contains_cons, psC] <;> generalize acc.contains _ = b <;> cases b <;> rfl)
+      (by rw [statusIs_yes, hyes]; cases p <;> simp only [List.contains_cons, psC] <;> generalize acc.contains _ = b <;> cases b <;> rfl) k1
+    refine ⟨hst1.trans hst2, cC', ps, ?_, hc', hn', hy'⟩
+    rw [ConLeche.Driver.clashAgree.statuses]
+    exact hg1.bind hg2
+
 end ConRon.Bridge.Modular
