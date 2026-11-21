@@ -772,4 +772,493 @@ theorem header_fixpoint_refines (hfs : FsRel inst fsv fs) {st : arena.monad.ASta
 
 end walk
 
+/-! ## The `ModSet` operations -/
+
+section ModSet
+open ConLeche.Frontend.Olean (ModSet)
+
+theorem absChunk_size' (s : alloc.vec.Vec Std.U8) : (absChunk s).size = s.val.length := by
+  simp [absChunk, ByteArray.size]
+
+theorem absChunk_get! (s : alloc.vec.Vec Std.U8) (k : Nat) :
+    (absChunk s).get! k = if h : k < s.val.length then absByte s.val[k] else 0 := by
+  simp only [absChunk, ByteArray.get!]
+  split
+  · next h => simp [h]
+  · next h => simp [h]; rfl
+
+theorem absChunk_set (s : alloc.vec.Vec Std.U8) (k : Std.Usize) (x : Std.U8) :
+    absChunk (alloc.vec.Vec.set s k x) = (absChunk s).set! k.val (absByte x) := by
+  simp [absChunk, ByteArray.set!, alloc.vec.Vec.set, List.map_set]
+
+theorem cast_usize_fit {x : Std.U64} {b : Std.Usize} (hx : x.val ≤ Std.Usize.max)
+    (h : lift (UScalar.cast .Usize x) = (ok b : Result Std.Usize)) : b.val = x.val := by
+  rw [← ConRon.Refine.ExprOps.u64_cast_usize_val hx]
+  exact congrArg Aeneas.Std.UScalar.val (Result.ok_injective h).symm
+
+theorem cast_u8_lt8 {x : Std.U64} {b : Std.U8} (hx : x.val < 8)
+    (h : lift (UScalar.cast .U8 x) = (ok b : Result Std.U8)) : b.val = x.val := by
+  simp only [lift, Result.ok.injEq] at h
+  subst h
+  rw [UScalar.cast_val_eq]
+  apply Nat.mod_eq_of_lt
+  have : (2 : Nat) ^ UScalarTy.U8.numBits = 256 := rfl
+  omega
+
+theorem shr_val {x y z : Std.U8} (hy : y.val < 8) (h : x >>> y = ok z) : z.val = x.val >>> y.val := by
+  have := UScalar.ShiftRight_spec x y (by simpa using hy)
+  rw [h, Aeneas.Std.WP.spec_ok] at this
+  exact this.1
+
+theorem shl_val {x y z : Std.U8} (hy : y.val < 8) (h : x <<< y = ok z) :
+    z.val = (x.val <<< y.val) % 256 := by
+  have := UScalar.ShiftLeft_spec x y 256 (by simpa using hy) (by simp [U8.size, U8.numBits])
+  rw [h, Aeneas.Std.WP.spec_ok] at this
+  exact this.1
+
+/-- **`mod_set_has` is `ModSet.has`**, at a position whose byte index fits a `usize`. -/
+theorem mod_set_has_eq {s : alloc.vec.Vec Std.U8} {i : Std.U64} {o : Bool}
+    (hi : i.val / 8 ≤ Std.Usize.max) (h : mod_set_has s i = ok o) :
+    o = ModSet.has (absChunk s) i.val := by
+  rw [mod_set_has] at h
+  peel h as i1, hi1
+  have e1 : i1.val = i.val / 8 := ConRon.Refine.Nat.udiv_val hi1
+  peel h as b, hb
+  have eb : b.val = i.val / 8 := by rw [cast_usize_fit (by omega) hb, e1]
+  unfold ModSet.has
+  rw [absChunk_get!]
+  by_cases hlt : b < alloc.vec.Vec.len s
+  · rw [ite_eq_left hlt] at h
+    have hlt' : i.val / 8 < s.val.length := by
+      have : b.val < (alloc.vec.Vec.len s).val := hlt
+      rw [vec_len_val] at this; omega
+    simp only [hlt', ↓reduceDIte]
+    peel h as i3, hi3
+    obtain ⟨_, rfl⟩ := vec_index_eq hi3
+    peel h as i4, hi4
+    have e4 : i4.val = i.val % 8 := ConRon.Refine.Nat.urem_val hi4
+    peel h as i5, hi5
+    have e5 : i5.val = i.val % 8 := by rw [cast_u8_lt8 (by omega) hi5, e4]
+    peel h as i6, hi6
+    have e6 := shr_val (by omega) hi6
+    peel h as i7, hi7
+    simp only [lift, Result.ok.injEq] at hi7
+    subst hi7
+    cases Result.ok_injective h
+    simp only [eb] at e6
+    have key : ∀ (u : Std.U8) (c : UInt8), u.val = c.toNat → (decide (u = 1#u8) = (c == 1)) := by
+      intro u c hu
+      by_cases hc : c = 1
+      · subst hc
+        have : u = 1#u8 := UScalar.eq_of_val_eq (by rw [hu]; rfl)
+        simp [this]
+      · have : u ≠ 1#u8 := fun he => hc (UInt8.toNat_inj.mp (by rw [← hu, he]; rfl))
+        simp [this, hc]
+    apply key
+    rw [UScalar.val_and, UInt8.toNat_and, UInt8.toNat_shiftRight, absByte_toNat, e6, e5]
+    have l1 : (1#u8 : Std.U8).val = 1 := by decide
+    rw [l1]
+    simp
+  · rw [ite_eq_right hlt] at h
+    have hlt' : ¬ i.val / 8 < s.val.length := by
+      have : ¬ b.val < (alloc.vec.Vec.len s).val := hlt
+      rw [vec_len_val] at this; omega
+    simp only [hlt', ↓reduceDIte]
+    cases Result.ok_injective h
+    have z : ∀ j : UInt8, ((0 : UInt8) >>> j &&& 1 == 1) = false := by decide
+    rw [z]
+
+theorem absByte_shl1 {i6 : Std.U8} {j : Nat} (hj : j < 8) (e : i6.val = (1 <<< j) % 256) :
+    absByte i6 = (1 : UInt8) <<< j.toUInt8 := by
+  apply UInt8.toNat_inj.mp
+  rw [absByte_toNat, e, UInt8.toNat_shiftLeft]
+  simp [Nat.mod_eq_of_lt (show j < 256 by omega), Nat.mod_eq_of_lt hj]
+
+/-- **`mod_set_add` is `ModSet.add`**, at a position whose byte index fits a `usize`. -/
+theorem mod_set_add_eq {s : alloc.vec.Vec Std.U8} {i : Std.U64} {o}
+    (hi : i.val / 8 ≤ Std.Usize.max) (h : mod_set_add s i = ok o) :
+    absChunk o = ModSet.add (absChunk s) i.val := by
+  rw [mod_set_add] at h
+  peel h as i1, hi1
+  have e1 : i1.val = i.val / 8 := ConRon.Refine.Nat.udiv_val hi1
+  peel h as b, hb
+  have eb : b.val = i.val / 8 := by rw [cast_usize_fit (by omega) hb, e1]
+  unfold ModSet.add
+  rw [absChunk_size']
+  by_cases hlt : b < alloc.vec.Vec.len s
+  · rw [ite_eq_left hlt] at h
+    have hlt' : i.val / 8 < s.val.length := by
+      have : b.val < (alloc.vec.Vec.len s).val := hlt
+      rw [vec_len_val] at this; omega
+    simp only [hlt', ↓reduceIte]
+    peel h as i3, hi3
+    obtain ⟨_, rfl⟩ := vec_index_eq hi3
+    peel h as i4, hi4
+    have e4 : i4.val = i.val % 8 := ConRon.Refine.Nat.urem_val hi4
+    peel h as i5, hi5
+    have e5 : i5.val = i.val % 8 := by rw [cast_u8_lt8 (by omega) hi5, e4]
+    peel h as i6, hi6
+    have e6 := shl_val (by omega) hi6
+    peel h as p, hp
+    obtain ⟨_, back⟩ := p
+    obtain ⟨-, -, rfl⟩ := ConRon.Refine.HashMap.vec_index_mut_eq hp
+    peel h as i7, hi7
+    simp only [lift, Result.ok.injEq] at hi7
+    subst hi7
+    cases Result.ok_injective h
+    rw [absChunk_set, absByte_or, absByte_shl1 (i6 := i6) (j := i.val % 8) (by omega) (by rw [e6, e5]; rfl), absChunk_get!]
+    simp only [eb, hlt', ↓reduceDIte]
+  · rw [ite_eq_right hlt] at h
+    have hlt' : ¬ i.val / 8 < s.val.length := by
+      have : ¬ b.val < (alloc.vec.Vec.len s).val := hlt
+      rw [vec_len_val] at this; omega
+    simp only [hlt', ↓reduceIte]
+    cases Result.ok_injective h
+    rfl
+
+theorem mod_set_empty_loop_eq (k : Std.Usize) (s : alloc.vec.Vec Std.U8) (i : Std.Usize)
+    (hs : s.val = List.replicate i.val 0#u8) (hi : i.val ≤ k.val) {o}
+    (h : mod_set_empty_loop k s i = ok o) : o.val = List.replicate k.val 0#u8 := by
+  rw [mod_set_empty_loop] at h
+  by_cases hlt : i < k
+  · rw [ite_eq_left hlt] at h
+    have hlt' : i.val < k.val := hlt
+    peel h as s1, hs1
+    peel h as i1, hi1
+    have hi1v : i1.val = i.val + 1 := by rw [ConRon.Refine.Nat.uadd_val hi1]; rfl
+    refine mod_set_empty_loop_eq k s1 i1 ?_ (by omega) h
+    rw [ConRon.Refine.vec_push_val hs1, hs, hi1v, List.replicate_succ']
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have : i.val = k.val := by have : ¬ i.val < k.val := hlt; omega
+    rw [hs, this]
+termination_by k.val - i.val
+decreasing_by have : i.val < k.val := hlt; omega
+
+/-- **`mod_set_empty` is `ModSet.empty`**, over a size whose bytes fit a `usize`. -/
+theorem mod_set_empty_eq {n : Std.U64} {o} (hn : (n.val + 7) / 8 ≤ Std.Usize.max)
+    (h : mod_set_empty n = ok o) : absChunk o = ModSet.empty n.val := by
+  rw [mod_set_empty] at h
+  peel h as i, hi
+  have ei : i.val = n.val + 7 := by rw [ConRon.Refine.Nat.uadd_val hi]; rfl
+  peel h as i1, hi1
+  have e1 : i1.val = i.val / 8 := ConRon.Refine.Nat.udiv_val hi1
+  peel h as k, hk
+  have ek : k.val = (n.val + 7) / 8 := by rw [cast_usize_fit (by omega) hk, e1, ei]
+  have := mod_set_empty_loop_eq k _ 0#usize (by simp [alloc.vec.Vec.with_capacity]) (by simp) h
+  unfold ModSet.empty
+  simp only [absChunk, this, ek, List.map_replicate]
+  rfl
+
+theorem bytearray_set!_oob {b : ByteArray} {k : Nat} {v : UInt8} (hk : b.size ≤ k) : b.set! k v = b := by
+  obtain ⟨arr⟩ := b
+  simp only [ByteArray.set!, ByteArray.size] at *
+  congr 1
+  simp [Array.set!, Array.setIfInBounds, show ¬ k < arr.size by omega]
+
+theorem nat_fold_congr {α : Type} {n m : Nat} (g : Nat → α → α) (S : α) (h : n = m) :
+    Nat.fold n (fun i _ x => g i x) S = Nat.fold m (fun i _ x => g i x) S := by
+  subst h; rfl
+
+/-- One step of `ModSet.union`. -/
+@[reducible] def unionStep (T : ByteArray) (j : Nat) (x : ByteArray) : ByteArray :=
+  x.set! j (x.get! j ||| T.get! j)
+
+theorem mod_set_union_loop_eq (t s : alloc.vec.Vec Std.U8) (k : Std.Usize) (S : ByteArray)
+    (hk : k.val ≤ t.val.length)
+    (hs : absChunk s = Nat.fold k.val (fun j _ x => unionStep (absChunk t) j x) S) {o}
+    (h : mod_set_union_loop t s k = ok o) :
+    absChunk o = Nat.fold t.val.length (fun j _ x => unionStep (absChunk t) j x) S := by
+  rw [mod_set_union_loop] at h
+  by_cases hlt : k < alloc.vec.Vec.len t
+  · rw [ite_eq_left hlt] at h
+    have hlt' : k.val < t.val.length := by
+      have : k.val < (alloc.vec.Vec.len t).val := hlt
+      rwa [vec_len_val] at this
+    peel h as s1, hs1
+    peel h as k1, hk1
+    have hk1v : k1.val = k.val + 1 := by rw [ConRon.Refine.Nat.uadd_val hk1]; rfl
+    refine mod_set_union_loop_eq t s1 k1 S (by omega) ?_ h
+    rw [hk1v, Nat.fold_succ, ← hs]
+    show absChunk s1 = unionStep (absChunk t) k.val (absChunk s)
+    by_cases hls : k < alloc.vec.Vec.len s
+    · rw [ite_eq_left hls] at hs1
+      have hls' : k.val < s.val.length := by
+        have : k.val < (alloc.vec.Vec.len s).val := hls
+        rwa [vec_len_val] at this
+      peel hs1 as i2, hi2
+      obtain ⟨_, rfl⟩ := vec_index_eq hi2
+      peel hs1 as i3, hi3
+      obtain ⟨_, rfl⟩ := vec_index_eq hi3
+      peel hs1 as p, hp
+      obtain ⟨_, back⟩ := p
+      obtain ⟨-, -, rfl⟩ := ConRon.Refine.HashMap.vec_index_mut_eq hp
+      peel hs1 as i4, hi4
+      simp only [lift, Result.ok.injEq] at hi4
+      subst hi4
+      cases Result.ok_injective hs1
+      rw [absChunk_set, absByte_or, unionStep, absChunk_get!, absChunk_get!]
+      simp only [hls', hlt', ↓reduceDIte]
+    · rw [ite_eq_right hls] at hs1
+      cases Result.ok_injective hs1
+      have hls' : s.val.length ≤ k.val := by
+        have : ¬ k.val < (alloc.vec.Vec.len s).val := hls
+        rw [vec_len_val] at this; omega
+      rw [unionStep, bytearray_set!_oob (by rw [absChunk_size']; exact hls')]
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have : k.val = t.val.length := by
+      have : ¬ k.val < (alloc.vec.Vec.len t).val := hlt
+      rw [vec_len_val] at this; omega
+    rw [hs]
+    exact nat_fold_congr _ _ this
+termination_by t.val.length - k.val
+decreasing_by
+  have : k.val < (alloc.vec.Vec.len t).val := hlt
+  rw [vec_len_val] at this
+  omega
+
+/-- **`mod_set_union` is `ModSet.union`.** -/
+theorem mod_set_union_eq {s t : alloc.vec.Vec Std.U8} {o} (h : mod_set_union s t = ok o) :
+    absChunk o = ModSet.union (absChunk s) (absChunk t) := by
+  rw [mod_set_union] at h
+  have := mod_set_union_loop_eq t s 0#usize (absChunk s) (Nat.zero_le _) rfl h
+  rw [this]
+  unfold ModSet.union
+  exact nat_fold_congr (unionStep (absChunk t)) _ (absChunk_size' t).symm
+
+end ModSet
+
+/-! ## The public-import closures -/
+
+section Pub
+open ConLeche.Frontend.Olean (ModSet)
+
+/-- One import of `pubClosures`'s inner fold. -/
+def pubStep (ld : Arena.Frontend.Olean.HeaderLoads) (acc : _root_.Array ModSet) (s : ModSet)
+    (imp : ConLeche.Frontend.Olean.ImportF NIdx) : ModSet :=
+  if !imp.isExported then s else
+  match ld.index[imp.module]? with
+  | some j => if j < acc.size then s.union acc[j]! else s.add j
+  | none => s
+
+/-- One module of `pubClosures`'s outer fold. -/
+def pubAt (ld : Arena.Frontend.Olean.HeaderLoads) (acc : _root_.Array ModSet) (i : Nat) :
+    _root_.Array ModSet :=
+  acc.push (((ld.imports[i]?).getD #[]).foldl (pubStep ld acc) ((ModSet.empty ld.order.size).add i))
+
+theorem pubClosures_eq (ld : Arena.Frontend.Olean.HeaderLoads) :
+    Arena.Frontend.Olean.pubClosures ld =
+      (List.range ld.order.size).foldl (pubAt ld) (_root_.Array.mkEmpty ld.order.size) := rfl
+
+/-- The twin's load positions are positions of its order. -/
+abbrev IndexFits (ld : Arena.Frontend.Olean.HeaderLoads) : Prop :=
+  ∀ (m : NIdx) (j : Nat), ld.index[m]? = some j → j < ld.order.size
+
+theorem ofStateGo_index_lt (fm : _root_.Std.HashMap NIdx ConLeche.Frontend.Olean.LoadFlags) :
+    ∀ (ms : List NIdx) (i : Nat) im fl is (ix : _root_.Std.HashMap NIdx Nat),
+      (∀ (m : NIdx) (j : Nat), ix[m]? = some j → j < i) →
+      ∀ (m : NIdx) (j : Nat), (Arena.Frontend.Olean.HeaderLoads.ofStateGo fm ms i im fl is ix).2.2[m]? = some j →
+        j < i + ms.length := by
+  intro ms
+  induction ms with
+  | nil => intro i im fl is ix hix m j h; simpa using hix m j h
+  | cons x ms ih =>
+    intro i im fl is ix hix m j h
+    rw [Arena.Frontend.Olean.HeaderLoads.ofStateGo] at h
+    have := ih (i + 1) _ _ _ _ (fun m' j' h' => by
+      rw [_root_.Std.HashMap.getElem?_insert] at h'
+      split at h'
+      · cases h'; omega
+      · have := hix m' j' h'; omega) m j h
+    simp only [List.length_cons]; omega
+
+/-- **`HeaderLoads.ofState`'s positions fit its order.** -/
+theorem ofState_index_fits (st : Arena.Frontend.Olean.LvState) :
+    IndexFits (Arena.Frontend.Olean.HeaderLoads.ofState st) := by
+  intro m j h
+  have := ofStateGo_index_lt st.flags st.order.toList 0 st.imports #[] #[] {}
+    (fun m j h => by simp at h) m j h
+  simpa [Arena.Frontend.Olean.HeaderLoads.ofState] using this
+
+/-- The relation of the closures computed so far. -/
+abbrev AccA (acc : alloc.vec.Vec (alloc.vec.Vec Std.U8)) (A : _root_.Array ModSet) : Prop :=
+  acc.val.map absChunk = A.toList
+
+theorem order_fits {ld : frontend.olean.levels.HeaderLoads} {ld' : Arena.Frontend.Olean.HeaderLoads}
+    (hR : HeaderLoadsRel ld ld') : ld'.order.size = ld.order.val.length ∧ ld.order.val.length ≤ Std.Usize.max := by
+  refine ⟨?_, ld.order.property⟩
+  rw [← _root_.Array.length_toList, ← hR.order, List.length_map]
+
+/-- **`pub_closure_step` is `pubStep`.** -/
+theorem pub_closure_step_eq {ld : frontend.olean.levels.HeaderLoads} {ld' : Arena.Frontend.Olean.HeaderLoads}
+    (hR : HeaderLoadsRel ld ld') (hw : IndexFits ld')
+    {acc : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {A : _root_.Array ModSet} (ha : AccA acc A)
+    {s : alloc.vec.Vec Std.U8} {imp : frontend.olean.spec.ImportF arena.handle.NIdx} {o}
+    (h : pub_closure_step ld acc s imp = ok o) :
+    absChunk o = pubStep ld' A (absChunk s) (absImportF absNIdx imp) := by
+  rw [pub_closure_step] at h
+  unfold pubStep
+  by_cases he : imp.is_exported = true
+  · rw [ite_eq_left he] at h
+    simp only [absImportF, he, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+    peel h as r, hr
+    have er := hR.index.get_eq hr
+    rw [← er]
+    cases r with
+    | none => cases Result.ok_injective h; rfl
+    | some j =>
+      dsimp only at h ⊢
+      have hjl : j.val < ld.order.val.length := by
+        have := hw _ _ er.symm
+        rw [(order_fits hR).1] at this; exact this
+      have hjm : j.val ≤ Std.Usize.max := by have := (order_fits hR).2; omega
+      have hAs : A.size = acc.val.length := by
+        rw [← _root_.Array.length_toList, ← ha, List.length_map]
+      peel h as i, hi
+      have ei := cast_usize_fit hjm hi
+      by_cases hlt : i < alloc.vec.Vec.len acc
+      · rw [ite_eq_left hlt] at h
+        have hlt' : j.val < acc.val.length := by
+          have : i.val < (alloc.vec.Vec.len acc).val := hlt
+          rw [vec_len_val] at this; omega
+        simp only [Option.map_some, show j.val < A.size by omega, ↓reduceIte]
+        peel h as i2, hi2
+        have ei2 := cast_usize_fit hjm hi2
+        peel h as v, hv
+        obtain ⟨hb, rfl⟩ := vec_index_eq hv
+        rw [mod_set_union_eq h]
+        congr 1
+        have eA : A = (acc.val.map absChunk).toArray := by
+          apply _root_.Array.ext'; rw [← ha]
+        subst eA
+        simp [ei2, hlt']
+      · rw [ite_eq_right hlt] at h
+        have hlt' : ¬ j.val < acc.val.length := by
+          have : ¬ i.val < (alloc.vec.Vec.len acc).val := hlt
+          rw [vec_len_val] at this; omega
+        simp only [Option.map_some, show ¬ j.val < A.size by omega, ↓reduceIte]
+        exact mod_set_add_eq (by omega) h
+  · rw [ite_eq_right he] at h
+    cases Result.ok_injective h
+    have : imp.is_exported = false := by simpa using he
+    simp [absImportF, this]
+
+theorem pub_closure_at_loop_eq {ld : frontend.olean.levels.HeaderLoads}
+    {ld' : Arena.Frontend.Olean.HeaderLoads} (hR : HeaderLoadsRel ld ld') (hw : IndexFits ld')
+    {acc : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {A : _root_.Array ModSet} (ha : AccA acc A)
+    (imps : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))
+    (s : alloc.vec.Vec Std.U8) (k : Std.Usize) {o}
+    (h : pub_closure_at_loop ld.order ld.flags ld.imports ld.index acc s imps k = ok o) :
+    absChunk o = ((imps.val.drop k.val).map (absImportF absNIdx)).foldl (pubStep ld' A) (absChunk s) := by
+  rw [pub_closure_at_loop] at h
+  by_cases hlt : k < alloc.vec.Vec.len imps
+  · rw [ite_eq_left hlt] at h
+    have hlt' : k.val < imps.val.length := by
+      have : k.val < (alloc.vec.Vec.len imps).val := hlt
+      rwa [vec_len_val] at this
+    peel h as x, hx
+    obtain ⟨_, rfl⟩ := vec_index_eq hx
+    peel h as s1, hs1
+    have e1 := pub_closure_step_eq hR hw ha hs1
+    peel h as k1, hk1
+    have hk1v : k1.val = k.val + 1 := by rw [ConRon.Refine.Nat.uadd_val hk1]; rfl
+    have ih := pub_closure_at_loop_eq hR hw ha imps s1 k1 h
+    rw [ih, hk1v, e1, List.drop_eq_getElem_cons hlt', List.map_cons, List.foldl_cons]
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have hle : imps.val.length ≤ k.val := by
+      have : ¬ k.val < (alloc.vec.Vec.len imps).val := hlt
+      rw [vec_len_val] at this; omega
+    rw [List.drop_of_length_le hle]; rfl
+termination_by imps.val.length - k.val
+decreasing_by
+  have : k.val < (alloc.vec.Vec.len imps).val := hlt
+  rw [vec_len_val] at this
+  omega
+
+/-- **`pub_closure_at` is one module of `pubClosures`.** -/
+theorem pub_closure_at_eq {ld : frontend.olean.levels.HeaderLoads}
+    {ld' : Arena.Frontend.Olean.HeaderLoads} (hR : HeaderLoadsRel ld ld') (hw : IndexFits ld')
+    {acc : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {A : _root_.Array ModSet} (ha : AccA acc A)
+    {i : Std.Usize} {o} (h : pub_closure_at ld acc i = ok o) :
+    absChunk o = ((ld'.imports[i.val]?).getD #[]).foldl (pubStep ld' A)
+      ((ModSet.empty ld'.order.size).add i.val) := by
+  rw [pub_closure_at] at h
+  obtain ⟨eo, hmax⟩ := order_fits hR
+  peel h as n, hn
+  have en : n.val = ld.order.val.length := by
+    simp only [lift, Result.ok.injEq] at hn
+    subst hn
+    rw [usize_cast_u64_val', vec_len_val]
+  peel h as v, hv
+  have ev := mod_set_empty_eq (by omega) hv
+  peel h as i2, hi2
+  have ei2 : i2.val = i.val := by
+    simp only [lift, Result.ok.injEq] at hi2
+    subst hi2
+    rw [usize_cast_u64_val']
+  peel h as s, hs
+  have es := mod_set_add_eq (by have := i.hBounds; rw [ei2]; scalar_tac) hs
+  rw [ev, en, ei2, ← eo] at es
+  have eI : ld'.imports[i.val]? = (ld.imports.val.map absImports)[i.val]? := by
+    rw [hR.imports]; simp
+  by_cases hlt : i < alloc.vec.Vec.len ld.imports
+  · rw [ite_eq_left hlt] at h
+    peel h as imps, himps
+    obtain ⟨hb, rfl⟩ := vec_index_eq himps
+    rw [pub_closure_at_loop_eq hR hw ha _ s _ h, eI, List.getElem?_map, List.getElem?_eq_getElem hb]
+    simp [absImports, es]
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have hle : ld.imports.val.length ≤ i.val := by
+      have : ¬ i.val < (alloc.vec.Vec.len ld.imports).val := hlt
+      rw [vec_len_val] at this; omega
+    rw [eI, List.getElem?_eq_none (by simpa using hle)]
+    simpa using es
+
+theorem pub_closures_loop_eq {ld : frontend.olean.levels.HeaderLoads}
+    {ld' : Arena.Frontend.Olean.HeaderLoads} (hR : HeaderLoadsRel ld ld') (hw : IndexFits ld')
+    (n : Std.Usize) (acc : alloc.vec.Vec (alloc.vec.Vec Std.U8)) {A : _root_.Array ModSet}
+    (ha : AccA acc A) (i : Std.Usize) {o}
+    (h : pub_closures_loop ld.order ld.flags ld.imports ld.index n acc i = ok o) :
+    AccA o ((List.range' i.val (n.val - i.val)).foldl (pubAt ld') A) := by
+  rw [pub_closures_loop] at h
+  by_cases hlt : i < n
+  · rw [ite_eq_left hlt] at h
+    have hlt' : i.val < n.val := hlt
+    peel h as s, hs
+    have es := pub_closure_at_eq hR hw ha hs
+    peel h as acc1, hacc1
+    peel h as i1, hi1
+    have hi1v : i1.val = i.val + 1 := by rw [ConRon.Refine.Nat.uadd_val hi1]; rfl
+    have ha1 : AccA acc1 (pubAt ld' A i.val) := by
+      show acc1.val.map absChunk = _
+      rw [ConRon.Refine.vec_push_val hacc1, List.map_append, ha, pubAt, List.map_singleton, es]
+      simp
+    have ih := pub_closures_loop_eq hR hw n acc1 ha1 i1 h
+    rw [hi1v] at ih
+    have e : n.val - i.val = (n.val - (i.val + 1)) + 1 := by omega
+    rw [e, List.range'_succ, List.foldl_cons]
+    exact ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have : n.val - i.val = 0 := by have : ¬ i.val < n.val := hlt; omega
+    rw [this]
+    exact ha
+termination_by n.val - i.val
+decreasing_by have : i.val < n.val := hlt; omega
+
+/-- **`pub_closures` is `pubClosures`**, on loads whose positions fit their order
+(`ofState_index_fits`). -/
+theorem pub_closures_eq {ld : frontend.olean.levels.HeaderLoads}
+    {ld' : Arena.Frontend.Olean.HeaderLoads} (hR : HeaderLoadsRel ld ld') (hw : IndexFits ld') {o}
+    (h : pub_closures ld = ok o) : AccA o (Arena.Frontend.Olean.pubClosures ld') := by
+  rw [pub_closures] at h
+  have := pub_closures_loop_eq hR hw _ _ (A := #[]) (by simp [AccA, alloc.vec.Vec.with_capacity]) _ h
+  rw [pubClosures_eq, List.range_eq_range', (order_fits hR).1]
+  simpa [vec_len_val] using this
+
+end Pub
+
 end ConRon.Refine2.Frontend.Olean
