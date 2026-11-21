@@ -5,6 +5,8 @@ public import ConRon.Arena.Frontend.Olean.Records
 public import ConRon.Arena.OleanJobs
 public import ConRon.Arena.Frontend.Compare
 public import ConRon.Arena.Modular.Graph
+public import ConRon.Arena.Modular.Worker
+public import ConRon.Arena.Modular.CompareModule
 public import ConLeche.Driver.Schedule.Run
 public import ConLeche.Kernel.NatOpPins
 public import ConLeche.Frontend.Pace
@@ -930,7 +932,7 @@ def chalWalk (trusted path : List System.FilePath) (pk : Frontend.Olean.OleanPin
     AM (Option CheckError) := fun s =>
   if trusted.isEmpty then .ok (none, s) else
   let sr : ConLeche.Frontend.Olean.Roots := { path := trusted, fallback := path }
-  match Modular.graphOf stdFs pk { path := trusted } [c] none s with
+  match Modular.chalWalk stdFs pk { path := trusted } c s with
   | .ok (_, s') => .ok (none, s')
   | .error e =>
     match fallbackOnly trusted sr c s with
@@ -1004,6 +1006,148 @@ def scheduleMain (a : Args) (root : Name) (cmp : Option Name) : IO UInt8 := do
         IO.println l
       return 0
 
+/-- con-leche: ConLeche/Driver/Worker.lean:345-355 tagKind
+A stored constant's kind, by its tag, for the messages. -/
+def tagKind : Nat → String
+  | 0 => "axiom" | 1 => "definition" | 2 => "theorem" | 3 => "opaque constant"
+  | 4 => "quotient constant" | 5 => "inductive type" | 6 => "constructor" | 7 => "recursor"
+  | _ => "constant"
+
+/-- con-leche: ConLeche/Driver/Worker.lean:357-368 copyLine
+**A copy, for the report**: a hole and the kind of what justifies it, or a constant the
+challenge restates, with the module it is read from. -/
+def copyLine (w : Modular.WorkerRead) (owner : Std.HashMap NIdx Nat) (d : IDeclaration) :
+    AM String := do
+  let some n := Frontend.recKey d | return ""
+  let h ← match owner[n]? with
+    | some k => match w.reach.homes[k]? with
+      | some h => pure (toString (← readName h))
+      | none => pure "[anonymous]"
+    | none => pure "[anonymous]"
+  let tag := ((w.reads.index.first[n]?).bind w.reads.index.at |>.map (·.tag)).getD 8
+  let uses := Modular.ownUsesOf w.home.constants (Modular.ownUsesAt w.home.constants)
+  let nt := toString (← readName n)
+  if ← Modular.isHoleRec uses d then
+    let label := match d with
+      | .axiomDecl _ => "axiom"
+      | d => s!"{Frontend.recKind d} := sorry"
+    pure s!"hole {nt} ({label}) justified by {h}'s {tagKind tag}"
+  else pure s!"{Frontend.recKind d} {nt}: {h}'s {tagKind tag}"
+
+/-- con-leche: ConLeche/Driver/Worker.lean:370-412 checkModuleG
+**What a worker's run gives**: its phases' failure (`read`), its jobs' (`jobs`, over the
+records `ds`), or the accept: the own records' count and the copies' lines. -/
+inductive WorkerVerdict where
+  | read (e : CheckError)
+  | jobs (e : CheckError)
+  | accepted (n : Nat) (copies : Array String) (hoisted : Array String)
+
+/-- con-leche: ConLeche/Driver/Worker.lean:370-412 checkModuleG
+**The worker at module `m`** from fresh start values (`AState.init EStore.empty`): the reserved
+pins, the names, the pin walk, phases 1-4 (`workerRead`), the index over the context and the own
+records, the inferred flags, the own records' jobs from `start`; with `cmp`, the compare worker
+(`import all` of the solution added to the header) and its copies' lines. -/
+def workerPipeline (sp : ConLeche.Frontend.Olean.Roots) (m : Name) (cmp : Option Name)
+    (mode : CheckMode) (pins : List NatOpPinSet) (maxNatSize : Nat) : AM WorkerVerdict := do
+  internReservedPins
+  let mh ← internName m
+  let x ← match cmp with
+    | none => pure #[]
+    | some s => pure #[Modular.solutionImport (← internName s)]
+  let ipins ← internAllPins pins maxNatSize
+  match ← Modular.workerRead stdFs sp ipins mh x with
+  | .error (e, _) => pure (.read e)
+  | .ok w =>
+    let hoisted ← w.hoisted.mapM fun h => do pure (toString (← readName h))
+    let ds := Modular.workerDecls w
+    match ← buildIndex ds with
+    | .error (e, n) => pure (.jobs (atDecl e n))
+    | .ok I =>
+      Modular.inferFlags I w.reach.ctx w.reach.pending
+      match ← (fun s => checkOleanJobListJ stdFs w.pins sp w.values mode ipins none I ds
+          (List.range' w.start (ds.size - w.start)) {} s) with
+      | .error (e, n) => pure (.jobs (atDecl e n))
+      | .ok () =>
+        let cs ← Modular.copyRecs x w.reads.index w.emitted
+        let owner ← Modular.ownerMap w.reach.ctx.toList
+        let lines ← cs.mapM (copyLine w owner)
+        pure (.accepted w.own.size (if x.isEmpty then #[] else lines) hoisted)
+
+/-- con-leche: ConLeche/Driver/Worker.lean:370-412 checkModuleG
+A worker's lines and exit code; `alone`: the process's one check, else its lines name it. -/
+def workerMain (sp : ConLeche.Frontend.Olean.Roots) (m : Name) (cmp : Option Name)
+    (mode : CheckMode) (pins : List NatOpPinSet) (maxNatSize : Nat) (alone : Bool) :
+    IO UInt8 := do
+  let t0 ← IO.monoMsNow
+  let modeTag : String := match mode with
+    | .verified => "--verified"
+    | .trusted => "--trusted"
+  let who := if alone then "" else s!"module {m}: "
+  match (workerPipeline sp m cmp mode pins maxNatSize).run (AState.init EStore.empty) with
+  | .error e | .ok (.read e, _) =>
+    IO.eprintln s!"con-ron-lean: module {m}: {e.message} ({modeTag})"
+    return e.exitCode
+  | .ok (.jobs e, _) =>
+    let now ← IO.monoMsNow
+    IO.eprintln s!"con-ron-lean: {who}{e.message} ({modeTag}) t={msSecs (now - t0)}s"
+    return e.exitCode
+  | .ok (.accepted n copies hoisted, _) =>
+    if hoisted.size > 0 then
+      IO.eprintln s!"con-ron-lean: {who}{hoisted.size} declarations hoisted ahead of the pinned \
+        Nat operations they ground: {", ".intercalate hoisted.toList}"
+    IO.println s!"con-ron-lean: {who}accepted {n} declarations ({modeTag})"
+    if cmp.isSome then
+      IO.println s!"con-ron-lean: {who}{copies.size} declarations of {m} are the loaded \
+        constants of their names"
+      for l in copies do IO.println s!"con-ron-lean: {l}"
+    return 0
+
+/-- con-leche: ConLeche/Driver/Dispatch.lean:63-87 runReq
+con-leche: ConLeche/Driver/Modular.lean:90-137 checkModularG
+**`--olean --module [--compare]` and `--olean --modular [--compare]`**: the root's (a compared
+run's challenge's) closure walked through the trusted path alone where one is given; for
+`--modular` the graph through the solution's lookup, then every module of it in the graph's order,
+each its worker from fresh start values (`workerMain`, the challenge's the compare worker); the
+run's verdict: 0 when every module's is, else the first failing module's code. -/
+def modularMain (a : Args) (root : Name) (cmp : Option Name) (all : Bool) : IO UInt8 := do
+  let modeTag : String := match a.mode with
+    | .verified => "--verified"
+    | .trusted => "--trusted"
+  let pins := if a.noPins then [] else ConLeche.natOpPinSets
+  let sr : ConLeche.Frontend.Olean.Roots :=
+    if a.trustedPath.isEmpty then { path := a.searchPath }
+    else { path := a.trustedPath, fallback := a.searchPath }
+  let pre : AM (Array Name) := do
+    internReservedPins
+    let pk ← Frontend.Olean.oleanPins
+    let c ← internName root
+    if cmp.isSome then
+      if let some e ← chalWalk a.trustedPath a.searchPath pk c then fail e
+    if !all then return #[root]
+    let x ← match cmp with
+      | some s => pure (some (c, ← internName s))
+      | none => pure none
+    let C ← Modular.graphOf stdFs pk sr [c] x
+    C.mapM fun e => readName e.1
+  match pre.run (AState.init EStore.empty) with
+  | .error e =>
+    IO.eprintln s!"con-ron-lean: graph: {e.message}"
+    return e.exitCode
+  | .ok (mods, _) =>
+    if !all then return ← workerMain sr root cmp a.mode pins a.maxNatSize true
+    let mut failed : Array (Name × UInt8) := #[]
+    for m in mods do
+      let c ← workerMain sr m (if m == root then cmp else none) a.mode pins a.maxNatSize false
+      if c != 0 then failed := failed.push (m, c)
+    match failed[0]? with
+    | none =>
+      IO.println s!"con-ron-lean: accepted {mods.size} modules ({modeTag})"
+      return 0
+    | some (m, c) =>
+      IO.eprintln s!"con-ron-lean: {failed.size} of {mods.size} modules not accepted; the first in \
+        the graph's order: {m} ({modeTag})"
+      return c
+
 /-- con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
 `--check-graph`'s usage checks, con-leche's in its order, then the graph check
 (`graphPipeline`). -/
@@ -1070,8 +1214,8 @@ def main (args : List String) : IO UInt8 := do
               (a.modular && (a.module || a.scheduled)) then
             return ← usageError "--compare with --module, --modular or --schedule takes one of \
               them, and no --constant"
-          if a.module then return ← unsupported "--olean --module --compare"
-          if a.modular then return ← unsupported "--olean --modular --compare"
+          if a.module then return ← modularMain a c (some s) false
+          if a.modular then return ← modularMain a c (some s) true
           return ← scheduleMain a c (some s)
         let cs := if a.constants.isEmpty then none
           else some (a.constants.filterMap Frontend.Olean.parseConstName)
@@ -1087,11 +1231,11 @@ def main (args : List String) : IO UInt8 := do
     if a.modular then
       if roots.size != 1 || !a.constants.isEmpty || a.module then
         return ← usageError "--modular takes one module name, and neither --constant nor --module"
-      return ← unsupported "--olean --modular"
+      return ← modularMain a roots[0]! none true
     if a.module then
       if roots.size != 1 || !a.constants.isEmpty then
         return ← usageError "--module takes one module name and no --constant"
-      return ← unsupported "--olean --module"
+      return ← modularMain a roots[0]! none false
     let cs := if a.constants.isEmpty then none
       else some (a.constants.filterMap Frontend.Olean.parseConstName)
     return ← checkMainOlean a.searchPath roots cs a.mode pins a.maxNatSize
