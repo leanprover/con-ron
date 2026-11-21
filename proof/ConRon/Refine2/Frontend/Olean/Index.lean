@@ -2445,7 +2445,12 @@ theorem loaded_parts_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : fr
 
 /-! ## The worker's reads -/
 
-/-- **`index::WorkerReads` against the twin's.** -/
+/-- Every copy of every clash fits a `usize`, as the index makes them. -/
+def ClashesFit (wr : frontend.olean.index.WorkerReads) : Prop :=
+  ∀ cl ∈ wr.clashes.val, ∀ x ∈ cl.copies.val, CopyFits x.1
+
+/-- **`index::WorkerReads` against the twin's**, with the positions the reach reads back as a
+`usize` fitting one: the load positions (`fits`) and the clashes' copies (`clashFits`). -/
 structure WorkerReadsRel (w : frontend.olean.index.WorkerReads) (w' : Arena.Frontend.Olean.WorkerReads) :
     Prop where
   own : absNamePositions w.own = w'.own
@@ -2453,6 +2458,37 @@ structure WorkerReadsRel (w : frontend.olean.index.WorkerReads) (w' : Arena.Fron
   pub : AccA w.pub_ w'.pub
   index : NameIndexRel w.index w'.index
   clashes : List.Forall₂ ClashRel w.clashes.val w'.clashes.toList
+  fits : IndexFits w'.loads
+  clashFits : ClashesFit w
+
+theorem forall₂_mem_left {α β : Type} {R : α → β → Prop} :
+    ∀ {l1 : List α} {l2 : List β}, List.Forall₂ R l1 l2 → ∀ {x}, x ∈ l1 → ∃ y ∈ l2, R x y
+  | _, _, .nil, _, hx => by cases hx
+  | _, _, .cons (a := a) (b := b) hab hrest, x, hx => by
+    rcases List.mem_cons.mp hx with rfl | hx
+    · exact ⟨b, List.mem_cons_self .., hab⟩
+    · obtain ⟨y, hy, h⟩ := forall₂_mem_left hrest hx
+      exact ⟨y, List.mem_cons_of_mem _ hy, h⟩
+
+/-- **The clashes' copies fit**, as the index's copies do. -/
+theorem clashes_fit {cc : alloc.vec.Vec (arena.handle.NIdx × alloc.vec.Vec frontend.olean.index.Copy)}
+    (fcc : ∀ p ∈ cc.val, ∀ c ∈ p.2.val, CopyFits c) {I}
+    {clashes : alloc.vec.Vec frontend.olean.index.Clash}
+    (hcl : List.Forall₂ ClashRel clashes.val (cc.val.map (clashOfT I ∘ absCC))) :
+    ∀ cl ∈ clashes.val, ∀ x ∈ cl.copies.val, CopyFits x.1 := by
+  intro cl hcl' x hx
+  obtain ⟨y, hy, hr⟩ := forall₂_mem_left hcl hcl'
+  obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hy
+  obtain ⟨z, hz, hxz⟩ := forall₂_mem_left hr.copies hx
+  simp only [Function.comp, clashOfT, absCC, Array.toList_filterMap, List.mem_filterMap] at hz
+  obtain ⟨c', hc', hz⟩ := hz
+  simp only [List.mem_map] at hc'
+  obtain ⟨c, hc, rfl⟩ := hc'
+  simp only [infoOf, Option.map_eq_some_iff] at hz
+  obtain ⟨_, -, rfl⟩ := hz
+  have : x.1 = c := absCopy_inj hxz.1
+  rw [this]
+  exact fcc p hp c hc
 
 /-- **Theorem 2 of the worker's reads**: `worker_reads`' accept is `workerReads`'. -/
 theorem worker_reads_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
@@ -2563,7 +2599,7 @@ theorem worker_reads_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : fr
   refine ⟨⟨absNamePositions own, ld', Arena.Frontend.Olean.pubClosures ld',
       Arena.Frontend.Olean.nameIndexOf rs.toArray,
       (Arena.Frontend.Olean.clashCopies (Arena.Frontend.Olean.nameIndexOf rs.toArray)).map
-        (clashOfT I)⟩, lst9, ?_, ⟨rfl, hld, hP, hix, hCL⟩, hrel9, hinv9⟩
+        (clashOfT I)⟩, lst9, ?_, ⟨rfl, hld, hP, hix, hCL, hw, clashes_fit fcc hcl⟩, hrel9, hinv9⟩
   unfold Arena.Frontend.Olean.workerReads
   refine (am_bind_ok hx1).trans ?_
   rw [← eown]
