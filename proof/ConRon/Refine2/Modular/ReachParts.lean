@@ -860,6 +860,243 @@ theorem table_of_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : fronte
         rw [am_bind_ok hx, htb]
         rfl
 
+/-- **`look_of`'s accept is `lookOf`'s.** -/
+theorem look_of_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
+    {env wr own E} (henv : ReachEnvRel env wr own E) {c C} (hc : ReachCacheRel c C)
+    {k : frontend.modular.reach.PartKey} :
+    ACS pers CR st lst (look_of inst fsv pk pers st sp wr c k)
+      (ConRon.Arena.Modular.lookOf fs (absPins pk) (absRoots sp) E C (absPartKey k)) := by
+  intro hrel hinv a st' c' h
+  rw [look_of] at h
+  peel h as b, hb
+  have eb := hc.looks.contains_eq hb
+  unfold ConRon.Arena.Modular.lookOf
+  by_cases hb' : b = true
+  · rw [ite_eq_left hb'] at h
+    simp only [ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨-, rfl, rfl⟩ := h
+    refine ⟨C, lst, ?_, hc, hrel, hinv⟩
+    rw [← eb, hb']
+    rfl
+  · rw [ite_eq_right hb'] at h
+    have hb0 : C.looks.contains (absPartKey k) = false := by rw [← eb]; simpa using hb'
+    peel h as q, hq
+    obtain ⟨r, st1, c1⟩ := q
+    cases r with
+    | Err e => simp at h
+    | Ok u =>
+      obtain ⟨C1, lst1, hx, hc1, hrel1, hinv1⟩ := table_of_refines hfs henv hc hrel hinv u st1 c1 hq
+      peel h as o, ho
+      have eo := table_get_eq henv.wr henv.fits hc1 ho
+      cases o with
+      | none =>
+        peel h as ce, -
+        simp at h
+      | some t =>
+        peel h as l, hl
+        have hL := look_build_rel hl
+        peel h as pk1, hpk1
+        cases partKey_dup2_ok hpk1
+        peel h as q2, hq2
+        obtain ⟨_, hm⟩ := q2
+        have e2 := Result.ok_injective h
+        simp only [Prod.mk.injEq] at e2
+        obtain ⟨-, rfl, rfl⟩ := e2
+        have hlk := hc1.looks.insert hL hq2
+        refine ⟨{ C1 with looks := C1.looks.insert (absPartKey k) (ConRon.Arena.Modular.lookBuild (absNamePositions t)) }, lst1, ?_, { hc1 with looks := hlk }, hrel1, hinv1⟩
+        rw [hb0]
+        simp only [Bool.false_eq_true, ↓reduceIte, pure_bind]
+        rw [am_bind_ok hx, ← eo]
+        rfl
+
+/-- **`put_part` accepts only the read's accept.** -/
+theorem put_part_inv {T : Type} {pers st c k p} {r : core.result.Result T frontend.olean.spec.RdErr}
+    {b : T} {c'} (h : put_part pers st c k p r = ok (.Ok b, c')) : r = .Ok b := by
+  unfold put_part at h
+  cases r with
+  | Ok a =>
+    peel h as pk1, -
+    peel h as ⟨_, hm⟩, -
+    have e := Result.ok_injective h
+    simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e
+    rw [e.1]
+  | Err re =>
+    cases re with
+    | Bad =>
+      peel h as s, -
+      peel h as pk1, -
+      peel h as ⟨_, hm⟩, -
+      peel h as ce, -
+      simp at h
+    | Err e => simp at h
+
+/-- **`put_part` of an accept puts the part back.** -/
+theorem put_part_rel {T : Type} {pers st} {c : frontend.modular.reach.ReachCache}
+    {C : ConRon.Arena.Modular.ReachCache} (hc : ReachCacheRel c C) {k : frontend.modular.reach.PartKey}
+    {p q} (hp : PartReadRel p q) {a b : T} {c'} (h : put_part pers st c k p (.Ok a) = ok (.Ok b, c')) :
+    b = a ∧ ReachCacheRel c' { C with parts := C.parts.insert (absPartKey k) q } := by
+  unfold put_part at h
+  peel h as pk1, hpk1
+  cases partKey_dup2_ok hpk1
+  peel h as q2, hq2
+  obtain ⟨_, hm⟩ := q2
+  have e2 := Result.ok_injective h
+  simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e2
+  obtain ⟨rfl, rfl⟩ := e2
+  exact ⟨rfl, { hc with parts := hc.parts.insert hp hq2 }⟩
+
+/-- A view's bytes are there. -/
+theorem view_bytes_ok (f : frontend.olean.view.ModFiles) (vb : frontend.olean.view.ViewBytes) :
+    ∃ bs, frontend.olean.view.view_bytes f vb = ok bs := by
+  cases vb <;> exact ⟨_, rfl⟩
+
+/-- **A part's files read and its view cut**, as the twin's: the region of the view, which fits
+its bytes. -/
+theorem part_files_ok (hfs : FsRel inst fsv fs) {pers st lst} (hrel : AStateRel₀ pers st lst)
+    {sp : frontend.olean.files.Roots} {k : frontend.modular.reach.PartKey} {f}
+    (hr : frontend.olean.files.read_files inst fsv pers st.store sp k.module k.level = ok (.Ok f)) :
+    ∃ mn f', ModFilesRel f f' ∧ ∀ {β} (g : ConLeche.Name → ConLeche.Frontend.Olean.ModFiles → AM β),
+      (do
+        let mn ← Arena.readName (absNIdx k.module)
+        let f ← Arena.Frontend.Olean.liftE (Arena.Frontend.Olean.readFiles fs (absRoots sp) mn (absLevel k.level))
+        g mn f).run lst = (g mn f').run lst := by
+  obtain ⟨n, hn⟩ := read_files_name hr
+  obtain ⟨f', e1, hf⟩ := read_files_refines hfs hn hr
+  refine ⟨ConRon.Refine.absName n, f', hf, fun g => ?_⟩
+  rw [am_bind_ok (read_name_run hrel hn)]
+  simp only [e1, Arena.Frontend.Olean.liftE, pure_bind]
+
+/-- **`take_part`'s accept is `takePart`'s.** -/
+theorem take_part_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
+    {c C} (hc : ReachCacheRel c C) {k : frontend.modular.reach.PartKey} :
+    ACS pers (fun p c X => ReachCacheRel c X.1 ∧ PartReadRel p X.2) st lst
+      (take_part inst fsv pk pers st sp c k)
+      (ConRon.Arena.Modular.takePart fs (absPins pk) (absRoots sp) C (absPartKey k)) := by
+  intro hrel hinv a st' c' h
+  rw [take_part] at h
+  peel h as q, hq
+  obtain ⟨o, hm⟩ := q
+  obtain ⟨eo, hpm⟩ := hc.parts.remove hq
+  unfold ConRon.Arena.Modular.takePart
+  rcases orel_cases eo with ⟨rfl, he⟩ | ⟨p, y, rfl, he, hp⟩
+  · -- read the files
+    peel h as r, hr
+    cases r with
+    | Err e => simp at h
+    | Ok f =>
+      obtain ⟨mn, f', hf, hrun⟩ := part_files_ok hfs hrel hr
+      peel h as o1, ho1
+      have hv := mod_files_view_region_eq hf ho1
+      cases o1 with
+      | none =>
+        peel h as ⟨ce, e⟩, -
+        simp at h
+      | some vbp =>
+        obtain ⟨vb, ad⟩ := vbp
+        dsimp only at h
+        peel h as r1, hr1
+        peel h as sm, hsm
+        have e2 := Result.ok_injective h
+        simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e2
+        obtain ⟨rfl, rfl, rfl⟩ := e2
+        obtain ⟨bs, hbs⟩ := view_bytes_ok f vb
+        obtain ⟨ey, hfit⟩ := hv bs r1 hbs hr1
+        have hpc : PMapRel PartReadRel hm C.parts := hpm.congr fun x => by
+          rw [_root_.Std.HashMap.getElem?_erase]
+          split
+          · rename_i hx
+            rw [← (partKey_beq_iff _ _).1 hx, he]
+          · rfl
+        refine ⟨(C, absRegion bs r1, {}), lst, ?_, ⟨{ hc with parts := hpc },
+          ⟨fun bs' hbs' => by rw [hbs] at hbs'; cases Result.ok_injective hbs'; exact ⟨rfl, hfit⟩,
+           sm_empty_rel hsm⟩⟩, hrel, hinv⟩
+        rw [he]
+        dsimp only
+        refine (hrun _).trans ?_
+        rw [ey]
+        rfl
+  · -- the part is cached
+    have e2 := Result.ok_injective h
+    simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e2
+    obtain ⟨rfl, rfl, rfl⟩ := e2
+    obtain ⟨r', sm⟩ := y
+    refine ⟨({ C with parts := C.parts.erase (absPartKey k) }, r', sm), lst, ?_,
+      ⟨{ hc with parts := hpm }, hp⟩, hrel, hinv⟩
+    rw [he]
+    rfl
+
+/-- **`part_entry`'s accept is `partEntry`'s.** -/
+theorem part_entry_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
+    {c C} (hc : ReachCacheRel c C) {k : frontend.modular.reach.PartKey} {l : Std.U64} :
+    ACS pers (fun e c X => ReachCacheRel c X.1 ∧ EntryRel absNIdx absEIdx ValRel e X.2) st lst
+      (part_entry inst fsv pk pers st sp c k l)
+      (ConRon.Arena.Modular.partEntry fs (absPins pk) (absRoots sp) C (absPartKey k) l.val) := by
+  intro hrel hinv a st' c' h
+  rw [part_entry] at h
+  peel h as q, hq
+  obtain ⟨r, st1, c1⟩ := q
+  cases r with
+  | Err e => simp at h
+  | Ok p =>
+  obtain ⟨⟨C1, r', sm⟩, lst1, hx, ⟨hc1, hp⟩, hrel1, hinv1⟩ := take_part_refines hfs hc hrel hinv p st1 c1 hq
+  peel h as bs, hbs
+  obtain ⟨er, hfit⟩ := hp.region bs hbs
+  peel h as q2, hq2
+  obtain ⟨r1, e, s1⟩ := q2
+  have hM := entry_with_refines (pk := pk) (c := l) hfit hp.memo hrel1 hinv1 r1 e s1 hq2
+  peel h as q3, hq3
+  obtain ⟨r2, c2⟩ := q3
+  have e3 := Result.ok_injective h
+  simp only [Prod.mk.injEq] at e3
+  obtain ⟨rfl, rfl, rfl⟩ := e3
+  cases put_part_inv hq3
+  obtain ⟨t, b, lst2, hx2, hR, hd, hrel2, hinv2⟩ := hM
+  obtain ⟨-, hc2⟩ := put_part_rel hc1
+    (show PartReadRel { p with memo := s1 } (r', t) from ⟨hp.region, hd⟩) hq3
+  refine ⟨({ C1 with parts := C1.parts.insert (absPartKey k) (r', t) }, b), lst2, ?_, ⟨hc2, hR⟩,
+    hrel2, hinv2⟩
+  unfold ConRon.Arena.Modular.partEntry
+  rw [am_bind_ok hx]
+  dsimp only
+  rw [show r' = absRegion bs p.region from er, am_bind_ok hx2]
+  rfl
+
+/-- **`stmt_at`'s accept is `stmtAt`'s.** -/
+theorem stmt_at_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
+    {c C} (hc : ReachCacheRel c C) {s : frontend.modular.reach.Spot} :
+    ACS pers (fun e c X => ReachCacheRel c X.1 ∧ StmtKindRel e X.2) st lst
+      (stmt_at inst fsv pk pers st sp c s)
+      (ConRon.Arena.Modular.stmtAt fs (absPins pk) (absRoots sp) C (absSpot s)) := by
+  intro hrel hinv a st' c' h
+  rw [stmt_at] at h
+  peel h as q, hq
+  obtain ⟨r, st1, c1⟩ := q
+  cases r with
+  | Err e => simp at h
+  | Ok p =>
+  obtain ⟨⟨C1, r', sm⟩, lst1, hx, ⟨hc1, hp⟩, hrel1, hinv1⟩ := take_part_refines hfs hc hrel hinv p st1 c1 hq
+  peel h as bs, hbs
+  obtain ⟨er, hfit⟩ := hp.region bs hbs
+  peel h as q2, hq2
+  obtain ⟨r1, e, s1⟩ := q2
+  have hM := stmt_with_refines (pk := pk) (c := s.pos.loc) hfit hp.memo hrel1 hinv1 r1 e s1 hq2
+  peel h as q3, hq3
+  obtain ⟨r2, c2⟩ := q3
+  have e3 := Result.ok_injective h
+  simp only [Prod.mk.injEq] at e3
+  obtain ⟨rfl, rfl, rfl⟩ := e3
+  cases put_part_inv hq3
+  obtain ⟨t, b, lst2, hx2, hR, hd, hrel2, hinv2⟩ := hM
+  obtain ⟨-, hc2⟩ := put_part_rel hc1
+    (show PartReadRel { p with memo := s1 } (r', t) from ⟨hp.region, hd⟩) hq3
+  refine ⟨({ C1 with parts := C1.parts.insert (absPartKey s.part) (r', t) }, b), lst2, ?_, ⟨hc2, hR⟩,
+    hrel2, hinv2⟩
+  unfold ConRon.Arena.Modular.stmtAt
+  rw [am_bind_ok hx]
+  dsimp only
+  rw [show r' = absRegion bs p.region from er]
+  exact (am_bind_ok hx2).trans rfl
+
 end reads
 
 end ConRon.Refine2.Modular
