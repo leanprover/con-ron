@@ -9,7 +9,14 @@ use crate::arena::handle::NIdx;
 use crate::frontend::olean::reads::NamePosition;
 use crate::frontend::olean::view::OLeanLevel;
 use crate::kernel::name;
+use crate::arena::monad::AState;
+use crate::arena::store::PersTier;
+use crate::frontend::olean::files::{OleanFs, Roots};
+use crate::frontend::olean::index::WorkerReads;
+use crate::frontend::olean::spec::OleanPins;
+use crate::kernel::core_types::CheckError;
 use crate::ron::hashmap::{Dup, Eq2, Hashable};
+use crate::ron::hashmap2::HashMap2;
 
 /// con-leche: ConLeche/Driver/Reach.lean:164-168 PartKey
 /// **A part of a view**: a module and a level.
@@ -81,4 +88,53 @@ pub struct Reach {
     pub completed: Vec<(NIdx, NIdx)>,
     pub searches: u64,
     pub inferred: u64,
+}
+
+// ---------------------------------------------------------------------------
+// L3's STUB of lane L2's signatures (task #166): dropped when L2 integrates.
+// ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Driver/Reach.lean:94-95 recordReads
+/// STUB (lane L2 ports it): what a record reads.
+pub fn record_reads(pers: &PersTier, st: &mut AState, d: &IDeclaration) -> Result<Vec<NIdx>, CheckError> {
+    crate::frontend::nat_op_ground::decl_used_consts(pers, st, d)
+}
+
+/// con-leche: ConLeche/Driver/Reach.lean:871-873 ownerMap
+/// STUB (lane L2 ports it): the record of each name of a context.
+pub fn owner_map(pers: &PersTier, st: &mut AState, ds: &Vec<IDeclaration>) -> Result<HashMap2<NIdx, u64>, CheckError> {
+    let mut m: HashMap2<NIdx, u64> = HashMap2::new();
+    let mut j = 0usize;
+    while j < ds.len() {
+        match crate::arena::install::decl_names(pers, st, &ds[j]) {
+            Err(e) => return Err(e),
+            Ok(ns) => {
+                let mut i = 0usize;
+                while i < ns.len() {
+                    m.insert(ns[i].dup2(), j as u64);
+                    i += 1;
+                }
+            }
+        }
+        j += 1;
+    }
+    Ok(m)
+}
+
+/// con-leche: ConLeche/Driver/Reach.lean:934-961 reach
+/// STUB (lane L2 ports it): the reach of a module.
+#[allow(unused_variables)]
+#[allow(clippy::too_many_arguments)]
+pub fn reach<F: OleanFs>(
+    fs: &F,
+    pk: &OleanPins,
+    pers: &PersTier,
+    st: &mut AState,
+    sp: &Roots,
+    m: &NIdx,
+    wr: &WorkerReads,
+    own: &HashMap2<NIdx, bool>,
+    roots: &Vec<NIdx>,
+) -> Result<Reach, CheckError> {
+    Err(crate::kernel::core_types::internal({ const M: [u32; 4] = [115, 116, 117, 98]; crate::kernel::core_types::code_points(&M) }))
 }
