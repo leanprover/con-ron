@@ -10,6 +10,9 @@ import ConRon.Refine2.Frontend.Source
 import ConRon.Bridge.Inductives.Decl
 import ConLeche.MainTheorem
 import ConRon.Refine2.Frontend.Olean.ReadOleans
+import ConRon.Bridge.Compare.Stages
+import ConRon.Refine2.Checker.Mates
+import ConRon.Refine2.Frontend.Compare
 
 /-!
 # `ConRon.Capstone` — THE COMPOSITION: Theorem 2 ∘ Theorem 1 ∘ con-leche
@@ -918,6 +921,278 @@ theorem model_exists_oleans (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS
 
 end Headline
 
+/-! ## 4b. The compared run: `--compare -- C S`
+
+A challenge file `C` checked with its axioms justified by a solution file `S`
+(`crates/con-ron/src/compare.rs` `compare_json`), one premise per call, in its order, on the
+one state from the binary's start values:
+
+| premise | `compare_json`'s call |
+|---|---|
+| `startState`, `emptyTier` | `AState::empty()`, `&PersTier::empty()` |
+| `h1`, `h2` | `intern_reserved_pins`, `prelude::builtin_prelude_e` (`start`) |
+| `hreadsC`, `h3` | `driver::parse_export_stream_d` on `C`: `export_c::parse_source` over its handle |
+| `hreadsS`, `h3S` | the same on `S`, into the same store |
+| `hdup` | `prepare::prelude_ix_dup`: the challenge's copy of the prelude |
+| `h4S` | `prepare::prepare_d` on `S`'s records at `DeclUsedConsts` |
+| `hpins`, `h5` | `pins_walk`: `driver::pins_for_run`, `checker::intern_all_pins` |
+| `h6S`, `h7S`, `h8S` | the solution's `check_phase` (`driver::check_decls_driver` at `sol = None`): `build_index`, `freeze_tier`, `parallel_all` over `run_job`; `thaw_tier` then hands back the index `ixS` and the store `st7` exactly (`freeze_tier_ok`) |
+| `h4` | `prepare::prepare_d` on `C`'s records at the copy `preC` |
+| `hside` | `justify::side_records` (each hole the axiom of its statement) |
+| `hsol` | `justify::solution_of(ixS, &recsC)` |
+| `h6`, `h7`, `h8` | the challenge's `check_phase` at `sol = Some(&sol)` |
+
+The conclusion is about the challenge alone, as upstream's `main_compare_json_model`: the
+records its check phase checks (`recsC`) denote a stream whose environment has a model;
+`no_False_compare`: a challenge file declaring a theorem of type `False` is not accepted.  The
+solution's run is a premise like any other call.  The theorems hold at every chunk source
+whose reads are the two files' chunks and at every pin text `hpins` decodes. -/
+
+section Compare
+
+open ConRon.Refine2 ConRon.Refine2.Frontend
+
+/-- **The compared run's Rust pipeline, walked into the twin**: `rust_stages` with the second
+parse, the solution's check phase, the challenge's preparation at the prelude's copy
+(`prelude_ix_dup_abs`), its side records (`side_records_ls`), the solution
+(`solution_of_rel`) and its check phase at it (`pool_accepts_sol_refines`). -/
+theorem rust_stages_compare
+    {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+    {text : Slice Std.U8}
+    (hdec : kernel.pins_decode.decode text = ok (.Ok pins))
+    {chunksC chunksS : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
+    {pers : arena.store.PersTier} {est : arena.store.EStore}
+    (hfz : pers.frozen = false)
+    {st0 st1 st2 st3 st4 st5 st6 st7 st9 st10 st11 : arena.monad.AState}
+    {pre preC : frontend.prepare.PreludeIx} {rC rS : frontend.export_c.ParseResultD}
+    {dsS dsC recsC : alloc.vec.Vec arena.env.IDeclaration}
+    {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    {ixS ixC : arena.stream_index.IStreamIndex} {sol : arena.justify.Solution}
+    (hest : arena.store.EStore.empty = ok est)
+    (hst0 : arena.monad.AState.init est = ok st0)
+    (h1 : arena.pins.intern_reserved_pins pers st0 = ok (.Ok (), st1))
+    (h2 : frontend.prelude.builtin_prelude_e pers st1 = ok (.Ok pre, st2))
+    {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {srcC srcC' srcS srcS' : Sc}
+    (hreadsC : ReadsAs sinst srcC chunksC.val) (hreadsS : ReadsAs sinst srcS chunksS.val)
+    (h3 : frontend.export_c.parse_source sinst pers st2 srcC = ok (.Ok rC, st3, srcC'))
+    (h3S : frontend.export_c.parse_source sinst pers st3 srcS = ok (.Ok rS, st4, srcS'))
+    (hdup : frontend.prepare.prelude_ix_dup pre = ok preC)
+    (h4S : frontend.prepare.prepare_prelude pers st4 pre rS.decls = ok (.Ok dsS, st5))
+    {maxNatSize : ron.nat.Nat}
+    (h5 : arena.checker.intern_all_pins pers st5 pins maxNatSize = ok (.Ok ipins, st6))
+    (h6S : PoolAccepts pers st6 .Verified ipins dsS ixS st7)
+    (h4 : frontend.prepare.prepare_prelude pers st7 preC rC.decls = ok (.Ok dsC, st9))
+    (hside : arena.justify.side_records pers st9 dsC 0#usize (alloc.vec.Vec.new _) =
+      ok (.Ok recsC, st10))
+    (hsol : arena.justify.solution_of ixS recsC = ok sol)
+    (h6 : PoolAcceptsSol pers st10 .Verified ipins (some sol) recsC ixC st11) :
+    ∃ (sA sB sC sC' sD sE sF sG sH sI : ConRon.Arena.AState)
+      (rvC rvS : ConRon.Arena.Frontend.ParseResultD) (IS IC : ConRon.Arena.IStreamIndex),
+      ConRon.Arena.internReservedPins
+          (ConRon.Arena.AState.init ConRon.Arena.EStore.empty) = .ok ((), sA) ∧
+      ConRon.Arena.Frontend.builtinPreludeE sA = .ok (.ok (absPreludeIx pre), sB) ∧
+      ConRon.Arena.Frontend.parseChunks (absChunks chunksC) sB = .ok (.ok rvC, sC) ∧
+      ConRon.Arena.Frontend.parseChunks (absChunks chunksS) sC = .ok (.ok rvS, sC') ∧
+      ConRon.Arena.Frontend.preparePrelude (absPreludeIx pre) rvS.decls sC'
+          = .ok ((absIDeclL dsS).toArray, sD) ∧
+      ConRon.Arena.internAllPins (ConRon.Refine.absPins pins)
+          (ConRon.Refine.Nat.toNat maxNatSize) sD
+          = .ok (absINatOpPinSetL ipins, sE) ∧
+      ConRon.Arena.PooledAccepts .verified (absINatOpPinSetL ipins)
+          (absIDeclL dsS).toArray sE IS sF ∧
+      ConRon.Arena.Frontend.preparePrelude (absPreludeIx pre) rvC.decls sF
+          = .ok ((absIDeclL dsC).toArray, sG) ∧
+      ConRon.Arena.sideRecordsGo [] (absIDeclL dsC) sG = .ok (absIDeclL recsC, sH) ∧
+      ConRon.Arena.PooledAcceptsJ .verified (absINatOpPinSetL ipins)
+          (some (ConRon.Arena.solutionOf IS (absIDeclL recsC))) (absIDeclL recsC).toArray
+          sH IC sI ∧
+      AStateRel₀ pers st10 sH := by
+  obtain ⟨hrel0, hinv0, -⟩ := init_rel (pers := pers) hfz hest hst0
+  -- 1. the reserved pins, 2. the prelude
+  obtain ⟨sA, hA, hrelA, hinvA⟩ :=
+    (intern_reserved_pins_refines hrel0 hinv0 h1).dest
+  obtain ⟨preL, sB, hB, hpreL, hrelB, hinvB⟩ :=
+    builtin_prelude_e_refines scanSpec hrelA hinvA h2
+  subst hpreL
+  -- 3. the two files, into the one store
+  obtain ⟨rvC, sC, hC, hrvC, hrelC, hinvC⟩ :=
+    parse_chunks_refines scanSpec hrelB hinvB (parse_source_eq hreadsC h3)
+  obtain ⟨rvS, sC', hCS, hrvS, hrelCS, hinvCS⟩ :=
+    parse_chunks_refines scanSpec hrelC hinvC (parse_source_eq hreadsS h3S)
+  -- 4. the solution's preparation, 5. the pins
+  obtain ⟨sD, hD, hrelD, hinvD⟩ :=
+    (prepare_prelude_refines hrelCS hinvCS h4S).apply
+  have hD' : ConRon.Arena.Frontend.preparePrelude (absPreludeIx pre) rvS.decls sC'
+      = .ok ((absIDeclL dsS).toArray, sD) := by
+    rw [hrvS.decls]; exact hD
+  obtain ⟨sE, hE, hrelE, hinvE⟩ :=
+    (intern_all_pins_refines hrelD hinvD
+      (ConRon.Refine.PinsWF.decode_wf_refine2 hdec) h5).dest
+  -- 6. the solution's check phase
+  obtain ⟨IS, sF, hF, hrelF, hIS⟩ := pool_accepts_refines hrelE hinvE hfz h6S
+  have hinvF : AStateInv pers st7 := by
+    obtain ⟨_, _, hB', -⟩ := h6S
+    exact (build_index_empty_refines hrelE hinvE hB').choose_spec.choose_spec.2.2.1
+  -- 7. the challenge's preparation, at the prelude's copy
+  obtain ⟨sG, hG, hrelG, hinvG⟩ :=
+    (prepare_prelude_refines hrelF hinvF h4).apply
+  have hG' : ConRon.Arena.Frontend.preparePrelude (absPreludeIx pre) rvC.decls sF
+      = .ok ((absIDeclL dsC).toArray, sG) := by
+    rw [← prelude_ix_dup_abs hdup, hrvC.decls]; exact hG
+  -- 8. its side records, 9. the solution
+  obtain ⟨recsL, sH, hH, hrecs, hrelH, hinvH⟩ :=
+    side_records_ls dsC 0#usize st9 sG (alloc.vec.Vec.new _) hrelG hinvG _ _ hside
+  have hrecs' : recsL = absIDeclL recsC := hrecs
+  subst hrecs'
+  have hH' : ConRon.Arena.sideRecordsGo [] (absIDeclL dsC) sG = .ok (absIDeclL recsC, sH) := by
+    exact hH
+  have hJ : OptSolRel (some sol) (some (ConRon.Arena.solutionOf IS (absIDeclL recsC))) :=
+    solution_of_rel hIS hsol
+  -- 10. the challenge's check phase, at the solution
+  obtain ⟨IC, sI, hI, -, -, -⟩ := pool_accepts_sol_refines hJ hrelH hinvH hfz h6
+  exact ⟨sA, sB, sC, sC', sD, sE, sF, sG, sH, sI, rvC, rvS, IS, IC, hA, hB, hC, hCS, hD', hE,
+    hF, hG', hH', hI, hrelH⟩
+
+end Compare
+
+section HeadlineCompare
+
+open ConRon.Refine2 ConRon.Refine2.Frontend
+
+/-- con-leche: ConLeche/MainTheorem.lean:63 main_compare_json_model — **AN ACCEPTED COMPARISON'S
+CHALLENGE HAS A MODEL**: the binary's calls on `--compare -- C S` (§4b's table) accepting, the
+records the challenge's check phase checks — `C`'s prepared records, each hole the axiom of its
+statement — denote a stream whose environment has a model, in every set theory.  Nothing is
+concluded about the solution, whose run is a premise.
+
+Composition only: `rust_stages_compare` (Theorem 2), `stagesC_model` (Theorem 1 + con-leche's
+comparison soundness over the mixed run). -/
+theorem model_exists_compare (V : Type w) [ConLeche.SetTheory V]
+    {st1 st2 st3 st4 st5 st6 st7 st9 st10 st11 : arena.monad.AState}
+    (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+    {pre : frontend.prepare.PreludeIx}
+    (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
+    {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {srcC srcC' srcS srcS' : Sc}
+    {chunksC chunksS : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
+    (hreadsC : ReadsAs sinst srcC chunksC.val) (hreadsS : ReadsAs sinst srcS chunksS.val)
+    {rC rS : frontend.export_c.ParseResultD}
+    (h3 : frontend.export_c.parse_source sinst emptyTier st2 srcC = ok (.Ok rC, st3, srcC'))
+    (h3S : frontend.export_c.parse_source sinst emptyTier st3 srcS = ok (.Ok rS, st4, srcS'))
+    {preC : frontend.prepare.PreludeIx}
+    (hdup : frontend.prepare.prelude_ix_dup pre = ok preC)
+    {prepS : frontend.prepare.Prepared}
+    (h4S : frontend.prepare.prepare_d frontend.nat_op_ground.DeclUsedConsts.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier st4 pre rS.decls () = ok (.Ok prepS, st5))
+    {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+    (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+    {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    {maxNatSize : ron.nat.Nat}
+    (h5 : arena.checker.intern_all_pins emptyTier st5 pins maxNatSize = ok (.Ok ipins, st6))
+    {ixS : arena.stream_index.IStreamIndex}
+    (h6S : (do
+        let e ← arena.stream_index.stream_index_empty
+        arena.stream_index.build_index emptyTier st6 e prepS.decls 0#usize) = ok (.Ok ixS, st7))
+    {tierS : arena.store.PersTier} {frozenS : arena.store.EStore}
+    (h7S : arena.checker.freeze_tier st7.store ixS = ok (tierS, frozenS))
+    (h8S : ParallelAll prepS.decls.length (arena.checker.worker_state st7.pins)
+      (jobStep tierS .Verified ipins prepS.decls))
+    {prepC : frontend.prepare.Prepared}
+    (h4 : frontend.prepare.prepare_d frontend.nat_op_ground.DeclUsedConsts.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier st7 preC rC.decls () = ok (.Ok prepC, st9))
+    {recsC : alloc.vec.Vec arena.env.IDeclaration}
+    (hside : arena.justify.side_records emptyTier st9 prepC.decls 0#usize (alloc.vec.Vec.new _) =
+      ok (.Ok recsC, st10))
+    {sol : arena.justify.Solution}
+    (hsol : arena.justify.solution_of ixS recsC = ok sol)
+    {ixC : arena.stream_index.IStreamIndex}
+    (h6 : (do
+        let e ← arena.stream_index.stream_index_empty
+        arena.stream_index.build_index emptyTier st10 e recsC 0#usize) = ok (.Ok ixC, st11))
+    {tierC : arena.store.PersTier} {frozenC : arena.store.EStore}
+    (h7 : arena.checker.freeze_tier st11.store ixC = ok (tierC, frozenC))
+    (h8 : ParallelAll recsC.length (arena.checker.worker_state st11.pins)
+      (jobStepSol tierC .Verified ipins (some sol) recsC)) :
+    ∃ env, RustDenotes recsC st10 env ∧ Nonempty (ConLeche.Model V env) := by
+  obtain ⟨est, hest, hst0⟩ := startState_init
+  have hk : ConRon.Bridge.CoreSpec ConRon.Arena.checkFuel :=
+    ConRon.Bridge.CoreSpec.of_core
+  have hind : ConRon.Bridge.IndSpec :=
+    ConRon.Bridge.Inductives.indSpec_of_bridge
+  obtain ⟨sA, sB, sC, sC', sD, sE, sF, sG, sH, sI, rvC, rvS, IS, IC, hA, hB, hC, hCS, hD, hE,
+      hF, hG, hH, hI, hrelH⟩ :=
+    rust_stages_compare hpins rfl hest hst0 h1 h2 hreadsC hreadsS h3 h3S hdup
+      (prepare_prelude_of_prepare_d h4S) h5 (poolAccepts_intro h6S h7S h8S)
+      (prepare_prelude_of_prepare_d h4) hside hsol (poolAcceptsSol_intro h6 h7 h8)
+  obtain ⟨hwfH, rcC, preCU, dsP, -, -, hden, ⟨hmod⟩⟩ :=
+    ConRon.Bridge.stagesC_model V hk hind hA hB hC hCS hD hE hF hG
+      hH hI
+  exact ⟨_, ⟨sH, dsP, hrelH.of₀ hwfH, hden, rfl⟩,
+    ⟨ConLeche.Model.Model.ofEnvModelM hmod⟩⟩
+
+/-- con-leche: ConLeche/MainTheorem.lean:63 main_compare_json_model — **A COMPARISON WHOSE
+CHALLENGE FILE DECLARES A THEOREM OF TYPE `False` IS REJECTED**: the binary's calls on
+`--compare -- C S` (§4b's table) cannot all succeed when `C` declares one, whatever `S` is.
+
+Composition only: `rust_stages_compare` (Theorem 2), `stagesC_no_False` (Theorem 1 +
+con-leche). -/
+theorem no_False_compare (V : Type w) [ConLeche.SetTheory V]
+    {chunksC chunksS : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
+    (hfalse : ConLeche.jsonWithTheoremFalse (absChunks chunksC))
+    {st1 st2 st3 st4 st5 st6 st7 st9 st10 st11 : arena.monad.AState}
+    (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+    {pre : frontend.prepare.PreludeIx}
+    (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
+    {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {srcC srcC' srcS srcS' : Sc}
+    (hreadsC : ReadsAs sinst srcC chunksC.val) (hreadsS : ReadsAs sinst srcS chunksS.val)
+    {rC rS : frontend.export_c.ParseResultD}
+    (h3 : frontend.export_c.parse_source sinst emptyTier st2 srcC = ok (.Ok rC, st3, srcC'))
+    (h3S : frontend.export_c.parse_source sinst emptyTier st3 srcS = ok (.Ok rS, st4, srcS'))
+    {preC : frontend.prepare.PreludeIx}
+    (hdup : frontend.prepare.prelude_ix_dup pre = ok preC)
+    {prepS : frontend.prepare.Prepared}
+    (h4S : frontend.prepare.prepare_d frontend.nat_op_ground.DeclUsedConsts.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier st4 pre rS.decls () = ok (.Ok prepS, st5))
+    {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+    (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+    {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    {maxNatSize : ron.nat.Nat}
+    (h5 : arena.checker.intern_all_pins emptyTier st5 pins maxNatSize = ok (.Ok ipins, st6))
+    {ixS : arena.stream_index.IStreamIndex}
+    (h6S : (do
+        let e ← arena.stream_index.stream_index_empty
+        arena.stream_index.build_index emptyTier st6 e prepS.decls 0#usize) = ok (.Ok ixS, st7))
+    {tierS : arena.store.PersTier} {frozenS : arena.store.EStore}
+    (h7S : arena.checker.freeze_tier st7.store ixS = ok (tierS, frozenS))
+    (h8S : ParallelAll prepS.decls.length (arena.checker.worker_state st7.pins)
+      (jobStep tierS .Verified ipins prepS.decls))
+    {prepC : frontend.prepare.Prepared}
+    (h4 : frontend.prepare.prepare_d frontend.nat_op_ground.DeclUsedConsts.Insts.Con_ron_coreFrontendNat_op_groundUsedConsts emptyTier st7 preC rC.decls () = ok (.Ok prepC, st9))
+    {recsC : alloc.vec.Vec arena.env.IDeclaration}
+    (hside : arena.justify.side_records emptyTier st9 prepC.decls 0#usize (alloc.vec.Vec.new _) =
+      ok (.Ok recsC, st10))
+    {sol : arena.justify.Solution}
+    (hsol : arena.justify.solution_of ixS recsC = ok sol)
+    {ixC : arena.stream_index.IStreamIndex}
+    (h6 : (do
+        let e ← arena.stream_index.stream_index_empty
+        arena.stream_index.build_index emptyTier st10 e recsC 0#usize) = ok (.Ok ixC, st11))
+    {tierC : arena.store.PersTier} {frozenC : arena.store.EStore}
+    (h7 : arena.checker.freeze_tier st11.store ixC = ok (tierC, frozenC))
+    (h8 : ParallelAll recsC.length (arena.checker.worker_state st11.pins)
+      (jobStepSol tierC .Verified ipins (some sol) recsC)) :
+    False := by
+  obtain ⟨est, hest, hst0⟩ := startState_init
+  have hk : ConRon.Bridge.CoreSpec ConRon.Arena.checkFuel :=
+    ConRon.Bridge.CoreSpec.of_core
+  have hind : ConRon.Bridge.IndSpec :=
+    ConRon.Bridge.Inductives.indSpec_of_bridge
+  obtain ⟨sA, sB, sC, sC', sD, sE, sF, sG, sH, sI, rvC, rvS, IS, IC, hA, hB, hC, hCS, hD, hE,
+      hF, hG, hH, hI, -⟩ :=
+    rust_stages_compare hpins rfl hest hst0 h1 h2 hreadsC hreadsS h3 h3S hdup
+      (prepare_prelude_of_prepare_d h4S) h5 (poolAccepts_intro h6S h7S h8S)
+      (prepare_prelude_of_prepare_d h4) hside hsol (poolAcceptsSol_intro h6 h7 h8)
+  exact ConRon.Bridge.stagesC_no_False V hk hind (pins := ConRon.Refine.absPins pins) hfalse
+    hA hB hC hCS hD hE hF hG hH hI
+
+end HeadlineCompare
+
 /-! ## 5. The census
 
 `#print axioms` of the roots: con-leche's own three axioms and nothing else — no `sorryAx`, no
@@ -954,5 +1229,11 @@ them. -/
 
 /-- info: 'ConRon.Capstone.model_exists_oleans' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms model_exists_oleans
+
+/-- info: 'ConRon.Capstone.model_exists_compare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms model_exists_compare
+
+/-- info: 'ConRon.Capstone.no_False_compare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms no_False_compare
 
 end ConRon.Capstone
