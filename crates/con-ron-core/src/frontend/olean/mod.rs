@@ -19,6 +19,10 @@
 //! | `merge` | `Arena/Frontend/Olean/Merge.lean` | `Olean/Merge.lean` |
 //! | `emit` | `Arena/Frontend/Olean/Emit.lean` | `Olean/Emit.lean` |
 //! | `records` | `Arena/Frontend/Olean/Records.lean` | `Olean/Records.lean` |
+//! | `levels` | `Arena/Frontend/Olean/Levels.lean` | `Olean/Levels.lean` (task #166) |
+//! | `index` | `Arena/Frontend/Olean/Index.lean` | `Olean/Index.lean` (task #166) |
+//! | `group` | `Arena/Frontend/Olean/Group.lean` | `Olean/Group.lean` (task #166) |
+//! | `present` | `Arena/Frontend/Olean/Present.lean` | `Olean/Present.lean` (task #166) |
 //!
 //! **Terms are read straight into the store**, as the stream parser's are, so the
 //! reader's outcome is `IDeclaration`s over handles and everything after the parse
@@ -40,3 +44,7 @@ pub mod closure;
 pub mod merge;
 pub mod emit;
 pub mod records;
+pub mod levels;
+pub mod index;
+pub mod group;
+pub mod present;

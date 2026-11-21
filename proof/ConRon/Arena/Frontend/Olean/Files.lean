@@ -299,6 +299,30 @@ def readView (fs : OleanFs) (pk : OleanPins) (sp : Roots) (m : NIdx)
   | some d => pure d
   | none => fail (← viewError pk mn f level)
 
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:345-350 namesOf
+**A part's name positions, off its files** (`readNamePositions`, with the reason where they do
+not read). -/
+def namesOf (pk : OleanPins) (m : Name) (f : ModFiles) (level : OLeanLevel) : AM NamePositions := do
+  match ← readNamePositions pk f level with
+  | some ps => pure ps
+  | none => fail (← viewError pk m f level)
+
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:352-357 readPartNamesAt
+**One part's name positions**, read off its files at their location. -/
+def readPartNamesAt (fs : OleanFs) (pk : OleanPins) (loc : Located) (m : Name) (level : OLeanLevel) :
+    AM NamePositions := do
+  let f ← liftE (readFilesAt fs loc m level)
+  namesOf pk m f level
+
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:359-364 readPartNames
+**One part's name positions**, located on the search path. -/
+def readPartNames (fs : OleanFs) (pk : OleanPins) (sp : Roots) (m : NIdx) (level : OLeanLevel) :
+    AM NamePositions := do
+  let mn ← readName m
+  match findModule fs sp mn with
+  | .error e => fail e
+  | .ok loc => readPartNamesAt fs pk loc mn level
+
 /-- con-leche: ConLeche/Frontend/Olean/Files.lean:396-413 readAllViews
 **All three views of a module, each parsed whole, and their check against each other**
 (`checkViews`, over the views): for the tools that compare the views. -/

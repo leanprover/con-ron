@@ -76,6 +76,44 @@ def isPropCheap (pk : OleanPins) (mg : Merged) (ty : EIdx) : AM Bool := do
         | .sort u => pure (u == pk.zero)
         | _ => pure false
 
+/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap
+Lean's `isPropCheap` over any `headTy` (the Rust's `HeadTy`). -/
+def isPropCheapF (pk : OleanPins) (headTy : NIdx → Option EIdx) (ty : EIdx) : AM Bool := do
+  let b ← isPropBody closureFuel ty
+  match ← isPropHead closureFuel b 0 with
+  | none => pure false
+  | some (n, k) =>
+    match headTy n with
+    | none => pure false
+    | some t =>
+      match ← isPropDrop k t with
+      | none => pure false
+      | some x =>
+        match ← view x with
+        | .sort u => pure (u == pk.zero)
+        | _ => pure false
+
+/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:45-47 isPropCheap.headOf
+The constant `isPropCheap` asks the type of. -/
+def isPropCheapHeadOf (ty : EIdx) : AM (Option NIdx) := do
+  let b ← isPropBody closureFuel ty
+  match ← isPropHead closureFuel b 0 with
+  | none => pure none
+  | some (n, _) => pure (some n)
+
+/-- con-leche: ConLeche/Frontend/Olean/Merge.lean:49-59 subsumesF
+**`subsumesInfo`** over statements and kinds. -/
+def subsumesF {E₁ E₂ : Type} (pk : OleanPins) (headTy : NIdx → Option EIdx) (cv₁ : StmtRec)
+    (k₁ : CKindF NIdx E₁) (cv₂ : StmtRec) (k₂ : CKindF NIdx E₂) : AM Bool := do
+  if cv₁.name == cv₂.name && cv₁.type == cv₂.type && cv₁.levelParams == cv₂.levelParams then
+    match k₁, k₂ with
+    | .thm _ a₁, .thm _ a₂ => pure (a₁ == a₂)
+    | .thm _ a₁, .ax u₂ => pure (a₁ == [cv₂.name] && !u₂)
+    | .ax u₁, .ax u₂ =>
+      if u₁ == u₂ then isPropCheapF pk headTy cv₁.type else pure false
+    | _, _ => pure false
+  else pure false
+
 /-- con-leche: ConLeche/Frontend/Olean/Merge.lean:61-63 subsumes
 `subsumesInfo`: may `c₁` stand for `c₂`? -/
 def subsumes (pk : OleanPins) (mg : Merged) (c₁ c₂ : CEntry) : AM Bool := do

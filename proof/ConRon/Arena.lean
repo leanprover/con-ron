@@ -66,5 +66,8 @@ public import ConRon.Arena.Checker
 public import ConRon.Arena.CheckerTest
 public import ConRon.Arena.Frontend.NatOpGround
 public import ConRon.Arena.Frontend.Compare
+public import ConRon.Arena.Frontend.Olean.Present
+public import ConRon.Arena.Modular.Graph
+public import ConRon.Arena.Modular.Worker
 -- the driver: no proof imports it, so the root does, to keep it in `lake build`
 public import ConRon.Arena.Main
