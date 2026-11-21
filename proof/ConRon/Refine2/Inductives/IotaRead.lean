@@ -566,10 +566,6 @@ open Lockstep in
 
 attribute [local lockstep_simp] Lockstep.absIRecRule_ctor
 
-/-- The recursor frame's answer, as the twin's. -/
-def absIotaRecO (o : Option arena.inductives.iota_read.IotaRec) : Option IotaRec :=
-  o.map absIotaRec
-
 open Lockstep in
 @[lockstep] theorem rule_reads_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {fe : arena.env.IFEnv} {lfe : IFEnv} (hctx : CoreCtx pers fe lfe)

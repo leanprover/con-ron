@@ -426,11 +426,6 @@ theorem moduleImports_run {pk : OleanPins} {F : FS} {sp : SearchPath} {R : Roots
 
 /-! ## The files of a view -/
 
-theorem pathExistsE_ok {F : FS} {p : System.FilePath} {b : Bool}
-    (h : Arena.Frontend.Olean.pathExistsE (modelFs F) p = .ok b) : b = (F.real p).isSome := by
-  simp only [Arena.Frontend.Olean.pathExistsE, modelFs, Except.ok.injEq] at h
-  exact h.symm
-
 /-- con-leche: ConLeche/Frontend/Olean/Files.lean:297-325 readFilesAt -/
 theorem readFilesAt_sim {F : FS} {loc : Located} {m : ConLeche.Name} {level : OLeanLevel}
     {f : ModFiles} (h : Arena.Frontend.Olean.readFilesAt (modelFs F) loc m level = .ok f) :
