@@ -485,4 +485,97 @@ theorem viewKeys_rel {st : EStore} {h : NIdx} {hC : ConLeche.Name} (hh : denoteN
     | cons f fs => simp only [List.zip_cons_cons, List.map_cons]; exact .cons ⟨ha, rfl⟩ (ih fs)
 
 
+/-- con-leche: ConLeche/Driver/Reach.lean:342-357 viewOf — **a home's view**, upstream's, cached
+in the related caches after. -/
+theorem viewOf_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
+    {h : NIdx} {hC : ConLeche.Name} {s s' : AState}
+    (hctx : RCtx pk s) (he : EnvRel sp s.store env envC) (hc : CacheRel s.store c cC)
+    (hh : denoteN s.store.ns h = some hC)
+    (hrun : ConRon.Arena.Modular.viewOf (modelFs F) pk sp env c h s = .ok (c', s')) :
+    DStep s s' ∧ ∃ cC' vC v, ModelIO.Gives (ConLeche.Driver.viewOf envC cC hC) F (cC', .ok vC) ∧
+      CacheRel s'.store c' cC' ∧ c'.views[h]? = some v ∧ HMRel (SpotRel s'.store) s'.store v vC := by
+  have hw := hctx.wf
+  have hvw := hc.views.get hw hh
+  unfold ConRon.Arena.Modular.viewOf at hrun
+  by_cases h1 : c.views.contains h = true
+  · simp only [h1, ↓reduceIte] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    rw [Std.HashMap.contains_eq_isSome_getElem?] at h1
+    rcases optRel_cases hvw with ⟨g1, -⟩ | ⟨v, vC, g1, g2, g3⟩
+    · rw [g1] at h1; cases h1
+    refine ⟨DStep.refl hctx.ok hctx.off, cC, vC, v, ?_, hc, g1, g3⟩
+    unfold ConLeche.Driver.viewOf
+    simp only [g2]
+    exact ModelIO.gives_pure _ _
+  simp only [h1, Bool.false_eq_true, ↓reduceIte, pure_bind] at hrun
+  have hmissC : cC.views[hC]? = none := by
+    have hm : c.views[h]? = none := by
+      rw [Std.HashMap.contains_eq_isSome_getElem?] at h1
+      cases hh' : c.views[h]? with
+      | none => rfl
+      | some _ => rw [hh'] at h1; exact absurd rfl h1
+    rw [hm] at hvw
+    rcases optRel_cases hvw with ⟨-, g⟩ | ⟨a, b, g, -, -⟩
+    · exact g
+    · cases g
+  have hk : PKRel s.store (ConRon.Arena.Modular.privKey h) (⟨hC, .private⟩ : ConLeche.Driver.PartKey) :=
+    ⟨hh, rfl⟩
+  obtain ⟨c₁, s₁, g1, k1⟩ := AM.bind_ok hrun
+  obtain ⟨hst1, cC₁, tC, t, hgt, hc1, ht, htr⟩ := tableOf_run hsp hctx he hc hk g1
+  obtain ⟨ld, s₂, g2, k2⟩ := AM.bind_ok k1
+  unfold ConRon.Arena.Modular.homeLoads at g2
+  rw [ht] at g2
+  have hctx1 := hctx.step hst1
+  obtain ⟨hst2, ldC, hgl, hlr, -⟩ := headerFixpoint_givesR hsp hctx1.ctx htr.imports g2
+  have hds2 := DStep.of_parse hctx1.ok hctx1.off hst2
+  have hctx2 := hctx1.step hds2
+  have hw2 := hctx2.wf
+  obtain ⟨⟨c₃, v⟩, s₃, g3, k3⟩ := AM.bind_ok k2
+  obtain ⟨hst3, cC₃, vC, hgv, hc3, hvr⟩ := viewAdd_run hsp _ hctx2
+    ((he.ext hst1.ext (nsWF_of_StateOK hst1.ok.state)).ext hds2.ext hw2) (hc1.ext hds2.ext)
+    (viewKeys_rel (denoteN_ext hh (hst1.trans hds2).ext) hlr) (HMRel.empty _ _) g3
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
+  have hw3 := nsWF_of_StateOK hst3.ok.state
+  refine ⟨(hst1.trans hds2).trans hst3, { cC₃ with views := cC₃.views.insert hC vC }, vC, v, ?_,
+    { hc3 with views := hc3.views.insert hw3 (denoteN_ext hh ((hst1.trans hds2).trans hst3).ext) hvr },
+    by simp, hvr⟩
+  unfold ConLeche.Driver.viewOf
+  simp only [hmissC]
+  refine hgt.bind ?_
+  simp only [he.rd]
+  rw [htr.isModule] at hgl
+  exact hgl.bind (hgv.bind (ModelIO.gives_pure _ _))
+
+/-- con-leche: ConLeche/Driver/Reach.lean:359-364 locate — **`y` located in `h`'s view**,
+upstream's, the search counted on both sides. -/
+theorem locate_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
+    {h y : NIdx} {hC yC : ConLeche.Name} {o : Option ConRon.Arena.Modular.Spot} {s s' : AState}
+    (hctx : RCtx pk s) (he : EnvRel sp s.store env envC) (hc : CacheRel s.store c cC)
+    (hh : denoteN s.store.ns h = some hC) (hy : denoteN s.store.ns y = some yC)
+    (hrun : ConRon.Arena.Modular.locate (modelFs F) pk sp env c h y s = .ok ((c', o), s')) :
+    DStep s s' ∧ ∃ cC' oC, ModelIO.Gives (ConLeche.Driver.locate envC cC hC yC) F (cC', .ok oC) ∧
+      CacheRel s'.store c' cC' ∧ Option.Rel (SpotRel s'.store) o oC := by
+  unfold ConRon.Arena.Modular.locate at hrun
+  obtain ⟨c₁, s₁, g1, k1⟩ := AM.bind_ok hrun
+  obtain ⟨hst1, cC₁, vC, v, hgv, hc1, hv, hvr⟩ := viewOf_run hsp hctx he hc hh g1
+  obtain ⟨o', s₂, g2, k2⟩ := AM.bind_ok k1
+  have hva : ConRon.Arena.Modular.viewAt { c₁ with searches := c₁.searches + 1 } h y s₁ =
+      .ok (v[y]?, s₁) := by
+    simp [ConRon.Arena.Modular.viewAt, hv]; rfl
+  rw [hva] at g2
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok g2
+  obtain ⟨hv', rfl⟩ := AM.pure_ok k2
+  simp only [Prod.mk.injEq] at hv'
+  obtain ⟨rfl, rfl⟩ := hv'
+  refine ⟨hst1, { cC₁ with searches := cC₁.searches + 1 }, vC[yC]?, ?_,
+    { hc1 with searches := by simp [hc1.searches] },
+    hvr.get (nsWF_of_StateOK hst1.ok.state) (denoteN_ext hy hst1.ext)⟩
+  unfold ConLeche.Driver.locate
+  refine hgv.bind ?_
+  exact ModelIO.gives_pure _ _
+
 end ConRon.Bridge.Modular
