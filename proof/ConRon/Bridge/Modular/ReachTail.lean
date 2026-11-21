@@ -21,6 +21,7 @@ set_option autoImplicit false
 
 open ConLeche ConRon.Arena ConRon.Arena.Frontend ConRon.Bridge ConRon.Bridge.Frontend
 open ConRon.Bridge.Frontend.Olean
+open ConLeche.Frontend.Olean (Copy CKindF)
 
 /-! ## The read order -/
 
@@ -421,5 +422,80 @@ theorem readOrder_run' {s s' : AState} {ds : Array IDeclaration} {rds : Array (L
   have hl := denoteDecls_length hd
   simp at this hl ⊢
   omega
+
+/-! ## The clashes' copies by name -/
+
+/-- A module's name for messages, read back (`HeaderLoads.nameAt`). -/
+theorem nameAt_rel {st : EStore} {pk : ConRon.Arena.Frontend.Olean.OleanPins}
+    {ld : ConRon.Arena.Frontend.Olean.HeaderLoads} {ldC : ConLeche.Frontend.Olean.HeaderLoads}
+    (hn : NullsRel st pk) (hl : LoadsRel st ld ldC) (i : Nat) :
+    denoteN st.ns (ld.nameAt pk i) = some (ldC.nameAt i) := by
+  simp only [ConRon.Arena.Frontend.Olean.HeaderLoads.nameAt,
+    ConLeche.Frontend.Olean.HeaderLoads.nameAt]
+  have := listRel_getElem? hl.order i
+  simp only [Array.getElem?_toList] at this
+  revert this
+  generalize ld.order[i]? = a
+  generalize ldC.order[i]? = b
+  intro h
+  cases h with
+  | none => exact hn.anon
+  | some h => exact h
+
+/-- One clash's copies, by module name, read back. -/
+theorem clashCopiesRow_rel {st : EStore} {pk : ConRon.Arena.Frontend.Olean.OleanPins}
+    {ld : ConRon.Arena.Frontend.Olean.HeaderLoads} {ldC : ConLeche.Frontend.Olean.HeaderLoads}
+    (hn : NullsRel st pk) (hl : LoadsRel st ld ldC) :
+    ∀ {cs : List (Copy × ConRon.Arena.Frontend.Olean.StmtRec × CKindF NIdx Unit)}
+      {csC : List (Copy × ConstantVal × CKindF ConLeche.Name Unit)},
+      ListRel (CopyInfoRel st) cs csC →
+      ListRel (fun (x : NIdx × ConRon.Arena.Frontend.Olean.StmtRec) (y : ConLeche.Name × ConstantVal) =>
+          denoteN st.ns x.1 = some y.1 ∧ denoteStmt st x.2 = some y.2)
+        (cs.map fun (cp, cv, _) => (ld.nameAt pk cp.mod, cv))
+        (csC.map fun (cp, cv, _) => (ldC.nameAt cp.mod, cv))
+  | _, _, .nil => .nil
+  | _, _, .cons (a := (cp, cv, k)) (b := (cp', cv', k')) ⟨h1, h2, _⟩ t => by
+    simp only at h1
+    subst h1
+    exact .cons ⟨nameAt_rel hn hl cp.mod, h2⟩ (clashCopiesRow_rel hn hl t)
+
+/-- con-leche: ConLeche/Driver/Reach.lean:778-782 clashCopiesOf — **the copies of every name
+two loaded modules hold, by name, read back**: a map over handles against one over names, each
+row's copies the module names and statements denoted. -/
+theorem clashCopiesOf_rel {st : EStore} (hw : NStoreWF st.ns)
+    {pk : ConRon.Arena.Frontend.Olean.OleanPins} (hn : NullsRel st pk)
+    {wr : ConRon.Arena.Frontend.Olean.WorkerReads} {wrC : ConLeche.Frontend.Olean.WorkerReads}
+    (hwr : WorkerReadsRel st wr wrC) :
+    HMRel (fun (a : Array (NIdx × ConRon.Arena.Frontend.Olean.StmtRec))
+        (b : Array (ConLeche.Name × ConstantVal)) =>
+        ListRel (fun x y => denoteN st.ns x.1 = some y.1 ∧ denoteStmt st x.2 = some y.2)
+          a.toList b.toList) st
+      (ConRon.Arena.Modular.clashCopiesOf pk wr) (ConLeche.Driver.clashCopiesOf wrC) := by
+  unfold ConRon.Arena.Modular.clashCopiesOf ConLeche.Driver.clashCopiesOf
+  rw [← Array.foldl_toList, ← Array.foldl_toList]
+  have key : ∀ (l : List ConRon.Arena.Frontend.Olean.Clash) (lC : List ConLeche.Frontend.Olean.Clash)
+      (M : Std.HashMap NIdx (Array (NIdx × ConRon.Arena.Frontend.Olean.StmtRec)))
+      (MC : Std.HashMap ConLeche.Name (Array (ConLeche.Name × ConstantVal))),
+      ListRel (ClashRel st) l lC →
+      HMRel (fun (a : Array (NIdx × ConRon.Arena.Frontend.Olean.StmtRec))
+        (b : Array (ConLeche.Name × ConstantVal)) =>
+        ListRel (fun x y => denoteN st.ns x.1 = some y.1 ∧ denoteStmt st x.2 = some y.2)
+          a.toList b.toList) st M MC →
+      HMRel (fun (a : Array (NIdx × ConRon.Arena.Frontend.Olean.StmtRec))
+        (b : Array (ConLeche.Name × ConstantVal)) =>
+        ListRel (fun x y => denoteN st.ns x.1 = some y.1 ∧ denoteStmt st x.2 = some y.2)
+          a.toList b.toList) st
+        (l.foldl (fun m cl => m.insert cl.name
+          (cl.copies.map fun (cp, cv, _) => (wr.loads.nameAt pk cp.mod, cv))) M)
+        (lC.foldl (fun m cl => m.insert cl.name
+          (cl.copies.map fun (cp, cv, _) => (wrC.loads.nameAt cp.mod, cv))) MC) := by
+    intro l lC M MC hl hM
+    induction hl generalizing M MC with
+    | nil => exact hM
+    | cons hc _ ih =>
+      apply ih
+      refine hM.insert hw hc.name ?_
+      simpa [Array.toList_map] using clashCopiesRow_rel hn hwr.loads hc.copies
+  exact key _ _ {} {} hwr.clashes (HMRel.empty _ _)
 
 end ConRon.Bridge.Modular
