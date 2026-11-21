@@ -1602,4 +1602,50 @@ elab "lockstep_and_part" : tactic => do
 macro_rules
   | `(tactic| lockstep_side_ext) => `(tactic| lockstep_and_part)
 
+/-! ## A set of name handles (`HashMap2<NIdx, bool>`), task #165
+
+The cone walk's `seen` (`arena::justify::cone_go`) against the twin's
+`Std.HashMap NIdx Bool`: `NMemoRel`, entry for entry, the map well formed. -/
+
+/-- `HashMap2<NIdx, bool>` against `Std.HashMap NIdx Bool`. -/
+def NMemoRel (rm : ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
+    (lm : Std.HashMap NIdx Bool) : Prop :=
+  ConRon.Refine.HashMap2.RelOn (fun _ => True) rm lm absNIdx id ∧
+    ConRon.Refine.HashMap2.Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rm
+
+@[lockstep] theorem hashmap2_new_nidx_bool_spec :
+    LSP (ron.hashmap2.HashMap2.new arena.handle.NIdx Bool)
+      (fun m => NMemoRel m (∅ : Std.HashMap NIdx Bool)) := by
+  intro m h
+  have hn := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable)
+    (K := arena.handle.NIdx) (V := Bool) (m' := m) h
+  exact ⟨fun k _ => by simp [hn.2.2 k], hn.1⟩
+
+@[lockstep] theorem hashmap2_contains_key_nidx_bool_spec
+    {rm : ron.hashmap2.HashMap2 arena.handle.NIdx Bool} {lm : Std.HashMap NIdx Bool}
+    (hm : NMemoRel rm lm) (k : arena.handle.NIdx) :
+    LSP (ron.hashmap2.HashMap2.contains_key arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 rm k)
+      (fun b => b = lm.contains (absNIdx k)) := by
+  intro b h
+  rw [ConRon.Refine.HashMap2.contains_key_refines_wf nidx_eq2 hm.2
+    ConRon.Refine.HashMap2.KeysOk_true trivial h, Std.HashMap.contains_eq_isSome_getElem?,
+    ← hm.1 k trivial]
+  cases ConRon.Refine.HashMap2.toFun rm k <;> rfl
+
+@[lockstep] theorem hashmap2_insert_nidx_bool_spec
+    {rm : ron.hashmap2.HashMap2 arena.handle.NIdx Bool} {lm : Std.HashMap NIdx Bool}
+    (hm : NMemoRel rm lm) (k : arena.handle.NIdx) (r : Bool) :
+    LSP (ron.hashmap2.HashMap2.insert arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2 rm k r)
+      (fun p => NMemoRel p.2 (lm.insert (absNIdx k) r)) := by
+  intro ⟨old, m'⟩ h
+  have hinj : ∀ a b : arena.handle.NIdx, True → True → absNIdx a = absNIdx b → a = b :=
+    fun a b _ _ hab => absNIdx_inj hab
+  obtain ⟨hrel', -⟩ := ConRon.Refine.HashMap2.Rel_insert_wf nidx_eq2 hinj hm.2
+    ConRon.Refine.HashMap2.KeysOk_true hm.1 trivial h
+  exact ⟨hrel', (ConRon.Refine.HashMap2.insert_refines_wf nidx_eq2 hm.2
+    ConRon.Refine.HashMap2.KeysOk_true trivial h).1⟩
+
 end ConRon.Refine2.Lockstep
