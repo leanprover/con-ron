@@ -10,6 +10,7 @@ the memo) and `parse_at` against the twin's `parseMany`, `parseAt`; `parse_view`
 import ConRon.Refine2.Frontend.Olean.View
 import ConRon.Refine2.Frontend.Olean.Stmts
 import ConRon.Refine2.Frontend.ExportC
+import ConRon.Refine2.Frontend.Olean.Group
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -706,88 +707,7 @@ theorem parse_at_refines {pk bs r pers st lst} {addr : Std.U64} (hr : RegionFits
       | nil => exact absurd rfl hne
       | cons y u => exact RS.none
 
-
 /-! ## The copies -/
-
-/-- **`rules_dup` is the identity.** -/
-theorem rules_dup_eq {r r' : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx)}
-    (h : rules_dup r = ok r') : r' = r := by
-  rw [rules_dup] at h
-  refine vec_ext (dup_walk0 (L := fun i out => rules_dup_loop r out i) ?_ h)
-  intro i out o h
-  rw [rules_dup_loop] at h
-  by_cases hc : i < alloc.vec.Vec.len r
-  · rw [ite_eq_left hc] at h
-    peel h as ⟨n, u, e⟩, hx
-    peel h as n1, hn1
-    obtain rfl := nidx_dup2_ok hn1
-    peel h as e1, he1
-    obtain rfl := eidx_dup2_ok he1
-    peel h as o1, ho1
-    peel h as j, hj
-    exact Or.inr ⟨_, o1, j, ConRon.Refine.ExprOps.vec_index_getElem? hx,
-      ConRon.Refine.vec_push_val ho1, add_one_usize hj, h⟩
-  · rw [ite_eq_right hc] at h
-    exact Or.inl ⟨len_le_of_not_lt hc, (Result.ok_injective h).symm⟩
-
-theorem nidx_vec_dup_eq {v v' : alloc.vec.Vec arena.handle.NIdx}
-    (h : arena.env.nidx_vec_dup v = ok v') : v' = v :=
-  vec_ext (ConRon.Refine2.nidx_vec_dup_val h)
-
-theorem hints_dup_self {h r : frontend.scan_types.HintsRec}
-    (e : frontend.olean.spec.hints_dup h = ok r) : r = h := by
-  cases h <;> exact (Result.ok_injective e).symm
-
-/-- **`c_kind_dup` is the identity.** -/
-theorem c_kind_dup_eq {k k' : frontend.olean.spec.CKindF arena.handle.NIdx arena.handle.EIdx}
-    (h : c_kind_dup k = ok k') : k' = k := by
-  delta c_kind_dup at h
-  cases k <;> dsimp only at h
-  · exact (Result.ok_injective h).symm
-  · peel h as e, he
-    obtain rfl := eidx_dup2_ok he
-    peel h as hr, hhr
-    obtain rfl := hints_dup_self hhr
-    peel h as v, hv
-    cases Result.ok_injective h
-    rw [ConRon.Refine.Expr.str_copy_eq hv]
-  · peel h as e, he
-    obtain rfl := eidx_dup2_ok he
-    peel h as v, hv
-    cases Result.ok_injective h
-    rw [nidx_vec_dup_eq hv]
-  · peel h as e, he
-    obtain rfl := eidx_dup2_ok he
-    cases Result.ok_injective h
-    rfl
-  · peel h as v, hv
-    cases Result.ok_injective h
-    rw [ConRon.Refine.Expr.str_copy_eq hv]
-  · peel h as v, hv
-    peel h as v1, hv1
-    cases Result.ok_injective h
-    rw [nidx_vec_dup_eq hv, nidx_vec_dup_eq hv1]
-  · peel h as n, hn
-    obtain rfl := nidx_dup2_ok hn
-    cases Result.ok_injective h
-    rfl
-  · peel h as v, hv
-    peel h as v1, hv1
-    cases Result.ok_injective h
-    rw [nidx_vec_dup_eq hv, rules_dup_eq hv1]
-
-/-- **`c_entry_dup` is the identity.** -/
-theorem c_entry_dup_eq {c c' : frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx}
-    (h : c_entry_dup c = ok c') : c' = c := by
-  rw [c_entry_dup] at h
-  peel h as n, hn
-  obtain rfl := nidx_dup2_ok hn
-  peel h as v, hv
-  peel h as e, he
-  obtain rfl := eidx_dup2_ok he
-  peel h as k, hk
-  cases Result.ok_injective h
-  rw [nidx_vec_dup_eq hv, c_kind_dup_eq hk]
 
 /-- **`mod_decoded_dup` is the identity.** -/
 theorem mod_decoded_dup_eq {d d' : frontend.olean.spec.ModDecoded}
@@ -819,7 +739,7 @@ theorem mod_decoded_dup_eq {d d' : frontend.olean.spec.ModDecoded}
     · rw [ite_eq_left hc] at h
       peel h as x, hx
       peel h as c1, hc1
-      obtain rfl := c_entry_dup_eq hc1
+      obtain rfl := view_c_entry_dup_eq hc1
       peel h as o1, ho1
       peel h as j, hj
       exact Or.inr ⟨_, o1, j, ConRon.Refine.ExprOps.vec_index_getElem? hx,
