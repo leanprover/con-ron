@@ -1712,4 +1712,286 @@ theorem clash_heads_rel {pers : arena.store.PersTier} {st : arena.monad.AState} 
   simpa using clash_heads_loop_rel hix clashes hcl _ 0#usize (A := #[])
     ⟨by rw [e0]; rfl, fun c hc => by rw [e0] at hc; cases hc⟩ st lst
 
+/-! ## `CA`: the accept of a read of the store -/
+
+/-- **The accept of a read of the store**: the Rust's `Ok` over `st.store` is a run of the twin,
+in a related state.  An `Err` claims nothing (the checks' rejects). -/
+def CA {α β : Type} (pers : arena.store.PersTier) (R : α → β → Prop)
+    (st : arena.monad.AState) (lst : AState)
+    (m : Result (core.result.Result α kernel.core_types.CheckError)) (x : AM β) : Prop :=
+  AStateRel₀ pers st lst → AStateInv pers st →
+    ∀ a, m = ok (.Ok a) → ∃ b lst', x.run lst = .ok (b, lst') ∧ R a b ∧
+      AStateRel₀ pers st lst' ∧ AStateInv pers st
+
+theorem CR.ca {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {st : arena.monad.AState} {lst : AState} {m} {x : AM β} (h : CR pers R st lst m x) :
+    CA pers R st lst m x := fun hrel hinv _ hm => h hrel hinv _ hm
+
+theorem CA.pure {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {st : arena.monad.AState} {lst : AState} {a : α} {b : β} (hR : R a b) :
+    CA pers R st lst (ok (.Ok a)) (Pure.pure b) := (CR.pure hR).ca
+
+theorem CA.err {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {st : arena.monad.AState} {lst : AState} {e} {x : AM β} :
+    CA pers R st lst (ok (.Err e : core.result.Result α _)) x := by
+  intro _ _ a h; cases Result.ok_injective h
+
+theorem CA.pure_step {α β γ : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {st : arena.monad.AState} {lst : AState} {f : Result γ}
+    {k : γ → Result (core.result.Result α kernel.core_types.CheckError)}
+    {x : AM β} (h : ∀ a, f = ok a → CA pers R st lst (k a) x) :
+    CA pers R st lst (Std.bind f k) x := by
+  intro hrel hinv o hm
+  obtain ⟨a, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  exact h a h1 hrel hinv o h2
+
+theorem CA.bind {α₁ β₁ α β : Type} {pers : arena.store.PersTier} {R₁ : α₁ → β₁ → Prop}
+    {R : α → β → Prop} {st : arena.monad.AState} {lst : AState}
+    {f : Result (core.result.Result α₁ kernel.core_types.CheckError)}
+    {k : core.result.Result α₁ kernel.core_types.CheckError →
+      Result (core.result.Result α kernel.core_types.CheckError)}
+    {x : AM β₁} {g : β₁ → AM β}
+    (hf : CA pers R₁ st lst f x)
+    (he : ∀ e, k (.Err e) = ok (.Err e))
+    (hk : ∀ a b lst1, R₁ a b → CA pers R st lst1 (k (.Ok a)) (g b)) :
+    CA pers R st lst (Std.bind f k) (x >>= g) := by
+  intro hrel hinv o hm
+  obtain ⟨r, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  cases r with
+  | Ok a =>
+    obtain ⟨b, lst1, hx, hR, hrel1, hinv1⟩ := hf hrel hinv a hf1
+    rw [am_bind_ok hx]
+    exact hk a b lst1 hR hrel1 hinv1 o hk1
+  | Err e => rw [he e] at hk1; cases Result.ok_injective hk1
+
+/-- The twin's result dropped. -/
+theorem CA.discard {β : Type} {pers : arena.store.PersTier} {R : Unit → β → Prop}
+    {st : arena.monad.AState} {lst : AState} {m : Result (core.result.Result Unit kernel.core_types.CheckError)}
+    {x : AM β} (h : CA pers R st lst m x) :
+    CA pers (fun _ _ => True) st lst m (do let _ ← x; Pure.pure ()) := by
+  intro hrel hinv a hm
+  obtain ⟨b, lst1, hx, -, hrel1, hinv1⟩ := h hrel hinv a hm
+  exact ⟨(), lst1, by rw [am_bind_ok hx]; rfl, trivial, hrel1, hinv1⟩
+
+/-! ## The clash rule -/
+
+/-- The twin's step of `clashOk`. -/
+def ccoStep (pk : Arena.Frontend.Olean.OleanPins) (ld : Arena.Frontend.Olean.HeaderLoads)
+    (headTy : NIdx → Option EIdx) (c : Arena.Frontend.Olean.Clash)
+    (kept next : ConLeche.Frontend.Olean.Copy × Arena.Frontend.Olean.StmtRec × ConLeche.Frontend.Olean.CKindF NIdx Unit) :
+    AM (ConLeche.Frontend.Olean.Copy × Arena.Frontend.Olean.StmtRec × ConLeche.Frontend.Olean.CKindF NIdx Unit) := do
+  let (_, cv₁, k₁) := next
+  let (_, cv₂, k₂) := kept
+  if ← Arena.Frontend.Olean.subsumesF pk headTy cv₁ k₁ cv₂ k₂ then pure next
+  else if ← Arena.Frontend.Olean.subsumesF pk headTy cv₂ k₂ cv₁ k₁ then pure kept
+  else fail (.invalid s!"modules {← readName (ld.nameAt pk kept.1.mod)} and \
+    {← readName (ld.nameAt pk next.1.mod)} store different constants named \
+    {← readName c.name}, and both are loaded")
+
+theorem clashOk_eq (pk ld headTy) (c : Arena.Frontend.Olean.Clash) :
+    Arena.Frontend.Olean.clashOk pk ld headTy c =
+      (match c.copies.toList with
+      | [] => Pure.pure ()
+      | k :: rest => do let _ ← rest.foldlM (ccoStep pk ld headTy c) k; Pure.pure ()) := rfl
+
+/-- **`clash_step`'s accept is the twin's step.** -/
+theorem clash_step_ok {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    (pk : frontend.olean.spec.OleanPins) {ld ld'} {h : frontend.olean.index.HeadTys}
+    {headTy : NIdx → Option EIdx}
+    (hH : HeadTyRel HeadTys.Insts.Con_ron_coreFrontendOleanMergeHeadTy h headTy)
+    {c : frontend.olean.index.Clash} (c' : Arena.Frontend.Olean.Clash) {C}
+    (hc : List.Forall₂ CopyInfoRel c.copies.val C) {kept i : Std.Usize}
+    (hk : kept.val < C.length) (hi : i.val < C.length) :
+    CA pers (fun (k : Std.Usize) b => ∃ hk : k.val < C.length, b = C[k.val]) st lst
+      (clash_step pk pers st.store ld h c kept i)
+      (ccoStep (absPins pk) ld' headTy c' C[kept.val] C[i.val]) := by
+  rw [clash_step]
+  have hlen := forall₂_length' hc
+  refine CA.pure_step fun nx hnx => ?_
+  obtain ⟨_, hnxe⟩ := vec_index_eq hnx
+  refine CA.pure_step fun kp hkp => ?_
+  obtain ⟨_, hkpe⟩ := vec_index_eq hkp
+  obtain ⟨y1, hy1, hr1⟩ := forall₂_getElem? hc (List.getElem?_eq_getElem (show i.val < c.copies.val.length by omega))
+  obtain ⟨y2, hy2, hr2⟩ := forall₂_getElem? hc (List.getElem?_eq_getElem (show kept.val < c.copies.val.length by omega))
+  rw [List.getElem?_eq_getElem hi] at hy1
+  rw [List.getElem?_eq_getElem hk] at hy2
+  have ey1 : C[i.val] = y1 := Option.some.inj hy1
+  have ey2 : C[kept.val] = y2 := Option.some.inj hy2
+  rw [ey1, ey2]
+  rw [← hnxe] at hr1
+  rw [← hkpe] at hr2
+  obtain ⟨c1, sr, cf⟩ := nx
+  obtain ⟨c2, sr1, cf1⟩ := kp
+  obtain ⟨c1', cv1, k1'⟩ := y1
+  obtain ⟨c2', cv2, k2'⟩ := y2
+  obtain ⟨-, hs1, hk1⟩ := hr1
+  obtain ⟨-, hs2, hk2⟩ := hr2
+  simp only at hs1 hk1 hs2 hk2
+  subst hs1 hs2
+  dsimp only [Std.uncurry]
+  rw [ccoStep]
+  dsimp only
+  refine CA.bind (subsumes_f_rel pk hH sr sr1 hk1 hk2).ca (fun _ => rfl) fun b b' lst1 hb => ?_
+  cases hb
+  cases b with
+  | true => exact CA.pure ⟨hi, ey1.symm⟩
+  | false =>
+    simp only [Bool.false_eq_true, ↓reduceIte]
+    refine CA.bind (subsumes_f_rel pk hH sr1 sr hk2 hk1).ca (fun _ => rfl) fun b b' lst2 hb => ?_
+    cases hb
+    cases b with
+    | true => exact CA.pure ⟨hk, ey2.symm⟩
+    | false =>
+      simp only [Bool.false_eq_true, ↓reduceIte]
+      exact CA.pure_step fun _ _ => CA.err
+
+
+theorem clash_ok_loop_ok {pers : arena.store.PersTier} (pk : frontend.olean.spec.OleanPins) {ld ld'}
+    {h : frontend.olean.index.HeadTys} {headTy : NIdx → Option EIdx}
+    (hH : HeadTyRel HeadTys.Insts.Con_ron_coreFrontendOleanMergeHeadTy h headTy)
+    (c : frontend.olean.index.Clash) (c' : Arena.Frontend.Olean.Clash) {C}
+    (hc : List.Forall₂ CopyInfoRel c.copies.val C) (kept i : Std.Usize) (hk : kept.val < C.length)
+    (st : arena.monad.AState) (lst : AState) :
+    CA pers (fun _ _ => True) st lst (clash_ok_loop pk pers st.store ld h c kept i)
+      ((C.drop i.val).foldlM (ccoStep (absPins pk) ld' headTy c') C[kept.val]) := by
+  rw [clash_ok_loop]
+  have hlen := forall₂_length' hc
+  by_cases hlt : i < alloc.vec.Vec.len c.copies
+  · rw [ite_eq_left hlt]
+    have hi := lt_of_lt_len hlt
+    have hi' : i.val < C.length := by omega
+    rw [List.drop_eq_getElem_cons hi', List.foldlM_cons]
+    refine CA.bind (clash_step_ok (ld := ld) pk hH c' hc hk hi') (fun _ => rfl) fun k b lst1 hkb => ?_
+    obtain ⟨hk1, rfl⟩ := hkb
+    refine CA.pure_step fun i2 hi2 => ?_
+    have ei2 := usize_succ hi2
+    have ih := clash_ok_loop_ok (pers := pers) (ld := ld) (ld' := ld') pk hH c c' hc k i2 hk1 st lst1
+    rw [ei2] at ih
+    exact ih
+  · rw [ite_eq_right hlt, List.drop_of_length_le (by have := lt_of_not_lt_len hlt; omega)]
+    exact CA.pure trivial
+termination_by c.copies.val.length - i.val
+decreasing_by
+  have := lt_of_lt_len hlt
+  omega
+
+/-- **`clash_ok`'s accept is `clashOk`'s.** -/
+theorem clash_ok_ok {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    (pk : frontend.olean.spec.OleanPins) {ld ld'}
+    {h : frontend.olean.index.HeadTys} {headTy : NIdx → Option EIdx}
+    (hH : HeadTyRel HeadTys.Insts.Con_ron_coreFrontendOleanMergeHeadTy h headTy)
+    {c : frontend.olean.index.Clash} {c' : Arena.Frontend.Olean.Clash} (hc : ClashRel c c') :
+    CA pers (fun _ _ => True) st lst (clash_ok pk pers st.store ld h c)
+      (Arena.Frontend.Olean.clashOk (absPins pk) ld' headTy c') := by
+  rw [clash_ok, clashOk_eq]
+  have hlen := forall₂_length' hc.copies
+  cases hC : c'.copies.toList with
+  | nil =>
+    rw [hC] at hlen
+    rw [clash_ok_loop, ite_eq_right (by
+      intro hl; have := lt_of_lt_len hl; have e1 : (1#usize : Std.Usize).val = 1 := rfl
+      simp only [List.length_nil] at hlen; omega)]
+    exact CA.pure trivial
+  | cons k rest =>
+    have hcs := hc.copies
+    rw [hC] at hcs
+    have := clash_ok_loop_ok (pers := pers) (ld := ld) (ld' := ld') pk hH c c' hcs 0#usize 1#usize
+      (by simp) st lst
+    simpa using this.discard
+
+theorem list_forM_cons {m : Type → Type} [Monad m] {α : Type} (a : α) (l : List α) (f : α → m PUnit) :
+    (a :: l).forM f = (do f a; l.forM f) := rfl
+
+theorem clashes_ok_loop_ok {pers : arena.store.PersTier} (pk : frontend.olean.spec.OleanPins) {ld ld'}
+    {h : frontend.olean.index.HeadTys} {headTy : NIdx → Option EIdx}
+    (hH : HeadTyRel HeadTys.Insts.Con_ron_coreFrontendOleanMergeHeadTy h headTy)
+    (clashes : alloc.vec.Vec frontend.olean.index.Clash) {CL}
+    (hcl : List.Forall₂ ClashRel clashes.val CL) (i : Std.Usize) (st : arena.monad.AState) (lst : AState) :
+    CA pers (fun _ _ => True) st lst (clashes_ok_loop pk pers st.store ld h clashes i)
+      ((CL.drop i.val).forM (Arena.Frontend.Olean.clashOk (absPins pk) ld' headTy)) := by
+  rw [clashes_ok_loop]
+  have hlen := forall₂_length' hcl
+  by_cases hlt : i < alloc.vec.Vec.len clashes
+  · rw [ite_eq_left hlt]
+    have hi := lt_of_lt_len hlt
+    have hi' : i.val < CL.length := by omega
+    refine CA.pure_step fun c hc => ?_
+    obtain ⟨_, rfl⟩ := vec_index_eq hc
+    obtain ⟨y, hy, hr⟩ := forall₂_getElem? hcl (List.getElem?_eq_getElem hi)
+    have ey : CL[i.val] = y := by rw [List.getElem?_eq_getElem hi'] at hy; exact Option.some.inj hy
+    rw [List.drop_eq_getElem_cons hi', list_forM_cons, ey]
+    refine CA.bind (clash_ok_ok (ld := ld) (ld' := ld') pk hH hr) (fun _ => rfl) fun _ _ lst1 _ => ?_
+    refine CA.pure_step fun i2 hi2 => ?_
+    have ei2 := usize_succ hi2
+    have ih := clashes_ok_loop_ok (pers := pers) (ld := ld) (ld' := ld') pk hH clashes hcl i2 st lst1
+    rw [ei2] at ih
+    exact ih
+  · rw [ite_eq_right hlt, List.drop_of_length_le (by have := lt_of_not_lt_len hlt; omega)]
+    exact CA.pure trivial
+termination_by clashes.val.length - i.val
+decreasing_by
+  have := lt_of_lt_len hlt
+  omega
+
+/-- **`clashes_ok`'s accept is the twin's `forM`.** -/
+theorem clashes_ok_ok {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    (pk : frontend.olean.spec.OleanPins) {ld ld'}
+    {h : frontend.olean.index.HeadTys} {headTy : NIdx → Option EIdx}
+    (hH : HeadTyRel HeadTys.Insts.Con_ron_coreFrontendOleanMergeHeadTy h headTy)
+    {clashes : alloc.vec.Vec frontend.olean.index.Clash} {CL : _root_.Array Arena.Frontend.Olean.Clash}
+    (hcl : List.Forall₂ ClashRel clashes.val CL.toList) :
+    CA pers (fun _ _ => True) st lst (clashes_ok pk pers st.store ld h clashes)
+      (CL.toList.forM (Arena.Frontend.Olean.clashOk (absPins pk) ld' headTy)) := by
+  simpa using clashes_ok_loop_ok (pers := pers) (ld := ld) (ld' := ld') pk hH clashes hcl 0#usize st lst
+
+/-! ## Freshness and the module system, accepted -/
+
+/-- **`fresh_ok`'s accept is `freshOk`'s.** -/
+theorem fresh_ok_ok {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    (pk : frontend.olean.spec.OleanPins) (m : arena.handle.NIdx) {ld} (ld' : Arena.Frontend.Olean.HeaderLoads)
+    {ix ix'} (hix : NameIndexRel ix ix') (own : frontend.olean.reads.NamePositions) :
+    CA pers (fun _ _ => True) st lst (fresh_ok pk pers st.store m ld ix own)
+      (Arena.Frontend.Olean.freshOk (absPins pk) (absNIdx m) ld' ix' (absNamePositions own)) := by
+  intro hrel hinv a hm
+  rw [fresh_ok] at hm
+  peel hm as o, ho
+  cases o with
+  | none =>
+    have e := first_loaded_none hix ho
+    refine ⟨(), lst, ?_, trivial, hrel, hinv⟩
+    simp only [Arena.Frontend.Olean.freshOk, e]
+    rfl
+  | some i =>
+    exfalso
+    repeat (peel hm as _, _)
+    cases Result.ok_injective hm
+
+/-- **`imports_modules_ok`'s accept is `importsModulesOk`'s.** -/
+theorem imports_modules_ok_ok {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    (m : arena.handle.NIdx) (is_module : Bool) {ld ld'} (hld : HeaderLoadsRel ld ld') (hw : IndexFits ld')
+    {ix ix'} (hix : NameIndexRel ix ix') (imports : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)) :
+    CA pers (fun _ _ => True) st lst (imports_modules_ok pers st.store m is_module ld ix imports)
+      (Arena.Frontend.Olean.importsModulesOk (absNIdx m) is_module ld' ix' (absImports imports)) := by
+  intro hrel hinv a hm
+  rw [imports_modules_ok] at hm
+  refine ⟨(), lst, ?_, trivial, hrel, hinv⟩
+  cases is_module with
+  | false => rfl
+  | true =>
+    rw [ite_eq_left rfl] at hm
+    peel hm as o, ho
+    cases o with
+    | none =>
+      have e := first_classic_none hld hw hix ho
+      unfold Arena.Frontend.Olean.importsModulesOk
+      simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+      split
+      · rename_i i heq
+        exact absurd (e.symm.trans heq) (by simp)
+      · rfl
+    | some i =>
+      exfalso
+      repeat (peel hm as _, _)
+      cases Result.ok_injective hm
+
 end ConRon.Refine2.Frontend.Olean
