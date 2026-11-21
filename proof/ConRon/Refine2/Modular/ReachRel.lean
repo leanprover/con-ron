@@ -382,13 +382,14 @@ def ACS {α β : Type} (pers : arena.store.PersTier)
 
 /-! ## The reach -/
 
-/-- **`Reach` against the twin's**, `pending` up to its messages. -/
+/-- **`Reach` against the twin's**, field by field, `pending` up to its messages (the shape lane
+L3's worker reads: `Refine2/Modular/WorkerRead.lean`). -/
 structure ReachRel (r : frontend.modular.reach.Reach) (r' : ConRon.Arena.Modular.Reach) : Prop where
-  ctx : r.ctx.val.map absIDeclaration = r'.ctx.toList
-  homes : r.homes.val.map absNIdx = r'.homes.toList
-  completed : r.completed.val.map absNN = r'.completed.toList
-  searches : r.searches.val = r'.searches
-  inferred : r.inferred.val = r'.inferred
+  ctx : r'.ctx = ConRon.Refine2.Frontend.absIDeclArr r.ctx
+  homes : r'.homes = ConRon.Refine2.Frontend.absNIdxArr r.homes
+  completed : r'.completed = (r.completed.val.map absNN).toArray
+  searches : r'.searches = r.searches.val
+  inferred : r'.inferred = r.inferred.val
   pending : List.Forall₂ PendingRel r.pending.val r'.pending.toList
 
 end ConRon.Refine2.Modular
