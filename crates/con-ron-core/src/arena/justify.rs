@@ -105,9 +105,6 @@ pub const M_LBL_IND: [u32; 10] = [105, 110, 100, 117, 99, 116, 105, 118, 101, 32
 /// `"quot "`, as code points.
 pub const M_LBL_QUOT: [u32; 5] = [113, 117, 111, 116, 32];
 
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"fuel exhausted: coneGo"`, as code points.
-pub const M_FUEL_CONE: [u32; 22] = [102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 99, 111, 110, 101, 71, 111];
 
 // ---------------------------------------------------------------------------
 // Which records offer a statement
@@ -649,48 +646,72 @@ pub fn cone_entry(
 }
 
 /// con-leche: ConLeche/Cached/Justify.lean:163-183 coneGo
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:244-266 coneGo` — **the cone walk**:
-/// every name of `work` from cursor `i`, and everything it reads, is the same
-/// constant in the input's index `fe` and the solution's; the first name that
-/// is not, or `None`.  Each name is compared once (`seen`); `fuel` bounds the
-/// names compared.  The answer carries the fuel and `seen` on.
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:244-260 coneGo` — the cited
+/// `entryNeeds ci ++ work` on the walk's stack: the names `ns` onto the vector
+/// `stk` at its height `h`, last first, so that `ns[0]` is the new top.  A
+/// slot below the vector's length is overwritten, past it the vector grows.
+pub fn cone_push(stk: Vec<NIdx>, h: usize, ns: &Vec<NIdx>) -> (Vec<NIdx>, usize) {
+    let mut stk: Vec<NIdx> = stk;
+    let mut h: usize = h;
+    let mut k: usize = ns.len();
+    loop {
+        if k == 0 {
+            return (stk, h);
+        }
+        k = k - 1;
+        if h < stk.len() {
+            stk[h] = ns[k].dup2();
+        } else {
+            stk.push(ns[k].dup2());
+        }
+        h = h + 1;
+    }
+}
+
+/// con-leche: ConLeche/Cached/Justify.lean:163-183 coneGo
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:244-260 coneGo` — **the cone walk**:
+/// every name of `work`, and everything it reads, is the same constant in the
+/// input's index `fe` and the solution's; the first name that is not, or
+/// `None`.  Each name is compared once (`seen`); `fuel` bounds the names
+/// compared.  The answer carries the fuel and `seen` on.
 ///
-/// Deviation of shape: con-leche's work list `entryNeeds ci ++ work` is a
-/// recursion here — a name's needs walked to the end before the rest of
-/// `work` — which visits the names in the same order with the same `seen`
-/// and fuel (the Aeneas subset cannot pop a `Vec`).  `depth` bounds that
-/// recursion (the cited walk has no stack): a walk past it is an internal
-/// error, never a verdict.
+/// The cited work list is a stack here, a vector `stk` with its height `h` and
+/// the next name on top (`stk[h - 1]`): the Aeneas subset has no `Vec::pop`.
+/// A loop, one iteration per name taken off the stack: the cone is the
+/// solution's dependency cone, which nothing bounds.
 pub fn cone_go(
     pers: &PersTier,
     st: &mut AState,
     sol: &Solution,
     fe: &IFEnv,
-    depth: u64,
     fuel: u64,
     seen: HashMap<NIdx, bool>,
     work: &Vec<NIdx>,
-    i: usize,
 ) -> Result<(Option<NIdx>, u64, HashMap<NIdx, bool>), CheckError> {
-    if depth == 0 {
-        fail(CheckError::Internal(code_points(&M_FUEL_CONE)))
-    } else if i >= work.len() {
-        Ok((None, fuel, seen))
-    } else if seen.contains_key(&work[i]) {
-        cone_go(pers, st, sol, fe, depth, fuel, seen, work, i + 1)
-    } else if fuel == 0 {
-        Ok((Some(work[i].dup2()), fuel, seen))
-    } else {
-        match cone_entry(pers, st, sol, fe, &work[i]) {
-            Err(e) => Err(e),
-            Ok(None) => Ok((Some(work[i].dup2()), fuel, seen)),
-            Ok(Some(ns)) => {
-                let mut s2: HashMap<NIdx, bool> = seen;
-                s2.insert(work[i].dup2(), true);
-                match cone_go(pers, st, sol, fe, depth - 1, fuel - 1, s2, &ns, 0) {
-                    Err(e) => Err(e),
-                    Ok((Some(m), f, s)) => Ok((Some(m), f, s)),
-                    Ok((None, f, s)) => cone_go(pers, st, sol, fe, depth, f, s, work, i + 1),
+    let (stk0, h0) = cone_push(Vec::new(), 0, work);
+    let mut stk: Vec<NIdx> = stk0;
+    let mut h: usize = h0;
+    let mut fuel: u64 = fuel;
+    let mut seen: HashMap<NIdx, bool> = seen;
+    loop {
+        if h == 0 {
+            return Ok((None, fuel, seen));
+        }
+        h = h - 1;
+        let n: NIdx = stk[h].dup2();
+        if !seen.contains_key(&n) {
+            if fuel == 0 {
+                return Ok((Some(n), fuel, seen));
+            }
+            match cone_entry(pers, st, sol, fe, &n) {
+                Err(e) => return Err(e),
+                Ok(None) => return Ok((Some(n), fuel, seen)),
+                Ok(Some(ns)) => {
+                    seen.insert(n, true);
+                    fuel = fuel - 1;
+                    let (stk1, h1) = cone_push(stk, h, &ns);
+                    stk = stk1;
+                    h = h1;
                 }
             }
         }
@@ -713,7 +734,7 @@ pub fn name_msg(
 }
 
 /// con-leche: ConLeche/Cached/Justify.lean:185-196 justifyWhy
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:268-284 justifyWhy` — **is the statement
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:262-278 justifyWhy` — **is the statement
 /// `cv` justified by the solution**, at the input's index `fe`: `None`, or why
 /// not.  The cone's fuel is the solution's constant count and one, which bounds
 /// the cited name count and one: the walk compares each name once, every one a
@@ -748,7 +769,7 @@ pub fn justify_why(
                     Err(e) => Err(e),
                     Ok((_, ns)) => {
                         let fuel: u64 = sol.ix.next + 1;
-                        match cone_go(pers, st, sol, fe, CORE_WALK_FUEL, fuel, HashMap::new(), &ns, 0) {
+                        match cone_go(pers, st, sol, fe, fuel, HashMap::new(), &ns) {
                             Err(e) => Err(e),
                             Ok((None, _, _)) => Ok(None),
                             Ok((Some(n), _, _)) => match name_msg(
@@ -774,7 +795,7 @@ pub fn justify_why(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:334-343 declCLabel
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:288-299 declLabel` — a record's kind and
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:282-293 declLabel` — a record's kind and
 /// name, for a message (an empty block's name is the anonymous one).
 pub fn decl_label(pers: &PersTier, st: &mut AState, d: &IDeclaration) -> Result<Vec<u32>, CheckError> {
     match d {
@@ -795,7 +816,7 @@ pub fn decl_label(pers: &PersTier, st: &mut AState, d: &IDeclaration) -> Result<
 }
 
 /// con-leche: ConLeche/Cached/Justify.lean:200-216 checkRecordC
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:301-312 checkJustified` — **the
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:295-306 checkJustified` — **the
 /// justification route**: the statement `cv` justified by the solution
 /// (`justify_why`), its type checked (`check_constant_val`, no reserved name
 /// allowed), the reserved names' check, and its axiom pushed.  The cited
@@ -831,7 +852,7 @@ pub fn check_justified(
 }
 
 /// con-leche: ConLeche/Cached/Justify.lean:200-216 checkRecordC
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:314-325 checkRecord` — **the check of one
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:308-319 checkRecord` — **the check of one
 /// record**, with a solution or none.  A record that offers a statement
 /// (`justifiable`) takes the justification route where there is a solution;
 /// every other record, and every record without one, its own check
@@ -974,6 +995,35 @@ mod tests {
     /// `∀ p : Prop, p`.
     fn all_props() -> Expr {
         expr::forall_e(prop(), expr::bvar(0))
+    }
+
+    /// A cone 50 000 names deep, walked on a thread with a 1 MiB stack (task
+    /// #169): `A0 : Type := Prop`, `A(k+1) : Type := Ak`, and the axiom
+    /// `a : A50000 → Prop`, whose type reads the whole chain.  A walk with one
+    /// frame per name of the cone overflows the stack.
+    #[test]
+    fn a_deep_cone() {
+        std::thread::Builder::new()
+            .stack_size(1 << 20)
+            .spawn(|| {
+                let n: usize = 50_000;
+                let a: Vec<&'static str> =
+                    (0..=n).map(|k| &*Box::leak(format!("A{}", k).into_boxed_str())).collect();
+                let mut sol: Vec<Rec> = Vec::new();
+                let mut chal: Vec<Rec> = Vec::new();
+                for k in 0..=n {
+                    let v = if k == 0 { prop() } else { expr::mk_const(nm(a[k - 1]), Vec::new()) };
+                    sol.push(Rec::Def(a[k], vec![], ty(), expr::dup(&v)));
+                    chal.push(Rec::Def(a[k], vec![], ty(), v));
+                }
+                let top = || expr::forall_e(expr::mk_const(nm(a[n]), Vec::new()), prop());
+                sol.push(Rec::Def("a", vec![], top(), expr::lam(expr::mk_const(nm(a[n]), Vec::new()), all_props())));
+                chal.push(Rec::Ax("a", vec![], top()));
+                assert_eq!(compare(&sol, &chal), Ok(()));
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 
     #[test]

@@ -557,21 +557,24 @@ pub fn value_roots(r: &Region, skels: &Vec<CEntryF<u64, u64>>) -> Vec<u64> {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Lazy.lean:294-313 loadAt
-/// The cursor recursion behind `value_roots`.
+/// The cursor walk behind `value_roots`: a loop, one iteration per constant
+/// of the module.
 pub fn value_roots_from(r: &Region, skels: &Vec<CEntryF<u64, u64>>, i: usize, out: Vec<u64>) -> Vec<u64> {
-    if i >= skels.len() {
-        out
-    } else {
+    let mut out: Vec<u64> = out;
+    let mut i: usize = i;
+    loop {
+        if i >= skels.len() {
+            return out;
+        }
         let g: Option<u64> = match &skels[i].kind {
             CKindF::Thm(v, _) => region::region_loc(r, *v),
             _ => None,
         };
-        let mut out = out;
         match g {
             Some(g) => out.push(g + kind_code(fast::K_EXPR)),
             None => (),
         }
-        value_roots_from(r, skels, i + 1, out)
+        i = i + 1;
     }
 }
 
@@ -643,5 +646,34 @@ pub fn load_view(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, i: u64, m: &N
         Ok(l) => Ok(l),
         Err(RdErr::Err(e)) => Err(e),
         Err(RdErr::Bad) => Err(view::view_error(pk, pers, ar, m, f, &OLeanLevel::Private)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::frontend::olean::region::{Seg, DATA_START};
+
+    /// A module of a million theorems' skeletons, its values' roots on a
+    /// thread with a 1 MiB stack (task #169): a walk with one frame per
+    /// constant overflows it.
+    #[test]
+    fn value_roots_of_a_large_module() {
+        std::thread::Builder::new()
+            .stack_size(1 << 20)
+            .spawn(|| {
+                let n: u64 = 1 << 20;
+                let base: u64 = 1 << 32;
+                let r = Region { segs: vec![Seg { base, off: 0, size: DATA_START + 8 * n + 8 }] };
+                let skels: Vec<CEntryF<u64, u64>> = (0..n)
+                    .map(|i| CEntryF { name: i, level_params: Vec::new(), ty: 0, kind: CKindF::Thm(base + DATA_START + 8 * i, Vec::new()) })
+                    .collect();
+                let roots = value_roots(&r, &skels);
+                assert_eq!(roots.len() as u64, n);
+                assert_eq!(roots[1] - roots[0], 8);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 }

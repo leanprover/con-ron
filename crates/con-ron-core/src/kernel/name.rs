@@ -65,12 +65,18 @@ pub fn str_hash(s: &Vec<u32>) -> u64 {
     str_hash_from(s, 0, 11)
 }
 
-/// con-leche: none — the tail-recursive fold behind `str_hash`; Lean has no counterpart
+/// con-leche: none — the fold behind `str_hash`; Lean has no counterpart
+/// A loop, one iteration per code point: its depth would be the string's
+/// length (DESIGN.md §3.4, "Loops").
 pub fn str_hash_from(s: &Vec<u32>, i: usize, acc: u64) -> u64 {
-    if i >= s.len() {
-        acc
-    } else {
-        str_hash_from(s, i + 1, mix_hash(acc, s[i] as u64))
+    let mut i: usize = i;
+    let mut acc: u64 = acc;
+    loop {
+        if i >= s.len() {
+            return acc;
+        }
+        acc = mix_hash(acc, s[i] as u64);
+        i = i + 1;
     }
 }
 
@@ -134,14 +140,18 @@ pub fn str_eq(a: &Vec<u32>, b: &Vec<u32>) -> bool {
     }
 }
 
-/// con-leche: none — the index recursion behind `str_eq`
+/// con-leche: none — the index walk behind `str_eq`, a loop over the code
+/// points
 pub fn str_eq_from(a: &Vec<u32>, b: &Vec<u32>, i: usize) -> bool {
-    if i >= a.len() {
-        true
-    } else if a[i] != b[i] {
-        false
-    } else {
-        str_eq_from(a, b, i + 1)
+    let mut i: usize = i;
+    loop {
+        if i >= a.len() {
+            return true;
+        }
+        if a[i] != b[i] {
+            return false;
+        }
+        i = i + 1;
     }
 }
 
@@ -388,12 +398,17 @@ pub fn display_acc_chars(a: DisplayAcc, s: &Vec<u32>) -> DisplayAcc {
     display_acc_chars_from(a, s, 0)
 }
 
-/// con-leche: none — the index recursion behind `display_acc_chars` (`String.foldl`)
+/// con-leche: none — the index walk behind `display_acc_chars` (`String.foldl`),
+/// a loop over the code points
 pub fn display_acc_chars_from(a: DisplayAcc, s: &Vec<u32>, i: usize) -> DisplayAcc {
-    if i >= s.len() {
-        a
-    } else {
-        display_acc_chars_from(display_acc_char(a, s[i]), s, i + 1)
+    let mut a: DisplayAcc = a;
+    let mut i: usize = i;
+    loop {
+        if i >= s.len() {
+            return a;
+        }
+        a = display_acc_char(a, s[i]);
+        i = i + 1;
     }
 }
 
@@ -404,13 +419,17 @@ pub fn display_acc_escaped(a: DisplayAcc, close: u32, s: &Vec<u32>) -> DisplayAc
     display_acc_escaped_from(a, close, s, 0)
 }
 
-/// con-leche: none — the index recursion behind `display_acc_escaped` (`String.foldl`)
+/// con-leche: none — the index walk behind `display_acc_escaped` (`String.foldl`),
+/// a loop over the code points
 pub fn display_acc_escaped_from(a: DisplayAcc, close: u32, s: &Vec<u32>, i: usize) -> DisplayAcc {
-    if i >= s.len() {
-        a
-    } else {
+    let mut a: DisplayAcc = a;
+    let mut i: usize = i;
+    loop {
+        if i >= s.len() {
+            return a;
+        }
         let c = s[i];
-        let a1 = if c == 92 {
+        a = if c == 92 {
             const BACKSLASHES: [u32; 2] = [92, 92];
             display_acc_piece(a, &crate::kernel::core_types::code_points(&BACKSLASHES), 1)
         } else if c == close || display_unsafe_char(c) {
@@ -418,7 +437,7 @@ pub fn display_acc_escaped_from(a: DisplayAcc, close: u32, s: &Vec<u32>, i: usiz
         } else {
             display_acc_char(a, c)
         };
-        display_acc_escaped_from(a1, close, s, i + 1)
+        i = i + 1;
     }
 }
 
@@ -541,14 +560,18 @@ pub fn display_id_shaped(s: &Vec<u32>) -> bool {
     }
 }
 
-/// con-leche: none — the index recursion behind `cs.all Lean.isIdRest`
+/// con-leche: none — the index walk behind `cs.all Lean.isIdRest`, a loop over
+/// the code points
 pub fn display_id_rest_from(s: &Vec<u32>, i: usize) -> bool {
-    if i >= s.len() {
-        true
-    } else if display_id_rest(s[i]) {
-        display_id_rest_from(s, i + 1)
-    } else {
-        false
+    let mut i: usize = i;
+    loop {
+        if i >= s.len() {
+            return true;
+        }
+        if !display_id_rest(s[i]) {
+            return false;
+        }
+        i = i + 1;
     }
 }
 
@@ -806,5 +829,59 @@ mod tests {
             "\"a\\u{001B}[1;32m\\u{000A}\\u{0022}b\\u{0022}\\\\\""
         );
         assert!(clean(&st(&name::display_str(&cps("\x1b[2K\rcon-leche: accepted\n::error::x")))));
+    }
+
+    /// Runs `f` on a thread with a 1 MiB stack (task #169): a walk with one
+    /// frame per code point overflows it on the inputs below.
+    fn on_small_stack<F: FnOnce() + Send + 'static>(f: F) {
+        std::thread::Builder::new().stack_size(1 << 20).spawn(f).unwrap().join().unwrap();
+    }
+
+    /// A million code points, an identifier's: `a`…`z` over and over.
+    fn long_id() -> Vec<u32> {
+        (0..(1usize << 20)).map(|i| 97 + (i % 26) as u32).collect()
+    }
+
+    #[test]
+    fn str_hash_of_a_long_string() {
+        on_small_stack(|| {
+            let s = long_id();
+            let mut t = crate::kernel::expr::str_copy(&s);
+            assert_eq!(name::str_hash(&s), name::str_hash(&t));
+            t[(1 << 20) - 1] = 48;
+            assert_ne!(name::str_hash(&s), name::str_hash(&t));
+        });
+    }
+
+    #[test]
+    fn str_eq_of_a_long_string() {
+        on_small_stack(|| {
+            let s = long_id();
+            let mut t = crate::kernel::expr::str_copy(&s);
+            assert!(name::str_eq(&s, &t));
+            t[(1 << 20) - 1] = 48;
+            assert!(!name::str_eq(&s, &t));
+        });
+    }
+
+    #[test]
+    fn display_of_a_long_identifier() {
+        on_small_stack(|| {
+            let s = long_id();
+            assert!(name::display_id_shaped(&s));
+            let a = name::display_acc_chars(name::display_acc_empty(), &s);
+            assert!(a.full);
+            assert_eq!(a.len + a.dropped, 1 << 20);
+        });
+    }
+
+    #[test]
+    fn display_of_a_long_string() {
+        on_small_stack(|| {
+            let s = long_id();
+            let a = name::display_acc_escaped(name::display_acc_empty(), 34, &s);
+            assert!(a.full);
+            assert_eq!(a.len + a.dropped, 1 << 20);
+        });
     }
 }

@@ -1471,14 +1471,14 @@ theorem value_roots_val {bs : Slice Std.U8} {r : frontend.olean.region.Region}
     {v : alloc.vec.Vec (frontend.olean.spec.CEntryF Std.U64 Std.U64)}
     {skels : List (ConLeche.Frontend.Olean.CEntryF UInt64 UInt64)} (hv : List.Forall₂ EV v.val skels)
     {o} (h : value_roots r v = ok o) : o.val.map (·.val) = valueRoots (absRegion bs r) skels := by
-  rw [value_roots] at h
+  rw [value_roots, value_roots_from] at h
   have hnew : (alloc.vec.Vec.new Std.U64).val = [] := Slice.from_val _ _
   have e := append_loop0 (src := v.val) (Ab := fun s : alloc.vec.Vec Std.U64 => s.val.map (·.val))
     (f := fun c => match c.kind with
       | .Thm w _ => ((absRegion bs r).loc (absWord w)).toList.map (· + 3)
       | _ => [])
-    (loop := fun out i => value_roots_from r v i out) (fun s i o h => by
-      rw [value_roots_from] at h
+    (loop := fun out i => value_roots_from_loop r v out i) (fun s i o h => by
+      rw [value_roots_from_loop.eq_def] at h
       by_cases hi : i ≥ alloc.vec.Vec.len v
       · left
         rw [ite_eq_left hi] at h
