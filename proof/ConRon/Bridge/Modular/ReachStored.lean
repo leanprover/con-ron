@@ -346,4 +346,109 @@ theorem clashAgree_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = s
       (ListRel.mono' (fun _ _ h => h.ext hst1.ext) hcls) hacc1 k1
     exact ⟨hst1.trans hst2, cC', accC', hstep _ hg2, hc', hacc'⟩
 
+/-! ## The clashing names' copies, as reads -/
+
+/-- upstream's `clashPartners` step. -/
+@[expose] def cpStep (envC : ConLeche.Driver.ReachEnv ModelIO) (acc : Array (ConLeche.Name × ConLeche.Name))
+    (n : ConLeche.Name) : Array (ConLeche.Name × ConLeche.Name) :=
+  match envC.copies[n]? with
+  | some cs => cs.foldl (fun acc (k, cv) => acc ++ ConLeche.Driver.partnerReads k cv.type) acc
+  | none => acc
+
+theorem cpInner_append (cs : List (ConLeche.Name × ConstantVal)) :
+    ∀ (a b : Array (ConLeche.Name × ConLeche.Name)),
+      cs.foldl (fun acc (x : ConLeche.Name × ConstantVal) => acc ++ ConLeche.Driver.partnerReads x.1 x.2.type) (a ++ b) =
+        a ++ cs.foldl (fun acc (x : ConLeche.Name × ConstantVal) => acc ++ ConLeche.Driver.partnerReads x.1 x.2.type) b := by
+  induction cs with
+  | nil => intro a b; rfl
+  | cons x cs ih => intro a b; simp only [List.foldl_cons, Array.append_assoc]; exact ih _ _
+
+theorem cpFold_append (envC : ConLeche.Driver.ReachEnv ModelIO) :
+    ∀ (ns : List ConLeche.Name) (a b : Array (ConLeche.Name × ConLeche.Name)),
+      ns.foldl (cpStep envC) (a ++ b) = a ++ ns.foldl (cpStep envC) b
+  | [], a, b => rfl
+  | n :: ns, a, b => by
+    simp only [List.foldl_cons]
+    have : cpStep envC (a ++ b) n = a ++ cpStep envC b n := by
+      unfold cpStep
+      split
+      · rw [← Array.foldl_toList, ← Array.foldl_toList]; exact cpInner_append _ _ _
+      · rfl
+    rw [this]
+    exact cpFold_append envC ns _ _
+
+theorem clashPartners_eq (envC : ConLeche.Driver.ReachEnv ModelIO) (accC : Array (ConLeche.Name × ConLeche.Name))
+    (ns : List ConLeche.Name) :
+    ns.foldl (cpStep envC) accC = accC ++ ConLeche.Driver.clashPartners envC ns := by
+  have := cpFold_append envC ns accC #[]
+  simp only [Array.append_empty] at this
+  rw [this]
+  rfl
+
+/-- The twin's inner fold of one name's copies. -/
+theorem cpInner_run {cs : List (NIdx × ConRon.Arena.Frontend.Olean.StmtRec)}
+    {csC : List (ConLeche.Name × ConstantVal)} {acc out : Array (NIdx × NIdx)}
+    {accC : Array (ConLeche.Name × ConLeche.Name)} {s s' : AState}
+    (hok : DriverOK s) (hoff : s.store.scratchOn = false)
+    (hcs : ListRel (fun x y => denoteN s.store.ns x.1 = some y.1 ∧ denoteStmt s.store x.2 = some y.2) cs csC)
+    (hr : ListRel (NN s.store) acc.toList accC.toList)
+    (h : cs.foldlM (fun acc (x : NIdx × ConRon.Arena.Frontend.Olean.StmtRec) =>
+      ConRon.Arena.Modular.partnerReads acc x.1 x.2.type) acc s = .ok (out, s')) :
+    DStep s s' ∧ ListRel (NN s'.store) out.toList
+      (csC.foldl (fun acc (x : ConLeche.Name × ConstantVal) => acc ++ ConLeche.Driver.partnerReads x.1 x.2.type) accC).toList := by
+  induction cs generalizing csC acc accC s with
+  | nil =>
+    cases hcs
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h
+    exact ⟨DStep.refl hok hoff, hr⟩
+  | cons x cs ih =>
+    cases hcs with
+    | @cons _ y _ csC hxy hcs =>
+    simp only [List.foldlM_cons] at h
+    obtain ⟨a₁, s₁, g1, k1⟩ := AM.bind_ok h
+    obtain ⟨hst1, hr1⟩ := partnerReads_run needsExprHyp_holds hok hoff hxy.1
+      (denoteStmt_parts hxy.2).2.2 hr g1
+    obtain ⟨hst2, hr2⟩ := ih hst1.ok hst1.scratch
+      (ListRel.mono' (fun _ _ h => ⟨denoteN_ext h.1 hst1.ext, denoteStmt_ext hst1.ext h.2⟩) hcs) hr1 k1
+    exact ⟨hst1.trans hst2, hr2⟩
+
+/-- con-leche: ConLeche/Driver/Reach.lean:560-566 clashPartners — **every copy of a clashing name
+the context stores**, onto the partners so far: upstream's partners followed by its
+`clashPartners`. -/
+theorem clashPartners_run {sp : Roots} {env : ConRon.Arena.Modular.ReachEnv}
+    {envC : ConLeche.Driver.ReachEnv ModelIO} {ns : List NIdx} {nsC : List ConLeche.Name}
+    {acc out : Array (NIdx × NIdx)} {accC : Array (ConLeche.Name × ConLeche.Name)} {s s' : AState}
+    (hok : DriverOK s) (hoff : s.store.scratchOn = false) (he : EnvRel sp s.store env envC)
+    (hns : ListRel (NR s.store) ns nsC) (hr : ListRel (NN s.store) acc.toList accC.toList)
+    (h : ConRon.Arena.Modular.clashPartners env acc ns s = .ok (out, s')) :
+    DStep s s' ∧ ListRel (NN s'.store) out.toList (accC ++ ConLeche.Driver.clashPartners envC nsC).toList := by
+  rw [← clashPartners_eq]
+  unfold ConRon.Arena.Modular.clashPartners at h
+  induction ns generalizing nsC acc accC s with
+  | nil =>
+    cases hns
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h
+    exact ⟨DStep.refl hok hoff, hr⟩
+  | cons n ns ih =>
+    cases hns with
+    | @cons _ nC _ nsC hn hns =>
+    simp only [List.foldlM_cons] at h
+    obtain ⟨a₁, s₁, g1, k1⟩ := AM.bind_ok h
+    have hw := nsWF_of_StateOK hok.state
+    have hst1 : DStep s s₁ ∧ ListRel (NN s₁.store) a₁.toList (cpStep envC accC nC).toList := by
+      unfold ConRon.Arena.Modular.clashPartnersOne at g1
+      unfold cpStep
+      rcases optRel_cases (he.copies.get hw hn) with ⟨c1, c2⟩ | ⟨cs, csC, c1, c2, c3⟩
+      · rw [c1] at g1; rw [c2]
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok g1
+        exact ⟨DStep.refl hok hoff, hr⟩
+      · rw [c1] at g1; rw [c2]
+        dsimp only at g1 ⊢
+        rw [← Array.foldl_toList]
+        exact cpInner_run hok hoff c3 hr g1
+    obtain ⟨hs1, hr1⟩ := hst1
+    obtain ⟨hst2, hr2⟩ := ih hs1.ok hs1.scratch (he.ext hs1.ext (nsWF_of_StateOK hs1.ok.state))
+      (ListRel.mono' (fun _ _ h => denoteN_ext h hs1.ext) hns) hr1 k1
+    exact ⟨hs1.trans hst2, hr2⟩
+
 end ConRon.Bridge.Modular
