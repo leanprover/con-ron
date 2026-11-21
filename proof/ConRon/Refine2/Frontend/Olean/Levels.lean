@@ -590,6 +590,186 @@ theorem levels_go_loop_ok (hfs : FsRel inst fsv fs) (gp : Bool)
 termination_by f
 decreasing_by all_goals omega
 
+/-- **`levels_go`'s accept is `levelsGo`**, at the closure's fuel. -/
+theorem levels_go_refines (hfs : FsRel inst fsv fs) (gp : Bool) {st : arena.monad.AState} {lst : AState}
+    {stack : alloc.vec.Vec frontend.olean.levels.LvWork} {top : Std.Usize}
+    {l : List Arena.Frontend.Olean.LvWork} {s : frontend.olean.levels.LvState}
+    {s' : Arena.Frontend.Olean.LvState} (hl : StackRel absLvWork stack top l) (hs : LvStateRel s s') :
+    AS pers LvStateRel st lst (levels_go inst fsv pk pers st.store sp_dirs gp stack top s)
+      (Arena.Frontend.Olean.levelsGo fs (absPins pk) (absRoots sp_dirs) gp
+        ConLeche.Frontend.Olean.closureFuel l s') := by
+  intro hrel hinv a s2 h
+  rw [levels_go] at h
+  peel h as fuel, hfuel
+  exact levels_go_loop_ok hfs gp _ st lst stack top fuel s l s' (closure_fuel_val hfuel) hl hs
+    hrel hinv a s2 h
+
+end walk
+
+/-! ## `header_fixpoint` -/
+
+/-- `lv_state_empty` is the empty state. -/
+theorem lv_state_empty_rel {o} (h : lv_state_empty = ok o) : LvStateRel o {} := by
+  rw [lv_state_empty] at h
+  peel h as h1, hh1
+  peel h as h2, hh2
+  peel h as h3, hh3
+  cases Result.ok_injective h
+  exact ⟨NMapRel.new hh1, nset_empty hh2, by simp [OutA, alloc.vec.Vec.new], NMapRel.new hh3⟩
+
+/-- **`flags_at` is `(flags[m]?).getD default`.** -/
+theorem flags_at_eq {flags : ron.hashmap2.HashMap2 arena.handle.NIdx frontend.olean.levels.LoadFlags}
+    {F : _root_.Std.HashMap NIdx ConLeche.Frontend.Olean.LoadFlags} (hF : NMapRel absLoadFlags flags F)
+    {m : arena.handle.NIdx} {o} (h : flags_at flags m = ok o) :
+    absLoadFlags o = (F[absNIdx m]?).getD default := by
+  rw [flags_at] at h
+  peel h as r, hr
+  rw [← hF.get_eq hr]
+  cases r with
+  | none => cases Result.ok_injective h; rfl
+  | some fl =>
+    dsimp only at h
+    cases load_flags_dup_eq h
+    rfl
+
+/-- **`imports_out` is `(imports[m]?).getD #[]`**, the entry erased. -/
+theorem imports_out_eq {im : ron.hashmap2.HashMap2 arena.handle.NIdx
+      (alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))}
+    {I : _root_.Std.HashMap NIdx (_root_.Array (ConLeche.Frontend.Olean.ImportF NIdx))}
+    (hI : NMapRel absImports im I) {m : arena.handle.NIdx} {v im'}
+    (h : imports_out im m = ok (v, im')) :
+    absImports v = (I[absNIdx m]?).getD #[] ∧ NMapRel absImports im' (I.erase (absNIdx m)) := by
+  rw [imports_out] at h
+  peel h as q, hq
+  obtain ⟨r, im1⟩ := q
+  obtain ⟨e, hrel⟩ := hI.remove hq
+  rw [← e]
+  cases r with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+    exact ⟨by simp [absImports, alloc.vec.Vec.new], hrel⟩
+  | some is =>
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+    exact ⟨rfl, hrel⟩
+
+theorem header_loads_of_loop_eq
+    (hm : ron.hashmap2.HashMap2 arena.handle.NIdx frontend.olean.levels.LoadFlags)
+    (v : alloc.vec.Vec arena.handle.NIdx) (n : Std.Usize) (hn : n.val = v.val.length)
+    {F : _root_.Std.HashMap NIdx ConLeche.Frontend.Olean.LoadFlags} (hF : NMapRel absLoadFlags hm F)
+    (i : Std.Usize)
+    (hm1 : ron.hashmap2.HashMap2 arena.handle.NIdx
+      (alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)))
+    (flags : alloc.vec.Vec frontend.olean.levels.LoadFlags)
+    (imports : alloc.vec.Vec (alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)))
+    (index : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+    {I : _root_.Std.HashMap NIdx (_root_.Array (ConLeche.Frontend.Olean.ImportF NIdx))}
+    {fl : _root_.Array ConLeche.Frontend.Olean.LoadFlags}
+    {is : _root_.Array (_root_.Array (ConLeche.Frontend.Olean.ImportF NIdx))}
+    {ix : _root_.Std.HashMap NIdx Nat}
+    (hI : NMapRel absImports hm1 I) (hfl : flags.val.map absLoadFlags = fl.toList)
+    (his : imports.val.map absImports = is.toList) (hix : NMapRel (fun x : Std.U64 => x.val) index ix)
+    {o} (h : header_loads_of_loop hm v hm1 n flags imports index i = ok o) :
+    o.1.val.map absLoadFlags =
+        (Arena.Frontend.Olean.HeaderLoads.ofStateGo F ((v.val.drop i.val).map absNIdx) i.val I fl is ix).1.toList ∧
+      o.2.1.val.map absImports =
+        (Arena.Frontend.Olean.HeaderLoads.ofStateGo F ((v.val.drop i.val).map absNIdx) i.val I fl is ix).2.1.toList ∧
+      NMapRel (fun x : Std.U64 => x.val) o.2.2
+        (Arena.Frontend.Olean.HeaderLoads.ofStateGo F ((v.val.drop i.val).map absNIdx) i.val I fl is ix).2.2 := by
+  rw [header_loads_of_loop] at h
+  by_cases hlt : i < n
+  · rw [ite_eq_left hlt] at h
+    have hlt' : i.val < v.val.length := by have : i.val < n.val := hlt; omega
+    peel h as x, hx
+    obtain ⟨hb, rfl⟩ := vec_index_eq hx
+    peel h as m, hm'
+    cases nidx_dup2_ok hm'
+    peel h as lf, hlf
+    have elf := flags_at_eq hF hlf
+    peel h as flags1, hflags1
+    peel h as q, hq
+    obtain ⟨v1, hm2⟩ := q
+    obtain ⟨ev1, hI2⟩ := imports_out_eq hI hq
+    peel h as imports1, himports1
+    peel h as i1, hi1
+    have hi1v : i1.val = i.val := by
+      simp only [lift, Result.ok.injEq] at hi1
+      subst hi1
+      rw [usize_cast_u64_val']
+    peel h as q2, hq2
+    obtain ⟨_, index1⟩ := q2
+    peel h as i2, hi2
+    have hi2v : i2.val = i.val + 1 := by rw [ConRon.Refine.Nat.uadd_val hi2]; rfl
+    have ih := header_loads_of_loop_eq hm v n hn hF i2 hm2 flags1 imports1 index1 hI2
+      (fl := fl.push ((F[absNIdx v.val[i.val]]?).getD default))
+      (is := is.push ((I[absNIdx v.val[i.val]]?).getD #[]))
+      (ix := ix.insert (absNIdx v.val[i.val]) i.val)
+      (by rw [ConRon.Refine.vec_push_val hflags1, List.map_append, hfl, List.map_singleton, elf]; simp)
+      (by rw [ConRon.Refine.vec_push_val himports1, List.map_append, his, List.map_singleton, ev1]; simp)
+      (by have := hix.insert hq2; rwa [hi1v] at this) h
+    rw [hi2v] at ih
+    rw [List.drop_eq_getElem_cons hlt', List.map_cons, Arena.Frontend.Olean.HeaderLoads.ofStateGo]
+    exact ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    have hle : v.val.length ≤ i.val := by have : ¬ i.val < n.val := hlt; omega
+    rw [List.drop_of_length_le hle, List.map_nil, Arena.Frontend.Olean.HeaderLoads.ofStateGo]
+    exact ⟨hfl, his, hix⟩
+termination_by v.val.length - i.val
+decreasing_by
+  have : i.val < n.val := hlt
+  omega
+
+/-- **`header_loads_of` is `HeaderLoads.ofState`.** -/
+theorem header_loads_of_eq {st : frontend.olean.levels.LvState} {st' : Arena.Frontend.Olean.LvState}
+    (hs : LvStateRel st st') {o} (h : header_loads_of st = ok o) :
+    HeaderLoadsRel o (Arena.Frontend.Olean.HeaderLoads.ofState st') := by
+  rw [header_loads_of] at h
+  peel h as index, hindex
+  peel h as q, hq
+  obtain ⟨flags1, imports1, index1⟩ := q
+  cases Result.ok_injective h
+  have := header_loads_of_loop_eq st.flags st.order _ (vec_len_val _) hs.flags _ st.imports _ _ index
+    hs.imports (fl := #[]) (is := #[]) (ix := {}) (by simp [alloc.vec.Vec.with_capacity])
+    (by simp [alloc.vec.Vec.with_capacity]) (NMapRel.with_capacity hindex) hq
+  simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero, hs.order] at this
+  obtain ⟨e1, e2, e3⟩ := this
+  exact ⟨hs.order, e1, e2, e3⟩
+
+section walk
+
+variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
+  {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
+  {sp_dirs : frontend.olean.files.Roots}
+
+/-- **`header_fixpoint`'s accept is `headerFixpoint`.** -/
+theorem header_fixpoint_refines (hfs : FsRel inst fsv fs) {st : arena.monad.AState} {lst : AState}
+    {is_module : Bool} {imports : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)} :
+    AS pers HeaderLoadsRel st lst (header_fixpoint inst fsv pk pers st.store sp_dirs is_module imports)
+      (Arena.Frontend.Olean.headerFixpoint fs (absPins pk) (absRoots sp_dirs) is_module
+        (absImports imports)) := by
+  intro hrel hinv a s2 h
+  rw [header_fixpoint] at h
+  peel h as q, hq
+  obtain ⟨sp, stack1⟩ := q
+  have hS := lv_push_imports_eq (StackRel.empty absLvWork _) hq
+  rw [List.append_nil] at hS
+  peel h as ls, hls
+  peel h as q2, hq2
+  obtain ⟨r, ar1⟩ := q2
+  cases r with
+  | Err e => cases (Prod.mk.inj (Result.ok_injective h)).1
+  | Ok st1 =>
+    peel h as hl, hhl
+    obtain ⟨h1, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+    cases h1
+    have eg : (decide ¬is_module = true) = !is_module := by cases is_module <;> rfl
+    rw [eg] at hq2
+    obtain ⟨b, lst1, hx, hR, hrel1, hinv1⟩ :=
+      levels_go_refines (st := st) (lst := lst) hfs (!is_module) hS (lv_state_empty_rel hls) hrel hinv _ _ hq2
+    refine ⟨_, lst1, ?_, header_loads_of_eq hR hhl, hrel1, hinv1⟩
+    rw [Arena.Frontend.Olean.headerFixpoint]
+    exact am_bind_ok hx
+
 end walk
 
 end ConRon.Refine2.Frontend.Olean
