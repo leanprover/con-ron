@@ -24,7 +24,9 @@ open ConRon.Arena
 open ConRon.Arena.Modular (unskipped pushUnpinned pushLoaded ownUsesAt ownUsesThm ownNames
   namesNodupGo anyLoaded ownNamesOf unloadedConstants groundGo groundGoAll groundStmt groundStmts
   groundVariant pinGround)
-open ConRon.Arena (pinFootprint)
+open ConRon.Arena (pinFootprint declNames declConstants)
+open ConRon.Arena.Modular (recordReads ownRoots recordsRoots groundRoots loadedRec recsLoaded ownRecs copyRecs
+  rootsAt ctxNamesNodup ctxNamesNodupGo ownUsesOf ownRecords homeOf)
 open ConRon.Refine2.Frontend (UOut UOutS HSetRel used_consts_go_refines absNIdxArr_push)
 open ConRon.Refine2.Lockstep (LS LOut errSim_bind)
 open ConRon.Refine2.Frontend.Olean
@@ -1074,5 +1076,230 @@ theorem footprints_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AS
   simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at this
   rw [Arena.Modular.footprints, ← Array.foldlM_toList]
   exact this
+
+/-! ## A record's names (`install::decl_names`) -/
+
+theorem constant_names_eq (cs : alloc.vec.Vec arena.env.IConstantInfo) (i : Std.Usize)
+    {out o} (h : arena.install.constant_names cs i out = ok o) :
+    o.val.map absNIdx = out.val.map absNIdx ++ ((cs.val.drop i.val).map absIConstantInfo).map (·.name) := by
+  rw [arena.install.constant_names] at h
+  by_cases hlt : i ≥ alloc.vec.Vec.len cs
+  · rw [ite_eq_left hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (by have : (alloc.vec.Vec.len cs).val ≤ i.val := hlt; rw [vec_len_val] at this; omega)]
+    simp
+  · rw [ite_eq_right hlt] at h
+    have hi : i.val < cs.val.length := by
+      have : ¬ (alloc.vec.Vec.len cs).val ≤ i.val := hlt; rw [vec_len_val] at this; omega
+    peel h as c, hc
+    obtain ⟨_, rfl⟩ := vec_index_eq hc
+    peel h as n, hn
+    peel h as out1, hout1
+    peel h as i2, hi2
+    have ih := constant_names_eq cs i2 h
+    rw [usize_succ hi2] at ih
+    rw [ih, ConRon.Refine.vec_push_val hout1, List.map_append, List.map_singleton, i_constant_info_name_abs hn,
+      List.append_assoc, List.singleton_append, ← List.map_cons, ← List.map_cons,
+      ← List.drop_eq_getElem_cons hi]
+termination_by cs.val.length - i.val
+decreasing_by
+  have : ¬ (alloc.vec.Vec.len cs).val ≤ i.val := hlt
+  rw [vec_len_val] at this; rw [usize_succ hi2]; omega
+
+/-- **`decl_names` is `declNames`.** -/
+theorem decl_names_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (d : arena.env.IDeclaration) :
+    LS pers (fun a b => b = a.val.map absNIdx) (arena.install.decl_names pers st d) lst
+      (declNames (absIDeclaration d)) := by
+  intro o st' h
+  rw [arena.install.decl_names] at h
+  unfold declNames
+  refine lout_bind (decl_constants_ls hrel hinv) h (by errarm) ?_
+  rintro a b s lst1 rfl hrel1 hinv1 h
+  obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  have := constant_names_eq a 0#usize hv1
+  simp only [vec_with_capacity_val, List.map_nil, List.nil_append,
+    show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at this
+  refine lout_pure hrel1 hinv1 ?_
+  simp [this]
+
+/-! ## `records_roots`, `own_roots`, `ground_roots` -/
+
+/-- **`reach::record_reads` is `recordReads`** — lane L2's (a STUB here): the shape its
+Theorem 2 is expected to have, taken as a hypothesis. -/
+def RecordReadsRel (pers : arena.store.PersTier) : Prop :=
+  ∀ {st lst} (d : arena.env.IDeclaration), AStateRel₀ pers st lst → AStateInv pers st →
+    LS pers (fun a b => b = absNIdxArr a) (frontend.modular.reach.record_reads pers st d) lst
+      (recordReads (absIDeclaration d))
+
+/-- The twin's step of `recordsRoots`. -/
+def rrStep (ix : Arena.Frontend.Olean.NameIndex) (fp : _root_.Std.HashSet NIdx) (out : _root_.Array NIdx)
+    (d : IDeclaration) : AM (_root_.Array NIdx) :=
+  pushUnpinned out ix fp <$> recordReads d
+
+theorem records_roots_loop_ls {pers} (hRR : RecordReadsRel pers) {ix ix'} (hix : NameIndexRel ix ix')
+    {fp : ron.hashmap2.HashMap2 arena.handle.NIdx Bool} {fp' : _root_.Std.HashSet NIdx} (hfp : NSet fp fp')
+    (ds : alloc.vec.Vec arena.env.IDeclaration) (i : Std.Usize) {st lst out}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdxArr a) (records_roots_loop pers st ix fp ds out i) lst
+      (((ds.val.drop i.val).map absIDeclaration).foldlM (rrStep ix' fp') (absNIdxArr out)) := by
+  intro o st' h
+  rw [records_roots_loop] at h
+  by_cases hlt : i < alloc.vec.Vec.len ds
+  · rw [ite_eq_left hlt] at h
+    obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hi, rfl⟩ := vec_index_eq hd
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, List.foldlM_cons]
+    unfold rrStep
+    rw [← bind_pure_comp, bind_assoc]
+    refine lout_bind (hRR _ hrel hinv) h (by errarm) ?_
+    rintro a b s1 lst1 rfl hrel1 hinv1 h
+    simp only [pure_bind]
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have ih := records_roots_loop_ls hRR hix hfp ds i2 hrel1 hinv1 _ _ h
+    rw [usize_succ hi2, push_unpinned_eq hix hfp hout1] at ih
+    have e : (fun out d => pushUnpinned out ix' fp' <$> recordReads d) = rrStep ix' fp' := rfl
+    rw [e]
+    exact ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [List.drop_of_length_le (not_lt_len hlt)]
+    exact lout_pure hrel hinv rfl
+termination_by ds.val.length - i.val
+decreasing_by have := lt_len hlt; rw [usize_succ hi2]; omega
+
+/-- **`records_roots` is `recordsRoots`**, given `record_reads`'s Theorem 2. -/
+theorem records_roots_ls {pers st lst} (hRR : RecordReadsRel pers) (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {ix ix'} (hix : NameIndexRel ix ix')
+    {fp : ron.hashmap2.HashMap2 arena.handle.NIdx Bool} {fp' : _root_.Std.HashSet NIdx} (hfp : NSet fp fp')
+    (ds : alloc.vec.Vec arena.env.IDeclaration) :
+    LS pers (fun a b => b = absNIdxArr a) (records_roots pers st ix fp ds) lst
+      (recordsRoots ix' fp' (absIDeclArr ds)) := by
+  have := records_roots_loop_ls hRR hix hfp ds 0#usize (out := alloc.vec.Vec.new _) hrel hinv
+  simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at this
+  rw [recordsRoots, ← Array.foldlM_toList]
+  exact this
+
+theorem own_roots_loop_eq {ix ix'} (hix : NameIndexRel ix ix')
+    {fp : ron.hashmap2.HashMap2 arena.handle.NIdx Bool} {fp' : _root_.Std.HashSet NIdx} (hfp : NSet fp fp')
+    (cs : alloc.vec.Vec frontend.olean.lazy.CEntry)
+    {L : List Arena.Frontend.Olean.CEntry} (hcs : List.Forall₂ CEntryRel cs.val L)
+    (k : Std.Usize) {out o} (h : own_roots_loop ix cs fp out k = ok o) :
+    absNIdxArr o = (L.drop k.val).foldl
+      (fun out c => if c.skipped then out else pushUnpinned out ix' fp' c.uses) (absNIdxArr out) := by
+  rw [own_roots_loop] at h
+  by_cases hlt : k < alloc.vec.Vec.len cs
+  · rw [ite_eq_left hlt] at h
+    peel h as c, hc
+    obtain ⟨hi, rfl⟩ := vec_index_eq hc
+    obtain ⟨hi', hR, hd⟩ := forall₂_drop_cons hcs hi
+    peel h as b, hb
+    have eb := c_entry_skipped_eq hR hb
+    peel h as out1, hout1
+    peel h as k1, hk1
+    have ih := own_roots_loop_eq hix hfp cs hcs k1 h
+    rw [usize_succ hk1] at ih
+    rw [ih, hd, List.foldl_cons]
+    congr 1
+    by_cases cb : b = true
+    · rw [ite_eq_left cb] at hout1
+      cases Result.ok_injective hout1
+      rw [ite_eq_left (by rw [← eb, cb])]
+    · rw [ite_eq_right cb] at hout1
+      rw [ite_eq_right (by rw [← eb]; simpa using cb), push_unpinned_eq hix hfp hout1]
+      congr 1
+      apply Array.ext'
+      simp [ConRon.Refine2.Frontend.absNIdxArr, hR.2]
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [drop_of_not_lt hcs (not_lt_len hlt)]
+    rfl
+termination_by cs.val.length - k.val
+decreasing_by have := lt_len hlt; rw [usize_succ hk1]; omega
+
+/-- The twin's step of `groundRoots`. -/
+def grStep (pins : List INatOpPinSet) (ix : Arena.Frontend.Olean.NameIndex) (out : _root_.Array NIdx)
+    (c : Arena.Frontend.Olean.CEntry) : AM (_root_.Array NIdx) :=
+  if c.skipped then pure out else pushLoaded out ix <$> pinGround pins c.c.name
+
+theorem ground_roots_loop_ls {pers} (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
+    {ix ix'} (hix : NameIndexRel ix ix') (cs : alloc.vec.Vec frontend.olean.lazy.CEntry)
+    {L : List Arena.Frontend.Olean.CEntry} (hcs : List.Forall₂ CEntryRel cs.val L)
+    (j : Std.Usize) {st lst out} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdxArr a) (ground_roots_loop pers st pins ix cs out j) lst
+      ((L.drop j.val).foldlM (grStep (absINatOpPinSetL pins) ix') (absNIdxArr out)) := by
+  intro o st' h
+  rw [ground_roots_loop] at h
+  by_cases hlt : j < alloc.vec.Vec.len cs
+  · rw [ite_eq_left hlt] at h
+    obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hi, rfl⟩ := vec_index_eq hc
+    obtain ⟨hi', hR, hd⟩ := forall₂_drop_cons hcs hi
+    have hn : absNIdx cs.val[j.val].c.name = L[j.val].c.name := hR.1.name
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have eb := c_entry_skipped_eq hR hb
+    rw [hd, List.foldlM_cons]
+    unfold grStep
+    by_cases cb : b = true
+    · rw [ite_eq_left cb] at h
+      rw [ite_eq_left (by rw [← eb, cb]), pure_bind]
+      obtain ⟨j1, hj1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have ih := ground_roots_loop_ls pins hix cs hcs j1 hrel hinv _ _ h
+      rw [usize_succ hj1] at ih
+      exact ih
+    · rw [ite_eq_right cb] at h
+      rw [ite_eq_right (by rw [← eb]; simpa using cb), ← hn, ← bind_pure_comp, bind_assoc]
+      refine lout_bind (pin_ground_ls hrel hinv pins _) h (by errarm) ?_
+      rintro a g s1 lst1 rfl hrel1 hinv1 h
+      simp only [pure_bind]
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨j1, hj1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have ih := ground_roots_loop_ls pins hix cs hcs j1 hrel1 hinv1 _ _ h
+      rw [usize_succ hj1, push_loaded_eq hix hout1] at ih
+      exact ih
+  · rw [ite_eq_right hlt] at h
+    cases Result.ok_injective h
+    rw [drop_of_not_lt hcs (not_lt_len hlt)]
+    exact lout_pure hrel hinv rfl
+termination_by cs.val.length - j.val
+decreasing_by all_goals (have := lt_len hlt; rw [usize_succ hj1]; omega)
+
+/-- **`ground_roots` is `groundRoots`.** -/
+theorem ground_roots_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet) {ix ix'} (hix : NameIndexRel ix ix')
+    {cs : alloc.vec.Vec frontend.olean.lazy.CEntry}
+    {cs' : _root_.Array Arena.Frontend.Olean.CEntry} (hcs : List.Forall₂ CEntryRel cs.val cs'.toList)
+    (out : alloc.vec.Vec arena.handle.NIdx) :
+    LS pers (fun a b => b = absNIdxArr a) (ground_roots pers st pins ix cs out) lst
+      (groundRoots (absINatOpPinSetL pins) ix' cs' (absNIdxArr out)) := by
+  have := ground_roots_loop_ls pins hix cs hcs 0#usize (out := out) hrel hinv
+  simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at this
+  rw [groundRoots, ← Array.foldlM_toList]
+  exact this
+
+/-- **`own_roots` is `ownRoots`**, given `record_reads`'s Theorem 2. -/
+theorem own_roots_ls {pers st lst} (hRR : RecordReadsRel pers) (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
+    {ix ix'} (hix : NameIndexRel ix ix') {cs : alloc.vec.Vec frontend.olean.lazy.CEntry}
+    {cs' : _root_.Array Arena.Frontend.Olean.CEntry} (hcs : List.Forall₂ CEntryRel cs.val cs'.toList)
+    (ds : alloc.vec.Vec arena.env.IDeclaration) :
+    LS pers (fun a b => b = absNIdxArr a) (own_roots pers st pins ix cs ds) lst
+      (ownRoots (absINatOpPinSetL pins) ix' cs' (absIDeclArr ds)) := by
+  intro o st' h
+  rw [own_roots] at h
+  unfold ownRoots
+  refine lout_bind (footprints_ls hrel hinv hcs) h (by errarm) ?_
+  rintro f fp' s1 lst1 hfp hrel1 hinv1 h
+  refine lout_bind (records_roots_ls hRR hrel1 hinv1 hix hfp ds) h (by errarm) ?_
+  rintro a b s2 lst2 rfl hrel2 hinv2 h
+  obtain ⟨out, hout, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have eo := own_roots_loop_eq hix hfp cs hcs 0#usize hout
+  simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at eo
+  obtain ⟨⟨r2, st3⟩, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hG := ground_roots_ls hrel2 hinv2 pins hix hcs out _ _ hr2
+  rw [eo, Array.foldl_toList] at hG
+  cases r2 <;> (obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h); exact hG)
 
 end ConRon.Refine2.Modular
