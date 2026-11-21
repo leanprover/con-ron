@@ -179,10 +179,10 @@ theorem blockReadsAt_bridge {env : Env} {fe : IFEnv} {s s' : AState}
   have hfeq : GR.FEq ((news.foldr (fun (x : NIdx × Option IConstantInfo) acc =>
       acc.popTemp x.1 x.2) (Arena.consBlockRecsTemp cs fe []).1).setFlags fe.natLit fe.strLit) fe :=
     hpop
-  have hrel₃ : EnvRel env _ s₃.store := BT.EnvRel.feq hfeq (hrel₂.mono x3) hfl
-  refine ⟨⟨c3.state, c3.caches, c3.pins, hrel₃.ifenv⟩, ?_, p1.ext.trans (p2.ext.trans x3),
+  have hrel₃ : EnvRel env _ s'.store := BT.EnvRel.feq hfeq (hrel₂.mono x3) hfl
+  simp only [hn]
+  refine ⟨⟨c3.state, c3.caches, c3.pins, hrel₃.ifenv⟩, hrel₃, p1.ext.trans (p2.ext.trans x3),
     by rw [pn3, p2.pins, p1.pins], ?_⟩
-  · rw [hn]; exact hrel₃
   · intro hb Q
     have key := hok3 hb
     simp only [ConLeche.blockReadsOk]
