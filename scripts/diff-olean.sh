@@ -53,7 +53,7 @@ for p in json.load(open(sys.argv[1]))["packages"]:
     if p["name"].strip("«»") == "con-leche": print(p["rev"])
 PY
 )
-if [ ! -f "$W/.pin" ] || [ "$(cat "$W/.pin")" != "$PIN" ]; then
+if [ ! -f "$W/.pin" ] || [ "$(cat "$W/.pin")" != "$PIN.np1" ]; then
   rm -rf "$W"; mkdir -p "$W/tests/mode" "$W/tmp"
   cp -r "$CL/tests/olean" "$W/tests/olean"
   cp "$CL/tests/olean.sh" "$W/tests/olean.sh"
@@ -64,10 +64,40 @@ if [ ! -f "$W/.pin" ] || [ "$(cat "$W/.pin")" != "$PIN" ]; then
   if [ ! -d "$W/tests/olean/lib" ]; then
     ( cd "$W" && bash tests/olean/build.sh > build.log 2>&1 ) || { echo "diff-olean: the fixtures' build failed, $W/build.log" >&2; exit 2; }
   fi
-  # the table's own build of olean-compare is this script's: the tool is passed in
-  sed -i -e 's/^lake build olean-compare >\/dev\/null || exit 3$/true/' \
-    -e 's/timeout 60 "\$BIN"/timeout "${CASE_T:-60}" "$BIN"/' "$W/tests/olean.sh"
-  echo "$PIN" > "$W/.pin"
+  # the table's own build of olean-compare is this script's: the tool is passed in;
+  # and the NOT PORTED category (task #166): a case whose answer is con-ron's usage
+  # error "… is not supported by con-ron yet" (con-leche's scheduler, `--schedule`
+  # without `-commands`) is counted apart, never as an agreement nor as a FAIL, and
+  # so is the scheduler's own log check; the `--schedule-commands` lines' binary may be
+  # con-ron
+  python3 -I - "$W/tests/olean.sh" <<'PY' || { echo "diff-olean: the table does not patch" >&2; exit 2; }
+import sys
+p = sys.argv[1]
+s = open(p).read()
+subs = [
+    ('lake build olean-compare >/dev/null || exit 3\n', 'true\n'),
+    ('timeout 60 "$BIN"', 'timeout "${CASE_T:-60}" "$BIN"'),
+    ('  local got=$?\n',
+     '  local got=$?\n'
+     '  np=0\n'
+     '  if grep -q "not supported by con-ron yet" "$TMPDIR/olean-case.out"; then\n'
+     '    np=1; notported=$((${notported:-0}+1))\n'
+     '    echo "OLEAN NOT PORTED ($desc): con-leche expects exit $want"; return\n'
+     '  fi\n'),
+    ('  case_ "$desc" "$want" "$@"\n', '  case_ "$desc" "$want" "$@"\n  [ "$np" = 1 ] && return\n'),
+    ('echo "OLEAN FAIL (--schedule: the stack log line)"; fail=1;',
+     'echo "OLEAN NOT PORTED (--schedule: the stack log line)"; notported=$((${notported:-0}+1));'),
+    ('grep -qE "^/[^ ]*con-leche --', 'grep -qE "^/[^ ]*con-(leche|ron) --'),
+    ('echo "olean gate: $ok/$total as expected"',
+     'echo "olean gate: $ok/$total as expected, ${notported:-0} NOT PORTED"'),
+]
+for a, b in subs:
+    if a not in s:
+        sys.exit("diff-olean: no %r in tests/olean.sh" % a)
+    s = s.replace(a, b)
+open(p, 'w').write(s)
+PY
+  echo "$PIN.np1" > "$W/.pin"
 fi
 
 run() { # <bin> <cmp> <log>
@@ -75,7 +105,7 @@ run() { # <bin> <cmp> <log>
 }
 LOG="$W/ours.log"
 run "$BIN" "$CMP" "$LOG" "$CASE_T"; rc=$?
-grep -E '^OLEAN FAIL|olean gate:' "$LOG" | cut -c1-200
+grep -E '^OLEAN FAIL|^OLEAN NOT PORTED|olean gate:' "$LOG" | cut -c1-200
 
 if [ -n "$UP" ]; then
   UPC="$(dirname "$UP")/olean-compare"

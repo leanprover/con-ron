@@ -75,6 +75,7 @@
 pub mod compare;
 pub mod driver;
 pub mod keys;
+pub mod modular;
 pub mod olean_fs;
 pub mod pool;
 pub mod render;

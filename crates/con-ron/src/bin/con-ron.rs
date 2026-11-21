@@ -91,15 +91,20 @@ use con_ron_core::arena::store::PersTier;
 /// The invocation forms, printed on their own when there are no arguments.
 /// `--pins`/`--no-pins` are the port's own testing flags (`driver::pins_for_run`)
 /// and are not in con-leche's synopsis; they are in the help text's options.
-/// con-leche's forms for `--check-graph`, `--module`, `--modular` and
-/// `--schedule` are not here: con-ron does not run those modes (`HELP_TAIL`).
+/// Of `--schedule` only `--schedule-commands` is run (`HELP_TAIL`).
 const SYNOPSIS: &str = "\
 Usage:
   con-ron [OPTIONS] [--] FILE.ndjson
   con-ron [OPTIONS] --compare [--] CHALLENGE.ndjson SOLUTION.ndjson
   con-ron [OPTIONS] --olean --search-path=DIRS [--] MODULE...
+  con-ron [OPTIONS] --check-graph --search-path=DIRS [--] MODULE...
+  con-ron [OPTIONS] --olean --schedule-commands --search-path=DIRS [--] MODULE
   con-ron [OPTIONS] --olean --compare [--trusted-search-path=DIRS]
-          --search-path=DIRS [--] CHALLENGE SOLUTION";
+          --search-path=DIRS [--] CHALLENGE SOLUTION
+  con-ron [OPTIONS] --check-graph --compare [--trusted-search-path=DIRS]
+          --search-path=DIRS [--] CHALLENGE SOLUTION
+  con-ron [OPTIONS] --olean --schedule-commands --compare
+          [--trusted-search-path=DIRS] --search-path=DIRS [--] CHALLENGE SOLUTION";
 
 /// con-leche: ConLeche/Driver/Cli.lean:134-135 tryHelp
 /// The line after a usage error.
@@ -157,10 +162,30 @@ lean4export input:
                       in DIRS, and are read from there only; SOLUTION's
                       modules from DIRS first, then --search-path.
                       Colon-separated; repeatable
+  --check-graph       Check only that the modules' import graph is acyclic
+                      and that every import is on the search path. With
+                      --compare: the closures of CHALLENGE and SOLUTION,
+                      `import all SOLUTION` added to CHALLENGE's header
+  --schedule-commands Start nothing; print on stdout, one per line and
+                      shell-quoted, the commands that check MODULE's closure:
+                      the --check-graph run, then one --module run per module
+                      (--jobs=N only if given); the modular guarantee needs
+                      every one to exit 0 on one unchanged snapshot of the
+                      files. Run them with xargs or GNU parallel, e.g.
+                        con-ron --olean --schedule-commands ... | tail -n +2 |
+                          parallel
+                      after the first line exits 0
+  --schedule-order=ORDER
+                      shuffled (default; by a hash of the names) or graph:
+                      the order of the printed --module commands
+  --worker-stack-size=SIZE
+                      With --schedule-commands: each worker's line starts
+                      with LEAN_STACK_SIZE_KB=K (a size with a unit: 8G)
 
 con-leche's other modes, not run by con-ron yet (a usage error, exit 3):
-  --check-graph, --module, --modular, --schedule[-OPT=V],
-  --worker-stack-size=SIZE, and --compare with any of them
+  --module, --modular, --schedule (con-leche's scheduler: use
+  --schedule-commands with xargs or parallel instead), and --compare with
+  --module or --modular
 
 Exit status:
   0  accepted
@@ -203,17 +228,23 @@ struct Args {
     module: bool,
     /// `--modular` (not run by con-ron).
     modular: bool,
-    /// some `--schedule[-OPT=VALUE]` flag was given (not run by con-ron; its
-    /// values are not read, so they are not kept).
+    /// the values after `--schedule` of every `--schedule[-OPT=VALUE]` flag, `""`
+    /// for the bare flag (`modular::opts_parse`)
+    schedule: Vec<String>,
+    /// some `--schedule` flag was given
     scheduled: bool,
     /// `--compare`: the two arguments are a challenge and its solution.
     compare: bool,
     /// `--trusted-search-path=DIR:DIR...`: with `--compare`, where the
     /// challenge is read, and where the solution is read first.
     trusted_path: Vec<String>,
-    /// `--worker-stack-size=SIZE` was given, with a valid size (the value is a
-    /// `--schedule` worker's, so only that it was given is kept).
+    /// `--worker-stack-size=SIZE` was given, with a valid size
     worker_stack: bool,
+    /// its value in KiB (`modular::parse_size`), which `--schedule-commands`
+    /// prints as each worker's `LEAN_STACK_SIZE_KB`
+    worker_stack_kb: Option<u64>,
+    /// the `--max-nat-size` value as a decimal, for the printed workers
+    max_nat_text: String,
     bad: Option<String>,
 }
 
@@ -249,10 +280,16 @@ fn parse_args(argv: &[String]) -> Args {
         check_graph: false,
         module: false,
         modular: false,
+        schedule: Vec::new(),
         scheduled: false,
         compare: false,
         trusted_path: Vec::new(),
         worker_stack: false,
+        worker_stack_kb: None,
+        max_nat_text: match con_ron_core::ron::nat::to_u64(&max_nat_size_default()) {
+            Some(k) => k.to_string(),
+            None => String::new(),
+        },
         bad: None,
     };
     let mut i = 0usize;
@@ -306,7 +343,13 @@ fn parse_args(argv: &[String]) -> Args {
                     }
                 } else if let Some(v) = s.strip_prefix("--max-nat-size=") {
                     match con_ron::driver::max_nat_size_arg(v) {
-                        Ok(n) => a.max_nat_size = n,
+                        Ok(n) => {
+                            a.max_nat_text = match con_ron_core::ron::nat::to_u64(&n) {
+                                Some(k) => k.to_string(),
+                                None => v.chars().filter(|c| *c != '_').collect(),
+                            };
+                            a.max_nat_size = n
+                        }
                         Err(m) => bad(m, &mut a),
                     }
                 } else if let Some(v) = s.strip_prefix("--pins=") {
@@ -319,11 +362,13 @@ fn parse_args(argv: &[String]) -> Args {
                 } else if let Some(v) = s.strip_prefix("--trusted-search-path=") {
                     a.trusted_path
                         .extend(v.split(':').filter(|d| !d.is_empty()).map(|d| d.to_string()));
-                } else if s.starts_with("--schedule") {
+                } else if let Some(v) = s.strip_prefix("--schedule") {
+                    a.schedule.push(v.to_string());
                     a.scheduled = true;
                 } else if let Some(v) = s.strip_prefix("--worker-stack-size=") {
                     if con_ron::driver::size_positive(v) {
                         a.worker_stack = true;
+                        a.worker_stack_kb = con_ron::modular::parse_size(v);
                     } else {
                         bad(
                             format!(
@@ -349,13 +394,6 @@ fn parse_args(argv: &[String]) -> Args {
     closed(a)
 }
 
-/// con-leche: none — the modes con-ron does not run
-/// A mode con-ron does not run, once con-leche's own usage checks have passed:
-/// a usage error (exit 3), never a silent run of another mode.
-fn unsupported(mode: &str) -> u8 {
-    usage_error(&format!("{} is not supported by con-ron yet", mode))
-}
-
 /// con-leche: none — `c == s` over the parsed module names (`Name`'s `BEq`)
 /// Two module names of the command line, the same module: compared as
 /// parsed, so `«A»` and `A` are one module.
@@ -364,8 +402,8 @@ fn same_module(a: &con_ron_core::kernel::name::Name, b: &con_ron_core::kernel::n
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
-/// `--check-graph`'s usage checks, con-leche's in its order; a command line
-/// that passes them is a mode con-ron does not run (`unsupported`).
+/// `--check-graph`'s usage checks, con-leche's in its order, then the graph
+/// check (`modular::check_graph`, `modular::check_graph_cmp`).
 fn check_graph_usage(a: &Args) -> u8 {
     if a.olean || a.module || !a.constants.is_empty() || (!a.trusted_path.is_empty() && !a.compare) {
         return usage_error(
@@ -394,9 +432,61 @@ fn check_graph_usage(a: &Args) -> u8 {
         if same_module(&roots[0], &roots[1]) {
             return usage_error("--compare takes two different modules, a challenge and its solution");
         }
-        return unsupported("--check-graph --compare");
+        let dirs = |v: &Vec<String>| -> Vec<Vec<u32>> { v.iter().map(|d| con_ron::render::cps(d)).collect() };
+        let s = roots.pop();
+        let c = roots.pop();
+        return match (c, s) {
+            (Some(c), Some(s)) => con_ron::modular::check_graph_cmp(&con_ron::compare::CmpRequest {
+                challenge: c,
+                solution: s,
+                trusted: dirs(&a.trusted_path),
+                path: dirs(&a.search_path),
+                constants: Vec::new(),
+            }),
+            _ => 3,
+        };
     }
-    unsupported("--check-graph")
+    let sp = con_ron_core::frontend::olean::files::roots_of_path(
+        a.search_path.iter().map(|d| con_ron::render::cps(d)).collect(),
+    );
+    con_ron::modular::check_graph(&sp, &roots)
+}
+
+/// con-leche: ConLeche/Driver/Dispatch.lean:63-87 runReq
+/// A worker's request off the command line: the module (a compared run's
+/// challenge), its solution (none: the module itself), the trusted path and the
+/// search path (`--module`'s lookup is the solution's: the trusted path, then the
+/// search path).
+fn cmp_request(a: &Args, c: con_ron_core::kernel::name::Name, s: Option<con_ron_core::kernel::name::Name>) -> con_ron::compare::CmpRequest {
+    let dirs = |v: &Vec<String>| -> Vec<Vec<u32>> { v.iter().map(|d| con_ron::render::cps(d)).collect() };
+    let s = match s {
+        Some(s) => s,
+        None => con_ron_core::kernel::name::dup(&c),
+    };
+    con_ron::compare::CmpRequest {
+        challenge: c,
+        solution: s,
+        trusted: dirs(&a.trusted_path),
+        path: dirs(&a.search_path),
+        constants: Vec::new(),
+    }
+}
+
+/// con-leche: ConLeche/Driver/Dispatch.lean:63-87 runReq
+/// A `--schedule` request off the command line (`modular::schedule`).
+fn schedule_req<'a>(a: &'a Args, root: con_ron_core::kernel::name::Name, cmp: Option<con_ron_core::kernel::name::Name>) -> con_ron::modular::ScheduleReq<'a> {
+    con_ron::modular::ScheduleReq {
+        trusted: &a.trusted_path,
+        path: &a.search_path,
+        root,
+        cmp,
+        opts: &a.schedule,
+        mode_tag: if a.verified { "--verified" } else { "--trusted" },
+        max_nat_size: a.max_nat_text.clone(),
+        pace: &a.progress,
+        jobs: a.jobs,
+        stack_kb: a.worker_stack_kb,
+    }
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:305-308 helpWanted
@@ -466,6 +556,11 @@ enum Run {
     Check(Input),
     CompareJson(String, String),
     CompareOleans(con_ron::compare::CmpRequest),
+    /// `--olean --module [--compare]`: the challenge's worker (with `true`, the
+    /// compare worker), every module read through the solution's lookup
+    Module(con_ron::compare::CmpRequest, bool),
+    /// `--olean --modular [--compare]`: every module of the closure, its worker each
+    Modular(con_ron::compare::CmpRequest, bool),
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:233-385 checkMainG
@@ -712,6 +807,8 @@ fn run(a: &Args, r: &Run) -> u8 {
         Run::Check(input) => check_main(a, input),
         Run::CompareJson(c, s) => exit_after_verdict(con_ron::compare::compare_json(&compare_opts(a, mode, mode_tag), c, s)),
         Run::CompareOleans(q) => exit_after_verdict(con_ron::compare::compare_oleans(&compare_opts(a, mode, mode_tag), q)),
+        Run::Module(q, cmp) => exit_after_verdict(con_ron::modular::module_main(&compare_opts(a, mode, mode_tag), q, *cmp)),
+        Run::Modular(q, cmp) => exit_after_verdict(con_ron::modular::modular_main(&compare_opts(a, mode, mode_tag), q, *cmp)),
     }
 }
 
@@ -838,14 +935,29 @@ fn run_main() -> u8 {
                          and no --constant",
                     );
                 }
-                if a.module {
-                    return unsupported("--olean --module --compare");
+                if a.module || a.modular {
+                    let mut rs = req.roots;
+                    let s = rs.pop();
+                    let c = rs.pop();
+                    let q = match (c, s) {
+                        (Some(c), Some(s)) => cmp_request(&a, c, Some(s)),
+                        _ => return 3,
+                    };
+                    if a.module {
+                        Run::Module(q, true)
+                    } else {
+                        Run::Modular(q, true)
+                    }
+                } else {
+                let mut rs = req.roots;
+                let s = rs.pop();
+                let c = rs.pop();
+                return match (c, s) {
+                    (Some(c), Some(s)) => con_ron::modular::schedule(&schedule_req(&a, c, Some(s))),
+                    _ => 3,
+                };
                 }
-                if a.modular {
-                    return unsupported("--olean --modular --compare");
-                }
-                return unsupported("--olean --schedule --compare");
-            }
+            } else {
             let dirs = |v: &Vec<String>| -> Vec<Vec<u32>> { v.iter().map(|d| con_ron::render::cps(d)).collect() };
             let mut roots = req.roots;
             let s = roots.pop();
@@ -860,6 +972,7 @@ fn run_main() -> u8 {
                 }),
                 _ => return usage_error("--compare takes two module names, a challenge and its solution"),
             }
+            }
         } else {
         if !a.trusted_path.is_empty() && (!a.module || a.modular || a.scheduled) {
             return usage_error("--trusted-search-path takes --compare or --module");
@@ -871,7 +984,11 @@ fn run_main() -> u8 {
                      --modular",
                 );
             }
-            return unsupported("--olean --schedule");
+            let mut rs = req.roots;
+            return match rs.pop() {
+                Some(m) => con_ron::modular::schedule(&schedule_req(&a, m, None)),
+                None => 3,
+            };
         }
         if a.modular {
             if req.roots.len() != 1 || !a.constants.is_empty() || a.module {
@@ -879,13 +996,21 @@ fn run_main() -> u8 {
                     "--modular takes one module name, and neither --constant nor --module",
                 );
             }
-            return unsupported("--olean --modular");
+            let mut rs = req.roots;
+            return match rs.pop() {
+                Some(m) => { let q = cmp_request(&a, m, None); run_on_thread(a, Run::Modular(q, false)) }
+                None => 3,
+            };
         }
         if a.module {
             if req.roots.len() != 1 || !a.constants.is_empty() {
                 return usage_error("--module takes one module name and no --constant");
             }
-            return unsupported("--olean --module");
+            let mut rs = req.roots;
+            return match rs.pop() {
+                Some(m) => { let q = cmp_request(&a, m, None); run_on_thread(a, Run::Module(q, false)) }
+                None => 3,
+            };
         }
         Run::Check(Input::Oleans(req))
         }
@@ -941,6 +1066,13 @@ fn run_main() -> u8 {
         Run::Check(Input::Ndjson(a.files[0].clone()))
         }
     };
+    run_on_thread(a, input)
+}
+
+/// con-leche: Main.lean:56-103 main
+/// The run on its 1 GiB-stack checking thread (`driver::STACK_BYTES`): a
+/// panic on it is exit 3, never a verdict.
+fn run_on_thread(a: Args, input: Run) -> u8 {
     let h = std::thread::Builder::new()
         .stack_size(STACK_BYTES)
         .spawn(move || run(&a, &input));
