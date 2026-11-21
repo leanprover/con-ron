@@ -341,7 +341,7 @@ def readAllViews (fs : OleanFs) (pk : OleanPins) (sp : Roots) (m : NIdx) :
         | some _ => pure OLeanLevel.private
     fail (← viewError pk mn f level)
   | some v =>
-    let expo ← checkViews pk mn f v
+    let expo ← checkViews pk m f v
     pure (v, expo)
 
 end ConRon.Arena.Frontend.Olean

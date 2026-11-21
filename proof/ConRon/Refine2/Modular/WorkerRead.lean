@@ -9,8 +9,7 @@ failure carries a position, so its claim is stated out, `WorkerReadAccept`).
 **Hypotheses, not theorems.**  Lane L2's `reach::record_reads`, `reach::owner_map` and
 `reach::reach` have no Theorem 2 yet: their expected shapes are `RecordReadsRel` (in
 `Modular/Worker.lean`), `OwnerMapRel` and `ReachHyp` (here), taken as premises.
-`view::parse_all_views` and `module::check_views` have none either: `home_of_refines`'s two
-premises are passed through (`hPV`, `hCV`, for every pin set and module files).  `copies_ok`'s
+The home is `home_of_refines'` (`parse_all_views`, `check_views` with their Theorem 2).  `copies_ok`'s
 claim is over a tier whose frozen base is empty (`hb`, `hok`), passed through too.
 -/
 import ConRon.Refine2.Modular.Worker
@@ -166,21 +165,10 @@ worker's reads, the own records, then `worker_reach`. -/
 theorem worker_read_refines (hfs : FsRel inst fsv fs) {pers : arena.store.PersTier}
     (hRR : RecordReadsRel pers) (hOM : OwnerMapRel pers) (hRe : ReachHyp inst fsv fs pers)
     (hb : BaseRel pers.env {}) (hok : BaseOK pers)
-    {VR : frontend.olean.view.AllViews → Arena.Frontend.Olean.AllViews → Prop}
-    {ER : alloc.vec.Vec frontend.olean.module.Expo → _root_.Array ConLeche.Frontend.Olean.Expo → Prop}
-    (hPV : ∀ (pk : frontend.olean.spec.OleanPins) {f : frontend.olean.view.ModFiles}
-      {f' : ConLeche.Frontend.Olean.ModFiles}, ModFilesRel f f' →
-      ∀ st lst, AR pers VR st lst (frontend.olean.view.parse_all_views pk pers st.store f)
-        (Arena.Frontend.Olean.parseAllViews (absPins pk) f'))
-    (hCV : ∀ (pk : frontend.olean.spec.OleanPins) (m : arena.handle.NIdx) {f : frontend.olean.view.ModFiles}
-      {f' : ConLeche.Frontend.Olean.ModFiles}, ModFilesRel f f' →
-      ∀ st lst v v', VR v v' → AS pers ER st lst
-        (frontend.olean.module.check_views pk pers st.store m f v)
-        (do Arena.Frontend.Olean.checkViews (absPins pk) (← readName (absNIdx m)) f' v'))
     {st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (sp : frontend.olean.files.Roots) (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
     (m : arena.handle.NIdx) (x : alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx)) :
-    WorkerReadAccept pers ER (worker_read inst fsv pers st sp pins m x) lst
+    WorkerReadAccept pers ExpoRel (worker_read inst fsv pers st sp pins m x) lst
       (Modular.workerRead fs (absRoots sp) (absINatOpPinSetL pins) (absNIdx m) (absImports x)) := by
   intro w st' h
   rw [worker_read] at h
@@ -210,7 +198,7 @@ theorem worker_read_refines (hfs : FsRel inst fsv fs) {pers : arena.store.PersTi
   | Ok hh =>
   obtain ⟨l, expo⟩ := hh
   obtain ⟨⟨l', expo'⟩, lst2, hx2, ⟨hL, hE⟩, hrel2, hinv2⟩ :=
-    home_of_refines hf (hPV p hf) (hCV p m hf) (st := withStore st e) hrel1 hinv1 _ e1 h2
+    home_of_refines' hf (st := withStore st e) hrel1 hinv1 _ e1 h2
   rw [am_bind_ok hx2]
   -- the worker's reads
   obtain ⟨⟨r3, e2⟩, h3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h

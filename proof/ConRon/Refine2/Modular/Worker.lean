@@ -10,7 +10,8 @@ walk is a lockstep `LS`.
 
 **Hypotheses, not theorems.**  `reach::record_reads` is lane L2's, with no Theorem 2 yet: `records_roots`,
 `own_roots`, `roots_at` take its Theorem 2 as `RecordReadsRel`.  `view::parse_all_views` and
-`module::check_views` have no Theorem 2 yet: `home_of_refines` takes theirs as `hPV`, `hCV`.
+`module::check_views`: `home_of_refines` takes their Theorem 2 as `hPV`, `hCV`, and
+`home_of_refines'` discharges them (`AllViews.lean`, `CheckViews.lean`).
 `reach::decl_names` (lane L2's) is proved here (`decl_names_ls`).
 -/
 import ConRon.Refine2.Frontend.Olean.Index
@@ -25,6 +26,7 @@ import ConRon.Refine2.Checker.Needs
 import ConRon.Refine2.Checker.Pins
 import ConRon.Refine2.Modular.Graph
 import ConRon.Refine2.Frontend.Olean.Contract
+import ConRon.Refine2.Frontend.Olean.CheckViews
 import ConRon.Arena.Modular.Worker
 
 open Aeneas Aeneas.Std Result
@@ -1647,7 +1649,7 @@ theorem own_records_refines {pk : frontend.olean.spec.OleanPins} {pers st lst}
   rfl
 
 /-- **`home_of`'s accept is `homeOf`'s**, given the Theorem 2 of the two reads `parse_all_views`
-and `check_views` (neither has one yet): the private view loaded, its parts checked. -/
+and `check_views`: the private view loaded, its parts checked. -/
 theorem home_of_refines {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
     {m : arena.handle.NIdx} {f : frontend.olean.view.ModFiles} {f' : ConLeche.Frontend.Olean.ModFiles}
     (hf : ModFilesRel f f') {VR : frontend.olean.view.AllViews → Arena.Frontend.Olean.AllViews → Prop}
@@ -1656,7 +1658,7 @@ theorem home_of_refines {pk : frontend.olean.spec.OleanPins} {pers : arena.store
       (Arena.Frontend.Olean.parseAllViews (absPins pk) f'))
     (hCV : ∀ st lst v v', VR v v' → AS pers ER st lst
       (frontend.olean.module.check_views pk pers st.store m f v)
-      (do Arena.Frontend.Olean.checkViews (absPins pk) (← readName (absNIdx m)) f' v'))
+      (Arena.Frontend.Olean.checkViews (absPins pk) (absNIdx m) f' v'))
     {st lst} :
     AS pers (fun a b => LoadedRel a.1 b.1 ∧ ER a.2 b.2) st lst (home_of pk pers st.store m f)
       (homeOf (absPins pk) (absNIdx m) f') := by
@@ -1693,7 +1695,17 @@ theorem home_of_refines {pk : frontend.olean.spec.OleanPins} {pers : arena.store
   unfold homeOf
   rw [am_bind_ok hx1', am_bind_ok hx2]
   simp only
-  rw [← bind_assoc, am_bind_ok hx3]
+  rw [am_bind_ok hx3]
   rfl
+
+/-- **`home_of`'s accept is `homeOf`'s**: `home_of_refines` with the Theorem 2 of
+`parse_all_views` and `check_views` (`AllViews`, `CheckViews`). -/
+theorem home_of_refines' {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
+    {m : arena.handle.NIdx} {f : frontend.olean.view.ModFiles} {f' : ConLeche.Frontend.Olean.ModFiles}
+    (hf : ModFilesRel f f') {st lst} :
+    AS pers (fun a b => LoadedRel a.1 b.1 ∧ ExpoRel a.2 b.2) st lst (home_of pk pers st.store m f)
+      (homeOf (absPins pk) (absNIdx m) f') :=
+  home_of_refines hf (fun _ _ => (parse_all_views_refines hf).ar)
+    (fun _ _ _ _ hv => check_views_refines hf hv)
 
 end ConRon.Refine2.Modular
