@@ -210,4 +210,140 @@ theorem clashStatuses_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare 
     rw [ConLeche.Driver.clashAgree.statuses]
     exact hg1.bind hg2
 
+theorem listRel_cases {α β : Type} {R : α → β → Prop} {l : List α} {lC : List β}
+    (h : ListRel R l lC) : (l = [] ∧ lC = []) ∨
+      ∃ a b l' lC', l = a :: l' ∧ lC = b :: lC' ∧ R a b ∧ ListRel R l' lC' := by
+  cases h with
+  | nil => exact .inl ⟨rfl, rfl⟩
+  | cons hab h => exact .inr ⟨_, _, _, _, rfl, rfl, hab, h⟩
+
+/-- `clashAgree`'s reason for a pending statement. -/
+@[expose] def clashWhy (n : ConLeche.Name) : String := s!"two loaded modules store {n}"
+
+/-- A cache with a pending statement pushed. -/
+theorem CacheRel.pushPending {st : EStore} {c : ConRon.Arena.Modular.ReachCache}
+    {cC : ConLeche.Driver.ReachCache} (h : CacheRel st c cC)
+    {x : String × NIdx × ConRon.Arena.Frontend.Olean.StmtRec} {y : String × ConLeche.Name × ConstantVal}
+    (hx : PendRel st x y) :
+    CacheRel st { c with pending := c.pending.push x } { cC with pending := cC.pending.push y } := by
+  refine ⟨h.tables, h.looks, h.parts, h.recBlocks, h.views, h.located, h.completed, ?_, h.partners,
+    h.searches⟩
+  simp only [Array.toList_push]
+  exact ListRel.append h.pending (.cons hx .nil)
+
+/-- con-leche: ConLeche/Driver/Reach.lean:447-468 clashAgree — **one clash**: the twin's step
+accepting, upstream's run of the clashes from it on is the run of the rest from the related
+cache and names. -/
+theorem clashAgreeOne_step {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    {cl : ConRon.Arena.Frontend.Olean.Clash} {clC : ConLeche.Frontend.Olean.Clash}
+    {clsC : List ConLeche.Frontend.Olean.Clash}
+    {c c₁ : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
+    {acc acc₁ : Array NIdx} {accC : Array ConLeche.Name} {s s₁ : AState}
+    (hctx : RCtx pk s) (he : EnvRel sp s.store env envC) (hc : CacheRel s.store c cC)
+    (hcl : ClashRel s.store cl clC) (hacc : ListRel (NR s.store) acc.toList accC.toList)
+    (g1 : ConRon.Arena.Modular.clashAgreeOne (modelFs F) pk sp env c cl acc s = .ok ((c₁, acc₁), s₁)) :
+    DStep s s₁ ∧ ∃ cC₁ accC₁, CacheRel s₁.store c₁ cC₁ ∧ ListRel (NR s₁.store) acc₁.toList accC₁.toList ∧
+      ∀ R, ModelIO.Gives (ConLeche.Driver.clashAgree envC cC₁ clsC accC₁) F R →
+        ModelIO.Gives (ConLeche.Driver.clashAgree envC cC (clC :: clsC) accC) F R := by
+  unfold ConRon.Arena.Modular.clashAgreeOne at g1
+  have hsp' := clashSpots_rel hctx.nulls he hcl
+  obtain ⟨t, s₂, f1, g1⟩ := AM.bind_ok g1
+  obtain ⟨c₂, no, yes⟩ := t
+  obtain ⟨hst2, cC₂, ps, hg2, hc2, hno, hyes⟩ :=
+    clashStatuses_run (acc := []) hsp hctx he hc hsp' rfl rfl f1
+  have hx2 := hst2.ext
+  rw [ConLeche.Driver.clashAgree]
+  have hctx2 := hctx.step hst2
+  have hw2 := hctx2.wf
+  cases no with
+  | true =>
+    simp only [ite_true] at g1
+    exfalso
+    am_never g1
+  | false =>
+  simp only [Bool.false_eq_true, ite_false] at g1
+  have hn : ps.contains .no = false := hno.symm
+  cases yes with
+  | true =>
+    simp only [ite_true] at g1
+    obtain ⟨hv, rfl⟩ := AM.pure_ok g1
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨rfl, rfl⟩ := hv
+    refine ⟨hst2, cC₂, accC.push clC.name, hc2,
+      array_rel_push (NR_list_ext hx2 hacc) (denoteN_ext hcl.name hx2), fun R hR => hg2.bind ?_⟩
+    simp only [hn, ← hyes, Bool.false_eq_true, ite_false, ite_true]
+    exact hR
+  | false =>
+  simp only [Bool.false_eq_true, ite_false] at g1
+  have hy : ps.contains .yes = false := hyes.symm
+  rcases listRel_cases hsp' with ⟨h1, h2⟩ | ⟨a, b, l', lC', h1, h2, hab, -⟩
+  · rw [h1] at g1
+    obtain ⟨hv, rfl⟩ := AM.pure_ok g1
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨rfl, rfl⟩ := hv
+    refine ⟨hst2, cC₂, accC, hc2, NR_list_ext hx2 hacc, fun R hR => hg2.bind ?_⟩
+    unfold clashSpotsC at h2
+    simp only [hn, hy, Bool.false_eq_true, ite_false]
+    rw [h2]
+    exact hR
+  · rw [h1] at g1
+    obtain ⟨sq, cv, k⟩ := a
+    obtain ⟨sqC, cvC, kC⟩ := b
+    obtain ⟨u0, s₀', f0, g1⟩ := AM.bind_ok g1
+    obtain ⟨-, hs0⟩ := AM.pure_ok f0
+    subst s₀'
+    obtain ⟨u1, s₁', f1', g1⟩ := AM.bind_ok g1
+    obtain ⟨-, hs1'⟩ := AM.pure_ok f1'
+    subst s₁'
+    dsimp only at g1
+    obtain ⟨why, s₃, f3, g3⟩ := AM.bind_ok g1
+    have hs3 := nameText_ok f3
+    subst hs3
+    obtain ⟨hv, rfl⟩ := AM.pure_ok g3
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨rfl, rfl⟩ := hv
+    refine ⟨hst2, { cC₂ with pending := cC₂.pending.push (clashWhy clC.name, clC.name, cvC) },
+      accC.push clC.name,
+      hc2.pushPending (x := (_, cl.name, cv)) (y := (clashWhy clC.name, clC.name, cvC))
+        ⟨denoteN_ext hcl.name hx2, denoteStmt_ext hx2 hab.2.1⟩,
+      array_rel_push (NR_list_ext hx2 hacc) (denoteN_ext hcl.name hx2), fun R hR => hg2.bind ?_⟩
+    unfold clashSpotsC at h2
+    simp only [hn, hy, Bool.false_eq_true, ite_false]
+    rw [h2]
+    exact hR
+
+/-- con-leche: ConLeche/Driver/Reach.lean:442-476 clashAgree — **the clash rule**: upstream's
+accept, every clashing name returned, the caches related after. -/
+theorem clashAgree_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = sp)
+    {env : ConRon.Arena.Modular.ReachEnv} {envC : ConLeche.Driver.ReachEnv ModelIO}
+    {cls : List ConRon.Arena.Frontend.Olean.Clash} {clsC : List ConLeche.Frontend.Olean.Clash}
+    {c c' : ConRon.Arena.Modular.ReachCache} {cC : ConLeche.Driver.ReachCache}
+    {acc acc' : Array NIdx} {accC : Array ConLeche.Name} {s s' : AState}
+    (hctx : RCtx pk s) (he : EnvRel sp s.store env envC) (hc : CacheRel s.store c cC)
+    (hcls : ListRel (ClashRel s.store) cls clsC) (hacc : ListRel (NR s.store) acc.toList accC.toList)
+    (hrun : ConRon.Arena.Modular.clashAgree (modelFs F) pk sp env c cls acc s = .ok ((c', acc'), s')) :
+    DStep s s' ∧ ∃ cC' accC', ModelIO.Gives (ConLeche.Driver.clashAgree envC cC clsC accC) F
+      (cC', .ok accC') ∧ CacheRel s'.store c' cC' ∧ ListRel (NR s'.store) acc'.toList accC'.toList := by
+  induction cls generalizing clsC c cC acc accC s with
+  | nil =>
+    cases hcls
+    rw [ConRon.Arena.Modular.clashAgree] at hrun
+    obtain ⟨hv, rfl⟩ := AM.pure_ok hrun
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨rfl, rfl⟩ := hv
+    exact ⟨DStep.refl hctx.ok hctx.off, cC, accC,
+      by rw [ConLeche.Driver.clashAgree]; exact ModelIO.gives_pure _ _, hc, hacc⟩
+  | cons cl cls ih =>
+    cases hcls with
+    | @cons _ clC _ clsC hcl hcls =>
+    rw [ConRon.Arena.Modular.clashAgree] at hrun
+    obtain ⟨t, s₁, g1, k1⟩ := AM.bind_ok hrun
+    obtain ⟨c₁, acc₁⟩ := t
+    obtain ⟨hst1, cC₁, accC₁, hc1, hacc1, hstep⟩ := clashAgreeOne_step (clsC := clsC) hsp hctx he hc hcl hacc g1
+    have hctx1 := hctx.step hst1
+    obtain ⟨hst2, cC', accC', hg2, hc', hacc'⟩ := ih hctx1 (he.ext hst1.ext hctx1.wf) hc1
+      (ListRel.mono' (fun _ _ h => h.ext hst1.ext) hcls) hacc1 k1
+    exact ⟨hst1.trans hst2, cC', accC', hstep _ hg2, hc', hacc'⟩
+
 end ConRon.Bridge.Modular
