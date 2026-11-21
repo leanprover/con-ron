@@ -24,6 +24,7 @@ public import ConRon.Bridge.Compare.Side
 public import ConRon.Bridge.Stages
 import ConRon.Bridge.Specs
 import ConLeche.Verify.Cached.PureRun
+import ConLeche.Verify.CheckerF
 import ConRon.Bridge.Checker.Install
 import ConLeche.Verify.Frontend.FileFalse
 import ConLeche.Verify.Frontend.Prepare
