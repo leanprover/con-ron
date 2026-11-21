@@ -421,10 +421,11 @@ if [ -f "$cli_good" ]; then
   cli_case 0 --compare -- -weird-name.ndjson --help
   # con-ron's own (task #164): the modular modes' flags without their mode are
   # usage errors before anything is read; con-ron runs the graph check (task
-  # #166), and a module on no directory of the search path is con-leche's exit 1.
+  # #166) and the modular run, and a module on no directory of the search path
+  # is con-leche's exit 1.
   cli_case 3 --module -- -weird-name.ndjson
   cli_case 3 --worker-stack-size=8G -- -weird-name.ndjson
-  cli_case 3 --olean --search-path=. --modular M
+  cli_case 1 --olean --search-path=. --modular M
   cli_case 1 --check-graph --search-path=. M
 fi
 mkfifo "$cli_dir/fifo"
