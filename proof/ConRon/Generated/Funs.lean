@@ -67999,7 +67999,7 @@ def arena.justify.name_msg
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::justify::decl_label]:
-    Source: 'crates/con-ron-core/src/arena/justify.rs', lines 769:0-785:1
+    Source: 'crates/con-ron-core/src/arena/justify.rs', lines 771:0-787:1
     Visibility: public -/
 def arena.justify.decl_label
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -69174,7 +69174,7 @@ def arena.justify.same_cv_up_to_levels
     else ok (core.result.Result.Ok false, st)
 
 /-- [con_ron_core::arena::justify::justify_why]:
-    Source: 'crates/con-ron-core/src/arena/justify.rs', lines 711:0-760:1
+    Source: 'crates/con-ron-core/src/arena/justify.rs', lines 713:0-762:1
     Visibility: public -/
 def arena.justify.justify_why
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -69207,9 +69207,7 @@ def arena.justify.justify_why
         match r1 with
         | core.result.Result.Ok p =>
           let (_, ns) := p
-          let i ← ron.hashmap2.HashMap2.len sol.ix.idx
-          let i1 ← lift (UScalar.cast .U64 i)
-          let fuel ← i1 + 1#u64
+          let fuel ← sol.ix.next + 1#u64
           let hm1 ← ron.hashmap2.HashMap2.new arena.handle.NIdx Bool
           let (r2, st3) ←
             arena.justify.cone_go pers st2 sol fe arena.core.CORE_WALK_FUEL
@@ -69243,7 +69241,7 @@ def arena.justify.justify_why
     | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::justify::check_justified]:
-    Source: 'crates/con-ron-core/src/arena/justify.rs', lines 794:0-821:1
+    Source: 'crates/con-ron-core/src/arena/justify.rs', lines 796:0-823:1
     Visibility: public -/
 def arena.justify.check_justified
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -69413,7 +69411,7 @@ def arena.justify.justifiable
   | arena.env.IDeclaration.QuotDecl _ _ => ok (core.result.Result.Ok none, st)
 
 /-- [con_ron_core::arena::justify::check_record]:
-    Source: 'crates/con-ron-core/src/arena/justify.rs', lines 830:0-847:1
+    Source: 'crates/con-ron-core/src/arena/justify.rs', lines 832:0-849:1
     Visibility: public -/
 def arena.justify.check_record
   (pers : arena.store.PersTier) (st : arena.monad.AState)

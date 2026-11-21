@@ -433,4 +433,203 @@ open Lockstep in
   rw [arena.justify.cone_entry, coneEntry]
   lockstep
 
+/-- The cone walk's answer, related: the failing name, the fuel, `seen` by `NMemoRel`. -/
+abbrev ConeOut (a : Option arena.handle.NIdx × Std.U64 × ron.hashmap2.HashMap2 arena.handle.NIdx Bool)
+    (b : Option NIdx × Nat × Std.HashMap NIdx Bool) : Prop :=
+  ∃ m', Lockstep.NMemoRel a.2.2 m' ∧ b = (a.1.map absNIdx, absU a.2.1, m')
+
+open Lockstep in
+/-- `cone_go` ⊑ `coneGo`: induction on the depth, and at each depth on the cursor. -/
+theorem cone_go_aux {pers} {sol : arena.justify.Solution} {J : ISolution} (hJ : SolRel sol J)
+    {fe : arena.env.IFEnv} {lfe : IFEnv} (hctx : CoreCtx pers fe lfe) (d : Nat) :
+    ∀ (depth : Std.U64), depth.val = d →
+    ∀ (work : alloc.vec.Vec arena.handle.NIdx) (i : Std.Usize) {st lst},
+      AStateRel₀ pers st lst → AStateInv pers st →
+      ∀ (fuel : Std.U64) {rm : ron.hashmap2.HashMap2 arena.handle.NIdx Bool}
+        {lm : Std.HashMap NIdx Bool}, Lockstep.NMemoRel rm lm →
+      LS pers ConeOut (arena.justify.cone_go pers st sol fe depth fuel rm work i) lst
+        (coneGo J lfe d (absU fuel) lm ((work.val.drop i.val).map absNIdx)) := by
+  induction d with
+  | zero =>
+    intro depth hd work i st lst hrel hinv fuel rm lm hm
+    rw [arena.justify.cone_go.eq_def, coneGo]
+    lockstep
+  | succ d ihd =>
+    intro depth hd work i
+    refine cursor_induction (fun i : Std.Usize => i.val) work.val.length
+      (fun i (_ : Unit) => ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
+        ∀ (fuel : Std.U64) {rm : ron.hashmap2.HashMap2 arena.handle.NIdx Bool}
+          {lm : Std.HashMap NIdx Bool}, Lockstep.NMemoRel rm lm →
+        LS pers ConeOut (arena.justify.cone_go pers st sol fe depth fuel rm work i) lst
+          (coneGo J lfe (d + 1) (absU fuel) lm ((work.val.drop i.val).map absNIdx))) ?_ ?_ i ()
+    · intro i _ hn st lst hrel hinv fuel rm lm hm
+      rw [arena.justify.cone_go.eq_def, List.drop_eq_nil_of_le hn, List.map_nil, coneGo]
+      rw [ite_eq_right (show ¬ depth = 0#u64 by scalar_tac),
+        ite_eq_left (show i ≥ alloc.vec.Vec.len work by scalar_tac)]
+      exact LS.pure ⟨lm, hm, rfl⟩ hrel hinv
+    · intro i _ hlt ihi st lst hrel hinv fuel rm lm hm
+      have ihi' : ∀ j : Std.Usize, j.val = i.val + 1 → ∀ {st lst}, AStateRel₀ pers st lst →
+          AStateInv pers st → ∀ (fuel : Std.U64) {rm : ron.hashmap2.HashMap2 arena.handle.NIdx Bool}
+            {lm : Std.HashMap NIdx Bool}, Lockstep.NMemoRel rm lm →
+          LS pers ConeOut (arena.justify.cone_go pers st sol fe depth fuel rm work j) lst
+            (coneGo J lfe (d + 1) (absU fuel) lm ((work.val.drop j.val).map absNIdx)) :=
+        fun j hj => ihi j () hj
+      clear ihi
+      have ihd' : ∀ (depth' : Std.U64), depth'.val = d →
+          ∀ (work' : alloc.vec.Vec arena.handle.NIdx) {st lst},
+          AStateRel₀ pers st lst → AStateInv pers st →
+          ∀ (fuel : Std.U64) {rm : ron.hashmap2.HashMap2 arena.handle.NIdx Bool}
+            {lm : Std.HashMap NIdx Bool}, Lockstep.NMemoRel rm lm →
+          LS pers ConeOut (arena.justify.cone_go pers st sol fe depth' fuel rm work' 0#usize) lst
+            (coneGo J lfe d (absU fuel) lm (work'.val.map absNIdx)) := by
+        intro depth' hd' work' st lst hrel hinv fuel rm lm hm
+        have := ihd depth' hd' work' 0#usize hrel hinv fuel hm
+        simpa using this
+      clear ihd
+      rw [arena.justify.cone_go.eq_def, List.drop_eq_getElem_cons hlt, List.map_cons, coneGo]
+      rw [ite_eq_right (show ¬ depth = 0#u64 by scalar_tac),
+        ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len work by scalar_tac)]
+      lockstep
+
+open Lockstep in
+@[lockstep] theorem cone_go_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {sol : arena.justify.Solution} {J : ISolution}
+    (hJ : SolRel sol J) {fe : arena.env.IFEnv} {lfe : IFEnv} (hctx : CoreCtx pers fe lfe)
+    (depth fuel : Std.U64) {rm : ron.hashmap2.HashMap2 arena.handle.NIdx Bool}
+    {lm : Std.HashMap NIdx Bool} (hm : Lockstep.NMemoRel rm lm) (work : alloc.vec.Vec arena.handle.NIdx) :
+    LS pers ConeOut (arena.justify.cone_go pers st sol fe depth fuel rm work 0#usize) lst
+      (coneGo J lfe (absU depth) (absU fuel) lm (absNIdxList work)) := by
+  have := cone_go_aux hJ hctx (absU depth) depth rfl work 0#usize hrel hinv fuel hm
+  simpa [absNIdxList] using this
+
+/-! ## The justification -/
+
+open Lockstep in
+/-- `name_msg` reads the name back as the twin's interpolation does; the text itself is a
+message, which no relation compares. -/
+@[lockstep] theorem name_msg_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (pre post : alloc.vec.Vec Std.U32) (n : arena.handle.NIdx) :
+    LS pers (fun _ _ => True) (arena.justify.name_msg pers st pre n post) lst
+      (readNameM (absNIdx n)) := by
+  rw [arena.justify.name_msg]
+  lockstep
+
+open Lockstep in
+/-- `name_msg` in tail position: the twin's interpolation of the name read back. -/
+theorem name_msg_tail_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (pre post : alloc.vec.Vec Std.U32) (n : arena.handle.NIdx)
+    (f : ConLeche.Name → String) :
+    LS pers (fun _ _ => True) (arena.justify.name_msg pers st pre n post) lst
+      (do let x ← readNameM (absNIdx n); pure (f x)) := by
+  rw [arena.justify.name_msg]
+  lockstep
+
+open Lockstep in
+/-- `cone_go` with the twin's arguments as they stand in `justifyWhy`. -/
+@[lockstep] theorem cone_go_ls' {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {sol : arena.justify.Solution} {J : ISolution}
+    (hJ : SolRel sol J) {fe : arena.env.IFEnv} {lfe : IFEnv} (hctx : CoreCtx pers fe lfe)
+    (depth fuel : Std.U64) {d f : Nat} (hd : absU depth = d) (hf : absU fuel = f)
+    {rm : ron.hashmap2.HashMap2 arena.handle.NIdx Bool}
+    {lm : Std.HashMap NIdx Bool} (hm : Lockstep.NMemoRel rm lm) (work : alloc.vec.Vec arena.handle.NIdx) :
+    LS pers ConeOut (arena.justify.cone_go pers st sol fe depth fuel rm work 0#usize) lst
+      (coneGo J lfe d f lm (List.map absNIdx work.val)) := by
+  subst hd hf
+  exact cone_go_ls hrel hinv hJ hctx depth fuel hm work
+
+open Lockstep in
+@[lockstep] theorem justify_why_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {sol : arena.justify.Solution} {J : ISolution}
+    (hJ : SolRel sol J) {fe : arena.env.IFEnv} {lfe : IFEnv} (hctx : CoreCtx pers fe lfe)
+    (cv : arena.env.IConstantVal) :
+    LS pers (fun a b => a.isSome = b.isSome) (arena.justify.justify_why pers st sol fe cv) lst
+      (justifyWhy J lfe (absIConstantVal cv)) := by
+  have hnext := hJ.ix.next
+  have hcw := core_walk_fuel_abs
+  rw [arena.justify.justify_why, justifyWhy]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem decl_label_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (d : arena.env.IDeclaration) :
+    LS pers (fun _ _ => True) (arena.justify.decl_label pers st d) lst
+      (declLabel (absIDeclaration d)) := by
+  cases d <;> rw [arena.justify.decl_label.eq_def] <;> simp only [absIDeclaration, declLabel] <;>
+    lockstep
+  all_goals first
+    | exact name_msg_tail_ls ‹_› ‹_› _ _ _ _
+    | (convert name_msg_tail_ls ‹_› ‹_› _ _ _ (fun x => toString "inductive " ++ toString x)
+        using 4; simpa [List.getElem_map, Lockstep.TwinEq] using ‹Lockstep.TwinEq (absIConstantInfo _).name _›)
+
+open Lockstep in
+@[lockstep] theorem check_justified_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {mode : kernel.env.CheckMode} {sol : arena.justify.Solution}
+    {J : ISolution} (hJ : SolRel sol J) {fe : arena.env.IFEnv} {lfe : IFEnv}
+    (hfe : IFEnvRelI pers fe lfe) (pd : arena.env.IDeclaration) (cv : arena.env.IConstantVal) :
+    LS pers (IFEnvRelI pers) (arena.justify.check_justified pers st mode sol fe pd cv) lst
+      (checkJustified (ConRon.Refine.absMode mode) J lfe (absIDeclaration pd)
+        (absIConstantVal cv)) := by
+  have hctx := hfe.coreCtx
+  rw [arena.justify.check_justified, checkJustified]
+  lockstep
+  -- the verdict of `justify_why`, an `Option` the relation pins by its constructor
+  all_goals (cases ‹Option String› <;> simp at ‹Option.isSome _ = Option.isSome _›; lockstep)
+  -- the reserved names' rejection: the Rust's error value thrown, the twin's thrown
+  exact LS_fail_absACheckError _
+
+/-- The solution, if any, related. -/
+def OptSolRel : Option arena.justify.Solution → Option ISolution → Prop
+  | none, none => True
+  | some s, some J => SolRel s J
+  | _, _ => False
+
+open Lockstep in
+@[lockstep] theorem check_decl_ls {pers st lst} {rf lf}
+    {mode : kernel.env.CheckMode}
+    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {d : arena.env.IDeclaration}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf) :
+    LS pers (IFEnvRelI pers) (arena.check_decl.check_decl pers st mode pins rf d) lst
+      (checkDecl (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf (absIDeclaration d)) :=
+  LS.ofSimRel₀ fun _ h => check_decl_refines hrel hinv hfe.rel hfe.inv h
+
+open Lockstep in
+/-- **`check_record` ⊑ `checkRecord`**: without a solution the record's own check; with one,
+the justification route for a record that offers a statement. -/
+@[lockstep] theorem check_record_ls {pers st lst} {rf lf}
+    {mode : kernel.env.CheckMode}
+    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {d : arena.env.IDeclaration}
+    {sol : Option arena.justify.Solution} {J : Option ISolution} (hJ : OptSolRel sol J)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf) :
+    LS pers (IFEnvRelI pers) (arena.justify.check_record pers st mode pins sol rf d) lst
+      (checkRecord (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) J lf
+        (absIDeclaration d)) := by
+  cases sol <;> cases J <;> simp only [OptSolRel] at hJ
+  · rw [arena.justify.check_record, checkRecord]
+    exact check_decl_ls hrel hinv hfe
+  · rename_i s j
+    rw [arena.justify.check_record, checkRecord]
+    lockstep
+
+/-! ## The records a fold with a solution checks -/
+
+/-- `side_records` ⊑ `sideRecordsGo`, from the cursor on, onto `out`. -/
+theorem side_records_ls {pers} (ds : alloc.vec.Vec arena.env.IDeclaration) :
+    ∀ (i : Std.Usize) st lst (out : alloc.vec.Vec arena.env.IDeclaration),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = a.val.map absIDeclaration)
+        (arena.justify.side_records pers st ds i out) lst
+        (sideRecordsGo (out.val.map absIDeclaration) ((ds.val.drop i.val).map absIDeclaration)) := by
+  refine ls_cursor_acc ds absIDeclaration
+    (fun (w : alloc.vec.Vec arena.env.IDeclaration) L =>
+      sideRecordsGo (w.val.map absIDeclaration) L)
+    (fun st i w => arena.justify.side_records pers st ds i w) ?_ ?_
+  · intro st lst i w hn hrel hinv
+    rw [arena.justify.side_records.eq_def,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len ds by scalar_tac), sideRecordsGo]
+    lockstep
+  · intro st lst i w hi hrel hinv ih
+    rw [arena.justify.side_records.eq_def,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ds by scalar_tac), sideRecordsGo]
+    lockstep
+
 end ConRon.Refine2

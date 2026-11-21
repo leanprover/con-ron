@@ -131,7 +131,7 @@ theorem olean_job_step_refines {F : Type} {inst : frontend.olean.files.OleanFs F
     obtain ⟨⟨r, st''⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨rfl, rfl, rfl⟩ : r = .Ok () ∧ st'' = st' ∧ c = c1 := by
       have := Result.ok_injective h; simp only [Prod.mk.injEq] at this; exact ⟨this.1, this.2.1, this.2.2⟩
-    obtain ⟨hlt, lst', hx, hrest⟩ := run_job_refines hidle hinv htf hI hkU h1
+    obtain ⟨hlt, lst', hx, hrest⟩ := run_job_refines hidle hinv htf hI hkU (J := none) trivial h1
     rw [hu] at hlt
     rw [hau] at hx
     exact ⟨hlt, rfl, lst', hx, hrest⟩
@@ -215,7 +215,7 @@ theorem olean_job_step_refines {F : Type} {inst : frontend.olean.files.OleanFs F
               have := Result.ok_injective hrun
               simp only [Prod.mk.injEq] at this
               exact ⟨rfl, this.2.1, this.2.2⟩
-            obtain ⟨lst3, hx3, hrel3, hinv3⟩ := record_check_refines hrel2 hinv2 hI hkU h3
+            obtain ⟨lst3, hx3, hrel3, hinv3⟩ := record_check_refines (J := none) trivial hrel2 hinv2 hI hkU h3
             obtain ⟨lst4, hx4, hidle4, hinv4⟩ := leave_record_rel hrel3 hinv3 htf h4
             have hoff4 : lst4.store.scratchOn = false := by
               have h' : (dropScratch : AM Unit).run lst3

@@ -187,7 +187,7 @@ pub fn side_record(pers: &PersTier, st: &mut AState, d: &IDeclaration) -> Result
 }
 
 /// con-leche: ConLeche/Cached/Justify.lean:63-67 sideRecords
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:63-71 sideRecordsGo` — **the records a
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:63-70 sideRecordsGo` — **the records a
 /// fold with a solution checks**: every record through `side_record`, from
 /// cursor `i`, onto `out`.  The cited `none` arm is the flat path, which does
 /// not call this.
@@ -213,7 +213,7 @@ pub fn side_records(
 }
 
 /// con-leche: ConLeche/Cached/Justify.lean:69-77 justifiable
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:73-83 justifiable` — **the statement a
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:72-82 justifiable` — **the statement a
 /// record offers to a solution**: an axiom's, other than a built-in one's, and
 /// not at a certified `Nat` operation's or a compiler-trust operation's name.
 pub fn justifiable(st: &mut AState, pd: &IDeclaration) -> Result<Option<IConstantVal>, CheckError> {
@@ -245,7 +245,7 @@ pub fn justifiable(st: &mut AState, pd: &IDeclaration) -> Result<Option<IConstan
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/Justify.lean:81-83 levelsRenaming
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:87-90 levelsRenaming` — two lists of
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:86-89 levelsRenaming` — two lists of
 /// level-parameter names a renaming relates: as many, neither with a repeat.
 pub fn levels_renaming(ps: &Vec<NIdx>, ps2: &Vec<NIdx>) -> bool {
     ps.len() == ps2.len() && name_nodup(ps) && name_nodup(ps2)
@@ -253,7 +253,7 @@ pub fn levels_renaming(ps: &Vec<NIdx>, ps2: &Vec<NIdx>) -> bool {
 
 /// con-leche: ConLeche/Cached/Justify.lean:85-91 sameCvUpToLevels
 /// con-leche: ConLeche/Cached/CheckerC.lean:123-126 _root_.ConLeche.ConstantVal.atLpsC
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:92-102 sameCvUpToLevels` — **the
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:91-101 sameCvUpToLevels` — **the
 /// input's statement, the solution's up to the names of its level
 /// parameters**: the same, or a renaming apart and the solution's (`cv2`) at
 /// the input's names the input's.  `basis::constant_val_at_lps` is the cited
@@ -289,7 +289,7 @@ pub fn i_proj_table_beq(a: &IProjTable, b: &IProjTable) -> bool {
 }
 
 /// con-leche: ConLeche/Cached/Justify.lean:99-103 tableBeqP
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:104-108 tableBeqP` — two lookups' tables.
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:103-107 tableBeqP` — two lookups' tables.
 pub fn table_beq_p(a: Option<&IProjTable>, b: Option<&IProjTable>) -> bool {
     match (a, b) {
         (None, None) => true,
@@ -299,7 +299,7 @@ pub fn table_beq_p(a: Option<&IProjTable>, b: Option<&IProjTable>) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:435-438 isStmtKind
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:110-114 IConstantInfo.isStmtKind` — a
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:109-113 IConstantInfo.isStmtKind` — a
 /// definition, theorem or axiom: the kinds whose copies may differ by a value.
 pub fn is_stmt_kind(ci: &IConstantInfo) -> bool {
     match ci {
@@ -312,7 +312,7 @@ pub fn is_stmt_kind(ci: &IConstantInfo) -> bool {
 
 /// con-leche: ConLeche/Cached/Justify.lean:105-115 copyB
 /// con-leche: ConLeche/Cached/CheckerC.lean:128-142 _root_.ConLeche.ConstantInfo.atLpsC
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:116-131 copyB` — **the input's constant
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:115-130 copyB` — **the input's constant
 /// `ci` is a copy of the solution's `ci2`**: the same, or, for a definition,
 /// theorem or axiom at a name no pin reserves, the solution's at the input's
 /// level-parameter names, a renaming apart.  `basis::constant_info_at_lps` is
@@ -349,7 +349,7 @@ pub fn copy_b(
 }
 
 /// con-leche: ConLeche/Cached/Justify.lean:117-126 refinesB
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:133-146 refinesB` — **the input's copy
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:132-145 refinesB` — **the input's copy
 /// is the solution's**: a copy of it, or an axiom that copies the statement of
 /// a solution definition, theorem or axiom other than a compiler-trust
 /// operation.
@@ -390,7 +390,7 @@ pub fn refines_b(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/Justify.lean:128-133 Solution
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:150-155 ISolution` — **the solution, as
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:149-154 ISolution` — **the solution, as
 /// the justification reads it**: the solution stream's frozen index (every
 /// constant visible: con-leche's `mkFEnv envS`), and the input's record mates.
 /// The index's handles are the solution's, in the one store both streams were
@@ -401,7 +401,7 @@ pub struct Solution {
 }
 
 /// con-leche: ConLeche/Cached/Justify.lean:135-142 recordMates
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:157-164 matesInsert` — the cited
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:156-163 matesInsert` — the cited
 /// `m.getD b.name #[]`, copied, split off so that the lookup's loan ends here
 /// (extraction rule 5).
 pub fn mates_get(m: &HashMap<NIdx, Vec<NIdx>>, b: &NIdx) -> Vec<NIdx> {
@@ -412,7 +412,7 @@ pub fn mates_get(m: &HashMap<NIdx, Vec<NIdx>>, b: &NIdx) -> Vec<NIdx> {
 }
 
 /// con-leche: ConLeche/Cached/Justify.lean:135-142 recordMates
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:157-164 matesInsert` — one block's
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:156-163 matesInsert` — one block's
 /// members from cursor `j`, each mapped to what it had and the block's names
 /// `ns`.
 pub fn mates_insert(
@@ -435,7 +435,7 @@ pub fn mates_insert(
 }
 
 /// con-leche: ConLeche/Cached/Justify.lean:135-142 recordMates
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:166-172 recordMatesGo` — its `block.map (·.name)`: a block's names,
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:165-171 recordMatesGo` — its `block.map (·.name)`: a block's names,
 /// in order, from cursor `j`.
 pub fn block_names(block: &Vec<IConstantInfo>, j: usize, out: Vec<NIdx>) -> Vec<NIdx> {
     if j >= block.len() {
@@ -448,7 +448,7 @@ pub fn block_names(block: &Vec<IConstantInfo>, j: usize, out: Vec<NIdx>) -> Vec<
 }
 
 /// con-leche: ConLeche/Cached/Justify.lean:135-142 recordMates
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:166-172 recordMatesGo` — **the input's
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:165-171 recordMatesGo` — **the input's
 /// record mates**, the records from cursor `i` on: each name an inductive
 /// block declares, mapped to the names of every block that declares it.
 pub fn record_mates(
@@ -472,7 +472,7 @@ pub fn record_mates(
 
 /// con-leche: ConLeche/Cached/Justify.lean:144-146 solutionOf
 /// con-leche: ConLeche/Driver/CheckPool.lean:57-75 Jobs.build
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:174-179 solutionOf` — **the solution a
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:173-178 solutionOf` — **the solution a
 /// fold over `ds` reads**: the solution stream's frozen index `ix`
 /// (`stream_index::build_index` over the solution's records, the cited
 /// `mkFEnv e`), with the record mates of `ds` — the challenge's records as the
@@ -487,7 +487,7 @@ pub fn solution_of(ix: IStreamIndex, ds: &Vec<IDeclaration>) -> Solution {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:278-283 FEnv.find?
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:181-186 ISolution.find?` — **the
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:180-185 ISolution.find?` — **the
 /// solution's lookup**: its index's first entry of `n`, every counter visible
 /// (the cited `mkFEnv envS` holds the whole stream).
 pub fn solution_find<'a>(sol: &'a Solution, n: &NIdx) -> Option<&'a IConstantInfo> {
@@ -504,7 +504,7 @@ pub fn solution_find<'a>(sol: &'a Solution, n: &NIdx) -> Option<&'a IConstantInf
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:413-417 FEnv.findTable?
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:188-195 ISolution.findTable?` — the
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:187-194 ISolution.findTable?` — the
 /// solution's table lookup: `n`'s first table, visible where the constant `n`
 /// is (every record position).
 pub fn solution_find_table<'a>(sol: &'a Solution, n: &NIdx) -> Option<&'a IProjTable> {
@@ -529,7 +529,7 @@ pub fn solution_find_table<'a>(sol: &'a Solution, n: &NIdx) -> Option<&'a IProjT
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/Justify.lean:148-161 entryNeeds
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:199-206 recNames` — `caps.all.map (·.str
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:198-204 recNames` — `caps.all.map (·.str
 /// "rec")`, interned, from cursor `j`, pushed onto `out`.
 pub fn rec_names_of(
     pers: &PersTier,
@@ -553,7 +553,7 @@ pub fn rec_names_of(
 }
 
 /// con-leche: ConLeche/Cached/Justify.lean:148-161 entryNeeds
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:208-227 entryNeeds` — the cited
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:206-225 entryNeeds` — the cited
 /// `x.names (mates.getD n #[]).toList`, split off so that the lookup's loan
 /// ends here (extraction rule 5).
 pub fn needs_mates(mates: &HashMap<NIdx, Vec<NIdx>>, n: &NIdx, x: NeedsSt) -> NeedsSt {
@@ -564,7 +564,7 @@ pub fn needs_mates(mates: &HashMap<NIdx, Vec<NIdx>>, n: &NIdx, x: NeedsSt) -> Ne
 }
 
 /// con-leche: ConLeche/Cached/Justify.lean:148-161 entryNeeds
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:208-227 entryNeeds` — **what the
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:206-225 entryNeeds` — **what the
 /// justification follows from a constant**: its laws' names, a type former's
 /// constructors and its block's recursors, its record's mates, and the names of
 /// its projection table in the input's index `fe`.
@@ -607,7 +607,7 @@ pub fn entry_needs(
 }
 
 /// con-leche: ConLeche/Cached/Justify.lean:163-183 coneGo
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:229-244 coneEntry` — **one name of the
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:227-242 coneEntry` — **one name of the
 /// cone, compared**: `Some` of what it reads when the input's constant is the
 /// solution's (`refines_b`) with the same table, `None` when it is not (or
 /// either index lacks it).
@@ -641,7 +641,7 @@ pub fn cone_entry(
 }
 
 /// con-leche: ConLeche/Cached/Justify.lean:163-183 coneGo
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:246-268 coneGo` — **the cone walk**:
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:244-266 coneGo` — **the cone walk**:
 /// every name of `work` from cursor `i`, and everything it reads, is the same
 /// constant in the input's index `fe` and the solution's; the first name that
 /// is not, or `None`.  Each name is compared once (`seen`); `fuel` bounds the
@@ -705,9 +705,11 @@ pub fn name_msg(
 }
 
 /// con-leche: ConLeche/Cached/Justify.lean:185-196 justifyWhy
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:270-284 justifyWhy` — **is the statement
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:268-284 justifyWhy` — **is the statement
 /// `cv` justified by the solution**, at the input's index `fe`: `None`, or why
-/// not.
+/// not.  The cone's fuel is the solution's constant count and one, which bounds
+/// the cited name count and one: the walk compares each name once, every one a
+/// solution constant, so neither bound is reached.
 pub fn justify_why(
     pers: &PersTier,
     st: &mut AState,
@@ -737,7 +739,7 @@ pub fn justify_why(
                 Ok(true) => match needs_go(pers, st, HashMap::new(), Vec::new(), CORE_WALK_FUEL, &cv.ty) {
                     Err(e) => Err(e),
                     Ok((_, ns)) => {
-                        let fuel: u64 = (sol.ix.idx.len() as u64) + 1;
+                        let fuel: u64 = sol.ix.next + 1;
                         match cone_go(pers, st, sol, fe, CORE_WALK_FUEL, fuel, HashMap::new(), &ns, 0) {
                             Err(e) => Err(e),
                             Ok((None, _, _)) => Ok(None),
@@ -764,7 +766,7 @@ pub fn justify_why(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:334-343 declCLabel
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:288-300 declLabel` — a record's kind and
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:288-299 declLabel` — a record's kind and
 /// name, for a message (an empty block's name is the anonymous one).
 pub fn decl_label(pers: &PersTier, st: &mut AState, d: &IDeclaration) -> Result<Vec<u32>, CheckError> {
     match d {
@@ -785,7 +787,7 @@ pub fn decl_label(pers: &PersTier, st: &mut AState, d: &IDeclaration) -> Result<
 }
 
 /// con-leche: ConLeche/Cached/Justify.lean:200-216 checkRecordC
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:302-313 checkJustified` — **the
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:301-312 checkJustified` — **the
 /// justification route**: the statement `cv` justified by the solution
 /// (`justify_why`), its type checked (`check_constant_val`, no reserved name
 /// allowed), the reserved names' check, and its axiom pushed.  The cited
@@ -821,7 +823,7 @@ pub fn check_justified(
 }
 
 /// con-leche: ConLeche/Cached/Justify.lean:200-216 checkRecordC
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:315-326 checkRecord` — **the check of one
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:314-325 checkRecord` — **the check of one
 /// record**, with a solution or none.  A record that offers a statement
 /// (`justifiable`) takes the justification route where there is a solution;
 /// every other record, and every record without one, its own check

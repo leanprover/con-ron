@@ -266,7 +266,9 @@ def coneGo (J : ISolution) (fe : IFEnv) :
 termination_by depth _ _ work => (depth, work.length)
 
 /-- con-leche: ConLeche/Cached/Justify.lean:185-196 justifyWhy — **is the statement `cv`
-justified by the solution `J`**, at the input's index `fe`: `none`, or why not. -/
+justified by the solution `J`**, at the input's index `fe`: `none`, or why not.  The cone's
+fuel is the solution's constant count and one, the cited name count and one bounded by it: the
+walk compares each name once, every one a solution constant, so neither bound is reached. -/
 def justifyWhy (J : ISolution) (fe : IFEnv) (cv : IConstantVal) : AM (Option String) := do
   match J.find? cv.name with
   | none => pure (some s!"the solution has no constant {← readNameM cv.name}")
@@ -275,7 +277,7 @@ def justifyWhy (J : ISolution) (fe : IFEnv) (cv : IConstantVal) : AM (Option Str
       pure (some s!"the solution's {← readNameM cv.name} has another type")
     else
       let (_, ns) ← needsGo ∅ [] coreWalkFuel cv.type
-      let (r, _, _) ← coneGo J fe coreWalkFuel (J.idx.base.idx.size + 1) ∅ ns
+      let (r, _, _) ← coneGo J fe coreWalkFuel (J.idx.next + 1) ∅ ns
       match r with
       | none => pure none
       | some n =>
@@ -293,9 +295,8 @@ def declLabel (d : IDeclaration) : AM String := do
   | .axiomDecl cv => pure s!"axiom {← readNameM cv.name}"
   | .quotDecl _ cv => pure s!"quot {← readNameM cv.name}"
   | .indDecl block _ =>
-    match block with
-    | b :: _ => pure s!"inductive {← readNameM b.name}"
-    | [] => pure s!"inductive {ConLeche.Name.anonymous}"
+    if h : block.length > 0 then pure s!"inductive {← readNameM (block[0]'h).name}"
+    else pure s!"inductive {ConLeche.Name.anonymous}"
 
 /-- con-leche: ConLeche/Cached/Justify.lean:200-216 checkRecordC — **the justification route**:
 the statement `cv` justified by the solution (`justifyWhy`), its type checked (`checkConstantVal`,
