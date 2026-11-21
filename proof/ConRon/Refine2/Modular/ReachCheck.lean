@@ -20,6 +20,7 @@ import ConRon.Refine2.Inductives.StreamRecs
 import ConRon.Refine2.Core.LS.Lits
 import ConRon.Refine2.Modular.Graph
 import ConRon.Refine2.Frontend.Olean.NamePos
+import ConRon.Refine2.Frontend.Olean.Shape
 import ConRon.Arena.Modular.Reach
 
 open Aeneas Aeneas.Std Result
@@ -849,5 +850,249 @@ theorem infer_flags_loop_la {tier : arena.store.PersTier} {I : IStreamIndex}
       have hview : absU i2 = Modular.partPos s nU.val (absNIdx n1) := hpos
       rw [hview] at hx2
       simp only [Modular.inferAll, StateT.run_bind, hx1, except_ok_bind, hx2, hx3, hx4]
+
+
+/-! ## The read order
+
+On an accept neither side touches its state (only the failures read names), so the walk is
+related as data: `SortRel` for the state, `USet` for the path (a `HashMap2` of positions as
+the twin's `Std.HashSet Nat`).  The Rust's `&mut path` is inserted into and removed from
+around each recursive call; the twin passes `path.insert j` down: the Rust's path comes back
+as the set it went in as (`sort_visit_aux`'s second conjunct). -/
+
+open ConRon.Refine2.Frontend.Olean (SetRel)
+open ConRon.Refine2.Frontend (u64Eq2Fwd)
+
+/-- A table of positions as a set of naturals. -/
+abbrev USet := SetRel Frontend.hU64 (fun x : Std.U64 => x.val)
+
+theorem u64_val_inj : Function.Injective (fun x : Std.U64 => x.val) :=
+  fun _ _ h => UScalar.eq_of_val_eq h
+
+theorem USet.contains_eq {m s} (h : USet m s) {k : Std.U64} {b : Bool}
+    (hg : ron.hashmap2.HashMap2.contains_key Frontend.hU64 Frontend.eU64 m k = ok b) :
+    b = s.contains k.val :=
+  SetRel.contains_key u64Eq2Fwd h hg
+
+theorem USet.insert {m s} (h : USet m s) {k : Std.U64} {v : Bool} {old m'}
+    (hi : ron.hashmap2.HashMap2.insert Frontend.hU64 Frontend.eU64 m k v = ok (old, m')) :
+    USet m' (s.insert k.val) :=
+  SetRel.insert u64Eq2Fwd u64_val_inj h hi
+
+theorem USet.remove {m s} (h : USet m s) {k : Std.U64} {old m'}
+    (hi : ron.hashmap2.HashMap2.remove Frontend.hU64 Frontend.eU64 m k = ok (old, m')) :
+    USet m' (s.erase k.val) := by
+  obtain ⟨hinv, -, hupd, -⟩ := ConRon.Refine.HashMap2.remove_refines_gen (P := fun _ => True)
+    u64Eq2Fwd h.inv (fun _ _ => trivial) trivial hi
+  refine ⟨hinv, fun k1 => ?_⟩
+  rw [hupd, Function.update_apply, _root_.Std.HashSet.contains_erase]
+  by_cases hk : k1 = k
+  · subst hk; simp
+  · have hne : (k.val == k1.val) = false := by
+      simp only [beq_eq_false_iff_ne]
+      exact fun he => hk (UScalar.eq_of_val_eq he.symm)
+    rw [ite_eq_right hk, hne]
+    simpa using h.mem k1
+
+theorem USet.congr {m s t} (h : USet m s) (he : ∀ x, s.contains x = t.contains x) : USet m t :=
+  ⟨h.inv, fun k => (h.mem k).trans (he _)⟩
+
+theorem USet.empty {m : ron.hashmap2.HashMap2 Std.U64 Bool}
+    (hn : ron.hashmap2.HashMap2.new Std.U64 Bool = ok m) : USet m {} := by
+  obtain ⟨hinv, -, hnone⟩ := ConRon.Refine.HashMap2.new_refines (HashableInst := Frontend.hU64) hn
+  exact ⟨hinv, fun k => by rw [hnone]; simp⟩
+
+/-- The path after the walk below `j`: `j` off it again. -/
+theorem erase_insert_contains {P : _root_.Std.HashSet Nat} {j : Nat} (hj : P.contains j = false)
+    (x : Nat) : ((P.insert j).erase j).contains x = P.contains x := by
+  rw [_root_.Std.HashSet.contains_erase, _root_.Std.HashSet.contains_insert]
+  by_cases hx : j = x
+  · subst hx; simpa using hj
+  · have : (j == x) = false := by simpa using hx
+    simp [this]
+
+/-- **The read order's state**, as the twin's. -/
+structure SortRel (ss : frontend.modular.reach.SortSt) (S : Modular.SortSt) : Prop where
+  order : ss.order.val.map (·.val) = S.order.toList
+  placed : USet ss.placed S.placed
+
+/-- The records' reads, as the twin's. -/
+def absRds (rds : alloc.vec.Vec (alloc.vec.Vec arena.handle.NIdx)) : _root_.Array (List NIdx) :=
+  (rds.val.map (fun v => v.val.map absNIdx)).toArray
+
+theorem absRds_getD_some {rds : alloc.vec.Vec (alloc.vec.Vec arena.handle.NIdx)} {j : Nat}
+    {v : alloc.vec.Vec arena.handle.NIdx} (hj : rds.val[j]? = some v) :
+    (absRds rds).getD j [] = v.val.map absNIdx := by
+  unfold absRds
+  rw [_root_.Array.getD_eq_getD_getElem?]
+  simp [hj]
+
+theorem absRds_getD_ge {rds : alloc.vec.Vec (alloc.vec.Vec arena.handle.NIdx)} {j : Nat}
+    (hj : rds.val.length ≤ j) : (absRds rds).getD j [] = [] := by
+  unfold absRds
+  rw [_root_.Array.getD_eq_getD_getElem?]
+  simp [List.getElem?_eq_none hj]
+
+section sort
+variable {pers : arena.store.PersTier} (D : _root_.Array IDeclaration)
+  (ds : alloc.vec.Vec arena.env.IDeclaration) (rds : alloc.vec.Vec (alloc.vec.Vec arena.handle.NIdx))
+  {owner : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64} {s : _root_.Std.HashMap NIdx Nat}
+
+/-- **`sort_visit` ⊑ `sortVisit`, accepting**: the record placed after its reads, the path
+given back as it came, neither state touched. -/
+theorem sort_visit_aux (hown : IdxRel owner s) (g : Nat) :
+    ∀ {st lst} {fuel i : Std.U64} {path : ron.hashmap2.HashMap2 Std.U64 Bool} {P}
+      {ys : alloc.vec.Vec arena.handle.NIdx} {ss S st' path' ss'},
+      fuel.val = g → USet path P → SortRel ss S →
+      sort_visit pers st ds rds owner fuel i path ys ss = ok (.Ok (), st', path', ss') →
+      st' = st ∧ USet path' P ∧ ∃ S', (Modular.sortVisit D (absRds rds) s g i.val P
+        (ys.val.map absNIdx) S).run lst = .ok (S', lst) ∧ SortRel ss' S' := by
+  induction g with
+  | zero =>
+    intro st lst fuel i path P ys ss S st' path' ss' hf hp hS h
+    rw [sort_visit, ite_eq_left (UScalar.eq_of_val_eq (by simpa using hf))] at h
+    err_contra h
+  | succ g ih =>
+    intro st lst fuel i path P ys ss S st' path' ss' hf hp hS h
+    rw [sort_visit, ite_eq_right (fun he => by rw [he] at hf; simp at hf)] at h
+    -- one read of record `i`
+    have svo : ∀ {path : ron.hashmap2.HashMap2 Std.U64 Bool} {P} {ss S} {y : arena.handle.NIdx}
+        {st1 path1 ss1}, USet path P → SortRel ss S →
+        sort_visit_one pers st ds rds owner fuel i path y ss = ok (.Ok (), st1, path1, ss1) →
+        st1 = st ∧ USet path1 P ∧ ∃ S1, SortRel ss1 S1 ∧ ∀ rest,
+          (Modular.sortVisitList D (absRds rds) s g i.val P (absNIdx y :: rest) S).run lst =
+            (Modular.sortVisitList D (absRds rds) s g i.val P rest S1).run lst := by
+      intro path P ss S y st1 path1 ss1 hp hS h
+      rw [sort_visit_one] at h
+      obtain ⟨o, ho, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨e, hfit⟩ := hown.get_eq ho
+      cases o with
+      | none => err_contra h
+      | some j =>
+        dsimp only at h
+        have ey : s[absNIdx y]? = some j.val := by rw [← e]; rfl
+        by_cases hji : j = i
+        · rw [ite_eq_left hji] at h
+          obtain ⟨-, rfl, rfl, rfl⟩ : _ ∧ st1 = st ∧ path1 = path ∧ ss1 = ss := by
+            have := Result.ok_injective h; simp only [Prod.mk.injEq] at this
+            exact ⟨this.1, this.2.1.symm, this.2.2.1.symm, this.2.2.2.symm⟩
+          refine ⟨rfl, hp, S, hS, fun rest => ?_⟩
+          simp only [Modular.sortVisitList, ey, hji, beq_self_eq_true, Bool.true_or, ↓reduceIte]
+        · rw [ite_eq_right hji] at h
+          have hji' : (j.val == i.val) = false := by
+            simp only [beq_eq_false_iff_ne]; exact fun he => hji (UScalar.eq_of_val_eq he)
+          obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have hbv := hS.placed.contains_eq hb
+          cases b with
+          | true =>
+            rw [ite_eq_left rfl] at h
+            obtain ⟨-, rfl, rfl, rfl⟩ : _ ∧ st1 = st ∧ path1 = path ∧ ss1 = ss := by
+              have := Result.ok_injective h; simp only [Prod.mk.injEq] at this
+              exact ⟨this.1, this.2.1.symm, this.2.2.1.symm, this.2.2.2.symm⟩
+            refine ⟨rfl, hp, S, hS, fun rest => ?_⟩
+            simp only [Modular.sortVisitList, ey, hji', ← hbv, Bool.or_true, ↓reduceIte]
+          | false =>
+            rw [ite_eq_right (by simp)] at h
+            obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+            have hb1v := hp.contains_eq hb1
+            cases b1 with
+            | true => rw [ite_eq_left rfl] at h; err_contra h
+            | false =>
+              rw [ite_eq_right (by simp)] at h
+              obtain ⟨⟨old, pathI⟩, hins, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+              have hpI := hp.insert hins
+              obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+              have hi1v := cast_usize_val (hfit j rfl) hi1
+              obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+              obtain ⟨st2, path2, ss2, r⟩ := q
+              obtain ⟨⟨old2, path3⟩, hrem, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+              obtain ⟨rfl, rfl, rfl, rfl⟩ : r = .Ok () ∧ st2 = st1 ∧ path3 = path1 ∧ ss2 = ss1 := by
+                have := Result.ok_injective h; simp only [Prod.mk.injEq] at this
+                exact ⟨this.1, this.2.1, this.2.2.1, this.2.2.2⟩
+              -- the walk below `j`, at depth `g`
+              have hwalk : ∃ v : alloc.vec.Vec arena.handle.NIdx, (absRds rds).getD j.val [] =
+                  v.val.map absNIdx ∧ ∃ i3 : Std.U64, i3.val = g ∧
+                  sort_visit pers st ds rds owner i3 j pathI v ss = ok (.Ok (), st2, path2, ss2) := by
+                by_cases hlt : i1 < alloc.vec.Vec.len rds
+                · rw [ite_eq_left hlt] at hq
+                  obtain ⟨i3, hi3, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+                  obtain ⟨i4, hi4, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+                  have hi4v := cast_usize_val (hfit j rfl) hi4
+                  obtain ⟨v, hv, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+                  have hvv := vec_index_some hv
+                  obtain ⟨⟨r1, st3, path4, ss3⟩, hsv, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+                  obtain ⟨rfl, rfl, rfl, rfl⟩ : st3 = st2 ∧ path4 = path2 ∧ ss3 = ss2 ∧ r1 = .Ok () := by
+                    have := Result.ok_injective hq; simp only [Prod.mk.injEq] at this
+                    exact ⟨this.1, this.2.1, this.2.2.1, this.2.2.2⟩
+                  refine ⟨v, ?_, i3, ?_, hsv⟩
+                  · rw [hi4v] at hvv; exact absRds_getD_some hvv
+                  · have := ConRon.Refine.HashMap.uscalar_sub_eq hi3; simp at this; omega
+                · rw [ite_eq_right hlt] at hq
+                  obtain ⟨i3, hi3, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+                  obtain ⟨⟨r1, st3, path4, ss3⟩, hsv, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+                  obtain ⟨rfl, rfl, rfl, rfl⟩ : st3 = st2 ∧ path4 = path2 ∧ ss3 = ss2 ∧ r1 = .Ok () := by
+                    have := Result.ok_injective hq; simp only [Prod.mk.injEq] at this
+                    exact ⟨this.1, this.2.1, this.2.2.1, this.2.2.2⟩
+                  refine ⟨alloc.vec.Vec.new _, ?_, i3, ?_, hsv⟩
+                  · rw [vec_new_val, absRds_getD_ge (by have := not_lt_len hlt; omega)]; rfl
+                  · have := ConRon.Refine.HashMap.uscalar_sub_eq hi3; simp at this; omega
+              obtain ⟨v, hgv, i3, hi3, hsv⟩ := hwalk
+              obtain ⟨rfl, hp2, S2, hx, hS2⟩ := ih hi3 hpI hS hsv
+              refine ⟨rfl, ?_, S2, hS2, fun rest => ?_⟩
+              · exact (hp2.remove hrem).congr (erase_insert_contains (by rw [← hb1v]))
+              · simp only [Modular.sortVisitList, ey, hji', ← hbv, ← hb1v, Bool.or_false,
+                  Bool.false_eq_true, ↓reduceIte]
+                rw [StateT.run_bind, hgv, hx]
+                rfl
+    -- the loop over the reads
+    have loop : ∀ (n : Nat) {path : ron.hashmap2.HashMap2 Std.U64 Bool} {ss S} {k : Std.Usize}
+        {st' path' ss'}, ys.val.length - k.val = n → USet path P → SortRel ss S →
+        sort_visit_loop pers st ds rds owner fuel i path ys ss k = ok (.Ok (), st', path', ss') →
+        st' = st ∧ USet path' P ∧ ∃ S', (do
+            let S1 ← Modular.sortVisitList D (absRds rds) s g i.val P
+              ((ys.val.drop k.val).map absNIdx) S
+            pure ({ order := S1.order.push i.val, placed := S1.placed.insert i.val } : Modular.SortSt)
+              : AM Modular.SortSt).run lst = .ok (S', lst) ∧ SortRel ss' S' := by
+      intro n
+      induction n with
+      | zero =>
+        intro path ss S k st' path' ss' hn hp hS h
+        rw [sort_visit_loop, ite_eq_right (by scalar_tac)] at h
+        obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨⟨old, hm⟩, hhm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨-, rfl, rfl, rfl⟩ : _ ∧ st' = st ∧ path' = path ∧ ss' = _ := by
+          have := Result.ok_injective h; simp only [Prod.mk.injEq] at this
+          exact ⟨this.1, this.2.1.symm, this.2.2.1.symm, this.2.2.2.symm⟩
+        refine ⟨rfl, hp, { order := S.order.push i.val, placed := S.placed.insert i.val }, ?_,
+          ⟨?_, hS.placed.insert hhm⟩⟩
+        · rw [vecFrom_nil _ _ _ (by omega)]
+          simp only [Modular.sortVisitList]; rfl
+        · rw [ConRon.Refine.vec_push_val hv]; simp [hS.order]
+      | succ n ihl =>
+        intro path ss S k st' path' ss' hn hp hS h
+        rw [sort_visit_loop, ite_eq_left (by scalar_tac)] at h
+        have hk : k.val < ys.val.length := by omega
+        obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨_, hyv⟩ := ExprOps.vecIndexAt hy
+        obtain ⟨⟨r, st1, path1, ss1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        cases r with
+        | Err e => err_contra h
+        | Ok u =>
+          cases u
+          obtain ⟨hst1, hp1, S1, hS1, hstep⟩ := svo hp hS h1
+          rw [hst1] at h
+          obtain ⟨k1, hk1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have hk1v := ConRon.Refine.Nat.uadd_val hk1
+          simp at hk1v
+          obtain ⟨rfl, hp2, S2, hx, hS2⟩ := ihl (k := k1) (by omega) hp1 hS1 h
+          refine ⟨rfl, hp2, S2, ?_, hS2⟩
+          rw [vecFrom_cons _ _ _ hk, hyv, StateT.run_bind, hstep]
+          rw [StateT.run_bind, hk1v] at hx
+          exact hx
+    obtain ⟨h1, h2, S', hx, h3⟩ := loop _ (k := 0#usize) rfl hp hS h
+    refine ⟨h1, h2, S', ?_, h3⟩
+    simpa [Modular.sortVisit] using hx
+
+end sort
 
 end ConRon.Refine2.Modular
