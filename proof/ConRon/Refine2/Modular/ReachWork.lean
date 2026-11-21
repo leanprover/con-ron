@@ -409,10 +409,6 @@ theorem pub_has_eq {wr : frontend.olean.index.WorkerReads} {wr' : Arena.Frontend
 @[reducible] def absCopyStmt (p : arena.handle.NIdx × frontend.olean.spec.StmtRec) : NIdx × Arena.Frontend.Olean.StmtRec :=
   (absNIdx p.1, absStmtRec p.2)
 
-/-- Every copy of every clash fits a `usize`, as the index makes them. -/
-def ClashesFit (wr : frontend.olean.index.WorkerReads) : Prop :=
-  ∀ cl ∈ wr.clashes.val, ∀ x ∈ cl.copies.val, CopyFits x.1
-
 /-- The twin's copy list of one clash. -/
 @[reducible] def clashCopyListT (pk : Arena.Frontend.Olean.OleanPins) (wr' : Arena.Frontend.Olean.WorkerReads)
     (cl' : Arena.Frontend.Olean.Clash) : Array (NIdx × Arena.Frontend.Olean.StmtRec) :=

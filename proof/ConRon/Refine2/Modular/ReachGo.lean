@@ -1410,7 +1410,7 @@ theorem nmapRel_len_le {V V' : Type} {A : V → V'} {m : ron.hashmap2.HashMap2 a
 the twin's `reach` accepting, with the `Reach` related (`pending` up to its messages). -/
 theorem reach_refines (hfs : FsRel inst fsv fs)
     {m : arena.handle.NIdx} {wr : frontend.olean.index.WorkerReads} {W : Arena.Frontend.Olean.WorkerReads}
-    (hw : WorkerReadsRel wr W) (hfit : IndexFits W.loads) (hcf : ClashesFit wr)
+    (hw : WorkerReadsRel wr W)
     {own : ron.hashmap2.HashMap2 arena.handle.NIdx Bool} {O : Std.HashSet NIdx} (ho : NSet own O)
     {roots : alloc.vec.Vec arena.handle.NIdx} {st lst} :
     AStateRel₀ pers st lst → AStateInv pers st →
@@ -1421,9 +1421,9 @@ theorem reach_refines (hfs : FsRel inst fsv fs)
   rw [reach] at hr
   simp only [nidx_dup2_eq, Aeneas.Std.bind_ok] at hr
   peel hr as hm, hhm
-  have hcop := clash_copies_of_eq (pk := pk) hw hcf hhm
+  have hcop := clash_copies_of_eq (pk := pk) hw hw.clashFits hhm
   let E : Modular.ReachEnv := { mod := absNIdx m, wr := W, own := O, copies := Modular.clashCopiesOf (absPins pk) W }
-  have he : ReachEnvRel { module := m, copies := hm } wr own E := ⟨rfl, hw, hfit, ho, hcop⟩
+  have he : ReachEnvRel { module := m, copies := hm } wr own E := ⟨rfl, hw, hw.fits, ho, hcop⟩
   peel hr as c, hc0
   have hc := reach_cache_empty_rel hc0
   peel hr as q1, hq1
@@ -1431,7 +1431,7 @@ theorem reach_refines (hfs : FsRel inst fsv fs)
   cases r1 with
   | Err e => cases Result.ok_injective hr
   | Ok x =>
-  obtain ⟨⟨C1, X⟩, lst1, hx1, ⟨hc1, hX⟩, hrel1, hinv1⟩ := clash_agree_ok hP he hcf hc hrel hinv x st1 c1 hq1
+  obtain ⟨⟨C1, X⟩, lst1, hx1, ⟨hc1, hX⟩, hrel1, hinv1⟩ := clash_agree_ok hP he hw.clashFits hc hrel hinv x st1 c1 hq1
   peel hr as rs, hrs
   have ers := reach_roots_eq ho hrs
   peel hr as o, hoo
@@ -1526,26 +1526,6 @@ theorem reach_refines (hfs : FsRel inst fsv fs)
     rfl
   · rw [einf, vec_len_val]
     exact (List.Forall₂.length_eq hc2.pending).symm
-
-/-- **What the reach needs of the worker's reads beyond `WorkerReadsRel`**: the positions the
-Rust reads back as `usize` fit one — the load positions (`IndexFits`, as `headerFixpoint` makes
-them) and the clashes' copies (`ClashesFit`, as the name index makes them). -/
-def ReachFits (wr : frontend.olean.index.WorkerReads) (wr' : Arena.Frontend.Olean.WorkerReads) : Prop :=
-  IndexFits wr'.loads ∧ ClashesFit wr
-
-/-- **Theorem 2 of the reach, in the worker's shape** (`ReachHyp` of `WorkerRead.lean`, with the
-one premise `ReachFits`). -/
-theorem reach_hyp (hfs : FsRel inst fsv fs) :
-    ∀ {st lst} (pk : frontend.olean.spec.OleanPins) (sp : frontend.olean.files.Roots)
-      (m : arena.handle.NIdx) {wr : frontend.olean.index.WorkerReads} {wr' : Arena.Frontend.Olean.WorkerReads}
-      {own : ron.hashmap2.HashMap2 arena.handle.NIdx Bool} {own' : Std.HashSet NIdx}
-      (roots : alloc.vec.Vec arena.handle.NIdx),
-      WorkerReadsRel wr wr' → ReachFits wr wr' → NSet own own' → AStateRel₀ pers st lst → AStateInv pers st →
-      LA pers ReachRel (reach inst fsv pk pers st sp m wr own roots) lst
-        (Modular.reach fs (absPins pk) (absRoots sp) (absNIdx m) wr' own' (ConRon.Refine2.Frontend.absNIdxArr roots)) :=
-  by
-  intro _ _ _ _ _ _ _ _ _ _ hw hf ho hrel hinv
-  exact reach_refines hfs hw hf.1 hf.2 ho hrel hinv
 
 end reads
 

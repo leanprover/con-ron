@@ -6,15 +6,17 @@ against their twins `workerReach`, `workerRead` (`Arena/Modular/Worker.lean`).  
 accept only: the Rust's `Ok` is a run of the twin in related states (`LA`; `worker_read`'s
 failure carries a position, so its claim is stated out, `WorkerReadAccept`).
 
-**Hypotheses, not theorems.**  Lane L2's `reach::record_reads`, `reach::owner_map` and
-`reach::reach` have no Theorem 2 yet: their expected shapes are `RecordReadsRel` (in
-`Modular/Worker.lean`), `OwnerMapRel` and `ReachHyp` (here), taken as premises.
+**Lane L2's reach.**  `worker_reach_la` takes `reach::record_reads`, `reach::owner_map` and
+`reach::reach` as the shapes `RecordReadsRel` (in `Modular/Worker.lean`), `OwnerMapRel` and
+`ReachHyp` (here); `recordReadsRel_holds`, `ownerMapRel_holds` and `reachHyp_holds` prove them,
+and `worker_read_refines` takes none.
 The home is `home_of_refines'` (`parse_all_views`, `check_views` with their Theorem 2).  `copies_ok`'s
 claim is over a tier whose frozen base is empty (`hb`, `hok`), passed through too.
 -/
 import ConRon.Refine2.Modular.Worker
 import ConRon.Refine2.Modular.WorkerCopies
 import ConRon.Refine2.Modular.ReachRel
+import ConRon.Refine2.Modular.ReachGo
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -29,10 +31,10 @@ open ConRon.Refine2.Lockstep (LS)
 open ConRon.Refine2.Frontend.Olean
 open ConRon.Refine2.Frontend (absNIdxArr absIDeclArr)
 
-/-! ## Lane L2's reach, as hypotheses -/
+/-! ## Lane L2's reach -/
 
-/-- **`reach::owner_map` is `ownerMap`** — lane L2's: the shape its Theorem 2 is expected to
-have, taken as a hypothesis. -/
+/-- **`reach::owner_map` is `ownerMap`** — lane L2's `owner_map_ls`, in the shape
+`worker_reach_la` takes. -/
 def OwnerMapRel (pers : arena.store.PersTier) : Prop :=
   ∀ {st lst} (ds : alloc.vec.Vec arena.env.IDeclaration), AStateRel₀ pers st lst → AStateInv pers st →
     LS pers IdxRel (frontend.modular.reach.owner_map pers st ds) lst
@@ -42,8 +44,8 @@ def OwnerMapRel (pers : arena.store.PersTier) : Prop :=
 theorem ownerMapRel_holds (pers : arena.store.PersTier) : OwnerMapRel pers :=
   fun ds hrel hinv => owner_map_ls hrel hinv ds
 
-/-- **`reach::reach`'s accept is `reach`'s** — lane L2's: the shape its Theorem 2 is expected
-to have (its rejects name records, so an accept), taken as a hypothesis. -/
+/-- **`reach::reach`'s accept is `reach`'s** — lane L2's `reach_refines` (its rejects name
+records, so an accept), in the shape `worker_reach_la` takes. -/
 def ReachHyp {F : Type} (inst : frontend.olean.files.OleanFs F) (fsv : F)
     (fs : Arena.Frontend.Olean.OleanFs) (pers : arena.store.PersTier) : Prop :=
   ∀ {st lst} (pk : frontend.olean.spec.OleanPins) (sp : frontend.olean.files.Roots)
@@ -53,6 +55,13 @@ def ReachHyp {F : Type} (inst : frontend.olean.files.OleanFs F) (fsv : F)
     WorkerReadsRel wr wr' → NSet own own' → AStateRel₀ pers st lst → AStateInv pers st →
     LA pers ReachRel (frontend.modular.reach.reach inst fsv pk pers st sp m wr own roots) lst
       (Modular.reach fs (absPins pk) (absRoots sp) (absNIdx m) wr' own' (absNIdxArr roots))
+
+/-- **`ReachHyp` holds**: lane L2's `reach_refines`. -/
+theorem reachHyp_holds {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F}
+    {fs : Arena.Frontend.Olean.OleanFs} {pers : arena.store.PersTier} (hfs : FsRel inst fsv fs) :
+    ReachHyp inst fsv fs pers := by
+  intro _ _ _ _ _ _ _ _ _ _ hw ho hrel hinv
+  exact reach_refines hfs hw ho hrel hinv
 
 /-! ## `worker_reach` -/
 
@@ -158,7 +167,6 @@ def WorkerReadAccept (pers : arena.store.PersTier)
 /-- **`worker_read`'s accept is `workerRead`'s**: the pins, the private files, the home, the
 worker's reads, the own records, then `worker_reach`. -/
 theorem worker_read_refines (hfs : FsRel inst fsv fs) {pers : arena.store.PersTier}
-    (hRR : RecordReadsRel pers) (hOM : OwnerMapRel pers) (hRe : ReachHyp inst fsv fs pers)
     (hb : BaseRel pers.env {}) (hok : BaseOK pers)
     {st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (sp : frontend.olean.files.Roots) (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
@@ -237,7 +245,7 @@ theorem worker_read_refines (hfs : FsRel inst fsv fs) {pers : arena.store.PersTi
     | Ok t =>
     obtain ⟨r6, own, hoisted⟩ := t
     obtain ⟨⟨r', own', hoisted'⟩, lst5, hx5, ⟨hR, rfl, rfl⟩, hrel5, hinv5⟩ :=
-      worker_reach_la hRR hOM hRe hb hok (st := { st with store := e3 })
+      worker_reach_la (recordReadsRel_holds pers) (ownerMapRel_holds pers) (reachHyp_holds hfs) hb hok (st := { st with store := e3 })
         (by rw [he3]; exact hrel4) (by rw [he3]; exact hinv4) p sp pins m (x' := absImports x) (by simp) hW hL.constants d _ _ h5
     simp only
     rw [am_bind_ok hx5]
