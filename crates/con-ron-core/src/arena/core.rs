@@ -1552,10 +1552,13 @@ pub fn raw_nat_lit(pers: &PersTier, st: &mut AState, h: &EIdx) -> Result<Option<
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:260-271 strLitToConstructor
 /// Lean twin: `proof/ConRon/Arena/Core.lean:679-691 strLitConsSpine` — the
-/// `List.cons` spine of a string literal's constructor form.  con-leche writes
-/// `s.toList.foldr (init := nil) fun c e => …`; DESIGN.md §3.4 turns the
-/// closure into the twin's explicit recursion over the character list, and the
-/// `Vec<u32>` of code points turns that into a cursor recursion.
+/// `List.cons` spine of a string literal's constructor form, from cursor `i`.
+/// con-leche writes `s.toList.foldr (init := nil) fun c e => …`; DESIGN.md §3.4
+/// turns the closure into the twin's explicit recursion over the character
+/// list.  Here the fold is a loop from the last code point down to `i`, one
+/// iteration per character (a recursion would be one frame per character of
+/// the literal): it interns what the twin's recursion does, in its order, the
+/// innermost cell first.
 pub fn str_lit_cons_spine(
     pers: &PersTier,
     st: &mut AState,
@@ -1565,24 +1568,26 @@ pub fn str_lit_cons_spine(
     s: &Vec<u32>,
     i: usize,
 ) -> Result<EIdx, CheckError> {
-    if i >= s.len() {
-        Ok(nil_e.dup2())
-    } else {
-        match str_lit_cons_spine(pers, st, cons, of_nat, nil_e, s, i + 1) {
-            Err(e) => Err(e),
-            Ok(rest) => {
-                let c: u64 = s[i] as u64;
-                match intern_e_lit(pers, st, expr::literal_nat(nat::from_u64(c))) {
-                    Err(e) => Err(e),
-                    Ok(lit) => match intern_e_app(pers, st, of_nat.dup2(), lit) {
-                        Err(e) => Err(e),
-                        Ok(ch) => match intern_e_app(pers, st, cons.dup2(), ch) {
-                            Err(e) => Err(e),
-                            Ok(f) => intern_e_app(pers, st, f, rest),
-                        },
+    let mut k: usize = s.len();
+    let mut acc: EIdx = nil_e.dup2();
+    loop {
+        if k <= i {
+            return Ok(acc);
+        }
+        k = k - 1;
+        let c: u64 = s[k] as u64;
+        match intern_e_lit(pers, st, expr::literal_nat(nat::from_u64(c))) {
+            Err(e) => return Err(e),
+            Ok(lit) => match intern_e_app(pers, st, of_nat.dup2(), lit) {
+                Err(e) => return Err(e),
+                Ok(ch) => match intern_e_app(pers, st, cons.dup2(), ch) {
+                    Err(e) => return Err(e),
+                    Ok(f) => match intern_e_app(pers, st, f, acc) {
+                        Err(e) => return Err(e),
+                        Ok(cell) => acc = cell,
                     },
-                }
-            }
+                },
+            },
         }
     }
 }
@@ -12082,4 +12087,34 @@ mod tests {
     // compare against in-process.  `scripts/diff-e2e.sh` is the differential
     // test from here — 383 fixtures through the whole binary, against
     // con-leche's own verdicts — and it is a gate, not a unit test.
+    use super::*;
+    use crate::arena::intern::intern_expr;
+    use crate::arena::store::EStore;
+    use crate::kernel::level;
+
+    /// A string literal's `List.cons` spine, 200 000 characters long, on a
+    /// thread with a 1 MiB stack (task #169): a walk with one frame per
+    /// character overflows it.
+    #[test]
+    fn str_lit_cons_spine_of_a_long_literal() {
+        std::thread::Builder::new()
+            .stack_size(1 << 20)
+            .spawn(|| {
+                let pers: &PersTier = &PersTier::empty();
+                let mut st = AState::init(EStore::empty());
+                let c = intern_expr(pers, &mut st, &expr::sort(level::zero())).ok().unwrap();
+                let s: Vec<u32> = (0..200_000u32).map(|i| 97 + i % 26).collect();
+                let e = str_lit_cons_spine(pers, &mut st, &c, &c, &c, &s, 0).ok().unwrap();
+                let e1 = str_lit_cons_spine(pers, &mut st, &c, &c, &c, &s, 1).ok().unwrap();
+                // the spine from 0 is one cell onto the spine from 1, interned
+                let lit = intern_e_lit(pers, &mut st, expr::literal_nat(nat::from_u64(97))).ok().unwrap();
+                let ch = intern_e_app(pers, &mut st, c.dup2(), lit).ok().unwrap();
+                let f = intern_e_app(pers, &mut st, c.dup2(), ch).ok().unwrap();
+                let cell = intern_e_app(pers, &mut st, f, e1).ok().unwrap();
+                assert!(cell.eq2(&e));
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
 }

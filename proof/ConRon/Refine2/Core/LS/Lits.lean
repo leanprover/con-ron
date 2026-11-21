@@ -364,27 +364,69 @@ theorem spine_char {s : alloc.vec.Vec Std.U32} (hs : ConRon.Refine.StrWF s) {i :
   rw [List.getElem_map]
   exact char_toNat_ofNat_of_valid (hs _ (List.getElem_mem hi))
 
-theorem str_lit_cons_spine_aux (n : Nat) :
+/-- The twin's spine onto `acc`: `strLitConsSpine` with `acc` for the `nil` it ends in.  The
+loop of `str_lit_cons_spine` builds it from the back, one cell onto the spine so far
+(`spineOnto_snoc`). -/
+def spineOnto (cons ofNat : EIdx) : List Char → EIdx → AM EIdx
+  | [], acc => pure acc
+  | c :: cs, acc => do
+    let rest ← spineOnto cons ofNat cs acc
+    let lit ← internE (.lit (.natVal c.toNat))
+    let ch ← internE (.app ofNat lit)
+    let f ← internE (.app cons ch)
+    internE (.app f rest)
+
+theorem strLitConsSpine_eq_spineOnto (cons ofNat nilE : EIdx) :
+    ∀ cs, strLitConsSpine cons ofNat nilE cs = spineOnto cons ofNat cs nilE
+  | [] => rfl
+  | c :: cs => by
+    rw [strLitConsSpine, spineOnto, strLitConsSpine_eq_spineOnto cons ofNat nilE cs]
+
+/-- The spine of `cs ++ [c]` onto `acc` is the spine of `cs` onto `c`'s cell. -/
+theorem spineOnto_snoc (cons ofNat : EIdx) (c : Char) :
+    ∀ (cs : List Char) (acc : EIdx), spineOnto cons ofNat (cs ++ [c]) acc =
+      (do
+        let lit ← internE (.lit (.natVal c.toNat))
+        let ch ← internE (.app ofNat lit)
+        let f ← internE (.app cons ch)
+        let cell ← internE (.app f acc)
+        spineOnto cons ofNat cs cell)
+  | [], acc => by simp only [List.nil_append, spineOnto, pure_bind, bind_pure]
+  | x :: cs, acc => by
+    rw [List.cons_append, spineOnto, spineOnto_snoc cons ofNat c cs acc]
+    simp only [spineOnto, bind_assoc]
+
+/-- `str_lit_cons_spine`'s loop ⊑ the twin's spine: the characters from `i` below `k`, onto the
+cell `acc` built so far.  Induction on `k - i`. -/
+theorem str_lit_cons_spine_loop_aux (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (cons of_nat nil_e : arena.handle.EIdx) (s : alloc.vec.Vec Std.U32) (i : Std.Usize),
-      s.val.length - i.val = n → ConRon.Refine.StrWF s →
+      (cons of_nat : arena.handle.EIdx) (s : alloc.vec.Vec Std.U32) (i k : Std.Usize)
+      (acc : arena.handle.EIdx),
+      k.val - i.val = n → k.val ≤ s.val.length → ConRon.Refine.StrWF s →
       AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = absEIdx a)
-        (arena.core.str_lit_cons_spine pers st cons of_nat nil_e s i) lst
-        (strLitConsSpine (absEIdx cons) (absEIdx of_nat) (absEIdx nil_e)
-          ((s.val.map fun c => Char.ofNat c.val).drop i.val)) := by
+        (arena.core.str_lit_cons_spine_loop pers st cons of_nat s i k acc) lst
+        (spineOnto (absEIdx cons) (absEIdx of_nat)
+          (((s.val.map fun c => Char.ofNat c.val).take k.val).drop i.val) (absEIdx acc)) := by
   induction n with
   | zero =>
-    intro pers st lst cons of_nat nil_e s i hn hs hrel hinv
-    rw [arena.core.str_lit_cons_spine, List.drop_eq_nil_of_le (by simp; omega),
-      strLitConsSpine]
+    intro pers st lst cons of_nat s i k acc hn hk hs hrel hinv
+    rw [arena.core.str_lit_cons_spine_loop.eq_def, List.drop_eq_nil_of_le (by simp; omega),
+      spineOnto]
     lockstep
-  | succ k ih =>
-    intro pers st lst cons of_nat nil_e s i hn hs hrel hinv
-    have hi : i.val < s.val.length := by omega
-    have hc := spine_char hs hi
-    rw [arena.core.str_lit_cons_spine, List.drop_eq_getElem_cons (by simpa using hi),
-      strLitConsSpine]
+  | succ n ih =>
+    intro pers st lst cons of_nat s i k acc hn hk hs hrel hinv
+    obtain ⟨k1, hk1e, hk1v⟩ := ConRon.Refine.usize_sub_ok (i := k) (by omega)
+    have hlt : k1.val < s.val.length := by omega
+    have hc := spine_char hs hlt
+    have hsplit : ((s.val.map fun c => Char.ofNat c.val).take k.val).drop i.val =
+        ((s.val.map fun c => Char.ofNat c.val).take k1.val).drop i.val ++
+          [(s.val.map fun c => Char.ofNat c.val)[k1.val]'(by simpa using hlt)] := by
+      rw [show k.val = k1.val + 1 by omega, List.take_add_one,
+        List.getElem?_eq_getElem (by simpa using hlt), Option.toList_some,
+        List.drop_append_of_le_length (by simp; omega)]
+    rw [arena.core.str_lit_cons_spine_loop.eq_def, ite_eq_right (show ¬ k <= i by scalar_tac),
+      hk1e, hsplit, spineOnto_snoc]
     lockstep
 
 @[lockstep] theorem str_lit_cons_spine_ls {pers st cons of_nat nil_e s i lst}
@@ -393,8 +435,18 @@ theorem str_lit_cons_spine_aux (n : Nat) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.str_lit_cons_spine pers st cons of_nat nil_e s i) lst
       (strLitConsSpine (absEIdx cons) (absEIdx of_nat) (absEIdx nil_e)
-        ((s.val.map fun c => Char.ofNat c.val).drop i.val)) :=
-  str_lit_cons_spine_aux _ cons of_nat nil_e s i rfl hs hrel hinv
+        ((s.val.map fun c => Char.ofNat c.val).drop i.val)) := by
+  have hloop : ∀ acc : arena.handle.EIdx,
+      LS pers (fun a b => b = absEIdx a)
+        (arena.core.str_lit_cons_spine_loop pers st cons of_nat s i (alloc.vec.Vec.len s) acc) lst
+        (spineOnto (absEIdx cons) (absEIdx of_nat)
+          ((s.val.map fun c => Char.ofNat c.val).drop i.val) (absEIdx acc)) := by
+    intro acc
+    have := str_lit_cons_spine_loop_aux _ cons of_nat s i (alloc.vec.Vec.len s) acc rfl
+      (by simp [alloc.vec.Vec.len]) hs hrel hinv
+    rwa [List.take_of_length_le (by simp [alloc.vec.Vec.len])] at this
+  rw [arena.core.str_lit_cons_spine, strLitConsSpine_eq_spineOnto]
+  lockstep
 
 attribute [lockstep_inline] arena.core.str_lit_to_constructor_rest
 

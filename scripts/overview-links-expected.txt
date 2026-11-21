@@ -205,20 +205,20 @@
     22  //! | 2 | `declined` | the checker positively detected a feature it does not support, and says which |
     23  //! | 3 | error | bad usage, malformed input, or an internal failure of unclear cause |
 
-== crates/con-ron-core/src/kernel/name.rs#L618-L630
-   618  pub fn render(n: &Name) -> Vec<u32> {
-   619      match &n.0.kind {
-   620          NameKind::Anonymous => {
-   621              const A: [u32; 11] = [91, 97, 110, 111, 110, 121, 109, 111, 117, 115, 93];
-   622              crate::kernel::core_types::code_points(&A)
-   623          }
-   624          _ => {
-   625              let cs = component_list(n, Vec::new());
-   626              let k = cs.len();
-   627              display_acc_finish(render_from(&cs, k, display_acc_empty()))
-   628          }
-   629      }
-   630  }
+== crates/con-ron-core/src/kernel/name.rs#L641-L653
+   641  pub fn render(n: &Name) -> Vec<u32> {
+   642      match &n.0.kind {
+   643          NameKind::Anonymous => {
+   644              const A: [u32; 11] = [91, 97, 110, 111, 110, 121, 109, 111, 117, 115, 93];
+   645              crate::kernel::core_types::code_points(&A)
+   646          }
+   647          _ => {
+   648              let cs = component_list(n, Vec::new());
+   649              let k = cs.len();
+   650              display_acc_finish(render_from(&cs, k, display_acc_empty()))
+   651          }
+   652      }
+   653  }
 
 == flake.nix#L5-L29
      5      # Aeneas pins the Charon commit it needs (see `charon-pin` upstream) and
@@ -1028,26 +1028,26 @@
   1126      (hi : denoteE st i = some x) (hj : denoteE st j = some x) : i = j := by
 
 == crates/con-ron-core/src/arena/core.rs#L12051-L12070
- 12051  /// con-leche: none — **a job's bracket, closed** (DESIGN.md §8.3)
- 12052  /// Lean twin: `proof/ConRon/Arena/Core.lean:4578-4586 dropScratch` —
- 12053  /// the twin's `dropScratch` on a store that STAYS frozen (task #98-FREEZE): the
- 12054  /// caches flushed and the scratch tiers emptied, the flag untouched.  A
- 12055  /// worker's store is frozen for its whole life, so between two jobs it is
- 12056  /// frozen with an empty scratch tier where the twin's is scratch-off; nothing
- 12057  /// is interned there.
- 12058  pub fn leave_record(st: &mut AState) {
- 12059      flush_caches(st);
- 12060      st.store.clear_scratch();
- 12061  }
- 12062  
- 12063  /// con-leche: none — **a job's bracket, opened** (DESIGN.md §8.3)
- 12064  /// Lean twin: `proof/ConRon/Arena/Core.lean:4588-4595 enterScratch` —
- 12065  /// the twin's `enterScratch` on an already frozen store (task #98-FREEZE): the
- 12066  /// memos cleared and the scratch tiers emptied, the flag untouched.
- 12067  pub fn enter_record(st: &mut AState) {
- 12068      st.memos.reset();
- 12069      st.store.clear_scratch();
- 12070  }
+ 12051  /// its eleven journals — P3 needs it to state that flushing is sound.
+ 12052  pub fn flush_caches(st: &mut AState) {
+ 12053      st.caches.reset();
+ 12054  }
+ 12055  
+ 12056  /// con-leche: none — **a job's bracket, closed** (DESIGN.md §8.3)
+ 12057  /// Lean twin: `proof/ConRon/Arena/Core.lean:4578-4586 dropScratch` —
+ 12058  /// the twin's `dropScratch` on a store that STAYS frozen (task #98-FREEZE): the
+ 12059  /// caches flushed and the scratch tiers emptied, the flag untouched.  A
+ 12060  /// worker's store is frozen for its whole life, so between two jobs it is
+ 12061  /// frozen with an empty scratch tier where the twin's is scratch-off; nothing
+ 12062  /// is interned there.
+ 12063  pub fn leave_record(st: &mut AState) {
+ 12064      flush_caches(st);
+ 12065      st.store.clear_scratch();
+ 12066  }
+ 12067  
+ 12068  /// con-leche: none — **a job's bracket, opened** (DESIGN.md §8.3)
+ 12069  /// Lean twin: `proof/ConRon/Arena/Core.lean:4588-4595 enterScratch` —
+ 12070  /// the twin's `enterScratch` on an already frozen store (task #98-FREEZE): the
 
 == crates/con-ron-core/src/arena/checker.rs#L65-L88
     65  
@@ -1987,7 +1987,7 @@
    276  }
    277  
    278  /// con-leche: ConLeche/Cached/StreamIndex.lean:95-103 recordJob
-   279  /// Lean twin: `proof/ConRon/Arena/Justify.lean:339-347 recordJob` — **record `pd`'s
+   279  /// Lean twin: `proof/ConRon/Arena/Justify.lean:333-341 recordJob` — **record `pd`'s
    280  /// job, at position `k`**, with the solution `sol` if any: `record_check` from
    281  /// fresh caches and an empty scratch tier (`enter_record`, the cited
    282  /// `checkDeclStepC`'s fresh `{}`), the tier emptied again after it on both

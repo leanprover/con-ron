@@ -93,16 +93,16 @@ conclusion stated on `List.drop i` so that `i = 0` collapses to the whole
 list (task #5). -/
 
 theorem str_eq_from_refl (s : alloc.vec.Vec Std.U32) :
-    ∀ n (i : Std.Usize), s.length - i.val ≤ n → name.str_eq_from s s i = ok true := by
+    ∀ n (i : Std.Usize), s.length - i.val ≤ n → name.str_eq_from_loop s s i = ok true := by
   intro n
   induction n with
   | zero =>
     intro i h
-    rw [name.str_eq_from.eq_def]; simp only []
+    rw [name.str_eq_from_loop.eq_def]; simp only []
     rw [ite_eq_left (by scalar_tac)]
   | succ n ih =>
     intro i h
-    rw [name.str_eq_from.eq_def]; simp only []
+    rw [name.str_eq_from_loop.eq_def]; simp only []
     split
     · rfl
     · rename_i hlt
@@ -118,7 +118,7 @@ theorem str_eq_refl (s : alloc.vec.Vec Std.U32) : name.str_eq s s = ok true := b
   exact str_eq_from_refl s s.length 0#usize (by scalar_tac)
 
 theorem str_eq_from_eq {a b : alloc.vec.Vec Std.U32} (hlen : a.length = b.length) :
-    ∀ n (i : Std.Usize), a.length - i.val ≤ n → name.str_eq_from a b i = ok true →
+    ∀ n (i : Std.Usize), a.length - i.val ≤ n → name.str_eq_from_loop a b i = ok true →
       a.val.drop i.val = b.val.drop i.val := by
   intro n
   induction n with
@@ -127,7 +127,7 @@ theorem str_eq_from_eq {a b : alloc.vec.Vec Std.U32} (hlen : a.length = b.length
     rw [List.drop_eq_nil_of_le (by scalar_tac), List.drop_eq_nil_of_le (by scalar_tac)]
   | succ n ih =>
     intro i h he
-    rw [name.str_eq_from.eq_def] at he; simp only [] at he
+    rw [name.str_eq_from_loop.eq_def] at he; simp only [] at he
     split at he
     · rw [List.drop_eq_nil_of_le (by scalar_tac), List.drop_eq_nil_of_le (by scalar_tac)]
     · rename_i hlt

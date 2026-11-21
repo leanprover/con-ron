@@ -178,16 +178,18 @@ pub fn str_copy(s: &Vec<u32>) -> Vec<u32> {
     str_copy_from(s, 0, Vec::new())
 }
 
-/// con-leche: none — the index recursion behind `str_copy`
-/// The accumulator is passed by value and returned: DESIGN.md §3.4 reserves
-/// `&mut` for the state parameter (task #6).
+/// con-leche: none — the index walk behind `str_copy`, a loop over the code
+/// points.  The accumulator is passed by value and returned: DESIGN.md §3.4
+/// reserves `&mut` for the state parameter (task #6).
 pub fn str_copy_from(s: &Vec<u32>, i: usize, out: Vec<u32>) -> Vec<u32> {
-    if i >= s.len() {
-        out
-    } else {
-        let mut o: Vec<u32> = out;
+    let mut o: Vec<u32> = out;
+    let mut i: usize = i;
+    loop {
+        if i >= s.len() {
+            return o;
+        }
         o.push(s[i]);
-        str_copy_from(s, i + 1, o)
+        i = i + 1;
     }
 }
 
@@ -1671,6 +1673,21 @@ mod tests {
         assert!(expr::literal_beq(&n, &n2));
         assert_eq!(expr::literal_hash(&n), expr::literal_hash(&n2));
         assert_eq!(expr::str_copy(&cps("abc")), cps("abc"));
+    }
+
+    /// A million code points copied on a thread with a 1 MiB stack (task
+    /// #169): a walk with one frame per code point overflows it.
+    #[test]
+    fn str_copy_of_a_long_string() {
+        std::thread::Builder::new()
+            .stack_size(1 << 20)
+            .spawn(|| {
+                let s: Vec<u32> = (0..(1u32 << 20)).collect();
+                assert_eq!(expr::str_copy(&s), s);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 
     /// Task #90's size table (task #119: the binder datum is gone from the

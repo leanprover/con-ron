@@ -585,22 +585,22 @@ path (DESIGN.md §3.2); `beq_refl` below is the transparency obligation. -/
 @[simp] theorem ptr_eq_eq (a b : expr.Expr) : expr.ptr_eq a b = ok false := by
   simp [expr.ptr_eq]
 
-/-- `expr::str_copy_from` appends the rest of the code points (the task-#5
+/-- `expr::str_copy_from`'s loop appends the rest of the code points (the task-#5
 index-loop shape, with the conclusion on `List.drop i`). -/
 theorem str_copy_from_val {s : alloc.vec.Vec Std.U32} :
     ∀ k : Nat, ∀ (i : Std.Usize) (out r : alloc.vec.Vec Std.U32),
-      s.val.length - i.val ≤ k → expr.str_copy_from s i out = ok r →
+      s.val.length - i.val ≤ k → expr.str_copy_from_loop s out i = ok r →
       r.val = out.val ++ s.val.drop i.val := by
   intro k
   induction k with
   | zero =>
     intro i out r hk h
-    rw [expr.str_copy_from.eq_def] at h; simp only [] at h
+    rw [expr.str_copy_from_loop.eq_def] at h; simp only [] at h
     rw [ite_eq_left (show i >= alloc.vec.Vec.len s by scalar_tac), Result.ok.injEq] at h
     rw [← h, List.drop_eq_nil_of_le (by scalar_tac), List.append_nil]
   | succ k ih =>
     intro i out r hk h
-    rw [expr.str_copy_from.eq_def] at h; simp only [] at h
+    rw [expr.str_copy_from_loop.eq_def] at h; simp only [] at h
     by_cases hi : i.val ≥ s.val.length
     · rw [ite_eq_left (show i >= alloc.vec.Vec.len s by scalar_tac), Result.ok.injEq] at h
       rw [← h, List.drop_eq_nil_of_le (by scalar_tac), List.append_nil]
@@ -622,7 +622,7 @@ theorem str_copy_from_val {s : alloc.vec.Vec Std.U32} :
 list (DESIGN.md §3.2). -/
 theorem str_copy_eq {s r : alloc.vec.Vec Std.U32} (h : expr.str_copy s = ok r) :
     r = s := by
-  rw [expr.str_copy] at h
+  rw [expr.str_copy, expr.str_copy_from] at h
   have := str_copy_from_val s.val.length 0#usize (alloc.vec.Vec.new Std.U32) r
     (by scalar_tac) h
   exact alloc.vec.Vec.ext _ _ (by simpa [alloc.vec.Vec.new] using this)

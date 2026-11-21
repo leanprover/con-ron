@@ -244,26 +244,20 @@ def coneEntry (J : ISolution) (fe : IFEnv) (n : NIdx) : AM (Option (List NIdx)) 
 /-- con-leche: ConLeche/Cached/Justify.lean:163-183 coneGo — **the cone walk**: every name of
 `work`, and everything it reads, is the same constant in the input's index `fe` and the
 solution's; the first name that is not, or `none`.  Each name is compared once (`seen`); `fuel`
-bounds the names compared.  The answer carries the fuel and `seen` on.  The cited work list
-`entryNeeds ci ++ work` is a recursion here (a name's needs to the end before the rest of
-`work`), which visits the names in the same order, with the same `seen` and fuel.  `depth`
-bounds the recursion, the Rust's being unbounded: a walk past it is an internal error. -/
+bounds the names compared.  The answer carries the fuel and `seen` on.  The cited work list,
+`entryNeeds ci ++ work` after a name accepted. -/
 def coneGo (J : ISolution) (fe : IFEnv) :
-    Nat → Nat → Std.HashMap NIdx Bool → List NIdx → AM (Option NIdx × Nat × Std.HashMap NIdx Bool)
-  | 0, _, _, _ => fail (.internal "fuel exhausted: coneGo")
-  | _ + 1, fuel, seen, [] => pure (none, fuel, seen)
-  | depth + 1, fuel, seen, n :: work => do
-    if seen.contains n then coneGo J fe (depth + 1) fuel seen work
-    else if fuel = 0 then pure (some n, fuel, seen)
-    else
-      match ← coneEntry J fe n with
-      | none => pure (some n, fuel, seen)
-      | some ns => do
-        let (r, f, s) ← coneGo J fe depth (fuel - 1) (seen.insert n true) ns
-        match r with
-        | some m => pure (some m, f, s)
-        | none => coneGo J fe (depth + 1) f s work
-termination_by depth _ _ work => (depth, work.length)
+    Nat → Std.HashMap NIdx Bool → List NIdx → AM (Option NIdx × Nat × Std.HashMap NIdx Bool)
+  | fuel, seen, [] => pure (none, fuel, seen)
+  | fuel, seen, n :: work => do
+    if seen.contains n then coneGo J fe fuel seen work
+    else match fuel with
+      | 0 => pure (some n, 0, seen)
+      | fuel + 1 => do
+        match ← coneEntry J fe n with
+        | none => pure (some n, fuel + 1, seen)
+        | some ns => coneGo J fe fuel (seen.insert n true) (ns ++ work)
+termination_by fuel _ work => (fuel, work.length)
 
 /-- con-leche: ConLeche/Cached/Justify.lean:185-196 justifyWhy — **is the statement `cv`
 justified by the solution `J`**, at the input's index `fe`: `none`, or why not.  The cone's
@@ -277,7 +271,7 @@ def justifyWhy (J : ISolution) (fe : IFEnv) (cv : IConstantVal) : AM (Option Str
       pure (some s!"the solution's {← readNameM cv.name} has another type")
     else
       let (_, ns) ← needsGo ∅ [] coreWalkFuel cv.type
-      let (r, _, _) ← coneGo J fe coreWalkFuel (J.idx.next + 1) ∅ ns
+      let (r, _, _) ← coneGo J fe (J.idx.next + 1) ∅ ns
       match r with
       | none => pure none
       | some n =>

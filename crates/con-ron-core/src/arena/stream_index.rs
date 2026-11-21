@@ -250,7 +250,7 @@ pub fn stream_index_view(pers: &PersTier, k: u64) -> IFEnv {
 }
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:95-103 recordJob
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:329-337 recordCheck` — what the
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:323-331 recordCheck` — what the
 /// fold's step asks of record `pd` at position `k`, with the solution `sol` if
 /// any: the `And` pin, then the record's check at its view
 /// (`justify::check_record`, the cited `checkRecordC`).  `record_job` is this
@@ -276,7 +276,7 @@ pub fn record_check(
 }
 
 /// con-leche: ConLeche/Cached/StreamIndex.lean:95-103 recordJob
-/// Lean twin: `proof/ConRon/Arena/Justify.lean:339-347 recordJob` — **record `pd`'s
+/// Lean twin: `proof/ConRon/Arena/Justify.lean:333-341 recordJob` — **record `pd`'s
 /// job, at position `k`**, with the solution `sol` if any: `record_check` from
 /// fresh caches and an empty scratch tier (`enter_record`, the cited
 /// `checkDeclStepC`'s fresh `{}`), the tier emptied again after it on both
