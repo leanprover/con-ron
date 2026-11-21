@@ -12,10 +12,9 @@
 //! * **`parMapExcept` is the sequential map** (`olean::closure`'s note): the
 //!   loaded parts' tables and the copies' statements are read in order, and
 //!   upstream's `jobs` is not a parameter.
-//! * **`clash_copies` lists the doubly held names in the load order** of their
-//!   second copy, where upstream lists them as its hash map's `toArray` (Lean's
-//!   hash order; a port's map cannot reproduce it).  Each name's copies are in
-//!   the load order either way.
+//! * `clashCopies`' table of each name's copies (`ccStep`) is a list with an
+//!   index of its names (`clash_copies_step`): the same names in the same order
+//!   (that of their second copies), each with the same copies.
 //! * `isPropCheap`'s `headTy` is a lookup in the heads' statements
 //!   (`ClashHeads`, a `merge::HeadTy`).
 
@@ -489,9 +488,9 @@ pub struct WorkerReads {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Index.lean:179-185 clashCopies
-/// con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove index::clash_copies_refines, then delete this line
-/// **The doubly held names, each with all its copies**, in the load order
-/// (module note: the names in the order of their second copy).
+/// **The doubly held names, each with all its copies, in the load order**: the
+/// names in the order of their second copies, each with its first copy and then
+/// its later ones.
 pub fn clash_copies(ix: &NameIndex) -> Vec<(NIdx, Vec<Copy>)> {
     let mut at: HashMap2<NIdx, u64> = HashMap2::new();
     let mut out: Vec<(NIdx, Vec<Copy>)> = Vec::new();
@@ -503,8 +502,7 @@ pub fn clash_copies(ix: &NameIndex) -> Vec<(NIdx, Vec<Copy>)> {
     out
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Index.lean:179-185 clashCopies
-/// con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove index::clash_copies_step_refines, then delete this line
+/// con-leche: ConLeche/Frontend/Olean/Index.lean:172-177 ccOrderStep
 /// One later copy `c` of `n`: onto its name's entry, or a new entry with the
 /// first copy and it.
 pub fn clash_copies_step(ix: &NameIndex, at: &mut HashMap2<NIdx, u64>, out: &mut Vec<(NIdx, Vec<Copy>)>, n: &NIdx, c: &Copy) {
@@ -520,9 +518,8 @@ pub fn clash_copies_step(ix: &NameIndex, at: &mut HashMap2<NIdx, u64>, out: &mut
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Index.lean:179-185 clashCopies
-/// con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove index::at_of_refines, then delete this line
-/// A name's entry in the list so far.
+/// con-leche: ConLeche/Frontend/Olean/Index.lean:172-177 ccOrderStep
+/// A name's entry in the list so far (`acc.1.contains x.1`).
 pub fn at_of(at: &HashMap2<NIdx, u64>, n: &NIdx) -> Option<u64> {
     match at.get(n) {
         Some(k) => Some(*k),
@@ -530,9 +527,8 @@ pub fn at_of(at: &HashMap2<NIdx, u64>, n: &NIdx) -> Option<u64> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Olean/Index.lean:179-185 clashCopies
-/// con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove index::first_or_refines, then delete this line
-/// `(ix.first[n]?).getD c`.
+/// con-leche: ConLeche/Frontend/Olean/Index.lean:163-170 ccStep
+/// `(first[n]?).getD c`.
 pub fn first_or(ix: &NameIndex, n: &NIdx, c: &Copy) -> Copy {
     match ix.first.get(n) {
         Some(f) => f.dup2(),

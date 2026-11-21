@@ -237,6 +237,7 @@ ConLeche/Kernel/DeclCheck.lean natOpCodF Was `kernel/core_k.rs`'s `nat_op_deps` 
 ConLeche/Kernel/DeclCheck.lean natOpTyPinnedF Was `kernel/core_k.rs`'s `nat_op_ty_pinned` (deleted, task #105 sweep, as `whnfCoreLoopFuel` above).
 ConLeche/Kernel/DeclCheck.lean natOpStoredOkF Was `kernel/core_k.rs`'s `nat_op_stored_ok` (deleted, task #105 sweep, as `whnfCoreLoopFuel` above).
 ConLeche/Kernel/CheckDecl.lean checkDeclsPure Was `arena/check_decl.rs`'s `check_decls_pure` (and its `_go` fold), the one-step-per-record spec fold whose refinement theorem task #105 SW-R2 deleted as dead; the binary runs the two-phase driver (`crates/con-ron/src/driver.rs`), so with the theorem gone the Rust had no caller either (deleted, task #105 R-SWEEP2).
+ConLeche/Kernel/CheckDecl.lean PureRun A specification (a chain of accepting `checkDecl` steps, a `Prop`), not executed: the binary runs the two-phase driver, and Theorem 1 proves a module's own jobs from `start` one (`Bridge/Modular`), as upstream's `WorkerAccepted` states.
 ConLeche/Kernel/Env.lean find? Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
 ConLeche/Kernel/Env.lean findProj? Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
 ConLeche/Kernel/Env.lean findTable? The pure environment's table lookup (task #362), read by the pure checker and con-leche's model; the port runs the indexed `FEnv.findTable?` only (`env::ifenv_find_table`), as for `find?`/`findProj?`.

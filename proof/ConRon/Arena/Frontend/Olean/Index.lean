@@ -3,8 +3,8 @@
 
 The twin of `olean/index.rs`.  `Copy` is upstream's own: two numbers.  The loaded parts'
 tables and the copies' statements are read in order (`parMapExcept` is the sequential map).
-**`clashCopies` lists the doubly held names in the load order of their second copy** (the
-Rust's module note: upstream lists them in its hash map's order).
+`clashCopies` keeps each name's entry by its position in the list (as the Rust), where upstream
+keeps a table of copies beside the names' order (`ccOrderStep`): the same list.
 -/
 module
 
@@ -153,8 +153,8 @@ structure WorkerReads where
   clashes : Array Clash
 
 /-- con-leche: ConLeche/Frontend/Olean/Index.lean:179-185 clashCopies
--- con-leche: CHANGED since 11d8ff13 — re-port, re-test, re-prove Index.clashCopies_bridge, then delete this line
-**The doubly held names, each with all its copies**, in the load order of their second copy. -/
+**The doubly held names, each with all its copies, in the load order**: the names in the order of
+their second copies, each with its first copy and then its later ones. -/
 def clashCopies (ix : NameIndex) : Array (NIdx × Array Copy) :=
   (ix.more.foldl (fun (acc : Std.HashMap NIdx Nat × Array (NIdx × Array Copy)) (n, c) =>
     let (at_, out) := acc
