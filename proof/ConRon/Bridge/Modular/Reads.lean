@@ -449,7 +449,7 @@ theorem workerReads_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = 
   -- the doubly held names, their copies' statements
   have hcc := clashCopies_rel hw3 hix
   obtain ⟨infos, s₅, h5, h⟩ := AM.bind_ok h
-  obtain ⟨hst5, infosC, hg5, hi5⟩ := readInfos_run hsp hctx3 hld3 hix h5
+  obtain ⟨hst5, infosC, hg5, hi5⟩ := readInfos_run hsp hctx3 (loadsOF_of hld3) hix h5
   have hctx5 := hctx3.step hst5
   have hcl := clashes_rel (listRel_ext (fun _ _ hq => ⟨denoteN_ext hq.1 hst5.ext, hq.2⟩) hcc) hi5
   -- the heads, their statements
@@ -459,7 +459,7 @@ theorem workerReads_run {pk : OleanPins} {F : FS} {sp : Roots} (hsp : sp.bare = 
   obtain ⟨rfl, hheads⟩ := clashHeads_run hctx5.ok (hix.ext' hst5.ext) _ _ #[] hcl h6
   obtain ⟨hinfos, s₇, h7, h⟩ := AM.bind_ok h
   obtain ⟨hst7, hinfosC, hg7, hi7⟩ := readInfos_run hsp hctx5
-    (hld3.ext' hst5.ext (nsWF_of_StateOK hctx5.ok) hkeys)
+    ((loadsOF_of hld3).ext hst5.ext)
     (hix.ext' hst5.ext) h7
   have hctx7 := hctx5.step hst7
   have hw7 := nsWF_of_StateOK hctx7.ok
