@@ -16,6 +16,10 @@ import ConRon.Refine2.Checker.Mates
 import ConRon.Refine2.Frontend.Compare
 import ConRon.Bridge.Modular.Stages
 import ConRon.Refine2.Modular.Graph
+import ConRon.Bridge.Modular.Home
+import ConRon.Refine2.Modular.WorkerRead
+import ConRon.Refine2.Modular.ReachCheck
+import ConRon.Refine2.Checker.PoolFrom
 
 /-!
 # `ConRon.Capstone` — THE COMPOSITION: Theorem 2 ∘ Theorem 1 ∘ con-leche
@@ -1709,6 +1713,87 @@ theorem rust_graph {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : 
   obtain ⟨C, sD, hD, rfl, -, -⟩ :=
     ConRon.Refine2.Modular.graph_of_refines (fsRel_of_snapshot hsnap) hrelC hinvC _ _ hgraph
   exact ConRon.Bridge.Modular.graphStage_run rfl hA hB hC hD
+
+/-- The binary's empty index is a well-formed base over nothing. -/
+theorem emptyTier_base : ConRon.Refine2.BaseRel emptyTier.env {} ∧ ConRon.Refine2.BaseOK emptyTier :=
+  ⟨ixEmpty_rel.baseRel {} rfl rfl rfl, StreamIndexRel.baseOK (pers := emptyTier) ixEmpty_rel⟩
+
+/-- **A worker run at the Rust** (`modular::check_module`, one module, no import added): from the
+binary's start values, the reserved pins, the module's name interned, the pins interned, phases
+1–4 (`worker::worker_read`), the jobs' records, the index over them, the freeze, the inferred
+flags on a fresh worker, and the pool over the own jobs from `start`, on a snapshot `F`, give
+upstream's accepted worker at the module.  Theorem 2 per call, then `workerStage_run`. -/
+theorem rust_worker_of (hR : ConRon.Bridge.Modular.ReachRunHyp)
+    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    {F : ConLeche.FS} (hsnap : SnapshotOf finst fsv F)
+    {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {mName : kernel.name.Name}
+    {st1 st2 st3 st4 st5 : arena.monad.AState} {m : arena.handle.NIdx}
+    (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+    (hroot : InternRoots emptyTier st1 [mName] [m] st2)
+    {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+    (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+    {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {maxNatSize : ron.nat.Nat}
+    (h5 : arena.checker.intern_all_pins emptyTier st2 pins maxNatSize = ok (.Ok ipins, st3))
+    {w : frontend.modular.worker.WorkerRead}
+    (hwork : frontend.modular.worker.worker_read finst fsv emptyTier st3 ⟨dirs, alloc.vec.Vec.new _⟩
+      ipins m (alloc.vec.Vec.new _) = ok (.Ok w, st4))
+    {ds : alloc.vec.Vec arena.env.IDeclaration}
+    (hds : frontend.modular.worker.worker_decls w = ok ds)
+    {ix : arena.stream_index.IStreamIndex}
+    (h6 : (do
+        let e ← arena.stream_index.stream_index_empty
+        arena.stream_index.build_index emptyTier st4 e ds 0#usize) = ok (.Ok ix, st5))
+    {tier : arena.store.PersTier} {frozen : arena.store.EStore}
+    (h7 : arena.checker.freeze_tier st5.store ix = ok (tier, frozen))
+    {ws ws' : arena.monad.AState}
+    (hws : arena.checker.worker_state st5.pins = ok ws)
+    (hinfer : frontend.modular.reach.infer_flags tier ws w.reach.ctx w.reach.pending = ok (.Ok (), ws'))
+    (h8 : ParallelAll (ds.length - w.start.val) (oleanWorkerInit st5.pins)
+      (fun c k => oleanJobStepSol finst fsv tier .Verified ipins ds w.pins w.values
+        ⟨dirs, alloc.vec.Vec.new _⟩ none c (w.start.val + k))) :
+    ConLeche.Driver.WorkerAccepted (ConRon.Refine.absPins pins) (absSearchPath dirs) F
+      (ConRon.Refine.absName mName) 1 #[] := by
+  obtain ⟨est, hest, hst0⟩ := startState_init
+  obtain ⟨hrel0, hinv0, -⟩ := init_rel (pers := emptyTier) rfl hest hst0
+  obtain ⟨sA, hA, hrelA, hinvA⟩ := (intern_reserved_pins_refines hrel0 hinv0 h1).dest
+  obtain ⟨sB, hB, hrelB, hinvB⟩ := internRoots_refines [mName] [m] hroot hrelA hinvA
+  obtain ⟨sC, hC, hrelC, hinvC⟩ :=
+    (intern_all_pins_refines hrelB hinvB (ConRon.Refine.PinsWF.decode_wf_refine2 hpins) h5).dest
+  have hfs := fsRel_of_snapshot hsnap
+  obtain ⟨w', sD, hD, hwr, hrelD, hinvD⟩ :=
+    ConRon.Refine2.Modular.worker_read_refines hfs emptyTier_base.1 emptyTier_base.2 hrelC hinvC
+      _ ipins m (alloc.vec.Vec.new _) w st4 hwork
+  have hdecls := ConRon.Refine2.Modular.worker_decls_eq hwr.reach.ctx.symm hwr.own.symm hds
+  -- the index, the freeze, the fresh worker, the inferred flags
+  rw [stream_index_empty_eq, bind_ok] at h6
+  obtain ⟨I, sE, hE, hrelE, hinvE, hIrel, hIfr⟩ := build_index_empty_refines hrelD hinvD h6
+  obtain ⟨htier, -⟩ := freeze_tier_ok h7
+  subst htier
+  obtain ⟨hidle, hinvW⟩ := worker_state_rel ix hrelE hinvE rfl hws
+  obtain ⟨w₁, hF, -, -⟩ := ConRon.Refine2.Modular.infer_flags_la hidle hinvW rfl ⟨hIrel, hIfr⟩
+    (hwr.reach.pending.imp fun _ _ h => h) hinfer
+  -- the pool
+  obtain ⟨I', sE', hP, -, -, -⟩ := olean_pool_accepts_from_sol_refines (values' := w'.values)
+    (sol := none) (J := none) trivial hfs hwr.values hrelD hinvD rfl
+    (oleanPoolAcceptsFromSol_intro (by rw [stream_index_empty_eq, bind_ok]; exact h6) h7 h8)
+  -- one index: the build is a function
+  obtain ⟨parts, hbuild, hrest⟩ := hP
+  have hEq := hbuild.symm.trans hE
+  simp only [Except.ok.injEq, Prod.mk.injEq] at hEq
+  obtain ⟨hI1, hI2⟩ := hEq
+  rw [hI1, hI2] at hbuild hrest
+  have hdecls' : (absIDeclL ds).toArray = ConRon.Arena.Modular.workerDecls w' := hdecls
+  rw [hdecls'] at hbuild hrest
+  rw [← hwr.pins, ← hwr.start] at hrest
+  have hP' : ConRon.Arena.PooledOleanAcceptsFromJ (ConRon.Bridge.Frontend.Olean.modelFs F) w'.pins
+      (absRoots ⟨dirs, alloc.vec.Vec.new _⟩) w'.values .verified (absINatOpPinSetL ipins) none
+      w'.start (ConRon.Arena.Modular.workerDecls w') sD I sE :=
+    ⟨parts, hbuild, hrest⟩
+  have hctxE : (absIDeclL w.reach.ctx).toArray = w'.reach.ctx := hwr.reach.ctx.symm
+  rw [hctxE] at hF
+  exact ConRon.Bridge.Modular.workerStage_run ConRon.Bridge.CoreSpec.of_core
+    ConRon.Bridge.Inductives.indSpec_of_bridge ConRon.Bridge.Modular.Home.homeHyp_holds hR rfl
+    (names := []) (hs := []) hA (by simpa using hB) (x := #[]) (fun _ => rfl) hC hD hP' hF
 
 end RustModular
 
