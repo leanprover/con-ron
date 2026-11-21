@@ -21,6 +21,7 @@ public import ConLeche.Verify.Driver.PropPart
 import ConRon.Bridge.Checker.DeclVal
 import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.Specs
+import ConRon.Bridge.Checker.Names
 import ConLeche.Verify.BridgeDecl
 import Std.Data.HashMap.Lemmas
 
@@ -192,5 +193,112 @@ theorem typeIsPropC_run {env : Env} {fe : IFEnv} {cv : ConRon.Arena.Frontend.Ole
   refine ⟨max Fa Fb, sty, uu, ConLeche.inferTypeCore_mono (Nat.le_max_left _ _) hFa,
     ConLeche.ensureSortCore_mono (Nat.le_max_right _ _) hFb, ?_⟩
   rw [← hod, hbb]
+
+theorem denoteStmt_parts {st : EStore} {cv : ConRon.Arena.Frontend.Olean.StmtRec} {c : ConstantVal}
+    (h : denoteStmt st cv = some c) :
+    Frontend.denoteNList st.ns cv.levelParams = some c.levelParams ∧
+      denoteE st cv.type = some c.type ∧ denoteN st.ns cv.name = some c.name := by
+  simp only [denoteStmt] at h
+  cases h1 : denoteN st.ns cv.name <;> cases h2 : cv.levelParams.mapM (denoteN st.ns) <;>
+    cases h3 : denoteE st cv.type <;> simp_all
+  cases h
+  refine ⟨?_, rfl, rfl⟩
+  rw [denoteNList_eq_mapM, h2]
+
+/-- con-leche: ConLeche/Driver/Reach.lean:850-865 inferFlags — **one recorded statement
+inferred**: its syntactic clauses, its resolution and `TypeIsProp`, at the environment `env`
+the view denotes. -/
+theorem inferOne_run {env : Env} {fe : IFEnv} {what : String} {y : NIdx}
+    {cv : ConRon.Arena.Frontend.Olean.StmtRec} {c : ConstantVal} {s s' : AState}
+    (hk : CoreSpec Arena.checkFuel) (hok : FoldOK env fe s)
+    (hcv : denoteStmt s.store cv = some c)
+    (h : ConRon.Arena.Modular.inferOne fe what y cv s = .ok ((), s')) :
+    CheckOK false env fe s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
+      c.type.constsResolve env = true ∧ ConLeche.Modular.TypeIsProp .verified env c.type := by
+  obtain ⟨hl, ht, -⟩ := denoteStmt_parts hcv
+  unfold ConRon.Arena.Modular.inferOne at h
+  generalize hE : ConRon.Arena.Modular.exprOk cv.levelParams 0 cv.type = E at h
+  generalize hR : ConRon.Arena.constsResolveFFast fe cv.type = R at h
+  generalize hT : ConRon.Arena.Modular.typeIsPropC fe cv = T at h
+  obtain ⟨eb, s2, k3, k4⟩ := AM.bind_ok h
+  rw [← hE] at k3
+  obtain ⟨e2, c2, p2, hb⟩ := exprOk_run hok.check.state hl ht k3
+  have hok2 : FoldOK env fe s2 :=
+    hok.step (hok.check.mono ⟨by rw [e2]; exact hok.check.state.wf⟩ (by rw [e2]; exact Ext.refl _)
+      c2 p2) p2
+  cases eb with
+  | false =>
+    simp only [Bool.false_eq_true, ↓reduceIte] at k4
+    obtain ⟨b, s1, k5, k6⟩ := AM.bind_ok k4
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok k5
+    simp only [Bool.not_false, ↓reduceIte] at k6
+    obtain ⟨_, _, _, k⟩ := AM.bind_ok k6
+    first
+      | exact absurd k fail_not_ok
+      | (obtain ⟨_, _, k', _⟩ := AM.bind_ok k; exact absurd k' fail_not_ok)
+  | true =>
+  have hfv : c.type.hasFvar = false := by
+    have : ConLeche.Driver.exprOk c.levelParams 0 c.type = true := hb.symm
+    simp only [ConLeche.Driver.exprOk, Bool.and_eq_true, Bool.not_eq_true'] at this
+    exact this.1.1
+  simp only [↓reduceIte] at k4
+  obtain ⟨b, s1, k5, k2⟩ := AM.bind_ok k4
+  rw [← hR] at k5
+  obtain ⟨e3, c3, p3, hr⟩ := constsResolveFFast_run hok2.check (by rw [e2]; exact ht) k5
+  have hok3 : FoldOK env fe s1 :=
+    hok2.step (hok2.check.mono ⟨by rw [e3]; exact hok2.check.state.wf⟩
+      (by rw [e3]; exact Ext.refl _) c3 p3) p3
+  cases b with
+  | false =>
+    simp only [Bool.not_false, ↓reduceIte] at k2
+    obtain ⟨_, _, _, k⟩ := AM.bind_ok k2
+    first
+      | exact absurd k fail_not_ok
+      | (obtain ⟨_, _, k', _⟩ := AM.bind_ok k; exact absurd k' fail_not_ok)
+  | true =>
+  simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte, pure_bind] at k2
+  obtain ⟨bp, s5, k7, k6⟩ := AM.bind_ok k2
+  rw [← hT] at k7
+  cases bp with
+  | false =>
+    simp only [Bool.false_eq_true, ↓reduceIte] at k6
+    obtain ⟨_, _, _, k⟩ := AM.bind_ok k6
+    first
+      | exact absurd k fail_not_ok
+      | (obtain ⟨_, _, k', _⟩ := AM.bind_ok k; exact absurd k' fail_not_ok)
+  | true =>
+  simp only [↓reduceIte] at k6
+  obtain ⟨-, rfl⟩ := AM.pure_ok k6
+  have hcv1 : denoteStmt s1.store cv = some c := by rw [e3, e2]; exact hcv
+  obtain ⟨hck5, hx5, hp5, hprop⟩ := typeIsPropC_run hk hok3 hcv1 hfv k7
+  refine ⟨hck5, by rw [e3, e2] at hx5; exact hx5, by rw [hp5, p3, p2], hr.symm, hprop⟩
+
+/-- con-leche: ConLeche/Verify/Cached/StreamIndex.lean:461 jobs_run_from — `view_foldOK`, at
+a position up to the records' count (the view of the whole stream too). -/
+theorem view_foldOK'
+    {dsP : List Declaration} {I : IStreamIndex} {s₁ s : AState}
+    {k : Nat} (hpinsOK : PinsOK s₁) (hpersPins : PersPins s₁)
+    (hI : IndexDenotes s₁.store I (ConLeche.Cached.buildIndex dsP.toArray))
+    (hpI : PersIFBase I.base) (hk : k ≤ dsP.length)
+    (hwf : ConLeche.EnvWF (ConLeche.streamEnv (dsP.take k)))
+    (hnd : ((ConLeche.Cached.recsConsts (dsP.take k)).map (·.name)).Nodup)
+    (hst : StateOK s) (hx : PExt s₁.store s.store)
+    (hc : CacheOK false (ConLeche.streamEnv (dsP.take k)) s) (hp : s.pins = s₁.pins) :
+    FoldOK (ConLeche.streamEnv (dsP.take k)) (I.view k) s := by
+  have hIj := hI.pmono hpI hx
+  have hspec : ConLeche.Cached.IndexSpec (dsP.take k ++ dsP.drop k)
+      (ConLeche.Cached.buildIndex dsP.toArray) := by
+    rw [List.take_append_drop]
+    simpa using ConLeche.Cached.buildIndex_spec dsP.toArray
+  have hlen : (dsP.take k).length = k := by simp; omega
+  obtain ⟨hienv, hgate⟩ := view_ok hst hIj hspec hnd
+  rw [hlen] at hienv hgate
+  exact
+    { check := ⟨hst, hc, hpinsOK.pmono hpersPins hx hp, hienv⟩
+      envWF := hwf
+      tblShape := fun t ht => by simp [IStreamIndex.view] at ht
+      persPins := hpersPins.mono hp
+      coh := ⟨fun _ => rfl, fun _ => rfl⟩
+      gate := hgate }
 
 end ConRon.Bridge.Modular
