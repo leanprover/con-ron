@@ -119,4 +119,39 @@ theorem groupRecord_run {pk : OleanPins} {mg : Merged} {mgC : ConLeche.Frontend.
     rw [hk1] at h
     exfalso; am_never h
 
+/-- con-leche: ConLeche/Frontend/Olean/Present.lean:44-53 recordOfEntry — **a constant's record**:
+the twin's accept is upstream's, the record read back. -/
+theorem recordOfEntry_run {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn = false)
+    (hpins : PinsOK s) {c : CEntryF NIdx EIdx} {cC : CEntryF ConLeche.Name Expr}
+    (hc : denoteEntry s.store c = some cC) {d : IDeclaration}
+    (h : ConRon.Arena.Frontend.Olean.recordOfEntry c s = .ok (d, s')) :
+    ParseStep s s' ∧ PersDecl d ∧ ∃ dC, ConLeche.Frontend.Olean.recordOfEntry cC = .ok dC ∧
+      Frontend.denoteDecl s'.store d = some dC := by
+  unfold ConRon.Arena.Frontend.Olean.recordOfEntry at h
+  unfold ConLeche.Frontend.Olean.recordOfEntry
+  have hcr : CR s.store { c := c } (ConLeche.Frontend.Olean.CEntry.ofF cC) := by
+    simp only [CR, denoteCEntry, hc]
+    rfl
+  obtain ⟨r, s₁, h1, h2⟩ := AM.bind_ok h
+  rcases r with ⟨e, k⟩ | ds
+  · exfalso; am_never h2
+  obtain ⟨hst, hpr, dsC, hdC, hden⟩ := declsOf_run hok hoff hpins (EmitRel.one (EmitRel.empty _) hcr) h1
+  rw [hdC]
+  dsimp only at h2 ⊢
+  have hl := denoteDeclArray_iff.mp hden
+  generalize hdl : ds.decls.toList = dl at h2 hl
+  generalize hdlC : dsC.toList = dlC at hl
+  match dl, h2, hl with
+  | [d1], h2, hl =>
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
+    simp only [denoteDecls] at hl
+    cases hx : Frontend.denoteDecl s'.store d with
+    | none => simp [hx] at hl
+    | some dC =>
+      simp only [hx, Option.some.injEq] at hl
+      subst hl
+      exact ⟨hst, hpr d (by rw [← Array.mem_toList_iff, hdl]; simp), dC, rfl, rfl⟩
+  | [], h2, _ => exfalso; am_never h2
+  | _ :: _ :: _, h2, _ => exfalso; am_never h2
+
 end ConRon.Bridge.Modular
