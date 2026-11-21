@@ -2115,14 +2115,14 @@ inductive frontend.olean.spec.CKindF (N : Type _) (E : Type _) where
   frontend.olean.spec.CKindF N E
 
 /-- [con_ron_core::frontend::olean::index::Copy]
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 45:0-48:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 44:0-47:1
     Visibility: public -/
 structure frontend.olean.index.Copy where
   module : Std.U64
   pos : Std.U64
 
 /-- [con_ron_core::frontend::olean::index::Clash]
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 145:0-148:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 144:0-147:1
     Visibility: public -/
 structure frontend.olean.index.Clash where
   «name» : arena.handle.NIdx
@@ -2131,7 +2131,7 @@ structure frontend.olean.index.Clash where
     arena.handle.NIdx Unit))
 
 /-- [con_ron_core::frontend::olean::index::NameIndex]
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 79:0-86:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 78:0-85:1
     Visibility: public -/
 structure frontend.olean.index.NameIndex where
   parts : alloc.vec.Vec frontend.olean.reads.NamePositions
@@ -2139,7 +2139,7 @@ structure frontend.olean.index.NameIndex where
   more : alloc.vec.Vec (arena.handle.NIdx × frontend.olean.index.Copy)
 
 /-- [con_ron_core::frontend::olean::index::WorkerReads]
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 478:0-489:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 477:0-488:1
     Visibility: public -/
 structure frontend.olean.index.WorkerReads where
   own : frontend.olean.reads.NamePositions
@@ -2391,7 +2391,7 @@ structure frontend.olean.merge.HeadTy (Self : Type _) where
   head_ty : Self → arena.handle.NIdx → Result (Option arena.handle.EIdx)
 
 /-- [con_ron_core::frontend::olean::index::HeadTys]
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 304:0-306:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 303:0-305:1
     Visibility: public -/
 structure frontend.olean.index.HeadTys where
   m : ron.hashmap2.HashMap2 arena.handle.NIdx arena.handle.EIdx

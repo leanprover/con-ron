@@ -92462,7 +92462,7 @@ def frontend.modular.reach.view_step
   frontend.modular.reach.view_step_loop v k t 0#usize
 
 /-- [con_ron_core::frontend::olean::index::header_loads_level_at]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 195:0-202:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 194:0-201:1
     Visibility: public -/
 def frontend.olean.index.header_loads_level_at
   (ld : frontend.olean.levels.HeaderLoads) (i : Std.U64) :
@@ -99417,7 +99417,7 @@ def frontend.modular.reach.locate
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1, c1)
 
 /-- [con_ron_core::frontend::olean::index::header_loads_name_at]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 183:0-190:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 182:0-189:1
     Visibility: public -/
 def frontend.olean.index.header_loads_name_at
   (pk : frontend.olean.spec.OleanPins) (ld : frontend.olean.levels.HeaderLoads)
@@ -99435,7 +99435,7 @@ def frontend.olean.index.header_loads_name_at
   else arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 pk.anon
 
 /-- [con_ron_core::frontend::olean::index::name_index_at]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 90:0-102:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 89:0-101:1
     Visibility: public -/
 def frontend.olean.index.name_index_at
   (ix : frontend.olean.index.NameIndex) (c : frontend.olean.index.Copy) :
@@ -99905,7 +99905,7 @@ def frontend.modular.reach.agree_check
       | core.result.Result.Err e => ok (core.result.Result.Err e, st1, c1)
 
 /-- [con_ron_core::frontend::olean::index::c_kind_names_dup]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 172:12-175:13
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 171:12-174:13
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.index.c_kind_names_dup_loop
@@ -99927,7 +99927,7 @@ def frontend.olean.index.c_kind_names_dup_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::index::c_kind_names_dup]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 158:0-179:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 157:0-178:1
     Visibility: public -/
 def frontend.olean.index.c_kind_names_dup
   (k : frontend.olean.spec.CKindF arena.handle.NIdx Unit) :
@@ -99963,7 +99963,7 @@ def frontend.olean.index.c_kind_names_dup
     ok (frontend.olean.spec.CKindF.Recur v np ni nmo nmi rs1 k2 iu)
 
 /-- [con_ron_core::frontend::olean::index::stmt_rec_dup]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 152:0-154:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 151:0-153:1
     Visibility: public -/
 def frontend.olean.index.stmt_rec_dup
   (s : frontend.olean.spec.StmtRec) : Result frontend.olean.spec.StmtRec := do
@@ -125384,7 +125384,7 @@ def frontend.olean.levels.pub_closures
     ld.index n acc 0#usize
 
 /-- [con_ron_core::frontend::olean::index::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::frontend::olean::index::Copy}::dup2]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 72:4-74:5
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 71:4-73:5
     Visibility: public -/
 def frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapDup.dup2
   (self : frontend.olean.index.Copy) : Result frontend.olean.index.Copy := do
@@ -125737,7 +125737,7 @@ def frontend.olean.merge.subsumes_f
   else ok (core.result.Result.Ok false)
 
 /-- [con_ron_core::frontend::olean::index::clash_reject::M#3]
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 356:40-356:158 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 355:40-355:158 -/
 @[global_simps, irreducible]
 def frontend.olean.index.clash_reject.M_3 : Array Std.U32 21#usize :=
   Array.make 21#usize [
@@ -125747,7 +125747,7 @@ def frontend.olean.index.clash_reject.M_3 : Array Std.U32 21#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::index::clash_reject::M#2]
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 355:29-355:208 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 354:29-354:208 -/
 @[global_simps, irreducible]
 def frontend.olean.index.clash_reject.M_2 : Array Std.U32 33#usize :=
   Array.make 33#usize [
@@ -125759,13 +125759,13 @@ def frontend.olean.index.clash_reject.M_2 : Array Std.U32 33#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::index::clash_reject::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 354:29-354:72 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 353:29-353:72 -/
 @[global_simps, irreducible]
 def frontend.olean.index.clash_reject.M_1 : Array Std.U32 5#usize :=
   Array.make 5#usize [ 32#u32, 97#u32, 110#u32, 100#u32, 32#u32 ]
 
 /-- [con_ron_core::frontend::olean::index::clash_reject::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 353:24-353:84 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 352:24-352:84 -/
 @[global_simps, irreducible]
 def frontend.olean.index.clash_reject.M : Array Std.U32 8#usize :=
   Array.make 8#usize [
@@ -125773,7 +125773,7 @@ def frontend.olean.index.clash_reject.M : Array Std.U32 8#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::index::clash_reject]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 352:0-357:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 351:0-356:1
     Visibility: public -/
 def frontend.olean.index.clash_reject
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -125801,7 +125801,7 @@ def frontend.olean.index.clash_reject
   kernel.core_types.invalid v7
 
 /-- [con_ron_core::frontend::olean::index::{impl con_ron_core::frontend::olean::merge::HeadTy for con_ron_core::frontend::olean::index::HeadTys}::head_ty]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 311:4-316:5
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 310:4-315:5
     Visibility: public -/
 def
   frontend.olean.index.HeadTys.Insts.Con_ron_coreFrontendOleanMergeHeadTy.head_ty
@@ -125819,7 +125819,7 @@ def
     ok (some e)
 
 /-- Trait implementation: [con_ron_core::frontend::olean::index::{impl con_ron_core::frontend::olean::merge::HeadTy for con_ron_core::frontend::olean::index::HeadTys}]
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 309:0-317:1 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 308:0-316:1 -/
 @[reducible]
 def frontend.olean.index.HeadTys.Insts.Con_ron_coreFrontendOleanMergeHeadTy :
   frontend.olean.merge.HeadTy frontend.olean.index.HeadTys := {
@@ -125828,7 +125828,7 @@ def frontend.olean.index.HeadTys.Insts.Con_ron_coreFrontendOleanMergeHeadTy :
 }
 
 /-- [con_ron_core::frontend::olean::index::clash_step]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 379:0-391:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 378:0-390:1
     Visibility: public -/
 def frontend.olean.index.clash_step
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -125873,7 +125873,7 @@ def frontend.olean.index.clash_step
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::frontend::olean::index::clash_ok]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 366:4-374:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 365:4-373:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.index.clash_ok_loop
@@ -125896,7 +125896,7 @@ def frontend.olean.index.clash_ok_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::index::clash_ok]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 363:0-374:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 362:0-373:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.index.clash_ok
@@ -126061,7 +126061,7 @@ def frontend.olean.index.clash_heads
     frontend.olean.index.Copy) 0#usize
 
 /-- [con_ron_core::frontend::olean::index::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::frontend::olean::index::Copy}::eq2]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 63:4-65:5
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 62:4-64:5
     Visibility: public -/
 def frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : frontend.olean.index.Copy) (other : frontend.olean.index.Copy) :
@@ -126072,7 +126072,7 @@ def frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapEq2.eq2
   else ok false
 
 /-- Trait implementation: [con_ron_core::frontend::olean::index::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::frontend::olean::index::Copy}]
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 61:0-66:1 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 60:0-65:1 -/
 @[reducible]
 def frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   frontend.olean.index.Copy := {
@@ -126080,7 +126080,7 @@ def frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::frontend::olean::index::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::frontend::olean::index::Copy}::hash64]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 54:4-56:5
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 53:4-55:5
     Visibility: public -/
 def frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : frontend.olean.index.Copy) : Result Std.U64 := do
@@ -126089,7 +126089,7 @@ def frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapHashable.hash64
   kernel.name.mix_hash i i1
 
 /-- Trait implementation: [con_ron_core::frontend::olean::index::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::frontend::olean::index::Copy}]
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 52:0-57:1 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 51:0-56:1 -/
 @[reducible]
 def frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable frontend.olean.index.Copy := {
@@ -126413,7 +126413,7 @@ def frontend.olean.index.clash_copies
     (arena.handle.NIdx × (alloc.vec.Vec frontend.olean.index.Copy))) 0#usize
 
 /-- [con_ron_core::frontend::olean::index::part_is_module]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 428:0-435:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 427:0-434:1
     Visibility: public -/
 def frontend.olean.index.part_is_module
   (ix : frontend.olean.index.NameIndex) (k : Std.U64) : Result Bool := do
@@ -126428,7 +126428,7 @@ def frontend.olean.index.part_is_module
   else ok false
 
 /-- [con_ron_core::frontend::olean::index::classic_import]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 456:0-461:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 455:0-460:1
     Visibility: public -/
 def frontend.olean.index.classic_import
   (ld : frontend.olean.levels.HeaderLoads)
@@ -126446,7 +126446,7 @@ def frontend.olean.index.classic_import
               ok (¬ b)
 
 /-- [con_ron_core::frontend::olean::index::first_classic]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 467:4-474:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 466:4-473:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.index.first_classic_loop
@@ -126472,7 +126472,7 @@ def frontend.olean.index.first_classic_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::index::first_classic]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 465:0-474:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 464:0-473:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.index.first_classic
@@ -126484,7 +126484,7 @@ def frontend.olean.index.first_classic
   frontend.olean.index.first_classic_loop ld ix imports 0#usize
 
 /-- [con_ron_core::frontend::olean::index::imports_modules_ok::M#2]
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 449:52-449:139 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 448:52-448:139 -/
 @[global_simps, irreducible]
 def frontend.olean.index.imports_modules_ok.M_2 : Array Std.U32 14#usize :=
   Array.make 14#usize [
@@ -126493,7 +126493,7 @@ def frontend.olean.index.imports_modules_ok.M_2 : Array Std.U32 14#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::index::imports_modules_ok::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 448:37-448:203 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 447:37-447:203 -/
 @[global_simps, irreducible]
 def frontend.olean.index.imports_modules_ok.M_1 : Array Std.U32 30#usize :=
   Array.make 30#usize [
@@ -126504,7 +126504,7 @@ def frontend.olean.index.imports_modules_ok.M_1 : Array Std.U32 30#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::index::imports_modules_ok::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 447:32-447:87 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 446:32-446:87 -/
 @[global_simps, irreducible]
 def frontend.olean.index.imports_modules_ok.M : Array Std.U32 7#usize :=
   Array.make 7#usize [
@@ -126512,7 +126512,7 @@ def frontend.olean.index.imports_modules_ok.M : Array Std.U32 7#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::index::imports_modules_ok]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 440:0-452:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 439:0-451:1
     Visibility: public -/
 def frontend.olean.index.imports_modules_ok
   (pers : arena.store.PersTier) (ar : arena.store.EStore)
@@ -126549,7 +126549,7 @@ def frontend.olean.index.imports_modules_ok
   else ok (core.result.Result.Ok ())
 
 /-- [con_ron_core::frontend::olean::index::first_loaded]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 416:4-423:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 415:4-422:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.index.first_loaded_loop
@@ -126576,7 +126576,7 @@ def frontend.olean.index.first_loaded_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::index::first_loaded]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 414:0-423:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 413:0-422:1
     Visibility: public -/
 @[reducible]
 def frontend.olean.index.first_loaded
@@ -126587,7 +126587,7 @@ def frontend.olean.index.first_loaded
   frontend.olean.index.first_loaded_loop ix own 0#usize
 
 /-- [con_ron_core::frontend::olean::index::fresh_ok::M#3]
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 407:52-407:150 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 406:52-406:150 -/
 @[global_simps, irreducible]
 def frontend.olean.index.fresh_ok.M_3 : Array Std.U32 16#usize :=
   Array.make 16#usize [
@@ -126596,7 +126596,7 @@ def frontend.olean.index.fresh_ok.M_3 : Array Std.U32 16#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::index::fresh_ok::M#2]
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 406:37-406:148 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 405:37-405:148 -/
 @[global_simps, irreducible]
 def frontend.olean.index.fresh_ok.M_2 : Array Std.U32 19#usize :=
   Array.make 19#usize [
@@ -126606,7 +126606,7 @@ def frontend.olean.index.fresh_ok.M_2 : Array Std.U32 19#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::index::fresh_ok::M#1]
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 405:37-405:105 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 404:37-404:105 -/
 @[global_simps, irreducible]
 def frontend.olean.index.fresh_ok.M_1 : Array Std.U32 10#usize :=
   Array.make 10#usize [
@@ -126615,7 +126615,7 @@ def frontend.olean.index.fresh_ok.M_1 : Array Std.U32 10#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::index::fresh_ok::M]
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 404:32-404:87 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 403:32-403:87 -/
 @[global_simps, irreducible]
 def frontend.olean.index.fresh_ok.M : Array Std.U32 7#usize :=
   Array.make 7#usize [
@@ -126623,7 +126623,7 @@ def frontend.olean.index.fresh_ok.M : Array Std.U32 7#usize :=
     ]
 
 /-- [con_ron_core::frontend::olean::index::fresh_ok]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 395:0-410:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 394:0-409:1
     Visibility: public -/
 def frontend.olean.index.fresh_ok
   (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier)
@@ -126667,7 +126667,7 @@ def frontend.olean.index.fresh_ok
     ok (core.result.Result.Err ce)
 
 /-- [con_ron_core::frontend::olean::index::head_ty_step]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 323:0-336:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 322:0-335:1
     Visibility: public -/
 def frontend.olean.index.head_ty_step
   (ix : frontend.olean.index.NameIndex)
@@ -126705,7 +126705,7 @@ def frontend.olean.index.head_ty_step
         ok m1
 
 /-- [con_ron_core::frontend::olean::index::head_tys_of]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 343:4-346:5
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 342:4-345:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.index.head_tys_of_loop
@@ -126730,7 +126730,7 @@ def frontend.olean.index.head_tys_of_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::index::head_tys_of]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 340:0-348:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 339:0-347:1
     Visibility: public -/
 def frontend.olean.index.head_tys_of
   (ix : frontend.olean.index.NameIndex)
@@ -126746,7 +126746,7 @@ def frontend.olean.index.head_tys_of
   ok { m := m1 }
 
 /-- [con_ron_core::frontend::olean::index::by_module]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 250:4-255:5
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 249:4-254:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.index.by_module_loop0
@@ -126770,7 +126770,7 @@ def frontend.olean.index.by_module_loop0
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::index::by_module]: loop 1:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 258:4-261:5
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 257:4-260:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.index.by_module_loop1
@@ -126789,7 +126789,7 @@ def frontend.olean.index.by_module_loop1
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::index::by_module]: loop 2:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 263:4-266:5
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 262:4-265:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.index.by_module_loop2
@@ -126817,7 +126817,7 @@ def frontend.olean.index.by_module_loop2
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::index::by_module]: loop 3:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 269:4-274:5
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 268:4-273:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.index.by_module_loop3
@@ -126853,7 +126853,7 @@ def frontend.olean.index.by_module_loop3
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::index::by_module]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 247:0-276:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 246:0-275:1
     Visibility: public -/
 def frontend.olean.index.by_module
   (cs : alloc.vec.Vec frontend.olean.index.Copy) :
@@ -127083,7 +127083,7 @@ def frontend.olean.view.read_stmts
     frontend.olean.reads.stmts_at pk pers ar bs r cs
 
 /-- [con_ron_core::frontend::olean::index::name_index_loc]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 106:0-111:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 105:0-110:1
     Visibility: public -/
 def frontend.olean.index.name_index_loc
   (ix : frontend.olean.index.NameIndex) (c : frontend.olean.index.Copy) :
@@ -127095,7 +127095,7 @@ def frontend.olean.index.name_index_loc
   | some q => ok (some q.loc)
 
 /-- [con_ron_core::frontend::olean::index::read_infos_of]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 211:4-217:5
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 210:4-216:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.index.read_infos_of_loop0
@@ -127121,7 +127121,7 @@ def frontend.olean.index.read_infos_of_loop0
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::index::read_infos_of]: loop 1:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 237:4-240:5
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 236:4-239:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.index.read_infos_of_loop1
@@ -127157,7 +127157,7 @@ def frontend.olean.index.read_infos_of_loop1
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::index::read_infos_of]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 206:0-242:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 205:0-241:1
     Visibility: public -/
 def frontend.olean.index.read_infos_of
   {F : Type _} (filesOleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -127224,7 +127224,7 @@ def frontend.olean.index.read_infos_of
   | core.result.Result.Err e => ok (core.result.Result.Err e, ar)
 
 /-- [con_ron_core::frontend::olean::index::read_infos]: loop 1:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 290:16-293:17
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 289:16-292:17
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.index.read_infos_loop0_loop0
@@ -127258,7 +127258,7 @@ def frontend.olean.index.read_infos_loop0_loop0
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::index::read_infos]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 285:4-299:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 284:4-298:1
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.index.read_infos_loop0
@@ -127297,7 +127297,7 @@ def frontend.olean.index.read_infos_loop0
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::index::read_infos]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 281:0-299:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 280:0-298:1
     Visibility: public -/
 def frontend.olean.index.read_infos
   {F : Type _} (filesOleanFsInst : frontend.olean.files.OleanFs F) (fs : F)
@@ -127321,7 +127321,7 @@ def frontend.olean.index.read_infos
     groups m 0#usize
 
 /-- [con_ron_core::frontend::olean::index::name_index_of]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 118:4-121:5
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 117:4-120:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.index.name_index_of_loop0
@@ -127343,7 +127343,7 @@ def frontend.olean.index.name_index_of_loop0
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::index::name_index_of]: loop 2:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 128:8-136:9
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 127:8-135:9
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.index.name_index_of_loop1_loop0
@@ -127392,7 +127392,7 @@ def frontend.olean.index.name_index_of_loop1_loop0
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::index::name_index_of]: loop 1:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 125:4-138:5
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 124:4-137:5
     Visibility: public -/
 @[rust_loop]
 def frontend.olean.index.name_index_of_loop1
@@ -127418,7 +127418,7 @@ def frontend.olean.index.name_index_of_loop1
 partial_fixpoint
 
 /-- [con_ron_core::frontend::olean::index::name_index_of]:
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 115:0-140:1
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 114:0-139:1
     Visibility: public -/
 def frontend.olean.index.name_index_of
   (parts : alloc.vec.Vec frontend.olean.reads.NamePositions) :
@@ -129500,7 +129500,7 @@ def frontend.olean.files.read_all_views
   | core.result.Result.Err e => ok (core.result.Result.Err e, ar)
 
 /-- Trait implementation: [con_ron_core::frontend::olean::index::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::frontend::olean::index::Copy}]
-    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 70:0-75:1 -/
+    Source: 'crates/con-ron-core/src/frontend/olean/index.rs', lines 69:0-74:1 -/
 @[reducible]
 def frontend.olean.index.Copy.Insts.Con_ron_coreRonHashmapDup : ron.hashmap.Dup
   frontend.olean.index.Copy := {
