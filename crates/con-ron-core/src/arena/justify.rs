@@ -190,7 +190,7 @@ pub fn side_record(pers: &PersTier, st: &mut AState, d: &IDeclaration) -> Result
 /// Lean twin: `proof/ConRon/Arena/Justify.lean:63-70 sideRecordsGo` — **the records a
 /// fold with a solution checks**: every record through `side_record`, from
 /// cursor `i`, onto `out`.  The cited `none` arm is the flat path, which does
-/// not call this.
+/// not call this.  A loop, one iteration per record (`build_index`'s reason).
 pub fn side_records(
     pers: &PersTier,
     st: &mut AState,
@@ -198,15 +198,17 @@ pub fn side_records(
     i: usize,
     out: Vec<IDeclaration>,
 ) -> Result<Vec<IDeclaration>, CheckError> {
-    if i >= ds.len() {
-        Ok(out)
-    } else {
+    let mut out: Vec<IDeclaration> = out;
+    let mut i: usize = i;
+    loop {
+        if i >= ds.len() {
+            return Ok(out);
+        }
         match side_record(pers, st, &ds[i]) {
-            Err(e) => Err(e),
+            Err(e) => return Err(e),
             Ok(d) => {
-                let mut out = out;
                 out.push(d);
-                side_records(pers, st, ds, i + 1, out)
+                i = i + 1;
             }
         }
     }
@@ -450,22 +452,28 @@ pub fn block_names(block: &Vec<IConstantInfo>, j: usize, out: Vec<NIdx>) -> Vec<
 /// con-leche: ConLeche/Cached/Justify.lean:135-142 recordMates
 /// Lean twin: `proof/ConRon/Arena/Justify.lean:165-171 recordMatesGo` — **the input's
 /// record mates**, the records from cursor `i` on: each name an inductive
-/// block declares, mapped to the names of every block that declares it.
+/// block declares, mapped to the names of every block that declares it.  A
+/// loop, one iteration per record (`stream_index::build_index`'s reason).
 pub fn record_mates(
     ds: &Vec<IDeclaration>,
     i: usize,
     m: HashMap<NIdx, Vec<NIdx>>,
 ) -> HashMap<NIdx, Vec<NIdx>> {
-    if i >= ds.len() {
-        m
-    } else {
+    let mut m: HashMap<NIdx, Vec<NIdx>> = m;
+    let mut i: usize = i;
+    loop {
+        if i >= ds.len() {
+            return m;
+        }
         match &ds[i] {
             IDeclaration::IndDecl(block, _) => {
                 let ns: Vec<NIdx> = block_names(block, 0, Vec::new());
-                let m2: HashMap<NIdx, Vec<NIdx>> = mates_insert(m, block, &ns, 0);
-                record_mates(ds, i + 1, m2)
+                m = mates_insert(m, block, &ns, 0);
+                i = i + 1;
             }
-            _ => record_mates(ds, i + 1, m),
+            _ => {
+                i = i + 1;
+            }
         }
     }
 }
