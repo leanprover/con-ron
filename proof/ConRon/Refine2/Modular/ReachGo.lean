@@ -375,6 +375,177 @@ theorem agree_check_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
           rw [am_bind_ok ht]
           rfl
 
+/-! ## The clash rule -/
+
+theorem clash_statuses_loop_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
+    (he : ReachEnvRel env wr own E)
+    (spots : alloc.vec.Vec (frontend.modular.reach.Spot × frontend.olean.spec.StmtRec ×
+      frontend.olean.spec.CKindF arena.handle.NIdx Unit))
+    (st : arena.monad.AState) (lst : AState) (c : frontend.modular.reach.ReachCache) (C : Modular.ReachCache)
+    (hc : ReachCacheRel c C) (no yes : Bool) (i : Std.Usize)
+    (L : List (Modular.Spot × Arena.Frontend.Olean.StmtRec × ConLeche.Frontend.Olean.CKindF NIdx Unit))
+    (hL : List.Forall₂ SpotInfoRel (spots.val.drop i.val) L) :
+    ACS pers (fun a c' b => ReachCacheRel c' b.1 ∧ a = b.2) st lst
+      (clash_statuses_loop inst fsv pk pers st sp wr c spots no yes i)
+      (Modular.clashStatuses fs (absPins pk) (absRoots sp) E C no yes L) := by
+  intro hrel hinv a st' c' hr
+  rw [clash_statuses_loop] at hr
+  by_cases hlt : i < alloc.vec.Vec.len spots
+  · rw [ite_eq_left hlt] at hr
+    have hi := lt_len hlt
+    rw [List.drop_eq_getElem_cons hi] at hL
+    cases hL with
+    | cons hxy hrest =>
+    rename_i y L'
+    peel hr as x, hx
+    obtain ⟨_, rfl⟩ := vec_index_eq hx
+    generalize spots.val[i.val] = xv at hr hxy
+    obtain ⟨s, sr, cf⟩ := xv
+    obtain ⟨y1, y2, y3⟩ := y
+    obtain ⟨hs, -, hk⟩ := hxy
+    simp only at hs hk
+    subst hs
+    dsimp only [Std.uncurry] at hr
+    peel hr as q, hq
+    obtain ⟨r, st1, c1⟩ := q
+    cases r with
+    | Err e => cases Result.ok_injective hr
+    | Ok p =>
+    obtain ⟨⟨C1, ps⟩, lst1, hx1, ⟨hc1, hps⟩, hrel1, hinv1⟩ := proof_status_ok hP he hc s hk hrel hinv p st1 c1 hq
+    simp only at hps
+    subst hps
+    peel hr as b, hb
+    have eb := status_is_eq hb
+    peel hr as no1, hno1
+    have eno : no1 = (no || Modular.statusIs (absProofStatus p) false) := by
+      rw [← eb]; cases b <;> cases Result.ok_injective hno1 <;> simp
+    peel hr as b1, hb1
+    have eb1 := status_is_eq hb1
+    peel hr as yes1, hyes1
+    have eyes : yes1 = (yes || Modular.statusIs (absProofStatus p) true) := by
+      rw [← eb1]; cases b1 <;> cases Result.ok_injective hyes1 <;> simp
+    peel hr as i2, hi2
+    have hv2 := usize_succ_val hi2
+    rw [← hv2] at hrest
+    obtain ⟨b2, lst2, hx2, hR, hrel2, hinv2⟩ :=
+      clash_statuses_loop_ok hP he spots st1 lst1 c1 C1 hc1 no1 yes1 i2 L' hrest hrel1 hinv1 a st' c' hr
+    refine ⟨b2, lst2, ?_, hR, hrel2, hinv2⟩
+    rw [Modular.clashStatuses, am_bind_ok hx1]
+    dsimp only
+    rw [← eno, ← eyes]
+    exact hx2
+  · rw [ite_eq_right hlt] at hr
+    have e := Result.ok_injective hr
+    simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at e
+    obtain ⟨rfl, rfl, rfl⟩ := e
+    rw [List.drop_of_length_le (not_lt_len hlt)] at hL
+    cases hL
+    exact ⟨(C, no, yes), lst, rfl, ⟨hc, rfl⟩, hrel, hinv⟩
+termination_by spots.val.length - i.val
+decreasing_by have := lt_len hlt; omega
+
+/-- **`clash_agree_one` is `clashAgreeOne`.** -/
+theorem clash_agree_one_ok (hP : PartsSpec inst fsv fs pk pers sp) {env wr own E}
+    (he : ReachEnvRel env wr own E) {st lst} {c : frontend.modular.reach.ReachCache} {C : Modular.ReachCache}
+    (hc : ReachCacheRel c C) {cl : frontend.olean.index.Clash} {cl' : Arena.Frontend.Olean.Clash}
+    (hcl : ClashRel cl cl') (hfit : ∀ x ∈ cl.copies.val, CopyFits x.1)
+    {acc : alloc.vec.Vec arena.handle.NIdx} {A : Array NIdx} (hA : acc.val.map absNIdx = A.toList) :
+    AStateRel₀ pers st lst → AStateInv pers st → ∀ st' c' acc',
+      clash_agree_one inst fsv pk pers st sp wr c cl acc = ok (.Ok (), st', c', acc') →
+      ∃ C' A' lst', (Modular.clashAgreeOne fs (absPins pk) (absRoots sp) E C cl' A).run lst = .ok ((C', A'), lst') ∧
+        ReachCacheRel c' C' ∧ acc'.val.map absNIdx = A'.toList ∧
+        AStateRel₀ pers st' lst' ∧ AStateInv pers st' := by
+  intro hrel hinv st' c' acc' hr
+  rw [clash_agree_one] at hr
+  peel hr as spots, hspots
+  have hS := clash_spots_eq he.wr hcl hfit hspots
+  generalize hSP : Modular.clashSpots (absPins pk) E cl' = SP at hS
+  peel hr as q, hq
+  obtain ⟨r, st1, c1⟩ := q
+  cases r with
+  | Err e => cases Result.ok_injective hr
+  | Ok p =>
+  obtain ⟨⟨C1, no', yes'⟩, lst1, hx1, ⟨hc1, hp⟩, hrel1, hinv1⟩ :=
+    clash_statuses_loop_ok hP he spots st lst c C hc false false 0#usize _ (by simpa using hS) hrel hinv p st1 c1 hq
+  obtain ⟨no, yes⟩ := p
+  simp only [Prod.mk.injEq] at hp
+  obtain ⟨rfl, rfl⟩ := hp
+  dsimp only [Std.uncurry] at hr
+  unfold Modular.clashAgreeOne
+  rw [hSP, am_bind_ok hx1]
+  dsimp only
+  by_cases cn : no = true
+  · rw [ite_eq_left cn] at hr; err_peel hr
+  rw [ite_eq_right cn] at hr
+  have cn' : no = false := by simpa using cn
+  simp only [cn', Bool.false_eq_true, ↓reduceIte]
+  by_cases cy : yes = true
+  · rw [ite_eq_left cy] at hr
+    simp only [nidx_dup2_eq, Aeneas.Std.bind_ok] at hr
+    peel hr as acc1, hacc1
+    have e := Result.ok_injective hr
+    simp only [Prod.mk.injEq] at e
+    obtain ⟨-, rfl, rfl, rfl⟩ := e
+    simp only [cy, ↓reduceIte]
+    refine ⟨C1, A.push (absNIdx cl.name), lst1, by rw [hcl.name]; rfl, hc1, ?_, hrel1, hinv1⟩
+    rw [ConRon.Refine.vec_push_val hacc1]; simp [hA]
+  rw [ite_eq_right cy] at hr
+  have cy' : yes = false := by simpa using cy
+  simp only [cy', Bool.false_eq_true, ↓reduceIte]
+  by_cases cl0 : alloc.vec.Vec.len spots > 0#usize
+  · rw [ite_eq_left cl0] at hr
+    have hl0 : 0 < spots.val.length := by
+      have : (0#usize : Std.Usize).val < (alloc.vec.Vec.len spots).val := cl0
+      simpa [vec_len_val] using this
+    obtain ⟨x0, xs, hx0⟩ : ∃ x0 xs, spots.val = x0 :: xs := by
+      cases h0 : spots.val with
+      | nil => rw [h0] at hl0; simp at hl0
+      | cons x0 xs => exact ⟨x0, xs, rfl⟩
+    rw [hx0] at hS
+    cases hS with
+    | cons hxy hrest =>
+    rename_i y0 ys
+    peel hr as _, -
+    peel hr as _, -
+    peel hr as _, -
+    peel hr as w, -
+    simp only [nidx_dup2_eq, Aeneas.Std.bind_ok] at hr
+    peel hr as x, hx
+    obtain ⟨_, ex⟩ := vec_index_eq hx
+    have ex' : x = x0 := by simpa [hx0] using ex
+    subst ex'
+    obtain ⟨xs1, xsr, xk⟩ := x
+    dsimp only [Std.uncurry] at hr
+    peel hr as sr1, hsr1
+    cases stmt_rec_dup_eq hsr1
+    peel hr as v2, hv2
+    peel hr as acc1, hacc1
+    have e := Result.ok_injective hr
+    simp only [Prod.mk.injEq] at e
+    obtain ⟨-, rfl, rfl, rfl⟩ := e
+    obtain ⟨y1, y2, y3⟩ := y0
+    obtain ⟨-, hy2, -⟩ := hxy
+    simp only at hy2
+    obtain ⟨t, ht⟩ := nameText_run cl'.name lst1
+    refine ⟨{ C1 with pending := C1.pending.push (s!"two loaded modules store {t}", cl'.name, y2) },
+      A.push cl'.name, lst1, ?_, ?_, ?_, hrel1, hinv1⟩
+    · simp only [pure_bind]
+      rw [am_bind_ok ht]
+      rfl
+    · rw [← hcl.name]
+      exact hc1.push_pending ⟨rfl, hy2.symm⟩ hv2
+    · rw [ConRon.Refine.vec_push_val hacc1, ← hcl.name]; simp [hA]
+  · rw [ite_eq_right cl0] at hr
+    have e := Result.ok_injective hr
+    simp only [Prod.mk.injEq] at e
+    obtain ⟨-, rfl, rfl, rfl⟩ := e
+    have hl0 : spots.val.length = 0 := by
+      have : ¬ (0#usize : Std.Usize).val < (alloc.vec.Vec.len spots).val := cl0
+      simpa [vec_len_val] using this
+    rw [List.length_eq_zero_iff.mp hl0] at hS
+    cases hS
+    exact ⟨C1, A, lst1, rfl, hc1, hA, hrel1, hinv1⟩
+
 end reads
 
 end ConRon.Refine2.Modular
