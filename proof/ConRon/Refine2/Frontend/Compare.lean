@@ -71,14 +71,14 @@ theorem hole_records_ls {U : Type} {inst : frontend.nat_op_ground.UsedConsts U} 
   refine ls_cursor_acc ds absIDeclaration
     (fun (w : alloc.vec.Vec arena.env.IDeclaration) L =>
       ConRon.Arena.Frontend.holeRecordsGo used (w.val.map absIDeclaration) L)
-    (fun st i w => frontend.compare.hole_records inst u pers st ds i w) ?_ ?_
+    (fun st i w => frontend.compare.hole_records_loop inst u pers st ds w i) ?_ ?_
   · intro st lst i w hn hrel hinv
-    rw [frontend.compare.hole_records.eq_def,
+    rw [frontend.compare.hole_records_loop.eq_def,
       ite_eq_left (show i ≥ alloc.vec.Vec.len ds by scalar_tac),
       ConRon.Arena.Frontend.holeRecordsGo]
     lockstep
   · intro st lst i w hi hrel hinv ih
-    rw [frontend.compare.hole_records.eq_def,
+    rw [frontend.compare.hole_records_loop.eq_def,
       ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ds by scalar_tac),
       ConRon.Arena.Frontend.holeRecordsGo]
     lockstep

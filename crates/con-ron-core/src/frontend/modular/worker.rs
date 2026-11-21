@@ -70,7 +70,7 @@ use crate::frontend::olean::records;
 use crate::frontend::olean::records::ModRef;
 use crate::frontend::olean::sparse;
 use crate::frontend::olean::spec;
-use crate::frontend::olean::spec::{ImportRec, OleanPins, RdErr};
+use crate::frontend::olean::spec::{ImportRec, OleanPins};
 use crate::frontend::olean::view;
 use crate::frontend::olean::view::{ModFiles, OLeanLevel};
 use crate::frontend::text;

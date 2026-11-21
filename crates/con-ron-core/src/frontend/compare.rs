@@ -98,7 +98,8 @@ pub fn hole_record<U: UsedConsts>(u: &U, pers: &PersTier, st: &mut AState, d: &I
 /// con-leche: ConLeche/Driver/Compare.lean:132-138 chalRecords
 /// Lean twin: `proof/ConRon/Arena/Frontend/Compare.lean:55-62 holeRecordsGo` — the cited
 /// `recs.map (holeRecord uses)`: every record from cursor `i` through
-/// [`hole_record`], onto `out`.
+/// [`hole_record`], onto `out`.  A loop, one iteration per record
+/// (`arena::stream_index::build_index`'s reason).
 pub fn hole_records<U: UsedConsts>(
     u: &U,
     pers: &PersTier,
@@ -107,15 +108,17 @@ pub fn hole_records<U: UsedConsts>(
     i: usize,
     out: Vec<IDeclaration>,
 ) -> Result<Vec<IDeclaration>, CheckError> {
-    if i >= ds.len() {
-        Ok(out)
-    } else {
+    let mut out: Vec<IDeclaration> = out;
+    let mut i: usize = i;
+    loop {
+        if i >= ds.len() {
+            return Ok(out);
+        }
         match hole_record(u, pers, st, &ds[i]) {
-            Err(e) => Err(e),
+            Err(e) => return Err(e),
             Ok(d) => {
-                let mut out = out;
                 out.push(d);
-                hole_records(u, pers, st, ds, i + 1, out)
+                i = i + 1;
             }
         }
     }

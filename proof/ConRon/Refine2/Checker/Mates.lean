@@ -132,14 +132,14 @@ theorem record_mates_rel (ds : alloc.vec.Vec arena.env.IDeclaration) :
   induction K with
   | zero =>
     intro i m m' o hk hr h
-    rw [arena.justify.record_mates.eq_def, ite_eq_left (show i ≥ alloc.vec.Vec.len ds by
+    rw [arena.justify.record_mates, arena.justify.record_mates_loop.eq_def, ite_eq_left (show i ≥ alloc.vec.Vec.len ds by
       scalar_tac)] at h
     cases Result.ok_injective h
     rw [List.drop_of_length_le (by omega)]
     exact hr
   | succ K ih =>
     intro i m m' o hk hr h
-    rw [arena.justify.record_mates.eq_def, ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ds by
+    rw [arena.justify.record_mates, arena.justify.record_mates_loop.eq_def, ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ds by
       scalar_tac)] at h
     have hlt : i.val < ds.val.length := by omega
     obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h

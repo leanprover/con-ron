@@ -54,4 +54,42 @@ theorem graphStage_run {F : FS} {sp : Roots} (hsp : sp.bare = sp) {names : List 
       (fun _ i hi => by simp at hi) hG
   exact ⟨CC, rk, fun e he => (hgood e he).plain, hroots, hedges, hinj, hhdr⟩
 
+/-- con-leche: ConLeche/Verify/Driver/Graph.lean checkGraphG_ok — **the graph check of a compared
+run at the twin** (`--check-graph --compare`): the challenge and the solution interned, the graph
+of the challenge's closure with `import all` of the solution added to its header (`cmpExtra`):
+upstream's facts at the added imports, every module in the headers' closure of both. -/
+theorem graphStageCmp_run {F : FS} {sp : Roots} (hsp : sp.bare = sp) {cC sC : ConLeche.Name}
+    {sA sB sC' sD : AState} {pk : OleanPins} {c s : NIdx} {C : Array Node}
+    (hA : internReservedPins (AState.init EStore.empty) = .ok ((), sA))
+    (hP : ConRon.Arena.Frontend.Olean.oleanPins sA = .ok (pk, sB))
+    (hR : [cC, sC].mapM ConRon.Arena.internName sB = .ok ([c, s], sC'))
+    (hG : graphOf (modelFs F) pk sp [c] (some (c, s)) sC' = .ok (C, sD)) :
+    ∃ (CC : List ConLeche.Driver.Graph.Node) (rk : ConLeche.Name → Nat),
+      (∀ e ∈ CC, ConLeche.Driver.Graph.NodeOk sp F (ConLeche.Driver.Graph.cmpExtra cC sC) e) ∧
+      cC ∈ CC.map (·.1) ∧
+      (∀ e ∈ CC, ∀ i ∈ e.2, i.module ∈ CC.map (·.1) ∧ rk i.module < rk e.1) ∧
+      (CC.map fun e => rk e.1).Nodup ∧
+      (∀ e ∈ CC, ConLeche.Frontend.Olean.HdrClosure sp F [cC, sC] e.1) := by
+  have hok0 : StateOK (AState.init EStore.empty) := ⟨EStore.empty_wf⟩
+  obtain ⟨hokA, -, -, -, hoffA, -, -⟩ := internReservedPins_run hok0 rfl hA
+  obtain ⟨hstP, hpk⟩ := oleanPins_run hokA hoffA hP
+  have hoffB : sB.store.scratchOn = false := by rw [hstP.scratch]; exact hoffA
+  obtain ⟨hstR, hnr⟩ := internNames_run hstP.ok hoffB [cC, sC] hR
+  have hctx : Ctx pk sC' :=
+    ⟨hstR.ok, by rw [hstR.scratch]; exact hoffB, (hpk.ext hstR.ext).nulls⟩
+  cases hnr with
+  | cons hc hnr' =>
+  cases hnr' with
+  | cons hs _ =>
+  obtain ⟨-, CC, -, rk, hgood, hroots, hedges, hinj, hhdr⟩ :=
+    graphOf_run (cmp := some (c, s)) (extra := ConLeche.Driver.Graph.cmpExtra cC sC)
+      (roots' := [cC, sC]) hsp hctx ⟨cC, sC, hc, hs, rfl⟩ (.cons hc .nil)
+      (fun r hr => by simp at hr; simp [hr])
+      (fun m i hi => by
+        unfold ConLeche.Driver.Graph.cmpExtra at hi
+        split at hi
+        · simp [ConLeche.Driver.Graph.solutionImport] at hi; simp [hi]
+        · simp at hi) hG
+  exact ⟨CC, rk, hgood, hroots cC (by simp), hedges, hinj, hhdr⟩
+
 end ConRon.Bridge.Modular

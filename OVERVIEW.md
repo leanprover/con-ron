@@ -205,7 +205,7 @@ a failed allocation.
 
 Every name and raw string a message prints comes from the input, so it is
 printed through one rendering, con-leche's
-([`render` in `kernel/name.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/name.rs#L620-L632)).
+([`render` in `kernel/name.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/name.rs#L618-L630)).
 An identifier-shaped name component prints bare (`Nat.add_comm`, `α₁.ℕ`);
 any other is wrapped in `«…»` (`x.«3»`, `«a.b»`), with `\` doubled and with
 `»` and every control, format and separator character other than the ASCII
@@ -466,6 +466,47 @@ none`, so a run with `--constant` is outside the theorems; the driver's own
 rejections (a foreign `--constant`, a solution whose closure holds the
 challenge) end the run before the theorems' calls and claim nothing.
 
+### 3.5 The modular runs
+
+`--check-graph`, `--olean --module` and `--olean --modular` check a closure
+module by module, as con-leche's modular theorem (`main_modular`,
+`main_modular_one`) states it.  The graph check (`modular::check_graph`)
+reads the headers of the roots' closure and checks the import graph acyclic;
+each module's worker (`modular::check_module`, one process per module under
+`--olean --module`, all of them in one process under `--olean --modular`,
+each from fresh start values) reads what Lean loads for the module, its own
+records and the context the reach takes from the loaded modules, and checks
+the own records against the context.
+[`model_modular`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean)
+takes one premise per call of the graph check and, for every module of the
+headers' closure, one per call of its worker, all on one snapshot `F` of the
+files (`SnapshotOf`), and concludes con-leche's family of models over the
+files: every module of the closure of the root, by the specification
+(`InClosure`), has a model of its constants (`moduleConstants`), and the
+models agree on what the modules see of each other (`Sees`).  Its proof is
+Theorem 2 per call, Theorem 1 of the graph (`graphStage_run`) and of each
+worker (`workerStage_run`: the twin's accepted worker is con-leche's
+`WorkerAccepted`), and con-leche's `closure_sees_isModel`.
+
+The worker's Theorem 1 relates each of its phases to con-leche's: the home
+(`homeHyp_holds`, con-leche's `LoadOf` and `checkViews`), the reads
+(`workerReads_run`), the own records, the roots and the holes, the reach
+(`ReachRunHyp`), the copies, and the check phase from `start`
+(`pooledOleanAcceptsFrom_bridge`: a `PureRun` of the own records from the
+context's environment).  The reach's flags are inferred after the worker's
+freeze, on the frozen index (`inferFlags_run`); con-leche states its reach
+over any sound inference (`reachWith`, `FlagsOk`), and con-ron's is the
+classical `soundFlags`, whose accept is what the twin's inference
+establishes.
+
+`--modular --compare` and `--module --compare` check a challenge `C` with
+its solution `S` loaded whole (`import all S` added to `C`'s header):
+`model_modular_compare` and `no_False_modular_compare` take the compared
+graph check's calls, a plain worker's at every module but `C` and the
+compare worker's at `C`, and conclude con-leche's `compare_sees_isModel` and
+`compare_no_False` about the challenge's closure through its own
+directories.
+
 ## 4. The expression representation
 
 The checker's state is one value,
@@ -511,7 +552,7 @@ comparing two terms is comparing two words.
 
 Each store keeps, per tier, **one array per constructor**, each element a
 fixed-size record of handles and scalars; an `app` node is two `u32`s
-([`ETables`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1198-L1212)).
+([`ETables`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1196-L1210)).
 The stores nest: an expression refers to names, levels and level lists, a
 level to names.  Reading a node back (`view`) decodes the tag and reads one
 array element; there is no node enum in memory.
@@ -526,10 +567,10 @@ Every node is added through **`intern`**, which **hash-conses**: it looks
 the node's fields up in the tier's **cons table** (a hash map from fields to
 handle, which stores only the handle and compares the fields against the row
 the handle names) and returns the existing handle if there is one
-([`EStore::intern`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3623-L3658)).
+([`EStore::intern`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3621-L3656)).
 It probes the persistent table first, then the scratch table, and appends
 only if both miss
-([the `app` case](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3908-L3955)).
+([the `app` case](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3906-L3953)).
 
 Hash-consing is needed for soundness, not only for speed.  The checker
 treats equal handles as equal terms and unequal name handles as unequal
@@ -573,7 +614,7 @@ In Rust, the sharing is a separate parameter, and it is also what makes a
 store FROZEN.  After the index is built,
 [`freeze_tier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/checker.rs#L65-L88)
 moves the four stores' persistent tables and the index out into one
-[`PersTier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1229-L1281)
+[`PersTier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1227-L1279)
 value whose `frozen` bit is set.  Every persistent read goes to the
 `&PersTier` a function is handed when that tier is frozen, and to the store's
 own tables otherwise; a worker's store is empty and FROZEN (its scratch tier
@@ -715,9 +756,9 @@ con-leche's binary actually runs.  Records are interned straight into the
 persistent tier, and a table from export index to handle keeps the export's
 own sharing.  No expression tree is built.
 
-The parser is the one place where the Rust uses loops rather than recursion,
-because a per-byte recursion would overflow the stack.  Aeneas turns each
-loop back into a recursive function, which mirrors con-leche's.
+The parser walks its input with loops, because a per-byte recursion would
+overflow the stack.  Aeneas turns each loop back into a recursive function,
+which mirrors con-leche's.
 
 **From `.olean` files** (`--olean`).  The reader is con-leche's
 `Frontend/Olean/*`, one Rust module per file, in the same directory of the
@@ -736,7 +777,7 @@ has one writer, and con-leche's parallel load is not ported.
 
 There is no install phase.  After the parse, the stream's **index** is built
 once, from the records alone
-([`build_index`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/stream_index.rs#L178-L205)):
+([`build_index`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/stream_index.rs#L178-L216)):
 what each record adds to the environment is a function of the record
 ([`decl_constants`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/install.rs#L362-L399)
 and `decl_tables`, con-leche's `Kernel/Install.lean`: a definition's constant, a
@@ -747,7 +788,7 @@ quotient record as the pin at the names it declares).  A name's first entry wins
 with a taken name sees it and fails "duplicate declaration" at its own position.
 
 Every record's check is then a **job** at the index's view of its position
-([`record_job`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/stream_index.rs#L265-L283)):
+([`record_job`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/stream_index.rs#L276-L294)):
 an empty environment layer of its own over the frozen index, with everything from
 the record on hidden, in its own bracket (§4.3).  A job is the whole of what the
 record asks: a definition's header, value and certificates, a theorem's
@@ -849,8 +890,8 @@ and a gate fails if it is not what the crate extracts to today.
 
 Aeneas handles a subset of Rust, and the verified crate stays inside it: no
 closures, no `?`, no `derive`, no `std::collections`, no `unsafe`,
-higher-order arguments as one-method traits, and recursion instead of loops
-outside the parser.
+higher-order arguments as one-method traits, and loops (which Aeneas turns
+into recursive functions) where an iteration count grows with the input.
 [`scripts/lint-rust-style.sh`](https://github.com/leanprover/con-ron/tree/master/scripts/lint-rust-style.sh)
 enforces the mechanical rules; DESIGN.md §3.4 lists all of them.  Release
 builds keep `overflow-checks` on

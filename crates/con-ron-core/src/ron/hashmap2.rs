@@ -58,10 +58,8 @@
 //! there is no chain block; at the same 3/4 load factor that is 26.7 bytes per
 //! entry against the 40.2 + ~8 task #97-P4a measured.
 //!
-//! **What it keeps.**  Every §3.4 rule: no loops (the probe, the repair, the
-//! slot walks and the power-of-two search are recursions with explicit fuel),
-//! no closures, no `?`, no `unsafe`, no `std::collections`, no `derive`, no
-//! panic as control flow.  The API is `ron::hashmap::HashMap`'s, name for
+//! **What it keeps.**  Every §3.4 rule: no closures, no `?`, no `unsafe`, no
+//! `std::collections`, no `derive`, no panic as control flow.  The API is `ron::hashmap::HashMap`'s, name for
 //! name, so a table swaps by changing one type.
 //!
 //! **How it is proved.**  `Refine/HashMap.lean`'s development transfers in

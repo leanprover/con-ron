@@ -635,8 +635,8 @@ equality, hashing and `String.toList`/`Char.ofNat` for literal reduction);
   because a derived `PartialEq` also drags `core::cmp::PartialEq` and a
   `StructuralPartialEq` impl into the model (`ron/hashmap.rs`'s note on
   `Eq2`).  No closures; no `?` in the core (explicit `match` keeps the
-  generated Lean shaped like con-leche's `do` blocks); no `loop`/`while`
-  except where the "Loops" bullet below allows it; no generic instantiated
+  generated Lean shaped like con-leche's `do` blocks); loops are allowed
+  (the "Loops" bullet below); no generic instantiated
   with `&mut`; no `unsafe` (one exemption, below); no `std::collections`; no
   counted-pointer API beyond `new/clone/deref/ptr_eq` and the count *read*
   of the bullet after next; `&mut` only for the state parameter.
@@ -655,33 +655,27 @@ equality, hashing and `String.toList`/`Char.ofNat` for literal reduction);
   every caller is a memo gate (`expr::beq_memoise`, `expr_ops_c::memo_skip`
   and the six `memo*_probe`/`memo*_record` helpers).  OVERVIEW.md §8.1's hole
   row carries the trust argument.
-* **Loops, the two exemptions (2026-09-14, task #84; 2026-11-17, task
-  #158).**  `crates/con-ron-core/src/frontend/` — the ported export parser —
-  and `crates/con-ron-core/src/ron/nat.rs` — the bignum — may use `while`,
-  `loop` and `for … in a..b`; nothing else in the core may.  For the parser
-  the reason is faithfulness, not convenience: the cited Lean function is a
-  per-byte or per-element tail recursion or a bounded fold, `Scan/Fast.lean`
-  recurses once per byte and *Lean compiles those tail calls to loops*,
-  which is what con-leche actually runs; Rust promises no such thing, and a
-  per-byte recursion on a long export line is a stack overflow.  For the
-  bignum (no Lean source) the reason is the algorithms: a limb pass is a
-  loop, the in-place multiply-accumulate of `mul` is naturally a `while`
-  writing `v[i] = x` into a pre-sized accumulator, and a per-limb recursion
-  is the same stack hazard in a debug build.  Extraction already runs with
-  `-loops-to-rec`, so each loop becomes a `foo_loop` function that mirrors
-  the recursion one for one and is what the refinement is stated against —
-  and, being a `partial_fixpoint` like every other function, is proved by its
-  `fixpoint_induct` (`partial_induct`, task #99-PFIX) with no measure.  Two
-  facts to design around, measured by task #84's spike: Aeneas **duplicates
-  the code after a loop into every loop exit** (a `while` with four `break`s
-  and a fifteen-line tail is sixty lines of Lean), so the post-loop tail
-  belongs in its own function; and `while`, `loop`+`break`, `for k in 0..n`,
-  `Vec::push` inside a loop and an early `return` out of one all translate
-  with no new external.  `scripts/lint-rust-style.sh` enforces the
-  exemptions' boundary — and task #84 found that its loop check had been
-  anchored `^\s*(while|…)` against lines that `gather` prefixes with
-  `file:line:`, so it had never matched anything since it was written; the
-  core turned out to be clean under the repaired check.
+* **Loops.**  `while`, `loop` and `for … in a..b` may be used anywhere in
+  the core; an iterator chain may not (it is a closure).  A loop is the right
+  shape wherever the cited Lean is a tail recursion or a fold over a list or
+  an array, and the NECESSARY shape wherever the iteration count grows with
+  the input (per byte, per limb, per record, per reduction step): Lean
+  compiles a tail call to a jump, Rust promises no such thing, and a
+  recursion one frame per record is a stack overflow on a large enough
+  stream.  Extraction runs with `-loops-to-rec`, so each loop becomes a
+  `foo_loop` function, a `partial_fixpoint` whose parameters are the loop's
+  live variables, which mirrors the recursion one for one, is what the
+  refinement is stated against, and is proved by its `fixpoint_induct`
+  (`partial_induct`, task #99-PFIX) or by induction on the remaining count
+  with no measure on the function.  `foo` itself becomes a `@[reducible]`
+  wrapper that calls `foo_loop` and runs the post-loop code.  Two facts to
+  design around: Aeneas **duplicates the code after a loop into every loop
+  exit** (a `while` with four `break`s and a fifteen-line tail is sixty lines
+  of Lean), so the post-loop tail belongs in its own function — or every exit
+  is a `return` and there is no tail (`stream_index::build_index`), which
+  makes `foo_loop` the old recursive function exactly; and `while`,
+  `loop`+`break`, `for k in 0..n`, `Vec::push` inside a loop and an early
+  `return` out of one all translate with no new external.
 * **No `unsafe`, and no exemption (2026-09-12; the exemption taken at task
   #94 and retired at task #97-SWAP-2).**  The ruling is "`std` (or a common
   crate) does it if it can", and for every shared node in the crate it can:
@@ -73670,3 +73664,74 @@ for byte; con-ron **1.050 T** `instructions:u` (0.419 T cycles, peak RSS 1.37 Gi
 
 **Left.**  Names in the inductive callers' messages ("generated rule of …", "the recursor …'s rule for …"), which no upstream grep reads; `--olean --compare` under `--constant` in the theorems (`readOleans_run` at
 `some cs`); optionally an `IsModel`-form conclusion; the modular modes (#166).
+
+### Task #168 — per-record walks as loops, and the no-loops rule dropped (2026-11-21, Opus)
+
+**Why.**  Task #167's GRH pair (challenge 51 692 records, solution 1 468 418) crashed master's
+`--compare` with a stack overflow after `reading solution.ndjson`:
+`arena::stream_index::build_index` recursed once per record (a tail call LLVM did not turn into
+a jump, ~830 B a frame), so the 1 GiB checking-thread stack held ~1.29 M records.  Lean compiles
+the cited `foldlM` to a loop; Rust promises no tail-call elimination.
+
+**What became a loop** (`loop { if i >= ds.len() { return …; } … }`, every exit a `return`, so
+there is no post-loop tail to duplicate and the extracted `foo_loop` is the old recursive
+function one for one, only its parameters reordered to the loop's live variables):
+* `arena::stream_index::build_index` — the stream's index, one iteration per record (the GRH
+  crash; depth on GRH: 1 468 418);
+* `arena::justify::side_records` — the challenge's records through `side_record` (51 692 on GRH);
+* `arena::justify::record_mates` — the challenge's record mates (51 692 on GRH);
+* `frontend::compare::hole_records` — an `--olean --compare` challenge's records (same count).
+The last three were not what crashed GRH, but their depth is the challenge's record count, which
+nothing bounds.  The other per-record walks were already loops: the export parser and
+`frontend::prepare` (`frontend/`), the olean reader's per-module walks, the pool's job list
+(`con-ron/src/pool.rs`, unverified driver code; its `run_job_list` recursion is a test oracle).
+
+**The proofs.**  Each wrapper is `@[reducible] def foo … := foo_loop …`.  Theorem 2:
+`build_index_loop_refines` is the old induction over `foo_loop`'s `eq_def`, unchanged but for the
+name and the argument order, and `build_index_refines` keeps its statement as a one-line
+wrapper; `side_records_ls` and `hole_records_ls` instantiate `ls_cursor_acc` with the loop
+(`fun st i w => side_records_loop pers st ds w i`) so the recursive call matches the induction
+hypothesis; `record_mates_rel` unfolds the wrapper and then the loop.  The twin is unchanged
+(its recursions are the refinement's targets).  **No statement changed**: the capstone premises
+name `build_index`, `side_records` and `hole_records`, whose Aeneas signatures are unchanged.
+
+**The rule dropped** (the maintainer's ruling of 2026-11-21).  §3.4 had banned `while`/`loop`/
+`for` in the core with two path exemptions — `frontend/` (task #84: the parser's per-byte tail
+recursions, which Lean compiles to loops and which overflowed in Rust) and `ron/nat.rs` (task
+#158: the limb passes) — and four `// lint: allow` loops in `arena/core.rs` (task #119:
+`whnf_core_loop`, `whnf_loop` and the two key stores, constant native stack).  Task #84 had also
+found that the lint's loop check was anchored against `gather`'s `file:line:` prefix and had
+never matched anything until then.  The ban is gone from `scripts/lint-rust-style.sh`; §3.4's
+"Loops" bullet now states current practice (loops anywhere; `-loops-to-rec`'s `foo_loop`
+`partial_fixpoint`s; the post-loop tail in its own function or every exit a `return`; which
+constructs translate), the first bullet's "no `loop`/`while`" clause is gone, the `// lint:
+allow` markers and the "No loops (DESIGN.md §3.4)" docstrings are removed, and OVERVIEW's two
+sentences no longer say the parser is the only place with loops.
+
+**Survey** (the maintainer's question, whether code is worse for the rule): the core has ~317
+cursor recursions (`foo_from(…, i: usize, …)` walking a `Vec` by index, ~6 800 lines), ~38
+fuel-bounded counters and ~33 decrementing counters outside `frontend/`, most of them two-line
+helpers a `for` loop would replace with no helper at all.  Almost all walk vectors bounded by a
+declaration's shape (level parameters, binders, a block's constructors, an application's
+arguments, a name's components); the ones whose depth grows with the INPUT are listed in the
+report of this task (`_tmp/t168/report.md`) as follow-ups — `justify::cone_go` (the
+dependency cone; a DFS whose sibling steps are also frames), the per-code-point string walks
+(`name::str_hash_from`, `str_eq_from`, `expr::str_copy_from`, `core::str_lit_cons_spine`),
+`frontend/olean/lazy.rs`'s `value_roots_from` (per constant of a module), and
+`pins_decode::run_records` (per line of the embedded pin text: fixed, ~29 000).
+
+**Gates.**  `scripts/gates.sh`: all 16 OK; diff-e2e 773/773 agree.
+
+**Measured.**  `Init`, `--verified --jobs=1`, one run each: master a36070b8 165 795 355 774
+`instructions:u`, this branch 165 793 912 495 (−0.001 %); cycles 66.14 G / 66.47 G; peak RSS
+426 / 391 MB.  **GRH**, `--jobs=48 --progress=5% --compare -- challenge.ndjson solution.ndjson`
+with master's 1 GiB stacks (no `STACK_BYTES` change), all three build slots and the extract lock
+held, `ulimit -v 200000000`, the #167 watchdog at 50 GB anon: **accepted**, con-leche's lines:
+`accepted 51692 declarations, 5 axioms justified by the solution solution.ndjson (1468418
+declarations accepted) (--verified)` and the five `theorem … justified by the solution` lines.
+36.053 T `instructions:u`, 20.023 T cycles, peak RSS 45 348 164 kB (43.2 GiB), 9:03 wall (user
+5105 s; the solution's parse 441.7 s and check 99.4 s on 48 workers, the challenge's
+0.8 s).  Task #167's 4 GiB-stack branch measured
+36.050 T on the same pair, so the loop costs nothing measurable.  The resident size of the
+checking thread's stack is not separable from mimalloc's 1 GiB segments in `smaps`, so it is
+not reported.
