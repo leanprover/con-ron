@@ -50,7 +50,6 @@ pub fn mg_has(mg: &Merged, n: &NIdx) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap.body
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove merge::is_prop_body_refines, then delete this line
 /// The result of a telescope.
 pub fn is_prop_body(pers: &PersTier, ar: &EStore, ty: &EIdx) -> Result<EIdx, CheckError> {
     let mut e: EIdx = ty.dup2();
@@ -67,7 +66,6 @@ pub fn is_prop_body(pers: &PersTier, ar: &EStore, ty: &EIdx) -> Result<EIdx, Che
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap.head
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove merge::is_prop_head_refines, then delete this line
 /// The head constant of an application, and its argument count.
 pub fn is_prop_head(pers: &PersTier, ar: &EStore, e: &EIdx) -> Result<Option<(NIdx, u64)>, CheckError> {
     let mut x: EIdx = e.dup2();
@@ -89,7 +87,6 @@ pub fn is_prop_head(pers: &PersTier, ar: &EStore, e: &EIdx) -> Result<Option<(NI
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap.drop
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove merge::is_prop_drop_refines, then delete this line
 /// A telescope's result after `k` binders.
 pub fn is_prop_drop(pers: &PersTier, ar: &EStore, e: &EIdx, k: u64) -> Result<Option<EIdx>, CheckError> {
     let mut x: EIdx = e.dup2();
@@ -106,7 +103,6 @@ pub fn is_prop_drop(pers: &PersTier, ar: &EStore, e: &EIdx, k: u64) -> Result<Op
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove merge::is_prop_tail_refines, then delete this line
 /// The end of `isPropCheap`: the head's type after `k` binders is `Prop`.
 pub fn is_prop_tail(pk: &OleanPins, pers: &PersTier, ar: &EStore, ty: &EIdx, k: u64) -> Result<bool, CheckError> {
     match is_prop_drop(pers, ar, ty, k) {
@@ -121,7 +117,6 @@ pub fn is_prop_tail(pk: &OleanPins, pers: &PersTier, ar: &EStore, ty: &EIdx, k: 
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove merge::is_prop_cheap_refines, then delete this line
 /// Lean's `isPropCheap`: the statement is a telescope over a constant applied to
 /// as many arguments as its own type has binders before a `Prop` result.
 pub fn is_prop_cheap(pk: &OleanPins, pers: &PersTier, ar: &EStore, mg: &Merged, ty: &EIdx) -> Result<bool, CheckError> {
@@ -140,7 +135,6 @@ pub fn is_prop_cheap(pk: &OleanPins, pers: &PersTier, ar: &EStore, mg: &Merged, 
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Merge.lean:61-63 subsumes
-/// con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove merge::subsumes_refines, then delete this line
 /// `subsumesInfo`: may `c₁` stand for `c₂`?
 pub fn subsumes(pk: &OleanPins, pers: &PersTier, ar: &EStore, mg: &Merged, c1: &CEntry, c2: &CEntry) -> Result<bool, CheckError> {
     if !(c1.c.name.eq2(&c2.c.name) && c1.c.ty.eq2(&c2.c.ty) && module::nidx_list_eq(&c1.c.level_params, &c2.c.level_params)) {

@@ -683,7 +683,7 @@ The stream's recursor constants, checked (`checkConstantValF`). -/
 def classStreamRecs (mode : CheckMode) (fe : IFEnv) : List RecShape → AM (List IConstantVal)
   | [] => pure []
   | rc :: rcs => do
-    checkConstantVal mode fe rc.cvR false
+    checkConstantVal mode fe rc.cvR false false false
     let cvs ← classStreamRecs mode fe rcs
     pure (rc.cvR :: cvs)
 

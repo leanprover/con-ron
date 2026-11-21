@@ -12,7 +12,6 @@ declaring a top-level `main` cannot sit in another's import closure.
 -/
 
 /-- con-leche: OleanCompare.lean:253-329 main
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove OleanCompareExe.main_bridge, then delete this line
 Lake's entry point. -/
 def main (args : List String) : IO UInt32 := do
   let c ← ConRon.Arena.OleanCompare.main args

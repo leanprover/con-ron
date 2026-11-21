@@ -16,6 +16,7 @@ module
 public import ConRon.Arena.Frontend.Olean.Closure
 public import ConRon.Bridge.Frontend.Olean.Parse
 public import ConLeche.Verify.Frontend.Olean.Files
+public import ConLeche.Verify.Frontend.Olean.Roots
 public import ConRon.Bridge.Frontend.Lines
 
 public section
@@ -26,8 +27,8 @@ set_option autoImplicit false
 
 open ConLeche ConRon.Arena ConRon.Arena.Frontend
 open ConRon.Arena.Frontend.Olean (OleanPins OleanFs partOfBytes toArenaError)
-open ConLeche.Frontend.Olean (ImportF ImportRec Part Located modFile partExts OLeanLevel ModFiles
-  hdrChunk hdrStep hdrFin hdrWalk dataStart SearchPath undecodable)
+open ConLeche.Frontend.Olean (ImportF ImportRec Part Located RootAt Roots modDir modFile OLeanLevel
+  ModFiles hdrChunk hdrStep hdrFin hdrWalk dataStart SearchPath undecodable)
 
 /-- con-leche: ConLeche/Frontend/CheckerIO.lean:357-364 instCheckerIOModelIO — **the twin's
 record of a snapshot**: `ModelIO`'s operations, a message where they have no value.  The twin
@@ -35,6 +36,7 @@ reads a range by position: `readRange p off len` is what a handle of `p` at `off
 (`ModelIO.read`), the slice of the file's bytes from `off`, `len` long but at the end. -/
 @[expose] def modelFs (F : FS) : OleanFs where
   pathExists p := .ok (F.real p).isSome
+  isDir p := .ok (F.dir p)
   realPath p := match F.real p with
     | some q => .ok q
     | none => .error "no such file"
@@ -86,101 +88,163 @@ theorem except_ok_of_bind {ε α β : Type} {x : Except ε α} {f : α → Excep
 
 /-! ## Locating a module -/
 
-theorem locateIn_sim {F : FS} {m : ConLeche.Name} {d : System.FilePath}
-    {x : System.FilePath × List (Option String)}
-    (h : Arena.Frontend.Olean.locateIn (modelFs F) m d = .ok x) :
-    ModelIO.Gives (ConLeche.Frontend.Olean.locateIn m d : ModelIO _) F x := by
-  unfold Arena.Frontend.Olean.locateIn at h
-  unfold ConLeche.Frontend.Olean.locateIn
-  obtain ⟨fsv, h1, h2⟩ := except_ok_of_bind h
-  cases h2
-  have key : ∀ (l : List String) {ys : List (Option String)},
-      (l.mapM fun e => do
-        let p := modFile d m e
-        if ← (modelFs F).pathExists p then
-          return some (← (modelFs F).realPath p).toString
-        else return none) = (.ok ys : Except String _) →
-      ModelIO.Gives (l.mapM fun e => do
-        let p := modFile d m e
-        if ← (CheckerIO.pathExists p : ModelIO Bool) then
-          return some (← (CheckerIO.realPath p : ModelIO _)).toString
-        else return none) F ys := by
-    intro l
-    induction l with
-    | nil =>
-      intro ys hy
-      simp only [List.mapM_nil] at hy ⊢
-      cases hy
-      exact ModelIO.gives_pure _ _
-    | cons e es ih =>
-      intro ys hy
-      simp only [List.mapM_cons] at hy ⊢
-      obtain ⟨y, hy1, hy2⟩ := except_ok_of_bind hy
-      obtain ⟨ys', hy3, hy4⟩ := except_ok_of_bind hy2
-      cases hy4
-      refine ModelIO.Gives.bind ?_ ((ih hy3).bind (ModelIO.gives_pure _ _))
-      obtain ⟨b, hb1, hb2⟩ := except_ok_of_bind hy1
-      refine (pathExists_gives F _).bind ?_
-      cases hr : F.real (modFile d m e) with
-      | none =>
-        simp only [modelFs, hr, Option.isSome_none, Except.ok.injEq] at hb1
-        subst hb1
-        simp only [Bool.false_eq_true, ↓reduceIte] at hb2
-        cases hb2
-        simp only [Option.isSome_none, Bool.false_eq_true, ↓reduceIte]
-        exact ModelIO.gives_pure _ _
-      | some q =>
-        simp only [modelFs, hr, Option.isSome_some, Except.ok.injEq] at hb1
-        subst hb1
-        simp only [↓reduceIte, modelFs, hr] at hb2
-        cases hb2
-        simp only [Option.isSome_some, ↓reduceIte]
-        exact (realPath_gives hr).bind (ModelIO.gives_pure _ _)
-  exact (key _ h1).bind (ModelIO.gives_pure _ _)
+theorem isDir_gives (F : FS) (p : System.FilePath) :
+    ModelIO.Gives (CheckerIO.isDir p : ModelIO Bool) F (F.dir p) :=
+  fun hs => ⟨hs, rfl⟩
 
-theorem locateHits_sim {F : FS} {sp : SearchPath} {m : ConLeche.Name}
-    {x : Array (System.FilePath × List (Option String))}
-    (h : Arena.Frontend.Olean.locateHits (modelFs F) sp m = .ok x) :
-    ModelIO.Gives (ConLeche.Frontend.Olean.locateHits sp m : ModelIO _) F x := by
-  unfold Arena.Frontend.Olean.locateHits at h
-  unfold ConLeche.Frontend.Olean.locateHits
-  obtain ⟨hs, h1, h2⟩ := except_ok_of_bind h
-  cases h2
-  have key : ∀ (l : List System.FilePath) {ys : List (System.FilePath × List (Option String))},
-      (l.mapM (Arena.Frontend.Olean.locateIn (modelFs F) m)) = .ok ys →
-      ModelIO.Gives (l.mapM (ConLeche.Frontend.Olean.locateIn m) : ModelIO _) F ys := by
-    intro l
-    induction l with
-    | nil =>
-      intro ys hy
-      simp only [List.mapM_nil] at hy ⊢
-      cases hy
-      exact ModelIO.gives_pure _ _
-    | cons e es ih =>
-      intro ys hy
-      simp only [List.mapM_cons] at hy ⊢
-      obtain ⟨y, hy1, hy2⟩ := except_ok_of_bind hy
-      obtain ⟨ys', hy3, hy4⟩ := except_ok_of_bind hy2
-      cases hy4
-      exact (locateIn_sim hy1).bind ((ih hy3).bind (ModelIO.gives_pure _ _))
-  exact (key _ h1).bind (ModelIO.gives_pure _ _)
+/-- A list's `mapM`, an `Except String` step that answers as a `ModelIO` one gives. -/
+theorem mapM_sim {α β : Type} {F : FS} {f : α → Except String β} {g : α → ModelIO β}
+    (hfg : ∀ a b, f a = .ok b → ModelIO.Gives (g a) F b) :
+    ∀ (l : List α) {ys : List β}, l.mapM f = .ok ys → ModelIO.Gives (l.mapM g) F ys
+  | [], ys, h => by
+    simp only [List.mapM_nil] at h ⊢
+    cases h
+    exact ModelIO.gives_pure _ _
+  | a :: l, ys, h => by
+    simp only [List.mapM_cons] at h ⊢
+    obtain ⟨y, hy1, hy2⟩ := except_ok_of_bind h
+    obtain ⟨ys', hy3, hy4⟩ := except_ok_of_bind hy2
+    cases hy4
+    exact (hfg a y hy1).bind ((mapM_sim hfg l hy3).bind (ModelIO.gives_pure _ _))
 
-/-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:73 findModule_ok -/
+theorem holdsRoot_sim {F : FS} {r : ConLeche.Name} {d : System.FilePath} {b : Bool}
+    (h : Arena.Frontend.Olean.holdsRoot (modelFs F) r d = .ok b) :
+    ModelIO.Gives (ConLeche.Frontend.Olean.holdsRoot r d : ModelIO Bool) F b := by
+  unfold Arena.Frontend.Olean.holdsRoot at h
+  unfold ConLeche.Frontend.Olean.holdsRoot
+  refine (isDir_gives F _).bind ?_
+  cases hd : F.dir (modDir d r) with
+  | true =>
+    simp only [modelFs, hd, ↓reduceIte] at h ⊢
+    cases h
+    exact ModelIO.gives_pure _ _
+  | false =>
+    simp only [modelFs, hd, Bool.false_eq_true, ↓reduceIte] at h ⊢
+    cases h
+    exact pathExists_gives F _
+
+theorem rootHits_sim {F : FS} {sp : SearchPath} {r : ConLeche.Name} {a : RootAt}
+    (h : Arena.Frontend.Olean.rootHits (modelFs F) sp r = .ok a) :
+    ModelIO.Gives (ConLeche.Frontend.Olean.rootHits sp r : ModelIO RootAt) F a := by
+  unfold Arena.Frontend.Olean.rootHits at h
+  unfold ConLeche.Frontend.Olean.rootHits
+  obtain ⟨held, h1, h2⟩ := except_ok_of_bind h
+  refine (mapM_sim (g := fun d => do return (d, ← (ConLeche.Frontend.Olean.holdsRoot r d : ModelIO Bool)))
+    (fun d x hx => by
+      obtain ⟨b, hb1, hb2⟩ := except_ok_of_bind hx
+      cases hb2
+      exact (holdsRoot_sim hb1).bind (ModelIO.gives_pure _ _)) sp h1).bind ?_
+  generalize ((held.filter (·.2)).map (·.1)) = hits at h2 ⊢
+  rcases hits with _ | ⟨d, _ | ⟨d2, rest⟩⟩
+  · cases h2
+    exact ModelIO.gives_pure _ _
+  · cases h2
+    exact ModelIO.gives_pure _ _
+  · dsimp only at h2 ⊢
+    obtain ⟨rs, h3, h4⟩ := except_ok_of_bind h2
+    refine (mapM_sim (g := fun d => do return (d, ← (CheckerIO.realPath d : ModelIO System.FilePath)))
+      (fun d x hx => by
+        obtain ⟨q, hq1, hq2⟩ := except_ok_of_bind hx
+        cases hq2
+        cases hr : F.real d with
+        | none => simp [modelFs, hr] at hq1
+        | some q' =>
+          simp only [modelFs, hr, Except.ok.injEq] at hq1
+          subst hq1
+          exact (realPath_gives hr).bind (ModelIO.gives_pure _ _)) _ h3).bind ?_
+    generalize ConLeche.Frontend.Olean.oneEach rs = o at h4 ⊢
+    rcases o with _ | ⟨x, _ | ⟨y, o⟩⟩ <;> (cases h4; exact ModelIO.gives_pure _ _)
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Roots.lean:361 findModule_ok — **a module the twin
+finds on the snapshot is found by upstream's lookup on the bare search path**. -/
 theorem findModule_sim {F : FS} {sp : SearchPath} {m : ConLeche.Name} {l : Located}
     (h : Arena.Frontend.Olean.findModule (modelFs F) sp m = .ok l) :
-    ModelIO.Gives (ConLeche.Frontend.Olean.findModule sp m : ModelIO _) F (.ok l) := by
+    ModelIO.Gives (ConLeche.Frontend.Olean.findModule (sp : Roots) m : ModelIO _) F (.ok l) := by
   unfold Arena.Frontend.Olean.findModule at h
   unfold ConLeche.Frontend.Olean.findModule
   split at h
-  · rename_i hits hh
-    split at h
-    · rename_i l' hl
-      cases h
-      refine (locateHits_sim hh).map.tryCatch.bind ?_
-      simp only [hl]
+  · rename_i l' hl
+    cases h
+    unfold Arena.Frontend.Olean.rootAt at hl
+    split at hl
+    · rename_i a ha
+      have hg := rootHits_sim ha
+      have hd : ∃ d, a = .dir d := by
+        cases a <;> simp [ConLeche.Frontend.Olean.locatedOf] at hl ⊢
+      obtain ⟨d, rfl⟩ := hd
+      rw [← hl]
+      refine ModelIO.Gives.map ?_
+      simp only [ConLeche.Frontend.Olean.Roots.rootOf, ConLeche.Frontend.Olean.lookAt]
+      have e0 : ((sp : Roots).map[m.root]? : Option RootAt) = none := by
+        show (({} : Std.HashMap ConLeche.Name RootAt)[m.root]?) = none
+        simp
+      rw [e0]
+      refine hg.tryCatch.bind ?_
       exact ModelIO.gives_pure _ _
-    · cases h
+    · simp [ConLeche.Frontend.Olean.locatedOf] at hl
   · cases h
+
+/-- **A module the twin finds is found through any lookup read off the snapshot** whose
+search path is the twin's (`Roots.Ok`, upstream's `findModule_rev`). -/
+theorem findModule_simR {F : FS} {sp : SearchPath} {R : Roots} (hR : R.Ok F)
+    (hb : R.bare = (sp : Roots)) {m : ConLeche.Name} {l : Located}
+    (h : Arena.Frontend.Olean.findModule (modelFs F) sp m = .ok l) :
+    ModelIO.Gives (ConLeche.Frontend.Olean.findModule R m : ModelIO _) F (.ok l) := by
+  obtain ⟨hs', o⟩ := (findModule_sim h).outcome #[]
+  rw [← hb] at o
+  exact ConLeche.Frontend.Olean.findModule_ok (ConLeche.Frontend.Olean.findModule_rev hR o)
+
+/-- **Resolving a root the twin finds**: the map, with it resolved, read off the snapshot. -/
+theorem resolve_sim {F : FS} {sp : SearchPath} {R : Roots} (hR : R.Ok F)
+    (hb : R.bare = (sp : Roots)) {m : ConLeche.Name} {l : Located}
+    (h : Arena.Frontend.Olean.findModule (modelFs F) sp m = .ok l) :
+    ∃ R1, ModelIO.Gives (R.resolve m : ModelIO Roots) F R1 ∧ R1.Ok F ∧ R1.bare = (sp : Roots) := by
+  have hp : R.path = sp := congrArg Roots.path hb
+  have hf : R.fallback = [] := congrArg Roots.fallback hb
+  unfold Arena.Frontend.Olean.findModule at h
+  split at h
+  · rename_i l' hl
+    unfold Arena.Frontend.Olean.rootAt at hl
+    split at hl
+    · rename_i a ha
+      have hd : ∃ d, a = .dir d := by
+        cases a <;> simp [ConLeche.Frontend.Olean.locatedOf] at hl ⊢
+      obtain ⟨d, rfl⟩ := hd
+      have hg : ModelIO.Gives (ConLeche.Frontend.Olean.lookAt R.path R.fallback m.root :
+          ModelIO RootAt) F (.dir d) := by
+        rw [hp, hf]
+        unfold ConLeche.Frontend.Olean.lookAt
+        exact (rootHits_sim ha).tryCatch.bind (ModelIO.gives_pure _ _)
+      have hres : ∃ R1, ModelIO.Gives (R.resolve m : ModelIO Roots) F R1 := by
+        unfold ConLeche.Frontend.Olean.Roots.resolve
+        by_cases hc : R.map.contains m.root = true
+        · exact ⟨R, by simp only [hc, ↓reduceIte]; exact ModelIO.gives_pure _ _⟩
+        · refine ⟨{ R with map := R.map.insert m.root (.dir d) }, ?_⟩
+          simp only [hc, Bool.false_eq_true, ↓reduceIte]
+          exact hg.bind (ModelIO.gives_pure _ _)
+      obtain ⟨R1, hR1⟩ := hres
+      obtain ⟨hs', o⟩ := hR1.outcome #[]
+      obtain ⟨hok, hbare⟩ := ConLeche.Frontend.Olean.Roots.resolve_ok hR o
+      exact ⟨R1, hR1, hok, hbare.trans hb⟩
+    · simp [ConLeche.Frontend.Olean.locatedOf] at hl
+  · cases h
+
+/-- The twin's accepting imports read found the module. -/
+theorem moduleImports_found {pk : OleanPins} {F : FS} {sp : SearchPath} {m : NIdx}
+    {mn : ConLeche.Name} {xs : Array (ImportF NIdx)} {s s' : AState}
+    (hm : denoteN s.store.ns m = some mn)
+    (h : Arena.Frontend.Olean.moduleImports (modelFs F) pk sp m s = .ok (xs, s')) :
+    ∃ l, Arena.Frontend.Olean.findModule (modelFs F) sp mn = .ok l := by
+  unfold Arena.Frontend.Olean.moduleImports at h
+  obtain ⟨mn', s₁, h1, h2⟩ := AM.bind_ok h
+  obtain ⟨hs1, hd1⟩ := readName_run h1
+  have hmn : mn' = mn := Option.some.inj (hd1.symm.trans (hs1 ▸ hm))
+  subst hmn
+  cases hfm : Arena.Frontend.Olean.findModule (modelFs F) sp mn' with
+  | error e =>
+    simp only [hfm] at h2
+    cases h2
+  | ok loc => exact ⟨loc, rfl⟩
 
 /-! ## One file -/
 
@@ -206,15 +270,16 @@ theorem partOfBytes_ok {path p' : String} {b : ByteArray} {x : Part} (h : partOf
       exact ofBytes_label hq
     · cases h
 
-/-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:114 readPart_det -/
-theorem readPart_sim {F : FS} {p : System.FilePath} {x : Part}
-    (h : Arena.Frontend.Olean.readPart (modelFs F) p = .ok x) :
-    ModelIO.Gives (ConLeche.Frontend.Olean.readPart p : ModelIO _) F (.ok x) := by
-  unfold Arena.Frontend.Olean.readPart at h
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:89 readPartOr_det -/
+theorem readPartOr_sim {F : FS} {p : System.FilePath} {absent : Unit → ConRon.Arena.CheckError}
+    {absentC : IO.Error → ModelIO ConLeche.CheckError} {x : Part}
+    (h : Arena.Frontend.Olean.readPartOr (modelFs F) p absent = .ok x) :
+    ModelIO.Gives (ConLeche.Frontend.Olean.readPartOr p absentC : ModelIO _) F (.ok x) := by
+  unfold Arena.Frontend.Olean.readPartOr at h
   split at h
   · cases h
   · rename_i b hb
-    have hd := ConLeche.Frontend.Olean.readPart_det (modelFs_readBinFile hb)
+    have hd := ConLeche.Frontend.Olean.readPartOr_det (a := absentC) (modelFs_readBinFile hb)
     rwa [partOfBytes_ok h] at hd
 
 /-- con-leche: ConLeche/Verify/Frontend/Olean/Files.lean:136 foldList_hdr — the twin's reads at
@@ -330,16 +395,17 @@ theorem readImportsAt_run {pk : OleanPins} {F : FS} {loc : Located} {m : ConLech
           have hf := readHdrBytes_fold hb hp hz b.size 0 (by omega) (by omega)
             (by simp) hacc
           simp only [ConLeche.Frontend.Olean.readImportsAt]
-          refine (ConLeche.foldChunks_det _ _ _ _ hb).bind ?_
+          refine (ConLeche.foldChunks_det _ _ _ _ hb).map.tryCatch.bind ?_
           rw [hf]
           exact ModelIO.gives_pure _ _
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:199-205 moduleImports -/
-theorem moduleImports_run {pk : OleanPins} {F : FS} {sp : SearchPath} {m : NIdx}
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:274-280 moduleImports -/
+theorem moduleImports_run {pk : OleanPins} {F : FS} {sp : SearchPath} {R : Roots} (hR : R.Ok F)
+    (hb : R.bare = (sp : Roots)) {m : NIdx}
     {mn : ConLeche.Name} {xs : Array (ImportF NIdx)} {s s' : AState}
     (hm : denoteN s.store.ns m = some mn) (hctx : Ctx pk s)
     (h : Arena.Frontend.Olean.moduleImports (modelFs F) pk sp m s = .ok (xs, s')) :
-    ParseStep s s' ∧ ∃ zs, ModelIO.Gives (ConLeche.Frontend.Olean.moduleImports sp mn : ModelIO _) F (.ok zs) ∧
+    ParseStep s s' ∧ ∃ zs, ModelIO.Gives (ConLeche.Frontend.Olean.moduleImports R mn : ModelIO _) F (.ok zs) ∧
       xs.toList.mapM (denoteImport s'.store) = some zs.toList := by
   unfold Arena.Frontend.Olean.moduleImports at h
   obtain ⟨mn', s₁, h1, h2⟩ := AM.bind_ok h
@@ -356,20 +422,23 @@ theorem moduleImports_run {pk : OleanPins} {F : FS} {sp : SearchPath} {m : NIdx}
     obtain ⟨hst, zs, hz, hd⟩ := readImportsAt_run hctx h2
     refine ⟨hst, zs, ?_, hd⟩
     simp only [ConLeche.Frontend.Olean.moduleImports]
-    exact (findModule_sim hfm).bind hz
+    exact (findModule_simR hR hb hfm).bind hz
 
 /-! ## The files of a view -/
 
-/-- con-leche: ConLeche/Frontend/Olean/Files.lean:207-236 readFiles -/
-theorem readFiles_sim {F : FS} {sp : SearchPath} {m : ConLeche.Name} {level : OLeanLevel}
-    {f : ModFiles} (h : Arena.Frontend.Olean.readFiles (modelFs F) sp m level = .ok f) :
-    ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp m level : ModelIO _) F (.ok f) := by
-  unfold Arena.Frontend.Olean.readFiles at h
-  obtain ⟨loc, h1, h⟩ := except_ok_of_bind h
+theorem pathExistsE_ok {F : FS} {p : System.FilePath} {b : Bool}
+    (h : Arena.Frontend.Olean.pathExistsE (modelFs F) p = .ok b) : b = (F.real p).isSome := by
+  simp only [Arena.Frontend.Olean.pathExistsE, modelFs, Except.ok.injEq] at h
+  exact h.symm
+
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:297-325 readFilesAt -/
+theorem readFilesAt_sim {F : FS} {loc : Located} {m : ConLeche.Name} {level : OLeanLevel}
+    {f : ModFiles} (h : Arena.Frontend.Olean.readFilesAt (modelFs F) loc m level = .ok f) :
+    ModelIO.Gives (ConLeche.Frontend.Olean.readFilesAt loc m level : ModelIO _) F (.ok f) := by
+  unfold Arena.Frontend.Olean.readFilesAt at h
   obtain ⟨ex, h2, h⟩ := except_ok_of_bind h
-  unfold ConLeche.Frontend.Olean.readFiles
-  refine (findModule_sim h1).bind ?_
-  refine (readPart_sim h2).bind ?_
+  unfold ConLeche.Frontend.Olean.readFilesAt
+  refine (readPartOr_sim h2).bind ?_
   by_cases he : (level == OLeanLevel.exported) = true
   · simp only [he, ↓reduceIte] at h ⊢
     cases h
@@ -378,7 +447,11 @@ theorem readFiles_sim {F : FS} {sp : SearchPath} {m : ConLeche.Name} {level : OL
     cases hm : ModFiles.isModule { exported := ex } with
     | false =>
       simp only [hm, Bool.not_false, ↓reduceIte] at h ⊢
-      by_cases hs1 : (loc.hasServer || loc.hasPrivate) = true
+      simp only [Arena.Frontend.Olean.pathExistsE, modelFs, bind, Except.bind, pure,
+        Except.pure] at h
+      refine (pathExists_gives F _).bind ((pathExists_gives F _).bind ?_)
+      by_cases hs1 : ((F.real (modFile loc.dir m "olean.server")).isSome ||
+          (F.real (modFile loc.dir m "olean.private")).isSome) = true
       · simp only [hs1, ↓reduceIte] at h
         cases h
       · simp only [hs1, Bool.false_eq_true, ↓reduceIte] at h ⊢
@@ -386,27 +459,36 @@ theorem readFiles_sim {F : FS} {sp : SearchPath} {m : ConLeche.Name} {level : OL
         exact ModelIO.gives_pure _ _
     | true =>
       simp only [hm, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at h ⊢
-      cases hs : loc.hasServer with
-      | false =>
-        simp only [hs, Bool.not_false, ↓reduceIte] at h
-        cases h
-      | true =>
-        simp only [hs, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at h ⊢
-        cases hq : loc.hasPrivate with
-        | false =>
-          simp only [hq, Bool.not_false, ↓reduceIte] at h
-          cases h
+      simp only [bind, Except.bind, pure, Except.pure] at h
+      split at h
+      · cases h
+      rename_i sv h3
+      refine (readPartOr_sim h3).bind ?_
+      by_cases hl : (level == OLeanLevel.server) = true
+      · simp only [hl, ↓reduceIte, Arena.Frontend.Olean.pathExistsE, modelFs] at h ⊢
+        refine (pathExists_gives F _).bind ?_
+        cases hq : (F.real (modFile loc.dir m "olean.private")).isSome with
+        | false => simp [hq] at h
         | true =>
-          simp only [hq, Bool.not_true, Bool.false_eq_true, ↓reduceIte, pure_bind] at h ⊢
-          obtain ⟨sv, h3, h⟩ := except_ok_of_bind h
-          refine (readPart_sim h3).bind ?_
-          by_cases hl : (level == OLeanLevel.server) = true
-          · simp only [hl, ↓reduceIte] at h ⊢
-            cases h
-            exact ModelIO.gives_pure _ _
-          · simp only [hl, Bool.false_eq_true, ↓reduceIte] at h ⊢
-            obtain ⟨pv, h4, h⟩ := except_ok_of_bind h
-            cases h
-            exact (readPart_sim h4).bind (ModelIO.gives_pure _ _)
+          simp only [hq, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at h ⊢
+          cases h
+          exact ModelIO.gives_pure _ _
+      · simp only [hl, Bool.false_eq_true, ↓reduceIte] at h ⊢
+        split at h
+        · cases h
+        rename_i pv h4
+        cases h
+        exact (readPartOr_sim h4).bind (ModelIO.gives_pure _ _)
+
+/-- con-leche: ConLeche/Frontend/Olean/Files.lean:327-332 readFiles — through any lookup read
+off the snapshot whose search path is the twin's. -/
+theorem readFiles_sim {F : FS} {sp : SearchPath} {R : Roots} (hR : R.Ok F)
+    (hb : R.bare = (sp : Roots)) {m : ConLeche.Name} {level : OLeanLevel}
+    {f : ModFiles} (h : Arena.Frontend.Olean.readFiles (modelFs F) sp m level = .ok f) :
+    ModelIO.Gives (ConLeche.Frontend.Olean.readFiles R m level : ModelIO _) F (.ok f) := by
+  unfold Arena.Frontend.Olean.readFiles at h
+  obtain ⟨loc, h1, h⟩ := except_ok_of_bind h
+  unfold ConLeche.Frontend.Olean.readFiles
+  exact (findModule_simR hR hb h1).bind (readFilesAt_sim h)
 
 end ConRon.Bridge.Frontend.Olean

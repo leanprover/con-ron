@@ -61,7 +61,6 @@ Does the read hold the object at `g` as kind `k`: its memo or the frontier. -/
   st.has k g || b.has k g
 
 /-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:159-182 SM.buildIn
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Sparse.SM.subIn_bridge, then delete this line
 The memo over a frontier as the node functions' `sub` (upstream's `lookup`, per
 kind; the Rust's `SMIn`). -/
 @[inline] def SM.subIn (st : SM) (b : Frontier) : Sub where
@@ -71,7 +70,6 @@ kind; the Rust's `SMIn`). -/
   expr c := lookup st.exprs b.exprs c
 
 /-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:159-182 SM.buildIn
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Sparse.SM.buildIn_bridge, then delete this line
 **The object at `g`, read as kind `k`**, by the node function, its kids' values from
 the memo or the frontier, and added to the memo. -/
 def SM.buildIn (pk : OleanPins) (r : Region) (b : Frontier) (k : UInt8) (g : Nat) (st : SM) :
@@ -88,7 +86,6 @@ def SM.buildIn (pk : OleanPins) (r : Region) (b : Frontier) (k : UInt8) (g : Nat
 set_option linter.unusedVariables false in
 mutual
 /-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:189-205 sGo
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Sparse.sGo_bridge, then delete this line
 **The object at `g` read as kind `k`, into the memo**: nothing to do if the memo or
 the frontier holds it; else its kids, then the object itself. -/
 def sGo (pk : OleanPins) (r : Region) (b : Frontier) (k : UInt8) (g : Nat) (st : SM) :
@@ -105,7 +102,6 @@ def sGo (pk : OleanPins) (r : Region) (b : Frontier) (k : UInt8) (g : Nat) (st :
 termination_by (g, 1, 0)
 
 /-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:207-223 kidsGo
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Sparse.kidsGo_bridge, then delete this line
 The kids the fields `fs` of the object at `g` lead to, into the memo. -/
 def kidsGo (pk : OleanPins) (r : Region) (b : Frontier) (g : Nat) :
     List (Nat × UInt8 × Bool) → SM → AM (Option SM)
@@ -126,7 +122,6 @@ decreasing_by
 end
 
 /-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:228-232 frontierExpr
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Sparse.frontierExpr_bridge, then delete this line
 **The `Expr` at location `c`**, read with a memo of its own over a frontier. -/
 def frontierExpr (pk : OleanPins) (r : Region) (b : Frontier) (c : Nat) : AM (Option EIdx) := do
   match ← sGo pk r b kExpr c {} with
@@ -134,7 +129,6 @@ def frontierExpr (pk : OleanPins) (r : Region) (b : Frontier) (c : Nat) : AM (Op
   | none => pure none
 
 /-- con-leche: ConLeche/Frontend/Olean/Sparse.lean:234-242 sparseNameP
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Sparse.sparseNameP_bridge, then delete this line
 **The `Name` a pointer stands for**, read sparsely. -/
 def sparseNameP (pk : OleanPins) (r : Region) (v : UInt64) : AM (Option NIdx) := do
   if v == 1 then pure (some pk.anon)

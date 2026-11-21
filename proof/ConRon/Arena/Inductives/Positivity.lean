@@ -96,7 +96,6 @@ open ConLeche
 /-! ## `mentionsAnyConst`: the positivity walk's question at k names -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1155-1169 Expr.mentionsAnyConst
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Positivity.mentionsAnyGo_bridge, then delete this line
 con-leche: ConLeche/Cached/ExprOpsC.lean:1795-1839 mentionsAnyConstXP
 Does any of the constants `names` occur in `h`?  A syntactic walk (`fvar`
 annotations included; a `.proj` node names its structure), memoised on the
@@ -141,7 +140,6 @@ def mentionsAnyGo (names : List NIdx) (memo : Std.HashMap EIdx Bool) :
         pure (r, m.insert h r)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1155-1169 Expr.mentionsAnyConst
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Positivity.mentionsAnyConst_bridge, then delete this line
 con-leche: ConLeche/Cached/ExprOpsC.lean:1841-1843 mentionsAnyConstC
 The executed `mentionsAnyConst` (one memoised DAG walk). -/
 def mentionsAnyConst (names : List NIdx) (e : EIdx) : AM Bool := do
@@ -272,6 +270,17 @@ def familyKeyCheck (mode : CheckMode) (fe : IFEnv) (d : Nat) (c : NIdx) (us : Ls
         let t ← instLPFast coreWalkFuel cv.levelParams us ty
         checkSpineAt mode fe d t ds
   | _ => fail (.invalid "a family's key is no stored family")
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:131-143 familyKeyChecks
+con-leche: ConLeche/Cached/IndPositivity.lean:185-191 familyKeyChecksC
+**A group at a key, typed**: every family of `cs` at the key (`familyKeyCheck`),
+each against its own telescope. -/
+def familyKeyChecks (mode : CheckMode) (fe : IFEnv) (d : Nat) (us : LsIdx)
+    (ds : List EIdx) : List NIdx → AM Unit
+  | [] => pure ()
+  | c :: cs => do
+    familyKeyCheck mode fe d c us ds
+    familyKeyChecks mode fe d us ds cs
 
 /-! ## `nestOcc`: official's `has_ind_occ`, with the holes -/
 
@@ -1045,23 +1054,17 @@ termination_by (if root then 1 else 0, fuel, 2, cs.length)
 decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *) <;> (try simp_all) <;> omega)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:786-808 nestFrame
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Positivity.nestFrame_bridge, then delete this line
 con-leche: ConLeche/Cached/IndPositivity.lean:337-349 nestFrameC
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Positivity.nestFrame_bridge, then delete this line
-**A container frame** at the instantiation `(us, ds)`: the family `hn` at the
-key `(us, ds)` TYPED at the frame's depth (K.52, `familyKeyCheck`), its holes the container's
-WHOLE recorded group `grp`, every one of their constructors walked with all
-of them abstracted, in one pass (N2-eager).  `grp` is never empty (it starts
-at the instantiation met); the cited `grp.headD default` falls back to the
-anonymous name, which the twin interns.  The stack grows by the group's holes
-at its OUTER end's opposite — appended, the module note. -/
+**A container frame** at the instantiation `(us, ds)`: every group-mate's
+family at the key `(us, ds)` TYPED at the frame's depth (K.52,
+`familyKeyChecks`), its holes the container's WHOLE recorded group `grp`, every
+one of their constructors walked with all of them abstracted, in one pass
+(N2-eager).  The stack grows by the group's holes at its OUTER end's opposite —
+appended, the module note. -/
 def nestFrame (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (fuel : Nat)
     (prog : List NestHole) (hi : Nat) (us : LsIdx) (ds : List EIdx) (nPc : Nat)
     (grp : List (NIdx × EIdx)) (ns : NestState) : AM NestState := do
-  let hn ← match grp with
-    | [] => internNNode .anonymous
-    | (c, _) :: _ => pure c
-  familyKeyCheck mode fe hi hn us ds
+  familyKeyChecks mode fe hi us ds (grp.map (·.1))
   let fr ← grp.mapM fun (c, ty) => do
     let (bs, _) ← piBinders coreWalkFuel ty
     pure ({ key := ⟨c, us, ds⟩, base := hi, nIdx := bs.length } : NestHole)

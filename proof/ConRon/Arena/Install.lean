@@ -66,7 +66,6 @@ def blockCtors (p : BlockShape) : List IConstantInfo :=
   p.ctorGroups.flatMap fun g => g.2.map fun c => .ctorInfo c.1 p.nP c.2 g.1
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1171-1174 Expr.dropVars
--- con-leche: CHANGED since cd2eceab — re-port, re-test, re-prove Install.exprDropVars_bridge, then delete this line
 **`n` variables below a term's own, which do not occur in it, dropped**: each
 instantiated at `Sort 0`. -/
 def exprDropVars : Nat → EIdx → AM EIdx

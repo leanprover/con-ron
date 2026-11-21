@@ -71,14 +71,25 @@ def checkConstantValGuardsRestSpec (cv : IConstantVal) : AM Unit := do
   if ← hasFvarFast coreWalkFuel cv.type then
     fail (.invalid "unexpected free variable in type")
 
-/-- The SYNTACTIC guards, in the twin's order: `checkConstantVal` clauses 1-6. -/
-def checkConstantValGuardsSpec (fe : IFEnv) (cv : IConstantVal) (allowOp : Bool) :
+/-- The reserved names past the operation-name test (the Rust's
+`check_constant_val_reserved`): a compiler-trust name only at an opaque, `sorryAx`'s
+only at an axiom, then the guards past them. -/
+def checkConstantValReservedSpec (cv : IConstantVal) (allowReduce allowSorry : Bool) :
     AM Unit := do
+  if (← reduceOpNames).contains cv.name && !allowReduce then
+    fail (.invalid "a compiler-trust name, not an opaque constant")
+  if cv.name == (← pinSorryAx) && !allowSorry then
+    fail (.invalid "the tolerated axiom's name, not an axiom")
+  checkConstantValGuardsRestSpec cv
+
+/-- The SYNTACTIC guards, in the twin's order: `checkConstantVal` clauses 1-8. -/
+def checkConstantValGuardsSpec (fe : IFEnv) (cv : IConstantVal)
+    (allowOp allowReduce allowSorry : Bool) : AM Unit := do
   if (fe.find? cv.name).isSome then
     fail (.invalid "duplicate declaration")
   if (← natOpName cv.name) && !allowOp then
     fail (.invalid s!"a certified Nat operation's name, not a definition: {← readName cv.name}")
-  checkConstantValGuardsRestSpec cv
+  checkConstantValReservedSpec cv allowReduce allowSorry
 
 /-- The failing arm of an unresolved constant, `throw (unresolvedConstsErrorL
 fe.strLit where_ e)` — the Rust's `unresolved_consts_fail`. -/
@@ -124,13 +135,13 @@ proof obligation, and the only thing a reader has to check against
 
 /-- `checkConstantVal` is its three pieces and the inference. -/
 theorem checkConstantVal_unfold (mode : CheckMode) (fe : IFEnv)
-    (cv : IConstantVal) (allowOp : Bool) :
-    checkConstantVal mode fe cv allowOp = (do
-      checkConstantValGuardsSpec fe cv allowOp
+    (cv : IConstantVal) (allowOp allowReduce allowSorry : Bool) :
+    checkConstantVal mode fe cv allowOp allowReduce allowSorry = (do
+      checkConstantValGuardsSpec fe cv allowOp allowReduce allowSorry
       checkConstantValTailSpec fe cv
       let stype ← inferTypeCore mode fe checkFuel 0 cv.type
       let _u ← ensureSortCore mode fe checkFuel 0 stype) := by
-  twin_reduce [checkConstantVal, checkConstantValGuardsSpec,
+  twin_reduce [checkConstantVal, checkConstantValGuardsSpec, checkConstantValReservedSpec,
     checkConstantValGuardsRestSpec, checkConstantValTailSpec, unresolvedConstsFailSpec]
 
 /-- `valueGuards` is its two scope tests and its tail. -/
@@ -611,7 +622,7 @@ def checkAxiomDeclTrustSpec (fe : IFEnv) (cv : IConstantVal) : AM IFEnv := do
 the standard-axiom gate (`check_axiom_decl_std`). -/
 def checkAxiomDeclStdSpec (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) :
     AM IFEnv := do
-  checkConstantVal mode fe cv false
+  checkConstantVal mode fe cv false false true
   if ← stdAxiomOk fe cv then pure (fe.push (.axiomInfo cv))
   else checkAxiomDeclTrustSpec fe cv
 
@@ -632,14 +643,14 @@ def checkOpaqueReducePinSpec (mode : CheckMode) (fe : IFEnv) (ci : IConstantInfo
 /-- `checkDecl`'s `.opaqueDecl` arm (`check_opaque_decl`). -/
 def checkOpaqueDeclSpec (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
     (value : EIdx) : AM IFEnv := do
-  checkConstantVal mode fe cv false
+  checkConstantVal mode fe cv false true false
   let ci ← checkOpaqueVal mode fe cv value
   checkOpaqueReducePinSpec mode fe ci cv.name value
 
 /-- `checkDecl`'s `.thmDecl` arm (`check_thm_decl`). -/
 def checkThmDeclSpec (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
     (value : EIdx) : AM IFEnv := do
-  checkConstantVal mode fe cv false
+  checkConstantVal mode fe cv false false false
   let ci ← checkThmVal mode fe cv value
   pure (fe.push ci)
 
@@ -669,7 +680,7 @@ def checkDefnPinsSpec (mode : CheckMode) (pins : List INatOpPinSet)
 /-- `checkDecl`'s `.defnDecl` arm, whole (`check_defn_decl`). -/
 def checkDefnDeclSpec (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     (cv : IConstantVal) (value : EIdx) (hint : ReducibilityHint) : AM IFEnv := do
-  checkConstantVal mode fe cv true
+  checkConstantVal mode fe cv true false false
   let ci ← checkDefnVal mode fe cv value hint
   checkDefnPinsSpec mode pins fe ci cv.name
 
@@ -790,8 +801,7 @@ the stored value as `defn_value` reads it. -/
 theorem checkStructuralNatPinAtFe2_split (fe2 : IFEnv) (n : NIdx) :
     checkStructuralNatPinAtFe2 fe2 n = (do
       let g ← natOpGuard fe2 n
-      let deps ← natOpDeps n
-      let d ← natOpStoredOkAll fe2 deps
+      let d ← natOpStoredOk fe2 n
       if g then
         if d then
           match defnValueOf fe2 n with
@@ -800,8 +810,7 @@ theorem checkStructuralNatPinAtFe2_split (fe2 : IFEnv) (n : NIdx) :
         else fail (.notImplemented "nonstandard structural Nat operation environment")
       else fail (.notImplemented "nonstandard structural Nat operation environment")) := by
   unfold checkStructuralNatPinAtFe2 defnValueOf
-  refine ConRon.Refine2.am_bind_congr _ fun g => ConRon.Refine2.am_bind_congr _ fun _ =>
-    ConRon.Refine2.am_bind_congr _ fun d => ?_
+  refine ConRon.Refine2.am_bind_congr _ fun g => ConRon.Refine2.am_bind_congr _ fun d => ?_
   cases g <;> cases d <;> simp only [Bool.and_true, Bool.and_false, Bool.false_eq_true,
     ↓reduceIte, ConRon.Refine2.am_fail_bind]
   rcases fe2.find? n with _ | ci

@@ -320,7 +320,7 @@ pub fn check_block_tele(
     n_p: u64,
     ms: &MemberShape,
 ) -> Result<(IConstantVal, LIdx), CheckError> {
-    match checker_base::check_constant_val(pers, st, mode, fe, &ms.cv_t, false) {
+    match checker_base::check_constant_val(pers, st, mode, fe, &ms.cv_t, false, false, false) {
         Err(e) => Err(e),
         Ok(()) => match sum_install::check_sum_tele(pers, st, n_p + ms.n_idx, &ms.cv_t) {
             Err(e) => Err(e),
@@ -762,7 +762,7 @@ pub fn split_kinds(os: &Vec<(Vec<NestFieldKind>, EIdx)>, i: usize, out: Vec<Vec<
 }
 
 /// con-leche: none — a `List NestFieldKind` copy; Lean shares the list
-/// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:418-426 NestFieldKind`.
+/// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:429-437 NestFieldKind`.
 pub fn kinds_dup(ks: &Vec<NestFieldKind>, i: usize, out: Vec<NestFieldKind>) -> Vec<NestFieldKind> {
     if i >= ks.len() {
         out

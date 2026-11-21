@@ -114,7 +114,7 @@ One member's type former: the constant check, official's telescope loop and
 the result sort, without the environment cons. -/
 def checkBlockTele (mode : CheckMode) (fe : IFEnv) (nP : Nat) (ms : MemberShape) :
     AM (IConstantVal × LIdx) := do
-  checkConstantVal mode fe ms.cvT false
+  checkConstantVal mode fe ms.cvT false false false
   let (cvTa, s) ← checkSumTele (nP + ms.nIdx) ms.cvT
   match ← stripPis (nP + ms.nIdx) cvTa.type with
   | none => fail (.internal "direct sum: type former telescope")

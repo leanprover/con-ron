@@ -196,37 +196,38 @@ is what upstream's gives**, the same step for step. -/
 theorem closureGo_run {pk : OleanPins} {F : FS} {sp : SearchPath} :
     ∀ (fuel : Nat) (stack : List (NIdx × Bool)) (seen done : Std.HashSet NIdx) (out outF : Array NIdx)
       (stackC : List (ConLeche.Name × Bool)) (seenC doneC : Std.HashSet ConLeche.Name)
-      (outC : Array ConLeche.Name) {s s' : AState}, Ctx pk s →
+      (outC : Array ConLeche.Name) (R : ConLeche.Frontend.Olean.Roots) {s s' : AState}, R.Ok F →
+      R.bare = (sp : ConLeche.Frontend.Olean.Roots) → Ctx pk s →
       ListRel (StackR s.store) stack stackC → SetRel s.store seen seenC → SetRel s.store done doneC →
       ListRel (NR s.store) out.toList outC.toList →
       closureGo (modelFs F) pk sp fuel stack seen done out s = .ok (outF, s') →
-      ParseStep s s' ∧ ∃ outFC : Array ConLeche.Name,
-        ModelIO.Gives (ConLeche.Frontend.Olean.closureGo sp fuel stackC seenC doneC outC : ModelIO _)
-          F (.ok outFC) ∧ ListRel (NR s'.store) outF.toList outFC.toList := by
+      ParseStep s s' ∧ ∃ (outFC : Array ConLeche.Name) (R' : ConLeche.Frontend.Olean.Roots),
+        ModelIO.Gives (ConLeche.Frontend.Olean.closureGo R fuel stackC seenC doneC outC : ModelIO _)
+          F (.ok (outFC, R')) ∧ ListRel (NR s'.store) outF.toList outFC.toList := by
   intro fuel
   induction fuel with
   | zero =>
-    intro stack seen done out outF stackC seenC doneC outC s s' hctx hst hse hdo hou h
+    intro stack seen done out outF stackC seenC doneC outC R s s' hR hb hctx hst hse hdo hou h
     cases hst with
     | nil =>
       rw [closureGo] at h
       obtain ⟨hv, hs⟩ := AM.pure_ok h
       cases hv
       subst hs
-      exact ⟨ParseStep.refl hctx.ok, outC, by
+      exact ⟨ParseStep.refl hctx.ok, outC, R, by
         rw [ConLeche.Frontend.Olean.closureGo]; exact ModelIO.gives_pure _ _, hou⟩
     | cons _ _ =>
       rw [closureGo] at h
       cases h
   | succ fuel ih =>
-    intro stack seen done out outF stackC seenC doneC outC s s' hctx hst hse hdo hou h
+    intro stack seen done out outF stackC seenC doneC outC R s s' hR hb hctx hst hse hdo hou h
     cases hst with
     | nil =>
       rw [closureGo] at h
       obtain ⟨hv, hs⟩ := AM.pure_ok h
       cases hv
       subst hs
-      exact ⟨ParseStep.refl hctx.ok, outC, by
+      exact ⟨ParseStep.refl hctx.ok, outC, R, by
         rw [ConLeche.Frontend.Olean.closureGo]; exact ModelIO.gives_pure _ _, hou⟩
     | @cons a b as bs hab hrest =>
       obtain ⟨m, f⟩ := a
@@ -238,7 +239,7 @@ theorem closureGo_run {pk : OleanPins} {F : FS} {sp : SearchPath} :
       | true =>
         rw [closureGo] at h
         rw [ConLeche.Frontend.Olean.closureGo]
-        exact ih _ _ _ _ _ _ _ _ _ hctx hrest hse (hdo.insert hm) (array_rel_push hou hm) h
+        exact ih _ _ _ _ _ _ _ _ _ R hR hb hctx hrest hse (hdo.insert hm) (array_rel_push hou hm) h
       | false =>
         rw [closureGo] at h
         rw [ConLeche.Frontend.Olean.closureGo]
@@ -248,12 +249,14 @@ theorem closureGo_run {pk : OleanPins} {F : FS} {sp : SearchPath} :
         · have hcC : seenC.contains mC = true := by rw [← hcs]; exact hc
           simp only [hc, ↓reduceIte] at h
           rw [ite_eq_left hcC]
-          exact ih _ _ _ _ _ _ _ _ _ hctx hrest hse hdo hou h
+          exact ih _ _ _ _ _ _ _ _ _ R hR hb hctx hrest hse hdo hou h
         · have hcC : ¬ seenC.contains mC = true := by rw [← hcs]; exact hc
           simp only [hc, Bool.false_eq_true, ↓reduceIte] at h
           rw [ite_eq_right hcC]
           obtain ⟨imps, s₁, h1, h2⟩ := AM.bind_ok h
-          obtain ⟨hst1, zs, hz, hd⟩ := moduleImports_run hm hctx h1
+          obtain ⟨l0, hl0⟩ := moduleImports_found hm h1
+          obtain ⟨R1, hres, hR1, hb1⟩ := resolve_sim hR hb hl0
+          obtain ⟨hst1, zs, hz, hd⟩ := moduleImports_run hR1 hb1 hm hctx h1
           have hctx1 := hctx.step hst1
           have hw1 := nsWF_of_StateOK hctx1.ok
           have hm1 := denoteN_ext hm hst1.ext
@@ -277,13 +280,13 @@ theorem closureGo_run {pk : OleanPins} {F : FS} {sp : SearchPath} :
               exact hl
             have hrec := ih _ _ _ _ _
               ((((zs.map (·.module)).toList.filter (!(seenC.insert mC).contains ·)).map (·, false))
-                ++ (mC, true) :: bs) _ _ _ hctx1
+                ++ (mC, true) :: bs) _ _ _ R1 hR1 hb1 hctx1
               (ListRel.append (kids_rel hw1 hse1 hmods)
                 (.cons ⟨hm1, rfl⟩ (StackR_list_ext hst1.ext hrest)))
               hse1 hdo1 (NR_list_ext hst1.ext hou) h2
-            obtain ⟨hst2, outFC, hC, hR⟩ := hrec
-            refine ⟨hst1.trans hst2, outFC, ?_, hR⟩
-            refine hz.bind ?_
+            obtain ⟨hst2, outFC, R', hC, hR'⟩ := hrec
+            refine ⟨hst1.trans hst2, outFC, R', ?_, hR'⟩
+            refine hres.bind (hz.bind ?_)
             dsimp only
             rw [hfindC]
             exact hC
@@ -994,7 +997,7 @@ theorem loadModule_run {pk : OleanPins} {F : FS} {sp : SearchPath} {total : Nat}
   cases hv
   rw [← hs] at h7
   obtain ⟨hst, hfg, lC, hrel, hn, hspec⟩ := loadAt_run hctx hp hm h7
-  exact ⟨hst, lC, f, hrel, hn, readFiles_sim hrf, hspec, hfg⟩
+  exact ⟨hst, lC, f, hrel, hn, readFiles_sim (ConLeche.Frontend.Olean.Roots.ok_coe F sp) rfl hrf, hspec, hfg⟩
 
 /-! ## The closure -/
 
@@ -1004,15 +1007,17 @@ theorem rootsStack_rel {st : EStore} :
   | _, _, .nil => .nil
   | _, _, .cons a b => .cons ⟨a, rfl⟩ (rootsStack_rel b)
 
-/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:129-131 closureOrder -/
+/-- con-leche: ConLeche/Frontend/Olean/Closure.lean:58-60 closureOrder -/
 theorem closureOrder_run {pk : OleanPins} {F : FS} {sp : SearchPath} {roots order : Array NIdx}
     {rootsC : Array ConLeche.Name} {s s' : AState} (hctx : Ctx pk s)
     (hr : ListRel (NR s.store) roots.toList rootsC.toList)
     (h : ConRon.Arena.Frontend.Olean.closureOrder (modelFs F) pk sp roots s = .ok (order, s')) :
-    ParseStep s s' ∧ ∃ orderC : Array ConLeche.Name,
-      ModelIO.Gives (ConLeche.Frontend.Olean.closureOrder sp rootsC : ModelIO _) F (.ok orderC) ∧
+    ParseStep s s' ∧ ∃ (orderC : Array ConLeche.Name) (R' : ConLeche.Frontend.Olean.Roots),
+      ModelIO.Gives (ConLeche.Frontend.Olean.closureOrder (sp : ConLeche.Frontend.Olean.Roots) rootsC :
+        ModelIO _) F (.ok (orderC, R')) ∧
       ListRel (NR s'.store) order.toList orderC.toList :=
-  closureGo_run _ _ _ _ _ _ _ _ _ _ hctx (rootsStack_rel hr) (SetRel.empty _) (SetRel.empty _) .nil h
+  closureGo_run _ _ _ _ _ _ _ _ _ _ _ (ConLeche.Frontend.Olean.Roots.ok_coe F sp) rfl hctx
+    (rootsStack_rel hr) (SetRel.empty _) (SetRel.empty _) .nil h
 
 /-- Two related lists, numbered alike. -/
 theorem listRel_zipIdx {α β : Type} {R : α → β → Prop} :
@@ -1085,15 +1090,17 @@ theorem loadClosure_run {pk : OleanPins} {F : FS} {sp : SearchPath} {roots : Arr
     (hctx : Ctx pk s) (hp : PinsRel s.store pk)
     (hr : ListRel (NR s.store) roots.toList rootsC.toList)
     (h : ConRon.Arena.Frontend.Olean.loadClosure (modelFs F) pk sp roots s = .ok (ls, s')) :
-    ParseStep s s' ∧ ∃ (orderC : Array ConLeche.Name) (lsC : List ConLeche.Frontend.Olean.Loaded),
-      ModelIO.Gives (ConLeche.Frontend.Olean.closureOrder sp rootsC : ModelIO _) F (.ok orderC) ∧
+    ParseStep s s' ∧ ∃ (orderC : Array ConLeche.Name) (R' : ConLeche.Frontend.Olean.Roots)
+      (lsC : List ConLeche.Frontend.Olean.Loaded),
+      ModelIO.Gives (ConLeche.Frontend.Olean.closureOrder (sp : ConLeche.Frontend.Olean.Roots) rootsC :
+        ModelIO _) F (.ok (orderC, R')) ∧
       ListRel (LoadedRel s'.store) ls.toList lsC ∧ ListRel (ModFront sp F s'.store) ls.toList lsC ∧
       lsC.map (·.name) = orderC.toList ∧ ∀ lC ∈ lsC, ∃ i f, (lC.name, i) ∈ orderC.toList.zipIdx ∧
         ModelIO.Gives (ConLeche.Frontend.Olean.readFiles sp lC.name .private : ModelIO _) F (.ok f) ∧
         LoadSpec f i lC := by
   unfold ConRon.Arena.Frontend.Olean.loadClosure at h
   obtain ⟨order, s₁, h1, h⟩ := AM.bind_ok h
-  obtain ⟨hst1, orderC, hC, hR⟩ := closureOrder_run hctx hr h1
+  obtain ⟨hst1, orderC, R', hC, hR⟩ := closureOrder_run hctx hr h1
   unfold ConRon.Arena.Frontend.Olean.loadAll at h
   simp only [StateT.map] at h
   cases h2 : (order.toList.zipIdx.mapM fun (p : NIdx × Nat) =>
@@ -1107,7 +1114,7 @@ theorem loadClosure_run {pk : OleanPins} {F : FS} {sp : SearchPath} {roots : Arr
   cases h
   obtain ⟨hst2, lsC, hL, hF, hmap, hall⟩ := loadAll_go _ (hctx.step hst1) (hp.ext hst1.ext)
     (listRel_zipIdx hR 0) h2
-  refine ⟨hst1.trans hst2, orderC, lsC, hC, by simpa using hL, by simpa using hF, ?_, hall⟩
+  refine ⟨hst1.trans hst2, orderC, R', lsC, hC, by simpa using hL, by simpa using hF, ?_, hall⟩
   rw [hmap]
   simp
 

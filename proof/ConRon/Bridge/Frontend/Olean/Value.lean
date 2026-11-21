@@ -393,10 +393,10 @@ theorem readRegion_run {F : FS} {pk : OleanPins} {sp : SearchPath} {m : NIdx} {i
   obtain ⟨hv', rfl⟩ := AM.pure_ok h2
   simp only [Prod.mk.injEq, Except.ok.injEq] at hv'
   obtain ⟨rfl, rfl⟩ := hv'
-  refine ⟨rfl, fun r' hr' => ?_, f, a0, readFiles_sim hrf, hv⟩
+  refine ⟨rfl, fun r' hr' => ?_, f, a0, readFiles_sim (ConLeche.Frontend.Olean.Roots.ok_coe F sp) rfl hrf, hv⟩
   simp only [Option.some.injEq] at hr'
   subst hr'
-  exact ⟨mdP, f, a0, hidx, readFiles_sim hrf, hv⟩
+  exact ⟨mdP, f, a0, hidx, readFiles_sim (ConLeche.Frontend.Olean.Roots.ok_coe F sp) rfl hrf, hv⟩
 
 /-- con-leche: ConLeche/Frontend/Olean/Records.lean:133-148 regionFor — **the region of module
 `idx`, from the cache or the files**: the files of the module upstream's values name at `idx`. -/

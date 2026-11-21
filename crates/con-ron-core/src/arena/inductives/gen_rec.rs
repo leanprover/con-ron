@@ -2082,7 +2082,7 @@ pub fn class_stream_recs(
     if i >= rcs.len() {
         Ok(out)
     } else {
-        match checker_base::check_constant_val(pers, st, mode, fe, &rcs[i].cv_r, false) {
+        match checker_base::check_constant_val(pers, st, mode, fe, &rcs[i].cv_r, false, false, false) {
             Err(e) => Err(e),
             Ok(()) => {
                 let mut o: Vec<IConstantVal> = out;

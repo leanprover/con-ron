@@ -425,7 +425,7 @@ theorem readOleans_run {F : FS} {sp : SearchPath} {roots : Array NIdx}
   obtain ⟨hst1, hp1⟩ := oleanPins_run hok hoff h1
   have hctx1 : Ctx pk s₁ := ⟨hst1.ok, by rw [hst1.scratch]; exact hoff, hp1.nulls⟩
   obtain ⟨ls, s₂, h2, h⟩ := AM.bind_ok h
-  obtain ⟨hst2, orderC, lsC, ho, hlsR, hfront, hnames, hloads⟩ :=
+  obtain ⟨hst2, orderC, R', lsC, ho, hlsR, hfront, hnames, hloads⟩ :=
     loadClosure_run hctx1 hp1 (NR_list_ext hst1.ext hroots) h2
   have hctx2 := hctx1.step hst2
   have hp2 := hp1.ext hst2.ext
@@ -466,7 +466,7 @@ theorem readOleans_run {F : FS} {sp : SearchPath} {roots : Array NIdx}
     simpa using this
   intro m d c v all hcl hv hc hk
   obtain ⟨_, ho⟩ := ho.outcome #[]
-  obtain ⟨hco, hcr⟩ := ConLeche.Frontend.Olean.closureOrder_ok ho
+  obtain ⟨hco, hcr, -, -⟩ := ConLeche.Frontend.Olean.closureOrder_ok rfl ho
   have hmo := hcl.mem_order hco hcr
   have hmem : m ∈ lsC.map (·.name) := by
     rw [hnames]

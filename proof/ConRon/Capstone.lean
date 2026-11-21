@@ -187,6 +187,7 @@ structure SnapshotOf {Fs : Type} (inst : frontend.olean.files.OleanFs Fs) (fsv :
     (F : ConLeche.FS) : Prop where
   path_exists : ∀ {p q}, PathRel p q → ∀ b, inst.path_exists fsv p = ok (.Ok b) →
     b = (F.real q).isSome
+  is_dir : ∀ {p q}, PathRel p q → ∀ b, inst.is_dir fsv p = ok (.Ok b) → b = F.dir q
   real_path : ∀ {p q}, PathRel p q → ∀ r, inst.real_path fsv p = ok (.Ok r) →
     F.real q = some ⟨ConRon.Refine.absString r⟩ ∧ ConRon.Refine.StrWF r
   read_bin_file : ∀ {p q}, PathRel p q → ∀ b, inst.read_bin_file fsv p = ok (.Ok b) →
@@ -203,6 +204,9 @@ theorem fsRel_of_snapshot {Fs : Type} {inst : frontend.olean.files.OleanFs Fs} {
     FsRel inst fsv (ConRon.Bridge.Frontend.Olean.modelFs F) where
   pathExists := fun hp b hb => by
     rw [h.path_exists hp b hb]
+    rfl
+  isDir := fun hp b hb => by
+    rw [h.is_dir hp b hb]
     rfl
   realPath := fun hp r hr => by
     obtain ⟨h1, h2⟩ := h.real_path hp r hr
@@ -463,7 +467,7 @@ def RustDenotes (ds : alloc.vec.Vec arena.env.IDeclaration) (st : arena.monad.AS
     (env : ConLeche.Env) : Prop :=
   ∃ (lst : ConRon.Arena.AState) (dsP : List ConLeche.Declaration),
     AStateRel emptyTier st lst ∧ ConRon.Bridge.denoteDecls lst.store (absIDeclL ds) = some dsP ∧
-      env = ConLeche.Cached.streamEnv dsP
+      env = ConLeche.streamEnv dsP
 
 /-- **What the Rust's records denote on `--olean`**: `RustDenotes`, each theorem's reference
 replaced by a value (`fillDecl`): the records of an `--olean` run hold a reference where a
@@ -472,7 +476,7 @@ def RustDenotesFilled (ds : alloc.vec.Vec arena.env.IDeclaration) (st : arena.mo
     (env : ConLeche.Env) : Prop :=
   ∃ (lst : ConRon.Arena.AState) (dsP : List ConLeche.Declaration) (val : Nat → ConLeche.Expr),
     AStateRel emptyTier st lst ∧ ConRon.Bridge.denoteDecls lst.store (absIDeclL ds) = some dsP ∧
-      env = ConLeche.Cached.streamEnv
+      env = ConLeche.streamEnv
         (dsP.map (ConLeche.Cached.fillDecl (ConRon.Bridge.fillRef val)))
 
 /-- `prepare::prepare_d` at `DeclUsedConsts`, the call the binary makes on a stream
