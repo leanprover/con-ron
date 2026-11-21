@@ -13,6 +13,7 @@ module the same way: its copies fit a `usize` (`CopyFits`), as every copy the in
 -/
 import ConRon.Refine2.Modular.ReachRel
 import ConRon.Refine2.Frontend.Olean.Closure
+import ConRon.Refine2.Modular.Graph
 import ConRon.Refine2.Checker.Needs
 import ConRon.Arena.Modular.Reach
 
@@ -39,16 +40,6 @@ theorem drop_map_cons {α β : Type} {l : List α} {i : Nat} (hi : i < l.length)
 
 theorem usize_succ_val {i j : Std.Usize} (h : i + 1#usize = ok j) : j.val = i.val + 1 := by
   rw [ConRon.Refine.Nat.uadd_val h]; rfl
-
-theorem lt_len {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize} (h : i < alloc.vec.Vec.len v) :
-    i.val < v.val.length := by
-  have : i.val < (alloc.vec.Vec.len v).val := h
-  rwa [vec_len_val] at this
-
-theorem not_lt_len {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize} (h : ¬ i < alloc.vec.Vec.len v) :
-    v.val.length ≤ i.val := by
-  have : ¬ i.val < (alloc.vec.Vec.len v).val := h
-  rw [vec_len_val] at this; omega
 
 /-! ## The stack -/
 
@@ -393,7 +384,7 @@ theorem pub_has_eq {wr : frontend.olean.index.WorkerReads} {wr' : Arena.Frontend
     have hfit' : hi'.val ≤ Std.Usize.max := by omega
     dsimp only at hr
     peel hr as j, hj
-    have ej : j.val = hi'.val := by rw [← Result.ok_injective hj]; exact cast_usize_val hfit'
+    have ej : j.val = hi'.val := by rw [← Result.ok_injective hj]; exact ConRon.Refine2.Frontend.Olean.cast_usize_val hfit'
     have hpl : env.wr.pub.size = wr.pub_.val.length := by
       rw [← Array.length_toList, ← hw.pub, List.length_map]
     by_cases hl : j < alloc.vec.Vec.len wr.pub_
@@ -773,7 +764,7 @@ theorem in_read_order_loop_eq (l : frontend.modular.reach.ReachLog) {L : Modular
     obtain ⟨_, rfl⟩ := vec_index_eq hx
     have hfit := ho _ (List.getElem_mem hi)
     peel h as j, hj
-    have ej : j.val = (o.val[i.val]).val := by rw [← Result.ok_injective hj]; exact cast_usize_val hfit
+    have ej : j.val = (o.val[i.val]).val := by rw [← Result.ok_injective hj]; exact ConRon.Refine2.Frontend.Olean.cast_usize_val hfit
     rw [List.drop_eq_getElem_cons hi, List.map_cons, List.foldl_cons]
     peel h as q, hq
     obtain ⟨ctx1, homes1⟩ := q
