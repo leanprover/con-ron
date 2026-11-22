@@ -20,7 +20,7 @@ use crate::arena::handle::NIdx;
 use crate::arena::store::{EStore, PersTier};
 use crate::frontend::olean::closure;
 use crate::frontend::olean::files;
-use crate::frontend::olean::files::OleanFs;
+use crate::frontend::checker_io::CheckerFs;
 use crate::frontend::olean::spec::{ImportF, ImportRec, OleanPins};
 use crate::frontend::olean::view;
 use crate::frontend::olean::view::OLeanLevel;
@@ -174,7 +174,7 @@ pub fn levels_again(stack: &mut Vec<LvWork>, sp: usize, imports: &HashMap2<NIdx,
 /// imports expanded at its flags and its place after them (`done`).  A module
 /// met again while its own imports are expanded is an import cycle.  `fuel`
 /// bounds the steps.
-pub fn levels_go<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp_dirs: &files::Roots, g_priv: bool, stack: Vec<LvWork>, top: usize, st: LvState) -> Result<LvState, CheckError> {
+pub fn levels_go<F: CheckerFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp_dirs: &files::Roots, g_priv: bool, stack: Vec<LvWork>, top: usize, st: LvState) -> Result<LvState, CheckError> {
     let mut stack = stack;
     let mut sp = top;
     let mut st = st;
@@ -280,7 +280,7 @@ pub fn imports_out(imports: &mut HashMap2<NIdx, Vec<ImportRec>>, m: &NIdx) -> Ve
 /// **The header fixpoint** of a module whose header says `is_module` and
 /// `imports`: every module Lean's `importModulesCore` loads for it, in Lean's
 /// module order, with the part it loads of each (`load_flags_level`).
-pub fn header_fixpoint<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp_dirs: &files::Roots, is_module: bool, imports: &Vec<ImportRec>) -> Result<HeaderLoads, CheckError> {
+pub fn header_fixpoint<F: CheckerFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp_dirs: &files::Roots, is_module: bool, imports: &Vec<ImportRec>) -> Result<HeaderLoads, CheckError> {
     let root = LoadFlags { import_all: true, is_exported: is_module };
     let mut stack: Vec<LvWork> = Vec::with_capacity(imports.len());
     let sp = lv_push_imports(&mut stack, 0, &root, imports);

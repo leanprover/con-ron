@@ -50,7 +50,7 @@ use crate::frontend::export_c::{ParseResultD, StateD};
 use crate::frontend::olean::closure;
 use crate::frontend::olean::emit;
 use crate::frontend::olean::emit::Emit;
-use crate::frontend::olean::files::OleanFs;
+use crate::frontend::checker_io::CheckerFs;
 use crate::frontend::olean::merge;
 use crate::frontend::olean::merge::Merged;
 use crate::frontend::olean::spec;
@@ -238,14 +238,14 @@ pub fn mod_refs(mg: &mut Merged) -> Vec<ModRef> {
 
 /// con-leche: ConLeche/Frontend/Olean/Records.lean:108-138 readOleansAt
 /// **The whole read, through a lookup**: load, merge, emit, build, the heartbeat
-/// saying each step (`OleanFs::read_notes_say`).  `constants` names the constants
+/// saying each step (`CheckerFs::read_notes_say`).  `constants` names the constants
 /// to start from, as lean4export's arguments after `--` do; `None` is every
 /// constant of the closure.  A theorem's value is a reference.  A compared run
 /// reads through a lookup with a fallback (`sp`), keeps the constants it names
 /// that the closure holds (`lenient`: those it does not are the comparison's
 /// business) and asks for the constants' homes (`homes`); the flat run passes
 /// `false` for both.
-pub fn read_oleans<F: OleanFs>(fs: &F, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, roots: &Vec<NIdx>, constants: &Option<Vec<NIdx>>, lenient: bool, homes: bool) -> Result<OleanRead, (CheckError, u64)> {
+pub fn read_oleans<F: CheckerFs>(fs: &F, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, roots: &Vec<NIdx>, constants: &Option<Vec<NIdx>>, lenient: bool, homes: bool) -> Result<OleanRead, (CheckError, u64)> {
     let pk = match spec::olean_pins(pers, ar) {
         Err(e) => return Err((e, 0)),
         Ok(p) => p,
@@ -317,7 +317,7 @@ pub fn owned_view(f: ModFiles, vb: ViewBytes) -> RegionBuf {
 /// con-leche: ConLeche/Frontend/Olean/Records.lean:149-164 regionFor
 /// The region of module `idx` (named `m`), from the cache or the files, the
 /// cache left to go on with: a failure empties it.
-pub fn region_for<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, m: &NIdx, idx: u64, c: &mut ValueCache) -> Result<(), CheckError> {
+pub fn region_for<F: CheckerFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, m: &NIdx, idx: u64, c: &mut ValueCache) -> Result<(), CheckError> {
     let hit = match &c.region {
         Some(_) => c.idx == idx,
         None => false,
@@ -349,7 +349,7 @@ pub fn region_for<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar:
 /// (`region_for`, the worker's cache `c`), then the value, over the module's
 /// frontier (`sparse::frontier_expr`), interned into `ar`: a worker's store,
 /// so its scratch tier.  `pk` is the read's (`OleanRead.pins`).
-pub fn read_value<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, values: &Vec<ModRef>, c: &mut ValueCache, code: u64) -> Result<EIdx, CheckError> {
+pub fn read_value<F: CheckerFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, values: &Vec<ModRef>, c: &mut ValueCache, code: u64) -> Result<EIdx, CheckError> {
     let i = lazy::ref_module(code);
     if !(i < (values.len() as u64)) {
         let t = text::cat3({ const M: [u32; 28] = [97, 32, 116, 104, 101, 111, 114, 101, 109, 39, 115, 32, 118, 97, 108, 117, 101, 32, 105, 110, 32, 109, 111, 100, 117, 108, 101, 32]; crate::kernel::core_types::code_points(&M) }, &text::u64_str(i), &{ const M: [u32; 5] = [44, 32, 111, 102, 32]; crate::kernel::core_types::code_points(&M) });
@@ -372,7 +372,7 @@ pub fn read_value<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar:
 /// con-leche: ConLeche/Frontend/Olean/Records.lean:180-187 fillRecord
 /// A record with its theorem's value read, if it is a theorem's whose value is a
 /// reference.
-pub fn fill_record<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, values: &Vec<ModRef>, c: &mut ValueCache, d: &IDeclaration) -> Result<IDeclaration, CheckError> {
+pub fn fill_record<F: CheckerFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, values: &Vec<ModRef>, c: &mut ValueCache, d: &IDeclaration) -> Result<IDeclaration, CheckError> {
     match d {
         IDeclaration::ThmDecl(cv, v) => match ar.view_bvar(pers, v) {
             Some(code) => match read_value(fs, pk, pers, ar, sp, values, c, code) {
@@ -387,7 +387,7 @@ pub fn fill_record<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar
 
 /// con-leche: ConLeche/Frontend/Olean/Records.lean:189-196 fillRecords
 /// `fillRecord` of each record, in order, one cache.
-pub fn fill_records<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, values: &Vec<ModRef>, ds: &Vec<IDeclaration>) -> Result<Vec<IDeclaration>, CheckError> {
+pub fn fill_records<F: CheckerFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, values: &Vec<ModRef>, ds: &Vec<IDeclaration>) -> Result<Vec<IDeclaration>, CheckError> {
     let mut c = value_cache_empty();
     let mut acc: Vec<IDeclaration> = Vec::with_capacity(ds.len());
     let mut i = 0usize;
@@ -404,7 +404,7 @@ pub fn fill_records<F: OleanFs>(fs: &F, pk: &spec::OleanPins, pers: &PersTier, a
 /// con-leche: ConLeche/Frontend/Olean/Records.lean:198-208 readOleansFull
 /// **The records with every theorem's value read**, for the tools that compare
 /// them: the checker itself reads a value in its check.
-pub fn read_oleans_full<F: OleanFs>(fs: &F, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, roots: &Vec<NIdx>, constants: &Option<Vec<NIdx>>) -> Result<Vec<IDeclaration>, (CheckError, u64)> {
+pub fn read_oleans_full<F: CheckerFs>(fs: &F, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, roots: &Vec<NIdx>, constants: &Option<Vec<NIdx>>) -> Result<Vec<IDeclaration>, (CheckError, u64)> {
     match read_oleans(fs, pers, ar, sp, roots, constants, false, false) {
         Err(e) => Err(e),
         Ok(rd) => match fill_records(fs, &rd.pins, pers, ar, sp, &rd.values, &rd.decls) {

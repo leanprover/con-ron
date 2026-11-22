@@ -27,7 +27,7 @@
 //! **Terms are read straight into the store**, as the stream parser's are, so the
 //! reader's outcome is `IDeclaration`s over handles and everything after the parse
 //! is the stream path's.  DESIGN.md's `### Task #142` has the design; the seam is
-//! `files::OleanFs`.
+//! `checker_io::CheckerFs`.
 
 pub mod region;
 pub mod spec;

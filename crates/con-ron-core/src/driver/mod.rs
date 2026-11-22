@@ -6,11 +6,17 @@
 //! | Rust | con-leche |
 //! |---|---|
 //! | `cli` | `Driver/Cli.lean` (the argument parser, `runArgs`) |
-//! | `check_main` | `Driver/CheckMain.lean` (the check of a lean4export file) |
+//! | `check_main` | `Driver/CheckMain.lean` (the check of a lean4export file, of an `.olean` closure) |
+//! | `graph` | `Driver/Graph.lean` (`--check-graph`) |
+//! | `worker` | `Driver/Worker.lean` (a module's worker: `--olean --module`) |
+//! | `modular` | `Driver/Modular.lean` (`--olean --modular`) |
 //!
-//! Slice 1 runs `-- <file>` (and `--help`, the usage errors) here; every other
-//! request is the instance's `run_legacy`, the unverified driver of
+//! `--compare`, `--schedule` (con-leche's scheduler is `liftIO`) and
+//! `--modular --pins` are the instance's `run_legacy`, the unverified driver of
 //! `crates/con-ron`.
 
 pub mod check_main;
 pub mod cli;
+pub mod graph;
+pub mod modular;
+pub mod worker;

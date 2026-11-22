@@ -2,15 +2,15 @@
 //!
 //! Where a module's files are on the search path, and each of the reads.
 //!
-//! ## The seam: [`OleanFs`]
+//! ## The seam: `checker_io::CheckerFs`
 //!
 //! Upstream's reads are actions of its `CheckerIO` class.  Here they go through
-//! one trait in the idiom of `export_c::ChunkSource`, holding the operations of
-//! the class the reader uses, **with `&self`**: an operation is a function of its
+//! the file operations of the driver's trait (`frontend::checker_io::CheckerFs`),
+//! **with `&self`**: an operation is a function of its
 //! arguments, which is what upstream's model says of one snapshot of the files.
 //! The extraction renders it as a typeclass whose fields are functions into
 //! `Result`, so the extracted reader is quantified over an arbitrary instance;
-//! the instance over `std` is in `crates/con-ron`, outside the theorems.
+//! the instances over `std` are in `crates/con-ron`, outside the theorems.
 //!
 //! ## Deviations
 //!
@@ -18,7 +18,7 @@
 //!   (`read_notes_say`, `read_notes_module_loaded`): upstream's `ReadNotes`
 //!   (task #484) are `IO` state handed to `CheckerIO.liftIO`; here the notes,
 //!   the pace and the clock are the instance's, built where the instance is
-//!   (`crates/con-ron`'s `olean_fs`), not in `readOleans`.
+//!   (`crates/con-ron`'s `olean_fs` and `std_io`), not in `readOleans`.
 //!
 //! * **An operation's failure is a value**: `Result<_, Vec<u32>>`, the message.
 //!   Upstream's `IO.Error` is an exception that `findModule` catches for its own
@@ -34,6 +34,7 @@
 use crate::arena::env;
 use crate::arena::handle::NIdx;
 use crate::arena::store::{EStore, PersTier};
+use crate::frontend::checker_io::CheckerFs;
 use crate::frontend::olean::header;
 use crate::frontend::olean::header::HdrWalk;
 use crate::frontend::olean::lazy;
@@ -53,45 +54,6 @@ use crate::kernel::expr;
 use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::kernel::name::NameKind;
-
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
-/// **The checker's file reads**: the operations of upstream's class the reader
-/// uses, and the read's heartbeat, two of the `liftIO` actions upstream hands
-/// the class.  A failure is the operation's message.  The class's worker map
-/// (`parMapWorkers`) is the check pool's, in `crates/con-ron`.
-pub trait OleanFs {
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
-    /// whether the path names something (a file, a directory)
-    fn path_exists(&self, p: &Vec<u32>) -> Result<bool, Vec<u32>>;
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
-    /// whether the path names a directory (through symbolic links)
-    fn is_dir(&self, p: &Vec<u32>) -> Result<bool, Vec<u32>>;
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
-    /// the path with every symbolic link resolved, absolute
-    fn real_path(&self, p: &Vec<u32>) -> Result<Vec<u32>, Vec<u32>>;
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
-    /// a regular file's bytes
-    fn read_bin_file(&self, p: &Vec<u32>) -> Result<Vec<u8>, Vec<u32>>;
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
-    /// a positional read: the bytes from `off` up to `off + len` or the end of
-    /// the file, whichever comes first.  Deviation: the class opens a handle
-    /// (`openRead`) and reads it forward (`read`), since Lean's handles have no
-    /// positional read; Rust's do (`FileExt::read_at`), so this read keeps no
-    /// state, and the reads `foldReads` makes, at `0, csz, 2·csz, …`, are the
-    /// handle's in order.
-    fn read_range(&self, p: &Vec<u32>, off: u64, len: u64) -> Result<Vec<u8>, Vec<u32>>;
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
-    /// the size of a regular file in bytes
-    fn file_size(&self, p: &Vec<u32>) -> Result<u64, Vec<u32>>;
-    /// con-leche: ConLeche/Frontend/Olean/Progress.lean:42-48 ReadNotes.say
-    /// `CheckerIO.liftIO (n.say line)`: one line of the read's heartbeat, the
-    /// instance's notes (module note).  Changes nothing a read returns.
-    fn read_notes_say(&self, line: &Vec<u32>);
-    /// con-leche: ConLeche/Frontend/Olean/Progress.lean:50-60 ReadNotes.moduleLoaded
-    /// `CheckerIO.liftIO (n.moduleLoaded total size)`: a module of `total` is
-    /// loaded, with `size` constants.  Changes nothing a read returns.
-    fn read_notes_module_loaded(&self, total: u64, size: u64);
-}
 
 /// con-leche: none — `System.FilePath`'s `/` (`join`): an absolute `sub` replaces
 /// the path, as it does there.
@@ -336,7 +298,7 @@ pub enum RootAt {
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:116-120 holdsRoot
 /// **Whether a directory holds a root**, as Lean asks it: a directory of the
 /// root's name, or a file of that name with `.olean`.
-pub fn holds_root<F: OleanFs>(fs: &F, r: &Name, d: &Vec<u32>) -> Result<bool, Vec<u32>> {
+pub fn holds_root<F: CheckerFs>(fs: &F, r: &Name, d: &Vec<u32>) -> Result<bool, Vec<u32>> {
     match fs.is_dir(&mod_dir_of(d, r)) {
         Err(e) => Err(e),
         Ok(true) => Ok(true),
@@ -346,7 +308,7 @@ pub fn holds_root<F: OleanFs>(fs: &F, r: &Name, d: &Vec<u32>) -> Result<bool, Ve
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:127-138 rootHits
 /// The directories holding the root, in search-path order (`held`, filtered).
-pub fn root_dirs<F: OleanFs>(fs: &F, sp: &Vec<Vec<u32>>, r: &Name) -> Result<Vec<Vec<u32>>, Vec<u32>> {
+pub fn root_dirs<F: CheckerFs>(fs: &F, sp: &Vec<Vec<u32>>, r: &Name) -> Result<Vec<Vec<u32>>, Vec<u32>> {
     let mut out: Vec<Vec<u32>> = Vec::new();
     let mut i = 0usize;
     while i < sp.len() {
@@ -362,7 +324,7 @@ pub fn root_dirs<F: OleanFs>(fs: &F, sp: &Vec<Vec<u32>>, r: &Name) -> Result<Vec
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:127-138 rootHits
 /// The real path of each directory holding the root, in order.
-pub fn real_paths<F: OleanFs>(fs: &F, hits: &Vec<Vec<u32>>) -> Result<Vec<Vec<u32>>, Vec<u32>> {
+pub fn real_paths<F: CheckerFs>(fs: &F, hits: &Vec<Vec<u32>>) -> Result<Vec<Vec<u32>>, Vec<u32>> {
     let mut out: Vec<Vec<u32>> = Vec::with_capacity(hits.len());
     let mut i = 0usize;
     while i < hits.len() {
@@ -420,7 +382,7 @@ pub fn real_seen(reals: &Vec<Vec<u32>>, i: usize) -> bool {
 /// **Where a root's modules are on the search path**: the directories holding
 /// the root; where two or more do, their real paths compared, so that a
 /// directory listed twice, or reached through a symbolic link, is one location.
-pub fn root_hits<F: OleanFs>(fs: &F, sp: &Vec<Vec<u32>>, r: &Name) -> Result<RootAt, Vec<u32>> {
+pub fn root_hits<F: CheckerFs>(fs: &F, sp: &Vec<Vec<u32>>, r: &Name) -> Result<RootAt, Vec<u32>> {
     let hits = match root_dirs(fs, sp, r) {
         Err(e) => return Err(e),
         Ok(h) => h,
@@ -445,7 +407,7 @@ pub fn root_hits<F: OleanFs>(fs: &F, sp: &Vec<Vec<u32>>, r: &Name) -> Result<Roo
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:140-142 rootAt
 /// `root_hits`, a failed operation its answer's reason.
-pub fn root_at<F: OleanFs>(fs: &F, sp: &Vec<Vec<u32>>, r: &Name) -> RootAt {
+pub fn root_at<F: CheckerFs>(fs: &F, sp: &Vec<Vec<u32>>, r: &Name) -> RootAt {
     match root_hits(fs, sp, r) {
         Ok(a) => a,
         Err(e) => RootAt::Failed(e),
@@ -472,7 +434,7 @@ pub fn roots_of_path(path: Vec<Vec<u32>>) -> Roots {
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:144-148 lookNext
 /// The fallback's turn: where the path holds no directory of the root, the
 /// fallback's answer.
-pub fn look_next<F: OleanFs>(fs: &F, fallback: &Vec<Vec<u32>>, r: &Name, a: RootAt) -> RootAt {
+pub fn look_next<F: CheckerFs>(fs: &F, fallback: &Vec<Vec<u32>>, r: &Name, a: RootAt) -> RootAt {
     match a {
         RootAt::Missing => root_at(fs, fallback, r),
         a => a,
@@ -484,7 +446,7 @@ pub fn look_next<F: OleanFs>(fs: &F, fallback: &Vec<Vec<u32>>, r: &Name, a: Root
 /// where no directory of it holds the root, on the fallback.  A root the path
 /// holds shadows the fallback's copy; the one-location rule holds on each of the
 /// two separately.
-pub fn look_at<F: OleanFs>(fs: &F, path: &Vec<Vec<u32>>, fallback: &Vec<Vec<u32>>, r: &Name) -> RootAt {
+pub fn look_at<F: CheckerFs>(fs: &F, path: &Vec<Vec<u32>>, fallback: &Vec<Vec<u32>>, r: &Name) -> RootAt {
     look_next(fs, fallback, r, root_at(fs, path, r))
 }
 
@@ -545,7 +507,7 @@ pub fn located_of(mt: &Vec<u32>, rt: &Vec<u32>, a: RootAt) -> Result<Located, Ch
 /// read looks the root up: upstream's `Roots` map, which resolves each root once
 /// per run, is a cache over one snapshot, where the lookup answers the same each
 /// time.
-pub fn find_module<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Roots, m: &NIdx) -> Result<Located, CheckError> {
+pub fn find_module<F: CheckerFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Roots, m: &NIdx) -> Result<Located, CheckError> {
     match env::read_name(pers, ar, m) {
         Err(e) => Err(e),
         Ok(n) => {
@@ -566,7 +528,7 @@ pub fn part_name(mt: &Vec<u32>, ext: &Vec<u32>) -> Vec<u32> {
 /// **Why a module's `.olean` cannot be read at its location**: it is not there,
 /// with or without parts beside it, or it is there and cannot be read.  A failed
 /// `path_exists` is its message.
-pub fn olean_failed<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, loc: &Located, m: &NIdx) -> CheckError {
+pub fn olean_failed<F: CheckerFs>(fs: &F, pers: &PersTier, ar: &EStore, loc: &Located, m: &NIdx) -> CheckError {
     let p_o = match mod_file(pers, ar, &loc.dir, m, &{ const M: [u32; 5] = [111, 108, 101, 97, 110]; crate::kernel::core_types::code_points(&M) }) {
         Err(e) => return e,
         Ok(p) => p,
@@ -615,7 +577,7 @@ pub fn olean_failed<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, loc: &Loca
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:232-238 partFailed
 /// Why a part of a module of the module system cannot be read at its location.
-pub fn part_failed<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, loc: &Located, m: &NIdx, ext: &Vec<u32>) -> CheckError {
+pub fn part_failed<F: CheckerFs>(fs: &F, pers: &PersTier, ar: &EStore, loc: &Located, m: &NIdx, ext: &Vec<u32>) -> CheckError {
     let p = match mod_file(pers, ar, &loc.dir, m, ext) {
         Err(e) => return e,
         Ok(p) => p,
@@ -632,7 +594,7 @@ pub fn part_failed<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, loc: &Locat
 
 /// con-leche: none — `pathExists` of a module's file at its location, a failure its
 /// message
-pub fn path_exists_at<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, loc: &Located, m: &NIdx, ext: &Vec<u32>) -> Result<bool, CheckError> {
+pub fn path_exists_at<F: CheckerFs>(fs: &F, pers: &PersTier, ar: &EStore, loc: &Located, m: &NIdx, ext: &Vec<u32>) -> Result<bool, CheckError> {
     match mod_file(pers, ar, &loc.dir, m, ext) {
         Err(e) => Err(e),
         Ok(p) => match fs.path_exists(&p) {
@@ -646,7 +608,7 @@ pub fn path_exists_at<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, loc: &Lo
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:226-230 readPartOr
 /// **Read and validate one of a module's files** at its location: `ext`'s, a file
 /// that cannot be read `olean_failed`'s error (`olean`) or `part_failed`'s.
-pub fn read_part_at<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, loc: &Located, m: &NIdx, ext: &Vec<u32>, olean: bool) -> Result<Part, CheckError> {
+pub fn read_part_at<F: CheckerFs>(fs: &F, pers: &PersTier, ar: &EStore, loc: &Located, m: &NIdx, ext: &Vec<u32>, olean: bool) -> Result<Part, CheckError> {
     let p = match mod_file(pers, ar, &loc.dir, m, ext) {
         Err(e) => return Err(e),
         Ok(p) => p,
@@ -689,7 +651,7 @@ pub fn hdr_short(acc: &Vec<u8>) -> bool {
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:188-203 foldReads
 /// The reads of the header: forward in `HDR_CHUNK` reads until the walk to the
 /// imports array is inside what was read, or the end of the file.
-pub fn read_hdr_bytes<F: OleanFs>(fs: &F, p: &Vec<u32>, size: u64) -> Result<Vec<u8>, CheckError> {
+pub fn read_hdr_bytes<F: CheckerFs>(fs: &F, p: &Vec<u32>, size: u64) -> Result<Vec<u8>, CheckError> {
     let mut acc: Vec<u8> = Vec::new();
     let mut off = 0u64;
     let mut more = true;
@@ -711,7 +673,7 @@ pub fn read_hdr_bytes<F: OleanFs>(fs: &F, p: &Vec<u32>, size: u64) -> Result<Vec
 /// location: the file read forward in `HDR_CHUNK` reads until the walk to the
 /// imports array is inside what was read.  A file that cannot be read is
 /// `olean_failed`'s error.
-pub fn read_imports_at<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, loc: &Located, m: &NIdx) -> Result<Vec<ImportRec>, CheckError> {
+pub fn read_imports_at<F: CheckerFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, loc: &Located, m: &NIdx) -> Result<Vec<ImportRec>, CheckError> {
     let p = match mod_file(pers, ar, &loc.dir, m, &{ const M: [u32; 5] = [111, 108, 101, 97, 110]; crate::kernel::core_types::code_points(&M) }) {
         Err(e) => return Err(e),
         Ok(p) => p,
@@ -734,7 +696,7 @@ pub fn read_imports_at<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:273-279 moduleImports
 /// **A module's imports**, off the start of its exported `.olean`, located on the
 /// search path.
-pub fn module_imports<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Roots, m: &NIdx) -> Result<Vec<ImportRec>, CheckError> {
+pub fn module_imports<F: CheckerFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Roots, m: &NIdx) -> Result<Vec<ImportRec>, CheckError> {
     match find_module(fs, pers, ar, sp, m) {
         Err(e) => Err(e),
         Ok(loc) => read_imports_at(fs, pk, pers, ar, &loc, m),
@@ -786,7 +748,7 @@ pub fn outside_or_escaping(pers: &PersTier, ar: &EStore, loc: &Located, m: &NIdx
 /// part beside a classic `.olean` is no part of it, and a module of the module
 /// system has all three: reading the parts a view needs says whether they are
 /// there, and a server view asks for the private part's existence besides.
-pub fn read_files_at<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, loc: &Located, m: &NIdx, level: &OLeanLevel) -> Result<ModFiles, CheckError> {
+pub fn read_files_at<F: CheckerFs>(fs: &F, pers: &PersTier, ar: &EStore, loc: &Located, m: &NIdx, level: &OLeanLevel) -> Result<ModFiles, CheckError> {
     let ex = match read_part_at(fs, pers, ar, loc, m, &{ const M: [u32; 5] = [111, 108, 101, 97, 110]; crate::kernel::core_types::code_points(&M) }, true) {
         Err(e) => return Err(e),
         Ok(p) => p,
@@ -816,7 +778,7 @@ pub fn read_files_at<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, loc: &Loc
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:297-325 readFilesAt
 /// The rest of `readFilesAt`: the server part, then the private part's existence
 /// at the server level, or the private part.
-pub fn read_files_parts<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, m: &NIdx, loc: &Located, f: ModFiles, level: &OLeanLevel) -> Result<ModFiles, CheckError> {
+pub fn read_files_parts<F: CheckerFs>(fs: &F, pers: &PersTier, ar: &EStore, m: &NIdx, loc: &Located, f: ModFiles, level: &OLeanLevel) -> Result<ModFiles, CheckError> {
     let s = match read_part_at(fs, pers, ar, loc, m, &{ const M: [u32; 12] = [111, 108, 101, 97, 110, 46, 115, 101, 114, 118, 101, 114]; crate::kernel::core_types::code_points(&M) }, false) {
         Err(e) => return Err(e),
         Ok(p) => p,
@@ -843,7 +805,7 @@ pub fn read_files_parts<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, m: &NI
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:327-333 readFiles
 /// **The files of a module a view reads**, located on the search path
 /// (`find_module`), then read at that location (`read_files_at`).
-pub fn read_files<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Roots, m: &NIdx, level: &OLeanLevel) -> Result<ModFiles, CheckError> {
+pub fn read_files<F: CheckerFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Roots, m: &NIdx, level: &OLeanLevel) -> Result<ModFiles, CheckError> {
     match find_module(fs, pers, ar, sp, m) {
         Err(e) => Err(e),
         Ok(loc) => read_files_at(fs, pers, ar, &loc, m, level),
@@ -852,7 +814,7 @@ pub fn read_files<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &Roots, 
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:335-343 readView
 /// **One view of a module**, located on the search path.
-pub fn read_view<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Roots, m: &NIdx, level: &OLeanLevel) -> Result<ModDecoded, CheckError> {
+pub fn read_view<F: CheckerFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Roots, m: &NIdx, level: &OLeanLevel) -> Result<ModDecoded, CheckError> {
     match read_files(fs, pers, ar, sp, m, level) {
         Err(e) => Err(e),
         Ok(f) => match view::parse_view(pk, pers, ar, &f, level) {
@@ -876,7 +838,7 @@ pub fn names_of(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, m: &NIdx, f: &
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:352-357 readPartNamesAt
 /// **One part's name positions**, read off its files at their location.
-pub fn read_part_names_at<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, loc: &Located, m: &NIdx, level: &OLeanLevel) -> Result<NamePositions, CheckError> {
+pub fn read_part_names_at<F: CheckerFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, loc: &Located, m: &NIdx, level: &OLeanLevel) -> Result<NamePositions, CheckError> {
     match read_files_at(fs, pers, ar, loc, m, level) {
         Err(e) => Err(e),
         Ok(f) => names_of(pk, pers, ar, m, &f, level),
@@ -885,7 +847,7 @@ pub fn read_part_names_at<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, a
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:359-364 readPartNames
 /// **One part's name positions**, located on the search path.
-pub fn read_part_names<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Roots, m: &NIdx, level: &OLeanLevel) -> Result<NamePositions, CheckError> {
+pub fn read_part_names<F: CheckerFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Roots, m: &NIdx, level: &OLeanLevel) -> Result<NamePositions, CheckError> {
     match find_module(fs, pers, ar, sp, m) {
         Err(e) => Err(e),
         Ok(loc) => read_part_names_at(fs, pk, pers, ar, &loc, m, level),
@@ -910,7 +872,7 @@ pub fn first_bad_view(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, f: &ModF
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:396-413 readAllViews
 /// **All three views of a module, each parsed whole, and the home's check of
 /// them** (`check_views` over the load): for the tools that compare the views.
-pub fn read_all_views<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Roots, m: &NIdx) -> Result<(AllViews, Vec<Expo>), CheckError> {
+pub fn read_all_views<F: CheckerFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Roots, m: &NIdx) -> Result<(AllViews, Vec<Expo>), CheckError> {
     let f = match read_files(fs, pers, ar, sp, m, &OLeanLevel::Private) {
         Err(e) => return Err(e),
         Ok(f) => f,

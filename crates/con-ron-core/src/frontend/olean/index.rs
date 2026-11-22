@@ -22,7 +22,7 @@ use crate::arena::env;
 use crate::arena::handle::{EIdx, NIdx};
 use crate::arena::store::{EStore, PersTier};
 use crate::frontend::olean::files;
-use crate::frontend::olean::files::OleanFs;
+use crate::frontend::checker_io::CheckerFs;
 use crate::frontend::olean::levels;
 use crate::frontend::olean::levels::HeaderLoads;
 use crate::frontend::olean::merge;
@@ -202,7 +202,7 @@ pub fn header_loads_level_at(ld: &HeaderLoads, i: u64) -> OLeanLevel {
 
 /// con-leche: ConLeche/Frontend/Olean/Index.lean:76-91 readInfosOf
 /// **The statements and kinds of some copies** of module `i`, read together.
-pub fn read_infos_of<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, ld: &HeaderLoads, ix: &NameIndex, i: u64, cs: &Vec<Copy>) -> Result<Vec<(Copy, StmtRec, CKindF<NIdx, ()>)>, CheckError> {
+pub fn read_infos_of<F: CheckerFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, ld: &HeaderLoads, ix: &NameIndex, i: u64, cs: &Vec<Copy>) -> Result<Vec<(Copy, StmtRec, CKindF<NIdx, ()>)>, CheckError> {
     let m = header_loads_name_at(pk, ld, i);
     let level = header_loads_level_at(ld, i);
     let mut locs: Vec<u64> = Vec::with_capacity(cs.len());
@@ -277,7 +277,7 @@ pub fn by_module(cs: &Vec<Copy>) -> Vec<(u64, Vec<Copy>)> {
 /// con-leche: ConLeche/Frontend/Olean/Index.lean:99-106 readInfos
 /// **The statements and kinds of some copies**, module by module (in order:
 /// the module note).
-pub fn read_infos<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, ld: &HeaderLoads, ix: &NameIndex, cs: &Vec<Copy>) -> Result<HashMap2<Copy, (StmtRec, CKindF<NIdx, ()>)>, CheckError> {
+pub fn read_infos<F: CheckerFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, ld: &HeaderLoads, ix: &NameIndex, cs: &Vec<Copy>) -> Result<HashMap2<Copy, (StmtRec, CKindF<NIdx, ()>)>, CheckError> {
     let groups = by_module(cs);
     let mut m: HashMap2<Copy, (StmtRec, CKindF<NIdx, ()>)> = HashMap2::with_capacity(cs.len());
     let mut i = 0usize;
@@ -556,7 +556,7 @@ pub fn name_positions_with_imports(own: NamePositions, x: &Vec<ImportRec>) -> Na
 
 /// con-leche: ConLeche/Frontend/Olean/Index.lean:194-242 workerReads
 /// The loaded parts' name tables, in the load order.
-pub fn loaded_parts<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, ld: &HeaderLoads) -> Result<Vec<NamePositions>, CheckError> {
+pub fn loaded_parts<F: CheckerFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, ld: &HeaderLoads) -> Result<Vec<NamePositions>, CheckError> {
     let mut parts: Vec<NamePositions> = Vec::with_capacity(ld.order.len());
     let mut i = 0usize;
     while i < ld.order.len() {
@@ -674,7 +674,7 @@ pub fn all_copies(cc: &Vec<(NIdx, Vec<Copy>)>) -> Vec<Copy> {
 /// module, the clash rule over every loaded name and freshness, each a reject
 /// (exit 1) naming what it found.  `x`: imports added to the header
 /// (`name_positions_with_imports`; a compared challenge's solution).
-pub fn worker_reads<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, m: &NIdx, x: &Vec<ImportRec>) -> Result<WorkerReads, CheckError> {
+pub fn worker_reads<F: CheckerFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, m: &NIdx, x: &Vec<ImportRec>) -> Result<WorkerReads, CheckError> {
     let own = match files::read_part_names(fs, pk, pers, ar, sp, m, &OLeanLevel::Private) {
         Err(e) => return Err(e),
         Ok(o) => name_positions_with_imports(o, x),
