@@ -115,7 +115,7 @@
 //!
 //! ## Threads, stacks and the address-space arithmetic
 //!
-//! The workers are `std::thread::scope`d threads with `STACK_BYTES` (1 GiB)
+//! The workers are `std::thread::scope`d threads with `stack_bytes()` (1 GiB by default)
 //! reserved each — which is what lets the closures borrow `&PersTier`,
 //! and `&[IDeclaration]` with no `Arc` and no `'static` bound — so a
 //! run needs `3x` the checker's resident set **plus 1 GiB of address space per
@@ -134,7 +134,7 @@
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
-use crate::driver::STACK_BYTES;
+use crate::driver::stack_bytes;
 
 /// con-leche: none — `checkPool`'s failure cases, with the checker erased
 /// Why [`parallel_all`] did not return `Ok(())`.
@@ -246,7 +246,7 @@ pub fn first_failure<E>(tab: Vec<Option<Result<(), E>>>) -> Result<(), ParallelE
 /// worker's thread after each step it made, with the worker's state by `&`
 /// (the driver's heartbeat); it cannot change an outcome.
 ///
-/// The workers are `std::thread::scope`d, with `STACK_BYTES` of stack each.
+/// The workers are `std::thread::scope`d, with `stack_bytes()` of stack each.
 /// `workers` is the count the caller has already clamped
 /// (`driver::workers_for`: `max(1, min(jobs, n))`); if the OS refuses to
 /// spawn one, the pool runs on those it has, and on the calling thread if it
@@ -268,7 +268,7 @@ pub fn parallel_all<S, E: Send>(
         let mut handles = Vec::with_capacity(workers);
         for w in 0..workers {
             let spawned = std::thread::Builder::new()
-                .stack_size(STACK_BYTES)
+                .stack_size(stack_bytes())
                 .name(format!("check-{}", w))
                 .spawn_scoped(scope, &run);
             match spawned {

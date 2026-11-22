@@ -1,7 +1,8 @@
 //! The modular modes (task #166): con-leche's `Driver/Graph.lean` `checkGraphG`,
 //! `Driver/CompareModule.lean`, `Driver/Modular.lean`, the worker's driver
 //! `Driver/Worker.lean` `checkModuleG`, and of the scheduler (`Driver/Schedule.lean`)
-//! the part that starts nothing: `--schedule-commands`.
+//! the part that starts nothing: `--schedule-commands`, and the graph check and
+//! the workers' commands of the simple scheduler (`--schedule`, `crate::schedule`).
 //!
 //! ```text
 //! con-ron [OPTIONS] --check-graph --search-path=DIRS [--] MODULE...
@@ -20,8 +21,8 @@
 //! **`--schedule-commands`** prints the commands that check the closure, one per
 //! line, shell-quoted as upstream's: the graph check of the root, then one
 //! `--olean --module` run per module of the closure, in the scheduler's start
-//! order.  Nothing is started.  The scheduler itself (`--schedule` without
-//! `-commands`) is not ported: a usage error, exit 3.
+//! order.  Nothing is started.  `--schedule` without `-commands` runs those
+//! workers (`crate::schedule`).
 //!
 //! The calls of the verified core are marked `ConRon.Capstone: <premise>`.
 
@@ -342,11 +343,15 @@ pub fn shuffle(ms: Vec<Name>) -> Vec<Name> {
 }
 
 /// con-leche: ConLeche/Driver/Schedule/Run.lean:52-68 Opts
-/// **The scheduler's settings** that `--schedule-commands` reads (the log, the
-/// memory limit and the time limit are validated and ignored).
+/// **The scheduler's settings**: the start order, `--schedule-commands`, the
+/// time limit (seconds, 0 for none), and whether a log or a memory limit was
+/// asked for (which the simple scheduler does not run, `schedule`).
 pub struct Opts {
     pub shuffled: bool,
     pub commands: bool,
+    pub timeout: u64,
+    pub log: bool,
+    pub memory: bool,
 }
 
 /// con-leche: ConLeche/Driver/Schedule/Run.lean:70-95 Opts.parse
@@ -354,7 +359,7 @@ pub struct Opts {
 /// the bare flag, `-log=FILE`, `-memory=SIZE`, `-timeout=S`,
 /// `-order=shuffled|graph`, `-commands`), or upstream's message.
 pub fn opts_parse(vs: &[String]) -> Result<Opts, String> {
-    let mut o = Opts { shuffled: true, commands: false };
+    let mut o = Opts { shuffled: true, commands: false, timeout: 0, log: false, memory: false };
     for v in vs {
         let num = |pre: &str, ok: bool, what: &str| -> Result<(), String> {
             if ok {
@@ -368,11 +373,15 @@ pub fn opts_parse(vs: &[String]) -> Result<Opts, String> {
                 ))
             }
         };
-        if v.is_empty() || v.starts_with("-log=") {
+        if v.is_empty() {
+        } else if v.starts_with("-log=") {
+            o.log = true;
         } else if let Some(x) = v.strip_prefix("-memory=") {
             num("-memory=", parse_size(x).is_some(), "a size with a unit, K, M, G or T (e.g. 512M, 40G)")?;
+            o.memory = true;
         } else if let Some(x) = v.strip_prefix("-timeout=") {
             num("-timeout=", to_nat(x).is_some(), "a number")?;
+            o.timeout = to_nat(x).unwrap_or(0);
         } else if v == "-order=shuffled" {
             o.shuffled = true;
         } else if v == "-order=graph" {
@@ -407,11 +416,15 @@ pub struct ScheduleReq<'a> {
 
 /// con-leche: ConLeche/Driver/Schedule.lean:56-111 scheduleG
 /// con-leche: ConLeche/Driver/Schedule/Run.lean:637-647 printCommands
-/// **`--schedule[-OPT=V]`**: the settings read; without `--schedule-commands`
-/// the scheduler, which con-ron does not run (a usage error, exit 3); with it the
-/// root's closure by the graph check (through the solution's lookup at a compared
-/// run, then the challenge's closure through the trusted path alone), and the
-/// commands that check it on stdout, the modules in the start order.
+/// con-leche: ConLeche/Driver/Schedule/Run.lean:618-635 runAll
+/// **`--schedule[-OPT=V]`**: the settings read (without `--schedule-commands`,
+/// a log or a memory limit is a usage error: the simple scheduler runs neither);
+/// the root's closure by the graph check (through the solution's lookup at a
+/// compared run, then the challenge's closure through the trusted path alone);
+/// then with `--schedule-commands` the commands that check it on stdout, the
+/// modules in the start order, and without it those commands' workers run,
+/// each at `--jobs=1`, at most `--jobs` at a time (`schedule::run`), and the
+/// run's verdict (`schedule::summary`).
 pub fn schedule(q: &ScheduleReq) -> u8 {
     let beat_ok = !matches!(q.pace, Pace::Percent(_));
     if !beat_ok {
@@ -425,9 +438,9 @@ pub fn schedule(q: &ScheduleReq) -> u8 {
             return 3;
         }
     };
-    if !o.commands {
-        let mode = if q.cmp.is_some() { "--olean --schedule --compare" } else { "--olean --schedule" };
-        eprintln!("con-ron: {} is not supported by con-ron yet", mode);
+    if !o.commands && (o.log || o.memory) {
+        let what = if o.log { "--schedule-log" } else { "--schedule-memory" };
+        eprintln!("con-ron: {} is not supported by con-ron's --schedule", what);
         eprintln!("Try 'con-ron --help' for more information.");
         return 3;
     }
@@ -487,10 +500,13 @@ pub fn schedule(q: &ScheduleReq) -> u8 {
         path_args("", &dirs)
     };
     let root_c = render::name_str(&q.root);
+    // the printed commands carry `--jobs` only where it is given; the run's
+    // workers one thread each
+    let wjobs = if o.commands { q.jobs } else { Some(1) };
     let args = |m: &Name| -> Vec<String> {
         match &q.cmp {
-            Some(s) if render::name_str(m) == root_c => cmp_worker_args(q.mode_tag, &q.max_nat_size, &paths, q.jobs, &q.root, s),
-            _ => worker_args(q.mode_tag, &q.max_nat_size, &paths, q.jobs, m),
+            Some(s) if render::name_str(m) == root_c => cmp_worker_args(q.mode_tag, &q.max_nat_size, &paths, wjobs, &q.root, s),
+            _ => worker_args(q.mode_tag, &q.max_nat_size, &paths, wjobs, m),
         }
     };
     let app = match std::env::current_exe() {
@@ -500,6 +516,25 @@ pub fn schedule(q: &ScheduleReq) -> u8 {
             return 3;
         }
     };
+    if !o.commands {
+        let graph_order: Vec<String> = mods.iter().map(render::name_str).collect();
+        let order = if o.shuffled { shuffle(mods) } else { mods };
+        let work: Vec<(String, Vec<String>)> = order.iter().map(|m| (render::name_str(m), args(m))).collect();
+        let jobs = q.jobs.unwrap_or_else(driver::default_jobs);
+        let res = crate::schedule::run(&app, &work, jobs, q.stack_kb, o.timeout);
+        let mut by_name: std::collections::HashMap<String, (String, String)> = std::collections::HashMap::new();
+        for (w, r) in work.into_iter().zip(res) {
+            by_name.insert(w.0, r);
+        }
+        let verdicts: Vec<(String, String, String)> = graph_order
+            .into_iter()
+            .map(|m| {
+                let (w, d) = by_name.remove(&m).unwrap_or_else(|| ("missing".to_string(), String::new()));
+                (m, w, d)
+            })
+            .collect();
+        return crate::schedule::summary(&verdicts, q.mode_tag, q.stack_kb);
+    }
     let order = if o.shuffled { shuffle(mods) } else { mods };
     for l in command_lines(&app, &paths, &q.root, &q.cmp, &order, &args, q.stack_kb) {
         println!("{}", l);
@@ -806,7 +841,7 @@ pub fn modular_main(o: &CompareOpts, r: &CmpRequest, cmp: bool) -> u8 {
     let spawned = std::thread::scope(|sc| -> Result<(), String> {
         let mut hs = Vec::with_capacity(threads);
         for _ in 0..threads {
-            let h = std::thread::Builder::new().stack_size(driver::STACK_BYTES).spawn_scoped(sc, || loop {
+            let h = std::thread::Builder::new().stack_size(driver::stack_bytes()).spawn_scoped(sc, || loop {
                 let k = next.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 if k >= n {
                     break;

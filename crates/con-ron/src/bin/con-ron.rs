@@ -69,7 +69,6 @@ use con_ron_core::kernel::env::CheckMode;
 
 use con_ron::driver;
 use con_ron::driver::Heartbeat;
-use con_ron::driver::STACK_BYTES;
 use con_ron_core::frontend::pace::Pace;
 use con_ron_core::arena::env::IDeclaration;
 use con_ron_core::frontend::nat_op_ground::DeclUsedConsts;
@@ -91,20 +90,22 @@ use con_ron_core::arena::store::PersTier;
 /// The invocation forms, printed on their own when there are no arguments.
 /// `--pins`/`--no-pins` are the port's own testing flags (`driver::pins_for_run`)
 /// and are not in con-leche's synopsis; they are in the help text's options.
-/// Of `--schedule` only `--schedule-commands` is run (`HELP_TAIL`).
 const SYNOPSIS: &str = "\
 Usage:
   con-ron [OPTIONS] [--] FILE.ndjson
   con-ron [OPTIONS] --compare [--] CHALLENGE.ndjson SOLUTION.ndjson
   con-ron [OPTIONS] --olean --search-path=DIRS [--] MODULE...
   con-ron [OPTIONS] --check-graph --search-path=DIRS [--] MODULE...
-  con-ron [OPTIONS] --olean --schedule-commands --search-path=DIRS [--] MODULE
+  con-ron [OPTIONS] --olean --module --search-path=DIRS [--] MODULE
+  con-ron [OPTIONS] --olean --modular --search-path=DIRS [--] MODULE
+  con-ron [OPTIONS] --olean --schedule[-OPT=V] --search-path=DIRS [--] MODULE
   con-ron [OPTIONS] --olean --compare [--trusted-search-path=DIRS]
           --search-path=DIRS [--] CHALLENGE SOLUTION
   con-ron [OPTIONS] --check-graph --compare [--trusted-search-path=DIRS]
           --search-path=DIRS [--] CHALLENGE SOLUTION
-  con-ron [OPTIONS] --olean --schedule-commands --compare
-          [--trusted-search-path=DIRS] --search-path=DIRS [--] CHALLENGE SOLUTION";
+  con-ron [OPTIONS] --olean --module|--modular|--schedule[-OPT=V]
+          --compare [--trusted-search-path=DIRS] --search-path=DIRS
+          [--] CHALLENGE SOLUTION";
 
 /// con-leche: ConLeche/Driver/Cli.lean:134-135 tryHelp
 /// The line after a usage error.
@@ -119,9 +120,9 @@ Check Lean declarations from a lean4export file or from .olean modules.
 ";
 
 /// con-leche: ConLeche/Driver/Cli.lean:137-260 helpText
-/// The rest of the `--help` text, after the synopsis.  con-leche's options of
-/// the modes con-ron does not run are listed by name, as usage errors
-/// (`unsupported`), in place of their descriptions.
+/// The rest of the `--help` text, after the synopsis.  The scheduler is the
+/// simple one (`con_ron::schedule`): its settings con-ron does not run are
+/// listed by name, as usage errors, in place of their descriptions.
 const HELP_TAIL: &str = "\
 Options:
   --verified          Check in the mode the soundness theorem covers (default)
@@ -151,41 +152,62 @@ lean4export input:
   --olean             Read modules and their import closure from .olean files
   --search-path=DIRS  Colon-separated .olean directories; repeatable
   --constant=NAME     Check only NAME and what it mentions; repeatable
+                      (outside the theorems)
   --compare           CHALLENGE SOLUTION: check the closure of the module
                       SOLUTION, then the closure of CHALLENGE, its axioms
                       justified by SOLUTION's as for lean4export input.
                       Prints the justified axioms. With --constant=NAME
                       (declarations of CHALLENGE itself), only NAME and
-                      what it reads
+                      what it reads. With --check-graph, --module,
+                      --modular or --schedule: CHALLENGE as one more module
+                      of a modular run over the closures of both, with
+                      `import all SOLUTION` added to its header: a
+                      declaration of CHALLENGE that a loaded module holds
+                      must be that constant (a hole, theorem or opaque
+                      constant by its type, a definition with its value, up
+                      to the names of level parameters; an inductive type
+                      as it is), every other one is checked (its --module
+                      run is the compare worker; the guarantee needs every
+                      command to exit 0)
   --trusted-search-path=DIRS
                       With --compare: CHALLENGE and all it imports must be
                       in DIRS, and are read from there only; SOLUTION's
-                      modules from DIRS first, then --search-path.
+                      modules from DIRS first, then --search-path (the
+                      modular modes read every module so). With --module
+                      alone: MODULE's closure read from DIRS first, then
+                      --search-path.
                       Colon-separated; repeatable
   --check-graph       Check only that the modules' import graph is acyclic
-                      and that every import is on the search path. With
-                      --compare: the closures of CHALLENGE and SOLUTION,
-                      `import all SOLUTION` added to CHALLENGE's header
-  --schedule-commands Start nothing; print on stdout, one per line and
-                      shell-quoted, the commands that check MODULE's closure:
-                      the --check-graph run, then one --module run per module
-                      (--jobs=N only if given); the modular guarantee needs
-                      every one to exit 0 on one unchanged snapshot of the
-                      files. Run them with xargs or GNU parallel, e.g.
-                        con-ron --olean --schedule-commands ... | tail -n +2 |
-                          parallel
-                      after the first line exits 0
-  --schedule-order=ORDER
-                      shuffled (default; by a hash of the names) or graph:
-                      the order of the printed --module commands
-  --worker-stack-size=SIZE
-                      With --schedule-commands: each worker's line starts
-                      with LEAN_STACK_SIZE_KB=K (a size with a unit: 8G)
+                      and that every import is on the search path
+  --module            Check MODULE's own declarations alone, against what
+                      they read of the modules it loads
+  --modular           Check every module of MODULE's closure as --module
+                      does, in this one process
+  --schedule          Check every module of MODULE's closure by a --module
+                      process each (--jobs=1 each), at most --jobs=N at a
+                      time; a line per finished module on stdout, then each
+                      failing module's verdict and last stderr line, and the
+                      run's verdict: the first failing module in the graph's
+                      order, its code (timeout, stack, a signal: 3); with
+  --schedule-timeout=S     a time limit per worker
+  --worker-stack-size=SIZE the workers' thread stacks (with a unit: 8G), set
+                           as their LEAN_STACK_SIZE_KB (without the flag they
+                           inherit the environment; con-ron's default is 1G)
+  --schedule-order=ORDER   shuffled (default; by a hash of the names) or graph:
+                           the order in which the modules start
+  --schedule-commands      start nothing; print on stdout, one per line and
+                           shell-quoted, the commands that check the closure:
+                           the --check-graph run, then one --module run per
+                           module in the start order (--jobs=N only if given);
+                           the modular guarantee needs every one to exit 0 on
+                           one unchanged snapshot of the files (with
+                           --worker-stack-size, each worker's line starts
+                           with LEAN_STACK_SIZE_KB=K); -memory, -log and
+                           -timeout are ignored
 
-con-leche's other modes, not run by con-ron yet (a usage error, exit 3):
-  --module, --modular, --schedule (con-leche's scheduler: use
-  --schedule-commands with xargs or parallel instead), and --compare with
-  --module or --modular
+con-leche's scheduler settings con-ron does not run (a usage error, exit 3):
+  --schedule-log=FILE, --schedule-memory=SIZE (con-ron's --schedule keeps no
+  log and no memory budget)
 
 Exit status:
   0  accepted
@@ -860,10 +882,11 @@ fn exit_after_verdict(code: u8) -> ! {
 
 /// con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
 /// con-leche: Main.lean:56-103 main
-/// The entry point.  The checker runs IN THIS PROCESS: it spawns no copy of
-/// itself, and the whole run — parse, preparation, pin walk, fold — is on one
-/// 1 GiB-stack thread, which the arena needs more than the tree checker did
-/// (`driver::STACK_BYTES`).  A panic on it is exit 3, never a verdict; so is
+/// The entry point.  The checker runs IN THIS PROCESS (only `--schedule`
+/// starts copies of this binary, its workers), and the whole run — parse,
+/// preparation, pin walk, fold — is on one thread of a 1 GiB stack, which the
+/// arena needs more than the tree checker did (`driver::stack_bytes`:
+/// `STACK_BYTES`, or `LEAN_STACK_SIZE_KB`).  A panic on it is exit 3, never a verdict; so is
 /// an IO failure (an unreadable input, a failed write: con-leche task #335's
 /// rule, which the port already kept — a write failure panics the checking
 /// thread).  The verdict path exits from the checking thread without
@@ -1070,11 +1093,11 @@ fn run_main() -> u8 {
 }
 
 /// con-leche: Main.lean:56-103 main
-/// The run on its 1 GiB-stack checking thread (`driver::STACK_BYTES`): a
+/// The run on its checking thread, its stack `driver::stack_bytes` (1 GiB by default): a
 /// panic on it is exit 3, never a verdict.
 fn run_on_thread(a: Args, input: Run) -> u8 {
     let h = std::thread::Builder::new()
-        .stack_size(STACK_BYTES)
+        .stack_size(driver::stack_bytes())
         .spawn(move || run(&a, &input));
     match h {
         Err(e) => {
