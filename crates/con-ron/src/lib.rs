@@ -52,6 +52,7 @@
 //! | `pool` | `Driver/CheckPool.lean` (phase B on a pool of check workers) | `Arena/Main.lean` |
 //! | `keys` | none — `std::hash::Hash`/`Eq` wrappers for `Expr` and `Name` | — |
 //! | `render` | none — `Name.toString`, which the core's skip list keeps out | — |
+//! | `std_io` | `Frontend/CheckerIO.lean`'s `instCheckerIOIO`: the binary's instance of the core's `CheckerIo` (task #171) | — |
 //! | `src/bin/con-ron.rs` | `Driver/Cli.lean` and `Main.lean` (the binary) | `Arena/Main.lean`'s `main` |
 //!
 //! **Two things are deliberately not ported at all**, and each is a
@@ -80,3 +81,4 @@ pub mod olean_fs;
 pub mod pool;
 pub mod render;
 pub mod schedule;
+pub mod std_io;

@@ -18,7 +18,8 @@ Mathlib, Aeneas, con-leche and every module of ours (~10 GB, a few minutes).
 ## LIVE = the union of
 
 * the **capstone roots** (CAPSTONES below): the binary's two headline
-  theorems and their `_embedded` forms, which compose Theorem 2, Theorem 1
+  theorems and their `_embedded` forms (and, task #171, their forms with
+  con-leche's conclusions), which compose Theorem 2, Theorem 1
   and con-leche — everything the project exists to prove is in their
   closure;
 * every declaration of a **Test** module (a module whose last component
@@ -114,6 +115,16 @@ CAPSTONES = [
     "ConRon.Capstone.model_exists_oleans_of",
     "ConRon.Capstone.no_False_oleans",
     "ConRon.Capstone.model_exists_oleans",
+    # task #171 lane C: the headlines with con-leche's conclusions, which
+    # `ConRon/MainTheorem.lean`'s theorems about the binary are proved from
+    "ConRon.MainTheorem.json_model_of_stages",
+    "ConRon.MainTheorem.json_no_False_of_stages",
+    "ConRon.MainTheorem.compare_json_model_of_stages",
+    "ConRon.MainTheorem.oleans_model_of_stages",
+    "ConRon.MainTheorem.compare_model_of_stages",
+    # task #171 lane D: the main theorems about the binary, the new roots
+    "ConRon.MainTheorem.main_json_model",
+    "ConRon.MainTheorem.main_no_False",
 ]
 # executable roots: each declares `main`, so each is a pass of its own
 EXE_ROOTS = ["ConRon.Arena.Exe", "ConRon.Arena.OleanCompareExe", "ConRon.Arena.Bench",

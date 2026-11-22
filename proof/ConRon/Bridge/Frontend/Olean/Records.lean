@@ -23,6 +23,7 @@ public import ConLeche.Verify.Frontend.Olean.Files
 public import ConLeche.Verify.Frontend.Olean.Emit
 public import ConRon.Bridge.Frontend.Prepare
 public import ConRon.Bridge.Frontend.Compare
+public import ConRon.Bridge.Frontend.Olean.Covers
 
 public section
 
@@ -416,6 +417,8 @@ theorem readOleans_run {F : FS} {sp : Roots} {roots : Array NIdx}
         {v : Expr} {all : List ConLeche.Name}, InClosure sp F rootsC m → ViewOf sp F m d →
         c ∈ d.constants → c.kind = .thm v all →
         ∃ code, Declaration.thmDecl ⟨c.name, c.levelParams, c.type⟩ (.bvar code) ∈ ds) ∧
+      (∀ r, ConLeche.Frontend.Olean.closureConstants sp F rootsC r →
+        ConLeche.Frontend.Olean.CoveredBy ds r) ∧
       (∀ {cv : ConstantVal} {code : Nat} {x : Expr}, Declaration.thmDecl cv (.bvar code) ∈ ds →
         ConLeche.Frontend.Olean.ValueAt sp F valuesP code x →
         ∃ md f r a sk loc c all, valuesP[ConLeche.Frontend.Olean.refModule code]? = some md ∧
@@ -443,7 +446,7 @@ theorem readOleans_run {F : FS} {sp : Roots} {roots : Array NIdx}
   obtain ⟨mg, s₃, h3, h⟩ := AM.bind_ok h
   obtain ⟨hs3, hmls, mgC, hm, hmr⟩ := mergeAll_run hctx2.ok hctx2.nulls hlsR h3
   rw [hs3] at h
-  obtain ⟨hk1, hk2, hk3, -⟩ := ConLeche.Frontend.Olean.mergeAll_ok hm
+  obtain ⟨hk1, hk2, hk3, hk4⟩ := ConLeche.Frontend.Olean.mergeAll_ok hm
   have hN : ∀ (n : ConLeche.Name) (x : ConLeche.Frontend.Olean.CEntry), mgC.map[n]? = some x →
       x.name = n := fun n x hx => (hk2 n x hx).1
   have hwc : WalkCtx s₂.store mg mgC := ⟨hmr, nsWF_of_StateOK hctx2.ok, hN⟩
@@ -468,10 +471,15 @@ theorem readOleans_run {F : FS} {sp : Roots} {roots : Array NIdx}
   subst hs
   have hpinsS : PinsOK s₂ := (hpins.mono (hst1.trans hst2).ext (hst1.trans hst2).pins)
   obtain ⟨hst3, hpers, ds, hds, hden⟩ := declsOf_run hctx2.ok hctx2.off hpinsS hem h7
+  -- every constant of the closure is covered by an emitted record (upstream's
+  -- `readOleansAt_covers`, over the pieces)
+  have hcov : ∀ r, ConLeche.Frontend.Olean.closureConstants sp F rootsC r →
+      ConLeche.Frontend.Olean.CoveredBy ds r := fun r hr =>
+    covers_of_merge ⟨hN, hk3, hk4, hb, hds⟩ (entry_of_loads hsp ho hnames hloads hm) hr
   refine ⟨(hst1.trans hst2).trans hst3, hpers, hp2.ext hst3.ext,
     ⟨usedOfC mgC, UsedRel.mono hst3.ext (usedRel_usedOf hmr.strip)⟩,
     (lsC.map fun l => (⟨l.name, l.frontier⟩ : ConLeche.Frontend.Olean.ModRef)).toArray, ds, ?_, hden,
-    ?_, fun hd hv => filled_of hnames hloads hm hds hd hv, orderC, R', lsC, ho, hnames, hloads, ?_⟩
+    ?_, hcov, fun hd hv => filled_of hnames hloads hm hds hd hv, orderC, R', lsC, ho, hnames, hloads, ?_⟩
   · have := valuesRel_of_loads (ListRel.mono' (fun _ _ h => h.ext hst3.ext) hlsR)
       (ListRel.mono' (fun _ _ h => ModFront.ext h hst3.ext) hfront) (sp := sp) (F := F)
     simp only [ValuesRel, hmls]

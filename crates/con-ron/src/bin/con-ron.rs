@@ -882,27 +882,89 @@ fn exit_after_verdict(code: u8) -> ! {
 
 /// con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
 /// con-leche: Main.lean:56-103 main
-/// The entry point.  The checker runs IN THIS PROCESS (only `--schedule`
-/// starts copies of this binary, its workers), and the whole run — parse,
-/// preparation, pin walk, fold — is on one thread of a 1 GiB stack, which the
-/// arena needs more than the tree checker did (`driver::stack_bytes`:
-/// `STACK_BYTES`, or `LEAN_STACK_SIZE_KB`).  A panic on it is exit 3, never a verdict; so is
-/// an IO failure (an unreadable input, a failed write: con-leche task #335's
-/// rule, which the port already kept — a write failure panics the checking
-/// thread).  The verdict path exits from the checking thread without
-/// returning here (`exit_after_verdict`, con-leche task #336); every other
-/// path's code goes through the same flush and exit.
+/// **The plumbing** (DESIGN.md §3.9): the arguments (one that is not UTF-8 is
+/// exit 3), the checking thread, its stack `driver::stack_bytes` (1 GiB, or
+/// `LEAN_STACK_SIZE_KB`), the instance `std_io::StdIo`, the verified driver's
+/// `con_ron_core::driver::cli::run_args`, the flush and the exit — from the
+/// checking thread, so that neither the instance nor what it kept is ever
+/// dropped (con-leche task #336).  A panic on that thread is exit 3, never a
+/// verdict.  The checker runs IN THIS PROCESS (only `--schedule`, a legacy
+/// request, starts copies of this binary, its workers).
 fn main() -> ! {
-    exit_after_verdict(run_main())
+    let mut argv: Vec<String> = Vec::new();
+    for a in std::env::args_os().skip(1) {
+        match a.into_string() {
+            Ok(s) => argv.push(s),
+            Err(_) => {
+                eprintln!("con-ron: an argument is not valid UTF-8");
+                exit_after_verdict(3)
+            }
+        }
+    }
+    let h = std::thread::Builder::new()
+        .stack_size(driver::stack_bytes())
+        .spawn(move || -> u8 {
+            let cps: Vec<Vec<u32>> = argv.iter().map(|a| con_ron::render::cps(a)).collect();
+            let mut io = con_ron::std_io::StdIo::new(con_ron::std_io::StdIoHooks {
+                help: print_help,
+                synopsis: print_synopsis,
+                usage: usage_error,
+                legacy: run_main,
+            });
+            let code = con_ron_core::driver::cli::run_args(&mut io, &cps);
+            // the instance (and what it kept) is never dropped: con-leche task #336
+            exit_after_verdict(code)
+        });
+    match h {
+        Err(e) => {
+            eprintln!("con-ron: cannot spawn the checking thread: {}", e);
+            exit_after_verdict(3)
+        }
+        Ok(h) => match h.join() {
+            Ok(code) => exit_after_verdict(code),
+            Err(_) => {
+                eprintln!("con-ron: the checking thread died");
+                exit_after_verdict(3)
+            }
+        },
+    }
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
-/// The run up to its exit code, for every path but the verdict's: `--help`,
-/// the parse, and con-leche's usage checks in its order, the modes con-ron does
-/// not run a usage error of their own (`unsupported`) where con-leche's checks
-/// pass.
-fn run_main() -> u8 {
-    let argv: Vec<String> = std::env::args().skip(1).collect();
+/// `--help`: the help text on stdout, and the build's allocator; a failed
+/// write is exit 3, as con-leche's `--help` on `/dev/full`.
+fn print_help() -> u8 {
+    // The one build-time choice a run's numbers depend on, printed rather
+    // than merely documented (task #89).
+    let out = writeln!(
+        std::io::stdout(),
+        "{}\n{}\n\n{}\nthis build's global allocator: {}",
+        HELP_HEAD, SYNOPSIS, HELP_TAIL, con_ron_dump::ALLOCATOR
+    );
+    match out {
+        Ok(()) => 0,
+        Err(e) => {
+            let _ = writeln!(std::io::stderr(), "con-ron: cannot write the output: {}", e);
+            3
+        }
+    }
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:116-132 synopsis
+/// No arguments: the invocation forms, and the pointer to `--help`.
+fn print_synopsis() {
+    eprintln!("{}", SYNOPSIS);
+    eprintln!("{}", TRY_HELP);
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
+/// **The legacy driver** (`StdIo`'s `run_legacy`): the run up to its exit code
+/// of every request the verified driver does not run yet (`--olean`,
+/// `--check-graph`, `--compare`), from the whole argument list: `--help`, the
+/// parse, and con-leche's usage checks in its order.  The lean4export check
+/// below it is the verified driver's now (`con_ron_core::driver`); this
+/// path is reached only for the other modes.
+fn run_main(argv: Vec<String>) -> u8 {
     if help_wanted(&argv) {
         // The one build-time choice a run's numbers depend on, printed rather
         // than merely documented (task #89).  A failed write is exit 3, as

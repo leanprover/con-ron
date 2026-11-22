@@ -1399,6 +1399,52 @@ which is a smaller thing — the Rust still transliterates the cited Lean, and
 `-loops-to-rec` puts the recursion back.  If a later task does reach for the
 hatch, it is recorded here.
 
+### 3.9 The driver over `CheckerIo`, and main theorems about the binary (task #171, 2026-11-22)
+
+con-leche's main theorems (`ConLeche/MainTheorem.lean`) are about its binary: each says what an
+exit 0 of `Driver.runArgs` at a given argument list implies, in the file model `ModelIO`
+(`ConLeche/Frontend/CheckerIO.lean`): the driver is written once over the class `CheckerIO m`,
+run at `IO` by the binary and reasoned about at `ModelIO`.  con-ron's headlines
+(`ConRon/Capstone.lean`) were instead one premise per verified call, with the driver that makes
+the calls trusted (OVERVIEW §8.2).  Decision (maintainer, 2026-11-22, "option A"): **con-ron's
+driver is ported into the extracted crate, generic over a trait, and its main theorems say what
+con-leche's say, word for word in their conclusions, about con-ron's own `run_args`.**
+
+* **The trait is the class.**  `frontend::checker_io` ports `CheckerIO.lean`: `CheckerFs`, the
+  file operations (`&self`; OleanFs's set, path-keyed, the read positional), `Step`, a job of
+  the worker map (`&self` and the `&I: CheckerFs` it may read files through), and
+  `CheckerIo: CheckerFs`, the worker map and the escapes.  Two traits, not one, because Aeneas
+  rejects mutually recursive trait declarations (a `Step` bounded by `CheckerIo` whose method is
+  bounded by `Step`; task #171's spike, `_tmp/spike-checkerio`).
+* **An escape is a `&mut self` method whose answer no premise constrains**: that is `liftIO`'s
+  "any outcome".  It must be `&mut self`: a `&self` method is a pure function of the instance in
+  the model, so Aeneas merges two calls with the same arguments (the spike's two clock reads
+  became one), which claims the real clock is constant.  The file operations stay `&self`, and
+  the premise on them holds at every state (`∀ s`), so no escape can change what they see.
+  **A notification** — an escape whose answer is `()`, a heartbeat line, a receipt — may stay
+  `&self` (OleanFs's `read_notes_say` is one): merging or dropping it changes no value the run
+  computes, and the model claims nothing about output.  Only an escape that *answers a value*
+  the code goes on with (the clock, the hardware thread count, a legacy mode's exit code) must be
+  `&mut self`.  Escapes take structured events (verdicts, receipts, heartbeat lines) and the store by shared
+  reference; the rendering is the instance's, outside the extraction.
+* **The worker map is the trait's**, its contract (`ParallelAll`, OVERVIEW §8.2's pool row) a
+  premise on the instance, for every `Step`.  The per-job heartbeat is the instance's
+  (around each step), so a step needs no escape.
+* **`main` is plumbing**: argv, the big-stack thread, `StdIo`, `run_args`, flush, exit.
+* **A mode not yet ported runs behind an escape** whose answer is the exit code — a theorem about
+  that mode is then unprovable, and a theorem about another argument list unaffected (it fixes
+  the argv, and the verified argument parser routes it).  `--schedule` stays an escape for
+  good, as con-leche's scheduler is `liftIO`.
+* **A con-ron `Native` error never shares the file operations' error channel**: con-leche's
+  driver catches `IO.Error` in lookups (`rootAt`, `readPartOr`), where "out of capacity" read as
+  "not here" could steer a run to exit 0 by another route.  `Native` always ends nonzero.
+* Option B (`run_args` exit 0 ⇒ `ModelIO.CanGive (Driver.runArgs args) fs 0`, inheriting
+  con-leche's theorems) was weighed and deferred: con-leche's driver carries the CACHED checker's
+  accept at the fixed `checkFuel` (`checkDeclsIO`'s `PLift`, `oleanJobRun` in the model), and
+  Theorem 1 ends at `∃ F, checkDeclsPure …`.  It becomes a rewrite of the conclusion if con-leche
+  ever weakens that evidence to the pure accept; porting the driver to follow `Cli.lean`'s
+  structure keeps the door open.
+
 ## 4. Sizing
 
 From the census of con-leche at 3e004805 (implementation only):
@@ -73940,3 +73986,200 @@ modules, 3507 import edges`, then all 668 workers under `xargs -P 8` exit 0; `--
 
 **Left.**  The scheduler's log, memory budget and thread budget, if a user needs them; the twin
 does not run `--schedule`.
+
+
+### Task #171 — the main theorems about the binary: the driver over `CheckerIo` (2026-11-22, Opus)
+
+The decision and its reasons are §3.9.  This section is the plan, then each slice's record.
+
+**The target.**  `proof/ConRon/MainTheorem.lean`, the twin of `ConLeche/MainTheorem.lean`: the
+same theorem names, the same premises' shape, the same conclusions *verbatim* (con-leche's
+`IsModel`, `parseChunks`, `constantsOf`, `Olean.closureConstants`, `InClosure`,
+`moduleConstants`, `Sees`, `jsonWithTheoremFalse`, …).  The only change in each statement is the
+run premise: con-leche's `ModelIO.CanGive (Driver.runArgs args) fs 0` is con-ron's
+`ConRon.CanGive args fs 0`:
+
+```lean
+/-- **An exit code `c` of con-ron at the argument list `args`, on the files `fs`**: the
+extracted driver returns `c` at an IO instance whose file operations answer as `fs`, at every
+state, and whose worker map keeps its contract. -/
+def CanGive (args : List String) (fs : ConLeche.FS) (c : UInt8) : Prop :=
+  ∃ (S : Type) (io : frontend.checker_io.CheckerIo S) (s s' : S) (c' : Std.U8),
+    io.AnswersAs fs ∧ io.PoolSound ∧
+    driver.cli.run_args io s (argv args) = ok (c', s') ∧ c'.val = c.toNat
+
+theorem main_json_model (V : Type w) [SetTheory V] {file : String} {fs : FS} {b : ByteArray}
+    (h : ConRon.CanGive ["--", file] fs 0) (hb : fs.file file = some b) :
+    ∃ r, parseChunks [b] = .ok r ∧ ∃ model, IsModel V model (· ∈ constantsOf r.decls.toList)
+```
+
+`argv args` is each string's code points (con-ron's string representation, `absString`'s
+inverse).  `AnswersAs` is `Capstone.lean`'s `SnapshotOf` at every state; `PoolSound` is
+`ParallelAll` for every `Step`.  What a run of the binary must satisfy to be one of `CanGive`'s
+is OVERVIEW §8.2's new driver row, as `CheckerIO.lean`'s module doc is con-leche's: `StdIo`'s
+answers are one snapshot's, the escapes write no file and do not end the process, the pool
+keeps its contract, `main` does what it says.  The current Capstone headlines stay as the
+lemmas the main theorems are proved from; the root theorems of §5's census become
+`MainTheorem.lean`'s.
+
+**The Rust.**  `crates/con-ron-core/src/frontend/checker_io.rs` (the traits) and
+`crates/con-ron-core/src/driver/` — one module per `ConLeche/Driver/*.lean` file con-ron has
+(`cli`, `dispatch`, `check_main`, `compare`, `compare_json`, `modular`, `graph`, …), in
+`provenance.py`'s discipline.  The stream read is a positional-read loop over
+`CheckerFs::read_range`: a verified `ChunkSource` over a `&F: CheckerFs`, a path and an offset
+(`parse_source` and its Theorem 2 stay as they are; `ReadsAs` becomes a lemma of `AnswersAs`),
+and `OleanFs` folds into `CheckerFs`.  `StdIo` serves a non-seekable file (a pipe) by reading its
+handle forward and failing a read at any other offset.  `crates/con-ron` keeps `StdIo`, the rendering, the heartbeat, the pool, the scheduler
+and `main`.
+
+**Two lanes, then the slices.**
+* **Lane C (conclusions)**, no Rust: for each mode, a theorem with the Capstone's step premises
+  and con-leche's conclusion — `RustDenotes … ∧ Nonempty (Model V env)` to `∃ r, parseChunks
+  [b] = .ok r ∧ ∃ model, IsModel V model (· ∈ constantsOf r.decls.toList)` (con-leche's
+  `json_isModel` does this at the cached accept with `model_exists` and
+  `constantsOf_preparePrelude`), the `--olean` one to `IsModel V model (Olean.closureConstants …)`
+  (con-leche's `oleans_isModel` reads the cached accept through `Olean.checkDecls_inputStored`;
+  con-ron has the pure accept, so a pure analogue is the likely work), and the compare ones.
+* **Lane D (driver)**: the traits, `StdIo`, the verified argument parser (`Cli.lean`'s, all
+  of it), `run_args` with the `-- <file>` path verified and every other request behind the
+  legacy escape; extraction; `CanGive`; the walk of `run_args` at `["--", file]` to Lane C's
+  theorem.  Slice 1 is `main_json_model` and `main_no_False`.
+* Slices 2–4 move `--olean` (+ `--check-graph`, `--module`, `--modular`), then the compared
+  runs, from the legacy escape into verified code, each with its main theorems; slice 5 retires
+  the legacy escape, rewrites OVERVIEW §3 around `MainTheorem.lean` and §8.2's driver row.
+
+#### Lane C — the Capstone's conclusions in con-leche's words
+
+`proof/ConRon/MainTheorem/Conclusions.lean` (a root of `ConRonCapstone`): five theorems, each
+with the step premises of one Capstone headline (the pins the embedded `decode_embedded`, as the
+`_embedded` forms) and con-leche's `MainTheorem.lean` conclusion verbatim:
+
+| theorem | Capstone premises | con-leche conclusion |
+|---|---|---|
+| `json_model_of_stages` | `model_exists_embedded` + `hb` | `main_json_model`: `∃ r, parseChunks [b] = .ok r ∧ ∃ model, IsModel V model (· ∈ constantsOf r.decls.toList)` |
+| `json_no_False_of_stages` | `no_False_declaration_embedded`, `hb`, `hF : jsonWithTheoremFalse [b]` | `main_no_False`: `False` |
+| `compare_json_model_of_stages` | `model_exists_compare` (embedded pins) + `hbC` | `main_compare_json_model`'s, less `fs.file c = some bC` (the driver's) |
+| `oleans_model_of_stages` | `model_exists_oleans` (embedded pins) | `main_oleans`: `∃ model, IsModel V model (closureConstants (absSearchPath dirs) F (names.map absName).toArray)` |
+| `compare_model_of_stages` | `model_exists_oleans_compare` (embedded pins), challenge lookup `⟨dirs, Vec.new⟩` | `main_compare_model`: `∀ fs', FS.AgreeUnder (absSearchPath dirs) F fs' → ∃ model, IsModel V model (closureConstants (absSearchPath dirs) fs' #[absName c])` |
+
+**The bytes**: the json premises are `hb : concatBytes (absChunks chunks) = b` (the chunks put
+together are the file), and con-leche's `parseChunks_single_of_concat` moves the parse to `[b]`;
+lane D's positional reads discharge it.  The `--olean` search path and roots are the Rust's
+(`absSearchPath dirs`, `absName`); `searchPathOf`/`trustedOr`/`parseModName` are lane D's.  The
+compared `--olean` one fixes the challenge's lookup to a search path with no fallback (what
+`chalRoots` builds), because `closureConstants_local` is about a `SearchPath`'s lookup.
+
+**What it needed** (`MainTheorem/PureStored.lean`, namespace `ConRon.Bridge`): con-leche reaches
+`IsModel` from the CACHED accept (`Cached.declsRun_recordsStored`, `Olean.checkDecls_inputStored`),
+Theorem 1 gives the PURE one.  The pure analogues, each upstream's proof over `PureRun`'s facts:
+`pureRun_recordsStored`; for a comparison's challenge `mixedRun_facts` (blocks read, recursors
+read — the pure arm as a one-step `PureRun`), `mixedRun_basisNamesOk`, `mixedRun_recordsStored`;
+`inputStored_of_covered` (`inputStored_of` with the reader's cover a premise in place of a
+`ModelIO` run of `readOleansAt`).  Then the stages in con-leche's words: `stages_isModel`,
+`stagesC_isModel`, `stagesO_isModel`, `stagesOC_isModel` (the last two copy `stagesC_model`'s /
+`stagesOC_core`'s bodies to reach the mixed run, which those do not export).
+
+**The reader's cover** (Theorem 1, `Bridge/Frontend/Olean/Covers.lean`): upstream's
+`readOleansAt_covers` rests on a `ModelIO` run of its reader, which the twin's reader is not
+related to as a whole (`Records.lean`'s module note).  `entry_of_loads` (`readOleansAt_entry`'s
+body over the closure order, the `LoadSpec`s and `mergeAll_ok`) and `covers_of_merge`
+(`readOleansAt_covers`'s over `MergeFacts`) restate it over the pieces `readOleans_run` has, and
+`readOleans_run`, `stagesO_frame`, `stagesOC_frame` each gain one conjunct, the cover
+`∀ r, closureConstants sp F roots r → CoveredBy ds r` (their users take it with `-`).  No
+Capstone statement changed.
+
+**Upstream candidates** (con-leche could state these, and lane C's copies would go):
+`PureRun.recordsStored` (`declsRun_recordsStored` at the pure run — every ingredient is already a
+`PureRun` lemma); `inputStored_of` and `readOleansAt_covers` split at `MergeFacts` + the entry
+property, so that a reader proved piecewise can use them; `json_isModel`/`oleans_isModel`'s
+`model_exists` step stated from `∃ F, checkDeclsPure … = .ok env` (the evidence Theorem 1 has).
+
+**Dead census**: the five are added to `scripts/dead-census.py`'s `CAPSTONES` (they are
+headline roots until `MainTheorem.lean` is built on them; without that the gate reports
+`PureStored`/`Conclusions` as deletable).
+
+**Census**: the five depend on `propext`, `Classical.choice`, `Quot.sound` and
+`PINS_TEXT._native.decide.ax_1` — exactly `model_exists_embedded`'s; no `sorry`.  Elaboration
+(`lake env lean`, one run each): `Covers` 0.8 s, `PureStored` 1.4 s / 2.4 GB, `Conclusions`
+2.2 s / 4.1 GB.
+
+#### Lane D (slice 1) — the driver over `CheckerIo`, and `-- <file>` verified end to end
+
+**What moved.**  The `.ndjson` path of the binary is now extracted code:
+
+* `crates/con-ron-core/src/frontend/checker_io.rs` (cites `Frontend/CheckerIO.lean`): `CheckerFs`
+  (`read_range` alone, `OleanFs`'s name and signature, so slice 2 folds `OleanFs` in), `Step<F, S>`
+  (`init`, `step(&self, &F, &mut S, usize)`, and `view`, the tier/store/records the per-job
+  heartbeat reads a label off, in no contract), `CheckerIo: CheckerFs + Sized + Sync` with the
+  worker map `par_map_workers<S: Send, St: Step<Self, S> + Sync>(&mut self, &St, n, workers)`, the
+  value-answering escapes `&mut self` (`print_help`, `run_legacy`, `hardware_jobs`,
+  `read_pins_file`, `keep_heap`) and the notifications `&self` (`usage`, `note`, `read_starts`,
+  `hoisted`, `index_starts`, `parse_done`, `check_starts`, `check_done`, `verdict_failure`).  The
+  `Send`/`Sync` bounds are hidden by Charon's marker-trait handling and cost nothing in the model.
+  `FileChunks<'a, F>` is the stream's `ChunkSource` over `(&F, path, off, reads, err)`: positional
+  reads of `CHUNK_SIZE` at the offset the last one ended, a failure kept and every read after it
+  empty; `parse_source` and `Source.lean` are unchanged.  `reads: usize` counts the answered
+  reads, the one field there for the proof: the capstone states the parse over a
+  `Vec<Vec<u8>>`, whose length a `usize` bounds, and `u64` offsets do not bound the read count on
+  a 32-bit `usize` (Aeneas' `Usize` is `System.Platform.numBits` wide).
+* `crates/con-ron-core/src/driver/cli.rs` (`Driver/Cli.lean`): the binary's `parse_args` clause
+  for clause over code points — every flag, the first bad one reported as a structured `Bad`
+  (rendered by the instance; the value messages are `driver::{progress_pace, jobs_count,
+  max_nat_size_arg}`'s own `Err` strings, so the two parses cannot drift) — and `run_args`:
+  `--help` (`print_help`), the usage error, then `--check-graph`/`--olean`/`--compare` (so also
+  `--module`, `--modular`, `--schedule`, which take `--olean`) to `run_legacy`, the json branch's
+  usage checks, the synopsis, `check_main`.
+* `crates/con-ron-core/src/driver/check_main.rs` (`Driver/CheckMain.lean`): `check_main`, step for
+  step `bin/con-ron.rs`'s `check_main` on `Input::Ndjson` (h1 … h8 in order), `check_phase` (index,
+  freeze, `par_map_workers` over `JobStep`, thaw, `check_done`), `pins_for_run`, `jobs_for_run`,
+  `verdict_of`; the verdict path hands `st`, the records and the index to `keep_heap` (con-leche
+  #336: no free cascade before the exit).  The pins choice and the tail are functions of their
+  own because Aeneas duplicates a continuation into every branch (the first extraction had the
+  check phase and verdict three times over).
+* `crates/con-ron/src/std_io.rs`: `StdIo` — `read_range` a forward pipe (opened at offset 0 after
+  the old `metadata().is_file()` check, `read_up_to` to fill each buffer, any other offset an
+  error), the pool (`pool::parallel_all`, the heartbeat line under one lock, `pool_verdict`), the
+  rendering of every event in the old words, `StdIoHooks` for the binary's help/synopsis/usage
+  text and the legacy driver.  `bin/con-ron.rs`: `main` is plumbing (argv, non-UTF-8 → 3, the
+  checking thread at `driver::stack_bytes()`, `run_args`, flush and exit FROM that thread so the
+  instance is never dropped); `run_main(argv)` is the legacy driver, otherwise untouched.  The
+  old `check_main`'s `Input::Ndjson` arm is now reached by no request (slice 5 removes it).
+  `--schedule` and every `--olean` mode run behind `run_legacy`, whose verdict paths still
+  `process::exit` inside the escape; no theorem is about them.
+
+**What extracted.**  `Generated/Funs.lean` +1 334 lines (63 new definitions), `Types.lean` +143.
+Extraction 7 min wall (416 s Aeneas), as before.  One Aeneas finding, reproducer in
+`_tmp/corpus/aeneas/or-chain-prop/`: a `let`-bound `||` chain's last operand is emitted as a
+`Prop` (`let b ← if u = 1 then ok true else ok (u = 2)`), so `if b` fails with "failed to
+synthesize Decidable"; `size_positive` uses a `match` instead.
+
+**The walk** (`proof/ConRon/MainTheorem/Driver.lean`, 744 lines, no `sorry`, no Aesop, no new
+axiom; `main_*`'s census is the `_embedded` one: the three standard axioms and
+`PINS_TEXT._native.decide.ax_1`).  `AnswersAs io fs` is `SnapshotOf`'s `read_range` clause at
+every state (`PathRel` spellings); `PoolSound io` is `ParallelAll` of `init`/`step` for every
+`Step`, the steps reading files at the map's own state (`stepAt`); `ArgvOf argv args` relates the
+argument list by code points (a relation, not a function: a `Vec` is bounded, a `String` is not);
+`CanGive` is the plan's.  One inversion per driver function: `parse_source_loop_inv` and
+`next_chunk_inv` (one turn, one read), `fileChunks_loop` (strong induction on `b.size - off`: the
+reads are `b`'s slices, each nonempty, then an empty one — `ReadsAs` — and they concatenate to the
+rest of `b`, with fewer reads than a `usize` counts), `fileChunks_parse`, `help_wanted_end`,
+`parse_args_end` (`str_copy_val`, `push_val`), `check_phase_ok` (PoolSound at `JobStep` is
+`ParallelAll … (jobStep tier mode ipins ds)` by `funext`), `verdict_of_zero`,
+`pins_for_run_embedded`, `hoisted_bind`, `check_main_zero`, `run_args_json`, and
+`json_stages_of_canGive : CanGive ["--", file] fs 0 → fs.file file = some b → JsonStages b`, where
+`JsonStages b` is exactly the premises of `model_exists_embedded` plus
+`concatBytes (absChunks chunks) = b`.  `ConRon/MainTheorem.lean` composes it with lane C's
+`json_model_of_stages`/`json_no_False_of_stages`: `main_json_model` and `main_no_False`, con-leche's
+statements verbatim but `ConRon.CanGive ["--", file] fs 0`; both are `dead-census.py` roots.
+`lake build ConRon.MainTheorem` after a cached chain: seconds; the chain after the extraction
+moved `Funs.lean`: 9 min (Funs 137 s).
+
+**Behaviour.**  `scripts/diff-e2e.sh`: 773/773 agree, display gate 9/9, command-line gate 18/18.
+Old binary (f126d3ae) against the new one, stdout + stderr + exit code with times masked, on every
+`tests/e2e` fixture plain, `--progress --jobs=1`, `--progress=1s --jobs=2`, and 32 command lines
+(usage errors, `--help`, missing file, a directory, `--pins`, `--compare`/`--olean` routing): no
+difference but an out-of-memory size under `ulimit -v` on `whnf_core_loop` (exit 134 both).
+
+**Left.**  Slice 2 (`--olean` and its modes into verified code; `OleanFs` into `CheckerFs`), the
+`Capstone.lean` tables' `bin/con-ron.rs` line references (they now describe `check_main.rs`),
+OVERVIEW §8.2's driver row (slice 5).
