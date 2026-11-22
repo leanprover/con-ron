@@ -768,8 +768,9 @@ theorem checkBlock_bridge (hk : CoreSpec Arena.checkFuel)
   have x4 := i4.ext
   -- the projection tables, read off the block once
   obtain ⟨oQ, s₄₁, h81, h82⟩ := AM.bind_ok h8
-  obtain ⟨p41, -, hQ⟩ := blockTables_run p₀.members p₀P.members i4.state
-    (dShape_ext (x13.trans x4) _ _ hp) (dMember_ext.list (x13.trans x4) _ _ hms₀) h81
+  obtain ⟨p41, -, hQ⟩ := blockTables_run p₀.projMembers p₀P.projMembers i4.state
+    (dShape_ext (x13.trans x4) _ _ hp)
+    (BlockShape.projMembers_spec (dShape_ext (x13.trans x4) _ _ hp)) h81
   obtain ⟨Q, s₄₂, h83, h84⟩ := AM.bind_ok h82
   obtain ⟨rfl, rfl⟩ := unwrapOr_ok h83
   obtain ⟨QP, hQP, hQd, -⟩ := hQ

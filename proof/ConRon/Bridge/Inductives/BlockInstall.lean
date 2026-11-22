@@ -402,9 +402,11 @@ theorem checkBlockInds_spec {env : Env} (fe : IFEnv)
       (ConLeche.checkBlockInds (fueledOpsM .verified) env pP isRec) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hp, hfe⟩ := hpre
-  obtain ⟨ms, rs, nP, el, sP, lg, ip⟩ := pP
+  obtain ⟨ms, rs, nP, el, sP, lg, ip, fl⟩ := pP
+  have hfl := dShape_flags hp
   obtain ⟨hms, hrs, rfl, hel, hsP, rfl, rfl⟩ := dShape_inv hp
-  dsimp only at hms hrs hel hsP
+  dsimp only at hms hrs hel hsP hfl
+  subst hfl
   simp only [Arena.checkBlockInds] at hrun
   cases hmem : p.members with
   | nil =>
@@ -430,7 +432,7 @@ theorem checkBlockInds_spec {env : Env} (fe : IFEnv)
   have c13 := c1.trans (c2.trans c3)
   obtain ⟨p₁, s₄, k4, z4⟩ := AM.bind_ok z3
   obtain ⟨c4, hp₁⟩ := BlockShape.withSort_spec fe p
-    ⟨ms₀P :: restP, rs, p.nP, el, sP, p.large, p.isProp⟩ s0 s0P s₃ s₄ p₁
+    ⟨ms₀P :: restP, rs, p.nP, el, sP, p.large, p.isProp, p.flags⟩ s0 s0P s₃ s₄ p₁
     c3.ok ⟨dShape_ext c13.ext _ _ hp, denoteL_ext h1b (c2.ext.trans c3.ext)⟩ k4
   have c14 := c13.trans c4
   obtain ⟨fe₁, s₅, k5, z5⟩ := AM.bind_ok z4
@@ -441,9 +443,9 @@ theorem checkBlockInds_spec {env : Env} (fe : IFEnv)
   obtain ⟨q5, e5, hrel5⟩ := consBlockInds_run isRec _ _ 0 fe env c14.ok.state
     c14.ok.caches.readL hp₁ hdecl (hfe.mono c14.ext) k5
   refine ⟨c14.trans (q5.toCore c14.ok), (ConLeche.consBlockInds (ConLeche.BlockShape.withSort
-      ⟨ms₀P :: restP, rs, p.nP, el, sP, p.large, p.isProp⟩ s0P) isRec
+      ⟨ms₀P :: restP, rs, p.nP, el, sP, p.large, p.isProp, p.flags⟩ s0P) isRec
       ((ms₀P :: restP).map (·.declared)) 0 env,
-      ConLeche.BlockShape.withSort ⟨ms₀P :: restP, rs, p.nP, el, sP, p.large, p.isProp⟩ s0P),
+      ConLeche.BlockShape.withSort ⟨ms₀P :: restP, rs, p.nP, el, sP, p.large, p.isProp, p.flags⟩ s0P),
     ⟨by rw [e5]; exact hrel5, by rw [e5]; exact hp₁⟩, ?_⟩
   · unfold ConLeche.checkBlockInds
     exact FOk.bind fk1 (FOk.bind fk2 (FOk.bind fk3 (FOk.pure _)))
@@ -476,7 +478,8 @@ theorem BlockShape.nestCtx_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape
     | cons x xs ih =>
       obtain ⟨y, ys', rfl, hy, hys⟩ := mapM_option_cons_inv hms
       exact mapM_option_cons (dMember_inv hy).1 (ih ys' hys)
-  obtain ⟨ms, rs, nP, el, sP, lg, ip⟩ := pP
+  have hbd := BlockShape.boundedProp_spec hp
+  obtain ⟨ms, rs, nP, el, sP, lg, ip, fl⟩ := pP
   obtain ⟨-, -, rfl, -, hsP, rfl, rfl⟩ := dShape_inv hp
   dsimp only at hsP
   simp only [Arena.BlockShape.nestCtx] at hrun
@@ -488,7 +491,7 @@ theorem BlockShape.nestCtx_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape
   simp only [dCtx, denoteNListE_ext x _ _ hnames, denoteNListE_ext x _ _ hlps,
     denoteEList_ext x _ _ hfvs, denoteL_ext hsP x, hlv, Option.bind_eq_bind, Option.bind_some,
     Option.pure_def, ite_true, ConLeche.BlockShape.nestCtx, hnI,
-    dExt_denoteCV.list x _ _ hform]
+    dExt_denoteCV.list x _ _ hform, hbd]
   rfl
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:198-207 checkBlockCtors

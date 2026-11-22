@@ -26,6 +26,7 @@ import ConRon.Bridge.Checker.Names
 import ConRon.Bridge.Checker.Canon
 import ConRon.Bridge.ExprOps.Subst
 import ConRon.Bridge.Specs
+import ConRon.Bridge.Inductives.BlockShape
 
 public section
 
@@ -880,14 +881,32 @@ theorem streamKCheck_run {p : Arena.BlockShape} {pP : ConLeche.BlockShape} :
       obtain ⟨gP, gsP, rfl, hg, hgs⟩ := mapM_option_cons_inv ho
       have hK := (dRec_inv hrc).2.2.2.2.2
       have hE := recKExpected_eq hp (RC.dRecOut_inv hg).2.1
+      have hR := (dRec_inv hrc).2.2.2.2.1
+      have hrE : rc.rules.isEmpty = rcP.rules.isEmpty := by
+        cases h1 : rc.rules with
+        | nil =>
+          rw [h1] at hR
+          simp only [Frontend.denoteRules, Option.some.injEq] at hR
+          rw [← hR]; rfl
+        | cons x xs =>
+          rw [h1] at hR
+          simp only [Frontend.denoteRules] at hR
+          split at hR
+          · rw [← Option.some.inj hR]; rfl
+          · exact nomatch hR
       simp only [Arena.streamKCheck] at hrun
+      split at hrun
+      · exact absurd hrun (fun h => AM.fail_ok h)
+      rename_i hnr
       obtain ⟨hc, z1⟩ := AM.dunless_ok AM.Never.fail_any hrun
       replace z1 := AM.pure_bind_ok z1
       obtain ⟨rfl, hF⟩ := ih rcsP gs gsP s₀ s' r hp hrcs hgs z1
       refine ⟨rfl, ?_⟩
       simp only [ConLeche.streamKCheck]
+      rw [BlockShape.noRules_spec hp, hrE] at hnr
+      rw [if_neg hnr]
       rw [hK, hE] at hc
       rw [ite_eq_left hc]
-      exact FOk.seq (FOk.pure ()) hF
+      exact FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ()) hF)
 
 end ConRon.Bridge.Inductives

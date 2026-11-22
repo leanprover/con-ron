@@ -78,6 +78,107 @@ theorem BlockShape.numCtors_spec {st : EStore} {p : Arena.BlockShape}
   obtain ⟨hms, -, -, -, -, -, -⟩ := dShape_inv h
   exact numCtorsOf_spec hms
 
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:155-162 BlockShape.derivedFlags
+— the derived flags read no handle: the twin's are con-leche's. -/
+theorem BlockShape.derivedFlags_spec {st : EStore} {p : Arena.BlockShape}
+    {pP : ConLeche.BlockShape} (h : dShape st p = some pP) (i : Nat) :
+    p.derivedFlags i = pP.derivedFlags i := by
+  obtain ⟨hms, -, -, -, -, hlg, hip⟩ := dShape_inv h
+  have hg := mapM_option_getElem?_bind hms i
+  have hlen := ConLeche.option_mapM_length hms
+  have hd0c : (default : ConLeche.MemberShape).ctors = [] := rfl
+  have hd0n : (default : ConLeche.MemberShape).nIdx = 0 := rfl
+  unfold Arena.BlockShape.derivedFlags ConLeche.BlockShape.derivedFlags
+  rw [List.getD_eq_getElem?_getD, hg, hlg, hip]
+  cases hm : p.members[i]? with
+  | none =>
+    simp only [Option.bind_none, Option.getD_none, hd0c, hd0n]
+    cases pP.isProp <;> simp [hlen]
+  | some m =>
+    cases hd : dMember st m with
+    | none =>
+      exfalso
+      rw [hm, Option.bind_some, hd] at hg
+      have h1 := (List.getElem?_eq_some_iff.mp hm).1
+      have h2 := List.getElem?_eq_none_iff.mp hg
+      omega
+    | some mP =>
+      obtain ⟨-, hnI, hcs, -⟩ := dMember_inv hd
+      simp only [Option.bind_some, hd, Option.getD_some]
+      cases hc : m.ctors with
+      | nil =>
+        rw [hc] at hcs
+        simp only [dCtors, List.mapM_nil, Option.pure_def, Option.some.injEq] at hcs
+        rw [← hcs]; cases pP.isProp <;> simp [hlen]
+      | cons c rest =>
+        rw [hc] at hcs
+        obtain ⟨cP, restP, hcsP, hcP, hrestP⟩ := mapM_option_cons_inv hcs
+        rw [hcsP]
+        cases rest with
+        | cons c' rest' =>
+          obtain ⟨_, _, rfl, -, -⟩ := mapM_option_cons_inv hrestP
+          cases pP.isProp <;> simp [hlen]
+        | nil =>
+          simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hrestP
+          subst hrestP
+          simp only [dCtor, Option.map_eq_some_iff] at hcP
+          obtain ⟨cv, -, rfl⟩ := hcP
+          rw [hnI]
+          by_cases hl : p.members.length = 1 <;> cases pP.isProp <;> simp [hlen, hl]
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:164-168 BlockShape.flagsAt
+— member `i`'s flags: the twin's are con-leche's. -/
+theorem BlockShape.flagsAt_spec {st : EStore} {p : Arena.BlockShape}
+    {pP : ConLeche.BlockShape} (h : dShape st p = some pP) (i : Nat) :
+    p.flagsAt i = pP.flagsAt i := by
+  unfold Arena.BlockShape.flagsAt ConLeche.BlockShape.flagsAt
+  rw [dShape_flags h, BlockShape.derivedFlags_spec h]
+  cases pP.flags <;> rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:170-176 BlockShape.noRules -/
+theorem BlockShape.noRules_spec {st : EStore} {p : Arena.BlockShape}
+    {pP : ConLeche.BlockShape} (h : dShape st p = some pP) :
+    p.noRules = pP.noRules := by
+  have hlg := (dShape_inv h).2.2.2.2.2.1
+  unfold Arena.BlockShape.noRules ConLeche.BlockShape.noRules
+  rw [dShape_flags h, hlg]
+  cases pP.flags <;> cases pP.large <;> rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:178-186 BlockShape.boundedProp -/
+theorem BlockShape.boundedProp_spec {st : EStore} {p : Arena.BlockShape}
+    {pP : ConLeche.BlockShape} (h : dShape st p = some pP) :
+    p.boundedProp = pP.boundedProp := by
+  obtain ⟨-, -, -, -, -, hlg, hip⟩ := dShape_inv h
+  unfold Arena.BlockShape.boundedProp ConLeche.BlockShape.boundedProp
+  rw [BlockShape.flagsAt_spec h, hlg, hip]
+  cases pP.isProp <;> cases pP.large <;> cases (pP.flagsAt 0).isImpredicative <;> rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:192-196 projMembersFrom
+— the members that may have projections, denoted. -/
+theorem projMembersFrom_spec {st : EStore} {p : Arena.BlockShape}
+    {pP : ConLeche.BlockShape} (h : dShape st p = some pP) :
+    ∀ (i : Nat) (ms : List Arena.MemberShape) (msP : List ConLeche.MemberShape),
+      ms.mapM (dMember st) = some msP →
+      (Arena.projMembersFrom p i ms).mapM (dMember st) = some (ConLeche.projMembersFrom pP i msP)
+  | _, [], msP, hm => by
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hm
+    subst hm; rfl
+  | i, m :: ms, msP, hm => by
+    obtain ⟨mP, msP', rfl, hm1, hms⟩ := mapM_option_cons_inv hm
+    have ih := projMembersFrom_spec h (i + 1) ms msP' hms
+    unfold Arena.projMembersFrom ConLeche.projMembersFrom
+    simp only [Arena.BlockShape.projAllowed, ConLeche.BlockShape.projAllowed,
+      BlockShape.flagsAt_spec h]
+    split
+    · simp only [List.mapM_cons, hm1, ih, Option.bind_eq_bind, Option.bind_some, Option.pure_def]
+    · exact ih
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:198-201 BlockShape.projMembers -/
+theorem BlockShape.projMembers_spec {st : EStore} {p : Arena.BlockShape}
+    {pP : ConLeche.BlockShape} (h : dShape st p = some pP) :
+    p.projMembers.mapM (dMember st) = some pP.projMembers :=
+  projMembersFrom_spec h 0 p.members pP.members (dShape_inv h).1
+
 /-- con-leche: none — the member names, over the member list. -/
 theorem memberNames_go {st : EStore} :
     ∀ {ms : List Arena.MemberShape} {msP : List ConLeche.MemberShape},

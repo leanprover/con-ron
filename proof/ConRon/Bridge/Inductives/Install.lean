@@ -58,7 +58,7 @@ the twin's record past its never-zero read (`memberNeverZero`), at the fact
   | some ms =>
     match ms.ctors with
     | [c] =>
-      { eta := if ms.nIdx != 0 then false else if isRec then false else true
+      { eta := if ms.nIdx != 0 then false else if isRec then false else (p.flagsAt mi).hasEta
         all := p.memberNames, nparams := p.nP, nIdx := ms.nIdx, ctors := [c.1.name],
         neverZero := nz }
     | cs => { all := p.memberNames, nparams := p.nP, nIdx := ms.nIdx,
@@ -212,10 +212,11 @@ theorem blockCapsAtP_denote {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.
         simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hrestP
         subst hrestP
         simp only [Frontend.denoteCaps, hnames, hnP, denoteCV_name hcvP, Frontend.denoteNList]
-        simp only [Option.some.injEq]
+        simp only [Option.some.injEq, BlockShape.flagsAt_spec hp]
+        generalize (pP.flagsAt mi).hasEta = e
         generalize m.nIdx = a
         generalize c.2 = b
-        cases a <;> cases b <;> cases isRec <;> rfl
+        cases a <;> cases b <;> cases isRec <;> cases e <;> rfl
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-82 blockCapsAt —
 **the capability record of member `mi`**: a pure step (the never-zero read goes
@@ -1223,8 +1224,8 @@ theorem XFree.blockMemberCounts (nPd k nC : Nat) (names : List NIdx)
         intro s s' r h; obtain ⟨-, rfl⟩ := AM.pure_ok h; rfl)) rs
     unfold Arena.blockMemberCounts; xfree_auto
 
-theorem XFree.readBlock (nPd : Nat) (block : List IConstantInfo) :
-    XFree (Arena.readBlock nPd block) := by
+theorem XFree.readBlockShape (nPd : Nat) (block : List IConstantInfo) :
+    XFree (Arena.readBlockShape nPd block) := by
   have h1 := XFree.blockMemberCounts nPd
   have h3 := XFree.stripPis
   have h4 := XFree.view'
@@ -1234,7 +1235,7 @@ theorem XFree.readBlock (nPd : Nat) (block : List IConstantInfo) :
   have h8 := XFree.blockGroups
   have h9 := XFree.recTargetOf
   have h10 := XFree.internNNode
-  unfold Arena.readBlock
+  unfold Arena.readBlockShape
   repeat (first
     | exact XFree.pure _
     | exact XFree.fail _
@@ -1253,7 +1254,13 @@ theorem XFree.readBlock (nPd : Nat) (block : List IConstantInfo) :
     | (dsimp only)
     | split)
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
+theorem XFree.readBlock (nPd : Nat) (block : List IConstantInfo) :
+    XFree (Arena.readBlock nPd block) := by
+  unfold Arena.readBlock
+  refine XFree.bind (XFree.readBlockShape nPd block) (fun r => ?_)
+  split <;> exact XFree.pure _
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:543-547 readBlock
 `readBlock_run` with the scratch flag framed. -/
 theorem readBlock_installS {env : Env} {fe : IFEnv} {nP : Nat}
     {block : List IConstantInfo} {b : List ConstantInfo} {s s' : AState}
