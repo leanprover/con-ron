@@ -92868,7 +92868,7 @@ def driver.cli.size_positive (v : alloc.vec.Vec Std.U32) : Result Bool := do
     let i ← n - 1#usize
     let u ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) v i
-    let unit ←
+    let has_unit ←
       if u = 75#u32
       then ok true
       else
@@ -92889,7 +92889,7 @@ def driver.cli.size_positive (v : alloc.vec.Vec Std.U32) : Result Bool := do
                 else if u = 84#u32
                      then ok true
                      else ok (u = 116#u32)
-    if unit
+    if has_unit
     then
       let b ← driver.cli.is_nat v 0#usize i
       if b

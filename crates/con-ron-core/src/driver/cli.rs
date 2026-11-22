@@ -314,8 +314,8 @@ pub fn size_positive(v: &Vec<u32>) -> bool {
         return false;
     }
     let u = v[n - 1];
-    let unit = u == 75 || u == 107 || u == 77 || u == 109 || u == 71 || u == 103 || u == 84 || u == 116;
-    if !unit || !is_nat(v, 0, n - 1) {
+    let has_unit = u == 75 || u == 107 || u == 77 || u == 109 || u == 71 || u == 103 || u == 84 || u == 116;
+    if !has_unit || !is_nat(v, 0, n - 1) {
         return false;
     }
     let mut i = 0usize;
