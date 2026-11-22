@@ -267,6 +267,35 @@ impl WorkerNotes for StdIo {
     fn worker_verdict_failure(&self, who: &Option<Name>, pers: &PersTier, ar: &EStore, ds: &Vec<IDeclaration>, e: &CheckError, i: u64, verified: bool) {
         let _ = driver::verdict_failure(pers, ar, ds, e, i, mode_tag(verified), self.t0, &who_text(who));
     }
+
+    /// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
+    /// The copies' lines, all made before any is printed (`copyRecs`, the
+    /// reach's owner map, `copyLine`).
+    fn worker_copies(&self, who: &Option<Name>, m: &Name, pers: &PersTier, st: &mut AState, x: &Vec<ImportRec>, w: &WorkerRead) -> Option<CheckError> {
+        let cs = match con_ron_core::frontend::modular::worker::copy_recs(pers, st, x, &w.reads.index, &w.emitted) {
+            Ok(cs) => cs,
+            Err(e) => return Some(e),
+        };
+        let owner = match con_ron_core::frontend::modular::reach::owner_map(pers, st, &w.reach.ctx) {
+            Ok(ow) => ow,
+            Err(e) => return Some(e),
+        };
+        let mut lines: Vec<String> = Vec::with_capacity(cs.len() + 1);
+        lines.push(format!(
+            "con-ron: {}{} declarations of {} are the loaded constants of their names",
+            who_text(who),
+            cs.len(),
+            render::name_str(m)
+        ));
+        for d in &cs {
+            match crate::modular::copy_line(pers, st, w, &owner, d) {
+                Ok(l) => lines.push(format!("con-ron: {}", l)),
+                Err(e) => return Some(e),
+            }
+        }
+        println!("{}", lines.join("\n"));
+        None
+    }
 }
 
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:515-531 instCheckerIOIO
@@ -448,6 +477,14 @@ impl CheckerIo for StdIo {
                 .to_string(),
             Bad::CompareTwoFiles => "--compare takes two files, a challenge and its solution".to_string(),
             Bad::CompareSameFile => "--compare takes two different files, a challenge and its solution".to_string(),
+            Bad::CheckGraphCompareTwo => {
+                "--check-graph --compare takes two module names, a challenge and its solution".to_string()
+            }
+            Bad::CompareTwoModules => "--compare takes two module names, a challenge and its solution".to_string(),
+            Bad::CompareSameModule => "--compare takes two different modules, a challenge and its solution".to_string(),
+            Bad::CompareModeArgs => "--compare with --module, --modular or --schedule takes one of them, \
+                 and no --constant"
+                .to_string(),
         };
         let _ = (self.hooks.usage)(&msg);
     }
@@ -528,6 +565,16 @@ impl CheckerIo for StdIo {
                 k,
                 n,
                 render::name_str(m),
+                mode_tag(*v)
+            ),
+            Note::GraphFailedMode(e, v) => {
+                eprintln!("con-ron: graph: {} ({})", driver::error_text(e), mode_tag(*v))
+            }
+            Note::CompareWhy(why, v) => eprintln!("con-ron: {} ({})", path_of(why), mode_tag(*v)),
+            Note::NotSolution(s, c, v) => eprintln!(
+                "con-ron: {} does not solve {}: the solution's closure holds the challenge ({})",
+                render::name_str(s),
+                render::name_str(c),
                 mode_tag(*v)
             ),
         }

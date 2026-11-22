@@ -959,11 +959,11 @@ fn print_synopsis() {
 
 /// con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
 /// **The legacy driver** (`StdIo`'s `run_legacy`): the run up to its exit code
-/// of every request the verified driver does not run yet (`--olean`,
-/// `--check-graph`, `--compare`), from the whole argument list: `--help`, the
-/// parse, and con-leche's usage checks in its order.  The lean4export check
-/// below it is the verified driver's now (`con_ron_core::driver`); this
-/// path is reached only for the other modes.
+/// of every request the verified driver does not run (`--olean --schedule`,
+/// with or without `--compare`, and `--olean --modular --pins`), from the whole
+/// argument list: `--help`, the parse, and con-leche's usage checks in its
+/// order.  Every other mode below is the verified driver's
+/// (`con_ron_core::driver`), and is reached by no request.
 fn run_main(argv: Vec<String>) -> u8 {
     if help_wanted(&argv) {
         // The one build-time choice a run's numbers depend on, printed rather

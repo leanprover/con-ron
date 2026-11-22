@@ -138,6 +138,11 @@ pub trait WorkerNotes {
     /// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
     /// The failure line, the module named unless it is the run's one check.
     fn worker_verdict_failure(&self, who: &Option<Name>, pers: &PersTier, ar: &EStore, ds: &Vec<IDeclaration>, e: &CheckError, i: u64, verified: bool);
+    /// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
+    /// After a compare worker's accept: its copies (`copyRecs` over the imports
+    /// `x` the run added), one line each (`copyLine`), the module named unless
+    /// it is the run's one check; the error that kept the lines from being made.
+    fn worker_copies(&self, who: &Option<Name>, m: &Name, pers: &PersTier, st: &mut AState, x: &Vec<ImportRec>, w: &WorkerRead) -> Option<CheckError>;
 }
 
 /// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
@@ -181,8 +186,8 @@ pub trait CheckerIo: CheckerFs + WorkerNotes + Sized + Sync {
     /// `--help`: the help text on stdout; the exit code (3 when the write fails).
     fn print_help(&mut self) -> u8;
     /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
-    /// A request the verified driver does not run yet: the unverified driver's
-    /// run of the whole argument list, and its exit code.
+    /// A request the verified driver does not run (`--schedule`, `--modular --pins`):
+    /// the unverified driver's run of the whole argument list, and its exit code.
     fn run_legacy(&mut self, argv: &Vec<Vec<u32>>) -> u8;
     /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
     /// The `--jobs` default: one worker per hardware thread, capped

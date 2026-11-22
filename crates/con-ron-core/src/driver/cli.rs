@@ -7,14 +7,17 @@
 //! argument the one reported (`Bad`, rendered by the instance in the binary's
 //! words).  `run_args` runs `--help`, the usage errors, the check of one
 //! lean4export file (`check_main`), the comparison of two (`compare_json`),
-//! `--check-graph` (`graph`), and `--olean` on a closure, `--module` and
-//! `--modular` (`check_main::check_oleans`, `worker`, `modular`); every other
-//! request (`--olean --compare`, `--check-graph --compare`, `--schedule`, and
+//! `--check-graph` (`graph`, with `--compare` `compare_module`), and `--olean`
+//! on a closure, `--module` and `--modular` (`check_main::check_oleans`,
+//! `worker`, `modular`), each also with `--compare` (`compare`,
+//! `compare_module`, `modular`); every other request (`--schedule`, and
 //! `--modular` with `--pins`) goes, whole, to the instance's `run_legacy`.
 
 use crate::arena::pins::max_nat_size_default;
 use crate::driver::check_main;
+use crate::driver::compare;
 use crate::driver::compare_json;
+use crate::driver::compare_module;
 use crate::driver::graph;
 use crate::driver::modular;
 use crate::driver::worker;
@@ -26,6 +29,7 @@ use crate::frontend::nat_decimal;
 use crate::frontend::pace::Pace;
 use crate::frontend::text::cps_beq;
 use crate::frontend::text::cps_starts_with;
+use crate::kernel::name;
 use crate::kernel::expr::str_copy;
 use crate::kernel::expr::str_copy_from;
 use crate::ron::nat::Nat;
@@ -125,6 +129,14 @@ pub enum Bad {
     ModularArgs,
     /// `--module` with other than one module, or a constant
     ModuleArgs,
+    /// `--check-graph --compare` without exactly two module names
+    CheckGraphCompareTwo,
+    /// `--olean --compare` without exactly two module names
+    CompareTwoModules,
+    /// `--compare` on one module twice
+    CompareSameModule,
+    /// `--compare` with both `--module` and `--modular`, or a constant
+    CompareModeArgs,
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:262-303 Args
@@ -591,6 +603,17 @@ pub fn sol_roots(a: &Args) -> Roots {
     }
 }
 
+/// con-leche: ConLeche/Driver/Compare.lean:78-80 CmpReq.chalRoots
+/// **The challenge's lookup**: the trusted path, never anything else; the
+/// search path where no trusted path is given.
+pub fn chal_roots(a: &Args) -> Roots {
+    if a.trusted_path.len() == 0 {
+        files::roots_of_path(push_files(Vec::new(), &a.search_path, 0))
+    } else {
+        files::roots_of_path(push_files(Vec::new(), &a.trusted_path, 0))
+    }
+}
+
 /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
 /// `--check-graph` with a flag it does not take: `--olean`, `--module`, a
 /// `--constant`, or `--trusted-search-path` without `--compare`.
@@ -658,8 +681,56 @@ pub fn check_graph_args<I: CheckerIo>(io: &mut I, a: &Args) -> u8 {
         }
         Ok(rs) => rs,
     };
+    if a.compare {
+        return check_graph_cmp_args(io, a, &roots);
+    }
     let sp = files::roots_of_path(push_files(Vec::new(), &a.search_path, 0));
     graph::check_graph(io, &sp, &roots)
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// **`--check-graph --compare`**: two module names, two different ones; then
+/// the compared graph check.
+pub fn check_graph_cmp_args<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>) -> u8 {
+    if roots.len() != 2 {
+        io.usage(&Bad::CheckGraphCompareTwo);
+        return 3;
+    }
+    if name::beq(&roots[0], &roots[1]) {
+        io.usage(&Bad::CompareSameModule);
+        return 3;
+    }
+    compare_module::check_graph_cmp(io, a, &roots[0], &roots[1])
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// **`--olean --compare`** (without `--schedule`): two module names, two
+/// different ones; with `--module` or `--modular` one of them and no
+/// `--constant`; then the compare worker, the one-process modular comparison,
+/// or the compared run.
+pub fn compare_olean_args<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &Vec<Name>) -> u8 {
+    if roots.len() != 2 {
+        io.usage(&Bad::CompareTwoModules);
+        return 3;
+    }
+    if name::beq(&roots[0], &roots[1]) {
+        io.usage(&Bad::CompareSameModule);
+        return 3;
+    }
+    if a.module || a.modular {
+        if cs.len() > 0 || (a.module && a.modular) {
+            io.usage(&Bad::CompareModeArgs);
+            return 3;
+        }
+        if a.module {
+            return compare_module::check_cmp_module(io, a, &roots[0], &roots[1]);
+        }
+        let sp = sol_roots(a);
+        let mut rs: Vec<Name> = Vec::new();
+        rs.push(name::dup(&roots[0]));
+        return modular::check_modular(io, a, &rs, &sp, Some(&roots[1]));
+    }
+    compare::compare_oleans(io, a, &roots[0], &roots[1], cs)
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
@@ -685,6 +756,9 @@ pub fn olean_args<I: CheckerIo>(io: &mut I, a: &Args) -> u8 {
         }
         Ok(cs) => cs,
     };
+    if a.compare {
+        return compare_olean_args(io, a, &roots, &cs);
+    }
     if trusted_misplaced(a) {
         io.usage(&Bad::TrustedTakes);
         return 3;
@@ -708,7 +782,7 @@ pub fn modular_args<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &
         return 3;
     }
     let sp = sol_roots(a);
-    modular::check_modular(io, a, roots, &sp)
+    modular::check_modular(io, a, roots, &sp, None)
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
@@ -719,15 +793,16 @@ pub fn module_args<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &V
         return 3;
     }
     let sp = sol_roots(a);
-    worker::check_module(io, a, &sp, &roots[0])
+    worker::check_module(io, a, &sp, &roots[0], None)
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
 /// **The run of an argument list, to its exit code**: `--help`, the parse and
 /// its usage error, then the request.  A lean4export file is checked here
 /// (`check_main`), after the binary's usage checks of that mode, and two with
-/// `--compare` (`compare_json`); `--olean` and `--check-graph` are the legacy
-/// driver's (`CheckerIo::run_legacy`).
+/// `--compare` (`compare_json`); `--check-graph` and `--olean` here too, but
+/// `--schedule` and `--modular --pins`, the legacy driver's
+/// (`CheckerIo::run_legacy`).
 pub fn run_args<I: CheckerIo>(io: &mut I, argv: &Vec<Vec<u32>>) -> u8 {
     if help_wanted(argv) {
         return io.print_help();
@@ -741,13 +816,10 @@ pub fn run_args<I: CheckerIo>(io: &mut I, argv: &Vec<Vec<u32>>) -> u8 {
         None => (),
     }
     if a.check_graph {
-        if a.compare {
-            return io.run_legacy(argv);
-        }
         return check_graph_args(io, &a);
     }
     if a.olean {
-        if a.compare || a.scheduled || (a.modular && a.pins.is_some()) {
+        if a.scheduled || (a.modular && a.pins.is_some()) {
             return io.run_legacy(argv);
         }
         return olean_args(io, &a);
