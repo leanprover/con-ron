@@ -4,14 +4,13 @@
 **Task #97-P5-Ind** (DESIGN.md §8.2); repaired by **task #105**.
 `crates/con-ron-core/src/arena/inductives/sum_install.rs` against
 `proof/ConRon/Arena/Inductives/SumInstall.lean`: the type former's
-telescope, the per-field universe bound and the constructors' stage, every
+telescope and the constructors' stage, every
 stage a check returning nothing.  `checkSumCtor` is ONE twin `def` and four Rust functions; the three tails are
 `Refine2/Inductives/Spec.lean`'s `checkSumCtor{Frames,Resid,Sorts}Spec`, tied
-back by `checkSumCtor_unfold`.  `field_sort_bound` is `fieldSortBoundSpec`
-there, and `eidx_contains` is `List.contains` (a `TwinEq`).
+back by `checkSumCtor_unfold`.  The per-field universe bound
+(`check_struct_field_sorts_i`) is `Refine2/Inductives/StructInstall.lean`'s.
 
-The Core tier arrives here: `check_struct_field_sorts_i` calls
-`infer_type_core` and `ensure_sort_core`, `check_sum_ctor` calls
+The Core tier arrives here: `check_sum_ctor` calls
 `check_constant_val` (`Refine2/Checker/{KnotHyp,Base}.lean`).  `cons_sum_ctors` is PURE on both
 sides (the index push touches no term).
 -/
@@ -50,134 +49,6 @@ reader (`LSR`). -/
   lockstep
 
 /-! ## The constructors' stage -/
-
-/-- `eidx_contains` ⊑ `idxArgs.contains fv` from the cursor on — handles, so
-`==` is word equality and the test transfers by `absEIdx`'s injectivity. -/
-theorem eidx_contains_refines {xs : alloc.vec.Vec arena.handle.EIdx}
-    {x : arena.handle.EIdx} {i : Std.Usize} {o}
-    (hrun : arena.inductives.sum_install.eidx_contains xs x i = ok o) :
-    o = (absEIdxLFrom xs i).contains (absEIdx x) := by
-  simp only [absEIdxLFrom, List.contains_eq_any_beq, List.any_map, Function.comp_def]
-  refine vec_cursor_any xs _
-    (arena.inductives.sum_install.eidx_contains xs x) ?_ ?_ i o hrun
-  · intro i o hn h
-    rw [arena.inductives.sum_install.eidx_contains.eq_def] at h
-    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
-    rw [← h]
-  · intro i y o hy h
-    have hlt : i.val < xs.val.length := (List.getElem?_eq_some_iff.mp hy).1
-    rw [arena.inductives.sum_install.eidx_contains.eq_def] at h
-    rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
-    obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hey : e = y := by
-      have h1 := vec_index_some he; rw [hy] at h1; exact (Option.some_inj.mp h1).symm
-    subst hey
-    have hbv : b = (absEIdx x == absEIdx e) := by
-      rw [eidx_eq2_abs hb]
-      by_cases hcc : absEIdx e = absEIdx x
-      · simp [hcc]
-      · have hcc' : ¬ absEIdx x = absEIdx e := fun z => hcc z.symm
-        simp [hcc, hcc']
-    cases hbb : b
-    · rw [hbb] at h hbv
-      rw [ite_eq_right (by simp)] at h
-      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      exact Or.inr ⟨hbv.symm, i2, absSz_add_one hi2, h⟩
-    · rw [hbb] at h hbv
-      rw [ite_eq_left (by simp), Result.ok.injEq] at h
-      exact Or.inl ⟨hbv.symm, h.symm⟩
-
-open Lockstep in
-/-- `eidx_contains_twin` at the cursor `0` (and an empty accumulator): the
-form a caller's twin has, so the `TwinEq` rewrites it. -/
-@[lockstep] theorem eidx_contains_twin0
-    {xs : alloc.vec.Vec arena.handle.EIdx}
-    {x : arena.handle.EIdx} :
-    LSP (arena.inductives.sum_install.eidx_contains xs x 0#usize) (fun o => TwinEq ((absEIdxL xs).contains (absEIdx x)) (o)) := by
-  intro o h
-  have h' := (eidx_contains_refines h).symm
-  simpa [Lockstep.TwinEq, absEIdxLFrom, absEIdxL, alloc.vec.Vec.new] using h'
-
-open Lockstep in
-/-- `field_sort_bound` ⊑ `checkStructFieldSortsI`'s per-field universe
-bound. -/
-@[lockstep] theorem field_sort_bound_ls
-    {pers st lst}
-    {is_prop large : Bool}
-    {s u : arena.handle.LIdx}
-    {fv : arena.handle.EIdx}
-    {idx_args : alloc.vec.Vec arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.sum_install.field_sort_bound pers st is_prop large s u fv idx_args) lst
-      (fieldSortBoundSpec is_prop large (absLIdx s) (absLIdx u) (absEIdx fv)
-        (absEIdxL idx_args)) := by
-  rw [arena.inductives.sum_install.field_sort_bound, fieldSortBoundSpec]
-  lockstep
-
-/-- `checkStructFieldSortsI`'s step with the per-field bound named as the
-port's `field_sort_bound` (`fieldSortBoundSpec`). -/
-theorem checkStructFieldSortsI_succ_port (mode : ConLeche.CheckMode) (fe : IFEnv)
-    (isProp large : Bool) (s : LIdx) (nP : Nat) (fvs idxArgs : List EIdx) (j : Nat) :
-    checkStructFieldSortsI mode fe isProp large s nP fvs idxArgs (j + 1) = (do
-      let fv ← unwrapOr fvs[j]? (.internal "direct sum: field index")
-      let ty ← inferTypeCore mode fe checkFuel (nP + j) (← fvarTypeD fv)
-      let u ← ensureSortCore mode fe checkFuel (nP + j) ty
-      fieldSortBoundSpec isProp large s u fv idxArgs
-      checkStructFieldSortsI mode fe isProp large s nP fvs idxArgs j) := by
-  rw [checkStructFieldSortsI]
-  simp only [fieldSortBoundSpec]
-  congr 1; funext fv; congr 1; funext d; congr 1; funext ty; congr 1; funext u
-  split
-  · simp only [bind_assoc]
-    congr 1; funext lu; congr 1; funext ls; congr 1; funext b
-    split <;> simp
-  · split
-    · simp only [bind_assoc]
-      congr 1; funext z; congr 1; funext b
-      split <;> simp
-    · simp
-
-open Lockstep in
-/-- `check_struct_field_sorts_i` ⊑ `checkStructFieldSortsI` — the fields'
-domains have sorts over the opened constructor telescope, under the official
-per-field universe bound unless the family is propositional.  Walks the fields
-from the last to the first, which is why the counter is the twin's `j + 1`
-recursion. -/
-@[lockstep] theorem check_struct_field_sorts_i_ls
-    {pers st lst}
-    {rf lf}
-    {mode : kernel.env.CheckMode}
-    {is_prop large : Bool}
-    {s : arena.handle.LIdx}
-    {n_p : Std.U64}
-    {fvs idx_args : alloc.vec.Vec arena.handle.EIdx}
-    {k : Std.U64}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI pers rf lf) :
-    LS pers (fun _ _ => True) (arena.inductives.sum_install.check_struct_field_sorts_i pers st mode rf is_prop large s n_p fvs idx_args k) lst
-      (checkStructFieldSortsI (ConRon.Refine.absMode mode) lf is_prop large
-        (absLIdx s) (absU n_p) (absEIdxL fvs) (absEIdxL idx_args) (absU k)) := by
-  induction hk : k.val generalizing k st lst with
-  | zero =>
-    rw [arena.inductives.sum_install.check_struct_field_sorts_i.eq_def,
-      ite_eq_left (by scalar_tac), show absU k = 0 from hk, checkStructFieldSortsI]
-    lockstep
-  | succ m ih =>
-    rw [arena.inductives.sum_install.check_struct_field_sorts_i.eq_def,
-      ite_eq_right (by scalar_tac), show absU k = m + 1 from hk, checkStructFieldSortsI_succ_port]
-    have hk1 : 1 ≤ k.val := by omega
-    obtain rfl : m = k.val - 1 := by omega
-    clear hk
-    dsimp only
-    simp only [absEIdxL]
-    by_cases hf : k.val - 1 < fvs.val.length
-    · rw [List.getElem?_map, List.getElem?_eq_getElem hf, Option.map_some]
-      lockstep
-    · rw [List.getElem?_map, List.getElem?_eq_none (by omega), Option.map_none]
-      lockstep
 
 /-! ## `checkSumCtor`, split four ways (`Spec.lean`'s three `checkSumCtor…Spec`s) -/
 
