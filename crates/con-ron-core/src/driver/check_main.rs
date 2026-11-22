@@ -442,11 +442,12 @@ pub fn verdict_of<I: CheckerIo>(
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:268-458 checkMainG
-/// **The check of one lean4export file**, step for step: the reserved pins, the heartbeat's first
-/// line, the prelude, the streaming parse over the file's reads, the
-/// preparation and its receipt, the pin list, the pin walk, the check phase,
-/// the verdict; the exit code.  The verdict path hands the heap to the
-/// instance (`keep_heap`) rather than freeing it (con-leche task #336).
+/// **The check of one lean4export file**, step for step: the reserved pins,
+/// the heartbeat's first line, the prelude, the streaming parse over the
+/// file's reads, the preparation and its receipt, the pin list, the pin walk,
+/// the check phase, the verdict; the exit code.  The verdict path hands the
+/// heap to the instance (`keep_heap`) rather than freeing it (con-leche task
+/// #336).
 pub fn check_main<I: CheckerIo>(io: &mut I, a: &Args, file: &Vec<u32>) -> u8 {
     let verified = a.verified;
     let mode = if verified { CheckMode::Verified } else { CheckMode::Trusted };
