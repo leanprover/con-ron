@@ -78,7 +78,6 @@ structure IRecRule where
 /-! ## Inductive capabilities -/
 
 /-- con-leche: ConLeche/Kernel/Env.lean:196-242 IndCaps — the definitional
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove Env.IIndCaps_bridge, then delete this line
 capabilities of a stored inductive type that its block alone decides.  The
 constructor and the counts every η reader works at are the family's
 projection table's (`IFEnv.findTable?`), not the record's. -/
@@ -98,6 +97,10 @@ structure IIndCaps where
   level instantiation), read off the former's stored type at its check
   (`blockCapsAt`); `false` claims nothing. -/
   neverZero : Bool := false
+  /-- The flags the stream's record declares (`none`: a record without them);
+  the stream's records carry them, the install validates them, the installed
+  capabilities carry `none`. -/
+  flags : Option IndFlags := none
   deriving DecidableEq, Repr, Inhabited
 
 /-! ## Projection tables -/

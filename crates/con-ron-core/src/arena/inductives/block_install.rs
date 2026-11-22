@@ -185,6 +185,7 @@ pub fn block_caps_at(
             n_idx,
             ctors,
             never_zero,
+            flags: None,
         })
     } else {
         let (cs, n_idx): (Vec<NIdx>, u64) = if mi < p.members.len() as u64 {

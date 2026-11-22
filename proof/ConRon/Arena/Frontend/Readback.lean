@@ -109,7 +109,7 @@ def denoteRules (st : EStore) : List IRecRule → Option (List RecRule)
 /-- con-leche: none — the denotation of an inductive's capabilities. -/
 def denoteCaps (st : EStore) (c : IIndCaps) : Option IndCaps :=
   match denoteNList st.ns c.all, denoteNList st.ns c.ctors with
-  | some all, some ctors => some ⟨c.eta, all, c.nparams, c.nIdx, ctors, c.neverZero⟩
+  | some all, some ctors => some ⟨c.eta, all, c.nparams, c.nIdx, ctors, c.neverZero, c.flags⟩
   | _, _ => none
 
 /-- con-leche: none — the denotation of a projection table. -/
@@ -313,7 +313,7 @@ def internRules (m : EMemo) : List RecRule → AM (EMemo × List IRecRule)
 def internCaps (c : IndCaps) : AM IIndCaps := do
   let all ← internNameList c.all
   let ctors ← internNameList c.ctors
-  pure ⟨c.eta, all, c.nparams, c.nIdx, ctors, c.neverZero⟩
+  pure ⟨c.eta, all, c.nparams, c.nIdx, ctors, c.neverZero, c.flags⟩
 
 /-- con-leche: none — intern a stored constant. -/
 def internCI (m : EMemo) : ConstantInfo → AM (EMemo × IConstantInfo)

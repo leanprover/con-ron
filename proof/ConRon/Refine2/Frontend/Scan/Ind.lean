@@ -1194,16 +1194,18 @@ private theorem scanIndTypeListLoop_eq (b : Slice Std.U8) (i : Std.Usize)
 /-- con-leche's `scanIndTypeLoop` (`Scan/Fast.lean:1598-1731`) is `ScanObj`'s
 `memberBody` at its own closing arm and key dispatch. -/
 private theorem scanIndTypeLoop_body (B : ByteArray) (S : UInt32) (ctors : List Nat)
-    (isRec isRefl isUns : Bool) (lps : List Nat) (nm nIdx nNest nP ty : Nat) :
+    (isRec isRefl isUns : Bool) (lps : List Nat) (nm nIdx nNest nP ty : Nat)
+    (fI fK fP fE fL : Option Bool) :
     ∀ (p : USize) (w : Bool),
-      scanIndTypeLoop B p w S ctors isRec isRefl isUns lps nm nIdx nNest nP ty
+      scanIndTypeLoop B p w S ctors isRec isRefl isUns lps nm nIdx nNest nP ty fI fK fP fE fL
         = memberBody B
             (fun q w' =>
-              scanIndTypeLoop B q w' S ctors isRec isRefl isUns lps nm nIdx nNest nP ty)
+              scanIndTypeLoop B q w' S ctors isRec isRefl isUns lps nm nIdx nNest nP ty fI fK fP fE fL)
             (fun q w' =>
               if w' && S != 0 then .err ⟨q.toNat, .expectedKey⟩
               else if (S &&& 2046) != 2046 then .err ⟨q.toNat, .missingKey⟩
-              else .ok ⟨⟨nm, lps, ty⟩, ctors, isRec, isRefl, isUns, nIdx, nNest, nP⟩ (q + 1))
+              else .ok ⟨⟨nm, lps, ty⟩, ctors, isRec, isRefl, isUns, nIdx, nNest, nP, fI, fK,
+                fP, fE, fL⟩ (q + 1))
             (fun k q v =>
               match k with
               | .kAll =>
@@ -1212,7 +1214,7 @@ private theorem scanIndTypeLoop_body (B : ByteArray) (S : UInt32) (ctors : List 
                   | .err err => .err err
                   | .ok _x e =>
                     if _hj : q < e then
-                      scanIndTypeLoop B e false (S ||| 1) ctors isRec isRefl isUns lps nm nIdx nNest nP ty
+                      scanIndTypeLoop B e false (S ||| 1) ctors isRec isRefl isUns lps nm nIdx nNest nP ty fI fK fP fE fL
                     else .err ⟨q.toNat, .noProgress⟩
               | .kCtors =>
                 if (S &&& 2) != 0 then .err ⟨q.toNat, .duplicateKey⟩
@@ -1220,7 +1222,7 @@ private theorem scanIndTypeLoop_body (B : ByteArray) (S : UInt32) (ctors : List 
                   | .err err => .err err
                   | .ok x e =>
                     if _hj : q < e then
-                      scanIndTypeLoop B e false (S ||| 2) x isRec isRefl isUns lps nm nIdx nNest nP ty
+                      scanIndTypeLoop B e false (S ||| 2) x isRec isRefl isUns lps nm nIdx nNest nP ty fI fK fP fE fL
                     else .err ⟨q.toNat, .noProgress⟩
               | .kIsRec =>
                 if (S &&& 4) != 0 then .err ⟨q.toNat, .duplicateKey⟩
@@ -1228,7 +1230,7 @@ private theorem scanIndTypeLoop_body (B : ByteArray) (S : UInt32) (ctors : List 
                   | .err err => .err err
                   | .ok x e =>
                     if _hj : q < e then
-                      scanIndTypeLoop B e false (S ||| 4) ctors x isRefl isUns lps nm nIdx nNest nP ty
+                      scanIndTypeLoop B e false (S ||| 4) ctors x isRefl isUns lps nm nIdx nNest nP ty fI fK fP fE fL
                     else .err ⟨q.toNat, .noProgress⟩
               | .kIsReflexive =>
                 if (S &&& 8) != 0 then .err ⟨q.toNat, .duplicateKey⟩
@@ -1236,7 +1238,7 @@ private theorem scanIndTypeLoop_body (B : ByteArray) (S : UInt32) (ctors : List 
                   | .err err => .err err
                   | .ok x e =>
                     if _hj : q < e then
-                      scanIndTypeLoop B e false (S ||| 8) ctors isRec x isUns lps nm nIdx nNest nP ty
+                      scanIndTypeLoop B e false (S ||| 8) ctors isRec x isUns lps nm nIdx nNest nP ty fI fK fP fE fL
                     else .err ⟨q.toNat, .noProgress⟩
               | .kIsUnsafe =>
                 if (S &&& 16) != 0 then .err ⟨q.toNat, .duplicateKey⟩
@@ -1244,7 +1246,7 @@ private theorem scanIndTypeLoop_body (B : ByteArray) (S : UInt32) (ctors : List 
                   | .err err => .err err
                   | .ok x e =>
                     if _hj : q < e then
-                      scanIndTypeLoop B e false (S ||| 16) ctors isRec isRefl x lps nm nIdx nNest nP ty
+                      scanIndTypeLoop B e false (S ||| 16) ctors isRec isRefl x lps nm nIdx nNest nP ty fI fK fP fE fL
                     else .err ⟨q.toNat, .noProgress⟩
               | .kLevelParams =>
                 if (S &&& 32) != 0 then .err ⟨q.toNat, .duplicateKey⟩
@@ -1252,28 +1254,73 @@ private theorem scanIndTypeLoop_body (B : ByteArray) (S : UInt32) (ctors : List 
                   | .err err => .err err
                   | .ok x e =>
                     if _hj : q < e then
-                      scanIndTypeLoop B e false (S ||| 32) ctors isRec isRefl isUns x nm nIdx nNest nP ty
+                      scanIndTypeLoop B e false (S ||| 32) ctors isRec isRefl isUns x nm nIdx nNest nP ty fI fK fP fE fL
                     else .err ⟨q.toNat, .noProgress⟩
               | .kName =>
                 if (S &&& 64) != 0 then .err ⟨q.toNat, .duplicateKey⟩
                 else natSlot B q v (fun n e =>
-                  scanIndTypeLoop B e false (S ||| 64) ctors isRec isRefl isUns lps n nIdx nNest nP ty)
+                  scanIndTypeLoop B e false (S ||| 64) ctors isRec isRefl isUns lps n nIdx nNest nP ty fI fK fP fE fL)
               | .kNumIndices =>
                 if (S &&& 128) != 0 then .err ⟨q.toNat, .duplicateKey⟩
                 else natSlot B q v (fun n e =>
-                  scanIndTypeLoop B e false (S ||| 128) ctors isRec isRefl isUns lps nm n nNest nP ty)
+                  scanIndTypeLoop B e false (S ||| 128) ctors isRec isRefl isUns lps nm n nNest nP ty fI fK fP fE fL)
               | .kNumNested =>
                 if (S &&& 256) != 0 then .err ⟨q.toNat, .duplicateKey⟩
                 else natSlot B q v (fun n e =>
-                  scanIndTypeLoop B e false (S ||| 256) ctors isRec isRefl isUns lps nm nIdx n nP ty)
+                  scanIndTypeLoop B e false (S ||| 256) ctors isRec isRefl isUns lps nm nIdx n nP ty fI fK fP fE fL)
               | .kNumParams =>
                 if (S &&& 512) != 0 then .err ⟨q.toNat, .duplicateKey⟩
                 else natSlot B q v (fun n e =>
-                  scanIndTypeLoop B e false (S ||| 512) ctors isRec isRefl isUns lps nm nIdx nNest n ty)
+                  scanIndTypeLoop B e false (S ||| 512) ctors isRec isRefl isUns lps nm nIdx nNest n ty fI fK fP fE fL)
               | .kType =>
                 if (S &&& 1024) != 0 then .err ⟨q.toNat, .duplicateKey⟩
                 else natSlot B q v (fun n e =>
-                  scanIndTypeLoop B e false (S ||| 1024) ctors isRec isRefl isUns lps nm nIdx nNest nP n)
+                  scanIndTypeLoop B e false (S ||| 1024) ctors isRec isRefl isUns lps nm nIdx nNest nP n fI fK fP fE fL)
+              | .kIsImpredicative =>
+                if (S &&& 2048) != 0 then .err ⟨q.toNat, .duplicateKey⟩
+                else match scanBool B v with
+                  | .err err => .err err
+                  | .ok x e =>
+                    if _hj : q < e then
+                      scanIndTypeLoop B e false (S ||| 2048) ctors isRec isRefl isUns lps nm nIdx nNest nP ty
+                        (some x) fK fP fE fL
+                    else .err ⟨q.toNat, .noProgress⟩
+              | .kIsK =>
+                if (S &&& 4096) != 0 then .err ⟨q.toNat, .duplicateKey⟩
+                else match scanBool B v with
+                  | .err err => .err err
+                  | .ok x e =>
+                    if _hj : q < e then
+                      scanIndTypeLoop B e false (S ||| 4096) ctors isRec isRefl isUns lps nm nIdx nNest nP ty
+                        fI (some x) fP fE fL
+                    else .err ⟨q.toNat, .noProgress⟩
+              | .kHasProjections =>
+                if (S &&& 8192) != 0 then .err ⟨q.toNat, .duplicateKey⟩
+                else match scanBool B v with
+                  | .err err => .err err
+                  | .ok x e =>
+                    if _hj : q < e then
+                      scanIndTypeLoop B e false (S ||| 8192) ctors isRec isRefl isUns lps nm nIdx nNest nP ty
+                        fI fK (some x) fE fL
+                    else .err ⟨q.toNat, .noProgress⟩
+              | .kHasEta =>
+                if (S &&& 16384) != 0 then .err ⟨q.toNat, .duplicateKey⟩
+                else match scanBool B v with
+                  | .err err => .err err
+                  | .ok x e =>
+                    if _hj : q < e then
+                      scanIndTypeLoop B e false (S ||| 16384) ctors isRec isRefl isUns lps nm nIdx nNest nP ty
+                        fI fK fP (some x) fL
+                    else .err ⟨q.toNat, .noProgress⟩
+              | .kHasLargeElim =>
+                if (S &&& 32768) != 0 then .err ⟨q.toNat, .duplicateKey⟩
+                else match scanBool B v with
+                  | .err err => .err err
+                  | .ok x e =>
+                    if _hj : q < e then
+                      scanIndTypeLoop B e false (S ||| 32768) ctors isRec isRefl isUns lps nm nIdx nNest nP ty
+                        fI fK fP fE (some x)
+                    else .err ⟨q.toNat, .noProgress⟩
               | _ => .err ⟨q.toNat, .unknownKey⟩)
             p w := by
   intro p w
@@ -1285,24 +1332,25 @@ private theorem scanIndTypeLoop_body (B : ByteArray) (S : UInt32) (ctors : List 
 private theorem scan_ind_type_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
     ∀ (w : Bool) (i : Std.Usize) (seen : Std.U32) (ctors : alloc.vec.Vec Std.U64)
       (is_rec is_refl is_uns : Bool) (lps : alloc.vec.Vec Std.U64)
-      (nm n_idx n_nest n_p ty : Std.U64)
+      (nm n_idx n_nest n_p ty : Std.U64) (f_i f_k f_p f_e f_l : Option Bool)
       (o : core.result.Result (frontend.scan_types.IndTypeRec × Std.Usize)
         frontend.scan_types.ScanErr),
       b.val.length - i.val ≤ f →
       frontend.scan_fast.scan_ind_type_loop_loop w b i seen ctors is_rec is_refl is_uns
-          lps nm n_idx n_nest n_p ty = ok o →
+          lps nm n_idx n_nest n_p ty f_i f_k f_p f_e f_l = ok o →
       ScanSim absIndTypeRec o
         (scanIndTypeLoop (absBytes b) (absPos i) w (absU32 seen) (absU64s ctors) is_rec is_refl
           is_uns (absU64s lps) (absU64 nm) (absU64 n_idx) (absU64 n_nest) (absU64 n_p)
-          (absU64 ty)) := by
+          (absU64 ty) f_i f_k f_p f_e f_l) := by
   induction f using Nat.strong_induction_on with
   | _ f ih =>
-  intro w i seen ctors is_rec is_refl is_uns lps nm n_idx n_nest n_p ty o hf h
+  intro w i seen ctors is_rec is_refl is_uns lps nm n_idx n_nest n_p ty f_i f_k f_p f_e f_l o hf h
   rw [frontend.scan_fast.scan_ind_type_loop_loop.eq_def] at h
   obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
   have hstep := nextMember_step (kitFacts b)
     (scanIndTypeLoop_body (absBytes b) (absU32 seen) (absU64s ctors) is_rec is_refl is_uns
-      (absU64s lps) (absU64 nm) (absU64 n_idx) (absU64 n_nest) (absU64 n_p) (absU64 ty))
+      (absU64s lps) (absU64 nm) (absU64 n_idx) (absU64 n_nest) (absU64 n_p) (absU64 ty)
+      f_i f_k f_p f_e f_l)
     (b.val.length - i.val) i w res (le_refl _) hres
   cases res with
   | Err er =>
@@ -1392,7 +1440,7 @@ private theorem scan_ind_type_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
                  obtain ⟨seen1, hseen1, h⟩ := bind_eq_ok_iff.mp h
                  rw [← or_lit (x := seen) (by rfl) hseen1]
                  have hlt := slot_nat_prog hr1
-                 exact ih (b.val.length - e.val) (by omega) false e seen1 _ _ _ _ _ _ _ _ _ _ o
+                 exact ih (b.val.length - e.val) (by omega) false e seen1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ o
                    (le_refl _) h)
           | (rust_bind_guard h; obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
              rw [dup_bit (by rfl) hb1]
@@ -1424,7 +1472,7 @@ private theorem scan_ind_type_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
                    rw [dite_eq_left (absPos_lt.mpr hlt)]
                    obtain ⟨seen1, hseen1, h⟩ := bind_eq_ok_iff.mp h
                    rw [← or_lit (x := seen) (by rfl) hseen1]
-                   exact ih (b.val.length - e.val) (by omega) false e seen1 _ _ _ _ _ _ _ _ _ _ o
+                   exact ih (b.val.length - e.val) (by omega) false e seen1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ o
                      (le_refl _) h
                  · rw [ite_eq_right hp, err_eq] at h
                    rw [dite_eq_right (fun hc => (prog_not_lt hb2 hp) (absPos_lt.mp hc))]
@@ -1461,7 +1509,7 @@ private theorem scan_ind_type_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
                    rw [dite_eq_left (absPos_lt.mpr hlt)]
                    obtain ⟨seen1, hseen1, h⟩ := bind_eq_ok_iff.mp h
                    rw [← or_lit (x := seen) (by rfl) hseen1]
-                   exact ih (b.val.length - e.val) (by omega) false e seen1 _ _ _ _ _ _ _ _ _ _ o
+                   exact ih (b.val.length - e.val) (by omega) false e seen1 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ o
                      (le_refl _) h
                  · rw [ite_eq_right hp, err_eq] at h
                    rw [dite_eq_right (fun hc => (prog_not_lt hb2 hp) (absPos_lt.mp hc))]
@@ -1485,7 +1533,7 @@ theorem scan_ind_type_refines {b : Slice Std.U8} {i : Std.Usize}
     rw [← absPos_add_one hi2, frontend.scan_fast.scan_ind_type_loop] at *
     exact scan_ind_type_loop_loop_refines (b.val.length - i2.val) true i2 0#u32
       (alloc.vec.Vec.new Std.U64) false false false (alloc.vec.Vec.new Std.U64)
-      0#u64 0#u64 0#u64 0#u64 0#u64 o (le_refl _) h
+      0#u64 0#u64 0#u64 0#u64 0#u64 none none none none none o (le_refl _) h
   · rw [ite_eq_right h123, err_eq] at h
     simp only [Result.ok.injEq] at h
     rw [ite_eq_right (by simpa using h123), ← h]

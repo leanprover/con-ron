@@ -608,7 +608,15 @@ def absRecRule (r : env.RecRule) : ConLeche.RecRule where
   fire := absFire r.fire
   rhs := absExpr r.rhs
 
-/-- `ConLeche/Kernel/Env.lean:362` — `IndCaps`. -/
+/-- `ConLeche/Kernel/Env.lean` — `IndFlags`. -/
+def absIndFlags (f : env.IndFlags) : ConLeche.IndFlags where
+  isImpredicative := f.is_impredicative
+  isK := f.is_k
+  hasProjections := f.has_projections
+  hasEta := f.has_eta
+  hasLargeElim := f.has_large_elim
+
+/-- `ConLeche/Kernel/Env.lean` — `IndCaps`. -/
 def absIndCaps (c : env.IndCaps) : ConLeche.IndCaps where
   eta := c.eta
   all := absNames c.all
@@ -616,6 +624,7 @@ def absIndCaps (c : env.IndCaps) : ConLeche.IndCaps where
   nIdx := c.n_idx.val
   ctors := absNames c.ctors
   neverZero := c.never_zero
+  flags := c.flags.map absIndFlags
 
 /-- `ConLeche/Kernel/Env.lean:471` — `ConstantInfo`. -/
 def absConstantInfo : env.ConstantInfo → ConLeche.ConstantInfo

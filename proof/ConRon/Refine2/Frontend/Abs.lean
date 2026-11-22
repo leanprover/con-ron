@@ -245,6 +245,9 @@ def absKey : frontend.scan_types.Key → ConLeche.Frontend.Key
   | .KDef => .kDef
   | .KFn => .kFn
   | .KForallE => .kForallE
+  | .KHasEta => .kHasEta
+  | .KHasLargeElim => .kHasLargeElim
+  | .KHasProjections => .kHasProjections
   | .KHints => .kHints
   | .KI => .kI
   | .KIdx => .kIdx
@@ -254,6 +257,8 @@ def absKey : frontend.scan_types.Key → ConLeche.Frontend.Key
   | .KIn => .kIn
   | .KInduct => .kInduct
   | .KInductive => .kInductive
+  | .KIsImpredicative => .kIsImpredicative
+  | .KIsK => .kIsK
   | .KIsRec => .kIsRec
   | .KIsReflexive => .kIsReflexive
   | .KIsUnsafe => .kIsUnsafe
@@ -352,7 +357,9 @@ def absIndTypeRec (t : frontend.scan_types.IndTypeRec) : ConLeche.Frontend.IndTy
   { cv := absCVRec t.cv, ctors := absU64s t.ctors, isRec := t.is_rec,
     isReflexive := t.is_reflexive, isUnsafe := t.is_unsafe,
     numIndices := absU64 t.num_indices, numNested := absU64 t.num_nested,
-    numParams := absU64 t.num_params }
+    numParams := absU64 t.num_params, isImpredicative := t.is_impredicative,
+    isK := t.is_k, hasProjections := t.has_projections, hasEta := t.has_eta,
+    hasLargeElim := t.has_large_elim }
 
 def absIndTypeRecs (v : alloc.vec.Vec frontend.scan_types.IndTypeRec) :
     List ConLeche.Frontend.IndTypeRec :=

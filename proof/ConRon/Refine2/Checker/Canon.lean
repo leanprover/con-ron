@@ -556,7 +556,9 @@ theorem i_ind_caps_beq_refines {a b : arena.env.IIndCaps} {o : Bool}
   simp only [absNIdxLFrom] at h4
   refine beq_chain (by simpa using h4) h ?_
   intro o5 h
-  simp only [Result.ok.injEq] at h
+  refine beq_chain' Iff.rfl h ?_
+  intro o6 h
+  rw [ConRon.Refine.Env.ind_flags_opt_beq_eq, Result.ok.injEq] at h
   exact h.symm
 
 /-- `PartialEq` on `u64`, lifted, is `decide` of the abstracted equation. -/
