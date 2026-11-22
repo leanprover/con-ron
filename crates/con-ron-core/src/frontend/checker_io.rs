@@ -20,8 +20,8 @@
 //!   `WorkerNotes`, the lines of a module's worker.
 //! * `CheckerIo` — the worker map, the code map and the escapes.  An escape that ANSWERS a
 //!   value the run goes on with (the help's exit code, the hardware thread
-//!   count, a legacy mode's exit code, a pin file) is `&mut self`, so that the
-//!   model claims nothing about its answer (`liftIO`'s "any outcome"); a
+//!   count, the scheduler's exit code) is `&mut self`, so that the model
+//!   claims nothing about its answer (`liftIO`'s "any outcome"); a
 //!   notification (answer `()`) is `&self`.  Two traits and not one: Aeneas
 //!   rejects mutually recursive trait declarations (`Step` bounded by
 //!   `CheckerIo`, whose method is bounded by `Step`).
@@ -37,6 +37,7 @@ use crate::arena::monad::AState;
 use crate::arena::store::EStore;
 use crate::arena::store::PersTier;
 use crate::arena::stream_index::IStreamIndex;
+use crate::driver::cli::Args;
 use crate::driver::cli::Bad;
 use crate::driver::check_main::Note;
 use crate::frontend::export_c::ChunkSource;
@@ -46,7 +47,6 @@ use crate::frontend::olean::spec::ImportRec;
 use crate::frontend::pace::Pace;
 use crate::kernel::core_types::CheckError;
 use crate::kernel::name::Name;
-use crate::kernel::nat_op_pins::NatOpPinSet;
 
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:141-200 CheckerIO
 /// **The checker's file operations**: the class's operations a run reads files
@@ -186,16 +186,17 @@ pub trait CheckerIo: CheckerFs + WorkerNotes + Sized + Sync {
     /// `--help`: the help text on stdout; the exit code (3 when the write fails).
     fn print_help(&mut self) -> u8;
     /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
-    /// A request the verified driver does not run (`--schedule`, `--modular --pins`):
-    /// the unverified driver's run of the whole argument list, and its exit code.
-    fn run_legacy(&mut self, argv: &Vec<Vec<u32>>) -> u8;
+    /// con-leche: ConLeche/Driver/Schedule.lean:56-111 scheduleG
+    /// **`--olean --schedule`** (con-leche's `liftIO`): the scheduler's run of
+    /// `root`'s closure, one worker process per module, a compared run's
+    /// solution `sol`; its exit code.  The verified driver has made the usage
+    /// checks; the settings (`a.schedule`, `a.worker_stack`) are the scheduler's
+    /// to read.
+    fn run_schedule(&mut self, a: &Args, root: &Name, sol: Option<&Name>) -> u8;
     /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
     /// The `--jobs` default: one worker per hardware thread, capped
     /// (`System.Platform.Internal.getHardwareConcurrency`).
     fn hardware_jobs(&mut self) -> u64;
-    /// con-leche: none — `--pins FILE`, the port's testing override, read by the
-    /// unverified `con-ron-pins/2` reader; the message names the file.
-    fn read_pins_file(&mut self, p: &Vec<u32>) -> Result<Vec<NatOpPinSet>, Vec<u32>>;
     /// con-leche: none — con-leche task #336's exit without freeing the heap: the
     /// instance keeps what the run built until the process exits.
     fn keep_heap(&mut self, st: AState, ds: Vec<IDeclaration>, ix: Option<IStreamIndex>);
@@ -291,7 +292,7 @@ pub struct FileChunks<'a, F: CheckerFs> {
     pub off: u64,
     /// the reads that answered so far: a `usize`, so that the chunks they
     /// handed out are a list a `usize` indexes (`Vec<Vec<u8>>`, the form the
-    /// capstone's `parse_chunks` is stated over) on every platform
+    /// staged lemmas' `parse_chunks` is stated over) on every platform
     pub reads: usize,
     /// the first read failure, if any
     pub err: Option<Vec<u32>>,

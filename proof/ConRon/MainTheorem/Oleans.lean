@@ -7,12 +7,12 @@ import ConRon.MainTheorem.Conclusions
 
 **Task #171, slice 2** (DESIGN.md §3.9).  An exit 0 of `run_args` at
 `["--olean", "--search-path=" ++ dirs, "--", root]` is every step premise of the `--olean`
-capstone (`OleanStages`), the root the module `parseModName root` names and the lookup
+staged lemma (`OleanStages`), the root the module `parseModName root` names and the lookup
 `searchPathOf dirs`; lane C's conclusion then gives con-leche's `main_oleans`.
 
 | lemma | what it walks |
 |---|---|
-| `rust_stages_oleans_dec`, `oleans_model_of_stages_dec` | `Capstone.rust_stages_oleans`, lane C's `oleans_model_of_stages` with the preparation's `UsedConsts` the read with its records moved out, and the reads and the pool at two instances' states |
+| `rust_stages_oleans_dec`, `oleans_model_of_stages_dec` | `Stages.rust_stages_oleans`, lane C's `oleans_model_of_stages` with the preparation's `UsedConsts` the read with its records moved out, and the reads and the pool at two instances' states |
 | `olean_job_sol`, `olean_stepAt` | `check_main::olean_job`, `OleanJobStep`'s step: `oleanJobStepSol` |
 | `parallelAll_mono`, `check_phase_olean_ok` | `check_main::check_phase_olean`: the pool's contract at `oleanJobStep` |
 | `intern_names_roots`, `intern_consts_nil` | `check_main::intern_names`, `intern_consts` |
@@ -22,7 +22,7 @@ capstone (`OleanStages`), the root the module `parseModName root` names and the 
 -/
 
 open Aeneas Aeneas.Std Result
-open ConRon.Generated ConRon.Capstone
+open ConRon.Generated ConRon.MainTheorem.Stages
 open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean
 open ConLeche (IsModel FS)
 open ConLeche.Frontend.Olean (closureConstants)
@@ -43,7 +43,7 @@ theorem olean_read_used_rel_dec {pers : arena.store.PersTier} {rd : frontend.ole
   intro rst lst d o hrel hinv h
   exact olean_read_used_rel hrd hrel hinv h
 
-/-- `Capstone.rust_stages_oleans` with the preparation's `UsedConsts` the read with its records
+/-- `Stages.rust_stages_oleans` with the preparation's `UsedConsts` the read with its records
 moved out (`core::mem::replace(&mut rd.decls, Vec::new())`, `check_main::check_oleans`): what a
 theorem mentions is the merged constants', which the move leaves. -/
 theorem rust_stages_oleans_dec (hT2 : ReadOleansRefines)
@@ -280,7 +280,7 @@ section Walk
 
 variable {S : Type} {io : frontend.checker_io.CheckerIo S} {fs : ConLeche.FS}
 
-/-- **The names interned** (`check_main::intern_names`): the capstone's `InternRoots`, at
+/-- **The names interned** (`check_main::intern_names`): the staged lemmas' `InternRoots`, at
 well-formed names. -/
 theorem intern_names_loop_roots {pers : arena.store.PersTier} {ns : alloc.vec.Vec kernel.name.Name}
     (hwf : ∀ n ∈ ns.val, ConRon.Refine.NameWF n) :
@@ -329,7 +329,7 @@ theorem intern_names_roots {pers : arena.store.PersTier} {ns : alloc.vec.Vec ker
   simpa using hir
 
 /-- **The check phase of an `.olean` run, accepted** (`check_main::check_phase_olean`): the
-capstone's `h6`, `h7` and `h8` — the index from the empty one, the tier frozen, and the worker
+staged lemmas' `h6`, `h7` and `h8` — the index from the empty one, the tier frozen, and the worker
 map's contract at the `.olean` job at the solution `sol` (`oleanJobStepSol`), its reads at the
 state the map ran at; the thaw hands back the index and the index build's state. -/
 theorem check_phase_olean_ok (hpool : PoolSound io) {s s' : S}
@@ -442,8 +442,8 @@ theorem oleans_failed_ne {s s' : S} {e line roots v} {c : Std.U8}
 /-- **The check of a closure, 0** (`check_main::check_oleans` at `--verified`, the embedded
 pins, no `--constant`): its calls are the step premises (`OleanStages`). -/
 theorem check_oleans_zero (hfs : AnswersAs io fs) (hpool : PoolSound io) {s s' : S}
-    {a : driver.cli.Args} (hver : a.verified = true) (hnp : a.no_pins = false)
-    (hp : a.pins = none) {roots cs : alloc.vec.Vec kernel.name.Name} (hcs : cs.val = [])
+    {a : driver.cli.Args} (hver : a.verified = true)
+    {roots cs : alloc.vec.Vec kernel.name.Name} (hcs : cs.val = [])
     (hwf : ∀ n ∈ roots.val, ConRon.Refine.NameWF n)
     {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {c : Std.U8}
     (h : driver.check_main.check_oleans io s a roots cs ⟨dirs, alloc.vec.Vec.new _⟩ = ok (c, s'))
@@ -487,11 +487,11 @@ theorem check_oleans_zero (hfs : AnswersAs io fs) (hpool : PoolSound io) {s s' :
     exact (code_ne h (exit_code_ne hc0) hc).elim
   | Ok prepared =>
   have h := hoisted_bind h
-  obtain ⟨⟨o, io1⟩, hpr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨o, hpr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases o with
   | none => exact (code_ne h (by decide) hc).elim
   | some ps =>
-  have hpins := pins_for_run_embedded hnp hp hpr
+  have hpins := embedded_pins_ok hpr
   obtain ⟨⟨r5, st5⟩, h5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases r5 with
   | Err e =>
@@ -624,8 +624,8 @@ theorem parse_args_oleans {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
     (h2 : w2.val = [45#u32, 45#u32]) {a : driver.cli.Args}
     (h : driver.cli.parse_args argv = ok a) :
     a.bad = none ∧ a.check_graph = false ∧ a.olean = true ∧ a.compare = false ∧
-      a.scheduled = false ∧ a.modular = false ∧ a.module = false ∧ a.pins = none ∧
-      a.no_pins = false ∧ a.verified = true ∧ a.trusted_path.val = [] ∧ a.constants.val = [] ∧
+      a.scheduled = false ∧ a.modular = false ∧ a.module = false ∧
+      a.verified = true ∧ a.trusted_path.val = [] ∧ a.constants.val = [] ∧
       driver.cli.push_dirs (alloc.vec.Vec.new _) w1 14#usize = ok a.search_path ∧
       a.files.val.map (·.val) = [w3.val] := by
   rw [driver.cli.parse_args, driver.cli.args_default] at h
@@ -642,11 +642,11 @@ theorem parse_args_oleans {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
   rw [ConRon.Args.loop_end g2 h2 (usize_add_lit (b := 3#usize) rfl)] at h
   obtain ⟨fl, hfl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [driver.cli.closed] at h
-  simp only [Bool.false_eq_true, ite_false] at h
+  simp only [core.option.Option.is_some, Option.isSome_none, Bool.false_eq_true, ite_false] at h
   cases Result.ok_injective h
   have hf := push_files_loop_val argv _ _ 3#usize rfl hfl
   simp only [hv] at hf
-  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hsp, ?_⟩
+  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hsp, ?_⟩
   simpa using hf
 
 section Run
@@ -663,7 +663,7 @@ theorem usage_ne {s s' : S} {b : driver.cli.Bad} {c : Std.U8}
 `--trusted-search-path` or `--constant`): the root parsed, the closure checked along a copy of
 the search path. -/
 theorem olean_args_oleans {s s' : S} {a : driver.cli.Args} (hcmp : a.compare = false)
-    (hmod : a.modular = false)
+    (hsch : a.scheduled = false) (hmod : a.modular = false)
     (hmo : a.module = false) (htp : a.trusted_path.val = []) (hcon : a.constants.val = [])
     {f : alloc.vec.Vec Std.U32} (hfiles : a.files.val = [f]) {c : Std.U8}
     (h : driver.cli.olean_args io s a = ok (c, s')) (hc : c.val = 0) :
@@ -697,7 +697,7 @@ theorem olean_args_oleans {s s' : S} {a : driver.cli.Args} (hcmp : a.compare = f
       have := alloc.vec.Vec.len_val a.trusted_path
       simp [alloc.vec.Vec.length, htp] at this; scalar_tac
     rw [ite_eq_left this]
-  simp only [htm, bind_ok, Bool.false_eq_true, ite_false, hmod, hmo] at h
+  simp only [htm, bind_ok, Bool.false_eq_true, ite_false, hsch, hmod, hmo] at h
   obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨sp, hsp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [frontend.olean.files.roots_of_path] at hsp
@@ -753,17 +753,17 @@ theorem run_args_oleans (hfs : AnswersAs io fs) (hpool : PoolSound io)
   rw [driver.cli.run_args, hhelp, bind_ok] at h
   simp only [Bool.false_eq_true, ite_false] at h
   obtain ⟨a, ha, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨hbad, hcg, hol, hcmp, hsch, hmod, hmo, hp, hnp, hver, htp, hcon, hsp, hfl⟩ :=
+  obtain ⟨hbad, hcg, hol, hcmp, hsch, hmod, hmo, hver, htp, hcon, hsp, hfl⟩ :=
     parse_args_oleans hv h0 hT h2 ha
   simp only [hbad, hcg, hol, hcmp, hsch, hmod, Bool.false_eq_true, ite_false, ite_true] at h
   obtain ⟨f', hf', hf'v⟩ : ∃ f', a.files.val = [f'] ∧ f'.val = w3.val := by
     rcases hfv : a.files.val with _ | ⟨f', _ | ⟨g, l⟩⟩ <;> rw [hfv] at hfl <;> simp at hfl
     exact ⟨f', rfl, hfl⟩
   obtain ⟨roots, cs, nm, dv, hroots, hnm, hcs, hdv, hck⟩ :=
-    olean_args_oleans hcmp hmod hmo htp hcon hf' h hc
+    olean_args_oleans hcmp hsch hmod hmo htp hcon hf' h hc
   have hf3 : f'.val.map UScalar.val = root.toList.map Char.toNat := by rw [hf'v]; exact h3
   obtain ⟨hwf, hpm⟩ := ConRon.Args.parse_mod_name_some hf3 hnm
-  have hst := check_oleans_zero hfs hpool hver hnp hp hcs
+  have hst := check_oleans_zero hfs hpool hver hcs
     (by rw [hroots]; intro n hn; simp at hn; subst hn; exact hwf) hck hc
   rw [hroots] at hst
   refine ⟨nm, dv, hpm, ?_, hst⟩

@@ -336,7 +336,7 @@ impl AState {
 
     /// con-leche: none — the driver's start state, the initial state over the
     /// empty arena (task #98-HEADLINE: the one start value the headline
-    /// theorems' first premise names, `ConRon.Capstone.startState`)
+    /// theorems' first premise names, `ConRon.MainTheorem.Stages.startState`)
     /// Lean twin: `proof/ConRon/Arena/Monad.lean:144-145 AState.init`.
     pub fn empty() -> AState {
         AState::init(EStore::empty())

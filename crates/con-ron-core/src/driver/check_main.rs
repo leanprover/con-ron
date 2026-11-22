@@ -1,6 +1,6 @@
-//! `driver::check_main` — con-leche's `Driver/CheckMain.lean` on a lean4export
-//! file: the pipeline `crates/con-ron/src/bin/con-ron.rs`'s `check_main` ran
-//! (DESIGN.md §3.9, task #171), now over `CheckerIo`.
+//! `driver::check_main` — con-leche's `Driver/CheckMain.lean`: the check of a
+//! lean4export file and of an `.olean` closure, over `CheckerIo` (DESIGN.md
+//! §3.9, task #171).
 //!
 //! ```text
 //! intern_reserved_pins → builtin_prelude_e → parse_source (FileChunks)
@@ -8,7 +8,7 @@
 //!   → build_index → freeze_tier → par_map_workers (JobStep) → thaw_tier
 //! ```
 //!
-//! — one call per step premise of the capstone (`ConRon.Capstone`'s
+//! — one call per step premise of the staged lemmas (`ConRon.MainTheorem.Stages`'s
 //! `h1`…`h8`), in that order, on one `AState::empty()` and one
 //! `PersTier::empty()`.  What a run prints goes through the instance's
 //! notifications (`Note` and the store-reading ones), whose rendering is the
@@ -36,6 +36,8 @@ use crate::frontend::checker_io::CheckerFs;
 use crate::frontend::checker_io::CheckerIo;
 use crate::frontend::checker_io::FileChunks;
 use crate::frontend::checker_io::Step;
+use crate::frontend::checker_io::WorkerNote;
+use crate::frontend::checker_io::WorkerNotes;
 use crate::frontend::export_c;
 use crate::frontend::nat_op_ground::DeclUsedConsts;
 use crate::frontend::olean::files::Roots;
@@ -71,10 +73,6 @@ pub enum Note {
     Parse(CheckError, u64, Vec<u32>, bool),
     /// the preparation or the pin walk failed
     Frontend(CheckError, bool),
-    /// `--pins FILE` did not read
-    PinsFile(Vec<u32>),
-    /// the embedded pin text did not decode
-    EmbeddedPins(CheckError),
     /// the accept line: the file's record count
     Accepted(u64, bool),
     /// the `.olean` read failed, at its line: the roots
@@ -392,30 +390,17 @@ pub fn check_phase_olean<I: CheckerIo>(
     }
 }
 
-/// con-leche: none — how a run chooses the pin list, which con-leche's driver
-/// does not have to (it passes `natOpPinSets`): the embedded text, decoded by
-/// the verified decoder (`pins_decode::decode_embedded`), unless `--no-pins`
-/// (the empty list) or `--pins FILE` (the instance's unverified reader), the
-/// port's two testing overrides.  A failure is noted, and `None`.
-pub fn pins_for_run<I: CheckerIo>(io: &mut I, a: &Args) -> Option<Vec<NatOpPinSet>> {
-    if a.no_pins {
-        return Some(Vec::new());
-    }
-    match &a.pins {
-        Some(p) => match io.read_pins_file(p) {
-            Err(m) => {
-                io.note(&Note::PinsFile(m));
-                None
-            }
-            Ok(ps) => Some(ps),
-        },
-        None => match pins_decode::decode_embedded() {
-            Err(e) => {
-                io.note(&Note::EmbeddedPins(e));
-                None
-            }
-            Ok(ps) => Some(ps),
-        },
+/// con-leche: none — the pin list, which con-leche's driver does not have to
+/// make (it passes `natOpPinSets`): the embedded text, decoded by the verified
+/// decoder (`pins_decode::decode_embedded`).  A failure (a text
+/// `scripts/gen-pins.sh` did not write) is noted, and `None`.
+pub fn embedded_pins<F: WorkerNotes>(fs: &F) -> Option<Vec<NatOpPinSet>> {
+    match pins_decode::decode_embedded() {
+        Err(e) => {
+            fs.worker_note(&WorkerNote::EmbeddedPins(e));
+            None
+        }
+        Ok(ps) => Some(ps),
     }
 }
 
@@ -457,18 +442,18 @@ pub fn verdict_of<I: CheckerIo>(
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:268-458 checkMainG
-/// **The check of one lean4export file** — `bin/con-ron.rs`'s `check_main`
-/// on `Input::Ndjson`, step for step: the reserved pins, the heartbeat's first
-/// line, the prelude, the streaming parse over the file's reads, the
-/// preparation and its receipt, the pin list, the pin walk, the check phase,
-/// the verdict; the exit code.  The verdict path hands the heap to the
-/// instance (`keep_heap`) rather than freeing it (con-leche task #336).
+/// **The check of one lean4export file**, step for step: the reserved pins,
+/// the heartbeat's first line, the prelude, the streaming parse over the
+/// file's reads, the preparation and its receipt, the pin list, the pin walk,
+/// the check phase, the verdict; the exit code.  The verdict path hands the
+/// heap to the instance (`keep_heap`) rather than freeing it (con-leche task
+/// #336).
 pub fn check_main<I: CheckerIo>(io: &mut I, a: &Args, file: &Vec<u32>) -> u8 {
     let verified = a.verified;
     let mode = if verified { CheckMode::Verified } else { CheckMode::Trusted };
     let mut st = AState::empty();
     let pers = PersTier::empty();
-    // ConRon.Capstone: h1
+    // ConRon.MainTheorem.Stages: h1
     match pins::intern_reserved_pins(&pers, &mut st) {
         Err(e) => {
             io.note(&Note::ReservedPins(e, verified));
@@ -477,7 +462,7 @@ pub fn check_main<I: CheckerIo>(io: &mut I, a: &Args, file: &Vec<u32>) -> u8 {
         Ok(()) => (),
     }
     io.read_starts(&a.progress, file);
-    // ConRon.Capstone: h2
+    // ConRon.MainTheorem.Stages: h2
     let prelude_ix = match prelude::builtin_prelude_e(&pers, &mut st) {
         Err((e, line)) => {
             io.note(&Note::Prelude(e, line, verified));
@@ -485,7 +470,7 @@ pub fn check_main<I: CheckerIo>(io: &mut I, a: &Args, file: &Vec<u32>) -> u8 {
         }
         Ok(p) => p,
     };
-    // ConRon.Capstone: hreads, h3
+    // ConRon.MainTheorem.Stages: hreads, h3
     let (read, err) = {
         let mut src = FileChunks { fs: &*io, path: file, off: 0, reads: 0, err: None };
         let read = export_c::parse_source(&pers, &mut st, &mut src);
@@ -507,7 +492,7 @@ pub fn check_main<I: CheckerIo>(io: &mut I, a: &Args, file: &Vec<u32>) -> u8 {
         Ok(p) => p,
     };
     let file_records = parsed.decls.len();
-    // ConRon.Capstone: h4
+    // ConRon.MainTheorem.Stages: h4
     let prepared = match prepare::prepare_d(&pers, &mut st, prelude_ix, parsed.decls, &DeclUsedConsts) {
         Err(e) => {
             let c = exit_code(&e);
@@ -519,12 +504,12 @@ pub fn check_main<I: CheckerIo>(io: &mut I, a: &Args, file: &Vec<u32>) -> u8 {
     if prepared.hoisted.len() > 0 {
         io.hoisted(&pers, &st.store, &prepared.hoisted);
     }
-    // ConRon.Capstone: hpins (`--pins`/`--no-pins` are outside the theorems)
-    let pins: Vec<NatOpPinSet> = match pins_for_run(io, a) {
+    // ConRon.MainTheorem.Stages: hpins
+    let pins: Vec<NatOpPinSet> = match embedded_pins(&*io) {
         None => return 3,
         Some(ps) => ps,
     };
-    // ConRon.Capstone: h5
+    // ConRon.MainTheorem.Stages: h5
     let ipins = match checker::intern_all_pins(&pers, &mut st, &pins, &a.max_nat_size) {
         Err(e) => {
             let c = exit_code(&e);
@@ -534,7 +519,7 @@ pub fn check_main<I: CheckerIo>(io: &mut I, a: &Args, file: &Vec<u32>) -> u8 {
         Ok(p) => p,
     };
     let jobs: u64 = jobs_for_run(io, a);
-    // ConRon.Capstone: h6, h7, h8
+    // ConRon.MainTheorem.Stages: h6, h7, h8
     let verdict = check_phase(io, &pers, &mut st, &mode, &ipins, None, &prepared.decls, jobs, file_records, prepared.synthesised);
     verdict_of(io, &pers, st, prepared.decls, verdict, file_records, verified)
 }
@@ -572,7 +557,7 @@ pub fn check_oleans<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &
     let mode = if verified { CheckMode::Verified } else { CheckMode::Trusted };
     let mut st = AState::empty();
     let pers = PersTier::empty();
-    // ConRon.Capstone: h1
+    // ConRon.MainTheorem.Stages: h1
     match pins::intern_reserved_pins(&pers, &mut st) {
         Err(e) => {
             io.note(&Note::ReservedPins(e, verified));
@@ -581,7 +566,7 @@ pub fn check_oleans<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &
         Ok(()) => (),
     }
     io.oleans_read_starts(&a.progress, roots);
-    // ConRon.Capstone: h2
+    // ConRon.MainTheorem.Stages: h2
     let prelude_ix = match prelude::builtin_prelude_e(&pers, &mut st) {
         Err((e, line)) => {
             io.note(&Note::Prelude(e, line, verified));
@@ -589,7 +574,7 @@ pub fn check_oleans<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &
         }
         Ok(p) => p,
     };
-    // ConRon.Capstone: hroots
+    // ConRon.MainTheorem.Stages: hroots
     let rs = match intern_names(&pers, &mut st, roots) {
         Err(e) => return oleans_failed(io, e, 0, roots, verified),
         Ok(rs) => rs,
@@ -598,7 +583,7 @@ pub fn check_oleans<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &
         Err(e) => return oleans_failed(io, e, 0, roots, verified),
         Ok(c) => c,
     };
-    // ConRon.Capstone: h3
+    // ConRon.MainTheorem.Stages: h3
     io.read_notes_begin(&a.progress);
     let read = records::read_oleans(&*io, &pers, &mut st.store, sp, &rs, &consts, false, false);
     io.read_notes_end();
@@ -608,7 +593,7 @@ pub fn check_oleans<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &
     };
     let file_records = rd.decls.len();
     let decls = core::mem::replace(&mut rd.decls, Vec::new());
-    // ConRon.Capstone: h4 (what a theorem mentions, off the read)
+    // ConRon.MainTheorem.Stages: h4 (what a theorem mentions, off the read)
     let prepared = match prepare::prepare_d(&pers, &mut st, prelude_ix, decls, &rd) {
         Err(e) => {
             let c = exit_code(&e);
@@ -622,12 +607,12 @@ pub fn check_oleans<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &
     if prepared.hoisted.len() > 0 {
         io.hoisted(&pers, &st.store, &prepared.hoisted);
     }
-    // ConRon.Capstone: hpins
-    let pins: Vec<NatOpPinSet> = match pins_for_run(io, a) {
+    // ConRon.MainTheorem.Stages: hpins
+    let pins: Vec<NatOpPinSet> = match embedded_pins(&*io) {
         None => return 3,
         Some(ps) => ps,
     };
-    // ConRon.Capstone: h5
+    // ConRon.MainTheorem.Stages: h5
     let ipins = match checker::intern_all_pins(&pers, &mut st, &pins, &a.max_nat_size) {
         Err(e) => {
             let c = exit_code(&e);
@@ -637,7 +622,7 @@ pub fn check_oleans<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &
         Ok(p) => p,
     };
     let jobs: u64 = jobs_for_run(io, a);
-    // ConRon.Capstone: h6, h7, h8
+    // ConRon.MainTheorem.Stages: h6, h7, h8
     let verdict = check_phase_olean(io, &pers, &mut st, &mode, &ipins, &prepared.decls, &pk, &values, sp, None, jobs, file_records, prepared.synthesised);
     verdict_of(io, &pers, st, prepared.decls, verdict, file_records, verified)
 }

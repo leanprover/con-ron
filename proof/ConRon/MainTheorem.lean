@@ -9,47 +9,42 @@ import ConRon.MainTheorem.CompareModular
 /-!
 # `ConRon.MainTheorem` — the main theorems about the binary (task #171, DESIGN.md §3.9)
 
-The twin of `ConLeche/MainTheorem.lean`: the same theorem names, the same conclusions, with
-con-leche's run premise `ModelIO.CanGive (Driver.runArgs args) fs 0` replaced by con-ron's
-`ConRon.CanGive args fs 0` (`MainTheorem/Driver.lean`): the extracted driver
-`driver::cli::run_args` exits 0 at an IO instance whose file operations answer as `fs` at every
-state (`AnswersAs`) and whose worker map keeps the pool's contract (`PoolSound`).
+The twin of `ConLeche/MainTheorem.lean`: the same theorem names, in the same order, with the
+same statements word for word, but con-leche's run premise `ModelIO.CanGive (Driver.runArgs
+args) fs 0` is con-ron's `ConRon.CanGive args fs 0` (`MainTheorem/Driver.lean`): the extracted
+driver `driver::cli::run_args` exits 0 on the argument list `args` at an instance of the trait
+`CheckerIo` whose file operations answer as the snapshot `fs` at every state (`AnswersAs`), whose
+worker map keeps the pool's contract (`PoolSound`) and whose code map answers each module's
+exit code (`CodesSound`).
 
-What a run of the binary must satisfy to be one of `CanGive`'s is OVERVIEW §8.2's driver row:
-`crates/con-ron/src/std_io.rs`'s answers are one snapshot's, its escapes write no file and do
-not end the process, its pool keeps `ParallelAll`, and `main` does what it says (the argument
-list's code points, the checking thread, `run_args`, the flush, the exit with its code).
+What a run of the binary must satisfy to be one of `CanGive`'s is OVERVIEW §3.1, the
+counterpart of the module doc of con-leche's `ConLeche/Frontend/CheckerIO.lean`: the binary's
+instance (`crates/con-ron/src/std_io.rs`) answers as one snapshot, keeps the two maps'
+contracts, and its escapes and notifications write no file and do not end the process; and
+`main` does what it says (the argument list's code points, the checking thread, `run_args`, the
+flush, the exit with its code).
 
-**Slice 1: `-- <file>`.**  `json_stages_of_canGive` takes an exit 0 at `["--", file]` to every
-step premise of the capstone (`JsonStages`); lane C's `json_model_of_stages` and
-`json_no_False_of_stages` (`MainTheorem/Conclusions.lean`) take those to con-leche's
-conclusions.  The two theorems below are con-leche's `main_json_model` and `main_no_False`,
-word for word but the run premise.
+**The proofs.**  Each theorem is a walk of the extracted driver and a conclusion.  The walk
+(`MainTheorem/Driver.lean`, `CompareJson.lean`, `Oleans.lean`, `Modular.lean`,
+`CompareOleans.lean`, `CompareModular.lean`, over the argument parses of `Args.lean`,
+`ModArgs.lean` and `CmpArgs.lean`) inverts `run_args` at the theorem's argument list, one
+lemma per driver function, down to the calls of the verified stages, and hands them to the
+staged lemmas of `MainTheorem/Stages.lean`: one premise per call, Theorem 2 (the Rust refines the
+twin), then Theorem 1 (the twin refines con-leche's pure checker).  `MainTheorem/Conclusions.lean`
+turns the staged conclusions into con-leche's words with con-leche's own soundness theorems:
 
-**Slice 3a: `--compare -- <c> <s>`.**  `compare_json_stages_of_canGive`
-(`MainTheorem/CompareJson.lean`) takes an exit 0 at `["--compare", "--", c, s]` to the file `c`
-in the snapshot and every step premise of the compared capstone (`CompareJsonStages`); lane C's
-`compare_json_model_of_stages` takes those to con-leche's conclusion: `main_compare_json_model`.
+| theorem | the walk | the conclusion |
+|---|---|---|
+| `main_json_model`, `main_no_False` | `json_stages_of_canGive` | `json_model_of_stages`, `json_no_False_of_stages` |
+| `main_compare_json_model` | `compare_json_stages_of_canGive` | `compare_json_model_of_stages` |
+| `main_oleans` | `oleans_of_canGive` | `oleans_model_of_stages_dec` |
+| `main_compare_model` | `compare_of_canGive` | `compare_model_of_stages_dec` |
+| `main_modular`, `main_modular_one` | `modular_of_canGive`, `modular_one_of_canGive` | `Stages.model_modular_of` |
+| `main_modular_compare`, `main_modular_compare_one`, `main_modular_compare_no_False` | `modular_cmp_facts_of_canGive`, `modular_cmp_one_of_canGive` | `cmp_family`, `cmp_no_False` |
 
-**Slice 2: `--olean`, `--check-graph`, `--olean --module`, `--olean --modular`.**
-`oleans_of_canGive` (`MainTheorem/Oleans.lean`) takes an exit 0 at `["--olean",
-"--search-path=" ++ dirs, "--", root]` to the `--olean` capstone's step premises, the root to
-`parseModName root` and the search path to `searchPathOf dirs` (`MainTheorem/Args.lean`):
-`main_oleans`.  `modular_of_canGive` and `modular_one_of_canGive` (`MainTheorem/Modular.lean`)
-take the graph check's and each module worker's exits 0 (each its own run, at its own instance,
-all on the one snapshot `fs`), or `--olean --modular`'s, to con-leche's family of models:
-`main_modular` and `main_modular_one`.
-
-**Slice 3b: the compared `.olean` runs.**  `compare_of_canGive`
-(`MainTheorem/CompareOleans.lean`) takes an exit 0 at `["--olean", "--compare",
-"--trusted-search-path=" ++ T, "--search-path=" ++ D, "--", c, s]` to the compared capstone's
-step premises, the challenge read through `trustedOr (searchPathOf T) (searchPathOf D)`:
-`main_compare_model`.  `modular_cmp_facts_of_canGive` and `modular_cmp_one_of_canGive`
-(`MainTheorem/CompareModular.lean`) take the compared graph check's, every worker's and the
-compare worker's exits 0, or `--olean --modular --compare`'s, to con-leche's family of models
-(`cmp_family`, upstream's `compare_sees_isModel`) and to the challenge's having no constant of
-type `False` (`cmp_no_False`): `main_modular_compare`, `main_modular_compare_one`,
-`main_modular_compare_no_False`.
+The proofs use the axioms `propext`, `Classical.choice`, `Quot.sound` and
+`PINS_TEXT._native.decide.ax_1`, the one Aeneas spends on the embedded pin text's definition,
+and no other (the census at the end of this file).
 -/
 
 open ConLeche (IsModel constantsOf jsonWithTheoremFalse FS)
@@ -222,3 +217,65 @@ theorem main_modular_compare_no_False (V : Type w) [SetTheory V] {T D c s : Stri
   cmp_no_False good hC edges inj hhdr acc V (.root (by simp)) hci hty
 
 end ConRon.MainTheorem
+
+/-! ## The census: con-leche's three axioms, and the one Aeneas spends on the embedded pin text -/
+
+/-- info: 'ConRon.MainTheorem.main_json_model' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ ConRon.Generated.kernel.pins_text.PINS_TEXT._native.decide.ax_1] -/
+#guard_msgs in #print axioms ConRon.MainTheorem.main_json_model
+
+/-- info: 'ConRon.MainTheorem.main_no_False' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ ConRon.Generated.kernel.pins_text.PINS_TEXT._native.decide.ax_1] -/
+#guard_msgs in #print axioms ConRon.MainTheorem.main_no_False
+
+/-- info: 'ConRon.MainTheorem.main_compare_json_model' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ ConRon.Generated.kernel.pins_text.PINS_TEXT._native.decide.ax_1] -/
+#guard_msgs in #print axioms ConRon.MainTheorem.main_compare_json_model
+
+/-- info: 'ConRon.MainTheorem.main_oleans' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ ConRon.Generated.kernel.pins_text.PINS_TEXT._native.decide.ax_1] -/
+#guard_msgs in #print axioms ConRon.MainTheorem.main_oleans
+
+/-- info: 'ConRon.MainTheorem.main_compare_model' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ ConRon.Generated.kernel.pins_text.PINS_TEXT._native.decide.ax_1] -/
+#guard_msgs in #print axioms ConRon.MainTheorem.main_compare_model
+
+/-- info: 'ConRon.MainTheorem.main_modular' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ ConRon.Generated.kernel.pins_text.PINS_TEXT._native.decide.ax_1] -/
+#guard_msgs in #print axioms ConRon.MainTheorem.main_modular
+
+/-- info: 'ConRon.MainTheorem.main_modular_one' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ ConRon.Generated.kernel.pins_text.PINS_TEXT._native.decide.ax_1] -/
+#guard_msgs in #print axioms ConRon.MainTheorem.main_modular_one
+
+/-- info: 'ConRon.MainTheorem.main_modular_compare' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ ConRon.Generated.kernel.pins_text.PINS_TEXT._native.decide.ax_1] -/
+#guard_msgs in #print axioms ConRon.MainTheorem.main_modular_compare
+
+/-- info: 'ConRon.MainTheorem.main_modular_compare_one' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ ConRon.Generated.kernel.pins_text.PINS_TEXT._native.decide.ax_1] -/
+#guard_msgs in #print axioms ConRon.MainTheorem.main_modular_compare_one
+
+/-- info: 'ConRon.MainTheorem.main_modular_compare_no_False' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ ConRon.Generated.kernel.pins_text.PINS_TEXT._native.decide.ax_1] -/
+#guard_msgs in #print axioms ConRon.MainTheorem.main_modular_compare_no_False

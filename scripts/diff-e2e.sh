@@ -3,8 +3,8 @@
 # every fixture, against con-leche's pinned expectation.
 #
 #   usage: scripts/diff-e2e.sh [--trusted] [--verbose] [--timeout=SECS]
-#                              [--only=REGEX] [--no-pins|--pins-file]
-#                              [--progress] [--jobs=N] [--bin=PATH]
+#                              [--only=REGEX] [--progress] [--jobs=N]
+#                              [--bin=PATH]
 #
 # **This is the port's differential test** (task #80, which retired the
 # checker-only seam of task #28 in its favour).  It runs the whole binary on
@@ -28,13 +28,9 @@
 #     SKIPPED 33 fixtures.  Here they are checked like any other -- which is
 #     why this sweep reads 348 cases where that one read 315.
 #
-# The PIN LIST needs no argument since task #43: `natOpPinSets` is an embedded
-# text constant inside the verified core and the core decodes it, so a plain
-# run uses con-leche's own pins.  `--no-pins` passes the empty list, under which
-# the 17 fixtures that define `Nat.div` decline (task #28's numbers), and
-# `--pins-file` reads the `con-ron-pins/2` dump `scripts/gen-pins.sh` writes
-# (`_tmp/gen-pins-<key>/pins.dump`) through the unverified reader instead (task
-# #31's arrangement, kept as a test route).
+# The PIN LIST is no argument: since task #43 `natOpPinSets` is an embedded
+# text constant inside the verified core and the core decodes it, so every run
+# uses con-leche's own pins.
 #
 # The IN-PROCESS MODELLER IS GONE (task #105, con-leche's `uniform-inds`
 # merge): every mutual and nested block installs through the kernel's
@@ -74,11 +70,7 @@
 # from (the script `cd`s to the repository root before anything else), so
 # both a repo-relative and a shell-relative spelling work.  With `--bin` the
 # sweep does NOT `cargo build`: the caller owns the binary's freshness, and a
-# `--bin` that is not executable is a usage error (exit 3).  Pin arguments
-# other than the default are a con-ron flag (`--no-pins`, `--pins FILE`), so
-# `--no-pins`/`--pins-file` with a foreign `--bin` will simply make that
-# binary reject its command line — which the sweep reports as a difference,
-# honestly, rather than hiding.
+# `--bin` that is not executable is a usage error (exit 3).
 #
 # SCRATCH AND LOG ARE KEYED BY THE CHECKOUT (task #97t).  `_tmp` is one
 # directory shared through a symlink by every agent worktree, so a fixed
@@ -98,14 +90,11 @@ cd "$(dirname "$0")/.."
 root="$PWD"
 
 CL="$(python3 "$root/scripts/provenance.py" dir)" || exit 3
-PINDUMP="${PINDUMP:-$root/_tmp/gen-pins-$(printf '%s' "$root" | sha256sum | cut -c1-12)/pins.dump}"
 ARENA_DIR="${ARENA_DIR:-$root/_tmp/arena-tests}"
 TO=600
 MODE=--verified
 verbose=0
 only=""
-use_pins=1
-from_file=0
 progress=""
 jobs=1
 bin=""
@@ -115,13 +104,11 @@ for a in "$@"; do
     --trusted) MODE=--trusted ;;
     --bin=*) bin=${a#--bin=} ;;
     --verbose) verbose=1 ;;
-    --no-pins) use_pins=0 ;;
-    --pins-file) from_file=1 ;;
     --progress) progress=--progress=1000 ;;
     --jobs=*) jobs=${a#--jobs=} ;;
     --timeout=*) TO=${a#--timeout=} ;;
     --only=*) only=${a#--only=} ;;
-    *) echo "usage: $0 [--trusted] [--verbose] [--no-pins|--pins-file] [--progress] [--jobs=N] [--bin=PATH] [--timeout=SECS] [--only=REGEX]" >&2; exit 2 ;;
+    *) echo "usage: $0 [--trusted] [--verbose] [--progress] [--jobs=N] [--bin=PATH] [--timeout=SECS] [--only=REGEX]" >&2; exit 2 ;;
   esac
 done
 
@@ -164,26 +151,10 @@ if [ ! -d "$ARENA_DIR/good" ]; then
     echo "diff-e2e: no arena snapshot at $ARENA_DIR" >&2; exit 3; }
 fi
 
-# The pin list.  Since task #43 the default needs NO argument: the pins are an
-# embedded text constant inside the verified core, decoded by the core.
-# `--no-pins` still reproduces task #28's numbers (the empty list), and
-# `--pins-file` still exercises task #31's unverified file reader on the dump
-# `scripts/gen-pins.sh` writes.
-pinargs=""
-if [ "$use_pins" -eq 0 ]; then
-  pinargs="--no-pins"
-elif [ "$from_file" -eq 1 ]; then
-  if [ ! -f "$PINDUMP" ]; then
-    echo "diff-e2e: $PINDUMP missing; run scripts/gen-pins.sh --check" >&2
-    exit 3
-  fi
-  pinargs="--pins $PINDUMP"
-fi
-
 log="${LOG:-$WORK/run.log}"
 : >"$log"
-printf '# binary: %s\n# mode: %s, pins: %s, --jobs=%s\n' \
-  "$BIN" "$MODE" "${pinargs:-embedded}" "$jobs" >>"$log"
+printf '# binary: %s\n# mode: %s, --jobs=%s\n' \
+  "$BIN" "$MODE" "$jobs" >>"$log"
 
 total=0; agree=0; differ=0; timedout=0; other=0
 
@@ -264,7 +235,7 @@ one() { # one <suite> <label> <stream> <expected-exit>
   # `ulimit -c 0` (inside the substitution's subshell): an abort (a native
   # stack overflow) would otherwise hand the system's core handler a 1 GiB
   # stack and leave a dump behind.
-  out=$(ulimit -c 0; timeout "$to" "$BIN" "$MODE" --jobs="$jobs" $pinargs $progress $flags "$path" 2>&1); rc=$?
+  out=$(ulimit -c 0; timeout "$to" "$BIN" "$MODE" --jobs="$jobs" $progress $flags "$path" 2>&1); rc=$?
   printf '=== %s/%s (expect %s)\n%s\n  exit %s\n' "$suite" "$label" "$want" "$out" "$rc" >>"$log"
   if [ "$rc" = 124 ] && [ "$want" != 124 ]; then
     timedout=$((timedout + 1)); echo "TIMEOUT $suite/$label (after ${to}s, expected $want)"
@@ -291,7 +262,7 @@ one_args() { # one_args <row> <expected-exit>
   for tok in $rel; do
     case "$tok" in *.ndjson) args+=("$CL/tests/e2e/$tok");; *) args+=("$tok");; esac
   done
-  out=$(ulimit -c 0; timeout "$TO" "$BIN" "$MODE" --jobs="$jobs" $pinargs $progress "${args[@]}" 2>&1); rc=$?
+  out=$(ulimit -c 0; timeout "$TO" "$BIN" "$MODE" --jobs="$jobs" $progress "${args[@]}" 2>&1); rc=$?
   printf '=== e2e/%s (expect %s)\n%s\n  exit %s\n' "$rel" "$want" "$out" "$rc" >>"$log"
   if [ "$rc" = "$want" ]; then
     agree=$((agree + 1))
@@ -350,12 +321,12 @@ display_case() { # <fixture>
   [ -f "$src" ] || return 0
   if [ -n "$only" ] && ! printf '%s' "display/$1" | grep -qE "$only"; then return 0; fi
   display_total=$((display_total + 1))
-  (ulimit -c 0; timeout "$TO" "$BIN" "$MODE" --jobs="$jobs" $pinargs --progress=1 "$src" >"$out" 2>&1)
+  (ulimit -c 0; timeout "$TO" "$BIN" "$MODE" --jobs="$jobs" --progress=1 "$src" >"$out" 2>&1)
   display_check "$1" "$out"
   rm -f "$out"
 }
 # con-ron's own cases (task #131): what reaches the output from outside the
-# stream — a command-line word, a path, a pins file — gets the same
+# stream — a command-line word, a path — gets the same
 # guarantee.  Each carries an ESC, a newline and a `::` line.
 display_cli() { # <label> <args...>
   local label=$1 out="$WORK/display-cli-$1.out"; shift
@@ -367,7 +338,6 @@ display_cli() { # <label> <args...>
 }
 evil=$'x\e[31m\n::error::y\u202e'
 mkdir -p "$WORK/display-$evil"
-printf 'con-ron-pins/2%s\n' "$evil" >"$WORK/display-pins"
 display_case render_name_axiom.ndjson
 display_case render_name_progress.ndjson
 display_case render_safety.ndjson
@@ -375,9 +345,7 @@ display_cli option "--$evil" "$CL/tests/e2e/render_safety.ndjson"
 display_cli progress "--progress=$evil" "$CL/tests/e2e/render_safety.ndjson"
 display_cli jobs "--jobs=$evil" "$CL/tests/e2e/render_safety.ndjson"
 display_cli path "$WORK/display-$evil/missing.ndjson"
-display_cli pins-path --pins "$WORK/display-$evil/missing" "$CL/tests/e2e/render_name_progress.ndjson"
-display_cli pins-file --pins "$WORK/display-pins" "$CL/tests/e2e/render_name_progress.ndjson"
-rm -rf "$WORK/display-$evil" "$WORK/display-pins"
+rm -rf "$WORK/display-$evil"
 
 # THE COMMAND-LINE GATE (con-leche task #450, its `tests/arena.sh`): `--` ends
 # the options, only a `--help` before it is help, and a FIFO or a directory as
@@ -451,7 +419,7 @@ if [ -z "${LOG:-}" ] && cp -f "$log" "$WORK/.alias.log" 2>/dev/null; then
 fi
 
 echo
-echo "diff-e2e ($MODE, pins ${pinargs:-embedded}, --jobs=$jobs): $total fixtures"
+echo "diff-e2e ($MODE, --jobs=$jobs): $total fixtures"
 echo "  binary              $BIN"
 echo "  agree               $agree"
 echo "  DIFFER              $differ"

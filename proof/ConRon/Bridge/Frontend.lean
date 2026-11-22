@@ -21,7 +21,7 @@ The modules, in dependency order:
 * `Bridge/Frontend/Prepare.lean` — the two permuting passes and the prelude;
 * `Bridge/Frontend/Capstone.lean` — **`no_False_theorem_accepted_pure`**,
   the letter at the pure fold (a stream that declares a theorem of type
-  `False` is never accepted), with the stream lemmas `ConRon/Capstone.lean`'s
+  `False` is never accepted), with the stream lemmas `ConRon/MainTheorem/Stages.lean`'s
   byte-level capstones are assembled from;
 * `Bridge/Frontend/Axioms.lean` — the trust census;
 * `Bridge/Frontend/Olean/*` — **the `.olean` reader**, on the record of one file system snapshot

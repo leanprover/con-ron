@@ -5,7 +5,7 @@ import ConRon.MainTheorem.CompareJson
 # `ConRon.MainTheorem.CompareOleans` — the walk of `--olean --compare -- C S`
 
 **Task #171, slice 3b** (DESIGN.md §3.9).  An exit 0 of `driver::compare::compare_oleans` is the
-compared capstone's step premises (`CmpOleanStages`), at the driver's calls: each read's
+compared staged lemma's step premises (`CmpOleanStages`), at the driver's calls: each read's
 records moved out before its preparation, and the reads, the solution's pool and the
 challenge's pool each at a state of the instance of its own
 (`rust_stages_oleans_compare_dec`, `compare_model_of_stages_dec`: lane C's
@@ -21,7 +21,7 @@ challenge's directories `trustedOr (searchPathOf T) (searchPathOf D)` (`chal_roo
 -/
 
 open Aeneas Aeneas.Std Result
-open ConRon.Generated ConRon.Capstone
+open ConRon.Generated ConRon.MainTheorem.Stages
 open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean
 open ConLeche (IsModel FS)
 open ConLeche.Frontend.Olean (closureConstants)
@@ -32,9 +32,9 @@ set_option autoImplicit false
 
 universe w
 
-/-! ## The capstone at the driver's calls -/
+/-! ## The staged lemma at the driver's calls -/
 
-/-- `Capstone.rust_stages_oleans_compare` at the driver's calls: each read's records moved out
+/-- `Stages.rust_stages_oleans_compare` at the driver's calls: each read's records moved out
 before its preparation (`{ rd with decls := v }`, what a record mentions is read off the merged
 constants alone, `olean_read_used_rel_dec`), and the reads, the solution's pool and the
 challenge's pool each at a snapshot of its own (the instance's state moves between them, at the
@@ -425,8 +425,8 @@ theorem sol_roots_abs {a : driver.cli.Args} {sp : frontend.olean.files.Roots}
 `--constant`): its calls are `compare_model_of_stages_dec`'s premises, the challenge's
 directories `trustedOr` of the command line's. -/
 theorem compare_oleans_zero (hfs : AnswersAs io fs) (hpool : PoolSound io) {s s' : S}
-    {a : driver.cli.Args} (hver : a.verified = true) (hnp : a.no_pins = false)
-    (hp : a.pins = none) {cn sn : kernel.name.Name} (hwfC : ConRon.Refine.NameWF cn)
+    {a : driver.cli.Args} (hver : a.verified = true)
+    {cn sn : kernel.name.Name} (hwfC : ConRon.Refine.NameWF cn)
     (hwfS : ConRon.Refine.NameWF sn) {cs : alloc.vec.Vec kernel.name.Name} (hcs : cs.val = [])
     {c : Std.U8} (h : driver.compare.compare_oleans io s a cn sn cs = ok (c, s'))
     (hc : c.val = 0) :
@@ -520,11 +520,11 @@ theorem compare_oleans_zero (hfs : AnswersAs io fs) (hpool : PoolSound io) {s s'
   | Err e => exact (step_failed_ne h hc).elim
   | Ok prepS =>
   have h := hoisted_bind h
-  obtain ⟨⟨o, io1⟩, hpr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨o, hpr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases o with
   | none => exact (code_ne h (by decide) hc).elim
   | some ps =>
-  have hpins := pins_for_run_embedded hnp hp hpr
+  have hpins := embedded_pins_ok hpr
   obtain ⟨⟨r8, st6⟩, h5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases r8 with
   | Err e => exact (step_failed_ne h hc).elim
@@ -568,7 +568,7 @@ theorem two_roots {a : driver.cli.Args} {f0 f1 : alloc.vec.Vec Std.U32}
 /-- **`--olean --compare` at two roots, at exit 0** (`cli::olean_args`, `compare_olean_args`, no
 `--module`, `--modular` or `--constant`): the compared run of the two. -/
 theorem olean_args_cmp {s s' : S} {a : driver.cli.Args} (hcmp : a.compare = true)
-    (hmod : a.modular = false) (hmo : a.module = false) (hcon : a.constants.val = [])
+    (hsch : a.scheduled = false) (hmod : a.modular = false) (hmo : a.module = false) (hcon : a.constants.val = [])
     {f0 f1 : alloc.vec.Vec Std.U32} (hfiles : a.files.val = [f0, f1]) {c : Std.U8}
     (h : driver.cli.olean_args io s a = ok (c, s')) (hc : c.val = 0) :
     ∃ (n0 n1 : kernel.name.Name) (cs : alloc.vec.Vec kernel.name.Name),
@@ -601,7 +601,7 @@ theorem olean_args_cmp {s s' : S} {a : driver.cli.Args} (hcmp : a.compare = true
     simp only [ite_true] at h
     exact (usage_ne h hc).elim
   | false =>
-  simp only [Bool.false_eq_true, ite_false, hmo, hmod] at h
+  simp only [Bool.false_eq_true, ite_false, driver.cli.cmp_mode, hmo, hmod, hsch, bind_ok] at h
   simp only [hrs] at h
   exact ⟨n0, n1, cs, h0, h1, hcsv, h⟩
 
@@ -644,7 +644,7 @@ theorem run_args_cmp (hfs : AnswersAs io fs) (hpool : PoolSound io)
   rw [driver.cli.run_args, hhelp, bind_ok] at h
   simp only [Bool.false_eq_true, ite_false] at h
   obtain ⟨a, ha, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨hbad, hcg, hol, hcmp, hsch, hmod, hmo, hp, hnp, hver, hcon, htp, hsp, hfl⟩ :=
+  obtain ⟨hbad, hcg, hol, hcmp, hsch, hmod, hmo, hver, hcon, htp, hsp, hfl⟩ :=
     parse_args_cmp hv h0 h1 hTT hDD hE ha
   simp only [hbad, hcg, hol, hsch, hmod, Bool.false_eq_true, ite_false, ite_true] at h
   obtain ⟨f0', f1', hf', hf0', hf1'⟩ : ∃ f0' f1', a.files.val = [f0', f1'] ∧
@@ -652,12 +652,12 @@ theorem run_args_cmp (hfs : AnswersAs io fs) (hpool : PoolSound io)
     rcases hfv : a.files.val with _ | ⟨f0', _ | ⟨f1', _ | ⟨g, l⟩⟩⟩ <;> rw [hfv] at hfl <;>
       simp at hfl
     exact ⟨f0', f1', rfl, hfl.1, hfl.2⟩
-  obtain ⟨n0, n1, cs, hn0, hn1, hcs, hck⟩ := olean_args_cmp hcmp hmod hmo hcon hf' h hc
+  obtain ⟨n0, n1, cs, hn0, hn1, hcs, hck⟩ := olean_args_cmp hcmp hsch hmod hmo hcon hf' h hc
   have hc0 : f0'.val.map UScalar.val = c.toList.map Char.toNat := by rw [hf0']; exact hf0
   have hc1 : f1'.val.map UScalar.val = s.toList.map Char.toNat := by rw [hf1']; exact hf1
   obtain ⟨hwf0, hpm0⟩ := ConRon.Args.parse_mod_name_some hc0 hn0
   obtain ⟨hwf1, hpm1⟩ := ConRon.Args.parse_mod_name_some hc1 hn1
-  obtain ⟨dv, hdv, hst⟩ := compare_oleans_zero hfs hpool hver hnp hp hwf0 hwf1 hcs hck hc
+  obtain ⟨dv, hdv, hst⟩ := compare_oleans_zero hfs hpool hver hwf0 hwf1 hcs hck hc
   refine ⟨n0, n1, dv, hpm0, hpm1, ?_, hst⟩
   rw [hdv, show absSearchPath a.trusted_path = _ from ConRon.Args.push_dirs_trusted hT htp,
     show absSearchPath a.search_path = _ from ConRon.Args.push_dirs_search hD hsp]

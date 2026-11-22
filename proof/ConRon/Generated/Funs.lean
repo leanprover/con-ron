@@ -5187,14 +5187,14 @@ def kernel.expr.beq
       ok r
 
 /-- [con_ron_core::kernel::expr::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::kernel::expr::Expr}::eq2]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1093:4-1095:5
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1064:4-1066:5
     Visibility: public -/
 def kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : kernel.expr.Expr) (other : kernel.expr.Expr) : Result Bool := do
   kernel.expr.beq self other
 
 /-- Trait implementation: [con_ron_core::kernel::expr::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::kernel::expr::Expr}]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1090:0-1096:1 -/
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1061:0-1067:1 -/
 @[reducible]
 def kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   kernel.expr.Expr := {
@@ -5202,14 +5202,14 @@ def kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::kernel::expr::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::kernel::expr::Expr}::hash64]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1080:4-1082:5
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1051:4-1053:5
     Visibility: public -/
 def kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : kernel.expr.Expr) : Result Std.U64 := do
   kernel.expr.hash self
 
 /-- Trait implementation: [con_ron_core::kernel::expr::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::kernel::expr::Expr}]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1077:0-1083:1 -/
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1048:0-1054:1 -/
 @[reducible]
 def kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable kernel.expr.Expr := {
@@ -72733,7 +72733,7 @@ def arena.stream_index.build_index
   arena.stream_index.build_index_loop pers st ds ix i
 
 /-- [con_ron_core::driver::check_main::exit_code]:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 110:0-117:1
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 108:0-115:1
     Visibility: public -/
 def driver.check_main.exit_code
   (e : kernel.core_types.CheckError) : Result Std.U8 := do
@@ -72744,7 +72744,7 @@ def driver.check_main.exit_code
   | kernel.core_types.CheckError.Native _ => ok 2#u8
 
 /-- [con_ron_core::driver::check_main::workers_for]:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 121:0-129:1
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 119:0-127:1
     Visibility: public -/
 def driver.check_main.workers_for
   (jobs : Std.U64) (m : Std.Usize) : Result Std.Usize := do
@@ -72757,7 +72757,7 @@ def driver.check_main.workers_for
   else ok w
 
 /-- [con_ron_core::driver::check_main::{impl con_ron_core::frontend::checker_io::Step<F, con_ron_core::arena::monad::AState> for con_ron_core::driver::check_main::JobStep<'a>}::view]:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 165:4-167:5
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 163:4-165:5
     Visibility: public -/
 def
   driver.check_main.JobStep.Insts.Con_ron_coreFrontendChecker_ioStepFAState.view
@@ -72769,7 +72769,7 @@ def
   ok (self.tier, s.store, self.ds, 0#usize)
 
 /-- [con_ron_core::driver::check_main::{impl con_ron_core::frontend::checker_io::Step<F, con_ron_core::arena::monad::AState> for con_ron_core::driver::check_main::JobStep<'a>}::step]:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 160:4-162:5
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 158:4-160:5
     Visibility: public -/
 def
   driver.check_main.JobStep.Insts.Con_ron_coreFrontendChecker_ioStepFAState.step
@@ -72783,7 +72783,7 @@ def
   arena.checker.run_job self.tier s self.mode self.pins self.sol self.ds i
 
 /-- [con_ron_core::driver::check_main::{impl con_ron_core::frontend::checker_io::Step<F, con_ron_core::arena::monad::AState> for con_ron_core::driver::check_main::JobStep<'a>}::init]:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 154:4-156:5
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 152:4-154:5
     Visibility: public -/
 def
   driver.check_main.JobStep.Insts.Con_ron_coreFrontendChecker_ioStepFAState.init
@@ -72794,7 +72794,7 @@ def
   arena.checker.worker_state self.apins
 
 /-- Trait implementation: [con_ron_core::driver::check_main::{impl con_ron_core::frontend::checker_io::Step<F, con_ron_core::arena::monad::AState> for con_ron_core::driver::check_main::JobStep<'a>}]
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 151:0-168:1 -/
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 149:0-166:1 -/
 @[reducible]
 def driver.check_main.JobStep.Insts.Con_ron_coreFrontendChecker_ioStepFAState
   {F : Type _} (frontendchecker_ioCheckerFsInst : frontend.checker_io.CheckerFs
@@ -80444,7 +80444,7 @@ def frontend.olean.records.read_value
     ok (core.result.Result.Err ce, ar, c)
 
 /-- [con_ron_core::driver::check_main::olean_job]:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 179:0-224:1
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 177:0-222:1
     Visibility: public -/
 def driver.check_main.olean_job
   {F : Type _} (frontendchecker_ioCheckerFsInst : frontend.checker_io.CheckerFs
@@ -80524,7 +80524,7 @@ def driver.check_main.olean_job
       ok (r, w1, cache)
 
 /-- [con_ron_core::driver::check_main::{impl con_ron_core::frontend::checker_io::Step<F, (con_ron_core::arena::monad::AState, con_ron_core::frontend::olean::records::ValueCache)> for con_ron_core::driver::check_main::OleanJobStep<'a>}::view]:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 270:4-272:5
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 268:4-270:5
     Visibility: public -/
 def
   driver.check_main.OleanJobStep.Insts.Con_ron_coreFrontendChecker_ioStepFPairAStateValueCache.view
@@ -80538,7 +80538,7 @@ def
   ok (self.tier, a.store, self.ds, self.start)
 
 /-- [con_ron_core::driver::check_main::{impl con_ron_core::frontend::checker_io::Step<F, (con_ron_core::arena::monad::AState, con_ron_core::frontend::olean::records::ValueCache)> for con_ron_core::driver::check_main::OleanJobStep<'a>}::step]:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 265:4-267:5
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 263:4-265:5
     Visibility: public -/
 def
   driver.check_main.OleanJobStep.Insts.Con_ron_coreFrontendChecker_ioStepFPairAStateValueCache.step
@@ -80557,7 +80557,7 @@ def
   ok (r, (a1, vc1))
 
 /-- [con_ron_core::driver::check_main::{impl con_ron_core::frontend::checker_io::Step<F, (con_ron_core::arena::monad::AState, con_ron_core::frontend::olean::records::ValueCache)> for con_ron_core::driver::check_main::OleanJobStep<'a>}::init]:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 259:4-261:5
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 257:4-259:5
     Visibility: public -/
 def
   driver.check_main.OleanJobStep.Insts.Con_ron_coreFrontendChecker_ioStepFPairAStateValueCache.init
@@ -80570,7 +80570,7 @@ def
   ok (a, vc)
 
 /-- Trait implementation: [con_ron_core::driver::check_main::{impl con_ron_core::frontend::checker_io::Step<F, (con_ron_core::arena::monad::AState, con_ron_core::frontend::olean::records::ValueCache)> for con_ron_core::driver::check_main::OleanJobStep<'a>}]
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 255:0-273:1 -/
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 253:0-271:1 -/
 @[reducible]
 def
   driver.check_main.OleanJobStep.Insts.Con_ron_coreFrontendChecker_ioStepFPairAStateValueCache
@@ -80590,7 +80590,7 @@ def
 }
 
 /-- [con_ron_core::driver::check_main::intern_names]: loop 0:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 281:4-289:1
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 279:4-287:1
     Visibility: public -/
 @[rust_loop]
 def driver.check_main.intern_names_loop
@@ -80617,7 +80617,7 @@ def driver.check_main.intern_names_loop
 partial_fixpoint
 
 /-- [con_ron_core::driver::check_main::intern_names]:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 278:0-289:1
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 276:0-287:1
     Visibility: public -/
 @[reducible]
 def driver.check_main.intern_names
@@ -80630,7 +80630,7 @@ def driver.check_main.intern_names
     arena.handle.NIdx) 0#usize
 
 /-- [con_ron_core::driver::check_main::intern_consts]:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 294:0-302:1
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 292:0-300:1
     Visibility: public -/
 def driver.check_main.intern_consts
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -80648,7 +80648,7 @@ def driver.check_main.intern_consts
     | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::driver::check_main::check_phase]:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 310:0-347:1
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 308:0-345:1
     Visibility: public -/
 def driver.check_main.check_phase
   {I : Type _} (frontendchecker_ioCheckerIoInst : frontend.checker_io.CheckerIo
@@ -80690,7 +80690,7 @@ def driver.check_main.check_phase
   | core.result.Result.Err _ => ok (r, io, st1)
 
 /-- [con_ron_core::driver::check_main::check_phase_olean]:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 353:0-393:1
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 351:0-391:1
     Visibility: public -/
 def driver.check_main.check_phase_olean
   {I : Type _} (frontendchecker_ioCheckerIoInst : frontend.checker_io.CheckerIo
@@ -82625,37 +82625,24 @@ def kernel.pins_decode.decode_embedded
   let s ← core.str.Str.as_bytes kernel.pins_text.PINS_TEXT
   kernel.pins_decode.decode s
 
-/-- [con_ron_core::driver::check_main::pins_for_run]:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 400:0-420:1
+/-- [con_ron_core::driver::check_main::embedded_pins]:
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 397:0-405:1
     Visibility: public -/
-def driver.check_main.pins_for_run
-  {I : Type _} (frontendchecker_ioCheckerIoInst : frontend.checker_io.CheckerIo
-  I) (io : I) (a : driver.cli.Args) :
-  Result ((Option (alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)) × I)
+def driver.check_main.embedded_pins
+  {F : Type _} (frontendchecker_ioWorkerNotesInst :
+  frontend.checker_io.WorkerNotes F) (fs : F) :
+  Result (Option (alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet))
   := do
-  if a.no_pins
-  then ok (some (alloc.vec.Vec.new kernel.nat_op_pins.NatOpPinSet), io)
-  else
-    match a.pins with
-    | none =>
-      let r ← kernel.pins_decode.decode_embedded
-      match r with
-      | core.result.Result.Ok ps => ok (some ps, io)
-      | core.result.Result.Err e =>
-        frontendchecker_ioCheckerIoInst.note io
-          (driver.check_main.Note.EmbeddedPins e)
-        ok (none, io)
-    | some p =>
-      let (r, io1) ← frontendchecker_ioCheckerIoInst.read_pins_file io p
-      match r with
-      | core.result.Result.Ok ps => ok (some ps, io1)
-      | core.result.Result.Err m =>
-        frontendchecker_ioCheckerIoInst.note io1
-          (driver.check_main.Note.PinsFile m)
-        ok (none, io1)
+  let r ← kernel.pins_decode.decode_embedded
+  match r with
+  | core.result.Result.Ok ps => ok (some ps)
+  | core.result.Result.Err e =>
+    frontendchecker_ioWorkerNotesInst.worker_note fs
+      (frontend.checker_io.WorkerNote.EmbeddedPins e)
+    ok none
 
 /-- [con_ron_core::driver::check_main::jobs_for_run]:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 424:0-429:1
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 409:0-414:1
     Visibility: public -/
 def driver.check_main.jobs_for_run
   {I : Type _} (frontendchecker_ioCheckerIoInst : frontend.checker_io.CheckerIo
@@ -82667,7 +82654,7 @@ def driver.check_main.jobs_for_run
   | some n => ok (n, io)
 
 /-- [con_ron_core::driver::check_main::verdict_of]:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 435:0-457:1
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 420:0-442:1
     Visibility: public -/
 def driver.check_main.verdict_of
   {I : Type _} (frontendchecker_ioCheckerIoInst : frontend.checker_io.CheckerIo
@@ -99826,7 +99813,7 @@ def frontend.export_c.CHUNK_SIZE : Result Std.Usize := do
   i * 1024#usize
 
 /-- [con_ron_core::frontend::checker_io::{impl con_ron_core::frontend::export_c::ChunkSource for con_ron_core::frontend::checker_io::FileChunks<'a, F>}::next_chunk]:
-    Source: 'crates/con-ron-core/src/frontend/checker_io.rs', lines 305:4-321:5
+    Source: 'crates/con-ron-core/src/frontend/checker_io.rs', lines 306:4-322:5
     Visibility: public -/
 def
   frontend.checker_io.FileChunks.Insts.Con_ron_coreFrontendExport_cChunkSource.next_chunk
@@ -99851,7 +99838,7 @@ def
   | some _ => ok (alloc.vec.Vec.new Std.U8, self)
 
 /-- Trait implementation: [con_ron_core::frontend::checker_io::{impl con_ron_core::frontend::export_c::ChunkSource for con_ron_core::frontend::checker_io::FileChunks<'a, F>}]
-    Source: 'crates/con-ron-core/src/frontend/checker_io.rs', lines 301:0-322:1 -/
+    Source: 'crates/con-ron-core/src/frontend/checker_io.rs', lines 302:0-323:1 -/
 @[reducible]
 def
   frontend.checker_io.FileChunks.Insts.Con_ron_coreFrontendExport_cChunkSource
@@ -99863,7 +99850,7 @@ def
 }
 
 /-- [con_ron_core::driver::check_main::check_main]:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 466:0-540:1
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 451:0-525:1
     Visibility: public -/
 def driver.check_main.check_main
   {I : Type _} (frontendchecker_ioCheckerIoInst : frontend.checker_io.CheckerIo
@@ -99909,30 +99896,30 @@ def driver.check_main.check_main
                   p2.hoisted
                 ok st4
               else ok st4
-            let (o, io1) ←
-              driver.check_main.pins_for_run frontendchecker_ioCheckerIoInst io
-                a
+            let o ←
+              driver.check_main.embedded_pins
+                frontendchecker_ioCheckerIoInst.WorkerNotesInst io
             match o with
-            | none => ok (3#u8, io1)
+            | none => ok (3#u8, io)
             | some ps =>
               let (r3, st6) ←
                 arena.checker.intern_all_pins pers st5 ps a.max_nat_size
               match r3 with
               | core.result.Result.Ok p3 =>
-                let (jobs, io2) ←
+                let (jobs, io1) ←
                   driver.check_main.jobs_for_run
-                    frontendchecker_ioCheckerIoInst io1 a
-                let (verdict, io3, st7) ←
+                    frontendchecker_ioCheckerIoInst io a
+                let (verdict, io2, st7) ←
                   driver.check_main.check_phase frontendchecker_ioCheckerIoInst
-                    io2 pers st6 mode p3 none p2.decls jobs file_records
+                    io1 pers st6 mode p3 none p2.decls jobs file_records
                     p2.synthesised
                 driver.check_main.verdict_of frontendchecker_ioCheckerIoInst
-                  io3 pers st7 p2.decls verdict file_records a.verified
+                  io2 pers st7 p2.decls verdict file_records a.verified
               | core.result.Result.Err e =>
                 let c ← driver.check_main.exit_code e
-                frontendchecker_ioCheckerIoInst.note io1
+                frontendchecker_ioCheckerIoInst.note io
                   (driver.check_main.Note.Frontend e a.verified)
-                ok (c, io1)
+                ok (c, io)
           | core.result.Result.Err e =>
             let c ← driver.check_main.exit_code e
             frontendchecker_ioCheckerIoInst.note io
@@ -99961,7 +99948,7 @@ def driver.check_main.check_main
     ok (3#u8, io)
 
 /-- [con_ron_core::driver::check_main::name_vec_dup]: loop 0:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 554:4-557:5
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 539:4-542:5
     Visibility: public -/
 @[rust_loop]
 def driver.check_main.name_vec_dup_loop
@@ -99983,7 +99970,7 @@ def driver.check_main.name_vec_dup_loop
 partial_fixpoint
 
 /-- [con_ron_core::driver::check_main::name_vec_dup]:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 551:0-559:1
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 536:0-544:1
     Visibility: public -/
 @[reducible]
 def driver.check_main.name_vec_dup
@@ -99994,7 +99981,7 @@ def driver.check_main.name_vec_dup
     0#usize
 
 /-- [con_ron_core::driver::check_main::oleans_failed]:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 544:0-548:1
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 529:0-533:1
     Visibility: public -/
 def driver.check_main.oleans_failed
   {I : Type _} (frontendchecker_ioCheckerIoInst : frontend.checker_io.CheckerIo
@@ -117498,7 +117485,7 @@ def
 }
 
 /-- [con_ron_core::driver::check_main::check_oleans]:
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 570:0-643:1
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 555:0-628:1
     Visibility: public -/
 def driver.check_main.check_oleans
   {I : Type _} (frontendchecker_ioCheckerIoInst : frontend.checker_io.CheckerIo
@@ -117552,31 +117539,31 @@ def driver.check_main.check_oleans
                     p1.hoisted
                   ok st5
                 else ok st5
-              let (o, io1) ←
-                driver.check_main.pins_for_run frontendchecker_ioCheckerIoInst
-                  io a
+              let o ←
+                driver.check_main.embedded_pins
+                  frontendchecker_ioCheckerIoInst.WorkerNotesInst io
               match o with
-              | none => ok (3#u8, io1)
+              | none => ok (3#u8, io)
               | some ps =>
                 let (r5, st7) ←
                   arena.checker.intern_all_pins pers st6 ps a.max_nat_size
                 match r5 with
                 | core.result.Result.Ok p2 =>
-                  let (jobs, io2) ←
+                  let (jobs, io1) ←
                     driver.check_main.jobs_for_run
-                      frontendchecker_ioCheckerIoInst io1 a
-                  let (verdict, io3, st8) ←
+                      frontendchecker_ioCheckerIoInst io a
+                  let (verdict, io2, st8) ←
                     driver.check_main.check_phase_olean
-                      frontendchecker_ioCheckerIoInst io2 pers st7 mode p2
+                      frontendchecker_ioCheckerIoInst io1 pers st7 mode p2
                       p1.decls rd.pins rd.values sp none jobs file_records
                       p1.synthesised
                   driver.check_main.verdict_of frontendchecker_ioCheckerIoInst
-                    io3 pers st8 p1.decls verdict file_records a.verified
+                    io2 pers st8 p1.decls verdict file_records a.verified
                 | core.result.Result.Err e1 =>
                   let c1 ← driver.check_main.exit_code e1
-                  frontendchecker_ioCheckerIoInst.note io1
+                  frontendchecker_ioCheckerIoInst.note io
                     (driver.check_main.Note.Frontend e1 a.verified)
-                  ok (c1, io1)
+                  ok (c1, io)
             | core.result.Result.Err e1 =>
               let c1 ← driver.check_main.exit_code e1
               frontendchecker_ioCheckerIoInst.note io
@@ -117640,17 +117627,8 @@ def driver.cli.W_PROGRESS : Array Std.U32 10#usize :=
     115#u32, 115#u32
     ]
 
-/-- [con_ron_core::driver::cli::W_NO_PINS]
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 48:0-48:71 -/
-@[global_simps, irreducible]
-def driver.cli.W_NO_PINS : Array Std.U32 9#usize :=
-  Array.make 9#usize [
-    45#u32, 45#u32, 110#u32, 111#u32, 45#u32, 112#u32, 105#u32, 110#u32,
-    115#u32
-    ]
-
 /-- [con_ron_core::driver::cli::W_OLEAN]
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 50:0-50:59 -/
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 48:0-48:59 -/
 @[global_simps, irreducible]
 def driver.cli.W_OLEAN : Array Std.U32 7#usize :=
   Array.make 7#usize [
@@ -117658,7 +117636,7 @@ def driver.cli.W_OLEAN : Array Std.U32 7#usize :=
     ]
 
 /-- [con_ron_core::driver::cli::W_CHECK_GRAPH]
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 52:0-52:93 -/
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 50:0-50:93 -/
 @[global_simps, irreducible]
 def driver.cli.W_CHECK_GRAPH : Array Std.U32 13#usize :=
   Array.make 13#usize [
@@ -117667,7 +117645,7 @@ def driver.cli.W_CHECK_GRAPH : Array Std.U32 13#usize :=
     ]
 
 /-- [con_ron_core::driver::cli::W_MODULE]
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 54:0-54:66 -/
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 52:0-52:66 -/
 @[global_simps, irreducible]
 def driver.cli.W_MODULE : Array Std.U32 8#usize :=
   Array.make 8#usize [
@@ -117675,7 +117653,7 @@ def driver.cli.W_MODULE : Array Std.U32 8#usize :=
     ]
 
 /-- [con_ron_core::driver::cli::W_MODULAR]
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 56:0-56:71 -/
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 54:0-54:71 -/
 @[global_simps, irreducible]
 def driver.cli.W_MODULAR : Array Std.U32 9#usize :=
   Array.make 9#usize [
@@ -117684,27 +117662,21 @@ def driver.cli.W_MODULAR : Array Std.U32 9#usize :=
     ]
 
 /-- [con_ron_core::driver::cli::W_COMPARE]
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 58:0-58:70 -/
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 56:0-56:70 -/
 @[global_simps, irreducible]
 def driver.cli.W_COMPARE : Array Std.U32 9#usize :=
   Array.make 9#usize [
     45#u32, 45#u32, 99#u32, 111#u32, 109#u32, 112#u32, 97#u32, 114#u32, 101#u32
     ]
 
-/-- [con_ron_core::driver::cli::W_PINS]
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 60:0-60:54 -/
-@[global_simps, irreducible]
-def driver.cli.W_PINS : Array Std.U32 6#usize :=
-  Array.make 6#usize [ 45#u32, 45#u32, 112#u32, 105#u32, 110#u32, 115#u32 ]
-
 /-- [con_ron_core::driver::cli::W_JOBS]
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 62:0-62:53 -/
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 58:0-58:53 -/
 @[global_simps, irreducible]
 def driver.cli.W_JOBS : Array Std.U32 6#usize :=
   Array.make 6#usize [ 45#u32, 45#u32, 106#u32, 111#u32, 98#u32, 115#u32 ]
 
 /-- [con_ron_core::driver::cli::W_PROGRESS_EQ]
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 64:0-64:86 -/
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 60:0-60:86 -/
 @[global_simps, irreducible]
 def driver.cli.W_PROGRESS_EQ : Array Std.U32 11#usize :=
   Array.make 11#usize [
@@ -117713,7 +117685,7 @@ def driver.cli.W_PROGRESS_EQ : Array Std.U32 11#usize :=
     ]
 
 /-- [con_ron_core::driver::cli::W_JOBS_EQ]
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 66:0-66:60 -/
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 62:0-62:60 -/
 @[global_simps, irreducible]
 def driver.cli.W_JOBS_EQ : Array Std.U32 7#usize :=
   Array.make 7#usize [
@@ -117721,7 +117693,7 @@ def driver.cli.W_JOBS_EQ : Array Std.U32 7#usize :=
     ]
 
 /-- [con_ron_core::driver::cli::W_MAX_NAT_SIZE_EQ]
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 68:0-68:106 -/
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 64:0-64:106 -/
 @[global_simps, irreducible]
 def driver.cli.W_MAX_NAT_SIZE_EQ : Array Std.U32 15#usize :=
   Array.make 15#usize [
@@ -117729,16 +117701,8 @@ def driver.cli.W_MAX_NAT_SIZE_EQ : Array Std.U32 15#usize :=
     45#u32, 115#u32, 105#u32, 122#u32, 101#u32, 61#u32
     ]
 
-/-- [con_ron_core::driver::cli::W_PINS_EQ]
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 70:0-70:61 -/
-@[global_simps, irreducible]
-def driver.cli.W_PINS_EQ : Array Std.U32 7#usize :=
-  Array.make 7#usize [
-    45#u32, 45#u32, 112#u32, 105#u32, 110#u32, 115#u32, 61#u32
-    ]
-
 /-- [con_ron_core::driver::cli::W_CONSTANT_EQ]
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 72:0-72:84 -/
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 66:0-66:84 -/
 @[global_simps, irreducible]
 def driver.cli.W_CONSTANT_EQ : Array Std.U32 11#usize :=
   Array.make 11#usize [
@@ -117747,7 +117711,7 @@ def driver.cli.W_CONSTANT_EQ : Array Std.U32 11#usize :=
     ]
 
 /-- [con_ron_core::driver::cli::W_SEARCH_PATH_EQ]
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 74:0-74:100 -/
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 68:0-68:100 -/
 @[global_simps, irreducible]
 def driver.cli.W_SEARCH_PATH_EQ : Array Std.U32 14#usize :=
   Array.make 14#usize [
@@ -117756,7 +117720,7 @@ def driver.cli.W_SEARCH_PATH_EQ : Array Std.U32 14#usize :=
     ]
 
 /-- [con_ron_core::driver::cli::W_TRUSTED_SEARCH_PATH_EQ]
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 76:0-77:107 -/
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 70:0-71:107 -/
 @[global_simps, irreducible]
 def driver.cli.W_TRUSTED_SEARCH_PATH_EQ : Array Std.U32 22#usize :=
   Array.make 22#usize [
@@ -117766,7 +117730,7 @@ def driver.cli.W_TRUSTED_SEARCH_PATH_EQ : Array Std.U32 22#usize :=
     ]
 
 /-- [con_ron_core::driver::cli::W_SCHEDULE]
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 79:0-79:78 -/
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 73:0-73:78 -/
 @[global_simps, irreducible]
 def driver.cli.W_SCHEDULE : Array Std.U32 10#usize :=
   Array.make 10#usize [
@@ -117775,7 +117739,7 @@ def driver.cli.W_SCHEDULE : Array Std.U32 10#usize :=
     ]
 
 /-- [con_ron_core::driver::cli::W_WORKER_STACK_SIZE_EQ]
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 81:0-82:98 -/
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 75:0-76:98 -/
 @[global_simps, irreducible]
 def driver.cli.W_WORKER_STACK_SIZE_EQ : Array Std.U32 20#usize :=
   Array.make 20#usize [
@@ -117785,7 +117749,7 @@ def driver.cli.W_WORKER_STACK_SIZE_EQ : Array Std.U32 20#usize :=
     ]
 
 /-- [con_ron_core::driver::cli::args_default]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 188:0-209:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 181:0-201:1
     Visibility: public -/
 def driver.cli.args_default : Result driver.cli.Args := do
   let n ← arena.pins.max_nat_size_default
@@ -117796,23 +117760,22 @@ def driver.cli.args_default : Result driver.cli.Args := do
       progress := frontend.pace.Pace.Off,
       jobs := none,
       max_nat_size := n,
-      pins := none,
-      no_pins := false,
       olean := false,
       search_path := (alloc.vec.Vec.new (alloc.vec.Vec Std.U32)),
       constants := (alloc.vec.Vec.new (alloc.vec.Vec Std.U32)),
       check_graph := false,
       module := false,
       modular := false,
+      schedule := (alloc.vec.Vec.new (alloc.vec.Vec Std.U32)),
       scheduled := false,
       compare := false,
       trusted_path := (alloc.vec.Vec.new (alloc.vec.Vec Std.U32)),
-      worker_stack := false,
+      worker_stack := none,
       bad := none
     }
 
 /-- [con_ron_core::driver::cli::parse_u64]: loop 0:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 224:4-238:5
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 216:4-230:5
     Visibility: public -/
 @[rust_loop]
 def driver.cli.parse_u64_loop
@@ -117853,7 +117816,7 @@ def driver.cli.parse_u64_loop
 partial_fixpoint
 
 /-- [con_ron_core::driver::cli::parse_u64]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 215:0-239:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 207:0-231:1
     Visibility: public -/
 def driver.cli.parse_u64
   (s : alloc.vec.Vec Std.U32) («from» : Std.Usize) («to» : Std.Usize) :
@@ -117875,7 +117838,7 @@ def driver.cli.parse_u64
   else driver.cli.parse_u64_loop s «to» i 0#u64
 
 /-- [con_ron_core::driver::cli::is_nat]: loop 0:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 248:4-265:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 240:4-257:1
     Visibility: public -/
 @[rust_loop]
 def driver.cli.is_nat_loop
@@ -117905,7 +117868,7 @@ def driver.cli.is_nat_loop
 partial_fixpoint
 
 /-- [con_ron_core::driver::cli::is_nat]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 245:0-265:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 237:0-257:1
     Visibility: public -/
 @[reducible]
 def driver.cli.is_nat
@@ -117915,7 +117878,7 @@ def driver.cli.is_nat
   driver.cli.is_nat_loop s «to» false «from»
 
 /-- [con_ron_core::driver::cli::progress_pace]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 271:0-307:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 263:0-299:1
     Visibility: public -/
 def driver.cli.progress_pace
   (v : alloc.vec.Vec Std.U32) :
@@ -118033,7 +117996,7 @@ def driver.cli.progress_pace
         else ok (core.result.Result.Ok (frontend.pace.Pace.Every k))
 
 /-- [con_ron_core::driver::cli::jobs_count]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 311:0-322:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 303:0-314:1
     Visibility: public -/
 def driver.cli.jobs_count
   (v : alloc.vec.Vec Std.U32) :
@@ -118051,7 +118014,7 @@ def driver.cli.jobs_count
     else ok (core.result.Result.Ok k)
 
 /-- [con_ron_core::driver::cli::nat_digits]: loop 0:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 328:4-334:5 -/
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 320:4-326:5 -/
 @[rust_loop]
 def driver.cli.nat_digits_loop
   (v : alloc.vec.Vec Std.U32) (out : alloc.vec.Vec Std.U8) (i : Std.Usize) :
@@ -118077,14 +118040,14 @@ def driver.cli.nat_digits_loop
 partial_fixpoint
 
 /-- [con_ron_core::driver::cli::nat_digits]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 325:0-336:1 -/
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 317:0-328:1 -/
 @[reducible]
 def driver.cli.nat_digits
   (v : alloc.vec.Vec Std.U32) : Result (alloc.vec.Vec Std.U8) := do
   driver.cli.nat_digits_loop v (alloc.vec.Vec.new Std.U8) 0#usize
 
 /-- [con_ron_core::driver::cli::max_nat_size_arg]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 341:0-349:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 333:0-341:1
     Visibility: public -/
 def driver.cli.max_nat_size_arg
   (v : alloc.vec.Vec Std.U32) :
@@ -118107,7 +118070,7 @@ def driver.cli.max_nat_size_arg
     ok (core.result.Result.Err (driver.cli.Bad.MaxNatValue v1))
 
 /-- [con_ron_core::driver::cli::size_positive]: loop 0:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 371:4-379:5
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 363:4-371:5
     Visibility: public -/
 @[rust_loop]
 def driver.cli.size_positive_loop
@@ -118131,7 +118094,7 @@ def driver.cli.size_positive_loop
 partial_fixpoint
 
 /-- [con_ron_core::driver::cli::size_positive]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 355:0-380:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 347:0-372:1
     Visibility: public -/
 def driver.cli.size_positive (v : alloc.vec.Vec Std.U32) : Result Bool := do
   let n := alloc.vec.Vec.len v
@@ -118161,7 +118124,7 @@ def driver.cli.size_positive (v : alloc.vec.Vec Std.U32) : Result Bool := do
     else ok false
 
 /-- [con_ron_core::driver::cli::help_wanted]: loop 0:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 386:4-398:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 378:4-390:1
     Visibility: public -/
 @[rust_loop]
 def driver.cli.help_wanted_loop
@@ -118189,7 +118152,7 @@ def driver.cli.help_wanted_loop
 partial_fixpoint
 
 /-- [con_ron_core::driver::cli::help_wanted]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 384:0-398:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 376:0-390:1
     Visibility: public -/
 @[reducible]
 def driver.cli.help_wanted
@@ -118197,7 +118160,7 @@ def driver.cli.help_wanted
   driver.cli.help_wanted_loop argv 0#usize
 
 /-- [con_ron_core::driver::cli::push_dirs]: loop 0:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 406:4-416:5
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 398:4-408:5
     Visibility: public -/
 @[rust_loop]
 def driver.cli.push_dirs_loop
@@ -118229,7 +118192,7 @@ def driver.cli.push_dirs_loop
 partial_fixpoint
 
 /-- [con_ron_core::driver::cli::push_dirs]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 402:0-421:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 394:0-413:1
     Visibility: public -/
 def driver.cli.push_dirs
   (out : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (v : alloc.vec.Vec Std.U32)
@@ -118244,7 +118207,7 @@ def driver.cli.push_dirs
   else ok out1
 
 /-- [con_ron_core::driver::cli::push_files]: loop 0:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 428:4-431:5
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 420:4-423:5
     Visibility: public -/
 @[rust_loop]
 def driver.cli.push_files_loop
@@ -118266,7 +118229,7 @@ def driver.cli.push_files_loop
 partial_fixpoint
 
 /-- [con_ron_core::driver::cli::push_files]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 425:0-433:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 417:0-425:1
     Visibility: public -/
 @[reducible]
 def driver.cli.push_files
@@ -118277,7 +118240,7 @@ def driver.cli.push_files
   driver.cli.push_files_loop argv out i
 
 /-- [con_ron_core::driver::cli::with_bad]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 437:0-444:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 429:0-436:1
     Visibility: public -/
 def driver.cli.with_bad
   (a : driver.cli.Args) (b : driver.cli.Bad) : Result driver.cli.Args := do
@@ -118286,10 +118249,11 @@ def driver.cli.with_bad
   | some _ => ok a
 
 /-- [con_ron_core::driver::cli::closed]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 449:0-455:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 441:0-447:1
     Visibility: public -/
 def driver.cli.closed (a : driver.cli.Args) : Result driver.cli.Args := do
-  if a.worker_stack
+  let b := core.option.Option.is_some a.worker_stack
+  if b
   then
     if a.scheduled
     then ok a
@@ -118297,7 +118261,7 @@ def driver.cli.closed (a : driver.cli.Args) : Result driver.cli.Args := do
   else ok a
 
 /-- [con_ron_core::driver::cli::parse_valued]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 460:0-500:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 452:0-491:1
     Visibility: public -/
 def driver.cli.parse_valued
   (a : driver.cli.Args) (s : alloc.vec.Vec Std.U32) :
@@ -118334,84 +118298,81 @@ def driver.cli.parse_valued
         | core.result.Result.Ok n => ok { a with max_nat_size := n }
         | core.result.Result.Err b3 => driver.cli.with_bad a b3
       else
-        let s4 ← lift (Array.to_slice driver.cli.W_PINS_EQ)
+        let s4 ← lift (Array.to_slice driver.cli.W_CONSTANT_EQ)
         let b3 ← frontend.text.cps_starts_with s s4
         if b3
         then
           let v ←
-            kernel.expr.str_copy_from s 7#usize (alloc.vec.Vec.new Std.U32)
-          ok { a with pins := (some v) }
+            kernel.expr.str_copy_from s 11#usize (alloc.vec.Vec.new Std.U32)
+          let v1 ← alloc.vec.Vec.push a.constants v
+          ok { a with constants := v1 }
         else
-          let s5 ← lift (Array.to_slice driver.cli.W_CONSTANT_EQ)
+          let s5 ← lift (Array.to_slice driver.cli.W_SEARCH_PATH_EQ)
           let b4 ← frontend.text.cps_starts_with s s5
           if b4
           then
-            let v ←
-              kernel.expr.str_copy_from s 11#usize (alloc.vec.Vec.new Std.U32)
-            let v1 ← alloc.vec.Vec.push a.constants v
-            ok { a with constants := v1 }
+            let v ← driver.cli.push_dirs a.search_path s 14#usize
+            ok { a with search_path := v }
           else
-            let s6 ← lift (Array.to_slice driver.cli.W_SEARCH_PATH_EQ)
+            let s6 ←
+              lift (Array.to_slice driver.cli.W_TRUSTED_SEARCH_PATH_EQ)
             let b5 ← frontend.text.cps_starts_with s s6
             if b5
             then
-              let v ← driver.cli.push_dirs a.search_path s 14#usize
-              ok { a with search_path := v }
+              let v ← driver.cli.push_dirs a.trusted_path s 22#usize
+              ok { a with trusted_path := v }
             else
-              let s7 ←
-                lift (Array.to_slice driver.cli.W_TRUSTED_SEARCH_PATH_EQ)
+              let s7 ← lift (Array.to_slice driver.cli.W_SCHEDULE)
               let b6 ← frontend.text.cps_starts_with s s7
               if b6
               then
-                let v ← driver.cli.push_dirs a.trusted_path s 22#usize
-                ok { a with trusted_path := v }
+                let v ←
+                  kernel.expr.str_copy_from s 10#usize (alloc.vec.Vec.new
+                    Std.U32)
+                let v1 ← alloc.vec.Vec.push a.schedule v
+                ok { a with schedule := v1, scheduled := true }
               else
-                let s8 ← lift (Array.to_slice driver.cli.W_SCHEDULE)
+                let s8 ←
+                  lift (Array.to_slice driver.cli.W_WORKER_STACK_SIZE_EQ)
                 let b7 ← frontend.text.cps_starts_with s s8
                 if b7
-                then ok { a with scheduled := true }
-                else
-                  let s9 ←
-                    lift (Array.to_slice driver.cli.W_WORKER_STACK_SIZE_EQ)
-                  let b8 ← frontend.text.cps_starts_with s s9
+                then
+                  let v ←
+                    kernel.expr.str_copy_from s 20#usize (alloc.vec.Vec.new
+                      Std.U32)
+                  let b8 ← driver.cli.size_positive v
                   if b8
-                  then
-                    let v ←
-                      kernel.expr.str_copy_from s 20#usize (alloc.vec.Vec.new
-                        Std.U32)
-                    let b9 ← driver.cli.size_positive v
-                    if b9
-                    then ok { a with worker_stack := true }
-                    else
-                      driver.cli.with_bad a (driver.cli.Bad.WorkerStackValue v)
+                  then ok { a with worker_stack := (some v) }
                   else
-                    let i := alloc.vec.Vec.len s
-                    if i > 0#usize
+                    driver.cli.with_bad a (driver.cli.Bad.WorkerStackValue v)
+                else
+                  let i := alloc.vec.Vec.len s
+                  if i > 0#usize
+                  then
+                    let i1 ←
+                      alloc.vec.Vec.index
+                        (core.slice.index.SliceIndexUsizeSlice Std.U32) s
+                        0#usize
+                    if i1 = 45#u32
                     then
-                      let i1 ←
-                        alloc.vec.Vec.index
-                          (core.slice.index.SliceIndexUsizeSlice Std.U32) s
-                          0#usize
-                      if i1 = 45#u32
-                      then
-                        let v ← kernel.expr.str_copy s
-                        driver.cli.with_bad a (driver.cli.Bad.UnknownOption v)
-                      else
-                        let v ← kernel.expr.str_copy s
-                        let v1 ← alloc.vec.Vec.push a.files v
-                        ok { a with files := v1 }
+                      let v ← kernel.expr.str_copy s
+                      driver.cli.with_bad a (driver.cli.Bad.UnknownOption v)
                     else
                       let v ← kernel.expr.str_copy s
                       let v1 ← alloc.vec.Vec.push a.files v
                       ok { a with files := v1 }
+                  else
+                    let v ← kernel.expr.str_copy s
+                    let v1 ← alloc.vec.Vec.push a.files v
+                    ok { a with files := v1 }
 
 /-- [con_ron_core::driver::cli::parse_one]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 505:0-539:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 495:0-520:1
     Visibility: public -/
 def driver.cli.parse_one
   (a : driver.cli.Args) (argv : alloc.vec.Vec (alloc.vec.Vec Std.U32))
   (i : Std.Usize) :
-  Result (driver.cli.Args × Std.Usize)
+  Result driver.cli.Args
   := do
   let s ←
     alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
@@ -118419,79 +118380,51 @@ def driver.cli.parse_one
   let s1 ← lift (Array.to_slice driver.cli.W_VERIFIED)
   let b ← frontend.text.cps_beq s s1
   if b
-  then ok ({ a with verified := true }, i)
+  then ok { a with verified := true }
   else
     let s2 ← lift (Array.to_slice driver.cli.W_TRUSTED)
     let b1 ← frontend.text.cps_beq s s2
     if b1
-    then ok ({ a with verified := false }, i)
+    then ok { a with verified := false }
     else
       let s3 ← lift (Array.to_slice driver.cli.W_PROGRESS)
       let b2 ← frontend.text.cps_beq s s3
       if b2
-      then ok ({ a with progress := (frontend.pace.Pace.Every 1#u64) }, i)
+      then ok { a with progress := (frontend.pace.Pace.Every 1#u64) }
       else
-        let s4 ← lift (Array.to_slice driver.cli.W_NO_PINS)
+        let s4 ← lift (Array.to_slice driver.cli.W_OLEAN)
         let b3 ← frontend.text.cps_beq s s4
         if b3
-        then ok ({ a with no_pins := true }, i)
+        then ok { a with olean := true }
         else
-          let s5 ← lift (Array.to_slice driver.cli.W_OLEAN)
+          let s5 ← lift (Array.to_slice driver.cli.W_CHECK_GRAPH)
           let b4 ← frontend.text.cps_beq s s5
           if b4
-          then ok ({ a with olean := true }, i)
+          then ok { a with check_graph := true }
           else
-            let s6 ← lift (Array.to_slice driver.cli.W_CHECK_GRAPH)
+            let s6 ← lift (Array.to_slice driver.cli.W_MODULE)
             let b5 ← frontend.text.cps_beq s s6
             if b5
-            then ok ({ a with check_graph := true }, i)
+            then ok { a with module := true }
             else
-              let s7 ← lift (Array.to_slice driver.cli.W_MODULE)
+              let s7 ← lift (Array.to_slice driver.cli.W_MODULAR)
               let b6 ← frontend.text.cps_beq s s7
               if b6
-              then ok ({ a with module := true }, i)
+              then ok { a with modular := true }
               else
-                let s8 ← lift (Array.to_slice driver.cli.W_MODULAR)
+                let s8 ← lift (Array.to_slice driver.cli.W_COMPARE)
                 let b7 ← frontend.text.cps_beq s s8
                 if b7
-                then ok ({ a with modular := true }, i)
+                then ok { a with compare := true }
                 else
-                  let s9 ← lift (Array.to_slice driver.cli.W_COMPARE)
+                  let s9 ← lift (Array.to_slice driver.cli.W_JOBS)
                   let b8 ← frontend.text.cps_beq s s9
                   if b8
-                  then ok ({ a with compare := true }, i)
-                  else
-                    let s10 ← lift (Array.to_slice driver.cli.W_PINS)
-                    let b9 ← frontend.text.cps_beq s s10
-                    if b9
-                    then
-                      let i1 ← i + 1#usize
-                      let i2 := alloc.vec.Vec.len argv
-                      let a1 ←
-                        if i1 >= i2
-                        then driver.cli.with_bad a driver.cli.Bad.PinsNoFile
-                        else
-                          do
-                          let v ←
-                            alloc.vec.Vec.index
-                              (core.slice.index.SliceIndexUsizeSlice
-                              (alloc.vec.Vec Std.U32)) argv i1
-                          let v1 ← kernel.expr.str_copy v
-                          ok { a with pins := (some v1) }
-                      ok (a1, i1)
-                    else
-                      let s11 ← lift (Array.to_slice driver.cli.W_JOBS)
-                      let b10 ← frontend.text.cps_beq s s11
-                      if b10
-                      then
-                        let a1 ←
-                          driver.cli.with_bad a driver.cli.Bad.JobsBare
-                        ok (a1, i)
-                      else let a1 ← driver.cli.parse_valued a s
-                           ok (a1, i)
+                  then driver.cli.with_bad a driver.cli.Bad.JobsBare
+                  else driver.cli.parse_valued a s
 
 /-- [con_ron_core::driver::cli::parse_args]: loop 0:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 549:4-560:5
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 530:4-540:5
     Visibility: public -/
 @[rust_loop]
 def driver.cli.parse_args_loop
@@ -118514,13 +118447,13 @@ def driver.cli.parse_args_loop
       let v1 ← driver.cli.push_files a.files argv i2
       driver.cli.closed { a with files := v1 }
     else
-      let (a1, j) ← driver.cli.parse_one a argv i
-      let i2 ← j + 1#usize
+      let a1 ← driver.cli.parse_one a argv i
+      let i2 ← i + 1#usize
       driver.cli.parse_args_loop argv a1 i2
 partial_fixpoint
 
 /-- [con_ron_core::driver::cli::parse_args]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 546:0-561:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 527:0-541:1
     Visibility: public -/
 def driver.cli.parse_args
   (argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)) : Result driver.cli.Args := do
@@ -118724,7 +118657,7 @@ def frontend.olean.files.parse_mod_name
   frontend.olean.files.scan_name false s
 
 /-- [con_ron_core::driver::cli::parse_mod_names]: loop 0:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 569:4-577:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 549:4-557:1
     Visibility: public -/
 @[rust_loop]
 def driver.cli.parse_mod_names_loop
@@ -118751,7 +118684,7 @@ def driver.cli.parse_mod_names_loop
 partial_fixpoint
 
 /-- [con_ron_core::driver::cli::parse_mod_names]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 566:0-577:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 546:0-557:1
     Visibility: public -/
 @[reducible]
 def driver.cli.parse_mod_names
@@ -118770,7 +118703,7 @@ def frontend.olean.files.parse_const_name
   frontend.olean.files.scan_name true s
 
 /-- [con_ron_core::driver::cli::parse_const_names]: loop 0:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 585:4-593:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 565:4-573:1
     Visibility: public -/
 @[rust_loop]
 def driver.cli.parse_const_names_loop
@@ -118797,7 +118730,7 @@ def driver.cli.parse_const_names_loop
 partial_fixpoint
 
 /-- [con_ron_core::driver::cli::parse_const_names]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 582:0-593:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 562:0-573:1
     Visibility: public -/
 @[reducible]
 def driver.cli.parse_const_names
@@ -118818,7 +118751,7 @@ def frontend.olean.files.roots_of_path
   ok { path, fallback := (alloc.vec.Vec.new (alloc.vec.Vec Std.U32)) }
 
 /-- [con_ron_core::driver::cli::sol_roots]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 598:0-604:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 578:0-584:1
     Visibility: public -/
 def driver.cli.sol_roots
   (a : driver.cli.Args) : Result frontend.olean.files.Roots := do
@@ -118839,7 +118772,7 @@ def driver.cli.sol_roots
     ok { path := v, fallback := v1 }
 
 /-- [con_ron_core::driver::cli::chal_roots]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 609:0-615:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 589:0-595:1
     Visibility: public -/
 def driver.cli.chal_roots
   (a : driver.cli.Args) : Result frontend.olean.files.Roots := do
@@ -118857,7 +118790,7 @@ def driver.cli.chal_roots
     frontend.olean.files.roots_of_path v
 
 /-- [con_ron_core::driver::cli::check_graph_flags_bad]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 620:0-634:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 600:0-614:1
     Visibility: public -/
 def driver.cli.check_graph_flags_bad (a : driver.cli.Args) : Result Bool := do
   if a.olean
@@ -118878,7 +118811,7 @@ def driver.cli.check_graph_flags_bad (a : driver.cli.Args) : Result Bool := do
         else ok false
 
 /-- [con_ron_core::driver::cli::no_roots_or_path]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 639:0-647:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 619:0-627:1
     Visibility: public -/
 def driver.cli.no_roots_or_path (a : driver.cli.Args) : Result Bool := do
   let i := alloc.vec.Vec.len a.files
@@ -118892,7 +118825,7 @@ def driver.cli.no_roots_or_path (a : driver.cli.Args) : Result Bool := do
          ok (i2 = 0#usize)
 
 /-- [con_ron_core::driver::cli::trusted_misplaced]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 652:0-663:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 632:0-643:1
     Visibility: public -/
 def driver.cli.trusted_misplaced (a : driver.cli.Args) : Result Bool := do
   let i := alloc.vec.Vec.len a.trusted_path
@@ -118904,6 +118837,44 @@ def driver.cli.trusted_misplaced (a : driver.cli.Args) : Result Bool := do
          then ok true
          else ok a.scheduled
     else ok true
+
+/-- [con_ron_core::driver::cli::cmp_mode]:
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 648:0-656:1
+    Visibility: public -/
+def driver.cli.cmp_mode (a : driver.cli.Args) : Result Bool := do
+  if a.module
+  then ok true
+  else if a.modular
+       then ok true
+       else ok a.scheduled
+
+/-- [con_ron_core::driver::cli::cmp_mode_bad]:
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 661:0-675:1
+    Visibility: public -/
+def driver.cli.cmp_mode_bad
+  (a : driver.cli.Args) (cs : alloc.vec.Vec kernel.name.Name) :
+  Result Bool
+  := do
+  let i := alloc.vec.Vec.len cs
+  if i > 0#usize
+  then ok true
+  else
+    if a.module
+    then
+      if a.scheduled
+      then ok true
+      else
+        if a.modular
+        then if a.module
+             then ok true
+             else ok a.scheduled
+        else ok false
+    else
+      if a.modular
+      then if a.module
+           then ok true
+           else ok a.scheduled
+      else ok false
 
 /-- [con_ron_core::frontend::modular::graph::graph_of::M]
     Source: 'crates/con-ron-core/src/frontend/modular/graph.rs', lines 700:32-700:119 -/
@@ -121158,7 +121129,7 @@ def driver.compare_module.check_graph_cmp
   | some e => driver.graph.graph_failed frontendchecker_ioCheckerIoInst io e
 
 /-- [con_ron_core::driver::cli::check_graph_cmp_args]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 694:0-704:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 706:0-716:1
     Visibility: public -/
 def driver.cli.check_graph_cmp_args
   {I : Type _} (frontendchecker_ioCheckerIoInst : frontend.checker_io.CheckerIo
@@ -121188,7 +121159,7 @@ def driver.cli.check_graph_cmp_args
         a n n1
 
 /-- [con_ron_core::driver::cli::check_graph_args]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 668:0-689:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 680:0-701:1
     Visibility: public -/
 def driver.cli.check_graph_args
   {I : Type _} (frontendchecker_ioCheckerIoInst : frontend.checker_io.CheckerIo
@@ -121236,7 +121207,7 @@ def frontend.pace.pace_on (p : frontend.pace.Pace) : Result Bool := do
   | frontend.pace.Pace.Seconds _ => ok true
 
 /-- [con_ron_core::driver::modular::failures]: loop 0:
-    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 118:4-123:5
+    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 116:4-121:5
     Visibility: public -/
 @[rust_loop]
 def driver.modular.failures_loop
@@ -121258,7 +121229,7 @@ def driver.modular.failures_loop
 partial_fixpoint
 
 /-- [con_ron_core::driver::modular::failures]:
-    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 115:0-125:1
+    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 113:0-123:1
     Visibility: public -/
 @[reducible]
 def driver.modular.failures
@@ -121266,7 +121237,7 @@ def driver.modular.failures
   driver.modular.failures_loop codes 0#u64 0#usize
 
 /-- [con_ron_core::driver::modular::first_failure]: loop 0:
-    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 104:4-111:1
+    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 102:4-109:1
     Visibility: public -/
 @[rust_loop]
 def driver.modular.first_failure_loop
@@ -121287,7 +121258,7 @@ def driver.modular.first_failure_loop
 partial_fixpoint
 
 /-- [con_ron_core::driver::modular::first_failure]:
-    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 102:0-111:1
+    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 100:0-109:1
     Visibility: public -/
 @[reducible]
 def driver.modular.first_failure
@@ -121295,7 +121266,7 @@ def driver.modular.first_failure
   driver.modular.first_failure_loop codes 0#usize
 
 /-- [con_ron_core::driver::modular::modular_verdict]:
-    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 131:0-142:1
+    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 129:0-140:1
     Visibility: public -/
 def driver.modular.modular_verdict
   {I : Type _} (frontendchecker_ioCheckerIoInst : frontend.checker_io.CheckerIo
@@ -121327,7 +121298,7 @@ def driver.modular.modular_verdict
     ok (i3, io)
 
 /-- [con_ron_core::driver::modular::graph_names]: loop 0:
-    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 90:4-98:1
+    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 88:4-96:1
     Visibility: public -/
 @[rust_loop]
 def driver.modular.graph_names_loop
@@ -121356,7 +121327,7 @@ def driver.modular.graph_names_loop
 partial_fixpoint
 
 /-- [con_ron_core::driver::modular::graph_names]:
-    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 87:0-98:1
+    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 85:0-96:1
     Visibility: public -/
 @[reducible]
 def driver.modular.graph_names
@@ -121773,7 +121744,7 @@ def frontend.modular.reach.infer_flags
     | core.result.Result.Err e => ok (core.result.Result.Err e, st3)
 
 /-- [con_ron_core::driver::worker::jobs_in_order]: loop 0:
-    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 272:4-280:1
+    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 271:4-279:1
     Visibility: public -/
 @[rust_loop]
 def driver.worker.jobs_in_order_loop
@@ -121805,7 +121776,7 @@ def driver.worker.jobs_in_order_loop
 partial_fixpoint
 
 /-- [con_ron_core::driver::worker::jobs_in_order]:
-    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 256:0-280:1
+    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 255:0-279:1
     Visibility: public -/
 @[reducible]
 def driver.worker.jobs_in_order
@@ -121825,7 +121796,7 @@ def driver.worker.jobs_in_order
     cache mode pins ds pk values sp start n k
 
 /-- [con_ron_core::driver::worker::module_jobs]:
-    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 186:0-193:1
+    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 185:0-192:1
     Visibility: public -/
 def driver.worker.module_jobs
   (ds : alloc.vec.Vec arena.env.IDeclaration) (start : Std.Usize) :
@@ -121837,7 +121808,7 @@ def driver.worker.module_jobs
   else ok 0#usize
 
 /-- [con_ron_core::driver::worker::module_phase_in]:
-    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 285:0-322:1
+    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 284:0-321:1
     Visibility: public -/
 def driver.worker.module_phase_in
   {F : Type _} (frontendchecker_ioCheckerFsInst : frontend.checker_io.CheckerFs
@@ -121878,7 +121849,7 @@ def driver.worker.module_phase_in
   | core.result.Result.Err _ => ok (r, st1)
 
 /-- [con_ron_core::driver::worker::module_verdict]:
-    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 157:0-182:1
+    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 156:0-181:1
     Visibility: public -/
 def driver.worker.module_verdict
   {F : Type _} (frontendchecker_ioWorkerNotesInst :
@@ -121909,7 +121880,7 @@ def driver.worker.module_verdict
     ok c
 
 /-- [con_ron_core::driver::worker::worker_failed]:
-    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 53:0-57:1
+    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 52:0-56:1
     Visibility: public -/
 def driver.worker.worker_failed
   {F : Type _} (frontendchecker_ioWorkerNotesInst :
@@ -121924,7 +121895,7 @@ def driver.worker.worker_failed
   ok c
 
 /-- [con_ron_core::driver::worker::module_copies]:
-    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 130:0-151:1
+    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 129:0-150:1
     Visibility: public -/
 def driver.worker.module_copies
   {F : Type _} (frontendchecker_ioWorkerNotesInst :
@@ -121954,7 +121925,7 @@ def driver.worker.module_copies
         ok (c1, st1)
 
 /-- [con_ron_core::driver::worker::added_imports]:
-    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 105:0-124:1
+    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 104:0-123:1
     Visibility: public -/
 def driver.worker.added_imports
   {F : Type _} (frontendchecker_ioWorkerNotesInst :
@@ -136907,7 +136878,7 @@ def frontend.modular.worker.worker_read
     ok (core.result.Result.Err (e1, 0#u64), { st with store := e })
 
 /-- [con_ron_core::driver::worker::module_read]:
-    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 65:0-99:1
+    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 64:0-98:1
     Visibility: public -/
 def driver.worker.module_read
   {F : Type _} (frontendchecker_ioCheckerFsInst : frontend.checker_io.CheckerFs
@@ -136959,14 +136930,14 @@ def driver.worker.module_read
     ok (core.result.Result.Err i, st1)
 
 /-- [con_ron_core::driver::worker::check_module_in]:
-    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 371:0-418:1
+    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 370:0-409:1
     Visibility: public -/
 def driver.worker.check_module_in
   {F : Type _} (frontendchecker_ioCheckerFsInst : frontend.checker_io.CheckerFs
   F) (frontendchecker_ioWorkerNotesInst : frontend.checker_io.WorkerNotes F)
   (fs : F) (sp : frontend.olean.files.Roots) (m_name : kernel.name.Name)
   (sol : Option kernel.name.Name) (verified : Bool)
-  (max_nat_size : ron.nat.Nat) (no_pins : Bool) :
+  (max_nat_size : ron.nat.Nat) :
   Result Std.U8
   := do
   let mode ←
@@ -136986,14 +136957,16 @@ def driver.worker.check_module_in
           st2 m_name sol verified
       match r2 with
       | core.result.Result.Ok x =>
-        if no_pins
-        then
+        let o ←
+          driver.check_main.embedded_pins frontendchecker_ioWorkerNotesInst fs
+        match o with
+        | none => ok 3#u8
+        | some ps =>
           let n ← kernel.name.dup m_name
           let (r3, st4) ←
             driver.worker.module_read frontendchecker_ioCheckerFsInst
-              frontendchecker_ioWorkerNotesInst fs pers st3 sp m m_name x
-              (alloc.vec.Vec.new kernel.nat_op_pins.NatOpPinSet) max_nat_size
-              verified (some n) frontend.pace.Pace.Off
+              frontendchecker_ioWorkerNotesInst fs pers st3 sp m m_name x ps
+              max_nat_size verified (some n) frontend.pace.Pace.Off
           match r3 with
           | core.result.Result.Ok r4 =>
             let (w, ipins, ds) := r4
@@ -137009,34 +136982,6 @@ def driver.worker.check_module_in
                 (some n) m_name pers st5 x w c verified
             ok c1
           | core.result.Result.Err c => ok c
-        else
-          let r3 ← kernel.pins_decode.decode_embedded
-          match r3 with
-          | core.result.Result.Ok ps =>
-            let n ← kernel.name.dup m_name
-            let (r4, st4) ←
-              driver.worker.module_read frontendchecker_ioCheckerFsInst
-                frontendchecker_ioWorkerNotesInst fs pers st3 sp m m_name x ps
-                max_nat_size verified (some n) frontend.pace.Pace.Off
-            match r4 with
-            | core.result.Result.Ok r5 =>
-              let (w, ipins, ds) := r5
-              let (verdict, st5) ←
-                driver.worker.module_phase_in frontendchecker_ioCheckerFsInst
-                  fs pers st4 mode ipins w ds sp
-              let i := alloc.vec.Vec.len w.own
-              let c ←
-                driver.worker.module_verdict frontendchecker_ioWorkerNotesInst
-                  fs (some n) pers st5 ds i verdict verified
-              let (c1, _) ←
-                driver.worker.module_copies frontendchecker_ioWorkerNotesInst
-                  fs (some n) m_name pers st5 x w c verified
-              ok c1
-            | core.result.Result.Err c => ok c
-          | core.result.Result.Err e =>
-            frontendchecker_ioWorkerNotesInst.worker_note fs
-              (frontend.checker_io.WorkerNote.EmbeddedPins e)
-            ok 3#u8
       | core.result.Result.Err c => ok c
     | core.result.Result.Err e =>
       driver.worker.worker_failed frontendchecker_ioWorkerNotesInst fs m_name e
@@ -137046,7 +136991,7 @@ def driver.worker.check_module_in
       verified
 
 /-- [con_ron_core::driver::modular::step_sol]:
-    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 72:0-83:1
+    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 70:0-81:1
     Visibility: public -/
 def driver.modular.step_sol
   (m : kernel.name.Name) (root : kernel.name.Name)
@@ -137061,7 +137006,7 @@ def driver.modular.step_sol
               else ok none
 
 /-- [con_ron_core::driver::modular::{impl con_ron_core::frontend::checker_io::CodeStep<F> for con_ron_core::driver::modular::ModularStep<'a>}::code]:
-    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 59:4-66:5
+    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 57:4-64:5
     Visibility: public -/
 def
   driver.modular.ModularStep.Insts.Con_ron_coreFrontendChecker_ioCodeStep.code
@@ -137079,11 +137024,11 @@ def
     let s ← driver.modular.step_sol n self.root self.sol
     driver.worker.check_module_in frontendchecker_ioCheckerFsInst
       frontendchecker_ioWorkerNotesInst fs self.sp n s self.verified
-      self.max_nat_size self.no_pins
+      self.max_nat_size
   else ok 3#u8
 
 /-- Trait implementation: [con_ron_core::driver::modular::{impl con_ron_core::frontend::checker_io::CodeStep<F> for con_ron_core::driver::modular::ModularStep<'a>}]
-    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 55:0-67:1 -/
+    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 53:0-65:1 -/
 @[reducible]
 def driver.modular.ModularStep.Insts.Con_ron_coreFrontendChecker_ioCodeStep {F
   : Type _} (frontendchecker_ioCheckerFsInst : frontend.checker_io.CheckerFs F)
@@ -137095,7 +137040,7 @@ def driver.modular.ModularStep.Insts.Con_ron_coreFrontendChecker_ioCodeStep {F
 }
 
 /-- [con_ron_core::driver::modular::check_modular]:
-    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 152:0-215:1
+    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 150:0-213:1
     Visibility: public -/
 def driver.modular.check_modular
   {I : Type _} (frontendchecker_ioCheckerIoInst : frontend.checker_io.CheckerIo
@@ -137150,8 +137095,7 @@ def driver.modular.check_modular
                   root := n1,
                   sol := none,
                   verified := a.verified,
-                  max_nat_size := a.max_nat_size,
-                  no_pins := a.no_pins
+                  max_nat_size := a.max_nat_size
                 } n threads
             match r4 with
             | core.result.Result.Ok cs =>
@@ -137224,8 +137168,7 @@ def driver.modular.check_modular
                       root := n2,
                       sol,
                       verified := a.verified,
-                      max_nat_size := a.max_nat_size,
-                      no_pins := a.no_pins
+                      max_nat_size := a.max_nat_size
                     } n3 threads
                 match r5 with
                 | core.result.Result.Ok cs =>
@@ -137260,7 +137203,7 @@ def driver.modular.check_modular
   | core.result.Result.Err c => ok (c, io1)
 
 /-- [con_ron_core::driver::worker::module_phase]:
-    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 201:0-250:1
+    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 200:0-249:1
     Visibility: public -/
 def driver.worker.module_phase
   {I : Type _} (frontendchecker_ioCheckerIoInst : frontend.checker_io.CheckerIo
@@ -137322,7 +137265,7 @@ def driver.worker.module_phase
   | core.result.Result.Err _ => ok (r, io, st1)
 
 /-- [con_ron_core::driver::worker::check_module]:
-    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 331:0-365:1
+    Source: 'crates/con-ron-core/src/driver/worker.rs', lines 330:0-364:1
     Visibility: public -/
 def driver.worker.check_module
   {I : Type _} (frontendchecker_ioCheckerIoInst : frontend.checker_io.CheckerIo
@@ -137350,36 +137293,37 @@ def driver.worker.check_module
           sol a.verified
       match r2 with
       | core.result.Result.Ok x =>
-        let (o, io1) ←
-          driver.check_main.pins_for_run frontendchecker_ioCheckerIoInst io a
+        let o ←
+          driver.check_main.embedded_pins
+            frontendchecker_ioCheckerIoInst.WorkerNotesInst io
         match o with
-        | none => ok (3#u8, io1)
+        | none => ok (3#u8, io)
         | some ps =>
           let (r3, st4) ←
             driver.worker.module_read
               frontendchecker_ioCheckerIoInst.CheckerFsInst
-              frontendchecker_ioCheckerIoInst.WorkerNotesInst io1 pers st3 sp m
+              frontendchecker_ioCheckerIoInst.WorkerNotesInst io pers st3 sp m
               m_name x ps a.max_nat_size a.verified none a.progress
           match r3 with
           | core.result.Result.Ok r4 =>
             let (w, ipins, ds) := r4
-            let (jobs, io2) ←
-              driver.check_main.jobs_for_run frontendchecker_ioCheckerIoInst
-                io1 a
-            let (verdict, io3, st5) ←
-              driver.worker.module_phase frontendchecker_ioCheckerIoInst io2
+            let (jobs, io1) ←
+              driver.check_main.jobs_for_run frontendchecker_ioCheckerIoInst io
+                a
+            let (verdict, io2, st5) ←
+              driver.worker.module_phase frontendchecker_ioCheckerIoInst io1
                 pers st4 mode ipins w ds sp jobs
             let i := alloc.vec.Vec.len w.own
             let c ←
               driver.worker.module_verdict
-                frontendchecker_ioCheckerIoInst.WorkerNotesInst io3 none pers
+                frontendchecker_ioCheckerIoInst.WorkerNotesInst io2 none pers
                 st5 ds i verdict a.verified
             let (c1, _) ←
               driver.worker.module_copies
-                frontendchecker_ioCheckerIoInst.WorkerNotesInst io3 none m_name
+                frontendchecker_ioCheckerIoInst.WorkerNotesInst io2 none m_name
                 pers st5 x w c a.verified
-            ok (c1, io3)
-          | core.result.Result.Err c => ok (c, io1)
+            ok (c1, io2)
+          | core.result.Result.Err c => ok (c, io)
       | core.result.Result.Err c => ok (c, io)
     | core.result.Result.Err e =>
       let c ←
@@ -138009,24 +137953,25 @@ def driver.compare.compare_oleans
                                 st8.store p2.hoisted
                               ok st8
                             else ok st8
-                          let (o1, io1) ←
-                            driver.check_main.pins_for_run
-                              frontendchecker_ioCheckerIoInst io a
+                          let o1 ←
+                            driver.check_main.embedded_pins
+                              frontendchecker_ioCheckerIoInst.WorkerNotesInst
+                              io
                           match o1 with
-                          | none => ok (3#u8, io1)
+                          | none => ok (3#u8, io)
                           | some ps =>
                             let (r8, st10) ←
                               arena.checker.intern_all_pins pers st9 ps
                                 a.max_nat_size
                             match r8 with
                             | core.result.Result.Ok p3 =>
-                              let (jobs, io2) ←
+                              let (jobs, io1) ←
                                 driver.check_main.jobs_for_run
-                                  frontendchecker_ioCheckerIoInst io1 a
+                                  frontendchecker_ioCheckerIoInst io a
                               let s_text ← kernel.name.render s_name
-                              let (r9, io3, st11) ←
+                              let (r9, io2, st11) ←
                                 driver.check_main.check_phase_olean
-                                  frontendchecker_ioCheckerIoInst io2 pers st10
+                                  frontendchecker_ioCheckerIoInst io1 pers st10
                                   mode p3 p2.decls rd1.pins rd1.values sr none
                                   jobs records_s p2.synthesised
                               match r9 with
@@ -138036,7 +137981,7 @@ def driver.compare.compare_oleans
                                   if i1 > 0#usize
                                   then
                                     do
-                                    frontendchecker_ioCheckerIoInst.hoisted io3
+                                    frontendchecker_ioCheckerIoInst.hoisted io2
                                       pers st11.store p1.hoisted
                                     ok st11
                                   else ok st11
@@ -138047,27 +137992,27 @@ def driver.compare.compare_oleans
                                 match r10 with
                                 | core.result.Result.Ok v4 =>
                                   let sol ← arena.justify.solution_of ix v4
-                                  let (verdict, io4, st14) ←
+                                  let (verdict, io3, st14) ←
                                     driver.check_main.check_phase_olean
-                                      frontendchecker_ioCheckerIoInst io3 pers
+                                      frontendchecker_ioCheckerIoInst io2 pers
                                       st13 mode p3 v4 rd.pins rd.values cr
                                       (some sol) jobs records_c p1.synthesised
                                   driver.compare_json.compare_verdict
-                                    frontendchecker_ioCheckerIoInst io4 pers
+                                    frontendchecker_ioCheckerIoInst io3 pers
                                     st14 p2.decls p1.decls v4 sol verdict
                                     records_c s_text records_s a.verified
                                 | core.result.Result.Err e2 =>
                                   driver.compare.step_failed
-                                    frontendchecker_ioCheckerIoInst io3 e2
+                                    frontendchecker_ioCheckerIoInst io2 e2
                                     a.verified
                               | core.result.Result.Err p4 =>
                                 let (e2, i1) := p4
                                 driver.compare_json.solution_failed
-                                  frontendchecker_ioCheckerIoInst io3 pers st11
+                                  frontendchecker_ioCheckerIoInst io2 pers st11
                                   p2.decls e2 i1 s_text a.verified
                             | core.result.Result.Err e2 =>
                               driver.compare.step_failed
-                                frontendchecker_ioCheckerIoInst io1 e2
+                                frontendchecker_ioCheckerIoInst io e2
                                 a.verified
                         | core.result.Result.Err e2 =>
                           driver.compare.step_failed
@@ -138121,7 +138066,7 @@ def driver.compare.compare_oleans
     ok (3#u8, io)
 
 /-- [con_ron_core::driver::cli::compare_olean_args]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 711:0-734:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 723:0-749:1
     Visibility: public -/
 def driver.cli.compare_olean_args
   {I : Type _} (frontendchecker_ioCheckerIoInst : frontend.checker_io.CheckerIo
@@ -138147,10 +138092,11 @@ def driver.cli.compare_olean_args
       frontendchecker_ioCheckerIoInst.usage io driver.cli.Bad.CompareSameModule
       ok (3#u8, io)
     else
-      if a.module
+      let b1 ← driver.cli.cmp_mode a
+      if b1
       then
-        let i1 := alloc.vec.Vec.len cs
-        if i1 > 0#usize
+        let b2 ← driver.cli.cmp_mode_bad a cs
+        if b2
         then
           frontendchecker_ioCheckerIoInst.usage io
             driver.cli.Bad.CompareModeArgs
@@ -138158,82 +138104,24 @@ def driver.cli.compare_olean_args
         else
           if a.module
           then
+            driver.compare_module.check_cmp_module
+              frontendchecker_ioCheckerIoInst io a n n1
+          else
             if a.modular
             then
-              frontendchecker_ioCheckerIoInst.usage io
-                driver.cli.Bad.CompareModeArgs
-              ok (3#u8, io)
-            else
-              if a.module
-              then
-                driver.compare_module.check_cmp_module
-                  frontendchecker_ioCheckerIoInst io a n n1
-              else
-                let sp ← driver.cli.sol_roots a
-                let n2 ← kernel.name.dup n
-                let rs ←
-                  alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n2
-                driver.modular.check_modular frontendchecker_ioCheckerIoInst io
-                  a rs sp (some n1)
-          else
-            if a.module
-            then
-              driver.compare_module.check_cmp_module
-                frontendchecker_ioCheckerIoInst io a n n1
-            else
               let sp ← driver.cli.sol_roots a
               let n2 ← kernel.name.dup n
               let rs ←
                 alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n2
               driver.modular.check_modular frontendchecker_ioCheckerIoInst io a
                 rs sp (some n1)
+            else frontendchecker_ioCheckerIoInst.run_schedule io a n (some n1)
       else
-        if a.modular
-        then
-          let i1 := alloc.vec.Vec.len cs
-          if i1 > 0#usize
-          then
-            frontendchecker_ioCheckerIoInst.usage io
-              driver.cli.Bad.CompareModeArgs
-            ok (3#u8, io)
-          else
-            if a.module
-            then
-              if a.modular
-              then
-                frontendchecker_ioCheckerIoInst.usage io
-                  driver.cli.Bad.CompareModeArgs
-                ok (3#u8, io)
-              else
-                if a.module
-                then
-                  driver.compare_module.check_cmp_module
-                    frontendchecker_ioCheckerIoInst io a n n1
-                else
-                  let sp ← driver.cli.sol_roots a
-                  let n2 ← kernel.name.dup n
-                  let rs ←
-                    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n2
-                  driver.modular.check_modular frontendchecker_ioCheckerIoInst
-                    io a rs sp (some n1)
-            else
-              if a.module
-              then
-                driver.compare_module.check_cmp_module
-                  frontendchecker_ioCheckerIoInst io a n n1
-              else
-                let sp ← driver.cli.sol_roots a
-                let n2 ← kernel.name.dup n
-                let rs ←
-                  alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n2
-                driver.modular.check_modular frontendchecker_ioCheckerIoInst io
-                  a rs sp (some n1)
-        else
-          driver.compare.compare_oleans frontendchecker_ioCheckerIoInst io a n
-            n1 cs
+        driver.compare.compare_oleans frontendchecker_ioCheckerIoInst io a n n1
+          cs
 
 /-- [con_ron_core::driver::cli::module_args]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 790:0-797:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 818:0-825:1
     Visibility: public -/
 def driver.cli.module_args
   {I : Type _} (frontendchecker_ioCheckerIoInst : frontend.checker_io.CheckerIo
@@ -138260,7 +138148,7 @@ def driver.cli.module_args
       driver.worker.check_module frontendchecker_ioCheckerIoInst io a sp n none
 
 /-- [con_ron_core::driver::cli::modular_args]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 779:0-786:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 807:0-814:1
     Visibility: public -/
 def driver.cli.modular_args
   {I : Type _} (frontendchecker_ioCheckerIoInst : frontend.checker_io.CheckerIo
@@ -138289,8 +138177,44 @@ def driver.cli.modular_args
         driver.modular.check_modular frontendchecker_ioCheckerIoInst io a roots
           sp none
 
+/-- [con_ron_core::driver::cli::schedule_args]:
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 796:0-802:1
+    Visibility: public -/
+def driver.cli.schedule_args
+  {I : Type _} (frontendchecker_ioCheckerIoInst : frontend.checker_io.CheckerIo
+  I) (io : I) (a : driver.cli.Args) (roots : alloc.vec.Vec kernel.name.Name)
+  (cs : alloc.vec.Vec kernel.name.Name) :
+  Result (Std.U8 × I)
+  := do
+  let i := alloc.vec.Vec.len roots
+  if i != 1#usize
+  then
+    frontendchecker_ioCheckerIoInst.usage io driver.cli.Bad.ScheduleArgs
+    ok (3#u8, io)
+  else
+    let i1 := alloc.vec.Vec.len cs
+    if i1 > 0#usize
+    then
+      frontendchecker_ioCheckerIoInst.usage io driver.cli.Bad.ScheduleArgs
+      ok (3#u8, io)
+    else
+      if a.module
+      then
+        frontendchecker_ioCheckerIoInst.usage io driver.cli.Bad.ScheduleArgs
+        ok (3#u8, io)
+      else
+        if a.modular
+        then
+          frontendchecker_ioCheckerIoInst.usage io driver.cli.Bad.ScheduleArgs
+          ok (3#u8, io)
+        else
+          let n ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+              kernel.name.Name) roots 0#usize
+          frontendchecker_ioCheckerIoInst.run_schedule io a n none
+
 /-- [con_ron_core::driver::cli::olean_args]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 740:0-774:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 754:0-791:1
     Visibility: public -/
 def driver.cli.olean_args
   {I : Type _} (frontendchecker_ioCheckerIoInst : frontend.checker_io.CheckerIo
@@ -138321,22 +138245,27 @@ def driver.cli.olean_args
               driver.cli.Bad.TrustedTakes
             ok (3#u8, io)
           else
-            if a.modular
+            if a.scheduled
             then
-              driver.cli.modular_args frontendchecker_ioCheckerIoInst io a rs
+              driver.cli.schedule_args frontendchecker_ioCheckerIoInst io a rs
                 cs
             else
-              if a.module
+              if a.modular
               then
-                driver.cli.module_args frontendchecker_ioCheckerIoInst io a rs
+                driver.cli.modular_args frontendchecker_ioCheckerIoInst io a rs
                   cs
               else
-                let v ←
-                  driver.cli.push_files (alloc.vec.Vec.new (alloc.vec.Vec
-                    Std.U32)) a.search_path 0#usize
-                let sp ← frontend.olean.files.roots_of_path v
-                driver.check_main.check_oleans frontendchecker_ioCheckerIoInst
-                  io a rs cs sp
+                if a.module
+                then
+                  driver.cli.module_args frontendchecker_ioCheckerIoInst io a
+                    rs cs
+                else
+                  let v ←
+                    driver.cli.push_files (alloc.vec.Vec.new (alloc.vec.Vec
+                      Std.U32)) a.search_path 0#usize
+                  let sp ← frontend.olean.files.roots_of_path v
+                  driver.check_main.check_oleans
+                    frontendchecker_ioCheckerIoInst io a rs cs sp
       | core.result.Result.Err c =>
         frontendchecker_ioCheckerIoInst.usage io (driver.cli.Bad.NotConstName
           c)
@@ -138428,22 +138357,22 @@ def driver.compare_json.compare_json
                   p1.hoisted
                 ok st5
               else ok st5
-            let (o, io1) ←
-              driver.check_main.pins_for_run frontendchecker_ioCheckerIoInst io
-                a
+            let o ←
+              driver.check_main.embedded_pins
+                frontendchecker_ioCheckerIoInst.WorkerNotesInst io
             match o with
-            | none => ok (3#u8, io1)
+            | none => ok (3#u8, io)
             | some ps =>
               let (r7, st7) ←
                 arena.checker.intern_all_pins pers st6 ps a.max_nat_size
               match r7 with
               | core.result.Result.Ok p2 =>
-                let (jobs, io2) ←
+                let (jobs, io1) ←
                   driver.check_main.jobs_for_run
-                    frontendchecker_ioCheckerIoInst io1 a
-                let (r8, io3, st8) ←
+                    frontendchecker_ioCheckerIoInst io a
+                let (r8, io2, st8) ←
                   driver.check_main.check_phase frontendchecker_ioCheckerIoInst
-                    io2 pers st7 mode p2 none p1.decls jobs records_s
+                    io1 pers st7 mode p2 none p1.decls jobs records_s
                     p1.synthesised
                 match r8 with
                 | core.result.Result.Ok ix =>
@@ -138458,7 +138387,7 @@ def driver.compare_json.compare_json
                       if i1 > 0#usize
                       then
                         do
-                        frontendchecker_ioCheckerIoInst.hoisted io3 pers
+                        frontendchecker_ioCheckerIoInst.hoisted io2 pers
                           st9.store p3.hoisted
                         ok st9
                       else ok st9
@@ -138468,34 +138397,34 @@ def driver.compare_json.compare_json
                     match r10 with
                     | core.result.Result.Ok v =>
                       let sol ← arena.justify.solution_of ix v
-                      let (verdict, io4, st12) ←
+                      let (verdict, io3, st12) ←
                         driver.check_main.check_phase
-                          frontendchecker_ioCheckerIoInst io3 pers st11 mode p2
+                          frontendchecker_ioCheckerIoInst io2 pers st11 mode p2
                           (some sol) v jobs records_c p3.synthesised
                       driver.compare_json.compare_verdict
-                        frontendchecker_ioCheckerIoInst io4 pers st12 
+                        frontendchecker_ioCheckerIoInst io3 pers st12 
                         p1.decls p3.decls v sol verdict records_c solution
                         records_s a.verified
                     | core.result.Result.Err e =>
                       let c ← driver.check_main.exit_code e
-                      frontendchecker_ioCheckerIoInst.note io3
+                      frontendchecker_ioCheckerIoInst.note io2
                         (driver.check_main.Note.Frontend e a.verified)
-                      ok (c, io3)
+                      ok (c, io2)
                   | core.result.Result.Err e =>
                     let c ← driver.check_main.exit_code e
-                    frontendchecker_ioCheckerIoInst.note io3
+                    frontendchecker_ioCheckerIoInst.note io2
                       (driver.check_main.Note.Frontend e a.verified)
-                    ok (c, io3)
+                    ok (c, io2)
                 | core.result.Result.Err p3 =>
                   let (e, i1) := p3
                   driver.compare_json.solution_failed
-                    frontendchecker_ioCheckerIoInst io3 pers st8 p1.decls e i1
+                    frontendchecker_ioCheckerIoInst io2 pers st8 p1.decls e i1
                     solution a.verified
               | core.result.Result.Err e =>
                 let c ← driver.check_main.exit_code e
-                frontendchecker_ioCheckerIoInst.note io1
+                frontendchecker_ioCheckerIoInst.note io
                   (driver.check_main.Note.Frontend e a.verified)
-                ok (c, io1)
+                ok (c, io)
           | core.result.Result.Err e =>
             let c ← driver.check_main.exit_code e
             frontendchecker_ioCheckerIoInst.note io
@@ -138583,7 +138512,7 @@ def driver.compare_json.compare_args
                     frontendchecker_ioCheckerIoInst io a v v1
 
 /-- [con_ron_core::driver::cli::run_args]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 806:0-849:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 833:0-873:1
     Visibility: public -/
 def driver.cli.run_args
   {I : Type _} (frontendchecker_ioCheckerIoInst : frontend.checker_io.CheckerIo
@@ -138601,17 +138530,7 @@ def driver.cli.run_args
       then driver.cli.check_graph_args frontendchecker_ioCheckerIoInst io a
       else
         if a.olean
-        then
-          if a.scheduled
-          then frontendchecker_ioCheckerIoInst.run_legacy io argv
-          else
-            if a.modular
-            then
-              let b1 := core.option.Option.is_some a.pins
-              if b1
-              then frontendchecker_ioCheckerIoInst.run_legacy io argv
-              else driver.cli.olean_args frontendchecker_ioCheckerIoInst io a
-            else driver.cli.olean_args frontendchecker_ioCheckerIoInst io a
+        then driver.cli.olean_args frontendchecker_ioCheckerIoInst io a
         else
           if a.compare
           then
@@ -139525,12 +139444,6 @@ def frontend.prepare.prepare_prelude
   match r with
   | core.result.Result.Ok p => ok (core.result.Result.Ok p.decls, st1)
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
-
-/-- [con_ron_core::kernel::expr::mk_bvar]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1031:0-1033:1
-    Visibility: public -/
-def kernel.expr.mk_bvar (i : Std.U64) : Result kernel.expr.Expr := do
-  kernel.expr.bvar i
 
 /-- [con_ron_core::kernel::expr_ops::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::kernel::expr_ops::ExprNatKey}::hash64]:
     Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 90:4-92:5

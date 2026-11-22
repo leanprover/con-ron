@@ -7,7 +7,7 @@
 //! acyclic, every import resolved, the ranks one-to-one and decreasing along
 //! every edge.  Its lines are upstream's: `graph: acyclic: N modules, E import
 //! edges` on stdout, or `graph: <error>` on stderr, and the error's exit code.
-//! The calls of the core are marked `ConRon.Capstone: <premise>`
+//! The calls of the core are marked `ConRon.MainTheorem.Stages: <premise>`
 //! (`rust_graph`).
 
 use crate::arena::monad::AState;
@@ -37,7 +37,7 @@ pub fn graph_failed<I: CheckerIo>(io: &mut I, e: CheckError) -> u8 {
 /// the fresh store (as every run's first step), the reader's known handles; a
 /// failure's exit code.
 pub fn graph_start<I: CheckerIo>(io: &mut I, pers: &PersTier, st: &mut AState) -> Result<OleanPins, u8> {
-    // ConRon.Capstone: h1g
+    // ConRon.MainTheorem.Stages: h1g
     match pins::intern_reserved_pins(pers, st) {
         Err(e) => {
             io.note(&Note::GraphPins(e));
@@ -45,7 +45,7 @@ pub fn graph_start<I: CheckerIo>(io: &mut I, pers: &PersTier, st: &mut AState) -
         }
         Ok(()) => (),
     }
-    // ConRon.Capstone: hpk
+    // ConRon.MainTheorem.Stages: hpk
     match spec::olean_pins(pers, &mut st.store) {
         Err(e) => Err(graph_failed(io, e)),
         Ok(pk) => Ok(pk),
@@ -63,12 +63,12 @@ pub fn check_graph<I: CheckerIo>(io: &mut I, sp: &Roots, roots: &Vec<Name>) -> u
         Err(c) => return c,
         Ok(pk) => pk,
     };
-    // ConRon.Capstone: hroots
+    // ConRon.MainTheorem.Stages: hroots
     let rs = match check_main::intern_names(&pers, &mut st, roots) {
         Err(e) => return graph_failed(io, e),
         Ok(rs) => rs,
     };
-    // ConRon.Capstone: hgraph
+    // ConRon.MainTheorem.Stages: hgraph
     match graph::graph_of(&*io, &pk, &pers, &mut st.store, sp, &rs, &None) {
         Err(e) => graph_failed(io, e),
         Ok(c) => {

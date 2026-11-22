@@ -21,7 +21,7 @@
 //!   → check_phase_olean (C, with the solution)
 //! ```
 //!
-//! — one call per step premise of `ConRon.Capstone.rust_stages_oleans_compare`,
+//! — one call per step premise of `ConRon.MainTheorem.Stages.rust_stages_oleans_compare`,
 //! in that order, on one `AState::empty()` and one `PersTier::empty()`.  The
 //! verdict is `compare_json`'s (`compare_verdict`, `solution_failed`), the
 //! solution named by its module.
@@ -250,7 +250,7 @@ pub fn compare_oleans<I: CheckerIo>(io: &mut I, a: &Args, c_name: &Name, s_name:
     let mode = if verified { CheckMode::Verified } else { CheckMode::Trusted };
     let mut st = AState::empty();
     let pers = PersTier::empty();
-    // ConRon.Capstone: h1
+    // ConRon.MainTheorem.Stages: h1
     match pins::intern_reserved_pins(&pers, &mut st) {
         Err(e) => {
             io.note(&Note::ReservedPins(e, verified));
@@ -258,7 +258,7 @@ pub fn compare_oleans<I: CheckerIo>(io: &mut I, a: &Args, c_name: &Name, s_name:
         }
         Ok(()) => (),
     }
-    // ConRon.Capstone: h2
+    // ConRon.MainTheorem.Stages: h2
     let pre = match prelude::builtin_prelude_e(&pers, &mut st) {
         Err((e, line)) => {
             io.note(&Note::Prelude(e, line, verified));
@@ -266,12 +266,12 @@ pub fn compare_oleans<I: CheckerIo>(io: &mut I, a: &Args, c_name: &Name, s_name:
         }
         Ok(p) => p,
     };
-    // ConRon.Capstone: hnC
+    // ConRon.MainTheorem.Stages: hnC
     let c: NIdx = match monad::intern_name(&pers, &mut st, c_name) {
         Err(e) => return step_failed(io, e, verified),
         Ok(h) => h,
     };
-    // ConRon.Capstone: hnS
+    // ConRon.MainTheorem.Stages: hnS
     let s: NIdx = match monad::intern_name(&pers, &mut st, s_name) {
         Err(e) => return step_failed(io, e, verified),
         Ok(h) => h,
@@ -286,7 +286,7 @@ pub fn compare_oleans<I: CheckerIo>(io: &mut I, a: &Args, c_name: &Name, s_name:
     let c_label: Vec<Name> = one_name(c_name);
     io.oleans_read_starts(&a.progress, &c_label);
     let roots_c: Vec<NIdx> = one_root(&c);
-    // ConRon.Capstone: h3
+    // ConRon.MainTheorem.Stages: h3
     io.read_notes_begin(&a.progress);
     let read_c = records::read_oleans(&*io, &pers, &mut st.store, &cr, &roots_c, &consts, true, true);
     io.read_notes_end();
@@ -310,14 +310,14 @@ pub fn compare_oleans<I: CheckerIo>(io: &mut I, a: &Args, c_name: &Name, s_name:
     }
     let records_c = rd_c.decls.len();
     let decls_c = core::mem::replace(&mut rd_c.decls, Vec::new());
-    // ConRon.Capstone: hdup
+    // ConRon.MainTheorem.Stages: hdup
     let pre_c = prepare::prelude_ix_dup(&pre);
-    // ConRon.Capstone: h4 (what a record mentions, off the read)
+    // ConRon.MainTheorem.Stages: h4 (what a record mentions, off the read)
     let prep_c = match prepare::prepare_d(&pers, &mut st, pre_c, decls_c, &rd_c) {
         Err(e) => return step_failed(io, e, verified),
         Ok(p) => p,
     };
-    // ConRon.Capstone: hhole
+    // ConRon.MainTheorem.Stages: hhole
     let holed_c: Vec<IDeclaration> = match fcompare::hole_records(&rd_c, &pers, &mut st, &prep_c.decls, 0, Vec::new()) {
         Err(e) => return step_failed(io, e, verified),
         Ok(v) => v,
@@ -332,7 +332,7 @@ pub fn compare_oleans<I: CheckerIo>(io: &mut I, a: &Args, c_name: &Name, s_name:
     let s_label: Vec<Name> = one_name(s_name);
     io.oleans_read_starts(&a.progress, &s_label);
     let roots_s: Vec<NIdx> = one_root(&s);
-    // ConRon.Capstone: h3S
+    // ConRon.MainTheorem.Stages: h3S
     io.read_notes_begin(&a.progress);
     let read_s = records::read_oleans(&*io, &pers, &mut st.store, &sr, &roots_s, &need, true, false);
     io.read_notes_end();
@@ -347,7 +347,7 @@ pub fn compare_oleans<I: CheckerIo>(io: &mut I, a: &Args, c_name: &Name, s_name:
     }
     let records_s = rd_s.decls.len();
     let decls_s = core::mem::replace(&mut rd_s.decls, Vec::new());
-    // ConRon.Capstone: h4S
+    // ConRon.MainTheorem.Stages: h4S
     let prep_s = match prepare::prepare_d(&pers, &mut st, pre, decls_s, &rd_s) {
         Err(e) => return step_failed(io, e, verified),
         Ok(p) => p,
@@ -356,19 +356,19 @@ pub fn compare_oleans<I: CheckerIo>(io: &mut I, a: &Args, c_name: &Name, s_name:
     if prep_s.hoisted.len() > 0 {
         io.hoisted(&pers, &st.store, &prep_s.hoisted);
     }
-    // ConRon.Capstone: hpins (`--pins`/`--no-pins` are outside the theorems)
-    let pins: Vec<NatOpPinSet> = match check_main::pins_for_run(io, a) {
+    // ConRon.MainTheorem.Stages: hpins
+    let pins: Vec<NatOpPinSet> = match check_main::embedded_pins(&*io) {
         None => return 3,
         Some(ps) => ps,
     };
-    // ConRon.Capstone: h5
+    // ConRon.MainTheorem.Stages: h5
     let ipins = match checker::intern_all_pins(&pers, &mut st, &pins, &a.max_nat_size) {
         Err(e) => return step_failed(io, e, verified),
         Ok(p) => p,
     };
     let jobs: u64 = check_main::jobs_for_run(io, a);
     let s_text: Vec<u32> = name::render(s_name);
-    // ConRon.Capstone: h6S, h7S, h8S
+    // ConRon.MainTheorem.Stages: h6S, h7S, h8S
     let ix_s = match check_main::check_phase_olean(io, &pers, &mut st, &mode, &ipins, &prep_s.decls, &pk_s, &values_s, &sr, None, jobs, records_s, prep_s.synthesised) {
         Err((e, i)) => return compare_json::solution_failed(io, &pers, st, prep_s.decls, e, i, &s_text, verified),
         Ok(ix) => ix,
@@ -377,14 +377,14 @@ pub fn compare_oleans<I: CheckerIo>(io: &mut I, a: &Args, c_name: &Name, s_name:
     if prep_c.hoisted.len() > 0 {
         io.hoisted(&pers, &st.store, &prep_c.hoisted);
     }
-    // ConRon.Capstone: hside
+    // ConRon.MainTheorem.Stages: hside
     let recs_c: Vec<IDeclaration> = match justify::side_records(&pers, &mut st, &holed_c, 0, Vec::new()) {
         Err(e) => return step_failed(io, e, verified),
         Ok(v) => v,
     };
-    // ConRon.Capstone: hsol
+    // ConRon.MainTheorem.Stages: hsol
     let sol: Solution = justify::solution_of(ix_s, &recs_c);
-    // ConRon.Capstone: h6, h7, h8
+    // ConRon.MainTheorem.Stages: h6, h7, h8
     let verdict = check_main::check_phase_olean(io, &pers, &mut st, &mode, &ipins, &recs_c, &pk_c, &values_c, &cr, Some(&sol), jobs, records_c, prep_c.synthesised);
     compare_json::compare_verdict(io, &pers, st, prep_s.decls, prep_c.decls, recs_c, sol, verdict, records_c, &s_text, records_s, verified)
 }

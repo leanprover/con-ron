@@ -5,7 +5,7 @@ import ConRon.MainTheorem.Driver
 
 **Task #171, lane F, slice 3a** (DESIGN.md §3.9).  The walk of `driver::cli::run_args` at the
 argument list `["--compare", "--", c, s]`: an exit 0 there read the file `c` (so `fs` has it),
-and its calls are one premise per step of `ConRon.Capstone.model_exists_compare`, at the
+and its calls are one premise per step of `ConRon.MainTheorem.Stages.model_exists_compare`, at the
 binary's start values and the embedded pins, with the challenge's chunks concatenating to the
 file's bytes (`CompareJsonStages`).
 
@@ -24,7 +24,7 @@ open ConRon.Generated
 
 namespace ConRon
 
-open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean ConRon.Capstone
+open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean ConRon.MainTheorem.Stages
 
 set_option autoImplicit false
 
@@ -160,26 +160,24 @@ theorem help_wanted_compare {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {w d 
 
 /-- **`parse_one` at `--compare`**: the flag set, nothing else read. -/
 theorem parse_one_compare {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {w}
-    (hw0 : argv.val[0]? = some w) (hw : w.val = cpsCompare) {a a' : driver.cli.Args} {j : Std.Usize}
-    (h : driver.cli.parse_one a argv 0#usize = ok (a', j)) :
-    a' = { a with compare := true } ∧ j = 0#usize := by
+    (hw0 : argv.val[0]? = some w) (hw : w.val = cpsCompare) {a a' : driver.cli.Args}
+    (h : driver.cli.parse_one a argv 0#usize = ok a') :
+    a' = { a with compare := true } := by
   rw [driver.cli.parse_one, vec_index_some (x := w) hw0, bind_ok] at h
   simp only [lift, bind_ok] at h
-  iterate 8
+  iterate 7
     obtain ⟨bb, hbb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     rw [beq_ne hbb (by
       rw [hw]
       simp [driver.cli.W_VERIFIED, driver.cli.W_TRUSTED, driver.cli.W_PROGRESS,
-        driver.cli.W_NO_PINS, driver.cli.W_OLEAN, driver.cli.W_CHECK_GRAPH, driver.cli.W_MODULE,
+        driver.cli.W_OLEAN, driver.cli.W_CHECK_GRAPH, driver.cli.W_MODULE,
         driver.cli.W_MODULAR, Array.to_slice])] at h
     simp only [Bool.false_eq_true, ite_false] at h
   obtain ⟨bb, hbb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have : bb = true := (cps_beq_val hbb).mpr (by
     rw [hw]; simp [driver.cli.W_COMPARE, Array.to_slice])
   simp only [this, ite_true] at h
-  have := Result.ok_injective h
-  simp only [Prod.mk.injEq] at this
-  exact ⟨this.1.symm, this.2.symm⟩
+  exact (Result.ok_injective h).symm
 
 /-- **The parse of `["--compare", "--", c, s]`**: every default but `--compare`, and the two
 files. -/
@@ -188,8 +186,8 @@ theorem parse_args_compare {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {w d c
     {a : driver.cli.Args} (h : driver.cli.parse_args argv = ok a) :
     a.bad = none ∧ a.check_graph = false ∧ a.olean = false ∧ a.compare = true ∧
       a.search_path.val = [] ∧ a.constants.val = [] ∧ a.module = false ∧ a.modular = false ∧
-      a.scheduled = false ∧ a.trusted_path.val = [] ∧ a.verified = true ∧ a.no_pins = false ∧
-      a.pins = none ∧ ∃ cf' sf', a.files.val = [cf', sf'] ∧ cf'.val = cf.val ∧
+      a.scheduled = false ∧ a.trusted_path.val = [] ∧ a.verified = true ∧
+      ∃ cf' sf', a.files.val = [cf', sf'] ∧ cf'.val = cf.val ∧
         sf'.val = sf.val := by
   rw [driver.cli.parse_args, driver.cli.args_default] at h
   obtain ⟨a0, ha0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -205,8 +203,8 @@ theorem parse_args_compare {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {w d c
   obtain ⟨bb, hbb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [beq_ne hbb (by rw [hw]; simp [driver.cli.W_END, Array.to_slice])] at h
   simp only [Bool.false_eq_true, ite_false] at h
-  obtain ⟨⟨a1, j⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨rfl, rfl⟩ := parse_one_compare (by simp [hv]) hw h1
+  obtain ⟨a1, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := parse_one_compare (by simp [hv]) hw h1
   obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hi2v : i2.val = 1 := by rw [add_ok_val hi2]; rfl
   rw [driver.cli.parse_args_loop, ite_eq_right (by scalar_tac),
@@ -235,10 +233,10 @@ theorem parse_args_compare {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {w d c
   have hv1' := (Result.ok_injective hv1).symm
   subst hv1'
   rw [driver.cli.closed] at h
-  simp only [Bool.false_eq_true, ite_false] at h
+  simp only [core.option.Option.is_some, Option.isSome_none, Bool.false_eq_true, ite_false] at h
   have ha := (Result.ok_injective h).symm
   subst ha
-  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, cf', sf', ?_,
+  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, cf', sf', ?_,
     str_copy_val hcf', str_copy_val hsf'⟩
   rw [push_val hout2, push_val hout1]
   rfl
@@ -320,7 +318,7 @@ theorem solution_failed_ne {s s' : S} {pers st ds e i sl ver} {c : Std.U8}
 
 end CompareJson
 
-/-- **What an exit 0 of `--compare -- C S` ran**: the capstone's step premises, in the binary's
+/-- **What an exit 0 of `--compare -- C S` ran**: the staged lemmas' step premises, in the binary's
 order, at its start values and the embedded pins, with the challenge's chunks concatenating to
 the challenge file's bytes `bC` — every premise of `compare_json_model_of_stages`. -/
 inductive CompareJsonStages (bC : ByteArray) : Prop where
@@ -375,10 +373,10 @@ variable {S : Type} {io : frontend.checker_io.CheckerIo S} {fs : ConLeche.FS}
 
 /-- **The comparison of two lean4export files, 0** (`compare_json::compare_json` at
 `--verified`, the embedded pins): the challenge's file is in the snapshot, and the run's calls
-are the capstone's step premises (`CompareJsonStages`). -/
+are the staged lemmas' step premises (`CompareJsonStages`). -/
 theorem compare_json_zero (hfs : AnswersAs io fs) (hpool : PoolSound io) {s s' : S}
-    {a : driver.cli.Args} (hver : a.verified = true) (hnp : a.no_pins = false)
-    (hp : a.pins = none) {chal sl : alloc.vec.Vec Std.U32} {qc qs : System.FilePath}
+    {a : driver.cli.Args} (hver : a.verified = true)
+    {chal sl : alloc.vec.Vec Std.U32} {qc qs : System.FilePath}
     (hqc : PathRel chal qc) (hqs : PathRel sl qs) {c : Std.U8}
     (h : driver.compare_json.compare_json io s a chal sl = ok (c, s')) (hc : c.val = 0) :
     ∃ bC, fs.file qc = some bC ∧ CompareJsonStages bC := by
@@ -417,11 +415,11 @@ theorem compare_json_zero (hfs : AnswersAs io fs) (hpool : PoolSound io) {s s' :
     exact (code_ne h (exit_code_ne hc0) hc).elim
   | Ok prepS =>
   have h := hoisted_bind h
-  obtain ⟨⟨o, io1⟩, hpr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨o, hpr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases o with
   | none => exact (code_ne h (by decide) hc).elim
   | some ps =>
-  have hpins := pins_for_run_embedded hnp hp hpr
+  have hpins := embedded_pins_ok hpr
   obtain ⟨⟨r7, st6⟩, h5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases r7 with
   | Err e =>
@@ -495,7 +493,7 @@ end CompareJson
 
 /-- **An exit 0 of `["--compare", "--", c, s]`** (`cli::run_args`): the verified driver
 compared the two files, at `--verified` and the embedded pins; the challenge's file is in the
-snapshot and its calls are the capstone's step premises. -/
+snapshot and its calls are the staged lemmas' step premises. -/
 theorem run_args_compare {S : Type} {io : frontend.checker_io.CheckerIo S} {fs : ConLeche.FS}
     (hfs : AnswersAs io fs) (hpool : PoolSound io) {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
     {c s : String} (hargv : ArgvOf argv ["--compare", "--", c, s]) {x x' : S} {code : Std.U8}
@@ -507,11 +505,11 @@ theorem run_args_compare {S : Type} {io : frontend.checker_io.CheckerIo S} {fs :
   rw [help_wanted_compare hv hw hd hhw] at h
   simp only [Bool.false_eq_true, ite_false] at h
   obtain ⟨a, ha, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨hbad, hcg, hol, hcmp, hsp, hcon, hmod, hmods, hsch, htp, hver, hnp, hp, cf', sf',
+  obtain ⟨hbad, hcg, hol, hcmp, hsp, hcon, hmod, hmods, hsch, htp, hver, cf', sf',
     hfiles, hcf', hsf'⟩ := parse_args_compare hv hw hd ha
   simp only [hbad, hcg, hol, hcmp, Bool.false_eq_true, ite_false, ite_true] at h
   have h := compare_args_zero hsp hcon hmod hmods hsch htp hfiles h hc
-  exact compare_json_zero hfs hpool hver hnp hp (pathRel_arg hcf' hcf) (pathRel_arg hsf' hsf) h hc
+  exact compare_json_zero hfs hpool hver (pathRel_arg hcf' hcf) (pathRel_arg hsf' hsf) h hc
 
 /-- **The run premise, unpacked**: every exit 0 of con-ron at `["--compare", "--", c, s]` read
 the file `c`, and is one of `CompareJsonStages`'s on its bytes. -/

@@ -9,7 +9,7 @@
 //! before the compared graph check, with a trusted path the challenge's closure
 //! is walked through the trusted path alone (`chal_walk`): a module of it only
 //! the search path holds is invalid input.  The walk is its verdict only, so it
-//! runs on a store of its own; the run's store is the capstone's, untouched by
+//! runs on a store of its own; the run's store is the staged lemma's, untouched by
 //! it.
 
 use crate::arena::handle::NIdx;
@@ -96,7 +96,7 @@ pub fn check_graph_cmp<I: CheckerIo>(io: &mut I, a: &Args, c_name: &Name, s_name
         Err(c) => return c,
         Ok(pk) => pk,
     };
-    // ConRon.Capstone: hroots
+    // ConRon.MainTheorem.Stages: hroots
     let c: NIdx = match monad::intern_name(&pers, &mut st, c_name) {
         Err(e) => return graph::graph_failed(io, e),
         Ok(h) => h,
@@ -107,7 +107,7 @@ pub fn check_graph_cmp<I: CheckerIo>(io: &mut I, a: &Args, c_name: &Name, s_name
     };
     let roots: Vec<NIdx> = compare::one_root(&c);
     let sp = cli::sol_roots(a);
-    // ConRon.Capstone: hgraph
+    // ConRon.MainTheorem.Stages: hgraph
     match mgraph::graph_of(&*io, &pk, &pers, &mut st.store, &sp, &roots, &Some((c, s))) {
         Err(e) => graph::graph_failed(io, e),
         Ok(cg) => {

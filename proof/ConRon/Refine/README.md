@@ -33,7 +33,7 @@ checker's own tier — the knot's arms, the declaration checker, the install
 routes, the cached state, the `Expr`-tree parse and the capstones of
 `Main.lean`; `Bridge/` (Theorem 1) and `Refine2/` (Theorem 2) replace them
 (§8.6's phases P3 and P5).  Task #97-PRUNE checked the remaining 46 modules
-mechanically: every one is in `ConRon.Capstone`'s import closure.  Task #105
+mechanically: every one is in `ConRon.MainTheorem.Stages`'s import closure.  Task #105
 (the unused-code sweep) deleted `ExprOpsSpine`, the emptied `CoreK*`/`Pins`
 modules and the pin reader's half above; the per-file tables further down are the tier's history and
 still name files that are gone.

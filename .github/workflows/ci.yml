@@ -59,9 +59,6 @@
 #     (DESIGN.md's frontier sections).
 #   * timings.  A shared runner measures noise; DESIGN.md's rule is
 #     `perf stat` on the development machine.
-#   * the `--no-pins` and `--pins-file` lanes of `diff-e2e.sh`: they
-#     exercise the two test overrides of the pin list, and the default
-#     lane already runs the pins the binary actually ships with.
 #
 # ---------------------------------------------------------------------
 # THE ENVIRONMENT

@@ -19,8 +19,8 @@ path = "src/bin/olean-compare.rs"
 
 [dependencies]
 con-ron-core = { path = "../con-ron-core" }
-# `con-ron-dump` is linked for the `con-ron-pins/2` reader of `--pins`
-# (task #31) and for `natdec`, the decimal parser the frontend shares with it.
+# `con-ron-dump` is linked for `natdec`, the decimal rendering the
+# scheduler's worker command lines use.
 # Its `#[global_allocator]` — task #35's mimalloc — comes with it and serves
 # this binary too; a program may declare only one, which is why `con-ron`
 # declares none.  The edge takes it with NO default features so that the

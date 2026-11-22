@@ -13,7 +13,7 @@
 //! rather than in `ron/`, because its digit loops need §3.4's loop exemption.
 //! It is the same algorithm as `from_decimal` below, nineteen digits per
 //! chunk.  What is left here is `to_decimal`, the direction no checker reads
-//! and no theorem mentions, plus `from_decimal` for this crate's own reader.
+//! and no theorem mentions, plus `from_decimal` for this crate's own reader, which is test-only.
 //!
 //! Both directions work on `Nat::limbs` (little-endian `u64`, no trailing zero
 //! limb) with `u128` intermediates, nineteen digits at a time — `10^19 < 2^64`
@@ -33,6 +33,7 @@ const CHUNK_DIGITS: usize = 19;
 const CHUNK_POW: u64 = 10_000_000_000_000_000_000;
 
 /// `limbs := limbs * m + a`, for machine-word `m` and `a`.
+#[cfg(test)]
 fn mul_add_small(limbs: &mut Vec<u64>, m: u64, a: u64) {
     let mut carry: u128 = a as u128;
     for l in limbs.iter_mut() {
@@ -59,7 +60,8 @@ fn div_small(limbs: &mut [u64], d: u64) -> u64 {
 
 /// Parse a `<nat>` field: decimal, no sign, no separators.  Leading zeros are
 /// accepted (`Pins.lean`'s `String.toNat?` accepts them too); the writer never
-/// emits one.
+/// emits one.  Test-only: the dump reader's (`crate::read`).
+#[cfg(test)]
 pub fn from_decimal(s: &str) -> Result<Nat, String> {
     let b = s.as_bytes();
     if b.is_empty() {

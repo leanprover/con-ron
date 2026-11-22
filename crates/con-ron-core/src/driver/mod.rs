@@ -14,8 +14,10 @@
 //! | `worker` | `Driver/Worker.lean` (a module's worker: `--olean --module`) |
 //! | `modular` | `Driver/Modular.lean` (`--olean --modular`) |
 //!
-//! `--schedule` (con-leche's scheduler is `liftIO`) and `--modular --pins` are
-//! the instance's `run_legacy`, the unverified driver of `crates/con-ron`.
+//! Every request is this driver's.  `--schedule` is, after its usage checks
+//! here, the instance's scheduler (`CheckerIo::run_schedule`), as con-leche's is
+//! `liftIO`: it starts copies of the binary, each a `--module` run of this
+//! driver.
 
 pub mod check_main;
 pub mod cli;
