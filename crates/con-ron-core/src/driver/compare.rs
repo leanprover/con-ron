@@ -164,16 +164,38 @@ pub fn fallback_only<F: CheckerFs>(
         Err(_) => return None,
         Ok(o) => o,
     };
+    fallback_scan(fs, pers, st, trusted, &sr, &order)
+}
+
+/// con-leche: ConLeche/Driver/Compare.lean:86-101 fallbackOnly
+/// The walk's modules in order, to the first whose root only the search path
+/// holds; none at a failed read of a name.  (A loop without an early return:
+/// the scan goes on, doing nothing, past the module it stopped at.)
+pub fn fallback_scan<F: CheckerFs>(
+    fs: &F,
+    pers: &PersTier,
+    st: &AState,
+    trusted: &Vec<Vec<u32>>,
+    sr: &Roots,
+    order: &Vec<NIdx>,
+) -> Option<Vec<u32>> {
+    let mut found: Option<Vec<u32>> = None;
+    let mut stop = false;
     let mut i = 0usize;
     while i < order.len() {
-        match fallback_at(fs, pers, st, trusted, &sr, &order[i]) {
-            Err(_) => return None,
-            Ok(Some(t)) => return Some(t),
-            Ok(None) => (),
+        if !stop {
+            match fallback_at(fs, pers, st, trusted, sr, &order[i]) {
+                Err(_) => stop = true,
+                Ok(Some(t)) => {
+                    found = Some(t);
+                    stop = true;
+                }
+                Ok(None) => (),
+            }
         }
         i += 1;
     }
-    None
+    found
 }
 
 /// con-leche: ConLeche/Driver/Compare.lean:141-208 compareG
