@@ -45,7 +45,6 @@ use crate::kernel::env::CheckMode;
 use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::kernel::nat_op_pins::NatOpPinSet;
-use crate::kernel::pins_decode;
 use crate::ron::nat::Nat;
 
 /// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
@@ -349,8 +348,8 @@ pub fn check_module<I: CheckerIo>(io: &mut I, a: &Args, sp: &Roots, m_name: &Nam
         Err(c) => return c,
         Ok(x) => x,
     };
-    // ConRon.Capstone: hpins (`--pins`/`--no-pins` are outside the theorems)
-    let pins: Vec<NatOpPinSet> = match check_main::pins_for_run(io, a) {
+    // ConRon.Capstone: hpins
+    let pins: Vec<NatOpPinSet> = match check_main::embedded_pins(&*io) {
         None => return 3,
         Some(ps) => ps,
     };
@@ -366,8 +365,8 @@ pub fn check_module<I: CheckerIo>(io: &mut I, a: &Args, sp: &Roots, m_name: &Nam
 
 /// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
 /// **One module of `--olean --modular`**: its worker from fresh start values,
-/// every line naming it, the pins the embedded ones (or none, `--no-pins`), its
-/// jobs in order on this thread; with `sol`, the compare worker; the exit code.
+/// every line naming it, the embedded pins, its jobs in order on this thread;
+/// with `sol`, the compare worker; the exit code.
 pub fn check_module_in<F: CheckerFs + WorkerNotes>(
     fs: &F,
     sp: &Roots,
@@ -375,7 +374,6 @@ pub fn check_module_in<F: CheckerFs + WorkerNotes>(
     sol: Option<&Name>,
     verified: bool,
     max_nat_size: &Nat,
-    no_pins: bool,
 ) -> u8 {
     let mode = if verified { CheckMode::Verified } else { CheckMode::Trusted };
     let mut st = AState::empty();
@@ -396,16 +394,9 @@ pub fn check_module_in<F: CheckerFs + WorkerNotes>(
         Ok(x) => x,
     };
     // ConRon.Capstone: hpins
-    let pins: Vec<NatOpPinSet> = if no_pins {
-        Vec::new()
-    } else {
-        match pins_decode::decode_embedded() {
-            Err(e) => {
-                fs.worker_note(&WorkerNote::EmbeddedPins(e));
-                return 3;
-            }
-            Ok(ps) => ps,
-        }
+    let pins: Vec<NatOpPinSet> = match check_main::embedded_pins(fs) {
+        None => return 3,
+        Some(ps) => ps,
     };
     let who = Some(name::dup(m_name));
     let (w, ipins, ds) = match module_read(fs, &pers, &mut st, sp, &m, m_name, &x, &pins, max_nat_size, verified, &who, &crate::frontend::pace::Pace::Off) {

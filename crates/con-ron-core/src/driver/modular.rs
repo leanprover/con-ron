@@ -47,8 +47,6 @@ pub struct ModularStep<'a> {
     pub verified: bool,
     /// `--max-nat-size`
     pub max_nat_size: &'a Nat,
-    /// `--no-pins`
-    pub no_pins: bool,
 }
 
 /// con-leche: ConLeche/Driver/Modular.lean:74-80 modularStep
@@ -59,7 +57,7 @@ impl<'a, F: CheckerFs + WorkerNotes> CodeStep<F> for ModularStep<'a> {
     fn code(&self, fs: &F, k: usize) -> u8 {
         if k < self.names.len() {
             let s = step_sol(&self.names[k], self.root, self.sol);
-            worker::check_module_in(fs, self.sp, &self.names[k], s, self.verified, self.max_nat_size, self.no_pins)
+            worker::check_module_in(fs, self.sp, &self.names[k], s, self.verified, self.max_nat_size)
         } else {
             3
         }
@@ -198,7 +196,7 @@ pub fn check_modular<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, sp: 
     let jobs: u64 = check_main::jobs_for_run(io, a);
     let threads = check_main::workers_for(jobs, n);
     let r = {
-        let step = ModularStep { names: &names, sp, root: &roots[0], sol, verified: a.verified, max_nat_size: &a.max_nat_size, no_pins: a.no_pins };
+        let step = ModularStep { names: &names, sp, root: &roots[0], sol, verified: a.verified, max_nat_size: &a.max_nat_size };
         io.par_map_codes(&step, n, threads)
     };
     let codes = match r {

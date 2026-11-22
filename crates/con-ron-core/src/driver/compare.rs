@@ -356,8 +356,8 @@ pub fn compare_oleans<I: CheckerIo>(io: &mut I, a: &Args, c_name: &Name, s_name:
     if prep_s.hoisted.len() > 0 {
         io.hoisted(&pers, &st.store, &prep_s.hoisted);
     }
-    // ConRon.Capstone: hpins (`--pins`/`--no-pins` are outside the theorems)
-    let pins: Vec<NatOpPinSet> = match check_main::pins_for_run(io, a) {
+    // ConRon.Capstone: hpins
+    let pins: Vec<NatOpPinSet> = match check_main::embedded_pins(&*io) {
         None => return 3,
         Some(ps) => ps,
     };

@@ -2,8 +2,7 @@
 //! worker pool.
 //!
 //! ```text
-//! con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
-//!         [--progress[=<stride>]] [--pins FILE|--no-pins] FILE.ndjson
+//! con-ron [OPTIONS] [--] FILE.ndjson
 //! con-ron --help
 //! ```
 //!
@@ -73,7 +72,6 @@
 //! phase boundary and shared by reference.  Threads live here and never in
 //! `con-ron-core` (§8.5).
 
-pub mod compare;
 pub mod driver;
 pub mod keys;
 pub mod modular;

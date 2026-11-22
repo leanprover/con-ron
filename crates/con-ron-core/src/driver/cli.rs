@@ -10,8 +10,8 @@
 //! `--check-graph` (`graph`, with `--compare` `compare_module`), and `--olean`
 //! on a closure, `--module` and `--modular` (`check_main::check_oleans`,
 //! `worker`, `modular`), each also with `--compare` (`compare`,
-//! `compare_module`, `modular`); every other request (`--schedule`, and
-//! `--modular` with `--pins`) goes, whole, to the instance's `run_legacy`.
+//! `compare_module`, `modular`); `--schedule`, after its usage checks, is the
+//! instance's scheduler (`CheckerIo::run_schedule`, con-leche's `liftIO`).
 
 use crate::arena::pins::max_nat_size_default;
 use crate::driver::check_main;
@@ -44,8 +44,6 @@ const W_VERIFIED: [u32; 10] = [45, 45, 118, 101, 114, 105, 102, 105, 101, 100];
 const W_TRUSTED: [u32; 9] = [45, 45, 116, 114, 117, 115, 116, 101, 100];
 /// con-leche: none — the word `--progress`
 const W_PROGRESS: [u32; 10] = [45, 45, 112, 114, 111, 103, 114, 101, 115, 115];
-/// con-leche: none — the word `--no-pins`
-const W_NO_PINS: [u32; 9] = [45, 45, 110, 111, 45, 112, 105, 110, 115];
 /// con-leche: none — the word `--olean`
 const W_OLEAN: [u32; 7] = [45, 45, 111, 108, 101, 97, 110];
 /// con-leche: none — the word `--check-graph`
@@ -56,8 +54,6 @@ const W_MODULE: [u32; 8] = [45, 45, 109, 111, 100, 117, 108, 101];
 const W_MODULAR: [u32; 9] = [45, 45, 109, 111, 100, 117, 108, 97, 114];
 /// con-leche: none — the word `--compare`
 const W_COMPARE: [u32; 9] = [45, 45, 99, 111, 109, 112, 97, 114, 101];
-/// con-leche: none — the word `--pins`
-const W_PINS: [u32; 6] = [45, 45, 112, 105, 110, 115];
 /// con-leche: none — the word `--jobs`
 const W_JOBS: [u32; 6] = [45, 45, 106, 111, 98, 115];
 /// con-leche: none — the prefix `--progress=`
@@ -66,8 +62,6 @@ const W_PROGRESS_EQ: [u32; 11] = [45, 45, 112, 114, 111, 103, 114, 101, 115, 115
 const W_JOBS_EQ: [u32; 7] = [45, 45, 106, 111, 98, 115, 61];
 /// con-leche: none — the prefix `--max-nat-size=`
 const W_MAX_NAT_SIZE_EQ: [u32; 15] = [45, 45, 109, 97, 120, 45, 110, 97, 116, 45, 115, 105, 122, 101, 61];
-/// con-leche: none — the prefix `--pins=`
-const W_PINS_EQ: [u32; 7] = [45, 45, 112, 105, 110, 115, 61];
 /// con-leche: none — the prefix `--constant=`
 const W_CONSTANT_EQ: [u32; 11] = [45, 45, 99, 111, 110, 115, 116, 97, 110, 116, 61];
 /// con-leche: none — the prefix `--search-path=`
@@ -85,8 +79,6 @@ const W_WORKER_STACK_SIZE_EQ: [u32; 20] =
 /// **A usage error**, as a structured event: which one, and the argument it is
 /// about.  The instance renders each in the binary's words (`StdIo::usage`).
 pub enum Bad {
-    /// `--pins` with no argument after it
-    PinsNoFile,
     /// the bare `--jobs`
     JobsBare,
     /// a `--progress=` value of no form
@@ -135,15 +127,17 @@ pub enum Bad {
     CompareTwoModules,
     /// `--compare` on one module twice
     CompareSameModule,
-    /// `--compare` with both `--module` and `--modular`, or a constant
+    /// `--compare` with more than one of `--module`, `--modular` and
+    /// `--schedule`, or a constant
     CompareModeArgs,
+    /// `--schedule` with other than one module, or a flag it does not take
+    ScheduleArgs,
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:262-303 Args
-/// What the command line asked for: the binary's `Args`, the fields the
-/// verified driver reads or routes on.  The values only an unverified mode
-/// reads (`--schedule`'s options, `--worker-stack-size`'s size) are read again
-/// by that mode's own parse.
+/// What the command line asked for: the binary's `Args`, field for field.  The
+/// values only the scheduler reads (`--schedule`'s settings,
+/// `--worker-stack-size`'s size) are kept as given, for it to read.
 pub struct Args {
     /// the positional arguments
     pub files: Vec<Vec<u32>>,
@@ -155,10 +149,6 @@ pub struct Args {
     pub jobs: Option<u64>,
     /// `--max-nat-size=<n>`
     pub max_nat_size: Nat,
-    /// `--pins FILE`
-    pub pins: Option<Vec<u32>>,
-    /// `--no-pins`
-    pub no_pins: bool,
     /// `--olean`
     pub olean: bool,
     /// `--search-path=DIR:DIR...`, the nonempty directories
@@ -171,14 +161,17 @@ pub struct Args {
     pub module: bool,
     /// `--modular`
     pub modular: bool,
+    /// the values after `--schedule` of every `--schedule[-OPT=VALUE]` flag,
+    /// empty for the bare flag
+    pub schedule: Vec<Vec<u32>>,
     /// some `--schedule` flag was given
     pub scheduled: bool,
     /// `--compare`
     pub compare: bool,
     /// `--trusted-search-path=DIR:DIR...`, the nonempty directories
     pub trusted_path: Vec<Vec<u32>>,
-    /// `--worker-stack-size=SIZE` was given, with a valid size
-    pub worker_stack: bool,
+    /// `--worker-stack-size=SIZE`, a valid size, as given
+    pub worker_stack: Option<Vec<u32>>,
     /// the first bad argument
     pub bad: Option<Bad>,
 }
@@ -192,18 +185,17 @@ pub fn args_default() -> Args {
         progress: Pace::Off,
         jobs: None,
         max_nat_size: max_nat_size_default(),
-        pins: None,
-        no_pins: false,
         olean: false,
         search_path: Vec::new(),
         constants: Vec::new(),
         check_graph: false,
         module: false,
         modular: false,
+        schedule: Vec::new(),
         scheduled: false,
         compare: false,
         trusted_path: Vec::new(),
-        worker_stack: false,
+        worker_stack: None,
         bad: None,
     }
 }
@@ -447,7 +439,7 @@ pub fn with_bad(a: Args, b: Bad) -> Args {
 /// The arguments once all are read: `--worker-stack-size` without
 /// `--schedule` is a usage error (no other run starts a worker).
 pub fn closed(a: Args) -> Args {
-    if a.worker_stack && !a.scheduled {
+    if a.worker_stack.is_some() && !a.scheduled {
         with_bad(a, Bad::WorkerStackNoSchedule)
     } else {
         a
@@ -474,8 +466,6 @@ pub fn parse_valued(a: Args, s: &Vec<u32>) -> Args {
             Ok(n) => a.max_nat_size = n,
             Err(b) => a = with_bad(a, b),
         }
-    } else if cps_starts_with(s, &W_PINS_EQ) {
-        a.pins = Some(str_copy_from(s, 7, Vec::new()));
     } else if cps_starts_with(s, &W_CONSTANT_EQ) {
         a.constants.push(str_copy_from(s, 11, Vec::new()));
     } else if cps_starts_with(s, &W_SEARCH_PATH_EQ) {
@@ -483,11 +473,12 @@ pub fn parse_valued(a: Args, s: &Vec<u32>) -> Args {
     } else if cps_starts_with(s, &W_TRUSTED_SEARCH_PATH_EQ) {
         a.trusted_path = push_dirs(a.trusted_path, s, 22);
     } else if cps_starts_with(s, &W_SCHEDULE) {
+        a.schedule.push(str_copy_from(s, 10, Vec::new()));
         a.scheduled = true;
     } else if cps_starts_with(s, &W_WORKER_STACK_SIZE_EQ) {
         let v = str_copy_from(s, 20, Vec::new());
         if size_positive(&v) {
-            a.worker_stack = true;
+            a.worker_stack = Some(v);
         } else {
             a = with_bad(a, Bad::WorkerStackValue(v));
         }
@@ -500,9 +491,8 @@ pub fn parse_valued(a: Args, s: &Vec<u32>) -> Args {
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:326-378 parseArgs
-/// One argument at `argv[i]` (not `--`), and the position of the last one it
-/// read: `--pins` reads the next as its file.
-pub fn parse_one(a: Args, argv: &Vec<Vec<u32>>, i: usize) -> (Args, usize) {
+/// One argument, `argv[i]` (not `--`).
+pub fn parse_one(a: Args, argv: &Vec<Vec<u32>>, i: usize) -> Args {
     let mut a = a;
     let s = &argv[i];
     if cps_beq(s, &W_VERIFIED) {
@@ -511,8 +501,6 @@ pub fn parse_one(a: Args, argv: &Vec<Vec<u32>>, i: usize) -> (Args, usize) {
         a.verified = false;
     } else if cps_beq(s, &W_PROGRESS) {
         a.progress = Pace::Every(1);
-    } else if cps_beq(s, &W_NO_PINS) {
-        a.no_pins = true;
     } else if cps_beq(s, &W_OLEAN) {
         a.olean = true;
     } else if cps_beq(s, &W_CHECK_GRAPH) {
@@ -523,19 +511,12 @@ pub fn parse_one(a: Args, argv: &Vec<Vec<u32>>, i: usize) -> (Args, usize) {
         a.modular = true;
     } else if cps_beq(s, &W_COMPARE) {
         a.compare = true;
-    } else if cps_beq(s, &W_PINS) {
-        if i + 1 >= argv.len() {
-            a = with_bad(a, Bad::PinsNoFile);
-        } else {
-            a.pins = Some(str_copy(&argv[i + 1]));
-        }
-        return (a, i + 1);
     } else if cps_beq(s, &W_JOBS) {
         a = with_bad(a, Bad::JobsBare);
     } else {
         a = parse_valued(a, s);
     }
-    (a, i)
+    a
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:326-378 parseArgs
@@ -554,9 +535,8 @@ pub fn parse_args(argv: &Vec<Vec<u32>>) -> Args {
             a.files = push_files(a.files, argv, i + 1);
             return closed(a);
         }
-        let (a1, j) = parse_one(a, argv, i);
-        a = a1;
-        i = j + 1;
+        a = parse_one(a, argv, i);
+        i += 1;
     }
 }
 
@@ -663,6 +643,38 @@ pub fn trusted_misplaced(a: &Args) -> bool {
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// `--compare` with a mode of its modular run: `--module`, `--modular` or
+/// `--schedule`.
+pub fn cmp_mode(a: &Args) -> bool {
+    if a.module {
+        return true;
+    }
+    if a.modular {
+        return true;
+    }
+    a.scheduled
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// `--compare` with a mode it does not take with the others: a `--constant`,
+/// or more than one of `--module`, `--modular` and `--schedule`.
+pub fn cmp_mode_bad(a: &Args, cs: &Vec<Name>) -> bool {
+    if cs.len() > 0 {
+        return true;
+    }
+    if a.module && a.scheduled {
+        return true;
+    }
+    if a.modular {
+        if a.module {
+            return true;
+        }
+        return a.scheduled;
+    }
+    false
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
 /// **`--check-graph`** (without `--compare`): con-leche's usage checks in its
 /// order, then the graph check of the roots along the search path.
 pub fn check_graph_args<I: CheckerIo>(io: &mut I, a: &Args) -> u8 {
@@ -704,10 +716,10 @@ pub fn check_graph_cmp_args<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
-/// **`--olean --compare`** (without `--schedule`): two module names, two
-/// different ones; with `--module` or `--modular` one of them and no
-/// `--constant`; then the compare worker, the one-process modular comparison,
-/// or the compared run.
+/// **`--olean --compare`**: two module names, two different ones; with
+/// `--module`, `--modular` or `--schedule` one of them and no `--constant`;
+/// then the compare worker, the one-process modular comparison, the
+/// scheduler, or the compared run.
 pub fn compare_olean_args<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &Vec<Name>) -> u8 {
     if roots.len() != 2 {
         io.usage(&Bad::CompareTwoModules);
@@ -717,26 +729,28 @@ pub fn compare_olean_args<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>,
         io.usage(&Bad::CompareSameModule);
         return 3;
     }
-    if a.module || a.modular {
-        if cs.len() > 0 || (a.module && a.modular) {
+    if cmp_mode(a) {
+        if cmp_mode_bad(a, cs) {
             io.usage(&Bad::CompareModeArgs);
             return 3;
         }
         if a.module {
             return compare_module::check_cmp_module(io, a, &roots[0], &roots[1]);
         }
-        let sp = sol_roots(a);
-        let mut rs: Vec<Name> = Vec::new();
-        rs.push(name::dup(&roots[0]));
-        return modular::check_modular(io, a, &rs, &sp, Some(&roots[1]));
+        if a.modular {
+            let sp = sol_roots(a);
+            let mut rs: Vec<Name> = Vec::new();
+            rs.push(name::dup(&roots[0]));
+            return modular::check_modular(io, a, &rs, &sp, Some(&roots[1]));
+        }
+        return io.run_schedule(a, &roots[0], Some(&roots[1]));
     }
     compare::compare_oleans(io, a, &roots[0], &roots[1], cs)
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
-/// **`--olean`** (without `--compare` or `--schedule`): con-leche's usage checks
-/// in its order, then `--modular`, `--module`, or the check of the roots'
-/// closure.
+/// **`--olean`**: con-leche's usage checks in its order, then `--compare`,
+/// `--schedule`, `--modular`, `--module`, or the check of the roots' closure.
 pub fn olean_args<I: CheckerIo>(io: &mut I, a: &Args) -> u8 {
     if no_roots_or_path(a) {
         io.usage(&Bad::OleanArgs);
@@ -763,6 +777,9 @@ pub fn olean_args<I: CheckerIo>(io: &mut I, a: &Args) -> u8 {
         io.usage(&Bad::TrustedTakes);
         return 3;
     }
+    if a.scheduled {
+        return schedule_args(io, a, &roots, &cs);
+    }
     if a.modular {
         return modular_args(io, a, &roots, &cs);
     }
@@ -771,6 +788,17 @@ pub fn olean_args<I: CheckerIo>(io: &mut I, a: &Args) -> u8 {
     }
     let sp = files::roots_of_path(push_files(Vec::new(), &a.search_path, 0));
     check_main::check_oleans(io, a, &roots, &cs, &sp)
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// **`--olean --schedule`**: one module name, no `--constant`, neither
+/// `--module` nor `--modular`; then the scheduler (`CheckerIo::run_schedule`).
+pub fn schedule_args<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &Vec<Name>) -> u8 {
+    if roots.len() != 1 || cs.len() > 0 || a.module || a.modular {
+        io.usage(&Bad::ScheduleArgs);
+        return 3;
+    }
+    io.run_schedule(a, &roots[0], None)
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
@@ -798,11 +826,10 @@ pub fn module_args<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &V
 
 /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
 /// **The run of an argument list, to its exit code**: `--help`, the parse and
-/// its usage error, then the request.  A lean4export file is checked here
-/// (`check_main`), after the binary's usage checks of that mode, and two with
-/// `--compare` (`compare_json`); `--check-graph` and `--olean` here too, but
-/// `--schedule` and `--modular --pins`, the legacy driver's
-/// (`CheckerIo::run_legacy`).
+/// its usage error, then the request: `--check-graph`, `--olean` (whose
+/// `--schedule` is the instance's scheduler), two lean4export files with
+/// `--compare` (`compare_json`), or one, after the binary's usage checks of
+/// that mode (`check_main`).
 pub fn run_args<I: CheckerIo>(io: &mut I, argv: &Vec<Vec<u32>>) -> u8 {
     if help_wanted(argv) {
         return io.print_help();
@@ -819,9 +846,6 @@ pub fn run_args<I: CheckerIo>(io: &mut I, argv: &Vec<Vec<u32>>) -> u8 {
         return check_graph_args(io, &a);
     }
     if a.olean {
-        if a.scheduled || (a.modular && a.pins.is_some()) {
-            return io.run_legacy(argv);
-        }
         return olean_args(io, &a);
     }
     if a.compare {

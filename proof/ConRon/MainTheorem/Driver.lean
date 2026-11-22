@@ -441,8 +441,8 @@ theorem parse_args_end {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {d f}
     (h : driver.cli.parse_args argv = ok a) :
     a.bad = none ∧ a.check_graph = false ∧ a.olean = false ∧ a.compare = false ∧
       a.search_path.val = [] ∧ a.constants.val = [] ∧ a.module = false ∧ a.modular = false ∧
-      a.scheduled = false ∧ a.trusted_path.val = [] ∧ a.verified = true ∧ a.no_pins = false ∧
-      a.pins = none ∧ ∃ f', a.files.val = [f'] ∧ f'.val = f.val := by
+      a.scheduled = false ∧ a.trusted_path.val = [] ∧ a.verified = true ∧
+      ∃ f', a.files.val = [f'] ∧ f'.val = f.val := by
   rw [driver.cli.parse_args, driver.cli.args_default] at h
   obtain ⟨a0, ha0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨n, -, ha0⟩ := ConRon.Refine.bind_eq_ok_iff.mp ha0
@@ -470,10 +470,10 @@ theorem parse_args_end {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {d f}
   have hv1' := (Result.ok_injective hv1).symm
   subst hv1'
   rw [driver.cli.closed] at h
-  simp only [Bool.false_eq_true, ite_false] at h
+  simp only [core.option.Option.is_some, Option.isSome_none, Bool.false_eq_true, ite_false] at h
   have ha := (Result.ok_injective h).symm
   subst ha
-  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, f', ?_, str_copy_val hf'⟩
+  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, f', ?_, str_copy_val hf'⟩
   rw [push_val hout1]
   rfl
 
@@ -522,23 +522,17 @@ theorem verdict_of_zero {s s' : S} {pers st ds v fr verified} {c : Std.U8}
     obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     exact code_ne h (exit_code_ne hc0) hc
 
-/-- **The pin list at no override**: the embedded text's, decoded. -/
-theorem pins_for_run_embedded {s s' : S} {a : driver.cli.Args} (hnp : a.no_pins = false)
-    (hp : a.pins = none) {ps}
-    (h : driver.check_main.pins_for_run io s a = ok (some ps, s')) :
+/-- **The pin list**: the embedded text's, decoded. -/
+theorem embedded_pins_ok {F : Type} {wn : frontend.checker_io.WorkerNotes F} {fsv : F} {ps}
+    (h : driver.check_main.embedded_pins wn fsv = ok (some ps)) :
     kernel.pins_decode.decode_embedded = ok (.Ok ps) := by
-  rw [driver.check_main.pins_for_run] at h
-  simp only [hnp, hp, Bool.false_eq_true, ite_false] at h
+  rw [driver.check_main.embedded_pins] at h
   obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases r with
-  | Ok ps' =>
-    have := Result.ok_injective h
-    simp only [Prod.mk.injEq, Option.some.injEq] at this
-    rw [hr, this.1]
+  | Ok ps' => rw [hr, Option.some.inj (Result.ok_injective h)]
   | Err e =>
     obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have := Result.ok_injective h
-    simp at this
+    cases Result.ok_injective h
 
 /-- **The check phase, accepted** (`check_main::check_phase`, with the solution `sol`): the
 capstone's `h6`, `h7` and `h8` — the index from the empty one, the tier frozen, and the worker
@@ -644,8 +638,8 @@ theorem hoisted_bind {α β : Type} {c : Prop} [Decidable c] {m : Result Unit} {
 /-- **The check of a lean4export file, 0** (`check_main::check_main` at `--verified`, the
 embedded pins): its calls are the capstone's step premises (`JsonStages`). -/
 theorem check_main_zero (hfs : AnswersAs io fs) (hpool : PoolSound io) {s s' : S}
-    {a : driver.cli.Args} (hver : a.verified = true) (hnp : a.no_pins = false)
-    (hp : a.pins = none) {file : alloc.vec.Vec Std.U32} {q : System.FilePath}
+    {a : driver.cli.Args} (hver : a.verified = true)
+    {file : alloc.vec.Vec Std.U32} {q : System.FilePath}
     (hq : PathRel file q) {b : ByteArray} (hb : fs.file q = some b) {c : Std.U8}
     (h : driver.check_main.check_main io s a file = ok (c, s')) (hc : c.val = 0) :
     JsonStages b := by
@@ -690,11 +684,11 @@ theorem check_main_zero (hfs : AnswersAs io fs) (hpool : PoolSound io) {s s' : S
     exact (code_ne h (exit_code_ne hc0) hc).elim
   | Ok prepared =>
   have h := hoisted_bind h
-  obtain ⟨⟨o, io1⟩, hpr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨o, hpr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases o with
   | none => exact (code_ne h (by decide) hc).elim
   | some ps =>
-  have hpins := pins_for_run_embedded hnp hp hpr
+  have hpins := embedded_pins_ok hpr
   obtain ⟨⟨r3, st6⟩, h5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases r3 with
   | Err e =>
@@ -727,7 +721,7 @@ theorem run_args_json {S : Type} {io : frontend.checker_io.CheckerIo S} {fs : Co
   rw [help_wanted_end hv hd hhw] at h
   simp only [Bool.false_eq_true, ite_false] at h
   obtain ⟨a, ha, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨hbad, hcg, hol, hcmp, hsp, hcon, hmod, hmods, hsch, htp, hver, hnp, hp, f', hfiles, hf'⟩ :=
+  obtain ⟨hbad, hcg, hol, hcmp, hsp, hcon, hmod, hmods, hsch, htp, hver, f', hfiles, hf'⟩ :=
     parse_args_end hv hd ha
   have hlen0 : ∀ {α : Type} {v : alloc.vec.Vec α}, v.val = [] → ¬ alloc.vec.Vec.len v > 0#usize := by
     intro α v hv0 hgt
@@ -749,7 +743,7 @@ theorem run_args_json {S : Type} {io : frontend.checker_io.CheckerIo S} {fs : Co
     rw [show f.val.map (fun c => Char.ofNat c.val) = (f.val.map UScalar.val).map Char.ofNat by
       simp, hf, List.map_map]
     simp [Function.comp_def, Char.ofNat_toNat]
-  exact check_main_zero hfs hpool hver hnp hp hq hb h hc
+  exact check_main_zero hfs hpool hver hq hb h hc
 
 /-- **The run premise, unpacked**: every exit 0 of con-ron at `["--", file]` is one of
 `JsonStages`'s, on the file's bytes. -/

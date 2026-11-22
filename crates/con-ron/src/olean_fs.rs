@@ -10,19 +10,10 @@
 //! also prints upstream's `read:` heartbeat (`ReadNotes`, task #484) at the pace
 //! asked for, with the time since the read began and `VmRSS`.
 
-use con_ron_core::arena::handle::NIdx;
-use con_ron_core::arena::monad;
-use con_ron_core::arena::monad::AState;
-use con_ron_core::arena::store::PersTier;
-use con_ron_core::frontend::olean::files;
 use con_ron_core::frontend::checker_io::CheckerFs;
 use con_ron_core::frontend::olean::progress;
-use con_ron_core::frontend::olean::records;
-use con_ron_core::frontend::olean::records::OleanRead;
 use con_ron_core::frontend::pace;
 use con_ron_core::frontend::pace::Pace;
-use con_ron_core::kernel::core_types::CheckError;
-use con_ron_core::kernel::name::Name;
 
 use crate::render;
 
@@ -231,79 +222,4 @@ impl CheckerFs for NotesFs {
             self.read_notes_say(&progress::module_loaded_text(k, c, total));
         }
     }
-}
-
-/// con-leche: ConLeche/Driver/CheckMain.lean:55-62 Input
-/// What `--olean` asked for, the names parsed: a usage error is reported before
-/// anything is read.
-pub struct OleanRequest {
-    pub search_path: files::Roots,
-    pub roots: Vec<Name>,
-    pub constants: Vec<Name>,
-}
-
-/// con-leche: ConLeche/Driver/CheckMain.lean:64-67 Input.label
-/// con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
-impl OleanRequest {
-    /// con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
-    /// The names of the command line, or the usage error.
-    pub fn new(search_path: &[String], modules: &[String], constants: &[String]) -> Result<OleanRequest, String> {
-        let mut roots: Vec<Name> = Vec::new();
-        for m in modules {
-            match files::parse_mod_name(&render::cps(m)) {
-                Some(n) => roots.push(n),
-                None => return Err(format!("not a module name: {}", render::display_str(m))),
-            }
-        }
-        let mut cs: Vec<Name> = Vec::new();
-        for c in constants {
-            match files::parse_const_name(&render::cps(c)) {
-                Some(n) => cs.push(n),
-                None => return Err(format!("not a constant's name: {}", render::display_str(c))),
-            }
-        }
-        Ok(OleanRequest {
-            search_path: files::roots_of_path(search_path.iter().map(|d| render::cps(d)).collect()),
-            roots,
-            constants: cs,
-        })
-    }
-
-    /// con-leche: ConLeche/Driver/CheckMain.lean:64-67 Input.label
-    /// The input's name in a diagnostic.
-    pub fn label(&self, _pers: &PersTier, _st: &AState) -> String {
-        let shown: Vec<String> = self.roots.iter().map(|n| render::name_str(n)).collect();
-        shown.join(" ")
-    }
-
-    /// con-leche: none — `a.rootConstants`, and `filterMap parseModName`, over handles
-    /// The names, as handles.
-    pub fn intern(&self, pers: &PersTier, st: &mut AState) -> Result<(Vec<NIdx>, Option<Vec<NIdx>>), CheckError> {
-        let mut roots: Vec<NIdx> = Vec::with_capacity(self.roots.len());
-        for n in &self.roots {
-            roots.push(monad::intern_name(pers, st, n)?);
-        }
-        if self.constants.is_empty() {
-            return Ok((roots, None));
-        }
-        let mut cs: Vec<NIdx> = Vec::with_capacity(self.constants.len());
-        for n in &self.constants {
-            cs.push(monad::intern_name(pers, st, n)?);
-        }
-        Ok((roots, Some(cs)))
-    }
-}
-
-/// con-leche: ConLeche/Driver/CheckMain.lean:87-98 readInputG
-/// The input's declaration records, by the `.olean` reader: a theorem's value a
-/// reference, with what its check needs to read it (`OleanRead.values`,
-/// `OleanRead.pins`).  The `read:` lines at `pace`, timed from the read's start
-/// (`ReadNotes.new` is the first thing `readOleansAt` does).
-pub fn read_request(pers: &PersTier, st: &mut AState, req: &OleanRequest, pace: &Pace) -> Result<OleanRead, (CheckError, u64)> {
-    let (roots, cs) = match req.intern(pers, st) {
-        Ok(p) => p,
-        Err(e) => return Err((e, 0)),
-    };
-    let fs = read_notes_new(pace);
-    records::read_oleans(&fs, pers, &mut st.store, &req.search_path, &roots, &cs, false, false)
 }

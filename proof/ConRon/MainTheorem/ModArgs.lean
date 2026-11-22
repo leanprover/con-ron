@@ -28,8 +28,8 @@ theorem parse_args_graph {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
     (h2 : w2.val = [45#u32, 45#u32]) {a : driver.cli.Args}
     (h : driver.cli.parse_args argv = ok a) :
     a.bad = none ∧ a.check_graph = true ∧ a.olean = false ∧ a.compare = false ∧
-      a.scheduled = false ∧ a.modular = false ∧ a.module = false ∧ a.pins = none ∧
-      a.no_pins = false ∧ a.verified = true ∧ a.trusted_path.val = [] ∧ a.constants.val = [] ∧
+      a.scheduled = false ∧ a.modular = false ∧ a.module = false ∧
+      a.verified = true ∧ a.trusted_path.val = [] ∧ a.constants.val = [] ∧
       driver.cli.push_dirs (alloc.vec.Vec.new _) w1 14#usize = ok a.search_path ∧
       a.files.val.map (·.val) = [w3.val] := by
   rw [driver.cli.parse_args, driver.cli.args_default] at h
@@ -46,11 +46,11 @@ theorem parse_args_graph {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
   rw [ConRon.Args.loop_end g2 h2 (usize_add_lit (b := 3#usize) rfl)] at h
   obtain ⟨fl, hfl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [driver.cli.closed] at h
-  simp only [Bool.false_eq_true, ite_false] at h
+  simp only [core.option.Option.is_some, Option.isSome_none, Bool.false_eq_true, ite_false] at h
   cases Result.ok_injective h
   have hf := push_files_loop_val argv _ _ 3#usize rfl hfl
   simp only [hv] at hf
-  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hsp, ?_⟩
+  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hsp, ?_⟩
   simpa using hf
 
 /-- `["--check-graph", "--search-path=" ++ dirs, "--", root]`'s `argv`. -/
@@ -81,8 +81,8 @@ theorem parse_args_module {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
     (h2 : w2.val = [45#u32, 45#u32]) {a : driver.cli.Args}
     (h : driver.cli.parse_args argv = ok a) :
     a.bad = none ∧ a.check_graph = false ∧ a.olean = true ∧ a.compare = false ∧
-      a.scheduled = false ∧ a.modular = false ∧ a.module = true ∧ a.pins = none ∧
-      a.no_pins = false ∧ a.verified = true ∧ a.trusted_path.val = [] ∧ a.constants.val = [] ∧
+      a.scheduled = false ∧ a.modular = false ∧ a.module = true ∧
+      a.verified = true ∧ a.trusted_path.val = [] ∧ a.constants.val = [] ∧
       driver.cli.push_dirs (alloc.vec.Vec.new _) w1 14#usize = ok a.search_path ∧
       a.files.val.map (·.val) = [w3.val] := by
   rw [driver.cli.parse_args, driver.cli.args_default] at h
@@ -102,11 +102,11 @@ theorem parse_args_module {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
   rw [ConRon.Args.loop_end g2 h2 (usize_add_lit (b := 4#usize) rfl)] at h
   obtain ⟨fl, hfl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [driver.cli.closed] at h
-  simp only [Bool.false_eq_true, ite_false] at h
+  simp only [core.option.Option.is_some, Option.isSome_none, Bool.false_eq_true, ite_false] at h
   cases Result.ok_injective h
   have hf := push_files_loop_val argv _ _ 4#usize rfl hfl
   simp only [hv] at hf
-  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hsp, ?_⟩
+  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hsp, ?_⟩
   simpa using hf
 
 /-- `["--olean", "--module", "--search-path=" ++ dirs, "--", root]`'s `argv`. -/
@@ -137,8 +137,8 @@ theorem parse_args_modular {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
     (h2 : w2.val = [45#u32, 45#u32]) {a : driver.cli.Args}
     (h : driver.cli.parse_args argv = ok a) :
     a.bad = none ∧ a.check_graph = false ∧ a.olean = true ∧ a.compare = false ∧
-      a.scheduled = false ∧ a.modular = true ∧ a.module = false ∧ a.pins = none ∧
-      a.no_pins = false ∧ a.verified = true ∧ a.trusted_path.val = [] ∧ a.constants.val = [] ∧
+      a.scheduled = false ∧ a.modular = true ∧ a.module = false ∧
+      a.verified = true ∧ a.trusted_path.val = [] ∧ a.constants.val = [] ∧
       driver.cli.push_dirs (alloc.vec.Vec.new _) w1 14#usize = ok a.search_path ∧
       a.files.val.map (·.val) = [w3.val] := by
   rw [driver.cli.parse_args, driver.cli.args_default] at h
@@ -158,11 +158,11 @@ theorem parse_args_modular {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
   rw [ConRon.Args.loop_end g2 h2 (usize_add_lit (b := 4#usize) rfl)] at h
   obtain ⟨fl, hfl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [driver.cli.closed] at h
-  simp only [Bool.false_eq_true, ite_false] at h
+  simp only [core.option.Option.is_some, Option.isSome_none, Bool.false_eq_true, ite_false] at h
   cases Result.ok_injective h
   have hf := push_files_loop_val argv _ _ 4#usize rfl hfl
   simp only [hv] at hf
-  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hsp, ?_⟩
+  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hsp, ?_⟩
   simpa using hf
 
 /-- `["--olean", "--modular", "--search-path=" ++ dirs, "--", root]`'s `argv`. -/

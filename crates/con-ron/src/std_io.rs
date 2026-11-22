@@ -2,12 +2,14 @@
 //! task #171): the file reads, the worker map, the escapes, and the rendering
 //! of every event the verified driver (`con_ron_core::driver`) hands it, in the
 //! binary's words.  All of it is outside the theorems; what they assume of it
-//! is OVERVIEW §8.2's driver row: its reads answer as one snapshot of the files
-//! (`AnswersAs`), its worker map keeps `ParallelAll` (`PoolSound`), its escapes
-//! write no file and do not end the process.
+//! is OVERVIEW §3.1: its reads answer as one snapshot of the files
+//! (`AnswersAs`), its worker map keeps `ParallelAll` (`PoolSound`), its code map
+//! answers each module's code (`CodesSound`), its escapes write no file and do
+//! not end the process.
 //!
-//! The text of a usage error, of a help or a synopsis, and the legacy driver
-//! are the binary's (`bin/con-ron.rs`), handed in as `StdIoHooks`.
+//! The text of a usage error, of a help or a synopsis are the binary's
+//! (`bin/con-ron.rs`), handed in as `StdIoHooks`; the scheduler is
+//! `crate::modular::schedule`.
 
 use std::io::Write;
 use std::sync::Mutex;
@@ -21,28 +23,28 @@ use con_ron_core::arena::store::EStore;
 use con_ron_core::arena::store::PersTier;
 use con_ron_core::arena::stream_index::IStreamIndex;
 use con_ron_core::driver::check_main::Note;
-use con_ron_core::driver::cli::Bad;
+use con_ron_core::driver::cli::{Args, Bad};
 use con_ron_core::frontend::checker_io::{CheckerFs, CheckerIo, CodeStep, Step, WorkerNote, WorkerNotes};
 use con_ron_core::frontend::modular::worker::WorkerRead;
 use con_ron_core::frontend::olean::progress;
 use con_ron_core::frontend::olean::spec::ImportRec;
 use con_ron_core::frontend::pace::{pace_dup, pace_on, Pace};
+use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
 use con_ron_core::ron::hashmap::Dup;
 use con_ron_core::ron::hashmap2::HashMap2;
 use con_ron_core::kernel::core_types::CheckError;
-use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
 
 use crate::driver;
 use crate::driver::{Heartbeat, PhaseObserver};
+use crate::modular;
 use crate::olean_fs;
 use crate::olean_fs::path_of;
 use crate::olean_fs::{NotesFs, StdFs};
 use crate::pool::parallel_all;
 use crate::render;
 
-/// con-leche: none — the binary's own text and its legacy driver, which the
-/// instance renders with and hands requests to.
+/// con-leche: none — the binary's own text, which the instance renders with.
 pub struct StdIoHooks {
     /// `--help`: print the help, the exit code
     pub help: fn() -> u8,
@@ -50,8 +52,6 @@ pub struct StdIoHooks {
     pub synopsis: fn(),
     /// a usage error's two lines, for its message
     pub usage: fn(&str) -> u8,
-    /// a request the verified driver does not run: the legacy driver
-    pub legacy: fn(Vec<String>) -> u8,
 }
 
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:515-531 instCheckerIOIO
@@ -397,19 +397,36 @@ impl CheckerIo for StdIo {
         (self.hooks.help)()
     }
 
-    /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
-    fn run_legacy(&mut self, argv: &Vec<Vec<u32>>) -> u8 {
-        (self.hooks.legacy)(argv.iter().map(|a| path_of(a)).collect())
+    /// con-leche: ConLeche/Driver/Schedule.lean:56-111 scheduleG
+    /// The scheduler (`crate::modular::schedule`) on the request off the
+    /// parsed arguments: the lookup, the settings, what the workers are run
+    /// with (`--max-nat-size` as a decimal, `--worker-stack-size` in KiB).
+    fn run_schedule(&mut self, a: &Args, root: &Name, sol: Option<&Name>) -> u8 {
+        let strs = |v: &Vec<Vec<u32>>| -> Vec<String> { v.iter().map(|d| path_of(d)).collect() };
+        let trusted = strs(&a.trusted_path);
+        let path = strs(&a.search_path);
+        let opts = strs(&a.schedule);
+        let q = modular::ScheduleReq {
+            trusted: &trusted,
+            path: &path,
+            root: name::dup(root),
+            cmp: sol.map(name::dup),
+            opts: &opts,
+            mode_tag: mode_tag(a.verified),
+            max_nat_size: con_ron_dump::natdec::to_decimal(&a.max_nat_size),
+            pace: &a.progress,
+            jobs: a.jobs,
+            stack_kb: match &a.worker_stack {
+                None => None,
+                Some(v) => modular::parse_size(&path_of(v)),
+            },
+        };
+        modular::schedule(&q)
     }
 
     /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
     fn hardware_jobs(&mut self) -> u64 {
         driver::default_jobs()
-    }
-
-    /// con-leche: none — `driver::pins_for_run`'s `--pins FILE`
-    fn read_pins_file(&mut self, p: &Vec<u32>) -> Result<Vec<NatOpPinSet>, Vec<u32>> {
-        driver::pins_for_run(&Some(path_of(p)), false).map_err(|m| render::cps(&m))
     }
 
     /// con-leche: none — con-leche task #336
@@ -431,7 +448,6 @@ impl CheckerIo for StdIo {
     /// `driver`'s own functions', so the two parses cannot drift apart.
     fn usage(&self, b: &Bad) {
         let msg: String = match b {
-            Bad::PinsNoFile => "--pins takes a file: --pins FILE".to_string(),
             Bad::JobsBare => "--jobs takes a worker count: --jobs=<n>; omit the flag for one worker \
                  per hardware thread"
                 .to_string(),
@@ -485,6 +501,9 @@ impl CheckerIo for StdIo {
             Bad::CompareModeArgs => "--compare with --module, --modular or --schedule takes one of them, \
                  and no --constant"
                 .to_string(),
+            Bad::ScheduleArgs => "--schedule takes one module name, and none of --constant, --module and \
+                 --modular"
+                .to_string(),
         };
         let _ = (self.hooks.usage)(&msg);
     }
@@ -537,8 +556,6 @@ impl CheckerIo for StdIo {
                     CheckError::Internal(_) => eprintln!("con-ron: {} ({})", m, mode_tag(*v)),
                 }
             }
-            Note::PinsFile(m) => eprintln!("con-ron: {}", path_of(m)),
-            Note::EmbeddedPins(e) => eprintln!("con-ron: embedded pin text: {}", driver::message(e)),
             Note::Accepted(records, v) => {
                 let _ = driver::verdict_accept(*records, mode_tag(*v));
             }

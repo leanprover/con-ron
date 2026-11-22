@@ -22,7 +22,6 @@ use std::collections::HashMap;
 use std::process::ExitCode;
 
 use con_ron::driver;
-use con_ron::olean_fs;
 use con_ron::olean_fs::StdFs;
 
 use con_ron_core::arena::canon;
@@ -30,11 +29,65 @@ use con_ron_core::arena::env::{IConstantInfo, IDeclaration};
 use con_ron_core::arena::handle::NIdx;
 use con_ron_core::arena::monad::AState;
 use con_ron_core::arena::store::PersTier;
+use con_ron_core::frontend::checker_io::FileChunks;
 use con_ron_core::frontend::export_c;
 use con_ron_core::frontend::olean::{closure, files, module, records, spec, view};
 use con_ron_core::frontend::olean::view::OLeanLevel;
 use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::kernel::env as cenv;
+
+/// con-leche: ConLeche/Driver/CheckMain.lean:55-62 Input
+/// What the command line asked for, the names parsed: a usage error is reported
+/// before anything is read.
+struct OleanRequest {
+    search_path: files::Roots,
+    roots: Vec<con_ron_core::kernel::name::Name>,
+    constants: Vec<con_ron_core::kernel::name::Name>,
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
+impl OleanRequest {
+    /// con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
+    /// The names of the command line, or the usage error.
+    fn new(search_path: &[String], modules: &[String], constants: &[String]) -> Result<OleanRequest, String> {
+        let mut roots = Vec::new();
+        for m in modules {
+            match files::parse_mod_name(&con_ron::render::cps(m)) {
+                Some(n) => roots.push(n),
+                None => return Err(format!("not a module name: {}", con_ron::render::display_str(m))),
+            }
+        }
+        let mut cs = Vec::new();
+        for c in constants {
+            match files::parse_const_name(&con_ron::render::cps(c)) {
+                Some(n) => cs.push(n),
+                None => return Err(format!("not a constant's name: {}", con_ron::render::display_str(c))),
+            }
+        }
+        Ok(OleanRequest {
+            search_path: files::roots_of_path(search_path.iter().map(|d| con_ron::render::cps(d)).collect()),
+            roots,
+            constants: cs,
+        })
+    }
+
+    /// con-leche: none — `a.rootConstants`, and `filterMap parseModName`, over handles
+    /// The names, as handles.
+    fn intern(&self, pers: &PersTier, st: &mut AState) -> Result<(Vec<NIdx>, Option<Vec<NIdx>>), CheckError> {
+        let mut roots: Vec<NIdx> = Vec::with_capacity(self.roots.len());
+        for n in &self.roots {
+            roots.push(con_ron_core::arena::monad::intern_name(pers, st, n)?);
+        }
+        if self.constants.is_empty() {
+            return Ok((roots, None));
+        }
+        let mut cs: Vec<NIdx> = Vec::with_capacity(self.constants.len());
+        for n in &self.constants {
+            cs.push(con_ron_core::arena::monad::intern_name(pers, st, n)?);
+        }
+        Ok((roots, Some(cs)))
+    }
+}
 
 /// con-leche: OleanCompare.lean:57-64 normalize
 /// The first declared name of a record, as text; the recursors of a block sorted by
@@ -147,7 +200,7 @@ fn agree(pk: &spec::OleanPins, pers: &PersTier, st: &mut AState, f: &view::ModFi
 fn run_views(sp: &[String], mods: &[String]) -> u8 {
     let pers: &PersTier = &PersTier::empty();
     let mut st = AState::empty();
-    let req = match olean_fs::OleanRequest::new(sp, mods, &[]) {
+    let req = match OleanRequest::new(sp, mods, &[]) {
         Ok(r) => r,
         Err(m) => {
             eprintln!("{}", m);
@@ -224,19 +277,25 @@ fn run_compare(file: &str, sp: &[String], mods: &[String], constants: &[String])
     let pers: &PersTier = &PersTier::empty();
     let mut st = AState::empty();
     let t0 = std::time::Instant::now();
-    let js = match driver::parse_export_stream_d(pers, &mut st, file, export_c::CHUNK_SIZE) {
-        Err(e) => {
-            eprintln!("stream: {}", e);
+    let path = con_ron::render::cps(file);
+    let (read, err) = {
+        let mut src = FileChunks { fs: &StdFs, path: &path, off: 0, reads: 0, err: None };
+        let read = export_c::parse_source(pers, &mut st, &mut src);
+        (read, src.err)
+    };
+    let js = match (err, read) {
+        (Some(m), _) => {
+            eprintln!("stream: {}", con_ron::olean_fs::path_of(&m));
             return 3;
         }
-        Ok((Err((e, l)), _)) => {
+        (None, Err((e, l))) => {
             eprintln!("stream: {} at line {}", driver::message(&e), l);
             return 3;
         }
-        Ok((Ok(r), _)) => r.decls,
+        (None, Ok(r)) => r.decls,
     };
     let t1 = t0.elapsed().as_millis();
-    let req = match olean_fs::OleanRequest::new(sp, mods, constants) {
+    let req = match OleanRequest::new(sp, mods, constants) {
         Ok(r) => r,
         Err(m) => {
             eprintln!("{}", m);

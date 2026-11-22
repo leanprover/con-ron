@@ -4,10 +4,10 @@
 //! format `proof/ConRon/Dump/FORMAT.md` specifies; this module is the
 //! *verified* reader of that format, so that the pin list
 //! `cached::installed::check_decls` folds with is computed **inside** the core
-//! rather than handed in by the unverified driver (task #31's arrangement).
-//! `con_ron_dump::parse_pins` is the same function outside the Aeneas subset —
-//! iterators, `?`, `String` errors — and a unit test holds the two together on
-//! the embedded text.
+//! rather than handed in by an unverified driver.  `con_ron_dump`'s test-only
+//! reader (`read::parse_pins`) is the same function outside the Aeneas subset
+//! — iterators, `?`, `String` errors — and a unit test holds the two together
+//! on the embedded text.
 //!
 //! **The grammar** is FORMAT.md's: the header line, then `N`/`L`/`E`
 //! records (the interned `Name`/`Level`/`Expr` DAG; task #119: the binder
@@ -1349,9 +1349,9 @@ pub fn decode(t: &[u8]) -> CheckM<Vec<NatOpPinSet>> {
 /// `natOpPinSets` while `NatOpPins.lean` elaborates; the declaration is not
 /// written there, hence the `_`.)
 /// **The pin list the binary checks with**: the embedded text, decoded.  This
-/// is what `cached::installed::check_decls`' `pins` parameter is given for a
-/// real run (`con_ron::driver`), and the capstone's `_embedded` headlines
-/// (`proof/ConRon/Capstone.lean`) take its output as their pin premise.  `--pins FILE` overrides it for testing only.
+/// is the pin list of every run (`driver::check_main::embedded_pins`), and the
+/// staged `_embedded` lemmas (`proof/ConRon/Capstone.lean`) take its output as
+/// their pin premise.
 pub fn decode_embedded() -> CheckM<Vec<NatOpPinSet>> {
     decode(PINS_TEXT.as_bytes())
 }

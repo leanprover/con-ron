@@ -36,6 +36,8 @@ use crate::frontend::checker_io::CheckerFs;
 use crate::frontend::checker_io::CheckerIo;
 use crate::frontend::checker_io::FileChunks;
 use crate::frontend::checker_io::Step;
+use crate::frontend::checker_io::WorkerNote;
+use crate::frontend::checker_io::WorkerNotes;
 use crate::frontend::export_c;
 use crate::frontend::nat_op_ground::DeclUsedConsts;
 use crate::frontend::olean::files::Roots;
@@ -71,10 +73,6 @@ pub enum Note {
     Parse(CheckError, u64, Vec<u32>, bool),
     /// the preparation or the pin walk failed
     Frontend(CheckError, bool),
-    /// `--pins FILE` did not read
-    PinsFile(Vec<u32>),
-    /// the embedded pin text did not decode
-    EmbeddedPins(CheckError),
     /// the accept line: the file's record count
     Accepted(u64, bool),
     /// the `.olean` read failed, at its line: the roots
@@ -392,30 +390,17 @@ pub fn check_phase_olean<I: CheckerIo>(
     }
 }
 
-/// con-leche: none — how a run chooses the pin list, which con-leche's driver
-/// does not have to (it passes `natOpPinSets`): the embedded text, decoded by
-/// the verified decoder (`pins_decode::decode_embedded`), unless `--no-pins`
-/// (the empty list) or `--pins FILE` (the instance's unverified reader), the
-/// port's two testing overrides.  A failure is noted, and `None`.
-pub fn pins_for_run<I: CheckerIo>(io: &mut I, a: &Args) -> Option<Vec<NatOpPinSet>> {
-    if a.no_pins {
-        return Some(Vec::new());
-    }
-    match &a.pins {
-        Some(p) => match io.read_pins_file(p) {
-            Err(m) => {
-                io.note(&Note::PinsFile(m));
-                None
-            }
-            Ok(ps) => Some(ps),
-        },
-        None => match pins_decode::decode_embedded() {
-            Err(e) => {
-                io.note(&Note::EmbeddedPins(e));
-                None
-            }
-            Ok(ps) => Some(ps),
-        },
+/// con-leche: none — the pin list, which con-leche's driver does not have to
+/// make (it passes `natOpPinSets`): the embedded text, decoded by the verified
+/// decoder (`pins_decode::decode_embedded`).  A failure (a text
+/// `scripts/gen-pins.sh` did not write) is noted, and `None`.
+pub fn embedded_pins<F: WorkerNotes>(fs: &F) -> Option<Vec<NatOpPinSet>> {
+    match pins_decode::decode_embedded() {
+        Err(e) => {
+            fs.worker_note(&WorkerNote::EmbeddedPins(e));
+            None
+        }
+        Ok(ps) => Some(ps),
     }
 }
 
@@ -519,8 +504,8 @@ pub fn check_main<I: CheckerIo>(io: &mut I, a: &Args, file: &Vec<u32>) -> u8 {
     if prepared.hoisted.len() > 0 {
         io.hoisted(&pers, &st.store, &prepared.hoisted);
     }
-    // ConRon.Capstone: hpins (`--pins`/`--no-pins` are outside the theorems)
-    let pins: Vec<NatOpPinSet> = match pins_for_run(io, a) {
+    // ConRon.Capstone: hpins
+    let pins: Vec<NatOpPinSet> = match embedded_pins(&*io) {
         None => return 3,
         Some(ps) => ps,
     };
@@ -623,7 +608,7 @@ pub fn check_oleans<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &
         io.hoisted(&pers, &st.store, &prepared.hoisted);
     }
     // ConRon.Capstone: hpins
-    let pins: Vec<NatOpPinSet> = match pins_for_run(io, a) {
+    let pins: Vec<NatOpPinSet> = match embedded_pins(&*io) {
         None => return 3,
         Some(ps) => ps,
     };

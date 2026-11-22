@@ -34,7 +34,7 @@ use crate::arena::stream_index::IStreamIndex;
 use crate::driver::check_main::check_phase;
 use crate::driver::check_main::exit_code;
 use crate::driver::check_main::jobs_for_run;
-use crate::driver::check_main::pins_for_run;
+use crate::driver::check_main::embedded_pins;
 use crate::driver::check_main::Note;
 use crate::driver::cli::Args;
 use crate::driver::cli::Bad;
@@ -228,8 +228,8 @@ pub fn compare_json<I: CheckerIo>(io: &mut I, a: &Args, challenge: &Vec<u32>, so
     if prep_s.hoisted.len() > 0 {
         io.hoisted(&pers, &st.store, &prep_s.hoisted);
     }
-    // ConRon.Capstone: hpins (`--pins`/`--no-pins` are outside the theorems)
-    let pins: Vec<NatOpPinSet> = match pins_for_run(io, a) {
+    // ConRon.Capstone: hpins
+    let pins: Vec<NatOpPinSet> = match embedded_pins(&*io) {
         None => return 3,
         Some(ps) => ps,
     };

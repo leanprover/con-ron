@@ -28,8 +28,8 @@
 //! `ExprNodes` name as a second citation; the type itself has no second
 //! citation any more, the abbreviation it cited having been retired.  The ten
 //! `@[simp] theorem`s of that file are the *spec*, not implementation (§3.1).
-//! `mkBVar` went with the rest: `Expr.mkBvar` (`Kernel/Expr.lean`) is the
-//! one bvar builder.
+//! `mkBVar` went with the rest, and `Expr.mkBvar` (`Kernel/Expr.lean`) is
+//! `bvar` (`mkBvar_eq`).
 //!
 //! The packed word's arithmetic is transliterated with `wrapping_*`, because
 //! Lean's `UInt64` `+`/`*` wrap: the port must be bit-exact here, since the
@@ -1003,35 +1003,6 @@ pub fn beq(a: &Expr, b: &Expr) -> bool {
     }
 }
 
-// ---------------------------------------------------------------------------
-// The `bvar` smart constructor (`Expr.lean:990-1037`)
-// ---------------------------------------------------------------------------
-
-/// con-leche: ConLeche/Kernel/Expr.lean:1369-1370 Expr.bvarPool
-/// con-leche: ConLeche/Kernel/Expr.lean:1372-1375 Expr.mkBvar
-/// con-leche: ConLeche/Kernel/Expr.lean:1377-1381 Expr.mkBvar_eq
-/// con-leche: ConLeche/Kernel/Expr.lean:1372-1375 mkBvar
-/// The `bvar` smart constructor.
-///
-/// **Deviation: the pool is not ported.**  `bvarPool` is a closed top-level
-/// `def` of type `Array Expr` that Lean's runtime builds once at module
-/// initialization and marks persistent.  Rust has no such thing inside the
-/// Aeneas subset: a `static`/`const` cannot allocate a `P` tree, and the
-/// lazy alternatives (`OnceLock`, `lazy_static`, an `unsafe` mutable
-/// `static`) are all outside DESIGN.md §3.4 — and Charon would in any case
-/// have to model a global whose value is an allocation performed before
-/// `main`.  Threading a pool through the checker's state instead would
-/// change every signature below this one, for a pure allocation win.
-///
-/// The cited `mkBvar_eq` is the transparency argument that makes dropping it
-/// free: `mkBvar i = .bvar i` on the Lean side, so the pooled and the fresh
-/// node are the same value and no statement anywhere changes.  What is lost
-/// is the allocation saving; it can come back in P1.6 as a Rust-side arena
-/// without touching the model, since the model is `.bvar i` either way.
-pub fn mk_bvar(i: u64) -> Expr {
-    bvar(i)
-}
-
 /* Not ported from `Expr.lean` (DESIGN.md §3.2 and §3.1):
    * what exists only for Lean's proof plumbing or for addresses, now that
      task #30 has ported the memo itself (`EqPair`, `BeqMap`, `beqKey`,
@@ -1047,8 +1018,8 @@ pub fn mk_bvar(i: u64) -> Expr {
      existed for.  The budget con-leche retired at its task #319 was never
      ported: `beq`'s two guards run before the table is allocated, so it had
      nothing left to buy (task #30 measured it).
-     (`bvarPool` is dropped too, but it is *cited* on `mk_bvar` above, where
-     its deviation is argued.)
+     `bvarPool` and `mkBvar` are not ported either: `mkBvar_eq` says
+     `mkBvar i = .bvar i`, so `bvar` is it.
    * every `theorem` — the packing roundtrip, the constructor-wise range and
      `hasLP` equations, `beqMemo_iff` (:1187), `beqMemo_eq` (:1216),
      `mkBvar_eq` (:1282) — plus the `@[csimp]` lemmas `decEq_eq_decEqPtr`
@@ -1099,7 +1070,6 @@ impl Eq2 for Expr {
 mod tests {
     use crate::kernel::expr;
     use crate::kernel::expr::Expr;
-    use crate::kernel::expr::ExprView;
     use crate::ron::hashmap::Eq2;
     use crate::ron::hashmap::HashMap;
     use crate::ron::hashmap::Hashable;
@@ -1644,22 +1614,6 @@ mod tests {
         assert!(!expr::beq_recursive(&ty));
         assert!(!expr::beq_recursive(&expr::mk_const(nm("Nat"), Vec::new())));
         assert!(!expr::beq_recursive(&expr::lit(expr::literal_nat(nat::zero()))));
-    }
-
-    #[test]
-    fn mk_bvar_is_the_bare_constructor() {
-        // `mkBvar_eq`: the pool is not ported, so what is a transparency
-        // lemma in Lean is an outright equality here.
-        for i in [0u64, 1, 4095, 4096, 100000].iter() {
-            let a = expr::mk_bvar(*i);
-            let b = expr::bvar(*i);
-            assert!(expr::beq(&a, &b));
-            assert_eq!(expr::data(&a), expr::data(&b));
-            match expr::view(&a) {
-                ExprView::Bvar(j) => assert_eq!(*j, *i),
-                _ => assert!(false),
-            }
-        }
     }
 
     #[test]

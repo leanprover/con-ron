@@ -587,9 +587,6 @@ theorem w_trusted_val : (Array.to_slice driver.cli.W_TRUSTED).val = [45#u32, 45#
 theorem w_progress_val : (Array.to_slice driver.cli.W_PROGRESS).val = [45#u32, 45#u32, 112#u32, 114#u32, 111#u32, 103#u32, 114#u32, 101#u32, 115#u32, 115#u32] := by
   simp [driver.cli.W_PROGRESS, Array.to_slice]
 
-theorem w_no_pins_val : (Array.to_slice driver.cli.W_NO_PINS).val = [45#u32, 45#u32, 110#u32, 111#u32, 45#u32, 112#u32, 105#u32, 110#u32, 115#u32] := by
-  simp [driver.cli.W_NO_PINS, Array.to_slice]
-
 theorem w_olean_val : (Array.to_slice driver.cli.W_OLEAN).val = [45#u32, 45#u32, 111#u32, 108#u32, 101#u32, 97#u32, 110#u32] := by
   simp [driver.cli.W_OLEAN, Array.to_slice]
 
@@ -605,9 +602,6 @@ theorem w_modular_val : (Array.to_slice driver.cli.W_MODULAR).val = [45#u32, 45#
 theorem w_compare_val : (Array.to_slice driver.cli.W_COMPARE).val = [45#u32, 45#u32, 99#u32, 111#u32, 109#u32, 112#u32, 97#u32, 114#u32, 101#u32] := by
   simp [driver.cli.W_COMPARE, Array.to_slice]
 
-theorem w_pins_val : (Array.to_slice driver.cli.W_PINS).val = [45#u32, 45#u32, 112#u32, 105#u32, 110#u32, 115#u32] := by
-  simp [driver.cli.W_PINS, Array.to_slice]
-
 theorem w_jobs_val : (Array.to_slice driver.cli.W_JOBS).val = [45#u32, 45#u32, 106#u32, 111#u32, 98#u32, 115#u32] := by
   simp [driver.cli.W_JOBS, Array.to_slice]
 
@@ -619,9 +613,6 @@ theorem w_jobs_eq_val : (Array.to_slice driver.cli.W_JOBS_EQ).val = [45#u32, 45#
 
 theorem w_max_nat_size_eq_val : (Array.to_slice driver.cli.W_MAX_NAT_SIZE_EQ).val = [45#u32, 45#u32, 109#u32, 97#u32, 120#u32, 45#u32, 110#u32, 97#u32, 116#u32, 45#u32, 115#u32, 105#u32, 122#u32, 101#u32, 61#u32] := by
   simp [driver.cli.W_MAX_NAT_SIZE_EQ, Array.to_slice]
-
-theorem w_pins_eq_val : (Array.to_slice driver.cli.W_PINS_EQ).val = [45#u32, 45#u32, 112#u32, 105#u32, 110#u32, 115#u32, 61#u32] := by
-  simp [driver.cli.W_PINS_EQ, Array.to_slice]
 
 theorem w_constant_eq_val : (Array.to_slice driver.cli.W_CONSTANT_EQ).val = [45#u32, 45#u32, 99#u32, 111#u32, 110#u32, 115#u32, 116#u32, 97#u32, 110#u32, 116#u32, 61#u32] := by
   simp [driver.cli.W_CONSTANT_EQ, Array.to_slice]
@@ -641,7 +632,7 @@ theorem w_worker_stack_size_eq_val : (Array.to_slice driver.cli.W_WORKER_STACK_S
 macro "parse_one_word" hs:term "," hv:term : tactic => `(tactic| (
   obtain ⟨hi, hx⟩ := List.getElem?_eq_some_iff.mp $hs
   rw [driver.cli.parse_one, ConRon.Args.vec_index_ok'' hi, hx]
-  simp only [bind_ok, lift, ConRon.Args.cps_beq_eq, $hv:term, w_end_val, w_help_val, w_verified_val, w_trusted_val, w_progress_val, w_no_pins_val, w_olean_val, w_check_graph_val, w_module_val, w_modular_val, w_compare_val, w_pins_val, w_jobs_val, w_progress_eq_val, w_jobs_eq_val, w_max_nat_size_eq_val, w_pins_eq_val, w_constant_eq_val, w_search_path_eq_val, w_trusted_search_path_eq_val, w_schedule_val, w_worker_stack_size_eq_val]
+  simp only [bind_ok, lift, ConRon.Args.cps_beq_eq, $hv:term, w_end_val, w_help_val, w_verified_val, w_trusted_val, w_progress_val, w_olean_val, w_check_graph_val, w_module_val, w_modular_val, w_compare_val, w_jobs_val, w_progress_eq_val, w_jobs_eq_val, w_max_nat_size_eq_val, w_constant_eq_val, w_search_path_eq_val, w_trusted_search_path_eq_val, w_schedule_val, w_worker_stack_size_eq_val]
   simp (config := { decide := true }) only [ite_true, ite_false]))
 
 variable {a : driver.cli.Args} {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {i : Std.Usize}
@@ -649,23 +640,23 @@ variable {a : driver.cli.Args} {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {i
 
 theorem parse_one_olean (hs : argv.val[i.val]? = some s)
     (hv : s.val = [45#u32, 45#u32, 111#u32, 108#u32, 101#u32, 97#u32, 110#u32]) :
-    driver.cli.parse_one a argv i = ok ({ a with olean := true }, i) := by
+    driver.cli.parse_one a argv i = ok { a with olean := true } := by
   parse_one_word hs, hv
 
 theorem parse_one_module (hs : argv.val[i.val]? = some s)
     (hv : s.val = [45#u32, 45#u32, 109#u32, 111#u32, 100#u32, 117#u32, 108#u32, 101#u32]) :
-    driver.cli.parse_one a argv i = ok ({ a with module := true }, i) := by
+    driver.cli.parse_one a argv i = ok { a with module := true } := by
   parse_one_word hs, hv
 
 theorem parse_one_modular (hs : argv.val[i.val]? = some s)
     (hv : s.val = [45#u32, 45#u32, 109#u32, 111#u32, 100#u32, 117#u32, 108#u32, 97#u32, 114#u32]) :
-    driver.cli.parse_one a argv i = ok ({ a with modular := true }, i) := by
+    driver.cli.parse_one a argv i = ok { a with modular := true } := by
   parse_one_word hs, hv
 
 theorem parse_one_check_graph (hs : argv.val[i.val]? = some s)
     (hv : s.val = [45#u32, 45#u32, 99#u32, 104#u32, 101#u32, 99#u32, 107#u32, 45#u32, 103#u32,
       114#u32, 97#u32, 112#u32, 104#u32]) :
-    driver.cli.parse_one a argv i = ok ({ a with check_graph := true }, i) := by
+    driver.cli.parse_one a argv i = ok { a with check_graph := true } := by
   parse_one_word hs, hv
 
 /-- **`--search-path=DIRS`**: the directories, after the ones before. -/
@@ -674,18 +665,18 @@ theorem parse_one_search {T : List Std.U32} (hs : argv.val[i.val]? = some s)
       112#u32, 97#u32, 116#u32, 104#u32, 61#u32] ++ T) :
     driver.cli.parse_one a argv i = (do
       let v ← driver.cli.push_dirs a.search_path s 14#usize
-      ok ({ a with search_path := v }, i)) := by
+      ok { a with search_path := v }) := by
   obtain ⟨hi, hx⟩ := List.getElem?_eq_some_iff.mp hs
   rw [driver.cli.parse_one, ConRon.Args.vec_index_ok'' hi, hx]
-  simp only [bind_ok, lift, ConRon.Args.cps_beq_eq, hv, w_verified_val, w_trusted_val, w_progress_val, w_no_pins_val, w_olean_val, w_check_graph_val, w_module_val, w_modular_val, w_compare_val, w_pins_val, w_jobs_val, w_progress_eq_val, w_jobs_eq_val, w_max_nat_size_eq_val, w_pins_eq_val, w_constant_eq_val, w_search_path_eq_val, w_trusted_search_path_eq_val, w_schedule_val, w_worker_stack_size_eq_val, driver.cli.parse_valued,
+  simp only [bind_ok, lift, ConRon.Args.cps_beq_eq, hv, w_verified_val, w_trusted_val, w_progress_val, w_olean_val, w_check_graph_val, w_module_val, w_modular_val, w_compare_val, w_jobs_val, w_progress_eq_val, w_jobs_eq_val, w_max_nat_size_eq_val, w_constant_eq_val, w_search_path_eq_val, w_trusted_search_path_eq_val, w_schedule_val, w_worker_stack_size_eq_val, driver.cli.parse_valued,
     ConRon.Args.cps_starts_with_eq, List.cons_append, List.cons_beq_cons, List.take_succ_cons,
     List.length_cons, List.length_nil]
   simp
 
 /-- **A word that is not `--`**: the loop goes on after `parse_one`'s answer. -/
 theorem loop_word {a' : driver.cli.Args} (hs : argv.val[i.val]? = some s)
-    (hne : s.val ≠ [45#u32, 45#u32]) {j i2 : Std.Usize}
-    (h1 : driver.cli.parse_one a argv i = ok (a', j)) (hi2 : j + 1#usize = ok i2) :
+    (hne : s.val ≠ [45#u32, 45#u32]) {i2 : Std.Usize}
+    (h1 : driver.cli.parse_one a argv i = ok a') (hi2 : i + 1#usize = ok i2) :
     driver.cli.parse_args_loop argv a i = driver.cli.parse_args_loop argv a' i2 := by
   obtain ⟨hi, hx⟩ := List.getElem?_eq_some_iff.mp hs
   rw [driver.cli.parse_args_loop]
@@ -694,9 +685,7 @@ theorem loop_word {a' : driver.cli.Args} (hs : argv.val[i.val]? = some s)
   simp only [bind_ok, lift, ConRon.Args.cps_beq_eq, w_end_val]
   have : (s.val == [45#u32, 45#u32]) = false := by simpa using hne
   rw [this]
-  simp only [Bool.false_eq_true, ite_false, h1, bind_ok]
-  show (do let i2 ← j + 1#usize; driver.cli.parse_args_loop argv a' i2) = _
-  rw [hi2]; simp only [bind_tc_ok]
+  simp only [Bool.false_eq_true, ite_false, h1, bind_ok, hi2]
 
 /-- **`--`**: every argument after it is a file. -/
 theorem loop_end (hs : argv.val[i.val]? = some s) (hv : s.val = [45#u32, 45#u32]) {i2 : Std.Usize}

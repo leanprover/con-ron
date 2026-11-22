@@ -98,8 +98,7 @@ globs = ["ConRon.Bridge.*"]
 # The `Nat`-operation pin dump (DESIGN.md §3.6's runtime-data decision, task
 # #31): writes `ConLeche.natOpPinSets` in the `con-ron-pins/2` format
 # (`ConRon/Dump/FORMAT.md`) and reads it back.  `scripts/gen-pins.sh` embeds
-# the result in the verified core, and `con-ron --pins FILE` reads a file in
-# that format as a test override.
+# the result in the verified core.
 [[lean_exe]]
 name = "con-ron-dump-pins"
 root = "ConRon.Dump.Pins"

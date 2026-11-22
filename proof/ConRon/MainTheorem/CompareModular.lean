@@ -205,7 +205,7 @@ theorem run_args_graph_cmp (hfs : AnswersAs io fs)
   rw [driver.cli.run_args, hhelp, bind_ok] at h
   simp only [Bool.false_eq_true, ite_false] at h
   obtain ⟨a, ha, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨hbad, hcg, hol, hcmp, hsch, hmod, hmo, hp, hnp, hver, hcon, htp, hsp, hfl⟩ :=
+  obtain ⟨hbad, hcg, hol, hcmp, hsch, hmod, hmo, hver, hcon, htp, hsp, hfl⟩ :=
     parse_args_graph_cmp hv h0 h1 hTT hDD hE ha
   simp only [hbad, hcg, ite_true] at h
   obtain ⟨f0', f1', hf', hf0', hf1'⟩ : ∃ f0' f1', a.files.val = [f0', f1'] ∧
@@ -229,7 +229,7 @@ theorem run_args_graph_cmp (hfs : AnswersAs io fs)
 /-- **`--olean --module` on one root, any trusted path, at exit 0** (`cli::olean_args`,
 `module_args`): the worker at the solution's lookup. -/
 theorem olean_args_module_t {s s' : S} {a : driver.cli.Args} (hcmp : a.compare = false)
-    (hmod : a.modular = false) (hmo : a.module = true) (hcon : a.constants.val = [])
+    (hsch : a.scheduled = false) (hmod : a.modular = false) (hmo : a.module = true) (hcon : a.constants.val = [])
     {f : alloc.vec.Vec Std.U32} (hfiles : a.files.val = [f]) {c : Std.U8}
     (h : driver.cli.olean_args io s a = ok (c, s')) (hc : c.val = 0) :
     ∃ (nm : kernel.name.Name) (sp : frontend.olean.files.Roots),
@@ -252,7 +252,7 @@ theorem olean_args_module_t {s s' : S} {a : driver.cli.Args} (hcmp : a.compare =
   cases b1 with
   | true => exact (usage_ne h hc).elim
   | false =>
-  simp only [Bool.false_eq_true, ite_false, hmod, hmo, ite_true] at h
+  simp only [Bool.false_eq_true, ite_false, hsch, hmod, hmo, ite_true] at h
   rw [driver.cli.module_args] at h
   have h1 : ¬ (alloc.vec.Vec.len rs != 1#usize) = true := by
     have := alloc.vec.Vec.len_val rs
@@ -298,16 +298,16 @@ theorem run_args_module_t (hfs : AnswersAs io fs) (hpool : PoolSound io)
   rw [driver.cli.run_args, hhelp, bind_ok] at h
   simp only [Bool.false_eq_true, ite_false] at h
   obtain ⟨a, ha, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨hbad, hcg, hol, hcmp, hsch, hmod, hmo, hp, hnp, hver, hcon, htp, hsp, hfl⟩ :=
+  obtain ⟨hbad, hcg, hol, hcmp, hsch, hmod, hmo, hver, hcon, htp, hsp, hfl⟩ :=
     parse_args_module_t hv h0 h1 hTT hDD hE ha
   simp only [hbad, hcg, hol, hsch, hmod, Bool.false_eq_true, ite_false, ite_true] at h
   obtain ⟨f', hf', hf'v⟩ : ∃ f', a.files.val = [f'] ∧ f'.val = f0.val := by
     rcases hfv : a.files.val with _ | ⟨f', _ | ⟨g, l⟩⟩ <;> rw [hfv] at hfl <;> simp at hfl
     exact ⟨f', rfl, hfl⟩
-  obtain ⟨nm, sp, hnm, hspR, hck⟩ := olean_args_module_t hcmp hmod hmo hcon hf' h hc
+  obtain ⟨nm, sp, hnm, hspR, hck⟩ := olean_args_module_t hcmp hsch hmod hmo hcon hf' h hc
   have hf3 : f'.val.map UScalar.val = root.toList.map Char.toNat := by rw [hf'v]; exact hf0
   obtain ⟨hwf, hpm⟩ := ConRon.Args.parse_mod_name_some hf3 hnm
-  obtain ⟨pins, hst⟩ := check_module_zero hfs hpool hver hnp hp (sol_roots_bare hspR) hwf
+  obtain ⟨pins, hst⟩ := check_module_zero hfs hpool hver (sol_roots_bare hspR) hwf
     (by simp) hck hc
   refine ⟨nm, sp, hpm, fun X Y => ?_, pins, hst⟩
   rw [sol_roots_abs hspR X Y, show absSearchPath a.trusted_path = _ from
@@ -317,8 +317,8 @@ theorem run_args_module_t (hfs : AnswersAs io fs) (hpool : PoolSound io)
 /-- **The compare worker, 0** (`compare_module::check_cmp_module`): the challenge walk answered
 none, and the worker of the challenge, the solution added, at the solution's lookup. -/
 theorem check_cmp_module_zero (hfs : AnswersAs io fs) (hpool : PoolSound io) {s s' : S}
-    {a : driver.cli.Args} (hver : a.verified = true) (hnp : a.no_pins = false)
-    (hp : a.pins = none) {cn sn : kernel.name.Name} (hwfC : ConRon.Refine.NameWF cn)
+    {a : driver.cli.Args} (hver : a.verified = true)
+    {cn sn : kernel.name.Name} (hwfC : ConRon.Refine.NameWF cn)
     (hwfS : ConRon.Refine.NameWF sn) {c : Std.U8}
     (h : driver.compare_module.check_cmp_module io s a cn sn = ok (c, s')) (hc : c.val = 0) :
     ∃ sp, driver.cli.sol_roots a = ok sp ∧ ∃ pins, WorkerStages fs sp cn (some sn) pins := by
@@ -328,13 +328,13 @@ theorem check_cmp_module_zero (hfs : AnswersAs io fs) (hpool : PoolSound io) {s 
   | some e => exact (graph_failed_ne h hc).elim
   | none =>
   obtain ⟨sp, hsp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  exact ⟨sp, hsp, check_module_zero hfs hpool hver hnp hp (sol_roots_bare hsp) hwfC
+  exact ⟨sp, hsp, check_module_zero hfs hpool hver (sol_roots_bare hsp) hwfC
     (by simpa using hwfS) h hc⟩
 
 /-- **`--olean --module --compare` at two roots, at exit 0** (`cli::olean_args`,
 `compare_olean_args`). -/
 theorem olean_args_module_cmp {s s' : S} {a : driver.cli.Args} (hcmp : a.compare = true)
-    (hmod : a.modular = false) (hmo : a.module = true) (hcon : a.constants.val = [])
+    (hsch : a.scheduled = false) (hmod : a.modular = false) (hmo : a.module = true) (hcon : a.constants.val = [])
     {f0 f1 : alloc.vec.Vec Std.U32} (hfiles : a.files.val = [f0, f1]) {c : Std.U8}
     (h : driver.cli.olean_args io s a = ok (c, s')) (hc : c.val = 0) :
     ∃ (n0 n1 : kernel.name.Name),
@@ -358,7 +358,8 @@ theorem olean_args_module_cmp {s s' : S} {a : driver.cli.Args} (hcmp : a.compare
   have h2 : ¬ alloc.vec.Vec.len cs > 0#usize := by
     have := alloc.vec.Vec.len_val cs
     simp [alloc.vec.Vec.length, hcsv] at this; scalar_tac
-  simp only [hmo, hmod, ite_true, Bool.false_eq_true, ite_false, ite_eq_right h2] at h
+  simp only [driver.cli.cmp_mode, driver.cli.cmp_mode_bad, hmo, hmod, hsch, bind_ok, ite_true,
+    Bool.false_eq_true, ite_false, ite_eq_right h2] at h
   exact ⟨n0, n1, h0, h1, two_names_ok (io := io) (s := s) (b := driver.cli.Bad.CompareTwoModules)
     (k := driver.compare_module.check_cmp_module io s a) hrs h hc⟩
 
@@ -397,7 +398,7 @@ theorem run_args_module_cmp (hfs : AnswersAs io fs) (hpool : PoolSound io)
   rw [driver.cli.run_args, hhelp, bind_ok] at h
   simp only [Bool.false_eq_true, ite_false] at h
   obtain ⟨a, ha, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨hbad, hcg, hol, hcmp, hsch, hmod, hmo, hp, hnp, hver, hcon, htp, hsp, hfl⟩ :=
+  obtain ⟨hbad, hcg, hol, hcmp, hsch, hmod, hmo, hver, hcon, htp, hsp, hfl⟩ :=
     parse_args_module_cmp hv h0 h1 h2 hTT hDD hE ha
   simp only [hbad, hcg, hol, hsch, hmod, Bool.false_eq_true, ite_false, ite_true] at h
   obtain ⟨f0', f1', hf', hf0', hf1'⟩ : ∃ f0' f1', a.files.val = [f0', f1'] ∧
@@ -405,12 +406,12 @@ theorem run_args_module_cmp (hfs : AnswersAs io fs) (hpool : PoolSound io)
     rcases hfv : a.files.val with _ | ⟨f0', _ | ⟨f1', _ | ⟨g, l⟩⟩⟩ <;> rw [hfv] at hfl <;>
       simp at hfl
     exact ⟨f0', f1', rfl, hfl.1, hfl.2⟩
-  obtain ⟨n0, n1, hn0, hn1, hck⟩ := olean_args_module_cmp hcmp hmod hmo hcon hf' h hc
+  obtain ⟨n0, n1, hn0, hn1, hck⟩ := olean_args_module_cmp hcmp hsch hmod hmo hcon hf' h hc
   have hc0 : f0'.val.map UScalar.val = c.toList.map Char.toNat := by rw [hf0']; exact hf0
   have hc1 : f1'.val.map UScalar.val = s.toList.map Char.toNat := by rw [hf1']; exact hf1
   obtain ⟨hwf0, hpm0⟩ := ConRon.Args.parse_mod_name_some hc0 hn0
   obtain ⟨hwf1, hpm1⟩ := ConRon.Args.parse_mod_name_some hc1 hn1
-  obtain ⟨sp, hspR, pins, hst⟩ := check_cmp_module_zero hfs hpool hver hnp hp hwf0 hwf1 hck hc
+  obtain ⟨sp, hspR, pins, hst⟩ := check_cmp_module_zero hfs hpool hver hwf0 hwf1 hck hc
   refine ⟨n0, n1, sp, hpm0, hpm1, fun X Y => ?_, pins, hst⟩
   rw [sol_roots_abs hspR X Y, show absSearchPath a.trusted_path = _ from
     ConRon.Args.push_dirs_trusted hT htp,
@@ -523,7 +524,7 @@ theorem step_sol_some {m root s : kernel.name.Name} (hm : ConRon.Refine.NameWF m
 the embedded pins): the compared graph check's calls, and at every module of it, its worker's,
 the challenge's the compare worker. -/
 theorem check_modular_cmp_zero (hfs : AnswersAs io fs) (hcodes : CodesSound io) {s s' : S}
-    {a : driver.cli.Args} (hver : a.verified = true) (hnp : a.no_pins = false)
+    {a : driver.cli.Args} (hver : a.verified = true)
     {roots : alloc.vec.Vec kernel.name.Name} {cName sName : kernel.name.Name}
     (hroots1 : roots.val = [cName]) (hwfC : ConRon.Refine.NameWF cName)
     (hwfS : ConRon.Refine.NameWF sName)
@@ -610,7 +611,7 @@ theorem check_modular_cmp_zero (hfs : AnswersAs io fs) (hcodes : CodesSound io) 
     scalar_tac
   rw [ite_eq_left hkl, ConRon.Args.vec_index_ok' (by rw [UScalar.ofNatCore_val_eq]; exact hk),
     bind_ok] at hc0
-  simp only [UScalar.ofNatCore_val_eq, hver, hnp] at hc0
+  simp only [UScalar.ofNatCore_val_eq, hver] at hc0
   obtain ⟨o, ho, hc0⟩ := ConRon.Refine.bind_eq_ok_iff.mp hc0
   have ho' := step_sol_some hwk hwfC ho
   subst ho'
@@ -793,7 +794,7 @@ variable {S : Type} {io : frontend.checker_io.CheckerIo S} {fs : ConLeche.FS}
 `compare_olean_args`): the one-process mode at the challenge alone, the solution added, at the
 solution's lookup. -/
 theorem olean_args_modular_cmp {s s' : S} {a : driver.cli.Args} (hcmp : a.compare = true)
-    (hmod : a.modular = true) (hmo : a.module = false) (hcon : a.constants.val = [])
+    (hsch : a.scheduled = false) (hmod : a.modular = true) (hmo : a.module = false) (hcon : a.constants.val = [])
     {f0 f1 : alloc.vec.Vec Std.U32} (hfiles : a.files.val = [f0, f1]) {c : Std.U8}
     (h : driver.cli.olean_args io s a = ok (c, s')) (hc : c.val = 0) :
     ∃ (n0 n1 : kernel.name.Name) (rs : alloc.vec.Vec kernel.name.Name)
@@ -819,7 +820,8 @@ theorem olean_args_modular_cmp {s s' : S} {a : driver.cli.Args} (hcmp : a.compar
   have h2 : ¬ alloc.vec.Vec.len cs > 0#usize := by
     have := alloc.vec.Vec.len_val cs
     simp [alloc.vec.Vec.length, hcsv] at this; scalar_tac
-  simp only [hmo, hmod, ite_true, Bool.false_eq_true, ite_false, ite_eq_right h2] at h
+  simp only [driver.cli.cmp_mode, driver.cli.cmp_mode_bad, hmo, hmod, hsch, bind_ok, ite_true,
+    Bool.false_eq_true, ite_false, ite_eq_right h2] at h
   have h' := two_names_ok (io := io) (s := s) (b := driver.cli.Bad.CompareTwoModules)
     (k := fun n n1 => (do
       let sp ← driver.cli.sol_roots a
@@ -866,22 +868,21 @@ theorem run_args_modular_cmp (hfs : AnswersAs io fs) (hcodes : CodesSound io)
   rw [driver.cli.run_args, hhelp, bind_ok] at h
   simp only [Bool.false_eq_true, ite_false] at h
   obtain ⟨a, ha, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨hbad, hcg, hol, hcmp, hsch, hmod, hmo, hp, hnp, hver, hcon, htp, hsp, hfl⟩ :=
+  obtain ⟨hbad, hcg, hol, hcmp, hsch, hmod, hmo, hver, hcon, htp, hsp, hfl⟩ :=
     parse_args_modular_cmp hv h0 h1 h2 hTT hDD hE ha
-  simp only [hbad, hcg, hol, hsch, hmod, hp, Bool.false_eq_true, ite_false, ite_true,
-    core.option.Option.is_some, Option.isSome_none] at h
+  simp only [hbad, hcg, hol, Bool.false_eq_true, ite_false, ite_true] at h
   obtain ⟨f0', f1', hf', hf0', hf1'⟩ : ∃ f0' f1', a.files.val = [f0', f1'] ∧
       f0'.val = f0.val ∧ f1'.val = f1.val := by
     rcases hfv : a.files.val with _ | ⟨f0', _ | ⟨f1', _ | ⟨g, l⟩⟩⟩ <;> rw [hfv] at hfl <;>
       simp at hfl
     exact ⟨f0', f1', rfl, hfl.1, hfl.2⟩
   obtain ⟨n0, n1, rs, spR, hn0, hn1, hrs, hspR, hck⟩ :=
-    olean_args_modular_cmp hcmp hmod hmo hcon hf' h hc
+    olean_args_modular_cmp hcmp hsch hmod hmo hcon hf' h hc
   have hc0 : f0'.val.map UScalar.val = c.toList.map Char.toNat := by rw [hf0']; exact hf0
   have hc1 : f1'.val.map UScalar.val = s.toList.map Char.toNat := by rw [hf1']; exact hf1
   obtain ⟨hwf0, hpm0⟩ := ConRon.Args.parse_mod_name_some hc0 hn0
   obtain ⟨hwf1, hpm1⟩ := ConRon.Args.parse_mod_name_some hc1 hn1
-  have hst := check_modular_cmp_zero hfs hcodes hver hnp hrs hwf0 hwf1 (sol_roots_bare hspR) hck hc
+  have hst := check_modular_cmp_zero hfs hcodes hver hrs hwf0 hwf1 (sol_roots_bare hspR) hck hc
   refine ⟨n0, n1, spR, hpm0, hpm1, fun X Y => ?_, hst⟩
   rw [sol_roots_abs hspR X Y, show absSearchPath a.trusted_path = _ from
     ConRon.Args.push_dirs_trusted hT htp,
