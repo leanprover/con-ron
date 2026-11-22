@@ -74351,3 +74351,122 @@ PORTED — the same 41 failing cases, line for line, as master's binary gives on
 stays legacy for good; slice 5 retires `run_legacy` and the now unreached `--olean` arms of
 `bin/con-ron.rs` (`Input::Oleans`, `Run::Module`/`Run::Modular` at no comparison).  Upstream
 candidates: Batteries' `String.splitOn` lemma (its TODO, `splitOn_one` here).
+
+#### Slice 3b (lane G) — the compared `.olean` runs: `--olean --compare`, `--check-graph --compare`, the compare worker, `--olean --modular --compare`
+
+**What moved.**  `run_args` now sends `--check-graph` (with or without `--compare`) to
+`cli::check_graph_args` and every `--olean` request to `cli::olean_args`, but `--schedule` (with
+or without `--compare`) and `--modular --pins`, which stay `run_legacy`'s.  `--modular --pins`
+keeps slice 2's reason: a module's step on the code map has the file operations and the worker
+lines alone, and `--pins FILE` is the instance's `&mut` escape.
+
+* `crates/con-ron-core/src/driver/compare.rs` (cites `Driver/Compare.lean`, from
+  `crates/con-ron/src/compare.rs`'s `compare_oleans`): `compare_oleans`, one call per premise of
+  `rust_stages_oleans_compare` in its order (`h1`, `h2`, the two names, the challenge's read at
+  `chal_roots`, `hdup`, `h4`, `hhole`, the solution's read at `sol_roots`, `h4S`, the pins,
+  `h5`, the solution's check phase, `hside`, `solution_of`, the challenge's check phase); each
+  read's records leave it by `core::mem::replace` before its preparation, as slice 2's
+  `check_oleans`.  The verdict is lane F's (`compare_json::compare_verdict`, `solution_failed`),
+  the solution labelled by `name::render` of its module, which is the legacy `name_str`.
+  `fallback_only` (the challenge module only the search path holds, for the message after a
+  failed challenge read), `fallback_at`, `fallback_scan`, `fallback_text`, `dirs_text`,
+  `sol_roots_of`, `rec_keys` (the `--constant` run's `need`), `holds_module` (a solution importing
+  its challenge), `step_failed`, `one_root`, `one_name`.
+* `crates/con-ron-core/src/driver/compare_module.rs` (`Driver/CompareModule.lean`): `chal_walk`
+  (the challenge's closure through the trusted path alone, with the `fallback_only` message as an
+  `invalid` error), `check_cmp_module` (the compare worker: `chal_walk`, then
+  `worker::check_module` at the solution's lookup with the solution), `check_graph_cmp`
+  (`chal_walk`, then `graph_of` from the challenge, the solution added).  **`chal_walk` runs on
+  a store of its own** (a fresh `AState`, its own reserved pins and reader pins): it is the
+  verdict only, and on the run's store it would sit between the interning and `graph_of`, where
+  `rust_graph_cmp` has nothing.  The order of the lines is the legacy order; only the walk's own
+  start failing (the reserved pins on an empty store, which cannot fail) is now reported as
+  `graph: <error>` where the legacy said the graph start's line.
+* `worker.rs`: `module_read` takes the added imports `x`; `added_imports` (none, or the
+  solution's name interned after the module's and `solution_import` of it: the capstone's
+  `hcmp`), `module_copies` (after the accept, the instance's `worker_copies`: the copies' lines,
+  the error that kept them from being made a worker failure); `check_module` and
+  `check_module_in` take `sol: Option<&Name>`.  `modular.rs`: `ModularStep` gains `root` and
+  `sol`, `step_sol` (the solution at the module `name::beq` to the root), `check_modular` takes
+  `sol` (the solution interned after the roots and the graph's added import; `chal_walk` after
+  the graph, its failure `Note::GraphFailedMode`, as the legacy).  `check_main.rs`:
+  `olean_job`, `OleanJobStep` and `check_phase_olean` take the solution (`sol`; `None` but at the
+  compared challenge).  `cli.rs`: `chal_roots`, `check_graph_cmp_args`, `compare_olean_args`
+  (con-leche's usage checks of the compared modes, in its order); `Bad` gains
+  `CheckGraphCompareTwo`, `CompareTwoModules`, `CompareSameModule`, `CompareModeArgs`; `Note`
+  gains `GraphFailedMode`, `CompareWhy`, `NotSolution`; `WorkerNotes` gains `worker_copies`
+  (`StdIo`: the legacy `copy_recs`, `owner_map`, `modular::copy_line`, all lines made before
+  any is printed).  Two module names are compared by `name::beq` (con-leche's `c == s`), where
+  the legacy compared their rendered strings: the parse of a module name gives one name per
+  spelling, so no command line can tell.
+
+**What extracted.**  `Generated/Funs.lean` +2 060/−997 (Aeneas reorders), 29 more definitions;
+Aeneas 413 s.  One Aeneas finding, `_tmp/corpus/aeneas/loop-return-mut/` (NOT reduced: the
+small shapes there extract): "Early returns inside of loops are not supported yet" on
+`fallback_only`'s loop over `closure_order`'s answer, a local vector, in two shapes (a `return`
+from a nested `match` on `look_at`; then a `match` on `fallback_at` with two returning arms);
+worked around with an accumulator loop (`fallback_scan`).
+
+**The walk** (no `sorry`, no Aesop, no new axiom).
+* `MainTheorem/CmpArgs.lean` (424 lines): `parse_one_trusted`, `loop_trusted`,
+  `push_dirs_trusted` (`--trusted-search-path=` ++ `T` is `searchPathOf T`), `trusted_word`,
+  and the parses of the five argument lists (`argv_*`, `parse_args_*`: `cmp`, `graph_cmp`,
+  `module_t`, `module_cmp`, `modular_cmp`), generated from one template.
+* `MainTheorem/CompareOleans.lean` (686): `rust_stages_oleans_compare_dec` (the capstone's
+  Theorem 2 walk with the reads' records moved out, `olean_read_used_rel_dec` at the challenge's
+  preparation and holes and the solution's preparation, and three snapshots: the reads, the
+  solution's pool, the challenge's pool), `compare_model_of_stages_dec` (lane C's conclusion at
+  those), `CmpOleanStages`, `chal_roots_val` (the challenge's lookup is con-leche's `trustedOr`),
+  `sol_roots_abs` (the solution's is `CmpReq.solRoots`), `compare_oleans_zero`, `two_roots`,
+  `olean_args_cmp`, `run_args_cmp`, `compare_of_canGive`.
+* `MainTheorem/CompareModular.lean` (979): `GraphCmpStages` + `check_graph_cmp_zero` (the
+  challenge walk answers none; the rest is `rust_graph_cmp`'s premises), `two_names_ok`,
+  `check_graph_args_cmp`, `run_args_graph_cmp`; `olean_args_module_t`/`run_args_module_t` (a
+  worker at `--trusted-search-path`), `check_cmp_module_zero`, `olean_args_module_cmp`,
+  `run_args_module_cmp`; `internRoots_snoc1`, `rust_graph_cmp_names` (`Bridge/Modular/Stages.lean`
+  gains `graphStageCmp_run_nodes`, `graphStageCmp_run` with the closure's `NodeD` relation),
+  `ModularCmpStages`, `step_sol_some` (`name_beq_exact'`: the compare worker exactly at the
+  module whose name is the challenge's), `check_modular_cmp_zero` (through `CodesSound`);
+  `cmp_family`/`cmp_no_False` (upstream's `compare_sees_isModel`/`compare_no_False` from the
+  graph's facts and an accepted worker at every module, each at a lookup with the challenge's
+  `solRoots` and adding `cmpExtra`), `solX_step`, `modular_cmp_one_of_stages`,
+  `modular_cmp_of_stages` (`Capstone.acc_compare`'s case split, the workers each their own run),
+  `olean_args_modular_cmp`, `run_args_modular_cmp`, `modular_cmp_facts_of_canGive`,
+  `modular_cmp_one_of_canGive`.
+* Slice 2's walk, generalised: `WorkerStages fs sp mName sol pins` (any lookup with no root
+  resolved, `solX sol` added; slice 2's is `⟨dirs, Vec.new⟩` and `none`), `added_imports_ok`,
+  `module_copies_zero`; `check_module_zero`/`check_module_in_zero` at any `sp` and `sol`;
+  `olean_job_sol` and `check_phase_olean_ok` at the solution, the latter also handing back the
+  thawed index and the index build's state (`freeze_tier_ok`, as lane F's `check_phase_ok`); the
+  `*_args_*` lemmas take `a.compare = false`.
+* `ConRon/MainTheorem.lean`: `main_compare_model`, `main_modular_compare`,
+  `main_modular_compare_one`, `main_modular_compare_no_False`, con-leche's statements word for
+  word but `ConRon.CanGive`, in con-leche's order; `dead-census.py` roots.  Census of each:
+  `propext`, `Classical.choice`, `Quot.sound`, `PINS_TEXT._native.decide.ax_1` —
+  `main_json_model`'s.  `compare_of_canGive` takes the solution's parse as `_hs`: the challenge's
+  model does not need it (con-leche's `compare_isModel` takes it too).
+
+**Behaviour.**
+Old binary (master `fbce7efe`) against the new, stdout + stderr + exit code with times and
+`RSS` masked, and the binary's own path (`--schedule-commands`) and the heartbeat's and
+`--schedule`'s running counts (`check N (p%)`, `[k/n]`) normalised: upstream's whole
+`tests/olean.sh` table (every `case_`, 510 runs, among them every compared case: the
+one-process run, `--check-graph --compare`, the compare worker, `--modular --compare`, the
+trusted-path cases) — 468 byte-identical, 42 differing only in the order of lines, each a run on
+more than one worker (`--modular`'s module lines, `--schedule`'s, the heartbeat's job lines at
+`--jobs=2` or the hardware count); every compared case of it again at `--jobs=1`, under
+`--progress`, `--trusted`, `--no-pins`, plus 79 usage-error and routing lines (one module, the
+same module twice, three, a bad name, a missing module either side, no lookup, `--constant`s,
+`--module --modular`, `--pins` missing, `--jobs=0`, trusted paths, `--progress=1s --jobs=2`,
+`--worker-stack-size`, `--help`, `--modular --compare --pins`, `--schedule --compare`,
+`--schedule-commands --compare`) in each of the four modes — 655 runs: 613 identical, 38 in the
+order of lines only, 4 (`--progress --olean --compare` at the hardware worker count) identical
+again at `--progress --jobs=1` and `--progress=1s --jobs=2`.  Lane F's `--compare` script
+(lean4export files): 112 runs, no difference.  `scripts/diff-e2e.sh`: 773/773 agree, display
+gate 9/9, command-line gate 18/18.  `scripts/diff-olean.sh`: 510/560 as expected, 9 NOT PORTED —
+the same 41 failing cases, line for line, as slice 2's run of master's binary.
+
+**Left.**  Slice 5: `run_legacy` serves `--schedule` (with or without `--compare`) and
+`--modular --pins` alone; the legacy `compare_oleans`, `module_main`, `modular_main`,
+`check_graph_cmp` and `Run::CompareOleans`/`Module`/`Modular` arms of `bin/con-ron.rs` are now
+reached by no request.  Upstream candidates: none new.
