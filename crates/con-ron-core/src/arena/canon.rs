@@ -725,7 +725,7 @@ pub fn i_rec_rules_beq(a: &Vec<IRecRule>, b: &Vec<IRecRule>, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:196-242 IndCaps
-/// Lean twin: `proof/ConRon/Arena/Env.lean:80-100 IIndCaps` — the cited `deriving
+/// Lean twin: `proof/ConRon/Arena/Env.lean:80-104 IIndCaps` — the cited `deriving
 /// DecidableEq`, the `decide (c = c')` of `ConstantInfo.beqP`'s `.indInfo` arm.
 pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
     a.eta == b.eta
