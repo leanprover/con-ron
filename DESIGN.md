@@ -1421,7 +1421,11 @@ con-leche's say, word for word in their conclusions, about con-ron's own `run_ar
   the model, so Aeneas merges two calls with the same arguments (the spike's two clock reads
   became one), which claims the real clock is constant.  The file operations stay `&self`, and
   the premise on them holds at every state (`∀ s`), so no escape can change what they see.
-  Escapes take structured events (verdicts, receipts, heartbeat lines) and the store by shared
+  **A notification** — an escape whose answer is `()`, a heartbeat line, a receipt — may stay
+  `&self` (OleanFs's `read_notes_say` is one): merging or dropping it changes no value the run
+  computes, and the model claims nothing about output.  Only an escape that *answers a value*
+  the code goes on with (the clock, the hardware thread count, a legacy mode's exit code) must be
+  `&mut self`.  Escapes take structured events (verdicts, receipts, heartbeat lines) and the store by shared
   reference; the rendering is the instance's, outside the extraction.
 * **The worker map is the trait's**, its contract (`ParallelAll`, OVERVIEW §8.2's pool row) a
   premise on the instance, for every `Step`.  The per-job heartbeat is the instance's
@@ -73965,9 +73969,10 @@ lemmas the main theorems are proved from; the root theorems of §5's census beco
 `crates/con-ron-core/src/driver/` — one module per `ConLeche/Driver/*.lean` file con-ron has
 (`cli`, `dispatch`, `check_main`, `compare`, `compare_json`, `modular`, `graph`, …), in
 `provenance.py`'s discipline.  The stream read is a positional-read loop over
-`CheckerFs::read_range` (`ChunkSource` and `OleanFs` go, folded into `CheckerFs`); `StdIo`
-serves a non-seekable file (a pipe) by reading its handle forward and failing a read at any other
-offset.  `crates/con-ron` keeps `StdIo`, the rendering, the heartbeat, the pool, the scheduler
+`CheckerFs::read_range`: a verified `ChunkSource` over a `&F: CheckerFs`, a path and an offset
+(`parse_source` and its Theorem 2 stay as they are; `ReadsAs` becomes a lemma of `AnswersAs`),
+and `OleanFs` folds into `CheckerFs`.  `StdIo` serves a non-seekable file (a pipe) by reading its
+handle forward and failing a read at any other offset.  `crates/con-ron` keeps `StdIo`, the rendering, the heartbeat, the pool, the scheduler
 and `main`.
 
 **Two lanes, then the slices.**
