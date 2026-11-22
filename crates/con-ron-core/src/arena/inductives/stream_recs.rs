@@ -658,7 +658,8 @@ pub fn stream_recs_check(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:195-206 streamKCheck
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:195-211 streamKCheck
+/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove stream_recs::stream_k_check_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:227-236 streamKCheck` — **the
 /// records' K flags against the block**, from `i` on: each record's flag is the
 /// one the generated recursor has (`rec_check::rec_k_expected`).  The shorter of

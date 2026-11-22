@@ -224,7 +224,8 @@ def streamRecsCheck (mode : CheckMode) (fe : IFEnv) :
   | [], [] => pure ()
   | _, _ => fail (.internal "stored recursors: the generated family is not the records'")
 
-/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:195-206 streamKCheck
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:195-211 streamKCheck
+-- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove StreamRecs.streamKCheck_bridge, then delete this line
 **The records' K flags against the block**: each record's flag is the one the
 generated recursor has (`recKExpected`); the message drops the interpolation. -/
 def streamKCheck (p : BlockShape) :

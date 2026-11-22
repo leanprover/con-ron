@@ -686,7 +686,7 @@ shared tier, by construction, not by a guard.  After the check phase,
 `ReaderT PersTier` layer on the checker monad.
 
 The environment has two tiers in the same way
-([`IFEnv`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/env.rs#L749-L786)).
+([`IFEnv`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/env.rs#L752-L789)).
 A job's environment is an empty layer of its own over the frozen index: a
 lookup reads the layer first (skipped while it is empty), then the index below
 the record's position.  No job copies the environment.

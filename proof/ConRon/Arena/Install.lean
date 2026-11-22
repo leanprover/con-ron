@@ -165,7 +165,9 @@ def declConstants : IDeclaration → AM (List IConstantInfo)
     | .error _ => pure []
 
 /-- con-leche: ConLeche/Kernel/Install.lean:93-99 declTables
+-- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove Install.declTables_bridge, then delete this line
 con-leche: ConLeche/Cached/CheckerC.lean:57-63 declTablesC
+-- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove Install.declTables_bridge, then delete this line
 **The projection tables a declaration installs**: those of an inductive block
 `readBlock` reads (none where a constructor is too short for them). -/
 def declTables : IDeclaration → AM (List IProjTable)

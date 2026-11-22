@@ -44,9 +44,12 @@ def checkSumTele (n : Nat) (cvTa₀ : IConstantVal) : AM (IConstantVal × LIdx) 
 
 /-! ## The constructors' stage -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:41-65 checkStructFieldSortsI
-con-leche: ConLeche/Cached/IndPositivity.lean:505-521 checkStructFieldSortsIC
+/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:75-99 checkStructFieldSortsI
+-- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove SumInstall.checkStructFieldSortsI_bridge, then delete this line
+con-leche: ConLeche/Cached/IndPositivity.lean:337-353 checkStructFieldSortsIC
+-- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove SumInstall.checkStructFieldSortsI_bridge, then delete this line
 con-leche: ConLeche/Cached/IndBlock.lean:127-142 checkStructFieldSortsC
+-- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove SumInstall.checkStructFieldSortsI_bridge, then delete this line
 Every field's domain has a sort over the opened constructor telescope, under
 the official per-field universe bound unless the family is propositional.
 Walks the fields from the last to the first. -/
@@ -69,7 +72,7 @@ def checkStructFieldSortsI (mode : CheckMode) (fe : IFEnv) (isProp large : Bool)
           field outside the indices")
     checkStructFieldSortsI mode fe isProp large s nP fvs idxArgs j
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:67-108 checkSumCtor
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:41-82 checkSumCtor
 con-leche: ConLeche/Cached/IndBlock.lean:144-170 checkSumCtorC
 Every field domain resolves at the PRE-BLOCK environment. -/
 def fieldDomsResolve (fe₀ : IFEnv) : List EIdx → AM Bool
@@ -78,7 +81,7 @@ def fieldDomsResolve (fe₀ : IFEnv) : List EIdx → AM Bool
     let t ← fvarTypeD x
     if ← constsResolveFFast fe₀ t then fieldDomsResolve fe₀ xs else pure false
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:67-108 checkSumCtor
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:41-82 checkSumCtor
 con-leche: ConLeche/Cached/IndBlock.lean:144-170 checkSumCtorC
 The index expressions never mention the block. -/
 def idxArgsResolve (fe₀ : IFEnv) : List EIdx → AM Bool
@@ -86,7 +89,7 @@ def idxArgsResolve (fe₀ : IFEnv) : List EIdx → AM Bool
   | e :: es => do
     if ← constsResolveFFast fe₀ e then idxArgsResolve fe₀ es else pure false
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:67-108 checkSumCtor
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:41-82 checkSumCtor
 con-leche: ConLeche/Cached/IndBlock.lean:144-170 checkSumCtorC
 Stage 2, one constructor's type: the ordinary constant check (the constructor
 is stored AS DECLARED), the result shape, the parameter pins against the type
@@ -128,7 +131,7 @@ def checkSumCtor (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
     fail (.invalid "direct sum: index expression mentions the block")
   checkStructFieldSortsI mode fe isProp large resSort nP xq.1 idxArgs nF
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:110-118 checkSumCtors
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:84-92 checkSumCtors
 con-leche: ConLeche/Cached/IndBlock.lean:172-179 checkSumCtorsC
 Stage 2, all constructors' types, at the environment holding the type
 former. -/
@@ -140,7 +143,7 @@ def checkSumCtors (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
     checkSumCtor mode fe₀ fe T lps nP nIdx resSort isProp large c.1 c.2 cvTa
     checkSumCtors mode fe₀ fe T lps nP nIdx resSort isProp large cvTa cs
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:120-126 consSumCtors
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:94-100 consSumCtors
 con-leche: ConLeche/Cached/IndBlock.lean:37-40 consSumCtorsF
 The constructors' conses, in order (the first constructor deepest), each with
 the family `T` it is declared under as its `induct`: the constructor check has
@@ -150,7 +153,7 @@ def consSumCtors (nP : Nat) (T : NIdx) : List (IConstantVal × Nat) → IFEnv �
   | [], fe => fe
   | c :: cs, fe => consSumCtors nP T cs (fe.push (.ctorInfo c.1 nP c.2 T))
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:128-134 sumRules
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-108 sumRules
 The stored rules: constructor `j`'s with the generated right-hand side `j`,
 `.plain` (the major is the family at the recursor's parameters). -/
 def sumRules : List (IConstantVal × Nat) → List EIdx → List IRecRule

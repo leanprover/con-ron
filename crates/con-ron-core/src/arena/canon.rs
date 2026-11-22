@@ -724,7 +724,8 @@ pub fn i_rec_rules_beq(a: &Vec<IRecRule>, b: &Vec<IRecRule>, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:186-229 IndCaps
+/// con-leche: ConLeche/Kernel/Env.lean:196-242 IndCaps
+/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove canon::i_ind_caps_beq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:80-100 IIndCaps` — the cited `deriving
 /// DecidableEq`, the `decide (c = c')` of `ConstantInfo.beqP`'s `.indInfo` arm.
 pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
@@ -736,7 +737,7 @@ pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
         && a.never_zero == b.never_zero
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:290-314 ConstantInfo
+/// con-leche: ConLeche/Kernel/Env.lean:303-327 ConstantInfo
 /// con-leche: ConLeche/Kernel/Canon.lean:337-347 ConstantInfo.beqP
 /// Lean twin: none — the twin's derived `DecidableEq` (`==`), which Rust cannot derive (§3.4); **`ConstantInfo`
 /// equality**, constructor for constructor: what a pinned block's record is
