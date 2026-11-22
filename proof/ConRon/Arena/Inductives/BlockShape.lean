@@ -511,7 +511,7 @@ def readBlockShape (nPd : Nat) (block : List IConstantInfo) :
     | _ :: _, [] => pure (.error (.invalid
         "inductive block carries no recursor records; the input must carry the recursors of every inductive block"))
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:543-547 readBlock
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:544-547 readBlock
 **Read a declared inductive block**: its shape (`readBlockShape`) and the
 feature flags its type records declare (`blockFlagsOf`). -/
 def readBlock (nPd : Nat) (block : List IConstantInfo) : AM (Except CheckError BlockShape) := do

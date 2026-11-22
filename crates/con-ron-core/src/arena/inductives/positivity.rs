@@ -1300,7 +1300,7 @@ pub fn nest_ctor_nfs_dup(es: &Vec<NestCtorNf>, i: usize, out: Vec<NestCtorNf>) -
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:376-387 NestCtx
+/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:376-394 NestCtx
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:462-479 NestCtx` — the
 /// block, as the function needs it.  `find?` is `fe` (the module note):
 /// every reader takes the environment beside the record.  `formers` are the
@@ -1321,7 +1321,7 @@ pub struct NestCtx {
     pub bound: bool,
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:376-387 NestCtx
+/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:376-394 NestCtx
 /// The record copy.
 pub fn nest_ctx_dup(c: &NestCtx) -> NestCtx {
     NestCtx {

@@ -459,7 +459,7 @@ structure NestCtorNf where
   ty : EIdx
   deriving Inhabited
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:376-387 NestCtx
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:376-394 NestCtx
 The block, as the function needs it.  `find?` is the `fe` every reader takes
 beside the record (the module note); `formers` are the members' type formers
 at their telescopes; `lvls` is `lps.map .param`, interned once. -/

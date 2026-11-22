@@ -1297,7 +1297,7 @@ pub fn block_flags_of(block: &Vec<IConstantInfo>) -> Option<Vec<IndFlags>> {
     flags_all(&block_flag_recs(block, 0, Vec::new()), 0, Vec::new())
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:543-547 readBlock
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:544-547 readBlock
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:514-520 readBlock` — **read a
 /// declared inductive block**: its shape (`read_block_shape`) and the
 /// feature flags its type records declare (`block_flags_of`).
