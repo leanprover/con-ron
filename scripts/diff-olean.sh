@@ -53,7 +53,7 @@ for p in json.load(open(sys.argv[1]))["packages"]:
     if p["name"].strip("«»") == "con-leche": print(p["rev"])
 PY
 )
-if [ ! -f "$W/.pin" ] || [ "$(cat "$W/.pin")" != "$PIN.np1" ]; then
+if [ ! -f "$W/.pin" ] || [ "$(cat "$W/.pin")" != "$PIN.np2" ]; then
   rm -rf "$W"; mkdir -p "$W/tests/mode" "$W/tmp"
   cp -r "$CL/tests/olean" "$W/tests/olean"
   cp "$CL/tests/olean.sh" "$W/tests/olean.sh"
@@ -65,9 +65,10 @@ if [ ! -f "$W/.pin" ] || [ "$(cat "$W/.pin")" != "$PIN.np1" ]; then
     ( cd "$W" && bash tests/olean/build.sh > build.log 2>&1 ) || { echo "diff-olean: the fixtures' build failed, $W/build.log" >&2; exit 2; }
   fi
   # the table's own build of olean-compare is this script's: the tool is passed in;
-  # and the NOT PORTED category (task #166): a case whose answer is con-ron's usage
-  # error "… is not supported by con-ron yet" (con-leche's scheduler, `--schedule`
-  # without `-commands`) is counted apart, never as an agreement nor as a FAIL, and
+  # and the NOT PORTED category: a case whose answer is con-ron's usage error
+  # "… is not supported by con-ron's --schedule" (the scheduler's log and memory
+  # limit, `--schedule-log`, `--schedule-memory`; the twin's "… by con-ron-lean" for
+  # `--schedule` itself) is counted apart, never as an agreement nor as a FAIL, and
   # so is the scheduler's own log check; the `--schedule-commands` lines' binary may be
   # con-ron
   python3 -I - "$W/tests/olean.sh" <<'PY' || { echo "diff-olean: the table does not patch" >&2; exit 2; }
@@ -80,7 +81,7 @@ subs = [
     ('  local got=$?\n',
      '  local got=$?\n'
      '  np=0\n'
-     '  if grep -q "not supported by con-ron yet" "$TMPDIR/olean-case.out"; then\n'
+     '  if grep -q "not supported by con-ron" "$TMPDIR/olean-case.out"; then\n'
      '    np=1; notported=$((${notported:-0}+1))\n'
      '    echo "OLEAN NOT PORTED ($desc): con-leche expects exit $want"; return\n'
      '  fi\n'),
@@ -97,7 +98,7 @@ for a, b in subs:
     s = s.replace(a, b)
 open(p, 'w').write(s)
 PY
-  echo "$PIN.np1" > "$W/.pin"
+  echo "$PIN.np2" > "$W/.pin"
 fi
 
 run() { # <bin> <cmp> <log>

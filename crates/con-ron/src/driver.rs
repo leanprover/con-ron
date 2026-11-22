@@ -108,6 +108,18 @@ use crate::pool::ParallelError;
 /// (`canon_expr_eq_fast`, `occurs_const_go`), so the whole run is on one.
 pub const STACK_BYTES: usize = 1 << 30;
 
+/// con-leche: none — the Lean runtime's `LEAN_STACK_SIZE_KB`, read at the start
+/// for every thread's stack
+/// **The checking threads' stack**: `LEAN_STACK_SIZE_KB` KiB where it is set to
+/// a positive number (as a Lean binary reads it: the scheduler's
+/// `--worker-stack-size` sets it for its workers), else `STACK_BYTES`.
+pub fn stack_bytes() -> usize {
+    match std::env::var("LEAN_STACK_SIZE_KB").ok().and_then(|v| v.parse::<usize>().ok()) {
+        Some(k) if k > 0 => k.saturating_mul(1024),
+        _ => STACK_BYTES,
+    }
+}
+
 /// con-leche: none — rendering a `CheckError`'s payload, which `core_types`
 /// carries as a `Vec<u32>` of code points (DESIGN.md §3.4) where Lean carries
 /// a `String`.

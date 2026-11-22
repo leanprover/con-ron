@@ -112,115 +112,138 @@
   1209      pub projs: Tbl<ProjNode, EIdx, u64>,
   1210  }
 
-== crates/con-ron/src/bin/con-ron.rs#L90-L197
-    90  /// con-leche: ConLeche/Driver/Cli.lean:116-132 synopsis
-    91  /// The invocation forms, printed on their own when there are no arguments.
-    92  /// `--pins`/`--no-pins` are the port's own testing flags (`driver::pins_for_run`)
-    93  /// and are not in con-leche's synopsis; they are in the help text's options.
-    94  /// Of `--schedule` only `--schedule-commands` is run (`HELP_TAIL`).
-    95  const SYNOPSIS: &str = "\
-    96  Usage:
-    97    con-ron [OPTIONS] [--] FILE.ndjson
-    98    con-ron [OPTIONS] --compare [--] CHALLENGE.ndjson SOLUTION.ndjson
-    99    con-ron [OPTIONS] --olean --search-path=DIRS [--] MODULE...
-   100    con-ron [OPTIONS] --check-graph --search-path=DIRS [--] MODULE...
-   101    con-ron [OPTIONS] --olean --schedule-commands --search-path=DIRS [--] MODULE
+== crates/con-ron/src/bin/con-ron.rs#L89-L219
+    89  /// con-leche: ConLeche/Driver/Cli.lean:116-132 synopsis
+    90  /// The invocation forms, printed on their own when there are no arguments.
+    91  /// `--pins`/`--no-pins` are the port's own testing flags (`driver::pins_for_run`)
+    92  /// and are not in con-leche's synopsis; they are in the help text's options.
+    93  const SYNOPSIS: &str = "\
+    94  Usage:
+    95    con-ron [OPTIONS] [--] FILE.ndjson
+    96    con-ron [OPTIONS] --compare [--] CHALLENGE.ndjson SOLUTION.ndjson
+    97    con-ron [OPTIONS] --olean --search-path=DIRS [--] MODULE...
+    98    con-ron [OPTIONS] --check-graph --search-path=DIRS [--] MODULE...
+    99    con-ron [OPTIONS] --olean --module --search-path=DIRS [--] MODULE
+   100    con-ron [OPTIONS] --olean --modular --search-path=DIRS [--] MODULE
+   101    con-ron [OPTIONS] --olean --schedule[-OPT=V] --search-path=DIRS [--] MODULE
    102    con-ron [OPTIONS] --olean --compare [--trusted-search-path=DIRS]
    103            --search-path=DIRS [--] CHALLENGE SOLUTION
    104    con-ron [OPTIONS] --check-graph --compare [--trusted-search-path=DIRS]
    105            --search-path=DIRS [--] CHALLENGE SOLUTION
-   106    con-ron [OPTIONS] --olean --schedule-commands --compare
-   107            [--trusted-search-path=DIRS] --search-path=DIRS [--] CHALLENGE SOLUTION";
-   108  
-   109  /// con-leche: ConLeche/Driver/Cli.lean:134-135 tryHelp
-   110  /// The line after a usage error.
-   111  const TRY_HELP: &str = "Try 'con-ron --help' for more information.";
-   112  
-   113  /// con-leche: ConLeche/Driver/Cli.lean:137-260 helpText
-   114  /// The `--help` text: con-leche's, with this binary's name, the port's two
-   115  /// testing flags, and con-ron's documentation.  DESIGN.md §3.1: message
-   116  /// strings need not match.
-   117  const HELP_HEAD: &str = "\
-   118  Check Lean declarations from a lean4export file or from .olean modules.
-   119  ";
-   120  
-   121  /// con-leche: ConLeche/Driver/Cli.lean:137-260 helpText
-   122  /// The rest of the `--help` text, after the synopsis.  con-leche's options of
-   123  /// the modes con-ron does not run are listed by name, as usage errors
-   124  /// (`unsupported`), in place of their descriptions.
-   125  const HELP_TAIL: &str = "\
-   126  Options:
-   127    --verified          Check in the mode the soundness theorem covers (default)
-   128    --trusted           Skip the checks only the proof needs; outside the theorem
-   129    --jobs=N            Worker threads (default: one per hardware thread, at most 16)
-   130    --max-nat-size=N    Largest Nat numeral in bytes the checker takes in or
-   131                        computes; a larger one is rejected (default 134217728)
-   132    --progress[=PACE]   Report progress on stderr: PACE is N declarations
-   133                        (default 1), P% of each phase, or Ss seconds
-   134    --pins FILE         Testing only: check with this Nat pin list instead of
-   135                        the embedded one (outside the theorems)
-   136    --no-pins           Testing only: check with no Nat pin list
-   137    --help              Print this help and exit
-   138    --                  End of options
-   139  
-   140  lean4export input:
-   141    --compare           CHALLENGE.ndjson SOLUTION.ndjson: check SOLUTION, then
-   142                        check CHALLENGE, its axioms justified by SOLUTION: each
-   143                        axiom of CHALLENGE (but the standard ones) and each
-   144                        declaration whose value uses sorry is accepted as an
-   145                        axiom of its statement when SOLUTION holds a constant
-   146                        of that name and type, up to the names of level
-   147                        parameters, and everything that type reads is the same
-   148                        in both, record by record. Prints the justified axioms
-   149  
-   150  .olean input:
-   151    --olean             Read modules and their import closure from .olean files
-   152    --search-path=DIRS  Colon-separated .olean directories; repeatable
-   153    --constant=NAME     Check only NAME and what it mentions; repeatable
-   154    --compare           CHALLENGE SOLUTION: check the closure of the module
-   155                        SOLUTION, then the closure of CHALLENGE, its axioms
-   156                        justified by SOLUTION's as for lean4export input.
-   157                        Prints the justified axioms. With --constant=NAME
-   158                        (declarations of CHALLENGE itself), only NAME and
-   159                        what it reads
-   160    --trusted-search-path=DIRS
-   161                        With --compare: CHALLENGE and all it imports must be
-   162                        in DIRS, and are read from there only; SOLUTION's
-   163                        modules from DIRS first, then --search-path.
-   164                        Colon-separated; repeatable
-   165    --check-graph       Check only that the modules' import graph is acyclic
-   166                        and that every import is on the search path. With
-   167                        --compare: the closures of CHALLENGE and SOLUTION,
-   168                        `import all SOLUTION` added to CHALLENGE's header
-   169    --schedule-commands Start nothing; print on stdout, one per line and
-   170                        shell-quoted, the commands that check MODULE's closure:
-   171                        the --check-graph run, then one --module run per module
-   172                        (--jobs=N only if given); the modular guarantee needs
-   173                        every one to exit 0 on one unchanged snapshot of the
-   174                        files. Run them with xargs or GNU parallel, e.g.
-   175                          con-ron --olean --schedule-commands ... | tail -n +2 |
-   176                            parallel
-   177                        after the first line exits 0
-   178    --schedule-order=ORDER
-   179                        shuffled (default; by a hash of the names) or graph:
-   180                        the order of the printed --module commands
-   181    --worker-stack-size=SIZE
-   182                        With --schedule-commands: each worker's line starts
-   183                        with LEAN_STACK_SIZE_KB=K (a size with a unit: 8G)
-   184  
-   185  con-leche's other modes, not run by con-ron yet (a usage error, exit 3):
-   186    --module, --modular, --schedule (con-leche's scheduler: use
-   187    --schedule-commands with xargs or parallel instead), and --compare with
-   188    --module or --modular
-   189  
-   190  Exit status:
-   191    0  accepted
-   192    1  rejected: a declaration is invalid
-   193    2  declined: an unsupported feature
-   194    3  error: bad usage, malformed input or an internal failure
-   195  
-   196  Documentation:
-   197    README.md and OVERVIEW.md of the con-ron repository";
+   106    con-ron [OPTIONS] --olean --module|--modular|--schedule[-OPT=V]
+   107            --compare [--trusted-search-path=DIRS] --search-path=DIRS
+   108            [--] CHALLENGE SOLUTION";
+   109  
+   110  /// con-leche: ConLeche/Driver/Cli.lean:134-135 tryHelp
+   111  /// The line after a usage error.
+   112  const TRY_HELP: &str = "Try 'con-ron --help' for more information.";
+   113  
+   114  /// con-leche: ConLeche/Driver/Cli.lean:137-260 helpText
+   115  /// The `--help` text: con-leche's, with this binary's name, the port's two
+   116  /// testing flags, and con-ron's documentation.  DESIGN.md §3.1: message
+   117  /// strings need not match.
+   118  const HELP_HEAD: &str = "\
+   119  Check Lean declarations from a lean4export file or from .olean modules.
+   120  ";
+   121  
+   122  /// con-leche: ConLeche/Driver/Cli.lean:137-260 helpText
+   123  /// The rest of the `--help` text, after the synopsis.  The scheduler is the
+   124  /// simple one (`con_ron::schedule`): its settings con-ron does not run are
+   125  /// listed by name, as usage errors, in place of their descriptions.
+   126  const HELP_TAIL: &str = "\
+   127  Options:
+   128    --verified          Check in the mode the soundness theorem covers (default)
+   129    --trusted           Skip the checks only the proof needs; outside the theorem
+   130    --jobs=N            Worker threads (default: one per hardware thread, at most 16)
+   131    --max-nat-size=N    Largest Nat numeral in bytes the checker takes in or
+   132                        computes; a larger one is rejected (default 134217728)
+   133    --progress[=PACE]   Report progress on stderr: PACE is N declarations
+   134                        (default 1), P% of each phase, or Ss seconds
+   135    --pins FILE         Testing only: check with this Nat pin list instead of
+   136                        the embedded one (outside the theorems)
+   137    --no-pins           Testing only: check with no Nat pin list
+   138    --help              Print this help and exit
+   139    --                  End of options
+   140  
+   141  lean4export input:
+   142    --compare           CHALLENGE.ndjson SOLUTION.ndjson: check SOLUTION, then
+   143                        check CHALLENGE, its axioms justified by SOLUTION: each
+   144                        axiom of CHALLENGE (but the standard ones) and each
+   145                        declaration whose value uses sorry is accepted as an
+   146                        axiom of its statement when SOLUTION holds a constant
+   147                        of that name and type, up to the names of level
+   148                        parameters, and everything that type reads is the same
+   149                        in both, record by record. Prints the justified axioms
+   150  
+   151  .olean input:
+   152    --olean             Read modules and their import closure from .olean files
+   153    --search-path=DIRS  Colon-separated .olean directories; repeatable
+   154    --constant=NAME     Check only NAME and what it mentions; repeatable
+   155                        (outside the theorems)
+   156    --compare           CHALLENGE SOLUTION: check the closure of the module
+   157                        SOLUTION, then the closure of CHALLENGE, its axioms
+   158                        justified by SOLUTION's as for lean4export input.
+   159                        Prints the justified axioms. With --constant=NAME
+   160                        (declarations of CHALLENGE itself), only NAME and
+   161                        what it reads. With --check-graph, --module,
+   162                        --modular or --schedule: CHALLENGE as one more module
+   163                        of a modular run over the closures of both, with
+   164                        `import all SOLUTION` added to its header: a
+   165                        declaration of CHALLENGE that a loaded module holds
+   166                        must be that constant (a hole, theorem or opaque
+   167                        constant by its type, a definition with its value, up
+   168                        to the names of level parameters; an inductive type
+   169                        as it is), every other one is checked (its --module
+   170                        run is the compare worker; the guarantee needs every
+   171                        command to exit 0)
+   172    --trusted-search-path=DIRS
+   173                        With --compare: CHALLENGE and all it imports must be
+   174                        in DIRS, and are read from there only; SOLUTION's
+   175                        modules from DIRS first, then --search-path (the
+   176                        modular modes read every module so). With --module
+   177                        alone: MODULE's closure read from DIRS first, then
+   178                        --search-path.
+   179                        Colon-separated; repeatable
+   180    --check-graph       Check only that the modules' import graph is acyclic
+   181                        and that every import is on the search path
+   182    --module            Check MODULE's own declarations alone, against what
+   183                        they read of the modules it loads
+   184    --modular           Check every module of MODULE's closure as --module
+   185                        does, in this one process
+   186    --schedule          Check every module of MODULE's closure by a --module
+   187                        process each (--jobs=1 each), at most --jobs=N at a
+   188                        time; a line per finished module on stdout, then each
+   189                        failing module's verdict and last stderr line, and the
+   190                        run's verdict: the first failing module in the graph's
+   191                        order, its code (timeout, stack, a signal: 3); with
+   192    --schedule-timeout=S     a time limit per worker
+   193    --worker-stack-size=SIZE the workers' thread stacks (with a unit: 8G), set
+   194                             as their LEAN_STACK_SIZE_KB (without the flag they
+   195                             inherit the environment; con-ron's default is 1G)
+   196    --schedule-order=ORDER   shuffled (default; by a hash of the names) or graph:
+   197                             the order in which the modules start
+   198    --schedule-commands      start nothing; print on stdout, one per line and
+   199                             shell-quoted, the commands that check the closure:
+   200                             the --check-graph run, then one --module run per
+   201                             module in the start order (--jobs=N only if given);
+   202                             the modular guarantee needs every one to exit 0 on
+   203                             one unchanged snapshot of the files (with
+   204                             --worker-stack-size, each worker's line starts
+   205                             with LEAN_STACK_SIZE_KB=K); -memory, -log and
+   206                             -timeout are ignored
+   207  
+   208  con-leche's scheduler settings con-ron does not run (a usage error, exit 3):
+   209    --schedule-log=FILE, --schedule-memory=SIZE (con-ron's --schedule keeps no
+   210    log and no memory budget)
+   211  
+   212  Exit status:
+   213    0  accepted
+   214    1  rejected: a declaration is invalid
+   215    2  declined: an unsupported feature
+   216    3  error: bad usage, malformed input or an internal failure
+   217  
+   218  Documentation:
+   219    README.md and OVERVIEW.md of the con-ron repository";
 
 == crates/con-ron/src/driver.rs#L18-L23
     18  //! | exit | verdict | meaning |
@@ -456,27 +479,27 @@
    483      AStateRel emptyTier st lst ∧ ConRon.Bridge.denoteDecls lst.store (absIDeclL ds) = some dsP ∧
    484        env = ConLeche.streamEnv dsP
 
-== crates/con-ron/src/bin/con-ron.rs#L586-L605
-   586      // ONE store for the whole run: the prelude, the stream and the pins are
-   587      // hash-consed together into its persistent tier (DESIGN.md §8.3).
-   588      // ConRon.Capstone: `startState`
-   589      let mut st = AState::empty();
-   590      // THE PERSISTENT TIER a worker reads (DESIGN.md §8.3, task #97-P6-6b).
-   591      // The parse, the pin walk and the index build own their own — the store is
-   592      // owned (not frozen) — so what they are handed here is the EMPTY tier; the
-   593      // check phase freezes the store's tier, the index with it, into a
-   594      // `PersTier` and hands `&` it to every worker (`check_decls_driver`).
-   595      // ConRon.Capstone: `emptyTier`
-   596      let pers: &PersTier = &PersTier::empty();
-   597      // THE RESERVED-NAME PINS, interned once into that persistent tier before
-   598      // anything else touches it (task #97-P6-4a, `arena::pins`): the scratch
-   599      // tier is closed here, so every pinned handle is persistent and survives
-   600      // every job's bracket.  Until this has run, every `pin_*`
-   601      // read raises `Internal` rather than answering — which is what makes the
-   602      // initialisation-order hazard task #97c named impossible rather than
-   603      // unlikely.
-   604      // ConRon.Capstone: h1
-   605      match con_ron_core::arena::pins::intern_reserved_pins(pers, &mut st) {
+== crates/con-ron/src/bin/con-ron.rs#L608-L627
+   608      // ONE store for the whole run: the prelude, the stream and the pins are
+   609      // hash-consed together into its persistent tier (DESIGN.md §8.3).
+   610      // ConRon.Capstone: `startState`
+   611      let mut st = AState::empty();
+   612      // THE PERSISTENT TIER a worker reads (DESIGN.md §8.3, task #97-P6-6b).
+   613      // The parse, the pin walk and the index build own their own — the store is
+   614      // owned (not frozen) — so what they are handed here is the EMPTY tier; the
+   615      // check phase freezes the store's tier, the index with it, into a
+   616      // `PersTier` and hands `&` it to every worker (`check_decls_driver`).
+   617      // ConRon.Capstone: `emptyTier`
+   618      let pers: &PersTier = &PersTier::empty();
+   619      // THE RESERVED-NAME PINS, interned once into that persistent tier before
+   620      // anything else touches it (task #97-P6-4a, `arena::pins`): the scratch
+   621      // tier is closed here, so every pinned handle is persistent and survives
+   622      // every job's bracket.  Until this has run, every `pin_*`
+   623      // read raises `Internal` rather than answering — which is what makes the
+   624      // initialisation-order hazard task #97c named impossible rather than
+   625      // unlikely.
+   626      // ConRon.Capstone: h1
+   627      match con_ron_core::arena::pins::intern_reserved_pins(pers, &mut st) {
 
 == proof/ConRon/Refine2/Frontend/Source.lean#L34-L38
     34  def ReadsAs {S : Type} (inst : frontend.export_c.ChunkSource S) :
@@ -1640,240 +1663,240 @@
     39  //! * A `Live` slot is **live only if its stamp is the table's `epoch`**;
     40  //!   a `Live` slot with a stale stamp is free space, indistinguishable from
 
-== crates/con-ron/src/bin/con-ron.rs#L566-L798
-   566  /// con-leche: ConLeche/Driver/CheckMain.lean:233-385 checkMainG
-   567  /// con-leche: ConLeche/Driver/CheckMain.lean:87-98 readInputG
-   568  /// The driver's front matter: the prelude, the streaming parse, the
-   569  /// preparation, the pin walk, the receipts, then the index, the check phase
-   570  /// and the verdict.
-   571  /// It is the Lean twin's `runPipelineIO` with the heartbeat and the receipts
-   572  /// around it (`Arena/Main.lean`), and `con-ron`'s `check_main` with the
-   573  /// handles in place of the trees.
-   574  fn check_main(a: &Args, input: &Input) -> u8 {
-   575      let t0 = Instant::now();
-   576      let mode_tag = if a.verified {
-   577          "--verified"
-   578      } else {
-   579          "--trusted"
-   580      };
-   581      let mode = if a.verified {
-   582          CheckMode::Verified
-   583      } else {
-   584          CheckMode::Trusted
-   585      };
-   586      // ONE store for the whole run: the prelude, the stream and the pins are
-   587      // hash-consed together into its persistent tier (DESIGN.md §8.3).
-   588      // ConRon.Capstone: `startState`
-   589      let mut st = AState::empty();
-   590      // THE PERSISTENT TIER a worker reads (DESIGN.md §8.3, task #97-P6-6b).
-   591      // The parse, the pin walk and the index build own their own — the store is
-   592      // owned (not frozen) — so what they are handed here is the EMPTY tier; the
-   593      // check phase freezes the store's tier, the index with it, into a
-   594      // `PersTier` and hands `&` it to every worker (`check_decls_driver`).
-   595      // ConRon.Capstone: `emptyTier`
-   596      let pers: &PersTier = &PersTier::empty();
-   597      // THE RESERVED-NAME PINS, interned once into that persistent tier before
-   598      // anything else touches it (task #97-P6-4a, `arena::pins`): the scratch
-   599      // tier is closed here, so every pinned handle is persistent and survives
-   600      // every job's bracket.  Until this has run, every `pin_*`
-   601      // read raises `Internal` rather than answering — which is what makes the
-   602      // initialisation-order hazard task #97c named impossible rather than
-   603      // unlikely.
-   604      // ConRon.Capstone: h1
-   605      match con_ron_core::arena::pins::intern_reserved_pins(pers, &mut st) {
-   606          Ok(()) => (),
-   607          Err(e) => {
-   608              eprintln!(
-   609                  "con-ron: the reserved-name pins do not intern ({}) ({})",
-   610                  con_ron::driver::message(&e),
-   611                  mode_tag
-   612              );
-   613              return 3;
-   614          }
-   615      }
-   616      // The heartbeat (`--progress`), and its first line: what the run reads.
-   617      let mut hb = Heartbeat::new(con_ron_core::frontend::pace::pace_dup(&a.progress), t0);
-   618      hb.read_starts(&match input {
-   619          Input::Ndjson(file) => con_ron::render::display_path(file),
-   620          Input::Oleans(req) => req.label(pers, &st),
-   621      });
-   622      // THE BUILT-IN PRELUDE, parsed into that store before anything else.
-   623      // ConRon.Capstone: h2
-   624      let prelude_ix = match prelude::builtin_prelude_e(pers, &mut st) {
-   625          Ok(p) => p,
-   626          Err((e, line)) => {
-   627              let what = match classify(&e) {
-   628                  FrontendClass::Internal(m) => format!("does not parse (line {}: {})", line, m),
-   629                  FrontendClass::Declined(w) => format!("is unsupported ({})", w),
-   630                  FrontendClass::Invalid(w) => format!("contradicts itself ({})", w),
-   631              };
-   632              eprintln!(
-   633                  "con-ron: the built-in prelude {}; regenerate it with \
-   634                   `lake exe natop-pins-export` ({})",
-   635                  what, mode_tag
-   636              );
-   637              return 3;
-   638          }
-   639      };
-   640      // Streaming frontend: the file is read 4 MiB at a time and each buffer is
-   641      // parsed and dropped, so neither a wholesale text buffer nor a scratch
-   642      // file exists.  What comes out is the FILE's records as HANDLES into the
-   643      // store above.  No model is ever read from the input: every inductive
-   644      // block — mutual and nested included — installs through the kernel's
-   645      // uniform installer, unconditionally (task #105).
-   646      // ConRon.Capstone: hreads, h3 (`parse_source` over the file's handle)
-   647      // The `.olean` path ends in the same records (task #142); no capstone
-   648      // premise is about it yet (OVERVIEW.md).
-   649      // An `--olean` run's theorems hold references to their values, which their
-   650      // jobs read (`driver::olean_job`); what that needs comes back beside the
-   651      // records (`OleanRead`), and of it the check keeps only the pins and the
-   652      // values (below, after the preparation).
-   653      let read: std::io::Result<Result<(Vec<IDeclaration>, Option<OleanRead>), (CheckError, u64)>> = match input {
-   654          Input::Ndjson(file) => match driver::parse_export_stream_d(pers, &mut st, file, export_c::CHUNK_SIZE) {
-   655              Err(e) => {
-   656                  eprintln!("con-ron: {}: {}", con_ron::render::display_path(file), e);
-   657                  return 3;
-   658              }
-   659              Ok((r, _)) => Ok(r.map(|p: ParseResultD| (p.decls, None))),
-   660          },
-   661          Input::Oleans(req) => Ok(con_ron::olean_fs::read_request(pers, &mut st, req, &a.progress)
-   662              .map(|mut rd| (std::mem::take(&mut rd.decls), Some(rd)))),
-   663      };
-   664      let label: String = match input {
-   665          Input::Ndjson(file) => con_ron::render::display_path(file),
-   666          Input::Oleans(req) => req.label(pers, &st),
-   667      };
-   668      let (parsed_decls, olean): (Vec<IDeclaration>, Option<OleanRead>) = match read {
-   669          Err(_) => return 3,
-   670          Ok(Err((e, line))) => match classify(&e) {
-   671              FrontendClass::Declined(what) => {
-   672                  eprintln!("con-ron: declined: {} ({})", what, mode_tag);
-   673                  return 2;
-   674              }
-   675              // A stream whose inductive block contradicts its own declarations
-   676              // in a REDUNDANT field is rejected at the parse.
-   677              FrontendClass::Invalid(what) => {
-   678                  eprintln!("con-ron: invalid: {} ({})", what, mode_tag);
-   679                  return 1;
+== crates/con-ron/src/bin/con-ron.rs#L588-L820
+   588  /// con-leche: ConLeche/Driver/CheckMain.lean:233-385 checkMainG
+   589  /// con-leche: ConLeche/Driver/CheckMain.lean:87-98 readInputG
+   590  /// The driver's front matter: the prelude, the streaming parse, the
+   591  /// preparation, the pin walk, the receipts, then the index, the check phase
+   592  /// and the verdict.
+   593  /// It is the Lean twin's `runPipelineIO` with the heartbeat and the receipts
+   594  /// around it (`Arena/Main.lean`), and `con-ron`'s `check_main` with the
+   595  /// handles in place of the trees.
+   596  fn check_main(a: &Args, input: &Input) -> u8 {
+   597      let t0 = Instant::now();
+   598      let mode_tag = if a.verified {
+   599          "--verified"
+   600      } else {
+   601          "--trusted"
+   602      };
+   603      let mode = if a.verified {
+   604          CheckMode::Verified
+   605      } else {
+   606          CheckMode::Trusted
+   607      };
+   608      // ONE store for the whole run: the prelude, the stream and the pins are
+   609      // hash-consed together into its persistent tier (DESIGN.md §8.3).
+   610      // ConRon.Capstone: `startState`
+   611      let mut st = AState::empty();
+   612      // THE PERSISTENT TIER a worker reads (DESIGN.md §8.3, task #97-P6-6b).
+   613      // The parse, the pin walk and the index build own their own — the store is
+   614      // owned (not frozen) — so what they are handed here is the EMPTY tier; the
+   615      // check phase freezes the store's tier, the index with it, into a
+   616      // `PersTier` and hands `&` it to every worker (`check_decls_driver`).
+   617      // ConRon.Capstone: `emptyTier`
+   618      let pers: &PersTier = &PersTier::empty();
+   619      // THE RESERVED-NAME PINS, interned once into that persistent tier before
+   620      // anything else touches it (task #97-P6-4a, `arena::pins`): the scratch
+   621      // tier is closed here, so every pinned handle is persistent and survives
+   622      // every job's bracket.  Until this has run, every `pin_*`
+   623      // read raises `Internal` rather than answering — which is what makes the
+   624      // initialisation-order hazard task #97c named impossible rather than
+   625      // unlikely.
+   626      // ConRon.Capstone: h1
+   627      match con_ron_core::arena::pins::intern_reserved_pins(pers, &mut st) {
+   628          Ok(()) => (),
+   629          Err(e) => {
+   630              eprintln!(
+   631                  "con-ron: the reserved-name pins do not intern ({}) ({})",
+   632                  con_ron::driver::message(&e),
+   633                  mode_tag
+   634              );
+   635              return 3;
+   636          }
+   637      }
+   638      // The heartbeat (`--progress`), and its first line: what the run reads.
+   639      let mut hb = Heartbeat::new(con_ron_core::frontend::pace::pace_dup(&a.progress), t0);
+   640      hb.read_starts(&match input {
+   641          Input::Ndjson(file) => con_ron::render::display_path(file),
+   642          Input::Oleans(req) => req.label(pers, &st),
+   643      });
+   644      // THE BUILT-IN PRELUDE, parsed into that store before anything else.
+   645      // ConRon.Capstone: h2
+   646      let prelude_ix = match prelude::builtin_prelude_e(pers, &mut st) {
+   647          Ok(p) => p,
+   648          Err((e, line)) => {
+   649              let what = match classify(&e) {
+   650                  FrontendClass::Internal(m) => format!("does not parse (line {}: {})", line, m),
+   651                  FrontendClass::Declined(w) => format!("is unsupported ({})", w),
+   652                  FrontendClass::Invalid(w) => format!("contradicts itself ({})", w),
+   653              };
+   654              eprintln!(
+   655                  "con-ron: the built-in prelude {}; regenerate it with \
+   656                   `lake exe natop-pins-export` ({})",
+   657                  what, mode_tag
+   658              );
+   659              return 3;
+   660          }
+   661      };
+   662      // Streaming frontend: the file is read 4 MiB at a time and each buffer is
+   663      // parsed and dropped, so neither a wholesale text buffer nor a scratch
+   664      // file exists.  What comes out is the FILE's records as HANDLES into the
+   665      // store above.  No model is ever read from the input: every inductive
+   666      // block — mutual and nested included — installs through the kernel's
+   667      // uniform installer, unconditionally (task #105).
+   668      // ConRon.Capstone: hreads, h3 (`parse_source` over the file's handle)
+   669      // The `.olean` path ends in the same records (task #142); no capstone
+   670      // premise is about it yet (OVERVIEW.md).
+   671      // An `--olean` run's theorems hold references to their values, which their
+   672      // jobs read (`driver::olean_job`); what that needs comes back beside the
+   673      // records (`OleanRead`), and of it the check keeps only the pins and the
+   674      // values (below, after the preparation).
+   675      let read: std::io::Result<Result<(Vec<IDeclaration>, Option<OleanRead>), (CheckError, u64)>> = match input {
+   676          Input::Ndjson(file) => match driver::parse_export_stream_d(pers, &mut st, file, export_c::CHUNK_SIZE) {
+   677              Err(e) => {
+   678                  eprintln!("con-ron: {}: {}", con_ron::render::display_path(file), e);
+   679                  return 3;
    680              }
-   681              FrontendClass::Internal(msg) => {
-   682                  eprintln!("con-ron: {}:{}: {}", label, line, msg);
-   683                  return 3;
-   684              }
-   685          },
-   686          Ok(Ok(r)) => r,
-   687      };
-   688      let file_records = parsed_decls.len();
-   689      // From here on the store is the checker's state: the memo tables and the
-   690      // per-declaration caches join it (`AState`), and every handle the parse
-   691      // produced indexes into it.
-   692      // **PREPARE** (`frontend::prepare`): what the fold runs over is
-   693      // `prepare_prelude` of the file's records — the prelude's declarations
-   694      // first (the stream's own copies where it has them, the rest synthesised),
-   695      // then the stream's, with every pinned `Nat` operation's stream-certified
-   696      // ground hoisted ahead of it.  It takes the whole state since task
-   697      // #97-P4d: step 2 is the real ground hoist, which interns.
-   698      // ConRon.Capstone: h4
-   699      // What a record mentions, for the ground hoist: its expressions say it,
-   700      // except a theorem's read from an `.olean`, whose load read it off the
-   701      // file (con-leche's `usedOf`).
-   702      let prepared = match match &olean {
-   703          None => prepare::prepare_d(pers, &mut st, prelude_ix, parsed_decls, &DeclUsedConsts),
-   704          Some(rd) => prepare::prepare_d(pers, &mut st, prelude_ix, parsed_decls, rd),
-   705      } {
-   706          Ok(p) => p,
-   707          Err(e) => return frontend_exit(&e, mode_tag),
-   708      };
-   709      // **What the check keeps of the read** (con-leche's `checkOleansG` takes
-   710      // `rd.values`): the reader's pins and the values' modules.  The merged
-   711      // constants, whose last reader is the preparation (`OleanRead.thmUses`), go
-   712      // here, before the pool: on Mathlib that is 0.8 M constants and their
-   713      // `uses` (DESIGN, task #145).
-   714      let olean: Option<(OleanPins, Vec<ModRef>)> =
-   715          olean.map(|rd| (rd.pins, rd.values));
-   716      // the ground hoist's receipt
-   717      if !prepared.hoisted.is_empty() {
-   718          let names: Vec<String> = prepared
-   719              .hoisted
-   720              .iter()
-   721              .map(|n| driver::name_of(pers, &st.store, n))
-   722              .collect();
-   723          eprintln!(
-   724              "con-ron: {} declarations hoisted ahead of the pinned Nat operations \
-   725               they ground: {}",
-   726              prepared.hoisted.len(),
-   727              names.join(", ")
-   728          );
-   729      }
-   730      // ConRon.Capstone: hpins (`decode_embedded`; `--pins`/`--no-pins` are
-   731      // outside the theorems)
-   732      let pins = match con_ron::driver::pins_for_run(&a.pins, a.no_pins) {
-   733          Ok(p) => p,
-   734          Err(e) => {
-   735              eprintln!("con-ron: {}", e);
-   736              return 3;
-   737          }
-   738      };
-   739      // What the parse line reports, printed once the index is built.
-   740      hb.file_records = file_records;
-   741      hb.synthesised = prepared.synthesised;
-   742      // **THE STARTUP PIN WALK** (DESIGN.md §8.6 P2d, task #97-P4d): every
-   743      // pinned datum the checker compares a stream record against — the six
-   744      // basis blocks in both forms, the axiom pins, the reserved names and the
-   745      // `Nat`-operation variants — interned ONCE, here, while the scratch tier
-   746      // is still off, so that nothing the fold compares against lives in a tier
-   747      // that is about to vanish.  Its result is the fold's pin parameter.
-   748      // ConRon.Capstone: h5
-   749      let ipins = match checker::intern_all_pins(pers, &mut st, &pins, &a.max_nat_size) {
-   750          Ok(p) => p,
-   751          Err(e) => return frontend_exit(&e, mode_tag),
-   752      };
-   753      // ONE driver, and the heartbeat is printed between its steps
-   754      // (`driver::check_decls_driver`: the index, the frozen tier, and the pool
-   755      // for the check phase).
-   756      let jobs: u64 = match a.jobs {
-   757          Some(n) => n,
-   758          None => con_ron::driver::default_jobs(),
-   759      };
-   760      // ONE lane, whatever the flags: the driver is what builds and freezes the
-   761      // index and the check phase is the pool at every worker count, so a run
-   762      // with no heartbeat is the same computation as a run with one.
-   763      // ConRon.Capstone: the index, the freeze and the pool (the driver's steps,
-   764      // either observer)
-   765      let on = con_ron_core::frontend::pace::pace_on(&a.progress);
-   766      let ds = &prepared.decls;
-   767      let verdict = match (&olean, input) {
-   768          (Some((pk, values)), Input::Oleans(req)) => {
-   769              let sp = &req.search_path;
-   770              let job = |tier: &PersTier, w: &mut AState, c: &mut ValueCache, k: u64| {
-   771                  driver::olean_job(tier, w, c, &mode, &ipins, ds, pk, values, sp, None, k)
-   772              };
-   773              if on {
-   774                  driver::check_decls_driver_with(pers, &mut st, ds, jobs, &mut hb, value_cache_empty, job)
-   775              } else {
-   776                  driver::check_decls_driver_with(pers, &mut st, ds, jobs, &mut driver::Silent, value_cache_empty, job)
-   777              }
-   778          }
-   779          _ => {
-   780              if on {
-   781                  driver::check_decls_driver(pers, &mut st, &mode, &ipins, None, ds, jobs, &mut hb)
-   782              } else {
-   783                  driver::check_decls_driver(pers, &mut st, &mode, &ipins, None, ds, jobs, &mut driver::Silent)
-   784              }
-   785          }
-   786      };
-   787      // **The headline number is the FILE's declaration-record count**: the
-   788      // records the PARSE produced, which are the file's own.  Nothing the
-   789      // preparation does moves it.
-   790      let stream_records = file_records as u64;
-   791      let code = match &verdict {
-   792          Ok(_) => driver::verdict_accept(stream_records, mode_tag),
-   793          Err((e, i)) => {
-   794              driver::verdict_failure(pers, &st.store, &prepared.decls, e, *i, mode_tag, t0, "")
-   795          }
-   796      };
-   797      exit_after_verdict(code)
-   798  }
+   681              Ok((r, _)) => Ok(r.map(|p: ParseResultD| (p.decls, None))),
+   682          },
+   683          Input::Oleans(req) => Ok(con_ron::olean_fs::read_request(pers, &mut st, req, &a.progress)
+   684              .map(|mut rd| (std::mem::take(&mut rd.decls), Some(rd)))),
+   685      };
+   686      let label: String = match input {
+   687          Input::Ndjson(file) => con_ron::render::display_path(file),
+   688          Input::Oleans(req) => req.label(pers, &st),
+   689      };
+   690      let (parsed_decls, olean): (Vec<IDeclaration>, Option<OleanRead>) = match read {
+   691          Err(_) => return 3,
+   692          Ok(Err((e, line))) => match classify(&e) {
+   693              FrontendClass::Declined(what) => {
+   694                  eprintln!("con-ron: declined: {} ({})", what, mode_tag);
+   695                  return 2;
+   696              }
+   697              // A stream whose inductive block contradicts its own declarations
+   698              // in a REDUNDANT field is rejected at the parse.
+   699              FrontendClass::Invalid(what) => {
+   700                  eprintln!("con-ron: invalid: {} ({})", what, mode_tag);
+   701                  return 1;
+   702              }
+   703              FrontendClass::Internal(msg) => {
+   704                  eprintln!("con-ron: {}:{}: {}", label, line, msg);
+   705                  return 3;
+   706              }
+   707          },
+   708          Ok(Ok(r)) => r,
+   709      };
+   710      let file_records = parsed_decls.len();
+   711      // From here on the store is the checker's state: the memo tables and the
+   712      // per-declaration caches join it (`AState`), and every handle the parse
+   713      // produced indexes into it.
+   714      // **PREPARE** (`frontend::prepare`): what the fold runs over is
+   715      // `prepare_prelude` of the file's records — the prelude's declarations
+   716      // first (the stream's own copies where it has them, the rest synthesised),
+   717      // then the stream's, with every pinned `Nat` operation's stream-certified
+   718      // ground hoisted ahead of it.  It takes the whole state since task
+   719      // #97-P4d: step 2 is the real ground hoist, which interns.
+   720      // ConRon.Capstone: h4
+   721      // What a record mentions, for the ground hoist: its expressions say it,
+   722      // except a theorem's read from an `.olean`, whose load read it off the
+   723      // file (con-leche's `usedOf`).
+   724      let prepared = match match &olean {
+   725          None => prepare::prepare_d(pers, &mut st, prelude_ix, parsed_decls, &DeclUsedConsts),
+   726          Some(rd) => prepare::prepare_d(pers, &mut st, prelude_ix, parsed_decls, rd),
+   727      } {
+   728          Ok(p) => p,
+   729          Err(e) => return frontend_exit(&e, mode_tag),
+   730      };
+   731      // **What the check keeps of the read** (con-leche's `checkOleansG` takes
+   732      // `rd.values`): the reader's pins and the values' modules.  The merged
+   733      // constants, whose last reader is the preparation (`OleanRead.thmUses`), go
+   734      // here, before the pool: on Mathlib that is 0.8 M constants and their
+   735      // `uses` (DESIGN, task #145).
+   736      let olean: Option<(OleanPins, Vec<ModRef>)> =
+   737          olean.map(|rd| (rd.pins, rd.values));
+   738      // the ground hoist's receipt
+   739      if !prepared.hoisted.is_empty() {
+   740          let names: Vec<String> = prepared
+   741              .hoisted
+   742              .iter()
+   743              .map(|n| driver::name_of(pers, &st.store, n))
+   744              .collect();
+   745          eprintln!(
+   746              "con-ron: {} declarations hoisted ahead of the pinned Nat operations \
+   747               they ground: {}",
+   748              prepared.hoisted.len(),
+   749              names.join(", ")
+   750          );
+   751      }
+   752      // ConRon.Capstone: hpins (`decode_embedded`; `--pins`/`--no-pins` are
+   753      // outside the theorems)
+   754      let pins = match con_ron::driver::pins_for_run(&a.pins, a.no_pins) {
+   755          Ok(p) => p,
+   756          Err(e) => {
+   757              eprintln!("con-ron: {}", e);
+   758              return 3;
+   759          }
+   760      };
+   761      // What the parse line reports, printed once the index is built.
+   762      hb.file_records = file_records;
+   763      hb.synthesised = prepared.synthesised;
+   764      // **THE STARTUP PIN WALK** (DESIGN.md §8.6 P2d, task #97-P4d): every
+   765      // pinned datum the checker compares a stream record against — the six
+   766      // basis blocks in both forms, the axiom pins, the reserved names and the
+   767      // `Nat`-operation variants — interned ONCE, here, while the scratch tier
+   768      // is still off, so that nothing the fold compares against lives in a tier
+   769      // that is about to vanish.  Its result is the fold's pin parameter.
+   770      // ConRon.Capstone: h5
+   771      let ipins = match checker::intern_all_pins(pers, &mut st, &pins, &a.max_nat_size) {
+   772          Ok(p) => p,
+   773          Err(e) => return frontend_exit(&e, mode_tag),
+   774      };
+   775      // ONE driver, and the heartbeat is printed between its steps
+   776      // (`driver::check_decls_driver`: the index, the frozen tier, and the pool
+   777      // for the check phase).
+   778      let jobs: u64 = match a.jobs {
+   779          Some(n) => n,
+   780          None => con_ron::driver::default_jobs(),
+   781      };
+   782      // ONE lane, whatever the flags: the driver is what builds and freezes the
+   783      // index and the check phase is the pool at every worker count, so a run
+   784      // with no heartbeat is the same computation as a run with one.
+   785      // ConRon.Capstone: the index, the freeze and the pool (the driver's steps,
+   786      // either observer)
+   787      let on = con_ron_core::frontend::pace::pace_on(&a.progress);
+   788      let ds = &prepared.decls;
+   789      let verdict = match (&olean, input) {
+   790          (Some((pk, values)), Input::Oleans(req)) => {
+   791              let sp = &req.search_path;
+   792              let job = |tier: &PersTier, w: &mut AState, c: &mut ValueCache, k: u64| {
+   793                  driver::olean_job(tier, w, c, &mode, &ipins, ds, pk, values, sp, None, k)
+   794              };
+   795              if on {
+   796                  driver::check_decls_driver_with(pers, &mut st, ds, jobs, &mut hb, value_cache_empty, job)
+   797              } else {
+   798                  driver::check_decls_driver_with(pers, &mut st, ds, jobs, &mut driver::Silent, value_cache_empty, job)
+   799              }
+   800          }
+   801          _ => {
+   802              if on {
+   803                  driver::check_decls_driver(pers, &mut st, &mode, &ipins, None, ds, jobs, &mut hb)
+   804              } else {
+   805                  driver::check_decls_driver(pers, &mut st, &mode, &ipins, None, ds, jobs, &mut driver::Silent)
+   806              }
+   807          }
+   808      };
+   809      // **The headline number is the FILE's declaration-record count**: the
+   810      // records the PARSE produced, which are the file's own.  Nothing the
+   811      // preparation does moves it.
+   812      let stream_records = file_records as u64;
+   813      let code = match &verdict {
+   814          Ok(_) => driver::verdict_accept(stream_records, mode_tag),
+   815          Err((e, i)) => {
+   816              driver::verdict_failure(pers, &st.store, &prepared.decls, e, *i, mode_tag, t0, "")
+   817          }
+   818      };
+   819      exit_after_verdict(code)
+   820  }
 
 == crates/con-ron-core/src/arena/pins.rs#L1-L60
      1  //! `arena::pins` — the reserved names, interned ONCE (task #97-P6-4a).
@@ -2071,49 +2094,49 @@
     29  //! | `prepare` | `Arena/Frontend/Prepare.lean` | `Frontend/Prepare.lean` |
     30  //! | `prelude` | `Arena/Frontend/Prelude.lean` | `Frontend/Prelude.lean` |
 
-== crates/con-ron/src/driver.rs#L1041-L1082
-  1041  // the reads have no model here, and a theorem about the file is a theorem
-  1042  // about its bytes.  con-leche's reads go through a handle too (its `CheckerIO`
-  1043  // class's `openRead` and `read`), up to the size it read first; these go to the
-  1044  // first empty read, and there is no class.
-  1045  // ---------------------------------------------------------------------------
-  1046  
-  1047  /// con-leche: ConLeche/Frontend/CheckerIO.lean:205-215 foldChunks
-  1048  /// **The file handle as the parse's `ChunkSource`**: each `next_chunk` is one
-  1049  /// `read_up_to` of `chunk` bytes, strictly forward, handed over whole; the
-  1050  /// first empty read is the end of the input.  A failed read ends the input
-  1051  /// the same way and is KEPT here, and `parse_export_handle_d` reports it in
-  1052  /// place of whatever the parse of the truncated input said — so a read error
-  1053  /// is exit 3, never a verdict, as before the loop moved.
-  1054  pub struct HandleSource<'a, R: Read> {
-  1055      /// The open reader.
-  1056      pub h: &'a mut R,
-  1057      /// The buffer size, `export_c::CHUNK_SIZE` in the binary.
-  1058      pub chunk: usize,
-  1059      /// The nonempty buffers handed out so far, for the heartbeat.
-  1060      pub chunks: u64,
-  1061      /// The first read failure, if any.
-  1062      pub err: Option<std::io::Error>,
-  1063  }
-  1064  
-  1065  /// con-leche: ConLeche/Frontend/CheckerIO.lean:205-215 foldChunks
-  1066  impl<'a, R: Read> ChunkSource for HandleSource<'a, R> {
-  1067      /// con-leche: ConLeche/Frontend/CheckerIO.lean:205-215 foldChunks
-  1068      /// One read of up to `chunk` bytes; empty at the end or on a failure.
-  1069      fn next_chunk(&mut self) -> Vec<u8> {
-  1070          if self.err.is_some() {
-  1071              return Vec::new();
-  1072          }
-  1073          let mut buf: Vec<u8> = vec![0u8; self.chunk];
-  1074          match read_up_to(self.h, &mut buf) {
-  1075              Ok(n) => {
-  1076                  buf.truncate(n);
-  1077                  if n > 0 {
-  1078                      self.chunks += 1;
-  1079                  }
-  1080                  buf
-  1081              }
-  1082              Err(e) => {
+== crates/con-ron/src/driver.rs#L1053-L1094
+  1053  // the reads have no model here, and a theorem about the file is a theorem
+  1054  // about its bytes.  con-leche's reads go through a handle too (its `CheckerIO`
+  1055  // class's `openRead` and `read`), up to the size it read first; these go to the
+  1056  // first empty read, and there is no class.
+  1057  // ---------------------------------------------------------------------------
+  1058  
+  1059  /// con-leche: ConLeche/Frontend/CheckerIO.lean:205-215 foldChunks
+  1060  /// **The file handle as the parse's `ChunkSource`**: each `next_chunk` is one
+  1061  /// `read_up_to` of `chunk` bytes, strictly forward, handed over whole; the
+  1062  /// first empty read is the end of the input.  A failed read ends the input
+  1063  /// the same way and is KEPT here, and `parse_export_handle_d` reports it in
+  1064  /// place of whatever the parse of the truncated input said — so a read error
+  1065  /// is exit 3, never a verdict, as before the loop moved.
+  1066  pub struct HandleSource<'a, R: Read> {
+  1067      /// The open reader.
+  1068      pub h: &'a mut R,
+  1069      /// The buffer size, `export_c::CHUNK_SIZE` in the binary.
+  1070      pub chunk: usize,
+  1071      /// The nonempty buffers handed out so far, for the heartbeat.
+  1072      pub chunks: u64,
+  1073      /// The first read failure, if any.
+  1074      pub err: Option<std::io::Error>,
+  1075  }
+  1076  
+  1077  /// con-leche: ConLeche/Frontend/CheckerIO.lean:205-215 foldChunks
+  1078  impl<'a, R: Read> ChunkSource for HandleSource<'a, R> {
+  1079      /// con-leche: ConLeche/Frontend/CheckerIO.lean:205-215 foldChunks
+  1080      /// One read of up to `chunk` bytes; empty at the end or on a failure.
+  1081      fn next_chunk(&mut self) -> Vec<u8> {
+  1082          if self.err.is_some() {
+  1083              return Vec::new();
+  1084          }
+  1085          let mut buf: Vec<u8> = vec![0u8; self.chunk];
+  1086          match read_up_to(self.h, &mut buf) {
+  1087              Ok(n) => {
+  1088                  buf.truncate(n);
+  1089                  if n > 0 {
+  1090                      self.chunks += 1;
+  1091                  }
+  1092                  buf
+  1093              }
+  1094              Err(e) => {
 
 == crates/con-ron-core/src/arena/stream_index.rs#L178-L216
    178  /// con-leche: ConLeche/Cached/StreamIndex.lean:64-66 buildIndex
@@ -2217,138 +2240,138 @@
    293      enter_record(st);
    294      let r: Result<(), CheckError> = record_check(pers, st, mode, pins, sol, k, pd);
 
-== crates/con-ron/src/driver.rs#L713-L763
-   713      values: &Vec<con_ron_core::frontend::olean::records::ModRef>,
-   714      sp: &con_ron_core::frontend::olean::files::Roots,
-   715      sol: Option<&Solution>,
-   716      k: u64,
-   717  ) -> Result<(), (CheckError, u64)> {
-   718      let d = match ds.get(k as usize) {
-   719          Some(d) => d,
-   720          None => return checker::run_job(tier, w, mode, pins, sol, ds, k),
-   721      };
-   722      let code: Option<u64> = match d {
-   723          // a theorem's value is a reference only if its handle is a `bvar`: the store's
-   724          // projection reads the bvar table at the handle's slot whatever its tag
-   725          IDeclaration::ThmDecl(_, v) if v.tag() == con_ron_core::arena::handle::ETAG_BVAR => {
-   726              w.store.view_bvar(tier, v)
-   727          }
-   728          _ => None,
-   729      };
-   730      match (code, d) {
-   731          (Some(code), IDeclaration::ThmDecl(cv, _)) => {
-   732              con_ron_core::arena::core::enter_record(w);
-   733              let r = match con_ron_core::frontend::olean::records::read_value(
-   734                  &crate::olean_fs::StdFs,
-   735                  pk,
-   736                  tier,
-   737                  &mut w.store,
-   738                  sp,
-   739                  values,
-   740                  cache,
-   741                  code,
-   742              ) {
-   743                  Err(e) => Err((e, k)),
-   744                  Ok(v) => {
-   745                      let pd = IDeclaration::ThmDecl(ienv::i_constant_val_dup(cv), v);
-   746                      match stream_index::record_check(tier, w, mode, pins, sol, k, &pd) {
-   747                          Err(e) => Err((e, k)),
-   748                          Ok(()) => Ok(()),
-   749                      }
-   750                  }
-   751              };
-   752              con_ron_core::arena::core::leave_record(w);
-   753              r
-   754          }
-   755          _ => checker::run_job(tier, w, mode, pins, sol, ds, k),
-   756      }
-   757  }
-   758  
-   759  // ---------------------------------------------------------------------------
-   760  // The progress heartbeat (`--progress[=N|P%|Ss]`)
-   761  // ---------------------------------------------------------------------------
-   762  
-   763  /// con-leche: ConLeche/Driver/Run.lean:26-30 beat
+== crates/con-ron/src/driver.rs#L725-L775
+   725      values: &Vec<con_ron_core::frontend::olean::records::ModRef>,
+   726      sp: &con_ron_core::frontend::olean::files::Roots,
+   727      sol: Option<&Solution>,
+   728      k: u64,
+   729  ) -> Result<(), (CheckError, u64)> {
+   730      let d = match ds.get(k as usize) {
+   731          Some(d) => d,
+   732          None => return checker::run_job(tier, w, mode, pins, sol, ds, k),
+   733      };
+   734      let code: Option<u64> = match d {
+   735          // a theorem's value is a reference only if its handle is a `bvar`: the store's
+   736          // projection reads the bvar table at the handle's slot whatever its tag
+   737          IDeclaration::ThmDecl(_, v) if v.tag() == con_ron_core::arena::handle::ETAG_BVAR => {
+   738              w.store.view_bvar(tier, v)
+   739          }
+   740          _ => None,
+   741      };
+   742      match (code, d) {
+   743          (Some(code), IDeclaration::ThmDecl(cv, _)) => {
+   744              con_ron_core::arena::core::enter_record(w);
+   745              let r = match con_ron_core::frontend::olean::records::read_value(
+   746                  &crate::olean_fs::StdFs,
+   747                  pk,
+   748                  tier,
+   749                  &mut w.store,
+   750                  sp,
+   751                  values,
+   752                  cache,
+   753                  code,
+   754              ) {
+   755                  Err(e) => Err((e, k)),
+   756                  Ok(v) => {
+   757                      let pd = IDeclaration::ThmDecl(ienv::i_constant_val_dup(cv), v);
+   758                      match stream_index::record_check(tier, w, mode, pins, sol, k, &pd) {
+   759                          Err(e) => Err((e, k)),
+   760                          Ok(()) => Ok(()),
+   761                      }
+   762                  }
+   763              };
+   764              con_ron_core::arena::core::leave_record(w);
+   765              r
+   766          }
+   767          _ => checker::run_job(tier, w, mode, pins, sol, ds, k),
+   768      }
+   769  }
+   770  
+   771  // ---------------------------------------------------------------------------
+   772  // The progress heartbeat (`--progress[=N|P%|Ss]`)
+   773  // ---------------------------------------------------------------------------
+   774  
+   775  /// con-leche: ConLeche/Driver/Run.lean:26-30 beat
 
-== crates/con-ron/src/driver.rs#L612-L689
-   612  /// con-leche: ConLeche/Driver/CheckMain.lean:154-177 checkOleansG
-   613  /// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
-   614  /// **The check phase from `start`** (a module's worker, task #166): the index
-   615  /// over every record of `ds` from 0 (the context's records `ds[..start]` visible
-   616  /// to every job), the frozen tier, `after_freeze` on it (a worker's inferred
-   617  /// flags, `modular::reach::infer_flags`, which read the frozen environment),
-   618  /// then the jobs at positions `start..ds.len()` alone on the pool.  At
-   619  /// `start = 0` and a no-op `after_freeze` it is `check_decls_driver_with`.
-   620  #[allow(clippy::too_many_arguments)]
-   621  pub fn check_decls_driver_from<O, X, A, I, J>(
-   622      pers: &PersTier,
-   623      st: &mut AState,
-   624      ds: &Vec<IDeclaration>,
-   625      start: usize,
-   626      jobs: u64,
-   627      obs: &mut O,
-   628      after_freeze: A,
-   629      init_x: I,
-   630      job: J,
-   631  ) -> Result<IStreamIndex, (CheckError, u64)>
-   632  where
-   633      O: PhaseObserver + Send,
-   634      A: FnOnce(&PersTier, &mut AState) -> Result<(), CheckError>,
-   635      I: Fn() -> X + Sync,
-   636      J: Fn(&PersTier, &mut AState, &mut X, u64) -> Result<(), (CheckError, u64)> + Sync,
-   637  {
-   638      // THE INDEX (the last step of the parse phase): every record's constants and
-   639      // tables, a name's first entry winning, read off the records alone.
-   640      obs.index_starts();
-   641      let ix: IStreamIndex = stream_index::build_index(pers, st, stream_index::stream_index_empty(), ds, 0)?;
-   642      obs.parse_done(pers, &st.store, ds.len());
-   643      let m = ds.len();
-   644      let n = m.saturating_sub(start);
-   645      let workers = workers_for(jobs, n);
-   646      obs.check_starts(n, workers);
-   647      // THE BOUNDARY: the persistent tier and the index leave the state and become
-   648      // a value every worker reads.  `st` keeps its (empty) store, its tables
-   649      // moved out, so the observer can still read a label back through the tier.
-   650      let tier: PersTier = checker::freeze_tier(&mut st.store, ix);
-   651      // What runs on the frozen tier before the jobs (a module's inferred flags), on
-   652      // a worker's state: the driver's store has no tables left, and a term the
-   653      // inference interns must go to a scratch tier over the frozen one, as a job's.
-   654      let mut fws: AState = checker::worker_state(&st.pins);
-   655      if let Err(e) = after_freeze(&tier, &mut fws) {
-   656          let _ = checker::thaw_tier(&mut st.store, tier);
-   657          return Err((e, start as u64));
-   658      }
-   659      // THE CHECK PHASE: the job at every record from `start`, on `workers` threads,
-   660      // each folding it over the jobs it claims on ONE `worker_state` — the verdict
-   661      // and the record a rejection names are the one-worker walk's at every `--jobs`.
-   662      let heartbeat = obs.wants_check_lines();
-   663      let lock: Mutex<(usize, &mut O)> = Mutex::new((0, obs));
-   664      let r = parallel_all(
-   665          n,
-   666          workers,
-   667          || (checker::worker_state(&st.pins), init_x()),
-   668          |w: &mut (AState, X), k| job(&tier, &mut w.0, &mut w.1, (start + k) as u64),
-   669          |w: &(AState, X), k| check_line(heartbeat, &lock, &tier, &w.0, n, ds, start + k),
-   670      );
-   671      let obs: &mut O = match lock.into_inner() {
-   672          Ok((_, o)) => o,
-   673          Err(e) => e.into_inner().1,
-   674      };
-   675      // AND THE TIER GOES BACK.  Everything after the check — the verdict line's
-   676      // declaration label, the failing record's name — reads a handle back out of
-   677      // `st`, and a state left frozen over a tier that has gone out of scope
-   678      // answers `None` to every one of them.
-   679      let ix: IStreamIndex = checker::thaw_tier(&mut st.store, tier);
-   680      let v = pool_verdict(r);
-   681      obs.check_done(n, match &v {
-   682          Err((_, pos)) => Some(*pos),
-   683          Ok(()) => None,
-   684      });
-   685      match v {
-   686          Ok(()) => Ok(ix),
-   687          Err(e) => Err(e),
-   688      }
-   689  }
+== crates/con-ron/src/driver.rs#L624-L701
+   624  /// con-leche: ConLeche/Driver/CheckMain.lean:154-177 checkOleansG
+   625  /// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
+   626  /// **The check phase from `start`** (a module's worker, task #166): the index
+   627  /// over every record of `ds` from 0 (the context's records `ds[..start]` visible
+   628  /// to every job), the frozen tier, `after_freeze` on it (a worker's inferred
+   629  /// flags, `modular::reach::infer_flags`, which read the frozen environment),
+   630  /// then the jobs at positions `start..ds.len()` alone on the pool.  At
+   631  /// `start = 0` and a no-op `after_freeze` it is `check_decls_driver_with`.
+   632  #[allow(clippy::too_many_arguments)]
+   633  pub fn check_decls_driver_from<O, X, A, I, J>(
+   634      pers: &PersTier,
+   635      st: &mut AState,
+   636      ds: &Vec<IDeclaration>,
+   637      start: usize,
+   638      jobs: u64,
+   639      obs: &mut O,
+   640      after_freeze: A,
+   641      init_x: I,
+   642      job: J,
+   643  ) -> Result<IStreamIndex, (CheckError, u64)>
+   644  where
+   645      O: PhaseObserver + Send,
+   646      A: FnOnce(&PersTier, &mut AState) -> Result<(), CheckError>,
+   647      I: Fn() -> X + Sync,
+   648      J: Fn(&PersTier, &mut AState, &mut X, u64) -> Result<(), (CheckError, u64)> + Sync,
+   649  {
+   650      // THE INDEX (the last step of the parse phase): every record's constants and
+   651      // tables, a name's first entry winning, read off the records alone.
+   652      obs.index_starts();
+   653      let ix: IStreamIndex = stream_index::build_index(pers, st, stream_index::stream_index_empty(), ds, 0)?;
+   654      obs.parse_done(pers, &st.store, ds.len());
+   655      let m = ds.len();
+   656      let n = m.saturating_sub(start);
+   657      let workers = workers_for(jobs, n);
+   658      obs.check_starts(n, workers);
+   659      // THE BOUNDARY: the persistent tier and the index leave the state and become
+   660      // a value every worker reads.  `st` keeps its (empty) store, its tables
+   661      // moved out, so the observer can still read a label back through the tier.
+   662      let tier: PersTier = checker::freeze_tier(&mut st.store, ix);
+   663      // What runs on the frozen tier before the jobs (a module's inferred flags), on
+   664      // a worker's state: the driver's store has no tables left, and a term the
+   665      // inference interns must go to a scratch tier over the frozen one, as a job's.
+   666      let mut fws: AState = checker::worker_state(&st.pins);
+   667      if let Err(e) = after_freeze(&tier, &mut fws) {
+   668          let _ = checker::thaw_tier(&mut st.store, tier);
+   669          return Err((e, start as u64));
+   670      }
+   671      // THE CHECK PHASE: the job at every record from `start`, on `workers` threads,
+   672      // each folding it over the jobs it claims on ONE `worker_state` — the verdict
+   673      // and the record a rejection names are the one-worker walk's at every `--jobs`.
+   674      let heartbeat = obs.wants_check_lines();
+   675      let lock: Mutex<(usize, &mut O)> = Mutex::new((0, obs));
+   676      let r = parallel_all(
+   677          n,
+   678          workers,
+   679          || (checker::worker_state(&st.pins), init_x()),
+   680          |w: &mut (AState, X), k| job(&tier, &mut w.0, &mut w.1, (start + k) as u64),
+   681          |w: &(AState, X), k| check_line(heartbeat, &lock, &tier, &w.0, n, ds, start + k),
+   682      );
+   683      let obs: &mut O = match lock.into_inner() {
+   684          Ok((_, o)) => o,
+   685          Err(e) => e.into_inner().1,
+   686      };
+   687      // AND THE TIER GOES BACK.  Everything after the check — the verdict line's
+   688      // declaration label, the failing record's name — reads a handle back out of
+   689      // `st`, and a state left frozen over a tier that has gone out of scope
+   690      // answers `None` to every one of them.
+   691      let ix: IStreamIndex = checker::thaw_tier(&mut st.store, tier);
+   692      let v = pool_verdict(r);
+   693      obs.check_done(n, match &v {
+   694          Err((_, pos)) => Some(*pos),
+   695          Ok(()) => None,
+   696      });
+   697      match v {
+   698          Ok(()) => Ok(ix),
+   699          Err(e) => Err(e),
+   700      }
+   701  }
 
 == crates/con-ron/src/pool.rs#L35-L48
     35  //! ## What a worker is, in the check phase
@@ -2400,7 +2423,7 @@
    246  /// worker's thread after each step it made, with the worker's state by `&`
    247  /// (the driver's heartbeat); it cannot change an outcome.
    248  ///
-   249  /// The workers are `std::thread::scope`d, with `STACK_BYTES` of stack each.
+   249  /// The workers are `std::thread::scope`d, with `stack_bytes()` of stack each.
    250  /// `workers` is the count the caller has already clamped
    251  /// (`driver::workers_for`: `max(1, min(jobs, n))`); if the OS refuses to
    252  /// spawn one, the pool runs on those it has, and on the calling thread if it
@@ -2422,7 +2445,7 @@
    268          let mut handles = Vec::with_capacity(workers);
    269          for w in 0..workers {
    270              let spawned = std::thread::Builder::new()
-   271                  .stack_size(STACK_BYTES)
+   271                  .stack_size(stack_bytes())
    272                  .name(format!("check-{}", w))
    273                  .spawn_scoped(scope, &run);
    274              match spawned {
@@ -2460,17 +2483,17 @@
    388    ∃ e : frontend.scan_types.ScanErr, e.what = .IndexOverflow ∧
    389      frontend.export_c.scan_err_to_check e = ok ce
 
-== crates/con-ron/src/driver.rs#L155-L164
-   155  /// check — is a **decline**, exit 2, the same code as "not implemented",
-   156  /// because that is what it is: the port cannot carry this input, and says so
-   157  /// rather than rejecting the stream (1) or claiming a checker bug (3).
-   158  pub fn exit_code(e: &CheckError) -> u8 {
-   159      match e {
-   160          CheckError::NotImplemented(_) => 2,
-   161          CheckError::Invalid(_) => 1,
-   162          CheckError::Internal(_) => 3,
-   163          CheckError::Native(_) => 2,
-   164      }
+== crates/con-ron/src/driver.rs#L167-L176
+   167  /// check — is a **decline**, exit 2, the same code as "not implemented",
+   168  /// because that is what it is: the port cannot carry this input, and says so
+   169  /// rather than rejecting the stream (1) or claiming a checker bug (3).
+   170  pub fn exit_code(e: &CheckError) -> u8 {
+   171      match e {
+   172          CheckError::NotImplemented(_) => 2,
+   173          CheckError::Invalid(_) => 1,
+   174          CheckError::Internal(_) => 3,
+   175          CheckError::Native(_) => 2,
+   176      }
 
 == Cargo.toml#L22-L23
     22  [profile.release]
@@ -3165,85 +3188,85 @@
     54  //! #97-P5-Driver moved it into the core) over [`HandleSource`], the handle
     55  //! read strictly forward 4 MiB at a time, each buffer fed to `chunk_step` and
 
-== crates/con-ron/src/driver.rs#L612-L689
-   612  /// con-leche: ConLeche/Driver/CheckMain.lean:154-177 checkOleansG
-   613  /// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
-   614  /// **The check phase from `start`** (a module's worker, task #166): the index
-   615  /// over every record of `ds` from 0 (the context's records `ds[..start]` visible
-   616  /// to every job), the frozen tier, `after_freeze` on it (a worker's inferred
-   617  /// flags, `modular::reach::infer_flags`, which read the frozen environment),
-   618  /// then the jobs at positions `start..ds.len()` alone on the pool.  At
-   619  /// `start = 0` and a no-op `after_freeze` it is `check_decls_driver_with`.
-   620  #[allow(clippy::too_many_arguments)]
-   621  pub fn check_decls_driver_from<O, X, A, I, J>(
-   622      pers: &PersTier,
-   623      st: &mut AState,
-   624      ds: &Vec<IDeclaration>,
-   625      start: usize,
-   626      jobs: u64,
-   627      obs: &mut O,
-   628      after_freeze: A,
-   629      init_x: I,
-   630      job: J,
-   631  ) -> Result<IStreamIndex, (CheckError, u64)>
-   632  where
-   633      O: PhaseObserver + Send,
-   634      A: FnOnce(&PersTier, &mut AState) -> Result<(), CheckError>,
-   635      I: Fn() -> X + Sync,
-   636      J: Fn(&PersTier, &mut AState, &mut X, u64) -> Result<(), (CheckError, u64)> + Sync,
-   637  {
-   638      // THE INDEX (the last step of the parse phase): every record's constants and
-   639      // tables, a name's first entry winning, read off the records alone.
-   640      obs.index_starts();
-   641      let ix: IStreamIndex = stream_index::build_index(pers, st, stream_index::stream_index_empty(), ds, 0)?;
-   642      obs.parse_done(pers, &st.store, ds.len());
-   643      let m = ds.len();
-   644      let n = m.saturating_sub(start);
-   645      let workers = workers_for(jobs, n);
-   646      obs.check_starts(n, workers);
-   647      // THE BOUNDARY: the persistent tier and the index leave the state and become
-   648      // a value every worker reads.  `st` keeps its (empty) store, its tables
-   649      // moved out, so the observer can still read a label back through the tier.
-   650      let tier: PersTier = checker::freeze_tier(&mut st.store, ix);
-   651      // What runs on the frozen tier before the jobs (a module's inferred flags), on
-   652      // a worker's state: the driver's store has no tables left, and a term the
-   653      // inference interns must go to a scratch tier over the frozen one, as a job's.
-   654      let mut fws: AState = checker::worker_state(&st.pins);
-   655      if let Err(e) = after_freeze(&tier, &mut fws) {
-   656          let _ = checker::thaw_tier(&mut st.store, tier);
-   657          return Err((e, start as u64));
-   658      }
-   659      // THE CHECK PHASE: the job at every record from `start`, on `workers` threads,
-   660      // each folding it over the jobs it claims on ONE `worker_state` — the verdict
-   661      // and the record a rejection names are the one-worker walk's at every `--jobs`.
-   662      let heartbeat = obs.wants_check_lines();
-   663      let lock: Mutex<(usize, &mut O)> = Mutex::new((0, obs));
-   664      let r = parallel_all(
-   665          n,
-   666          workers,
-   667          || (checker::worker_state(&st.pins), init_x()),
-   668          |w: &mut (AState, X), k| job(&tier, &mut w.0, &mut w.1, (start + k) as u64),
-   669          |w: &(AState, X), k| check_line(heartbeat, &lock, &tier, &w.0, n, ds, start + k),
-   670      );
-   671      let obs: &mut O = match lock.into_inner() {
-   672          Ok((_, o)) => o,
-   673          Err(e) => e.into_inner().1,
-   674      };
-   675      // AND THE TIER GOES BACK.  Everything after the check — the verdict line's
-   676      // declaration label, the failing record's name — reads a handle back out of
-   677      // `st`, and a state left frozen over a tier that has gone out of scope
-   678      // answers `None` to every one of them.
-   679      let ix: IStreamIndex = checker::thaw_tier(&mut st.store, tier);
-   680      let v = pool_verdict(r);
-   681      obs.check_done(n, match &v {
-   682          Err((_, pos)) => Some(*pos),
-   683          Ok(()) => None,
-   684      });
-   685      match v {
-   686          Ok(()) => Ok(ix),
-   687          Err(e) => Err(e),
-   688      }
-   689  }
+== crates/con-ron/src/driver.rs#L624-L701
+   624  /// con-leche: ConLeche/Driver/CheckMain.lean:154-177 checkOleansG
+   625  /// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
+   626  /// **The check phase from `start`** (a module's worker, task #166): the index
+   627  /// over every record of `ds` from 0 (the context's records `ds[..start]` visible
+   628  /// to every job), the frozen tier, `after_freeze` on it (a worker's inferred
+   629  /// flags, `modular::reach::infer_flags`, which read the frozen environment),
+   630  /// then the jobs at positions `start..ds.len()` alone on the pool.  At
+   631  /// `start = 0` and a no-op `after_freeze` it is `check_decls_driver_with`.
+   632  #[allow(clippy::too_many_arguments)]
+   633  pub fn check_decls_driver_from<O, X, A, I, J>(
+   634      pers: &PersTier,
+   635      st: &mut AState,
+   636      ds: &Vec<IDeclaration>,
+   637      start: usize,
+   638      jobs: u64,
+   639      obs: &mut O,
+   640      after_freeze: A,
+   641      init_x: I,
+   642      job: J,
+   643  ) -> Result<IStreamIndex, (CheckError, u64)>
+   644  where
+   645      O: PhaseObserver + Send,
+   646      A: FnOnce(&PersTier, &mut AState) -> Result<(), CheckError>,
+   647      I: Fn() -> X + Sync,
+   648      J: Fn(&PersTier, &mut AState, &mut X, u64) -> Result<(), (CheckError, u64)> + Sync,
+   649  {
+   650      // THE INDEX (the last step of the parse phase): every record's constants and
+   651      // tables, a name's first entry winning, read off the records alone.
+   652      obs.index_starts();
+   653      let ix: IStreamIndex = stream_index::build_index(pers, st, stream_index::stream_index_empty(), ds, 0)?;
+   654      obs.parse_done(pers, &st.store, ds.len());
+   655      let m = ds.len();
+   656      let n = m.saturating_sub(start);
+   657      let workers = workers_for(jobs, n);
+   658      obs.check_starts(n, workers);
+   659      // THE BOUNDARY: the persistent tier and the index leave the state and become
+   660      // a value every worker reads.  `st` keeps its (empty) store, its tables
+   661      // moved out, so the observer can still read a label back through the tier.
+   662      let tier: PersTier = checker::freeze_tier(&mut st.store, ix);
+   663      // What runs on the frozen tier before the jobs (a module's inferred flags), on
+   664      // a worker's state: the driver's store has no tables left, and a term the
+   665      // inference interns must go to a scratch tier over the frozen one, as a job's.
+   666      let mut fws: AState = checker::worker_state(&st.pins);
+   667      if let Err(e) = after_freeze(&tier, &mut fws) {
+   668          let _ = checker::thaw_tier(&mut st.store, tier);
+   669          return Err((e, start as u64));
+   670      }
+   671      // THE CHECK PHASE: the job at every record from `start`, on `workers` threads,
+   672      // each folding it over the jobs it claims on ONE `worker_state` — the verdict
+   673      // and the record a rejection names are the one-worker walk's at every `--jobs`.
+   674      let heartbeat = obs.wants_check_lines();
+   675      let lock: Mutex<(usize, &mut O)> = Mutex::new((0, obs));
+   676      let r = parallel_all(
+   677          n,
+   678          workers,
+   679          || (checker::worker_state(&st.pins), init_x()),
+   680          |w: &mut (AState, X), k| job(&tier, &mut w.0, &mut w.1, (start + k) as u64),
+   681          |w: &(AState, X), k| check_line(heartbeat, &lock, &tier, &w.0, n, ds, start + k),
+   682      );
+   683      let obs: &mut O = match lock.into_inner() {
+   684          Ok((_, o)) => o,
+   685          Err(e) => e.into_inner().1,
+   686      };
+   687      // AND THE TIER GOES BACK.  Everything after the check — the verdict line's
+   688      // declaration label, the failing record's name — reads a handle back out of
+   689      // `st`, and a state left frozen over a tier that has gone out of scope
+   690      // answers `None` to every one of them.
+   691      let ix: IStreamIndex = checker::thaw_tier(&mut st.store, tier);
+   692      let v = pool_verdict(r);
+   693      obs.check_done(n, match &v {
+   694          Err((_, pos)) => Some(*pos),
+   695          Ok(()) => None,
+   696      });
+   697      match v {
+   698          Ok(()) => Ok(ix),
+   699          Err(e) => Err(e),
+   700      }
+   701  }
 
 == crates/con-ron/src/pool.rs#L50-L102
     50  //! ## THE TRUSTED CLAIM, and the whole of it

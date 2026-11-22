@@ -427,6 +427,11 @@ if [ -f "$cli_good" ]; then
   cli_case 3 --worker-stack-size=8G -- -weird-name.ndjson
   cli_case 1 --olean --search-path=. --modular M
   cli_case 1 --check-graph --search-path=. M
+  # the simple scheduler: its graph check first (no module M: exit 1); the
+  # settings it does not run, a usage error before anything is read
+  cli_case 1 --olean --search-path=. --schedule M
+  cli_case 3 --olean --search-path=. --schedule --schedule-log=log M
+  cli_case 3 --olean --search-path=. --schedule --schedule-memory=1G M
 fi
 mkfifo "$cli_dir/fifo"
 cli_regular "$cli_dir/fifo"
