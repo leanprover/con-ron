@@ -904,7 +904,7 @@ theorem streamKCheck_run {p : Arena.BlockShape} {pP : ConLeche.BlockShape} :
       refine ⟨rfl, ?_⟩
       simp only [ConLeche.streamKCheck]
       rw [BlockShape.noRules_spec hp, hrE] at hnr
-      rw [if_neg hnr]
+      rw [ite_eq_right hnr]
       rw [hK, hE] at hc
       rw [ite_eq_left hc]
       exact FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ()) hF)
@@ -1189,15 +1189,14 @@ theorem blockFlagsCheck_run {env : Env} {fe : IFEnv} {s s' : AState} {p : Arena.
       simp only [List.forIn_cons]
       cases hn : M.member.isNone with
       | false =>
-        simp only [hn, Bool.false_and, Bool.false_eq_true, ↓reduceIte, bind, Except.bind, pure,
-          Except.pure]
+        simp only [Bool.false_and, Bool.false_eq_true, ↓reduceIte, bind, Except.bind]
         exact ih'
       | true =>
         obtain ⟨a, b⟩ := hM hn
         rcases hc : M.ctors with _ | ⟨c, _ | ⟨d, r⟩⟩ <;> rw [hc] at a <;>
-          simp only [Bool.and_false, Bool.and_true] at a <;>
-          simp only [hn, hc, a, b, Bool.true_and, Bool.and_false, Bool.false_eq_true, ↓reduceIte,
-            bind, Except.bind, pure, Except.pure] <;>
+          simp only [Bool.and_false] at a <;>
+          simp only [a, b, Bool.true_and, Bool.and_false, Bool.false_eq_true, ↓reduceIte,
+            bind, Except.bind] <;>
           exact ih'
 
 end ConRon.Bridge.Inductives

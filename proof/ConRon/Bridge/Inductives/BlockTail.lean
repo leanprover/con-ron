@@ -521,12 +521,12 @@ theorem checkBlockTail_of (hk : CoreSpec Arena.checkFuel)
     rw [← hnr]
     split at h11
     · rename_i hc
-      rw [if_pos hc]
+      rw [ite_eq_left hc]
       obtain ⟨c6, _, -, hFS⟩ := streamRecsCheck_spec _ hk henvG q.p.recs pP.recs _ _ s₅ s₆ u6 c5
         ⟨dRec_ext.list x05 _ _ hrecs, ruleOutAll_denote _ _ hout5⟩ h11
       exact ⟨c6, hFS⟩
     · rename_i hc
-      rw [if_neg hc]
+      rw [ite_eq_right hc]
       obtain ⟨c6, _, -, hFS⟩ := streamRecsCheck_spec _ hk henvG q.p.recs pP.recs out outP s₅ s₆ u6 c5
         ⟨dRec_ext.list x05 _ _ hrecs, hout5⟩ h11
       exact ⟨c6, hFS⟩

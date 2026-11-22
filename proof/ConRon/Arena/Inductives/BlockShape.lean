@@ -111,7 +111,7 @@ structure BlockShape where
 
 /-! ## The feature flags -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:155-162 BlockShape.derivedFlags
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:151-162 BlockShape.derivedFlags
 **The flags of a block without declared ones**, member `i`'s: what the
 official kernel computed from the declaration before the flags were inputs.
 `hasEta` is the structure-like shape; the capability takes official's `is_rec`
@@ -438,7 +438,7 @@ them; `none` otherwise. -/
 def blockFlagsOf (block : List IConstantInfo) : Option (List IndFlags) :=
   (blockFlagRecs block).mapM id
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:470-541 readBlockShape
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:469-542 readBlockShape
 **Read a declared inductive block's shape**: split into formers, constructors and
 recursors (at least one of each of the first and the last), the members'
 counts, the universe and parameter declarations (formers', then constructors'

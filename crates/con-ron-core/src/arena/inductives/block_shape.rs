@@ -187,7 +187,7 @@ pub fn flags_dup(fl: &Vec<IndFlags>, i: usize, out: Vec<IndFlags>) -> Vec<IndFla
 // The feature flags
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:155-162 BlockShape.derivedFlags
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:151-162 BlockShape.derivedFlags
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 BlockShape.derivedFlags` —
 /// **the flags of a block without declared ones**, member `i`'s: what the
 /// official kernel computed from the declaration before the flags were
@@ -1079,7 +1079,7 @@ pub fn former_names(cvs: &Vec<IConstantVal>, i: usize, out: Vec<NIdx>) -> Vec<NI
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:470-541 readBlockShape
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:469-542 readBlockShape
 /// Lean twin: `cvTs.all fun c => c.levelParams == lps` — no type former
 /// declares other universe parameters than member 0 (the cited
 /// `cvTs.find? (fun c => c.levelParams != lps)` misses).
@@ -1093,7 +1093,7 @@ pub fn formers_lps_ok(cvs: &Vec<IConstantVal>, lps: &Vec<NIdx>, i: usize) -> boo
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:470-541 readBlockShape
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:469-542 readBlockShape
 /// Lean twin: `cs.all fun c => c.2.1 == nP` — every constructor declares the
 /// block's parameter count (the cited `cs.find? (fun c => c.2.1 != nP)`
 /// misses).
@@ -1107,7 +1107,7 @@ pub fn ctors_params_ok(cs: &Vec<(IConstantVal, u64, u64)>, n_p: u64, i: usize) -
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:470-541 readBlockShape
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:469-542 readBlockShape
 /// Lean twin: `cs.all fun c => c.1.levelParams == lps` — every constructor
 /// declares the block's universe parameters (the cited
 /// `cs.find? (fun c => c.1.levelParams != lps)` misses).
@@ -1133,7 +1133,7 @@ pub fn ctors_nf(cs: &Vec<(IConstantVal, u64, u64)>, i: usize, out: Vec<(IConstan
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:470-541 readBlockShape
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:469-542 readBlockShape
 /// Lean twin: `((cvTs.zip nIdxs).zip groups).map …` — the members, zipped to the
 /// shortest of the three lists.
 pub fn zip_members(
@@ -1157,7 +1157,7 @@ pub fn zip_members(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:470-541 readBlockShape
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:469-542 readBlockShape
 /// Lean twin: `rs.map fun r => ⟨r.1, rP, mI, recTargetOf names mI r.1.type,
 /// rules⟩` — **the recursors, in the stream's own order**, each
 /// with the member its MAJOR names.
@@ -1318,7 +1318,7 @@ pub fn read_block(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:470-541 readBlockShape
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:469-542 readBlockShape
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:359-429 readBlockShape` — **read a
 /// declared inductive block's shape**: split into formers, constructors and recursors
 /// (at least one of each of the first and the last), the members' counts, the
@@ -1352,7 +1352,7 @@ pub fn read_block_shape(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:470-541 readBlockShape
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:469-542 readBlockShape
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:359-429 readBlockShape` — the
 /// universe and parameter declarations' three tests (formers' universe
 /// parameters, constructors' parameter counts, constructors' universe
@@ -1401,7 +1401,7 @@ pub fn read_block_at(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:470-541 readBlockShape
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:469-542 readBlockShape
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:359-429 readBlockShape` — at the
 /// result sort `s`: `isProp`, the groups, the members, the recursors, and the
 /// eliminator read off recursor 0's level parameters (a fresh one in front of
@@ -1454,7 +1454,7 @@ pub fn read_block_sort(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:470-541 readBlockShape
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:469-542 readBlockShape
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:359-429 readBlockShape` —
 /// WHICH ELIMINATOR the recursors are: `elim :: relps` with `relps == lps` and
 /// `elim` fresh is the large one; anything else is the small one, at

@@ -2889,7 +2889,7 @@ pub const M_WALKED_FIELDS: [u32; 48] = [
 ];
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:791-801 nestFrameSorts
-/// con-leche: ConLeche/Cached/IndPositivity.lean:352-362 nestFrameSortsC
+/// con-leche: ConLeche/Cached/IndPositivity.lean:355-363 nestFrameSortsC
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1-1 nestFrameSorts` — **a
 /// container frame's field bound** (`NestCtx.bound`): each walked
 /// constructor telescope's fields, from `i` on, opened at the frame's depth,

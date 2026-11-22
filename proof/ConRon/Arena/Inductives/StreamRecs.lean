@@ -249,7 +249,7 @@ def streamKCheck (p : BlockShape) :
 
 /-! ## The declared feature flags -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:208-227 memberFlagsCheck
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:219-235 memberFlagsCheck
 **One member's flags** (official's checks of lean4 PR #16595): `isK` only at
 the first member of a block of one, a proposition with one constructor without
 fields; `hasProjections` only at one constructor, no index, not impredicative;
@@ -276,7 +276,7 @@ def memberFlagsCheck (p : BlockShape) (isRec : Bool) (i : Nat) (ms : MemberShape
       projections or is recursive")
   else pure ()
 
-/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:229-235 membersFlagsCheck
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:237-243 membersFlagsCheck
 The members' flags, from position `i` on, pairwise, stopping at the shorter
 list. -/
 def membersFlagsCheck (p : BlockShape) (isRec : Bool) :
@@ -286,7 +286,7 @@ def membersFlagsCheck (p : BlockShape) (isRec : Bool) :
     membersFlagsCheck p isRec (i + 1) rest fs
   | _, _, _ => pure ()
 
-/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:237-288 blockFlagsCheck
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:245-288 blockFlagsCheck
 **Is the declared `hasLargeElim` allowed?** Only at a block that is not
 impredicative and whose sort is never zero, or of one type with no constructor,
 or with one constructor and `hasEta` or `isK`.  The sort, a handle, is read only
@@ -302,7 +302,7 @@ def largeElimFlagOk (p : BlockShape) (f0 : IndFlags) : AM Bool := do
         pure (p.k == 1 && (n == 0 || (n == 1 && (f0.hasEta || f0.isK))))
   else pure true
 
-/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:237-288 blockFlagsCheck
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:245-288 blockFlagsCheck
 The cited `for M in Ms do`: an outside class that is a proposition with one
 constructor without fields is rejected, and so is an outside class with a
 projection table (the cited `hasProj`, the environment's `findTable?`) at an
@@ -324,7 +324,7 @@ def majorsFlagsCheck (p : BlockShape) (f0 : IndFlags) (fe : IFEnv) :
         | none => majorsFlagsCheck p f0 fe Ms
       else majorsFlagsCheck p f0 fe Ms
 
-/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:237-288 blockFlagsCheck
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:245-288 blockFlagsCheck
 **The block's declared feature flags, validated** (lean4 PR #16595; nothing at
 a block without them): `isImpredicative` and `hasLargeElim` agree across the
 block; `isImpredicative` only at a proposition; `hasLargeElim` is what the

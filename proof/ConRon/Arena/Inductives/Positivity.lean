@@ -916,7 +916,7 @@ def nestGroupCtors (fe : IFEnv) (nPc : Nat) :
       else nestGroupCtors fe nPc cs (out ++ ctors)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:791-801 nestFrameSorts
-con-leche: ConLeche/Cached/IndPositivity.lean:352-362 nestFrameSortsC
+con-leche: ConLeche/Cached/IndPositivity.lean:355-363 nestFrameSortsC
 **A container frame's field bound** (`NestCtx.bound`): each walked constructor
 telescope's fields, opened at the frame's depth, have sorts at most `sort`
 (`checkStructFieldSortsI` at a non-propositional reading). -/

@@ -817,7 +817,7 @@ pub fn stream_k_check(
 // The declared feature flags
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:208-227 memberFlagsCheck
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:219-235 memberFlagsCheck
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:1-1 memberFlagsCheck` — **one
 /// member's flags** (official's checks of lean4 PR #16595): `is_k` only at the
 /// first member of a block of one, a proposition with one constructor without
@@ -860,7 +860,7 @@ pub fn member_flags_check(p: &BlockShape, is_rec: bool, i: u64, ms: &MemberShape
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:229-235 membersFlagsCheck
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:237-243 membersFlagsCheck
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:1-1 membersFlagsCheck` — the
 /// members' flags, from position `i` on, pairwise, stopping at the shorter
 /// list.
@@ -881,7 +881,7 @@ pub fn members_flags_check(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:237-288 blockFlagsCheck
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:245-288 blockFlagsCheck
 /// Lean twin: `fl.all fun f => f.isImpredicative == f0.isImpredicative &&
 /// f.hasLargeElim == f0.hasLargeElim`, from `i` on.
 pub fn flags_uniform(fl: &Vec<IndFlags>, f0: &IndFlags, i: usize) -> bool {
@@ -894,7 +894,7 @@ pub fn flags_uniform(fl: &Vec<IndFlags>, f0: &IndFlags, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:237-288 blockFlagsCheck
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:245-288 blockFlagsCheck
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:1-1 largeElimFlagOk` — is
 /// the declared `has_large_elim` allowed?  Only at a block that is not
 /// impredicative and whose sort is never zero, or of one type with no
@@ -922,7 +922,7 @@ pub fn large_elim_flag_ok(pers: &PersTier, st: &mut AState, p: &BlockShape, f0: 
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:237-288 blockFlagsCheck
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:245-288 blockFlagsCheck
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:1-1 majorsFlagsCheck` — the
 /// cited `for M in Ms do`, from class `i` on: an outside class that is a
 /// proposition with one constructor without fields is rejected, and so is an
@@ -962,7 +962,7 @@ pub fn majors_flags_check(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:237-288 blockFlagsCheck
+/// con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:245-288 blockFlagsCheck
 /// Lean twin: `proof/ConRon/Arena/Inductives/StreamRecs.lean:1-1 blockFlagsCheck` — **the
 /// block's declared feature flags, validated** (lean4 PR #16595; nothing at
 /// a block without them): `is_impredicative` and `has_large_elim` agree
