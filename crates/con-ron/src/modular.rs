@@ -570,7 +570,7 @@ fn text(s: &[u32]) -> String {
 /// **A copy, for the report** (`--compare`'s worker): a hole and the kind of what
 /// justifies it, or a constant the challenge restates, with the module it is read
 /// from.
-fn copy_line(pers: &PersTier, st: &mut AState, w: &WorkerRead, owner: &HashMap2<NIdx, u64>, d: &IDeclaration) -> Result<String, CheckError> {
+pub fn copy_line(pers: &PersTier, st: &mut AState, w: &WorkerRead, owner: &HashMap2<NIdx, u64>, d: &IDeclaration) -> Result<String, CheckError> {
     let n = match fcompare::rec_key(d) {
         Some(n) => n,
         None => return Ok(String::new()),

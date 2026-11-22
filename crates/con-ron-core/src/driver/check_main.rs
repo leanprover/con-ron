@@ -94,6 +94,14 @@ pub enum Note {
     /// `--modular`'s failure line: the modules not accepted, of how many, the
     /// first in the graph's order
     ModularFailed(u64, u64, Name, bool),
+    /// a compared run's challenge walk failed, in `--modular` (the mode named)
+    GraphFailedMode(CheckError, bool),
+    /// a compared `--olean` run's own reject: why (`fallbackOnly`,
+    /// `foreignConstant`)
+    CompareWhy(Vec<u32>, bool),
+    /// a compared `--olean` run's solution imports its challenge: the solution,
+    /// the challenge
+    NotSolution(Name, Name, bool),
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:36-49 ConLeche.CheckError.exitCode
@@ -179,11 +187,12 @@ pub fn olean_job<F: CheckerFs>(
     pk: &OleanPins,
     values: &Vec<ModRef>,
     sp: &Roots,
+    sol: Option<&Solution>,
     k: usize,
 ) -> Result<(), (CheckError, u64)> {
     let ku = k as u64;
     if k >= ds.len() {
-        return checker::run_job(tier, w, mode, pins, None, ds, ku);
+        return checker::run_job(tier, w, mode, pins, sol, ds, ku);
     }
     match &ds[k] {
         IDeclaration::ThmDecl(cv, v) => {
@@ -192,14 +201,14 @@ pub fn olean_job<F: CheckerFs>(
             // its tag
             let code: Option<u64> = if v.tag() == ETAG_BVAR { w.store.view_bvar(tier, v) } else { None };
             match code {
-                None => checker::run_job(tier, w, mode, pins, None, ds, ku),
+                None => checker::run_job(tier, w, mode, pins, sol, ds, ku),
                 Some(code) => {
                     enter_record(w);
                     let r = match records::read_value(fs, pk, tier, &mut w.store, sp, values, cache, code) {
                         Err(e) => Err((e, ku)),
                         Ok(v) => {
                             let pd = IDeclaration::ThmDecl(env::i_constant_val_dup(cv), v);
-                            match stream_index::record_check(tier, w, mode, pins, None, ku, &pd) {
+                            match stream_index::record_check(tier, w, mode, pins, sol, ku, &pd) {
                                 Err(e) => Err((e, ku)),
                                 Ok(()) => Ok(()),
                             }
@@ -210,7 +219,7 @@ pub fn olean_job<F: CheckerFs>(
                 }
             }
         }
-        _ => checker::run_job(tier, w, mode, pins, None, ds, ku),
+        _ => checker::run_job(tier, w, mode, pins, sol, ds, ku),
     }
 }
 
@@ -236,6 +245,8 @@ pub struct OleanJobStep<'a> {
     pub values: &'a Vec<ModRef>,
     /// the lookup the values are read through
     pub sp: &'a Roots,
+    /// the solution a compared run's challenge is checked with
+    pub sol: Option<&'a Solution>,
     /// the position of job 0 among the records
     pub start: usize,
 }
@@ -252,7 +263,7 @@ impl<'a, F: CheckerFs> Step<F, (AState, ValueCache)> for OleanJobStep<'a> {
     /// con-leche: ConLeche/Driver/CheckMain.lean:120-134 oleanJobRun
     /// The record's job at position `start + k`.
     fn step(&self, fs: &F, s: &mut (AState, ValueCache), k: usize) -> Result<(), (CheckError, u64)> {
-        olean_job(fs, self.tier, &mut s.0, &mut s.1, self.mode, self.pins, self.ds, self.pk, self.values, self.sp, self.start + k)
+        olean_job(fs, self.tier, &mut s.0, &mut s.1, self.mode, self.pins, self.ds, self.pk, self.values, self.sp, self.sol, self.start + k)
     }
 
     /// con-leche: ConLeche/Driver/CheckPool.lean:101-111 jobLabel
@@ -349,6 +360,7 @@ pub fn check_phase_olean<I: CheckerIo>(
     pk: &OleanPins,
     values: &Vec<ModRef>,
     sp: &Roots,
+    sol: Option<&Solution>,
     jobs: u64,
     file_records: usize,
     synthesised: u64,
@@ -364,7 +376,7 @@ pub fn check_phase_olean<I: CheckerIo>(
     io.check_starts(n, workers);
     let tier: PersTier = checker::freeze_tier(&mut st.store, ix);
     let r = {
-        let step = OleanJobStep { tier: &tier, mode, pins: ipins, apins: &st.pins, ds, pk, values, sp, start: 0 };
+        let step = OleanJobStep { tier: &tier, mode, pins: ipins, apins: &st.pins, ds, pk, values, sp, sol, start: 0 };
         io.par_map_workers(&step, n, workers)
     };
     let ix: IStreamIndex = checker::thaw_tier(&mut st.store, tier);
@@ -626,6 +638,6 @@ pub fn check_oleans<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &
     };
     let jobs: u64 = jobs_for_run(io, a);
     // ConRon.Capstone: h6, h7, h8
-    let verdict = check_phase_olean(io, &pers, &mut st, &mode, &ipins, &prepared.decls, &pk, &values, sp, jobs, file_records, prepared.synthesised);
+    let verdict = check_phase_olean(io, &pers, &mut st, &mode, &ipins, &prepared.decls, &pk, &values, sp, None, jobs, file_records, prepared.synthesised);
     verdict_of(io, &pers, st, prepared.decls, verdict, file_records, verified)
 }

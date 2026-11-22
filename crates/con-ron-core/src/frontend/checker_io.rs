@@ -138,6 +138,11 @@ pub trait WorkerNotes {
     /// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
     /// The failure line, the module named unless it is the run's one check.
     fn worker_verdict_failure(&self, who: &Option<Name>, pers: &PersTier, ar: &EStore, ds: &Vec<IDeclaration>, e: &CheckError, i: u64, verified: bool);
+    /// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
+    /// After a compare worker's accept: its copies (`copyRecs` over the imports
+    /// `x` the run added), one line each (`copyLine`), the module named unless
+    /// it is the run's one check; the error that kept the lines from being made.
+    fn worker_copies(&self, who: &Option<Name>, m: &Name, pers: &PersTier, st: &mut AState, x: &Vec<ImportRec>, w: &WorkerRead) -> Option<CheckError>;
 }
 
 /// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG

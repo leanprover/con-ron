@@ -31,6 +31,7 @@ use crate::frontend::checker_io::CheckerFs;
 use crate::frontend::checker_io::CheckerIo;
 use crate::frontend::checker_io::WorkerNote;
 use crate::frontend::checker_io::WorkerNotes;
+use crate::frontend::modular::graph as mgraph;
 use crate::frontend::modular::reach;
 use crate::frontend::modular::worker;
 use crate::frontend::modular::worker::WorkerRead;
@@ -58,7 +59,7 @@ pub fn worker_failed<F: WorkerNotes>(fs: &F, m: &Name, e: CheckError, verified: 
 /// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
 /// **What the worker checks**: the pins interned (before the reads: the pin
 /// ground reads the interned variants), phases 1-4 (`worker::worker_read`, every
-/// read through `sp`, no import added), the heartbeat's lines about it at the
+/// read through `sp`, the imports `x` added to the header), the heartbeat's lines about it at the
 /// run's one check, the ground hoist's receipt, and the jobs' records (the
 /// context, then the own records); a failure's exit code.
 pub fn module_read<F: CheckerFs + WorkerNotes>(
@@ -68,6 +69,7 @@ pub fn module_read<F: CheckerFs + WorkerNotes>(
     sp: &Roots,
     m: &crate::arena::handle::NIdx,
     m_name: &Name,
+    x: &Vec<ImportRec>,
     pins: &Vec<NatOpPinSet>,
     max_nat_size: &Nat,
     verified: bool,
@@ -80,8 +82,7 @@ pub fn module_read<F: CheckerFs + WorkerNotes>(
         Ok(p) => p,
     };
     // ConRon.Capstone: hwork
-    let x: Vec<ImportRec> = Vec::new();
-    let w: WorkerRead = match worker::worker_read(fs, pers, st, sp, &ipins, m, &x) {
+    let w: WorkerRead = match worker::worker_read(fs, pers, st, sp, &ipins, m, x) {
         Err((e, _)) => return Err(worker_failed(fs, m_name, e, verified)),
         Ok(w) => w,
     };
@@ -95,6 +96,58 @@ pub fn module_read<F: CheckerFs + WorkerNotes>(
     // ConRon.Capstone: hds
     let ds: Vec<IDeclaration> = worker::worker_decls(&w);
     Ok((w, ipins, ds))
+}
+
+/// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
+/// **The imports a run adds to the module's header**: none, or at a compared
+/// challenge `import all` of its solution (`graph::solution_import`), the
+/// solution's name interned after the module's; a failure's exit code.
+pub fn added_imports<F: WorkerNotes>(
+    fs: &F,
+    pers: &PersTier,
+    st: &mut AState,
+    m_name: &Name,
+    sol: Option<&Name>,
+    verified: bool,
+) -> Result<Vec<ImportRec>, u8> {
+    match sol {
+        None => Ok(Vec::new()),
+        Some(s) => match monad::intern_name(pers, st, s) {
+            Err(e) => Err(worker_failed(fs, m_name, e, verified)),
+            Ok(sh) => {
+                let mut x: Vec<ImportRec> = Vec::new();
+                x.push(mgraph::solution_import(&sh));
+                Ok(x)
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
+/// **After an accept, a compared challenge's copies** (`copyRecs`, `copyLine`,
+/// the instance's lines): none where no import was added; the exit code, a
+/// failure's if the copies' lines could not be made.
+pub fn module_copies<F: WorkerNotes>(
+    fs: &F,
+    who: &Option<Name>,
+    m_name: &Name,
+    pers: &PersTier,
+    st: &mut AState,
+    x: &Vec<ImportRec>,
+    w: &WorkerRead,
+    c: u8,
+    verified: bool,
+) -> u8 {
+    if c != 0 {
+        return c;
+    }
+    if x.len() == 0 {
+        return 0;
+    }
+    match fs.worker_copies(who, m_name, pers, st, x, w) {
+        Some(e) => worker_failed(fs, m_name, e, verified),
+        None => 0,
+    }
 }
 
 /// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
@@ -180,7 +233,7 @@ pub fn module_phase<I: CheckerIo>(
     }
     // ConRon.Capstone: h8
     let r = {
-        let step = OleanJobStep { tier: &tier, mode, pins: ipins, apins: &st.pins, ds, pk: &w.pins, values: &w.values, sp, start };
+        let step = OleanJobStep { tier: &tier, mode, pins: ipins, apins: &st.pins, ds, pk: &w.pins, values: &w.values, sp, sol: None, start };
         io.par_map_workers(&step, n, workers)
     };
     let ix: IStreamIndex = checker::thaw_tier(&mut st.store, tier);
@@ -217,7 +270,7 @@ pub fn jobs_in_order<F: CheckerFs>(
 ) -> Result<(), (CheckError, u64)> {
     let mut k = k;
     while k < n {
-        match check_main::olean_job(fs, tier, w, cache, mode, pins, ds, pk, values, sp, start + k) {
+        match check_main::olean_job(fs, tier, w, cache, mode, pins, ds, pk, values, sp, None, start + k) {
             Err(e) => return Err(e),
             Ok(()) => (),
         }
@@ -272,8 +325,10 @@ pub fn module_phase_in<F: CheckerFs>(
 /// con-leche: ConLeche/Driver/Dispatch.lean:63-87 runReq
 /// **`--olean --module`**: the worker of `m_name` as the run's one check, every
 /// module read through `sp` (the trusted path, then the search path), from
-/// fresh start values; the verdict.
-pub fn check_module<I: CheckerIo>(io: &mut I, a: &Args, sp: &Roots, m_name: &Name) -> u8 {
+/// fresh start values; with `sol` (`--compare`) the compare worker, `import all`
+/// of the solution added to the header and the copies listed after the accept;
+/// the verdict.
+pub fn check_module<I: CheckerIo>(io: &mut I, a: &Args, sp: &Roots, m_name: &Name, sol: Option<&Name>) -> u8 {
     let verified = a.verified;
     let mode = if verified { CheckMode::Verified } else { CheckMode::Trusted };
     let mut st = AState::empty();
@@ -289,28 +344,35 @@ pub fn check_module<I: CheckerIo>(io: &mut I, a: &Args, sp: &Roots, m_name: &Nam
         Err(e) => return worker_failed(&*io, m_name, e, verified),
         Ok(m) => m,
     };
+    // ConRon.Capstone: hsol
+    let x: Vec<ImportRec> = match added_imports(&*io, &pers, &mut st, m_name, sol, verified) {
+        Err(c) => return c,
+        Ok(x) => x,
+    };
     // ConRon.Capstone: hpins (`--pins`/`--no-pins` are outside the theorems)
     let pins: Vec<NatOpPinSet> = match check_main::pins_for_run(io, a) {
         None => return 3,
         Some(ps) => ps,
     };
-    let (w, ipins, ds) = match module_read(&*io, &pers, &mut st, sp, &m, m_name, &pins, &a.max_nat_size, verified, &None, &a.progress) {
+    let (w, ipins, ds) = match module_read(&*io, &pers, &mut st, sp, &m, m_name, &x, &pins, &a.max_nat_size, verified, &None, &a.progress) {
         Err(c) => return c,
         Ok(r) => r,
     };
     let jobs: u64 = check_main::jobs_for_run(io, a);
     let verdict = module_phase(io, &pers, &mut st, &mode, &ipins, &w, &ds, sp, jobs);
-    module_verdict(&*io, &None, &pers, &st, &ds, w.own.len(), verdict, verified)
+    let c = module_verdict(&*io, &None, &pers, &st, &ds, w.own.len(), verdict, verified);
+    module_copies(&*io, &None, m_name, &pers, &mut st, &x, &w, c, verified)
 }
 
 /// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
 /// **One module of `--olean --modular`**: its worker from fresh start values,
 /// every line naming it, the pins the embedded ones (or none, `--no-pins`), its
-/// jobs in order on this thread; the exit code.
+/// jobs in order on this thread; with `sol`, the compare worker; the exit code.
 pub fn check_module_in<F: CheckerFs + WorkerNotes>(
     fs: &F,
     sp: &Roots,
     m_name: &Name,
+    sol: Option<&Name>,
     verified: bool,
     max_nat_size: &Nat,
     no_pins: bool,
@@ -328,6 +390,11 @@ pub fn check_module_in<F: CheckerFs + WorkerNotes>(
         Err(e) => return worker_failed(fs, m_name, e, verified),
         Ok(m) => m,
     };
+    // ConRon.Capstone: hsol
+    let x: Vec<ImportRec> = match added_imports(fs, &pers, &mut st, m_name, sol, verified) {
+        Err(c) => return c,
+        Ok(x) => x,
+    };
     // ConRon.Capstone: hpins
     let pins: Vec<NatOpPinSet> = if no_pins {
         Vec::new()
@@ -341,10 +408,11 @@ pub fn check_module_in<F: CheckerFs + WorkerNotes>(
         }
     };
     let who = Some(name::dup(m_name));
-    let (w, ipins, ds) = match module_read(fs, &pers, &mut st, sp, &m, m_name, &pins, max_nat_size, verified, &who, &crate::frontend::pace::Pace::Off) {
+    let (w, ipins, ds) = match module_read(fs, &pers, &mut st, sp, &m, m_name, &x, &pins, max_nat_size, verified, &who, &crate::frontend::pace::Pace::Off) {
         Err(c) => return c,
         Ok(r) => r,
     };
     let verdict = module_phase_in(fs, &pers, &mut st, &mode, &ipins, &w, &ds, sp);
-    module_verdict(fs, &who, &pers, &st, &ds, w.own.len(), verdict, verified)
+    let c = module_verdict(fs, &who, &pers, &st, &ds, w.own.len(), verdict, verified);
+    module_copies(fs, &who, m_name, &pers, &mut st, &x, &w, c, verified)
 }
