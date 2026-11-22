@@ -341,7 +341,7 @@ pub fn check_block_tail(
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:106-120 checkBlockTail
 /// con-leche: ConLeche/Cached/CheckerC.lean:232-254 checkBlockTailS
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:120-146 checkBlockTail` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:130-138 checkBlockFlags` — the
 /// declared feature flags validated (`stream_recs::block_flags_check`, at
 /// official's `is_rec` of the pass's record, its classes and the formers'
 /// environment); a block without declared flags reads nothing.

@@ -128,9 +128,20 @@ def checkBlockTables (fe : IFEnv) : List IProjTable → AM Unit
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:106-120 checkBlockTail
 con-leche: ConLeche/Cached/CheckerC.lean:232-254 checkBlockTailS
-**The checks after the pass**: the declared feature flags (`blockFlagsCheck`,
-at official's `is_rec` of the pass's record, read only at a block with declared
-flags: the Rust's `check_block_flags`), the field bound at a `boundedProp`
+**The declared feature flags validated** (`blockFlagsCheck`, at official's
+`is_rec` of the pass's record, its classes and the formers' environment); a
+block without declared flags reads nothing. -/
+def checkBlockFlags (q : BlockPass) : AM Unit :=
+  match q.p.flags with
+  | none => pure ()
+  | some _ => do
+    let isRec ← blockIsRec q.p
+    blockFlagsCheck q.p isRec q.cls q.env1
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:106-120 checkBlockTail
+con-leche: ConLeche/Cached/CheckerC.lean:232-254 checkBlockTailS
+**The checks after the pass**: the declared feature flags
+(`checkBlockFlags`), the field bound at a `boundedProp`
 block (`checkBlockBound`), the index binders' sorts, the constructors consed
 (and the flush entering that environment), the generated recursors, the
 stream's K flags and recursors against them (at the generated family pushed in
@@ -142,11 +153,7 @@ deviation). -/
 def checkBlockTail (mode : CheckMode) (block : List IConstantInfo) (q : BlockPass)
     (Q : List IProjTable) : AM IFEnv := do
   let p := q.p
-  match p.flags with
-  | none => pure ()
-  | some _ => do
-    let isRec ← blockIsRec p
-    blockFlagsCheck p isRec q.cls q.env1
+  checkBlockFlags q
   checkBlockBound mode q.env1 p
   -- the Rust's `check_block_tail_ctors`
   checkBlockIdxSorts mode q.env1 p p.members
@@ -159,8 +166,8 @@ def checkBlockTail (mode : CheckMode) (block : List IConstantInfo) (q : BlockPas
   let infos ← blockRecInfosTF p 0 out
   let (feG, prevs) := consBlockRecsTemp infos fe₂b []
   flushCaches
-  if p.noRules then streamRecsCheck mode feG p.recs (ruleOutAll out)
-  else streamRecsCheck mode feG p.recs out
+  let _ ← (if p.noRules then streamRecsCheck mode feG p.recs (ruleOutAll out)
+    else streamRecsCheck mode feG p.recs out)
   let fe₃ := (prevs.foldr (fun (n, prev) acc => acc.popTemp n prev) feG).setFlags fe₂b.natLit
     fe₂b.strLit
   flushCaches

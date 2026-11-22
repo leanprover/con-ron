@@ -1004,8 +1004,9 @@ theorem membersFlagsCheck_run {st : EStore} {p : Arena.BlockShape} {pP : ConLech
 /-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:237-288 blockFlagsCheck
 (the large-eliminator clause) — the twin's verdict is con-leche's condition; a
 pure step (the sort's read goes through the readback memo). -/
-theorem largeElimFlagOk_run {s s' : AState} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
-    {f0 : IndFlags} {b : Bool} (hok : StateOK s) (hrl : ReadLCacheOK s.caches.readLC s.store)
+theorem largeElimFlagOk_run {s₀ s s' : AState} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    {f0 : IndFlags} {b : Bool} (hok : StateOK s) (hrl : ReadLCacheOK s₀.caches.readLC s₀.store)
+    (q0 : PStep s₀ s)
     (hp : dShape s.store p = some pP) (hrun : Arena.largeElimFlagOk p f0 s = .ok (b, s')) :
     PStep s s' ∧
       b = (!f0.hasLargeElim || (!f0.isImpredicative && (pP.resSort.isNeverZero ||
@@ -1030,7 +1031,7 @@ theorem largeElimFlagOk_run {s s' : AState} {p : Arena.BlockShape} {pP : ConLech
       simp only [Bool.false_eq_true, ↓reduceIte] at hrun
       obtain ⟨l, s₁, h1, h2⟩ := AM.bind_ok hrun
       have p1 := readLevelM_pstep hok h1
-      have hlv := readLevelM_denote_L hrl (PStep.refl hok) h1
+      have hlv := readLevelM_denote_L hrl q0 h1
       obtain ⟨-, -, -, -, hs, -, -⟩ := dShape_inv hp
       have hres : pP.resSort = l := by
         rw [hlv] at hs; exact (Option.some.inj hs).symm
@@ -1123,8 +1124,8 @@ pure check passes at the environment the index answers for (`hasProj` its
 projection tables); a pure step. -/
 theorem blockFlagsCheck_run {env : Env} {fe : IFEnv} {s s' : AState} {p : Arena.BlockShape}
     {pP : ConLeche.BlockShape} {isRec : Bool} {Ms : List Arena.TargetMajor}
-    {MsP : List ConLeche.TargetMajor} {r : Unit} (hok : StateOK s)
-    (hrl : ReadLCacheOK s.caches.readLC s.store) (hfe : IFEnvOK env fe s)
+    {MsP : List ConLeche.TargetMajor} {r : Unit} {s₀ : AState} (hok : StateOK s)
+    (hrl : ReadLCacheOK s₀.caches.readLC s₀.store) (q0 : PStep s₀ s) (hfe : IFEnvOK env fe s)
     (hp : dShape s.store p = some pP) (hMs : Ms.mapM (dMajor s.store) = some MsP)
     (hrun : Arena.blockFlagsCheck p isRec Ms fe s = .ok (r, s')) :
     PStep s s' ∧
@@ -1148,7 +1149,7 @@ theorem blockFlagsCheck_run {env : Env} {fe : IFEnv} {s s' : AState} {p : Arena.
     obtain ⟨c3, hrun⟩ := AM.ite_fail_ok hrun
     obtain ⟨c4, hrun⟩ := AM.ite_fail_ok hrun
     obtain ⟨b, s₁, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨p1, hb⟩ := largeElimFlagOk_run hok hrl hp k1
+    obtain ⟨p1, hb⟩ := largeElimFlagOk_run hok hrl q0 hp k1
     obtain ⟨c5, z1⟩ := AM.ite_fail_ok z1
     obtain ⟨u, s₂, k2, z2⟩ := AM.bind_ok z1
     have hp1 := dShape_ext p1.ext _ _ hp
