@@ -5,12 +5,14 @@
 //! The parse is `crates/con-ron/src/bin/con-ron.rs`'s `parse_args`, clause for
 //! clause, over code points: the same flags in the same order, the first bad
 //! argument the one reported (`Bad`, rendered by the instance in the binary's
-//! words).  `run_args` runs `--help`, the usage errors, and the check of one
-//! lean4export file (`check_main`); every other request (`--olean`,
-//! `--check-graph`, `--compare`) goes, whole, to the instance's `run_legacy`.
+//! words).  `run_args` runs `--help`, the usage errors, the check of one
+//! lean4export file (`check_main`) and the comparison of two
+//! (`compare_json`); every other request (`--olean`, `--check-graph`) goes,
+//! whole, to the instance's `run_legacy`.
 
 use crate::arena::pins::max_nat_size_default;
 use crate::driver::check_main;
+use crate::driver::compare_json;
 use crate::frontend::checker_io::CheckerIo;
 use crate::frontend::nat_decimal;
 use crate::frontend::pace::Pace;
@@ -93,6 +95,12 @@ pub enum Bad {
     TakeOlean,
     /// a lean4export check with more than one file
     OneInputFile,
+    /// `--compare` on lean4export files with a flag of `--olean`'s
+    CompareTakeOlean,
+    /// `--compare` on lean4export files without exactly two
+    CompareTwoFiles,
+    /// `--compare` on one lean4export file twice
+    CompareSameFile,
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:262-303 Args
@@ -519,9 +527,9 @@ pub fn parse_args(argv: &Vec<Vec<u32>>) -> Args {
 /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
 /// **The run of an argument list, to its exit code**: `--help`, the parse and
 /// its usage error, then the request.  A lean4export file is checked here
-/// (`check_main`), after the binary's usage checks of that mode; `--olean`,
-/// `--check-graph` and `--compare` are the legacy driver's
-/// (`CheckerIo::run_legacy`).
+/// (`check_main`), after the binary's usage checks of that mode, and two with
+/// `--compare` (`compare_json`); `--olean` and `--check-graph` are the legacy
+/// driver's (`CheckerIo::run_legacy`).
 pub fn run_args<I: CheckerIo>(io: &mut I, argv: &Vec<Vec<u32>>) -> u8 {
     if help_wanted(argv) {
         return io.print_help();
@@ -534,8 +542,11 @@ pub fn run_args<I: CheckerIo>(io: &mut I, argv: &Vec<Vec<u32>>) -> u8 {
         }
         None => (),
     }
-    if a.check_graph || a.olean || a.compare {
+    if a.check_graph || a.olean {
         return io.run_legacy(argv);
+    }
+    if a.compare {
+        return compare_json::compare_args(io, &a);
     }
     if a.search_path.len() > 0
         || a.constants.len() > 0

@@ -534,18 +534,21 @@ theorem pins_for_run_embedded {s s' : S} {a : driver.cli.Args} (hnp : a.no_pins 
     have := Result.ok_injective h
     simp at this
 
-/-- **The check phase, accepted** (`check_main::check_phase`): the capstone's `h6`, `h7` and
-`h8` — the index from the empty one, the tier frozen, and the worker map's contract at the
-driver's job (`ParallelAll` at `jobStep`). -/
-theorem check_phase_ok (hpool : PoolSound io) {s s' : S} {pers st mode ipins ds jobs fr syn ix st'}
-    (h : driver.check_main.check_phase io s pers st mode ipins ds jobs fr syn
+/-- **The check phase, accepted** (`check_main::check_phase`, with the solution `sol`): the
+capstone's `h6`, `h7` and `h8` — the index from the empty one, the tier frozen, and the worker
+map's contract at the driver's job (`ParallelAll` at `jobStepSol`) — and the thaw hands back
+the index and the state the index build left (`freeze_tier_ok`). -/
+theorem check_phase_ok (hpool : PoolSound io) {s s' : S}
+    {pers st mode ipins sol ds jobs fr syn ix st'}
+    (h : driver.check_main.check_phase io s pers st mode ipins sol ds jobs fr syn
       = ok (.Ok ix, s', st')) :
-    ∃ ix0 st1 tier frozen,
+    ∃ st1 tier frozen,
       (do
         let e ← arena.stream_index.stream_index_empty
-        arena.stream_index.build_index pers st e ds 0#usize) = ok (.Ok ix0, st1) ∧
-      arena.checker.freeze_tier st1.store ix0 = ok (tier, frozen) ∧
-      ParallelAll ds.length (arena.checker.worker_state st1.pins) (jobStep tier mode ipins ds) := by
+        arena.stream_index.build_index pers st e ds 0#usize) = ok (.Ok ix, st1) ∧
+      arena.checker.freeze_tier st1.store ix = ok (tier, frozen) ∧
+      ParallelAll ds.length (arena.checker.worker_state st1.pins)
+        (jobStepSol tier mode ipins sol ds) ∧ st' = st1 := by
   rw [driver.check_main.check_phase] at h
   obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -560,21 +563,29 @@ theorem check_phase_ok (hpool : PoolSound io) {s s' : S} {pers st mode ipins ds 
     obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨⟨tier, frozen⟩, hfz, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨⟨r1, io1⟩, hpar, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨⟨ix1, e1⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨⟨ix1, e1⟩, hth, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [(freeze_tier_ok hfz).2] at hth
+    have hth' := Result.ok_injective hth
+    simp only [Prod.mk.injEq] at hth'
+    obtain ⟨rfl, rfl⟩ := hth'
     cases r1 with
     | Err p =>
       obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have := Result.ok_injective h
       simp at this
     | Ok u =>
-      refine ⟨ix0, st1, tier, frozen, by rw [hii, bind_ok]; exact hbi, hfz, ?_⟩
+      obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hres := Result.ok_injective h
+      simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at hres
+      obtain ⟨rfl, -, rfl⟩ := hres
+      refine ⟨st1, tier, frozen, by rw [hii, bind_ok]; exact hbi, hfz, ?_, rfl⟩
       have hpa := hpool _ _ s _ _ io1 hpar
       rw [alloc.vec.Vec.len_val] at hpa
       have hstep : stepAt (driver.check_main.JobStep.Insts.Con_ron_coreFrontendChecker_ioStepFAState
-          io.CheckerFsInst) { tier, mode, pins := ipins, apins := st1.pins, ds } s
-          = jobStep tier mode ipins ds := by
+          io.CheckerFsInst) { tier, mode, pins := ipins, apins := st1.pins, sol, ds } s
+          = jobStepSol tier mode ipins sol ds := by
         funext x k
-        simp only [stepAt, jobStep, jobStepSol,
+        simp only [stepAt, jobStepSol,
           driver.check_main.JobStep.Insts.Con_ron_coreFrontendChecker_ioStepFAState.step,
           lift, bind_ok]
       rw [hstep] at hpa
@@ -688,7 +699,7 @@ theorem check_main_zero (hfs : AnswersAs io fs) (hpool : PoolSound io) {s s' : S
   obtain ⟨⟨jobs, io2⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨⟨verdict, io3, st7⟩, hph, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨ix, rfl⟩ := verdict_of_zero h hc
-  obtain ⟨ix0, st8, tier, frozen, h6, h7, h8⟩ := check_phase_ok hpool hph
+  obtain ⟨st8, tier, frozen, h6, h7, h8, -⟩ := check_phase_ok hpool hph
   obtain ⟨chunks, hreads, hcat⟩ := fileChunks_parse hfs hq hb h3 rfl
   exact JsonStages.intro h1 h2 hreads h3 h4 hpins h5 h6 h7 h8 hcat
 

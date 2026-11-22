@@ -74183,3 +74183,59 @@ difference but an out-of-memory size under `ulimit -v` on `whnf_core_loop` (exit
 **Left.**  Slice 2 (`--olean` and its modes into verified code; `OleanFs` into `CheckerFs`), the
 `Capstone.lean` tables' `bin/con-ron.rs` line references (they now describe `check_main.rs`),
 OVERVIEW §8.2's driver row (slice 5).
+
+#### Slice 3a (lane F) — `--compare -- C S` on lean4export files, verified end to end
+
+**What moved.**  A compared lean4export run is extracted code: `--compare` without `--olean` or
+`--check-graph` no longer goes to `run_legacy`.
+
+* `crates/con-ron-core/src/driver/compare_json.rs` (cites `Driver/CompareJson.lean`, from
+  `crates/con-ron/src/compare.rs`'s `compare_json`): `compare_args` (con-leche's usage checks of
+  the mode, in `runArgs`'s order: no flag of `--olean`'s, two files, two different ones),
+  `compare_json` (one call per step premise of `model_exists_compare`: `h1`, `h2`, the two reads,
+  `hdup`, `h4S`, the pins, `h5`, the solution's check phase, `h4`, `side_records`, `solution_of`,
+  the challenge's check phase), `read_export` (the stream parse over `FileChunks`, the read
+  failure kept), `solution_failed`, `compare_verdict`, `justified` (the accept line's labels,
+  `justifiable` of each checked record).
+* Shared files, kept small for the merge with lane E: `check_main::check_phase` and `JobStep`
+  take the solution (`sol: Option<&Solution>`; `check_main` passes `None`); `cli::run_args`
+  routes `a.compare` to `compare_args` after the `--check-graph`/`--olean` legacy line; `Bad`
+  gains `CompareTakeOlean`, `CompareTwoFiles`, `CompareSameFile`; `CheckerIo` gains the
+  notifications `solution_failure` (the failure line as the solution's) and `compare_accepted`
+  (the accept line and one line per justified record), and the escape `keep_solution` (con-leche
+  #336 for the solution's records, the challenge's prepared ones and the `Solution`).
+  `StdIo` renders them in the legacy words.  The legacy `Run::CompareJson` arm is now reached by
+  no request (slice 5 removes it).
+* The built-in prelude's failure is now `Note::Prelude`'s classified line where the legacy
+  compared run always said "does not parse (line …)"; the prelude is a constant that parses, so
+  no run can tell.
+
+**What extracted.**  `Generated/Funs.lean` +445/−95, `Types.lean` +21/−8; Aeneas 593 s.  No
+finding: the `||` chains are `if` conditions, which extract as nested `if`s.
+
+**The walk** (`proof/ConRon/MainTheorem/CompareJson.lean`, 524 lines, no `sorry`, no Aesop).
+`fileChunks_file` (a parse to `Ok` with no read failure made a first read that answered, so the
+snapshot has the file: con-leche's `fs.file c = some bC` conjunct is the walk's, not a premise),
+`read_export_ok`, `beq_ne`/`argv_compare`/`help_wanted_compare`/`parse_one_compare`/
+`parse_args_compare` (the parse of `["--compare", "--", c, s]`: `--compare` against the eight
+flags before it, then `--`, then the two files), `pathRel_arg`, `read_export_err_ne`,
+`compare_verdict_zero`, `solution_failed_ne`, `compare_json_zero`, `compare_args_zero`,
+`run_args_compare`, `compare_json_stages_of_canGive : CanGive ["--compare", "--", c, s] fs 0 →
+∃ bC, fs.file c = some bC ∧ CompareJsonStages bC`, where `CompareJsonStages` is exactly lane
+C's `compare_json_model_of_stages`'s premises.  `Driver.lean`'s `check_phase_ok` now takes the
+solution (its conclusion is `jobStepSol … sol`, `jobStep` at `none` by definition) and adds
+`st' = st1`: the thaw hands back the index build's state (`freeze_tier_ok`), which is what puts
+the challenge's `prepare_d` at the capstone's `st7`.  `ConRon/MainTheorem.lean`:
+`main_compare_json_model`, con-leche's statement word for word but `ConRon.CanGive`; a
+`dead-census.py` root.  Census: `propext`, `Classical.choice`, `Quot.sound`,
+`PINS_TEXT._native.decide.ax_1` — `main_json_model`'s.  `lake build ConRon.MainTheorem.CompareJson`
+on a built chain: seconds.
+
+**Behaviour.**  Old binary (master `f00f519d`) against the new, stdout + stderr + exit code
+with times masked: every `--compare` row of con-leche's `tests/e2e-expected.txt` (18) under
+five flag sets (plain, `--trusted`, `--progress --jobs=1`, `--progress=1s --jobs=2`,
+`--no-pins`), and 22 command lines (no files, one file, the same file twice, three files, each
+`--olean` flag, a missing file either side, a directory either side, `--pins` missing, `--jobs=0`,
+`--help`, `--compare` without `--`, `--compare` after a file, with `--olean`/`--check-graph`,
+`--schedule`, `--worker-stack-size`, plain `--`): 112 runs, no difference.
+`scripts/diff-e2e.sh`: 773/773 agree, display gate 9/9, command-line gate 18/18.

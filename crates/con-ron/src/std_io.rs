@@ -15,6 +15,7 @@ use std::time::Instant;
 
 use con_ron_core::arena::env::IDeclaration;
 use con_ron_core::arena::handle::NIdx;
+use con_ron_core::arena::justify::Solution;
 use con_ron_core::arena::monad::AState;
 use con_ron_core::arena::store::EStore;
 use con_ron_core::arena::store::PersTier;
@@ -65,6 +66,8 @@ pub struct StdIo {
     hb: Mutex<(Heartbeat, usize)>,
     /// what the run built, kept to the process's exit (con-leche task #336)
     kept: Mutex<Vec<(AState, Vec<IDeclaration>, Option<IStreamIndex>)>>,
+    /// what a compared run built besides its store, kept the same way
+    kept_solutions: Mutex<Vec<(Vec<IDeclaration>, Vec<IDeclaration>, Solution)>>,
 }
 
 /// con-leche: none — a mode's tag on a line
@@ -88,6 +91,7 @@ impl StdIo {
             pipe: Mutex::new(None),
             hb: Mutex::new((Heartbeat::new(Pace::Off, t0), 0)),
             kept: Mutex::new(Vec::new()),
+            kept_solutions: Mutex::new(Vec::new()),
         }
     }
 
@@ -215,6 +219,13 @@ impl CheckerIo for StdIo {
         }
     }
 
+    /// con-leche: none — con-leche task #336
+    fn keep_solution(&mut self, ds_s: Vec<IDeclaration>, ds_c: Vec<IDeclaration>, sol: Solution) {
+        if let Ok(mut g) = self.kept_solutions.lock() {
+            g.push((ds_s, ds_c, sol));
+        }
+    }
+
     /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
     /// A usage error in the binary's words: the flag values' messages are
     /// `driver`'s own functions', so the two parses cannot drift apart.
@@ -250,6 +261,12 @@ impl CheckerIo for StdIo {
                  --schedule take --olean"
                 .to_string(),
             Bad::OneInputFile => "takes one input file".to_string(),
+            Bad::CompareTakeOlean => "--compare on two lean4export files takes none of --search-path, \
+                 --trusted-search-path, --constant, --module, --modular and --schedule \
+                 (they take --olean)"
+                .to_string(),
+            Bad::CompareTwoFiles => "--compare takes two files, a challenge and its solution".to_string(),
+            Bad::CompareSameFile => "--compare takes two different files, a challenge and its solution".to_string(),
         };
         let _ = (self.hooks.usage)(&msg);
     }
@@ -358,6 +375,47 @@ impl CheckerIo for StdIo {
     /// con-leche: ConLeche/Driver/CheckMain.lean:180-266 verdictG
     fn verdict_failure(&self, pers: &PersTier, ar: &EStore, ds: &Vec<IDeclaration>, e: &CheckError, i: u64, verified: bool) {
         let _ = driver::verdict_failure(pers, ar, ds, e, i, mode_tag(verified), self.t0, "");
+    }
+
+    /// con-leche: ConLeche/Driver/CompareJson.lean:38-90 compareJsonG
+    fn solution_failure(
+        &self,
+        pers: &PersTier,
+        ar: &EStore,
+        ds: &Vec<IDeclaration>,
+        e: &CheckError,
+        i: u64,
+        verified: bool,
+        solution: &Vec<u32>,
+    ) {
+        let who = format!("the solution {}: ", path_of(solution));
+        let _ = driver::verdict_failure(pers, ar, ds, e, i, mode_tag(verified), self.t0, &who);
+    }
+
+    /// con-leche: ConLeche/Driver/CompareJson.lean:38-90 compareJsonG
+    fn compare_accepted(
+        &self,
+        pers: &PersTier,
+        ar: &EStore,
+        ds: &Vec<IDeclaration>,
+        holes: &Vec<usize>,
+        records: usize,
+        solution: &Vec<u32>,
+        records_s: usize,
+        verified: bool,
+    ) {
+        println!(
+            "con-ron: accepted {} declarations, {} axioms justified by the solution {} ({} \
+             declarations accepted) ({})",
+            records,
+            holes.len(),
+            path_of(solution),
+            records_s,
+            mode_tag(verified)
+        );
+        for k in holes {
+            println!("con-ron: {} justified by the solution", driver::decl_label(pers, ar, &ds[*k]));
+        }
     }
 }
 

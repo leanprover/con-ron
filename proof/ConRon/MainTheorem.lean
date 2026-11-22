@@ -1,4 +1,5 @@
 import ConRon.MainTheorem.Driver
+import ConRon.MainTheorem.CompareJson
 import ConRon.MainTheorem.Conclusions
 
 /-!
@@ -20,6 +21,11 @@ step premise of the capstone (`JsonStages`); lane C's `json_model_of_stages` and
 `json_no_False_of_stages` (`MainTheorem/Conclusions.lean`) take those to con-leche's
 conclusions.  The two theorems below are con-leche's `main_json_model` and `main_no_False`,
 word for word but the run premise.
+
+**Slice 3a: `--compare -- <c> <s>`.**  `compare_json_stages_of_canGive`
+(`MainTheorem/CompareJson.lean`) takes an exit 0 at `["--compare", "--", c, s]` to the file `c`
+in the snapshot and every step premise of the compared capstone (`CompareJsonStages`); lane C's
+`compare_json_model_of_stages` takes those to con-leche's conclusion: `main_compare_json_model`.
 -/
 
 open ConLeche (IsModel constantsOf jsonWithTheoremFalse FS)
@@ -48,5 +54,18 @@ theorem main_no_False (V : Type w) [ConLeche.SetTheory V] {file : String} {fs : 
     (hF : jsonWithTheoremFalse [b]) : False :=
   have ⟨h1, h2, hreads, h3, h4, hpins, h5, h6, h7, h8, hcat⟩ := ConRon.json_stages_of_canGive h hb
   json_no_False_of_stages V hcat hF h1 h2 hreads h3 h4 hpins h5 h6 h7 h8
+
+/-- con-leche: ConLeche/MainTheorem.lean:60-67 main_compare_json_model —
+**An accepted comparison's challenge file has a model**: an exit 0 of `--compare -- <c> <s>`
+read the file `c` as records that have a model in every set theory. -/
+theorem main_compare_json_model (V : Type w) [ConLeche.SetTheory V] {c s : String} {fs : FS}
+    (h : ConRon.CanGive ["--compare", "--", c, s] fs 0) :
+    ∃ bC rC, fs.file c = some bC ∧ parseChunks [bC] = .ok rC ∧
+      ∃ model, IsModel V model (· ∈ constantsOf rC.decls.toList) :=
+  have ⟨bC, hbC, ⟨h1, h2, hreadsC, hreadsS, hcat, h3, h3S, hdup, h4S, hpins, h5, h6S, h7S, h8S,
+    h4, hside, hsol, h6, h7, h8⟩⟩ := ConRon.compare_json_stages_of_canGive h
+  have ⟨rC, hp, hm⟩ := compare_json_model_of_stages V h1 h2 hreadsC hreadsS hcat h3 h3S hdup h4S
+    hpins h5 h6S h7S h8S h4 hside hsol h6 h7 h8
+  ⟨bC, rC, hbC, hp, hm⟩
 
 end ConRon.MainTheorem

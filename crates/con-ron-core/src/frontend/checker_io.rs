@@ -30,6 +30,7 @@
 
 use crate::arena::env::IDeclaration;
 use crate::arena::handle::NIdx;
+use crate::arena::justify::Solution;
 use crate::arena::monad::AState;
 use crate::arena::store::EStore;
 use crate::arena::store::PersTier;
@@ -108,6 +109,10 @@ pub trait CheckerIo: CheckerFs + Sized + Sync {
     /// con-leche: none — con-leche task #336's exit without freeing the heap: the
     /// instance keeps what the run built until the process exits.
     fn keep_heap(&mut self, st: AState, ds: Vec<IDeclaration>, ix: Option<IStreamIndex>);
+    /// con-leche: none — con-leche task #336's exit without freeing the heap, for
+    /// what a compared run builds besides its store: the solution's records, the
+    /// challenge's as prepared, and the solution.
+    fn keep_solution(&mut self, ds_s: Vec<IDeclaration>, ds_c: Vec<IDeclaration>, sol: Solution);
     /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
     /// A usage error's two lines.
     fn usage(&self, b: &Bad);
@@ -138,6 +143,34 @@ pub trait CheckerIo: CheckerFs + Sized + Sync {
     /// con-leche: ConLeche/Driver/CheckMain.lean:180-266 verdictG
     /// The failure line: the error, the record at its fold position, the mode.
     fn verdict_failure(&self, pers: &PersTier, ar: &EStore, ds: &Vec<IDeclaration>, e: &CheckError, i: u64, verified: bool);
+    /// con-leche: ConLeche/Driver/CompareJson.lean:38-90 compareJsonG
+    /// A compared run's solution failed its check: the failure line, as the
+    /// solution's (the file `solution`).
+    fn solution_failure(
+        &self,
+        pers: &PersTier,
+        ar: &EStore,
+        ds: &Vec<IDeclaration>,
+        e: &CheckError,
+        i: u64,
+        verified: bool,
+        solution: &Vec<u32>,
+    );
+    /// con-leche: ConLeche/Driver/CompareJson.lean:38-90 compareJsonG
+    /// A compared run's accept: the challenge's `records` and the solution's
+    /// `records_s`, and one line per justified record, `ds[k]` for each `k` of
+    /// `holes`, labelled as the challenge declares it.
+    fn compare_accepted(
+        &self,
+        pers: &PersTier,
+        ar: &EStore,
+        ds: &Vec<IDeclaration>,
+        holes: &Vec<usize>,
+        records: usize,
+        solution: &Vec<u32>,
+        records_s: usize,
+        verified: bool,
+    );
 }
 
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:210-218 foldChunks
