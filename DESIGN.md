@@ -73810,3 +73810,76 @@ same tests.
 --runs 1`), one run each, 57 919 / 57 919 accepted: master `398e2138` 165 800 014 049
 `instructions:u`, this branch 165 590 484 108 (−0.126 %); peak RSS 391 944 / 396 580 kB.
 Cycles (63.6 G / 88.4 G) are not comparable: the branch's run overlapped a gate's Lean build.
+
+### Task #166 — modular checking: `--check-graph`, `--module`, `--modular` (with `--compare`), `--schedule-commands`; con-leche 11d8ff13 → bc6676101 (2026-11-21, Opus)
+
+con-leche's modular checking (its tasks #460–#509, #608, #619 cont. 6) checks every module of a
+development against only its imports: the import graph checked once (`--check-graph`: every root
+and import resolved, the graph acyclic, a rank decreasing along every edge), then one worker per
+module (`--olean --module M`: its home's parts loaded and checked against each other, the header
+fixpoint of what Lean loads, the name index and Lean's clash rule, M's own records, the **reach** —
+the context records read lazily from the imports, the opaque cut, groups whole, the capture check,
+the read order, the inferred proof flags — then the own records' jobs over context ++ own), or all
+of it in one process (`--olean --modular`).  `--modular --compare -- C S` makes the challenge one
+more module importing all of the solution (its copies checked against what is loaded, its holes
+filled by a loaded module).  `--schedule-commands` prints the graph check and one worker command
+per module.  con-ron now runs all of these; `--schedule` (con-leche's unverified process
+scheduler, ~1 850 lines that no theorem reads) stays "not supported by con-ron yet", the help
+pointing to `--schedule-commands` with xargs or parallel.
+
+**The theorems needed con-leche changed first.**  Upstream's modular soundness rested on facts a
+port cannot reproduce: the accepted runs were the CACHED fold's `DeclsRun` (con-ron's Theorem 1
+reaches the pure fold); `WorkerFacts.reach` was an exact run ending in the cached `typeIsPropC`;
+`clashCopies` listed clashes in `HashMap.toArray` order; the statements were fixed at
+`natOpPinSets` (con-ron's theorems hold at the decoded pin list, and proving the embedded text
+decodes to it needs `native_decide`); and `WorkerFacts.home` pinned the home to the output of the
+`partial` `loadAt`.  A lane worked on a con-leche branch (maintainer's request: "a pure function
+on which the proof rests, and a cached production function proved related to it"), merged
+upstream as con-leche's task #629 (`bc6676101`): `PureRun` (a chain of pure `checkDecl` steps)
+under `WorkerAccepted`, `ImportOk.accepted`, `Compose.Run`, with `Cached.DeclsRun.pureRun` from
+the binary's cached run; the reach as `reachWith fl` over any inference with `FlagsOk`
+(`inferFlags_flagsOk`); `clashCopies` in load order (`ccOrderStep`); the pin list a parameter of
+the modular statements; `WorkerFacts.home` relational (`LoadOf`: `loadAt_spec`'s content, the
+constants aligned, the imports; a constant's `uses` left free, which no proof reads).  Verdicts
+and con-leche's `MainTheorem` unchanged; `--modular` on Init/Std +0.01 %.  The pin moved
+11d8ff13 → f61d522e (the branch) → 6fa2f307e (its follow-up) → bc6676101 (con-leche master), each
+by `lake update con-leche` in the bump's private packages and `provenance.py update --auto --old`.
+
+| part | where (crates/con-ron-core unless said) |
+|---|---|
+| reads (header fixpoint, name index, clashes, freshness, groups, presented records) | `frontend/olean/{levels,index,group,present}.rs`, `reads.rs`; twin `Arena/Frontend/Olean/*` |
+| the import graph | `frontend/modular/graph.rs` (`graph_of`, `Fault`) |
+| the reach | `frontend/modular/reach.rs` (`reach`, `infer_flags` after the freeze, `pending`) |
+| the worker, the challenge's worker | `frontend/modular/{worker,compare_module}.rs`; `home_of` = `load_view` + `check_views` over the load |
+| the pool from `start` | `build_index` unchanged; the driver's job list from `w.start` (`PooledOleanAcceptsFromJ`) |
+| the driver | `crates/con-ron/src/modular.rs`, `driver::check_decls_driver_from`; each verified call `// ConRon.Capstone:` |
+| Theorem 2 | `Refine2/Modular/**`, `Refine2/Frontend/Olean/**` |
+| Theorem 1 | `Bridge/Modular/**` (~16 000 lines, run style: handle-keyed hash-map simulations) |
+
+**The capstones** (`Capstone.lean` §6, census-pinned at propext, Classical.choice, Quot.sound):
+`model_modular` — on one snapshot `F` (`SnapshotOf`), the graph check's calls and, for every
+module of the headers' closure, the worker's calls from the binary's start values (one premise
+per call of `modular.rs`'s `check_module`), conclude upstream's family of models (every module of
+the root's closure has a model of its constants; the models agree on what the modules see of each
+other).  Each module starts from fresh state, so the one theorem covers `--check-graph` + `--olean
+--module` and `--olean --modular`.  `model_modular_compare`, `no_False_modular_compare`: the
+compared graph over the solution's lookup, plain workers, the compare worker at the challenge.
+They hold at every decoded pin list.  The challenge walk under `--compare` runs but no theorem
+reads it (upstream's neither); `--constant`, `--worker-stack-size`, progress lines are outside.
+
+**Deviations.**  No read-once tables (`Driver/Tables`) and no Roots cache: each worker reads
+through the lookup; the flag inference runs after the freeze, on a fresh worker state (con-ron's
+kernel reads its environment from the frozen tier; an inference on the driver's own state after
+the freeze collided with the tier's handles — the two `--module` declines `QsM`/`PpM` found by the
+fixtures); the reach's parallel maps are sequential; job workers start with an empty value cache.
+
+**Retired.**  `Bridge/Checker/Pushes.lean`, `pureFold_chain`/`pureFold_proofs` (#165) — upstream
+has them now (`checkDecl_pushes`, `PureRun.chain`, `pureRun_proofs`); 74 lemmas the capstones do
+not reach (dead-census).
+
+**Fixtures and measure.**  diff-e2e **773/773** (display 9/9, command line 15/15); diff-olean **462/560** as expected, 57 NOT PORTED (the `--schedule` rows); the rest are con-ron's `olean-compare` `--home`/`--reads`/`--reach` rows.  `Init` (`bump-con-leche.sh measure`, `--verified --jobs=1`, both accept 57 919): master `3f22699b` 165 589 792 016, this branch **165 593 088 941** `instructions:u` (+0.002 %).  `--olean --modular -- Init` (lane L4, `--jobs=1`): 668 modules accepted, 425.21 G `instructions:u` and 239 MB peak RSS against the flat `--olean`'s 178.80 G and 304 MB (each module reads its context again).
+
+**Left.**  `--schedule` (a concurrency-only scheduler could be its own task); con-ron's
+`olean-compare` has no `--home`/`--reads`/`--reach` modes (the only diff-olean rows still failing);
+read-once tables if a profile asks; the run-style Theorem 1 of `Bridge/Modular/**` is a candidate
+for the `sym => vcgen <;> finish` shape.
