@@ -525,7 +525,7 @@
    868      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
    869      {roots : alloc.vec.Vec arena.handle.NIdx}
    870      (hroots : InternRoots emptyTier st2 names roots.val stR)
-   871      {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+   871      {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
    872      (hsnap : SnapshotOf finst fsv F)
    873      {rd : frontend.olean.records.OleanRead} {store3 : arena.store.EStore}
    874      (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store ⟨dirs, alloc.vec.Vec.new _⟩ roots none false false
@@ -557,7 +557,7 @@
    906      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
    907      {roots : alloc.vec.Vec arena.handle.NIdx}
    908      (hroots : InternRoots emptyTier st2 names roots.val stR)
-   909      {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+   909      {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
    910      (hsnap : SnapshotOf finst fsv F)
    911      {rd : frontend.olean.records.OleanRead} {store3 : arena.store.EStore}
    912      (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store ⟨dirs, alloc.vec.Vec.new _⟩ roots none false false
@@ -581,7 +581,7 @@
    930      ∃ env, RustDenotesFilled prepared.decls st6 env ∧ Nonempty (ConLeche.Model V env) :=
 
 == proof/ConRon/Capstone.lean#L200-L213
-   200  structure SnapshotOf {Fs : Type} (inst : frontend.olean.files.OleanFs Fs) (fsv : Fs)
+   200  structure SnapshotOf {Fs : Type} (inst : frontend.checker_io.CheckerFs Fs) (fsv : Fs)
    201      (F : ConLeche.FS) : Prop where
    202    path_exists : ∀ {p q}, PathRel p q → ∀ b, inst.path_exists fsv p = ok (.Ok b) →
    203      b = (F.real q).isSome
@@ -716,7 +716,7 @@
   1556      (hwfC : ConRon.Refine.NameWF c) (hwfS : ConRon.Refine.NameWF s)
   1557      (hnC : arena.monad.intern_name emptyTier st2 c = ok (.Ok ch, stR1))
   1558      (hnS : arena.monad.intern_name emptyTier stR1 s = ok (.Ok sh, stR))
-  1559      {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+  1559      {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
   1560      (hsnap : SnapshotOf finst fsv F)
   1561      {sr : frontend.olean.files.Roots} {rootsC rootsS : alloc.vec.Vec arena.handle.NIdx}
   1562      (hrC : rootsC.val = [ch]) (hrS : rootsS.val = [sh])
@@ -774,7 +774,7 @@
   1617      (hwfC : ConRon.Refine.NameWF c) (hwfS : ConRon.Refine.NameWF s)
   1618      (hnC : arena.monad.intern_name emptyTier st2 c = ok (.Ok ch, stR1))
   1619      (hnS : arena.monad.intern_name emptyTier stR1 s = ok (.Ok sh, stR))
-  1620      {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+  1620      {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
   1621      (hsnap : SnapshotOf finst fsv F)
   1622      {cr sr : frontend.olean.files.Roots} {rootsC rootsS : alloc.vec.Vec arena.handle.NIdx}
   1623      (hrC : rootsC.val = [ch]) (hrS : rootsS.val = [sh])
@@ -823,7 +823,7 @@
   1666      ∃ env, RustDenotesFilled recsC st10 env ∧ Nonempty (ConLeche.Model V env) :=
 
 == proof/ConRon/Capstone.lean#L2220-L2260
-  2220  theorem model_modular (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : frontend.olean.files.OleanFs Fs}
+  2220  theorem model_modular (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs}
   2221      {fsv : Fs} {F : ConLeche.FS} (hsnap : SnapshotOf finst fsv F)
   2222      {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {rName : kernel.name.Name}
   2223      {g1 gR : arena.monad.AState} {gstore2 gstore3 : arena.store.EStore}
@@ -866,7 +866,7 @@
   2260          ConLeche.Frontend.Olean.Sees (absSearchPath dirs) F m n m' → model m n = model m' n) :=
 
 == proof/ConRon/Capstone.lean#L2266-L2338
-  2266  theorem model_modular_compare (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : frontend.olean.files.OleanFs Fs}
+  2266  theorem model_modular_compare (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs}
   2267      {fsv : Fs} {F : ConLeche.FS} (hsnap : SnapshotOf finst fsv F)
   2268      {tdirs ddirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {cName sName : kernel.name.Name}
   2269      {spR : frontend.olean.files.Roots}
@@ -941,7 +941,7 @@
   2338              fs' m n m' → model m n = model m' n) :=
 
 == proof/ConRon/Capstone.lean#L2344-L2410
-  2344  theorem no_False_modular_compare (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : frontend.olean.files.OleanFs Fs}
+  2344  theorem no_False_modular_compare (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs}
   2345      {fsv : Fs} {F : ConLeche.FS} (hsnap : SnapshotOf finst fsv F)
   2346      {tdirs ddirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {cName sName : kernel.name.Name}
   2347      {spR : frontend.olean.files.Roots}
