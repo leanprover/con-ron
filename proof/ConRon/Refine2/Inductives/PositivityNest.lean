@@ -49,6 +49,7 @@ the root frame (`nest_root`) and the seeds (`nest_seeds`).  The low part
 import ConRon.Refine2.Inductives.Positivity
 import ConRon.Refine2.Inductives.Prims
 import ConRon.Refine2.Inductives.StructParts
+import ConRon.Refine2.Inductives.StructInstall
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -764,6 +765,54 @@ theorem nest_ctors_frame_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env
     intro prog base n_f cur ns st lst hrel hinv
     exact nest_fields_of hP _ fuel_c prog base n_f 0#u64 cur ns _ _ st lst rfl rfl
       hrel hinv
+
+theorem nest_frame_sorts_aux (m : Nat) :
+    ∀ {pers st lst} {mode : kernel.env.CheckMode} {rf lf}
+      {sort : arena.handle.LIdx} {hi : Std.U64}
+      {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+      {os : alloc.vec.Vec (alloc.vec.Vec arena.inductives.positivity.NestFieldKind ×
+        arena.handle.EIdx)} {i : Std.Usize},
+      cs.val.length - i.val = m → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI pers rf lf →
+      LS pers (fun _ _ => True)
+        (arena.inductives.positivity.nest_frame_sorts pers st mode rf sort hi cs os i)
+        lst
+        (nestFrameSorts (ConRon.Refine.absMode mode) lf (absLIdx sort) (absU hi)
+          (absCtorsLFrom cs i) ((os.val.drop i.val).map absCtorOut)) := by
+  induction m with
+  | zero =>
+    intro pers st lst mode rf lf sort hi cs os i hn hrel hinv hfe
+    rw [arena.inductives.positivity.nest_frame_sorts, ite_eq_left (by scalar_tac),
+      absCtorsLFrom, vecFrom_nil _ _ _ (by omega)]
+    simp only [nestFrameSorts]
+    lockstep
+  | succ m ih =>
+    intro pers st lst mode rf lf sort hi cs os i hn hrel hinv hfe
+    rw [arena.inductives.positivity.nest_frame_sorts, ite_eq_right (by scalar_tac),
+      absCtorsLFrom, vecFrom_cons _ _ _ (by omega)]
+    by_cases hc : i.val < os.val.length
+    · rw [ite_eq_right (by scalar_tac), vecFrom_cons _ _ _ hc, nestFrameSorts]
+      lockstep
+    · rw [ite_eq_left (by scalar_tac), vecFrom_nil _ _ _ (by omega)]
+      simp only [nestFrameSorts]
+      lockstep
+
+/-- `nest_frame_sorts` from `0` ⊑ `nestFrameSorts`, pairwise, stopping at the
+shorter list. -/
+@[lockstep] theorem nest_frame_sorts_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (mode : kernel.env.CheckMode) {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRelI pers rf lf) (sort : arena.handle.LIdx) (hi : Std.U64)
+    (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64))
+    (os : alloc.vec.Vec (alloc.vec.Vec arena.inductives.positivity.NestFieldKind ×
+      arena.handle.EIdx)) :
+    LS pers (fun _ _ => True)
+      (arena.inductives.positivity.nest_frame_sorts pers st mode rf sort hi cs os 0#usize)
+      lst
+      (nestFrameSorts (ConRon.Refine.absMode mode) lf (absLIdx sort) (absU hi)
+        (absCtorsL cs) (os.val.map absCtorOut)) := by
+  have h := nest_frame_sorts_aux _ rfl hrel hinv hfe (mode := mode) (sort := sort) (hi := hi)
+    (cs := cs) (os := os) (i := 0#usize)
+  simpa [absCtorsLFrom_zero] using h
 
 -- A container frame's fragments (the instantiation typed; the stack, the
 -- group's constructors and the walk).
