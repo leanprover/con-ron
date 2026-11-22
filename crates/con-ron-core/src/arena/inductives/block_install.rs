@@ -32,6 +32,7 @@ use super::block_shape::{shape_member_names, shape_n_idxs, with_sort, BlockShape
 use super::positivity;
 use super::positivity::{nest_holes, nest_root, nest_state_empty, nest_uniform, NestCtx, NestFieldKind, NestState};
 use super::struct_parts;
+use super::struct_install;
 use super::sum_install;
 use crate::arena::checker_base;
 use crate::arena::core;
@@ -133,7 +134,6 @@ pub const M_NOT_FORMER: [u32; 43] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-82 blockCapsAt
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_install::ctor_name_list_refines, then delete this line
 /// Lean twin: `cs.map (·.1.name)` — the constructors' names, in order.
 pub fn ctor_name_list(cs: &Vec<(IConstantVal, u64)>, i: usize, out: Vec<NIdx>) -> Vec<NIdx> {
     if i >= cs.len() {
@@ -146,11 +146,11 @@ pub fn ctor_name_list(cs: &Vec<(IConstantVal, u64)>, i: usize, out: Vec<NIdx>) -
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-82 blockCapsAt
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_install::block_caps_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:57-84 blockCapsAt` — **the
 /// capability record of member `mi`**: at a member with ONE constructor, η
-/// (index-free, the block not recursive: official's `is_non_rec_structure`;
-/// no separate unit-like bit, as official has none); at every member the block's members, its
+/// (index-free, the block not recursive: official's `is_non_rec_structure`,
+/// and the member's `has_eta`, `block_shape::flags_at`; no separate unit-like
+/// bit, as official has none); at every member the block's members, its
 /// parameter count, the member's index count, its constructors and whether
 /// its sort is never zero (`member_never_zero`).  (`p.members.getD mi
 /// default`: the default member has no constructor and no index.)
@@ -174,7 +174,7 @@ pub fn block_caps_at(
         } else if is_rec {
             false
         } else {
-            true
+            block_shape::flags_at(p, mi).has_eta
         };
         let mut ctors: Vec<NIdx> = Vec::new();
         ctors.push(c_name);
@@ -204,7 +204,6 @@ pub fn block_caps_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-82 blockCapsAt
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_install::member_never_zero_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:47-55 memberNeverZero` — the
 /// cited `(formerZ (p.members.getD mi default).declared).isNever`: whether
 /// member `mi`'s former, as declared, ends in a sort that is never zero.  The
@@ -553,12 +552,12 @@ pub fn check_block_inds(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:191-198 BlockShape.nestCtx
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_install::shape_nest_ctx_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:205-214 BlockShape.nestCtx` —
 /// **the block's positivity context** at the canonical parameter variables
 /// `fvs_p`, with the members' formers at their telescopes; its lookup is the
 /// environment the walk is handed (the positivity module's note); `lvls` the
-/// block's own levels, interned.
+/// block's own levels, interned; the container frames bounded at a
+/// `bounded_prop` block.
 pub fn shape_nest_ctx(
     pers: &PersTier,
     st: &mut AState,
@@ -577,6 +576,7 @@ pub fn shape_nest_ctx(
             sort: p.res_sort.dup2(),
             lvls,
             formers: block_shape::shape_formers(&p.members, 0, Vec::new()),
+            bound: block_shape::bounded_prop(p),
         }),
     }
 }
@@ -657,7 +657,7 @@ pub fn check_abs_ctor_sorts(
                     Ok(None) => fail(core_types::internal(code_points(&M_ABS_FIELDS))),
                     Ok(Some(xq)) => {
                         let none: Vec<EIdx> = Vec::new();
-                        match sum_install::check_struct_field_sorts_i(
+                        match struct_install::check_struct_field_sorts_i(
                             pers,
                             st,
                             mode,
@@ -851,7 +851,7 @@ pub fn check_block_idx_sorts(
             Ok(Some(tq)) => {
                 let idx_fvs: Vec<EIdx> = core::drop_eidx_n(&tq.0, p.n_p);
                 let none: Vec<EIdx> = Vec::new();
-                match sum_install::check_struct_field_sorts_i(
+                match struct_install::check_struct_field_sorts_i(
                     pers, st, mode, fe, true, false, &p.res_sort, p.n_p, &idx_fvs, &none, n_idx,
                 ) {
                     Err(e) => Err(e),

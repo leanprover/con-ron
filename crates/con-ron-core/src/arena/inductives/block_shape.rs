@@ -37,6 +37,7 @@ use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_CONST, ETAG_FORALL_E};
 use crate::arena::monad::{fail_dangling_e, intern_n_node, view, view_bind, view_const, AState};
 use crate::arena::store::{ENodeView, NNodeView, PersTier};
 use crate::kernel::core_types::{code_points, CheckError};
+use crate::kernel::env::{ind_flags_dup, IndFlags};
 use crate::kernel::expr_ops::sub_nat;
 use crate::ron::hashmap::{Dup, Eq2};
 
@@ -128,11 +129,13 @@ pub fn member_struct_ctor(ms: &MemberShape) -> Option<(IConstantVal, u64)> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:110-137 BlockShape
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_shape::BlockShape_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:86-106 BlockShape` — the
 /// pieces of a recognised block at any number of members: the members, the
 /// recursors, the SHARED parameter count, elimination level parameter
-/// (`.anonymous` for a small eliminator) and result sort, and the two flags.
+/// (`.anonymous` for a small eliminator) and result sort, the two flags, and
+/// the feature flags the members' records declare (`None` when no record
+/// carries them; the block is then checked at the derived ones,
+/// `flags_at`).
 pub struct BlockShape {
     pub members: Vec<MemberShape>,
     pub recs: Vec<RecShape>,
@@ -141,10 +144,10 @@ pub struct BlockShape {
     pub res_sort: LIdx,
     pub large: bool,
     pub is_prop: bool,
+    pub flags: Option<Vec<IndFlags>>,
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:110-137 BlockShape
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_shape::block_shape_dup_refines, then delete this line
 /// The record copy.
 pub fn block_shape_dup(p: &BlockShape) -> BlockShape {
     BlockShape {
@@ -155,7 +158,157 @@ pub fn block_shape_dup(p: &BlockShape) -> BlockShape {
         res_sort: p.res_sort.dup2(),
         large: p.large,
         is_prop: p.is_prop,
+        flags: flags_opt_dup(&p.flags),
     }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:110-137 BlockShape
+/// The copy of the block's declared flags.
+pub fn flags_opt_dup(f: &Option<Vec<IndFlags>>) -> Option<Vec<IndFlags>> {
+    match f {
+        None => None,
+        Some(fl) => Some(flags_dup(fl, 0, Vec::new())),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:110-137 BlockShape
+/// The copy of a flag list, from `i` on.
+pub fn flags_dup(fl: &Vec<IndFlags>, i: usize, out: Vec<IndFlags>) -> Vec<IndFlags> {
+    if i >= fl.len() {
+        out
+    } else {
+        let mut o: Vec<IndFlags> = out;
+        o.push(ind_flags_dup(&fl[i]));
+        flags_dup(fl, i + 1, o)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The feature flags
+// ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:155-162 BlockShape.derivedFlags
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 BlockShape.derivedFlags` —
+/// **the flags of a block without declared ones**, member `i`'s: what the
+/// official kernel computed from the declaration before the flags were
+/// inputs.  `has_eta` is the structure-like shape; the capability takes
+/// official's `is_rec` beside it (`block_caps_at`).  (`p.members.getD i
+/// default`: the default member has no constructor and no index.)
+pub fn derived_flags(p: &BlockShape, i: u64) -> IndFlags {
+    let (struct_like, fieldless): (bool, bool) = if i < p.members.len() as u64 {
+        if p.members[i as usize].ctors.len() == 1 {
+            (p.members[i as usize].n_idx == 0, p.members[i as usize].ctors[0].1 == 0)
+        } else {
+            (false, false)
+        }
+    } else {
+        (false, false)
+    };
+    let is_k: bool = if p.members.len() == 1 {
+        if p.is_prop {
+            fieldless
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+    IndFlags {
+        is_impredicative: p.is_prop,
+        is_k,
+        has_projections: struct_like,
+        has_eta: struct_like,
+        has_large_elim: p.large,
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:164-168 BlockShape.flagsAt
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 BlockShape.flagsAt` —
+/// **member `i`'s feature flags**: its declared ones (the default record,
+/// every flag off, off the list), or the derived ones at a block without.
+pub fn flags_at(p: &BlockShape, i: u64) -> IndFlags {
+    match &p.flags {
+        Some(fl) => {
+            if i < fl.len() as u64 {
+                ind_flags_dup(&fl[i as usize])
+            } else {
+                IndFlags {
+                    is_impredicative: false,
+                    is_k: false,
+                    has_projections: false,
+                    has_eta: false,
+                    has_large_elim: false,
+                }
+            }
+        }
+        None => derived_flags(p, i),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:170-176 BlockShape.noRules
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 BlockShape.noRules` —
+/// **the block's recursors carry no rules**: a block with declared flags
+/// and without a large eliminator.
+pub fn no_rules(p: &BlockShape) -> bool {
+    match &p.flags {
+        Some(_) => {
+            if p.large {
+                false
+            } else {
+                true
+            }
+        }
+        None => false,
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:178-186 BlockShape.boundedProp
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 BlockShape.boundedProp` —
+/// **a proposition whose fields take the ordinary universe bound**: a `Prop`
+/// block that is not `isImpredicative` and has no large eliminator.
+pub fn bounded_prop(p: &BlockShape) -> bool {
+    if p.is_prop {
+        if p.large {
+            false
+        } else if flags_at(p, 0).is_impredicative {
+            false
+        } else {
+            true
+        }
+    } else {
+        false
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:188-190 BlockShape.projAllowed
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 BlockShape.projAllowed` —
+/// **may member `i` have projections?**  Its `has_projections`.
+pub fn proj_allowed(p: &BlockShape, i: u64) -> bool {
+    flags_at(p, i).has_projections
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:192-196 projMembersFrom
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 projMembersFrom` — the
+/// members of `ms` from position `i` on that may have projections
+/// (`proj_allowed` at their position), copied.
+pub fn proj_members_from(p: &BlockShape, ms: &Vec<MemberShape>, i: usize, out: Vec<MemberShape>) -> Vec<MemberShape> {
+    if i >= ms.len() {
+        out
+    } else if proj_allowed(p, i as u64) {
+        let mut o: Vec<MemberShape> = out;
+        o.push(member_shape_dup(&ms[i]));
+        proj_members_from(p, ms, i + 1, o)
+    } else {
+        proj_members_from(p, ms, i + 1, out)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:198-201 BlockShape.projMembers
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 BlockShape.projMembers` —
+/// **the members that may have projections**: the `has_projections` ones.
+/// The projection tables are read off these.
+pub fn proj_members(p: &BlockShape) -> Vec<MemberShape> {
+    proj_members_from(p, &p.members, 0, Vec::new())
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:203-204 BlockShape.formers
@@ -926,8 +1079,7 @@ pub fn former_names(cvs: &Vec<IConstantVal>, i: usize, out: Vec<NIdx>) -> Vec<NI
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:544-547 readBlock
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_shape::formers_lps_ok_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:470-541 readBlockShape
 /// Lean twin: `cvTs.all fun c => c.levelParams == lps` — no type former
 /// declares other universe parameters than member 0 (the cited
 /// `cvTs.find? (fun c => c.levelParams != lps)` misses).
@@ -941,8 +1093,7 @@ pub fn formers_lps_ok(cvs: &Vec<IConstantVal>, lps: &Vec<NIdx>, i: usize) -> boo
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:544-547 readBlock
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_shape::ctors_params_ok_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:470-541 readBlockShape
 /// Lean twin: `cs.all fun c => c.2.1 == nP` — every constructor declares the
 /// block's parameter count (the cited `cs.find? (fun c => c.2.1 != nP)`
 /// misses).
@@ -956,8 +1107,7 @@ pub fn ctors_params_ok(cs: &Vec<(IConstantVal, u64, u64)>, n_p: u64, i: usize) -
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:544-547 readBlock
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_shape::ctors_lps_ok_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:470-541 readBlockShape
 /// Lean twin: `cs.all fun c => c.1.levelParams == lps` — every constructor
 /// declares the block's universe parameters (the cited
 /// `cs.find? (fun c => c.1.levelParams != lps)` misses).
@@ -983,8 +1133,7 @@ pub fn ctors_nf(cs: &Vec<(IConstantVal, u64, u64)>, i: usize, out: Vec<(IConstan
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:544-547 readBlock
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_shape::zip_members_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:470-541 readBlockShape
 /// Lean twin: `((cvTs.zip nIdxs).zip groups).map …` — the members, zipped to the
 /// shortest of the three lists.
 pub fn zip_members(
@@ -1008,8 +1157,7 @@ pub fn zip_members(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:544-547 readBlock
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_shape::rec_shapes_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:470-541 readBlockShape
 /// Lean twin: `rs.map fun r => ⟨r.1, rP, mI, recTargetOf names mI r.1.type,
 /// rules⟩` — **the recursors, in the stream's own order**, each
 /// with the member its MAJOR names.
@@ -1105,16 +1253,80 @@ pub const M_CTOR_LEVELS: [u32; 79] = [
     107, 39, 115, 32, 105, 110, 100, 117, 99, 116, 105, 118, 101, 32, 116, 121, 112, 101, 115,
 ];
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:544-547 readBlock
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_shape::read_block_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:359-429 readBlock` — **read a
-/// declared inductive block**: split into formers, constructors and recursors
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:458-461 blockFlagRecs
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 blockFlagRecs` — the flags
+/// of the leading type records from `i` on, in order.
+pub fn block_flag_recs(block: &Vec<IConstantInfo>, i: usize, out: Vec<Option<IndFlags>>) -> Vec<Option<IndFlags>> {
+    if i >= block.len() {
+        out
+    } else {
+        match &block[i] {
+            IConstantInfo::IndInfo(_, caps) => {
+                let mut o: Vec<Option<IndFlags>> = out;
+                o.push(crate::kernel::env::ind_flags_opt_dup(&caps.flags));
+                block_flag_recs(block, i + 1, o)
+            }
+            _ => out,
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:463-467 blockFlagsOf
+/// Lean twin: `(blockFlagRecs block).mapM id` from `i` on — every record's
+/// flags when all carry them, `None` otherwise.
+pub fn flags_all(fs: &Vec<Option<IndFlags>>, i: usize, out: Vec<IndFlags>) -> Option<Vec<IndFlags>> {
+    if i >= fs.len() {
+        Some(out)
+    } else {
+        match &fs[i] {
+            None => None,
+            Some(f) => {
+                let mut o: Vec<IndFlags> = out;
+                o.push(ind_flags_dup(f));
+                flags_all(fs, i + 1, o)
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:463-467 blockFlagsOf
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 blockFlagsOf` — **the
+/// block's declared feature flags**: every type record's, when all carry
+/// them; `None` otherwise.
+pub fn block_flags_of(block: &Vec<IConstantInfo>) -> Option<Vec<IndFlags>> {
+    flags_all(&block_flag_recs(block, 0, Vec::new()), 0, Vec::new())
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:543-547 readBlock
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 readBlock` — **read a
+/// declared inductive block**: its shape (`read_block_shape`) and the
+/// feature flags its type records declare (`block_flags_of`).
+pub fn read_block(
+    pers: &PersTier,
+    st: &mut AState,
+    n_pd: u64,
+    block: &Vec<IConstantInfo>,
+) -> Result<Result<BlockShape, CheckError>, CheckError> {
+    match read_block_shape(pers, st, n_pd, block) {
+        Err(e) => Err(e),
+        Ok(Err(e)) => Ok(Err(e)),
+        Ok(Ok(p)) => {
+            let mut q: BlockShape = p;
+            q.flags = block_flags_of(block);
+            Ok(Ok(q))
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:470-541 readBlockShape
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:359-429 readBlockShape` — **read a
+/// declared inductive block's shape**: split into formers, constructors and recursors
 /// (at least one of each of the first and the last), the members' counts, the
 /// universe and parameter declarations, and then the record.  A block that
 /// cannot be read is an invalid input, and the inner `Result` (the cited
 /// `Except`) says why; the outer one is the arena's own failure.  The messages
 /// drop con-leche's interpolated names and counts (§3.1).
-pub fn read_block(
+pub fn read_block_shape(
     pers: &PersTier,
     st: &mut AState,
     n_pd: u64,
@@ -1140,9 +1352,8 @@ pub fn read_block(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:544-547 readBlock
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_shape::read_block_at_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:359-429 readBlock` — the
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:470-541 readBlockShape
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:359-429 readBlockShape` — the
 /// universe and parameter declarations' three tests (formers' universe
 /// parameters, constructors' parameter counts, constructors' universe
 /// parameters, each the first failure's reason), then the result sort
@@ -1190,9 +1401,8 @@ pub fn read_block_at(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:544-547 readBlock
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_shape::read_block_sort_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:359-429 readBlock` — at the
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:470-541 readBlockShape
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:359-429 readBlockShape` — at the
 /// result sort `s`: `isProp`, the groups, the members, the recursors, and the
 /// eliminator read off recursor 0's level parameters (a fresh one in front of
 /// the block's is the LARGE eliminator).
@@ -1244,9 +1454,8 @@ pub fn read_block_sort(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:544-547 readBlock
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_shape::read_block_elim_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:359-429 readBlock` —
+/// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:470-541 readBlockShape
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:359-429 readBlockShape` —
 /// WHICH ELIMINATOR the recursors are: `elim :: relps` with `relps == lps` and
 /// `elim` fresh is the large one; anything else is the small one, at
 /// `.anonymous` (interned).
@@ -1278,6 +1487,7 @@ pub fn read_block_elim(
             res_sort: s,
             large: true,
             is_prop,
+            flags: None,
         }))
     } else {
         match intern_n_node(pers, st, NNodeView::Anonymous) {
@@ -1290,6 +1500,7 @@ pub fn read_block_elim(
                 res_sort: s,
                 large: false,
                 is_prop,
+                flags: None,
             })),
         }
     }

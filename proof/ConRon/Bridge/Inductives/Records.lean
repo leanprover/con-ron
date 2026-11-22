@@ -289,7 +289,7 @@ theorem option_bind_ext {α β : Type} {o o' : Option α} {f : α → Option β}
   let recs ← p.recs.mapM (dRec st)
   let elim ← denoteN st.ns p.elim
   let s ← denoteL st.ls p.resSort
-  pure ⟨members, recs, p.nP, elim, s, p.large, p.isProp⟩
+  pure ⟨members, recs, p.nP, elim, s, p.large, p.isProp, p.flags⟩
 
 theorem dCtor_ext : DExt dCtor := by
   intro st st' hx c y h
@@ -407,7 +407,8 @@ it), its interned level list denoting `lps.map .param`. -/
   let sort ← denoteL st.ls c.sort
   let formers ← c.formers.mapM (Frontend.denoteCV st)
   let lvls ← denoteLs st.lss c.lvls
-  if lvls = lps.map .param then pure ⟨names, lps, c.nP, c.nIdxs, params, sort, find?, formers⟩
+  if lvls = lps.map .param then
+    pure ⟨names, lps, c.nP, c.nIdxs, params, sort, find?, formers, c.bound⟩
   else none
 
 theorem dKey_ext : DExt dKey := by
@@ -529,6 +530,27 @@ theorem dShape_inv {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShap
   rw [h1, h2, h3, h4] at h
   obtain rfl := (Option.some.inj h).symm
   exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+/-- con-leche: none — a denoted shape's declared flags are the twin's (they
+hold no handle). -/
+theorem dShape_flags {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    (h : dShape st p = some pP) : p.flags = pP.flags := by
+  simp only [dShape] at h
+  cases h1 : p.members.mapM (dMember st) with
+  | none => rw [h1] at h; exact nomatch h
+  | some ms =>
+  cases h2 : p.recs.mapM (dRec st) with
+  | none => rw [h1, h2] at h; exact nomatch h
+  | some rs =>
+  cases h3 : denoteN st.ns p.elim with
+  | none => rw [h1, h2, h3] at h; exact nomatch h
+  | some el =>
+  cases h4 : denoteL st.ls p.resSort with
+  | none => rw [h1, h2, h3, h4] at h; exact nomatch h
+  | some so =>
+  rw [h1, h2, h3, h4] at h
+  obtain rfl := (Option.some.inj h).symm
+  rfl
 
 /-- con-leche: none — a denoted member, field by field. -/
 theorem dMember_inv {st : EStore} {m : Arena.MemberShape} {mP : ConLeche.MemberShape}

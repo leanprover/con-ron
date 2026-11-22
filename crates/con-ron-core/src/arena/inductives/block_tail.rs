@@ -171,7 +171,6 @@ pub fn check_block_pass_classes(
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:64-77 checkBlockRec
 /// con-leche: ConLeche/Cached/CheckerC.lean:232-254 checkBlockTailS
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_tail::check_block_rec_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:85-94 checkBlockRec` — **the
 /// installer's recursor stage**: the GENERATED recursor stage at the
 /// constructors' environment, on the stream's own recursor family (the raw
@@ -196,7 +195,6 @@ pub fn check_block_rec(
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:79-90 consBlockRecsT
 /// con-leche: ConLeche/Cached/CheckerC.lean:232-254 checkBlockTailS
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_tail::cons_block_recs_temp_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:96-108 consBlockRecsTemp` — **the
 /// checked family consed, at its majors, TEMPORARILY**: the records
 /// `rec_check::block_rec_infos_tf` built (each recursor with its rules at ITS
@@ -218,6 +216,28 @@ pub fn cons_block_recs_temp(
         let mut ps: Vec<(NIdx, Option<u64>)> = prevs;
         ps.push((n, prev));
         cons_block_recs_temp(pers, infos, i + 1, fe2, ps)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:92-96 checkBlockBound
+/// con-leche: ConLeche/Cached/IndBlock.lean:189-192 checkBlockBoundC
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:1-1 checkBlockBound` — **the
+/// ordinary field bound at a `bounded_prop` block**: the constructors' stage
+/// again, at the block taken as no proposition, so that every field's sort is
+/// at most the result sort.
+pub fn check_block_bound(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    fe: &IFEnv,
+    p: &BlockShape,
+) -> Result<(), CheckError> {
+    if block_shape::bounded_prop(p) {
+        let mut q: BlockShape = block_shape::block_shape_dup(p);
+        q.is_prop = false;
+        block_install::check_block_ctors(pers, st, mode, fe, fe, &q, 0)
+    } else {
+        Ok(())
     }
 }
 
@@ -244,13 +264,13 @@ pub fn check_block_tables(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:106-120 checkBlockTail
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_tail::check_block_tail_stream_refines, then delete this line
 /// con-leche: ConLeche/Cached/CheckerC.lean:232-254 checkBlockTailS
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_tail::check_block_tail_stream_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:120-146 checkBlockTail` —
 /// **the stream's recursors against the generated ones**: the K flags, then
 /// the generated family pushed at its majors, a flush entering it, the
-/// comparison, the pushes undone, a flush leaving it, and the checks of the
+/// comparison (at a block whose recursors carry no rules, against the
+/// generated ones without rules or constructors, `rec_check::rule_out_all`),
+/// the pushes undone, a flush leaving it, and the checks of the
 /// block's projection tables `q` at the constructors' environment, which is
 /// handed back.
 pub fn check_block_tail_stream(
@@ -271,7 +291,13 @@ pub fn check_block_tail_stream(
                 let sl: bool = fe.str_lit;
                 let (fe_g, prevs) = cons_block_recs_temp(pers, &infos, 0, fe, Vec::new());
                 core::flush_caches(st);
-                match stream_recs::stream_recs_check(pers, st, mode, &fe_g, &p.recs, out, 0) {
+                let checked: Result<(), CheckError> = if block_shape::no_rules(p) {
+                    let out_r: Vec<(IConstantVal, TargetMajor, Vec<EIdx>)> = rec_check::rule_out_all(out, 0, Vec::new());
+                    stream_recs::stream_recs_check(pers, st, mode, &fe_g, &p.recs, &out_r, 0)
+                } else {
+                    stream_recs::stream_recs_check(pers, st, mode, &fe_g, &p.recs, out, 0)
+                };
+                match checked {
                     Err(e) => Err(e),
                     Ok(()) => {
                         let mut fe2: IFEnv = gen_rec::class_fe_r_pop(fe_g, &prevs, prevs.len());
@@ -289,9 +315,7 @@ pub fn check_block_tail_stream(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:106-120 checkBlockTail
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_tail::check_block_tail_refines, then delete this line
 /// con-leche: ConLeche/Cached/CheckerC.lean:232-254 checkBlockTailS
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_tail::check_block_tail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:120-146 checkBlockTail` — **the
 /// checks after the pass**: the index binders' sorts, the constructors consed
 /// (and the flush entering that environment), the generated recursors, the
@@ -299,6 +323,45 @@ pub fn check_block_tail_stream(
 /// `tables`.  Returns the constructors' environment (the module note's last
 /// deviation).
 pub fn check_block_tail(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    block: &Vec<IConstantInfo>,
+    q: BlockPass,
+    tables: &Vec<IProjTable>,
+) -> Result<IFEnv, CheckError> {
+    match check_block_flags(pers, st, &q) {
+        Err(e) => Err(e),
+        Ok(()) => match check_block_bound(pers, st, mode, &q.env1, &q.p) {
+            Err(e) => Err(e),
+            Ok(()) => check_block_tail_ctors(pers, st, mode, block, q, tables),
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:106-120 checkBlockTail
+/// con-leche: ConLeche/Cached/CheckerC.lean:232-254 checkBlockTailS
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:120-146 checkBlockTail` — the
+/// declared feature flags validated (`stream_recs::block_flags_check`, at
+/// official's `is_rec` of the pass's record, its classes and the formers'
+/// environment); a block without declared flags reads nothing.
+pub fn check_block_flags(pers: &PersTier, st: &mut AState, q: &BlockPass) -> Result<(), CheckError> {
+    match &q.p.flags {
+        None => Ok(()),
+        Some(_) => match block_install::block_is_rec(pers, st, &q.p) {
+            Err(e) => Err(e),
+            Ok(is_rec) => stream_recs::block_flags_check(pers, st, &q.p, is_rec, &q.cls, &q.env1),
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:106-120 checkBlockTail
+/// con-leche: ConLeche/Cached/CheckerC.lean:232-254 checkBlockTailS
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:120-146 checkBlockTail` — from
+/// the index binders' sorts on: the constructors consed (and the flush
+/// entering that environment), the generated recursors, and the stream's
+/// recursors against them (`check_block_tail_stream`).
+pub fn check_block_tail_ctors(
     pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
@@ -449,9 +512,7 @@ pub fn reduce_members(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:155-171 checkBlock
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_tail::check_block_refines, then delete this line
 /// con-leche: ConLeche/Cached/CheckerC.lean:278-290 checkBlockKS
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_tail::check_block_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:187-217 checkBlock` — **check
 /// an inductive block and install it**: the distinct names, no member at a
 /// `Bool` constructor's name, each former reduced to its telescope once
@@ -491,12 +552,10 @@ pub fn check_block(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:155-171 checkBlock
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_tail::check_block_reduced_refines, then delete this line
 /// con-leche: ConLeche/Cached/CheckerC.lean:278-290 checkBlockKS
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove block_tail::check_block_reduced_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:187-217 checkBlock` — after the
 /// name checks: the members reduced, the flush, the pass, the projection
-/// tables read off the block once (an internal error where a constructor is
+/// tables read off the block's `proj_members` once (an internal error where a constructor is
 /// too short for them), the tail, which checks those tables, and the install,
 /// which pushes the same tables.
 pub fn check_block_reduced(
@@ -518,7 +577,7 @@ pub fn check_block_reduced(
                     p.members = ms;
                     match check_block_pass(pers, st, mode, fe, &p, is_rec) {
                         Err(e) => Err(e),
-                        Ok(q) => match install::block_tables(pers, st, p0, &p0.members, 0, Vec::new()) {
+                        Ok(q) => match install::block_tables(pers, st, p0, &block_shape::proj_members(p0), 0, Vec::new()) {
                             Err(e) => Err(e),
                             Ok(o) => match checker_base::unwrap_or(
                                 o,

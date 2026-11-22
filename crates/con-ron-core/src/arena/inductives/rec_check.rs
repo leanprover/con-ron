@@ -756,7 +756,6 @@ pub fn target_major_nfs(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:210-214 targetCtorsOf
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove rec_check::target_ctors_of_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:246-251 targetCtorsOf` — the
 /// constructors of a stored inductive `I` and its parameter count
 /// (`nestContainer`'s reading, which reads nothing of its context but the
@@ -1584,18 +1583,38 @@ pub fn generated_rules(
     }
 }
 
+/// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:462-466 BlockShape.ruleOut
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:1-1 ruleOutAll` — the cited
+/// `noRules` arm, from `i` on: **the generated recursors without rules or
+/// constructors to compare** (the caller reads `no_rules`).
+#[allow(clippy::type_complexity)]
+pub fn rule_out_all(
+    out: &Vec<(IConstantVal, TargetMajor, Vec<EIdx>)>,
+    i: usize,
+    acc: Vec<(IConstantVal, TargetMajor, Vec<EIdx>)>,
+) -> Vec<(IConstantVal, TargetMajor, Vec<EIdx>)> {
+    if i >= out.len() {
+        acc
+    } else {
+        let mut m: TargetMajor = target_major_dup(&out[i].1);
+        m.ctors = Vec::new();
+        let mut o: Vec<(IConstantVal, TargetMajor, Vec<EIdx>)> = acc;
+        o.push((env::i_constant_val_dup(&out[i].0), m, Vec::new()));
+        rule_out_all(out, i + 1, o)
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:468-477 recKExpected
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove rec_check::rec_k_expected_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:516-523 recKExpected` — **the K
-/// flag a recursor of this block has** (official's `is_K_target`): the block
-/// is a proposition with one member, and the recursor's major is that member,
+/// flag a recursor of this block has** (official's `is_K_target`): member 0's
+/// `is_k` (`block_shape::flags_at`), and the recursor's major is a member,
 /// with one constructor and no fields.  An outside major's recursor is never
 /// K.
 pub fn rec_k_expected(p: &BlockShape, m: &TargetMajor) -> bool {
     match m.member {
         Some(_) => {
             if m.ctors.len() == 1 {
-                shape_k(p) == 1 && p.is_prop && m.ctors[0].1 == 0
+                block_shape::flags_at(p, 0).is_k && m.ctors[0].1 == 0
             } else {
                 false
             }

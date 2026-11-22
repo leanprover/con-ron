@@ -45,7 +45,6 @@ open ConLeche
 /-! ## The capability record, per member -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-82 blockCapsAt — the
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove BlockInstall.memberNeverZero_bridge, then delete this line
 cited `(formerZ (p.members.getD mi default).declared).isNever`: whether member
 `mi`'s former, as declared, ends in a sort that is never zero.  The default
 member's type ends in no sort, so its datum is `ifAllZero []`, which is not
@@ -56,10 +55,10 @@ def memberNeverZero (p : BlockShape) (mi : Nat) : AM Bool := do
   | none => pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-82 blockCapsAt
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove BlockInstall.blockCapsAt_bridge, then delete this line
 **The capability record of member `mi`**: at a member with ONE constructor, η
-(index-free, the block not recursive: official's `is_non_rec_structure`; no
-separate unit-like bit, as official has none); at every member the block's members, its
+(index-free, the block not recursive: official's `is_non_rec_structure`, and
+the member's `hasEta`, `BlockShape.flagsAt`; no separate unit-like bit, as
+official has none); at every member the block's members, its
 parameter count, the member's index count, its constructors and whether its
 sort is never zero (`memberNeverZero`).  (`p.members.getD mi default`: the
 default member has no constructor and no index.) -/
@@ -74,7 +73,7 @@ def blockCapsAt (p : BlockShape) (mi : Nat) (isRec : Bool) : AM IIndCaps := do
       let eta : Bool :=
         if nIdx != 0 then false
         else if isRec then false
-        else true
+        else (p.flagsAt mi).hasEta
       pure { eta := eta
              all := names
              nparams := p.nP
@@ -205,16 +204,17 @@ def checkBlockInds (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (isRec : Boo
 /-! ## Stage 1b: the constructors, and the positivity check -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:191-198 BlockShape.nestCtx
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove BlockInstall.BlockShape.nestCtx_bridge, then delete this line
 **The block's positivity context** at the canonical parameter variables
 `fvsP`, with the members' formers at their telescopes; its lookup is the
 environment every reader takes beside it (the positivity module's note);
-`lvls` the block's own levels, interned. -/
+`lvls` the block's own levels, interned; the container frames bounded at a
+`boundedProp` block. -/
 def BlockShape.nestCtx (p : BlockShape) (fvsP : List EIdx) : AM NestCtx := do
   let lps := p.lps
   let lvls ← paramLevels lps
   pure { names := p.memberNames, lps := lps, nP := p.nP, nIdxs := p.nIdxs,
-         params := fvsP, sort := p.resSort, formers := p.formers, lvls := lvls }
+         params := fvsP, sort := p.resSort, formers := p.formers, lvls := lvls,
+         bound := p.boundedProp }
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:200-209 checkBlockCtors
 con-leche: ConLeche/Cached/IndBlock.lean:181-187 checkBlockCtorsC

@@ -84,7 +84,6 @@ def checkBlockPass (mode : CheckMode) (fe : IFEnv) (p₀ : BlockShape) (isRec : 
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:64-77 checkBlockRec
 con-leche: ConLeche/Cached/CheckerC.lean:232-254 checkBlockTailS
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove BlockTail.checkBlockRec_bridge, then delete this line
 **The installer's recursor stage**: the GENERATED recursor stage at the
 constructors' environment, on the stream's own recursor family (the raw
 `block`), the pass's classes and table, and the container bit. -/
@@ -96,7 +95,6 @@ def checkBlockRec (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (nested : Boo
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:79-90 consBlockRecsT
 con-leche: ConLeche/Cached/CheckerC.lean:232-254 checkBlockTailS
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove BlockTail.consBlockRecsTemp_bridge, then delete this line
 **The checked family consed, at its majors, TEMPORARILY**: the records
 `blockRecInfosTF` built (each recursor with its rules at ITS major), pushed in
 place.  Returns the rows the pushes displaced (`idx[n]?` before each push), in
@@ -109,6 +107,15 @@ def consBlockRecsTemp :
     let prev := fe.idx[ci.name]?
     consBlockRecsTemp rest (fe.push ci) (prevs ++ [(ci.name, prev)])
 
+/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:92-96 checkBlockBound
+con-leche: ConLeche/Cached/IndBlock.lean:189-192 checkBlockBoundC
+**The ordinary field bound at a `boundedProp` block**: the constructors' stage
+again, at the block taken as no proposition, so that every field's sort is at
+most the result sort. -/
+def checkBlockBound (mode : CheckMode) (fe : IFEnv) (p : BlockShape) : AM Unit :=
+  if p.boundedProp then checkBlockCtors mode fe fe { p with isProp := false } p.members
+  else pure ()
+
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:98-104 checkBlockTables
 con-leche: ConLeche/Cached/IndTail.lean:205-210 checkBlockTablesC
 **The checks of the block's projection tables** (`blockTables`), at the
@@ -120,18 +127,28 @@ def checkBlockTables (fe : IFEnv) : List IProjTable → AM Unit
     checkBlockTables fe rest
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:106-120 checkBlockTail
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove BlockTail.checkBlockTail_bridge, then delete this line
 con-leche: ConLeche/Cached/CheckerC.lean:232-254 checkBlockTailS
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove BlockTail.checkBlockTail_bridge, then delete this line
-**The checks after the pass**: the index binders' sorts, the constructors
-consed (and the flush entering that environment), the generated recursors, the
+**The checks after the pass**: the declared feature flags (`blockFlagsCheck`,
+at official's `is_rec` of the pass's record, read only at a block with declared
+flags: the Rust's `check_block_flags`), the field bound at a `boundedProp`
+block (`checkBlockBound`), the index binders' sorts, the constructors consed
+(and the flush entering that environment), the generated recursors, the
 stream's K flags and recursors against them (at the generated family pushed in
-place, a flush entering and leaving it, the pushes undone in reverse order),
-and the checks of the block's projection tables `Q`.  Returns the
-constructors' environment (the module note's last deviation). -/
+place, a flush entering and leaving it, the pushes undone in reverse order; at
+a block whose recursors carry no rules, against the generated ones without
+rules or constructors, `ruleOutAll`), and the checks of the block's projection
+tables `Q`.  Returns the constructors' environment (the module note's last
+deviation). -/
 def checkBlockTail (mode : CheckMode) (block : List IConstantInfo) (q : BlockPass)
     (Q : List IProjTable) : AM IFEnv := do
   let p := q.p
+  match p.flags with
+  | none => pure ()
+  | some _ => do
+    let isRec ← blockIsRec p
+    blockFlagsCheck p isRec q.cls q.env1
+  checkBlockBound mode q.env1 p
+  -- the Rust's `check_block_tail_ctors`
   checkBlockIdxSorts mode q.env1 p p.members
   let fe₂ := consBlockCtors p.nP p.ctorGroups q.env1
   flushCaches
@@ -142,7 +159,8 @@ def checkBlockTail (mode : CheckMode) (block : List IConstantInfo) (q : BlockPas
   let infos ← blockRecInfosTF p 0 out
   let (feG, prevs) := consBlockRecsTemp infos fe₂b []
   flushCaches
-  streamRecsCheck mode feG p.recs out
+  if p.noRules then streamRecsCheck mode feG p.recs (ruleOutAll out)
+  else streamRecsCheck mode feG p.recs out
   let fe₃ := (prevs.foldr (fun (n, prev) acc => acc.popTemp n prev) feG).setFlags fe₂b.natLit
     fe₂b.strLit
   flushCaches
@@ -189,15 +207,13 @@ def reduceMembers (mode : CheckMode) (fe : IFEnv) (nP : Nat) :
     pure (ms' :: rest')
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:155-171 checkBlock
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove BlockTail.checkBlock_bridge, then delete this line
 con-leche: ConLeche/Cached/CheckerC.lean:278-290 checkBlockKS
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove BlockTail.checkBlock_bridge, then delete this line
 **Check an inductive block and install it**: the distinct names, no member at
 a `Bool` constructor's name, each former reduced to its telescope once
 (official's `check_inductive_types`), the flush, the pass at official's
 `is_rec` (`blockIsRec`, read off the block as declared), the projection tables
-read off the block once (an internal error where a constructor is too short for
-them), the checks after the pass (those tables' among them), and the block's
+read off the block's `projMembers` once (an internal error where a constructor
+is too short for them), the checks after the pass (those tables' among them), and the block's
 install (`blockRecs` and the same tables on the constructors' environment: the
 module note's last deviation). -/
 def checkBlock (mode : CheckMode) (fe : IFEnv) (block : List IConstantInfo)
@@ -216,7 +232,7 @@ def checkBlock (mode : CheckMode) (fe : IFEnv) (block : List IConstantInfo)
       flushCaches
       let isRec ← blockIsRec p₀
       let q ← checkBlockPass mode fe { p₀ with members := ms } isRec
-      let Q ← unwrapOr (← blockTables p₀ p₀.members)
+      let Q ← unwrapOr (← blockTables p₀ p₀.projMembers)
         (.internal "direct structure: projection bodies")
       let fe₂ ← checkBlockTail mode block q Q
       let recs ← blockRecs p₀ p₀.recs

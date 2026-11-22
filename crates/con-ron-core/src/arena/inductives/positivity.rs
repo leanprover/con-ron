@@ -47,6 +47,7 @@
 //!   (`checkBlockPositivity`).  The skip list says so.
 
 use super::field_tele::pi_binders;
+use super::struct_install;
 use crate::arena::checker_base;
 use crate::arena::core;
 use crate::arena::core::CORE_WALK_FUEL;
@@ -1304,7 +1305,10 @@ pub fn nest_ctor_nfs_dup(es: &Vec<NestCtorNf>, i: usize, out: Vec<NestCtorNf>) -
 /// block, as the function needs it.  `find?` is `fe` (the module note):
 /// every reader takes the environment beside the record.  `formers` are the
 /// members' type formers at their telescopes.  `lvls` is `lps.map .param`,
-/// interned once.
+/// interned once.  `bound`: the container frames bounded (a flagged `Prop`
+/// block that is not impredicative, `block_shape::bounded_prop`), every field
+/// of a container's constructor at its instantiation of sort at most the
+/// block's.
 pub struct NestCtx {
     pub names: Vec<NIdx>,
     pub lps: Vec<NIdx>,
@@ -1314,6 +1318,7 @@ pub struct NestCtx {
     pub sort: LIdx,
     pub formers: Vec<IConstantVal>,
     pub lvls: LsIdx,
+    pub bound: bool,
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:376-387 NestCtx
@@ -1328,6 +1333,7 @@ pub fn nest_ctx_dup(c: &NestCtx) -> NestCtx {
         sort: c.sort.dup2(),
         formers: const_vals_dup(&c.formers, 0, Vec::new()),
         lvls: c.lvls.dup2(),
+        bound: c.bound,
     }
 }
 
@@ -2874,10 +2880,54 @@ pub fn group_keys(
     }
 }
 
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `nested positivity: a walked constructor's fields`, as code points.
+pub const M_WALKED_FIELDS: [u32; 48] = [
+    110, 101, 115, 116, 101, 100, 32, 112, 111, 115, 105, 116, 105, 118, 105, 116, 121, 58, 32, 97,
+    32, 119, 97, 108, 107, 101, 100, 32, 99, 111, 110, 115, 116, 114, 117, 99, 116, 111, 114, 39,
+    115, 32, 102, 105, 101, 108, 100, 115,
+];
+
+/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:791-801 nestFrameSorts
+/// con-leche: ConLeche/Cached/IndPositivity.lean:352-362 nestFrameSortsC
+/// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1-1 nestFrameSorts` — **a
+/// container frame's field bound** (`NestCtx.bound`): each walked
+/// constructor telescope's fields, from `i` on, opened at the frame's depth,
+/// have sorts at most `sort` (`check_struct_field_sorts_i` at a
+/// non-propositional reading); pairwise, stopping at the shorter list.
+#[allow(clippy::too_many_arguments)]
+pub fn nest_frame_sorts(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    fe: &IFEnv,
+    sort: &LIdx,
+    hi: u64,
+    cs: &Vec<(IConstantVal, u64)>,
+    os: &Vec<(Vec<NestFieldKind>, EIdx)>,
+    i: usize,
+) -> Result<(), CheckError> {
+    if i >= cs.len() || i >= os.len() {
+        Ok(())
+    } else {
+        match core::open_pis_at_fvars_f(pers, st, cs[i].1, &os[i].1, hi) {
+            Err(e) => Err(e),
+            Ok(None) => fail(core_types::internal(code_points(&M_WALKED_FIELDS))),
+            Ok(Some(xq)) => {
+                let none: Vec<EIdx> = Vec::new();
+                match struct_install::check_struct_field_sorts_i(
+                    pers, st, mode, fe, false, false, sort, hi, &xq.0, &none, cs[i].1,
+                ) {
+                    Err(e) => Err(e),
+                    Ok(()) => nest_frame_sorts(pers, st, mode, fe, sort, hi, cs, os, i + 1),
+                }
+            }
+        }
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:803-826 nestFrame
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove positivity::frame_stack_refines, then delete this line
 /// con-leche: ConLeche/Cached/IndPositivity.lean:365-378 nestFrameC
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove positivity::frame_stack_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1056-1079 nestFrame` —
 /// `(grp.mapIdx fun _ (c, ty) => { key := ⟨c, us, ds⟩, base := hi, nIdx :=
 /// ty.piBinders.1.length }).reverse ++ prog`, which over the outermost-first
@@ -2917,9 +2967,7 @@ pub fn frame_stack(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:803-826 nestFrame
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove positivity::frame_holes_refines, then delete this line
 /// con-leche: ConLeche/Cached/IndPositivity.lean:365-378 nestFrameC
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove positivity::frame_holes_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1056-1079 nestFrame` —
 /// `grp.mapIdx fun i (_, ty) => Expr.fvar (hi + i) ty`: the frame's holes.
 pub fn frame_holes(
@@ -2945,9 +2993,7 @@ pub fn frame_holes(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:803-826 nestFrame
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove positivity::nest_frame_refines, then delete this line
 /// con-leche: ConLeche/Cached/IndPositivity.lean:365-378 nestFrameC
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove positivity::nest_frame_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1056-1079 nestFrame` — **a
 /// container frame** at the instantiation `(us, ds)`: every group-mate's family
 /// TYPED at the key at the frame's depth (K.52, `family_key_checks`), its holes
@@ -2977,9 +3023,7 @@ pub fn nest_frame(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:803-826 nestFrame
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove positivity::nest_frame_walk_refines, then delete this line
 /// con-leche: ConLeche/Cached/IndPositivity.lean:365-378 nestFrameC
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove positivity::nest_frame_walk_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1056-1079 nestFrame` — the
 /// frame's stack, its group's constructors and the one walk over them.
 #[allow(clippy::too_many_arguments)]
@@ -3005,12 +3049,11 @@ pub fn nest_frame_walk(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:803-826 nestFrame
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove positivity::nest_frame_walk_at_refines, then delete this line
 /// con-leche: ConLeche/Cached/IndPositivity.lean:365-378 nestFrameC
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove positivity::nest_frame_walk_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1056-1079 nestFrame` — the
 /// group's constructors and the one walk over them, under the frame's stack
-/// `prog2`.
+/// `prog2`, and at a bounded context the walked constructors' field bound
+/// (`nest_frame_sorts`).
 #[allow(clippy::too_many_arguments)]
 pub fn nest_frame_walk_at(
     pers: &PersTier,
@@ -3052,7 +3095,16 @@ pub fn nest_frame_walk_at(
                 Vec::new(),
             ) {
                 Err(e) => Err(e),
-                Ok((_, ns2)) => Ok(ns2),
+                Ok((outs, ns2)) => {
+                    if ctx.bound {
+                        match nest_frame_sorts(pers, st, mode, fe, &ctx.sort, hi + (grp.len() as u64), &ctors, &outs, 0) {
+                            Err(e) => Err(e),
+                            Ok(()) => Ok(ns2),
+                        }
+                    } else {
+                        Ok(ns2)
+                    }
+                }
             },
         },
     }
