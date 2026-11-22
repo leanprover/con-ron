@@ -1045,7 +1045,7 @@ pub struct WorkerRead {
     /// frontier (upstream's `#[⟨m, w.home.frontier⟩]`)
     pub values: Vec<ModRef>,
     /// the first own job: the context's size
-    pub start: u64,
+    pub start: usize,
 }
 
 /// con-leche: ConLeche/Driver/Worker.lean:301-344 workerRead
@@ -1096,7 +1096,7 @@ pub fn worker_read<F: CheckerFs>(fs: &F, pers: &PersTier, st: &mut AState, sp: &
         Ok(t) => t,
     };
     let values = home_values(m, &mut l);
-    let start = r.ctx.len() as u64;
+    let start = r.ctx.len();
     Ok(WorkerRead { home: l, expo, reads: wr, emitted: ds, own, reach: r, hoisted, pins: pk, values, start })
 }
 

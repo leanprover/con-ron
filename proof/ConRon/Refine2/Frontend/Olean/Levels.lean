@@ -406,7 +406,7 @@ end twin
 
 section walk
 
-variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
+variable {F : Type} {inst : frontend.checker_io.CheckerFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
   {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
   {sp_dirs : frontend.olean.files.Roots}
 
@@ -737,7 +737,7 @@ theorem header_loads_of_eq {st : frontend.olean.levels.LvState} {st' : Arena.Fro
 
 section walk
 
-variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
+variable {F : Type} {inst : frontend.checker_io.CheckerFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
   {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
   {sp_dirs : frontend.olean.files.Roots}
 

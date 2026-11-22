@@ -215,7 +215,7 @@ theorem oleans_model_of_stages (V : Type w) [ConLeche.SetTheory V] {F : ConLeche
     (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
     {roots : alloc.vec.Vec arena.handle.NIdx}
     (hroots : InternRoots emptyTier st2 names roots.val stR)
-    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
     (hsnap : SnapshotOf finst fsv F)
     {rd : frontend.olean.records.OleanRead} {store3 : arena.store.EStore}
     (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store ⟨dirs, alloc.vec.Vec.new _⟩ roots none false false
@@ -267,7 +267,7 @@ theorem compare_model_of_stages (V : Type w) [ConLeche.SetTheory V] {F : ConLech
     (hwfC : ConRon.Refine.NameWF c) (hwfS : ConRon.Refine.NameWF s)
     (hnC : arena.monad.intern_name emptyTier st2 c = ok (.Ok ch, stR1))
     (hnS : arena.monad.intern_name emptyTier stR1 s = ok (.Ok sh, stR))
-    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
     (hsnap : SnapshotOf finst fsv F)
     {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {sr : frontend.olean.files.Roots} {rootsC rootsS : alloc.vec.Vec arena.handle.NIdx}
     (hrC : rootsC.val = [ch]) (hrS : rootsS.val = [sh])

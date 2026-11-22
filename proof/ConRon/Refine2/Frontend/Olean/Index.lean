@@ -2156,7 +2156,7 @@ theorem list_mapM_cons {m : Type → Type} [Monad m] [LawfulMonad m] {α β : Ty
   simp [List.mapM_cons]
 
 section reads
-variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
+variable {F : Type} {inst : frontend.checker_io.CheckerFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
 
 /-- **`read_infos_of`'s accept is `readInfosOf`'s.** -/
 theorem read_infos_of_refines (hfs : FsRel inst fsv fs) {pk pers st lst} {sp : frontend.olean.files.Roots}
@@ -2352,7 +2352,7 @@ theorem ofState_sizes (s : Arena.Frontend.Olean.LvState) :
   simp
 
 section reads
-variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
+variable {F : Type} {inst : frontend.checker_io.CheckerFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
 
 /-- The twin's read of one loaded part. -/
 def partT (fs : Arena.Frontend.Olean.OleanFs) (pk : Arena.Frontend.Olean.OleanPins)

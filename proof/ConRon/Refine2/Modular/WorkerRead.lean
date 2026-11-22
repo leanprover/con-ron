@@ -46,7 +46,7 @@ theorem ownerMapRel_holds (pers : arena.store.PersTier) : OwnerMapRel pers :=
 
 /-- **`reach::reach`'s accept is `reach`'s** — lane L2's `reach_refines` (its rejects name
 records, so an accept), in the shape `worker_reach_la` takes. -/
-def ReachHyp {F : Type} (inst : frontend.olean.files.OleanFs F) (fsv : F)
+def ReachHyp {F : Type} (inst : frontend.checker_io.CheckerFs F) (fsv : F)
     (fs : Arena.Frontend.Olean.OleanFs) (pers : arena.store.PersTier) : Prop :=
   ∀ {st lst} (pk : frontend.olean.spec.OleanPins) (sp : frontend.olean.files.Roots)
     (m : arena.handle.NIdx) {wr : frontend.olean.index.WorkerReads} {wr' : Arena.Frontend.Olean.WorkerReads}
@@ -57,7 +57,7 @@ def ReachHyp {F : Type} (inst : frontend.olean.files.OleanFs F) (fsv : F)
       (Modular.reach fs (absPins pk) (absRoots sp) (absNIdx m) wr' own' (absNIdxArr roots))
 
 /-- **`ReachHyp` holds**: lane L2's `reach_refines`. -/
-theorem reachHyp_holds {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F}
+theorem reachHyp_holds {F : Type} {inst : frontend.checker_io.CheckerFs F} {fsv : F}
     {fs : Arena.Frontend.Olean.OleanFs} {pers : arena.store.PersTier} (hfs : FsRel inst fsv fs) :
     ReachHyp inst fsv fs pers := by
   intro _ _ _ _ _ _ _ _ _ _ hw ho hrel hinv
@@ -73,7 +73,7 @@ def WorkerReachRel (a : frontend.modular.reach.Reach × alloc.vec.Vec arena.env.
 
 section reads
 
-variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F}
+variable {F : Type} {inst : frontend.checker_io.CheckerFs F} {fsv : F}
   {fs : Arena.Frontend.Olean.OleanFs}
 
 /-- **`worker_reach`'s accept is `workerReach`'s**: the own holes, the roots, the reach, its

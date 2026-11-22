@@ -74,29 +74,47 @@ pub fn graph_names(pers: &PersTier, st: &AState, c: &Vec<(NIdx, Vec<ImportRec>)>
 }
 
 /// con-leche: ConLeche/Driver/Modular.lean:90-137 checkModularG
+/// The first module, in the graph's order, whose code is not 0.
+pub fn first_failure(codes: &Vec<u8>) -> Option<usize> {
+    let mut k = 0usize;
+    while k < codes.len() {
+        if codes[k] != 0 {
+            return Some(k);
+        }
+        k += 1;
+    }
+    None
+}
+
+/// con-leche: ConLeche/Driver/Modular.lean:90-137 checkModularG
+/// How many modules' codes are not 0.
+pub fn failures(codes: &Vec<u8>) -> u64 {
+    let mut n: u64 = 0;
+    let mut k = 0usize;
+    while k < codes.len() {
+        if codes[k] != 0 {
+            n += 1;
+        }
+        k += 1;
+    }
+    n
+}
+
+/// con-leche: ConLeche/Driver/Modular.lean:90-137 checkModularG
 /// **The run's verdict** off the modules' codes: the accept line and 0 when every
 /// one is 0, else the failure line and the code of the first in the graph's
 /// order that is not.
 pub fn modular_verdict<I: CheckerIo>(io: &mut I, codes: &Vec<u8>, names: &Vec<Name>, verified: bool) -> u8 {
-    let n = codes.len();
-    let mut failed: u64 = 0;
-    let mut first: usize = n;
-    let mut k = 0usize;
-    while k < n {
-        if codes[k] != 0 {
-            if failed == 0 {
-                first = k;
-            }
-            failed += 1;
+    match first_failure(codes) {
+        None => {
+            io.note(&Note::ModularAccepted(codes.len() as u64, verified));
+            0
         }
-        k += 1;
+        Some(k) => {
+            io.note(&Note::ModularFailed(failures(codes), codes.len() as u64, name::dup(&names[k]), verified));
+            codes[k]
+        }
     }
-    if first >= n || first >= names.len() {
-        io.note(&Note::ModularAccepted(n as u64, verified));
-        return 0;
-    }
-    io.note(&Note::ModularFailed(failed, n as u64, name::dup(&names[first]), verified));
-    codes[first]
 }
 
 /// con-leche: ConLeche/Driver/Modular.lean:90-137 checkModularG

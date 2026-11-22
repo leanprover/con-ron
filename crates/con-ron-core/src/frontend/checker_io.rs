@@ -15,7 +15,10 @@
 //!   heartbeat notifications.
 //! * `Step` — a job of the worker map: a worker's first state and one step,
 //!   which may read files through the instance.
-//! * `CheckerIo` — the worker map and the escapes.  An escape that ANSWERS a
+//! * `CodeStep` — a job of the code map (`--olean --modular`'s modules): an exit
+//!   code at a position, from the instance's file operations and its
+//!   `WorkerNotes`, the lines of a module's worker.
+//! * `CheckerIo` — the worker map, the code map and the escapes.  An escape that ANSWERS a
 //!   value the run goes on with (the help's exit code, the hardware thread
 //!   count, a legacy mode's exit code, a pin file) is `&mut self`, so that the
 //!   model claims nothing about its answer (`liftIO`'s "any outcome"); a

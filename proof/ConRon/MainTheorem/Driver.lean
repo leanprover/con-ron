@@ -36,15 +36,11 @@ open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean ConRon
 /-! ## What the theorems assume of an instance -/
 
 /-- **The instance's file operations answer as the snapshot `fs`, at every state**: at the
-paths the driver asks (`PathRel`), each read that answers gives `fs`'s bytes.  A failing read
-claims nothing: it gives the driver no exit 0.  `Capstone.lean`'s `SnapshotOf` at every state,
-for the operations `CheckerFs` has. -/
-structure AnswersAs {S : Type} (io : frontend.checker_io.CheckerIo S) (fs : ConLeche.FS) :
-    Prop where
-  read_range : ∀ (s : S) {p q}, PathRel p q → ∀ off len b,
-    io.CheckerFsInst.read_range s p off len = ok (.Ok b) →
-    ∃ whole, fs.file q = some whole ∧ absBytes (alloc.vec.Vec.deref b) =
-      whole.extract off.val (min (off.val + len.val) whole.size)
+paths the driver asks (`PathRel`), each operation that answers gives `fs`'s answer
+(`Capstone.lean`'s `SnapshotOf`, at every state of the instance).  A failing operation claims
+nothing: it gives the driver no exit 0. -/
+def AnswersAs {S : Type} (io : frontend.checker_io.CheckerIo S) (fs : ConLeche.FS) : Prop :=
+  ∀ s : S, SnapshotOf io.CheckerFsInst s fs
 
 /-- A job's step at a `Nat` position, as `ParallelAll` takes it: the `Step`'s at the position
 as a `usize` (a position past one is a panic), reading files through the instance at `io`. -/
@@ -64,6 +60,16 @@ def PoolSound {I : Type} (io : frontend.checker_io.CheckerIo I) : Prop :=
     io.par_map_workers inst s st n w = ok (.Ok (), s') →
     ParallelAll n.val (inst.init st) (stepAt inst st s)
 
+/-- **The instance's code map keeps its contract, for every job**: an `Ok` of `par_map_codes`
+over `n` positions answers, at each position, the job's exit code there, the job reading files
+and notifying at the state the map was called in. -/
+def CodesSound {I : Type} (io : frontend.checker_io.CheckerIo I) : Prop :=
+  ∀ {St : Type} (inst : frontend.checker_io.CodeStep St I) (st : St) (s : I)
+    (n w : Std.Usize) (cs : alloc.vec.Vec Std.U8) (s' : I),
+    io.par_map_codes inst s st n w = ok (.Ok cs, s') →
+    cs.val.length = n.val ∧ ∀ (k : Std.Usize), k.val < n.val →
+      inst.code st s k = ok (cs.val[k.val]!)
+
 /-- **`argv` is the argument list `args`**: each string's code points, in order (con-ron's
 string representation, `absString`'s inverse).  A relation rather than a function: a `Vec` is
 at most `usize::MAX` long, and a list that does not fit has no `argv`. -/
@@ -76,7 +82,7 @@ state, and whose worker map keeps its contract. -/
 def CanGive (args : List String) (fs : ConLeche.FS) (c : UInt8) : Prop :=
   ∃ (S : Type) (io : frontend.checker_io.CheckerIo S) (s s' : S)
     (argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (c' : Std.U8),
-    AnswersAs io fs ∧ PoolSound io ∧ ArgvOf argv args ∧
+    AnswersAs io fs ∧ PoolSound io ∧ CodesSound io ∧ ArgvOf argv args ∧
     driver.cli.run_args io s argv = ok (c', s') ∧ c'.val = c.toNat
 
 /-! ## Arithmetic and bytes -/
@@ -258,7 +264,7 @@ theorem fileChunks_loop (hfs : AnswersAs io fs) {s : S} {file : alloc.vec.Vec St
     · exact hne hnil
   · -- the bytes read are the file's
     rw [hsrc, hpath] at hr
-    obtain ⟨whole, hw, hbytes⟩ := hfs.read_range s hq src.off len buf hr
+    obtain ⟨whole, hw, hbytes⟩ := (hfs s).read_range hq src.off len buf hr
     rw [hb] at hw
     cases hw
     have hsz : buf.length = (b.extract src.off.val (min (src.off.val + len.val) b.size)).size := by
@@ -738,7 +744,7 @@ theorem run_args_json {S : Type} {io : frontend.checker_io.CheckerIo S} {fs : Co
 `JsonStages`'s, on the file's bytes. -/
 theorem json_stages_of_canGive {file : String} {fs : ConLeche.FS} {b : ByteArray}
     (h : CanGive ["--", file] fs 0) (hb : fs.file file = some b) : JsonStages b := by
-  obtain ⟨S, io, s, s', argv, c, hfs, hpool, hargv, hrun, hc⟩ := h
+  obtain ⟨S, io, s, s', argv, c, hfs, hpool, -, hargv, hrun, hc⟩ := h
   exact run_args_json hfs hpool hargv hrun (by simpa using hc) hb
 
 end ConRon

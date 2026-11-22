@@ -145,7 +145,7 @@ theorem pathRel_of {pers ar m n} {d e p : alloc.vec.Vec Std.U32}
 
 section search
 
-variable {F : Type} {inst : OleanFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
+variable {F : Type} {inst : frontend.checker_io.CheckerFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
   {pers : arena.store.PersTier} {ar : arena.store.EStore} {m : arena.handle.NIdx}
   {n : kernel.name.Name}
 

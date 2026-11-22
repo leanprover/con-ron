@@ -197,7 +197,7 @@ open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean
 /-- **The instance answers as one snapshot `F`**, at the paths the reader asks (`PathRel`): the file
 seam's premise, as `ReadsAs` is the stream's.  Each answer the instance gives is `F`'s; a failing
 operation claims nothing, since it gives the reader no accept. -/
-structure SnapshotOf {Fs : Type} (inst : frontend.olean.files.OleanFs Fs) (fsv : Fs)
+structure SnapshotOf {Fs : Type} (inst : frontend.checker_io.CheckerFs Fs) (fsv : Fs)
     (F : ConLeche.FS) : Prop where
   path_exists : ∀ {p q}, PathRel p q → ∀ b, inst.path_exists fsv p = ok (.Ok b) →
     b = (F.real q).isSome
@@ -213,7 +213,7 @@ structure SnapshotOf {Fs : Type} (inst : frontend.olean.files.OleanFs Fs) (fsv :
     ∃ whole, F.file q = some whole ∧ s.val = whole.size
 
 /-- The instance of a snapshot answers as the snapshot's record. -/
-theorem fsRel_of_snapshot {Fs : Type} {inst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+theorem fsRel_of_snapshot {Fs : Type} {inst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
     {F : ConLeche.FS} (h : SnapshotOf inst fsv F) :
     FsRel inst fsv (ConRon.Bridge.Frontend.Olean.modelFs F) where
   pathExists := fun hp b hb => by
@@ -286,7 +286,7 @@ theorem rust_stages_oleans (hT2 : ReadOleansRefines)
     (h2 : frontend.prelude.builtin_prelude_e pers st1 = ok (.Ok pre, st2))
     {names : List kernel.name.Name} {roots : alloc.vec.Vec arena.handle.NIdx}
     {stR : arena.monad.AState} (hroots : InternRoots pers st2 names roots.val stR)
-    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs} {F : ConLeche.FS}
+    {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs} {F : ConLeche.FS}
     (hsnap : SnapshotOf finst fsv F)
     {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {store3 : arena.store.EStore}
     (h3 : frontend.olean.records.read_oleans finst fsv pers stR.store ⟨dirs, alloc.vec.Vec.new _⟩ roots none false false
@@ -762,7 +762,7 @@ theorem no_False_oleans_of (hT2 : ReadOleansRefines)
     (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
     {roots : alloc.vec.Vec arena.handle.NIdx}
     (hroots : InternRoots emptyTier st2 names roots.val stR)
-    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
     (hsnap : SnapshotOf finst fsv F)
     {rd : frontend.olean.records.OleanRead} {store3 : arena.store.EStore}
     (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store ⟨dirs, alloc.vec.Vec.new _⟩ roots none false false
@@ -809,7 +809,7 @@ theorem model_exists_oleans_of (hT2 : ReadOleansRefines)
     (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
     {roots : alloc.vec.Vec arena.handle.NIdx}
     (hroots : InternRoots emptyTier st2 names roots.val stR)
-    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
     (hsnap : SnapshotOf finst fsv F)
     {rd : frontend.olean.records.OleanRead} {store3 : arena.store.EStore}
     (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store ⟨dirs, alloc.vec.Vec.new _⟩ roots none false false
@@ -868,7 +868,7 @@ theorem no_False_oleans (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS}
     (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
     {roots : alloc.vec.Vec arena.handle.NIdx}
     (hroots : InternRoots emptyTier st2 names roots.val stR)
-    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
     (hsnap : SnapshotOf finst fsv F)
     {rd : frontend.olean.records.OleanRead} {store3 : arena.store.EStore}
     (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store ⟨dirs, alloc.vec.Vec.new _⟩ roots none false false
@@ -906,7 +906,7 @@ theorem model_exists_oleans (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS
     (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
     {roots : alloc.vec.Vec arena.handle.NIdx}
     (hroots : InternRoots emptyTier st2 names roots.val stR)
-    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
     (hsnap : SnapshotOf finst fsv F)
     {rd : frontend.olean.records.OleanRead} {store3 : arena.store.EStore}
     (h3 : frontend.olean.records.read_oleans finst fsv emptyTier stR.store ⟨dirs, alloc.vec.Vec.new _⟩ roots none false false
@@ -1092,7 +1092,7 @@ theorem rust_stages_oleans_compare (hT2 : ReadOleansRefines)
     (hwfC : ConRon.Refine.NameWF c) (hwfS : ConRon.Refine.NameWF s)
     (hnC : arena.monad.intern_name pers st2 c = ok (.Ok ch, stR1))
     (hnS : arena.monad.intern_name pers stR1 s = ok (.Ok sh, stR))
-    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
     (hsnap : SnapshotOf finst fsv F)
     {cr sr : frontend.olean.files.Roots} {rootsC rootsS : alloc.vec.Vec arena.handle.NIdx}
     (hrC : rootsC.val = [ch]) (hrS : rootsS.val = [sh])
@@ -1397,7 +1397,7 @@ theorem no_False_oleans_compare_of (hT2 : ReadOleansRefines)
     (hwfC : ConRon.Refine.NameWF c) (hwfS : ConRon.Refine.NameWF s)
     (hnC : arena.monad.intern_name emptyTier st2 c = ok (.Ok ch, stR1))
     (hnS : arena.monad.intern_name emptyTier stR1 s = ok (.Ok sh, stR))
-    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
     (hsnap : SnapshotOf finst fsv F)
     {sr : frontend.olean.files.Roots} {rootsC rootsS : alloc.vec.Vec arena.handle.NIdx}
     (hrC : rootsC.val = [ch]) (hrS : rootsS.val = [sh])
@@ -1475,7 +1475,7 @@ theorem model_exists_oleans_compare_of (hT2 : ReadOleansRefines)
     (hwfC : ConRon.Refine.NameWF c) (hwfS : ConRon.Refine.NameWF s)
     (hnC : arena.monad.intern_name emptyTier st2 c = ok (.Ok ch, stR1))
     (hnS : arena.monad.intern_name emptyTier stR1 s = ok (.Ok sh, stR))
-    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
     (hsnap : SnapshotOf finst fsv F)
     {cr sr : frontend.olean.files.Roots} {rootsC rootsS : alloc.vec.Vec arena.handle.NIdx}
     (hrC : rootsC.val = [ch]) (hrS : rootsS.val = [sh])
@@ -1556,7 +1556,7 @@ theorem no_False_oleans_compare (V : Type w) [ConLeche.SetTheory V] {F : ConLech
     (hwfC : ConRon.Refine.NameWF c) (hwfS : ConRon.Refine.NameWF s)
     (hnC : arena.monad.intern_name emptyTier st2 c = ok (.Ok ch, stR1))
     (hnS : arena.monad.intern_name emptyTier stR1 s = ok (.Ok sh, stR))
-    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
     (hsnap : SnapshotOf finst fsv F)
     {sr : frontend.olean.files.Roots} {rootsC rootsS : alloc.vec.Vec arena.handle.NIdx}
     (hrC : rootsC.val = [ch]) (hrS : rootsS.val = [sh])
@@ -1617,7 +1617,7 @@ theorem model_exists_oleans_compare (V : Type w) [ConLeche.SetTheory V] {F : Con
     (hwfC : ConRon.Refine.NameWF c) (hwfS : ConRon.Refine.NameWF s)
     (hnC : arena.monad.intern_name emptyTier st2 c = ok (.Ok ch, stR1))
     (hnS : arena.monad.intern_name emptyTier stR1 s = ok (.Ok sh, stR))
-    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
     (hsnap : SnapshotOf finst fsv F)
     {cr sr : frontend.olean.files.Roots} {rootsC rootsS : alloc.vec.Vec arena.handle.NIdx}
     (hrC : rootsC.val = [ch]) (hrS : rootsS.val = [sh])
@@ -1687,7 +1687,7 @@ on a snapshot `F`, give upstream's `checkGraphG_ok` facts: the closure `CC` of u
 each module's imports its header's, the roots in it, a one-to-one rank decreasing along every
 import, every module in the headers' closure of the roots.  Theorem 2 (`graph_of_refines`) then
 Theorem 1 (`graphStage_run`). -/
-theorem rust_graph {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+theorem rust_graph {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
     {F : ConLeche.FS} (hsnap : SnapshotOf finst fsv F)
     {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {names : List kernel.name.Name}
     {st1 stR : arena.monad.AState} {store2 store3 : arena.store.EStore}
@@ -1725,7 +1725,7 @@ binary's start values, the reserved pins, the module's name interned, the pins i
 flags on a fresh worker, and the pool over the own jobs from `start`, on a snapshot `F`, give
 upstream's accepted worker at the module.  Theorem 2 per call, then `workerStage_run`. -/
 theorem rust_worker_gen (hR : ConRon.Bridge.Modular.ReachRunHyp)
-    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
     {F : ConLeche.FS} (hsnap : SnapshotOf finst fsv F)
     {sp : frontend.olean.files.Roots} (hsp : (absRoots sp).bare = absRoots sp)
     {mName : kernel.name.Name} {rest : List kernel.name.Name}
@@ -1807,7 +1807,7 @@ theorem rust_worker_gen (hR : ConRon.Bridge.Modular.ReachRunHyp)
 /-- `rust_worker_gen` with no import added, at a search path: a module's worker under
 `--olean --module` / `--olean --modular`. -/
 theorem rust_worker_of (hR : ConRon.Bridge.Modular.ReachRunHyp)
-    {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+    {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
     {F : ConLeche.FS} (hsnap : SnapshotOf finst fsv F)
     {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {mName : kernel.name.Name}
     {st1 st2 st3 st4 st5 : arena.monad.AState} {m : arena.handle.NIdx}
@@ -1851,7 +1851,7 @@ the reach.
 
 Composition: `rust_graph`, `rust_worker_of` per module, upstream's `closure_sees_isModel`. -/
 theorem model_modular_of (hR : ConRon.Bridge.Modular.ReachRunHyp)
-    (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : frontend.olean.files.OleanFs Fs}
+    (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs}
     {fsv : Fs} {F : ConLeche.FS} (hsnap : SnapshotOf finst fsv F)
     {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {rName : kernel.name.Name}
     {g1 gR : arena.monad.AState} {gstore2 gstore3 : arena.store.EStore}
@@ -1905,7 +1905,7 @@ theorem model_modular_of (hR : ConRon.Bridge.Modular.ReachRunHyp)
 pins, the reader's pins, the challenge and the solution interned, `graph::graph_of` over the
 solution's lookup from the challenge, the solution added to its header; on a snapshot `F`,
 upstream's facts at the added imports (`cmpExtra`). -/
-theorem rust_graph_cmp {Fs : Type} {finst : frontend.olean.files.OleanFs Fs} {fsv : Fs}
+theorem rust_graph_cmp {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
     {F : ConLeche.FS} (hsnap : SnapshotOf finst fsv F)
     {spR : frontend.olean.files.Roots} (hsp : (absRoots spR).bare = absRoots spR)
     {cName sName : kernel.name.Name}
@@ -1958,7 +1958,7 @@ theorem solImport_impsD {st : ConRon.Arena.EStore} {sH : arena.handle.NIdx} {S :
 /-- **Every module of a compared run's graph is an accepted worker** at the imports the run adds
 (`cmpExtra`): the compare worker at the challenge (`hcmp`), a plain worker at every other module
 (`hwork`), each from the binary's start values over the solution's lookup. -/
-theorem acc_compare (hR : ConRon.Bridge.Modular.ReachRunHyp) {Fs : Type} {finst : frontend.olean.files.OleanFs Fs}
+theorem acc_compare (hR : ConRon.Bridge.Modular.ReachRunHyp) {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs}
     {fsv : Fs} {F : ConLeche.FS} (hsnap : SnapshotOf finst fsv F)
     {tdirs ddirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {cName sName : kernel.name.Name}
     {spR : frontend.olean.files.Roots}
@@ -2055,7 +2055,7 @@ them has a model of its constants, and the models agree on what the modules see 
 
 Composition: `rust_graph_cmp`, `acc_compare`, upstream's `compare_sees_isModel`. -/
 theorem model_modular_compare_of (hR : ConRon.Bridge.Modular.ReachRunHyp)
-    (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : frontend.olean.files.OleanFs Fs}
+    (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs}
     {fsv : Fs} {F : ConLeche.FS} (hsnap : SnapshotOf finst fsv F)
     {tdirs ddirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {cName sName : kernel.name.Name}
     {spR : frontend.olean.files.Roots}
@@ -2141,7 +2141,7 @@ no constant of type `False` in its private part (what it sees through its soluti
 
 Composition: `rust_graph_cmp`, `acc_compare`, upstream's `compare_no_False`. -/
 theorem no_False_modular_compare_of (hR : ConRon.Bridge.Modular.ReachRunHyp)
-    (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : frontend.olean.files.OleanFs Fs}
+    (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs}
     {fsv : Fs} {F : ConLeche.FS} (hsnap : SnapshotOf finst fsv F)
     {tdirs ddirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {cName sName : kernel.name.Name}
     {spR : frontend.olean.files.Roots}
@@ -2217,7 +2217,7 @@ theorem no_False_modular_compare_of (hR : ConRon.Bridge.Modular.ReachRunHyp)
 /-- con-leche: ConLeche/MainTheorem.lean:109 main_modular — `model_modular_of` at Theorem 1 of the
 reach (`reachRunHyp_holds`): **an accepted modular check has a family of models**, its premises
 the calls of the graph check and of every module's worker alone. -/
-theorem model_modular (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : frontend.olean.files.OleanFs Fs}
+theorem model_modular (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs}
     {fsv : Fs} {F : ConLeche.FS} (hsnap : SnapshotOf finst fsv F)
     {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {rName : kernel.name.Name}
     {g1 gR : arena.monad.AState} {gstore2 gstore3 : arena.store.EStore}
@@ -2263,7 +2263,7 @@ theorem model_modular (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : f
 /-- con-leche: ConLeche/MainTheorem.lean:143 main_modular_compare — `model_modular_compare_of`
 at Theorem 1 of the reach: **an accepted modular comparison's challenge closure has a family of
 models**. -/
-theorem model_modular_compare (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : frontend.olean.files.OleanFs Fs}
+theorem model_modular_compare (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs}
     {fsv : Fs} {F : ConLeche.FS} (hsnap : SnapshotOf finst fsv F)
     {tdirs ddirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {cName sName : kernel.name.Name}
     {spR : frontend.olean.files.Roots}
@@ -2341,7 +2341,7 @@ theorem model_modular_compare (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {f
 /-- con-leche: ConLeche/MainTheorem.lean:183 main_modular_compare_no_False —
 `no_False_modular_compare_of` at Theorem 1 of the reach: **no accepted modular comparison's
 challenge module holds a constant of type `False`**. -/
-theorem no_False_modular_compare (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : frontend.olean.files.OleanFs Fs}
+theorem no_False_modular_compare (V : Type w) [ConLeche.SetTheory V] {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs}
     {fsv : Fs} {F : ConLeche.FS} (hsnap : SnapshotOf finst fsv F)
     {tdirs ddirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {cName sName : kernel.name.Name}
     {spR : frontend.olean.files.Roots}

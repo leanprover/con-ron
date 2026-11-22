@@ -163,7 +163,7 @@ pub fn module_phase<I: CheckerIo>(
         Ok(ix) => ix,
     };
     io.parse_done(pers, &st.store, ds.len(), 0, 0);
-    let start = w.start as usize;
+    let start = w.start;
     let n = module_jobs(ds, start);
     let workers = check_main::workers_for(jobs, n);
     io.check_starts(n, workers);
@@ -244,7 +244,7 @@ pub fn module_phase_in<F: CheckerFs>(
         Err(e) => return Err(e),
         Ok(ix) => ix,
     };
-    let start = w.start as usize;
+    let start = w.start;
     let n = module_jobs(ds, start);
     // ConRon.Capstone: h7
     let tier: PersTier = checker::freeze_tier(&mut st.store, ix);

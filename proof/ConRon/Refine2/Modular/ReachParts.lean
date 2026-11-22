@@ -930,7 +930,7 @@ theorem group_merged_rel {pk : frontend.olean.spec.OleanPins}
 /-! ## The parts' reads -/
 
 section reads
-variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
+variable {F : Type} {inst : frontend.checker_io.CheckerFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
 
 /-- The caches alone, as an `ACS` answer. -/
 @[reducible] def CR (_ : Unit) (c : frontend.modular.reach.ReachCache) (C : ConRon.Arena.Modular.ReachCache) :
