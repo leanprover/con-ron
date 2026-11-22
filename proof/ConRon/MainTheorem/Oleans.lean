@@ -666,7 +666,7 @@ theorem olean_args_oleans {s s' : S} {a : driver.cli.Args} (hmod : a.modular = f
     cases hrest
     exact ⟨_, hx, rfl⟩
   obtain ⟨cs, hcs, hcsv⟩ := parse_const_names_nil hcon
-  rw [hcs, bind_ok] at h
+  simp only [hcs, Aeneas.Std.bind_ok] at h
   have htm : driver.cli.trusted_misplaced a = ok false := by
     rw [driver.cli.trusted_misplaced]
     have : alloc.vec.Vec.len a.trusted_path = 0#usize := by
@@ -701,7 +701,7 @@ theorem argv_oleans {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {dirs root : 
   unfold ArgvOf at h
   rcases hv : argv.val with _ | ⟨w0, _ | ⟨w1, _ | ⟨w2, _ | ⟨w3, _ | ⟨w4, l⟩⟩⟩⟩⟩ <;>
     rw [hv] at h <;> simp only [List.map_cons, List.map_nil, List.cons.injEq, List.nil_eq,
-      reduceCtorEq, and_false, false_and] at h
+      reduceCtorEq, and_false, and_true] at h
   obtain ⟨h0, h1, h2, h3⟩ := h
   refine ⟨w0, w1, w2, w3, rfl, vals_eq (h0.trans (by decide)), h1, vals_eq (h2.trans (by decide)),
     h3⟩

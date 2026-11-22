@@ -251,12 +251,10 @@ theorem worker_read_refines (hfs : FsRel inst fsv fs) {pers : arena.store.PersTi
     rw [am_bind_ok hx5]
     obtain ⟨⟨values, l1⟩, h6, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨hV, hL1⟩ := home_values_rel hL h6
-    obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have es := ConRon.Refine2.Lockstep.PA2.cast_u64_usize_ls _ s hs
     obtain ⟨h7, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
     cases h7
     refine ⟨_, lst5, rfl, ⟨hL1, hE, hW, rfl, rfl, hR, rfl, rfl, hV, ?_⟩, hrel5, hinv5⟩
-    rw [hR.ctx, es]; simp [absIDeclArr]
+    rw [hR.ctx]; simp [absIDeclArr]
 end reads
 
 end ConRon.Refine2.Modular

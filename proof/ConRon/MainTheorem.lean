@@ -1,5 +1,6 @@
 import ConRon.MainTheorem.Driver
 import ConRon.MainTheorem.CompareJson
+import ConRon.MainTheorem.Oleans
 import ConRon.MainTheorem.Conclusions
 
 /-!
@@ -67,5 +68,15 @@ theorem main_compare_json_model (V : Type w) [ConLeche.SetTheory V] {c s : Strin
   have ⟨rC, hp, hm⟩ := compare_json_model_of_stages V h1 h2 hreadsC hreadsS hcat h3 h3S hdup h4S
     hpins h5 h6S h7S h8S h4 hside hsol h6 h7 h8
   ⟨bC, rC, hbC, hp, hm⟩
+
+open ConLeche ConLeche.Frontend in
+/-- con-leche: ConLeche/MainTheorem.lean:77-83 main_oleans —
+**An accepted module's closure has a model**: every exit 0 of `--olean --search-path=<dirs>
+-- <root>` has a model of the constants of the modules `root` imports, itself included. -/
+theorem main_oleans (V : Type w) [SetTheory V] {dirs root : String} {r : Name} {fs : FS}
+    (hr : Olean.parseModName root = some r)
+    (h : ConRon.CanGive ["--olean", "--search-path=" ++ dirs, "--", root] fs 0) :
+    ∃ model, IsModel V model (Olean.closureConstants (Driver.searchPathOf dirs) fs #[r]) :=
+  oleans_of_canGive V hr h
 
 end ConRon.MainTheorem

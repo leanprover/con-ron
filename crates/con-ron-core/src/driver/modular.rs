@@ -8,7 +8,7 @@
 //! when every module's is, else the code of the first module, in the graph's
 //! order, that is not.
 
-use crate::arena::env as ienv;
+use crate::arena::monad;
 use crate::arena::monad::AState;
 use crate::arena::store::PersTier;
 use crate::driver::check_main;
@@ -64,7 +64,7 @@ pub fn graph_names(pers: &PersTier, st: &AState, c: &Vec<(NIdx, Vec<ImportRec>)>
     let mut out: Vec<Name> = Vec::new();
     let mut i = 0usize;
     while i < c.len() {
-        match ienv::read_name(pers, &st.store, &c[i].0) {
+        match monad::read_name(pers, st, &c[i].0) {
             Err(e) => return Err(e),
             Ok(n) => out.push(n),
         }
