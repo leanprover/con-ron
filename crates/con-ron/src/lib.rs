@@ -80,4 +80,5 @@ pub mod modular;
 pub mod olean_fs;
 pub mod pool;
 pub mod render;
+pub mod schedule;
 pub mod std_io;

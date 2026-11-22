@@ -434,18 +434,23 @@ def checkMainOlean (sp : List System.FilePath) (roots : Array Name) (constants :
 
 /-- con-leche: ConLeche/Driver/Cli.lean:116-132 synopsis
 The invocation forms, printed on their own when there are no arguments.  Of `--schedule` only
-`--schedule-commands` is run (`helpText`). -/
+`--schedule-commands` is run here (`helpText`). -/
 def synopsis : String := String.intercalate "\n" [
   "Usage:",
   "  con-ron-lean [OPTIONS] [--] FILE.ndjson",
   "  con-ron-lean [OPTIONS] --compare [--] CHALLENGE.ndjson SOLUTION.ndjson",
   "  con-ron-lean [OPTIONS] --olean --search-path=DIRS [--] MODULE...",
   "  con-ron-lean [OPTIONS] --check-graph --search-path=DIRS [--] MODULE...",
+  "  con-ron-lean [OPTIONS] --olean --module --search-path=DIRS [--] MODULE",
+  "  con-ron-lean [OPTIONS] --olean --modular --search-path=DIRS [--] MODULE",
   "  con-ron-lean [OPTIONS] --olean --schedule-commands --search-path=DIRS [--] MODULE",
   "  con-ron-lean [OPTIONS] --olean --compare [--trusted-search-path=DIRS]",
   "               --search-path=DIRS [--] CHALLENGE SOLUTION",
   "  con-ron-lean [OPTIONS] --check-graph --compare [--trusted-search-path=DIRS]",
-  "               --search-path=DIRS [--] CHALLENGE SOLUTION"]
+  "               --search-path=DIRS [--] CHALLENGE SOLUTION",
+  "  con-ron-lean [OPTIONS] --olean --module|--modular|--schedule-commands",
+  "               --compare [--trusted-search-path=DIRS] --search-path=DIRS",
+  "               [--] CHALLENGE SOLUTION"]
 
 /-- con-leche: ConLeche/Driver/Cli.lean:134-135 tryHelp
 The line after a usage error. -/
@@ -485,10 +490,16 @@ def helpText : String := String.intercalate "\n" [
   "                      the closure of CHALLENGE, its axioms justified by it",
   "  --trusted-search-path=DIRS",
   "                      With --compare: where CHALLENGE is read, and where",
-  "                      SOLUTION is read first; colon-separated; repeatable",
+  "                      SOLUTION is read first; with --module alone, where",
+  "                      MODULE's closure is read first; colon-separated;",
+  "                      repeatable",
   "",
   "  --check-graph       Check only that the modules' import graph is acyclic",
   "                      and that every import is on the search path",
+  "  --module            Check MODULE's own declarations alone, against what",
+  "                      they read of the modules it loads",
+  "  --modular           Check every module of MODULE's closure as --module",
+  "                      does, in this one process",
   "  --schedule-commands Start nothing; print the commands that check MODULE's",
   "                      closure, shell-quoted: the --check-graph run, then one",
   "                      --module run per module (for xargs or parallel)",
@@ -497,9 +508,9 @@ def helpText : String := String.intercalate "\n" [
   "                      modules (shuffled or graph); each worker line's",
   "                      LEAN_STACK_SIZE_KB",
   "",
-  "con-leche's other modes, not run by con-ron yet (a usage error, exit 3):",
-  "  --module, --modular, --schedule (use --schedule-commands with xargs or",
-  "  parallel instead), and --compare with --module or --modular",
+  "con-leche's scheduler, not run by con-ron-lean (a usage error, exit 3):",
+  "  --schedule (con-ron runs the simple one; or run --schedule-commands' lines",
+  "  with xargs or parallel)",
   "",
   "Exit status:",
   "  0  accepted",
@@ -911,7 +922,7 @@ def usageError (msg : String) : IO UInt8 := do
 A mode this binary does not run, once con-leche's own usage checks have passed: a usage error
 (exit 3), never a silent run of another mode. -/
 def unsupported (mode : String) : IO UInt8 :=
-  usageError s!"{mode} is not supported by con-ron yet"
+  usageError s!"{mode} is not supported by con-ron-lean"
 
 /-- con-leche: ConLeche/Driver/Graph.lean:240-251 checkGraphG
 A graph walk's line and exit code: the accept line on stdout, or the error's on stderr. -/
