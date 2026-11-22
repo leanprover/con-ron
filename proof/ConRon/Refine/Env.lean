@@ -145,6 +145,19 @@ theorem ind_caps_default_refines {c : env.IndCaps} (h : env.ind_caps_default = o
   rw [absIndCaps]
   simp [absNames, alloc.vec.Vec.new]
 
+/-- `ConLeche/Kernel/Env.lean` `IndFlags` -- `env::ind_flags_opt_dup` is the
+identity. -/
+theorem ind_flags_opt_dup_eq (f : Option env.IndFlags) : env.ind_flags_opt_dup f = ok f := by
+  cases f <;> simp [env.ind_flags_opt_dup, env.ind_flags_dup]
+
+/-- `ConLeche/Kernel/Env.lean` `IndFlags` -- `env::ind_flags_opt_beq` is the
+derived equality, read through `absIndFlags`. -/
+theorem ind_flags_opt_beq_eq (a b : Option env.IndFlags) :
+    env.ind_flags_opt_beq a b = ok (decide (a.map absIndFlags = b.map absIndFlags)) := by
+  rcases a with _ | ⟨a1, a2, a3, a4, a5⟩ <;> rcases b with _ | ⟨b1, b2, b3, b4, b5⟩ <;>
+    simp only [env.ind_flags_opt_beq, env.ind_flags_beq, Option.map, absIndFlags] <;>
+    (try split_ifs) <;> simp_all
+
 /-- `env::ind_caps_default` is well formed. -/
 theorem ind_caps_default_wf {c : env.IndCaps} (h : env.ind_caps_default = ok c) :
     IndCapsWF c := by

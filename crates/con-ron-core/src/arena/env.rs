@@ -76,7 +76,7 @@ use crate::arena::handle::{EIdx, LIdx, NIdx};
 use crate::arena::store::{ENodeView, EStore, NNodeView};
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckError;
-use crate::kernel::env::{QuotKind, ReducibilityHint};
+use crate::kernel::env::{IndFlags, QuotKind, ReducibilityHint};
 use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::ron::hashmap::{Dup, Eq2};
@@ -270,7 +270,6 @@ pub fn i_rec_rules_dup_from(rs: &Vec<IRecRule>, i: usize, out: Vec<IRecRule>) ->
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:196-242 IndCaps
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove env::IIndCaps_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:80-100 IIndCaps` — the
 /// definitional capabilities of a stored inductive type that its block alone
 /// decides.  The constructor and the counts every η reader works at are the
@@ -294,10 +293,13 @@ pub struct IIndCaps {
     /// (`block_caps_at`); `false` claims nothing.  The ι step's case split
     /// reads it in place of the walk to the family's sort.
     pub never_zero: bool,
+    /// the flags the stream's record declares (`None`: a record without
+    /// them); the stream's records carry them, the install validates them,
+    /// the installed capabilities carry `None`
+    pub flags: Option<IndFlags>,
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:196-242 IndCaps
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove env::i_ind_caps_default_refines, then delete this line
 /// The cited structure's *field defaults*, which Rust has not.  The zero handle is the twin's `default :
 /// NIdx`, the `Inhabited` instance of `Idx`.
 pub fn i_ind_caps_default() -> IIndCaps {
@@ -308,11 +310,11 @@ pub fn i_ind_caps_default() -> IIndCaps {
         n_idx: 0,
         ctors: Vec::new(),
         never_zero: false,
+        flags: None,
     }
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:196-242 IndCaps
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove env::i_ind_caps_dup_refines, then delete this line
 /// The record copy.
 pub fn i_ind_caps_dup(c: &IIndCaps) -> IIndCaps {
     IIndCaps {
@@ -322,6 +324,7 @@ pub fn i_ind_caps_dup(c: &IIndCaps) -> IIndCaps {
         n_idx: c.n_idx,
         ctors: nidx_vec_dup(&c.ctors),
         never_zero: c.never_zero,
+        flags: crate::kernel::env::ind_flags_opt_dup(&c.flags),
     }
 }
 

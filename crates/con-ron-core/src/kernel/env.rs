@@ -207,8 +207,44 @@ pub fn basis_kind_dup(k: &BasisKind) -> BasisKind {
     }
 }
 
+/// con-leche: ConLeche/Kernel/Env.lean:186-194 IndFlags
+/// An inductive type's declared feature flags (lean4export 3.2.0): inputs
+/// the block's check validates, never recomputes.
+pub struct IndFlags {
+    /// the block is impredicative (official's `isImpredicative`)
+    pub is_impredicative: bool,
+    /// the type has K-like reduction (official's `isK`)
+    pub is_k: bool,
+    /// the type has projections (official's `hasProjections`)
+    pub has_projections: bool,
+    /// the type has structure η (official's `hasEta`)
+    pub has_eta: bool,
+    /// the type eliminates into every sort (official's `hasLargeElim`)
+    pub has_large_elim: bool,
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:186-194 IndFlags
+/// The copy.
+pub fn ind_flags_dup(f: &IndFlags) -> IndFlags {
+    IndFlags {
+        is_impredicative: f.is_impredicative,
+        is_k: f.is_k,
+        has_projections: f.has_projections,
+        has_eta: f.has_eta,
+        has_large_elim: f.has_large_elim,
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:186-194 IndFlags
+/// The copy of an optional flag record.
+pub fn ind_flags_opt_dup(f: &Option<IndFlags>) -> Option<IndFlags> {
+    match f {
+        None => None,
+        Some(g) => Some(ind_flags_dup(g)),
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Env.lean:196-242 IndCaps
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove env::IndCaps_refines, then delete this line
 /// Definitional capabilities of a stored inductive type that its block alone
 /// decides, read off the block's records.  The family's result sort is on no
 /// record, so what depends on it is computed where it is read.  Every field of
@@ -229,12 +265,15 @@ pub struct IndCaps {
     /// the family's sort is never zero at every level instantiation, read off
     /// the former's stored type at its check; `false` claims nothing
     pub never_zero: bool,
+    /// the flags the stream's record declares (`None`: a record without
+    /// them); the stream's records carry them, the install validates them
+    pub flags: Option<IndFlags>,
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:196-242 IndCaps
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove env::ind_caps_default_refines, then delete this line
 /// The cited structure's *field defaults*, which Rust has not: `eta :=
-/// false`, `never_zero := false`, every count `0`, every list empty.
+/// false`, `never_zero := false`, `flags := none`, every count `0`, every
+/// list empty.
 pub fn ind_caps_default() -> IndCaps {
     IndCaps {
         eta: false,
@@ -243,6 +282,7 @@ pub fn ind_caps_default() -> IndCaps {
         n_idx: 0,
         ctors: Vec::new(),
         never_zero: false,
+        flags: None,
     }
 }
 
@@ -264,6 +304,31 @@ pub enum ConstantInfo {
 // The derived structural equalities (`deriving DecidableEq` on the records
 // above) — what the two pinned-basis guards read (`kernel::basis_pins`)
 // ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Kernel/Env.lean:186-194 IndFlags
+/// Lean's `deriving DecidableEq` on `IndFlags`, field by field.
+pub fn ind_flags_beq(a: &IndFlags, b: &IndFlags) -> bool {
+    a.is_impredicative == b.is_impredicative
+        && a.is_k == b.is_k
+        && a.has_projections == b.has_projections
+        && a.has_eta == b.has_eta
+        && a.has_large_elim == b.has_large_elim
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:186-194 IndFlags
+/// Lean's `deriving DecidableEq` on `Option IndFlags`.
+pub fn ind_flags_opt_beq(a: &Option<IndFlags>, b: &Option<IndFlags>) -> bool {
+    match a {
+        None => match b {
+            None => true,
+            Some(_) => false,
+        },
+        Some(f) => match b {
+            None => false,
+            Some(g) => ind_flags_beq(f, g),
+        },
+    }
+}
 
 /// con-leche: ConLeche/Kernel/Env.lean:143-153 ReducibilityHint
 /// Lean's `deriving DecidableEq` on `ReducibilityHint`.
