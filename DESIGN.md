@@ -74239,3 +74239,115 @@ five flag sets (plain, `--trusted`, `--progress --jobs=1`, `--progress=1s --jobs
 `--help`, `--compare` without `--`, `--compare` after a file, with `--olean`/`--check-graph`,
 `--schedule`, `--worker-stack-size`, plain `--`): 112 runs, no difference.
 `scripts/diff-e2e.sh`: 773/773 agree, display gate 9/9, command-line gate 18/18.
+
+#### Slice 2 (lane E) — `--olean`, `--check-graph`, `--olean --module`, `--olean --modular`
+
+**What moved.**  The `.olean` modes but the compared ones are extracted code: `run_args` routes
+`--check-graph` without `--compare` to `cli::check_graph_args`, and `--olean` without
+`--compare`/`--schedule` (and `--modular` without `--pins`) to `cli::olean_args`; only
+`--olean --compare`, `--check-graph --compare`, `--schedule` and `--modular --pins` still go to
+`run_legacy`.
+
+* **The trait.**  `files::OleanFs` is gone: its six file operations and its two notifications
+  (`read_notes_say`, `read_notes_module_loaded`) are `checker_io::CheckerFs`'s, every reader of
+  the core bounded by `F: CheckerFs` (a mechanical rename, Rust and Lean:
+  `frontend.olean.files.OleanFs` → `frontend.checker_io.CheckerFs` in 22 proof files, no proof
+  changed).  `CheckerIo: CheckerFs + WorkerNotes`.  New: `WorkerNotes` (a module worker's lines
+  — `worker_note`, `module_starts`, `worker_read_done`, `worker_hoisted`,
+  `worker_verdict_failure` — the notifications a module of `--modular` has besides the file
+  operations), `CodeStep` and `CheckerIo::par_map_codes` (the code map: every position run,
+  their exit codes in order, `--modular`'s modules), the notifications `oleans_read_starts`,
+  `read_notes_begin`/`read_notes_end` (the `.olean` read's own lines are on only during the
+  closure read, as `NotesFs` was), `graph_accepted`; `Note` gains the graph's, the `.olean`
+  read's and `--modular`'s lines, `Bad` the eight usage errors of the modes.  `Step::view` also
+  answers the position of job 0 (a module's jobs start at its context's size).
+* **`AnswersAs` is `SnapshotOf` at every state** (`def AnswersAs io fs := ∀ s, SnapshotOf
+  io.CheckerFsInst s fs`); `CodesSound io` (each answer of the code map is the job's at its
+  position, at the state the map ran at) joins `CanGive`.
+* **`StdIo`**: every file operation is `olean_fs::StdFs`'s; `read_range` is the positional read
+  (metadata first, so a FIFO never blocks), its message naming the path, and `Note::ReadFailed`
+  prints the message alone — the stream's read error lines are as before; the forward "pipe"
+  reader of slice 1 is gone.  `par_map_codes` is `modular_main`'s thread loop (threads of
+  `stack_bytes`, fewer where no more start).
+* `crates/con-ron-core/src/driver/check_main.rs` (`CheckMain.lean`): `olean_job` (the legacy
+  `driver::olean_job`, `oleanJobStepSol` at no solution), `OleanJobStep` (from `start`),
+  `intern_names`, `intern_consts`, `check_phase_olean`, `check_oleans` (one call per premise of
+  `model_exists_oleans`; the read's records leave it by `core::mem::replace` before the
+  preparation, as the legacy `mem::take`, so the preparation's `UsedConsts` is
+  `{ rd with decls := [] }` — `rust_stages_oleans_dec`).  `driver/graph.rs` (`Graph.lean`):
+  `graph_start`, `check_graph`.  `driver/worker.rs` (`Worker.lean`): `module_read`,
+  `module_verdict`, `module_phase` (the run's one module, its jobs on the worker map),
+  `module_phase_in` + `jobs_in_order` (a module of `--modular`: its jobs in order on its own
+  thread, as the legacy pool at one worker), `check_module`, `check_module_in`.
+  `driver/modular.rs` (`Modular.lean`): `ModularStep` (a `CodeStep`), `graph_names`,
+  `first_failure`, `failures`, `modular_verdict`, `check_modular`.  `cli.rs`: `parse_mod_names`,
+  `parse_const_names`, `sol_roots`, `check_graph_flags_bad`, `no_roots_or_path`,
+  `trusted_misplaced` (con-leche's `||` chains as functions: Aeneas copies an `if`'s tail into
+  each branch of a chain), `check_graph_args`, `olean_args`, `modular_args`, `module_args`.
+  `frontend::modular::worker::WorkerRead::start` is a `usize` (it is `ctx.len()`): the cast back
+  had no bound the walk could see.
+
+**What extracted.**  `Generated/Funs.lean` and `Types.lean` +1 557 lines net (Aeneas reorders
+much of `Funs.lean`, so the textual diff is far larger); Aeneas ~490 s.  Two Aeneas limits met,
+each worked around in the Rust's shape and recorded here: a loop over a `&OleanJobStep`
+(a struct of shared borrows) is "joining region abstractions containing shared loans whose
+shared value contains borrows is not supported yet" (`jobs_in_order` takes the fields), and
+`check_modular`'s `par_map_codes` call needed its borrowing step in a block of its own ("could not
+match the contexts" at the `if` after it), as slice 1's `check_phase` already does.
+
+**The walk** (no `sorry`, no Aesop, no new axiom).
+* `MainTheorem/Args.lean` (760 lines, imports no capstone): `splitOn_one` (`String.splitOn` at a
+  one-character separator is `List.splitOn`, after Batteries' `splitAux_of_valid` — Batteries'
+  own `splitOn` lemma is a TODO), `push_dirs_search` (`cli::push_dirs` of
+  `--search-path=` ++ `dirs` is `Driver.searchPathOf dirs`), `scan_loop`/`parse_mod_name_some`
+  (`files::parse_mod_name` of a string's code points is `Olean.parseModName`, the name
+  `NameWF`), `cps_beq_eq`/`cps_starts_with_eq` (the word tests answer, as list tests: the parse
+  lemmas then evaluate by `simp`), the `parse_one_*`, `loop_word`, `loop_search`, `loop_end`,
+  `help_word`, `help_end` steps.
+* `MainTheorem/Oleans.lean` (780): `rust_stages_oleans_dec`/`oleans_model_of_stages_dec` (the
+  capstone and lane C's conclusion with the preparation's `UsedConsts` `{ rd with decls := v }`
+  — what a theorem mentions is read off `rd.merged` alone, `olean_read_used_rel_dec` — and the
+  reader and the pool each at a snapshot of its own: the instance's state moves between them,
+  at the `--pins` escape), `olean_job_sol` (`olean_job` is `oleanJobStepSol`, by `bind_ext`
+  congruence through the binds), `olean_stepAt`, `parallelAll_mono`, `check_phase_olean_ok`,
+  `intern_names_roots`, `check_oleans_zero`, `parse_args_oleans`, `olean_args_oleans`,
+  `run_args_oleans`, `oleans_of_canGive`.
+* `MainTheorem/ModArgs.lean` (184): the parses of the three other argument lists.
+* `MainTheorem/Modular.lean` (1 371): `rust_worker_gen2`/`rust_worker_of2` (the capstone's worker
+  with its reads and its jobs at two instances' states), `check_graph_zero`, `check_module_zero`
+  (`GraphStages`, `WorkerStages`), `modular_of_stages` (`model_modular_of` with each worker its
+  own run: `hwork` as con-leche's, a `CanGive` per module), `jobs_in_order_loop_fold` +
+  `parallelAll_of_fold` (a module of `--modular` runs its jobs in order: the pool's contract at
+  one worker), `graph_names_loop_val` + `rust_graph_names` (the modules `check_modular` reads back
+  are the closure's — `Bridge/Modular/Stages.lean` gains `graphStage_run_nodes`, `graphStage_run`
+  with the closure's `NodeD` relation kept), `first_failure_none`, `modular_verdict_zero`,
+  `check_modular_zero` (through `CodesSound`), `modular_one_of_stages`, the `run_args_*` walks.
+* `ConRon/MainTheorem.lean`: `main_oleans`, `main_modular`, `main_modular_one`, con-leche's
+  statements word for word but `ConRon.CanGive`, in con-leche's order; `dead-census.py` roots.
+  Census: `propext`, `Classical.choice`, `Quot.sound`, `PINS_TEXT._native.decide.ax_1` —
+  `main_json_model`'s.
+* Rust changes the walk asked for: `modular::graph_names` reads with `monad::read_name` (whose
+  `NameWF` and twin read are proved; `env::read_name`'s `NameWF` is not), `first_failure`/
+  `failures` in place of a two-accumulator loop, `WorkerRead::start` a `usize`.
+
+**Behaviour.**  Old binary (master `f00f519d`) against the new, stdout + stderr + exit code with
+times, `RSS` and phase seconds masked: at every one of the 186 modules of con-leche's
+`tests/olean/lib` (search path the fixtures and the toolchain's `Init`), `--olean`,
+`--olean --module`, `--olean --modular --jobs=8` (lines sorted: modules finish in any order) and
+`--check-graph`; at five of them `--progress` and `--progress=1s --jobs=2` on the closure,
+`--module --progress`, `--modular --progress`, `--modular --trusted`,
+`--module --trusted-search-path`, `--no-pins`, `--constant=`; two roots; a missing module per
+mode; a search path without `Init`; 24 usage-error and routing lines (`--compare`,
+`--schedule-commands`, `--modular --pins`, a bad name, a bad constant, …); four json lines.
+816 runs: 809 byte-identical; 6 differ only in the order of the per-job `check N` lines at two
+workers (the same runs at `--jobs=1` are identical), 1 (`--schedule-commands`) only in the
+binary's own path it prints.  `scripts/diff-e2e.sh`: 773/773 agree, display gate 9/9,
+command-line gate 18/18 (its FIFO case caught the first `read_range`, which opened before it
+looked: fixed, the metadata is read first).  `scripts/diff-olean.sh`: 510/560 as expected, 9 NOT
+PORTED — the same 41 failing cases, line for line, as master's binary gives on the same table.
+
+**Left.**  The compared `.olean` modes (`--olean --compare`, `--check-graph --compare`, their
+`--module`/`--modular` forms) and `main_compare_model`, `main_modular_compare*`; `--schedule`
+stays legacy for good; slice 5 retires `run_legacy` and the now unreached `--olean` arms of
+`bin/con-ron.rs` (`Input::Oleans`, `Run::Module`/`Run::Modular` at no comparison).  Upstream
+candidates: Batteries' `String.splitOn` lemma (its TODO, `splitOn_one` here).
