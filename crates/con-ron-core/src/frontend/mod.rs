@@ -107,6 +107,7 @@
 //! what the refinement will be stated against.  Everything else in §3.4
 //! stands.
 
+pub mod checker_io;
 pub mod compare;
 pub mod export_c;
 pub mod modular;

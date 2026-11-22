@@ -73,6 +73,7 @@
 //! as the whole port has (DESIGN.md §3.7), and the Lean twin's line.
 
 pub mod arena;
+pub mod driver;
 pub mod frontend;
 pub mod kernel;
 pub mod ron;
