@@ -186,8 +186,8 @@ pub trait CheckerIo: CheckerFs + WorkerNotes + Sized + Sync {
     /// `--help`: the help text on stdout; the exit code (3 when the write fails).
     fn print_help(&mut self) -> u8;
     /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
-    /// A request the verified driver does not run yet: the unverified driver's
-    /// run of the whole argument list, and its exit code.
+    /// A request the verified driver does not run (`--schedule`, `--modular --pins`):
+    /// the unverified driver's run of the whole argument list, and its exit code.
     fn run_legacy(&mut self, argv: &Vec<Vec<u32>>) -> u8;
     /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
     /// The `--jobs` default: one worker per hardware thread, capped
