@@ -985,4 +985,354 @@ theorem modular_of_canGive (V : Type w) [ConLeche.SetTheory V] {dirs root : Stri
   rw [hsp, hnm] at this
   exact this
 
+/-! ## `--olean --modular`: every module in one process -/
+
+section One
+
+variable {S : Type} {io : frontend.checker_io.CheckerIo S} {fs : ConLeche.FS}
+
+/-- **No module failed** (`modular::first_failure` answered none): every code from `k` is 0. -/
+theorem first_failure_none (codes : alloc.vec.Vec Std.U8) :
+    ∀ (m : Nat) (k : Std.Usize), codes.val.length - k.val = m →
+      driver.modular.first_failure_loop codes k = ok none →
+      ∀ j, k.val ≤ j → (hj : j < codes.val.length) → codes.val[j] = 0#u8 := by
+  intro m
+  induction m with
+  | zero =>
+    intro k hm _ j hk hj
+    omega
+  | succ m ih =>
+    intro k hm h j hk hj
+    have hlt : k.val < codes.val.length := by omega
+    rw [driver.modular.first_failure_loop] at h
+    rw [ite_eq_left (by scalar_tac), ConRon.Args.vec_index_ok' hlt, bind_ok] at h
+    by_cases h0 : codes.val[k.val] != 0#u8
+    · rw [ite_eq_left h0] at h; simp at h
+    · rw [ite_eq_right h0] at h
+      obtain ⟨k1, hk1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hv : k1.val = k.val + 1 := by
+        have := ConRon.Refine.Nat.uadd_val hk1; simpa using this
+      by_cases hjk : j = k.val
+      · subst hjk; simpa using h0
+      · exact ih k1 (by omega) h j (by omega) hj
+
+/-- **A failing module's code is not 0** (`modular::first_failure` answered `some k`). -/
+theorem first_failure_some (codes : alloc.vec.Vec Std.U8) :
+    ∀ (m : Nat) (k : Std.Usize), codes.val.length - k.val = m → ∀ {k'},
+      driver.modular.first_failure_loop codes k = ok (some k') →
+      ∃ hk : k'.val < codes.val.length, codes.val[k'.val] ≠ 0#u8 := by
+  intro m
+  induction m with
+  | zero =>
+    intro k hm k' h
+    rw [driver.modular.first_failure_loop] at h
+    rw [ite_eq_right (by scalar_tac)] at h
+    simp at h
+  | succ m ih =>
+    intro k hm k' h
+    have hlt : k.val < codes.val.length := by omega
+    rw [driver.modular.first_failure_loop] at h
+    rw [ite_eq_left (by scalar_tac), ConRon.Args.vec_index_ok' hlt, bind_ok] at h
+    by_cases h0 : codes.val[k.val] != 0#u8
+    · rw [ite_eq_left h0] at h
+      simp only [Result.ok.injEq, Option.some.injEq] at h
+      subst h
+      exact ⟨hlt, by simpa using h0⟩
+    · rw [ite_eq_right h0] at h
+      obtain ⟨k1, hk1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hv : k1.val = k.val + 1 := by
+        have := ConRon.Refine.Nat.uadd_val hk1; simpa using this
+      exact ih k1 (by omega) h
+
+/-- **The run's verdict, 0**: every module's code is 0. -/
+theorem modular_verdict_zero {s s' : S} {codes : alloc.vec.Vec Std.U8}
+    {names : alloc.vec.Vec kernel.name.Name} {v : Bool} {c : Std.U8}
+    (h : driver.modular.modular_verdict io s codes names v = ok (c, s')) (hc : c.val = 0) :
+    ∀ j, (hj : j < codes.val.length) → codes.val[j] = 0#u8 := by
+  rw [driver.modular.modular_verdict] at h
+  obtain ⟨o, ho, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases o with
+  | none =>
+    intro j hj
+    exact first_failure_none codes _ 0#usize rfl ho j (by simp) hj
+  | some k =>
+    exfalso
+    obtain ⟨hk, hne⟩ := first_failure_some codes _ 0#usize rfl ho
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [ConRon.Args.vec_index_ok' hk, bind_ok] at h
+    have := Result.ok_injective h
+    simp only [Prod.mk.injEq] at this
+    apply hne
+    apply UScalar.eq_of_val_eq
+    rw [this.1, hc]; rfl
+
+/-- **A module of `--modular`, 0** (`worker::check_module_in` at `--verified`, the embedded
+pins): its calls are a worker's (`WorkerStages`), reads and jobs at the one state. -/
+theorem check_module_in_zero {F : Type} {finst : frontend.checker_io.CheckerFs F}
+    {wn : frontend.checker_io.WorkerNotes F} {fsv : F} (hsnap : SnapshotOf finst fsv fs)
+    {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {mName : kernel.name.Name}
+    (hwf : ConRon.Refine.NameWF mName) {maxNatSize : ron.nat.Nat} {c : Std.U8}
+    (h : driver.worker.check_module_in finst wn fsv ⟨dirs, alloc.vec.Vec.new _⟩ mName true
+      maxNatSize false = ok c) (hc : c.val = 0) : ∃ pins, WorkerStages fs mName dirs pins := by
+  rw [driver.worker.check_module_in] at h
+  simp only [ite_true, bind_ok] at h
+  rw [startState_eq, bind_ok, emptyTier_eq, bind_ok] at h
+  obtain ⟨⟨r0, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r0 with
+  | Err e => exact (worker_failed_ne h hc).elim
+  | Ok u =>
+  obtain ⟨⟨r1, st2⟩, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r1 with
+  | Err e => exact (worker_failed_ne h hc).elim
+  | Ok m =>
+  simp only [Bool.false_eq_true, ite_false] at h
+  obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r2 with
+  | Err e =>
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h] at hc
+    exact absurd hc (by decide)
+  | Ok ps =>
+  obtain ⟨n, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨⟨r3, st3⟩, hr3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r3 with
+  | Err c0 =>
+    rw [← Result.ok_injective h] at hc
+    exact (module_read_err hr3 hc).elim
+  | Ok r4 =>
+  obtain ⟨w, ipins, ds⟩ := r4
+  obtain ⟨st2', h5, hwork, hds⟩ := module_read_ok hr3
+  obtain ⟨⟨verdict, st4⟩, hph, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨ix, rfl⟩ := module_verdict_zero h hc
+  obtain ⟨ix0, st5, tier, frozen, ws, ws', h6, h7, hws, hinfer, h8⟩ := module_phase_in_ok hph
+  exact ⟨ps, WorkerStages.intro hsnap hsnap hr2 h1 (internRoots_one hwf hr1) h5 hwork hds h6 h7
+    hws hinfer h8⟩
+
+/-- **What an exit 0 of `--olean --modular` ran**: the graph check's calls, its modules read
+back, and at every one of them, well formed, a worker's calls. -/
+inductive ModularStages (fs : ConLeche.FS) (names : List kernel.name.Name)
+    (dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)) : Prop where
+  | intro {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
+      {g1 gR : arena.monad.AState} {gstore2 gstore3 : arena.store.EStore}
+      {pk : frontend.olean.spec.OleanPins} {groots : alloc.vec.Vec arena.handle.NIdx}
+      {c : alloc.vec.Vec (arena.handle.NIdx × alloc.vec.Vec (frontend.olean.spec.ImportF arena.handle.NIdx))}
+      {ns : alloc.vec.Vec kernel.name.Name}
+      (hsnap : SnapshotOf finst fsv fs)
+      (h1g : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), g1))
+      (hpk : frontend.olean.spec.olean_pins emptyTier g1.store = ok (.Ok pk, gstore2))
+      (hroots : InternRoots emptyTier { g1 with store := gstore2 } names groots.val gR)
+      (hgraph : frontend.modular.graph.graph_of finst fsv pk emptyTier gR.store
+        ⟨dirs, alloc.vec.Vec.new _⟩ groots none = ok (.Ok c, gstore3))
+      (hns : driver.modular.graph_names emptyTier { gR with store := gstore3 } c = ok (.Ok ns))
+      (hwork : ∀ k (hk : k < ns.val.length), ConRon.Refine.NameWF ns.val[k] →
+        ∃ pins, WorkerStages fs ns.val[k] dirs pins) :
+      ModularStages fs names dirs
+
+/-- **The one-process mode, 0** (`modular::check_modular` at `--verified`, the embedded pins):
+the graph check's calls, and at every module of it, its worker's. -/
+theorem check_modular_zero (hfs : AnswersAs io fs) (hcodes : CodesSound io) {s s' : S}
+    {a : driver.cli.Args} (hver : a.verified = true) (hnp : a.no_pins = false)
+    {roots : alloc.vec.Vec kernel.name.Name} (hwf : ∀ n ∈ roots.val, ConRon.Refine.NameWF n)
+    {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {c : Std.U8}
+    (h : driver.modular.check_modular io s a roots ⟨dirs, alloc.vec.Vec.new _⟩ = ok (c, s'))
+    (hc : c.val = 0) : ModularStages fs roots.val dirs := by
+  rw [driver.modular.check_modular] at h
+  rw [startState_eq, bind_ok, emptyTier_eq, bind_ok] at h
+  obtain ⟨⟨r, io1, st1⟩, hgs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r with
+  | Err c0 =>
+    have := Result.ok_injective h
+    simp only [Prod.mk.injEq] at this
+    rw [← this.1] at hc
+    exact (graph_start_err hgs hc).elim
+  | Ok pk =>
+  obtain ⟨g1, gstore2, h1g, hpk, rfl, rfl⟩ := graph_start_ok hgs
+  obtain ⟨⟨r1, st2⟩, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r1 with
+  | Err e => exact (graph_failed_ne h hc).elim
+  | Ok rs =>
+  obtain ⟨⟨r2, gstore3⟩, hg, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r2 with
+  | Err e => exact (graph_failed_ne h hc).elim
+  | Ok cc =>
+  obtain ⟨r3, hr3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r3 with
+  | Err e => exact (graph_failed_ne h hc).elim
+  | Ok ns =>
+  obtain ⟨b, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨⟨jobs, io2⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨threads, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨⟨r4, io3⟩, hpar, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r4 with
+  | Err m =>
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact (code_ne h (by decide) hc).elim
+  | Ok cs =>
+  obtain ⟨io4, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hall := modular_verdict_zero h hc
+  obtain ⟨hlen, hcode⟩ := hcodes _ _ io2 _ _ cs io3 hpar
+  refine ModularStages.intro (hfs s) h1g hpk (intern_names_roots hwf hr1) hg hr3 ?_
+  intro k hk hwk
+  have hkn : k < (alloc.vec.Vec.len ns).val := by rw [alloc.vec.Vec.len_val]; exact hk
+  have hc0 := hcode (UScalar.ofNatCore (ty := .Usize) k (by scalar_tac)) (by rw [UScalar.ofNatCore_val_eq]; exact hkn)
+  rw [UScalar.ofNatCore_val_eq] at hc0
+  have hcs0 : cs.val[k]! = 0#u8 := by
+    have hk' : k < cs.val.length := by rw [hlen]; exact hkn
+    rw [getElem!_pos cs.val k hk']
+    exact hall k hk'
+  rw [hcs0] at hc0
+  simp only [driver.modular.ModularStep.Insts.Con_ron_coreFrontendChecker_ioCodeStep,
+    driver.modular.ModularStep.Insts.Con_ron_coreFrontendChecker_ioCodeStep.code] at hc0
+  have hkl : UScalar.ofNatCore (ty := .Usize) k (by scalar_tac) < alloc.vec.Vec.len ns := by
+    apply UScalar.lt_iff_val_lt.mpr; rw [UScalar.ofNatCore_val_eq]; exact hkn
+  rw [ite_eq_left hkl, ConRon.Args.vec_index_ok' (by rw [UScalar.ofNatCore_val_eq]; exact hk),
+    bind_ok] at hc0
+  simp only [UScalar.ofNatCore_val_eq, hver, hnp] at hc0
+  exact check_module_in_zero (hfs io2) hwk hc0 rfl
+
+/-- **`--olean --modular` on one root, at exit 0** (`cli::olean_args`, `modular_args`). -/
+theorem olean_args_modular {s s' : S} {a : driver.cli.Args} (hmod : a.modular = true)
+    (hmo : a.module = false) (htp : a.trusted_path.val = []) (hcon : a.constants.val = [])
+    {f : alloc.vec.Vec Std.U32} (hfiles : a.files.val = [f]) {c : Std.U8}
+    (h : driver.cli.olean_args io s a = ok (c, s')) (hc : c.val = 0) :
+    ∃ (roots : alloc.vec.Vec kernel.name.Name) (nm : kernel.name.Name)
+      (dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)),
+      roots.val = [nm] ∧ frontend.olean.files.parse_mod_name f = ok (some nm) ∧
+      dirs.val.map (·.val) = a.search_path.val.map (·.val) ∧
+      driver.modular.check_modular io s a roots ⟨dirs, alloc.vec.Vec.new _⟩ = ok (c, s') := by
+  rw [driver.cli.olean_args] at h
+  obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases b with
+  | true => exact (usage_ne h hc).elim
+  | false =>
+  simp only [Bool.false_eq_true, ite_false] at h
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => exact (usage_ne h hc).elim
+  | Ok rs =>
+  obtain ⟨nm, hrs, hnm⟩ := one_root hfiles hr
+  obtain ⟨cs, hcs, hcsv⟩ := parse_const_names_nil hcon
+  simp only [hcs, Aeneas.Std.bind_ok] at h
+  have htm : driver.cli.trusted_misplaced a = ok false := by
+    rw [driver.cli.trusted_misplaced]
+    have : alloc.vec.Vec.len a.trusted_path = 0#usize := by
+      have := alloc.vec.Vec.len_val a.trusted_path
+      simp [alloc.vec.Vec.length, htp] at this; scalar_tac
+    rw [ite_eq_left this]
+  simp only [htm, bind_ok, Bool.false_eq_true, ite_false, hmod, ite_true] at h
+  rw [driver.cli.modular_args] at h
+  have h1 : ¬ (alloc.vec.Vec.len rs != 1#usize) = true := by
+    have := alloc.vec.Vec.len_val rs
+    simp [alloc.vec.Vec.length, hrs] at this
+    simp; scalar_tac
+  have h2 : ¬ alloc.vec.Vec.len cs > 0#usize := by
+    have := alloc.vec.Vec.len_val cs
+    simp [alloc.vec.Vec.length, hcsv] at this; scalar_tac
+  rw [ite_eq_right h1, ite_eq_right h2] at h
+  simp only [hmo, Bool.false_eq_true, ite_false] at h
+  obtain ⟨sp, hsp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨dirs, rfl, hd⟩ := sol_roots_plain htp hsp
+  exact ⟨rs, nm, dirs, hrs, hnm, hd, h⟩
+
+/-- **An exit 0 of `["--olean", "--modular", "--search-path=" ++ dirs, "--", root]`**
+(`cli::run_args`): the root a module name the Rust parsed, the search path `dirs`'s
+directories, the run's calls `ModularStages`. -/
+theorem run_args_modular (hfs : AnswersAs io fs) (hcodes : CodesSound io)
+    {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {dirs root : String}
+    (hargv : ArgvOf argv ["--olean", "--modular", "--search-path=" ++ dirs, "--", root]) {s s' : S}
+    {c : Std.U8} (h : driver.cli.run_args io s argv = ok (c, s')) (hc : c.val = 0) :
+    ∃ (nm : kernel.name.Name) (dv : alloc.vec.Vec (alloc.vec.Vec Std.U32)),
+      ConLeche.Frontend.Olean.parseModName root = some (ConRon.Refine.absName nm) ∧
+      absSearchPath dv = ConLeche.Driver.searchPathOf dirs ∧ ModularStages fs [nm] dv := by
+  obtain ⟨w0, wm, w1, w2, w3, hv, h0, hm, h1, h2, h3⟩ := argv_modular hargv
+  obtain ⟨T, hT⟩ := search_word h1
+  have g0 : argv.val[(0#usize : Std.Usize).val]? = some w0 := by simp [hv]
+  have gm : argv.val[(1#usize : Std.Usize).val]? = some wm := by simp [hv]
+  have g1 : argv.val[(2#usize : Std.Usize).val]? = some w1 := by simp [hv]
+  have g2 : argv.val[(3#usize : Std.Usize).val]? = some w2 := by simp [hv]
+  have hhelp : driver.cli.help_wanted argv = ok false := by
+    rw [driver.cli.help_wanted,
+      ConRon.Args.help_word g0 (by rw [h0]; simp) (by rw [h0]; simp) (usize_add_lit (b := 1#usize) rfl),
+      ConRon.Args.help_word gm (by rw [hm]; simp) (by rw [hm]; simp) (usize_add_lit (b := 2#usize) rfl),
+      ConRon.Args.help_word g1 (by rw [hT]; simp) (by rw [hT]; simp) (usize_add_lit (b := 3#usize) rfl),
+      ConRon.Args.help_end g2 h2]
+  rw [driver.cli.run_args, hhelp, bind_ok] at h
+  simp only [Bool.false_eq_true, ite_false] at h
+  obtain ⟨a, ha, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨hbad, hcg, hol, hcmp, hsch, hmod, hmo, hp, hnp, hver, htp, hcon, hsp, hfl⟩ :=
+    parse_args_modular hv h0 hm hT h2 ha
+  simp only [hbad, hcg, hol, hcmp, hsch, hmod, hp, Bool.false_eq_true, ite_false, ite_true,
+    core.option.Option.is_some, Option.isSome_none] at h
+  obtain ⟨f', hf', hf'v⟩ : ∃ f', a.files.val = [f'] ∧ f'.val = w3.val := by
+    rcases hfv : a.files.val with _ | ⟨f', _ | ⟨g, l⟩⟩ <;> rw [hfv] at hfl <;> simp at hfl
+    exact ⟨f', rfl, hfl⟩
+  obtain ⟨roots, nm, dv, hroots, hnm, hdv, hck⟩ := olean_args_modular hmod hmo htp hcon hf' h hc
+  have hf3 : f'.val.map UScalar.val = root.toList.map Char.toNat := by rw [hf'v]; exact h3
+  obtain ⟨hwf, hpm⟩ := ConRon.Args.parse_mod_name_some hf3 hnm
+  have hst := check_modular_zero hfs hcodes hver hnp
+    (by rw [hroots]; intro n hn; simp at hn; subst hn; exact hwf) hck hc
+  rw [hroots] at hst
+  refine ⟨nm, dv, hpm, ?_, hst⟩
+  rw [absSearchPath_of_vals hdv]
+  exact ConRon.Args.push_dirs_search h1 hsp
+
+end One
+
+/-- **`--olean --modular`'s family of models**: `modular_of_stages`, its workers the code map's
+at the graph's modules, read back. -/
+theorem modular_one_of_stages (V : Type w) [ConLeche.SetTheory V] {fs : ConLeche.FS}
+    {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {rName : kernel.name.Name}
+    (hm : ModularStages fs [rName] dirs) :
+    ∃ model : ConLeche.Name → (ConLeche.Name → List Nat → V),
+      (∀ m, ConLeche.Frontend.Olean.InClosure (absSearchPath dirs) fs #[ConRon.Refine.absName rName] m →
+        ConLeche.IsModel V (model m) (ConLeche.Frontend.Olean.moduleConstants (absSearchPath dirs) fs m)) ∧
+      (∀ m n m', ConLeche.Frontend.Olean.InClosure (absSearchPath dirs) fs #[ConRon.Refine.absName rName] m →
+        ConLeche.Frontend.Olean.Sees (absSearchPath dirs) fs m n m' → model m n = model m' n) := by
+  cases hm with
+  | intro hsnap h1g hpk hroots hgraph hns hwork =>
+  obtain ⟨CC, rk, good, hr, edges, inj, hhdr, hnames, hwf⟩ :=
+    rust_graph_names hsnap h1g hpk hroots hgraph hns
+  have hacc : ∀ M ∈ CC.map (·.1), ∃ pins, ∃ mName : kernel.name.Name,
+      ConRon.Refine.absName mName = M ∧ WorkerStages fs mName dirs pins := by
+    intro M hM
+    rw [hnames] at hM
+    obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hM
+    obtain ⟨k, hk, rfl⟩ := List.getElem_of_mem hy
+    obtain ⟨pins, hw⟩ := hwork k hk (hwf _ (List.getElem_mem hk))
+    exact ⟨pins, _, rfl, hw⟩
+  obtain ⟨pins0, -, -, hw0⟩ := hacc _ (hr _ (by simp))
+  refine ConLeche.Driver.Compose.closure_sees_isModel (pins := ConRon.Refine.absPins pins0) V CC rk
+    good edges inj (fun M hM => ?_) (hr _ (by simp))
+  obtain ⟨pins, mName, hmn, hw⟩ := hacc M hM
+  have hpe : pins = pins0 := by
+    have := hw.hpins.symm.trans hw0.hpins
+    simpa using this
+  subst hpe
+  rw [← hmn]
+  exact ⟨1, hw.accepted⟩
+
+/-- **`main_modular_one`'s conclusion from an exit 0**. -/
+theorem modular_one_of_canGive (V : Type w) [ConLeche.SetTheory V] {dirs root : String}
+    {r : ConLeche.Name} {fs : ConLeche.FS}
+    (hr : ConLeche.Frontend.Olean.parseModName root = some r)
+    (h : CanGive ["--olean", "--modular", "--search-path=" ++ dirs, "--", root] fs 0) :
+    ∃ model : ConLeche.Name → (ConLeche.Name → List Nat → V),
+      (∀ m, ConLeche.Frontend.Olean.InClosure (ConLeche.Driver.searchPathOf dirs) fs #[r] m →
+        ConLeche.IsModel V (model m)
+          (ConLeche.Frontend.Olean.moduleConstants (ConLeche.Driver.searchPathOf dirs) fs m)) ∧
+      (∀ m n m', ConLeche.Frontend.Olean.InClosure (ConLeche.Driver.searchPathOf dirs) fs #[r] m →
+        ConLeche.Frontend.Olean.Sees (ConLeche.Driver.searchPathOf dirs) fs m n m' →
+          model m n = model m' n) := by
+  obtain ⟨S, io, s, s', argv, c, hfs, -, hcodes, hargv, hrun, hc⟩ := h
+  obtain ⟨nm, dv, hp, hsp, hm⟩ := run_args_modular hfs hcodes hargv hrun (by simpa using hc)
+  have hnm : ConRon.Refine.absName nm = r := Option.some.inj (hp.symm.trans hr)
+  have := modular_one_of_stages V hm
+  rw [hsp, hnm] at this
+  exact this
+
 end ConRon.MainTheorem

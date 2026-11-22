@@ -136512,7 +136512,7 @@ def driver.modular.graph_names_loop
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
         (arena.handle.NIdx × (alloc.vec.Vec (frontend.olean.spec.ImportF
         arena.handle.NIdx)))) c i
-    let r ← arena.env.read_name pers st.store n
+    let r ← arena.monad.read_name pers st n
     match r with
     | core.result.Result.Ok n1 =>
       let out1 ← alloc.vec.Vec.push out n1
