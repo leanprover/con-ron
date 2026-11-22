@@ -946,4 +946,34 @@ theorem modular_cmp_facts_of_canGive {T D c s : String} {C S : ConLeche.Name} {f
   rw [hcn, hsn] at this
   exact this
 
+/-- **`main_modular_compare_one`'s conclusion from an exit 0**. -/
+theorem modular_cmp_one_of_canGive (V : Type w) [ConLeche.SetTheory V] {T D c s : String}
+    {C S : ConLeche.Name} {fs : ConLeche.FS}
+    (hc : ConLeche.Frontend.Olean.parseModName c = some C)
+    (hs : ConLeche.Frontend.Olean.parseModName s = some S)
+    (h : CanGive ["--olean", "--modular", "--compare", "--trusted-search-path=" ++ T,
+      "--search-path=" ++ D, "--", c, s] fs 0) :
+    ∀ fs', ConLeche.FS.AgreeUnder (ConLeche.Driver.trustedOr (ConLeche.Driver.searchPathOf T)
+        (ConLeche.Driver.searchPathOf D)) fs fs' →
+      ∃ model : ConLeche.Name → (ConLeche.Name → List Nat → V),
+        (∀ m, ConLeche.Frontend.Olean.InClosure (ConLeche.Driver.trustedOr (ConLeche.Driver.searchPathOf T)
+            (ConLeche.Driver.searchPathOf D) : ConLeche.Frontend.Olean.Roots) fs' #[C] m →
+          ConLeche.IsModel V (model m) (ConLeche.Frontend.Olean.moduleConstants
+            (ConLeche.Driver.trustedOr (ConLeche.Driver.searchPathOf T)
+              (ConLeche.Driver.searchPathOf D) : ConLeche.Frontend.Olean.Roots) fs' m)) ∧
+        (∀ m n m', ConLeche.Frontend.Olean.InClosure (ConLeche.Driver.trustedOr
+            (ConLeche.Driver.searchPathOf T) (ConLeche.Driver.searchPathOf D) :
+              ConLeche.Frontend.Olean.Roots) fs' #[C] m →
+          ConLeche.Frontend.Olean.Sees (ConLeche.Driver.trustedOr (ConLeche.Driver.searchPathOf T)
+            (ConLeche.Driver.searchPathOf D) : ConLeche.Frontend.Olean.Roots) fs' m n m' →
+          model m n = model m' n) := by
+  obtain ⟨S1, io, x, x', argv, code, hfs, -, hcodes, hargv, hrun, hcode⟩ := h
+  obtain ⟨cn, sn, sp, hpc, hps, hsr, hm⟩ :=
+    run_args_modular_cmp hfs hcodes hargv hrun (by simpa using hcode)
+  have hcn : ConRon.Refine.absName cn = C := Option.some.inj (hpc.symm.trans hc)
+  have hsn : ConRon.Refine.absName sn = S := Option.some.inj (hps.symm.trans hs)
+  have := modular_cmp_one_of_stages V (hsr _ _) hm
+  rw [hcn] at this
+  exact this
+
 end ConRon.MainTheorem

@@ -3,6 +3,8 @@ import ConRon.MainTheorem.CompareJson
 import ConRon.MainTheorem.Oleans
 import ConRon.MainTheorem.Modular
 import ConRon.MainTheorem.Conclusions
+import ConRon.MainTheorem.CompareOleans
+import ConRon.MainTheorem.CompareModular
 
 /-!
 # `ConRon.MainTheorem` — the main theorems about the binary (task #171, DESIGN.md §3.9)
@@ -37,6 +39,17 @@ in the snapshot and every step premise of the compared capstone (`CompareJsonSta
 take the graph check's and each module worker's exits 0 (each its own run, at its own instance,
 all on the one snapshot `fs`), or `--olean --modular`'s, to con-leche's family of models:
 `main_modular` and `main_modular_one`.
+
+**Slice 3b: the compared `.olean` runs.**  `compare_of_canGive`
+(`MainTheorem/CompareOleans.lean`) takes an exit 0 at `["--olean", "--compare",
+"--trusted-search-path=" ++ T, "--search-path=" ++ D, "--", c, s]` to the compared capstone's
+step premises, the challenge read through `trustedOr (searchPathOf T) (searchPathOf D)`:
+`main_compare_model`.  `modular_cmp_facts_of_canGive` and `modular_cmp_one_of_canGive`
+(`MainTheorem/CompareModular.lean`) take the compared graph check's, every worker's and the
+compare worker's exits 0, or `--olean --modular --compare`'s, to con-leche's family of models
+(`cmp_family`, upstream's `compare_sees_isModel`) and to the challenge's having no constant of
+type `False` (`cmp_no_False`): `main_modular_compare`, `main_modular_compare_one`,
+`main_modular_compare_no_False`.
 -/
 
 open ConLeche (IsModel constantsOf jsonWithTheoremFalse FS)
@@ -90,6 +103,21 @@ theorem main_oleans (V : Type w) [SetTheory V] {dirs root : String} {r : Name} {
   oleans_of_canGive V hr h
 
 open ConLeche ConLeche.Frontend in
+/-- con-leche: ConLeche/MainTheorem.lean:88-95 main_compare_model —
+**An accepted comparison's challenge closure has a model**: every exit 0 of `--olean
+--compare --trusted-search-path=<T> --search-path=<D> -- <c> <s>` has a model of the constants
+of the challenge's closure, read through the challenge's directories, on every snapshot that
+agrees with the run's there. -/
+theorem main_compare_model (V : Type w) [SetTheory V] {T D c s : String} {C S : Name} {fs : FS}
+    (hc : Olean.parseModName c = some C) (hs : Olean.parseModName s = some S)
+    (h : ConRon.CanGive ["--olean", "--compare", "--trusted-search-path=" ++ T,
+      "--search-path=" ++ D, "--", c, s] fs 0) :
+    ∀ fs', FS.AgreeUnder (Driver.trustedOr (Driver.searchPathOf T) (Driver.searchPathOf D)) fs fs' →
+      ∃ model, IsModel V model (Olean.closureConstants
+        (Driver.trustedOr (Driver.searchPathOf T) (Driver.searchPathOf D)) fs' #[C]) :=
+  compare_of_canGive V hc hs h
+
+open ConLeche ConLeche.Frontend in
 /-- con-leche: ConLeche/MainTheorem.lean:109-122 main_modular —
 **An accepted modular check has a family of models**: on a snapshot where `--check-graph
 --search-path=<dirs> -- <root>` exits 0 and every module of the headers' closure of `root` has
@@ -121,5 +149,76 @@ theorem main_modular_one (V : Type w) [SetTheory V] {dirs root : String} {r : Na
       (∀ m n m', Olean.InClosure (Driver.searchPathOf dirs) fs #[r] m →
         Olean.Sees (Driver.searchPathOf dirs) fs m n m' → model m n = model m' n) :=
   modular_one_of_canGive V hr h
+
+open ConLeche ConLeche.Frontend in
+/-- con-leche: ConLeche/MainTheorem.lean:143-161 main_modular_compare —
+**An accepted modular comparison's challenge closure has a family of models**: on a
+snapshot where every command `--schedule-commands --compare` prints for the challenge `C` and
+its solution `S` exits 0 (the graph check, a worker at every module of the headers' closure of
+`C` and `S` but `C`, the compare worker at `C`), on every snapshot that agrees with it under the
+challenge's directories, the family of `main_modular` for the closure of `C`. -/
+theorem main_modular_compare (V : Type w) [SetTheory V] {T D c s : String} {C S : Name}
+    {fs : FS} (hc : Olean.parseModName c = some C) (hs : Olean.parseModName s = some S)
+    (hgraph : ConRon.CanGive ["--check-graph", "--compare",
+      "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--", c, s] fs 0)
+    (hwork : ∀ m, Olean.HdrClosure
+        (⟨C, S, Driver.searchPathOf T, Driver.searchPathOf D, none⟩ : Driver.CmpReq).solRoots fs
+        [C, S] m → m ≠ C →
+      ∃ root', Olean.parseModName root' = some m ∧ ConRon.CanGive
+        ["--olean", "--module", "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--",
+          root'] fs 0)
+    (hcmp : ConRon.CanGive ["--olean", "--module", "--compare",
+      "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--", c, s] fs 0) :
+    let sp := Driver.trustedOr (Driver.searchPathOf T) (Driver.searchPathOf D)
+    ∀ fs', FS.AgreeUnder sp fs fs' →
+      ∃ model : Name → (Name → List Nat → V),
+        (∀ m, Olean.InClosure sp fs' #[C] m → IsModel V (model m) (Olean.moduleConstants sp fs' m)) ∧
+        (∀ m n m', Olean.InClosure sp fs' #[C] m → Olean.Sees sp fs' m n m' →
+          model m n = model m' n) :=
+  have ⟨_, _, good, hC, edges, inj, hhdr, acc⟩ :=
+    modular_cmp_facts_of_canGive hc hs hgraph hwork hcmp
+  cmp_family V good hC edges inj hhdr acc
+
+open ConLeche ConLeche.Frontend in
+/-- con-leche: ConLeche/MainTheorem.lean:166-176 main_modular_compare_one —
+**The same, in one process**: every exit 0 of `--olean --modular --compare` has the family
+of `main_modular_compare`. -/
+theorem main_modular_compare_one (V : Type w) [SetTheory V] {T D c s : String} {C S : Name}
+    {fs : FS} (hc : Olean.parseModName c = some C) (hs : Olean.parseModName s = some S)
+    (h : ConRon.CanGive ["--olean", "--modular", "--compare",
+      "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--", c, s] fs 0) :
+    let sp := Driver.trustedOr (Driver.searchPathOf T) (Driver.searchPathOf D)
+    ∀ fs', FS.AgreeUnder sp fs fs' →
+      ∃ model : Name → (Name → List Nat → V),
+        (∀ m, Olean.InClosure sp fs' #[C] m → IsModel V (model m) (Olean.moduleConstants sp fs' m)) ∧
+        (∀ m n m', Olean.InClosure sp fs' #[C] m → Olean.Sees sp fs' m n m' →
+          model m n = model m' n) :=
+  modular_cmp_one_of_canGive V hc hs h
+
+open ConLeche ConLeche.Frontend in
+/-- con-leche: ConLeche/MainTheorem.lean:183-199 main_modular_compare_no_False —
+**No accepted modular comparison's challenge module holds a constant of type `False`**: no
+snapshot where every command of `main_modular_compare` exits 0 has a constant of type `False` in
+the challenge module `C`, read through the challenge's directories.  This covers what `C` sees
+through its solution too, which the family of `main_modular_compare` does not. -/
+theorem main_modular_compare_no_False (V : Type w) [SetTheory V] {T D c s : String}
+    {C S : Name} {fs : FS} {ci : ConstantInfo}
+    (hc : Olean.parseModName c = some C) (hs : Olean.parseModName s = some S)
+    (hgraph : ConRon.CanGive ["--check-graph", "--compare",
+      "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--", c, s] fs 0)
+    (hwork : ∀ m, Olean.HdrClosure
+        (⟨C, S, Driver.searchPathOf T, Driver.searchPathOf D, none⟩ : Driver.CmpReq).solRoots fs
+        [C, S] m → m ≠ C →
+      ∃ root', Olean.parseModName root' = some m ∧ ConRon.CanGive
+        ["--olean", "--module", "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--",
+          root'] fs 0)
+    (hcmp : ConRon.CanGive ["--olean", "--module", "--compare",
+      "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--", c, s] fs 0)
+    (hci : Olean.InModulePart (Driver.trustedOr (Driver.searchPathOf T) (Driver.searchPathOf D))
+      fs C .private ci)
+    (hty : ci.type = .const falseName []) : False :=
+  have ⟨_, _, good, hC, edges, inj, hhdr, acc⟩ :=
+    modular_cmp_facts_of_canGive hc hs hgraph hwork hcmp
+  cmp_no_False good hC edges inj hhdr acc V (.root (by simp)) hci hty
 
 end ConRon.MainTheorem
