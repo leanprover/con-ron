@@ -73990,3 +73990,58 @@ and `main`.
 * Slices 2–4 move `--olean` (+ `--check-graph`, `--module`, `--modular`), then the compared
   runs, from the legacy escape into verified code, each with its main theorems; slice 5 retires
   the legacy escape, rewrites OVERVIEW §3 around `MainTheorem.lean` and §8.2's driver row.
+
+#### Lane C — the Capstone's conclusions in con-leche's words
+
+`proof/ConRon/MainTheorem/Conclusions.lean` (a root of `ConRonCapstone`): five theorems, each
+with the step premises of one Capstone headline (the pins the embedded `decode_embedded`, as the
+`_embedded` forms) and con-leche's `MainTheorem.lean` conclusion verbatim:
+
+| theorem | Capstone premises | con-leche conclusion |
+|---|---|---|
+| `json_model_of_stages` | `model_exists_embedded` + `hb` | `main_json_model`: `∃ r, parseChunks [b] = .ok r ∧ ∃ model, IsModel V model (· ∈ constantsOf r.decls.toList)` |
+| `json_no_False_of_stages` | `no_False_declaration_embedded`, `hb`, `hF : jsonWithTheoremFalse [b]` | `main_no_False`: `False` |
+| `compare_json_model_of_stages` | `model_exists_compare` (embedded pins) + `hbC` | `main_compare_json_model`'s, less `fs.file c = some bC` (the driver's) |
+| `oleans_model_of_stages` | `model_exists_oleans` (embedded pins) | `main_oleans`: `∃ model, IsModel V model (closureConstants (absSearchPath dirs) F (names.map absName).toArray)` |
+| `compare_model_of_stages` | `model_exists_oleans_compare` (embedded pins), challenge lookup `⟨dirs, Vec.new⟩` | `main_compare_model`: `∀ fs', FS.AgreeUnder (absSearchPath dirs) F fs' → ∃ model, IsModel V model (closureConstants (absSearchPath dirs) fs' #[absName c])` |
+
+**The bytes**: the json premises are `hb : concatBytes (absChunks chunks) = b` (the chunks put
+together are the file), and con-leche's `parseChunks_single_of_concat` moves the parse to `[b]`;
+lane D's positional reads discharge it.  The `--olean` search path and roots are the Rust's
+(`absSearchPath dirs`, `absName`); `searchPathOf`/`trustedOr`/`parseModName` are lane D's.  The
+compared `--olean` one fixes the challenge's lookup to a search path with no fallback (what
+`chalRoots` builds), because `closureConstants_local` is about a `SearchPath`'s lookup.
+
+**What it needed** (`MainTheorem/PureStored.lean`, namespace `ConRon.Bridge`): con-leche reaches
+`IsModel` from the CACHED accept (`Cached.declsRun_recordsStored`, `Olean.checkDecls_inputStored`),
+Theorem 1 gives the PURE one.  The pure analogues, each upstream's proof over `PureRun`'s facts:
+`pureRun_recordsStored`; for a comparison's challenge `mixedRun_facts` (blocks read, recursors
+read — the pure arm as a one-step `PureRun`), `mixedRun_basisNamesOk`, `mixedRun_recordsStored`;
+`inputStored_of_covered` (`inputStored_of` with the reader's cover a premise in place of a
+`ModelIO` run of `readOleansAt`).  Then the stages in con-leche's words: `stages_isModel`,
+`stagesC_isModel`, `stagesO_isModel`, `stagesOC_isModel` (the last two copy `stagesC_model`'s /
+`stagesOC_core`'s bodies to reach the mixed run, which those do not export).
+
+**The reader's cover** (Theorem 1, `Bridge/Frontend/Olean/Covers.lean`): upstream's
+`readOleansAt_covers` rests on a `ModelIO` run of its reader, which the twin's reader is not
+related to as a whole (`Records.lean`'s module note).  `entry_of_loads` (`readOleansAt_entry`'s
+body over the closure order, the `LoadSpec`s and `mergeAll_ok`) and `covers_of_merge`
+(`readOleansAt_covers`'s over `MergeFacts`) restate it over the pieces `readOleans_run` has, and
+`readOleans_run`, `stagesO_frame`, `stagesOC_frame` each gain one conjunct, the cover
+`∀ r, closureConstants sp F roots r → CoveredBy ds r` (their users take it with `-`).  No
+Capstone statement changed.
+
+**Upstream candidates** (con-leche could state these, and lane C's copies would go):
+`PureRun.recordsStored` (`declsRun_recordsStored` at the pure run — every ingredient is already a
+`PureRun` lemma); `inputStored_of` and `readOleansAt_covers` split at `MergeFacts` + the entry
+property, so that a reader proved piecewise can use them; `json_isModel`/`oleans_isModel`'s
+`model_exists` step stated from `∃ F, checkDeclsPure … = .ok env` (the evidence Theorem 1 has).
+
+**Dead census**: the five are added to `scripts/dead-census.py`'s `CAPSTONES` (they are
+headline roots until `MainTheorem.lean` is built on them; without that the gate reports
+`PureStored`/`Conclusions` as deletable).
+
+**Census**: the five depend on `propext`, `Classical.choice`, `Quot.sound` and
+`PINS_TEXT._native.decide.ax_1` — exactly `model_exists_embedded`'s; no `sorry`.  Elaboration
+(`lake env lean`, one run each): `Covers` 0.8 s, `PureStored` 1.4 s / 2.4 GB, `Conclusions`
+2.2 s / 4.1 GB.
