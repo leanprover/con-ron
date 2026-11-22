@@ -17,7 +17,7 @@ use crate::arena::store::{ENodeView, EStore, PersTier};
 use crate::frontend::olean::closure;
 use crate::frontend::olean::lazy::{CEntry, Loaded};
 use crate::frontend::olean::module;
-use crate::frontend::olean::spec::{CKindF, OleanPins};
+use crate::frontend::olean::spec::{CKindF, OleanPins, StmtRec};
 use crate::frontend::text;
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckError;
@@ -131,6 +131,65 @@ pub fn is_prop_cheap(pk: &OleanPins, pers: &PersTier, ar: &EStore, mg: &Merged, 
             None => Ok(false),
             Some(d) => is_prop_tail(pk, pers, ar, &d.c.ty, k),
         },
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap
+/// `isPropCheap`'s `headTy`: the type of a head constant, where it is known.
+pub trait HeadTy {
+    /// con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap
+    fn head_ty(&self, n: &NIdx) -> Option<EIdx>;
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Merge.lean:21-43 isPropCheap
+/// Lean's `isPropCheap` over any `headTy`.
+pub fn is_prop_cheap_f<H: HeadTy>(pk: &OleanPins, pers: &PersTier, ar: &EStore, h: &H, ty: &EIdx) -> Result<bool, CheckError> {
+    let b = match is_prop_body(pers, ar, ty) {
+        Err(e) => return Err(e),
+        Ok(b) => b,
+    };
+    match is_prop_head(pers, ar, &b) {
+        Err(e) => Err(e),
+        Ok(None) => Ok(false),
+        Ok(Some((n, k))) => match h.head_ty(&n) {
+            None => Ok(false),
+            Some(t) => is_prop_tail(pk, pers, ar, &t, k),
+        },
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Merge.lean:45-47 isPropCheap.headOf
+/// The constant `isPropCheap` asks the type of.
+pub fn is_prop_cheap_head_of(pers: &PersTier, ar: &EStore, ty: &EIdx) -> Result<Option<NIdx>, CheckError> {
+    match is_prop_body(pers, ar, ty) {
+        Err(e) => Err(e),
+        Ok(b) => match is_prop_head(pers, ar, &b) {
+            Err(e) => Err(e),
+            Ok(None) => Ok(None),
+            Ok(Some((n, _))) => Ok(Some(n)),
+        },
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Merge.lean:49-59 subsumesF
+/// **`subsumesInfo`** over statements and kinds: may the constant of statement
+/// `cv1` and kind `k1` stand for that of `cv2` and `k2`?  Of a kind it reads
+/// only a theorem's `all` and an axiom's `isUnsafe`.
+pub fn subsumes_f<H: HeadTy, E1, E2>(pk: &OleanPins, pers: &PersTier, ar: &EStore, h: &H, cv1: &StmtRec, k1: &CKindF<NIdx, E1>, cv2: &StmtRec, k2: &CKindF<NIdx, E2>) -> Result<bool, CheckError> {
+    if !(cv1.name.eq2(&cv2.name) && cv1.ty.eq2(&cv2.ty) && module::nidx_list_eq(&cv1.level_params, &cv2.level_params)) {
+        return Ok(false);
+    }
+    match (k1, k2) {
+        (CKindF::Thm(_, a1), CKindF::Thm(_, a2)) => Ok(module::nidx_list_eq(a1, a2)),
+        (CKindF::Thm(_, a1), CKindF::Ax(u2)) => Ok(a1.len() == 1 && a1[0].eq2(&cv2.name) && !*u2),
+        (CKindF::Ax(u1), CKindF::Ax(u2)) => {
+            if *u1 == *u2 {
+                is_prop_cheap_f(pk, pers, ar, h, &cv1.ty)
+            } else {
+                Ok(false)
+            }
+        }
+        _ => Ok(false),
     }
 }
 

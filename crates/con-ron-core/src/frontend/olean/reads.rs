@@ -6,11 +6,13 @@
 use crate::arena::handle::{EIdx, NIdx};
 use crate::arena::store::{EStore, PersTier};
 use crate::frontend::olean::fast;
+use crate::frontend::olean::region;
 use crate::frontend::olean::region::Region;
 use crate::frontend::olean::sparse;
 use crate::frontend::olean::spec;
 use crate::frontend::olean::spec::{CEntryF, CKindF, ImportRec, OleanPins, RdErr, StmtRec};
 use crate::frontend::text;
+use crate::kernel::core_types::CheckError;
 use crate::ron::hashmap::Dup;
 use crate::ron::hashmap2::HashMap2;
 
@@ -166,4 +168,176 @@ pub fn stmts_at(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: 
         Err(e) => Err(e),
         Ok(sks) => fast::stmts_fast(pk, pers, ar, bs, r, &sks),
     }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Reads.lean:96-104 memoAdd
+/// One root read into a memo shared by several constants (`sGo`, no
+/// frontier).  Deviation: a root that does not read leaves the memo EMPTY,
+/// where upstream keeps what was read of it; a memo is speed alone, and the
+/// root is read again by the build, on its own, which fails alike.
+pub fn memo_add(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, k: u8, st: &mut sparse::SM, v: u64) -> Result<(), CheckError> {
+    match region::region_loc(r, v) {
+        None => Ok(()),
+        Some(c) => match sparse::s_go(pk, pers, ar, bs, r, &sparse::frontier_empty(), k, c, st) {
+            Ok(()) => Ok(()),
+            Err(RdErr::Bad) => {
+                *st = sparse::sm_empty();
+                Ok(())
+            }
+            Err(RdErr::Err(e)) => Err(e),
+        },
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Reads.lean:96-104 memoAdd
+/// `vs.foldl (memoAdd r k) st`.
+pub fn memo_add_all(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, k: u8, st: &mut sparse::SM, vs: &Vec<u64>) -> Result<(), CheckError> {
+    let mut i = 0usize;
+    while i < vs.len() {
+        match memo_add(pk, pers, ar, bs, r, k, st, vs[i]) {
+            Err(e) => return Err(e),
+            Ok(()) => {}
+        }
+        i += 1;
+    }
+    Ok(())
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Reads.lean:106-108 memoRoots
+/// The roots of a constant's skeleton into the memo: its names, then its
+/// expressions.
+pub fn memo_roots(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, st: &mut sparse::SM, sk: &CEntryF<u64, u64>) -> Result<(), CheckError> {
+    let mut names: Vec<u64> = Vec::new();
+    fast::c_entry_names(sk, &mut names);
+    let mut exprs: Vec<u64> = Vec::new();
+    fast::c_entry_exprs(sk, &mut exprs);
+    match memo_add_all(pk, pers, ar, bs, r, fast::K_NAME, st, &names) {
+        Err(e) => Err(e),
+        Ok(()) => memo_add_all(pk, pers, ar, bs, r, fast::K_EXPR, st, &exprs),
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Reads.lean:110-118 memoName
+/// A name pointer by the memo, else read on its own (`sparseNameP`).
+pub fn memo_name(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, st: &sparse::SM, v: u64) -> Result<NIdx, RdErr> {
+    if v == 1 {
+        return Ok(pk.anon.dup2());
+    }
+    match region::region_loc(r, v) {
+        None => Err(RdErr::Bad),
+        Some(c) => match st.names.get(&c) {
+            Some(n) => Ok(n.dup2()),
+            None => sparse::sparse_name_p(pk, pers, ar, bs, r, v),
+        },
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Reads.lean:120-127 memoExpr
+/// An expression pointer by the memo, else read on its own (`sparseExprP`).
+pub fn memo_expr(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, st: &sparse::SM, v: u64) -> Result<EIdx, RdErr> {
+    match region::region_loc(r, v) {
+        None => Err(RdErr::Bad),
+        Some(c) => match st.exprs.get(&c) {
+            Some(e) => Ok(e.dup2()),
+            None => sparse::sparse_expr_p(pk, pers, ar, bs, r, v),
+        },
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Reads.lean:129-135 entriesAt
+/// The two reads of `CEntryF.mapM (memoName r st) (memoExpr r st)`, as a
+/// pointer read.
+pub struct MemoRead<'a> {
+    pub st: &'a sparse::SM,
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Reads.lean:129-135 entriesAt
+impl<'a> spec::PtrRead for MemoRead<'a> {
+    /// con-leche: ConLeche/Frontend/Olean/Reads.lean:110-118 memoName
+    fn rd_name(&self, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, v: u64) -> Result<NIdx, RdErr> {
+        memo_name(pk, pers, ar, bs, r, self.st, v)
+    }
+
+    /// con-leche: ConLeche/Frontend/Olean/Reads.lean:120-127 memoExpr
+    fn rd_expr(&self, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, v: u64) -> Result<EIdx, RdErr> {
+        memo_expr(pk, pers, ar, bs, r, self.st, v)
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Reads.lean:137-142 kindNamesAt
+/// A kind's names read, its expressions left out (`s.kind.mapM rd (fun _ =>
+/// some ())`).
+pub fn c_kind_names<R: spec::PtrRead>(rd: &R, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, k: &CKindF<u64, u64>) -> Result<CKindF<NIdx, ()>, RdErr> {
+    match k {
+        CKindF::Ax(u) => Ok(CKindF::Ax(*u)),
+        CKindF::Defn(_, h, s) => Ok(CKindF::Defn((), spec::hints_dup(h), crate::kernel::expr::str_copy(s))),
+        CKindF::Thm(_, all) => match spec::names_map(rd, pk, pers, ar, bs, r, all) {
+            Err(e) => Err(e),
+            Ok(a) => Ok(CKindF::Thm((), a)),
+        },
+        CKindF::Opaq(_, u) => Ok(CKindF::Opaq((), *u)),
+        CKindF::Quot(s) => Ok(CKindF::Quot(crate::kernel::expr::str_copy(s))),
+        CKindF::Induct(np, ni, all, cs, nn, ir, iu, irf) => match spec::names_map(rd, pk, pers, ar, bs, r, all) {
+            Err(e) => Err(e),
+            Ok(a) => match spec::names_map(rd, pk, pers, ar, bs, r, cs) {
+                Err(e) => Err(e),
+                Ok(c) => Ok(CKindF::Induct(*np, *ni, a, c, *nn, *ir, *iu, *irf)),
+            },
+        },
+        CKindF::Ctor(ind, ci, np, nf, iu) => match rd.rd_name(pk, pers, ar, bs, r, *ind) {
+            Err(e) => Err(e),
+            Ok(i) => Ok(CKindF::Ctor(i, *ci, *np, *nf, *iu)),
+        },
+        CKindF::Recur(all, np, ni, nmo, nmi, rules, k2, iu) => match spec::names_map(rd, pk, pers, ar, bs, r, all) {
+            Err(e) => Err(e),
+            Ok(a) => match rule_names(rd, pk, pers, ar, bs, r, rules) {
+                Err(e) => Err(e),
+                Ok(rs) => Ok(CKindF::Recur(a, *np, *ni, *nmo, *nmi, rs, *k2, *iu)),
+            },
+        },
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Reads.lean:137-142 kindNamesAt
+/// A recursor's rules, their constructors' names read, their right-hand sides
+/// left out.
+pub fn rule_names<R: spec::PtrRead>(rd: &R, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, rs: &Vec<(u64, u64, u64)>) -> Result<Vec<(NIdx, u64, ())>, RdErr> {
+    let mut out: Vec<(NIdx, u64, ())> = Vec::with_capacity(rs.len());
+    let mut i = 0usize;
+    while i < rs.len() {
+        match rd.rd_name(pk, pers, ar, bs, r, rs[i].0) {
+            Err(e) => return Err(e),
+            Ok(n) => out.push((n, rs[i].1, ())),
+        }
+        i += 1;
+    }
+    Ok(out)
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Reads.lean:137-142 kindNamesAt
+/// **The kind of the constant at location `c`, its expressions left out**: what
+/// Lean's `subsumesInfo` reads of a kind beside the statement.
+pub fn kind_names_at(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, c: u64) -> Result<CKindF<NIdx, ()>, RdErr> {
+    match spec::const_skel(bs, r, c) {
+        None => Err(RdErr::Bad),
+        Some(s) => match spec::skel_fits(&s) {
+            Err(e) => Err(e),
+            Ok(()) => c_kind_names(&sparse::SparseRead, pk, pers, ar, bs, r, &s.kind),
+        },
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/View.lean:169-174 readKinds
+/// `cs.mapM (kindNamesAt r)`.
+pub fn kinds_at(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, bs: &[u8], r: &Region, cs: &Vec<u64>) -> Result<Vec<CKindF<NIdx, ()>>, RdErr> {
+    let mut out: Vec<CKindF<NIdx, ()>> = Vec::with_capacity(cs.len());
+    let mut i = 0usize;
+    while i < cs.len() {
+        match kind_names_at(pk, pers, ar, bs, r, cs[i]) {
+            Err(e) => return Err(e),
+            Ok(k) => out.push(k),
+        }
+        i += 1;
+    }
+    Ok(out)
 }

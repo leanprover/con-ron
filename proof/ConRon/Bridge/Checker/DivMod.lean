@@ -474,7 +474,7 @@ theorem divModTypePins_run {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx}
 /-- con-leche: ConLeche/Kernel/Checker.lean:155-222 divModCertStmts — **the
 interned statements denote con-leche's**, statement by statement: each
 hypothesis list and each equation. -/
-def StmtsDenote (st : EStore) : List (List EIdx × EIdx) → List (List Expr × Expr) → Prop
+@[expose] def StmtsDenote (st : EStore) : List (List EIdx × EIdx) → List (List Expr × Expr) → Prop
   | [], [] => True
   | (hs, e) :: r, (xs, x) :: r' =>
     Frontend.denoteEList st hs = some xs ∧ denoteE st e = some x ∧ StmtsDenote st r r'

@@ -186,4 +186,19 @@ theorem pooledOleanAccepts_eq_J (fs : OleanFs) (pk : OleanPins) (sp : Roots)
       = PooledOleanAcceptsJ fs pk sp values mode pins none ds s I s' := by
   simp only [PooledOleanAccepts, PooledOleanAcceptsJ, checkOleanJobList_eq_J]
 
+/-- con-leche: ConLeche/Driver/CheckMain.lean:154-177 checkOleansG
+**The pool's accept on an `--olean` run's jobs from position `start` on**, with the solution
+`J`: `PooledOleanAcceptsJ` with only the jobs `start ≤ t < ds.size` claimed (upstream's
+`List.range' start n`): a module's worker checks its own records, after its context's. -/
+def PooledOleanAcceptsFromJ (fs : OleanFs) (pk : OleanPins) (sp : Roots)
+    (values : Array ModRef) (mode : CheckMode) (pins : List INatOpPinSet) (J : Option ISolution)
+    (start : Nat) (ds : Array IDeclaration) (s : AState) (I : IStreamIndex) (s' : AState) : Prop :=
+  ∃ (parts : List (List Nat)),
+    buildIndex ds s = .ok (.ok I, s') ∧
+    (∀ t, start ≤ t → t < ds.size → ∃ w ∈ parts, t ∈ w) ∧
+    (∀ w ∈ parts, ∀ t ∈ w, start ≤ t ∧ t < ds.size) ∧
+    (∀ w ∈ parts, w.Pairwise (· < ·)) ∧
+    (∀ w ∈ parts, ∃ s'', checkOleanJobListJ fs pk sp values mode pins J I ds w {} s'.worker
+      = .ok (.ok (), s''))
+
 end ConRon.Arena

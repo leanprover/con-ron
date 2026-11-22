@@ -803,13 +803,14 @@ theorem lazyEntries_run {pk : OleanPins} {r : Region} {st : DS} {i : Nat}
       (∀ k, ∀ n ∈ ConRon.Arena.Frontend.Olean.usesRead pk (st.nameOf pk r) (outs.getD k #[]),
         (denoteN s.store.ns n).isSome) →
       ConRon.Arena.Frontend.Olean.lazyEntries pk r st i outs k ss s = .ok (some cs, s') →
-      ParseStep s s' ∧ ∃ csC, cs.mapM (denoteCEntry s'.store) = some csC ∧ LazyOf r i ss csC
+      ParseStep s s' ∧ ∃ csC, cs.mapM (denoteCEntry s'.store) = some csC ∧ LazyOf r i ss csC ∧
+        ListRel (fun sk e => lazyEntry (nameP r) (exprP r) r i sk = some e.toCEntryF) ss csC
   | [], k, cs, s, s', hctx, _, _, _, _, h => by
     rw [ConRon.Arena.Frontend.Olean.lazyEntries] at h
     obtain ⟨hv, hs⟩ := AM.pure_ok h
     cases hv
     subst hs
-    exact ⟨ParseStep.refl hctx.ok, [], rfl, ⟨by simp, by simp⟩⟩
+    exact ⟨ParseStep.refl hctx.ok, [], rfl, ⟨by simp, by simp⟩, .nil⟩
   | sk :: ss, k, cs, s, s', hctx, hp, hN, hE, hU, h => by
     rw [ConRon.Arena.Frontend.Olean.lazyEntries] at h
     obtain ⟨o, s₁, h1, h⟩ := AM.bind_ok h
@@ -824,7 +825,7 @@ theorem lazyEntries_run {pk : OleanPins} {r : Region} {st : DS} {i : Nat}
     cases hv
     subst hs
     obtain ⟨hst1, eC, hde, hle⟩ := lazyEntry_run hctx (hN sk (by simp)) (hE sk (by simp)) h1
-    obtain ⟨hst2, esC, hes, hlazy⟩ := lazyEntries_run ss (k + 1) (hctx.step hst1) (hp.ext hst1.ext)
+    obtain ⟨hst2, esC, hes, hlazy, hf2⟩ := lazyEntries_run ss (k + 1) (hctx.step hst1) (hp.ext hst1.ext)
       (fun sk' hsk x hx y hy => by
         obtain ⟨z, hz, hd⟩ := hN sk' (List.mem_cons_of_mem _ hsk) x hx y hy
         exact ⟨z, hz, denoteN_ext hd hst1.ext⟩)
@@ -845,7 +846,7 @@ theorem lazyEntries_run {pk : OleanPins} {r : Region} {st : DS} {i : Nat}
     refine ⟨hst1.trans hst2, { toCEntryF := eC, uses := us.toArray.toSubarray } :: esC, ?_, ?_⟩
     · simp only [List.mapM_cons, hes, denoteCEntry, denoteEntry_ext hst2.ext hde, hus]
       rfl
-    · refine ⟨fun s0 hs0 => ?_, fun e0 he0 => ?_⟩
+    · refine ⟨⟨fun s0 hs0 => ?_, fun e0 he0 => ?_⟩, .cons hle hf2⟩
       · rcases List.mem_cons.mp hs0 with rfl | hs0
         · exact ⟨_, List.mem_cons_self, hle⟩
         · obtain ⟨x, hx, h⟩ := hlazy.of_skel s0 hs0
@@ -855,34 +856,69 @@ theorem lazyEntries_run {pk : OleanPins} {r : Region} {st : DS} {i : Nat}
         · obtain ⟨x, hx, h⟩ := hlazy.to_skel e0 he0
           exact ⟨x, List.mem_cons_of_mem _ hx, h⟩
 
-/-- con-leche: ConLeche/Frontend/Olean/Lazy.lean:279-297 loadAt — the imports' check moves the
-state as a read does. -/
-theorem loadImports_run {pk : OleanPins} {r : Region} {st : DS} {sk : ModSkel}
+/-- con-leche: ConLeche/Verify/Driver/Loads.lean:900 loadAt_imports — the imports' check, read
+back: the skeleton's imports by `nameP` are those at the start of `M.olean`. -/
+theorem loadImports_runOf {pk : OleanPins} {r : Region} {st : DS} {sk : ModSkel}
     {f : ConLeche.Frontend.Olean.ModFiles} {s s' : AState} (hctx : Ctx pk s)
+    (hN : ∀ i ∈ sk.imports, ∀ y, st.nameOf pk r i.module = some y →
+      ∃ z, nameP r i.module = some z ∧ denoteN s.store.ns y = some z)
     (h : ConRon.Arena.Frontend.Olean.loadImports pk r st sk f s = .ok (true, s')) :
-    ParseStep s s' := by
+    ParseStep s s' ∧ ∃ imports, sk.imports.mapM (ImportF.mapM (nameP r)) = some imports ∧
+      ConLeche.Frontend.Olean.importsPre f.exported.bytes = some imports.toArray := by
   generalize hF : ConRon.Arena.Frontend.Olean.loadImports pk r st sk f = fn at h
   unfold ConRon.Arena.Frontend.Olean.loadImports at hF
   split at hF
-  · subst hF
+  · rename_i imps himps
+    subst hF
     obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok h
     cases o with
     | none => cases (AM.pure_ok h2).1
     | some pre =>
-      obtain ⟨-, hs⟩ := AM.pure_ok h2
+      obtain ⟨hb, hs⟩ := AM.pure_ok h2
       subst hs
-      exact (importsPre_run hctx h1).1
+      obtain ⟨hst, zs, hzs, hdz⟩ := importsPre_run hctx h1
+      obtain ⟨ws, hws, hdw⟩ := list_sim (g := ImportF.mapM (nameP r)) (d := denoteImport s.store)
+        sk.imports himps (fun i hi y hy => by
+          simp only [ImportF.mapM, bind, Option.bind] at hy
+          cases hm : st.nameOf pk r i.module with
+          | none => rw [hm] at hy; cases hy
+          | some x =>
+            rw [hm] at hy
+            cases hy
+            obtain ⟨z, hz, hd⟩ := hN i hi x hm
+            refine ⟨{ i with module := z }, ?_, ?_⟩
+            · simp only [ImportF.mapM, hz]; rfl
+            · simp only [denoteImport, ImportF.mapM, hd]; rfl)
+      have hpre : pre = imps.toArray := by
+        have := hb.symm
+        simpa using this
+      subst hpre
+      refine ⟨hst, ws, hws, ?_⟩
+      have hdw' := list_mono (fun _ _ hy => denoteImport_ext hst.ext hy) _ hdw
+      have e1 : imps.mapM (denoteImport s'.store) = some zs.toList := by simpa using hdz
+      rw [e1] at hdw'
+      have e2 : zs.toList = ws := Option.some.inj hdw'
+      rw [hzs, ← e2]
   · subst hF
     cases (AM.pure_ok h).1
 
-/-- con-leche: ConLeche/Verify/Frontend/Olean/Lazy.lean:191 loadAt_spec — **the twin's load of a
-module's private view is the specification's, up to its theorems' values.** -/
-theorem loadAt_run {pk : OleanPins} {i : Nat} {m : NIdx} {mn : ConLeche.Name}
+/-- con-leche: ConLeche/Verify/Driver/Loads.lean:938 LoadOf — **the twin's load of a module's
+private view is the specification's, up to its theorems' values**, with what upstream's `LoadOf`
+asks beside `loadAt_spec`: the name table checked, the constants the skeletons' lazy entries
+position by position, the skeleton's imports those at the start of `M.olean`. -/
+theorem loadAt_runOf {pk : OleanPins} {i : Nat} {m : NIdx} {mn : ConLeche.Name}
     {f : ConLeche.Frontend.Olean.ModFiles} {l : ConRon.Arena.Frontend.Olean.Loaded} {s s' : AState}
     (hctx : Ctx pk s) (hp : PinsRel s.store pk) (hm : denoteN s.store.ns m = some mn)
     (h : ConRon.Arena.Frontend.Olean.loadAt pk i m f s = .ok (some l, s')) :
     ParseStep s s' ∧ FrontGoodAt s'.store f l.frontier ∧
-      ∃ lC, LoadedRel s'.store l lC ∧ lC.name = mn ∧ LoadSpec f i lC := by
+      ∃ lC, LoadedRel s'.store l lC ∧ lC.name = mn ∧ LoadSpec f i lC ∧ lC.frontier = {} ∧
+        ∃ r a sk skels, f.viewRegion .private = some (r, a) ∧
+          ConLeche.Frontend.Olean.constNamesOk r a = true ∧ moduleSkel r a = some sk ∧
+          sk.consts.mapM (constSkel r) = some skels ∧
+          ListRel (fun sk' e => lazyEntry (nameP r) (exprP r) r i sk' = some e.toCEntryF)
+            skels lC.constants.toList ∧
+          ∃ imports, sk.imports.mapM (ImportF.mapM (nameP r)) = some imports ∧
+            ConLeche.Frontend.Olean.importsPre f.exported.bytes = some imports.toArray := by
   generalize hF : ConRon.Arena.Frontend.Olean.loadAt pk i m f = fn at h
   unfold ConRon.Arena.Frontend.Olean.loadAt at hF
   split at hF
@@ -897,7 +933,7 @@ theorem loadAt_run {pk : OleanPins} {i : Nat} {m : NIdx} {mn : ConLeche.Name}
     simp only [Bool.false_eq_true, ↓reduceIte] at h
     cases (AM.pure_ok h).1
   | true =>
-  obtain ⟨hst1, -⟩ := constNamesOk_run hctx h1
+  obtain ⟨hst1, hcno⟩ := constNamesOk_run hctx h1
   simp only [↓reduceIte, pure_bind] at h
   cases hsk : moduleSkel r a with
   | none =>
@@ -930,7 +966,9 @@ theorem loadAt_run {pk : OleanPins} {i : Nat} {m : NIdx} {mn : ConLeche.Name}
     simp only [Bool.false_eq_true, ↓reduceIte] at h
     cases (AM.pure_ok h).1
   | true =>
-  have hst4 := loadImports_run (hctx.step (hst1.trans hst3)) h4
+  obtain ⟨hst4, imports, himps, hpre⟩ := loadImports_runOf (hctx.step (hst1.trans hst3))
+    (fun i hi y hy => hN i.module (List.mem_append_left _ (List.mem_append_left _
+      (List.mem_map_of_mem hi))) y hy) h4
   simp only [↓reduceIte] at h
   obtain ⟨o, s₅, h5, h⟩ := AM.bind_ok h
   cases o with
@@ -940,7 +978,7 @@ theorem loadAt_run {pk : OleanPins} {i : Nat} {m : NIdx} {mn : ConLeche.Name}
   cases hv
   subst hs
   have hst := (hst1.trans hst3).trans hst4
-  obtain ⟨hst5, csC, hcs, hlazy⟩ := lazyEntries_run skels 0 (hctx.step hst) (hp.ext hst.ext)
+  obtain ⟨hst5, csC, hcs, hlazy, hal⟩ := lazyEntries_run skels 0 (hctx.step hst) (hp.ext hst.ext)
     (fun sk' hsk' x hx y hy => by
       obtain ⟨z, hz, hd⟩ := hN x (List.mem_append_left _ (List.mem_append_right _
         (List.mem_flatMap.mpr ⟨sk', hsk', hx⟩))) y hy
@@ -955,7 +993,19 @@ theorem loadAt_run {pk : OleanPins} {i : Nat} {m : NIdx} {mn : ConLeche.Name}
   refine ⟨hst.trans hst5, ⟨r, a, hvr, (frontierOf_good hbuilt _ 0 rfl _ (FrontierGood.empty _ r)).ext
       (hst4.ext.trans hst5.ext)⟩, { name := mn, constants := csC.toArray, frontier := {} },
     ⟨denoteN_ext hm (hst.trans hst5).ext, by simpa using hcs⟩, rfl,
-    r, a, sk, skels, hvr, hsk, hskels, by simpa using hlazy⟩
+    ⟨r, a, sk, skels, hvr, hsk, hskels, by simpa using hlazy⟩, rfl,
+    r, a, sk, skels, hvr, hcno, hsk, hskels, by simpa using hal, imports, himps, hpre⟩
+
+/-- con-leche: ConLeche/Verify/Frontend/Olean/Lazy.lean:191 loadAt_spec — **the twin's load of a
+module's private view is the specification's, up to its theorems' values.** -/
+theorem loadAt_run {pk : OleanPins} {i : Nat} {m : NIdx} {mn : ConLeche.Name}
+    {f : ConLeche.Frontend.Olean.ModFiles} {l : ConRon.Arena.Frontend.Olean.Loaded} {s s' : AState}
+    (hctx : Ctx pk s) (hp : PinsRel s.store pk) (hm : denoteN s.store.ns m = some mn)
+    (h : ConRon.Arena.Frontend.Olean.loadAt pk i m f s = .ok (some l, s')) :
+    ParseStep s s' ∧ FrontGoodAt s'.store f l.frontier ∧
+      ∃ lC, LoadedRel s'.store l lC ∧ lC.name = mn ∧ LoadSpec f i lC :=
+  let ⟨hst, hfg, lC, hrel, hn, hspec, _⟩ := loadAt_runOf hctx hp hm h
+  ⟨hst, hfg, lC, hrel, hn, hspec⟩
 
 /-- con-leche: ConLeche/Frontend/Olean/Closure.lean:62-74 loadModule -/
 theorem loadModule_run {pk : OleanPins} {F : FS} {sp : ConLeche.Frontend.Olean.Roots} {total : Nat} {m : NIdx}

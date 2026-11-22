@@ -30,6 +30,7 @@
 //! | `prelude` | `Arena/Frontend/Prelude.lean` | `Frontend/Prelude.lean` |
 //! | `olean` | `Arena/Frontend/Olean/*` | `Frontend/Olean/*`, task #142, its own table |
 //! | `pace` | none yet | `Frontend/Pace.lean`, the pure part (task #484) |
+//! | `modular` | `Arena/Modular/*` | `Driver/{Graph,Reach,Worker}.lean`, task #166, its own table |
 //!
 //! ## The byte recogniser is not twinned, and that is deliberate
 //!
@@ -108,6 +109,7 @@
 
 pub mod compare;
 pub mod export_c;
+pub mod modular;
 pub mod nat_decimal;
 pub mod nat_op_ground;
 pub mod olean;

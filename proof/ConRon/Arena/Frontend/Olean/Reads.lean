@@ -14,7 +14,7 @@ public import ConRon.Arena.Frontend.Olean.Sparse
 namespace ConRon.Arena.Frontend.Olean
 
 open ConLeche
-open ConLeche.Frontend.Olean (Region CEntryF constSkel moduleSkel ImportF CKindF)
+open ConLeche.Frontend.Olean (Region CEntryF constSkel moduleSkel ImportF CKindF kName kExpr)
 
 /-- con-leche: ConLeche/Frontend/Olean/Reads.lean:49-53 ModHeader
 A module's flag and imports. -/
@@ -76,5 +76,69 @@ def stmtsAt (pk : OleanPins) (r : Region) (cs : List Nat) : AM (Option (List Stm
   match ← constsSkel r cs with
   | none => pure none
   | some sks => stmtsFast pk r sks
+
+/-- con-leche: ConLeche/Frontend/Olean/Reads.lean:96-104 memoAdd
+One root read into a memo shared by several constants (`sGo`, no frontier).  As the Rust's: a
+root that does not read leaves the memo empty (upstream keeps what was read of it; a memo is
+speed alone). -/
+def memoAdd (pk : OleanPins) (r : Region) (k : UInt8) (st : SM) (v : UInt64) : AM SM := do
+  match r.loc v with
+  | some c =>
+    match ← sGo pk r {} k c st with
+    | some st => pure st
+    | none => pure {}
+  | none => pure st
+
+/-- con-leche: ConLeche/Frontend/Olean/Reads.lean:96-104 memoAdd
+`vs.foldl (memoAdd r k) st`. -/
+def memoAddAll (pk : OleanPins) (r : Region) (k : UInt8) : SM → List UInt64 → AM SM
+  | st, [] => pure st
+  | st, v :: vs => do memoAddAll pk r k (← memoAdd pk r k st v) vs
+
+/-- con-leche: ConLeche/Frontend/Olean/Reads.lean:106-108 memoRoots
+The roots of a constant's skeleton into the memo: its names, then its expressions. -/
+def memoRoots (pk : OleanPins) (r : Region) (st : SM) (sk : CEntryF UInt64 UInt64) : AM SM := do
+  memoAddAll pk r kExpr (← memoAddAll pk r kName st sk.names) sk.exprs
+
+/-- con-leche: ConLeche/Frontend/Olean/Reads.lean:110-118 memoName
+A name pointer by the memo, else read on its own (`sparseNameP`). -/
+def memoName (pk : OleanPins) (r : Region) (st : SM) (v : UInt64) : AM (Option NIdx) :=
+  if v == 1 then pure (some pk.anon)
+  else match r.loc v with
+    | some c =>
+      match st.names[c]? with
+      | some n => pure (some n)
+      | none => sparseNameP pk r v
+    | none => pure none
+
+/-- con-leche: ConLeche/Frontend/Olean/Reads.lean:120-127 memoExpr
+An expression pointer by the memo, else read on its own (`sparseExprP`). -/
+def memoExpr (pk : OleanPins) (r : Region) (st : SM) (v : UInt64) : AM (Option EIdx) :=
+  match r.loc v with
+  | some c =>
+    match st.exprs[c]? with
+    | some e => pure (some e)
+    | none => sparseExprP pk r v
+  | none => pure none
+
+/-- con-leche: ConLeche/Frontend/Olean/Reads.lean:129-135 entriesAt
+The two reads of `CEntryF.mapM (memoName r st) (memoExpr r st)`. -/
+def memoRead (pk : OleanPins) (r : Region) (st : SM) : PtrRead :=
+  ⟨memoName pk r st, memoExpr pk r st⟩
+
+/-- con-leche: ConLeche/Frontend/Olean/Reads.lean:137-142 kindNamesAt
+A kind's names read, its expressions left out (`s.kind.mapM rd (fun _ => some ())`). -/
+def kindNames (rd : PtrRead) (k : CKindF UInt64 UInt64) : AM (Option (CKindF NIdx Unit)) :=
+  (k.mapM (m := OptionT AM) (fun v => OptionT.mk (rd.rdName v)) (fun _ => pure ())).run
+
+/-- con-leche: ConLeche/Frontend/Olean/Reads.lean:137-142 kindNamesAt
+**The kind of the constant at location `c`, its expressions left out**: what Lean's
+`subsumesInfo` reads of a kind beside the statement. -/
+def kindNamesAt (pk : OleanPins) (r : Region) (c : Nat) : AM (Option (CKindF NIdx Unit)) := do
+  match constSkel r c with
+  | none => pure none
+  | some s =>
+    skelFits s
+    kindNames ⟨sparseNameP pk r, sparseExprP pk r⟩ s.kind
 
 end ConRon.Arena.Frontend.Olean

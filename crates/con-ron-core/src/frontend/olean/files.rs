@@ -36,8 +36,10 @@ use crate::arena::handle::NIdx;
 use crate::arena::store::{EStore, PersTier};
 use crate::frontend::olean::header;
 use crate::frontend::olean::header::HdrWalk;
+use crate::frontend::olean::lazy;
 use crate::frontend::olean::module;
 use crate::frontend::olean::module::Expo;
+use crate::frontend::olean::reads::NamePositions;
 use crate::frontend::olean::region;
 use crate::frontend::olean::region::Part;
 use crate::frontend::olean::spec;
@@ -861,6 +863,35 @@ pub fn read_view<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut E
     }
 }
 
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:345-350 namesOf
+/// **A part's name positions, off its files** (`read_name_positions`, with the
+/// reason where they do not read).
+pub fn names_of(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, m: &NIdx, f: &ModFiles, level: &OLeanLevel) -> Result<NamePositions, CheckError> {
+    match view::read_name_positions(pk, pers, ar, f, level) {
+        Ok(ps) => Ok(ps),
+        Err(RdErr::Err(e)) => Err(e),
+        Err(RdErr::Bad) => Err(view::view_error(pk, pers, ar, m, f, level)),
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:352-357 readPartNamesAt
+/// **One part's name positions**, read off its files at their location.
+pub fn read_part_names_at<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, loc: &Located, m: &NIdx, level: &OLeanLevel) -> Result<NamePositions, CheckError> {
+    match read_files_at(fs, pers, ar, loc, m, level) {
+        Err(e) => Err(e),
+        Ok(f) => names_of(pk, pers, ar, m, &f, level),
+    }
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Files.lean:359-364 readPartNames
+/// **One part's name positions**, located on the search path.
+pub fn read_part_names<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Roots, m: &NIdx, level: &OLeanLevel) -> Result<NamePositions, CheckError> {
+    match find_module(fs, pers, ar, sp, m) {
+        Err(e) => Err(e),
+        Ok(loc) => read_part_names_at(fs, pk, pers, ar, &loc, m, level),
+    }
+}
+
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:396-413 readAllViews
 /// `([.exported, .server].find? fun l => (parseView f l).isNone).getD .private`.
 pub fn first_bad_view(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, f: &ModFiles) -> Result<OLeanLevel, CheckError> {
@@ -877,9 +908,8 @@ pub fn first_bad_view(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, f: &ModF
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Files.lean:396-413 readAllViews
-/// **All three views of a module, each parsed whole, and their check against
-/// each other** (`check_views`, over the views): for the tools that compare the
-/// views.
+/// **All three views of a module, each parsed whole, and the home's check of
+/// them** (`check_views` over the load): for the tools that compare the views.
 pub fn read_all_views<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &Roots, m: &NIdx) -> Result<(AllViews, Vec<Expo>), CheckError> {
     let f = match read_files(fs, pers, ar, sp, m, &OLeanLevel::Private) {
         Err(e) => return Err(e),
@@ -891,9 +921,12 @@ pub fn read_all_views<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &
             Err(e) => Err(e),
             Ok(level) => Err(view::view_error(pk, pers, ar, m, &f, &level)),
         },
-        Ok(v) => match module::check_views(pk, pers, ar, m, &f, &v) {
+        Ok(v) => match lazy::load_view(pk, pers, ar, 0, m, &f) {
             Err(e) => Err(e),
-            Ok(expo) => Ok((v, expo)),
+            Ok(l) => match module::check_views(pk, pers, ar, m, &f, &l) {
+                Err(e) => Err(e),
+                Ok(expo) => Ok((v, expo)),
+            },
         },
     }
 }

@@ -389,6 +389,20 @@ pub fn read_stmts(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, f: &ModFiles
     }
 }
 
+/// con-leche: ConLeche/Frontend/Olean/View.lean:169-174 readKinds
+/// **The kinds of the constants at some positions of a view**, their
+/// expressions left out (`kindNamesAt`).
+pub fn read_kinds(pk: &OleanPins, pers: &PersTier, ar: &mut EStore, f: &ModFiles, level: &OLeanLevel, cs: &Vec<u64>) -> Result<Vec<spec::CKindF<NIdx, ()>>, RdErr> {
+    match mod_files_view_region(f, level) {
+        None => Err(RdErr::Bad),
+        Some((vb, _)) => {
+            let bs = view_bytes(f, &vb);
+            let r: Region = view_region_of(f, &vb);
+            reads::kinds_at(pk, pers, ar, bs, &r, cs)
+        }
+    }
+}
+
 /// con-leche: none — `s!"{m}"` of a module's name, a handle
 pub fn name_text(pers: &PersTier, ar: &EStore, m: &NIdx) -> Vec<u32> {
     match env::read_name(pers, ar, m) {
