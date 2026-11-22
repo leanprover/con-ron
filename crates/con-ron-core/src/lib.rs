@@ -12,7 +12,7 @@
 //!
 //! # Module map
 //!
-//! Five directories, in dependency order:
+//! Four directories, in dependency order (and `driver`, below):
 //!
 //! | directory | what it is |
 //! |---|---|
@@ -20,7 +20,6 @@
 //! | `kernel` | the representation-free types and the PINNED DATA the checker compares against, as `Expr`-valued con-leche constants |
 //! | `arena` | the checker itself, over the four interned stores — the Rust twin of `proof/ConRon/Arena/*` |
 //! | `frontend` | the export parser and the `.olean` reader, straight into the store |
-//! | `driver` | con-leche's `Driver/*.lean` over `frontend::checker_io` (task #171, DESIGN.md §3.9): the argument parser and the check of a lean4export file, run by `crates/con-ron`'s `StdIo` |
 //!
 //! ## `ron`
 //!
@@ -72,6 +71,11 @@
 //! See `arena/mod.rs` and `frontend/mod.rs`: one Rust module per file of
 //! `proof/ConRon/Arena/*`, with both citations on every item — con-leche's,
 //! as the whole port has (DESIGN.md §3.7), and the Lean twin's line.
+//!
+//! ## `driver`
+//!
+//! con-leche's `Driver/*.lean` over `frontend::checker_io` (task #171, DESIGN.md §3.9): the
+//! argument parser and the check of a lean4export file, run by `crates/con-ron`'s `StdIo`.
 
 pub mod arena;
 pub mod driver;
