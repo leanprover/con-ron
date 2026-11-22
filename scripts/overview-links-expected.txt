@@ -537,81 +537,81 @@
    654      False := by
 
 == crates/con-ron-core/src/driver/check_main.rs#L451-L525
-   451      let verified = a.verified;
-   452      let mode = if verified { CheckMode::Verified } else { CheckMode::Trusted };
-   453      let mut st = AState::empty();
-   454      let pers = PersTier::empty();
-   455      // ConRon.MainTheorem.Stages: h1
-   456      match pins::intern_reserved_pins(&pers, &mut st) {
-   457          Err(e) => {
-   458              io.note(&Note::ReservedPins(e, verified));
-   459              return 3;
-   460          }
-   461          Ok(()) => (),
-   462      }
-   463      io.read_starts(&a.progress, file);
-   464      // ConRon.MainTheorem.Stages: h2
-   465      let prelude_ix = match prelude::builtin_prelude_e(&pers, &mut st) {
-   466          Err((e, line)) => {
-   467              io.note(&Note::Prelude(e, line, verified));
-   468              return 3;
-   469          }
-   470          Ok(p) => p,
-   471      };
-   472      // ConRon.MainTheorem.Stages: hreads, h3
-   473      let (read, err) = {
-   474          let mut src = FileChunks { fs: &*io, path: file, off: 0, reads: 0, err: None };
-   475          let read = export_c::parse_source(&pers, &mut st, &mut src);
-   476          (read, src.err)
-   477      };
-   478      match err {
-   479          Some(m) => {
-   480              io.note(&Note::ReadFailed(str_copy(file), m));
-   481              return 3;
-   482          }
-   483          None => (),
-   484      }
-   485      let parsed = match read {
-   486          Err((e, line)) => {
-   487              let c = exit_code(&e);
-   488              io.note(&Note::Parse(e, line, str_copy(file), verified));
-   489              return c;
-   490          }
-   491          Ok(p) => p,
-   492      };
-   493      let file_records = parsed.decls.len();
-   494      // ConRon.MainTheorem.Stages: h4
-   495      let prepared = match prepare::prepare_d(&pers, &mut st, prelude_ix, parsed.decls, &DeclUsedConsts) {
-   496          Err(e) => {
-   497              let c = exit_code(&e);
-   498              io.note(&Note::Frontend(e, verified));
-   499              return c;
-   500          }
-   501          Ok(p) => p,
-   502      };
-   503      if prepared.hoisted.len() > 0 {
-   504          io.hoisted(&pers, &st.store, &prepared.hoisted);
-   505      }
-   506      // ConRon.MainTheorem.Stages: hpins
-   507      let pins: Vec<NatOpPinSet> = match embedded_pins(&*io) {
-   508          None => return 3,
-   509          Some(ps) => ps,
-   510      };
-   511      // ConRon.MainTheorem.Stages: h5
-   512      let ipins = match checker::intern_all_pins(&pers, &mut st, &pins, &a.max_nat_size) {
-   513          Err(e) => {
-   514              let c = exit_code(&e);
-   515              io.note(&Note::Frontend(e, verified));
-   516              return c;
-   517          }
-   518          Ok(p) => p,
-   519      };
-   520      let jobs: u64 = jobs_for_run(io, a);
-   521      // ConRon.MainTheorem.Stages: h6, h7, h8
-   522      let verdict = check_phase(io, &pers, &mut st, &mode, &ipins, None, &prepared.decls, jobs, file_records, prepared.synthesised);
-   523      verdict_of(io, &pers, st, prepared.decls, verdict, file_records, verified)
-   524  }
-   525  
+   451  pub fn check_main<I: CheckerIo>(io: &mut I, a: &Args, file: &Vec<u32>) -> u8 {
+   452      let verified = a.verified;
+   453      let mode = if verified { CheckMode::Verified } else { CheckMode::Trusted };
+   454      let mut st = AState::empty();
+   455      let pers = PersTier::empty();
+   456      // ConRon.MainTheorem.Stages: h1
+   457      match pins::intern_reserved_pins(&pers, &mut st) {
+   458          Err(e) => {
+   459              io.note(&Note::ReservedPins(e, verified));
+   460              return 3;
+   461          }
+   462          Ok(()) => (),
+   463      }
+   464      io.read_starts(&a.progress, file);
+   465      // ConRon.MainTheorem.Stages: h2
+   466      let prelude_ix = match prelude::builtin_prelude_e(&pers, &mut st) {
+   467          Err((e, line)) => {
+   468              io.note(&Note::Prelude(e, line, verified));
+   469              return 3;
+   470          }
+   471          Ok(p) => p,
+   472      };
+   473      // ConRon.MainTheorem.Stages: hreads, h3
+   474      let (read, err) = {
+   475          let mut src = FileChunks { fs: &*io, path: file, off: 0, reads: 0, err: None };
+   476          let read = export_c::parse_source(&pers, &mut st, &mut src);
+   477          (read, src.err)
+   478      };
+   479      match err {
+   480          Some(m) => {
+   481              io.note(&Note::ReadFailed(str_copy(file), m));
+   482              return 3;
+   483          }
+   484          None => (),
+   485      }
+   486      let parsed = match read {
+   487          Err((e, line)) => {
+   488              let c = exit_code(&e);
+   489              io.note(&Note::Parse(e, line, str_copy(file), verified));
+   490              return c;
+   491          }
+   492          Ok(p) => p,
+   493      };
+   494      let file_records = parsed.decls.len();
+   495      // ConRon.MainTheorem.Stages: h4
+   496      let prepared = match prepare::prepare_d(&pers, &mut st, prelude_ix, parsed.decls, &DeclUsedConsts) {
+   497          Err(e) => {
+   498              let c = exit_code(&e);
+   499              io.note(&Note::Frontend(e, verified));
+   500              return c;
+   501          }
+   502          Ok(p) => p,
+   503      };
+   504      if prepared.hoisted.len() > 0 {
+   505          io.hoisted(&pers, &st.store, &prepared.hoisted);
+   506      }
+   507      // ConRon.MainTheorem.Stages: hpins
+   508      let pins: Vec<NatOpPinSet> = match embedded_pins(&*io) {
+   509          None => return 3,
+   510          Some(ps) => ps,
+   511      };
+   512      // ConRon.MainTheorem.Stages: h5
+   513      let ipins = match checker::intern_all_pins(&pers, &mut st, &pins, &a.max_nat_size) {
+   514          Err(e) => {
+   515              let c = exit_code(&e);
+   516              io.note(&Note::Frontend(e, verified));
+   517              return c;
+   518          }
+   519          Ok(p) => p,
+   520      };
+   521      let jobs: u64 = jobs_for_run(io, a);
+   522      // ConRon.MainTheorem.Stages: h6, h7, h8
+   523      let verdict = check_phase(io, &pers, &mut st, &mode, &ipins, None, &prepared.decls, jobs, file_records, prepared.synthesised);
+   524      verdict_of(io, &pers, st, prepared.decls, verdict, file_records, verified)
+   525  }
 
 == proof/ConRon/MainTheorem/Stages.lean#L580-L605
    580  theorem model_exists (V : Type w) [ConLeche.SetTheory V]
@@ -1858,81 +1858,81 @@
     40  //!   a `Live` slot with a stale stamp is free space, indistinguishable from
 
 == crates/con-ron-core/src/driver/check_main.rs#L451-L525
-   451      let verified = a.verified;
-   452      let mode = if verified { CheckMode::Verified } else { CheckMode::Trusted };
-   453      let mut st = AState::empty();
-   454      let pers = PersTier::empty();
-   455      // ConRon.MainTheorem.Stages: h1
-   456      match pins::intern_reserved_pins(&pers, &mut st) {
-   457          Err(e) => {
-   458              io.note(&Note::ReservedPins(e, verified));
-   459              return 3;
-   460          }
-   461          Ok(()) => (),
-   462      }
-   463      io.read_starts(&a.progress, file);
-   464      // ConRon.MainTheorem.Stages: h2
-   465      let prelude_ix = match prelude::builtin_prelude_e(&pers, &mut st) {
-   466          Err((e, line)) => {
-   467              io.note(&Note::Prelude(e, line, verified));
-   468              return 3;
-   469          }
-   470          Ok(p) => p,
-   471      };
-   472      // ConRon.MainTheorem.Stages: hreads, h3
-   473      let (read, err) = {
-   474          let mut src = FileChunks { fs: &*io, path: file, off: 0, reads: 0, err: None };
-   475          let read = export_c::parse_source(&pers, &mut st, &mut src);
-   476          (read, src.err)
-   477      };
-   478      match err {
-   479          Some(m) => {
-   480              io.note(&Note::ReadFailed(str_copy(file), m));
-   481              return 3;
-   482          }
-   483          None => (),
-   484      }
-   485      let parsed = match read {
-   486          Err((e, line)) => {
-   487              let c = exit_code(&e);
-   488              io.note(&Note::Parse(e, line, str_copy(file), verified));
-   489              return c;
-   490          }
-   491          Ok(p) => p,
-   492      };
-   493      let file_records = parsed.decls.len();
-   494      // ConRon.MainTheorem.Stages: h4
-   495      let prepared = match prepare::prepare_d(&pers, &mut st, prelude_ix, parsed.decls, &DeclUsedConsts) {
-   496          Err(e) => {
-   497              let c = exit_code(&e);
-   498              io.note(&Note::Frontend(e, verified));
-   499              return c;
-   500          }
-   501          Ok(p) => p,
-   502      };
-   503      if prepared.hoisted.len() > 0 {
-   504          io.hoisted(&pers, &st.store, &prepared.hoisted);
-   505      }
-   506      // ConRon.MainTheorem.Stages: hpins
-   507      let pins: Vec<NatOpPinSet> = match embedded_pins(&*io) {
-   508          None => return 3,
-   509          Some(ps) => ps,
-   510      };
-   511      // ConRon.MainTheorem.Stages: h5
-   512      let ipins = match checker::intern_all_pins(&pers, &mut st, &pins, &a.max_nat_size) {
-   513          Err(e) => {
-   514              let c = exit_code(&e);
-   515              io.note(&Note::Frontend(e, verified));
-   516              return c;
-   517          }
-   518          Ok(p) => p,
-   519      };
-   520      let jobs: u64 = jobs_for_run(io, a);
-   521      // ConRon.MainTheorem.Stages: h6, h7, h8
-   522      let verdict = check_phase(io, &pers, &mut st, &mode, &ipins, None, &prepared.decls, jobs, file_records, prepared.synthesised);
-   523      verdict_of(io, &pers, st, prepared.decls, verdict, file_records, verified)
-   524  }
-   525  
+   451  pub fn check_main<I: CheckerIo>(io: &mut I, a: &Args, file: &Vec<u32>) -> u8 {
+   452      let verified = a.verified;
+   453      let mode = if verified { CheckMode::Verified } else { CheckMode::Trusted };
+   454      let mut st = AState::empty();
+   455      let pers = PersTier::empty();
+   456      // ConRon.MainTheorem.Stages: h1
+   457      match pins::intern_reserved_pins(&pers, &mut st) {
+   458          Err(e) => {
+   459              io.note(&Note::ReservedPins(e, verified));
+   460              return 3;
+   461          }
+   462          Ok(()) => (),
+   463      }
+   464      io.read_starts(&a.progress, file);
+   465      // ConRon.MainTheorem.Stages: h2
+   466      let prelude_ix = match prelude::builtin_prelude_e(&pers, &mut st) {
+   467          Err((e, line)) => {
+   468              io.note(&Note::Prelude(e, line, verified));
+   469              return 3;
+   470          }
+   471          Ok(p) => p,
+   472      };
+   473      // ConRon.MainTheorem.Stages: hreads, h3
+   474      let (read, err) = {
+   475          let mut src = FileChunks { fs: &*io, path: file, off: 0, reads: 0, err: None };
+   476          let read = export_c::parse_source(&pers, &mut st, &mut src);
+   477          (read, src.err)
+   478      };
+   479      match err {
+   480          Some(m) => {
+   481              io.note(&Note::ReadFailed(str_copy(file), m));
+   482              return 3;
+   483          }
+   484          None => (),
+   485      }
+   486      let parsed = match read {
+   487          Err((e, line)) => {
+   488              let c = exit_code(&e);
+   489              io.note(&Note::Parse(e, line, str_copy(file), verified));
+   490              return c;
+   491          }
+   492          Ok(p) => p,
+   493      };
+   494      let file_records = parsed.decls.len();
+   495      // ConRon.MainTheorem.Stages: h4
+   496      let prepared = match prepare::prepare_d(&pers, &mut st, prelude_ix, parsed.decls, &DeclUsedConsts) {
+   497          Err(e) => {
+   498              let c = exit_code(&e);
+   499              io.note(&Note::Frontend(e, verified));
+   500              return c;
+   501          }
+   502          Ok(p) => p,
+   503      };
+   504      if prepared.hoisted.len() > 0 {
+   505          io.hoisted(&pers, &st.store, &prepared.hoisted);
+   506      }
+   507      // ConRon.MainTheorem.Stages: hpins
+   508      let pins: Vec<NatOpPinSet> = match embedded_pins(&*io) {
+   509          None => return 3,
+   510          Some(ps) => ps,
+   511      };
+   512      // ConRon.MainTheorem.Stages: h5
+   513      let ipins = match checker::intern_all_pins(&pers, &mut st, &pins, &a.max_nat_size) {
+   514          Err(e) => {
+   515              let c = exit_code(&e);
+   516              io.note(&Note::Frontend(e, verified));
+   517              return c;
+   518          }
+   519          Ok(p) => p,
+   520      };
+   521      let jobs: u64 = jobs_for_run(io, a);
+   522      // ConRon.MainTheorem.Stages: h6, h7, h8
+   523      let verdict = check_phase(io, &pers, &mut st, &mode, &ipins, None, &prepared.decls, jobs, file_records, prepared.synthesised);
+   524      verdict_of(io, &pers, st, prepared.decls, verdict, file_records, verified)
+   525  }
 
 == crates/con-ron-core/src/arena/pins.rs#L1-L60
      1  //! `arena::pins` — the reserved names, interned ONCE (task #97-P6-4a).
