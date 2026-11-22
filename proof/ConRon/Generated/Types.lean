@@ -2176,7 +2176,7 @@ structure frontend.scan_types.CVRec where
   ty : Std.U64
 
 /-- [con_ron_core::frontend::scan_types::IndRecRec]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 344:0-353:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 351:0-360:1
     Visibility: public -/
 structure frontend.scan_types.IndRecRec where
   cv : frontend.scan_types.CVRec
@@ -2189,7 +2189,7 @@ structure frontend.scan_types.IndRecRec where
   rules : alloc.vec.Vec frontend.scan_types.RuleRec
 
 /-- [con_ron_core::frontend::scan_types::IndCtorRec]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 333:0-340:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 340:0-347:1
     Visibility: public -/
 structure frontend.scan_types.IndCtorRec where
   cv : frontend.scan_types.CVRec
@@ -2200,7 +2200,7 @@ structure frontend.scan_types.IndCtorRec where
   induct : Option Std.U64
 
 /-- [con_ron_core::frontend::scan_types::IndTypeRec]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 316:0-325:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 316:0-332:1
     Visibility: public -/
 structure frontend.scan_types.IndTypeRec where
   cv : frontend.scan_types.CVRec
@@ -2211,9 +2211,14 @@ structure frontend.scan_types.IndTypeRec where
   num_indices : Std.U64
   num_nested : Std.U64
   num_params : Std.U64
+  is_impredicative : Option Bool
+  is_k : Option Bool
+  has_projections : Option Bool
+  has_eta : Option Bool
+  has_large_elim : Option Bool
 
 /-- [con_ron_core::frontend::scan_types::DeclRec]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 359:0-366:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 366:0-373:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.scan_types.DeclRec where
@@ -2275,7 +2280,7 @@ inductive frontend.scan_types.NameRec where
 | Num : Std.U64 → Std.U64 → frontend.scan_types.NameRec
 
 /-- [con_ron_core::frontend::scan_types::LineRec]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 370:0-380:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 377:0-387:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.scan_types.LineRec where
@@ -2329,7 +2334,7 @@ structure frontend.scan_types.ScanErr where
   what : frontend.scan_types.ErrTag
 
 /-- [con_ron_core::frontend::scan_types::Key]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 387:0-454:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 393:0-465:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.scan_types.Key where
@@ -2348,6 +2353,9 @@ inductive frontend.scan_types.Key where
 | KDef : frontend.scan_types.Key
 | KFn : frontend.scan_types.Key
 | KForallE : frontend.scan_types.Key
+| KHasEta : frontend.scan_types.Key
+| KHasLargeElim : frontend.scan_types.Key
+| KHasProjections : frontend.scan_types.Key
 | KHints : frontend.scan_types.Key
 | KI : frontend.scan_types.Key
 | KIdx : frontend.scan_types.Key
@@ -2357,6 +2365,8 @@ inductive frontend.scan_types.Key where
 | KIn : frontend.scan_types.Key
 | KInduct : frontend.scan_types.Key
 | KInductive : frontend.scan_types.Key
+| KIsImpredicative : frontend.scan_types.Key
+| KIsK : frontend.scan_types.Key
 | KIsRec : frontend.scan_types.Key
 | KIsReflexive : frontend.scan_types.Key
 | KIsUnsafe : frontend.scan_types.Key
@@ -2401,7 +2411,7 @@ inductive frontend.scan_types.Key where
 | KValue : frontend.scan_types.Key
 
 /-- [con_ron_core::frontend::scan_fast::LinePayload]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3747:0-3754:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3866:0-3873:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.scan_fast.LinePayload where
@@ -2413,7 +2423,7 @@ inductive frontend.scan_fast.LinePayload where
 | Header : frontend.scan_fast.LinePayload
 
 /-- [con_ron_core::frontend::scan_fast::Member]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1321:0-1327:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1353:0-1359:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.scan_fast.Member where
@@ -2425,7 +2435,7 @@ inductive frontend.scan_fast.Member where
   frontend.scan_fast.Member
 
 /-- [con_ron_core::frontend::scan_types::IdTable]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 540:0-543:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 556:0-559:1
     Visibility: public -/
 structure frontend.scan_types.IdTable (T : Type _) where
   dense : alloc.vec.Vec T
@@ -2457,7 +2467,7 @@ inductive frontend.export_c.LineErr where
 | Verdict : frontend.types.RecordVerdict → frontend.export_c.LineErr
 
 /-- [con_ron_core::frontend::export_c::ParseResultD]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1967:0-1970:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2046:0-2049:1
     Visibility: public -/
 structure frontend.export_c.ParseResultD where
   decls : alloc.vec.Vec arena.env.IDeclaration
@@ -2469,7 +2479,7 @@ structure frontend.export_c.ParseResultD where
 def frontend.nat_op_ground.DeclUsedConsts := Unit
 
 /-- Trait declaration: [con_ron_core::frontend::export_c::ChunkSource]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2237:0-2244:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2316:0-2323:1
     Visibility: public -/
 structure frontend.export_c.ChunkSource (Self : Type _) where
   next_chunk : Self → Result ((alloc.vec.Vec Std.U8) × Self)

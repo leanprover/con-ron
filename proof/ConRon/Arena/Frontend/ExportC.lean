@@ -253,8 +253,32 @@ con-leche's own parse placeholders. -/
 def parseRuleD (st : StateD) (ru : RuleRec) : AM IRecRule := do
   pure (IRecRule.mk (← st.name ru.ctor) ru.nfields .plain (← getDeclD st ru.rhs))
 
+/-- con-leche: ConLeche/Frontend/ExportC.lean:232-238 IndTypeRec.flags — the
+record's feature flags, as the checker stores them: all five keys present, or
+none. -/
+def indTypeRecFlags (t : IndTypeRec) : Option IndFlags :=
+  match t.isImpredicative, t.isK, t.hasProjections, t.hasEta, t.hasLargeElim with
+  | some i, some k, some p, some e, some l => some ⟨i, k, p, e, l⟩
+  | _, _, _, _, _ => none
+
+/-- con-leche: ConLeche/Frontend/ExportC.lean:240-243 IndTypeRec.flagsPartial —
+some but not all of the five feature-flag keys are present. -/
+def indTypeRecFlagsPartial (t : IndTypeRec) : Bool :=
+  (indTypeRecFlags t).isNone && (t.isImpredicative.isSome || t.isK.isSome ||
+    t.hasProjections.isSome || t.hasEta.isSome || t.hasLargeElim.isSome)
+
+/-- con-leche: ConLeche/Frontend/ExportC.lean:245-252 blockFlagsErr — what is
+wrong with a block's feature flags, if anything: a type record with some but
+not all of the five, or type records that disagree on carrying them. -/
+def blockFlagsErrD (tys : List IndTypeRec) : Option String :=
+  if tys.any indTypeRecFlagsPartial then
+    some "an inductive type record carries some but not all of the feature flags \
+      isImpredicative, isK, hasProjections, hasEta, hasLargeElim"
+  else if tys.all (fun t => (indTypeRecFlags t).isSome) ||
+      tys.all (fun t => (indTypeRecFlags t).isNone) then none
+  else some "the inductive block's type records disagree on whether they carry feature flags"
+
 /-- con-leche: ConLeche/Frontend/ExportC.lean:258-401 validateIndF — an
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove ExportC.validateIndD_bridge, then delete this line
 inductive record, VALIDATED: the half of the record's processing that reads
 the state and changes nothing.  Every guard, every verdict and every message
 is con-leche's; what changed is that a name comparison is a handle comparison
@@ -271,6 +295,10 @@ def validateIndD (st : @& StateD) (tys : List IndTypeRec) (cts : List IndCtorRec
   -- an `unsafe inductive` is DECLINED, not an error
   if tys.any (·.isUnsafe) then
     return .inl (.declined "unsafe inductive declaration")
+  -- THE FEATURE FLAGS: a type record carries all five or none, and a block's
+  -- records agree on which; the install validates what they say
+  if let some msg := blockFlagsErrD tys then
+    return .inl (.invalid msg)
   -- THE DECLARED PARAMETER COUNT: well defined for the block exactly when its
   -- type records AGREE on it
   let nPs := tys.map (·.numParams)
@@ -355,7 +383,6 @@ def validateIndD (st : @& StateD) (tys : List IndTypeRec) (cts : List IndCtorRec
   return .inr (cts, nPd)
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:403-420 indBlockOfF — an
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove ExportC.installIndD_bridge, then delete this line
 inductive record, INSTALLED: the block's constants, pushed as one `IndDecl`.
 Every change to the state a validated inductive record makes is here.
 
@@ -371,7 +398,7 @@ def installIndD (st : StateD) (tys : List IndTypeRec)
     (cts : List (IndCtorRec × NIdx)) (rcs : List IndRecRec) (nPd : Nat) :
     AM StateD := do
   let types ← tys.mapM fun t => do
-    pure (IConstantInfo.indInfo (← parseCVD st t.cv) {})
+    pure (IConstantInfo.indInfo (← parseCVD st t.cv) { flags := indTypeRecFlags t })
   let ctors ← cts.mapM fun (c, T) => do
     pure (IConstantInfo.ctorInfo (← parseCVD st c.cv) c.numParams c.numFields T)
   let recs ← rcs.mapM fun r => do

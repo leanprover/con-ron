@@ -162,7 +162,6 @@ pub fn key_end(b: &[u8], j: usize) -> usize {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:247-482 keyAt
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove scan_fast::key_at_refines, then delete this line
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:160-162 lit1
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:164-166 lit2
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:168-171 lit3
@@ -173,8 +172,10 @@ pub fn key_end(b: &[u8], j: usize) -> usize {
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:199-205 lit8
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:207-213 lit9
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:215-222 lit10
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:224-229 lit11
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:231-237 lit13
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:239-245 lit14
 /// con-leche: ConLeche/Frontend/Scan/Naive.lean:190-211 keyTable
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove scan_fast::key_at_refines, then delete this line
 /// con-leche: ConLeche/Frontend/Scan/Naive.lean:213-217 keyOf
 /// Classify the key whose opening quote is at `i` and whose contents are `kl`
 /// bytes: a switch on the first byte, then on the length — which leaves at
@@ -302,6 +303,27 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
                 } else {
                     Key::KUnknown
                 }
+            } else if kl == 6 {
+                const S_HASETA: [u8; 6] = *b"hasEta";
+                if match_lit(b, j, &S_HASETA) {
+                    Key::KHasEta
+                } else {
+                    Key::KUnknown
+                }
+            } else if kl == 12 {
+                const S_HASLARGEELIM: [u8; 12] = *b"hasLargeElim";
+                if match_lit(b, j, &S_HASLARGEELIM) {
+                    Key::KHasLargeElim
+                } else {
+                    Key::KUnknown
+                }
+            } else if kl == 14 {
+                const S_HASPROJECTIONS: [u8; 14] = *b"hasProjections";
+                if match_lit(b, j, &S_HASPROJECTIONS) {
+                    Key::KHasProjections
+                } else {
+                    Key::KUnknown
+                }
             } else {
                 Key::KUnknown
             }
@@ -330,8 +352,11 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
                 }
             } else if kl == 3 {
                 const S_IDX: [u8; 3] = *b"idx";
+                const S_ISK: [u8; 3] = *b"isK";
                 if match_lit(b, j, &S_IDX) {
                     Key::KIdx
+                } else if match_lit(b, j, &S_ISK) {
+                    Key::KIsK
                 } else {
                     Key::KUnknown
                 }
@@ -374,6 +399,13 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
                 const S_ISREFLEXIVE: [u8; 11] = *b"isReflexive";
                 if match_lit(b, j, &S_ISREFLEXIVE) {
                     Key::KIsReflexive
+                } else {
+                    Key::KUnknown
+                }
+            } else if kl == 15 {
+                const S_ISIMPREDICATIVE: [u8; 15] = *b"isImpredicative";
+                if match_lit(b, j, &S_ISIMPREDICATIVE) {
+                    Key::KIsImpredicative
                 } else {
                     Key::KUnknown
                 }
@@ -2449,7 +2481,6 @@ pub fn scan_ind_recs(b: &[u8], i: usize) -> ScanRes<Vec<IndRecRec>> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:1602-1781 scanIndTypeLoop
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove scan_fast::scan_ind_type_loop_refines, then delete this line
 pub fn scan_ind_type_loop(b: &[u8], i: usize) -> ScanRes<IndTypeRec> {
     let mut i = i;
     let mut want_member = true;
@@ -2464,6 +2495,11 @@ pub fn scan_ind_type_loop(b: &[u8], i: usize) -> ScanRes<IndTypeRec> {
     let mut n_nest: u64 = 0;
     let mut n_p: u64 = 0;
     let mut ty: u64 = 0;
+    let mut f_i: Option<bool> = None;
+    let mut f_k: Option<bool> = None;
+    let mut f_p: Option<bool> = None;
+    let mut f_e: Option<bool> = None;
+    let mut f_l: Option<bool> = None;
     loop {
         let (mem, ni, nw) = match next_member(b, i, want_member) {
             Err(er) => return Err(er),
@@ -2493,6 +2529,11 @@ pub fn scan_ind_type_loop(b: &[u8], i: usize) -> ScanRes<IndTypeRec> {
                         num_indices: n_idx,
                         num_nested: n_nest,
                         num_params: n_p,
+                        is_impredicative: f_i,
+                        is_k: f_k,
+                        has_projections: f_p,
+                        has_eta: f_e,
+                        has_large_elim: f_l,
                     },
                     i + 1,
                 ));
@@ -2658,6 +2699,86 @@ pub fn scan_ind_type_loop(b: &[u8], i: usize) -> ScanRes<IndTypeRec> {
                     i = e;
                     want_member = false;
                 }
+                Key::KIsImpredicative => {
+                    if dup(seen, 2048) {
+                        return err(ks, ErrTag::DuplicateKey);
+                    }
+                    let (x, e) = match scan_bool(b, v) {
+                        Err(er) => return Err(er),
+                        Ok(p) => p,
+                    };
+                    if !prog(ks, e) {
+                        return err(ks, ErrTag::NoProgress);
+                    }
+                    f_i = Some(x);
+                    seen |= 2048;
+                    i = e;
+                    want_member = false;
+                }
+                Key::KIsK => {
+                    if dup(seen, 4096) {
+                        return err(ks, ErrTag::DuplicateKey);
+                    }
+                    let (x, e) = match scan_bool(b, v) {
+                        Err(er) => return Err(er),
+                        Ok(p) => p,
+                    };
+                    if !prog(ks, e) {
+                        return err(ks, ErrTag::NoProgress);
+                    }
+                    f_k = Some(x);
+                    seen |= 4096;
+                    i = e;
+                    want_member = false;
+                }
+                Key::KHasProjections => {
+                    if dup(seen, 8192) {
+                        return err(ks, ErrTag::DuplicateKey);
+                    }
+                    let (x, e) = match scan_bool(b, v) {
+                        Err(er) => return Err(er),
+                        Ok(p) => p,
+                    };
+                    if !prog(ks, e) {
+                        return err(ks, ErrTag::NoProgress);
+                    }
+                    f_p = Some(x);
+                    seen |= 8192;
+                    i = e;
+                    want_member = false;
+                }
+                Key::KHasEta => {
+                    if dup(seen, 16384) {
+                        return err(ks, ErrTag::DuplicateKey);
+                    }
+                    let (x, e) = match scan_bool(b, v) {
+                        Err(er) => return Err(er),
+                        Ok(p) => p,
+                    };
+                    if !prog(ks, e) {
+                        return err(ks, ErrTag::NoProgress);
+                    }
+                    f_e = Some(x);
+                    seen |= 16384;
+                    i = e;
+                    want_member = false;
+                }
+                Key::KHasLargeElim => {
+                    if dup(seen, 32768) {
+                        return err(ks, ErrTag::DuplicateKey);
+                    }
+                    let (x, e) = match scan_bool(b, v) {
+                        Err(er) => return Err(er),
+                        Ok(p) => p,
+                    };
+                    if !prog(ks, e) {
+                        return err(ks, ErrTag::NoProgress);
+                    }
+                    f_l = Some(x);
+                    seen |= 32768;
+                    i = e;
+                    want_member = false;
+                }
                 _ => return err(ks, ErrTag::UnknownKey),
             },
         }
@@ -2665,9 +2786,7 @@ pub fn scan_ind_type_loop(b: &[u8], i: usize) -> ScanRes<IndTypeRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:1783-1788 scanIndType
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove scan_fast::scan_ind_type_refines, then delete this line
 /// con-leche: ConLeche/Frontend/Scan/Naive.lean:522-526 naiveIndType
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove scan_fast::scan_ind_type_refines, then delete this line
 /// One member of an inductive record's `types`.
 pub fn scan_ind_type(b: &[u8], i: usize) -> ScanRes<IndTypeRec> {
     if byte_at(b, i) == 123 {
@@ -4136,6 +4255,11 @@ mod tests {
             ("\"numMotives\"", Key::KNumMotives),
             ("\"levelParams\"", Key::KLevelParams),
             ("\"binderInfo\"", Key::KBinderInfo),
+            ("\"idx\"", Key::KIdx),
+            ("\"isK\"", Key::KIsK),
+            ("\"isk\"", Key::KUnknown),
+            ("\"hasEta\"", Key::KHasEta),
+            ("\"isImpredicative\"", Key::KIsImpredicative),
             ("\"iex\"", Key::KUnknown),
             ("\"\"", Key::KUnknown),
         ] {
@@ -4164,6 +4288,9 @@ mod tests {
             "def",
             "fn",
             "forallE",
+            "hasEta",
+            "hasLargeElim",
+            "hasProjections",
             "hints",
             "i",
             "idx",
@@ -4173,6 +4300,8 @@ mod tests {
             "in",
             "induct",
             "inductive",
+            "isImpredicative",
+            "isK",
             "isRec",
             "isReflexive",
             "isUnsafe",
@@ -4232,7 +4361,7 @@ mod tests {
             let lke = key_end(lb, 1);
             assert!(!key_beq(&key_at(lb, 0, lke - 1), &k), "{}x classifies", sp);
         }
-        assert_eq!(codes.len(), 65);
+        assert_eq!(codes.len(), 70);
     }
 
     /// The three table kinds and a declaration, in the raw exporter's key
@@ -4442,6 +4571,65 @@ mod tests {
             }
             _ => panic!("not an inductive record"),
         }
+    }
+
+    /// An inductive record whose one type record carries `fs` before its
+    /// `levelParams` (the feature flags of lean4export 3.2.0).
+    fn flag_line(fs: &str) -> String {
+        format!(
+            "{}{}{}",
+            concat!(
+                "{\"inductive\":{\"ctors\":[],\"recs\":[],\"types\":[{\"all\":[1],",
+                "\"ctors\":[],\"isRec\":false,\"isReflexive\":false,\"isUnsafe\":false,"
+            ),
+            fs,
+            concat!(
+                "\"levelParams\":[],\"name\":1,\"numIndices\":0,\"numNested\":0,",
+                "\"numParams\":0,\"type\":6}]}}\n"
+            )
+        )
+    }
+
+    fn type_rec(line: &str) -> IndTypeRec {
+        match one(line) {
+            LineRec::Decl(DeclRec::Ind(mut tys, _, _)) => {
+                assert_eq!(tys.len(), 1);
+                tys.pop().unwrap()
+            }
+            _ => panic!("not an inductive record"),
+        }
+    }
+
+    fn flags_of(t: &IndTypeRec) -> Option<[bool; 5]> {
+        crate::frontend::export_c::ind_type_rec_flags(t).map(|f| {
+            [f.is_impredicative, f.is_k, f.has_projections, f.has_eta, f.has_large_elim]
+        })
+    }
+
+    /// The feature flags (con-leche's `ScanTests`, task #630): all five in
+    /// either key order, none, a partial record, a non-boolean, a repeat.
+    #[test]
+    fn ind_type_feature_flags() {
+        use crate::frontend::export_c::ind_type_rec_flags_partial;
+        let t = type_rec(&flag_line(concat!(
+            "\"isImpredicative\":true,\"isK\":false,\"hasProjections\":false,",
+            "\"hasEta\":false,\"hasLargeElim\":true,"
+        )));
+        assert_eq!(flags_of(&t), Some([true, false, false, false, true]));
+        assert!(!ind_type_rec_flags_partial(&t));
+        let t = type_rec(&flag_line(concat!(
+            "\"hasLargeElim\":false,\"hasEta\":true,\"hasProjections\":true,",
+            "\"isK\":false,\"isImpredicative\":false,"
+        )));
+        assert_eq!(flags_of(&t), Some([false, false, true, true, false]));
+        let t = type_rec(&flag_line(""));
+        assert_eq!(flags_of(&t), None);
+        assert!(!ind_type_rec_flags_partial(&t));
+        let t = type_rec(&flag_line("\"isImpredicative\":true,\"isK\":false,"));
+        assert_eq!(flags_of(&t), None);
+        assert!(ind_type_rec_flags_partial(&t));
+        bad(&flag_line("\"hasEta\":1,"));
+        is_tag(&flag_line("\"isK\":true,\"isK\":false,"), ErrTag::DuplicateKey);
     }
 
     /// `def` hints: the three spellings, and the `regular 0` default.

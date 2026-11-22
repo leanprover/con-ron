@@ -185,6 +185,8 @@ theorem validateIndD_unfold (st : StateD) (tys : List IndTypeRec) (cts : List In
     validateIndD st tys cts rcs = (do
       if tys.any (·.isUnsafe) then
         return .inl (.declined "unsafe inductive declaration")
+      if let some msg := blockFlagsErrD tys then
+        return .inl (.invalid msg)
       let nPs := tys.map (·.numParams)
       let nPd := nPs.head?.getD 0
       unless nPs.all (· == nPd) do

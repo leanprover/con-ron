@@ -380,7 +380,7 @@ theorem emit_ty_step_rel {st : frontend.olean.emit.Emit} {acc} {y : Emit × Arra
     peel h as acc1, hacc
     cases Result.ok_injective h
     refine ⟨b2, acc_push ha hacc ?_⟩
-    show IndTypeRec.mk _ _ _ _ _ _ _ _ = IndTypeRec.mk _ _ _ _ _ _ _ _
+    show IndTypeRec.mk _ _ _ _ _ _ _ _ _ _ _ _ _ = IndTypeRec.mk _ _ _ _ _ _ _ _ _ _ _ _ _
     dsimp only at a1 a2
     rw [a1, a2]
 

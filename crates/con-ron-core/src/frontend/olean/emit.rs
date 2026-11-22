@@ -133,6 +133,11 @@ pub fn emit_ty_step(st: &mut Emit, acc: &mut Vec<IndTypeRec>, c: &CEntry) {
                 num_indices: *ni,
                 num_nested: *nn,
                 num_params: *np,
+                is_impredicative: None,
+                is_k: None,
+                has_projections: None,
+                has_eta: None,
+                has_large_elim: None,
             });
         }
         _ => {}
