@@ -4,7 +4,26 @@ import ConRon.MainTheorem.ModArgs
 # `ConRon.MainTheorem.Modular` — the walks of `--check-graph`, `--olean --module` and
 `--olean --modular`
 
-**Task #171, slice 2** (DESIGN.md §3.9).
+**Task #171, slice 2** (DESIGN.md §3.9).  An exit 0 of the graph check is
+`Capstone.rust_graph`'s premises (`GraphStages`), an exit 0 of a module's worker is
+`rust_worker_of2`'s (`WorkerStages`: `Capstone.rust_worker_of` with the worker's reads and its
+jobs each at a state of its own instance, a snapshot of `fs`), and an exit 0 of
+`--olean --modular` is the graph's premises, its modules read back (`rust_graph_names`) and at
+every one a worker's premises, reads and jobs at the code map's state (`ModularStages`).
+`modular_of_stages` and `modular_one_of_stages` compose them as `Capstone.model_modular_of`
+does, with upstream's `closure_sees_isModel`: con-leche's `main_modular` and
+`main_modular_one`.
+
+| lemma | what it walks |
+|---|---|
+| `graph_start_ok`, `check_graph_zero`, `check_graph_args_zero`, `run_args_graph` | `graph::graph_start`, `graph::check_graph`, `cli::check_graph_args`, `cli::run_args` |
+| `module_read_ok`, `module_phase_ok`, `module_verdict_zero`, `check_module_zero` | `worker::module_read`, `module_phase`, `module_verdict`, `check_module` |
+| `olean_args_module`, `run_args_module` | `cli::olean_args` → `module_args`, `cli::run_args` |
+| `jobs_in_order_loop_fold`, `parallelAll_of_fold`, `module_phase_in_ok`, `check_module_in_zero` | a module of `--modular`: its jobs in order are the pool's contract at one worker |
+| `graph_names_loop_val`, `rust_graph_names` | `modular::graph_names`: the modules read back are the closure's |
+| `first_failure_none`, `modular_verdict_zero`, `check_modular_zero` | `modular::modular_verdict`, `check_modular`, through `CodesSound` |
+| `olean_args_modular`, `run_args_modular` | `cli::olean_args` → `modular_args`, `cli::run_args` |
+| `modular_of_canGive`, `modular_one_of_canGive` | `main_modular`'s and `main_modular_one`'s proofs |
 -/
 
 open Aeneas Aeneas.Std Result

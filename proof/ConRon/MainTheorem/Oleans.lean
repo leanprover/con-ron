@@ -5,7 +5,20 @@ import ConRon.MainTheorem.Conclusions
 /-!
 # `ConRon.MainTheorem.Oleans` — the walk of the extracted driver at `--olean -- <root>`
 
-**Task #171, slice 2** (DESIGN.md §3.9).
+**Task #171, slice 2** (DESIGN.md §3.9).  An exit 0 of `run_args` at
+`["--olean", "--search-path=" ++ dirs, "--", root]` is every step premise of the `--olean`
+capstone (`OleanStages`), the root the module `parseModName root` names and the lookup
+`searchPathOf dirs`; lane C's conclusion then gives con-leche's `main_oleans`.
+
+| lemma | what it walks |
+|---|---|
+| `rust_stages_oleans_dec`, `oleans_model_of_stages_dec` | `Capstone.rust_stages_oleans`, lane C's `oleans_model_of_stages` with the preparation's `UsedConsts` the read with its records moved out, and the reads and the pool at two instances' states |
+| `olean_job_sol`, `olean_stepAt` | `check_main::olean_job`, `OleanJobStep`'s step: `oleanJobStepSol` |
+| `parallelAll_mono`, `check_phase_olean_ok` | `check_main::check_phase_olean`: the pool's contract at `oleanJobStep` |
+| `intern_names_roots`, `intern_consts_nil` | `check_main::intern_names`, `intern_consts` |
+| `check_oleans_zero` | `check_main::check_oleans` |
+| `parse_mod_names_loop_val`, `parse_args_oleans`, `olean_args_oleans`, `run_args_oleans` | the argument list, `cli::olean_args`, `cli::run_args` |
+| `oleans_of_canGive` | `main_oleans`'s proof |
 -/
 
 open Aeneas Aeneas.Std Result

@@ -28,6 +28,15 @@ word for word but the run premise.
 (`MainTheorem/CompareJson.lean`) takes an exit 0 at `["--compare", "--", c, s]` to the file `c`
 in the snapshot and every step premise of the compared capstone (`CompareJsonStages`); lane C's
 `compare_json_model_of_stages` takes those to con-leche's conclusion: `main_compare_json_model`.
+
+**Slice 2: `--olean`, `--check-graph`, `--olean --module`, `--olean --modular`.**
+`oleans_of_canGive` (`MainTheorem/Oleans.lean`) takes an exit 0 at `["--olean",
+"--search-path=" ++ dirs, "--", root]` to the `--olean` capstone's step premises, the root to
+`parseModName root` and the search path to `searchPathOf dirs` (`MainTheorem/Args.lean`):
+`main_oleans`.  `modular_of_canGive` and `modular_one_of_canGive` (`MainTheorem/Modular.lean`)
+take the graph check's and each module worker's exits 0 (each its own run, at its own instance,
+all on the one snapshot `fs`), or `--olean --modular`'s, to con-leche's family of models:
+`main_modular` and `main_modular_one`.
 -/
 
 open ConLeche (IsModel constantsOf jsonWithTheoremFalse FS)
