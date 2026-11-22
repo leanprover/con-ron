@@ -6,7 +6,7 @@ import ConRon.MainTheorem.ModArgs
 
 **Task #171, slice 2** (DESIGN.md §3.9).  An exit 0 of the graph check is
 `Capstone.rust_graph`'s premises (`GraphStages`), an exit 0 of a module's worker is
-`rust_worker_of2`'s (`WorkerStages`: `Capstone.rust_worker_of` with the worker's reads and its
+`rust_worker_gen2`'s (`WorkerStages`: `Capstone.rust_worker_gen` with the worker's reads and its
 jobs each at a state of its own instance, a snapshot of `fs`), and an exit 0 of
 `--olean --modular` is the graph's premises, its modules read back (`rust_graph_names`) and at
 every one a worker's premises, reads and jobs at the code map's state (`ModularStages`).
@@ -124,43 +124,6 @@ theorem rust_worker_gen2 (hR : ConRon.Bridge.Modular.ReachRunHyp)
     ConRon.Bridge.Inductives.indSpec_of_bridge ConRon.Bridge.Modular.Home.homeHyp_holds hR hsp
     (names := rest.map ConRon.Refine.absName) (hs := hs.map absNIdx) hA
     (by simpa only [List.map_cons] using hB) (fun h => hx _ h) hC hD hP' hF
-
-/-- `rust_worker_gen2` with no import added, at a search path (`Capstone.rust_worker_of` at two
-instances). -/
-theorem rust_worker_of2 (hR : ConRon.Bridge.Modular.ReachRunHyp)
-    {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
-    {F : ConLeche.FS} (hsnap : SnapshotOf finst fsv F)
-    {Fs' : Type} {finst' : frontend.checker_io.CheckerFs Fs'} {fsv' : Fs'}
-    (hsnap' : SnapshotOf finst' fsv' F)
-    {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {mName : kernel.name.Name}
-    {st1 st2 st3 st4 st5 : arena.monad.AState} {m : arena.handle.NIdx}
-    (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
-    (hroot : InternRoots emptyTier st1 [mName] [m] st2)
-    {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
-    (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
-    {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {maxNatSize : ron.nat.Nat}
-    (h5 : arena.checker.intern_all_pins emptyTier st2 pins maxNatSize = ok (.Ok ipins, st3))
-    {w : frontend.modular.worker.WorkerRead}
-    (hwork : frontend.modular.worker.worker_read finst fsv emptyTier st3 ⟨dirs, alloc.vec.Vec.new _⟩
-      ipins m (alloc.vec.Vec.new _) = ok (.Ok w, st4))
-    {ds : alloc.vec.Vec arena.env.IDeclaration}
-    (hds : frontend.modular.worker.worker_decls w = ok ds)
-    {ix : arena.stream_index.IStreamIndex}
-    (h6 : (do
-        let e ← arena.stream_index.stream_index_empty
-        arena.stream_index.build_index emptyTier st4 e ds 0#usize) = ok (.Ok ix, st5))
-    {tier : arena.store.PersTier} {frozen : arena.store.EStore}
-    (h7 : arena.checker.freeze_tier st5.store ix = ok (tier, frozen))
-    {ws ws' : arena.monad.AState}
-    (hws : arena.checker.worker_state st5.pins = ok ws)
-    (hinfer : frontend.modular.reach.infer_flags tier ws w.reach.ctx w.reach.pending = ok (.Ok (), ws'))
-    (h8 : ParallelAll (ds.length - w.start.val) (oleanWorkerInit st5.pins)
-      (fun c k => oleanJobStepSol finst' fsv' tier .Verified ipins ds w.pins w.values
-        ⟨dirs, alloc.vec.Vec.new _⟩ none c (w.start.val + k))) :
-    ConLeche.Driver.WorkerAccepted (ConRon.Refine.absPins pins) (absSearchPath dirs) F
-      (ConRon.Refine.absName mName) 1 #[] :=
-  rust_worker_gen2 hR hsnap hsnap' (sp := ⟨dirs, alloc.vec.Vec.new _⟩) rfl (rest := []) (hs := [])
-    (x := alloc.vec.Vec.new _) (xC := #[]) (fun _ _ => rfl) h1 hroot hpins h5 hwork hds h6 h7 hws hinfer h8
 
 
 end Worker2
@@ -705,13 +668,6 @@ theorem WorkerStages.hpins {fs : ConLeche.FS} {sp : frontend.olean.files.Roots}
   cases h with
   | intro hsnap hsnap' hpins => exact hpins
 
-/-- One name interned is `InternRoots` of it. -/
-theorem internRoots_one {pers : arena.store.PersTier} {st st' : arena.monad.AState}
-    {n : kernel.name.Name} {h : arena.handle.NIdx} (hwf : ConRon.Refine.NameWF n)
-    (hi : arena.monad.intern_name pers st n = ok (.Ok h, st')) :
-    InternRoots pers st [n] [h] st' :=
-  ⟨hwf, st', hi, rfl⟩
-
 /-- **The imports a worker adds, made** (`worker::added_imports`): the solution's name, if any,
 interned (`InternRoots` of `sol.toList`), and the imports what `solX` denotes wherever the
 module and the solution are read back. -/
@@ -1043,7 +999,7 @@ theorem run_args_graph (hfs : AnswersAs io fs)
 
 /-- **An exit 0 of `["--olean", "--module", "--search-path=" ++ dirs, "--", root]`**
 (`cli::run_args`): the root a module name the Rust parsed, the search path `dirs`'s
-directories, its worker's calls `rust_worker_of2`'s premises. -/
+directories, its worker's calls `rust_worker_gen2`'s premises. -/
 theorem run_args_module (hfs : AnswersAs io fs) (hpool : PoolSound io)
     {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {dirs root : String}
     (hargv : ArgvOf argv ["--olean", "--module", "--search-path=" ++ dirs, "--", root]) {s s' : S}

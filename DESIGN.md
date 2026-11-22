@@ -74438,7 +74438,8 @@ worked around with an accumulator loop (`fallback_scan`).
   `module_copies_zero`; `check_module_zero`/`check_module_in_zero` at any `sp` and `sol`;
   `olean_job_sol` and `check_phase_olean_ok` at the solution, the latter also handing back the
   thawed index and the index build's state (`freeze_tier_ok`, as lane F's `check_phase_ok`); the
-  `*_args_*` lemmas take `a.compare = false`.
+  `*_args_*` lemmas take `a.compare = false`.  `rust_worker_of2` and `internRoots_one` went
+  (dead: `WorkerStages.accepted` is `rust_worker_gen2` at any lookup).
 * `ConRon/MainTheorem.lean`: `main_compare_model`, `main_modular_compare`,
   `main_modular_compare_one`, `main_modular_compare_no_False`, con-leche's statements word for
   word but `ConRon.CanGive`, in con-leche's order; `dead-census.py` roots.  Census of each:
