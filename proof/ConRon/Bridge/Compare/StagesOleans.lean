@@ -117,7 +117,9 @@ theorem stagesOC_frame {F : FS} {cr sr : ConLeche.Frontend.Olean.Roots}
           {cc : ConLeche.Frontend.Olean.CEntryF ConLeche.Name Expr} {v : Expr}
           {all : List ConLeche.Name}, ConLeche.Frontend.Olean.InClosure cr F #[c] m →
           ConLeche.Frontend.Olean.ViewOf cr F m d → cc ∈ d.constants → cc.kind = .thm v all →
-          ∃ code, Declaration.thmDecl ⟨cc.name, cc.levelParams, cc.type⟩ (.bvar code) ∈ dsR) := by
+          ∃ code, Declaration.thmDecl ⟨cc.name, cc.levelParams, cc.type⟩ (.bvar code) ∈ dsR) ∧
+        (∀ r, ConLeche.Frontend.Olean.closureConstants cr F #[c] r →
+          ConLeche.Frontend.Olean.CoveredBy dsR r) := by
   have hok0 : StateOK (AState.init EStore.empty) := ⟨EStore.empty_wf⟩
   have hoff0 : (AState.init EStore.empty).store.scratchOn = false := rfl
   have hc0 : (AState.init EStore.empty).caches = Caches.empty := rfl
@@ -134,7 +136,7 @@ theorem stagesOC_frame {F : FS} {cr sr : ConLeche.Frontend.Olean.Roots}
   have hdc₂ := denoteN_ext hdc hn2'.ext
   have h12 := (hstep1.trans hn1').trans hn2'
   -- the challenge's read, preparation and holes
-  obtain ⟨hstC, hpersR, hpk, ⟨usedC, hU⟩, valuesC, dsR, hvals, hdenR, hthm, -⟩ :=
+  obtain ⟨hstC, hpersR, hpk, ⟨usedC, hU⟩, valuesC, dsR, hvals, hdenR, hthm, hcovR, -⟩ :=
     Olean.readOleans_run (roots := #[ch]) (rootsC := #[c]) hcr hn2'.ok hoffB₂
       (hpinsA.mono h12.ext h12.pins) (by simpa using (show ListRel (Olean.NR sB₂.store) [ch] [c] from .cons hdc₂ .nil)) hC
   have h13 := h12.trans hstC
@@ -180,7 +182,7 @@ theorem stagesOC_frame {F : FS} {cr sr : ConLeche.Frontend.Olean.Roots}
     hstC₂.ok.wf, hoffC₂, PExt.of_ext hxC₂E, hpkS.nulls,
     valuesC, valuesS, dsR, dsRS, preC, usedC, usedS, hvals, hvalsS,
     denoteDecls_ext ((hstC₂.ext.trans hstD₂.ext).trans hxP) _ _ (by simpa using hdenH),
-    denoteDeclArray_iff.mp (denoteDeclArray_ext hxP hclPrepS), hthm⟩
+    denoteDeclArray_iff.mp (denoteDeclArray_ext hxP hclPrepS), hthm, hcovR⟩
 
 /-- con-leche: ConLeche/MainTheorem.lean:88 main_compare_model — **the compared `--olean` run's
 challenge, at the pipeline**: what the reader puts in its records, and: the challenge's checked records, each reference
@@ -225,7 +227,7 @@ theorem stagesOC_core (V : Type w) [ConLeche.SetTheory V]
           (ConLeche.Driver.holeRecord usedC)).map ConLeche.Cached.sideRecord).map
           (ConLeche.Cached.fillDecl (fillRef val))))) := by
   obtain ⟨hoff, hst, hpp, hipins, hpps, hpdS, hpdH, hwfC, hoffC, hxC, hnu, hwfC₂, hoffC₂, hxC₂,
-    hnuS, valuesC, valuesS, dsR, dsRS, preC, usedC, usedS, hvals, hvalsS, hdenH, hdenS, hthm⟩ :=
+    hnuS, valuesC, valuesS, dsR, dsRS, preC, usedC, usedS, hvals, hvalsS, hdenH, hdenS, hthm, -⟩ :=
     stagesOC_frame hcr hsr hA hB hRC hRS hC hD hhole hCS hDS hE
   -- the solution: the pure fold accepts its filled stream
   obtain ⟨Fu, hpure⟩ := Arena.pooledOleanAccepts_bridge hk hind hst hoff hpp hpps hipins hpdS

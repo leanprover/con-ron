@@ -220,7 +220,9 @@ theorem stagesO_frame {F : FS} {sp : ConLeche.Frontend.Olean.SearchPath}
           {c : ConLeche.Frontend.Olean.CEntryF ConLeche.Name Expr} {v : Expr}
           {all : List ConLeche.Name}, ConLeche.Frontend.Olean.InClosure sp F names.toArray m →
           ConLeche.Frontend.Olean.ViewOf sp F m d → c ∈ d.constants → c.kind = .thm v all →
-          ∃ code, Declaration.thmDecl ⟨c.name, c.levelParams, c.type⟩ (.bvar code) ∈ dsR) := by
+          ∃ code, Declaration.thmDecl ⟨c.name, c.levelParams, c.type⟩ (.bvar code) ∈ dsR) ∧
+        (∀ r, ConLeche.Frontend.Olean.closureConstants sp F names.toArray r →
+          ConLeche.Frontend.Olean.CoveredBy dsR r) := by
   have hok0 : StateOK (AState.init EStore.empty) := ⟨EStore.empty_wf⟩
   have hoff0 : (AState.init EStore.empty).store.scratchOn = false := rfl
   have hc0 : (AState.init EStore.empty).caches = Caches.empty := rfl
@@ -229,7 +231,7 @@ theorem stagesO_frame {F : FS} {sp : ConLeche.Frontend.Olean.SearchPath}
   have hoffB : sB.store.scratchOn = false := by rw [hstep1.scratch]; exact hoffA
   obtain ⟨hstR, hnr⟩ := internNames_run hstep1.ok hoffB names hR
   have hoffB' : sB'.store.scratchOn = false := by rw [hstR.scratch]; exact hoffB
-  obtain ⟨hstC, hpersR, hpk, ⟨usedC, hU⟩, valuesP, dsR, hvals, hdenR, hthm, -⟩ :=
+  obtain ⟨hstC, hpersR, hpk, ⟨usedC, hU⟩, valuesP, dsR, hvals, hdenR, hthm, hcovR, -⟩ :=
     Olean.readOleans_run (roots := roots.toArray) (rootsC := names.toArray) rfl hstR.ok hoffB'
       (hpinsA.mono (hstep1.trans hstR).ext (hstep1.trans hstR).pins) (by simpa using hnr) hC
   have hstep2 := hstR.trans hstC
@@ -253,7 +255,7 @@ theorem stagesO_frame {F : FS} {sp : ConLeche.Frontend.Olean.SearchPath}
         hxP hcachesP),
     hppP, hipins, hpps, fun x hx => hpersDs x (by simpa using hx), hstC.ok.wf, hoffC,
     PExt.of_ext (hstep3.ext.trans hxP), hpk.nulls, valuesP, dsR, preC, usedC, hvals,
-    denoteDeclArray_iff.mp (denoteDeclArray_ext hxP hclPrep), hthm⟩
+    denoteDeclArray_iff.mp (denoteDeclArray_ext hxP hclPrep), hthm, hcovR⟩
 
 /-- con-leche: ConLeche/MainTheorem.lean:161 main_oleans_no_False — **a check phase accepting a
 closure that holds a `False` theorem is impossible, at (B)**: the reader puts the theorem in the
@@ -283,7 +285,7 @@ theorem stagesO_no_False (V : Type w) [ConLeche.SetTheory V]
       prep.decls sE I sF) :
     False := by
   obtain ⟨hoff, hst, hpp, hipins, hpps, hpd, hwfC, hoffC, hxC, hnu, valuesP, dsR, preC, usedC,
-    hvals, hden, hthm⟩ := stagesO_frame hA hB hR hC hD hE
+    hvals, hden, hthm, -⟩ := stagesO_frame hA hB hR hC hD hE
   obtain ⟨Fu, hpure⟩ := Arena.pooledOleanAccepts_bridge hk hind hst hoff hpp hpps hipins hpd
     hden hwfC hoffC hxC hvals hnu rfl hF
   obtain ⟨code, hd⟩ := hthm hcl hv hmem hkind
