@@ -74037,6 +74037,10 @@ Capstone statement changed.
 property, so that a reader proved piecewise can use them; `json_isModel`/`oleans_isModel`'s
 `model_exists` step stated from `∃ F, checkDeclsPure … = .ok env` (the evidence Theorem 1 has).
 
+**Dead census**: the five are added to `scripts/dead-census.py`'s `CAPSTONES` (they are
+headline roots until `MainTheorem.lean` is built on them; without that the gate reports
+`PureStored`/`Conclusions` as deletable).
+
 **Census**: the five depend on `propext`, `Classical.choice`, `Quot.sound` and
 `PINS_TEXT._native.decide.ax_1` — exactly `model_exists_embedded`'s; no `sorry`.  Elaboration
 (`lake env lean`, one run each): `Covers` 0.8 s, `PureStored` 1.4 s / 2.4 GB, `Conclusions`
