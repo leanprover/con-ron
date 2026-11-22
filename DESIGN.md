@@ -1399,6 +1399,48 @@ which is a smaller thing — the Rust still transliterates the cited Lean, and
 `-loops-to-rec` puts the recursion back.  If a later task does reach for the
 hatch, it is recorded here.
 
+### 3.9 The driver over `CheckerIo`, and main theorems about the binary (task #171, 2026-11-22)
+
+con-leche's main theorems (`ConLeche/MainTheorem.lean`) are about its binary: each says what an
+exit 0 of `Driver.runArgs` at a given argument list implies, in the file model `ModelIO`
+(`ConLeche/Frontend/CheckerIO.lean`): the driver is written once over the class `CheckerIO m`,
+run at `IO` by the binary and reasoned about at `ModelIO`.  con-ron's headlines
+(`ConRon/Capstone.lean`) were instead one premise per verified call, with the driver that makes
+the calls trusted (OVERVIEW §8.2).  Decision (maintainer, 2026-11-22, "option A"): **con-ron's
+driver is ported into the extracted crate, generic over a trait, and its main theorems say what
+con-leche's say, word for word in their conclusions, about con-ron's own `run_args`.**
+
+* **The trait is the class.**  `frontend::checker_io` ports `CheckerIO.lean`: `CheckerFs`, the
+  file operations (`&self`; OleanFs's set, path-keyed, the read positional), `Step`, a job of
+  the worker map (`&self` and the `&I: CheckerFs` it may read files through), and
+  `CheckerIo: CheckerFs`, the worker map and the escapes.  Two traits, not one, because Aeneas
+  rejects mutually recursive trait declarations (a `Step` bounded by `CheckerIo` whose method is
+  bounded by `Step`; task #171's spike, `_tmp/spike-checkerio`).
+* **An escape is a `&mut self` method whose answer no premise constrains**: that is `liftIO`'s
+  "any outcome".  It must be `&mut self`: a `&self` method is a pure function of the instance in
+  the model, so Aeneas merges two calls with the same arguments (the spike's two clock reads
+  became one), which claims the real clock is constant.  The file operations stay `&self`, and
+  the premise on them holds at every state (`∀ s`), so no escape can change what they see.
+  Escapes take structured events (verdicts, receipts, heartbeat lines) and the store by shared
+  reference; the rendering is the instance's, outside the extraction.
+* **The worker map is the trait's**, its contract (`ParallelAll`, OVERVIEW §8.2's pool row) a
+  premise on the instance, for every `Step`.  The per-job heartbeat is the instance's
+  (around each step), so a step needs no escape.
+* **`main` is plumbing**: argv, the big-stack thread, `StdIo`, `run_args`, flush, exit.
+* **A mode not yet ported runs behind an escape** whose answer is the exit code — a theorem about
+  that mode is then unprovable, and a theorem about another argument list unaffected (it fixes
+  the argv, and the verified argument parser routes it).  `--schedule` stays an escape for
+  good, as con-leche's scheduler is `liftIO`.
+* **A con-ron `Native` error never shares the file operations' error channel**: con-leche's
+  driver catches `IO.Error` in lookups (`rootAt`, `readPartOr`), where "out of capacity" read as
+  "not here" could steer a run to exit 0 by another route.  `Native` always ends nonzero.
+* Option B (`run_args` exit 0 ⇒ `ModelIO.CanGive (Driver.runArgs args) fs 0`, inheriting
+  con-leche's theorems) was weighed and deferred: con-leche's driver carries the CACHED checker's
+  accept at the fixed `checkFuel` (`checkDeclsIO`'s `PLift`, `oleanJobRun` in the model), and
+  Theorem 1 ends at `∃ F, checkDeclsPure …`.  It becomes a rewrite of the conclusion if con-leche
+  ever weakens that evidence to the pure accept; porting the driver to follow `Cli.lean`'s
+  structure keeps the door open.
+
 ## 4. Sizing
 
 From the census of con-leche at 3e004805 (implementation only):
@@ -73883,3 +73925,63 @@ not reach (dead-census).
 `olean-compare` has no `--home`/`--reads`/`--reach` modes (the only diff-olean rows still failing);
 read-once tables if a profile asks; the run-style Theorem 1 of `Bridge/Modular/**` is a candidate
 for the `sym => vcgen <;> finish` shape.
+
+
+### Task #171 — the main theorems about the binary: the driver over `CheckerIo` (2026-11-22, Opus)
+
+The decision and its reasons are §3.9.  This section is the plan, then each slice's record.
+
+**The target.**  `proof/ConRon/MainTheorem.lean`, the twin of `ConLeche/MainTheorem.lean`: the
+same theorem names, the same premises' shape, the same conclusions *verbatim* (con-leche's
+`IsModel`, `parseChunks`, `constantsOf`, `Olean.closureConstants`, `InClosure`,
+`moduleConstants`, `Sees`, `jsonWithTheoremFalse`, …).  The only change in each statement is the
+run premise: con-leche's `ModelIO.CanGive (Driver.runArgs args) fs 0` is con-ron's
+`ConRon.CanGive args fs 0`:
+
+```lean
+/-- **An exit code `c` of con-ron at the argument list `args`, on the files `fs`**: the
+extracted driver returns `c` at an IO instance whose file operations answer as `fs`, at every
+state, and whose worker map keeps its contract. -/
+def CanGive (args : List String) (fs : ConLeche.FS) (c : UInt8) : Prop :=
+  ∃ (S : Type) (io : frontend.checker_io.CheckerIo S) (s s' : S) (c' : Std.U8),
+    io.AnswersAs fs ∧ io.PoolSound ∧
+    driver.cli.run_args io s (argv args) = ok (c', s') ∧ c'.val = c.toNat
+
+theorem main_json_model (V : Type w) [SetTheory V] {file : String} {fs : FS} {b : ByteArray}
+    (h : ConRon.CanGive ["--", file] fs 0) (hb : fs.file file = some b) :
+    ∃ r, parseChunks [b] = .ok r ∧ ∃ model, IsModel V model (· ∈ constantsOf r.decls.toList)
+```
+
+`argv args` is each string's code points (con-ron's string representation, `absString`'s
+inverse).  `AnswersAs` is `Capstone.lean`'s `SnapshotOf` at every state; `PoolSound` is
+`ParallelAll` for every `Step`.  What a run of the binary must satisfy to be one of `CanGive`'s
+is OVERVIEW §8.2's new driver row, as `CheckerIO.lean`'s module doc is con-leche's: `StdIo`'s
+answers are one snapshot's, the escapes write no file and do not end the process, the pool
+keeps its contract, `main` does what it says.  The current Capstone headlines stay as the
+lemmas the main theorems are proved from; the root theorems of §5's census become
+`MainTheorem.lean`'s.
+
+**The Rust.**  `crates/con-ron-core/src/frontend/checker_io.rs` (the traits) and
+`crates/con-ron-core/src/driver/` — one module per `ConLeche/Driver/*.lean` file con-ron has
+(`cli`, `dispatch`, `check_main`, `compare`, `compare_json`, `modular`, `graph`, …), in
+`provenance.py`'s discipline.  The stream read is a positional-read loop over
+`CheckerFs::read_range` (`ChunkSource` and `OleanFs` go, folded into `CheckerFs`); `StdIo`
+serves a non-seekable file (a pipe) by reading its handle forward and failing a read at any other
+offset.  `crates/con-ron` keeps `StdIo`, the rendering, the heartbeat, the pool, the scheduler
+and `main`.
+
+**Two lanes, then the slices.**
+* **Lane C (conclusions)**, no Rust: for each mode, a theorem with the Capstone's step premises
+  and con-leche's conclusion — `RustDenotes … ∧ Nonempty (Model V env)` to `∃ r, parseChunks
+  [b] = .ok r ∧ ∃ model, IsModel V model (· ∈ constantsOf r.decls.toList)` (con-leche's
+  `json_isModel` does this at the cached accept with `model_exists` and
+  `constantsOf_preparePrelude`), the `--olean` one to `IsModel V model (Olean.closureConstants …)`
+  (con-leche's `oleans_isModel` reads the cached accept through `Olean.checkDecls_inputStored`;
+  con-ron has the pure accept, so a pure analogue is the likely work), and the compare ones.
+* **Lane D (driver)**: the traits, `StdIo`, the verified argument parser (`Cli.lean`'s, all
+  of it), `run_args` with the `-- <file>` path verified and every other request behind the
+  legacy escape; extraction; `CanGive`; the walk of `run_args` at `["--", file]` to Lane C's
+  theorem.  Slice 1 is `main_json_model` and `main_no_False`.
+* Slices 2–4 move `--olean` (+ `--check-graph`, `--module`, `--modular`), then the compared
+  runs, from the legacy escape into verified code, each with its main theorems; slice 5 retires
+  the legacy escape, rewrites OVERVIEW §3 around `MainTheorem.lean` and §8.2's driver row.
