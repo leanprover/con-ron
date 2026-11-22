@@ -73883,3 +73883,60 @@ not reach (dead-census).
 `olean-compare` has no `--home`/`--reads`/`--reach` modes (the only diff-olean rows still failing);
 read-once tables if a profile asks; the run-style Theorem 1 of `Bridge/Modular/**` is a candidate
 for the `sym => vcgen <;> finish` shape.
+
+### Task #170 — the help text and OVERVIEW for the modular modes; a simple `--schedule` (2026-11-22, Opus)
+
+**Help.**  `con-ron --help`'s synopsis has con-leche's `--olean --module`, `--olean --modular`,
+`--olean --schedule[-OPT=V]` lines and the `--module|--modular|--schedule[-OPT=V] --compare`
+form (Cli.lean:116-132); the `.olean` options describe `--module`, `--modular`, `--schedule` and
+its settings, and `--compare`/`--trusted-search-path` in the modular modes, as con-leche's
+helpText does.  The "not run by con-ron yet" section is gone; what is left of it names the two
+scheduler settings con-ron does not run, `--schedule-log` and `--schedule-memory`.  The twin's
+`synopsis`/`helpText` (`Arena/Main.lean`) gain the same `--module`/`--modular` lines and say the
+twin does not run `--schedule` (its usage error now reads "… is not supported by con-ron-lean").
+The two help texts are **not** byte-identical and never were: the binary's name, `--jobs` (the
+twin has one worker), `--pins` (Rust only), the shorter compare descriptions of the twin and the
+Rust's allocator line differ; no script compares them (`diff-e2e`/`diff-olean --lean` compare exit
+codes and verdict lines, not `--help`).
+
+**`--schedule`** (`crates/con-ron/src/schedule.rs`, unverified, as upstream's scheduler is).  After
+the graph check (in-process, the call `--check-graph` makes), the worker commands
+`--schedule-commands` prints, in its start order (`--schedule-order`), each with `--jobs=1`, run as
+children of `current_exe()`, at most `--jobs` at a time (default: con-ron's, one per hardware
+thread up to 16); stdin closed, stdout dropped, stderr kept.  One line per finished worker on
+stdout (`[k/n]  t=…s  FAILED <v>  M`); at the end each failing module's verdict and last stderr
+line, the stack hint after a `stack`, then upstream's verdict line and rule (`summary`): `accepted
+N modules, one worker each (MODE)`, or `K of N modules not accepted; the first in the graph's
+order: M (v) (MODE)` with exit 1/2 for those verdicts, 3 otherwise.  Verdicts as `exitVerdict`:
+0-3, `exit N`, `stack` (SIGABRT with Lean's or Rust's overflow message), `signal N (NAME)`; no
+`oom-kill`.  `--schedule-timeout=S` kills a worker after S s (verdict `timeout`).
+`--worker-stack-size` is passed as `LEAN_STACK_SIZE_KB`, and con-ron now **reads
+`LEAN_STACK_SIZE_KB`** as a Lean binary does (`driver::stack_bytes`: the checking thread, the pool
+workers and the `--modular` job workers; `STACK_BYTES`, 1 GiB, where unset) — without that the
+flag meant nothing to a con-ron worker.  Left out: the memory budget and kills, the thread
+budget, the log and resume, the status part and heartbeat (a `--progress=N|Ss` is accepted and
+ignored; a percentage is refused as upstream's), signal handling.  `--schedule-log` and
+`--schedule-memory` are usage errors ("… is not supported by con-ron's --schedule", exit 3) after
+upstream's validation of their values; with `--schedule-commands` they stay ignored, as upstream's.
+
+**OVERVIEW.**  §1.1 "con-ron and con-leche: what differs" (the simple scheduler, `olean-compare`'s
+missing modes, the one-thread parse — the 61.6 GB / ~440 s vs ~36 s figure is the maintainer's,
+not re-measured here — the declines at resource limits, the message wording, `--constant`
+outside the theorems); §2.1's synopsis and the `--schedule` bullet; "Running a modular check"
+(`--modular` in one process; `--schedule-commands` + `xargs -P`/`parallel`, the snapshot
+condition; both covered by `model_modular`); §3.5 says what `--schedule` claims.
+
+**Checks.**  diff-olean **510/560** as expected, **9 NOT PORTED** (was 462/560, 57): the rows
+that use `--schedule-log` (one worker per module, the log resumed, the stack verdict and hint,
+the stack log line, resumed and retried at a size) or `--schedule-memory` (the last module's
+counts, 512M); the 41 rows still failing are `olean-compare`'s `--home`/`--reads`/`--reach`, as on
+master.  Every other `--schedule` row agrees, the stack ones included (`LEAN_STACK_SIZE_KB=1024`
+makes StackDeep's worker overflow: `FAILED stack`).  The patch's NOT PORTED marker is now
+"not supported by con-ron" (`.pin` suffix `np2`).  diff-e2e command-line gate 18/18 (three new
+`--schedule` cases).  `--olean --schedule --jobs=8 -- Init`: 668 modules, every worker 0, exit 0
+(7 s wall, one run).  The `--schedule-commands` recipe on `Init`: the graph check `acyclic: 668
+modules, 3507 import edges`, then all 668 workers under `xargs -P 8` exit 0; `--olean --modular
+--jobs=8 -- Init` accepts 668 modules.
+
+**Left.**  The scheduler's log, memory budget and thread budget, if a user needs them; the twin
+does not run `--schedule`.
