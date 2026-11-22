@@ -8,7 +8,7 @@
 //!   → build_index → freeze_tier → infer_flags → the jobs from `start`
 //! ```
 //!
-//! — one call per premise of the capstone's worker (`ConRon.MainTheorem.Stages`'s
+//! — one call per premise of the staged lemmas' worker (`ConRon.MainTheorem.Stages`'s
 //! `rust_worker_of`), on one `AState::empty()` and one `PersTier::empty()`.
 //! The run's one check puts its jobs on the instance's worker map; a module of
 //! `--modular` runs them in order on its own thread (its worker count is 1),

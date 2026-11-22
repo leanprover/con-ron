@@ -3,16 +3,16 @@ import ConRon.MainTheorem.PureStored
 import ConLeche.Verify.Frontend.StreamModel
 
 /-!
-# `ConRon.MainTheorem.Conclusions` — the Capstone's headlines, concluding in con-leche's words
+# `ConRon.MainTheorem.Conclusions` — the staged lemmas, concluding in con-leche's words
 
 con-leche's main theorems (`ConLeche/MainTheorem.lean`) conclude in the vocabulary of its
 specification: `parseChunks [b]`, `IsModel`, `constantsOf`, `Olean.closureConstants`,
-`jsonWithTheoremFalse`.  The Capstone's headlines (`ConRon/MainTheorem/Stages.lean` §4) end at the twin's
+`jsonWithTheoremFalse`.  The staged lemmas (`MainTheorem/Stages.lean` §4) end at the twin's
 denotation instead (`RustDenotes … ∧ Nonempty (Model V env)`).  Each theorem here has the step
-premises of one Capstone headline, the pins the binary's embedded ones (the `_embedded` forms),
+premises of one staged lemma, the pins the binary's embedded ones (the `_embedded` forms),
 and con-leche's conclusion verbatim:
 
-| here | its Capstone premises | con-leche's conclusion |
+| here | its staged premises | con-leche's conclusion |
 |---|---|---|
 | `json_model_of_stages` | `model_exists_embedded` | `main_json_model` |
 | `json_no_False_of_stages` | `no_False_declaration_embedded` | `main_no_False` |
@@ -30,7 +30,7 @@ it (`concatBytes_readsFrom`'s shape).
 (`Driver.searchPathOf dirs`, `trustedOr`) and the roots by `parseModName`; here they are the
 Rust's own (`absSearchPath dirs`, `absName`), which the driver's argument parser bridges.
 
-The proofs are composition: the Capstone's Theorem 2 walks (`rust_stages*`), then
+The proofs are composition: the staged lemmas' Theorem 2 walks (`rust_stages*`), then
 `MainTheorem/PureStored.lean`'s stage lemmas, which are con-leche's `json_isModel`,
 `compare_json_isModel`, `oleans_isModel` and `compare_isModel` re-proved at the PURE accept
 Theorem 1 gives.

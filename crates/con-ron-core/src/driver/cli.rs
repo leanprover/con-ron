@@ -2,8 +2,8 @@
 //! flag con-ron takes, and `run_args`, the binary's `main` but its plumbing
 //! (DESIGN.md §3.9, task #171).
 //!
-//! The parse is `crates/con-ron/src/bin/con-ron.rs`'s `parse_args`, clause for
-//! clause, over code points: the same flags in the same order, the first bad
+//! The parse is con-leche's `parseArgs`, clause for clause, over code points:
+//! the same flags in the same order, the first bad
 //! argument the one reported (`Bad`, rendered by the instance in the binary's
 //! words).  `run_args` runs `--help`, the usage errors, the check of one
 //! lean4export file (`check_main`), the comparison of two (`compare_json`),

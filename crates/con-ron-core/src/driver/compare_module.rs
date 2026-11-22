@@ -9,7 +9,7 @@
 //! before the compared graph check, with a trusted path the challenge's closure
 //! is walked through the trusted path alone (`chal_walk`): a module of it only
 //! the search path holds is invalid input.  The walk is its verdict only, so it
-//! runs on a store of its own; the run's store is the capstone's, untouched by
+//! runs on a store of its own; the run's store is the staged lemma's, untouched by
 //! it.
 
 use crate::arena::handle::NIdx;

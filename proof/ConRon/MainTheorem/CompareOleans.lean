@@ -5,7 +5,7 @@ import ConRon.MainTheorem.CompareJson
 # `ConRon.MainTheorem.CompareOleans` — the walk of `--olean --compare -- C S`
 
 **Task #171, slice 3b** (DESIGN.md §3.9).  An exit 0 of `driver::compare::compare_oleans` is the
-compared capstone's step premises (`CmpOleanStages`), at the driver's calls: each read's
+compared staged lemma's step premises (`CmpOleanStages`), at the driver's calls: each read's
 records moved out before its preparation, and the reads, the solution's pool and the
 challenge's pool each at a state of the instance of its own
 (`rust_stages_oleans_compare_dec`, `compare_model_of_stages_dec`: lane C's
@@ -32,7 +32,7 @@ set_option autoImplicit false
 
 universe w
 
-/-! ## The capstone at the driver's calls -/
+/-! ## The staged lemma at the driver's calls -/
 
 /-- `Stages.rust_stages_oleans_compare` at the driver's calls: each read's records moved out
 before its preparation (`{ rd with decls := v }`, what a record mentions is read off the merged

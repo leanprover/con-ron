@@ -9,7 +9,7 @@ extracted `driver::cli::run_args`, generic over the trait `frontend::checker_io:
 instance — its file operations answer as one snapshot of the files at every state
 (`AnswersAs`), its worker map keeps the pool's contract for every job (`PoolSound`) — and walks
 the Aeneas model of `run_args` at the argument list `["--", file]`: an exit 0 there is one
-premise per step of the capstone (`ConRon.MainTheorem.Stages.model_exists_embedded`'s `h1` … `h8`, at the
+premise per step of the staged lemma (`ConRon.MainTheorem.Stages.model_exists_embedded`'s `h1` … `h8`, at the
 binary's start values, the embedded pins), with the chunks the reads returned concatenating to
 the file's bytes (`run_args_json`).
 
@@ -485,7 +485,7 @@ section CheckMain
 
 variable {S : Type} {io : frontend.checker_io.CheckerIo S} {fs : ConLeche.FS}
 
-/-- `PersTier::empty()` is the capstone's `emptyTier`. -/
+/-- `PersTier::empty()` is the staged lemmas' `emptyTier`. -/
 theorem emptyTier_eq : arena.store.PersTier.empty = ok emptyTier := by
   simp only [arena.store.PersTier.empty, arena.store.Tbl.empty, arena.store.ETables.empty,
     arena.store.LsTables.empty, arena.store.LTables.empty, arena.store.NTables.empty,
@@ -535,7 +535,7 @@ theorem embedded_pins_ok {F : Type} {wn : frontend.checker_io.WorkerNotes F} {fs
     cases Result.ok_injective h
 
 /-- **The check phase, accepted** (`check_main::check_phase`, with the solution `sol`): the
-capstone's `h6`, `h7` and `h8` — the index from the empty one, the tier frozen, and the worker
+staged lemmas' `h6`, `h7` and `h8` — the index from the empty one, the tier frozen, and the worker
 map's contract at the driver's job (`ParallelAll` at `jobStepSol`) — and the thaw hands back
 the index and the state the index build left (`freeze_tier_ok`). -/
 theorem check_phase_ok (hpool : PoolSound io) {s s' : S}
@@ -591,7 +591,7 @@ theorem check_phase_ok (hpool : PoolSound io) {s s' : S}
       rw [hstep] at hpa
       exact hpa
 
-/-- **What an exit 0 of `-- <file>` ran**: the capstone's step premises, in the binary's order,
+/-- **What an exit 0 of `-- <file>` ran**: the staged lemmas' step premises, in the binary's order,
 at its start values and the embedded pins, with the chunks the reads returned concatenating to
 the file's bytes `b` — every premise of `ConRon.MainTheorem.Stages.model_exists_embedded` and
 `no_False_declaration_embedded`. -/
@@ -636,7 +636,7 @@ theorem hoisted_bind {α β : Type} {c : Prop} [Decidable c] {m : Result Unit} {
     exact h
 
 /-- **The check of a lean4export file, 0** (`check_main::check_main` at `--verified`, the
-embedded pins): its calls are the capstone's step premises (`JsonStages`). -/
+embedded pins): its calls are the staged lemmas' step premises (`JsonStages`). -/
 theorem check_main_zero (hfs : AnswersAs io fs) (hpool : PoolSound io) {s s' : S}
     {a : driver.cli.Args} (hver : a.verified = true)
     {file : alloc.vec.Vec Std.U32} {q : System.FilePath}
@@ -708,7 +708,7 @@ end CheckMain
 /-! ## The run of `["--", file]` -/
 
 /-- **An exit 0 of `["--", file]`** (`cli::run_args`): the verified driver checked the file, at
-`--verified` and the embedded pins, and its calls are the capstone's step premises with the
+`--verified` and the embedded pins, and its calls are the staged lemmas' step premises with the
 chunks read concatenating to the file's bytes. -/
 theorem run_args_json {S : Type} {io : frontend.checker_io.CheckerIo S} {fs : ConLeche.FS}
     (hfs : AnswersAs io fs) (hpool : PoolSound io) {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)}

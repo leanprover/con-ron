@@ -292,7 +292,7 @@ pub struct FileChunks<'a, F: CheckerFs> {
     pub off: u64,
     /// the reads that answered so far: a `usize`, so that the chunks they
     /// handed out are a list a `usize` indexes (`Vec<Vec<u8>>`, the form the
-    /// capstone's `parse_chunks` is stated over) on every platform
+    /// staged lemmas' `parse_chunks` is stated over) on every platform
     pub reads: usize,
     /// the first read failure, if any
     pub err: Option<Vec<u32>>,

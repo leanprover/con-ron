@@ -318,7 +318,7 @@ theorem solution_failed_ne {s s' : S} {pers st ds e i sl ver} {c : Std.U8}
 
 end CompareJson
 
-/-- **What an exit 0 of `--compare -- C S` ran**: the capstone's step premises, in the binary's
+/-- **What an exit 0 of `--compare -- C S` ran**: the staged lemmas' step premises, in the binary's
 order, at its start values and the embedded pins, with the challenge's chunks concatenating to
 the challenge file's bytes `bC` — every premise of `compare_json_model_of_stages`. -/
 inductive CompareJsonStages (bC : ByteArray) : Prop where
@@ -373,7 +373,7 @@ variable {S : Type} {io : frontend.checker_io.CheckerIo S} {fs : ConLeche.FS}
 
 /-- **The comparison of two lean4export files, 0** (`compare_json::compare_json` at
 `--verified`, the embedded pins): the challenge's file is in the snapshot, and the run's calls
-are the capstone's step premises (`CompareJsonStages`). -/
+are the staged lemmas' step premises (`CompareJsonStages`). -/
 theorem compare_json_zero (hfs : AnswersAs io fs) (hpool : PoolSound io) {s s' : S}
     {a : driver.cli.Args} (hver : a.verified = true)
     {chal sl : alloc.vec.Vec Std.U32} {qc qs : System.FilePath}
@@ -493,7 +493,7 @@ end CompareJson
 
 /-- **An exit 0 of `["--compare", "--", c, s]`** (`cli::run_args`): the verified driver
 compared the two files, at `--verified` and the embedded pins; the challenge's file is in the
-snapshot and its calls are the capstone's step premises. -/
+snapshot and its calls are the staged lemmas' step premises. -/
 theorem run_args_compare {S : Type} {io : frontend.checker_io.CheckerIo S} {fs : ConLeche.FS}
     (hfs : AnswersAs io fs) (hpool : PoolSound io) {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
     {c s : String} (hargv : ArgvOf argv ["--compare", "--", c, s]) {x x' : S} {code : Std.U8}

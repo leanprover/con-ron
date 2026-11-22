@@ -1,6 +1,6 @@
-//! `driver::check_main` — con-leche's `Driver/CheckMain.lean` on a lean4export
-//! file: the pipeline `crates/con-ron/src/bin/con-ron.rs`'s `check_main` ran
-//! (DESIGN.md §3.9, task #171), now over `CheckerIo`.
+//! `driver::check_main` — con-leche's `Driver/CheckMain.lean`: the check of a
+//! lean4export file and of an `.olean` closure, over `CheckerIo` (DESIGN.md
+//! §3.9, task #171).
 //!
 //! ```text
 //! intern_reserved_pins → builtin_prelude_e → parse_source (FileChunks)
@@ -8,7 +8,7 @@
 //!   → build_index → freeze_tier → par_map_workers (JobStep) → thaw_tier
 //! ```
 //!
-//! — one call per step premise of the capstone (`ConRon.MainTheorem.Stages`'s
+//! — one call per step premise of the staged lemmas (`ConRon.MainTheorem.Stages`'s
 //! `h1`…`h8`), in that order, on one `AState::empty()` and one
 //! `PersTier::empty()`.  What a run prints goes through the instance's
 //! notifications (`Note` and the store-reading ones), whose rendering is the
@@ -442,8 +442,7 @@ pub fn verdict_of<I: CheckerIo>(
 }
 
 /// con-leche: ConLeche/Driver/CheckMain.lean:268-458 checkMainG
-/// **The check of one lean4export file** — `bin/con-ron.rs`'s `check_main`
-/// on `Input::Ndjson`, step for step: the reserved pins, the heartbeat's first
+/// **The check of one lean4export file**, step for step: the reserved pins, the heartbeat's first
 /// line, the prelude, the streaming parse over the file's reads, the
 /// preparation and its receipt, the pin list, the pin walk, the check phase,
 /// the verdict; the exit code.  The verdict path hands the heap to the

@@ -7,7 +7,7 @@ import ConRon.MainTheorem.Conclusions
 
 **Task #171, slice 2** (DESIGN.md §3.9).  An exit 0 of `run_args` at
 `["--olean", "--search-path=" ++ dirs, "--", root]` is every step premise of the `--olean`
-capstone (`OleanStages`), the root the module `parseModName root` names and the lookup
+staged lemma (`OleanStages`), the root the module `parseModName root` names and the lookup
 `searchPathOf dirs`; lane C's conclusion then gives con-leche's `main_oleans`.
 
 | lemma | what it walks |
@@ -280,7 +280,7 @@ section Walk
 
 variable {S : Type} {io : frontend.checker_io.CheckerIo S} {fs : ConLeche.FS}
 
-/-- **The names interned** (`check_main::intern_names`): the capstone's `InternRoots`, at
+/-- **The names interned** (`check_main::intern_names`): the staged lemmas' `InternRoots`, at
 well-formed names. -/
 theorem intern_names_loop_roots {pers : arena.store.PersTier} {ns : alloc.vec.Vec kernel.name.Name}
     (hwf : ∀ n ∈ ns.val, ConRon.Refine.NameWF n) :
@@ -329,7 +329,7 @@ theorem intern_names_roots {pers : arena.store.PersTier} {ns : alloc.vec.Vec ker
   simpa using hir
 
 /-- **The check phase of an `.olean` run, accepted** (`check_main::check_phase_olean`): the
-capstone's `h6`, `h7` and `h8` — the index from the empty one, the tier frozen, and the worker
+staged lemmas' `h6`, `h7` and `h8` — the index from the empty one, the tier frozen, and the worker
 map's contract at the `.olean` job at the solution `sol` (`oleanJobStepSol`), its reads at the
 state the map ran at; the thaw hands back the index and the index build's state. -/
 theorem check_phase_olean_ok (hpool : PoolSound io) {s s' : S}

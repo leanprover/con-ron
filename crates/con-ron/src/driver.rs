@@ -1,17 +1,11 @@
-//! `driver` — con-leche's `Driver/{Cli,CheckMain,Run}.lean`, over the ARENA (tasks #37, #48 and
-//! #97-P4f), and the Rust side of the Lean twin's
-//! `proof/ConRon/Arena/Main.lean`.
-//!
-//! The module is that driver in its order: the reads,
-//! the index and the check phase with the boundary visible, the `--progress` heartbeat behind
-//! one observer trait, the verdict lines, the exit-code mapping, and the flag
-//! parsers.  Task #97-SWAP put it here, under the name the shipping driver
-//! always had: it was `crates/con-ron-arena/src/driver.rs` through the arena
-//! campaign, beside the `Expr`-tree driver it has now replaced, and the
-//! eleven representation-free items it used to import across the crate line
-//! ([`exit_code`], `verdict_word`, `message`, `ms_secs`, `progress_pace`,
-//! `jobs_count`, `default_jobs`, [`workers_for`],
-//! `read_up_to`, `STACK_BYTES`) are back in it, unchanged.
+//! `driver` — what the binary's instance (`std_io::StdIo`) renders and runs
+//! with, from con-leche's `Driver/{Cli,CheckMain,Run,CheckPool}.lean`: the
+//! checking threads' stack, the flag values' messages (the verified parser's
+//! `Bad` values are rendered with these functions, so the two cannot drift),
+//! the exit-code mapping, the hardware worker count, the `--progress`
+//! heartbeat, the worker map's verdict, the verdict lines and the labels the
+//! arena has to read back.  The driver itself is the verified
+//! `con_ron_core::driver`; everything here is outside the theorems.
 //!
 //! ## THE EXIT CODES
 //!
@@ -21,45 +15,6 @@
 //! | 1 | `rejected` | a declaration is invalid |
 //! | 2 | `declined` | the checker positively detected a feature it does not support, and says which |
 //! | 3 | error | bad usage, malformed input, or an internal failure of unclear cause |
-//!
-//! ## What the arena changed about the driver
-//!
-//! 1. **The state is one `AState`** (`con_ron_core::arena::monad::AState`: the
-//!    store, the per-call memos, the per-declaration caches), threaded as a
-//!    `&mut` through the parse, the preparation, the pin walk and the index.
-//!    The `Expr`-tree driver threaded a `CState` and the declarations carried
-//!    their own terms; here the terms are in the state and the records are
-//!    handles into it, so nothing may be run against a state that is not the
-//!    one they were interned into.
-//! 2. **`intern_all_pins` runs once, before the index, with the scratch tier
-//!    off** (DESIGN.md §8.6 P2d, task #97-P4d's "for P4f"): every pinned datum
-//!    is in the PERSISTENT cons table before any declaration's check can
-//!    intern one into a tier that is about to vanish.  Its result — the
-//!    interned pin list — is every job's parameter.
-//! 3. **A job's bracket is `record_job`'s**, which empties the scratch tier
-//!    around each job.  A driver that checked records itself without it would
-//!    grow the scratch tier without bound; the pool calls it once per job and
-//!    nothing else opens a tier.
-//! 4. **The check phase runs on [`crate::pool`] at every `--jobs=<n>`**, which
-//!    is DESIGN.md §8.3's arrangement and needs no atomics: the persistent tier
-//!    and the stream's index are immutable once frozen, so they are shared by
-//!    reference, and each worker owns a scratch tier, its own caches and a copy
-//!    of the pin handles.  `--jobs=1` is the same jobs on one worker.
-//!
-//! ## The read loop
-//!
-//! [`parse_export_handle_d`] is `ConLeche/Frontend/CheckerIO.lean`'s
-//! `foldChunks` over forward reads (its positional reads and its parallel
-//! rounds parse are not ported): the VERIFIED loop `export_c::parse_source` (task
-//! #97-P5-Driver moved it into the core) over [`HandleSource`], the handle
-//! read strictly forward 4 MiB at a time, each buffer fed to `chunk_step` and
-//! dropped, the first empty read its end of file and `chunk_finish` the
-//! close.  Never seeked, never re-opened, and no scratch file
-//! exists; the input is a regular file, checked before it is opened.
-//! `parse_source` is `export_c::parse_chunks` over the chunks read — a
-//! theorem (`Refine2/Frontend/Source.lean`), under the one hypothesis about
-//! the input the binary trusts: that the reads are the file's bytes, in
-//! order.
 
 use std::time::Instant;
 

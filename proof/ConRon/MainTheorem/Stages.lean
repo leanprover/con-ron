@@ -23,47 +23,43 @@ import ConRon.Refine2.Modular.ReachCheck
 import ConRon.Refine2.Checker.PoolFrom
 
 /-!
-# `ConRon.MainTheorem.Stages` — THE COMPOSITION: Theorem 2 ∘ Theorem 1 ∘ con-leche
+# `ConRon.MainTheorem.Stages` — the staged lemmas: Theorem 2 ∘ Theorem 1 ∘ con-leche
 
-DESIGN.md §8.2's last line: *"Capstones for the binary = Theorem 2 ∘
-Theorem 1 ∘ con-leche."*  This is the one module that imports both
-`ConRon.Bridge` (Theorem 1, (B) ⇒ (A)) and `ConRon.Refine2` (Theorem 2,
-(C) ⇒ (B)), and it states the binary's headline theorems:
+The main theorems (`ConRon/MainTheorem.lean`) are proved from these lemmas.  Each states, for
+one mode of the binary, what follows from the verified calls the driver makes in that mode:
+one premise per call, in the driver's order, each starting from the state the previous one
+left and the first from the binary's own start values.  The driver walks of
+`MainTheorem/*.lean` take an exit 0 of the extracted driver `run_args` to exactly these
+premises, and `MainTheorem/Conclusions.lean` turns the conclusions here into con-leche's words.
+This is the one module that imports both `ConRon.Bridge` (Theorem 1, (B) ⇒ (A)) and
+`ConRon.Refine2` (Theorem 2, (C) ⇒ (B)):
 
-* `ConRon.MainTheorem.Stages.model_exists` — the environment of every stream the Aeneas
-  model of the Rust pipeline accepts has a model in every set theory;
-* `ConRon.MainTheorem.Stages.no_False_declaration` — a file that declares a theorem of
-  type `False` is never accepted by it;
-* `no_False_oleans` / `model_exists_oleans` — the same on `--olean`;
+* `model_exists` / `no_False_declaration` — a lean4export file (`driver::check_main`);
+* `no_False_oleans` / `model_exists_oleans` — the same on `--olean` (`check_main::check_oleans`);
 * `model_exists_compare` / `no_False_compare` and `model_exists_oleans_compare` /
-  `no_False_oleans_compare` — the same for a challenge checked with its axioms justified by
-  a solution (`--compare`, §4b and §4c), about the challenge alone.
+  `no_False_oleans_compare` — a challenge checked with its axioms justified by a solution
+  (`driver::compare_json`, `driver::compare`; §4b and §4c), about the challenge alone;
+* `model_modular` and its compared forms — the graph check and a module's worker
+  (`driver::graph`, `driver::worker`, `driver::modular`, `driver::compare_module`).
 
-**They are the campaign's root theorems** (task #97-COMPOSE): the sorry
-frontier is measured as their dependency closure, and §5's census prints their
-axioms.  What they assume is exactly their premises, listed below.
+The calls are marked `// ConRon.MainTheorem.Stages: <premise>` in the driver's Rust.
 
 ## The pipeline, stage by stage
 
-The binary (`crates/con-ron/src/bin/con-ron.rs`) is an unverified driver
-around the extracted core functions and the pin decoder, in this order, on
-one `AState` made from `EStore::empty()` and one `PersTier::empty()`:
+On a lean4export file the driver (`crates/con-ron-core/src/driver/check_main.rs`) calls, in
+this order, on one `AState` made from `AState::empty()` and one `PersTier::empty()`:
 
-    intern_reserved_pins → builtin_prelude_e → parse_source
-      → prepare_d → (decode) → intern_all_pins → (the check phase)
+    intern_reserved_pins → builtin_prelude_e → parse_source (FileChunks)
+      → prepare_d → decode_embedded → intern_all_pins → (the check phase)
 
-**The check phase is the one the binary's driver runs, pool and all**
-(`driver::check_decls_driver`): it builds the stream's index from the records
-(`stream_index::build_index`), freezes the tier with the index in it
-(`checker::freeze_tier`), runs every record's job on `pool::parallel_all`, and
-thaws the tier.  The headlines take one premise per step (`h6` the index, `h7`
-the freeze, `h8` the pool), which `poolAccepts_intro` assembles into
-`Refine2/Checker/Phased.lean`'s `PoolAccepts`.  `h8` is the contract of the generic
-combinator `pool::parallel_all` at the driver's two verified closures (`ParallelAll`
-at `jobStep`): index lists, one per worker, covering every job, each in increasing
-order, and for each a fold of `run_job` over its indices from `worker_state`,
-accepting.  That contract is the pool's trusted claim (OVERVIEW §8.2): control flow of
-`pool.rs`, nothing about the checker.
+**The check phase** (`check_main::check_phase`) builds the stream's index from the records
+(`stream_index::build_index`), freezes the tier with the index in it (`checker::freeze_tier`),
+runs every record's job on the instance's worker map, and thaws the tier.  The lemmas take one
+premise per step (`h6` the index, `h7` the freeze, `h8` the map), which `poolAccepts_intro`
+assembles into `Refine2/Checker/Phased.lean`'s `PoolAccepts`.  `h8` is the worker map's
+contract (`PoolSound`) at the driver's step (`ParallelAll` at `jobStep`): index lists, one per
+worker, covering every job, each in increasing order, and for each a fold of `run_job` over its
+indices from `worker_state`, accepting.
 
 The proof:
 
@@ -78,17 +74,17 @@ The proof:
 
 ## The named hypotheses
 
-The headlines start from the binary's own start values (`startState` =
+The lemmas start from the binary's own start values (`startState` =
 `AState::empty()`, `emptyTier` = `PersTier::empty()`) and name the call the
-binary makes at each step.  Beside `[ConLeche.SetTheory V]`, the file's shape
+driver makes at each step.  Beside `[ConLeche.SetTheory V]`, the file's shape
 `hfalse` and the one premise per call (`h1`…`h5`, `hpins`, `h6`…`h8`), what
 they assume is exactly:
 
-* `hreads : ReadsAs sinst src chunks.val` — the reads are the chunks: the binary
-  parses with the verified reader loop `parse_source` over the driver's file
-  handle, and `Refine2/Frontend/Source.lean`'s `parse_source_eq` makes that
-  `parse_chunks` over the chunks the handle hands out; that the handle hands out
-  the file's bytes, in order, is the input seam;
+* `hreads : ReadsAs sinst src chunks.val` — the reads are the chunks: the driver
+  parses with the verified reader loop `parse_source` over `FileChunks`, and
+  `Refine2/Frontend/Source.lean`'s `parse_source_eq` makes that `parse_chunks` over
+  the chunks the reads hand out; the walk proves the reads are the file's bytes in
+  the snapshot (`fileChunks_loop`);
 * on `--olean`, `hsnap : SnapshotOf finst fsv F` — the file instance answers as
   one snapshot `F`.
 
@@ -186,8 +182,8 @@ end Rust
 /-! ## The `.olean` path at the Rust
 
 The driver's calls on `--olean` are `rust_stages`'s, the stream's two replaced: the roots' names
-interned one by one (`bin/con-ron.rs`, `olean_fs::read_request`), and `records::read_oleans` over
-the store, at the instance `olean_fs::StdFs`; the preparation reads what a record uses off the
+interned one by one (`check_main::intern_names`), and `records::read_oleans` over the store, at
+the instance's file operations; the preparation reads what a record uses off the
 read (`prepare_d` at the `OleanRead`), and each theorem's job reads its value from its file. -/
 
 section RustOleans
@@ -235,7 +231,7 @@ theorem fsRel_of_snapshot {Fs : Type} {inst : frontend.checker_io.CheckerFs Fs} 
     obtain ⟨whole, h1, h2⟩ := h.file_size hp s hs
     simp only [ConRon.Bridge.Frontend.Olean.modelFs, h1, h2]
 
-/-- **The driver's loop over the roots** (`olean_fs::OleanRequest::intern`): each name interned, the
+/-- **The driver's loop over the roots** (`check_main::intern_names`): each name interned, the
 next from the state the last left.  A name's strings are code points (`NameWF`); the command line's
 are, by `parse_mod_name`. -/
 def InternRoots (pers : arena.store.PersTier) :
@@ -340,9 +336,8 @@ end RustOleans
 
 /-! ## 3. The binary's start values, and what its records denote
 
-`check_main` starts from `AState::empty()` (`bin/con-ron.rs:332`, which is
-`AState::init(EStore::empty())`) and `&PersTier::empty()`
-(`bin/con-ron.rs:339`).  The Aeneas model of each is a `Result` that is
+The driver starts every run from `AState::empty()` (which is
+`AState::init(EStore::empty())`) and `PersTier::empty()`.  The Aeneas model of each is a `Result` that is
 `ok`; `startState` and `emptyTier` are those values, written out: every table and
 map empty, every flag down, no pins.  `startState_eq` checks the first against the
 Aeneas model by unfolding it, for `startState_init`, which the proof reads;
@@ -392,15 +387,13 @@ def emptyIndex : arena.stream_index.IStreamIndex :=
     tbls := emptyMap _ _, firsts := alloc.vec.Vec.new _, next := 0#u64,
     lits := alloc.vec.Vec.new _, nat_from := none, str_from := none }
 
-/-- **The binary's persistent tier**, `&PersTier::empty()`
-(`bin/con-ron.rs:339`): the tier every stage up to the check phase is handed — not
+/-- **The binary's persistent tier**, `PersTier::empty()`: the tier every stage up to the check phase is handed — not
 frozen, its four table sets, every table empty, and the empty stream index. -/
 def emptyTier : arena.store.PersTier :=
   { frozen := false, n := emptyNTables, l := emptyLTables, ls := emptyLsTables,
     e := emptyETables, env := emptyIndex }
 
-/-- **The binary's start state**, `AState::empty()` (`bin/con-ron.rs:332`),
-which is `AState::init(EStore::empty())`: a store whose four layers (names,
+/-- **The binary's start state**, `AState::empty()`, which is `AState::init(EStore::empty())`: a store whose four layers (names,
 levels, level lists, expressions) have both tiers empty and the scratch flag down,
 empty memo tables and caches, and no pins (`startState_eq`). -/
 def startState : arena.monad.AState :=
@@ -493,8 +486,8 @@ def RustDenotesFilled (ds : alloc.vec.Vec arena.env.IDeclaration) (st : arena.mo
       env = ConLeche.streamEnv
         (dsP.map (ConLeche.Cached.fillDecl (ConRon.Bridge.fillRef val)))
 
-/-- `prepare::prepare_d` at `DeclUsedConsts`, the call the binary makes on a stream
-(`bin/con-ron.rs:445`), is `prepare_prelude`'s body: `prepare_prelude` is its `.decls`. -/
+/-- `prepare::prepare_d` at `DeclUsedConsts`, the call the driver makes on a stream
+(`check_main::check_main`), is `prepare_prelude`'s body: `prepare_prelude` is its `.decls`. -/
 theorem prepare_prelude_of_prepare_d {pers : arena.store.PersTier}
     {st st' : arena.monad.AState} {pre : frontend.prepare.PreludeIx}
     {ds : alloc.vec.Vec arena.env.IDeclaration} {p : frontend.prepare.Prepared}
@@ -504,8 +497,8 @@ theorem prepare_prelude_of_prepare_d {pers : arena.store.PersTier}
   simp only [bind_ok]
   rfl
 
-/-- `pins_decode::decode_embedded()`, the call the binary's
-`driver::pins_for_run` makes (`driver.rs:299`), is `decode` of some text. -/
+/-- `pins_decode::decode_embedded()`, the call the driver's
+`check_main::embedded_pins` makes, is `decode` of some text. -/
 theorem decode_of_decode_embedded
     {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
     (h : kernel.pins_decode.decode_embedded = ok (.Ok pins)) :
@@ -516,56 +509,54 @@ theorem decode_of_decode_embedded
 
 end Defs
 
-/-! ## 4. The headline theorems
+/-! ## 4. The staged lemmas of a lean4export file
 
-Each takes one premise per call the binary's `check_main` makes, in its order, each starting
-from the state the previous one left and the first from the binary's own start values.
-`check_main` itself is not verified: a reader walks through it and finds each verified call as
-one premise.
+Each takes one premise per call the verified driver's `check_main::check_main` makes, in its
+order, each starting from the state the previous one left and the first from the binary's own
+start values; `MainTheorem/Driver.lean`'s `check_main_zero` takes an exit 0 to exactly these
+premises (`JsonStages`).
 
-| premise | `check_main`'s call |
+| premise | the driver's call (`driver/check_main.rs`) |
 |---|---|
-| `startState`, `emptyTier` | `bin/con-ron.rs:332` `AState::empty()`, `:339` `&PersTier::empty()` |
-| `h1` | `bin/con-ron.rs:348` `arena::pins::intern_reserved_pins` |
-| `h2` | `bin/con-ron.rs:367` `prelude::builtin_prelude_e` |
-| `hreads`, `h3` | `bin/con-ron.rs:396` `driver::parse_export_stream_d`, which is `driver.rs:961`'s `export_c::parse_source` over the file's handle |
-| `h4` | `bin/con-ron.rs:445` `prepare::prepare_d` at `DeclUsedConsts` |
-| `hpins` | `bin/con-ron.rs:467` `driver::pins_for_run`, whose default is `driver.rs:311` `pins_decode::decode_embedded()`, which is `decode` of the embedded `PINS_TEXT` (the `_embedded` corollaries below name it) |
-| `h5` | `bin/con-ron.rs:504` `checker::intern_all_pins` at `--max-nat-size`'s value (`driver::max_nat_size_arg`, default `pins::max_nat_size_default()`); the theorems hold at every `maxNatSize` |
-| `h6` | `bin/con-ron.rs:516`/`:518` `driver::check_decls_driver` at `CheckMode::Verified` (`:325`), the index: `driver.rs:540` `stream_index::build_index(…, stream_index_empty(), ds, 0)` |
-| `h7` | the same, the boundary: `driver.rs:548` `checker::freeze_tier` |
-| `h8` | the same, the check phase: `driver.rs:554` `pool::parallel_all` with `init` `checker::worker_state` and `step` `checker::run_job` (`thaw_tier` at `:569` restores the store) |
+| `startState`, `emptyTier` | `check_main`'s `AState::empty()`, `PersTier::empty()` |
+| `h1` | `check_main`'s `pins::intern_reserved_pins` |
+| `h2` | `check_main`'s `prelude::builtin_prelude_e` |
+| `hreads`, `h3` | `check_main`'s `export_c::parse_source` over `FileChunks`, the positional reads of the file |
+| `h4` | `check_main`'s `prepare::prepare_d` at `DeclUsedConsts` |
+| `hpins` | `embedded_pins`: `pins_decode::decode_embedded()`, `decode` of the embedded `PINS_TEXT` (the `_embedded` forms below name it) |
+| `h5` | `check_main`'s `checker::intern_all_pins` at `--max-nat-size`'s value (default `pins::max_nat_size_default()`); the lemmas hold at every `maxNatSize` |
+| `h6` | `check_phase`'s `stream_index::build_index(…, stream_index_empty(), ds, 0)` at `CheckMode::Verified` |
+| `h7` | `check_phase`'s `checker::freeze_tier` |
+| `h8` | `check_phase`'s worker map `par_map_workers` over `JobStep` (`init` `checker::worker_state`, `step` `checker::run_job`); `thaw_tier` then restores the store |
 
-`h8` is not one equation: `parallel_all` is not extracted, so `h8` states its contract
-(the pool's trusted claim, `pool.rs`'s note, OVERVIEW §8.2) at the driver's two verified
-closures, `Refine2/Checker/Phased.lean`'s `ParallelAll` at `jobStep`: some lists of record
+`h8` is not one equation: the worker map is the instance's, so `h8` states its contract
+(`PoolSound`, OVERVIEW §3.1) at the driver's step, `Refine2/Checker/Phased.lean`'s `ParallelAll` at `jobStep`: some lists of record
 positions, one per worker, together covering every position, each in increasing order, and
 for each list the worker's run, `worker_state st6.pins` and then `run_job` on each position
 in order, every step answering `Ok(())`.  A job is not asked to be claimed once.  Each job is a
 fact about the worker's state at its position: the earlier records' jobs give the fold's
 prefix (`Bridge/Checker/Pooled.lean`'s `pooled_fold`).
 
-The theorems hold at every chunk source whose reads are `chunks`, and every pin text
-`hpins` decodes, as con-leche's hold at every pin list.  **`--pins FILE`** (read by the
-unverified `con_ron_dump::parse_pins`) and **`--no-pins`** do not call the decoder, so runs
-with them are outside the theorems.
+The lemmas hold at every chunk source whose reads are `chunks`, and every pin text `hpins`
+decodes, as con-leche's theorems hold at every pin list.
 
 `hpins` is stated about `decode` of a free text rather than about `decode_embedded` because
 naming the embedded constant `PINS_TEXT` costs the census one axiom,
 `kernel.pins_text.PINS_TEXT._native.decide.ax_1` — the one Aeneas's `toStr` spends on that
 constant's DEFINITION (AENEAS_FINDINGS.md §3.8; `Refine2/Checker/PinsWF.lean`'s census),
 nothing this proof evaluates.  `model_exists_embedded` / `no_False_declaration_embedded` are
-the headlines with `decode_embedded` itself in the premise, and carry that axiom.
+the lemmas with `decode_embedded` itself in the premise, and carry that axiom.
 
 **`--olean`.**  `no_False_oleans` and `model_exists_oleans` take the same calls with the
-stream's replaced, as `Input::Oleans` runs them (`olean_fs::read_request`):
+stream's replaced, as `check_main::check_oleans` makes them (`MainTheorem/Oleans.lean`'s
+`check_oleans_zero` is the walk):
 
-| premise | the binary's call |
+| premise | the driver's call (`driver/check_main.rs`) |
 |---|---|
-| `hroots` | `olean_fs.rs:270` `monad::intern_name` on each root |
-| `hsnap`, `h3` | `olean_fs.rs:294` `records::read_oleans` at `olean_fs::StdFs`, whose answers are one snapshot's |
-| `h4` | `bin/con-ron.rs:446` `prepare::prepare_d` at the `OleanRead` |
-| `h8` | `bin/con-ron.rs:509`/`:511` `driver::check_decls_driver_with`, `init` `(worker_state, value_cache_empty)` and `step` `driver::olean_job` |
+| `hroots` | `intern_names`: `monad::intern_name` on each root |
+| `hsnap`, `h3` | `check_oleans`'s `records::read_oleans` at the instance's file operations, whose answers are one snapshot's |
+| `h4` | `check_oleans`'s `prepare::prepare_d` at the `OleanRead` |
+| `h8` | `check_phase_olean`'s worker map over `OleanJobStep`, `init` `(worker_state, value_cache_empty)` and `step` `olean_job` |
 
 `h4` starts from the state `hroots` left with the store `h3` left: the reader takes the store
 alone.  `hcl`, `hv`, `hmem`, `hk`, `hty` are upstream's, by the specification (`InClosure`,
@@ -672,8 +663,8 @@ theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
   exact ConRon.Bridge.stages_no_False V hk hind (pins := ConRon.Refine.absPins pins) hfalse
     hA hB hC hD hE hF
 
-/-- `model_exists` with the pin premise the binary's own call,
-`pins_decode::decode_embedded()` (`driver.rs:311`).  Its census adds
+/-- `model_exists` with the pin premise the driver's own call,
+`pins_decode::decode_embedded()` (`check_main::embedded_pins`).  Its census adds
 `kernel.pins_text.PINS_TEXT._native.decide.ax_1` (§4's note). -/
 theorem model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
     {st1 st2 st3 st4 st5 st6 : arena.monad.AState}
@@ -704,8 +695,8 @@ theorem model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
   have ⟨_, hdec⟩ := decode_of_decode_embedded hpins
   model_exists V h1 h2 hreads h3 h4 hdec h5 h6 h7 h8
 
-/-- `no_False_declaration` with the pin premise the binary's own call,
-`pins_decode::decode_embedded()` (`driver.rs:311`).  Its census adds
+/-- `no_False_declaration` with the pin premise the driver's own call,
+`pins_decode::decode_embedded()` (`check_main::embedded_pins`).  Its census adds
 `kernel.pins_text.PINS_TEXT._native.decide.ax_1` (§4's note). -/
 theorem no_False_declaration_embedded (V : Type w) [ConLeche.SetTheory V]
     {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
@@ -935,19 +926,20 @@ end Headline
 /-! ## 4b. The compared run: `--compare -- C S`
 
 A challenge file `C` checked with its axioms justified by a solution file `S`
-(`crates/con-ron/src/compare.rs` `compare_json`), one premise per call, in its order, on the
-one state from the binary's start values:
+(`driver/compare_json.rs`'s `compare_json`), one premise per call, in its order, on the one
+state from the binary's start values (`MainTheorem/CompareJson.lean`'s `compare_json_zero` is
+the walk):
 
 | premise | `compare_json`'s call |
 |---|---|
 | `startState`, `emptyTier` | `AState::empty()`, `&PersTier::empty()` |
 | `h1`, `h2` | `intern_reserved_pins`, `prelude::builtin_prelude_e` (`start`) |
-| `hreadsC`, `h3` | `driver::parse_export_stream_d` on `C`: `export_c::parse_source` over its handle |
+| `hreadsC`, `h3` | `read_export` on `C`: `export_c::parse_source` over `FileChunks` |
 | `hreadsS`, `h3S` | the same on `S`, into the same store |
 | `hdup` | `prepare::prelude_ix_dup`: the challenge's copy of the prelude |
 | `h4S` | `prepare::prepare_d` on `S`'s records at `DeclUsedConsts` |
-| `hpins`, `h5` | `pins_walk`: `driver::pins_for_run`, `checker::intern_all_pins` |
-| `h6S`, `h7S`, `h8S` | the solution's `check_phase` (`driver::check_decls_driver` at `sol = None`): `build_index`, `freeze_tier`, `parallel_all` over `run_job`; `thaw_tier` then hands back the index `ixS` and the store `st7` exactly (`freeze_tier_ok`) |
+| `hpins`, `h5` | `check_main::embedded_pins`, `checker::intern_all_pins` |
+| `h6S`, `h7S`, `h8S` | the solution's `check_main::check_phase` at `sol = None`: `build_index`, `freeze_tier`, the worker map over `run_job`; `thaw_tier` then hands back the index `ixS` and the store `st7` exactly (`freeze_tier_ok`) |
 | `h4` | `prepare::prepare_d` on `C`'s records at the copy `preC` |
 | `hside` | `justify::side_records` (each hole the axiom of its statement) |
 | `hsol` | `justify::solution_of(ixS, &recsC)` |
@@ -1348,15 +1340,15 @@ end HeadlineCompare
 
 /-! ## 4c. The compared `--olean` run: `--olean --compare -- C S`
 
-`compare_oleans` (`crates/con-ron/src/compare.rs`), the calls of `no_False_oleans` with the
-read replaced by the compared run's two:
+`compare_oleans` (`driver/compare.rs`), the calls of `no_False_oleans` with the read replaced
+by the compared run's two (`MainTheorem/CompareOleans.lean`'s `compare_oleans_zero` is the walk):
 
 | premise | `compare_oleans`'s call |
 |---|---|
 | `hnC`, `hnS` | `monad::intern_name` on `C`, then on `S` |
 | `hsnap`, `h3` | `records::read_oleans` of `C`'s closure at the challenge's lookup `cr`, lenient, with its homes (`foreign_constant`, driver-side, then checks none of them is foreign) |
 | `hdup`, `h4` | `prelude_ix_dup`; `prepare::prepare_d` at the challenge's read |
-| `hhole` | `compare::hole_records`: each theorem whose file marks it a hole, the axiom of its statement |
+| `hhole` | `frontend::compare::hole_records`: each theorem whose file marks it a hole, the axiom of its statement |
 | `h3S`, `h4S` | `read_oleans` of `S`'s closure at the solution's lookup `sr`, lenient; its `prepare_d` |
 | `hpins`, `h5` | the pins, as §4 |
 | `h6S`, `h7S`, `h8S` | the solution's check phase (`olean_job` at `sol = None`); `thaw_tier` hands back `ixS` and `st7` |
@@ -1674,14 +1666,16 @@ end HeadlineOleansCompare
 Upstream's modular theorem (`ConLeche/MainTheorem.lean` `main_modular`, `main_modular_one`) is over
 the graph check and one worker per module of the headers' closure; its proof assembles the
 worker's accepts into an accepted run over the closure (`Driver.Compose.closure_sees_isModel`).
-The driver (`crates/con-ron/src/modular.rs`) runs each call below from fresh start values; the
-premises are its calls, marked `ConRon.MainTheorem.Stages:` there. -/
+The driver (`driver/graph.rs`, `driver/worker.rs`, `driver/modular.rs`,
+`driver/compare_module.rs`) runs each call below from fresh start values; the premises are its
+calls, marked `ConRon.MainTheorem.Stages:` there (`MainTheorem/Modular.lean` and
+`MainTheorem/CompareModular.lean` are the walks). -/
 
 section RustModular
 
 open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean
 
-/-- **The graph check at the Rust** (`modular::check_graph`, and `--modular`'s first step): the
+/-- **The graph check at the Rust** (`graph::check_graph`, and `--modular`'s first step): the
 reserved pins, the reader's pins, the roots interned and `graph::graph_of` with no import added,
 on a snapshot `F`, give upstream's `checkGraphG_ok` facts: the closure `CC` of upstream's nodes,
 each module's imports its header's, the roots in it, a one-to-one rank decreasing along every
@@ -1719,7 +1713,7 @@ theorem rust_graph {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv :
 theorem emptyTier_base : ConRon.Refine2.BaseRel emptyTier.env {} ∧ ConRon.Refine2.BaseOK emptyTier :=
   ⟨ixEmpty_rel.baseRel {} rfl rfl rfl, StreamIndexRel.baseOK (pers := emptyTier) ixEmpty_rel⟩
 
-/-- **A worker run at the Rust** (`modular::check_module`, one module, no import added): from the
+/-- **A worker run at the Rust** (`worker::check_module`, one module, no import added): from the
 binary's start values, the reserved pins, the module's name interned, the pins interned, phases
 1–4 (`worker::worker_read`), the jobs' records, the index over them, the freeze, the inferred
 flags on a fresh worker, and the pool over the own jobs from `start`, on a snapshot `F`, give
@@ -1841,9 +1835,9 @@ theorem rust_worker_of (hR : ConRon.Bridge.Modular.ReachRunHyp)
 
 /-- con-leche: ConLeche/MainTheorem.lean:109 main_modular — **AN ACCEPTED MODULAR CHECK HAS A
 FAMILY OF MODELS**: on a snapshot `F` of the files (`hsnap`), where the graph check of the root
-`r` succeeds (`h1g`, `hpk`, `hroots`, `hgraph`: `modular::check_graph`) and, for every module of the
+`r` succeeds (`h1g`, `hpk`, `hroots`, `hgraph`: `graph::check_graph`) and, for every module of the
 headers' closure, the worker's calls succeed, each from the binary's start values (`hwork`:
-`modular::check_module`, one premise per call; `--olean --module` per module, or all of them in one
+`worker::check_module`, one premise per call; `--olean --module` per module, or all of them in one
 process under `--olean --modular`), every module of the closure of `r`, by the specification
 (`InClosure`), has a model of its constants (`moduleConstants`), and the models agree on what the
 modules see of each other (`Sees`).  The pins are one decoded list (`hpins`).  `hR` is Theorem 1 at
@@ -1901,7 +1895,7 @@ theorem model_modular_of (hR : ConRon.Bridge.Modular.ReachRunHyp)
   rw [← hmn]
   exact ⟨1, rust_worker_of hR hsnap w1 w2 hpins w3 w4 w5 w6 w7 w8 w9 w10⟩
 
-/-- **The graph check of a compared run at the Rust** (`modular::check_graph_cmp`): the reserved
+/-- **The graph check of a compared run at the Rust** (`compare_module::check_graph_cmp`): the reserved
 pins, the reader's pins, the challenge and the solution interned, `graph::graph_of` over the
 solution's lookup from the challenge, the solution added to its header; on a snapshot `F`,
 upstream's facts at the added imports (`cmpExtra`). -/
@@ -2045,7 +2039,7 @@ theorem acc_compare (hR : ConRon.Bridge.Modular.ReachRunHyp) {Fs : Type} {finst 
 
 /-- con-leche: ConLeche/MainTheorem.lean:143 main_modular_compare — **AN ACCEPTED MODULAR
 COMPARISON'S CHALLENGE CLOSURE HAS A FAMILY OF MODELS**: on a snapshot `F` where the compared
-graph check succeeds (`h1g` … `hgraph`: `modular::check_graph_cmp`, over the solution's lookup
+graph check succeeds (`h1g` … `hgraph`: `compare_module::check_graph_cmp`, over the solution's lookup
 `spR`, `hsr`), the worker's calls succeed at every module of the headers' closure of the challenge
 `C` and the solution `S` but `C` (`hwork`), and the compare worker's at `C` (`hcmp`: `import all`
 of `S` added to its header), each from the binary's start values, then on every snapshot that

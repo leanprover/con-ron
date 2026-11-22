@@ -1,9 +1,10 @@
 //! `olean_fs` — the `.olean` reader's file access over `std` (task #142).
 //!
 //! The core reads files through the file operations of the driver's trait,
-//! `con_ron_core::frontend::checker_io::CheckerFs`; these are the instances the
-//! legacy driver's modes run (the verified driver's is `std_io::StdIo`, whose
-//! operations are these), and all of it is outside the theorems.
+//! `con_ron_core::frontend::checker_io::CheckerFs`; these are the binary's
+//! (`std_io::StdIo`'s operations are these, and so are the scheduler's and
+//! `olean-compare`'s), and all of it is outside the theorems: that they answer
+//! as one snapshot is OVERVIEW §3.1's `AnswersAs`.
 //!
 //! Two instances: [`StdFs`], silent, for the check pool's workers reading a
 //! theorem's value (`records::read_value`); and [`NotesFs`], the read's, which
