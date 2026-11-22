@@ -31,6 +31,7 @@
 //! | `olean` | `Arena/Frontend/Olean/*` | `Frontend/Olean/*`, task #142, its own table |
 //! | `pace` | none yet | `Frontend/Pace.lean`, the pure part (task #484) |
 //! | `modular` | `Arena/Modular/*` | `Driver/{Graph,Reach,Worker}.lean`, task #166, its own table |
+//! | `checker_io` | none (the traits); `MainTheorem/Driver.lean` states what is assumed of an instance | `Frontend/CheckerIO.lean`'s class, task #171 |
 //!
 //! ## The byte recogniser is not twinned, and that is deliberate
 //!

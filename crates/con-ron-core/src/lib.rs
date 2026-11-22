@@ -12,7 +12,7 @@
 //!
 //! # Module map
 //!
-//! Four directories, in dependency order:
+//! Five directories, in dependency order:
 //!
 //! | directory | what it is |
 //! |---|---|
@@ -20,6 +20,7 @@
 //! | `kernel` | the representation-free types and the PINNED DATA the checker compares against, as `Expr`-valued con-leche constants |
 //! | `arena` | the checker itself, over the four interned stores — the Rust twin of `proof/ConRon/Arena/*` |
 //! | `frontend` | the export parser and the `.olean` reader, straight into the store |
+//! | `driver` | con-leche's `Driver/*.lean` over `frontend::checker_io` (task #171, DESIGN.md §3.9): the argument parser and the check of a lean4export file, run by `crates/con-ron`'s `StdIo` |
 //!
 //! ## `ron`
 //!

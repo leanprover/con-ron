@@ -1,0 +1,37 @@
+import ConRon.MainTheorem.Driver
+
+/-!
+# `ConRon.MainTheorem` — the main theorems about the binary (task #171, DESIGN.md §3.9)
+
+The twin of `ConLeche/MainTheorem.lean`: the same theorem names, the same conclusions, with
+con-leche's run premise `ModelIO.CanGive (Driver.runArgs args) fs 0` replaced by con-ron's
+`ConRon.CanGive args fs 0` (`MainTheorem/Driver.lean`): the extracted driver
+`driver::cli::run_args` exits 0 at an IO instance whose file operations answer as `fs` at every
+state (`AnswersAs`) and whose worker map keeps the pool's contract (`PoolSound`).
+
+What a run of the binary must satisfy to be one of `CanGive`'s is OVERVIEW §8.2's driver row:
+`crates/con-ron/src/std_io.rs`'s answers are one snapshot's, its escapes write no file and do
+not end the process, its pool keeps `ParallelAll`, and `main` does what it says (the argument
+list's code points, the checking thread, `run_args`, the flush, the exit with its code).
+
+**Slice 1: `-- <file>`.**  `json_stages_of_canGive` takes an exit 0 at `["--", file]` to every
+step premise of the capstone (`JsonStages`); with lane C's `json_model_of_stages` and
+`json_no_False_of_stages` (`MainTheorem/Conclusions.lean`), the two main theorems of a
+lean4export file are, in con-leche's words:
+
+```lean
+theorem main_json_model (V : Type w) [SetTheory V] {file : String} {fs : FS} {b : ByteArray}
+    (h : ConRon.CanGive ["--", file] fs 0) (hb : fs.file file = some b) :
+    ∃ r, parseChunks [b] = .ok r ∧ ∃ model, IsModel V model (· ∈ constantsOf r.decls.toList) :=
+  have ⟨h1, h2, hreads, h3, h4, hpins, h5, h6, h7, h8, hcat⟩ := json_stages_of_canGive h hb
+  json_model_of_stages V h1 h2 hreads hcat h3 h4 hpins h5 h6 h7 h8
+
+theorem main_no_False (V : Type w) [SetTheory V] {file : String} {fs : FS} {b : ByteArray}
+    (h : ConRon.CanGive ["--", file] fs 0) (hb : fs.file file = some b)
+    (hF : jsonWithTheoremFalse [b]) : False :=
+  have ⟨h1, h2, hreads, h3, h4, hpins, h5, h6, h7, h8, hcat⟩ := json_stages_of_canGive h hb
+  json_no_False_of_stages V hcat hF h1 h2 hreads h3 h4 hpins h5 h6 h7 h8
+```
+
+They are stated here once both lanes are on one branch.
+-/

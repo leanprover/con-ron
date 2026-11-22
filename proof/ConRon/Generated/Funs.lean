@@ -92834,7 +92834,7 @@ def driver.cli.max_nat_size_arg
     ok (core.result.Result.Err (driver.cli.Bad.MaxNatValue v1))
 
 /-- [con_ron_core::driver::cli::size_positive]: loop 0:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 322:4-330:5
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 327:4-335:5
     Visibility: public -/
 @[rust_loop]
 def driver.cli.size_positive_loop
@@ -92858,7 +92858,7 @@ def driver.cli.size_positive_loop
 partial_fixpoint
 
 /-- [con_ron_core::driver::cli::size_positive]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 311:0-331:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 311:0-336:1
     Visibility: public -/
 def driver.cli.size_positive (v : alloc.vec.Vec Std.U32) : Result Bool := do
   let n := alloc.vec.Vec.len v
@@ -92869,26 +92869,16 @@ def driver.cli.size_positive (v : alloc.vec.Vec Std.U32) : Result Bool := do
     let u ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) v i
     let has_unit ←
-      if u = 75#u32
-      then ok true
-      else
-        if u = 107#u32
-        then ok true
-        else
-          if u = 77#u32
-          then ok true
-          else
-            if u = 109#u32
-            then ok true
-            else
-              if u = 71#u32
-              then ok true
-              else
-                if u = 103#u32
-                then ok true
-                else if u = 84#u32
-                     then ok true
-                     else ok (u = 116#u32)
+      match u with
+      | 75#uscalar => ok true
+      | 107#uscalar => ok true
+      | 77#uscalar => ok true
+      | 109#uscalar => ok true
+      | 71#uscalar => ok true
+      | 103#uscalar => ok true
+      | 84#uscalar => ok true
+      | 116#uscalar => ok true
+      | _ => ok false
     if has_unit
     then
       let b ← driver.cli.is_nat v 0#usize i
@@ -92898,7 +92888,7 @@ def driver.cli.size_positive (v : alloc.vec.Vec Std.U32) : Result Bool := do
     else ok false
 
 /-- [con_ron_core::driver::cli::help_wanted]: loop 0:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 337:4-349:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 342:4-354:1
     Visibility: public -/
 @[rust_loop]
 def driver.cli.help_wanted_loop
@@ -92926,7 +92916,7 @@ def driver.cli.help_wanted_loop
 partial_fixpoint
 
 /-- [con_ron_core::driver::cli::help_wanted]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 335:0-349:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 340:0-354:1
     Visibility: public -/
 @[reducible]
 def driver.cli.help_wanted
@@ -92934,7 +92924,7 @@ def driver.cli.help_wanted
   driver.cli.help_wanted_loop argv 0#usize
 
 /-- [con_ron_core::driver::cli::push_dirs]: loop 0:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 357:4-367:5
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 362:4-372:5
     Visibility: public -/
 @[rust_loop]
 def driver.cli.push_dirs_loop
@@ -92966,7 +92956,7 @@ def driver.cli.push_dirs_loop
 partial_fixpoint
 
 /-- [con_ron_core::driver::cli::push_dirs]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 353:0-372:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 358:0-377:1
     Visibility: public -/
 def driver.cli.push_dirs
   (out : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (v : alloc.vec.Vec Std.U32)
@@ -92981,7 +92971,7 @@ def driver.cli.push_dirs
   else ok out1
 
 /-- [con_ron_core::driver::cli::push_files]: loop 0:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 379:4-382:5
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 384:4-387:5
     Visibility: public -/
 @[rust_loop]
 def driver.cli.push_files_loop
@@ -93003,7 +92993,7 @@ def driver.cli.push_files_loop
 partial_fixpoint
 
 /-- [con_ron_core::driver::cli::push_files]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 376:0-384:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 381:0-389:1
     Visibility: public -/
 @[reducible]
 def driver.cli.push_files
@@ -93014,7 +93004,7 @@ def driver.cli.push_files
   driver.cli.push_files_loop argv out i
 
 /-- [con_ron_core::driver::cli::with_bad]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 388:0-395:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 393:0-400:1
     Visibility: public -/
 def driver.cli.with_bad
   (a : driver.cli.Args) (b : driver.cli.Bad) : Result driver.cli.Args := do
@@ -93023,7 +93013,7 @@ def driver.cli.with_bad
   | some _ => ok a
 
 /-- [con_ron_core::driver::cli::closed]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 400:0-406:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 405:0-411:1
     Visibility: public -/
 def driver.cli.closed (a : driver.cli.Args) : Result driver.cli.Args := do
   if a.worker_stack
@@ -93034,7 +93024,7 @@ def driver.cli.closed (a : driver.cli.Args) : Result driver.cli.Args := do
   else ok a
 
 /-- [con_ron_core::driver::cli::parse_valued]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 411:0-451:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 416:0-456:1
     Visibility: public -/
 def driver.cli.parse_valued
   (a : driver.cli.Args) (s : alloc.vec.Vec Std.U32) :
@@ -93143,7 +93133,7 @@ def driver.cli.parse_valued
                       ok { a with files := v1 }
 
 /-- [con_ron_core::driver::cli::parse_one]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 456:0-490:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 461:0-495:1
     Visibility: public -/
 def driver.cli.parse_one
   (a : driver.cli.Args) (argv : alloc.vec.Vec (alloc.vec.Vec Std.U32))
@@ -93228,7 +93218,7 @@ def driver.cli.parse_one
                            ok (a1, i)
 
 /-- [con_ron_core::driver::cli::parse_args]: loop 0:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 500:4-511:5
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 505:4-516:5
     Visibility: public -/
 @[rust_loop]
 def driver.cli.parse_args_loop
@@ -93257,7 +93247,7 @@ def driver.cli.parse_args_loop
 partial_fixpoint
 
 /-- [con_ron_core::driver::cli::parse_args]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 497:0-512:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 502:0-517:1
     Visibility: public -/
 def driver.cli.parse_args
   (argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)) : Result driver.cli.Args := do
@@ -93265,7 +93255,7 @@ def driver.cli.parse_args
   driver.cli.parse_args_loop argv a 0#usize
 
 /-- [con_ron_core::driver::cli::run_args]:
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 520:0-554:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 525:0-559:1
     Visibility: public -/
 def driver.cli.run_args
   {I : Type _} (frontendchecker_ioCheckerIoInst : frontend.checker_io.CheckerIo

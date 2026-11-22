@@ -160,4 +160,4 @@ globs = ["ConRon.Refine2.*"]
 # the sorry frontier is measured from them.
 [[lean_lib]]
 name = "ConRonCapstone"
-roots = ["ConRon.Capstone"]
+roots = ["ConRon.Capstone", "ConRon.MainTheorem"]

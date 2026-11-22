@@ -314,7 +314,12 @@ pub fn size_positive(v: &Vec<u32>) -> bool {
         return false;
     }
     let u = v[n - 1];
-    let has_unit = u == 75 || u == 107 || u == 77 || u == 109 || u == 71 || u == 103 || u == 84 || u == 116;
+    // `K`, `k`, `M`, `m`, `G`, `g`, `T`, `t`: a `match`, since Aeneas types the last
+    // comparison of an `||` chain bound by `let` as a `Prop` (task #171)
+    let has_unit = match u {
+        75 | 107 | 77 | 109 | 71 | 103 | 84 | 116 => true,
+        _ => false,
+    };
     if !has_unit || !is_nat(v, 0, n - 1) {
         return false;
     }
