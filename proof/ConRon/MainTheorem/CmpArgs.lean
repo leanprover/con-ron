@@ -9,7 +9,7 @@ are `searchPathOf T` (`push_dirs_trusted`) as the search path's are `searchPathO
 -/
 
 open Aeneas Aeneas.Std Result
-open ConRon.Generated ConRon.Capstone
+open ConRon.Generated ConRon.MainTheorem.Stages
 open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean
 open ConRon.Refine (absString)
 

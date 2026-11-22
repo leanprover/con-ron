@@ -21,7 +21,7 @@ challenge's directories `trustedOr (searchPathOf T) (searchPathOf D)` (`chal_roo
 -/
 
 open Aeneas Aeneas.Std Result
-open ConRon.Generated ConRon.Capstone
+open ConRon.Generated ConRon.MainTheorem.Stages
 open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean
 open ConLeche (IsModel FS)
 open ConLeche.Frontend.Olean (closureConstants)
@@ -34,7 +34,7 @@ universe w
 
 /-! ## The capstone at the driver's calls -/
 
-/-- `Capstone.rust_stages_oleans_compare` at the driver's calls: each read's records moved out
+/-- `Stages.rust_stages_oleans_compare` at the driver's calls: each read's records moved out
 before its preparation (`{ rd with decls := v }`, what a record mentions is read off the merged
 constants alone, `olean_read_used_rel_dec`), and the reads, the solution's pool and the
 challenge's pool each at a snapshot of its own (the instance's state moves between them, at the

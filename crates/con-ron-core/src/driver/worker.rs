@@ -8,7 +8,7 @@
 //!   → build_index → freeze_tier → infer_flags → the jobs from `start`
 //! ```
 //!
-//! — one call per premise of the capstone's worker (`ConRon.Capstone`'s
+//! — one call per premise of the capstone's worker (`ConRon.MainTheorem.Stages`'s
 //! `rust_worker_of`), on one `AState::empty()` and one `PersTier::empty()`.
 //! The run's one check puts its jobs on the instance's worker map; a module of
 //! `--modular` runs them in order on its own thread (its worker count is 1),
@@ -75,12 +75,12 @@ pub fn module_read<F: CheckerFs + WorkerNotes>(
     who: &Option<Name>,
     pace: &crate::frontend::pace::Pace,
 ) -> Result<(WorkerRead, Vec<INatOpPinSet>, Vec<IDeclaration>), u8> {
-    // ConRon.Capstone: h5
+    // ConRon.MainTheorem.Stages: h5
     let ipins = match checker::intern_all_pins(pers, st, pins, max_nat_size) {
         Err(e) => return Err(worker_failed(fs, m_name, e, verified)),
         Ok(p) => p,
     };
-    // ConRon.Capstone: hwork
+    // ConRon.MainTheorem.Stages: hwork
     let w: WorkerRead = match worker::worker_read(fs, pers, st, sp, &ipins, m, x) {
         Err((e, _)) => return Err(worker_failed(fs, m_name, e, verified)),
         Ok(w) => w,
@@ -92,7 +92,7 @@ pub fn module_read<F: CheckerFs + WorkerNotes>(
     if w.hoisted.len() > 0 {
         fs.worker_hoisted(who, pers, &st.store, &w.hoisted);
     }
-    // ConRon.Capstone: hds
+    // ConRon.MainTheorem.Stages: hds
     let ds: Vec<IDeclaration> = worker::worker_decls(&w);
     Ok((w, ipins, ds))
 }
@@ -209,7 +209,7 @@ pub fn module_phase<I: CheckerIo>(
     jobs: u64,
 ) -> Result<IStreamIndex, (CheckError, u64)> {
     io.index_starts();
-    // ConRon.Capstone: h6
+    // ConRon.MainTheorem.Stages: h6
     let ix = match stream_index::build_index(pers, st, stream_index::stream_index_empty(), ds, 0) {
         Err(e) => return Err(e),
         Ok(ix) => ix,
@@ -219,9 +219,9 @@ pub fn module_phase<I: CheckerIo>(
     let n = module_jobs(ds, start);
     let workers = check_main::workers_for(jobs, n);
     io.check_starts(n, workers);
-    // ConRon.Capstone: h7
+    // ConRon.MainTheorem.Stages: h7
     let tier: PersTier = checker::freeze_tier(&mut st.store, ix);
-    // ConRon.Capstone: hws, hinfer
+    // ConRon.MainTheorem.Stages: hws, hinfer
     let mut fws: AState = checker::worker_state(&st.pins);
     match reach::infer_flags(&tier, &mut fws, &w.reach.ctx, &w.reach.pending) {
         Err(e) => {
@@ -230,7 +230,7 @@ pub fn module_phase<I: CheckerIo>(
         }
         Ok(()) => (),
     }
-    // ConRon.Capstone: h8
+    // ConRon.MainTheorem.Stages: h8
     let r = {
         let step = OleanJobStep { tier: &tier, mode, pins: ipins, apins: &st.pins, ds, pk: &w.pins, values: &w.values, sp, sol: None, start };
         io.par_map_workers(&step, n, workers)
@@ -291,16 +291,16 @@ pub fn module_phase_in<F: CheckerFs>(
     ds: &Vec<IDeclaration>,
     sp: &Roots,
 ) -> Result<IStreamIndex, (CheckError, u64)> {
-    // ConRon.Capstone: h6
+    // ConRon.MainTheorem.Stages: h6
     let ix = match stream_index::build_index(pers, st, stream_index::stream_index_empty(), ds, 0) {
         Err(e) => return Err(e),
         Ok(ix) => ix,
     };
     let start = w.start;
     let n = module_jobs(ds, start);
-    // ConRon.Capstone: h7
+    // ConRon.MainTheorem.Stages: h7
     let tier: PersTier = checker::freeze_tier(&mut st.store, ix);
-    // ConRon.Capstone: hws, hinfer
+    // ConRon.MainTheorem.Stages: hws, hinfer
     let mut fws: AState = checker::worker_state(&st.pins);
     match reach::infer_flags(&tier, &mut fws, &w.reach.ctx, &w.reach.pending) {
         Err(e) => {
@@ -309,7 +309,7 @@ pub fn module_phase_in<F: CheckerFs>(
         }
         Ok(()) => (),
     }
-    // ConRon.Capstone: h8 (one worker: `oleanWorkerInit`, the jobs in order)
+    // ConRon.MainTheorem.Stages: h8 (one worker: `oleanWorkerInit`, the jobs in order)
     let mut ws: AState = checker::worker_state(&st.pins);
     let mut cache = records::value_cache_empty();
     let r = jobs_in_order(fs, &tier, &mut ws, &mut cache, mode, ipins, ds, &w.pins, &w.values, sp, start, 0, n);
@@ -332,23 +332,23 @@ pub fn check_module<I: CheckerIo>(io: &mut I, a: &Args, sp: &Roots, m_name: &Nam
     let mode = if verified { CheckMode::Verified } else { CheckMode::Trusted };
     let mut st = AState::empty();
     let pers = PersTier::empty();
-    // ConRon.Capstone: h1
+    // ConRon.MainTheorem.Stages: h1
     match pins::intern_reserved_pins(&pers, &mut st) {
         Err(e) => return worker_failed(&*io, m_name, e, verified),
         Ok(()) => (),
     }
     io.module_starts(&a.progress, m_name);
-    // ConRon.Capstone: hroot
+    // ConRon.MainTheorem.Stages: hroot
     let m = match monad::intern_name(&pers, &mut st, m_name) {
         Err(e) => return worker_failed(&*io, m_name, e, verified),
         Ok(m) => m,
     };
-    // ConRon.Capstone: hsol
+    // ConRon.MainTheorem.Stages: hsol
     let x: Vec<ImportRec> = match added_imports(&*io, &pers, &mut st, m_name, sol, verified) {
         Err(c) => return c,
         Ok(x) => x,
     };
-    // ConRon.Capstone: hpins
+    // ConRon.MainTheorem.Stages: hpins
     let pins: Vec<NatOpPinSet> = match check_main::embedded_pins(&*io) {
         None => return 3,
         Some(ps) => ps,
@@ -378,22 +378,22 @@ pub fn check_module_in<F: CheckerFs + WorkerNotes>(
     let mode = if verified { CheckMode::Verified } else { CheckMode::Trusted };
     let mut st = AState::empty();
     let pers = PersTier::empty();
-    // ConRon.Capstone: h1
+    // ConRon.MainTheorem.Stages: h1
     match pins::intern_reserved_pins(&pers, &mut st) {
         Err(e) => return worker_failed(fs, m_name, e, verified),
         Ok(()) => (),
     }
-    // ConRon.Capstone: hroot
+    // ConRon.MainTheorem.Stages: hroot
     let m = match monad::intern_name(&pers, &mut st, m_name) {
         Err(e) => return worker_failed(fs, m_name, e, verified),
         Ok(m) => m,
     };
-    // ConRon.Capstone: hsol
+    // ConRon.MainTheorem.Stages: hsol
     let x: Vec<ImportRec> = match added_imports(fs, &pers, &mut st, m_name, sol, verified) {
         Err(c) => return c,
         Ok(x) => x,
     };
-    // ConRon.Capstone: hpins
+    // ConRon.MainTheorem.Stages: hpins
     let pins: Vec<NatOpPinSet> = match check_main::embedded_pins(fs) {
         None => return 3,
         Some(ps) => ps,

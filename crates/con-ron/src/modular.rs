@@ -20,7 +20,7 @@
 //! scheduler's start order.  Nothing is started.  `--schedule` without
 //! `-commands` runs those workers (`crate::schedule`).
 //!
-//! The calls of the verified core are marked `ConRon.Capstone: <premise>`.
+//! The calls of the verified core are marked `ConRon.MainTheorem.Stages: <premise>`.
 
 use con_ron_core::arena::env as ienv;
 use con_ron_core::arena::env::IDeclaration;
@@ -52,7 +52,7 @@ use crate::render;
 /// The state a graph walk starts from: the reserved-name pins interned into a
 /// fresh store (as every run's first step), the reader's known handles.
 fn graph_start(pers: &PersTier, st: &mut AState) -> Result<OleanPins, u8> {
-    // ConRon.Capstone: h1
+    // ConRon.MainTheorem.Stages: h1
     match intern_reserved_pins(pers, st) {
         Ok(()) => (),
         Err(e) => {
@@ -60,7 +60,7 @@ fn graph_start(pers: &PersTier, st: &mut AState) -> Result<OleanPins, u8> {
             return Err(3);
         }
     }
-    // ConRon.Capstone: hpk (`olean_pins`)
+    // ConRon.MainTheorem.Stages: hpk (`olean_pins`)
     match spec::olean_pins(pers, &mut st.store) {
         Ok(pk) => Ok(pk),
         Err(e) => {
@@ -335,9 +335,9 @@ pub fn schedule(q: &ScheduleReq) -> u8 {
     }
     let cps_all = |v: &[String]| -> Vec<Vec<u32>> { v.iter().map(|d| render::cps(d)).collect() };
     let (trusted, path) = (cps_all(q.trusted), cps_all(q.path));
-    // ConRon.Capstone: `startState`
+    // ConRon.MainTheorem.Stages: `startState`
     let mut st = AState::empty();
-    // ConRon.Capstone: `emptyTier`
+    // ConRon.MainTheorem.Stages: `emptyTier`
     let pers: &PersTier = &PersTier::empty();
     let pk = match graph_start(pers, &mut st) {
         Ok(pk) => pk,
@@ -360,7 +360,7 @@ pub fn schedule(q: &ScheduleReq) -> u8 {
     } else {
         files::Roots { path: trusted.clone(), fallback: path.clone() }
     };
-    // ConRon.Capstone: hgraph (`graph_of` through the solution's lookup)
+    // ConRon.MainTheorem.Stages: hgraph (`graph_of` through the solution's lookup)
     let c = match graph::graph_of(&olean_fs::StdFs, &pk, pers, &mut st.store, &sr, &vec![root.dup2()], &cmp) {
         Ok(c) => c,
         Err(e) => return graph_failed(&e),

@@ -1,4 +1,4 @@
-import ConRon.Capstone
+import ConRon.MainTheorem.Stages
 
 /-!
 # `ConRon.MainTheorem.Driver` — the walk of the extracted driver at `-- <file>`
@@ -9,12 +9,12 @@ extracted `driver::cli::run_args`, generic over the trait `frontend::checker_io:
 instance — its file operations answer as one snapshot of the files at every state
 (`AnswersAs`), its worker map keeps the pool's contract for every job (`PoolSound`) — and walks
 the Aeneas model of `run_args` at the argument list `["--", file]`: an exit 0 there is one
-premise per step of the capstone (`ConRon.Capstone.model_exists_embedded`'s `h1` … `h8`, at the
+premise per step of the capstone (`ConRon.MainTheorem.Stages.model_exists_embedded`'s `h1` … `h8`, at the
 binary's start values, the embedded pins), with the chunks the reads returned concatenating to
 the file's bytes (`run_args_json`).
 
 One lemma per driver function, each an inversion ("if `f …` answers this, then these facts"),
-as `Capstone.lean`'s are:
+as `Stages.lean`'s are:
 
 | lemma | function |
 |---|---|
@@ -31,13 +31,13 @@ open ConRon.Generated
 
 namespace ConRon
 
-open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean ConRon.Capstone
+open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean ConRon.MainTheorem.Stages
 
 /-! ## What the theorems assume of an instance -/
 
 /-- **The instance's file operations answer as the snapshot `fs`, at every state**: at the
 paths the driver asks (`PathRel`), each operation that answers gives `fs`'s answer
-(`Capstone.lean`'s `SnapshotOf`, at every state of the instance).  A failing operation claims
+(`Stages.lean`'s `SnapshotOf`, at every state of the instance).  A failing operation claims
 nothing: it gives the driver no exit 0. -/
 def AnswersAs {S : Type} (io : frontend.checker_io.CheckerIo S) (fs : ConLeche.FS) : Prop :=
   ∀ s : S, SnapshotOf io.CheckerFsInst s fs
@@ -593,7 +593,7 @@ theorem check_phase_ok (hpool : PoolSound io) {s s' : S}
 
 /-- **What an exit 0 of `-- <file>` ran**: the capstone's step premises, in the binary's order,
 at its start values and the embedded pins, with the chunks the reads returned concatenating to
-the file's bytes `b` — every premise of `ConRon.Capstone.model_exists_embedded` and
+the file's bytes `b` — every premise of `ConRon.MainTheorem.Stages.model_exists_embedded` and
 `no_False_declaration_embedded`. -/
 inductive JsonStages (b : ByteArray) : Prop where
   | intro {st1 st2 st3 st4 st5 st6 : arena.monad.AState} {pre : frontend.prepare.PreludeIx}

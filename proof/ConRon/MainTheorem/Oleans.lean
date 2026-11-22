@@ -12,7 +12,7 @@ capstone (`OleanStages`), the root the module `parseModName root` names and the 
 
 | lemma | what it walks |
 |---|---|
-| `rust_stages_oleans_dec`, `oleans_model_of_stages_dec` | `Capstone.rust_stages_oleans`, lane C's `oleans_model_of_stages` with the preparation's `UsedConsts` the read with its records moved out, and the reads and the pool at two instances' states |
+| `rust_stages_oleans_dec`, `oleans_model_of_stages_dec` | `Stages.rust_stages_oleans`, lane C's `oleans_model_of_stages` with the preparation's `UsedConsts` the read with its records moved out, and the reads and the pool at two instances' states |
 | `olean_job_sol`, `olean_stepAt` | `check_main::olean_job`, `OleanJobStep`'s step: `oleanJobStepSol` |
 | `parallelAll_mono`, `check_phase_olean_ok` | `check_main::check_phase_olean`: the pool's contract at `oleanJobStep` |
 | `intern_names_roots`, `intern_consts_nil` | `check_main::intern_names`, `intern_consts` |
@@ -22,7 +22,7 @@ capstone (`OleanStages`), the root the module `parseModName root` names and the 
 -/
 
 open Aeneas Aeneas.Std Result
-open ConRon.Generated ConRon.Capstone
+open ConRon.Generated ConRon.MainTheorem.Stages
 open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean
 open ConLeche (IsModel FS)
 open ConLeche.Frontend.Olean (closureConstants)
@@ -43,7 +43,7 @@ theorem olean_read_used_rel_dec {pers : arena.store.PersTier} {rd : frontend.ole
   intro rst lst d o hrel hinv h
   exact olean_read_used_rel hrd hrel hinv h
 
-/-- `Capstone.rust_stages_oleans` with the preparation's `UsedConsts` the read with its records
+/-- `Stages.rust_stages_oleans` with the preparation's `UsedConsts` the read with its records
 moved out (`core::mem::replace(&mut rd.decls, Vec::new())`, `check_main::check_oleans`): what a
 theorem mentions is the merged constants', which the move leaves. -/
 theorem rust_stages_oleans_dec (hT2 : ReadOleansRefines)

@@ -5,7 +5,7 @@ import ConRon.MainTheorem.Driver
 
 **Task #171, lane F, slice 3a** (DESIGN.md §3.9).  The walk of `driver::cli::run_args` at the
 argument list `["--compare", "--", c, s]`: an exit 0 there read the file `c` (so `fs` has it),
-and its calls are one premise per step of `ConRon.Capstone.model_exists_compare`, at the
+and its calls are one premise per step of `ConRon.MainTheorem.Stages.model_exists_compare`, at the
 binary's start values and the embedded pins, with the challenge's chunks concatenating to the
 file's bytes (`CompareJsonStages`).
 
@@ -24,7 +24,7 @@ open ConRon.Generated
 
 namespace ConRon
 
-open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean ConRon.Capstone
+open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean ConRon.MainTheorem.Stages
 
 set_option autoImplicit false
 

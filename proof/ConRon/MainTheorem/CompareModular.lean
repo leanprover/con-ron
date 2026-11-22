@@ -5,20 +5,20 @@ import ConRon.MainTheorem.CompareOleans
 worker and `--olean --modular --compare`
 
 **Task #171, slice 3b** (DESIGN.md §3.9).  An exit 0 of the compared graph check is
-`Capstone.rust_graph_cmp`'s premises (`GraphCmpStages`), at the solution's lookup; an exit 0 of
+`Stages.rust_graph_cmp`'s premises (`GraphCmpStages`), at the solution's lookup; an exit 0 of
 a module's worker at `--trusted-search-path` is `WorkerStages` at that lookup, and of the compare
 worker `WorkerStages` with the solution added (`solX`); an exit 0 of `--olean --modular --compare`
 is the compared graph's premises, its modules read back (`rust_graph_cmp_names`) and at every
 one a worker's, the challenge's the compare worker's (`ModularCmpStages`).  The challenge's
 walk through the trusted path alone (`compare_module::chal_walk`) runs on a store of its own and
 is its verdict only: no theorem needs it.  `cmp_family` and `cmp_no_False` compose them as
-`Capstone.model_modular_compare_of` does, with upstream's `compare_sees_isModel` and
+`Stages.model_modular_compare_of` does, with upstream's `compare_sees_isModel` and
 `compare_no_False`, each worker its own run: con-leche's `main_modular_compare`,
 `main_modular_compare_one` and `main_modular_compare_no_False`.
 -/
 
 open Aeneas Aeneas.Std Result
-open ConRon.Generated ConRon.Capstone
+open ConRon.Generated ConRon.MainTheorem.Stages
 open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean
 
 namespace ConRon.MainTheorem
@@ -30,7 +30,7 @@ universe w
 /-! ## The graph check of a compared run -/
 
 /-- **What an exit 0 of `--check-graph --compare` ran**: the premises of
-`Capstone.rust_graph_cmp` at the lookup `spR` (the solution's). -/
+`Stages.rust_graph_cmp` at the lookup `spR` (the solution's). -/
 inductive GraphCmpStages (fs : ConLeche.FS) (cName sName : kernel.name.Name)
     (spR : frontend.olean.files.Roots) : Prop where
   | intro {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
@@ -46,7 +46,7 @@ inductive GraphCmpStages (fs : ConLeche.FS) (cName sName : kernel.name.Name)
         (some (gc, gs)) = ok (.Ok cg, gstore3)) :
       GraphCmpStages fs cName sName spR
 
-/-- The compared graph check's facts (`Capstone.rust_graph_cmp`). -/
+/-- The compared graph check's facts (`Stages.rust_graph_cmp`). -/
 theorem GraphCmpStages.facts {fs : ConLeche.FS} {cName sName : kernel.name.Name}
     {spR : frontend.olean.files.Roots} (h : GraphCmpStages fs cName sName spR)
     (hsp : (absRoots spR).bare = absRoots spR) :

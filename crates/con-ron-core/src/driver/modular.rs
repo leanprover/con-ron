@@ -155,12 +155,12 @@ pub fn check_modular<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, sp: 
             Err(c) => return c,
             Ok(pk) => pk,
         };
-        // ConRon.Capstone: hroots
+        // ConRon.MainTheorem.Stages: hroots
         let rs = match check_main::intern_names(&pers, &mut st, roots) {
             Err(e) => return graph::graph_failed(io, e),
             Ok(rs) => rs,
         };
-        // ConRon.Capstone: hroots (the solution, after the root)
+        // ConRon.MainTheorem.Stages: hroots (the solution, after the root)
         let cmp: Option<(NIdx, NIdx)> = match sol {
             None => None,
             Some(s) => match monad::intern_name(&pers, &mut st, s) {
@@ -168,7 +168,7 @@ pub fn check_modular<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, sp: 
                 Ok(sh) => Some((rs[0].dup2(), sh)),
             },
         };
-        // ConRon.Capstone: hgraph
+        // ConRon.MainTheorem.Stages: hgraph
         let c = match mgraph::graph_of(&*io, &pk, &pers, &mut st.store, sp, &rs, &cmp) {
             Err(e) => return graph::graph_failed(io, e),
             Ok(c) => c,

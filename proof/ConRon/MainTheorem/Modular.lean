@@ -5,12 +5,12 @@ import ConRon.MainTheorem.ModArgs
 `--olean --modular`
 
 **Task #171, slice 2** (DESIGN.md §3.9).  An exit 0 of the graph check is
-`Capstone.rust_graph`'s premises (`GraphStages`), an exit 0 of a module's worker is
-`rust_worker_gen2`'s (`WorkerStages`: `Capstone.rust_worker_gen` with the worker's reads and its
+`Stages.rust_graph`'s premises (`GraphStages`), an exit 0 of a module's worker is
+`rust_worker_gen2`'s (`WorkerStages`: `Stages.rust_worker_gen` with the worker's reads and its
 jobs each at a state of its own instance, a snapshot of `fs`), and an exit 0 of
 `--olean --modular` is the graph's premises, its modules read back (`rust_graph_names`) and at
 every one a worker's premises, reads and jobs at the code map's state (`ModularStages`).
-`modular_of_stages` and `modular_one_of_stages` compose them as `Capstone.model_modular_of`
+`modular_of_stages` and `modular_one_of_stages` compose them as `Stages.model_modular_of`
 does, with upstream's `closure_sees_isModel`: con-leche's `main_modular` and
 `main_modular_one`.
 
@@ -27,7 +27,7 @@ does, with upstream's `closure_sees_isModel`: con-leche's `main_modular` and
 -/
 
 open Aeneas Aeneas.Std Result
-open ConRon.Generated ConRon.Capstone
+open ConRon.Generated ConRon.MainTheorem.Stages
 open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean
 
 namespace ConRon.MainTheorem
@@ -40,7 +40,7 @@ universe w
 
 section Worker2
 
-/-- `Capstone.rust_worker_gen` with the worker's reads and its pool's at two instances, each a
+/-- `Stages.rust_worker_gen` with the worker's reads and its pool's at two instances, each a
 snapshot of `F`: the run's one module reads at one state of the instance and puts its jobs on the
 worker map at a later one. -/
 theorem rust_worker_gen2 (hR : ConRon.Bridge.Modular.ReachRunHyp)
@@ -308,7 +308,7 @@ theorem graph_names_loop_val {pers : arena.store.PersTier} {st : arena.monad.ASt
     simp [hy]
 
 /-- **The graph check at the Rust, its modules read back** (`modular::check_modular`'s first
-step): `Capstone.rust_graph`'s facts, the closure's modules the names `graph_names` read. -/
+step): `Stages.rust_graph`'s facts, the closure's modules the names `graph_names` read. -/
 theorem rust_graph_names {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
     {F : ConLeche.FS} (hsnap : SnapshotOf finst fsv F)
     {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {names : List kernel.name.Name}
@@ -345,7 +345,7 @@ theorem rust_graph_names {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} 
     0#usize CC rfl (by simp) (by simpa using hlr) (by simp [alloc.vec.Vec.new]) hns
   exact ⟨by rw [hn]; simp, hw⟩
 
-/-- **What an exit 0 of the graph check ran**: the premises of `Capstone.rust_graph`. -/
+/-- **What an exit 0 of the graph check ran**: the premises of `Stages.rust_graph`. -/
 inductive GraphStages (fs : ConLeche.FS) (names : List kernel.name.Name)
     (dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)) : Prop where
   | intro {Fs : Type} {finst : frontend.checker_io.CheckerFs Fs} {fsv : Fs}
@@ -803,7 +803,7 @@ end Worker
 /-! ## The composition: a family of models -/
 
 /-- **A graph check and a worker at every module of its headers' closure, each an exit 0 of
-its own run on the snapshot `fs`, have a family of models** (`Capstone.model_modular_of`, the
+its own run on the snapshot `fs`, have a family of models** (`Stages.model_modular_of`, the
 worker runs each at its own instance). -/
 theorem modular_of_stages (V : Type w) [ConLeche.SetTheory V] {fs : ConLeche.FS}
     {dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {rName : kernel.name.Name}

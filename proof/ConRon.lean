@@ -15,7 +15,7 @@ representation-free types (`Name`, `Level`, `PropWhen`, `Expr`, `ExprOps`,
 data (`Basis*`, `StdAxioms`, `TrustAxioms`) and the `con-ron-pins/2` decoder
 (`Pins*`); and `Fixpoint`, the `partial_fixpoint` admissibility lemma and
 `partial_induct` tactic of task #99-PFIX.  Every one of them is in
-`ConRon.Capstone`'s import closure (checked mechanically at task #97-PRUNE),
+`ConRon.MainTheorem.Stages`'s import closure (checked mechanically at task #97-PRUNE),
 so every lemma here is on the verified chain.
 
 `ConRon/Refine/README.md` has the tier map.  The arena checker itself is a

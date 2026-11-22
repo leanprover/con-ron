@@ -1350,7 +1350,7 @@ pub fn decode(t: &[u8]) -> CheckM<Vec<NatOpPinSet>> {
 /// written there, hence the `_`.)
 /// **The pin list the binary checks with**: the embedded text, decoded.  This
 /// is the pin list of every run (`driver::check_main::embedded_pins`), and the
-/// staged `_embedded` lemmas (`proof/ConRon/Capstone.lean`) take its output as
+/// staged `_embedded` lemmas (`proof/ConRon/MainTheorem/Stages.lean`) take its output as
 /// their pin premise.
 pub fn decode_embedded() -> CheckM<Vec<NatOpPinSet>> {
     decode(PINS_TEXT.as_bytes())

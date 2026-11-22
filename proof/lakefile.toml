@@ -5,7 +5,7 @@ name = "con-ron"
 # their scripts, the arena driver and bench are gated by the differential and
 # by measurement, not by the build.
 defaultTargets = ["ConRon", "ConRonTools", "ConRonArena", "ConRonBridge",
-  "ConRonRefine2", "ConRonCapstone"]
+  "ConRonRefine2", "ConRonMainTheorem"]
 
 # con-leche, the Lean checker this port refines (DESIGN.md §1).  A plain lake
 # dependency (task #91), pinned by `rev`; `proof/lake-manifest.json`'s
@@ -154,13 +154,13 @@ globs = ["ConRon.Refine2.*"]
 # "Capstones for the binary = Theorem 2 ∘ Theorem 1 ∘ con-leche".  The one
 # module that imports BOTH `ConRon.Bridge` (Theorem 1) and `ConRon.Refine2`
 # (Theorem 2), so its own library root; a default target, so `scripts/gates.sh`'s
-# `lake-build` step builds it.  `ConRon.Capstone.model_exists` and
-# `ConRon.Capstone.no_False_declaration` are the campaign's root theorems:
+# `lake-build` step builds it.  `ConRon.MainTheorem.Stages.model_exists` and
+# `ConRon.MainTheorem.Stages.no_False_declaration` are the campaign's root theorems:
 # the sorry frontier is measured from them.
 [[lean_lib]]
-name = "ConRonCapstone"
+name = "ConRonMainTheorem"
 # `ConRon.MainTheorem.Conclusions` (task #171, lane C): the Capstone's headlines with
 # con-leche's conclusions, over `ConRon.MainTheorem.PureStored`.
 # `ConRon.MainTheorem` (lane D): `CanGive`, the walk of the extracted driver, and the main
 # theorems about the binary.
-roots = ["ConRon.Capstone", "ConRon.MainTheorem.Conclusions", "ConRon.MainTheorem"]
+roots = ["ConRon.MainTheorem.Stages", "ConRon.MainTheorem.Conclusions", "ConRon.MainTheorem"]

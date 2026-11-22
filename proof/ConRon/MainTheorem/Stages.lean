@@ -23,16 +23,16 @@ import ConRon.Refine2.Modular.ReachCheck
 import ConRon.Refine2.Checker.PoolFrom
 
 /-!
-# `ConRon.Capstone` — THE COMPOSITION: Theorem 2 ∘ Theorem 1 ∘ con-leche
+# `ConRon.MainTheorem.Stages` — THE COMPOSITION: Theorem 2 ∘ Theorem 1 ∘ con-leche
 
 DESIGN.md §8.2's last line: *"Capstones for the binary = Theorem 2 ∘
 Theorem 1 ∘ con-leche."*  This is the one module that imports both
 `ConRon.Bridge` (Theorem 1, (B) ⇒ (A)) and `ConRon.Refine2` (Theorem 2,
 (C) ⇒ (B)), and it states the binary's headline theorems:
 
-* `ConRon.Capstone.model_exists` — the environment of every stream the Aeneas
+* `ConRon.MainTheorem.Stages.model_exists` — the environment of every stream the Aeneas
   model of the Rust pipeline accepts has a model in every set theory;
-* `ConRon.Capstone.no_False_declaration` — a file that declares a theorem of
+* `ConRon.MainTheorem.Stages.no_False_declaration` — a file that declares a theorem of
   type `False` is never accepted by it;
 * `no_False_oleans` / `model_exists_oleans` — the same on `--olean`;
 * `model_exists_compare` / `no_False_compare` and `model_exists_oleans_compare` /
@@ -101,7 +101,7 @@ decoder read, at any text (as con-leche's theorems hold at every pin list);
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 
-namespace ConRon.Capstone
+namespace ConRon.MainTheorem.Stages
 
 set_option autoImplicit false
 
@@ -1675,7 +1675,7 @@ Upstream's modular theorem (`ConLeche/MainTheorem.lean` `main_modular`, `main_mo
 the graph check and one worker per module of the headers' closure; its proof assembles the
 worker's accepts into an accepted run over the closure (`Driver.Compose.closure_sees_isModel`).
 The driver (`crates/con-ron/src/modular.rs`) runs each call below from fresh start values; the
-premises are its calls, marked `ConRon.Capstone:` there. -/
+premises are its calls, marked `ConRon.MainTheorem.Stages:` there. -/
 
 section RustModular
 
@@ -2419,64 +2419,64 @@ end RustModular
 hypotheses of the statements, not axioms of the environment, so this census does not list
 them. -/
 
-/-- info: 'ConRon.Capstone.model_exists' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.MainTheorem.Stages.model_exists' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms model_exists
 
-/-- info: 'ConRon.Capstone.no_False_declaration' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.MainTheorem.Stages.no_False_declaration' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms no_False_declaration
 
-/-- info: 'ConRon.Capstone.model_exists_embedded' depends on axioms: [propext,
+/-- info: 'ConRon.MainTheorem.Stages.model_exists_embedded' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
  kernel.pins_text.PINS_TEXT._native.decide.ax_1] -/
 #guard_msgs in #print axioms model_exists_embedded
 
-/-- info: 'ConRon.Capstone.no_False_declaration_embedded' depends on axioms: [propext,
+/-- info: 'ConRon.MainTheorem.Stages.no_False_declaration_embedded' depends on axioms: [propext,
  Classical.choice,
  Quot.sound,
  kernel.pins_text.PINS_TEXT._native.decide.ax_1] -/
 #guard_msgs in #print axioms no_False_declaration_embedded
 
-/-- info: 'ConRon.Capstone.no_False_oleans_of' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.MainTheorem.Stages.no_False_oleans_of' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms no_False_oleans_of
 
-/-- info: 'ConRon.Capstone.model_exists_oleans_of' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.MainTheorem.Stages.model_exists_oleans_of' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms model_exists_oleans_of
 
-/-- info: 'ConRon.Capstone.no_False_oleans' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.MainTheorem.Stages.no_False_oleans' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms no_False_oleans
 
-/-- info: 'ConRon.Capstone.model_exists_oleans' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.MainTheorem.Stages.model_exists_oleans' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms model_exists_oleans
 
-/-- info: 'ConRon.Capstone.model_exists_compare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.MainTheorem.Stages.model_exists_compare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms model_exists_compare
 
-/-- info: 'ConRon.Capstone.no_False_compare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.MainTheorem.Stages.no_False_compare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms no_False_compare
 
-/-- info: 'ConRon.Capstone.no_False_oleans_compare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.MainTheorem.Stages.no_False_oleans_compare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms no_False_oleans_compare
 
-/-- info: 'ConRon.Capstone.model_exists_oleans_compare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.MainTheorem.Stages.model_exists_oleans_compare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms model_exists_oleans_compare
 
-/-- info: 'ConRon.Capstone.model_modular_of' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.MainTheorem.Stages.model_modular_of' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms model_modular_of
 
-/-- info: 'ConRon.Capstone.model_modular_compare_of' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.MainTheorem.Stages.model_modular_compare_of' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms model_modular_compare_of
 
-/-- info: 'ConRon.Capstone.no_False_modular_compare_of' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.MainTheorem.Stages.no_False_modular_compare_of' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms no_False_modular_compare_of
 
-/-- info: 'ConRon.Capstone.model_modular' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.MainTheorem.Stages.model_modular' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms model_modular
 
-/-- info: 'ConRon.Capstone.model_modular_compare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.MainTheorem.Stages.model_modular_compare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms model_modular_compare
 
-/-- info: 'ConRon.Capstone.no_False_modular_compare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.MainTheorem.Stages.no_False_modular_compare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms no_False_modular_compare
 
-end ConRon.Capstone
+end ConRon.MainTheorem.Stages

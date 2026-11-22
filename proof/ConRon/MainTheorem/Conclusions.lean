@@ -1,4 +1,4 @@
-import ConRon.Capstone
+import ConRon.MainTheorem.Stages
 import ConRon.MainTheorem.PureStored
 import ConLeche.Verify.Frontend.StreamModel
 
@@ -7,7 +7,7 @@ import ConLeche.Verify.Frontend.StreamModel
 
 con-leche's main theorems (`ConLeche/MainTheorem.lean`) conclude in the vocabulary of its
 specification: `parseChunks [b]`, `IsModel`, `constantsOf`, `Olean.closureConstants`,
-`jsonWithTheoremFalse`.  The Capstone's headlines (`ConRon/Capstone.lean` §4) end at the twin's
+`jsonWithTheoremFalse`.  The Capstone's headlines (`ConRon/MainTheorem/Stages.lean` §4) end at the twin's
 denotation instead (`RustDenotes … ∧ Nonempty (Model V env)`).  Each theorem here has the step
 premises of one Capstone headline, the pins the binary's embedded ones (the `_embedded` forms),
 and con-leche's conclusion verbatim:
@@ -37,7 +37,7 @@ Theorem 1 gives.
 -/
 
 open Aeneas Aeneas.Std Result
-open ConRon.Generated ConRon.Capstone
+open ConRon.Generated ConRon.MainTheorem.Stages
 open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean
 open ConLeche (IsModel constantsOf jsonWithTheoremFalse FS)
 open ConLeche.Frontend (parseChunks concatBytes)
