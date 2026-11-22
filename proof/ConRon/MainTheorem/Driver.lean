@@ -149,7 +149,7 @@ theorem parse_source_loop_inv {Sc : Type} {inst : frontend.export_c.ChunkSource 
     have hl := alloc.vec.Vec.len_val buf
     rw [h0] at hl
     refine ⟨List.eq_nil_of_length_eq_zero (by simpa using hl.symm), ?_⟩
-    rw [if_pos h0] at h
+    rw [ite_eq_left h0] at h
     obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨⟨r, ar1⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     rw [← Result.ok_injective h]
@@ -161,7 +161,7 @@ theorem parse_source_loop_inv {Sc : Type} {inst : frontend.export_c.ChunkSource 
       have : buf.val.length = 0 := by rw [hb]; rfl
       scalar_tac
     refine ⟨hne, ?_⟩
-    rw [if_neg h0] at h
+    rw [ite_eq_right h0] at h
     obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨⟨r, ar1, st1⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     cases r with
@@ -192,8 +192,7 @@ theorem next_chunk_inv {src : frontend.checker_io.FileChunks S} (herr : src.err 
       ((∃ e, r = .Err e ∧ buf.val = [] ∧ src1.err = some e) ∨
        (r = .Ok buf ∧ src1.fs = src.fs ∧ src1.path = src.path ∧ src1.err = none ∧
          src1.off.val = src.off.val + buf.length ∧ src1.reads.val = src.reads.val + 1)) := by
-  simp only [fileSrc, frontend.checker_io.FileChunks.Insts.Con_ron_coreFrontendExport_cChunkSource,
-    frontend.checker_io.FileChunks.Insts.Con_ron_coreFrontendExport_cChunkSource.next_chunk,
+  simp only [frontend.checker_io.FileChunks.Insts.Con_ron_coreFrontendExport_cChunkSource.next_chunk,
     herr] at h
   obtain ⟨i, hi, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hpos := chunk_size_pos hi
@@ -226,7 +225,7 @@ theorem next_chunk_inv {src : frontend.checker_io.FileChunks S} (herr : src.err 
         simp only [UScalarTy.numBits]
         rcases System.Platform.numBits_eq with h | h <;> omega
       exact lt_of_lt_of_le hb (Nat.pow_le_pow_right (by decide) this)
-    refine ⟨rfl, rfl, rfl, herr, ?_, ?_⟩
+    refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩
     · rw [add_ok_val h4, cast_u64_val _ hv64, hv]
     · rw [add_ok_val h5]
       rfl
@@ -264,12 +263,12 @@ theorem fileChunks_loop (hfs : AnswersAs io fs) {s : S} {file : alloc.vec.Vec St
     cases hw
     have hsz : buf.length = (b.extract src.off.val (min (src.off.val + len.val) b.size)).size := by
       rw [← hbytes]
-      simp [absBytes, alloc.vec.Vec.deref, alloc.vec.Vec.length]
+      simp [absBytes, alloc.vec.Vec.deref, alloc.vec.Vec.length, ByteArray.size]
     rw [ByteArray.size_extract] at hsz
     have hr1 : src1.reads.val < 2 ^ UScalarTy.Usize.numBits := src1.reads.hBounds
     rcases hcase with ⟨hnil, ho⟩ | ⟨hne, ⟨e', he'⟩ | ⟨ar1, st1, c2, l, t1, h1⟩⟩
     · -- the end: an empty read
-      refine ⟨[], ⟨buf, src1, hn, hnil⟩, ?_, by simp; omega⟩
+      refine ⟨[], ⟨buf, src1, hn, hnil⟩, ?_, by simp only [List.length_nil]; omega⟩
       have : (b.extract src.off.val (min (src.off.val + len.val) b.size)).size = 0 := by
         rw [ByteArray.size_extract]
         have : buf.length = 0 := by simp [alloc.vec.Vec.length, hnil]
@@ -286,11 +285,12 @@ theorem fileChunks_loop (hfs : AnswersAs io fs) {s : S} {file : alloc.vec.Vec St
       have hk' : b.size - src1.off.val < k := by omega
       obtain ⟨cs, hcs, hcat, hcnt⟩ := ih _ hk' src1 rfl (by rw [hfs1, hsrc])
         (by rw [hpath1, hpath]) herr1 (by omega) h1 hok herr'
-      refine ⟨buf :: cs, ⟨hne, src1, hn, hcs⟩, ?_, by simp; omega⟩
+      refine ⟨buf :: cs, ⟨hne, src1, hn, hcs⟩, ?_, by simp only [List.length_cons]; omega⟩
       simp only [List.map_cons, ConLeche.Frontend.concatBytes]
       rw [hcat, hoff1]
       have hchunk : absChunk buf = b.extract src.off.val (src.off.val + buf.length) := by
-        rw [show absChunk buf = absBytes (alloc.vec.Vec.deref buf) from rfl, hbytes]
+        rw [show absChunk buf = absBytes (alloc.vec.Vec.deref buf) by
+          simp [absChunk, absBytes, alloc.vec.Vec.deref], hbytes]
         congr 1
         omega
       rw [hchunk, extract_cut (by omega) (by omega)]
@@ -323,8 +323,8 @@ theorem fileChunks_parse (hfs : AnswersAs io fs) {s : S} {file : alloc.vec.Vec S
     have hlen : cs.length ≤ Std.Usize.max := by
       simp at hcnt
       scalar_tac
-    refine ⟨⟨cs, hlen⟩, hcs, ?_⟩
-    simp only [absChunks]
+    refine ⟨alloc.vec.Vec.from cs hlen, by rw [alloc.vec.Vec.from_val]; exact hcs, ?_⟩
+    simp only [absChunks, alloc.vec.Vec.from_val]
     rw [hcat]
     simp
 
@@ -344,6 +344,12 @@ theorem vec_index_ok {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize}
   obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec v i hi)
   rw [hy, hyv]
 
+theorem vec_index_some {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize} {x : α}
+    (h : v.val[i.val]? = some x) :
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) v i = ok x := by
+  obtain ⟨hi, hx⟩ := List.getElem?_eq_some_iff.mp h
+  rw [vec_index_ok hi, hx]
+
 /-- `["--", file]`'s `argv`: two words, `--` and the file's code points. -/
 theorem argv_end {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {file : String}
     (h : ArgvOf argv ["--", file]) :
@@ -357,7 +363,7 @@ theorem argv_end {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {file : String}
 
 /-- The word `--` as the parser compares it. -/
 theorem w_end_val : (Array.to_slice driver.cli.W_END).val = [45#u32, 45#u32] := by
-  simp [driver.cli.W_END, Array.to_slice, Array.make]
+  simp [driver.cli.W_END, Array.to_slice]
 
 /-- `cps_beq` of `--` against `--`. -/
 theorem beq_end {d : alloc.vec.Vec Std.U32} (hd : d.val = [45#u32, 45#u32]) {sl : Slice Std.U32}
@@ -373,12 +379,10 @@ theorem help_wanted_end {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {d f}
   rw [driver.cli.help_wanted, driver.cli.help_wanted_loop] at h
   have hl := alloc.vec.Vec.len_val argv
   have hlen : (alloc.vec.Vec.len argv).val = 2 := by rw [hl]; simp [alloc.vec.Vec.length, hv]
-  rw [if_neg (by scalar_tac)] at h
-  rw [vec_index_ok (by simp [alloc.vec.Vec.length, hv]), bind_ok] at h
+  rw [ite_eq_right (by scalar_tac)] at h
+  rw [vec_index_some (x := d) (by simp [hv]), bind_ok] at h
   obtain ⟨sl, hsl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨bb, hbb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hd' : argv.val[(0#usize).val] = d := by simp [hv]
-  rw [hd'] at hbb
   rw [beq_end hd hsl hbb] at h
   exact (Result.ok_injective h).symm
 
@@ -386,9 +390,10 @@ theorem help_wanted_end {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {d f}
 theorem push_val {α : Type} {v r : alloc.vec.Vec α} {x : α} (h : alloc.vec.Vec.push v x = ok r) :
     r.val = v.val ++ [x] := by
   unfold alloc.vec.Vec.push at h
+  dsimp only at h
   split at h
-  · rw [← Result.ok_injective h]
-  · cases h
+  · rw [← Result.ok_injective h, alloc.vec.Vec.from_val, List.concat_eq_append]
+  · exact absurd h (by simp)
 
 /-- `str_copy_from`'s loop copies the rest. -/
 theorem str_copy_from_loop_val (s : alloc.vec.Vec Std.U32) :
@@ -400,7 +405,7 @@ theorem str_copy_from_loop_val (s : alloc.vec.Vec Std.U32) :
     intro o i hk t h
     rw [kernel.expr.str_copy_from_loop] at h
     have hl := alloc.vec.Vec.len_val s
-    rw [if_pos (by scalar_tac)] at h
+    rw [ite_eq_left (by scalar_tac)] at h
     rw [← Result.ok_injective h, List.drop_eq_nil_of_le (by simp [alloc.vec.Vec.length] at hk; omega)]
     simp
   | succ k ih =>
@@ -408,16 +413,14 @@ theorem str_copy_from_loop_val (s : alloc.vec.Vec Std.U32) :
     rw [kernel.expr.str_copy_from_loop] at h
     have hl := alloc.vec.Vec.len_val s
     have hlt : i.val < s.length := by omega
-    rw [if_neg (by scalar_tac)] at h
+    rw [ite_eq_right (by scalar_tac)] at h
     rw [vec_index_ok hlt, bind_ok] at h
     obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hi3v := add_ok_val hi3
-    rw [ih o1 i3 (by simp at hi3v; omega) h, push_val ho1, hi3v]
-    simp only [List.append_assoc, List.singleton_append]
-    congr 1
-    simp at hi3v ⊢
-    rw [List.drop_eq_getElem_cons hlt]
+    rw [ih o1 i3 (by simp at hi3v; omega) h, push_val ho1, hi3v,
+      List.drop_eq_getElem_cons (i := i.val) hlt]
+    simp
 
 /-- `str_copy` copies. -/
 theorem str_copy_val {s t : alloc.vec.Vec Std.U32} (h : kernel.expr.str_copy s = ok t) :
@@ -435,37 +438,35 @@ theorem parse_args_end {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {d f}
       a.scheduled = false ∧ a.trusted_path.val = [] ∧ a.verified = true ∧ a.no_pins = false ∧
       a.pins = none ∧ ∃ f', a.files.val = [f'] ∧ f'.val = f.val := by
   rw [driver.cli.parse_args, driver.cli.args_default] at h
-  obtain ⟨n, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  rw [bind_ok, driver.cli.parse_args_loop] at h
+  obtain ⟨a0, ha0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨n, -, ha0⟩ := ConRon.Refine.bind_eq_ok_iff.mp ha0
+  have ha0' := (Result.ok_injective ha0).symm
+  subst ha0'
+  rw [driver.cli.parse_args_loop] at h
   have hl := alloc.vec.Vec.len_val argv
   have hlen : (alloc.vec.Vec.len argv).val = 2 := by rw [hl]; simp [alloc.vec.Vec.length, hv]
-  rw [if_neg (by scalar_tac)] at h
-  rw [vec_index_ok (by simp [alloc.vec.Vec.length, hv]), bind_ok] at h
+  rw [ite_eq_right (by scalar_tac)] at h
+  rw [vec_index_some (x := d) (by simp [hv]), bind_ok] at h
   obtain ⟨sl, hsl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨bb, hbb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hd' : argv.val[(0#usize).val] = d := by simp [hv]
-  rw [hd'] at hbb
-  rw [beq_end hd hsl hbb, if_pos rfl] at h
+  rw [beq_end hd hsl hbb, ite_eq_left rfl] at h
   obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hi2v : i2.val = 1 := by rw [add_ok_val hi2]; rfl
   -- the files: `f`, copied
   rw [driver.cli.push_files, driver.cli.push_files_loop] at hv1
-  rw [if_pos (by scalar_tac), vec_index_ok (by simp [alloc.vec.Vec.length, hv]; omega),
-    bind_ok] at hv1
+  rw [ite_eq_left (by scalar_tac), vec_index_some (x := f) (by simp [hv, hi2v]), bind_ok] at hv1
   obtain ⟨f', hf', hv1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv1
   obtain ⟨out1, hout1, hv1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv1
   obtain ⟨i3, hi3, hv1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv1
   have hi3v : i3.val = 2 := by rw [add_ok_val hi3, hi2v]; rfl
-  rw [driver.cli.push_files_loop, if_neg (by scalar_tac)] at hv1
+  rw [driver.cli.push_files_loop, ite_eq_right (by scalar_tac)] at hv1
   have hv1' := (Result.ok_injective hv1).symm
   subst hv1'
   rw [driver.cli.closed] at h
-  simp only [Bool.false_eq_true, if_false] at h
+  simp only [Bool.false_eq_true, ite_false] at h
   have ha := (Result.ok_injective h).symm
   subst ha
-  have hf : argv.val[i2.val] = f := by simp [hv, hi2v]
-  rw [hf] at hf'
   refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, f', ?_, str_copy_val hf'⟩
   rw [push_val hout1]
   rfl
@@ -521,7 +522,7 @@ theorem pins_for_run_embedded {s s' : S} {a : driver.cli.Args} (hnp : a.no_pins 
     (h : driver.check_main.pins_for_run io s a = ok (some ps, s')) :
     kernel.pins_decode.decode_embedded = ok (.Ok ps) := by
   rw [driver.check_main.pins_for_run] at h
-  simp only [hnp, hp, Bool.false_eq_true, if_false] at h
+  simp only [hnp, hp, Bool.false_eq_true, ite_false] at h
   obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases r with
   | Ok ps' =>
@@ -574,7 +575,6 @@ theorem check_phase_ok (hpool : PoolSound io) {s s' : S} {pers st mode ipins ds 
           = jobStep tier mode ipins ds := by
         funext x k
         simp only [stepAt, jobStep, jobStepSol,
-          driver.check_main.JobStep.Insts.Con_ron_coreFrontendChecker_ioStepFAState,
           driver.check_main.JobStep.Insts.Con_ron_coreFrontendChecker_ioStepFAState.step,
           lift, bind_ok]
       rw [hstep] at hpa
@@ -611,6 +611,19 @@ inductive JsonStages (b : ByteArray) : Prop where
       (hcat : ConLeche.Frontend.concatBytes (absChunks chunks) = b) :
       JsonStages b
 
+/-- The hoist's receipt changes no state: past it, the run goes on from the same state. -/
+theorem hoisted_bind {α β : Type} {c : Prop} [Decidable c] {m : Result Unit} {st : α}
+    {f : α → Result β} {v : β}
+    (h : (do let x ← (if c then (do m; ok st) else ok st); f x) = ok v) : f st = ok v := by
+  by_cases hc : c
+  · rw [ite_eq_left hc] at h
+    obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, -, hy⟩ := ConRon.Refine.bind_eq_ok_iff.mp hy
+    rw [Result.ok_injective hy]
+    exact h
+  · rw [ite_eq_right hc, bind_ok] at h
+    exact h
+
 /-- **The check of a lean4export file, 0** (`check_main::check_main` at `--verified`, the
 embedded pins): its calls are the capstone's step premises (`JsonStages`). -/
 theorem check_main_zero (hfs : AnswersAs io fs) (hpool : PoolSound io) {s s' : S}
@@ -620,7 +633,7 @@ theorem check_main_zero (hfs : AnswersAs io fs) (hpool : PoolSound io) {s s' : S
     (h : driver.check_main.check_main io s a file = ok (c, s')) (hc : c.val = 0) :
     JsonStages b := by
   rw [driver.check_main.check_main] at h
-  simp only [hver, if_true, bind_ok] at h
+  simp only [hver, ite_true, bind_ok] at h
   rw [startState_eq, bind_ok, emptyTier_eq, bind_ok] at h
   obtain ⟨⟨r0, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases r0 with
@@ -637,14 +650,13 @@ theorem check_main_zero (hfs : AnswersAs io fs) (hpool : PoolSound io) {s s' : S
     exact (code_ne h (by decide) hc).elim
   | Ok pre =>
   obtain ⟨⟨read, st3, src'⟩, h3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  cases herr : src'.err with
+  obtain ⟨fs', path', off', reads', err'⟩ := src'
+  cases err' with
   | some m =>
-    rw [herr] at h
     obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     exact (code_ne h (by decide) hc).elim
   | none =>
-  rw [herr] at h
   cases read with
   | Err p =>
     obtain ⟨e, line⟩ := p
@@ -660,13 +672,7 @@ theorem check_main_zero (hfs : AnswersAs io fs) (hpool : PoolSound io) {s s' : S
     obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     exact (code_ne h (exit_code_ne hc0) hc).elim
   | Ok prepared =>
-  obtain ⟨st5, hst5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hst5' : st5 = st4 := by
-    split at hst5
-    · obtain ⟨_, -, hst5⟩ := ConRon.Refine.bind_eq_ok_iff.mp hst5
-      exact (Result.ok_injective hst5).symm
-    · exact (Result.ok_injective hst5).symm
-  subst hst5'
+  have h := hoisted_bind h
   obtain ⟨⟨o, io1⟩, hpr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases o with
   | none => exact (code_ne h (by decide) hc).elim
@@ -683,7 +689,7 @@ theorem check_main_zero (hfs : AnswersAs io fs) (hpool : PoolSound io) {s s' : S
   obtain ⟨⟨verdict, io3, st7⟩, hph, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨ix, rfl⟩ := verdict_of_zero h hc
   obtain ⟨ix0, st8, tier, frozen, h6, h7, h8⟩ := check_phase_ok hpool hph
-  obtain ⟨chunks, hreads, hcat⟩ := fileChunks_parse hfs hq hb h3 herr
+  obtain ⟨chunks, hreads, hcat⟩ := fileChunks_parse hfs hq hb h3 rfl
   exact JsonStages.intro h1 h2 hreads h3 h4 hpins h5 h6 h7 h8 hcat
 
 end CheckMain
@@ -702,7 +708,7 @@ theorem run_args_json {S : Type} {io : frontend.checker_io.CheckerIo S} {fs : Co
   rw [driver.cli.run_args] at h
   obtain ⟨hw, hhw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [help_wanted_end hv hd hhw] at h
-  simp only [Bool.false_eq_true, if_false] at h
+  simp only [Bool.false_eq_true, ite_false] at h
   obtain ⟨a, ha, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨hbad, hcg, hol, hcmp, hsp, hcon, hmod, hmods, hsch, htp, hver, hnp, hp, f', hfiles, hf'⟩ :=
     parse_args_end hv hd ha
@@ -714,12 +720,10 @@ theorem run_args_json {S : Type} {io : frontend.checker_io.CheckerIo S} {fs : Co
   have hfl := alloc.vec.Vec.len_val a.files
   have hfl1 : (alloc.vec.Vec.len a.files).val = 1 := by
     rw [hfl]; simp [alloc.vec.Vec.length, hfiles]
-  simp only [hbad, hcg, hol, hcmp, hmod, hmods, hsch, Bool.false_eq_true, if_false,
-    if_neg (hlen0 hsp), if_neg (hlen0 hcon), if_neg (hlen0 htp)] at h
-  rw [if_neg (by scalar_tac), if_neg (by simp; scalar_tac),
-    vec_index_ok (by simp [alloc.vec.Vec.length, hfiles]), bind_ok] at h
-  have hf0 : a.files.val[(0#usize).val] = f' := by simp [hfiles]
-  rw [hf0] at h
+  simp only [hbad, hcg, hol, hcmp, hmod, hmods, hsch, Bool.false_eq_true, ite_false,
+    ite_eq_right (hlen0 hsp), ite_eq_right (hlen0 hcon), ite_eq_right (hlen0 htp)] at h
+  rw [ite_eq_right (by scalar_tac), ite_eq_right (by simp; scalar_tac),
+    vec_index_some (x := f') (by simp [hfiles]), bind_ok] at h
   -- the file's path is the file
   have hq : PathRel f' ⟨file⟩ := by
     refine Or.inr (Or.inr ?_)

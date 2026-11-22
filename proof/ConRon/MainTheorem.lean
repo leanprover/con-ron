@@ -1,4 +1,5 @@
 import ConRon.MainTheorem.Driver
+import ConRon.MainTheorem.Conclusions
 
 /-!
 # `ConRon.MainTheorem` — the main theorems about the binary (task #171, DESIGN.md §3.9)
@@ -15,23 +16,37 @@ not end the process, its pool keeps `ParallelAll`, and `main` does what it says 
 list's code points, the checking thread, `run_args`, the flush, the exit with its code).
 
 **Slice 1: `-- <file>`.**  `json_stages_of_canGive` takes an exit 0 at `["--", file]` to every
-step premise of the capstone (`JsonStages`); with lane C's `json_model_of_stages` and
-`json_no_False_of_stages` (`MainTheorem/Conclusions.lean`), the two main theorems of a
-lean4export file are, in con-leche's words:
+step premise of the capstone (`JsonStages`); lane C's `json_model_of_stages` and
+`json_no_False_of_stages` (`MainTheorem/Conclusions.lean`) take those to con-leche's
+conclusions.  The two theorems below are con-leche's `main_json_model` and `main_no_False`,
+word for word but the run premise.
+-/
 
-```lean
-theorem main_json_model (V : Type w) [SetTheory V] {file : String} {fs : FS} {b : ByteArray}
+open ConLeche (IsModel constantsOf jsonWithTheoremFalse FS)
+open ConLeche.Frontend (parseChunks)
+
+namespace ConRon.MainTheorem
+
+universe w
+
+/-- con-leche: ConLeche/MainTheorem.lean:45-49 main_json_model —
+**An accepted file's records have a model**: an exit 0 of `-- <file>` read the file as
+records that have a model in every set theory. -/
+theorem main_json_model (V : Type w) [ConLeche.SetTheory V] {file : String} {fs : FS}
+    {b : ByteArray}
     (h : ConRon.CanGive ["--", file] fs 0) (hb : fs.file file = some b) :
     ∃ r, parseChunks [b] = .ok r ∧ ∃ model, IsModel V model (· ∈ constantsOf r.decls.toList) :=
-  have ⟨h1, h2, hreads, h3, h4, hpins, h5, h6, h7, h8, hcat⟩ := json_stages_of_canGive h hb
+  have ⟨h1, h2, hreads, h3, h4, hpins, h5, h6, h7, h8, hcat⟩ := ConRon.json_stages_of_canGive h hb
   json_model_of_stages V h1 h2 hreads hcat h3 h4 hpins h5 h6 h7 h8
 
-theorem main_no_False (V : Type w) [SetTheory V] {file : String} {fs : FS} {b : ByteArray}
+/-- con-leche: ConLeche/MainTheorem.lean:51-57 main_no_False —
+**No accepted file declares a theorem of type `False`**: no exit 0 of `-- <file>` reads a
+`jsonWithTheoremFalse` file. -/
+theorem main_no_False (V : Type w) [ConLeche.SetTheory V] {file : String} {fs : FS}
+    {b : ByteArray}
     (h : ConRon.CanGive ["--", file] fs 0) (hb : fs.file file = some b)
     (hF : jsonWithTheoremFalse [b]) : False :=
-  have ⟨h1, h2, hreads, h3, h4, hpins, h5, h6, h7, h8, hcat⟩ := json_stages_of_canGive h hb
+  have ⟨h1, h2, hreads, h3, h4, hpins, h5, h6, h7, h8, hcat⟩ := ConRon.json_stages_of_canGive h hb
   json_no_False_of_stages V hcat hF h1 h2 hreads h3 h4 hpins h5 h6 h7 h8
-```
 
-They are stated here once both lanes are on one branch.
--/
+end ConRon.MainTheorem
