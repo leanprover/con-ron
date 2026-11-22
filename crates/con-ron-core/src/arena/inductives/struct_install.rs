@@ -81,7 +81,7 @@ pub const M_TBL_TAKEN: [u32; 22] = [
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:30-49 checkStructDomsAt
 /// con-leche: ConLeche/Cached/IndBlock.lean:117-125 checkStructDomsAtC
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:27-41 checkStructDomsAt`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:30-44 checkStructDomsAt`
 /// — the reference kernels' binder-domain comparisons, run binder by binder
 /// **at its own frame**: the `j`-th opened variable's annotation against the
 /// `j`-th expected domain, at frame `off + j`.  Walks from the last binder to
@@ -144,7 +144,7 @@ pub fn check_struct_doms_at(
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:51-73 checkStructProjTable
 /// con-leche: ConLeche/Cached/IndTail.lean:195-203 checkStructProjTableC
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:43-65 checkStructProjTable`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:46-68 checkStructProjTable`
 /// — stage 5: **the projection table's checks** (con-leche's task #175 S1),
 /// at the table the block installs (`arena::install::block_tables`): its
 /// bodies' scoping at its own level parameters and parameter count, validated
@@ -175,7 +175,7 @@ pub fn check_struct_proj_table(
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:51-73 checkStructProjTable
 /// con-leche: ConLeche/Cached/IndTail.lean:195-203 checkStructProjTableC
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:43-65 checkStructProjTable`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:46-68 checkStructProjTable`
 /// — the bodies' scoping, validated once at insertion: fvar-free, level
 /// parameters within the structure's, resolving, scoped at the parameters and
 /// the subject.  **All four conjuncts run for every body**, as the twin's `do`
@@ -247,7 +247,7 @@ pub const M_FLD_BIG: [u32; 70] = [
 ];
 
 /// con-leche: none — `xs.contains x` over a `Vec<EIdx>`
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:1-1 checkStructFieldSortsI`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:72-95 checkStructFieldSortsI`
 /// — `idxArgs.contains fv`; handles, so `==` is word equality.
 pub fn eidx_contains(xs: &Vec<EIdx>, x: &EIdx, i: usize) -> bool {
     if i >= xs.len() {
@@ -262,7 +262,7 @@ pub fn eidx_contains(xs: &Vec<EIdx>, x: &EIdx, i: usize) -> bool {
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:75-99 checkStructFieldSortsI
 /// con-leche: ConLeche/Cached/IndPositivity.lean:337-353 checkStructFieldSortsIC
 /// con-leche: ConLeche/Cached/IndBlock.lean:127-142 checkStructFieldSortsC
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:1-1 checkStructFieldSortsI`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:72-95 checkStructFieldSortsI`
 /// — every field's domain has a sort over the opened constructor telescope,
 /// under the official per-field universe bound unless the family is
 /// propositional.  **Walks the fields from the LAST to the first** (the twin's
@@ -313,7 +313,7 @@ pub fn check_struct_field_sorts_i(
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:75-99 checkStructFieldSortsI
 /// con-leche: ConLeche/Cached/IndPositivity.lean:337-353 checkStructFieldSortsIC
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:1-1 checkStructFieldSortsI`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:72-95 checkStructFieldSortsI`
 /// — one field's universe bound: official's `leq` against the family's sort at
 /// a non-propositional family, and the large eliminator's escape hatch
 /// (`Prop`-valued or an index argument) at a propositional one.

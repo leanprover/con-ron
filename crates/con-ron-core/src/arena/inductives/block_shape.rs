@@ -129,7 +129,7 @@ pub fn member_struct_ctor(ms: &MemberShape) -> Option<(IConstantVal, u64)> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:110-137 BlockShape
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:86-106 BlockShape` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:86-110 BlockShape` — the
 /// pieces of a recognised block at any number of members: the members, the
 /// recursors, the SHARED parameter count, elimination level parameter
 /// (`.anonymous` for a small eliminator) and result sort, the two flags, and
@@ -188,7 +188,7 @@ pub fn flags_dup(fl: &Vec<IndFlags>, i: usize, out: Vec<IndFlags>) -> Vec<IndFla
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:151-162 BlockShape.derivedFlags
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 BlockShape.derivedFlags` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:114-132 BlockShape.derivedFlags` —
 /// **the flags of a block without declared ones**, member `i`'s: what the
 /// official kernel computed from the declaration before the flags were
 /// inputs.  `has_eta` is the structure-like shape; the capability takes
@@ -223,7 +223,7 @@ pub fn derived_flags(p: &BlockShape, i: u64) -> IndFlags {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:164-168 BlockShape.flagsAt
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 BlockShape.flagsAt` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:134-140 BlockShape.flagsAt` —
 /// **member `i`'s feature flags**: its declared ones (the default record,
 /// every flag off, off the list), or the derived ones at a block without.
 pub fn flags_at(p: &BlockShape, i: u64) -> IndFlags {
@@ -246,7 +246,7 @@ pub fn flags_at(p: &BlockShape, i: u64) -> IndFlags {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:170-176 BlockShape.noRules
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 BlockShape.noRules` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:142-148 BlockShape.noRules` —
 /// **the block's recursors carry no rules**: a block with declared flags
 /// and without a large eliminator.
 pub fn no_rules(p: &BlockShape) -> bool {
@@ -263,7 +263,7 @@ pub fn no_rules(p: &BlockShape) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:178-186 BlockShape.boundedProp
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 BlockShape.boundedProp` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:150-158 BlockShape.boundedProp` —
 /// **a proposition whose fields take the ordinary universe bound**: a `Prop`
 /// block that is not `isImpredicative` and has no large eliminator.
 pub fn bounded_prop(p: &BlockShape) -> bool {
@@ -281,14 +281,14 @@ pub fn bounded_prop(p: &BlockShape) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:188-190 BlockShape.projAllowed
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 BlockShape.projAllowed` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:160-163 BlockShape.projAllowed` —
 /// **may member `i` have projections?**  Its `has_projections`.
 pub fn proj_allowed(p: &BlockShape, i: u64) -> bool {
     flags_at(p, i).has_projections
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:192-196 projMembersFrom
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 projMembersFrom` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:165-170 projMembersFrom` — the
 /// members of `ms` from position `i` on that may have projections
 /// (`proj_allowed` at their position), copied.
 pub fn proj_members_from(p: &BlockShape, ms: &Vec<MemberShape>, i: usize, out: Vec<MemberShape>) -> Vec<MemberShape> {
@@ -304,7 +304,7 @@ pub fn proj_members_from(p: &BlockShape, ms: &Vec<MemberShape>, i: usize, out: V
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:198-201 BlockShape.projMembers
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 BlockShape.projMembers` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:172-176 BlockShape.projMembers` —
 /// **the members that may have projections**: the `has_projections` ones.
 /// The projection tables are read off these.
 pub fn proj_members(p: &BlockShape) -> Vec<MemberShape> {
@@ -312,7 +312,7 @@ pub fn proj_members(p: &BlockShape) -> Vec<MemberShape> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:203-204 BlockShape.formers
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:108-110 BlockShape.formers` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:178-180 BlockShape.formers` — the
 /// members' formers from `i` on, at the telescopes the check reads, in block
 /// order.
 pub fn shape_formers(ms: &Vec<MemberShape>, i: usize, out: Vec<IConstantVal>) -> Vec<IConstantVal> {
@@ -326,7 +326,7 @@ pub fn shape_formers(ms: &Vec<MemberShape>, i: usize, out: Vec<IConstantVal>) ->
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:206-208 BlockShape.memberCtors
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:112-115 BlockShape.memberCtors` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:182-185 BlockShape.memberCtors` —
 /// the members' constructors from `i` on, per member, as declared.
 pub fn member_ctors(
     ms: &Vec<MemberShape>,
@@ -343,7 +343,7 @@ pub fn member_ctors(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:210-213 BlockShape.ctorGroups
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:117-122 BlockShape.ctorGroups` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:187-192 BlockShape.ctorGroups` — the
 /// members' constructors from `i` on, grouped by member, each group under its
 /// member's name: what the install conses, the name becoming each
 /// constructor's `induct`.
@@ -362,7 +362,7 @@ pub fn ctor_groups(
 }
 
 /// con-leche: none — a `List MemberShape` copy; Lean shares the list
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:86-106 BlockShape`.
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:86-110 BlockShape`.
 pub fn members_dup(ms: &Vec<MemberShape>, i: usize, out: Vec<MemberShape>) -> Vec<MemberShape> {
     if i >= ms.len() {
         out
@@ -374,7 +374,7 @@ pub fn members_dup(ms: &Vec<MemberShape>, i: usize, out: Vec<MemberShape>) -> Ve
 }
 
 /// con-leche: none — a `List RecShape` copy; Lean shares the list
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:86-106 BlockShape`.
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:86-110 BlockShape`.
 pub fn recs_dup(rs: &Vec<RecShape>, i: usize, out: Vec<RecShape>) -> Vec<RecShape> {
     if i >= rs.len() {
         out
@@ -386,7 +386,7 @@ pub fn recs_dup(rs: &Vec<RecShape>, i: usize, out: Vec<RecShape>) -> Vec<RecShap
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:215-219 numCtorsOf
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:124-128 numCtorsOf` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:194-198 numCtorsOf` — the
 /// constructors of a list of members (`ms[i..]`), counted.
 pub fn num_ctors_of(ms: &Vec<MemberShape>, i: usize) -> u64 {
     if i >= ms.len() {
@@ -397,21 +397,21 @@ pub fn num_ctors_of(ms: &Vec<MemberShape>, i: usize) -> u64 {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:223-224 BlockShape.k
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:130-132 BlockShape.k` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:200-202 BlockShape.k` — the
 /// number of members.
 pub fn shape_k(p: &BlockShape) -> u64 {
     p.members.len() as u64
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:225-226 BlockShape.numCtors
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:134-136 BlockShape.numCtors`
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:204-206 BlockShape.numCtors`
 /// — the number of constructors of the whole block.
 pub fn shape_num_ctors(p: &BlockShape) -> u64 {
     num_ctors_of(&p.members, 0)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:227-228 BlockShape.memberNames
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:138-140 BlockShape.memberNames`
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:208-210 BlockShape.memberNames`
 /// — the members' names, in block order (an index recursion from `i`).
 pub fn member_names(ms: &Vec<MemberShape>, i: usize, out: Vec<NIdx>) -> Vec<NIdx> {
     if i >= ms.len() {
@@ -424,13 +424,13 @@ pub fn member_names(ms: &Vec<MemberShape>, i: usize, out: Vec<NIdx>) -> Vec<NIdx
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:227-228 BlockShape.memberNames
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:138-140 BlockShape.memberNames`.
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:208-210 BlockShape.memberNames`.
 pub fn shape_member_names(p: &BlockShape) -> Vec<NIdx> {
     member_names(&p.members, 0, Vec::new())
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:229-230 BlockShape.nIdxs
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:142-144 BlockShape.nIdxs` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:212-214 BlockShape.nIdxs` —
 /// the members' index counts, in block order.
 pub fn shape_n_idxs(ms: &Vec<MemberShape>, i: usize, out: Vec<u64>) -> Vec<u64> {
     if i >= ms.len() {
@@ -443,7 +443,7 @@ pub fn shape_n_idxs(ms: &Vec<MemberShape>, i: usize, out: Vec<u64>) -> Vec<u64> 
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:231-234 BlockShape.lps
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:146-151 BlockShape.lps` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:216-221 BlockShape.lps` — the
 /// block's level parameters (member 0's; `[]` at no member).
 pub fn shape_lps(p: &BlockShape) -> Vec<NIdx> {
     if p.members.len() == 0 {
@@ -454,7 +454,7 @@ pub fn shape_lps(p: &BlockShape) -> Vec<NIdx> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:235-237 BlockShape.allCtors
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:153-156 BlockShape.allCtors`
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:223-226 BlockShape.allCtors`
 /// — the constructors of the whole block, in block order.
 pub fn all_ctors(ms: &Vec<MemberShape>, i: usize, out: Vec<(IConstantVal, u64)>) -> Vec<(IConstantVal, u64)> {
     if i >= ms.len() {
@@ -466,7 +466,7 @@ pub fn all_ctors(ms: &Vec<MemberShape>, i: usize, out: Vec<(IConstantVal, u64)>)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:244-250 BlockShape.rulePrefixAt
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:158-164 BlockShape.rulePrefixAt`
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:228-234 BlockShape.rulePrefixAt`
 /// — recursor `r`'s rule prefix, the RECORD's (`0`, the default record's, off
 /// the list).
 pub fn rule_prefix_at(p: &BlockShape, r: u64) -> u64 {
@@ -478,7 +478,7 @@ pub fn rule_prefix_at(p: &BlockShape, r: u64) -> u64 {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:252-255 BlockShape.majorIdxAt
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:166-171 BlockShape.majorIdxAt`
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:236-241 BlockShape.majorIdxAt`
 /// — recursor `r`'s major-premise index, the RECORD's.
 pub fn major_idx_at(p: &BlockShape, r: u64) -> u64 {
     if r < p.recs.len() as u64 {
@@ -489,7 +489,7 @@ pub fn major_idx_at(p: &BlockShape, r: u64) -> u64 {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:257-261 BlockShape.withSort
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:173-183 BlockShape.withSort` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:243-253 BlockShape.withSort` —
 /// the record completed with the former stage's result sort, `isProp`
 /// recomputed from it.
 pub fn with_sort(pers: &PersTier, st: &mut AState, p: BlockShape, s: LIdx) -> Result<BlockShape, CheckError> {
@@ -517,7 +517,7 @@ pub fn with_sort(pers: &PersTier, st: &mut AState, p: BlockShape, s: LIdx) -> Re
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:294-300 blockSplitRecs
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:187-196 blockSplitRecs` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:257-266 blockSplitRecs` — the
 /// closing recursors from `i` on: `none` at anything else.
 pub fn block_split_recs(
     block: &Vec<IConstantInfo>,
@@ -539,7 +539,7 @@ pub fn block_split_recs(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:302-307 blockSplitCtors
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:198-210 blockSplitCtors` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:268-280 blockSplitCtors` —
 /// the constructors from `i` on, then the recursors.
 #[allow(clippy::type_complexity)]
 pub fn block_split_ctors(
@@ -599,7 +599,7 @@ pub fn ind_info_val(ci: &IConstantInfo) -> IConstantVal {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:309-315 blockSplit
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:212-224 blockSplit` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:282-294 blockSplit` — the
 /// type formers from `i` on, the constructors and the recursors.
 #[allow(clippy::type_complexity)]
 pub fn block_split(
@@ -624,7 +624,7 @@ pub fn block_split(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:317-334 recTargetOf
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:226-248 recTargetOf` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:296-318 recTargetOf` — **the
 /// member a recursor's MAJOR names**: strip the `mI` binders the record
 /// claims, the next binder is the major, and its domain's head constant is
 /// read against the member names; `names.length` — no member — otherwise.
@@ -693,7 +693,7 @@ pub const M_REC_COUNTS: [u32; 54] = [
 ];
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:336-371 blockCounts
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:256-279 blockCounts` — **one
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:326-349 blockCounts` — **one
 /// member's parameter and index counts**, read as official reads them: off
 /// the member's own telescope when it is a syntactic one ending in a sort,
 /// else off the argument sums of a recursor whose major names the member.  A
@@ -731,7 +731,7 @@ pub fn block_counts(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:336-371 blockCounts
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:256-279 blockCounts` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:326-349 blockCounts` — the
 /// def-headed former's arm: the counts off the recursor's sums, or the reason
 /// they cannot be read.
 pub fn block_counts_rec(n_pd: u64, k: u64, n_c: u64, n_r: u64, r: Option<(u64, u64)>) -> Result<(u64, u64), CheckError> {
@@ -752,14 +752,14 @@ pub fn block_counts_rec(n_pd: u64, k: u64, n_c: u64, n_r: u64, r: Option<(u64, u
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:336-371 blockCounts.recCountsError
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:250-254 recCountsError` — a recursor whose argument counts do
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:320-324 recCountsError` — a recursor whose argument counts do
 /// not fit the block (the cited names and counts dropped, §3.1).
 pub fn rec_counts_error() -> CheckError {
     CheckError::Invalid(code_points(&M_REC_COUNTS))
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:373-380 ctorMember?
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:281-290 ctorMember?` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:351-360 ctorMember?` — the
 /// member a constructor belongs to: the one its RESULT names (at the block's
 /// own levels `lvls`, `lps.map .param` interned).
 pub fn ctor_member(
@@ -843,7 +843,7 @@ pub fn block_groups_from(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:382-395 blockGroups
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:292-306 blockGroups` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:362-376 blockGroups` — **the
 /// constructors grouped by member**, in block order: at ONE member all of
 /// them, nothing read; at two or more read off the result head (a constructor
 /// whose head is no member lands in no group).
@@ -866,7 +866,7 @@ pub fn block_groups(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:397-405 blockRecLpsOk
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:308-316 blockRecLpsOk` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:378-386 blockRecLpsOk` — the
 /// recursors from `i` on carry the block's level parameters, the elimination
 /// parameter in front at the large eliminator.
 pub fn block_rec_lps_ok_from(p: &BlockShape, lps: &Vec<NIdx>, i: usize) -> bool {
@@ -908,7 +908,7 @@ pub fn nidx_vec_beq_off(a: &Vec<NIdx>, o: usize, b: &Vec<NIdx>, i: usize) -> boo
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:397-405 blockRecLpsOk
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:308-316 blockRecLpsOk` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:378-386 blockRecLpsOk` —
 /// **the recursor records' level-parameter pin**.
 pub fn block_rec_lps_ok(p: &BlockShape) -> bool {
     let lps: Vec<NIdx> = shape_lps(p);
@@ -968,7 +968,7 @@ pub fn names_all_in(xs: &Vec<NIdx>, ys: &Vec<NIdx>, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:407-429 blockRecNameSetOk
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:318-326 blockRecNameSetOk` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:388-396 blockRecNameSetOk` —
 /// **the recursor names, as a SET**: exactly `T_m.rec` at every member, each
 /// once.  Takes the members and the recursors apart, so that the caller's
 /// `{ p with recs := own }` is an argument, not a record copy.
@@ -988,7 +988,7 @@ pub fn block_rec_name_set_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:431-440 blockRecNamesUnreserved
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:328-336 blockRecNamesUnreserved`
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:398-406 blockRecNamesUnreserved`
 /// — **no recursor from `i` on takes a name the environment's own guards
 /// look up** (`reservedRecName`).
 pub fn block_rec_names_unreserved(st: &mut AState, rs: &Vec<RecShape>, i: usize) -> Result<bool, CheckError> {
@@ -1032,7 +1032,7 @@ pub fn rec_for_member(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:442-456 blockMemberCounts
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:338-357 blockMemberCounts` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:408-427 blockMemberCounts` —
 /// **the members' index counts**, one `blockCounts` per member (from member
 /// `m`, the former `cv_ts[m]`), in order; the first member that cannot be
 /// counted gives the error.
@@ -1254,7 +1254,7 @@ pub const M_CTOR_LEVELS: [u32; 79] = [
 ];
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:458-461 blockFlagRecs
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 blockFlagRecs` — the flags
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:429-433 blockFlagRecs` — the flags
 /// of the leading type records from `i` on, in order.
 pub fn block_flag_recs(block: &Vec<IConstantInfo>, i: usize, out: Vec<Option<IndFlags>>) -> Vec<Option<IndFlags>> {
     if i >= block.len() {
@@ -1290,7 +1290,7 @@ pub fn flags_all(fs: &Vec<Option<IndFlags>>, i: usize, out: Vec<IndFlags>) -> Op
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:463-467 blockFlagsOf
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 blockFlagsOf` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:435-439 blockFlagsOf` — **the
 /// block's declared feature flags**: every type record's, when all carry
 /// them; `None` otherwise.
 pub fn block_flags_of(block: &Vec<IConstantInfo>) -> Option<Vec<IndFlags>> {
@@ -1298,7 +1298,7 @@ pub fn block_flags_of(block: &Vec<IConstantInfo>) -> Option<Vec<IndFlags>> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:543-547 readBlock
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:1-1 readBlock` — **read a
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:514-520 readBlock` — **read a
 /// declared inductive block**: its shape (`read_block_shape`) and the
 /// feature flags its type records declare (`block_flags_of`).
 pub fn read_block(
@@ -1319,7 +1319,7 @@ pub fn read_block(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:469-542 readBlockShape
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:359-429 readBlockShape` — **read a
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:441-512 readBlockShape` — **read a
 /// declared inductive block's shape**: split into formers, constructors and recursors
 /// (at least one of each of the first and the last), the members' counts, the
 /// universe and parameter declarations, and then the record.  A block that
@@ -1353,7 +1353,7 @@ pub fn read_block_shape(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:469-542 readBlockShape
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:359-429 readBlockShape` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:441-512 readBlockShape` — the
 /// universe and parameter declarations' three tests (formers' universe
 /// parameters, constructors' parameter counts, constructors' universe
 /// parameters, each the first failure's reason), then the result sort
@@ -1402,7 +1402,7 @@ pub fn read_block_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:469-542 readBlockShape
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:359-429 readBlockShape` — at the
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:441-512 readBlockShape` — at the
 /// result sort `s`: `isProp`, the groups, the members, the recursors, and the
 /// eliminator read off recursor 0's level parameters (a fresh one in front of
 /// the block's is the LARGE eliminator).
@@ -1455,7 +1455,7 @@ pub fn read_block_sort(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:469-542 readBlockShape
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:359-429 readBlockShape` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockShape.lean:441-512 readBlockShape` —
 /// WHICH ELIMINATOR the recursors are: `elim :: relps` with `relps == lps` and
 /// `elim` fresh is the large one; anything else is the small one, at
 /// `.anonymous` (interned).

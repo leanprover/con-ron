@@ -1584,7 +1584,7 @@ pub fn generated_rules(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:462-466 BlockShape.ruleOut
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:1-1 ruleOutAll` — the cited
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:516-522 ruleOutAll` — the cited
 /// `noRules` arm, from `i` on: **the generated recursors without rules or
 /// constructors to compare** (the caller reads `no_rules`).
 #[allow(clippy::type_complexity)]
@@ -1605,7 +1605,7 @@ pub fn rule_out_all(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:468-477 recKExpected
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:516-523 recKExpected` — **the K
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:524-531 recKExpected` — **the K
 /// flag a recursor of this block has** (official's `is_K_target`): member 0's
 /// `is_k` (`block_shape::flags_at`), and the recursor's major is a member,
 /// with one constructor and no fields.  An outside major's recursor is never
@@ -1636,7 +1636,7 @@ pub fn some_aux_rec(rs: &Vec<RecShape>, k: u64, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:490-496 blockNestedBit
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:525-529 blockNestedBit` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:533-537 blockNestedBit` — **the
 /// block's container bit**: some field kind is not flat or some recursor's
 /// major is not a member.
 pub fn block_nested_bit(p: &BlockShape, kinds: &Vec<Vec<Vec<NestFieldKind>>>) -> bool {
@@ -1649,7 +1649,7 @@ pub fn block_nested_bit(p: &BlockShape, kinds: &Vec<Vec<Vec<NestFieldKind>>>) ->
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:498-508 blockRecInfosTF
 /// con-leche: ConLeche/Cached/IndTail.lean:48-56 blockRecInfosTC
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:531-543 blockRecInfosTF` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:539-551 blockRecInfosTF` — **the
 /// checked family's records, at their majors**, in push order, from `m` on:
 /// each recursor at its record's major index and rule prefix, its K flag
 /// `rec_k_expected` and its rules at ITS major (`generated_rules`).  Every
@@ -1696,7 +1696,7 @@ pub const M_RULE_BINDS: [u32; 121] = [
 ];
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:510-519 ruleBinds
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:546-554 ruleBinds` — **a
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:554-562 ruleBinds` — **a
 /// rule binds its arguments**: the right-hand side has at least `r_p +
 /// nfields` manifest λs, one per argument of the recursor's rule prefix and
 /// per field of the constructor — what the ι step peels (`lam_body`).  A
