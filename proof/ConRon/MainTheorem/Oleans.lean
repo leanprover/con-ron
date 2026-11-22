@@ -528,6 +528,58 @@ theorem push_files_loop_val (argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)) :
       List.singleton_append]
     rfl
 
+/-- **The module names parsed** (`cli::parse_mod_names`): each file's `parse_mod_name`. -/
+theorem parse_mod_names_loop_val (fs : alloc.vec.Vec (alloc.vec.Vec Std.U32)) :
+    ∀ (k : Nat) (out : alloc.vec.Vec kernel.name.Name) (i : Std.Usize),
+      fs.val.length - i.val = k → i.val ≤ fs.val.length → ∀ {rs},
+      driver.cli.parse_mod_names_loop fs out i = ok (.Ok rs) →
+      ∃ ns, rs.val = out.val ++ ns ∧
+        List.Forall₂ (fun f n => frontend.olean.files.parse_mod_name f = ok (some n))
+          (fs.val.drop i.val) ns := by
+  intro k
+  induction k with
+  | zero =>
+    intro out i hk hi rs h
+    rw [driver.cli.parse_mod_names_loop] at h
+    rw [ite_eq_right (by scalar_tac)] at h
+    simp only [Result.ok.injEq, core.result.Result.Ok.injEq] at h
+    subst h
+    refine ⟨[], by simp, ?_⟩
+    rw [List.drop_eq_nil_of_le (by omega)]
+    exact List.Forall₂.nil
+  | succ k ih =>
+    intro out i hk hi rs h
+    have hlt : i.val < fs.val.length := by omega
+    rw [driver.cli.parse_mod_names_loop] at h
+    rw [ite_eq_left (by scalar_tac), ConRon.Args.vec_index_ok' hlt, bind_ok] at h
+    obtain ⟨o, ho, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases o with
+    | none =>
+      obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      simp at h
+    | some n =>
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hv : i2.val = i.val + 1 := by
+        have := ConRon.Refine.Nat.uadd_val hi2; simpa using this
+      obtain ⟨ns, hrs, hfa⟩ := ih out1 i2 (by omega) (by omega) h
+      refine ⟨n :: ns, ?_, ?_⟩
+      · rw [hrs, ConRon.Refine.vec_push_val hout1]; simp
+      · rw [List.drop_eq_getElem_cons hlt]
+        rw [hv] at hfa
+        exact List.Forall₂.cons ho hfa
+
+/-- `parse_const_names` of no constant: none. -/
+theorem parse_const_names_nil {cs : alloc.vec.Vec (alloc.vec.Vec Std.U32)} (hcs : cs.val = []) :
+    ∃ r : alloc.vec.Vec kernel.name.Name, driver.cli.parse_const_names cs = ok (.Ok r) ∧
+      r.val = [] := by
+  refine ⟨alloc.vec.Vec.new _, ?_, rfl⟩
+  rw [driver.cli.parse_const_names, driver.cli.parse_const_names_loop]
+  have : ¬ (0#usize : Std.Usize) < alloc.vec.Vec.len cs := by
+    have := alloc.vec.Vec.len_val cs
+    simp [alloc.vec.Vec.length, hcs] at this; scalar_tac
+  rw [ite_eq_right this]
+
 /-- A `usize` sum of literals. -/
 theorem usize_add_lit {a b : Std.Usize} (h : a.val + 1 = b.val) : a + 1#usize = ok b := by
   obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (Std.Usize.add_spec (x := a) (y := 1#usize)
@@ -573,5 +625,143 @@ theorem parse_args_oleans {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
   simp only [hv] at hf
   refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hsp, ?_⟩
   simpa using hf
+
+section Run
+
+variable {S : Type} {io : frontend.checker_io.CheckerIo S} {fs : ConLeche.FS}
+
+/-- A usage error is never exit 0. -/
+theorem usage_ne {s s' : S} {b : driver.cli.Bad} {c : Std.U8}
+    (h : (do io.usage s b; ok (3#u8, s)) = ok (c, s')) (hc : c.val = 0) : False := by
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  exact code_ne h (by decide) hc
+
+/-- **`--olean` on one root, at exit 0** (`cli::olean_args`, no `--module`, `--modular`,
+`--trusted-search-path` or `--constant`): the root parsed, the closure checked along a copy of
+the search path. -/
+theorem olean_args_oleans {s s' : S} {a : driver.cli.Args} (hmod : a.modular = false)
+    (hmo : a.module = false) (htp : a.trusted_path.val = []) (hcon : a.constants.val = [])
+    {f : alloc.vec.Vec Std.U32} (hfiles : a.files.val = [f]) {c : Std.U8}
+    (h : driver.cli.olean_args io s a = ok (c, s')) (hc : c.val = 0) :
+    ∃ (roots cs : alloc.vec.Vec kernel.name.Name) (nm : kernel.name.Name)
+      (dirs : alloc.vec.Vec (alloc.vec.Vec Std.U32)),
+      roots.val = [nm] ∧ frontend.olean.files.parse_mod_name f = ok (some nm) ∧ cs.val = [] ∧
+      dirs.val.map (·.val) = a.search_path.val.map (·.val) ∧
+      driver.check_main.check_oleans io s a roots cs ⟨dirs, alloc.vec.Vec.new _⟩ = ok (c, s') := by
+  rw [driver.cli.olean_args] at h
+  obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases b with
+  | true => exact (usage_ne h hc).elim
+  | false =>
+  simp only [Bool.false_eq_true, ite_false] at h
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r with
+  | Err e => exact (usage_ne h hc).elim
+  | Ok rs =>
+  obtain ⟨ns, hrs, hfa⟩ := parse_mod_names_loop_val a.files _ _ 0#usize rfl (by simp) hr
+  rw [hfiles] at hfa
+  obtain ⟨nm, hnm, hns⟩ : ∃ nm, frontend.olean.files.parse_mod_name f = ok (some nm) ∧ ns = [nm] := by
+    simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at hfa
+    rcases hfa with _ | ⟨hx, hrest⟩
+    cases hrest
+    exact ⟨_, hx, rfl⟩
+  obtain ⟨cs, hcs, hcsv⟩ := parse_const_names_nil hcon
+  rw [hcs, bind_ok] at h
+  have htm : driver.cli.trusted_misplaced a = ok false := by
+    rw [driver.cli.trusted_misplaced]
+    have : alloc.vec.Vec.len a.trusted_path = 0#usize := by
+      have := alloc.vec.Vec.len_val a.trusted_path
+      simp [alloc.vec.Vec.length, htp] at this; scalar_tac
+    rw [ite_eq_left this]
+  simp only [htm, bind_ok, Bool.false_eq_true, ite_false, hmod, hmo] at h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨sp, hsp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [frontend.olean.files.roots_of_path] at hsp
+  cases Result.ok_injective hsp
+  refine ⟨rs, cs, nm, v, by rw [hrs, hns]; rfl, hnm, hcsv, ?_, h⟩
+  have := push_files_loop_val a.search_path _ _ 0#usize rfl hv
+  simpa using this
+
+/-- Two lists of paths with the same code points name the same directories. -/
+theorem absSearchPath_of_vals {d d' : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
+    (h : d.val.map (·.val) = d'.val.map (·.val)) : absSearchPath d = absSearchPath d' := by
+  have : absSearchPath d = (d.val.map (·.val)).map
+      (fun l => (⟨String.ofList (l.map fun c => Char.ofNat c.val)⟩ : System.FilePath)) := by
+    simp [absSearchPath, ConRon.Refine.absString]
+  rw [this, h]
+  simp [absSearchPath, ConRon.Refine.absString]
+
+/-- `["--olean", "--search-path=" ++ dirs, "--", root]`'s `argv`. -/
+theorem argv_oleans {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {dirs root : String}
+    (h : ArgvOf argv ["--olean", "--search-path=" ++ dirs, "--", root]) :
+    ∃ w0 w1 w2 w3, argv.val = [w0, w1, w2, w3] ∧
+      w0.val = [45#u32, 45#u32, 111#u32, 108#u32, 101#u32, 97#u32, 110#u32] ∧
+      w1.val.map UScalar.val = ("--search-path=" ++ dirs).toList.map Char.toNat ∧
+      w2.val = [45#u32, 45#u32] ∧ w3.val.map UScalar.val = root.toList.map Char.toNat := by
+  unfold ArgvOf at h
+  rcases hv : argv.val with _ | ⟨w0, _ | ⟨w1, _ | ⟨w2, _ | ⟨w3, _ | ⟨w4, l⟩⟩⟩⟩⟩ <;>
+    rw [hv] at h <;> simp only [List.map_cons, List.map_nil, List.cons.injEq, List.nil_eq,
+      reduceCtorEq, and_false, false_and] at h
+  obtain ⟨h0, h1, h2, h3⟩ := h
+  refine ⟨w0, w1, w2, w3, rfl, vals_eq (h0.trans (by decide)), h1, vals_eq (h2.trans (by decide)),
+    h3⟩
+
+/-- **An exit 0 of `["--olean", "--search-path=" ++ dirs, "--", root]`** (`cli::run_args`): the
+root is a module name the Rust parsed, the search path `dirs`'s directories, and the run's
+calls the step premises (`OleanStages`). -/
+theorem run_args_oleans (hfs : AnswersAs io fs) (hpool : PoolSound io)
+    {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {dirs root : String}
+    (hargv : ArgvOf argv ["--olean", "--search-path=" ++ dirs, "--", root]) {s s' : S}
+    {c : Std.U8} (h : driver.cli.run_args io s argv = ok (c, s')) (hc : c.val = 0) :
+    ∃ (nm : kernel.name.Name) (dv : alloc.vec.Vec (alloc.vec.Vec Std.U32)),
+      ConLeche.Frontend.Olean.parseModName root = some (ConRon.Refine.absName nm) ∧
+      absSearchPath dv = ConLeche.Driver.searchPathOf dirs ∧ OleanStages fs [nm] dv := by
+  obtain ⟨w0, w1, w2, w3, hv, h0, h1, h2, h3⟩ := argv_oleans hargv
+  obtain ⟨T, hT⟩ := search_word h1
+  have g0 : argv.val[(0#usize : Std.Usize).val]? = some w0 := by simp [hv]
+  have g1 : argv.val[(1#usize : Std.Usize).val]? = some w1 := by simp [hv]
+  have g2 : argv.val[(2#usize : Std.Usize).val]? = some w2 := by simp [hv]
+  have hhelp : driver.cli.help_wanted argv = ok false := by
+    rw [driver.cli.help_wanted,
+      ConRon.Args.help_word g0 (by rw [h0]; simp) (by rw [h0]; simp) (usize_add_lit (b := 1#usize) rfl),
+      ConRon.Args.help_word g1 (by rw [hT]; simp) (by rw [hT]; simp) (usize_add_lit (b := 2#usize) rfl),
+      ConRon.Args.help_end g2 h2]
+  rw [driver.cli.run_args, hhelp, bind_ok] at h
+  simp only [Bool.false_eq_true, ite_false] at h
+  obtain ⟨a, ha, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨hbad, hcg, hol, hcmp, hsch, hmod, hmo, hp, hnp, hver, htp, hcon, hsp, hfl⟩ :=
+    parse_args_oleans hv h0 hT h2 ha
+  simp only [hbad, hcg, hol, hcmp, hsch, hmod, Bool.false_eq_true, ite_false, ite_true] at h
+  obtain ⟨f', hf', hf'v⟩ : ∃ f', a.files.val = [f'] ∧ f'.val = w3.val := by
+    rcases hfv : a.files.val with _ | ⟨f', _ | ⟨g, l⟩⟩ <;> rw [hfv] at hfl <;> simp at hfl
+    exact ⟨f', rfl, hfl⟩
+  obtain ⟨roots, cs, nm, dv, hroots, hnm, hcs, hdv, hck⟩ :=
+    olean_args_oleans hmod hmo htp hcon hf' h hc
+  have hf3 : f'.val.map UScalar.val = root.toList.map Char.toNat := by rw [hf'v]; exact h3
+  obtain ⟨hwf, hpm⟩ := ConRon.Args.parse_mod_name_some hf3 hnm
+  have hst := check_oleans_zero hfs hpool hver hnp hp hcs
+    (by rw [hroots]; intro n hn; simp at hn; subst hn; exact hwf) hck hc
+  rw [hroots] at hst
+  refine ⟨nm, dv, hpm, ?_, hst⟩
+  rw [absSearchPath_of_vals hdv]
+  exact ConRon.Args.push_dirs_search h1 hsp
+
+end Run
+
+/-- **`main_oleans`'s conclusion from an exit 0**: the closure of the root, along the search
+path `dirs`, has a model. -/
+theorem oleans_of_canGive (V : Type w) [ConLeche.SetTheory V] {dirs root : String}
+    {r : ConLeche.Name} {fs : ConLeche.FS}
+    (hr : ConLeche.Frontend.Olean.parseModName root = some r)
+    (h : CanGive ["--olean", "--search-path=" ++ dirs, "--", root] fs 0) :
+    ∃ model, IsModel V model (closureConstants (ConLeche.Driver.searchPathOf dirs) fs #[r]) := by
+  obtain ⟨S, io, s, s', argv, c, hfs, hpool, -, hargv, hrun, hc⟩ := h
+  obtain ⟨nm, dv, hp, hsp, hst⟩ := run_args_oleans hfs hpool hargv hrun (by simpa using hc)
+  have hnm : ConRon.Refine.absName nm = r := Option.some.inj (hp.symm.trans hr)
+  cases hst with
+  | intro h1 h2 hroots hsnap hsnap' h3 h4 hpins h5 h6 h7 h8 =>
+    have := oleans_model_of_stages_dec V h1 h2 hroots hsnap hsnap' h3 h4 hpins h5 h6 h7 h8
+    rw [hsp] at this
+    simpa [hnm] using this
 
 end ConRon.MainTheorem

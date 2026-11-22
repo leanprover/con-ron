@@ -22,6 +22,7 @@ use crate::arena::handle::NIdx;
 use crate::arena::handle::ETAG_BVAR;
 use crate::arena::monad;
 use crate::arena::env::IDeclaration;
+use crate::arena::justify::Solution;
 use crate::arena::monad::AState;
 use crate::arena::nat_op_pin_set::INatOpPinSet;
 use crate::arena::pins;
@@ -121,7 +122,8 @@ pub fn workers_for(jobs: u64, m: usize) -> usize {
 
 /// con-leche: ConLeche/Driver/CheckPool.lean:128-135 runAt
 /// **A job of the check phase**: `checker::run_job` at a record position, on
-/// the frozen tier, from `checker::worker_state` of the driver's pins.
+/// the frozen tier, from `checker::worker_state` of the driver's pins, with
+/// the solution a compared run's challenge is checked with.
 pub struct JobStep<'a> {
     /// the frozen persistent tier
     pub tier: &'a PersTier,
@@ -131,6 +133,8 @@ pub struct JobStep<'a> {
     pub pins: &'a Vec<INatOpPinSet>,
     /// the driver's pin handles, which every worker's state copies
     pub apins: &'a Pins,
+    /// the solution (a compared run's challenge), or none
+    pub sol: Option<&'a Solution>,
     /// the records
     pub ds: &'a Vec<IDeclaration>,
 }
@@ -144,9 +148,9 @@ impl<'a, F: CheckerFs> Step<F, AState> for JobStep<'a> {
     }
 
     /// con-leche: ConLeche/Driver/CheckPool.lean:128-135 runAt
-    /// The record's job at its position, with no solution.
+    /// The record's job at its position, with the solution.
     fn step(&self, _fs: &F, s: &mut AState, k: usize) -> Result<(), (CheckError, u64)> {
-        checker::run_job(self.tier, s, self.mode, self.pins, None, self.ds, k as u64)
+        checker::run_job(self.tier, s, self.mode, self.pins, self.sol, self.ds, k as u64)
     }
 
     /// con-leche: ConLeche/Driver/CheckPool.lean:101-111 jobLabel
@@ -290,13 +294,15 @@ pub fn intern_consts(pers: &PersTier, st: &mut AState, cs: &Vec<Name>) -> Result
 /// con-leche: ConLeche/Driver/CheckPool.lean:220-242 checkPool
 /// **The check phase**: the stream's index, built once from the records alone
 /// (`stream_index::build_index`), the tier frozen with it, every record's job
-/// on the worker map, the tier thawed.  On `Ok` the thawed index.
+/// on the worker map with the solution `sol`, the tier thawed.  On `Ok` the
+/// thawed index.
 pub fn check_phase<I: CheckerIo>(
     io: &mut I,
     pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     ipins: &Vec<INatOpPinSet>,
+    sol: Option<&Solution>,
     ds: &Vec<IDeclaration>,
     jobs: u64,
     file_records: usize,
@@ -313,7 +319,7 @@ pub fn check_phase<I: CheckerIo>(
     io.check_starts(n, workers);
     let tier: PersTier = checker::freeze_tier(&mut st.store, ix);
     let r = {
-        let step = JobStep { tier: &tier, mode, pins: ipins, apins: &st.pins, ds };
+        let step = JobStep { tier: &tier, mode, pins: ipins, apins: &st.pins, sol, ds };
         io.par_map_workers(&step, n, workers)
     };
     let ix: IStreamIndex = checker::thaw_tier(&mut st.store, tier);
@@ -517,7 +523,7 @@ pub fn check_main<I: CheckerIo>(io: &mut I, a: &Args, file: &Vec<u32>) -> u8 {
     };
     let jobs: u64 = jobs_for_run(io, a);
     // ConRon.Capstone: h6, h7, h8
-    let verdict = check_phase(io, &pers, &mut st, &mode, &ipins, &prepared.decls, jobs, file_records, prepared.synthesised);
+    let verdict = check_phase(io, &pers, &mut st, &mode, &ipins, None, &prepared.decls, jobs, file_records, prepared.synthesised);
     verdict_of(io, &pers, st, prepared.decls, verdict, file_records, verified)
 }
 
