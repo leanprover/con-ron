@@ -54,7 +54,7 @@ theorem go_expand {fs pk sp f m rest s d o} {lst lst1 : AState}
 
 section walk
 
-variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
+variable {F : Type} {inst : frontend.checker_io.CheckerFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
   {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier}
   {sp_dirs : frontend.olean.files.Roots}
 

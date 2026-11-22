@@ -122,10 +122,13 @@ CAPSTONES = [
     "ConRon.MainTheorem.compare_json_model_of_stages",
     "ConRon.MainTheorem.oleans_model_of_stages",
     "ConRon.MainTheorem.compare_model_of_stages",
-    # task #171 lanes D, F: the main theorems about the binary, the new roots
+    # task #171 lanes D, E, F: the main theorems about the binary, the new roots
     "ConRon.MainTheorem.main_json_model",
     "ConRon.MainTheorem.main_no_False",
     "ConRon.MainTheorem.main_compare_json_model",
+    "ConRon.MainTheorem.main_oleans",
+    "ConRon.MainTheorem.main_modular",
+    "ConRon.MainTheorem.main_modular_one",
 ]
 # executable roots: each declares `main`, so each is a pass of its own
 EXE_ROOTS = ["ConRon.Arena.Exe", "ConRon.Arena.OleanCompareExe", "ConRon.Arena.Bench",

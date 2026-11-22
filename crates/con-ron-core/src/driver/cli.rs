@@ -6,13 +6,21 @@
 //! clause, over code points: the same flags in the same order, the first bad
 //! argument the one reported (`Bad`, rendered by the instance in the binary's
 //! words).  `run_args` runs `--help`, the usage errors, the check of one
-//! lean4export file (`check_main`) and the comparison of two
-//! (`compare_json`); every other request (`--olean`, `--check-graph`) goes,
-//! whole, to the instance's `run_legacy`.
+//! lean4export file (`check_main`), the comparison of two (`compare_json`),
+//! `--check-graph` (`graph`), and `--olean` on a closure, `--module` and
+//! `--modular` (`check_main::check_oleans`, `worker`, `modular`); every other
+//! request (`--olean --compare`, `--check-graph --compare`, `--schedule`, and
+//! `--modular` with `--pins`) goes, whole, to the instance's `run_legacy`.
 
 use crate::arena::pins::max_nat_size_default;
 use crate::driver::check_main;
 use crate::driver::compare_json;
+use crate::driver::graph;
+use crate::driver::modular;
+use crate::driver::worker;
+use crate::frontend::olean::files;
+use crate::frontend::olean::files::Roots;
+use crate::kernel::name::Name;
 use crate::frontend::checker_io::CheckerIo;
 use crate::frontend::nat_decimal;
 use crate::frontend::pace::Pace;
@@ -101,6 +109,22 @@ pub enum Bad {
     CompareTwoFiles,
     /// `--compare` on one lean4export file twice
     CompareSameFile,
+    /// `--check-graph` with a flag it does not take
+    CheckGraphFlags,
+    /// `--check-graph` without its module names or a lookup
+    CheckGraphArgs,
+    /// a module name that does not parse
+    NotModuleName(Vec<u32>),
+    /// `--olean` without its module names or a lookup
+    OleanArgs,
+    /// a constant's name that does not parse
+    NotConstName(Vec<u32>),
+    /// `--trusted-search-path` without `--compare` or `--module`
+    TrustedTakes,
+    /// `--modular` with other than one module, or a flag it does not take
+    ModularArgs,
+    /// `--module` with other than one module, or a constant
+    ModuleArgs,
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:262-303 Args
@@ -525,6 +549,180 @@ pub fn parse_args(argv: &Vec<Vec<u32>>) -> Args {
 }
 
 /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// The module names of the command line, parsed (`parseModName`); the first
+/// that does not parse.
+pub fn parse_mod_names(fs: &Vec<Vec<u32>>) -> Result<Vec<Name>, Vec<u32>> {
+    let mut out: Vec<Name> = Vec::new();
+    let mut i = 0usize;
+    while i < fs.len() {
+        match files::parse_mod_name(&fs[i]) {
+            None => return Err(str_copy(&fs[i])),
+            Some(n) => out.push(n),
+        }
+        i += 1;
+    }
+    Ok(out)
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:383-385 Args.rootConstants
+/// The constants' names of the command line, parsed (`parseConstName`); the
+/// first that does not parse.
+pub fn parse_const_names(cs: &Vec<Vec<u32>>) -> Result<Vec<Name>, Vec<u32>> {
+    let mut out: Vec<Name> = Vec::new();
+    let mut i = 0usize;
+    while i < cs.len() {
+        match files::parse_const_name(&cs[i]) {
+            None => return Err(str_copy(&cs[i])),
+            Some(n) => out.push(n),
+        }
+        i += 1;
+    }
+    Ok(out)
+}
+
+/// con-leche: ConLeche/Driver/Compare.lean:82-84 CmpReq.solRoots
+/// **A worker's lookup**: the trusted path first, then the search path; the
+/// search path alone where no trusted path is given.
+pub fn sol_roots(a: &Args) -> Roots {
+    if a.trusted_path.len() == 0 {
+        files::roots_of_path(push_files(Vec::new(), &a.search_path, 0))
+    } else {
+        Roots { path: push_files(Vec::new(), &a.trusted_path, 0), fallback: push_files(Vec::new(), &a.search_path, 0) }
+    }
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// `--check-graph` with a flag it does not take: `--olean`, `--module`, a
+/// `--constant`, or `--trusted-search-path` without `--compare`.
+pub fn check_graph_flags_bad(a: &Args) -> bool {
+    if a.olean {
+        return true;
+    }
+    if a.module {
+        return true;
+    }
+    if a.constants.len() > 0 {
+        return true;
+    }
+    if a.trusted_path.len() > 0 && !a.compare {
+        return true;
+    }
+    false
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// No module name, or no lookup (neither `--search-path` nor
+/// `--trusted-search-path`).
+pub fn no_roots_or_path(a: &Args) -> bool {
+    if a.files.len() == 0 {
+        return true;
+    }
+    if a.search_path.len() > 0 {
+        return false;
+    }
+    a.trusted_path.len() == 0
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// `--trusted-search-path` where it is not taken: without `--module`, or with
+/// `--modular` or `--schedule`.
+pub fn trusted_misplaced(a: &Args) -> bool {
+    if a.trusted_path.len() == 0 {
+        return false;
+    }
+    if !a.module {
+        return true;
+    }
+    if a.modular {
+        return true;
+    }
+    a.scheduled
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// **`--check-graph`** (without `--compare`): con-leche's usage checks in its
+/// order, then the graph check of the roots along the search path.
+pub fn check_graph_args<I: CheckerIo>(io: &mut I, a: &Args) -> u8 {
+    if check_graph_flags_bad(a) {
+        io.usage(&Bad::CheckGraphFlags);
+        return 3;
+    }
+    if no_roots_or_path(a) {
+        io.usage(&Bad::CheckGraphArgs);
+        return 3;
+    }
+    let roots = match parse_mod_names(&a.files) {
+        Err(f) => {
+            io.usage(&Bad::NotModuleName(f));
+            return 3;
+        }
+        Ok(rs) => rs,
+    };
+    let sp = files::roots_of_path(push_files(Vec::new(), &a.search_path, 0));
+    graph::check_graph(io, &sp, &roots)
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// **`--olean`** (without `--compare` or `--schedule`): con-leche's usage checks
+/// in its order, then `--modular`, `--module`, or the check of the roots'
+/// closure.
+pub fn olean_args<I: CheckerIo>(io: &mut I, a: &Args) -> u8 {
+    if no_roots_or_path(a) {
+        io.usage(&Bad::OleanArgs);
+        return 3;
+    }
+    let roots = match parse_mod_names(&a.files) {
+        Err(f) => {
+            io.usage(&Bad::NotModuleName(f));
+            return 3;
+        }
+        Ok(rs) => rs,
+    };
+    let cs = match parse_const_names(&a.constants) {
+        Err(c) => {
+            io.usage(&Bad::NotConstName(c));
+            return 3;
+        }
+        Ok(cs) => cs,
+    };
+    if trusted_misplaced(a) {
+        io.usage(&Bad::TrustedTakes);
+        return 3;
+    }
+    if a.modular {
+        return modular_args(io, a, &roots, &cs);
+    }
+    if a.module {
+        return module_args(io, a, &roots, &cs);
+    }
+    let sp = files::roots_of_path(push_files(Vec::new(), &a.search_path, 0));
+    check_main::check_oleans(io, a, &roots, &cs, &sp)
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// **`--olean --modular`**: one module name, no `--constant`, no `--module`;
+/// then the one-process mode.
+pub fn modular_args<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &Vec<Name>) -> u8 {
+    if roots.len() != 1 || cs.len() > 0 || a.module {
+        io.usage(&Bad::ModularArgs);
+        return 3;
+    }
+    let sp = sol_roots(a);
+    modular::check_modular(io, a, roots, &sp)
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// **`--olean --module`**: one module name, no `--constant`; then its worker.
+pub fn module_args<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &Vec<Name>) -> u8 {
+    if roots.len() != 1 || cs.len() > 0 {
+        io.usage(&Bad::ModuleArgs);
+        return 3;
+    }
+    let sp = sol_roots(a);
+    worker::check_module(io, a, &sp, &roots[0])
+}
+
+/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
 /// **The run of an argument list, to its exit code**: `--help`, the parse and
 /// its usage error, then the request.  A lean4export file is checked here
 /// (`check_main`), after the binary's usage checks of that mode, and two with
@@ -542,8 +740,17 @@ pub fn run_args<I: CheckerIo>(io: &mut I, argv: &Vec<Vec<u32>>) -> u8 {
         }
         None => (),
     }
-    if a.check_graph || a.olean {
-        return io.run_legacy(argv);
+    if a.check_graph {
+        if a.compare {
+            return io.run_legacy(argv);
+        }
+        return check_graph_args(io, &a);
+    }
+    if a.olean {
+        if a.compare || a.scheduled || (a.modular && a.pins.is_some()) {
+            return io.run_legacy(argv);
+        }
+        return olean_args(io, &a);
     }
     if a.compare {
         return compare_json::compare_args(io, &a);

@@ -12,7 +12,7 @@ use crate::arena::handle::NIdx;
 use crate::arena::store::{EStore, PersTier};
 use crate::frontend::modular::graph;
 use crate::frontend::olean::files;
-use crate::frontend::olean::files::OleanFs;
+use crate::frontend::checker_io::CheckerFs;
 use crate::frontend::olean::spec::OleanPins;
 use crate::kernel::core_types::CheckError;
 use crate::ron::hashmap::Dup;
@@ -20,7 +20,7 @@ use crate::ron::hashmap::Dup;
 /// con-leche: ConLeche/Driver/CompareModule.lean:36-47 chalWalk
 /// **The challenge's closure through the trusted path alone** (`chal_sp`, the
 /// challenge's lookup): its graph, its verdict only.
-pub fn chal_walk<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, chal_sp: &files::Roots, c: &NIdx) -> Result<(), CheckError> {
+pub fn chal_walk<F: CheckerFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, chal_sp: &files::Roots, c: &NIdx) -> Result<(), CheckError> {
     let mut roots: Vec<NIdx> = Vec::with_capacity(1);
     roots.push(c.dup2());
     match graph::graph_of(fs, pk, pers, ar, chal_sp, &roots, &None) {

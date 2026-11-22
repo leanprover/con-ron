@@ -301,7 +301,7 @@ theorem names_of_refines {pk pers st lst} {m : arena.handle.NIdx} {n : ConLeche.
 
 section files
 
-variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F}
+variable {F : Type} {inst : frontend.checker_io.CheckerFs F} {fsv : F}
   {fs : Arena.Frontend.Olean.OleanFs}
 
 /-- **`read_part_names_at`'s accept is `readPartNamesAt`.** -/

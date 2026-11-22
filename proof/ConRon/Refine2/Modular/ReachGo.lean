@@ -28,7 +28,7 @@ open ConRon.Refine2.Frontend.Olean
 open ConRon.Refine.HashMap2 (Inv toFun)
 
 section reads
-variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
+variable {F : Type} {inst : frontend.checker_io.CheckerFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
   {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier} {sp : frontend.olean.files.Roots}
 
 /-! ## The parts' reads, as a hypothesis -/
@@ -36,7 +36,7 @@ variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F} {fs : Aren
 /-- **The accepts of the parts' reads** the capture check and the worklist call, in `ACS` form:
 a copy's statement and kind (`stmt_at`), its private copy (`priv_spot`), a search
 (`locate`), a part's lookup (`look_of`), a record read (`read_record`). -/
-structure PartsSpec (inst : frontend.olean.files.OleanFs F) (fsv : F) (fs : Arena.Frontend.Olean.OleanFs)
+structure PartsSpec (inst : frontend.checker_io.CheckerFs F) (fsv : F) (fs : Arena.Frontend.Olean.OleanFs)
     (pk : frontend.olean.spec.OleanPins) (pers : arena.store.PersTier) (sp : frontend.olean.files.Roots) :
     Prop where
   stmtAt : ∀ (st : arena.monad.AState) (lst : AState) (c : frontend.modular.reach.ReachCache)

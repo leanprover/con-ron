@@ -13,7 +13,7 @@ use con_ron_core::frontend::olean::lazy;
 use con_ron_core::frontend::olean::lazy::{CEntry, Loaded};
 use con_ron_core::frontend::olean::sparse;
 use con_ron_core::frontend::olean::files;
-use con_ron_core::frontend::olean::files::OleanFs;
+use con_ron_core::frontend::checker_io::CheckerFs;
 use con_ron_core::frontend::olean::header;
 use con_ron_core::frontend::olean::merge;
 use con_ron_core::frontend::olean::module;

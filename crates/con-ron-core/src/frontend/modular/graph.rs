@@ -29,7 +29,7 @@ use crate::arena::env;
 use crate::arena::handle::NIdx;
 use crate::arena::store::{EStore, PersTier};
 use crate::frontend::olean::files;
-use crate::frontend::olean::files::OleanFs;
+use crate::frontend::checker_io::CheckerFs;
 use crate::frontend::olean::levels;
 use crate::frontend::olean::spec::{ImportF, ImportRec, OleanPins};
 use crate::frontend::olean::view;
@@ -65,7 +65,7 @@ pub fn cmp_extra(cmp: &Option<(NIdx, NIdx)>, m: &NIdx) -> Vec<ImportRec> {
 
 /// con-leche: ConLeche/Driver/Graph.lean:48-58 missingOn
 /// Whether one of a module's files is at a directory.
-pub fn file_at<F: OleanFs>(fs: &F, d: &Vec<u32>, n: &crate::kernel::name::Name, ext: &Vec<u32>) -> Result<bool, CheckError> {
+pub fn file_at<F: CheckerFs>(fs: &F, d: &Vec<u32>, n: &crate::kernel::name::Name, ext: &Vec<u32>) -> Result<bool, CheckError> {
     match fs.path_exists(&files::mod_file_of(d, n, ext)) {
         Err(e) => Err(core_types::internal(e)),
         Ok(b) => Ok(b),
@@ -77,7 +77,7 @@ pub fn file_at<F: OleanFs>(fs: &F, d: &Vec<u32>, n: &crate::kernel::name::Name, 
 /// `m`'s root, or the one that does holds none of `m`'s three files.
 /// Deviation: a failed existence test is its message (upstream's model has
 /// none).
-pub fn missing_on<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &files::Roots, m: &NIdx) -> Result<bool, CheckError> {
+pub fn missing_on<F: CheckerFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &files::Roots, m: &NIdx) -> Result<bool, CheckError> {
     let n = match env::read_name(pers, ar, m) {
         Err(e) => return Err(e),
         Ok(n) => n,
@@ -108,7 +108,7 @@ pub fn missing_on<F: OleanFs>(fs: &F, pers: &PersTier, ar: &EStore, sp: &files::
 /// **A module's imports**, read off its header (`module_imports`), followed by
 /// the imports the run adds to it; a module the search path does not have is
 /// invalid input.
-pub fn hdr_of<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, cmp: &Option<(NIdx, NIdx)>, m: &NIdx) -> Result<(NIdx, Vec<ImportRec>), CheckError> {
+pub fn hdr_of<F: CheckerFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, cmp: &Option<(NIdx, NIdx)>, m: &NIdx) -> Result<(NIdx, Vec<ImportRec>), CheckError> {
     match files::module_imports(fs, pk, pers, ar, sp, m) {
         Ok(imps) => {
             let mut imps = imps;
@@ -158,7 +158,7 @@ pub const LEVEL_FUEL: u64 = 1 << 40;
 
 /// con-leche: ConLeche/Driver/Graph.lean:82-97 closureLevels
 /// One level's headers, read in order.
-pub fn level_hdrs<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, cmp: &Option<(NIdx, NIdx)>, lvl: &Vec<NIdx>) -> Result<Vec<(NIdx, Vec<ImportRec>)>, CheckError> {
+pub fn level_hdrs<F: CheckerFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, cmp: &Option<(NIdx, NIdx)>, lvl: &Vec<NIdx>) -> Result<Vec<(NIdx, Vec<ImportRec>)>, CheckError> {
     let mut rs: Vec<(NIdx, Vec<ImportRec>)> = Vec::with_capacity(lvl.len());
     let mut i = 0usize;
     while i < lvl.len() {
@@ -175,7 +175,7 @@ pub fn level_hdrs<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut 
 /// **The closure, level by level**: a level's headers read, the modules first
 /// met there the next level.  `LEVEL_FUEL` bounds the levels, an internal error
 /// when spent.
-pub fn closure_levels<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, cmp: &Option<(NIdx, NIdx)>, lvl: Vec<NIdx>, seen: HashMap2<NIdx, bool>, out: Vec<(NIdx, Vec<ImportRec>)>) -> Result<Vec<(NIdx, Vec<ImportRec>)>, CheckError> {
+pub fn closure_levels<F: CheckerFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, cmp: &Option<(NIdx, NIdx)>, lvl: Vec<NIdx>, seen: HashMap2<NIdx, bool>, out: Vec<(NIdx, Vec<ImportRec>)>) -> Result<Vec<(NIdx, Vec<ImportRec>)>, CheckError> {
     let mut lvl = lvl;
     let mut seen = seen;
     let mut out = out;
@@ -686,7 +686,7 @@ pub fn cycle_msg(pers: &PersTier, ar: &EStore, c: &Vec<(NIdx, Vec<ImportRec>)>, 
 /// **The roots' closure, its graph checked**: walk the closure's headers,
 /// compute an order, validate it; the closure, or the first thing wrong (an
 /// import cycle named by its modules).
-pub fn graph_of<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, roots: &Vec<NIdx>, cmp: &Option<(NIdx, NIdx)>) -> Result<Vec<(NIdx, Vec<ImportRec>)>, CheckError> {
+pub fn graph_of<F: CheckerFs>(fs: &F, pk: &OleanPins, pers: &PersTier, ar: &mut EStore, sp: &files::Roots, roots: &Vec<NIdx>, cmp: &Option<(NIdx, NIdx)>) -> Result<Vec<(NIdx, Vec<ImportRec>)>, CheckError> {
     let (lvl, seen) = dedup(roots);
     let c = match closure_levels(fs, pk, pers, ar, sp, cmp, lvl, seen, Vec::new()) {
         Err(e) => return Err(e),

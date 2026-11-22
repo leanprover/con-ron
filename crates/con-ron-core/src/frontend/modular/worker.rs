@@ -57,7 +57,7 @@ use crate::frontend::nat_op_ground;
 use crate::frontend::nat_op_ground::UsedConsts;
 use crate::frontend::olean::emit;
 use crate::frontend::olean::files;
-use crate::frontend::olean::files::OleanFs;
+use crate::frontend::checker_io::CheckerFs;
 use crate::frontend::olean::group;
 use crate::frontend::olean::index;
 use crate::frontend::olean::index::{NameIndex, WorkerReads};
@@ -1045,7 +1045,7 @@ pub struct WorkerRead {
     /// frontier (upstream's `#[⟨m, w.home.frontier⟩]`)
     pub values: Vec<ModRef>,
     /// the first own job: the context's size
-    pub start: u64,
+    pub start: usize,
 }
 
 /// con-leche: ConLeche/Driver/Worker.lean:301-344 workerRead
@@ -1066,7 +1066,7 @@ pub fn home_values(m: &NIdx, l: &mut Loaded) -> Vec<ModRef> {
 /// ground.  A failure carries the position of the record it names (0 where
 /// none).
 #[allow(clippy::too_many_arguments)]
-pub fn worker_read<F: OleanFs>(fs: &F, pers: &PersTier, st: &mut AState, sp: &files::Roots, pins: &Vec<INatOpPinSet>, m: &NIdx, x: &Vec<ImportRec>) -> Result<WorkerRead, (CheckError, u64)> {
+pub fn worker_read<F: CheckerFs>(fs: &F, pers: &PersTier, st: &mut AState, sp: &files::Roots, pins: &Vec<INatOpPinSet>, m: &NIdx, x: &Vec<ImportRec>) -> Result<WorkerRead, (CheckError, u64)> {
     let pk = match spec::olean_pins(pers, &mut st.store) {
         Err(e) => return Err((e, 0)),
         Ok(p) => p,
@@ -1096,7 +1096,7 @@ pub fn worker_read<F: OleanFs>(fs: &F, pers: &PersTier, st: &mut AState, sp: &fi
         Ok(t) => t,
     };
     let values = home_values(m, &mut l);
-    let start = r.ctx.len() as u64;
+    let start = r.ctx.len();
     Ok(WorkerRead { home: l, expo, reads: wr, emitted: ds, own, reach: r, hoisted, pins: pk, values, start })
 }
 
@@ -1105,7 +1105,7 @@ pub fn worker_read<F: OleanFs>(fs: &F, pers: &PersTier, st: &mut AState, sp: &fi
 /// records `ds`: the own holes, the reach, its names distinct, the copies, and
 /// the own records hoisted.
 #[allow(clippy::too_many_arguments)]
-pub fn worker_reach<F: OleanFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, pins: &Vec<INatOpPinSet>, m: &NIdx, x: &Vec<ImportRec>, wr: &WorkerReads, cs: &Vec<CEntry>, ds: &Vec<IDeclaration>) -> Result<(Reach, Vec<IDeclaration>, Vec<NIdx>), CheckError> {
+pub fn worker_reach<F: CheckerFs>(fs: &F, pk: &OleanPins, pers: &PersTier, st: &mut AState, sp: &files::Roots, pins: &Vec<INatOpPinSet>, m: &NIdx, x: &Vec<ImportRec>, wr: &WorkerReads, cs: &Vec<CEntry>, ds: &Vec<IDeclaration>) -> Result<(Reach, Vec<IDeclaration>, Vec<NIdx>), CheckError> {
     let uses = own_uses_of(cs);
     match own_holes_ok(pk, &uses, pers, st, m, x, &wr.index, ds) {
         Err(e) => return Err(e),

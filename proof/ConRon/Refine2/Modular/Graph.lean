@@ -1925,7 +1925,7 @@ theorem catchAt_ok {α : Type} {x : AM α} {lst lst1 : AState} {b : α} (hx : x.
 
 section io
 
-variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
+variable {F : Type} {inst : frontend.checker_io.CheckerFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
   {pk : frontend.olean.spec.OleanPins} {pers : arena.store.PersTier} {sp : frontend.olean.files.Roots}
   {cmp : Option (arena.handle.NIdx × arena.handle.NIdx)}
 

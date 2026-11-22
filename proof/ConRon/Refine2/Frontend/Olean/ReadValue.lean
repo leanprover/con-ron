@@ -109,7 +109,7 @@ theorem owned_view_rel {f : frontend.olean.view.ModFiles} {vb : frontend.olean.v
 
 section reads
 
-variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F}
+variable {F : Type} {inst : frontend.checker_io.CheckerFs F} {fsv : F}
   {fs : Arena.Frontend.Olean.OleanFs}
 
 /-- **`region_for`'s accept is `regionFor`'s**: the store unchanged, the twin's run reading

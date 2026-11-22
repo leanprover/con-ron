@@ -26,7 +26,7 @@ open ConRon.Arena
 c, &mode, &ipins, ds, pk, values, sp, sol, k as u64)`, as the Aeneas model of each call reads it,
 over the worker's state and cache.  The file system is the reader's (`fs` at instance `inst`);
 `sol` a compared run's solution (`oleanJobStep`: none). -/
-def oleanJobStepSol {F : Type} (inst : frontend.olean.files.OleanFs F) (fs : F)
+def oleanJobStepSol {F : Type} (inst : frontend.checker_io.CheckerFs F) (fs : F)
     (tier : arena.store.PersTier) (mode : kernel.env.CheckMode)
     (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
     (ds : alloc.vec.Vec arena.env.IDeclaration) (pk : frontend.olean.spec.OleanPins) (values : alloc.vec.Vec frontend.olean.records.ModRef)
@@ -67,7 +67,7 @@ def oleanJobStepSol {F : Type} (inst : frontend.olean.files.OleanFs F) (fs : F)
   else fail .panic
 
 /-- **The flat `--olean` run's step closure**: `oleanJobStepSol` with no solution. -/
-def oleanJobStep {F : Type} (inst : frontend.olean.files.OleanFs F) (fs : F)
+def oleanJobStep {F : Type} (inst : frontend.checker_io.CheckerFs F) (fs : F)
     (tier : arena.store.PersTier) (mode : kernel.env.CheckMode)
     (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
     (ds : alloc.vec.Vec arena.env.IDeclaration) (pk : frontend.olean.spec.OleanPins) (values : alloc.vec.Vec frontend.olean.records.ModRef)
@@ -101,7 +101,7 @@ open ConRon.Refine2.Frontend.Olean in
 /-- **`oleanJobStepSol` ⊑ `oleanJobJ`, accepting**, between two idle workers, at a related
 solution: a theorem whose value is a reference reads it in its bracket and is checked with it,
 any other record is `run_job_refines`'.  The caches are related (`VCRel`). -/
-theorem olean_job_step_sol_refines {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F}
+theorem olean_job_step_sol_refines {F : Type} {inst : frontend.checker_io.CheckerFs F} {fsv : F}
     {fs : Arena.Frontend.Olean.OleanFs} {tier} {I : IStreamIndex}
     {mode : kernel.env.CheckMode} {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
     {ds : alloc.vec.Vec arena.env.IDeclaration} {pk : frontend.olean.spec.OleanPins} {values : alloc.vec.Vec frontend.olean.records.ModRef}
@@ -266,7 +266,7 @@ open ConRon.Refine2.Frontend.Olean in
 /-- **A worker's `--olean` fold ⊑ `checkOleanJobListJ`**: each claimed index is a record
 position, and the worker's jobs, from one idle state and a related cache, are the twin's, at a
 related solution. -/
-theorem foldAllOk_oleanJobStepSol_refines {F : Type} {inst : frontend.olean.files.OleanFs F}
+theorem foldAllOk_oleanJobStepSol_refines {F : Type} {inst : frontend.checker_io.CheckerFs F}
     {fsv : F} {fs : Arena.Frontend.Olean.OleanFs} {tier} {I : IStreamIndex}
     {mode : kernel.env.CheckMode} {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
     {ds : alloc.vec.Vec arena.env.IDeclaration} {pk : frontend.olean.spec.OleanPins} {values : alloc.vec.Vec frontend.olean.records.ModRef}

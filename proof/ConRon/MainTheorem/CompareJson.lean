@@ -59,7 +59,7 @@ theorem fileChunks_file (hfs : AnswersAs io fs) {s : S} {file : alloc.vec.Vec St
       · have ho' : src' = src1 := ho
         rw [ho', he] at herr; exact absurd herr (by simp)
       · exact hne hnil
-    · obtain ⟨whole, hw, -⟩ := hfs.read_range s hq _ len buf hr
+    · obtain ⟨whole, hw, -⟩ := (hfs s).read_range hq _ len buf hr
       exact ⟨whole, hw⟩
 
 /-- **A lean4export file read and parsed** (`compare_json::read_export`, `Ok`): the file is in
@@ -518,7 +518,7 @@ the file `c`, and is one of `CompareJsonStages`'s on its bytes. -/
 theorem compare_json_stages_of_canGive {c s : String} {fs : ConLeche.FS}
     (h : CanGive ["--compare", "--", c, s] fs 0) :
     ∃ bC, fs.file c = some bC ∧ CompareJsonStages bC := by
-  obtain ⟨S, io, x, x', argv, code, hfs, hpool, hargv, hrun, hc⟩ := h
+  obtain ⟨S, io, x, x', argv, code, hfs, hpool, -, hargv, hrun, hc⟩ := h
   exact run_args_compare hfs hpool hargv hrun (by simpa using hc)
 
 end ConRon

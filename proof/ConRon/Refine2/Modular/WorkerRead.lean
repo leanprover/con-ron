@@ -46,7 +46,7 @@ theorem ownerMapRel_holds (pers : arena.store.PersTier) : OwnerMapRel pers :=
 
 /-- **`reach::reach`'s accept is `reach`'s** — lane L2's `reach_refines` (its rejects name
 records, so an accept), in the shape `worker_reach_la` takes. -/
-def ReachHyp {F : Type} (inst : frontend.olean.files.OleanFs F) (fsv : F)
+def ReachHyp {F : Type} (inst : frontend.checker_io.CheckerFs F) (fsv : F)
     (fs : Arena.Frontend.Olean.OleanFs) (pers : arena.store.PersTier) : Prop :=
   ∀ {st lst} (pk : frontend.olean.spec.OleanPins) (sp : frontend.olean.files.Roots)
     (m : arena.handle.NIdx) {wr : frontend.olean.index.WorkerReads} {wr' : Arena.Frontend.Olean.WorkerReads}
@@ -57,7 +57,7 @@ def ReachHyp {F : Type} (inst : frontend.olean.files.OleanFs F) (fsv : F)
       (Modular.reach fs (absPins pk) (absRoots sp) (absNIdx m) wr' own' (absNIdxArr roots))
 
 /-- **`ReachHyp` holds**: lane L2's `reach_refines`. -/
-theorem reachHyp_holds {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F}
+theorem reachHyp_holds {F : Type} {inst : frontend.checker_io.CheckerFs F} {fsv : F}
     {fs : Arena.Frontend.Olean.OleanFs} {pers : arena.store.PersTier} (hfs : FsRel inst fsv fs) :
     ReachHyp inst fsv fs pers := by
   intro _ _ _ _ _ _ _ _ _ _ hw ho hrel hinv
@@ -73,7 +73,7 @@ def WorkerReachRel (a : frontend.modular.reach.Reach × alloc.vec.Vec arena.env.
 
 section reads
 
-variable {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F}
+variable {F : Type} {inst : frontend.checker_io.CheckerFs F} {fsv : F}
   {fs : Arena.Frontend.Olean.OleanFs}
 
 /-- **`worker_reach`'s accept is `workerReach`'s**: the own holes, the roots, the reach, its
@@ -251,12 +251,10 @@ theorem worker_read_refines (hfs : FsRel inst fsv fs) {pers : arena.store.PersTi
     rw [am_bind_ok hx5]
     obtain ⟨⟨values, l1⟩, h6, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨hV, hL1⟩ := home_values_rel hL h6
-    obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have es := ConRon.Refine2.Lockstep.PA2.cast_u64_usize_ls _ s hs
     obtain ⟨h7, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
     cases h7
     refine ⟨_, lst5, rfl, ⟨hL1, hE, hW, rfl, rfl, hR, rfl, rfl, hV, ?_⟩, hrel5, hinv5⟩
-    rw [hR.ctx, es]; simp [absIDeclArr]
+    rw [hR.ctx]; simp [absIDeclArr]
 end reads
 
 end ConRon.Refine2.Modular

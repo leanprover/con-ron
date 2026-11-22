@@ -379,7 +379,7 @@ theorem pool_accepts_refines {pers st lst}
 phase on an `--olean` run, accepted**: the index built from the empty one, the tier
 frozen, and `parallel_all` over the record positions with the `--olean` closures
 (`oleanWorkerInit`, `oleanJobStep`). -/
-def OleanPoolAccepts {F : Type} (inst : frontend.olean.files.OleanFs F) (fs : F)
+def OleanPoolAccepts {F : Type} (inst : frontend.checker_io.CheckerFs F) (fs : F)
     (pers : arena.store.PersTier) (st : arena.monad.AState) (mode : kernel.env.CheckMode)
     (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
     (ds : alloc.vec.Vec arena.env.IDeclaration) (pk : frontend.olean.spec.OleanPins) (values : alloc.vec.Vec frontend.olean.records.ModRef)
@@ -392,7 +392,7 @@ def OleanPoolAccepts {F : Type} (inst : frontend.olean.files.OleanFs F) (fs : F)
       (oleanJobStep inst fs tier mode pins ds pk values sp)
 
 /-- `OleanPoolAccepts` from one premise per call of the driver. -/
-theorem oleanPoolAccepts_intro {F : Type} {inst : frontend.olean.files.OleanFs F} {fs : F}
+theorem oleanPoolAccepts_intro {F : Type} {inst : frontend.checker_io.CheckerFs F} {fs : F}
     {pers st mode pins ds pk values sp ix st'}
     {tier : arena.store.PersTier} {est : arena.store.EStore}
     (hI : (do
@@ -408,7 +408,7 @@ theorem oleanPoolAccepts_intro {F : Type} {inst : frontend.olean.files.OleanFs F
 /-- con-leche: ConLeche/Driver/CheckMain.lean:152-170 checkOleansG — **the driver's check
 phase on an `--olean` run with a solution, accepted**: `OleanPoolAccepts` with every job at
 `sol` (a compared run's challenge closure). -/
-def OleanPoolAcceptsSol {F : Type} (inst : frontend.olean.files.OleanFs F) (fs : F)
+def OleanPoolAcceptsSol {F : Type} (inst : frontend.checker_io.CheckerFs F) (fs : F)
     (pers : arena.store.PersTier) (st : arena.monad.AState) (mode : kernel.env.CheckMode)
     (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
     (ds : alloc.vec.Vec arena.env.IDeclaration) (pk : frontend.olean.spec.OleanPins) (values : alloc.vec.Vec frontend.olean.records.ModRef)
@@ -421,7 +421,7 @@ def OleanPoolAcceptsSol {F : Type} (inst : frontend.olean.files.OleanFs F) (fs :
       (oleanJobStepSol inst fs tier mode pins ds pk values sp sol)
 
 /-- `OleanPoolAcceptsSol` from one premise per call of the driver. -/
-theorem oleanPoolAcceptsSol_intro {F : Type} {inst : frontend.olean.files.OleanFs F} {fs : F}
+theorem oleanPoolAcceptsSol_intro {F : Type} {inst : frontend.checker_io.CheckerFs F} {fs : F}
     {pers st mode pins ds pk values sp sol ix st'}
     {tier : arena.store.PersTier} {est : arena.store.EStore}
     (hI : (do
@@ -440,7 +440,7 @@ a solution**: an accept of the Aeneas model, the index, the freeze and every wor
 the binary's `olean_job` at `sol` over its claims, implies the twin's `PooledOleanAcceptsJ` at
 the related solution `J`, from the related state, at the reader's related module references
 (`hv`) and pins, on a record of the file system answering as the binary's (`FsRel`). -/
-theorem olean_pool_accepts_sol_refines {F : Type} {inst : frontend.olean.files.OleanFs F}
+theorem olean_pool_accepts_sol_refines {F : Type} {inst : frontend.checker_io.CheckerFs F}
     {fsv : F} {fs : Arena.Frontend.Olean.OleanFs} {pers st lst}
     {mode : kernel.env.CheckMode}
     {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
@@ -484,7 +484,7 @@ binary's `olean_job` over its claims, implies the twin's `PooledOleanAccepts` fr
 related state, at the reader's related module references (`hv`: `OleanReadRel.values`)
 and pins, on a record of the file system answering as the binary's (`FsRel`).
 `olean_pool_accepts_sol_refines` with no solution. -/
-theorem olean_pool_accepts_refines {F : Type} {inst : frontend.olean.files.OleanFs F}
+theorem olean_pool_accepts_refines {F : Type} {inst : frontend.checker_io.CheckerFs F}
     {fsv : F} {fs : Arena.Frontend.Olean.OleanFs} {pers st lst}
     {mode : kernel.env.CheckMode}
     {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}

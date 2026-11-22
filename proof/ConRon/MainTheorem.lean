@@ -1,5 +1,7 @@
 import ConRon.MainTheorem.Driver
 import ConRon.MainTheorem.CompareJson
+import ConRon.MainTheorem.Oleans
+import ConRon.MainTheorem.Modular
 import ConRon.MainTheorem.Conclusions
 
 /-!
@@ -26,6 +28,15 @@ word for word but the run premise.
 (`MainTheorem/CompareJson.lean`) takes an exit 0 at `["--compare", "--", c, s]` to the file `c`
 in the snapshot and every step premise of the compared capstone (`CompareJsonStages`); lane C's
 `compare_json_model_of_stages` takes those to con-leche's conclusion: `main_compare_json_model`.
+
+**Slice 2: `--olean`, `--check-graph`, `--olean --module`, `--olean --modular`.**
+`oleans_of_canGive` (`MainTheorem/Oleans.lean`) takes an exit 0 at `["--olean",
+"--search-path=" ++ dirs, "--", root]` to the `--olean` capstone's step premises, the root to
+`parseModName root` and the search path to `searchPathOf dirs` (`MainTheorem/Args.lean`):
+`main_oleans`.  `modular_of_canGive` and `modular_one_of_canGive` (`MainTheorem/Modular.lean`)
+take the graph check's and each module worker's exits 0 (each its own run, at its own instance,
+all on the one snapshot `fs`), or `--olean --modular`'s, to con-leche's family of models:
+`main_modular` and `main_modular_one`.
 -/
 
 open ConLeche (IsModel constantsOf jsonWithTheoremFalse FS)
@@ -67,5 +78,48 @@ theorem main_compare_json_model (V : Type w) [ConLeche.SetTheory V] {c s : Strin
   have ⟨rC, hp, hm⟩ := compare_json_model_of_stages V h1 h2 hreadsC hreadsS hcat h3 h3S hdup h4S
     hpins h5 h6S h7S h8S h4 hside hsol h6 h7 h8
   ⟨bC, rC, hbC, hp, hm⟩
+
+open ConLeche ConLeche.Frontend in
+/-- con-leche: ConLeche/MainTheorem.lean:77-81 main_oleans —
+**An accepted module's closure has a model**: every exit 0 of `--olean --search-path=<dirs>
+-- <root>` has a model of the constants of the modules `root` imports, itself included. -/
+theorem main_oleans (V : Type w) [SetTheory V] {dirs root : String} {r : Name} {fs : FS}
+    (hr : Olean.parseModName root = some r)
+    (h : ConRon.CanGive ["--olean", "--search-path=" ++ dirs, "--", root] fs 0) :
+    ∃ model, IsModel V model (Olean.closureConstants (Driver.searchPathOf dirs) fs #[r]) :=
+  oleans_of_canGive V hr h
+
+open ConLeche ConLeche.Frontend in
+/-- con-leche: ConLeche/MainTheorem.lean:109-122 main_modular —
+**An accepted modular check has a family of models**: on a snapshot where `--check-graph
+--search-path=<dirs> -- <root>` exits 0 and every module of the headers' closure of `root` has
+an exit 0 of `--olean --module`, every module of the closure has a model of its constants, and
+the models agree on what the modules see of each other. -/
+theorem main_modular (V : Type w) [SetTheory V] {dirs root : String} {r : Name} {fs : FS}
+    (hr : Olean.parseModName root = some r)
+    (h : ConRon.CanGive ["--check-graph", "--search-path=" ++ dirs, "--", root] fs 0)
+    (hwork : ∀ m', Olean.HdrClosure (Driver.searchPathOf dirs) fs [r] m' → ∃ root',
+      Olean.parseModName root' = some m' ∧
+        ConRon.CanGive ["--olean", "--module", "--search-path=" ++ dirs, "--", root'] fs 0) :
+    ∃ model : Name → (Name → List Nat → V),
+      (∀ m, Olean.InClosure (Driver.searchPathOf dirs) fs #[r] m →
+        IsModel V (model m) (Olean.moduleConstants (Driver.searchPathOf dirs) fs m)) ∧
+      (∀ m n m', Olean.InClosure (Driver.searchPathOf dirs) fs #[r] m →
+        Olean.Sees (Driver.searchPathOf dirs) fs m n m' → model m n = model m' n) :=
+  modular_of_canGive V hr h hwork
+
+open ConLeche ConLeche.Frontend in
+/-- con-leche: ConLeche/MainTheorem.lean:126-135 main_modular_one —
+**The same, in one process**: every exit 0 of `--olean --modular --search-path=<dirs>
+-- <root>` has the family of models of `main_modular`. -/
+theorem main_modular_one (V : Type w) [SetTheory V] {dirs root : String} {r : Name} {fs : FS}
+    (hr : Olean.parseModName root = some r)
+    (h : ConRon.CanGive ["--olean", "--modular", "--search-path=" ++ dirs, "--", root] fs 0) :
+    ∃ model : Name → (Name → List Nat → V),
+      (∀ m, Olean.InClosure (Driver.searchPathOf dirs) fs #[r] m →
+        IsModel V (model m) (Olean.moduleConstants (Driver.searchPathOf dirs) fs m)) ∧
+      (∀ m n m', Olean.InClosure (Driver.searchPathOf dirs) fs #[r] m →
+        Olean.Sees (Driver.searchPathOf dirs) fs m n m' → model m n = model m' n) :=
+  modular_one_of_canGive V hr h
 
 end ConRon.MainTheorem

@@ -5,7 +5,7 @@
 //! lines at `--progress`'s pace, each with the time and the resident set.
 //! `ReadNotes` and its actions are `IO` (the clock, `/proc/self/status`,
 //! stderr): they are the driver's, `crates/con-ron`'s `olean_fs`, which
-//! reaches them through the file seam (`files::OleanFs::read_notes_say`,
+//! reaches them through the file seam (`checker_io::CheckerFs::read_notes_say`,
 //! `read_notes_module_loaded`).  What is here is their arithmetic and their
 //! text, so that the lines are upstream's.
 //!

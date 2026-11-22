@@ -29,7 +29,7 @@ theorem foldAllOk_shift {S E : Type} (step : S → Nat → Result (core.result.R
 phase on a module's worker, accepted**: the index built from the empty one over all of `ds`,
 the tier frozen, and `parallel_all` over the `ds.length - start` claims, claim `k` the
 `--olean` job at position `start + k`. -/
-def OleanPoolAcceptsFromSol {F : Type} (inst : frontend.olean.files.OleanFs F) (fs : F)
+def OleanPoolAcceptsFromSol {F : Type} (inst : frontend.checker_io.CheckerFs F) (fs : F)
     (pers : arena.store.PersTier) (st : arena.monad.AState) (mode : kernel.env.CheckMode)
     (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
     (ds : alloc.vec.Vec arena.env.IDeclaration) (pk : frontend.olean.spec.OleanPins)
@@ -43,7 +43,7 @@ def OleanPoolAcceptsFromSol {F : Type} (inst : frontend.olean.files.OleanFs F) (
       (fun w k => oleanJobStepSol inst fs tier mode pins ds pk values sp sol w (start + k))
 
 /-- `OleanPoolAcceptsFromSol` from one premise per call of the driver. -/
-theorem oleanPoolAcceptsFromSol_intro {F : Type} {inst : frontend.olean.files.OleanFs F} {fs : F}
+theorem oleanPoolAcceptsFromSol_intro {F : Type} {inst : frontend.checker_io.CheckerFs F} {fs : F}
     {pers st mode pins ds pk values sp sol start ix st'}
     {tier : arena.store.PersTier} {est : arena.store.EStore}
     (hI : (do
@@ -62,7 +62,7 @@ worker**: an accept of the Aeneas model, the index, the freeze and every worker'
 binary's `olean_job` at `sol` over its claims shifted by `start`, implies the twin's
 `PooledOleanAcceptsFromJ` at `start`, from the related state, as
 `olean_pool_accepts_sol_refines`. -/
-theorem olean_pool_accepts_from_sol_refines {F : Type} {inst : frontend.olean.files.OleanFs F}
+theorem olean_pool_accepts_from_sol_refines {F : Type} {inst : frontend.checker_io.CheckerFs F}
     {fsv : F} {fs : Arena.Frontend.Olean.OleanFs} {pers st lst}
     {mode : kernel.env.CheckMode}
     {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}

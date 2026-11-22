@@ -49,7 +49,7 @@ structure OleanReadRel (rd : frontend.olean.records.OleanRead)
 rest of the state stands still around it: at any lookup (`absRoots`), named constants, and
 `lenient`/`homes` flags. -/
 def ReadOleansRefines : Prop :=
-  ∀ {F : Type} {inst : frontend.olean.files.OleanFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
+  ∀ {F : Type} {inst : frontend.checker_io.CheckerFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
     {pers : arena.store.PersTier} {rst : arena.monad.AState} {lst : ConRon.Arena.AState}
     {sp : frontend.olean.files.Roots} {roots : alloc.vec.Vec arena.handle.NIdx}
     {cs : Option (alloc.vec.Vec arena.handle.NIdx)} {lenient homes : Bool}

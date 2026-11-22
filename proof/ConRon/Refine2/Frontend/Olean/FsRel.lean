@@ -2,7 +2,7 @@
 # `ConRon.Refine2.Frontend.Olean.FsRel` — the file seam of the reader
 
 **Task #142, Theorem 2.**  The reader's one hypothesis about the file system, the model
-being `Source.lean`'s `ReadsAs` at the stream parser.  The trait `OleanFs`'s instance
+being `Source.lean`'s `ReadsAs` at the stream parser.  The trait `CheckerFs`'s instance
 extracts as five plain functions, the twin's `OleanFs` is five pure functions, and all
 Theorem 2 needs of the two is that they answer alike, at the paths the reader asks.
 
@@ -42,11 +42,11 @@ def PathRel (p : alloc.vec.Vec Std.U32) (q : System.FilePath) : Prop :=
     q = ConLeche.Frontend.Olean.modDir ⟨ConRon.Refine.absString dir⟩ (ConRon.Refine.absName n)) ∨
   q = ⟨ConRon.Refine.absString p⟩
 
-/-- **`OleanFs`'s instance at `fsv` and the twin's record answer alike** where the instance
+/-- **`CheckerFs`'s instance at `fsv` and the twin's record answer alike** where the instance
 answers: at every pair of spellings, the same `Bool`s, real path, bytes and size.  A failing
 read of the instance claims nothing of the record: it gives the Rust no accept, and an accept
 is what the theorems above the file tier relate. -/
-structure FsRel {F : Type} (inst : frontend.olean.files.OleanFs F) (fsv : F)
+structure FsRel {F : Type} (inst : frontend.checker_io.CheckerFs F) (fsv : F)
     (fs : Arena.Frontend.Olean.OleanFs) : Prop where
   pathExists : ∀ {p q}, PathRel p q → ∀ b, inst.path_exists fsv p = ok (.Ok b) →
     fs.pathExists q = .ok b

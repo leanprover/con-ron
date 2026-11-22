@@ -39,7 +39,7 @@ theorem hdr_short_eq {acc : alloc.vec.Vec Std.U8} {b : Bool} (hb : acc.val.lengt
 
 section reads
 
-variable {F : Type} {inst : OleanFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
+variable {F : Type} {inst : frontend.checker_io.CheckerFs F} {fsv : F} {fs : Arena.Frontend.Olean.OleanFs}
 
 /-! ## The header -/
 

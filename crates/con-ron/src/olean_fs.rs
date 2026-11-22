@@ -1,9 +1,9 @@
 //! `olean_fs` — the `.olean` reader's file access over `std` (task #142).
 //!
-//! The core reads files through one trait, `con_ron_core::frontend::olean::files::
-//! OleanFs`; this is the instance the binary runs, and all of it is outside the
-//! theorems.  What a later hypothesis states of it (generalising `ReadsAs`, on one
-//! snapshot of the files) is that it answers as a function of its arguments.
+//! The core reads files through the file operations of the driver's trait,
+//! `con_ron_core::frontend::checker_io::CheckerFs`; these are the instances the
+//! legacy driver's modes run (the verified driver's is `std_io::StdIo`, whose
+//! operations are these), and all of it is outside the theorems.
 //!
 //! Two instances: [`StdFs`], silent, for the check pool's workers reading a
 //! theorem's value (`records::read_value`); and [`NotesFs`], the read's, which
@@ -15,7 +15,7 @@ use con_ron_core::arena::monad;
 use con_ron_core::arena::monad::AState;
 use con_ron_core::arena::store::PersTier;
 use con_ron_core::frontend::olean::files;
-use con_ron_core::frontend::olean::files::OleanFs;
+use con_ron_core::frontend::checker_io::CheckerFs;
 use con_ron_core::frontend::olean::progress;
 use con_ron_core::frontend::olean::records;
 use con_ron_core::frontend::olean::records::OleanRead;
@@ -41,7 +41,7 @@ fn io_msg(p: &str, e: std::io::Error) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:514-529 instCheckerIOIO
-impl OleanFs for StdFs {
+impl CheckerFs for StdFs {
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
     fn path_exists(&self, p: &Vec<u32>) -> Result<bool, Vec<u32>> {
         Ok(std::path::Path::new(&path_of(p)).exists())
@@ -158,7 +158,7 @@ pub fn resident_set() -> Vec<u32> {
 
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:514-529 instCheckerIOIO
 /// `StdFs`'s reads; the heartbeat's two actions print.
-impl OleanFs for NotesFs {
+impl CheckerFs for NotesFs {
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:137-184 CheckerIO
     fn path_exists(&self, p: &Vec<u32>) -> Result<bool, Vec<u32>> {
         StdFs.path_exists(p)
