@@ -140,6 +140,15 @@ impl CheckerFs for StdIo {
     /// block), then a seek and forward reads on a handle of this call's own.  A
     /// failure's message names the path.
     fn read_range(&self, p: &Vec<u32>, off: u64, len: u64) -> Result<Vec<u8>, Vec<u32>> {
+        let s = path_of(p);
+        match std::fs::metadata(&s) {
+            Err(e) => return Err(render::cps(&format!("{}: {}", render::display_path(&s), e))),
+            Ok(md) => {
+                if !md.is_file() {
+                    return Err(render::cps(&format!("{}: not a regular file", render::display_path(&s))));
+                }
+            }
+        }
         StdFs.read_range(p, off, len)
     }
 
