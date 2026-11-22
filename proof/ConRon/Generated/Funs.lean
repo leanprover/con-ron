@@ -42879,7 +42879,7 @@ def arena.inductives.rec_check.block_nested_bit
   else ok true
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_K_FLAG]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 205:0-210:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 212:0-217:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_K_FLAG : Array Std.U32 72#usize :=
@@ -42896,7 +42896,7 @@ def arena.inductives.stream_recs.M_K_FLAG : Array Std.U32 72#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_RULES_NO_LARGE]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 214:0-222:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 221:0-229:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_RULES_NO_LARGE : Array Std.U32 128#usize :=
@@ -42955,7 +42955,7 @@ def arena.inductives.block_shape.no_rules
               else ok true
 
 /-- [con_ron_core::arena::inductives::stream_recs::stream_k_check]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 792:0-807:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 799:0-814:1
     Visibility: public -/
 def arena.inductives.stream_recs.stream_k_check
   (p : arena.inductives.block_shape.BlockShape)
@@ -43024,7 +43024,7 @@ def arena.inductives.stream_recs.stream_k_check
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_FAMILY]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 197:0-201:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 204:0-208:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_FAMILY : Array Std.U32 58#usize :=
@@ -43040,7 +43040,7 @@ def arena.inductives.stream_recs.M_FAMILY : Array Std.U32 58#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_NESTED]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 187:0-193:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 194:0-200:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_NESTED : Array Std.U32 93#usize :=
@@ -43060,7 +43060,7 @@ def arena.inductives.stream_recs.M_NESTED : Array Std.U32 93#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_RULES_GEN]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 178:0-183:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 185:0-190:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_RULES_GEN : Array Std.U32 62#usize :=
@@ -43076,7 +43076,7 @@ def arena.inductives.stream_recs.M_RULES_GEN : Array Std.U32 62#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_RULE_DEFEQ]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 149:0-156:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 156:0-163:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_RULE_DEFEQ : Array Std.U32 101#usize :=
@@ -43097,7 +43097,7 @@ def arena.inductives.stream_recs.M_RULE_DEFEQ : Array Std.U32 101#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_RULE_TY]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 139:0-145:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 146:0-152:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_RULE_TY : Array Std.U32 85#usize :=
@@ -43116,7 +43116,7 @@ def arena.inductives.stream_recs.M_RULE_TY : Array Std.U32 85#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_W_REC_RULE]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 100:0-102:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 107:0-109:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_W_REC_RULE : Array Std.U32 19#usize :=
@@ -43127,7 +43127,7 @@ def arena.inductives.stream_recs.M_W_REC_RULE : Array Std.U32 19#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_RULE_ULP]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 130:0-135:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 137:0-142:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_RULE_ULP : Array Std.U32 62#usize :=
@@ -43143,7 +43143,7 @@ def arena.inductives.stream_recs.M_RULE_ULP : Array Std.U32 62#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_RULE_OPEN]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 121:0-126:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 128:0-133:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_RULE_OPEN : Array Std.U32 66#usize :=
@@ -43160,7 +43160,7 @@ def arena.inductives.stream_recs.M_RULE_OPEN : Array Std.U32 66#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::stream_closed]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 405:0-418:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 412:0-425:1
     Visibility: public -/
 def arena.inductives.stream_recs.stream_closed
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -43192,7 +43192,7 @@ def arena.inductives.stream_recs.stream_closed
   | core.result.Result.Err _ => ok (r, st1)
 
 /-- [con_ron_core::arena::inductives::stream_recs::rule_agree]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 473:0-512:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 480:0-519:1
     Visibility: public -/
 def arena.inductives.stream_recs.rule_agree
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -43377,7 +43377,7 @@ def arena.inductives.rec_check.rule_binds
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::arena::inductives::stream_recs::stream_rules_check]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 678:0-708:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 685:0-715:1
     Visibility: public -/
 def arena.inductives.stream_recs.stream_rules_check
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -43492,7 +43492,7 @@ def arena.inductives.stream_recs.stream_rules_check
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_W_REC_TYPE]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 93:0-96:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 100:0-103:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_W_REC_TYPE : Array Std.U32 24#usize :=
@@ -43503,7 +43503,7 @@ def arena.inductives.stream_recs.M_W_REC_TYPE : Array Std.U32 24#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_TY_ULP]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 113:0-117:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 120:0-124:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_TY_ULP : Array Std.U32 58#usize :=
@@ -43519,7 +43519,7 @@ def arena.inductives.stream_recs.M_TY_ULP : Array Std.U32 58#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_TY_OPEN]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 106:0-109:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 113:0-116:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_TY_OPEN : Array Std.U32 39#usize :=
@@ -43532,7 +43532,7 @@ def arena.inductives.stream_recs.M_TY_OPEN : Array Std.U32 39#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_TY_BODY]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 66:0-72:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 73:0-79:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_TY_BODY : Array Std.U32 84#usize :=
@@ -43551,7 +43551,7 @@ def arena.inductives.stream_recs.M_TY_BODY : Array Std.U32 84#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_GEN_SHORT]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 85:0-89:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 92:0-96:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_GEN_SHORT : Array Std.U32 59#usize :=
@@ -43567,7 +43567,7 @@ def arena.inductives.stream_recs.M_GEN_SHORT : Array Std.U32 59#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_TY_SHORT]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 76:0-81:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 83:0-88:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_TY_SHORT : Array Std.U32 78#usize :=
@@ -43585,7 +43585,7 @@ def arena.inductives.stream_recs.M_TY_SHORT : Array Std.U32 78#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_TY_DOM]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 56:0-62:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 63:0-69:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_TY_DOM : Array Std.U32 81#usize :=
@@ -43604,7 +43604,7 @@ def arena.inductives.stream_recs.M_TY_DOM : Array Std.U32 81#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_DOM_INDEX]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 49:0-52:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 56:0-59:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_DOM_INDEX : Array Std.U32 29#usize :=
@@ -43695,7 +43695,7 @@ def arena.expr_ops.fvar_type_d
     ok (core.result.Result.Ok e)
 
 /-- [con_ron_core::arena::inductives::stream_recs::rec_doms_at]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 340:0-367:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 347:0-374:1
     Visibility: public -/
 def arena.inductives.stream_recs.rec_doms_at
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -43767,7 +43767,7 @@ def arena.inductives.stream_recs.rec_doms_at
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stream_recs::rec_ty_opened]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 374:0-397:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 381:0-404:1
     Visibility: public -/
 def arena.inductives.stream_recs.rec_ty_opened
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -43870,7 +43870,7 @@ def arena.core.open_pis_at_fvars
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stream_recs::rec_ty_check]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 427:0-465:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 434:0-472:1
     Visibility: public -/
 def arena.inductives.stream_recs.rec_ty_check
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -43953,7 +43953,7 @@ def arena.inductives.stream_recs.rec_ty_check
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::inductives::stream_recs::stream_rec_compare]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 715:0-731:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 722:0-738:1
     Visibility: public -/
 def arena.inductives.stream_recs.stream_rec_compare
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -43983,7 +43983,7 @@ def arena.inductives.stream_recs.stream_rec_compare
     | core.result.Result.Err _ => ok (r, st1)
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_RULE_SHAPE]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 160:0-165:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 167:0-172:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_RULE_SHAPE : Array Std.U32 76#usize :=
@@ -44001,7 +44001,7 @@ def arena.inductives.stream_recs.M_RULE_SHAPE : Array Std.U32 76#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_RULE_COUNT]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 169:0-174:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 176:0-181:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_RULE_COUNT : Array Std.U32 78#usize :=
@@ -44019,7 +44019,7 @@ def arena.inductives.stream_recs.M_RULE_COUNT : Array Std.U32 78#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::stream_rules_shape]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 659:0-669:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 666:0-676:1
     Visibility: public -/
 def arena.inductives.stream_recs.stream_rules_shape
   (rs : alloc.vec.Vec arena.env.IRecRule)
@@ -44185,7 +44185,7 @@ def arena.inductives.rec_check.aux_rule_fire
   | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::arena::inductives::stream_recs::generated_fire]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 647:0-652:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 654:0-659:1
     Visibility: public -/
 def arena.inductives.stream_recs.generated_fire
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -44198,7 +44198,7 @@ def arena.inductives.stream_recs.generated_fire
   | some _ => ok (core.result.Result.Ok arena.env.IRecRuleFire.Plain, st)
 
 /-- [con_ron_core::arena::inductives::stream_recs::stream_nested_bvars]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 544:0-557:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 551:0-564:1
     Visibility: public -/
 def arena.inductives.stream_recs.stream_nested_bvars
   (pers : arena.store.PersTier) (st : arena.monad.AState) (k : Std.U64)
@@ -44219,7 +44219,7 @@ def arena.inductives.stream_recs.stream_nested_bvars
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stream_recs::stream_nested_pins]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 518:0-538:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 525:0-545:1
     Visibility: public -/
 def arena.inductives.stream_recs.stream_nested_pins
   (pers : arena.store.PersTier) (st : arena.monad.AState) (amount : Std.U64)
@@ -44248,7 +44248,7 @@ def arena.inductives.stream_recs.stream_nested_pins
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stream_recs::stream_nested_dom]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 565:0-604:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 572:0-611:1
     Visibility: public -/
 def arena.inductives.stream_recs.stream_nested_dom
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -44302,7 +44302,7 @@ def arena.inductives.stream_recs.stream_nested_dom
   | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::arena::inductives::stream_recs::stream_nested_ok]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 613:0-639:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 620:0-646:1
     Visibility: public -/
 def arena.inductives.stream_recs.stream_nested_ok
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -44338,7 +44338,7 @@ def arena.inductives.stream_recs.stream_nested_ok
   | arena.env.IRecRuleFire.Levels _ => ok (core.result.Result.Ok true, st)
 
 /-- [con_ron_core::arena::inductives::stream_recs::stream_rec_check]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 738:0-757:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 745:0-764:1
     Visibility: public -/
 def arena.inductives.stream_recs.stream_rec_check
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -44377,7 +44377,7 @@ def arena.inductives.stream_recs.stream_rec_check
   | core.result.Result.Err _ => ok (r, st)
 
 /-- [con_ron_core::arena::inductives::stream_recs::stream_recs_check]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 764:0-783:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 771:0-790:1
     Visibility: public -/
 def arena.inductives.stream_recs.stream_recs_check
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -52052,7 +52052,7 @@ def arena.inductives.block_tail.check_block_tail_ctors
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_FLAG_LARGE]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 296:0-307:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 303:0-314:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_FLAG_LARGE : Array Std.U32 199#usize :=
@@ -52085,7 +52085,7 @@ def arena.inductives.stream_recs.M_FLAG_LARGE : Array Std.U32 199#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_FLAG_LARGE_REC]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 287:0-292:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 294:0-299:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_FLAG_LARGE_REC : Array Std.U32 64#usize :=
@@ -52101,7 +52101,7 @@ def arena.inductives.stream_recs.M_FLAG_LARGE_REC : Array Std.U32 64#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_FLAG_IMPRED]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 277:0-283:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 284:0-290:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_FLAG_IMPRED : Array Std.U32 95#usize :=
@@ -52121,7 +52121,7 @@ def arena.inductives.stream_recs.M_FLAG_IMPRED : Array Std.U32 95#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_FLAGS_DISAGREE]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 268:0-273:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 275:0-280:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_FLAGS_DISAGREE : Array Std.U32 71#usize :=
@@ -52138,7 +52138,7 @@ def arena.inductives.stream_recs.M_FLAGS_DISAGREE : Array Std.U32 71#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_FLAGS_COUNT]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 261:0-264:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 268:0-271:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_FLAGS_COUNT : Array Std.U32 38#usize :=
@@ -52151,7 +52151,7 @@ def arena.inductives.stream_recs.M_FLAGS_COUNT : Array Std.U32 38#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_FLAG_NEST_PROJ]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 323:0-331:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 330:0-338:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_FLAG_NEST_PROJ : Array Std.U32 132#usize :=
@@ -52176,7 +52176,7 @@ def arena.inductives.stream_recs.M_FLAG_NEST_PROJ : Array Std.U32 132#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_FLAG_NEST_K]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 311:0-319:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 318:0-326:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_FLAG_NEST_K : Array Std.U32 128#usize :=
@@ -52200,7 +52200,7 @@ def arena.inductives.stream_recs.M_FLAG_NEST_K : Array Std.U32 128#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::majors_flags_check]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 924:0-956:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 931:0-963:1
     Visibility: public -/
 def arena.inductives.stream_recs.majors_flags_check
   (pers : arena.store.PersTier) (p : arena.inductives.block_shape.BlockShape)
@@ -52262,7 +52262,7 @@ def arena.inductives.stream_recs.majors_flags_check
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stream_recs::large_elim_flag_ok]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 896:0-916:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 903:0-923:1
     Visibility: public -/
 def arena.inductives.stream_recs.large_elim_flag_ok
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -52300,7 +52300,7 @@ def arena.inductives.stream_recs.large_elim_flag_ok
   else ok (core.result.Result.Ok true, st)
 
 /-- [con_ron_core::arena::inductives::stream_recs::flags_uniform]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 880:0-888:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 887:0-895:1
     Visibility: public -/
 def arena.inductives.stream_recs.flags_uniform
   (fl : alloc.vec.Vec kernel.env.IndFlags) (f0 : kernel.env.IndFlags)
@@ -52325,7 +52325,7 @@ def arena.inductives.stream_recs.flags_uniform
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_FLAG_ETA]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 251:0-257:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 258:0-264:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_FLAG_ETA : Array Std.U32 88#usize :=
@@ -52344,7 +52344,7 @@ def arena.inductives.stream_recs.M_FLAG_ETA : Array Std.U32 88#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_FLAG_PROJ]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 238:0-247:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 245:0-254:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_FLAG_PROJ : Array Std.U32 146#usize :=
@@ -52371,7 +52371,7 @@ def arena.inductives.stream_recs.M_FLAG_PROJ : Array Std.U32 146#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::M_FLAG_K]
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 226:0-234:2
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 233:0-241:2
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.inductives.stream_recs.M_FLAG_K : Array Std.U32 139#usize :=
@@ -52397,7 +52397,7 @@ def arena.inductives.stream_recs.M_FLAG_K : Array Std.U32 139#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::stream_recs::member_flags_check]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 820:0-854:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 827:0-861:1
     Visibility: public -/
 def arena.inductives.stream_recs.member_flags_check
   (p : arena.inductives.block_shape.BlockShape) (is_rec : Bool) (i : Std.U64)
@@ -52520,7 +52520,7 @@ def arena.inductives.stream_recs.member_flags_check
       else ok (core.result.Result.Ok ())
 
 /-- [con_ron_core::arena::inductives::stream_recs::members_flags_check]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 860:0-875:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 867:0-882:1
     Visibility: public -/
 def arena.inductives.stream_recs.members_flags_check
   (p : arena.inductives.block_shape.BlockShape) (is_rec : Bool) (i : Std.Usize)
@@ -52553,7 +52553,7 @@ def arena.inductives.stream_recs.members_flags_check
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::stream_recs::block_flags_check]:
-    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 970:0-1012:1
+    Source: 'crates/con-ron-core/src/arena/inductives/stream_recs.rs', lines 977:0-1019:1
     Visibility: public -/
 def arena.inductives.stream_recs.block_flags_check
   (pers : arena.store.PersTier) (st : arena.monad.AState)
