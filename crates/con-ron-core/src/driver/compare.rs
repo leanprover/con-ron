@@ -113,6 +113,31 @@ pub fn fallback_text(n: &Name, trusted: &Vec<Vec<u32>>, d: &Vec<u32>) -> Vec<u32
 }
 
 /// con-leche: ConLeche/Driver/Compare.lean:86-101 fallbackOnly
+/// One module of the walk: the message where only the search path holds its
+/// root, none where the trusted path does (or neither).
+pub fn fallback_at<F: CheckerFs>(
+    fs: &F,
+    pers: &PersTier,
+    st: &AState,
+    trusted: &Vec<Vec<u32>>,
+    sr: &Roots,
+    m: &NIdx,
+) -> Result<Option<Vec<u32>>, CheckError> {
+    let n = match monad::read_name(pers, st, m) {
+        Err(e) => return Err(e),
+        Ok(n) => n,
+    };
+    let root = files::name_root(&n);
+    match files::root_at(fs, trusted, &root) {
+        RootAt::Missing => match files::look_at(fs, &sr.path, &sr.fallback, &root) {
+            RootAt::Dir(d) => Ok(Some(fallback_text(&n, trusted, &d))),
+            _ => Ok(None),
+        },
+        _ => Ok(None),
+    }
+}
+
+/// con-leche: ConLeche/Driver/Compare.lean:86-101 fallbackOnly
 /// **Why a challenge module is not on the trusted path**, where it is on the
 /// search path: the challenge's closure walked through the solution's lookup,
 /// and the first module whose root only the search path holds.  Only after the
@@ -134,25 +159,17 @@ pub fn fallback_only<F: CheckerFs>(
         Ok(p) => p,
     };
     let sr = sol_roots_of(trusted, path);
-    let mut roots: Vec<NIdx> = Vec::new();
-    roots.push(c.dup2());
+    let roots: Vec<NIdx> = one_root(c);
     let order = match closure::closure_order(fs, &pk, pers, &mut st.store, &sr, &roots) {
         Err(_) => return None,
         Ok(o) => o,
     };
     let mut i = 0usize;
     while i < order.len() {
-        let n = match monad::read_name(pers, st, &order[i]) {
+        match fallback_at(fs, pers, st, trusted, &sr, &order[i]) {
             Err(_) => return None,
-            Ok(n) => n,
-        };
-        let root = files::name_root(&n);
-        match files::root_at(fs, trusted, &root) {
-            RootAt::Missing => match files::look_at(fs, &sr.path, &sr.fallback, &root) {
-                RootAt::Dir(d) => return Some(fallback_text(&n, trusted, &d)),
-                _ => (),
-            },
-            _ => (),
+            Ok(Some(t)) => return Some(t),
+            Ok(None) => (),
         }
         i += 1;
     }
