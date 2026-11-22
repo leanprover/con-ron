@@ -12,7 +12,7 @@
 //!
 //! # Module map
 //!
-//! Four directories, in dependency order:
+//! Four directories, in dependency order (and `driver`, below):
 //!
 //! | directory | what it is |
 //! |---|---|
@@ -71,8 +71,14 @@
 //! See `arena/mod.rs` and `frontend/mod.rs`: one Rust module per file of
 //! `proof/ConRon/Arena/*`, with both citations on every item — con-leche's,
 //! as the whole port has (DESIGN.md §3.7), and the Lean twin's line.
+//!
+//! ## `driver`
+//!
+//! con-leche's `Driver/*.lean` over `frontend::checker_io` (task #171, DESIGN.md §3.9): the
+//! argument parser and the check of a lean4export file, run by `crates/con-ron`'s `StdIo`.
 
 pub mod arena;
+pub mod driver;
 pub mod frontend;
 pub mod kernel;
 pub mod ron;

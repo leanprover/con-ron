@@ -74102,3 +74102,84 @@ headline roots until `MainTheorem.lean` is built on them; without that the gate 
 `PINS_TEXT._native.decide.ax_1` — exactly `model_exists_embedded`'s; no `sorry`.  Elaboration
 (`lake env lean`, one run each): `Covers` 0.8 s, `PureStored` 1.4 s / 2.4 GB, `Conclusions`
 2.2 s / 4.1 GB.
+
+#### Lane D (slice 1) — the driver over `CheckerIo`, and `-- <file>` verified end to end
+
+**What moved.**  The `.ndjson` path of the binary is now extracted code:
+
+* `crates/con-ron-core/src/frontend/checker_io.rs` (cites `Frontend/CheckerIO.lean`): `CheckerFs`
+  (`read_range` alone, `OleanFs`'s name and signature, so slice 2 folds `OleanFs` in), `Step<F, S>`
+  (`init`, `step(&self, &F, &mut S, usize)`, and `view`, the tier/store/records the per-job
+  heartbeat reads a label off, in no contract), `CheckerIo: CheckerFs + Sized + Sync` with the
+  worker map `par_map_workers<S: Send, St: Step<Self, S> + Sync>(&mut self, &St, n, workers)`, the
+  value-answering escapes `&mut self` (`print_help`, `run_legacy`, `hardware_jobs`,
+  `read_pins_file`, `keep_heap`) and the notifications `&self` (`usage`, `note`, `read_starts`,
+  `hoisted`, `index_starts`, `parse_done`, `check_starts`, `check_done`, `verdict_failure`).  The
+  `Send`/`Sync` bounds are hidden by Charon's marker-trait handling and cost nothing in the model.
+  `FileChunks<'a, F>` is the stream's `ChunkSource` over `(&F, path, off, reads, err)`: positional
+  reads of `CHUNK_SIZE` at the offset the last one ended, a failure kept and every read after it
+  empty; `parse_source` and `Source.lean` are unchanged.  `reads: usize` counts the answered
+  reads, the one field there for the proof: the capstone states the parse over a
+  `Vec<Vec<u8>>`, whose length a `usize` bounds, and `u64` offsets do not bound the read count on
+  a 32-bit `usize` (Aeneas' `Usize` is `System.Platform.numBits` wide).
+* `crates/con-ron-core/src/driver/cli.rs` (`Driver/Cli.lean`): the binary's `parse_args` clause
+  for clause over code points — every flag, the first bad one reported as a structured `Bad`
+  (rendered by the instance; the value messages are `driver::{progress_pace, jobs_count,
+  max_nat_size_arg}`'s own `Err` strings, so the two parses cannot drift) — and `run_args`:
+  `--help` (`print_help`), the usage error, then `--check-graph`/`--olean`/`--compare` (so also
+  `--module`, `--modular`, `--schedule`, which take `--olean`) to `run_legacy`, the json branch's
+  usage checks, the synopsis, `check_main`.
+* `crates/con-ron-core/src/driver/check_main.rs` (`Driver/CheckMain.lean`): `check_main`, step for
+  step `bin/con-ron.rs`'s `check_main` on `Input::Ndjson` (h1 … h8 in order), `check_phase` (index,
+  freeze, `par_map_workers` over `JobStep`, thaw, `check_done`), `pins_for_run`, `jobs_for_run`,
+  `verdict_of`; the verdict path hands `st`, the records and the index to `keep_heap` (con-leche
+  #336: no free cascade before the exit).  The pins choice and the tail are functions of their
+  own because Aeneas duplicates a continuation into every branch (the first extraction had the
+  check phase and verdict three times over).
+* `crates/con-ron/src/std_io.rs`: `StdIo` — `read_range` a forward pipe (opened at offset 0 after
+  the old `metadata().is_file()` check, `read_up_to` to fill each buffer, any other offset an
+  error), the pool (`pool::parallel_all`, the heartbeat line under one lock, `pool_verdict`), the
+  rendering of every event in the old words, `StdIoHooks` for the binary's help/synopsis/usage
+  text and the legacy driver.  `bin/con-ron.rs`: `main` is plumbing (argv, non-UTF-8 → 3, the
+  checking thread at `driver::stack_bytes()`, `run_args`, flush and exit FROM that thread so the
+  instance is never dropped); `run_main(argv)` is the legacy driver, otherwise untouched.  The
+  old `check_main`'s `Input::Ndjson` arm is now reached by no request (slice 5 removes it).
+  `--schedule` and every `--olean` mode run behind `run_legacy`, whose verdict paths still
+  `process::exit` inside the escape; no theorem is about them.
+
+**What extracted.**  `Generated/Funs.lean` +1 334 lines (63 new definitions), `Types.lean` +143.
+Extraction 7 min wall (416 s Aeneas), as before.  One Aeneas finding, reproducer in
+`_tmp/corpus/aeneas/or-chain-prop/`: a `let`-bound `||` chain's last operand is emitted as a
+`Prop` (`let b ← if u = 1 then ok true else ok (u = 2)`), so `if b` fails with "failed to
+synthesize Decidable"; `size_positive` uses a `match` instead.
+
+**The walk** (`proof/ConRon/MainTheorem/Driver.lean`, 744 lines, no `sorry`, no Aesop, no new
+axiom; `main_*`'s census is the `_embedded` one: the three standard axioms and
+`PINS_TEXT._native.decide.ax_1`).  `AnswersAs io fs` is `SnapshotOf`'s `read_range` clause at
+every state (`PathRel` spellings); `PoolSound io` is `ParallelAll` of `init`/`step` for every
+`Step`, the steps reading files at the map's own state (`stepAt`); `ArgvOf argv args` relates the
+argument list by code points (a relation, not a function: a `Vec` is bounded, a `String` is not);
+`CanGive` is the plan's.  One inversion per driver function: `parse_source_loop_inv` and
+`next_chunk_inv` (one turn, one read), `fileChunks_loop` (strong induction on `b.size - off`: the
+reads are `b`'s slices, each nonempty, then an empty one — `ReadsAs` — and they concatenate to the
+rest of `b`, with fewer reads than a `usize` counts), `fileChunks_parse`, `help_wanted_end`,
+`parse_args_end` (`str_copy_val`, `push_val`), `check_phase_ok` (PoolSound at `JobStep` is
+`ParallelAll … (jobStep tier mode ipins ds)` by `funext`), `verdict_of_zero`,
+`pins_for_run_embedded`, `hoisted_bind`, `check_main_zero`, `run_args_json`, and
+`json_stages_of_canGive : CanGive ["--", file] fs 0 → fs.file file = some b → JsonStages b`, where
+`JsonStages b` is exactly the premises of `model_exists_embedded` plus
+`concatBytes (absChunks chunks) = b`.  `ConRon/MainTheorem.lean` composes it with lane C's
+`json_model_of_stages`/`json_no_False_of_stages`: `main_json_model` and `main_no_False`, con-leche's
+statements verbatim but `ConRon.CanGive ["--", file] fs 0`; both are `dead-census.py` roots.
+`lake build ConRon.MainTheorem` after a cached chain: seconds; the chain after the extraction
+moved `Funs.lean`: 9 min (Funs 137 s).
+
+**Behaviour.**  `scripts/diff-e2e.sh`: 773/773 agree, display gate 9/9, command-line gate 18/18.
+Old binary (f126d3ae) against the new one, stdout + stderr + exit code with times masked, on every
+`tests/e2e` fixture plain, `--progress --jobs=1`, `--progress=1s --jobs=2`, and 32 command lines
+(usage errors, `--help`, missing file, a directory, `--pins`, `--compare`/`--olean` routing): no
+difference but an out-of-memory size under `ulimit -v` on `whnf_core_loop` (exit 134 both).
+
+**Left.**  Slice 2 (`--olean` and its modes into verified code; `OleanFs` into `CheckerFs`), the
+`Capstone.lean` tables' `bin/con-ron.rs` line references (they now describe `check_main.rs`),
+OVERVIEW §8.2's driver row (slice 5).

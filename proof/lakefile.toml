@@ -162,4 +162,6 @@ globs = ["ConRon.Refine2.*"]
 name = "ConRonCapstone"
 # `ConRon.MainTheorem.Conclusions` (task #171, lane C): the Capstone's headlines with
 # con-leche's conclusions, over `ConRon.MainTheorem.PureStored`.
-roots = ["ConRon.Capstone", "ConRon.MainTheorem.Conclusions"]
+# `ConRon.MainTheorem` (lane D): `CanGive`, the walk of the extracted driver, and the main
+# theorems about the binary.
+roots = ["ConRon.Capstone", "ConRon.MainTheorem.Conclusions", "ConRon.MainTheorem"]
