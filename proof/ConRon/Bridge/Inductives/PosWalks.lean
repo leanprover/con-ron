@@ -798,7 +798,7 @@ theorem whnfWalkFuel_spec (e : EIdx) (eP : Expr) :
 theorem dCtx_inv {st : EStore} {fnd : ConLeche.Name → Option ConstantInfo}
     {c : Arena.NestCtx} {cP : ConLeche.NestCtx} (h : dCtx st fnd c = some cP) :
     ∃ namesP lpsP paramsP sortP formersP,
-      cP = ⟨namesP, lpsP, c.nP, c.nIdxs, paramsP, sortP, fnd, formersP⟩ ∧
+      cP = ⟨namesP, lpsP, c.nP, c.nIdxs, paramsP, sortP, fnd, formersP, c.bound⟩ ∧
       Frontend.denoteNList st.ns c.names = some namesP ∧
       Frontend.denoteNList st.ns c.lps = some lpsP ∧
       Frontend.denoteEList st c.params = some paramsP ∧
