@@ -638,12 +638,6 @@ theorem w_schedule_val : (Array.to_slice driver.cli.W_SCHEDULE).val = [45#u32, 4
 theorem w_worker_stack_size_eq_val : (Array.to_slice driver.cli.W_WORKER_STACK_SIZE_EQ).val = [45#u32, 45#u32, 119#u32, 111#u32, 114#u32, 107#u32, 101#u32, 114#u32, 45#u32, 115#u32, 116#u32, 97#u32, 99#u32, 107#u32, 45#u32, 115#u32, 105#u32, 122#u32, 101#u32, 61#u32] := by
   simp [driver.cli.W_WORKER_STACK_SIZE_EQ, Array.to_slice]
 
-/-- A word argument's code points as a literal list. -/
-theorem word_val {s : alloc.vec.Vec Std.U32} {w : String} {l : List Std.U32}
-    (hs : s.val.map UScalar.val = w.toList.map Char.toNat) (hl : l.map UScalar.val = w.toList.map Char.toNat) :
-    s.val = l :=
-  (List.map_injective_iff.mpr (fun _ _ h => UScalar.eq_of_val_eq h)) (hs.trans hl.symm)
-
 macro "parse_one_word" hs:term "," hv:term : tactic => `(tactic| (
   obtain ⟨hi, hx⟩ := List.getElem?_eq_some_iff.mp $hs
   rw [driver.cli.parse_one, ConRon.Args.vec_index_ok'' hi, hx]
