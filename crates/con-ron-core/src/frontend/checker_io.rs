@@ -6,8 +6,8 @@
 //! `ModelIO` (the model the main theorems are stated in).  The port writes its
 //! driver (`crate::driver`) once over these traits: `crates/con-ron`'s `StdIo`
 //! is the binary's instance, and the main theorems (`proof/ConRon/MainTheorem.lean`)
-//! hold at every instance whose file operations answer as one snapshot of the
-//! files (`AnswersAs`) and whose worker map keeps its contract (`PoolSound`).
+//! are about the model instance (`MainTheorem/Model.lean`, con-ron's `ModelIO`):
+//! file operations from a snapshot, every escape's answer an oracle's.
 //!
 //! * `CheckerFs` — the file operations, `&self`: in the Aeneas model a pure
 //!   function of the instance, and the premise on them holds at every state, so
@@ -21,8 +21,8 @@
 //! * `CheckerIo` — the worker map, the code map and the escapes.  An escape that ANSWERS a
 //!   value the run goes on with (the help's exit code, the hardware thread
 //!   count, the scheduler's exit code) is `&mut self`, so that the model
-//!   claims nothing about its answer (`liftIO`'s "any outcome"); a
-//!   notification (answer `()`) is `&self`.  Two traits and not one: Aeneas
+//!   claims nothing about its answer (`liftIO`'s "any outcome"); a notification
+//!   (answer `()`) is `&self`, and so is `worker_copies` (§3.9).  Two traits: Aeneas
 //!   rejects mutually recursive trait declarations (`Step` bounded by
 //!   `CheckerIo`, whose method is bounded by `Step`).
 //!

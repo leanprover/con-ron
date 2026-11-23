@@ -395,28 +395,31 @@ challenge, the compare worker at the challenge), or one `--olean --modular
 no constant of type `False`.
 
 **`ConRon.CanGive`**
-([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Driver.lean#L82-L86)):
+([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Model.lean#L1-L1)):
 
 ```lean
 def CanGive (args : List String) (fs : ConLeche.FS) (c : UInt8) : Prop :=
-  ∃ (S : Type) (io : frontend.checker_io.CheckerIo S) (s s' : S)
-    (argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (c' : Std.U8),
-    AnswersAs io fs ∧ PoolSound io ∧ CodesSound io ∧ ArgvOf argv args ∧
-    driver.cli.run_args io s argv = ok (c', s') ∧ c'.val = c.toNat
+  ∃ (argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (o o' : Model.Tape) (c' : Std.U8),
+    ArgvOf argv args ∧ driver.cli.run_args (Model.snapshotIo fs) o argv = ok (c', o') ∧
+      c'.val = c.toNat
 ```
 
 `c` is an exit code of con-ron on the argument list `args` and the files
 `fs` when the Aeneas model of the binary's driver, `driver::cli::run_args`,
-returns `c` on `args` (as code points, `ArgvOf`) at some instance of the
-trait `CheckerIo`, con-leche's class `CheckerIO` ported as a Rust trait
-(DESIGN.md §3.9), whose file operations answer as the snapshot `fs` at every
-state (`AnswersAs`), whose worker map keeps the pool's contract
-(`PoolSound`), and whose code map, the threads of `--olean --modular`,
-answers each module's own exit code (`CodesSound`).  The model claims nothing
-about what the instance's other operations answer (the help, the hardware
-thread count, the scheduler) or print, so the theorems hold whatever they
-answer.  The binary runs `run_args` at its own instance, `std_io::StdIo`;
-that a run of it is one of `CanGive`'s is §3.1.
+returns `c` on `args` (as code points, `ArgvOf`) at the model instance
+`Model.snapshotIo fs` of the trait `CheckerIo` (con-leche's class
+`CheckerIO` ported as a Rust trait, DESIGN.md §3.9), from some oracle `o`.
+The model is con-ron's `ModelIO`: its file operations answer from `fs`; what
+its escapes answer (the help, the hardware thread count, the scheduler, the
+copies' error) and the worker map's claims are the oracle's, so the theorems
+hold whatever they answer; it prints nothing.  That it answers as `fs` at
+every state (`AnswersAs`), that its worker map keeps the pool's contract
+(`PoolSound`) and that its code map, the threads of `--olean --modular`,
+answers each module's own exit code (`CodesSound`) are theorems
+(`snapshotIo_answersAs`, `snapshotIo_poolSound`, `snapshotIo_codesSound`):
+the walks are proved at every instance with the three, `CanGiveConforming`.
+The binary runs `run_args` at its own instance, `std_io::StdIo`; that a run
+of it is one of the model's is §3.1.
 
 **The composition.**  Each main theorem is proved in three steps:
 
@@ -502,23 +505,41 @@ the prelude parses to.
 
 ### 3.1 What a run of the binary must satisfy
 
-The main theorems hold at every instance with `CanGive`'s three properties.
-That a run of the binary is one of `CanGive`'s is assumed, not proved, as
-con-leche assumes it of its own binary in the module doc of
+`ConRon.CanGive args fs c` is an exit code of the extracted `driver::cli::run_args` at ONE
+instance of the trait `CheckerIo`: the model
+[`Model.snapshotIo fs`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Model.lean),
+con-ron's counterpart of con-leche's `ModelIO`, run from some oracle.  Its file operations
+answer from the snapshot `fs` and fail where `fs` has no answer or the path is not a
+well-formed string; every escape that answers a value takes the oracle's answer, so any value
+is possible; the worker map folds each job over the claims the oracle picks; the code map runs
+every job; a notification does nothing.  That this model answers as `fs` at every state
+(`AnswersAs`) and keeps the two maps' contracts (`PoolSound`, `CodesSound`) are theorems, the
+premises the walks of the driver are proved from.
+
+That a run of the binary is one of the model's is assumed, not proved, as con-leche assumes it
+of its own binary in the module doc of
 [`ConLeche/Frontend/CheckerIO.lean`](https://github.com/leanprover/con-leche/blob/master/ConLeche/Frontend/CheckerIO.lean);
-this section is that doc's counterpart.  The binary's instance is
+this section is that doc's counterpart, and the module doc of `MainTheorem.lean` states it in
+full.  The assumption is about the run: only the calls it performs.  The binary's instance is
 [`std_io::StdIo`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/std_io.rs#L1-L12),
 and its `main` is
 [`bin/con-ron.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L206-L243).
 
-| what a run must satisfy | why the binary does |
+| what a run that exits 0 must satisfy | why the binary does |
 |---|---|
-| **`StdIo` answers as one snapshot** (`AnswersAs`): every answer of a file operation (does the path exist, is it a directory, its real path, its bytes, a byte range of it, its size) is the answer of one snapshot `fs` of the files, at every state | The operations are the standard library's calls over the files (`olean_fs::StdFs`); a byte range is a positional read of a regular file, checked to be one before it is opened.  What is assumed is that the files do not change during the run.  A failed operation claims nothing.  For the theorems about several processes (`main_modular`, `main_modular_compare`, `main_modular_compare_no_False`) the snapshot is one across all of them: every command runs on one unchanged set of files, as con-leche's scheduler assumes |
-| **The worker map keeps its contract** (`PoolSound`): when `par_map_workers` answers `Ok`, every job was run, each worker's jobs in increasing order from the step's first state, every step `Ok` (`ParallelAll`) | `pool::parallel_all`'s control flow (§8.2's pool row) |
-| **The code map keeps its contract** (`CodesSound`): `par_map_codes` answers one exit code per module of `--olean --modular`, each the module's step's code | Each module's thread runs the step and stores its code at the module's position; a module whose thread dies is code 3, never 0 |
-| **The escapes and notifications write no file and do not end the process**: `print_help`, `hardware_jobs`, `run_schedule`, `keep_heap`, `keep_solution`, every output line and every heartbeat | They print, count threads, run the scheduler (whose workers only read), and keep what the run built until the exit.  The model claims nothing about what an escape answers, so every answer is covered; a notification answers nothing |
+| **(1) The file operations it performs answer as one snapshot `fs`**: does the path exist, is it a directory, its real path, its bytes, a byte range of it, its size — the snapshot's value where it has one, a failure where it has none | The operations are the standard library's calls over the files.  Each path is opened once per run and every byte range is read through that handle, up to where a read finds the end (not the size the metadata reports); a path reopened after its handle was closed must be the same file (device, inode, size, modification time), so a file replaced during the run fails the read rather than splicing two files.  A size is checked against where the contents end (a `/proc` file reports 0).  A path with a code point that is not a character fails, and so does a real path that is not valid UTF-8.  What is assumed is that the files do not change during the run.  On the binary's platform the Rust's spelling of a module's file is upstream's `modFile` (the logic cannot decide it: `System.FilePath`'s `/` reads the opaque `isWindows`).  For the theorems about several processes (`main_modular`, `main_modular_compare`, `main_modular_compare_no_False`) the snapshot is one across all of them, as con-leche's scheduler assumes |
+| **(2) The escapes and notifications write no file a check reads and do not end the process**: `print_help`, `hardware_jobs`, `run_schedule`, `keep_heap`, `keep_solution`, `worker_copies`, every output line and every heartbeat | They print, count threads, run the scheduler (whose workers only read), and keep what the run built until the exit.  The model takes every answer from the oracle, so every answer is covered.  `worker_copies` is the one `&self` escape that answers a value (it runs inside the code map, where the instance is shared): the model's answer is the oracle's function of the arguments, which the binary's, deterministic in them, is; and it can only turn an accept into a failure |
+| **(3) The two maps' actual runs are an oracle's**: the worker map's workers each ran from the job's first state over the positions they claimed, in increasing order, every position claimed, `Ok` only when every step was (`ParallelAll`); the code map ran every module's step and answered their codes in order | `pool::parallel_all`'s control flow (§8.2's pool row); the code map runs at least one thread, each module's thread stores its code at the module's position, and a thread that dies is a failure |
 | **`main` does what it says**: the arguments as code points, `run_args` on the checking thread at `StdIo`, the flush, and the exit with `run_args`'s code | `main` is plumbing.  An argument that is not UTF-8, a failed flush, or a panic on the checking thread is exit 3, never 0 |
-| **The translator, the compiler and the standard library** model and run the code as written | §8 |
+| **(4) The translator, the compiler and the standard library** model and run the code as written | §8 |
+
+The argument is con-leche's: the driver is the same code at both instances; at each file
+operation the run performs the binary's answer is, by (1) and (2), the model's; at each escape
+the binary's answer is some value, and an oracle gives it; at each map, by (3), an oracle's
+claims give the binary's answer; so by induction along the run an exit 0 of the binary is one of
+the model's, and the theorems hold of it.  Two things differ from con-leche: the
+non-determinism is an oracle in the instance's state (Aeneas models a trait method as a
+function), and the stream is read by positional reads where con-leche reads a handle forward.
 
 A run with `--trusted` or `--constant` is outside the theorems: their
 argument lists have neither, and so are con-leche's.  `--olean --schedule`
@@ -1425,9 +1446,9 @@ differ.
 | **Aeneas and Charon**: the Lean model is what the Rust means | Nothing; a translator bug is a hole.  The crate stays inside the documented subset (§7.1), and `AENEAS_FINDINGS.md` records what the port found, all of it worked around in the Rust |
 | **`rustc`, the Rust standard library and the allocator** | Nothing.  This is the trade the project makes: these instead of Lean's compiler, runtime and GMP.  The mimalloc wrapper in `con-ron-dump` is the only `unsafe` code in the workspace; an allocator can change memory use and time, not a verdict |
 | **`overflow-checks = true`** in the [release profile](https://github.com/leanprover/con-ron/blob/master/Cargo.toml#L22-L23) | The model is the checked-arithmetic one.  A build without it would wrap where the model fails |
-| **The binary's instance and `main`**, [`std_io.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/std_io.rs#L1-L12) and [`bin/con-ron.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L206-L243) | §3.1: that a run is one of `CanGive`'s.  The driver itself, from the argument parse to the exit code, is the extracted `driver::cli::run_args`, and every mode but the scheduler's is proved; the scheduler (`modular::schedule`, `schedule.rs`) is outside the theorems, as con-leche's is, and adds nothing to them (§3.5) |
+| **The binary's instance and `main`**, [`std_io.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/std_io.rs#L1-L12) and [`bin/con-ron.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L206-L243) | §3.1: that a run that exits 0 is one of the model's (`Model.snapshotIo`), an assumption about the calls the run performs, not about the instance at every call.  The model's own premises (`AnswersAs`, `PoolSound`, `CodesSound`) are theorems.  The driver itself, from the argument parse to the exit code, is the extracted `driver::cli::run_args`, and every mode but the scheduler's is proved; the scheduler (`modular::schedule`, `schedule.rs`) is outside the theorems, as con-leche's is, and adds nothing to them (§3.5) |
 | **The worker pool**, [`pool.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/pool.rs#L50-L102) | One generic combinator, `parallel_all(n, workers, init, step, after)`, that knows nothing about checking.  Its contract is an argument about its control flow, not a proof: if it returns `Ok`, every index in `0..n` was claimed by some worker, and each worker built its state with `init` once and folded `step` over its claims in claim order, every step `Ok`.  That is `PoolSound`, and at the driver's steps the staged lemmas' `h8`; the proof reads it as [`ParallelAll`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Checker/Jobs.lean#L170-L174) and turns it into one accepting fold per worker.  The contract also promises that each worker's claims strictly increase: the code hands out claims off one monotone counter, and the pool's test asserts it.  Theorem 1 needs this: it inducts in fold order, and a job's start state is reached through the jobs its worker ran before it, whose own checks are known correct only at positions already proved.  The contract does not promise that an index is claimed only once (the code does that too); the proof does not need it.  Results are merged by index, and an accept means every slot is `Ok`.  Nothing is claimed about which worker ran which index: the staged lemmas relate each worker's walk to the twin separately.  Tests check the partition property generically, and that the check phase agrees with the one-worker walk and reports the first failure, at every worker count |
-| **The file operations**, `olean_fs::StdFs` | That their answers are one snapshot's: `AnswersAs` (§3.1).  The files' contents are not trusted |
+| **The file operations**, `olean_fs::StdFs` and `olean_fs::RunFiles` | That the answers of the operations a run performs are one snapshot's (§3.1 (1)).  The files' contents are not trusted |
 | **`Native` errors: partial correctness** | Theorem 2 relates a Rust `Native` to the twin's `native` at the same point, and a twin `native` claims nothing about con-leche, so soundness is unaffected and completeness is not proved.  The arena's sites are the 2²⁷-entry arrays' capacity tests, mirrored by the twin; the one the twin does not mirror is the scanner's `u64` overflow on an oversized numeral (§6.5).  The pin decoder's `Native` is outside Theorem 2: the staged lemmas assume the embedded pins decode |
 
 Nothing else: no `native_decide`, no `sorry`, and no axiom beyond the three

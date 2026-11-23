@@ -514,7 +514,7 @@ theorem run_args_compare {S : Type} {io : frontend.checker_io.CheckerIo S} {fs :
 /-- **The run premise, unpacked**: every exit 0 of con-ron at `["--compare", "--", c, s]` read
 the file `c`, and is one of `CompareJsonStages`'s on its bytes. -/
 theorem compare_json_stages_of_canGive {c s : String} {fs : ConLeche.FS}
-    (h : CanGive ["--compare", "--", c, s] fs 0) :
+    (h : CanGiveConforming ["--compare", "--", c, s] fs 0) :
     ∃ bC, fs.file c = some bC ∧ CompareJsonStages bC := by
   obtain ⟨S, io, x, x', argv, code, hfs, hpool, -, hargv, hrun, hc⟩ := h
   exact run_args_compare hfs hpool hargv hrun (by simpa using hc)

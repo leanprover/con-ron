@@ -1437,9 +1437,39 @@ con-leche's say, word for word in their conclusions, about con-ron's own `run_ar
   computes, and the model claims nothing about output.  Only an escape that *answers a value*
   the code goes on with (the clock, the hardware thread count, the scheduler's exit code) must be
   `&mut self`.  Escapes take structured events (verdicts, receipts, heartbeat lines) and the store by shared
-  reference; the rendering is the instance's, outside the extraction.
+  reference; the rendering is the instance's, outside the extraction.  **One exception,
+  `WorkerNotes::worker_copies`** (a compare worker's copies' lines, and the error that kept them
+  from being made): it answers a value through `&self`, because it runs inside the code map,
+  where a step has the instance by shared reference.  Making it `&mut` would need the code map's
+  steps to take the instance mutably (they run in parallel), or the copies computed in the core
+  and only their rendering left to the instance (`modular::copy_line` is unverified rendering
+  that can fail), each a re-extraction and a new walk of `module_copies`.  It is sound as it
+  is: the model's answer is the oracle's function of the call's arguments, which claims only
+  that two calls with the same arguments at one state agree, and the binary's
+  (`copy_recs`, `owner_map`, `copy_line` over its arguments) is deterministic in them; and the
+  answer can only turn an accept into a failure (`module_copies`: `None` or exit 1).
+* **The theorems are about ONE instance, the model** (slice 6; an external review found that
+  `StdIo` itself does not meet the premises at calls no run makes).  `ConRon.CanGive` is an exit
+  code of `run_args` at `Model.snapshotIo fs` (`proof/ConRon/MainTheorem/Model.lean`), whose
+  state is an oracle: the file operations answer from `fs` by definition (a failure where `fs`
+  has none, at a path that is not a well-formed string, or where the Rust's and upstream's
+  spellings of a request differ in `fs` — `PathRel` is a relation because `System.FilePath`'s
+  `/` reads the opaque `isWindows`); each value-answering escape takes the oracle's answer, the
+  `n`-th call's at `n`; the worker map folds each job over the oracle's claims; the code map runs
+  every job.  `AnswersAs`, `PoolSound` and `CodesSound` are theorems about it; the walks stay
+  instance-generic (`CanGiveConforming`).  **The trust is per run**, as con-leche's
+  `CheckerIO.lean` states it: a run of the binary that exits 0 is one of the model's runs if (1)
+  every file operation it performs answered as one snapshot, a failure being a failure; (2) the
+  escapes write no file and do not end the process; (3) the maps' actual claims are some
+  oracle's (the pool's control-flow argument); (4) Rust, its standard library and Aeneas run the
+  code as written — then by induction along the run.  What differs from con-leche: an oracle
+  where con-leche has a non-determinism monad, and positional reads where con-leche has handles.
+  `StdIo` opens each path once per run (`olean_fs::RunFiles`), reads every range through that
+  handle up to where a read finds the end of the file, checks a size against the contents, and
+  fails at a path with a code point that is not a character, at a real path that is not valid
+  UTF-8, and at a file replaced during the run.
 * **The worker map is the trait's**, its contract (`ParallelAll`, OVERVIEW §8.2's pool row) a
-  premise on the instance, for every `Step`.  The per-job heartbeat is the instance's
+  premise of the walks, for every `Step`, and a theorem of the model (slice 6).  The per-job heartbeat is the instance's
   (around each step), so a step needs no escape.
 * **`main` is plumbing**: argv, the big-stack thread, `StdIo`, `run_args`, flush, exit.
 * **Every request is the verified driver's**: the argument parse, the usage errors and every
