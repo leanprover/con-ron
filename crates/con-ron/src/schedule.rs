@@ -51,14 +51,28 @@ fn signal_name(n: i32) -> Option<&'static str> {
     }
 }
 
+/// con-leche: none — **the signal that ended a process**, where the platform has
+/// signals (Unix); `None` elsewhere, where every ending has an exit code (on
+/// Windows an abnormal ending is an `NTSTATUS` code, so its verdict is `exit N`).
+#[cfg(unix)]
+fn exit_signal(st: &std::process::ExitStatus) -> Option<i32> {
+    use std::os::unix::process::ExitStatusExt;
+    st.signal()
+}
+
+/// con-leche: none — no signals off Unix: see the Unix twin above.
+#[cfg(not(unix))]
+fn exit_signal(_st: &std::process::ExitStatus) -> Option<i32> {
+    None
+}
+
 /// con-leche: ConLeche/Driver/Schedule/Worker.lean:139-152 exitVerdict
 /// **A worker's verdict** from how it ended and its stderr `diag`: `0` to `3` as
 /// they are, `exit N` for another code; ended by a signal, `stack` (SIGABRT and
 /// a stack overflow's message: Lean's, or Rust's), else `signal N (NAME)`.  No
 /// `oom-kill`: the cgroup's counter is not read.
 pub fn exit_verdict(st: &std::process::ExitStatus, diag: &str) -> String {
-    use std::os::unix::process::ExitStatusExt;
-    match (st.code(), st.signal()) {
+    match (st.code(), exit_signal(st)) {
         (Some(c), _) if (0..=3).contains(&c) => c.to_string(),
         (Some(c), _) => format!("exit {}", c),
         (None, Some(s)) => {

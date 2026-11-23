@@ -74777,3 +74777,33 @@ lost `--no-pins` too (its field, parser arm, help line and the two `if a.noPins`
 maintainer's "clearly part of this"; no script used it.  The second external review (codex
 gpt-6.1-sol at `34d57d2b`, `_tmp/t171/codex-review-34d57d2b.md`) closed every finding of the first
 and found the docs overstating `RunFiles`, which the commit after slice 6 corrected.
+
+### Task #173 — the driver builds on Windows and macOS again; CI builds it there (2026-11-23, Opus)
+
+**Why.**  Task #170's `exit_verdict` (`crates/con-ron/src/schedule.rs`) used
+`std::os::unix::process::ExitStatusExt::signal` unguarded, and task #171's `olean_fs.rs` used
+`std::os::unix::fs::FileExt::read_at` and `MetadataExt::{dev, ino, mtime, mtime_nsec}`: nine
+errors under `cargo check --target x86_64-pc-windows-msvc` at master `3a8474a1` (macOS was
+fine).  Nothing in CI built off Linux, so it went unnoticed until a Windows build of the
+`renovation` pin failed.
+
+**What changed.**  Three `#[cfg]`-split helpers in the unverified driver, each citing
+`con-leche: none`:
+* `schedule::exit_signal`: the ending signal on Unix, `None` elsewhere, so a Windows abnormal
+  ending (an `NTSTATUS` exit code) reads `exit N`, as con-leche's own verdict would on Windows.
+* `olean_fs::pread`: `read_at` on Unix, `seek_read` on Windows (it moves the handle's cursor,
+  which no reader uses — every read names its offset).
+* `olean_fs::stamp_of` off Unix: device and inode `0` (Windows' volume serial and file index
+  are unstable API), the size and `modified()`; so off Unix only size and modification time
+  tell a replaced file apart.  Unix is unchanged.
+
+**CI.**  A `portable` job in `.github/workflows/ci.yml`, a `windows-latest`/`macos-latest`
+matrix beside `gates`: Charon's pinned nightly (`nightly-2026-09-17`, named a second time
+there — keep it in step with `flake.nix`), `cargo build --workspace --all-targets` (tests
+compiled, not run: `olean_fs::tests` reads `/proc` and `/tmp` by design) and `con-ron --help`.
+No Nix, Lean, Charon or Aeneas: the proof stays Linux-only.
+
+**Checked.**  `cargo check --workspace --all-targets --no-default-features -D warnings` for
+`x86_64-pc-windows-msvc`, `aarch64-apple-darwin`, `x86_64-apple-darwin` from the Linux nightly
+sysroot (the default `mimalloc` feature needs a cross C compiler locally; the runners have
+native ones); `scripts/gates.sh`.

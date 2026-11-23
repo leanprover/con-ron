@@ -84,13 +84,28 @@ pub fn open_regular(s: &str) -> Result<(std::fs::File, std::fs::Metadata), Vec<u
     Ok((f, md))
 }
 
+/// con-leche: none — **one positional read**: up to `buf.len()` bytes of `f` at
+/// `off`, without moving a cursor other readers of the handle rely on.
+#[cfg(unix)]
+fn pread(f: &std::fs::File, buf: &mut [u8], off: u64) -> std::io::Result<usize> {
+    use std::os::unix::fs::FileExt;
+    f.read_at(buf, off)
+}
+
+/// con-leche: none — Windows' positional read (`seek_read` moves the handle's
+/// cursor, which no reader here uses: every read names its offset).
+#[cfg(windows)]
+fn pread(f: &std::fs::File, buf: &mut [u8], off: u64) -> std::io::Result<usize> {
+    use std::os::windows::fs::FileExt;
+    f.seek_read(buf, off)
+}
+
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:370-379 ModelIO.read
 /// **A positional read of an open file**: the bytes from `off` up to `off + len`
 /// or the end of the file, whichever comes first.  The end is where a read
 /// answers nothing, not the size the metadata reports (a file of `/proc` reports
 /// 0 and holds more); `len = None` reads to the end.
 pub fn read_at_most(f: &std::fs::File, s: &str, off: u64, len: Option<u64>, hint: u64) -> Result<Vec<u8>, Vec<u32>> {
-    use std::os::unix::fs::FileExt;
     let cap = match len {
         Some(l) => std::cmp::min(l, hint.saturating_sub(off)),
         None => hint.saturating_sub(off),
@@ -104,7 +119,7 @@ pub fn read_at_most(f: &std::fs::File, s: &str, off: u64, len: Option<u64>, hint
             Some(l) => std::cmp::min(l - got, chunk.len() as u64) as usize,
             None => chunk.len(),
         };
-        match f.read_at(&mut chunk[..want], off + got) {
+        match pread(f, &mut chunk[..want], off + got) {
             Ok(0) => break,
             Ok(n) => buf.extend_from_slice(&chunk[..n]),
             Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => {}
@@ -203,9 +218,19 @@ struct Stamp {
 }
 
 /// con-leche: none — the stamp of an opened file's metadata
+#[cfg(unix)]
 fn stamp_of(md: &std::fs::Metadata) -> Stamp {
     use std::os::unix::fs::MetadataExt;
     Stamp { dev: md.dev(), ino: md.ino(), len: md.len(), mtime: md.mtime(), mtime_ns: md.mtime_nsec() }
+}
+
+/// con-leche: none — the stamp off Unix: no device or inode on stable Rust
+/// (Windows' volume serial and file index are unstable), so `0` for both, and
+/// only the size and the modification time tell a replaced file apart.
+#[cfg(not(unix))]
+fn stamp_of(md: &std::fs::Metadata) -> Stamp {
+    let t = md.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).unwrap_or_default();
+    Stamp { dev: 0, ino: 0, len: md.len(), mtime: t.as_secs() as i64, mtime_ns: t.subsec_nanos() as i64 }
 }
 
 /// con-leche: none — a path the run has opened: the file's stamp, and its
