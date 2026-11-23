@@ -297,7 +297,7 @@ pub fn table_beq_p(a: Option<&IProjTable>, b: Option<&IProjTable>) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:435-438 isStmtKind
+/// con-leche: ConLeche/Kernel/Env.lean:448-451 isStmtKind
 /// Lean twin: `proof/ConRon/Arena/Justify.lean:109-113 IConstantInfo.isStmtKind` — a
 /// definition, theorem or axiom: the kinds whose copies may differ by a value.
 pub fn is_stmt_kind(ci: &IConstantInfo) -> bool {

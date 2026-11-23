@@ -251,7 +251,7 @@ def targetCtorsOf (fe : IFEnv) (I : NIdx) : AM (Option (Nat × List (IConstantVa
   nestContainer fe I
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:216-231 targetOutsideInst
-con-leche: ConLeche/Cached/IndBlock.lean:270-285 targetOutsideInstC
+con-leche: ConLeche/Cached/IndBlock.lean:275-290 targetOutsideInstC
 The instantiated type former of an OUTSIDE major `I.{us} ds` (at its
 telescope, `familyTelescope`): its index count and its result sort.  The
 Rust's `target_outside_inst_at` is the part after the lookup. -/
@@ -275,7 +275,7 @@ def targetOutsideInst (mode : CheckMode) (fe : IFEnv) (I : NIdx) (us : LsIdx)
 /-! ## A recursor's class, resolved -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:235-292 targetMajorOf
-con-leche: ConLeche/Cached/IndBlock.lean:287-323 targetMajorOfC
+con-leche: ConLeche/Cached/IndBlock.lean:292-328 targetMajorOfC
 **A recursor's major, resolved** from its opened type `mty`: a MEMBER of the
 block at the block's levels and parameters, or — a nested block's container —
 any other stored inductive at one of the block's auxiliary types: not `Quot`,
@@ -340,7 +340,7 @@ def targetMajorOf (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (pfvs fvs : L
       application")
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:294-311 targetPinTys
-con-leche: ConLeche/Cached/IndBlock.lean:325-330 targetPinTysC
+con-leche: ConLeche/Cached/IndBlock.lean:330-335 targetPinTysC
 **An outside major's parameters, typed at the rule prefix** (depth `d`), in
 order. -/
 def targetPinTys (mode : CheckMode) (fe : IFEnv) (d : Nat) : List EIdx → AM Unit
@@ -350,7 +350,7 @@ def targetPinTys (mode : CheckMode) (fe : IFEnv) (d : Nat) : List EIdx → AM Un
     targetPinTys mode fe d xs
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:313-328 targetMajorPins
-con-leche: ConLeche/Cached/IndBlock.lean:332-337 targetMajorPinsC
+con-leche: ConLeche/Cached/IndBlock.lean:337-342 targetMajorPinsC
 The check at a resolved major: an outside major's parameters typed at the rule
 prefix, and the family at the key `I.{us} D⃗` typed there (`familyKeyCheck`).
 Nothing at a member. -/
@@ -513,22 +513,30 @@ def generatedRules (rP : Nat) (M : TargetMajor) (rhss : List EIdx) : AM (List IR
     let f ← auxRuleFire M rP
     pure (rules.map fun rl => { rl with fire := f })
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:457-466 recKExpected
-**The K flag a recursor of this block has** (official's `is_K_target`): the
-block is a proposition with one member, and the recursor's major is that member,
-with one constructor and no fields.  An outside major's recursor is never K. -/
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:462-466 BlockShape.ruleOut
+The cited `noRules` arm: **the generated recursors without rules or
+constructors to compare** (the caller reads `noRules`, so the other arm's
+`out` is passed as it is). -/
+def ruleOutAll (out : List (IConstantVal × TargetMajor × List EIdx)) :
+    List (IConstantVal × TargetMajor × List EIdx) :=
+  out.map fun g => (g.1, { g.2.1 with ctors := [] }, [])
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:468-477 recKExpected
+**The K flag a recursor of this block has** (official's `is_K_target`): member
+0's `isK` (`BlockShape.flagsAt`), and the recursor's major is a member, with
+one constructor and no fields.  An outside major's recursor is never K. -/
 def recKExpected (p : BlockShape) (M : TargetMajor) : Bool :=
   match M.member, M.ctors with
-  | some _, [c] => p.k == 1 && p.isProp && c.2 == 0
+  | some _, [c] => (p.flagsAt 0).isK && c.2 == 0
   | _, _ => false
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:479-485 blockNestedBit
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:490-496 blockNestedBit
 **The block's container bit**: some field kind is not flat or some recursor's
 major is not a member. -/
 def blockNestedBit (p : BlockShape) (kinds : List (List (List NestFieldKind))) : Bool :=
   if nestKindsFlat kinds then p.recs.any (fun rc => !(rc.tgt < p.k)) else true
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:487-497 blockRecInfosTF
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:498-508 blockRecInfosTF
 con-leche: ConLeche/Cached/IndTail.lean:48-56 blockRecInfosTC
 **The checked family's records, at their majors**, in push order: each recursor
 at its record's major index and rule prefix, its K flag `recKExpected` and its
@@ -543,7 +551,7 @@ def blockRecInfosTF (p : BlockShape) :
     pure (.recInfo cv (p.majorIdxAt m) (p.rulePrefixAt m) (recKExpected p M) rules :: infos)
 
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:499-508 ruleBinds —
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:510-519 ruleBinds —
 **a rule binds its arguments**: the right-hand side has at least `rP +
 nfields` manifest λs, one per argument of the recursor's rule prefix and per
 field of the constructor — what the ι step peels (`lamBody`).  A syntactic

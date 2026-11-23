@@ -10,7 +10,8 @@
 (`check_block_tail`: index sorts, constructors consed, the generated recursor
 stage, the stream's K flags and recursors against the generated ones at the
 generated family pushed and popped, `check_block_tail_stream`, the tables'
-checks), and the block's install pushed onto the constructors' environment
+checks; before them the declared flags, `check_block_flags`, and the field
+bound at a `boundedProp` block, `check_block_bound`), and the block's install pushed onto the constructors' environment
 (`Checker/Install.lean`'s `block_recs`, `block_tables`).
 
 `BlockPass` carries the pass's environment, so it RELATES (`BlockPassRel`:
@@ -263,22 +264,89 @@ the pops.  Its answer is the twin's popped environment. -/
       (do
         streamKCheck (absBlockShape p) (absBlockShape p).recs (out.val.map absRecOut)
         let infos ← blockRecInfosTF (absBlockShape p) 0 (out.val.map absRecOut)
-        let (feG, prevs) := consBlockRecsTemp infos lf []
         flushCaches
-        streamRecsCheck (ConRon.Refine.absMode mode) feG (absBlockShape p).recs
-          (out.val.map absRecOut)
-        let fe₃ := (prevs.foldr (fun (n, prev) acc => acc.popTemp n prev) feG).setFlags lf.natLit
-          lf.strLit
-        flushCaches
-        checkBlockTables fe₃ (q.val.map absIProjTable)
-        pure fe₃) := by
+        if (absBlockShape p).noRules = true then do
+          streamRecsCheck (ConRon.Refine.absMode mode) (consBlockRecsTemp infos lf []).1
+            (absBlockShape p).recs (ruleOutAll (out.val.map absRecOut))
+          flushCaches
+          checkBlockTables
+            ((List.foldr (fun x acc => acc.popTemp x.1 x.2) (consBlockRecsTemp infos lf []).1
+              (consBlockRecsTemp infos lf []).2).setFlags lf.natLit lf.strLit)
+            (q.val.map absIProjTable)
+          pure ((List.foldr (fun x acc => acc.popTemp x.1 x.2) (consBlockRecsTemp infos lf []).1
+              (consBlockRecsTemp infos lf []).2).setFlags lf.natLit lf.strLit)
+        else do
+          streamRecsCheck (ConRon.Refine.absMode mode) (consBlockRecsTemp infos lf []).1
+            (absBlockShape p).recs (out.val.map absRecOut)
+          flushCaches
+          checkBlockTables
+            ((List.foldr (fun x acc => acc.popTemp x.1 x.2) (consBlockRecsTemp infos lf []).1
+              (consBlockRecsTemp infos lf []).2).setFlags lf.natLit lf.strLit)
+            (q.val.map absIProjTable)
+          pure ((List.foldr (fun x acc => acc.popTemp x.1 x.2) (consBlockRecsTemp infos lf []).1
+              (consBlockRecsTemp infos lf []).2).setFlags lf.natLit lf.strLit)) := by
   rw [arena.inductives.block_tail.check_block_tail_stream]
   lockstep
-  obtain ⟨hR, hpop⟩ := ‹IFEnvRelI _ _ _ ∧ ∀ _ _, _›
-  have hpe := ‹arena.inductives.gen_rec.class_fe_r_pop _ _ _ = ok _›
-  have hfe3 := hpop _ _ (by simp [alloc.vec.Vec.len]) hpe
-  have hfe4 := ifenv_set_flags_refines hfe3 hfe.rel ‹arena.env.ifenv_set_flags _ _ _ = ok _›
-  lockstep
+  all_goals
+    obtain ⟨hR, hpop⟩ := ‹IFEnvRelI _ _ _ ∧ ∀ _ _, _›
+    have hpe := ‹arena.inductives.gen_rec.class_fe_r_pop _ _ _ = ok _›
+    have hfe3 := hpop _ _ (by simp [alloc.vec.Vec.len]) hpe
+    have hfe4 := ifenv_set_flags_refines hfe3 hfe.rel ‹arena.env.ifenv_set_flags _ _ _ = ok _›
+    lockstep
+
+/-- `check_block_bound` ⊑ `checkBlockBound`: the constructors' stage again at a
+`boundedProp` block, taken as no proposition. -/
+@[lockstep] theorem check_block_bound_ls {pers st lst} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI pers rf lf) (p : arena.inductives.block_shape.BlockShape) :
+    LS pers (fun _ _ => True)
+      (arena.inductives.block_tail.check_block_bound pers st mode rf p) lst
+      (checkBlockBound (ConRon.Refine.absMode mode) lf (absBlockShape p)) := by
+  rw [arena.inductives.block_tail.check_block_bound, checkBlockBound]
+  intro o st' hm
+  obtain ⟨b, hb, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  have hb' := bounded_prop_twin p b hb
+  simp only [TwinEq] at hb'
+  rw [hb']
+  cases b
+  · simp only [Bool.false_eq_true, ↓reduceIte] at hm ⊢
+    cases Result.ok_injective hm
+    exact ⟨(), lst, rfl, trivial, hrel, hinv⟩
+  · simp only [↓reduceIte] at hm ⊢
+    obtain ⟨q, hq, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+    have e : { absBlockShape p with isProp := false } =
+        absBlockShape { q with is_prop := false } := by
+      rw [← block_shape_dup_abs hq]; rfl
+    have e2 : (absBlockShape p).members =
+        absMemberShapeLFrom ({ q with is_prop := false } :
+          arena.inductives.block_shape.BlockShape).members 0#usize := by
+      rw [← block_shape_dup_abs hq]
+      simp [absMemberShapeLFrom, absBlockShape]
+    rw [e, e2]
+    exact check_block_ctors_ls hrel hinv mode hfe hfe _ 0#usize o st' hm
+
+/-- `check_block_flags` ⊑ `checkBlockFlags`, at a related pass: the declared
+flags validated at official's `is_rec`, nothing at a block without them. -/
+@[lockstep] theorem check_block_flags_ls {pers st lst}
+    {r : arena.inductives.block_tail.BlockPass} {q : BlockPass}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hq : BlockPassRel pers r q) :
+    LS pers (fun _ _ => True)
+      (arena.inductives.block_tail.check_block_flags pers st r) lst
+      (checkBlockFlags q) := by
+  obtain ⟨env1, qp, kinds, params, rd, cls, tbl⟩ := q
+  obtain ⟨hfe, hp, hk, hpa, hrd, hcl, htb⟩ := hq
+  simp only at hfe hp hk hpa hrd hcl htb
+  subst hp hk hpa hrd hcl htb
+  rw [arena.inductives.block_tail.check_block_flags, checkBlockFlags]
+  simp only [absBlockShape_flags]
+  cases hf : r.p.flags with
+  | none => exact LS.pure trivial hrel hinv
+  | some fl =>
+    simp only [Option.map_some]
+    lockstep
+
+attribute [local lockstep_inline] arena.inductives.block_tail.check_block_tail_ctors
 
 /-- `check_block_tail` ⊑ `checkBlockTail`, at a related pass. -/
 @[lockstep] theorem check_block_tail_ls {pers st lst} {mode : kernel.env.CheckMode}
@@ -291,11 +359,13 @@ the pops.  Its answer is the twin's popped environment. -/
       (arena.inductives.block_tail.check_block_tail pers st mode block r tables) lst
       (checkBlockTail (ConRon.Refine.absMode mode) (absICIL block) q
         (tables.val.map absIProjTable)) := by
+  rw [arena.inductives.block_tail.check_block_tail, checkBlockTail]
+  refine LS.bind (check_block_flags_ls hrel hinv hq) rfl (fun _ _ => errArm_ok) ?_
+  intro a b st1 lst1 _ hrel1 hinv1
   obtain ⟨env1, qp, kinds, params, rd, cls, tbl⟩ := q
   obtain ⟨hfe, hp, hk, hpa, hrd, hcl, htb⟩ := hq
   simp only at hfe hp hk hpa hrd hcl htb
   subst hp hk hpa hrd hcl htb
-  rw [arena.inductives.block_tail.check_block_tail, checkBlockTail]
   lockstep
 
 /-! ## The block's check -/

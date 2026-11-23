@@ -16,6 +16,7 @@ With them the two cursor principles the copiers are instances of
 ## `sorry` count in this file: 0
 -/
 import ConRon.Refine2.Specs
+import ConRon.Refine.Env
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -274,6 +275,7 @@ theorem i_ind_caps_dup_abs {c o : arena.env.IIndCaps}
   rw [arena.env.i_ind_caps_dup] at h
   obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [ConRon.Refine.Env.ind_flags_opt_dup_eq, bind_ok] at h
   rw [← Result.ok_injective h]
   simp only [absIIndCaps, nidx_vec_dup_val hv, nidx_vec_dup_val hv1]
 

@@ -3,7 +3,7 @@
 (DESIGN.md §8, task #97d-2; task #105)
 
 `ConLeche/Kernel/Inductives/SumInstall.lean` whole, over handles: the type
-former's telescope, the per-field universe bound, the constructors' stage
+former's telescope, the constructors' stage
 (every constructor stored AS DECLARED, every stage a check returning nothing)
 and the stored rules.  The Rust twin is `arena::inductives::sum_install`.
 
@@ -11,9 +11,8 @@ and the stored rules.  The Rust twin is `arena::inductives::sum_install`.
 
 * **One function per stage, at the index**: each function is both the
   `Env`-level specification and its cached twin over the index
-  (`checkSumCtorC`, `checkSumCtorsC` in `ConLeche/Cached/IndBlock.lean`,
-  `checkStructFieldSortsIC` in `ConLeche/Cached/IndPositivity.lean`), cited
-  side by side; the field loops are list loops.
+  (`checkSumCtorC`, `checkSumCtorsC` in `ConLeche/Cached/IndBlock.lean`),
+  cited side by side; the field loops are list loops.
 * **`consSumCtors` stays pure** — the index push touches no term.
 -/
 module
@@ -44,32 +43,7 @@ def checkSumTele (n : Nat) (cvTa₀ : IConstantVal) : AM (IConstantVal × LIdx) 
 
 /-! ## The constructors' stage -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:41-65 checkStructFieldSortsI
-con-leche: ConLeche/Cached/IndPositivity.lean:505-521 checkStructFieldSortsIC
-con-leche: ConLeche/Cached/IndBlock.lean:127-142 checkStructFieldSortsC
-Every field's domain has a sort over the opened constructor telescope, under
-the official per-field universe bound unless the family is propositional.
-Walks the fields from the last to the first. -/
-def checkStructFieldSortsI (mode : CheckMode) (fe : IFEnv) (isProp large : Bool)
-    (s : LIdx) (nP : Nat) (fvs idxArgs : List EIdx) : Nat → AM Unit
-  | 0 => pure ()
-  | j + 1 => do
-    let fv ← unwrapOr fvs[j]? (.internal "direct sum: field index")
-    let ty ← inferTypeCore mode fe checkFuel (nP + j) (← fvarTypeD fv)
-    let u ← ensureSortCore mode fe checkFuel (nP + j) ty
-    if !isProp then do
-      let lu ← readLevelM u
-      let ls ← readLevelM s
-      unless ← liftFueled "level comparison" (Level.leq lu ls) do
-        fail (.invalid "direct sum: field universe too large")
-    else if large then do
-      let z ← zeroLevel
-      unless (← lvlEq? u z) == some true || idxArgs.contains fv do
-        fail (.invalid "direct sum: large eliminator with a non-propositional \
-          field outside the indices")
-    checkStructFieldSortsI mode fe isProp large s nP fvs idxArgs j
-
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:67-108 checkSumCtor
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:41-82 checkSumCtor
 con-leche: ConLeche/Cached/IndBlock.lean:144-170 checkSumCtorC
 Every field domain resolves at the PRE-BLOCK environment. -/
 def fieldDomsResolve (fe₀ : IFEnv) : List EIdx → AM Bool
@@ -78,7 +52,7 @@ def fieldDomsResolve (fe₀ : IFEnv) : List EIdx → AM Bool
     let t ← fvarTypeD x
     if ← constsResolveFFast fe₀ t then fieldDomsResolve fe₀ xs else pure false
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:67-108 checkSumCtor
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:41-82 checkSumCtor
 con-leche: ConLeche/Cached/IndBlock.lean:144-170 checkSumCtorC
 The index expressions never mention the block. -/
 def idxArgsResolve (fe₀ : IFEnv) : List EIdx → AM Bool
@@ -86,7 +60,7 @@ def idxArgsResolve (fe₀ : IFEnv) : List EIdx → AM Bool
   | e :: es => do
     if ← constsResolveFFast fe₀ e then idxArgsResolve fe₀ es else pure false
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:67-108 checkSumCtor
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:41-82 checkSumCtor
 con-leche: ConLeche/Cached/IndBlock.lean:144-170 checkSumCtorC
 Stage 2, one constructor's type: the ordinary constant check (the constructor
 is stored AS DECLARED), the result shape, the parameter pins against the type
@@ -128,7 +102,7 @@ def checkSumCtor (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
     fail (.invalid "direct sum: index expression mentions the block")
   checkStructFieldSortsI mode fe isProp large resSort nP xq.1 idxArgs nF
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:110-118 checkSumCtors
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:84-92 checkSumCtors
 con-leche: ConLeche/Cached/IndBlock.lean:172-179 checkSumCtorsC
 Stage 2, all constructors' types, at the environment holding the type
 former. -/
@@ -140,7 +114,7 @@ def checkSumCtors (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
     checkSumCtor mode fe₀ fe T lps nP nIdx resSort isProp large c.1 c.2 cvTa
     checkSumCtors mode fe₀ fe T lps nP nIdx resSort isProp large cvTa cs
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:120-126 consSumCtors
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:94-100 consSumCtors
 con-leche: ConLeche/Cached/IndBlock.lean:37-40 consSumCtorsF
 The constructors' conses, in order (the first constructor deepest), each with
 the family `T` it is declared under as its `induct`: the constructor check has
@@ -150,7 +124,7 @@ def consSumCtors (nP : Nat) (T : NIdx) : List (IConstantVal × Nat) → IFEnv �
   | [], fe => fe
   | c :: cs, fe => consSumCtors nP T cs (fe.push (.ctorInfo c.1 nP c.2 T))
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:128-134 sumRules
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-108 sumRules
 The stored rules: constructor `j`'s with the generated right-hand side `j`,
 `.plain` (the major is the family at the recursor's parameters). -/
 def sumRules : List (IConstantVal × Nat) → List EIdx → List IRecRule

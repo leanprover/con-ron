@@ -929,7 +929,7 @@ pub fn unwrap_or<T>(o: Option<T>, err: CheckError) -> Result<T, CheckError> {
 // dedup deleted that file and brought them here, and the Rust follows.
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:392-425 indParamsOk
+/// con-leche: ConLeche/Kernel/Env.lean:405-438 indParamsOk
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:298-311 indParamsOk` —
 /// **the stream's declared parameter count, checked as official checks it**
 /// (con-leche's task #228).  Both halves are one-sided on purpose: `false`
@@ -957,7 +957,7 @@ pub fn ind_params_ok(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:392-425 indParamsOk
+/// con-leche: ConLeche/Kernel/Env.lean:405-438 indParamsOk
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:298-311 indParamsOk` — one
 /// member's test: a type former's Π-telescope is at least `nP` long, a
 /// constructor's own parameter count is exactly `nP`, and everything else

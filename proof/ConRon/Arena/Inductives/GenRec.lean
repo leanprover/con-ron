@@ -491,7 +491,7 @@ def classesCtors (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (formerTys : L
     pure (xs :: xss)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:330-339 classMajors
-con-leche: ConLeche/Cached/IndBlock.lean:339-347 classMajorsC
+con-leche: ConLeche/Cached/IndBlock.lean:344-352 classMajorsC
 Every class checked as a major (`targetMajorOf`, `targetMajorPins`), over the
 block's canonical parameters `pfvs`. -/
 def classMajors (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (pfvs : List EIdx) :
@@ -688,7 +688,7 @@ def classStreamRecs (mode : CheckMode) (fe : IFEnv) : List RecShape → AM (List
     pure (rc.cvR :: cvs)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:483-486 classKeyCanon
-con-leche: ConLeche/Cached/IndBlock.lean:258-260 classKeyCanonC
+con-leche: ConLeche/Cached/IndBlock.lean:263-265 classKeyCanonC
 A class key's parameters moved to the block's canonical parameter
 variables. -/
 def classKeyCanon (params : List EIdx) (k : ClassKey) : AM ClassKey := do
@@ -696,7 +696,7 @@ def classKeyCanon (params : List EIdx) (k : ClassKey) : AM ClassKey := do
   pure { k with ds := ds }
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:496-501 classSeeds
-con-leche: ConLeche/Cached/IndPositivity.lean:557-561 classSeedsC
+con-leche: ConLeche/Cached/IndPositivity.lean:568-572 classSeedsC
 The seeds: every OUTSIDE class in the positivity check's representation
 (`nestSeedOf`), in order. -/
 def classSeeds (ctx : NestCtx) (holes : List EIdx) : List TargetMajor → AM (List (NestKey × Nat))
@@ -710,7 +710,7 @@ def classSeeds (ctx : NestCtx) (holes : List EIdx) : List TargetMajor → AM (Li
       pure (sd :: rest)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:503-514 classKeyOf
-con-leche: ConLeche/Cached/IndBlock.lean:262-268 classKeyOfC
+con-leche: ConLeche/Cached/IndBlock.lean:267-273 classKeyOfC
 **A class key, made checkable**: moved to the canonical parameter variables,
 its parameters closed over them (the Rust's `params_closed`, the `bvarB`
 read first). -/
@@ -725,7 +725,7 @@ def classKeyOf (nP : Nat) (params : List EIdx) (k : ClassKey) : AM ClassKey := d
   pure k2
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:516-534 checkBlockClasses
-con-leche: ConLeche/Cached/IndBlock.lean:349-361 checkBlockClassesC
+con-leche: ConLeche/Cached/IndBlock.lean:354-366 checkBlockClassesC
 **The classes, read and checked** at the formers' environment `fe`: the
 pre-pass on the stream's raw recursor types, every class key made checkable,
 every class checked as a major over the canonical parameters, exactly one
@@ -747,7 +747,7 @@ def checkBlockClasses (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (params :
         class per member (official: invalid recursor)")
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:125-129 classFeR
-con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:332-340 consBlockRecsBare
+con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:333-341 consBlockRecsBare
 con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:117-123 consBlockRecsBareF
 **The rule-less generated recursors consed onto the constructors'
 environment**, pushed TEMPORARILY (the module note): each recursor `m` at its

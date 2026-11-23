@@ -205,6 +205,200 @@ theorem all_num_params_refines {tys n_pd v}
     obtain ⟨x, hx, hp⟩ := List.any_eq_true.mp hany
     exact ⟨x, hx, by simpa using hp⟩
 
+/-- **`ind_type_rec_flags`** — the twin's `indTypeRecFlags`, through
+`absIndFlags`. -/
+theorem ind_type_rec_flags_eq (t : frontend.scan_types.IndTypeRec) :
+    frontend.export_c.ind_type_rec_flags t =
+      ok (match t.is_impredicative, t.is_k, t.has_projections, t.has_eta, t.has_large_elim with
+        | some i, some k, some p, some e, some l => some ⟨i, k, p, e, l⟩
+        | _, _, _, _, _ => none) := by
+  rcases t with ⟨cv, ctors, ir, irf, iu, ni, nn, np, fi, fk, fp, fe, fl⟩
+  rcases fi with _ | fi <;> rcases fk with _ | fk <;> rcases fp with _ | fp <;>
+    rcases fe with _ | fe <;> rcases fl with _ | fl <;> rfl
+
+theorem ind_type_rec_flags_abs (t : frontend.scan_types.IndTypeRec) :
+    (match t.is_impredicative, t.is_k, t.has_projections, t.has_eta, t.has_large_elim with
+        | some i, some k, some p, some e, some l =>
+          some (⟨i, k, p, e, l⟩ : kernel.env.IndFlags)
+        | _, _, _, _, _ => none).map ConRon.Refine.absIndFlags
+      = indTypeRecFlags (absIndTypeRec t) := by
+  rcases t with ⟨cv, ctors, ir, irf, iu, ni, nn, np, fi, fk, fp, fe, fl⟩
+  rcases fi with _ | fi <;> rcases fk with _ | fk <;> rcases fp with _ | fp <;>
+    rcases fe with _ | fe <;> rcases fl with _ | fl <;> rfl
+
+/-- **`ind_type_rec_flags_partial`** — the twin's `indTypeRecFlagsPartial`. -/
+theorem ind_type_rec_flags_partial_refines {t v}
+    (h : frontend.export_c.ind_type_rec_flags_partial t = ok v) :
+    v = indTypeRecFlagsPartial (absIndTypeRec t) := by
+  rw [frontend.export_c.ind_type_rec_flags_partial, ind_type_rec_flags_eq, bind_ok] at h
+  rcases t with ⟨cv, ctors, ir, irf, iu, ni, nn, np, fi, fk, fp, fe, fl⟩
+  rcases fi with _ | fi <;> rcases fk with _ | fk <;> rcases fp with _ | fp <;>
+    rcases fe with _ | fe <;> rcases fl with _ | fl <;>
+    simp [core.option.Option.is_none, core.option.Option.is_some] at h <;>
+    simp [← h, absIndTypeRec, indTypeRecFlagsPartial, indTypeRecFlags]
+
+/-- **`any_ty_flags_partial`** — the twin's `tys.any indTypeRecFlagsPartial`. -/
+theorem any_ty_flags_partial_refines {tys v}
+    (h : frontend.export_c.any_ty_flags_partial tys = ok v) :
+    v = (absIndTypeRecs tys).any indTypeRecFlagsPartial := by
+  rw [frontend.export_c.any_ty_flags_partial] at h
+  have H := any_loop_gen (xs := absIndTypeRecs tys) (p := indTypeRecFlagsPartial) (bf := true)
+    (loop := fun i =>
+      frontend.export_c.any_ty_flags_partial_loop tys (alloc.vec.Vec.len tys) i)
+    (fun i v hn h => by
+      rw [frontend.export_c.any_ty_flags_partial_loop.eq_def] at h
+      rw [ite_eq_right (show ¬ i < alloc.vec.Vec.len tys by simp [absIndTypeRecs] at hn; scalar_tac)] at h
+      exact (Result.ok_injective h).symm)
+    (fun i v hi h => by
+      have hi' : i.val < tys.val.length := by simpa [absIndTypeRecs] using hi
+      rw [frontend.export_c.any_ty_flags_partial_loop.eq_def] at h
+      rw [ite_eq_left (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
+      obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨bp, hbp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hx' := vec_index_eq hi' hx
+      have hxs : (absIndTypeRecs tys)[i.val]'hi = absIndTypeRec x := by
+        simp [absIndTypeRecs, ← hx']
+      rw [hxs, ← ind_type_rec_flags_partial_refines hbp]
+      by_cases hu : bp = true
+      · rw [ite_eq_left hu] at h
+        exact Or.inl ⟨hu, (Result.ok_injective h).symm⟩
+      · rw [ite_eq_right hu] at h
+        obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have := ConRon.Refine.Nat.uadd_val hi1
+        exact Or.inr ⟨by simpa using hu, i1, by simp at this; omega, h⟩)
+    0#usize v h
+  simp only [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at H
+  rw [H]; cases (absIndTypeRecs tys).any indTypeRecFlagsPartial <;> rfl
+
+/-- An early-exit `all` loop, read through `any_loop_gen` at `bf = false`. -/
+theorem all_of_any_loop {xs : List IndTypeRec} {p : IndTypeRec → Bool} {v : Bool}
+    (H : v = (if (xs.any fun x => !p x) then false else !false)) : v = xs.all p := by
+  rw [H]
+  cases hany : xs.any (fun x => !p x)
+  · simp only [Bool.not_false, Bool.false_eq_true, ↓reduceIte]
+    symm
+    rw [List.all_eq_true]
+    intro x hx
+    have := List.any_eq_false.mp hany x hx
+    simpa using this
+  · simp only [↓reduceIte]
+    symm
+    rw [List.all_eq_false]
+    obtain ⟨x, hx, hp⟩ := List.any_eq_true.mp hany
+    exact ⟨x, hx, by simpa using hp⟩
+
+/-- **`all_ty_flagged`** — the twin's `tys.all (indTypeRecFlags · |>.isSome)`. -/
+theorem all_ty_flagged_refines {tys v}
+    (h : frontend.export_c.all_ty_flagged tys = ok v) :
+    v = (absIndTypeRecs tys).all (fun t => (indTypeRecFlags t).isSome) := by
+  rw [frontend.export_c.all_ty_flagged] at h
+  have H := any_loop_gen (xs := absIndTypeRecs tys) (p := fun t => !(indTypeRecFlags t).isSome)
+    (bf := false)
+    (loop := fun i => frontend.export_c.all_ty_flagged_loop tys (alloc.vec.Vec.len tys) i)
+    (fun i v hn h => by
+      rw [frontend.export_c.all_ty_flagged_loop.eq_def] at h
+      rw [ite_eq_right (show ¬ i < alloc.vec.Vec.len tys by simp [absIndTypeRecs] at hn; scalar_tac)] at h
+      exact (Result.ok_injective h).symm)
+    (fun i v hi h => by
+      have hi' : i.val < tys.val.length := by simpa [absIndTypeRecs] using hi
+      rw [frontend.export_c.all_ty_flagged_loop.eq_def] at h
+      rw [ite_eq_left (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
+      obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨fo, hfo, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hfa : fo.map ConRon.Refine.absIndFlags = indTypeRecFlags (absIndTypeRec x) := by
+        rw [ind_type_rec_flags_eq] at hfo
+        rw [← Result.ok_injective hfo]
+        exact ind_type_rec_flags_abs x
+      have hx' := vec_index_eq hi' hx
+      have hxs : (absIndTypeRecs tys)[i.val]'hi = absIndTypeRec x := by
+        simp [absIndTypeRecs, ← hx']
+      rw [hxs, ← hfa, Option.isSome_map]
+      simp only [core.option.Option.is_some] at h
+      by_cases hs : fo.isSome = true
+      · rw [ite_eq_left hs] at h
+        obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have := ConRon.Refine.Nat.uadd_val hi1
+        exact Or.inr ⟨by cases fo <;> simp_all, i1, by simp at this; omega, h⟩
+      · rw [ite_eq_right hs] at h
+        exact Or.inl ⟨by cases fo <;> simp_all, (Result.ok_injective h).symm⟩)
+    0#usize v h
+  simp only [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at H
+  exact all_of_any_loop H
+
+/-- **`all_ty_unflagged`** — the twin's `tys.all (indTypeRecFlags · |>.isNone)`. -/
+theorem all_ty_unflagged_refines {tys v}
+    (h : frontend.export_c.all_ty_unflagged tys = ok v) :
+    v = (absIndTypeRecs tys).all (fun t => (indTypeRecFlags t).isNone) := by
+  rw [frontend.export_c.all_ty_unflagged] at h
+  have H := any_loop_gen (xs := absIndTypeRecs tys) (p := fun t => !(indTypeRecFlags t).isNone)
+    (bf := false)
+    (loop := fun i => frontend.export_c.all_ty_unflagged_loop tys (alloc.vec.Vec.len tys) i)
+    (fun i v hn h => by
+      rw [frontend.export_c.all_ty_unflagged_loop.eq_def] at h
+      rw [ite_eq_right (show ¬ i < alloc.vec.Vec.len tys by simp [absIndTypeRecs] at hn; scalar_tac)] at h
+      exact (Result.ok_injective h).symm)
+    (fun i v hi h => by
+      have hi' : i.val < tys.val.length := by simpa [absIndTypeRecs] using hi
+      rw [frontend.export_c.all_ty_unflagged_loop.eq_def] at h
+      rw [ite_eq_left (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
+      obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨fo, hfo, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hfa : fo.map ConRon.Refine.absIndFlags = indTypeRecFlags (absIndTypeRec x) := by
+        rw [ind_type_rec_flags_eq] at hfo
+        rw [← Result.ok_injective hfo]
+        exact ind_type_rec_flags_abs x
+      have hx' := vec_index_eq hi' hx
+      have hxs : (absIndTypeRecs tys)[i.val]'hi = absIndTypeRec x := by
+        simp [absIndTypeRecs, ← hx']
+      rw [hxs, ← hfa, Option.isNone_map]
+      simp only [core.option.Option.is_none] at h
+      by_cases hs : fo.isNone = true
+      · rw [ite_eq_left hs] at h
+        obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have := ConRon.Refine.Nat.uadd_val hi1
+        exact Or.inr ⟨by cases fo <;> simp_all, i1, by simp at this; omega, h⟩
+      · rw [ite_eq_right hs] at h
+        exact Or.inl ⟨by cases fo <;> simp_all, (Result.ok_injective h).symm⟩)
+    0#usize v h
+  simp only [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at H
+  exact all_of_any_loop H
+
+/-- **`block_flags_err`** — the twin's `blockFlagsErrD`, up to the message: the
+port answers a message exactly when the twin does. -/
+theorem block_flags_err_isSome {tys o}
+    (h : frontend.export_c.block_flags_err tys = ok o) :
+    o.isSome = (blockFlagsErrD (absIndTypeRecs tys)).isSome := by
+  rw [frontend.export_c.block_flags_err] at h
+  obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [any_ty_flags_partial_refines hb] at h
+  rw [blockFlagsErrD]
+  split at h
+  · rename_i hp
+    rw [ite_eq_left hp]
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h; rfl
+  · rename_i hp
+    rw [ite_eq_right hp]
+    obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [all_ty_flagged_refines hb1] at h
+    split at h
+    · rename_i ha
+      cases Result.ok_injective h
+      simp [ha]
+    · rename_i ha
+      obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      rw [all_ty_unflagged_refines hb2] at h
+      split at h
+      · rename_i hn
+        cases Result.ok_injective h
+        simp [hn]
+      · rename_i hn
+        obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        cases Result.ok_injective h
+        simp [ha, hn]
+
 /-- **`ty_names_of`** — the twin's `tys.mapM fun t => st.name t.cv.name`. -/
 theorem ty_names_of_refines {rsd lsd lst tys o} (hd : StateDRel rsd lsd)
     (h : frontend.export_c.ty_names_of rsd tys = ok o) :
@@ -1454,6 +1648,21 @@ theorem validate_ind_d_refines {pers rst lst rsd lsd tys cts rcs o}
     exact ⟨_, _, rfl, rfl, rfl⟩
   rw [ite_eq_right hu] at h
   rw [ite_eq_right hu]
+  obtain ⟨fe, hfe, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hfs := block_flags_err_isSome hfe
+  cases fe with
+  | some msg =>
+    obtain ⟨m', hm'⟩ : ∃ m', blockFlagsErrD (absIndTypeRecs tys) = some m' :=
+      Option.isSome_iff_exists.mp (by simpa using hfs.symm)
+    rw [hm']
+    simp only at h
+    cases invalid_ok h
+    exact ⟨_, _, rfl, rfl, rfl⟩
+  | none =>
+  have hm' : blockFlagsErrD (absIndTypeRecs tys) = none := by
+    simpa using hfs.symm
+  rw [hm']
+  simp only at h
   simp only [pure_bind]
   obtain ⟨n_pd, hnpd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hnpd' : ((absIndTypeRecs tys).map (·.numParams)).head?.getD 0 = absU n_pd := by
@@ -1605,25 +1814,17 @@ theorem validate_ind_d_refines {pers rst lst rsd lsd tys cts rcs o}
 
 /-! ## The block's constants -/
 
-/-- `arena::env::i_ind_caps_default` is the twin's `{}`. -/
-theorem i_ind_caps_default_abs {ic : arena.env.IIndCaps}
-    (h : arena.env.i_ind_caps_default = ok ic) : absIIndCaps ic = {} := by
-  rw [arena.env.i_ind_caps_default] at h
-  cases Result.ok_injective h
-  simp only [absIIndCaps]
-  rfl
-
 /-- **`ind_block_types`** — the twin's `tys.mapM` into `IConstantInfo.indInfo`. -/
 theorem ind_block_types_refines {rsd lsd lst tys out o} (hd : StateDRel rsd lsd)
     (h : frontend.export_c.ind_block_types rsd tys out = ok o) :
     SimLR absICIL lst o
       (do
         let ts ← (absIndTypeRecs tys).mapM fun t => do
-          pure (IConstantInfo.indInfo (← parseCVD lsd t.cv) {})
+          pure (IConstantInfo.indInfo (← parseCVD lsd t.cv) { flags := indTypeRecFlags t })
         pure (absICIL out ++ ts)) := by
   rw [frontend.export_c.ind_block_types] at h
   have H := simLR_cursor (absY := absIConstantInfo) (absX := absIndTypeRec) (xs := tys)
-    (lst := lst) (G := fun t => do pure (IConstantInfo.indInfo (← parseCVD lsd t.cv) {}))
+    (lst := lst) (G := fun t => do pure (IConstantInfo.indInfo (← parseCVD lsd t.cv) { flags := indTypeRecFlags t }))
     (loop := fun out i =>
       frontend.export_c.ind_block_types_loop rsd tys out (alloc.vec.Vec.len tys) i)
     (fun out i o hn h => by
@@ -1642,12 +1843,20 @@ theorem ind_block_types_refines {rsd lsd lst tys out o} (hd : StateDRel rsd lsd)
         exact ⟨.Err e, SimLR.bind_err hC, Or.inl ⟨e, rfl, (Result.ok_injective h).symm⟩⟩
       | Ok cv =>
         obtain ⟨ic, hic, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨fo, hfo, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hfa : fo.map ConRon.Refine.absIndFlags = indTypeRecFlags (absIndTypeRec x) := by
+          rw [ind_type_rec_flags_eq] at hfo
+          rw [← Result.ok_injective hfo]
+          exact ind_type_rec_flags_abs x
         obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨e1, e2⟩ := cursor_push hout1 hi1
         refine ⟨.Ok _, SimLR.bind_ok hC ?_, Or.inr ⟨_, out1, i1, rfl, e1, e2, h⟩⟩
         show Except.ok _ = _
-        simp only [absIConstantInfo, i_ind_caps_default_abs hic])
+        rw [arena.env.i_ind_caps_default] at hic
+        cases Result.ok_injective hic
+        simp only [absIConstantInfo, absIIndCaps, hfa]
+        rfl)
     out 0#usize o h
   rw [show absICIL = fun v : alloc.vec.Vec arena.env.IConstantInfo =>
     v.val.map absIConstantInfo from rfl]
@@ -1817,7 +2026,7 @@ theorem ind_block_of_refines {rsd lsd lst tys cts rcs o} (hd : StateDRel rsd lsd
     SimLR absICIL lst o
       (do
         let ts ← (absIndTypeRecs tys).mapM fun t => do
-          pure (IConstantInfo.indInfo (← parseCVD lsd t.cv) {})
+          pure (IConstantInfo.indInfo (← parseCVD lsd t.cv) { flags := indTypeRecFlags t })
         let cs ← (absIndCtorRecTs cts).mapM fun (c, T) => do
           pure (IConstantInfo.ctorInfo (← parseCVD lsd c.cv) c.numParams c.numFields T)
         let rs ← (absIndRecRecs rcs).mapM fun r => do

@@ -139,6 +139,7 @@ attribute [lockstep_simp] absNNodeView absLNodeView absLsNodeView absLIdxL absNI
   rw [arena.env.i_ind_caps_dup] at h
   obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [ConRon.Refine.Env.ind_flags_opt_dup_eq, bind_ok] at h
   rw [← Result.ok_injective h,
     alloc.vec.Vec.ext _ _ (nidx_vec_dup_val hv), alloc.vec.Vec.ext _ _ (nidx_vec_dup_val hv1)]
 

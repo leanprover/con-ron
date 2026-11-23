@@ -1494,6 +1494,11 @@ macro "vind_rec_tail" : tactic => `(tactic| (
     · obtain ⟨rfl, rfl⟩ := AM.pure_ok hstep
       exact ⟨rfl, _, rfl, rfl, VInv.nil⟩))
 
+/-- con-leche: ConLeche/Frontend/ExportC.lean:245-252 blockFlagsErr — the
+twin's copy is con-leche's. -/
+theorem blockFlagsErrD_eq (tys : List ConLeche.Frontend.IndTypeRec) :
+    blockFlagsErrD tys = ConLeche.Frontend.blockFlagsErr tys := rfl
+
 /-- con-leche: ConLeche/Frontend/ExportC.lean:412-413 validateIndD — the half
 of an `inductive` record's processing that READS: the block's redundant fields
 against its own declarations.  A `.inl` answer is a verdict and the record is
@@ -1523,6 +1528,14 @@ theorem validateIndD_run' {s s' : AState} (hok : StateOK s) {sd : StateD}
     exact ⟨rfl, _, rfl, trivial⟩
   rw [ite_eq_right hu] at hrun
   rw [ite_eq_right hu]
+  rw [blockFlagsErrD_eq] at hrun
+  cases hfe : ConLeche.Frontend.blockFlagsErr tys with
+  | some msg =>
+    simp only [hfe] at hrun ⊢
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨rfl, _, rfl, trivial⟩
+  | none =>
+  simp only [hfe] at hrun ⊢
   by_cases hall : ((List.map (fun x => x.numParams) tys).all
       fun x => x == (List.map (fun x => x.numParams) tys).head?.getD 0) = true
   rotate_left
@@ -1720,10 +1733,10 @@ theorem denoteCIList_of_listRel {st : EStore} :
   | nil => rfl
   | cons hab _ ih => simp only [denoteCIList, hab, ih]
 
-/-- con-leche: ConLeche/Kernel/Env.lean:184-221 IndCaps — the DEFAULT capability
-record denotes con-leche's default. -/
-theorem denoteCaps_default {st : EStore} :
-    denoteCaps st {} = some {} := by
+/-- con-leche: ConLeche/Kernel/Env.lean:196-242 IndCaps — the DEFAULT capability
+record with the stream's flags denotes con-leche's. -/
+theorem denoteCaps_default {st : EStore} (f : Option IndFlags) :
+    denoteCaps st { flags := f } = some { flags := f } := by
   simp only [denoteCaps, denoteNList]
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:368-373 installIndD — **an
@@ -1746,15 +1759,18 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
     s' = s ∧ PersStateD sd' ∧
       ∃ d, indBlockOfF sc.name sc.level sc.expr tys ctsP rcs nPd = .ok d ∧
         StateDRel s.store sd' (ConLeche.Frontend.pushDecl sc d) := by
-  have hcaps : denoteCaps s.store {} = some {} := denoteCaps_default
+  have hcaps : ∀ f, denoteCaps s.store { flags := f } = some { flags := f } :=
+    fun f => denoteCaps_default f
   rw [installIndD] at hrun
   -- the type formers
   have htys : ∀ (ts : List ConLeche.Frontend.IndTypeRec)
       {out : List IConstantInfo} {t : AState},
       (ts.mapM fun (x : ConLeche.Frontend.IndTypeRec) => do
-        pure (IConstantInfo.indInfo (← parseCVD sd x.cv) {})) s = .ok (out, t) →
+        pure (IConstantInfo.indInfo (← parseCVD sd x.cv) { flags := indTypeRecFlags x })) s
+          = .ok (out, t) →
       t = s ∧ ∃ outP, (ts.mapM fun (x : ConLeche.Frontend.IndTypeRec) => do
-          pure (ConstantInfo.indInfo (← cvOfF sc.name sc.level sc.expr x.cv) {}))
+          pure (ConstantInfo.indInfo (← cvOfF sc.name sc.level sc.expr x.cv)
+            { flags := x.flags }))
             = .ok outP ∧
         ListRel (fun ci c => denoteCI s.store ci = some c)
           out outP := by
@@ -1780,9 +1796,9 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
       rw [hs4] at hrest2
       obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest2
       subst hv2; subst hst2; subst hv1
-      refine ⟨rfl, ConstantInfo.indInfo cvP {} :: ysP, ?_, .cons ?_ hdys⟩
+      refine ⟨rfl, ConstantInfo.indInfo cvP { flags := x.flags } :: ysP, ?_, .cons ?_ hdys⟩
       · simp only [List.mapM_cons, hclcv, hclys]; rfl
-      · simp only [denoteCI, hdcv, hcaps]
+      · simp only [denoteCI, hdcv, hcaps, show indTypeRecFlags x = x.flags from rfl]
   -- the constructors
   have hcts : ∀ {ts : List (ConLeche.Frontend.IndCtorRec × NIdx)}
       {tsP : List (ConLeche.Frontend.IndCtorRec × ConLeche.Name)}, CtsRel s.store.ns ts tsP →

@@ -402,6 +402,7 @@ pub fn intern_caps(pers: &PersTier, st: &mut AState, c: &IndCaps) -> Result<IInd
                 n_idx: c.n_idx,
                 ctors,
                 never_zero: c.never_zero,
+                flags: cenv::ind_flags_opt_dup(&c.flags),
             }),
         },
     }

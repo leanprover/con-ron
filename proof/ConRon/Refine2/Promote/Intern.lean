@@ -1117,6 +1117,7 @@ private theorem intern_caps_ls {pers st lst} {c : kernel.env.IndCaps}
       (Frontend.internCaps (ConRon.Refine.absIndCaps c)) := by
   obtain ⟨hall, hctors⟩ := hwf
   rw [arena.intern.intern_caps]
+  simp only [ConRon.Refine.Env.ind_flags_opt_dup_eq, bind_ok]
   simp only [Frontend.internCaps, ConRon.Refine.absIndCaps]
   refine LS.bind (intern_name_list_ls hrel hinv _ hall) rfl (fun _ _ => errArm_ok) ?_
   intro al bl st2 lst2 hR2 hrel2 hinv2

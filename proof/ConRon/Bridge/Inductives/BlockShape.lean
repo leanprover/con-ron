@@ -78,6 +78,107 @@ theorem BlockShape.numCtors_spec {st : EStore} {p : Arena.BlockShape}
   obtain ⟨hms, -, -, -, -, -, -⟩ := dShape_inv h
   exact numCtorsOf_spec hms
 
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:155-162 BlockShape.derivedFlags
+— the derived flags read no handle: the twin's are con-leche's. -/
+theorem BlockShape.derivedFlags_spec {st : EStore} {p : Arena.BlockShape}
+    {pP : ConLeche.BlockShape} (h : dShape st p = some pP) (i : Nat) :
+    p.derivedFlags i = pP.derivedFlags i := by
+  obtain ⟨hms, -, -, -, -, hlg, hip⟩ := dShape_inv h
+  have hg := mapM_option_getElem?_bind hms i
+  have hlen := ConLeche.option_mapM_length hms
+  have hd0c : (default : ConLeche.MemberShape).ctors = [] := rfl
+  have hd0n : (default : ConLeche.MemberShape).nIdx = 0 := rfl
+  unfold Arena.BlockShape.derivedFlags ConLeche.BlockShape.derivedFlags
+  rw [List.getD_eq_getElem?_getD, hg, hlg, hip]
+  cases hm : p.members[i]? with
+  | none =>
+    simp only [Option.bind_none, Option.getD_none, hd0c, hd0n]
+    cases pP.isProp <;> simp [hlen]
+  | some m =>
+    cases hd : dMember st m with
+    | none =>
+      exfalso
+      rw [hm, Option.bind_some, hd] at hg
+      have h1 := (List.getElem?_eq_some_iff.mp hm).1
+      have h2 := List.getElem?_eq_none_iff.mp hg
+      omega
+    | some mP =>
+      obtain ⟨-, hnI, hcs, -⟩ := dMember_inv hd
+      simp only [Option.bind_some, hd, Option.getD_some]
+      cases hc : m.ctors with
+      | nil =>
+        rw [hc] at hcs
+        simp only [dCtors, List.mapM_nil, Option.pure_def, Option.some.injEq] at hcs
+        rw [← hcs]; cases pP.isProp <;> simp [hlen]
+      | cons c rest =>
+        rw [hc] at hcs
+        obtain ⟨cP, restP, hcsP, hcP, hrestP⟩ := mapM_option_cons_inv hcs
+        rw [hcsP]
+        cases rest with
+        | cons c' rest' =>
+          obtain ⟨_, _, rfl, -, -⟩ := mapM_option_cons_inv hrestP
+          cases pP.isProp <;> simp [hlen]
+        | nil =>
+          simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hrestP
+          subst hrestP
+          simp only [dCtor, Option.map_eq_some_iff] at hcP
+          obtain ⟨cv, -, rfl⟩ := hcP
+          rw [hnI]
+          by_cases hl : p.members.length = 1 <;> cases pP.isProp <;> simp [hlen, hl]
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:164-168 BlockShape.flagsAt
+— member `i`'s flags: the twin's are con-leche's. -/
+theorem BlockShape.flagsAt_spec {st : EStore} {p : Arena.BlockShape}
+    {pP : ConLeche.BlockShape} (h : dShape st p = some pP) (i : Nat) :
+    p.flagsAt i = pP.flagsAt i := by
+  unfold Arena.BlockShape.flagsAt ConLeche.BlockShape.flagsAt
+  rw [dShape_flags h, BlockShape.derivedFlags_spec h]
+  cases pP.flags <;> rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:170-176 BlockShape.noRules -/
+theorem BlockShape.noRules_spec {st : EStore} {p : Arena.BlockShape}
+    {pP : ConLeche.BlockShape} (h : dShape st p = some pP) :
+    p.noRules = pP.noRules := by
+  have hlg := (dShape_inv h).2.2.2.2.2.1
+  unfold Arena.BlockShape.noRules ConLeche.BlockShape.noRules
+  rw [dShape_flags h, hlg]
+  cases pP.flags <;> cases pP.large <;> rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:178-186 BlockShape.boundedProp -/
+theorem BlockShape.boundedProp_spec {st : EStore} {p : Arena.BlockShape}
+    {pP : ConLeche.BlockShape} (h : dShape st p = some pP) :
+    p.boundedProp = pP.boundedProp := by
+  obtain ⟨-, -, -, -, -, hlg, hip⟩ := dShape_inv h
+  unfold Arena.BlockShape.boundedProp ConLeche.BlockShape.boundedProp
+  rw [BlockShape.flagsAt_spec h, hlg, hip]
+  cases pP.isProp <;> cases pP.large <;> cases (pP.flagsAt 0).isImpredicative <;> rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:192-196 projMembersFrom
+— the members that may have projections, denoted. -/
+theorem projMembersFrom_spec {st : EStore} {p : Arena.BlockShape}
+    {pP : ConLeche.BlockShape} (h : dShape st p = some pP) :
+    ∀ (i : Nat) (ms : List Arena.MemberShape) (msP : List ConLeche.MemberShape),
+      ms.mapM (dMember st) = some msP →
+      (Arena.projMembersFrom p i ms).mapM (dMember st) = some (ConLeche.projMembersFrom pP i msP)
+  | _, [], msP, hm => by
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hm
+    subst hm; rfl
+  | i, m :: ms, msP, hm => by
+    obtain ⟨mP, msP', rfl, hm1, hms⟩ := mapM_option_cons_inv hm
+    have ih := projMembersFrom_spec h (i + 1) ms msP' hms
+    unfold Arena.projMembersFrom ConLeche.projMembersFrom
+    simp only [Arena.BlockShape.projAllowed, ConLeche.BlockShape.projAllowed,
+      BlockShape.flagsAt_spec h]
+    split
+    · simp only [List.mapM_cons, hm1, ih, Option.bind_eq_bind, Option.bind_some, Option.pure_def]
+    · exact ih
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:198-201 BlockShape.projMembers -/
+theorem BlockShape.projMembers_spec {st : EStore} {p : Arena.BlockShape}
+    {pP : ConLeche.BlockShape} (h : dShape st p = some pP) :
+    p.projMembers.mapM (dMember st) = some pP.projMembers :=
+  projMembersFrom_spec h 0 p.members pP.members (dShape_inv h).1
+
 /-- con-leche: none — the member names, over the member list. -/
 theorem memberNames_go {st : EStore} :
     ∀ {ms : List Arena.MemberShape} {msP : List ConLeche.MemberShape},
@@ -204,7 +305,7 @@ theorem BlockShape.withSort_spec {env : Env} (fe : IFEnv)
   refine ⟨q.toCore hok, ?_⟩
   obtain ⟨hms, hrs, hnP, hel, -, hlg, -⟩ := dShape_inv (dShape_ext q.ext _ _ hp)
   simp only [dShape, hms, hrs, hnP, hel, hlg, denoteL_ext hs q.ext, ha,
-    Option.bind_eq_bind, Option.bind_some, Option.pure_def]
+    Option.bind_eq_bind, Option.bind_some, Option.pure_def, dShape_flags hp]
   simp only [ConLeche.BlockShape.withSort]
   generalize Level.isEquiv sP Level.zero = v
   rcases v with _ | _ | _ <;> rfl
@@ -1332,8 +1433,8 @@ def shapeTailP (nPd : Nat) (cvT0 cvR0 : ConstantVal) (cvTs : List ConstantVal)
     (⟨r.1, r.2.2.1, r.2.1, ConLeche.recTargetOf names r.2.1 r.1.type,
       r.2.2.2.2, r.2.2.2.1⟩ : ConLeche.RecShape)
   match largeOfP lps cvR0.levelParams with
-  | some elim => some ⟨members, recsL, nPd, elim, s, true, isProp⟩
-  | none => some ⟨members, recsL, nPd, .anonymous, s, false, isProp⟩
+  | some elim => some ⟨members, recsL, nPd, elim, s, true, isProp, none⟩
+  | none => some ⟨members, recsL, nPd, .anonymous, s, false, isProp, none⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
 (after the split) — the pure reader with its inline `match`es named, as an
@@ -1367,10 +1468,10 @@ theorem all_true_of_find?_bne {α β : Type} [BEq β] {l : List α} {f : α → 
   intro x hx
   simpa [bne] using List.find?_eq_none.mp h x hx
 
-theorem readBlock_eq (nPd : Nat) (block : List ConstantInfo) :
-    (ConLeche.readBlock nPd block).toOption =
+theorem readBlockShape_eq (nPd : Nat) (block : List ConstantInfo) :
+    (ConLeche.readBlockShape nPd block).toOption =
       (ConLeche.blockSplit block).bind fun q => shapeOfSplitP nPd q.1 q.2.1 q.2.2 := by
-  unfold ConLeche.readBlock
+  unfold ConLeche.readBlockShape
   rcases ConLeche.blockSplit block with _ | ⟨cvTs, cs, rs⟩
   · rfl
   · simp only [Option.bind_some, shapeOfSplitP]
@@ -1742,18 +1843,18 @@ theorem all_ctors3_eq {st : EStore} {f : IConstantVal × Nat × Nat → Bool}
 counts, the universe and parameter declarations' three tests, the result
 sort's three arms, each into `shapeTail_run`.  The answers agree as `Option`s:
 the same record, or both an error. -/
-theorem readBlock_run {env : Env} {fe : IFEnv} (nPd : Nat)
+theorem readBlockShape_run {env : Env} {fe : IFEnv} (nPd : Nat)
     (block : List IConstantInfo) (blockP : List ConstantInfo) (s₀ s' : AState)
     (r : Except Arena.CheckError Arena.BlockShape) (hc : CheckOK false env fe s₀)
     (hb : Frontend.denoteCIList s₀.store block = some blockP)
-    (hrun : Arena.readBlock nPd block s₀ = .ok (r, s')) :
+    (hrun : Arena.readBlockShape nPd block s₀ = .ok (r, s')) :
     PStep s₀ s' ∧
-      ROp (fun q st p => dShape st p = some q) (ConLeche.readBlock nPd blockP).toOption
+      ROp (fun q st p => dShape st p = some q) (ConLeche.readBlockShape nPd blockP).toOption
         s'.store r.toOption := by
   have hok := hc.state
-  rw [readBlock_eq]
+  rw [readBlockShape_eq]
   have hsp := blockSplit_spec s₀.store block blockP hb
-  unfold Arena.readBlock at hrun
+  unfold Arena.readBlockShape at hrun
   cases hA : Arena.blockSplit block with
   | none =>
     rw [hA] at hrun hsp
@@ -1901,6 +2002,101 @@ theorem readBlock_run {env : Env} {fe : IFEnv} (nPd : Nat)
            cases x <;> first | exact hy | exact absurd rfl (hns _)
          exact shapeTail_run nPd cvT0 cvR0 cvT0P cvR0P cvTs cvTsP cs csP rs rsP nIdxs y hc p1
            hT0' hR0' hTs' hcs' hrs' hyP z5)
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:458-461 blockFlagRecs —
+the records' declared flags are the twin's (they hold no handle). -/
+theorem blockFlagRecs_denote {st : EStore} :
+    ∀ (block : List IConstantInfo) (b : List ConstantInfo),
+      Frontend.denoteCIList st block = some b →
+      ConLeche.blockFlagRecs b = Arena.blockFlagRecs block
+  | [], b, h => by
+    simp only [Frontend.denoteCIList, Option.some.injEq] at h
+    subst h; rfl
+  | c :: cs, b, h => by
+    simp only [Frontend.denoteCIList] at h
+    split at h
+    · rename_i x xs h1 h2
+      obtain rfl := (Option.some.inj h).symm
+      cases c with
+      | indInfo v caps =>
+        simp only [Frontend.denoteCI] at h1
+        split at h1
+        · rename_i cv capsP _ hcaps
+          obtain rfl := (Option.some.inj h1).symm
+          simp only [Frontend.denoteCaps] at hcaps
+          split at hcaps
+          · obtain rfl := (Option.some.inj hcaps).symm
+            simp only [ConLeche.blockFlagRecs, Arena.blockFlagRecs, blockFlagRecs_denote cs xs h2]
+          · exact nomatch hcaps
+        · exact nomatch h1
+      | _ =>
+        simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h1
+        (try split at h1) <;>
+          first
+          | (obtain ⟨_, -, rfl⟩ := h1; rfl)
+          | (obtain rfl := (Option.some.inj h1).symm; rfl)
+          | exact nomatch h1
+    · exact nomatch h
+
+/-- con-leche: none — a denoted shape with its flags replaced (they hold no
+handle). -/
+theorem dShape_setFlags {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    (f : Option (List IndFlags)) (h : dShape st p = some pP) :
+    dShape st { p with flags := f } = some { pP with flags := f } := by
+  simp only [dShape] at h ⊢
+  cases h1 : p.members.mapM (dMember st) with
+  | none => rw [h1] at h; exact nomatch h
+  | some ms =>
+  cases h2 : p.recs.mapM (dRec st) with
+  | none => rw [h1, h2] at h; exact nomatch h
+  | some rs =>
+  cases h3 : denoteN st.ns p.elim with
+  | none => rw [h1, h2, h3] at h; exact nomatch h
+  | some el =>
+  cases h4 : denoteL st.ls p.resSort with
+  | none => rw [h1, h2, h3, h4] at h; exact nomatch h
+  | some so =>
+  rw [h1, h2, h3, h4] at h
+  obtain rfl := (Option.some.inj h).symm
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:543-547 readBlock
+— **the reader's run**: the shape (`readBlockShape_run`), then the declared
+flags, the twin's and con-leche's the same list (`blockFlagRecs_denote`). -/
+theorem readBlock_run {env : Env} {fe : IFEnv} (nPd : Nat)
+    (block : List IConstantInfo) (blockP : List ConstantInfo) (s₀ s' : AState)
+    (r : Except Arena.CheckError Arena.BlockShape) (hc : CheckOK false env fe s₀)
+    (hb : Frontend.denoteCIList s₀.store block = some blockP)
+    (hrun : Arena.readBlock nPd block s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧
+      ROp (fun q st p => dShape st p = some q) (ConLeche.readBlock nPd blockP).toOption
+        s'.store r.toOption := by
+  unfold Arena.readBlock at hrun
+  obtain ⟨r0, s1, k1, z1⟩ := AM.bind_ok hrun
+  obtain ⟨p1, hrel⟩ := readBlockShape_run nPd block blockP s₀ s1 r0 hc hb k1
+  have hfl : ConLeche.blockFlagsOf blockP = Arena.blockFlagsOf block := by
+    simp only [ConLeche.blockFlagsOf, Arena.blockFlagsOf, blockFlagRecs_denote block blockP hb]
+  unfold ConLeche.readBlock
+  cases r0 with
+  | error e =>
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
+    refine ⟨p1, ?_⟩
+    simp only [ROp, Except.toOption] at hrel ⊢
+    cases h : ConLeche.readBlockShape nPd blockP with
+    | error _ => rfl
+    | ok _ => rw [h] at hrel; exact nomatch hrel
+  | ok p =>
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
+    refine ⟨p1, ?_⟩
+    obtain ⟨q, hq, hd⟩ := hrel
+    cases h : ConLeche.readBlockShape nPd blockP with
+    | error _ => rw [h] at hq; exact nomatch hq
+    | ok q' =>
+      rw [h] at hq
+      obtain rfl := (Option.some.inj hq)
+      refine ⟨{ q' with flags := ConLeche.blockFlagsOf blockP }, rfl, ?_⟩
+      rw [hfl]
+      exact dShape_setFlags _ hd
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:385-458 readBlock
 **THE DISPATCH'S READER** — `checkBlock` against the reader's reject routes on

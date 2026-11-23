@@ -110,7 +110,7 @@ factors out as `ind_block_of`. -/
 def indBlockOf (st : StateD) (tys : List IndTypeRec) (cts : List (IndCtorRec × NIdx))
     (rcs : List IndRecRec) : AM (List IConstantInfo) := do
   let types ← tys.mapM fun t => do
-    pure (IConstantInfo.indInfo (← parseCVD st t.cv) {})
+    pure (IConstantInfo.indInfo (← parseCVD st t.cv) { flags := indTypeRecFlags t })
   let ctors ← cts.mapM fun (c, T) => do
     pure (IConstantInfo.ctorInfo (← parseCVD st c.cv) c.numParams c.numFields T)
   let recs ← rcs.mapM fun r => do

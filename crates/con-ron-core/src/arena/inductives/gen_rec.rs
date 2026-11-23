@@ -1542,7 +1542,7 @@ pub fn classes_ctors(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:330-339 classMajors
-/// con-leche: ConLeche/Cached/IndBlock.lean:339-347 classMajorsC
+/// con-leche: ConLeche/Cached/IndBlock.lean:344-352 classMajorsC
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:493-506 classMajors` — every class
 /// checked as a major (`targetMajorOf`, `targetMajorPins`), over the block's
 /// canonical parameters `pfvs`.
@@ -2113,7 +2113,7 @@ pub fn class_stream_recs(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:483-486 classKeyCanon
-/// con-leche: ConLeche/Cached/IndBlock.lean:258-260 classKeyCanonC
+/// con-leche: ConLeche/Cached/IndBlock.lean:263-265 classKeyCanonC
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:690-696 classKeyCanon` — a class
 /// key's parameters moved to the block's canonical parameter variables.
 pub fn class_key_canon(
@@ -2159,7 +2159,7 @@ pub fn class_n_pc_of(pers: &PersTier, p: &BlockShape, fe: &IFEnv, i_name: &NIdx)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:496-501 classSeeds
-/// con-leche: ConLeche/Cached/IndPositivity.lean:557-561 classSeedsC
+/// con-leche: ConLeche/Cached/IndPositivity.lean:568-572 classSeedsC
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:698-710 classSeeds` — the seeds:
 /// every OUTSIDE class in the positivity check's representation, in order.
 pub fn class_seeds(
@@ -2189,7 +2189,7 @@ pub fn class_seeds(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:503-514 classKeyOf
-/// con-leche: ConLeche/Cached/IndBlock.lean:262-268 classKeyOfC
+/// con-leche: ConLeche/Cached/IndBlock.lean:267-273 classKeyOfC
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:712-725 classKeyOf` — **a class
 /// key, made checkable**: moved to the canonical parameter variables, its
 /// parameters closed over them.  (Task #119: no longer annotated — the
@@ -2212,7 +2212,7 @@ pub fn class_key_of(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:503-514 classKeyOf
-/// con-leche: ConLeche/Cached/IndBlock.lean:262-268 classKeyOfC
+/// con-leche: ConLeche/Cached/IndBlock.lean:267-273 classKeyOfC
 /// Lean twin: `rd.classes.mapM (classKeyOf p.nP params)`.
 pub fn class_keys_of(
     pers: &PersTier,
@@ -2238,7 +2238,7 @@ pub fn class_keys_of(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:516-534 checkBlockClasses
-/// con-leche: ConLeche/Cached/IndBlock.lean:349-361 checkBlockClassesC
+/// con-leche: ConLeche/Cached/IndBlock.lean:354-366 checkBlockClassesC
 /// Lean twin: `(Ms.filter (·.member == some t)).length` — the classes at member
 /// `t`, counted.
 pub fn classes_at_member(ms: &Vec<TargetMajor>, t: u64, i: usize, acc: u64) -> u64 {
@@ -2258,7 +2258,7 @@ pub fn classes_at_member(ms: &Vec<TargetMajor>, t: u64, i: usize, acc: u64) -> u
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:516-534 checkBlockClasses
-/// con-leche: ConLeche/Cached/IndBlock.lean:349-361 checkBlockClassesC
+/// con-leche: ConLeche/Cached/IndBlock.lean:354-366 checkBlockClassesC
 /// Lean twin: `(List.range p.k).all fun t => … == 1` — exactly one class per
 /// member, from member `t` on.
 pub fn one_class_per_member(ms: &Vec<TargetMajor>, k: u64, t: u64) -> bool {
@@ -2272,7 +2272,7 @@ pub fn one_class_per_member(ms: &Vec<TargetMajor>, k: u64, t: u64) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:516-534 checkBlockClasses
-/// con-leche: ConLeche/Cached/IndBlock.lean:349-361 checkBlockClassesC
+/// con-leche: ConLeche/Cached/IndBlock.lean:354-366 checkBlockClassesC
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:727-747 checkBlockClasses` — **the
 /// classes, read and checked** at the formers' environment `fe`: the
 /// pre-pass on the stream's raw recursor types, every class key made
@@ -2309,7 +2309,7 @@ pub fn check_block_classes(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:125-129 classFeR
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:332-340 consBlockRecsBare
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:333-341 consBlockRecsBare
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:117-123 consBlockRecsBareF
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:749-766 classFeR` — **the
 /// rule-less generated recursors consed onto the constructors' environment**

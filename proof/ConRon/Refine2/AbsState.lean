@@ -410,7 +410,7 @@ def absIRecRule (r : arena.env.IRecRule) : IRecRule :=
 
 def absIIndCaps (c : arena.env.IIndCaps) : IIndCaps :=
   ⟨c.eta, c.all.val.map absNIdx, absU c.nparams, absU c.n_idx, c.ctors.val.map absNIdx,
-    c.never_zero⟩
+    c.never_zero, c.flags.map ConRon.Refine.absIndFlags⟩
 
 def absIProjTable (t : arena.env.IProjTable) : IProjTable :=
   ⟨absNIdx t.struct_name, t.level_params.val.map absNIdx,

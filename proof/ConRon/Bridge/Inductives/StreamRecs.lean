@@ -26,6 +26,7 @@ import ConRon.Bridge.Checker.Names
 import ConRon.Bridge.Checker.Canon
 import ConRon.Bridge.ExprOps.Subst
 import ConRon.Bridge.Specs
+import ConRon.Bridge.Inductives.BlockShape
 
 public section
 
@@ -880,14 +881,322 @@ theorem streamKCheck_run {p : Arena.BlockShape} {pP : ConLeche.BlockShape} :
       obtain ⟨gP, gsP, rfl, hg, hgs⟩ := mapM_option_cons_inv ho
       have hK := (dRec_inv hrc).2.2.2.2.2
       have hE := recKExpected_eq hp (RC.dRecOut_inv hg).2.1
+      have hR := (dRec_inv hrc).2.2.2.2.1
+      have hrE : rc.rules.isEmpty = rcP.rules.isEmpty := by
+        cases h1 : rc.rules with
+        | nil =>
+          rw [h1] at hR
+          simp only [Frontend.denoteRules, Option.some.injEq] at hR
+          rw [← hR]; rfl
+        | cons x xs =>
+          rw [h1] at hR
+          simp only [Frontend.denoteRules] at hR
+          split at hR
+          · rw [← Option.some.inj hR]; rfl
+          · exact nomatch hR
       simp only [Arena.streamKCheck] at hrun
+      split at hrun
+      · exact absurd hrun (fun h => AM.fail_ok h)
+      rename_i hnr
       obtain ⟨hc, z1⟩ := AM.dunless_ok AM.Never.fail_any hrun
       replace z1 := AM.pure_bind_ok z1
       obtain ⟨rfl, hF⟩ := ih rcsP gs gsP s₀ s' r hp hrcs hgs z1
       refine ⟨rfl, ?_⟩
       simp only [ConLeche.streamKCheck]
+      rw [BlockShape.noRules_spec hp, hrE] at hnr
+      rw [ite_eq_right hnr]
       rw [hK, hE] at hc
       rw [ite_eq_left hc]
-      exact FOk.seq (FOk.pure ()) hF
+      exact FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ()) hF)
+
+/-! ## The declared feature flags -/
+
+/-- con-leche: none — a member's constructors, denoted, keep their shape:
+empty, one (with its field count), or more. -/
+theorem dCtors_shape {st : EStore} {cs : List (IConstantVal × Nat)}
+    {csP : List (ConstantVal × Nat)} (h : dCtors st cs = some csP) :
+    (cs = [] ∧ csP = []) ∨ (∃ c cP, cs = [c] ∧ csP = [cP] ∧ cP.2 = c.2) ∨
+      (∃ c d r cP dP rP, cs = c :: d :: r ∧ csP = cP :: dP :: rP) := by
+  cases cs with
+  | nil =>
+    simp only [dCtors, List.mapM_nil, Option.pure_def, Option.some.injEq] at h
+    exact Or.inl ⟨rfl, h.symm⟩
+  | cons c rest =>
+    obtain ⟨cP, restP, rfl, hcP, hrestP⟩ := mapM_option_cons_inv h
+    have hc2 : cP.2 = c.2 := by
+      simp only [dCtor, Option.map_eq_some_iff] at hcP
+      obtain ⟨_, -, rfl⟩ := hcP; rfl
+    cases rest with
+    | nil =>
+      simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hrestP
+      subst hrestP
+      exact Or.inr (Or.inl ⟨c, cP, rfl, rfl, hc2⟩)
+    | cons d r =>
+      obtain ⟨dP, rP, rfl, -, -⟩ := mapM_option_cons_inv hrestP
+      exact Or.inr (Or.inr ⟨c, d, r, cP, dP, rP, rfl, rfl⟩)
+
+/-- con-leche: none — a guard that fails, passed: its condition is off. -/
+theorem AM.ite_fail_ok {α : Type} {c : Bool} {e : Arena.CheckError} {k : AM α} {s s' : AState}
+    {a : α} (h : (if c = true then fail e else k) s = .ok (a, s')) :
+    c = false ∧ k s = .ok (a, s') := by
+  cases c
+  · exact ⟨rfl, by simpa using h⟩
+  · exact absurd (by simpa using h) (fun h' => AM.fail_ok (α := α) h')
+
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:208-227 memberFlagsCheck —
+**one member's flags**: the twin's three named conditions are con-leche's; the
+twin reads nothing of the state. -/
+theorem memberFlagsCheck_run {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    {m : Arena.MemberShape} {mP : ConLeche.MemberShape} {isRec : Bool} {i : Nat}
+    {f : IndFlags} {s s' : AState} {r : Unit}
+    (hp : dShape st p = some pP) (hm : dMember st m = some mP)
+    (hrun : Arena.memberFlagsCheck p isRec i m f s = .ok (r, s')) :
+    s' = s ∧ ConLeche.memberFlagsCheck pP isRec i mP f = .ok () := by
+  have hk := BlockShape.k_spec hp
+  have hip := (dShape_inv hp).2.2.2.2.2.2
+  obtain ⟨-, hnI, hcs, -⟩ := dMember_inv hm
+  unfold Arena.memberFlagsCheck at hrun
+  obtain ⟨h1, hrun⟩ := AM.ite_fail_ok hrun
+  obtain ⟨h2, hrun⟩ := AM.ite_fail_ok hrun
+  obtain ⟨h3, hrun⟩ := AM.ite_fail_ok hrun
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+  refine ⟨rfl, ?_⟩
+  unfold ConLeche.memberFlagsCheck
+  rw [← hk, ← hip, ← hnI]
+  rcases dCtors_shape hcs with ⟨hc, hcP⟩ | ⟨c, cP, hc, hcP, hc2⟩ | ⟨c, d, r, cP, dP, rP, hc, hcP⟩
+  all_goals
+    (rw [hc] at h1 h2; rw [hcP]
+     clear hrun hcs hm hp
+     revert h1 h2 h3
+     cases f with
+     | mk a b c d e =>
+       cases a <;> cases b <;> cases c <;> cases d <;> cases e <;> cases isRec <;>
+         simp (config := { contextual := true }) [pure, Except.pure, bind, Except.bind, *])
+
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:229-235 membersFlagsCheck -/
+theorem membersFlagsCheck_run {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    {isRec : Bool} (hp : dShape st p = some pP) :
+    ∀ (i : Nat) (ms : List Arena.MemberShape) (msP : List ConLeche.MemberShape)
+      (fl : List IndFlags) (s s' : AState) (r : Unit), ms.mapM (dMember st) = some msP →
+      Arena.membersFlagsCheck p isRec i ms fl s = .ok (r, s') →
+      s' = s ∧ ConLeche.membersFlagsCheck pP isRec i msP fl = .ok ()
+  | i, [], msP, fl, s, s', r, hms, hrun => by
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hms
+    subst hms
+    simp only [Arena.membersFlagsCheck] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨rfl, by simp only [ConLeche.membersFlagsCheck]; rfl⟩
+  | i, m :: ms, msP, [], s, s', r, hms, hrun => by
+    obtain ⟨mP, msP', rfl, -, -⟩ := mapM_option_cons_inv hms
+    simp only [Arena.membersFlagsCheck] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨rfl, by simp only [ConLeche.membersFlagsCheck]; rfl⟩
+  | i, m :: ms, msP, f :: fs, s, s', r, hms, hrun => by
+    obtain ⟨mP, msP', rfl, hm, hms'⟩ := mapM_option_cons_inv hms
+    simp only [Arena.membersFlagsCheck] at hrun
+    obtain ⟨u, s₁, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨e1, h1⟩ := memberFlagsCheck_run hp hm k1
+    rw [e1] at z1
+    obtain ⟨rfl, h2⟩ := membersFlagsCheck_run hp (i + 1) ms msP' fs s s' r hms' z1
+    refine ⟨rfl, ?_⟩
+    simp only [ConLeche.membersFlagsCheck, h1, h2, bind, Except.bind]
+
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:237-288 blockFlagsCheck
+(the large-eliminator clause) — the twin's verdict is con-leche's condition; a
+pure step (the sort's read goes through the readback memo). -/
+theorem largeElimFlagOk_run {s₀ s s' : AState} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    {f0 : IndFlags} {b : Bool} (hok : StateOK s) (hrl : ReadLCacheOK s₀.caches.readLC s₀.store)
+    (q0 : PStep s₀ s)
+    (hp : dShape s.store p = some pP) (hrun : Arena.largeElimFlagOk p f0 s = .ok (b, s')) :
+    PStep s s' ∧
+      b = (!f0.hasLargeElim || (!f0.isImpredicative && (pP.resSort.isNeverZero ||
+        (pP.k == 1 && (pP.numCtors == 0 || (pP.numCtors == 1 && (f0.hasEta || f0.isK))))))) := by
+  have hk := BlockShape.k_spec hp
+  have hn := BlockShape.numCtors_spec hp
+  unfold Arena.largeElimFlagOk at hrun
+  cases hl : f0.hasLargeElim with
+  | false =>
+    rw [hl] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | true =>
+    rw [hl] at hrun
+    cases hi : f0.isImpredicative with
+    | true =>
+      rw [hi] at hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      exact ⟨PStep.refl hok, rfl⟩
+    | false =>
+      rw [hi] at hrun
+      simp only [Bool.false_eq_true, ↓reduceIte] at hrun
+      obtain ⟨l, s₁, h1, h2⟩ := AM.bind_ok hrun
+      have p1 := readLevelM_pstep hok h1
+      have hlv := readLevelM_denote_L hrl q0 h1
+      obtain ⟨-, -, -, -, hs, -, -⟩ := dShape_inv hp
+      have hres : pP.resSort = l := by
+        rw [hlv] at hs; exact (Option.some.inj hs).symm
+      rw [hres, ← hk, ← hn]
+      by_cases hz : Level.isNeverZero l = true
+      · rw [ite_eq_left hz] at h2
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
+        exact ⟨p1, by simp [hz]⟩
+      · rw [ite_eq_right hz] at h2
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
+        simp only [Bool.not_eq_true] at hz
+        exact ⟨p1, by simp [hz]⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:237-288 blockFlagsCheck
+(the `for` over the classes) — the twin's `majorsFlagsCheck` reads nothing of
+the state; each outside class passes both of con-leche's guards, the
+projection-table lookup being con-leche's `hasProj` at the environment the
+index answers for. -/
+theorem majorsFlagsCheck_run {env : Env} {fe : IFEnv} {s : AState} {p : Arena.BlockShape}
+    {pP : ConLeche.BlockShape} {f0 : IndFlags} (hok : StateOK s) (hfe : IFEnvOK env fe s)
+    (hp : dShape s.store p = some pP) :
+    ∀ (Ms : List Arena.TargetMajor) (MsP : List ConLeche.TargetMajor) (s' : AState) (r : Unit),
+      Ms.mapM (dMajor s.store) = some MsP →
+      Arena.majorsFlagsCheck p f0 fe Ms s = .ok (r, s') →
+      s' = s ∧ ∀ M ∈ MsP, M.member.isNone = true →
+        (pP.isProp && (match M.ctors with | [c] => c.2 == 0 | _ => false)) = false ∧
+        (f0.isImpredicative && (env.findTable? M.ind).isSome) = false
+  | [], MsP, s', r, hMs, hrun => by
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hMs
+    subst hMs
+    simp only [Arena.majorsFlagsCheck] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨rfl, fun _ h => nomatch h⟩
+  | M :: Ms, MsP, s', r, hMs, hrun => by
+    obtain ⟨MP, MsP', rfl, hM, hMs'⟩ := mapM_option_cons_inv hMs
+    obtain ⟨hind, -, -, -, -, hctors, hmem, -, -⟩ := dMajor_inv hM
+    have hip := (dShape_inv hp).2.2.2.2.2.2
+    simp only [Arena.majorsFlagsCheck] at hrun
+    cases hmM : M.member with
+    | some t =>
+      rw [hmM] at hrun
+      obtain ⟨rfl, ih⟩ := majorsFlagsCheck_run hok hfe hp Ms MsP' s' r hMs' hrun
+      refine ⟨rfl, fun N hN hn => ?_⟩
+      rcases List.mem_cons.mp hN with rfl | hN
+      · rw [← hmem, hmM] at hn; exact nomatch hn
+      · exact ih N hN hn
+    | none =>
+      rw [hmM] at hrun
+      dsimp only at hrun
+      obtain ⟨h1, hrun⟩ := AM.ite_fail_ok hrun
+      have hT := IFEnvOK.findTable_isSome hok hfe hind
+      have e1 : (pP.isProp && (match MP.ctors with | [c] => c.2 == 0 | _ => false)) = false := by
+        rw [← hip]
+        rcases dCtors_shape hctors with ⟨hc, hcP⟩ | ⟨c, cP, hc, hcP, hc2⟩ |
+            ⟨c, d, r', cP, dP, rP, hc, hcP⟩
+        · rw [hcP]; simp
+        · rw [hc] at h1; simp only [hcP, hc2]; exact h1
+        · rw [hcP]; simp
+      cases hi : f0.isImpredicative with
+      | false =>
+        rw [hi] at hrun
+        simp only [Bool.false_eq_true, ↓reduceIte] at hrun
+        obtain ⟨rfl, ih⟩ := majorsFlagsCheck_run hok hfe hp Ms MsP' s' r hMs' hrun
+        refine ⟨rfl, fun N hN hn => ?_⟩
+        rcases List.mem_cons.mp hN with rfl | hN
+        · exact ⟨e1, by simp⟩
+        · simpa [hi] using ih N hN hn
+      | true =>
+        rw [hi] at hrun
+        simp only [↓reduceIte] at hrun
+        cases hft : fe.findTable? M.ind with
+        | some _ =>
+          rw [hft] at hrun
+          exact absurd hrun (fun h => AM.fail_ok h)
+        | none =>
+          rw [hft] at hrun
+          dsimp only at hrun
+          obtain ⟨rfl, ih⟩ := majorsFlagsCheck_run hok hfe hp Ms MsP' s' r hMs' hrun
+          refine ⟨rfl, fun N hN hn => ?_⟩
+          rcases List.mem_cons.mp hN with rfl | hN
+          · refine ⟨e1, ?_⟩
+            rw [hft] at hT
+            simp only [Bool.true_and]
+            exact hT.symm
+          · simpa [hi] using ih N hN hn
+
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:237-288 blockFlagsCheck
+**The block's declared flags, validated**: where the twin passes, con-leche's
+pure check passes at the environment the index answers for (`hasProj` its
+projection tables); a pure step. -/
+theorem blockFlagsCheck_run {env : Env} {fe : IFEnv} {s s' : AState} {p : Arena.BlockShape}
+    {pP : ConLeche.BlockShape} {isRec : Bool} {Ms : List Arena.TargetMajor}
+    {MsP : List ConLeche.TargetMajor} {r : Unit} {s₀ : AState} (hok : StateOK s)
+    (hrl : ReadLCacheOK s₀.caches.readLC s₀.store) (q0 : PStep s₀ s) (hfe : IFEnvOK env fe s)
+    (hp : dShape s.store p = some pP) (hMs : Ms.mapM (dMajor s.store) = some MsP)
+    (hrun : Arena.blockFlagsCheck p isRec Ms fe s = .ok (r, s')) :
+    PStep s s' ∧
+      ConLeche.blockFlagsCheck pP isRec MsP (fun n => (env.findTable? n).isSome) = .ok () := by
+  have hfl := dShape_flags hp
+  have hk := BlockShape.k_spec hp
+  obtain ⟨hms, -, -, -, -, hlg, hip⟩ := dShape_inv hp
+  unfold Arena.blockFlagsCheck at hrun
+  unfold ConLeche.blockFlagsCheck
+  rw [← hfl]
+  cases hf : p.flags with
+  | none =>
+    rw [hf] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | some fl =>
+    rw [hf] at hrun
+    dsimp only at hrun
+    obtain ⟨c1, hrun⟩ := AM.ite_fail_ok hrun
+    obtain ⟨c2, hrun⟩ := AM.ite_fail_ok hrun
+    obtain ⟨c3, hrun⟩ := AM.ite_fail_ok hrun
+    obtain ⟨c4, hrun⟩ := AM.ite_fail_ok hrun
+    obtain ⟨b, s₁, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨p1, hb⟩ := largeElimFlagOk_run hok hrl q0 hp k1
+    obtain ⟨c5, z1⟩ := AM.ite_fail_ok z1
+    obtain ⟨u, s₂, k2, z2⟩ := AM.bind_ok z1
+    have hp1 := dShape_ext p1.ext _ _ hp
+    obtain ⟨e2, hM⟩ := membersFlagsCheck_run hp1 0 p.members pP.members fl s₁ s₂ u
+      (dMember_ext.list p1.ext _ _ hms) k2
+    rw [e2] at z2
+    obtain ⟨e3, hMj⟩ := majorsFlagsCheck_run p1.ok (hfe.mono p1.ext) hp1 Ms MsP s' r
+      (dMajor_ext.list p1.ext _ _ hMs) z2
+    subst e3
+    refine ⟨p1, ?_⟩
+    rw [← hk, ← hlg, ← hip]
+    have hb' : b = true := by simpa using c5
+    rw [hb'] at hb
+    simp only [bne, Bool.not_eq_false', beq_iff_eq] at c1
+    simp only [Bool.not_eq_false'] at c2
+    have hc4 : ((fl.headD default).hasLargeElim == p.large) = true := by
+      simpa [bne] using c4
+    have hc5 : ((fl.headD default).hasLargeElim &&
+        !(!(fl.headD default).isImpredicative && (pP.resSort.isNeverZero ||
+          (p.k == 1 && (pP.numCtors == 0 ||
+            (pP.numCtors == 1 && ((fl.headD default).hasEta || (fl.headD default).isK))))))) = false := by
+      rw [hk]
+      cases hL : (fl.headD default).hasLargeElim
+      · rfl
+      · rw [hL] at hb
+        simp only [Bool.not_true, Bool.false_or] at hb
+        rw [← hb]; rfl
+    simp only [c1, c2, c3, hc4, hc5, hM, beq_self_eq_true, ↓reduceIte, Bool.false_eq_true,
+      bind, Except.bind, pure, Except.pure]
+    clear hrun k1 z1 z2 hMs
+    rw [← hip] at hMj
+    induction MsP with
+    | nil => rfl
+    | cons M Ms' ih =>
+      have hM := hMj M List.mem_cons_self
+      have ih' := ih (fun N hN hn => hMj N (List.mem_cons_of_mem _ hN) hn)
+      simp only [List.forIn_cons]
+      cases hn : M.member.isNone with
+      | false =>
+        simp only [Bool.false_and, Bool.false_eq_true, ↓reduceIte, bind, Except.bind]
+        exact ih'
+      | true =>
+        obtain ⟨a, b⟩ := hM hn
+        rcases hc : M.ctors with _ | ⟨c, _ | ⟨d, r⟩⟩ <;> rw [hc] at a <;>
+          simp only [Bool.and_false] at a <;>
+          simp only [a, b, Bool.true_and, Bool.and_false, Bool.false_eq_true, ↓reduceIte,
+            bind, Except.bind] <;>
+          exact ih'
 
 end ConRon.Bridge.Inductives

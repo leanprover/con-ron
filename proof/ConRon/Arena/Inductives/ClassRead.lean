@@ -92,7 +92,7 @@ def classOfMotiveVar (nP : Nat) (motPos : List Nat) (p : Nat) : Option Nat :=
   if nP ≤ p then motPos.findIdx? (· == p - nP) else none
 
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:82-105 classReadMinor
-con-leche: ConLeche/Cached/IndBlock.lean:201-223 classReadMinorC
+con-leche: ConLeche/Cached/IndBlock.lean:206-228 classReadMinorC
 The `fvar` head of an application, its index (`none` at any other head) —
 the cited `.fvar p _ := e.getAppFn` (module note). -/
 def fvarHead (e : EIdx) : AM (Option Nat) := do
@@ -104,7 +104,7 @@ def fvarHead (e : EIdx) : AM (Option Nat) := do
   else pure none
 
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:82-105 classReadMinor
-con-leche: ConLeche/Cached/IndBlock.lean:201-223 classReadMinorC
+con-leche: ConLeche/Cached/IndBlock.lean:206-228 classReadMinorC
 **Read one minor premise's type `dom`**, opened at depth `d`: its conclusion is
 a motive (the class), its last argument a constructor application (the
 constructor), and its inductive hypotheses — every opened binder whose type's
@@ -162,7 +162,7 @@ def classNPcOf (p : BlockShape) (fe : IFEnv) (i : NIdx) : Nat :=
     | _ => 0
 
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:107-124 classReadSlots
-con-leche: ConLeche/Cached/IndBlock.lean:225-240 classReadSlotsC
+con-leche: ConLeche/Cached/IndBlock.lean:230-245 classReadSlotsC
 One prefix binder's domain read as a motive (its telescope ends in a sort: the
 class is its last binder's domain, at the class's parameter count) or as a
 minor premise. -/
@@ -186,7 +186,7 @@ def classReadSlot (p : BlockShape) (fe : IFEnv) (np : Nat) (motPos : List Nat) (
   else classReadMinor np motPos d dom
 
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:107-124 classReadSlots
-con-leche: ConLeche/Cached/IndBlock.lean:225-240 classReadSlotsC
+con-leche: ConLeche/Cached/IndBlock.lean:230-245 classReadSlotsC
 Read the prefix binders `n` of a recursor type opened at the parameters (`e`,
 depth `d`), classifying each as a motive or a minor premise; each binder
 opened at `d` before the next is read.  `none` off the shape.  `nPc` is
@@ -213,7 +213,7 @@ def classReadSlots (p : BlockShape) (fe : IFEnv) (np : Nat) :
     else pure none
 
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:126-140 classRead
-con-leche: ConLeche/Cached/IndBlock.lean:242-254 classReadC
+con-leche: ConLeche/Cached/IndBlock.lean:247-259 classReadC
 `recs.mapM fun rc => …` — every recursor's class off its conclusion
 `motive_c ı⃗ t`; `none` off the shape. -/
 def classReadRecCls (nP : Nat) (motPos : List Nat) : List RecShape → AM (Option (List Nat))
@@ -233,7 +233,7 @@ def classReadRecCls (nP : Nat) (motPos : List Nat) : List RecShape → AM (Optio
           | some cs => pure (some (c :: cs))
 
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:126-140 classRead
-con-leche: ConLeche/Cached/IndBlock.lean:242-254 classReadC
+con-leche: ConLeche/Cached/IndBlock.lean:247-259 classReadC
 **The pre-pass**: the prefix layout off the FIRST recursor's type, and every
 recursor's class off its conclusion.  `none` when the family is not of the
 generated shape.  `nPc` is `classNPcOf p fe` (module note). -/

@@ -166,13 +166,14 @@ def declConstants : IDeclaration → AM (List IConstantInfo)
 
 /-- con-leche: ConLeche/Kernel/Install.lean:93-99 declTables
 con-leche: ConLeche/Cached/CheckerC.lean:57-63 declTablesC
-**The projection tables a declaration installs**: those of an inductive block
+**The projection tables a declaration installs**: those of the members that
+may have projections (`BlockShape.projMembers`) of an inductive block
 `readBlock` reads (none where a constructor is too short for them). -/
 def declTables : IDeclaration → AM (List IProjTable)
   | .indDecl block nP => do
     match ← readBlock nP block with
     | .ok p => do
-      match ← blockTables p p.members with
+      match ← blockTables p p.projMembers with
       | some q => pure q
       | none => pure []
     | .error _ => pure []

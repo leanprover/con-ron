@@ -322,9 +322,16 @@ pub struct IndTypeRec {
     pub num_indices: u64,
     pub num_nested: u64,
     pub num_params: u64,
+    /// the feature flags of lean4export 3.2.0, each `None` where the record
+    /// omits its key; `export_c::ind_type_rec_flags` takes all five or none
+    pub is_impredicative: Option<bool>,
+    pub is_k: Option<bool>,
+    pub has_projections: Option<bool>,
+    pub has_eta: Option<bool>,
+    pub has_large_elim: Option<bool>,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:192-205 IndCtorRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:199-212 IndCtorRec
 /// One member of an inductive block's `ctors`.  `cidx` and `induct` are the
 /// format's REDUNDANT fields (task #271, issues #5 and #7): the block's own
 /// records determine both, and the parse validates what the stream claims
@@ -339,7 +346,7 @@ pub struct IndCtorRec {
     pub induct: Option<u64>,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:207-216 IndRecRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:214-223 IndRecRec
 /// One member of an inductive block's `recs`.
 pub struct IndRecRec {
     pub cv: CVRec,
@@ -352,7 +359,7 @@ pub struct IndRecRec {
     pub rules: Vec<RuleRec>,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:218-228 DeclRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:225-235 DeclRec
 /// A declaration record.  `safety` and `kind` keep their spelling (as code
 /// points): both are reported back to the user verbatim (an unsupported
 /// safety is a DECLINE naming it).
@@ -365,7 +372,7 @@ pub enum DeclRec {
     Ind(Vec<IndTypeRec>, Vec<IndCtorRec>, Vec<IndRecRec>),
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:230-240 LineRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:237-247 LineRec
 /// One line of the stream.
 pub enum LineRec {
     Name(u64, NameRec),
@@ -379,7 +386,7 @@ pub enum LineRec {
     Blank,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:244-317 Key
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:251-329 Key
 /// Every key of the dialect, as a no-argument enumeration.  A key outside this
 /// alphabet is an error — the recogniser knows the whole format, and a key it
 /// does not know is a stream it does not know.
@@ -399,6 +406,9 @@ pub enum Key {
     KDef,
     KFn,
     KForallE,
+    KHasEta,
+    KHasLargeElim,
+    KHasProjections,
     KHints,
     KI,
     KIdx,
@@ -408,6 +418,8 @@ pub enum Key {
     KIn,
     KInduct,
     KInductive,
+    KIsImpredicative,
+    KIsK,
     KIsRec,
     KIsReflexive,
     KIsUnsafe,
@@ -471,57 +483,62 @@ pub fn key_code(k: &Key) -> u64 {
         Key::KDef => 12,
         Key::KFn => 13,
         Key::KForallE => 14,
-        Key::KHints => 15,
-        Key::KI => 16,
-        Key::KIdx => 17,
-        Key::KIe => 18,
-        Key::KIl => 19,
-        Key::KImax => 20,
-        Key::KIn => 21,
-        Key::KInduct => 22,
-        Key::KInductive => 23,
-        Key::KIsRec => 24,
-        Key::KIsReflexive => 25,
-        Key::KIsUnsafe => 26,
-        Key::KK => 27,
-        Key::KKind => 28,
-        Key::KLam => 29,
-        Key::KLetE => 30,
-        Key::KLevelParams => 31,
-        Key::KMax => 32,
-        Key::KMeta => 33,
-        Key::KName => 34,
-        Key::KNatVal => 35,
-        Key::KNfields => 36,
-        Key::KNondep => 37,
-        Key::KNum => 38,
-        Key::KNumFields => 39,
-        Key::KNumIndices => 40,
-        Key::KNumMinors => 41,
-        Key::KNumMotives => 42,
-        Key::KNumNested => 43,
-        Key::KNumParams => 44,
-        Key::KOpaque => 45,
-        Key::KParam => 46,
-        Key::KPre => 47,
-        Key::KProj => 48,
-        Key::KQuot => 49,
-        Key::KRecs => 50,
-        Key::KRegular => 51,
-        Key::KRhs => 52,
-        Key::KRules => 53,
-        Key::KSafety => 54,
-        Key::KSort => 55,
-        Key::KStr => 56,
-        Key::KStrVal => 57,
-        Key::KStruct => 58,
-        Key::KSucc => 59,
-        Key::KThm => 60,
-        Key::KType => 61,
-        Key::KTypeName => 62,
-        Key::KTypes => 63,
-        Key::KUs => 64,
-        Key::KValue => 65,
+        Key::KHasEta => 15,
+        Key::KHasLargeElim => 16,
+        Key::KHasProjections => 17,
+        Key::KHints => 18,
+        Key::KI => 19,
+        Key::KIdx => 20,
+        Key::KIe => 21,
+        Key::KIl => 22,
+        Key::KImax => 23,
+        Key::KIn => 24,
+        Key::KInduct => 25,
+        Key::KInductive => 26,
+        Key::KIsImpredicative => 27,
+        Key::KIsK => 28,
+        Key::KIsRec => 29,
+        Key::KIsReflexive => 30,
+        Key::KIsUnsafe => 31,
+        Key::KK => 32,
+        Key::KKind => 33,
+        Key::KLam => 34,
+        Key::KLetE => 35,
+        Key::KLevelParams => 36,
+        Key::KMax => 37,
+        Key::KMeta => 38,
+        Key::KName => 39,
+        Key::KNatVal => 40,
+        Key::KNfields => 41,
+        Key::KNondep => 42,
+        Key::KNum => 43,
+        Key::KNumFields => 44,
+        Key::KNumIndices => 45,
+        Key::KNumMinors => 46,
+        Key::KNumMotives => 47,
+        Key::KNumNested => 48,
+        Key::KNumParams => 49,
+        Key::KOpaque => 50,
+        Key::KParam => 51,
+        Key::KPre => 52,
+        Key::KProj => 53,
+        Key::KQuot => 54,
+        Key::KRecs => 55,
+        Key::KRegular => 56,
+        Key::KRhs => 57,
+        Key::KRules => 58,
+        Key::KSafety => 59,
+        Key::KSort => 60,
+        Key::KStr => 61,
+        Key::KStrVal => 62,
+        Key::KStruct => 63,
+        Key::KSucc => 64,
+        Key::KThm => 65,
+        Key::KType => 66,
+        Key::KTypeName => 67,
+        Key::KTypes => 68,
+        Key::KUs => 69,
+        Key::KValue => 70,
     }
 }
 
@@ -530,7 +547,7 @@ pub fn key_beq(a: &Key, b: &Key) -> bool {
     key_code(a) == key_code(b)
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:330-333 IdTable
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:342-345 IdTable
 /// A stream-index-keyed partial map: dense prefix, sparse overflow.
 /// lean4export emits ids densely and in order, so the common insert is a push
 /// onto the dense `Vec`; a gap or an out-of-order id goes to the sparse
@@ -541,7 +558,7 @@ pub struct IdTable<T> {
     pub sparse: HashMap<u64, T>,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:330-333 IdTable
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:342-345 IdTable
 /// The empty table (Lean's field defaults `dense := #[]`, `sparse := {}`).
 pub fn id_table_empty<T>() -> IdTable<T> {
     IdTable {
@@ -550,7 +567,7 @@ pub fn id_table_empty<T>() -> IdTable<T> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:335-337 IdTable.get?
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:347-349 IdTable.get?
 /// The value at a stream index, dense `Vec` first.
 pub fn id_table_get<T>(t: &IdTable<T>, i: u64) -> Option<&T> {
     let k = i as usize;
@@ -561,7 +578,7 @@ pub fn id_table_get<T>(t: &IdTable<T>, i: u64) -> Option<&T> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:339-346 IdTable.insert
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:351-358 IdTable.insert
 /// Bind a stream index.  The dense case is a push; a rebinding below the
 /// frontier overwrites; anything beyond the frontier goes sparse.
 pub fn id_table_insert<T>(t: &mut IdTable<T>, i: u64, x: T) {
@@ -575,7 +592,7 @@ pub fn id_table_insert<T>(t: &mut IdTable<T>, i: u64, x: T) {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:348-350 IdTable.singleton
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:360-362 IdTable.singleton
 /// A table with index 0 bound (the implicit `Name.anonymous` / `Level.zero` of
 /// the format).
 pub fn id_table_singleton<T>(x: T) -> IdTable<T> {

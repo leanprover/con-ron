@@ -106,7 +106,7 @@ def tableBeqP : Option IProjTable → Option IProjTable → Bool
   | some a, some b => a == b
   | _, _ => false
 
-/-- con-leche: ConLeche/Kernel/Env.lean:435-438 isStmtKind — a definition, theorem or axiom: the
+/-- con-leche: ConLeche/Kernel/Env.lean:448-451 isStmtKind — a definition, theorem or axiom: the
 kinds whose copies may differ by a value. -/
 def IConstantInfo.isStmtKind : IConstantInfo → Bool
   | .defnInfo .. | .thmInfo .. | .axiomInfo .. => true

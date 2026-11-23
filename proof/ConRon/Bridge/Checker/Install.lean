@@ -224,9 +224,9 @@ theorem tablesSpec : TablesSpec := by
     | ok p =>
       simp only [ROp, Except.toOption] at hq
       obtain ⟨pP, hpP, hdp⟩ := hq
-      obtain ⟨hms, -⟩ := dShape_inv hdp
+      have hms := Inductives.BlockShape.projMembers_spec hdp
       obtain ⟨o, s3, k3, k4⟩ := AM.bind_ok k2
-      obtain ⟨hp3, hsc3, hQ⟩ := blockTables_run p.members pP.members hok2.state hdp hms k3
+      obtain ⟨hp3, hsc3, hQ⟩ := blockTables_run p.projMembers pP.projMembers hok2.state hdp hms k3
       have hoff' : s3.store.scratchOn = false := by rw [hsc3, hoff2]
       cases o with
       | none =>
