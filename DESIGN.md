@@ -74423,7 +74423,7 @@ accepting 57 919 / 57 919:
 
 **A trap for the next sync.**  Both lanes ran `scripts/provenance.py update` (no `--old`)
 inside a lane worktree while the pin was still uncommitted, and it misplaced citations
-(e.g. `IndFlags` at 196–204, really 188–194; lane I's run re-added ~90 `CHANGED` markers):
-without `--old` it diffs against the committed pin.  Both reverted and set their citations
-with `locate`; `check` is clean at the pin.  In a sync, before `pin`, `update` needs
-`--old bc667610`-style arguments (or is left to `start`).
+(e.g. `IndFlags` at 196–204, really 188–194; lane I's run re-added ~90 `CHANGED` markers).
+Both reverted and set their citations with `locate`; `check` is clean at the pin.  The cause
+was not investigated (a guess: the old revision `update` diffs from, with the pin
+uncommitted); until it is, lanes of a sync should not run `update` before `pin`.
