@@ -6,6 +6,10 @@ section for every task you land.
 
 * Environment: `direnv` + `flake.nix` provide `cargo`/`rustc` (Charon's
   pinned nightly), `charon`, `aeneas`.  Lean comes from the system `elan`.
+* **`README.md` is human-written.**  Agents may move a link anchor or update a number in it
+  (the link gate's `--follow`/`--update`); never add, remove or reword its prose, even when it
+  is stale — draft the wording in your report for the maintainer instead.  A brief never lists
+  README.md as a file to edit.
 * con-leche is the source of truth for what to port: one Rust module per
   Lean file, functions in the same order, each with a doc comment naming
   its source line.  It is a plain `lake` dependency of `proof/` (task #91;
