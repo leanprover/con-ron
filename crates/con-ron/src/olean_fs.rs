@@ -418,3 +418,66 @@ impl CheckerFs for NotesFs {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cps(s: &str) -> Vec<u32> {
+        s.chars().map(|c| c as u32).collect()
+    }
+
+    /// A path with a code point that is not a character fails every operation.
+    #[test]
+    fn invalid_code_point_fails() {
+        let mut p = cps("/tmp");
+        p.push(0x110000);
+        assert!(fs_path(&p).is_err());
+        assert!(StdFs.path_exists(&p).is_err());
+        assert!(StdFs.real_path(&p).is_err());
+        assert!(RunFiles::new().read_range(&p, 0, 10).is_err());
+    }
+
+    /// A file whose metadata reports no size: the reads find its bytes, the
+    /// size fails.
+    #[test]
+    fn proc_file_reads_to_its_end() {
+        let p = cps("/proc/version");
+        if std::fs::metadata("/proc/version").map(|m| m.len() != 0).unwrap_or(true) {
+            return;
+        }
+        let rf = RunFiles::new();
+        let whole = rf.read_bin_file(&p).unwrap();
+        assert!(!whole.is_empty());
+        assert_eq!(rf.read_range(&p, 0, 1 << 20).unwrap(), whole);
+        assert!(rf.file_size(&p).is_err());
+        assert_eq!(StdFs.read_range(&p, 0, 1 << 20).unwrap(), whole);
+    }
+
+    /// A file replaced during a run: its reads are the first file's, through
+    /// the run's handle; once the handle is closed, a read fails.
+    #[test]
+    fn replaced_file_is_not_spliced() {
+        let dir = std::env::temp_dir().join(format!("con-ron-runfiles-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let f = dir.join("a.bin");
+        std::fs::write(&f, b"0123456789").unwrap();
+        let p = cps(f.to_str().unwrap());
+        let rf = RunFiles::new();
+        assert_eq!(rf.read_range(&p, 0, 4).unwrap(), b"0123");
+        assert_eq!(rf.file_size(&p).unwrap(), 10);
+        let g = dir.join("b.bin");
+        std::fs::write(&g, b"abcdefghijklmnop").unwrap();
+        std::fs::rename(&g, &f).unwrap();
+        assert_eq!(rf.read_range(&p, 4, 100).unwrap(), b"456789");
+        assert_eq!(rf.read_bin_file(&p).unwrap(), b"0123456789");
+        // close every handle: the path is opened again, and is another file
+        for i in 0..OPEN_CAP {
+            let h = dir.join(format!("h{}", i));
+            std::fs::write(&h, b"x").unwrap();
+            rf.read_range(&cps(h.to_str().unwrap()), 0, 1).unwrap();
+        }
+        assert!(rf.read_range(&p, 0, 4).is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+}
