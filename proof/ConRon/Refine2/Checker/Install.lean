@@ -565,19 +565,6 @@ theorem block_tables_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : 
     rfl
 
 open Lockstep in
-/-- `block_tables` from member `0` and an empty accumulator: `blockTables` of the
-block's members. -/
-@[lockstep] theorem block_tables_ls0 {pers st lst} {p : arena.inductives.block_shape.BlockShape}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = a.map (fun v => v.val.map absIProjTable))
-      (arena.install.block_tables pers st p p.members 0#usize (alloc.vec.Vec.new _)) lst
-      (blockTables (absBlockShape p) (absBlockShape p).members) := by
-  refine LS.tail (block_tables_ls hrel hinv p p.members 0#usize _) (by
-    simp [absBlockShape_members]) ?_
-  intro a b h
-  cases a <;> cases b <;> simp_all [alloc.vec.Vec.new]
-
-open Lockstep in
 /-- `block_tables` over a member list `ms` from member `0` and an empty
 accumulator: `blockTables` of those members (the projection tables are read
 off `proj_members`). -/

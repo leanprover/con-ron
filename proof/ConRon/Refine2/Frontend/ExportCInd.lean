@@ -1814,14 +1814,6 @@ theorem validate_ind_d_refines {pers rst lst rsd lsd tys cts rcs o}
 
 /-! ## The block's constants -/
 
-/-- `arena::env::i_ind_caps_default` is the twin's `{}`. -/
-theorem i_ind_caps_default_abs {ic : arena.env.IIndCaps}
-    (h : arena.env.i_ind_caps_default = ok ic) : absIIndCaps ic = {} := by
-  rw [arena.env.i_ind_caps_default] at h
-  cases Result.ok_injective h
-  simp only [absIIndCaps]
-  rfl
-
 /-- **`ind_block_types`** — the twin's `tys.mapM` into `IConstantInfo.indInfo`. -/
 theorem ind_block_types_refines {rsd lsd lst tys out o} (hd : StateDRel rsd lsd)
     (h : frontend.export_c.ind_block_types rsd tys out = ok o) :

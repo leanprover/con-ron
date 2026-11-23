@@ -723,8 +723,6 @@ theorem copy_loop_id {α : Type} (dup : α → Result α) (hd : ∀ x y, dup x =
     (absNestCtx c).params = absEIdxL c.params := rfl
 @[lockstep_simp] theorem absNestCtx_sort (c : arena.inductives.positivity.NestCtx) :
     (absNestCtx c).sort = absLIdx c.sort := rfl
-@[lockstep_simp] theorem absNestCtx_bound (c : arena.inductives.positivity.NestCtx) :
-    (absNestCtx c).bound = c.bound := rfl
 @[lockstep_simp] theorem absNestCtx_lvls (c : arena.inductives.positivity.NestCtx) :
     (absNestCtx c).lvls = absLsIdx c.lvls := rfl
 

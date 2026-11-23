@@ -1494,11 +1494,6 @@ macro "vind_rec_tail" : tactic => `(tactic| (
     · obtain ⟨rfl, rfl⟩ := AM.pure_ok hstep
       exact ⟨rfl, _, rfl, rfl, VInv.nil⟩))
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:232-238 IndTypeRec.flags — the
-twin's copy is con-leche's. -/
-theorem indTypeRecFlags_eq (t : ConLeche.Frontend.IndTypeRec) :
-    indTypeRecFlags t = t.flags := rfl
-
 /-- con-leche: ConLeche/Frontend/ExportC.lean:245-252 blockFlagsErr — the
 twin's copy is con-leche's. -/
 theorem blockFlagsErrD_eq (tys : List ConLeche.Frontend.IndTypeRec) :
@@ -1803,7 +1798,7 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
       subst hv2; subst hst2; subst hv1
       refine ⟨rfl, ConstantInfo.indInfo cvP { flags := x.flags } :: ysP, ?_, .cons ?_ hdys⟩
       · simp only [List.mapM_cons, hclcv, hclys]; rfl
-      · simp only [denoteCI, hdcv, hcaps, indTypeRecFlags_eq]
+      · simp only [denoteCI, hdcv, hcaps, show indTypeRecFlags x = x.flags from rfl]
   -- the constructors
   have hcts : ∀ {ts : List (ConLeche.Frontend.IndCtorRec × NIdx)}
       {tsP : List (ConLeche.Frontend.IndCtorRec × ConLeche.Name)}, CtsRel s.store.ns ts tsP →
