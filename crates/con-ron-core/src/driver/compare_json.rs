@@ -19,7 +19,7 @@
 //!   → check_phase (the challenge, with the solution)
 //! ```
 //!
-//! — one call per step premise of `ConRon.Capstone.model_exists_compare`, in
+//! — one call per step premise of `ConRon.MainTheorem.Stages.model_exists_compare`, in
 //! that order (`h1` … `h8`), on one `AState::empty()` and one
 //! `PersTier::empty()`.
 
@@ -34,7 +34,7 @@ use crate::arena::stream_index::IStreamIndex;
 use crate::driver::check_main::check_phase;
 use crate::driver::check_main::exit_code;
 use crate::driver::check_main::jobs_for_run;
-use crate::driver::check_main::pins_for_run;
+use crate::driver::check_main::embedded_pins;
 use crate::driver::check_main::Note;
 use crate::driver::cli::Args;
 use crate::driver::cli::Bad;
@@ -182,7 +182,7 @@ pub fn compare_json<I: CheckerIo>(io: &mut I, a: &Args, challenge: &Vec<u32>, so
     let mode = if verified { CheckMode::Verified } else { CheckMode::Trusted };
     let mut st = AState::empty();
     let pers = PersTier::empty();
-    // ConRon.Capstone: h1
+    // ConRon.MainTheorem.Stages: h1
     match pins::intern_reserved_pins(&pers, &mut st) {
         Err(e) => {
             io.note(&Note::ReservedPins(e, verified));
@@ -190,7 +190,7 @@ pub fn compare_json<I: CheckerIo>(io: &mut I, a: &Args, challenge: &Vec<u32>, so
         }
         Ok(()) => (),
     }
-    // ConRon.Capstone: h2
+    // ConRon.MainTheorem.Stages: h2
     let pre = match prelude::builtin_prelude_e(&pers, &mut st) {
         Err((e, line)) => {
             io.note(&Note::Prelude(e, line, verified));
@@ -200,13 +200,13 @@ pub fn compare_json<I: CheckerIo>(io: &mut I, a: &Args, challenge: &Vec<u32>, so
     };
     // THE CHALLENGE'S FILE, then the solution's, into the one store.
     io.read_starts(&a.progress, challenge);
-    // ConRon.Capstone: hreadsC, h3
+    // ConRon.MainTheorem.Stages: hreadsC, h3
     let rc: ParseResultD = match read_export(&*io, &pers, &mut st, challenge, verified) {
         Err(c) => return c,
         Ok(r) => r,
     };
     io.read_starts(&a.progress, solution);
-    // ConRon.Capstone: hreadsS, h3S
+    // ConRon.MainTheorem.Stages: hreadsS, h3S
     let rs: ParseResultD = match read_export(&*io, &pers, &mut st, solution, verified) {
         Err(c) => return c,
         Ok(r) => r,
@@ -214,9 +214,9 @@ pub fn compare_json<I: CheckerIo>(io: &mut I, a: &Args, challenge: &Vec<u32>, so
     let records_c = rc.decls.len();
     let records_s = rs.decls.len();
     // THE SOLUTION, checked as any input.
-    // ConRon.Capstone: hdup
+    // ConRon.MainTheorem.Stages: hdup
     let pre_c = prepare::prelude_ix_dup(&pre);
-    // ConRon.Capstone: h4S
+    // ConRon.MainTheorem.Stages: h4S
     let prep_s = match prepare::prepare_d(&pers, &mut st, pre, rs.decls, &DeclUsedConsts) {
         Err(e) => {
             let c = exit_code(&e);
@@ -228,12 +228,12 @@ pub fn compare_json<I: CheckerIo>(io: &mut I, a: &Args, challenge: &Vec<u32>, so
     if prep_s.hoisted.len() > 0 {
         io.hoisted(&pers, &st.store, &prep_s.hoisted);
     }
-    // ConRon.Capstone: hpins (`--pins`/`--no-pins` are outside the theorems)
-    let pins: Vec<NatOpPinSet> = match pins_for_run(io, a) {
+    // ConRon.MainTheorem.Stages: hpins
+    let pins: Vec<NatOpPinSet> = match embedded_pins(&*io) {
         None => return 3,
         Some(ps) => ps,
     };
-    // ConRon.Capstone: h5
+    // ConRon.MainTheorem.Stages: h5
     let ipins = match checker::intern_all_pins(&pers, &mut st, &pins, &a.max_nat_size) {
         Err(e) => {
             let c = exit_code(&e);
@@ -243,13 +243,13 @@ pub fn compare_json<I: CheckerIo>(io: &mut I, a: &Args, challenge: &Vec<u32>, so
         Ok(p) => p,
     };
     let jobs: u64 = jobs_for_run(io, a);
-    // ConRon.Capstone: h6S, h7S, h8S
+    // ConRon.MainTheorem.Stages: h6S, h7S, h8S
     let ix_s = match check_phase(io, &pers, &mut st, &mode, &ipins, None, &prep_s.decls, jobs, records_s, prep_s.synthesised) {
         Err((e, i)) => return solution_failed(io, &pers, st, prep_s.decls, e, i, solution, verified),
         Ok(ix) => ix,
     };
     // THE CHALLENGE, checked with the solution.
-    // ConRon.Capstone: h4
+    // ConRon.MainTheorem.Stages: h4
     let prep_c = match prepare::prepare_d(&pers, &mut st, pre_c, rc.decls, &DeclUsedConsts) {
         Err(e) => {
             let c = exit_code(&e);
@@ -261,7 +261,7 @@ pub fn compare_json<I: CheckerIo>(io: &mut I, a: &Args, challenge: &Vec<u32>, so
     if prep_c.hoisted.len() > 0 {
         io.hoisted(&pers, &st.store, &prep_c.hoisted);
     }
-    // ConRon.Capstone: hside
+    // ConRon.MainTheorem.Stages: hside
     let recs_c = match justify::side_records(&pers, &mut st, &prep_c.decls, 0, Vec::new()) {
         Err(e) => {
             let c = exit_code(&e);
@@ -270,9 +270,9 @@ pub fn compare_json<I: CheckerIo>(io: &mut I, a: &Args, challenge: &Vec<u32>, so
         }
         Ok(v) => v,
     };
-    // ConRon.Capstone: hsol
+    // ConRon.MainTheorem.Stages: hsol
     let sol: Solution = justify::solution_of(ix_s, &recs_c);
-    // ConRon.Capstone: h6, h7, h8
+    // ConRon.MainTheorem.Stages: h6, h7, h8
     let verdict = check_phase(io, &pers, &mut st, &mode, &ipins, Some(&sol), &recs_c, jobs, records_c, prep_c.synthesised);
     compare_verdict(io, &pers, st, prep_s.decls, prep_c.decls, recs_c, sol, verdict, records_c, solution, records_s, verified)
 }

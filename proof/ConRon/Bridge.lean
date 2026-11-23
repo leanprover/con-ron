@@ -25,7 +25,7 @@ order.
   promotion's exactness;
 * `Bridge/Checker.lean` — **the declaration-checker tier and THEOREM 1**:
   `Arena.checkDecl_bridge` and the binary's fold `Arena.installThenCheck_bridge`
-  / `Arena.pooledAccepts_bridge` (the capstone is `ConRon/Capstone.lean`);
+  / `Arena.pooledAccepts_bridge` (the capstone is `ConRon/MainTheorem/Stages.lean`);
 * `Bridge/Inductives.lean` — the inductive tier:
   `Arena/Inductives/**`'s twins and `indSpec_of_bridge`, which discharges
   the `Bridge/Checker/Hyp.lean` hypothesis `IndSpec` (stated over
@@ -60,11 +60,11 @@ well-scopedness preservations, the batched clauses of DESIGN §8.6's items
 and the Checker tier takes `Verify/BridgeDecl.lean`'s `*_datF` (`Bridge/Checker/DeclVal.lean`)
 and `Verify/EnvWF.lean`'s `EnvWF` (`Bridge/Checker/Inv.lean`).  **`Model/Fold.lean`'s `checkDeclsPure_sound_of`**
 comes in with `Bridge/Frontend/Capstone.lean`'s `ConLeche.MainTheorem` import
-and is applied in `ConRon/Capstone.lean`.  Those modules are built in the
+and is applied in `ConRon/MainTheorem/Stages.lean`.  Those modules are built in the
 con-leche package, so the cost is loading `olean`s, not elaborating.
 
 `ConRonBridge` is its own library (`ConRon` reaches only `Generated`/`Refine`/`Dump`;
-the capstone is its own library, `ConRonCapstone`), and both are in `lakefile.toml`'s
+the capstone is its own library, `ConRonMainTheorem`), and both are in `lakefile.toml`'s
 `defaultTargets`, so a plain `lake build` — `scripts/gates.sh`'s
 `lake-build` step — elaborates the whole tier.  The tier is `sorry`-free.
 -/

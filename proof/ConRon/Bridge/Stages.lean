@@ -8,7 +8,7 @@ The binary runs, on one state from the driver's start, the stages
 
 and on `--olean` the parse replaced by the roots' names interned and `readOleans`, the
 preparation by `prepareD` at the reader's `usedOf`, the check phase by
-`Arena.PooledOleanAccepts`.  `ConRon/Capstone.lean` walks the Rust runs into these twin runs
+`Arena.PooledOleanAccepts`.  `ConRon/MainTheorem/Stages.lean` walks the Rust runs into these twin runs
 (Theorem 2) and takes the conclusions below for the headlines:
 
 | theorem | conclusion |

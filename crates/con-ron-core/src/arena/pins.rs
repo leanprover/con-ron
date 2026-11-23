@@ -18,8 +18,8 @@
 //! record, filled once at the driver by `intern_reserved_pins`, and every
 //! `pin` of a constant name becomes a field read.
 //!
-//! **Not `arena::checker`'s `intern_all_pins`.**  That one walks the `--pins`
-//! RECEIPT file (the trusted pin list) into the persistent tier; this one
+//! **Not `arena::checker`'s `intern_all_pins`.**  That one walks the
+//! pin list (the embedded one, decoded) into the persistent tier; this one
 //! interns the checker's own reserved constants.  The two run at the same
 //! point of the pipeline and mean different things, which is why they have
 //! different names.

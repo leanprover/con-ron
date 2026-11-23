@@ -746,6 +746,18 @@ proof/                   Lake project: requires con-leche + aeneas (task #4)
                          lemma per ported function (README.md fixes the
                          naming rule; Smoke.lean is the task-#12 smoke test)
     Main.lean            check_decls_refines, conron.no_proof_of_False
+    MainTheorem.lean     THE ROOT (task #171): con-leche's ten main theorems,
+                         word for word, about the extracted driver `run_args`
+                         (`ConRon.CanGive`); the statements only, as con-leche's
+                         `ConLeche/MainTheorem.lean`
+    MainTheorem/         its proofs: the driver walks (`Driver.lean`, `Oleans.lean`,
+                         `Modular.lean`, `Compare*.lean`, the argument parses
+                         `Args.lean`, `ModArgs.lean`, `CmpArgs.lean`), the staged
+                         lemmas (`Stages.lean`: one premise per verified call,
+                         Theorem 2 ∘ Theorem 1 ∘ con-leche; namespace
+                         `ConRon.MainTheorem.Stages`), and the conclusions in
+                         con-leche's words (`Conclusions.lean`, `PureStored.lean`);
+                         the lake library `ConRonMainTheorem`
     Dump/                the `con-ron-pins/1` format of §3.6 (tasks #31, #80):
                          `Pins.lean` (writer, reader, `con-ron-dump-pins`)
                          and `FORMAT.md`
@@ -871,8 +883,9 @@ completeness and never soundness — but it left the theorem's statement carryin
 by `scripts/gen-pins.sh`, freshness-gated by `--check` in `scripts/gates.sh`),
 and a *verified* decoder in the core reads it (`kernel/pins_decode.rs`, 50
 functions in the §3.4 subset).  `check_decls` keeps its `pins` parameter and
-nothing else moves; the driver passes `decode(PINS_TEXT)`, and `--pins FILE` /
-`--no-pins` survive as **test overrides** only (`driver::pins_for_run`).  So the
+nothing else moves; the driver passes `decode(PINS_TEXT)`.  (`--pins FILE` /
+`--no-pins` survived as test overrides until task #171 removed them, from the binary and from
+the twin's `con-ron-lean`: neither has a flag of its own.)  So the
 pins the binary uses are a closed term of the model, and the hypothesis becomes
 a *theorem to prove* rather than a promise to keep.
 
@@ -1404,9 +1417,8 @@ hatch, it is recorded here.
 con-leche's main theorems (`ConLeche/MainTheorem.lean`) are about its binary: each says what an
 exit 0 of `Driver.runArgs` at a given argument list implies, in the file model `ModelIO`
 (`ConLeche/Frontend/CheckerIO.lean`): the driver is written once over the class `CheckerIO m`,
-run at `IO` by the binary and reasoned about at `ModelIO`.  con-ron's headlines
-(`ConRon/Capstone.lean`) were instead one premise per verified call, with the driver that makes
-the calls trusted (OVERVIEW §8.2).  Decision (maintainer, 2026-11-22, "option A"): **con-ron's
+run at `IO` by the binary and reasoned about at `ModelIO`.  con-ron's headlines were once one
+premise per verified call, with the driver that made the calls trusted.  Decision (maintainer, 2026-11-22, "option A"): **con-ron's
 driver is ported into the extracted crate, generic over a trait, and its main theorems say what
 con-leche's say, word for word in their conclusions, about con-ron's own `run_args`.**
 
@@ -1424,17 +1436,54 @@ con-leche's say, word for word in their conclusions, about con-ron's own `run_ar
   **A notification** — an escape whose answer is `()`, a heartbeat line, a receipt — may stay
   `&self` (OleanFs's `read_notes_say` is one): merging or dropping it changes no value the run
   computes, and the model claims nothing about output.  Only an escape that *answers a value*
-  the code goes on with (the clock, the hardware thread count, a legacy mode's exit code) must be
+  the code goes on with (the clock, the hardware thread count, the scheduler's exit code) must be
   `&mut self`.  Escapes take structured events (verdicts, receipts, heartbeat lines) and the store by shared
-  reference; the rendering is the instance's, outside the extraction.
+  reference; the rendering is the instance's, outside the extraction.  **One exception,
+  `WorkerNotes::worker_copies`** (a compare worker's copies' lines, and the error that kept them
+  from being made): it answers a value through `&self`, because it runs inside the code map,
+  where a step has the instance by shared reference.  Making it `&mut` would need the code map's
+  steps to take the instance mutably (they run in parallel), or the copies computed in the core
+  and only their rendering left to the instance (`modular::copy_line` is unverified rendering
+  that can fail), each a re-extraction and a new walk of `module_copies`.  It is sound as it
+  is: the model's answer is the oracle's function of the call's arguments, which claims only
+  that two calls with the same arguments at one state agree, and the binary's
+  (`copy_recs`, `owner_map`, `copy_line` over its arguments) is deterministic in them; and the
+  answer can only turn an accept into a failure (`module_copies`: `None` or exit 1).
+* **The theorems are about ONE instance, the model** (slice 6; an external review found that
+  `StdIo` itself does not meet the premises at calls no run makes).  `ConRon.CanGive` is an exit
+  code of `run_args` at `Model.snapshotIo fs` (`proof/ConRon/MainTheorem/Model.lean`), whose
+  state is an oracle: the file operations answer from `fs` by definition (a failure where `fs`
+  has none, at a path that is not a well-formed string, or where the Rust's and upstream's
+  spellings of a request differ in `fs` — `PathRel` is a relation because `System.FilePath`'s
+  `/` reads the opaque `isWindows`); each value-answering escape takes the oracle's answer, the
+  `n`-th call's at `n`; the worker map folds each job over the oracle's claims; the code map runs
+  every job.  `AnswersAs`, `PoolSound` and `CodesSound` are theorems about it; the walks stay
+  instance-generic (`CanGiveConforming`).  **The trust is per run**, as con-leche's
+  `CheckerIO.lean` states it: a run of the binary that exits 0 is one of the model's runs if (1)
+  every file operation it performs answered as one snapshot, a failure being a failure; (2) the
+  escapes write no file and do not end the process; (3) the maps' actual claims are some
+  oracle's (the pool's control-flow argument); (4) Rust, its standard library and Aeneas run the
+  code as written — then by induction along the run.  What differs from con-leche: an oracle
+  where con-leche has a non-determinism monad, and positional reads where con-leche has handles.
+  `StdIo` opens each path once per run (`olean_fs::RunFiles`), reads every range through that
+  handle up to where a read finds the end of the file, checks a size against the contents, and
+  fails at a path with a code point that is not a character, at a real path that is not valid
+  UTF-8, and at a file replaced during the run.
 * **The worker map is the trait's**, its contract (`ParallelAll`, OVERVIEW §8.2's pool row) a
-  premise on the instance, for every `Step`.  The per-job heartbeat is the instance's
+  premise of the walks, for every `Step`, and a theorem of the model (slice 6).  The per-job heartbeat is the instance's
   (around each step), so a step needs no escape.
 * **`main` is plumbing**: argv, the big-stack thread, `StdIo`, `run_args`, flush, exit.
-* **A mode not yet ported runs behind an escape** whose answer is the exit code — a theorem about
-  that mode is then unprovable, and a theorem about another argument list unaffected (it fixes
-  the argv, and the verified argument parser routes it).  `--schedule` stays an escape for
-  good, as con-leche's scheduler is `liftIO`.
+* **Every request is the verified driver's**: the argument parse, the usage errors and every
+  mode.  The one escape that runs a mode is `--schedule` (`CheckerIo::run_schedule`, after its
+  usage checks), as con-leche's scheduler is `liftIO`: it starts copies of the binary, each a
+  `--module` run, and `main_modular`'s premises are those runs' exits.  The binary has
+  con-leche's command line and no flag of its own: the pin list is always the embedded text,
+  decoded by the verified decoder (`--pins FILE` and `--no-pins`, task #31's testing overrides,
+  went at slice 5).
+* **The proof's layout follows con-leche's**: `proof/ConRon/MainTheorem.lean` holds the ten
+  statements and nothing else; `MainTheorem/` holds their proofs — the driver walks, the staged
+  lemmas (`MainTheorem/Stages.lean`, one premise per verified call; Theorem 2 ∘ Theorem 1 ∘
+  con-leche) and the conclusions in con-leche's words (`MainTheorem/Conclusions.lean`).
 * **A con-ron `Native` error never shares the file operations' error channel**: con-leche's
   driver catches `IO.Error` in lookups (`rootAt`, `readPartOr`), where "out of capacity" read as
   "not here" could steer a run to exit 0 by another route.  `Native` always ends nonzero.
@@ -74351,6 +74400,413 @@ PORTED — the same 41 failing cases, line for line, as master's binary gives on
 stays legacy for good; slice 5 retires `run_legacy` and the now unreached `--olean` arms of
 `bin/con-ron.rs` (`Input::Oleans`, `Run::Module`/`Run::Modular` at no comparison).  Upstream
 candidates: Batteries' `String.splitOn` lemma (its TODO, `splitOn_one` here).
+
+#### Slice 3b (lane G) — the compared `.olean` runs: `--olean --compare`, `--check-graph --compare`, the compare worker, `--olean --modular --compare`
+
+**What moved.**  `run_args` now sends `--check-graph` (with or without `--compare`) to
+`cli::check_graph_args` and every `--olean` request to `cli::olean_args`, but `--schedule` (with
+or without `--compare`) and `--modular --pins`, which stay `run_legacy`'s.  `--modular --pins`
+keeps slice 2's reason: a module's step on the code map has the file operations and the worker
+lines alone, and `--pins FILE` is the instance's `&mut` escape.
+
+* `crates/con-ron-core/src/driver/compare.rs` (cites `Driver/Compare.lean`, from
+  `crates/con-ron/src/compare.rs`'s `compare_oleans`): `compare_oleans`, one call per premise of
+  `rust_stages_oleans_compare` in its order (`h1`, `h2`, the two names, the challenge's read at
+  `chal_roots`, `hdup`, `h4`, `hhole`, the solution's read at `sol_roots`, `h4S`, the pins,
+  `h5`, the solution's check phase, `hside`, `solution_of`, the challenge's check phase); each
+  read's records leave it by `core::mem::replace` before its preparation, as slice 2's
+  `check_oleans`.  The verdict is lane F's (`compare_json::compare_verdict`, `solution_failed`),
+  the solution labelled by `name::render` of its module, which is the legacy `name_str`.
+  `fallback_only` (the challenge module only the search path holds, for the message after a
+  failed challenge read), `fallback_at`, `fallback_scan`, `fallback_text`, `dirs_text`,
+  `sol_roots_of`, `rec_keys` (the `--constant` run's `need`), `holds_module` (a solution importing
+  its challenge), `step_failed`, `one_root`, `one_name`.
+* `crates/con-ron-core/src/driver/compare_module.rs` (`Driver/CompareModule.lean`): `chal_walk`
+  (the challenge's closure through the trusted path alone, with the `fallback_only` message as an
+  `invalid` error), `check_cmp_module` (the compare worker: `chal_walk`, then
+  `worker::check_module` at the solution's lookup with the solution), `check_graph_cmp`
+  (`chal_walk`, then `graph_of` from the challenge, the solution added).  **`chal_walk` runs on
+  a store of its own** (a fresh `AState`, its own reserved pins and reader pins): it is the
+  verdict only, and on the run's store it would sit between the interning and `graph_of`, where
+  `rust_graph_cmp` has nothing.  The order of the lines is the legacy order; only the walk's own
+  start failing (the reserved pins on an empty store, which cannot fail) is now reported as
+  `graph: <error>` where the legacy said the graph start's line.
+* `worker.rs`: `module_read` takes the added imports `x`; `added_imports` (none, or the
+  solution's name interned after the module's and `solution_import` of it: the capstone's
+  `hcmp`), `module_copies` (after the accept, the instance's `worker_copies`: the copies' lines,
+  the error that kept them from being made a worker failure); `check_module` and
+  `check_module_in` take `sol: Option<&Name>`.  `modular.rs`: `ModularStep` gains `root` and
+  `sol`, `step_sol` (the solution at the module `name::beq` to the root), `check_modular` takes
+  `sol` (the solution interned after the roots and the graph's added import; `chal_walk` after
+  the graph, its failure `Note::GraphFailedMode`, as the legacy).  `check_main.rs`:
+  `olean_job`, `OleanJobStep` and `check_phase_olean` take the solution (`sol`; `None` but at the
+  compared challenge).  `cli.rs`: `chal_roots`, `check_graph_cmp_args`, `compare_olean_args`
+  (con-leche's usage checks of the compared modes, in its order); `Bad` gains
+  `CheckGraphCompareTwo`, `CompareTwoModules`, `CompareSameModule`, `CompareModeArgs`; `Note`
+  gains `GraphFailedMode`, `CompareWhy`, `NotSolution`; `WorkerNotes` gains `worker_copies`
+  (`StdIo`: the legacy `copy_recs`, `owner_map`, `modular::copy_line`, all lines made before
+  any is printed).  Two module names are compared by `name::beq` (con-leche's `c == s`), where
+  the legacy compared their rendered strings: the parse of a module name gives one name per
+  spelling, so no command line can tell.
+
+**What extracted.**  `Generated/Funs.lean` +2 060/−997 (Aeneas reorders), 29 more definitions;
+Aeneas 413 s.  One Aeneas finding, `_tmp/corpus/aeneas/loop-return-mut/` (NOT reduced: the
+small shapes there extract): "Early returns inside of loops are not supported yet" on
+`fallback_only`'s loop over `closure_order`'s answer, a local vector, in two shapes (a `return`
+from a nested `match` on `look_at`; then a `match` on `fallback_at` with two returning arms);
+worked around with an accumulator loop (`fallback_scan`).
+
+**The walk** (no `sorry`, no Aesop, no new axiom).
+* `MainTheorem/CmpArgs.lean` (424 lines): `parse_one_trusted`, `loop_trusted`,
+  `push_dirs_trusted` (`--trusted-search-path=` ++ `T` is `searchPathOf T`), `trusted_word`,
+  and the parses of the five argument lists (`argv_*`, `parse_args_*`: `cmp`, `graph_cmp`,
+  `module_t`, `module_cmp`, `modular_cmp`), generated from one template.
+* `MainTheorem/CompareOleans.lean` (686): `rust_stages_oleans_compare_dec` (the capstone's
+  Theorem 2 walk with the reads' records moved out, `olean_read_used_rel_dec` at the challenge's
+  preparation and holes and the solution's preparation, and three snapshots: the reads, the
+  solution's pool, the challenge's pool), `compare_model_of_stages_dec` (lane C's conclusion at
+  those), `CmpOleanStages`, `chal_roots_val` (the challenge's lookup is con-leche's `trustedOr`),
+  `sol_roots_abs` (the solution's is `CmpReq.solRoots`), `compare_oleans_zero`, `two_roots`,
+  `olean_args_cmp`, `run_args_cmp`, `compare_of_canGive`.
+* `MainTheorem/CompareModular.lean` (979): `GraphCmpStages` + `check_graph_cmp_zero` (the
+  challenge walk answers none; the rest is `rust_graph_cmp`'s premises), `two_names_ok`,
+  `check_graph_args_cmp`, `run_args_graph_cmp`; `olean_args_module_t`/`run_args_module_t` (a
+  worker at `--trusted-search-path`), `check_cmp_module_zero`, `olean_args_module_cmp`,
+  `run_args_module_cmp`; `internRoots_snoc1`, `rust_graph_cmp_names` (`Bridge/Modular/Stages.lean`
+  gains `graphStageCmp_run_nodes`, `graphStageCmp_run` with the closure's `NodeD` relation),
+  `ModularCmpStages`, `step_sol_some` (`name_beq_exact'`: the compare worker exactly at the
+  module whose name is the challenge's), `check_modular_cmp_zero` (through `CodesSound`);
+  `cmp_family`/`cmp_no_False` (upstream's `compare_sees_isModel`/`compare_no_False` from the
+  graph's facts and an accepted worker at every module, each at a lookup with the challenge's
+  `solRoots` and adding `cmpExtra`), `solX_step`, `modular_cmp_one_of_stages`,
+  `modular_cmp_of_stages` (`Capstone.acc_compare`'s case split, the workers each their own run),
+  `olean_args_modular_cmp`, `run_args_modular_cmp`, `modular_cmp_facts_of_canGive`,
+  `modular_cmp_one_of_canGive`.
+* Slice 2's walk, generalised: `WorkerStages fs sp mName sol pins` (any lookup with no root
+  resolved, `solX sol` added; slice 2's is `⟨dirs, Vec.new⟩` and `none`), `added_imports_ok`,
+  `module_copies_zero`; `check_module_zero`/`check_module_in_zero` at any `sp` and `sol`;
+  `olean_job_sol` and `check_phase_olean_ok` at the solution, the latter also handing back the
+  thawed index and the index build's state (`freeze_tier_ok`, as lane F's `check_phase_ok`); the
+  `*_args_*` lemmas take `a.compare = false`.  `rust_worker_of2` and `internRoots_one` went
+  (dead: `WorkerStages.accepted` is `rust_worker_gen2` at any lookup).
+* `ConRon/MainTheorem.lean`: `main_compare_model`, `main_modular_compare`,
+  `main_modular_compare_one`, `main_modular_compare_no_False`, con-leche's statements word for
+  word but `ConRon.CanGive`, in con-leche's order; `dead-census.py` roots.  Census of each:
+  `propext`, `Classical.choice`, `Quot.sound`, `PINS_TEXT._native.decide.ax_1` —
+  `main_json_model`'s.  `compare_of_canGive` takes the solution's parse as `_hs`: the challenge's
+  model does not need it (con-leche's `compare_isModel` takes it too).
+
+**Behaviour.**
+Old binary (master `fbce7efe`) against the new, stdout + stderr + exit code with times and
+`RSS` masked, and the binary's own path (`--schedule-commands`) and the heartbeat's and
+`--schedule`'s running counts (`check N (p%)`, `[k/n]`) normalised: upstream's whole
+`tests/olean.sh` table (every `case_`, 510 runs, among them every compared case: the
+one-process run, `--check-graph --compare`, the compare worker, `--modular --compare`, the
+trusted-path cases) — 468 byte-identical, 42 differing only in the order of lines, each a run on
+more than one worker (`--modular`'s module lines, `--schedule`'s, the heartbeat's job lines at
+`--jobs=2` or the hardware count); every compared case of it again at `--jobs=1`, under
+`--progress`, `--trusted`, `--no-pins`, plus 79 usage-error and routing lines (one module, the
+same module twice, three, a bad name, a missing module either side, no lookup, `--constant`s,
+`--module --modular`, `--pins` missing, `--jobs=0`, trusted paths, `--progress=1s --jobs=2`,
+`--worker-stack-size`, `--help`, `--modular --compare --pins`, `--schedule --compare`,
+`--schedule-commands --compare`) in each of the four modes — 655 runs: 613 identical, 38 in the
+order of lines only, 4 (`--progress --olean --compare` at the hardware worker count) identical
+again at `--progress --jobs=1` and `--progress=1s --jobs=2`.  Lane F's `--compare` script
+(lean4export files): 112 runs, no difference.  `scripts/diff-e2e.sh`: 773/773 agree, display
+gate 9/9, command-line gate 18/18.  `scripts/diff-olean.sh`: 510/560 as expected, 9 NOT PORTED —
+the same 41 failing cases, line for line, as slice 2's run of master's binary.
+
+**Left.**  Slice 5: `run_legacy` serves `--schedule` (with or without `--compare`) and
+`--modular --pins` alone; the legacy `compare_oleans`, `module_main`, `modular_main`,
+`check_graph_cmp` and `Run::CompareOleans`/`Module`/`Modular` arms of `bin/con-ron.rs` are now
+reached by no request.  Upstream candidates: none new.
+
+#### Slice 5 (lane H) — the legacy driver retired; `--pins`/`--no-pins` removed; `MainTheorem/Stages.lean`
+
+**What moved.**  `run_args` serves every request.  `--schedule` (with or without `--compare`)
+gets con-leche's usage checks in the verified driver, in its order (`cli::schedule_args`:
+one module name, no `--constant`, neither `--module` nor `--modular`, `Bad::ScheduleArgs`;
+`compare_olean_args` at `cmp_mode` — `--module`, `--modular` or `--schedule` — and
+`cmp_mode_bad`, con-leche's `!constants.isEmpty || (module && scheduled) || (modular &&
+(module || scheduled))`), then the escape `CheckerIo::run_schedule(a, root, sol)`, which
+replaces `run_legacy(argv)`.  `Args` keeps the scheduler's values as con-leche's does:
+`schedule` (the values after `--schedule`) and `worker_stack: Option` (the size as given;
+the instance reads it in KiB).  `StdIo::run_schedule` builds the scheduler's request off the
+parsed arguments (`--max-nat-size` rendered by `con_ron_dump::natdec::to_decimal`), and the
+scheduler walks a compared run's challenge with the verified `compare_module::chal_walk`.
+
+**`--pins FILE` and `--no-pins` are gone** (coordinator's ruling, 2026-11-22): the pins have
+been embedded since task #43, the flags were testing-only routes that no gate ran (CI skipped
+`diff-e2e.sh`'s two lanes, `gen-pins.sh --check` is the embedded text's freshness gate and
+does not use them), and con-leche has neither.  Removed: the words, `Args.pins`/`no_pins`,
+`Bad::PinsNoFile`, the `read_pins_file` escape, `Note::PinsFile`/`Note::EmbeddedPins`,
+`driver::pins_for_run`, the help lines, `diff-e2e.sh`'s `--no-pins`/`--pins-file` lanes and
+its two pins display rows.  Every run decodes the embedded text (`check_main::embedded_pins`,
+a `WorkerNotes` function, so a module of `--modular` calls the same one).  A removed flag is
+the parser's ordinary `unknown option "--pins"` (con-leche's message).  `con-ron-dump`'s
+reader, now an oracle of tests alone, is test-only (`read.rs`, `natdec::from_decimal`), and
+`kernel::expr::mk_bvar`, its one remaining caller's, went (`mkBvar`/`bvarPool` are skips).
+The first attempt had moved `--modular --pins` into the verified driver through a `&self`
+escape on `WorkerNotes`; the ruling made it moot and it was reverted before extraction.
+
+**What went from `crates/con-ron`** (6 481 → 3 978 lines): `bin/con-ron.rs`'s legacy
+`check_main`, `run`, `Input`/`Run`, `parse_args`, `check_graph_usage`, `run_main` (1 177 →
+270 lines: `main`, the help, the synopsis, the usage error); `compare.rs` whole; the legacy
+`check_graph`, `check_graph_cmp`, `chal_walk`, `check_module`, `module_main`, `modular_main` of
+`modular.rs` (935 → 521); `driver.rs`'s stream reader (`HandleSource`, `parse_export_*`,
+`read_up_to`), its check-phase driver (`check_decls_driver*`, `Silent`, `olean_job`),
+`size_positive`, `workers_for`, `pins_for_run` (1 257 → 705); `olean_fs::OleanRequest` and
+`read_request` (to `olean-compare.rs`, its one user, which reads its stream through the
+core's `FileChunks`).  `crates/con-ron` is now `main`, `StdIo` and its rendering
+(`driver`, `render`, `olean_fs`), the pool, the scheduler (`modular`, `schedule`) and
+`olean-compare`.  `scripts/dead-rust.py --check`: nothing new.
+
+**The move** (maintainer's instruction): `proof/ConRon/Capstone.lean` is
+`proof/ConRon/MainTheorem/Stages.lean` (one commit, `git mv`), namespace
+`ConRon.MainTheorem.Stages`, library `ConRonMainTheorem`; `MainTheorem.lean` is the root and
+holds the ten statements alone (its module doc says how they are proved, and its census
+`#guard_msgs` the axioms), `MainTheorem/` the proofs.  The Rust's call markers are
+`// ConRon.MainTheorem.Stages: <premise>`.  `Stages.lean`'s module doc now says what it is (the
+staged lemmas the main theorems are proved from), and its tables cite the verified driver's
+calls (`driver/check_main.rs`, `compare_json.rs`, `compare.rs`, `graph.rs`, `worker.rs`,
+`modular.rs`, `compare_module.rs`) where they cited `bin/con-ron.rs` line numbers.
+
+**What extracted.**  Three extractions (~530 s Aeneas each): the first had the `--pins` route;
+the second showed Aeneas copying `compare_olean_args`'s tail into each operand of
+`a.module || a.modular || a.scheduled` (three copies of the mode dispatch), so the chain is a
+function, `cmp_mode`, as slice 2 did for its chains.  `Funs.lean` and `Types.lean` −94 lines net against master
+(+398/−492).
+
+**The walk** (no `sorry`, no Aesop, no new axiom): `embedded_pins_ok` replaces
+`pins_for_run_embedded` at its five uses and in `check_module_in_zero`; the ten parse lemmas
+lose their `pins`/`no_pins` conjuncts; `parse_one` answers the arguments alone (`loop_word`
+takes `i + 1`); `closed`'s `is_some a.worker_stack`; the four `olean_args_*` and three
+compared lemmas take `scheduled = false`; the `run_args_*` walks lose the legacy branch.
+`lake build ConRonMainTheorem` on a built chain: seconds per module; the chain after the
+extraction moved `Funs.lean`: ~20 min under a shared machine.  Census of the ten main theorems
+(`#guard_msgs` at the end of `MainTheorem.lean`): `propext`, `Classical.choice`, `Quot.sound`,
+`ConRon.Generated.kernel.pins_text.PINS_TEXT._native.decide.ax_1`.
+
+**Behaviour.**  Old binary (master `c7a5cd34`) against the new, stdout + stderr + exit code with
+times masked, the binary's own path and the heartbeat's and the scheduler's running counts
+normalised (lane G's scripts, `_tmp/t171/h/`):
+* upstream's whole `tests/olean.sh` table (510 runs, the `--schedule`, `--schedule-commands`
+  and compared cases among them): 464 identical, 41 in the order of lines only (runs on more
+  than one worker), 5 where the OLD binary died of an allocation failure under `ulimit -v`
+  while the machine was loaded — identical on a rerun of both;
+* lane G's compared variants (655 runs): every difference is a run with `--pins`/`--no-pins`
+  (149, now `unknown option`, exit 3, as intended), `--help` (4: the help has no pins lines),
+  or `--progress` at the hardware worker count (3, the order of job lines; identical at
+  `--jobs=1`);
+* lane F's `--compare` script (112 runs): the same, 19 `--no-pins`/`--pins` runs and 1
+  `--help`; every other run identical;
+* by hand: `--schedule-commands` (plain, compared with a trusted path, `--jobs`,
+  `--worker-stack-size`, `--max-nat-size=1_000`), `--schedule --jobs=1`, `--schedule
+  --module`, `--schedule-log`: identical.  One deliberate difference: `--schedule-commands
+  --max-nat-size=0000…` (a value ≥ 2⁶⁴ with leading zeros) prints the workers' size without
+  the zeros (the decimal of the parsed `Nat`), where the legacy driver echoed the digits.
+`scripts/diff-e2e.sh`: 773/773 agree, display gate 7/7 (the two `--pins` rows went),
+command-line gate 18/18.  `scripts/diff-olean.sh`: 510/560 as expected, 9 NOT PORTED — as
+slice 3b's.
+
+**Left.**  The twin's own driver (`proof/ConRon/Arena/Main.lean`, the `con-ron-lean` binary)
+still parses `--no-pins`; it is a development tool outside the theorems, and no gate passes
+the flag.
+
+#### The campaign (task #171, slices 1–5)
+
+**The ten theorems.**  `proof/ConRon/MainTheorem.lean` states con-leche's main theorems
+(`ConLeche/MainTheorem.lean`) under their names, in their order, word for word, with
+`ConRon.CanGive args fs 0` for con-leche's `ModelIO.CanGive (Driver.runArgs args) fs 0`:
+`main_json_model`, `main_no_False`, `main_compare_json_model`, `main_oleans`,
+`main_compare_model`, `main_modular`, `main_modular_one`, `main_modular_compare`,
+`main_modular_compare_one`, `main_modular_compare_no_False`.  Each rests on
+`propext`, `Classical.choice`, `Quot.sound` and the pin text's
+`PINS_TEXT._native.decide.ax_1`; no `sorry`.  `CanGive` is an exit code of the extracted
+`driver::cli::run_args` at an instance of `CheckerIo` that answers as the snapshot
+(`AnswersAs`), keeps the worker map's contract (`PoolSound`) and the code map's
+(`CodesSound`).
+
+**The trust surface, before and after.**  Before: the headlines had one premise per verified
+call, and the unverified driver that made the calls — the argument parse, the usage checks,
+the mode dispatch, the reads (`hreads`, a file handle's bytes in order), the pin list
+(`--pins`/`--no-pins` around it), the check phase's sequence, the compared and modular modes'
+orchestration, the verdict and the exit code — was trusted, as OVERVIEW §8.2's driver row
+said.  After: all of that is extracted code the theorems are about; what is trusted is what
+con-leche's `CheckerIO.lean` assumes of its own binary (OVERVIEW §3.1): the instance's file
+operations answer as one snapshot (now including the stream's positional reads), its two
+maps keep their contracts, its escapes and notifications write no file and do not end the
+process, and `main` (argv, a thread, `run_args`, flush, exit) does what it says.  The
+scheduler stays outside, as con-leche's is.
+
+**Sizes.**  Rust into the verified core: `driver/` 3 042 lines (nine modules, one per
+`ConLeche/Driver/*.lean` file the port has) and `frontend/checker_io.rs` 323; `crates/con-ron`
+5 703 lines before the campaign, 6 481 at its widest (slice 3b, both drivers), 3 978 now.
+Generated: `Funs.lean` 135 513 → 139 613 lines, `Types.lean` 2 480 → 2 746 (before the campaign → now).  Proof:
+`MainTheorem.lean` 281 lines, `MainTheorem/` 7 235 lines of walks and conclusions besides the
+moved `Stages.lean` (2 482).  `scripts/loc.py --summary` at the end: rust 86 826, generated
+137 162, proof 22 409 (its proof count does not include `MainTheorem/`).
+
+**Upstream candidates** (con-leche could state these, and con-ron's copies would go):
+`PureRun.recordsStored` (`declsRun_recordsStored` at the pure run); `inputStored_of` and
+`readOleansAt_covers` split at `MergeFacts` + the entry property, so that a reader proved
+piecewise can use them; `json_isModel`/`oleans_isModel`'s model step stated from `∃ F,
+checkDeclsPure … = .ok env` (lane C); Batteries' `String.splitOn` lemma for a one-character
+separator (`splitOn_one`, slice 2).
+
+**Aeneas findings** (each worked around in the Rust's shape):
+* a `let`-bound `||` chain's last operand extracted as a `Prop` (`_tmp/corpus/aeneas/or-chain-prop/`,
+  slice 1);
+* a continuation is copied into every branch of an `if`/`||` chain (slices 1, 2 and 5:
+  `check_phase`, the chains as functions, `cmp_mode`);
+* a loop over a struct of shared borrows: "joining region abstractions containing shared loans
+  whose shared value contains borrows is not supported yet" (slice 2, `jobs_in_order` takes
+  the fields);
+* "could not match the contexts" at an `if` after a call that borrows (slice 2, the call in a
+  block of its own);
+* "Early returns inside of loops are not supported yet" on a loop over a local vector
+  (`_tmp/corpus/aeneas/loop-return-mut/`, slice 3b, not reduced; an accumulator loop).
+
+**What is left.**  The scheduler is unverified, by design.  The twin's driver
+(`Arena/Main.lean`) keeps `--no-pins`.  The staged lemmas still carry their own `hpins` at a
+free text beside the `_embedded` forms; with every run at the embedded text, the free-text
+forms could go if nothing else uses them.  Option B of §3.9 (inheriting con-leche's theorems
+through `ModelIO.CanGive`) stays open should con-leche weaken its driver's evidence to the
+pure accept.
+
+#### Slice 6 (lane K) — `CanGive` over a model instance; the trust argument per run; `StdIo`'s reads
+
+**Why.**  An external review (`_tmp/t171/codex-review-c7a5cd34.md`) confirmed that slice 5's
+`CanGive` (∃ instance with `AnswersAs ∧ PoolSound ∧ CodesSound`) had GLOBAL premises — every
+call, every state, every `Step` — while con-leche's trust argument is per run, and that `StdIo`
+does not meet them even at calls no run makes: `path_of` dropped invalid code points where
+`absString` maps them to NUL; `read_range` trusted `metadata.len()` (`/proc/version`: size 0, 127
+bytes; `read_range` and `read_bin_file` disagreed); `real_path` used `to_string_lossy`;
+`par_map_codes` at 0 threads answered 3 everywhere.  No unsound accept of an ordinary input was
+found.  It also found `worker_copies` answering a value through `&self`, and that reopening a
+path per `read_range` could splice a file replaced mid-run.  One more found here: the OLD binary
+accepted `-- /proc/version` (exit 0, "accepted 0 declarations": it read nothing); the new one
+reads the 127 bytes and rejects them (exit 3).
+
+**The model** (`proof/ConRon/MainTheorem/Model.lean`, 430 lines, no `sorry`, no Aesop, no new
+axiom; `snapshotIo_answersAs` rests on `propext`, `Classical.choice`, `Quot.sound`).
+`snapshotIo fs : CheckerIo Tape`, state `Tape` = an `Oracle` and the number of answers taken:
+* file operations answer from `fs` at `⟨absString p⟩` (`answerAt`), and fail where `fs` has no
+  answer, the answer does not fit a `Vec`/`u64`, or `p` is not `Spelled`: `StrWF p` and every
+  `PathRel` spelling `q` of the request has the string's `real` and `dir` in `fs`.  The second
+  half is a design misfit, not in the brief: `PathRel` relates the Rust's `mod_file_of` to
+  upstream's `modFile`, and the two are not provably one string, because `System.FilePath`'s `/`
+  reads the opaque `System.Platform.isWindows` (reproducer:
+  `_tmp/corpus/design/filepath-opaque/Repro.lean`, `rfl`/`decide` on `"a" / "b"` both fail).  On
+  the binary's platform they are one string, so `Spelled` is `StrWF` there; the trust paragraph
+  says so;
+* the value-answering escapes (`print_help`, `run_schedule`, `hardware_jobs`) answer the
+  oracle's `n`-th value and tick; `worker_copies` (`&self`) answers the oracle's function of its
+  arguments; `keep_heap`/`keep_solution` and every notification change nothing;
+* `par_map_workers`: computable — the oracle's claims for this call; `Ok` when they cover
+  `0..n`, each worker's increase (decided), and `runWorkers` (each from `init`, `foldClaims` to the
+  first failure) finds none; else the first failure or the oracle's error.  `par_map_codes`:
+  computable — `codesUpTo` runs `codeAt` at `0..n` in order;
+* theorems: `snapshotIo_answersAs`, `snapshotIo_poolSound` (`workerMap_ok` from
+  `runWorkers_none`/`foldClaims_none`), `snapshotIo_codesSound` (`codesUpTo_ok`).
+
+**`CanGive`.**  `ConRon.CanGive args fs c := ∃ argv o o' c', ArgvOf argv args ∧ run_args
+(Model.snapshotIo fs) o argv = ok (c', o') ∧ c'.val = c.toNat`.  The old form is
+`CanGiveConforming` (Driver.lean), which every walk now takes (a rename in six files);
+`CanGive.conforming` bridges.  The ten statements of `MainTheorem.lean` are unchanged (checked
+by diff: only the proof terms gained `.conforming`, and `hwork` is mapped with `Exists.imp`).
+Census of the ten (`#guard_msgs`): unchanged, `propext`, `Classical.choice`, `Quot.sound`,
+`PINS_TEXT._native.decide.ax_1`.  No new main theorem, so `CAPSTONES` is unchanged.
+
+**The trust argument** — `MainTheorem.lean`'s module doc, OVERVIEW §3.1 (rewritten as the
+per-run table (1)–(4)), §3's `CanGive` block, §8.2's instance and file-operation rows, §3.9 —
+is now con-leche's: a run of the binary that exits 0 is one of the model's runs if (1) every
+file operation it performs answered as one snapshot (a failure a failure), (2) the escapes
+write no file and do not end the process, (3) the maps' actual claims are some oracle's (the
+pool's control-flow argument), (4) Rust, std and Aeneas run the code as written; then by
+induction along the run.  Stated differences from con-leche: an oracle where con-leche has a
+non-determinism monad; positional reads where con-leche has handles.
+
+**The Rust** (`crates/con-ron` only; the core's `checker_io.rs` module doc changed in place, its
+line count kept, so `Generated/` is unchanged and no extraction was needed):
+* `olean_fs::fs_path`: a code point that is not a character fails the operation (`path_of`
+  stays, for display); every `StdFs` operation uses it;
+* `real_path`: `into_string`, a canonical path that is not UTF-8 fails;
+* `read_range`/`read_bin_file` read with `read_at` to where a read answers nothing
+  (`read_at_most`), never to `metadata.len()`; `file_size` (`checked_size`) is the metadata's
+  size only where the contents end there (a read at `size` answers nothing, one at `size - 1`
+  answers a byte), else a failure.  Chosen over "read everything to learn the size" because the
+  header reads need the size before reading and a stream file can be many GB; with the run's
+  one handle, the three answers are one file's, or one of them fails;
+* `olean_fs::RunFiles`, `StdIo`'s: each path opened once per run (after the regular-file check
+  on the path, as before, so a FIFO never blocks), every read through that handle.  At most
+  `OPEN_CAP = 256` handles stay open: a `--olean` closure of Mathlib is thousands of files and
+  the usual soft limit is 1 024 descriptors, so holding all would turn a big run into `EMFILE`.
+  A path whose handle was closed is reopened and must have the stamp it was first opened with
+  (device, inode, size, modification time), else the read fails ("replaced or changed during the
+  run").  So a file replaced mid-run is never spliced: it is read through the first handle, or
+  the read fails.  `StdFs` (the scheduler, `olean-compare`) stays per call;
+  **What the cache does not do** (the second codex review, 2026-11-23): a cache HIT does not
+  re-check the stamp, and the stamp does not see a same-length rewrite in place (nor one that
+  restores the modification time), so a file changed in place mid-run can still be read in two
+  states.  The cache guards against a path being replaced by another file; that the files do
+  not change during the run stays an assumption (point (1) of the trust argument), as in
+  con-leche, and the docs say so.
+* `par_map_codes` runs at least one thread;
+* `worker_copies` stays `&self`: the exception, and why it is sound and what `&mut` would cost
+  (the code map's steps hold the instance shared), is now in §3.9.
+* tests (`olean_fs::tests`): an invalid code point fails, `/proc/version` reads to its end while
+  its size fails, a replaced file reads as the first through the handle and fails once reopened.
+
+**Behaviour** (old = master `e9c88b0b`, new = this branch; stdout + stderr + exit, times and
+RSS masked, the binary's path and the heartbeat's/scheduler's running counts normalised, lane
+H's scripts, `_tmp/t171/k/`): upstream's `tests/olean.sh` table, 510 runs: 475 identical, 35 in
+the order of lines only (runs on several workers); lane G's compared variants (511 runs, the
+`--no-pins` lane dropped): 469 identical, 39 order only, 3 `--progress --olean --compare` at the
+hardware worker count — identical at `--jobs=1`; lane F's `--compare` script (94 runs, no
+`--no-pins` lane): all identical.  `scripts/diff-e2e.sh`: 773/773 agree, display gate 7/7,
+command-line gate 18/18.  `scripts/diff-olean.sh`: 510/560 as expected, 9 NOT PORTED, the same
+41 failing cases as slice 5's.
+
+**Left.**  Nothing of the brief.  The `Spelled` side condition could go if con-leche's `modFile`
+were stated over a platform-independent join (an upstream candidate), or if con-ron's
+`PathRel` were proved functional on Unix under an `isWindows = false` hypothesis.
+
+**Afterwards (2026-11-23).**  The twin's development driver (`Arena/Main.lean`, `con-ron-lean`)
+lost `--no-pins` too (its field, parser arm, help line and the two `if a.noPins` uses), at the
+maintainer's "clearly part of this"; no script used it.  The second external review (codex
+gpt-6.1-sol at `34d57d2b`, `_tmp/t171/codex-review-34d57d2b.md`) closed every finding of the first
+and found the docs overstating `RunFiles`, which the commit after slice 6 corrected.
+
+### Task #173 — the driver builds on Windows and macOS again; CI builds it there (2026-11-23, Opus)
+
+**Why.**  Task #170's `exit_verdict` (`crates/con-ron/src/schedule.rs`) used
+`std::os::unix::process::ExitStatusExt::signal` unguarded, and task #171's `olean_fs.rs` used
+`std::os::unix::fs::FileExt::read_at` and `MetadataExt::{dev, ino, mtime, mtime_nsec}`: nine
+errors under `cargo check --target x86_64-pc-windows-msvc` at master `3a8474a1` (macOS was
+fine).  Nothing in CI built off Linux, so it went unnoticed until a Windows build of the
+`renovation` pin failed.
+
+**What changed.**  Three `#[cfg]`-split helpers in the unverified driver, each citing
+`con-leche: none`:
+* `schedule::exit_signal`: the ending signal on Unix, `None` elsewhere, so a Windows abnormal
+  ending (an `NTSTATUS` exit code) reads `exit N`, as con-leche's own verdict would on Windows.
+* `olean_fs::pread`: `read_at` on Unix, `seek_read` on Windows (it moves the handle's cursor,
+  which no reader uses — every read names its offset).
+* `olean_fs::stamp_of` off Unix: device and inode `0` (Windows' volume serial and file index
+  are unstable API), the size and `modified()`; so off Unix only size and modification time
+  tell a replaced file apart.  Unix is unchanged.
+
+**CI.**  A `portable` job in `.github/workflows/ci.yml`, a `windows-latest`/`macos-latest`
+matrix beside `gates`: Charon's pinned nightly (`nightly-2026-09-17`, named a second time
+there — keep it in step with `flake.nix`), `cargo build --workspace --all-targets` (tests
+compiled, not run: `olean_fs::tests` reads `/proc` and `/tmp` by design) and `con-ron --help`.
+No Nix, Lean, Charon or Aeneas: the proof stays Linux-only.
+
+**Checked.**  `cargo check --workspace --all-targets --no-default-features -D warnings` for
+`x86_64-pc-windows-msvc`, `aarch64-apple-darwin`, `x86_64-apple-darwin` from the Linux nightly
+sysroot (the default `mimalloc` feature needs a cross C compiler locally; the runners have
+native ones); `scripts/gates.sh`.
 
 ### Task #172 — con-leche sync bc667610 → d8c8c227 (con-leche's `renovation` branch) on con-ron's `renovation` branch: the inductive feature flags (2026-11-23, Opus)
 

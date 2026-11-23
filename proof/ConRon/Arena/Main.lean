@@ -457,8 +457,7 @@ The line after a usage error. -/
 def tryHelp : String := "Try 'con-ron-lean --help' for more information."
 
 /-- con-leche: ConLeche/Driver/Cli.lean:137-260 helpText
-The `--help` text: con-leche's, with this binary's name, its one flag of its own
-(`--no-pins`) and con-ron's documentation; con-leche's options of the modes this binary does
+The `--help` text: con-leche's, with this binary's name and con-ron's documentation; con-leche's options of the modes this binary does
 not run are listed by name, as usage errors (`unsupported`).  `--jobs` is accepted and validated,
 and this binary checks on one worker whatever it says. -/
 def helpText : String := String.intercalate "\n" [
@@ -474,7 +473,6 @@ def helpText : String := String.intercalate "\n" [
   "                      computes; a larger one is rejected (default 134217728)",
   "  --progress[=PACE]   Report progress on stderr: PACE is N declarations",
   "                      (default 1), P% of each phase, or Ss seconds",
-  "  --no-pins           Testing only: check with no Nat pin list",
   "  --help              Print this help and exit",
   "  --                  End of options",
   "",
@@ -530,7 +528,6 @@ structure Args where
   jobs : Option Nat := none
   /-- The maximum `Nat` size in bytes (`--max-nat-size=<n>`). -/
   maxNatSize : Nat := maxNatSizeDefault
-  noPins : Bool := false
   /-- `--olean`: the positional arguments are root module names. -/
   olean : Bool := false
   /-- `--search-path=DIR:DIR…`: where `--olean` looks for the files. -/
@@ -591,7 +588,6 @@ def parseArgs : List String → Args → Args
   | "--verified" :: rest, a => parseArgs rest { a with mode := .verified }
   | "--trusted" :: rest, a => parseArgs rest { a with mode := .trusted }
   | "--progress" :: rest, a => parseArgs rest { a with progress := .every 1 }
-  | "--no-pins" :: rest, a => parseArgs rest { a with noPins := true }
   | "--olean" :: rest, a => parseArgs rest { a with olean := true }
   | "--check-graph" :: rest, a => parseArgs rest { a with checkGraph := true }
   | "--module" :: rest, a => parseArgs rest { a with module := true }
@@ -1124,7 +1120,7 @@ def modularMain (a : Args) (root : Name) (cmp : Option Name) (all : Bool) : IO U
   let modeTag : String := match a.mode with
     | .verified => "--verified"
     | .trusted => "--trusted"
-  let pins := if a.noPins then [] else ConLeche.natOpPinSets
+  let pins := ConLeche.natOpPinSets
   let sr : ConLeche.Frontend.Olean.Roots :=
     if a.trustedPath.isEmpty then { path := a.searchPath }
     else { path := a.trustedPath, fallback := a.searchPath }
@@ -1197,7 +1193,7 @@ def main (args : List String) : IO UInt8 := do
     IO.eprintln s!"con-ron-lean: {msg}"
     IO.eprintln tryHelp
     return 3
-  let pins := if a.noPins then [] else ConLeche.natOpPinSets
+  let pins := ConLeche.natOpPinSets
   if a.checkGraph then
     return ← checkGraphUsage a
   if a.olean then

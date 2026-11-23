@@ -27,7 +27,7 @@
 #                                           library of the chain, Theorem 1
 #                                           (`ConRonBridge`), Theorem 2
 #                                           (`ConRonRefine2`), the composition
-#                                           (`ConRonCapstone`) included; any
+#                                           (`ConRonMainTheorem`) included; any
 #      warning from proof/'s own sources fails it (lake-build-wfail.sh, #102)
 #      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
 #      has no jobs flag; the first con-leche build can exhaust memory, #74)
@@ -113,7 +113,7 @@ run lake-build    env ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} "$root/scripts
 # over the build the step above left, from the capstone's headline theorems.
 run dead-census   env ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} "$root/scripts/dead-census-gate.sh"
 # Until task #98-TIDY this was followed by three more steps, `lake build
-# ConRonRefine2`, `ConRonBridge` and `ConRonCapstone`, because those libraries
+# ConRonRefine2`, `ConRonBridge` and `ConRonMainTheorem`, because those libraries
 # were not default targets and a green `lake-build` said nothing about either
 # theorem (found by tasks #97-P5-Mut and #97-P3-Ind round 5).  They are default
 # targets now, so the one step above builds them all.
@@ -143,13 +143,13 @@ python3 "$root/scripts/progress.py" --summary
 # exit code is ignored on purpose.
 python3 "$root/scripts/arena-census.py" --summary || true
 # The `sorry` FRONTIER of the capstone (task #97-FRONTIER): the declarations
-# of `ConRon.Capstone.{model_exists,no_False_declaration}`'s dependency
+# of `ConRon.MainTheorem.Stages.{model_exists,no_False_declaration}`'s dependency
 # closure whose own proof says `sorry`, i.e. what the capstone is actually
 # waiting on, and the direct `sorry`s of `Bridge/**`/`Refine2/**` nothing on
 # that path needs (dead weight).  Also a REPORT: the full list is
-# `scripts/frontier.sh ConRon.Capstone.model_exists
-# ConRon.Capstone.no_False_declaration`, and every run appends a row to
+# `scripts/frontier.sh ConRon.MainTheorem.Stages.model_exists
+# ConRon.MainTheorem.Stages.no_False_declaration`, and every run appends a row to
 # `_tmp/frontier-history.tsv` (`scripts/frontier.sh --history`).
 "$root/scripts/frontier.sh" --summary --tag capstone \
-  ConRon.Capstone.model_exists ConRon.Capstone.no_False_declaration || true
+  ConRon.MainTheorem.Stages.model_exists ConRon.MainTheorem.Stages.no_False_declaration || true
 python3 "$root/scripts/loc.py" --summary

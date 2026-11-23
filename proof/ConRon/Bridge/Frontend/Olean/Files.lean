@@ -8,7 +8,7 @@ its positional `readRange p off len` is the slice a handle of `p` at position `o
 `F` (`ModelIO.Gives`: one answer from any open handles), so it can give it (`ModelIO.CanGive`),
 which is what `readFiles_ok`, `closureOrder_ok` and `readView_of_viewOf` speak of.
 
-The binary's record is related to `modelFs F` by the theorems' file premise, `ConRon/Capstone.lean`'s
+The binary's record is related to `modelFs F` by the theorems' file premise, `ConRon/MainTheorem/Stages.lean`'s
 `SnapshotOf`.
 -/
 module

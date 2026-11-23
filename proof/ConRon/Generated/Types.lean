@@ -1445,7 +1445,7 @@ structure arena.justify.Solution where
     arena.handle.NIdx)
 
 /-- [con_ron_core::kernel::nat_op_pins::NatOpPinSet]
-    Source: 'crates/con-ron-core/src/kernel/nat_op_pins.rs', lines 54:0-80:1
+    Source: 'crates/con-ron-core/src/kernel/nat_op_pins.rs', lines 53:0-79:1
     Visibility: public -/
 structure kernel.nat_op_pins.NatOpPinSet where
   toolchain : alloc.vec.Vec Std.U32
@@ -1475,7 +1475,7 @@ structure kernel.nat_op_pins.NatOpPinSet where
   shift_right_type_pins : alloc.vec.Vec (kernel.name.Name × kernel.expr.Expr)
 
 /-- [con_ron_core::driver::check_main::Note]
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 61:0-97:1
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 63:0-103:1
     Visibility: public -/
 @[discriminant isize]
 inductive driver.check_main.Note where
@@ -1500,8 +1500,6 @@ inductive driver.check_main.Note where
   Bool →
   driver.check_main.Note
 | Frontend : kernel.core_types.CheckError → Bool → driver.check_main.Note
-| PinsFile : alloc.vec.Vec Std.U32 → driver.check_main.Note
-| EmbeddedPins : kernel.core_types.CheckError → driver.check_main.Note
 | Accepted : Std.U64 → Bool → driver.check_main.Note
 | OleanRead :
   kernel.core_types.CheckError →
@@ -1521,9 +1519,19 @@ inductive driver.check_main.Note where
   kernel.name.Name →
   Bool →
   driver.check_main.Note
+| GraphFailedMode :
+  kernel.core_types.CheckError →
+  Bool →
+  driver.check_main.Note
+| CompareWhy : alloc.vec.Vec Std.U32 → Bool → driver.check_main.Note
+| NotSolution :
+  kernel.name.Name →
+  kernel.name.Name →
+  Bool →
+  driver.check_main.Note
 
 /-- [con_ron_core::driver::check_main::JobStep]
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 127:0-140:1
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 133:0-146:1
     Visibility: public -/
 structure driver.check_main.JobStep where
   tier : arena.store.PersTier
@@ -1828,7 +1836,7 @@ structure frontend.olean.records.ModRef where
   frontier : frontend.olean.sparse.Frontier
 
 /-- [con_ron_core::driver::check_main::OleanJobStep]
-    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 222:0-241:1
+    Source: 'crates/con-ron-core/src/driver/check_main.rs', lines 229:0-250:1
     Visibility: public -/
 structure driver.check_main.OleanJobStep where
   tier : arena.store.PersTier
@@ -1839,6 +1847,7 @@ structure driver.check_main.OleanJobStep where
   pk : frontend.olean.spec.OleanPins
   values : alloc.vec.Vec frontend.olean.records.ModRef
   sp : frontend.olean.files.Roots
+  sol : Option arena.justify.Solution
   start : Std.Usize
 
 /-- [con_ron_core::frontend::pace::Pace]
@@ -1985,7 +1994,7 @@ structure frontend.modular.worker.WorkerRead where
   start : Std.Usize
 
 /-- [con_ron_core::frontend::checker_io::WorkerNote]
-    Source: 'crates/con-ron-core/src/frontend/checker_io.rs', lines 146:0-154:1
+    Source: 'crates/con-ron-core/src/frontend/checker_io.rs', lines 151:0-159:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.checker_io.WorkerNote where
@@ -2004,7 +2013,7 @@ inductive frontend.checker_io.WorkerNote where
   frontend.checker_io.WorkerNote
 
 /-- Trait declaration: [con_ron_core::frontend::checker_io::WorkerNotes]
-    Source: 'crates/con-ron-core/src/frontend/checker_io.rs', lines 123:0-141:1
+    Source: 'crates/con-ron-core/src/frontend/checker_io.rs', lines 123:0-146:1
     Visibility: public -/
 structure frontend.checker_io.WorkerNotes (Self : Type _) where
   worker_note : Self → frontend.checker_io.WorkerNote → Result Unit
@@ -2018,6 +2027,11 @@ structure frontend.checker_io.WorkerNotes (Self : Type _) where
     arena.store.PersTier → arena.store.EStore → alloc.vec.Vec
     arena.env.IDeclaration → kernel.core_types.CheckError → Std.U64 →
     Bool → Result Unit
+  worker_copies : Self → Option kernel.name.Name → kernel.name.Name →
+    arena.store.PersTier → arena.monad.AState → alloc.vec.Vec
+    (frontend.olean.spec.ImportF arena.handle.NIdx) →
+    frontend.modular.worker.WorkerRead → Result ((Option
+    kernel.core_types.CheckError) × arena.monad.AState)
 
 /-- Trait declaration: [con_ron_core::frontend::checker_io::CodeStep]
     Source: 'crates/con-ron-core/src/frontend/checker_io.rs', lines 112:0-116:1
@@ -2026,11 +2040,10 @@ structure frontend.checker_io.CodeStep (Self : Type _) (F : Type _) where
   code : Self → F → Std.Usize → Result Std.U8
 
 /-- [con_ron_core::driver::cli::Bad]
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 83:0-128:1
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 81:0-135:1
     Visibility: public -/
 @[discriminant isize]
 inductive driver.cli.Bad where
-| PinsNoFile : driver.cli.Bad
 | JobsBare : driver.cli.Bad
 | ProgressValue : alloc.vec.Vec Std.U32 → driver.cli.Bad
 | JobsZero : driver.cli.Bad
@@ -2052,9 +2065,36 @@ inductive driver.cli.Bad where
 | TrustedTakes : driver.cli.Bad
 | ModularArgs : driver.cli.Bad
 | ModuleArgs : driver.cli.Bad
+| CheckGraphCompareTwo : driver.cli.Bad
+| CompareTwoModules : driver.cli.Bad
+| CompareSameModule : driver.cli.Bad
+| CompareModeArgs : driver.cli.Bad
+| ScheduleArgs : driver.cli.Bad
+
+/-- [con_ron_core::driver::cli::Args]
+    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 141:0-177:1
+    Visibility: public -/
+structure driver.cli.Args where
+  files : alloc.vec.Vec (alloc.vec.Vec Std.U32)
+  verified : Bool
+  progress : frontend.pace.Pace
+  jobs : Option Std.U64
+  max_nat_size : ron.nat.Nat
+  olean : Bool
+  search_path : alloc.vec.Vec (alloc.vec.Vec Std.U32)
+  constants : alloc.vec.Vec (alloc.vec.Vec Std.U32)
+  check_graph : Bool
+  module : Bool
+  modular : Bool
+  schedule : alloc.vec.Vec (alloc.vec.Vec Std.U32)
+  scheduled : Bool
+  compare : Bool
+  trusted_path : alloc.vec.Vec (alloc.vec.Vec Std.U32)
+  worker_stack : Option (alloc.vec.Vec Std.U32)
+  bad : Option driver.cli.Bad
 
 /-- Trait declaration: [con_ron_core::frontend::checker_io::CheckerIo]
-    Source: 'crates/con-ron-core/src/frontend/checker_io.rs', lines 160:0-272:1
+    Source: 'crates/con-ron-core/src/frontend/checker_io.rs', lines 165:0-278:1
     Visibility: public -/
 structure frontend.checker_io.CheckerIo (Self : Type _) where
   CheckerFsInst : frontend.checker_io.CheckerFs Self
@@ -2068,12 +2108,9 @@ structure frontend.checker_io.CheckerIo (Self : Type _) where
     Std.Usize → Result ((core.result.Result (alloc.vec.Vec Std.U8)
     (alloc.vec.Vec Std.U32)) × Self)
   print_help : Self → Result (Std.U8 × Self)
-  run_legacy : Self → alloc.vec.Vec (alloc.vec.Vec Std.U32) → Result
-    (Std.U8 × Self)
+  run_schedule : Self → driver.cli.Args → kernel.name.Name → Option
+    kernel.name.Name → Result (Std.U8 × Self)
   hardware_jobs : Self → Result (Std.U64 × Self)
-  read_pins_file : Self → alloc.vec.Vec Std.U32 → Result
-    ((core.result.Result (alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet)
-    (alloc.vec.Vec Std.U32)) × Self)
   keep_heap : Self → arena.monad.AState → alloc.vec.Vec
     arena.env.IDeclaration → Option arena.stream_index.IStreamIndex →
     Result Self
@@ -2115,29 +2152,6 @@ structure kernel.pins_decode.Tables where
   levels : alloc.vec.Vec kernel.level.Level
   exprs : alloc.vec.Vec kernel.expr.Expr
   sets : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet
-
-/-- [con_ron_core::driver::cli::Args]
-    Source: 'crates/con-ron-core/src/driver/cli.rs', lines 135:0-172:1
-    Visibility: public -/
-structure driver.cli.Args where
-  files : alloc.vec.Vec (alloc.vec.Vec Std.U32)
-  verified : Bool
-  progress : frontend.pace.Pace
-  jobs : Option Std.U64
-  max_nat_size : ron.nat.Nat
-  pins : Option (alloc.vec.Vec Std.U32)
-  no_pins : Bool
-  olean : Bool
-  search_path : alloc.vec.Vec (alloc.vec.Vec Std.U32)
-  constants : alloc.vec.Vec (alloc.vec.Vec Std.U32)
-  check_graph : Bool
-  module : Bool
-  modular : Bool
-  scheduled : Bool
-  compare : Bool
-  trusted_path : alloc.vec.Vec (alloc.vec.Vec Std.U32)
-  worker_stack : Bool
-  bad : Option driver.cli.Bad
 
 /-- [con_ron_core::frontend::prepare::Prepared]
     Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 243:0-251:1
@@ -2487,7 +2501,7 @@ structure frontend.export_c.ChunkSource (Self : Type _) where
   next_chunk : Self → Result ((alloc.vec.Vec Std.U8) × Self)
 
 /-- [con_ron_core::frontend::checker_io::FileChunks]
-    Source: 'crates/con-ron-core/src/frontend/checker_io.rs', lines 280:0-293:1
+    Source: 'crates/con-ron-core/src/frontend/checker_io.rs', lines 286:0-299:1
     Visibility: public -/
 structure frontend.checker_io.FileChunks (F : Type _) where
   fs : F
@@ -2728,14 +2742,15 @@ inductive frontend.olean.module.ExpoErr where
 | Err : kernel.core_types.CheckError → frontend.olean.module.ExpoErr
 
 /-- [con_ron_core::driver::modular::ModularStep]
-    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 35:0-46:1
+    Source: 'crates/con-ron-core/src/driver/modular.rs', lines 37:0-50:1
     Visibility: public -/
 structure driver.modular.ModularStep where
   names : alloc.vec.Vec kernel.name.Name
   sp : frontend.olean.files.Roots
+  root : kernel.name.Name
+  sol : Option kernel.name.Name
   verified : Bool
   max_nat_size : ron.nat.Nat
-  no_pins : Bool
 
 /-- [con_ron_core::frontend::olean::view::AllViews]
     Source: 'crates/con-ron-core/src/frontend/olean/view.rs', lines 180:0-184:1

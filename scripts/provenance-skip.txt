@@ -244,6 +244,8 @@ ConLeche/Kernel/Env.lean findTable? The pure environment's table lookup (task #3
 ConLeche/Kernel/Expr.lean hasLP Ported as `kernel::expr`'s data-word reader, used only by tests; now a private helper of `kernel::expr`'s test module, task #105.
 ConLeche/Kernel/Expr.lean bvarBRaw Ported as `kernel::expr`'s data-word reader, used only by tests; now a private helper of `kernel::expr`'s test module, task #105.
 ConLeche/Kernel/Expr.lean fvarBRaw Ported as `kernel::expr`'s data-word reader, used only by tests; now a private helper of `kernel::expr`'s test module, task #105.
+ConLeche/Kernel/Expr.lean bvarPool The pool is not ported (`kernel::expr`'s module note): `mkBvar_eq` says `mkBvar i = .bvar i`, so `expr::bvar` is it; task #171.
+ConLeche/Kernel/Expr.lean mkBvar `mkBvar_eq` says `mkBvar i = .bvar i`, so `expr::bvar` is it; task #171.
 ConLeche/Kernel/Expr.lean bvarPoolSize Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
 ConLeche/Kernel/ExprOps.lean sizeF Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
 ConLeche/Kernel/ExprOps.lean instPisAt Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.

@@ -6,13 +6,14 @@
 //! [`parallel_all`], plus the index-merge and the walk it rests on.  It knows
 //! nothing about checking: it is handed a count `n`, a worker count, a state
 //! constructor `init` and a per-index `step`, and it answers whether `step`
-//! succeeded at every index.  What the check phase plugs into it is the
-//! driver's business (`driver::check_decls_driver`):
+//! succeeded at every index.  It is the binary's worker map
+//! (`std_io::StdIo::par_map_workers`), and what the check phase plugs into it
+//! is the verified driver's step (`con_ron_core::driver::check_main::JobStep`):
 //!
 //! ```text
 //! parallel_all(ds.len(), workers,
 //!              || checker::worker_state(&st.pins),
-//!              |w, k| checker::run_job(&tier, w, mode, pins, ds, k),
+//!              |w, k| checker::run_job(&tier, w, mode, pins, sol, ds, k),
 //!              <the heartbeat line>)
 //! ```
 //!
@@ -317,8 +318,8 @@ mod tests {
 
     type RecordResult = Result<(), (CheckError, u64)>;
 
-    /// **The check phase as the driver runs it** (`driver::check_decls_driver`'s
-    /// `parallel_all` call, with the heartbeat hook the observer asks for).
+    /// **The check phase as the driver runs it** (`check_main::JobStep` on
+    /// `parallel_all`, with the heartbeat hook the observer asks for).
     fn check_pool<O: PhaseObserver + Send>(
         pers: &PersTier,
         mode: &CheckMode,

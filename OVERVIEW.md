@@ -87,7 +87,7 @@ the same verdict lines, with these exceptions:
   `--compare` cases of con-leche's `.olean` test table, 22 print a line other
   than con-leche's (§3.4).
 * **`--constant` runs are outside the theorems**, flat or compared (§2.1, §3.4),
-  as are `--trusted` runs and the `--pins`/`--no-pins` testing flags (§2.1).
+  as are `--trusted` runs (§2.1), as in con-leche.
 
 ## 2. Running it
 
@@ -110,7 +110,7 @@ con-ron [OPTIONS] --olean --module|--modular|--schedule[-OPT=V]
         [--] CHALLENGE SOLUTION
 ```
 
-([the help text](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L89-L219)).
+([the help text](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L49-L172)).
 Run with no arguments, `con-ron` prints these forms; a usage error prints its
 message and a pointer to `--help`, and exits 3.
 
@@ -135,8 +135,6 @@ message and a pointer to `--help`, and exits 3.
   (`reading`, the `read:` lines of an `--olean` read with the time and the
   resident set, `parse done`, `checking`), and a check line names its
   declaration only when every check gets one.
-* **`--pins FILE`** and **`--no-pins`** replace the embedded `Nat.div`/`Nat.mod`
-  pin list (§6.1).  They exist for testing and are outside the theorems.
 * **`--`** ends the options: every argument after it is a file, whatever it is
   called, and only a `--help` before it is help.  The input is a regular file,
   read forward; a FIFO or a directory is exit 3.
@@ -221,8 +219,9 @@ message and a pointer to `--help`, and exits 3.
   (`--schedule-log`) and memory budget (`--schedule-memory`) are usage errors,
   exit 3 (§1.1).
 
-**Running a modular check.**  Two ways, both covered by the capstone
-`model_modular` (§3.5), and with `--compare` by its compared forms:
+**Running a modular check.**  Two ways, both covered by the main theorems
+(`main_modular_one` and `main_modular`, §3), and with `--compare` by their
+compared forms:
 
 1. **In one process:**
    `con-ron --olean --modular --jobs=N --search-path=DIRS -- ROOT`.
@@ -282,12 +281,13 @@ Lean comes from `elan`, at con-leche's version (`proof/lean-toolchain`).
 nix develop                        # cargo, charon, aeneas on PATH (or: direnv allow)
 cargo build --release              # target/release/con-ron
 scripts/setup-aeneas-lean.sh       # the patched Aeneas Lean library + Mathlib, once
-cd proof && lake build             # fetches con-leche, builds the model, both theorems and the capstone
+cd proof && lake build             # fetches con-leche, builds the model, both theorems and the main theorems
 ```
 
-The theorems live in three library targets, `ConRonBridge`, `ConRonRefine2`
-and `ConRonCapstone` (§11); all three are default targets, so the plain
-`lake build` above checks them.
+The theorems live in three library targets, `ConRonBridge` (Theorem 1),
+`ConRonRefine2` (Theorem 2) and `ConRonMainTheorem` (the main theorems and
+their proofs, §11); all three are default targets, so the plain `lake build`
+above checks them.
 
 The global allocator is a build-time choice: mimalloc by default,
 `--no-default-features` for the system `malloc`, and `--no-default-features
@@ -296,21 +296,162 @@ was built with.
 
 ## 3. What is proved
 
-The two headline theorems are in
-[`proof/ConRon/Capstone.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L25-L99).
-They are stated about the Aeneas model of the Rust functions the binary's
-`check_main` calls, one premise per call, in the order it calls them, from
-the binary's own start values.  Both depend on con-leche's three axioms
-(`propext`, `Classical.choice`, `Quot.sound`) and on nothing else: no
-`sorry`, no `native_decide`.  A `#guard_msgs` check keeps it that way
-([the census](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L2422-L2462)).
+The main theorems are in
+[`proof/ConRon/MainTheorem.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L10-L100).
+They are con-leche's main theorems
+([`ConLeche/MainTheorem.lean`](https://github.com/leanprover/con-leche/blob/master/ConLeche/MainTheorem.lean)),
+under the same names and in the same order, and each says word for word what
+con-leche's says, about con-ron's binary.  The one change is the premise that
+the binary ran: where con-leche writes `ModelIO.CanGive (Driver.runArgs args)
+fs 0`, con-ron writes `ConRon.CanGive args fs 0`.  The ten depend on
+con-leche's axioms `propext`, `Classical.choice` and `Quot.sound` and on
+`PINS_TEXT._native.decide.ax_1`, the one Aeneas spends on the definition of
+the embedded pin text, and on nothing else: no `sorry`, no `native_decide`.
+A `#guard_msgs` check at the end of the file keeps it that way.
 
-**Soundness**
-([`ConRon.Capstone.no_False_declaration`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L637-L663)),
-with the implicit arguments left out:
+**A lean4export file**
+([`main_json_model`, `main_no_False`, `main_compare_json_model`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L112-L137)):
 
 ```lean
-theorem ConRon.Capstone.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+theorem main_json_model (V : Type w) [ConLeche.SetTheory V] {file : String} {fs : FS}
+    {b : ByteArray}
+    (h : ConRon.CanGive ["--", file] fs 0) (hb : fs.file file = some b) :
+    ∃ r, parseChunks [b] = .ok r ∧ ∃ model, IsModel V model (· ∈ constantsOf r.decls.toList)
+
+theorem main_no_False (V : Type w) [ConLeche.SetTheory V] {file : String} {fs : FS}
+    {b : ByteArray}
+    (h : ConRon.CanGive ["--", file] fs 0) (hb : fs.file file = some b)
+    (hF : jsonWithTheoremFalse [b]) : False
+
+theorem main_compare_json_model (V : Type w) [ConLeche.SetTheory V] {c s : String} {fs : FS}
+    (h : ConRon.CanGive ["--compare", "--", c, s] fs 0) :
+    ∃ bC rC, fs.file c = some bC ∧ parseChunks [bC] = .ok rC ∧
+      ∃ model, IsModel V model (· ∈ constantsOf rC.decls.toList)
+```
+
+In words: if con-ron exits 0 on a file, the file parses, and its constants
+have a model in every set theory `V`: one set per constant and list of
+universe levels, every constant a member of what its type denotes, every
+definition what its value denotes, every recursor computing by its rules
+(con-leche's `IsModel`).  So the file declares no theorem whose type is
+`False`.  With `--compare`, the same holds of the challenge `c`, its holes
+and axioms justified by the solution `s`.
+
+**The `.olean` modes**
+([`main_oleans` … `main_modular_one`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L148-L200)):
+
+```lean
+theorem main_oleans (V : Type w) [SetTheory V] {dirs root : String} {r : Name} {fs : FS}
+    (hr : Olean.parseModName root = some r)
+    (h : ConRon.CanGive ["--olean", "--search-path=" ++ dirs, "--", root] fs 0) :
+    ∃ model, IsModel V model (Olean.closureConstants (Driver.searchPathOf dirs) fs #[r])
+
+theorem main_compare_model (V : Type w) [SetTheory V] {T D c s : String} {C S : Name} {fs : FS}
+    (hc : Olean.parseModName c = some C) (hs : Olean.parseModName s = some S)
+    (h : ConRon.CanGive ["--olean", "--compare", "--trusted-search-path=" ++ T,
+      "--search-path=" ++ D, "--", c, s] fs 0) :
+    ∀ fs', FS.AgreeUnder (Driver.trustedOr (Driver.searchPathOf T) (Driver.searchPathOf D)) fs fs' →
+      ∃ model, IsModel V model (Olean.closureConstants
+        (Driver.trustedOr (Driver.searchPathOf T) (Driver.searchPathOf D)) fs' #[C])
+
+theorem main_modular (V : Type w) [SetTheory V] {dirs root : String} {r : Name} {fs : FS}
+    (hr : Olean.parseModName root = some r)
+    (h : ConRon.CanGive ["--check-graph", "--search-path=" ++ dirs, "--", root] fs 0)
+    (hwork : ∀ m', Olean.HdrClosure (Driver.searchPathOf dirs) fs [r] m' → ∃ root',
+      Olean.parseModName root' = some m' ∧
+        ConRon.CanGive ["--olean", "--module", "--search-path=" ++ dirs, "--", root'] fs 0) :
+    ∃ model : Name → (Name → List Nat → V),
+      (∀ m, Olean.InClosure (Driver.searchPathOf dirs) fs #[r] m →
+        IsModel V (model m) (Olean.moduleConstants (Driver.searchPathOf dirs) fs m)) ∧
+      (∀ m n m', Olean.InClosure (Driver.searchPathOf dirs) fs #[r] m →
+        Olean.Sees (Driver.searchPathOf dirs) fs m n m' → model m n = model m' n)
+
+theorem main_modular_one (V : Type w) [SetTheory V] {dirs root : String} {r : Name} {fs : FS}
+    (hr : Olean.parseModName root = some r)
+    (h : ConRon.CanGive ["--olean", "--modular", "--search-path=" ++ dirs, "--", root] fs 0) :
+    -- the family of `main_modular`
+```
+
+`main_oleans`: an accepted module's import closure, read from the files by
+con-leche's specification of the format (`closureConstants`; nothing about
+the decoder that reads them), has a model.  `main_compare_model`: an
+accepted comparison's challenge closure, read through the challenge's
+directories, has a model on every snapshot that agrees with the run's there,
+so the verdict depends on nothing else on the file system.  `main_modular` is
+the modular check: if the graph check of the root exits 0, and so does an
+`--olean --module` run at every module of the closure of the headers (the
+commands `--schedule-commands` prints and `--schedule` runs), then every
+module of the closure has a model of its own constants, and the models agree
+on what the modules see of each other.  `main_modular_one` says the same of
+one `--olean --modular` process.
+
+**The compared modular runs**
+([`main_modular_compare`, `main_modular_compare_one`, `main_modular_compare_no_False`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L210-L270))
+give `main_modular`'s family for the challenge's closure, read through the
+challenge's directories, when every command `--schedule-commands --compare`
+prints exits 0 (the compared graph check, a worker at every module but the
+challenge, the compare worker at the challenge), or one `--olean --modular
+--compare` process does; and they give that the challenge module then holds
+no constant of type `False`.
+
+**`ConRon.CanGive`**
+([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Model.lean#L417-L420)):
+
+```lean
+def CanGive (args : List String) (fs : ConLeche.FS) (c : UInt8) : Prop :=
+  ∃ (argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (o o' : Model.Tape) (c' : Std.U8),
+    ArgvOf argv args ∧ driver.cli.run_args (Model.snapshotIo fs) o argv = ok (c', o') ∧
+      c'.val = c.toNat
+```
+
+`c` is an exit code of con-ron on the argument list `args` and the files
+`fs` when the Aeneas model of the binary's driver, `driver::cli::run_args`,
+returns `c` on `args` (as code points, `ArgvOf`) at the model instance
+`Model.snapshotIo fs` of the trait `CheckerIo` (con-leche's class
+`CheckerIO` ported as a Rust trait, DESIGN.md §3.9), from some oracle `o`.
+The model is con-ron's `ModelIO`: its file operations answer from `fs`; what
+its escapes answer (the help, the hardware thread count, the scheduler, the
+copies' error) and the worker map's claims are the oracle's, so the theorems
+hold whatever they answer; it prints nothing.  That it answers as `fs` at
+every state (`AnswersAs`), that its worker map keeps the pool's contract
+(`PoolSound`) and that its code map, the threads of `--olean --modular`,
+answers each module's own exit code (`CodesSound`) are theorems
+(`snapshotIo_answersAs`, `snapshotIo_poolSound`, `snapshotIo_codesSound`):
+the walks are proved at every instance with the three, `CanGiveConforming`.
+The binary runs `run_args` at its own instance, `std_io::StdIo`; that a run
+of it is one of the model's is §3.1.
+
+**The composition.**  Each main theorem is proved in three steps:
+
+1. **the driver walk** (`proof/ConRon/MainTheorem/*.lean`): an exit 0 of
+   `run_args` at the theorem's argument list is taken apart, one lemma per
+   driver function, down to the verified calls it made, in order: the
+   argument parse bridged to con-leche's own helpers (`parseModName`,
+   `searchPathOf`, `trustedOr`), the reads to the snapshot, every stage's
+   `Ok`;
+2. **the staged lemmas**
+   ([`proof/ConRon/MainTheorem/Stages.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Stages.lean#L25-L95),
+   below and §3.2–§3.5): one premise per verified call, concluding that
+   con-leche's pure checker accepts what the Rust checked; inside them
+   **Theorem 2** (§7.4: the Rust refines the twin, stage by stage) and
+   **Theorem 1** (§7.3: the twin refines con-leche's pure checker
+   `checkDeclsPure`);
+3. **con-leche**: `MainTheorem/Conclusions.lean` turns the pure accept into
+   the conclusion in con-leche's words, with con-leche's own theorems
+   (`checkDeclsPure_sound_of`, `model_exists`, `closure_sees_isModel`, …).
+
+The theorems are **partial correctness**.  The Rust has one error kind
+con-leche does not, `Native` (§6.5), raised at resource limits such as a full
+handle table; it always ends the run with a nonzero code, so the theorems say
+nothing about such a run.  con-ron may decline where con-leche accepts, but it
+never accepts where con-leche rejects.
+
+**The staged lemma of a lean4export file**
+([`no_False_declaration`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Stages.lean#L628-L654)),
+which `main_no_False` is proved from, with the implicit arguments left out:
+
+```lean
+theorem ConRon.MainTheorem.Stages.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
     (hfalse : ConLeche.jsonWithTheoremFalse (absChunks chunks))
     (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
     (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
@@ -329,16 +470,23 @@ theorem ConRon.Capstone.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
     False
 ```
 
-In words: if the file's bytes (`chunks`) declare a theorem whose type is
-`False`, then the binary's calls cannot all succeed.  Each premise says that
-one extracted Rust function, run on the state the previous one left,
-returned `Ok`; the first starts from `startState`, the value of the binary's
-`AState::empty()`, and every step is handed `emptyTier`, the value of its
-`PersTier::empty()`.  The theorem's docstring maps each premise to its line
-of `check_main`.
-
-**The model statement**
-([`ConRon.Capstone.model_exists`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L589-L614))
+Each premise says that one extracted Rust function, run on the state the
+previous one left, returned `Ok`; the first starts from `startState`, the
+value of `AState::empty()`, and every step is handed `emptyTier`, the value of
+`PersTier::empty()`.  These are the calls of the verified driver's
+[`check_main`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/driver/check_main.rs#L451-L525),
+each marked `// ConRon.MainTheorem.Stages: hᵢ` there, and the walk
+`check_main_zero` proves that an exit 0 made them.  `hreads` says that the
+chunk source handed out `chunks`, each nonempty, then an empty one; the walk
+proves it of the positional reads over the snapshot.  `hpins` holds at every
+pin text, as con-leche's theorems hold at every pin list; the `_embedded`
+forms fix the text to the embedded `PINS_TEXT`, which is what the driver
+decodes.  `h6`, `h7` and `h8` are the check phase: the stream's index, the
+frozen tier, and the worker map's accept, `ParallelAll`: lists of record
+positions, one per worker, that together cover every record, each in
+increasing order, each worker's fold of the verified `run_job` over its list
+accepting.  `model_exists`
+([here](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Stages.lean#L580-L605))
 takes the same premises without `hfalse` and concludes
 
 ```lean
@@ -346,55 +494,72 @@ takes the same premises without `hfalse` and concludes
 ```
 
 where
-[`RustDenotes`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L480-L484)
-says that the records the Rust checked (`prepared.decls`), read in a twin state
-related to the Rust's final state, denote a con-leche stream `dsP`, and that
-`env` is that stream's environment (`streamEnv dsP`: every record's constants
-and tables, in order); `env` has a model (con-leche's `Model V env`) in every
-set theory `V`.  The statement goes through the twin because the Rust store
-is related to the twin's by a relation, not mapped by a function (§7.4).
-
-Both theorems are **partial correctness**.  The Rust has one error kind
-con-leche does not, `Native` (§6.5), raised at resource limits such as a
-full handle table.  Theorem 2 relates a Rust `Native` to the twin's own
-`native` error at the same point, but the twin's `native` claims nothing
-about con-leche, so the headline theorems say nothing about a run that ends
-in `Native`.  So con-ron may decline where con-leche accepts, but it never
-accepts where con-leche rejects.
-
-### 3.1 What the theorems assume
-
-Every assumption is a premise of the two statements, not an axiom, which
-is why `#print axioms` does not list any of them.
-
-| premise | what it says | how it is discharged |
-|---|---|---|
-| `[ConLeche.SetTheory V]` and con-leche's soundness | a set theory to build the model in; con-leche's `checkDeclsPure_sound_of` and `no_proof_of_False_pure` at the pinned revision.  Only these last steps read it: Theorem 1 (`Arena.pooledAccepts_bridge`) is free of it | con-leche's own proof, on the same three axioms |
-| `h1`…`h5`, `hpins` | the binary ran exactly these extracted functions, in this order, on one state that starts at `AState::empty()` under one `PersTier::empty()` | the driver's calling order, which starts [here](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L608-L627); each call carries a `// ConRon.Capstone: hᵢ` comment: trusted |
-| `h6`, `h7`, `h8` (the index, the freeze, the check phase) | the stream's index was built from the records (`build_index`, from `stream_index_empty()`) as `ix`; `freeze_tier` moved the persistent tables and `ix` into the tier; and the check phase's `parallel_all` accepted: `ParallelAll` says there are lists of record positions, one per worker, that together cover every record, each in increasing order, and for each list the worker's run (one `worker_state`, then `jobStep`, the verified `run_job` on each position, folded over the list) answered `Ok` at every step.  Nothing is assumed about a job being claimed only once | `h6` and `h7` are calls like `h1`…`h5`, inside `driver::check_decls_driver`.  `h8` is the contract of the one generic combinator `pool::parallel_all`, an argument about its control flow (§8.2).  The driver's observer only prints, so `--progress` runs are covered |
-| `hreads : ReadsAs sinst src chunks` ([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Frontend/Source.lean#L34-L38)) | the chunk source hands out `chunks`, each nonempty, then an empty buffer | that the file handle returns the file's bytes in order: trusted.  The read loop itself (`parse_source`) is verified |
-| `hpins : decode pinText = ok (.Ok pins)` | the pin list is what the verified decoder read from some text | the theorems hold at every text, as con-leche's hold at every pin list; the binary decodes the embedded `PINS_TEXT` (`decode_embedded`).  `model_exists_embedded`/`no_False_declaration_embedded` state that call itself, at the cost of one extra axiom Aeneas spends on the constant's definition.  `--pins FILE` and `--no-pins` bypass the decoder and are outside the theorems |
-| `maxNatSize` of `h5` | the largest `Nat` numeral the checker takes in or computes | the theorems hold at every value, as con-leche's do; the binary passes `--max-nat-size` or the default |
-| `.Verified` of `h8` | verified mode | a `--trusted` run is outside the theorems |
-
-The prelude's bytes are not a premise: con-leche's `preparePrelude` puts the
+[`RustDenotes`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Stages.lean#L473-L477)
+says that the records the Rust checked, read in a twin state related to the
+Rust's final state, denote a con-leche stream, and that `env` is that stream's
+environment.  The statement goes through the twin because the Rust store is
+related to the twin's by a relation, not mapped by a function (§7.4).  The
+prelude's bytes are not a premise: con-leche's `preparePrelude` puts the
 prelude's declarations into the checked stream, so soundness holds whatever
-the prelude parses to.  The gate `scripts/gen-prelude-lean.sh --check` (§10)
-still checks that con-ron ships con-leche's prelude.
+the prelude parses to.
+
+### 3.1 What a run of the binary must satisfy
+
+`ConRon.CanGive args fs c` is an exit code of the extracted `driver::cli::run_args` at ONE
+instance of the trait `CheckerIo`: the model
+[`Model.snapshotIo fs`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Model.lean),
+con-ron's counterpart of con-leche's `ModelIO`, run from some oracle.  Its file operations
+answer from the snapshot `fs` and fail where `fs` has no answer or the path is not a
+well-formed string; every escape that answers a value takes the oracle's answer, so any value
+is possible; the worker map folds each job over the claims the oracle picks; the code map runs
+every job; a notification does nothing.  That this model answers as `fs` at every state
+(`AnswersAs`) and keeps the two maps' contracts (`PoolSound`, `CodesSound`) are theorems, the
+premises the walks of the driver are proved from.
+
+That a run of the binary is one of the model's is assumed, not proved, as con-leche assumes it
+of its own binary in the module doc of
+[`ConLeche/Frontend/CheckerIO.lean`](https://github.com/leanprover/con-leche/blob/master/ConLeche/Frontend/CheckerIO.lean);
+this section is that doc's counterpart, and the module doc of `MainTheorem.lean` states it in
+full.  The assumption is about the run: only the calls it performs.  The binary's instance is
+[`std_io::StdIo`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/std_io.rs#L1-L12),
+and its `main` is
+[`bin/con-ron.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L206-L243).
+
+| what a run that exits 0 must satisfy | why the binary does |
+|---|---|
+| **(1) The file operations it performs answer as one snapshot `fs`**: does the path exist, is it a directory, its real path, its bytes, a byte range of it, its size — the snapshot's value where it has one, a failure where it has none | The operations are the standard library's calls over the files.  Each path is opened once per run and every byte range is read through that handle, up to where a read finds the end (not the size the metadata reports); a path reopened after its handle was closed must be the same file (device, inode, size, modification time), so a path replaced by another file during the run fails the read rather than splicing two files.  A file rewritten in place is not caught (an open handle sees the new bytes, and a rewrite can keep the stamp): the checks guard against ordinary replacement, they do not enforce the snapshot.  A size is checked against where the contents end (a `/proc` file reports 0).  A path with a code point that is not a character fails, and so does a real path that is not valid UTF-8.  What is assumed is that the files do not change during the run.  On the binary's platform the Rust's spelling of a module's file is upstream's `modFile` (the logic cannot decide it: `System.FilePath`'s `/` reads the opaque `isWindows`).  For the theorems about several processes (`main_modular`, `main_modular_compare`, `main_modular_compare_no_False`) the snapshot is one across all of them, as con-leche's scheduler assumes |
+| **(2) The escapes and notifications write no file a check reads and do not end the process**: `print_help`, `hardware_jobs`, `run_schedule`, `keep_heap`, `keep_solution`, `worker_copies`, every output line and every heartbeat | They print, count threads, run the scheduler (whose workers only read), and keep what the run built until the exit.  The model takes every answer from the oracle, so every answer is covered.  `worker_copies` is the one `&self` escape that answers a value (it runs inside the code map, where the instance is shared): the model's answer is the oracle's function of the arguments, which the binary's, deterministic in them, is; and it can only turn an accept into a failure |
+| **(3) The two maps' actual runs are an oracle's**: the worker map's workers each ran from the job's first state over the positions they claimed, in increasing order, every position claimed, `Ok` only when every step was (`ParallelAll`); the code map ran every module's step and answered their codes in order | `pool::parallel_all`'s control flow (§8.2's pool row); the code map runs at least one thread, each module's thread stores its code at the module's position, and a thread that dies is a failure |
+| **`main` does what it says**: the arguments as code points, `run_args` on the checking thread at `StdIo`, the flush, and the exit with `run_args`'s code | `main` is plumbing.  An argument that is not UTF-8, a failed flush, or a panic on the checking thread is exit 3, never 0 |
+| **(4) The translator, the compiler and the standard library** model and run the code as written | §8 |
+
+The argument is con-leche's: the driver is the same code at both instances; at each file
+operation the run performs the binary's answer is, by (1) and (2), the model's; at each escape
+the binary's answer is some value, and an oracle gives it; at each map, by (3), an oracle's
+claims give the binary's answer; so by induction along the run an exit 0 of the binary is one of
+the model's, and the theorems hold of it.  Two things differ from con-leche: the
+non-determinism is an oracle in the instance's state (Aeneas models a trait method as a
+function), and the stream is read by positional reads where con-leche reads a handle forward.
+
+A run with `--trusted` or `--constant` is outside the theorems: their
+argument lists have neither, and so are con-leche's.  `--olean --schedule`
+has no main theorem of its own: it runs exactly the commands
+`--schedule-commands` prints, and its accept means each of them exited 0,
+which is `main_modular`'s premise.
 
 ### 3.2 The `.olean` path
 
-`--olean` has its own two theorems,
-[`no_False_oleans`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L855-L892)
+`main_oleans` is proved from the `--olean` staged lemmas,
+[`no_False_oleans`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Stages.lean#L846-L883)
 and
-[`model_exists_oleans`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L901-L930),
-on the same three axioms.  They take the calls of §3 with the stream's two
+[`model_exists_oleans`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Stages.lean#L892-L921),
+on the same three axioms.  They take the calls of §3's staged lemma with the stream's two
 replaced by the `.olean` reader's: `hroots`, the roots' names interned one by
 one, and `h3`, the whole read of their import closure.  Soundness, with the
 implicit arguments and the unchanged premises `h5`…`h7` left out:
 
 ```lean
-theorem ConRon.Capstone.no_False_oleans (V : Type w) [ConLeche.SetTheory V]
+theorem ConRon.MainTheorem.Stages.no_False_oleans (V : Type w) [ConLeche.SetTheory V]
     (hcl : ConLeche.Frontend.Olean.InClosure (absSearchPath dirs) F
       (names.map ConRon.Refine.absName).toArray m)
     (hv : ConLeche.Frontend.Olean.ViewOf (absSearchPath dirs) F m d)
@@ -433,7 +598,7 @@ same premises without `hcl` … `hty` and concludes as `model_exists` does, at
 (con-leche states no model theorem for `--olean`).
 
 The one new trust premise is
-[`hsnap : SnapshotOf finst fsv F`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L200-L213):
+[`hsnap : SnapshotOf finst fsv F`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Stages.lean#L196-L209):
 every answer the file operations give (does the path exist, is it a
 directory, its real path, its bytes, a byte range of it, its size) is the
 answer of one snapshot `F` of the file system, at the paths the reader asks:
@@ -460,14 +625,13 @@ challenge's jobs run with the solution (`justify::solution_of`, `run_job` at
 `Some(&sol)`).  An axiom is accepted when `S` holds a constant of its name and
 statement, up to a renaming of the level parameters, and everything its type
 reads is the same constant in both files up to that renaming (con-leche's
-`justifyWhy`).  Two theorems,
-[`model_exists_compare`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L1223-L1266)
+`justifyWhy`).  `main_compare_json_model` is proved from two staged lemmas,
+[`model_exists_compare`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Stages.lean#L1215-L1258)
 and
-[`no_False_compare`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L1289-L1333),
-depend on the same three axioms.  Their premises are the calls of
-`crates/con-ron/src/compare.rs`'s `compare_json`, one each, in its order
-(the module note of §4b in `Capstone.lean` maps each to its call): §3's
-calls, with a second `parse_source` (`h3S`, the solution's file, into the
+[`no_False_compare`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Stages.lean#L1281-L1325),
+on the same three axioms.  Their premises are the calls of the verified
+driver's `compare_json::compare_json`, one each, in its order (the module note
+of §4b in `MainTheorem/Stages.lean` maps each to its call): §3's calls, with a second `parse_source` (`h3S`, the solution's file, into the
 same store), the challenge's copy of the prelude (`hdup`), the solution's
 preparation and check phase (`h4S`, `h6S`…`h8S`), then the challenge's
 preparation from the state the solution's phase hands back (`h4`), its side
@@ -507,9 +671,9 @@ the challenge's lookup (the trusted path when there is one) and the solution
 `S`'s at the solution's, and checks them as §3.3 does, after reading each
 theorem the challenge's file marks as a hole as the axiom of its statement
 (`compare::hole_records`).  Its two theorems,
-[`no_False_oleans_compare`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L1543-L1605)
+[`no_False_oleans_compare`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Stages.lean#L1535-L1597)
 and
-[`model_exists_oleans_compare`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L1611-L1666),
+[`model_exists_oleans_compare`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Stages.lean#L1603-L1658),
 take the premises of §3.2 with the one read replaced by the compared run's
 calls (the names `C` and `S` interned, the challenge's read with its homes,
 its preparation and holes, the solution's read, preparation and check phase,
@@ -526,14 +690,14 @@ challenge) end the run before the theorems' calls and claim nothing.
 
 `--check-graph`, `--olean --module` and `--olean --modular` check a closure
 module by module, as con-leche's modular theorem (`main_modular`,
-`main_modular_one`) states it.  The graph check (`modular::check_graph`)
+`main_modular_one`) states it.  The graph check (`graph::check_graph`)
 reads the headers of the roots' closure and checks the import graph acyclic;
-each module's worker (`modular::check_module`, one process per module under
+each module's worker (`worker::check_module`, one process per module under
 `--olean --module`, all of them in one process under `--olean --modular`,
 each from fresh start values) reads what Lean loads for the module, its own
 records and the context the reach takes from the loaded modules, and checks
 the own records against the context.
-[`model_modular`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L2220-L2260)
+[`model_modular`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Stages.lean#L2214-L2254)
 takes one premise per call of the graph check and, for every module of the
 headers' closure, one per call of its worker, all on one snapshot `F` of the
 files (`SnapshotOf`), and concludes con-leche's family of models over the
@@ -544,8 +708,8 @@ Theorem 2 per call, Theorem 1 of the graph (`graphStage_run`) and of each
 worker (`workerStage_run`: the twin's accepted worker is con-leche's
 `WorkerAccepted`), and con-leche's `closure_sees_isModel`.
 
-`--olean --schedule` (`crate::schedule`, unverified, as con-leche's scheduler
-is) adds nothing to prove: it runs the graph check, then exactly the worker
+`--olean --schedule` (`crate::modular::schedule` and `crate::schedule`,
+unverified, as con-leche's scheduler is) adds nothing to prove: it runs the graph check, then exactly the worker
 commands `--schedule-commands` prints, and its accept means every one of
 them exited 0, which is what `model_modular`'s premises ask for.
 
@@ -562,8 +726,8 @@ establishes.
 
 `--modular --compare` and `--module --compare` check a challenge `C` with
 its solution `S` loaded whole (`import all S` added to `C`'s header):
-[`model_modular_compare`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L2266-L2338) and
-[`no_False_modular_compare`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L2344-L2410) take the compared
+[`model_modular_compare`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Stages.lean#L2260-L2332) and
+[`no_False_modular_compare`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Stages.lean#L2338-L2404) take the compared
 graph check's calls, a plain worker's at every module but `C` and the
 compare worker's at `C`, and conclude con-leche's `compare_sees_isModel` and
 `compare_no_False` about the challenge's closure through its own
@@ -772,10 +936,10 @@ the row the handle names (task #148); it is proved by simulation, as
 
 ### 6.1 The stages
 
-The binary's `check_main` calls the verified functions in order, on one
+The driver's `check_main` calls the verified functions in order, on one
 `AState`
-([`check_main`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L588-L820)).
-They are the stages of the theorems (§3): `h1`…`h5`, then the index and the jobs.
+([`check_main`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/driver/check_main.rs#L451-L525)).
+They are the stages of the staged lemmas (§3): `h1`…`h5`, then the index and the jobs.
 
 1. **`intern_reserved_pins`**
    ([`arena::pins`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/pins.rs#L1-L60)):
@@ -810,9 +974,10 @@ They are the stages of the theorems (§3): `h1`…`h5`, then the index and the j
 
 The parser is in the verified crate
 ([`frontend/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/mod.rs#L19-L30)).
-The driver reads the file forward in 4 MiB chunks through the
-[`HandleSource`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L1053-L1094)
-chunk source and never holds the whole file.  Each line goes through a byte
+The driver reads the file in 4 MiB chunks, each a positional read at the
+offset the last one ended, through the
+[`FileChunks`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/checker_io.rs#L286-L323)
+chunk source, and never holds the whole file.  Each line goes through a byte
 recogniser ported from con-leche's `Scan/Fast.lean`, the scanner
 con-leche's binary actually runs.  Records are interned straight into the
 persistent tier, and a table from export index to handle keeps the export's
@@ -861,7 +1026,7 @@ it is used, from the former's stored type.  The first failing job in fold order 
 the verdict; a failing guard at record 9 no longer overtakes a failing value at
 record 5.  On an `--olean` run a theorem's value stays in its file until its job,
 which reads it into the worker's scratch tier
-([`olean_job`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L725-L775)).
+([`olean_job`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/driver/check_main.rs#L177-L222)).
 
 The checked install is con-leche's uniform route
 (`arena/inductives/`, `check_decl`'s `.indDecl` arm): the recogniser reads
@@ -886,7 +1051,7 @@ con-leche proves that every job passing is an accept of its pure fold
 
 After the index is built, the driver freezes the persistent tier (§4.4) and runs
 the jobs on a pool of threads
-([`check_decls_driver_from`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L624-L701),
+([`check_phase`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/driver/check_main.rs#L308-L345),
 [`pool.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/pool.rs#L35-L48)).
 A worker has its own `AState`
 ([`worker_state`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/checker.rs#L121-L135)):
@@ -924,7 +1089,7 @@ the frontend's error relation names that error value explicitly
 ([`ScanOverflowErr`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Frontend/Shape.lean#L387-L389)).
 The twin's `native`, like a decline, claims nothing about con-leche.  The
 driver reports `Native` as a decline, exit 2
-([`exit_code`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L167-L176)).
+([`exit_code`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/driver/check_main.rs#L108-L115)).
 
 ## 7. How the proof is built
 
@@ -1219,7 +1384,7 @@ fuel `0` directly, fuel `f + 1` from the six function bodies at fuel `f`.
 
 ### 7.6 The composition
 
-[`Capstone.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L25-L99)
+[`MainTheorem/Stages.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Stages.lean#L25-L95)
 contains no new mathematics, only glue:
 
 1. **Theorem 2, stage by stage**: each of `h1`…`h5` becomes a twin run from
@@ -1281,10 +1446,10 @@ differ.
 | **Aeneas and Charon**: the Lean model is what the Rust means | Nothing; a translator bug is a hole.  The crate stays inside the documented subset (§7.1), and `AENEAS_FINDINGS.md` records what the port found, all of it worked around in the Rust |
 | **`rustc`, the Rust standard library and the allocator** | Nothing.  This is the trade the project makes: these instead of Lean's compiler, runtime and GMP.  The mimalloc wrapper in `con-ron-dump` is the only `unsafe` code in the workspace; an allocator can change memory use and time, not a verdict |
 | **`overflow-checks = true`** in the [release profile](https://github.com/leanprover/con-ron/blob/master/Cargo.toml#L22-L23) | The model is the checked-arithmetic one.  A build without it would wrap where the model fails |
-| **The driver**, [`driver.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L1-L55) and the binary's `main` | That it calls the verified stages in the order of `h1`…`h8` (§3), on one state from `AState::empty()`, with the pin list the verified decoder reads from the embedded text and `--verified`, and maps the outcome to the exit codes of §2.2.  The read loop is the verified `parse_source`; that the file handle returns the file's bytes in order is `hreads`.  The check phase is a [straight line of verified calls](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L624-L701) (the index, freeze, under `--module` the reach's inferred flags on a fresh worker, the jobs as `parallel_all` over two verified closures, thaw), and the progress observer between them holds only shared references |
-| **The worker pool**, [`pool.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/pool.rs#L50-L102) | One generic combinator, `parallel_all(n, workers, init, step, after)`, that knows nothing about checking.  Its contract is an argument about its control flow, not a proof: if it returns `Ok`, every index in `0..n` was claimed by some worker, and each worker built its state with `init` once and folded `step` over its claims in claim order, every step `Ok`.  That is `h8`, with the driver's closures (`worker_state`, `run_job`) written in; the proof reads it as [`ParallelAll`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Checker/Jobs.lean#L170-L174) and turns it into one accepting fold per worker.  The contract also promises that each worker's claims strictly increase: the code hands out claims off one monotone counter, and the pool's test asserts it.  Theorem 1 needs this: it inducts in fold order, and a job's start state is reached through the jobs its worker ran before it, whose own checks are known correct only at positions already proved.  The contract does not promise that an index is claimed only once (the code does that too); the proof does not need it.  Results are merged by index, and an accept means every slot is `Ok`.  Nothing is claimed about which worker ran which index: the capstone relates each worker's walk to the twin separately.  Tests check the partition property generically, and that the check phase agrees with the one-worker walk and reports the first failure, at every worker count |
-| **The `.olean` file operations**, `olean_fs::StdFs` | That their answers are one snapshot's: `hsnap` (§3.2).  The files' contents are not trusted |
-| **`Native` errors: partial correctness** | Theorem 2 relates a Rust `Native` to the twin's `native` at the same point, and a twin `native` claims nothing about con-leche, so soundness is unaffected and completeness is not proved.  The arena's sites are the 2²⁷-entry arrays' capacity tests, mirrored by the twin; the one the twin does not mirror is the scanner's `u64` overflow on an oversized numeral (§6.5).  The pin decoder's `Native` is outside Theorem 2: the capstone assumes the embedded pins decode |
+| **The binary's instance and `main`**, [`std_io.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/std_io.rs#L1-L12) and [`bin/con-ron.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L206-L243) | §3.1: that a run that exits 0 is one of the model's (`Model.snapshotIo`), an assumption about the calls the run performs, not about the instance at every call.  The model's own premises (`AnswersAs`, `PoolSound`, `CodesSound`) are theorems.  The driver itself, from the argument parse to the exit code, is the extracted `driver::cli::run_args`, and every mode but the scheduler's is proved; the scheduler (`modular::schedule`, `schedule.rs`) is outside the theorems, as con-leche's is, and adds nothing to them (§3.5) |
+| **The worker pool**, [`pool.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/pool.rs#L50-L102) | One generic combinator, `parallel_all(n, workers, init, step, after)`, that knows nothing about checking.  Its contract is an argument about its control flow, not a proof: if it returns `Ok`, every index in `0..n` was claimed by some worker, and each worker built its state with `init` once and folded `step` over its claims in claim order, every step `Ok`.  That is `PoolSound`, and at the driver's steps the staged lemmas' `h8`; the proof reads it as [`ParallelAll`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Checker/Jobs.lean#L170-L174) and turns it into one accepting fold per worker.  The contract also promises that each worker's claims strictly increase: the code hands out claims off one monotone counter, and the pool's test asserts it.  Theorem 1 needs this: it inducts in fold order, and a job's start state is reached through the jobs its worker ran before it, whose own checks are known correct only at positions already proved.  The contract does not promise that an index is claimed only once (the code does that too); the proof does not need it.  Results are merged by index, and an accept means every slot is `Ok`.  Nothing is claimed about which worker ran which index: the staged lemmas relate each worker's walk to the twin separately.  Tests check the partition property generically, and that the check phase agrees with the one-worker walk and reports the first failure, at every worker count |
+| **The file operations**, `olean_fs::StdFs` and `olean_fs::RunFiles` | That the answers of the operations a run performs are one snapshot's (§3.1 (1)).  The files' contents are not trusted |
+| **`Native` errors: partial correctness** | Theorem 2 relates a Rust `Native` to the twin's `native` at the same point, and a twin `native` claims nothing about con-leche, so soundness is unaffected and completeness is not proved.  The arena's sites are the 2²⁷-entry arrays' capacity tests, mirrored by the twin; the one the twin does not mirror is the scanner's `u64` overflow on an oversized numeral (§6.5).  The pin decoder's `Native` is outside Theorem 2: the staged lemmas assume the embedded pins decode |
 
 Nothing else: no `native_decide`, no `sorry`, and no axiom beyond the three
 in §3.
@@ -1369,7 +1534,7 @@ document's link check (`scripts/overview-links.sh`) and holes table
 Rust prelude text and the twin's prelude bytes are con-leche's
 (`gen-pins.sh`, `gen-prelude.sh`, `gen-prelude-lean.sh`, each `--check`);
 `scripts/extract.sh --check`; and `lake build` of the default targets, which
-include `ConRonBridge`, `ConRonRefine2` and `ConRonCapstone`, failing on any
+include `ConRonBridge`, `ConRonRefine2` and `ConRonMainTheorem`, failing on any
 warning from `proof/`'s own sources.
 
 **Upstream patches.**  One, of two hunks:
@@ -1390,10 +1555,11 @@ snake case.  Twin files mirror the Rust modules.
 |---|---|
 | [`con-ron-core/src/arena/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/mod.rs#L1-L22) | the checker: `handle`, `store` (§4), `monad` (`AState`, the memos), `core_state` (the caches), `expr_ops`, `core` (the type checker), `decl_check`, `check_decl` (one declaration's check), `inductives/` (the uniform inductive route: `block_shape`, `class_read`, `field_tele`, `positivity`, `gen_rec`, `rec_check`, `stream_recs`, `block_install`, …), `install` (what a declaration adds), `stream_index` (the index and a record's job), `checker` (the check phase's sequential pieces), `pins` |
 | [`con-ron-core/src/frontend/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/mod.rs#L19-L30) | the parser: scanner, record assembly, ground hoist, prelude |
+| `con-ron-core/src/driver/` | the driver over the trait `CheckerIo` (`frontend/checker_io.rs`, con-leche's class `CheckerIO`): `cli` (the argument parse, `run_args`), `check_main`, `compare_json`, `compare`, `compare_module`, `graph`, `worker`, `modular` — every mode of the binary |
 | [`con-ron-core/src/kernel/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/lib.rs#L33-L54) | representation-free types (`Name`, `Level`, `PropWhen`, `CheckError`, `CheckMode`), the pinned data as `Expr` values, `pins_text` and `pins_decode` |
 | `con-ron-core/src/ron/` | replacements for the Lean runtime: `nat` (bignum), `hashmap`, `hashmap2`, `ptr` (`Arc`) |
-| `con-ron/src/` | unverified: the binary, `driver`, `pool`, `olean_fs` (the `.olean` reader's file operations over `std`), `modular` (the modular modes' driver), `schedule` (the simple scheduler), and `olean-compare` |
-| `con-ron-dump/` | unverified: the `con-ron-pins/2` reader and writer, the global allocator |
+| `con-ron/src/` | unverified: the binary's `main`, its instance `std_io::StdIo` (the file operations of `olean_fs`, the worker map over `pool`, the rendering of every line with `driver` and `render`), the scheduler (`modular`, `schedule`), and `olean-compare` |
+| `con-ron-dump/` | unverified: the `con-ron-pins/2` writer and its test-only reader, the global allocator |
 
 **Lean** (`proof/ConRon/`)
 
@@ -1404,7 +1570,8 @@ snake case.  Twin files mirror the Rust modules.
 | `Arena/` | `ConRonArena` (default) | the twin (B), with `Denote.lean`, `WF.lean`, `WFProofs.lean` |
 | `Bridge/` | `ConRonBridge` | Theorem 1 |
 | `Refine2/` | `ConRonRefine2` | Theorem 2; `Tactic/` holds `lockstep` |
-| `Capstone.lean` | `ConRonCapstone` | the two headline theorems |
+| `MainTheorem.lean` | `ConRonMainTheorem` (default) | the ten main theorems (§3) |
+| `MainTheorem/` | `ConRonMainTheorem` (default) | their proofs: the driver walks, the staged lemmas (`Stages.lean`), the conclusions in con-leche's words |
 
 `vendor/aeneas/` is Aeneas as a submodule, for its Lean library and
 documentation; `scripts/` holds the gates and tools of §10.

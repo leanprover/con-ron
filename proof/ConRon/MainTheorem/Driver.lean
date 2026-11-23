@@ -1,20 +1,22 @@
-import ConRon.Capstone
+import ConRon.MainTheorem.Stages
 
 /-!
 # `ConRon.MainTheorem.Driver` — the walk of the extracted driver at `-- <file>`
 
 **Task #171, lane D, slice 1** (DESIGN.md §3.9).  The binary's `main` is plumbing around the
 extracted `driver::cli::run_args`, generic over the trait `frontend::checker_io::CheckerIo`
-(the port of con-leche's class `CheckerIO`).  This module states what the theorems assume of an
+(the port of con-leche's class `CheckerIO`).  This module states what the walks assume of an
 instance — its file operations answer as one snapshot of the files at every state
-(`AnswersAs`), its worker map keeps the pool's contract for every job (`PoolSound`) — and walks
+(`AnswersAs`), its worker map keeps the pool's contract for every job (`PoolSound`), its code
+map answers each job's code (`CodesSound`); the model instance of `MainTheorem/Model.lean` has
+all three, as theorems — and walks
 the Aeneas model of `run_args` at the argument list `["--", file]`: an exit 0 there is one
-premise per step of the capstone (`ConRon.Capstone.model_exists_embedded`'s `h1` … `h8`, at the
+premise per step of the staged lemma (`ConRon.MainTheorem.Stages.model_exists_embedded`'s `h1` … `h8`, at the
 binary's start values, the embedded pins), with the chunks the reads returned concatenating to
 the file's bytes (`run_args_json`).
 
 One lemma per driver function, each an inversion ("if `f …` answers this, then these facts"),
-as `Capstone.lean`'s are:
+as `Stages.lean`'s are:
 
 | lemma | function |
 |---|---|
@@ -31,13 +33,13 @@ open ConRon.Generated
 
 namespace ConRon
 
-open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean ConRon.Capstone
+open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean ConRon.MainTheorem.Stages
 
-/-! ## What the theorems assume of an instance -/
+/-! ## What the walks assume of an instance -/
 
 /-- **The instance's file operations answer as the snapshot `fs`, at every state**: at the
 paths the driver asks (`PathRel`), each operation that answers gives `fs`'s answer
-(`Capstone.lean`'s `SnapshotOf`, at every state of the instance).  A failing operation claims
+(`Stages.lean`'s `SnapshotOf`, at every state of the instance).  A failing operation claims
 nothing: it gives the driver no exit 0. -/
 def AnswersAs {S : Type} (io : frontend.checker_io.CheckerIo S) (fs : ConLeche.FS) : Prop :=
   ∀ s : S, SnapshotOf io.CheckerFsInst s fs
@@ -76,10 +78,12 @@ at most `usize::MAX` long, and a list that does not fit has no `argv`. -/
 def ArgvOf (argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (args : List String) : Prop :=
   argv.val.map (fun a => a.val.map UScalar.val) = args.map (fun s => s.toList.map Char.toNat)
 
-/-- **An exit code `c` of con-ron at the argument list `args`, on the files `fs`**: the
-extracted driver returns `c` at an IO instance whose file operations answer as `fs`, at every
-state, and whose worker map keeps its contract. -/
-def CanGive (args : List String) (fs : ConLeche.FS) (c : UInt8) : Prop :=
+/-- **An exit code `c` of the extracted driver at the argument list `args`, at SOME instance that
+conforms to the snapshot `fs`**: its file operations answer as `fs` at every state, and its two
+maps keep their contracts.  The walks are proved from this instance-generic form; the main
+theorems' `ConRon.CanGive` (`MainTheorem/Model.lean`) is the driver at one instance, the model
+`Model.snapshotIo fs`, which conforms (`CanGive.conforming`). -/
+def CanGiveConforming (args : List String) (fs : ConLeche.FS) (c : UInt8) : Prop :=
   ∃ (S : Type) (io : frontend.checker_io.CheckerIo S) (s s' : S)
     (argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (c' : Std.U8),
     AnswersAs io fs ∧ PoolSound io ∧ CodesSound io ∧ ArgvOf argv args ∧
@@ -441,8 +445,8 @@ theorem parse_args_end {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {d f}
     (h : driver.cli.parse_args argv = ok a) :
     a.bad = none ∧ a.check_graph = false ∧ a.olean = false ∧ a.compare = false ∧
       a.search_path.val = [] ∧ a.constants.val = [] ∧ a.module = false ∧ a.modular = false ∧
-      a.scheduled = false ∧ a.trusted_path.val = [] ∧ a.verified = true ∧ a.no_pins = false ∧
-      a.pins = none ∧ ∃ f', a.files.val = [f'] ∧ f'.val = f.val := by
+      a.scheduled = false ∧ a.trusted_path.val = [] ∧ a.verified = true ∧
+      ∃ f', a.files.val = [f'] ∧ f'.val = f.val := by
   rw [driver.cli.parse_args, driver.cli.args_default] at h
   obtain ⟨a0, ha0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨n, -, ha0⟩ := ConRon.Refine.bind_eq_ok_iff.mp ha0
@@ -470,10 +474,10 @@ theorem parse_args_end {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)} {d f}
   have hv1' := (Result.ok_injective hv1).symm
   subst hv1'
   rw [driver.cli.closed] at h
-  simp only [Bool.false_eq_true, ite_false] at h
+  simp only [core.option.Option.is_some, Option.isSome_none, Bool.false_eq_true, ite_false] at h
   have ha := (Result.ok_injective h).symm
   subst ha
-  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, f', ?_, str_copy_val hf'⟩
+  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, f', ?_, str_copy_val hf'⟩
   rw [push_val hout1]
   rfl
 
@@ -485,7 +489,7 @@ section CheckMain
 
 variable {S : Type} {io : frontend.checker_io.CheckerIo S} {fs : ConLeche.FS}
 
-/-- `PersTier::empty()` is the capstone's `emptyTier`. -/
+/-- `PersTier::empty()` is the staged lemmas' `emptyTier`. -/
 theorem emptyTier_eq : arena.store.PersTier.empty = ok emptyTier := by
   simp only [arena.store.PersTier.empty, arena.store.Tbl.empty, arena.store.ETables.empty,
     arena.store.LsTables.empty, arena.store.LTables.empty, arena.store.NTables.empty,
@@ -522,26 +526,20 @@ theorem verdict_of_zero {s s' : S} {pers st ds v fr verified} {c : Std.U8}
     obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     exact code_ne h (exit_code_ne hc0) hc
 
-/-- **The pin list at no override**: the embedded text's, decoded. -/
-theorem pins_for_run_embedded {s s' : S} {a : driver.cli.Args} (hnp : a.no_pins = false)
-    (hp : a.pins = none) {ps}
-    (h : driver.check_main.pins_for_run io s a = ok (some ps, s')) :
+/-- **The pin list**: the embedded text's, decoded. -/
+theorem embedded_pins_ok {F : Type} {wn : frontend.checker_io.WorkerNotes F} {fsv : F} {ps}
+    (h : driver.check_main.embedded_pins wn fsv = ok (some ps)) :
     kernel.pins_decode.decode_embedded = ok (.Ok ps) := by
-  rw [driver.check_main.pins_for_run] at h
-  simp only [hnp, hp, Bool.false_eq_true, ite_false] at h
+  rw [driver.check_main.embedded_pins] at h
   obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases r with
-  | Ok ps' =>
-    have := Result.ok_injective h
-    simp only [Prod.mk.injEq, Option.some.injEq] at this
-    rw [hr, this.1]
+  | Ok ps' => rw [hr, Option.some.inj (Result.ok_injective h)]
   | Err e =>
     obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have := Result.ok_injective h
-    simp at this
+    cases Result.ok_injective h
 
 /-- **The check phase, accepted** (`check_main::check_phase`, with the solution `sol`): the
-capstone's `h6`, `h7` and `h8` — the index from the empty one, the tier frozen, and the worker
+staged lemmas' `h6`, `h7` and `h8` — the index from the empty one, the tier frozen, and the worker
 map's contract at the driver's job (`ParallelAll` at `jobStepSol`) — and the thaw hands back
 the index and the state the index build left (`freeze_tier_ok`). -/
 theorem check_phase_ok (hpool : PoolSound io) {s s' : S}
@@ -597,9 +595,9 @@ theorem check_phase_ok (hpool : PoolSound io) {s s' : S}
       rw [hstep] at hpa
       exact hpa
 
-/-- **What an exit 0 of `-- <file>` ran**: the capstone's step premises, in the binary's order,
+/-- **What an exit 0 of `-- <file>` ran**: the staged lemmas' step premises, in the binary's order,
 at its start values and the embedded pins, with the chunks the reads returned concatenating to
-the file's bytes `b` — every premise of `ConRon.Capstone.model_exists_embedded` and
+the file's bytes `b` — every premise of `ConRon.MainTheorem.Stages.model_exists_embedded` and
 `no_False_declaration_embedded`. -/
 inductive JsonStages (b : ByteArray) : Prop where
   | intro {st1 st2 st3 st4 st5 st6 : arena.monad.AState} {pre : frontend.prepare.PreludeIx}
@@ -642,10 +640,10 @@ theorem hoisted_bind {α β : Type} {c : Prop} [Decidable c] {m : Result Unit} {
     exact h
 
 /-- **The check of a lean4export file, 0** (`check_main::check_main` at `--verified`, the
-embedded pins): its calls are the capstone's step premises (`JsonStages`). -/
+embedded pins): its calls are the staged lemmas' step premises (`JsonStages`). -/
 theorem check_main_zero (hfs : AnswersAs io fs) (hpool : PoolSound io) {s s' : S}
-    {a : driver.cli.Args} (hver : a.verified = true) (hnp : a.no_pins = false)
-    (hp : a.pins = none) {file : alloc.vec.Vec Std.U32} {q : System.FilePath}
+    {a : driver.cli.Args} (hver : a.verified = true)
+    {file : alloc.vec.Vec Std.U32} {q : System.FilePath}
     (hq : PathRel file q) {b : ByteArray} (hb : fs.file q = some b) {c : Std.U8}
     (h : driver.check_main.check_main io s a file = ok (c, s')) (hc : c.val = 0) :
     JsonStages b := by
@@ -690,11 +688,11 @@ theorem check_main_zero (hfs : AnswersAs io fs) (hpool : PoolSound io) {s s' : S
     exact (code_ne h (exit_code_ne hc0) hc).elim
   | Ok prepared =>
   have h := hoisted_bind h
-  obtain ⟨⟨o, io1⟩, hpr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨o, hpr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases o with
   | none => exact (code_ne h (by decide) hc).elim
   | some ps =>
-  have hpins := pins_for_run_embedded hnp hp hpr
+  have hpins := embedded_pins_ok hpr
   obtain ⟨⟨r3, st6⟩, h5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases r3 with
   | Err e =>
@@ -714,7 +712,7 @@ end CheckMain
 /-! ## The run of `["--", file]` -/
 
 /-- **An exit 0 of `["--", file]`** (`cli::run_args`): the verified driver checked the file, at
-`--verified` and the embedded pins, and its calls are the capstone's step premises with the
+`--verified` and the embedded pins, and its calls are the staged lemmas' step premises with the
 chunks read concatenating to the file's bytes. -/
 theorem run_args_json {S : Type} {io : frontend.checker_io.CheckerIo S} {fs : ConLeche.FS}
     (hfs : AnswersAs io fs) (hpool : PoolSound io) {argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)}
@@ -727,7 +725,7 @@ theorem run_args_json {S : Type} {io : frontend.checker_io.CheckerIo S} {fs : Co
   rw [help_wanted_end hv hd hhw] at h
   simp only [Bool.false_eq_true, ite_false] at h
   obtain ⟨a, ha, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨hbad, hcg, hol, hcmp, hsp, hcon, hmod, hmods, hsch, htp, hver, hnp, hp, f', hfiles, hf'⟩ :=
+  obtain ⟨hbad, hcg, hol, hcmp, hsp, hcon, hmod, hmods, hsch, htp, hver, f', hfiles, hf'⟩ :=
     parse_args_end hv hd ha
   have hlen0 : ∀ {α : Type} {v : alloc.vec.Vec α}, v.val = [] → ¬ alloc.vec.Vec.len v > 0#usize := by
     intro α v hv0 hgt
@@ -749,12 +747,12 @@ theorem run_args_json {S : Type} {io : frontend.checker_io.CheckerIo S} {fs : Co
     rw [show f.val.map (fun c => Char.ofNat c.val) = (f.val.map UScalar.val).map Char.ofNat by
       simp, hf, List.map_map]
     simp [Function.comp_def, Char.ofNat_toNat]
-  exact check_main_zero hfs hpool hver hnp hp hq hb h hc
+  exact check_main_zero hfs hpool hver hq hb h hc
 
 /-- **The run premise, unpacked**: every exit 0 of con-ron at `["--", file]` is one of
 `JsonStages`'s, on the file's bytes. -/
 theorem json_stages_of_canGive {file : String} {fs : ConLeche.FS} {b : ByteArray}
-    (h : CanGive ["--", file] fs 0) (hb : fs.file file = some b) : JsonStages b := by
+    (h : CanGiveConforming ["--", file] fs 0) (hb : fs.file file = some b) : JsonStages b := by
   obtain ⟨S, io, s, s', argv, c, hfs, hpool, -, hargv, hrun, hc⟩ := h
   exact run_args_json hfs hpool hargv hrun (by simpa using hc) hb
 

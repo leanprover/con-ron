@@ -1,66 +1,48 @@
-//! The modular modes (task #166): con-leche's `Driver/Graph.lean` `checkGraphG`,
-//! `Driver/CompareModule.lean`, `Driver/Modular.lean`, the worker's driver
-//! `Driver/Worker.lean` `checkModuleG`, and of the scheduler (`Driver/Schedule.lean`)
-//! the part that starts nothing: `--schedule-commands`, and the graph check and
-//! the workers' commands of the simple scheduler (`--schedule`, `crate::schedule`).
+//! The scheduler's part of con-leche's `Driver/Schedule.lean` (`--olean
+//! --schedule`, `crate::schedule` the processes), and the copies' report lines
+//! of the compare worker (`copy_line`, which `std_io` renders with).
 //!
 //! ```text
-//! con-ron [OPTIONS] --check-graph --search-path=DIRS [--] MODULE...
-//! con-ron [OPTIONS] --check-graph --compare [--trusted-search-path=DIRS]
-//!         --search-path=DIRS [--] CHALLENGE SOLUTION
+//! con-ron [OPTIONS] --olean --schedule[-OPT=V] --search-path=DIRS [--] MODULE
 //! con-ron [OPTIONS] --olean --schedule-commands [--schedule-order=graph]
 //!         [--worker-stack-size=SIZE] --search-path=DIRS [--] MODULE
 //! ```
 //!
-//! **The graph check** is the verified core's `modular::graph::graph_of` over the
-//! files (`olean_fs::StdFs`): the roots' closure, its import graph acyclic, every
-//! import resolved, the ranks one-to-one and decreasing along every edge.  Its
-//! lines are upstream's: `graph: acyclic: N modules, E import edges` on stdout, or
-//! `graph: <error>` on stderr, and the error's exit code.
+//! The scheduler is con-leche's `liftIO`: outside the theorems, run by the
+//! instance's `run_schedule` once the verified driver has made the usage
+//! checks.  **Its graph** is the verified core's `modular::graph::graph_of` over
+//! the files (`olean_fs::StdFs`), the root's closure through the solution's
+//! lookup; at a compared run the challenge's closure is then walked through the
+//! trusted path alone (`driver::compare_module::chal_walk`, the verified
+//! driver's).  **`--schedule-commands`** prints the commands that check the
+//! closure, one per line, shell-quoted as upstream's: the graph check of the
+//! root, then one `--olean --module` run per module of the closure, in the
+//! scheduler's start order.  Nothing is started.  `--schedule` without
+//! `-commands` runs those workers (`crate::schedule`).
 //!
-//! **`--schedule-commands`** prints the commands that check the closure, one per
-//! line, shell-quoted as upstream's: the graph check of the root, then one
-//! `--olean --module` run per module of the closure, in the scheduler's start
-//! order.  Nothing is started.  `--schedule` without `-commands` runs those
-//! workers (`crate::schedule`).
-//!
-//! The calls of the verified core are marked `ConRon.Capstone: <premise>`.
+//! The calls of the verified core are marked `ConRon.MainTheorem.Stages: <premise>`.
 
 use con_ron_core::arena::env as ienv;
+use con_ron_core::arena::env::IDeclaration;
 use con_ron_core::arena::handle::NIdx;
 use con_ron_core::arena::monad;
 use con_ron_core::arena::monad::AState;
 use con_ron_core::arena::pins::intern_reserved_pins;
 use con_ron_core::arena::store::PersTier;
-use con_ron_core::frontend::modular::compare_module;
+use con_ron_core::frontend::compare as fcompare;
 use con_ron_core::frontend::modular::graph;
-use con_ron_core::frontend::modular::reach;
 use con_ron_core::frontend::modular::worker;
 use con_ron_core::frontend::modular::worker::WorkerRead;
-use con_ron_core::frontend::olean::index;
-use con_ron_core::frontend::olean::progress;
-use con_ron_core::frontend::compare as fcompare;
-use con_ron_core::frontend::olean::records::{value_cache_empty, ValueCache};
-use con_ron_core::frontend::pace::{pace_dup, pace_on};
-use con_ron_core::arena::checker;
-use con_ron_core::arena::env::IDeclaration;
-use con_ron_core::ron::hashmap2::HashMap2;
-use std::time::Instant;
-use crate::compare::CompareOpts;
-use crate::driver::{Heartbeat, Silent};
 use con_ron_core::frontend::olean::files;
+use con_ron_core::frontend::olean::index;
 use con_ron_core::frontend::olean::spec;
-use con_ron_core::frontend::olean::spec::{ImportRec, OleanPins};
+use con_ron_core::frontend::olean::spec::OleanPins;
 use con_ron_core::frontend::pace::Pace;
-use con_ron_core::kernel::core_types;
 use con_ron_core::kernel::core_types::CheckError;
-use con_ron_core::kernel::env::CheckMode;
-use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::{Name, NameKind};
 use con_ron_core::ron::hashmap::Dup;
+use con_ron_core::ron::hashmap2::HashMap2;
 
-use crate::compare;
-use crate::compare::CmpRequest;
 use crate::driver;
 use crate::olean_fs;
 use crate::render;
@@ -70,7 +52,7 @@ use crate::render;
 /// The state a graph walk starts from: the reserved-name pins interned into a
 /// fresh store (as every run's first step), the reader's known handles.
 fn graph_start(pers: &PersTier, st: &mut AState) -> Result<OleanPins, u8> {
-    // ConRon.Capstone: h1
+    // ConRon.MainTheorem.Stages: h1
     match intern_reserved_pins(pers, st) {
         Ok(()) => (),
         Err(e) => {
@@ -78,7 +60,7 @@ fn graph_start(pers: &PersTier, st: &mut AState) -> Result<OleanPins, u8> {
             return Err(3);
         }
     }
-    // ConRon.Capstone: hpk (`olean_pins`)
+    // ConRon.MainTheorem.Stages: hpk (`olean_pins`)
     match spec::olean_pins(pers, &mut st.store) {
         Ok(pk) => Ok(pk),
         Err(e) => {
@@ -88,104 +70,11 @@ fn graph_start(pers: &PersTier, st: &mut AState) -> Result<OleanPins, u8> {
     }
 }
 
-/// con-leche: none — `filterMap parseModName`, over handles
-/// The command line's module names, as handles.
-fn intern_all(pers: &PersTier, st: &mut AState, ns: &[Name]) -> Result<Vec<NIdx>, CheckError> {
-    let mut v: Vec<NIdx> = Vec::with_capacity(ns.len());
-    for n in ns {
-        v.push(monad::intern_name(pers, st, n)?);
-    }
-    Ok(v)
-}
-
-/// con-leche: ConLeche/Driver/Graph.lean:240-251 checkGraphG
-/// The accept line of a graph: its modules and its import edges.
-fn graph_accepted(c: &Vec<(NIdx, Vec<ImportRec>)>) -> u8 {
-    let edges: usize = c.iter().map(|e| e.1.len()).sum();
-    println!("con-ron: graph: acyclic: {} modules, {} import edges", c.len(), edges);
-    0
-}
-
 /// con-leche: ConLeche/Driver/Graph.lean:240-251 checkGraphG
 /// A graph walk's failure: its line, and its exit code.
 fn graph_failed(e: &CheckError) -> u8 {
     eprintln!("con-ron: graph: {}", driver::error_text(e));
     driver::exit_code(e)
-}
-
-/// con-leche: ConLeche/Driver/CompareModule.lean:36-47 chalWalk
-/// **The challenge's closure through the trusted path alone**
-/// (`--trusted-search-path`, its verdict only): where a module of it is not there,
-/// why (invalid where the search path holds it, as in `--olean --compare`); none
-/// where the walk succeeds or no trusted path is given.
-pub fn chal_walk(pers: &PersTier, st: &mut AState, pk: &OleanPins, r: &CmpRequest, c: &NIdx) -> Option<CheckError> {
-    if r.trusted.is_empty() {
-        return None;
-    }
-    let cr = compare::chal_roots(r);
-    // ConRon.Capstone: hchal (`chal_walk`, the graph at the challenge's lookup)
-    match compare_module::chal_walk(&olean_fs::StdFs, pk, pers, &mut st.store, &cr, c) {
-        Ok(_) => None,
-        Err(e) => match compare::fallback_only(pers, st, r, c) {
-            Some(why) => Some(core_types::invalid(render::cps(&why))),
-            None => Some(e),
-        },
-    }
-}
-
-/// con-leche: ConLeche/Driver/Graph.lean:240-251 checkGraphG
-/// **The graph check** (`--check-graph`): the roots' closure along the search
-/// path, its graph checked (`graph_of`); the accept line or the error's.
-pub fn check_graph(sp: &files::Roots, roots: &[Name]) -> u8 {
-    // ConRon.Capstone: `startState`
-    let mut st = AState::empty();
-    // ConRon.Capstone: `emptyTier`
-    let pers: &PersTier = &PersTier::empty();
-    let pk = match graph_start(pers, &mut st) {
-        Ok(pk) => pk,
-        Err(code) => return code,
-    };
-    // ConRon.Capstone: hroots (`intern_name` of each root)
-    let rs = match intern_all(pers, &mut st, roots) {
-        Ok(v) => v,
-        Err(e) => return graph_failed(&e),
-    };
-    // ConRon.Capstone: hgraph (`graph_of`, no import added)
-    match graph::graph_of(&olean_fs::StdFs, &pk, pers, &mut st.store, sp, &rs, &None) {
-        Ok(c) => graph_accepted(&c),
-        Err(e) => graph_failed(&e),
-    }
-}
-
-/// con-leche: ConLeche/Driver/CompareModule.lean:61-71 checkGraphCmpG
-/// **The graph check of a compared run** (`--check-graph --compare`): with a
-/// trusted path, the challenge's closure first, through the challenge's lookup
-/// alone (`chal_walk`); then the graph of both closures through the solution's
-/// lookup, the solution added to the challenge's header (`cmp_extra`).
-pub fn check_graph_cmp(r: &CmpRequest) -> u8 {
-    // ConRon.Capstone: `startState`
-    let mut st = AState::empty();
-    // ConRon.Capstone: `emptyTier`
-    let pers: &PersTier = &PersTier::empty();
-    let pk = match graph_start(pers, &mut st) {
-        Ok(pk) => pk,
-        Err(code) => return code,
-    };
-    // ConRon.Capstone: hroots
-    let cs = match intern_all(pers, &mut st, &[name::dup(&r.challenge), name::dup(&r.solution)]) {
-        Ok(v) => v,
-        Err(e) => return graph_failed(&e),
-    };
-    let (c, s) = (cs[0].dup2(), cs[1].dup2());
-    if let Some(e) = chal_walk(pers, &mut st, &pk, r, &c) {
-        return graph_failed(&e);
-    }
-    let sr = compare::sol_roots(r);
-    // ConRon.Capstone: hgraph (`graph_of`, the solution added to the challenge's header)
-    match graph::graph_of(&olean_fs::StdFs, &pk, pers, &mut st.store, &sr, &vec![c.dup2()], &Some((c, s))) {
-        Ok(c) => graph_accepted(&c),
-        Err(e) => graph_failed(&e),
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -445,19 +334,10 @@ pub fn schedule(q: &ScheduleReq) -> u8 {
         return 3;
     }
     let cps_all = |v: &[String]| -> Vec<Vec<u32>> { v.iter().map(|d| render::cps(d)).collect() };
-    let r = CmpRequest {
-        challenge: name::dup(&q.root),
-        solution: match &q.cmp {
-            Some(s) => name::dup(s),
-            None => name::dup(&q.root),
-        },
-        trusted: cps_all(q.trusted),
-        path: cps_all(q.path),
-        constants: Vec::new(),
-    };
-    // ConRon.Capstone: `startState`
+    let (trusted, path) = (cps_all(q.trusted), cps_all(q.path));
+    // ConRon.MainTheorem.Stages: `startState`
     let mut st = AState::empty();
-    // ConRon.Capstone: `emptyTier`
+    // ConRon.MainTheorem.Stages: `emptyTier`
     let pers: &PersTier = &PersTier::empty();
     let pk = match graph_start(pers, &mut st) {
         Ok(pk) => pk,
@@ -474,14 +354,21 @@ pub fn schedule(q: &ScheduleReq) -> u8 {
             Err(e) => return graph_failed(&e),
         },
     };
-    let sr = compare::sol_roots(&r);
-    // ConRon.Capstone: hgraph (`graph_of` through the solution's lookup)
+    // the solution's lookup: the trusted path first, then the search path
+    let sr = if trusted.is_empty() {
+        files::roots_of_path(path.clone())
+    } else {
+        files::Roots { path: trusted.clone(), fallback: path.clone() }
+    };
+    // ConRon.MainTheorem.Stages: hgraph (`graph_of` through the solution's lookup)
     let c = match graph::graph_of(&olean_fs::StdFs, &pk, pers, &mut st.store, &sr, &vec![root.dup2()], &cmp) {
         Ok(c) => c,
         Err(e) => return graph_failed(&e),
     };
     if q.cmp.is_some() {
-        if let Some(e) = chal_walk(pers, &mut st, &pk, &r, &root) {
+        // the challenge's closure through the trusted path alone (the verified
+        // driver's walk, on a store of its own)
+        if let Some(e) = con_ron_core::driver::compare_module::chal_walk(&olean_fs::StdFs, &trusted, &path, &q.root) {
             return graph_failed(&e);
         }
     }
@@ -570,7 +457,7 @@ fn text(s: &[u32]) -> String {
 /// **A copy, for the report** (`--compare`'s worker): a hole and the kind of what
 /// justifies it, or a constant the challenge restates, with the module it is read
 /// from.
-fn copy_line(pers: &PersTier, st: &mut AState, w: &WorkerRead, owner: &HashMap2<NIdx, u64>, d: &IDeclaration) -> Result<String, CheckError> {
+pub fn copy_line(pers: &PersTier, st: &mut AState, w: &WorkerRead, owner: &HashMap2<NIdx, u64>, d: &IDeclaration) -> Result<String, CheckError> {
     let n = match fcompare::rec_key(d) {
         Some(n) => n,
         None => return Ok(String::new()),
@@ -601,307 +488,6 @@ fn copy_line(pers: &PersTier, st: &mut AState, w: &WorkerRead, owner: &HashMap2<
         Ok(format!("hole {} ({}) justified by {}'s {}", nt, label, h, kind))
     } else {
         Ok(format!("{} {}: {}'s {}", rk, nt, h, kind))
-    }
-}
-
-/// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
-/// **The worker at module `m`**, from fresh start values: phases 1-4
-/// (`worker::worker_read`, every read through `sp`), then the own records' jobs
-/// over the index of the context and the own records, and the verdict.  `alone`:
-/// the process's one check (`--module`); else one module of `--modular`, whose
-/// lines name it.  `cmp`: the solution a compared challenge loads whole (`import
-/// all S` added to its header); its accept then lists the copies.
-pub fn check_module(o: &CompareOpts, sp: &files::Roots, m_name: &Name, cmp: Option<&Name>, alone: bool) -> u8 {
-    let t0 = Instant::now();
-    let m_text = render::name_str(m_name);
-    let who = if alone { String::new() } else { format!("module {}: ", m_text) };
-    let fail = |e: &CheckError| -> u8 {
-        eprintln!("con-ron: module {}: {} ({})", m_text, driver::error_text(e), o.mode_tag);
-        driver::exit_code(e)
-    };
-    // ConRon.Capstone: `startState`
-    let mut st = AState::empty();
-    // ConRon.Capstone: `emptyTier`
-    let pers: &PersTier = &PersTier::empty();
-    // ConRon.Capstone: h1
-    if let Err(e) = intern_reserved_pins(pers, &mut st) {
-        return fail(&e);
-    }
-    let mut hb = Heartbeat::new(pace_dup(o.progress), t0);
-    if alone {
-        hb.read_starts(&format!("module {}", m_text));
-    }
-    // ConRon.Capstone: hroots (`intern_name` of M; under --compare also of S)
-    let m = match monad::intern_name(pers, &mut st, m_name) {
-        Ok(h) => h,
-        Err(e) => return fail(&e),
-    };
-    let x: Vec<ImportRec> = match cmp {
-        None => Vec::new(),
-        Some(s) => match monad::intern_name(pers, &mut st, s) {
-            Ok(h) => vec![graph::solution_import(&h)],
-            Err(e) => return fail(&e),
-        },
-    };
-    // ConRon.Capstone: hpins (`decode_embedded`; `--pins`/`--no-pins` outside the theorems)
-    let pins = match driver::pins_for_run(o.pins, o.no_pins) {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("con-ron: {}", e);
-            return 3;
-        }
-    };
-    // ConRon.Capstone: h5 (before the worker: the pin ground reads the interned variants)
-    let ipins = match checker::intern_all_pins(pers, &mut st, &pins, o.max_nat_size) {
-        Ok(p) => p,
-        Err(e) => return fail(&e),
-    };
-    // ConRon.Capstone: hwork (phases 1-4, one call)
-    let w: WorkerRead = match worker::worker_read(&olean_fs::StdFs, pers, &mut st, sp, &ipins, &m, &x) {
-        Ok(w) => w,
-        Err((e, _)) => return fail(&e),
-    };
-    if pace_on(o.progress) {
-        let say = |line: String| {
-            let ms = t0.elapsed().as_millis() as u64;
-            let t = progress::read_line_text(&render::cps(&line), ms, &olean_fs::resident_set());
-            eprintln!("con-ron: {}", text(&t));
-        };
-        say(format!("the home of {}: {} constants, views checked", m_text, w.home.constants.len()));
-        say(format!(
-            "loads {} modules, {} names; {} names held twice, merged",
-            w.reads.loads.order.len(),
-            w.reads.index.first.len(),
-            w.reads.clashes.len()
-        ));
-        let mut homes: HashMap2<NIdx, bool> = HashMap2::new();
-        for h in &w.reach.homes {
-            homes.insert(h.dup2(), true);
-        }
-        say(format!(
-            "reach: {} records from {} modules, {} completed, {} flags inferred",
-            w.reach.ctx.len(),
-            homes.len(),
-            w.reach.completed.len(),
-            w.reach.inferred
-        ));
-    }
-    if !w.hoisted.is_empty() {
-        let names: Vec<String> = w.hoisted.iter().map(|n| driver::name_of(pers, &st.store, n)).collect();
-        eprintln!(
-            "con-ron: {}{} declarations hoisted ahead of the pinned Nat operations they ground: {}",
-            who,
-            w.hoisted.len(),
-            names.join(", ")
-        );
-    }
-    // the jobs' records: the context, then the own records
-    let ds: Vec<IDeclaration> = worker::worker_decls(&w);
-    let start = w.start as usize;
-    let job = |tier: &PersTier, ws: &mut AState, c: &mut ValueCache, k: u64| {
-        driver::olean_job(tier, ws, c, &o.mode, &ipins, &ds, &w.pins, &w.values, sp, None, k)
-    };
-    // ConRon.Capstone: h6, h7, hinfer, h8 (the index over ctx ++ own, the freeze, the
-    // reach's inferred flags on the frozen tier, the pool over the own jobs from `start`)
-    let infer = |tier: &PersTier, ws: &mut AState| reach::infer_flags(tier, ws, &w.reach.ctx, &w.reach.pending);
-    let verdict = if pace_on(o.progress) && alone {
-        driver::check_decls_driver_from(pers, &mut st, &ds, start, o.jobs, &mut hb, infer, value_cache_empty, job)
-    } else {
-        driver::check_decls_driver_from(pers, &mut st, &ds, start, o.jobs, &mut Silent, infer, value_cache_empty, job)
-    };
-    match verdict {
-        Err((e, i)) => driver::verdict_failure(pers, &st.store, &ds, &e, i, o.mode_tag, t0, &who),
-        Ok(_) => {
-            println!("con-ron: {}accepted {} declarations ({})", who, w.own.len(), o.mode_tag);
-            if !x.is_empty() {
-                let cs = match worker::copy_recs(pers, &mut st, &x, &w.reads.index, &w.emitted) {
-                    Ok(cs) => cs,
-                    Err(e) => return fail(&e),
-                };
-                let owner = match reach::owner_map(pers, &mut st, &w.reach.ctx) {
-                    Ok(ow) => ow,
-                    Err(e) => return fail(&e),
-                };
-                let mut lines: Vec<String> = Vec::with_capacity(cs.len() + 1);
-                lines.push(format!("con-ron: {}{} declarations of {} are the loaded constants of their names", who, cs.len(), m_text));
-                for d in &cs {
-                    match copy_line(pers, &mut st, &w, &owner, d) {
-                        Ok(l) => lines.push(format!("con-ron: {}", l)),
-                        Err(e) => return fail(&e),
-                    }
-                }
-                println!("{}", lines.join("\n"));
-            }
-            0
-        }
-    }
-}
-
-/// con-leche: ConLeche/Driver/CompareModule.lean:49-59 checkCmpModuleG
-/// con-leche: ConLeche/Driver/Dispatch.lean:63-87 runReq
-/// **`--olean --module [--compare]`**: the worker of `r.challenge` alone, every
-/// module read through the solution's lookup (the trusted path, then the search
-/// path); with `cmp`, the challenge's closure first walked through the trusted
-/// path alone (`chal_walk`), then the compare worker (`import all` of
-/// `r.solution` added to the header).
-pub fn module_main(o: &CompareOpts, r: &CmpRequest, cmp: bool) -> u8 {
-    if cmp {
-        let mut st = AState::empty();
-        let pers: &PersTier = &PersTier::empty();
-        let pk = match graph_start(pers, &mut st) {
-            Ok(pk) => pk,
-            Err(code) => return code,
-        };
-        let c = match monad::intern_name(pers, &mut st, &r.challenge) {
-            Ok(h) => h,
-            Err(e) => return graph_failed(&e),
-        };
-        if let Some(e) = chal_walk(pers, &mut st, &pk, r, &c) {
-            return graph_failed(&e);
-        }
-    }
-    let sr = compare::sol_roots(r);
-    check_module(o, &sr, &r.challenge, if cmp { Some(&r.solution) } else { None }, true)
-}
-
-/// con-leche: ConLeche/Driver/Modular.lean:90-137 checkModularG
-/// con-leche: ConLeche/Driver/Modular.lean:64-72 stepCode
-/// **The one-process mode** (`--olean --modular [--compare]`): the root's closure
-/// by the graph check (through the solution's lookup, the solution added to the
-/// challenge's header at a compared run, whose challenge closure is then walked
-/// through the trusted path alone), then every module of it, each its worker from
-/// fresh start values (`check_module`), the challenge's the compare worker; the
-/// modules on up to `--jobs` threads (fewer where no more can be started), each
-/// worker on one; then the run's verdict:
-/// exit 0 exactly when every module's is, else the code of the first module, in
-/// the graph's order, that is not.
-pub fn modular_main(o: &CompareOpts, r: &CmpRequest, cmp: bool) -> u8 {
-    let sr = compare::sol_roots(r);
-    let mods: Vec<Name> = {
-        let mut st = AState::empty();
-        let pers: &PersTier = &PersTier::empty();
-        let pk = match graph_start(pers, &mut st) {
-            Ok(pk) => pk,
-            Err(code) => return code,
-        };
-        let root = match monad::intern_name(pers, &mut st, &r.challenge) {
-            Ok(h) => h,
-            Err(e) => return graph_failed(&e),
-        };
-        let extra: Option<(NIdx, NIdx)> = if cmp {
-            match monad::intern_name(pers, &mut st, &r.solution) {
-                Ok(s) => Some((root.dup2(), s)),
-                Err(e) => return graph_failed(&e),
-            }
-        } else {
-            None
-        };
-        // ConRon.Capstone: hgraph (`graph_of` through the solution's lookup)
-        let c = match graph::graph_of(&olean_fs::StdFs, &pk, pers, &mut st.store, &sr, &vec![root.dup2()], &extra) {
-            Ok(c) => c,
-            Err(e) => return graph_failed(&e),
-        };
-        if cmp {
-            if let Some(e) = chal_walk(pers, &mut st, &pk, r, &root) {
-                eprintln!("con-ron: graph: {} ({})", driver::error_text(&e), o.mode_tag);
-                return driver::exit_code(&e);
-            }
-        }
-        let mut v: Vec<Name> = Vec::with_capacity(c.len());
-        for e in &c {
-            match ienv::read_name(pers, &st.store, &e.0) {
-                Ok(n) => v.push(n),
-                Err(e) => return graph_failed(&e),
-            }
-        }
-        v
-    };
-    if pace_on(o.progress) {
-        eprintln!("con-ron: modular: graph: acyclic, {} modules", mods.len());
-    }
-    let n = mods.len();
-    let threads = driver::workers_for(o.jobs, n);
-    let inner = CompareOpts {
-        mode: match o.mode { CheckMode::Verified => CheckMode::Verified, CheckMode::Trusted => CheckMode::Trusted },
-        mode_tag: o.mode_tag,
-        max_nat_size: o.max_nat_size,
-        pins: o.pins,
-        no_pins: o.no_pins,
-        jobs: 1,
-        progress: &Pace::Off,
-    };
-    let root_text = render::name_str(&r.challenge);
-    let next = std::sync::atomic::AtomicUsize::new(0);
-    let codes: Vec<std::sync::Mutex<Option<u8>>> = (0..n).map(|_| std::sync::Mutex::new(None)).collect();
-    let step = |k: usize| -> u8 {
-        let m = &mods[k];
-        let is_chal = cmp && render::name_str(m) == root_text;
-        check_module(&inner, &sr, m, if is_chal { Some(&r.solution) } else { None }, false)
-    };
-    let spawned = std::thread::scope(|sc| -> Result<(), String> {
-        let mut hs = Vec::with_capacity(threads);
-        for _ in 0..threads {
-            let h = std::thread::Builder::new().stack_size(driver::stack_bytes()).spawn_scoped(sc, || loop {
-                let k = next.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                if k >= n {
-                    break;
-                }
-                let c = step(k);
-                if let Ok(mut g) = codes[k].lock() {
-                    *g = Some(c);
-                }
-            });
-            // a thread that cannot be started (the 1 GiB stacks against `ulimit -v`)
-            // leaves the modules to the threads that did start
-            match h {
-                Ok(h) => hs.push(h),
-                Err(e) => {
-                    if hs.is_empty() {
-                        return Err(e.to_string());
-                    }
-                    break;
-                }
-            }
-        }
-        for h in hs {
-            if h.join().is_err() {
-                return Err("a module's thread died".to_string());
-            }
-        }
-        Ok(())
-    });
-    if let Err(e) = spawned {
-        eprintln!("con-ron: modular: {}", e);
-        return 3;
-    }
-    let mut failed: Vec<(usize, u8)> = Vec::new();
-    for (k, c) in codes.iter().enumerate() {
-        let c = match c.lock() {
-            Ok(g) => g.unwrap_or(3),
-            Err(_) => 3,
-        };
-        if c != 0 {
-            failed.push((k, c));
-        }
-    }
-    if pace_on(o.progress) {
-        eprintln!("con-ron: modular: done");
-    }
-    match failed.first() {
-        None => {
-            println!("con-ron: accepted {} modules ({})", n, o.mode_tag);
-            0
-        }
-        Some((k, c)) => {
-            eprintln!(
-                "con-ron: {} of {} modules not accepted; the first in the graph's order: {} ({})",
-                failed.len(),
-                n,
-                render::name_str(&mods[*k]),
-                o.mode_tag
-            );
-            *c
-        }
     }
 }
 

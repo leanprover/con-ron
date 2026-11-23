@@ -15,8 +15,7 @@
 # `proof/ConRon/Dump/FORMAT.md` specifies, and this script wraps those
 # bytes in a Rust `&str` constant.  The wrapping is byte-exact: the text of
 # `PINS_TEXT` is the dump file, character for character, so
-# `kernel::pins_decode::decode` on it is the same decode
-# `con-ron --pins FILE` does on a file.
+# `kernel::pins_decode::decode` on it decodes the dump.
 #
 # Why a `&str` and not a `&[u8]` (task #43's measurement): Aeneas renders a
 # `&str` constant as ONE Lean string literal (`toStr "..."`, 0.4 s, 560 KB of

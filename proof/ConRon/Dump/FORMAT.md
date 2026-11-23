@@ -14,10 +14,9 @@ the file route as a test override.
 |---|---|
 | Lean writer and reader | `ConRon/Dump/Pins.lean` (`dumpPins`, `parsePins`) |
 | Round-trip harness | `lake exe con-ron-dump-pins` (the same file's `main`) |
-| Rust reader / writer | `crates/con-ron-dump/src/lib.rs` (`parse_pins`), `write.rs` (`dump_pins`) |
+| Rust reader / writer | `crates/con-ron-dump/src/read.rs` (`parse_pins`, test-only), `write.rs` (`dump_pins`) |
 | Verified decoder | `crates/con-ron-core/src/kernel/pins_decode.rs`, proved against `parsePins` in `proof/ConRon/Refine/Pins*.lean` |
 | Who produces the bytes | `scripts/gen-pins.sh` (into the core's embedded constant; `--check` is a gate) |
-| Who consumes a file | `con-ron --pins FILE`, a test override |
 
 Until task #80 a **sibling format, `con-ron-decls/1`**, carried con-leche's
 parsed `List DeclC` (task #10) so that the Rust *checker* could be exercised

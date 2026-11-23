@@ -20,8 +20,8 @@ Exit 0 iff everything agrees, 1 on a mismatch, 3 on usage or IO failure.
 
 **Who reads these bytes.**  `scripts/gen-pins.sh` wraps them in the verified
 core's embedded `kernel::pins_text::PINS_TEXT`, whose freshness against
-`natOpPinSets` is a gate; `con-ron --pins FILE` reads a file in this format
-through the unverified Rust reader (`crates/con-ron-dump`) as a test override.
+`natOpPinSets` is a gate; the Rust writer and the test-only reader of
+`crates/con-ron-dump` are tested against it.
 (`parsePins` was also the right-hand side of a decoder refinement lemma
 until task #105 deleted it as unused: the headline theorems hold at every pin
 list, and take the decoder's output as a premise.)

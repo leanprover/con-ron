@@ -1,13 +1,15 @@
 //! `std_io` — the binary's instance of the core's `CheckerIo` (DESIGN.md §3.9,
 //! task #171): the file reads, the worker map, the escapes, and the rendering
 //! of every event the verified driver (`con_ron_core::driver`) hands it, in the
-//! binary's words.  All of it is outside the theorems; what they assume of it
-//! is OVERVIEW §8.2's driver row: its reads answer as one snapshot of the files
-//! (`AnswersAs`), its worker map keeps `ParallelAll` (`PoolSound`), its escapes
-//! write no file and do not end the process.
+//! binary's words.  All of it is outside the theorems, which are about the
+//! model instance (`proof/ConRon/MainTheorem/Model.lean`); what they assume of
+//! a run of this one is OVERVIEW §3.1: the file operations it performs answer
+//! as one snapshot (each path opened once, `olean_fs::RunFiles`), its maps' runs
+//! are an oracle's, its escapes write no file and do not end the process.
 //!
-//! The text of a usage error, of a help or a synopsis, and the legacy driver
-//! are the binary's (`bin/con-ron.rs`), handed in as `StdIoHooks`.
+//! The text of a usage error, of a help or a synopsis are the binary's
+//! (`bin/con-ron.rs`), handed in as `StdIoHooks`; the scheduler is
+//! `crate::modular::schedule`.
 
 use std::io::Write;
 use std::sync::Mutex;
@@ -21,28 +23,28 @@ use con_ron_core::arena::store::EStore;
 use con_ron_core::arena::store::PersTier;
 use con_ron_core::arena::stream_index::IStreamIndex;
 use con_ron_core::driver::check_main::Note;
-use con_ron_core::driver::cli::Bad;
+use con_ron_core::driver::cli::{Args, Bad};
 use con_ron_core::frontend::checker_io::{CheckerFs, CheckerIo, CodeStep, Step, WorkerNote, WorkerNotes};
 use con_ron_core::frontend::modular::worker::WorkerRead;
 use con_ron_core::frontend::olean::progress;
 use con_ron_core::frontend::olean::spec::ImportRec;
 use con_ron_core::frontend::pace::{pace_dup, pace_on, Pace};
+use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
 use con_ron_core::ron::hashmap::Dup;
 use con_ron_core::ron::hashmap2::HashMap2;
 use con_ron_core::kernel::core_types::CheckError;
-use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
 
 use crate::driver;
 use crate::driver::{Heartbeat, PhaseObserver};
+use crate::modular;
 use crate::olean_fs;
 use crate::olean_fs::path_of;
-use crate::olean_fs::{NotesFs, StdFs};
+use crate::olean_fs::{NotesFs, RunFiles, StdFs};
 use crate::pool::parallel_all;
 use crate::render;
 
-/// con-leche: none — the binary's own text and its legacy driver, which the
-/// instance renders with and hands requests to.
+/// con-leche: none — the binary's own text, which the instance renders with.
 pub struct StdIoHooks {
     /// `--help`: print the help, the exit code
     pub help: fn() -> u8,
@@ -50,14 +52,14 @@ pub struct StdIoHooks {
     pub synopsis: fn(),
     /// a usage error's two lines, for its message
     pub usage: fn(&str) -> u8,
-    /// a request the verified driver does not run: the legacy driver
-    pub legacy: fn(Vec<String>) -> u8,
 }
 
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:515-531 instCheckerIOIO
 /// **The binary's instance.**
 pub struct StdIo {
     hooks: StdIoHooks,
+    /// the files the run reads, each opened once (`olean_fs::RunFiles`)
+    files: RunFiles,
     /// the start of the run, which the verdict's `t=` is measured from
     t0: Instant,
     /// the `.olean` read's heartbeat while a read is on (`read_notes_begin`)
@@ -94,6 +96,7 @@ impl StdIo {
         let t0 = Instant::now();
         StdIo {
             hooks,
+            files: RunFiles::new(),
             t0,
             notes: Mutex::new(None),
             hb: Mutex::new((Heartbeat::new(Pace::Off, t0), 0)),
@@ -130,31 +133,25 @@ impl CheckerFs for StdIo {
     }
 
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:141-200 CheckerIO
+    /// The bytes to the end of the file, through the run's handle of it.
     fn read_bin_file(&self, p: &Vec<u32>) -> Result<Vec<u8>, Vec<u32>> {
-        StdFs.read_bin_file(p)
+        self.files.read_bin_file(p)
     }
 
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:403-409 openReadIO
-    /// **A positional read** (`olean_fs::StdFs`'s): the path must name a regular
-    /// file, decided before it is opened (opening a FIFO with no writer would
-    /// block), then a seek and forward reads on a handle of this call's own.  A
-    /// failure's message names the path.
+    /// **A positional read** through the run's handle of the file
+    /// (`olean_fs::RunFiles`): the path must name a regular file, decided before
+    /// it is opened (opening a FIFO with no writer would block); the bytes up to
+    /// the end of the file, wherever a read finds it.  A failure's message names
+    /// the path.
     fn read_range(&self, p: &Vec<u32>, off: u64, len: u64) -> Result<Vec<u8>, Vec<u32>> {
-        let s = path_of(p);
-        match std::fs::metadata(&s) {
-            Err(e) => return Err(render::cps(&format!("{}: {}", render::display_path(&s), e))),
-            Ok(md) => {
-                if !md.is_file() {
-                    return Err(render::cps(&format!("{}: not a regular file", render::display_path(&s))));
-                }
-            }
-        }
-        StdFs.read_range(p, off, len)
+        self.files.read_range(p, off, len)
     }
 
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:141-200 CheckerIO
+    /// The size, checked against the contents, through the run's handle.
     fn file_size(&self, p: &Vec<u32>) -> Result<u64, Vec<u32>> {
-        StdFs.file_size(p)
+        self.files.file_size(p)
     }
 
     /// con-leche: ConLeche/Frontend/Olean/Progress.lean:42-48 ReadNotes.say
@@ -267,6 +264,35 @@ impl WorkerNotes for StdIo {
     fn worker_verdict_failure(&self, who: &Option<Name>, pers: &PersTier, ar: &EStore, ds: &Vec<IDeclaration>, e: &CheckError, i: u64, verified: bool) {
         let _ = driver::verdict_failure(pers, ar, ds, e, i, mode_tag(verified), self.t0, &who_text(who));
     }
+
+    /// con-leche: ConLeche/Driver/Worker.lean:371-413 checkModuleG
+    /// The copies' lines, all made before any is printed (`copyRecs`, the
+    /// reach's owner map, `copyLine`).
+    fn worker_copies(&self, who: &Option<Name>, m: &Name, pers: &PersTier, st: &mut AState, x: &Vec<ImportRec>, w: &WorkerRead) -> Option<CheckError> {
+        let cs = match con_ron_core::frontend::modular::worker::copy_recs(pers, st, x, &w.reads.index, &w.emitted) {
+            Ok(cs) => cs,
+            Err(e) => return Some(e),
+        };
+        let owner = match con_ron_core::frontend::modular::reach::owner_map(pers, st, &w.reach.ctx) {
+            Ok(ow) => ow,
+            Err(e) => return Some(e),
+        };
+        let mut lines: Vec<String> = Vec::with_capacity(cs.len() + 1);
+        lines.push(format!(
+            "con-ron: {}{} declarations of {} are the loaded constants of their names",
+            who_text(who),
+            cs.len(),
+            render::name_str(m)
+        ));
+        for d in &cs {
+            match crate::modular::copy_line(pers, st, w, &owner, d) {
+                Ok(l) => lines.push(format!("con-ron: {}", l)),
+                Err(e) => return Some(e),
+            }
+        }
+        println!("{}", lines.join("\n"));
+        None
+    }
 }
 
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:515-531 instCheckerIOIO
@@ -312,9 +338,10 @@ impl CheckerIo for StdIo {
     /// con-leche: ConLeche/Driver/Modular.lean:90-137 checkModularG
     /// The modules on up to `threads` threads of `driver::stack_bytes` each,
     /// each claiming the next until none is left (fewer threads where no more
-    /// can be started); every module run.  None started, or one died: the
-    /// message.
+    /// can be started; at least one, whatever `threads` says); every module run.
+    /// None started, or one died: the message.
     fn par_map_codes<St: CodeStep<Self> + Sync>(&mut self, st: &St, n: usize, threads: usize) -> Result<Vec<u8>, Vec<u32>> {
+        let threads = std::cmp::max(threads, 1);
         let me: &StdIo = &*self;
         let next = std::sync::atomic::AtomicUsize::new(0);
         let codes: Vec<Mutex<Option<u8>>> = (0..n).map(|_| Mutex::new(None)).collect();
@@ -368,19 +395,36 @@ impl CheckerIo for StdIo {
         (self.hooks.help)()
     }
 
-    /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
-    fn run_legacy(&mut self, argv: &Vec<Vec<u32>>) -> u8 {
-        (self.hooks.legacy)(argv.iter().map(|a| path_of(a)).collect())
+    /// con-leche: ConLeche/Driver/Schedule.lean:56-111 scheduleG
+    /// The scheduler (`crate::modular::schedule`) on the request off the
+    /// parsed arguments: the lookup, the settings, what the workers are run
+    /// with (`--max-nat-size` as a decimal, `--worker-stack-size` in KiB).
+    fn run_schedule(&mut self, a: &Args, root: &Name, sol: Option<&Name>) -> u8 {
+        let strs = |v: &Vec<Vec<u32>>| -> Vec<String> { v.iter().map(|d| path_of(d)).collect() };
+        let trusted = strs(&a.trusted_path);
+        let path = strs(&a.search_path);
+        let opts = strs(&a.schedule);
+        let q = modular::ScheduleReq {
+            trusted: &trusted,
+            path: &path,
+            root: name::dup(root),
+            cmp: sol.map(name::dup),
+            opts: &opts,
+            mode_tag: mode_tag(a.verified),
+            max_nat_size: con_ron_dump::natdec::to_decimal(&a.max_nat_size),
+            pace: &a.progress,
+            jobs: a.jobs,
+            stack_kb: match &a.worker_stack {
+                None => None,
+                Some(v) => modular::parse_size(&path_of(v)),
+            },
+        };
+        modular::schedule(&q)
     }
 
     /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
     fn hardware_jobs(&mut self) -> u64 {
         driver::default_jobs()
-    }
-
-    /// con-leche: none — `driver::pins_for_run`'s `--pins FILE`
-    fn read_pins_file(&mut self, p: &Vec<u32>) -> Result<Vec<NatOpPinSet>, Vec<u32>> {
-        driver::pins_for_run(&Some(path_of(p)), false).map_err(|m| render::cps(&m))
     }
 
     /// con-leche: none — con-leche task #336
@@ -402,7 +446,6 @@ impl CheckerIo for StdIo {
     /// `driver`'s own functions', so the two parses cannot drift apart.
     fn usage(&self, b: &Bad) {
         let msg: String = match b {
-            Bad::PinsNoFile => "--pins takes a file: --pins FILE".to_string(),
             Bad::JobsBare => "--jobs takes a worker count: --jobs=<n>; omit the flag for one worker \
                  per hardware thread"
                 .to_string(),
@@ -448,6 +491,17 @@ impl CheckerIo for StdIo {
                 .to_string(),
             Bad::CompareTwoFiles => "--compare takes two files, a challenge and its solution".to_string(),
             Bad::CompareSameFile => "--compare takes two different files, a challenge and its solution".to_string(),
+            Bad::CheckGraphCompareTwo => {
+                "--check-graph --compare takes two module names, a challenge and its solution".to_string()
+            }
+            Bad::CompareTwoModules => "--compare takes two module names, a challenge and its solution".to_string(),
+            Bad::CompareSameModule => "--compare takes two different modules, a challenge and its solution".to_string(),
+            Bad::CompareModeArgs => "--compare with --module, --modular or --schedule takes one of them, \
+                 and no --constant"
+                .to_string(),
+            Bad::ScheduleArgs => "--schedule takes one module name, and none of --constant, --module and \
+                 --modular"
+                .to_string(),
         };
         let _ = (self.hooks.usage)(&msg);
     }
@@ -500,8 +554,6 @@ impl CheckerIo for StdIo {
                     CheckError::Internal(_) => eprintln!("con-ron: {} ({})", m, mode_tag(*v)),
                 }
             }
-            Note::PinsFile(m) => eprintln!("con-ron: {}", path_of(m)),
-            Note::EmbeddedPins(e) => eprintln!("con-ron: embedded pin text: {}", driver::message(e)),
             Note::Accepted(records, v) => {
                 let _ = driver::verdict_accept(*records, mode_tag(*v));
             }
@@ -528,6 +580,16 @@ impl CheckerIo for StdIo {
                 k,
                 n,
                 render::name_str(m),
+                mode_tag(*v)
+            ),
+            Note::GraphFailedMode(e, v) => {
+                eprintln!("con-ron: graph: {} ({})", driver::error_text(e), mode_tag(*v))
+            }
+            Note::CompareWhy(why, v) => eprintln!("con-ron: {} ({})", path_of(why), mode_tag(*v)),
+            Note::NotSolution(s, c, v) => eprintln!(
+                "con-ron: {} does not solve {}: the solution's closure holds the challenge ({})",
+                render::name_str(s),
+                render::name_str(c),
                 mode_tag(*v)
             ),
         }

@@ -13,6 +13,7 @@ use crate::arena::monad::AState;
 use crate::arena::store::PersTier;
 use crate::driver::check_main;
 use crate::driver::check_main::Note;
+use crate::driver::compare_module;
 use crate::driver::cli::Args;
 use crate::driver::graph;
 use crate::driver::worker;
@@ -27,6 +28,7 @@ use crate::frontend::pace::pace_on;
 use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::ron::nat::Nat;
+use crate::ron::hashmap::Dup;
 use crate::arena::handle::NIdx;
 
 /// con-leche: ConLeche/Driver/Modular.lean:74-80 modularStep
@@ -37,23 +39,43 @@ pub struct ModularStep<'a> {
     pub names: &'a Vec<Name>,
     /// the lookup every module is read through
     pub sp: &'a Roots,
+    /// the run's root: at a compared run, the challenge
+    pub root: &'a Name,
+    /// a compared run's solution, whose challenge's step is the compare worker
+    pub sol: Option<&'a Name>,
     /// `--verified`
     pub verified: bool,
     /// `--max-nat-size`
     pub max_nat_size: &'a Nat,
-    /// `--no-pins`
-    pub no_pins: bool,
 }
 
 /// con-leche: ConLeche/Driver/Modular.lean:74-80 modularStep
 impl<'a, F: CheckerFs + WorkerNotes> CodeStep<F> for ModularStep<'a> {
     /// con-leche: ConLeche/Driver/Modular.lean:64-73 stepCode
-    /// The module's worker, to its exit code.
+    /// The module's worker, to its exit code; at a compared run's challenge,
+    /// the compare worker.
     fn code(&self, fs: &F, k: usize) -> u8 {
         if k < self.names.len() {
-            worker::check_module_in(fs, self.sp, &self.names[k], self.verified, self.max_nat_size, self.no_pins)
+            let s = step_sol(&self.names[k], self.root, self.sol);
+            worker::check_module_in(fs, self.sp, &self.names[k], s, self.verified, self.max_nat_size)
         } else {
             3
+        }
+    }
+}
+
+/// con-leche: ConLeche/Driver/Modular.lean:64-73 stepCode
+/// The solution a module's step adds: a compared run's, at its challenge
+/// `root`; none elsewhere.
+pub fn step_sol<'a>(m: &Name, root: &Name, sol: Option<&'a Name>) -> Option<&'a Name> {
+    match sol {
+        None => None,
+        Some(s) => {
+            if name::beq(m, root) {
+                Some(s)
+            } else {
+                None
+            }
         }
     }
 }
@@ -121,8 +143,11 @@ pub fn modular_verdict<I: CheckerIo>(io: &mut I, codes: &Vec<u8>, names: &Vec<Na
 /// **The one-process mode** (`--olean --modular`): the root's closure by the
 /// graph check through `sp`, then every module of it on the instance's code
 /// map, up to `--jobs` at a time (fewer where no more can be started), each its
-/// worker on one thread; the run's verdict.
-pub fn check_modular<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, sp: &Roots) -> u8 {
+/// worker on one thread; the run's verdict.  With `sol` (`--compare`, the root
+/// the challenge): the solution added to the challenge's header in the graph,
+/// the challenge's closure then walked through the trusted path alone
+/// (`chal_walk`), and the challenge's step the compare worker.
+pub fn check_modular<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, sp: &Roots, sol: Option<&Name>) -> u8 {
     let names: Vec<Name> = {
         let mut st = AState::empty();
         let pers = PersTier::empty();
@@ -130,16 +155,35 @@ pub fn check_modular<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, sp: 
             Err(c) => return c,
             Ok(pk) => pk,
         };
-        // ConRon.Capstone: hroots
+        // ConRon.MainTheorem.Stages: hroots
         let rs = match check_main::intern_names(&pers, &mut st, roots) {
             Err(e) => return graph::graph_failed(io, e),
             Ok(rs) => rs,
         };
-        // ConRon.Capstone: hgraph
-        let c = match mgraph::graph_of(&*io, &pk, &pers, &mut st.store, sp, &rs, &None) {
+        // ConRon.MainTheorem.Stages: hroots (the solution, after the root)
+        let cmp: Option<(NIdx, NIdx)> = match sol {
+            None => None,
+            Some(s) => match monad::intern_name(&pers, &mut st, s) {
+                Err(e) => return graph::graph_failed(io, e),
+                Ok(sh) => Some((rs[0].dup2(), sh)),
+            },
+        };
+        // ConRon.MainTheorem.Stages: hgraph
+        let c = match mgraph::graph_of(&*io, &pk, &pers, &mut st.store, sp, &rs, &cmp) {
             Err(e) => return graph::graph_failed(io, e),
             Ok(c) => c,
         };
+        match sol {
+            None => (),
+            Some(_) => match compare_module::chal_walk(&*io, &a.trusted_path, &a.search_path, &roots[0]) {
+                None => (),
+                Some(e) => {
+                    let code = check_main::exit_code(&e);
+                    io.note(&Note::GraphFailedMode(e, a.verified));
+                    return code;
+                }
+            },
+        }
         match graph_names(&pers, &st, &c) {
             Err(e) => return graph::graph_failed(io, e),
             Ok(ns) => ns,
@@ -152,7 +196,7 @@ pub fn check_modular<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, sp: 
     let jobs: u64 = check_main::jobs_for_run(io, a);
     let threads = check_main::workers_for(jobs, n);
     let r = {
-        let step = ModularStep { names: &names, sp, verified: a.verified, max_nat_size: &a.max_nat_size, no_pins: a.no_pins };
+        let step = ModularStep { names: &names, sp, root: &roots[0], sol, verified: a.verified, max_nat_size: &a.max_nat_size };
         io.par_map_codes(&step, n, threads)
     };
     let codes = match r {
