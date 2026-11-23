@@ -297,7 +297,7 @@ was built with.
 ## 3. What is proved
 
 The main theorems are in
-[`proof/ConRon/MainTheorem.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L10-L97).
+[`proof/ConRon/MainTheorem.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L10-L100).
 They are con-leche's main theorems
 ([`ConLeche/MainTheorem.lean`](https://github.com/leanprover/con-leche/blob/master/ConLeche/MainTheorem.lean)),
 under the same names and in the same order, and each says word for word what
@@ -310,7 +310,7 @@ the embedded pin text, and on nothing else: no `sorry`, no `native_decide`.
 A `#guard_msgs` check at the end of the file keeps it that way.
 
 **A lean4export file**
-([`main_json_model`, `main_no_False`, `main_compare_json_model`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L109-L134)):
+([`main_json_model`, `main_no_False`, `main_compare_json_model`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L112-L137)):
 
 ```lean
 theorem main_json_model (V : Type w) [ConLeche.SetTheory V] {file : String} {fs : FS}
@@ -338,7 +338,7 @@ definition what its value denotes, every recursor computing by its rules
 and axioms justified by the solution `s`.
 
 **The `.olean` modes**
-([`main_oleans` … `main_modular_one`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L145-L197)):
+([`main_oleans` … `main_modular_one`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L148-L200)):
 
 ```lean
 theorem main_oleans (V : Type w) [SetTheory V] {dirs root : String} {r : Name} {fs : FS}
@@ -386,7 +386,7 @@ on what the modules see of each other.  `main_modular_one` says the same of
 one `--olean --modular` process.
 
 **The compared modular runs**
-([`main_modular_compare`, `main_modular_compare_one`, `main_modular_compare_no_False`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L207-L267))
+([`main_modular_compare`, `main_modular_compare_one`, `main_modular_compare_no_False`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L210-L270))
 give `main_modular`'s family for the challenge's closure, read through the
 challenge's directories, when every command `--schedule-commands --compare`
 prints exits 0 (the compared graph check, a worker at every module but the
@@ -527,7 +527,7 @@ and its `main` is
 
 | what a run that exits 0 must satisfy | why the binary does |
 |---|---|
-| **(1) The file operations it performs answer as one snapshot `fs`**: does the path exist, is it a directory, its real path, its bytes, a byte range of it, its size — the snapshot's value where it has one, a failure where it has none | The operations are the standard library's calls over the files.  Each path is opened once per run and every byte range is read through that handle, up to where a read finds the end (not the size the metadata reports); a path reopened after its handle was closed must be the same file (device, inode, size, modification time), so a file replaced during the run fails the read rather than splicing two files.  A size is checked against where the contents end (a `/proc` file reports 0).  A path with a code point that is not a character fails, and so does a real path that is not valid UTF-8.  What is assumed is that the files do not change during the run.  On the binary's platform the Rust's spelling of a module's file is upstream's `modFile` (the logic cannot decide it: `System.FilePath`'s `/` reads the opaque `isWindows`).  For the theorems about several processes (`main_modular`, `main_modular_compare`, `main_modular_compare_no_False`) the snapshot is one across all of them, as con-leche's scheduler assumes |
+| **(1) The file operations it performs answer as one snapshot `fs`**: does the path exist, is it a directory, its real path, its bytes, a byte range of it, its size — the snapshot's value where it has one, a failure where it has none | The operations are the standard library's calls over the files.  Each path is opened once per run and every byte range is read through that handle, up to where a read finds the end (not the size the metadata reports); a path reopened after its handle was closed must be the same file (device, inode, size, modification time), so a path replaced by another file during the run fails the read rather than splicing two files.  A file rewritten in place is not caught (an open handle sees the new bytes, and a rewrite can keep the stamp): the checks guard against ordinary replacement, they do not enforce the snapshot.  A size is checked against where the contents end (a `/proc` file reports 0).  A path with a code point that is not a character fails, and so does a real path that is not valid UTF-8.  What is assumed is that the files do not change during the run.  On the binary's platform the Rust's spelling of a module's file is upstream's `modFile` (the logic cannot decide it: `System.FilePath`'s `/` reads the opaque `isWindows`).  For the theorems about several processes (`main_modular`, `main_modular_compare`, `main_modular_compare_no_False`) the snapshot is one across all of them, as con-leche's scheduler assumes |
 | **(2) The escapes and notifications write no file a check reads and do not end the process**: `print_help`, `hardware_jobs`, `run_schedule`, `keep_heap`, `keep_solution`, `worker_copies`, every output line and every heartbeat | They print, count threads, run the scheduler (whose workers only read), and keep what the run built until the exit.  The model takes every answer from the oracle, so every answer is covered.  `worker_copies` is the one `&self` escape that answers a value (it runs inside the code map, where the instance is shared): the model's answer is the oracle's function of the arguments, which the binary's, deterministic in them, is; and it can only turn an accept into a failure |
 | **(3) The two maps' actual runs are an oracle's**: the worker map's workers each ran from the job's first state over the positions they claimed, in increasing order, every position claimed, `Ok` only when every step was (`ParallelAll`); the code map ran every module's step and answered their codes in order | `pool::parallel_all`'s control flow (§8.2's pool row); the code map runs at least one thread, each module's thread stores its code at the module's position, and a thread that dies is a failure |
 | **`main` does what it says**: the arguments as code points, `run_args` on the checking thread at `StdIo`, the flush, and the exit with `run_args`'s code | `main` is plumbing.  An argument that is not UTF-8, a failed flush, or a panic on the checking thread is exit 3, never 0 |
