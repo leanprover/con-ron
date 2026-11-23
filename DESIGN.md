@@ -74672,3 +74672,95 @@ free text beside the `_embedded` forms; with every run at the embedded text, the
 forms could go if nothing else uses them.  Option B of §3.9 (inheriting con-leche's theorems
 through `ModelIO.CanGive`) stays open should con-leche weaken its driver's evidence to the
 pure accept.
+
+#### Slice 6 (lane K) — `CanGive` over a model instance; the trust argument per run; `StdIo`'s reads
+
+**Why.**  An external review (`_tmp/t171/codex-review-c7a5cd34.md`) confirmed that slice 5's
+`CanGive` (∃ instance with `AnswersAs ∧ PoolSound ∧ CodesSound`) had GLOBAL premises — every
+call, every state, every `Step` — while con-leche's trust argument is per run, and that `StdIo`
+does not meet them even at calls no run makes: `path_of` dropped invalid code points where
+`absString` maps them to NUL; `read_range` trusted `metadata.len()` (`/proc/version`: size 0, 127
+bytes; `read_range` and `read_bin_file` disagreed); `real_path` used `to_string_lossy`;
+`par_map_codes` at 0 threads answered 3 everywhere.  No unsound accept of an ordinary input was
+found.  It also found `worker_copies` answering a value through `&self`, and that reopening a
+path per `read_range` could splice a file replaced mid-run.  One more found here: the OLD binary
+accepted `-- /proc/version` (exit 0, "accepted 0 declarations": it read nothing); the new one
+reads the 127 bytes and rejects them (exit 3).
+
+**The model** (`proof/ConRon/MainTheorem/Model.lean`, 430 lines, no `sorry`, no Aesop, no new
+axiom; `snapshotIo_answersAs` rests on `propext`, `Classical.choice`, `Quot.sound`).
+`snapshotIo fs : CheckerIo Tape`, state `Tape` = an `Oracle` and the number of answers taken:
+* file operations answer from `fs` at `⟨absString p⟩` (`answerAt`), and fail where `fs` has no
+  answer, the answer does not fit a `Vec`/`u64`, or `p` is not `Spelled`: `StrWF p` and every
+  `PathRel` spelling `q` of the request has the string's `real` and `dir` in `fs`.  The second
+  half is a design misfit, not in the brief: `PathRel` relates the Rust's `mod_file_of` to
+  upstream's `modFile`, and the two are not provably one string, because `System.FilePath`'s `/`
+  reads the opaque `System.Platform.isWindows` (reproducer:
+  `_tmp/corpus/design/filepath-opaque/Repro.lean`, `rfl`/`decide` on `"a" / "b"` both fail).  On
+  the binary's platform they are one string, so `Spelled` is `StrWF` there; the trust paragraph
+  says so;
+* the value-answering escapes (`print_help`, `run_schedule`, `hardware_jobs`) answer the
+  oracle's `n`-th value and tick; `worker_copies` (`&self`) answers the oracle's function of its
+  arguments; `keep_heap`/`keep_solution` and every notification change nothing;
+* `par_map_workers`: computable — the oracle's claims for this call; `Ok` when they cover
+  `0..n`, each worker's increase (decided), and `runWorkers` (each from `init`, `foldClaims` to the
+  first failure) finds none; else the first failure or the oracle's error.  `par_map_codes`:
+  computable — `codesUpTo` runs `codeAt` at `0..n` in order;
+* theorems: `snapshotIo_answersAs`, `snapshotIo_poolSound` (`workerMap_ok` from
+  `runWorkers_none`/`foldClaims_none`), `snapshotIo_codesSound` (`codesUpTo_ok`).
+
+**`CanGive`.**  `ConRon.CanGive args fs c := ∃ argv o o' c', ArgvOf argv args ∧ run_args
+(Model.snapshotIo fs) o argv = ok (c', o') ∧ c'.val = c.toNat`.  The old form is
+`CanGiveConforming` (Driver.lean), which every walk now takes (a rename in six files);
+`CanGive.conforming` bridges.  The ten statements of `MainTheorem.lean` are unchanged (checked
+by diff: only the proof terms gained `.conforming`, and `hwork` is mapped with `Exists.imp`).
+Census of the ten (`#guard_msgs`): unchanged, `propext`, `Classical.choice`, `Quot.sound`,
+`PINS_TEXT._native.decide.ax_1`.  No new main theorem, so `CAPSTONES` is unchanged.
+
+**The trust argument** — `MainTheorem.lean`'s module doc, OVERVIEW §3.1 (rewritten as the
+per-run table (1)–(4)), §3's `CanGive` block, §8.2's instance and file-operation rows, §3.9 —
+is now con-leche's: a run of the binary that exits 0 is one of the model's runs if (1) every
+file operation it performs answered as one snapshot (a failure a failure), (2) the escapes
+write no file and do not end the process, (3) the maps' actual claims are some oracle's (the
+pool's control-flow argument), (4) Rust, std and Aeneas run the code as written; then by
+induction along the run.  Stated differences from con-leche: an oracle where con-leche has a
+non-determinism monad; positional reads where con-leche has handles.
+
+**The Rust** (`crates/con-ron` only; the core's `checker_io.rs` module doc changed in place, its
+line count kept, so `Generated/` is unchanged and no extraction was needed):
+* `olean_fs::fs_path`: a code point that is not a character fails the operation (`path_of`
+  stays, for display); every `StdFs` operation uses it;
+* `real_path`: `into_string`, a canonical path that is not UTF-8 fails;
+* `read_range`/`read_bin_file` read with `read_at` to where a read answers nothing
+  (`read_at_most`), never to `metadata.len()`; `file_size` (`checked_size`) is the metadata's
+  size only where the contents end there (a read at `size` answers nothing, one at `size - 1`
+  answers a byte), else a failure.  Chosen over "read everything to learn the size" because the
+  header reads need the size before reading and a stream file can be many GB; with the run's
+  one handle, the three answers are one file's, or one of them fails;
+* `olean_fs::RunFiles`, `StdIo`'s: each path opened once per run (after the regular-file check
+  on the path, as before, so a FIFO never blocks), every read through that handle.  At most
+  `OPEN_CAP = 256` handles stay open: a `--olean` closure of Mathlib is thousands of files and
+  the usual soft limit is 1 024 descriptors, so holding all would turn a big run into `EMFILE`.
+  A path whose handle was closed is reopened and must have the stamp it was first opened with
+  (device, inode, size, modification time), else the read fails ("replaced or changed during the
+  run").  So a file replaced mid-run is never spliced: it is read through the first handle, or
+  the read fails.  `StdFs` (the scheduler, `olean-compare`) stays per call;
+* `par_map_codes` runs at least one thread;
+* `worker_copies` stays `&self`: the exception, and why it is sound and what `&mut` would cost
+  (the code map's steps hold the instance shared), is now in §3.9.
+* tests (`olean_fs::tests`): an invalid code point fails, `/proc/version` reads to its end while
+  its size fails, a replaced file reads as the first through the handle and fails once reopened.
+
+**Behaviour** (old = master `e9c88b0b`, new = this branch; stdout + stderr + exit, times and
+RSS masked, the binary's path and the heartbeat's/scheduler's running counts normalised, lane
+H's scripts, `_tmp/t171/k/`): upstream's `tests/olean.sh` table, 510 runs: 475 identical, 35 in
+the order of lines only (runs on several workers); lane G's compared variants (511 runs, the
+`--no-pins` lane dropped): 469 identical, 39 order only, 3 `--progress --olean --compare` at the
+hardware worker count — identical at `--jobs=1`; lane F's `--compare` script (94 runs, no
+`--no-pins` lane): all identical.  `scripts/diff-e2e.sh`: 773/773 agree, display gate 7/7,
+command-line gate 18/18.  `scripts/diff-olean.sh`: 510/560 as expected, 9 NOT PORTED, the same
+41 failing cases as slice 5's.
+
+**Left.**  Nothing of the brief.  The `Spelled` side condition could go if con-leche's `modFile`
+were stated over a platform-independent join (an upstream candidate), or if con-ron's
+`PathRel` were proved functional on Unix under an `isWindows = false` hypothesis.

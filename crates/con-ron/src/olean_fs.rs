@@ -84,7 +84,7 @@ pub fn open_regular(s: &str) -> Result<(std::fs::File, std::fs::Metadata), Vec<u
     Ok((f, md))
 }
 
-/// con-leche: ConLeche/Frontend/CheckerIO.lean:376-385 ModelIO.read
+/// con-leche: ConLeche/Frontend/CheckerIO.lean:370-379 ModelIO.read
 /// **A positional read of an open file**: the bytes from `off` up to `off + len`
 /// or the end of the file, whichever comes first.  The end is where a read
 /// answers nothing, not the size the metadata reports (a file of `/proc` reports
@@ -283,7 +283,7 @@ impl RunFiles {
         Ok((f, md))
     }
 
-    /// con-leche: ConLeche/Frontend/CheckerIO.lean:376-385 ModelIO.read
+    /// con-leche: ConLeche/Frontend/CheckerIO.lean:370-379 ModelIO.read
     /// A positional read through the run's handle (`read_at_most`).
     pub fn read_range(&self, p: &Vec<u32>, off: u64, len: u64) -> Result<Vec<u8>, Vec<u32>> {
         let s = fs_path(p)?;
