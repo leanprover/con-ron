@@ -1465,10 +1465,11 @@ con-leche's say, word for word in their conclusions, about con-ron's own `run_ar
   oracle's (the pool's control-flow argument); (4) Rust, its standard library and Aeneas run the
   code as written — then by induction along the run.  What differs from con-leche: an oracle
   where con-leche has a non-determinism monad, and positional reads where con-leche has handles.
-  `StdIo` opens each path once per run (`olean_fs::RunFiles`), reads every range through that
-  handle up to where a read finds the end of the file, checks a size against the contents, and
-  fails at a path with a code point that is not a character, at a real path that is not valid
-  UTF-8, and at a file replaced during the run.
+  `StdIo` reads a path through one handle while it stays open (`olean_fs::RunFiles`, at most
+  256 open), every range up to where a read finds the end of the file, checks a size against
+  the contents, and fails at a path with a code point that is not a character and at a real
+  path that is not valid UTF-8.  That the files do not change during the run is point (1),
+  assumed and not checked.
 * **The worker map is the trait's**, its contract (`ParallelAll`, OVERVIEW §8.2's pool row) a
   premise of the walks, for every `Step`, and a theorem of the model (slice 6).  The per-job heartbeat is the instance's
   (around each step), so a step needs no escape.
@@ -74796,6 +74797,7 @@ fine).  Nothing in CI built off Linux, so it went unnoticed until a Windows buil
 * `olean_fs::stamp_of` off Unix: device and inode `0` (Windows' volume serial and file index
   are unstable API), the size and `modified()`; so off Unix only size and modification time
   tell a replaced file apart.  Unix is unchanged.
+  (Removed again the same day, see *Afterwards*.)
 
 **CI.**  A `portable` job in `.github/workflows/ci.yml`, a `windows-latest`/`macos-latest`
 matrix beside `gates`: Charon's pinned nightly (`nightly-2026-09-17`, named a second time
@@ -74807,3 +74809,15 @@ No Nix, Lean, Charon or Aeneas: the proof stays Linux-only.
 `x86_64-pc-windows-msvc`, `aarch64-apple-darwin`, `x86_64-apple-darwin` from the Linux nightly
 sysroot (the default `mimalloc` feature needs a cross C compiler locally; the runners have
 native ones); `scripts/gates.sh`.
+
+**Afterwards (2026-11-23): the replaced-file check is gone.**  Task #171 slice 6 (on an
+external review's "splicing" finding) made `RunFiles` stamp each file (device, inode, size,
+modification time) and fail a read when a path reopened after its handle was closed had
+another stamp.  It was never a requirement, no theorem uses it, it caught only part of the
+problem (no re-check on a cache hit, nor of an in-place rewrite keeping the stamp), and
+con-leche checks nothing: its trust argument (1) assumes one snapshot of the files for the
+run.  At the maintainer's word ("we make the assumption, so we should trust it") `Stamp`,
+`stamp_of` (both platforms' twins) and the "replaced or changed during the run" failure are
+deleted.  `RunFiles` keeps one handle per path while open (at most `OPEN_CAP = 256`) and simply
+reopens an evicted path; its test now checks that.  OVERVIEW §3.1 row (1) and §3's driver
+paragraph say so.
