@@ -206,53 +206,18 @@ impl CheckerFs for StdFs {
     fn read_notes_module_loaded(&self, _total: u64, _size: u64) {}
 }
 
-/// con-leche: none — **what identifies the file a run read at a path**: its
-/// device, its inode, its size and its modification time when first opened.
-#[derive(Clone, Copy, PartialEq, Eq)]
-struct Stamp {
-    dev: u64,
-    ino: u64,
-    len: u64,
-    mtime: i64,
-    mtime_ns: i64,
-}
-
-/// con-leche: none — the stamp of an opened file's metadata
-#[cfg(unix)]
-fn stamp_of(md: &std::fs::Metadata) -> Stamp {
-    use std::os::unix::fs::MetadataExt;
-    Stamp { dev: md.dev(), ino: md.ino(), len: md.len(), mtime: md.mtime(), mtime_ns: md.mtime_nsec() }
-}
-
-/// con-leche: none — the stamp off Unix: no device or inode on stable Rust
-/// (Windows' volume serial and file index are unstable), so `0` for both, and
-/// only the size and the modification time tell a replaced file apart.
-#[cfg(not(unix))]
-fn stamp_of(md: &std::fs::Metadata) -> Stamp {
-    let t = md.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).unwrap_or_default();
-    Stamp { dev: 0, ino: 0, len: md.len(), mtime: t.as_secs() as i64, mtime_ns: t.subsec_nanos() as i64 }
-}
-
-/// con-leche: none — a path the run has opened: the file's stamp, and its
-/// handle while it is among the open ones
-struct Seen {
-    stamp: Stamp,
-    file: Option<std::sync::Arc<std::fs::File>>,
-}
-
 /// con-leche: none — how many handles a run keeps open at once
 const OPEN_CAP: usize = 256;
 
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:302-304 HS
-/// **The files of one run**, by path (`StdIo`'s reads): each path is opened
-/// once and read through that handle, so every read of it within the run is
-/// one file's, even if the path is replaced meanwhile.  At most `OPEN_CAP`
+/// **The files of one run**, by path (`StdIo`'s reads): a path is opened once
+/// and read through that handle while it stays open.  At most `OPEN_CAP`
 /// handles stay open (a closure of thousands of modules against the usual 1024
-/// open files): a path whose handle was closed is opened again and must be the
-/// file it was (`Stamp`: the same device, inode, size and modification time),
-/// or the read fails.
+/// open files); a path whose handle was closed is opened again.  That the files
+/// do not change during the run is assumed (the trust argument's point (1), as
+/// in con-leche), not checked.
 pub struct RunFiles {
-    seen: std::sync::Mutex<(std::collections::HashMap<String, Seen>, std::collections::VecDeque<String>)>,
+    open: std::sync::Mutex<(std::collections::HashMap<String, std::sync::Arc<std::fs::File>>, std::collections::VecDeque<String>)>,
 }
 
 /// con-leche: ConLeche/Frontend/CheckerIO.lean:302-304 HS
@@ -260,16 +225,15 @@ impl RunFiles {
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:302-304 HS
     /// No file opened yet.
     pub fn new() -> RunFiles {
-        RunFiles { seen: std::sync::Mutex::new((std::collections::HashMap::new(), std::collections::VecDeque::new())) }
+        RunFiles { open: std::sync::Mutex::new((std::collections::HashMap::new(), std::collections::VecDeque::new())) }
     }
 
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:400-406 openReadIO
-    /// **The run's handle of the regular file at `s`**, and its metadata when the
-    /// run first opened it.
+    /// **The run's handle of the regular file at `s`**, and its metadata.
     fn open(&self, s: &str) -> Result<(std::sync::Arc<std::fs::File>, std::fs::Metadata), Vec<u32>> {
         {
-            let g = self.seen.lock().map_err(|_| path_msg(s, "the run's open files are lost"))?;
-            if let Some(Seen { file: Some(f), .. }) = g.0.get(s) {
+            let g = self.open.lock().map_err(|_| path_msg(s, "the run's open files are lost"))?;
+            if let Some(f) = g.0.get(s) {
                 let f = f.clone();
                 drop(g);
                 let md = f.metadata().map_err(|e| io_msg(s, e))?;
@@ -277,32 +241,18 @@ impl RunFiles {
             }
         }
         let (f, md) = open_regular(s)?;
-        let st = stamp_of(&md);
         let f = std::sync::Arc::new(f);
-        let mut g = self.seen.lock().map_err(|_| path_msg(s, "the run's open files are lost"))?;
+        let mut g = self.open.lock().map_err(|_| path_msg(s, "the run's open files are lost"))?;
         let (map, order) = &mut *g;
-        match map.get_mut(s) {
-            Some(seen) => {
-                if seen.stamp != st {
-                    return Err(path_msg(s, "replaced or changed during the run"));
-                }
-                if let Some(f0) = &seen.file {
-                    // another thread opened it meanwhile: read through that one
-                    let f0 = f0.clone();
-                    return Ok((f0, md));
-                }
-                seen.file = Some(f.clone());
-            }
-            None => {
-                map.insert(s.to_string(), Seen { stamp: st, file: Some(f.clone()) });
-            }
+        if let Some(f0) = map.get(s) {
+            // another thread opened it meanwhile: read through that one
+            return Ok((f0.clone(), md));
         }
+        map.insert(s.to_string(), f.clone());
         order.push_back(s.to_string());
         while order.len() > OPEN_CAP {
             if let Some(old) = order.pop_front() {
-                if let Some(seen) = map.get_mut(&old) {
-                    seen.file = None;
-                }
+                map.remove(&old);
             }
         }
         Ok((f, md))
@@ -479,10 +429,10 @@ mod tests {
         assert_eq!(StdFs.read_range(&p, 0, 1 << 20).unwrap(), whole);
     }
 
-    /// A file replaced during a run: its reads are the first file's, through
-    /// the run's handle; once the handle is closed, a read fails.
+    /// A path is read through one handle while it is open (a file renamed over
+    /// it meanwhile is not seen), and is opened again once its handle is closed.
     #[test]
-    fn replaced_file_is_not_spliced() {
+    fn reads_go_through_the_runs_handle() {
         let dir = std::env::temp_dir().join(format!("con-ron-runfiles-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let f = dir.join("a.bin");
@@ -495,14 +445,13 @@ mod tests {
         std::fs::write(&g, b"abcdefghijklmnop").unwrap();
         std::fs::rename(&g, &f).unwrap();
         assert_eq!(rf.read_range(&p, 4, 100).unwrap(), b"456789");
-        assert_eq!(rf.read_bin_file(&p).unwrap(), b"0123456789");
-        // close every handle: the path is opened again, and is another file
+        // close every handle: the path is opened again
         for i in 0..OPEN_CAP {
             let h = dir.join(format!("h{}", i));
             std::fs::write(&h, b"x").unwrap();
             rf.read_range(&cps(h.to_str().unwrap()), 0, 1).unwrap();
         }
-        assert!(rf.read_range(&p, 0, 4).is_err());
+        assert_eq!(rf.read_range(&p, 0, 4).unwrap(), b"abcd");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }
