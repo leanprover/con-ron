@@ -74821,3 +74821,33 @@ run.  At the maintainer's word ("we make the assumption, so we should trust it")
 deleted.  `RunFiles` keeps one handle per path while open (at most `OPEN_CAP = 256`) and simply
 reopens an evicted path; its test now checks that.  OVERVIEW §3.1 row (1) and §3's driver
 paragraph say so.
+
+### Task #174 — `olean-compare --home`/`--reads`/`--reach`: the olean table green again (2026-11-23, Opus)
+
+**Why.**  CI's `gates` job had been red on master since the con-leche sync to 11d8ff13
+(tasks #164/#166): upstream's `tests/olean.sh` grew rows for three `olean-compare` modes
+(upstream tasks #464, #465, #621) that con-ron's tool did not have, so `--home` was read as an
+export file's path and 41 rows ended in exit 3.  Tasks #166, #170 and #171 recorded the rows as
+"still failing"; `scripts/diff-olean.sh` runs only in CI, not in `scripts/gates.sh`, so no
+landing saw it.
+
+**What changed.**  `crates/con-ron/src/bin/olean-compare.rs` only (a development tool outside
+the theorems; nothing of `con-ron-core` moved, so no re-extraction).  `run_home`, `run_reads`,
+`run_reach` port upstream's `runHome`/`runReads`/`runReach` over the core's existing ports
+(`worker::home_of`, `index::worker_reads`, `levels::header_fixpoint`/`pub_closures`,
+`lazy::load_view`, `emit::emit_all`/`records::decls_of`, `reach::record_reads`, `reach::reach`),
+printing upstream's summary lines.  Two port-side differences, both as the driver does them:
+* the reserved-name pins are interned first (`pins::intern_reserved_pins`; the reach reads them);
+* `--reach` infers the pending proof flags after the reach, over the context's frozen tier
+  (`reach::infer_flags`, as `driver::worker::module_phase`): upstream's `reach` infers them
+  itself, con-ron's defers them (reach.rs's module note).  Without it the capture row
+  ("a captured name", DgCapM) was accepted by the tool — the checker itself rejects it.
+`--jobs=N` is accepted and has no effect (the reads are sequential).  `ModSet.card` is a
+popcount in the tool.
+
+**Checked.**  `scripts/diff-olean.sh`: **551/560 as expected, 9 NOT PORTED, no FAIL** (was
+510/560 with 41 FAIL); `scripts/gates.sh`.
+
+**Left.**  The olean table is still CI-only; adding it to `scripts/gates.sh` would have caught
+this at landing (a few minutes per run).  The `renovation` branch's CI fails separately at
+`pin-last` (no local `master` ref in the CI checkout).
