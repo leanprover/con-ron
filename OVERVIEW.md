@@ -1523,12 +1523,10 @@ with `--compare` it also compares the reader's records with lean4export's, on
 `Init` and on one constant's cone, which needs an exporter and is not in CI.
 
 **The gates.**  `scripts/gates.sh` runs before every commit
-([the steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L6-L36)).
+([the steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L6-L34)).
 It stops at the first failure of: `cargo build` (warnings denied) and
 `cargo test`; the style lint and the dead-code check (`scripts/dead-rust.py`,
-no public Rust item without a caller); the provenance check, the check that
-only a branch's last commit moves the con-leche pin (`scripts/pin-last.py`),
-and the twin-line check; this
+no public Rust item without a caller); the provenance check and the twin-line check; this
 document's link check (`scripts/overview-links.sh`) and holes table
 (`scripts/holes.sh --check`); the checks that the embedded pin text, the
 Rust prelude text and the twin's prelude bytes are con-leche's
