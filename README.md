@@ -20,7 +20,7 @@ To that end, con-ron implements a [twin](https://github.com/leanprover/con-ron/t
 
 In the end we can compose all these to the end-to-end main consistency theorem [`main_json_model`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L112-L115) and main corollary [`main_no_False`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L123-L126), together with the other main theorems in [`MainTheorem.lean`](./proof/ConRon/MainTheorem.lean): con-leche's main theorems, word for word, about con-ron's binary.
 
-As in con-leche, the theorems cover the driver too (parsing the arguments, reading the files, the modes): it is written once against a trait modelling the IO, and the theorems hold for every implementation of it that behaves like a file system snapshot. What exactly a run of the binary must satisfy is [listed in the OVERVIEW](./OVERVIEW.md#31-what-a-run-of-the-binary-must-satisfy).
+As in con-leche, the theorems cover the driver too (parsing the arguments, reading the files, the modes): it is written once against a trait modelling the IO, and the theorems are about a model of how the IO could behave, under certain resonable assumptions; [more details in the OVERVIEW](./OVERVIEW.md#31-what-a-run-of-the-binary-must-satisfy).
 
 This is not a high assurance verification effort, given the reliance on Aeneas as a Rust-to-Lean translator. The goal is to make it very plausible that the Rust implementation follows the Lean implementation very closely.
 
