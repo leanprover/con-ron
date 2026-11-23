@@ -1044,10 +1044,10 @@ every module of its headers' closure has an exit 0 of `--olean --module`, a fami
 theorem modular_of_canGive (V : Type w) [ConLeche.SetTheory V] {dirs root : String}
     {r : ConLeche.Name} {fs : ConLeche.FS}
     (hr : ConLeche.Frontend.Olean.parseModName root = some r)
-    (h : CanGive ["--check-graph", "--search-path=" ++ dirs, "--", root] fs 0)
+    (h : CanGiveConforming ["--check-graph", "--search-path=" ++ dirs, "--", root] fs 0)
     (hwork : ∀ m', ConLeche.Frontend.Olean.HdrClosure (ConLeche.Driver.searchPathOf dirs) fs [r] m' →
       ∃ root', ConLeche.Frontend.Olean.parseModName root' = some m' ∧
-        CanGive ["--olean", "--module", "--search-path=" ++ dirs, "--", root'] fs 0) :
+        CanGiveConforming ["--olean", "--module", "--search-path=" ++ dirs, "--", root'] fs 0) :
     ∃ model : ConLeche.Name → (ConLeche.Name → List Nat → V),
       (∀ m, ConLeche.Frontend.Olean.InClosure (ConLeche.Driver.searchPathOf dirs) fs #[r] m →
         ConLeche.IsModel V (model m)
@@ -1418,7 +1418,7 @@ theorem modular_one_of_stages (V : Type w) [ConLeche.SetTheory V] {fs : ConLeche
 theorem modular_one_of_canGive (V : Type w) [ConLeche.SetTheory V] {dirs root : String}
     {r : ConLeche.Name} {fs : ConLeche.FS}
     (hr : ConLeche.Frontend.Olean.parseModName root = some r)
-    (h : CanGive ["--olean", "--modular", "--search-path=" ++ dirs, "--", root] fs 0) :
+    (h : CanGiveConforming ["--olean", "--modular", "--search-path=" ++ dirs, "--", root] fs 0) :
     ∃ model : ConLeche.Name → (ConLeche.Name → List Nat → V),
       (∀ m, ConLeche.Frontend.Olean.InClosure (ConLeche.Driver.searchPathOf dirs) fs #[r] m →
         ConLeche.IsModel V (model m)

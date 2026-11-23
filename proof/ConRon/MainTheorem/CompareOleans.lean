@@ -669,7 +669,7 @@ theorem compare_of_canGive (V : Type w) [ConLeche.SetTheory V] {T D c s : String
     {C S : ConLeche.Name} {fs : ConLeche.FS}
     (hc : ConLeche.Frontend.Olean.parseModName c = some C)
     (_hs : ConLeche.Frontend.Olean.parseModName s = some S)
-    (h : CanGive ["--olean", "--compare", "--trusted-search-path=" ++ T, "--search-path=" ++ D,
+    (h : CanGiveConforming ["--olean", "--compare", "--trusted-search-path=" ++ T, "--search-path=" ++ D,
       "--", c, s] fs 0) :
     ∀ fs', FS.AgreeUnder (ConLeche.Driver.trustedOr (ConLeche.Driver.searchPathOf T)
         (ConLeche.Driver.searchPathOf D)) fs fs' →

@@ -5,9 +5,11 @@ import ConRon.MainTheorem.Stages
 
 **Task #171, lane D, slice 1** (DESIGN.md §3.9).  The binary's `main` is plumbing around the
 extracted `driver::cli::run_args`, generic over the trait `frontend::checker_io::CheckerIo`
-(the port of con-leche's class `CheckerIO`).  This module states what the theorems assume of an
+(the port of con-leche's class `CheckerIO`).  This module states what the walks assume of an
 instance — its file operations answer as one snapshot of the files at every state
-(`AnswersAs`), its worker map keeps the pool's contract for every job (`PoolSound`) — and walks
+(`AnswersAs`), its worker map keeps the pool's contract for every job (`PoolSound`), its code
+map answers each job's code (`CodesSound`); the model instance of `MainTheorem/Model.lean` has
+all three, as theorems — and walks
 the Aeneas model of `run_args` at the argument list `["--", file]`: an exit 0 there is one
 premise per step of the staged lemma (`ConRon.MainTheorem.Stages.model_exists_embedded`'s `h1` … `h8`, at the
 binary's start values, the embedded pins), with the chunks the reads returned concatenating to
@@ -33,7 +35,7 @@ namespace ConRon
 
 open ConRon.Refine2 ConRon.Refine2.Frontend ConRon.Refine2.Frontend.Olean ConRon.MainTheorem.Stages
 
-/-! ## What the theorems assume of an instance -/
+/-! ## What the walks assume of an instance -/
 
 /-- **The instance's file operations answer as the snapshot `fs`, at every state**: at the
 paths the driver asks (`PathRel`), each operation that answers gives `fs`'s answer
@@ -76,10 +78,12 @@ at most `usize::MAX` long, and a list that does not fit has no `argv`. -/
 def ArgvOf (argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (args : List String) : Prop :=
   argv.val.map (fun a => a.val.map UScalar.val) = args.map (fun s => s.toList.map Char.toNat)
 
-/-- **An exit code `c` of con-ron at the argument list `args`, on the files `fs`**: the
-extracted driver returns `c` at an IO instance whose file operations answer as `fs`, at every
-state, and whose worker map keeps its contract. -/
-def CanGive (args : List String) (fs : ConLeche.FS) (c : UInt8) : Prop :=
+/-- **An exit code `c` of the extracted driver at the argument list `args`, at SOME instance that
+conforms to the snapshot `fs`**: its file operations answer as `fs` at every state, and its two
+maps keep their contracts.  The walks are proved from this instance-generic form; the main
+theorems' `ConRon.CanGive` (`MainTheorem/Model.lean`) is the driver at one instance, the model
+`Model.snapshotIo fs`, which conforms (`CanGive.conforming`). -/
+def CanGiveConforming (args : List String) (fs : ConLeche.FS) (c : UInt8) : Prop :=
   ∃ (S : Type) (io : frontend.checker_io.CheckerIo S) (s s' : S)
     (argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (c' : Std.U8),
     AnswersAs io fs ∧ PoolSound io ∧ CodesSound io ∧ ArgvOf argv args ∧
@@ -748,7 +752,7 @@ theorem run_args_json {S : Type} {io : frontend.checker_io.CheckerIo S} {fs : Co
 /-- **The run premise, unpacked**: every exit 0 of con-ron at `["--", file]` is one of
 `JsonStages`'s, on the file's bytes. -/
 theorem json_stages_of_canGive {file : String} {fs : ConLeche.FS} {b : ByteArray}
-    (h : CanGive ["--", file] fs 0) (hb : fs.file file = some b) : JsonStages b := by
+    (h : CanGiveConforming ["--", file] fs 0) (hb : fs.file file = some b) : JsonStages b := by
   obtain ⟨S, io, s, s', argv, c, hfs, hpool, -, hargv, hrun, hc⟩ := h
   exact run_args_json hfs hpool hargv hrun (by simpa using hc) hb
 

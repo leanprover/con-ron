@@ -897,15 +897,15 @@ stages, composed (`modular_cmp_of_stages`), in con-leche's names. -/
 theorem modular_cmp_facts_of_canGive {T D c s : String} {C S : ConLeche.Name} {fs : ConLeche.FS}
     (hc : ConLeche.Frontend.Olean.parseModName c = some C)
     (hs : ConLeche.Frontend.Olean.parseModName s = some S)
-    (hgraph : CanGive ["--check-graph", "--compare", "--trusted-search-path=" ++ T,
+    (hgraph : CanGiveConforming ["--check-graph", "--compare", "--trusted-search-path=" ++ T,
       "--search-path=" ++ D, "--", c, s] fs 0)
     (hwork : ∀ m, ConLeche.Frontend.Olean.HdrClosure
         (⟨C, S, ConLeche.Driver.searchPathOf T, ConLeche.Driver.searchPathOf D, none⟩ :
           ConLeche.Driver.CmpReq).solRoots fs [C, S] m → m ≠ C →
-      ∃ root', ConLeche.Frontend.Olean.parseModName root' = some m ∧ CanGive
+      ∃ root', ConLeche.Frontend.Olean.parseModName root' = some m ∧ CanGiveConforming
         ["--olean", "--module", "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--",
           root'] fs 0)
-    (hcmp : CanGive ["--olean", "--module", "--compare", "--trusted-search-path=" ++ T,
+    (hcmp : CanGiveConforming ["--olean", "--module", "--compare", "--trusted-search-path=" ++ T,
       "--search-path=" ++ D, "--", c, s] fs 0) :
     ∃ (Cg : List ConLeche.Driver.Graph.Node) (rk : ConLeche.Name → Nat),
       (∀ e ∈ Cg, ConLeche.Driver.Graph.NodeOk (⟨C, S, ConLeche.Driver.searchPathOf T,
@@ -952,7 +952,7 @@ theorem modular_cmp_one_of_canGive (V : Type w) [ConLeche.SetTheory V] {T D c s 
     {C S : ConLeche.Name} {fs : ConLeche.FS}
     (hc : ConLeche.Frontend.Olean.parseModName c = some C)
     (hs : ConLeche.Frontend.Olean.parseModName s = some S)
-    (h : CanGive ["--olean", "--modular", "--compare", "--trusted-search-path=" ++ T,
+    (h : CanGiveConforming ["--olean", "--modular", "--compare", "--trusted-search-path=" ++ T,
       "--search-path=" ++ D, "--", c, s] fs 0) :
     ∀ fs', ConLeche.FS.AgreeUnder (ConLeche.Driver.trustedOr (ConLeche.Driver.searchPathOf T)
         (ConLeche.Driver.searchPathOf D)) fs fs' →

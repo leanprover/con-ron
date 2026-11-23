@@ -777,7 +777,7 @@ path `dirs`, has a model. -/
 theorem oleans_of_canGive (V : Type w) [ConLeche.SetTheory V] {dirs root : String}
     {r : ConLeche.Name} {fs : ConLeche.FS}
     (hr : ConLeche.Frontend.Olean.parseModName root = some r)
-    (h : CanGive ["--olean", "--search-path=" ++ dirs, "--", root] fs 0) :
+    (h : CanGiveConforming ["--olean", "--search-path=" ++ dirs, "--", root] fs 0) :
     ∃ model, IsModel V model (closureConstants (ConLeche.Driver.searchPathOf dirs) fs #[r]) := by
   obtain ⟨S, io, s, s', argv, c, hfs, hpool, -, hargv, hrun, hc⟩ := h
   obtain ⟨nm, dv, hp, hsp, hst⟩ := run_args_oleans hfs hpool hargv hrun (by simpa using hc)

@@ -26,17 +26,17 @@
     38    obtain ⟨n, fe, r, rfl⟩ := checkDecls_run .verified h
     39    exact (declsRun_model (V := V) r rfl ConLeche.Model.EnvModelOk.empty).nonempty
 
-== proof/ConRon/MainTheorem.lean#L60-L63
-    60  theorem main_json_model (V : Type w) [ConLeche.SetTheory V] {file : String} {fs : FS}
-    61      {b : ByteArray}
-    62      (h : ConRon.CanGive ["--", file] fs 0) (hb : fs.file file = some b) :
-    63      ∃ r, parseChunks [b] = .ok r ∧ ∃ model, IsModel V model (· ∈ constantsOf r.decls.toList) :=
+== proof/ConRon/MainTheorem.lean#L109-L112
+   109  theorem main_json_model (V : Type w) [ConLeche.SetTheory V] {file : String} {fs : FS}
+   110      {b : ByteArray}
+   111      (h : ConRon.CanGive ["--", file] fs 0) (hb : fs.file file = some b) :
+   112      ∃ r, parseChunks [b] = .ok r ∧ ∃ model, IsModel V model (· ∈ constantsOf r.decls.toList) :=
 
-== proof/ConRon/MainTheorem.lean#L70-L73
-    70  theorem main_no_False (V : Type w) [ConLeche.SetTheory V] {file : String} {fs : FS}
-    71      {b : ByteArray}
-    72      (h : ConRon.CanGive ["--", file] fs 0) (hb : fs.file file = some b)
-    73      (hF : jsonWithTheoremFalse [b]) : False :=
+== proof/ConRon/MainTheorem.lean#L120-L123
+   120  theorem main_no_False (V : Type w) [ConLeche.SetTheory V] {file : String} {fs : FS}
+   121      {b : ByteArray}
+   122      (h : ConRon.CanGive ["--", file] fs 0) (hb : fs.file file = some b)
+   123      (hF : jsonWithTheoremFalse [b]) : False :=
 
 == crates/con-ron-core/src/arena/handle.rs#L4-L13
      4  //! One 32-bit word per handle, in one of two shapes.  The top bit is the tier
@@ -243,196 +243,247 @@
     28            packages = [
     29              charonPkgs.rustToolchain   # rustc/cargo nightly pinned by Charon
 
-== proof/ConRon/MainTheorem.lean#L9-L48
-     9  /-!
-    10  # `ConRon.MainTheorem` — the main theorems about the binary (task #171, DESIGN.md §3.9)
-    11  
-    12  The twin of `ConLeche/MainTheorem.lean`: the same theorem names, in the same order, with the
-    13  same statements word for word, but con-leche's run premise `ModelIO.CanGive (Driver.runArgs
-    14  args) fs 0` is con-ron's `ConRon.CanGive args fs 0` (`MainTheorem/Driver.lean`): the extracted
-    15  driver `driver::cli::run_args` exits 0 on the argument list `args` at an instance of the trait
-    16  `CheckerIo` whose file operations answer as the snapshot `fs` at every state (`AnswersAs`), whose
-    17  worker map keeps the pool's contract (`PoolSound`) and whose code map answers each module's
-    18  exit code (`CodesSound`).
-    19  
-    20  What a run of the binary must satisfy to be one of `CanGive`'s is OVERVIEW §3.1, the
-    21  counterpart of the module doc of con-leche's `ConLeche/Frontend/CheckerIO.lean`: the binary's
-    22  instance (`crates/con-ron/src/std_io.rs`) answers as one snapshot, keeps the two maps'
-    23  contracts, and its escapes and notifications write no file and do not end the process; and
-    24  `main` does what it says (the argument list's code points, the checking thread, `run_args`, the
-    25  flush, the exit with its code).
+== proof/ConRon/MainTheorem.lean#L10-L97
+    10  /-!
+    11  # `ConRon.MainTheorem` — the main theorems about the binary (task #171, DESIGN.md §3.9)
+    12  
+    13  The twin of `ConLeche/MainTheorem.lean`: the same theorem names, in the same order, with the
+    14  same statements word for word, but con-leche's run premise `ModelIO.CanGive (Driver.runArgs
+    15  args) fs 0` is con-ron's `ConRon.CanGive args fs 0` (`MainTheorem/Model.lean`): the extracted
+    16  driver `driver::cli::run_args` exits 0 on the argument list `args` at the MODEL instance of the
+    17  trait `CheckerIo`, `Model.snapshotIo fs`, from some oracle.  The model is con-ron's `ModelIO`:
+    18  its file operations answer from the snapshot `fs` (a failure where `fs` has no answer, and at a
+    19  path that is not a well-formed string); every escape that answers a value (the help's and the
+    20  scheduler's exit codes, the hardware thread count, the copies' error) takes its answer from the
+    21  oracle, so any value of its type is possible; the worker map folds each job over the claims the
+    22  oracle picks; the code map runs every job; the notifications do nothing.  That the model
+    23  answers as `fs` and keeps the two maps' contracts are theorems about it
+    24  (`Model.snapshotIo_answersAs`, `snapshotIo_poolSound`, `snapshotIo_codesSound`), which the walks
+    25  use through the instance-generic `CanGiveConforming` (`CanGive.conforming`).
     26  
-    27  **The proofs.**  Each theorem is a walk of the extracted driver and a conclusion.  The walk
-    28  (`MainTheorem/Driver.lean`, `CompareJson.lean`, `Oleans.lean`, `Modular.lean`,
-    29  `CompareOleans.lean`, `CompareModular.lean`, over the argument parses of `Args.lean`,
-    30  `ModArgs.lean` and `CmpArgs.lean`) inverts `run_args` at the theorem's argument list, one
-    31  lemma per driver function, down to the calls of the verified stages, and hands them to the
-    32  staged lemmas of `MainTheorem/Stages.lean`: one premise per call, Theorem 2 (the Rust refines the
-    33  twin), then Theorem 1 (the twin refines con-leche's pure checker).  `MainTheorem/Conclusions.lean`
-    34  turns the staged conclusions into con-leche's words with con-leche's own soundness theorems:
-    35  
-    36  | theorem | the walk | the conclusion |
-    37  |---|---|---|
-    38  | `main_json_model`, `main_no_False` | `json_stages_of_canGive` | `json_model_of_stages`, `json_no_False_of_stages` |
-    39  | `main_compare_json_model` | `compare_json_stages_of_canGive` | `compare_json_model_of_stages` |
-    40  | `main_oleans` | `oleans_of_canGive` | `oleans_model_of_stages_dec` |
-    41  | `main_compare_model` | `compare_of_canGive` | `compare_model_of_stages_dec` |
-    42  | `main_modular`, `main_modular_one` | `modular_of_canGive`, `modular_one_of_canGive` | `Stages.model_modular_of` |
-    43  | `main_modular_compare`, `main_modular_compare_one`, `main_modular_compare_no_False` | `modular_cmp_facts_of_canGive`, `modular_cmp_one_of_canGive` | `cmp_family`, `cmp_no_False` |
-    44  
-    45  The proofs use the axioms `propext`, `Classical.choice`, `Quot.sound` and
-    46  `PINS_TEXT._native.decide.ax_1`, the one Aeneas spends on the embedded pin text's definition,
-    47  and no other (the census at the end of this file).
-    48  -/
+    27  **What is proved, and what is trusted** (con-leche's `ConLeche/Frontend/CheckerIO.lean`, its
+    28  module doc, says the same of its binary; OVERVIEW §3.1 is this paragraph's table).  The
+    29  theorems say: every run of the model that exits 0 implies the statement.  The binary's `main`
+    30  (`crates/con-ron/src/bin/con-ron.rs`) is the argument list's code points (an argument that is
+    31  not UTF-8 is exit 3), the checking thread, the same generic `run_args` at the binary's instance
+    32  `StdIo` (`crates/con-ron/src/std_io.rs`), the flush and the exit with the code `run_args`
+    33  returned; those lines are read, not proved.  The code is computed by the extracted driver and
+    34  returned outside every escape.  A run of the binary that exits 0 is one of the model's runs,
+    35  with that code, if
+    36  
+    37  1. every file operation the run PERFORMS answered as one snapshot `fs` of the files: the same
+    38     value where the model has one, and a failure where the model fails (`StdIo` fails at a path
+    39     with a code point that is not a character, at a real path that is not valid UTF-8, at a size
+    40     its file's contents do not end at, and at a path replaced or changed during the run; it reads
+    41     every byte range through the run's one handle of the file, up to where a read finds the end);
+    42     and on the binary's platform the Rust's spelling of a module's file (`files::mod_file_of`) is
+    43     upstream's (`modFile`), which the logic cannot decide (`System.FilePath`'s `/` reads the
+    44     opaque `System.Platform.isWindows`), so the model also fails where they would differ;
+    45  2. the escapes and notifications do not change what the file operations see (none writes a file
+    46     a check reads: they print, read the clock, count threads, keep what the run built, and start
+    47     the scheduler, whose workers only read) and do not end the process with exit code 0;
+    48  3. the two maps' actual runs are some oracle's: the worker map (`pool::parallel_all`) runs each
+    49     worker from the job's first state over the positions it claims, in increasing order, every
+    50     position claimed, and answers `Ok` only when every step did, which is an argument about its
+    51     control flow; the code map runs every module's step and answers their codes in order; and
+    52  4. Rust, its standard library and Aeneas run and model the code as written.
+    53  
+    54  The argument is then con-leche's: the extracted code is the same at both instances; at every file
+    55  operation the run performs, the binary's answer is, by (1) and (2), the model's; at every escape
+    56  the binary's answer is SOME value of its type, and the model has an oracle that gives it (the
+    57  oracle is chosen after the run, answer by answer); at each map, by (3), an oracle's claims give
+    58  the binary's answer.  So, by induction along the run, a run of the binary that reaches the exit
+    59  with 0 is one of the model's runs, and what is proved of all of those holds of it.  Calls the run
+    60  does not perform constrain nothing.
+    61  
+    62  What differs from con-leche: an ORACLE in the instance's state where con-leche has a
+    63  non-determinism monad (Aeneas models a trait method as a function, so "any outcome" is "the
+    64  oracle's", the oracle existentially chosen); and POSITIONAL reads (`read_range`) where con-leche
+    65  opens a handle and reads it forward (the model's `ModelIO.read` slices the file from the
+    66  handle's position; con-ron's slice is at the offset the reader passes, the reader's own
+    67  position).  One `&self` escape answers a value, `worker_copies`, inside the code map where the
+    68  instance is shared: in the model its answer is the oracle's function of its arguments, so it
+    69  claims that two calls with the same arguments at one state agree, which the binary's
+    70  (deterministic in its arguments) does; and it can only turn an accept into a failure.
+    71  
+    72  **Several processes.**  `main_modular`, `main_modular_compare` and
+    73  `main_modular_compare_no_False` are about several runs of the binary: they assume (1) to (4) of
+    74  every run, with one snapshot for all of them, as con-leche's do.
+    75  
+    76  **The proofs.**  Each theorem is a walk of the extracted driver and a conclusion.  The walk
+    77  (`MainTheorem/Driver.lean`, `CompareJson.lean`, `Oleans.lean`, `Modular.lean`,
+    78  `CompareOleans.lean`, `CompareModular.lean`, over the argument parses of `Args.lean`,
+    79  `ModArgs.lean` and `CmpArgs.lean`) inverts `run_args` at the theorem's argument list, one
+    80  lemma per driver function, down to the calls of the verified stages, and hands them to the
+    81  staged lemmas of `MainTheorem/Stages.lean`: one premise per call, Theorem 2 (the Rust refines the
+    82  twin), then Theorem 1 (the twin refines con-leche's pure checker).  `MainTheorem/Conclusions.lean`
+    83  turns the staged conclusions into con-leche's words with con-leche's own soundness theorems:
+    84  
+    85  | theorem | the walk | the conclusion |
+    86  |---|---|---|
+    87  | `main_json_model`, `main_no_False` | `json_stages_of_canGive` | `json_model_of_stages`, `json_no_False_of_stages` |
+    88  | `main_compare_json_model` | `compare_json_stages_of_canGive` | `compare_json_model_of_stages` |
+    89  | `main_oleans` | `oleans_of_canGive` | `oleans_model_of_stages_dec` |
+    90  | `main_compare_model` | `compare_of_canGive` | `compare_model_of_stages_dec` |
+    91  | `main_modular`, `main_modular_one` | `modular_of_canGive`, `modular_one_of_canGive` | `Stages.model_modular_of` |
+    92  | `main_modular_compare`, `main_modular_compare_one`, `main_modular_compare_no_False` | `modular_cmp_facts_of_canGive`, `modular_cmp_one_of_canGive` | `cmp_family`, `cmp_no_False` |
+    93  
+    94  The proofs use the axioms `propext`, `Classical.choice`, `Quot.sound` and
+    95  `PINS_TEXT._native.decide.ax_1`, the one Aeneas spends on the embedded pin text's definition,
+    96  and no other (the census at the end of this file).
+    97  -/
 
-== proof/ConRon/MainTheorem.lean#L60-L83
-    60  theorem main_json_model (V : Type w) [ConLeche.SetTheory V] {file : String} {fs : FS}
-    61      {b : ByteArray}
-    62      (h : ConRon.CanGive ["--", file] fs 0) (hb : fs.file file = some b) :
-    63      ∃ r, parseChunks [b] = .ok r ∧ ∃ model, IsModel V model (· ∈ constantsOf r.decls.toList) :=
-    64    have ⟨h1, h2, hreads, h3, h4, hpins, h5, h6, h7, h8, hcat⟩ := ConRon.json_stages_of_canGive h hb
-    65    json_model_of_stages V h1 h2 hreads hcat h3 h4 hpins h5 h6 h7 h8
-    66  
-    67  /-- con-leche: ConLeche/MainTheorem.lean:51-57 main_no_False —
-    68  **No accepted file declares a theorem of type `False`**: no exit 0 of `-- <file>` reads a
-    69  `jsonWithTheoremFalse` file. -/
-    70  theorem main_no_False (V : Type w) [ConLeche.SetTheory V] {file : String} {fs : FS}
-    71      {b : ByteArray}
-    72      (h : ConRon.CanGive ["--", file] fs 0) (hb : fs.file file = some b)
-    73      (hF : jsonWithTheoremFalse [b]) : False :=
-    74    have ⟨h1, h2, hreads, h3, h4, hpins, h5, h6, h7, h8, hcat⟩ := ConRon.json_stages_of_canGive h hb
-    75    json_no_False_of_stages V hcat hF h1 h2 hreads h3 h4 hpins h5 h6 h7 h8
-    76  
-    77  /-- con-leche: ConLeche/MainTheorem.lean:60-67 main_compare_json_model —
-    78  **An accepted comparison's challenge file has a model**: an exit 0 of `--compare -- <c> <s>`
-    79  read the file `c` as records that have a model in every set theory. -/
-    80  theorem main_compare_json_model (V : Type w) [ConLeche.SetTheory V] {c s : String} {fs : FS}
-    81      (h : ConRon.CanGive ["--compare", "--", c, s] fs 0) :
-    82      ∃ bC rC, fs.file c = some bC ∧ parseChunks [bC] = .ok rC ∧
-    83        ∃ model, IsModel V model (· ∈ constantsOf rC.decls.toList) :=
+== proof/ConRon/MainTheorem.lean#L109-L134
+   109  theorem main_json_model (V : Type w) [ConLeche.SetTheory V] {file : String} {fs : FS}
+   110      {b : ByteArray}
+   111      (h : ConRon.CanGive ["--", file] fs 0) (hb : fs.file file = some b) :
+   112      ∃ r, parseChunks [b] = .ok r ∧ ∃ model, IsModel V model (· ∈ constantsOf r.decls.toList) :=
+   113    have ⟨h1, h2, hreads, h3, h4, hpins, h5, h6, h7, h8, hcat⟩ :=
+   114      ConRon.json_stages_of_canGive h.conforming hb
+   115    json_model_of_stages V h1 h2 hreads hcat h3 h4 hpins h5 h6 h7 h8
+   116  
+   117  /-- con-leche: ConLeche/MainTheorem.lean:51-57 main_no_False —
+   118  **No accepted file declares a theorem of type `False`**: no exit 0 of `-- <file>` reads a
+   119  `jsonWithTheoremFalse` file. -/
+   120  theorem main_no_False (V : Type w) [ConLeche.SetTheory V] {file : String} {fs : FS}
+   121      {b : ByteArray}
+   122      (h : ConRon.CanGive ["--", file] fs 0) (hb : fs.file file = some b)
+   123      (hF : jsonWithTheoremFalse [b]) : False :=
+   124    have ⟨h1, h2, hreads, h3, h4, hpins, h5, h6, h7, h8, hcat⟩ :=
+   125      ConRon.json_stages_of_canGive h.conforming hb
+   126    json_no_False_of_stages V hcat hF h1 h2 hreads h3 h4 hpins h5 h6 h7 h8
+   127  
+   128  /-- con-leche: ConLeche/MainTheorem.lean:60-67 main_compare_json_model —
+   129  **An accepted comparison's challenge file has a model**: an exit 0 of `--compare -- <c> <s>`
+   130  read the file `c` as records that have a model in every set theory. -/
+   131  theorem main_compare_json_model (V : Type w) [ConLeche.SetTheory V] {c s : String} {fs : FS}
+   132      (h : ConRon.CanGive ["--compare", "--", c, s] fs 0) :
+   133      ∃ bC rC, fs.file c = some bC ∧ parseChunks [bC] = .ok rC ∧
+   134        ∃ model, IsModel V model (· ∈ constantsOf rC.decls.toList) :=
 
-== proof/ConRon/MainTheorem.lean#L94-L145
-    94  theorem main_oleans (V : Type w) [SetTheory V] {dirs root : String} {r : Name} {fs : FS}
-    95      (hr : Olean.parseModName root = some r)
-    96      (h : ConRon.CanGive ["--olean", "--search-path=" ++ dirs, "--", root] fs 0) :
-    97      ∃ model, IsModel V model (Olean.closureConstants (Driver.searchPathOf dirs) fs #[r]) :=
-    98    oleans_of_canGive V hr h
-    99  
-   100  open ConLeche ConLeche.Frontend in
-   101  /-- con-leche: ConLeche/MainTheorem.lean:88-95 main_compare_model —
-   102  **An accepted comparison's challenge closure has a model**: every exit 0 of `--olean
-   103  --compare --trusted-search-path=<T> --search-path=<D> -- <c> <s>` has a model of the constants
-   104  of the challenge's closure, read through the challenge's directories, on every snapshot that
-   105  agrees with the run's there. -/
-   106  theorem main_compare_model (V : Type w) [SetTheory V] {T D c s : String} {C S : Name} {fs : FS}
-   107      (hc : Olean.parseModName c = some C) (hs : Olean.parseModName s = some S)
-   108      (h : ConRon.CanGive ["--olean", "--compare", "--trusted-search-path=" ++ T,
-   109        "--search-path=" ++ D, "--", c, s] fs 0) :
-   110      ∀ fs', FS.AgreeUnder (Driver.trustedOr (Driver.searchPathOf T) (Driver.searchPathOf D)) fs fs' →
-   111        ∃ model, IsModel V model (Olean.closureConstants
-   112          (Driver.trustedOr (Driver.searchPathOf T) (Driver.searchPathOf D)) fs' #[C]) :=
-   113    compare_of_canGive V hc hs h
-   114  
-   115  open ConLeche ConLeche.Frontend in
-   116  /-- con-leche: ConLeche/MainTheorem.lean:109-122 main_modular —
-   117  **An accepted modular check has a family of models**: on a snapshot where `--check-graph
-   118  --search-path=<dirs> -- <root>` exits 0 and every module of the headers' closure of `root` has
-   119  an exit 0 of `--olean --module`, every module of the closure has a model of its constants, and
-   120  the models agree on what the modules see of each other. -/
-   121  theorem main_modular (V : Type w) [SetTheory V] {dirs root : String} {r : Name} {fs : FS}
-   122      (hr : Olean.parseModName root = some r)
-   123      (h : ConRon.CanGive ["--check-graph", "--search-path=" ++ dirs, "--", root] fs 0)
-   124      (hwork : ∀ m', Olean.HdrClosure (Driver.searchPathOf dirs) fs [r] m' → ∃ root',
-   125        Olean.parseModName root' = some m' ∧
-   126          ConRon.CanGive ["--olean", "--module", "--search-path=" ++ dirs, "--", root'] fs 0) :
-   127      ∃ model : Name → (Name → List Nat → V),
-   128        (∀ m, Olean.InClosure (Driver.searchPathOf dirs) fs #[r] m →
-   129          IsModel V (model m) (Olean.moduleConstants (Driver.searchPathOf dirs) fs m)) ∧
-   130        (∀ m n m', Olean.InClosure (Driver.searchPathOf dirs) fs #[r] m →
-   131          Olean.Sees (Driver.searchPathOf dirs) fs m n m' → model m n = model m' n) :=
-   132    modular_of_canGive V hr h hwork
-   133  
-   134  open ConLeche ConLeche.Frontend in
-   135  /-- con-leche: ConLeche/MainTheorem.lean:126-135 main_modular_one —
-   136  **The same, in one process**: every exit 0 of `--olean --modular --search-path=<dirs>
-   137  -- <root>` has the family of models of `main_modular`. -/
-   138  theorem main_modular_one (V : Type w) [SetTheory V] {dirs root : String} {r : Name} {fs : FS}
-   139      (hr : Olean.parseModName root = some r)
-   140      (h : ConRon.CanGive ["--olean", "--modular", "--search-path=" ++ dirs, "--", root] fs 0) :
-   141      ∃ model : Name → (Name → List Nat → V),
-   142        (∀ m, Olean.InClosure (Driver.searchPathOf dirs) fs #[r] m →
-   143          IsModel V (model m) (Olean.moduleConstants (Driver.searchPathOf dirs) fs m)) ∧
-   144        (∀ m n m', Olean.InClosure (Driver.searchPathOf dirs) fs #[r] m →
-   145          Olean.Sees (Driver.searchPathOf dirs) fs m n m' → model m n = model m' n) :=
+== proof/ConRon/MainTheorem.lean#L145-L197
+   145  theorem main_oleans (V : Type w) [SetTheory V] {dirs root : String} {r : Name} {fs : FS}
+   146      (hr : Olean.parseModName root = some r)
+   147      (h : ConRon.CanGive ["--olean", "--search-path=" ++ dirs, "--", root] fs 0) :
+   148      ∃ model, IsModel V model (Olean.closureConstants (Driver.searchPathOf dirs) fs #[r]) :=
+   149    oleans_of_canGive V hr h.conforming
+   150  
+   151  open ConLeche ConLeche.Frontend in
+   152  /-- con-leche: ConLeche/MainTheorem.lean:88-95 main_compare_model —
+   153  **An accepted comparison's challenge closure has a model**: every exit 0 of `--olean
+   154  --compare --trusted-search-path=<T> --search-path=<D> -- <c> <s>` has a model of the constants
+   155  of the challenge's closure, read through the challenge's directories, on every snapshot that
+   156  agrees with the run's there. -/
+   157  theorem main_compare_model (V : Type w) [SetTheory V] {T D c s : String} {C S : Name} {fs : FS}
+   158      (hc : Olean.parseModName c = some C) (hs : Olean.parseModName s = some S)
+   159      (h : ConRon.CanGive ["--olean", "--compare", "--trusted-search-path=" ++ T,
+   160        "--search-path=" ++ D, "--", c, s] fs 0) :
+   161      ∀ fs', FS.AgreeUnder (Driver.trustedOr (Driver.searchPathOf T) (Driver.searchPathOf D)) fs fs' →
+   162        ∃ model, IsModel V model (Olean.closureConstants
+   163          (Driver.trustedOr (Driver.searchPathOf T) (Driver.searchPathOf D)) fs' #[C]) :=
+   164    compare_of_canGive V hc hs h.conforming
+   165  
+   166  open ConLeche ConLeche.Frontend in
+   167  /-- con-leche: ConLeche/MainTheorem.lean:109-122 main_modular —
+   168  **An accepted modular check has a family of models**: on a snapshot where `--check-graph
+   169  --search-path=<dirs> -- <root>` exits 0 and every module of the headers' closure of `root` has
+   170  an exit 0 of `--olean --module`, every module of the closure has a model of its constants, and
+   171  the models agree on what the modules see of each other. -/
+   172  theorem main_modular (V : Type w) [SetTheory V] {dirs root : String} {r : Name} {fs : FS}
+   173      (hr : Olean.parseModName root = some r)
+   174      (h : ConRon.CanGive ["--check-graph", "--search-path=" ++ dirs, "--", root] fs 0)
+   175      (hwork : ∀ m', Olean.HdrClosure (Driver.searchPathOf dirs) fs [r] m' → ∃ root',
+   176        Olean.parseModName root' = some m' ∧
+   177          ConRon.CanGive ["--olean", "--module", "--search-path=" ++ dirs, "--", root'] fs 0) :
+   178      ∃ model : Name → (Name → List Nat → V),
+   179        (∀ m, Olean.InClosure (Driver.searchPathOf dirs) fs #[r] m →
+   180          IsModel V (model m) (Olean.moduleConstants (Driver.searchPathOf dirs) fs m)) ∧
+   181        (∀ m n m', Olean.InClosure (Driver.searchPathOf dirs) fs #[r] m →
+   182          Olean.Sees (Driver.searchPathOf dirs) fs m n m' → model m n = model m' n) :=
+   183    modular_of_canGive V hr h.conforming
+   184      fun m hm => (hwork m hm).imp fun _ h => ⟨h.1, h.2.conforming⟩
+   185  
+   186  open ConLeche ConLeche.Frontend in
+   187  /-- con-leche: ConLeche/MainTheorem.lean:126-135 main_modular_one —
+   188  **The same, in one process**: every exit 0 of `--olean --modular --search-path=<dirs>
+   189  -- <root>` has the family of models of `main_modular`. -/
+   190  theorem main_modular_one (V : Type w) [SetTheory V] {dirs root : String} {r : Name} {fs : FS}
+   191      (hr : Olean.parseModName root = some r)
+   192      (h : ConRon.CanGive ["--olean", "--modular", "--search-path=" ++ dirs, "--", root] fs 0) :
+   193      ∃ model : Name → (Name → List Nat → V),
+   194        (∀ m, Olean.InClosure (Driver.searchPathOf dirs) fs #[r] m →
+   195          IsModel V (model m) (Olean.moduleConstants (Driver.searchPathOf dirs) fs m)) ∧
+   196        (∀ m n m', Olean.InClosure (Driver.searchPathOf dirs) fs #[r] m →
+   197          Olean.Sees (Driver.searchPathOf dirs) fs m n m' → model m n = model m' n) :=
 
-== proof/ConRon/MainTheorem.lean#L155-L214
-   155  theorem main_modular_compare (V : Type w) [SetTheory V] {T D c s : String} {C S : Name}
-   156      {fs : FS} (hc : Olean.parseModName c = some C) (hs : Olean.parseModName s = some S)
-   157      (hgraph : ConRon.CanGive ["--check-graph", "--compare",
-   158        "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--", c, s] fs 0)
-   159      (hwork : ∀ m, Olean.HdrClosure
-   160          (⟨C, S, Driver.searchPathOf T, Driver.searchPathOf D, none⟩ : Driver.CmpReq).solRoots fs
-   161          [C, S] m → m ≠ C →
-   162        ∃ root', Olean.parseModName root' = some m ∧ ConRon.CanGive
-   163          ["--olean", "--module", "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--",
-   164            root'] fs 0)
-   165      (hcmp : ConRon.CanGive ["--olean", "--module", "--compare",
-   166        "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--", c, s] fs 0) :
-   167      let sp := Driver.trustedOr (Driver.searchPathOf T) (Driver.searchPathOf D)
-   168      ∀ fs', FS.AgreeUnder sp fs fs' →
-   169        ∃ model : Name → (Name → List Nat → V),
-   170          (∀ m, Olean.InClosure sp fs' #[C] m → IsModel V (model m) (Olean.moduleConstants sp fs' m)) ∧
-   171          (∀ m n m', Olean.InClosure sp fs' #[C] m → Olean.Sees sp fs' m n m' →
-   172            model m n = model m' n) :=
-   173    have ⟨_, _, good, hC, edges, inj, hhdr, acc⟩ :=
-   174      modular_cmp_facts_of_canGive hc hs hgraph hwork hcmp
-   175    cmp_family V good hC edges inj hhdr acc
-   176  
-   177  open ConLeche ConLeche.Frontend in
-   178  /-- con-leche: ConLeche/MainTheorem.lean:166-176 main_modular_compare_one —
-   179  **The same, in one process**: every exit 0 of `--olean --modular --compare` has the family
-   180  of `main_modular_compare`. -/
-   181  theorem main_modular_compare_one (V : Type w) [SetTheory V] {T D c s : String} {C S : Name}
-   182      {fs : FS} (hc : Olean.parseModName c = some C) (hs : Olean.parseModName s = some S)
-   183      (h : ConRon.CanGive ["--olean", "--modular", "--compare",
-   184        "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--", c, s] fs 0) :
-   185      let sp := Driver.trustedOr (Driver.searchPathOf T) (Driver.searchPathOf D)
-   186      ∀ fs', FS.AgreeUnder sp fs fs' →
-   187        ∃ model : Name → (Name → List Nat → V),
-   188          (∀ m, Olean.InClosure sp fs' #[C] m → IsModel V (model m) (Olean.moduleConstants sp fs' m)) ∧
-   189          (∀ m n m', Olean.InClosure sp fs' #[C] m → Olean.Sees sp fs' m n m' →
-   190            model m n = model m' n) :=
-   191    modular_cmp_one_of_canGive V hc hs h
-   192  
-   193  open ConLeche ConLeche.Frontend in
-   194  /-- con-leche: ConLeche/MainTheorem.lean:183-199 main_modular_compare_no_False —
-   195  **No accepted modular comparison's challenge module holds a constant of type `False`**: no
-   196  snapshot where every command of `main_modular_compare` exits 0 has a constant of type `False` in
-   197  the challenge module `C`, read through the challenge's directories.  This covers what `C` sees
-   198  through its solution too, which the family of `main_modular_compare` does not. -/
-   199  theorem main_modular_compare_no_False (V : Type w) [SetTheory V] {T D c s : String}
-   200      {C S : Name} {fs : FS} {ci : ConstantInfo}
-   201      (hc : Olean.parseModName c = some C) (hs : Olean.parseModName s = some S)
-   202      (hgraph : ConRon.CanGive ["--check-graph", "--compare",
-   203        "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--", c, s] fs 0)
-   204      (hwork : ∀ m, Olean.HdrClosure
-   205          (⟨C, S, Driver.searchPathOf T, Driver.searchPathOf D, none⟩ : Driver.CmpReq).solRoots fs
-   206          [C, S] m → m ≠ C →
-   207        ∃ root', Olean.parseModName root' = some m ∧ ConRon.CanGive
-   208          ["--olean", "--module", "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--",
-   209            root'] fs 0)
-   210      (hcmp : ConRon.CanGive ["--olean", "--module", "--compare",
-   211        "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--", c, s] fs 0)
-   212      (hci : Olean.InModulePart (Driver.trustedOr (Driver.searchPathOf T) (Driver.searchPathOf D))
-   213        fs C .private ci)
-   214      (hty : ci.type = .const falseName []) : False :=
+== proof/ConRon/MainTheorem.lean#L207-L267
+   207  theorem main_modular_compare (V : Type w) [SetTheory V] {T D c s : String} {C S : Name}
+   208      {fs : FS} (hc : Olean.parseModName c = some C) (hs : Olean.parseModName s = some S)
+   209      (hgraph : ConRon.CanGive ["--check-graph", "--compare",
+   210        "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--", c, s] fs 0)
+   211      (hwork : ∀ m, Olean.HdrClosure
+   212          (⟨C, S, Driver.searchPathOf T, Driver.searchPathOf D, none⟩ : Driver.CmpReq).solRoots fs
+   213          [C, S] m → m ≠ C →
+   214        ∃ root', Olean.parseModName root' = some m ∧ ConRon.CanGive
+   215          ["--olean", "--module", "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--",
+   216            root'] fs 0)
+   217      (hcmp : ConRon.CanGive ["--olean", "--module", "--compare",
+   218        "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--", c, s] fs 0) :
+   219      let sp := Driver.trustedOr (Driver.searchPathOf T) (Driver.searchPathOf D)
+   220      ∀ fs', FS.AgreeUnder sp fs fs' →
+   221        ∃ model : Name → (Name → List Nat → V),
+   222          (∀ m, Olean.InClosure sp fs' #[C] m → IsModel V (model m) (Olean.moduleConstants sp fs' m)) ∧
+   223          (∀ m n m', Olean.InClosure sp fs' #[C] m → Olean.Sees sp fs' m n m' →
+   224            model m n = model m' n) :=
+   225    have ⟨_, _, good, hC, edges, inj, hhdr, acc⟩ :=
+   226      modular_cmp_facts_of_canGive hc hs hgraph.conforming
+   227        (fun m hm hne => (hwork m hm hne).imp fun _ h => ⟨h.1, h.2.conforming⟩) hcmp.conforming
+   228    cmp_family V good hC edges inj hhdr acc
+   229  
+   230  open ConLeche ConLeche.Frontend in
+   231  /-- con-leche: ConLeche/MainTheorem.lean:166-176 main_modular_compare_one —
+   232  **The same, in one process**: every exit 0 of `--olean --modular --compare` has the family
+   233  of `main_modular_compare`. -/
+   234  theorem main_modular_compare_one (V : Type w) [SetTheory V] {T D c s : String} {C S : Name}
+   235      {fs : FS} (hc : Olean.parseModName c = some C) (hs : Olean.parseModName s = some S)
+   236      (h : ConRon.CanGive ["--olean", "--modular", "--compare",
+   237        "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--", c, s] fs 0) :
+   238      let sp := Driver.trustedOr (Driver.searchPathOf T) (Driver.searchPathOf D)
+   239      ∀ fs', FS.AgreeUnder sp fs fs' →
+   240        ∃ model : Name → (Name → List Nat → V),
+   241          (∀ m, Olean.InClosure sp fs' #[C] m → IsModel V (model m) (Olean.moduleConstants sp fs' m)) ∧
+   242          (∀ m n m', Olean.InClosure sp fs' #[C] m → Olean.Sees sp fs' m n m' →
+   243            model m n = model m' n) :=
+   244    modular_cmp_one_of_canGive V hc hs h.conforming
+   245  
+   246  open ConLeche ConLeche.Frontend in
+   247  /-- con-leche: ConLeche/MainTheorem.lean:183-199 main_modular_compare_no_False —
+   248  **No accepted modular comparison's challenge module holds a constant of type `False`**: no
+   249  snapshot where every command of `main_modular_compare` exits 0 has a constant of type `False` in
+   250  the challenge module `C`, read through the challenge's directories.  This covers what `C` sees
+   251  through its solution too, which the family of `main_modular_compare` does not. -/
+   252  theorem main_modular_compare_no_False (V : Type w) [SetTheory V] {T D c s : String}
+   253      {C S : Name} {fs : FS} {ci : ConstantInfo}
+   254      (hc : Olean.parseModName c = some C) (hs : Olean.parseModName s = some S)
+   255      (hgraph : ConRon.CanGive ["--check-graph", "--compare",
+   256        "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--", c, s] fs 0)
+   257      (hwork : ∀ m, Olean.HdrClosure
+   258          (⟨C, S, Driver.searchPathOf T, Driver.searchPathOf D, none⟩ : Driver.CmpReq).solRoots fs
+   259          [C, S] m → m ≠ C →
+   260        ∃ root', Olean.parseModName root' = some m ∧ ConRon.CanGive
+   261          ["--olean", "--module", "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--",
+   262            root'] fs 0)
+   263      (hcmp : ConRon.CanGive ["--olean", "--module", "--compare",
+   264        "--trusted-search-path=" ++ T, "--search-path=" ++ D, "--", c, s] fs 0)
+   265      (hci : Olean.InModulePart (Driver.trustedOr (Driver.searchPathOf T) (Driver.searchPathOf D))
+   266        fs C .private ci)
+   267      (hty : ci.type = .const falseName []) : False :=
 
-== proof/ConRon/MainTheorem/Driver.lean#L82-L86
-    82  def CanGive (args : List String) (fs : ConLeche.FS) (c : UInt8) : Prop :=
-    83    ∃ (S : Type) (io : frontend.checker_io.CheckerIo S) (s s' : S)
-    84      (argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (c' : Std.U8),
-    85      AnswersAs io fs ∧ PoolSound io ∧ CodesSound io ∧ ArgvOf argv args ∧
-    86      driver.cli.run_args io s argv = ok (c', s') ∧ c'.val = c.toNat
+== proof/ConRon/MainTheorem/Model.lean#L417-L420
+   417  def CanGive (args : List String) (fs : ConLeche.FS) (c : UInt8) : Prop :=
+   418    ∃ (argv : alloc.vec.Vec (alloc.vec.Vec Std.U32)) (o o' : Model.Tape) (c' : Std.U8),
+   419      ArgvOf argv args ∧ driver.cli.run_args (Model.snapshotIo fs) o argv = ok (c', o') ∧
+   420        c'.val = c.toNat
 
 == proof/ConRon/MainTheorem/Stages.lean#L25-L95
     25  /-!
@@ -652,11 +703,11 @@
      1  //! `std_io` — the binary's instance of the core's `CheckerIo` (DESIGN.md §3.9,
      2  //! task #171): the file reads, the worker map, the escapes, and the rendering
      3  //! of every event the verified driver (`con_ron_core::driver`) hands it, in the
-     4  //! binary's words.  All of it is outside the theorems; what they assume of it
-     5  //! is OVERVIEW §3.1: its reads answer as one snapshot of the files
-     6  //! (`AnswersAs`), its worker map keeps `ParallelAll` (`PoolSound`), its code map
-     7  //! answers each module's code (`CodesSound`), its escapes write no file and do
-     8  //! not end the process.
+     4  //! binary's words.  All of it is outside the theorems, which are about the
+     5  //! model instance (`proof/ConRon/MainTheorem/Model.lean`); what they assume of
+     6  //! a run of this one is OVERVIEW §3.1: the file operations it performs answer
+     7  //! as one snapshot (each path opened once, `olean_fs::RunFiles`), its maps' runs
+     8  //! are an oracle's, its escapes write no file and do not end the process.
      9  //!
     10  //! The text of a usage error, of a help or a synopsis are the binary's
     11  //! (`bin/con-ron.rs`), handed in as `StdIoHooks`; the scheduler is
@@ -3116,11 +3167,11 @@
      1  //! `std_io` — the binary's instance of the core's `CheckerIo` (DESIGN.md §3.9,
      2  //! task #171): the file reads, the worker map, the escapes, and the rendering
      3  //! of every event the verified driver (`con_ron_core::driver`) hands it, in the
-     4  //! binary's words.  All of it is outside the theorems; what they assume of it
-     5  //! is OVERVIEW §3.1: its reads answer as one snapshot of the files
-     6  //! (`AnswersAs`), its worker map keeps `ParallelAll` (`PoolSound`), its code map
-     7  //! answers each module's code (`CodesSound`), its escapes write no file and do
-     8  //! not end the process.
+     4  //! binary's words.  All of it is outside the theorems, which are about the
+     5  //! model instance (`proof/ConRon/MainTheorem/Model.lean`); what they assume of
+     6  //! a run of this one is OVERVIEW §3.1: the file operations it performs answer
+     7  //! as one snapshot (each path opened once, `olean_fs::RunFiles`), its maps' runs
+     8  //! are an oracle's, its escapes write no file and do not end the process.
      9  //!
     10  //! The text of a usage error, of a help or a synopsis are the binary's
     11  //! (`bin/con-ron.rs`), handed in as `StdIoHooks`; the scheduler is

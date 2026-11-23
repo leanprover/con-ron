@@ -1,11 +1,11 @@
 //! `std_io` — the binary's instance of the core's `CheckerIo` (DESIGN.md §3.9,
 //! task #171): the file reads, the worker map, the escapes, and the rendering
 //! of every event the verified driver (`con_ron_core::driver`) hands it, in the
-//! binary's words.  All of it is outside the theorems; what they assume of it
-//! is OVERVIEW §3.1: its reads answer as one snapshot of the files
-//! (`AnswersAs`), its worker map keeps `ParallelAll` (`PoolSound`), its code map
-//! answers each module's code (`CodesSound`), its escapes write no file and do
-//! not end the process.
+//! binary's words.  All of it is outside the theorems, which are about the
+//! model instance (`proof/ConRon/MainTheorem/Model.lean`); what they assume of
+//! a run of this one is OVERVIEW §3.1: the file operations it performs answer
+//! as one snapshot (each path opened once, `olean_fs::RunFiles`), its maps' runs
+//! are an oracle's, its escapes write no file and do not end the process.
 //!
 //! The text of a usage error, of a help or a synopsis are the binary's
 //! (`bin/con-ron.rs`), handed in as `StdIoHooks`; the scheduler is
@@ -40,7 +40,7 @@ use crate::driver::{Heartbeat, PhaseObserver};
 use crate::modular;
 use crate::olean_fs;
 use crate::olean_fs::path_of;
-use crate::olean_fs::{NotesFs, StdFs};
+use crate::olean_fs::{NotesFs, RunFiles, StdFs};
 use crate::pool::parallel_all;
 use crate::render;
 
@@ -58,6 +58,8 @@ pub struct StdIoHooks {
 /// **The binary's instance.**
 pub struct StdIo {
     hooks: StdIoHooks,
+    /// the files the run reads, each opened once (`olean_fs::RunFiles`)
+    files: RunFiles,
     /// the start of the run, which the verdict's `t=` is measured from
     t0: Instant,
     /// the `.olean` read's heartbeat while a read is on (`read_notes_begin`)
@@ -94,6 +96,7 @@ impl StdIo {
         let t0 = Instant::now();
         StdIo {
             hooks,
+            files: RunFiles::new(),
             t0,
             notes: Mutex::new(None),
             hb: Mutex::new((Heartbeat::new(Pace::Off, t0), 0)),
@@ -130,31 +133,25 @@ impl CheckerFs for StdIo {
     }
 
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:141-200 CheckerIO
+    /// The bytes to the end of the file, through the run's handle of it.
     fn read_bin_file(&self, p: &Vec<u32>) -> Result<Vec<u8>, Vec<u32>> {
-        StdFs.read_bin_file(p)
+        self.files.read_bin_file(p)
     }
 
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:403-409 openReadIO
-    /// **A positional read** (`olean_fs::StdFs`'s): the path must name a regular
-    /// file, decided before it is opened (opening a FIFO with no writer would
-    /// block), then a seek and forward reads on a handle of this call's own.  A
-    /// failure's message names the path.
+    /// **A positional read** through the run's handle of the file
+    /// (`olean_fs::RunFiles`): the path must name a regular file, decided before
+    /// it is opened (opening a FIFO with no writer would block); the bytes up to
+    /// the end of the file, wherever a read finds it.  A failure's message names
+    /// the path.
     fn read_range(&self, p: &Vec<u32>, off: u64, len: u64) -> Result<Vec<u8>, Vec<u32>> {
-        let s = path_of(p);
-        match std::fs::metadata(&s) {
-            Err(e) => return Err(render::cps(&format!("{}: {}", render::display_path(&s), e))),
-            Ok(md) => {
-                if !md.is_file() {
-                    return Err(render::cps(&format!("{}: not a regular file", render::display_path(&s))));
-                }
-            }
-        }
-        StdFs.read_range(p, off, len)
+        self.files.read_range(p, off, len)
     }
 
     /// con-leche: ConLeche/Frontend/CheckerIO.lean:141-200 CheckerIO
+    /// The size, checked against the contents, through the run's handle.
     fn file_size(&self, p: &Vec<u32>) -> Result<u64, Vec<u32>> {
-        StdFs.file_size(p)
+        self.files.file_size(p)
     }
 
     /// con-leche: ConLeche/Frontend/Olean/Progress.lean:42-48 ReadNotes.say
@@ -341,9 +338,10 @@ impl CheckerIo for StdIo {
     /// con-leche: ConLeche/Driver/Modular.lean:90-137 checkModularG
     /// The modules on up to `threads` threads of `driver::stack_bytes` each,
     /// each claiming the next until none is left (fewer threads where no more
-    /// can be started); every module run.  None started, or one died: the
-    /// message.
+    /// can be started; at least one, whatever `threads` says); every module run.
+    /// None started, or one died: the message.
     fn par_map_codes<St: CodeStep<Self> + Sync>(&mut self, st: &St, n: usize, threads: usize) -> Result<Vec<u8>, Vec<u32>> {
+        let threads = std::cmp::max(threads, 1);
         let me: &StdIo = &*self;
         let next = std::sync::atomic::AtomicUsize::new(0);
         let codes: Vec<Mutex<Option<u8>>> = (0..n).map(|_| Mutex::new(None)).collect();
