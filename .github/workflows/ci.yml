@@ -171,6 +171,45 @@ env:
   LEAN_NUM_THREADS: 4
 
 jobs:
+  # Task #173: the driver must build off Linux.  The gates job is
+  # Linux-only (Nix, Charon, Aeneas, Lean), so this one builds the Rust
+  # workspace alone on Windows and macOS: every crate, its tests compiled
+  # (`--all-targets`) but NOT run -- some unit tests read `/proc` and `/tmp`
+  # by design -- and the binary's `--help` as a smoke test.  The toolchain
+  # is the nightly Charon pins in `flake.nix` (`cargo --version` in the
+  # gates job prints it); keep the two in step.  No `-D warnings`: the
+  # gates job owns warnings, this job owns portability.
+  portable:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust (Charon's pinned nightly)
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-09-17
+
+      - name: Cache the cargo registry and target
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: portable-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}-${{ hashFiles('crates/**/*.rs', 'crates/**/Cargo.toml') }}
+          restore-keys: portable-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}-
+
+      - name: cargo build --workspace --all-targets
+        run: cargo build --workspace --all-targets
+
+      - name: con-ron --help
+        run: cargo run -q -p con-ron --bin con-ron -- --help
+
   gates:
     runs-on: ubuntu-latest
     timeout-minutes: 180
