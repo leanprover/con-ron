@@ -417,6 +417,33 @@ theorem streamKCheck_nil_right (p : BlockShape) (rcs : List RecShape) :
     streamKCheck p rcs [] = pure () := by
   cases rcs <;> rfl
 
+theorem sr_ite_band {α : Type} (a b : Bool) (x y : α) :
+    (if (a && b) = true then x else y) = (if a = true then (if b = true then x else y) else y) := by
+  cases a <;> cases b <;> rfl
+
+/-- `no_rules` never fails: the twin's `noRules`. -/
+theorem no_rules_eq (p : arena.inductives.block_shape.BlockShape) :
+    arena.inductives.block_shape.no_rules p = ok (absBlockShape p).noRules := by
+  unfold arena.inductives.block_shape.no_rules BlockShape.noRules
+  simp only [absBlockShape]
+  cases p.flags with
+  | none => rfl
+  | some fl =>
+    simp only [Option.map]
+    split <;> simp_all
+
+/-- A record carries rules, as the Rust tests it. -/
+theorem sr_rules_nonempty (r : arena.inductives.block_shape.RecShape) :
+    (!(absRecShape r).rules.isEmpty) = (r.rules.len != 0#usize) := by
+  have e2 : (r.rules.len = 0#usize) ↔ r.rules.val.length = 0 := by
+    constructor
+    · intro h; have := congrArg (·.val) h; simpa [alloc.vec.Vec.len] using this
+    · intro h
+      have : r.rules.len.val = 0 := by simp [alloc.vec.Vec.len, h]
+      scalar_tac
+  rw [Bool.eq_iff_iff, bne_iff_ne, ne_eq, e2]
+  simp [absRecShape, List.length_eq_zero_iff]
+
 theorem stream_k_check_aux {pers st} (p : arena.inductives.block_shape.BlockShape)
     (rcs : alloc.vec.Vec arena.inductives.block_shape.RecShape)
     (gs : alloc.vec.Vec (arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
@@ -446,18 +473,40 @@ theorem stream_k_check_aux {pers st} (p : arena.inductives.block_shape.BlockShap
       List.drop_eq_getElem_cons hlt, List.map_cons]
     by_cases hg : i.val < gs.val.length
     · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len gs by scalar_tac),
-        List.drop_eq_getElem_cons hg, List.map_cons, streamKCheck]
-      lockstep
-      · intro o st' hm
-        obtain ⟨o', ho', hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
-        cases Result.ok_injective hm
-        have hj : a.val = i.val + 1 := by scalar_tac
-        have := ih a () hj lst ‹_› ‹_› _ ho'
-        rw [hj] at this
-        rw [ite_eq_left (by simp_all [absRecShape, absRecOut, TwinEq])]
-        exact this
-      · rw [ite_eq_right (by simp_all [absRecShape, absRecOut, TwinEq])]
+        List.drop_eq_getElem_cons hg, List.map_cons, streamKCheck, no_rules_eq, bind_ok]
+      have hidx : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          arena.inductives.block_shape.RecShape) rcs i = ok rcs.val[i.val] := by
+        rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+        simp [List.getElem?_eq_getElem hlt]
+      by_cases hnr : (absBlockShape p).noRules = true
+      · rw [ite_eq_left hnr, hidx, bind_ok]
+        by_cases hr : (rcs.val[i.val].rules.len != 0#usize) = true
+        · rw [ite_eq_left hr, ite_eq_left (by rw [hnr, sr_rules_nonempty, hr]; rfl)]
+          lockstep
+        · rw [ite_eq_right hr, ite_eq_right (by rw [hnr, sr_rules_nonempty]; simpa using hr)]
+          lockstep
+          · intro o st' hm
+            obtain ⟨o', ho', hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+            cases Result.ok_injective hm
+            have hj : a.val = i.val + 1 := by scalar_tac
+            have := ih a () hj lst ‹_› ‹_› _ ho'
+            rw [hj] at this
+            rw [ite_eq_left (by simp_all [absRecShape, absRecOut, TwinEq])]
+            exact this
+          · rw [ite_eq_right (by simp_all [absRecShape, absRecOut, TwinEq])]
+            lockstep
+      · rw [ite_eq_right hnr, ite_eq_right (by simp [hnr])]
         lockstep
+        · intro o st' hm
+          obtain ⟨o', ho', hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+          cases Result.ok_injective hm
+          have hj : a.val = i.val + 1 := by scalar_tac
+          have := ih a () hj lst ‹_› ‹_› _ ho'
+          rw [hj] at this
+          rw [ite_eq_left (by simp_all [absRecShape, absRecOut, TwinEq])]
+          exact this
+        · rw [ite_eq_right (by simp_all [absRecShape, absRecOut, TwinEq])]
+          lockstep
     · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len gs by scalar_tac),
         List.drop_eq_nil_of_le (by omega : gs.val.length ≤ i.val), List.map_nil,
         streamKCheck_nil_right]
@@ -475,6 +524,518 @@ theorem stream_k_check_aux {pers st} (p : arena.inductives.block_shape.BlockShap
       (streamKCheck (absBlockShape p) (rcs.val.map absRecShape) (gs.val.map absRecOut)) := by
   have h := stream_k_check_aux (pers := pers) (st := st) p rcs gs 0#usize lst hrel hinv
   simpa using h
+
+/-! ## The declared feature flags -/
+
+/-- The twin's `memberFlagsCheck` with its three conditions inline, the K one
+read without a match. -/
+theorem memberFlagsCheck_eq (p : BlockShape) (isRec : Bool) (i : Nat) (ms : MemberShape)
+    (f : ConLeche.IndFlags) :
+    memberFlagsCheck p isRec i ms f = (
+  if f.isK && !(if i == 0 && p.k == 1 && p.isProp then
+      (ms.ctors.length == 1 && ms.ctors.all (fun c => c.2 == 0)) else false) then
+    fail (.invalid "inductive type  is declared with K-like reduction (isK), but it is \
+      not a proposition alone in its block with one constructor without fields")
+  else if f.hasProjections && !(if ms.ctors.length == 1 && ms.nIdx == 0 then
+      (if f.isImpredicative then false else true) else false) then
+    fail (.invalid "inductive type  is declared with projections (hasProjections), but it \
+      does not have exactly one constructor and no indices, or it is impredicative")
+  else if f.hasEta && !(if f.hasProjections then (if isRec then false else true) else false) then
+    fail (.invalid "inductive type  is declared with eta (hasEta), but it has no \
+      projections or is recursive")
+  else pure ()
+      : AM Unit) := by
+  unfold memberFlagsCheck
+  rcases hc : ms.ctors with _ | ⟨c, _ | ⟨c2, rest⟩⟩
+  · simp
+  · simp only [List.length_singleton, beq_self_eq_true, List.all_cons, List.all_nil,
+      Bool.and_true, Bool.true_and]
+  · simp
+
+/-- A message constant thrown as an invalid input: an `Invalid` error. -/
+theorem sr_invalid_fail {n : Std.Usize} (M : Std.Array Std.U32 n) {r}
+    (h : (do
+      let s ← lift (Std.Array.to_slice M)
+      let v ← kernel.core_types.code_points s
+      let ce ← kernel.core_types.invalid v
+      arena.monad.fail Unit ce) = ok r) :
+    ∃ v, r = .Err (.Invalid v) := by
+  obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨ce, hce, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  simp only [kernel.core_types.invalid, Result.ok.injEq] at hce
+  exact ⟨v, by rw [fail_run h, ← hce]⟩
+
+theorem sr_cast_len_eq_one {α : Type} (v : alloc.vec.Vec α) :
+    (UScalar.cast .U64 (alloc.vec.Vec.len v) = 1#u64) ↔ v.val.length = 1 := by
+  have := lift_cast_u64_of_usize (alloc.vec.Vec.len v) _ rfl
+  simp only [alloc.vec.Vec.len] at this
+  constructor
+  · intro h; rw [h] at this; simp at this; omega
+  · intro h; scalar_tac
+
+theorem sr_len_eq_one {α : Type} (v : alloc.vec.Vec α) :
+    (alloc.vec.Vec.len v = 1#usize) ↔ v.val.length = 1 := by
+  constructor
+  · intro h; have := congrArg (·.val) h; simpa [alloc.vec.Vec.len] using this
+  · intro h; have : (alloc.vec.Vec.len v).val = 1 := by simp [alloc.vec.Vec.len, h]
+    scalar_tac
+
+theorem sr_u64_eq_zero (x : Std.U64) : (x = 0#u64) ↔ absU x = 0 := by
+  constructor
+  · intro h; subst h; rfl
+  · intro h; simp [absU] at h; scalar_tac
+
+/-- `member_flags_check` ⊑ `memberFlagsCheck`: one member's flags. -/
+@[lockstep] theorem member_flags_check_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (p : arena.inductives.block_shape.BlockShape) (is_rec : Bool)
+    (i : Std.U64) (ms : arena.inductives.block_shape.MemberShape) (f : kernel.env.IndFlags) :
+    LSR pers (fun _ _ => True)
+      (arena.inductives.stream_recs.member_flags_check p is_rec i ms f) st lst
+      (memberFlagsCheck (absBlockShape p) is_rec (absU i) (absMemberShape ms)
+        (ConRon.Refine.absIndFlags f)) := by
+  apply LSR.of_LS
+  intro o st' hm
+  obtain ⟨r, hr, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  cases Result.ok_injective hm
+  rw [arena.inductives.stream_recs.member_flags_check] at hr
+  obtain ⟨kk, hkk, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+  obtain ⟨⟨f1, pk⟩, hpk, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+  obtain ⟨ek, hek, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+  -- `IndFlags`' fields: impredicative, K, projections, η, large eliminator
+  obtain ⟨b1, b2, b3, b4, b5⟩ := f
+  -- the K condition
+  have ekk : kk = (if absU i == 0 && (absBlockShape p).k == 1 && (absBlockShape p).isProp then
+      ((absMemberShape ms).ctors.length == 1 &&
+        (absMemberShape ms).ctors.all (fun c => c.2 == 0)) else false) := by
+    have hK : (absBlockShape p).k = p.members.val.length := by
+      simp [BlockShape.k, absBlockShape]
+    simp only [arena.inductives.block_shape.shape_k, bind_ok] at hkk
+    rw [hK]
+    by_cases hi : i = 0#u64
+    · rw [ite_eq_left hi] at hkk
+      have hi' : absU i = 0 := (sr_u64_eq_zero i).mp hi
+      by_cases hk : p.members.val.length = 1
+      · rw [ite_eq_left ((sr_cast_len_eq_one _).mpr hk)] at hkk
+        cases hp : p.is_prop
+        · rw [hp] at hkk; simp only [Bool.false_eq_true, ↓reduceIte] at hkk
+          cases Result.ok_injective hkk; simp [absBlockShape, hp]
+        · rw [hp] at hkk; simp only [↓reduceIte] at hkk
+          rcases hc : ms.ctors.val with _ | ⟨⟨cv, nf⟩, _ | ⟨c2, rest⟩⟩
+          · rw [ite_eq_right (by rw [sr_len_eq_one, hc]; simp)] at hkk
+            cases Result.ok_injective hkk; simp [absMemberShape, absCtorsL, hc]
+          · have hidx0 : alloc.vec.Vec.index
+                (core.slice.index.SliceIndexUsizeSlice (arena.env.IConstantVal × Std.U64))
+                ms.ctors 0#usize = ok (cv, nf) := by
+              rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+              simp [hc]
+            rw [ite_eq_left (by rw [sr_len_eq_one, hc]; rfl), hidx0, bind_ok] at hkk
+            cases Result.ok_injective hkk
+            simp only [absMemberShape, absCtorsL, hc, List.map_cons, List.map_nil, hi', hk,
+              absBlockShape, hp, List.length_singleton, List.all_cons, List.all_nil]
+            simp [u64_eq_zero_decide]
+          · rw [ite_eq_right (by rw [sr_len_eq_one, hc]; simp)] at hkk
+            cases Result.ok_injective hkk; simp [absMemberShape, absCtorsL, hc]
+      · rw [ite_eq_right (mt (sr_cast_len_eq_one _).mp hk)] at hkk
+        cases Result.ok_injective hkk; simp [hk]
+    · rw [ite_eq_right hi] at hkk
+      cases Result.ok_injective hkk
+      have hi' : absU i ≠ 0 := fun h => hi ((sr_u64_eq_zero i).mpr h)
+      simp [hi']
+  -- the projections' condition
+  have epk : f1 = ⟨b1, b2, b3, b4, b5⟩ ∧ pk = (if (absMemberShape ms).ctors.length == 1 &&
+      (absMemberShape ms).nIdx == 0 then (if b1 then false else true) else false) := by
+    have hl : ((absMemberShape ms).ctors.length == 1) =
+        decide (alloc.vec.Vec.len ms.ctors = 1#usize) := by
+      simp only [absMemberShape, absCtorsL, List.length_map]
+      rw [Bool.eq_iff_iff]
+      simp only [beq_iff_eq, decide_eq_true_eq, sr_len_eq_one]
+    have hn : ((absMemberShape ms).nIdx == 0) = decide (ms.n_idx = 0#u64) := by
+      rw [u64_eq_zero_decide]; rfl
+    rw [hl, hn]
+    by_cases h1 : alloc.vec.Vec.len ms.ctors = 1#usize
+    · by_cases h2 : ms.n_idx = 0#u64
+      · rw [ite_eq_left h1, ite_eq_left h2] at hpk
+        cases b1 <;> simp only [Bool.false_eq_true, ↓reduceIte, bind_ok] at hpk <;>
+          cases Result.ok_injective hpk <;> simp [h1, h2]
+      · rw [ite_eq_left h1, ite_eq_right h2] at hpk
+        cases Result.ok_injective hpk
+        simp [h1, h2]
+    · rw [ite_eq_right h1] at hpk
+      cases Result.ok_injective hpk
+      simp [h1]
+  obtain ⟨rfl, rfl⟩ := epk
+  -- the η condition
+  have eek : ek = (if b3 then (if is_rec then false else true) else false) := by
+    cases b3 <;> cases is_rec <;> simp only [Bool.false_eq_true, ↓reduceIte] at hek ⊢ <;>
+      exact (Result.ok_injective hek).symm
+  subst ekk eek
+  dsimp only at hr
+  rw [memberFlagsCheck_eq]
+  simp only [ConRon.Refine.absIndFlags]
+  generalize (if absU i == 0 && (absBlockShape p).k == 1 && (absBlockShape p).isProp then
+      ((absMemberShape ms).ctors.length == 1 &&
+        (absMemberShape ms).ctors.all (fun c => c.2 == 0)) else false) = K at hr ⊢
+  generalize (if (absMemberShape ms).ctors.length == 1 && (absMemberShape ms).nIdx == 0 then
+      (if b1 then false else true) else false) = P at hr ⊢
+  cases b2 <;> cases b3 <;> cases b4 <;> cases K <;> cases P <;> cases is_rec <;>
+    simp only [Bool.false_eq_true, ↓reduceIte, Bool.not_true,
+      Bool.not_false, Bool.and_false, Bool.and_true] at hr ⊢ <;>
+    first
+    | (cases Result.ok_injective hr; exact ⟨(), lst, rfl, trivial, hrel, hinv⟩)
+    | (obtain ⟨v, rfl⟩ := sr_invalid_fail _ hr; exact AErrSim.mk rfl rfl)
+
+theorem membersFlagsCheck_nil_left (p : BlockShape) (isRec : Bool) (i : Nat)
+    (fs : List ConLeche.IndFlags) : membersFlagsCheck p isRec i [] fs = pure () := by
+  cases fs <;> rfl
+
+theorem membersFlagsCheck_nil_right (p : BlockShape) (isRec : Bool) (i : Nat)
+    (ms : List MemberShape) : membersFlagsCheck p isRec i ms [] = pure () := by
+  cases ms <;> rfl
+
+/-- `members_flags_check` ⊑ `membersFlagsCheck`, from the cursor on. -/
+theorem members_flags_check_aux {pers st} (p : arena.inductives.block_shape.BlockShape)
+    (is_rec : Bool) (ms : alloc.vec.Vec arena.inductives.block_shape.MemberShape)
+    (fl : alloc.vec.Vec kernel.env.IndFlags) :
+    ∀ (i : Std.Usize) lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun _ _ => True)
+        (arena.inductives.stream_recs.members_flags_check p is_rec i ms fl) st lst
+        (membersFlagsCheck (absBlockShape p) is_rec i.val ((ms.val.drop i.val).map absMemberShape)
+          ((fl.val.drop i.val).map ConRon.Refine.absIndFlags)) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) ms.val.length
+    (fun i (_ : Unit) => ∀ lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun _ _ => True)
+        (arena.inductives.stream_recs.members_flags_check p is_rec i ms fl) st lst
+        (membersFlagsCheck (absBlockShape p) is_rec i.val ((ms.val.drop i.val).map absMemberShape)
+          ((fl.val.drop i.val).map ConRon.Refine.absIndFlags))) ?_ ?_ i ()
+  · intro i _ hn lst hrel hinv
+    apply LSR.of_LS
+    rw [arena.inductives.stream_recs.members_flags_check.eq_def,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len ms by scalar_tac),
+      List.drop_eq_nil_of_le hn, List.map_nil, membersFlagsCheck_nil_left]
+    lockstep
+  · intro i _ hlt ih lst hrel hinv
+    apply LSR.of_LS
+    rw [arena.inductives.stream_recs.members_flags_check.eq_def,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ms by scalar_tac),
+      List.drop_eq_getElem_cons hlt, List.map_cons]
+    by_cases hg : i.val < fl.val.length
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len fl by scalar_tac),
+        List.drop_eq_getElem_cons hg, List.map_cons, membersFlagsCheck]
+      lockstep
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len fl by scalar_tac),
+        List.drop_eq_nil_of_le (by omega : fl.val.length ≤ i.val), List.map_nil,
+        membersFlagsCheck_nil_right]
+      lockstep
+
+/-- `members_flags_check` from `0` ⊑ `membersFlagsCheck`. -/
+@[lockstep] theorem members_flags_check_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (p : arena.inductives.block_shape.BlockShape) (is_rec : Bool)
+    (ms : alloc.vec.Vec arena.inductives.block_shape.MemberShape)
+    (fl : alloc.vec.Vec kernel.env.IndFlags) :
+    LSR pers (fun _ _ => True)
+      (arena.inductives.stream_recs.members_flags_check p is_rec 0#usize ms fl) st lst
+      (membersFlagsCheck (absBlockShape p) is_rec 0 (ms.val.map absMemberShape)
+        (fl.val.map ConRon.Refine.absIndFlags)) := by
+  have h := members_flags_check_aux (pers := pers) (st := st) p is_rec ms fl 0#usize lst hrel hinv
+  simpa using h
+
+/-- `flags_uniform` ⊑ the cited `fl.all`. -/
+theorem flags_uniform_abs {fl : alloc.vec.Vec kernel.env.IndFlags} {f0 : kernel.env.IndFlags} :
+    ∀ (i : Std.Usize) (o : Bool),
+      arena.inductives.stream_recs.flags_uniform fl f0 i = ok o →
+      o = ((fl.val.drop i.val).map ConRon.Refine.absIndFlags).all (fun f =>
+        f.isImpredicative == (ConRon.Refine.absIndFlags f0).isImpredicative &&
+        f.hasLargeElim == (ConRon.Refine.absIndFlags f0).hasLargeElim) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) fl.val.length
+    (fun i (_ : Unit) => ∀ o, arena.inductives.stream_recs.flags_uniform fl f0 i = ok o →
+      o = ((fl.val.drop i.val).map ConRon.Refine.absIndFlags).all (fun f =>
+        f.isImpredicative == (ConRon.Refine.absIndFlags f0).isImpredicative &&
+        f.hasLargeElim == (ConRon.Refine.absIndFlags f0).hasLargeElim)) ?_ ?_ i ()
+  · intro i _ hn o h
+    rw [arena.inductives.stream_recs.flags_uniform.eq_def,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len fl by scalar_tac), Result.ok.injEq] at h
+    subst h
+    rw [List.drop_eq_nil_of_le hn]; rfl
+  · intro i _ hi ih o h
+    rw [arena.inductives.stream_recs.flags_uniform.eq_def,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len fl by scalar_tac)] at h
+    obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hxv := vec_index_some hx
+    rw [List.getElem?_eq_getElem hi, Option.some.injEq] at hxv
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, List.all_cons, hxv]
+    simp only [ConRon.Refine.absIndFlags]
+    by_cases h1 : x.is_impredicative = f0.is_impredicative
+    · rw [ite_eq_left h1] at h
+      by_cases h2 : x.has_large_elim = f0.has_large_elim
+      · rw [ite_eq_left h2] at h
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi2' : i2.val = i.val + 1 := absSz_add_one hi2
+        rw [ih i2 () hi2' o h, hi2']
+        simp [h1, h2, ConRon.Refine.absIndFlags]
+      · rw [ite_eq_right h2] at h
+        cases Result.ok_injective h
+        simp [h1, h2]
+    · rw [ite_eq_right h1] at h
+      cases Result.ok_injective h
+      simp [h1]
+
+/-- `flags_uniform` from `0` ⊑ the cited `fl.all`. -/
+@[lockstep] theorem flags_uniform_twin (fl : alloc.vec.Vec kernel.env.IndFlags)
+    (f0 : kernel.env.IndFlags) :
+    LSP (arena.inductives.stream_recs.flags_uniform fl f0 0#usize)
+      (fun o => TwinEq ((fl.val.map ConRon.Refine.absIndFlags).all (fun f =>
+        f.isImpredicative == (ConRon.Refine.absIndFlags f0).isImpredicative &&
+        f.hasLargeElim == (ConRon.Refine.absIndFlags f0).hasLargeElim)) o) := by
+  intro o h
+  rw [TwinEq, flags_uniform_abs _ o h]; rfl
+
+/-- `large_elim_flag_ok` ⊑ `largeElimFlagOk`. -/
+@[lockstep] theorem large_elim_flag_ok_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (p : arena.inductives.block_shape.BlockShape)
+    (f0 : kernel.env.IndFlags) :
+    LS pers (fun a b => b = a)
+      (arena.inductives.stream_recs.large_elim_flag_ok pers st p f0) lst
+      (largeElimFlagOk (absBlockShape p) (ConRon.Refine.absIndFlags f0)) := by
+  rw [arena.inductives.stream_recs.large_elim_flag_ok, largeElimFlagOk]
+  lockstep
+  all_goals
+    refine LS.pure ?_ ‹_› ‹_›
+    simp only [TwinEq] at *
+    simp_all [absU, ConRon.Refine.absIndFlags]
+
+set_option hygiene false in
+/-- The outside classes' check past the K shape: the projection table at an
+impredicative block, then the rest of the classes (`hrec`). -/
+local macro "sr_rest" : tactic => `(tactic| (
+  cases hi : f0.is_impredicative <;> simp only [hi, Bool.false_eq_true, ↓reduceIte] at hr ⊢
+  · obtain ⟨i2, hi2, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+    exact hrec i2 hi2 o hr
+  · obtain ⟨ot, hot, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+    have hT := ifenv_find_table_abs (IFEnvRelI.coreCtx hfe) hot
+    rw [← hT]
+    cases ot with
+    | none =>
+      simp only [Option.map_none] at hr ⊢
+      obtain ⟨i2, hi2, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+      exact hrec i2 hi2 o hr
+    | some t =>
+      simp only [Option.map_some] at hr ⊢
+      obtain ⟨v, rfl⟩ := sr_invalid_fail _ hr
+      exact AErrSim.mk rfl rfl))
+
+/-- `majors_flags_check` ⊑ `majorsFlagsCheck`, from the cursor on. -/
+theorem majors_flags_check_aux {pers st} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRelI pers rf lf) (p : arena.inductives.block_shape.BlockShape)
+    (f0 : kernel.env.IndFlags) (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
+    ∀ (i : Std.Usize) lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun _ _ => True)
+        (arena.inductives.stream_recs.majors_flags_check pers p f0 ms rf i) st lst
+        (majorsFlagsCheck (absBlockShape p) (ConRon.Refine.absIndFlags f0) lf
+          ((ms.val.drop i.val).map absTargetMajor)) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) ms.val.length
+    (fun i (_ : Unit) => ∀ lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun _ _ => True)
+        (arena.inductives.stream_recs.majors_flags_check pers p f0 ms rf i) st lst
+        (majorsFlagsCheck (absBlockShape p) (ConRon.Refine.absIndFlags f0) lf
+          ((ms.val.drop i.val).map absTargetMajor))) ?_ ?_ i ()
+  · intro i _ hn lst hrel hinv
+    apply LSR.of_LS
+    rw [arena.inductives.stream_recs.majors_flags_check.eq_def,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len ms by scalar_tac),
+      List.drop_eq_nil_of_le hn, List.map_nil, majorsFlagsCheck]
+    lockstep
+  · intro i _ hlt ih lst hrel hinv o hr
+    rw [arena.inductives.stream_recs.majors_flags_check.eq_def,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ms by scalar_tac)] at hr
+    rw [List.drop_eq_getElem_cons hlt, List.map_cons, majorsFlagsCheck]
+    obtain ⟨tm, htm, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+    have htmv := vec_index_some htm
+    rw [List.getElem?_eq_getElem hlt, Option.some.injEq] at htmv
+    subst htmv
+    have hrec : ∀ (i2 : Std.Usize), (i + 1#usize) = ok i2 → ∀ r,
+        arena.inductives.stream_recs.majors_flags_check pers p f0 ms rf i2 = ok r →
+        LOut pers (fun _ _ => True) r st
+          ((majorsFlagsCheck (absBlockShape p) (ConRon.Refine.absIndFlags f0) lf
+            ((ms.val.drop (i.val + 1)).map absTargetMajor)).run lst) := by
+      intro i2 hi2 r hr
+      have hi2' : i2.val = i.val + 1 := absSz_add_one hi2
+      have := ih i2 () hi2' lst hrel hinv r hr
+      rw [hi2'] at this
+      exact this
+    cases hmem : (ms.val[i.val]).member with
+    | some t =>
+      simp only [hmem] at hr
+      simp only [absTargetMajor, hmem, Option.map_some]
+      obtain ⟨i2, hi2, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+      exact hrec i2 hi2 o hr
+    | none =>
+      simp only [hmem] at hr
+      simp only [absTargetMajor, hmem, Option.map_none]
+      obtain ⟨ks, hks, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+      have hP : (absBlockShape p).isProp = p.is_prop := rfl
+      have hI : (ConRon.Refine.absIndFlags f0).isImpredicative = f0.is_impredicative := rfl
+      rw [hP, hI]
+      rcases hc : (ms.val[i.val]).ctors.val with _ | ⟨⟨cv, nf⟩, _ | ⟨c2, rest⟩⟩
+      · simp only [absCtorsL, hc, List.map_nil]
+        have hks' : ks = false := by
+          cases hp : p.is_prop <;> rw [hp] at hks <;>
+            simp only [Bool.false_eq_true, ↓reduceIte] at hks
+          · exact (Result.ok_injective hks).symm
+          · rw [ite_eq_right (by rw [sr_len_eq_one, hc]; simp)] at hks
+            exact (Result.ok_injective hks).symm
+        subst hks'
+        simp only [Bool.and_false, Bool.false_eq_true, ↓reduceIte] at hr ⊢
+        sr_rest
+      · simp only [absCtorsL, hc, List.map_cons, List.map_nil]
+        cases hp : p.is_prop <;> rw [hp] at hks <;>
+          simp only [Bool.false_eq_true, ↓reduceIte] at hks
+        · cases Result.ok_injective hks
+          simp only [Bool.false_and, Bool.false_eq_true, ↓reduceIte] at hr ⊢
+          sr_rest
+        · have hidx0 : alloc.vec.Vec.index
+              (core.slice.index.SliceIndexUsizeSlice (arena.env.IConstantVal × Std.U64))
+              (ms.val[i.val]).ctors 0#usize = ok (cv, nf) := by
+            rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+            simp [hc]
+          rw [ite_eq_left (by rw [sr_len_eq_one, hc]; rfl), hidx0, bind_ok] at hks
+          cases Result.ok_injective hks
+          rw [← u64_eq_zero_decide]
+          by_cases hn : nf = 0#u64
+          · simp only [hn, decide_true, Bool.true_and, ↓reduceIte] at hr ⊢
+            obtain ⟨v, rfl⟩ := sr_invalid_fail _ hr
+            exact AErrSim.mk rfl rfl
+          · simp only [hn, decide_false, Bool.true_and, Bool.false_eq_true, ↓reduceIte] at hr ⊢
+            sr_rest
+      · simp only [absCtorsL, hc, List.map_cons]
+        have hks' : ks = false := by
+          cases hp : p.is_prop <;> rw [hp] at hks <;>
+            simp only [Bool.false_eq_true, ↓reduceIte] at hks
+          · exact (Result.ok_injective hks).symm
+          · rw [ite_eq_right (by rw [sr_len_eq_one, hc]; simp)] at hks
+            exact (Result.ok_injective hks).symm
+        subst hks'
+        simp only [Bool.and_false, Bool.false_eq_true, ↓reduceIte] at hr ⊢
+        sr_rest
+
+/-- `majors_flags_check` from `0` ⊑ `majorsFlagsCheck`. -/
+@[lockstep] theorem majors_flags_check_ls {pers st lst} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
+    (p : arena.inductives.block_shape.BlockShape) (f0 : kernel.env.IndFlags)
+    (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
+    LSR pers (fun _ _ => True)
+      (arena.inductives.stream_recs.majors_flags_check pers p f0 ms rf 0#usize) st lst
+      (majorsFlagsCheck (absBlockShape p) (ConRon.Refine.absIndFlags f0) lf
+        (ms.val.map absTargetMajor)) := by
+  have h := majors_flags_check_aux (st := st) hfe p f0 ms 0#usize lst hrel hinv
+  simpa using h
+
+/-- The Rust's `f0`: the first flag record, the default off the list. -/
+theorem sr_f0_twin (fl : alloc.vec.Vec kernel.env.IndFlags) :
+    LSP (if alloc.vec.Vec.len fl = 0#usize then
+        ok (kernel.env.IndFlags.mk false false false false false)
+      else do
+        let x ← alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice kernel.env.IndFlags)
+          fl 0#usize
+        kernel.env.ind_flags_dup x)
+      (fun o => (fl.val.map ConRon.Refine.absIndFlags).headD default = ConRon.Refine.absIndFlags o) := by
+  intro o h
+  rcases hv : fl.val with _ | ⟨x, xs⟩
+  · have h0 : alloc.vec.Vec.len fl = 0#usize := by
+      have : (alloc.vec.Vec.len fl).val = 0 := by simp [alloc.vec.Vec.len, hv]
+      scalar_tac
+    rw [ite_eq_left h0] at h
+    cases Result.ok_injective h
+    rfl
+  · have h0 : ¬ alloc.vec.Vec.len fl = 0#usize := by
+      intro h0; have := congrArg (·.val) h0; simp [alloc.vec.Vec.len, hv] at this
+    rw [ite_eq_right h0] at h
+    obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [ind_flags_dup_eq] at h
+    cases Result.ok_injective h
+    have hyv := vec_index_some hy
+    rw [Lockstep.usize_zero_val', hv] at hyv
+    simp only [List.getElem?_cons_zero, Option.some.injEq] at hyv
+    subst hyv
+    simp
+
+set_option hygiene false in
+/-- `block_flags_check` past the impredicativity test: the eliminator's flag
+against the records', the large eliminator's allowance, the members, the
+outside classes. -/
+local macro "sr_large_rest" : tactic => `(tactic| (
+  by_cases hle : (f0.has_large_elim != p.large) = true
+  · rw [ite_eq_left hle, ite_eq_left hle]
+    lockstep
+  · rw [ite_eq_right hle, ite_eq_right hle]
+    lockstep))
+
+/-- `block_flags_check` ⊑ `blockFlagsCheck`: the block's declared flags. -/
+@[lockstep] theorem block_flags_check_ls {pers st lst} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI pers rf lf)
+    (p : arena.inductives.block_shape.BlockShape) (is_rec : Bool)
+    (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
+    LS pers (fun _ _ => True)
+      (arena.inductives.stream_recs.block_flags_check pers st p is_rec ms rf) lst
+      (blockFlagsCheck (absBlockShape p) is_rec (absTargetMajorL ms) lf) := by
+  rw [arena.inductives.stream_recs.block_flags_check, blockFlagsCheck, absBlockShape_flags]
+  cases hf : p.flags with
+  | none => exact LS.pure trivial hrel hinv
+  | some fl =>
+    simp only [Option.map_some]
+    refine LS.bind_eq fun f0 hf0 => ?_
+    have e := sr_f0_twin fl f0 hf0
+    rw [e, absTargetMajorL, sr_ite_band]
+    refine LS.bind_eq fun i2 hi2 => LS.bind_eq fun i3 hi3 => ?_
+    have hi2' : i2.val = fl.val.length := by
+      have := lift_cast_u64_of_usize _ i2 hi2
+      simpa [alloc.vec.Vec.len] using this
+    have hi3' := shape_k_twin p i3 hi3
+    simp only [TwinEq] at hi3'
+    have hcnt : (i2 != i3) = ((fl.val.map ConRon.Refine.absIndFlags).length != (absBlockShape p).k) := by
+      rw [hi3', List.length_map, ← hi2']
+      rw [Bool.eq_iff_iff, bne_iff_ne, bne_iff_ne, ne_eq, ne_eq]
+      constructor
+      · intro h hv; exact h (by simp [absU] at hv; scalar_tac)
+      · intro h hv; exact h (by rw [hv])
+    by_cases hc : (i2 != i3) = true
+    · have hc' : ((fl.val.map ConRon.Refine.absIndFlags).length != (absBlockShape p).k) = true :=
+        hcnt ▸ hc
+      rw [ite_eq_left hc, ite_eq_left hc']
+      lockstep
+    · have hc' : ¬ ((fl.val.map ConRon.Refine.absIndFlags).length != (absBlockShape p).k) = true :=
+        hcnt ▸ hc
+      rw [ite_eq_right hc, ite_eq_right hc']
+      refine LS.bind_eq fun b hb => ?_
+      have hb' := flags_uniform_twin fl f0 b hb
+      simp only [TwinEq] at hb'
+      rw [hb']
+      cases b
+      · rw [ite_eq_right (show ¬ (false = true) by simp),
+          ite_eq_left (show ((!false) = true) from rfl)]
+        lockstep
+      · rw [ite_eq_left (show true = true from rfl),
+          ite_eq_right (show ¬ ((!true) = true) by simp)]
+        have hI : (ConRon.Refine.absIndFlags f0).isImpredicative = f0.is_impredicative := rfl
+        have hP : (absBlockShape p).isProp = p.is_prop := rfl
+        have hL : (ConRon.Refine.absIndFlags f0).hasLargeElim = f0.has_large_elim := rfl
+        have hLg : (absBlockShape p).large = p.large := rfl
+        rw [hI, hP, hL, hLg]
+        cases hi : f0.is_impredicative
+        · rw [ite_eq_right (show ¬ (false = true) by simp),
+            ite_eq_right (show ¬ (false = true) by simp)]
+          sr_large_rest
+        · rw [ite_eq_left (show true = true from rfl), ite_eq_left (show true = true from rfl)]
+          cases hp : p.is_prop
+          · rw [ite_eq_right (show ¬ (false = true) by simp),
+              ite_eq_left (show ((!false) = true) from rfl)]
+            lockstep
+          · rw [ite_eq_left (show true = true from rfl),
+              ite_eq_right (show ¬ ((!true) = true) by simp)]
+            sr_large_rest
 
 /-! ## The axiom census -/
 
