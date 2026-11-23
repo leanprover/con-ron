@@ -74745,6 +74745,12 @@ line count kept, so `Generated/` is unchanged and no extraction was needed):
   (device, inode, size, modification time), else the read fails ("replaced or changed during the
   run").  So a file replaced mid-run is never spliced: it is read through the first handle, or
   the read fails.  `StdFs` (the scheduler, `olean-compare`) stays per call;
+  **What the cache does not do** (the second codex review, 2026-11-23): a cache HIT does not
+  re-check the stamp, and the stamp does not see a same-length rewrite in place (nor one that
+  restores the modification time), so a file changed in place mid-run can still be read in two
+  states.  The cache guards against a path being replaced by another file; that the files do
+  not change during the run stays an assumption (point (1) of the trust argument), as in
+  con-leche, and the docs say so.
 * `par_map_codes` runs at least one thread;
 * `worker_copies` stays `&self`: the exception, and why it is sound and what `&mut` would cost
   (the code map's steps hold the instance shared), is now in §3.9.

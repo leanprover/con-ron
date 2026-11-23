@@ -37,8 +37,11 @@ with that code, if
 1. every file operation the run PERFORMS answered as one snapshot `fs` of the files: the same
    value where the model has one, and a failure where the model fails (`StdIo` fails at a path
    with a code point that is not a character, at a real path that is not valid UTF-8, at a size
-   its file's contents do not end at, and at a path replaced or changed during the run; it reads
-   every byte range through the run's one handle of the file, up to where a read finds the end);
+   its file's contents do not end at, and at a path whose file was replaced between two
+   openings of it; it reads every byte range through the run's one handle of the file, up to
+   where a read finds the end).  Those checks catch a path replaced by another file, not a file
+   rewritten in place: that the files do not change during the run is assumed, as con-leche
+   assumes it, not enforced;
    and on the binary's platform the Rust's spelling of a module's file (`files::mod_file_of`) is
    upstream's (`modFile`), which the logic cannot decide (`System.FilePath`'s `/` reads the
    opaque `System.Platform.isWindows`), so the model also fails where they would differ;
