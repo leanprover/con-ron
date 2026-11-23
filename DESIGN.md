@@ -883,8 +883,9 @@ completeness and never soundness — but it left the theorem's statement carryin
 by `scripts/gen-pins.sh`, freshness-gated by `--check` in `scripts/gates.sh`),
 and a *verified* decoder in the core reads it (`kernel/pins_decode.rs`, 50
 functions in the §3.4 subset).  `check_decls` keeps its `pins` parameter and
-nothing else moves; the driver passes `decode(PINS_TEXT)`, and `--pins FILE` /
-`--no-pins` survive as **test overrides** only (`driver::pins_for_run`).  So the
+nothing else moves; the driver passes `decode(PINS_TEXT)`.  (`--pins FILE` /
+`--no-pins` survived as test overrides until task #171 removed them, from the binary and from
+the twin's `con-ron-lean`: neither has a flag of its own.)  So the
 pins the binary uses are a closed term of the model, and the hypothesis becomes
 a *theorem to prove* rather than a promise to keep.
 
@@ -74770,3 +74771,9 @@ command-line gate 18/18.  `scripts/diff-olean.sh`: 510/560 as expected, 9 NOT PO
 **Left.**  Nothing of the brief.  The `Spelled` side condition could go if con-leche's `modFile`
 were stated over a platform-independent join (an upstream candidate), or if con-ron's
 `PathRel` were proved functional on Unix under an `isWindows = false` hypothesis.
+
+**Afterwards (2026-11-23).**  The twin's development driver (`Arena/Main.lean`, `con-ron-lean`)
+lost `--no-pins` too (its field, parser arm, help line and the two `if a.noPins` uses), at the
+maintainer's "clearly part of this"; no script used it.  The second external review (codex
+gpt-6.1-sol at `34d57d2b`, `_tmp/t171/codex-review-34d57d2b.md`) closed every finding of the first
+and found the docs overstating `RunFiles`, which the commit after slice 6 corrected.
