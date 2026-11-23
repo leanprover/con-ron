@@ -1855,13 +1855,11 @@ the twin (`proof/ConRon/Arena/**`), Theorem 1 (`Bridge/**`), Theorem 2
 invariant).  Delete each marker as its item is reconciled;
 `scripts/bump-con-leche.sh status` prints what is left — markers,
 `check`'s verdict, the new declarations still uncovered (port them, or put
-them in `scripts/provenance-skip.txt` with the reason) and `pin-last.py`.
+them in `scripts/provenance-skip.txt` with the reason).
 Do not start the proofs before the model is regenerated, and say in every
 WIP commit that the tree does not build.  Lane agents never commit
-`proof/lakefile.toml` or `proof/lake-manifest.json`: `scripts/pin-last.py`
-(a gate step) fails a branch on which any commit but the tip moves the pin,
-which is where #105's sub-agent slip would have been caught.  What the
-porting itself has taught:
+`proof/lakefile.toml` or `proof/lake-manifest.json` (nothing checks it since
+task #175).  What the porting itself has taught:
 
 * *The crate boundary.*  `crates/con-ron-core/src` is inside the style lint
   (§3.4) and the extraction; `crates/con-ron/src` is inside neither.  A
@@ -1921,9 +1919,8 @@ scripts/bump-con-leche.sh pin
 ```
 
 runs `--follow` once more (its own commit if it moved anything), then commits
-`proof/lakefile.toml` and `proof/lake-manifest.json` and nothing else, and
-confirms with `scripts/pin-last.py --tip-is-pin`.  The pin is the last commit
-so that every commit before it is reproducible with `provenance.py update`
+`proof/lakefile.toml` and `proof/lake-manifest.json` and nothing else.  The
+pin is the last commit so that every commit before it is reproducible with `provenance.py update`
 and no `--old`.  Then `LAKE_JOBS=4 scripts/gates.sh` once more: it leaves a
 green stamp naming the commit.  If it is red, `git reset HEAD~1` (the pin
 files go back to uncommitted; nothing is pushed), fix, commit, `pin` again.
@@ -74851,3 +74848,18 @@ popcount in the tool.
 **Left.**  The olean table is still CI-only; adding it to `scripts/gates.sh` would have caught
 this at landing (a few minutes per run).  The `renovation` branch's CI fails separately at
 `pin-last` (no local `master` ref in the CI checkout).
+
+### Task #175 — `scripts/pin-last.py` dropped (2026-11-23, Opus)
+
+**Why.**  The check (task #108) failed only a pin move in a non-tip commit, whose sole cost is
+that the commits between it and the tip need `provenance.py update --old` to be replayed; the
+landed tree is the same.  It never caught a slip after #105, and it assumed every branch is a
+short-lived branch onto `master`: on the long-lived `renovation` branch (its own pin, master
+merged in after its sync) it fails by construction, and CI's checkout has no local `master`
+ref for it to read.  At the maintainer's word ("Too complicated. Let's just drop it") it is
+gone.
+
+**What changed.**  `scripts/pin-last.py` deleted; its `gates.sh` step, `bump-con-leche.sh`'s
+three calls (`status`, `pin`, the `land` precondition) and the mentions in CLAUDE.md,
+OVERVIEW.md and §7 removed.  `pin` still commits the pin files as the branch's last commit;
+nothing verifies it.

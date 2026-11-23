@@ -42,7 +42,7 @@ section for every task you land.
   run the gates to check a single proof.
 * **`scripts/gates.sh` is the one command every task must run before
   committing**: `cargo build`, `cargo test`, the style lint, the provenance
-  check, `pin-last` (only a branch's tip moves the con-leche pin), the
+  check, the
   OVERVIEW link gate, the pin check, `scripts/extract.sh --check`
   and `cd proof && lake build` (all default targets: both theorems and the
   capstone; **failing on any warning from `proof/`'s own sources**, task
@@ -122,7 +122,7 @@ section for every task you land.
   DESIGN.md §7): `start <rev> --task '#N'` makes the worktree with its own
   reflink copy of the packages, moves the pin in the working tree only,
   classifies the provenance findings and prints the work order; `measure`,
-  `pin` (the pin files, committed LAST — `scripts/pin-last.py` gates it) and
+  `pin` (the pin files, committed LAST) and
   `land --report <file>` (the `--no-ff` merge, cache seed, drop, then
   `scripts/sync-shared-con-leche.sh`, the only sanctioned move of the shared
   checkout) follow.  Never `lake update con-leche` against the shared
