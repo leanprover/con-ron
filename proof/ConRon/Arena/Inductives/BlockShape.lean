@@ -84,11 +84,10 @@ def MemberShape.structCtor? (ms : MemberShape) : Option (IConstantVal × Nat) :=
   | _ => none
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:110-137 BlockShape
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove BlockShape.BlockShape_bridge, then delete this line
 The pieces of a recognised block at any number of members: the members, the
 recursors, the SHARED parameter count, elimination level parameter
-(`.anonymous`, interned, for a small eliminator) and result sort, and the two
-flags. -/
+(`.anonymous`, interned, for a small eliminator) and result sort, the two
+flags, and the feature flags the members' records declare. -/
 structure BlockShape where
   /-- the members in block order -/
   members : List MemberShape
@@ -104,7 +103,77 @@ structure BlockShape where
   large : Bool
   /-- the result sort is provably `Prop` -/
   isProp : Bool
+  /-- the feature flags the members' records declare, in member order: `none`
+  when no record carries them, the block then checked at the derived ones
+  (`BlockShape.flagsAt`) -/
+  flags : Option (List IndFlags) := none
   deriving Repr, Inhabited
+
+/-! ## The feature flags -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:151-162 BlockShape.derivedFlags
+**The flags of a block without declared ones**, member `i`'s: what the
+official kernel computed from the declaration before the flags were inputs.
+`hasEta` is the structure-like shape; the capability takes official's `is_rec`
+beside it (`blockCapsAt`).  (`p.members[i]?`'s miss is the cited
+`getD default`: the default member has no constructor and no index.) -/
+def BlockShape.derivedFlags (p : BlockShape) (i : Nat) : IndFlags :=
+  let sf : Bool × Bool := match p.members[i]? with
+    | some ms =>
+      match ms.ctors with
+      | [c] => (ms.nIdx == 0, c.2 == 0)
+      | _ => (false, false)
+    | none => (false, false)
+  let isK : Bool := if p.members.length == 1 then (if p.isProp then sf.2 else false) else false
+  { isImpredicative := p.isProp
+    isK := isK
+    hasProjections := sf.1
+    hasEta := sf.1
+    hasLargeElim := p.large }
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:164-168 BlockShape.flagsAt
+**Member `i`'s feature flags**: its declared ones, or the derived ones at a
+block without. -/
+def BlockShape.flagsAt (p : BlockShape) (i : Nat) : IndFlags :=
+  match p.flags with
+  | some fl => fl.getD i default
+  | none => p.derivedFlags i
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:170-176 BlockShape.noRules
+**The block's recursors carry no rules**: a block with declared flags and
+without a large eliminator. -/
+def BlockShape.noRules (p : BlockShape) : Bool :=
+  match p.flags with
+  | some _ => if p.large then false else true
+  | none => false
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:178-186 BlockShape.boundedProp
+**A proposition whose fields take the ordinary universe bound**: a `Prop`
+block that is not `isImpredicative` and has no large eliminator. -/
+def BlockShape.boundedProp (p : BlockShape) : Bool :=
+  if p.isProp then
+    if p.large then false
+    else if (p.flagsAt 0).isImpredicative then false
+    else true
+  else false
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:188-190 BlockShape.projAllowed
+**May member `i` have projections?** Its `hasProjections`. -/
+def BlockShape.projAllowed (p : BlockShape) (i : Nat) : Bool :=
+  (p.flagsAt i).hasProjections
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:192-196 projMembersFrom
+The members from position `i` on that may have projections (`projAllowed`). -/
+def projMembersFrom (p : BlockShape) : Nat → List MemberShape → List MemberShape
+  | _, [] => []
+  | i, ms :: rest =>
+    if p.projAllowed i then ms :: projMembersFrom p (i + 1) rest else projMembersFrom p (i + 1) rest
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:198-201 BlockShape.projMembers
+**The members that may have projections**: the `hasProjections` ones.  The
+projection tables are read off these. -/
+def BlockShape.projMembers (p : BlockShape) : List MemberShape :=
+  projMembersFrom p 0 p.members
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:203-204 BlockShape.formers
 The members' formers, at the telescopes the check reads, in block order. -/
@@ -357,9 +426,20 @@ def blockMemberCounts (nPd k nC : Nat) (names : List NIdx)
       | .error e => pure (.error e)
       | .ok ns => pure (.ok (c.2 :: ns))
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:544-547 readBlock
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove BlockShape.readBlock_bridge, then delete this line
-**Read a declared inductive block**: split into formers, constructors and
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:458-461 blockFlagRecs
+The flags of the leading type records, in order. -/
+def blockFlagRecs : List IConstantInfo → List (Option IndFlags)
+  | .indInfo _ caps :: rest => caps.flags :: blockFlagRecs rest
+  | _ => []
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:463-467 blockFlagsOf
+**The block's declared feature flags**: every type record's, when all carry
+them; `none` otherwise. -/
+def blockFlagsOf (block : List IConstantInfo) : Option (List IndFlags) :=
+  (blockFlagRecs block).mapM id
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:469-542 readBlockShape
+**Read a declared inductive block's shape**: split into formers, constructors and
 recursors (at least one of each of the first and the last), the members'
 counts, the universe and parameter declarations (formers', then constructors'
 parameter counts, then constructors' universe parameters; each cited `find?`
@@ -370,9 +450,10 @@ eliminator they are (`elim :: relps` with `relps == lps` and `elim` fresh is
 the large one; anything else is the small one, at `.anonymous`, interned).  A
 block that cannot be read is an invalid input, and the error says why; the
 messages drop con-leche's interpolated names and counts (§3.1).  The Rust's
-`read_block_at`/`read_block_sort`/`read_block_elim` are the three stretches of
-this `do` block. -/
-def readBlock (nPd : Nat) (block : List IConstantInfo) : AM (Except CheckError BlockShape) := do
+`read_block_shape` is this `do` block, and `read_block_at`, `read_block_sort` and
+`read_block_elim` are its three stretches. -/
+def readBlockShape (nPd : Nat) (block : List IConstantInfo) :
+    AM (Except CheckError BlockShape) := do
   match blockSplit block with
   | none => pure (.error (.invalid
       "inductive block: its records are not the inductive types, then the constructors, then the recursors"))
@@ -422,12 +503,20 @@ def readBlock (nPd : Nat) (block : List IConstantInfo) : AM (Except CheckError B
             | [] => none
             | elim :: relps => if relps == lps && !lps.contains elim then some elim else none
           match large? with
-          | some elim => pure (.ok ⟨members, recsL, nP, elim, s, true, isProp⟩)
+          | some elim => pure (.ok ⟨members, recsL, nP, elim, s, true, isProp, none⟩)
           | none => do
             let anon ← internNNode .anonymous
-            pure (.ok ⟨members, recsL, nP, anon, s, false, isProp⟩)
+            pure (.ok ⟨members, recsL, nP, anon, s, false, isProp, none⟩)
     | [], _ => pure (.error (.invalid "inductive block declares no inductive type"))
     | _ :: _, [] => pure (.error (.invalid
         "inductive block carries no recursor records; the input must carry the recursors of every inductive block"))
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockShape.lean:544-547 readBlock
+**Read a declared inductive block**: its shape (`readBlockShape`) and the
+feature flags its type records declare (`blockFlagsOf`). -/
+def readBlock (nPd : Nat) (block : List IConstantInfo) : AM (Except CheckError BlockShape) := do
+  match ← readBlockShape nPd block with
+  | .error e => pure (.error e)
+  | .ok p => pure (.ok { p with flags := blockFlagsOf block })
 
 end ConRon.Arena

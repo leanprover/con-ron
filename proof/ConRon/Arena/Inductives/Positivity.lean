@@ -49,8 +49,8 @@ and the seeds (`nestSeeds`).  The Rust twin is
 ## The twin's shapes against the Rust (for Theorem 2)
 
 * **The context is not passed where only its environment is read**: the
-  twin's `NestCtx` fields are `names lps nP nIdxs params sort formers lvls`,
-  as the Rust's.  Three signatures lose the Rust's context argument and keep
+  twin's `NestCtx` fields are `names lps nP nIdxs params sort formers lvls
+  bound`, as the Rust's.  Three signatures lose the Rust's context argument and keep
   its order otherwise: `nestBlockOf fe C`, `nestFrameMates fe C` (Rust `ctx,
   fe, c`), and `nestGroupCtors fe nPc cs out` (Rust `fe, ctx, n_pc, cs, i,
   out`).
@@ -85,6 +85,7 @@ of the `nestPos` block, `nestCtorNf`) are moved up.
 module
 
 public import ConRon.Arena.Inductives.FieldTele
+public import ConRon.Arena.Inductives.StructInstall
 public import ConRon.Arena.CheckerBase
 
 @[expose] public section
@@ -458,7 +459,7 @@ structure NestCtorNf where
   ty : EIdx
   deriving Inhabited
 
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:376-387 NestCtx
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:376-394 NestCtx
 The block, as the function needs it.  `find?` is the `fe` every reader takes
 beside the record (the module note); `formers` are the members' type formers
 at their telescopes; `lvls` is `lps.map .param`, interned once. -/
@@ -471,6 +472,10 @@ structure NestCtx where
   sort : LIdx
   formers : List IConstantVal
   lvls : LsIdx
+  /-- container frames bounded (a flagged `Prop` block that is not
+  impredicative, `BlockShape.boundedProp`): every field of a container's
+  constructor at its instantiation has its sort at most the block's -/
+  bound : Bool := false
   deriving Inhabited
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:396-408 NestState
@@ -910,6 +915,20 @@ def nestGroupCtors (fe : IFEnv) (nPc : Nat) :
         fail (.invalid "nested positivity: number of parameters mismatch in inductive datatype declaration (a container's group)")
       else nestGroupCtors fe nPc cs (out ++ ctors)
 
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:791-801 nestFrameSorts
+con-leche: ConLeche/Cached/IndPositivity.lean:355-363 nestFrameSortsC
+**A container frame's field bound** (`NestCtx.bound`): each walked constructor
+telescope's fields, opened at the frame's depth, have sorts at most `sort`
+(`checkStructFieldSortsI` at a non-propositional reading). -/
+def nestFrameSorts (mode : CheckMode) (fe : IFEnv) (sort : LIdx) (hi : Nat) :
+    List (IConstantVal × Nat) → List (List NestFieldKind × EIdx) → AM Unit
+  | c :: cs, o :: os => do
+    let xq ← unwrapOr (← openPisAtFvarsF c.2 o.2 hi)
+      (.internal "nested positivity: a walked constructor's fields")
+    checkStructFieldSortsI mode fe false false sort hi xq.1 [] c.2
+    nestFrameSorts mode fe sort hi cs os
+  | _, _ => pure ()
+
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:758-763 nestBlockOf
 The recorded block of the inductive `C` (`IndCaps.all`): `[]` when none is
 recorded. -/
@@ -1054,15 +1073,14 @@ termination_by (if root then 1 else 0, fuel, 2, cs.length)
 decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *) <;> (try simp_all) <;> omega)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:803-826 nestFrame
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove Positivity.nestFrame_bridge, then delete this line
 con-leche: ConLeche/Cached/IndPositivity.lean:365-378 nestFrameC
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove Positivity.nestFrame_bridge, then delete this line
 **A container frame** at the instantiation `(us, ds)`: every group-mate's
 family at the key `(us, ds)` TYPED at the frame's depth (K.52,
 `familyKeyChecks`), its holes the container's WHOLE recorded group `grp`, every
 one of their constructors walked with all of them abstracted, in one pass
-(N2-eager).  The stack grows by the group's holes at its OUTER end's opposite —
-appended, the module note. -/
+(N2-eager), and at a bounded context the walked constructors' field bound
+(`nestFrameSorts`).  The stack grows by the group's holes at its OUTER end's
+opposite — appended, the module note. -/
 def nestFrame (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (fuel : Nat)
     (prog : List NestHole) (hi : Nat) (us : LsIdx) (ds : List EIdx) (nPc : Nat)
     (grp : List (NIdx × EIdx)) (ns : NestState) : AM NestState := do
@@ -1074,8 +1092,9 @@ def nestFrame (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (fuel : Nat)
   let names := grp.map (·.1)
   let ctors ← nestGroupCtors fe nPc names []
   let holes ← grp.zipIdx.mapM fun ((_, ty), i) => internFVarE (hi + i) ty
-  let (_, ns2) ← nestCtors mode fe ctx false fuel prog2 (hi + grp.length) us ds names
+  let (outs, ns2) ← nestCtors mode fe ctx false fuel prog2 (hi + grp.length) us ds names
     holes ctors ns []
+  if ctx.bound then nestFrameSorts mode fe ctx.sort (hi + grp.length) ctors outs
   pure ns2
 termination_by (0, fuel, 3, 0)
 decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *) <;> (try simp_all) <;> omega)

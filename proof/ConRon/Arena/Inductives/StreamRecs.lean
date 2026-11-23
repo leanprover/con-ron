@@ -6,7 +6,8 @@ GENERATES every recursor of a block (`genRecCheck`) and compares the stream's
 records with them up to definitional equality.  What is installed is the
 record, read off the block (`declConstants`, upstream `blockRecs`); these checks
 say that it is the generated recursor.  The records' K flags are checked
-against the block (`streamKCheck`).  The Rust twin is
+against the block (`streamKCheck`), and the block's declared feature flags are
+validated (`blockFlagsCheck`).  The Rust twin is
 `arena::inductives::stream_recs`.
 
 **The deviations of this module** (the Rust's, item for item):
@@ -21,6 +22,11 @@ against the block (`streamKCheck`).  The Rust twin is
   `generatedFire` intern, so they are `AM` functions.
 * **`streamClosed`** is the closedness test `recTyCheck` and `ruleAgree` both
   open with, one function.
+* **The declared flags' checks fail in the state** (`blockFlagsCheck`): the
+  cited pure check, run through `ofExcept`, reads the block's sort, a handle
+  here (`largeElimFlagOk`); its `for` loop is `majorsFlagsCheck`, its `hasProj`
+  the environment's `findTable?`, and `BlockShape.headName` (which only names
+  the block in a message) is not ported.
 -/
 module
 
@@ -225,15 +231,133 @@ def streamRecsCheck (mode : CheckMode) (fe : IFEnv) :
   | _, _ => fail (.internal "stored recursors: the generated family is not the records'")
 
 /-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:195-211 streamKCheck
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove StreamRecs.streamKCheck_bridge, then delete this line
 **The records' K flags against the block**: each record's flag is the one the
-generated recursor has (`recKExpected`); the message drops the interpolation. -/
+generated recursor has (`recKExpected`), and at a block whose recursors carry
+no rules (`BlockShape.noRules`) a record with rules is rejected; the messages
+drop the interpolation. -/
 def streamKCheck (p : BlockShape) :
     List RecShape → List (IConstantVal × TargetMajor × List EIdx) → AM Unit
   | rc :: rcs, g :: gs => do
-    unless rc.isK == recKExpected p g.2.1 do
-      fail (.invalid "recursor  declares k := ; the generated recursor of this block is K-like")
-    streamKCheck p rcs gs
+    if p.noRules && !rc.rules.isEmpty then
+      fail (.invalid "the recursor  carries reduction rules, but its block has no large \
+        eliminator (hasLargeElim is false), so its recursors have none")
+    else do
+      unless rc.isK == recKExpected p g.2.1 do
+        fail (.invalid "recursor  declares k := ; the generated recursor of this block is K-like")
+      streamKCheck p rcs gs
   | _, _ => pure ()
+
+/-! ## The declared feature flags -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:219-235 memberFlagsCheck
+**One member's flags** (official's checks of lean4 PR #16595): `isK` only at
+the first member of a block of one, a proposition with one constructor without
+fields; `hasProjections` only at one constructor, no index, not impredicative;
+`hasEta` only with `hasProjections`, at a block that is not recursive.  The
+three conditions are named first, as the Rust computes them; the messages drop
+the interpolation. -/
+def memberFlagsCheck (p : BlockShape) (isRec : Bool) (i : Nat) (ms : MemberShape)
+    (f : IndFlags) : AM Unit :=
+  let kOk : Bool := match ms.ctors with
+    | [c] => if i == 0 && p.k == 1 && p.isProp then c.2 == 0 else false
+    | _ => false
+  let projOk : Bool := if ms.ctors.length == 1 && ms.nIdx == 0 then
+      (if f.isImpredicative then false else true)
+    else false
+  let etaOk : Bool := if f.hasProjections then (if isRec then false else true) else false
+  if f.isK && !kOk then
+    fail (.invalid "inductive type  is declared with K-like reduction (isK), but it is \
+      not a proposition alone in its block with one constructor without fields")
+  else if f.hasProjections && !projOk then
+    fail (.invalid "inductive type  is declared with projections (hasProjections), but it \
+      does not have exactly one constructor and no indices, or it is impredicative")
+  else if f.hasEta && !etaOk then
+    fail (.invalid "inductive type  is declared with eta (hasEta), but it has no \
+      projections or is recursive")
+  else pure ()
+
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:237-243 membersFlagsCheck
+The members' flags, from position `i` on, pairwise, stopping at the shorter
+list. -/
+def membersFlagsCheck (p : BlockShape) (isRec : Bool) :
+    Nat → List MemberShape → List IndFlags → AM Unit
+  | i, ms :: rest, f :: fs => do
+    memberFlagsCheck p isRec i ms f
+    membersFlagsCheck p isRec (i + 1) rest fs
+  | _, _, _ => pure ()
+
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:245-288 blockFlagsCheck
+**Is the declared `hasLargeElim` allowed?** Only at a block that is not
+impredicative and whose sort is never zero, or of one type with no constructor,
+or with one constructor and `hasEta` or `isK`.  The sort, a handle, is read only
+where the flag is on and the block not impredicative. -/
+def largeElimFlagOk (p : BlockShape) (f0 : IndFlags) : AM Bool := do
+  if f0.hasLargeElim then
+    if f0.isImpredicative then pure false
+    else do
+      let l ← readLevelM p.resSort
+      if Level.isNeverZero l then pure true
+      else
+        let n := p.numCtors
+        pure (p.k == 1 && (n == 0 || (n == 1 && (f0.hasEta || f0.isK))))
+  else pure true
+
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:245-288 blockFlagsCheck
+The cited `for M in Ms do`: an outside class that is a proposition with one
+constructor without fields is rejected, and so is an outside class with a
+projection table (the cited `hasProj`, the environment's `findTable?`) at an
+impredicative block. -/
+def majorsFlagsCheck (p : BlockShape) (f0 : IndFlags) (fe : IFEnv) :
+    List TargetMajor → AM Unit
+  | [] => pure ()
+  | M :: Ms =>
+    match M.member with
+    | some _ => majorsFlagsCheck p f0 fe Ms
+    | none =>
+      if p.isProp && (match M.ctors with | [c] => c.2 == 0 | _ => false) then
+        fail (.invalid "inductive block  nests , a proposition with one constructor without \
+          fields; its K-like reduction cannot be kept inside the block")
+      else if f0.isImpredicative then
+        match fe.findTable? M.ind with
+        | some _ => fail (.invalid "inductive block  is impredicative (isImpredicative) and \
+            nests , which has projections; an impredicative type cannot have projections")
+        | none => majorsFlagsCheck p f0 fe Ms
+      else majorsFlagsCheck p f0 fe Ms
+
+/-- con-leche: ConLeche/Kernel/Inductives/StreamRecs.lean:245-288 blockFlagsCheck
+**The block's declared feature flags, validated** (lean4 PR #16595; nothing at
+a block without them): `isImpredicative` and `hasLargeElim` agree across the
+block; `isImpredicative` only at a proposition; `hasLargeElim` is what the
+recursor records eliminate at, and allowed only where `largeElimFlagOk` says;
+the members' own flags (`membersFlagsCheck`); the outside classes
+(`majorsFlagsCheck`).  `isRec` is official's `is_rec`, `Ms` the classes the
+recursors eliminate, `fe` the environment whose projection tables say whether
+a stored type has projections.  It reads the sort's handle, so it is an `AM`
+function failing in the state, where the cited pure check is run through
+`ofExcept` (with `memberFlagsCheck` and `membersFlagsCheck`, which the Rust
+writes as fallible functions too). -/
+def blockFlagsCheck (p : BlockShape) (isRec : Bool) (Ms : List TargetMajor) (fe : IFEnv) :
+    AM Unit :=
+  match p.flags with
+  | none => pure ()
+  | some fl => do
+    let f0 := fl.headD default
+    if fl.length != p.k then
+      fail (.internal "inductive block : flags for  of  types")
+    else if !(fl.all fun f => f.isImpredicative == f0.isImpredicative &&
+        f.hasLargeElim == f0.hasLargeElim) then
+      fail (.invalid "inductive block : its types disagree on isImpredicative or hasLargeElim")
+    else if f0.isImpredicative && !p.isProp then
+      fail (.invalid "inductive block  is declared impredicative (isImpredicative), but its \
+        type is not a proposition")
+    else if f0.hasLargeElim != p.large then
+      fail (.invalid "inductive block : hasLargeElim is , but its recursors eliminate ")
+    else if !(← largeElimFlagOk p f0) then
+      fail (.invalid "inductive block  is declared with a large eliminator (hasLargeElim), but \
+        it may be a proposition and is not a single type with no constructor, or with one \
+        constructor that has eta or K-like reduction")
+    else do
+      membersFlagsCheck p isRec 0 p.members fl
+      majorsFlagsCheck p f0 fe Ms
 
 end ConRon.Arena

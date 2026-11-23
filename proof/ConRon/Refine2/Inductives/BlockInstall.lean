@@ -155,7 +155,7 @@ def blockCapsAtP (p : BlockShape) (mi : Nat) (isRec neverZero : Bool) : IIndCaps
   | some ms =>
     match ms.ctors with
     | [c] =>
-      { eta := if ms.nIdx != 0 then false else if isRec then false else true
+      { eta := if ms.nIdx != 0 then false else if isRec then false else (p.flagsAt mi).hasEta
         all := p.memberNames, nparams := p.nP, nIdx := ms.nIdx, ctors := [c.1.name],
         neverZero := neverZero }
     | cs => { all := p.memberNames, nparams := p.nP, nIdx := ms.nIdx,
@@ -172,6 +172,41 @@ theorem blockCapsAt_eqP (p : BlockShape) (mi : Nat) (isRec : Bool) :
   · rfl
   · dsimp only
     rcases ms.ctors with _ | ⟨c, _ | ⟨c2, rest⟩⟩ <;> rfl
+
+/-- `block_caps_at`'s η: off at an index or a recursive block, else the
+member's `hasEta` (`flags_at_twin`). -/
+theorem bi_eta_spec {p : arena.inductives.block_shape.BlockShape} {mi n : Std.U64}
+    {is_rec : Bool} {st1 : arena.monad.AState} {se : arena.monad.AState × Bool}
+    (heta : (if n != 0#u64 then ok (st1, false) else do
+        let b1 ← if is_rec then ok false else do
+          let f ← arena.inductives.block_shape.flags_at p mi
+          ok f.has_eta
+        ok (st1, b1)) = ok se) :
+    se.1 = st1 ∧ se.2 = (if absU n != 0 then false else if is_rec then false
+      else ((absBlockShape p).flagsAt (absU mi)).hasEta) := by
+  by_cases hn : n = 0#u64
+  · have hn' : absU n = 0 := by simp [absU, hn]
+    have hb : (n != 0#u64) = false := by simp [hn]
+    simp only [hb, Bool.false_eq_true, ↓reduceIte] at heta
+    rw [hn']
+    simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
+    obtain ⟨b1, hb1, heta⟩ := ConRon.Refine.bind_eq_ok_iff.mp heta
+    cases Result.ok_injective heta
+    cases is_rec
+    · simp only [Bool.false_eq_true, ↓reduceIte] at hb1 ⊢
+      obtain ⟨f, hf, hb1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hb1
+      cases Result.ok_injective hb1
+      have hf' := flags_at_twin p mi f hf
+      simp only [TwinEq] at hf'
+      simp [hf', ConRon.Refine.absIndFlags]
+    · simp only [↓reduceIte] at hb1 ⊢
+      cases Result.ok_injective hb1
+      simp
+  · have hn' : absU n ≠ 0 := fun hv => hn (by simp [absU] at hv; scalar_tac)
+    have hb : (n != 0#u64) = true := by simp [hn]
+    simp only [hb, ↓reduceIte] at heta
+    cases Result.ok_injective heta
+    simp [hn']
 
 /-- `block_caps_at` ⊑ `blockCapsAt` — the capability record of member `mi`.
 The never-zero read is lockstep (`member_never_zero_ls`); past it, the Rust tests
@@ -230,7 +265,7 @@ the Rust's tests are decided first. -/
       have hv' := ctor_name_list_twin0 _ v hv
       simp only [TwinEq, absCtorsL, hc, List.map_nil] at hv'
       simp only [absMemberShape, absCtorsL, hc, List.map_nil, absIIndCaps, IIndCaps.mk.injEq]
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> trivial
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> trivial
     · have hlen : alloc.vec.Vec.len m.ctors = 1#usize := by
         have : (alloc.vec.Vec.len m.ctors).val = 1 := by simp [alloc.vec.Vec.len, hc]
         scalar_tac
@@ -243,21 +278,16 @@ the Rust's tests are decided first. -/
         arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2] at h
       obtain ⟨se, heta, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨ctors, hctors, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hst : se.1 = st1 := by
-        revert heta
-        split
-        · intro heta; cases Result.ok_injective heta; rfl
-        · split <;> (intro heta; simp only [bind_ok] at heta; cases Result.ok_injective heta; rfl)
+      obtain ⟨hst, heta'⟩ := bi_eta_spec heta
       cases Result.ok_injective h
       refine ⟨_, rfl, hst, ?_⟩
       simp only [absMemberShape, absCtorsL, hc, List.map_cons, List.map_nil,
         absIIndCaps, ConRon.Refine.vec_push_val hctors, alloc.vec.Vec.new,
         IIndCaps.mk.injEq]
-      simp only [pn_u64_bne_zero] at heta
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
         first
         | trivial
-        | (split_ifs at heta <;> simp_all [absU] <;> rw [← heta])
+        | exact heta'.symm
     · have hlen : ¬ alloc.vec.Vec.len m.ctors = 1#usize := by
         intro h; have := congrArg (·.val) h; simp [alloc.vec.Vec.len, hc] at this
       simp only [ite_eq_right hlen] at h
@@ -270,7 +300,7 @@ the Rust's tests are decided first. -/
       have hv' := ctor_name_list_twin0 _ v hv
       simp only [TwinEq, absCtorsL, hc] at hv'
       simp only [absMemberShape, absCtorsL, hc, List.map_cons, absIIndCaps, IIndCaps.mk.injEq]
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> trivial
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> trivial
   · have hget : (absBlockShape p).members[absU mi]? = none := by
       show (p.members.val.map absMemberShape)[mi.val]? = _
       rw [List.getElem?_eq_none (by simp; omega)]

@@ -433,16 +433,15 @@ pub fn decl_constants_axiom(pers: &PersTier, st: &mut AState, cv: &IConstantVal)
 }
 
 /// con-leche: ConLeche/Kernel/Install.lean:93-99 declTables
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove install::decl_tables_refines, then delete this line
 /// con-leche: ConLeche/Cached/CheckerC.lean:57-63 declTablesC
-/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove install::decl_tables_refines, then delete this line
-/// **The projection tables a declaration installs**: those of an inductive
+/// **The projection tables a declaration installs**: those of the members
+/// that may have projections (`block_shape::proj_members`) of an inductive
 /// block `readBlock` reads (none where a constructor is too short for them).
 pub fn decl_tables(pers: &PersTier, st: &mut AState, pd: &IDeclaration) -> Result<Vec<IProjTable>, CheckError> {
     match pd {
         IDeclaration::IndDecl(block, n_p) => match block_shape::read_block(pers, st, *n_p, block) {
             Err(e) => Err(e),
-            Ok(Ok(p)) => match block_tables(pers, st, &p, &p.members, 0, Vec::new()) {
+            Ok(Ok(p)) => match block_tables(pers, st, &p, &block_shape::proj_members(&p), 0, Vec::new()) {
                 Err(e) => Err(e),
                 Ok(Some(q)) => Ok(q),
                 Ok(None) => Ok(Vec::new()),

@@ -38,7 +38,8 @@ def absNestCtorNf (e : arena.inductives.positivity.NestCtorNf) : NestCtorNf :=
 
 def absNestCtx (c : arena.inductives.positivity.NestCtx) : NestCtx :=
   ⟨absNIdxL c.names, absNIdxL c.lps, absU c.n_p, c.n_idxs.val.map absU,
-    absEIdxL c.params, absLIdx c.sort, c.formers.val.map absIConstantVal, absLsIdx c.lvls⟩
+    absEIdxL c.params, absLIdx c.sort, c.formers.val.map absIConstantVal, absLsIdx c.lvls,
+    c.bound⟩
 
 def absNestState (s : arena.inductives.positivity.NestState) : NestState :=
   ⟨(s.keys.val.map absNestKey).toArray, s.active.val.map absNestKey,
@@ -61,10 +62,13 @@ def absRecShape (r : arena.inductives.block_shape.RecShape) : RecShape :=
 
 def absBlockShape (p : arena.inductives.block_shape.BlockShape) : BlockShape :=
   ⟨p.members.val.map absMemberShape, p.recs.val.map absRecShape, absU p.n_p,
-    absNIdx p.elim, absLIdx p.res_sort, p.large, p.is_prop⟩
+    absNIdx p.elim, absLIdx p.res_sort, p.large, p.is_prop,
+    p.flags.map fun fl => fl.val.map ConRon.Refine.absIndFlags⟩
 
 theorem absBlockShape_members (p : arena.inductives.block_shape.BlockShape) :
     (absBlockShape p).members = p.members.val.map absMemberShape := rfl
+theorem absBlockShape_flags (p : arena.inductives.block_shape.BlockShape) :
+    (absBlockShape p).flags = p.flags.map fun fl => fl.val.map ConRon.Refine.absIndFlags := rfl
 theorem absBlockShape_recs (p : arena.inductives.block_shape.BlockShape) :
     (absBlockShape p).recs = p.recs.val.map absRecShape := rfl
 

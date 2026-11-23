@@ -1420,8 +1420,7 @@ theorem recKExpected_eq {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.Bloc
     (hp : dShape st p = some pP) (hM : dMajor st M = some MP) :
     Arena.recKExpected p M = ConLeche.recKExpected pP MP := by
   obtain ⟨-, -, -, -, -, hctors, hmem, -, -⟩ := dMajor_inv hM
-  have hk := BlockShape.k_spec hp
-  have hip := (dShape_inv hp).2.2.2.2.2.2
+  have hfl := BlockShape.flagsAt_spec hp 0
   simp only [Arena.recKExpected, ConLeche.recKExpected, ← hmem]
   cases hm : M.member with
   | none => rfl
@@ -1444,7 +1443,7 @@ theorem recKExpected_eq {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.Bloc
         subst hrestP
         simp only [dCtor, Option.map_eq_some_iff] at hcP
         obtain ⟨cv, -, rfl⟩ := hcP
-        simp only [hk, hip]
+        simp only [hfl]
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:599-605 blockNestedBit
 **The block's container bit**: some field kind not flat, or some recursor's

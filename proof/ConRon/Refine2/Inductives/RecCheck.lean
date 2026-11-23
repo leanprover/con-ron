@@ -1365,35 +1365,31 @@ major — `sumRules` at the major's constructors, refired at an outside major. -
         have : (alloc.vec.Vec.len m.ctors).val = 1 := by simp [alloc.vec.Vec.len, hc]
         scalar_tac
       rw [ite_eq_left hl] at h
-      obtain ⟨k, hk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hk' := shape_k_twin p k hk
-      simp only [TwinEq] at hk'
+      obtain ⟨f, hf, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hf' := flags_at_twin p 0#u64 f hf
+      simp only [TwinEq] at hf'
+      have h0 : absU (0#u64) = 0 := rfl
+      rw [h0] at hf'
       simp only [absCtorsL, hc, List.map_cons, List.map_nil]
+      rw [hf']
       have hidx : alloc.vec.Vec.index
           (core.slice.index.SliceIndexUsizeSlice (arena.env.IConstantVal × Std.U64))
           m.ctors 0#usize = ok c := by
         rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
         simp [hc]
-      by_cases hk1 : k = 1#u64
-      · rw [ite_eq_left hk1] at h
-        have hk1' : (absBlockShape p).k = 1 := by rw [hk', hk1]; rfl
-        rw [hk1']
-        cases hp : p.is_prop
-        · rw [ite_eq_right (by simp [hp])] at h
-          cases Result.ok_injective h
-          simp [absBlockShape, hp]
-        · rw [ite_eq_left hp, hidx, bind_ok] at h
-          cases Result.ok_injective h
-          simp only [absBlockShape, hp, absU]
-          by_cases hc0 : c.2 = 0#u64
-          · simp [hc0]
-          · have : c.2.val ≠ 0 := fun hv => hc0 (by scalar_tac)
-            simp [hc0, this]
-      · rw [ite_eq_right hk1] at h
+      cases hk : f.is_k
+      · rw [hk] at h
+        simp only [Bool.false_eq_true, ↓reduceIte] at h
         cases Result.ok_injective h
-        have : (absBlockShape p).k ≠ 1 := by
-          rw [hk']; intro hv; exact hk1 (by simp [absU] at hv; scalar_tac)
-        simp [this]
+        simp [ConRon.Refine.absIndFlags, hk]
+      · rw [hk] at h
+        simp only [↓reduceIte, hidx, bind_ok] at h
+        cases Result.ok_injective h
+        simp only [ConRon.Refine.absIndFlags, hk, Bool.true_and, absU]
+        by_cases hc0 : c.2 = 0#u64
+        · simp [hc0]
+        · have : c.2.val ≠ 0 := fun hv => hc0 (by scalar_tac)
+          simp [hc0, this]
     · have hl : ¬ alloc.vec.Vec.len m.ctors = 1#usize := by
         intro hv; exact h1 (by have := congrArg (·.val) hv; simpa [alloc.vec.Vec.len] using this)
       rw [ite_eq_right hl] at h
@@ -1407,6 +1403,49 @@ major — `sumRules` at the major's constructors, refired at an outside major. -
 def absRecOut (x : arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
     alloc.vec.Vec arena.handle.EIdx) : IConstantVal × TargetMajor × List EIdx :=
   (absIConstantVal x.1, absTargetMajor x.2.1, absEIdxL x.2.2)
+
+theorem rule_out_all_abs {out : alloc.vec.Vec (arena.env.IConstantVal ×
+      arena.inductives.rec_check.TargetMajor × alloc.vec.Vec arena.handle.EIdx)} :
+    ∀ (i : Std.Usize) (acc o : alloc.vec.Vec (arena.env.IConstantVal ×
+        arena.inductives.rec_check.TargetMajor × alloc.vec.Vec arena.handle.EIdx)),
+      arena.inductives.rec_check.rule_out_all out i acc = ok o →
+      o.val.map absRecOut = acc.val.map absRecOut ++
+        ruleOutAll ((out.val.drop i.val).map absRecOut) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) out.val.length
+    (fun i (_ : Unit) => ∀ acc o, arena.inductives.rec_check.rule_out_all out i acc = ok o →
+      o.val.map absRecOut = acc.val.map absRecOut ++
+        ruleOutAll ((out.val.drop i.val).map absRecOut)) ?_ ?_ i ()
+  · intro i _ hn acc o h
+    rw [arena.inductives.rec_check.rule_out_all.eq_def,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len out by scalar_tac), Result.ok.injEq] at h
+    subst h
+    rw [List.drop_eq_nil_of_le hn]; simp [ruleOutAll]
+  · intro i _ hi ih acc o h
+    rw [arena.inductives.rec_check.rule_out_all.eq_def,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len out by scalar_tac)] at h
+    obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hxv := vec_index_some hx
+    rw [List.getElem?_eq_getElem hi, Option.some.injEq] at hxv
+    obtain ⟨iv, tm, rh⟩ := x
+    obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨iv1, hiv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨acc1, hacc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hi2' : i2.val = i.val + 1 := absSz_add_one hi2
+    rw [ih i2 () hi2' acc1 o h, ConRon.Refine.vec_push_val hacc1, hi2',
+      List.drop_eq_getElem_cons hi, hxv, target_major_dup_spec tm m hm,
+      Lockstep.PC2.i_constant_val_dup_id hiv1]
+    simp [ruleOutAll, absRecOut, absTargetMajor, absCtorsL, absEIdxL, alloc.vec.Vec.new]
+
+/-- `rule_out_all` from `0` ⊑ `ruleOutAll`. -/
+@[lockstep] theorem rule_out_all_twin (out : alloc.vec.Vec (arena.env.IConstantVal ×
+      arena.inductives.rec_check.TargetMajor × alloc.vec.Vec arena.handle.EIdx)) :
+    LSP (arena.inductives.rec_check.rule_out_all out 0#usize (alloc.vec.Vec.new _))
+      (fun o => TwinEq (ruleOutAll (out.val.map absRecOut)) (o.val.map absRecOut)) := by
+  intro o h
+  rw [TwinEq, rule_out_all_abs _ _ o h]
+  simp
 
 theorem block_rec_infos_tf_aux {pers} (p : arena.inductives.block_shape.BlockShape)
     (out : alloc.vec.Vec (arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×

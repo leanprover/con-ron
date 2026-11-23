@@ -578,6 +578,20 @@ block's members. -/
   cases a <;> cases b <;> simp_all [alloc.vec.Vec.new]
 
 open Lockstep in
+/-- `block_tables` over a member list `ms` from member `0` and an empty
+accumulator: `blockTables` of those members (the projection tables are read
+off `proj_members`). -/
+@[lockstep] theorem block_tables_ls0v {pers st lst} {p : arena.inductives.block_shape.BlockShape}
+    {ms : alloc.vec.Vec arena.inductives.block_shape.MemberShape}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a.map (fun v => v.val.map absIProjTable))
+      (arena.install.block_tables pers st p ms 0#usize (alloc.vec.Vec.new _)) lst
+      (blockTables (absBlockShape p) (ms.val.map absMemberShape)) := by
+  refine LS.tail (block_tables_ls hrel hinv p ms 0#usize _) (by simp) ?_
+  intro a b h
+  cases a <;> cases b <;> simp_all [alloc.vec.Vec.new]
+
+open Lockstep in
 /-- `block_constants` ⊑ `blockConstants`: the formers, the constructors, the recursors. -/
 @[lockstep] theorem block_constants_ls {pers st lst} {p : arena.inductives.block_shape.BlockShape}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :

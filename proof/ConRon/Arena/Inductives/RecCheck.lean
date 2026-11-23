@@ -244,7 +244,6 @@ def targetMajorNfs (mode : CheckMode) (fe : IFEnv) (p : BlockShape)
     else pure rest
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:210-214 targetCtorsOf
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove RecCheck.targetCtorsOf_bridge, then delete this line
 The constructors of a stored inductive `I` and its parameter count
 (`nestContainer`'s reading, which reads nothing of its context but the
 lookup). -/
@@ -514,14 +513,21 @@ def generatedRules (rP : Nat) (M : TargetMajor) (rhss : List EIdx) : AM (List IR
     let f ← auxRuleFire M rP
     pure (rules.map fun rl => { rl with fire := f })
 
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:462-466 BlockShape.ruleOut
+The cited `noRules` arm: **the generated recursors without rules or
+constructors to compare** (the caller reads `noRules`, so the other arm's
+`out` is passed as it is). -/
+def ruleOutAll (out : List (IConstantVal × TargetMajor × List EIdx)) :
+    List (IConstantVal × TargetMajor × List EIdx) :=
+  out.map fun g => (g.1, { g.2.1 with ctors := [] }, [])
+
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:468-477 recKExpected
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove RecCheck.recKExpected_bridge, then delete this line
-**The K flag a recursor of this block has** (official's `is_K_target`): the
-block is a proposition with one member, and the recursor's major is that member,
-with one constructor and no fields.  An outside major's recursor is never K. -/
+**The K flag a recursor of this block has** (official's `is_K_target`): member
+0's `isK` (`BlockShape.flagsAt`), and the recursor's major is a member, with
+one constructor and no fields.  An outside major's recursor is never K. -/
 def recKExpected (p : BlockShape) (M : TargetMajor) : Bool :=
   match M.member, M.ctors with
-  | some _, [c] => p.k == 1 && p.isProp && c.2 == 0
+  | some _, [c] => (p.flagsAt 0).isK && c.2 == 0
   | _, _ => false
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:490-496 blockNestedBit

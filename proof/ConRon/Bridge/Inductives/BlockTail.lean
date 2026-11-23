@@ -195,10 +195,11 @@ theorem dShape_members {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.Block
     (hp : dShape st p = some pP) (hms : ms.mapM (dMember st) = some msP) :
     dShape st { p with members := ms } = some { pP with members := msP } := by
   obtain ⟨-, hrecs, hnP, hel, hrs, hl, hip⟩ := dShape_inv hp
-  obtain ⟨m, r, n, e, s, l, i⟩ := pP
-  simp only at hrecs hnP hel hrs hl hip
+  have hfl := dShape_flags hp
+  obtain ⟨m, r, n, e, s, l, i, f⟩ := pP
+  simp only at hrecs hnP hel hrs hl hip hfl
   simp only [dShape, hms, hrecs, hel, hrs, Option.bind_eq_bind, Option.bind_some,
-    Option.pure_def, hnP, hl, hip]
+    Option.pure_def, hnP, hl, hip, hfl]
 
 end BT
 
@@ -305,6 +306,65 @@ theorem checkBlockTables_spec (fe : IFEnv) (env : Env) :
 
 /-! ## The checks after the pass -/
 
+/-- con-leche: none — a denoted shape taken as no proposition. -/
+theorem dShape_setIsProp {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    (b : Bool) (h : dShape st p = some pP) :
+    dShape st { p with isProp := b } = some { pP with isProp := b } := by
+  simp only [dShape] at h ⊢
+  cases h1 : p.members.mapM (dMember st) with
+  | none => rw [h1] at h; exact nomatch h
+  | some ms =>
+  cases h2 : p.recs.mapM (dRec st) with
+  | none => rw [h1, h2] at h; exact nomatch h
+  | some rs =>
+  cases h3 : denoteN st.ns p.elim with
+  | none => rw [h1, h2, h3] at h; exact nomatch h
+  | some el =>
+  cases h4 : denoteL st.ls p.resSort with
+  | none => rw [h1, h2, h3, h4] at h; exact nomatch h
+  | some so =>
+  rw [h1, h2, h3, h4] at h
+  obtain rfl := (Option.some.inj h).symm
+  rfl
+
+/-- con-leche: none — a denoted class without its constructors. -/
+theorem dMajor_noCtors {st : EStore} {m : Arena.TargetMajor} {mP : ConLeche.TargetMajor}
+    (h : dMajor st m = some mP) :
+    dMajor st { m with ctors := [] } = some { mP with ctors := [] } := by
+  obtain ⟨h1, h2, h3, h4, h5, -, h7, h8, h9⟩ := dMajor_inv h
+  simp only [dMajor, h1, h2, h3, h8, h9, dCtors, List.mapM_nil, Option.bind_eq_bind,
+    Option.bind_some, Option.pure_def, h4, h5, h7]
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:462-466 BlockShape.ruleOut —
+the twin's `noRules` arm denotes con-leche's. -/
+theorem ruleOutAll_denote {st : EStore} :
+    ∀ (out : List (IConstantVal × Arena.TargetMajor × List EIdx))
+      (outP : List (ConstantVal × ConLeche.TargetMajor × List Expr)),
+      out.mapM (dRecOut st) = some outP →
+      (Arena.ruleOutAll out).mapM (dRecOut st) =
+        some (outP.map fun g => (g.1, { g.2.1 with ctors := [] }, []))
+  | [], outP, h => by
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
+    subst h; rfl
+  | g :: gs, outP, h => by
+    obtain ⟨gP, gsP, rfl, hg, hgs⟩ := mapM_option_cons_inv h
+    have ih := ruleOutAll_denote gs gsP hgs
+    simp only [Arena.ruleOutAll, List.map_cons] at ih ⊢
+    simp only [dRecOut] at hg
+    cases h1 : Frontend.denoteCV st g.1 with
+    | none => rw [h1] at hg; exact nomatch hg
+    | some cv =>
+    cases h2 : dMajor st g.2.1 with
+    | none => rw [h1, h2] at hg; exact nomatch hg
+    | some M =>
+    cases h3 : Frontend.denoteEList st g.2.2 with
+    | none => rw [h1, h2, h3] at hg; exact nomatch hg
+    | some rh =>
+    rw [h1, h2, h3] at hg
+    obtain rfl := (Option.some.inj hg).symm
+    simp only [List.mapM_cons, dRecOut, h1, dMajor_noCtors h2, Frontend.denoteEList, ih,
+      Option.bind_eq_bind, Option.bind_some, Option.pure_def]
+
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:103-115 checkBlockTail
 con-leche: ConLeche/Verify/Cached/GenRecC.lean:1339 checkBlockTailS_run —
 **the checks after the pass**, from the formers' index `q.env1` (whose caches
@@ -337,11 +397,61 @@ theorem checkBlockTail_of (hk : CoreSpec Arena.checkFuel)
   have hzT : ∀ ms ∈ pP.members, Expr.WScoped 0 ms.cvT.type :=
     fun ms hms => hT ms.cvT (List.mem_map_of_mem hms)
   simp only [Arena.checkBlockTail] at hrun
+  -- the declared feature flags
+  obtain ⟨u0, sF, h01, h02⟩ := AM.bind_ok hrun
+  obtain ⟨cF, hFF⟩ : CoreStep env₁ q.env1 s sF ∧
+      FOk (ConLeche.ofExcept (m := FueledM) (ConLeche.blockFlagsCheck pP (ConLeche.blockIsRec pP) clsP
+        fun n => (env₁.findTable? n).isSome)) () := by
+    unfold Arena.checkBlockFlags at h01
+    cases hf : q.p.flags with
+    | none =>
+      rw [hf] at h01
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h01
+      refine ⟨CoreStep.refl hck, ?_⟩
+      have hfP : pP.flags = none := by rw [← dShape_flags hsh, hf]
+      simp only [ConLeche.blockFlagsCheck, hfP, ConLeche.ofExcept]
+      exact FOk.pure ()
+    | some fl =>
+      rw [hf] at h01
+      obtain ⟨b, sa, ka, za⟩ := AM.bind_ok h01
+      obtain ⟨pa, hb⟩ := blockIsRec_spec q.p pP s sa b hck.state hsh ka
+      simp only [RV] at hb
+      subst hb
+      obtain ⟨pb, hF⟩ := blockFlagsCheck_run pa.ok hck.caches.readL pa (hck.ienv.mono pa.ext)
+        (dShape_ext pa.ext _ _ hsh) (dMajor_ext.list pa.ext _ _ hcl) za
+      refine ⟨(pa.trans pb).toCore hck, ?_⟩
+      rw [hF]
+      exact FOk.pure ()
+  have xF := cF.ext
+  -- the field bound at a bounded proposition
+  obtain ⟨u00, sB, h03, h04⟩ := AM.bind_ok h02
+  obtain ⟨cB, hFB⟩ : CoreStep env₁ q.env1 sF sB ∧
+      FOk (ConLeche.checkBlockBound (fueledOpsM .verified) env₁ pP) () := by
+    have hbp := BlockShape.boundedProp_spec hsh
+    unfold Arena.checkBlockBound at h03
+    unfold ConLeche.checkBlockBound
+    rw [← hbp]
+    cases hbq : q.p.boundedProp with
+    | false =>
+      rw [hbq] at h03
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h03
+      exact ⟨CoreStep.refl cF.ok, FOk.pure ()⟩
+    | true =>
+      rw [hbq] at h03
+      simp only [↓reduceIte] at h03 ⊢
+      obtain ⟨cb, _, -, hFb⟩ := checkBlockCtors_specF q.env1 q.env1 hk henv₁
+        { q.p with isProp := false } { pP with isProp := false } env₁ q.p.members pP.members hzT
+        sF sB u00 cF.ok
+        ⟨dShape_setIsProp false (dShape_ext xF _ _ hsh), dMember_ext.list xF _ _ hms,
+          (hrel.mono xF).ienv⟩ h03
+      exact ⟨cb, hFb⟩
+  have xB := cF.ext.trans cB.ext
+  have hck' : CheckOK false env₁ q.env1 sB := cB.ok
   -- the index binders' sorts
-  obtain ⟨u1, s₁, h1, h2⟩ := AM.bind_ok hrun
+  obtain ⟨u1, s₁, h1, h2⟩ := AM.bind_ok h04
   obtain ⟨c1, _, -, hisF⟩ := checkBlockIdxSorts_specF q.env1 hk henv₁ q.p pP
-    q.p.members pP.members hzT s s₁ u1 hck ⟨hsh, hms⟩ h1
-  have x1 := c1.ext
+    q.p.members pP.members hzT sB s₁ u1 hck' ⟨dShape_ext xB _ _ hsh, dMember_ext.list xB _ _ hms⟩ h1
+  have x1 := xB.trans c1.ext
   -- the constructors consed
   have hcss : q.p.ctorGroups.mapM (dGroup s₁.store) = some pP.ctorGroups :=
     ctorGroups_denote (dShape_ext x1 _ _ hsh)
@@ -401,8 +511,25 @@ theorem checkBlockTail_of (hk : CoreSpec Arena.checkFuel)
   have x05 : Ext s.store s₅.store := by rw [hs5]; exact x04
   -- the stream's recursors against it
   obtain ⟨u6, s₆, h11, h12⟩ := AM.bind_ok h10
-  obtain ⟨c6, _, -, hFS⟩ := streamRecsCheck_spec _ hk henvG q.p.recs pP.recs out outP s₅ s₆ u6 c5
-    ⟨dRec_ext.list x05 _ _ hrecs, dRecOut_ext.list (by rw [hs5]; exact x4) _ _ hout⟩ h11
+  have hout5 : out.mapM (dRecOut s₅.store) = some outP :=
+    dRecOut_ext.list (show Ext s₃.store s₅.store by rw [hs5]; exact x4) _ _ hout
+  have hnr := BlockShape.noRules_spec (dShape_ext x05 _ _ hsh)
+  obtain ⟨c6, hFS⟩ : CoreStep (ConLeche.consBlockRecsT pP 0 outP env₂) _ s₅ s₆ ∧
+      FOk (ConLeche.streamRecsCheck (fueledOpsM .verified)
+        (mkFEnv (ConLeche.consBlockRecsT pP 0 outP env₂)) pP.recs (pP.ruleOut outP)) () := by
+    unfold ConLeche.BlockShape.ruleOut
+    rw [← hnr]
+    split at h11
+    · rename_i hc
+      rw [ite_eq_left hc]
+      obtain ⟨c6, _, -, hFS⟩ := streamRecsCheck_spec _ hk henvG q.p.recs pP.recs _ _ s₅ s₆ u6 c5
+        ⟨dRec_ext.list x05 _ _ hrecs, ruleOutAll_denote _ _ hout5⟩ h11
+      exact ⟨c6, hFS⟩
+    · rename_i hc
+      rw [ite_eq_right hc]
+      obtain ⟨c6, _, -, hFS⟩ := streamRecsCheck_spec _ hk henvG q.p.recs pP.recs out outP s₅ s₆ u6 c5
+        ⟨dRec_ext.list x05 _ _ hrecs, hout5⟩ h11
+      exact ⟨c6, hFS⟩
   have x06 : Ext s.store s₆.store := x05.trans c6.ext
   -- the pops, and the flush leaving them
   rw [hn] at h12
@@ -431,11 +558,12 @@ theorem checkBlockTail_of (hk : CoreSpec Arena.checkFuel)
     c7.state c7.pins (hrel₃.ienv.mono (by rw [hs7]; exact Ext.refl _))
     (denoteProjTableList_ext x07 hQ) h15
   obtain ⟨rfl, rfl⟩ := AM.pure_ok h16
-  refine ⟨((c1.toInst.trans i2).trans (c3.toInst.trans (p4.toInst.trans (i5.trans
-    (c6.toInst.trans (i7.trans p8.toInst)))))), ?_⟩
+  refine ⟨(cF.toInst.trans (cB.toInst.trans ((c1.toInst.trans i2).trans (c3.toInst.trans
+    (p4.toInst.trans (i5.trans (c6.toInst.trans (i7.trans p8.toInst)))))))), ?_⟩
   unfold ConLeche.checkBlockTail
   subst he₂
-  exact FOk.bind hisF (FOk.bind hGRF (FOk.seq hKF (FOk.seq hFS hFT)))
+  exact FOk.seq hFF (FOk.seq hFB
+    (FOk.bind hisF (FOk.bind hGRF (FOk.seq hKF (FOk.seq hFS hFT)))))
 
 /-! ## The pass -/
 
@@ -768,8 +896,9 @@ theorem checkBlock_bridge (hk : CoreSpec Arena.checkFuel)
   have x4 := i4.ext
   -- the projection tables, read off the block once
   obtain ⟨oQ, s₄₁, h81, h82⟩ := AM.bind_ok h8
-  obtain ⟨p41, -, hQ⟩ := blockTables_run p₀.members p₀P.members i4.state
-    (dShape_ext (x13.trans x4) _ _ hp) (dMember_ext.list (x13.trans x4) _ _ hms₀) h81
+  obtain ⟨p41, -, hQ⟩ := blockTables_run p₀.projMembers p₀P.projMembers i4.state
+    (dShape_ext (x13.trans x4) _ _ hp)
+    (BlockShape.projMembers_spec (dShape_ext (x13.trans x4) _ _ hp)) h81
   obtain ⟨Q, s₄₂, h83, h84⟩ := AM.bind_ok h82
   obtain ⟨rfl, rfl⟩ := unwrapOr_ok h83
   obtain ⟨QP, hQP, hQd, -⟩ := hQ

@@ -4,13 +4,16 @@
 
 `ConLeche/Kernel/Inductives/StructInstall.lean` whole, over handles: the
 binder-domain walk and the checks of the projection TABLE a structure-like
-member installs (the table itself is read off the block, `Arena/Install.lean`).
+member installs (the table itself is read off the block, `Arena/Install.lean`),
+and the per-field universe bound the constructors' stage and the positivity
+check's container frames read (`checkStructFieldSortsI`).
 
 **The cached twins collapse into these**: con-leche carries each of this
 module's two functions twice — the specification over `Env`
 (`StructInstall.lean`) and the cached driver's twin over `FEnv`
 (`checkStructDomsAtC`, `ConLeche/Cached/IndBlock.lean`;
-`checkStructProjTableC`, `ConLeche/Cached/IndTail.lean`).  The arena has ONE
+`checkStructProjTableC`, `ConLeche/Cached/IndTail.lean`;
+`checkStructFieldSortsIC`, `ConLeche/Cached/IndPositivity.lean`).  The arena has ONE
 environment type, the index, and one tier, so the twin is one function citing
 both.
 -/
@@ -63,5 +66,32 @@ def checkStructProjTable (t : IProjTable) (fe : IFEnv) : AM Unit := do
     fail (.internal "direct structure: projection table before its structure")
   unless (fe.findTable? t.structName).isNone do
     fail (.invalid "projection table taken")
+
+/-! ## The per-field universe bound -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:75-99 checkStructFieldSortsI
+con-leche: ConLeche/Cached/IndPositivity.lean:337-353 checkStructFieldSortsIC
+con-leche: ConLeche/Cached/IndBlock.lean:127-142 checkStructFieldSortsC
+Every field's domain has a sort over the opened constructor telescope, under
+the official per-field universe bound unless the family is propositional.
+Walks the fields from the last to the first. -/
+def checkStructFieldSortsI (mode : CheckMode) (fe : IFEnv) (isProp large : Bool)
+    (s : LIdx) (nP : Nat) (fvs idxArgs : List EIdx) : Nat → AM Unit
+  | 0 => pure ()
+  | j + 1 => do
+    let fv ← unwrapOr fvs[j]? (.internal "direct sum: field index")
+    let ty ← inferTypeCore mode fe checkFuel (nP + j) (← fvarTypeD fv)
+    let u ← ensureSortCore mode fe checkFuel (nP + j) ty
+    if !isProp then do
+      let lu ← readLevelM u
+      let ls ← readLevelM s
+      unless ← liftFueled "level comparison" (Level.leq lu ls) do
+        fail (.invalid "a constructor field lives in a larger universe than its inductive type")
+    else if large then do
+      let z ← zeroLevel
+      unless (← lvlEq? u z) == some true || idxArgs.contains fv do
+        fail (.invalid "direct sum: large eliminator with a non-propositional \
+          field outside the indices")
+    checkStructFieldSortsI mode fe isProp large s nP fvs idxArgs j
 
 end ConRon.Arena

@@ -34,6 +34,7 @@ module
 
 import ConRon.Bridge.Inductives.FieldTele
 import ConRon.Bridge.Inductives.StructParts
+import ConRon.Bridge.Inductives.SumInstall
 import ConRon.Bridge.Checker.Base
 import ConLeche.Verify.Cached.NestPosC
 /- `simp only [List.allM]`/`[List.anyM]` unfold the toolchain's monadic list
@@ -2048,6 +2049,78 @@ section Frame
 
 variable {env : Env} {fe : IFEnv}
 
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:791-801 nestFrameSorts
+**A container frame's field bound**, against
+`nestFrameSorts (fueledOpsM .verified) env sortP hi`, pairwise to the shorter list:
+each walked telescope opened at `hi` (scoped there, as `nestCtors_spec` answers
+it), its fields' sorts by `checkStructFieldSortsI_specF`. -/
+theorem nestFrameSorts_specF (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
+    (sort : LIdx) (sortP : Level) (hi : Nat) :
+    ∀ (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat))
+      (os : List (List Arena.NestFieldKind × EIdx)) (osP : List (List ConLeche.NestFieldKind × Expr)),
+    (∀ o ∈ osP, Expr.WScoped hi o.2) →
+    CSpecF env fe
+      (fun st => denoteL st.ls sort = some sortP ∧ dCtors st cs = some csP ∧
+        os.mapM (dOut st) = some osP)
+      (Arena.nestFrameSorts .verified fe sort hi cs os) (fun _ _ _ => True)
+      (ConLeche.nestFrameSorts (fueledOpsM .verified) env sortP hi csP osP) := by
+  intro cs
+  induction cs with
+  | nil =>
+    intro csP os osP _ s₀ s' r hok hpre hrun
+    obtain ⟨-, hcs, -⟩ := hpre
+    simp only [dCtors, List.mapM_nil, Option.pure_def, Option.some.injEq] at hcs
+    subst hcs
+    simp only [Arena.nestFrameSorts] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨CoreStep.refl hok, (), trivial, by
+      simp only [ConLeche.nestFrameSorts]; exact FOk.pure ()⟩
+  | cons c cs ih =>
+    intro csP os osP hws s₀ s' r hok hpre hrun
+    obtain ⟨hsort, hcs, hos⟩ := hpre
+    obtain ⟨cP, csP', rfl, hc, hcs'⟩ := mapM_option_cons_inv hcs
+    cases os with
+    | nil =>
+      simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hos
+      subst hos
+      simp only [Arena.nestFrameSorts] at hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      exact ⟨CoreStep.refl hok, (), trivial, by
+        simp only [ConLeche.nestFrameSorts]; exact FOk.pure ()⟩
+    | cons o os =>
+    obtain ⟨oP, osP', rfl, ho, hos'⟩ := mapM_option_cons_inv hos
+    obtain ⟨cv, hcv, rfl⟩ : ∃ cv, Frontend.denoteCV s₀.store c.1 = some cv ∧ cP = (cv, c.2) := by
+      simp only [dCtor, Option.map_eq_some_iff] at hc
+      obtain ⟨x, hx, rfl⟩ := hc
+      exact ⟨x, hx, rfl⟩
+    obtain ⟨tyN, htyN, rfl⟩ : ∃ tyN, denoteE s₀.store o.2 = some tyN ∧ oP = (o.1.map kindOf, tyN) := by
+      simp only [dOut, Option.map_eq_some_iff] at ho
+      obtain ⟨x, hx, rfl⟩ := ho
+      exact ⟨x, hx, rfl⟩
+    have hW : Expr.WScoped hi tyN := hws _ List.mem_cons_self
+    simp only [Arena.nestFrameSorts] at hrun
+    obtain ⟨oq, s₂, k2, z3⟩ := AM.bind_ok hrun
+    obtain ⟨p2, hoq⟩ := openPisAtFvarsF_run hok.state htyN k2
+    obtain ⟨xq, s₃, k3, z4⟩ := AM.bind_ok z3
+    obtain ⟨rfl, hs3⟩ := unwrapOr_ok k3
+    subst s₃
+    obtain ⟨fvs, rest⟩ := xq
+    obtain ⟨xsP, xP, hxq, hxs, -⟩ := denoteOpen_some_inv hoq
+    have c2 := p2.toCore hok
+    obtain ⟨u5, s₅, k5, z5⟩ := AM.bind_ok z4
+    have hfvsc := ConRon.Bridge.Inductives.openers_typeD_WScoped hxq hW
+    obtain ⟨c5, _, -, fk5⟩ := checkStructFieldSortsI_specF fe hk henv false false sort
+      sortP hi fvs [] xsP [] c.2 hfvsc s₂ s₅ u5 c2.ok
+      ⟨denoteL_ext hsort c2.ext, hxs, rfl⟩ k5
+    have c25 := c2.trans c5
+    obtain ⟨c6, _, -, fk6⟩ := ih csP' os osP' (fun y hy => hws y (List.mem_cons_of_mem _ hy))
+      s₅ s' r c5.ok ⟨denoteL_ext hsort c25.ext, dCtors_ext c25.ext _ _ hcs',
+        dOut_ext.list c25.ext _ _ hos'⟩ z5
+    refine ⟨c25.trans c6, (), trivial, ?_⟩
+    unfold ConLeche.nestFrameSorts
+    simp only [hxq]
+    exact FOk.bind FOk.unwrapOr (FOk.bind fk5 fk6)
+
 /-- con-leche: none — `List.mapIdx` of an index-blind function is `map`. -/
 theorem mapIdx_blind {α β : Type} (f : α → β) (l : List α) :
     l.mapIdx (fun _ a => f a) = l.map f := by
@@ -2067,8 +2140,9 @@ theorem nestFrame_eq (mode : CheckMode) (fe : IFEnv) (ctx : Arena.NestCtx) (fuel
       let names := grp.map (·.1)
       let ctors ← Arena.nestGroupCtors fe nPc names []
       let holes ← grp.zipIdx.mapM fun ((_, ty), i) => internFVarE (hi + i) ty
-      let (_, ns2) ← Arena.nestCtors mode fe ctx false fuel prog2 (hi + grp.length) us ds
+      let (outs, ns2) ← Arena.nestCtors mode fe ctx false fuel prog2 (hi + grp.length) us ds
         names holes ctors ns []
+      if ctx.bound then Arena.nestFrameSorts mode fe ctx.sort (hi + grp.length) ctors outs
       pure ns2) := by
   rw [Arena.nestFrame.eq_def]
 
@@ -2136,7 +2210,7 @@ theorem nestFrame_spec (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
         ConLeche.NestHole))]
     exact dProg_append (dProg_ext hx06 _ _ hprog)
       (dHole_ext.list (p5.ext.trans p6.ext) _ _ hfr)
-  obtain ⟨c7, v, ⟨-, hv2, -⟩, hFv⟩ := nestCtors_spec hk henv false fuel
+  obtain ⟨c7, v, ⟨hv1, hv2, hv3⟩, hFv⟩ := nestCtors_spec hk henv false fuel
     (fun _ => ConLeche.nestPos (fueledOpsM .verified) env ctxP fuel) (fun _ => by simp)
     (fun _ => by simpa using ih) _ _ (hi + grpP.length) us usP ds dsP _ _ holes _
     (fun d hd => Expr.WScoped.mono (Nat.le_add_right _ _) (hds d hd))
@@ -2145,11 +2219,31 @@ theorem nestFrame_spec (hk : CoreSpec Arena.checkFuel) (henv : EnvWF env)
       dGrp_names (dGrp_ext (p5.ext.trans p6.ext) _ _ hgrp4), hholes,
       dCtors_ext p6.ext _ _ hvc, dState_ext hx06 _ _ hns, rfl⟩ h13
   obtain ⟨o, ns2⟩ := q
-  dsimp only at h14
-  obtain ⟨rfl, rfl⟩ := AM.pure_ok h14
-  refine ⟨c6.trans c7, v.2, hv2, ?_⟩
-  simp only [ConLeche.nestFrame, hfind]
-  exact FOk.bind hFty (FOk.bind hFc (FOk.bind hFv (FOk.pure _)))
+  dsimp only at h14 hv1 hv2
+  have c67 := c6.trans c7
+  have hbound : ctx.bound = ctxP.bound := by
+    obtain ⟨_, _, _, _, _, hceq, -⟩ := dCtx_inv hctx
+    rw [hceq]
+  cases hb : ctxP.bound with
+  | false =>
+    rw [hbound, hb] at h14
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok (AM.pure_bind_ok h14)
+    refine ⟨c67, v.2, hv2, ?_⟩
+    simp only [ConLeche.nestFrame, hfind, hb]
+    exact FOk.bind hFty (FOk.bind hFc (FOk.bind hFv (FOk.pure _)))
+  | true =>
+    rw [hbound, hb] at h14
+    obtain ⟨u8, s₈, k8, z8⟩ := AM.bind_ok h14
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z8
+    have hsort : denoteL s₇.store.ls ctx.sort = some ctxP.sort := by
+      obtain ⟨_, _, _, _, _, hceq, -, -, -, hs, -⟩ := dCtx_inv (dCtx_ext _ (hx06.trans c7.ext) _ _ hctx)
+      rw [hceq]; exact hs
+    obtain ⟨c8, _, -, hF8⟩ := nestFrameSorts_specF hk henv ctx.sort ctxP.sort
+      (hi + grpP.length) ctors vc o v.1 hv3 s₇ _ u8 c7.ok
+      ⟨hsort, dCtors_ext (p6.ext.trans c7.ext) _ _ hvc, by simpa using hv1⟩ (by rw [hlenG] at k8; exact k8)
+    refine ⟨c67.trans c8, v.2, dState_ext c8.ext _ _ hv2, ?_⟩
+    simp only [ConLeche.nestFrame, hfind, hb]
+    exact FOk.bind hFty (FOk.bind hFc (FOk.bind hFv (FOk.seq hF8 (FOk.pure _))))
 
 end Frame
 

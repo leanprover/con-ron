@@ -153,7 +153,7 @@ def fieldSortBoundSpec (isProp large : Bool) (s u : LIdx) (fv : EIdx)
     let lu ← readLevelM u
     let ls ← readLevelM s
     unless ← liftFueled "level comparison" (ConLeche.Level.leq lu ls) do
-      fail (.invalid "direct sum: field universe too large")
+      fail (.invalid "a constructor field lives in a larger universe than its inductive type")
   else if large then do
     let z ← zeroLevel
     unless (← lvlEq? u z) == some true || idxArgs.contains fv do

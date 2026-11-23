@@ -3,7 +3,7 @@
 (DESIGN.md §8, task #97d-2; task #105)
 
 `ConLeche/Kernel/Inductives/SumInstall.lean` whole, over handles: the type
-former's telescope, the per-field universe bound, the constructors' stage
+former's telescope, the constructors' stage
 (every constructor stored AS DECLARED, every stage a check returning nothing)
 and the stored rules.  The Rust twin is `arena::inductives::sum_install`.
 
@@ -11,9 +11,8 @@ and the stored rules.  The Rust twin is `arena::inductives::sum_install`.
 
 * **One function per stage, at the index**: each function is both the
   `Env`-level specification and its cached twin over the index
-  (`checkSumCtorC`, `checkSumCtorsC` in `ConLeche/Cached/IndBlock.lean`,
-  `checkStructFieldSortsIC` in `ConLeche/Cached/IndPositivity.lean`), cited
-  side by side; the field loops are list loops.
+  (`checkSumCtorC`, `checkSumCtorsC` in `ConLeche/Cached/IndBlock.lean`),
+  cited side by side; the field loops are list loops.
 * **`consSumCtors` stays pure** — the index push touches no term.
 -/
 module
@@ -43,34 +42,6 @@ def checkSumTele (n : Nat) (cvTa₀ : IConstantVal) : AM (IConstantVal × LIdx) 
   | none => fail (.invalid "direct sum: type former does not reduce to a sort")
 
 /-! ## The constructors' stage -/
-
-/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:75-99 checkStructFieldSortsI
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove SumInstall.checkStructFieldSortsI_bridge, then delete this line
-con-leche: ConLeche/Cached/IndPositivity.lean:337-353 checkStructFieldSortsIC
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove SumInstall.checkStructFieldSortsI_bridge, then delete this line
-con-leche: ConLeche/Cached/IndBlock.lean:127-142 checkStructFieldSortsC
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove SumInstall.checkStructFieldSortsI_bridge, then delete this line
-Every field's domain has a sort over the opened constructor telescope, under
-the official per-field universe bound unless the family is propositional.
-Walks the fields from the last to the first. -/
-def checkStructFieldSortsI (mode : CheckMode) (fe : IFEnv) (isProp large : Bool)
-    (s : LIdx) (nP : Nat) (fvs idxArgs : List EIdx) : Nat → AM Unit
-  | 0 => pure ()
-  | j + 1 => do
-    let fv ← unwrapOr fvs[j]? (.internal "direct sum: field index")
-    let ty ← inferTypeCore mode fe checkFuel (nP + j) (← fvarTypeD fv)
-    let u ← ensureSortCore mode fe checkFuel (nP + j) ty
-    if !isProp then do
-      let lu ← readLevelM u
-      let ls ← readLevelM s
-      unless ← liftFueled "level comparison" (Level.leq lu ls) do
-        fail (.invalid "direct sum: field universe too large")
-    else if large then do
-      let z ← zeroLevel
-      unless (← lvlEq? u z) == some true || idxArgs.contains fv do
-        fail (.invalid "direct sum: large eliminator with a non-propositional \
-          field outside the indices")
-    checkStructFieldSortsI mode fe isProp large s nP fvs idxArgs j
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:41-82 checkSumCtor
 con-leche: ConLeche/Cached/IndBlock.lean:144-170 checkSumCtorC
