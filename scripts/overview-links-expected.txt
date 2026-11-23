@@ -1366,45 +1366,45 @@
   1278      pub env: IStreamIndex,
   1279  }
 
-== crates/con-ron-core/src/arena/env.rs#L752-L789
-   752  /// con-leche: ConLeche/Kernel/FEnv.lean:189-218 FEnv
-   753  /// Lean twin: `proof/ConRon/Arena/Env.lean:274-286 IFEnv` — the environment
-   754  /// with its `O(1)` index (DESIGN.md §8.3 lesson 13), over the frozen base of a
-   755  /// stream's index, and the two literal flags of its lookups.  con-leche's `ovl`
-   756  /// field is not ported (see `ifenv_find`).
-   757  ///
-   758  /// **The environment has two tiers, like the store.**  An `IFEnv` is one LAYER:
-   759  /// a job's own, empty until its record pushes.  The BASE is the stream's index
-   760  /// (`arena::stream_index::IStreamIndex`), built once before any check and
-   761  /// frozen into the `PersTier` (`checker::freeze_tier`), where every worker reads
-   762  /// it by reference.  The layer's own entries are all visible (con-leche's local
-   763  /// index has no counter); the base is read below the layer's two bounds,
-   764  /// con-leche's `FBase.below` and `FBase.belowRec`, which live here because the
-   765  /// base itself is shared.
-   766  ///
-   767  /// **The index row is a SLOT and not an `IConstantInfo`** (task #97-P6-5,
-   768  /// lever 1): the twin's row carries the constant itself, a shared value in Lean
-   769  /// and a second deep copy in Rust.  Every writer keeps `idx` and `env.consts`
-   770  /// in step (`ifenv_push`, `ifenv_push_temp`, `ifenv_pop_temp`) and
-   771  /// `ifenv_find` reads `env.consts[s]`.  The table map `tbls` is built the same
-   772  /// way: its row is the table's slot in `env.tables`.
-   773  pub struct IFEnv {
-   774      pub env: IEnv,
-   775      pub idx: HashMap<NIdx, u64>,
-   776      pub tbls: HashMap<NIdx, u64>,
-   777      /// The base's constants are visible below this counter (`FBase.below`).
-   778      pub base_below: u64,
-   779      /// The base's tables are visible below this record position
-   780      /// (`FBase.belowRec`).
-   781      pub base_below_rec: u64,
-   782      /// **Are `Nat` literals expandable** here (`nat_lit_stored_by`): the core
-   783      /// reads it at every literal it meets, so it is set where the layer is made
-   784      /// and kept by every push.
-   785      pub nat_lit: bool,
-   786      /// **Are string literals expandable** here (`str_lit_stored_by`), as
-   787      /// `nat_lit`.
-   788      pub str_lit: bool,
-   789  }
+== crates/con-ron-core/src/arena/env.rs#L755-L792
+   755  /// con-leche: ConLeche/Kernel/FEnv.lean:189-218 FEnv
+   756  /// Lean twin: `proof/ConRon/Arena/Env.lean:278-290 IFEnv` — the environment
+   757  /// with its `O(1)` index (DESIGN.md §8.3 lesson 13), over the frozen base of a
+   758  /// stream's index, and the two literal flags of its lookups.  con-leche's `ovl`
+   759  /// field is not ported (see `ifenv_find`).
+   760  ///
+   761  /// **The environment has two tiers, like the store.**  An `IFEnv` is one LAYER:
+   762  /// a job's own, empty until its record pushes.  The BASE is the stream's index
+   763  /// (`arena::stream_index::IStreamIndex`), built once before any check and
+   764  /// frozen into the `PersTier` (`checker::freeze_tier`), where every worker reads
+   765  /// it by reference.  The layer's own entries are all visible (con-leche's local
+   766  /// index has no counter); the base is read below the layer's two bounds,
+   767  /// con-leche's `FBase.below` and `FBase.belowRec`, which live here because the
+   768  /// base itself is shared.
+   769  ///
+   770  /// **The index row is a SLOT and not an `IConstantInfo`** (task #97-P6-5,
+   771  /// lever 1): the twin's row carries the constant itself, a shared value in Lean
+   772  /// and a second deep copy in Rust.  Every writer keeps `idx` and `env.consts`
+   773  /// in step (`ifenv_push`, `ifenv_push_temp`, `ifenv_pop_temp`) and
+   774  /// `ifenv_find` reads `env.consts[s]`.  The table map `tbls` is built the same
+   775  /// way: its row is the table's slot in `env.tables`.
+   776  pub struct IFEnv {
+   777      pub env: IEnv,
+   778      pub idx: HashMap<NIdx, u64>,
+   779      pub tbls: HashMap<NIdx, u64>,
+   780      /// The base's constants are visible below this counter (`FBase.below`).
+   781      pub base_below: u64,
+   782      /// The base's tables are visible below this record position
+   783      /// (`FBase.belowRec`).
+   784      pub base_below_rec: u64,
+   785      /// **Are `Nat` literals expandable** here (`nat_lit_stored_by`): the core
+   786      /// reads it at every literal it meets, so it is set where the layer is made
+   787      /// and kept by every push.
+   788      pub nat_lit: bool,
+   789      /// **Are string literals expandable** here (`str_lit_stored_by`), as
+   790      /// `nat_lit`.
+   791      pub str_lit: bool,
+   792  }
 
 == crates/con-ron-core/src/arena/monad.rs#L173-L237
    173  /// con-leche: ConLeche/Cached/ExprOpsC.lean:206-208 MemoXP
