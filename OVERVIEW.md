@@ -297,7 +297,7 @@ was built with.
 ## 3. What is proved
 
 The main theorems are in
-[`proof/ConRon/MainTheorem.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L9-L48).
+[`proof/ConRon/MainTheorem.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L10-L97).
 They are con-leche's main theorems
 ([`ConLeche/MainTheorem.lean`](https://github.com/leanprover/con-leche/blob/master/ConLeche/MainTheorem.lean)),
 under the same names and in the same order, and each says word for word what
@@ -310,7 +310,7 @@ the embedded pin text, and on nothing else: no `sorry`, no `native_decide`.
 A `#guard_msgs` check at the end of the file keeps it that way.
 
 **A lean4export file**
-([`main_json_model`, `main_no_False`, `main_compare_json_model`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L60-L83)):
+([`main_json_model`, `main_no_False`, `main_compare_json_model`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L109-L134)):
 
 ```lean
 theorem main_json_model (V : Type w) [ConLeche.SetTheory V] {file : String} {fs : FS}
@@ -338,7 +338,7 @@ definition what its value denotes, every recursor computing by its rules
 and axioms justified by the solution `s`.
 
 **The `.olean` modes**
-([`main_oleans` … `main_modular_one`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L94-L145)):
+([`main_oleans` … `main_modular_one`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L145-L197)):
 
 ```lean
 theorem main_oleans (V : Type w) [SetTheory V] {dirs root : String} {r : Name} {fs : FS}
@@ -386,7 +386,7 @@ on what the modules see of each other.  `main_modular_one` says the same of
 one `--olean --modular` process.
 
 **The compared modular runs**
-([`main_modular_compare`, `main_modular_compare_one`, `main_modular_compare_no_False`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L155-L214))
+([`main_modular_compare`, `main_modular_compare_one`, `main_modular_compare_no_False`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem.lean#L207-L267))
 give `main_modular`'s family for the challenge's closure, read through the
 challenge's directories, when every command `--schedule-commands --compare`
 prints exits 0 (the compared graph check, a worker at every module but the
@@ -395,7 +395,7 @@ challenge, the compare worker at the challenge), or one `--olean --modular
 no constant of type `False`.
 
 **`ConRon.CanGive`**
-([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Model.lean#L1-L1)):
+([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/MainTheorem/Model.lean#L417-L420)):
 
 ```lean
 def CanGive (args : List String) (fs : ConLeche.FS) (c : UInt8) : Prop :=
