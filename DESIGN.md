@@ -74351,3 +74351,79 @@ PORTED — the same 41 failing cases, line for line, as master's binary gives on
 stays legacy for good; slice 5 retires `run_legacy` and the now unreached `--olean` arms of
 `bin/con-ron.rs` (`Input::Oleans`, `Run::Module`/`Run::Modular` at no comparison).  Upstream
 candidates: Batteries' `String.splitOn` lemma (its TODO, `splitOn_one` here).
+
+### Task #172 — con-leche sync bc667610 → d8c8c227 (con-leche's `renovation` branch) on con-ron's `renovation` branch: the inductive feature flags (2026-11-23, Opus)
+
+**Where it lands.**  con-ron's new `renovation` branch (cut at master `fbce7efe`) follows
+con-leche's `renovation` branch, the kernel renovation of lean4 PR #16595.  The sync started
+with `bump-con-leche.sh start d8c8c227 --from renovation` and lands on `renovation` by hand
+(`land` merges into master): a `--no-ff` merge with this report, the Lake cache seeded, the
+worktree dropped.  The shared con-leche checkout is NOT moved (`sync-shared-con-leche.sh` not
+run): master and its worktrees stay at bc667610.
+
+Upstream absorbed (16 commits): #630, in its three lanes — parse (lean4export 3.2.0's five
+per-inductive booleans `isImpredicative`, `isK`, `hasProjections`, `hasEta`, `hasLargeElim`
+read onto `IndCaps.flags`), install (the block checked at the declared flags, the nested
+auxiliary types' rules) and totality (`BlockShape.flagsAt` total: declared, or `derivedFlags`
+as official computed them).  No toolchain move (v4.36.0).  `update --auto`: 112 findings
+(109 `CHANGED`, 3 `GONE`, all three `moved-changed`: `checkStructFieldSortsI` to
+StructInstall), 505 citations merely moved, 0 deleted mechanically; 112 markers → 0.
+Coverage 1202/1254 → 1202/1276 at start → 1221/1273 (52 uncovered, as before); three new
+skips (`ofExcept`, `BlockShape.headName`, `BlockShape.ruleCtors`).
+
+**How it was done.**  Two lanes, as upstream's: P (data + parse) committed the data slice
+first (`IndFlags`, `IndCaps.flags`, `IIndCaps.flags`; installed caps carry `none`, as
+upstream's `kind.storedAt`), and lane I (install) branched from it while P did the parse.
+Heavy commands through a three-slot `flock` script (`_tmp/t172/slot.sh`, #150's).
+
+**Lane P.**  Rust: `IndFlags` with dup/beq (and their `Option` forms); the scanner's five
+keys (upstream's order; con-ron's key classifier compares through `match_lit`, so upstream's
+unrolled `lit11`/`lit13`/`lit14` have no counterpart and their citations sit on `key_at`),
+`IndTypeRec`'s five `Option bool` slots with the duplicate / non-boolean errors, the `.olean`
+reader emitting none; `export_c::block_flags_err` (upstream's two messages: a record with
+some but not all flags, a block whose records disagree), run after the unsafe decline where
+upstream has it; the block's type constants store the record's flags.  Rust tests: the key
+alphabet at 70 keys, `ind_type_feature_flags` (upstream's ScanTests additions).  Twin:
+`IIndCaps.flags : Option IndFlags` (con-leche's own type: no handles), `indTypeRecFlags`,
+`indTypeRecFlagsPartial`, `blockFlagsErrD` as cited copies of upstream's (the twin does not
+import `ConLeche.Frontend.ExportC`; Theorem 1 relates them by `rfl`).  Theorem 1:
+`validateIndD_run'` gains the flags step, `installIndD_run` at the record's flags;
+`denoteCaps_default` is now stated for any flags.  Theorem 2: the key classifier extended in
+its case-by-case shape, `scanIndTypeLoop` with the five state arguments, a lemma per new
+export_c helper; `absIndFlags`, `ind_flags_opt_dup_eq`, `ind_flags_opt_beq_eq`.
+
+**Lane I.**  BlockShape: `flags`, `derivedFlags`, `flagsAt` (total), `noRules`,
+`boundedProp`, `projAllowed`, `projMembersFrom`/`projMembers`; `readBlock = readBlockShape +
+blockFlagsOf`.  `memberFlagsCheck`/`membersFlagsCheck`/`blockFlagsCheck`; `streamKCheck`
+rejects a recursor with rules at `noRules`; `recKExpected` at `flagsAt 0`, `ruleOut`;
+`blockCapsAt`'s η reads `hasEta`; `NestCtx.bound` and the container frames' `nestFrameSorts`;
+`checkBlockBound` (the constructors' stage re-run at `isProp := false`); projection tables
+from `projMembers` in `checkBlock` and `declTables`; `checkStructFieldSortsI` moved to
+StructInstall with upstream's message.  Deviations: `blockFlagsCheck` fails in the arena
+monad directly (it reads the block's sort as a handle), so no `ofExcept`; the `blockIsRec`
+walk runs only at a flagged block (upstream's check is `pure ()` at the others — same
+verdict); the twin's `checkBlockFlags` mirrors the Rust's `check_block_flags`; the Theorem 1
+lemma for `checkStructFieldSortsI` stays in `Bridge/Inductives/SumInstall` (moving it to
+`Bridge/StructInstall` would close an import cycle).  Theorem 2: a lemma per new or changed
+function; no Prims or Lockstep-core edits.  No statement changes beyond lemma renames.
+
+**Verdicts.**  `diff-e2e.sh`: master's binary at the new pin agreed on 774/801 (27 `ind_flags_*`
+fixtures differ); the branch agrees on 801/801.  The block whose records disagree on carrying
+flags has no fixture (upstream has none either).
+
+**Measured** (§7.x, by hand: `measure` builds master, which had moved 24 commits past
+`renovation`'s base, task #171's driver; the baseline is the start's `fbce7efe` binary).
+`Init`, `--verified --jobs=1`, `perf stat -e instructions:u,cycles:u`, one run each,
+accepting 57 919 / 57 919:
+
+| binary | instructions:u | cycles:u |
+|---|---:|---:|
+| `renovation` `fbce7efe` | 165 587 446 334 | 62 596 577 387 |
+| this branch | **165 590 701 313** (+0.002 %) | 62 557 174 161 |
+
+**A trap for the next sync.**  Both lanes ran `scripts/provenance.py update` (no `--old`)
+inside a lane worktree while the pin was still uncommitted, and it misplaced citations
+(e.g. `IndFlags` at 196–204, really 188–194; lane I's run re-added ~90 `CHANGED` markers):
+without `--old` it diffs against the committed pin.  Both reverted and set their citations
+with `locate`; `check` is clean at the pin.  In a sync, before `pin`, `update` needs
+`--old bc667610`-style arguments (or is left to `start`).
