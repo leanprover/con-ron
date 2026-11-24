@@ -75063,3 +75063,65 @@ rather than `a && b`, or the LLBC doubles per arm.
 `stdout.txt` with the per-function table) can go once this is read; the reproducer stays in
 `_tmp/corpus/aeneas-slow/`.  The two old Aeneas builds are ordinary nix store paths
 (`q66q4sdf…-ocaml5.2.1-aeneas`, `jygycwy9…`, `2d0rcvdi…`), collected by the next GC.
+
+### Task #180 — task #178's two Aeneas fixes: a 2 M-word minor heap, `uses_go`'s dispatch nested (2026-11-24, Opus)
+
+**What changed.**
+* `scripts/extract.sh` runs Aeneas with `OCAMLRUNPARAM="s=2M${OCAMLRUNPARAM:+,$OCAMLRUNPARAM}"`
+  (a caller's own setting is appended, so it still wins), with the reason in the comment.  CI's
+  extraction goes through it (`ci.yml` → `scripts/gates.sh` → `extract.sh --check`).
+  **Not in the green stamp's key**: GC parameters do not change what Aeneas emits (byte-identical
+  output, checked again below), and the line itself is in the key because the script is hashed.
+  A caller's `OCAMLRUNPARAM` stays out for the same reason.
+* `frontend/olean/lazy.rs` `uses_go`: the ten-arm `else if t == K && n == M` chain is nested
+  tests, the tag then the field count (`if t == 0 || t == 3 { if n == 1 {…} else { None } }
+  else if t == 4 { … }`), with a `//` comment naming the reason.  The same function: no later arm
+  accepted a tag an earlier arm tested.  Regenerated in the same commit.
+* **`match (t, n)` measured and not taken.**  It mirrors con-leche's `match r.tag g, r.nobjs g`
+  more literally, and its extraction is the same size and speed (`uses_go_loop` 186 lines
+  against 214, Funs.lean 127 728 against 127 756, Aeneas 111 s / 79 s against 109 s / 78 s,
+  default / `s=2M`).  But Aeneas turns it into `match t with | 0#uscalar => …` on machine-integer
+  literals, and the Theorem 2 proof is written for `if`s (`simp … ↓reduceIte`, and the "no
+  expression object" arm closed by ten `t ≠ K` facts); the nested `if`s keep its case structure.
+  The difference in size is negligible, so the proof decided (the `match` form was not tried
+  against the proof).
+* Twin: `Arena/Frontend/Olean/Lazy.lean` `usesGo` mirrors con-leche's `match`, not the Rust's
+  shape — unchanged.  Theorem 2: `Refine2/Frontend/Olean/Lazy.lean` `uses_go_loop_ok` keeps its
+  split (tag, then field count); each arm's field-count test is now an `if` whose answer is bound
+  before the `(stack, out, next)` triple, so the kid arms (`5,2` `6,3` `7,3` `8,4`) peel that
+  inner computation first, the constant and literal arms reassociate the binds
+  (`Aeneas.Std.bind_assoc`/`bind_ok` in their `simp`), the one-kid arms are unchanged.  Theorem 1
+  does not mention `uses_go`.
+* **Other `&&` chains in con-ron-core** (`} else if … && …`): 21 arms in 18 functions, at most 3 per
+  function; none near the 2 000-line bar, so none rewritten.  Their functions' generated sizes:
+  `kernel.name.display_letter_like` 265, `arena.core.defeq_offset` 134,
+  `gen_rec.class_fields_of` 119, `driver.cli.progress_pace` 118, `stream_recs.stream_rules_shape`
+  106, `driver.cli.parse_valued` 106, `arena.core.lazy_delta_step` 91, `gen_rec.class_rec_ty_ok` 73,
+  `scan_fast.hex_val` 67, `block_shape.read_block_elim` 58, `block_shape.block_counts_rec` 47,
+  `cons_map.probe` 40, `kernel.level.leq_core` 38, `driver.cli.is_nat` 38, `module.expo_of` 31,
+  `expr_ops.leaf_mem_from` 26, `pins_decode.hex_digit` 21, `scan_fast.num_end` 17.  The largest
+  functions of the new Funs.lean are `scan_fast.scan_line_loop_loop` 830, `arena.core.quick_defeq`
+  576, `scan_fast.key_at` 523 (not `&&`-chain shaped; #178 judged them not worth a rewrite).
+
+**Measured** (Aeneas alone on a `.llbc` from this worktree's Charon, `extract.sh`'s flags, GNU
+`time -v`, under the extract lock, one run each; 96 cores shared, load average 12–59 over the
+runs, so wall time is indicative; `_tmp/t180/measure.sh`):
+
+| crate | `OCAMLRUNPARAM` | Aeneas wall | peak RSS | Funs.lean | `uses_go_loop` | load (start → end) |
+|---|---|---:|---:|---:|---:|---|
+| master (`&&` chain) | default | 420 s | 18.5 GB | 139 613 | 12 071 | 12 → 23 |
+| master | `s=2M` | 274 s | 36.3 GB | 139 613 (identical) | | 59 → 14 |
+| nested | default | 109 s | 18.4 GB | 127 756 | 214 | 21 → 59 |
+| **nested** | **`s=2M`** | **78 s** | **20.1 GB** | 127 756 (identical) | | 55 → 51 |
+| `match (t, n)` | default | 111 s | 18.4 GB | 127 728 | 186 | 13 → 55 |
+| `match (t, n)` | `s=2M` | 79 s | 21.4 GB | 127 728 (identical) | | 51 → 42 |
+
+The landed `scripts/extract.sh` (write mode, nested crate) took 87 s end to end, Aeneas 77 s.
+Peak RSS moves run to run (#178 had 32 GB for master/default); the `s=2M` peak on the unfixed
+crate (36 GB) is the one to avoid under the 50 GB cgroup, and the fixed crate keeps it at ~20 GB.
+
+`Init`, release `con-ron`, `instructions:u` (one run each, `scripts/bench-baselines.sh --bin
+con-ron --export init --runs 1`): 165 595 838 947 before, 165 595 458 503 after (−0.0002 %):
+the dispatch rewrite does not change the checker's work.
+
+**Scratch.**  `_tmp/t180/` (six `.llbc`s, ~2 GB) can go once this is read.
