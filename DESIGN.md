@@ -75175,3 +75175,38 @@ rather than `a && b`, or the LLBC doubles per arm.
 `stdout.txt` with the per-function table) can go once this is read; the reproducer stays in
 `_tmp/corpus/aeneas-slow/`.  The two old Aeneas builds are ordinary nix store paths
 (`q66q4sdf…-ocaml5.2.1-aeneas`, `jygycwy9…`, `2d0rcvdi…`), collected by the next GC.
+
+### Task #179 — con-leche sync 216031bf → 3d91c5a5 on `renovation`: `Quot` in either result-sort form (2026-11-24, Opus)
+
+Upstream merge 3d91c5a5 / commit 5ce27006 (#630, lean4#15023), taken from the maintainer's local
+con-leche checkout before it was pushed (its objects fetched into the shared package repository
+under `refs/remotes/local/renovation`; the checkout did not move).  A stream may declare `Quot`
+at `Sort u` (released) or `Sort (max 1 u)` (lifted); `Quot` and `Quot.sound` change form
+together, a mismatched pair is rejected, a third sort declined.  The first sync under task #177's
+pipeline: master merged first, Rust and one extraction before the Lean, one gate run at the pin.
+
+`update --auto`: 10 findings (10 `CHANGED`), 58 citations merely moved; 10 markers → 0.
+Coverage 1219/1271 → 1219/1279 at start → 1227/1279 (52 uncovered): all eight new upstream
+declarations ported.  One agent:
+* Rust: `basis_raw::quot_sort_of`, `quot_a_of`, `quot_sound_a_of` (`quot_a`/`quot_sound_a` the
+  released forms, as upstream's); `arena::basis::quot_pin_of`, `quot_pin_hit_at`, `quot_lifted`,
+  `quot_stored_lifted`, `quot_form_ok` in upstream's order, `quot_at`/`quot_pin_hit` at the
+  record's declared form; `check_quot_record`'s form check after "slots needed" (`M_QUOT_FORM`,
+  upstream's message).  The lifted pins are interned on demand, as `nat_a`'s are;
+  `quotStoredLifted`/`quotFormOk` read the index `fe`, as `quotPredsOk` does.
+* Twin: the same seven definitions and the form check; `CheckerTest` checks the lifted pin hits,
+  the lifted package accepted, the mixed pair rejected, against con-leche.
+* Theorem 1 (`Bridge/Checker/Basis.lean`): `quotPinOf_run`, `quotPinHitAt_run`,
+  `quotLifted_run`, `quotStoredLifted_run`, `quotFormOk_run`; `quotAt_run`, `quotPinHit_run`,
+  `checkQuotRecord_bridge` re-proved at the same statements.  No basis-pin invariant in
+  `Bridge/**` moved: upstream's `QuotForm`/`PinCopy` change stays inside its own model proofs.
+* Theorem 2: `quot_sort_of_refines`, `quot_a_of_refines`, `quot_sound_a_of_refines`
+  (`Refine/BasisRaw`), `quot_pin_of_ls` … `quot_form_ok_ls` (`Refine2/Checker/Basis`);
+  `check_quot_record_refines` still closes by plain `lockstep`.  No public statement changes, no
+  new invariant, no Lockstep/Prims edit.
+
+Verdicts: `diff-e2e.sh` 807/807 (master's binary at the new pin 804/807: `quot_lifted`,
+`quot_lifted_rfl_bad`, `quot_lifted_mixed_sound_bad`).  `Init`, `--verified --jobs=1`,
+instructions:u, one run each, 57 919 accepted by both: `renovation` dd7ccd32 165 598 480 547,
+this branch 165 598 430 795 (−0.00003 %).  The one extraction took 705 s of Aeneas (before
+task #180's fixes).
