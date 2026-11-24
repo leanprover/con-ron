@@ -2,8 +2,9 @@
 # `ConRon.Arena.Frontend.Prelude` — the built-in prelude (task #97e)
 
 con-leche's `ConLeche/Frontend/Prelude.lean`: the checker's own little prelude
-— the five pinned basis blocks (`Eq`, `Nat`, `Empty`, `False`, `Quot` with its
-soundness axiom), the `Bool` block, and the `And` block pinned by design — as
+— the four pinned inductive basis blocks (`Eq`, `Nat`, `Empty`, `False`), the
+`Bool` block, and the `And` block pinned by design; no quotient record (a stream
+that uses `Quot` declares it, in either result-sort form) — as
 a lean4export-format stream parsed by the ORDINARY parser (`parseBytes`) into
 declaration records.  `preparePrelude` puts them at the
 front of every stream it prepares, which is what "in the env initially and

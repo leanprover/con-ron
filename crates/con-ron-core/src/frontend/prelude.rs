@@ -2,10 +2,10 @@
 //! (task #97 P4e part 1).
 //!
 //! con-leche's `ConLeche/Frontend/Prelude.lean`: the checker's own little
-//! prelude — the five pinned basis blocks (`Eq`, `Nat`, `Empty`, `False`,
-//! `Quot` with its soundness axiom; `PUnit` is unpinned, task #105's
-//! `uniform-inds` PUNIT item), the `Bool` block, and the `And` block pinned
-//! by design — as a lean4export-format stream parsed by the
+//! prelude — the four pinned inductive basis blocks (`Eq`, `Nat`, `Empty`,
+//! `False`), the `Bool` block, and the `And` block pinned by design; no
+//! quotient record (a stream that uses `Quot` declares it, in either
+//! result-sort form) — as a lean4export-format stream parsed by the
 //! ORDINARY parser into declaration records.  `prepare::prepare_prelude` puts
 //! them at the front of every stream it prepares, which is what "in the env
 //! initially and unconditionally" means in practice.
@@ -118,14 +118,11 @@ mod tests {
             Ok(p) => p,
             Err((_, line)) => panic!("the built-in prelude does not parse at line {}", line),
         };
-        // task #105 (con-leche's `uniform-inds` merge, PUNIT): `PUnit` is
-        // unpinned and no longer part of the built-in prelude, so the record
-        // count and every node count below is one basis block smaller than
-        // before the bump.  These are this Rust parse's own counts on the
-        // new prelude; re-measuring the Lean twin's arena checker on the same
-        // (now PUnit-less) empty input is the kernel lane's, not repeated
-        // here.
-        assert_eq!(p.decls.len(), 11, "prelude declaration records");
+        // The built-in prelude is con-leche's: the four pinned inductive
+        // basis blocks (`Eq`, `Nat`, `Empty`, `False`), the `Bool` block and
+        // the `And` block, with no quotient record.
+        // These are this Rust parse's own counts on that prelude.
+        assert_eq!(p.decls.len(), 6, "prelude declaration records");
         // The reserved-name pins are interned first and the store is
         // hash-consed, so what the prelude ADDS is the twin's count minus
         // what the two share: the pins' one expression node (`Sort 1`) and
@@ -136,14 +133,14 @@ mod tests {
         assert_eq!(e0, 1, "the pins' expression nodes");
         assert_eq!(l0, 2, "the pins' level nodes");
         assert_eq!(n0, 64, "the pins' name nodes");
-        assert_eq!(ar.store.node_count(pers) - e0, 186, "expression nodes added");
-        assert_eq!(ar.store.ls().node_count(pers) - l0, 3, "level nodes added");
-        assert_eq!(ar.store.ns().node_count(pers) - n0, 28, "name nodes added");
+        assert_eq!(ar.store.node_count(pers) - e0, 129, "expression nodes added");
+        assert_eq!(ar.store.ls().node_count(pers) - l0, 2, "level nodes added");
+        assert_eq!(ar.store.ns().node_count(pers) - n0, 22, "name nodes added");
         // …so the union on the two stores whose pinned nodes the prelude
         // re-declares is:
-        assert_eq!(ar.store.node_count(pers), 187, "expression nodes");
-        assert_eq!(ar.store.ls().node_count(pers), 5, "level nodes");
-        assert_eq!(ar.store.ns().node_count(pers), 92, "name nodes");
+        assert_eq!(ar.store.node_count(pers), 130, "expression nodes");
+        assert_eq!(ar.store.ls().node_count(pers), 4, "level nodes");
+        assert_eq!(ar.store.ns().node_count(pers), 86, "name nodes");
     }
 
     /// The prelude text is `con-ron-core`'s generated constant, byte for byte
@@ -153,7 +150,7 @@ mod tests {
     #[test]
     fn the_prelude_text_is_the_committed_ndjson() {
         let b = builtin_prelude_text();
-        assert_eq!(b.len(), 15700);
+        assert_eq!(b.len(), 11765);
         assert_eq!(b[b.len() - 1], b'\n');
     }
 }
