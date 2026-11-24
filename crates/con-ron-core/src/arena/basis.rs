@@ -686,52 +686,139 @@ pub fn quot_pin(pers: &PersTier, st: &mut AState, k: &QuotKind) -> Result<IConst
     }
 }
 
+/// con-leche: ConLeche/Kernel/Basis.lean:167-175 quotPinOf
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:255-265 quotPinOf` — **the pinned
+/// quotient package's constant at a slot, in a form**: the `lifted` form
+/// (`basis_raw::quot_sort_of`) differs from the released one at `Quot` and
+/// `Quot.sound` only, whose lifted pins are interned from `basis_raw`.
+pub fn quot_pin_of(
+    pers: &PersTier,
+    st: &mut AState,
+    lifted: bool,
+    k: &QuotKind,
+) -> Result<IConstantInfo, CheckError> {
+    if lifted {
+        match k {
+            QuotKind::Type => intern_ci(pers, st, &basis_raw::quot_a_of(true)),
+            QuotKind::Sound => intern_ci(pers, st, &basis_raw::quot_sound_a_of(true)),
+            _ => quot_pin(pers, st, k),
+        }
+    } else {
+        quot_pin(pers, st, k)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Basis.lean:177-182 quotPinHitAt
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:267-274 quotPinHitAt` — **a record
+/// matches a pin**: it is the pin up to its level-parameter names, distinct and
+/// as many as the pin's.
+pub fn quot_pin_hit_at(
+    pers: &PersTier,
+    st: &mut AState,
+    pin: &IConstantInfo,
+    cv: &IConstantVal,
+) -> Result<bool, CheckError> {
+    let pcv: IConstantVal = i_constant_info_to_constant_val(pin);
+    if name_nodup(&cv.level_params) && cv.level_params.len() == pcv.level_params.len() {
+        match constant_val_at_lps(pers, st, &pcv, &cv.level_params) {
+            Err(e) => Err(e),
+            Ok(pcv2) => Ok(i_constant_val_beq(cv, &pcv2)),
+        }
+    } else {
+        Ok(false)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Basis.lean:184-189 quotLifted
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:276-282 quotLifted` — **which form a
+/// quotient record declares**: the lifted one where it matches that pin, at
+/// `Quot` and `Quot.sound`; the released one everywhere else.
+pub fn quot_lifted(
+    pers: &PersTier,
+    st: &mut AState,
+    k: &QuotKind,
+    cv: &IConstantVal,
+) -> Result<bool, CheckError> {
+    match k {
+        QuotKind::Type | QuotKind::Sound => match quot_pin_of(pers, st, true, k) {
+            Err(e) => Err(e),
+            Ok(pin) => quot_pin_hit_at(pers, st, &pin, cv),
+        },
+        _ => Ok(false),
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Basis.lean:191-194 quotAt
-/// con-leche: CHANGED since 216031bf — re-port, re-test, re-prove basis::quot_at_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Basis.lean:255-258 quotAt` — **what a quotient record
-/// stores**: its slot's pin at the names it declares.
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:284-288 quotAt` — **what a quotient
+/// record stores**: its slot's pin, in the form it declares, at the names it
+/// declares.
 pub fn quot_at(
     pers: &PersTier,
     st: &mut AState,
     k: &QuotKind,
     cv: &IConstantVal,
 ) -> Result<IConstantInfo, CheckError> {
-    match quot_pin(pers, st, k) {
+    match quot_lifted(pers, st, k, cv) {
         Err(e) => Err(e),
-        Ok(pin) => constant_info_at_lps(pers, st, &pin, &cv.level_params),
+        Ok(lifted) => match quot_pin_of(pers, st, lifted, k) {
+            Err(e) => Err(e),
+            Ok(pin) => constant_info_at_lps(pers, st, &pin, &cv.level_params),
+        },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:202-206 quotPinHit
-/// con-leche: CHANGED since 216031bf — re-port, re-test, re-prove basis::quot_pin_hit_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Basis.lean:260-268 quotPinHit` — **the quotient-pin
-/// match**: the record is the pinned package's constant at the slot it
-/// declares itself at, up to its level-parameter names: distinct, as many as
-/// the pin's.
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:290-295 quotPinHit` — **the
+/// quotient-pin match**: the record is the pinned package's constant at the
+/// slot it declares itself at, in either form, up to its level-parameter
+/// names: distinct, as many as the pin's.
 pub fn quot_pin_hit(
     pers: &PersTier,
     st: &mut AState,
     k: &QuotKind,
     cv: &IConstantVal,
 ) -> Result<bool, CheckError> {
-    match quot_pin(pers, st, k) {
+    match quot_lifted(pers, st, k, cv) {
         Err(e) => Err(e),
-        Ok(pin) => {
-            let pcv: IConstantVal = i_constant_info_to_constant_val(&pin);
-            if name_nodup(&cv.level_params) && cv.level_params.len() == pcv.level_params.len() {
-                match constant_val_at_lps(pers, st, &pcv, &cv.level_params) {
+        Ok(lifted) => match quot_pin_of(pers, st, lifted, k) {
+            Err(e) => Err(e),
+            Ok(pin) => quot_pin_hit_at(pers, st, &pin, cv),
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Basis.lean:208-212 quotStoredLifted
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:297-305 quotStoredLifted` — **whether
+/// the stored `Quot` is in the lifted form.**  The cited `find?` argument is
+/// the index `fe`.
+pub fn quot_stored_lifted(
+    pers: &PersTier,
+    st: &mut AState,
+    fe: &IFEnv,
+) -> Result<bool, CheckError> {
+    match pin_quot(st) {
+        Err(e) => Err(e),
+        Ok(qn) => match ifenv_find(pers, fe, &qn) {
+            Some(ci) => {
+                let ccv: IConstantVal = i_constant_info_to_constant_val(ci);
+                match intern_ci(pers, st, &basis_raw::quot_a_of(true)) {
                     Err(e) => Err(e),
-                    Ok(pcv2) => Ok(i_constant_val_beq(cv, &pcv2)),
+                    Ok(p) => {
+                        let pcv: IConstantVal = i_constant_info_to_constant_val(&p);
+                        match constant_val_at_lps(pers, st, &pcv, &ccv.level_params) {
+                            Err(e) => Err(e),
+                            Ok(pcv2) => Ok(i_constant_val_beq(&ccv, &pcv2)),
+                        }
+                    }
                 }
-            } else {
-                Ok(false)
             }
-        }
+            None => Ok(false),
+        },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:214-226 quotPredsOk
-/// Lean twin: `proof/ConRon/Arena/Basis.lean:270-282 quotPredsOk` — **what a quotient
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:307-319 quotPredsOk` — **what a quotient
 /// record's slot needs stored before it**: the constants its type mentions.  A
 /// reserved name is stored only as a copy of its pin, at whatever names, and
 /// references are positional.  The cited `find?` argument is the index `fe`.
@@ -764,12 +851,37 @@ pub fn quot_preds_ok(
     }
 }
 
+/// con-leche: ConLeche/Kernel/Basis.lean:228-234 quotFormOk
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:321-328 quotFormOk` — **`Quot.sound`
+/// is in the stored `Quot`'s form**: its equation is at the quotient's result
+/// level, so the other pairing is ill-typed, which the official kernel
+/// rejects.  Every other slot passes.  The cited `find?` argument is the index
+/// `fe`.
+pub fn quot_form_ok(
+    pers: &PersTier,
+    st: &mut AState,
+    fe: &IFEnv,
+    k: &QuotKind,
+    cv: &IConstantVal,
+) -> Result<bool, CheckError> {
+    match k {
+        QuotKind::Sound => match quot_stored_lifted(pers, st, fe) {
+            Err(e) => Err(e),
+            Ok(a) => match quot_lifted(pers, st, &QuotKind::Sound, cv) {
+                Err(e) => Err(e),
+                Ok(b) => Ok(a == b),
+            },
+        },
+        _ => Ok(true),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // The pinned `And`
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Basis/And.lean:94-95 andPin
-/// Lean twin: `proof/ConRon/Arena/Basis.lean:286-290 andPinDecls` — the pinned `And`
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:332-336 andPinDecls` — the pinned `And`
 /// block, interned: `basis_kind_decls`'s shape for the one pinned block that is
 /// recognised and never installed from literals.
 pub fn and_pin_decls(pers: &PersTier, st: &mut AState) -> Result<Vec<IConstantInfo>, CheckError> {
@@ -777,7 +889,7 @@ pub fn and_pin_decls(pers: &PersTier, st: &mut AState) -> Result<Vec<IConstantIn
 }
 
 /// con-leche: ConLeche/Kernel/Basis/And.lean:97-99 andPinNames
-/// Lean twin: `proof/ConRon/Arena/Basis.lean:292-299 andPinNameHs` — the names the
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:338-345 andPinNameHs` — the names the
 /// pinned `And` block declares, as handles: `And`, `And.intro`, `And.rec`, off
 /// the reserved-name table (`arena::pins`), so the test below costs three slot
 /// reads per record and interns nothing.
@@ -801,7 +913,7 @@ pub fn and_pin_name_hs(st: &AState) -> Result<Vec<NIdx>, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:248-256 andPinOk
-/// Lean twin: `proof/ConRon/Arena/Basis.lean:301-306 blockAndNamed` — the `.indDecl`
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:347-352 blockAndNamed` — the `.indDecl`
 /// arm's `block.any fun c => andPinNames.contains c.name`, as a cursor
 /// recursion (§3.4 forbids the closure).
 pub fn block_and_named(block: &Vec<IConstantInfo>, hs: &Vec<NIdx>, i: usize) -> bool {
@@ -815,7 +927,7 @@ pub fn block_and_named(block: &Vec<IConstantInfo>, hs: &Vec<NIdx>, i: usize) -> 
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:248-256 andPinOk
-/// Lean twin: `proof/ConRon/Arena/Basis.lean:308-313 andPinNameFree` — the arm of every
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:354-359 andPinNameFree` — the arm of every
 /// one-constant record: it may not declare one of the pinned `And` block's
 /// names.
 pub fn and_pin_name_free(st: &AState, n: &NIdx) -> Result<bool, CheckError> {
@@ -826,7 +938,7 @@ pub fn and_pin_name_free(st: &AState, n: &NIdx) -> Result<bool, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:248-256 andPinOk
-/// Lean twin: `proof/ConRon/Arena/Basis.lean:315-333 andPinOk` — **the `And` pin's
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:361-379 andPinOk` — **the `And` pin's
 /// test**: the record declares none of the pinned `And` block's names, or it
 /// IS that block — two parameters, and equal to `andPin` up to
 /// `ConstantInfo.canon` (`canon_eq_list`).  Only a block that declares one of

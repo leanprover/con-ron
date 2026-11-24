@@ -25,6 +25,7 @@ use crate::kernel::core_types;
 use crate::kernel::env;
 use crate::kernel::env::{BasisKind, ConstantInfo, ConstantVal, IndCaps, RecRule, RecRuleFire};
 use crate::kernel::expr;
+use crate::kernel::level;
 use crate::kernel::level::Level;
 use crate::kernel::expr::Expr;
 use crate::kernel::name;
@@ -435,18 +436,37 @@ pub fn quot_rel() -> Expr {
     pi(bv(0), pi(bv(1), prop()))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:44-45 quotA
-/// con-leche: CHANGED since 216031bf — re-port, re-test, re-prove basis_raw::quot_a_refines, then delete this line
-/// `Quot.{u} {α : Sort u} (r : α → α → Prop) : Sort u`.
-pub fn quot_a() -> ConstantInfo {
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:32-36 quotSortOf
+/// **The quotient's result level**, in either of the two forms a stream may
+/// declare: `u`, as the released kernel has it, or `max 1 u` (`lifted`), where
+/// a quotient of a proposition is a type (lean4 PR #15023).  `Quot` and
+/// `Quot.sound` are the only constants that mention it.
+pub fn quot_sort_of(lifted: bool) -> Level {
+    if lifted {
+        level::max(level::succ(level::zero()), u())
+    } else {
+        u()
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:38-42 quotAOf
+/// `Quot.{u} {α : Sort u} (r : α → α → Prop) : Sort u`, or `: Sort (max 1 u)`
+/// (`lifted`).
+pub fn quot_a_of(lifted: bool) -> ConstantInfo {
     ConstantInfo::IndInfo(
         cv(
             bnm::quot_name(),
             vec1(u_n()),
-            pi(srt(u()), pi(quot_rel(), srt(u()))),
+            pi(srt(u()), pi(quot_rel(), srt(quot_sort_of(lifted)))),
         ),
         env::ind_caps_default(),
     )
+}
+
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:44-45 quotA
+/// `Quot` in the released kernel's form.
+pub fn quot_a() -> ConstantInfo {
+    quot_a_of(false)
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:47-53 quotMkA
@@ -626,11 +646,11 @@ pub fn quot_ind_a() -> ConstantInfo {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:128-129 quotSoundA
-/// con-leche: CHANGED since 216031bf — re-port, re-test, re-prove basis_raw::quot_sound_a_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:113-126 quotSoundAOf
 /// `Quot.sound.{u} {α : Sort u} {r : α → α → Prop} {a b : α} :
-/// r a b → Quot.mk α r a = Quot.mk α r b`.
-pub fn quot_sound_a() -> ConstantInfo {
+/// r a b → Quot.mk α r a = Quot.mk α r b`, its equation at the quotient's
+/// result level (`quot_sort_of`).
+pub fn quot_sound_a_of(lifted: bool) -> ConstantInfo {
     ConstantInfo::AxiomInfo(cv(
         bnm::quot_sound_name(),
         vec1(u_n()),
@@ -645,7 +665,7 @@ pub fn quot_sound_a() -> ConstantInfo {
                         pi(
                             ap2(bv(2), bv(1), bv(0)),
                             ap3(
-                                cnst(bnm::eq_name(), vec1(u())),
+                                cnst(bnm::eq_name(), vec1(quot_sort_of(lifted))),
                                 ap2(cnst(bnm::quot_name(), vec1(u())), bv(4), bv(3)),
                                 ap3(cnst(bnm::quot_mk_name(), vec1(u())), bv(4), bv(3), bv(2)),
                                 ap3(cnst(bnm::quot_mk_name(), vec1(u())), bv(4), bv(3), bv(1)),
@@ -656,6 +676,12 @@ pub fn quot_sound_a() -> ConstantInfo {
             ),
         ),
     ))
+}
+
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:128-129 quotSoundA
+/// `Quot.sound` in the released kernel's form.
+pub fn quot_sound_a() -> ConstantInfo {
+    quot_sound_a_of(false)
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:131-133 quotBasis
