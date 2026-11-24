@@ -212,7 +212,7 @@ theorem ind_type_rec_flags_eq (t : frontend.scan_types.IndTypeRec) :
       ok (match t.is_impredicative, t.is_k, t.has_projections, t.has_eta, t.has_large_elim with
         | some i, some k, some p, some e, some l => some ⟨i, k, p, e, l⟩
         | _, _, _, _, _ => none) := by
-  rcases t with ⟨cv, ctors, ir, irf, iu, ni, nn, np, fi, fk, fp, fe, fl⟩
+  rcases t with ⟨cv, ctors, ir, iu, ni, nn, np, fi, fk, fp, fe, fl⟩
   rcases fi with _ | fi <;> rcases fk with _ | fk <;> rcases fp with _ | fp <;>
     rcases fe with _ | fe <;> rcases fl with _ | fl <;> rfl
 
@@ -222,7 +222,7 @@ theorem ind_type_rec_flags_abs (t : frontend.scan_types.IndTypeRec) :
           some (⟨i, k, p, e, l⟩ : kernel.env.IndFlags)
         | _, _, _, _, _ => none).map ConRon.Refine.absIndFlags
       = indTypeRecFlags (absIndTypeRec t) := by
-  rcases t with ⟨cv, ctors, ir, irf, iu, ni, nn, np, fi, fk, fp, fe, fl⟩
+  rcases t with ⟨cv, ctors, ir, iu, ni, nn, np, fi, fk, fp, fe, fl⟩
   rcases fi with _ | fi <;> rcases fk with _ | fk <;> rcases fp with _ | fp <;>
     rcases fe with _ | fe <;> rcases fl with _ | fl <;> rfl
 
@@ -231,7 +231,7 @@ theorem ind_type_rec_flags_partial_refines {t v}
     (h : frontend.export_c.ind_type_rec_flags_partial t = ok v) :
     v = indTypeRecFlagsPartial (absIndTypeRec t) := by
   rw [frontend.export_c.ind_type_rec_flags_partial, ind_type_rec_flags_eq, bind_ok] at h
-  rcases t with ⟨cv, ctors, ir, irf, iu, ni, nn, np, fi, fk, fp, fe, fl⟩
+  rcases t with ⟨cv, ctors, ir, iu, ni, nn, np, fi, fk, fp, fe, fl⟩
   rcases fi with _ | fi <;> rcases fk with _ | fk <;> rcases fp with _ | fp <;>
     rcases fe with _ | fe <;> rcases fl with _ | fl <;>
     simp [core.option.Option.is_none, core.option.Option.is_some] at h <;>
