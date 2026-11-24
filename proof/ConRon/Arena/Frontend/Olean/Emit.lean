@@ -82,15 +82,14 @@ def Emit.one (st : Emit) (c : CEntry) : Emit :=
   | _ => st
 
 /-- con-leche: ConLeche/Frontend/Olean/Emit.lean:86-95 Emit.tyStep
--- con-leche: CHANGED since d8c8c227 — re-port, re-test, re-prove Emit.Emit.tyStep_bridge, then delete this line
 One inductive type of a block's record. -/
 def Emit.tyStep (x : Emit × Array IndTypeRec) (c : CEntry) : Emit × Array IndTypeRec :=
   let (st, acc) := x
   match c.c.kind with
-  | .induct np ni _ cs nn ir iu irf =>
+  | .induct np ni _ cs nn ir iu _ =>
     let (st, cv) := st.cv c
     let (st, cs) := st.names' cs
-    (st, acc.push { cv, ctors := cs, isRec := ir, isReflexive := irf, isUnsafe := iu,
+    (st, acc.push { cv, ctors := cs, isRec := ir, isUnsafe := iu,
                     numIndices := ni, numNested := nn, numParams := np : IndTypeRec })
   | _ => (st, acc)
 

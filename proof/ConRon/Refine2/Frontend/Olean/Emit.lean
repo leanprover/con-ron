@@ -357,10 +357,10 @@ theorem emit_ty_step_rel {st : frontend.olean.emit.Emit} {acc} {y : Emit × Arra
   rw [emit_ty_step] at h
   have hk := hc.1.kind
   have e : Emit.tyStep (lst, lacc) c' = match c'.c.kind with
-      | .induct np ni _ cs nn ir iu irf =>
+      | .induct np ni _ cs nn ir iu _ =>
         let (st, cv) := lst.cv c'
         let (st, cs) := st.names' cs
-        (st, lacc.push { cv, ctors := cs, isRec := ir, isReflexive := irf, isUnsafe := iu,
+        (st, lacc.push { cv, ctors := cs, isRec := ir, isUnsafe := iu,
                          numIndices := ni, numNested := nn, numParams := np : IndTypeRec })
       | _ => (lst, lacc) := rfl
   rw [e]
@@ -380,7 +380,7 @@ theorem emit_ty_step_rel {st : frontend.olean.emit.Emit} {acc} {y : Emit × Arra
     peel h as acc1, hacc
     cases Result.ok_injective h
     refine ⟨b2, acc_push ha hacc ?_⟩
-    show IndTypeRec.mk _ _ _ _ _ _ _ _ _ _ _ _ _ = IndTypeRec.mk _ _ _ _ _ _ _ _ _ _ _ _ _
+    show IndTypeRec.mk _ _ _ _ _ _ _ _ _ _ _ _ = IndTypeRec.mk _ _ _ _ _ _ _ _ _ _ _ _
     dsimp only at a1 a2
     rw [a1, a2]
 

@@ -355,7 +355,7 @@ def absRuleRecs (v : alloc.vec.Vec frontend.scan_types.RuleRec) :
 /-- `IndTypeRec` (`Types.lean:192-201`). -/
 def absIndTypeRec (t : frontend.scan_types.IndTypeRec) : ConLeche.Frontend.IndTypeRec :=
   { cv := absCVRec t.cv, ctors := absU64s t.ctors, isRec := t.is_rec,
-    isReflexive := t.is_reflexive, isUnsafe := t.is_unsafe,
+    isUnsafe := t.is_unsafe,
     numIndices := absU64 t.num_indices, numNested := absU64 t.num_nested,
     numParams := absU64 t.num_params, isImpredicative := t.is_impredicative,
     isK := t.is_k, hasProjections := t.has_projections, hasEta := t.has_eta,

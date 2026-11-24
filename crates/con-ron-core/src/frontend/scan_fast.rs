@@ -2481,14 +2481,12 @@ pub fn scan_ind_recs(b: &[u8], i: usize) -> ScanRes<Vec<IndRecRec>> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:1602-1780 scanIndTypeLoop
-/// con-leche: CHANGED since d8c8c227 — re-port, re-test, re-prove scan_fast::scan_ind_type_loop_refines, then delete this line
 pub fn scan_ind_type_loop(b: &[u8], i: usize) -> ScanRes<IndTypeRec> {
     let mut i = i;
     let mut want_member = true;
     let mut seen: u32 = 0;
     let mut ctors: Vec<u64> = Vec::new();
     let mut is_rec = false;
-    let mut is_refl = false;
     let mut is_uns = false;
     let mut lps: Vec<u64> = Vec::new();
     let mut nm: u64 = 0;
@@ -2513,7 +2511,7 @@ pub fn scan_ind_type_loop(b: &[u8], i: usize) -> ScanRes<IndTypeRec> {
                 if want_member && seen != 0 {
                     return err(i, ErrTag::ExpectedKey);
                 }
-                if seen & 2046 != 2046 {
+                if seen & 2038 != 2038 {
                     return err(i, ErrTag::MissingKey);
                 }
                 return Ok((
@@ -2525,7 +2523,6 @@ pub fn scan_ind_type_loop(b: &[u8], i: usize) -> ScanRes<IndTypeRec> {
                         },
                         ctors,
                         is_rec,
-                        is_reflexive: is_refl,
                         is_unsafe: is_uns,
                         num_indices: n_idx,
                         num_nested: n_nest,
@@ -2591,14 +2588,13 @@ pub fn scan_ind_type_loop(b: &[u8], i: usize) -> ScanRes<IndTypeRec> {
                     if dup(seen, 8) {
                         return err(ks, ErrTag::DuplicateKey);
                     }
-                    let (x, e) = match scan_bool(b, v) {
+                    let (_x, e) = match scan_bool(b, v) {
                         Err(er) => return Err(er),
                         Ok(p) => p,
                     };
                     if !prog(ks, e) {
                         return err(ks, ErrTag::NoProgress);
                     }
-                    is_refl = x;
                     seen |= 8;
                     i = e;
                     want_member = false;
@@ -2787,9 +2783,7 @@ pub fn scan_ind_type_loop(b: &[u8], i: usize) -> ScanRes<IndTypeRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:1782-1787 scanIndType
-/// con-leche: CHANGED since d8c8c227 — re-port, re-test, re-prove scan_fast::scan_ind_type_refines, then delete this line
 /// con-leche: ConLeche/Frontend/Scan/Naive.lean:523-527 naiveIndType
-/// con-leche: CHANGED since d8c8c227 — re-port, re-test, re-prove scan_fast::scan_ind_type_refines, then delete this line
 /// One member of an inductive record's `types`.
 pub fn scan_ind_type(b: &[u8], i: usize) -> ScanRes<IndTypeRec> {
     if byte_at(b, i) == 123 {
@@ -4633,6 +4627,41 @@ mod tests {
         assert!(ind_type_rec_flags_partial(&t));
         bad(&flag_line("\"hasEta\":1,"));
         is_tag(&flag_line("\"isK\":true,\"isK\":false,"), ErrTag::DuplicateKey);
+    }
+
+    /// An inductive record whose one type record carries `refl` between
+    /// `isRec` and `isUnsafe`.
+    fn refl_line(refl: &str) -> String {
+        format!(
+            "{}{}{}",
+            concat!(
+                "{\"inductive\":{\"ctors\":[],\"recs\":[],\"types\":[{\"all\":[1],",
+                "\"ctors\":[2],\"isRec\":true,"
+            ),
+            refl,
+            concat!(
+                "\"isUnsafe\":false,\"levelParams\":[],\"name\":1,\"numIndices\":0,",
+                "\"numNested\":0,\"numParams\":0,\"type\":6}]}}\n"
+            )
+        )
+    }
+
+    /// `isReflexive` is optional (con-leche's `ScanTests`, task #630): lean4
+    /// dropped it from `InductiveVal`.  Read alike with and without it; a
+    /// non-boolean or a repeat stays an error.
+    #[test]
+    fn ind_type_reflexive_optional() {
+        let t = type_rec(&refl_line(""));
+        assert_eq!(t.ctors, vec![2]);
+        assert!(t.is_rec);
+        let t = type_rec(&refl_line("\"isReflexive\":true,"));
+        assert_eq!(t.ctors, vec![2]);
+        assert!(t.is_rec);
+        bad(&refl_line("\"isReflexive\":1,"));
+        is_tag(
+            &refl_line("\"isReflexive\":true,\"isReflexive\":true,"),
+            ErrTag::DuplicateKey,
+        );
     }
 
     /// `def` hints: the three spellings, and the `regular 0` default.

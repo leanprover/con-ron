@@ -118,18 +118,16 @@ pub fn emit_one(st: &mut Emit, c: &CEntry) {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Emit.lean:86-95 Emit.tyStep
-/// con-leche: CHANGED since d8c8c227 — re-port, re-test, re-prove emit::emit_ty_step_refines, then delete this line
 /// One inductive type of a block's record.
 pub fn emit_ty_step(st: &mut Emit, acc: &mut Vec<IndTypeRec>, c: &CEntry) {
     match &c.c.kind {
-        CKindF::Induct(np, ni, _, cs, nn, ir, iu, irf) => {
+        CKindF::Induct(np, ni, _, cs, nn, ir, iu, _) => {
             let cv = emit_cv(st, c);
             let ctors = emit_names(st, cs);
             acc.push(IndTypeRec {
                 cv,
                 ctors,
                 is_rec: *ir,
-                is_reflexive: *irf,
                 is_unsafe: *iu,
                 num_indices: *ni,
                 num_nested: *nn,
@@ -201,7 +199,6 @@ pub fn emit_rec_step(st: &mut Emit, acc: &mut Vec<IndRecRec>, c: &CEntry) {
 }
 
 /// con-leche: ConLeche/Frontend/Olean/Emit.lean:86-95 Emit.tyStep
-/// con-leche: CHANGED since d8c8c227 — re-port, re-test, re-prove emit::ty_named_refines, then delete this line
 /// The step at a constant of the merge, by name.
 pub fn ty_named(st: &mut Emit, mg: &Merged, acc: &mut Vec<IndTypeRec>, n: &NIdx) {
     match merge::mg_get(mg, n) {

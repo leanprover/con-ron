@@ -312,13 +312,11 @@ pub struct RuleRec {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Types.lean:181-196 IndTypeRec
-/// con-leche: CHANGED since d8c8c227 — re-port, re-test, re-prove scan_types::IndTypeRec_refines, then delete this line
 /// One member of an inductive block's `types`.
 pub struct IndTypeRec {
     pub cv: CVRec,
     pub ctors: Vec<u64>,
     pub is_rec: bool,
-    pub is_reflexive: bool,
     pub is_unsafe: bool,
     pub num_indices: u64,
     pub num_nested: u64,
