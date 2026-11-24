@@ -74974,4 +74974,4 @@ Gates: the agent's `--only` run before the pin (cargo-build, cargo-test, lint-ru
 dead-rust, provenance, twin-lines, overview-links, holes, extract-check 433 s, dead-census)
 and a full `lake build`; after the pin every step but `extract-check`, whose inputs the pin
 commit does not touch (CLAUDE.md: skip the gates a change cannot touch).  The landing
-pipeline's cost (≈30 min after the port for a one-commit sync) is under review (task #177).
+pipeline's cost (≈30 min after the port for a one-commit sync) is under review.
