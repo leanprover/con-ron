@@ -61,7 +61,11 @@
 # pin           `overview-links.sh --follow` once more (its own commit if it
 #               moved anything), then commits `proof/lakefile.toml` and
 #               `proof/lake-manifest.json` — nothing else — as the branch's
-#               LAST commit.
+#               LAST commit.  Run it after `git merge master` and BEFORE the
+#               gates (task #177): the working tree already builds against
+#               the new pin, so the commit changes no byte the gates read, and
+#               the one gate run that follows stamps the pin commit itself.
+#               Red gates: `git reset HEAD~1`, fix, commit, `pin` again.
 # land          preconditions: the worktree is clean, master is merged,
 #               `scripts/gates.sh` was green at exactly this commit (its stamp), and `measure` saw the crates as they are.  Then:
 #               the fast-forward of master, seeding the shared Lake cache from
@@ -358,9 +362,11 @@ work_order() {
   echo "  port in order — Rust, measure, twin, Theorem 1, Theorem 2 — deleting each marker as it is reconciled;"
   echo "  scripts/bump-con-leche.sh status                     # what is left"
   echo "  scripts/bump-con-leche.sh measure                    # once, when the Rust is final"
-  echo "  git merge master; LAKE_JOBS=4 scripts/gates.sh       # green, on a clean tree"
+  echo "  git merge master                                     # the pin files stay uncommitted"
   echo "  scripts/bump-con-leche.sh pin                        # the LAST commit"
-  echo "  LAKE_JOBS=4 scripts/gates.sh; scripts/bump-con-leche.sh land --report <final report file>"
+  echo "  LAKE_JOBS=4 scripts/gates.sh                         # ONE gate run, at the pin commit"
+  echo "  scripts/bump-con-leche.sh land --report <final report file>"
+  echo "  (red gates: git reset HEAD~1, fix, commit, pin again, gate again)"
 }
 
 # ---------------------------------------------------------------- status
@@ -450,7 +456,8 @@ $dirty"
 
 The last commit of the sync (DESIGN.md §7): proof/lakefile.toml and
 proof/lake-manifest.json, nothing else."
-  echo "next: LAKE_JOBS=4 scripts/gates.sh, then scripts/bump-con-leche.sh land --report <final report file>"
+  echo "next: LAKE_JOBS=4 scripts/gates.sh (the sync's one gate run), then scripts/bump-con-leche.sh land --report <final report file>"
+  echo "      (red: git reset HEAD~1 -- the pin files go back to uncommitted -- fix, commit, pin again)"
 }
 
 # ---------------------------------------------------------------- land
@@ -470,7 +477,7 @@ cmd_land() {
   report=$(cd "$(dirname "$report")" && pwd -P)/$(basename "$report")
   resolve_short "$arg"
   [ -z "$(git -C "$wt" status --porcelain --untracked-files=no)" ] || die "$wt has uncommitted changes"
-  git -C "$wt" merge-base --is-ancestor master HEAD || die "master is not merged into $branch; merge it, re-gate, pin"
+  git -C "$wt" merge-base --is-ancestor master HEAD || die "master is not merged into $branch; git reset HEAD~1 (unpin), merge it, pin, re-gate"
   local head key
   head=$(git -C "$wt" rev-parse HEAD)
   key=$(printf '%s' "$(cd "$wt" && pwd)" | sha256sum | cut -c1-12)

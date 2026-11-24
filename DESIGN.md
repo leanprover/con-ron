@@ -1857,7 +1857,16 @@ invariant).  Delete each marker as its item is reconciled;
 `check`'s verdict, the new declarations still uncovered (port them, or put
 them in `scripts/provenance-skip.txt` with the reason).
 Do not start the proofs before the model is regenerated, and say in every
-WIP commit that the tree does not build.  Lane agents never commit
+WIP commit that the tree does not build.  **When lanes split the Lean work,
+the Rust and its extraction land on the bump branch BEFORE the Lean lanes
+fork** (task #177): then every lane, and the merged tree, has the same
+`Generated/Funs.lean`, and a lane merge's `lake build` restores from the
+shared Lake cache what the lanes' gate runs seeded (everything but the
+modules whose import closure spans two lanes).  A lane that must touch the
+Rust after all merges first, and the others merge it before their final
+build.  In #172 both lanes changed the Rust, the merged `Funs.lean` matched
+neither lane tip, and 177 of 259 modules (914 of 1 014 module-seconds)
+re-elaborated at every merge.  Lane agents never commit
 `proof/lakefile.toml` or `proof/lake-manifest.json` (nothing checks it since
 task #175).  What the porting itself has taught:
 
@@ -1878,6 +1887,12 @@ task #175).  What the porting itself has taught:
 * *A rename is still proof work*: every statement that names the old
   declaration breaks (#83: 253 rename-only findings, 667 proof edits, no
   Rust).
+* *A Rust edit that only shifts lines costs a full extraction and a full
+  rebuild.*  `Funs.lean` carries ~5 000 `Source: '…', lines a:b-c:d`
+  docstrings, so a moved line changes `Generated/Funs.olean` and every one of
+  the ~177 modules above it, and the extraction's input stamp (task #177)
+  misses.  Make citation and comment fixes to the Rust in the Rust pass, not
+  after the proofs build (`dd8330fd`, "source-line comments only", paid both).
 * *Generated files follow by themselves*: `gen-prelude{,-lean}.py` and
   `gen-pins.sh` read their con-leche citation from the output they wrote
   (whose `con-leche:` lines `update` relocates), so re-running them is all a
@@ -1897,10 +1912,10 @@ table for the task section and records which crates it measured.  No wall
 time, no repeats, no OVERVIEW §9 (a post-merge task of its own).  The Mathlib
 landing run of §12 is added by hand only when the sync touches memory.
 
-**4. Gate, with master merged.**  Write the task section (upstream tasks
-absorbed, the bucket table, markers before and after, the measurement) and
-commit it; `git merge master`; `LAKE_JOBS=4 scripts/gates.sh`.  Build modules
-in the inner loop; the gates are the landing check.
+**4. Merge master.**  Write the task section (upstream tasks absorbed, the
+bucket table, markers before and after, the measurement) and commit it;
+`git merge master` (the pin files stay uncommitted through it).  Build modules
+in the inner loop; the gates run once, after the pin (step 6).
 
 **5. The links.**  `scripts/overview-links.sh --follow` (which `start` and
 `pin` also run) moves every README/OVERVIEW anchor whose cited text is
@@ -1921,9 +1936,15 @@ scripts/bump-con-leche.sh pin
 runs `--follow` once more (its own commit if it moved anything), then commits
 `proof/lakefile.toml` and `proof/lake-manifest.json` and nothing else.  The
 pin is the last commit so that every commit before it is reproducible with `provenance.py update`
-and no `--old`.  Then `LAKE_JOBS=4 scripts/gates.sh` once more: it leaves a
-green stamp naming the commit.  If it is red, `git reset HEAD~1` (the pin
-files go back to uncommitted; nothing is pushed), fix, commit, `pin` again.
+and no `--old`.  Then `LAKE_JOBS=4 scripts/gates.sh`, the sync's ONE gate
+run (task #177): `start` put the pin in the working tree, so every build and
+check before this already ran against the new con-leche, and committing it
+changes no byte the gates read; the run leaves the green stamp naming the
+pin commit, which `land` requires.  If it is red, `git reset HEAD~1` (the pin
+files go back to uncommitted; nothing is pushed), fix, commit, `pin` again,
+gate again.  (Until task #177 the gates ran before the pin AND after it, on
+the same bytes; with extract-check's input stamp the second run would cost
+~70 s, without it ~500 s.)
 
 **7. Land.**
 
@@ -74863,3 +74884,85 @@ gone.
 three calls (`status`, `pin`, the `land` precondition) and the mentions in CLAUDE.md,
 OVERVIEW.md and §7 removed.  `pin` still commits the pin files as the branch's last commit;
 nothing verifies it.
+
+### Task #177 — the landing pipeline, faster: extraction stamp, one gate run per sync, gates seed the Lake cache (2026-11-24, Opus)
+
+**Why.**  The read-only review of task #176 (`_tmp/t176-review/proposal.md`) found where a
+small sync's ~33 minutes after the port went: about 1 300 s of it was Aeneas re-extracting
+bytes it had already extracted green (the hand run, the pre-pin gate, the post-pin gate: 9 of
+10 checkouts' outputs byte-identical, ≈11 redundant 420 s runs in three days), plus a whole
+second gate run on the same bytes after `pin`.  The maintainer approved items A, B, D and E
+("yes to all"); C (the 4× Aeneas slowdown) is task #178, F is "do not raise LAKE_JOBS".
+
+**What changed.**
+* **A. `scripts/extract.sh` keeps a green stamp.**  Before anything runs it hashes all its
+  inputs: every file under `crates/con-ron-core/`, the workspace `Cargo.toml` and
+  `Cargo.lock`, `scripts/extract.sh` itself (it holds the flags), every file of
+  `proof/ConRon/Generated/` (the four outputs it diffs against and the two hand-written
+  `*External.lean` its hole check reads), the `readlink -f` of `charon`, `aeneas`, `rustc`
+  and `cargo` (Nix store paths: they pin the exact builds `flake.lock` selects, so
+  `flake.lock` itself need not be hashed), and the `RUST*`/`CARGO_*` environment.  Relative
+  paths only, so one checkout's stamp serves every worktree.  Nothing else is read: the
+  Aeneas Lean library is not an input of the extraction, and no patch or post-processing
+  step exists.  If `_tmp/extract-green/<sha256>` exists the script prints one line
+  (`extract --check: OK, SKIPPED -- the inputs match the green stamp
+  _tmp/extract-green/<16 hex> (<who, which commit, when>)`) and exits 0; `gates.sh` repeats
+  that line under its OK line.  The stamp is written after a green `--check`, or after write
+  mode installed its files (keyed on the new tree), and only when the inputs did not move
+  while Aeneas ran (the digest is taken again at the end).  `EXTRACT_NO_STAMP=1` forces the
+  real run.  The machine-wide extract lock (`_tmp/.extract-check.lock`) moved from
+  `gates.sh` into `extract.sh`, AFTER the stamp check (a skipped run never waits), and now
+  covers write mode too.
+* **CI cannot hit a stamp**: it has no `_tmp/extract-green/`, and its gates step sets
+  `EXTRACT_NO_STAMP=1` (and `LAKE_SEED=0`) explicitly, so every push still runs Charon and
+  Aeneas.  That is the backstop for a missing input in the key.
+* **B. One gate run per sync.**  §7 steps 4 and 6 and `bump-con-leche.sh`'s work order,
+  `pin`'s "next" line and `land`'s master-merge message are now: `git merge master` (pin
+  files uncommitted) → `pin` → `LAKE_JOBS=4 scripts/gates.sh` → `land`; red gates →
+  `git reset HEAD~1`, fix, commit, `pin`, gate.  `land` still requires the green stamp at
+  exactly the tip.
+* **D. `gates.sh` seeds the shared Lake cache** in a new step `lake-seed` after a green
+  `lake-build` (`LAKE_ARTIFACT_CACHE=true LAKE_RESTORE_ARTIFACTS=true lake build` of the
+  same targets; `LAKE_SEED=0` skips it; `--only lake-build` selects it too).  CLAUDE.md's
+  cache paragraph says so, states the shared-packages caveat as it stands (the con-leche
+  oleans were already `r--r--r--` with link count 3, and `_tmp/lake-cache/outputs` already
+  held every dependency package), and carries the lane rule: a sync's Rust and extraction
+  land on the bump branch BEFORE Lean lanes fork (§7 step 2, with #172's numbers).
+* **E. dead-census's targets in the lake-build step.**  `gates.sh` builds `@con-ron` (the
+  default targets) plus `ConRon.Bridge ConRon.Refine2 con-ron-lean
+  con-ron-lean-olean-compare con-ron-arena-bench con-ron-dump-pins` in ONE Lake call;
+  `dead-census-gate.sh` keeps its own build line (a no-op under the gates; the script still
+  runs on its own).
+* §7's porting lessons gained the practice note: a Rust edit that only shifts lines costs a
+  full extraction and a full rebuild (`Source: … lines` docstrings in `Funs.lean`), so do
+  citation and comment fixes in the Rust pass.
+* Step numbering: the gates are 16 lines now (`lake-seed` is new); OVERVIEW's link to the
+  step list followed (`#L6-L45`).
+
+**Measured** (this worktree, `LAKE_JOBS=4`, one run each — wall time, so indicative only):
+
+| step | run 1: fresh worktree, real extraction | run 2: same tree | before (#176 review) |
+|---|---:|---:|---:|
+| extract-check | 470 s (stamp written) | **0 s, SKIPPED** | 400–460 s every run |
+| lake-build | 594 s (327 modules built: master's tip was not in the cache) | 2 s | 0–580 s |
+| lake-seed | 1 s | 2 s | — (only at `land`) |
+| dead-census | 24 s (0 `Built`) | 34 s | 24 s, 34–53 s when the exes rebuild |
+| whole run | 23 m 56 s (incl. waiting on the Aeneas lock held by #178) | **1 m 18 s** | ~8–17 min |
+
+E: the 76 executable C/link jobs (48.9 s summed) ran inside lake-build, the three
+executables linking at job ~5 856 of 6 336, i.e. beside the elaboration's critical path and
+not after it; dead-census's own build did nothing.  The seed is 1–2 s on an up-to-date tree.
+**Negative check**: appending ` (t177 probe)` to a `//` comment of
+`crates/con-ron-core/src/arena/check_decl.rs` (no line shift) did NOT skip: Charon ran (8 s)
+and Aeneas started, then the probe was stopped and the edit reverted.
+
+**Estimated landing of a sync** (the proposal's §3): extraction once (~420 s, by hand after
+the Rust) + one gate run whose extract-check is skipped ≈ 8–17 min, from ~33.
+
+**Risk and backstop.**  A, if an input is missing from the key, says OK for an extraction it
+did not run.  The key is conservative (whole directories, the whole lock file, the tools'
+store paths, the environment), the cost of that being a rare spurious miss; CI runs the real
+extraction on every push; `EXTRACT_NO_STAMP=1` forces one locally.  Stamps accumulate (one
+small file per green input set); `rm -rf _tmp/extract-green` is a safe sweep.  D writes to the
+shared packages' build files (chmod, `.hash`) from every gated worktree — Lake's normal cache
+behaviour, already the state of the shared directory.

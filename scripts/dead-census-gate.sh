@@ -5,8 +5,11 @@
 # #101), then `scripts/dead-census.py --check`: no declaration of
 # `proof/ConRon/**` may be unreachable from the capstone's headline theorems,
 # the Test modules and the tooling, beyond `scripts/dead-census-allow.txt`.
-# Runs after `lake-build`, so everything else is already built; ~3 minutes and
-# ~10 GB for the census's import of the whole environment.
+# Runs after `lake-build`, which builds these targets too (task #177: one
+# Lake invocation, so their C compile overlaps the elaboration): under
+# `scripts/gates.sh` the build below is a no-op, and it stays so that the
+# script also runs on its own.  Keep the two target lists in step.  The census
+# itself: ~3 minutes and ~10 GB for its import of the whole environment.
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 key=$(printf '%s' "$root" | sha256sum | cut -c1-12)

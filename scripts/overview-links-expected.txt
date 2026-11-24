@@ -3288,7 +3288,7 @@
    513  /// constructor, line 401.
    514  pub const ETAG_BVAR: u32 = 0;
 
-== scripts/gates.sh#L6-L34
+== scripts/gates.sh#L6-L45
      6  # Runs, in order, and stops at the first failure:
      7  #   1. cargo build                          the crate compiles, warning-free
      8  #   2. cargo test                           the unit tests pass
@@ -3306,18 +3306,29 @@
     20  #   9. scripts/gen-pins.sh --check          embedded pin text == natOpPinSets
     21  #  10. scripts/gen-prelude.sh --check       embedded prelude text == con-leche's
     22  #  11. scripts/gen-prelude-lean.sh --check  (B)'s embedded prelude bytes, ditto
-    23  #  12. scripts/extract.sh --check           committed generated Lean == crate
-    24  #  13. cd proof && lake build               the default targets elaborate: every
-    25  #                                           library of the chain, Theorem 1
-    26  #                                           (`ConRonBridge`), Theorem 2
-    27  #                                           (`ConRonRefine2`), the composition
-    28  #                                           (`ConRonMainTheorem`) included; any
-    29  #      warning from proof/'s own sources fails it (lake-build-wfail.sh, #102)
-    30  #      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
-    31  #      has no jobs flag; the first con-leche build can exhaust memory, #74)
-    32  #  14. scripts/dead-census-gate.sh          no declaration of proof/ConRon/**
-    33  #                                           unreachable from the headline
-    34  #                                           theorems, Tests and tooling (#105)
+    23  #  12. scripts/extract.sh --check           committed generated Lean == crate;
+    24  #                                           SKIPPED (OK, 0 s) when its inputs match
+    25  #                                           a green stamp in `_tmp/extract-green/`
+    26  #                                           (task #177; EXTRACT_NO_STAMP=1 forces it)
+    27  #  13. cd proof && lake build               the default targets elaborate: every
+    28  #                                           library of the chain, Theorem 1
+    29  #                                           (`ConRonBridge`), Theorem 2
+    30  #                                           (`ConRonRefine2`), the composition
+    31  #                                           (`ConRonMainTheorem`) included; any
+    32  #      warning from proof/'s own sources fails it (lake-build-wfail.sh, #102)
+    33  #      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
+    34  #      has no jobs flag; the first con-leche build can exhaust memory, #74).
+    35  #      The same build also compiles what dead-census needs beyond the
+    36  #      default targets (its four executables and two index roots), so their
+    37  #      C compile overlaps the elaboration (task #177).
+    38  #  14. lake-seed                            the green build's artifacts hard-
+    39  #                                           linked into the shared Lake cache
+    40  #                                           (`_tmp/lake-cache`, CLAUDE.md), for
+    41  #                                           the next checkout with the same
+    42  #                                           bytes; LAKE_SEED=0 skips it (#177)
+    43  #  15. scripts/dead-census-gate.sh          no declaration of proof/ConRon/**
+    44  #                                           unreachable from the headline
+    45  #                                           theorems, Tests and tooling (#105)
 
 == crates/con-ron-core/src/arena/mod.rs#L1-L22
      1  //! The arena: handles and the four interned stores (DESIGN.md §8.3/§8.5).
