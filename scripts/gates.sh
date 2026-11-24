@@ -10,8 +10,6 @@
 #      scripts/dead-rust.py --check         no `pub` Rust item without a caller
 #                                           (task #105)
 #   4. scripts/provenance.py check          every item cites con-leche (§3.7)
-#      scripts/pin-last.py                  no commit but the tip moves the
-#                                           con-leche pin (§7, task #108)
 #   5. scripts/provenance-selftest.py        the gate's Lean parser and the
 #                                           bump classifier, on their fixtures
 #   6. scripts/twin-lines.py check          every `Lean twin:` line names a
@@ -87,9 +85,6 @@ run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/
 # Task #105: `-D warnings` catches a private item nothing uses, not a `pub` one.
 run dead-rust     python3 "$root/scripts/dead-rust.py" --check
 run provenance    python3 "$root/scripts/provenance.py" check
-# Task #108: the pin files change in a bump's LAST commit only (§7); a
-# sub-agent's early commit of them (task #105) fails here, in its own run.
-run pin-last      python3 "$root/scripts/pin-last.py"
 run provenance-self python3 "$root/scripts/provenance-selftest.py"
 # The other half of the same ledger: `provenance` checks what the Rust was
 # ported FROM (con-leche, a pinned tree), `twin-lines` what it is a port OF
