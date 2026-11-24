@@ -114,40 +114,76 @@ pub fn uses_go(bs: &[u8], r: &Region, stamps: &mut Vec<u64>, stamp: u64, stack: 
             }
             let t = region::region_tag(bs, g);
             let n = region::region_nobjs(bs, g);
-            let next: Option<usize> = if (t == 0 && n == 1) || (t == 3 && n == 1) {
-                Some(sp)
-            } else if t == 4 && n == 2 {
-                out.push(region::region_fld(bs, g, 0));
-                Some(sp)
-            } else if t == 5 && n == 2 {
-                let a = push_kid(bs, r, g, 1, stack, Some(sp));
-                push_kid(bs, r, g, 0, stack, a)
-            } else if (t == 6 || t == 7) && n == 3 {
-                let a = push_kid(bs, r, g, 2, stack, Some(sp));
-                push_kid(bs, r, g, 1, stack, a)
-            } else if t == 8 && n == 4 {
-                let a = push_kid(bs, r, g, 3, stack, Some(sp));
-                let b = push_kid(bs, r, g, 2, stack, a);
-                push_kid(bs, r, g, 1, stack, b)
-            } else if t == 9 && n == 1 {
-                match region::region_down(r, g, region::region_fld(bs, g, 0)) {
-                    Some(c) => {
-                        if region::region_is_ctor(bs, r, c, 0, 1) {
-                            out.push(USES_NAT);
-                            Some(sp)
-                        } else if region::region_is_ctor(bs, r, c, 1, 1) {
-                            out.push(USES_STR);
-                            Some(sp)
-                        } else {
-                            None
-                        }
-                    }
-                    None => None,
+            // con-leche's `match r.tag g, r.nobjs g`: the tag, then the field
+            // count, one test per `if`.  An `&&` in an `else if` chain would make
+            // Charon copy the rest of the chain into both of its branches,
+            // doubling the extraction per arm (DESIGN.md task #178).
+            let next: Option<usize> = if t == 0 || t == 3 {
+                if n == 1 {
+                    Some(sp)
+                } else {
+                    None
                 }
-            } else if t == 10 && n == 2 {
-                push_kid(bs, r, g, 1, stack, Some(sp))
-            } else if t == 11 && n == 3 {
-                push_kid(bs, r, g, 2, stack, Some(sp))
+            } else if t == 4 {
+                if n == 2 {
+                    out.push(region::region_fld(bs, g, 0));
+                    Some(sp)
+                } else {
+                    None
+                }
+            } else if t == 5 {
+                if n == 2 {
+                    let a = push_kid(bs, r, g, 1, stack, Some(sp));
+                    push_kid(bs, r, g, 0, stack, a)
+                } else {
+                    None
+                }
+            } else if t == 6 || t == 7 {
+                if n == 3 {
+                    let a = push_kid(bs, r, g, 2, stack, Some(sp));
+                    push_kid(bs, r, g, 1, stack, a)
+                } else {
+                    None
+                }
+            } else if t == 8 {
+                if n == 4 {
+                    let a = push_kid(bs, r, g, 3, stack, Some(sp));
+                    let b = push_kid(bs, r, g, 2, stack, a);
+                    push_kid(bs, r, g, 1, stack, b)
+                } else {
+                    None
+                }
+            } else if t == 9 {
+                if n == 1 {
+                    match region::region_down(r, g, region::region_fld(bs, g, 0)) {
+                        Some(c) => {
+                            if region::region_is_ctor(bs, r, c, 0, 1) {
+                                out.push(USES_NAT);
+                                Some(sp)
+                            } else if region::region_is_ctor(bs, r, c, 1, 1) {
+                                out.push(USES_STR);
+                                Some(sp)
+                            } else {
+                                None
+                            }
+                        }
+                        None => None,
+                    }
+                } else {
+                    None
+                }
+            } else if t == 10 {
+                if n == 2 {
+                    push_kid(bs, r, g, 1, stack, Some(sp))
+                } else {
+                    None
+                }
+            } else if t == 11 {
+                if n == 3 {
+                    push_kid(bs, r, g, 2, stack, Some(sp))
+                } else {
+                    None
+                }
             } else {
                 None
             };

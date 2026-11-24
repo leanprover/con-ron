@@ -402,7 +402,7 @@ theorem uses_go_loop_ok {bs : Slice Std.U8} {r : frontend.olean.region.Region}
             by_cases hn : nn.val = 1
             · rw [hn]
               obtain rfl : nn = 1#u64 := UScalar.eq_of_val_eq (hn.trans rfl)
-              simp (config := {decide := true}) only [↓reduceIte] at hD
+              simp (config := {decide := true}) only [↓reduceIte, bind_ok] at hD
               obtain ⟨rfl, rfl, hc⟩ := triple_ok hD
               cases hc
               exact fin l' out' hs1 ho
@@ -415,7 +415,7 @@ theorem uses_go_loop_ok {bs : Slice Std.U8} {r : frontend.olean.region.Region}
             by_cases hn : nn.val = 1
             · rw [hn]
               obtain rfl : nn = 1#u64 := UScalar.eq_of_val_eq (hn.trans rfl)
-              simp (config := {decide := true}) only [↓reduceIte] at hD
+              simp (config := {decide := true}) only [↓reduceIte, bind_ok] at hD
               obtain ⟨rfl, rfl, hc⟩ := triple_ok hD
               cases hc
               exact fin l' out' hs1 ho
@@ -429,7 +429,7 @@ theorem uses_go_loop_ok {bs : Slice Std.U8} {r : frontend.olean.region.Region}
             by_cases hn : nn.val = 2
             · rw [hn]
               obtain rfl : nn = 2#u64 := UScalar.eq_of_val_eq (hn.trans rfl)
-              simp (config := {decide := true}) only [↓reduceIte] at hD
+              simp (config := {decide := true}) only [↓reduceIte, Aeneas.Std.bind_assoc, bind_ok] at hD
               peel hD as i3, hi3
               peel hD as out2, hout2
               obtain ⟨rfl, rfl, hc⟩ := triple_ok hD
@@ -449,10 +449,12 @@ theorem uses_go_loop_ok {bs : Slice Std.U8} {r : frontend.olean.region.Region}
             · rw [hn]
               obtain rfl : nn = 2#u64 := UScalar.eq_of_val_eq (hn.trans rfl)
               simp (config := {decide := true}) only [↓reduceIte] at hD
-              obtain ⟨⟨a, st2⟩, hk1, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
-              obtain ⟨⟨nx, st3⟩, hk2, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
+              obtain ⟨⟨st4, nx4⟩, hI, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
               obtain ⟨rfl, rfl, hc⟩ := triple_ok hD
               cases hc
+              obtain ⟨⟨a, st2⟩, hk1, hI⟩ := ConRon.Refine.bind_eq_ok_iff.mp hI
+              obtain ⟨⟨nx, st3⟩, hk2, hI⟩ := ConRon.Refine.bind_eq_ok_iff.mp hI
+              obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hI)
               have K1 := push_kid_rel hK0 hk1
               have K2 := push_kid_rel K1 hk2
               rw [u64_val_1, u64_val_0] at K2
@@ -472,10 +474,12 @@ theorem uses_go_loop_ok {bs : Slice Std.U8} {r : frontend.olean.region.Region}
             · rw [hn]
               obtain rfl : nn = 3#u64 := UScalar.eq_of_val_eq (hn.trans rfl)
               simp (config := {decide := true}) only [↓reduceIte] at hD
-              obtain ⟨⟨a, st2⟩, hk1, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
-              obtain ⟨⟨nx, st3⟩, hk2, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
+              obtain ⟨⟨st4, nx4⟩, hI, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
               obtain ⟨rfl, rfl, hc⟩ := triple_ok hD
               cases hc
+              obtain ⟨⟨a, st2⟩, hk1, hI⟩ := ConRon.Refine.bind_eq_ok_iff.mp hI
+              obtain ⟨⟨nx, st3⟩, hk2, hI⟩ := ConRon.Refine.bind_eq_ok_iff.mp hI
+              obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hI)
               have K1 := push_kid_rel hK0 hk1
               have K2 := push_kid_rel K1 hk2
               rw [u64_val_2, u64_val_1] at K2
@@ -494,10 +498,12 @@ theorem uses_go_loop_ok {bs : Slice Std.U8} {r : frontend.olean.region.Region}
             · rw [hn]
               obtain rfl : nn = 3#u64 := UScalar.eq_of_val_eq (hn.trans rfl)
               simp (config := {decide := true}) only [↓reduceIte] at hD
-              obtain ⟨⟨a, st2⟩, hk1, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
-              obtain ⟨⟨nx, st3⟩, hk2, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
+              obtain ⟨⟨st4, nx4⟩, hI, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
               obtain ⟨rfl, rfl, hc⟩ := triple_ok hD
               cases hc
+              obtain ⟨⟨a, st2⟩, hk1, hI⟩ := ConRon.Refine.bind_eq_ok_iff.mp hI
+              obtain ⟨⟨nx, st3⟩, hk2, hI⟩ := ConRon.Refine.bind_eq_ok_iff.mp hI
+              obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hI)
               have K1 := push_kid_rel hK0 hk1
               have K2 := push_kid_rel K1 hk2
               rw [u64_val_2, u64_val_1] at K2
@@ -517,11 +523,13 @@ theorem uses_go_loop_ok {bs : Slice Std.U8} {r : frontend.olean.region.Region}
             · rw [hn]
               obtain rfl : nn = 4#u64 := UScalar.eq_of_val_eq (hn.trans rfl)
               simp (config := {decide := true}) only [↓reduceIte] at hD
-              obtain ⟨⟨a, st2⟩, hk1, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
-              obtain ⟨⟨b1, st3⟩, hk2, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
-              obtain ⟨⟨nx, st4⟩, hk3, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
+              obtain ⟨⟨st4, nx4⟩, hI, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
               obtain ⟨rfl, rfl, hc⟩ := triple_ok hD
               cases hc
+              obtain ⟨⟨a, st2⟩, hk1, hI⟩ := ConRon.Refine.bind_eq_ok_iff.mp hI
+              obtain ⟨⟨b1, st3⟩, hk2, hI⟩ := ConRon.Refine.bind_eq_ok_iff.mp hI
+              obtain ⟨⟨nx, st4⟩, hk3, hI⟩ := ConRon.Refine.bind_eq_ok_iff.mp hI
+              obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hI)
               have K1 := push_kid_rel hK0 hk1
               have K2 := push_kid_rel K1 hk2
               have K3 := push_kid_rel K2 hk3
@@ -541,7 +549,7 @@ theorem uses_go_loop_ok {bs : Slice Std.U8} {r : frontend.olean.region.Region}
             by_cases hn : nn.val = 1
             · rw [hn]
               obtain rfl : nn = 1#u64 := UScalar.eq_of_val_eq (hn.trans rfl)
-              simp (config := {decide := true}) only [↓reduceIte] at hD
+              simp (config := {decide := true}) only [↓reduceIte, Aeneas.Std.bind_assoc] at hD
               peel hD as i3, hi3
               peel hD as oc, hoc
               obtain ⟨⟨v1, o1⟩, hm, hD⟩ := ConRon.Refine.bind_eq_ok_iff.mp hD
