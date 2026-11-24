@@ -74997,8 +74997,8 @@ operation", graph.rs:315) and skips it; that function is cheap.
 So the Aeneas bump doubles the time on either crate; the loops of #158–#169 add ~15–20 %.
 Neither explains the step from ~93 s: on **both** Aeneas versions and both crates, the wall
 time is one function, `frontend::olean::lazy::uses_go` (the `.olean` reader's DAG walk,
-added by #143 on Nov 6, after the 93 s measurement), whose translation runs 70–85 % of the
-whole run while everything else finishes in parallel beside it.
+added by #143 on Nov 6, after the 93 s measurement), whose translation runs most of the
+whole run (75–85 %) while everything else finishes in parallel beside it.
 
 **Cause 1 — `uses_go`'s shape: Charon copies the rest of an `&&` chain into both branches.**
 Its body dispatches on an object's tag and field count as one `else if` chain over
