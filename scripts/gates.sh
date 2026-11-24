@@ -20,7 +20,10 @@
 #   9. scripts/gen-pins.sh --check          embedded pin text == natOpPinSets
 #  10. scripts/gen-prelude.sh --check       embedded prelude text == con-leche's
 #  11. scripts/gen-prelude-lean.sh --check  (B)'s embedded prelude bytes, ditto
-#  12. scripts/extract.sh --check           committed generated Lean == crate
+#  12. scripts/extract.sh --check           committed generated Lean == crate;
+#                                           SKIPPED (OK, 0 s) when its inputs match
+#                                           a green stamp in `_tmp/extract-green/`
+#                                           (task #177; EXTRACT_NO_STAMP=1 forces it)
 #  13. cd proof && lake build               the default targets elaborate: every
 #                                           library of the chain, Theorem 1
 #                                           (`ConRonBridge`), Theorem 2
@@ -28,8 +31,16 @@
 #                                           (`ConRonMainTheorem`) included; any
 #      warning from proof/'s own sources fails it (lake-build-wfail.sh, #102)
 #      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
-#      has no jobs flag; the first con-leche build can exhaust memory, #74)
-#  14. scripts/dead-census-gate.sh          no declaration of proof/ConRon/**
+#      has no jobs flag; the first con-leche build can exhaust memory, #74).
+#      The same build also compiles what dead-census needs beyond the
+#      default targets (its four executables and two index roots), so their
+#      C compile overlaps the elaboration (task #177).
+#  14. lake-seed                            the green build's artifacts hard-
+#                                           linked into the shared Lake cache
+#                                           (`_tmp/lake-cache`, CLAUDE.md), for
+#                                           the next checkout with the same
+#                                           bytes; LAKE_SEED=0 skips it (#177)
+#  15. scripts/dead-census-gate.sh          no declaration of proof/ConRon/**
 #                                           unreachable from the headline
 #                                           theorems, Tests and tooling (#105)
 #
@@ -45,6 +56,8 @@ if [ "${1-}" = "--only" ]; then only=",${2-},"; shift 2; fi
 # The old per-library steps `lake-refine2`, `lake-bridge`, `lake-capstone`
 # (task #98-TIDY folded them into `lake-build`) still select it.
 case $only in *,lake-refine2,*|*,lake-bridge,*|*,lake-capstone,*) only="$only,lake-build,";; esac
+# The seed belongs to the build it seeds from.
+case $only in *,lake-build,*) only="$only,lake-seed,";; esac
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Per-checkout log dir: `_tmp` is shared between agent worktrees (a symlink),
@@ -62,6 +75,7 @@ run() { # run <name> <cmd...>
     skipped=$((skipped + 1)); printf 'SKIP %-22s\n' "$name"; return 0
   fi
   local log="$logdir/$n-$name.log"
+  lastlog=$log
   local start end
   start=$(date +%s)
   if "$@" > "$log" 2>&1; then
@@ -100,10 +114,29 @@ run gen-prelude-lean "$root/scripts/gen-prelude-lean.sh" --check
 # the shared 50 GB cgroup over its cap (peak 53.9 GB, 2026-09-23) and the
 # kernel OOM-killed aeneas (exit 137).  Serialise this one step machine-wide
 # through a lock in the shared `_tmp/` (every worktree sees the same one).
-run extract-check flock "$root/_tmp/.extract-check.lock" "$root/scripts/extract.sh" --check
+# (the lock is taken inside extract.sh, after its green-stamp check, task #177).
+run extract-check "$root/scripts/extract.sh" --check
+grep -h -m1 'SKIPPED -- the inputs match' "$lastlog" 2>/dev/null | sed 's/^/     /' || true
+# What the build compiles: the default targets (`@con-ron`) and what the
+# dead-census step imports beyond them (the list in `dead-census-gate.sh`, whose
+# own build is then a no-op).  Task #177: one Lake invocation, so the four
+# executables' C compile runs beside the elaboration's critical path.
+build_targets=(@con-ron ConRon.Bridge ConRon.Refine2 con-ron-lean con-ron-lean-olean-compare
+  con-ron-arena-bench con-ron-dump-pins)
 # Warning-free since task #101; `lake-build-wfail.sh` keeps it so (task #102)
 # without failing on the warnings Lake replays from Aeneas's logs.
-run lake-build    env ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} "$root/scripts/lake-build-wfail.sh"
+run lake-build    env ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} "$root/scripts/lake-build-wfail.sh" "${build_targets[@]}"
+# Task #177: seed the shared Lake cache from the green build (CLAUDE.md, "The
+# shared Lake artifact cache").  Elaborates nothing — the tree is up to date —
+# it hard-links the artifacts into `_tmp/lake-cache`.  Caveat, stated there:
+# this also caches the dependency packages of the import closure, which
+# chmods their build files read-only and rewrites their `.hash` files.
+if [ "${LAKE_SEED:-1}" = 0 ]; then
+  n=$((n + 1)); skipped=$((skipped + 1)); printf 'SKIP %-22s (LAKE_SEED=0)\n' lake-seed
+else
+  run lake-seed   env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} \
+    LAKE_ARTIFACT_CACHE=true LAKE_RESTORE_ARTIFACTS=true lake build "${build_targets[@]}"
+fi
 # Task #105 (maintainer: "leave no unused code or proofs around"): the census
 # over the build the step above left, from the capstone's headline theorems.
 run dead-census   env ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} "$root/scripts/dead-census-gate.sh"

@@ -387,8 +387,17 @@ jobs:
 
       # ---- THE GATE -----------------------------------------------------
       # One OK/FAIL line per gate, non-zero exit on the first FAIL.
+      # EXTRACT_NO_STAMP=1: CI always runs Charon + Aeneas.  A local gate run
+      # skips the extraction when its inputs match a green stamp in
+      # `_tmp/extract-green/` (task #177); CI is the backstop that makes that
+      # safe, so it must never take the shortcut (a runner has no `_tmp/`
+      # stamps, and this says so explicitly).  LAKE_SEED=0: the shared Lake
+      # cache is a development-machine cache; a runner's is thrown away.
       - name: scripts/gates.sh
         shell: nix develop --command bash -euo pipefail {0}
+        env:
+          EXTRACT_NO_STAMP: 1
+          LAKE_SEED: 0
         run: scripts/gates.sh
 
       # ---- the differentials --------------------------------------------
