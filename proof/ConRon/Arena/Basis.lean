@@ -7,7 +7,7 @@ the constants of the five pinned blocks (`Eq`, `Nat`, `Empty`, `False`,
 the block's comparison with its pin (`pinListOk`), the name test that says a
 record is a pinned block's (`basisNameHit`), the reserved names' check run
 after a declaration's own checks (`basisNamesOk`, `basisNamesError`), what a
-quotient record stores (`quotAt`), and the fold's `And` pin
+quotient record stores (`quotAt`, in the form it declares), and the fold's `And` pin
 (`andPinOk`): a record that declares `And`, `And.intro` or `And.rec` and is
 not the toolchain's block is rejected.
 
@@ -252,22 +252,57 @@ def quotPin (k : QuotKind) : AM IConstantInfo := do
   let blk ← ConRon.Arena.BasisKind.decls .quotK
   pure (blk.getD k.slot default)
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:191-194 quotAt — **what a quotient
--- con-leche: CHANGED since 216031bf — re-port, re-test, re-prove Basis.quotAt_bridge, then delete this line
-record stores**: its slot's pin at the names it declares. -/
-def quotAt (k : QuotKind) (cv : IConstantVal) : AM IConstantInfo := do
-  (← quotPin k).atLps cv.levelParams
+/-- con-leche: ConLeche/Kernel/Basis.lean:167-175 quotPinOf — **the pinned
+quotient package's constant at a slot, in a form**: the `lifted` form
+(`quotSortOf`) differs from the released one at `Quot` and `Quot.sound` only,
+whose lifted pins are con-leche's values, interned. -/
+def quotPinOf (lifted : Bool) (k : QuotKind) : AM IConstantInfo :=
+  if lifted then
+    match k with
+    | .type => internCI (ConLeche.quotAOf true)
+    | .sound => internCI (ConLeche.quotSoundAOf true)
+    | _ => quotPin k
+  else quotPin k
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:202-206 quotPinHit — **the
--- con-leche: CHANGED since 216031bf — re-port, re-test, re-prove Basis.quotPinHit_bridge, then delete this line
-quotient-pin match**: the record is the pinned package's constant at the slot
-it declares itself at, up to its level-parameter names: distinct, as many as
-the pin's. -/
-def quotPinHit (k : QuotKind) (cv : IConstantVal) : AM Bool := do
-  let pcv := (← quotPin k).toConstantVal
+/-- con-leche: ConLeche/Kernel/Basis.lean:177-182 quotPinHitAt — **a record
+matches a pin**: it is the pin up to its level-parameter names, distinct and
+as many as the pin's. -/
+def quotPinHitAt (pin : IConstantInfo) (cv : IConstantVal) : AM Bool := do
+  let pcv := pin.toConstantVal
   if nameNodup cv.levelParams && cv.levelParams.length == pcv.levelParams.length then
     pure (cv == (← pcv.atLps cv.levelParams))
   else pure false
+
+/-- con-leche: ConLeche/Kernel/Basis.lean:184-189 quotLifted — **which form a
+quotient record declares**: the lifted one where it matches that pin, at
+`Quot` and `Quot.sound`; the released one everywhere else. -/
+def quotLifted (k : QuotKind) (cv : IConstantVal) : AM Bool :=
+  match k with
+  | .type | .sound => do quotPinHitAt (← quotPinOf true k) cv
+  | _ => pure false
+
+/-- con-leche: ConLeche/Kernel/Basis.lean:191-194 quotAt — **what a quotient
+record stores**: its slot's pin, in the form it declares, at the names it
+declares. -/
+def quotAt (k : QuotKind) (cv : IConstantVal) : AM IConstantInfo := do
+  (← quotPinOf (← quotLifted k cv) k).atLps cv.levelParams
+
+/-- con-leche: ConLeche/Kernel/Basis.lean:202-206 quotPinHit — **the
+quotient-pin match**: the record is the pinned package's constant at the slot
+it declares itself at, in either form, up to its level-parameter names:
+distinct, as many as the pin's. -/
+def quotPinHit (k : QuotKind) (cv : IConstantVal) : AM Bool := do
+  quotPinHitAt (← quotPinOf (← quotLifted k cv) k) cv
+
+/-- con-leche: ConLeche/Kernel/Basis.lean:208-212 quotStoredLifted — **whether
+the stored `Quot` is in the lifted form.**  The cited `find?` argument is the
+index `fe`. -/
+def quotStoredLifted (fe : IFEnv) : AM Bool := do
+  match fe.find? (← pinQuot) with
+  | some ci => do
+    let p ← internCI (ConLeche.quotAOf true)
+    pure (ci.toConstantVal == (← p.toConstantVal.atLps ci.toConstantVal.levelParams))
+  | none => pure false
 
 /-- con-leche: ConLeche/Kernel/Basis.lean:214-226 quotPredsOk — **what a
 quotient record's slot needs stored before it**: the constants its type
@@ -282,6 +317,15 @@ def quotPredsOk (fe : IFEnv) (k : QuotKind) : AM Bool := do
     | .lift => hasEq && hasQ && hasM
     | .ind => hasQ && hasM
     | .sound => hasEq && hasQ && hasM)
+
+/-- con-leche: ConLeche/Kernel/Basis.lean:228-234 quotFormOk — **`Quot.sound`
+is in the stored `Quot`'s form**: its equation is at the quotient's result
+level, so the other pairing is ill-typed, which the official kernel rejects.
+Every other slot passes.  The cited `find?` argument is the index `fe`. -/
+def quotFormOk (fe : IFEnv) (k : QuotKind) (cv : IConstantVal) : AM Bool :=
+  match k with
+  | .sound => do pure ((← quotStoredLifted fe) == (← quotLifted .sound cv))
+  | _ => pure true
 
 /-! ## The pinned `And` (con-leche's ANDPIN) -/
 

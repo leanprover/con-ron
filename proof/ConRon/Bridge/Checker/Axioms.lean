@@ -331,9 +331,14 @@ namespace ConRon.Bridge
 
 -- what a quotient record stores, and the checks
 #print axioms quotPin_run
+#print axioms quotPinOf_run
+#print axioms quotPinHitAt_run
+#print axioms quotLifted_run
 #print axioms quotAt_run
 #print axioms quotPinHit_run
+#print axioms quotStoredLifted_run
 #print axioms quotPredsOk_run
+#print axioms quotFormOk_run
 #print axioms checkQuotRecord_bridge
 #print axioms checkDeclKind_bridge_quot
 #print axioms basisNamesOk_run

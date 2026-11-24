@@ -315,7 +315,8 @@ open Lockstep in
   LS.ofSimRel₀ fun _ h => check_axiom_decl_std_refines hrel hinv hfe.rel hfe.inv h
 
 /-- **`check_quot_record` ⊑ `checkQuotRecord`**: a quotient record compared with its
-slot's pin, the slots it needs stored, and installed at its own names. -/
+slot's pin in either form, the slots it needs stored, `Quot.sound` in the stored
+`Quot`'s form, and installed at its own names. -/
 theorem check_quot_record_refines {pers st lst} {rf lf}
     {k : kernel.env.QuotKind} {cv : arena.env.IConstantVal} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)

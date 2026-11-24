@@ -1059,18 +1059,33 @@ open Lockstep in
   all_goals msg_leaf
 
 open Lockstep in
-/-- `quot_pin_hit` ⊑ `quotPinHit`: the record is the slot's pin up to its
+/-- `quot_pin_of` ⊑ `quotPinOf`: the slot's pin in a form; the lifted `Quot` and
+`Quot.sound` are the pinned-data tier's values, interned (`sim_intern_ci_of`). -/
+@[lockstep] theorem quot_pin_of_ls {pers st lst} {lifted : Bool} {k : kernel.env.QuotKind}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absIConstantInfo a) (arena.basis.quot_pin_of pers st lifted k) lst
+      (quotPinOf lifted (ConRon.Refine.absQuotKind k)) := by
+  rw [arena.basis.quot_pin_of.eq_def]
+  unfold quotPinOf
+  cases lifted <;> cases k <;>
+    simp only [ConRon.Refine.absQuotKind, Bool.false_eq_true, ↓reduceIte] <;>
+    first
+    | exact quot_pin_ls hrel hinv
+    | exact LS.ofSim₀ fun _ h => sim_intern_ci_of hrel hinv
+        (fun _ h => ConRon.Refine.BasisRaw.quot_a_of_refines h) h
+    | exact LS.ofSim₀ fun _ h => sim_intern_ci_of hrel hinv
+        (fun _ h => ConRon.Refine.BasisRaw.quot_sound_a_of_refines h) h
+
+open Lockstep in
+/-- `quot_pin_hit_at` ⊑ `quotPinHitAt`: the record is the pin up to its
 level-parameter names, distinct and as many as the pin's. -/
-@[lockstep] theorem quot_pin_hit_ls {pers st lst} {k : kernel.env.QuotKind}
+@[lockstep] theorem quot_pin_hit_at_ls {pers st lst} {pin : arena.env.IConstantInfo}
     {cv : arena.env.IConstantVal}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = id a) (arena.basis.quot_pin_hit pers st k cv) lst
-      (quotPinHit (ConRon.Refine.absQuotKind k) (absIConstantVal cv)) := by
-  rw [arena.basis.quot_pin_hit]
-  unfold quotPinHit
-  refine LS.bind (quot_pin_ls hrel hinv) rfl (fun _ _ => errArm_ok) ?_
-  intro pin b st1 lst1 hb hrel1 hinv1
-  subst hb
+    LS pers (fun a b => b = id a) (arena.basis.quot_pin_hit_at pers st pin cv) lst
+      (quotPinHitAt (absIConstantInfo pin) (absIConstantVal cv)) := by
+  rw [arena.basis.quot_pin_hit_at]
+  unfold quotPinHitAt
   refine LS.bind_eq fun pcv hpcv => ?_
   have epcv := i_constant_info_to_constant_val_abs hpcv
   rw [← epcv]
@@ -1082,7 +1097,7 @@ level-parameter names, distinct and as many as the pin's. -/
   cases b with
   | false =>
     rw [ite_eq_right (by simp), ite_eq_right (by simp [hbv])]
-    exact LS.pure rfl hrel1 hinv1
+    exact LS.pure rfl hrel hinv
   | true =>
     rw [ite_eq_left rfl]
     by_cases hl : alloc.vec.Vec.len cv.level_params = alloc.vec.Vec.len pcv.level_params
@@ -1090,7 +1105,7 @@ level-parameter names, distinct and as many as the pin's. -/
       have hl' : cv.level_params.val.length = pcv.level_params.val.length := by
         have := congrArg Std.UScalar.val hl; simpa [alloc.vec.Vec.len] using this
       rw [ite_eq_left (by simp [hbv, hl'])]
-      refine LS.bind (constant_val_at_lps_ls hrel1 hinv1) rfl (fun _ _ => errArm_ok) ?_
+      refine LS.bind (constant_val_at_lps_ls hrel hinv) rfl (fun _ _ => errArm_ok) ?_
       intro pcv2 b2 st2 lst2 hb2 hrel2 hinv2
       subst hb2
       refine LS.bind_eq fun b3 hb3 => ?_
@@ -1101,10 +1116,47 @@ level-parameter names, distinct and as many as the pin's. -/
       have hl' : ¬ cv.level_params.val.length = pcv.level_params.val.length := by
         intro h; exact hl (Std.UScalar.eq_of_val_eq (by simpa [alloc.vec.Vec.len] using h))
       rw [ite_eq_right (by simp [hbv, hl'])]
-      exact LS.pure rfl hrel1 hinv1
+      exact LS.pure rfl hrel hinv
 
 open Lockstep in
-/-- `quot_at` ⊑ `quotAt`: the slot's pin at the names the record declares. -/
+/-- `quot_lifted` ⊑ `quotLifted`: the lifted pin's match at `Quot` and
+`Quot.sound`, `false` at every other slot. -/
+@[lockstep] theorem quot_lifted_ls {pers st lst} {k : kernel.env.QuotKind}
+    {cv : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.basis.quot_lifted pers st k cv) lst
+      (quotLifted (ConRon.Refine.absQuotKind k) (absIConstantVal cv)) := by
+  rw [arena.basis.quot_lifted.eq_def]
+  unfold quotLifted
+  cases k <;> simp only [ConRon.Refine.absQuotKind]
+  case «Type» | Sound =>
+    refine LS.bind (quot_pin_of_ls hrel hinv) rfl (fun _ _ => errArm_ok) ?_
+    intro pin b st1 lst1 hb hrel1 hinv1
+    subst hb
+    exact quot_pin_hit_at_ls hrel1 hinv1
+  all_goals exact LS.pure rfl hrel hinv
+
+open Lockstep in
+/-- `quot_pin_hit` ⊑ `quotPinHit`: the record is the slot's pin, in the form it
+declares, up to its level-parameter names. -/
+@[lockstep] theorem quot_pin_hit_ls {pers st lst} {k : kernel.env.QuotKind}
+    {cv : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.basis.quot_pin_hit pers st k cv) lst
+      (quotPinHit (ConRon.Refine.absQuotKind k) (absIConstantVal cv)) := by
+  rw [arena.basis.quot_pin_hit]
+  unfold quotPinHit
+  refine LS.bind (quot_lifted_ls hrel hinv) rfl (fun _ _ => errArm_ok) ?_
+  intro lifted b st1 lst1 hb hrel1 hinv1
+  subst hb
+  refine LS.bind (quot_pin_of_ls hrel1 hinv1) rfl (fun _ _ => errArm_ok) ?_
+  intro pin b st2 lst2 hb hrel2 hinv2
+  subst hb
+  exact quot_pin_hit_at_ls hrel2 hinv2
+
+open Lockstep in
+/-- `quot_at` ⊑ `quotAt`: the slot's pin, in the form the record declares, at the
+names it declares. -/
 @[lockstep] theorem quot_at_ls {pers st lst} {k : kernel.env.QuotKind}
     {cv : arena.env.IConstantVal}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -1112,9 +1164,49 @@ open Lockstep in
       (quotAt (ConRon.Refine.absQuotKind k) (absIConstantVal cv)) := by
   rw [arena.basis.quot_at]
   unfold quotAt
-  refine LS.bind (quot_pin_ls hrel hinv) rfl (fun _ _ => errArm_ok) ?_
-  intro pin b st1 lst1 hb hrel1 hinv1
+  refine LS.bind (quot_lifted_ls hrel hinv) rfl (fun _ _ => errArm_ok) ?_
+  intro lifted b st1 lst1 hb hrel1 hinv1
   subst hb
-  exact constant_info_at_lps_ls hrel1 hinv1
+  refine LS.bind (quot_pin_of_ls hrel1 hinv1) rfl (fun _ _ => errArm_ok) ?_
+  intro pin b st2 lst2 hb hrel2 hinv2
+  subst hb
+  exact constant_info_at_lps_ls hrel2 hinv2
+
+open Lockstep in
+/-- `quot_stored_lifted` ⊑ `quotStoredLifted`: the stored `Quot`, looked up at its
+pinned name, compared with the lifted pin at its own level-parameter names. -/
+@[lockstep] theorem quot_stored_lifted_ls {pers st lst} {fe : arena.env.IFEnv} {lfe : IFEnv}
+    (hfe : IFEnvRelI pers fe lfe)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.basis.quot_stored_lifted pers st fe) lst
+      (quotStoredLifted lfe) := by
+  rw [arena.basis.quot_stored_lifted]
+  unfold quotStoredLifted
+  lockstep
+  -- the lifted `Quot` pin, interned: no `@[lockstep]` lemma reads `intern_ci` of a
+  -- pinned-data value bound in the walk itself, so its `Sim₀` is bound by hand
+  obtain ⟨ha, hw⟩ :=
+    ConRon.Refine.BasisRaw.quot_a_of_refines ‹kernel.basis_raw.quot_a_of true = ok _›
+  refine LS.bind (LS.ofSim₀ fun _ h => intern_ci_refines ‹_› ‹_› hw h) (by rw [ha])
+    (fun _ _ => errArm_ok) ?_
+  intro p b st1 lst1 hb hrel1 hinv1
+  subst hb
+  lockstep
+  refine LS.pure ?_ ‹_› ‹_›
+  have hb := i_constant_val_beq_refines ‹arena.canon.i_constant_val_beq _ _ = ok _›
+  rw [hb]
+  simp [beq_eq_decide]
+
+open Lockstep in
+/-- `quot_form_ok` ⊑ `quotFormOk`: at `Quot.sound`, the stored `Quot`'s form against
+the record's; every other slot passes. -/
+@[lockstep] theorem quot_form_ok_ls {pers st lst} {fe : arena.env.IFEnv} {lfe : IFEnv}
+    (hfe : IFEnvRelI pers fe lfe) {k : kernel.env.QuotKind} {cv : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.basis.quot_form_ok pers st fe k cv) lst
+      (quotFormOk lfe (ConRon.Refine.absQuotKind k) (absIConstantVal cv)) := by
+  rw [arena.basis.quot_form_ok.eq_def]
+  unfold quotFormOk
+  cases k <;> simp only [ConRon.Refine.absQuotKind] <;> lockstep
 
 end ConRon.Refine2

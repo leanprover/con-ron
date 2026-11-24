@@ -1280,7 +1280,7 @@ theorem pinListOk_run {block pins : List IConstantInfo} {B P : List ConstantInfo
 
 /-! ## What a pinned block and a quotient record store -/
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:143-145 quotPin — the pinned
+/-- con-leche: ConLeche/Kernel/Basis.lean:163-165 quotPin — the pinned
 quotient package's constant at a slot.  The `getD` default is never read: the
 package has five members and every slot is below five. -/
 theorem quotPin_run {k : QuotKind} {ci : IConstantInfo} {s s' : AState}
@@ -1305,57 +1305,138 @@ theorem quotPin_run {k : QuotKind} {ci : IConstantInfo} {s s' : AState}
       simp only [ConLeche.quotPin, List.getD_eq_getElem?_getD, hx]; rfl
     rw [h1, h2]; exact hdci
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:147-150 quotAt — **what a quotient
-record stores**: its slot's pin at the names it declares. -/
+/-- con-leche: ConLeche/Kernel/Basis.lean:167-175 quotPinOf — the pinned
+quotient package's constant at a slot, in a form: the lifted `Quot` and
+`Quot.sound` are con-leche's values, interned (`internCI_fresh`); every other
+slot, and the released form, is `quotPin_run`. -/
+theorem quotPinOf_run {b : Bool} {k : QuotKind} {ci : IConstantInfo} {s s' : AState}
+    (hok : StateOK s) (hrun : Arena.quotPinOf b k s = .ok (ci, s')) :
+    Frontend.IStepS s s' ∧ Frontend.denoteCI s'.store ci = some (ConLeche.quotPinOf b k) := by
+  cases b <;> cases k <;>
+    simp only [Arena.quotPinOf, ConLeche.quotPinOf, Bool.false_eq_true, ite_false,
+      ite_true] at hrun ⊢ <;>
+    first
+    | exact quotPin_run hok hrun
+    | exact internCI_fresh hok hrun
+
+/-- con-leche: ConLeche/Kernel/Basis.lean:177-182 quotPinHitAt — **a record
+matches a pin**: the arena's answer is con-leche's. -/
+theorem quotPinHitAt_run {pin : IConstantInfo} {P : ConstantInfo} {v : IConstantVal}
+    {cv : ConstantVal} {r : Bool} {s s' : AState} (hok : StateOK s) (hr : ReadOK s)
+    (hp : Frontend.denoteCI s.store pin = some P)
+    (hv : Frontend.denoteCV s.store v = some cv)
+    (hrun : Arena.quotPinHitAt pin v s = .ok (r, s')) :
+    RStep s s' ∧ r = ConLeche.quotPinHitAt P cv := by
+  have hl := (denoteCV_inv hv).2.1
+  have hpl := (denoteCV_inv (denoteCI_toConstantVal hp)).2.1
+  simp only [Arena.quotPinHitAt] at hrun
+  have hcond : (nameNodup v.levelParams &&
+      v.levelParams.length == pin.toConstantVal.levelParams.length) =
+      (ConLeche.Name.nodup cv.levelParams &&
+        cv.levelParams.length == P.toConstantVal.levelParams.length) := by
+    rw [nameNodup_denote hok.wf _ _ hl, denoteNList_length _ _ hl,
+      denoteNList_length _ _ hpl]
+  rcases AM.ite_ok hrun with ⟨hy, k⟩ | ⟨hn, k⟩
+  · obtain ⟨x, s₂, h1, h2⟩ := AM.bind_ok k
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
+    obtain ⟨hs2, hx⟩ := IConstantVal.atLps_run hok hr (denoteCI_toConstantVal hp) hl h1
+    refine ⟨hs2, ?_⟩
+    rw [beq_of_denote_inj (denoteCV_inj hs2.ok.wf) (denoteCV_ext hv hs2.ext) hx]
+    simp only [ConLeche.quotPinHitAt, ← hcond, hy, Bool.true_and, ConstantVal.beqP_eq]
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok k
+    refine ⟨RStep.refl hok hr, ?_⟩
+    have hf : (nameNodup v.levelParams &&
+        v.levelParams.length == pin.toConstantVal.levelParams.length) = false := by
+      simpa using hn
+    simp only [ConLeche.quotPinHitAt, ← hcond, hf, Bool.false_and]
+
+/-- con-leche: ConLeche/Kernel/Basis.lean:184-189 quotLifted — **which form a
+quotient record declares**: the arena's answer is con-leche's. -/
+theorem quotLifted_run {k : QuotKind} {v : IConstantVal} {cv : ConstantVal}
+    {r : Bool} {s s' : AState} (hok : StateOK s) (hr : ReadOK s)
+    (hv : Frontend.denoteCV s.store v = some cv)
+    (hrun : Arena.quotLifted k v s = .ok (r, s')) :
+    RStep s s' ∧ r = ConLeche.quotLifted k cv := by
+  cases k <;> simp only [Arena.quotLifted, ConLeche.quotLifted] at hrun ⊢
+  case type | sound =>
+    obtain ⟨p, s₁, g1, k1⟩ := AM.bind_ok hrun
+    obtain ⟨hs1, hp⟩ := quotPinOf_run hok g1
+    have hs1' := RStep.of_istep hs1 hr
+    obtain ⟨hs2, hb⟩ := quotPinHitAt_run hs1.ok hs1'.read hp (denoteCV_ext hv hs1.ext) k1
+    exact ⟨hs1'.trans hs2, hb⟩
+  all_goals
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨RStep.refl hok hr, rfl⟩
+
+/-- con-leche: ConLeche/Kernel/Basis.lean:191-194 quotAt — **what a quotient
+record stores**: its slot's pin, in the form it declares, at the names it
+declares. -/
 theorem quotAt_run {k : QuotKind} {v : IConstantVal} {cv : ConstantVal}
     {ci : IConstantInfo} {s s' : AState} (hok : StateOK s) (hr : ReadOK s)
     (hv : Frontend.denoteCV s.store v = some cv)
     (hrun : Arena.quotAt k v s = .ok (ci, s')) :
     RStep s s' ∧ Frontend.denoteCI s'.store ci = some (ConLeche.quotAt k cv) := by
   simp only [Arena.quotAt] at hrun
-  obtain ⟨p, s₁, g1, k1⟩ := AM.bind_ok hrun
-  obtain ⟨hs1, hp⟩ := quotPin_run hok g1
-  have hs1' := RStep.of_istep hs1 hr
-  obtain ⟨hs2, hci⟩ := IConstantInfo.atLps_run hs1.ok hs1'.read hp
-    (denoteNListE_ext hs1.ext _ _ (denoteCV_inv hv).2.1) k1
-  exact ⟨hs1'.trans hs2, hci⟩
+  obtain ⟨b, s₁, g1, k1⟩ := AM.bind_ok hrun
+  obtain ⟨hs1, hb⟩ := quotLifted_run hok hr hv g1
+  obtain ⟨p, s₂, g2, k2⟩ := AM.bind_ok k1
+  obtain ⟨hs2, hp⟩ := quotPinOf_run hs1.ok g2
+  have hs2' := RStep.of_istep hs2 hs1.read
+  obtain ⟨hs3, hci⟩ := IConstantInfo.atLps_run hs2.ok hs2'.read hp
+    (denoteNListE_ext (hs1.ext.trans hs2.ext) _ _ (denoteCV_inv hv).2.1) k2
+  refine ⟨hs1.trans (hs2'.trans hs3), ?_⟩
+  rw [ConLeche.quotAt, ← hb]
+  exact hci
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:152-158 quotPinHit — **the
-quotient-pin match**: the arena's answer is con-leche's. -/
+/-- con-leche: ConLeche/Kernel/Basis.lean:202-206 quotPinHit — **the
+quotient-pin match**, in either form: the arena's answer is con-leche's. -/
 theorem quotPinHit_run {k : QuotKind} {v : IConstantVal} {cv : ConstantVal}
     {r : Bool} {s s' : AState} (hok : StateOK s) (hr : ReadOK s)
     (hv : Frontend.denoteCV s.store v = some cv)
     (hrun : Arena.quotPinHit k v s = .ok (r, s')) :
     RStep s s' ∧ r = ConLeche.quotPinHit k cv := by
-  have hl := (denoteCV_inv hv).2.1
   simp only [Arena.quotPinHit] at hrun
-  obtain ⟨p, s₁, g1, k1⟩ := AM.bind_ok hrun
-  obtain ⟨hs1, hp⟩ := quotPin_run hok g1
-  have hs1' := RStep.of_istep hs1 hr
-  have hpl := (denoteCV_inv (denoteCI_toConstantVal hp)).2.1
-  have hcond : (nameNodup v.levelParams &&
-      v.levelParams.length == p.toConstantVal.levelParams.length) =
-      (ConLeche.Name.nodup cv.levelParams &&
-        cv.levelParams.length == (ConLeche.quotPin k).toConstantVal.levelParams.length) := by
-    rw [nameNodup_denote hs1.ok.wf _ _ (denoteNListE_ext hs1.ext _ _ hl),
-      denoteNList_length _ _ hl, denoteNList_length _ _ hpl]
-  rcases AM.ite_ok k1 with ⟨hy, k⟩ | ⟨hn, k⟩
-  · obtain ⟨x, s₂, h1, h2⟩ := AM.bind_ok k
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
-    obtain ⟨hs2, hx⟩ := IConstantVal.atLps_run hs1.ok hs1'.read
-      (denoteCI_toConstantVal hp) (denoteNListE_ext hs1.ext _ _ hl) h1
-    refine ⟨hs1'.trans hs2, ?_⟩
-    have hv2 := denoteCV_ext hv (hs1.ext.trans hs2.ext)
-    rw [beq_of_denote_inj (denoteCV_inj hs2.ok.wf) hv2 hx]
-    simp only [ConLeche.quotPinHit, ← hcond, hy, Bool.true_and, ConstantVal.beqP_eq]
-  · obtain ⟨rfl, rfl⟩ := AM.pure_ok k
-    refine ⟨hs1', ?_⟩
-    have hf : (nameNodup v.levelParams &&
-        v.levelParams.length == p.toConstantVal.levelParams.length) = false := by
-      simpa using hn
-    simp only [ConLeche.quotPinHit, ← hcond, hf, Bool.false_and]
+  obtain ⟨b, s₁, g1, k1⟩ := AM.bind_ok hrun
+  obtain ⟨hs1, hb⟩ := quotLifted_run hok hr hv g1
+  obtain ⟨p, s₂, g2, k2⟩ := AM.bind_ok k1
+  obtain ⟨hs2, hp⟩ := quotPinOf_run hs1.ok g2
+  have hs2' := RStep.of_istep hs2 hs1.read
+  obtain ⟨hs3, hx⟩ := quotPinHitAt_run hs2.ok hs2'.read hp
+    (denoteCV_ext hv (hs1.ext.trans hs2.ext)) k2
+  refine ⟨hs1.trans (hs2'.trans hs3), ?_⟩
+  rw [ConLeche.quotPinHit, ← hb]
+  exact hx
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:160-172 quotPredsOk — what a quotient
+/-- con-leche: ConLeche/Kernel/Basis.lean:208-212 quotStoredLifted — **whether
+the stored `Quot` is in the lifted form**: the lookup is the environment's
+(`IFEnvOK.findRel`), the comparison `quotPinHitAt`'s. -/
+theorem quotStoredLifted_run {env : Env} {fe : IFEnv} {r : Bool} {s s' : AState}
+    (hok : StateOK s) (hr : ReadOK s) (hp : PinsOK s) (hie : IFEnvOK env fe s)
+    (hrun : Arena.quotStoredLifted fe s = .ok (r, s')) :
+    RStep s s' ∧ r = ConLeche.quotStoredLifted env.find? := by
+  simp only [Arena.quotStoredLifted, pinQuot] at hrun
+  obtain ⟨q, s₁, g1, k1⟩ := AM.bind_ok hrun
+  obtain ⟨rfl, d1⟩ := pinAt_run (x := ConLeche.quotName) hp rfl g1
+  simp only [ConLeche.quotStoredLifted]
+  rcases hie.findRel hok d1 with ⟨hx, hy⟩ | ⟨ci, c, hx, hy, hd⟩
+  · rw [hx] at k1
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok k1
+    rw [hy]
+    exact ⟨RStep.refl hok hr, rfl⟩
+  · rw [hx] at k1
+    obtain ⟨p, s₂, g2, k2⟩ := AM.bind_ok k1
+    obtain ⟨hs2, hpd⟩ := internCI_fresh hok g2
+    have hs2' := RStep.of_istep hs2 hr
+    obtain ⟨x, s₃, g3, k3⟩ := AM.bind_ok k2
+    have hcv := denoteCI_toConstantVal (denoteCI_ext hd hs2.ext)
+    obtain ⟨hs3, hx3⟩ := IConstantVal.atLps_run hs2.ok hs2'.read
+      (denoteCI_toConstantVal hpd) (denoteCV_inv hcv).2.1 g3
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
+    refine ⟨hs2'.trans hs3, ?_⟩
+    rw [hy, beq_of_denote_inj (denoteCV_inj hs3.ok.wf) (denoteCV_ext hcv hs3.ext) hx3]
+    simp only [ConstantVal.beqP_eq]
+
+/-- con-leche: ConLeche/Kernel/Basis.lean:214-226 quotPredsOk — what a quotient
 record's slot needs stored before it: three presence tests, each the
 environment's (`IFEnvOK.findRel`).  The test only reads. -/
 theorem quotPredsOk_run {env : Env} {fe : IFEnv} {k : QuotKind} {r : Bool}
@@ -1375,12 +1456,33 @@ theorem quotPredsOk_run {env : Env} {fe : IFEnv} {k : QuotKind} {r : Bool}
     (hie.findRel hok d2).isSome, (hie.findRel hok d3).isSome]
   cases k <;> rfl
 
+/-- con-leche: ConLeche/Kernel/Basis.lean:228-234 quotFormOk — **`Quot.sound`
+is in the stored `Quot`'s form**: the arena's answer is con-leche's. -/
+theorem quotFormOk_run {env : Env} {fe : IFEnv} {k : QuotKind} {v : IConstantVal}
+    {cv : ConstantVal} {r : Bool} {s s' : AState}
+    (hok : StateOK s) (hr : ReadOK s) (hp : PinsOK s) (hie : IFEnvOK env fe s)
+    (hv : Frontend.denoteCV s.store v = some cv)
+    (hrun : Arena.quotFormOk fe k v s = .ok (r, s')) :
+    RStep s s' ∧ r = ConLeche.quotFormOk env.find? k cv := by
+  cases k <;> simp only [Arena.quotFormOk, ConLeche.quotFormOk] at hrun ⊢
+  case sound =>
+    obtain ⟨a, s₁, g1, k1⟩ := AM.bind_ok hrun
+    obtain ⟨hs1, ha⟩ := quotStoredLifted_run hok hr hp hie g1
+    obtain ⟨b, s₂, g2, k2⟩ := AM.bind_ok k1
+    obtain ⟨hs2, hb⟩ := quotLifted_run hs1.ok hs1.read (denoteCV_ext hv hs1.ext) g2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+    exact ⟨hs1.trans hs2, by rw [ha, hb]⟩
+  all_goals
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨RStep.refl hok hr, rfl⟩
+
 /-! ## The checks and the installs -/
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:472-483 checkQuotRecord — **a
+/-- con-leche: ConLeche/Kernel/Checker.lean:463-476 checkQuotRecord — **a
 quotient record's check and install**: compared with its slot's pin
-(`quotPinHit_run`), the slots it needs stored (`quotPredsOk_run`), and its pin
-installed at its own names (`quotAt_run`).  It serves `checkDecl`'s `.quotDecl`
+(`quotPinHit_run`), the slots it needs stored (`quotPredsOk_run`), `Quot.sound`
+in the stored `Quot`'s form (`quotFormOk_run`), and its pin installed at its own
+names (`quotAt_run`).  It serves `checkDecl`'s `.quotDecl`
 arm and the `Quot.sound` record of its `.axiomDecl` arm. -/
 theorem checkQuotRecord_bridge {env : Env} {fe fe' : IFEnv} {k : QuotKind}
     {v : IConstantVal} {cv : ConstantVal} {s s' : AState}
@@ -1402,13 +1504,21 @@ theorem checkQuotRecord_bridge {env : Env} {fe fe' : IFEnv} {k : QuotKind}
   obtain ⟨hy2, k4⟩ := AM.dunless_ok AM.Never.fail_any k3
   replace k4 := AM.pure_bind_ok k4
   have hpred : ConLeche.quotPredsOk env.find? k = true := by rw [← hc2]; simpa using hy2
-  obtain ⟨ci, s₃, g3, k5⟩ := AM.bind_ok k4
-  obtain ⟨hs3, hci⟩ := quotAt_run hs1.ok hs1.read (denoteCV_ext hv hs1.ext) g3
-  have hs13 := hs1.trans hs3
-  simp only [ConRon.Arena.installBasisDecl] at k5
-  obtain ⟨hdup, k6⟩ := AM.dunless_ok AM.Never.fail_any k5
+  obtain ⟨c3, s₂, g3, k5⟩ := AM.bind_ok k4
+  obtain ⟨hs2, hc3⟩ := quotFormOk_run hs1.ok hs1.read
+    (hok.check.pins.mono hs1.ext hs1.pins) (hok.check.ienv.mono hs1.ext)
+    (denoteCV_ext hv hs1.ext) g3
+  obtain ⟨hy3, k6⟩ := AM.dunless_ok AM.Never.fail_any k5
   replace k6 := AM.pure_bind_ok k6
-  obtain ⟨rfl, rfl⟩ := AM.pure_ok k6
+  have hform : ConLeche.quotFormOk env.find? k cv = true := by rw [← hc3]; simpa using hy3
+  have hs12 := hs1.trans hs2
+  obtain ⟨ci, s₃, g4, k7⟩ := AM.bind_ok k6
+  obtain ⟨hs3, hci⟩ := quotAt_run hs12.ok hs12.read (denoteCV_ext hv hs12.ext) g4
+  have hs13 := hs12.trans hs3
+  simp only [ConRon.Arena.installBasisDecl] at k7
+  obtain ⟨hdup, k8⟩ := AM.dunless_ok AM.Never.fail_any k7
+  replace k8 := AM.pure_bind_ok k8
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok k8
   have hfind : fe.find? ci.name = none := by
     cases hf : fe.find? ci.name with
     | none => rfl
@@ -1416,7 +1526,7 @@ theorem checkQuotRecord_bridge {env : Env} {fe fe' : IFEnv} {k : QuotKind}
   have hfindP : env.find? (ConLeche.quotAt k cv).name = none :=
     IFEnvOK.miss hs3.ok (hok.check.ienv.mono hs13.ext) (denoteCI_name hci) hfind
   refine ⟨hs3.ok, hs13.ext, hs13.pins, ⟨ConLeche.quotAt k cv :: env.consts, env.tables⟩, ?_⟩
-  simp only [ConLeche.checkQuotRecord, hhit, hpred, ConLeche.installBasisDecl, hfindP]
+  simp only [ConLeche.checkQuotRecord, hhit, hpred, hform, ConLeche.installBasisDecl, hfindP]
   rfl
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:27-164 checkDeclKind (the
