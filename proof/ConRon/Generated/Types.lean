@@ -1856,14 +1856,14 @@ inductive frontend.olean.module.Expo where
 | Absent : frontend.olean.module.Expo
 
 /-- [con_ron_core::frontend::olean::lazy::CEntry]
-    Source: 'crates/con-ron-core/src/frontend/olean/lazy.rs', lines 267:0-270:1
+    Source: 'crates/con-ron-core/src/frontend/olean/lazy.rs', lines 303:0-306:1
     Visibility: public -/
 structure frontend.olean.lazy.CEntry where
   c : frontend.olean.spec.CEntryF arena.handle.NIdx arena.handle.EIdx
   uses : alloc.vec.Vec arena.handle.NIdx
 
 /-- [con_ron_core::frontend::olean::lazy::Loaded]
-    Source: 'crates/con-ron-core/src/frontend/olean/lazy.rs', lines 281:0-285:1
+    Source: 'crates/con-ron-core/src/frontend/olean/lazy.rs', lines 317:0-321:1
     Visibility: public -/
 structure frontend.olean.lazy.Loaded where
   «name» : arena.handle.NIdx
