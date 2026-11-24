@@ -75078,3 +75078,100 @@ extraction on every push; `EXTRACT_NO_STAMP=1` forces one locally.  Stamps accum
 small file per green input set); `rm -rf _tmp/extract-green` is a safe sweep.  D writes to the
 shared packages' build files (chmod, `.hash`) from every gated worktree — Lake's normal cache
 behaviour, already the state of the shared directory.
+
+### Task #178 — why Aeneas got ~4× slower: one exploded function and OCaml 5.5's minor GC (2026-11-24, Opus)
+
+**Question** (#176 review, item C).  `extract.sh`'s Aeneas step took 78–129 s until early
+November (93 s on Oct 31) and 390–590 s since Nov 18, on `.llbc` inputs of the same size;
+Charon stays at 6–10 s.  Suspects: #162 (Aeneas 557eff83 → 1dc8ad31) and the loops of
+#158/#168/#169.  Analysis only; nothing in the tree changes.
+
+**Method.**  Aeneas alone on saved `.llbc` files, with `extract.sh`'s flags plus
+`-diagnose-translation` (per-function wall time; the output is unchanged by it), under
+`flock _tmp/aeneas.lock`, `timeout 1200`, GNU `time -v` and `perf stat -e instructions:u`
+(`_tmp/t178/run.sh`).  The old toolchain is `nix build` of the flake at `20d34c2b^`
+(Aeneas 557eff83 on OCaml 5.2.1, Charon c8f15d7d); its Charon reads the same crates, so each
+Aeneas got a `.llbc` from its own Charon.  "Pre-loops" is the crate at `8b088905` (#157, before
+#158).  The machine is 96 cores and was shared (load 17–100), so wall times carry noise; the
+instruction counts are mostly domains waiting on each other (see below), not a stable
+measure of work here.  All runs: one each unless two are shown.
+
+**The 2×2** (wall / peak RSS / `instructions:u`; `uses_go` = that one function's wall time):
+
+| | crate pre-#158 | crate now |
+|---|---|---|
+| Aeneas 557eff83 (OCaml 5.2.1) | 210 s / 33.3 GB / 19.2 T; `uses_go` 163 s | 240 s / 38.7 GB / 26.2 T; `uses_go` 180 s ¹ |
+| Aeneas 1dc8ad31 (OCaml 5.5.1) | 400 s / 23.3 GB / 43.7 T; `uses_go` 340 s | 485 s / 32.3 GB / 63.9 T; `uses_go` 409 s |
+
+¹ 557eff83 cannot translate `frontend::modular::graph::kahn` ("Unimplemented binary
+operation", graph.rs:315) and skips it; that function is cheap.
+
+So the Aeneas bump doubles the time on either crate; the loops of #158–#169 add ~15–20 %.
+Neither explains the step from ~93 s: on **both** Aeneas versions and both crates, the wall
+time is one function, `frontend::olean::lazy::uses_go` (the `.olean` reader's DAG walk,
+added by #143 on Nov 6, after the 93 s measurement), whose translation runs most of the
+whole run (75–85 %) while everything else finishes in parallel beside it.
+
+**Cause 1 — `uses_go`'s shape: Charon copies the rest of an `&&` chain into both branches.**
+Its body dispatches on an object's tag and field count as one `else if` chain over
+`t == K && n == M` (ten arms).  MIR lowers each `&&` into two branches that share the "false"
+target (the next arm); Charon's control-flow reconstruction copies that target into both,
+so each `&&` doubles the rest of the chain.  `uses_go_loop` is **12 071** of `Funs.lean`'s
+139 613 lines (the next largest function has 831).  Reproducer:
+`_tmp/corpus/aeneas-slow/` (`gen.py N and|nested`, `repro.sh`): the LLBC and the Lean grow ×2
+per arm (N=9: 1.27 MB of LLBC, 3 977 Lean lines, 9.7 s; N=12 was killed past 3 min and 6 GB),
+the nested form is linear (N=9: 94 lines, 0.6 s).
+
+Rewriting the dispatch as nested tests (`if t == 0 || t == 3 { if n == 1 { Some(sp) } else
+{ None } } else if t == 4 { if n == 2 { … } else { None } } …` — the same function, as no
+later arm accepts a tag an earlier arm tested) takes `uses_go_loop` to **210 lines** (LLBC
+size 59 071 → 768) and the whole run, current Aeneas, to 263 s / 137 s (two runs, different
+load; 18.3 GB peak).  Moving the dispatch into a helper function (`uses_step`) instead only
+moves the blow-up there (still 188 s for that function).
+
+**Cause 2 — OCaml 5.5's minor collections across 96 domains.**  Bisected inside #162's range:
+on one `.llbc` (the crate now, through the Charon both commits pin), Aeneas **5b86c72f**
+(OCaml 5.2.1) 245 s / 25.6 T, its child **1d323d1c** ("Update nixpkgs and move to the default
+OCaml version": 5.2.1 → 5.5.1, no translation change) 503 s / 81.5 T, 194 M voluntary context
+switches, 10 485 s user at 2 260 % CPU.  The domains spend their time synchronising for
+stop-the-world minor collections of the default 256 k-word minor heap.  A larger minor heap
+removes it, and the output is byte-identical (checked against the committed `Funs.lean`):
+
+| run (Aeneas 1dc8ad31) | wall | `instructions:u` | peak RSS |
+|---|---|---|---|
+| crate now, default | 485 s | 63.9 T | 32.3 GB |
+| crate now, `OCAMLRUNPARAM=s=2M` | 276 s | 10.1 T | 29.6 GB |
+| crate now, `s=8M` | 308 s | 8.9 T | 33.0 GB |
+| nested `uses_go`, default | 263 s / 137 s | 78.6 T / 60.7 T | 18.3 / 18.4 GB |
+| nested, `s=1M` | 91 s | 9.4 T | 19.2 GB |
+| **nested, `s=2M`** | **79 s** | **5.3 T** | **19.8 GB** |
+| nested, `s=4M` | 81 s | 4.8 T | 23.7 GB |
+| nested, `s=8M` | 92 s / 87 s | 4.7 T / 4.6 T | 24.4 / 25.4 GB |
+
+With `s=8M` the old and new OCaml are 194 s and 289 s on the unfixed crate (both still bound
+by `uses_go`).  The 17 → 32 GB peak of #150 came with the crate (old Aeneas: 33–39 GB here),
+not with #162.
+
+**Proposal (not applied).**
+1. `scripts/extract.sh`: run Aeneas with `OCAMLRUNPARAM="s=2M${OCAMLRUNPARAM:+,$OCAMLRUNPARAM}"`.
+   Output unchanged, 485 → 276 s today, no proof touched.
+2. `crates/con-ron-core/src/frontend/olean/lazy.rs` `uses_go`: the nested dispatch above (a
+   `match (t, n)` with a `_ => None` arm should do as well and mirrors the twin's
+   `match r.tag g, r.nobjs g`, but was not measured).  With (1): **485 → 79 s** and 32 → 20
+   GB peak.  Cost: `Refine2/Frontend/Olean/Lazy.lean`'s `uses_go_loop_ok` already splits on
+   the tag and then on the field count, so its cases should follow the new `if`s directly;
+   the regenerated `Funs.lean` shrinks by ~11 900 lines (≈ 9 %), which also shortens its
+   elaboration.  No other function in `Funs.lean` is within 10× of it; the next ones
+   (`scan_line_loop` 831, `quick_defeq` 576, `key_at` 524 lines) are not worth a rewrite
+   until they bound the run.
+3. Upstream (drafts in `_tmp/corpus/aeneas-slow/ISSUE.md`, not filed): Charon, the
+   exponential copy of an `&&` chain's shared target; Aeneas, the 2× from OCaml 5.5 and a
+   larger minor heap (or a smaller pool) as the fix.
+
+The rule for new Rust: in an `else if` chain, test one condition per `if` (nest the second)
+rather than `a && b`, or the LLBC doubles per arm.
+
+**Scratch.**  `_tmp/t178/` (the `.llbc`s, ~2.5 GB, and every run's `time.txt`, `perf.txt`,
+`stdout.txt` with the per-function table) can go once this is read; the reproducer stays in
+`_tmp/corpus/aeneas-slow/`.  The two old Aeneas builds are ordinary nix store paths
+(`q66q4sdf…-ocaml5.2.1-aeneas`, `jygycwy9…`, `2d0rcvdi…`), collected by the next GC.
