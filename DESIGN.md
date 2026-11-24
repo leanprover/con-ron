@@ -1857,7 +1857,16 @@ invariant).  Delete each marker as its item is reconciled;
 `check`'s verdict, the new declarations still uncovered (port them, or put
 them in `scripts/provenance-skip.txt` with the reason).
 Do not start the proofs before the model is regenerated, and say in every
-WIP commit that the tree does not build.  Lane agents never commit
+WIP commit that the tree does not build.  **When lanes split the Lean work,
+the Rust and its extraction land on the bump branch BEFORE the Lean lanes
+fork** (task #177): then every lane, and the merged tree, has the same
+`Generated/Funs.lean`, and a lane merge's `lake build` restores from the
+shared Lake cache what the lanes' gate runs seeded (everything but the
+modules whose import closure spans two lanes).  A lane that must touch the
+Rust after all merges first, and the others merge it before their final
+build.  In #172 both lanes changed the Rust, the merged `Funs.lean` matched
+neither lane tip, and 177 of 259 modules (914 of 1 014 module-seconds)
+re-elaborated at every merge.  Lane agents never commit
 `proof/lakefile.toml` or `proof/lake-manifest.json` (nothing checks it since
 task #175).  What the porting itself has taught:
 
@@ -1878,6 +1887,12 @@ task #175).  What the porting itself has taught:
 * *A rename is still proof work*: every statement that names the old
   declaration breaks (#83: 253 rename-only findings, 667 proof edits, no
   Rust).
+* *A Rust edit that only shifts lines costs a full extraction and a full
+  rebuild.*  `Funs.lean` carries ~5 000 `Source: '…', lines a:b-c:d`
+  docstrings, so a moved line changes `Generated/Funs.olean` and every one of
+  the ~177 modules above it, and the extraction's input stamp (task #177)
+  misses.  Make citation and comment fixes to the Rust in the Rust pass, not
+  after the proofs build (`dd8330fd`, "source-line comments only", paid both).
 * *Generated files follow by themselves*: `gen-prelude{,-lean}.py` and
   `gen-pins.sh` read their con-leche citation from the output they wrote
   (whose `con-leche:` lines `update` relocates), so re-running them is all a
@@ -1897,10 +1912,10 @@ table for the task section and records which crates it measured.  No wall
 time, no repeats, no OVERVIEW §9 (a post-merge task of its own).  The Mathlib
 landing run of §12 is added by hand only when the sync touches memory.
 
-**4. Gate, with master merged.**  Write the task section (upstream tasks
-absorbed, the bucket table, markers before and after, the measurement) and
-commit it; `git merge master`; `LAKE_JOBS=4 scripts/gates.sh`.  Build modules
-in the inner loop; the gates are the landing check.
+**4. Merge master.**  Write the task section (upstream tasks absorbed, the
+bucket table, markers before and after, the measurement) and commit it;
+`git merge master` (the pin files stay uncommitted through it).  Build modules
+in the inner loop; the gates run once, after the pin (step 6).
 
 **5. The links.**  `scripts/overview-links.sh --follow` (which `start` and
 `pin` also run) moves every README/OVERVIEW anchor whose cited text is
@@ -1921,9 +1936,15 @@ scripts/bump-con-leche.sh pin
 runs `--follow` once more (its own commit if it moved anything), then commits
 `proof/lakefile.toml` and `proof/lake-manifest.json` and nothing else.  The
 pin is the last commit so that every commit before it is reproducible with `provenance.py update`
-and no `--old`.  Then `LAKE_JOBS=4 scripts/gates.sh` once more: it leaves a
-green stamp naming the commit.  If it is red, `git reset HEAD~1` (the pin
-files go back to uncommitted; nothing is pushed), fix, commit, `pin` again.
+and no `--old`.  Then `LAKE_JOBS=4 scripts/gates.sh`, the sync's ONE gate
+run (task #177): `start` put the pin in the working tree, so every build and
+check before this already ran against the new con-leche, and committing it
+changes no byte the gates read; the run leaves the green stamp naming the
+pin commit, which `land` requires.  If it is red, `git reset HEAD~1` (the pin
+files go back to uncommitted; nothing is pushed), fix, commit, `pin` again,
+gate again.  (Until task #177 the gates ran before the pin AND after it, on
+the same bytes; with extract-check's input stamp the second run would cost
+~70 s, without it ~500 s.)
 
 **7. Land.**
 

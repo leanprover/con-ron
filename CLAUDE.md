@@ -91,12 +91,21 @@ section for every task you land.
   * **Reading is automatic and free**: a fresh worktree restores every
     module the cache has, hard-linked into `proof/.lake/build` (0 bytes of
     disk), in seconds.  An empty cache changes nothing.
-  * **Writing is opt-in.**  Seeding it is one build, run from a tree that
-    already has the artifacts: `LAKE_ARTIFACT_CACHE=true
-    LAKE_RESTORE_ARTIFACTS=true lake build <target>` — this re-elaborates
-    nothing when the tree is up to date, it just hard-links what is already
-    there into the cache.  It pays most after a build that moved
-    `Generated/Funs.lean`, whose dependents are the bulk of the chain.
+  * **Writing: `scripts/gates.sh` seeds it** (task #177) after every green
+    `lake-build`, in its `lake-seed` step (`LAKE_SEED=0` skips it; CI sets
+    that).  Seeding is one build, run from a tree that already has the
+    artifacts: `LAKE_ARTIFACT_CACHE=true LAKE_RESTORE_ARTIFACTS=true lake
+    build <targets>` — it re-elaborates nothing when the tree is up to date,
+    it just hard-links what is already there into the cache, in seconds.  So
+    every gated tree's modules are there for the next checkout with the same
+    bytes: a lane merge, the merge queue, the main tree after a landing.  By
+    hand, the same command seeds a module you built without the gates.
+  * **A hit needs the whole import closure to match**, so for a sync split
+    into Lean lanes, **the Rust and its extraction land on the bump branch
+    BEFORE the lanes fork** (DESIGN §7, step 2): then every lane and the
+    merged tree share `Generated/Funs.lean`, which sits under ~90 % of the
+    build, and a lane merge restores instead of re-elaborating.  Two lanes
+    that each changed the Rust (#172) miss everything above `Funs`.
   * `lake cache get`/`put` are for *remote* services (Reservoir/S3) and are
     irrelevant here.  `lake cache clean` (or `rm -rf _tmp/lake-cache`) is
     the only GC there is: the cache pins every artifact ever written to it,
@@ -105,9 +114,13 @@ section for every task you land.
     also caches the *dependency* packages in the target's import closure,
     which chmods their build files to `r--r--r--` and rewrites their
     `.hash` files.  That is Lake's normal behaviour and is harmless, but it
-    is a write to shared state — so seed from a tree whose packages are its
-    own, or accept it deliberately; never turn `LAKE_ARTIFACT_CACHE` on
-    project-wide without saying so.
+    is a write to shared state, and the gates' seed now makes it from every
+    worktree, deliberately (task #177).  In practice it had already
+    happened: the shared con-leche oleans were `r--r--r--` and every
+    dependency package was in `_tmp/lake-cache` before the gates seeded.  A
+    sync's lanes read the bump's private package copy anyway.  Do not turn
+    `LAKE_ARTIFACT_CACHE` on in the environment (every inner-loop build
+    would write); the gates' step is the one writer besides `land`.
 * **Shared state between agent worktrees.** `_tmp/` is one directory shared
   through a symlink by every worktree: never rebuild, clean or re-copy
   `_tmp/aeneas-lean-<tag>` (the patched Aeneas library and Mathlib) from a worktree
