@@ -82,6 +82,7 @@ def Emit.one (st : Emit) (c : CEntry) : Emit :=
   | _ => st
 
 /-- con-leche: ConLeche/Frontend/Olean/Emit.lean:86-95 Emit.tyStep
+-- con-leche: CHANGED since d8c8c227 — re-port, re-test, re-prove Emit.Emit.tyStep_bridge, then delete this line
 One inductive type of a block's record. -/
 def Emit.tyStep (x : Emit × Array IndTypeRec) (c : CEntry) : Emit × Array IndTypeRec :=
   let (st, acc) := x

@@ -311,7 +311,8 @@ pub struct RuleRec {
     pub rhs: u64,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:181-190 IndTypeRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:181-196 IndTypeRec
+/// con-leche: CHANGED since d8c8c227 — re-port, re-test, re-prove scan_types::IndTypeRec_refines, then delete this line
 /// One member of an inductive block's `types`.
 pub struct IndTypeRec {
     pub cv: CVRec,
@@ -331,7 +332,7 @@ pub struct IndTypeRec {
     pub has_large_elim: Option<bool>,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:199-212 IndCtorRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:198-211 IndCtorRec
 /// One member of an inductive block's `ctors`.  `cidx` and `induct` are the
 /// format's REDUNDANT fields (task #271, issues #5 and #7): the block's own
 /// records determine both, and the parse validates what the stream claims
@@ -346,7 +347,7 @@ pub struct IndCtorRec {
     pub induct: Option<u64>,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:214-223 IndRecRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:213-222 IndRecRec
 /// One member of an inductive block's `recs`.
 pub struct IndRecRec {
     pub cv: CVRec,
@@ -359,7 +360,7 @@ pub struct IndRecRec {
     pub rules: Vec<RuleRec>,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:225-235 DeclRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:224-234 DeclRec
 /// A declaration record.  `safety` and `kind` keep their spelling (as code
 /// points): both are reported back to the user verbatim (an unsupported
 /// safety is a DECLINE naming it).
@@ -372,7 +373,7 @@ pub enum DeclRec {
     Ind(Vec<IndTypeRec>, Vec<IndCtorRec>, Vec<IndRecRec>),
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:237-247 LineRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:236-246 LineRec
 /// One line of the stream.
 pub enum LineRec {
     Name(u64, NameRec),
@@ -386,7 +387,7 @@ pub enum LineRec {
     Blank,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:251-329 Key
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:250-328 Key
 /// Every key of the dialect, as a no-argument enumeration.  A key outside this
 /// alphabet is an error — the recogniser knows the whole format, and a key it
 /// does not know is a stream it does not know.
@@ -547,7 +548,7 @@ pub fn key_beq(a: &Key, b: &Key) -> bool {
     key_code(a) == key_code(b)
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:342-345 IdTable
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:341-344 IdTable
 /// A stream-index-keyed partial map: dense prefix, sparse overflow.
 /// lean4export emits ids densely and in order, so the common insert is a push
 /// onto the dense `Vec`; a gap or an out-of-order id goes to the sparse
@@ -558,7 +559,7 @@ pub struct IdTable<T> {
     pub sparse: HashMap<u64, T>,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:342-345 IdTable
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:341-344 IdTable
 /// The empty table (Lean's field defaults `dense := #[]`, `sparse := {}`).
 pub fn id_table_empty<T>() -> IdTable<T> {
     IdTable {
@@ -567,7 +568,7 @@ pub fn id_table_empty<T>() -> IdTable<T> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:347-349 IdTable.get?
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:346-348 IdTable.get?
 /// The value at a stream index, dense `Vec` first.
 pub fn id_table_get<T>(t: &IdTable<T>, i: u64) -> Option<&T> {
     let k = i as usize;
@@ -578,7 +579,7 @@ pub fn id_table_get<T>(t: &IdTable<T>, i: u64) -> Option<&T> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:351-358 IdTable.insert
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:350-357 IdTable.insert
 /// Bind a stream index.  The dense case is a push; a rebinding below the
 /// frontier overwrites; anything beyond the frontier goes sparse.
 pub fn id_table_insert<T>(t: &mut IdTable<T>, i: u64, x: T) {
@@ -592,7 +593,7 @@ pub fn id_table_insert<T>(t: &mut IdTable<T>, i: u64, x: T) {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:360-362 IdTable.singleton
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:359-361 IdTable.singleton
 /// A table with index 0 bound (the implicit `Name.anonymous` / `Level.zero` of
 /// the format).
 pub fn id_table_singleton<T>(x: T) -> IdTable<T> {

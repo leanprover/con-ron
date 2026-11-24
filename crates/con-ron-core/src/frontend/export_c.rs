@@ -368,7 +368,7 @@ pub fn rebound_error(what: &[u32], i: u64) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:179-188 StateD.freshName
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:364-373 IdTable.bound
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:363-372 IdTable.bound
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:151-156 StateD.freshName`
 /// — every table entry is bound once: a line that binds an index a previous
 /// line already bound is a parse error.  `scan_types` has no `bound`, so the
