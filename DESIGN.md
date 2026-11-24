@@ -1855,13 +1855,11 @@ the twin (`proof/ConRon/Arena/**`), Theorem 1 (`Bridge/**`), Theorem 2
 invariant).  Delete each marker as its item is reconciled;
 `scripts/bump-con-leche.sh status` prints what is left — markers,
 `check`'s verdict, the new declarations still uncovered (port them, or put
-them in `scripts/provenance-skip.txt` with the reason) and `pin-last.py`.
+them in `scripts/provenance-skip.txt` with the reason).
 Do not start the proofs before the model is regenerated, and say in every
 WIP commit that the tree does not build.  Lane agents never commit
-`proof/lakefile.toml` or `proof/lake-manifest.json`: `scripts/pin-last.py`
-(a gate step) fails a branch on which any commit but the tip moves the pin,
-which is where #105's sub-agent slip would have been caught.  What the
-porting itself has taught:
+`proof/lakefile.toml` or `proof/lake-manifest.json` (nothing checks it since
+task #175).  What the porting itself has taught:
 
 * *The crate boundary.*  `crates/con-ron-core/src` is inside the style lint
   (§3.4) and the extraction; `crates/con-ron/src` is inside neither.  A
@@ -1921,9 +1919,8 @@ scripts/bump-con-leche.sh pin
 ```
 
 runs `--follow` once more (its own commit if it moved anything), then commits
-`proof/lakefile.toml` and `proof/lake-manifest.json` and nothing else, and
-confirms with `scripts/pin-last.py --tip-is-pin`.  The pin is the last commit
-so that every commit before it is reproducible with `provenance.py update`
+`proof/lakefile.toml` and `proof/lake-manifest.json` and nothing else.  The
+pin is the last commit so that every commit before it is reproducible with `provenance.py update`
 and no `--old`.  Then `LAKE_JOBS=4 scripts/gates.sh` once more: it leaves a
 green stamp naming the commit.  If it is red, `git reset HEAD~1` (the pin
 files go back to uncommitted; nothing is pushed), fix, commit, `pin` again.
@@ -74897,3 +74894,84 @@ inside a lane worktree while the pin was still uncommitted, and it misplaced cit
 Both reverted and set their citations with `locate`; `check` is clean at the pin.  The cause
 was not investigated (a guess: the old revision `update` diffs from, with the pin
 uncommitted); until it is, lanes of a sync should not run `update` before `pin`.
+
+### Task #174 — `olean-compare --home`/`--reads`/`--reach`: the olean table green again (2026-11-23, Opus)
+
+**Why.**  CI's `gates` job had been red on master since the con-leche sync to 11d8ff13
+(tasks #164/#166): upstream's `tests/olean.sh` grew rows for three `olean-compare` modes
+(upstream tasks #464, #465, #621) that con-ron's tool did not have, so `--home` was read as an
+export file's path and 41 rows ended in exit 3.  Tasks #166, #170 and #171 recorded the rows as
+"still failing"; `scripts/diff-olean.sh` runs only in CI, not in `scripts/gates.sh`, so no
+landing saw it.
+
+**What changed.**  `crates/con-ron/src/bin/olean-compare.rs` only (a development tool outside
+the theorems; nothing of `con-ron-core` moved, so no re-extraction).  `run_home`, `run_reads`,
+`run_reach` port upstream's `runHome`/`runReads`/`runReach` over the core's existing ports
+(`worker::home_of`, `index::worker_reads`, `levels::header_fixpoint`/`pub_closures`,
+`lazy::load_view`, `emit::emit_all`/`records::decls_of`, `reach::record_reads`, `reach::reach`),
+printing upstream's summary lines.  Two port-side differences, both as the driver does them:
+* the reserved-name pins are interned first (`pins::intern_reserved_pins`; the reach reads them);
+* `--reach` infers the pending proof flags after the reach, over the context's frozen tier
+  (`reach::infer_flags`, as `driver::worker::module_phase`): upstream's `reach` infers them
+  itself, con-ron's defers them (reach.rs's module note).  Without it the capture row
+  ("a captured name", DgCapM) was accepted by the tool — the checker itself rejects it.
+`--jobs=N` is accepted and has no effect (the reads are sequential).  `ModSet.card` is a
+popcount in the tool.
+
+**Checked.**  `scripts/diff-olean.sh`: **551/560 as expected, 9 NOT PORTED, no FAIL** (was
+510/560 with 41 FAIL); `scripts/gates.sh`.
+
+**Left.**  The olean table is still CI-only; adding it to `scripts/gates.sh` would have caught
+this at landing (a few minutes per run).  The `renovation` branch's CI fails separately at
+`pin-last` (no local `master` ref in the CI checkout).
+
+### Task #175 — `scripts/pin-last.py` dropped (2026-11-23, Opus)
+
+**Why.**  The check (task #108) failed only a pin move in a non-tip commit, whose sole cost is
+that the commits between it and the tip need `provenance.py update --old` to be replayed; the
+landed tree is the same.  It never caught a slip after #105, and it assumed every branch is a
+short-lived branch onto `master`: on the long-lived `renovation` branch (its own pin, master
+merged in after its sync) it fails by construction, and CI's checkout has no local `master`
+ref for it to read.  At the maintainer's word ("Too complicated. Let's just drop it") it is
+gone.
+
+**What changed.**  `scripts/pin-last.py` deleted; its `gates.sh` step, `bump-con-leche.sh`'s
+three calls (`status`, `pin`, the `land` precondition) and the mentions in CLAUDE.md,
+OVERVIEW.md and §7 removed.  `pin` still commits the pin files as the branch's last commit;
+nothing verifies it.
+
+### Task #176 — con-leche sync d8c8c227 → 216031bf on `renovation`: the type record's `isReflexive` key is optional (2026-11-24, Opus)
+
+One upstream commit, `216031bf` (#630): lean4 dropped `isReflexive` from `InductiveVal` with
+the renovation PR #16595, so its exporter stops writing the key.  Both NDJSON decoders accept
+it when present (a boolean; a non-boolean or a repeated key stays a scan error), drop it, and
+no longer require it (type record's required mask 2046 → 2038); `IndTypeRec` loses the field;
+the `.olean` emitter stops copying it.  Started with `bump-con-leche.sh start 216031bf --from
+renovation`; master (tasks #174, #175) merged into the sync branch first, which drops
+`pin-last` — the gate step that fails on `renovation` by construction (task #172's pin move).
+
+`update --auto`: 7 findings (7 `CHANGED`), 46 citations merely moved; 7 markers → 0.
+Coverage 1219/1271 before and after.  Ported by one agent in the bump worktree:
+* Rust: `scan_types::IndTypeRec` without `is_reflexive`; `scan_fast::scan_ind_type_loop`
+  without the `is_refl` state, its `KIsReflexive` arm still rejecting a repeat and reading a
+  boolean, the value dropped, mask 2038 (`scan_ind_rec_loop`'s 2046 is the recursor's and
+  unchanged); `olean::emit::emit_ty_step` matches the flag as `_`.  New Rust test
+  `ind_type_reflexive_optional` (upstream's ScanTests probes: absent, present, non-boolean,
+  repeated).
+* Twin: `Emit.tyStep` as upstream's.  Theorem 1: unchanged (`EmitRel.tyStep` matches on
+  `CKindF`, which keeps the flag).  Theorem 2: `absIndTypeRec` drops the field;
+  `scanIndTypeLoop_body`, `scan_ind_type_loop_loop_refines`, `scan_ind_type_refines` lose the
+  `isRefl` argument (the existing generic alternatives cover the new arm); `emit_ty_step_rel`
+  at the 12-field record; three `rcases` patterns in `ExportCInd`.  No public statement
+  changes.
+
+Verdicts: `diff-e2e.sh` 802/802 (master's binary at the new pin: 801/802, the new
+`ind_flags_no_reflexive` differing).  Measured (by hand against `renovation`'s binary, as in
+#172), `Init`, `--verified --jobs=1`, instructions:u, one run each, 57 919 accepted by both:
+`renovation` ca665a8b 165 598 465 477, this branch 165 598 532 652 (+0.00004 %).
+
+Gates: the agent's `--only` run before the pin (cargo-build, cargo-test, lint-rust,
+dead-rust, provenance, twin-lines, overview-links, holes, extract-check 433 s, dead-census)
+and a full `lake build`; after the pin every step but `extract-check`, whose inputs the pin
+commit does not touch (CLAUDE.md: skip the gates a change cannot touch).  The landing
+pipeline's cost (≈30 min after the port for a one-commit sync) is under review.

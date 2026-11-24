@@ -4,6 +4,9 @@
 //! ```text
 //! olean-compare [--constant=NAME]... EXPORT.ndjson SEARCHPATH MODULE...
 //! olean-compare --views SEARCHPATH MODULE...
+//! olean-compare --home SEARCHPATH MODULE...
+//! olean-compare --reads [--jobs=N] [--loads] [--levels] SEARCHPATH MODULE
+//! olean-compare --reach [--jobs=N] [--list] SEARCHPATH MODULE
 //! ```
 //!
 //! Parses a lean4export stream of `MODULE...` and the same modules' import closure
@@ -15,6 +18,12 @@
 //!
 //! `--views` reads every module of the closure at its home (`read_all_views`) and
 //! compares each view with `read_view`'s; exit 0, or the first failure's exit code.
+//! `--home` is each module's home read alone (`worker::home_of`); `--reads` a
+//! worker's reads at one module (`index::worker_reads`; with `--levels` only the
+//! header fixpoint and the public-import closures); `--reach` a worker's context at
+//! one module (`reach::reach` from its records' reads and its constants' uses).  Each
+//! prints one summary line, or the failure with its exit code.  The reads are
+//! sequential, so `--jobs` has no effect.
 //!
 //! A development tool, outside the theorems, like `crate::driver`.
 
@@ -31,7 +40,9 @@ use con_ron_core::arena::monad::AState;
 use con_ron_core::arena::store::PersTier;
 use con_ron_core::frontend::checker_io::FileChunks;
 use con_ron_core::frontend::export_c;
-use con_ron_core::frontend::olean::{closure, files, module, records, spec, view};
+use con_ron_core::arena::{checker, install};
+use con_ron_core::frontend::modular::{reach, worker};
+use con_ron_core::frontend::olean::{closure, emit, files, group, index, lazy, levels, module, records, spec, view};
 use con_ron_core::frontend::olean::view::OLeanLevel;
 use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::kernel::env as cenv;
@@ -262,6 +273,227 @@ fn run_views(sp: &[String], mods: &[String]) -> u8 {
     0
 }
 
+/// con-leche: none — the command line's search path and one module, interned, with
+/// the pins: what `--home`, `--reads` and `--reach` start from.  The reserved-name
+/// pins are interned first, as the driver's are before any check (the reach reads
+/// them; upstream's are Lean constants)
+fn setup(sp: &[String], mods: &[String], pers: &PersTier, st: &mut AState) -> Result<(OleanRequest, Vec<NIdx>, spec::OleanPins), u8> {
+    let req = match OleanRequest::new(sp, mods, &[]) {
+        Ok(r) => r,
+        Err(m) => {
+            eprintln!("{}", m);
+            return Err(3);
+        }
+    };
+    if let Err(e) = con_ron_core::arena::pins::intern_reserved_pins(pers, st) {
+        return Err(fail_with(&e));
+    }
+    let (roots, _) = match req.intern(pers, st) {
+        Ok(p) => p,
+        Err(e) => return Err(fail_with(&e)),
+    };
+    let pk = match spec::olean_pins(pers, &mut st.store) {
+        Ok(p) => p,
+        Err(e) => return Err(fail_with(&e)),
+    };
+    Ok((req, roots, pk))
+}
+
+/// con-leche: OleanCompare.lean:165-174 runHome
+/// `--home`: each module's home read.
+fn run_home(sp: &[String], mods: &[String]) -> u8 {
+    let pers: &PersTier = &PersTier::empty();
+    let mut st = AState::empty();
+    let (req, roots, pk) = match setup(sp, mods, pers, &mut st) {
+        Ok(x) => x,
+        Err(c) => return c,
+    };
+    for m in &roots {
+        let h = match files::read_files(&StdFs, pers, &st.store, &req.search_path, m, &OLeanLevel::Private) {
+            Err(e) => Err(e),
+            Ok(f) => worker::home_of(&pk, pers, &mut st.store, m, &f),
+        };
+        match h {
+            Err(e) => return fail_with(&e),
+            Ok((l, expo)) => {
+                let n = |x: fn(&module::Expo) -> bool| expo.iter().filter(|e| x(e)).count();
+                println!(
+                    "{}: {} constants, exported {} same, {} hidden, {} absent",
+                    driver::name_of(pers, &st.store, m),
+                    l.constants.len(),
+                    n(|e| matches!(e, module::Expo::Same)),
+                    n(|e| matches!(e, module::Expo::Hidden)),
+                    n(|e| matches!(e, module::Expo::Absent))
+                );
+            }
+        }
+    }
+    0
+}
+
+/// con-leche: ConLeche/Frontend/Olean/Levels.lean:175-176 ModSet.card
+/// The number of positions in the set.
+fn mod_set_card(s: &[u8]) -> usize {
+    s.iter().map(|b| b.count_ones() as usize).sum()
+}
+
+/// con-leche: OleanCompare.lean:177-206 runReads
+/// `--reads`: a worker's reads at one module.  The reads are sequential here, so
+/// `--jobs` is accepted and has no effect.
+fn run_reads(sp: &[String], m: &str, dump: bool, levels_only: bool) -> u8 {
+    let pers: &PersTier = &PersTier::empty();
+    let mut st = AState::empty();
+    let (req, roots, pk) = match setup(sp, &[m.to_string()], pers, &mut st) {
+        Ok(x) => x,
+        Err(c) => return c,
+    };
+    let m = &roots[0];
+    let shown = driver::name_of(pers, &st.store, m);
+    if levels_only {
+        let own = match files::read_part_names(&StdFs, &pk, pers, &mut st.store, &req.search_path, m, &OLeanLevel::Private) {
+            Err(e) => return fail_with(&e),
+            Ok(o) => o,
+        };
+        let ld = match levels::header_fixpoint(&StdFs, &pk, pers, &mut st.store, &req.search_path, own.header.is_module, &own.header.imports) {
+            Err(e) => return fail_with(&e),
+            Ok(ld) => ld,
+        };
+        let pub_ = levels::pub_closures(&ld);
+        println!("{}: loads {} modules; {} public-import closures", shown, ld.order.len(), pub_.len());
+        return 0;
+    }
+    let w = match index::worker_reads(&StdFs, &pk, pers, &mut st.store, &req.search_path, m, &Vec::new()) {
+        Err(e) => return fail_with(&e),
+        Ok(w) => w,
+    };
+    let ld = &w.loads;
+    if dump {
+        for (n, fl) in ld.order.iter().zip(ld.flags.iter()) {
+            println!("load {} {} {}", driver::name_of(pers, &st.store, n), fl.import_all, fl.is_exported);
+        }
+    }
+    let priv_ = ld.flags.iter().filter(|f| f.import_all).count();
+    let names = w.index.first.len();
+    let pub_avg = if ld.order.is_empty() {
+        0
+    } else {
+        w.pub_.iter().map(|s| mod_set_card(s)).sum::<usize>() / ld.order.len()
+    };
+    let merged: usize = w.clashes.iter().map(|c| c.copies.len()).sum();
+    println!(
+        "{}: own {} constants; loads {} modules ({} private, {} exported); {} names, {} later copies; {} names held twice ({} copies), merged; public-import closure {} modules on average",
+        shown,
+        w.own.consts.len(),
+        ld.order.len(),
+        priv_,
+        ld.order.len() - priv_,
+        names,
+        w.index.more.len(),
+        w.clashes.len(),
+        merged,
+        pub_avg
+    );
+    0
+}
+
+/// con-leche: OleanCompare.lean:209-244 runReach
+/// `--reach`: a worker's context at one module.  `--jobs` as in `run_reads`.
+fn run_reach(sp: &[String], m: &str, list: bool) -> u8 {
+    let pers: &PersTier = &PersTier::empty();
+    let mut st = AState::empty();
+    let (req, roots, pk) = match setup(sp, &[m.to_string()], pers, &mut st) {
+        Ok(x) => x,
+        Err(c) => return c,
+    };
+    let m = &roots[0];
+    let w = match index::worker_reads(&StdFs, &pk, pers, &mut st.store, &req.search_path, m, &Vec::new()) {
+        Err(e) => return fail_with(&e),
+        Ok(w) => w,
+    };
+    let f = match files::read_files(&StdFs, pers, &st.store, &req.search_path, m, &OLeanLevel::Private) {
+        Err(e) => return fail_with(&e),
+        Ok(f) => f,
+    };
+    let l = match lazy::load_view(&pk, pers, &mut st.store, 0, m, &f) {
+        Err(e) => return fail_with(&e),
+        Ok(l) => l,
+    };
+    let own = worker::own_names(&l.constants);
+    let cs = worker::unskipped(&l.constants);
+    let mg = group::merged_of_list(&pk, &cs);
+    let names: Vec<NIdx> = cs.iter().map(|c| NIdx::of_word(c.c.name.word)).collect();
+    let ds = match emit::emit_all(&pk, &mg, &names) {
+        Err(e) => return fail_with(&e),
+        Ok(em) => match records::decls_of(pers, &st.store, em) {
+            Err((e, _)) => return fail_with(&e),
+            Ok(p) => p.decls,
+        },
+    };
+    let mut rs: Vec<NIdx> = Vec::new();
+    for d in &ds {
+        match reach::record_reads(pers, &mut st, d) {
+            Err(e) => return fail_with(&e),
+            Ok(xs) => rs.extend(xs),
+        }
+    }
+    for c in &cs {
+        rs.extend(c.uses.iter().map(|n| NIdx::of_word(n.word)));
+    }
+    let r = match reach::reach(&StdFs, &pk, pers, &mut st, &req.search_path, m, &w, &own, &rs) {
+        Err(e) => return fail_with(&e),
+        Ok(r) => r,
+    };
+    // upstream's `reach` infers the pending flags itself; here they run after the
+    // freeze, as the driver's `module_phase` runs them (reach.rs's module note)
+    let ix = match con_ron_core::arena::stream_index::build_index(pers, &mut st, con_ron_core::arena::stream_index::stream_index_empty(), &r.ctx, 0) {
+        Err((e, _)) => return fail_with(&e),
+        Ok(ix) => ix,
+    };
+    let tier: PersTier = checker::freeze_tier(&mut st.store, ix);
+    let mut fws: AState = checker::worker_state(&st.pins);
+    let inferred = reach::infer_flags(&tier, &mut fws, &r.ctx, &r.pending);
+    let _ = checker::thaw_tier(&mut st.store, tier);
+    if let Err(e) = inferred {
+        return fail_with(&e);
+    }
+    let mut consts = 0usize;
+    for d in &r.ctx {
+        match install::decl_constants(pers, &mut st, d) {
+            Err(e) => return fail_with(&e),
+            Ok(xs) => consts += xs.len(),
+        }
+    }
+    let groups = r.ctx.iter().filter(|d| matches!(d, IDeclaration::IndDecl(..))).count();
+    let mods = r.homes.iter().map(|h| h.word).collect::<std::collections::HashSet<u32>>().len();
+    if list {
+        for (d, h) in r.ctx.iter().zip(r.homes.iter()) {
+            let n = match con_ron_core::arena::env::i_declaration_names(d).first() {
+                Some(n) => driver::name_of(pers, &st.store, n),
+                None => "[anonymous]".to_string(),
+            };
+            println!("ctx {} {}", n, driver::name_of(pers, &st.store, h));
+        }
+        for (y, h) in &r.completed {
+            println!("completed {} in the view of {}", driver::name_of(pers, &st.store, y), driver::name_of(pers, &st.store, h));
+        }
+    }
+    println!(
+        "{}: own {} records; loads {} modules, {} names; reach {} records ({} constants, {} groups) from {} modules; {} completed; {} searches; {} flags inferred",
+        driver::name_of(pers, &st.store, m),
+        ds.len(),
+        w.loads.order.len(),
+        w.index.first.len(),
+        r.ctx.len(),
+        consts,
+        groups,
+        mods,
+        r.completed.len(),
+        r.searches,
+        r.inferred
+    );
+    0
+}
+
 /// con-leche: OleanCompare.lean:246-251 internalName
 /// Lean's `Name.isInternal`: lean4export's default roots leave out the constants so
 /// named, which the reader starts from, so a record only the reader has must be so
@@ -384,8 +616,28 @@ fn main() -> ExitCode {
         let split = |sp: &str| -> Vec<String> {
             sp.split(':').filter(|d| !d.is_empty()).map(|d| d.to_string()).collect()
         };
+        // `--reads`/`--reach`: the options are the arguments starting with `--`
+        let opts_rest = |a: &[String]| -> (Vec<String>, Vec<String>) { a.iter().cloned().partition(|s| s.starts_with("--")) };
         if args.len() >= 3 && args[0] == "--views" {
             run_views(&split(&args[1]), &args[2..])
+        } else if args.len() >= 3 && args[0] == "--home" {
+            run_home(&split(&args[1]), &args[2..])
+        } else if !args.is_empty() && args[0] == "--reads" {
+            let (opts, rest) = opts_rest(&args[1..]);
+            if rest.len() == 2 {
+                run_reads(&split(&rest[0]), &rest[1], opts.iter().any(|o| o == "--loads"), opts.iter().any(|o| o == "--levels"))
+            } else {
+                eprintln!("usage: olean-compare --reads [--jobs=N] [--loads] [--levels] SEARCHPATH MODULE");
+                3
+            }
+        } else if !args.is_empty() && args[0] == "--reach" {
+            let (opts, rest) = opts_rest(&args[1..]);
+            if rest.len() == 2 {
+                run_reach(&split(&rest[0]), &rest[1], opts.iter().any(|o| o == "--list"))
+            } else {
+                eprintln!("usage: olean-compare --reach [--jobs=N] [--list] SEARCHPATH MODULE");
+                3
+            }
         } else if args.len() >= 3 {
             run_compare(&args[0], &split(&args[1]), &args[2..], &constants)
         } else {

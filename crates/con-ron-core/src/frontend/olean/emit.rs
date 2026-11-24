@@ -121,14 +121,13 @@ pub fn emit_one(st: &mut Emit, c: &CEntry) {
 /// One inductive type of a block's record.
 pub fn emit_ty_step(st: &mut Emit, acc: &mut Vec<IndTypeRec>, c: &CEntry) {
     match &c.c.kind {
-        CKindF::Induct(np, ni, _, cs, nn, ir, iu, irf) => {
+        CKindF::Induct(np, ni, _, cs, nn, ir, iu, _) => {
             let cv = emit_cv(st, c);
             let ctors = emit_names(st, cs);
             acc.push(IndTypeRec {
                 cv,
                 ctors,
                 is_rec: *ir,
-                is_reflexive: *irf,
                 is_unsafe: *iu,
                 num_indices: *ni,
                 num_nested: *nn,

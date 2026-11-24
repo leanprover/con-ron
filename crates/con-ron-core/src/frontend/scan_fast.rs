@@ -2480,14 +2480,13 @@ pub fn scan_ind_recs(b: &[u8], i: usize) -> ScanRes<Vec<IndRecRec>> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:1602-1781 scanIndTypeLoop
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:1602-1780 scanIndTypeLoop
 pub fn scan_ind_type_loop(b: &[u8], i: usize) -> ScanRes<IndTypeRec> {
     let mut i = i;
     let mut want_member = true;
     let mut seen: u32 = 0;
     let mut ctors: Vec<u64> = Vec::new();
     let mut is_rec = false;
-    let mut is_refl = false;
     let mut is_uns = false;
     let mut lps: Vec<u64> = Vec::new();
     let mut nm: u64 = 0;
@@ -2512,7 +2511,7 @@ pub fn scan_ind_type_loop(b: &[u8], i: usize) -> ScanRes<IndTypeRec> {
                 if want_member && seen != 0 {
                     return err(i, ErrTag::ExpectedKey);
                 }
-                if seen & 2046 != 2046 {
+                if seen & 2038 != 2038 {
                     return err(i, ErrTag::MissingKey);
                 }
                 return Ok((
@@ -2524,7 +2523,6 @@ pub fn scan_ind_type_loop(b: &[u8], i: usize) -> ScanRes<IndTypeRec> {
                         },
                         ctors,
                         is_rec,
-                        is_reflexive: is_refl,
                         is_unsafe: is_uns,
                         num_indices: n_idx,
                         num_nested: n_nest,
@@ -2590,14 +2588,13 @@ pub fn scan_ind_type_loop(b: &[u8], i: usize) -> ScanRes<IndTypeRec> {
                     if dup(seen, 8) {
                         return err(ks, ErrTag::DuplicateKey);
                     }
-                    let (x, e) = match scan_bool(b, v) {
+                    let (_x, e) = match scan_bool(b, v) {
                         Err(er) => return Err(er),
                         Ok(p) => p,
                     };
                     if !prog(ks, e) {
                         return err(ks, ErrTag::NoProgress);
                     }
-                    is_refl = x;
                     seen |= 8;
                     i = e;
                     want_member = false;
@@ -2785,8 +2782,8 @@ pub fn scan_ind_type_loop(b: &[u8], i: usize) -> ScanRes<IndTypeRec> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:1783-1788 scanIndType
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:522-526 naiveIndType
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:1782-1787 scanIndType
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:523-527 naiveIndType
 /// One member of an inductive record's `types`.
 pub fn scan_ind_type(b: &[u8], i: usize) -> ScanRes<IndTypeRec> {
     if byte_at(b, i) == 123 {
@@ -2796,7 +2793,7 @@ pub fn scan_ind_type(b: &[u8], i: usize) -> ScanRes<IndTypeRec> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:1790-1816 scanIndTypeListLoop
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:1789-1815 scanIndTypeListLoop
 /// con-leche: ConLeche/Frontend/Scan/Naive.lean:228-251 naiveListLoop
 /// The `[{…}, …]` loop of IndType records.
 pub fn scan_ind_type_list_loop(b: &[u8], i: usize) -> ScanRes<Vec<IndTypeRec>> {
@@ -2841,8 +2838,8 @@ pub fn scan_ind_type_list_loop(b: &[u8], i: usize) -> ScanRes<Vec<IndTypeRec>> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:1818-1822 scanIndTypes
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:528 naiveIndTypes
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:1817-1821 scanIndTypes
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:529 naiveIndTypes
 /// The `[…]` of IndType records.
 pub fn scan_ind_types(b: &[u8], i: usize) -> ScanRes<Vec<IndTypeRec>> {
     if byte_at(b, i) == 91 {
@@ -2852,7 +2849,7 @@ pub fn scan_ind_types(b: &[u8], i: usize) -> ScanRes<Vec<IndTypeRec>> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:1824-1929 scanIndCtorLoop
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:1823-1928 scanIndCtorLoop
 pub fn scan_ind_ctor_loop(b: &[u8], i: usize) -> ScanRes<IndCtorRec> {
     let mut i = i;
     let mut want_member = true;
@@ -3013,8 +3010,8 @@ pub fn scan_ind_ctor_loop(b: &[u8], i: usize) -> ScanRes<IndCtorRec> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:1931-1937 scanIndCtor
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:544-545 naiveIndCtor
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:1930-1936 scanIndCtor
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:545-546 naiveIndCtor
 /// One member of an inductive record's `ctors`.  `cidx` and `induct` are the
 /// format's redundant fields and are optional in the dialect.
 pub fn scan_ind_ctor(b: &[u8], i: usize) -> ScanRes<IndCtorRec> {
@@ -3025,7 +3022,7 @@ pub fn scan_ind_ctor(b: &[u8], i: usize) -> ScanRes<IndCtorRec> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:1939-1965 scanIndCtorListLoop
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:1938-1964 scanIndCtorListLoop
 /// con-leche: ConLeche/Frontend/Scan/Naive.lean:228-251 naiveListLoop
 /// The `[{…}, …]` loop of IndCtor records.
 pub fn scan_ind_ctor_list_loop(b: &[u8], i: usize) -> ScanRes<Vec<IndCtorRec>> {
@@ -3070,8 +3067,8 @@ pub fn scan_ind_ctor_list_loop(b: &[u8], i: usize) -> ScanRes<Vec<IndCtorRec>> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:1967-1971 scanIndCtors
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:547 naiveIndCtors
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:1966-1970 scanIndCtors
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:548 naiveIndCtors
 /// The `[…]` of IndCtor records.
 pub fn scan_ind_ctors(b: &[u8], i: usize) -> ScanRes<Vec<IndCtorRec>> {
     if byte_at(b, i) == 91 {
@@ -3081,7 +3078,7 @@ pub fn scan_ind_ctors(b: &[u8], i: usize) -> ScanRes<Vec<IndCtorRec>> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:1973-2040 scanAxiomDeclLoop
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:1972-2039 scanAxiomDeclLoop
 pub fn scan_axiom_decl_loop(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     let mut i = i;
     let mut want_member = true;
@@ -3182,8 +3179,8 @@ pub fn scan_axiom_decl_loop(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2042-2046 scanAxiomDecl
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:577-578 naiveAxiomDecl
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2041-2045 scanAxiomDecl
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:578-579 naiveAxiomDecl
 /// An `axiom` record.
 pub fn scan_axiom_decl(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     if byte_at(b, i) == 123 {
@@ -3193,7 +3190,7 @@ pub fn scan_axiom_decl(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2048-2143 scanDefDeclLoop
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2047-2142 scanDefDeclLoop
 pub fn scan_def_decl_loop(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     let mut i = i;
     let mut want_member = true;
@@ -3342,8 +3339,8 @@ pub fn scan_def_decl_loop(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2145-2151 scanDefDecl
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:588-589 naiveDefDecl
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2144-2150 scanDefDecl
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:589-590 naiveDefDecl
 /// A `def` record.  A missing `hints` field is `regular 0` — hints steer only
 /// the unfolding order of lazy delta, so any default is behaviourally safe.
 pub fn scan_def_decl(b: &[u8], i: usize) -> ScanRes<DeclRec> {
@@ -3354,7 +3351,7 @@ pub fn scan_def_decl(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2153-2228 scanThmDeclLoop
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2152-2227 scanThmDeclLoop
 pub fn scan_thm_decl_loop(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     let mut i = i;
     let mut want_member = true;
@@ -3467,8 +3464,8 @@ pub fn scan_thm_decl_loop(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2230-2234 scanThmDecl
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:596-597 naiveThmDecl
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2229-2233 scanThmDecl
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:597-598 naiveThmDecl
 /// A `thm` record.
 pub fn scan_thm_decl(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     if byte_at(b, i) == 123 {
@@ -3478,7 +3475,7 @@ pub fn scan_thm_decl(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2236-2321 scanOpaqueDeclLoop
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2235-2320 scanOpaqueDeclLoop
 pub fn scan_opaque_decl_loop(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     let mut i = i;
     let mut want_member = true;
@@ -3609,8 +3606,8 @@ pub fn scan_opaque_decl_loop(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2323-2327 scanOpaqueDecl
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:605-606 naiveOpaqueDecl
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2322-2326 scanOpaqueDecl
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:606-607 naiveOpaqueDecl
 /// An `opaque` record.
 pub fn scan_opaque_decl(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     if byte_at(b, i) == 123 {
@@ -3620,7 +3617,7 @@ pub fn scan_opaque_decl(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2329-2396 scanQuotDeclLoop
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2328-2395 scanQuotDeclLoop
 pub fn scan_quot_decl_loop(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     let mut i = i;
     let mut want_member = true;
@@ -3721,8 +3718,8 @@ pub fn scan_quot_decl_loop(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2398-2402 scanQuotDecl
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:616-617 naiveQuotDecl
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2397-2401 scanQuotDecl
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:617-618 naiveQuotDecl
 /// A `quot` record.
 pub fn scan_quot_decl(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     if byte_at(b, i) == 123 {
@@ -3732,7 +3729,7 @@ pub fn scan_quot_decl(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2404-2481 scanIndDeclLoop
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2403-2480 scanIndDeclLoop
 pub fn scan_ind_decl_loop(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     let mut i = i;
     let mut want_member = true;
@@ -3842,8 +3839,8 @@ pub fn scan_ind_decl_loop(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2483-2487 scanIndDecl
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:629-630 naiveIndDecl
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2482-2486 scanIndDecl
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:630-631 naiveIndDecl
 /// An `inductive` record: three arrays of member records.
 pub fn scan_ind_decl(b: &[u8], i: usize) -> ScanRes<DeclRec> {
     if byte_at(b, i) == 123 {
@@ -3857,7 +3854,7 @@ pub fn scan_ind_decl(b: &[u8], i: usize) -> ScanRes<DeclRec> {
 // The line
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2500-2507 LinePayload
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2499-2506 LinePayload
 /// A line's payload, before it is matched with its index key.  A line carries
 /// at most one index key (`in`/`il`/`ie`) and exactly one payload key; the
 /// payload keys of the three table kinds are disjoint, so the payload is read
@@ -3872,7 +3869,7 @@ pub enum LinePayload {
     Header,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2509-2511 LinePayload.isAbsent
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2508-2510 LinePayload.isAbsent
 pub fn line_payload_is_absent(p: &LinePayload) -> bool {
     match p {
         LinePayload::Absent => true,
@@ -3880,9 +3877,9 @@ pub fn line_payload_is_absent(p: &LinePayload) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2513-2660 scanLineLoop
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:644-783 naiveLineLoop
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:638-642 IdxKey
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2512-2659 scanLineLoop
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:645-784 naiveLineLoop
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:639-643 IdxKey
 /// The members of one line.  `idx_kind` is `0` for none, `1` for `in`, `2` for
 /// `il`, `3` for `ie` (`Naive.lean` spells the same thing as an `IdxKey`
 /// enumeration).  The closing brace's match of payload against index key is a
@@ -4157,8 +4154,8 @@ pub fn scan_line_loop(b: &[u8], i: usize) -> ScanRes<LineRec> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2662-2685 scanLineFwd
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:785-802 naiveLine
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2661-2684 scanLineFwd
+/// con-leche: ConLeche/Frontend/Scan/Naive.lean:786-803 naiveLine
 /// One line of the stream from `i`: the record, and **the position after its
 /// newline** — or `0` when the buffer ran out before a newline did, which
 /// tells the driver that these bytes are an incomplete tail to carry into the
@@ -4190,7 +4187,7 @@ pub fn scan_line_fwd(b: &[u8], i: usize) -> ScanRes<LineRec> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2687-2696 newlineFrom
+/// con-leche: ConLeche/Frontend/Scan/Fast.lean:2686-2695 newlineFrom
 /// Is there a newline at or after `i`?  Asked only when a line failed to
 /// scan, to tell a malformed record from one a chunk boundary cut in half.
 pub fn newline_from(b: &[u8], i: usize) -> bool {
@@ -4630,6 +4627,41 @@ mod tests {
         assert!(ind_type_rec_flags_partial(&t));
         bad(&flag_line("\"hasEta\":1,"));
         is_tag(&flag_line("\"isK\":true,\"isK\":false,"), ErrTag::DuplicateKey);
+    }
+
+    /// An inductive record whose one type record carries `refl` between
+    /// `isRec` and `isUnsafe`.
+    fn refl_line(refl: &str) -> String {
+        format!(
+            "{}{}{}",
+            concat!(
+                "{\"inductive\":{\"ctors\":[],\"recs\":[],\"types\":[{\"all\":[1],",
+                "\"ctors\":[2],\"isRec\":true,"
+            ),
+            refl,
+            concat!(
+                "\"isUnsafe\":false,\"levelParams\":[],\"name\":1,\"numIndices\":0,",
+                "\"numNested\":0,\"numParams\":0,\"type\":6}]}}\n"
+            )
+        )
+    }
+
+    /// `isReflexive` is optional (con-leche's `ScanTests`, task #630): lean4
+    /// dropped it from `InductiveVal`.  Read alike with and without it; a
+    /// non-boolean or a repeat stays an error.
+    #[test]
+    fn ind_type_reflexive_optional() {
+        let t = type_rec(&refl_line(""));
+        assert_eq!(t.ctors, vec![2]);
+        assert!(t.is_rec);
+        let t = type_rec(&refl_line("\"isReflexive\":true,"));
+        assert_eq!(t.ctors, vec![2]);
+        assert!(t.is_rec);
+        bad(&refl_line("\"isReflexive\":1,"));
+        is_tag(
+            &refl_line("\"isReflexive\":true,\"isReflexive\":true,"),
+            ErrTag::DuplicateKey,
+        );
     }
 
     /// `def` hints: the three spellings, and the `regular 0` default.

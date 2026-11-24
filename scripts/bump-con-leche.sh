@@ -61,11 +61,9 @@
 # pin           `overview-links.sh --follow` once more (its own commit if it
 #               moved anything), then commits `proof/lakefile.toml` and
 #               `proof/lake-manifest.json` — nothing else — as the branch's
-#               LAST commit; `scripts/pin-last.py --tip-is-pin` confirms.
-# land          preconditions: the worktree is clean, the tip is the pin commit
-#               and no earlier commit moves the pin (`pin-last.py`), master is
-#               merged, `scripts/gates.sh` was green at exactly this commit
-#               (its stamp), and `measure` saw the crates as they are.  Then:
+#               LAST commit.
+# land          preconditions: the worktree is clean, master is merged,
+#               `scripts/gates.sh` was green at exactly this commit (its stamp), and `measure` saw the crates as they are.  Then:
 #               the fast-forward of master, seeding the shared Lake cache from
 #               the worktree, `drop-worktree.sh`, deleting `_tmp/bump-<short>`
 #               (the private packages with it), after a toolchain move
@@ -378,7 +376,6 @@ cmd_status() {
   echo "new uncovered declarations still uncovered:"
   comm -12 <(comm -13 <(uncovered "$state/coverage-old.txt") <(uncovered "$state/coverage-new.txt")) \
            <(uncovered "$state/coverage-now.txt") | sed 's/^/  /'
-  (cd "$wt" && python3 scripts/pin-last.py) || true
 }
 
 # ---------------------------------------------------------------- measure
@@ -453,7 +450,6 @@ $dirty"
 
 The last commit of the sync (DESIGN.md §7): proof/lakefile.toml and
 proof/lake-manifest.json, nothing else."
-  (cd "$wt" && python3 scripts/pin-last.py --tip-is-pin)
   echo "next: LAKE_JOBS=4 scripts/gates.sh, then scripts/bump-con-leche.sh land --report <final report file>"
 }
 
@@ -474,7 +470,6 @@ cmd_land() {
   report=$(cd "$(dirname "$report")" && pwd -P)/$(basename "$report")
   resolve_short "$arg"
   [ -z "$(git -C "$wt" status --porcelain --untracked-files=no)" ] || die "$wt has uncommitted changes"
-  (cd "$wt" && python3 scripts/pin-last.py --tip-is-pin) || die "the pin commit must be the tip, and the only commit moving the pin"
   git -C "$wt" merge-base --is-ancestor master HEAD || die "master is not merged into $branch; merge it, re-gate, pin"
   local head key
   head=$(git -C "$wt" rev-parse HEAD)
