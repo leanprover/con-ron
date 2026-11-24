@@ -74939,3 +74939,39 @@ gone.
 three calls (`status`, `pin`, the `land` precondition) and the mentions in CLAUDE.md,
 OVERVIEW.md and §7 removed.  `pin` still commits the pin files as the branch's last commit;
 nothing verifies it.
+
+### Task #176 — con-leche sync d8c8c227 → 216031bf on `renovation`: the type record's `isReflexive` key is optional (2026-11-24, Opus)
+
+One upstream commit, `216031bf` (#630): lean4 dropped `isReflexive` from `InductiveVal` with
+the renovation PR #16595, so its exporter stops writing the key.  Both NDJSON decoders accept
+it when present (a boolean; a non-boolean or a repeated key stays a scan error), drop it, and
+no longer require it (type record's required mask 2046 → 2038); `IndTypeRec` loses the field;
+the `.olean` emitter stops copying it.  Started with `bump-con-leche.sh start 216031bf --from
+renovation`; master (tasks #174, #175) merged into the sync branch first, which drops
+`pin-last` — the gate step that fails on `renovation` by construction (task #172's pin move).
+
+`update --auto`: 7 findings (7 `CHANGED`), 46 citations merely moved; 7 markers → 0.
+Coverage 1219/1271 before and after.  Ported by one agent in the bump worktree:
+* Rust: `scan_types::IndTypeRec` without `is_reflexive`; `scan_fast::scan_ind_type_loop`
+  without the `is_refl` state, its `KIsReflexive` arm still rejecting a repeat and reading a
+  boolean, the value dropped, mask 2038 (`scan_ind_rec_loop`'s 2046 is the recursor's and
+  unchanged); `olean::emit::emit_ty_step` matches the flag as `_`.  New Rust test
+  `ind_type_reflexive_optional` (upstream's ScanTests probes: absent, present, non-boolean,
+  repeated).
+* Twin: `Emit.tyStep` as upstream's.  Theorem 1: unchanged (`EmitRel.tyStep` matches on
+  `CKindF`, which keeps the flag).  Theorem 2: `absIndTypeRec` drops the field;
+  `scanIndTypeLoop_body`, `scan_ind_type_loop_loop_refines`, `scan_ind_type_refines` lose the
+  `isRefl` argument (the existing generic alternatives cover the new arm); `emit_ty_step_rel`
+  at the 12-field record; three `rcases` patterns in `ExportCInd`.  No public statement
+  changes.
+
+Verdicts: `diff-e2e.sh` 802/802 (master's binary at the new pin: 801/802, the new
+`ind_flags_no_reflexive` differing).  Measured (by hand against `renovation`'s binary, as in
+#172), `Init`, `--verified --jobs=1`, instructions:u, one run each, 57 919 accepted by both:
+`renovation` ca665a8b 165 598 465 477, this branch 165 598 532 652 (+0.00004 %).
+
+Gates: the agent's `--only` run before the pin (cargo-build, cargo-test, lint-rust,
+dead-rust, provenance, twin-lines, overview-links, holes, extract-check 433 s, dead-census)
+and a full `lake build`; after the pin every step but `extract-check`, whose inputs the pin
+commit does not touch (CLAUDE.md: skip the gates a change cannot touch).  The landing
+pipeline's cost (≈30 min after the port for a one-commit sync) is under review (task #177).
