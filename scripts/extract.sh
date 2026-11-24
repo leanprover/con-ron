@@ -24,6 +24,19 @@
 # Deterministic: two runs produce byte-identical output.  (The intermediate
 # `.llbc` is *not* deterministic -- it records the absolute output path -- but
 # the Lean it produces is, which is what is committed.)
+#
+# THE GREEN STAMP (task #177).  Charon + Aeneas take minutes and peak at
+# ~32 GB, and a sync used to run them three times on the same bytes.  So the
+# script first hashes ALL of its inputs (`inputs_digest` below: the crate
+# directory, the workspace `Cargo.toml`/`Cargo.lock`, this script, every file
+# of `proof/ConRon/Generated/`, the resolved `charon`/`aeneas`/`rustc`/`cargo`
+# store paths, and the `RUST*`/`CARGO_*` environment) and, when
+# `_tmp/extract-green/<hash>` exists, prints one line naming that stamp and
+# exits 0 without running anything.  A stamp is written only after a green
+# `--check` or a completed write, and only if the inputs did not move during
+# the run.  The key has no absolute path in it, so one checkout's green run
+# serves every worktree.  `EXTRACT_NO_STAMP=1` forces the real run (CI sets
+# it: CI is the backstop that runs Aeneas on every push).
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -51,6 +64,42 @@ case "${1-}" in
 esac
 [ "$#" -le 1 ] || { echo "usage: $0 [--check]" >&2; exit 2; }
 
+# The inputs' digest (see the header).  `--no-gen` leaves out the four files
+# this script writes, for comparing a write run's inputs before and after.
+inputs_digest() {
+  local nogen=0
+  [ "${1-}" = --no-gen ] && nogen=1
+  (
+    cd "$root"
+    echo "con-ron extract stamp v1"
+    for t in charon aeneas rustc cargo; do
+      printf 'tool %s %s\n' "$t" "$(readlink -f "$(command -v "$t" || echo missing)")"
+    done
+    env | { grep -E '^(RUST[A-Z_]*|CARGO_[A-Z_]*)=' || true; } | LC_ALL=C sort
+    find crates/con-ron-core Cargo.toml Cargo.lock scripts/extract.sh "proof/$subdir" -type f -print0 \
+      | LC_ALL=C sort -z \
+      | if [ "$nogen" -eq 1 ]; then
+          grep -zv -E "^proof/$subdir/($(IFS='|'; echo "${gen_files[*]}"))\$"
+        else cat; fi \
+      | xargs -0 sha256sum
+  ) | sha256sum | cut -c1-64
+}
+stamps="$root/_tmp/extract-green"
+mode=$([ "$check" -eq 1 ] && echo "extract --check" || echo "extract")
+key0=$(inputs_digest)
+key0_nogen=$(inputs_digest --no-gen)
+if [ "${EXTRACT_NO_STAMP:-0}" != 1 ] && [ -f "$stamps/$key0" ]; then
+  echo "$mode: OK, SKIPPED -- the inputs match the green stamp _tmp/extract-green/${key0:0:16} ($(head -1 "$stamps/$key0")); EXTRACT_NO_STAMP=1 forces a run"
+  exit 0
+fi
+write_stamp() { # <key>: the inputs it names extracted green
+  mkdir -p "$stamps"
+  printf '%s, %s at %s, %s\n' "$mode" "$(basename "$root")" \
+    "$(git -C "$root" rev-parse --short HEAD 2>/dev/null || echo '?')" "$(date -Is)" \
+    > "$stamps/.$1.$$" && mv "$stamps/.$1.$$" "$stamps/$1"
+  echo "$mode: stamped _tmp/extract-green/${1:0:16}"
+}
+
 # Scratch is keyed by the checkout: `_tmp` is usually a symlink shared by
 # every agent worktree, and two concurrent extractions into one directory
 # clobber each other's `.llbc` (seen 2026-09-13).
@@ -58,6 +107,17 @@ ckey=$(printf '%s' "$root" | sha256sum | cut -c1-12)
 if [ "$check" -eq 1 ]; then work="$root/_tmp/extract-check-$ckey"; else work="$root/_tmp/extract-$ckey"; fi
 rm -rf "$work"
 mkdir -p "$work/llbc" "$work/lean"
+
+# Charon + Aeneas peak at ~32 GB; several agents extracting at once pushed the
+# shared 50 GB cgroup over its cap (peak 53.9 GB, 2026-09-23) and the kernel
+# OOM-killed aeneas (exit 137).  So the extraction itself is serialised
+# machine-wide through a lock in the shared `_tmp/` -- after the stamp check,
+# so that a skipped run never waits.
+exec 9> "$root/_tmp/.extract-check.lock"
+if ! flock -n 9; then
+  echo "extract: waiting for the machine-wide extract lock (_tmp/.extract-check.lock)"
+  flock 9
+fi
 
 # 1. Rust -> LLBC.  `charon cargo` always recompiles (it drives rustc itself),
 #    so no `cargo clean` is needed; the destination must be absolute -- a
@@ -160,10 +220,17 @@ if [ "$check" -eq 1 ]; then
     exit 1
   fi
   echo "extract --check: OK (committed $subdir matches $crate_dir)"
+  # Stamp only if nothing the verdict rests on moved while Aeneas ran.
+  if [ "$(inputs_digest)" = "$key0" ]; then write_stamp "$key0"
+  else echo "extract --check: inputs changed during the run; no stamp"; fi
 else
   mkdir -p "$committed"
   for f in "${gen_files[@]}"; do
     cp "$out/$f" "$committed/$f"
   done
   echo "extract: wrote ${#gen_files[@]} files to proof/$subdir"
+  # The written files are now what these inputs extract to: stamp the new tree,
+  # unless an input other than the written files moved during the run.
+  if [ "$(inputs_digest --no-gen)" = "$key0_nogen" ]; then write_stamp "$(inputs_digest)"
+  else echo "extract: inputs changed during the run; no stamp"; fi
 fi

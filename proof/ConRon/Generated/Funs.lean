@@ -50,6 +50,194 @@ def kernel.name.mix_hash (h : Std.U64) (k : Std.U64) : Result Std.U64 := do
   let h1 ← lift (h ^^^ k3)
   ok (core.num.U64.wrapping_mul h1 14313749767032793493#u64)
 
+/-- [con_ron_core::kernel::level::hash_data]:
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 52:0-54:1
+    Visibility: public -/
+def kernel.level.hash_data (u : kernel.level.Level) : Result Std.U64 := do
+  let ln ←
+    alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref alloc.alloc.Global u._0
+  ok ln.hash
+
+/-- [con_ron_core::kernel::level::max]:
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 71:0-74:1
+    Visibility: public -/
+def kernel.level.max
+  (u : kernel.level.Level) (v : kernel.level.Level) :
+  Result kernel.level.Level
+  := do
+  let i ← kernel.level.hash_data u
+  let i1 ← kernel.level.hash_data v
+  let i2 ← kernel.name.mix_hash i i1
+  let h ← kernel.name.mix_hash 5#u64 i2
+  let a ←
+    ron.ptr.new (kernel.level.LevelNode.mk h (kernel.level.LevelKind.Max u v))
+  ok (kernel.level.Level.mk a)
+
+/-- [con_ron_core::kernel::level::succ]:
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 64:0-67:1
+    Visibility: public -/
+def kernel.level.succ
+  (u : kernel.level.Level) : Result kernel.level.Level := do
+  let i ← kernel.level.hash_data u
+  let h ← kernel.name.mix_hash 3#u64 i
+  let a ←
+    ron.ptr.new (kernel.level.LevelNode.mk h (kernel.level.LevelKind.Succ u))
+  ok (kernel.level.Level.mk a)
+
+/-- [con_ron_core::kernel::level::zero]:
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 58:0-60:1
+    Visibility: public -/
+def kernel.level.zero : Result kernel.level.Level := do
+  let a ←
+    ron.ptr.new (kernel.level.LevelNode.mk 1#u64 kernel.level.LevelKind.Zero)
+  ok (kernel.level.Level.mk a)
+
+/-- [con_ron_core::kernel::name::hash_data]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 92:0-94:1
+    Visibility: public -/
+def kernel.name.hash_data (n : kernel.name.Name) : Result Std.U64 := do
+  let nn ←
+    alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref alloc.alloc.Global n._0
+  ok nn.hash
+
+/-- [con_ron_core::kernel::level::param]:
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 85:0-88:1
+    Visibility: public -/
+def kernel.level.param (n : kernel.name.Name) : Result kernel.level.Level := do
+  let i ← kernel.name.hash_data n
+  let h ← kernel.name.mix_hash 11#u64 i
+  let a ←
+    ron.ptr.new (kernel.level.LevelNode.mk h (kernel.level.LevelKind.Param n))
+  ok (kernel.level.Level.mk a)
+
+/-- [con_ron_core::kernel::core_types::code_points_from]:
+    Source: 'crates/con-ron-core/src/kernel/core_types.rs', lines 112:0-120:1
+    Visibility: public -/
+def kernel.core_types.code_points_from
+  (codes : Slice Std.U32) (i : Std.Usize) (out : alloc.vec.Vec Std.U32) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let i1 := Slice.len codes
+  if i >= i1
+  then ok out
+  else
+    let i2 ← Slice.index_usize codes i
+    let out1 ← alloc.vec.Vec.push out i2
+    let i3 ← i + 1#usize
+    kernel.core_types.code_points_from codes i3 out1
+partial_fixpoint
+
+/-- [con_ron_core::kernel::core_types::code_points]:
+    Source: 'crates/con-ron-core/src/kernel/core_types.rs', lines 105:0-107:1
+    Visibility: public -/
+def kernel.core_types.code_points
+  (codes : Slice Std.U32) : Result (alloc.vec.Vec Std.U32) := do
+  let i := Slice.len codes
+  let v := alloc.vec.Vec.with_capacity Std.U32 i
+  kernel.core_types.code_points_from codes 0#usize v
+
+/-- [con_ron_core::kernel::basis_builder::u_n::S]
+    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 44:9-44:35 -/
+@[global_simps, irreducible]
+def kernel.basis_builder.u_n.S : Array Std.U32 1#usize :=
+  Array.make 1#usize [ 117#u32 ]
+
+/-- [con_ron_core::kernel::name::str_hash_from]: loop 0:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 74:4-80:5
+    Visibility: public -/
+@[rust_loop]
+def kernel.name.str_hash_from_loop
+  (s : alloc.vec.Vec Std.U32) (i : Std.Usize) (acc : Std.U64) :
+  Result Std.U64
+  := do
+  let i1 := alloc.vec.Vec.len s
+  if i >= i1
+  then ok acc
+  else
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
+    let i3 ← lift (UScalar.cast .U64 i2)
+    let acc1 ← kernel.name.mix_hash acc i3
+    let i4 ← i + 1#usize
+    kernel.name.str_hash_from_loop s i4 acc1
+partial_fixpoint
+
+/-- [con_ron_core::kernel::name::str_hash_from]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 71:0-81:1
+    Visibility: public -/
+@[reducible]
+def kernel.name.str_hash_from
+  (s : alloc.vec.Vec Std.U32) (i : Std.Usize) (acc : Std.U64) :
+  Result Std.U64
+  := do
+  kernel.name.str_hash_from_loop s i acc
+
+/-- [con_ron_core::kernel::name::str_hash]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 64:0-66:1
+    Visibility: public -/
+def kernel.name.str_hash (s : alloc.vec.Vec Std.U32) : Result Std.U64 := do
+  kernel.name.str_hash_from s 0#usize 11#u64
+
+/-- [con_ron_core::kernel::name::mk_str]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 106:0-109:1
+    Visibility: public -/
+def kernel.name.mk_str
+  (pre : kernel.name.Name) (s : alloc.vec.Vec Std.U32) :
+  Result kernel.name.Name
+  := do
+  let i ← kernel.name.hash_data pre
+  let i1 ← kernel.name.mix_hash 1#u64 i
+  let i2 ← kernel.name.str_hash s
+  let h ← kernel.name.mix_hash i1 i2
+  let a ←
+    ron.ptr.new (kernel.name.NameNode.mk h (kernel.name.NameKind.Str pre s))
+  ok (kernel.name.Name.mk a)
+
+/-- [con_ron_core::kernel::name::anonymous]:
+    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 98:0-100:1
+    Visibility: public -/
+def kernel.name.anonymous : Result kernel.name.Name := do
+  let a ←
+    ron.ptr.new (kernel.name.NameNode.mk 1723#u64
+      kernel.name.NameKind.Anonymous)
+  ok (kernel.name.Name.mk a)
+
+/-- [con_ron_core::kernel::basis_builder::bn]:
+    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 37:0-39:1
+    Visibility: public -/
+def kernel.basis_builder.bn
+  (s : alloc.vec.Vec Std.U32) : Result kernel.name.Name := do
+  let n ← kernel.name.anonymous
+  kernel.name.mk_str n s
+
+/-- [con_ron_core::kernel::basis_builder::u_n]:
+    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 43:0-45:1
+    Visibility: public -/
+def kernel.basis_builder.u_n : Result kernel.name.Name := do
+  let s ← lift (Array.to_slice kernel.basis_builder.u_n.S)
+  let v ← kernel.core_types.code_points s
+  kernel.basis_builder.bn v
+
+/-- [con_ron_core::kernel::basis_builder::u]:
+    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 49:0-51:1
+    Visibility: public -/
+def kernel.basis_builder.u : Result kernel.level.Level := do
+  let n ← kernel.basis_builder.u_n
+  kernel.level.param n
+
+/-- [con_ron_core::kernel::basis_raw::quot_sort_of]:
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 444:0-450:1
+    Visibility: public -/
+def kernel.basis_raw.quot_sort_of
+  (lifted : Bool) : Result kernel.level.Level := do
+  if lifted
+  then
+    let l ← kernel.level.zero
+    let l1 ← kernel.level.succ l
+    let l2 ← kernel.basis_builder.u
+    kernel.level.max l1 l2
+  else kernel.basis_builder.u
+
 /-- [con_ron_core::kernel::expr::data]:
     Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 397:0-399:1
     Visibility: public -/
@@ -164,22 +352,6 @@ def kernel.basis_builder.pi
   := do
   kernel.expr.forall_e ty body
 
-/-- [con_ron_core::kernel::level::zero]:
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 58:0-60:1
-    Visibility: public -/
-def kernel.level.zero : Result kernel.level.Level := do
-  let a ←
-    ron.ptr.new (kernel.level.LevelNode.mk 1#u64 kernel.level.LevelKind.Zero)
-  ok (kernel.level.Level.mk a)
-
-/-- [con_ron_core::kernel::level::hash_data]:
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 52:0-54:1
-    Visibility: public -/
-def kernel.level.hash_data (u : kernel.level.Level) : Result Std.U64 := do
-  let ln ←
-    alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref alloc.alloc.Global u._0
-  ok ln.hash
-
 /-- [con_ron_core::kernel::level::level_hash]:
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 181:0-183:1
     Visibility: public -/
@@ -262,7 +434,7 @@ def kernel.basis_builder.bv (i : Std.U64) : Result kernel.expr.Expr := do
   kernel.expr.bvar i
 
 /-- [con_ron_core::kernel::basis_raw::quot_rel]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 434:0-436:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 435:0-437:1
     Visibility: public -/
 def kernel.basis_raw.quot_rel : Result kernel.expr.Expr := do
   let e ← kernel.basis_builder.bv 0#u64
@@ -272,7 +444,7 @@ def kernel.basis_raw.quot_rel : Result kernel.expr.Expr := do
   kernel.basis_builder.pi e e3
 
 /-- [con_ron_core::kernel::basis_raw::cv]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 77:0-83:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 78:0-84:1
     Visibility: public -/
 def kernel.basis_raw.cv
   (n : kernel.name.Name) (lps : alloc.vec.Vec kernel.name.Name)
@@ -282,110 +454,16 @@ def kernel.basis_raw.cv
   ok { «name» := n, level_params := lps, ty }
 
 /-- [con_ron_core::kernel::basis_raw::vec1]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 41:0-45:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 42:0-46:1
     Visibility: public -/
 def kernel.basis_raw.vec1 {T : Type _} (a : T) : Result (alloc.vec.Vec T) := do
   alloc.vec.Vec.push (alloc.vec.Vec.new T) a
-
-/-- [con_ron_core::kernel::name::hash_data]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 92:0-94:1
-    Visibility: public -/
-def kernel.name.hash_data (n : kernel.name.Name) : Result Std.U64 := do
-  let nn ←
-    alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref alloc.alloc.Global n._0
-  ok nn.hash
-
-/-- [con_ron_core::kernel::name::str_hash_from]: loop 0:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 74:4-80:5
-    Visibility: public -/
-@[rust_loop]
-def kernel.name.str_hash_from_loop
-  (s : alloc.vec.Vec Std.U32) (i : Std.Usize) (acc : Std.U64) :
-  Result Std.U64
-  := do
-  let i1 := alloc.vec.Vec.len s
-  if i >= i1
-  then ok acc
-  else
-    let i2 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
-    let i3 ← lift (UScalar.cast .U64 i2)
-    let acc1 ← kernel.name.mix_hash acc i3
-    let i4 ← i + 1#usize
-    kernel.name.str_hash_from_loop s i4 acc1
-partial_fixpoint
-
-/-- [con_ron_core::kernel::name::str_hash_from]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 71:0-81:1
-    Visibility: public -/
-@[reducible]
-def kernel.name.str_hash_from
-  (s : alloc.vec.Vec Std.U32) (i : Std.Usize) (acc : Std.U64) :
-  Result Std.U64
-  := do
-  kernel.name.str_hash_from_loop s i acc
-
-/-- [con_ron_core::kernel::name::str_hash]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 64:0-66:1
-    Visibility: public -/
-def kernel.name.str_hash (s : alloc.vec.Vec Std.U32) : Result Std.U64 := do
-  kernel.name.str_hash_from s 0#usize 11#u64
-
-/-- [con_ron_core::kernel::name::mk_str]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 106:0-109:1
-    Visibility: public -/
-def kernel.name.mk_str
-  (pre : kernel.name.Name) (s : alloc.vec.Vec Std.U32) :
-  Result kernel.name.Name
-  := do
-  let i ← kernel.name.hash_data pre
-  let i1 ← kernel.name.mix_hash 1#u64 i
-  let i2 ← kernel.name.str_hash s
-  let h ← kernel.name.mix_hash i1 i2
-  let a ←
-    ron.ptr.new (kernel.name.NameNode.mk h (kernel.name.NameKind.Str pre s))
-  ok (kernel.name.Name.mk a)
-
-/-- [con_ron_core::kernel::core_types::code_points_from]:
-    Source: 'crates/con-ron-core/src/kernel/core_types.rs', lines 112:0-120:1
-    Visibility: public -/
-def kernel.core_types.code_points_from
-  (codes : Slice Std.U32) (i : Std.Usize) (out : alloc.vec.Vec Std.U32) :
-  Result (alloc.vec.Vec Std.U32)
-  := do
-  let i1 := Slice.len codes
-  if i >= i1
-  then ok out
-  else
-    let i2 ← Slice.index_usize codes i
-    let out1 ← alloc.vec.Vec.push out i2
-    let i3 ← i + 1#usize
-    kernel.core_types.code_points_from codes i3 out1
-partial_fixpoint
-
-/-- [con_ron_core::kernel::core_types::code_points]:
-    Source: 'crates/con-ron-core/src/kernel/core_types.rs', lines 105:0-107:1
-    Visibility: public -/
-def kernel.core_types.code_points
-  (codes : Slice Std.U32) : Result (alloc.vec.Vec Std.U32) := do
-  let i := Slice.len codes
-  let v := alloc.vec.Vec.with_capacity Std.U32 i
-  kernel.core_types.code_points_from codes 0#usize v
 
 /-- [con_ron_core::kernel::basis_names::quot_sound_name::S]
     Source: 'crates/con-ron-core/src/kernel/basis_names.rs', lines 121:4-121:50 -/
 @[global_simps, irreducible]
 def kernel.basis_names.quot_sound_name.S : Array Std.U32 5#usize :=
   Array.make 5#usize [ 115#u32, 111#u32, 117#u32, 110#u32, 100#u32 ]
-
-/-- [con_ron_core::kernel::name::anonymous]:
-    Source: 'crates/con-ron-core/src/kernel/name.rs', lines 98:0-100:1
-    Visibility: public -/
-def kernel.name.anonymous : Result kernel.name.Name := do
-  let a ←
-    ron.ptr.new (kernel.name.NameNode.mk 1723#u64
-      kernel.name.NameKind.Anonymous)
-  ok (kernel.name.Name.mk a)
 
 /-- [con_ron_core::kernel::basis_names::quot_name::S]
     Source: 'crates/con-ron-core/src/kernel/basis_names.rs', lines 93:4-93:44 -/
@@ -577,49 +655,11 @@ def kernel.basis_builder.srt
   (u : kernel.level.Level) : Result kernel.expr.Expr := do
   kernel.expr.sort u
 
-/-- [con_ron_core::kernel::level::param]:
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 85:0-88:1
+/-- [con_ron_core::kernel::basis_raw::quot_sound_a_of]:
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 653:0-679:1
     Visibility: public -/
-def kernel.level.param (n : kernel.name.Name) : Result kernel.level.Level := do
-  let i ← kernel.name.hash_data n
-  let h ← kernel.name.mix_hash 11#u64 i
-  let a ←
-    ron.ptr.new (kernel.level.LevelNode.mk h (kernel.level.LevelKind.Param n))
-  ok (kernel.level.Level.mk a)
-
-/-- [con_ron_core::kernel::basis_builder::u_n::S]
-    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 44:9-44:35 -/
-@[global_simps, irreducible]
-def kernel.basis_builder.u_n.S : Array Std.U32 1#usize :=
-  Array.make 1#usize [ 117#u32 ]
-
-/-- [con_ron_core::kernel::basis_builder::bn]:
-    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 37:0-39:1
-    Visibility: public -/
-def kernel.basis_builder.bn
-  (s : alloc.vec.Vec Std.U32) : Result kernel.name.Name := do
-  let n ← kernel.name.anonymous
-  kernel.name.mk_str n s
-
-/-- [con_ron_core::kernel::basis_builder::u_n]:
-    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 43:0-45:1
-    Visibility: public -/
-def kernel.basis_builder.u_n : Result kernel.name.Name := do
-  let s ← lift (Array.to_slice kernel.basis_builder.u_n.S)
-  let v ← kernel.core_types.code_points s
-  kernel.basis_builder.bn v
-
-/-- [con_ron_core::kernel::basis_builder::u]:
-    Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 49:0-51:1
-    Visibility: public -/
-def kernel.basis_builder.u : Result kernel.level.Level := do
-  let n ← kernel.basis_builder.u_n
-  kernel.level.param n
-
-/-- [con_ron_core::kernel::basis_raw::quot_sound_a]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 631:0-657:1
-    Visibility: public -/
-def kernel.basis_raw.quot_sound_a : Result kernel.env.ConstantInfo := do
+def kernel.basis_raw.quot_sound_a_of
+  (lifted : Bool) : Result kernel.env.ConstantInfo := do
   let n ← kernel.basis_names.quot_sound_name
   let n1 ← kernel.basis_builder.u_n
   let v ← kernel.basis_raw.vec1 n1
@@ -631,7 +671,8 @@ def kernel.basis_raw.quot_sound_a : Result kernel.env.ConstantInfo := do
   let e4 ← kernel.basis_builder.bv 0#u64
   let e5 ← kernel.basis_builder.ap2 e3 e2 e4
   let n2 ← kernel.basis_names.eq_name
-  let v1 ← kernel.basis_raw.vec1 l
+  let l1 ← kernel.basis_raw.quot_sort_of lifted
+  let v1 ← kernel.basis_raw.vec1 l1
   let e6 ← kernel.basis_builder.cnst n2 v1
   let n3 ← kernel.basis_names.quot_name
   let v2 ← kernel.basis_raw.vec1 l
@@ -655,8 +696,14 @@ def kernel.basis_raw.quot_sound_a : Result kernel.env.ConstantInfo := do
   let cv ← kernel.basis_raw.cv n v e20
   ok (kernel.env.ConstantInfo.AxiomInfo cv)
 
+/-- [con_ron_core::kernel::basis_raw::quot_sound_a]:
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 683:0-685:1
+    Visibility: public -/
+def kernel.basis_raw.quot_sound_a : Result kernel.env.ConstantInfo := do
+  kernel.basis_raw.quot_sound_a_of false
+
 /-- [con_ron_core::kernel::basis_raw::quot_ind_mk]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 569:0-577:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 590:0-598:1
     Visibility: public -/
 def kernel.basis_raw.quot_ind_mk : Result kernel.expr.Expr := do
   let e ← kernel.basis_builder.bv 2#u64
@@ -672,7 +719,7 @@ def kernel.basis_raw.quot_ind_mk : Result kernel.expr.Expr := do
   kernel.basis_builder.pi e e6
 
 /-- [con_ron_core::kernel::basis_raw::quot_ind_motive]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 559:0-564:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 580:0-585:1
     Visibility: public -/
 def kernel.basis_raw.quot_ind_motive : Result kernel.expr.Expr := do
   let n ← kernel.basis_names.quot_name
@@ -686,7 +733,7 @@ def kernel.basis_raw.quot_ind_motive : Result kernel.expr.Expr := do
   kernel.basis_builder.pi e3 e4
 
 /-- [con_ron_core::kernel::basis_raw::rule_at]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 99:0-106:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 100:0-107:1
     Visibility: public -/
 def kernel.basis_raw.rule_at
   (ctor : kernel.name.Name) (nfields : Std.U64)
@@ -750,7 +797,7 @@ def kernel.basis_builder.lm
   kernel.expr.lam ty body
 
 /-- [con_ron_core::kernel::basis_raw::quot_ind_a]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 582:0-626:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 603:0-647:1
     Visibility: public -/
 def kernel.basis_raw.quot_ind_a : Result kernel.env.ConstantInfo := do
   let n ← kernel.basis_names.quot_ind_name
@@ -811,7 +858,7 @@ def kernel.basis_builder.v : Result kernel.level.Level := do
   kernel.level.param n
 
 /-- [con_ron_core::kernel::basis_raw::quot_lift_h]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 484:0-500:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 505:0-521:1
     Visibility: public -/
 def kernel.basis_raw.quot_lift_h : Result kernel.expr.Expr := do
   let e ← kernel.basis_builder.bv 3#u64
@@ -832,7 +879,7 @@ def kernel.basis_raw.quot_lift_h : Result kernel.expr.Expr := do
   kernel.basis_builder.pi e e11
 
 /-- [con_ron_core::kernel::basis_raw::quot_lift_f]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 477:0-479:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 498:0-500:1
     Visibility: public -/
 def kernel.basis_raw.quot_lift_f : Result kernel.expr.Expr := do
   let e ← kernel.basis_builder.bv 2#u64
@@ -840,7 +887,7 @@ def kernel.basis_raw.quot_lift_f : Result kernel.expr.Expr := do
   kernel.basis_builder.pi e e1
 
 /-- [con_ron_core::kernel::basis_raw::vec2]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 48:0-52:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 49:0-53:1
     Visibility: public -/
 def kernel.basis_raw.vec2
   {T : Type _} (a : T) (b : T) : Result (alloc.vec.Vec T) := do
@@ -863,7 +910,7 @@ def kernel.basis_names.quot_lift_name : Result kernel.name.Name := do
   kernel.name.mk_str n v
 
 /-- [con_ron_core::kernel::basis_raw::quot_lift_a]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 505:0-555:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 526:0-576:1
     Visibility: public -/
 def kernel.basis_raw.quot_lift_a : Result kernel.env.ConstantInfo := do
   let n ← kernel.basis_names.quot_lift_name
@@ -908,7 +955,7 @@ def kernel.basis_raw.quot_lift_a : Result kernel.env.ConstantInfo := do
   ok (kernel.env.ConstantInfo.RecInfo cv 5#u64 5#u64 false v3)
 
 /-- [con_ron_core::kernel::basis_raw::quot_mk_a]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 453:0-473:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 474:0-494:1
     Visibility: public -/
 def kernel.basis_raw.quot_mk_a : Result kernel.env.ConstantInfo := do
   let n ← kernel.basis_names.quot_mk_name
@@ -944,25 +991,33 @@ def kernel.env.ind_caps_default : Result kernel.env.IndCaps := do
       flags := none
     }
 
-/-- [con_ron_core::kernel::basis_raw::quot_a]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 440:0-449:1
+/-- [con_ron_core::kernel::basis_raw::quot_a_of]:
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 455:0-464:1
     Visibility: public -/
-def kernel.basis_raw.quot_a : Result kernel.env.ConstantInfo := do
+def kernel.basis_raw.quot_a_of
+  (lifted : Bool) : Result kernel.env.ConstantInfo := do
   let n ← kernel.basis_names.quot_name
   let n1 ← kernel.basis_builder.u_n
   let v ← kernel.basis_raw.vec1 n1
   let l ← kernel.basis_builder.u
   let e ← kernel.basis_builder.srt l
   let e1 ← kernel.basis_raw.quot_rel
-  let e2 ← kernel.basis_builder.srt l
+  let l1 ← kernel.basis_raw.quot_sort_of lifted
+  let e2 ← kernel.basis_builder.srt l1
   let e3 ← kernel.basis_builder.pi e1 e2
   let e4 ← kernel.basis_builder.pi e e3
   let cv ← kernel.basis_raw.cv n v e4
   let ic ← kernel.env.ind_caps_default
   ok (kernel.env.ConstantInfo.IndInfo cv ic)
 
+/-- [con_ron_core::kernel::basis_raw::quot_a]:
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 468:0-470:1
+    Visibility: public -/
+def kernel.basis_raw.quot_a : Result kernel.env.ConstantInfo := do
+  kernel.basis_raw.quot_a_of false
+
 /-- [con_ron_core::kernel::basis_raw::vec3]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 55:0-59:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 56:0-60:1
     Visibility: public -/
 def kernel.basis_raw.vec3
   {T : Type _} (a : T) (b : T) (c : T) : Result (alloc.vec.Vec T) := do
@@ -970,7 +1025,7 @@ def kernel.basis_raw.vec3
   alloc.vec.Vec.push v c
 
 /-- [con_ron_core::kernel::basis_raw::vec4]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 62:0-66:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 63:0-67:1
     Visibility: public -/
 def kernel.basis_raw.vec4
   {T : Type _} (a : T) (b : T) (c : T) (d : T) : Result (alloc.vec.Vec T) := do
@@ -978,7 +1033,7 @@ def kernel.basis_raw.vec4
   alloc.vec.Vec.push v d
 
 /-- [con_ron_core::kernel::basis_raw::vec5]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 69:0-73:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 70:0-74:1
     Visibility: public -/
 def kernel.basis_raw.vec5
   {T : Type _} (a : T) (b : T) (c : T) (d : T) (e : T) :
@@ -988,7 +1043,7 @@ def kernel.basis_raw.vec5
   alloc.vec.Vec.push v e
 
 /-- [con_ron_core::kernel::basis_raw::quot_basis]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 661:0-663:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 689:0-691:1
     Visibility: public -/
 def kernel.basis_raw.quot_basis
   : Result (alloc.vec.Vec kernel.env.ConstantInfo) := do
@@ -1030,7 +1085,7 @@ def kernel.basis_names.rec_of
   kernel.name.mk_str n v
 
 /-- [con_ron_core::kernel::basis_raw::false_rec_a]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 404:0-422:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 405:0-423:1
     Visibility: public -/
 def kernel.basis_raw.false_rec_a : Result kernel.env.ConstantInfo := do
   let n ← kernel.basis_names.false_name
@@ -1052,7 +1107,7 @@ def kernel.basis_raw.false_rec_a : Result kernel.env.ConstantInfo := do
     kernel.env.RecRule))
 
 /-- [con_ron_core::kernel::basis_raw::false_a]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 393:0-398:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 394:0-399:1
     Visibility: public -/
 def kernel.basis_raw.false_a : Result kernel.env.ConstantInfo := do
   let n ← kernel.basis_names.false_name
@@ -1062,7 +1117,7 @@ def kernel.basis_raw.false_a : Result kernel.env.ConstantInfo := do
   ok (kernel.env.ConstantInfo.IndInfo cv ic)
 
 /-- [con_ron_core::kernel::basis_raw::false_basis]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 426:0-428:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 427:0-429:1
     Visibility: public -/
 def kernel.basis_raw.false_basis
   : Result (alloc.vec.Vec kernel.env.ConstantInfo) := do
@@ -1086,7 +1141,7 @@ def kernel.basis_names.empty_name : Result kernel.name.Name := do
   kernel.name.mk_str n v
 
 /-- [con_ron_core::kernel::basis_raw::empty_rec_a]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 363:0-381:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 364:0-382:1
     Visibility: public -/
 def kernel.basis_raw.empty_rec_a : Result kernel.env.ConstantInfo := do
   let n ← kernel.basis_names.empty_name
@@ -1107,17 +1162,6 @@ def kernel.basis_raw.empty_rec_a : Result kernel.env.ConstantInfo := do
   ok (kernel.env.ConstantInfo.RecInfo cv 1#u64 1#u64 false (alloc.vec.Vec.new
     kernel.env.RecRule))
 
-/-- [con_ron_core::kernel::level::succ]:
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 64:0-67:1
-    Visibility: public -/
-def kernel.level.succ
-  (u : kernel.level.Level) : Result kernel.level.Level := do
-  let i ← kernel.level.hash_data u
-  let h ← kernel.name.mix_hash 3#u64 i
-  let a ←
-    ron.ptr.new (kernel.level.LevelNode.mk h (kernel.level.LevelKind.Succ u))
-  ok (kernel.level.Level.mk a)
-
 /-- [con_ron_core::kernel::basis_builder::type1]:
     Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 98:0-100:1
     Visibility: public -/
@@ -1127,7 +1171,7 @@ def kernel.basis_builder.type1 : Result kernel.expr.Expr := do
   kernel.expr.sort l1
 
 /-- [con_ron_core::kernel::basis_raw::empty_a]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 352:0-357:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 353:0-358:1
     Visibility: public -/
 def kernel.basis_raw.empty_a : Result kernel.env.ConstantInfo := do
   let n ← kernel.basis_names.empty_name
@@ -1137,7 +1181,7 @@ def kernel.basis_raw.empty_a : Result kernel.env.ConstantInfo := do
   ok (kernel.env.ConstantInfo.IndInfo cv ic)
 
 /-- [con_ron_core::kernel::basis_raw::empty_basis]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 385:0-387:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 386:0-388:1
     Visibility: public -/
 def kernel.basis_raw.empty_basis
   : Result (alloc.vec.Vec kernel.env.ConstantInfo) := do
@@ -1191,7 +1235,7 @@ def kernel.basis_names.nat_zero_name : Result kernel.name.Name := do
   kernel.name.mk_str n v
 
 /-- [con_ron_core::kernel::basis_raw::nat_rec_zero_dom]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 276:0-278:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 277:0-279:1
     Visibility: public -/
 def kernel.basis_raw.nat_rec_zero_dom : Result kernel.expr.Expr := do
   let e ← kernel.basis_builder.bv 0#u64
@@ -1200,7 +1244,7 @@ def kernel.basis_raw.nat_rec_zero_dom : Result kernel.expr.Expr := do
   kernel.expr.app e e1
 
 /-- [con_ron_core::kernel::basis_raw::nat_t]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 222:0-224:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 223:0-225:1
     Visibility: public -/
 def kernel.basis_raw.nat_t : Result kernel.expr.Expr := do
   let n ← kernel.basis_names.nat_name
@@ -1222,7 +1266,7 @@ def kernel.basis_names.nat_succ_name : Result kernel.name.Name := do
   kernel.name.mk_str n v
 
 /-- [con_ron_core::kernel::basis_raw::nat_rec_succ]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 261:0-272:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 262:0-273:1
     Visibility: public -/
 def kernel.basis_raw.nat_rec_succ : Result kernel.expr.Expr := do
   let e ← kernel.basis_raw.nat_t
@@ -1239,7 +1283,7 @@ def kernel.basis_raw.nat_rec_succ : Result kernel.expr.Expr := do
   kernel.basis_builder.pi e e9
 
 /-- [con_ron_core::kernel::basis_raw::nat_rec_motive]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 254:0-256:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 255:0-257:1
     Visibility: public -/
 def kernel.basis_raw.nat_rec_motive : Result kernel.expr.Expr := do
   let e ← kernel.basis_raw.nat_t
@@ -1248,7 +1292,7 @@ def kernel.basis_raw.nat_rec_motive : Result kernel.expr.Expr := do
   kernel.basis_builder.pi e e1
 
 /-- [con_ron_core::kernel::basis_raw::rule]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 88:0-95:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 89:0-96:1
     Visibility: public -/
 def kernel.basis_raw.rule
   (ctor : kernel.name.Name) (nfields : Std.U64) (rhs : kernel.expr.Expr) :
@@ -1257,7 +1301,7 @@ def kernel.basis_raw.rule
   ok { ctor, nfields, fire := kernel.env.RecRuleFire.Plain, rhs }
 
 /-- [con_ron_core::kernel::basis_raw::nat_rec_a]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 283:0-340:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 284:0-341:1
     Visibility: public -/
 def kernel.basis_raw.nat_rec_a : Result kernel.env.ConstantInfo := do
   let n ← kernel.basis_names.nat_name
@@ -1300,7 +1344,7 @@ def kernel.basis_raw.nat_rec_a : Result kernel.env.ConstantInfo := do
   ok (kernel.env.ConstantInfo.RecInfo cv 3#u64 3#u64 false v2)
 
 /-- [con_ron_core::kernel::basis_raw::nat_succ_a]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 243:0-250:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 244:0-251:1
     Visibility: public -/
 def kernel.basis_raw.nat_succ_a : Result kernel.env.ConstantInfo := do
   let n ← kernel.basis_names.nat_succ_name
@@ -1311,7 +1355,7 @@ def kernel.basis_raw.nat_succ_a : Result kernel.env.ConstantInfo := do
   ok (kernel.env.ConstantInfo.CtorInfo cv 0#u64 1#u64 n1)
 
 /-- [con_ron_core::kernel::basis_raw::nat_zero_a]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 237:0-239:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 238:0-240:1
     Visibility: public -/
 def kernel.basis_raw.nat_zero_a : Result kernel.env.ConstantInfo := do
   let n ← kernel.basis_names.nat_zero_name
@@ -1321,7 +1365,7 @@ def kernel.basis_raw.nat_zero_a : Result kernel.env.ConstantInfo := do
   ok (kernel.env.ConstantInfo.CtorInfo cv 0#u64 0#u64 n1)
 
 /-- [con_ron_core::kernel::basis_raw::nat_a]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 228:0-233:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 229:0-234:1
     Visibility: public -/
 def kernel.basis_raw.nat_a : Result kernel.env.ConstantInfo := do
   let n ← kernel.basis_names.nat_name
@@ -1331,7 +1375,7 @@ def kernel.basis_raw.nat_a : Result kernel.env.ConstantInfo := do
   ok (kernel.env.ConstantInfo.IndInfo cv ic)
 
 /-- [con_ron_core::kernel::basis_raw::nat_basis]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 344:0-346:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 345:0-347:1
     Visibility: public -/
 def kernel.basis_raw.nat_basis
   : Result (alloc.vec.Vec kernel.env.ConstantInfo) := do
@@ -1357,7 +1401,7 @@ def kernel.basis_names.eq_refl_name : Result kernel.name.Name := do
   kernel.name.mk_str n v
 
 /-- [con_ron_core::kernel::basis_raw::eq_rec_refl_dom]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 159:0-165:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 160:0-166:1
     Visibility: public -/
 def kernel.basis_raw.eq_rec_refl_dom : Result kernel.expr.Expr := do
   let e ← kernel.basis_builder.bv 0#u64
@@ -1392,7 +1436,7 @@ def kernel.basis_builder.u1 : Result kernel.level.Level := do
   kernel.level.param n
 
 /-- [con_ron_core::kernel::basis_raw::eq_rec_motive]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 147:0-155:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 148:0-156:1
     Visibility: public -/
 def kernel.basis_raw.eq_rec_motive : Result kernel.expr.Expr := do
   let e ← kernel.basis_builder.bv 1#u64
@@ -1409,7 +1453,7 @@ def kernel.basis_raw.eq_rec_motive : Result kernel.expr.Expr := do
   kernel.basis_builder.pi e e6
 
 /-- [con_ron_core::kernel::basis_raw::eq_rec_a]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 170:0-210:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 171:0-211:1
     Visibility: public -/
 def kernel.basis_raw.eq_rec_a : Result kernel.env.ConstantInfo := do
   let n ← kernel.basis_names.eq_name
@@ -1447,7 +1491,7 @@ def kernel.basis_raw.eq_rec_a : Result kernel.env.ConstantInfo := do
   ok (kernel.env.ConstantInfo.RecInfo cv 5#u64 4#u64 true v2)
 
 /-- [con_ron_core::kernel::basis_raw::eq_refl_a]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 125:0-142:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 126:0-143:1
     Visibility: public -/
 def kernel.basis_raw.eq_refl_a : Result kernel.env.ConstantInfo := do
   let n ← kernel.basis_names.eq_refl_name
@@ -1467,7 +1511,7 @@ def kernel.basis_raw.eq_refl_a : Result kernel.env.ConstantInfo := do
   ok (kernel.env.ConstantInfo.CtorInfo cv 2#u64 0#u64 n2)
 
 /-- [con_ron_core::kernel::basis_raw::eq_a]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 112:0-121:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 113:0-122:1
     Visibility: public -/
 def kernel.basis_raw.eq_a : Result kernel.env.ConstantInfo := do
   let n ← kernel.basis_names.eq_name
@@ -1486,7 +1530,7 @@ def kernel.basis_raw.eq_a : Result kernel.env.ConstantInfo := do
   ok (kernel.env.ConstantInfo.IndInfo cv ic)
 
 /-- [con_ron_core::kernel::basis_raw::eq_basis]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 214:0-216:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 215:0-217:1
     Visibility: public -/
 def kernel.basis_raw.eq_basis
   : Result (alloc.vec.Vec kernel.env.ConstantInfo) := do
@@ -1496,7 +1540,7 @@ def kernel.basis_raw.eq_basis
   kernel.basis_raw.vec3 ci ci1 ci2
 
 /-- [con_ron_core::kernel::basis_raw::basis_kind_decls]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 798:0-806:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 826:0-834:1
     Visibility: public -/
 def kernel.basis_raw.basis_kind_decls
   (k : kernel.env.BasisKind) :
@@ -9591,21 +9635,6 @@ def kernel.level.imax
     ron.ptr.new (kernel.level.LevelNode.mk h (kernel.level.LevelKind.Imax u v))
   ok (kernel.level.Level.mk a)
 
-/-- [con_ron_core::kernel::level::max]:
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 71:0-74:1
-    Visibility: public -/
-def kernel.level.max
-  (u : kernel.level.Level) (v : kernel.level.Level) :
-  Result kernel.level.Level
-  := do
-  let i ← kernel.level.hash_data u
-  let i1 ← kernel.level.hash_data v
-  let i2 ← kernel.name.mix_hash i i1
-  let h ← kernel.name.mix_hash 5#u64 i2
-  let a ←
-    ron.ptr.new (kernel.level.LevelNode.mk h (kernel.level.LevelKind.Max u v))
-  ok (kernel.level.Level.mk a)
-
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::LIdx}::is_wide]:
     Source: 'crates/con-ron-core/src/arena/handle.rs', lines 339:4-341:5
     Visibility: public -/
@@ -12936,7 +12965,7 @@ def arena.basis.basis_name_hit_go
 partial_fixpoint
 
 /-- [con_ron_core::kernel::basis_raw::block_pin_kinds]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 813:0-815:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 841:0-843:1
     Visibility: public -/
 def kernel.basis_raw.block_pin_kinds
   : Result (alloc.vec.Vec kernel.env.BasisKind) := do
@@ -13314,8 +13343,87 @@ def arena.basis.quot_pin
       ok (core.result.Result.Ok ii1, st1)
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
+/-- [con_ron_core::arena::basis::quot_pin_of]:
+    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 694:0-709:1
+    Visibility: public -/
+def arena.basis.quot_pin_of
+  (pers : arena.store.PersTier) (st : arena.monad.AState) (lifted : Bool)
+  (k : kernel.env.QuotKind) :
+  Result ((core.result.Result arena.env.IConstantInfo
+    kernel.core_types.CheckError) × arena.monad.AState)
+  := do
+  if lifted
+  then
+    match k with
+    | kernel.env.QuotKind.Type =>
+      let ci ← kernel.basis_raw.quot_a_of true
+      arena.intern.intern_ci pers st ci
+    | kernel.env.QuotKind.Ctor =>
+      arena.basis.quot_pin pers st kernel.env.QuotKind.Ctor
+    | kernel.env.QuotKind.Lift =>
+      arena.basis.quot_pin pers st kernel.env.QuotKind.Lift
+    | kernel.env.QuotKind.Ind =>
+      arena.basis.quot_pin pers st kernel.env.QuotKind.Ind
+    | kernel.env.QuotKind.Sound =>
+      let ci ← kernel.basis_raw.quot_sound_a_of true
+      arena.intern.intern_ci pers st ci
+  else arena.basis.quot_pin pers st k
+
+/-- [con_ron_core::arena::basis::quot_pin_hit_at]:
+    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 715:0-730:1
+    Visibility: public -/
+def arena.basis.quot_pin_hit_at
+  (pers : arena.store.PersTier) (st : arena.monad.AState)
+  (pin : arena.env.IConstantInfo) (cv : arena.env.IConstantVal) :
+  Result ((core.result.Result Bool kernel.core_types.CheckError) ×
+    arena.monad.AState)
+  := do
+  let pcv ← arena.env.i_constant_info_to_constant_val pin
+  let b ← arena.checker_base.name_nodup cv.level_params
+  if b
+  then
+    let i := alloc.vec.Vec.len cv.level_params
+    let i1 := alloc.vec.Vec.len pcv.level_params
+    if i = i1
+    then
+      let (r, st1) ←
+        arena.basis.constant_val_at_lps pers st pcv cv.level_params
+      match r with
+      | core.result.Result.Ok pcv2 =>
+        let b1 ← arena.canon.i_constant_val_beq cv pcv2
+        ok (core.result.Result.Ok b1, st1)
+      | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
+    else ok (core.result.Result.Ok false, st)
+  else ok (core.result.Result.Ok false, st)
+
+/-- [con_ron_core::arena::basis::quot_lifted]:
+    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 736:0-749:1
+    Visibility: public -/
+def arena.basis.quot_lifted
+  (pers : arena.store.PersTier) (st : arena.monad.AState)
+  (k : kernel.env.QuotKind) (cv : arena.env.IConstantVal) :
+  Result ((core.result.Result Bool kernel.core_types.CheckError) ×
+    arena.monad.AState)
+  := do
+  match k with
+  | kernel.env.QuotKind.Type =>
+    let (r, st1) ←
+      arena.basis.quot_pin_of pers st true kernel.env.QuotKind.Type
+    match r with
+    | core.result.Result.Ok pin => arena.basis.quot_pin_hit_at pers st1 pin cv
+    | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
+  | kernel.env.QuotKind.Ctor => ok (core.result.Result.Ok false, st)
+  | kernel.env.QuotKind.Lift => ok (core.result.Result.Ok false, st)
+  | kernel.env.QuotKind.Ind => ok (core.result.Result.Ok false, st)
+  | kernel.env.QuotKind.Sound =>
+    let (r, st1) ←
+      arena.basis.quot_pin_of pers st true kernel.env.QuotKind.Sound
+    match r with
+    | core.result.Result.Ok pin => arena.basis.quot_pin_hit_at pers st1 pin cv
+    | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
+
 /-- [con_ron_core::arena::basis::quot_at]:
-    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 692:0-702:1
+    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 755:0-768:1
     Visibility: public -/
 def arena.basis.quot_at
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -13323,14 +13431,18 @@ def arena.basis.quot_at
   Result ((core.result.Result arena.env.IConstantInfo
     kernel.core_types.CheckError) × arena.monad.AState)
   := do
-  let (r, st1) ← arena.basis.quot_pin pers st k
+  let (r, st1) ← arena.basis.quot_lifted pers st k cv
   match r with
-  | core.result.Result.Ok pin =>
-    arena.basis.constant_info_at_lps pers st1 pin cv.level_params
-  | core.result.Result.Err _ => ok (r, st1)
+  | core.result.Result.Ok lifted =>
+    let (r1, st2) ← arena.basis.quot_pin_of pers st1 lifted k
+    match r1 with
+    | core.result.Result.Ok pin =>
+      arena.basis.constant_info_at_lps pers st2 pin cv.level_params
+    | core.result.Result.Err _ => ok (r1, st2)
+  | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::basis::quot_pin_hit]:
-    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 709:0-729:1
+    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 775:0-788:1
     Visibility: public -/
 def arena.basis.quot_pin_hit
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -13338,41 +13450,14 @@ def arena.basis.quot_pin_hit
   Result ((core.result.Result Bool kernel.core_types.CheckError) ×
     arena.monad.AState)
   := do
-  let (r, st1) ← arena.basis.quot_pin pers st k
+  let (r, st1) ← arena.basis.quot_lifted pers st k cv
   match r with
-  | core.result.Result.Ok pin =>
-    let pcv ← arena.env.i_constant_info_to_constant_val pin
-    let b ← arena.checker_base.name_nodup cv.level_params
-    if b
-    then
-      let i := alloc.vec.Vec.len cv.level_params
-      let i1 := alloc.vec.Vec.len pcv.level_params
-      if i = i1
-      then
-        let (r1, st2) ←
-          arena.basis.constant_val_at_lps pers st1 pcv cv.level_params
-        match r1 with
-        | core.result.Result.Ok pcv2 =>
-          let b1 ← arena.canon.i_constant_val_beq cv pcv2
-          ok (core.result.Result.Ok b1, st2)
-        | core.result.Result.Err e => ok (core.result.Result.Err e, st2)
-      else ok (core.result.Result.Ok false, st1)
-    else ok (core.result.Result.Ok false, st1)
-  | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
-
-/-- [con_ron_core::arena::pins::PIN_QUOT_MK]
-    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 220:0-220:34
-    Visibility: public -/
-@[global_simps, irreducible] def arena.pins.PIN_QUOT_MK : Std.Usize := 51#usize
-
-/-- [con_ron_core::arena::pins::pin_quot_mk]:
-    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 905:0-907:1
-    Visibility: public -/
-def arena.pins.pin_quot_mk
-  (st : arena.monad.AState) :
-  Result (core.result.Result arena.handle.NIdx kernel.core_types.CheckError)
-  := do
-  arena.pins.pin_at st arena.pins.PIN_QUOT_MK
+  | core.result.Result.Ok lifted =>
+    let (r1, st2) ← arena.basis.quot_pin_of pers st1 lifted k
+    match r1 with
+    | core.result.Result.Ok pin => arena.basis.quot_pin_hit_at pers st2 pin cv
+    | core.result.Result.Err e => ok (core.result.Result.Err e, st2)
+  | core.result.Result.Err _ => ok (r, st1)
 
 /-- [con_ron_core::arena::pins::PIN_QUOT]
     Source: 'crates/con-ron-core/src/arena/pins.rs', lines 208:0-208:31
@@ -13387,20 +13472,6 @@ def arena.pins.pin_quot
   Result (core.result.Result arena.handle.NIdx kernel.core_types.CheckError)
   := do
   arena.pins.pin_at st arena.pins.PIN_QUOT
-
-/-- [con_ron_core::arena::pins::PIN_EQ]
-    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 107:0-107:28
-    Visibility: public -/
-@[global_simps, irreducible] def arena.pins.PIN_EQ : Std.Usize := 0#usize
-
-/-- [con_ron_core::arena::pins::pin_eq]:
-    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 492:0-494:1
-    Visibility: public -/
-def arena.pins.pin_eq
-  (st : arena.monad.AState) :
-  Result (core.result.Result arena.handle.NIdx kernel.core_types.CheckError)
-  := do
-  arena.pins.pin_at st arena.pins.PIN_EQ
 
 /-- [con_ron_core::ron::hashmap2::{con_ron_core::ron::hashmap2::HashMap2<K, V>}::len]:
     Source: 'crates/con-ron-core/src/ron/hashmap2.rs', lines 372:4-374:5
@@ -13469,8 +13540,68 @@ def arena.env.ifenv_find
         ok (some ii)
       else ok none
 
+/-- [con_ron_core::arena::basis::quot_stored_lifted]:
+    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 794:0-818:1
+    Visibility: public -/
+def arena.basis.quot_stored_lifted
+  (pers : arena.store.PersTier) (st : arena.monad.AState)
+  (fe : arena.env.IFEnv) :
+  Result ((core.result.Result Bool kernel.core_types.CheckError) ×
+    arena.monad.AState)
+  := do
+  let r ← arena.pins.pin_quot st
+  match r with
+  | core.result.Result.Ok qn =>
+    let o ← arena.env.ifenv_find pers fe qn
+    match o with
+    | none => ok (core.result.Result.Ok false, st)
+    | some ci =>
+      let ccv ← arena.env.i_constant_info_to_constant_val ci
+      let ci1 ← kernel.basis_raw.quot_a_of true
+      let (r1, st1) ← arena.intern.intern_ci pers st ci1
+      match r1 with
+      | core.result.Result.Ok p =>
+        let pcv ← arena.env.i_constant_info_to_constant_val p
+        let (r2, st2) ←
+          arena.basis.constant_val_at_lps pers st1 pcv ccv.level_params
+        match r2 with
+        | core.result.Result.Ok pcv2 =>
+          let b ← arena.canon.i_constant_val_beq ccv pcv2
+          ok (core.result.Result.Ok b, st2)
+        | core.result.Result.Err e => ok (core.result.Result.Err e, st2)
+      | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
+  | core.result.Result.Err e => ok (core.result.Result.Err e, st)
+
+/-- [con_ron_core::arena::pins::PIN_QUOT_MK]
+    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 220:0-220:34
+    Visibility: public -/
+@[global_simps, irreducible] def arena.pins.PIN_QUOT_MK : Std.Usize := 51#usize
+
+/-- [con_ron_core::arena::pins::pin_quot_mk]:
+    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 905:0-907:1
+    Visibility: public -/
+def arena.pins.pin_quot_mk
+  (st : arena.monad.AState) :
+  Result (core.result.Result arena.handle.NIdx kernel.core_types.CheckError)
+  := do
+  arena.pins.pin_at st arena.pins.PIN_QUOT_MK
+
+/-- [con_ron_core::arena::pins::PIN_EQ]
+    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 107:0-107:28
+    Visibility: public -/
+@[global_simps, irreducible] def arena.pins.PIN_EQ : Std.Usize := 0#usize
+
+/-- [con_ron_core::arena::pins::pin_eq]:
+    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 492:0-494:1
+    Visibility: public -/
+def arena.pins.pin_eq
+  (st : arena.monad.AState) :
+  Result (core.result.Result arena.handle.NIdx kernel.core_types.CheckError)
+  := do
+  arena.pins.pin_at st arena.pins.PIN_EQ
+
 /-- [con_ron_core::arena::basis::quot_preds_ok]:
-    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 736:0-763:1
+    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 825:0-852:1
     Visibility: public -/
 def arena.basis.quot_preds_ok
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -13517,8 +13648,34 @@ def arena.basis.quot_preds_ok
     | core.result.Result.Err e => ok (core.result.Result.Err e)
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
+/-- [con_ron_core::arena::basis::quot_form_ok]:
+    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 860:0-877:1
+    Visibility: public -/
+def arena.basis.quot_form_ok
+  (pers : arena.store.PersTier) (st : arena.monad.AState)
+  (fe : arena.env.IFEnv) (k : kernel.env.QuotKind)
+  (cv : arena.env.IConstantVal) :
+  Result ((core.result.Result Bool kernel.core_types.CheckError) ×
+    arena.monad.AState)
+  := do
+  match k with
+  | kernel.env.QuotKind.Type => ok (core.result.Result.Ok true, st)
+  | kernel.env.QuotKind.Ctor => ok (core.result.Result.Ok true, st)
+  | kernel.env.QuotKind.Lift => ok (core.result.Result.Ok true, st)
+  | kernel.env.QuotKind.Ind => ok (core.result.Result.Ok true, st)
+  | kernel.env.QuotKind.Sound =>
+    let (r, st1) ← arena.basis.quot_stored_lifted pers st fe
+    match r with
+    | core.result.Result.Ok a =>
+      let (r1, st2) ←
+        arena.basis.quot_lifted pers st1 kernel.env.QuotKind.Sound cv
+      match r1 with
+      | core.result.Result.Ok b => ok (core.result.Result.Ok (a = b), st2)
+      | core.result.Result.Err _ => ok (r1, st2)
+    | core.result.Result.Err _ => ok (r, st1)
+
 /-- [con_ron_core::kernel::basis_raw::and_intro_name::S]
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 670:4-670:50 -/
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 698:4-698:50 -/
 @[global_simps, irreducible]
 def kernel.basis_raw.and_intro_name.S : Array Std.U32 5#usize :=
   Array.make 5#usize [ 105#u32, 110#u32, 116#u32, 114#u32, 111#u32 ]
@@ -13539,7 +13696,7 @@ def kernel.basis_names.and_name : Result kernel.name.Name := do
   kernel.name.mk_str n v
 
 /-- [con_ron_core::kernel::basis_raw::and_intro_name]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 669:0-672:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 697:0-700:1
     Visibility: public -/
 def kernel.basis_raw.and_intro_name : Result kernel.name.Name := do
   let n ← kernel.basis_names.and_name
@@ -13559,7 +13716,7 @@ def kernel.basis_builder.ap4
   kernel.expr.app e d
 
 /-- [con_ron_core::kernel::basis_raw::and_rec_minor]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 726:0-737:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 754:0-765:1
     Visibility: public -/
 def kernel.basis_raw.and_rec_minor : Result kernel.expr.Expr := do
   let e ← kernel.basis_builder.bv 2#u64
@@ -13575,7 +13732,7 @@ def kernel.basis_raw.and_rec_minor : Result kernel.expr.Expr := do
   kernel.basis_builder.pi e e8
 
 /-- [con_ron_core::kernel::basis_raw::and_rec_motive]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 719:0-721:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 747:0-749:1
     Visibility: public -/
 def kernel.basis_raw.and_rec_motive : Result kernel.expr.Expr := do
   let n ← kernel.basis_names.and_name
@@ -13588,14 +13745,14 @@ def kernel.basis_raw.and_rec_motive : Result kernel.expr.Expr := do
   kernel.basis_builder.pi e3 e4
 
 /-- [con_ron_core::kernel::basis_raw::and_rec_name]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 676:0-678:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 704:0-706:1
     Visibility: public -/
 def kernel.basis_raw.and_rec_name : Result kernel.name.Name := do
   let n ← kernel.basis_names.and_name
   kernel.basis_names.rec_of n
 
 /-- [con_ron_core::kernel::basis_raw::and_rec_raw]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 742:0-785:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 770:0-813:1
     Visibility: public -/
 def kernel.basis_raw.and_rec_raw : Result kernel.env.ConstantInfo := do
   let n ← kernel.basis_raw.and_rec_name
@@ -13632,7 +13789,7 @@ def kernel.basis_raw.and_rec_raw : Result kernel.env.ConstantInfo := do
   ok (kernel.env.ConstantInfo.RecInfo cv 4#u64 4#u64 false v1)
 
 /-- [con_ron_core::kernel::basis_raw::and_intro_raw]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 694:0-714:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 722:0-742:1
     Visibility: public -/
 def kernel.basis_raw.and_intro_raw : Result kernel.env.ConstantInfo := do
   let n ← kernel.basis_raw.and_intro_name
@@ -13652,7 +13809,7 @@ def kernel.basis_raw.and_intro_raw : Result kernel.env.ConstantInfo := do
   ok (kernel.env.ConstantInfo.CtorInfo cv 2#u64 2#u64 n1)
 
 /-- [con_ron_core::kernel::basis_raw::and_raw]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 682:0-690:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 710:0-718:1
     Visibility: public -/
 def kernel.basis_raw.and_raw : Result kernel.env.ConstantInfo := do
   let n ← kernel.basis_names.and_name
@@ -13668,7 +13825,7 @@ def kernel.basis_raw.and_raw : Result kernel.env.ConstantInfo := do
     { ic with all := v, nparams := 2#u64, ctors := v1 })
 
 /-- [con_ron_core::kernel::basis_raw::and_pin]:
-    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 792:0-794:1
+    Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 820:0-822:1
     Visibility: public -/
 def kernel.basis_raw.and_pin
   : Result (alloc.vec.Vec kernel.env.ConstantInfo) := do
@@ -13678,7 +13835,7 @@ def kernel.basis_raw.and_pin
   kernel.basis_raw.vec3 ci ci1 ci2
 
 /-- [con_ron_core::arena::basis::and_pin_decls]:
-    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 773:0-775:1
+    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 887:0-889:1
     Visibility: public -/
 def arena.basis.and_pin_decls
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -13732,7 +13889,7 @@ def arena.pins.pin_and
   arena.pins.pin_at st arena.pins.PIN_AND
 
 /-- [con_ron_core::arena::basis::and_pin_name_hs]:
-    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 782:0-799:1
+    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 896:0-913:1
     Visibility: public -/
 def arena.basis.and_pin_name_hs
   (st : arena.monad.AState) :
@@ -13757,7 +13914,7 @@ def arena.basis.and_pin_name_hs
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::arena::basis::block_and_named]:
-    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 805:0-813:1
+    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 919:0-927:1
     Visibility: public -/
 def arena.basis.block_and_named
   (block : alloc.vec.Vec arena.env.IConstantInfo)
@@ -13780,7 +13937,7 @@ def arena.basis.block_and_named
 partial_fixpoint
 
 /-- [con_ron_core::arena::basis::and_pin_name_free]:
-    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 819:0-824:1
+    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 933:0-938:1
     Visibility: public -/
 def arena.basis.and_pin_name_free
   (st : arena.monad.AState) (n : arena.handle.NIdx) :
@@ -14686,7 +14843,7 @@ def arena.canon.canon_eq_list
 partial_fixpoint
 
 /-- [con_ron_core::arena::basis::and_pin_ok]:
-    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 833:0-858:1
+    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 947:0-972:1
     Visibility: public -/
 def arena.basis.and_pin_ok
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -14817,6 +14974,23 @@ def arena.check_decl.M_STD_AXIOM_SHAPE : Array Std.U32 29#usize :=
     32#u32, 97#u32, 120#u32, 105#u32, 111#u32, 109#u32, 32#u32, 115#u32,
     104#u32, 97#u32, 112#u32, 101#u32, 32#u32, 109#u32, 105#u32, 115#u32,
     109#u32, 97#u32, 116#u32, 99#u32, 104#u32
+    ]
+
+/-- [con_ron_core::arena::decl_check::M_QUOT_FORM]
+    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 2942:0-2944:2
+    Visibility: public -/
+@[global_simps, irreducible]
+def arena.decl_check.M_QUOT_FORM : Array Std.U32 72#usize :=
+  Array.make 72#usize [
+    81#u32, 117#u32, 111#u32, 116#u32, 46#u32, 115#u32, 111#u32, 117#u32,
+    110#u32, 100#u32, 39#u32, 115#u32, 32#u32, 101#u32, 113#u32, 117#u32,
+    97#u32, 116#u32, 105#u32, 111#u32, 110#u32, 32#u32, 105#u32, 115#u32,
+    32#u32, 97#u32, 116#u32, 32#u32, 97#u32, 110#u32, 111#u32, 116#u32,
+    104#u32, 101#u32, 114#u32, 32#u32, 117#u32, 110#u32, 105#u32, 118#u32,
+    101#u32, 114#u32, 115#u32, 101#u32, 32#u32, 116#u32, 104#u32, 97#u32,
+    110#u32, 32#u32, 116#u32, 104#u32, 101#u32, 32#u32, 115#u32, 116#u32,
+    111#u32, 114#u32, 101#u32, 100#u32, 32#u32, 81#u32, 117#u32, 111#u32,
+    116#u32, 39#u32, 115#u32, 32#u32, 116#u32, 121#u32, 112#u32, 101#u32
     ]
 
 /-- [con_ron_core::arena::decl_check::M_QUOT_PREDS]
@@ -14993,7 +15167,7 @@ def arena.decl_check.M_DUP_DECL : Array Std.U32 21#usize :=
     ]
 
 /-- [con_ron_core::arena::decl_check::install_basis_decl]:
-    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 3169:0-3179:1
+    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 3175:0-3185:1
     Visibility: public -/
 def arena.decl_check.install_basis_decl
   (pers : arena.store.PersTier) (fe : arena.env.IFEnv)
@@ -15012,7 +15186,7 @@ def arena.decl_check.install_basis_decl
        ok (core.result.Result.Ok i)
 
 /-- [con_ron_core::arena::decl_check::check_quot_record]:
-    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 3187:0-3209:1
+    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 3194:0-3220:1
     Visibility: public -/
 def arena.decl_check.check_quot_record
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -15031,11 +15205,24 @@ def arena.decl_check.check_quot_record
       | core.result.Result.Ok b1 =>
         if b1
         then
-          let (r2, st2) ← arena.basis.quot_at pers st1 k cv
+          let (r2, st2) ← arena.basis.quot_form_ok pers st1 fe k cv
           match r2 with
-          | core.result.Result.Ok ci =>
-            let r3 ← arena.decl_check.install_basis_decl pers fe ci
-            ok (r3, st2)
+          | core.result.Result.Ok b2 =>
+            if b2
+            then
+              let (r3, st3) ← arena.basis.quot_at pers st2 k cv
+              match r3 with
+              | core.result.Result.Ok ci =>
+                let r4 ← arena.decl_check.install_basis_decl pers fe ci
+                ok (r4, st3)
+              | core.result.Result.Err e => ok (core.result.Result.Err e, st3)
+            else
+              let s ← lift (Array.to_slice arena.decl_check.M_QUOT_FORM)
+              let v ← kernel.core_types.code_points s
+              let r3 ←
+                arena.monad.fail arena.env.IFEnv
+                  (kernel.core_types.CheckError.Invalid v)
+              ok (r3, st2)
           | core.result.Result.Err e => ok (core.result.Result.Err e, st2)
         else
           let s ← lift (Array.to_slice arena.decl_check.M_QUOT_PREDS)
@@ -64240,7 +64427,7 @@ def arena.decl_check.M_UNDECL_VALUE : Array Std.U32 38#usize :=
     ]
 
 /-- [con_ron_core::arena::decl_check::value_guards_tail]:
-    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 2982:0-3017:1
+    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 2988:0-3023:1
     Visibility: public -/
 def arena.decl_check.value_guards_tail
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -64305,7 +64492,7 @@ def arena.decl_check.M_LOOSE_VALUE : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::arena::decl_check::value_guards]:
-    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 2948:0-2974:1
+    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 2954:0-2980:1
     Visibility: public -/
 def arena.decl_check.value_guards
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -64342,7 +64529,7 @@ def arena.decl_check.value_guards
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::decl_check::check_opaque_val]:
-    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 3135:0-3159:1
+    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 3141:0-3165:1
     Visibility: public -/
 def arena.decl_check.check_opaque_val
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -64828,7 +65015,7 @@ def arena.decl_check.M_TYPE_MISMATCH_THM : Array Std.U32 24#usize :=
     ]
 
 /-- [con_ron_core::arena::decl_check::check_thm_val_witness]:
-    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 3102:0-3126:1
+    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 3108:0-3132:1
     Visibility: public -/
 def arena.decl_check.check_thm_val_witness
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -64879,7 +65066,7 @@ def arena.decl_check.M_THM_NOT_PROP : Array Std.U32 36#usize :=
     ]
 
 /-- [con_ron_core::arena::decl_check::check_thm_val]:
-    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 3065:0-3095:1
+    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 3071:0-3101:1
     Visibility: public -/
 def arena.decl_check.check_thm_val
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -64958,7 +65145,7 @@ def arena.decl_check.M_TYPE_MISMATCH_DEFN : Array Std.U32 27#usize :=
     ]
 
 /-- [con_ron_core::arena::decl_check::check_defn_val]:
-    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 3027:0-3056:1
+    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 3033:0-3062:1
     Visibility: public -/
 def arena.decl_check.check_defn_val
   (pers : arena.store.PersTier) (st : arena.monad.AState)

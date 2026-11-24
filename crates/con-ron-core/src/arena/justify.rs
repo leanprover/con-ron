@@ -794,7 +794,7 @@ pub fn justify_why(
 // The check of one record, with a solution
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:334-343 declCLabel
+/// con-leche: ConLeche/Cached/ParsedC.lean:336-345 declCLabel
 /// Lean twin: `proof/ConRon/Arena/Justify.lean:282-293 declLabel` — a record's kind and
 /// name, for a message (an empty block's name is the anonymous one).
 pub fn decl_label(pers: &PersTier, st: &mut AState, d: &IDeclaration) -> Result<Vec<u32>, CheckError> {

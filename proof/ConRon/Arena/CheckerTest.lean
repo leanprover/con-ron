@@ -289,6 +289,23 @@ private def dsQuot : List Declaration := dEq :: quotRecords
 message. -/
 private def dsQuotBad : List Declaration := quotRecords
 
+/-- con-leche: none — The quotient package in the lifted form of lean4 PR #15023
+(`Quot : Sort (max 1 u)`, `Quot.sound` at `Eq.{max 1 u}`). -/
+private def dsQuotLifted : List Declaration :=
+  [dEq, .quotDecl .type (ConLeche.quotAOf true).toConstantVal,
+   .quotDecl .ctor ConLeche.quotMkA.toConstantVal,
+   .quotDecl .lift ConLeche.quotLiftA.toConstantVal,
+   .quotDecl .ind ConLeche.quotIndA.toConstantVal,
+   .axiomDecl (ConLeche.quotSoundAOf true).toConstantVal]
+
+/-- con-leche: none — The released `Quot` with the lifted `Quot.sound`: invalid input. -/
+private def dsQuotMixed : List Declaration :=
+  [dEq, .quotDecl .type ConLeche.quotA.toConstantVal,
+   .quotDecl .ctor ConLeche.quotMkA.toConstantVal,
+   .quotDecl .lift ConLeche.quotLiftA.toConstantVal,
+   .quotDecl .ind ConLeche.quotIndA.toConstantVal,
+   .axiomDecl (ConLeche.quotSoundAOf true).toConstantVal]
+
 /-- con-leche: none — A duplicate declaration: the second `two` is invalid input. -/
 private def dsDup : List Declaration := basisPrefix ++ [dTwo, dTwo]
 
@@ -303,6 +320,9 @@ differential below is evidence of something. -/
 #guard okSize (ConLeche.checkDeclsPure MU OPS [] dsQuot) 8
 #guard failsWith (ConLeche.checkDeclsPure MU OPS [] dsQuotBad)
   (.notImplemented "quotient declaration before what it needs")
+#guard okSize (ConLeche.checkDeclsPure MU OPS [] dsQuotLifted) 8
+#guard failsWith (ConLeche.checkDeclsPure MU OPS [] dsQuotMixed)
+  (.invalid "Quot.sound's equation is at another universe than the stored Quot's type")
 #guard okSize (ConLeche.checkDeclsPure MU OPS [] [dEqOther]) 3
 #guard failsWith (ConLeche.checkDeclsPure MU OPS [] [dEqSwapped])
   (.invalid "target rec: the recursor's major premise is not the member at its parameters and \
@@ -316,6 +336,8 @@ differential below is evidence of something. -/
 #guard chkDecls dsGood
 #guard chkDecls dsQuot
 #guard chkDecls dsQuotBad
+#guard chkDecls dsQuotLifted
+#guard chkDecls dsQuotMixed
 #guard chkDecls dsDup
 #guard chkDecls [.indDecl ConLeche.emptyBasis 0]
 #guard chkDecls [.indDecl ConLeche.falseBasis 0]
@@ -363,6 +385,7 @@ private def envBasis : ConLeche.Env :=
 #guard chkDecl envBasis dNatDiv
 #guard chkDecl envBasis (.indDecl ConLeche.emptyBasis 0)
 #guard chkDecl envBasis (.quotDecl .type ConLeche.quotA.toConstantVal)
+#guard chkDecl envBasis (.quotDecl .type (ConLeche.quotAOf true).toConstantVal)
 #guard chkDecl envBasis (.quotDecl .lift ConLeche.quotLiftA.toConstantVal)
 #guard chkDecl envBasis (.quotDecl .type ⟨ConLeche.quotName, [], natTy⟩)
 
@@ -480,5 +503,9 @@ private def chkQuotPinHit (k : QuotKind) (cv : ConstantVal) : Bool :=
 #guard chkQuotPinHit .lift ConLeche.quotLiftA.toConstantVal
 #guard chkQuotPinHit .lift (ConLeche.quotLiftA.atLps [anon.str "a", anon.str "b"]).toConstantVal
 #guard chkQuotPinHit .lift ConLeche.quotIndA.toConstantVal
+#guard chkQuotPinHit .type (ConLeche.quotAOf true).toConstantVal
+#guard chkQuotPinHit .type ((ConLeche.quotAOf true).atLps [anon.str "a"]).toConstantVal
+#guard chkQuotPinHit .sound (ConLeche.quotSoundAOf true).toConstantVal
+#guard chkQuotPinHit .type (ConLeche.quotSoundAOf true).toConstantVal
 
 end ConRon.Arena

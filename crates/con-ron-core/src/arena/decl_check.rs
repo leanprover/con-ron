@@ -28,7 +28,7 @@
 //! theirs, because they call into those modules and nothing here does.
 
 use crate::arena::basis::{
-    nat_a, quot_at, quot_pin_hit, quot_preds_ok,
+    nat_a, quot_at, quot_form_ok, quot_pin_hit, quot_preds_ok,
 };
 use crate::arena::checker_base::{
     all_level_params_defined, consts_resolve_f_fast, unresolved_consts_fail,
@@ -718,7 +718,7 @@ pub fn of_reduce_ax_ok_rest(
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:195-199 reducePinGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:154-158 reducePinGuardF
-/// con-leche: ConLeche/Cached/ParsedC.lean:221-225 reducePinGuardC
+/// con-leche: ConLeche/Cached/ParsedC.lean:223-227 reducePinGuardC
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:152-161 reducePinGuard` —
 /// syntactic guards on the generated reduce pin (checked once).
 pub fn reduce_pin_guard(
@@ -2130,7 +2130,7 @@ pub fn bool_ctor_typed(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:310-320 divModPinGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:188-195 divModPinGuardF
-/// con-leche: ConLeche/Cached/ParsedC.lean:151-158 divModPinGuardC
+/// con-leche: ConLeche/Cached/ParsedC.lean:153-160 divModPinGuardC
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:585-595 divModPinGuard` — syntactic
 /// guards on one variant's pin (generated; checked once rather
 /// than proven about the blob), and on its type pins: each type-pinned
@@ -2163,7 +2163,7 @@ pub fn div_mod_pin_guard(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:310-320 divModPinGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:188-195 divModPinGuardF
-/// con-leche: ConLeche/Cached/ParsedC.lean:151-158 divModPinGuardC
+/// con-leche: ConLeche/Cached/ParsedC.lean:153-160 divModPinGuardC
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:574-583 typePinsGuard` — the cited
 /// `(divModTypePins ps c).all fun p => …` as a cursor recursion (DESIGN.md
 /// §3.4 forbids the closure `List.all` takes).
@@ -2192,7 +2192,7 @@ pub fn type_pins_guard(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:310-320 divModPinGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:188-195 divModPinGuardF
-/// con-leche: ConLeche/Cached/ParsedC.lean:151-158 divModPinGuardC
+/// con-leche: ConLeche/Cached/ParsedC.lean:153-160 divModPinGuardC
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:560-572 typePinGuard` — one type
 /// pin's guard, the `List.all` closure's body: the constant stored, its
 /// stored type free of free variables, the pinned type closed, free of free
@@ -2409,7 +2409,7 @@ pub fn check_div_mod_cert_tail(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:331-339 checkTypePins
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:267-274 checkTypePinsF
-/// con-leche: ConLeche/Cached/ParsedC.lean:160-166 checkTypePinsC
+/// con-leche: ConLeche/Cached/ParsedC.lean:162-168 checkTypePinsC
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:642-652 checkTypePins` — the type
 /// pins: each type-pinned constant's stored type against the variant's pinned
 /// one, by definitional equality; the cited list recursion as a cursor.
@@ -2684,7 +2684,7 @@ pub fn defn_value(pers: &PersTier, fe: &IFEnv, c: &NIdx) -> Option<EIdx> {
 
 /// con-leche: ConLeche/Kernel/Checker.lean:426-461 checkReducePin
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:317-336 checkReducePinF
-/// con-leche: ConLeche/Cached/ParsedC.lean:227-245 checkReducePinC
+/// con-leche: ConLeche/Cached/ParsedC.lean:229-247 checkReducePinC
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:774-794 checkReducePin` — the
 /// `Lean.reduceNat`/`Lean.reduceBool` gate, after the ordinary opaque check:
 /// the stored constant carries the pinned type (at `fe2`, the environment with
@@ -2937,6 +2937,12 @@ pub const M_QUOT_PREDS: [u32; 41] = [
     113, 117, 111, 116, 105, 101, 110, 116, 32, 100, 101, 99, 108, 97, 114, 97, 116, 105, 111, 110, 32, 98, 101, 102, 111, 114, 101, 32, 119, 104, 97, 116, 32, 105, 116, 32, 110, 101, 101, 100, 115,
 ];
 
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"Quot.sound's equation is at another universe than the stored Quot's type"`, as code points.
+pub const M_QUOT_FORM: [u32; 72] = [
+    81, 117, 111, 116, 46, 115, 111, 117, 110, 100, 39, 115, 32, 101, 113, 117, 97, 116, 105, 111, 110, 32, 105, 115, 32, 97, 116, 32, 97, 110, 111, 116, 104, 101, 114, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 116, 104, 97, 110, 32, 116, 104, 101, 32, 115, 116, 111, 114, 101, 100, 32, 81, 117, 111, 116, 39, 115, 32, 116, 121, 112, 101,
+];
+
 /// con-leche: ConLeche/Kernel/Checker.lean:30-47 checkDefnVal
 /// con-leche: ConLeche/Kernel/Checker.lean:49-78 checkThmVal
 /// con-leche: ConLeche/Kernel/Checker.lean:80-102 checkOpaqueVal
@@ -3178,12 +3184,13 @@ pub fn install_basis_decl(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:463-474 checkQuotRecord
-/// con-leche: ConLeche/Cached/ParsedC.lean:96-104 checkQuotRecordC
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:899-911 checkQuotRecord` — **a quotient
-/// record's check and install**: compared with its slot's pin, the slots it
-/// needs stored, and installed at its own names.  A record that does not match
-/// is a quotient this checker positively does not support.
+/// con-leche: ConLeche/Kernel/Checker.lean:463-476 checkQuotRecord
+/// con-leche: ConLeche/Cached/ParsedC.lean:96-106 checkQuotRecordC
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:899-914 checkQuotRecord` — **a quotient
+/// record's check and install**: compared with its slot's pin in either form,
+/// the slots it needs stored, `Quot.sound` in the stored `Quot`'s form, and
+/// installed at its own names in the form it declares.  A record that matches
+/// neither form is a quotient this checker positively does not support.
 pub fn check_quot_record(
     pers: &PersTier,
     st: &mut AState,
@@ -3200,9 +3207,13 @@ pub fn check_quot_record(
         Ok(true) => match quot_preds_ok(pers, st, &fe, k) {
             Err(e) => Err(e),
             Ok(false) => fail(CheckError::NotImplemented(code_points(&M_QUOT_PREDS))),
-            Ok(true) => match quot_at(pers, st, k, cv) {
+            Ok(true) => match quot_form_ok(pers, st, &fe, k, cv) {
                 Err(e) => Err(e),
-                Ok(ci) => install_basis_decl(pers, fe, ci),
+                Ok(false) => fail(CheckError::Invalid(code_points(&M_QUOT_FORM))),
+                Ok(true) => match quot_at(pers, st, k, cv) {
+                    Err(e) => Err(e),
+                    Ok(ci) => install_basis_decl(pers, fe, ci),
+                },
             },
         },
     }

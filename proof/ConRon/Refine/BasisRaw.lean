@@ -754,26 +754,48 @@ theorem quot_rel_refines {r : expr.Expr} (h : basis_raw.quot_rel = ok r) :
   simp [ares, ae3, ae2, ae1, ae,
     ConLeche.quotRel]
 
-theorem quot_a_refines {r : env.ConstantInfo} (h : basis_raw.quot_a = ok r) :
-    absConstantInfo r = ConLeche.quotA ∧ ConstantInfoWF r := by
-  rw [basis_raw.quot_a] at h
+theorem quot_sort_of_refines {b : Bool} {l : level.Level} (h : basis_raw.quot_sort_of b = ok l) :
+    absLevel l = ConLeche.quotSortOf b ∧ LevelWF l := by
+  rw [basis_raw.quot_sort_of] at h
+  cases b with
+  | false =>
+    simp only [Bool.false_eq_true, ↓reduceIte] at h
+    obtain ⟨al, wl⟩ := u_refines h
+    exact ⟨by rw [al]; rfl, wl⟩
+  | true =>
+    simp only [↓reduceIte, bind_eq_ok_iff] at h
+    obtain ⟨l0, h0, l1, h1, l2, h2, h3⟩ := h
+    obtain ⟨al2, wl2⟩ := u_refines h2
+    refine ⟨?_, LevelWF.max (LevelWF.succ (LevelWF.zero h0) h1) wl2 h3⟩
+    rw [Level.max_refines h3, Level.succ_refines h1, Level.zero_refines h0, al2]
+    rfl
+
+theorem quot_a_of_refines {b : Bool} {r : env.ConstantInfo} (h : basis_raw.quot_a_of b = ok r) :
+    absConstantInfo r = ConLeche.quotAOf b ∧ ConstantInfoWF r := by
+  rw [basis_raw.quot_a_of] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
-  obtain ⟨n, hn, n1, hn1, v, hv, l, hl, e, he, e1, he1, e2, he2, e3, he3, e4, he4, cv, hcv,
-    ic, hic, rfl⟩ := h
+  obtain ⟨n, hn, n1, hn1, v, hv, l, hl, e, he, e1, he1, l1, hl1, e2, he2, e3, he3, e4, he4,
+    cv, hcv, ic, hic, rfl⟩ := h
   obtain ⟨an, wn⟩ := BasisNames.quot_name_refines hn
   obtain ⟨an1, wn1⟩ := u_n_refines hn1
   obtain ⟨av, wv⟩ := vec1_refines wn1 hv
   obtain ⟨al, wl⟩ := u_refines hl
   obtain ⟨ae, we⟩ := srt_refines wl he
   obtain ⟨ae1, we1⟩ := quot_rel_refines he1
-  obtain ⟨ae2, we2⟩ := srt_refines wl he2
+  obtain ⟨al1, wl1⟩ := quot_sort_of_refines hl1
+  obtain ⟨ae2, we2⟩ := srt_refines wl1 he2
   obtain ⟨ae3, we3⟩ := pi_refines we1 we2 he3
   obtain ⟨ae4, we4⟩ := pi_refines we we3 he4
   obtain ⟨acv, wcv⟩ := cv_refines wn wv we4 hcv
   obtain ⟨aic, wic⟩ := ind_caps_default_refines hic
   refine ⟨?_, ⟨wcv, wic⟩⟩
-  simp [absConstantInfo, absNames, aic, acv, ae4, ae3, ae2, ae1, ae, al, av,
-    an1, an, ConLeche.quotA]
+  simp [absConstantInfo, absNames, aic, acv, ae4, ae3, ae2, ae1, ae, al1, al, av,
+    an1, an, ConLeche.quotAOf]
+
+theorem quot_a_refines {r : env.ConstantInfo} (h : basis_raw.quot_a = ok r) :
+    absConstantInfo r = ConLeche.quotA ∧ ConstantInfoWF r := by
+  rw [basis_raw.quot_a] at h
+  exact quot_a_of_refines h
 
 theorem quot_mk_a_refines {r : env.ConstantInfo} (h : basis_raw.quot_mk_a = ok r) :
     absConstantInfo r = ConLeche.quotMkA ∧ ConstantInfoWF r := by
@@ -976,12 +998,13 @@ theorem quot_ind_a_refines {r : env.ConstantInfo} (h : basis_raw.quot_ind_a = ok
   simp [absConstantInfo, absNames, absLevels, av3, av2, arr, ae22, ae21, ae20, ae19, ae18, ae17, ae16, ae15, an3, acv, ae14, ae13, ae12, ae11, ae10, ae9, ae8, ae7, ae6, ae5, ae4, av1, an2, ae3, ae2, ae1, ae, al, av, an1, an,
     ConLeche.quotIndA]
 
-theorem quot_sound_a_refines {r : env.ConstantInfo} (h : basis_raw.quot_sound_a = ok r) :
-    absConstantInfo r = ConLeche.quotSoundA ∧ ConstantInfoWF r := by
-  rw [basis_raw.quot_sound_a] at h
+theorem quot_sound_a_of_refines {b : Bool} {r : env.ConstantInfo}
+    (h : basis_raw.quot_sound_a_of b = ok r) :
+    absConstantInfo r = ConLeche.quotSoundAOf b ∧ ConstantInfoWF r := by
+  rw [basis_raw.quot_sound_a_of] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, n1, hn1, v, hv, l, hl, e, he, e1, he1, e2, he2, e3, he3, e4, he4, e5, he5,
-    n2, hn2, v1, hv1, e6, he6, n3, hn3, v2, hv2, e7, he7, e8, he8, e9, he9, e10, he10, n4,
+    n2, hn2, l1, hl1, v1, hv1, e6, he6, n3, hn3, v2, hv2, e7, he7, e8, he8, e9, he9, e10, he10, n4,
     hn4, v3, hv3, e11, he11, e12, he12, v4, hv4, e13, he13, e14, he14, e15, he15, e16,
     he16, e17, he17, e18, he18, e19, he19, e20, he20, cv, hcv, rfl⟩ := h
   obtain ⟨an, wn⟩ := BasisNames.quot_sound_name_refines hn
@@ -995,7 +1018,8 @@ theorem quot_sound_a_refines {r : env.ConstantInfo} (h : basis_raw.quot_sound_a 
   obtain ⟨ae4, we4⟩ := bv_refines he4
   obtain ⟨ae5, we5⟩ := ap2_refines we3 we2 we4 he5
   obtain ⟨an2, wn2⟩ := BasisNames.eq_name_refines hn2
-  obtain ⟨av1, wv1⟩ := vec1_refines wl hv1
+  obtain ⟨al1, wl1⟩ := quot_sort_of_refines hl1
+  obtain ⟨av1, wv1⟩ := vec1_refines wl1 hv1
   obtain ⟨ae6, we6⟩ := cnst_refines wn2 wv1 he6
   obtain ⟨an3, wn3⟩ := BasisNames.quot_name_refines hn3
   obtain ⟨av2, wv2⟩ := vec1_refines wl hv2
@@ -1018,8 +1042,13 @@ theorem quot_sound_a_refines {r : env.ConstantInfo} (h : basis_raw.quot_sound_a 
   obtain ⟨ae20, we20⟩ := pi_refines we we19 he20
   obtain ⟨acv, wcv⟩ := cv_refines wn wv we20 hcv
   refine ⟨?_, wcv⟩
-  simp [absConstantInfo, absNames, absLevels, acv, ae20, ae19, ae18, ae17, ae16, ae15, ae14, ae13, av4, ae12, ae11, av3, an4, ae10, ae9, ae8, ae7, av2, an3, ae6, av1, an2, ae5, ae4, ae3, ae2, ae1, ae, al, av, an1, an,
-    ConLeche.quotSoundA]
+  simp [absConstantInfo, absNames, absLevels, acv, ae20, ae19, ae18, ae17, ae16, ae15, ae14, ae13, av4, ae12, ae11, av3, an4, ae10, ae9, ae8, ae7, av2, an3, ae6, av1, an2, ae5, ae4, ae3, ae2, ae1, ae, al1, al, av, an1, an,
+    ConLeche.quotSoundAOf]
+
+theorem quot_sound_a_refines {r : env.ConstantInfo} (h : basis_raw.quot_sound_a = ok r) :
+    absConstantInfo r = ConLeche.quotSoundA ∧ ConstantInfoWF r := by
+  rw [basis_raw.quot_sound_a] at h
+  exact quot_sound_a_of_refines h
 
 theorem quot_basis_refines {r : alloc.vec.Vec env.ConstantInfo} (h : basis_raw.quot_basis = ok r) :
     absConstantInfos r = ConLeche.quotBasis ∧ ConstantInfosWF r := by

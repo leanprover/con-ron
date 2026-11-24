@@ -39,7 +39,7 @@ open ConLeche
 /-! ## One declaration -/
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
+con-leche: ConLeche/Cached/ParsedC.lean:249-320 checkDeclKindC
 The `.defnDecl` arm's structural-`Nat` gate, its reads at `fe2` (the
 environment with the definition): `natOpGuard` and the operation's own pinned
 type (`natOpStoredOk`), then the stored value. -/
@@ -53,7 +53,7 @@ def checkStructuralNatPinAtFe2 (fe2 : IFEnv) (n : NIdx) : AM EIdx := do
   | _ => fail (.internal "structural Nat operation not stored")
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
+con-leche: ConLeche/Cached/ParsedC.lean:249-320 checkDeclKindC
 **The structural-`Nat` gate**: the reads at `fe2`, then `certifyNatEqs` at `fe`,
 the environment without the definition, over the equations with the
 operation's self-references substituted.  Certifying with the definition
@@ -72,7 +72,7 @@ def checkStructuralNatPin (mode : CheckMode) (fe : IFEnv) (ci : IConstantInfo)
   pure fe
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
+con-leche: ConLeche/Cached/ParsedC.lean:249-320 checkDeclKindC
 **A declaration's own checks**, by its kind, extending the environment on
 success.  A value arm checks the value returning the record unpushed, runs its
 pinned gates, and pushes last.  A block under a pinned basis block's names
@@ -158,7 +158,7 @@ def checkDeclKind (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
   | .quotDecl k cv => checkQuotRecord fe k cv
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:172-180 checkDecl
-con-leche: ConLeche/Cached/ParsedC.lean:320-326 checkDeclC
+con-leche: ConLeche/Cached/ParsedC.lean:322-328 checkDeclC
 **Check a single declaration**: its own checks (`checkDeclKind`), then the
 reserved names' (`basisNamesOk`), which justify the model's fixed meanings of
 the basis names.  The per-declaration caches are flushed between the two (the

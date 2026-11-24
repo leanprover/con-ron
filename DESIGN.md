@@ -1857,7 +1857,16 @@ invariant).  Delete each marker as its item is reconciled;
 `check`'s verdict, the new declarations still uncovered (port them, or put
 them in `scripts/provenance-skip.txt` with the reason).
 Do not start the proofs before the model is regenerated, and say in every
-WIP commit that the tree does not build.  Lane agents never commit
+WIP commit that the tree does not build.  **When lanes split the Lean work,
+the Rust and its extraction land on the bump branch BEFORE the Lean lanes
+fork** (task #177): then every lane, and the merged tree, has the same
+`Generated/Funs.lean`, and a lane merge's `lake build` restores from the
+shared Lake cache what the lanes' gate runs seeded (everything but the
+modules whose import closure spans two lanes).  A lane that must touch the
+Rust after all merges first, and the others merge it before their final
+build.  In #172 both lanes changed the Rust, the merged `Funs.lean` matched
+neither lane tip, and 177 of 259 modules (914 of 1 014 module-seconds)
+re-elaborated at every merge.  Lane agents never commit
 `proof/lakefile.toml` or `proof/lake-manifest.json` (nothing checks it since
 task #175).  What the porting itself has taught:
 
@@ -1878,6 +1887,12 @@ task #175).  What the porting itself has taught:
 * *A rename is still proof work*: every statement that names the old
   declaration breaks (#83: 253 rename-only findings, 667 proof edits, no
   Rust).
+* *A Rust edit that only shifts lines costs a full extraction and a full
+  rebuild.*  `Funs.lean` carries ~5 000 `Source: '…', lines a:b-c:d`
+  docstrings, so a moved line changes `Generated/Funs.olean` and every one of
+  the ~177 modules above it, and the extraction's input stamp (task #177)
+  misses.  Make citation and comment fixes to the Rust in the Rust pass, not
+  after the proofs build (`dd8330fd`, "source-line comments only", paid both).
 * *Generated files follow by themselves*: `gen-prelude{,-lean}.py` and
   `gen-pins.sh` read their con-leche citation from the output they wrote
   (whose `con-leche:` lines `update` relocates), so re-running them is all a
@@ -1897,10 +1912,10 @@ table for the task section and records which crates it measured.  No wall
 time, no repeats, no OVERVIEW §9 (a post-merge task of its own).  The Mathlib
 landing run of §12 is added by hand only when the sync touches memory.
 
-**4. Gate, with master merged.**  Write the task section (upstream tasks
-absorbed, the bucket table, markers before and after, the measurement) and
-commit it; `git merge master`; `LAKE_JOBS=4 scripts/gates.sh`.  Build modules
-in the inner loop; the gates are the landing check.
+**4. Merge master.**  Write the task section (upstream tasks absorbed, the
+bucket table, markers before and after, the measurement) and commit it;
+`git merge master` (the pin files stay uncommitted through it).  Build modules
+in the inner loop; the gates run once, after the pin (step 6).
 
 **5. The links.**  `scripts/overview-links.sh --follow` (which `start` and
 `pin` also run) moves every README/OVERVIEW anchor whose cited text is
@@ -1921,9 +1936,15 @@ scripts/bump-con-leche.sh pin
 runs `--follow` once more (its own commit if it moved anything), then commits
 `proof/lakefile.toml` and `proof/lake-manifest.json` and nothing else.  The
 pin is the last commit so that every commit before it is reproducible with `provenance.py update`
-and no `--old`.  Then `LAKE_JOBS=4 scripts/gates.sh` once more: it leaves a
-green stamp naming the commit.  If it is red, `git reset HEAD~1` (the pin
-files go back to uncommitted; nothing is pushed), fix, commit, `pin` again.
+and no `--old`.  Then `LAKE_JOBS=4 scripts/gates.sh`, the sync's ONE gate
+run (task #177): `start` put the pin in the working tree, so every build and
+check before this already ran against the new con-leche, and committing it
+changes no byte the gates read; the run leaves the green stamp naming the
+pin commit, which `land` requires.  If it is red, `git reset HEAD~1` (the pin
+files go back to uncommitted; nothing is pushed), fix, commit, `pin` again,
+gate again.  (Until task #177 the gates ran before the pin AND after it, on
+the same bytes; with extract-check's input stamp the second run would cost
+~70 s, without it ~500 s.)
 
 **7. Land.**
 
@@ -74975,3 +74996,217 @@ dead-rust, provenance, twin-lines, overview-links, holes, extract-check 433 s, d
 and a full `lake build`; after the pin every step but `extract-check`, whose inputs the pin
 commit does not touch (CLAUDE.md: skip the gates a change cannot touch).  The landing
 pipeline's cost (≈30 min after the port for a one-commit sync) is under review.
+
+### Task #177 — the landing pipeline, faster: extraction stamp, one gate run per sync, gates seed the Lake cache (2026-11-24, Opus)
+
+**Why.**  The read-only review of task #176 (`_tmp/t176-review/proposal.md`) found where a
+small sync's ~33 minutes after the port went: about 1 300 s of it was Aeneas re-extracting
+bytes it had already extracted green (the hand run, the pre-pin gate, the post-pin gate: 9 of
+10 checkouts' outputs byte-identical, ≈11 redundant 420 s runs in three days), plus a whole
+second gate run on the same bytes after `pin`.  The maintainer approved items A, B, D and E
+("yes to all"); C (the 4× Aeneas slowdown) is task #178, F is "do not raise LAKE_JOBS".
+
+**What changed.**
+* **A. `scripts/extract.sh` keeps a green stamp.**  Before anything runs it hashes all its
+  inputs: every file under `crates/con-ron-core/`, the workspace `Cargo.toml` and
+  `Cargo.lock`, `scripts/extract.sh` itself (it holds the flags), every file of
+  `proof/ConRon/Generated/` (the four outputs it diffs against and the two hand-written
+  `*External.lean` its hole check reads), the `readlink -f` of `charon`, `aeneas`, `rustc`
+  and `cargo` (Nix store paths: they pin the exact builds `flake.lock` selects, so
+  `flake.lock` itself need not be hashed), and the `RUST*`/`CARGO_*` environment.  Relative
+  paths only, so one checkout's stamp serves every worktree.  Nothing else is read: the
+  Aeneas Lean library is not an input of the extraction, and no patch or post-processing
+  step exists.  If `_tmp/extract-green/<sha256>` exists the script prints one line
+  (`extract --check: OK, SKIPPED -- the inputs match the green stamp
+  _tmp/extract-green/<16 hex> (<who, which commit, when>)`) and exits 0; `gates.sh` repeats
+  that line under its OK line.  The stamp is written after a green `--check`, or after write
+  mode installed its files (keyed on the new tree), and only when the inputs did not move
+  while Aeneas ran (the digest is taken again at the end).  `EXTRACT_NO_STAMP=1` forces the
+  real run.  The machine-wide extract lock (`_tmp/.extract-check.lock`) moved from
+  `gates.sh` into `extract.sh`, AFTER the stamp check (a skipped run never waits), and now
+  covers write mode too.
+* **CI cannot hit a stamp**: it has no `_tmp/extract-green/`, and its gates step sets
+  `EXTRACT_NO_STAMP=1` (and `LAKE_SEED=0`) explicitly, so every push still runs Charon and
+  Aeneas.  That is the backstop for a missing input in the key.
+* **B. One gate run per sync.**  §7 steps 4 and 6 and `bump-con-leche.sh`'s work order,
+  `pin`'s "next" line and `land`'s master-merge message are now: `git merge master` (pin
+  files uncommitted) → `pin` → `LAKE_JOBS=4 scripts/gates.sh` → `land`; red gates →
+  `git reset HEAD~1`, fix, commit, `pin`, gate.  `land` still requires the green stamp at
+  exactly the tip.
+* **D. `gates.sh` seeds the shared Lake cache** in a new step `lake-seed` after a green
+  `lake-build` (`LAKE_ARTIFACT_CACHE=true LAKE_RESTORE_ARTIFACTS=true lake build` of the
+  same targets; `LAKE_SEED=0` skips it; `--only lake-build` selects it too).  CLAUDE.md's
+  cache paragraph says so, states the shared-packages caveat as it stands (the con-leche
+  oleans were already `r--r--r--` with link count 3, and `_tmp/lake-cache/outputs` already
+  held every dependency package), and carries the lane rule: a sync's Rust and extraction
+  land on the bump branch BEFORE Lean lanes fork (§7 step 2, with #172's numbers).
+* **E. dead-census's targets in the lake-build step.**  `gates.sh` builds `@con-ron` (the
+  default targets) plus `ConRon.Bridge ConRon.Refine2 con-ron-lean
+  con-ron-lean-olean-compare con-ron-arena-bench con-ron-dump-pins` in ONE Lake call;
+  `dead-census-gate.sh` keeps its own build line (a no-op under the gates; the script still
+  runs on its own).
+* §7's porting lessons gained the practice note: a Rust edit that only shifts lines costs a
+  full extraction and a full rebuild (`Source: … lines` docstrings in `Funs.lean`), so do
+  citation and comment fixes in the Rust pass.
+* Step numbering: the gates are 16 lines now (`lake-seed` is new); OVERVIEW's link to the
+  step list followed (`#L6-L45`).
+
+**Measured** (this worktree, `LAKE_JOBS=4`, one run each — wall time, so indicative only):
+
+| step | run 1: fresh worktree, real extraction | run 2: same tree | before (#176 review) |
+|---|---:|---:|---:|
+| extract-check | 470 s (stamp written) | **0 s, SKIPPED** | 400–460 s every run |
+| lake-build | 594 s (327 modules built: master's tip was not in the cache) | 2 s | 0–580 s |
+| lake-seed | 1 s | 2 s | — (only at `land`) |
+| dead-census | 24 s (0 `Built`) | 34 s | 24 s, 34–53 s when the exes rebuild |
+| whole run | 23 m 56 s (incl. waiting on the Aeneas lock held by #178) | **1 m 18 s** | ~8–17 min |
+
+E: the 76 executable C/link jobs (48.9 s summed) ran inside lake-build, the three
+executables linking at job ~5 856 of 6 336, i.e. beside the elaboration's critical path and
+not after it; dead-census's own build did nothing.  The seed is 1–2 s on an up-to-date tree.
+**Negative check**: appending ` (t177 probe)` to a `//` comment of
+`crates/con-ron-core/src/arena/check_decl.rs` (no line shift) did NOT skip: Charon ran (8 s)
+and Aeneas started, then the probe was stopped and the edit reverted.
+
+**Estimated landing of a sync** (the proposal's §3): extraction once (~420 s, by hand after
+the Rust) + one gate run whose extract-check is skipped ≈ 8–17 min, from ~33.
+
+**Risk and backstop.**  A, if an input is missing from the key, says OK for an extraction it
+did not run.  The key is conservative (whole directories, the whole lock file, the tools'
+store paths, the environment), the cost of that being a rare spurious miss; CI runs the real
+extraction on every push; `EXTRACT_NO_STAMP=1` forces one locally.  Stamps accumulate (one
+small file per green input set); `rm -rf _tmp/extract-green` is a safe sweep.  D writes to the
+shared packages' build files (chmod, `.hash`) from every gated worktree — Lake's normal cache
+behaviour, already the state of the shared directory.
+
+### Task #178 — why Aeneas got ~4× slower: one exploded function and OCaml 5.5's minor GC (2026-11-24, Opus)
+
+**Question** (#176 review, item C).  `extract.sh`'s Aeneas step took 78–129 s until early
+November (93 s on Oct 31) and 390–590 s since Nov 18, on `.llbc` inputs of the same size;
+Charon stays at 6–10 s.  Suspects: #162 (Aeneas 557eff83 → 1dc8ad31) and the loops of
+#158/#168/#169.  Analysis only; nothing in the tree changes.
+
+**Method.**  Aeneas alone on saved `.llbc` files, with `extract.sh`'s flags plus
+`-diagnose-translation` (per-function wall time; the output is unchanged by it), under
+`flock _tmp/aeneas.lock`, `timeout 1200`, GNU `time -v` and `perf stat -e instructions:u`
+(`_tmp/t178/run.sh`).  The old toolchain is `nix build` of the flake at `20d34c2b^`
+(Aeneas 557eff83 on OCaml 5.2.1, Charon c8f15d7d); its Charon reads the same crates, so each
+Aeneas got a `.llbc` from its own Charon.  "Pre-loops" is the crate at `8b088905` (#157, before
+#158).  The machine is 96 cores and was shared (load 17–100), so wall times carry noise; the
+instruction counts are mostly domains waiting on each other (see below), not a stable
+measure of work here.  All runs: one each unless two are shown.
+
+**The 2×2** (wall / peak RSS / `instructions:u`; `uses_go` = that one function's wall time):
+
+| | crate pre-#158 | crate now |
+|---|---|---|
+| Aeneas 557eff83 (OCaml 5.2.1) | 210 s / 33.3 GB / 19.2 T; `uses_go` 163 s | 240 s / 38.7 GB / 26.2 T; `uses_go` 180 s ¹ |
+| Aeneas 1dc8ad31 (OCaml 5.5.1) | 400 s / 23.3 GB / 43.7 T; `uses_go` 340 s | 485 s / 32.3 GB / 63.9 T; `uses_go` 409 s |
+
+¹ 557eff83 cannot translate `frontend::modular::graph::kahn` ("Unimplemented binary
+operation", graph.rs:315) and skips it; that function is cheap.
+
+So the Aeneas bump doubles the time on either crate; the loops of #158–#169 add ~15–20 %.
+Neither explains the step from ~93 s: on **both** Aeneas versions and both crates, the wall
+time is one function, `frontend::olean::lazy::uses_go` (the `.olean` reader's DAG walk,
+added by #143 on Nov 6, after the 93 s measurement), whose translation runs most of the
+whole run (75–85 %) while everything else finishes in parallel beside it.
+
+**Cause 1 — `uses_go`'s shape: Charon copies the rest of an `&&` chain into both branches.**
+Its body dispatches on an object's tag and field count as one `else if` chain over
+`t == K && n == M` (ten arms).  MIR lowers each `&&` into two branches that share the "false"
+target (the next arm); Charon's control-flow reconstruction copies that target into both,
+so each `&&` doubles the rest of the chain.  `uses_go_loop` is **12 071** of `Funs.lean`'s
+139 613 lines (the next largest function has 831).  Reproducer:
+`_tmp/corpus/aeneas-slow/` (`gen.py N and|nested`, `repro.sh`): the LLBC and the Lean grow ×2
+per arm (N=9: 1.27 MB of LLBC, 3 977 Lean lines, 9.7 s; N=12 was killed past 3 min and 6 GB),
+the nested form is linear (N=9: 94 lines, 0.6 s).
+
+Rewriting the dispatch as nested tests (`if t == 0 || t == 3 { if n == 1 { Some(sp) } else
+{ None } } else if t == 4 { if n == 2 { … } else { None } } …` — the same function, as no
+later arm accepts a tag an earlier arm tested) takes `uses_go_loop` to **210 lines** (LLBC
+size 59 071 → 768) and the whole run, current Aeneas, to 263 s / 137 s (two runs, different
+load; 18.3 GB peak).  Moving the dispatch into a helper function (`uses_step`) instead only
+moves the blow-up there (still 188 s for that function).
+
+**Cause 2 — OCaml 5.5's minor collections across 96 domains.**  Bisected inside #162's range:
+on one `.llbc` (the crate now, through the Charon both commits pin), Aeneas **5b86c72f**
+(OCaml 5.2.1) 245 s / 25.6 T, its child **1d323d1c** ("Update nixpkgs and move to the default
+OCaml version": 5.2.1 → 5.5.1, no translation change) 503 s / 81.5 T, 194 M voluntary context
+switches, 10 485 s user at 2 260 % CPU.  The domains spend their time synchronising for
+stop-the-world minor collections of the default 256 k-word minor heap.  A larger minor heap
+removes it, and the output is byte-identical (checked against the committed `Funs.lean`):
+
+| run (Aeneas 1dc8ad31) | wall | `instructions:u` | peak RSS |
+|---|---|---|---|
+| crate now, default | 485 s | 63.9 T | 32.3 GB |
+| crate now, `OCAMLRUNPARAM=s=2M` | 276 s | 10.1 T | 29.6 GB |
+| crate now, `s=8M` | 308 s | 8.9 T | 33.0 GB |
+| nested `uses_go`, default | 263 s / 137 s | 78.6 T / 60.7 T | 18.3 / 18.4 GB |
+| nested, `s=1M` | 91 s | 9.4 T | 19.2 GB |
+| **nested, `s=2M`** | **79 s** | **5.3 T** | **19.8 GB** |
+| nested, `s=4M` | 81 s | 4.8 T | 23.7 GB |
+| nested, `s=8M` | 92 s / 87 s | 4.7 T / 4.6 T | 24.4 / 25.4 GB |
+
+With `s=8M` the old and new OCaml are 194 s and 289 s on the unfixed crate (both still bound
+by `uses_go`).  The 17 → 32 GB peak of #150 came with the crate (old Aeneas: 33–39 GB here),
+not with #162.
+
+**Proposal (not applied).**
+1. `scripts/extract.sh`: run Aeneas with `OCAMLRUNPARAM="s=2M${OCAMLRUNPARAM:+,$OCAMLRUNPARAM}"`.
+   Output unchanged, 485 → 276 s today, no proof touched.
+2. `crates/con-ron-core/src/frontend/olean/lazy.rs` `uses_go`: the nested dispatch above (a
+   `match (t, n)` with a `_ => None` arm should do as well and mirrors the twin's
+   `match r.tag g, r.nobjs g`, but was not measured).  With (1): **485 → 79 s** and 32 → 20
+   GB peak.  Cost: `Refine2/Frontend/Olean/Lazy.lean`'s `uses_go_loop_ok` already splits on
+   the tag and then on the field count, so its cases should follow the new `if`s directly;
+   the regenerated `Funs.lean` shrinks by ~11 900 lines (≈ 9 %), which also shortens its
+   elaboration.  No other function in `Funs.lean` is within 10× of it; the next ones
+   (`scan_line_loop` 831, `quick_defeq` 576, `key_at` 524 lines) are not worth a rewrite
+   until they bound the run.
+3. Upstream (drafts in `_tmp/corpus/aeneas-slow/ISSUE.md`, not filed): Charon, the
+   exponential copy of an `&&` chain's shared target; Aeneas, the 2× from OCaml 5.5 and a
+   larger minor heap (or a smaller pool) as the fix.
+
+The rule for new Rust: in an `else if` chain, test one condition per `if` (nest the second)
+rather than `a && b`, or the LLBC doubles per arm.
+
+**Scratch.**  `_tmp/t178/` (the `.llbc`s, ~2.5 GB, and every run's `time.txt`, `perf.txt`,
+`stdout.txt` with the per-function table) can go once this is read; the reproducer stays in
+`_tmp/corpus/aeneas-slow/`.  The two old Aeneas builds are ordinary nix store paths
+(`q66q4sdf…-ocaml5.2.1-aeneas`, `jygycwy9…`, `2d0rcvdi…`), collected by the next GC.
+
+### Task #179 — con-leche sync 216031bf → 3d91c5a5 on `renovation`: `Quot` in either result-sort form (2026-11-24, Opus)
+
+Upstream merge 3d91c5a5 / commit 5ce27006 (#630, lean4#15023), taken from the maintainer's local
+con-leche checkout before it was pushed (its objects fetched into the shared package repository
+under `refs/remotes/local/renovation`; the checkout did not move).  A stream may declare `Quot`
+at `Sort u` (released) or `Sort (max 1 u)` (lifted); `Quot` and `Quot.sound` change form
+together, a mismatched pair is rejected, a third sort declined.  The first sync under task #177's
+pipeline: master merged first, Rust and one extraction before the Lean, one gate run at the pin.
+
+`update --auto`: 10 findings (10 `CHANGED`), 58 citations merely moved; 10 markers → 0.
+Coverage 1219/1271 → 1219/1279 at start → 1227/1279 (52 uncovered): all eight new upstream
+declarations ported.  One agent:
+* Rust: `basis_raw::quot_sort_of`, `quot_a_of`, `quot_sound_a_of` (`quot_a`/`quot_sound_a` the
+  released forms, as upstream's); `arena::basis::quot_pin_of`, `quot_pin_hit_at`, `quot_lifted`,
+  `quot_stored_lifted`, `quot_form_ok` in upstream's order, `quot_at`/`quot_pin_hit` at the
+  record's declared form; `check_quot_record`'s form check after "slots needed" (`M_QUOT_FORM`,
+  upstream's message).  The lifted pins are interned on demand, as `nat_a`'s are;
+  `quotStoredLifted`/`quotFormOk` read the index `fe`, as `quotPredsOk` does.
+* Twin: the same seven definitions and the form check; `CheckerTest` checks the lifted pin hits,
+  the lifted package accepted, the mixed pair rejected, against con-leche.
+* Theorem 1 (`Bridge/Checker/Basis.lean`): `quotPinOf_run`, `quotPinHitAt_run`,
+  `quotLifted_run`, `quotStoredLifted_run`, `quotFormOk_run`; `quotAt_run`, `quotPinHit_run`,
+  `checkQuotRecord_bridge` re-proved at the same statements.  No basis-pin invariant in
+  `Bridge/**` moved: upstream's `QuotForm`/`PinCopy` change stays inside its own model proofs.
+* Theorem 2: `quot_sort_of_refines`, `quot_a_of_refines`, `quot_sound_a_of_refines`
+  (`Refine/BasisRaw`), `quot_pin_of_ls` … `quot_form_ok_ls` (`Refine2/Checker/Basis`);
+  `check_quot_record_refines` still closes by plain `lockstep`.  No public statement changes, no
+  new invariant, no Lockstep/Prims edit.
+
+Verdicts: `diff-e2e.sh` 807/807 (master's binary at the new pin 804/807: `quot_lifted`,
+`quot_lifted_rfl_bad`, `quot_lifted_mixed_sound_bad`).  `Init`, `--verified --jobs=1`,
+instructions:u, one run each, 57 919 accepted by both: `renovation` dd7ccd32 165 598 480 547,
+this branch 165 598 430 795 (−0.00003 %).  The one extraction took 705 s of Aeneas (before
+task #180's fixes).

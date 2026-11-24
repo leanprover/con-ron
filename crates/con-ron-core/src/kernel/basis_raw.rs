@@ -25,6 +25,7 @@ use crate::kernel::core_types;
 use crate::kernel::env;
 use crate::kernel::env::{BasisKind, ConstantInfo, ConstantVal, IndCaps, RecRule, RecRuleFire};
 use crate::kernel::expr;
+use crate::kernel::level;
 use crate::kernel::level::Level;
 use crate::kernel::expr::Expr;
 use crate::kernel::name;
@@ -429,26 +430,46 @@ pub fn false_basis() -> Vec<ConstantInfo> {
 
 // --- Quot ------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:27-29 quotRel
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:28-30 quotRel
 /// The relation argument's type in the `α` binder context: `α → α → Prop`.
 pub fn quot_rel() -> Expr {
     pi(bv(0), pi(bv(1), prop()))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:31-35 quotA
-/// `Quot.{u} {α : Sort u} (r : α → α → Prop) : Sort u`.
-pub fn quot_a() -> ConstantInfo {
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:32-36 quotSortOf
+/// **The quotient's result level**, in either of the two forms a stream may
+/// declare: `u`, as the released kernel has it, or `max 1 u` (`lifted`), where
+/// a quotient of a proposition is a type (lean4 PR #15023).  `Quot` and
+/// `Quot.sound` are the only constants that mention it.
+pub fn quot_sort_of(lifted: bool) -> Level {
+    if lifted {
+        level::max(level::succ(level::zero()), u())
+    } else {
+        u()
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:38-42 quotAOf
+/// `Quot.{u} {α : Sort u} (r : α → α → Prop) : Sort u`, or `: Sort (max 1 u)`
+/// (`lifted`).
+pub fn quot_a_of(lifted: bool) -> ConstantInfo {
     ConstantInfo::IndInfo(
         cv(
             bnm::quot_name(),
             vec1(u_n()),
-            pi(srt(u()), pi(quot_rel(), srt(u()))),
+            pi(srt(u()), pi(quot_rel(), srt(quot_sort_of(lifted)))),
         ),
         env::ind_caps_default(),
     )
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:37-43 quotMkA
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:44-45 quotA
+/// `Quot` in the released kernel's form.
+pub fn quot_a() -> ConstantInfo {
+    quot_a_of(false)
+}
+
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:47-53 quotMkA
 /// `Quot.mk.{u} {α : Sort u} (r : α → α → Prop) (a : α) : Quot α r`.
 pub fn quot_mk_a() -> ConstantInfo {
     ConstantInfo::CtorInfo(
@@ -472,13 +493,13 @@ pub fn quot_mk_a() -> ConstantInfo {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:45-46 quotLiftF
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:55-56 quotLiftF
 /// `Quot.lift`'s function slot, in the `α`/`r`/`β` context: `α → β`.
 pub fn quot_lift_f() -> Expr {
     pi(bv(2), bv(1))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:48-54 quotLiftH
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:58-64 quotLiftH
 /// `Quot.lift`'s coherence slot, in the `α`/`r`/`β`/`f` context:
 /// `∀ a b, r a b → f a = f b`.
 pub fn quot_lift_h() -> Expr {
@@ -499,7 +520,7 @@ pub fn quot_lift_h() -> Expr {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:56-73 quotLiftA
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:66-83 quotLiftA
 /// `Quot.lift.{u, v} {α : Sort u} {r : α → α → Prop} {β : Sort v}
 /// (f : α → β) (h : ∀ a b, r a b → f a = f b) (q : Quot α r) : β`.
 pub fn quot_lift_a() -> ConstantInfo {
@@ -554,7 +575,7 @@ pub fn quot_lift_a() -> ConstantInfo {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:75-78 quotIndMotive
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:85-88 quotIndMotive
 /// `Quot.ind`'s motive slot, in the `α`/`r` context: `Quot α r → Prop`.
 pub fn quot_ind_motive() -> Expr {
     pi(
@@ -563,7 +584,7 @@ pub fn quot_ind_motive() -> Expr {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:80-84 quotIndMk
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:90-94 quotIndMk
 /// `Quot.ind`'s minor premise, in the `α`/`r`/`β` context:
 /// `∀ a, β (Quot.mk α r a)`.
 pub fn quot_ind_mk() -> Expr {
@@ -576,7 +597,7 @@ pub fn quot_ind_mk() -> Expr {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:86-101 quotIndA
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:96-111 quotIndA
 /// `Quot.ind.{u} {α : Sort u} {r : α → α → Prop} {β : Quot α r → Prop}
 /// (mk : ∀ a, β (Quot.mk α r a)) (q : Quot α r) : β q`.
 pub fn quot_ind_a() -> ConstantInfo {
@@ -625,10 +646,11 @@ pub fn quot_ind_a() -> ConstantInfo {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:103-115 quotSoundA
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:113-126 quotSoundAOf
 /// `Quot.sound.{u} {α : Sort u} {r : α → α → Prop} {a b : α} :
-/// r a b → Quot.mk α r a = Quot.mk α r b`.
-pub fn quot_sound_a() -> ConstantInfo {
+/// r a b → Quot.mk α r a = Quot.mk α r b`, its equation at the quotient's
+/// result level (`quot_sort_of`).
+pub fn quot_sound_a_of(lifted: bool) -> ConstantInfo {
     ConstantInfo::AxiomInfo(cv(
         bnm::quot_sound_name(),
         vec1(u_n()),
@@ -643,7 +665,7 @@ pub fn quot_sound_a() -> ConstantInfo {
                         pi(
                             ap2(bv(2), bv(1), bv(0)),
                             ap3(
-                                cnst(bnm::eq_name(), vec1(u())),
+                                cnst(bnm::eq_name(), vec1(quot_sort_of(lifted))),
                                 ap2(cnst(bnm::quot_name(), vec1(u())), bv(4), bv(3)),
                                 ap3(cnst(bnm::quot_mk_name(), vec1(u())), bv(4), bv(3), bv(2)),
                                 ap3(cnst(bnm::quot_mk_name(), vec1(u())), bv(4), bv(3), bv(1)),
@@ -656,7 +678,13 @@ pub fn quot_sound_a() -> ConstantInfo {
     ))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Quot.lean:117-119 quotBasis
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:128-129 quotSoundA
+/// `Quot.sound` in the released kernel's form.
+pub fn quot_sound_a() -> ConstantInfo {
+    quot_sound_a_of(false)
+}
+
+/// con-leche: ConLeche/Kernel/Basis/Quot.lean:131-133 quotBasis
 /// The pinned `Quot` basis block, in install order.
 pub fn quot_basis() -> Vec<ConstantInfo> {
     vec5(quot_a(), quot_mk_a(), quot_lift_a(), quot_ind_a(), quot_sound_a())
