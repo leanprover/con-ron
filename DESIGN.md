@@ -75272,3 +75272,26 @@ con-ron --export init --runs 1`): 165 595 838 947 before, 165 595 458 503 after 
 the dispatch rewrite does not change the checker's work.
 
 **Scratch.**  `_tmp/t180/` (six `.llbc`s, ~2 GB) can go once this is read.
+
+### Task #181 — con-leche sync 3d91c5a5 → a9810f3a on `renovation`: the built-in prelude carries no quotient record (2026-11-24, Opus)
+
+Upstream a9810f3a (#630), from the maintainer's local con-leche checkout before it was pushed
+(objects fetched into the shared package repository, as #179's).  An arena export with the
+lifted `Quot` and no `Quot.sound` had the prelude's released-form `Quot.sound` synthesised, and
+the form check rejected the pair; so the built-in prelude no longer carries the quotient package
+(`basisRoots` = `Eq`, `Nat`, `Empty`, `False`; the prelude ndjson regenerated, 6 records).  A
+stream that uses `Quot` declares it.
+
+No con-ron citation changed (`update --auto`: 0 findings; coverage 1227/1279 before and after):
+the port is the generated data.  `gen-prelude.sh` and `gen-prelude-lean.sh` rewrote
+`frontend/prelude_text.rs` and `Arena/Frontend/PreludeText.lean` (11 765 bytes in 46 chunks, was
+15 700 in 62); one extraction (1 min 30 s end to end, task #180's Aeneas); Theorem 2's chunk fold
+`Refine2/Frontend/PreludeText.lean` at 46 chunks (`chunk_P46`–`P61` and their steps in
+`prelude_text_val`, `preludeText_data` and `builtin_prelude_text_refines` gone); the prelude
+tests' counts re-measured (6 records; 129 expression, 2 level, 22 name nodes added); the
+prelude's module docs (Rust and twin) describe it without `Quot`.  Master (#180) merged in.
+
+Verdicts: `diff-e2e.sh` 809/809 (master's binary at the new pin: 808/809, `quot_lifted_no_sound`
+differing).  `Init`, `--verified --jobs=1`, instructions:u, one run each, 57 919 accepted by
+both: `renovation` 672ea6f1 165 598 327 659, this branch 165 623 203 696 (+0.015 %; `Init`
+declares its own `Quot` package, which is now checked where the prelude's copy was taken).
