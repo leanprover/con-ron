@@ -75295,3 +75295,11 @@ Verdicts: `diff-e2e.sh` 809/809 (master's binary at the new pin: 808/809, `quot_
 differing).  `Init`, `--verified --jobs=1`, instructions:u, one run each, 57 919 accepted by
 both: `renovation` 672ea6f1 165 598 327 659, this branch 165 623 203 696 (+0.015 %; `Init`
 declares its own `Quot` package, which is now checked where the prelude's copy was taken).
+
+### Task #182 — con-leche sync a9810f3a → c8e13b0f on `renovation`: text only (2026-11-24, Opus)
+
+Upstream c8e13b0f (#630), from the maintainer's local checkout: OVERVIEW §6 says a nonstandard
+structural `Nat` operation is *declined* (was "rejected"), and `tests/olean.sh`'s comment on
+`UpQuot`/`UpQuotSol`; no verdict changes (the maintainer's ruling: the decline at the module's
+stand-in `Nat.sub` stays).  `update --auto`: 0 findings; two OVERVIEW links re-pinned; e2e
+809/809 with `renovation`'s binary.  No crate change, so no measurement.
