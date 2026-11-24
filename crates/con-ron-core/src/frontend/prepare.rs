@@ -58,7 +58,7 @@ use crate::kernel::core_types::CheckError;
 use crate::ron::hashmap::Dup;
 use crate::arena::store::PersTier;
 
-/// con-leche: ConLeche/Frontend/Prepare.lean:82-87 PreludeIx
+/// con-leche: ConLeche/Frontend/Prepare.lean:81-86 PreludeIx
 /// Lean twin: `proof/ConRon/Arena/Frontend/Prepare.lean:47-53 PreludeIx` — the
 /// built-in prelude: its records, in the order the committed file declares
 /// them.  Dependency-correct by construction — it is an export of the
@@ -91,7 +91,7 @@ pub fn prelude_ix_dup(pre: &PreludeIx) -> PreludeIx {
 
 
 
-/// con-leche: ConLeche/Frontend/Prepare.lean:89-92 preludeKey
+/// con-leche: ConLeche/Frontend/Prepare.lean:88-91 preludeKey
 /// Lean twin: `proof/ConRon/Arena/Frontend/Prepare.lean:55-62 preludeKey` —
 /// the name a prelude record is looked up by: the block's type former, the
 /// quotient constant, the axiom.  con-leche's `.anonymous` fall-through is the
@@ -105,14 +105,14 @@ pub fn prelude_key(pers: &PersTier, ar: &mut EStore, d: &IDeclaration) -> Result
     }
 }
 
-/// con-leche: ConLeche/Frontend/Prepare.lean:108-109 declares
+/// con-leche: ConLeche/Frontend/Prepare.lean:107-108 declares
 /// Lean twin: `proof/ConRon/Arena/Frontend/Prepare.lean:76-78 declares` — the
 /// name-test a record is picked by.  PURE, like con-leche's.
 pub fn declares(n: &NIdx, d: &IDeclaration) -> bool {
     nidx_vec_contains(&i_declaration_names(d), n)
 }
 
-/// con-leche: ConLeche/Frontend/Prepare.lean:120-123 pick
+/// con-leche: ConLeche/Frontend/Prepare.lean:119-122 pick
 /// Lean twin: `proof/ConRon/Arena/Frontend/Prepare.lean:80-93 pick` — the
 /// cited `ds.findIdx (declares n)`: the index of the first record declaring
 /// `n` that is not already spoken for, or `ds.len()` — which is what `findIdx`
@@ -148,7 +148,7 @@ pub fn no_picks(n: usize) -> Vec<bool> {
     picked
 }
 
-/// con-leche: ConLeche/Frontend/Prepare.lean:125-134 frontOf
+/// con-leche: ConLeche/Frontend/Prepare.lean:124-133 frontOf
 /// Lean twin: `proof/ConRon/Arena/Frontend/Prepare.lean:95-104 frontOf` — the
 /// front of the prepared stream, as *where each slot comes from*: entry `j` is
 /// the index in `ds` of the stream's own copy of prelude record `j`, or
@@ -180,7 +180,7 @@ pub fn front_of(
     Ok((picks, picked))
 }
 
-/// con-leche: ConLeche/Frontend/Prepare.lean:125-134 frontOf
+/// con-leche: ConLeche/Frontend/Prepare.lean:124-133 frontOf
 /// The cited `acc.push (m.getD p)` followed by `front ++ rest`, in one pass.
 pub fn prepared_stream(
     ps: &Vec<IDeclaration>,
@@ -192,7 +192,7 @@ pub fn prepared_stream(
     prepared_rest(prepared_front(out, ps, ds, picks), ds, picked)
 }
 
-/// con-leche: ConLeche/Frontend/Prepare.lean:125-134 frontOf
+/// con-leche: ConLeche/Frontend/Prepare.lean:124-133 frontOf
 /// The cited `acc.push (m.getD p)`: the front, each slot the stream's own
 /// record where [`front_of`] found one and the prelude's own where it did not.
 pub fn prepared_front(
@@ -217,7 +217,7 @@ pub fn prepared_front(
     out
 }
 
-/// con-leche: ConLeche/Frontend/Prepare.lean:158-165 prepareD
+/// con-leche: ConLeche/Frontend/Prepare.lean:157-164 prepareD
 /// The cited `front ++ rest`'s second half: the stream's records the mask does
 /// not carry, in the stream's order.
 pub fn prepared_rest(
@@ -237,7 +237,7 @@ pub fn prepared_rest(
     out
 }
 
-/// con-leche: ConLeche/Frontend/Prepare.lean:147-156 Prepared
+/// con-leche: ConLeche/Frontend/Prepare.lean:146-155 Prepared
 /// Lean twin: `proof/ConRon/Arena/Frontend/Prepare.lean:118-127 Prepared` —
 /// the prepared stream and the driver's receipts.
 pub struct Prepared {
@@ -250,7 +250,7 @@ pub struct Prepared {
     pub hoisted: Vec<NIdx>,
 }
 
-/// con-leche: ConLeche/Frontend/Prepare.lean:158-165 prepareD
+/// con-leche: ConLeche/Frontend/Prepare.lean:157-164 prepareD
 /// Lean twin: `proof/ConRon/Arena/Frontend/Prepare.lean:129-137 prepareD` —
 /// `prepare_prelude`, with its receipts.  `used_of` says what a record
 /// mentions, where the record itself does not say: a theorem's record read
@@ -286,7 +286,7 @@ pub fn prepare_d<U: crate::frontend::nat_op_ground::UsedConsts>(
     })
 }
 
-/// con-leche: ConLeche/Frontend/Prepare.lean:167-174 preparePrelude
+/// con-leche: ConLeche/Frontend/Prepare.lean:166-173 preparePrelude
 /// Lean twin: `proof/ConRon/Arena/Frontend/Prepare.lean:139-146 preparePrelude`
 /// — the parsed stream, prepared for the fold: the prelude's declarations
 /// first (the stream's own copies where it has them), the rest of the stream
