@@ -39,7 +39,7 @@ use crate::kernel::core_types::CheckError;
 use crate::arena::store::PersTier;
 
 /// con-leche: ConLeche/Frontend/Prelude.lean:54-60 builtinPreludeText
-/// Lean twin: `proof/ConRon/Arena/Frontend/PreludeText.lean:1286-1358 preludeText`
+/// Lean twin: `proof/ConRon/Arena/Frontend/PreludeText.lean:975-1031 preludeText`
 /// — the committed prelude for the pinned toolchain, as bytes.  A toolchain
 /// bump regenerates `crates/con-ron-core/src/frontend/prelude_text.rs` (and
 /// con-leche's own `pins/` file behind it) and re-points all three spellings.
@@ -48,7 +48,7 @@ pub fn builtin_prelude_text() -> Vec<u8> {
 }
 
 /// con-leche: ConLeche/Frontend/Prelude.lean:62-66 builtinPreludeE
-/// Lean twin: `proof/ConRon/Arena/Frontend/Prelude.lean:44-57 builtinPreludeE`
+/// Lean twin: `proof/ConRon/Arena/Frontend/Prelude.lean:45-58 builtinPreludeE`
 /// — the parsed, indexed prelude: an error channel because a committed file
 /// can in principle be corrupted, and a prelude that does not parse must be a
 /// loud error rather than a silently empty prelude.  The index is the records
