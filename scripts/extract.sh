@@ -137,7 +137,16 @@ echo "extract: charon cargo --preset=aeneas ($crate_dir)"
 #    may import only modules, so that would drag the hand-written
 #    `*External.lean` models and the whole proof into the module system.  A
 #    plain file imports the module-system Aeneas library as before (task #112).
-echo "extract: aeneas -backend lean -split-files -loops-to-rec -use-lean-modules false"
+#    `OCAMLRUNPARAM=s=2M`: a 2 M-word minor heap (OCaml's default is 256 k).
+#    Aeneas translates on one OCaml domain per core, and on OCaml 5.5 the
+#    domains spent most of the run synchronising for stop-the-world minor
+#    collections; the larger minor heap cuts the Aeneas run by 30-40 % with
+#    byte-identical output (tasks #178 and #180).  A caller's own
+#    OCAMLRUNPARAM is appended, so it can still override.  It is not part of
+#    the green stamp's key: GC parameters do not change what Aeneas emits, and
+#    this line is (the script is hashed).
+echo "extract: OCAMLRUNPARAM=s=2M aeneas -backend lean -split-files -loops-to-rec -use-lean-modules false"
+OCAMLRUNPARAM="s=2M${OCAMLRUNPARAM:+,$OCAMLRUNPARAM}" \
 aeneas -backend lean -split-files -loops-to-rec -use-lean-modules false \
   -dest "$work/lean" -subdir "$subdir" -namespace "$namespace" \
   -no-progress-bar "$work/llbc/$crate.llbc"
