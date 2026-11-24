@@ -107,7 +107,7 @@ pub const M_STD_AXIOM_SHAPE: [u32; 29] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-/// con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
+/// con-leche: ConLeche/Cached/ParsedC.lean:249-320 checkDeclKindC
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-158 checkDeclKind` — **a
 /// declaration's own checks**, by its kind, extending the environment on
 /// success.  A block under a pinned basis block's names takes the same route as
@@ -135,7 +135,7 @@ pub fn check_decl_kind(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:172-180 checkDecl
-/// con-leche: ConLeche/Cached/ParsedC.lean:320-326 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:322-328 checkDeclC
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:160-173 checkDecl` — **check a single
 /// declaration**: its own checks (`check_decl_kind`), then the reserved names'
 /// (`basis_names_ok`), which justify the model's fixed meanings of the basis
@@ -170,7 +170,7 @@ pub fn check_decl(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-/// con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
+/// con-leche: ConLeche/Cached/ParsedC.lean:249-320 checkDeclKindC
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-158 checkDeclKind` — the `.defnDecl`
 /// arm: the common constant check (a definition may take a certified
 /// operation's name), the value check returning the record unpushed, then the
@@ -195,7 +195,7 @@ pub fn check_defn_decl(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-/// con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
+/// con-leche: ConLeche/Cached/ParsedC.lean:249-320 checkDeclKindC
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-158 checkDeclKind` — the `.defnDecl`
 /// arm's structural-`Nat` gate (`natOpNames.contains`), then the next.
 pub fn check_defn_pins(
@@ -224,7 +224,7 @@ pub fn check_defn_pins(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-/// con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
+/// con-leche: ConLeche/Cached/ParsedC.lean:249-320 checkDeclKindC
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-158 checkDeclKind` — the
 /// `natDivModNames.contains` gate of the `.defnDecl` arm, and the push last.
 pub fn check_defn_div_mod_pin(
@@ -253,7 +253,7 @@ pub fn check_defn_div_mod_pin(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-/// con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
+/// con-leche: ConLeche/Cached/ParsedC.lean:249-320 checkDeclKindC
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-158 checkDeclKind` — the
 /// structural-`Nat` gate: the environment guards and the stored value at `fe2`,
 /// the environment with the definition, then `certifyNatEqs` at `fe`, the one
@@ -285,7 +285,7 @@ pub fn check_structural_nat_pin(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-/// con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
+/// con-leche: ConLeche/Cached/ParsedC.lean:249-320 checkDeclKindC
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-158 checkDeclKind` — the reads at
 /// `fe2`: `natOpGuard` and the operation's own pinned type (`natOpStoredOk`),
 /// then the stored value.
@@ -314,7 +314,7 @@ pub fn check_structural_nat_pin_at_fe2(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-/// con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
+/// con-leche: ConLeche/Cached/ParsedC.lean:249-320 checkDeclKindC
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-158 checkDeclKind` — the equations,
 /// substituted with the stored value, certified at `fe`.
 pub fn check_structural_nat_pin_eqs(
@@ -344,7 +344,7 @@ pub fn check_structural_nat_pin_eqs(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-/// con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
+/// con-leche: ConLeche/Cached/ParsedC.lean:249-320 checkDeclKindC
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-158 checkDeclKind` — the `.thmDecl`
 /// arm: the common constant check, the value check (`checkThmValCI`), the push
 /// of the statement.
@@ -366,7 +366,7 @@ pub fn check_thm_decl(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-/// con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
+/// con-leche: ConLeche/Cached/ParsedC.lean:249-320 checkDeclKindC
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-158 checkDeclKind` — the `.opaqueDecl`
 /// arm: the opaque check returning the record unpushed, the compiler-trust gate
 /// for `Lean.reduceNat`/`Lean.reduceBool`, the push last.
@@ -388,7 +388,7 @@ pub fn check_opaque_decl(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-/// con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
+/// con-leche: ConLeche/Cached/ParsedC.lean:249-320 checkDeclKindC
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-158 checkDeclKind` — the
 /// `reduceOpNames.contains` gate of the `.opaqueDecl` arm, and the push.
 pub fn check_opaque_reduce_pin(
@@ -417,7 +417,7 @@ pub fn check_opaque_reduce_pin(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-/// con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
+/// con-leche: ConLeche/Cached/ParsedC.lean:249-320 checkDeclKindC
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-158 checkDeclKind` — the `.axiomDecl`
 /// arm.  **`Quot.sound` is the pinned quotient package's own record**: the
 /// export writes it as an ordinary axiom record beside the four `#QUOT` ones.
@@ -443,7 +443,7 @@ pub fn check_axiom_decl(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-/// con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
+/// con-leche: ConLeche/Cached/ParsedC.lean:249-320 checkDeclKindC
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-158 checkDeclKind` — the rest of
 /// the `.axiomDecl` arm: the two standard axioms and the `Init` compiler-trust
 /// family are INSTALLED, `sorryAx` is tolerated and installs nothing, and
@@ -474,7 +474,7 @@ pub fn check_axiom_decl_std(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-/// con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
+/// con-leche: ConLeche/Cached/ParsedC.lean:249-320 checkDeclKindC
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-158 checkDeclKind` — the
 /// `Lean.trustCompiler` branch: `True` is trivially realizable, so the axiom is
 /// installed exactly like a checked `opaque` with witness `True.intro` over the
@@ -511,7 +511,7 @@ pub fn check_axiom_decl_trust(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-/// con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
+/// con-leche: ConLeche/Cached/ParsedC.lean:249-320 checkDeclKindC
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-158 checkDeclKind` — the pinned
 /// `ofReduce*` axioms: over the pinned `Eq` basis, the element inductive and
 /// the identity-certified reduce opaque, `∀ a b, reduce a = b → a = b`
@@ -551,7 +551,7 @@ pub fn check_axiom_decl_of_reduce(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-/// con-leche: ConLeche/Cached/ParsedC.lean:247-318 checkDeclKindC
+/// con-leche: ConLeche/Cached/ParsedC.lean:249-320 checkDeclKindC
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-158 checkDeclKind` — the last
 /// three tests: a pinned standard-axiom NAME whose shape did not match
 /// declines under its own message, `sorryAx` is tolerated as a DECLARATION and
@@ -595,7 +595,7 @@ pub fn check_axiom_decl_rest(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-/// con-leche: ConLeche/Cached/ParsedC.lean:106-126 checkIndDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:108-128 checkIndDeclC
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:74-158 checkDeclKind` — the `.indDecl`
 /// arm: the DECLARED parameter count first (con-leche's task #228: `indParamsOk`
 /// is official's own check, one-sided, so a `false` is official's reject), then

@@ -252,12 +252,14 @@ def quotPin (k : QuotKind) : AM IConstantInfo := do
   let blk ← ConRon.Arena.BasisKind.decls .quotK
   pure (blk.getD k.slot default)
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:167-170 quotAt — **what a quotient
+/-- con-leche: ConLeche/Kernel/Basis.lean:191-194 quotAt — **what a quotient
+-- con-leche: CHANGED since 216031bf — re-port, re-test, re-prove Basis.quotAt_bridge, then delete this line
 record stores**: its slot's pin at the names it declares. -/
 def quotAt (k : QuotKind) (cv : IConstantVal) : AM IConstantInfo := do
   (← quotPin k).atLps cv.levelParams
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:172-178 quotPinHit — **the
+/-- con-leche: ConLeche/Kernel/Basis.lean:202-206 quotPinHit — **the
+-- con-leche: CHANGED since 216031bf — re-port, re-test, re-prove Basis.quotPinHit_bridge, then delete this line
 quotient-pin match**: the record is the pinned package's constant at the slot
 it declares itself at, up to its level-parameter names: distinct, as many as
 the pin's. -/
@@ -267,7 +269,7 @@ def quotPinHit (k : QuotKind) (cv : IConstantVal) : AM Bool := do
     pure (cv == (← pcv.atLps cv.levelParams))
   else pure false
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:180-192 quotPredsOk — **what a
+/-- con-leche: ConLeche/Kernel/Basis.lean:214-226 quotPredsOk — **what a
 quotient record's slot needs stored before it**: the constants its type
 mentions.  The cited `find?` argument is the index `fe`. -/
 def quotPredsOk (fe : IFEnv) (k : QuotKind) : AM Bool := do
@@ -298,21 +300,21 @@ def andPinNameHs : AM (List NIdx) := do
   let r ← pinAndRec
   pure [a, i, r]
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:206-214 andPinOk — the `.indDecl`
+/-- con-leche: ConLeche/Kernel/Basis.lean:248-256 andPinOk — the `.indDecl`
 arm's `block.any fun c => andPinNames.contains c.name`, over handles (a name
 comparison is a handle comparison, `denoteN` being injective). -/
 def blockAndNamed (hs : List NIdx) : List IConstantInfo → Bool
   | [] => false
   | c :: cs => hs.contains c.name || blockAndNamed hs cs
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:206-214 andPinOk — the arm of every
+/-- con-leche: ConLeche/Kernel/Basis.lean:248-256 andPinOk — the arm of every
 one-constant record: it may not declare one of the pinned `And` block's
 names. -/
 def andPinNameFree (n : NIdx) : AM Bool := do
   let hs ← andPinNameHs
   pure !(hs.contains n)
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:206-214 andPinOk — **the `And` pin's
+/-- con-leche: ConLeche/Kernel/Basis.lean:248-256 andPinOk — **the `And` pin's
 test**: the record declares none of the pinned `And` block's names, or it IS
 that block — two parameters, and equal to `andPin` up to `ConstantInfo.canon`
 (`canonEqList`).  Only a block that declares one of the three names gets that

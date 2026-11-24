@@ -579,7 +579,7 @@ def recsRead (fe : IFEnv) : List IConstantInfo → AM Bool
     if ← recReads fe ci then recsRead fe rest else pure false
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-con-leche: ConLeche/Cached/ParsedC.lean:106-126 checkIndDeclC
+con-leche: ConLeche/Cached/ParsedC.lean:108-128 checkIndDeclC
 **The checker's rule, at a block** (`blockReadsOk`): every recursor the block
 installs reads, against the environment after the install — the index `fe`
 with the block's constants (`blockConstants`) pushed in place.  Answers the

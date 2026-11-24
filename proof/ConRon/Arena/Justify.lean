@@ -279,7 +279,7 @@ def justifyWhy (J : ISolution) (fe : IFEnv) (cv : IConstantVal) : AM (Option Str
 
 /-! ## The check of one record, with a solution -/
 
-/-- con-leche: ConLeche/Cached/ParsedC.lean:334-343 declCLabel — a record's kind and name, for a
+/-- con-leche: ConLeche/Cached/ParsedC.lean:336-345 declCLabel — a record's kind and name, for a
 message. -/
 def declLabel (d : IDeclaration) : AM String := do
   match d with

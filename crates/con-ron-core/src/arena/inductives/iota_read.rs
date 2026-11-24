@@ -1133,7 +1133,7 @@ pub fn recs_read(pers: &PersTier, st: &mut AState, fe: &IFEnv, cs: &Vec<IConstan
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:28-170 checkDeclKind
-/// con-leche: ConLeche/Cached/ParsedC.lean:106-126 checkIndDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:108-128 checkIndDeclC
 /// Lean twin: `proof/ConRon/Arena/Inductives/IotaRead.lean:581-594 blockReadsAt` —
 /// **the checker's rule, at a block** (`blockReadsOk`): every recursor the
 /// block installs reads against the index `fe` with the block's constants

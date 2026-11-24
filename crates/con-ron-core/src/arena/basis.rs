@@ -686,7 +686,8 @@ pub fn quot_pin(pers: &PersTier, st: &mut AState, k: &QuotKind) -> Result<IConst
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:167-170 quotAt
+/// con-leche: ConLeche/Kernel/Basis.lean:191-194 quotAt
+/// con-leche: CHANGED since 216031bf — re-port, re-test, re-prove basis::quot_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:255-258 quotAt` — **what a quotient record
 /// stores**: its slot's pin at the names it declares.
 pub fn quot_at(
@@ -701,7 +702,8 @@ pub fn quot_at(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:172-178 quotPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:202-206 quotPinHit
+/// con-leche: CHANGED since 216031bf — re-port, re-test, re-prove basis::quot_pin_hit_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:260-268 quotPinHit` — **the quotient-pin
 /// match**: the record is the pinned package's constant at the slot it
 /// declares itself at, up to its level-parameter names: distinct, as many as
@@ -728,7 +730,7 @@ pub fn quot_pin_hit(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:180-192 quotPredsOk
+/// con-leche: ConLeche/Kernel/Basis.lean:214-226 quotPredsOk
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:270-282 quotPredsOk` — **what a quotient
 /// record's slot needs stored before it**: the constants its type mentions.  A
 /// reserved name is stored only as a copy of its pin, at whatever names, and
@@ -798,7 +800,7 @@ pub fn and_pin_name_hs(st: &AState) -> Result<Vec<NIdx>, CheckError> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:206-214 andPinOk
+/// con-leche: ConLeche/Kernel/Basis.lean:248-256 andPinOk
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:301-306 blockAndNamed` — the `.indDecl`
 /// arm's `block.any fun c => andPinNames.contains c.name`, as a cursor
 /// recursion (§3.4 forbids the closure).
@@ -812,7 +814,7 @@ pub fn block_and_named(block: &Vec<IConstantInfo>, hs: &Vec<NIdx>, i: usize) -> 
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:206-214 andPinOk
+/// con-leche: ConLeche/Kernel/Basis.lean:248-256 andPinOk
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:308-313 andPinNameFree` — the arm of every
 /// one-constant record: it may not declare one of the pinned `And` block's
 /// names.
@@ -823,7 +825,7 @@ pub fn and_pin_name_free(st: &AState, n: &NIdx) -> Result<bool, CheckError> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:206-214 andPinOk
+/// con-leche: ConLeche/Kernel/Basis.lean:248-256 andPinOk
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:315-333 andPinOk` — **the `And` pin's
 /// test**: the record declares none of the pinned `And` block's names, or it
 /// IS that block — two parameters, and equal to `andPin` up to

@@ -718,7 +718,7 @@ pub fn of_reduce_ax_ok_rest(
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:195-199 reducePinGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:154-158 reducePinGuardF
-/// con-leche: ConLeche/Cached/ParsedC.lean:221-225 reducePinGuardC
+/// con-leche: ConLeche/Cached/ParsedC.lean:223-227 reducePinGuardC
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:152-161 reducePinGuard` —
 /// syntactic guards on the generated reduce pin (checked once).
 pub fn reduce_pin_guard(
@@ -2130,7 +2130,7 @@ pub fn bool_ctor_typed(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:310-320 divModPinGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:188-195 divModPinGuardF
-/// con-leche: ConLeche/Cached/ParsedC.lean:151-158 divModPinGuardC
+/// con-leche: ConLeche/Cached/ParsedC.lean:153-160 divModPinGuardC
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:585-595 divModPinGuard` — syntactic
 /// guards on one variant's pin (generated; checked once rather
 /// than proven about the blob), and on its type pins: each type-pinned
@@ -2163,7 +2163,7 @@ pub fn div_mod_pin_guard(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:310-320 divModPinGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:188-195 divModPinGuardF
-/// con-leche: ConLeche/Cached/ParsedC.lean:151-158 divModPinGuardC
+/// con-leche: ConLeche/Cached/ParsedC.lean:153-160 divModPinGuardC
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:574-583 typePinsGuard` — the cited
 /// `(divModTypePins ps c).all fun p => …` as a cursor recursion (DESIGN.md
 /// §3.4 forbids the closure `List.all` takes).
@@ -2192,7 +2192,7 @@ pub fn type_pins_guard(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:310-320 divModPinGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:188-195 divModPinGuardF
-/// con-leche: ConLeche/Cached/ParsedC.lean:151-158 divModPinGuardC
+/// con-leche: ConLeche/Cached/ParsedC.lean:153-160 divModPinGuardC
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:560-572 typePinGuard` — one type
 /// pin's guard, the `List.all` closure's body: the constant stored, its
 /// stored type free of free variables, the pinned type closed, free of free
@@ -2409,7 +2409,7 @@ pub fn check_div_mod_cert_tail(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:331-339 checkTypePins
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:267-274 checkTypePinsF
-/// con-leche: ConLeche/Cached/ParsedC.lean:160-166 checkTypePinsC
+/// con-leche: ConLeche/Cached/ParsedC.lean:162-168 checkTypePinsC
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:642-652 checkTypePins` — the type
 /// pins: each type-pinned constant's stored type against the variant's pinned
 /// one, by definitional equality; the cited list recursion as a cursor.
@@ -2684,7 +2684,7 @@ pub fn defn_value(pers: &PersTier, fe: &IFEnv, c: &NIdx) -> Option<EIdx> {
 
 /// con-leche: ConLeche/Kernel/Checker.lean:426-461 checkReducePin
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:317-336 checkReducePinF
-/// con-leche: ConLeche/Cached/ParsedC.lean:227-245 checkReducePinC
+/// con-leche: ConLeche/Cached/ParsedC.lean:229-247 checkReducePinC
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:774-794 checkReducePin` — the
 /// `Lean.reduceNat`/`Lean.reduceBool` gate, after the ordinary opaque check:
 /// the stored constant carries the pinned type (at `fe2`, the environment with
@@ -3178,8 +3178,10 @@ pub fn install_basis_decl(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:463-474 checkQuotRecord
-/// con-leche: ConLeche/Cached/ParsedC.lean:96-104 checkQuotRecordC
+/// con-leche: ConLeche/Kernel/Checker.lean:463-476 checkQuotRecord
+/// con-leche: CHANGED since 216031bf — re-port, re-test, re-prove decl_check::check_quot_record_refines, then delete this line
+/// con-leche: ConLeche/Cached/ParsedC.lean:96-106 checkQuotRecordC
+/// con-leche: CHANGED since 216031bf — re-port, re-test, re-prove decl_check::check_quot_record_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:899-911 checkQuotRecord` — **a quotient
 /// record's check and install**: compared with its slot's pin, the slots it
 /// needs stored, and installed at its own names.  A record that does not match
