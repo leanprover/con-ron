@@ -433,35 +433,24 @@ def checkMainOlean (sp : List System.FilePath) (roots : Array Name) (constants :
     return e.exitCode
 
 /-- con-leche: ConLeche/Driver/Cli.lean:116-122 synopsis
--- con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove Main.synopsis_bridge, then delete this line
 The invocation forms, printed on their own when there are no arguments.  Of `--schedule` only
 `--schedule-commands` is run here (`helpText`). -/
 def synopsis : String := String.intercalate "\n" [
   "Usage:",
-  "  con-ron-lean [OPTIONS] [--] FILE.ndjson",
-  "  con-ron-lean [OPTIONS] --compare [--] CHALLENGE.ndjson SOLUTION.ndjson",
-  "  con-ron-lean [OPTIONS] --olean --search-path=DIRS [--] MODULE...",
-  "  con-ron-lean [OPTIONS] --check-graph --search-path=DIRS [--] MODULE...",
-  "  con-ron-lean [OPTIONS] --olean --module --search-path=DIRS [--] MODULE",
-  "  con-ron-lean [OPTIONS] --olean --modular --search-path=DIRS [--] MODULE",
-  "  con-ron-lean [OPTIONS] --olean --schedule-commands --search-path=DIRS [--] MODULE",
-  "  con-ron-lean [OPTIONS] --olean --compare [--trusted-search-path=DIRS]",
-  "               --search-path=DIRS [--] CHALLENGE SOLUTION",
-  "  con-ron-lean [OPTIONS] --check-graph --compare [--trusted-search-path=DIRS]",
-  "               --search-path=DIRS [--] CHALLENGE SOLUTION",
-  "  con-ron-lean [OPTIONS] --olean --module|--modular|--schedule-commands",
-  "               --compare [--trusted-search-path=DIRS] --search-path=DIRS",
-  "               [--] CHALLENGE SOLUTION"]
+  "  con-ron-lean [OPTIONS] FILE.ndjson",
+  "  con-ron-lean [OPTIONS] --compare CHALLENGE.ndjson SOLUTION.ndjson",
+  "  con-ron-lean [OPTIONS] --olean --search-path=DIRS MODULE...",
+  "  con-ron-lean [OPTIONS] --olean --search-path=DIRS --compare CHALLENGE SOLUTION"]
 
 /-- con-leche: ConLeche/Driver/Cli.lean:124-125 tryHelp
 The line after a usage error. -/
 def tryHelp : String := "Try 'con-ron-lean --help' for more information."
 
 /-- con-leche: ConLeche/Driver/Cli.lean:127-175 helpText
--- con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove Main.helpText_bridge, then delete this line
-The `--help` text: con-leche's, with this binary's name and con-ron's documentation; con-leche's options of the modes this binary does
-not run are listed by name, as usage errors (`unsupported`).  `--jobs` is accepted and validated,
-and this binary checks on one worker whatever it says. -/
+The `--help` text: con-leche's, with this binary's name and con-ron's documentation, short on
+purpose as con-leche's (one line per option, two at most); con-leche's options of the modes this
+binary does not run are listed by name, as usage errors (`unsupported`).  `--jobs` is accepted
+and validated, and this binary checks on one worker whatever it says. -/
 def helpText : String := String.intercalate "\n" [
   "Check Lean declarations from a lean4export file or from .olean modules.",
   "",
@@ -471,46 +460,31 @@ def helpText : String := String.intercalate "\n" [
   "  --verified          Check in the mode the soundness theorem covers (default)",
   "  --trusted           Skip the checks only the proof needs; outside the theorem",
   "  --jobs=N            Accepted for the command line's sake; one worker always",
-  "  --max-nat-size=N    Largest Nat numeral in bytes the checker takes in or",
-  "                      computes; a larger one is rejected (default 134217728)",
-  "  --progress[=PACE]   Report progress on stderr: PACE is N declarations",
-  "                      (default 1), P% of each phase, or Ss seconds",
+  "  --max-nat-size=N    Largest Nat numeral in bytes (default 134217728)",
+  "  --progress[=PACE]   Progress on stderr; PACE is N declarations, P% or Ss",
+  "  --compare           Check SOLUTION, then CHALLENGE with its axioms and",
+  "                      sorry-holes justified by SOLUTION",
   "  --help              Print this help and exit",
   "  --                  End of options",
   "",
-  "lean4export input:",
-  "  --compare           CHALLENGE.ndjson SOLUTION.ndjson: check SOLUTION, then",
-  "                      check CHALLENGE, its axioms justified by SOLUTION",
-  "",
   ".olean input:",
-  "  --olean             Read modules and their import closure from .olean files",
-  "  --search-path=DIRS  Colon-separated .olean directories; repeatable",
-  "  --constant=NAME     Check only NAME and what it mentions; repeatable",
-  "  --compare           CHALLENGE SOLUTION: check the closure of SOLUTION, then",
-  "                      the closure of CHALLENGE, its axioms justified by it",
+  "  --olean             Read modules and their imports from .olean files",
+  "  --search-path=DIRS  Colon-separated .olean directories; repeatable. In a",
+  "                      Lake project: \"$(lake env printenv LEAN_PATH)\"",
   "  --trusted-search-path=DIRS",
-  "                      With --compare: where CHALLENGE is read, and where",
-  "                      SOLUTION is read first; with --module alone, where",
-  "                      MODULE's closure is read first; colon-separated;",
-  "                      repeatable",
+  "                      Trusted .olean directories (with --compare or --module)",
+  "  --constant=NAME     Check only NAME and what it mentions; repeatable",
+  "  --check-graph       Check only that the import graph is acyclic",
+  "  --module            Check only MODULE's own declarations",
+  "  --modular           Check each module of the closure on its own",
   "",
-  "  --check-graph       Check only that the modules' import graph is acyclic",
-  "                      and that every import is on the search path",
-  "  --module            Check MODULE's own declarations alone, against what",
-  "                      they read of the modules it loads",
-  "  --modular           Check every module of MODULE's closure as --module",
-  "                      does, in this one process",
-  "  --schedule-commands Start nothing; print the commands that check MODULE's",
-  "                      closure, shell-quoted: the --check-graph run, then one",
-  "                      --module run per module (for xargs or parallel)",
-  "  --schedule-order=ORDER, --worker-stack-size=SIZE",
-  "                      With --schedule-commands: the order of the printed",
-  "                      modules (shuffled or graph); each worker line's",
-  "                      LEAN_STACK_SIZE_KB",
-  "",
-  "con-leche's scheduler, not run by con-ron-lean (a usage error, exit 3):",
-  "  --schedule (con-ron runs the simple one; or run --schedule-commands' lines",
-  "  with xargs or parallel)",
+  "Scheduler options (only --schedule-commands is run here):",
+  "  --schedule-commands       Print the worker commands (for xargs or parallel)",
+  "  --schedule-order=ORDER    shuffled (default) or graph",
+  "  --worker-stack-size=SIZE  Thread stack size of the workers (e.g. 8G)",
+  "  --schedule                con-leche's scheduler, not run (usage error, 3);",
+  "                            with --schedule-commands, -memory, -timeout and",
+  "                            -log are ignored",
   "",
   "Exit status:",
   "  0  accepted",
