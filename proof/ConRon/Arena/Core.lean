@@ -1719,6 +1719,46 @@ def etaCtorPartial (fe : IFEnv) (a : EIdx) : AM (Option Nat) := do
     | _ => pure none
   else pure none
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:754-768 recMajorEta — **does a
+recursor's major premise range over an η family?**  The single rule's
+constructor's family carries the η flag (`IIndCaps.eta`).  Two lookups, no
+walk. -/
+def recMajorEta (fe : IFEnv) (rules : List IRecRule) : Bool :=
+  match rules with
+  | [rl] =>
+    match fe.find? rl.ctor with
+    | some (.ctorInfo _ _ _ T) =>
+      match fe.find? T with
+      | some (.indInfo _ caps) => caps.eta
+      | _ => false
+    | _ => false
+  | _ => false
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:770-786 recEtaPartial
+con-leche: ConLeche/Cached/StateC.lean:108-118 recEtaPartialC — **a partially
+applied recursor that η-expands** (official's
+`eta_expand_iota_reduce_recursor` gate since lean4#15374): the candidate's
+head is a stored recursor applied to at most `mI` arguments, whose recursor is
+K or whose major ranges over an η family (`recMajorEta`).  `some k`, `k > 0`
+the arguments it lacks up to the major.  Read off the stored records alone,
+before any inference; the spine is counted (`numArgs`), not listed. -/
+def recEtaPartial (fe : IFEnv) (e : EIdx) : AM (Option Nat) := do
+  let hh ← getAppFn coreWalkFuel e
+  if hh.tag == ETag.const then
+    match ← view hh with
+    | .const c _ =>
+      match fe.find? c with
+      | some (.recInfo _ mI _ isK rules) => do
+        let n ← numArgs coreWalkFuel e
+        if n ≤ mI then
+          if isK then pure (some (mI + 1 - n))
+          else if recMajorEta fe rules then pure (some (mI + 1 - n))
+          else pure none
+        else pure none
+      | _ => pure none
+    | _ => pure none
+  else pure none
+
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:788-806 ctorTarget
 con-leche: ConLeche/Cached/CoreC.lean:144-157 ctorTargetC — **the constructor
 shortcut's target** (`defeqBody`): `some c` when `e` is a closed application
@@ -2009,17 +2049,6 @@ def etaCert (mode : CheckMode) (r : CoreFnsA) (_fe : IFEnv) (depth : Nat)
       else pure false
     | _ => pure false
   else pure false
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1017-1028 stuckIrrel — the fallback
--- con-leche: CHANGED since c8e13b0f — re-port, re-test, re-prove Core.stuckIrrel_bridge, then delete this line
-for structurally distinct stuck terms: structural eta in either direction,
-unit-likeness, else proof irrelevance. -/
-def stuckIrrel (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
-    (a b : EIdx) : AM Bool := do
-  if ← structEtaCert r fe depth a b then pure true
-  else if ← structEtaCert r fe depth b a then pure true
-  else if ← structUnitCert r fe depth a b then pure true
-  else proofIrrel r fe depth a b
 
 /-- con-leche: ConLeche/Kernel/Core.lean:525-536 formerSortLoop
 con-leche: ConLeche/Cached/CoreC.lean:793-807 formerSortLoopI
@@ -2689,6 +2718,82 @@ def whnfAppIota (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
           else iotaRecAt mode r fe depth c us cv mI rP isK rules vargs
       | _ => pure none
   else pure none
+
+/-- con-leche: ConLeche/Kernel/Core.lean:867-965 iotaRec
+con-leche: ConLeche/Cached/CoreC.lean:1073-1087 iotaRecAtI — **the ι step at a
+spine `e`** (the dispatch of `iotaRec`): the head and the arguments read off the
+term (`headAndArgs`), then `whnfAppIota`'s gate and step. -/
+def iotaRecSpine (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (e : EIdx) : AM (Option EIdx) := do
+  let (hd, args) ← headAndArgs e
+  whnfAppIota mode r fe depth hd args args.size
+
+/-- con-leche: ConLeche/Kernel/Core.lean:967-996 recEtaTele
+con-leche: ConLeche/Cached/CoreC.lean:1089-1114 recEtaTeleI — **the
+η-expansion of a partially applied recursor, ι-reduced** (official's
+`eta_expand_iota_reduce_recursor`, lean4#15374): `f`, of type `T`, applied to
+`k` fresh variables along `T`'s binders, each reached by head normalization;
+the full application ι-reduced (`iotaRecSpine`); the reduct abstracted over
+the variables, `λ x⃗. r`.  At the verified mode, the typing certificate
+(con-leche task #632): the reduct's full-grade type against the codomain at
+the variables.  The abstraction is the memoized `abstract1`. -/
+def recEtaTele (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
+    Nat → Nat → EIdx → EIdx → AM (Option EIdx)
+  | 0, depth, f, T => do
+    match ← iotaRecSpine mode r fe depth f with
+    | none => pure none
+    | some e =>
+      if mode.verifiedChecks then do
+        let te ← r.infer depth e
+        if ← r.defeq depth te T then pure (some e) else pure none
+      else pure (some e)
+  | k + 1, depth, f, T => do
+    let w ← r.whnf depth T
+    if w.tag == ETag.forallE then
+      match ← viewBind w with
+      | none => failDanglingE
+      | some (dom, body) => do
+        let fv ← internE (.fvar depth dom)
+        let body2 ← instantiate1Fast coreWalkFuel body fv 0
+        let f2 ← internE (.app f fv)
+        match ← recEtaTele mode r fe k (depth + 1) f2 body2 with
+        | none => pure none
+        | some e => do
+          let ea ← abstract1Fast coreWalkFuel e depth 0
+          let lam ← internLamE dom ea
+          pure (some lam)
+    else pure none
+
+/-- con-leche: ConLeche/Kernel/Core.lean:998-1015 recEtaCert
+con-leche: ConLeche/Cached/CoreC.lean:1116-1127 recEtaCertI — **recursor η**
+(official's `try_eta_expansion_core` arm since lean4#15374): `b` a partially
+applied recursor (`recEtaPartial`), expanded and ι-reduced to `λ x⃗. r` along
+its io-inferred type (`recEtaTele`), and `a`, neutral, definitionally equal to
+that λ. -/
+def recEtaCert (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (a b : EIdx) : AM Bool := do
+  if !(← ioNeutral a) then pure false
+  else do
+  match ← recEtaPartial fe b with
+  | none => pure false
+  | some k => do
+    let tb ← r.inferIO depth b
+    match ← recEtaTele mode r fe k depth b tb with
+    | none => pure false
+    | some lam => r.defeq depth a lam
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1017-1028 stuckIrrel
+con-leche: ConLeche/Cached/CoreC.lean:1129-1138 stuckIrrelI — the fallback for
+structurally distinct stuck terms: recursor η in either direction, structural
+eta in either direction, unit-likeness, else proof irrelevance. -/
+def stuckIrrel (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (a b : EIdx) : AM Bool := do
+  if ← recEtaCert mode r fe depth a b then pure true
+  else if ← recEtaCert mode r fe depth b a then pure true
+  else if ← structEtaCert r fe depth a b then pure true
+  else if ← structEtaCert r fe depth b a then pure true
+  else if ← structUnitCert r fe depth a b then pure true
+  else proofIrrel r fe depth a b
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1191-1225 whnfAppI — walk the spine's
 arguments, applying each to the head's reduct: a λ head opens a peel group
@@ -4219,7 +4324,6 @@ def defeqProjPair (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
   else pure false
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1774-1841 defeqStuck
--- con-leche: CHANGED since c8e13b0f — re-port, re-test, re-prove Core.defeqStuck_bridge, then delete this line
 con-leche: ConLeche/Cached/CoreC.lean:1941-1989 defeqStuckI — **the stuck
 comparison** (the tail of the official kernel's `is_def_eq_core`): a string
 literal against `String.ofList`, the same free variable, the same constant at
@@ -4240,10 +4344,10 @@ def defeqStuck (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
           if cO = sl ∧ usO = el ∧ fe.strLit = true then do
             let c ← strLitToConstructor st
             r.defeq depth c b
-          else stuckIrrel r fe depth a b
-        | _ => stuckIrrel r fe depth a b
-      else stuckIrrel r fe depth a b
-    | _ => stuckIrrel r fe depth a b
+          else stuckIrrel mode r fe depth a b
+        | _ => stuckIrrel mode r fe depth a b
+      else stuckIrrel mode r fe depth a b
+    | _ => stuckIrrel mode r fe depth a b
   | .app fo _, .lit l => do
     match l with
     | .strVal st =>
@@ -4255,17 +4359,17 @@ def defeqStuck (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
           if cO = sl ∧ usO = el ∧ fe.strLit = true then do
             let c ← strLitToConstructor st
             r.defeq depth a c
-          else stuckIrrel r fe depth a b
-        | _ => stuckIrrel r fe depth a b
-      else stuckIrrel r fe depth a b
-    | _ => stuckIrrel r fe depth a b
+          else stuckIrrel mode r fe depth a b
+        | _ => stuckIrrel mode r fe depth a b
+      else stuckIrrel mode r fe depth a b
+    | _ => stuckIrrel mode r fe depth a b
   | .fvar i _, .fvar j _ =>
-    if i == j then pure true else stuckIrrel r fe depth a b
+    if i == j then pure true else stuckIrrel mode r fe depth a b
   | .const n us, .const n' us' => do
     if n = n' then do
       if ← liftFueled "level comparison" (← lvlsEq? us us') then pure true
-      else stuckIrrel r fe depth a b
-    else stuckIrrel r fe depth a b
+      else stuckIrrel mode r fe depth a b
+    else stuckIrrel mode r fe depth a b
   | .app _ _, .app _ _ => do
     -- stuck applications: **spine-wise** congruence (official's
     -- `is_def_eq_app`), never a recursion on the partial applications
@@ -4276,19 +4380,19 @@ def defeqStuck (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
       let fb ← getAppFn coreWalkFuel b
       if ← r.defeq depth fa fb then do
         if ← defEqList r fe depth aa bb then pure true
-        else stuckIrrel r fe depth a b
-      else stuckIrrel r fe depth a b
-    else stuckIrrel r fe depth a b
+        else stuckIrrel mode r fe depth a b
+      else stuckIrrel mode r fe depth a b
+    else stuckIrrel mode r fe depth a b
   -- one-sided λ: eta, else the stuck fallbacks (two λs never get here:
   -- `quickDefEq` decides them)
   | .lam ty₁ body₁, _ => do
     if ← etaCert mode r fe depth ty₁ body₁ b then pure true
-    else stuckIrrel r fe depth a b
+    else stuckIrrel mode r fe depth a b
   | _, .lam ty₂ body₂ => do
     if ← etaCert mode r fe depth ty₂ body₂ a then pure true
-    else stuckIrrel r fe depth a b
+    else stuckIrrel mode r fe depth a b
   -- distinct whnf-stuck head symbols
-  | _, _ => stuckIrrel r fe depth a b
+  | _, _ => stuckIrrel mode r fe depth a b
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1843-1894 defeqLazy
 con-leche: ConLeche/Cached/CoreC.lean:1991-2013 defeqLazyI — **the lazy
