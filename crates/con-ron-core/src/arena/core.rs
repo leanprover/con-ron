@@ -4751,6 +4751,75 @@ pub fn eta_ctor_partial(
     }
 }
 
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:754-768 recMajorEta
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1722-1735 recMajorEta` — **does a
+/// recursor's major premise range over an η family?**  The single rule's
+/// constructor's family carries the η flag (`IIndCaps.eta`).  Official reads
+/// the recursor's major inductive; an η family has exactly one constructor, so
+/// its recursor has exactly one rule, whose constructor's family is that
+/// inductive.  Two lookups, no walk.
+pub fn rec_major_eta(pers: &PersTier, fe: &IFEnv, rules: &Vec<IRecRule>) -> bool {
+    if rules.len() == 1 {
+        match env::ifenv_find(pers, fe, &rules[0].ctor) {
+            Some(IConstantInfo::CtorInfo(_, _, _, t)) => match env::ifenv_find(pers, fe, t) {
+                Some(IConstantInfo::IndInfo(_, caps)) => caps.eta,
+                Some(_) => false,
+                None => false,
+            },
+            Some(_) => false,
+            None => false,
+        }
+    } else {
+        false
+    }
+}
+
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:770-786 recEtaPartial
+/// con-leche: ConLeche/Cached/StateC.lean:108-118 recEtaPartialC
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1737-1756 recEtaPartial` — **a
+/// partially applied recursor that η-expands** (official's
+/// `eta_expand_iota_reduce_recursor` gate since lean4#15374): the candidate's
+/// head is a stored recursor applied to at most `m_i` arguments, whose
+/// recursor is K or whose major ranges over an η family (`rec_major_eta`).
+/// `Some(k)`, `k > 0` the arguments it lacks up to the major.  Read off the
+/// stored records alone, before any inference; the spine is counted
+/// (`num_args`), not listed.
+pub fn rec_eta_partial(
+    pers: &PersTier,
+    st: &mut AState,
+    fe: &IFEnv,
+    e: &EIdx,
+) -> Result<Option<u64>, CheckError> {
+    match get_app_fn(pers, st, CORE_WALK_FUEL, e) {
+        Err(er) => Err(er),
+        Ok(hd) => if hd.tag() == ETAG_CONST {
+            match view_const_name(pers, st, &hd) {
+                None => fail_dangling_e(),
+                Some(c) => match env::ifenv_find(pers, fe, &c) {
+                    Some(IConstantInfo::RecInfo(_, m_i0, _, is_k0, rules)) => {
+                        let m_i: u64 = *m_i0;
+                        let is_k: bool = *is_k0;
+                        match num_args(pers, st, CORE_WALK_FUEL, e) {
+                            Err(er) => Err(er),
+                            Ok(n) => {
+                                if n <= m_i && (is_k || rec_major_eta(pers, fe, rules)) {
+                                    Ok(Some(m_i + 1 - n))
+                                } else {
+                                    Ok(None)
+                                }
+                            }
+                        }
+                    }
+                    Some(_) => Ok(None),
+                    None => Ok(None),
+                },
+            }
+        } else {
+            Ok(None)
+        },
+    }
+}
+
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:788-806 ctorTarget
 /// con-leche: ConLeche/Cached/CoreC.lean:144-157 ctorTargetC
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1722-1748 ctorTarget` — **the constructor
@@ -5520,40 +5589,6 @@ pub fn eta_cert_body(
                         }
                     }
                 }
-            },
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:1017-1028 stuckIrrel
-/// con-leche: CHANGED since c8e13b0f — re-port, re-test, re-prove core::stuck_irrel_refines, then delete this line
-/// con-leche: ConLeche/Cached/CoreC.lean:1129-1138 stuckIrrelI
-/// con-leche: CHANGED since c8e13b0f — re-port, re-test, re-prove core::stuck_irrel_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2013-2021 stuckIrrel` — the
-/// fallback for structurally distinct stuck terms: structural eta in either
-/// direction, unit-likeness, else proof irrelevance.
-pub fn stuck_irrel(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    eager: bool,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    a: &EIdx,
-    b: &EIdx,
-) -> Result<bool, CheckError> {
-    match struct_eta_cert(pers, st, mode, eager, lane, fuel, fe, depth, a, b) {
-        Err(e) => Err(e),
-        Ok(true) => Ok(true),
-        Ok(false) => match struct_eta_cert(pers, st, mode, eager, lane, fuel, fe, depth, b, a) {
-            Err(e) => Err(e),
-            Ok(true) => Ok(true),
-            Ok(false) => match struct_unit_cert(pers, st, mode, eager, lane, fuel, fe, depth, a, b) {
-                Err(e) => Err(e),
-                Ok(true) => Ok(true),
-                Ok(false) => proof_irrel(pers, st, mode, eager, lane, fuel, fe, depth, a, b),
             },
         },
     }
@@ -7466,6 +7501,194 @@ pub fn whnf_app_iota(
         }
     } else {
         Ok(None)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:867-965 iotaRec
+/// con-leche: ConLeche/Cached/CoreC.lean:1073-1087 iotaRecAtI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2700-2707 iotaRecSpine` — **the ι
+/// step at a spine `e`** (the dispatch of `iotaRec`): the head and the
+/// arguments read off the term (`head_and_args`), then `whnf_app_iota`'s gate
+/// (a stored recursor at its own number of levels, applied to exactly `m_i + 1`
+/// arguments) and the step.
+pub fn iota_rec_spine(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    e: &EIdx,
+) -> Result<Option<EIdx>, CheckError> {
+    match head_and_args(pers, st, e) {
+        Err(er) => Err(er),
+        Ok((hd, args)) => {
+            let n: usize = args.len();
+            whnf_app_iota(pers, st, mode, eager, lane, fuel, fe, depth, &hd, &args, n)
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:967-996 recEtaTele
+/// con-leche: ConLeche/Cached/CoreC.lean:1089-1114 recEtaTeleI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2709-2731 recEtaTele` — **the
+/// η-expansion of a partially applied recursor, ι-reduced** (official's
+/// `eta_expand_iota_reduce_recursor`, lean4#15374): `f`, of type `t`, is
+/// applied to `k` fresh variables along `t`'s binders, each reached by head
+/// normalization; the full application is ι-reduced (`iota_rec_spine`, with
+/// the stuck-major rescues); the result is the reduct abstracted over the
+/// variables, `λ x⃗. r`.  `None` where a rest is no ∀ or the ι step does not
+/// fire.  At the verified mode only, **the typing certificate** (con-leche
+/// task #632): the reduct's full-grade type against the codomain at the
+/// variables.  The abstraction is the memoized `abstract1`.
+pub fn rec_eta_tele(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    k: u64,
+    depth: u64,
+    f: &EIdx,
+    t: &EIdx,
+) -> Result<Option<EIdx>, CheckError> {
+    if k == 0 {
+        match iota_rec_spine(pers, st, mode, eager, lane, fuel, fe, depth, f) {
+            Err(er) => Err(er),
+            Ok(None) => Ok(None),
+            Ok(Some(e)) => {
+                if verified_checks(mode) {
+                    match knot_infer(pers, st, mode, eager, lane, fuel, fe, depth, &e) {
+                        Err(er) => Err(er),
+                        Ok(te) => match knot_defeq(pers, st, mode, eager, lane, fuel, fe, depth, &te, t) {
+                            Err(er) => Err(er),
+                            Ok(true) => Ok(Some(e)),
+                            Ok(false) => Ok(None),
+                        },
+                    }
+                } else {
+                    Ok(Some(e))
+                }
+            }
+        }
+    } else {
+        match knot_whnf(pers, st, mode, eager, lane, fuel, fe, depth, t) {
+            Err(er) => Err(er),
+            Ok(w) => if w.tag() == ETAG_FORALL_E {
+                match view_bind(pers, st, &w) {
+                    None => fail_dangling_e(),
+                    Some((dom, body)) => match intern_e_fvar(pers, st, depth, dom.dup2()) {
+                        Err(er) => Err(er),
+                        Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
+                            Err(er) => Err(er),
+                            Ok(body2) => match intern_e_app(pers, st, f.dup2(), fv) {
+                                Err(er) => Err(er),
+                                Ok(f2) => match rec_eta_tele(
+                                    pers, st, mode, eager, lane, fuel, fe, k - 1, depth + 1, &f2, &body2,
+                                ) {
+                                    Err(er) => Err(er),
+                                    Ok(None) => Ok(None),
+                                    Ok(Some(e)) => match abstract1_fast(pers, st, CORE_WALK_FUEL, &e, depth, 0) {
+                                        Err(er) => Err(er),
+                                        Ok(ea) => match intern_e_lam(pers, st, dom, ea) {
+                                            Err(er) => Err(er),
+                                            Ok(lam) => Ok(Some(lam)),
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                }
+            } else {
+                Ok(None)
+            },
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:998-1015 recEtaCert
+/// con-leche: ConLeche/Cached/CoreC.lean:1116-1127 recEtaCertI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2733-2748 recEtaCert` — **recursor
+/// η** (official's `try_eta_expansion_core` arm since lean4#15374): `b` is a
+/// partially applied recursor whose recursor is K or whose major ranges over an
+/// η family (`rec_eta_partial`), expanded and ι-reduced to `λ x⃗. r`
+/// (`rec_eta_tele`, along `b`'s io-inferred type), and `a` is definitionally
+/// equal to that λ.  `a` must be neutral: the sides are weak-head normal, so
+/// that is "`a` is no λ", official's arm order.
+pub fn rec_eta_cert(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    a: &EIdx,
+    b: &EIdx,
+) -> Result<bool, CheckError> {
+    match io_neutral(pers, st, a) {
+        Err(er) => Err(er),
+        Ok(false) => Ok(false),
+        Ok(true) => match rec_eta_partial(pers, st, fe, b) {
+            Err(er) => Err(er),
+            Ok(None) => Ok(false),
+            Ok(Some(k)) => match knot_infer_io(pers, st, mode, eager, lane, fuel, fe, depth, b) {
+                Err(er) => Err(er),
+                Ok(tb) => match rec_eta_tele(pers, st, mode, eager, lane, fuel, fe, k, depth, b, &tb) {
+                    Err(er) => Err(er),
+                    Ok(None) => Ok(false),
+                    Ok(Some(lam)) => knot_defeq(pers, st, mode, eager, lane, fuel, fe, depth, a, &lam),
+                },
+            },
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:1017-1028 stuckIrrel
+/// con-leche: ConLeche/Cached/CoreC.lean:1129-1138 stuckIrrelI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2750-2760 stuckIrrel` — the
+/// fallback for structurally distinct stuck terms: recursor η in either
+/// direction (official's `try_eta_expansion`, whose function-η half is
+/// `eta_cert`), structural eta in either direction, unit-likeness, else proof
+/// irrelevance.
+pub fn stuck_irrel(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    eager: bool,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    a: &EIdx,
+    b: &EIdx,
+) -> Result<bool, CheckError> {
+    match rec_eta_cert(pers, st, mode, eager, lane, fuel, fe, depth, a, b) {
+        Err(e) => Err(e),
+        Ok(true) => Ok(true),
+        Ok(false) => match rec_eta_cert(pers, st, mode, eager, lane, fuel, fe, depth, b, a) {
+            Err(e) => Err(e),
+            Ok(true) => Ok(true),
+            Ok(false) => match struct_eta_cert(pers, st, mode, eager, lane, fuel, fe, depth, a, b) {
+                Err(e) => Err(e),
+                Ok(true) => Ok(true),
+                Ok(false) => match struct_eta_cert(pers, st, mode, eager, lane, fuel, fe, depth, b, a) {
+                    Err(e) => Err(e),
+                    Ok(true) => Ok(true),
+                    Ok(false) => match struct_unit_cert(pers, st, mode, eager, lane, fuel, fe, depth, a, b) {
+                        Err(e) => Err(e),
+                        Ok(true) => Ok(true),
+                        Ok(false) => proof_irrel(pers, st, mode, eager, lane, fuel, fe, depth, a, b),
+                    },
+                },
+            },
+        },
     }
 }
 
@@ -11004,7 +11227,6 @@ pub fn defeq_proj_pair(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1774-1841 defeqStuck
-/// con-leche: CHANGED since c8e13b0f — re-port, re-test, re-prove core::defeq_str_app_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4220-4289 defeqStuck` — the string arms,
 /// merged with their mirror image: a string literal `s` against a unary
 /// `String.ofList` application whose function part is `fo`, compared
@@ -11069,7 +11291,6 @@ pub fn defeq_str_app(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1774-1841 defeqStuck
-/// con-leche: CHANGED since c8e13b0f — re-port, re-test, re-prove core::defeq_apps_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4220-4289 defeqStuck` — stuck
 /// applications: **spine-wise** congruence (official's `is_def_eq_app`), never
 /// a recursion on the partial applications.
@@ -11126,7 +11347,6 @@ pub fn defeq_apps(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1774-1841 defeqStuck
-/// con-leche: CHANGED since c8e13b0f — re-port, re-test, re-prove core::defeq_stuck_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1941-1989 defeqStuckI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4220-4289 defeqStuck` — **the stuck
 /// comparison** (the tail of the official kernel's `is_def_eq_core`): a string
