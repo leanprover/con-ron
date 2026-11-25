@@ -797,7 +797,6 @@ pub struct LsStore {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::BVarNode_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Store.lean:254-258 BVarNode` — the `bvar`
 /// constructor, line 401.  Deviation (DESIGN.md §3.3): the Lean's `Nat` is a
 /// `u64`, as `expr::bvar`'s index already is.
@@ -806,7 +805,6 @@ pub struct BVarNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::FVarNode_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Store.lean:260-265 FVarNode` — the `fvar`
 /// constructor, line 402.
 pub struct FVarNode {
@@ -815,7 +813,6 @@ pub struct FVarNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::SortNode_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Store.lean:267-271 SortNode` — the `sort`
 /// constructor, line 403.
 pub struct SortNode {
@@ -823,7 +820,6 @@ pub struct SortNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::ConstNode_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Store.lean:273-278 ConstNode` — the `const`
 /// constructor, line 404.  Two words: the level arguments are one interned
 /// handle, not a list.
@@ -833,7 +829,6 @@ pub struct ConstNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::AppNode_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Store.lean:280-285 AppNode` — the `app`
 /// constructor, line 405.  Eight bytes of node and eight of derived word,
 /// which is what DESIGN.md §8.5 prices the representation at.
@@ -843,7 +838,6 @@ pub struct AppNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::BindNode_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Store.lean:287-294 BindNode` — the `lam`
 /// constructor, line 406, and `forallE`, line 407: same three fields, its own
 /// array.
@@ -853,7 +847,6 @@ pub struct BindNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::LetNode_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Store.lean:296-302 LetNode` — the `letE`
 /// constructor, line 408.
 pub struct LetNode {
@@ -863,7 +856,6 @@ pub struct LetNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::LitNode_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Store.lean:304-308 LitNode` — the `lit`
 /// constructor, line 409.
 pub struct LitNode {
@@ -883,7 +875,6 @@ pub fn lit_node(l: Literal) -> LitNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::ProjNode_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Store.lean:310-316 ProjNode` — the `proj`
 /// constructor, line 410.
 pub struct ProjNode {
@@ -1184,7 +1175,6 @@ impl Dup for ProjNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::ENodeView_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Store.lean:328-343 ENodeView` — the
 /// store-side view of an expression node: con-leche's ten constructors with
 /// every subterm replaced by a handle.  `Literal` stays a *value* (it is
@@ -2822,7 +2812,6 @@ impl ETables {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::der_of_bind_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` — the
 /// `lam` (hash tag 19) and `forallE` (23) arms, which differ in nothing but
 /// the tag.  It is `con_ron_core::kernel::expr::lam`'s body with `data(&ty)`
@@ -2834,8 +2823,8 @@ impl ETables {
 /// arms verbatim.
 pub fn der_of_bind(tag: u64, dt: u64, db: u64) -> u64 {
     let h: u64 = expr::hash32(name::mix_hash(
-        tag,
         name::mix_hash(expr::hash_of_data(dt), expr::hash_of_data(db)),
+        tag,
     ));
     expr::pack_data(
         h,
@@ -2846,7 +2835,6 @@ pub fn der_of_bind(tag: u64, dt: u64, db: u64) -> u64 {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::der_of_lit_hash_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` — the
 /// `lit` arm (`con_ron_core::kernel::expr::lit`'s body) from the literal's
 /// hash, which `intern_lit` already holds in its record (`LitNode::h`).
@@ -2856,18 +2844,17 @@ pub fn der_of_lit_hash(lh: u64) -> u64 {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::der_of_let_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` — the
 /// `letE` arm, `con_ron_core::kernel::expr::let_e`'s body over the derived
 /// column.  A function for the reason `der_of_bind` is one: its
 /// level-parameter bit is a three-way disjunction too.
 pub fn der_of_let(dt: u64, dv: u64, db: u64) -> u64 {
     let h: u64 = expr::hash32(name::mix_hash(
-        29,
         name::mix_hash(
-            expr::hash_of_data(dt),
-            name::mix_hash(expr::hash_of_data(dv), expr::hash_of_data(db)),
+            name::mix_hash(expr::hash_of_data(dt), expr::hash_of_data(dv)),
+            expr::hash_of_data(db),
         ),
+        29,
     ));
     expr::pack_data(
         h,
@@ -2884,7 +2871,6 @@ pub fn der_of_let(dt: u64, dv: u64, db: u64) -> u64 {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::e_bind_view_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Store.lean:1054-1061 eBindView` —
 /// `eBindView`, the inverse of `EStore.viewBind`: rebuild the binder view a
 /// walk decoded with `viewBind`, at the tag it decoded it at. `lam` and
@@ -3413,7 +3399,6 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-    /// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::derived_refines, then delete this line
     /// Lean twin: `proof/ConRon/Arena/Store.lean:460-464 EStore.derived` — the
     /// `data` computed field, lines 414-459: the packed derived word of an
     /// expression handle, an `O(1)` column read.
@@ -3429,7 +3414,6 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-    /// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove crates/con-ron-core/src/arena/store.rs_refines, then delete this line
     /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` —
     /// the `bvar` arm, which is `con_ron_core::kernel::expr::bvar`'s own body.
     ///
@@ -3456,7 +3440,6 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-    /// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::der_of_fvar_refines, then delete this line
     /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` —
     /// the `fvar` arm (`con_ron_core::kernel::expr::fvar`'s body).  See
     /// `der_of_bvar`'s note.
@@ -3464,14 +3447,13 @@ impl EStore {
     pub fn der_of_fvar(&self, pers: &PersTier, idx: u64, ty: &EIdx) -> u64 {
         let dt: u64 = self.derived(pers, ty);
         let h: u64 = expr::hash32(name::mix_hash(
-            5,
-            name::mix_hash(name::nat_hash(idx), expr::hash_of_data(dt)),
+            name::mix_hash(5, name::nat_hash(idx)),
+            expr::hash_of_data(dt),
         ));
         expr::pack_data(h, 0, expr::sat_succ(idx), expr::lp_of_data(dt))
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-    /// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::der_of_sort_refines, then delete this line
     /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` —
     /// the `sort` arm (`con_ron_core::kernel::expr::sort`'s body).  See
     /// `der_of_bvar`'s note.
@@ -3483,7 +3465,6 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-    /// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::der_of_const_refines, then delete this line
     /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` —
     /// the `const` arm (`con_ron_core::kernel::expr::mk_const`'s body).  See
     /// `der_of_bvar`'s note.
@@ -3496,7 +3477,6 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-    /// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::der_of_app_refines, then delete this line
     /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` —
     /// the `app` arm (`con_ron_core::kernel::expr::app`'s body).  See
     /// `der_of_bvar`'s note.
@@ -3505,8 +3485,8 @@ impl EStore {
         let df: u64 = self.derived(pers, f);
         let da: u64 = self.derived(pers, a);
         let h: u64 = expr::hash32(name::mix_hash(
-            17,
             name::mix_hash(expr::hash_of_data(df), expr::hash_of_data(da)),
+            17,
         ));
         expr::pack_data(
             h,
@@ -3517,7 +3497,6 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-    /// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::der_of_bind_at_refines, then delete this line
     /// Lean twin: `proof/ConRon/Arena/Store.lean:365-373 EStore.derOfBindAtI`
     /// — `derOfBindAtI`, the `lam`/`forallE` arm over the datum's HANDLE: the
     /// two scalars `derOfBind` wants of the datum are the binder-datum store's
@@ -3529,7 +3508,6 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-    /// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::der_of_let_at_refines, then delete this line
     /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` —
     /// the `letE` arm, whose arithmetic is `der_of_let`'s.  See
     /// `der_of_bvar`'s note.
@@ -3539,7 +3517,6 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-    /// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::der_of_lit_refines, then delete this line
     /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` —
     /// the `lit` arm (`con_ron_core::kernel::expr::lit`'s body).  See
     /// `der_of_bvar`'s note.
@@ -3549,7 +3526,6 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-    /// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove store::der_of_proj_refines, then delete this line
     /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` —
     /// the `proj` arm (`con_ron_core::kernel::expr::proj`'s body).  See
     /// `der_of_bvar`'s note.
@@ -3557,11 +3533,8 @@ impl EStore {
     pub fn der_of_proj(&self, pers: &PersTier, s: &NIdx, i: u64, e: &EIdx) -> u64 {
         let de: u64 = self.derived(pers, e);
         let h: u64 = expr::hash32(name::mix_hash(
-            37,
-            name::mix_hash(
-                self.nder(pers, s),
-                name::mix_hash(name::nat_hash(i), expr::hash_of_data(de)),
-            ),
+            name::mix_hash(name::mix_hash(37, self.nder(pers, s)), name::nat_hash(i)),
+            expr::hash_of_data(de),
         ));
         expr::pack_data(
             h,
@@ -3572,7 +3545,6 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-    /// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove crates/con-ron-core/src/arena/store.rs_refines, then delete this line
     /// Lean twin: `proof/ConRon/Arena/Store.lean:466-473 EStore.derOfView` —
     /// the `data` computed field, lines 414-459.
     ///

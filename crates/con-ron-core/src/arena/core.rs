@@ -11116,10 +11116,12 @@ pub fn lazy_delta_reduction(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1743-1779 lazyDeltaProjReduction
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove core::lazy_delta_proj_fields_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4289-4309 lazyDeltaProjReduction` — the
-/// projection loop's exit: the projection tried on both scrutinees and the
-/// projected fields compared; failing that, the scrutinees themselves.
+/// projection loop's exit when the step found the scrutinees different or
+/// could not decide: a BARE pair (`xs`, `ys` empty) has the projection tried
+/// on both scrutinees and the projected fields compared, failing that the
+/// scrutinees themselves; an APPLIED pair gives up (`false`), and
+/// `defeq_after_lazy` goes on to the full `whnf_core`.
 pub fn lazy_delta_proj_fields(
     pers: &PersTier,
     st: &mut AState,
@@ -11131,28 +11133,34 @@ pub fn lazy_delta_proj_fields(
     depth: u64,
     sn: &NIdx,
     i: u64,
+    xs: &Vec<EIdx>,
+    ys: &Vec<EIdx>,
     a: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    match reduce_proj_core(pers, st, mode, eager, lane, fuel, fe, depth, sn, i, a) {
-        Err(e) => Err(e),
-        Ok(Some(x)) => match reduce_proj_core(pers, st, mode, eager, lane, fuel, fe, depth, sn, i, b) {
+    if xs.len() == 0 && ys.len() == 0 {
+        match reduce_proj_core(pers, st, mode, eager, lane, fuel, fe, depth, sn, i, a) {
             Err(e) => Err(e),
-            Ok(Some(y)) => knot_defeq(pers, st, mode, eager, lane, fuel, fe, depth, &x, &y),
+            Ok(Some(x)) => match reduce_proj_core(pers, st, mode, eager, lane, fuel, fe, depth, sn, i, b) {
+                Err(e) => Err(e),
+                Ok(Some(y)) => knot_defeq(pers, st, mode, eager, lane, fuel, fe, depth, &x, &y),
+                Ok(None) => knot_defeq(pers, st, mode, eager, lane, fuel, fe, depth, a, b),
+            },
             Ok(None) => knot_defeq(pers, st, mode, eager, lane, fuel, fe, depth, a, b),
-        },
-        Ok(None) => knot_defeq(pers, st, mode, eager, lane, fuel, fe, depth, a, b),
+        }
+    } else {
+        Ok(false)
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1743-1779 lazyDeltaProjReduction
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove core::lazy_delta_proj_reduction_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1913-1930 lazyDeltaProjReductionI
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove core::lazy_delta_proj_reduction_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4289-4309 lazyDeltaProjReduction` —
-/// **`a.i =?= b.i` by its scrutinees** (the official kernel's
-/// `lazy_delta_proj_reduction`): lazy-delta steps on the two scrutinees, on
-/// the loop's own budget `n`.
+/// **`a.i xs =?= b.i ys` by its scrutinees** (the official kernel's
+/// `lazy_delta_proj_reduction`, extended to applied projections as con-leche
+/// does, lean4#16613): lazy-delta steps on the two scrutinees, on the loop's
+/// own budget `n`; once a step finds them equal, the argument lists are
+/// compared last to first (`eidx_rev`, as `defeq_spine` does).
 pub fn lazy_delta_proj_reduction(
     pers: &PersTier,
     st: &mut AState,
@@ -11164,6 +11172,8 @@ pub fn lazy_delta_proj_reduction(
     depth: u64,
     sn: &NIdx,
     i: u64,
+    xs: &Vec<EIdx>,
+    ys: &Vec<EIdx>,
     n: u64,
     a: &EIdx,
     b: &EIdx,
@@ -11174,26 +11184,31 @@ pub fn lazy_delta_proj_reduction(
         match lazy_delta_step(pers, st, mode, eager, lane, fuel, fe, depth, a, b) {
             Err(e) => Err(e),
             Ok(DeltaStepA::Cont(a2, b2)) => lazy_delta_proj_reduction(
-                pers, st, mode, eager, lane, fuel, fe, depth, sn, i, n - 1, &a2, &b2,
+                pers, st, mode, eager, lane, fuel, fe, depth, sn, i, xs, ys, n - 1, &a2, &b2,
             ),
-            Ok(DeltaStepA::Eq) => Ok(true),
-            Ok(DeltaStepA::Diff) => {
-                lazy_delta_proj_fields(pers, st, mode, eager, lane, fuel, fe, depth, sn, i, a, b)
+            Ok(DeltaStepA::Eq) => {
+                // last to first, as official `is_def_eq_args`
+                let rx: Vec<EIdx> = eidx_rev(xs, xs.len(), Vec::with_capacity(xs.len()));
+                let ry: Vec<EIdx> = eidx_rev(ys, ys.len(), Vec::with_capacity(ys.len()));
+                def_eq_list(pers, st, mode, eager, lane, fuel, fe, depth, &rx, &ry, 0)
             }
-            Ok(DeltaStepA::Unknown) => {
-                lazy_delta_proj_fields(pers, st, mode, eager, lane, fuel, fe, depth, sn, i, a, b)
-            }
+            Ok(DeltaStepA::Diff) => lazy_delta_proj_fields(
+                pers, st, mode, eager, lane, fuel, fe, depth, sn, i, xs, ys, a, b,
+            ),
+            Ok(DeltaStepA::Unknown) => lazy_delta_proj_fields(
+                pers, st, mode, eager, lane, fuel, fe, depth, sn, i, xs, ys, a, b,
+            ),
         }
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1781-1793 defeqProjPair
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove core::defeq_proj_pair_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1932-1943 defeqProjPairI
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove core::defeq_proj_pair_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:4311-4324 defeqProjPair` — the proj/proj
-/// check of `is_def_eq_core`: two projections at the same slot go through
-/// `lazy_delta_proj_reduction` on their scrutinees.
+/// check of `is_def_eq_core`: two projection-headed spines at the same slot,
+/// bare or applied to equally many arguments, go through
+/// `lazy_delta_proj_reduction` on their scrutinees.  The argument vectors are
+/// read only once the heads match.
 pub fn defeq_proj_pair(
     pers: &PersTier,
     st: &mut AState,
@@ -11206,28 +11221,51 @@ pub fn defeq_proj_pair(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    if a.tag() == ETAG_PROJ && b.tag() == ETAG_PROJ {
-        match view(pers, st, a) {
-            Err(e) => Err(e),
-            Ok(va) => match view(pers, st, b) {
+    match get_app_fn(pers, st, CORE_WALK_FUEL, a) {
+        Err(e) => Err(e),
+        Ok(ha) => if ha.tag() == ETAG_PROJ {
+            match get_app_fn(pers, st, CORE_WALK_FUEL, b) {
                 Err(e) => Err(e),
-                Ok(vb) => match (va, vb) {
-                    (ENodeView::Proj(s1, i1, e1), ENodeView::Proj(s2, i2, e2)) => {
-                        if s1.eq2(&s2) && i1 == i2 {
-                            lazy_delta_proj_reduction(
-                                pers, st, mode, eager, lane, fuel, fe, depth, &s1, i1,
-                                DEFEQ_LOOP_FUEL, &e1, &e2,
-                            )
-                        } else {
-                            Ok(false)
-                        }
+                Ok(hb) => if hb.tag() == ETAG_PROJ {
+                    match view(pers, st, &ha) {
+                        Err(e) => Err(e),
+                        Ok(va) => match view(pers, st, &hb) {
+                            Err(e) => Err(e),
+                            Ok(vb) => match (va, vb) {
+                                (ENodeView::Proj(s1, i1, e1), ENodeView::Proj(s2, i2, e2)) => {
+                                    if s1.eq2(&s2) && i1 == i2 {
+                                        match get_app_args(pers, st, CORE_WALK_FUEL, a) {
+                                            Err(e) => Err(e),
+                                            Ok(xs) => match get_app_args(pers, st, CORE_WALK_FUEL, b) {
+                                                Err(e) => Err(e),
+                                                Ok(ys) => {
+                                                    if xs.len() == ys.len() {
+                                                        lazy_delta_proj_reduction(
+                                                            pers, st, mode, eager, lane, fuel, fe,
+                                                            depth, &s1, i1, &xs, &ys,
+                                                            DEFEQ_LOOP_FUEL, &e1, &e2,
+                                                        )
+                                                    } else {
+                                                        Ok(false)
+                                                    }
+                                                }
+                                            },
+                                        }
+                                    } else {
+                                        Ok(false)
+                                    }
+                                }
+                                (_, _) => Ok(false),
+                            },
+                        },
                     }
-                    (_, _) => Ok(false),
+                } else {
+                    Ok(false)
                 },
-            },
-        }
-    } else {
-        Ok(false)
+            }
+        } else {
+            Ok(false)
+        },
     }
 }
 

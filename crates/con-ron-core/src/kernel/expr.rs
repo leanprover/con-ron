@@ -289,7 +289,6 @@ pub fn sat_pred(x: u64) -> u64 {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove expr::ExprKind_refines, then delete this line
 /// The ten constructors of `inductive Expr`, as the node's payload.
 ///
 /// **Task #97-SWAP-2 put this back in the node.**  Between tasks #94 and
@@ -318,7 +317,6 @@ pub enum ExprKind {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove expr::ExprNode_refines, then delete this line
 /// The node: the cited `@[computed_field] data` beside the constructor data.
 /// One heap cell behind the `P` of [`Expr`], as wide as the widest arm —
 /// which is what a startup-only representation may pay (see [`ExprKind`]).
@@ -328,7 +326,6 @@ pub struct ExprNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove crates/con-ron-core/src/kernel/expr.rs_refines, then delete this line
 /// A kernel expression: a `P` handle to an immutable [`ExprNode`] — Lean's
 /// value semantics made sharing (DESIGN.md §3.2).
 ///
@@ -354,7 +351,6 @@ pub struct ExprNode {
 pub struct Expr(pub P<ExprNode>);
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove expr::ExprView_refines, then delete this line
 /// The ten constructors as a **borrowed** enum: what a reader matches on.
 ///
 /// Every arm holds references, including the scalar ones (`&u64`), so that a
@@ -377,7 +373,6 @@ pub enum ExprView<'a> {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove expr::view_refines, then delete this line
 /// Look at a term's constructor: the `match` every reader of the core does,
 /// through the handle's `Deref`.  The projection of DESIGN.md §3.2's model —
 /// `view (app f a) = App f a`, ten equations, one per constructor — and since
@@ -398,7 +393,6 @@ pub fn view<'a>(e: &'a Expr) -> ExprView<'a> {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove expr::data_refines, then delete this line
 /// The cached `@[computed_field] data`, an `O(1)` field read.
 pub fn data(e: &Expr) -> u64 {
     e.0.data
@@ -411,7 +405,6 @@ pub fn dup(e: &Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove expr::bvar_refines, then delete this line
 /// `Expr.bvar`, with the cited `data` equation
 /// `packData (hash32 (mixHash 3 (hash i))) (satSucc i) 0 false`.
 pub fn bvar(i: u64) -> Expr {
@@ -421,7 +414,6 @@ pub fn bvar(i: u64) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove expr::fvar_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprNodes.lean:89-90 mkFVar
 /// `Expr.fvar`: hash tag 5; the fvar range is `satSucc idx`, the bvar bound
 /// is `0` (a type annotation is never descended by the abstraction walks)
@@ -429,15 +421,14 @@ pub fn bvar(i: u64) -> Expr {
 pub fn fvar(idx: u64, ty: Expr) -> Expr {
     let dt: u64 = data(&ty);
     let h: u64 = hash32(name::mix_hash(
-        5,
-        name::mix_hash(name::nat_hash(idx), hash_of_data(dt)),
+        name::mix_hash(5, name::nat_hash(idx)),
+        hash_of_data(dt),
     ));
     let d: u64 = pack_data(h, 0, sat_succ(idx), lp_of_data(dt));
     Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Fvar(idx, ty) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove expr::sort_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprNodes.lean:92 mkSort
 /// `Expr.sort`: hash tag 7 over the level's own cached hash; both ranges are
 /// `0` and the level-param bit is `levelHasParam u`.
@@ -448,7 +439,6 @@ pub fn sort(u: Level) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove expr::mk_const_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprNodes.lean:94 mkConst
 /// `Expr.const`: hash tag 11 over the name's hash and `levelsHash us`.
 /// Deviation: `const` is a Rust keyword, so the smart constructor is
@@ -463,16 +453,25 @@ pub fn mk_const(n: Name, us: Vec<Level>) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove expr::app_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprNodes.lean:96 mkApp
 /// `Expr.app`: hash tag 17; both ranges are the componentwise `max` and the
 /// level-param bit the disjunction.
+///
+/// The order of the `mix_hash` calls is the cited one, in every arm: a
+/// 64-bit value (an index, a name's, level's or literal's hash) enters
+/// through the `k` slot, each child's 32-bit hash passes through `k` at most
+/// once, and the tag comes last.  Truncated to 32 bits, `mix_hash h k` is a
+/// bijection in `h`'s low half and lossy in `k`, so on a chain `x ↦ C[x]`
+/// (an accumulator `acc + 1`, a successor tower) every lossy pass per step
+/// shortens the random-function orbit the hashes run through, after which
+/// every memo lookup collides with an older chain element (con-leche task
+/// #634).
 pub fn app(f: Expr, a: Expr) -> Expr {
     let df: u64 = data(&f);
     let da: u64 = data(&a);
     let h: u64 = hash32(name::mix_hash(
-        17,
         name::mix_hash(hash_of_data(df), hash_of_data(da)),
+        17,
     ));
     let d: u64 = pack_data(
         h,
@@ -484,7 +483,6 @@ pub fn app(f: Expr, a: Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove expr::lam_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprNodes.lean:98-99 mkLam
 /// `Expr.lam`: hash tag 19 over the type and the body; the bvar bound drops
 /// the bound occurrence (`satPred` on the body's), the fvar range does not.
@@ -492,8 +490,8 @@ pub fn lam(ty: Expr, body: Expr) -> Expr {
     let dt: u64 = data(&ty);
     let db: u64 = data(&body);
     let h: u64 = hash32(name::mix_hash(
-        19,
         name::mix_hash(hash_of_data(dt), hash_of_data(db)),
+        19,
     ));
     let d: u64 = pack_data(
         h,
@@ -505,15 +503,14 @@ pub fn lam(ty: Expr, body: Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove expr::forall_e_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprNodes.lean:101-102 mkForallE
 /// `Expr.forallE`: `lam`'s equation with hash tag 23.
 pub fn forall_e(ty: Expr, body: Expr) -> Expr {
     let dt: u64 = data(&ty);
     let db: u64 = data(&body);
     let h: u64 = hash32(name::mix_hash(
-        23,
         name::mix_hash(hash_of_data(dt), hash_of_data(db)),
+        23,
     ));
     let d: u64 = pack_data(
         h,
@@ -525,7 +522,6 @@ pub fn forall_e(ty: Expr, body: Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove expr::let_e_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprNodes.lean:104-105 mkLetE
 /// `Expr.letE`: hash tag 29 over type, value and body; only the body is
 /// under the binder, so only its bvar bound is `satPred`ed.
@@ -534,11 +530,11 @@ pub fn let_e(ty: Expr, value: Expr, body: Expr) -> Expr {
     let dv: u64 = data(&value);
     let db: u64 = data(&body);
     let h: u64 = hash32(name::mix_hash(
-        29,
         name::mix_hash(
-            hash_of_data(dt),
-            name::mix_hash(hash_of_data(dv), hash_of_data(db)),
+            name::mix_hash(hash_of_data(dt), hash_of_data(dv)),
+            hash_of_data(db),
         ),
+        29,
     ));
     let d: u64 = pack_data(
         h,
@@ -553,7 +549,6 @@ pub fn let_e(ty: Expr, value: Expr, body: Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove expr::lit_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprNodes.lean:107 mkLit
 /// `Expr.lit`: hash tag 31; a literal is closed, so both ranges are `0` and
 /// the level-param bit is `false`.
@@ -564,18 +559,17 @@ pub fn lit(l: Literal) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
-/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove expr::proj_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprNodes.lean:109 mkProj
 /// `Expr.proj`: hash tag 37 over the structure name, the field index and the
 /// subterm; the ranges and the level-param bit are the subterm's unchanged.
 pub fn proj(struct_name: Name, idx: u64, e: Expr) -> Expr {
     let de: u64 = data(&e);
     let h: u64 = hash32(name::mix_hash(
-        37,
         name::mix_hash(
-            name::hash_data(&struct_name),
-            name::mix_hash(name::nat_hash(idx), hash_of_data(de)),
+            name::mix_hash(37, name::hash_data(&struct_name)),
+            name::nat_hash(idx),
         ),
+        hash_of_data(de),
     ));
     let d: u64 = pack_data(h, bvar_of_data(de), fvar_of_data(de), lp_of_data(de));
     Expr(ptr::new(ExprNode {
