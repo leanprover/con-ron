@@ -596,8 +596,8 @@ theorem lazy_delta_reduction_aux {f : Nat} (hk : KnotRel f) {pers : arena.store.
   lazy_delta_reduction_aux hk hx hctx hf depth _ n a b rfl hrel hinv
 
 theorem lazyDeltaProjReduction_zero (mode : ConLeche.CheckMode) (r : CoreFnsA) (fe : IFEnv)
-    (d : Nat) (sn : NIdx) (i : Nat) (a b : EIdx) :
-    lazyDeltaProjReduction mode r fe d sn i 0 a b
+    (d : Nat) (sn : NIdx) (i : Nat) (xs ys : List EIdx) (a b : EIdx) :
+    lazyDeltaProjReduction mode r fe d sn i xs ys 0 a b
       = Arena.fail (.internal "fuel exhausted: lazy delta projection loop") := by
   rw [lazyDeltaProjReduction]
 
@@ -605,14 +605,16 @@ set_option maxRecDepth 8000 in
 set_option maxHeartbeats 8000000 in
 theorem lazy_delta_proj_reduction_aux {f : Nat} (hk : KnotRel f) {pers : arena.store.PersTier}
     (hx : ExprOpsHyp pers) {mode eager lane fu fe lfe} (hctx : CoreCtx pers fe lfe)
-    (hf : absU fu = f) (depth : Std.U64) (sn : arena.handle.NIdx) (i : Std.U64) (m : Nat) :
+    (hf : absU fu = f) (depth : Std.U64) (sn : arena.handle.NIdx) (i : Std.U64)
+    (xs ys : alloc.vec.Vec arena.handle.EIdx) (m : Nat) :
     ∀ {st : arena.monad.AState} {lst : AState} (n : Std.U64) (a b : arena.handle.EIdx),
       absU n = m → AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = a)
-        (arena.core.lazy_delta_proj_reduction pers st mode eager lane fu fe depth sn i n a b) lst
+        (arena.core.lazy_delta_proj_reduction pers st mode eager lane fu fe depth sn i xs ys n a b)
+        lst
         (lazyDeltaProjReduction (ConRon.Refine.absMode mode)
           (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth) (absNIdx sn)
-          (absU i) m (absEIdx a) (absEIdx b)) := by
+          (absU i) (absEIdxList xs) (absEIdxList ys) m (absEIdx a) (absEIdx b)) := by
   induction m with
   | zero =>
     intro st lst n a b hn hrel hinv
@@ -626,16 +628,17 @@ theorem lazy_delta_proj_reduction_aux {f : Nat} (hk : KnotRel f) {pers : arena.s
 /-- `arena::core::lazy_delta_proj_reduction` against
 `Arena.lazyDeltaProjReduction`. -/
 @[lockstep] theorem lazy_delta_proj_reduction_ls {f : Nat} (hk : KnotRel f)
-    {pers st mode eager lane fu fe lfe depth sn i n a b lst}
+    {pers st mode eager lane fu fe lfe depth sn i xs ys n a b lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = a)
-      (arena.core.lazy_delta_proj_reduction pers st mode eager lane fu fe depth sn i n a b) lst
+      (arena.core.lazy_delta_proj_reduction pers st mode eager lane fu fe depth sn i xs ys n a b)
+      lst
       (lazyDeltaProjReduction (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth) (absNIdx sn)
-        (absU i) (absU n) (absEIdx a) (absEIdx b)) :=
-  lazy_delta_proj_reduction_aux hk hx hctx hf depth sn i _ n a b rfl hrel hinv
+        (absU i) (absEIdxList xs) (absEIdxList ys) (absU n) (absEIdx a) (absEIdx b)) :=
+  lazy_delta_proj_reduction_aux hk hx hctx hf depth sn i xs ys _ n a b rfl hrel hinv
 
 /-- The two step budgets agree: `DEFEQ_LOOP_FUEL = defeqLoopFuel = 100000`. -/
 @[lockstep_simp] theorem absU_DEFEQ_LOOP_FUEL :

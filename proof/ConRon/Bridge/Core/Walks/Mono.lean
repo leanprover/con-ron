@@ -276,10 +276,10 @@ theorem whnfLoop_mono (h : FnsRefines r₁ r₂) (d n : Nat) (e : Expr) :
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — **the
 lazy-delta PROJECTION loop at an arbitrary step budget**. -/
 theorem lazyDeltaProjReduction_mono (h : FnsRefines r₁ r₂) (d : Nat)
-    (sn : Name) (i n : Nat) (a b : Expr) :
-    MRefines (lazyDeltaProjReduction mode r₁ env d sn i n a b)
-      (lazyDeltaProjReduction mode r₂ env d sn i n a b) := by
-  have := (lazyDeltaProjReduction mode (pairFns r₁ r₂ h) env d sn i n a b).property
+    (sn : Name) (i : Nat) (as bs : List Expr) (n : Nat) (a b : Expr) :
+    MRefines (lazyDeltaProjReduction mode r₁ env d sn i as bs n a b)
+      (lazyDeltaProjReduction mode r₂ env d sn i as bs n a b) := by
+  have := (lazyDeltaProjReduction mode (pairFns r₁ r₂ h) env d sn i as bs n a b).property
   rwa [lazyDeltaProjReduction_fst_proj, lazyDeltaProjReduction_snd_proj] at this
 
 /-! ## 2. The fueled corollaries — THE MERGE
@@ -490,11 +490,11 @@ theorem whnfLoopFueled_mono {f f' : Nat} (hle : f ≤ f') {d n : Nat}
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the same merge
 at the lazy-delta PROJECTION loop. -/
 theorem lazyDeltaProjReductionFueled_mono {f f' : Nat} (hle : f ≤ f')
-    {d : Nat} {sn : Name} {i n : Nat} {a b : Expr} {r : Bool}
-    (hr : lazyDeltaProjReduction mode (pureFns mode eager env f) env d sn i n a b
+    {d : Nat} {sn : Name} {i : Nat} {as bs : List Expr} {n : Nat} {a b : Expr} {r : Bool}
+    (hr : lazyDeltaProjReduction mode (pureFns mode eager env f) env d sn i as bs n a b
       = .ok r) :
-    lazyDeltaProjReduction mode (pureFns mode eager env f') env d sn i n a b = .ok r :=
-  lazyDeltaProjReduction_mono (pureFns_mono env hle) d sn i n a b r hr
+    lazyDeltaProjReduction mode (pureFns mode eager env f') env d sn i as bs n a b = .ok r :=
+  lazyDeltaProjReduction_mono (pureFns_mono env hle) d sn i as bs n a b r hr
 
 /-! ## 3b. The walks to a family's sort and the projection guard
 

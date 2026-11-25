@@ -110,7 +110,7 @@ con-ron [OPTIONS] --olean --module|--modular|--schedule[-OPT=V]
         [--] CHALLENGE SOLUTION
 ```
 
-([the help text](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L49-L172)).
+([the help text](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L49-L114)).
 Run with no arguments, `con-ron` prints these forms; a usage error prints its
 message and a pointer to `--help`, and exits 3.
 
@@ -523,7 +523,7 @@ this section is that doc's counterpart, and the module doc of `MainTheorem.lean`
 full.  The assumption is about the run: only the calls it performs.  The binary's instance is
 [`std_io::StdIo`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/std_io.rs#L1-L12),
 and its `main` is
-[`bin/con-ron.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L209-L246).
+[`bin/con-ron.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L148-L185).
 
 | what a run that exits 0 must satisfy | why the binary does |
 |---|---|
@@ -778,7 +778,7 @@ comparing two terms is comparing two words.
 
 Each store keeps, per tier, **one array per constructor**, each element a
 fixed-size record of handles and scalars; an `app` node is two `u32`s
-([`ETables`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1206-L1220)).
+([`ETables`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1196-L1210)).
 The stores nest: an expression refers to names, levels and level lists, a
 level to names.  Reading a node back (`view`) decodes the tag and reads one
 array element; there is no node enum in memory.
@@ -793,10 +793,10 @@ Every node is added through **`intern`**, which **hash-conses**: it looks
 the node's fields up in the tier's **cons table** (a hash map from fields to
 handle, which stores only the handle and compares the fields against the row
 the handle names) and returns the existing handle if there is one
-([`EStore::intern`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3646-L3681)).
+([`EStore::intern`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3618-L3653)).
 It probes the persistent table first, then the scratch table, and appends
 only if both miss
-([the `app` case](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3931-L3978)).
+([the `app` case](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L3903-L3950)).
 
 Hash-consing is needed for soundness, not only for speed.  The checker
 treats equal handles as equal terms and unequal name handles as unequal
@@ -822,7 +822,7 @@ The parse, the pin walk and the stream's index (§6.3) write the persistent tier
 directly.  Each record's check then runs inside a **bracket** on a worker's own
 store: `enter_record` empties the scratch tier and the memos, and
 `leave_record` empties the scratch tier again and flushes the caches
-([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L12281-L12300)).
+([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L12319-L12338)).
 Nothing a check builds outlives it: what a declaration adds to the environment
 is read off the record itself when the index is built, so no term ever has to
 move from the scratch tier to the persistent one.  Dropping the tier leaves
@@ -840,7 +840,7 @@ In Rust, the sharing is a separate parameter, and it is also what makes a
 store FROZEN.  After the index is built,
 [`freeze_tier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/checker.rs#L65-L88)
 moves the four stores' persistent tables and the index out into one
-[`PersTier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1237-L1289)
+[`PersTier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1227-L1279)
 value whose `frozen` bit is set.  Every persistent read goes to the
 `&PersTier` a function is handed when that tier is frozen, and to the store's
 own tables otherwise; a worker's store is empty and FROZEN (its scratch tier
@@ -1150,7 +1150,7 @@ Two definitions connect it to con-leche:
   exact, no scratch entry duplicates a persistent one, and persistent nodes
   have persistent children.  From it follow the injectivity of `denoteE`
   and extension,
-  [`Ext st st'`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Arena/Denote.lean#L276-L280):
+  [`Ext st st'`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Arena/Denote.lean#L274-L278):
   every handle that denoted a term still denotes the same term later.
 
 ### 7.3 Theorem 1: the twin refines con-leche
@@ -1446,7 +1446,7 @@ differ.
 | **Aeneas and Charon**: the Lean model is what the Rust means | Nothing; a translator bug is a hole.  The crate stays inside the documented subset (§7.1), and `AENEAS_FINDINGS.md` records what the port found, all of it worked around in the Rust |
 | **`rustc`, the Rust standard library and the allocator** | Nothing.  This is the trade the project makes: these instead of Lean's compiler, runtime and GMP.  The mimalloc wrapper in `con-ron-dump` is the only `unsafe` code in the workspace; an allocator can change memory use and time, not a verdict |
 | **`overflow-checks = true`** in the [release profile](https://github.com/leanprover/con-ron/blob/master/Cargo.toml#L22-L23) | The model is the checked-arithmetic one.  A build without it would wrap where the model fails |
-| **The binary's instance and `main`**, [`std_io.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/std_io.rs#L1-L12) and [`bin/con-ron.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L209-L246) | §3.1: that a run that exits 0 is one of the model's (`Model.snapshotIo`), an assumption about the calls the run performs, not about the instance at every call.  The model's own premises (`AnswersAs`, `PoolSound`, `CodesSound`) are theorems.  The driver itself, from the argument parse to the exit code, is the extracted `driver::cli::run_args`, and every mode but the scheduler's is proved; the scheduler (`modular::schedule`, `schedule.rs`) is outside the theorems, as con-leche's is, and adds nothing to them (§3.5) |
+| **The binary's instance and `main`**, [`std_io.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/std_io.rs#L1-L12) and [`bin/con-ron.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L148-L185) | §3.1: that a run that exits 0 is one of the model's (`Model.snapshotIo`), an assumption about the calls the run performs, not about the instance at every call.  The model's own premises (`AnswersAs`, `PoolSound`, `CodesSound`) are theorems.  The driver itself, from the argument parse to the exit code, is the extracted `driver::cli::run_args`, and every mode but the scheduler's is proved; the scheduler (`modular::schedule`, `schedule.rs`) is outside the theorems, as con-leche's is, and adds nothing to them (§3.5) |
 | **The worker pool**, [`pool.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/pool.rs#L50-L102) | One generic combinator, `parallel_all(n, workers, init, step, after)`, that knows nothing about checking.  Its contract is an argument about its control flow, not a proof: if it returns `Ok`, every index in `0..n` was claimed by some worker, and each worker built its state with `init` once and folded `step` over its claims in claim order, every step `Ok`.  That is `PoolSound`, and at the driver's steps the staged lemmas' `h8`; the proof reads it as [`ParallelAll`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Checker/Jobs.lean#L170-L174) and turns it into one accepting fold per worker.  The contract also promises that each worker's claims strictly increase: the code hands out claims off one monotone counter, and the pool's test asserts it.  Theorem 1 needs this: it inducts in fold order, and a job's start state is reached through the jobs its worker ran before it, whose own checks are known correct only at positions already proved.  The contract does not promise that an index is claimed only once (the code does that too); the proof does not need it.  Results are merged by index, and an accept means every slot is `Ok`.  Nothing is claimed about which worker ran which index: the staged lemmas relate each worker's walk to the twin separately.  Tests check the partition property generically, and that the check phase agrees with the one-worker walk and reports the first failure, at every worker count |
 | **The file operations**, `olean_fs::StdFs` and `olean_fs::RunFiles` | That the answers of the operations a run performs are one snapshot's (§3.1 (1)).  The files' contents are not trusted |
 | **`Native` errors: partial correctness** | Theorem 2 relates a Rust `Native` to the twin's `native` at the same point, and a twin `native` claims nothing about con-leche, so soundness is unaffected and completeness is not proved.  The arena's sites are the 2²⁷-entry arrays' capacity tests, mirrored by the twin; the one the twin does not mirror is the scanner's `u64` overflow on an oversized numeral (§6.5).  The pin decoder's `Native` is outside Theorem 2: the staged lemmas assume the embedded pins decode |
