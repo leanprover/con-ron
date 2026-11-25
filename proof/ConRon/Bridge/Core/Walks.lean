@@ -67,10 +67,13 @@
   the function as one equation (`reduceProjCore_eq`) and
   `reduceProjCoreFueled_mono`; shared by `whnfCoreBody`'s `.proj` clause and
   `lazyDeltaProjReduction`.
-* `Walks/Stuck.lean` — **the stuck fallback**: `stuckIrrel_spec` from
+* `Walks/Stuck.lean` — **the stuck fallback's certificates**:
   `structEtaCert_specA` (over `etaCtorShape_spec`, `etaCtorPartial_spec`,
   `structEtaCertWith_spec` and `structEtaExpand_specA`), `structUnitCert_specA`
   (over `unitLikeLoop_spec`) and `proofIrrel_specA`.
+* `Walks/RecEta.lean` — **recursor η and the stuck fallback**:
+  `recEtaCert_specA` (over `recEtaPartial_spec` and `recEtaTele_spec`, whose
+  ι step is `iotaRecSpine_spec`) and `stuckIrrel_spec` over all of them.
 * `Walks/Eta.lean` — **the structure-η certificate's sub-walk**:
   `etaProjs_spec` (`projNodesGo`).
 * `Walks/Owed.lean` — `etaCert`'s pure side and `defEqList` (the induction
