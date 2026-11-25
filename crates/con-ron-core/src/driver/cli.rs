@@ -75,7 +75,7 @@ const W_SCHEDULE: [u32; 10] = [45, 45, 115, 99, 104, 101, 100, 117, 108, 101];
 const W_WORKER_STACK_SIZE_EQ: [u32; 20] =
     [45, 45, 119, 111, 114, 107, 101, 114, 45, 115, 116, 97, 99, 107, 45, 115, 105, 122, 101, 61];
 
-/// con-leche: ConLeche/Driver/Cli.lean:262-303 Args
+/// con-leche: ConLeche/Driver/Cli.lean:177-218 Args
 /// **A usage error**, as a structured event: which one, and the argument it is
 /// about.  The instance renders each in the binary's words (`StdIo::usage`).
 pub enum Bad {
@@ -134,7 +134,7 @@ pub enum Bad {
     ScheduleArgs,
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:262-303 Args
+/// con-leche: ConLeche/Driver/Cli.lean:177-218 Args
 /// What the command line asked for: the binary's `Args`, field for field.  The
 /// values only the scheduler reads (`--schedule`'s settings,
 /// `--worker-stack-size`'s size) are kept as given, for it to read.
@@ -176,7 +176,7 @@ pub struct Args {
     pub bad: Option<Bad>,
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:262-303 Args
+/// con-leche: ConLeche/Driver/Cli.lean:177-218 Args
 /// The arguments before any is read: every default.
 pub fn args_default() -> Args {
     Args {
@@ -340,7 +340,7 @@ pub fn max_nat_size_arg(v: &Vec<u32>) -> Result<Nat, Bad> {
     }
 }
 
-/// con-leche: ConLeche/Driver/Schedule/Worker.lean:81-93 parseSize
+/// con-leche: ConLeche/Driver/Schedule/Worker.lean:82-94 parseSize
 /// Whether `v` is a `--worker-stack-size=` value: a POSITIVE size with a unit,
 /// `K`, `M`, `G` or `T` (either case), the number before it as `is_nat` reads
 /// one.
@@ -371,7 +371,7 @@ pub fn size_positive(v: &Vec<u32>) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:305-308 helpWanted
+/// con-leche: ConLeche/Driver/Cli.lean:220-223 helpWanted
 /// `--help` before any `--`: after a `--` every argument is a file.
 pub fn help_wanted(argv: &Vec<Vec<u32>>) -> bool {
     let mut i = 0usize;
@@ -389,7 +389,7 @@ pub fn help_wanted(argv: &Vec<Vec<u32>>) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:316-319 searchPathOf
+/// con-leche: ConLeche/Driver/Cli.lean:231-234 searchPathOf
 /// The nonempty `:`-separated directories of `v` from `from`, after `out`.
 pub fn push_dirs(out: Vec<Vec<u32>>, v: &Vec<u32>, from: usize) -> Vec<Vec<u32>> {
     let mut out = out;
@@ -412,7 +412,7 @@ pub fn push_dirs(out: Vec<Vec<u32>>, v: &Vec<u32>, from: usize) -> Vec<Vec<u32>>
     out
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:326-378 parseArgs
+/// con-leche: ConLeche/Driver/Cli.lean:241-293 parseArgs
 /// Every argument of `argv` from `i`, as files, after `out`.
 pub fn push_files(out: Vec<Vec<u32>>, argv: &Vec<Vec<u32>>, i: usize) -> Vec<Vec<u32>> {
     let mut out = out;
@@ -424,7 +424,7 @@ pub fn push_files(out: Vec<Vec<u32>>, argv: &Vec<Vec<u32>>, i: usize) -> Vec<Vec
     out
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:326-378 parseArgs
+/// con-leche: ConLeche/Driver/Cli.lean:241-293 parseArgs
 /// The first bad argument is the one reported.
 pub fn with_bad(a: Args, b: Bad) -> Args {
     let mut a = a;
@@ -435,7 +435,7 @@ pub fn with_bad(a: Args, b: Bad) -> Args {
     a
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:321-324 Args.closed
+/// con-leche: ConLeche/Driver/Cli.lean:236-239 Args.closed
 /// The arguments once all are read: `--worker-stack-size` without
 /// `--schedule` is a usage error (no other run starts a worker).
 pub fn closed(a: Args) -> Args {
@@ -446,7 +446,7 @@ pub fn closed(a: Args) -> Args {
     }
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:326-378 parseArgs
+/// con-leche: ConLeche/Driver/Cli.lean:241-293 parseArgs
 /// A word with a value after a prefix (`--jobs=8`): the `=`-carrying flags, in
 /// the binary's order, then an unknown `-`-leading word, then a file.
 pub fn parse_valued(a: Args, s: &Vec<u32>) -> Args {
@@ -490,7 +490,7 @@ pub fn parse_valued(a: Args, s: &Vec<u32>) -> Args {
     a
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:326-378 parseArgs
+/// con-leche: ConLeche/Driver/Cli.lean:241-293 parseArgs
 /// One argument, `argv[i]` (not `--`).
 pub fn parse_one(a: Args, argv: &Vec<Vec<u32>>, i: usize) -> Args {
     let mut a = a;
@@ -519,7 +519,7 @@ pub fn parse_one(a: Args, argv: &Vec<Vec<u32>>, i: usize) -> Args {
     a
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:326-378 parseArgs
+/// con-leche: ConLeche/Driver/Cli.lean:241-293 parseArgs
 /// **The argument parse**, clause for clause as the binary's: the mode flags in
 /// either order with the heartbeat, `=`-carrying spellings after the bare
 /// ones, an unknown `-`-leading word a usage error, everything else a file,
@@ -540,7 +540,7 @@ pub fn parse_args(argv: &Vec<Vec<u32>>) -> Args {
     }
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
 /// The module names of the command line, parsed (`parseModName`); the first
 /// that does not parse.
 pub fn parse_mod_names(fs: &Vec<Vec<u32>>) -> Result<Vec<Name>, Vec<u32>> {
@@ -556,7 +556,7 @@ pub fn parse_mod_names(fs: &Vec<Vec<u32>>) -> Result<Vec<Name>, Vec<u32>> {
     Ok(out)
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:383-385 Args.rootConstants
+/// con-leche: ConLeche/Driver/Cli.lean:298-300 Args.rootConstants
 /// The constants' names of the command line, parsed (`parseConstName`); the
 /// first that does not parse.
 pub fn parse_const_names(cs: &Vec<Vec<u32>>) -> Result<Vec<Name>, Vec<u32>> {
@@ -594,7 +594,7 @@ pub fn chal_roots(a: &Args) -> Roots {
     }
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
 /// `--check-graph` with a flag it does not take: `--olean`, `--module`, a
 /// `--constant`, or `--trusted-search-path` without `--compare`.
 pub fn check_graph_flags_bad(a: &Args) -> bool {
@@ -613,7 +613,7 @@ pub fn check_graph_flags_bad(a: &Args) -> bool {
     false
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
 /// No module name, or no lookup (neither `--search-path` nor
 /// `--trusted-search-path`).
 pub fn no_roots_or_path(a: &Args) -> bool {
@@ -626,7 +626,7 @@ pub fn no_roots_or_path(a: &Args) -> bool {
     a.trusted_path.len() == 0
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
 /// `--trusted-search-path` where it is not taken: without `--module`, or with
 /// `--modular` or `--schedule`.
 pub fn trusted_misplaced(a: &Args) -> bool {
@@ -642,7 +642,7 @@ pub fn trusted_misplaced(a: &Args) -> bool {
     a.scheduled
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
 /// `--compare` with a mode of its modular run: `--module`, `--modular` or
 /// `--schedule`.
 pub fn cmp_mode(a: &Args) -> bool {
@@ -655,7 +655,7 @@ pub fn cmp_mode(a: &Args) -> bool {
     a.scheduled
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
 /// `--compare` with a mode it does not take with the others: a `--constant`,
 /// or more than one of `--module`, `--modular` and `--schedule`.
 pub fn cmp_mode_bad(a: &Args, cs: &Vec<Name>) -> bool {
@@ -674,7 +674,7 @@ pub fn cmp_mode_bad(a: &Args, cs: &Vec<Name>) -> bool {
     false
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
 /// **`--check-graph`** (without `--compare`): con-leche's usage checks in its
 /// order, then the graph check of the roots along the search path.
 pub fn check_graph_args<I: CheckerIo>(io: &mut I, a: &Args) -> u8 {
@@ -700,7 +700,7 @@ pub fn check_graph_args<I: CheckerIo>(io: &mut I, a: &Args) -> u8 {
     graph::check_graph(io, &sp, &roots)
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
 /// **`--check-graph --compare`**: two module names, two different ones; then
 /// the compared graph check.
 pub fn check_graph_cmp_args<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>) -> u8 {
@@ -715,7 +715,7 @@ pub fn check_graph_cmp_args<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name
     compare_module::check_graph_cmp(io, a, &roots[0], &roots[1])
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
 /// **`--olean --compare`**: two module names, two different ones; with
 /// `--module`, `--modular` or `--schedule` one of them and no `--constant`;
 /// then the compare worker, the one-process modular comparison, the
@@ -748,7 +748,7 @@ pub fn compare_olean_args<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>,
     compare::compare_oleans(io, a, &roots[0], &roots[1], cs)
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
 /// **`--olean`**: con-leche's usage checks in its order, then `--compare`,
 /// `--schedule`, `--modular`, `--module`, or the check of the roots' closure.
 pub fn olean_args<I: CheckerIo>(io: &mut I, a: &Args) -> u8 {
@@ -790,7 +790,7 @@ pub fn olean_args<I: CheckerIo>(io: &mut I, a: &Args) -> u8 {
     check_main::check_oleans(io, a, &roots, &cs, &sp)
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
 /// **`--olean --schedule`**: one module name, no `--constant`, neither
 /// `--module` nor `--modular`; then the scheduler (`CheckerIo::run_schedule`).
 pub fn schedule_args<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &Vec<Name>) -> u8 {
@@ -801,7 +801,7 @@ pub fn schedule_args<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: 
     io.run_schedule(a, &roots[0], None)
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
 /// **`--olean --modular`**: one module name, no `--constant`, no `--module`;
 /// then the one-process mode.
 pub fn modular_args<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &Vec<Name>) -> u8 {
@@ -813,7 +813,7 @@ pub fn modular_args<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &
     modular::check_modular(io, a, roots, &sp, None)
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
 /// **`--olean --module`**: one module name, no `--constant`; then its worker.
 pub fn module_args<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &Vec<Name>) -> u8 {
     if roots.len() != 1 || cs.len() > 0 {
@@ -824,7 +824,7 @@ pub fn module_args<I: CheckerIo>(io: &mut I, a: &Args, roots: &Vec<Name>, cs: &V
     worker::check_module(io, a, &sp, &roots[0], None)
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
 /// **The run of an argument list, to its exit code**: `--help`, the parse and
 /// its usage error, then the request: `--check-graph`, `--olean` (whose
 /// `--schedule` is the instance's scheduler), two lean4export files with

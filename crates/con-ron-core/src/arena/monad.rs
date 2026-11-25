@@ -360,7 +360,8 @@ pub fn fail<T>(e: CheckError) -> Result<T, CheckError> {
 // The expression store's primitives (`Monad.lean:130-166`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
+/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove monad::view_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:156-163 view` — decode a handle.
 /// A dangling handle is an internal error: the checker never builds one, and
 /// the bridge claims nothing on failure.
@@ -372,7 +373,8 @@ pub fn view(pers: &PersTier, st: &AState, h: &EIdx) -> Result<ENodeView, CheckEr
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
+/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove monad::fail_dangling_e_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:156-163 view` — the `none` arm of
 /// `view`, spelled once so that a caller of the projections below declines a
 /// dangling handle with `view`'s own error and not a second one.
@@ -394,7 +396,8 @@ pub fn fail_dangling_e<T>() -> Result<T, CheckError> {
     fail(CheckError::Internal(code_points(&M_DANGLING_E)))
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
+/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove monad::view_app_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:296-298 viewApp` — `viewApp`, the
 /// `app` PROJECTION of `view`. A walk that has already read the tag off the
 /// handle word wants only the two children; going through `view` would cost the
@@ -411,7 +414,8 @@ pub fn view_app(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(EIdx, EIdx)> 
     st.store.view_app(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
+/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove monad::view_bvar_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:300-302 viewBVar` — `viewBVar`,
 /// the `bvar` projection.
 #[inline(always)]
@@ -419,7 +423,8 @@ pub fn view_bvar(pers: &PersTier, st: &AState, h: &EIdx) -> Option<u64> {
     st.store.view_bvar(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
+/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove monad::view_sort_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:304-306 viewSort` — `viewSort`,
 /// the `sort` projection.
 #[inline(always)]
@@ -427,7 +432,8 @@ pub fn view_sort(pers: &PersTier, st: &AState, h: &EIdx) -> Option<LIdx> {
     st.store.view_sort(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
+/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove monad::view_const_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:308-310 viewConst` — `viewConst`,
 /// the `const` projection.
 #[inline(always)]
@@ -435,7 +441,8 @@ pub fn view_const(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(NIdx, LsIdx
     st.store.view_const(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
+/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove monad::view_const_name_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:312-315 viewConstName` —
 /// `viewConstName`, the head NAME of a `const` node; the level arguments are
 /// left in the store.
@@ -444,7 +451,8 @@ pub fn view_const_name(pers: &PersTier, st: &AState, h: &EIdx) -> Option<NIdx> {
     st.store.view_const_name(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
+/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove monad::view_fvar_idx_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:317-319 viewFVarIdx` —
 /// `viewFVarIdx`, the `fvar` index.
 #[inline(always)]
@@ -452,7 +460,8 @@ pub fn view_fvar_idx(pers: &PersTier, st: &AState, h: &EIdx) -> Option<u64> {
     st.store.view_fvar_idx(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
+/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove monad::view_fvar_ty_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:321-324 viewFVarTy` —
 /// `viewFVarTy`, the `fvar` binder type.
 #[inline(always)]
@@ -460,7 +469,8 @@ pub fn view_fvar_ty(pers: &PersTier, st: &AState, h: &EIdx) -> Option<EIdx> {
     st.store.view_fvar_ty(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
+/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove monad::view_lit_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:326-328 viewLit` — `viewLit`, the
 /// `lit` projection.
 #[inline(always)]
@@ -468,7 +478,8 @@ pub fn view_lit(pers: &PersTier, st: &AState, h: &EIdx) -> Option<Literal> {
     st.store.view_lit(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
+/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove monad::view_bind_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:330-333 viewBind` — `viewBind`,
 /// the binder projection.
 #[inline(always)]
@@ -476,7 +487,8 @@ pub fn view_bind(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(EIdx, EIdx)>
     st.store.view_bind(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
+/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove monad::view_let_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:335-338 viewLet` — `viewLet`, the
 /// `letE` projection.
 #[inline(always)]
@@ -484,7 +496,8 @@ pub fn view_let(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(EIdx, EIdx, E
     st.store.view_let(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
+/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove monad::view_proj_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:340-343 viewProj` — `viewProj`,
 /// the `proj` projection.
 #[inline(always)]
@@ -492,7 +505,8 @@ pub fn view_proj(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(NIdx, u64, E
     st.store.view_proj(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
+/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove monad::derived_e_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:165-170 derivedE` — the packed
 /// derived word of a handle (the `data` computed field, lines 414-459), read
 /// in `O(1)` off the derived column.  No path fails, so the Rust returns the
@@ -1014,7 +1028,8 @@ pub fn view_ls_len(pers: &PersTier, st: &AState, h: &LsIdx) -> Option<usize> {
     st.store.ls_s().view_len(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
+/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove monad::view_ls_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:494-500 viewLs` — decode a
 /// universe-argument list handle (the `const` node's second field, line 404).
 pub fn view_ls(pers: &PersTier, st: &AState, h: &LsIdx) -> Result<LsNodeView, CheckError> {

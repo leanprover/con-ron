@@ -390,7 +390,7 @@ impl CheckerIo for StdIo {
         Ok(out)
     }
 
-    /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+    /// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
     fn print_help(&mut self) -> u8 {
         (self.hooks.help)()
     }
@@ -422,7 +422,7 @@ impl CheckerIo for StdIo {
         modular::schedule(&q)
     }
 
-    /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+    /// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
     fn hardware_jobs(&mut self) -> u64 {
         driver::default_jobs()
     }
@@ -441,7 +441,7 @@ impl CheckerIo for StdIo {
         }
     }
 
-    /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+    /// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
     /// A usage error in the binary's words: the flag values' messages are
     /// `driver`'s own functions', so the two parses cannot drift apart.
     fn usage(&self, b: &Bad) {

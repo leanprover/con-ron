@@ -44,7 +44,8 @@ use con_ron::driver;
 // `--help` prints `con_ron_dump::ALLOCATOR` so a measurement can be
 // reproduced.
 
-/// con-leche: ConLeche/Driver/Cli.lean:116-132 synopsis
+/// con-leche: ConLeche/Driver/Cli.lean:116-122 synopsis
+/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove con-ron::SYNOPSIS_refines, then delete this line
 /// The invocation forms, printed on their own when there are no arguments.
 const SYNOPSIS: &str = "\
 Usage:
@@ -63,11 +64,12 @@ Usage:
           --compare [--trusted-search-path=DIRS] --search-path=DIRS
           [--] CHALLENGE SOLUTION";
 
-/// con-leche: ConLeche/Driver/Cli.lean:134-135 tryHelp
+/// con-leche: ConLeche/Driver/Cli.lean:124-125 tryHelp
 /// The line after a usage error.
 const TRY_HELP: &str = "Try 'con-ron --help' for more information.";
 
-/// con-leche: ConLeche/Driver/Cli.lean:137-260 helpText
+/// con-leche: ConLeche/Driver/Cli.lean:127-175 helpText
+/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove con-ron::HELP_HEAD_refines, then delete this line
 /// The `--help` text: con-leche's, with this binary's name and con-ron's
 /// documentation.  DESIGN.md §3.1: message
 /// strings need not match.
@@ -75,7 +77,8 @@ const HELP_HEAD: &str = "\
 Check Lean declarations from a lean4export file or from .olean modules.
 ";
 
-/// con-leche: ConLeche/Driver/Cli.lean:137-260 helpText
+/// con-leche: ConLeche/Driver/Cli.lean:127-175 helpText
+/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove con-ron::HELP_TAIL_refines, then delete this line
 /// The rest of the `--help` text, after the synopsis.  The scheduler is the
 /// simple one (`con_ron::schedule`): its settings con-ron does not run are
 /// listed by name, as usage errors, in place of their descriptions.
@@ -193,7 +196,7 @@ fn exit_after_verdict(code: u8) -> ! {
     std::process::exit(code as i32)
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:302-521 runArgs
 /// con-leche: Main.lean:56-103 main
 /// **The plumbing** (DESIGN.md §3.9): the arguments (one that is not UTF-8 is
 /// exit 3), the checking thread, its stack `driver::stack_bytes` (1 GiB, or
@@ -242,7 +245,7 @@ fn main() -> ! {
     }
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:302-521 runArgs
 /// `--help`: the help text on stdout, and the build's allocator; a failed
 /// write is exit 3, as con-leche's `--help` on `/dev/full`.
 fn print_help() -> u8 {
@@ -262,7 +265,8 @@ fn print_help() -> u8 {
     }
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:116-132 synopsis
+/// con-leche: ConLeche/Driver/Cli.lean:116-122 synopsis
+/// con-leche: CHANGED since 3871e142 — re-port, re-test, re-prove con-ron::print_synopsis_refines, then delete this line
 /// No arguments: the invocation forms, and the pointer to `--help`.
 fn print_synopsis() {
     eprintln!("{}", SYNOPSIS);
