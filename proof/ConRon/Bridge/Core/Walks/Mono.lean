@@ -194,9 +194,22 @@ theorem etaCert_mono (h : FnsRefines r₁ r₂) (d : Nat) (ty body : Expr) (b : 
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the fallback
 at two stuck terms. -/
 theorem stuckIrrel_mono (h : FnsRefines r₁ r₂) (d : Nat) (a b : Expr) :
-    MRefines (stuckIrrel r₁ env d a b) (stuckIrrel r₂ env d a b) := by
-  have := (stuckIrrel (pairFns r₁ r₂ h) env d a b).property
+    MRefines (stuckIrrel mode r₁ env d a b) (stuckIrrel mode r₂ env d a b) := by
+  have := (stuckIrrel mode (pairFns r₁ r₂ h) env d a b).property
   rwa [stuckIrrel_fst_proj, stuckIrrel_snd_proj] at this
+
+/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the reduced
+η-expansion of a partially applied recursor. -/
+theorem recEtaTele_mono (h : FnsRefines r₁ r₂) (k d : Nat) (f T : Expr) :
+    MRefines (recEtaTele mode r₁ env k d f T) (recEtaTele mode r₂ env k d f T) := by
+  have := (recEtaTele mode (pairFns r₁ r₂ h) env k d f T).property
+  rwa [recEtaTele_fst_proj, recEtaTele_snd_proj] at this
+
+/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — recursor η. -/
+theorem recEtaCert_mono (h : FnsRefines r₁ r₂) (d : Nat) (a b : Expr) :
+    MRefines (recEtaCert mode r₁ env d a b) (recEtaCert mode r₂ env d a b) := by
+  have := (recEtaCert mode (pairFns r₁ r₂ h) env d a b).property
+  rwa [recEtaCert_fst_proj, recEtaCert_snd_proj] at this
 
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the
 stuck-major fabrication. -/
@@ -397,6 +410,20 @@ theorem stuckIrrelFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a b : Exp
     (hr : stuckIrrelFueled mode eager env f d a b = .ok r) :
     stuckIrrelFueled mode eager env f' d a b = .ok r :=
   stuckIrrel_mono (pureFns_mono env hle) d a b r hr
+
+/-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
+`recEtaTele`. -/
+theorem recEtaTeleFueled_mono {f f' : Nat} (hle : f ≤ f') {k d : Nat} {x t : Expr}
+    {r : Option Expr} (hr : recEtaTeleFueled mode eager env f k d x t = .ok r) :
+    recEtaTeleFueled mode eager env f' k d x t = .ok r :=
+  recEtaTele_mono (pureFns_mono env hle) k d x t r hr
+
+/-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
+`recEtaCert`. -/
+theorem recEtaCertFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a b : Expr} {r : Bool}
+    (hr : recEtaCertFueled mode eager env f d a b = .ok r) :
+    recEtaCertFueled mode eager env f' d a b = .ok r :=
+  recEtaCert_mono (pureFns_mono env hle) d a b r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `majorToCtor`. -/

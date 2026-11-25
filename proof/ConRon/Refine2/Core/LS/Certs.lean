@@ -6,7 +6,8 @@ certificate bodies of `arena::core` against `Arena/Core.lean`:
 `iotaCertsFullAux`/`iotaCertsFull`, `defEqList`, `iotaIndexOk`, `proofIrrel`,
 `propIrrel`, `structEtaCertWith`, `structEtaFull`, `structEtaExpand`,
 `structEtaCert`, `isPropType`, `unitLikeShape`, `unitLikeFields` /
-`unitLikeStruct` / `unitLikeLoop`, `structUnitCert`, `etaCert`, `stuckIrrel`.
+`unitLikeStruct` / `unitLikeLoop`, `structUnitCert`, `etaCert` (`stuckIrrel` is in
+`LS/Iota.lean`, after the ι step its recursor η calls).
 -/
 import ConRon.Refine2.Core.LS.PrimsC1
 import ConRon.Refine2.Core.LS.Leaves
@@ -537,19 +538,6 @@ applied constructor, `k` binders deep. -/
         (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth)
         (absEIdx a) (absEIdx b)) := by
   rw [arena.core.struct_eta_cert, structEtaCert]
-  lockstep_core
-
-@[lockstep] theorem stuck_irrel_ls {f : Nat} (hk : KnotRel f)
-    {pers st mode eager lane fu fe lfe depth a b lst}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
-    LS pers (fun a b => b = a)
-      (arena.core.stuck_irrel pers st mode eager lane fu fe depth a b) lst
-      (stuckIrrel
-        (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth)
-        (absEIdx a) (absEIdx b)) := by
-  rw [arena.core.stuck_irrel, stuckIrrel]
   lockstep_core
 
 end ConRon.Refine2.Lockstep

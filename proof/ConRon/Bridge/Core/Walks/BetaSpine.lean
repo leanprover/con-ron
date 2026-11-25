@@ -234,12 +234,92 @@ throw). -/
 discharged at the call below. -/
 
 
+/-- con-leche: ConLeche/Cached/CoreC.lean:1073-1087 iotaRecAtI
+con-leche: ConLeche/Verify/BetaSpine.lean:224 iotaRec_head_not_const —
+**THEOREM 1 for `whnfAppIota` at any spine `E`**, held as its head and its
+argument vector: the recursor's record looked up once at a constant head
+(`iotaRecAt_spec` at the arity and the level count), else `none` (con-leche's
+arity guard), against con-leche's `iotaRec` at `E`. -/
+theorem whnfAppIota_specE {fuel : Nat} (henv : ConLeche.EnvWF env)
+    (hsim : KnotSpec eager env fe fuel)
+    (s₀ : AState) (d : Nat) (hd : EIdx) (vargs : Array EIdx) (E : Expr)
+    (hok : CheckOK eager env fe s₀)
+    (hdh : denoteE s₀.store hd = some E.getAppFn)
+    (hdv : Frontend.denoteEList s₀.store vargs.toList = some E.getAppArgs)
+    (hw : Expr.WScoped d E) :
+    ⦃fun s => s = s₀⦄
+      ConRon.Arena.whnfAppIota .verified (coreKnot .verified eager fe id fuel) fe d hd
+        vargs vargs.size
+    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d E) d
+          s'.store r; ⊤⦄ := by
+  have hwf := hok.state.wf
+  have hsz : vargs.size = E.getAppArgs.length := by
+    simp [denoteEList_len hdv]
+  unfold ConRon.Arena.whnfAppIota
+  by_cases htc : (hd.tag == ETag.const) = true
+  · rw [ite_eq_left htc]
+    refine triple_seq (viewConst_spec s₀ hd) ?_
+    rintro oc s1 ⟨hs1, hoc⟩
+    subst s1
+    cases oc with
+    | none => exact triple_failDanglingE
+    | some cu =>
+      obtain ⟨c, us⟩ := cu
+      have hv := view_of_viewConst_tag htc hoc.symm
+      obtain ⟨cn, ls, hE1, hcn, hls⟩ := denote_const_inv hwf hv hdh
+      have happ' : Expr.mkAppN (.const cn ls) E.getAppArgs = E := by
+        rw [← hE1]; exact Expr.mkAppN_getApp E
+      dsimp only
+      split
+      next icv mI rP isK rules hfc =>
+        obtain ⟨dcv, drules, hdcv, hdr, hfind⟩ := env_rec_of_index hok hcn hfc
+        obtain ⟨_, hlps, hty⟩ := denoteCV_inv hdcv
+        have hlenlps := denoteNList_len hlps
+        by_cases hne : vargs.size ≠ mI + 1
+        · rw [ite_eq_left hne]
+          refine triple_pure_at ⟨hok, Ext.refl _, rfl, simOOp_none (F := 0)
+            (iotaRecFueled_guard hE1 hfind (by
+              intro hg; apply hne; rw [hsz, hg.1]))⟩
+        · rw [ite_eq_right hne]
+          have hmI : vargs.size = mI + 1 := by simpa using hne
+          refine triple_seq (viewLsLen_spec s₀ us) ?_
+          rintro ol s2 ⟨hs2, hol⟩
+          subst s2
+          rw [viewLen_of_denoteLs hls] at hol
+          subst hol
+          dsimp only
+          by_cases hlv : ls.length ≠ icv.levelParams.length
+          · rw [ite_eq_left hlv]
+            refine triple_pure_at ⟨hok, Ext.refl _, rfl, simOOp_none (F := 0)
+              (iotaRecFueled_guard hE1 hfind (by
+                intro hg; apply hlv; rw [hg.2.1, hlenlps]))⟩
+          · rw [ite_eq_right hlv]
+            have h := iotaRecAt_spec henv hsim s₀ d c us icv mI rP isK rules vargs
+              cn ls E.getAppArgs hok hfc hcn hls (by simpa using hlv) hmI hdv
+              (by rw [happ']; exact hw)
+            rw [happ'] at h
+            exact h
+      next hnd =>
+        have hnr := env_not_rec_of_index hok hcn (fun v mI rP k rs h => hnd v mI rP k rs h)
+        exact triple_pure_at ⟨hok, Ext.refl _, rfl,
+          simOOp_none (F := 0) (iotaRecFueled_norec hE1 hnr)⟩
+  · rw [ite_eq_right htc]
+    have hnc : ∀ c us, E.getAppFn ≠ .const c us := by
+      obtain ⟨w, hw'⟩ := denoteE_view hdh
+      have h1 := denote_not_const hok.state.wf hw' hdh (by
+        intro c us hcu; subst hcu
+        exact htc (by rw [EStore.tagOf_of_view hw']; rfl))
+      intro c us hcu
+      exact h1 c us hcu
+    exact triple_pure_at ⟨hok, Ext.refl _, rfl,
+      simOOp_none (F := 0) (iotaRecFueled_nohead hnc)⟩
+
 /-- con-leche: ConLeche/Cached/CoreC.lean:1133-1167 whnfAppI
 con-leche: ConLeche/Verify/BetaSpine.lean:224 iotaRec_head_not_const —
 **THEOREM 1 for `whnfAppIota`, the ι step `whnfApp` runs at a non-λ head**:
-the recursor's record looked up once at a constant head (`iotaRecAt_spec` at
-the arity and the level count), else `none` (con-leche's arity guard), against
-con-leche's `iotaRec` at `.app V A`. -/
+`whnfAppIota_specE` at the spine `.app V A`. -/
 theorem whnfAppIota_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
     (hsim : KnotSpec eager env fe fuel)
     (s₀ : AState) (d : Nat) (hd a : EIdx) (vargs : Array EIdx) (V A : Expr)
@@ -255,90 +335,12 @@ theorem whnfAppIota_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
         s'.pins = s₀.pins ∧
         SimOOp (fun F => ConLeche.iotaRecFueled .verified eager env F d (.app V A)) d
           s'.store r; ⊤⦄ := by
-  have hwf := hok.state.wf
-  have happ : Expr.mkAppN V.getAppFn (V.getAppArgs ++ [A]) = .app V A := by
-    rw [Expr.mkAppN_append_one, Expr.mkAppN_getApp]
   have hdx : Frontend.denoteEList s₀.store (vargs.push a).toList =
-      some (V.getAppArgs ++ [A]) := by
-    simp only [Array.toList_push]
+      some (Expr.app V A).getAppArgs := by
+    simp only [Array.toList_push, Expr.getAppArgs]
     exact ExprOps.denoteEList_snoc hda _ _ hdv
-  have hsz : (vargs.push a).size = V.getAppArgs.length + 1 := by
-    simp [denoteEList_len hdv]
-  unfold ConRon.Arena.whnfAppIota
-  by_cases htc : (hd.tag == ETag.const) = true
-  · rw [ite_eq_left htc]
-    refine triple_seq (viewConst_spec s₀ hd) ?_
-    rintro oc s1 ⟨hs1, hoc⟩
-    subst s1
-    cases oc with
-    | none => exact triple_failDanglingE
-    | some cu =>
-      obtain ⟨c, us⟩ := cu
-      have hv := view_of_viewConst_tag htc hoc.symm
-      obtain ⟨cn, ls, hgf, hcn, hls⟩ := denote_const_inv hwf hv hdh
-      have hE1 : (Expr.app V A).getAppFn = .const cn ls := by
-        simp only [Expr.getAppFn]; exact hgf
-      have happ' : Expr.mkAppN (.const cn ls) (V.getAppArgs ++ [A]) = .app V A := by
-        rw [← hgf]; exact happ
-      have hE2 : (Expr.app V A).getAppArgs = V.getAppArgs ++ [A] := by
-        rw [← happ', Expr.getAppArgs_mkAppN]; rfl
-      dsimp only
-      split
-      next icv mI rP isK rules hfc =>
-        obtain ⟨dcv, drules, hdcv, hdr, hfind⟩ := env_rec_of_index hok hcn hfc
-        obtain ⟨_, hlps, hty⟩ := denoteCV_inv hdcv
-        have hlenlps := denoteNList_len hlps
-        by_cases hne : (vargs.push a).size ≠ mI + 1
-        · rw [ite_eq_left hne]
-          refine triple_pure_at ⟨hok, Ext.refl _, rfl, simOOp_none (F := 0)
-            (iotaRecFueled_guard hE1 hfind (by
-              rw [hE2]; intro hg; apply hne; rw [hsz, ← hg.1]; simp))⟩
-        · rw [ite_eq_right hne]
-          have hmI : (vargs.push a).size = mI + 1 := by simpa using hne
-          refine triple_seq (viewLsLen_spec s₀ us) ?_
-          rintro ol s2 ⟨hs2, hol⟩
-          subst s2
-          rw [viewLen_of_denoteLs hls] at hol
-          subst hol
-          dsimp only
-          by_cases hlv : ls.length ≠ icv.levelParams.length
-          · rw [ite_eq_left hlv]
-            refine triple_pure_at ⟨hok, Ext.refl _, rfl, simOOp_none (F := 0)
-              (iotaRecFueled_guard hE1 hfind (by
-                intro hg; apply hlv; rw [hg.2.1, hlenlps]))⟩
-          · rw [ite_eq_right hlv]
-            have h := iotaRecAt_spec henv hsim s₀ d c us icv mI rP isK rules (vargs.push a)
-              cn ls (V.getAppArgs ++ [A]) hok hfc hcn hls (by simpa using hlv) hmI hdx
-              (by rw [happ']; exact hw)
-            rw [happ'] at h
-            exact h
-      next hnd =>
-        have hnr := env_not_rec_of_index hok hcn (fun v mI rP k rs h => hnd v mI rP k rs h)
-        exact triple_pure_at ⟨hok, Ext.refl _, rfl,
-          simOOp_none (F := 0) (iotaRecFueled_norec hE1 hnr)⟩
-  · rw [ite_eq_right htc]
-    have hnc : ∀ c us, (Expr.app V A).getAppFn ≠ .const c us := by
-      obtain ⟨w, hw'⟩ := denoteE_view hdh
-      have h1 := denote_not_const hok.state.wf hw' hdh (by
-        intro c us hcu; subst hcu
-        exact htc (by rw [EStore.tagOf_of_view hw']; rfl))
-      intro c us hcu
-      exact h1 c us (by simpa [Expr.getAppFn] using hcu)
-    vcgen <;> subst_vars
-    all_goals first
-      | exact hok
-      | exact Ext.refl _
-      | rfl
-      | exact ⟨rfl, none, rfl, ⟨fun (x : Expr) (hx : (none : Option Expr) = some x) => by
-          simp at hx, 0, iotaRecFueled_nohead hnc⟩⟩
-      | exact ⟨Ext.refl _, rfl, none, rfl, ⟨fun (x : Expr) (hx : (none : Option Expr) = some x) =>
-          by simp at hx, 0, iotaRecFueled_nohead hnc⟩⟩
-      | exact ⟨none, rfl, ⟨fun (x : Expr) (hx : (none : Option Expr) = some x) => by simp at hx,
-          0, iotaRecFueled_nohead hnc⟩⟩
-      | exact ⟨Ext.refl _, none, rfl, ⟨fun (x : Expr) (hx : (none : Option Expr) = some x) => by
-          simp at hx, 0, iotaRecFueled_nohead hnc⟩⟩
-      | exact ⟨hok, Ext.refl _, none, rfl, ⟨fun (x : Expr) (hx : (none : Option Expr) = some x) =>
-          by simp at hx, 0, iotaRecFueled_nohead hnc⟩⟩
+  exact whnfAppIota_specE henv hsim s₀ d hd (vargs.push a) (.app V A) hok
+    (by simpa [Expr.getAppFn] using hdh) hdx hw
 
 /-! ## 3. The pure mirrors at the pure knot
 

@@ -113,7 +113,7 @@ only callers; the memo is threaded explicitly — the census's own twin column
 — because the answer depends on `fe` and `Memos` is the per-CALL record. -/
 
 /-- con-leche: ConLeche/Kernel/DeclCheck.lean:30-51 Expr.constsResolveF
-con-leche: ConLeche/Cached/StateC.lean:607-664 constsResolveFXP
+con-leche: ConLeche/Cached/StateC.lean:619-676 constsResolveFXP
 The memoized walk.  The leaf clauses are `Arena/Core.lean`'s `constsResolve`
 at one node, exactly as con-leche's `…Go` calls the pure walk at its four
 non-recursive constructors.  The node is viewed ONCE and the miss arm
@@ -152,7 +152,7 @@ def constsResolveFGo (fe : IFEnv) (memo : Std.HashMap EIdx Bool) :
           | _ => pure (← constsResolve fe coreWalkFuel h, memo)
         pure (p.1, p.2.insert h p.1)
 
-/-- con-leche: ConLeche/Cached/StateC.lean:666-668 constsResolveFC
+/-- con-leche: ConLeche/Cached/StateC.lean:678-680 constsResolveFC
 The executed `constsResolve` (one memoized DAG walk), which is what every
 front door below calls. -/
 def constsResolveFFast (fe : IFEnv) (e : EIdx) : AM Bool := do

@@ -75303,3 +75303,32 @@ structural `Nat` operation is *declined* (was "rejected"), and `tests/olean.sh`'
 `UpQuot`/`UpQuotSol`; no verdict changes (the maintainer's ruling: the decline at the module's
 stand-in `Nat.sub` stays).  `update --auto`: 0 findings; two OVERVIEW links re-pinned; e2e
 809/809 with `renovation`'s binary.  No crate change, so no measurement.
+
+### Task #183 — con-leche sync c8e13b0f → 3871e142 on `renovation`: η-expansion of partially applied recursors (2026-11-25, Opus)
+
+Upstream 3871e142 (#632, lean4#15374): a stuck comparison whose one side is a partially applied
+recursor η-expands it (the missing binders opened, the ι step tried at the expanded spine)
+before structure η, unit-likeness and proof irrelevance.  `update --auto`: 7 findings
+(7 `CHANGED`), 462 citations merely moved; 7 markers → 0.  Coverage 1227/1279 → 1227/1287 at
+start → 1235/1287 (52 uncovered): all eight new declarations ported.  One agent:
+* Rust: `rec_major_eta`, `rec_eta_partial`, `iota_rec_spine` (upstream's `iotaRecAtI`:
+  `head_and_args` then `whnf_app_iota`, the same gate in the same order), `rec_eta_tele` (builds
+  `.app f fv` per level, as `struct_eta_expand` does), `rec_eta_cert`; `stuck_irrel` tries
+  recursor η in both orientations first, then structure η, unit-likeness, proof irrelevance,
+  and moved after `whnf_app_iota`.  The `defeq_*` markers needed no code: upstream only threads
+  the mode, which the Rust already did.  The twin mirrors the Rust (`stuckIrrel` takes the mode;
+  `recEtaPartial` nests its tests in the Rust's short-circuit order, same verdict).
+* Theorem 1: new `Bridge/Core/Walks/RecEta.lean` (`recMajorEta_eq`, `recEtaPartial_spec`,
+  `iotaRecSpine_spec`, `recEtaTele_spec` by induction, `recEtaCert_spec`, `stuckIrrel`'s six
+  exits and `stuckIrrel_specA`/`_spec` in the vcgen/grind style), moved there from
+  `Walks/Stuck.lean` because `IotaMajor` imports `Stuck` (upstream made the same move);
+  `whnfAppIota_specE` at any spine (`whnfAppIota_spec` a corollary, same statement); fuel lemmas
+  in `Mono`; `EtaCertE`/`UnitCertE`/`StuckE` exposed.  Theorem 2: the new lockstep lemmas and
+  `stuck_irrel_ls` at the end of `LS/Iota.lean`.  No headline statement change, no new
+  invariant, no Lockstep/Prims edit.
+
+Verdicts: `diff-e2e.sh` 814/814 (master's binary at the new pin: 812/814, `e2e/rec_eta` and
+`arena/bad/tutorial/114_etaRuleK` differing); `diff-olean.sh` 551/560 (the 9 `--schedule`
+cases not ported, unchanged).  `Init`, `--verified --jobs=1`, instructions:u, one run each,
+57 919 accepted by both: `renovation` 4b033e82 165 623 162 736, this branch 165 794 612 426
+(+0.10 %: recursor η is tried first at every stuck comparison).

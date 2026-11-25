@@ -61,11 +61,11 @@ theorem dqArm_stuck
     (hx : denoteE s₁.store a' = some x') (hy : denoteE s₁.store b' = some y')
     (hwx : Expr.WScoped d x') (hwy : Expr.WScoped d y')
     (hred : ∀ F, ConLeche.defeqStuck .verified (ConLeche.pureFns .verified eager env F) env d x' y' =
-      ConLeche.stuckIrrel (ConLeche.pureFns .verified eager env F) env d x' y')
+      ConLeche.stuckIrrel .verified (ConLeche.pureFns .verified eager env F) env d x' y')
     (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck .verified (ConLeche.pureFns .verified eager env F) env d
       x' y' = .ok r → G F r)) :
     ⦃fun s => s = s₁⦄
-      ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b'
+      ConRon.Arena.stuckIrrel .verified (coreKnot .verified eager fe id fuel) fe d a' b'
     ⦃fun r s' => DqPost eager env fe s₀ G r s'; ⊤⦄ :=
   dq_stuck_exit henv hsim a' b' x' y' hok hx₁ hp₁ hx hy hwx hwy
     (hG.imp fun F h r hr => h r (by rw [hred F]; exact hr))
@@ -86,7 +86,7 @@ theorem dqArm_etaL
         (.lam t₁ c₁) y' =
       (ConLeche.etaCert .verified (ConLeche.pureFns .verified eager env F) env d t₁ c₁ y'
         >>= fun b => if b then pure true else
-          ConLeche.stuckIrrel (ConLeche.pureFns .verified eager env F) env d
+          ConLeche.stuckIrrel .verified (ConLeche.pureFns .verified eager env F) env d
             (.lam t₁ c₁) y'))
     (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck .verified (ConLeche.pureFns .verified eager env F) env d
       (.lam t₁ c₁) y' = .ok r → G F r)) :
@@ -95,7 +95,7 @@ theorem dqArm_etaL
         let e ← ConRon.Arena.etaCert .verified (coreKnot .verified eager fe id fuel) fe d ty₁
           bd₁ b'
         if e = true then pure true
-        else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b')
+        else ConRon.Arena.stuckIrrel .verified (coreKnot .verified eager fe id fuel) fe d a' b')
     ⦃fun r s' => DqPost eager env fe s₀ G r s'; ⊤⦄ := by
   refine triple_seq (etaCert_spec hsim s₁ d ty₁ bd₁ b' t₁ c₁ y' hok hty hbd
     hy hwx hwy) ?_
@@ -131,7 +131,7 @@ theorem dqArm_etaR
         x' (.lam t₂ c₂) =
       (ConLeche.etaCert .verified (ConLeche.pureFns .verified eager env F) env d t₂ c₂ x'
         >>= fun b => if b then pure true else
-          ConLeche.stuckIrrel (ConLeche.pureFns .verified eager env F) env d
+          ConLeche.stuckIrrel .verified (ConLeche.pureFns .verified eager env F) env d
             x' (.lam t₂ c₂)))
     (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck .verified (ConLeche.pureFns .verified eager env F) env d
       x' (.lam t₂ c₂) = .ok r → G F r)) :
@@ -140,7 +140,7 @@ theorem dqArm_etaR
         let e ← ConRon.Arena.etaCert .verified (coreKnot .verified eager fe id fuel) fe d ty₂
           bd₂ a'
         if e = true then pure true
-        else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b')
+        else ConRon.Arena.stuckIrrel .verified (coreKnot .verified eager fe id fuel) fe d a' b')
     ⦃fun r s' => DqPost eager env fe s₀ G r s'; ⊤⦄ := by
   refine triple_seq (etaCert_spec hsim s₁ d ty₂ bd₂ a' t₂ c₂ x' hok hty hbd
     hx hwy hwx) ?_
@@ -175,7 +175,7 @@ theorem dqArm_fvar
       (.fvar i t₁) (.fvar j t₂) = .ok r → G F r)) :
     ⦃fun s => s = s₁⦄
       (if (i == j) = true then pure true
-        else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b')
+        else ConRon.Arena.stuckIrrel .verified (coreKnot .verified eager fe id fuel) fe d a' b')
     ⦃fun r s' => DqPost eager env fe s₀ G r s'; ⊤⦄ := by
   split
   · rename_i h
@@ -208,8 +208,8 @@ theorem dqArm_const
           let o ← lvlsEq? us us'
           let b ← ConRon.Arena.liftFueled "level comparison" o
           if b = true then pure true
-          else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b'
-        else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b')
+          else ConRon.Arena.stuckIrrel .verified (coreKnot .verified eager fe id fuel) fe d a' b'
+        else ConRon.Arena.stuckIrrel .verified (coreKnot .verified eager fe id fuel) fe d a' b')
     ⦃fun r s' => DqPost eager env fe s₀ G r s'; ⊤⦄ := by
   have hwf := hok.state.wf
   have hiff := n_eq_iff_pin hwf hn hn'
@@ -232,7 +232,7 @@ theorem dqArm_const
       subst bb; subst s3
       have hpure : ∀ F, ConLeche.defeqStuck .verified (ConLeche.pureFns .verified eager env F) env d
           (.const nm ls) (.const nm' ls') =
-          (if b = true then pure true else ConLeche.stuckIrrel
+          (if b = true then pure true else ConLeche.stuckIrrel .verified
             (ConLeche.pureFns .verified eager env F) env d (.const nm ls) (.const nm' ls')) := by
         intro F
         exact (ite_eq_left h').trans (by rw [ho]; rfl)
@@ -274,9 +274,9 @@ theorem dqArm_strL
             if cO = sl ∧ usO = el ∧ fe.strLit = true then do
               let c ← ConRon.Arena.strLitToConstructor st
               (coreKnot .verified eager fe id fuel).defeq d c b'
-            else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b'
-          | _ => ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b'
-        else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b')
+            else ConRon.Arena.stuckIrrel .verified (coreKnot .verified eager fe id fuel) fe d a' b'
+          | _ => ConRon.Arena.stuckIrrel .verified (coreKnot .verified eager fe id fuel) fe d a' b'
+        else ConRon.Arena.stuckIrrel .verified (coreKnot .verified eager fe id fuel) fe d a' b')
     ⦃fun r s' => DqPost eager env fe s₀ G r s'; ⊤⦄ := by
   have hwf := hok.state.wf
   have hwx : Expr.WScoped d (.lit (.strVal st)) := by simp [Expr.WScoped]
@@ -343,9 +343,9 @@ theorem dqArm_strR
             if cO = sl ∧ usO = el ∧ fe.strLit = true then do
               let c ← ConRon.Arena.strLitToConstructor st
               (coreKnot .verified eager fe id fuel).defeq d a' c
-            else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b'
-          | _ => ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b'
-        else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b')
+            else ConRon.Arena.stuckIrrel .verified (coreKnot .verified eager fe id fuel) fe d a' b'
+          | _ => ConRon.Arena.stuckIrrel .verified (coreKnot .verified eager fe id fuel) fe d a' b'
+        else ConRon.Arena.stuckIrrel .verified (coreKnot .verified eager fe id fuel) fe d a' b')
     ⦃fun r s' => DqPost eager env fe s₀ G r s'; ⊤⦄ := by
   have hwf := hok.state.wf
   have hwy : Expr.WScoped d (.lit (.strVal st)) := by simp [Expr.WScoped]
@@ -413,9 +413,9 @@ theorem dqArm_app
           if dq = true then do
             let dl ← ConRon.Arena.defEqList (coreKnot .verified eager fe id fuel) fe d aa bb
             if dl = true then pure true
-            else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b'
-          else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b'
-        else ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a' b')
+            else ConRon.Arena.stuckIrrel .verified (coreKnot .verified eager fe id fuel) fe d a' b'
+          else ConRon.Arena.stuckIrrel .verified (coreKnot .verified eager fe id fuel) fe d a' b'
+        else ConRon.Arena.stuckIrrel .verified (coreKnot .verified eager fe id fuel) fe d a' b')
     ⦃fun r s' => DqPost eager env fe s₀ G r s'; ⊤⦄ := by
   have hpure : ∀ F, ConLeche.defeqStuck .verified (ConLeche.pureFns .verified eager env F) env d
       (.app ef₁ ea₁) (.app ef₂ ea₂) =
@@ -427,11 +427,11 @@ theorem dqArm_app
             (ConLeche.defEqList (ConLeche.pureFns .verified eager env F) env d
                 (Expr.app ef₁ ea₁).getAppArgs (Expr.app ef₂ ea₂).getAppArgs
               >>= fun b2 => if b2 = true then pure true
-                else ConLeche.stuckIrrel (ConLeche.pureFns .verified eager env F) env d
+                else ConLeche.stuckIrrel .verified (ConLeche.pureFns .verified eager env F) env d
                   (.app ef₁ ea₁) (.app ef₂ ea₂))
-          else ConLeche.stuckIrrel (ConLeche.pureFns .verified eager env F) env d
+          else ConLeche.stuckIrrel .verified (ConLeche.pureFns .verified eager env F) env d
             (.app ef₁ ea₁) (.app ef₂ ea₂))
-      else ConLeche.stuckIrrel (ConLeche.pureFns .verified eager env F) env d
+      else ConLeche.stuckIrrel .verified (ConLeche.pureFns .verified eager env F) env d
         (.app ef₁ ea₁) (.app ef₂ ea₂)) := by
     intro F; cases ef₁ <;> rfl
   refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s₁ a' hok.state

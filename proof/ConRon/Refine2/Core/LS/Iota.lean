@@ -762,6 +762,148 @@ record looked up once) against `Arena.whnfAppIota`. -/
   rw [arena.core.whnf_app_iota, whnfAppIota]
   lockstep_c2
 
+/-! ## Recursor η and the stuck fallback (con-leche task #632)
+
+`stuckIrrel` sits here, after the ι step: its first two certificates are
+recursor η, whose expansion ends in `whnfAppIota` at the full spine. -/
+
+/-- `rec_major_eta` is pure on both sides: the single rule's constructor's
+family's η flag, two lookups. -/
+theorem rec_major_eta_abs {pers fe lfe} (hctx : CoreCtx pers fe lfe)
+    {rules : alloc.vec.Vec arena.env.IRecRule} {b : Bool}
+    (h : arena.core.rec_major_eta pers fe rules = ok b) :
+    b = recMajorEta lfe (rules.val.map absIRecRule) := by
+  rw [arena.core.rec_major_eta] at h
+  by_cases hl : rules.val.length = 1
+  · obtain ⟨rl, hrl⟩ : ∃ rl, rules.val = [rl] := List.length_eq_one_iff.mp hl
+    have hlen : alloc.vec.Vec.len rules = 1#usize := by
+      apply Std.UScalar.eq_of_val_eq
+      simp [alloc.vec.Vec.len, hl]
+    rw [hlen, ite_eq_left rfl] at h
+    obtain ⟨ir, hir, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, hx⟩ := ExprOps.vecIndexAt hir
+    have hir' : ir = rl := by simp_all
+    subst hir'
+    rw [hrl]
+    simp only [List.map_cons, List.map_nil, recMajorEta, absIRecRule]
+    obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [← ifenv_find_abs hctx ho1]
+    rcases o1 with _ | ci
+    · cases Result.ok_injective h; rfl
+    · cases ci with
+      | CtorInfo cv np nf t =>
+        simp only [Option.map_some, absIConstantInfo]
+        obtain ⟨o2, ho2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        rw [← ifenv_find_abs hctx ho2]
+        rcases o2 with _ | ci2
+        · cases Result.ok_injective h; rfl
+        · cases ci2 with
+          | IndInfo cv2 caps =>
+            simp only [Option.map_some, absIConstantInfo, absIIndCaps]
+            cases Result.ok_injective h; rfl
+          | _ => cases Result.ok_injective h; rfl
+      | _ => simp only [Option.map_some, absIConstantInfo]; cases Result.ok_injective h; rfl
+  · have hlen : ¬ (alloc.vec.Vec.len rules = 1#usize) := fun e => hl (by
+      have := congrArg Std.UScalar.val e
+      simpa [alloc.vec.Vec.len] using this)
+    rw [ite_eq_right hlen] at h
+    cases Result.ok_injective h
+    unfold recMajorEta
+    split
+    · rename_i rl hm
+      exact absurd (by simpa using congrArg List.length hm) hl
+    · rfl
+
+/-- `rec_major_eta` ⊑ `recMajorEta`. -/
+@[lockstep] theorem rec_major_eta_ls {pers fe lfe} (hctx : CoreCtx pers fe lfe)
+    (rules : alloc.vec.Vec arena.env.IRecRule) :
+    LSP (arena.core.rec_major_eta pers fe rules)
+      (fun b => TwinEq (recMajorEta lfe (rules.val.map absIRecRule)) b) :=
+  fun _ h => (rec_major_eta_abs hctx h).symm
+
+/-- `rec_eta_partial` ⊑ `recEtaPartial`: the gate, read off the records. -/
+@[lockstep] theorem rec_eta_partial_ls {pers st fe lfe e lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) :
+    LS pers (fun a b => b = a.map absU) (arena.core.rec_eta_partial pers st fe e) lst
+      (recEtaPartial lfe (absEIdx e)) := by
+  rw [arena.core.rec_eta_partial, recEtaPartial]
+  lockstep_c2
+
+/-- `iota_rec_spine` ⊑ `iotaRecSpine`: the ι step at a spine read off the term. -/
+@[lockstep] theorem iota_rec_spine_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe depth e lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = Option.map absEIdx a)
+      (arena.core.iota_rec_spine pers st mode eager lane fu fe depth e) lst
+      (iotaRecSpine (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f)
+        lfe (absU depth) (absEIdx e)) := by
+  rw [arena.core.iota_rec_spine, iotaRecSpine]
+  lockstep_c2
+
+theorem rec_eta_tele_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
+    ∀ {pers st mode eager lane fu fe lfe lst} (kk depth : Std.U64) (g t : arena.handle.EIdx),
+      kk.val = n → ExprOpsHyp pers →
+      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx pers fe lfe → absU fu = f →
+      LS pers (fun a b => b = Option.map absEIdx a)
+        (arena.core.rec_eta_tele pers st mode eager lane fu fe kk depth g t) lst
+        (recEtaTele (ConRon.Refine.absMode mode)
+          (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe n
+          (absU depth) (absEIdx g) (absEIdx t)) := by
+  induction n with
+  | zero =>
+    intro pers st mode eager lane fu fe lfe lst kk depth g t hn hx hrel hinv hctx hf
+    rw [arena.core.rec_eta_tele, recEtaTele]
+    lockstep_c2
+  | succ m ih =>
+    intro pers st mode eager lane fu fe lfe lst kk depth g t hn hx hrel hinv hctx hf
+    rw [arena.core.rec_eta_tele, recEtaTele]
+    lockstep_c2
+
+/-- `rec_eta_tele` ⊑ `recEtaTele`: the reduced η-expansion, `k` binders deep. -/
+@[lockstep] theorem rec_eta_tele_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe k depth g t lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = Option.map absEIdx a)
+      (arena.core.rec_eta_tele pers st mode eager lane fu fe k depth g t) lst
+      (recEtaTele (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe k.val
+        (absU depth) (absEIdx g) (absEIdx t)) :=
+  rec_eta_tele_aux hk _ k depth g t rfl hx hrel hinv hctx hf
+
+/-- `rec_eta_cert` ⊑ `recEtaCert`. -/
+@[lockstep] theorem rec_eta_cert_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe depth a b lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.rec_eta_cert pers st mode eager lane fu fe depth a b) lst
+      (recEtaCert (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth)
+        (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.rec_eta_cert, recEtaCert]
+  lockstep_c2
+
+/-- `stuck_irrel` ⊑ `stuckIrrel`. -/
+@[lockstep] theorem stuck_irrel_ls {f : Nat} (hk : KnotRel f)
+    {pers st mode eager lane fu fe lfe depth a b lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx pers fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.stuck_irrel pers st mode eager lane fu fe depth a b) lst
+      (stuckIrrel (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) eager lfe lane f) lfe (absU depth)
+        (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.stuck_irrel, stuckIrrel]
+  lockstep_c2
+
 end iota
 
 end ConRon.Refine2.Lockstep

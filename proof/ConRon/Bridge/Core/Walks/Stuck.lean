@@ -1,13 +1,15 @@
 /-
-# `ConRon.Bridge.Core.Walks.Stuck` — the stuck fallback, `stuckIrrel`
+# `ConRon.Bridge.Core.Walks.Stuck` — the stuck fallback's certificates
 
 `stuckIrrel` is the `defeq` body's fallback at two structurally distinct
-stuck terms — structure-η in both directions, then unit-likeness, then proof
-irrelevance — and every congruence failure of `defeqStuck` ends in it.
+stuck terms — recursor η in both directions, structure-η in both directions,
+then unit-likeness, then proof irrelevance — and every congruence failure of
+`defeqStuck` ends in it.  This module holds the structure-η, unit and proof
+irrelevance certificates; recursor η and `stuckIrrel` itself are in
+`Walks/RecEta.lean`, after the ι step the recursor η calls.
 
 | walk | twin | con-leche | proof |
 |---|---|---|---|
-| `stuckIrrel_specA` | `Arena/Core.lean` `stuckIrrel` | `Kernel/Core.lean` `stuckIrrel` | `vcgen`/`grind` over the four exits (`StuckE.*`) |
 | `structEtaCert_specA` | `structEtaCert` | `structEtaCert` | `vcgen`/`grind`, exits `EtaCertE.with`/`.none`/`.partial` |
 | `structEtaCertWith_spec` | `structEtaCertWith` | `structEtaCertWith` | staged over the twin's program order (`triple_seq`), exits `structEtaCertWith_exits` |
 | `etaCtorPartial_spec` | `etaCtorPartial` | `CoreDefs.lean` `etaCtorPartial` | staged, `etaPartialFam` (`etaCtorPartialFam_eq`) |
@@ -77,7 +79,7 @@ grind_pattern [bridge_grind] DenWS.isSome => DenWS d o
 
 /-- con-leche: ConLeche/Kernel/Core.lean:413-425 structEtaCert — its answer at
 two subjects. -/
-def EtaCertE (mode : CheckMode) (eager : Bool) (env : Env) (d : Nat) (x y : Expr) (r : Bool) : Prop :=
+@[expose] def EtaCertE (mode : CheckMode) (eager : Bool) (env : Env) (d : Nat) (x y : Expr) (r : Bool) : Prop :=
   SimBOp (fun F => ConLeche.structEtaCertFueled mode eager env F d x y) r
 
 /-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — its
@@ -86,7 +88,7 @@ def EtaWithE (mode : CheckMode) (eager : Bool) (env : Env) (d : Nat) (x y w : Ex
   SimBOp (fun F => ConLeche.structEtaCertWithFueled mode eager env F d x y w) r
 
 /-- con-leche: ConLeche/Kernel/Core.lean:431-455 structUnitCert — its answer. -/
-def UnitCertE (mode : CheckMode) (eager : Bool) (env : Env) (d : Nat) (x y : Expr) (r : Bool) : Prop :=
+@[expose] def UnitCertE (mode : CheckMode) (eager : Bool) (env : Env) (d : Nat) (x y : Expr) (r : Bool) : Prop :=
   SimBOp (fun F => ConLeche.structUnitCertFueled mode eager env F d x y) r
 
 /-- con-leche: ConLeche/Kernel/Core.lean:298-312 proofIrrel — its answer. -/
@@ -94,7 +96,7 @@ def UnitCertE (mode : CheckMode) (eager : Bool) (env : Env) (d : Nat) (x y : Exp
   SimBOp (fun F => ConLeche.proofIrrelFueled mode eager env F d x y) r
 
 /-- con-leche: ConLeche/Kernel/Core.lean:487-492 stuckIrrel — its answer. -/
-def StuckE (mode : CheckMode) (eager : Bool) (env : Env) (d : Nat) (x y : Expr) (r : Bool) : Prop :=
+@[expose] def StuckE (mode : CheckMode) (eager : Bool) (env : Env) (d : Nat) (x y : Expr) (r : Bool) : Prop :=
   SimBOp (fun F => ConLeche.stuckIrrelFueled mode eager env F d x y) r
 
 /-! ## 1. Index and rule-list facts -/
@@ -2049,150 +2051,6 @@ theorem proofIrrel_specA {fuel : Nat} (hsim : KnotSpec eager env fe fuel)
       KnotSpec.whnfS hsim, pinZeroLevel_spec, lvlEq?_specA (eager := eager) (env := env) (fe := fe),
       liftFueled_spec] <;> finish
 
-/-! ## 2. The pure side: `stuckIrrel` at its four exits -/
-
-/-- con-leche: ConLeche/Kernel/Core.lean:532-542 stuckIrrel — the first η
-direction certifies. -/
-theorem stuckIrrelFueled_eta1 {F d : Nat} {x y : Expr}
-    (h : ConLeche.structEtaCertFueled mode eager env F d x y = .ok true) :
-    ConLeche.stuckIrrelFueled mode eager env F d x y = .ok true := by
-  have h' : ConLeche.structEtaCert (ConLeche.pureFns mode eager env F) env d x y
-      = .ok true := h
-  simp only [ConLeche.stuckIrrelFueled, ConLeche.stuckIrrel, h', bind,
-    Except.bind, ite_true, pure, Except.pure]
-
-/-- con-leche: ConLeche/Kernel/Core.lean:532-542 stuckIrrel — the second η
-direction certifies. -/
-theorem stuckIrrelFueled_eta2 {F d : Nat} {x y : Expr}
-    (h1 : ConLeche.structEtaCertFueled mode eager env F d x y = .ok false)
-    (h2 : ConLeche.structEtaCertFueled mode eager env F d y x = .ok true) :
-    ConLeche.stuckIrrelFueled mode eager env F d x y = .ok true := by
-  have h1' : ConLeche.structEtaCert (ConLeche.pureFns mode eager env F) env d x y
-      = .ok false := h1
-  have h2' : ConLeche.structEtaCert (ConLeche.pureFns mode eager env F) env d y x
-      = .ok true := h2
-  simp only [ConLeche.stuckIrrelFueled, ConLeche.stuckIrrel, h1', h2', bind,
-    Except.bind, Bool.false_eq_true, ite_false, ite_true, pure, Except.pure]
-
-/-- con-leche: ConLeche/Kernel/Core.lean:532-542 stuckIrrel — unit-likeness
-certifies. -/
-theorem stuckIrrelFueled_unit {F d : Nat} {x y : Expr}
-    (h1 : ConLeche.structEtaCertFueled mode eager env F d x y = .ok false)
-    (h2 : ConLeche.structEtaCertFueled mode eager env F d y x = .ok false)
-    (h3 : ConLeche.structUnitCertFueled mode eager env F d x y = .ok true) :
-    ConLeche.stuckIrrelFueled mode eager env F d x y = .ok true := by
-  have h1' : ConLeche.structEtaCert (ConLeche.pureFns mode eager env F) env d x y
-      = .ok false := h1
-  have h2' : ConLeche.structEtaCert (ConLeche.pureFns mode eager env F) env d y x
-      = .ok false := h2
-  have h3' : ConLeche.structUnitCert (ConLeche.pureFns mode eager env F) env d x y
-      = .ok true := h3
-  simp only [ConLeche.stuckIrrelFueled, ConLeche.stuckIrrel, h1', h2', h3',
-    bind, Except.bind, Bool.false_eq_true, ite_false, ite_true, pure,
-    Except.pure]
-
-/-- con-leche: ConLeche/Kernel/Core.lean:532-542 stuckIrrel — none of the
-three certifies, so proof irrelevance decides. -/
-theorem stuckIrrelFueled_proof {F d : Nat} {x y : Expr} {r : Bool}
-    (h1 : ConLeche.structEtaCertFueled mode eager env F d x y = .ok false)
-    (h2 : ConLeche.structEtaCertFueled mode eager env F d y x = .ok false)
-    (h3 : ConLeche.structUnitCertFueled mode eager env F d x y = .ok false)
-    (h4 : ConLeche.proofIrrelFueled mode eager env F d x y = .ok r) :
-    ConLeche.stuckIrrelFueled mode eager env F d x y = .ok r := by
-  have h1' : ConLeche.structEtaCert (ConLeche.pureFns mode eager env F) env d x y
-      = .ok false := h1
-  have h2' : ConLeche.structEtaCert (ConLeche.pureFns mode eager env F) env d y x
-      = .ok false := h2
-  have h3' : ConLeche.structUnitCert (ConLeche.pureFns mode eager env F) env d x y
-      = .ok false := h3
-  have h4' : ConLeche.proofIrrel (ConLeche.pureFns mode eager env F) d x y
-      = .ok r := h4
-  simp only [ConLeche.stuckIrrelFueled, ConLeche.stuckIrrel, h1', h2', h3',
-    h4', bind, Except.bind, Bool.false_eq_true, ite_false]
-
-/-! ## 3. The walk
-
-`stuckIrrel`'s four exits as `grind` lemmas over the children's named
-answers (the fuel merge inside each), and the children in answer shape at
-their subjects' denotations (`PairAns`). -/
-
-/-- con-leche: ConLeche/Kernel/Core.lean:487-492 stuckIrrel — the first η
-direction certifies. -/
-@[bridge_grind ←] theorem StuckE.eta1 {d : Nat} {x y : Expr}
-    (h : EtaCertE mode eager env d x y true) : StuckE mode eager env d x y true := by
-  obtain ⟨F, hF⟩ := h
-  exact ⟨F, stuckIrrelFueled_eta1 hF⟩
-
-/-- con-leche: ConLeche/Kernel/Core.lean:487-492 stuckIrrel — the second η
-direction certifies. -/
-@[bridge_grind ←] theorem StuckE.eta2 {d : Nat} {x y : Expr}
-    (h1 : EtaCertE mode eager env d x y false) (h2 : EtaCertE mode eager env d y x true) :
-    StuckE mode eager env d x y true := by
-  obtain ⟨F1, hF1⟩ := h1
-  obtain ⟨F2, hF2⟩ := h2
-  exact ⟨max F1 F2, stuckIrrelFueled_eta2
-    (structEtaCertFueled_mono (Nat.le_max_left _ _) hF1)
-    (structEtaCertFueled_mono (Nat.le_max_right _ _) hF2)⟩
-
-/-- con-leche: ConLeche/Kernel/Core.lean:487-492 stuckIrrel — unit-likeness
-certifies. -/
-@[bridge_grind ←] theorem StuckE.unit {d : Nat} {x y : Expr}
-    (h1 : EtaCertE mode eager env d x y false) (h2 : EtaCertE mode eager env d y x false)
-    (h3 : UnitCertE mode eager env d x y true) : StuckE mode eager env d x y true := by
-  obtain ⟨F1, hF1⟩ := h1
-  obtain ⟨F2, hF2⟩ := h2
-  obtain ⟨F3, hF3⟩ := h3
-  exact ⟨F1 + F2 + F3, stuckIrrelFueled_unit
-    (structEtaCertFueled_mono (by omega) hF1) (structEtaCertFueled_mono (by omega) hF2)
-    (structUnitCertFueled_mono (by omega) hF3)⟩
-
-/-- con-leche: ConLeche/Kernel/Core.lean:487-492 stuckIrrel — none of the
-three certifies, so proof irrelevance decides. -/
-@[bridge_grind ←] theorem StuckE.proof {d : Nat} {x y : Expr} {r : Bool}
-    (h1 : EtaCertE mode eager env d x y false) (h2 : EtaCertE mode eager env d y x false)
-    (h3 : UnitCertE mode eager env d x y false) (h4 : PIrrelE mode eager env d x y r) :
-    StuckE mode eager env d x y r := by
-  obtain ⟨F1, hF1⟩ := h1
-  obtain ⟨F2, hF2⟩ := h2
-  obtain ⟨F3, hF3⟩ := h3
-  obtain ⟨F4, hF4⟩ := h4
-  exact ⟨F1 + F2 + F3 + F4, stuckIrrelFueled_proof
-    (structEtaCertFueled_mono (by omega) hF1) (structEtaCertFueled_mono (by omega) hF2)
-    (structUnitCertFueled_mono (by omega) hF3) (proofIrrelFueled_mono (by omega) hF4)⟩
-
-/-- con-leche: ConLeche/Kernel/Core.lean:532-542 stuckIrrel — the walk in
-answer shape (`StuckE`). -/
-theorem stuckIrrel_specA {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec eager env fe fuel)
-    (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
-    (hok : CheckOK eager env fe s₀) (hda : denoteE s₀.store a = some x)
-    (hdb : denoteE s₀.store b = some y)
-    (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
-    ⦃fun s => s = s₀⦄
-      ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a b
-    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ StuckE .verified eager env d x y r; ⊤⦄ := by
-  sym only [bridge_grind] =>
-    vcgen [ConRon.Arena.stuckIrrel, structEtaCert_specA henv hsim,
-      structUnitCert_specA henv hsim, proofIrrel_specA hsim] <;> finish
-
-/-- con-leche: ConLeche/Kernel/Core.lean:532-542 stuckIrrel — **THEOREM 1 for
-`stuckIrrel`**, the fallback at two stuck terms: structure-η in both
-directions, then the unit certificate, then proof irrelevance
-(`stuckIrrel_specA`; `StuckE` is `SimBOp` at the pure call). -/
-theorem stuckIrrel_spec {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec eager env fe fuel)
-    (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
-    (hok : CheckOK eager env fe s₀) (hda : denoteE s₀.store a = some x)
-    (hdb : denoteE s₀.store b = some y)
-    (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
-    ⦃fun s => s = s₀⦄
-      ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d a b
-    ⦃fun r s' => CheckOK eager env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.stuckIrrelFueled .verified eager env F d x y) r; ⊤⦄ :=
-  stuckIrrel_specA henv hsim s₀ d a b x y hok hda hdb hwa hwb
-
 /-! ## 4. The axiom census -/
 
 section Census
@@ -2207,12 +2065,6 @@ section Census
 #print axioms structEtaCertWith_exits
 #print axioms structEtaCertWith_spec
 #print axioms structEtaCert_specA
-#print axioms stuckIrrelFueled_eta1
-#print axioms stuckIrrelFueled_eta2
-#print axioms stuckIrrelFueled_unit
-#print axioms stuckIrrelFueled_proof
-#print axioms stuckIrrel_specA
-#print axioms stuckIrrel_spec
 
 end Census
 

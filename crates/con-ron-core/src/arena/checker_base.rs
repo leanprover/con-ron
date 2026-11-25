@@ -381,7 +381,7 @@ pub fn all_level_params_defined(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:30-51 Expr.constsResolveF
-/// con-leche: ConLeche/Cached/StateC.lean:607-664 constsResolveFXP
+/// con-leche: ConLeche/Cached/StateC.lean:619-676 constsResolveFXP
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:115-153 constsResolveFGo` —
 /// the memoized walk.  The four LEAF clauses are `arena::core`'s
 /// `consts_resolve` at one node, exactly as con-leche's `…Go` calls the pure
@@ -422,7 +422,7 @@ pub fn consts_resolve_f_go(
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:607-664 constsResolveFXP
+/// con-leche: ConLeche/Cached/StateC.lean:619-676 constsResolveFXP
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:115-153 constsResolveFGo` —
 /// the six memoized arms, past the probe.  The `.proj` arm's `fe.find? s` is
 /// the structure's own resolution, as the twin has it.
@@ -456,7 +456,7 @@ pub fn consts_resolve_f_node(
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:607-664 constsResolveFXP
+/// con-leche: ConLeche/Cached/StateC.lean:619-676 constsResolveFXP
 /// The twin's `(b₁ && b₂, memo)` of the two-child arms.  **Both children are
 /// walked**, as the twin walks them: the conjunction is not short-circuited,
 /// because the memo the second walk fills is part of the state.
@@ -478,7 +478,7 @@ pub fn consts_resolve_f_two(
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:666-668 constsResolveFC
+/// con-leche: ConLeche/Cached/StateC.lean:678-680 constsResolveFC
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:155-159 constsResolveFFast`
 /// — the executed `constsResolve` (one memoized DAG walk), which is what every
 /// front door below calls.

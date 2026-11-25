@@ -1124,7 +1124,7 @@ structure arena.expr_ops.InstRange where
   k : Std.Usize
 
 /-- [con_ron_core::arena::core::LazyResA]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10783:0-10790:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11008:0-11015:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.LazyResA where
@@ -1132,7 +1132,7 @@ inductive arena.core.LazyResA where
 | Unknown : arena.handle.EIdx → arena.handle.EIdx → arena.core.LazyResA
 
 /-- [con_ron_core::arena::core::DeltaStepA]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10550:0-10563:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10775:0-10788:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.DeltaStepA where
@@ -1142,7 +1142,7 @@ inductive arena.core.DeltaStepA where
 | Unknown : arena.core.DeltaStepA
 
 /-- [con_ron_core::arena::core::WhnfStep]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7269:0-7272:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7306:0-7309:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.WhnfStep where

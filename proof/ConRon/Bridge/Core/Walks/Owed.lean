@@ -24,7 +24,7 @@ The others live in the module whose imports they need:
 | `projCertAt` | `Walks/Proj.lean` |
 | `projLitToCtor` | `Walks/ProjLit.lean` |
 | `propIrrel`, `annotPwPi`, `annotPwLam` | `Walks/PropRead.lean` |
-| `stuckIrrel` | `Walks/Stuck.lean` |
+| `stuckIrrel` | `Walks/RecEta.lean` |
 | `iotaRec` | `Walks/Iota.lean` |
 
 ## 0. The subject's denotation: an existential in, a universal out

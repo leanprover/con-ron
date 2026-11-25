@@ -296,7 +296,7 @@ impl Memos {
 // The state (`Monad.lean:110-126`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/StateC.lean:256-298 CState
+/// con-leche: ConLeche/Cached/StateC.lean:268-310 CState
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:118-135 AState` — the checker
 /// state of (C): the arena, the per-call memo tables and — since task
 /// #97-P4c — the per-declaration caches (`whnfCore`, `whnf`, the two infer

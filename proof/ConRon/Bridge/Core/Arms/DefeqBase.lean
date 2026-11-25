@@ -18,7 +18,7 @@ so that the three can build in parallel:
 module
 
 import ConRon.Bridge.Core.Memo
-import ConRon.Bridge.Core.Walks.Stuck
+import ConRon.Bridge.Core.Walks.RecEta
 import ConRon.Bridge.Core.Walks.Guards
 import ConRon.Bridge.Core.Walks.Mono
 import ConRon.Bridge.ExprOps.Ranges
@@ -220,7 +220,7 @@ theorem dq_defeq_exit {fe : IFEnv} {fuel d : Nat}
       (Ev.of_mono (fun hle h => ConLeche.isDefEqCore_mono hle h) hr)⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:569-576 stuckIrrel — **the stuck
-fallback** as the verdict, over `stuckIrrel_spec` (`Walks/Stuck.lean`).
+fallback** as the verdict, over `stuckIrrel_spec` (`Walks/RecEta.lean`).
 The one call site of that rule in this module. -/
 theorem dq_stuck_exit {fe : IFEnv} {fuel d : Nat}
     (henv : ConLeche.EnvWF env)
@@ -230,10 +230,10 @@ theorem dq_stuck_exit {fe : IFEnv} {fuel d : Nat}
     (hps : s.pins = s₀.pins) (hp : denoteE s.store p = some u)
     (hq : denoteE s.store q = some w) (hwu : Expr.WScoped d u)
     (hww : Expr.WScoped d w)
-    (hG : Ev (fun F => ∀ r, ConLeche.stuckIrrel
+    (hG : Ev (fun F => ∀ r, ConLeche.stuckIrrel .verified
       (ConLeche.pureFns .verified eager env F) env d u w = .ok r → G F r)) :
     ⦃fun s' => s' = s⦄
-      ConRon.Arena.stuckIrrel (coreKnot .verified eager fe id fuel) fe d p q
+      ConRon.Arena.stuckIrrel .verified (coreKnot .verified eager fe id fuel) fe d p q
     ⦃fun r s' => DqPost eager env fe s₀ G r s'; ⊤⦄ := by
   refine triple_mono (stuckIrrel_spec henv hsim s d p q u w hok hp hq hwu hww) ?_
   rintro r s' ⟨hok', hx', hp', hr⟩
