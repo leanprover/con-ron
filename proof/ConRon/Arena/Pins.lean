@@ -288,7 +288,7 @@ def pinSortOne : AM EIdx := do
   if pinsReady s then pure s.pins.sortOne
   else fail (.internal "arena: reserved-name pins not interned")
 
-/-- con-leche: ConLeche/Cached/StateC.lean:317-321 maxNatSizeM — the run's
+/-- con-leche: ConLeche/Cached/StateC.lean:329-333 maxNatSizeM — the run's
 maximum `Nat` size, read off the record, which it leaves as it is. -/
 @[inline] def maxNatSizeM : AM Nat := do
   let s ← get
