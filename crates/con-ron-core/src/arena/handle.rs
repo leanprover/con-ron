@@ -508,57 +508,57 @@ impl Dup for LsIdx {
 // that a reader can line the two up by eye.  Each tag cites the parent
 // inductive and names the constructor it stands for.
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:264-266 ETag.bvar` — the `bvar`
 /// constructor, line 401.
 pub const ETAG_BVAR: u32 = 0;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:267-269 ETag.fvar` — the `fvar`
 /// constructor, line 402.
 pub const ETAG_FVAR: u32 = 1;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:270-272 ETag.sort` — the `sort`
 /// constructor, line 403.
 pub const ETAG_SORT: u32 = 2;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:273-275 ETag.const` — the `const`
 /// constructor, line 404.
 pub const ETAG_CONST: u32 = 3;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:276-278 ETag.app` — the `app`
 /// constructor, line 405.
 pub const ETAG_APP: u32 = 4;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:279-281 ETag.lam` — the `lam`
 /// constructor, line 406.
 pub const ETAG_LAM: u32 = 5;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:282-284 ETag.forallE` — the
 /// `forallE` constructor, line 407.
 pub const ETAG_FORALL_E: u32 = 6;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:285-287 ETag.letE` — the `letE`
 /// constructor, line 408.
 pub const ETAG_LET_E: u32 = 7;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:288-290 ETag.lit` — the `lit`
 /// constructor, line 409.
 pub const ETAG_LIT: u32 = 8;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:291-293 ETag.proj` — the `proj`
 /// constructor, line 410.
 pub const ETAG_PROJ: u32 = 9;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:295-302 ETag.isBind` —
 /// `ETag.isBind`: `lam` or `forallE`, the two constructors that share the
 /// `BindNode` record shape. A named predicate rather than the disjunction

@@ -251,40 +251,40 @@ structure LsStore where
 
 /-! ## Expressions -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `bvar`
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `bvar`
 constructor, line 316. -/
 structure BVarNode where
   i : Nat
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `fvar`
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `fvar`
 constructor, line 317. -/
 structure FVarNode where
   idx : Nat
   ty : EIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `sort`
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `sort`
 constructor, line 318. -/
 structure SortNode where
   u : LIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `const`
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `const`
 constructor, line 319. -/
 structure ConstNode where
   n : NIdx
   us : LsIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `app`
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `app`
 constructor, line 320. -/
 structure AppNode where
   f : EIdx
   a : EIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `lam`
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `lam`
 constructor, line 321, and `forallE`, line 407: same two fields, its own
 array.  (Task #119: con-leche's binders carry no datum any more, so the
 binder-datum store of task #97-P6-16 is gone and the record is two handles.) -/
@@ -293,7 +293,7 @@ structure BindNode where
   body : EIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `letE`
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `letE`
 constructor, line 323. -/
 structure LetNode where
   ty : EIdx
@@ -301,13 +301,13 @@ structure LetNode where
   body : EIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `lit`
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `lit`
 constructor, line 324. -/
 structure LitNode where
   l : ConLeche.Literal
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `proj`
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `proj`
 constructor, line 325. -/
 structure ProjNode where
   n : NIdx
@@ -325,7 +325,7 @@ instance : BEq LetNode := instBEqOfDecidableEq
 instance : BEq LitNode := instBEqOfDecidableEq
 instance : BEq ProjNode := instBEqOfDecidableEq
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the store-side view of
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the store-side view of
 an expression node: con-leche's ten constructors with every subterm replaced
 by a handle.  `Literal` stays a *value* (it is not an expression), exactly as
 DESIGN §8.3 specifies. -/
@@ -1031,27 +1031,27 @@ def sizeOf (t : ETables) (v : ENodeView) : Nat :=
 
 end ETables
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `lam` (hash tag
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `lam` (hash tag
 19) and `forallE` (23) arms of `derOfView` as a function of the two
 children's derived words (task #119: the binder datum is gone from the hash
 and from the has-a-parameter bit, as upstream's `Expr.data`). -/
 @[inline] def derOfBind (tag : UInt64) (dt db : UInt64) : UInt64 :=
-  packData (hash32 (mixHash tag (mixHash (hashOfData dt) (hashOfData db))))
+  packData (hash32 (mixHash (mixHash (hashOfData dt) (hashOfData db)) tag))
     (max (bvarOfData dt) (satPred (bvarOfData db)))
     (max (fvarOfData dt) (fvarOfData db))
     (lpOfData dt || lpOfData db)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `letE` arm of
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `letE` arm of
 `derOfView` over the three children's derived words.  A function for the
 reason `derOfBind` is one. -/
 @[inline] def derOfLet (dt dv db : UInt64) : UInt64 :=
-  packData (hash32 (mixHash 29
-      (mixHash (hashOfData dt) (mixHash (hashOfData dv) (hashOfData db)))))
+  packData (hash32 (mixHash
+      (mixHash (mixHash (hashOfData dt) (hashOfData dv)) (hashOfData db)) 29))
     (max (max (bvarOfData dt) (bvarOfData dv)) (satPred (bvarOfData db)))
     (max (max (fvarOfData dt) (fvarOfData dv)) (fvarOfData db))
     (lpOfData dt || lpOfData dv || lpOfData db)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the inverse of
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the inverse of
 `EStore.viewBind` (task #97-P6-10): rebuild the binder view a walk decoded
 with `viewBind`, at the tag it decoded it at.  `lam` (line 406) and `forallE`
 (line 407) have one record shape and the projection reads either; this is the
@@ -1201,7 +1201,7 @@ array set, the tag selects the array, the index reads it. -/
   if i.isPersistent then st.pers.get i
   else if st.scratchOn then st.scr.get i else none
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `data` computed
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `data` computed
 field, lines 329-374: the packed derived word of an expression handle. -/
 @[inline] def derived (st : EStore) (i : EIdx) : UInt64 :=
   if i.isPersistent then st.pers.derAt i
@@ -1228,52 +1228,52 @@ Each arm is a function of that arm's own fields, called from both, and
 `rfl` per constructor and `derived_exact` (`WFProofs.lean`) is still one
 `simp` per constructor. -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `bvar` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `bvar` arm. -/
 @[inline] def derOfBVar (_st : EStore) (i : Nat) : UInt64 :=
   packData (hash32 (mixHash 3 (hash i))) (satSucc i) 0 false
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `fvar` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `fvar` arm. -/
 @[inline] def derOfFVar (st : EStore) (idx : Nat) (ty : EIdx) : UInt64 :=
-  packData (hash32 (mixHash 5 (mixHash (hash idx) (hashOfData (st.derived ty)))))
+  packData (hash32 (mixHash (mixHash 5 (hash idx)) (hashOfData (st.derived ty))))
     0 (satSucc idx) (lpOfData (st.derived ty))
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `sort` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `sort` arm. -/
 @[inline] def derOfSort (st : EStore) (u : LIdx) : UInt64 :=
   packData (hash32 (mixHash 7 (st.lder u).hash)) 0 0 (st.lder u).hasParam
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `const` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `const` arm. -/
 @[inline] def derOfConst (st : EStore) (n : NIdx) (us : LsIdx) : UInt64 :=
   packData (hash32 (mixHash 11 (mixHash (st.nder n) (st.lsder us).hash)))
     0 0 (st.lsder us).hasParam
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `app` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `app` arm. -/
 @[inline] def derOfApp (st : EStore) (f a : EIdx) : UInt64 :=
-  packData (hash32 (mixHash 17
-      (mixHash (hashOfData (st.derived f)) (hashOfData (st.derived a)))))
+  packData (hash32 (mixHash
+      (mixHash (hashOfData (st.derived f)) (hashOfData (st.derived a))) 17))
     (max (bvarOfData (st.derived f)) (bvarOfData (st.derived a)))
     (max (fvarOfData (st.derived f)) (fvarOfData (st.derived a)))
     (lpOfData (st.derived f) || lpOfData (st.derived a))
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `lam` (tag 19) and
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `lam` (tag 19) and
 `forallE` (tag 23) arms. -/
 @[inline] def derOfBindAt (st : EStore) (tag : UInt64) (ty b : EIdx) : UInt64 :=
   derOfBind tag (st.derived ty) (st.derived b)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `letE` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `letE` arm. -/
 @[inline] def derOfLetAt (st : EStore) (ty v b : EIdx) : UInt64 :=
   derOfLet (st.derived ty) (st.derived v) (st.derived b)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `lit` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `lit` arm. -/
 @[inline] def derOfLit (_st : EStore) (l : ConLeche.Literal) : UInt64 :=
   packData (hash32 (mixHash 31 (hash l))) 0 0 false
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `proj` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `proj` arm. -/
 @[inline] def derOfProj (st : EStore) (s : NIdx) (i : Nat) (e : EIdx) : UInt64 :=
-  packData (hash32 (mixHash 37 (mixHash (st.nder s)
-      (mixHash (hash i) (hashOfData (st.derived e))))))
+  packData (hash32 (mixHash (mixHash (mixHash 37 (st.nder s)) (hash i))
+      (hashOfData (st.derived e))))
     (bvarOfData (st.derived e)) (fvarOfData (st.derived e)) (lpOfData (st.derived e))
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `data` computed
+/-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the `data` computed
 field, lines 329-374: the derived word a node view *would* get, computed in
 `O(1)` from the children's, as the ten arms' dispatch. -/
 def derOfView (st : EStore) (v : ENodeView) : UInt64 :=

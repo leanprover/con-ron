@@ -75332,3 +75332,42 @@ Verdicts: `diff-e2e.sh` 814/814 (master's binary at the new pin: 812/814, `e2e/r
 cases not ported, unchanged).  `Init`, `--verified --jobs=1`, instructions:u, one run each,
 57 919 accepted by both: `renovation` 4b033e82 165 623 162 736, this branch 165 794 612 426
 (+0.10 %: recursor η is tried first at every stuck comparison).
+
+### Task #184 — con-leche sync 3871e142 → 7fb732aa on `renovation`: con-leche's master merged in — `Expr` hash mixing, lazy applied projections, the concise `--help` (2026-11-25, Opus)
+
+Upstream merge 7fb732aa ("Merge master into renovation"), from the maintainer's local checkout
+before it was pushed: con-leche master's #633 (lazy applied projections, lean4#16613), #634
+(`Expr` hash mixing), #635 (PERF refresh), the concise `--help`, an OVERVIEW rewrite.
+`update --auto`: 135 findings (135 `CHANGED`); 135 markers → 0; coverage 1235/1287 (52
+uncovered) throughout.  One agent:
+* **Hash mixing (#634).**  con-ron's node hash was an exact copy of con-leche's (`kernel::expr`'s
+  constructors, the arena's `der_of_*`, the twin's `derOf*`; Theorem 1's
+  `EStore.derived_exact_at` proves the derived word is `Expr.data`), so the ~82k-step orbit
+  applied here too and the new order is carried over exactly: `fvar` `mix(mix(5, hash idx),
+  h ty)`, `app`/`lam`/`forallE` `mix(mix(hf, ha), tag)`, `letE` `mix(mix(mix(ht, hv), hb),
+  29)`, `proj` `mix(mix(mix(37, hash s), hash i), h e)`.  `derived_exact_at` re-checked without
+  edits.  The 120 `Expr` markers only cite the constructors (tags, views, node structs): checked
+  by kind, no code.
+* **Lazy applied projections (#633).**  con-ron had only the bare proj/proj comparison.
+  `defeq_proj_pair` finds both spine heads (`get_app_fn`), reads the argument lists once the
+  heads match on structure and field, requires equal lengths; `lazy_delta_proj_reduction`
+  carries the two lists and, when a step finds the scrutinees equal, compares them last to
+  first; an applied pair that never unfolds to equal scrutinees answers `false`.  Deviation:
+  the lists are read after the head test (upstream computes them first), same verdict.
+  Theorem 1 (`Bridge/Core/Arms/Defeq.lean` §2): `lazyDeltaProjReduction_spec` over the handle
+  lists (equal exit through `defEqList_spec` at the reversed lists, the others through a new
+  `ldprTailL_spec`), `defeqProjPair_spec` around `getAppFn_spec`/`getAppArgs_spec`; kept in
+  the section's existing manual triple style, since the step's postcondition carries an `∃`
+  that `grind` cannot take (converting §2 to the vcgen/grind style is open).  Theorem 2: the
+  statements only; `lockstep_f` still closes them.
+* **`--help`.**  `bin/con-ron.rs`'s synopsis and help text in upstream's short form (80
+  columns), con-ron's own wording kept where it differs (`--jobs` at most 16, `--constant`
+  outside the theorems, the schedule flags as usage errors); the twin's `Main.lean` alike.
+
+No headline statement change, no new axiom, no new Theorem-2 invariant, no Lockstep/Prims edit.
+Verdicts: `diff-e2e.sh` 815/815 (master's binary at the new pin times out on
+`e2e/proj_app_lazy_delta`, now accepted); `diff-olean.sh` 551/560 (the 9 `--schedule` cases
+not ported).  `Init`, `--verified --jobs=1`, instructions:u, one run each (the agent's), 57 919
+accepted by both: `renovation` d6c48c36 165 794 562 801, this branch 163 230 342 182
+(−1.55 %: the hash orbit's memo collisions gone).  OVERVIEW §2.1's command-line block still
+lists every invocation form, accurate but longer than the new synopsis.

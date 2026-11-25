@@ -67,131 +67,73 @@
   1209      pub projs: Tbl<ProjNode, EIdx, u64>,
   1210  }
 
-== crates/con-ron/src/bin/con-ron.rs#L49-L172
+== crates/con-ron/src/bin/con-ron.rs#L49-L114
     49  const SYNOPSIS: &str = "\
     50  Usage:
-    51    con-ron [OPTIONS] [--] FILE.ndjson
-    52    con-ron [OPTIONS] --compare [--] CHALLENGE.ndjson SOLUTION.ndjson
-    53    con-ron [OPTIONS] --olean --search-path=DIRS [--] MODULE...
-    54    con-ron [OPTIONS] --check-graph --search-path=DIRS [--] MODULE...
-    55    con-ron [OPTIONS] --olean --module --search-path=DIRS [--] MODULE
-    56    con-ron [OPTIONS] --olean --modular --search-path=DIRS [--] MODULE
-    57    con-ron [OPTIONS] --olean --schedule[-OPT=V] --search-path=DIRS [--] MODULE
-    58    con-ron [OPTIONS] --olean --compare [--trusted-search-path=DIRS]
-    59            --search-path=DIRS [--] CHALLENGE SOLUTION
-    60    con-ron [OPTIONS] --check-graph --compare [--trusted-search-path=DIRS]
-    61            --search-path=DIRS [--] CHALLENGE SOLUTION
-    62    con-ron [OPTIONS] --olean --module|--modular|--schedule[-OPT=V]
-    63            --compare [--trusted-search-path=DIRS] --search-path=DIRS
-    64            [--] CHALLENGE SOLUTION";
-    65  
-    66  /// con-leche: ConLeche/Driver/Cli.lean:134-135 tryHelp
-    67  /// The line after a usage error.
-    68  const TRY_HELP: &str = "Try 'con-ron --help' for more information.";
+    51    con-ron [OPTIONS] FILE.ndjson
+    52    con-ron [OPTIONS] --compare CHALLENGE.ndjson SOLUTION.ndjson
+    53    con-ron [OPTIONS] --olean --search-path=DIRS MODULE...
+    54    con-ron [OPTIONS] --olean --search-path=DIRS --compare CHALLENGE SOLUTION";
+    55  
+    56  /// con-leche: ConLeche/Driver/Cli.lean:124-125 tryHelp
+    57  /// The line after a usage error.
+    58  const TRY_HELP: &str = "Try 'con-ron --help' for more information.";
+    59  
+    60  /// con-leche: ConLeche/Driver/Cli.lean:127-175 helpText
+    61  /// The `--help` text: con-leche's, with this binary's name and con-ron's
+    62  /// documentation.  DESIGN.md §3.1: message
+    63  /// strings need not match.  Short on purpose, as con-leche's: one line per
+    64  /// option (two at most), the exit codes and the links; explanations belong
+    65  /// in OVERVIEW.md.
+    66  const HELP_HEAD: &str = "\
+    67  Check Lean declarations from a lean4export file or from .olean modules.
+    68  ";
     69  
-    70  /// con-leche: ConLeche/Driver/Cli.lean:137-260 helpText
-    71  /// The `--help` text: con-leche's, with this binary's name and con-ron's
-    72  /// documentation.  DESIGN.md §3.1: message
-    73  /// strings need not match.
-    74  const HELP_HEAD: &str = "\
-    75  Check Lean declarations from a lean4export file or from .olean modules.
-    76  ";
-    77  
-    78  /// con-leche: ConLeche/Driver/Cli.lean:137-260 helpText
-    79  /// The rest of the `--help` text, after the synopsis.  The scheduler is the
-    80  /// simple one (`con_ron::schedule`): its settings con-ron does not run are
-    81  /// listed by name, as usage errors, in place of their descriptions.
-    82  const HELP_TAIL: &str = "\
-    83  Options:
-    84    --verified          Check in the mode the soundness theorem covers (default)
-    85    --trusted           Skip the checks only the proof needs; outside the theorem
-    86    --jobs=N            Worker threads (default: one per hardware thread, at most 16)
-    87    --max-nat-size=N    Largest Nat numeral in bytes the checker takes in or
-    88                        computes; a larger one is rejected (default 134217728)
-    89    --progress[=PACE]   Report progress on stderr: PACE is N declarations
-    90                        (default 1), P% of each phase, or Ss seconds
-    91    --help              Print this help and exit
-    92    --                  End of options
-    93  
-    94  lean4export input:
-    95    --compare           CHALLENGE.ndjson SOLUTION.ndjson: check SOLUTION, then
-    96                        check CHALLENGE, its axioms justified by SOLUTION: each
-    97                        axiom of CHALLENGE (but the standard ones) and each
-    98                        declaration whose value uses sorry is accepted as an
-    99                        axiom of its statement when SOLUTION holds a constant
-   100                        of that name and type, up to the names of level
-   101                        parameters, and everything that type reads is the same
-   102                        in both, record by record. Prints the justified axioms
-   103  
-   104  .olean input:
-   105    --olean             Read modules and their import closure from .olean files
-   106    --search-path=DIRS  Colon-separated .olean directories; repeatable
-   107    --constant=NAME     Check only NAME and what it mentions; repeatable
-   108                        (outside the theorems)
-   109    --compare           CHALLENGE SOLUTION: check the closure of the module
-   110                        SOLUTION, then the closure of CHALLENGE, its axioms
-   111                        justified by SOLUTION's as for lean4export input.
-   112                        Prints the justified axioms. With --constant=NAME
-   113                        (declarations of CHALLENGE itself), only NAME and
-   114                        what it reads. With --check-graph, --module,
-   115                        --modular or --schedule: CHALLENGE as one more module
-   116                        of a modular run over the closures of both, with
-   117                        `import all SOLUTION` added to its header: a
-   118                        declaration of CHALLENGE that a loaded module holds
-   119                        must be that constant (a hole, theorem or opaque
-   120                        constant by its type, a definition with its value, up
-   121                        to the names of level parameters; an inductive type
-   122                        as it is), every other one is checked (its --module
-   123                        run is the compare worker; the guarantee needs every
-   124                        command to exit 0)
-   125    --trusted-search-path=DIRS
-   126                        With --compare: CHALLENGE and all it imports must be
-   127                        in DIRS, and are read from there only; SOLUTION's
-   128                        modules from DIRS first, then --search-path (the
-   129                        modular modes read every module so). With --module
-   130                        alone: MODULE's closure read from DIRS first, then
-   131                        --search-path.
-   132                        Colon-separated; repeatable
-   133    --check-graph       Check only that the modules' import graph is acyclic
-   134                        and that every import is on the search path
-   135    --module            Check MODULE's own declarations alone, against what
-   136                        they read of the modules it loads
-   137    --modular           Check every module of MODULE's closure as --module
-   138                        does, in this one process
-   139    --schedule          Check every module of MODULE's closure by a --module
-   140                        process each (--jobs=1 each), at most --jobs=N at a
-   141                        time; a line per finished module on stdout, then each
-   142                        failing module's verdict and last stderr line, and the
-   143                        run's verdict: the first failing module in the graph's
-   144                        order, its code (timeout, stack, a signal: 3); with
-   145    --schedule-timeout=S     a time limit per worker
-   146    --worker-stack-size=SIZE the workers' thread stacks (with a unit: 8G), set
-   147                             as their LEAN_STACK_SIZE_KB (without the flag they
-   148                             inherit the environment; con-ron's default is 1G)
-   149    --schedule-order=ORDER   shuffled (default; by a hash of the names) or graph:
-   150                             the order in which the modules start
-   151    --schedule-commands      start nothing; print on stdout, one per line and
-   152                             shell-quoted, the commands that check the closure:
-   153                             the --check-graph run, then one --module run per
-   154                             module in the start order (--jobs=N only if given);
-   155                             the modular guarantee needs every one to exit 0 on
-   156                             one unchanged snapshot of the files (with
-   157                             --worker-stack-size, each worker's line starts
-   158                             with LEAN_STACK_SIZE_KB=K); -memory, -log and
-   159                             -timeout are ignored
-   160  
-   161  con-leche's scheduler settings con-ron does not run (a usage error, exit 3):
-   162    --schedule-log=FILE, --schedule-memory=SIZE (con-ron's --schedule keeps no
-   163    log and no memory budget)
-   164  
-   165  Exit status:
-   166    0  accepted
-   167    1  rejected: a declaration is invalid
-   168    2  declined: an unsupported feature
-   169    3  error: bad usage, malformed input or an internal failure
-   170  
-   171  Documentation:
-   172    README.md and OVERVIEW.md of the con-ron repository";
+    70  /// con-leche: ConLeche/Driver/Cli.lean:127-175 helpText
+    71  /// The rest of the `--help` text, after the synopsis.  The scheduler is the
+    72  /// simple one (`con_ron::schedule`): the two settings con-ron does not run
+    73  /// are listed by name, as usage errors, in place of their descriptions.
+    74  const HELP_TAIL: &str = "\
+    75  Options:
+    76    --verified          Check in the mode the soundness theorem covers (default)
+    77    --trusted           Skip the checks only the proof needs; outside the theorem
+    78    --jobs=N            Worker threads (default: hardware threads, at most 16)
+    79    --max-nat-size=N    Largest Nat numeral in bytes (default 134217728)
+    80    --progress[=PACE]   Progress on stderr; PACE is N declarations, P% or Ss
+    81    --compare           Check SOLUTION, then CHALLENGE with its axioms and
+    82                        sorry-holes justified by SOLUTION
+    83    --help              Print this help and exit
+    84    --                  End of options
+    85  
+    86  .olean input:
+    87    --olean             Read modules and their imports from .olean files
+    88    --search-path=DIRS  Colon-separated .olean directories; repeatable. In a
+    89                        Lake project: \"$(lake env printenv LEAN_PATH)\"
+    90    --trusted-search-path=DIRS
+    91                        Trusted .olean directories (with --compare or --module)
+    92    --constant=NAME     Check only NAME and what it mentions; repeatable
+    93                        (outside the theorems)
+    94    --check-graph       Check only that the import graph is acyclic
+    95    --module            Check only MODULE's own declarations
+    96    --modular           Check each module of the closure on its own
+    97    --schedule          Check each module in its own --module process
+    98  
+    99  Scheduler options (each --schedule-... option implies --schedule):
+   100    --schedule-timeout=S      Time limit per worker, in seconds
+   101    --schedule-order=ORDER    shuffled (default) or graph
+   102    --schedule-commands       Print the worker commands instead of running them
+   103    --worker-stack-size=SIZE  Thread stack size of the workers (e.g. 8G)
+   104    --schedule-memory=SIZE, --schedule-log=FILE: con-leche's, not run here
+   105                              (a usage error, exit 3)
+   106  
+   107  Exit status:
+   108    0  accepted
+   109    1  rejected: a declaration is invalid
+   110    2  declined: an unsupported feature
+   111    3  error: bad usage, malformed input or an internal failure
+   112  
+   113  Documentation:
+   114    README.md and OVERVIEW.md of the con-ron repository";
 
 == crates/con-ron/src/driver.rs#L18-L23
     18  
@@ -716,45 +658,45 @@
     11  //! (`bin/con-ron.rs`), handed in as `StdIoHooks`; the scheduler is
     12  //! `crate::modular::schedule`.
 
-== crates/con-ron/src/bin/con-ron.rs#L206-L243
-   206  fn main() -> ! {
-   207      let mut argv: Vec<String> = Vec::new();
-   208      for a in std::env::args_os().skip(1) {
-   209          match a.into_string() {
-   210              Ok(s) => argv.push(s),
-   211              Err(_) => {
-   212                  eprintln!("con-ron: an argument is not valid UTF-8");
-   213                  exit_after_verdict(3)
-   214              }
-   215          }
-   216      }
-   217      let h = std::thread::Builder::new()
-   218          .stack_size(driver::stack_bytes())
-   219          .spawn(move || -> u8 {
-   220              let cps: Vec<Vec<u32>> = argv.iter().map(|a| con_ron::render::cps(a)).collect();
-   221              let mut io = con_ron::std_io::StdIo::new(con_ron::std_io::StdIoHooks {
-   222                  help: print_help,
-   223                  synopsis: print_synopsis,
-   224                  usage: usage_error,
-   225              });
-   226              let code = con_ron_core::driver::cli::run_args(&mut io, &cps);
-   227              // the instance (and what it kept) is never dropped: con-leche task #336
-   228              exit_after_verdict(code)
-   229          });
-   230      match h {
-   231          Err(e) => {
-   232              eprintln!("con-ron: cannot spawn the checking thread: {}", e);
-   233              exit_after_verdict(3)
-   234          }
-   235          Ok(h) => match h.join() {
-   236              Ok(code) => exit_after_verdict(code),
-   237              Err(_) => {
-   238                  eprintln!("con-ron: the checking thread died");
-   239                  exit_after_verdict(3)
-   240              }
-   241          },
-   242      }
-   243  }
+== crates/con-ron/src/bin/con-ron.rs#L148-L185
+   148  fn main() -> ! {
+   149      let mut argv: Vec<String> = Vec::new();
+   150      for a in std::env::args_os().skip(1) {
+   151          match a.into_string() {
+   152              Ok(s) => argv.push(s),
+   153              Err(_) => {
+   154                  eprintln!("con-ron: an argument is not valid UTF-8");
+   155                  exit_after_verdict(3)
+   156              }
+   157          }
+   158      }
+   159      let h = std::thread::Builder::new()
+   160          .stack_size(driver::stack_bytes())
+   161          .spawn(move || -> u8 {
+   162              let cps: Vec<Vec<u32>> = argv.iter().map(|a| con_ron::render::cps(a)).collect();
+   163              let mut io = con_ron::std_io::StdIo::new(con_ron::std_io::StdIoHooks {
+   164                  help: print_help,
+   165                  synopsis: print_synopsis,
+   166                  usage: usage_error,
+   167              });
+   168              let code = con_ron_core::driver::cli::run_args(&mut io, &cps);
+   169              // the instance (and what it kept) is never dropped: con-leche task #336
+   170              exit_after_verdict(code)
+   171          });
+   172      match h {
+   173          Err(e) => {
+   174              eprintln!("con-ron: cannot spawn the checking thread: {}", e);
+   175              exit_after_verdict(3)
+   176          }
+   177          Ok(h) => match h.join() {
+   178              Ok(code) => exit_after_verdict(code),
+   179              Err(_) => {
+   180                  eprintln!("con-ron: the checking thread died");
+   181                  exit_after_verdict(3)
+   182              }
+   183          },
+   184      }
+   185  }
 
 == proof/ConRon/MainTheorem/Stages.lean#L846-L883
    846  theorem no_False_oleans (V : Type w) [ConLeche.SetTheory V] {F : ConLeche.FS}
@@ -1341,52 +1283,52 @@
    212  }
 
 == crates/con-ron-core/src/arena/handle.rs#L511-L559
-   511  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+   511  /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
    512  /// Lean twin: `proof/ConRon/Arena/Handle.lean:264-266 ETag.bvar` — the `bvar`
    513  /// constructor, line 401.
    514  pub const ETAG_BVAR: u32 = 0;
    515  
-   516  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+   516  /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
    517  /// Lean twin: `proof/ConRon/Arena/Handle.lean:267-269 ETag.fvar` — the `fvar`
    518  /// constructor, line 402.
    519  pub const ETAG_FVAR: u32 = 1;
    520  
-   521  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+   521  /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
    522  /// Lean twin: `proof/ConRon/Arena/Handle.lean:270-272 ETag.sort` — the `sort`
    523  /// constructor, line 403.
    524  pub const ETAG_SORT: u32 = 2;
    525  
-   526  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+   526  /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
    527  /// Lean twin: `proof/ConRon/Arena/Handle.lean:273-275 ETag.const` — the `const`
    528  /// constructor, line 404.
    529  pub const ETAG_CONST: u32 = 3;
    530  
-   531  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+   531  /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
    532  /// Lean twin: `proof/ConRon/Arena/Handle.lean:276-278 ETag.app` — the `app`
    533  /// constructor, line 405.
    534  pub const ETAG_APP: u32 = 4;
    535  
-   536  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+   536  /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
    537  /// Lean twin: `proof/ConRon/Arena/Handle.lean:279-281 ETag.lam` — the `lam`
    538  /// constructor, line 406.
    539  pub const ETAG_LAM: u32 = 5;
    540  
-   541  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+   541  /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
    542  /// Lean twin: `proof/ConRon/Arena/Handle.lean:282-284 ETag.forallE` — the
    543  /// `forallE` constructor, line 407.
    544  pub const ETAG_FORALL_E: u32 = 6;
    545  
-   546  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+   546  /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
    547  /// Lean twin: `proof/ConRon/Arena/Handle.lean:285-287 ETag.letE` — the `letE`
    548  /// constructor, line 408.
    549  pub const ETAG_LET_E: u32 = 7;
    550  
-   551  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+   551  /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
    552  /// Lean twin: `proof/ConRon/Arena/Handle.lean:288-290 ETag.lit` — the `lit`
    553  /// constructor, line 409.
    554  pub const ETAG_LIT: u32 = 8;
    555  
-   556  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+   556  /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
    557  /// Lean twin: `proof/ConRon/Arena/Handle.lean:291-293 ETag.proj` — the `proj`
    558  /// constructor, line 410.
    559  pub const ETAG_PROJ: u32 = 9;
@@ -1419,119 +1361,119 @@
   1209      pub projs: Tbl<ProjNode, EIdx, u64>,
   1210  }
 
-== crates/con-ron-core/src/arena/store.rs#L3621-L3656
-  3621  
-  3622      /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:482-502 EStore.intern
-  3623      /// Hash-cons an expression node: probe the persistent cons table, then the
-  3624      /// scratch one, then append to the tier the store is in (DESIGN.md §8.3).
-  3625      /// The cap test is the Lean's `capOK` turned into the `Native` decline
-  3626      /// §8.3 puts here.
-  3627      ///
-  3628      /// **Dispatched ONCE** (task #97-P6-15).  The body below used to run the
-  3629      /// whole sequence over the `ENodeView`, and each of its four steps
-  3630      /// dispatched on the view's tag again and built the node record again:
-  3631      /// the persistent probe built it (inside `ETables::find`), the scratch
-  3632      /// probe built it a second time, `der_of_view` re-dispatched to compute
-  3633      /// the derived word, and `ETables::push` re-dispatched and built it a
-  3634      /// third time to append it.  So the tag is read once here and the ten per-constructor
-  3635      /// paths below each build their record ONCE and hand the same `&r` to the
-  3636      /// two probes, to the capacity test and to the push — the same clauses in
-  3637      /// the same order, with the dispatch and the two rebuilds gone.
-  3638      ///
-  3639      /// The twin's `intern` is one `def` over `ENodeView`; what is owed is the
-  3640      /// ten-arm spelling and `internC v = intern (view of C)` per constructor,
-  3641      /// each of them `rfl` after the `match`.
-  3642      pub fn intern(&mut self, pers: &PersTier, v: ENodeView) -> Result<EIdx, CheckError> {
-  3643          match v {
-  3644              ENodeView::BVar(i) => self.intern_bvar(pers, i),
-  3645              ENodeView::FVar(idx, ty) => self.intern_fvar(pers, idx, ty),
-  3646              ENodeView::Sort(u) => self.intern_sort(pers, u),
-  3647              ENodeView::Const(n, us) => self.intern_const(pers, n, us),
-  3648              ENodeView::App(f, a) => self.intern_app(pers, f, a),
-  3649              ENodeView::Lam(ty, body) => self.intern_lam(pers, ty, body),
-  3650              ENodeView::ForallE(ty, body) => self.intern_forall_e(pers, ty, body),
-  3651              ENodeView::LetE(ty, val, body) => self.intern_let_e(pers, ty, val, body),
-  3652              ENodeView::Lit(l) => self.intern_lit(pers, l),
-  3653              ENodeView::Proj(n, i, e) => self.intern_proj(pers, n, i, e),
-  3654          }
-  3655      }
-  3656  
+== crates/con-ron-core/src/arena/store.rs#L3618-L3653
+  3618  
+  3619      /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:482-502 EStore.intern
+  3620      /// Hash-cons an expression node: probe the persistent cons table, then the
+  3621      /// scratch one, then append to the tier the store is in (DESIGN.md §8.3).
+  3622      /// The cap test is the Lean's `capOK` turned into the `Native` decline
+  3623      /// §8.3 puts here.
+  3624      ///
+  3625      /// **Dispatched ONCE** (task #97-P6-15).  The body below used to run the
+  3626      /// whole sequence over the `ENodeView`, and each of its four steps
+  3627      /// dispatched on the view's tag again and built the node record again:
+  3628      /// the persistent probe built it (inside `ETables::find`), the scratch
+  3629      /// probe built it a second time, `der_of_view` re-dispatched to compute
+  3630      /// the derived word, and `ETables::push` re-dispatched and built it a
+  3631      /// third time to append it.  So the tag is read once here and the ten per-constructor
+  3632      /// paths below each build their record ONCE and hand the same `&r` to the
+  3633      /// two probes, to the capacity test and to the push — the same clauses in
+  3634      /// the same order, with the dispatch and the two rebuilds gone.
+  3635      ///
+  3636      /// The twin's `intern` is one `def` over `ENodeView`; what is owed is the
+  3637      /// ten-arm spelling and `internC v = intern (view of C)` per constructor,
+  3638      /// each of them `rfl` after the `match`.
+  3639      pub fn intern(&mut self, pers: &PersTier, v: ENodeView) -> Result<EIdx, CheckError> {
+  3640          match v {
+  3641              ENodeView::BVar(i) => self.intern_bvar(pers, i),
+  3642              ENodeView::FVar(idx, ty) => self.intern_fvar(pers, idx, ty),
+  3643              ENodeView::Sort(u) => self.intern_sort(pers, u),
+  3644              ENodeView::Const(n, us) => self.intern_const(pers, n, us),
+  3645              ENodeView::App(f, a) => self.intern_app(pers, f, a),
+  3646              ENodeView::Lam(ty, body) => self.intern_lam(pers, ty, body),
+  3647              ENodeView::ForallE(ty, body) => self.intern_forall_e(pers, ty, body),
+  3648              ENodeView::LetE(ty, val, body) => self.intern_let_e(pers, ty, val, body),
+  3649              ENodeView::Lit(l) => self.intern_lit(pers, l),
+  3650              ENodeView::Proj(n, i, e) => self.intern_proj(pers, n, i, e),
+  3651          }
+  3652      }
+  3653  
 
-== crates/con-ron-core/src/arena/store.rs#L3906-L3953
-  3906      pub fn intern_app(&mut self, pers: &PersTier, f: EIdx, a: EIdx) -> Result<EIdx, CheckError> {
-  3907          let r: AppNode = AppNode { f, a };
-  3908          let sk: bool = if self.scratch_on {
-  3909              if r.f.is_persistent() {
-  3910                  !r.a.is_persistent()
-  3911              } else {
-  3912                  true
-  3913              }
-  3914          } else {
-  3915              false
-  3916          };
-  3917          let hit: Option<EIdx> = if sk {
-  3918              None
-  3919          } else if pers.frozen {
-  3920              pers.e.apps.find(&r)
-  3921          } else {
-  3922              self.pers.apps.find(&r)
-  3923          };
-  3924          match hit {
-  3925              Some(hp) => Ok(hp),
-  3926              None => {
-  3927                  if self.scratch_on {
-  3928                      let at: (usize, Option<EIdx>) = self.scr.apps.find_slot(&r);
-  3929                      match at.1 {
-  3930                          Some(hs) => Ok(hs),
-  3931                          None => {
-  3932                              if self.scr.apps.full_wide() {
-  3933                                  Err(CheckError::Native(code_points(&M_E_CAP)))
-  3934                              } else {
-  3935                                  let d: u64 = self.der_of_app(pers, &r.f, &r.a);
-  3936                                  let h: EIdx =
-  3937                                      EIdx::pack_wide(TIER_S, self.scr.apps.size() as u32);
-  3938                                  self.scr.apps.push_at(at.0, r, d, h.dup2());
-  3939                                  Ok(h)
-  3940                              }
-  3941                          }
-  3942                      }
-  3943                  } else if self.pers.apps.full_wide() {
-  3944                      Err(CheckError::Native(code_points(&M_E_CAP)))
-  3945                  } else {
-  3946                      let d: u64 = self.der_of_app(pers, &r.f, &r.a);
-  3947                      let h: EIdx = EIdx::pack_wide(TIER_P, self.pers.apps.size() as u32);
-  3948                      self.pers.apps.push(r, d, h.dup2());
-  3949                      Ok(h)
-  3950                  }
-  3951              }
-  3952          }
-  3953      }
+== crates/con-ron-core/src/arena/store.rs#L3903-L3950
+  3903      pub fn intern_app(&mut self, pers: &PersTier, f: EIdx, a: EIdx) -> Result<EIdx, CheckError> {
+  3904          let r: AppNode = AppNode { f, a };
+  3905          let sk: bool = if self.scratch_on {
+  3906              if r.f.is_persistent() {
+  3907                  !r.a.is_persistent()
+  3908              } else {
+  3909                  true
+  3910              }
+  3911          } else {
+  3912              false
+  3913          };
+  3914          let hit: Option<EIdx> = if sk {
+  3915              None
+  3916          } else if pers.frozen {
+  3917              pers.e.apps.find(&r)
+  3918          } else {
+  3919              self.pers.apps.find(&r)
+  3920          };
+  3921          match hit {
+  3922              Some(hp) => Ok(hp),
+  3923              None => {
+  3924                  if self.scratch_on {
+  3925                      let at: (usize, Option<EIdx>) = self.scr.apps.find_slot(&r);
+  3926                      match at.1 {
+  3927                          Some(hs) => Ok(hs),
+  3928                          None => {
+  3929                              if self.scr.apps.full_wide() {
+  3930                                  Err(CheckError::Native(code_points(&M_E_CAP)))
+  3931                              } else {
+  3932                                  let d: u64 = self.der_of_app(pers, &r.f, &r.a);
+  3933                                  let h: EIdx =
+  3934                                      EIdx::pack_wide(TIER_S, self.scr.apps.size() as u32);
+  3935                                  self.scr.apps.push_at(at.0, r, d, h.dup2());
+  3936                                  Ok(h)
+  3937                              }
+  3938                          }
+  3939                      }
+  3940                  } else if self.pers.apps.full_wide() {
+  3941                      Err(CheckError::Native(code_points(&M_E_CAP)))
+  3942                  } else {
+  3943                      let d: u64 = self.der_of_app(pers, &r.f, &r.a);
+  3944                      let h: EIdx = EIdx::pack_wide(TIER_P, self.pers.apps.size() as u32);
+  3945                      self.pers.apps.push(r, d, h.dup2());
+  3946                      Ok(h)
+  3947                  }
+  3948              }
+  3949          }
+  3950      }
 
 == proof/ConRon/Arena/WFProofs.lean#L1125-L1126
   1125  theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
   1126      (hi : denoteE st i = some x) (hj : denoteE st j = some x) : i = j := by
 
-== crates/con-ron-core/src/arena/core.rs#L12276-L12295
- 12276  /// its eleven journals — P3 needs it to state that flushing is sound.
- 12277  pub fn flush_caches(st: &mut AState) {
- 12278      st.caches.reset();
- 12279  }
- 12280  
- 12281  /// con-leche: none — **a job's bracket, closed** (DESIGN.md §8.3)
- 12282  /// Lean twin: `proof/ConRon/Arena/Core.lean:4684-4692 dropScratch` —
- 12283  /// the twin's `dropScratch` on a store that STAYS frozen (task #98-FREEZE): the
- 12284  /// caches flushed and the scratch tiers emptied, the flag untouched.  A
- 12285  /// worker's store is frozen for its whole life, so between two jobs it is
- 12286  /// frozen with an empty scratch tier where the twin's is scratch-off; nothing
- 12287  /// is interned there.
- 12288  pub fn leave_record(st: &mut AState) {
- 12289      flush_caches(st);
- 12290      st.store.clear_scratch();
- 12291  }
- 12292  
- 12293  /// con-leche: none — **a job's bracket, opened** (DESIGN.md §8.3)
- 12294  /// Lean twin: `proof/ConRon/Arena/Core.lean:4694-4701 enterScratch` —
- 12295  /// the twin's `enterScratch` on an already frozen store (task #98-FREEZE): the
+== crates/con-ron-core/src/arena/core.rs#L12319-L12338
+ 12319  /// its eleven journals — P3 needs it to state that flushing is sound.
+ 12320  pub fn flush_caches(st: &mut AState) {
+ 12321      st.caches.reset();
+ 12322  }
+ 12323  
+ 12324  /// con-leche: none — **a job's bracket, closed** (DESIGN.md §8.3)
+ 12325  /// Lean twin: `proof/ConRon/Arena/Core.lean:4699-4707 dropScratch` —
+ 12326  /// the twin's `dropScratch` on a store that STAYS frozen (task #98-FREEZE): the
+ 12327  /// caches flushed and the scratch tiers emptied, the flag untouched.  A
+ 12328  /// worker's store is frozen for its whole life, so between two jobs it is
+ 12329  /// frozen with an empty scratch tier where the twin's is scratch-off; nothing
+ 12330  /// is interned there.
+ 12331  pub fn leave_record(st: &mut AState) {
+ 12332      flush_caches(st);
+ 12333      st.store.clear_scratch();
+ 12334  }
+ 12335  
+ 12336  /// con-leche: none — **a job's bracket, opened** (DESIGN.md §8.3)
+ 12337  /// Lean twin: `proof/ConRon/Arena/Core.lean:4709-4716 enterScratch` —
+ 12338  /// the twin's `enterScratch` on an already frozen store (task #98-FREEZE): the
 
 == crates/con-ron-core/src/arena/checker.rs#L65-L88
     65  
@@ -1859,8 +1801,8 @@
    424  // The lanes: the twin's `r : CoreFnsA`, defunctionalized (the module note)
    425  // ---------------------------------------------------------------------------
    426  
-   427  /// con-leche: ConLeche/Kernel/Core.lean:1942-1977 coreKnot
-   428  /// Lean twin: `proof/ConRon/Arena/Core.lean:4538-4617 coreKnot` — **the
+   427  /// con-leche: ConLeche/Kernel/Core.lean:1963-1998 coreKnot
+   428  /// Lean twin: `proof/ConRon/Arena/Core.lean:4553-4632 coreKnot` — **the
    429  /// executed knot**: the memoized one, `pureFnsA`'s.
    430  pub const LANE_FULL: u32 = 0;
    431  
@@ -2539,7 +2481,7 @@
     23  overflow-checks = true
 
 == proof/ConRon/Arena/Denote.lean#L185-L208
-   185  /-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the fuel-indexed
+   185  /-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the fuel-indexed
    186  readback of an expression handle. -/
    187  def denoteEAux (st : EStore) : Nat → EIdx → Option Expr
    188    | 0, _ => none
@@ -2559,7 +2501,7 @@
    202        | .proj n k e =>
    203          opt2 (fun nm x => Expr.proj nm k x) (denoteN st.ns n) (denoteEAux st f e)
    204  
-   205  /-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the readback of an
+   205  /-- con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr — the readback of an
    206  expression handle, at the store's own node count as fuel. -/
    207  def denoteE (st : EStore) (i : EIdx) : Option Expr :=
    208    denoteEAux st (st.nodeCount + 1) i
@@ -3180,45 +3122,45 @@
     11  //! (`bin/con-ron.rs`), handed in as `StdIoHooks`; the scheduler is
     12  //! `crate::modular::schedule`.
 
-== crates/con-ron/src/bin/con-ron.rs#L206-L243
-   206  fn main() -> ! {
-   207      let mut argv: Vec<String> = Vec::new();
-   208      for a in std::env::args_os().skip(1) {
-   209          match a.into_string() {
-   210              Ok(s) => argv.push(s),
-   211              Err(_) => {
-   212                  eprintln!("con-ron: an argument is not valid UTF-8");
-   213                  exit_after_verdict(3)
-   214              }
-   215          }
-   216      }
-   217      let h = std::thread::Builder::new()
-   218          .stack_size(driver::stack_bytes())
-   219          .spawn(move || -> u8 {
-   220              let cps: Vec<Vec<u32>> = argv.iter().map(|a| con_ron::render::cps(a)).collect();
-   221              let mut io = con_ron::std_io::StdIo::new(con_ron::std_io::StdIoHooks {
-   222                  help: print_help,
-   223                  synopsis: print_synopsis,
-   224                  usage: usage_error,
-   225              });
-   226              let code = con_ron_core::driver::cli::run_args(&mut io, &cps);
-   227              // the instance (and what it kept) is never dropped: con-leche task #336
-   228              exit_after_verdict(code)
-   229          });
-   230      match h {
-   231          Err(e) => {
-   232              eprintln!("con-ron: cannot spawn the checking thread: {}", e);
-   233              exit_after_verdict(3)
-   234          }
-   235          Ok(h) => match h.join() {
-   236              Ok(code) => exit_after_verdict(code),
-   237              Err(_) => {
-   238                  eprintln!("con-ron: the checking thread died");
-   239                  exit_after_verdict(3)
-   240              }
-   241          },
-   242      }
-   243  }
+== crates/con-ron/src/bin/con-ron.rs#L148-L185
+   148  fn main() -> ! {
+   149      let mut argv: Vec<String> = Vec::new();
+   150      for a in std::env::args_os().skip(1) {
+   151          match a.into_string() {
+   152              Ok(s) => argv.push(s),
+   153              Err(_) => {
+   154                  eprintln!("con-ron: an argument is not valid UTF-8");
+   155                  exit_after_verdict(3)
+   156              }
+   157          }
+   158      }
+   159      let h = std::thread::Builder::new()
+   160          .stack_size(driver::stack_bytes())
+   161          .spawn(move || -> u8 {
+   162              let cps: Vec<Vec<u32>> = argv.iter().map(|a| con_ron::render::cps(a)).collect();
+   163              let mut io = con_ron::std_io::StdIo::new(con_ron::std_io::StdIoHooks {
+   164                  help: print_help,
+   165                  synopsis: print_synopsis,
+   166                  usage: usage_error,
+   167              });
+   168              let code = con_ron_core::driver::cli::run_args(&mut io, &cps);
+   169              // the instance (and what it kept) is never dropped: con-leche task #336
+   170              exit_after_verdict(code)
+   171          });
+   172      match h {
+   173          Err(e) => {
+   174              eprintln!("con-ron: cannot spawn the checking thread: {}", e);
+   175              exit_after_verdict(3)
+   176          }
+   177          Ok(h) => match h.join() {
+   178              Ok(code) => exit_after_verdict(code),
+   179              Err(_) => {
+   180                  eprintln!("con-ron: the checking thread died");
+   181                  exit_after_verdict(3)
+   182              }
+   183          },
+   184      }
+   185  }
 
 == crates/con-ron/src/pool.rs#L50-L102
     50  //!
@@ -3283,7 +3225,7 @@
    174  def ParallelAll {S E : Type} (n : Nat) (init : Result S)
 
 == crates/con-ron-core/src/arena/handle.rs#L511-L514
-   511  /// con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr
+   511  /// con-leche: ConLeche/Kernel/Expr.lean:369-499 Expr
    512  /// Lean twin: `proof/ConRon/Arena/Handle.lean:264-266 ETag.bvar` — the `bvar`
    513  /// constructor, line 401.
    514  pub const ETAG_BVAR: u32 = 0;
