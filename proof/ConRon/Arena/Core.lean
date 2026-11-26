@@ -4287,59 +4287,40 @@ def lazyDeltaReduction (mode : CheckMode) (eager : Bool) (r : CoreFnsA) (fe : IF
     | .unknown => pure (.unknown a b)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1743-1761 lazyDeltaProjReduction
--- con-leche: CHANGED since a9446bf8 — re-port, re-test, re-prove Core.lazyDeltaProjReduction_bridge, then delete this line
 con-leche: ConLeche/Cached/CoreC.lean:1913-1928 lazyDeltaProjReductionI —
--- con-leche: CHANGED since a9446bf8 — re-port, re-test, re-prove Core.lazyDeltaProjReduction_bridge, then delete this line
-**`a.i as =?= b.i bs` by its scrutinees** (the official kernel's
-`lazy_delta_proj_reduction`, extended to applied projections as con-leche does,
-lean4#16613): lazy-delta steps on the two scrutinees; once a step finds them
-equal, the argument lists are compared last to first (as `defeqSpine`); when
-neither unfolds any more (or the step found them different), a bare pair has the
-projection tried on both and only the projected fields compared, failing that
-the scrutinees themselves, and an applied pair gives up (`false`). -/
+**`a.i =?= b.i` by its scrutinees** (the official kernel's
+`lazy_delta_proj_reduction`): lazy-delta steps on the two scrutinees; when
+neither unfolds any more (or the step found them different), the projection
+is tried on both and only the projected fields are compared; failing that,
+the scrutinees themselves. -/
 def lazyDeltaProjReduction (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv)
-    (depth : Nat) (sn : NIdx) (i : Nat) (as bs : List EIdx) :
-    Nat → EIdx → EIdx → AM Bool
+    (depth : Nat) (sn : NIdx) (i : Nat) : Nat → EIdx → EIdx → AM Bool
   | 0, _, _ => fail (.internal "fuel exhausted: lazy delta projection loop")
   | n + 1, a, b => do
     match ← lazyDeltaStep mode r fe depth a b with
-    | .cont a' b' => lazyDeltaProjReduction mode r fe depth sn i as bs n a' b'
-    | .eq => defEqList r fe depth as.reverse bs.reverse
+    | .cont a' b' => lazyDeltaProjReduction mode r fe depth sn i n a' b'
+    | .eq => pure true
     | .diff | .unknown =>
-      if as.isEmpty && bs.isEmpty then
-        match ← reduceProjCore mode r fe depth sn i a with
-        | some x =>
-          match ← reduceProjCore mode r fe depth sn i b with
-          | some y => r.defeq depth x y
-          | none => r.defeq depth a b
+      match ← reduceProjCore mode r fe depth sn i a with
+      | some x =>
+        match ← reduceProjCore mode r fe depth sn i b with
+        | some y => r.defeq depth x y
         | none => r.defeq depth a b
-      else pure false
+      | none => r.defeq depth a b
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1763-1772 defeqProjPair
--- con-leche: CHANGED since a9446bf8 — re-port, re-test, re-prove Core.defeqProjPair_bridge, then delete this line
 con-leche: ConLeche/Cached/CoreC.lean:1930-1939 defeqProjPairI — the
--- con-leche: CHANGED since a9446bf8 — re-port, re-test, re-prove Core.defeqProjPair_bridge, then delete this line
-proj/proj check of `is_def_eq_core`: two projection-headed spines at the same
-slot, bare or applied to equally many arguments, go through
-`lazyDeltaProjReduction` on their scrutinees.  The argument lists are read only
-once the heads match (the Rust's order). -/
+proj/proj check of `is_def_eq_core`: two projections at the same slot go
+through `lazyDeltaProjReduction` on their scrutinees. -/
 def defeqProjPair (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     (a b : EIdx) : AM Bool := do
-  let ha ← getAppFn coreWalkFuel a
-  if ha.tag == ETag.proj then
-    let hb ← getAppFn coreWalkFuel b
-    if hb.tag == ETag.proj then
-      match ← view ha, ← view hb with
-      | .proj s₁ i₁ e₁, .proj s₂ i₂ e₂ =>
-        if s₁ == s₂ && i₁ == i₂ then do
-          let as ← getAppArgs coreWalkFuel a
-          let bs ← getAppArgs coreWalkFuel b
-          if as.length == bs.length then
-            lazyDeltaProjReduction mode r fe depth s₁ i₁ as bs defeqLoopFuel e₁ e₂
-          else pure false
-        else pure false
-      | _, _ => pure false
-    else pure false
+  if a.tag == ETag.proj && b.tag == ETag.proj then
+    match ← view a, ← view b with
+    | .proj s₁ i₁ e₁, .proj s₂ i₂ e₂ =>
+      if s₁ == s₂ && i₁ == i₂ then
+        lazyDeltaProjReduction mode r fe depth s₁ i₁ defeqLoopFuel e₁ e₂
+      else pure false
+    | _, _ => pure false
   else pure false
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1774-1841 defeqStuck
