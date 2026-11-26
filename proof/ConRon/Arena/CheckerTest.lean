@@ -319,7 +319,7 @@ differential below is evidence of something. -/
 #guard okSize (ConLeche.checkDeclsPure MU OPS [] dsGood) 10
 #guard okSize (ConLeche.checkDeclsPure MU OPS [] dsQuot) 8
 #guard failsWith (ConLeche.checkDeclsPure MU OPS [] dsQuotBad)
-  (.notImplemented "quotient declaration before what it needs")
+  (.invalid "quotient declaration before what it needs")
 #guard okSize (ConLeche.checkDeclsPure MU OPS [] dsQuotLifted) 8
 #guard failsWith (ConLeche.checkDeclsPure MU OPS [] dsQuotMixed)
   (.invalid "Quot.sound's equation is at another universe than the stored Quot's type")

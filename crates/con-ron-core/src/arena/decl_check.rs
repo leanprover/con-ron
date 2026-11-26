@@ -3185,14 +3185,14 @@ pub fn install_basis_decl(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:463-478 checkQuotRecord
-/// con-leche: CHANGED since 7fb732aa — re-port, re-test, re-prove decl_check::check_quot_record_refines, then delete this line
 /// con-leche: ConLeche/Cached/ParsedC.lean:96-106 checkQuotRecordC
-/// con-leche: CHANGED since 7fb732aa — re-port, re-test, re-prove decl_check::check_quot_record_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:899-914 checkQuotRecord` — **a quotient
 /// record's check and install**: compared with its slot's pin in either form,
 /// the slots it needs stored, `Quot.sound` in the stored `Quot`'s form, and
-/// installed at its own names in the form it declares.  A record that matches
-/// neither form is a quotient this checker positively does not support.
+/// installed at its own names in the form it declares.  A `quot` record that
+/// matches neither form, or comes before the slots it needs, is rejected; a
+/// `Quot.sound` that matches neither is declined (official accepts the
+/// soundness axiom, an ordinary `axiom`, at any type).
 pub fn check_quot_record(
     pers: &PersTier,
     st: &mut AState,
@@ -3204,11 +3204,11 @@ pub fn check_quot_record(
         Err(e) => Err(e),
         Ok(false) => match k {
             QuotKind::Sound => fail(CheckError::NotImplemented(code_points(&M_QUOT_SOUND_MISMATCH))),
-            _ => fail(CheckError::NotImplemented(code_points(&M_QUOT_DECL_MISMATCH))),
+            _ => fail(CheckError::Invalid(code_points(&M_QUOT_DECL_MISMATCH))),
         },
         Ok(true) => match quot_preds_ok(pers, st, &fe, k) {
             Err(e) => Err(e),
-            Ok(false) => fail(CheckError::NotImplemented(code_points(&M_QUOT_PREDS))),
+            Ok(false) => fail(CheckError::Invalid(code_points(&M_QUOT_PREDS))),
             Ok(true) => match quot_form_ok(pers, st, &fe, k, cv) {
                 Err(e) => Err(e),
                 Ok(false) => fail(CheckError::Invalid(code_points(&M_QUOT_FORM))),
