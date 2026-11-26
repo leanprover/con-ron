@@ -15186,7 +15186,7 @@ def arena.decl_check.install_basis_decl
        ok (core.result.Result.Ok i)
 
 /-- [con_ron_core::arena::decl_check::check_quot_record]:
-    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 3194:0-3220:1
+    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 3196:0-3222:1
     Visibility: public -/
 def arena.decl_check.check_quot_record
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -15229,7 +15229,7 @@ def arena.decl_check.check_quot_record
           let v ← kernel.core_types.code_points s
           let r2 ←
             arena.monad.fail arena.env.IFEnv
-              (kernel.core_types.CheckError.NotImplemented v)
+              (kernel.core_types.CheckError.Invalid v)
           ok (r2, st1)
       | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
     else
@@ -15239,28 +15239,28 @@ def arena.decl_check.check_quot_record
         let v ← kernel.core_types.code_points s
         let r1 ←
           arena.monad.fail arena.env.IFEnv
-            (kernel.core_types.CheckError.NotImplemented v)
+            (kernel.core_types.CheckError.Invalid v)
         ok (r1, st1)
       | kernel.env.QuotKind.Ctor =>
         let s ← lift (Array.to_slice arena.decl_check.M_QUOT_DECL_MISMATCH)
         let v ← kernel.core_types.code_points s
         let r1 ←
           arena.monad.fail arena.env.IFEnv
-            (kernel.core_types.CheckError.NotImplemented v)
+            (kernel.core_types.CheckError.Invalid v)
         ok (r1, st1)
       | kernel.env.QuotKind.Lift =>
         let s ← lift (Array.to_slice arena.decl_check.M_QUOT_DECL_MISMATCH)
         let v ← kernel.core_types.code_points s
         let r1 ←
           arena.monad.fail arena.env.IFEnv
-            (kernel.core_types.CheckError.NotImplemented v)
+            (kernel.core_types.CheckError.Invalid v)
         ok (r1, st1)
       | kernel.env.QuotKind.Ind =>
         let s ← lift (Array.to_slice arena.decl_check.M_QUOT_DECL_MISMATCH)
         let v ← kernel.core_types.code_points s
         let r1 ←
           arena.monad.fail arena.env.IFEnv
-            (kernel.core_types.CheckError.NotImplemented v)
+            (kernel.core_types.CheckError.Invalid v)
         ok (r1, st1)
       | kernel.env.QuotKind.Sound =>
         let s ← lift (Array.to_slice arena.decl_check.M_QUOT_SOUND_MISMATCH)

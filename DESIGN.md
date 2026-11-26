@@ -75371,3 +75371,21 @@ not ported).  `Init`, `--verified --jobs=1`, instructions:u, one run each (the a
 accepted by both: `renovation` d6c48c36 165 794 562 801, this branch 163 230 342 182
 (−1.55 %: the hash orbit's memo collisions gone).  OVERVIEW §2.1's command-line block still
 lists every invocation form, accurate but longer than the new synopsis.
+
+### Task #185 — con-leche sync 7fb732aa → a9446bf8 on `renovation`: a `quot` record off its pin is a reject (2026-11-26, Opus)
+
+Upstream merge a9446bf8 (con-leche master's #636 into renovation), from the maintainer's local
+checkout: a `quot` record that matches neither pin form, or comes before the slots it needs, is
+rejected (`.invalid`) instead of declined, "as the arena and the other checkers do"; a
+`Quot.sound` that misses its pin stays a decline (official accepts the soundness axiom, an
+ordinary `axiom`, at any type).  `update --auto`: 4 findings; 4 markers → 0; coverage
+1235/1287 (52 uncovered) throughout.
+
+Ported by hand: `check_quot_record` (Rust) and `checkQuotRecord` (twin) fail `Invalid` on those
+two exits; the model re-extracted; `Arena/CheckerTest`'s hand-pinned con-leche verdict for
+`dsQuotBad` follows (`.invalid`).  Theorems 1 and 2 unchanged (as upstream's proofs).
+Verdicts: `diff-e2e.sh` 815/815 (master's binary at the new pin: 812/815, `tower_quot`,
+`basis_quot_lift_type_bad`, `quot_other_sort_bad` differing, 2 → 1); `diff-olean.sh`
+551/560 (the 9 `--schedule` cases not ported).  `Init`, `--verified --jobs=1`,
+instructions:u, one run each, 57 919 accepted by both: `renovation` 435724b5
+163 230 440 426, this branch 163 230 330 126 (−0.00007 %).
