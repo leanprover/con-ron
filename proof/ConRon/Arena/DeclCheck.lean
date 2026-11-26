@@ -896,8 +896,10 @@ def installBasisDecl (fe : IFEnv) (ci : IConstantInfo) : AM IFEnv := do
     fail (.invalid "duplicate declaration")
   pure (fe.push ci)
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:463-476 checkQuotRecord
+/-- con-leche: ConLeche/Kernel/Checker.lean:463-478 checkQuotRecord
+-- con-leche: CHANGED since 7fb732aa — re-port, re-test, re-prove DeclCheck.checkQuotRecord_bridge, then delete this line
 con-leche: ConLeche/Cached/ParsedC.lean:96-106 checkQuotRecordC
+-- con-leche: CHANGED since 7fb732aa — re-port, re-test, re-prove DeclCheck.checkQuotRecord_bridge, then delete this line
 **A quotient record's check and install**: compared with its slot's pin in
 either form, the slots it needs stored, `Quot.sound` in the stored `Quot`'s
 form, and installed at its own names in the form it declares.  A record that
