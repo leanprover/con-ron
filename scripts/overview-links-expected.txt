@@ -1453,27 +1453,27 @@
   1125  theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
   1126      (hi : denoteE st i = some x) (hj : denoteE st j = some x) : i = j := by
 
-== crates/con-ron-core/src/arena/core.rs#L12319-L12338
- 12319  /// its eleven journals — P3 needs it to state that flushing is sound.
- 12320  pub fn flush_caches(st: &mut AState) {
- 12321      st.caches.reset();
- 12322  }
- 12323  
- 12324  /// con-leche: none — **a job's bracket, closed** (DESIGN.md §8.3)
- 12325  /// Lean twin: `proof/ConRon/Arena/Core.lean:4699-4707 dropScratch` —
- 12326  /// the twin's `dropScratch` on a store that STAYS frozen (task #98-FREEZE): the
- 12327  /// caches flushed and the scratch tiers emptied, the flag untouched.  A
- 12328  /// worker's store is frozen for its whole life, so between two jobs it is
- 12329  /// frozen with an empty scratch tier where the twin's is scratch-off; nothing
- 12330  /// is interned there.
- 12331  pub fn leave_record(st: &mut AState) {
- 12332      flush_caches(st);
- 12333      st.store.clear_scratch();
- 12334  }
- 12335  
- 12336  /// con-leche: none — **a job's bracket, opened** (DESIGN.md §8.3)
- 12337  /// Lean twin: `proof/ConRon/Arena/Core.lean:4709-4716 enterScratch` —
- 12338  /// the twin's `enterScratch` on an already frozen store (task #98-FREEZE): the
+== crates/con-ron-core/src/arena/core.rs#L12324-L12343
+ 12324  /// its eleven journals — P3 needs it to state that flushing is sound.
+ 12325  pub fn flush_caches(st: &mut AState) {
+ 12326      st.caches.reset();
+ 12327  }
+ 12328  
+ 12329  /// con-leche: none — **a job's bracket, closed** (DESIGN.md §8.3)
+ 12330  /// Lean twin: `proof/ConRon/Arena/Core.lean:4699-4707 dropScratch` —
+ 12331  /// the twin's `dropScratch` on a store that STAYS frozen (task #98-FREEZE): the
+ 12332  /// caches flushed and the scratch tiers emptied, the flag untouched.  A
+ 12333  /// worker's store is frozen for its whole life, so between two jobs it is
+ 12334  /// frozen with an empty scratch tier where the twin's is scratch-off; nothing
+ 12335  /// is interned there.
+ 12336  pub fn leave_record(st: &mut AState) {
+ 12337      flush_caches(st);
+ 12338      st.store.clear_scratch();
+ 12339  }
+ 12340  
+ 12341  /// con-leche: none — **a job's bracket, opened** (DESIGN.md §8.3)
+ 12342  /// Lean twin: `proof/ConRon/Arena/Core.lean:4709-4716 enterScratch` —
+ 12343  /// the twin's `enterScratch` on an already frozen store (task #98-FREEZE): the
 
 == crates/con-ron-core/src/arena/checker.rs#L65-L88
     65  
@@ -1801,7 +1801,7 @@
    424  // The lanes: the twin's `r : CoreFnsA`, defunctionalized (the module note)
    425  // ---------------------------------------------------------------------------
    426  
-   427  /// con-leche: ConLeche/Kernel/Core.lean:1963-1998 coreKnot
+   427  /// con-leche: ConLeche/Kernel/Core.lean:1942-1977 coreKnot
    428  /// Lean twin: `proof/ConRon/Arena/Core.lean:4553-4632 coreKnot` — **the
    429  /// executed knot**: the memoized one, `pureFnsA`'s.
    430  pub const LANE_FULL: u32 = 0;
