@@ -75389,3 +75389,23 @@ Verdicts: `diff-e2e.sh` 815/815 (master's binary at the new pin: 812/815, `tower
 551/560 (the 9 `--schedule` cases not ported).  `Init`, `--verified --jobs=1`,
 instructions:u, one run each, 57 919 accepted by both: `renovation` 435724b5
 163 230 440 426, this branch 163 230 330 126 (−0.00007 %).
+
+### Task #186 — con-leche sync a9446bf8 → 0580a1aa on `renovation`: #633's lazy applied projections reverted (2026-11-26, Opus)
+
+Upstream merge 0580a1aa (con-leche master's #637): #633 reverted, "applied projections again as
+in the official kernel".  Upstream's `Kernel/Core.lean` and `Cached/CoreC.lean` at 0580a1aa are
+byte-identical to 3871e142 (the pin before task #184), so the port restores the five files
+#184's projection strand changed — `arena/core.rs`, the twin's `Arena/Core.lean`,
+`Bridge/Core/Arms/Defeq.lean`, `Bridge/Core/Walks/Mono.lean`, `Refine2/Core/LS/Defeq.lean` —
+as they were at d6c48c36 (task #183).  No other #184 change was in them (the rest of their #184
+hunks were citation and twin-line digits that shifted with the strand), no lemma #184 added
+is used elsewhere, and `provenance.py check` and `twin-lines.py check` pass on the restored
+files at the new pin unchanged.  #184's hash mixing and `--help` stay.  `update --auto`: 9
+findings, 9 markers → 0; coverage 1235/1287 (52 uncovered).  One extraction; the full build green.
+
+Verdicts: `diff-e2e.sh` 814/814 (upstream deleted `proj_app_lazy_delta` with the revert);
+`diff-olean.sh` 551/560 (the 9 `--schedule` cases not ported).  `Init`, `--verified
+--jobs=1`, instructions:u, one run each, 57 919 accepted by both: `renovation` 888c3601
+163 230 485 315, this branch 165 570 470 819 (**+1.43 %**).  This corrects task #184's
+attribution: of its −1.55 % (165 794 562 801 → 163 230 342 182), the lazy applied
+projections were ~1.4 points and the hash mixing ~0.14 (165 794 562 801 → 165 570 470 819).

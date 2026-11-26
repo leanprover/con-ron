@@ -24198,7 +24198,7 @@ def arena.core.M_FUEL_DEFEQ : Array Std.U32 21#usize :=
     ]
 
 /-- [con_ron_core::arena::core::leave_eager]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12135:0-12153:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12092:0-12110:1
     Visibility: public -/
 def arena.core.leave_eager
   (st : arena.monad.AState) (saved : Option arena.core_state.ModeMemos) :
@@ -24257,7 +24257,7 @@ def arena.core_state.ModeMemos.empty : Result arena.core_state.ModeMemos := do
     }
 
 /-- [con_ron_core::arena::core::enter_eager]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12109:0-12126:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12066:0-12083:1
     Visibility: public -/
 def arena.core.enter_eager
   (st : arena.monad.AState) (eager : Bool) :
@@ -24376,7 +24376,7 @@ def arena.core_state.EIdxPair.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::core::defeq_probe]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11893:0-11898:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11850:0-11855:1
     Visibility: public -/
 def arena.core.defeq_probe
   (st : arena.monad.AState) (k : arena.core_state.EIdxPair) :
@@ -24392,7 +24392,7 @@ def arena.core.defeq_probe
   | some _ => ok o
 
 /-- [con_ron_core::arena::core::infer_io_probe]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11883:0-11888:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11840:0-11845:1
     Visibility: public -/
 def arena.core.infer_io_probe
   (st : arena.monad.AState) (e : arena.handle.EIdx) :
@@ -24409,7 +24409,7 @@ def arena.core.infer_io_probe
     ok (some e1)
 
 /-- [con_ron_core::arena::core::infer_probe]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11873:0-11878:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11830:0-11835:1
     Visibility: public -/
 def arena.core.infer_probe
   (st : arena.monad.AState) (e : arena.handle.EIdx) :
@@ -24426,7 +24426,7 @@ def arena.core.infer_probe
     ok (some e1)
 
 /-- [con_ron_core::arena::core::whnf_probe]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11864:0-11869:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11821:0-11826:1
     Visibility: public -/
 def arena.core.whnf_probe
   (st : arena.monad.AState) (e : arena.handle.EIdx) :
@@ -24443,7 +24443,7 @@ def arena.core.whnf_probe
     ok (some e1)
 
 /-- [con_ron_core::arena::core::defeq_set]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11835:0-11838:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11792:0-11795:1
     Visibility: public -/
 def arena.core.defeq_set
   (st : arena.monad.AState) (a : arena.handle.EIdx) (b : arena.handle.EIdx)
@@ -24459,7 +24459,7 @@ def arena.core.defeq_set
   ok { st with caches := { st.caches with defeq_c := hm } }
 
 /-- [con_ron_core::arena::core::infer_io_set]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11827:0-11829:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11784:0-11786:1
     Visibility: public -/
 def arena.core.infer_io_set
   (st : arena.monad.AState) (e : arena.handle.EIdx) (r : arena.handle.EIdx) :
@@ -24475,7 +24475,7 @@ def arena.core.infer_io_set
   ok { st with caches := { st.caches with infer_io_c := hm } }
 
 /-- [con_ron_core::arena::core::infer_set]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11819:0-11821:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11776:0-11778:1
     Visibility: public -/
 def arena.core.infer_set
   (st : arena.monad.AState) (e : arena.handle.EIdx) (r : arena.handle.EIdx) :
@@ -24490,7 +24490,7 @@ def arena.core.infer_set
   ok { st with caches := { st.caches with infer_c := hm } }
 
 /-- [con_ron_core::arena::core::whnf_set]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11812:0-11814:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11769:0-11771:1
     Visibility: public -/
 def arena.core.whnf_set
   (st : arena.monad.AState) (e : arena.handle.EIdx) (r : arena.handle.EIdx) :
@@ -24505,7 +24505,7 @@ def arena.core.whnf_set
   ok { st with caches := { st.caches with whnf_c := hm } }
 
 /-- [con_ron_core::arena::core::whnf_stuck_tag]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11778:0-11793:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11735:0-11750:1
     Visibility: public -/
 def arena.core.whnf_stuck_tag (e : arena.handle.EIdx) : Result Bool := do
   let t ← arena.handle.EIdx.tag e
@@ -24525,7 +24525,7 @@ def arena.core.whnf_stuck_tag (e : arena.handle.EIdx) : Result Bool := do
              else ok false
 
 /-- [con_ron_core::arena::core::whnf_core_stuck_tag]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11740:0-11753:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11697:0-11710:1
     Visibility: public -/
 def arena.core.whnf_core_stuck_tag (e : arena.handle.EIdx) : Result Bool := do
   let t ← arena.handle.EIdx.tag e
@@ -24542,7 +24542,7 @@ def arena.core.whnf_core_stuck_tag (e : arena.handle.EIdx) : Result Bool := do
            else ok true
 
 /-- [con_ron_core::arena::core::PEEL_FUEL]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11700:0-11700:36
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11657:0-11657:36
     Visibility: public -/
 @[global_simps, irreducible] def arena.core.PEEL_FUEL : Std.U64 := 16777216#u64
 
@@ -26598,7 +26598,7 @@ def arena.core.M_FUEL_WHNF_CORE_LOOP : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::arena::core::whnf_core_cheap_probe]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11855:0-11860:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11812:0-11817:1
     Visibility: public -/
 def arena.core.whnf_core_cheap_probe
   (st : arena.monad.AState) (e : arena.handle.EIdx) :
@@ -26616,7 +26616,7 @@ def arena.core.whnf_core_cheap_probe
     ok (some e1)
 
 /-- [con_ron_core::arena::core::whnf_core_probe]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11845:0-11850:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11802:0-11807:1
     Visibility: public -/
 def arena.core.whnf_core_probe
   (st : arena.monad.AState) (e : arena.handle.EIdx) :
@@ -26656,7 +26656,7 @@ def arena.core.whnf_core_lookup_at
   else ok none
 
 /-- [con_ron_core::arena::core::whnf_core_cheap_set]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11805:0-11807:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11762:0-11764:1
     Visibility: public -/
 def arena.core.whnf_core_cheap_set
   (st : arena.monad.AState) (e : arena.handle.EIdx) (r : arena.handle.EIdx) :
@@ -26704,7 +26704,7 @@ def arena.core.whnf_core_store_cheap_keys
   arena.core.whnf_core_store_cheap_keys_loop st pend_c v i
 
 /-- [con_ron_core::arena::core::whnf_core_set]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11798:0-11800:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11755:0-11757:1
     Visibility: public -/
 def arena.core.whnf_core_set
   (st : arena.monad.AState) (e : arena.handle.EIdx) (r : arena.handle.EIdx) :
@@ -37738,58 +37738,46 @@ def arena.core.lazy_delta_reduction
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::lazy_delta_proj_fields]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11125:0-11154:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11122:0-11145:1
     Visibility: public -/
 def arena.core.lazy_delta_proj_fields
   (pers : arena.store.PersTier) (st : arena.monad.AState)
   (mode : kernel.env.CheckMode) (eager : Bool) (lane : Std.U32)
   (fuel : Std.U64) (fe : arena.env.IFEnv) (depth : Std.U64)
-  (sn : arena.handle.NIdx) (i : Std.U64) (xs : alloc.vec.Vec arena.handle.EIdx)
-  (ys : alloc.vec.Vec arena.handle.EIdx) (a : arena.handle.EIdx)
+  (sn : arena.handle.NIdx) (i : Std.U64) (a : arena.handle.EIdx)
   (b : arena.handle.EIdx) :
   Result ((core.result.Result Bool kernel.core_types.CheckError) ×
     arena.monad.AState)
   := do
-  let i1 := alloc.vec.Vec.len xs
-  if i1 = 0#usize
-  then
-    let i2 := alloc.vec.Vec.len ys
-    if i2 = 0#usize
-    then
-      let (r, st1) ←
-        arena.core.reduce_proj_core pers st mode eager lane fuel fe depth sn i
-          a
-      match r with
-      | core.result.Result.Ok o =>
-        match o with
+  let (r, st1) ←
+    arena.core.reduce_proj_core pers st mode eager lane fuel fe depth sn i a
+  match r with
+  | core.result.Result.Ok o =>
+    match o with
+    | none => arena.core.knot_defeq pers st1 mode eager lane fuel fe depth a b
+    | some x =>
+      let (r1, st2) ←
+        arena.core.reduce_proj_core pers st1 mode eager lane fuel fe depth sn i
+          b
+      match r1 with
+      | core.result.Result.Ok o1 =>
+        match o1 with
         | none =>
-          arena.core.knot_defeq pers st1 mode eager lane fuel fe depth a b
-        | some x =>
-          let (r1, st2) ←
-            arena.core.reduce_proj_core pers st1 mode eager lane fuel fe depth
-              sn i b
-          match r1 with
-          | core.result.Result.Ok o1 =>
-            match o1 with
-            | none =>
-              arena.core.knot_defeq pers st2 mode eager lane fuel fe depth a b
-            | some y =>
-              arena.core.knot_defeq pers st2 mode eager lane fuel fe depth x y
-          | core.result.Result.Err e => ok (core.result.Result.Err e, st2)
-      | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
-    else ok (core.result.Result.Ok false, st)
-  else ok (core.result.Result.Ok false, st)
+          arena.core.knot_defeq pers st2 mode eager lane fuel fe depth a b
+        | some y =>
+          arena.core.knot_defeq pers st2 mode eager lane fuel fe depth x y
+      | core.result.Result.Err e => ok (core.result.Result.Err e, st2)
+  | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::lazy_delta_proj_reduction]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11164:0-11203:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11153:0-11185:1
     Visibility: public -/
 def arena.core.lazy_delta_proj_reduction
   (pers : arena.store.PersTier) (st : arena.monad.AState)
   (mode : kernel.env.CheckMode) (eager : Bool) (lane : Std.U32)
   (fuel : Std.U64) (fe : arena.env.IFEnv) (depth : Std.U64)
-  (sn : arena.handle.NIdx) (i : Std.U64) (xs : alloc.vec.Vec arena.handle.EIdx)
-  (ys : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) (a : arena.handle.EIdx)
+  (sn : arena.handle.NIdx) (i : Std.U64) (n : Std.U64) (a : arena.handle.EIdx)
   (b : arena.handle.EIdx) :
   Result ((core.result.Result Bool kernel.core_types.CheckError) ×
     arena.monad.AState)
@@ -37809,29 +37797,19 @@ def arena.core.lazy_delta_proj_reduction
       | arena.core.DeltaStepA.Cont a2 b2 =>
         let i1 ← n - 1#u64
         arena.core.lazy_delta_proj_reduction pers st1 mode eager lane fuel fe
-          depth sn i xs ys i1 a2 b2
-      | arena.core.DeltaStepA.Eq =>
-        let i1 := alloc.vec.Vec.len xs
-        let i2 := alloc.vec.Vec.len xs
-        let v := alloc.vec.Vec.with_capacity arena.handle.EIdx i2
-        let rx ← arena.core.eidx_rev xs i1 v
-        let i3 := alloc.vec.Vec.len ys
-        let i4 := alloc.vec.Vec.len ys
-        let v1 := alloc.vec.Vec.with_capacity arena.handle.EIdx i4
-        let ry ← arena.core.eidx_rev ys i3 v1
-        arena.core.def_eq_list pers st1 mode eager lane fuel fe depth rx ry
-          0#usize
+          depth sn i i1 a2 b2
+      | arena.core.DeltaStepA.Eq => ok (core.result.Result.Ok true, st1)
       | arena.core.DeltaStepA.Diff =>
         arena.core.lazy_delta_proj_fields pers st1 mode eager lane fuel fe
-          depth sn i xs ys a b
+          depth sn i a b
       | arena.core.DeltaStepA.Unknown =>
         arena.core.lazy_delta_proj_fields pers st1 mode eager lane fuel fe
-          depth sn i xs ys a b
+          depth sn i a b
     | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_proj_pair]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11212:0-11270:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11192:0-11227:1
     Visibility: public -/
 def arena.core.defeq_proj_pair
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -37841,104 +37819,75 @@ def arena.core.defeq_proj_pair
   Result ((core.result.Result Bool kernel.core_types.CheckError) ×
     arena.monad.AState)
   := do
-  let r ← arena.expr_ops.get_app_fn pers st arena.core.CORE_WALK_FUEL a
-  match r with
-  | core.result.Result.Ok ha =>
-    let i ← arena.handle.EIdx.tag ha
-    if i = arena.handle.ETAG_PROJ
+  let i ← arena.handle.EIdx.tag a
+  if i = arena.handle.ETAG_PROJ
+  then
+    let i1 ← arena.handle.EIdx.tag b
+    if i1 = arena.handle.ETAG_PROJ
     then
-      let r1 ← arena.expr_ops.get_app_fn pers st arena.core.CORE_WALK_FUEL b
-      match r1 with
-      | core.result.Result.Ok hb =>
-        let i1 ← arena.handle.EIdx.tag hb
-        if i1 = arena.handle.ETAG_PROJ
-        then
-          let r2 ← arena.monad.view pers st ha
-          match r2 with
-          | core.result.Result.Ok va =>
-            let r3 ← arena.monad.view pers st hb
-            match r3 with
-            | core.result.Result.Ok vb =>
-              match va with
-              | arena.store.ENodeView.BVar _ =>
-                ok (core.result.Result.Ok false, st)
-              | arena.store.ENodeView.FVar _ _ =>
-                ok (core.result.Result.Ok false, st)
-              | arena.store.ENodeView.Sort _ =>
-                ok (core.result.Result.Ok false, st)
-              | arena.store.ENodeView.Const _ _ =>
-                ok (core.result.Result.Ok false, st)
-              | arena.store.ENodeView.App _ _ =>
-                ok (core.result.Result.Ok false, st)
-              | arena.store.ENodeView.Lam _ _ =>
-                ok (core.result.Result.Ok false, st)
-              | arena.store.ENodeView.ForallE _ _ =>
-                ok (core.result.Result.Ok false, st)
-              | arena.store.ENodeView.LetE _ _ _ =>
-                ok (core.result.Result.Ok false, st)
-              | arena.store.ENodeView.Lit _ =>
-                ok (core.result.Result.Ok false, st)
-              | arena.store.ENodeView.Proj s1 i11 e1 =>
-                match vb with
-                | arena.store.ENodeView.BVar _ =>
-                  ok (core.result.Result.Ok false, st)
-                | arena.store.ENodeView.FVar _ _ =>
-                  ok (core.result.Result.Ok false, st)
-                | arena.store.ENodeView.Sort _ =>
-                  ok (core.result.Result.Ok false, st)
-                | arena.store.ENodeView.Const _ _ =>
-                  ok (core.result.Result.Ok false, st)
-                | arena.store.ENodeView.App _ _ =>
-                  ok (core.result.Result.Ok false, st)
-                | arena.store.ENodeView.Lam _ _ =>
-                  ok (core.result.Result.Ok false, st)
-                | arena.store.ENodeView.ForallE _ _ =>
-                  ok (core.result.Result.Ok false, st)
-                | arena.store.ENodeView.LetE _ _ _ =>
-                  ok (core.result.Result.Ok false, st)
-                | arena.store.ENodeView.Lit _ =>
-                  ok (core.result.Result.Ok false, st)
-                | arena.store.ENodeView.Proj s2 i2 e2 =>
-                  let b1 ←
-                    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 s1 s2
-                  if b1
-                  then
-                    if i11 = i2
-                    then
-                      let r4 ←
-                        arena.expr_ops.get_app_args pers st
-                          arena.core.CORE_WALK_FUEL a
-                      match r4 with
-                      | core.result.Result.Ok xs =>
-                        let r5 ←
-                          arena.expr_ops.get_app_args pers st
-                            arena.core.CORE_WALK_FUEL b
-                        match r5 with
-                        | core.result.Result.Ok ys =>
-                          let i3 := alloc.vec.Vec.len xs
-                          let i4 := alloc.vec.Vec.len ys
-                          if i3 = i4
-                          then
-                            arena.core.lazy_delta_proj_reduction pers st mode
-                              eager lane fuel fe depth s1 i11 xs ys
-                              arena.core.DEFEQ_LOOP_FUEL e1 e2
-                          else ok (core.result.Result.Ok false, st)
-                        | core.result.Result.Err e =>
-                          ok (core.result.Result.Err e, st)
-                      | core.result.Result.Err e =>
-                        ok (core.result.Result.Err e, st)
-                    else ok (core.result.Result.Ok false, st)
-                  else ok (core.result.Result.Ok false, st)
-            | core.result.Result.Err e => ok (core.result.Result.Err e, st)
-          | core.result.Result.Err e => ok (core.result.Result.Err e, st)
-        else ok (core.result.Result.Ok false, st)
+      let r ← arena.monad.view pers st a
+      match r with
+      | core.result.Result.Ok va =>
+        let r1 ← arena.monad.view pers st b
+        match r1 with
+        | core.result.Result.Ok vb =>
+          match va with
+          | arena.store.ENodeView.BVar _ =>
+            ok (core.result.Result.Ok false, st)
+          | arena.store.ENodeView.FVar _ _ =>
+            ok (core.result.Result.Ok false, st)
+          | arena.store.ENodeView.Sort _ =>
+            ok (core.result.Result.Ok false, st)
+          | arena.store.ENodeView.Const _ _ =>
+            ok (core.result.Result.Ok false, st)
+          | arena.store.ENodeView.App _ _ =>
+            ok (core.result.Result.Ok false, st)
+          | arena.store.ENodeView.Lam _ _ =>
+            ok (core.result.Result.Ok false, st)
+          | arena.store.ENodeView.ForallE _ _ =>
+            ok (core.result.Result.Ok false, st)
+          | arena.store.ENodeView.LetE _ _ _ =>
+            ok (core.result.Result.Ok false, st)
+          | arena.store.ENodeView.Lit _ => ok (core.result.Result.Ok false, st)
+          | arena.store.ENodeView.Proj s1 i11 e1 =>
+            match vb with
+            | arena.store.ENodeView.BVar _ =>
+              ok (core.result.Result.Ok false, st)
+            | arena.store.ENodeView.FVar _ _ =>
+              ok (core.result.Result.Ok false, st)
+            | arena.store.ENodeView.Sort _ =>
+              ok (core.result.Result.Ok false, st)
+            | arena.store.ENodeView.Const _ _ =>
+              ok (core.result.Result.Ok false, st)
+            | arena.store.ENodeView.App _ _ =>
+              ok (core.result.Result.Ok false, st)
+            | arena.store.ENodeView.Lam _ _ =>
+              ok (core.result.Result.Ok false, st)
+            | arena.store.ENodeView.ForallE _ _ =>
+              ok (core.result.Result.Ok false, st)
+            | arena.store.ENodeView.LetE _ _ _ =>
+              ok (core.result.Result.Ok false, st)
+            | arena.store.ENodeView.Lit _ =>
+              ok (core.result.Result.Ok false, st)
+            | arena.store.ENodeView.Proj s2 i2 e2 =>
+              let b1 ←
+                arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 s1 s2
+              if b1
+              then
+                if i11 = i2
+                then
+                  arena.core.lazy_delta_proj_reduction pers st mode eager lane
+                    fuel fe depth s1 i11 arena.core.DEFEQ_LOOP_FUEL e1 e2
+                else ok (core.result.Result.Ok false, st)
+              else ok (core.result.Result.Ok false, st)
+        | core.result.Result.Err e => ok (core.result.Result.Err e, st)
       | core.result.Result.Err e => ok (core.result.Result.Err e, st)
     else ok (core.result.Result.Ok false, st)
-  | core.result.Result.Err e => ok (core.result.Result.Err e, st)
+  else ok (core.result.Result.Ok false, st)
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_str_app]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11278:0-11334:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11235:0-11291:1
     Visibility: public -/
 def arena.core.defeq_str_app
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -38008,7 +37957,7 @@ def arena.core.defeq_str_app
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_apps]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11340:0-11390:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11297:0-11347:1
     Visibility: public -/
 def arena.core.defeq_apps
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -38065,7 +38014,7 @@ def arena.core.defeq_apps
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_stuck]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11400:0-11469:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11357:0-11426:1
     Visibility: public -/
 def arena.core.defeq_stuck
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -38408,7 +38357,7 @@ def arena.core.defeq_stuck
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_after_lazy]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11476:0-11520:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11433:0-11477:1
     Visibility: public -/
 def arena.core.defeq_after_lazy
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -38503,7 +38452,7 @@ def arena.core.defeq_after_lazy
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_after_whnf]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11527:0-11554:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11484:0-11511:1
     Visibility: public -/
 def arena.core.defeq_after_whnf
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -38535,7 +38484,7 @@ def arena.core.defeq_after_whnf
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_lazy]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11564:0-11597:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11521:0-11554:1
     Visibility: public -/
 def arena.core.defeq_lazy
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -38578,7 +38527,7 @@ def arena.core.defeq_lazy
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_ctor_right]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11607:0-11629:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11564:0-11586:1
     Visibility: public -/
 def arena.core.defeq_ctor_right
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -38606,7 +38555,7 @@ def arena.core.defeq_ctor_right
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_ctor_left]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11636:0-11658:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11593:0-11615:1
     Visibility: public -/
 def arena.core.defeq_ctor_left
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -38634,7 +38583,7 @@ def arena.core.defeq_ctor_left
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_body]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11668:0-11693:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11625:0-11650:1
     Visibility: public -/
 def arena.core.defeq_body
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -38670,7 +38619,7 @@ def arena.core.defeq_body
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::knot_whnf_core]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11908:0-11925:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11865:0-11882:1
     Visibility: public -/
 def arena.core.knot_whnf_core
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -38695,7 +38644,7 @@ def arena.core.knot_whnf_core
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::knot_whnf]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11931:0-11958:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11888:0-11915:1
     Visibility: public -/
 def arena.core.knot_whnf
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -38736,7 +38685,7 @@ def arena.core.knot_whnf
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::knot_infer]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11968:0-11995:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11925:0-11952:1
     Visibility: public -/
 def arena.core.knot_infer
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -38776,7 +38725,7 @@ def arena.core.knot_infer
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::knot_infer_io]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12007:0-12036:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11964:0-11993:1
     Visibility: public -/
 def arena.core.knot_infer_io
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -38816,7 +38765,7 @@ def arena.core.knot_infer_io
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::knot_infer_at]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12047:0-12064:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12004:0-12021:1
     Visibility: public -/
 def arena.core.knot_infer_at
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -38832,7 +38781,7 @@ def arena.core.knot_infer_at
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::knot_defeq]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12071:0-12098:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12028:0-12055:1
     Visibility: public -/
 def arena.core.knot_defeq
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -38866,7 +38815,7 @@ def arena.core.knot_defeq
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::knot_defeq_e]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12171:0-12205:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12128:0-12162:1
     Visibility: public -/
 def arena.core.knot_defeq_e
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -38906,7 +38855,7 @@ partial_fixpoint
 end
 
 /-- [con_ron_core::arena::core::whnf]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12241:0-12251:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12198:0-12208:1
     Visibility: public -/
 def arena.core.whnf
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -38918,7 +38867,7 @@ def arena.core.whnf
   arena.core.knot_whnf pers st mode false arena.core.LANE_FULL fuel fe depth e
 
 /-- [con_ron_core::arena::core::CHECK_FUEL]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12220:0-12220:48
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12177:0-12177:48
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.core.CHECK_FUEL : Std.U64 := 4611686018427387904#u64
@@ -39242,7 +39191,7 @@ def arena.inductives.block_tail.M_REDUCT_DIFFERS : Array Std.U32 63#usize :=
     ]
 
 /-- [con_ron_core::arena::core::is_def_eq_core]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12274:0-12285:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12231:0-12242:1
     Visibility: public -/
 def arena.core.is_def_eq_core
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -39255,7 +39204,7 @@ def arena.core.is_def_eq_core
     b
 
 /-- [con_ron_core::arena::core::ensure_sort_core]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12290:0-12300:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12247:0-12257:1
     Visibility: public -/
 def arena.core.ensure_sort_core
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -39268,7 +39217,7 @@ def arena.core.ensure_sort_core
     e
 
 /-- [con_ron_core::arena::core::infer_type_core]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12259:0-12269:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12216:0-12226:1
     Visibility: public -/
 def arena.core.infer_type_core
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -43241,7 +43190,7 @@ def arena.core_state.Caches.reset
     }
 
 /-- [con_ron_core::arena::core::flush_caches]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12320:0-12322:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12277:0-12279:1
     Visibility: public -/
 def arena.core.flush_caches
   (st : arena.monad.AState) : Result arena.monad.AState := do
@@ -71565,7 +71514,7 @@ def arena.monad.Memos.reset
     }
 
 /-- [con_ron_core::arena::core::enter_record]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12340:0-12343:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12297:0-12300:1
     Visibility: public -/
 def arena.core.enter_record
   (st : arena.monad.AState) : Result arena.monad.AState := do
@@ -71574,7 +71523,7 @@ def arena.core.enter_record
   ok { st with store := e, memos := m }
 
 /-- [con_ron_core::arena::core::leave_record]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12331:0-12334:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 12288:0-12291:1
     Visibility: public -/
 def arena.core.leave_record
   (st : arena.monad.AState) : Result arena.monad.AState := do

@@ -41,9 +41,6 @@ import ConRon.Bridge.Core.Walks.ProjCore
 import ConRon.Bridge.Core.Walks.Guards
 import ConRon.Bridge.ExprOps.Ranges
 import ConRon.Bridge.Core.Walks.Mono
-import ConRon.Bridge.Core.Walks.Owed
-import ConRon.Bridge.Core.Walks.Spine
-import ConRon.Bridge.ExprOps.Spine
 import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Specs
 import ConRon.Bridge.Core.Arms.DefeqBinders -- shake: keep (`#print axioms` names it; no proof term does)
@@ -296,10 +293,9 @@ section ProjPair
 
 variable {fe : IFEnv} {fuel : Nat}
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1743-1779 lazyDeltaProjReduction —
-the loop's tail once the step found the scrutinees different or stuck, for a
-BARE pair: the projection on both, and the fields, or else the scrutinees,
-compared. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:1691-1709 lazyDeltaProjReduction —
+the loop's tail once the step found the scrutinees different or stuck: the
+projection on both, and the fields, or else the scrutinees, compared. -/
 def ldprTail (r : CoreFns CheckM) (env : Env) (d : Nat)
     (sn : Name) (i : Nat) (a b : Expr) : CheckM Bool := do
   match ← ConLeche.reduceProjCore .verified r env d sn i a with
@@ -309,7 +305,7 @@ def ldprTail (r : CoreFns CheckM) (env : Env) (d : Nat)
     | none => r.defeq d a b
   | none => r.defeq d a b
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1743-1779 lazyDeltaProjReduction —
+/-- con-leche: ConLeche/Kernel/Core.lean:1691-1709 lazyDeltaProjReduction —
 **the tail on the twin side**, against `ldprTail`. -/
 theorem ldprTail_spec (henv : ConLeche.EnvWF env)
     (hsim : KnotSpec eager env fe fuel) (d : Nat) (sn : NIdx) (nm : Name)
@@ -368,146 +364,83 @@ theorem ldprTail_spec (henv : ConLeche.EnvWF env)
         (((hG.and hR1).and hR2).imp fun F ⟨⟨h, h1⟩, h2⟩ r hr => h r (by
           unfold ldprTail; simp only [h1, h2, bind, Except.bind]; exact hr))
 
-/-- con-leche: none — a handle list and its denotation are empty together. -/
-theorem isEmpty_of_denoteEList {st : EStore} {hs : List EIdx} {xs : List Expr}
-    (h : Frontend.denoteEList st hs = some xs) : xs.isEmpty = hs.isEmpty := by
-  have hl := denoteEList_len h
-  cases hs <;> cases xs <;> simp_all
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1743-1779 lazyDeltaProjReduction —
-**the tail of an applied or bare pair**: `ldprTail` when both argument lists
-are empty, `false` otherwise, on both sides. -/
-theorem ldprTailL_spec (henv : ConLeche.EnvWF env)
-    (hsim : KnotSpec eager env fe fuel) (d : Nat) (sn : NIdx) (nm : Name)
-    (i : Nat) {s₀ s₁ : AState} (as bs : List EIdx) (xs ys : List Expr) (a b : EIdx) (x y : Expr)
-    (hok : CheckOK eager env fe s₁) (hx₁ : Ext s₀.store s₁.store)
-    (hp₁ : s₁.pins = s₀.pins) (hsn : denoteN s₁.store.ns sn = some nm)
-    (hxs : Frontend.denoteEList s₁.store as = some xs)
-    (hys : Frontend.denoteEList s₁.store bs = some ys)
-    (hx : denoteE s₁.store a = some x) (hy : denoteE s₁.store b = some y)
-    (hwx : Expr.WScoped d x) (hwy : Expr.WScoped d y)
-    (G : Nat → Bool → Prop)
-    (hG : Ev (fun F => ∀ r, (if xs.isEmpty && ys.isEmpty then
-      ldprTail (ConLeche.pureFns .verified eager env F) env d nm i x y else pure false) = .ok r →
-        G F r)) :
-    ⦃fun s => s = s₁⦄
-      (if as.isEmpty && bs.isEmpty then do
-        match ← ConRon.Arena.reduceProjCore .verified (coreKnot .verified eager fe id fuel) fe d sn i a with
-        | some p =>
-          match ← ConRon.Arena.reduceProjCore .verified (coreKnot .verified eager fe id fuel) fe d sn i b with
-          | some q => (coreKnot .verified eager fe id fuel).defeq d p q
-          | none => (coreKnot .verified eager fe id fuel).defeq d a b
-        | none => (coreKnot .verified eager fe id fuel).defeq d a b
-      else pure false)
-    ⦃fun r s' => DqPost eager env fe s₀ G r s'; ⊤⦄ := by
-  rw [← isEmpty_of_denoteEList hxs, ← isEmpty_of_denoteEList hys]
-  split
-  · rename_i hE
-    exact ldprTail_spec henv hsim d sn nm i a b x y hok hx₁ hp₁ hsn hx hy hwx hwy G
-      (hG.imp fun _ h r hr => h r (by rw [ite_eq_left hE]; exact hr))
-  · rename_i hE
-    exact triple_pure_post ⟨hok, hx₁, hp₁, Ev.exists (hG.imp fun _ h =>
-      h false (by rw [ite_eq_right hE]; rfl))⟩
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1743-1779 lazyDeltaProjReduction —
+/-- con-leche: ConLeche/Kernel/Core.lean:1691-1709 lazyDeltaProjReduction —
 **THEOREM 1 for the projection loop**, at every budget, by induction on it:
 one `lazyDeltaStep` on the scrutinees, whose `cont` is the next iteration,
-whose `eq` compares the reversed argument lists (`defEqList_spec`), and whose
-`diff`/`unknown` hand over to `ldprTailL_spec`. -/
+whose `eq` decides, and whose `diff`/`unknown` hand over to `ldprTail`. -/
 theorem lazyDeltaProjReduction_spec (henv : ConLeche.EnvWF env)
     (hsim : KnotSpec eager env fe fuel) (d : Nat) (sn : NIdx) (nm : Name)
-    (i : Nat) (as bs : List EIdx) (xs ys : List Expr)
-    (hwxs : ∀ z ∈ xs, Expr.WScoped d z) (hwys : ∀ z ∈ ys, Expr.WScoped d z) :
+    (i : Nat) :
     ∀ (n : Nat) (s₀ : AState) (a b : EIdx) (x y : Expr),
       CheckOK eager env fe s₀ → denoteN s₀.store.ns sn = some nm →
-      Frontend.denoteEList s₀.store as = some xs → Frontend.denoteEList s₀.store bs = some ys →
       denoteE s₀.store a = some x → denoteE s₀.store b = some y →
       Expr.WScoped d x → Expr.WScoped d y →
       ⦃fun s => s = s₀⦄
         ConRon.Arena.lazyDeltaProjReduction .verified (coreKnot .verified eager fe id fuel) fe d sn i
-          as bs n a b
+          n a b
       ⦃fun r s' => DqPost eager env fe s₀ (fun F r =>
           ConLeche.lazyDeltaProjReduction .verified (ConLeche.pureFns .verified eager env F) env d
-            nm i xs ys n x y = .ok r) r s'; ⊤⦄
-  | 0, s₀, a, b, x, y, _, _, _, _, _, _, _, _ => by
+            nm i n x y = .ok r) r s'; ⊤⦄
+  | 0, s₀, a, b, x, y, _, _, _, _, _, _ => by
     rw [ConRon.Arena.lazyDeltaProjReduction]
     exact triple_fail
-  | n + 1, s₀, a, b, x, y, hok, hsn, hxs, hys, hx, hy, hwx, hwy => by
+  | n + 1, s₀, a, b, x, y, hok, hsn, hx, hy, hwx, hwy => by
     rw [ConRon.Arena.lazyDeltaProjReduction]
     refine triple_seq (lazyDeltaStep_spec henv hsim d s₀ a b x y hok hx hy hwx hwy) ?_
     rintro st s1 ⟨hok1, hx1, hp1, w, hr, hS⟩
     have hstep : ∀ F, ConLeche.lazyDeltaStep .verified (ConLeche.pureFns .verified eager env F) env d
         x y = .ok w →
         ConLeche.lazyDeltaProjReduction .verified (ConLeche.pureFns .verified eager env F) env d nm i
-          xs ys (n + 1) x y =
+          (n + 1) x y =
         (match w with
           | .cont a' b' => ConLeche.lazyDeltaProjReduction .verified
-              (ConLeche.pureFns .verified eager env F) env d nm i xs ys n a' b'
-          | .eq => ConLeche.defEqList (ConLeche.pureFns .verified eager env F) env d
-              xs.reverse ys.reverse
-          | .diff => if xs.isEmpty && ys.isEmpty then
-              ldprTail (ConLeche.pureFns .verified eager env F) env d nm i x y else pure false
-          | .unknown => if xs.isEmpty && ys.isEmpty then
-              ldprTail (ConLeche.pureFns .verified eager env F) env d nm i x y else pure false) := by
+              (ConLeche.pureFns .verified eager env F) env d nm i n a' b'
+          | .eq => pure true
+          | .diff => ldprTail (ConLeche.pureFns .verified eager env F) env d nm i x y
+          | .unknown => ldprTail (ConLeche.pureFns .verified eager env F) env d nm i x y) := by
       intro F h
       rw [ConLeche.lazyDeltaProjReduction]
       simp only [bind, Except.bind, h]
       cases w <;> rfl
     have hP := hS.imp fun F h => hstep F h
     have hsn1 := denoteN_ext hsn hx1
-    have hxs1 := denoteEList_ext hx1 _ _ hxs
-    have hys1 := denoteEList_ext hx1 _ _ hys
     rcases st with ⟨a', b'⟩ | _ | _ | _ <;> rcases w with ⟨x', y'⟩ | _ | _ | _ <;>
       simp only [DSRel] at hr
     · -- `cont`: the next iteration
       obtain ⟨ha', hb', hwx', hwy'⟩ := hr
-      refine triple_mono (lazyDeltaProjReduction_spec henv hsim d sn nm i as bs xs ys hwxs hwys n
-        s1 a' b' x' y' hok1 hsn1 hxs1 hys1 ha' hb' hwx' hwy') ?_
+      refine triple_mono (lazyDeltaProjReduction_spec henv hsim d sn nm i n s1 a' b'
+        x' y' hok1 hsn1 ha' hb' hwx' hwy') ?_
       rintro r s2 ⟨hok2, hx2, hp2, F2, hF2⟩
       have hL : Ev (fun F => ConLeche.lazyDeltaProjReduction .verified
-          (ConLeche.pureFns .verified eager env F) env d nm i xs ys n x' y' = .ok r) :=
+          (ConLeche.pureFns .verified eager env F) env d nm i n x' y' = .ok r) :=
         Ev.of_mono (fun hle h => lazyDeltaProjReductionFueled_mono hle h) ⟨F2, hF2⟩
       exact ⟨hok2, hx1.trans hx2, hp2.trans hp1,
         Ev.exists ((hP.and hL).imp fun _ ⟨h1, h2⟩ => h1.trans h2)⟩
-    · -- `eq`: the argument lists, last to first
-      have hrx : Frontend.denoteEList s1.store as.reverse = some xs.reverse := by
-        rw [denoteEList_reverse_eq, hxs1]; rfl
-      have hry : Frontend.denoteEList s1.store bs.reverse = some ys.reverse := by
-        rw [denoteEList_reverse_eq, hys1]; rfl
-      refine triple_mono (defEqList_spec hsim s1 d as.reverse bs.reverse xs.reverse ys.reverse
-        hok1 hrx hry (fun z hz => hwxs z (List.mem_reverse.mp hz))
-        (fun z hz => hwys z (List.mem_reverse.mp hz))) ?_
-      rintro r s2 ⟨hok2, hx2, hp2, F2, hF2⟩
-      have hL : Ev (fun F => ConLeche.defEqList (ConLeche.pureFns .verified eager env F) env d
-          xs.reverse ys.reverse = .ok r) :=
-        Ev.of_mono (fun hle h => defEqListFueled_mono hle h) ⟨F2, hF2⟩
-      exact ⟨hok2, hx1.trans hx2, hp2.trans hp1,
-        Ev.exists ((hP.and hL).imp fun _ ⟨h1, h2⟩ => h1.trans h2)⟩
+    · -- `eq`
+      exact triple_pure_post ⟨hok1, hx1, hp1, Ev.exists (hP.imp fun _ h => h)⟩
     · -- `diff`
-      exact ldprTailL_spec henv hsim d sn nm i as bs xs ys a b x y hok1 hx1 hp1 hsn1 hxs1 hys1
+      exact ldprTail_spec henv hsim d sn nm i a b x y hok1 hx1 hp1 hsn1
         (denote_ext hx hx1) (denote_ext hy hx1) hwx hwy _
         (hP.imp fun _ h r hr => h.trans hr)
     · -- `unknown`
-      exact ldprTailL_spec henv hsim d sn nm i as bs xs ys a b x y hok1 hx1 hp1 hsn1 hxs1 hys1
+      exact ldprTail_spec henv hsim d sn nm i a b x y hok1 hx1 hp1 hsn1
         (denote_ext hx hx1) (denote_ext hy hx1) hwx hwy _
         (hP.imp fun _ h r hr => h.trans hr)
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1781-1793 defeqProjPair — a pair whose
-spine heads are not two projections answers `false`. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:1711-1720 defeqProjPair — a pair that
+is not two projections answers `false`. -/
 theorem defeqProjPair_not {r : CoreFns CheckM} {d : Nat} {x y : Expr}
-    (h : ¬ (exprTag x.getAppFn = ETag.proj ∧ exprTag y.getAppFn = ETag.proj)) :
+    (h : ¬ (exprTag x = ETag.proj ∧ exprTag y = ETag.proj)) :
     ConLeche.defeqProjPair mode r env d x y = pure false := by
   unfold ConLeche.defeqProjPair
   split
-  · rename_i hx hy
-    exfalso; exact h ⟨by rw [hx]; rfl, by rw [hy]; rfl⟩
+  · exfalso; exact h ⟨rfl, rfl⟩
   · rfl
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1781-1793 defeqProjPair — **THEOREM 1
-for the proj/proj check**: the spine heads' tag tests are con-leche's
-constructor match on `getAppFn`, handle equality of the structure names is name
-equality, the handle lists' lengths are the denoted spines', and the scrutinees
-go through `lazyDeltaProjReduction_spec` at the shared budget. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:1711-1720 defeqProjPair — **THEOREM 1
+for the proj/proj check**: the two tag tests are con-leche's constructor
+match, handle equality of the structure names is name equality, and the
+scrutinees go through `lazyDeltaProjReduction_spec` at the shared budget. -/
 theorem defeqProjPair_spec (henv : ConLeche.EnvWF env)
     (hsim : KnotSpec eager env fe fuel) (d : Nat) (s₀ : AState) (a b : EIdx)
     (x y : Expr) (hok : CheckOK eager env fe s₀)
@@ -519,107 +452,55 @@ theorem defeqProjPair_spec (henv : ConLeche.EnvWF env)
         ConLeche.defeqProjPair .verified (ConLeche.pureFns .verified eager env F) env d x y = .ok r)
         r s'; ⊤⦄ := by
   have hwf := hok.state.wf
-  have hfalse : ¬ (exprTag x.getAppFn = ETag.proj ∧ exprTag y.getAppFn = ETag.proj) →
-      DqPost eager env fe s₀ (fun F r =>
-        ConLeche.defeqProjPair .verified (ConLeche.pureFns .verified eager env F) env d x y = .ok r)
-        false s₀ := fun hpp =>
-    ⟨hok, Ext.refl _, rfl, 0, show ConLeche.defeqProjPair _ _ _ _ _ _ = _ by rw [defeqProjPair_not hpp]; rfl⟩
   unfold ConRon.Arena.defeqProjPair
-  refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ a hok.state (by rw [hx]; rfl)) ?_
-  rintro ha s1 ⟨hs1, hra⟩
-  subst s1
-  have hfa := hra x hx
-  try dsimp only
-  rw [tag_of_denote hwf hfa]
+  rw [tag_of_denote hwf hx, tag_of_denote hwf hy]
   split
-  · rename_i hta
-    refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ b hok.state (by rw [hy]; rfl)) ?_
-    rintro hb s2 ⟨hs2, hrb⟩
-    subst s2
-    have hfb := hrb y hy
-    try dsimp only
-    rw [tag_of_denote hwf hfb]
-    split
-    · rename_i htb
-      have hwga : Expr.WScoped d x.getAppFn := Expr.WScoped.getAppFn hwx
-      have hwgb : Expr.WScoped d y.getAppFn := Expr.WScoped.getAppFn hwy
-      have hpure : ∀ F, ConLeche.defeqProjPair .verified (ConLeche.pureFns .verified eager env F)
-          env d x y =
-          (match x.getAppFn, y.getAppFn with
-            | .proj s₁ i₁ e₁, .proj s₂ i₂ e₂ =>
-              if s₁ == s₂ && i₁ == i₂ && x.getAppArgs.length == y.getAppArgs.length then
-                ConLeche.lazyDeltaProjReduction .verified (ConLeche.pureFns .verified eager env F)
-                  env d s₁ i₁ x.getAppArgs y.getAppArgs ConLeche.defeqLoopFuel e₁ e₂
-              else pure false
-            | _, _ => pure false) := fun F => by
-        unfold ConLeche.defeqProjPair; rfl
-      have hwas := Expr.WScoped.getAppArgs hwx
-      have hwbs := Expr.WScoped.getAppArgs hwy
-      generalize hxa : x.getAppArgs = xs at hpure hwas
-      generalize hya : y.getAppArgs = ys at hpure hwbs
-      generalize x.getAppFn = gx at hfa hwga hta hpure
-      generalize y.getAppFn = gy at hfb hwgb htb hpure
-      obtain ⟨va, hva⟩ := denoteE_view hfa
-      obtain ⟨vb, hvb⟩ := denoteE_view hfb
-      refine view_bind_triple hva ?_
-      refine view_bind_triple hvb ?_
-      have hA := VD.of_view hwf hva hfa
-      have hB := VD.of_view hwf hvb hfb
-      rcases hA with _ | _ | _ | _ | _ | _ | _ | _ | _ |
-        ⟨pn1, pi1, ps1, pnm1, pes1, hpn1, hps1⟩
+  · rename_i hpp
+    obtain ⟨va, hva⟩ := denoteE_view hx
+    obtain ⟨vb, hvb⟩ := denoteE_view hy
+    refine view_bind_triple hva ?_
+    refine view_bind_triple hvb ?_
+    have hA := VD.of_view hwf hva hx
+    have hB := VD.of_view hwf hvb hy
+    rcases hA with _ | _ | _ | _ | _ | _ | _ | _ | _ |
+      ⟨pn1, pi1, ps1, pnm1, pes1, hpn1, hps1⟩
+    case proj =>
+      rcases hB with _ | _ | _ | _ | _ | _ | _ | _ | _ |
+        ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
       case proj =>
-        rcases hB with _ | _ | _ | _ | _ | _ | _ | _ | _ |
-          ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
-        case proj =>
-          try simp only []
-          have hbeq : (pn1 == pn2 && pi1 == pi2) = (pnm1 == pnm2 && pi1 == pi2) := by
-            rw [beq_handle_eq hwf hpn1 hpn2]
-          have hw1 : Expr.WScoped d pes1 := by simpa [Expr.WScoped] using hwga
-          have hw2 : Expr.WScoped d pes2 := by simpa [Expr.WScoped] using hwgb
-          split
-          · rename_i hc
-            rw [hbeq] at hc
-            simp only [beq_iff_eq, Bool.and_eq_true] at hc
-            obtain ⟨rfl, rfl⟩ := hc
-            refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s₀ a hok.state
-              (by rw [hx]; rfl)) ?_
-            rintro las s3 ⟨hs3, hras⟩
-            subst s3
-            refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s₀ b hok.state
-              (by rw [hy]; rfl)) ?_
-            rintro lbs s4 ⟨hs4, hrbs⟩
-            subst s4
-            have hxs : Frontend.denoteEList s₀.store las = some xs := hxa ▸ hras x hx
-            have hys : Frontend.denoteEList s₀.store lbs = some ys := hya ▸ hrbs y hy
-            have hlen : (las.length == lbs.length) = (xs.length == ys.length) := by
-              rw [denoteEList_len hxs, denoteEList_len hys]
-            try dsimp only
-            rw [hlen]
-            split
-            · rename_i hl
-              refine triple_mono (lazyDeltaProjReduction_spec henv hsim d pn1 pnm1 pi1 las lbs xs ys
-                hwas hwbs ConRon.Arena.defeqLoopFuel s₀ ps1 ps2 pes1 pes2 hok hpn1 hxs hys hps1
-                hps2 hw1 hw2) ?_
-              rintro r s' ⟨hok', hx', hp', F, hF⟩
-              refine ⟨hok', hx', hp', F, show ConLeche.defeqProjPair _ _ _ _ _ _ = _ from ?_⟩
-              rw [hpure F]; dsimp only
-              rw [ite_eq_left (by simp_all), ← defeqLoopFuel_eq]
-              exact hF
-            · rename_i hl
-              exact triple_pure_post ⟨hok, Ext.refl _, rfl, 0, show ConLeche.defeqProjPair _ _ _ _ _ _ = _ by
-                rw [hpure]; dsimp only; rw [ite_eq_right (by simp_all)]; rfl⟩
-          · rename_i hc
-            rw [hbeq] at hc
-            exact triple_pure_post ⟨hok, Ext.refl _, rfl, 0, show ConLeche.defeqProjPair _ _ _ _ _ _ = _ by
-              rw [hpure]; dsimp only; rw [ite_eq_right (by simp_all)]; rfl⟩
-        all_goals
-          exact absurd htb (by simp only [exprTag]; decide)
+        try dsimp only
+        have hbeq : (pn1 == pn2 && pi1 == pi2) = (pnm1 == pnm2 && pi1 == pi2) := by
+          rw [beq_handle_eq hwf hpn1 hpn2]
+        have hw1 : Expr.WScoped d pes1 := by simpa [Expr.WScoped] using hwx
+        have hw2 : Expr.WScoped d pes2 := by simpa [Expr.WScoped] using hwy
+        split
+        · rename_i hc
+          rw [hbeq] at hc
+          refine triple_mono (lazyDeltaProjReduction_spec henv hsim d pn1 pnm1 pi1
+            ConRon.Arena.defeqLoopFuel s₀ ps1 ps2 pes1 pes2 hok hpn1 hps1 hps2 hw1
+            hw2) ?_
+          rintro r s' ⟨hok', hx', hp', F, hF⟩
+          refine ⟨hok', hx', hp', F, ?_⟩
+          unfold ConLeche.defeqProjPair
+          dsimp only
+          rw [ite_eq_left hc, ← defeqLoopFuel_eq]
+          simp only [beq_iff_eq, Bool.and_eq_true] at hc
+          obtain ⟨rfl, rfl⟩ := hc
+          exact hF
+        · rename_i hc
+          rw [hbeq] at hc
+          exact triple_pure_post ⟨hok, Ext.refl _, rfl, 0, by
+            unfold ConLeche.defeqProjPair; dsimp only; rw [ite_eq_right hc]; rfl⟩
       all_goals
-        exact absurd hta (by simp only [exprTag]; decide)
-    · rename_i htb
-      exact triple_pure_post (hfalse fun ⟨_, h⟩ => htb (by simp [h]))
-  · rename_i hta
-    exact triple_pure_post (hfalse fun ⟨h, _⟩ => hta (by simp [h]))
+        simp only [Bool.and_eq_true] at hpp
+        exact absurd hpp.2 (by simp only [exprTag]; decide)
+    all_goals
+      simp only [Bool.and_eq_true] at hpp
+      exact absurd hpp.1 (by simp only [exprTag]; decide)
+  · rename_i hpp
+    exact triple_pure_post ⟨hok, Ext.refl _, rfl, 0, by
+      dsimp only
+      rw [defeqProjPair_not (fun ⟨h1, h2⟩ => hpp (by simp [h1, h2]))]; rfl⟩
 
 end ProjPair
 

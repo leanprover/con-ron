@@ -4286,60 +4286,45 @@ def lazyDeltaReduction (mode : CheckMode) (eager : Bool) (r : CoreFnsA) (fe : IF
     | .diff => pure (.verdict false)
     | .unknown => pure (.unknown a b)
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1743-1779 lazyDeltaProjReduction
-con-leche: ConLeche/Cached/CoreC.lean:1913-1930 lazyDeltaProjReductionI —
-**`a.i as =?= b.i bs` by its scrutinees** (the official kernel's
-`lazy_delta_proj_reduction`, extended to applied projections as con-leche does,
-lean4#16613): lazy-delta steps on the two scrutinees; once a step finds them
-equal, the argument lists are compared last to first (as `defeqSpine`); when
-neither unfolds any more (or the step found them different), a bare pair has the
-projection tried on both and only the projected fields compared, failing that
-the scrutinees themselves, and an applied pair gives up (`false`). -/
+/-- con-leche: ConLeche/Kernel/Core.lean:1743-1761 lazyDeltaProjReduction
+con-leche: ConLeche/Cached/CoreC.lean:1913-1928 lazyDeltaProjReductionI —
+**`a.i =?= b.i` by its scrutinees** (the official kernel's
+`lazy_delta_proj_reduction`): lazy-delta steps on the two scrutinees; when
+neither unfolds any more (or the step found them different), the projection
+is tried on both and only the projected fields are compared; failing that,
+the scrutinees themselves. -/
 def lazyDeltaProjReduction (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv)
-    (depth : Nat) (sn : NIdx) (i : Nat) (as bs : List EIdx) :
-    Nat → EIdx → EIdx → AM Bool
+    (depth : Nat) (sn : NIdx) (i : Nat) : Nat → EIdx → EIdx → AM Bool
   | 0, _, _ => fail (.internal "fuel exhausted: lazy delta projection loop")
   | n + 1, a, b => do
     match ← lazyDeltaStep mode r fe depth a b with
-    | .cont a' b' => lazyDeltaProjReduction mode r fe depth sn i as bs n a' b'
-    | .eq => defEqList r fe depth as.reverse bs.reverse
+    | .cont a' b' => lazyDeltaProjReduction mode r fe depth sn i n a' b'
+    | .eq => pure true
     | .diff | .unknown =>
-      if as.isEmpty && bs.isEmpty then
-        match ← reduceProjCore mode r fe depth sn i a with
-        | some x =>
-          match ← reduceProjCore mode r fe depth sn i b with
-          | some y => r.defeq depth x y
-          | none => r.defeq depth a b
+      match ← reduceProjCore mode r fe depth sn i a with
+      | some x =>
+        match ← reduceProjCore mode r fe depth sn i b with
+        | some y => r.defeq depth x y
         | none => r.defeq depth a b
-      else pure false
+      | none => r.defeq depth a b
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1781-1793 defeqProjPair
-con-leche: ConLeche/Cached/CoreC.lean:1932-1943 defeqProjPairI — the
-proj/proj check of `is_def_eq_core`: two projection-headed spines at the same
-slot, bare or applied to equally many arguments, go through
-`lazyDeltaProjReduction` on their scrutinees.  The argument lists are read only
-once the heads match (the Rust's order). -/
+/-- con-leche: ConLeche/Kernel/Core.lean:1763-1772 defeqProjPair
+con-leche: ConLeche/Cached/CoreC.lean:1930-1939 defeqProjPairI — the
+proj/proj check of `is_def_eq_core`: two projections at the same slot go
+through `lazyDeltaProjReduction` on their scrutinees. -/
 def defeqProjPair (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     (a b : EIdx) : AM Bool := do
-  let ha ← getAppFn coreWalkFuel a
-  if ha.tag == ETag.proj then
-    let hb ← getAppFn coreWalkFuel b
-    if hb.tag == ETag.proj then
-      match ← view ha, ← view hb with
-      | .proj s₁ i₁ e₁, .proj s₂ i₂ e₂ =>
-        if s₁ == s₂ && i₁ == i₂ then do
-          let as ← getAppArgs coreWalkFuel a
-          let bs ← getAppArgs coreWalkFuel b
-          if as.length == bs.length then
-            lazyDeltaProjReduction mode r fe depth s₁ i₁ as bs defeqLoopFuel e₁ e₂
-          else pure false
-        else pure false
-      | _, _ => pure false
-    else pure false
+  if a.tag == ETag.proj && b.tag == ETag.proj then
+    match ← view a, ← view b with
+    | .proj s₁ i₁ e₁, .proj s₂ i₂ e₂ =>
+      if s₁ == s₂ && i₁ == i₂ then
+        lazyDeltaProjReduction mode r fe depth s₁ i₁ defeqLoopFuel e₁ e₂
+      else pure false
+    | _, _ => pure false
   else pure false
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1795-1862 defeqStuck
-con-leche: ConLeche/Cached/CoreC.lean:1945-1993 defeqStuckI — **the stuck
+/-- con-leche: ConLeche/Kernel/Core.lean:1774-1841 defeqStuck
+con-leche: ConLeche/Cached/CoreC.lean:1941-1989 defeqStuckI — **the stuck
 comparison** (the tail of the official kernel's `is_def_eq_core`): a string
 literal against `String.ofList`, the same free variable, the same constant at
 equivalent levels, the application spine, η on a one-sided λ; every failing
@@ -4409,8 +4394,8 @@ def defeqStuck (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
   -- distinct whnf-stuck head symbols
   | _, _ => stuckIrrel mode r fe depth a b
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1864-1915 defeqLazy
-con-leche: ConLeche/Cached/CoreC.lean:1995-2017 defeqLazyI — **the lazy
+/-- con-leche: ConLeche/Kernel/Core.lean:1843-1894 defeqLazy
+con-leche: ConLeche/Cached/CoreC.lean:1991-2013 defeqLazyI — **the lazy
 comparison**, the official kernel's `is_def_eq_core` past its syntactic fast
 path and its eq-true clause, clause for clause except con-leche task #333's
 reordering: `quickDefEq` and proof irrelevance on the UNREDUCED pair (so that a
@@ -4442,8 +4427,8 @@ def defeqLazy (mode : CheckMode) (eager : Bool) (r : CoreFnsA) (fe : IFEnv)
   if a₂ == a₁ && b₂ == b₁ then defeqStuck mode r fe depth a₁ b₁
   else r.defeq depth a₂ b₂
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1917-1959 defeqBody
-con-leche: ConLeche/Cached/CoreC.lean:2019-2039 defeqBodyI — **the
+/-- con-leche: ConLeche/Kernel/Core.lean:1896-1938 defeqBody
+con-leche: ConLeche/Cached/CoreC.lean:2015-2035 defeqBodyI — **the
 definitional-equality body** (the official kernel's `is_def_eq_core`): the
 syntactic fast path, the constructor shortcut, then the lazy comparison
 (`defeqLazy`).  The constructor shortcut generalises official's eq-true
@@ -4550,12 +4535,12 @@ the six fields; nothing moves when `enterEager` moved nothing. -/
                whnfC := mm.whnfC, inferC := mm.inferC, inferIOC := mm.inferIOC,
                defeqC := mm.defeqC } }
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1963-1998 coreKnot
-con-leche: ConLeche/Cached/CoreC.lean:2041-2046 whnfCoreI
-con-leche: ConLeche/Cached/CoreC.lean:2048-2057 whnfI
-con-leche: ConLeche/Cached/CoreC.lean:2059-2072 inferI
-con-leche: ConLeche/Cached/CoreC.lean:2074-2078 defeqI
-con-leche: ConLeche/Cached/CoreC.lean:2080-2088 defeqEI
+/-- con-leche: ConLeche/Kernel/Core.lean:1942-1977 coreKnot
+con-leche: ConLeche/Cached/CoreC.lean:2037-2042 whnfCoreI
+con-leche: ConLeche/Cached/CoreC.lean:2044-2053 whnfI
+con-leche: ConLeche/Cached/CoreC.lean:2055-2068 inferI
+con-leche: ConLeche/Cached/CoreC.lean:2070-2074 defeqI
+con-leche: ConLeche/Cached/CoreC.lean:2076-2084 defeqEI
 Tie the bodies together: the record whose entry points are the bodies applied
 to the record one fuel level down, each under its own memo.  The cached
 tier's knot is the five entry points of one mutual block at a level `lv`
@@ -4631,7 +4616,7 @@ def coreKnot (mode : CheckMode) (eager : Bool) (fe : IFEnv) (wrap : CoreFnsA →
             inferIOSet e x
             pure x }
 
-/-- con-leche: ConLeche/Kernel/Core.lean:2000-2019 checkFuel — the shared
+/-- con-leche: ConLeche/Kernel/Core.lean:1979-1998 checkFuel — the shared
 fuel for the checker core, counted in knot levels.  **Effectively
 unbounded** (`2^62`, as `whnfCoreLoopFuel`): the fuel exists so that the knot
 is a structural recursion the proofs can induct over, and running out of it
