@@ -75125,3 +75125,46 @@ con-ron --export init --runs 1`): 165 595 838 947 before, 165 595 458 503 after 
 the dispatch rewrite does not change the checker's work.
 
 **Scratch.**  `_tmp/t180/` (six `.llbc`s, ~2 GB) can go once this is read.
+
+### Task #187 — con-leche sync bc667610 → 4d398342 on master: node hashes with `mixHash32`, a `quot` record off its pin is a reject, the concise `--help` (2026-11-27, Opus)
+
+con-leche master's #629…#638 (45 commits).  What the executed checker changed, net:
+#634 (`Expr` hash mixing) and #638 (children combined with `mixHash32`, lean4#16107), #636 (a
+`quot` record off its pin is a reject), the concise `--help`, and the "slowest checks" line only
+from 10 s (con-ron prints no such line: nothing to port).  #633 (lazy applied projections) and
+its revert #637 cancel out, so the projection strand that `renovation`'s #184/#186 ported and
+removed again is not touched here.  The rest is upstream's OVERVIEW rewrite, PERF, perf
+tables.  `update --auto`: 130 findings (130 `CHANGED`); 130 markers → 0; coverage 1202/1254
+(52 uncovered, as before; the two new upstream declarations are covered).  One agent, no
+lanes; `renovation`'s #184 and #185 were the templates.
+* **Hashes (#634, #638).**  `kernel::mix_hash::mix_hash32` (new module, one per
+  `Kernel/MixHash.lean`) is the MurmurHash3 block step on `u32` with wrapping arithmetic,
+  checked against upstream's five C-computed values in a unit test; `expr::mix32` is its
+  `UInt64` wrapper (`as u32` truncates as `toUInt32` does).  `fvar` is `mix32 (hash32
+  (mixHash 5 idx)) h_ty`, `app` `mix32 h_f h_a`, `lam`/`forallE` `mix32 (mix32 29|31 h_ty)
+  h_b`, `letE` `mix32 (mix32 (mix32 37 h_ty) h_v) h_b`, `proj` `mix32 (hash32 (mixHash
+  (mixHash 23 s) i)) h_e`, in `kernel::expr`, the arena's `der_of_*` (seeds 29/31 at the three
+  `der_of_bind_at` call sites) and the twin's `derOf*` (and `derOfView`/`internBind`/WFProofs'
+  seeds).  `bvar`, `sort`, `const`, `lit` are unchanged.  `EStore.derived_exact_at` re-checked
+  without edits.  The hash bits stay outside Theorem 2's relation (`derObsE`), so the only proof
+  edits are positional: `Refine/Expr.lean`'s `fvar_inv`/`app_inv`/`proj_inv` and `Specs.lean`'s
+  `der_of_{fvar,app,proj}_obs` take the generated bind chain one bind at a time, and `mix32`
+  makes fvar and proj one bind longer and app one shorter.  The other ~110 markers only cite
+  the `Expr` inductive (tags, views, node structs): checked by kind, no code.
+* **Quot (#636).**  `check_quot_record`/`checkQuotRecord` fail `Invalid` for a `quot` record
+  off its pin or before the slots it needs; a `Quot.sound` off its pin stays `NotImplemented`.
+  CheckerTest's pinned con-leche verdict for `dsQuotBad` follows.
+* **`--help`.**  Synopsis and help in upstream's short form, Rust and twin, as `renovation`'s
+  #184 (con-ron's deviations kept: one worker in the twin, the scheduler flags, repo-relative
+  documentation).  OVERVIEW §2.1 said a bare `con-ron` prints all its listed forms; it prints
+  the first four now, and says so.
+
+No headline statement change, no new axiom, no new Theorem-2 invariant, no Lockstep/Prims edit.
+Verdicts: `diff-e2e.sh` 773/773 (master's binary at the new pin: 771, `tower_quot` and
+`basis_quot_lift_type_bad` differ).  `Init`, `--verified --jobs=1`, instructions:u, one run
+each (`bump-con-leche.sh measure`), 57 919 accepted by both: master 87e353af 165 595 333 514,
+this branch 165 373 829 692 (−0.13 %, as `renovation` measured for #634 alone).
+
+Left: `provenance.py coverage` reports `ModelIO` in `scripts/provenance-skip.txt` as
+REDUNDANT (the by-name skip also matches the cited `ModelIO.read`); `check` does not fail on it,
+and it was there before this sync.

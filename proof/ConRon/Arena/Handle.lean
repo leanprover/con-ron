@@ -261,38 +261,38 @@ that a reader can line the two up by eye.  Each tag cites the parent
 inductive and names the constructor it stands for. -/
 
 namespace ETag
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `bvar`
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `bvar`
 constructor, line 316. -/
 def bvar : UInt32 := 0
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `fvar`
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `fvar`
 constructor, line 317. -/
 def fvar : UInt32 := 1
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `sort`
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `sort`
 constructor, line 318. -/
 def sort : UInt32 := 2
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `const`
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `const`
 constructor, line 319. -/
 def const : UInt32 := 3
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `app`
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `app`
 constructor, line 320. -/
 def app : UInt32 := 4
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `lam`
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `lam`
 constructor, line 321. -/
 def lam : UInt32 := 5
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `forallE`
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `forallE`
 constructor, line 322. -/
 def forallE : UInt32 := 6
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `letE`
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `letE`
 constructor, line 323. -/
 def letE : UInt32 := 7
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `lit`
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `lit`
 constructor, line 324. -/
 def lit : UInt32 := 8
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `proj`
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `proj`
 constructor, line 325. -/
 def proj : UInt32 := 9
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — `lam` (line 406) or
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — `lam` (line 406) or
 `forallE` (line 407), the two constructors that share the `BindNode` record
 shape (task #97-P6-10).  A named predicate rather than the disjunction written
 at the use site: the walks that dispatch on the handle's own tag hold the
@@ -317,19 +317,19 @@ end NTag
 
 /-! The five level-constructor tags. -/
 namespace LTag
-/-- con-leche: ConLeche/Kernel/Expr.lean:32-37 Level — the `zero`
+/-- con-leche: ConLeche/Kernel/Expr.lean:33-38 Level — the `zero`
 constructor, line 39. -/
 def zero : UInt32 := 0
-/-- con-leche: ConLeche/Kernel/Expr.lean:32-37 Level — the `succ`
+/-- con-leche: ConLeche/Kernel/Expr.lean:33-38 Level — the `succ`
 constructor, line 40. -/
 def succ : UInt32 := 1
-/-- con-leche: ConLeche/Kernel/Expr.lean:32-37 Level — the `max`
+/-- con-leche: ConLeche/Kernel/Expr.lean:33-38 Level — the `max`
 constructor, line 41. -/
 def max : UInt32 := 2
-/-- con-leche: ConLeche/Kernel/Expr.lean:32-37 Level — the `imax`
+/-- con-leche: ConLeche/Kernel/Expr.lean:33-38 Level — the `imax`
 constructor, line 42. -/
 def imax : UInt32 := 3
-/-- con-leche: ConLeche/Kernel/Expr.lean:32-37 Level — the `param`
+/-- con-leche: ConLeche/Kernel/Expr.lean:33-38 Level — the `param`
 constructor, line 43. -/
 def param : UInt32 := 4
 end LTag

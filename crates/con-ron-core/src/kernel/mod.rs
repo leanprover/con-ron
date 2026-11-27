@@ -8,6 +8,7 @@ pub mod env;
 pub mod expr;
 pub mod expr_ops;
 pub mod level;
+pub mod mix_hash;
 pub mod name;
 pub mod nat_op_pins;
 pub mod pins_decode;

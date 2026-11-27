@@ -277,7 +277,7 @@ pub fn compare_json<I: CheckerIo>(io: &mut I, a: &Args, challenge: &Vec<u32>, so
     compare_verdict(io, &pers, st, prep_s.decls, prep_c.decls, recs_c, sol, verdict, records_c, solution, records_s, verified)
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
 /// **`--compare` on two lean4export files, from the parsed arguments**:
 /// con-leche's usage checks of the mode in its order (no flag of `--olean`'s,
 /// two files, two different ones), then the run.

@@ -3178,12 +3178,14 @@ pub fn install_basis_decl(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:463-474 checkQuotRecord
+/// con-leche: ConLeche/Kernel/Checker.lean:463-476 checkQuotRecord
 /// con-leche: ConLeche/Cached/ParsedC.lean:96-104 checkQuotRecordC
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:899-911 checkQuotRecord` — **a quotient
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:899-913 checkQuotRecord` — **a quotient
 /// record's check and install**: compared with its slot's pin, the slots it
-/// needs stored, and installed at its own names.  A record that does not match
-/// is a quotient this checker positively does not support.
+/// needs stored, and installed at its own names.  A `quot` record that does
+/// not match its pin, or comes before the slots it needs, is rejected; a
+/// `Quot.sound` that does not match is declined (official accepts the
+/// soundness axiom, an ordinary `axiom`, at any type).
 pub fn check_quot_record(
     pers: &PersTier,
     st: &mut AState,
@@ -3195,11 +3197,11 @@ pub fn check_quot_record(
         Err(e) => Err(e),
         Ok(false) => match k {
             QuotKind::Sound => fail(CheckError::NotImplemented(code_points(&M_QUOT_SOUND_MISMATCH))),
-            _ => fail(CheckError::NotImplemented(code_points(&M_QUOT_DECL_MISMATCH))),
+            _ => fail(CheckError::Invalid(code_points(&M_QUOT_DECL_MISMATCH))),
         },
         Ok(true) => match quot_preds_ok(pers, st, &fe, k) {
             Err(e) => Err(e),
-            Ok(false) => fail(CheckError::NotImplemented(code_points(&M_QUOT_PREDS))),
+            Ok(false) => fail(CheckError::Invalid(code_points(&M_QUOT_PREDS))),
             Ok(true) => match quot_at(pers, st, k, cv) {
                 Err(e) => Err(e),
                 Ok(ci) => install_basis_decl(pers, fe, ci),

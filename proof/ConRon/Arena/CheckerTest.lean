@@ -302,7 +302,7 @@ differential below is evidence of something. -/
 #guard okSize (ConLeche.checkDeclsPure MU OPS [] dsGood) 10
 #guard okSize (ConLeche.checkDeclsPure MU OPS [] dsQuot) 8
 #guard failsWith (ConLeche.checkDeclsPure MU OPS [] dsQuotBad)
-  (.notImplemented "quotient declaration before what it needs")
+  (.invalid "quotient declaration before what it needs")
 #guard okSize (ConLeche.checkDeclsPure MU OPS [] [dEqOther]) 3
 #guard failsWith (ConLeche.checkDeclsPure MU OPS [] [dEqSwapped])
   (.invalid "target rec: the recursor's major premise is not the member at its parameters and \

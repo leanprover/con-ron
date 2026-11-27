@@ -80,7 +80,7 @@ fn graph_failed(e: &CheckError) -> u8 {
 // ---------------------------------------------------------------------------
 // `--schedule-commands`: the commands that check a closure
 
-/// con-leche: ConLeche/Driver/Schedule/Worker.lean:38-44 spell
+/// con-leche: ConLeche/Driver/Schedule/Worker.lean:39-45 spell
 /// A module's name as the command line spells it, each component escaped.
 pub fn spell(m: &Name) -> String {
     let mut comps: Vec<String> = Vec::new();
@@ -102,7 +102,7 @@ pub fn spell(m: &Name) -> String {
     comps.iter().map(|c| format!("«{}»", c)).collect::<Vec<_>>().join(".")
 }
 
-/// con-leche: ConLeche/Driver/Schedule/Worker.lean:51-55 pathArgs
+/// con-leche: ConLeche/Driver/Schedule/Worker.lean:52-56 pathArgs
 /// **The flags of a lookup**: `--search-path=D`, or with trusted directories
 /// `T`, `--trusted-search-path=T --search-path=D` (each colon-separated).
 pub fn path_args(trusted: &str, dirs: &str) -> Vec<String> {
@@ -113,7 +113,7 @@ pub fn path_args(trusted: &str, dirs: &str) -> Vec<String> {
     }
 }
 
-/// con-leche: ConLeche/Driver/Schedule/Worker.lean:57-63 workerArgs
+/// con-leche: ConLeche/Driver/Schedule/Worker.lean:58-64 workerArgs
 /// **A worker's arguments** at module `m`: `--olean --module`, `--jobs=T` where
 /// `jobs` is `Some(T)`, the mode, the numeral bound, the lookup's flags `paths`
 /// (`path_args`), then `--` and `spell m` last.
@@ -130,7 +130,7 @@ pub fn worker_args(mode_tag: &str, max_nat_size: &str, paths: &[String], jobs: O
     v
 }
 
-/// con-leche: ConLeche/Driver/Schedule/Worker.lean:65-71 cmpWorkerArgs
+/// con-leche: ConLeche/Driver/Schedule/Worker.lean:66-72 cmpWorkerArgs
 /// **The compare worker's arguments** at challenge `c` and solution `s`:
 /// `--olean --module --compare`, as `worker_args`, then `--`, `spell c` and
 /// `spell s`.
@@ -148,7 +148,7 @@ pub fn cmp_worker_args(mode_tag: &str, max_nat_size: &str, paths: &[String], job
     v
 }
 
-/// con-leche: ConLeche/Driver/Schedule/Worker.lean:73-79 shellQuote
+/// con-leche: ConLeche/Driver/Schedule/Worker.lean:74-80 shellQuote
 /// A word as a POSIX shell reads it back: as it is where it is not empty and
 /// holds only letters, digits and `_-./=:,+@%`, else in single quotes, a `'` in
 /// it as `'\''`.
@@ -161,7 +161,7 @@ pub fn shell_quote(s: &str) -> String {
     }
 }
 
-/// con-leche: ConLeche/Driver/Schedule/Worker.lean:81-93 parseSize
+/// con-leche: ConLeche/Driver/Schedule/Worker.lean:82-94 parseSize
 /// A memory size in KiB: a number with a unit, `K`, `M`, `G` or `T` (KiB, MiB,
 /// GiB, TiB; the lower-case letters too).  No unit is no size.
 pub fn parse_size(v: &str) -> Option<u64> {
@@ -186,7 +186,7 @@ fn to_nat(v: &str) -> Option<u64> {
     v.chars().filter(|c| *c != '_').collect::<String>().parse::<u64>().ok()
 }
 
-/// con-leche: ConLeche/Driver/Schedule/Worker.lean:113-129 commandLines
+/// con-leche: ConLeche/Driver/Schedule/Worker.lean:114-130 commandLines
 /// **The commands that check a closure**, one line each, shell-quoted: the graph
 /// check of `root` (`app --check-graph PATHS -- root`), then one worker per
 /// module of `mods`, in the order given (`args` at each), each prefixed with

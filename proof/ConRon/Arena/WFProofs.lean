@@ -567,7 +567,7 @@ theorem denoteL_inj {st : LStore} (h : LStoreWF st) {i j : LIdx} {x : Level}
   obtain ⟨rk, h⟩ := h
   exact denoteL_inj_at h x i j hi hj
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:32-45 Level — the `hashData` computed
+/-- con-leche: ConLeche/Kernel/Expr.lean:33-46 Level — the `hashData` computed
 field, lines 47-53, and `ConLeche/Kernel/Expr.lean:114-122 levelHasParam`:
 exactness of the level store's derived column. -/
 theorem LStore.derived_exact_at {st : LStore} {rk : LIdx → Nat}
@@ -618,7 +618,7 @@ theorem LStore.derived_exact_at {st : LStore} {rk : LIdx → Nat}
     simp [LStore.derOfView, NStore.derived_exact h.ns hdn,
       ConLeche.Level.hashData, levelHasParam]
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:32-45 Level — the `hashData` computed
+/-- con-leche: ConLeche/Kernel/Expr.lean:33-46 Level — the `hashData` computed
 field, lines 47-53. -/
 theorem LStore.derived_exact {st : LStore} (h : LStoreWF st) {i : LIdx}
     {x : Level} (hi : denoteL st i = some x) :
@@ -706,7 +706,7 @@ theorem denoteLs_inj {st : LsStore} (h : LsStoreWF st) {i j : LsIdx}
   subst this
   exact h.view_inj hvi hvj
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:230-233 levelsHash — and
+/-- con-leche: ConLeche/Kernel/Expr.lean:231-234 levelsHash — and
 `ConLeche/Kernel/Expr.lean:124-127 levelsHaveParam`: the fold of the level
 store's exactness over a list. -/
 theorem LsStore.derOfView_exact {st : LsStore} (h : LStoreWF st.ls) :
@@ -728,7 +728,7 @@ theorem LsStore.derOfView_exact {st : LsStore} (h : LStoreWF st.ls) :
     simp [LsStore.derOfView, LStore.derived_exact h ha, ih as has,
       levelsHash, levelsHaveParam, levelHash]
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:230-233 levelsHash -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:231-234 levelsHash -/
 theorem LsStore.derived_exact {st : LsStore} (h : LsStoreWF st) {i : LsIdx}
     {xs : List Level} (hi : denoteLs st i = some xs) :
     st.derived i = ⟨levelsHash xs, levelsHaveParam xs⟩ := by
@@ -1129,7 +1129,7 @@ theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
 
 /-! ### The derived word is `ConLeche.Expr.data` of the denotation -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `data` computed
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `data` computed
 field, lines 329-374.  **Exactness** of the packed derived word: this is the
 lemma DESIGN §8.3 asks for, "so `derived st i = (denote st i).data` is an
 exactness lemma and every pure-side lemma that reads `data` transfers". -/
@@ -5594,11 +5594,11 @@ theorem EStore.internBind_cases (st : EStore) (tag : UInt32) (ty b : EIdx) :
     (st.internBind tag ty b).1 = st ∨
       (st.internBind tag ty b).1 =
         { st with scr := (st.scr.pushBind tag ⟨ty, b⟩
-            (st.derOfBindAt (if tag == ETag.lam then 19 else 23) ty b)
+            (st.derOfBindAt (if tag == ETag.lam then 29 else 31) ty b)
             Idx.tierS).1 } ∨
       (st.internBind tag ty b).1 =
         { st with pers := (st.pers.pushBind tag ⟨ty, b⟩
-            (st.derOfBindAt (if tag == ETag.lam then 19 else 23) ty b)
+            (st.derOfBindAt (if tag == ETag.lam then 29 else 31) ty b)
             Idx.tierP).1 } := by
   simp only [EStore.internBind]
   split

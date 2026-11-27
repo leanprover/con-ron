@@ -136,7 +136,7 @@ pub fn verdict_word(code: u8) -> &'static str {
 /// (`pool`'s module note), tens of MB.
 pub const JOBS_DEFAULT_CAP: u64 = 16;
 
-/// con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:302-521 runArgs
 /// The `--jobs` default, which con-leche reads in `run` off
 /// `System.Platform.Internal.getHardwareConcurrency` — "one worker per
 /// hardware thread", and one worker on a machine that reports none — capped

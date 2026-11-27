@@ -286,7 +286,7 @@ pub fn intern_names(pers: &PersTier, st: &mut AState, ns: &Vec<Name>) -> Result<
     Ok(out)
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:383-385 Args.rootConstants
+/// con-leche: ConLeche/Driver/Cli.lean:298-300 Args.rootConstants
 /// The constants to start from, interned: none where none is named (every
 /// constant of the closure).
 pub fn intern_consts(pers: &PersTier, st: &mut AState, cs: &Vec<Name>) -> Result<Option<Vec<NIdx>>, CheckError> {
@@ -404,7 +404,7 @@ pub fn embedded_pins<F: WorkerNotes>(fs: &F) -> Option<Vec<NatOpPinSet>> {
     }
 }
 
-/// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+/// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
 /// The worker count: `--jobs=<n>`, or the instance's hardware default.
 pub fn jobs_for_run<I: CheckerIo>(io: &mut I, a: &Args) -> u64 {
     match a.jobs {

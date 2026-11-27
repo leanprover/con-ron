@@ -153,7 +153,7 @@ def fail {α : Type} (e : CheckError) : AM α := throwThe CheckError e
 
 /-! ## The expression store's primitives -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — decode a handle.  A
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — decode a handle.  A
 dangling handle is an internal error: the checker never builds one, and the
 bridge claims nothing on failure. -/
 @[inline] def view (h : EIdx) : AM ENodeView := do
@@ -162,7 +162,7 @@ bridge claims nothing on failure. -/
   | some v => pure v
   | none => fail (.internal "arena: dangling expression handle")
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the packed derived
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the packed derived
 word of a handle (the `data` computed field, lines 329-374), read in `O(1)`
 off the derived column. -/
 @[inline] def derivedE (h : EIdx) : AM UInt64 := do
@@ -275,12 +275,12 @@ returns the field and nothing else, and the caller spells the decline with
 inventing thirteen messages (task #97-P6-10; `#[cold]` on the Rust side, which
 Charon does not read). -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `none` arm of
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `none` arm of
 `view`, spelled once. -/
 def failDanglingE {α : Type} : AM α :=
   fail (.internal "arena: dangling expression handle")
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:32-45 Level — the `none` arm of
+/-- con-leche: ConLeche/Kernel/Expr.lean:33-46 Level — the `none` arm of
 `viewLs`, spelled once. -/
 def failDanglingLs {α : Type} : AM α :=
   fail (.internal "arena: dangling level-list handle")
@@ -293,51 +293,51 @@ whole `ENodeView` and dispatch on the tag a second time.  Each projection is
 `EStore`'s own under a state read, and each answers `Option` rather than
 failing, so that the caller spells `view`'s decline itself. -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `app` projection. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `app` projection. -/
 @[inline] def viewApp (h : EIdx) : AM (Option (EIdx × EIdx)) := do
   let s ← get; pure (s.store.viewApp h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `bvar` projection. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `bvar` projection. -/
 @[inline] def viewBVar (h : EIdx) : AM (Option Nat) := do
   let s ← get; pure (s.store.viewBVar h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `sort` projection. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `sort` projection. -/
 @[inline] def viewSort (h : EIdx) : AM (Option LIdx) := do
   let s ← get; pure (s.store.viewSort h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `const` projection. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `const` projection. -/
 @[inline] def viewConst (h : EIdx) : AM (Option (NIdx × LsIdx)) := do
   let s ← get; pure (s.store.viewConst h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the head NAME of a
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the head NAME of a
 `const` node; the level arguments are left in the store. -/
 @[inline] def viewConstName (h : EIdx) : AM (Option NIdx) := do
   let s ← get; pure (s.store.viewConstName h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `fvar` index. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `fvar` index. -/
 @[inline] def viewFVarIdx (h : EIdx) : AM (Option Nat) := do
   let s ← get; pure (s.store.viewFVarIdx h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `fvar` binder
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `fvar` binder
 type. -/
 @[inline] def viewFVarTy (h : EIdx) : AM (Option EIdx) := do
   let s ← get; pure (s.store.viewFVarTy h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `lit` projection. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `lit` projection. -/
 @[inline] def viewLit (h : EIdx) : AM (Option ConLeche.Literal) := do
   let s ← get; pure (s.store.viewLit h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the binder
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the binder
 projection. -/
 @[inline] def viewBind (h : EIdx) : AM (Option (EIdx × EIdx)) := do
   let s ← get; pure (s.store.viewBind h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `letE`
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `letE`
 projection. -/
 @[inline] def viewLet (h : EIdx) : AM (Option (EIdx × EIdx × EIdx)) := do
   let s ← get; pure (s.store.viewLet h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — the `proj`
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `proj`
 projection. -/
 @[inline] def viewProj (h : EIdx) : AM (Option (NIdx × Nat × EIdx)) := do
   let s ← get; pure (s.store.viewProj h)
@@ -433,7 +433,7 @@ def internName : ConLeche.Name → AM NIdx
 
 /-! ## The level store's primitives -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:32-45 Level — decode a level
+/-- con-leche: ConLeche/Kernel/Expr.lean:33-46 Level — decode a level
 handle. -/
 @[inline] def viewL (h : LIdx) : AM LNodeView := do
   let s ← get
@@ -470,7 +470,7 @@ def readLevel (h : LIdx) : AM Level := do
   | some l => pure l
   | none => fail (.internal "arena: dangling level handle")
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:32-45 Level — intern a transient
+/-- con-leche: ConLeche/Kernel/Expr.lean:33-46 Level — intern a transient
 level tree.  Structural on `Level`, so no fuel. -/
 def internLevel : Level → AM LIdx
   | .zero => internLNode .zero
@@ -491,7 +491,7 @@ def internLevel : Level → AM LIdx
 
 /-! ## The level-list store's primitives -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:369-488 Expr — decode a
+/-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — decode a
 universe-argument list handle (the `const` node's second field, line 404). -/
 @[inline] def viewLs (h : LsIdx) : AM LsNodeView := do
   let s ← get
@@ -539,7 +539,7 @@ def internLevels (us : List Level) : AM LsIdx := do
   let hs ← internLevelList us
   internLsNode hs
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:32-45 Level — the LENGTH projection
+/-- con-leche: ConLeche/Kernel/Expr.lean:33-46 Level — the LENGTH projection
 of `viewLs` (task #97-P6-10): the callers that only compare a
 universe-argument list's length with a declaration's level-parameter count
 want this, and it reads the record's own length. -/

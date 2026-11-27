@@ -4379,6 +4379,7 @@ theorem der_of_proj_obs {pers} {rs : arena.store.EStore} {ls : EStore}
   obtain ⟨j4, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨j5, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨j6, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨j7, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨hh, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨i7, hi7, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨i8, hi8, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -4404,7 +4405,6 @@ theorem der_of_app_obs {pers} {rs : arena.store.EStore} {ls : EStore}
   obtain ⟨j1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨j2, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨j3, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨j4, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨hh, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨i4, hi4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨i5, hi5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -4572,6 +4572,7 @@ theorem der_of_fvar_obs {pers} {rs : arena.store.EStore} {ls : EStore}
   obtain ⟨i2, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨i3, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨i4, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨i4', -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨hh, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨i5, hi5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨bl, hbl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h

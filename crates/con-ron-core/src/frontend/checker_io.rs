@@ -182,10 +182,10 @@ pub trait CheckerIo: CheckerFs + WorkerNotes + Sized + Sync {
     /// `CodesSound` (`proof/ConRon/MainTheorem/Driver.lean`): each answer is the
     /// step's at its position.
     fn par_map_codes<St: CodeStep<Self> + Sync>(&mut self, st: &St, n: usize, threads: usize) -> Result<Vec<u8>, Vec<u32>>;
-    /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+    /// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
     /// `--help`: the help text on stdout; the exit code (3 when the write fails).
     fn print_help(&mut self) -> u8;
-    /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+    /// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
     /// con-leche: ConLeche/Driver/Schedule.lean:56-111 scheduleG
     /// **`--olean --schedule`** (con-leche's `liftIO`): the scheduler's run of
     /// `root`'s closure, one worker process per module, a compared run's
@@ -193,7 +193,7 @@ pub trait CheckerIo: CheckerFs + WorkerNotes + Sized + Sync {
     /// checks; the settings (`a.schedule`, `a.worker_stack`) are the scheduler's
     /// to read.
     fn run_schedule(&mut self, a: &Args, root: &Name, sol: Option<&Name>) -> u8;
-    /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+    /// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
     /// The `--jobs` default: one worker per hardware thread, capped
     /// (`System.Platform.Internal.getHardwareConcurrency`).
     fn hardware_jobs(&mut self) -> u64;
@@ -204,7 +204,7 @@ pub trait CheckerIo: CheckerFs + WorkerNotes + Sized + Sync {
     /// what a compared run builds besides its store: the solution's records, the
     /// challenge's as prepared, and the solution.
     fn keep_solution(&mut self, ds_s: Vec<IDeclaration>, ds_c: Vec<IDeclaration>, sol: Solution);
-    /// con-leche: ConLeche/Driver/Cli.lean:409-608 runArgs
+    /// con-leche: ConLeche/Driver/Cli.lean:324-523 runArgs
     /// A usage error's two lines.
     fn usage(&self, b: &Bad);
     /// con-leche: ConLeche/Driver/CheckMain.lean:70-75 diagLine
