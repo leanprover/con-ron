@@ -133,7 +133,7 @@ structure ron.nat.Nat where
   limbs : alloc.vec.Vec Std.U64
 
 /-- [con_ron_core::kernel::expr::Literal]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 112:0-115:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 113:0-116:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.expr.Literal where
@@ -143,7 +143,7 @@ inductive kernel.expr.Literal where
 mutual
 
 /-- [con_ron_core::kernel::expr::ExprKind]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 306:0-317:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 315:0-326:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.expr.ExprKind where
@@ -170,13 +170,13 @@ inductive kernel.expr.ExprKind where
   kernel.expr.ExprKind
 
 /-- [con_ron_core::kernel::expr::ExprNode]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 323:0-326:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 332:0-335:1
     Visibility: public -/
 inductive kernel.expr.ExprNode where
 | mk : Std.U64 → kernel.expr.ExprKind → kernel.expr.ExprNode
 
 /-- [con_ron_core::kernel::expr::Expr]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 351:0-351:33
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 360:0-360:33
     Visibility: public -/
 inductive kernel.expr.Expr where
 | mk : alloc.sync.Arc kernel.expr.ExprNode → kernel.expr.Expr
@@ -863,7 +863,7 @@ structure ron.hashmap.HashMap (K : Type _) (V : Type _) where
   slots : alloc.vec.Vec (ron.hashmap.AList K V)
 
 /-- [con_ron_core::kernel::expr::ExprView]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 362:0-373:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 371:0-382:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.expr.ExprView where

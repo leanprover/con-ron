@@ -897,19 +897,19 @@ def installBasisDecl (fe : IFEnv) (ci : IConstantInfo) : AM IFEnv := do
   pure (fe.push ci)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:463-476 checkQuotRecord
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove DeclCheck.checkQuotRecord_bridge, then delete this line
 con-leche: ConLeche/Cached/ParsedC.lean:96-104 checkQuotRecordC
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove DeclCheck.checkQuotRecord_bridge, then delete this line
 **A quotient record's check and install**: compared with its slot's pin, the
-slots it needs stored, and installed at its own names.  A record that does not
-match is a quotient this checker positively does not support. -/
+slots it needs stored, and installed at its own names.  A `quot` record that
+does not match its pin, or comes before the slots it needs, is rejected; a
+`Quot.sound` that does not match is declined (official accepts the soundness
+axiom, an ordinary `axiom`, at any type). -/
 def checkQuotRecord (fe : IFEnv) (k : QuotKind) (cv : IConstantVal) : AM IFEnv := do
   unless ← quotPinHit k cv do
-    fail (.notImplemented (match k with
-      | .sound => "quotient soundness axiom mismatch"
-      | _ => "quotient declaration mismatch"))
+    fail (match k with
+      | .sound => .notImplemented "quotient soundness axiom mismatch"
+      | _ => .invalid "quotient declaration mismatch")
   unless ← quotPredsOk fe k do
-    fail (.notImplemented "quotient declaration before what it needs")
+    fail (.invalid "quotient declaration before what it needs")
   installBasisDecl fe (← quotAt k cv)
 
 end ConRon.Arena

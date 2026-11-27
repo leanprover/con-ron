@@ -1130,7 +1130,6 @@ theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
 /-! ### The derived word is `ConLeche.Expr.data` of the denotation -/
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:376-504 Expr — the `data` computed
--- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove WFProofs.EStore.derived_exact_at_bridge, then delete this line
 field, lines 329-374.  **Exactness** of the packed derived word: this is the
 lemma DESIGN §8.3 asks for, "so `derived st i = (denote st i).data` is an
 exactness lemma and every pure-side lemma that reads `data` transfers". -/
@@ -5595,11 +5594,11 @@ theorem EStore.internBind_cases (st : EStore) (tag : UInt32) (ty b : EIdx) :
     (st.internBind tag ty b).1 = st ∨
       (st.internBind tag ty b).1 =
         { st with scr := (st.scr.pushBind tag ⟨ty, b⟩
-            (st.derOfBindAt (if tag == ETag.lam then 19 else 23) ty b)
+            (st.derOfBindAt (if tag == ETag.lam then 29 else 31) ty b)
             Idx.tierS).1 } ∨
       (st.internBind tag ty b).1 =
         { st with pers := (st.pers.pushBind tag ⟨ty, b⟩
-            (st.derOfBindAt (if tag == ETag.lam then 19 else 23) ty b)
+            (st.derOfBindAt (if tag == ETag.lam then 29 else 31) ty b)
             Idx.tierP).1 } := by
   simp only [EStore.internBind]
   split
