@@ -3178,8 +3178,10 @@ pub fn install_basis_decl(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:463-474 checkQuotRecord
+/// con-leche: ConLeche/Kernel/Checker.lean:463-476 checkQuotRecord
+/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove decl_check::check_quot_record_refines, then delete this line
 /// con-leche: ConLeche/Cached/ParsedC.lean:96-104 checkQuotRecordC
+/// con-leche: CHANGED since bc667610 — re-port, re-test, re-prove decl_check::check_quot_record_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:899-911 checkQuotRecord` — **a quotient
 /// record's check and install**: compared with its slot's pin, the slots it
 /// needs stored, and installed at its own names.  A record that does not match

@@ -32,7 +32,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-/// con-leche: ConLeche/Driver/Schedule/Worker.lean:131-137 signalName
+/// con-leche: ConLeche/Driver/Schedule/Worker.lean:132-138 signalName
 /// The usual signals' names.
 fn signal_name(n: i32) -> Option<&'static str> {
     match n {
@@ -66,7 +66,7 @@ fn exit_signal(_st: &std::process::ExitStatus) -> Option<i32> {
     None
 }
 
-/// con-leche: ConLeche/Driver/Schedule/Worker.lean:139-152 exitVerdict
+/// con-leche: ConLeche/Driver/Schedule/Worker.lean:140-153 exitVerdict
 /// **A worker's verdict** from how it ended and its stderr `diag`: `0` to `3` as
 /// they are, `exit N` for another code; ended by a signal, `stack` (SIGABRT and
 /// a stack overflow's message: Lean's, or Rust's), else `signal N (NAME)`.  No
@@ -89,14 +89,14 @@ pub fn exit_verdict(st: &std::process::ExitStatus, diag: &str) -> String {
     }
 }
 
-/// con-leche: ConLeche/Driver/Schedule/Worker.lean:219-222 passedOn
+/// con-leche: ConLeche/Driver/Schedule/Worker.lean:220-223 passedOn
 /// The lines of a worker's stderr worth passing on: all but the empty ones and
 /// its statistics.
 fn passed_on(msg: &str) -> Vec<&str> {
     msg.lines().filter(|l| !l.is_empty() && !l.contains(": stats:")).collect()
 }
 
-/// con-leche: ConLeche/Driver/Schedule/Worker.lean:224-230 stackHint
+/// con-leche: ConLeche/Driver/Schedule/Worker.lean:225-231 stackHint
 /// The hint after a `stack` verdict: the stack size the worker ran at.
 fn stack_hint(m: &str, stack_kb: Option<u64>) -> String {
     let now = match stack_kb {

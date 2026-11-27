@@ -432,7 +432,8 @@ def checkMainOlean (sp : List System.FilePath) (roots : Array Name) (constants :
     IO.eprintln s!"con-ron-lean: {e.message} ({modeTag}) t={msSecs (now - t0)}s"
     return e.exitCode
 
-/-- con-leche: ConLeche/Driver/Cli.lean:116-132 synopsis
+/-- con-leche: ConLeche/Driver/Cli.lean:116-122 synopsis
+-- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove Main.synopsis_bridge, then delete this line
 The invocation forms, printed on their own when there are no arguments.  Of `--schedule` only
 `--schedule-commands` is run here (`helpText`). -/
 def synopsis : String := String.intercalate "\n" [
@@ -452,11 +453,12 @@ def synopsis : String := String.intercalate "\n" [
   "               --compare [--trusted-search-path=DIRS] --search-path=DIRS",
   "               [--] CHALLENGE SOLUTION"]
 
-/-- con-leche: ConLeche/Driver/Cli.lean:134-135 tryHelp
+/-- con-leche: ConLeche/Driver/Cli.lean:124-125 tryHelp
 The line after a usage error. -/
 def tryHelp : String := "Try 'con-ron-lean --help' for more information."
 
-/-- con-leche: ConLeche/Driver/Cli.lean:137-260 helpText
+/-- con-leche: ConLeche/Driver/Cli.lean:127-175 helpText
+-- con-leche: CHANGED since bc667610 — re-port, re-test, re-prove Main.helpText_bridge, then delete this line
 The `--help` text: con-leche's, with this binary's name and con-ron's documentation; con-leche's options of the modes this binary does
 not run are listed by name, as usage errors (`unsupported`).  `--jobs` is accepted and validated,
 and this binary checks on one worker whatever it says. -/
@@ -519,7 +521,7 @@ def helpText : String := String.intercalate "\n" [
   "Documentation:",
   "  README.md and OVERVIEW.md of the con-ron repository"]
 
-/-- con-leche: ConLeche/Driver/Cli.lean:262-303 Args
+/-- con-leche: ConLeche/Driver/Cli.lean:177-218 Args
 The parsed command line.  `progress = .off` is "no flag given"; `jobs = none`
 is "no flag given", one worker per hardware thread. -/
 structure Args where
@@ -558,7 +560,7 @@ structure Args where
   files : Array String := #[]
   bad : Option String := none
 
-/-- con-leche: ConLeche/Driver/Cli.lean:319-324 Args.closed
+/-- con-leche: ConLeche/Driver/Cli.lean:234-239 Args.closed
 The arguments once all are read: `--worker-stack-size` without `--schedule` is a usage error
 (no other run starts a worker). -/
 def Args.closed (a : Args) : Args :=
@@ -566,7 +568,7 @@ def Args.closed (a : Args) : Args :=
     { a with bad := some "--worker-stack-size takes --schedule" }
   else a
 
-/-- con-leche: ConLeche/Driver/Schedule/Worker.lean:81-93 parseSize
+/-- con-leche: ConLeche/Driver/Schedule/Worker.lean:82-94 parseSize
 Whether `v` is a `--worker-stack-size=` value the cited `parseArgs` takes: a POSITIVE size
 with a unit, `K`, `M`, `G` or `T` (either case).  The size itself is a `--schedule` worker's,
 which this binary does not run, so it is not kept. -/
@@ -578,7 +580,7 @@ def sizePositive (v : String) : Bool :=
   | true, some (_ + 1) => true
   | _, _ => false
 
-/-- con-leche: ConLeche/Driver/Cli.lean:326-377 parseArgs
+/-- con-leche: ConLeche/Driver/Cli.lean:241-292 parseArgs
 The argument parse, clause for clause: the mode flags in either order with
 the heartbeat, `=`-carrying spellings after the bare ones, an unknown
 `-`-leading word a usage error, everything else a file. -/
@@ -632,7 +634,7 @@ def parseArgs : List String → Args → Args
       { a with bad := some s!"unknown option {Display.str s}" }
     else parseArgs rest { a with files := a.files.push s }
 
-/-- con-leche: ConLeche/Driver/Cli.lean:305-308 helpWanted
+/-- con-leche: ConLeche/Driver/Cli.lean:220-223 helpWanted
 `--help` before any `--`: after a `--` every argument is a file, whatever it is
 called. -/
 def helpWanted (args : List String) : Bool :=
@@ -1155,7 +1157,7 @@ def modularMain (a : Args) (root : Name) (cmp : Option Name) (all : Bool) : IO U
         the graph's order: {m} ({modeTag})"
       return c
 
-/-- con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
+/-- con-leche: ConLeche/Driver/Cli.lean:302-521 runArgs
 `--check-graph`'s usage checks, con-leche's in its order, then the graph check
 (`graphPipeline`). -/
 def checkGraphUsage (a : Args) : IO UInt8 := do
@@ -1179,7 +1181,7 @@ def checkGraphUsage (a : Args) : IO UInt8 := do
     Frontend.Olean.parseModName).toList none).run (AState.init EStore.empty) |>.map (·.1))
 
 /-- con-leche: Main.lean:56-103 main
-con-leche: ConLeche/Driver/Cli.lean:387-606 runArgs
+con-leche: ConLeche/Driver/Cli.lean:302-521 runArgs
 `--help` before any `--` prints the help on stdout and exits 0, reading
 nothing.  A bad flag prints its message and a pointer to `--help` on stderr
 and exits 3; no arguments prints the invocation forms and the pointer; more than
