@@ -2065,7 +2065,7 @@ impl LStore {
         self.scr.reset();
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1458-1463 LStore.internName
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1457-1462 LStore.internName
     /// Intern a name from the level store.  The Lean detaches the nested store
     /// before handing it down (lesson 14); `&mut` is that, so the Rust is the
     /// delegation the detaching exists to make safe.
@@ -2391,12 +2391,12 @@ impl LsStore {
         self.scr.reset();
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1465-1471 LsStore.internName
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1464-1470 LsStore.internName
     pub fn intern_name(&mut self, pers: &PersTier, v: NNodeView) -> Result<NIdx, CheckError> {
         self.ls.intern_name(pers, v)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1473-1479 LsStore.internLevel
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1472-1478 LsStore.internLevel
     pub fn intern_level(&mut self, pers: &PersTier, v: LNodeView) -> Result<LIdx, CheckError> {
         self.ls.intern(pers, v)
     }
@@ -2883,7 +2883,7 @@ pub fn e_bind_view(tag: u32, ty: EIdx, body: EIdx) -> ENodeView {
 }
 
 /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
-/// `proof/ConRon/Arena/Store.lean:1292-1312 EStore.eViewHasScratchChild` —
+/// `proof/ConRon/Arena/Store.lean:1291-1311 EStore.eViewHasScratchChild` —
 /// **a tier test on the children, not a decode**: is a child scratch?
 ///
 /// A persistent node's children are persistent.  That is not an accident of
@@ -4262,19 +4262,19 @@ impl EStore {
         self.scr.reset();
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1481-1486 EStore.internName
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1480-1485 EStore.internName
     /// Intern a name from the expression store.
     pub fn intern_name(&mut self, pers: &PersTier, v: NNodeView) -> Result<NIdx, CheckError> {
         self.lss.intern_name(pers, v)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1488-1493 EStore.internLevel
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1487-1492 EStore.internLevel
     /// Intern a level from the expression store.
     pub fn intern_level(&mut self, pers: &PersTier, v: LNodeView) -> Result<LIdx, CheckError> {
         self.lss.intern_level(pers, v)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1495-1502 EStore.internLevels
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1494-1501 EStore.internLevels
     /// Intern a universe-argument list from the expression store.
     pub fn intern_levels(&mut self, pers: &PersTier, v: LsNodeView) -> Result<LsIdx, CheckError> {
         self.lss.intern(pers, v)

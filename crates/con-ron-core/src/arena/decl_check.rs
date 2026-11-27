@@ -3180,7 +3180,7 @@ pub fn install_basis_decl(
 
 /// con-leche: ConLeche/Kernel/Checker.lean:463-476 checkQuotRecord
 /// con-leche: ConLeche/Cached/ParsedC.lean:96-104 checkQuotRecordC
-/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:899-911 checkQuotRecord` — **a quotient
+/// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:899-913 checkQuotRecord` — **a quotient
 /// record's check and install**: compared with its slot's pin, the slots it
 /// needs stored, and installed at its own names.  A `quot` record that does
 /// not match its pin, or comes before the slots it needs, is rejected; a
