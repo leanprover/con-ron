@@ -259,7 +259,7 @@ theorem fvar_inv {idx : Std.U64} {ty e : expr.Expr} (h : expr.fvar idx ty = ok e
       fvarBits e = min (idx.val + 1) ConLeche.satRange ∧ lpBit e = lpBit ty := by
   rw [expr.fvar.eq_def] at h
   simp only [bind_eq_ok_iff, ptr_new_eq, data_eq, Result.ok.injEq] at h
-  obtain ⟨dt, hdt, _, -, _, -, _, -, _, -, _, -, i4, hi4, bb, hbb, d, hd, _, hnd, he⟩ := h
+  obtain ⟨dt, hdt, _, -, _, -, _, -, _, -, _, -, _, -, i4, hi4, bb, hbb, d, hd, _, hnd, he⟩ := h
   subst hdt; subst hnd; subst he
   have hs := sat_succ_val hi4
   have hlt : i4.val < 32768 := by simp only [ConLeche.satRange] at hs; omega
@@ -294,7 +294,7 @@ theorem app_inv {f a e : expr.Expr} (h : expr.app f a = ok e) :
       lpBit e = (lpBit f || lpBit a) := by
   rw [expr.app.eq_def] at h
   simp only [bind_eq_ok_iff, ptr_new_eq, data_eq, Result.ok.injEq] at h
-  obtain ⟨df, hdf, da, hda, _, -, _, -, _, -, _, -, _, -,
+  obtain ⟨df, hdf, da, hda, _, -, _, -, _, -, _, -,
     i4, hi4, i5, hi5, i6, hi6, i7, hi7, i8, hi8, i9, hi9, bb, hbb, b1, hb1, d, hd,
     _, hnd, he⟩ := h
   subst hdf; subst hda; subst hnd; subst he
@@ -481,7 +481,7 @@ theorem proj_inv {s : name.Name} {idx : Std.U64} {x e : expr.Expr}
       fvarBits e = fvarBits x ∧ lpBit e = lpBit x := by
   rw [expr.proj.eq_def] at h
   simp only [bind_eq_ok_iff, ptr_new_eq, data_eq, Result.ok.injEq] at h
-  obtain ⟨de, hde, _, -, _, -, _, -, _, -, _, -, _, -, _, -,
+  obtain ⟨de, hde, _, -, _, -, _, -, _, -, _, -, _, -, _, -, _, -,
     i6, hi6, i7, hi7, bt, hbt, d, hd, _, hnd, he⟩ := h
   subst hde; subst hnd; subst he
   have e6 : i6.val = bvarBits x := bvar_bits_val hi6
